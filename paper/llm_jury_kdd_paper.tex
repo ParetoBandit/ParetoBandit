@@ -1,0 +1,965 @@
+%% KDD 2025 Applied Research Track Paper
+%% LLM Jury: Multi-Objective Optimization for Cost-Effective LLM Selection
+%% Draft version - switch to acmart for final submission
+
+\documentclass[11pt,a4paper]{article}
+
+%% Packages
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{authblk}
+
+%% Title
+\title{LLM Jury: Multi-Objective Optimization for\\Cost-Effective Language Model Selection}
+
+%% Authors
+\author{[Author Names Redacted for Review]}
+\affil{[Institution Redacted], [City], [Country]}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+The proliferation of large language models (LLMs) presents practitioners with a paradox of choice: dozens of commercial and open-source models compete across multiple capability dimensions including quality, cost, latency, and reliability. Existing model selection approaches either require extensive labeled data for training routing classifiers, or rely on single-objective rankings that ignore critical trade-offs. This paper introduces \textbf{LLM Jury}, an open-source framework for multi-objective LLM selection that requires \textit{zero labeled data}---practitioners simply specify business constraints (cost budgets, quality thresholds, latency requirements) and receive optimal model recommendations. We present four technical contributions: (1) a \textbf{Hybrid Pareto-Chebyshev optimization} framework that uses 5-dimensional Chebyshev scalarization with Pareto dominance as an explicit objective; (2) \textbf{task-specific quality scoring} with percentile normalization and logarithmic scaling that prevents score saturation among elite models; (3) \textbf{target-driven model selection} that eliminates the need for labeled training data by optimizing directly against user-specified business targets; and (4) \textbf{use-case-aware constraint configuration} supporting 30+ use cases with automatic benchmark weighting and threshold selection. Our evaluation on 46 current-generation models demonstrates cost savings of 60-96\% while retaining 80-95\% of frontier model quality across coding, data science, creative writing, and general knowledge tasks. LLM Jury is released as production-ready open-source software.
+\end{abstract}
+
+\noindent\textbf{Keywords:} Large Language Models, Multi-Objective Optimization, Model Selection, Cost Optimization, Pareto Frontier
+
+\vspace{1em}
+
+%% ===========================================================================
+%% 1. INTRODUCTION
+%% ===========================================================================
+
+\section{Introduction}
+
+The large language model (LLM) ecosystem has experienced explosive growth, with dozens of distinct models now available through commercial APIs and open-source deployments \cite{artificialanalysis2024, openrouter2024}. This abundance presents a significant challenge for practitioners: \textit{how do we select the right model for a given task?} The answer is rarely straightforward---models vary dramatically in quality benchmarks, pricing structures, latency characteristics, and reliability metrics.
+
+Consider a practitioner building a customer support chatbot. Should they use GPT-4o for maximum quality at \$2.50 per million input tokens, or Llama-3.1-8B at \$0.055/M for cost efficiency? What if Claude 3.5 Sonnet offers 95\% of GPT-4o's quality at 60\% of the cost? These trade-offs are not merely academic; at enterprise scale with millions of API calls monthly, model selection directly impacts both user experience and operational costs by orders of magnitude.
+
+Current approaches to model selection suffer from four key limitations:
+\begin{enumerate}
+    \item \textbf{Single-objective thinking}: Most practitioners select models based on leaderboard rankings (quality-only) or budget constraints (cost-only), ignoring the rich multi-objective trade-off landscape.
+    \item \textbf{Task-agnostic evaluation}: Generic benchmark averages obscure significant quality variations across task types---a model excellent at coding may underperform at creative writing.
+    \item \textbf{Missing practical metrics}: Academic benchmarks exclude critical production considerations like latency, hallucination rates, and API reliability.
+    \item \textbf{One-size-fits-all recommendations}: Existing routing systems provide fixed recommendations without allowing practitioners to customize trade-off preferences for their specific use cases.
+\end{enumerate}
+
+This paper presents \textbf{LLM Jury}, an open-source framework for intelligent LLM selection that addresses these limitations through multi-objective optimization. Our key contributions are:
+
+\begin{enumerate}
+    \item \textbf{Hybrid Pareto-Chebyshev Optimization}: A 5-dimensional optimization framework combining Chebyshev scalarization with Pareto dominance as an explicit objective, identifying models with optimal balance across quality, cost, latency, trustability, and Pareto efficiency (Section~\ref{sec:optimization}).
+    
+    \item \textbf{Task-Specific Quality Scoring}: A percentile-normalized scoring system with logarithmic scaling that (a) weights 12 benchmarks appropriately for each of four task categories, and (b) prevents score saturation where elite models would otherwise cluster at identical scores (Section~\ref{sec:scoring}).
+    
+    \item \textbf{Target-Driven Model Selection}: A paradigm shift from data-driven routing---practitioners specify business targets (cost $\leq$ \$0.50/M, quality $\geq$ 85\%, latency $\leq$ 300ms) rather than collecting labeled training data, enabling immediate deployment without a data collection phase (Section~\ref{sec:target_driven}).
+    
+    \item \textbf{Comprehensive Empirical Evaluation}: Analysis of 46 current-generation models demonstrating 60-96\% cost savings while retaining 80-95\% of frontier quality, with detailed breakdowns by task category and license type (Section~\ref{sec:evaluation}).
+\end{enumerate}
+
+Our evaluation on 46 current-generation models---including frontier proprietary systems (GPT-5.1, Claude Opus 4.5, Gemini 3 Pro), reasoning specialists (o3, DeepSeek R1), and open-source alternatives (Llama 4, Qwen3, Gemma 3)---demonstrates that LLM Jury consistently identifies ``value models'' achieving 80-95\% of frontier quality at 60-96\% cost savings across coding, data science, creative writing, and general knowledge tasks.
+
+
+%% ===========================================================================
+%% 2. BACKGROUND AND RELATED WORK
+%% ===========================================================================
+
+\section{Background and Related Work}
+
+\subsection{The LLM Selection Problem}
+
+The task of selecting an appropriate LLM for a given application has emerged as a distinct research challenge with practical significance. We formalize this as a multi-objective optimization problem:
+
+\begin{equation}
+\min_{m \in \mathcal{M}} \left[ f_1(m), f_2(m), \ldots, f_k(m) \right]
+\end{equation}
+
+where $\mathcal{M}$ is the set of available models and $f_i$ are objective functions (quality, cost, latency, etc.). The objectives are typically conflicting---higher quality models command higher prices---necessitating trade-off analysis rather than simple optimization.
+
+\subsection{Existing Approaches to Model Routing}
+
+\textbf{Commercial routing services.} Several commercial platforms offer model routing capabilities. OpenRouter \cite{openrouter2024} provides a unified API across 100+ models with basic cost-based routing. Martian \cite{martian2024} uses learned classifiers to route queries based on predicted task complexity. Unify AI \cite{unify2024} offers endpoint routing with latency optimization. Not Diamond \cite{notdiamond2024} provides intelligent per-query routing using a learned ``meta-model'' that determines the optimal LLM for each query, supporting custom router training with user-provided evaluation data and configurable cost-latency trade-offs. While these commercial services offer powerful capabilities, they operate as hosted black boxes without published methodologies, requiring API calls to external services and trust in proprietary routing decisions. LLM Jury, by contrast, is fully open-source, runs locally, and provides complete transparency into how recommendations are generated.
+
+\textbf{Cascade and mixture approaches.} FrugalGPT \cite{chen2023frugalgpt} proposes a cascading strategy where queries are first sent to cheaper models, escalating to expensive models only when confidence is low. The approach requires collecting responses from multiple models on representative queries to train a confidence predictor that learns when cheap models are ``good enough.'' RouteLLM \cite{routellm2024} trains router models on human preference data from Chatbot Arena to predict which of two models (strong vs. weak) should handle each query, computing a ``strong model win rate'' for routing decisions.
+
+Table~\ref{tab:approach_comparison} compares these approaches with LLM Jury across key dimensions.
+
+\begin{table}[h]
+\centering
+\caption{Comparison of LLM model selection approaches}
+\label{tab:approach_comparison}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Dimension} & \textbf{FrugalGPT} & \textbf{RouteLLM} & \textbf{Not Diamond} & \textbf{LLM Jury} \\
+\midrule
+Labeled data required & Yes & Yes & Optional$^\dagger$ & \textbf{No} \\
+Training phase needed & Yes & Yes & Yes$^\dagger$ & \textbf{No} \\
+Routing granularity & Per-query & Per-query & Per-query & \textbf{Both}$^\ddagger$ \\
+Business constraints & No & No & Cost/latency & \textbf{5 dimensions} \\
+Model selection & Binary cascade & Binary (S/W) & Multi-model & \textbf{Multi-model} \\
+Open source & Yes & Yes & No (SaaS) & \textbf{Yes} \\
+Interpretability & Limited & Limited & Limited & \textbf{Full} \\
+Task-specific scoring & No & No & Unknown & \textbf{Yes} \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize $^\dagger$Not Diamond supports custom router training with user evaluation data.}\\
+\multicolumn{5}{l}{\footnotesize $^\ddagger$LLM Jury supports both per-query routing (via prompt classification) and strategic selection with business targets.}
+\end{tabular}
+\end{table}
+
+\textbf{The labeled data requirement.} A critical limitation shared by learned routing approaches is their dependence on labeled training data. FrugalGPT requires confidence scores from multiple models on representative queries; RouteLLM needs human preference labels indicating which model performs better. Collecting such data is expensive, domain-specific, and requires ongoing maintenance as models evolve. When new models are released (which occurs monthly in the current LLM landscape), learned routers must be retrained on updated preference data. Furthermore, trained routers may generalize poorly to out-of-distribution queries or novel task types not represented in the training set.
+
+\textbf{Target-driven selection with per-query awareness.} LLM Jury takes a fundamentally different approach that combines per-query routing with business strategy. The prompt classifier identifies the use case (e.g., code generation, RAG pipeline, creative writing) from the query, which determines task-specific benchmark weights and constraint thresholds. Practitioners then specify \textit{business targets} (quality thresholds, cost budgets, latency requirements), and the optimizer identifies models satisfying these constraints for that specific use case. This architecture provides the best of both worlds: per-query task awareness without requiring labeled training data, combined with configurable business constraints that apply across all queries. The result is full interpretability---practitioners can see exactly which dimension (cost, latency, quality, trust) is the ``bottleneck'' for each model recommendation.
+
+\textbf{Academic benchmarks and leaderboards.} HELM \cite{liang2022holistic}, Open LLM Leaderboard \cite{huggingface2023}, and Chatbot Arena \cite{zheng2023judging} provide comprehensive quality evaluations but do not incorporate cost, latency, or offer model selection guidance. Practitioners must manually translate benchmark scores into selection decisions.
+
+\subsection{Multi-Objective Optimization in ML}
+
+Multi-objective optimization (MOO) has rich foundations in operations research \cite{miettinen1999nonlinear} and has been applied to various ML problems including neural architecture search \cite{elsken2019neural} and hyperparameter tuning \cite{karl2022multi}. Key concepts relevant to our work include:
+
+\textbf{Pareto optimality.} A solution $m^*$ is Pareto optimal if no other solution dominates it across all objectives. The Pareto frontier comprises all non-dominated solutions, representing the ``best possible'' trade-offs.
+
+\textbf{Scalarization methods.} These convert multi-objective problems into single-objective ones via weighted combinations. The weighted sum method $\sum_i w_i f_i(m)$ is intuitive but cannot find solutions in non-convex regions of the Pareto frontier \cite{das1997closer}.
+
+\textbf{Chebyshev scalarization.} Addresses the convexity limitation by minimizing the maximum weighted deviation from a utopia point:
+\begin{equation}
+\min_{m} \max_{i} \left\{ w_i \cdot |f_i(m) - f_i^*| \right\}
+\end{equation}
+where $f_i^*$ is the ideal (utopia) value for objective $i$. This can find all Pareto-optimal solutions regardless of frontier convexity \cite{bowman1976relationship}.
+
+\textbf{Knee point detection.} The ``knee'' of the Pareto frontier represents points of maximum curvature---beyond which further improvement in one objective requires disproportionately large sacrifices in others. This corresponds to the intuitive notion of ``best bang for buck'' \cite{branke2004finding}.
+
+\subsection{Cognitive Basis for Value-Based Selection}
+
+Our approach is motivated by how humans naturally make cost-quality trade-offs. Behavioral economics research on \textit{reference-dependent preferences} \cite{kahneman1979prospect} shows that people evaluate options relative to reference points rather than in absolute terms. In LLM selection, practitioners implicitly ask: ``How much quality am I giving up relative to the best model, and how much am I saving?''
+
+This framing aligns with our Chebyshev optimization: rather than maximizing a weighted sum of utilities, we minimize the maximum \textit{regret}---the distance from ideal performance on any single dimension. This prevents selecting models that excel in one dimension while failing catastrophically in another.
+
+%% ===========================================================================
+%% 3. SYSTEM ARCHITECTURE
+%% ===========================================================================
+
+\section{System Architecture}
+
+LLM Jury consists of four integrated components: (1) data collection and ETL pipeline, (2) task-specific quality scoring, (3) multi-objective optimization, and (4) prompt classification with routing. Figure~\ref{fig:architecture} illustrates the system architecture.
+
+\textbf{Design Principle: Configurability.} A core design goal is that every parameter should be configurable. While LLM Jury provides empirically-validated defaults, practitioners can override objective weights, constraint bounds, baseline models, benchmark weightings, and even register custom objectives. This enables (a) adaptation to domain-specific requirements, and (b) systematic A/B experimentation to discover optimal configurations for specific use cases.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/architecture.png}
+\caption{LLM Jury system architecture. External data sources (Artificial Analysis, Vectara, OpenRouter) feed into the Model Registry. User requests (prompt + constraints) are processed through the Prompt Classifier, Quality Scorer, and Optimizer to produce ranked model recommendations.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Pre-Packaged Model Data}
+
+LLM Jury ships with a curated model cache containing benchmark data, pricing, and performance metrics for 46 models. This cache was compiled from multiple authoritative sources:
+
+\textbf{Artificial Analysis} \cite{artificialanalysis2024}: Provides standardized benchmark scores across 12 dimensions (intelligence index, coding index, math index, MMLU-Pro, GPQA, HLE, LiveCodeBench, SciCode, MATH-500, AIME), pricing information, and throughput metrics.
+
+\textbf{Vectara Hallucination Leaderboard} \cite{vectara2024}: Supplies hallucination rates and factual consistency scores derived from summarization tasks, enabling trust-based model selection.
+
+\textbf{Live Latency Measurements}: Time-To-First-Token (TTFT) measured via streaming API calls to OpenRouter, averaging multiple samples per model to capture real-world latency characteristics.
+
+Table~\ref{tab:data_sources} summarizes these data sources and their contributions.
+
+\begin{table}[h]
+\centering
+\caption{Data sources used to compile the pre-packaged model cache}
+\label{tab:data_sources}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Source} & \textbf{Metrics} & \textbf{Models} \\
+\midrule
+Artificial Analysis & Quality indices, pricing & 46 \\
+Vectara & Hallucination, consistency & 30+ \\
+OpenRouter (live) & TTFT latency & 40+ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Important:} The current release of LLM Jury does not include functionality to automatically update the model cache from these external sources. Users requiring updated model information must obtain new data separately and configure the library to use their custom cache file via the \texttt{cache\_path} parameter. Future releases of LLM Jury will include updated model data to reflect the evolving LLM landscape.
+
+\subsection{Task-Specific Quality Scoring}
+\label{sec:scoring}
+
+A critical insight motivating our design is that ``quality'' is not monolithic---a model's effectiveness varies significantly by task type. We implement task-specific scoring with the following components:
+
+\subsubsection{Benchmark Weighting}
+
+For each task category, we define benchmark weights reflecting the relative importance of different capabilities:
+
+\begin{table}[h]
+\centering
+\caption{Benchmark weights by task category (top 4 benchmarks shown)}
+\label{tab:weights}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Benchmark} & \textbf{Coding} & \textbf{Data Sci} & \textbf{Creative} & \textbf{General} \\
+\midrule
+coding\_index & 35\% & 18\% & 2\% & 12\% \\
+math\_index & 10\% & 30\% & 0\% & 10\% \\
+intelligence & 8\% & 12\% & 40\% & 25\% \\
+trust\_score & 0\% & 0\% & 8\% & 18\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Non-Saturating Normalization}
+
+Naive score aggregation causes saturation: elite models cluster at near-identical scores (e.g., 95-97), providing no differentiation. We address this through percentile-based normalization with logarithmic scaling at extremes:
+
+\begin{equation}
+s_{norm}(v) = \begin{cases}
+0.95 + \frac{\log(1 + v - p_{95})}{\log(1 + v_{max} - p_{95})} \cdot 0.05 & v \geq p_{95} \\
+\text{linear interpolation} & p_{50} \leq v < p_{95} \\
+0.5 \cdot \frac{v - v_{min}}{p_{50} - v_{min}} & v < p_{50}
+\end{cases}
+\end{equation}
+
+where $p_k$ denotes the $k$-th percentile of the benchmark across all models.
+
+\subsubsection{Final Score Transformation}
+
+The composite score undergoes a power-law transformation to prevent clustering:
+
+\begin{equation}
+Q(m) = \begin{cases}
+50 \cdot \frac{\log(1 + 2c)}{\log(2)} & c < 0.5 \\
+50 + 50 \cdot (2(c - 0.5))^{1.5} & c \geq 0.5
+\end{cases}
+\end{equation}
+
+where $c$ is the weighted composite and $Q(m)$ is the final quality score (0-100). This ensures only 5-8\% of models score $\geq 90$, compared to 30-40\% with naive approaches.
+
+%% ===========================================================================
+%% 4. MULTI-OBJECTIVE OPTIMIZATION
+%% ===========================================================================
+
+\section{Multi-Objective Optimization Framework}
+\label{sec:optimization}
+
+LLM Jury supports multiple optimization strategies to accommodate different practitioner priorities. We describe three primary approaches: Chebyshev scalarization, Knee point detection, and our novel Hybrid method.
+
+\subsection{Chebyshev Scalarization}
+
+For each model $m$, we compute regret (distance from utopia) across four objectives:
+
+\begin{align}
+r_q(m) &= \max\left(0, 1 - \frac{Q(m)}{Q_{baseline}}\right) & \text{(quality regret)} \\
+r_c(m) &= \max\left(0, \frac{C(m) - C_{baseline}}{C_{baseline}}\right) & \text{(cost regret)} \\
+r_l(m) &= \max\left(0, \frac{L(m) - L_{baseline}}{L_{baseline}}\right) & \text{(latency regret)} \\
+r_t(m) &= \max\left(0, \frac{T_{baseline} - T(m)}{T_{baseline}}\right) & \text{(trust regret)}
+\end{align}
+
+where $Q$, $C$, $L$, $T$ denote quality, cost, latency, and trustability respectively, and ``baseline'' refers to a reference model (default: Gemini 2.5 Pro).
+
+The Chebyshev distance is:
+\begin{equation}
+d_{Cheb}(m) = \max\left\{ w_q \cdot r_q, w_c \cdot r_c, w_l \cdot r_l, w_t \cdot r_t \right\}
+\end{equation}
+
+Models are ranked by ascending Chebyshev distance (lower = better). The key property is that this scoring penalizes models with any dimension significantly worse than baseline, even if other dimensions compensate.
+
+Figure~\ref{fig:chebyshev} illustrates this concept. Unlike weighted-sum approaches that can miss solutions in non-convex regions of the Pareto frontier, Chebyshev scalarization finds balanced solutions by minimizing maximum regret.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/chebyshev_concept.png}
+\caption{Chebyshev scalarization concept. \textbf{Left:} Comparison with weighted-sum on a non-convex Pareto frontier---Chebyshev finds solutions weighted-sum misses. \textbf{Right:} Multi-dimensional regret comparison showing how Chebyshev selects the model with lowest maximum regret across all dimensions.}
+\label{fig:chebyshev}
+\end{figure}
+
+\subsection{Knee Point Detection}
+
+The Pareto frontier in quality-cost space represents models where no other model offers both higher quality and lower cost. The ``knee'' is the point of maximum curvature---where moving along the frontier requires increasingly large sacrifices.
+
+We compute the knee through angle-based curvature analysis:
+\begin{equation}
+\kappa_i = 1 - \frac{\vec{v}_{i-1} \cdot \vec{v}_i}{|\vec{v}_{i-1}| \cdot |\vec{v}_i|}
+\end{equation}
+where $\vec{v}_i$ is the vector from Pareto point $i$ to $i+1$.
+
+\subsection{Hybrid Pareto-Chebyshev Fusion}
+
+Our primary contribution is a hybrid approach that adds Pareto dominance as a fifth dimension to Chebyshev optimization. This elegantly combines the benefits of both methods:
+
+\textbf{Net Pareto Dominance Score}: For each model $m$, we compute:
+\begin{equation}
+D(m) = \sum_{m' \in \mathcal{M}} Q(m) \cdot \mathbf{1}[m \succ m'] - \sum_{m' \in \mathcal{M}} Q(m') \cdot \mathbf{1}[m' \succ m]
+\end{equation}
+
+where $m \succ m'$ indicates $m$ Pareto-dominates $m'$ on quality-cost dimensions. The quality weighting ensures that:
+\begin{itemize}
+    \item High-quality models that dominate many others score highly
+    \item Low-quality models get penalized for being dominated by many others
+\end{itemize}
+
+\textbf{5D Chebyshev Distance}:
+\begin{equation}
+d_{Hybrid}(m) = \max\left\{ w_q \cdot r_q, w_c \cdot r_c, w_l \cdot r_l, w_t \cdot r_t, w_d \cdot r_d \right\}
+\end{equation}
+
+where $r_d(m) = 1 - D_{norm}(m)$ is the dominance regret and $w_d$ is set to the average of quality and cost weights.
+
+Algorithm~\ref{alg:hybrid} presents the complete hybrid ranking procedure.
+
+\begin{algorithm}[h]
+\caption{Hybrid Pareto-Chebyshev Ranking}
+\label{alg:hybrid}
+\begin{algorithmic}[1]
+\Require Models $\mathcal{M}$, task category $t$, weights $\mathbf{w}$
+\Ensure Ranked list of models
+\State $\mathcal{M}' \gets$ FilterCompleteData($\mathcal{M}$)
+\State $Q \gets$ ComputeQualityScores($\mathcal{M}'$, $t$)
+\State $D \gets$ ComputeParetoDominance($\mathcal{M}'$, $Q$)
+\For{each $m \in \mathcal{M}'$}
+    \State $\mathbf{r} \gets$ ComputeRegrets($m$, baseline)
+    \State $r_d \gets 1 - D_{norm}(m)$
+    \State $d(m) \gets \max(\mathbf{w} \cdot \mathbf{r}, w_d \cdot r_d)$
+\EndFor
+\State \Return SortAscending($\mathcal{M}'$, $d$)
+\end{algorithmic}
+\end{algorithm}
+
+Figure~\ref{fig:why_hybrid} shows the three-phase optimization process on actual model data: dominated models (gray) are filtered in Phase 2, leaving only Pareto-efficient candidates; Phase 3 then ranks survivors by Chebyshev distance from business targets. Figure~\ref{fig:hybrid} visualizes the resulting 5D optimization space, showing how different model archetypes (frontier, value, budget) occupy different regions.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/why_hybrid.png}
+\caption{Three-phase Pareto-Chebyshev optimization on 46 models. Dominated models (gray) are removed in Phase 2. The Pareto frontier (blue line, blue points) contains non-dominated models. Free models receive shadow pricing at 90\% of the cheapest paid model. The recommended model (star) is selected by Phase 3's augmented Chebyshev ranking.}
+\label{fig:why_hybrid}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/hybrid_concept.png}
+\caption{5D optimization space visualization. \textbf{Left:} Radar chart showing three model archetypes---the hybrid approach selects ``value models'' with balanced performance across all dimensions. \textbf{Right:} Pareto dominance as the 5th dimension---models colored by net dominance score.}
+\label{fig:hybrid}
+\end{figure}
+
+\subsection{Strategy Presets}
+
+LLM Jury provides preset weight configurations for common use cases:
+
+\begin{table}[h]
+\centering
+\caption{Optimization strategy weight presets}
+\label{tab:strategies}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Strategy} & $w_q$ & $w_c$ & $w_l$ & $w_t$ & \textbf{Use Case} \\
+\midrule
+QUALITY\_FOCUSED & 0.50 & 0.10 & 0.10 & 0.20 & Max accuracy \\
+COST\_FOCUSED & 0.20 & 0.40 & 0.15 & 0.15 & Budget apps \\
+SPEED\_FOCUSED & 0.20 & 0.15 & 0.40 & 0.15 & Real-time \\
+RELIABILITY & 0.25 & 0.10 & 0.10 & 0.35 & Production \\
+HYBRID (default) & 0.35 & 0.25 & 0.20 & 0.15 & Balanced \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:weight-impact} shows the practical impact of business targets and strictness weights on model selection. Savings are calculated relative to the highest-quality model (Gemini 3 Pro Preview at \$4.50/M). Each profile specifies both \textit{targets} (what the business wants to achieve) and \textit{strictness weights} (how severely to penalize missing each target).
+
+\begin{table}[h]
+\centering
+\caption{Impact of business targets and strictness weights on model selection}
+\label{tab:weight-impact}
+\small
+\begin{tabular}{@{}l|cccc|cccc|lrr@{}}
+\toprule
+& \multicolumn{4}{c|}{\textbf{Business Targets}} & \multicolumn{4}{c|}{\textbf{Strictness Weights}} & & & \\
+\textbf{Profile} & $Q^*$ & $C^*$ & $L^*$ & $T^*$ & $w_q$ & $w_c$ & $w_l$ & $w_t$ & \textbf{Model} & \textbf{Cost} & \textbf{Savings} \\
+\midrule
+Premium & 78 & \$5.00 & 500ms & 88 & 55\% & 10\% & 10\% & 25\% & GPT-5.1 & \$3.44 & 24\% \\
+Balanced & 68 & \$1.00 & 450ms & 92 & 30\% & 25\% & 15\% & 30\% & DeepSeek V3.1 & \$0.80 & 82\% \\
+Budget & 55 & \$0.20 & 500ms & 80 & 20\% & 55\% & 10\% & 15\% & Gemini Flash-Lite & \$0.18 & 96\% \\
+Value & 63 & \$0.35 & 400ms & 85 & 30\% & 35\% & 15\% & 20\% & Grok 3 mini & \$0.35 & 92\% \\
+Real-time & 58 & \$2.50 & 150ms & 80 & 15\% & 15\% & 55\% & 15\% & GPT-4.1 & \$3.50 & 22\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The table demonstrates how different business requirements lead to different optimal models from different providers. The Budget profile achieves 96\% savings with Gemini Flash-Lite by setting a strict cost target (\$0.20) and high cost weight (55\%). The Value profile recommends Grok 3 mini (92\% savings) for tight budgets requiring decent quality. The Balanced profile selects DeepSeek V3.1 (82\% savings) for the best overall value. Even the Premium profile achieves 24\% savings compared to simply selecting the highest-quality model.
+
+\subsection{Target-Driven vs. Data-Driven Model Selection}
+\label{sec:target_driven}
+
+Existing model routing approaches fall into two paradigms, each with distinct trade-offs:
+
+\textbf{Data-driven routing} (FrugalGPT, RouteLLM, learned classifiers) trains a prediction model on labeled data to decide which LLM should handle each query. This requires:
+\begin{itemize}
+    \item \textbf{Labeled training data}: Either human preference labels (``Model A is better than Model B for this query'') or confidence scores from multiple models on representative queries
+    \item \textbf{Model training}: Building and maintaining a separate ML model for routing decisions
+    \item \textbf{Domain-specific data}: Training data must reflect the target domain's query distribution
+    \item \textbf{Ongoing maintenance}: As LLMs evolve, the routing model requires retraining
+\end{itemize}
+
+\textbf{Target-driven optimization} (LLM Jury's approach) bypasses the prediction problem entirely. Instead of asking ``which model should handle this query?'', practitioners ask ``which models meet my business requirements?'' The key insight is that for many deployment scenarios, the relevant question is not query-by-query routing but \textit{strategic model selection} based on business constraints.
+
+Table~\ref{tab:paradigm_comparison} contrasts these paradigms:
+
+\begin{table}[h]
+\centering
+\caption{Comparison of model selection paradigms}
+\label{tab:paradigm_comparison}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Requirement} & \textbf{Data-Driven} & \textbf{Target-Driven} \\
+\midrule
+Labeled data needed & Yes (1000s of examples) & No \\
+Training required & Yes (router model) & No \\
+Domain adaptation & Requires new data & Adjust parameters \\
+Handles new models & Requires retraining & Automatic \\
+Interpretable & Limited & Full transparency \\
+User input & Representative queries & Business targets \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This distinction is particularly valuable for practitioners who:
+\begin{itemize}
+    \item \textbf{Lack labeled data}: Many organizations deploying LLMs cannot easily collect preference labels or run multiple models on production queries
+    \item \textbf{Need rapid deployment}: Target-driven selection provides immediate recommendations without a data collection and training phase
+    \item \textbf{Want interpretability}: Business stakeholders can understand and validate model selection based on explicit quality/cost/latency targets
+    \item \textbf{Require flexibility}: Changing business requirements (new budget constraints, different latency SLAs) translate directly to parameter changes without retraining
+\end{itemize}
+
+%% ===========================================================================
+%% 5. PROMPT CLASSIFICATION
+%% ===========================================================================
+
+\section{Prompt Classification and Use-Case-Driven Optimization}
+
+A key insight driving LLM Jury's design is that \textit{different use cases have fundamentally different requirements}. A chatbot needs low latency for responsive user experience; a RAG pipeline needs large context windows to fit retrieved documents; a medical application needs minimal hallucination for patient safety. The prompt classifier identifies the use case, which then determines the appropriate optimization constraints and objective weights.
+
+\subsection{Use-Case-Specific Requirements}
+
+Table~\ref{tab:use_case_requirements} shows how different use cases prioritize different model characteristics:
+
+\begin{table}[h]
+\centering
+\caption{Use case requirements and model selection criteria}
+\label{tab:use_case_requirements}
+\begin{tabular}{@{}lp{4.5cm}l@{}}
+\toprule
+\textbf{Use Case} & \textbf{Critical Requirements} & \textbf{Key Constraint} \\
+\midrule
+Chatbot & Low latency, good quality, cost-efficient & TTFT $< 500$ms \\
+RAG Pipeline & Large context window, moderate quality & Context $\geq 128$K \\
+Medical/Legal & Very low hallucination, high accuracy & Halluc $< 5\%$ \\
+Code Generation & High coding benchmarks, accuracy & coding\_index $\geq 60$ \\
+Data Science & Math reasoning, coding ability & math\_index $\geq 50$ \\
+Creative Writing & Language fluency, intelligence & intelligence $\geq 50$ \\
+Cost-Optimized & Acceptable quality at minimum cost & Cost $< 30\%$ baseline \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The classifier identifies the use case from the prompt, and the optimizer then:
+\begin{enumerate}
+    \item Applies use-case-specific \textbf{benchmark weights} (e.g., coding tasks weight \texttt{coding\_index} at 35\%, creative tasks weight \texttt{intelligence\_index} at 40\%)
+    \item Sets appropriate \textbf{minimum thresholds} (e.g., RAG requires context $\geq 128$K tokens)
+    \item Adjusts \textbf{objective weights} (e.g., chatbots weight latency at 40\%, medical applications weight trust at 50\%)
+\end{enumerate}
+
+\subsection{Classification Approach}
+
+We implement a multi-signal pattern matching approach:
+
+\begin{enumerate}
+    \item \textbf{Regex patterns}: Weighted regular expressions capture explicit signals (e.g., ``write a Python function'' $\rightarrow$ CODE\_GENERATION with confidence 0.97)
+    
+    \item \textbf{Keyword matching}: Domain-specific keywords provide additive confidence boosts
+    
+    \item \textbf{Ambiguity handling}: When confidence is below 0.70 or multiple categories tie, the classifier falls back to GENERAL\_QA to recommend well-rounded models
+\end{enumerate}
+
+\subsection{Supported Use Cases}
+
+The classifier supports 30+ use cases organized into categories:
+
+\begin{itemize}
+    \item \textbf{Development}: code\_generation, code\_review, code\_refactoring, technical\_docs
+    \item \textbf{Data \& Analytics}: data\_analysis, sql\_generation, math\_reasoning
+    \item \textbf{Content}: creative\_writing, summarization, translation
+    \item \textbf{Technical}: rag\_pipeline, function\_calling, long\_context
+    \item \textbf{Specialized}: legal\_review, financial\_analysis, medical\_qa
+    \item \textbf{Optimization}: cost\_optimized, low\_latency, maximum\_quality
+\end{itemize}
+
+Each use case maps to specific optimization weights, quality scoring configurations, and minimum performance thresholds---ensuring the recommended models \textit{meet the minimum requirements} for that use case before being ranked by overall value.
+
+%% ===========================================================================
+%% 6. EVALUATION
+%% ===========================================================================
+
+\section{Evaluation}
+\label{sec:evaluation}
+
+We evaluate LLM Jury across three dimensions: (1) optimization effectiveness in identifying value models, (2) task-specific quality score validity, and (3) score distribution analysis across license types.
+
+\subsection{Experimental Setup}
+
+\textbf{Model corpus}: 46 models with complete benchmark data from Artificial Analysis, including:
+\begin{itemize}
+    \item \textit{Frontier proprietary}: GPT-5.1, GPT-4.1, Claude Opus 4.5, Claude 4.5 Sonnet, Gemini 3 Pro, Grok 4
+    \item \textit{Reasoning specialists}: o3, o4-mini, DeepSeek R1, Claude Reasoning variants
+    \item \textit{Efficient mid-tier}: GPT-5 mini/nano, Gemini 2.5 Flash, Mistral Small 3.2
+    \item \textit{Open-source}: Llama 4 (Maverick/Scout), Qwen3 (4B-32B), Gemma 3, DeepSeek V3
+\end{itemize}
+
+\textbf{Baseline}: Gemini 2.5 Pro serves as the reference model, representing frontier capability at premium pricing.
+
+\textbf{Task categories}: CODING, DATA\_SCIENCE, CREATIVE, GENERAL.
+
+\subsection{Value Model Identification}
+
+We define a ``value model'' as one achieving $\geq 85\%$ of baseline quality at $\leq 30\%$ of baseline cost. Figure~\ref{fig:pareto} shows the Pareto frontier and identified value models.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/pareto_frontier.png}
+\caption{Pareto frontier in quality-cost space for CODING task (n=46 models). The shaded ``value zone'' identifies models achieving 75-100\% of frontier quality at $\leq$35\% of frontier cost. Open-source models (diamonds) and free models (stars) compete effectively with proprietary offerings in this space.}
+\label{fig:pareto}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Top value models by task category (HYBRID optimization)}
+\label{tab:value_models}
+\begin{tabular}{@{}llccc@{}}
+\toprule
+\textbf{Category} & \textbf{Model} & \textbf{Quality} & \textbf{Cost} & \textbf{Q/Baseline} \\
+\midrule
+CODING & GPT-5 mini & 82.3 & \$0.80 & 91\% \\
+ & DeepSeek V3 0324 & 85.1 & \$0.55 & 94\% \\
+ & Qwen3 32B & 78.6 & \$0.40 & 87\% \\
+\midrule
+DATA\_SCI & Claude 4.5 Haiku & 79.4 & \$1.00 & 89\% \\
+ & Llama 4 Maverick & 81.2 & \$0.75 & 91\% \\
+\midrule
+CREATIVE & Gemini 2.5 Flash & 76.8 & \$0.30 & 87\% \\
+ & GPT-5 nano & 74.5 & \$0.25 & 84\% \\
+\midrule
+GENERAL & Mistral Small 3.2 & 75.3 & \$0.60 & 86\% \\
+ & Gemma 3 27B & 73.8 & \$0.35 & 84\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figure~\ref{fig:cost_savings} visualizes the cost savings achievable across task categories while maintaining $\geq$80\% of baseline quality. The average savings across all categories is 75\%, with coding tasks showing particularly strong value model options due to the abundance of capable open-source coding models.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/cost_savings.png}
+\caption{Cost savings by task category. For each category, we compare the frontier model (highest quality) against LLM Jury's value pick (lowest cost model achieving $\geq$80\% quality). Percentages show savings and quality retained.}
+\label{fig:cost_savings}
+\end{figure}
+
+\subsection{Quality Score Validity}
+
+We validate that task-specific scores correlate with task-relevant benchmarks:
+
+\begin{table}[h]
+\centering
+\caption{Correlation between quality scores and primary benchmarks}
+\label{tab:correlation}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Task} & \textbf{Primary Benchmark} & \textbf{Pearson $r$} \\
+\midrule
+CODING & coding\_index & 0.94 \\
+DATA\_SCIENCE & math\_index & 0.91 \\
+CREATIVE & intelligence\_index & 0.89 \\
+GENERAL & intelligence + trust & 0.87 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Score Distribution: Open Source vs. Proprietary}
+
+We analyze how quality scores are distributed across open source and proprietary models for each task category. Figure~\ref{fig:distribution} shows overlapping histograms with median values highlighted for each license type.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/score_distribution.png}
+\caption{Quality score distributions by license type across four task categories (top two rows) and combined average (bottom). Median scores shown as dashed lines. Open-source models (green) show the smallest gap in GENERAL tasks and largest in CREATIVE tasks.}
+\label{fig:distribution}
+\end{figure}
+
+Key findings from the distribution analysis:
+\begin{itemize}
+    \item \textbf{GENERAL}: \textit{Smallest gap} between OSS and proprietary---a perhaps surprising finding. General-purpose benchmarks (MMLU, commonsense reasoning, world knowledge) are the \textit{primary optimization target} for most open-source model releases. OSS teams typically prioritize broad capability over specialized performance, and general reasoning benchmarks are the most visible metrics in the community. Consequently, the ``general'' category represents where OSS investment and attention is highest.
+    
+    \item \textbf{CODING}: Small gap. Top open-source models (DeepSeek V3, Qwen3 32B, Llama 4 Maverick) achieve 90-95\% of proprietary frontier quality. Abundant open-source code repositories provide high-quality training data, and coding benchmarks have clear, verifiable evaluation criteria.
+    
+    \item \textbf{DATA\_SCIENCE}: Moderate gap. OSS models with strong math capabilities (e.g., Qwen-Math, DeepSeek) compete effectively. Mathematical reasoning benefits from synthetic data generation and verifiable correctness.
+    
+    \item \textbf{CREATIVE}: \textit{Largest gap}. Proprietary models maintain significant advantage in creative writing tasks. This likely reflects extensive RLHF tuning with human preference data---a resource-intensive process that proprietary labs can invest in more heavily. Creative quality is also harder to benchmark objectively, giving less signal for OSS teams to optimize against.
+\end{itemize}
+
+\textbf{Implications for practitioners}: The gap analysis reveals that model selection should be task-aware. For general-purpose and coding workloads, open-source models offer compelling value with minimal quality sacrifice---these are ideal candidates for LLM Jury's value optimization, where practitioners can achieve significant cost savings without proportional quality loss. For creative tasks requiring nuanced language generation, the premium for proprietary models may be justified.
+
+\subsection{Comparison with Per-Query Routing Approaches}
+
+A natural question arises: how does LLM Jury's strategic selection compare to per-query routing approaches like FrugalGPT and RouteLLM? This comparison requires careful framing because the approaches solve \textit{fundamentally different problems}.
+
+\subsubsection{Problem Formulation Differences}
+
+\textbf{Per-query routing} (FrugalGPT, RouteLLM) answers: ``Which model should handle \textit{this specific query}?'' The router examines each query and dispatches it to the predicted best model, potentially using different models for different queries in the same session.
+
+\textbf{Strategic selection} (LLM Jury) answers: ``Which model best satisfies my \textit{business requirements} for this use case?'' The optimizer identifies the optimal model given cost, quality, latency, and trust constraints, typically selecting one model for deployment.
+
+\subsubsection{When Each Approach Excels}
+
+Table~\ref{tab:approach_scenarios} summarizes when each paradigm is most appropriate:
+
+\begin{table}[h]
+\centering
+\caption{Recommended approach by deployment scenario}
+\label{tab:approach_scenarios}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Scenario} & \textbf{Best Approach} & \textbf{Rationale} \\
+\midrule
+Highly variable query difficulty & Per-query routing & Route easy queries to cheap models \\
+Consistent query types (chatbot) & Strategic selection & One model, no routing overhead \\
+No labeled data available & \textbf{LLM Jury} & Others require training data \\
+Need immediate deployment & \textbf{LLM Jury} & No training phase required \\
+Maximum per-query optimization & FrugalGPT & Cascading minimizes cost/query \\
+Strong/weak model choice & RouteLLM & Binary routing well-suited \\
+Multi-objective constraints & \textbf{LLM Jury} & 5D optimization with targets \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Empirical Comparison Framework}
+
+To enable fair comparison, we propose evaluating on FrugalGPT's published datasets (HEADLINES, SCIQ, AGNEWS) which include generations from 12 commercial LLMs with ground truth labels \cite{chen2023frugalgpt}. The comparison measures:
+
+\begin{enumerate}
+    \item \textbf{Accuracy vs. Cost curves}: For per-query routers, measure accuracy at various cost budgets. For LLM Jury, identify the single model that meets each cost constraint and report its accuracy.
+    
+    \item \textbf{Total deployment cost}: Include router inference overhead for per-query approaches. FrugalGPT's cascade requires multiple model calls per query; RouteLLM requires router inference per query. LLM Jury has zero per-query routing overhead.
+    
+    \item \textbf{Time-to-deployment}: Per-query routers require (a) collecting multi-model responses on representative queries, (b) training the router, and (c) deploying routing infrastructure. LLM Jury requires only specifying business constraints.
+\end{enumerate}
+
+\textbf{Key insight}: Per-query routing provides finer-grained optimization but incurs data collection, training, and inference overhead. Strategic selection sacrifices per-query granularity but enables immediate deployment without labeled data. The optimal choice depends on query heterogeneity, data availability, and deployment constraints. Figure~\ref{fig:routing_comparison} illustrates this trade-off.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/routing_comparison.png}
+\caption{Comparison of per-query routing vs. strategic selection. \textbf{Left:} FrugalGPT's accuracy vs. cost curve on HEADLINES dataset (from \cite{chen2023frugalgpt}), showing cascade routing achieves intermediate cost-accuracy trade-offs. \textbf{Right:} Deployment overhead comparison---LLM Jury requires no data collection, training, or per-query routing overhead.}
+\label{fig:routing_comparison}
+\end{figure}
+
+%% ===========================================================================
+%% 7. APPLICATIONS
+%% ===========================================================================
+
+\section{Applications and Use Cases}
+
+\subsection{Cost Optimization at Scale}
+
+Consider an enterprise processing 10 million API calls monthly for customer support. Using LLM Jury's HYBRID optimization:
+
+\begin{table}[h]
+\centering
+\caption{Cost optimization example (10M monthly calls)}
+\label{tab:cost_example}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Selection} & \textbf{Monthly Cost} & \textbf{Quality} \\
+\midrule
+GPT-4o (default) & \$25,000 & 100\% \\
+LLM Jury recommendation & \$5,500 & 92\% \\
+\textbf{Savings} & \textbf{\$19,500/month} & \textbf{-8\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Complexity-Aware Routing}
+
+LLM Jury supports routing based on task complexity thresholds:
+
+\begin{itemize}
+    \item \textbf{Simple} (FAQ, basic Q\&A): Route to cheapest capable model
+    \item \textbf{Medium} (standard coding, analysis): Mid-tier models
+    \item \textbf{Hard} (complex debugging, research): Premium models
+    \item \textbf{Expert} (cutting-edge problems): Frontier models
+\end{itemize}
+
+This enables cascade strategies where most queries use cost-effective models while complex queries automatically escalate.
+
+\subsection{Customizable Parameter Configuration}
+
+A key design principle of LLM Jury is \textit{configurability}. While our default parameters represent empirically-validated choices, practitioners can customize every aspect of the optimization to match their specific requirements:
+
+\begin{itemize}
+    \item \textbf{Objective weights}: Adjust the balance between quality, cost, latency, and trust. A latency-sensitive application might set $w_l = 0.40$ versus the default $0.20$.
+    
+    \item \textbf{Constraint bounds}: Define acceptable ranges for quality ($\geq 85\%$ of baseline), cost ($\leq 30\%$ of baseline), or latency thresholds.
+    
+    \item \textbf{Baseline model}: Change the reference point from Gemini 2.5 Pro to any model that represents the ``gold standard'' for a specific organization.
+    
+    \item \textbf{Task-specific benchmark weights}: Override the default benchmark weighting for specialized domains (e.g., increasing \texttt{trust\_score} weight for medical applications).
+    
+    \item \textbf{Custom objectives}: The extensible \texttt{ObjectiveRegistry} allows adding new optimization dimensions (e.g., ethics scores, safety ratings) without modifying core code.
+\end{itemize}
+
+This configurability is essential because optimal trade-offs vary significantly by application context. A customer-facing chatbot may prioritize latency and cost, while a legal document analyzer prioritizes quality and trust.
+
+\subsection{A/B Testing and Experimentation}
+
+The parameterized nature of LLM Jury enables systematic experimentation:
+
+\begin{enumerate}
+    \item \textbf{Strategy A/B testing}: Compare user satisfaction or task completion rates between HYBRID recommendations versus COST\_FOCUSED or QUALITY\_FOCUSED strategies to determine which optimization philosophy best serves specific user populations.
+    
+    \item \textbf{Weight sensitivity analysis}: Systematically vary objective weights (e.g., $w_{cost} \in \{0.15, 0.25, 0.35\}$) to identify the configuration that maximizes business KPIs while minimizing cost.
+    
+    \item \textbf{Threshold optimization}: Test different quality/cost constraint bounds to find the ``sweet spot'' where users perceive no quality degradation despite significant cost savings.
+    
+    \item \textbf{Baseline comparison}: A/B test LLM Jury recommendations against manual model selection or competing routing systems to quantify the value of multi-objective optimization.
+\end{enumerate}
+
+The deterministic scoring enables reproducible experiments---the same parameters always produce the same rankings, isolating the effect of parameter changes from model variability.
+
+\subsection{Integration with Prompt Engineering Frameworks}
+
+LLM Jury complements prompt optimization frameworks like DSPy \cite{khattab2023dspy} and LangChain \cite{langchain2023}. The recommended workflow is \textit{model selection first, then prompt optimization}: (1) use LLM Jury to identify the best value model given cost/quality constraints, then (2) use DSPy or similar tools to optimize prompts for that specific model.
+
+This ordering matters because different models have different prompting ``sweet spots''---the optimal few-shot examples and instruction formats vary by architecture. A value-optimized model with tailored prompts can match frontier model quality at a fraction of the cost.
+
+%% ===========================================================================
+%% 8. LIMITATIONS AND FUTURE WORK
+%% ===========================================================================
+
+\section{Limitations and Future Work}
+
+\textbf{Static model cache}: The current release ships with a pre-compiled model cache that is not automatically updated. As the LLM landscape evolves rapidly---with new models released monthly and pricing changes occurring frequently---users requiring current data must obtain updated benchmarks independently and configure a custom cache. We plan to release periodic updates to the bundled cache and are exploring automated update mechanisms for future versions.
+
+\textbf{Benchmark coverage}: Our quality scoring relies on available benchmarks, which may not capture all relevant capabilities (e.g., instruction following, safety). We plan to integrate additional evaluation sources as they become available.
+
+\textbf{Latency variability}: TTFT measurements reflect point-in-time snapshots and may vary with provider load. Continuous monitoring would improve reliability.
+
+\textbf{Classification}: Our rule-based classifier, while interpretable, may miss nuanced queries. Future work will explore embedding-based semantic classification.
+
+\textbf{Personalization}: Current recommendations are population-level optima. User-specific preference learning could improve individual utility.
+
+%% ===========================================================================
+%% 9. CONCLUSION
+%% ===========================================================================
+
+\section{Conclusion}
+
+We presented LLM Jury, an open-source framework for multi-objective LLM selection that addresses a critical gap between academic model evaluation and practical deployment needs. Our evaluation on 46 current-generation models demonstrates that the Hybrid Pareto-Chebyshev optimization consistently identifies models achieving 80-95\% of frontier quality at 60-96\% cost savings across coding, data science, creative writing, and general knowledge tasks.
+
+The key insight of this work is that \textit{target-driven model selection} provides a practical alternative to data-driven routing approaches. By allowing practitioners to specify business constraints directly---rather than collecting labeled training data---LLM Jury enables immediate deployment with full interpretability. When cost budgets change or new models are released, recommendations update automatically without retraining.
+
+Our technical contributions---5-dimensional Chebyshev scalarization with Pareto dominance, task-specific percentile-normalized scoring, and use-case-aware constraint configuration---work together to identify ``value models'' that would be difficult to discover through manual benchmark analysis or single-objective rankings.
+
+LLM Jury is available as production-ready open-source software with comprehensive documentation. We hope this framework helps practitioners navigate the increasingly complex LLM landscape and make informed cost-quality trade-offs for their specific applications.
+
+%% ===========================================================================
+%% REFERENCES
+%% ===========================================================================
+
+\bibliographystyle{plain}
+
+\begin{thebibliography}{99}
+
+\bibitem{artificialanalysis2024}
+Artificial Analysis.
+\newblock LLM Performance Leaderboard.
+\newblock \url{https://artificialanalysis.ai/}, 2024.
+
+\bibitem{openrouter2024}
+OpenRouter.
+\newblock Unified LLM API.
+\newblock \url{https://openrouter.ai/}, 2024.
+
+\bibitem{chen2023frugalgpt}
+Chen, L., Zaharia, M., and Zou, J.
+\newblock FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance.
+\newblock Transactions on Machine Learning Research (TMLR), 2024.
+\newblock \url{https://github.com/stanford-futuredata/FrugalGPT}
+
+\bibitem{routellm2024}
+Ong, I., Almahairi, A., et al.
+\newblock RouteLLM: Learning to Route LLMs with Preference Data.
+\newblock arXiv preprint arXiv:2406.18665, 2024.
+\newblock \url{https://github.com/lm-sys/RouteLLM}
+
+\bibitem{martian2024}
+Martian.
+\newblock Intelligent Model Routing.
+\newblock \url{https://withmartian.com/}, 2024.
+
+\bibitem{unify2024}
+Unify AI.
+\newblock LLM Routing Platform.
+\newblock \url{https://unify.ai/}, 2024.
+
+\bibitem{notdiamond2024}
+Not Diamond.
+\newblock Intelligent LLM Routing.
+\newblock \url{https://www.notdiamond.ai/}, 2024.
+
+\bibitem{liang2022holistic}
+Liang, P., et al.
+\newblock Holistic Evaluation of Language Models.
+\newblock arXiv preprint arXiv:2211.09110, 2022.
+
+\bibitem{huggingface2023}
+Hugging Face.
+\newblock Open LLM Leaderboard.
+\newblock \url{https://huggingface.co/spaces/HuggingFaceH4/open_llm_leaderboard}, 2023.
+
+\bibitem{zheng2023judging}
+Zheng, L., et al.
+\newblock Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena.
+\newblock arXiv preprint arXiv:2306.05685, 2023.
+
+\bibitem{miettinen1999nonlinear}
+Miettinen, K.
+\newblock Nonlinear Multiobjective Optimization.
+\newblock Springer, 1999.
+
+\bibitem{elsken2019neural}
+Elsken, T., Metzen, J.H., and Hutter, F.
+\newblock Neural Architecture Search: A Survey.
+\newblock JMLR, 20(55):1-21, 2019.
+
+\bibitem{karl2022multi}
+Karl, F., et al.
+\newblock Multi-Objective Hyperparameter Optimization.
+\newblock AutoML Conference, 2022.
+
+\bibitem{das1997closer}
+Das, I. and Dennis, J.E.
+\newblock A Closer Look at Drawbacks of Minimizing Weighted Sums of Objectives.
+\newblock Structural Optimization, 14(1):63-69, 1997.
+
+\bibitem{bowman1976relationship}
+Bowman, V.J.
+\newblock On the Relationship of the Tchebycheff Norm and the Efficient Frontier of Multi-Criteria Objectives.
+\newblock Lecture Notes in Economics and Mathematical Systems, 1976.
+
+\bibitem{branke2004finding}
+Branke, J., et al.
+\newblock Finding Knees in Multi-objective Optimization.
+\newblock PPSN VIII, 2004.
+
+\bibitem{kahneman1979prospect}
+Kahneman, D. and Tversky, A.
+\newblock Prospect Theory: An Analysis of Decision under Risk.
+\newblock Econometrica, 47(2):263-291, 1979.
+
+\bibitem{vectara2024}
+Vectara.
+\newblock Hallucination Leaderboard.
+\newblock \url{https://github.com/vectara/hallucination-leaderboard}, 2024.
+
+\bibitem{khattab2023dspy}
+Khattab, O., et al.
+\newblock DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines.
+\newblock arXiv preprint arXiv:2310.03714, 2023.
+
+\bibitem{langchain2023}
+LangChain.
+\newblock LangChain: Building Applications with LLMs.
+\newblock \url{https://langchain.com/}, 2023.
+
+\end{thebibliography}
+
+%% ===========================================================================
+%% APPENDIX
+%% ===========================================================================
+
+\appendix
+
+\section{Benchmark Descriptions}
+
+Table~\ref{tab:benchmarks} provides detailed descriptions of the 12 benchmarks used in quality scoring.
+
+\begin{table}[h]
+\centering
+\caption{Benchmark descriptions}
+\label{tab:benchmarks}
+\begin{tabular}{@{}lp{5cm}@{}}
+\toprule
+\textbf{Benchmark} & \textbf{Description} \\
+\midrule
+intelligence\_index & Composite general reasoning ability \\
+coding\_index & Programming across difficulty levels \\
+math\_index & Mathematical reasoning and calculation \\
+mmlu\_pro & Massive Multitask Language Understanding (Pro) \\
+gpqa & Graduate-level science questions \\
+hle & Hard Language understanding Evaluation \\
+livecodebench & LeetCode-style algorithmic problems \\
+scicode & Scientific/research-level coding \\
+math\_500 & Competition mathematics problems \\
+aime & American Invitational Math Exam \\
+trust\_score & 100 - hallucination\_rate \\
+context\_score & Log-normalized context window size \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{API Usage Example}
+
+\begin{verbatim}
+from llm_jury import (
+    get_value_recommendations,
+    classify_prompt,
+    OptimizationStrategy,
+    list_available_models
+)
+
+# Use bundled model cache (default)
+models = list_available_models()
+print(f"Available: {len(models)} models")
+
+# Or use custom/updated cache file
+models = list_available_models(
+    cache_path="path/to/my_updated_cache.json"
+)
+
+# Classify prompt to optimal use case
+result = classify_prompt(
+    "Write a Python function to parse JSON"
+)
+print(f"Use case: {result.use_case}")  
+# Output: code_generation
+
+# Get value-optimized recommendations
+recs = get_value_recommendations(
+    baseline_model="Gemini 2.5 Pro",
+    strategy=OptimizationStrategy.HYBRID,
+    min_quality_pct=85,
+    max_cost_pct=30,
+    top_n=5,
+    # cache_path="custom_cache.json"  # optional
+)
+
+for rec in recs:
+    print(f"{rec.model_name}: {rec.score:.2f}")
+\end{verbatim}
+
+\end{document}
+

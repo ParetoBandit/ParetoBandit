@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Jury - Intelligent Model Routing & Multi-Objective Optimization</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Animated background -->
+    <div class="bg-gradient"></div>
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <div class="logo">
+                <span class="logo-icon">⚖️</span>
+                <span class="logo-text">LLM Jury</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#demo">Demo</a>
+                <a href="https://github.com" class="nav-cta">Get Started →</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero hero-centered">
+        <div class="hero-content centered">
+            <div class="hero-badge">
+                <span class="badge-dot"></span>
+                Open Source Multi-Objective Optimization
+            </div>
+            <h1 class="hero-title">
+                Stop Guessing.<br/>
+                <span class="gradient-text">Optimize Your LLM Selection.</span>
+            </h1>
+            <p class="hero-subtitle">
+                The first open-source LLM router that uses <strong>mathematical optimization</strong> 
+                across quality, cost, latency, and trust — not hidden heuristics or black-box ML.
+            </p>
+            
+            <!-- Tabbed Query Demo -->
+            <div class="query-demo">
+                <div class="query-tabs">
+                    <button class="query-tab active" data-tab="constraints">
+                        <span class="tab-icon">💬</span>
+                        Natural Language Constraints
+                    </button>
+                    <button class="query-tab" data-tab="prompt">
+                        <span class="tab-icon">📝</span>
+                        Prompt Classification
+                    </button>
+                </div>
+
+                <!-- Tab 1: Natural Language Constraints -->
+                <div class="query-tab-content active" id="tab-constraints">
+                    <div class="query-box">
+                        <span class="query-prompt">"</span>
+                        <span class="query-text" id="animated-query"></span>
+                        <span class="query-cursor">|</span>
+                        <span class="query-prompt">"</span>
+                    </div>
+                    <div class="query-result" id="query-result">
+                        <div class="result-classification">
+                            <span class="result-task-tag" id="result-task-tag">💻 Coding</span>
+                        </div>
+                        <div class="result-arrow">→</div>
+                        <div class="result-model">
+                            <span class="result-badge">✓ Best Match</span>
+                            <span class="result-name" id="result-model-name">Loading...</span>
+                            <span class="result-stats" id="result-stats" title="Q = Quality Score | $/M = Cost per Million Tokens | TTFT = Time To First Token">Q:87% | $0.69/M | 245ms</span>
+                        </div>
+                    </div>
+                    <div class="stats-legend">
+                        <span class="baseline-label">vs <strong>Gemini 3 Pro Preview</strong> (baseline)</span>
+                        <span class="legend-separator">|</span>
+                        <span title="Quality score relative to baseline (100%)">Q = Quality</span>
+                        <span title="Cost in USD per million tokens">$/M = Cost</span>
+                        <span title="Time To First Token - response latency">TTFT = Latency</span>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Prompt Classification -->
+                <div class="query-tab-content" id="tab-prompt">
+                    <div class="query-box">
+                        <span class="query-prompt">"</span>
+                        <span class="query-text" id="user-prompt-text"></span>
+                        <span class="query-cursor prompt-cursor">|</span>
+                        <span class="query-prompt">"</span>
+                    </div>
+                    <div class="query-result" id="prompt-result">
+                        <div class="result-classification" id="classification-result">
+                            <span class="result-task-tag" id="prompt-task-tag">💻 Coding</span>
+                        </div>
+                        <div class="result-arrow">→</div>
+                        <div class="result-model" id="prompt-recommendation">
+                            <span class="result-badge">✓ Best Match</span>
+                            <span class="result-name" id="prompt-model-name">GPT-5 mini (high)</span>
+                            <span class="result-stats" id="prompt-model-stats" title="Q = Quality Score | $/M = Cost per Million Tokens | TTFT = Time To First Token">Q:88% | $0.25/M | 0.3s TTFT</span>
+                        </div>
+                    </div>
+                    <div class="stats-legend" id="prompt-stats-legend">
+                        <span class="baseline-label">vs <strong>Gemini 3 Pro Preview</strong> (baseline)</span>
+                        <span class="legend-separator">|</span>
+                        <span title="Quality score relative to baseline (100%)">Q = Quality</span>
+                        <span title="Cost in USD per million tokens">$/M = Cost</span>
+                        <span title="Time To First Token - response latency">TTFT = Latency</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Savings boxes that update dynamically -->
+            <div class="hero-savings" id="hero-savings">
+                <div class="savings-box cost">
+                    <span class="box-label">COST SAVINGS</span>
+                    <span class="box-value" id="savings-cost">87.5%</span>
+                    <span class="box-detail" id="savings-cost-detail">($1.75 saved per 1M tokens)</span>
+                </div>
+                <div class="savings-box latency">
+                    <span class="box-label">LATENCY</span>
+                    <span class="box-value" id="savings-latency">-89%</span>
+                    <span class="box-detail" id="savings-latency-detail">(3.4s vs 32.3s TTFT)</span>
+                </div>
+                <div class="savings-box value">
+                    <span class="box-label">VALUE SCORE</span>
+                    <span class="box-value" id="savings-value">8.0x</span>
+                    <span class="box-detail">better value</span>
+                </div>
+            </div>
+
+            <div class="hero-ctas">
+                <a href="#demo" class="cta-primary">
+                    <span>See It In Action</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+                <a href="https://github.com" class="cta-secondary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <span>View on GitHub</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">What Makes Us Different</span>
+                <h2 class="section-title">Mathematical Optimization,<br/>Not Black-Box Magic</h2>
+                <p class="section-subtitle">
+                    Built on proven optimization theory with complete transparency.
+                </p>
+            </div>
+
+            <div class="features-grid">
+                <!-- Feature 1: 5D Chebyshev with Net Pareto Dominance -->
+                <div class="feature-card featured">
+                    <div class="feature-visual">
+                        <div class="dimension-viz">
+                            <div class="dim-axis quality">
+                                <span class="dim-label">Quality</span>
+                                <div class="dim-bar" style="--fill: 92%"></div>
+                            </div>
+                            <div class="dim-axis cost">
+                                <span class="dim-label">Cost</span>
+                                <div class="dim-bar" style="--fill: 85%"></div>
+                            </div>
+                            <div class="dim-axis latency">
+                                <span class="dim-label">Latency</span>
+                                <div class="dim-bar" style="--fill: 78%"></div>
+                            </div>
+                            <div class="dim-axis trust">
+                                <span class="dim-label">Trust</span>
+                                <div class="dim-bar" style="--fill: 91%"></div>
+                            </div>
+                            <div class="dim-axis dominance">
+                                <span class="dim-label">Net Dominance</span>
+                                <div class="dim-bar" style="--fill: 88%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="feature-content">
+                        <span class="feature-badge">Core Innovation</span>
+                        <h3>5D Chebyshev with Net Pareto Dominance</h3>
+                        <p>
+                            Extends 4D optimization with <strong>quality-weighted Net Pareto Dominance</strong> as a 5th dimension.
+                            High-quality models that dominate many others rank highest. Low-quality models get penalized 
+                            by being dominated. <em>No magic thresholds — just principled math.</em>
+                        </p>
+                        <code class="feature-formula">
+                            net_dom = Σ(my_Q × I_dominate) − Σ(their_Q × they_dominate_me)
+                        </code>
+                    </div>
+                </div>
+
+                <!-- Feature 2: Pareto Knee -->
+                <div class="feature-card">
+                    <div class="feature-icon gradient-icon">📐</div>
+                    <h3>Pareto Frontier + Knee Point</h3>
+                    <p>
+                        Find the <strong>"elbow"</strong> where marginal quality gains require 
+                        disproportionate cost increases. Maximum bang for your buck.
+                    </p>
+                    <div class="feature-tag">Best for: Value optimization</div>
+                </div>
+
+                <!-- Feature 3: Task-Specific -->
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Task-Specific Scoring</h3>
+                    <p>
+                        Different benchmark weights for <strong>Coding</strong>, <strong>Data Science</strong>, 
+                        <strong>Creative Writing</strong>, and <strong>General</strong> use cases.
+                    </p>
+                    <div class="task-badges">
+                        <span class="task-badge coding">💻 Coding</span>
+                        <span class="task-badge data">📊 Data Science</span>
+                        <span class="task-badge creative">✨ Creative</span>
+                        <span class="task-badge general">🎯 General</span>
+                    </div>
+                </div>
+
+                <!-- Feature 4: 12 Benchmarks -->
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>12 Benchmark Dimensions</h3>
+                    <p>
+                        Intelligence, Coding, Math, MMLU-Pro, GPQA, HLE, LiveCodeBench, 
+                        SciCode, Math-500, AIME, Hallucination Rate, Factual Consistency.
+                    </p>
+                    <div class="benchmark-grid">
+                        <span>Intelligence</span>
+                        <span>Coding</span>
+                        <span>Math</span>
+                        <span>MMLU-Pro</span>
+                        <span>GPQA</span>
+                        <span>HLE</span>
+                        <span>LiveCodeBench</span>
+                        <span>SciCode</span>
+                    </div>
+                </div>
+
+                <!-- Feature 5: Trust Metrics -->
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>Real Hallucination Data</h3>
+                    <p>
+                        Integrated <strong>Vectara Hallucination Leaderboard</strong> data. 
+                        Know exactly how trustworthy each model is before routing.
+                    </p>
+                </div>
+
+                <!-- Feature 6: Real Latency -->
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Measured TTFT Latency</h3>
+                    <p>
+                        Real Time-To-First-Token measurements via OpenRouter API. 
+                        No estimates or guesses — actual streaming latency data.
+                    </p>
+                </div>
+
+                <!-- Feature 7: Configurable Parameters -->
+                <div class="feature-card highlight-card">
+                    <div class="feature-icon">⚙️</div>
+                    <h3>Fully Configurable</h3>
+                    <p>
+                        All optimization parameters are configurable based on your product needs. 
+                        Set custom quality, cost, and latency thresholds — or use battle-tested defaults.
+                    </p>
+                    <a href="#demo" class="feature-cta">Try the Interactive Demo →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Example: Prompt to Model -->
+    <section class="example-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Real Example</span>
+                <h2 class="section-title">From Prompt to Optimal Model</h2>
+                <p class="section-subtitle">Same quality output, fraction of the cost and latency.</p>
+            </div>
+
+            <!-- User Prompt -->
+            <div class="example-prompt-box">
+                <div class="prompt-header">
+                    <span class="prompt-icon">👤</span>
+                    <span class="prompt-label">Your Prompt</span>
+                    <div class="prompt-tags">
+                        <span class="meta-tag">💻 Coding</span>
+                        <span class="meta-tag">📊 Medium</span>
+                    </div>
+                </div>
+                <div class="prompt-text-large">
+                    "Write a Python function that implements binary search with proper error handling and type hints."
+                </div>
+            </div>
+
+            <!-- Side-by-Side Comparison -->
+            <div class="comparison-container">
+                <!-- Baseline Model -->
+                <div class="comparison-column baseline-column">
+                    <div class="column-header baseline-header">
+                        <span class="column-icon">📊</span>
+                        <span class="column-title">Baseline Model</span>
+                    </div>
+                    <div class="model-info-bar baseline-bar">
+                        <span class="model-name-compare">GPT-5.1 (high)</span>
+                        <div class="model-stats-compare">
+                            <span class="stat-pill cost-pill">$3.44/M</span>
+                            <span class="stat-pill latency-pill">0.33s</span>
+                        </div>
+                    </div>
+                    <div class="response-card">
+                        <pre class="example-code"><code><span class="code-keyword">from</span> typing <span class="code-keyword">import</span> List, Optional
+
+<span class="code-keyword">def</span> <span class="code-function">binary_search</span>(
+    arr: List[<span class="code-type">int</span>], 
+    target: <span class="code-type">int</span>
+) -> Optional[<span class="code-type">int</span>]:
+    <span class="code-string">"""Binary search implementation.
+    
+    Args:
+        arr: Sorted list of integers
+        target: Value to find
+        
+    Returns:
+        Index if found, None otherwise
+    """</span>
+    <span class="code-keyword">if not</span> arr:
+        <span class="code-keyword">raise</span> <span class="code-type">ValueError</span>(<span class="code-string">"Empty array"</span>)
+    
+    left, right = <span class="code-number">0</span>, <span class="code-keyword">len</span>(arr) - <span class="code-number">1</span>
+    
+    <span class="code-keyword">while</span> left <= right:
+        mid = (left + right) // <span class="code-number">2</span>
+        <span class="code-keyword">if</span> arr[mid] == target:
+            <span class="code-keyword">return</span> mid
+        <span class="code-keyword">elif</span> arr[mid] < target:
+            left = mid + <span class="code-number">1</span>
+        <span class="code-keyword">else</span>:
+            right = mid - <span class="code-number">1</span>
+    <span class="code-keyword">return</span> <span class="code-type">None</span></code></pre>
+                    </div>
+                </div>
+
+                <!-- VS Divider -->
+                <div class="vs-divider">
+                    <span class="vs-text">VS</span>
+                </div>
+
+                <!-- Recommended Model -->
+                <div class="comparison-column recommended-column">
+                    <div class="column-header recommended-header">
+                        <span class="column-icon">🏆</span>
+                        <span class="column-title">LLM Jury Recommendation</span>
+                    </div>
+                    <div class="model-info-bar recommended-bar">
+                        <span class="model-name-compare">GPT-5 mini (high)</span>
+                        <div class="model-stats-compare">
+                            <span class="stat-pill cost-pill savings">$0.69/M</span>
+                            <span class="stat-pill latency-pill savings">0.34s</span>
+                        </div>
+                    </div>
+                    <div class="response-card recommended-response">
+                        <pre class="example-code"><code><span class="code-keyword">from</span> typing <span class="code-keyword">import</span> List, Optional
+
+<span class="code-keyword">def</span> <span class="code-function">binary_search</span>(
+    arr: List[<span class="code-type">int</span>], 
+    target: <span class="code-type">int</span>
+) -> Optional[<span class="code-type">int</span>]:
+    <span class="code-string">"""Binary search implementation.
+    
+    Args:
+        arr: Sorted list of integers
+        target: Value to find
+        
+    Returns:
+        Index if found, None otherwise
+    """</span>
+    <span class="code-keyword">if not</span> arr:
+        <span class="code-keyword">raise</span> <span class="code-type">ValueError</span>(<span class="code-string">"Empty array"</span>)
+    
+    left, right = <span class="code-number">0</span>, <span class="code-keyword">len</span>(arr) - <span class="code-number">1</span>
+    
+    <span class="code-keyword">while</span> left <= right:
+        mid = (left + right) // <span class="code-number">2</span>
+        <span class="code-keyword">if</span> arr[mid] == target:
+            <span class="code-keyword">return</span> mid
+        <span class="code-keyword">elif</span> arr[mid] < target:
+            left = mid + <span class="code-number">1</span>
+        <span class="code-keyword">else</span>:
+            right = mid - <span class="code-number">1</span>
+    <span class="code-keyword">return</span> <span class="code-type">None</span></code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Savings Summary -->
+            <div class="savings-summary">
+                <div class="savings-summary-item">
+                    <span class="savings-icon">✅</span>
+                    <span class="savings-label">Same Quality Output</span>
+                </div>
+                <div class="savings-summary-item highlight">
+                    <span class="savings-icon">💰</span>
+                    <span class="savings-label">80% Cost Savings</span>
+                    <span class="savings-detail">$3.44 → $0.69/M tokens</span>
+                </div>
+                <div class="savings-summary-item highlight">
+                    <span class="savings-icon">⚡</span>
+                    <span class="savings-label">Similar Latency</span>
+                    <span class="savings-detail">0.33s → 0.34s TTFT</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works" class="how-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">The Process</span>
+                <h2 class="section-title">How LLM Jury Works</h2>
+            </div>
+
+            <div class="process-flow">
+                <div class="process-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Define Constraints</h3>
+                        <p>Use our battle-tested defaults or define your own quality, cost, and latency thresholds.</p>
+                        <div class="step-example">
+                            <code>defaults</code> or <code>"80% quality at 25% cost"</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="process-arrow">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+
+                <div class="process-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Multi-Objective Scoring</h3>
+                        <p>Each model is scored across all dimensions with task-specific weights.</p>
+                        <div class="step-visual">
+                            <div class="scoring-bars">
+                                <div class="score-bar" style="--score: 92%">Quality</div>
+                                <div class="score-bar" style="--score: 78%">Cost</div>
+                                <div class="score-bar" style="--score: 85%">Latency</div>
+                                <div class="score-bar" style="--score: 91%">Trust</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="process-arrow">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+
+                <div class="process-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Optimization Strategy</h3>
+                        <p>Choose HYBRID (default), Chebyshev, or Knee Point optimization.</p>
+                        <div class="strategy-toggle">
+                            <button class="strategy-btn active">HYBRID</button>
+                            <button class="strategy-btn">Chebyshev</button>
+                            <button class="strategy-btn">Knee</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="process-arrow">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+
+                <div class="process-step result-step">
+                    <div class="step-number">✓</div>
+                    <div class="step-content">
+                        <h3>Optimal Model Selected</h3>
+                        <p>Results shown vs. a baseline model. Use default (Gemini 3 Pro) or choose your own from the cache.</p>
+                        <div class="result-card">
+                            <span class="result-model-badge">🏆 GPT-5 mini</span>
+                            <span class="result-rationale">87% quality • 70% cheaper • 245ms TTFT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive Demo Section -->
+    <section id="demo" class="demo-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Try It</span>
+                <h2 class="section-title">Interactive Optimization Demo</h2>
+                <p class="section-subtitle">
+                    Our mathematical optimization approach lets you set precise quality, cost, and latency parameters to find the perfect model. 
+                    Easily identify candidates for A/B testing, or use our battle-tested defaults for excellent out-of-the-box results.
+                </p>
+            </div>
+
+            <!-- Demo Mode Tabs -->
+            <div class="demo-mode-tabs">
+                <button class="demo-mode-tab active" data-mode="constraints">📊 Constraint Mode</button>
+                <button class="demo-mode-tab" data-mode="budget">💰 Budget Mode</button>
+            </div>
+
+            <!-- Constraint Mode (existing) -->
+            <div class="demo-container demo-mode-content" id="constraints-mode">
+                <div class="demo-controls">
+                    <div class="control-group">
+                        <label>
+                            <span class="control-label">Use Case</span>
+                        </label>
+                        <div class="use-case-selector">
+                            <button class="use-case-btn active" data-usecase="coding">💻 Coding</button>
+                            <button class="use-case-btn" data-usecase="chatbot">💬 Chatbot</button>
+                            <button class="use-case-btn" data-usecase="creative">✨ Creative</button>
+                            <button class="use-case-btn" data-usecase="general">🎯 General</button>
+                            <button class="use-case-btn" data-usecase="qa">❓ Q&A</button>
+                            <button class="use-case-btn" data-usecase="rag">📚 RAG</button>
+                        </div>
+                        <div class="baseline-indicator" id="baseline-indicator">
+                            <span class="baseline-label">Baseline:</span>
+                            <span class="baseline-model" id="baseline-model">GPT-5.1 (high)</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span class="control-label">Minimum Quality (vs Baseline)</span>
+                            <span class="control-value" id="quality-value">80%</span>
+                        </label>
+                        <input type="range" id="quality-slider" min="0" max="2" value="1" step="1" class="slider">
+                        <div class="slider-labels">
+                            <span>70%</span>
+                            <span>80%</span>
+                            <span>90%</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span class="control-label">Maximum Cost (vs Baseline)</span>
+                            <span class="control-value" id="cost-value">50%</span>
+                        </label>
+                        <input type="range" id="cost-slider" min="0" max="2" value="1" step="1" class="slider">
+                        <div class="slider-labels">
+                            <span>25%</span>
+                            <span>50%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span class="control-label">Maximum Latency (vs Baseline)</span>
+                            <span class="control-value" id="latency-value">100%</span>
+                        </label>
+                        <input type="range" id="latency-slider" min="0" max="2" value="2" step="1" class="slider latency-slider">
+                        <div class="slider-labels">
+                            <span>10%</span>
+                            <span>50%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="opensource-only" class="checkbox-input">
+                            <span class="checkbox-custom"></span>
+                            <span class="checkbox-text">Open Source Only</span>
+                            <span class="checkbox-hint">DeepSeek, Mistral, Qwen, GLM, Llama</span>
+                        </label>
+                    </div>
+
+                    <div class="control-group strategy-info">
+                        <div class="strategy-badge">
+                            <span class="strategy-icon">⚡</span>
+                            <span>HYBRID Optimization</span>
+                        </div>
+                        <p class="strategy-desc">5D Chebyshev + Net Pareto Dominance</p>
+                    </div>
+                </div>
+
+                <div class="demo-results">
+                    <div class="results-header">
+                        <h3>Matching Models</h3>
+                        <span class="results-count" id="results-count">5 models found</span>
+                    </div>
+                    <div class="metrics-legend">
+                        <span class="legend-item"><strong>Q</strong> = Quality %</span>
+                        <span class="legend-item"><strong>C</strong> = Cost %</span>
+                        <span class="legend-item"><strong>L</strong> = Latency %</span>
+                        <span class="legend-hint">(all vs baseline)</span>
+                    </div>
+                    <div class="results-list" id="results-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Mode (new) -->
+            <div class="demo-container demo-mode-content hidden" id="budget-mode">
+                <div class="demo-controls">
+                    <div class="control-group">
+                        <label>
+                            <span class="control-label">Use Case</span>
+                        </label>
+                        <div class="use-case-selector budget-use-case">
+                            <button class="use-case-btn active" data-usecase="coding">💻 Coding</button>
+                            <button class="use-case-btn" data-usecase="chatbot">💬 Chatbot</button>
+                            <button class="use-case-btn" data-usecase="creative">✨ Creative</button>
+                            <button class="use-case-btn" data-usecase="general">🎯 General</button>
+                            <button class="use-case-btn" data-usecase="qa">❓ Q&A</button>
+                            <button class="use-case-btn" data-usecase="rag">📚 RAG</button>
+                        </div>
+                        <div class="baseline-indicator" id="budget-baseline-indicator">
+                            <span class="baseline-label">Baseline:</span>
+                            <span class="baseline-model" id="budget-baseline-model">GPT-5.1 (high)</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span class="control-label">Your Budget</span>
+                            <span class="control-value budget-display" id="budget-display">$0.25/M tokens</span>
+                        </label>
+                        <input type="range" id="budget-slider" min="0" max="5" value="1" step="1" class="slider budget-slider">
+                        <div class="slider-labels budget-labels">
+                            <span>$0.10</span>
+                            <span>$0.25</span>
+                            <span>$0.50</span>
+                            <span>$1.00</span>
+                            <span>$2.00</span>
+                            <span>$5.00</span>
+                        </div>
+                    </div>
+
+
+                    <div class="control-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="budget-opensource-only" class="checkbox-input">
+                            <span class="checkbox-custom"></span>
+                            <span class="checkbox-text">Open Source Only</span>
+                            <span class="checkbox-hint">DeepSeek, Mistral, Qwen, GLM, Llama</span>
+                        </label>
+                    </div>
+
+                    <div class="control-group strategy-info">
+                        <div class="strategy-badge">
+                            <span class="strategy-icon">🎯</span>
+                            <span>Best Value for Budget</span>
+                        </div>
+                        <p class="strategy-desc">Optimizes quality & latency at fixed cost</p>
+                    </div>
+                </div>
+
+                <div class="demo-results">
+                    <div class="results-header">
+                        <h3>Best Models for Your Budget</h3>
+                        <span class="results-count" id="budget-results-count">Finding...</span>
+                    </div>
+                    <div class="metrics-legend">
+                        <span class="legend-item"><strong>Q</strong> = Quality %</span>
+                        <span class="legend-hint">(vs baseline model)</span>
+                    </div>
+                    <div class="results-list" id="budget-results-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Code Example -->
+    <section class="code-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Quick Start</span>
+                <h2 class="section-title">Simple to Integrate</h2>
+            </div>
+
+            <div class="code-container">
+                <div class="code-tabs">
+                    <button class="code-tab active" data-tab="basic">Basic Usage</button>
+                    <button class="code-tab" data-tab="advanced">Advanced</button>
+                    <button class="code-tab" data-tab="custom">Custom Weights</button>
+                </div>
+                <div class="code-content">
+                    <pre class="code-block" id="code-basic"><code><span class="code-keyword">from</span> llm_jury <span class="code-keyword">import</span> get_value_recommendations
+
+<span class="code-comment"># Get optimal model for your constraints</span>
+recommendations = get_value_recommendations(
+    prompt=<span class="code-string">"Write a Python function to sort a list"</span>,
+    use_case=<span class="code-string">"coding"</span>,
+    quality_threshold=<span class="code-number">0.85</span>,  <span class="code-comment"># 85% of baseline quality</span>
+    cost_threshold=<span class="code-number">0.30</span>,     <span class="code-comment"># 30% of baseline cost</span>
+)
+
+<span class="code-comment"># Get the top recommendation</span>
+best = recommendations[<span class="code-number">0</span>]
+<span class="code-keyword">print</span>(f<span class="code-string">"Use {best.model_name}: {best.reasoning}"</span>)</code></pre>
+                    <pre class="code-block hidden" id="code-advanced"><code><span class="code-keyword">from</span> llm_jury <span class="code-keyword">import</span> Optimizer, OptimizationStrategy, ModelRegistry
+
+<span class="code-comment"># Load models and set baseline</span>
+registry = ModelRegistry.load_cache()
+baseline = registry.get_by_name(<span class="code-string">"Gemini 3 Pro"</span>)
+
+<span class="code-comment"># Create optimizer with HYBRID strategy (default)</span>
+<span class="code-comment"># Uses 5D Chebyshev with Net Pareto Dominance</span>
+optimizer = Optimizer(
+    baseline_model=baseline,
+    all_models_data=registry.to_list(),
+    strategy=OptimizationStrategy.HYBRID,  <span class="code-comment"># 5D with Net Dominance</span>
+)
+
+<span class="code-comment"># Rank models for a specific task</span>
+results = optimizer.rank(
+    models=registry.all(),
+    decision=RoutingDecision(category=PromptCategory.CODING),
+    top_k=<span class="code-number">5</span>,
+)</code></pre>
+                    <pre class="code-block hidden" id="code-custom"><code><span class="code-keyword">from</span> llm_jury <span class="code-keyword">import</span> Optimizer, ObjectiveRegistry, Objective
+
+<span class="code-comment"># Create custom objective registry</span>
+registry = ObjectiveRegistry.default()
+
+<span class="code-comment"># Add a custom objective (e.g., ethics score)</span>
+registry.register(Objective(
+    name=<span class="code-string">"ethics"</span>,
+    display_name=<span class="code-string">"Ethics Score"</span>,
+    direction=<span class="code-string">"maximize"</span>,
+    default_weight=<span class="code-number">0.15</span>,
+    extractor=<span class="code-keyword">lambda</span> m, d, ctx: m.ethics_score,
+))
+
+<span class="code-comment"># Use custom weights</span>
+optimizer = Optimizer(
+    baseline_model=baseline,
+    objectives=registry,
+    custom_weights={
+        <span class="code-string">"quality"</span>: <span class="code-number">0.30</span>,
+        <span class="code-string">"cost"</span>: <span class="code-number">0.25</span>,
+        <span class="code-string">"ethics"</span>: <span class="code-number">0.20</span>,
+        <span class="code-string">"latency"</span>: <span class="code-number">0.15</span>,
+        <span class="code-string">"hallucination"</span>: <span class="code-number">0.10</span>,
+    }
+)</code></pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats-section">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-number" data-target="80">0</span>
+                    <span class="stat-label">Models Tracked</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" data-target="12">0</span>
+                    <span class="stat-label">Benchmark Dimensions</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" data-target="5">0</span>
+                    <span class="stat-label">Optimization Dimensions</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number" data-target="100">0</span>
+                    <span class="stat-percent">%</span>
+                    <span class="stat-label">Open Source</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to Optimize Your LLM Stack?</h2>
+                <p>Stop overpaying for quality you don't need. Start making data-driven model decisions.</p>
+                <div class="cta-buttons">
+                    <a href="https://github.com" class="cta-primary large">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                        <span>Get Started on GitHub</span>
+                    </a>
+                    <a href="#" class="cta-secondary large">
+                        <span>Read the Docs</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+                <div class="cta-install">
+                    <code>pip install llm-jury</code>
+                    <button class="copy-btn" onclick="copyInstall()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <span class="logo-icon">⚖️</span>
+                        <span class="logo-text">LLM Jury</span>
+                    </div>
+                    <p>Open-source multi-objective LLM routing and optimization.</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-col">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="#demo">Demo</a>
+                        <a href="#">Documentation</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Resources</h4>
+                        <a href="#">API Reference</a>
+                        <a href="#">Examples</a>
+                        <a href="#">Blog</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Community</h4>
+                        <a href="https://github.com">GitHub</a>
+                        <a href="#">Discord</a>
+                        <a href="#">Twitter</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2025 LLM Jury. Open source under MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
