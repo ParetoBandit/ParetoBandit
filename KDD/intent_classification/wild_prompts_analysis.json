@@ -1,0 +1,210 @@
+{
+  "metadata": {
+    "note": "Qualitative analysis on unstructured real-world prompts",
+    "n_prompts": 24,
+    "categories_tested": [
+      "CODING (informal)",
+      "REASONING (conversational)",
+      "FACTUAL_QA (natural language)",
+      "SUMMARIZATION (informal request)",
+      "GENERAL (chitchat)",
+      "AMBIGUOUS (edge cases)"
+    ]
+  },
+  "results": [
+    {
+      "expected_category": "CODING (informal)",
+      "prompt": "hey can u help me sort a list in python? i keep getting errors",
+      "predicted": "coding",
+      "confidence": 0.93780517578125
+    },
+    {
+      "expected_category": "CODING (informal)",
+      "prompt": "What's the deal with decorators? I see them everywhere but don't get it",
+      "predicted": "factual_qa",
+      "confidence": 0.56818026304245
+    },
+    {
+      "expected_category": "CODING (informal)",
+      "prompt": "How do I make my script run faster? It's taking forever with big files",
+      "predicted": "factual_qa",
+      "confidence": 0.5497664213180542
+    },
+    {
+      "expected_category": "CODING (informal)",
+      "prompt": "I need to parse some JSON but it's nested like crazy. Any tips?",
+      "predicted": "coding",
+      "confidence": 0.6917199492454529
+    },
+    {
+      "expected_category": "REASONING (conversational)",
+      "prompt": "If I have 3 apples and give away 1, then buy 5 more, how many do I have?",
+      "predicted": "reasoning",
+      "confidence": 0.9833382368087769
+    },
+    {
+      "expected_category": "REASONING (conversational)",
+      "prompt": "Help me figure out: if a train leaves at 2pm going 60mph, when does it arrive 180 miles away?",
+      "predicted": "reasoning",
+      "confidence": 0.4435538649559021
+    },
+    {
+      "expected_category": "REASONING (conversational)",
+      "prompt": "I'm confused... if 20% of 50 is 10, what's 30% of 80?",
+      "predicted": "reasoning",
+      "confidence": 0.5248883962631226
+    },
+    {
+      "expected_category": "REASONING (conversational)",
+      "prompt": "Let's say I invest $1000 at 5% interest. How much after 3 years?",
+      "predicted": "reasoning",
+      "confidence": 0.801028847694397
+    },
+    {
+      "expected_category": "FACTUAL_QA (natural language)",
+      "prompt": "Who's the current president of France?",
+      "predicted": "factual_qa",
+      "confidence": 0.9785541892051697
+    },
+    {
+      "expected_category": "FACTUAL_QA (natural language)",
+      "prompt": "What year did World War 2 end again?",
+      "predicted": "factual_qa",
+      "confidence": 0.5315186977386475
+    },
+    {
+      "expected_category": "FACTUAL_QA (natural language)",
+      "prompt": "I forget - what's the capital of Australia?",
+      "predicted": "factual_qa",
+      "confidence": 0.9835072755813599
+    },
+    {
+      "expected_category": "FACTUAL_QA (natural language)",
+      "prompt": "Quick question: how many continents are there?",
+      "predicted": "factual_qa",
+      "confidence": 0.9773180484771729
+    },
+    {
+      "expected_category": "SUMMARIZATION (informal request)",
+      "prompt": "Can you give me the tldr of this article about climate change? [article text...]",
+      "predicted": "factual_qa",
+      "confidence": 0.5917511582374573
+    },
+    {
+      "expected_category": "SUMMARIZATION (informal request)",
+      "prompt": "I don't have time to read this whole thing - what's the main point? [document...]",
+      "predicted": "general",
+      "confidence": 0.5462735891342163
+    },
+    {
+      "expected_category": "SUMMARIZATION (informal request)",
+      "prompt": "Summarize this for me please, I need the key takeaways [long text...]",
+      "predicted": "general",
+      "confidence": 0.5922521948814392
+    },
+    {
+      "expected_category": "SUMMARIZATION (informal request)",
+      "prompt": "What's this paper about in a nutshell? [research paper...]",
+      "predicted": "factual_qa",
+      "confidence": 0.674149751663208
+    },
+    {
+      "expected_category": "GENERAL (chitchat)",
+      "prompt": "What do you think about the new iPhone?",
+      "predicted": "factual_qa",
+      "confidence": 0.8717225790023804
+    },
+    {
+      "expected_category": "GENERAL (chitchat)",
+      "prompt": "Tell me a joke about programmers",
+      "predicted": "factual_qa",
+      "confidence": 0.6449331045150757
+    },
+    {
+      "expected_category": "GENERAL (chitchat)",
+      "prompt": "I'm feeling stressed today, any advice?",
+      "predicted": "factual_qa",
+      "confidence": 0.9827769994735718
+    },
+    {
+      "expected_category": "GENERAL (chitchat)",
+      "prompt": "What's your favorite movie and why?",
+      "predicted": "factual_qa",
+      "confidence": 0.6108437180519104
+    },
+    {
+      "expected_category": "AMBIGUOUS (edge cases)",
+      "prompt": "Explain how neural networks work",
+      "predicted": "factual_qa",
+      "confidence": 0.561034619808197
+    },
+    {
+      "expected_category": "AMBIGUOUS (edge cases)",
+      "prompt": "I'm learning Python, where should I start?",
+      "predicted": "factual_qa",
+      "confidence": 0.8166131377220154
+    },
+    {
+      "expected_category": "AMBIGUOUS (edge cases)",
+      "prompt": "What are the pros and cons of React vs Vue?",
+      "predicted": "factual_qa",
+      "confidence": 0.9599136710166931
+    },
+    {
+      "expected_category": "AMBIGUOUS (edge cases)",
+      "prompt": "How do I get better at problem solving?",
+      "predicted": "factual_qa",
+      "confidence": 0.9648669362068176
+    }
+  ],
+  "summary": {
+    "predictions_by_expected": {
+      "coding": {
+        "coding": 2,
+        "factual_qa": 2
+      },
+      "reasoning": {
+        "reasoning": 4
+      },
+      "factual_qa": {
+        "factual_qa": 4
+      },
+      "summarization": {
+        "factual_qa": 2,
+        "general": 2
+      },
+      "general": {
+        "factual_qa": 4
+      },
+      "ambiguous": {
+        "factual_qa": 4
+      }
+    },
+    "confidence_stats": {
+      "coding": {
+        "mean": 0.6868679523468018,
+        "std": 0.1548197576068117
+      },
+      "reasoning": {
+        "mean": 0.6882023364305496,
+        "std": 0.21584678535012358
+      },
+      "factual_qa": {
+        "mean": 0.8677245527505875,
+        "std": 0.19412235733722497
+      },
+      "summarization": {
+        "mean": 0.6011066734790802,
+        "std": 0.046119100885793206
+      },
+      "general": {
+        "mean": 0.7775691002607346,
+        "std": 0.15521341750845868
+      },
+      "ambiguous": {
+        "mean": 0.8256070911884308,
+        "std": 0.16394438510582726
+      }
+    }
+  }
+}
