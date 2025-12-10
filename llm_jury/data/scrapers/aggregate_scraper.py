@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import logging
 
-from .chatbot_arena_scraper import ChatbotArenaScraper
+# ChatbotArenaScraper removed - use manual curation via update_arena_rankings.py
 from .artificial_analysis_scraper import ArtificialAnalysisScraper
 from .openrouter_scraper import OpenRouterScraper
 from .official_sources_scraper import OfficialSourcesScraper
@@ -44,7 +44,7 @@ class ComprehensiveBenchmarkAggregator:
         self.scrapers = {
             'openrouter': OpenRouterScraper(),  # Scrape this first to get canonical names
             'huggingface': HuggingFaceLeaderboardScraper(),  # Add HF benchmarks with fuzzy matching
-            'arena': ChatbotArenaScraper(),
+            # 'arena': ChatbotArenaScraper(),  # Removed - use manual curation
             'performance': ArtificialAnalysisScraper(),
             'official': OfficialSourcesScraper(),
         }

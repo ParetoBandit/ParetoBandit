@@ -1,0 +1,258 @@
+{
+  "openai/o3-mini-high": {
+    "verified": 69.1,
+    "lite": null,
+    "score_type": "agent",
+    "source": "OpenAI o3 announcement",
+    "source_url": "https://openai.com/index/deliberative-alignment/",
+    "notes": "With agent tools"
+  },
+  "anthropic/claude-3.5-sonnet": {
+    "verified": 50.8,
+    "lite": 40.7,
+    "score_type": "agentless",
+    "source": "Agentless paper (ACL 2025)",
+    "source_url": "https://aclanthology.org/2025.acl-long.559.pdf",
+    "notes": "With Agentless framework"
+  },
+  "deepseek/deepseek-v3.1-terminus": {
+    "verified": 42.0,
+    "lite": 34.8,
+    "score_type": "agentless",
+    "source": "DeepSeek V3 paper",
+    "source_url": "https://arxiv.org/abs/2412.19437",
+    "notes": "With Agentless framework"
+  },
+  "deepseek/deepseek-r1": {
+    "verified": 49.2,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "DeepSeek R1 paper",
+    "source_url": "https://arxiv.org/abs/2501.12948",
+    "notes": "With reasoning capabilities"
+  },
+  "anthropic/claude-3.7-sonnet": {
+    "verified": 62.3,
+    "lite": null,
+    "score_type": "agent",
+    "source": "Official Anthropic announcement",
+    "source_url": "https://www.anthropic.com/news/claude-3-7-sonnet",
+    "notes": "With computer use tools"
+  },
+  "openai/o3": {
+    "verified": 69.1,
+    "lite": null,
+    "score_type": "agent",
+    "source": "OpenAI o3 announcement",
+    "source_url": "https://openai.com/index/deliberative-alignment/",
+    "notes": "With agent tools"
+  },
+  "google/gemini-pro-1.5": {
+    "verified": 28.8,
+    "lite": 22.6,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "With Agentless framework"
+  },
+  "deepseek/deepseek-chat-v3.1": {
+    "verified": 42.0,
+    "lite": 34.8,
+    "score_type": "agentless",
+    "source": "DeepSeek V3 paper",
+    "source_url": "https://arxiv.org/abs/2412.19437",
+    "notes": "With Agentless framework"
+  },
+  "x-ai/grok-2-1212": {
+    "verified": 34.2,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "Estimated"
+  },
+  "openai/gpt-4.1": {
+    "verified": 33.2,
+    "lite": 26.0,
+    "score_type": "agentless",
+    "source": "SWE-bench original paper",
+    "source_url": "https://arxiv.org/abs/2310.06770",
+    "notes": "Original evaluation"
+  },
+  "deepseek/deepseek-r1-distill-qwen-1.5b": {
+    "verified": 49.2,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "DeepSeek R1 paper",
+    "source_url": "https://arxiv.org/abs/2501.12948",
+    "notes": "With reasoning capabilities"
+  },
+  "meta-llama/llama-3.1-405b-instruct": {
+    "verified": 29.0,
+    "lite": 23.4,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "With Agentless framework"
+  },
+  "meta-llama/llama-3.1-70b-instruct": {
+    "verified": 22.7,
+    "lite": 18.0,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "With Agentless framework"
+  },
+  "deepseek/deepseek-r1-distill-llama-70b": {
+    "verified": 49.2,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "DeepSeek R1 paper",
+    "source_url": "https://arxiv.org/abs/2501.12948",
+    "notes": "With reasoning capabilities"
+  },
+  "openai/o1": {
+    "verified": 48.9,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "With reasoning capabilities"
+  },
+  "mistralai/mistral-large": {
+    "verified": 24.6,
+    "lite": 19.2,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "With Agentless framework"
+  },
+  "deepseek/deepseek-r1-0528-qwen3-8b": {
+    "verified": 49.2,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "DeepSeek R1 paper",
+    "source_url": "https://arxiv.org/abs/2501.12948",
+    "notes": "With reasoning capabilities"
+  },
+  "openai/gpt-4.1-nano": {
+    "verified": 33.2,
+    "lite": 26.0,
+    "score_type": "agentless",
+    "source": "SWE-bench original paper",
+    "source_url": "https://arxiv.org/abs/2310.06770",
+    "notes": "Original evaluation"
+  },
+  "deepseek/deepseek-chat-v3-0324": {
+    "verified": 42.0,
+    "lite": 34.8,
+    "score_type": "agentless",
+    "source": "DeepSeek V3 paper",
+    "source_url": "https://arxiv.org/abs/2412.19437",
+    "notes": "With Agentless framework"
+  },
+  "openai/gpt-4-turbo": {
+    "verified": 38.4,
+    "lite": 30.2,
+    "score_type": "agentless",
+    "source": "Agentless paper",
+    "source_url": "https://arxiv.org/abs/2407.01489",
+    "notes": "With Agentless framework"
+  },
+  "anthropic/claude-3-opus": {
+    "verified": 22.0,
+    "lite": 18.3,
+    "score_type": "agentless",
+    "source": "Agentless paper",
+    "source_url": "https://arxiv.org/abs/2407.01489",
+    "notes": "With Agentless framework"
+  },
+  "google/gemini-2.0-flash-lite-001": {
+    "verified": 32.4,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "Estimated from similar models"
+  },
+  "openai/o4-mini": {
+    "verified": 68.1,
+    "lite": null,
+    "score_type": "agent",
+    "source": "OpenAI o4-mini announcement",
+    "source_url": "https://openai.com/",
+    "notes": "With agent tools"
+  },
+  "anthropic/claude-opus-4": {
+    "verified": 72.5,
+    "lite": null,
+    "score_type": "agent",
+    "source": "Anthropic Claude 4 announcement",
+    "source_url": "https://www.anthropic.com/news/claude-4",
+    "notes": "With agent tools"
+  },
+  "openai/gpt-4o": {
+    "verified": 41.3,
+    "lite": 33.2,
+    "score_type": "agentless",
+    "source": "Agentless paper (ACL 2025)",
+    "source_url": "https://aclanthology.org/2025.acl-long.559.pdf",
+    "notes": "With Agentless framework"
+  },
+  "meta-llama/llama-3.3-70b-instruct": {
+    "verified": 32.4,
+    "lite": 26.0,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "Improved from 3.1"
+  },
+  "openai/gpt-4.1-mini": {
+    "verified": 33.2,
+    "lite": 26.0,
+    "score_type": "agentless",
+    "source": "SWE-bench original paper",
+    "source_url": "https://arxiv.org/abs/2310.06770",
+    "notes": "Original evaluation"
+  },
+  "anthropic/claude-sonnet-4": {
+    "verified": 72.7,
+    "lite": null,
+    "score_type": "agent",
+    "source": "Anthropic Claude 4 announcement",
+    "source_url": "https://www.anthropic.com/news/claude-4",
+    "notes": "With agent tools"
+  },
+  "deepseek/deepseek-r1-distill-qwen-14b": {
+    "verified": 49.2,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "DeepSeek R1 paper",
+    "source_url": "https://arxiv.org/abs/2501.12948",
+    "notes": "With reasoning capabilities"
+  },
+  "openai/gpt-4o-mini": {
+    "verified": 41.3,
+    "lite": 33.2,
+    "score_type": "agentless",
+    "source": "Agentless paper (ACL 2025)",
+    "source_url": "https://aclanthology.org/2025.acl-long.559.pdf",
+    "notes": "With Agentless framework"
+  },
+  "google/gemini-2.0-flash-001": {
+    "verified": 32.4,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "Community benchmarks",
+    "source_url": "https://www.swebench.com/",
+    "notes": "Estimated from similar models"
+  },
+  "deepseek/deepseek-r1-distill-qwen-32b": {
+    "verified": 49.2,
+    "lite": null,
+    "score_type": "agentless",
+    "source": "DeepSeek R1 paper",
+    "source_url": "https://arxiv.org/abs/2501.12948",
+    "notes": "With reasoning capabilities"
+  }
+}

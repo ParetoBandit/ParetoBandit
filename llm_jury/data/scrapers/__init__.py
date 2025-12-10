@@ -9,7 +9,7 @@ This package provides scrapers for:
 - Official sources (model cards, technical reports)
 """
 
-from .chatbot_arena_scraper import ChatbotArenaScraper
+# ChatbotArenaScraper removed - use manual curation via update_arena_rankings.py
 from .artificial_analysis_scraper import ArtificialAnalysisScraper
 from .openrouter_scraper import OpenRouterScraper, OpenRouterWebScraper
 from .official_sources_scraper import OfficialSourcesScraper
@@ -18,7 +18,7 @@ from .aggregate_scraper import ComprehensiveBenchmarkAggregator
 from .openrouter_context_scraper import OpenRouterContextScraper, update_cache_with_context_lengths
 
 __all__ = [
-    'ChatbotArenaScraper',
+    # 'ChatbotArenaScraper',  # Removed - use manual curation
     'ArtificialAnalysisScraper',
     'OpenRouterScraper',
     'OpenRouterWebScraper',
