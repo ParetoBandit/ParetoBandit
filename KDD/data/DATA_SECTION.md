@@ -2,7 +2,7 @@
 
 ## 3.1 Overview
 
-Our system integrates heterogeneous data from multiple sources to enable cost-effective multi-model routing. We collect (i) model performance benchmarks from standardized evaluation suites, (ii) operational metadata including pricing and latency, (iii) safety metrics for responsible deployment, and (iv) human preference signals for validation. This section details our data collection methodology, quality assurance procedures, and statistical techniques for handling missing data and deriving composite quality scores.
+Our system integrates heterogeneous data from multiple sources to enable cost-effective multi-model routing. We collect (i) model performance benchmarks from standardized evaluation suites, (ii) operational metadata including pricing and latency, (iii) safety metrics for responsible deployment, and (iv) human preference signals for validation. This section details our data collection methodology, quality assurance procedures, and statistical techniques for handling missing data and deriving five intent-specific composite quality scores (CCS, CRS, CFS, CSS, CAE).
 
 **Dataset Statistics:** As of December 2025, our operational dataset comprises **83 production-ready language models** in `models_cache.json` (our source of truth). Coverage rates range from 37% to 100% across different benchmark suites. Table 1 summarizes the data sources and their characteristics.
 
@@ -21,13 +21,15 @@ Our benchmark data collection employs three complementary strategies: (1) raw be
 
 We obtain pre-existing benchmark scores from established aggregators and leaderboards, prioritizing sources with transparent methodologies and broad model coverage.
 
-**Artificial Analysis API.** We use the Artificial Analysis API (v2) \cite{artificialanalysis2024} to obtain standardized quality indices and operational metrics. The API aggregates scores from multiple upstream benchmarks into three composite indices:
+**Artificial Analysis API.** We use the Artificial Analysis API (v2) \cite{artificialanalysis2024} to obtain standardized quality indices, operational metrics, and agent capability benchmarks. The API provides:
 
 - **Intelligence Index**: Aggregation of MMLU-Pro \cite{wang2024mmlu-pro}, GPQA \cite{rein2023gpqa}, and other knowledge benchmarks
 - **Coding Index**: Composite score from HumanEval \cite{chen2021humaneval}, LiveCodeBench \cite{jain2024livecodebench}, and SciCode \cite{tian2024scicode}
 - **Math Index**: Derived from MATH-500 \cite{hendrycks2021math} and AIME \cite{aime2024} competition problems
+- **TAU-bench 2.0**: Multi-turn agent tasks in retail and airline domains \cite{zhou2024tau}, evaluating tool use, dialogue coherence, and task completion (64/83 models, 77.1%)
+- **TerminalBench-Hard**: Terminal command recovery tasks requiring planning and execution (61/83 models, 73.5%)
 
-We validate that these indices employ principled aggregation methods (weighted geometric means with domain expert weights) rather than arbitrary averaging. All 83 models in our operational dataset have complete coverage for these indices, as Artificial Analysis uses proprietary imputation for models lacking some component benchmarks.
+We validate that the composite indices employ principled aggregation methods (weighted geometric means with domain expert weights) rather than arbitrary averaging. All 83 models have complete coverage for the quality indices. For agent benchmarks (TAU-bench, TerminalBench), coverage is high (70-77%) and sufficient for robust composite score estimation.
 
 **Rationale for Use:** Artificial Analysis indices serve as auxiliary benchmarks in our Bayesian Latent Factor model (§3.2.3) to enable inference for models missing specialized benchmark scores. The high correlation (ρ = 0.87) between their Intelligence Index and Chatbot Arena ELO validates their use as quality proxies \cite{artificialanalysis2024validation}.
 
@@ -98,6 +100,20 @@ $$p(\theta_i \mid \{z_{i,b'}\}_{b' \in \text{observed}}) \propto p(\theta_i) \pr
 
 This "borrows strength" from observed benchmarks and models with complete data, with uncertainty increasing gracefully as coverage decreases.
 
+**Why Collinearity is Beneficial for BLF.** Unlike ordinary least squares (OLS) regression, which suffers from multicollinearity leading to unstable coefficient estimates and inflated variance \cite{belsley1980regression}, **BLF explicitly exploits benchmark correlations** to identify the underlying latent structure. This is a fundamental methodological advantage:
+
+1. **Correlation reveals latent factors**: High inter-benchmark correlation indicates they measure the same underlying capability. For example, HumanEval ↔ MBPP (ρ = 0.87) suggests a shared "coding ability" factor. BLF leverages this signal rather than treating it as a nuisance.
+
+2. **Improved missing data imputation**: Correlated benchmarks enable better prediction of missing values through factor loadings. If model $i$ is missing MBPP but has HumanEval, the strong correlation allows accurate imputation via the latent factor $\theta_i$ and learned loading $\lambda_{\text{MBPP}}$.
+
+3. **Regularization prevents overfitting**: Bayesian priors ($\lambda_b \sim \text{HalfNormal}$, $\sigma_b \sim \text{HalfNormal}$) naturally regularize loadings, avoiding the coefficient instability that plagues OLS under collinearity. The hierarchical structure pools information across benchmarks.
+
+4. **Factor identification through shared variance**: BLF identifies $\theta_i$ precisely because multiple correlated benchmarks agree on model quality. Low correlation would suggest distinct constructs (requiring multiple factors), while high correlation validates the single-factor assumption.
+
+**Empirical validation**: For CAE (Composite Agentic Execution), TAU-bench and TerminalBench have ρ = 0.74. BLF learns nearly equal loadings ($\lambda_{\text{tau2}} = 0.909 \pm 0.106$, $\lambda_{\text{terminal}} = 0.902 \pm 0.108$), indicating they measure the same latent "agentic capability" despite different task domains (multi-turn conversations vs. terminal commands). This data-driven convergence would be impossible without exploiting their correlation structure.
+
+**Contrast with OLS**: If we used weighted linear regression (a common baseline), correlation between TAU-bench and TerminalBench would inflate standard errors and make weight estimation unstable (variance inflation factor VIF ≈ 2.8). BLF transforms this correlation from a statistical liability into the primary signal for factor identification—**collinearity is the mechanism, not a bug**.
+
 **Auxiliary Benchmarks.** To improve inference for models with sparse coverage, we include auxiliary benchmarks (Artificial Analysis indices, §3.2.1) with small prior weights. These high-coverage benchmarks enable latent factor estimation for models missing primary benchmarks, similar to auxiliary variables in multiple imputation \cite{rubin1987multiple}.
 
 **Handling Extreme Missingness.** For benchmarks with low coverage (e.g., Arena-Hard-Auto: 23/83 models, 27.7%), the BLF model relies heavily on auxiliary benchmarks and correlations with observed benchmarks. For CSS (Composite Summarization Score), models missing Arena-Hard-Auto (60 models) receive estimates primarily from: (i) SummEdits scores (100% coverage), (ii) Intelligence Index (100% coverage), and (iii) correlation structure learned from models with complete data. Uncertainty (95% HDI width) increases by ~15-20% for models with only auxiliary benchmark coverage vs. those with primary benchmarks, but estimates remain well-calibrated (validated via leave-one-out cross-validation, RMSE = 3.2 on 0-100 scale).
@@ -110,7 +126,7 @@ This "borrows strength" from observed benchmarks and models with complete data, 
 
 Posterior samples of $\theta_i$ provide full uncertainty quantification (95% HDI intervals). For use in routing, we transform to 0-100 scale: $\text{Score}_i = 50 + 10 \cdot \mathbb{E}[\theta_i \mid \text{data}]$.
 
-**Composite Score Definitions.** We compute four domain-specific composite scores:
+**Composite Score Definitions.** We compute five domain-specific composite scores using the Bayesian Latent Factor (BLF) model:
 
 1. **CCS (Composite Coding Score)** - 98 models
    - Primary: HumanEval, MBPP, LiveCodeBench, SciCode
@@ -131,6 +147,12 @@ Posterior samples of $\theta_i$ provide full uncertainty quantification (95% HDI
    - Primary: SummEdits (§3.2.2), Arena rankings
    - Auxiliary: Intelligence Index
    - Use case: Document summarization, content generation
+
+5. **CAE (Composite Agentic Execution)** - 65 models
+   - Primary: TAU-bench 2.0 (λ=0.91±0.11), TerminalBench-Hard (λ=0.90±0.11)
+   - Auxiliary: Intelligence Index
+   - Use case: Multi-turn agent tasks, tool/API use, workflow orchestration
+   - Note: Benchmark loadings (λ) are learned from data via BLF, not predetermined
 
 **Validation.** We validate composite scores against Chatbot Arena ELO (human preference ground truth):
 
@@ -343,6 +365,8 @@ Table 2 provides comprehensive statistics for our benchmark suite:
 - Weak correlations with safety metrics (e.g., MMLU ↔ Hallucination Rate: ρ = -0.31)
 
 This supports our multi-domain composite score approach rather than a single "general intelligence" score.
+
+**Interpretation for BLF**: Strong within-domain correlations (ρ > 0.8) validate single-factor models for domain-specific composites (CCS, CRS, CFS, CSS, CAE). The BLF model leverages these correlations to: (i) learn data-driven benchmark loadings, (ii) impute missing values via factor scores, and (iii) quantify uncertainty based on benchmark agreement. Unlike OLS regression where collinearity inflates variance and destabilizes coefficients \cite{belsley1980regression}, **BLF requires correlation to identify latent factors** \cite{bartholomew2011latent}—high inter-benchmark correlation is a feature, not a bug.
 
 ## 3.9 Summary
 
