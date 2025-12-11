@@ -84,5 +84,7 @@
   "openai/o3": 90.21080368906456,
   "minimax/minimax-m2": 87.09150326797386,
   "google/gemini-3-pro-preview": 88.02371541501977,
-  "openai/o3-mini-high": 88.76152832674572
+  "openai/o3-mini-high": 88.76152832674572,
+  "deepseek/deepseek-r1-distill-qwen-32b": 86.58761528326747,
+  "qwen/qwen3-14b": 88.20816864295125
 }
