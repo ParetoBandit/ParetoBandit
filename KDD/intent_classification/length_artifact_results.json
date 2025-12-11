@@ -1,0 +1,100 @@
+{
+  "summary": {
+    "non_summarization_tests": 4,
+    "artifact_failures": 4,
+    "artifact_failure_rate": 1.0,
+    "summarization_tests": 2,
+    "summarization_correct": 2,
+    "verdict": "ARTIFACT_DETECTED"
+  },
+  "all_results": [
+    {
+      "category": "Long Python Error Log (CODING expected)",
+      "type": "non_summarization",
+      "prompt": "\nTraceback (most recent call last):\n  File \"app.py\", line 45, in process_data\n    result = calculate...",
+      "length": 1120,
+      "predicted": "summarization",
+      "confidence": 0.9748299717903137,
+      "summarization_prob": 0.9748299717903137
+    },
+    {
+      "category": "Long Email Thread (GENERAL expected)",
+      "type": "non_summarization",
+      "prompt": "\nFrom: Sarah Johnson <sarah@company.com>\nTo: Team <team@company.com>\nSubject: Re: Re: Re: Project ti...",
+      "length": 1118,
+      "predicted": "summarization",
+      "confidence": 0.9984927177429199,
+      "summarization_prob": 0.9984927177429199
+    },
+    {
+      "category": "Long Meeting Notes (GENERAL expected)",
+      "type": "non_summarization",
+      "prompt": "\nMeeting: Sprint Planning\nDate: October 15, 2024\nAttendees: Engineering team (12 people)\nDuration: 9...",
+      "length": 1299,
+      "predicted": "summarization",
+      "confidence": 0.9977906942367554,
+      "summarization_prob": 0.9977906942367554
+    },
+    {
+      "category": "Long Code Documentation (CODING expected)",
+      "type": "non_summarization",
+      "prompt": "\n# Data Processing Pipeline Documentation\n\n## Overview\nThis module implements a distributed data pro...",
+      "length": 1781,
+      "predicted": "summarization",
+      "confidence": 0.9122186899185181,
+      "summarization_prob": 0.9122186899185181
+    },
+    {
+      "category": "Explicit summarization request",
+      "type": "summarization",
+      "prompt": "Summarize the following article:\n\nThe Federal Reserve announced today that it will maintain interest...",
+      "length": 744,
+      "predicted": "summarization",
+      "confidence": 0.962561845779419,
+      "summarization_prob": 0.962561845779419
+    },
+    {
+      "category": "TLDR request",
+      "type": "summarization",
+      "prompt": "Can you give me a TLDR of this research paper?\n\nAbstract: Recent advances in transformer architectur...",
+      "length": 719,
+      "predicted": "summarization",
+      "confidence": 0.8906651735305786,
+      "summarization_prob": 0.8906651735305786
+    }
+  ],
+  "failures": [
+    {
+      "category": "Long Python Error Log (CODING expected)",
+      "prompt": "\nTraceback (most recent call last):\n  File \"app.py\", line 45, in process_data\n    result = calculate...",
+      "length": 1120,
+      "predicted": "summarization",
+      "confidence": 0.9748299717903137,
+      "summarization_prob": 0.9748299717903137
+    },
+    {
+      "category": "Long Email Thread (GENERAL expected)",
+      "prompt": "\nFrom: Sarah Johnson <sarah@company.com>\nTo: Team <team@company.com>\nSubject: Re: Re: Re: Project ti...",
+      "length": 1118,
+      "predicted": "summarization",
+      "confidence": 0.9984927177429199,
+      "summarization_prob": 0.9984927177429199
+    },
+    {
+      "category": "Long Meeting Notes (GENERAL expected)",
+      "prompt": "\nMeeting: Sprint Planning\nDate: October 15, 2024\nAttendees: Engineering team (12 people)\nDuration: 9...",
+      "length": 1299,
+      "predicted": "summarization",
+      "confidence": 0.9977906942367554,
+      "summarization_prob": 0.9977906942367554
+    },
+    {
+      "category": "Long Code Documentation (CODING expected)",
+      "prompt": "\n# Data Processing Pipeline Documentation\n\n## Overview\nThis module implements a distributed data pro...",
+      "length": 1781,
+      "predicted": "summarization",
+      "confidence": 0.9122186899185181,
+      "summarization_prob": 0.9122186899185181
+    }
+  ]
+}

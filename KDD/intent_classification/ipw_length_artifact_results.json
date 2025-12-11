@@ -1,0 +1,133 @@
+{
+  "summary": {
+    "total_cases": 4,
+    "correct": 0,
+    "artifact_failures": 4,
+    "accuracy": 0.0,
+    "artifact_rate": 1.0
+  },
+  "test_cases": [
+    {
+      "category": "Long CODING Prompt",
+      "expected": "coding",
+      "prompt_length": 2879,
+      "result": {
+        "predicted": "summarization",
+        "confidence": 0.9859659075737,
+        "all_probabilities": {
+          "coding": 0.0015869566705077887,
+          "factual_qa": 0.0006752603803761303,
+          "general": 0.010705864988267422,
+          "reasoning": 0.0010659861145541072,
+          "summarization": 0.9859659075737
+        }
+      },
+      "is_correct": false,
+      "is_artifact": true
+    },
+    {
+      "category": "Long ERROR LOG",
+      "expected": "general",
+      "prompt_length": 1656,
+      "result": {
+        "predicted": "summarization",
+        "confidence": 0.9245989322662354,
+        "all_probabilities": {
+          "coding": 0.0044884406961500645,
+          "factual_qa": 0.0015025959582999349,
+          "general": 0.06553853303194046,
+          "reasoning": 0.0038714834954589605,
+          "summarization": 0.9245989322662354
+        }
+      },
+      "is_correct": false,
+      "is_artifact": true
+    },
+    {
+      "category": "Long EMAIL Thread",
+      "expected": "general",
+      "prompt_length": 2008,
+      "result": {
+        "predicted": "summarization",
+        "confidence": 0.9968690276145935,
+        "all_probabilities": {
+          "coding": 0.00020273907284718007,
+          "factual_qa": 0.000186578108696267,
+          "general": 0.0021704486571252346,
+          "reasoning": 0.0005711495759896934,
+          "summarization": 0.9968690276145935
+        }
+      },
+      "is_correct": false,
+      "is_artifact": true
+    },
+    {
+      "category": "Long GENERAL Discussion",
+      "expected": "general",
+      "prompt_length": 1771,
+      "result": {
+        "predicted": "summarization",
+        "confidence": 0.951598048210144,
+        "all_probabilities": {
+          "coding": 0.002566599752753973,
+          "factual_qa": 0.0003900832962244749,
+          "general": 0.04393751919269562,
+          "reasoning": 0.0015077703865244985,
+          "summarization": 0.951598048210144
+        }
+      },
+      "is_correct": false,
+      "is_artifact": true
+    }
+  ],
+  "failures": [
+    {
+      "category": "Long CODING Prompt",
+      "predicted": "summarization",
+      "confidence": 0.9859659075737,
+      "all_probabilities": {
+        "coding": 0.0015869566705077887,
+        "factual_qa": 0.0006752603803761303,
+        "general": 0.010705864988267422,
+        "reasoning": 0.0010659861145541072,
+        "summarization": 0.9859659075737
+      }
+    },
+    {
+      "category": "Long ERROR LOG",
+      "predicted": "summarization",
+      "confidence": 0.9245989322662354,
+      "all_probabilities": {
+        "coding": 0.0044884406961500645,
+        "factual_qa": 0.0015025959582999349,
+        "general": 0.06553853303194046,
+        "reasoning": 0.0038714834954589605,
+        "summarization": 0.9245989322662354
+      }
+    },
+    {
+      "category": "Long EMAIL Thread",
+      "predicted": "summarization",
+      "confidence": 0.9968690276145935,
+      "all_probabilities": {
+        "coding": 0.00020273907284718007,
+        "factual_qa": 0.000186578108696267,
+        "general": 0.0021704486571252346,
+        "reasoning": 0.0005711495759896934,
+        "summarization": 0.9968690276145935
+      }
+    },
+    {
+      "category": "Long GENERAL Discussion",
+      "predicted": "summarization",
+      "confidence": 0.951598048210144,
+      "all_probabilities": {
+        "coding": 0.002566599752753973,
+        "factual_qa": 0.0003900832962244749,
+        "general": 0.04393751919269562,
+        "reasoning": 0.0015077703865244985,
+        "summarization": 0.951598048210144
+      }
+    }
+  ]
+}
