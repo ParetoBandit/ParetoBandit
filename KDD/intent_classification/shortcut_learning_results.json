@@ -1,0 +1,392 @@
+{
+  "summary": {
+    "total_tests": 24,
+    "shortcut_failures": 0,
+    "success_rate": 100.0,
+    "verdict": "ROBUST"
+  },
+  "by_keyword": {
+    "function": {
+      "total": 4,
+      "coding": 0,
+      "predictions": {
+        "factual_qa": 4
+      }
+    },
+    "class": {
+      "total": 4,
+      "coding": 0,
+      "predictions": {
+        "factual_qa": 4
+      }
+    },
+    "python": {
+      "total": 4,
+      "coding": 0,
+      "predictions": {
+        "factual_qa": 4
+      }
+    },
+    "variable": {
+      "total": 4,
+      "coding": 0,
+      "predictions": {
+        "factual_qa": 3,
+        "general": 1
+      }
+    },
+    "loop": {
+      "total": 4,
+      "coding": 0,
+      "predictions": {
+        "factual_qa": 4
+      }
+    },
+    "array": {
+      "total": 4,
+      "coding": 0,
+      "predictions": {
+        "factual_qa": 4
+      }
+    }
+  },
+  "all_results": [
+    {
+      "category": "KEYWORD: 'function' (biology/medical)",
+      "expected": "NOT coding",
+      "prompt": "What is the primary function of the mitochondria?",
+      "predicted": "factual_qa",
+      "confidence": 0.9354026913642883,
+      "all_probs": {
+        "coding": 0.03366909921169281,
+        "factual_qa": 0.9354026913642883,
+        "general": 0.027778565883636475,
+        "reasoning": 0.001730134361423552,
+        "summarization": 0.001419430016539991
+      }
+    },
+    {
+      "category": "KEYWORD: 'function' (biology/medical)",
+      "expected": "NOT coding",
+      "prompt": "Describe the function of the liver in the human body",
+      "predicted": "factual_qa",
+      "confidence": 0.9538128972053528,
+      "all_probs": {
+        "coding": 0.014328821562230587,
+        "factual_qa": 0.9538128972053528,
+        "general": 0.029722383245825768,
+        "reasoning": 0.001223208848387003,
+        "summarization": 0.0009127182420343161
+      }
+    },
+    {
+      "category": "KEYWORD: 'function' (biology/medical)",
+      "expected": "NOT coding",
+      "prompt": "What function does the heart serve?",
+      "predicted": "factual_qa",
+      "confidence": 0.9335702657699585,
+      "all_probs": {
+        "coding": 0.04540077596902847,
+        "factual_qa": 0.9335702657699585,
+        "general": 0.01963311992585659,
+        "reasoning": 0.0008262912160716951,
+        "summarization": 0.0005695238360203803
+      }
+    },
+    {
+      "category": "KEYWORD: 'function' (biology/medical)",
+      "expected": "NOT coding",
+      "prompt": "Explain the function of chloroplasts in plants",
+      "predicted": "factual_qa",
+      "confidence": 0.7925414443016052,
+      "all_probs": {
+        "coding": 0.17342044413089752,
+        "factual_qa": 0.7925414443016052,
+        "general": 0.02399664744734764,
+        "reasoning": 0.007101148366928101,
+        "summarization": 0.0029403914231806993
+      }
+    },
+    {
+      "category": "KEYWORD: 'class' (education/social)",
+      "expected": "NOT coding",
+      "prompt": "What time does your class start?",
+      "predicted": "factual_qa",
+      "confidence": 0.9475132822990417,
+      "all_probs": {
+        "coding": 0.005093591753393412,
+        "factual_qa": 0.9475132822990417,
+        "general": 0.04481025040149689,
+        "reasoning": 0.0015195767628028989,
+        "summarization": 0.0010633202036842704
+      }
+    },
+    {
+      "category": "KEYWORD: 'class' (education/social)",
+      "expected": "NOT coding",
+      "prompt": "I'm taking a history class this semester",
+      "predicted": "factual_qa",
+      "confidence": 0.6499450206756592,
+      "all_probs": {
+        "coding": 0.004345271270722151,
+        "factual_qa": 0.6499450206756592,
+        "general": 0.3392992615699768,
+        "reasoning": 0.004328524693846703,
+        "summarization": 0.0020818570628762245
+      }
+    },
+    {
+      "category": "KEYWORD: 'class' (education/social)",
+      "expected": "NOT coding",
+      "prompt": "She's in a different social class than me",
+      "predicted": "factual_qa",
+      "confidence": 0.8930702805519104,
+      "all_probs": {
+        "coding": 0.008532111532986164,
+        "factual_qa": 0.8930702805519104,
+        "general": 0.08233717828989029,
+        "reasoning": 0.014828489162027836,
+        "summarization": 0.0012320178793743253
+      }
+    },
+    {
+      "category": "KEYWORD: 'class' (education/social)",
+      "expected": "NOT coding",
+      "prompt": "The upper class owns most of the wealth",
+      "predicted": "factual_qa",
+      "confidence": 0.8821897506713867,
+      "all_probs": {
+        "coding": 0.021043868735432625,
+        "factual_qa": 0.8821897506713867,
+        "general": 0.08816858381032944,
+        "reasoning": 0.006860688794404268,
+        "summarization": 0.0017370748100802302
+      }
+    },
+    {
+      "category": "KEYWORD: 'python' (animal)",
+      "expected": "NOT coding",
+      "prompt": "How long can a python snake grow?",
+      "predicted": "factual_qa",
+      "confidence": 0.9470930695533752,
+      "all_probs": {
+        "coding": 0.016568303108215332,
+        "factual_qa": 0.9470930695533752,
+        "general": 0.02319294586777687,
+        "reasoning": 0.0106385862454772,
+        "summarization": 0.0025071592535823584
+      }
+    },
+    {
+      "category": "KEYWORD: 'python' (animal)",
+      "expected": "NOT coding",
+      "prompt": "Are python snakes venomous?",
+      "predicted": "factual_qa",
+      "confidence": 0.953736424446106,
+      "all_probs": {
+        "coding": 0.020253973081707954,
+        "factual_qa": 0.953736424446106,
+        "general": 0.02331843227148056,
+        "reasoning": 0.0015292036114260554,
+        "summarization": 0.0011619131546467543
+      }
+    },
+    {
+      "category": "KEYWORD: 'python' (animal)",
+      "expected": "NOT coding",
+      "prompt": "Tell me about the Burmese python",
+      "predicted": "factual_qa",
+      "confidence": 0.7854216694831848,
+      "all_probs": {
+        "coding": 0.013337557204067707,
+        "factual_qa": 0.7854216694831848,
+        "general": 0.19750720262527466,
+        "reasoning": 0.0022389080841094255,
+        "summarization": 0.0014946938026696444
+      }
+    },
+    {
+      "category": "KEYWORD: 'python' (animal)",
+      "expected": "NOT coding",
+      "prompt": "What do pythons eat in the wild?",
+      "predicted": "factual_qa",
+      "confidence": 0.9543070197105408,
+      "all_probs": {
+        "coding": 0.022027894854545593,
+        "factual_qa": 0.9543070197105408,
+        "general": 0.01941254921257496,
+        "reasoning": 0.0028101238422095776,
+        "summarization": 0.0014424310065805912
+      }
+    },
+    {
+      "category": "KEYWORD: 'variable' (statistics/science)",
+      "expected": "NOT coding",
+      "prompt": "What is an independent variable in an experiment?",
+      "predicted": "factual_qa",
+      "confidence": 0.9026152491569519,
+      "all_probs": {
+        "coding": 0.0164639875292778,
+        "factual_qa": 0.9026152491569519,
+        "general": 0.0759805366396904,
+        "reasoning": 0.003772880882024765,
+        "summarization": 0.001167323556728661
+      }
+    },
+    {
+      "category": "KEYWORD: 'variable' (statistics/science)",
+      "expected": "NOT coding",
+      "prompt": "Explain the difference between dependent and independent variables",
+      "predicted": "general",
+      "confidence": 0.636224627494812,
+      "all_probs": {
+        "coding": 0.10959671437740326,
+        "factual_qa": 0.20313423871994019,
+        "general": 0.636224627494812,
+        "reasoning": 0.038562800735235214,
+        "summarization": 0.012481562793254852
+      }
+    },
+    {
+      "category": "KEYWORD: 'variable' (statistics/science)",
+      "expected": "NOT coding",
+      "prompt": "How do I control for confounding variables?",
+      "predicted": "factual_qa",
+      "confidence": 0.6760236620903015,
+      "all_probs": {
+        "coding": 0.15466280281543732,
+        "factual_qa": 0.6760236620903015,
+        "general": 0.13717778027057648,
+        "reasoning": 0.020322160795331,
+        "summarization": 0.01181351114064455
+      }
+    },
+    {
+      "category": "KEYWORD: 'variable' (statistics/science)",
+      "expected": "NOT coding",
+      "prompt": "Temperature is a variable in this experiment",
+      "predicted": "factual_qa",
+      "confidence": 0.9075437188148499,
+      "all_probs": {
+        "coding": 0.006118478253483772,
+        "factual_qa": 0.9075437188148499,
+        "general": 0.07522158324718475,
+        "reasoning": 0.009841128252446651,
+        "summarization": 0.0012750630266964436
+      }
+    },
+    {
+      "category": "KEYWORD: 'loop' (everyday usage)",
+      "expected": "NOT coding",
+      "prompt": "I'm stuck in a loop of negative thoughts",
+      "predicted": "factual_qa",
+      "confidence": 0.7755780220031738,
+      "all_probs": {
+        "coding": 0.007554300595074892,
+        "factual_qa": 0.7755780220031738,
+        "general": 0.20919151604175568,
+        "reasoning": 0.004877734463661909,
+        "summarization": 0.002798431785777211
+      }
+    },
+    {
+      "category": "KEYWORD: 'loop' (everyday usage)",
+      "expected": "NOT coding",
+      "prompt": "The highway forms a loop around the city",
+      "predicted": "factual_qa",
+      "confidence": 0.9951920509338379,
+      "all_probs": {
+        "coding": 0.0009579821489751339,
+        "factual_qa": 0.9951920509338379,
+        "general": 0.003250828944146633,
+        "reasoning": 0.00039055116940289736,
+        "summarization": 0.00020856467017438263
+      }
+    },
+    {
+      "category": "KEYWORD: 'loop' (everyday usage)",
+      "expected": "NOT coding",
+      "prompt": "Let me loop you in on the conversation",
+      "predicted": "factual_qa",
+      "confidence": 0.6092783808708191,
+      "all_probs": {
+        "coding": 0.047209613025188446,
+        "factual_qa": 0.6092783808708191,
+        "general": 0.3199309706687927,
+        "reasoning": 0.016179395839571953,
+        "summarization": 0.007401574403047562
+      }
+    },
+    {
+      "category": "KEYWORD: 'loop' (everyday usage)",
+      "expected": "NOT coding",
+      "prompt": "We're out of the loop on that decision",
+      "predicted": "factual_qa",
+      "confidence": 0.6997314691543579,
+      "all_probs": {
+        "coding": 0.03500477969646454,
+        "factual_qa": 0.6997314691543579,
+        "general": 0.2278924435377121,
+        "reasoning": 0.025334740057587624,
+        "summarization": 0.012036542408168316
+      }
+    },
+    {
+      "category": "KEYWORD: 'array' (military/general)",
+      "expected": "NOT coding",
+      "prompt": "The troops were arranged in a defensive array",
+      "predicted": "factual_qa",
+      "confidence": 0.8791722655296326,
+      "all_probs": {
+        "coding": 0.009918027557432652,
+        "factual_qa": 0.8791722655296326,
+        "general": 0.0970098078250885,
+        "reasoning": 0.011336264200508595,
+        "summarization": 0.002563651418313384
+      }
+    },
+    {
+      "category": "KEYWORD: 'array' (military/general)",
+      "expected": "NOT coding",
+      "prompt": "They displayed an impressive array of skills",
+      "predicted": "factual_qa",
+      "confidence": 0.5994528532028198,
+      "all_probs": {
+        "coding": 0.017274023965001106,
+        "factual_qa": 0.5994528532028198,
+        "general": 0.37515050172805786,
+        "reasoning": 0.0056848712265491486,
+        "summarization": 0.002437753137201071
+      }
+    },
+    {
+      "category": "KEYWORD: 'array' (military/general)",
+      "expected": "NOT coding",
+      "prompt": "An array of options is available",
+      "predicted": "factual_qa",
+      "confidence": 0.76944500207901,
+      "all_probs": {
+        "coding": 0.1185787245631218,
+        "factual_qa": 0.76944500207901,
+        "general": 0.09053958207368851,
+        "reasoning": 0.014807229861617088,
+        "summarization": 0.006629425100982189
+      }
+    },
+    {
+      "category": "KEYWORD: 'array' (military/general)",
+      "expected": "NOT coding",
+      "prompt": "The peacocks displayed their array of feathers",
+      "predicted": "factual_qa",
+      "confidence": 0.9287335276603699,
+      "all_probs": {
+        "coding": 0.022751618176698685,
+        "factual_qa": 0.9287335276603699,
+        "general": 0.04327193647623062,
+        "reasoning": 0.004639915656298399,
+        "summarization": 0.0006029374781064689
+      }
+    }
+  ],
+  "failures": []
+}
