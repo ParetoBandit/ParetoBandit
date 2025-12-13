@@ -219,35 +219,25 @@ def create_coding_suite() -> BenchmarkSuite:
     - humaneval_score: HumanEval function-level code generation (pass@1)
     - livecodebench: LiveCodeBench competitive programming tasks
     - scicode: SciCode scientific computing benchmark
-    - arena_rank_coding: LMArena coding category ranking (inverted: lower rank = better)
     
     Auxiliary Benchmarks (for covariance-based imputation):
     - intelligence_index: General intelligence metric (r=0.96 with livecodebench)
     
-    The arena_rank_coding provides real user preference signal from the 
-    Chatbot Arena leaderboard, complementing the automated benchmarks.
-    
-    Note: We utilize a hierarchical prior with covariance between latent factors
-    to borrow statistical strength for models with missing modalities. The
-    auxiliary benchmark has 100% coverage and high correlation with coding.
+    Note: Arena ranks are NOT included to enable independent external validation.
+    We utilize a hierarchical prior with covariance between latent factors to borrow
+    statistical strength for models with missing modalities. The auxiliary benchmark 
+    has 100% coverage and high correlation with coding.
     """
     suite = BenchmarkSuite(
         name="coding",
         description="Composite Coding Score benchmarks",
         score_prefix="ccs",
     )
-    # Primary benchmarks
-    suite.add_benchmark('humaneval_score', 'HumanEval: Code generation pass@1', scale=1, weight=0.30)
-    suite.add_benchmark('livecodebench', 'LiveCodeBench: Real-world coding tasks', scale=100, weight=0.30)
+    # Primary benchmarks (Arena rank removed for independent validation)
+    suite.add_benchmark('humaneval_score', 'HumanEval: Code generation pass@1', scale=1, weight=0.40)
+    suite.add_benchmark('livecodebench', 'LiveCodeBench: Real-world coding tasks', scale=100, weight=0.40)
     suite.add_benchmark('scicode', 'SciCode: Scientific computing benchmark', scale=100, weight=0.20)
-    suite.add_benchmark('arena_rank_coding', 'LMArena: Coding category ranking (user prefs)', 
-                       scale=1, invert=True, weight=0.20)
     # Auxiliary benchmark for covariance-based imputation
-    # "We utilize a hierarchical prior with covariance between latent factors to borrow
-    # statistical strength for models with missing modalities. Specifically, for the
-    # Composite Coding Score (CCS), we include the Intelligence Index (r=0.96 with
-    # primary coding benchmarks) as an auxiliary benchmark, enabling latent factor
-    # estimation for all models regardless of individual benchmark coverage."
     suite.add_auxiliary_benchmark('intelligence_index', 
                                   'Intelligence Index: General capability (r=0.96 with coding)',
                                   scale=1, weight=0.05)
@@ -260,8 +250,8 @@ def create_factual_qa_suite() -> BenchmarkSuite:
     Benchmarks:
     - mmlu_pro: MMLU-Pro massive multitask language understanding (enhanced version)
     - gpqa: Graduate-level science QA requiring domain expertise
-    - arena_rank_expert: LMArena expert category ranking (inverted: lower rank = better)
     
+    Note: Arena ranks are NOT included to enable independent external validation.
     This composite measures a model's ability to answer factual questions,
     retrieve knowledge, and provide accurate information across domains.
     """
@@ -270,10 +260,8 @@ def create_factual_qa_suite() -> BenchmarkSuite:
         description="Composite Factual QA Score benchmarks",
         score_prefix="cfs",
     )
-    suite.add_benchmark('mmlu_pro', 'MMLU-Pro: Massive multitask language understanding', scale=1, weight=0.40)
-    suite.add_benchmark('gpqa', 'GPQA: Graduate-level science QA', scale=1, weight=0.35)
-    suite.add_benchmark('arena_rank_expert', 'LMArena: Expert category ranking (user prefs)', 
-                       scale=1, invert=True, weight=0.25)
+    suite.add_benchmark('mmlu_pro', 'MMLU-Pro: Massive multitask language understanding', scale=1, weight=0.50)
+    suite.add_benchmark('gpqa', 'GPQA: Graduate-level science QA', scale=1, weight=0.50)
     return suite
 
 
@@ -283,8 +271,8 @@ def create_summarization_suite() -> BenchmarkSuite:
     Benchmarks:
     - summedits_score: SummEdits benchmark measuring summary quality across domains
     - hallucination_rate: Hallucination rate (inverted: lower rate = better)
-    - arena_rank_longer: LMArena longer query ranking (inverted: lower rank = better)
     
+    Note: Arena ranks are NOT included to enable independent external validation.
     This composite measures a model's ability to produce accurate, faithful
     summaries without hallucinating information.
     """
@@ -293,11 +281,9 @@ def create_summarization_suite() -> BenchmarkSuite:
         description="Composite Summarization Score benchmarks",
         score_prefix="css",
     )
-    suite.add_benchmark('summedits_score', 'SummEdits: Summary quality across domains', scale=1, weight=0.35)
+    suite.add_benchmark('summedits_score', 'SummEdits: Summary quality across domains', scale=1, weight=0.50)
     suite.add_benchmark('hallucination_rate', 'Hallucination Rate: Factual accuracy (lower is better)', 
-                       scale=1, invert=True, weight=0.40)
-    suite.add_benchmark('arena_rank_longer', 'LMArena: Longer query ranking (user prefs)', 
-                       scale=1, invert=True, weight=0.25)
+                       scale=1, invert=True, weight=0.50)
     return suite
 
 

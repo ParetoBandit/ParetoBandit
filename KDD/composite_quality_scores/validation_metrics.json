@@ -1,0 +1,69 @@
+{
+  "timestamp": "2025-12-10T17:19:56.705486",
+  "convergence": {
+    "coding": {
+      "max_rhat": 1.008,
+      "mean_rhat": 1.002,
+      "n_parameters": 45,
+      "n_converged": 45,
+      "convergence_rate": 1.0,
+      "min_ess": 1200,
+      "mean_ess": 2400
+    },
+    "reasoning": {
+      "max_rhat": 1.009,
+      "mean_rhat": 1.003,
+      "n_parameters": 38,
+      "n_converged": 38,
+      "convergence_rate": 1.0,
+      "min_ess": 1100,
+      "mean_ess": 2300
+    }
+  },
+  "model_fit": {
+    "coding": {
+      "r_squared": 0.89,
+      "rmse": 0.32,
+      "mae": 0.24,
+      "pearson_r": 0.94,
+      "n_observations": 487
+    },
+    "reasoning": {
+      "r_squared": 0.87,
+      "rmse": 0.35,
+      "mae": 0.26,
+      "pearson_r": 0.93,
+      "n_observations": 412
+    }
+  },
+  "uncertainty": {
+    "coding": {
+      "mean_ci_width": 0.45,
+      "min_ci_width": 0.15,
+      "max_ci_width": 1.23,
+      "correlation_with_data": -0.68,
+      "p_value": 2.3e-12
+    },
+    "reasoning": {
+      "mean_ci_width": 0.52,
+      "min_ci_width": 0.18,
+      "max_ci_width": 1.45,
+      "correlation_with_data": -0.71,
+      "p_value": 8.1e-14
+    }
+  },
+  "downstream_utility": {
+    "ccs_100": {
+      "correlation": 0.76,
+      "p_value": 2.1e-08,
+      "n_models": 247,
+      "monotonic_trend": true
+    },
+    "crs_100": {
+      "correlation": 0.71,
+      "p_value": 1.3e-06,
+      "n_models": 234,
+      "monotonic_trend": true
+    }
+  }
+}

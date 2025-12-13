@@ -1,0 +1,736 @@
+{
+  "timestamp": "2025-12-11T11:30:17.629303",
+  "intent": "reasoning",
+  "dataset": "GPQA-Diamond",
+  "n_prompts": 5,
+  "n_models": 10,
+  "model_scores": {
+    "Gemini 3 Pro Preview (high)": {
+      "blf_score": 1.829,
+      "blf_rank": 1,
+      "openrouter_id": "google/gemini-3-pro-preview",
+      "correct_count": 5,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "accuracy": 1.0,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001
+      ],
+      "avg_judge_score": 8.0,
+      "avg_bayesian_score": 0.8700000000000001
+    },
+    "Claude Opus 4.5 (Reasoning)": {
+      "blf_score": 1.623,
+      "blf_rank": 2,
+      "openrouter_id": "anthropic/claude-opus-4.5",
+      "correct_count": 4,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "accuracy": 0.8,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.31000000000000005,
+        0.8700000000000001,
+        0.8700000000000001
+      ],
+      "avg_judge_score": 8.0,
+      "avg_bayesian_score": 0.7580000000000001
+    },
+    "GPT-5.1 (high)": {
+      "blf_score": 1.6,
+      "blf_rank": 3,
+      "openrouter_id": "openai/gpt-5.1",
+      "correct_count": 5,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "accuracy": 1.0,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001
+      ],
+      "avg_judge_score": 8.0,
+      "avg_bayesian_score": 0.8700000000000001
+    },
+    "Grok 4": {
+      "blf_score": 1.553,
+      "blf_rank": 4,
+      "openrouter_id": "x-ai/grok-4",
+      "correct_count": 5,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "accuracy": 1.0,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001
+      ],
+      "avg_judge_score": 8.0,
+      "avg_bayesian_score": 0.8700000000000001
+    },
+    "Kimi K2 Thinking": {
+      "blf_score": 1.533,
+      "blf_rank": 5,
+      "openrouter_id": "moonshotai/kimi-k2-thinking",
+      "correct_count": 4,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "accuracy": 0.8,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.31000000000000005,
+        0.8700000000000001,
+        0.8700000000000001
+      ],
+      "avg_judge_score": 8.0,
+      "avg_bayesian_score": 0.7580000000000001
+    },
+    "Command-R+": {
+      "blf_score": -1.398,
+      "blf_rank": 78,
+      "openrouter_id": "cohere/command-r-plus-08-2024",
+      "correct_count": 4,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        3,
+        8,
+        5
+      ],
+      "accuracy": 0.8,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.16,
+        0.8700000000000001,
+        0.78
+      ],
+      "avg_judge_score": 6.4,
+      "avg_bayesian_score": 0.7100000000000001
+    },
+    "Mixtral 8x7B Instruct": {
+      "blf_score": -1.443,
+      "blf_rank": 79,
+      "openrouter_id": "mistralai/mixtral-8x7b-instruct",
+      "correct_count": 3,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        1,
+        3,
+        8,
+        5
+      ],
+      "accuracy": 0.6,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.1,
+        0.16,
+        0.8700000000000001,
+        0.78
+      ],
+      "avg_judge_score": 5.0,
+      "avg_bayesian_score": 0.556
+    },
+    "Llama 3.2 Instruct 1B": {
+      "blf_score": -1.457,
+      "blf_rank": 80,
+      "openrouter_id": "meta-llama/llama-3.2-1b-instruct",
+      "correct_count": 1,
+      "total_count": 5,
+      "judge_scores": [
+        0,
+        2,
+        2,
+        5,
+        0
+      ],
+      "accuracy": 0.2,
+      "bayesian_scores": [
+        0.06999999999999999,
+        0.13,
+        0.13,
+        0.78,
+        0.06999999999999999
+      ],
+      "avg_judge_score": 1.8,
+      "avg_bayesian_score": 0.236
+    },
+    "Command-R": {
+      "blf_score": -1.498,
+      "blf_rank": 81,
+      "openrouter_id": "cohere/command-r-08-2024",
+      "correct_count": 4,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        8,
+        8,
+        1
+      ],
+      "accuracy": 0.8,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.8700000000000001,
+        0.1
+      ],
+      "avg_judge_score": 6.6,
+      "avg_bayesian_score": 0.7160000000000001
+    },
+    "Mistral 7B Instruct": {
+      "blf_score": -1.687,
+      "blf_rank": 82,
+      "openrouter_id": "mistralai/mistral-7b-instruct",
+      "correct_count": 4,
+      "total_count": 5,
+      "judge_scores": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "accuracy": 0.8,
+      "bayesian_scores": [
+        0.8700000000000001,
+        0.8700000000000001,
+        0.31000000000000005,
+        0.8700000000000001,
+        0.8700000000000001
+      ],
+      "avg_judge_score": 8.0,
+      "avg_bayesian_score": 0.7580000000000001
+    }
+  },
+  "problems": [
+    {
+      "task_id": "GSM8K/0",
+      "domain": "Math Reasoning",
+      "correct_letter": "18",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "**1. Analysis of the Problem**\nThe goal is to calculate the daily revenue Janet earns from selling eggs. To do this, we need to follow the flow of the eggs from production to consumption to sales.\n\n*   **Total Supply:** 16 eggs per day.\n*   **Personal Use:** 3 eggs (breakfast) + 4 eggs (muffins).\n*   **Sales Quantity:** The remaining eggs after personal use.\n*   **Sales Price:** $2 per egg.\n\n**2. Step-by-Step Reasoning**\n\n*   **Step 1: Calculate the total number of eggs Janet uses personally.**\n",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "anthropic/claude-opus-4.5"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "<budget:thinking>\nLet me work through this problem step-by-step.\n\n**Understanding the problem:**\n- Janet's ducks lay 16 eggs per day\n- She uses some eggs for breakfast (3 eggs)\n- She uses some eggs for baking muffins (4 eggs)\n- She sells the remaining eggs at $2 per egg\n- I need to find how much money she makes daily\n\n**Step 1: Calculate total eggs used by Janet**\n- Eggs eaten for breakfast: 3\n- Eggs used for muffins: 4\n- Total eggs used: 3 + 4 = 7 eggs\n\n**Step 2: Calculate remaining eggs to sel",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "GPT-5.1 (high)": {
+          "response": "She has 16 eggs per day.\n\nShe uses:\n- 3 eggs for breakfast  \n- 4 eggs for baking muffins  \n\nTotal used: 3 + 4 = 7 eggs.\n\nRemaining to sell: 16 \u2212 7 = 9 eggs.\n\nShe sells each egg for $2, so she makes:\n9 \u00d7 2 = **$18** per day at the farmers' market.",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Grok 4": {
+          "response": "### Step-by-Step Reasoning\n\n1. **Analyze the problem and identify what is being asked**:  \n   The problem provides details about Janet's daily egg production and usage. Her ducks lay 16 eggs per day. She uses some for personal consumption (eating 3 for breakfast) and baking (using 4 for muffins). She sells the remaining eggs at $2 each at the farmers' market. The question asks for the daily revenue (in dollars) from these sales. We need to calculate the number of eggs left after her usage and mu",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Kimi K2 Thinking": {
+          "response": "**1. Problem Analysis:**\nThe problem asks for Janet's daily earnings from selling duck eggs at the farmers' market. To find this, we need to:\n- Start with the total eggs laid per day\n- Subtract the eggs she personally consumes (breakfast + baking)\n- Calculate the remaining eggs available for sale\n- Multiply by the selling price per egg\n\n**2. Step-by-Step Reasoning:**\n\n- **Step 1:** Determine total eggs produced daily.\n  Janet's ducks lay 16 eggs per day.\n\n- **Step 2:** Calculate total eggs used ",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R+": {
+          "response": "**Step 1: Understanding the Problem**\n\nWe are given information about Janet's duck eggs and her daily routine:\n- Janet's ducks lay 16 eggs per day.\n- She eats 3 eggs for breakfast.\n- She uses 4 eggs to bake muffins.\n- We need to calculate her earnings from selling the remaining eggs at the farmers' market.\n\n**Step 2: Calculating the Number of Eggs Sold**\n\nFirst, let's find out how many eggs are used for breakfast and baking:\n- Eggs for breakfast: 3 eggs\n- Eggs for baking: 4 eggs\n- Total used egg",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "**Step 1:** Analyze the problem and identify what is being asked.\n\nThe problem describes how many eggs Janet's ducks lay and what she does with them daily. She uses some for personal consumption and baking, then sells the rest at the farmers' market. The question asks for the total amount of money Janet makes every day from selling the eggs at the farmers' market.\n\n**Step 2:** Show your complete reasoning process.\n\nFirst, let's determine how many eggs are left for Janet to sell after she uses so",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "**Step 1: Identify the problem and understand what is being asked**\n\nThe problem asks us to find out how much Janet makes every day at the farmers' market. We are given that she lays 16 eggs per day, eats 3 eggs for breakfast, and bakes muffins for 4 days a week. We need to calculate the total amount of money she makes from selling the remaining eggs.\n\n**Step 2: Calculate the number of eggs left after breakfast**\n\nJanet eats 3 eggs for breakfast every day. To find out how many eggs are left, we ",
+          "model_answer": "78",
+          "is_correct": false,
+          "judge_score": 0,
+          "bayesian_score": 0.06999999999999999,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.00 = 0.070",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R": {
+          "response": "**Problem Analysis:** \nTo determine the amount of money Janet makes at the farmers' market, we need to find out the number of remaining eggs after she eats and bakes with some, and then multiply that number by the price per egg. \n\n**Step 1:** Calculate the total number of eggs laid by Janet's ducks daily.\n16 eggs/day\n\n**Step 2:** Subtract the number of eggs used for breakfast and baking:\n16 (total eggs) - 3 (breakfast) - 4 (baking) = 9 eggs remaining\n\n**Step 3:** Now, multiply the number of rema",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mistral 7B Instruct": {
+          "response": " **Step 1: Identify the total number of eggs laid per day.**\nJanet\u2019s ducks lay 16 eggs per day.\n\n**Step 2: Calculate the number of eggs consumed or used.**\n- Janet eats 3 eggs for breakfast every morning.\n- She bakes muffins with 4 eggs every day.\n\nTotal eggs consumed or used per day = 3 (breakfast) + 4 (muffins) = 7 eggs.\n\n**Step 3: Determine the number of eggs remaining for sale.**\nTotal eggs laid per day = 16 eggs\nTotal eggs consumed or used per day = 7 eggs\n\nEggs remaining for sale = Total e",
+          "model_answer": "18",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        }
+      }
+    },
+    {
+      "task_id": "GSM8K/1",
+      "domain": "Math Reasoning",
+      "correct_letter": "3",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "Here is the step-by-step reasoning to solve the problem:\n\n**1. Analyze the problem and identify what is being asked:**\nThe problem asks for the **total** number of bolts of fiber required to make a robe. To find this, we need to identify the quantity of blue fiber and the quantity of white fiber, then add them together.\n\n**2. Show complete reasoning process:**\n\n*   **Step 1: Determine the amount of blue fiber.**\n    The problem states clearly that the robe takes **2 bolts** of blue fiber.\n\n*   *",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "anthropic/claude-opus-4.5"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "<budget:thinking>\nLet me work through this problem step by step.\n\n**What is being asked:**\nI need to find the total number of bolts of fiber needed to make a robe.\n\n**Given information:**\n- Blue fiber needed: 2 bolts\n- White fiber needed: half that much (half of the blue fiber amount)\n\n**Step-by-step solution:**\n\nStep 1: Identify the amount of blue fiber\n- Blue fiber = 2 bolts\n\nStep 2: Calculate the amount of white fiber\n- White fiber = half of blue fiber\n- White fiber = 2 \u00f7 2 = 1 bolt\n\nStep 3: ",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "GPT-5.1 (high)": {
+          "response": "We\u2019re told:\n\n- The robe uses **2 bolts of blue fiber**.  \n- It uses **half that much white fiber**.\n\nHalf of 2 bolts is:\n\n\\[\n\\frac{1}{2} \\times 2 = 1 \\text{ bolt of white fiber}\n\\]\n\nTotal bolts of fiber:\n\n\\[\n2 \\text{ (blue)} + 1 \\text{ (white)} = 3 \\text{ bolts}\n\\]\n\n**Final answer:** \\(\\boxed{3}\\) bolts in total.",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Grok 4": {
+          "response": "### Step-by-Step Reasoning\n\n1. **Analyze the problem**: The problem asks for the total number of bolts of fiber required to make one robe. It specifies two types of fiber: blue and white. The robe requires 2 bolts of blue fiber, and the white fiber required is \"half that much\" (referring to the amount of blue fiber).\n\n2. **Identify the quantities**:\n   - Blue fiber: 2 bolts.\n   - White fiber: Half of the blue fiber amount, which is \\( \\frac{1}{2} \\times 2 = 1 \\) bolt.\n\n3. **Calculate the total**",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Kimi K2 Thinking": {
+          "response": "**Step 1: Analyze the problem**\nThe problem asks for the total number of bolts of fiber needed to make a robe. It provides specific information about two types of fiber: blue and white. We need to determine the quantity of each type and then sum them.\n\n**Step 2: Complete reasoning process**\n- **Identify the blue fiber requirement:** The problem states that the robe takes 2 bolts of blue fiber.\n- **Calculate the white fiber requirement:** The problem says it takes \"half that much\" white fiber, me",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R+": {
+          "response": "1. The question asks for the total number of bolts of fiber required to make the robe, given the amount of blue and white fiber needed. \n\n2. We know that: \n- 2 bolts of blue fiber are needed. \n- Half as much white fiber is required as blue, so that's 2 bolts of blue / 2 = 1 bolt of white fiber. \nSo, for every robe: \n- Blue fiber required = 2 bolts\n- White fiber needed = 1 bolt\n\n3. Therefore, each robe requires 2 bolts of blue fiber and 1 bolt of white fiber, totaling **3 bolts of fiber**.",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "**Step 1:** Analyze the problem and identify what is being asked.\n\nThe problem is asking how many bolts of fiber in total are needed to make one robe. The robe requires 2 bolts of blue fiber and half as much white fiber.\n\n**Step 2:** Show complete reasoning process.\n\nTo find out the total number of bolts needed, we first need to determine the amount of white fiber needed. Since the white fiber is half the amount of blue fiber, that means the robe needs 0.5 bolts of white fiber (which is half of ",
+          "model_answer": "2.5",
+          "is_correct": false,
+          "judge_score": 1,
+          "bayesian_score": 0.1,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.10 = 0.100",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "To solve this problem, I will follow these steps:\n\n**Step 1: Analyze the problem and identify what is being asked.**\n\nThe problem asks how many bolts of fiber it takes to make a robe, given that a robe takes 2 bolts of blue fiber and half that much white fiber. This means we need to find the total number of bolts of fiber required to make a robe.\n\n**Step 2: Identify the given information and what needs to be found.**\n\n* Given information:\n\t+ 2 bolts of blue fiber\n\t+ Half the amount of white fibe",
+          "model_answer": "2",
+          "is_correct": false,
+          "judge_score": 2,
+          "bayesian_score": 0.13,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.20 = 0.130",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R": {
+          "response": "Here is my step-by-step reasoning:\n\n1. The problem states that a robe requires 2 bolts of blue fiber, and the amount of white fiber needed is half of that. So, we need to calculate the total number of bolts required, considering these two types of fiber.\n\n2. Let's break it down:\n   - Blue fiber: 2 bolts\n   - White fiber: half of the blue fiber, which is 2 / 2 = 1 bolt\n\n3. Now, we can find the total number of bolts by adding the blue and white fiber quantities:\n   - Total bolts = Blue bolts + Whi",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mistral 7B Instruct": {
+          "response": " <s> **Step 1: Understanding the Problem**\nThe problem states that a robe requires:\n- 2 bolts of blue fiber.\n- Half that amount of white fiber.\n\nWe need to find the total number of bolts required to make one robe.\n\n**Step 2: Calculating the White Fiber**\nThe amount of white fiber is half the amount of blue fiber.\n- Blue fiber: 2 bolts\n- White fiber: 2 bolts / 2 = 1 bolt\n\n**Step 3: Calculating the Total Fiber**\nNow, add the blue and white fiber together to get the total:\n- Total bolts = blue fibe",
+          "model_answer": "3",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        }
+      }
+    },
+    {
+      "task_id": "GSM8K/2",
+      "domain": "Math Reasoning",
+      "correct_letter": "70000",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "Here is the step-by-step logical reasoning to solve this problem.\n\n### 1. Identify the Goal and Inputs\n\n**Goal:** Determine the total profit made from the house flip.\n\n**Inputs:**\n*   **Purchase Price:** $80,000\n*   **Repair Costs:** $50,000\n*   **Value Increase:** The value of the house increased by 150% (based on the original value).\n\n### 2. Step-by-Step Reasoning\n\n**Step 1: Calculate the Total Investment (Total Cost)**\nTo find the profit, we first need to know how much money Josh spent in tot",
+          "model_answer": "70000",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "anthropic/claude-opus-4.5"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "Looking at this problem, I need to find Josh's profit from flipping a house.\n\n## Step 1: Identify the costs\n\nJosh's total investment:\n- Purchase price: $80,000\n- Repairs: $50,000\n- **Total cost: $80,000 + $50,000 = $130,000**\n\n## Step 2: Calculate the new value of the house\n\nThe problem says repairs \"increased the value of the house by 150%.\"\n\nThis means the value increased by 150% of the original $80,000 purchase price.\n\nIncrease in value = 150% \u00d7 $80,000 = 1.5 \u00d7 $80,000 = $120,000\n\nNew value o",
+          "model_answer": "70",
+          "is_correct": false,
+          "judge_score": 8,
+          "bayesian_score": 0.31000000000000005,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.80 = 0.310",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "GPT-5.1 (high)": {
+          "response": "1. Total money Josh invested:  \n   - Purchase price: \\$80,000  \n   - Repairs: \\$50,000  \n   - Total cost = \\$80,000 + \\$50,000 = \\$130,000  \n\n2. The house\u2019s value increased by 150% of its original value (\\$80,000):  \n   - Increase = 1.5 \u00d7 \\$80,000 = \\$120,000  \n   - New value = \\$80,000 + \\$120,000 = \\$200,000  \n\n3. Profit = Selling value \u2212 Total cost  \n   - Profit = \\$200,000 \u2212 \\$130,000 = **\\$70,000**  \n\n**Final Answer: \\$70,000 profit.**",
+          "model_answer": "70000",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Grok 4": {
+          "response": "### Step-by-Step Reasoning\n\n1. **Analyze the problem and identify what is being asked**:  \n   The problem describes Josh flipping a house. He buys it for $80,000 and spends $50,000 on repairs, which increases the house's value by 150%. We need to calculate his profit, assuming he sells the house at its new value after repairs. Profit is defined as the selling price minus total costs (purchase price + repair costs).\n\n2. **Determine total costs**:  \n   Purchase price: $80,000  \n   Repair costs: $5",
+          "model_answer": "70000",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Kimi K2 Thinking": {
+          "response": "**Step 1: Analyze the problem**\n\nThe problem asks for Josh's profit from flipping a house. To find profit, we need to know:\n- The total amount Josh spent (cost)\n- The final value/selling price of the house (revenue)\n\nKey information given:\n- Purchase price: $80,000\n- Repair cost: $50,000\n- Value increase: 150% (this means the value increased *by* 150% of the original value, not *to* 150% of the original value)\n\n**Step 2: Calculate total cost**\n\nJosh's total investment is the sum of purchase pric",
+          "model_answer": "70",
+          "is_correct": false,
+          "judge_score": 8,
+          "bayesian_score": 0.31000000000000005,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.80 = 0.310",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R+": {
+          "response": "1. **Problem Statement:** Josh's investment in the house and the subsequent profit gained after the repairs need to be determined. \n\n2. **Step-by-Step Reasoning:**\n   - The initial investment is the sum of the buying price and the repair cost: $80,000 + $50,000 = $130,000. \n   - Repairs increased the house value by 150%, which is equivalent to multiplying the house value by 2.5 (150% = 150/100 = 1.5, and 1.5 + 1 = 2.5). \n   - After the repairs, the house value became 2.5 times the initial value:",
+          "model_answer": "195000",
+          "is_correct": false,
+          "judge_score": 3,
+          "bayesian_score": 0.16,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.30 = 0.160",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "**Step 1:** Analyze the problem and identify what is being asked.\n\nWe are given information about Josh's house flipping project. We need to determine his profit after buying a house, investing in repairs, and selling it for a higher price. \n\nThe details are:\n- House purchase price: $80,000\n- Repair costs: $50,000\n- Increase in house value due to repairs: 150%\n\nWe need to calculate the final selling price of the house after repairs and then find out how much profit Josh made.\n\n**Step 2:** Show yo",
+          "model_answer": "25000",
+          "is_correct": false,
+          "judge_score": 3,
+          "bayesian_score": 0.16,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.30 = 0.160",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "**Step 1: Analyze the problem and identify what is being asked.**\n\nThe problem asks us to find the profit made by Josh after buying a house and putting in repairs. We are given the initial cost of the house ($80,000) and the amount he put in repairs ($50,000). We also know that the value of the house increased by 150% after the repairs. We need to find the profit made.\n\n**Step 2: Calculate the increased value of the house after repairs.**\n\nTo find the increased value of the house, we need to cal",
+          "model_answer": "120000",
+          "is_correct": false,
+          "judge_score": 2,
+          "bayesian_score": 0.13,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.20 = 0.130",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R": {
+          "response": "**Step 1: Identify the problem**\n\nWe are given that Josh bought a house and spent money on repairs. The repairs increased the value of the house, and we want to find out how much profit Josh made.\n\n**Step 2: Calculate the increased value**\n\nThe house's initial value was $80,000, and the repairs increased its value by 150%. \n\nTo find the new value, we can multiply the original value by the percentage increase:\n\nNew value = Original value x (1 + percentage increase)\n= $80,000 x (1 + 150%)\n= $80,00",
+          "model_answer": "70000",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mistral 7B Instruct": {
+          "response": " <s> **Step 1: Understand the Problem**\nJosh buys a house for $80,000 and spends $50,000 on repairs. The value of the house increases by 150% due to these repairs. We need to find out how much profit Josh made.\n\n**Step 2: Calculate the Total Cost**\nFirst, let's calculate the total amount Josh spent on the house and repairs:\n- Purchase price: $80,000\n- Repair cost: $50,000\n- Total cost = $80,000 + $50,000 = $130,000\n\n**Step 3: Determine the Increase in Value**\nThe value of the house increased by ",
+          "model_answer": "70",
+          "is_correct": false,
+          "judge_score": 8,
+          "bayesian_score": 0.31000000000000005,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.80 = 0.310",
+          "judge_model": "google/gemini-3-pro-preview"
+        }
+      }
+    },
+    {
+      "task_id": "GSM8K/3",
+      "domain": "Math Reasoning",
+      "correct_letter": "540",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "Here is the step-by-step solution to the problem.\n\n### 1. Analyze the Problem\nTo solve this, we need to break down the information provided to determine the total distance accumulated over the course of one week. Here are the key variables:\n*   **Sprints per session:** 3 sprints\n*   **Frequency:** 3 times per week (sessions)\n*   **Distance per sprint:** 60 meters\n*   **Goal:** Calculate the total meters run in a week.\n\n### 2. Reasoning Process\nWe can solve this using a two-step logic chain: firs",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "anthropic/claude-opus-4.5"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "Looking at this problem, I need to find the total meters James runs in a week.\n\n## Step-by-Step Solution\n\n**Step 1: Identify the given information**\n- James runs 3 sprints per session\n- He does this 3 times a week\n- Each sprint is 60 meters\n\n**Step 2: Calculate total sprints per week**\n- Sprints per week = 3 sprints \u00d7 3 times per week\n- Sprints per week = 9 sprints\n\n**Step 3: Calculate total meters per week**\n- Total meters = 9 sprints \u00d7 60 meters per sprint\n- Total meters = 540 meters\n\n## Final",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "GPT-5.1 (high)": {
+          "response": "We\u2019re asked: if James runs 3 sprints per session, 3 times a week, and each sprint is 60 meters, how many meters does he run in a week?\n\nMeters per session:\n- \\(3\\) sprints \u00d7 \\(60\\) meters = \\(180\\) meters per session\n\nSessions per week:\n- \\(3\\) sessions per week\n\nTotal meters per week:\n- \\(180\\) meters \u00d7 \\(3\\) = \\(540\\) meters\n\n**Final Answer:** James runs **540 meters** in a week.",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Grok 4": {
+          "response": "### Step-by-Step Reasoning\n\n1. **Analyze the problem**: The problem asks for the total meters James runs in a week. He runs 3 sprints per session, does this 3 times a week, and each sprint is 60 meters long. There are no other variables or complications mentioned (e.g., no variations in distance or frequency).\n\n2. **Break down the components**:\n   - Sprints per session: 3\n   - Sessions per week: 3\n   - Distance per sprint: 60 meters\n\n3. **Calculate total sprints per week**: Multiply sprints per ",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Kimi K2 Thinking": {
+          "response": "**Step\u2011by\u2011step reasoning**\n\n1. **Interpret the phrase \u201c3 sprints 3 times a week.\u201d**  \n   - It means that in each workout he runs **3 sprints**.  \n   - He does such a workout **3 times a week**.  \n   - Therefore the total number of sprints in one week is:  \n     \\[\n     3\\ \\text{sprints per workout} \\times 3\\ \\text{workouts per week}=9\\ \\text{sprints per week}.\n     \\]\n\n2. **Find the distance per sprint.**  \n   - Each sprint is **60 meters**.\n\n3. **Calculate the total distance for the week.**  \n ",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R+": {
+          "response": "**Step 1: Understanding the Question**\nI am asked to calculate the total distance James covers in meters during his weekly sprint routine.\n\n**Step 2: Reasoning**\nJames runs 3 sprints, and each sprint is 60 meters long. To find the total distance for one session, we multiply:\n> 3 sprints * 60 meters = 180 meters\n\nHe does these sprints three times a week, so the total weekly distance can be calculated as:\n> 180 meters/session * 3 sessions/week = 540 meters/week\n\n**Step 3: Final Answer**\nJames runs",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "**Step 1:** Analyze the problem and identify what is being asked.\n\nJames runs 3 sprints per workout, and each sprint is 60 meters. He does this 3 times a week. We need to find out how many meters he runs in total in a week.\n\n**Step 2:** Show your complete reasoning process.\n\nFirst, let's calculate how many meters James runs in one workout:\nMeters run in one workout = Number of sprints * Distance per sprint\n= 3 sprints * 60 meters\n= 180 meters\n\nThen, to find out how many meters he runs in a week,",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "**Step 1: Analyze the problem and identify what is being asked.**\n\nThe problem asks us to find the total number of meters James runs in a week. We are given that he runs 3 sprints 3 times a week, and each sprint is 60 meters long.\n\n**Step 2: Identify the variables and constants in the problem.**\n\nLet's identify the variables and constants:\n\n* Number of sprints per week: 3\n* Distance of each sprint: 60 meters\n* Number of weeks: 1 (since it's a weekly activity)\n\n**Step 3: Calculate the total numbe",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 5,
+          "bayesian_score": 0.78,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.50 = 0.780",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R": {
+          "response": "Let's solve this step-by-step:\n\n1. First, we are asked to find the total number of meters James runs in a week.\n\n2. We know he runs 3 sprints per day, and each sprint is 60 meters long. To find the daily total, we multiply: 3 sprints x 60 meters = 180 meters.\n\n3. Now, James runs 3 times a week, so to find his weekly total, we multiply the daily total by the number of days: 180 meters x 3 days = 540 meters.\n\n4. Therefore, James runs a total of 540 meters in a week.\n\nThe answer is 540 meters.",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mistral 7B Instruct": {
+          "response": " **Step 1: Understand the Problem**\nThe problem is asking for the total number of meters James runs in a week, given his running schedule.\n\n**Step 2: Break Down the Information**\n- **Number of sprints per session:** 3\n- **Number of sessions per week:** 3\n- **Meters per sprint:** 60\n\n**Step 3: Calculate the Total Number of Sprints in a Week**\nFirst, find out how many sprints James runs in a week.\nNumber of sprints per week = Number of sprints per session \u00d7 Number of sessions per week\n= 3 sprints/",
+          "model_answer": "540",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        }
+      }
+    },
+    {
+      "task_id": "GSM8K/4",
+      "domain": "Math Reasoning",
+      "correct_letter": "20",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "Here is the step-by-step reasoning to solve the problem:\n\n### 1. Analysis\n*   **Goal:** Find out how many cups of feed define the final meal.\n*   **Total Daily Limit:** Each chicken gets 3 cups per day.\n*   **Flock Size:** There are 20 chickens.\n*   **Feed Distributed So Far:** 15 cups in the morning and 25 cups in the afternoon.\n\n### 2. Reasoning Process\n\n**Step 1: Calculate the total amount of feed the entire flock needs in one day.**\nSince there are 20 chickens and each chicken needs 3 cups o",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "anthropic/claude-opus-4.5"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "Looking at this problem, I need to find how many cups of feed Wendi gives her chickens in the final (evening) meal.\n\n## Step 1: Find the total daily feed needed\n\nWendi has 20 chickens, and each chicken needs 3 cups of feed per day.\n\nTotal daily feed = 20 chickens \u00d7 3 cups/chicken = **60 cups per day**\n\n## Step 2: Calculate feed already given\n\n- Morning meal: 15 cups\n- Afternoon meal: 25 cups\n\nTotal feed already given = 15 + 25 = **40 cups**\n\n## Step 3: Find the remaining feed needed for the fina",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "GPT-5.1 (high)": {
+          "response": "Wendi has 20 chickens, and each chicken gets 3 cups of feed per day.\n\nTotal feed needed per day:\n\\[\n20 \\times 3 = 60 \\text{ cups}\n\\]\n\nShe already gave:\n- Morning: 15 cups  \n- Afternoon: 25 cups  \n\nTotal already given:\n\\[\n15 + 25 = 40 \\text{ cups}\n\\]\n\nRemaining for the final meal:\n\\[\n60 - 40 = 20 \\text{ cups}\n\\]\n\n**Final answer: Wendi needs to give her chickens 20 cups of feed in the final meal.**",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Grok 4": {
+          "response": "### Step-by-Step Reasoning\n\n1. **Analyze the problem**: The problem asks for the amount of feed Wendi needs to give her 20 chickens in the final (third) meal of the day. Each chicken requires a total of 3 cups of feed per day, divided across three meals. We know the morning meal is 15 cups for the flock, and the afternoon meal is 25 cups for the flock.\n\n2. **Calculate total daily feed required**: There are 20 chickens, and each needs 3 cups of feed per day.  \n   Total feed per day = 20 chickens ",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Kimi K2 Thinking": {
+          "response": "**1. Problem Analysis and What is Being Asked:**\n\nThe problem asks us to determine the amount of feed (in cups) Wendi needs to give her flock of chickens in their third and final daily meal. We are given:\n*   Flock size: 20 chickens\n*   Feed per chicken per day: 3 cups\n*   Morning meal: 15 cups (for the whole flock)\n*   Afternoon meal: 25 cups (for the whole flock)\n\nWe need to find the amount for the final meal.\n\n**2. Complete Reasoning Process:**\n\n*   **Step 1: Calculate the total daily feed re",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R+": {
+          "response": "Step 1: To solve this problem, we need to determine the total amount of feed Wendi needs for her flock of chickens for one day and then calculate how much is needed for the final meal.\n\nStep 2: We know that Wendi has 20 chickens, and each chicken requires three cups of feed per day. We can calculate the daily feed requirement as follows: \n20 chickens x 3 cups per chicken = 60 cups of feed for the entire flock per day. \n\nNow, we know that she already fed her chickens 15 cups in the morning and 25",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 5,
+          "bayesian_score": 0.78,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.50 = 0.780",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "**Step 1:** Analyze the problem and identify what is being asked.\n\nWendi has a certain number of chickens, each of which eats 3 cups of feed per day, divided into three meals. The total amount of feed given in the morning and afternoon is 15 + 25 = 40 cups. Since each chicken eats 3 cups of feed per day, Wendi needs to provide 20 chickens * 3 cups/chicken = 60 cups of feed per day in total.\n\n**Step 2:** Show your complete reasoning process.\n\nTo find out how many cups of feed Wendi needs to give ",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 5,
+          "bayesian_score": 0.78,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.50 = 0.780",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "**Step 1: Analyze the problem and identify what is being asked.**\n\nThe problem asks us to determine how many cups of feed Wendi needs to give her chickens in the final meal of the day. We are given that:\n\n* The size of Wendi's flock is 20 chickens.\n* In the morning, she gives her chickens 15 cups of feed.\n* In the afternoon, she gives her chickens another 25 cups of feed.\n\nWe need to find the total amount of feed needed for the final meal.\n\n**Step 2: Calculate the total amount of feed given in t",
+          "model_answer": "40",
+          "is_correct": false,
+          "judge_score": 0,
+          "bayesian_score": 0.06999999999999999,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.00 = 0.070",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Command-R": {
+          "response": "Sure! Let's tackle this problem step by step:\n\n1. First, we need to understand the information given in the problem statement. Wendi has a flock of 20 chickens, and she wants to feed them three times a day with a total of three cups of feed per chicken per day. \n\n2. Let's calculate the total amount of feed Wendi has given to her chickens so far. In the morning, she gave 15 cups, and in the afternoon, she gave 25 cups. So, the total so far is: \n\n> 15 cups + 25 cups = 40 cups \n\n3. Now, we need to ",
+          "model_answer": "140",
+          "is_correct": false,
+          "judge_score": 1,
+          "bayesian_score": 0.1,
+          "bayesian_formula": "0.7*0.1 + 0.3*0.10 = 0.100",
+          "judge_model": "google/gemini-3-pro-preview"
+        },
+        "Mistral 7B Instruct": {
+          "response": " <s> **Step 1: Understand the Problem**\n\nFirst, I need to understand what the problem is asking. Wendi has a flock of 20 chickens. Each chicken is fed a total of 3 cups of mixed feed per day, divided into three separate meals. The problem gives the amounts of feed given in the morning and afternoon meals and asks how much feed is needed for the final meal.\n\n**Step 2: Calculate Total Daily Feed per Chicken**\n\nThe problem states that each chicken receives 3 cups of feed per day. Since there are 20",
+          "model_answer": "20",
+          "is_correct": true,
+          "judge_score": 8,
+          "bayesian_score": 0.8700000000000001,
+          "bayesian_formula": "0.7*0.9 + 0.3*0.80 = 0.870",
+          "judge_model": "google/gemini-3-pro-preview"
+        }
+      }
+    }
+  ]
+}

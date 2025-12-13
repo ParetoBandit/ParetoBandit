@@ -1,0 +1,117 @@
+{
+  "total_prompts": 598,
+  "total_complex": 2,
+  "pct_complex": 0.33444816053511706,
+  "sources": [
+    "ARC-Easy",
+    "ARC-Challenge",
+    "GSM8K",
+    "MMLU-abstract_algebra",
+    "MMLU-formal_logic",
+    "MMLU-logical_fallacies",
+    "MMLU-philosophy",
+    "MMLU-college_physics",
+    "MMLU-high_school_physics",
+    "MMLU-conceptual_physics",
+    "HellaSwag",
+    "Winogrande"
+  ],
+  "by_source": {
+    "ARC-Easy": {
+      "n_complex": 0,
+      "total": 100,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.16676100000000002,
+      "avg_creativity": 0.019375,
+      "avg_reasoning": 0.103904
+    },
+    "ARC-Challenge": {
+      "n_complex": 1,
+      "total": 100,
+      "pct_complex": 1.0,
+      "avg_complexity_score": 0.18314039999999998,
+      "avg_creativity": 0.03674,
+      "avg_reasoning": 0.11212799999999999
+    },
+    "GSM8K": {
+      "n_complex": 1,
+      "total": 100,
+      "pct_complex": 1.0,
+      "avg_complexity_score": 0.3187883,
+      "avg_creativity": 0.035655,
+      "avg_reasoning": 0.7820800000000001
+    },
+    "MMLU-abstract_algebra": {
+      "n_complex": 0,
+      "total": 14,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.21776428571428572,
+      "avg_creativity": 0.004007142857142857,
+      "avg_reasoning": 0.12251428571428573
+    },
+    "MMLU-formal_logic": {
+      "n_complex": 0,
+      "total": 14,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.24209571428571428,
+      "avg_creativity": 0.008714285714285714,
+      "avg_reasoning": 0.12825
+    },
+    "MMLU-logical_fallacies": {
+      "n_complex": 0,
+      "total": 14,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.16833571428571428,
+      "avg_creativity": 0.025571428571428575,
+      "avg_reasoning": 0.035142857142857135
+    },
+    "MMLU-philosophy": {
+      "n_complex": 0,
+      "total": 14,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.12986071428571427,
+      "avg_creativity": 0.021135714285714285,
+      "avg_reasoning": 0.0326
+    },
+    "MMLU-college_physics": {
+      "n_complex": 0,
+      "total": 14,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.1913307142857143,
+      "avg_creativity": 0.005014285714285714,
+      "avg_reasoning": 0.12837857142857143
+    },
+    "MMLU-high_school_physics": {
+      "n_complex": 0,
+      "total": 14,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.26831785714285716,
+      "avg_creativity": 0.016678571428571428,
+      "avg_reasoning": 0.28252857142857146
+    },
+    "MMLU-conceptual_physics": {
+      "n_complex": 0,
+      "total": 14,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.14417857142857146,
+      "avg_creativity": 0.0028499999999999997,
+      "avg_reasoning": 0.08714285714285715
+    },
+    "HellaSwag": {
+      "n_complex": 0,
+      "total": 100,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.1866487,
+      "avg_creativity": 0.061573,
+      "avg_reasoning": 0.030370999999999995
+    },
+    "Winogrande": {
+      "n_complex": 0,
+      "total": 100,
+      "pct_complex": 0.0,
+      "avg_complexity_score": 0.09393610000000002,
+      "avg_creativity": 0.020761,
+      "avg_reasoning": 0.014181999999999998
+    }
+  }
+}

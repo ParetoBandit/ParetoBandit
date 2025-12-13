@@ -1,0 +1,746 @@
+{
+  "intent": "coding",
+  "composite_field": "ccs_100",
+  "n_prompts": 5,
+  "n_models": 10,
+  "models": [
+    {
+      "name": "Gemini 3 Pro Preview (high)",
+      "blf_score": 100.0,
+      "blf_rank": 1
+    },
+    {
+      "name": "Claude Opus 4.5 (Reasoning)",
+      "blf_score": 95.0,
+      "blf_rank": 2
+    },
+    {
+      "name": "GPT-5.1 (high)",
+      "blf_score": 94.2,
+      "blf_rank": 3
+    },
+    {
+      "name": "Kimi K2 Thinking",
+      "blf_score": 90.9,
+      "blf_rank": 4
+    },
+    {
+      "name": "Grok 4",
+      "blf_score": 88.9,
+      "blf_rank": 5
+    },
+    {
+      "name": "Llama 3.2 Instruct 1B",
+      "blf_score": 8.2,
+      "blf_rank": 79
+    },
+    {
+      "name": "Command-R+",
+      "blf_score": 7.8,
+      "blf_rank": 80
+    },
+    {
+      "name": "Mixtral 8x7B Instruct",
+      "blf_score": 2.3,
+      "blf_rank": 81
+    },
+    {
+      "name": "Command-R",
+      "blf_score": 1.4,
+      "blf_rank": 82
+    },
+    {
+      "name": "Mistral 7B Instruct",
+      "blf_score": 0.0,
+      "blf_rank": 83
+    }
+  ],
+  "prompt_results": [
+    {
+      "prompt": "\ndef pluck(arr):\n    \"\"\"\n    \"Given an array representing a branch of a tree that has non-negative integer nodes\n    your task is to pluck one of the nodes and return it.\n    The plucked node should be the node with the smallest even value.\n    If multiple nodes with the same smallest even value are found return the node that has smallest index.\n\n    The plucked node should be returned in a list, [ smalest_value, its index ],\n    If there are no even values or the given array is empty, return [].\n\n    Example 1:\n        Input: [4,2,3]\n        Output: [2, 1]\n        Explanation: 2 has the smallest even value, and 2 has the smallest index.\n\n    Example 2:\n        Input: [1,2,3]\n        Output: [2, 1]\n        Explanation: 2 has the smallest even value, and 2 has the smallest index. \n\n    Example 3:\n        Input: []\n        Output: []\n    \n    Example 4:\n        Input: [5, 0, 3, 0, 4, 2]\n        Output: [0, 1]\n        Explanation: 0 is the smallest value, but  there are two zeros,\n                     so we will choose the first zero, which has the smallest index.\n\n    Constraints:\n        * 1 <= nodes.length <= 10000\n        * 0 <= node.value\n    \"\"\"\n",
+      "task_id": "HumanEval/68",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "Here is the Python code to solve the problem.\n\n```python\ndef pluck(arr):\n    \"\"\"\n    Given an array representing a branch of a tree that has non-negative integer nodes\n    your task is to pluck one of the nodes and return it.\n    The plucked node should be the node with the smallest even value.\n    If multiple nodes with the same smallest even value are found return the node that has smallest index.\n\n    The plucked node should be returned in a list, [ smalest_value, its index ],\n    If there ar",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 9,
+          "judge_used": "anthropic/claude-opus-4.5",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution demonstrates excellent readability with clear variable names, helpful comments explaining the logic, and a well-structured flow; it uses Pythonic idioms like list comprehension and tuple compar"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "<thinking>\nLet me analyze this problem:\n\n1. I need to find the smallest even value in the array\n2. If there are multiple nodes with the same smallest even value, return the one with the smallest index\n3. Return [smallest_value, its_index]\n4. If no even values or empty array, return []\n\nLet me write the solution:\n\n```python\ndef pluck(arr):\n    if not arr:\n        return []\n    \n    # Find all even numbers with their indices\n    even_nodes = [(val, idx) for idx, val in enumerate(arr) if val % 2 ==",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is concise and robust, utilizing `enumerate` to efficiently pair values with indices in a single logical pass, offering better readablity than the reference solution."
+        },
+        "GPT-5.1 (high)": {
+          "response": "```python\ndef pluck(arr):\n    \"\"\"\n    Given an array representing a branch of a tree that has non-negative integer nodes\n    your task is to pluck one of the nodes and return it.\n    The plucked node should be the node with the smallest even value.\n    If multiple nodes with the same smallest even value are found return the node that has smallest index.\n\n    The plucked node should be returned in a list, [ smallest_value, its index ],\n    If there are no even values or the given array is empty, ",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is excellent, utilizing a single-pass O(N) approach with `enumerate` that is both more efficient and readable than the multi-pass reference solution."
+        },
+        "Kimi K2 Thinking": {
+          "response": " ```python\ndef pluck(arr):\n    \"\"\"\n    \"Given an array representing a branch of a tree that has non-negative integer nodes\n    your task is to pluck one of the nodes and return it.\n    The plucked node should be the node with the smallest even value.\n    If multiple nodes with the same smallest even value are found return the node that has smallest index.\n\n    The plucked node should be returned in a list, [ smalest_value, its_index ],\n    If there are no even values or the given array is empty,",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is excellent, offering a clean, single-pass approach that is actually more efficient than the reference solution (which uses multiple passes)."
+        },
+        "Grok 4": {
+          "response": "```python\ndef pluck(arr):\n    min_even = -1\n    min_index = -1\n    for i, val in enumerate(arr):\n        if val % 2 == 0 and (min_even == -1 or val < min_even):\n            min_even = val\n            min_index = i\n    if min_even == -1:\n        return []\n    return [min_even, min_index]\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 9,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution is optimal (O(N)) and correctly handles tie-breaking, significantly outperforming the reference solution; however, using `float('inf')` instead of `-1` for initialization would simplify the con"
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "Here is a Python solution for the problem:\n\n```python\ndef pluck(arr):\n    \"\"\"\n    Pluck the node with the smallest even value from a branch of a tree.\n\n    Args:\n        arr (list): A list of integers representing a branch of a tree.\n\n    Returns:\n        list: A list containing the smallest even value and its index.\n    \"\"\"\n    # Check if the array is empty\n    if not arr:\n        return []\n\n    # Initialize the smallest even value and its index\n    smallest_even = float('inf')\n    smallest_eve",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 9,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 2/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is significantly more efficient (O(N) single-pass) and cleaner than the reference solution, but it overlooks the logic to return `[]` when the list is non-empty but contains no even numbers (cu"
+        },
+        "Command-R+": {
+          "response": "The problem can be solved with this Python code:\n```python\ndef pluck(arr):\n    min_even = [float(\"inf\"), -1]\n    for i, num in enumerate(arr):\n        if num % 2 == 0 and num < min_even[0]:\n            min_even = [num, i]\n    return min_even if min_even[0] != float(\"inf\") else []\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The code effectively uses a single-pass $O(N)$ approach that is more efficient than the reference solution, correctly handling the index tie-breaking logic via strict inequality and utilizing Pythonic idio"
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "Here is a possible implementation of the `pluck` function:\n```\ndef pluck(arr):\n    min_even = None\n    min_even_index = None\n    for i, x in enumerate(arr):\n        if x % 2 == 0 and (min_even is None or x < min_even):\n            min_even = x\n            min_even_index = i\n    return [min_even, min_even_index] if min_even is not None else []\n```\nThis function uses a variable `min_even` to keep track of the smallest even value it has seen so far, and a variable `min_even_index` to keep track of ",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is efficient (O(n) single pass), uses clear logic with `enumerate`, and handles edge cases cleanly, offering better performance than the reference solution's multiple passes."
+        },
+        "Command-R": {
+          "response": "Here is a possible solution to the function described:\n\n```python\ndef pluck(arr):\n    if not arr:\n        return []\n\n    min_even = float('inf')\n    min_even_index = None\n    for i, val in enumerate(arr):\n        if val % 2 == 0 and val < min_even:\n            min_even = val\n            min_even_index = i\n\n    if min_even_index is not None:\n        return [min_even, min_even_index]\n    else:\n        return []\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The code is highly readable, idiomatic, and optimally efficient (O(n) single-pass), avoiding the multiple iterations found in the reference solution."
+        },
+        "Mistral 7B Instruct": {
+          "error": "Empty response"
+        }
+      }
+    },
+    {
+      "prompt": "\n\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a given substring can be found in the original string. Count overlaping cases.\n    >>> how_many_times('', 'a')\n    0\n    >>> how_many_times('aaa', 'a')\n    3\n    >>> how_many_times('aaaa', 'aa')\n    3\n    \"\"\"\n",
+      "task_id": "HumanEval/18",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "```python\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a given substring can be found in the original string. Count overlaping cases.\n    >>> how_many_times('', 'a')\n    0\n    >>> how_many_times('aaa', 'a')\n    3\n    >>> how_many_times('aaaa', 'aa')\n    3\n    \"\"\"\n    if not substring:\n        return 0\n    \n    count = 0\n    substring_len = len(substring)\n    \n    # Iterate through the string up to the point where the substring could still fit\n    for i in r",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 9,
+          "judge_used": "anthropic/claude-opus-4.5",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution has excellent readability with clear variable names (`count`, `substring_len`), helpful comments explaining the logic, and a logical flow; it handles the edge case of empty substring appropriat"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "<budget:thinking>\nI need to write a function that counts how many times a substring appears in a string, including overlapping cases.\n\nLet me think about this:\n- For 'aaa' and 'a', the answer is 3 (positions 0, 1, 2)\n- For 'aaaa' and 'aa', the answer is 3 (positions 0, 1, 2) - \"aa\" at index 0, \"aa\" at index 1, \"aa\" at index 2\n\nSo I need to check at each position if the substring starts there.\n\nLet me write a simple approach:\n1. Iterate through all possible starting positions (0 to len(string) - ",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is excellent; it implements a standard sliding window approach which is actually more memory-efficient than the reference solution because it slices only the window length rather than the enti"
+        },
+        "GPT-5.1 (high)": {
+          "response": "```python\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a given substring can be found in the original string. Count overlapping cases.\n    >>> how_many_times('', 'a')\n    0\n    >>> how_many_times('aaa', 'a')\n    3\n    >>> how_many_times('aaaa', 'aa')\n    3\n    \"\"\"\n    if not substring:\n        return 0  # avoid infinite matches for empty substring\n\n    count = 0\n    sub_len = len(substring)\n    for i in range(len(string) - sub_len + 1):\n        if string[i:",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is clean, explicitly handles the edge case of an empty substring, and is actually more efficient than the reference solution by avoiding the creation of large string slices in every iteration."
+        },
+        "Kimi K2 Thinking": {
+          "response": " ```python\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a given substring can be found in the original string. Count overlaping cases.\n    >>> how_many_times('', 'a')\n    0\n    >>> how_many_times('aaa', 'a')\n    3\n    >>> how_many_times('aaaa', 'aa')\n    3\n    \"\"\"\n    count = 0\n    substring_len = len(substring)\n    \n    # If substring is empty, Python's convention is to return len(string) + 1\n    # but this is rarely useful in practice. We let it follow Py",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is clean, readable, and actually optimizes the loop range `range(len(string) - substring_len + 1)` which avoids checking tail indices where the substring cannot fit, an improvement over the re"
+        },
+        "Grok 4": {
+          "response": "```python\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a given substring can be found in the original string. Count overlaping cases.\n    >>> how_many_times('', 'a')\n    0\n    >>> how_many_times('aaa', 'a')\n    3\n    >>> how_many_times('aaaa', 'aa')\n    3\n    \"\"\"\n    count = 0\n    for i in range(len(string) - len(substring) + 1):\n        if string[i : i + len(substring)] == substring:\n            count += 1\n    return count\n```",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution implements a standard sliding window with precise bound calculations, resulting in better efficiency ($O(N \\cdot K)$) compared to the reference solution's large string slicing ($O(N^2)$)."
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "def how_many_times(string: str, substring: str) -> int:\n    \"\"\"\n    Find how many times a given substring can be found in the original string.\n    Count overlapping cases.\n\n    Args:\n        string (str): The original string to search in.\n        substring (str): The substring to search for.\n\n    Returns:\n        int: The number of times the substring can be found in the string.\n    \"\"\"\n    # Initialize a counter to store the number of occurrences\n    count = 0\n    \n    # Iterate over the string",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The code is cleanly formatted with comprehensive docstrings and type hints, using a standard sliding window approach which is logically sound and slightly more memory-efficient than the reference solution."
+        },
+        "Command-R+": {
+          "response": "```\ndef how_many_times(string: str, substring: str) -> int:\n    \"\"\" Find how many times a substring occurs in a string, counting overlapping occurrences.\n    Args:\n        string (str): The main string to search within.\n        substring (str): The substring to search for.\n    Returns:\n        int: The number of times the substring is found in the string, counting overlapping cases.\n    \"\"\"\n    count = start = 0\n    while start < len(string):\n        pos = string.find(substring, start)\n        i",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is well-documented and uses `string.find` with offset management, which is computationally more efficient (avoids string slicing) and cleaner than the canonical solution."
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "Here is a possible implementation of the function:\n\n```python\ndef how_many_times(string: str, substring: str) -> int:\n    if not string or not substring:\n        return 0\n    \n    count = 0\n    start = 0\n    while True:\n        start = string.find(substring, start)\n        if start == -1:\n            break\n        count += 1\n        start += 1\n    \n    return count\n```\n\nThis function uses the `find` method of strings to locate the first occurrence of the substring in the string, starting from a ",
+          "execution_passed": true,
+          "tests_passed": 3,
+          "tests_total": 3,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution efficiently handles overlapping occurrences using the `find` method with a start index, avoiding the memory overhead of string slicing found in the reference solution, while remaining clear an"
+        },
+        "Command-R": {
+          "response": "The function you've provided is almost correct, with a small issue in the docstring. Here's a corrected version:\n\n```python\ndef how_many_times(string, substring):\n    \"\"\"Find how many times a given substring can be found in the original string, overlapping cases counted as well.\n\n    :param string: The original string\n    :param substring: The substring to search for\n    :return: The number of occurrences of the substring in the string\n\n    Examples:\n    >>> how_many_times('aaa', 'a')\n    3\n    ",
+          "execution_passed": false,
+          "tests_passed": 2,
+          "tests_total": 3,
+          "judge_score": 2,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 2/10\nBug Type: logic\nReason: The solution advances the search index by the length of the substring (`start = pos + len(substring)`) instead of by 1, effectively skipping overlapping occurrences."
+        },
+        "Mistral 7B Instruct": {
+          "response": " <s> [OUT] def how_many_times(string: str, substring: str) -> int:\n    count = 0\n    start = 0\n    while True:\n        start = string.find(substring, start)\n        if start == -1:\n            return count\n        count += 1\n        start += 1\n    [/OUT] ",
+          "execution_passed": false,
+          "tests_passed": 0,
+          "tests_total": 3,
+          "judge_score": 2,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 2/10\nBug Type: Syntax\nReason: The model output includes raw generation tokens (`<s> [OUT]`) and leading whitespace on the first line, causing a SyntaxError regarding unexpected indentation."
+        }
+      }
+    },
+    {
+      "prompt": "\ndef even_odd_count(num):\n    \"\"\"Given an integer. return a tuple that has the number of even and odd digits respectively.\n\n     Example:\n        even_odd_count(-12) ==> (1, 1)\n        even_odd_count(123) ==> (1, 2)\n    \"\"\"\n",
+      "task_id": "HumanEval/155",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "Here is the Python code to solve this problem:\n\n```python\ndef even_odd_count(num):\n    \"\"\"Given an integer. return a tuple that has the number of even and odd digits respectively.\n\n     Example:\n        even_odd_count(-12) ==> (1, 1)\n        even_odd_count(123) ==> (1, 2)\n    \"\"\"\n    even_count = 0\n    odd_count = 0\n    \n    # Use abs() to handle negative numbers like -12 causing issues\n    # Convert to string to easily iterate over digits\n    for char in str(abs(num)):\n        digit = int(char)",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 9,
+          "judge_used": "anthropic/claude-opus-4.5",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution is highly readable with clear variable names (`even_count`, `odd_count`), includes a helpful comment explaining the `abs()` usage, has flat structure with no deep nesting, and is efficient; how"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "Looking at this problem, I need to count even and odd digits in a number.\n\nLet me analyze:\n- Even digits: 0, 2, 4, 6, 8\n- Odd digits: 1, 3, 5, 7, 9\n- Need to handle negative numbers (ignore the sign)\n\n```python\ndef even_odd_count(num):\n    even_count = 0\n    odd_count = 0\n    \n    for digit in str(abs(num)):\n        if int(digit) % 2 == 0:\n            even_count += 1\n        else:\n            odd_count += 1\n    \n    return (even_count, odd_count)\n```\n\nThe solution:\n1. Uses `abs(num)` to handle n",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is clean and readable, explicitly handling negative inputs via `abs()` and using logical if/else branching which is semantically appropriate for binary properties like parity."
+        },
+        "GPT-5.1 (high)": {
+          "response": "```python\ndef even_odd_count(num):\n    \"\"\"Given an integer, return a tuple (even_count, odd_count)\n    representing the number of even and odd digits respectively.\n    \"\"\"\n    num = abs(num)  # handle negative numbers\n\n    # Special case: 0 has one even digit and zero odd digits\n    if num == 0:\n        return (1, 0)\n\n    even = 0\n    odd = 0\n\n    for digit_char in str(num):\n        digit = int(digit_char)\n        if digit % 2 == 0:\n            even += 1\n        else:\n            odd += 1\n\n    r",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 9,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution is readable and robust, but the special handling block for `num == 0` is redundant as the main loop logic handles zero correctly, adding unnecessary lines of code."
+        },
+        "Kimi K2 Thinking": {
+          "response": " ```python\ndef even_odd_count(num):\n    \"\"\"Given an integer. return a tuple that has the number of even and odd digits respectively.\n\n     Example:\n        even_odd_count(-12) ==> (1, 1)\n        even_odd_count(123) ==> (1, 2)\n    \"\"\"\n    num_str = str(abs(num))\n    even_count = sum(1 for d in num_str if int(d) % 2 == 0)\n    odd_count = len(num_str) - even_count\n    return (even_count, odd_count)\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is concise and Pythonic, correctly handling negative numbers via `abs` and efficiently deriving the odd count by subtracting the even count from the total length."
+        },
+        "Grok 4": {
+          "response": "```python\ndef even_odd_count(num):\n    \"\"\"Given an integer. return a tuple that has the number of even and odd digits respectively.\n\n     Example:\n        even_odd_count(-12) ==> (1, 1)\n        even_odd_count(123) ==> (1, 2)\n    \"\"\"\n    s = str(abs(num))\n    even = sum(1 for c in s if int(c) % 2 == 0)\n    odd = len(s) - even\n    return (even, odd)\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is concise and Pythonic, utilizing `abs()` to cleanly handle negative numbers and a generator expression with subtraction for an elegant, logic-driven approach."
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "Here is a Python function that fulfills your requirements:\n\n```python\ndef even_odd_count(num):\n    \"\"\"\n    Given an integer, return a tuple that has the number of even and odd digits respectively.\n\n    Args:\n        num (int): The input integer.\n\n    Returns:\n        tuple: A tuple containing the count of even and odd digits.\n    \"\"\"\n    return (sum(1 for digit in str(abs(num)) if int(digit) % 2 == 0), \n            sum(1 for digit in str(abs(num)) if int(digit) % 2 != 0))\n```\n\nHere's an explanat",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 8,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 8/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 1/2, Style: 1/2]\nReason: The solution is concise and readable, but it inefficiencies arise from iterating over the digits twice (creating the string representation twice) and violating the DRY principle, whereas a single-pass loop "
+        },
+        "Command-R+": {
+          "response": "Here is the solution with the corresponding tests included: \n\n```python\ndef even_odd_count(num):\n    \"\"\"\n    Given an integer, returns a tuple with the count of even and odd digits, respectively.\n\n    Args:\n        num (int): The input integer.\n\n    Returns:\n        tuple: A tuple containing two integers representing the count of even and odd digits.\n    \"\"\"\n    even_count = 0\n    odd_count = 0\n\n    for digit in str(num):\n        if int(digit) % 2 == 0:\n            even_count += 1\n        else:\n",
+          "execution_passed": false,
+          "tests_passed": 0,
+          "tests_total": 1,
+          "judge_score": 3,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 3/10\nBug Type: edge-case\nReason: The code converts the integer to a string and iterates over every character including the negative sign ('-'), causing a ValueError when attempting to cast that symbol back to an integer."
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "Here is a possible solution:\n```\ndef even_odd_count(num):\n    # Check if the number is negative\n    if num < 0:\n        num = -num\n\n    # Initialize even and odd counters\n    even_count, odd_count = 0, 0\n\n    # Loop through the digits of the number\n    while num > 0:\n        # Get the last digit\n        digit = num % 10\n\n        # Check if it's even or odd\n        if digit % 2 == 0:\n            even_count += 1\n        else:\n            odd_count += 1\n\n        # Remove the last digit\n        num ",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 8,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 8/10\nQuality: [Readability: 2/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution relies on verbose C-style arithmetic for digit extraction rather than idiomatic Python string iteration, and it contains excessive comments that describe obvious operations (noise) rather than "
+        },
+        "Command-R": {
+          "response": "def even_odd_count(num):\n    even_count = 0\n    odd_count = 0\n    for digit in str(abs(num)):\n        if int(digit) % 2 == 0:\n            even_count += 1\n        else:\n            odd_count += 1\n    return (even_count, odd_count)",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is clean and explicit, correctly handling negative numbers via `abs()` before iteration and using variable names that clearly describe their purpose."
+        },
+        "Mistral 7B Instruct": {
+          "error": "Empty response"
+        }
+      }
+    },
+    {
+      "prompt": "\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n",
+      "task_id": "HumanEval/162",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n    if not text:\n        return None\n    \n    # encode() converts the string to bytes, which is required by hashlib\n    # hexdigest() returns the string representation of the hash\n    return hashlib.md5(text.encode('utf-8')).hexdigest()\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 9,
+          "judge_used": "anthropic/claude-opus-4.5",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution is clean, well-commented, and efficient with a single-line hash computation, but uses `if not text` which differs from the canonical `text == \"\"` check\u2014this means it would also return None for "
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "Looking at this problem, I need to:\n\n1. Handle the edge case where `text` is an empty string (return `None`)\n2. Compute the MD5 hash of the input string\n3. Return the hash as a hexadecimal string\n\nLet me implement this:\n\n```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n    if text == '':\n    ",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is cleaner and more Pythonic than the reference implementation, utilizing top-level imports and method chaining for conciseness."
+        },
+        "GPT-5.1 (high)": {
+          "response": "```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n    if text == \"\":\n        return None\n    # Ensure we work with bytes; encode using UTF-8\n    return hashlib.md5(text.encode('utf-8')).hexdigest()\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The code is concise, follows PEP 8 standards by placing imports at the top level, and correctly handles both the edge case and the hashing operation using standard Pythonic idioms."
+        },
+        "Kimi K2 Thinking": {
+          "response": " ```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n    if text == \"\":\n        return None\n    \n    return hashlib.md5(text.encode('utf-8')).hexdigest()\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The code is concise, follows PEP 8 standards with top-level imports, and correctly handles both the edge case and the hashing operation in a readable, Pythonic manner."
+        },
+        "Grok 4": {
+          "response": "```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n    if not text:\n        return None\n    return hashlib.md5(text.encode('utf-8')).hexdigest()\n```",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is cleaner than the reference code, adhering to PEP 8 by placing imports at the top level and using idiomatic method chaining."
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "Here is a Python function that implements the MD5 hashing algorithm to calculate the MD5 hash of a given string:\n\n```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world')\n    '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n    if not text:\n        return None\n\n    # Create an MD5 hash object\n    md5 = hashlib.md5()\n\n    # Update the hash object with ",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The code is clean and Pythonic, using descriptive variable names and top-level imports while correctly handling the edge case."
+        },
+        "Command-R+": {
+          "response": "The implementation you've provided is incomplete and misses the actual hashing procedure. However, here's a possible Python implementation of the `string_to_md5` function with the necessary modifications:\n```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', returns its MD5 hash equivalent string.\n    If 'text' is empty, returns None.\n\n    :param text: Input string to be hashed.\n    :return: MD5 hash of the input string or None if input is empty.\n    \"\"\"\n    if te",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is clean and idiomatic, employing standard library features correctly with appropriate docstrings and Pythonic truthiness checks."
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "To implement the `string_to_md5` function in Python, you can use the `hashlib` module, which comes with the standard library. Here's the implementation:\n\n```python\nimport hashlib\n\ndef string_to_md5(text):\n    \"\"\"\n    Given a string 'text', return its md5 hash equivalent string.\n    If 'text' is an empty string, return None.\n\n    >>> string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'\n    \"\"\"\n    if not text:\n        return None\n    else:\n        md5_hash = hashlib.md5()\n        md",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is clean and idiomatic, placing imports at the top level and using standard library functions effectively."
+        },
+        "Command-R": {
+          "response": "Here is a simplified version of the code you provided, formatted in a way that is easier to read and understand:\n\n```python\nimport hashlib\n\ndef string_to_md5(text):\n    if text == \"\":\n        return None\n    else:\n        md5_hash = hashlib.md5()\n        md5_hash.update(text.encode('utf-8'))\n        return md5_hash.hexdigest()\n```\n\nThis function uses the `hashlib` module in Python to create an MD5 hash of the input string. If the input string is empty, it returns `None` as specified in the origi",
+          "execution_passed": true,
+          "tests_passed": 1,
+          "tests_total": 1,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution is excellent, correcting the reference's inline import placement by moving it to the top level, using descriptive variable names (`md5_hash` vs `m`), and adhering to standard Python style."
+        },
+        "Mistral 7B Instruct": {
+          "response": " <s> [OUT] \nimport hashlib\n\ndef string_to_md5(text):\n    if not text:\n        return None\n    return hashlib.md5(text.encode('utf-8')).hexdigest()\n",
+          "execution_passed": false,
+          "tests_passed": 0,
+          "tests_total": 1,
+          "judge_score": 2,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 2/10\nBug Type: Syntax\nReason: The model output includes a generated artifact (`<s> [OUT]`) with leading whitespace on the first line, causing an unexpected indent error."
+        }
+      }
+    },
+    {
+      "prompt": "\n\ndef pairs_sum_to_zero(l):\n    \"\"\"\n    pairs_sum_to_zero takes a list of integers as an input.\n    it returns True if there are two distinct elements in the list that\n    sum to zero, and False otherwise.\n    >>> pairs_sum_to_zero([1, 3, 5, 0])\n    False\n    >>> pairs_sum_to_zero([1, 3, -2, 1])\n    False\n    >>> pairs_sum_to_zero([1, 2, 3, 7])\n    False\n    >>> pairs_sum_to_zero([2, 4, -5, 3, 5, 7])\n    True\n    >>> pairs_sum_to_zero([1])\n    False\n    \"\"\"\n",
+      "task_id": "HumanEval/43",
+      "responses": {
+        "Gemini 3 Pro Preview (high)": {
+          "response": "Here is the completed code using an efficient algorithm.\n\nIt uses a Python `set` to keep track of the numbers seen so far. As it iterates through the list, it checks if the negative version of the current number (e.g., if current is `5`, check for `-5`) is already in the set. If it is, a pair has been found.\n\n```python\ndef pairs_sum_to_zero(l):\n    \"\"\"\n    pairs_sum_to_zero takes a list of integers as an input.\n    it returns True if there are two distinct elements in the list that\n    sum to ze",
+          "execution_passed": true,
+          "tests_passed": 5,
+          "tests_total": 5,
+          "judge_score": 9,
+          "judge_used": "anthropic/claude-opus-4.5",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution is highly readable with clear variable naming (`seen`, `num`), includes a helpful comment explaining the logic, uses a simple flat loop structure with single responsibility, and achieves O(n) t"
+        },
+        "Claude Opus 4.5 (Reasoning)": {
+          "response": "<thinking>\nI need to write a function that checks if there are two distinct elements in a list that sum to zero.\n\nLet me think about this:\n1. I need to find two different elements (at different positions) that sum to zero\n2. This means for any element x, I need to check if -x exists in the list (and it's a different element)\n\nLet me think about the approach:\n- I can use a set to track seen elements\n- For each element, check if its negation is already in the set\n- If yes, return True\n- Otherwise,",
+          "execution_passed": true,
+          "tests_passed": 5,
+          "tests_total": 5,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The model solution is excellent; it implements the optimal O(N) approach using a set, which is significantly more efficient than the reference solution's O(N\u00b2) brute-force method, while remaining clean and"
+        },
+        "GPT-5.1 (high)": {
+          "response": "```python\ndef pairs_sum_to_zero(l):\n    \"\"\"\n    pairs_sum_to_zero takes a list of integers as an input.\n    it returns True if there are two distinct elements in the list that\n    sum to zero, and False otherwise.\n    >>> pairs_sum_to_zero([1, 3, 5, 0])\n    False\n    >>> pairs_sum_to_zero([1, 3, -2, 1])\n    False\n    >>> pairs_sum_to_zero([1, 2, 3, 7])\n    False\n    >>> pairs_sum_to_zero([2, 4, -5, 3, 5, 7])\n    True\n    >>> pairs_sum_to_zero([1])\n    False\n    \"\"\"\n    seen = set()\n    for x in ",
+          "execution_passed": true,
+          "tests_passed": 5,
+          "tests_total": 5,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution uses an optimal O(N) hash set approach, which is significantly more efficient and cleaner than the O(N^2) double-loop reference solution."
+        },
+        "Kimi K2 Thinking": {
+          "response": "```python\ndef pairs_sum_to_zero(l):\n    \"\"\"\n    pairs_sum_to_zero takes a list of integers as an input.\n    it returns True if there are two distinct elements in the list that\n    sum to zero, and False otherwise.\n    >>> pairs_sum_to_zero([1, 3, 5, 0])\n    False\n    >>> pairs_sum_to_zero([1, 3, -2, 1])\n    False\n    >>> pairs_sum_to_zero([1, 2, 3, 7])\n    False\n    >>> pairs_sum_to_zero([2, 4, -5, 3, 5, 7])\n    True\n    >>> pairs_sum_to_zero([1])\n    False\n    \"\"\"\n    seen = set()\n    for num i",
+          "execution_passed": true,
+          "tests_passed": 5,
+          "tests_total": 5,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The code is clean and Pythonic, offering a significant efficiency improvement ($O(N)$ vs $O(N^2)$) over the naive reference solution by utilizing a set for lookups."
+        },
+        "Grok 4": {
+          "response": "```python\ndef pairs_sum_to_zero(l):\n    \"\"\"\n    pairs_sum_to_zero takes a list of integers as an input.\n    it returns True if there are two distinct elements in the list that\n    sum to zero, and False otherwise.\n    >>> pairs_sum_to_zero([1, 3, 5, 0])\n    False\n    >>> pairs_sum_to_zero([1, 3, -2, 1])\n    False\n    >>> pairs_sum_to_zero([1, 2, 3, 7])\n    False\n    >>> pairs_sum_to_zero([2, 4, -5, 3, 5, 7])\n    True\n    >>> pairs_sum_to_zero([1])\n    False\n    \"\"\"\n    seen = set()\n    for num i",
+          "execution_passed": true,
+          "tests_passed": 5,
+          "tests_total": 5,
+          "judge_score": 10,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 10/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 2/2]\nReason: The solution uses an optimal O(N) hash set approach, which is significantly more efficient and idiomatic than the O(N^2) double-loop reference solution."
+        },
+        "Llama 3.2 Instruct 1B": {
+          "response": "Here is the code that meets the specifications:\n```\ndef pairs_sum_to_zero(l):\n    seen = set()\n    for num in l:\n        if num in seen:\n            return True\n        seen.add(num)\n    return False\n```\nThis code defines a function `pairs_sum_to_zero` that takes a list `l` as input and returns `True` if there are two distinct elements in the list that sum to zero, and `False` otherwise. The function uses a set `seen` to keep track of the numbers it has seen so far. It iterates over the input li",
+          "execution_passed": false,
+          "tests_passed": 3,
+          "tests_total": 5,
+          "judge_score": 2,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 2/10\nBug Type: Logic\nReason: The code checks for duplicate values (`if num in seen`) instead of checking for the additive inverse (`if -num in seen`) required to find two numbers that sum to zero."
+        },
+        "Command-R+": {
+          "response": "Here is a possible Python solution:\n```python\ndef pairs_sum_to_zero(lst):\n    n = len(lst)\n    if n < 2:  # If the list size is less than 2, it can't have two elements that sum to zero.\n        return False\n    lst.sort()  # Sort the list to easily look for pairs.\n    left = 0\n    right = n - 1\n    while left < right:\n        current_sum = lst[left] + lst[right]\n        if current_sum == 0:\n            return True\n        elif current_sum < 0:\n            left += 1\n        else:\n            righ",
+          "execution_passed": true,
+          "tests_passed": 5,
+          "tests_total": 5,
+          "judge_score": 9,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 9/10\nQuality: [Readability: 3/3, Modularity: 3/3, Efficiency: 2/2, Style: 1/2]\nReason: The solution provides a significant algorithmic improvement over the canonical solution ($O(N \\log N)$ vs $O(N^2)$), but it modifies the input list in-place (`lst.sort()`), which is considered a bad practic"
+        },
+        "Mixtral 8x7B Instruct": {
+          "response": "Here is one way to implement the function:\n\n```\ndef pairs_sum_to_zero(l):\n    # create a set from the list to remove duplicates and enable fast lookups\n    num_set = set(l)\n    for num in num_set:\n        # check if the negative of the current number is in the set\n        if -num in num_set:\n            # if it is, return True, since we've found a pair that sums to zero\n            return True\n    # if we've gone through the whole set without finding a pair, return False\n    return False\n```\n\nTh",
+          "execution_passed": false,
+          "tests_passed": 4,
+          "tests_total": 5,
+          "judge_score": 4,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 4/10\nBug Type: logic\nReason: The solution converts the input list to a set, which removes duplicates and causes a single `0` to incorrectly match with itself (since `-0 == 0`), failing the requirement for distinct elements."
+        },
+        "Command-R": {
+          "response": "Here's a restructured version of your code snippet:\n\n```python\ndef pairs_sum_to_zero(input_list):\n    \"\"\"\n    Checks if there are two distinct elements in the list that sum up to zero.\n\n    Parameters:\n        input_list (list): A list of integers.\n\n    Returns:\n        bool: True if such a pair exists, False otherwise.\n    \"\"\"\n    # Use a set to store unique numbers to efficiently perform lookups\n    unique_nums = set(input_list)\n    for num in input_list:\n        if -num in unique_nums:\n      ",
+          "execution_passed": false,
+          "tests_passed": 4,
+          "tests_total": 5,
+          "judge_score": 2,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 2/10\nBug Type: logic\nReason: The algorithm incorrectly returns True for a list containing a single zero (e.g., `[1, 3, 5, 0]`) because it matches the zero with itself in the set, violating the distinct element constraint."
+        },
+        "Mistral 7B Instruct": {
+          "response": " <s> [OUT] def pairs_sum_to_zero(l):\n    seen = set()\n    for num in l:\n        if -num in seen:\n            return True\n        seen.add(num)\n    return False\n",
+          "execution_passed": false,
+          "tests_passed": 0,
+          "tests_total": 5,
+          "judge_score": 2,
+          "judge_used": "google/gemini-3-pro-preview",
+          "judge_reasoning": "Score: 2/10\nBug Type: Syntax/Formatting\nReason: The generated code contains invalid artifact tokens (`<s> [OUT]`) and leading whitespace before the function definition, causing an immediate `SyntaxError`."
+        }
+      }
+    }
+  ],
+  "model_scores": {
+    "Gemini 3 Pro Preview (high)": {
+      "blf_score": 100.0,
+      "blf_rank": 1,
+      "judge_scores": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "execution_passes": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "avg_judge_score": 9.0,
+      "pass_rate": 1.0
+    },
+    "Claude Opus 4.5 (Reasoning)": {
+      "blf_score": 95.0,
+      "blf_rank": 2,
+      "judge_scores": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "execution_passes": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "avg_judge_score": 10.0,
+      "pass_rate": 1.0
+    },
+    "GPT-5.1 (high)": {
+      "blf_score": 94.2,
+      "blf_rank": 3,
+      "judge_scores": [
+        10,
+        10,
+        9,
+        10,
+        10
+      ],
+      "execution_passes": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "avg_judge_score": 9.8,
+      "pass_rate": 1.0
+    },
+    "Kimi K2 Thinking": {
+      "blf_score": 90.9,
+      "blf_rank": 4,
+      "judge_scores": [
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "execution_passes": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "avg_judge_score": 10.0,
+      "pass_rate": 1.0
+    },
+    "Grok 4": {
+      "blf_score": 88.9,
+      "blf_rank": 5,
+      "judge_scores": [
+        9,
+        10,
+        10,
+        10,
+        10
+      ],
+      "execution_passes": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "avg_judge_score": 9.8,
+      "pass_rate": 1.0
+    },
+    "Llama 3.2 Instruct 1B": {
+      "blf_score": 8.2,
+      "blf_rank": 79,
+      "judge_scores": [
+        9,
+        10,
+        8,
+        10,
+        2
+      ],
+      "execution_passes": [
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "avg_judge_score": 7.8,
+      "pass_rate": 0.8
+    },
+    "Command-R+": {
+      "blf_score": 7.8,
+      "blf_rank": 80,
+      "judge_scores": [
+        10,
+        10,
+        3,
+        10,
+        9
+      ],
+      "execution_passes": [
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "avg_judge_score": 8.4,
+      "pass_rate": 0.8
+    },
+    "Mixtral 8x7B Instruct": {
+      "blf_score": 2.3,
+      "blf_rank": 81,
+      "judge_scores": [
+        10,
+        10,
+        8,
+        10,
+        4
+      ],
+      "execution_passes": [
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "avg_judge_score": 8.4,
+      "pass_rate": 0.8
+    },
+    "Command-R": {
+      "blf_score": 1.4,
+      "blf_rank": 82,
+      "judge_scores": [
+        10,
+        2,
+        10,
+        10,
+        2
+      ],
+      "execution_passes": [
+        true,
+        false,
+        true,
+        true,
+        false
+      ],
+      "avg_judge_score": 6.8,
+      "pass_rate": 0.6
+    },
+    "Mistral 7B Instruct": {
+      "blf_score": 0.0,
+      "blf_rank": 83,
+      "judge_scores": [
+        2,
+        2,
+        2
+      ],
+      "execution_passes": [
+        false,
+        false,
+        false
+      ],
+      "avg_judge_score": 2.0,
+      "pass_rate": 0.0
+    }
+  },
+  "ranking_metrics": {
+    "spearman_rho": 0.8303030303030302,
+    "spearman_pval": 0.0029402270232795065,
+    "kendall_tau": 0.6888888888888888,
+    "kendall_pval": 0.00468694885361552,
+    "mean_abs_rank_diff": 37.3,
+    "max_rank_diff": 74,
+    "top_3_precision": 0.6666666666666666,
+    "top_5_precision": 1.0,
+    "top_bottom_gap": 0.5999999999999996,
+    "top_bottom_separated": true,
+    "avg_top_judge_score": 9.72,
+    "avg_bottom_judge_score": 6.6800000000000015,
+    "pairwise_accuracy": 0.7777777777777778
+  },
+  "kdd_grade_summary": {
+    "top_5_avg_pass_rate": 1.0,
+    "bottom_5_avg_pass_rate": 0.6000000000000001,
+    "pass_rate_gap": 0.3999999999999999
+  }
+}

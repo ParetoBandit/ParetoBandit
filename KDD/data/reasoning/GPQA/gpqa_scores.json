@@ -1,0 +1,668 @@
+{
+  "models": [
+    {
+      "name": "Claude 3.5 Haiku",
+      "slug": "claude-3-5-haiku",
+      "creator_name": "Anthropic",
+      "gpqa": 0.408,
+      "source": "artificial_analysis_api",
+      "aa_id": "033e4aa9-a556-4224-87b0-341ed1070257"
+    },
+    {
+      "name": "GPT-3.5 Turbo",
+      "slug": "gpt-35-turbo",
+      "creator_name": "OpenAI",
+      "gpqa": 0.297,
+      "source": "artificial_analysis_api",
+      "aa_id": "037dec2f-51e8-4127-a1f1-85155dae7a1d"
+    },
+    {
+      "name": "o3-mini (high)",
+      "slug": "o3-mini-high",
+      "creator_name": "OpenAI",
+      "gpqa": 0.773,
+      "source": "artificial_analysis_api",
+      "aa_id": "076f2674-bc4b-4925-be59-50832eb8c090"
+    },
+    {
+      "name": "Claude 3.5 Sonnet",
+      "slug": "claude-35-sonnet",
+      "creator_name": "Anthropic",
+      "gpqa": 0.599,
+      "source": "artificial_analysis_api",
+      "aa_id": "0a603978-03b9-4f47-a273-2f7fd969be85"
+    },
+    {
+      "name": "DeepSeek V3.1 Terminus (Reasoning)",
+      "slug": "deepseek-v3-1-terminus-reasoning",
+      "creator_name": "DeepSeek",
+      "gpqa": 0.792,
+      "source": "artificial_analysis_api",
+      "aa_id": "0a7dda4d-cc9c-4a90-abc1-abb5772c901b"
+    },
+    {
+      "name": "DeepSeek R1",
+      "slug": "deepseek-r1-0120",
+      "creator_name": "DeepSeek",
+      "gpqa": 0.708,
+      "source": "artificial_analysis_api",
+      "aa_id": "0e34f05c-387e-4968-be15-ccec4a55d8c1"
+    },
+    {
+      "name": "Claude 3.7 Sonnet (Reasoning)",
+      "slug": "claude-3-7-sonnet-thinking",
+      "creator_name": "Anthropic",
+      "gpqa": 0.772,
+      "source": "artificial_analysis_api",
+      "aa_id": "13358187-4584-479c-ab43-5bcdf8f297a4"
+    },
+    {
+      "name": "o3",
+      "slug": "o3",
+      "creator_name": "OpenAI",
+      "gpqa": 0.827,
+      "source": "artificial_analysis_api",
+      "aa_id": "16c5b637-8bce-4252-81f2-1b87a36a4e4c"
+    },
+    {
+      "name": "DeepSeek V3.1 (Reasoning)",
+      "slug": "deepseek-v3-1-reasoning",
+      "creator_name": "DeepSeek",
+      "gpqa": 0.779,
+      "source": "artificial_analysis_api",
+      "aa_id": "198b717f-42c8-4ab7-a699-ae9373d669d3"
+    },
+    {
+      "name": "Llama 3.3 Nemotron Super 49B v1 (Reasoning)",
+      "slug": "llama-3-3-nemotron-super-49b-reasoning",
+      "creator_name": "NVIDIA",
+      "gpqa": 0.643,
+      "source": "artificial_analysis_api",
+      "aa_id": "1a8ba535-df18-459b-ad40-3199191296d7"
+    },
+    {
+      "name": "GLM-4.5 (Reasoning)",
+      "slug": "glm-4.5",
+      "creator_name": "Z AI",
+      "gpqa": 0.782,
+      "source": "artificial_analysis_api",
+      "aa_id": "1cf439b8-0cfd-47b2-9de2-9a2157e6762b"
+    },
+    {
+      "name": "Mistral 7B Instruct",
+      "slug": "mistral-7b-instruct",
+      "creator_name": "Mistral",
+      "gpqa": 0.177,
+      "source": "artificial_analysis_api",
+      "aa_id": "217b34ec-5920-4fc1-8886-6a70a324837d"
+    },
+    {
+      "name": "Gemma 3 4B Instruct",
+      "slug": "gemma-3-4b",
+      "creator_name": "Google",
+      "gpqa": 0.291,
+      "source": "artificial_analysis_api",
+      "aa_id": "222fb320-6e55-4672-846a-b6d5a24a45f4"
+    },
+    {
+      "name": "Grok 3",
+      "slug": "grok-3",
+      "creator_name": "xAI",
+      "gpqa": 0.693,
+      "source": "artificial_analysis_api",
+      "aa_id": "2443ac9e-a3db-423d-accb-8963f6fb0a53"
+    },
+    {
+      "name": "Claude Opus 4.5 (Reasoning)",
+      "slug": "claude-opus-4-5-thinking",
+      "creator_name": "Anthropic",
+      "gpqa": 0.866,
+      "source": "artificial_analysis_api",
+      "aa_id": "2660d74f-ce79-48a8-8b53-6e668e2071a2"
+    },
+    {
+      "name": "Gemini 2.5 Pro",
+      "slug": "gemini-2-5-pro",
+      "creator_name": "Google",
+      "gpqa": 0.844,
+      "source": "artificial_analysis_api",
+      "aa_id": "27202e5f-c82d-4710-92e9-4317877d4883"
+    },
+    {
+      "name": "Gemma 3 27B Instruct",
+      "slug": "gemma-3-27b",
+      "creator_name": "Google",
+      "gpqa": 0.428,
+      "source": "artificial_analysis_api",
+      "aa_id": "2bfdd17a-e027-4068-a54e-b0e90a6df118"
+    },
+    {
+      "name": "Gemma 3 12B Instruct",
+      "slug": "gemma-3-12b",
+      "creator_name": "Google",
+      "gpqa": 0.349,
+      "source": "artificial_analysis_api",
+      "aa_id": "2e6400f5-85ca-4ebc-ba8f-c2811a631138"
+    },
+    {
+      "name": "Nova Micro",
+      "slug": "nova-micro",
+      "creator_name": "Amazon",
+      "gpqa": 0.358,
+      "source": "artificial_analysis_api",
+      "aa_id": "344c6718-c573-41d4-9556-10287a3fa1fc"
+    },
+    {
+      "name": "gpt-oss-20B (high)",
+      "slug": "gpt-oss-20b",
+      "creator_name": "OpenAI",
+      "gpqa": 0.688,
+      "source": "artificial_analysis_api",
+      "aa_id": "36f73aaf-d38a-4b56-a2b3-d04d17186910"
+    },
+    {
+      "name": "GPT-4.1",
+      "slug": "gpt-4-1",
+      "creator_name": "OpenAI",
+      "gpqa": 0.666,
+      "source": "artificial_analysis_api",
+      "aa_id": "3b608b70-6434-4baa-99ad-45d499703c67"
+    },
+    {
+      "name": "Command A",
+      "slug": "command-a",
+      "creator_name": "Cohere",
+      "gpqa": 0.527,
+      "source": "artificial_analysis_api",
+      "aa_id": "3bc32f13-5afa-4e28-bce1-10e57376686b"
+    },
+    {
+      "name": "Mixtral 8x7B Instruct",
+      "slug": "mixtral-8x7b-instruct",
+      "creator_name": "Mistral",
+      "gpqa": 0.292,
+      "source": "artificial_analysis_api",
+      "aa_id": "3edcb2ed-6981-4f88-a556-563f7f8f00aa"
+    },
+    {
+      "name": "Mistral Small 3.2",
+      "slug": "mistral-small-3-2",
+      "creator_name": "Mistral",
+      "gpqa": 0.505,
+      "source": "artificial_analysis_api",
+      "aa_id": "43da3718-3d6e-40dd-901a-05664179ff7f"
+    },
+    {
+      "name": "Kimi K2",
+      "slug": "kimi-k2",
+      "creator_name": "Moonshot AI",
+      "gpqa": 0.766,
+      "source": "artificial_analysis_api",
+      "aa_id": "441734a9-8901-4850-9bae-b474c370291f"
+    },
+    {
+      "name": "Qwen3 14B (Reasoning)",
+      "slug": "qwen3-14b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "gpqa": 0.604,
+      "source": "artificial_analysis_api",
+      "aa_id": "4559e9f0-8aad-4681-89fb-68cb915e0f16"
+    },
+    {
+      "name": "Llama 3.1 Instruct 405B",
+      "slug": "llama-3-1-instruct-405b",
+      "creator_name": "Meta",
+      "gpqa": 0.515,
+      "source": "artificial_analysis_api",
+      "aa_id": "45c87531-2d57-48e0-8012-202cd636189e"
+    },
+    {
+      "name": "Llama 3.1 Instruct 70B",
+      "slug": "llama-3-1-instruct-70b",
+      "creator_name": "Meta",
+      "gpqa": 0.409,
+      "source": "artificial_analysis_api",
+      "aa_id": "466aecdb-3d96-4191-bc52-b3366db38851"
+    },
+    {
+      "name": "GPT-5.1 (high)",
+      "slug": "gpt-5-1",
+      "creator_name": "OpenAI",
+      "gpqa": 0.873,
+      "source": "artificial_analysis_api",
+      "aa_id": "4dc12a38-b18f-4c43-8e1b-678f8434b5b1"
+    },
+    {
+      "name": "Nova Pro",
+      "slug": "nova-pro",
+      "creator_name": "Amazon",
+      "gpqa": 0.499,
+      "source": "artificial_analysis_api",
+      "aa_id": "546ec53f-273c-4af7-b13f-b88c41f45905"
+    },
+    {
+      "name": "o1",
+      "slug": "o1",
+      "creator_name": "OpenAI",
+      "gpqa": 0.747,
+      "source": "artificial_analysis_api",
+      "aa_id": "5ad2f60f-ee05-49fd-85a0-cef69aa7cb7b"
+    },
+    {
+      "name": "Nova Lite",
+      "slug": "nova-lite",
+      "creator_name": "Amazon",
+      "gpqa": 0.433,
+      "source": "artificial_analysis_api",
+      "aa_id": "5c3dd927-48a3-4f3c-8045-9b135f62dfbb"
+    },
+    {
+      "name": "GLM-4.5-Air",
+      "slug": "glm-4-5-air",
+      "creator_name": "Z AI",
+      "gpqa": 0.733,
+      "source": "artificial_analysis_api",
+      "aa_id": "5d303dc9-c027-401f-9803-4e9aa3331007"
+    },
+    {
+      "name": "Mistral Large",
+      "slug": "mistral-large",
+      "creator_name": "Mistral",
+      "gpqa": 0.351,
+      "source": "artificial_analysis_api",
+      "aa_id": "5e4e4590-a77e-4b66-95f8-f3960a1a7c68"
+    },
+    {
+      "name": "Grok 4",
+      "slug": "grok-4",
+      "creator_name": "xAI",
+      "gpqa": 0.877,
+      "source": "artificial_analysis_api",
+      "aa_id": "5ea94a4a-55ac-4ea1-8898-2b3971e94af6"
+    },
+    {
+      "name": "Llama 3.2 Instruct 11B (Vision)",
+      "slug": "llama-3-2-instruct-11b-vision",
+      "creator_name": "Meta",
+      "gpqa": 0.221,
+      "source": "artificial_analysis_api",
+      "aa_id": "5fb47ff6-a30e-4c2c-96f2-55e95a13390f"
+    },
+    {
+      "name": "DeepSeek R1 0528 Qwen3 8B",
+      "slug": "deepseek-r1-qwen3-8b",
+      "creator_name": "DeepSeek",
+      "gpqa": 0.612,
+      "source": "artificial_analysis_api",
+      "aa_id": "6000145b-0e3d-4fef-a55f-bcaac84803b2"
+    },
+    {
+      "name": "Kimi K2 0905",
+      "slug": "kimi-k2-0905",
+      "creator_name": "Moonshot AI",
+      "gpqa": 0.767,
+      "source": "artificial_analysis_api",
+      "aa_id": "66445f84-b2e3-4202-afdc-92ba0f0e5f36"
+    },
+    {
+      "name": "Ministral 3B",
+      "slug": "ministral-3b",
+      "creator_name": "Mistral",
+      "gpqa": 0.358,
+      "source": "artificial_analysis_api",
+      "aa_id": "66f4ce73-9a9b-4b49-9c6e-bedb9bfdc720"
+    },
+    {
+      "name": "Llama 3.2 Instruct 3B",
+      "slug": "llama-3-2-instruct-3b",
+      "creator_name": "Meta",
+      "gpqa": 0.255,
+      "source": "artificial_analysis_api",
+      "aa_id": "71e8d48c-1920-4f27-8ea9-1f10becc615a"
+    },
+    {
+      "name": "GPT-4.1 nano",
+      "slug": "gpt-4-1-nano",
+      "creator_name": "OpenAI",
+      "gpqa": 0.512,
+      "source": "artificial_analysis_api",
+      "aa_id": "72c358fd-7d45-4d68-89aa-699743710924"
+    },
+    {
+      "name": "Llama 3.1 Instruct 8B",
+      "slug": "llama-3-1-instruct-8b",
+      "creator_name": "Meta",
+      "gpqa": 0.259,
+      "source": "artificial_analysis_api",
+      "aa_id": "739684ba-0f63-4e2a-b4ee-30741c9e9320"
+    },
+    {
+      "name": "DeepSeek V3 0324",
+      "slug": "deepseek-v3-0324",
+      "creator_name": "DeepSeek",
+      "gpqa": 0.655,
+      "source": "artificial_analysis_api",
+      "aa_id": "75e1c197-f239-4361-a9d6-66dccfead236"
+    },
+    {
+      "name": "Command-R+",
+      "slug": "command-r-plus-04-2024",
+      "creator_name": "Cohere",
+      "gpqa": 0.323,
+      "source": "artificial_analysis_api",
+      "aa_id": "76361085-f5dc-49ec-b069-fe56ca885933"
+    },
+    {
+      "name": "GPT-4 Turbo",
+      "slug": "gpt-4-turbo",
+      "creator_name": "OpenAI",
+      "gpqa": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "76aa6af5-fdc6-4739-a300-983f14e74a67"
+    },
+    {
+      "name": "Claude 3 Opus",
+      "slug": "claude-3-opus",
+      "creator_name": "Anthropic",
+      "gpqa": 0.489,
+      "source": "artificial_analysis_api",
+      "aa_id": "7829427f-f0e3-4f6d-a228-5fbf70dacc02"
+    },
+    {
+      "name": "Gemini 2.0 Flash-Lite",
+      "slug": "gemini-2-0-flash-lite-001",
+      "creator_name": "Google",
+      "gpqa": 0.535,
+      "source": "artificial_analysis_api",
+      "aa_id": "7b269763-ecc0-41ef-aa29-47ef632ac065"
+    },
+    {
+      "name": "Llama 3.2 Instruct 1B",
+      "slug": "llama-3-2-instruct-1b",
+      "creator_name": "Meta",
+      "gpqa": 0.196,
+      "source": "artificial_analysis_api",
+      "aa_id": "80f7860a-7665-4658-9f05-15bccf5f832f"
+    },
+    {
+      "name": "Llama 3 Instruct 8B",
+      "slug": "llama-3-instruct-8b",
+      "creator_name": "Meta",
+      "gpqa": 0.296,
+      "source": "artificial_analysis_api",
+      "aa_id": "82879bb8-89fb-4adc-b519-315b8ef30b77"
+    },
+    {
+      "name": "o4-mini (high)",
+      "slug": "o4-mini",
+      "creator_name": "OpenAI",
+      "gpqa": 0.784,
+      "source": "artificial_analysis_api",
+      "aa_id": "84b49308-6b93-47aa-a4f6-776ee1a1e8cd"
+    },
+    {
+      "name": "Claude 4 Opus (Reasoning)",
+      "slug": "claude-4-opus-thinking",
+      "creator_name": "Anthropic",
+      "gpqa": 0.796,
+      "source": "artificial_analysis_api",
+      "aa_id": "8a4a5ead-7789-4389-8400-30e9d20370b7"
+    },
+    {
+      "name": "GPT-4o",
+      "slug": "gpt-4o",
+      "creator_name": "OpenAI",
+      "gpqa": 0.543,
+      "source": "artificial_analysis_api",
+      "aa_id": "c1045dc0-4fd3-4adb-9548-18763e0d051f"
+    },
+    {
+      "name": "Claude 4.5 Sonnet (Reasoning)",
+      "slug": "claude-4-5-sonnet-thinking",
+      "creator_name": "Anthropic",
+      "gpqa": 0.834,
+      "source": "artificial_analysis_api",
+      "aa_id": "90e078f2-051b-4c63-8919-76618971cb3f"
+    },
+    {
+      "name": "Llama 4 Maverick",
+      "slug": "llama-4-maverick",
+      "creator_name": "Meta",
+      "gpqa": 0.671,
+      "source": "artificial_analysis_api",
+      "aa_id": "922c69c7-9037-43c6-8bcf-a1c555e7f3eb"
+    },
+    {
+      "name": "Ministral 8B",
+      "slug": "ministral-8b",
+      "creator_name": "Mistral",
+      "gpqa": 0.471,
+      "source": "artificial_analysis_api",
+      "aa_id": "9741f3c2-cbb1-4a3f-99ee-7bd7384d9038"
+    },
+    {
+      "name": "Llama 3.3 Instruct 70B",
+      "slug": "llama-3-3-instruct-70b",
+      "creator_name": "Meta",
+      "gpqa": 0.498,
+      "source": "artificial_analysis_api",
+      "aa_id": "976cc8ad-7904-4056-83c5-960181f47d5f"
+    },
+    {
+      "name": "Llama 3.2 Instruct 90B (Vision)",
+      "slug": "llama-3-2-instruct-90b-vision",
+      "creator_name": "Meta",
+      "gpqa": 0.432,
+      "source": "artificial_analysis_api",
+      "aa_id": "9ca71ac4-41c8-42c0-87dd-5704a9e5b94d"
+    },
+    {
+      "name": "Qwen3 8B (Reasoning)",
+      "slug": "qwen3-8b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "gpqa": 0.589,
+      "source": "artificial_analysis_api",
+      "aa_id": "9dba61f5-78ee-4190-8d1d-8e7063ffd386"
+    },
+    {
+      "name": "GPT-4.1 mini",
+      "slug": "gpt-4-1-mini",
+      "creator_name": "OpenAI",
+      "gpqa": 0.664,
+      "source": "artificial_analysis_api",
+      "aa_id": "9f7c7566-a704-49a2-a383-cb3181da33a4"
+    },
+    {
+      "name": "Claude 4.5 Haiku (Reasoning)",
+      "slug": "claude-4-5-haiku-reasoning",
+      "creator_name": "Anthropic",
+      "gpqa": 0.672,
+      "source": "artificial_analysis_api",
+      "aa_id": "a6340098-d7ae-462d-b372-0a0a67fc44b4"
+    },
+    {
+      "name": "Claude 4 Sonnet (Reasoning)",
+      "slug": "claude-4-sonnet-thinking",
+      "creator_name": "Anthropic",
+      "gpqa": 0.777,
+      "source": "artificial_analysis_api",
+      "aa_id": "a7564055-f8ba-4c4b-9e2d-060f61263645"
+    },
+    {
+      "name": "Llama 3 Instruct 70B",
+      "slug": "llama-3-instruct-70b",
+      "creator_name": "Meta",
+      "gpqa": 0.379,
+      "source": "artificial_analysis_api",
+      "aa_id": "aa83359a-d804-4f0b-b5bf-dc637711c26f"
+    },
+    {
+      "name": "Command-R",
+      "slug": "command-r-03-2024",
+      "creator_name": "Cohere",
+      "gpqa": 0.284,
+      "source": "artificial_analysis_api",
+      "aa_id": "abe9f0c7-f4f6-430d-ba42-f45afdd4841b"
+    },
+    {
+      "name": "Llama 4 Scout",
+      "slug": "llama-4-scout",
+      "creator_name": "Meta",
+      "gpqa": 0.587,
+      "source": "artificial_analysis_api",
+      "aa_id": "adf9a85e-abc3-4f28-937b-db6655cc5238"
+    },
+    {
+      "name": "Qwen3 32B (Reasoning)",
+      "slug": "qwen3-32b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "gpqa": 0.668,
+      "source": "artificial_analysis_api",
+      "aa_id": "b00ecd62-a53f-4aed-b833-3e9d6b0170ba"
+    },
+    {
+      "name": "Qwen2.5 Instruct 72B",
+      "slug": "qwen2-5-72b-instruct",
+      "creator_name": "Alibaba",
+      "gpqa": 0.491,
+      "source": "artificial_analysis_api",
+      "aa_id": "b4f7d7a4-869a-4ee7-b17a-4046cd1e79fd"
+    },
+    {
+      "name": "GPT-4o mini",
+      "slug": "gpt-4o-mini",
+      "creator_name": "OpenAI",
+      "gpqa": 0.426,
+      "source": "artificial_analysis_api",
+      "aa_id": "b5c1c91a-7474-4409-9a9c-9c2ac45d9eb6"
+    },
+    {
+      "name": "Qwen3 235B A22B (Reasoning)",
+      "slug": "qwen3-235b-a22b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "gpqa": 0.7,
+      "source": "artificial_analysis_api",
+      "aa_id": "bbe6d782-e630-48d5-b11c-3ce37f373f1e"
+    },
+    {
+      "name": "Gemini 2.0 Flash",
+      "slug": "gemini-2-0-flash",
+      "creator_name": "Google",
+      "gpqa": 0.623,
+      "source": "artificial_analysis_api",
+      "aa_id": "bcca0e70-7e80-4c07-b1fa-b33bcfb19e51"
+    },
+    {
+      "name": "Kimi K2 Thinking",
+      "slug": "kimi-k2-thinking",
+      "creator_name": "Moonshot AI",
+      "gpqa": 0.838,
+      "source": "artificial_analysis_api",
+      "aa_id": "bddebfd3-0a8d-47f5-b722-bc4c2ca5a5dc"
+    },
+    {
+      "name": "Gemini 2.5 Flash Preview (Reasoning)",
+      "slug": "gemini-2-5-flash-preview-09-2025-reasoning",
+      "creator_name": "Google",
+      "gpqa": 0.793,
+      "source": "artificial_analysis_api",
+      "aa_id": "c7667559-d9b6-43f1-8cd8-8bdbc78d190b"
+    },
+    {
+      "name": "Mixtral 8x22B Instruct",
+      "slug": "mistral-8x22b-instruct",
+      "creator_name": "Mistral",
+      "gpqa": 0.332,
+      "source": "artificial_analysis_api",
+      "aa_id": "ca6c1412-f3c1-4391-9231-f83a702aa7af"
+    },
+    {
+      "name": "QwQ 32B",
+      "slug": "qwq-32b",
+      "creator_name": "Alibaba",
+      "gpqa": 0.593,
+      "source": "artificial_analysis_api",
+      "aa_id": "ceb4d610-d0a4-48c1-bea0-80ed76f1e5ca"
+    },
+    {
+      "name": "Gemini 3 Pro Preview (high)",
+      "slug": "gemini-3-pro",
+      "creator_name": "Google",
+      "gpqa": 0.908,
+      "source": "artificial_analysis_api",
+      "aa_id": "d1122eff-ee85-4fdc-8a9f-23bee6590667"
+    },
+    {
+      "name": "Pixtral Large",
+      "slug": "pixtral-large-2411",
+      "creator_name": "Mistral",
+      "gpqa": 0.505,
+      "source": "artificial_analysis_api",
+      "aa_id": "de0beaf0-c951-487a-8eb4-3dd12e74122c"
+    },
+    {
+      "name": "Mistral Small 3",
+      "slug": "mistral-small-3",
+      "creator_name": "Mistral",
+      "gpqa": 0.462,
+      "source": "artificial_analysis_api",
+      "aa_id": "e5dd499f-c330-45ec-9ff0-a99209c82af7"
+    },
+    {
+      "name": "GPT-5 (ChatGPT)",
+      "slug": "gpt-5-chatgpt",
+      "creator_name": "OpenAI",
+      "gpqa": 0.686,
+      "source": "artificial_analysis_api",
+      "aa_id": "eab1492c-b853-4852-aa71-06b0ec2481c1"
+    },
+    {
+      "name": "Phi-4",
+      "slug": "phi-4",
+      "creator_name": "Microsoft Azure",
+      "gpqa": 0.575,
+      "source": "artificial_analysis_api",
+      "aa_id": "ee708f92-374e-4123-b900-e22d7b2afc19"
+    },
+    {
+      "name": "gpt-oss-120B (high)",
+      "slug": "gpt-oss-120b",
+      "creator_name": "OpenAI",
+      "gpqa": 0.782,
+      "source": "artificial_analysis_api",
+      "aa_id": "f0083258-8646-45b8-8082-7aaf6c2ea82a"
+    },
+    {
+      "name": "Gemini 2.5 Flash-Lite (Reasoning)",
+      "slug": "gemini-2-5-flash-lite-reasoning",
+      "creator_name": "Google",
+      "gpqa": 0.625,
+      "source": "artificial_analysis_api",
+      "aa_id": "f4e8194a-d0e6-48eb-92be-4307de5aeeec"
+    },
+    {
+      "name": "Grok 3 mini Reasoning (high)",
+      "slug": "grok-3-mini-reasoning",
+      "creator_name": "xAI",
+      "gpqa": 0.791,
+      "source": "artificial_analysis_api",
+      "aa_id": "ff9bc5e5-a02f-4270-983e-4b3f834f3363"
+    },
+    {
+      "name": "DeepSeek R1 Distill Llama 70B",
+      "slug": "deepseek-r1-distill-llama-70b",
+      "creator_name": "DeepSeek",
+      "gpqa": 0.402,
+      "source": "artificial_analysis_api",
+      "aa_id": "4a845d7b-a52d-43bb-80b7-b58c7a0c155e"
+    },
+    {
+      "name": "DeepSeek R1 Distill Qwen 32B",
+      "slug": "deepseek-r1-distill-qwen-32b",
+      "creator_name": "DeepSeek",
+      "gpqa": 0.615,
+      "source": "artificial_analysis_api",
+      "aa_id": "df95f83f-5ebb-466a-9d2d-b95efc8c012c"
+    }
+  ]
+}

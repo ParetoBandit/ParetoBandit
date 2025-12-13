@@ -1,0 +1,117 @@
+{
+  "timestamp": "2025-12-12T14:07:51.598278",
+  "n_models": 20,
+  "n_prompts": 50,
+  "models": [
+    {
+      "feature_set": "CRS Only",
+      "accuracy": 0.8559999999999999,
+      "auc": 0.6818952465945124,
+      "features": [
+        "crs_score"
+      ]
+    },
+    {
+      "feature_set": "CRS + Complexity",
+      "accuracy": 0.8559999999999999,
+      "auc": 0.6747045934534277,
+      "features": [
+        "crs_score",
+        "prompt_complexity_score"
+      ]
+    },
+    {
+      "feature_set": "CRS + Reasoning",
+      "accuracy": 0.8559999999999999,
+      "auc": 0.7107608577427497,
+      "features": [
+        "crs_score",
+        "reasoning_score"
+      ]
+    },
+    {
+      "feature_set": "CRS + Domain",
+      "accuracy": 0.8559999999999999,
+      "auc": 0.6783986978430908,
+      "features": [
+        "crs_score",
+        "domain_knowledge"
+      ]
+    },
+    {
+      "feature_set": "CRS + Selected NVIDIA (Uncorrelated)",
+      "accuracy": 0.8559999999999999,
+      "auc": 0.7157707122129481,
+      "features": [
+        "crs_score",
+        "domain_knowledge",
+        "constraint_ct",
+        "is_complex",
+        "reasoning_score",
+        "is_reasoning_heavy",
+        "prompt_complexity_score"
+      ]
+    },
+    {
+      "feature_set": "CRS + All NVIDIA (Full)",
+      "accuracy": 0.8559999999999999,
+      "auc": 0.7157707122129481,
+      "features": [
+        "crs_score",
+        "prompt_complexity_score",
+        "reasoning_score",
+        "domain_knowledge",
+        "constraint_ct",
+        "is_complex",
+        "is_reasoning_heavy"
+      ]
+    },
+    {
+      "feature_set": "CRS \u00d7 Complexity (Interaction)",
+      "accuracy": 0.8559999999999999,
+      "auc": 0.7027476511360443,
+      "features": [
+        "crs_score",
+        "prompt_complexity_score",
+        "crs_x_complexity"
+      ]
+    }
+  ],
+  "model_predictions": {
+    "CRS Only": {
+      "r2": 0.3902827904431445,
+      "mae": 6.250933999760526,
+      "rmse": 10.128120424631875
+    },
+    "CRS + Complexity": {
+      "r2": 0.3902824776902333,
+      "mae": 6.250972782770576,
+      "rmse": 10.12812302222851
+    },
+    "CRS + Reasoning": {
+      "r2": 0.3902809955869503,
+      "mae": 6.251263115669213,
+      "rmse": 10.128135331957777
+    },
+    "CRS + Domain": {
+      "r2": 0.39028137494862314,
+      "mae": 6.251146914679522,
+      "rmse": 10.128132181139998
+    },
+    "CRS + Selected NVIDIA (Uncorrelated)": {
+      "r2": 0.39026544956417,
+      "mae": 6.253922183378476,
+      "rmse": 10.128264449811924
+    },
+    "CRS + All NVIDIA (Full)": {
+      "r2": 0.39026544956417,
+      "mae": 6.253922183378477,
+      "rmse": 10.128264449811924
+    },
+    "CRS \u00d7 Complexity (Interaction)": {
+      "r2": 0.3905423820455106,
+      "mae": 6.227549935805667,
+      "rmse": 10.125964134079446
+    }
+  }
+}

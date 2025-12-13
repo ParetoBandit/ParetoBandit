@@ -86,5 +86,7 @@
   "openai/o3": 81.06516976998905,
   "openai/o3-mini-high": 71.35815991237678,
   "deepseek/deepseek-r1-distill-qwen-32b": 71.56352683461118,
-  "qwen/qwen3-14b": 79.92880613362541
+  "qwen/qwen3-14b": 79.92880613362541,
+  "openai/o1": 79.3263964950712,
+  "deepseek/deepseek-r1-distill-llama-70b": 71.02957283680176
 }

@@ -1,0 +1,679 @@
+{
+  "prompt_stats": {
+    "creative_complex_pct": 84.0,
+    "arc_easy_complex_pct": 0.0
+  },
+  "fitted_coefficients": {
+    "intercept": 1.2368446566583733,
+    "crs": 1.8395817039717688,
+    "is_complex": -1.44012379261109,
+    "interaction": 0.41918475395861376
+  },
+  "model_auc": 0.7379766938419149,
+  "predictions": [
+    {
+      "model_name": "Gemini 3 Pro Preview (high)",
+      "crs": 1.829,
+      "crs_rank": 1,
+      "acc_simple": 95.59098142888473,
+      "acc_complex": 88.65009089156862,
+      "gap": 6.940890537316113
+    },
+    {
+      "model_name": "Claude Opus 4.5 (Reasoning)",
+      "crs": 1.623,
+      "crs_rank": 2,
+      "acc_simple": 95.1137413537316,
+      "acc_complex": 87.24890391122,
+      "gap": 7.864837442511597
+    },
+    {
+      "model_name": "GPT-5.1 (high)",
+      "crs": 1.6,
+      "crs_rank": 3,
+      "acc_simple": 95.05751024633032,
+      "acc_complex": 87.08361385357523,
+      "gap": 7.973896392755098
+    },
+    {
+      "model_name": "Grok 4",
+      "crs": 1.553,
+      "crs_rank": 4,
+      "acc_simple": 94.94069031512872,
+      "acc_complex": 86.74017086788433,
+      "gap": 8.200519447244393
+    },
+    {
+      "model_name": "Kimi K2 Thinking",
+      "crs": 1.533,
+      "crs_rank": 5,
+      "acc_simple": 94.89019082216076,
+      "acc_complex": 86.5916937170378,
+      "gap": 8.298497105122959
+    },
+    {
+      "model_name": "o4-mini (high)",
+      "crs": 1.401,
+      "crs_rank": 6,
+      "acc_simple": 94.54475341618331,
+      "acc_complex": 85.57622241146186,
+      "gap": 8.96853100472146
+    },
+    {
+      "model_name": "o3",
+      "crs": 1.391,
+      "crs_rank": 7,
+      "acc_simple": 94.5177054641618,
+      "acc_complex": 85.49674443275602,
+      "gap": 9.020961031405793
+    },
+    {
+      "model_name": "Gemini 2.5 Pro",
+      "crs": 1.382,
+      "crs_rank": 8,
+      "acc_simple": 94.4932543414539,
+      "acc_complex": 85.42490364549386,
+      "gap": 9.068350695960048
+    },
+    {
+      "model_name": "gpt-oss-120B (high)",
+      "crs": 1.373,
+      "crs_rank": 9,
+      "acc_simple": 94.46870054823043,
+      "acc_complex": 85.35276796557798,
+      "gap": 9.115932582652453
+    },
+    {
+      "model_name": "Claude 4.5 Sonnet (Reasoning)",
+      "crs": 1.329,
+      "crs_rank": 10,
+      "acc_simple": 94.34716943968635,
+      "acc_complex": 84.99583976264825,
+      "gap": 9.3513296770381
+    },
+    {
+      "model_name": "DeepSeek V3.1 Terminus (Reasoning)",
+      "crs": 1.302,
+      "crs_rank": 11,
+      "acc_simple": 94.2713551910924,
+      "acc_complex": 84.77328908479446,
+      "gap": 9.498066106297943
+    },
+    {
+      "model_name": "Grok 3 mini Reasoning (high)",
+      "crs": 1.286,
+      "crs_rank": 12,
+      "acc_simple": 94.22597860574037,
+      "acc_complex": 84.64013367532264,
+      "gap": 9.58584493041772
+    },
+    {
+      "model_name": "DeepSeek V3.1 (Reasoning)",
+      "crs": 1.255,
+      "crs_rank": 13,
+      "acc_simple": 94.13709987430204,
+      "acc_complex": 84.37943435089696,
+      "gap": 9.757665523405068
+    },
+    {
+      "model_name": "o3-mini (high)",
+      "crs": 1.12,
+      "crs_rank": 14,
+      "acc_simple": 93.73489651878799,
+      "acc_complex": 83.20194983679016,
+      "gap": 10.532946681997824
+    },
+    {
+      "model_name": "GLM-4.5 (Reasoning)",
+      "crs": 1.096,
+      "crs_rank": 15,
+      "acc_simple": 93.66074895691831,
+      "acc_complex": 82.98535586694172,
+      "gap": 10.675393089976604
+    },
+    {
+      "model_name": "Gemini 2.5 Flash Preview (Reasoning)",
+      "crs": 1.092,
+      "crs_rank": 16,
+      "acc_simple": 93.64831175636863,
+      "acc_complex": 82.94904180572247,
+      "gap": 10.699269950646162
+    },
+    {
+      "model_name": "gpt-oss-20B (high)",
+      "crs": 1.07,
+      "crs_rank": 17,
+      "acc_simple": 93.5794996816934,
+      "acc_complex": 82.74821337604806,
+      "gap": 10.83128630564535
+    },
+    {
+      "model_name": "Qwen3 235B A22B (Reasoning)",
+      "crs": 1.046,
+      "crs_rank": 18,
+      "acc_simple": 93.50364045836878,
+      "acc_complex": 82.52699757223226,
+      "gap": 10.976642886136512
+    },
+    {
+      "model_name": "Claude 4 Sonnet (Reasoning)",
+      "crs": 0.973,
+      "crs_rank": 19,
+      "acc_simple": 93.26774765239631,
+      "acc_complex": 81.84039733689879,
+      "gap": 11.42735031549751
+    },
+    {
+      "model_name": "Claude 4 Opus (Reasoning)",
+      "crs": 0.971,
+      "crs_rank": 20,
+      "acc_simple": 93.26117427267522,
+      "acc_complex": 81.82129422246302,
+      "gap": 11.439880050212192
+    },
+    {
+      "model_name": "Qwen3 32B (Reasoning)",
+      "crs": 0.883,
+      "crs_rank": 21,
+      "acc_simple": 92.96598714136414,
+      "acc_complex": 80.96524129645995,
+      "gap": 12.000745844904193
+    },
+    {
+      "model_name": "Claude 4.5 Haiku (Reasoning)",
+      "crs": 0.874,
+      "crs_rank": 22,
+      "acc_simple": 92.93513262697716,
+      "acc_complex": 80.87597490275148,
+      "gap": 12.059157724225688
+    },
+    {
+      "model_name": "GLM-4.5-Air",
+      "crs": 0.873,
+      "crs_rank": 23,
+      "acc_simple": 92.93169663839815,
+      "acc_complex": 80.86603670954723,
+      "gap": 12.065659928850925
+    },
+    {
+      "model_name": "o1",
+      "crs": 0.778,
+      "crs_rank": 24,
+      "acc_simple": 92.59815566621796,
+      "acc_complex": 79.90389523993466,
+      "gap": 12.69426042628331
+    },
+    {
+      "model_name": "DeepSeek R1",
+      "crs": 0.737,
+      "crs_rank": 25,
+      "acc_simple": 92.44977875786662,
+      "acc_complex": 79.47761507930407,
+      "gap": 12.972163678562543
+    },
+    {
+      "model_name": "Kimi K2",
+      "crs": 0.658,
+      "crs_rank": 26,
+      "acc_simple": 92.15615742120798,
+      "acc_complex": 78.63743209735712,
+      "gap": 13.518725323850855
+    },
+    {
+      "model_name": "Kimi K2 0905",
+      "crs": 0.616,
+      "crs_rank": 27,
+      "acc_simple": 91.9958339966215,
+      "acc_complex": 78.18066294386607,
+      "gap": 13.815171052755437
+    },
+    {
+      "model_name": "DeepSeek R1 Distill Qwen 32B",
+      "crs": 0.567,
+      "crs_rank": 28,
+      "acc_simple": 91.80501234031738,
+      "acc_complex": 77.6389202621528,
+      "gap": 14.166092078164583
+    },
+    {
+      "model_name": "Qwen3 14B (Reasoning)",
+      "crs": 0.556,
+      "crs_rank": 29,
+      "acc_simple": 91.76160905967619,
+      "acc_complex": 77.51599683274105,
+      "gap": 14.245612226935133
+    },
+    {
+      "model_name": "DeepSeek R1 0528 Qwen3 8B",
+      "crs": 0.531,
+      "crs_rank": 30,
+      "acc_simple": 91.6621862046864,
+      "acc_complex": 77.23484457509258,
+      "gap": 14.427341629593826
+    },
+    {
+      "model_name": "Gemini 2.5 Flash-Lite (Reasoning)",
+      "crs": 0.497,
+      "crs_rank": 31,
+      "acc_simple": 91.52522087508783,
+      "acc_complex": 76.84851395118392,
+      "gap": 14.676706923903915
+    },
+    {
+      "model_name": "Claude 3.7 Sonnet (Reasoning)",
+      "crs": 0.451,
+      "crs_rank": 32,
+      "acc_simple": 91.33666579995187,
+      "acc_complex": 76.31857933884844,
+      "gap": 15.018086461103442
+    },
+    {
+      "model_name": "Llama 3.3 Nemotron Super 49B v1 (Reasoning)",
+      "crs": 0.401,
+      "crs_rank": 33,
+      "acc_simple": 91.12741490404866,
+      "acc_complex": 75.73314268342247,
+      "gap": 15.394272220626192
+    },
+    {
+      "model_name": "GPT-5 (ChatGPT)",
+      "crs": 0.343,
+      "crs_rank": 34,
+      "acc_simple": 90.87897693185539,
+      "acc_complex": 75.04181571611558,
+      "gap": 15.837161215739815
+    },
+    {
+      "model_name": "QwQ 32B",
+      "crs": 0.288,
+      "crs_rank": 35,
+      "acc_simple": 90.6376261942064,
+      "acc_complex": 74.37421670972458,
+      "gap": 16.263409484481826
+    },
+    {
+      "model_name": "DeepSeek R1 Distill Llama 70B",
+      "crs": 0.26,
+      "crs_rank": 36,
+      "acc_simple": 90.51256915633459,
+      "acc_complex": 74.0298853330577,
+      "gap": 16.48268382327689
+    },
+    {
+      "model_name": "Grok 3",
+      "crs": 0.174,
+      "crs_rank": 37,
+      "acc_simple": 90.11907229117256,
+      "acc_complex": 72.95368207390072,
+      "gap": 17.16539021727185
+    },
+    {
+      "model_name": "DeepSeek V3 0324",
+      "crs": 0.172,
+      "crs_rank": 38,
+      "acc_simple": 90.10975055163145,
+      "acc_complex": 72.9283228554002,
+      "gap": 17.181427696231253
+    },
+    {
+      "model_name": "GPT-4.1 mini",
+      "crs": 0.133,
+      "crs_rank": 39,
+      "acc_simple": 89.92640612592864,
+      "acc_complex": 72.43084053764687,
+      "gap": 17.49556558828177
+    },
+    {
+      "model_name": "Qwen3 8B (Reasoning)",
+      "crs": 0.096,
+      "crs_rank": 40,
+      "acc_simple": 89.7496804235332,
+      "acc_complex": 71.95367131329206,
+      "gap": 17.79600911024114
+    },
+    {
+      "model_name": "GPT-4.1",
+      "crs": 0.011,
+      "crs_rank": 41,
+      "acc_simple": 89.33325950027049,
+      "acc_complex": 70.83860944887252,
+      "gap": 18.494650051397965
+    },
+    {
+      "model_name": "Llama 4 Maverick",
+      "crs": -0.216,
+      "crs_rank": 42,
+      "acc_simple": 88.14753676889,
+      "acc_complex": 67.73736296057872,
+      "gap": 20.41017380831128
+    },
+    {
+      "model_name": "Gemini 2.0 Flash",
+      "crs": -0.278,
+      "crs_rank": 43,
+      "acc_simple": 87.804413746027,
+      "acc_complex": 66.86083939116737,
+      "gap": 20.943574354859617
+    },
+    {
+      "model_name": "Mistral Small 3.2",
+      "crs": -0.347,
+      "crs_rank": 44,
+      "acc_simple": 87.41252888179925,
+      "acc_complex": 65.87144069667788,
+      "gap": 21.54108818512136
+    },
+    {
+      "model_name": "Gemini 2.0 Flash-Lite",
+      "crs": -0.382,
+      "crs_rank": 45,
+      "acc_simple": 87.2096560873287,
+      "acc_complex": 65.36416986516203,
+      "gap": 21.845486222166667
+    },
+    {
+      "model_name": "Ministral 8B",
+      "crs": -0.401,
+      "crs_rank": 46,
+      "acc_simple": 87.09836088633705,
+      "acc_complex": 65.08731558793008,
+      "gap": 22.011045298406973
+    },
+    {
+      "model_name": "Llama 4 Scout",
+      "crs": -0.477,
+      "crs_rank": 47,
+      "acc_simple": 86.64490519463371,
+      "acc_complex": 63.969835657791855,
+      "gap": 22.675069536841853
+    },
+    {
+      "model_name": "GPT-4.1 nano",
+      "crs": -0.48,
+      "crs_rank": 48,
+      "acc_simple": 86.62673200087536,
+      "acc_complex": 63.92540302926513,
+      "gap": 22.701328971610234
+    },
+    {
+      "model_name": "Claude 3.5 Sonnet",
+      "crs": -0.536,
+      "crs_rank": 49,
+      "acc_simple": 86.28364671475157,
+      "acc_complex": 63.091684284155114,
+      "gap": 23.19196243059646
+    },
+    {
+      "model_name": "Gemma 3 27B Instruct",
+      "crs": -0.56,
+      "crs_rank": 50,
+      "acc_simple": 86.13435830728852,
+      "acc_complex": 62.731935824387406,
+      "gap": 23.40242248290111
+    },
+    {
+      "model_name": "Phi-4",
+      "crs": -0.603,
+      "crs_rank": 51,
+      "acc_simple": 85.86347541015662,
+      "acc_complex": 62.08387035557158,
+      "gap": 23.77960505458504
+    },
+    {
+      "model_name": "Llama 3.3 Instruct 70B",
+      "crs": -0.628,
+      "crs_rank": 52,
+      "acc_simple": 85.70396200935417,
+      "acc_complex": 61.705079421851295,
+      "gap": 23.99888258750288
+    },
+    {
+      "model_name": "Qwen2.5 Instruct 72B",
+      "crs": -0.69,
+      "crs_rank": 53,
+      "acc_simple": 85.30189423674885,
+      "acc_complex": 60.75960876748121,
+      "gap": 24.542285469267643
+    },
+    {
+      "model_name": "Gemma 3 12B Instruct",
+      "crs": -0.698,
+      "crs_rank": 54,
+      "acc_simple": 85.24933829765796,
+      "acc_complex": 60.63700607329551,
+      "gap": 24.612332224362444
+    },
+    {
+      "model_name": "Command A",
+      "crs": -0.745,
+      "crs_rank": 55,
+      "acc_simple": 84.93742822972435,
+      "acc_complex": 59.91405288202931,
+      "gap": 25.02337534769503
+    },
+    {
+      "model_name": "Ministral 3B",
+      "crs": -0.769,
+      "crs_rank": 56,
+      "acc_simple": 84.77607285957929,
+      "acc_complex": 59.543192626491994,
+      "gap": 25.232880233087297
+    },
+    {
+      "model_name": "GPT-4o",
+      "crs": -0.776,
+      "crs_rank": 57,
+      "acc_simple": 84.72874452194542,
+      "acc_complex": 59.434817425497776,
+      "gap": 25.293927096447632
+    },
+    {
+      "model_name": "Llama 3.1 Instruct 405B",
+      "crs": -0.777,
+      "crs_rank": 58,
+      "acc_simple": 84.72197349349807,
+      "acc_complex": 59.41932772071502,
+      "gap": 25.302645772783052
+    },
+    {
+      "model_name": "GPT-4 Turbo",
+      "crs": -0.801,
+      "crs_rank": 59,
+      "acc_simple": 84.55872968840802,
+      "acc_complex": 59.04701897241902,
+      "gap": 25.511710715989
+    },
+    {
+      "model_name": "GPT-4o mini",
+      "crs": -0.807,
+      "crs_rank": 60,
+      "acc_simple": 84.51769661995966,
+      "acc_complex": 58.95377770944907,
+      "gap": 25.563918910510587
+    },
+    {
+      "model_name": "Nova Pro",
+      "crs": -0.842,
+      "crs_rank": 61,
+      "acc_simple": 84.27656002489282,
+      "acc_complex": 58.40860735742452,
+      "gap": 25.867952667468288
+    },
+    {
+      "model_name": "Nova Lite",
+      "crs": -0.9,
+      "crs_rank": 62,
+      "acc_simple": 83.87024782137063,
+      "acc_complex": 57.50069652895403,
+      "gap": 26.369551292416592
+    },
+    {
+      "model_name": "Llama 3.1 Instruct 70B",
+      "crs": -0.913,
+      "crs_rank": 63,
+      "acc_simple": 83.77802271544995,
+      "acc_complex": 57.29648025638421,
+      "gap": 26.481542459065743
+    },
+    {
+      "model_name": "Pixtral Large",
+      "crs": -0.948,
+      "crs_rank": 64,
+      "acc_simple": 83.52761102515143,
+      "acc_complex": 56.74544817047269,
+      "gap": 26.782162854678738
+    },
+    {
+      "model_name": "Mistral Small 3",
+      "crs": -0.949,
+      "crs_rank": 65,
+      "acc_simple": 83.52041101607158,
+      "acc_complex": 56.729679171827165,
+      "gap": 26.79073184424441
+    },
+    {
+      "model_name": "Claude 3 Opus",
+      "crs": -0.969,
+      "crs_rank": 66,
+      "acc_simple": 83.37587993866445,
+      "acc_complex": 56.414016954349755,
+      "gap": 26.9618629843147
+    },
+    {
+      "model_name": "Gemma 3 4B Instruct",
+      "crs": -1.002,
+      "crs_rank": 67,
+      "acc_simple": 83.13518758377994,
+      "acc_complex": 55.89204769077434,
+      "gap": 27.243139893005598
+    },
+    {
+      "model_name": "Llama 3.2 Instruct 90B (Vision)",
+      "crs": -1.01,
+      "crs_rank": 68,
+      "acc_simple": 83.0764212347011,
+      "acc_complex": 55.765308788044024,
+      "gap": 27.31111244665708
+    },
+    {
+      "model_name": "Nova Micro",
+      "crs": -1.02,
+      "crs_rank": 69,
+      "acc_simple": 83.00273413947664,
+      "acc_complex": 55.6067796991899,
+      "gap": 27.39595444028674
+    },
+    {
+      "model_name": "Claude 3.5 Haiku",
+      "crs": -1.051,
+      "crs_rank": 70,
+      "acc_simple": 82.77268281231169,
+      "acc_complex": 55.114627548948235,
+      "gap": 27.658055263363444
+    },
+    {
+      "model_name": "Llama 3.1 Instruct 8B",
+      "crs": -1.172,
+      "crs_rank": 71,
+      "acc_simple": 81.85113572758685,
+      "acc_complex": 53.184925923474324,
+      "gap": 28.66620980411253
+    },
+    {
+      "model_name": "Llama 3.2 Instruct 3B",
+      "crs": -1.207,
+      "crs_rank": 72,
+      "acc_simple": 81.57752022328816,
+      "acc_complex": 52.62470723427006,
+      "gap": 28.952812989018096
+    },
+    {
+      "model_name": "Llama 3.2 Instruct 11B (Vision)",
+      "crs": -1.217,
+      "crs_rank": 73,
+      "acc_simple": 81.49876018442043,
+      "acc_complex": 52.46451708534007,
+      "gap": 29.03424309908036
+    },
+    {
+      "model_name": "Llama 3 Instruct 70B",
+      "crs": -1.242,
+      "crs_rank": 74,
+      "acc_simple": 81.30072203606578,
+      "acc_complex": 52.06382694271869,
+      "gap": 29.23689509334708
+    },
+    {
+      "model_name": "Mistral Large",
+      "crs": -1.274,
+      "crs_rank": 75,
+      "acc_simple": 81.0448568786294,
+      "acc_complex": 51.55056284519042,
+      "gap": 29.494294033438983
+    },
+    {
+      "model_name": "Mixtral 8x22B Instruct",
+      "crs": -1.286,
+      "crs_rank": 76,
+      "acc_simple": 80.94821844491366,
+      "acc_complex": 51.35799861300774,
+      "gap": 29.590219831905927
+    },
+    {
+      "model_name": "Llama 3 Instruct 8B",
+      "crs": -1.344,
+      "crs_rank": 77,
+      "acc_simple": 80.47582333311806,
+      "acc_complex": 50.42680599444248,
+      "gap": 30.049017338675576
+    },
+    {
+      "model_name": "Command-R+",
+      "crs": -1.398,
+      "crs_rank": 78,
+      "acc_simple": 80.02808054301357,
+      "acc_complex": 49.55955394368669,
+      "gap": 30.46852659932689
+    },
+    {
+      "model_name": "Mixtral 8x7B Instruct",
+      "crs": -1.443,
+      "crs_rank": 79,
+      "acc_simple": 79.64910949380086,
+      "acc_complex": 48.83702416857409,
+      "gap": 30.812085325226775
+    },
+    {
+      "model_name": "Llama 3.2 Instruct 1B",
+      "crs": -1.457,
+      "crs_rank": 80,
+      "acc_simple": 79.53012103155412,
+      "acc_complex": 48.61232206515588,
+      "gap": 30.917798966398237
+    },
+    {
+      "model_name": "Command-R",
+      "crs": -1.498,
+      "crs_rank": 81,
+      "acc_simple": 79.17868679855764,
+      "acc_complex": 47.954622016577005,
+      "gap": 31.22406478198063
+    },
+    {
+      "model_name": "GPT-3.5 Turbo",
+      "crs": -1.55,
+      "crs_rank": 82,
+      "acc_simple": 78.72659734112932,
+      "acc_complex": 47.1215137487113,
+      "gap": 31.60508359241802
+    },
+    {
+      "model_name": "Mistral 7B Instruct",
+      "crs": -1.687,
+      "crs_rank": 83,
+      "acc_simple": 77.501430357304,
+      "acc_complex": 44.935449553258344,
+      "gap": 32.56598080404566
+    }
+  ]
+}

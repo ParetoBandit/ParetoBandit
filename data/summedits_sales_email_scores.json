@@ -83,5 +83,8 @@
   "moonshotai/kimi-k2-thinking": 0.0,
   "google/gemini-3-pro-preview": 66.54135338345864,
   "deepseek/deepseek-r1-distill-qwen-32b": 74.69808541973491,
-  "openai/o3-mini-high": 78.4
+  "openai/o3-mini-high": 78.4,
+  "qwen/qwen3-14b": 69.61708394698086,
+  "openai/o1": 77.03976435935198,
+  "deepseek/deepseek-r1-distill-llama-70b": 77.15758468335787
 }
