@@ -1,0 +1,3562 @@
+{
+  "metadata": {
+    "benchmark": "IFBench (Instruction Following Benchmark)",
+    "fetch_date": "2025-12-13T12:12:49.867064",
+    "source": "artificial_analysis_api",
+    "total_models": 355,
+    "models_with_ifbench": 245,
+    "coverage_percentage": 69.0
+  },
+  "models": [
+    {
+      "name": "gpt-oss-120B (high)",
+      "slug": "gpt-oss-120b",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.69,
+      "source": "artificial_analysis_api",
+      "aa_id": "f0083258-8646-45b8-8082-7aaf6c2ea82a",
+      "fetch_date": "2025-12-13T12:12:49.863972"
+    },
+    {
+      "name": "gpt-oss-20B (high)",
+      "slug": "gpt-oss-20b",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.651,
+      "source": "artificial_analysis_api",
+      "aa_id": "36f73aaf-d38a-4b56-a2b3-d04d17186910",
+      "fetch_date": "2025-12-13T12:12:49.864006"
+    },
+    {
+      "name": "gpt-oss-20B (low)",
+      "slug": "gpt-oss-20b-low",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.578,
+      "source": "artificial_analysis_api",
+      "aa_id": "16149b9c-a1e9-4669-a5cb-ff3c00d78f89",
+      "fetch_date": "2025-12-13T12:12:49.864011"
+    },
+    {
+      "name": "gpt-oss-120B (low)",
+      "slug": "gpt-oss-120b-low",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.583,
+      "source": "artificial_analysis_api",
+      "aa_id": "c99f3bde-7c08-4de8-bd5c-8ee9123ebffa",
+      "fetch_date": "2025-12-13T12:12:49.864014"
+    },
+    {
+      "name": "Grok-1",
+      "slug": "grok-1",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "4c111fbc-d13a-42b4-858c-1dc17fe3c1d1",
+      "fetch_date": "2025-12-13T12:12:49.864017"
+    },
+    {
+      "name": "o3",
+      "slug": "o3",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.714,
+      "source": "artificial_analysis_api",
+      "aa_id": "16c5b637-8bce-4252-81f2-1b87a36a4e4c",
+      "fetch_date": "2025-12-13T12:12:49.864020"
+    },
+    {
+      "name": "GPT-5 mini (medium)",
+      "slug": "gpt-5-mini-medium",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.712,
+      "source": "artificial_analysis_api",
+      "aa_id": "c3274a19-6d3c-4d01-ab9b-5055a0a40429",
+      "fetch_date": "2025-12-13T12:12:49.864027"
+    },
+    {
+      "name": "GPT-5 (minimal)",
+      "slug": "gpt-5-minimal",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.456,
+      "source": "artificial_analysis_api",
+      "aa_id": "c3738fb0-3408-4430-a699-760ae4b70c93",
+      "fetch_date": "2025-12-13T12:12:49.864030"
+    },
+    {
+      "name": "GPT-5 nano (minimal)",
+      "slug": "gpt-5-nano-minimal",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.325,
+      "source": "artificial_analysis_api",
+      "aa_id": "05e45a36-b5c6-47a1-8adb-9ddc19add5b3",
+      "fetch_date": "2025-12-13T12:12:49.864033"
+    },
+    {
+      "name": "GPT-5 nano (high)",
+      "slug": "gpt-5-nano",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.676,
+      "source": "artificial_analysis_api",
+      "aa_id": "e18e5e6a-5a31-4c0b-b80b-ac401392f446",
+      "fetch_date": "2025-12-13T12:12:49.864036"
+    },
+    {
+      "name": "GPT-5 mini (minimal)",
+      "slug": "gpt-5-mini-minimal",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.456,
+      "source": "artificial_analysis_api",
+      "aa_id": "bc26bfdb-4923-4442-a6ca-e77392923581",
+      "fetch_date": "2025-12-13T12:12:49.864039"
+    },
+    {
+      "name": "GPT-5.1 (high)",
+      "slug": "gpt-5-1",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.729,
+      "source": "artificial_analysis_api",
+      "aa_id": "4dc12a38-b18f-4c43-8e1b-678f8434b5b1",
+      "fetch_date": "2025-12-13T12:12:49.864042"
+    },
+    {
+      "name": "GPT-5.1 (Non-reasoning)",
+      "slug": "gpt-5-1-non-reasoning",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.432,
+      "source": "artificial_analysis_api",
+      "aa_id": "d0b3d47e-aec6-425e-9de7-168dcc6d1e28",
+      "fetch_date": "2025-12-13T12:12:49.864045"
+    },
+    {
+      "name": "GPT-5 (low)",
+      "slug": "gpt-5-low",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.666,
+      "source": "artificial_analysis_api",
+      "aa_id": "7f3c9423-3ee3-4369-a6d9-3f2a40aff00e",
+      "fetch_date": "2025-12-13T12:12:49.864048"
+    },
+    {
+      "name": "GPT-5.1 Codex (high)",
+      "slug": "gpt-5-1-codex",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.7,
+      "source": "artificial_analysis_api",
+      "aa_id": "04d023f3-025c-4d78-9571-53edda3eaf2a",
+      "fetch_date": "2025-12-13T12:12:49.864051"
+    },
+    {
+      "name": "GPT-5 (medium)",
+      "slug": "gpt-5-medium",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.706,
+      "source": "artificial_analysis_api",
+      "aa_id": "5e965af0-ca5c-4f47-9ba9-06000508b84a",
+      "fetch_date": "2025-12-13T12:12:49.864054"
+    },
+    {
+      "name": "GPT-5 (high)",
+      "slug": "gpt-5",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.731,
+      "source": "artificial_analysis_api",
+      "aa_id": "48e50f00-1fd1-4acc-b337-61078aa341e6",
+      "fetch_date": "2025-12-13T12:12:49.864056"
+    },
+    {
+      "name": "GPT-5.2 (xhigh)",
+      "slug": "gpt-5-2",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.754,
+      "source": "artificial_analysis_api",
+      "aa_id": "498862c3-f9ac-49d2-852f-16a02bb0c38f",
+      "fetch_date": "2025-12-13T12:12:49.864059"
+    },
+    {
+      "name": "GPT-5 mini (high)",
+      "slug": "gpt-5-mini",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.754,
+      "source": "artificial_analysis_api",
+      "aa_id": "29855680-7469-43eb-8b88-cd3fb1d99da3",
+      "fetch_date": "2025-12-13T12:12:49.864062"
+    },
+    {
+      "name": "GPT-5 nano (medium)",
+      "slug": "gpt-5-nano-medium",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.659,
+      "source": "artificial_analysis_api",
+      "aa_id": "8eb02396-f231-4189-ae15-05f7facebd9b",
+      "fetch_date": "2025-12-13T12:12:49.864064"
+    },
+    {
+      "name": "GPT-5 (ChatGPT)",
+      "slug": "gpt-5-chatgpt",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.45,
+      "source": "artificial_analysis_api",
+      "aa_id": "eab1492c-b853-4852-aa71-06b0ec2481c1",
+      "fetch_date": "2025-12-13T12:12:49.864067"
+    },
+    {
+      "name": "GPT-5.1 Codex mini (high)",
+      "slug": "gpt-5-1-codex-mini",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.679,
+      "source": "artificial_analysis_api",
+      "aa_id": "fd4454ff-e703-46c0-a7f5-fa69af09486d",
+      "fetch_date": "2025-12-13T12:12:49.864070"
+    },
+    {
+      "name": "Llama 3.3 Instruct 70B",
+      "slug": "llama-3-3-instruct-70b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.471,
+      "source": "artificial_analysis_api",
+      "aa_id": "976cc8ad-7904-4056-83c5-960181f47d5f",
+      "fetch_date": "2025-12-13T12:12:49.864072"
+    },
+    {
+      "name": "Llama 3.1 Instruct 405B",
+      "slug": "llama-3-1-instruct-405b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.39,
+      "source": "artificial_analysis_api",
+      "aa_id": "45c87531-2d57-48e0-8012-202cd636189e",
+      "fetch_date": "2025-12-13T12:12:49.864075"
+    },
+    {
+      "name": "Llama 3.2 Instruct 90B (Vision)",
+      "slug": "llama-3-2-instruct-90b-vision",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "9ca71ac4-41c8-42c0-87dd-5704a9e5b94d",
+      "fetch_date": "2025-12-13T12:12:49.864078"
+    },
+    {
+      "name": "Llama 3.2 Instruct 11B (Vision)",
+      "slug": "llama-3-2-instruct-11b-vision",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.304,
+      "source": "artificial_analysis_api",
+      "aa_id": "5fb47ff6-a30e-4c2c-96f2-55e95a13390f",
+      "fetch_date": "2025-12-13T12:12:49.864080"
+    },
+    {
+      "name": "Llama 4 Maverick",
+      "slug": "llama-4-maverick",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.43,
+      "source": "artificial_analysis_api",
+      "aa_id": "922c69c7-9037-43c6-8bcf-a1c555e7f3eb",
+      "fetch_date": "2025-12-13T12:12:49.864083"
+    },
+    {
+      "name": "Llama 4 Scout",
+      "slug": "llama-4-scout",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.395,
+      "source": "artificial_analysis_api",
+      "aa_id": "adf9a85e-abc3-4f28-937b-db6655cc5238",
+      "fetch_date": "2025-12-13T12:12:49.864086"
+    },
+    {
+      "name": "Gemma 3 270M",
+      "slug": "gemma-3-270m",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.121,
+      "source": "artificial_analysis_api",
+      "aa_id": "04781a0e-40f0-4e2a-a4e5-18e389364a79",
+      "fetch_date": "2025-12-13T12:12:49.864088"
+    },
+    {
+      "name": "Gemini 2.5 Flash-Lite Preview (Sep '25) (Reasoning)",
+      "slug": "gemini-2-5-flash-lite-preview-09-2025-reasoning",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.526,
+      "source": "artificial_analysis_api",
+      "aa_id": "84922739-425f-46e1-87ac-bb4268dcacbb",
+      "fetch_date": "2025-12-13T12:12:49.864091"
+    },
+    {
+      "name": "Gemma 3 12B Instruct",
+      "slug": "gemma-3-12b",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.367,
+      "source": "artificial_analysis_api",
+      "aa_id": "2e6400f5-85ca-4ebc-ba8f-c2811a631138",
+      "fetch_date": "2025-12-13T12:12:49.864094"
+    },
+    {
+      "name": "Gemini 2.5 Flash-Lite Preview (Sep '25) (Non-reasoning)",
+      "slug": "gemini-2-5-flash-lite-preview-09-2025",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.418,
+      "source": "artificial_analysis_api",
+      "aa_id": "71f51ea9-94fe-4635-a80d-4cfffbb685f4",
+      "fetch_date": "2025-12-13T12:12:49.864096"
+    },
+    {
+      "name": "Gemma 3 27B Instruct",
+      "slug": "gemma-3-27b",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.318,
+      "source": "artificial_analysis_api",
+      "aa_id": "2bfdd17a-e027-4068-a54e-b0e90a6df118",
+      "fetch_date": "2025-12-13T12:12:49.864099"
+    },
+    {
+      "name": "Gemma 3 4B Instruct",
+      "slug": "gemma-3-4b",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.283,
+      "source": "artificial_analysis_api",
+      "aa_id": "222fb320-6e55-4672-846a-b6d5a24a45f4",
+      "fetch_date": "2025-12-13T12:12:49.864102"
+    },
+    {
+      "name": "Gemma 3n E2B Instruct",
+      "slug": "gemma-3n-e2b",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.22,
+      "source": "artificial_analysis_api",
+      "aa_id": "a8c67863-9d66-44dd-8d27-f58654ecde03",
+      "fetch_date": "2025-12-13T12:12:49.864104"
+    },
+    {
+      "name": "Gemini 2.5 Flash Preview (Sep '25) (Non-reasoning)",
+      "slug": "gemini-2-5-flash-preview-09-2025",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.435,
+      "source": "artificial_analysis_api",
+      "aa_id": "877fdfc9-2026-477a-af96-e4fd602c0131",
+      "fetch_date": "2025-12-13T12:12:49.864107"
+    },
+    {
+      "name": "Gemma 3n E4B Instruct",
+      "slug": "gemma-3n-e4b",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.279,
+      "source": "artificial_analysis_api",
+      "aa_id": "a797eaf3-6d75-4f29-86a8-e1243ce52d43",
+      "fetch_date": "2025-12-13T12:12:49.864110"
+    },
+    {
+      "name": "Gemma 3 1B Instruct",
+      "slug": "gemma-3-1b",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.199,
+      "source": "artificial_analysis_api",
+      "aa_id": "d1720545-d0a8-4c15-a53e-ef5ca99ac7ea",
+      "fetch_date": "2025-12-13T12:12:49.864112"
+    },
+    {
+      "name": "Gemini 2.5 Flash Preview (Sep '25) (Reasoning)",
+      "slug": "gemini-2-5-flash-preview-09-2025-reasoning",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.523,
+      "source": "artificial_analysis_api",
+      "aa_id": "c7667559-d9b6-43f1-8cd8-8bdbc78d190b",
+      "fetch_date": "2025-12-13T12:12:49.864115"
+    },
+    {
+      "name": "Gemini 2.5 Pro",
+      "slug": "gemini-2-5-pro",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.487,
+      "source": "artificial_analysis_api",
+      "aa_id": "27202e5f-c82d-4710-92e9-4317877d4883",
+      "fetch_date": "2025-12-13T12:12:49.864117"
+    },
+    {
+      "name": "Gemini 3 Pro Preview (high)",
+      "slug": "gemini-3-pro",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.704,
+      "source": "artificial_analysis_api",
+      "aa_id": "d1122eff-ee85-4fdc-8a9f-23bee6590667",
+      "fetch_date": "2025-12-13T12:12:49.864120"
+    },
+    {
+      "name": "Gemini 3 Pro Preview (low)",
+      "slug": "gemini-3-pro-low",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.497,
+      "source": "artificial_analysis_api",
+      "aa_id": "b2f3191f-77d6-4155-8be6-330f0baa1ae5",
+      "fetch_date": "2025-12-13T12:12:49.864123"
+    },
+    {
+      "name": "Claude 4.5 Sonnet (Reasoning)",
+      "slug": "claude-4-5-sonnet-thinking",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.573,
+      "source": "artificial_analysis_api",
+      "aa_id": "90e078f2-051b-4c63-8919-76618971cb3f",
+      "fetch_date": "2025-12-13T12:12:49.864125"
+    },
+    {
+      "name": "Claude Opus 4.5 (Reasoning)",
+      "slug": "claude-opus-4-5-thinking",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.58,
+      "source": "artificial_analysis_api",
+      "aa_id": "2660d74f-ce79-48a8-8b53-6e668e2071a2",
+      "fetch_date": "2025-12-13T12:12:49.864128"
+    },
+    {
+      "name": "Claude 4.5 Sonnet (Non-reasoning)",
+      "slug": "claude-4-5-sonnet",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.427,
+      "source": "artificial_analysis_api",
+      "aa_id": "91cb6144-4937-4e4e-aeda-b4341d355c10",
+      "fetch_date": "2025-12-13T12:12:49.864131"
+    },
+    {
+      "name": "Claude 4.5 Haiku (Reasoning)",
+      "slug": "claude-4-5-haiku-reasoning",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.543,
+      "source": "artificial_analysis_api",
+      "aa_id": "a6340098-d7ae-462d-b372-0a0a67fc44b4",
+      "fetch_date": "2025-12-13T12:12:49.864133"
+    },
+    {
+      "name": "Claude Opus 4.5 (Non-reasoning)",
+      "slug": "claude-opus-4-5",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.43,
+      "source": "artificial_analysis_api",
+      "aa_id": "4077490a-bbfb-404e-979a-a97a20e3b5de",
+      "fetch_date": "2025-12-13T12:12:49.864136"
+    },
+    {
+      "name": "Claude 4.5 Haiku (Non-reasoning)",
+      "slug": "claude-4-5-haiku",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.42,
+      "source": "artificial_analysis_api",
+      "aa_id": "c2b1e769-7aee-4669-8076-73918bdebf6c",
+      "fetch_date": "2025-12-13T12:12:49.864138"
+    },
+    {
+      "name": "Devstral Small (Jul '25)",
+      "slug": "devstral-small",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.346,
+      "source": "artificial_analysis_api",
+      "aa_id": "9eae4ec4-61b8-48bc-9843-3edd506ae933",
+      "fetch_date": "2025-12-13T12:12:49.864141"
+    },
+    {
+      "name": "Magistral Medium 1.2",
+      "slug": "magistral-medium-2509",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.43,
+      "source": "artificial_analysis_api",
+      "aa_id": "864da2a5-156c-45fd-873c-8923be91914f",
+      "fetch_date": "2025-12-13T12:12:49.864143"
+    },
+    {
+      "name": "Mistral Medium 3.1",
+      "slug": "mistral-medium-3-1",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.398,
+      "source": "artificial_analysis_api",
+      "aa_id": "05a32e26-e609-4377-951b-8fa23d329926",
+      "fetch_date": "2025-12-13T12:12:49.864146"
+    },
+    {
+      "name": "Ministral 8B (Dec '25)",
+      "slug": "ministral-8b",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.291,
+      "source": "artificial_analysis_api",
+      "aa_id": "9741f3c2-cbb1-4a3f-99ee-7bd7384d9038",
+      "fetch_date": "2025-12-13T12:12:49.864149"
+    },
+    {
+      "name": "Devstral Small 2",
+      "slug": "devstral-small-2",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.312,
+      "source": "artificial_analysis_api",
+      "aa_id": "ce819310-af7c-49d3-9a02-6845111e1788",
+      "fetch_date": "2025-12-13T12:12:49.864151"
+    },
+    {
+      "name": "Ministral 3B (Dec '25)",
+      "slug": "ministral-3b",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.268,
+      "source": "artificial_analysis_api",
+      "aa_id": "66f4ce73-9a9b-4b49-9c6e-bedb9bfdc720",
+      "fetch_date": "2025-12-13T12:12:49.864154"
+    },
+    {
+      "name": "Magistral Small 1.2",
+      "slug": "magistral-small-2509",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.444,
+      "source": "artificial_analysis_api",
+      "aa_id": "70152cb0-fb36-4732-a925-89ef40994be1",
+      "fetch_date": "2025-12-13T12:12:49.864157"
+    },
+    {
+      "name": "Devstral 2",
+      "slug": "devstral-2",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.381,
+      "source": "artificial_analysis_api",
+      "aa_id": "09f43999-b67b-4c1b-b050-44df41ed7e62",
+      "fetch_date": "2025-12-13T12:12:49.864159"
+    },
+    {
+      "name": "Mistral Small 3.2",
+      "slug": "mistral-small-3-2",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.335,
+      "source": "artificial_analysis_api",
+      "aa_id": "43da3718-3d6e-40dd-901a-05664179ff7f",
+      "fetch_date": "2025-12-13T12:12:49.864162"
+    },
+    {
+      "name": "Ministral 14B (Dec '25)",
+      "slug": "ministral-14b",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.32,
+      "source": "artificial_analysis_api",
+      "aa_id": "713fae11-c75c-4f10-ae2c-8e4074cd58af",
+      "fetch_date": "2025-12-13T12:12:49.864164"
+    },
+    {
+      "name": "Devstral Medium",
+      "slug": "devstral-medium",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.299,
+      "source": "artificial_analysis_api",
+      "aa_id": "aba82268-2bb7-4a0f-80be-9b7722e2145b",
+      "fetch_date": "2025-12-13T12:12:49.864167"
+    },
+    {
+      "name": "Mistral Large 3",
+      "slug": "mistral-large-3",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.362,
+      "source": "artificial_analysis_api",
+      "aa_id": "4928e950-7f37-4475-b0dc-c5bad781a321",
+      "fetch_date": "2025-12-13T12:12:49.864170"
+    },
+    {
+      "name": "DeepSeek R1 Distill Llama 70B",
+      "slug": "deepseek-r1-distill-llama-70b",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.276,
+      "source": "artificial_analysis_api",
+      "aa_id": "4a845d7b-a52d-43bb-80b7-b58c7a0c155e",
+      "fetch_date": "2025-12-13T12:12:49.864172"
+    },
+    {
+      "name": "DeepSeek R1 0528 (May '25)",
+      "slug": "deepseek-r1",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.396,
+      "source": "artificial_analysis_api",
+      "aa_id": "a83f84b3-473a-4276-9ae1-8909da723159",
+      "fetch_date": "2025-12-13T12:12:49.864175"
+    },
+    {
+      "name": "DeepSeek V3.2 (Non-reasoning)",
+      "slug": "deepseek-v3-2",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.49,
+      "source": "artificial_analysis_api",
+      "aa_id": "6d9a176d-feb8-4dac-8872-afe32b31897f",
+      "fetch_date": "2025-12-13T12:12:49.864177"
+    },
+    {
+      "name": "DeepSeek V3.1 Terminus (Non-reasoning)",
+      "slug": "deepseek-v3-1-terminus",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.412,
+      "source": "artificial_analysis_api",
+      "aa_id": "dfb9292d-bc7c-4425-a260-4256217e709f",
+      "fetch_date": "2025-12-13T12:12:49.864180"
+    },
+    {
+      "name": "DeepSeek-OCR",
+      "slug": "deepseek-ocr",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "5bebf309-45f9-4711-9dbd-b4502c813e62",
+      "fetch_date": "2025-12-13T12:12:49.864183"
+    },
+    {
+      "name": "DeepSeek R1 0528 Qwen3 8B",
+      "slug": "deepseek-r1-qwen3-8b",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.199,
+      "source": "artificial_analysis_api",
+      "aa_id": "6000145b-0e3d-4fef-a55f-bcaac84803b2",
+      "fetch_date": "2025-12-13T12:12:49.864186"
+    },
+    {
+      "name": "DeepSeek V3.1 Terminus (Reasoning)",
+      "slug": "deepseek-v3-1-terminus-reasoning",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.57,
+      "source": "artificial_analysis_api",
+      "aa_id": "0a7dda4d-cc9c-4a90-abc1-abb5772c901b",
+      "fetch_date": "2025-12-13T12:12:49.864188"
+    },
+    {
+      "name": "DeepSeek V3.2 (Reasoning)",
+      "slug": "deepseek-v3-2-reasoning",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.607,
+      "source": "artificial_analysis_api",
+      "aa_id": "d621247c-d47e-458c-82cb-a166bc3b37e5",
+      "fetch_date": "2025-12-13T12:12:49.864191"
+    },
+    {
+      "name": "DeepSeek V3.2 Speciale",
+      "slug": "deepseek-v3-2-speciale",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.639,
+      "source": "artificial_analysis_api",
+      "aa_id": "527e943a-adc6-4e69-93af-d1608e1b5fed",
+      "fetch_date": "2025-12-13T12:12:49.864194"
+    },
+    {
+      "name": "R1 1776",
+      "slug": "r1-1776",
+      "creator_name": "Perplexity",
+      "creator_slug": "perplexity",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "98e3230e-cee1-4c19-b9f8-b6b6a826ca93",
+      "fetch_date": "2025-12-13T12:12:49.864196"
+    },
+    {
+      "name": "Grok 4",
+      "slug": "grok-4",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.537,
+      "source": "artificial_analysis_api",
+      "aa_id": "5ea94a4a-55ac-4ea1-8898-2b3971e94af6",
+      "fetch_date": "2025-12-13T12:12:49.864199"
+    },
+    {
+      "name": "Grok 4 Fast (Reasoning)",
+      "slug": "grok-4-fast-reasoning",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.505,
+      "source": "artificial_analysis_api",
+      "aa_id": "573bbd93-114c-4b71-9ede-a73a7d4bdf84",
+      "fetch_date": "2025-12-13T12:12:49.864202"
+    },
+    {
+      "name": "Grok 4 Fast (Non-reasoning)",
+      "slug": "grok-4-fast",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.377,
+      "source": "artificial_analysis_api",
+      "aa_id": "2dbb6dc7-8c40-4b6d-af9c-cf805f83b79a",
+      "fetch_date": "2025-12-13T12:12:49.864204"
+    },
+    {
+      "name": "Grok 4.1 Fast (Reasoning)",
+      "slug": "grok-4-1-fast-reasoning",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.527,
+      "source": "artificial_analysis_api",
+      "aa_id": "23149f9b-c904-43e2-9ec4-afa2bf843941",
+      "fetch_date": "2025-12-13T12:12:49.864207"
+    },
+    {
+      "name": "Grok 3 mini Reasoning (high)",
+      "slug": "grok-3-mini-reasoning",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.459,
+      "source": "artificial_analysis_api",
+      "aa_id": "ff9bc5e5-a02f-4270-983e-4b3f834f3363",
+      "fetch_date": "2025-12-13T12:12:49.864209"
+    },
+    {
+      "name": "Grok Code Fast 1",
+      "slug": "grok-code-fast-1",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.414,
+      "source": "artificial_analysis_api",
+      "aa_id": "a06bd3fc-86db-4a8e-ae6d-7459444d08c9",
+      "fetch_date": "2025-12-13T12:12:49.864212"
+    },
+    {
+      "name": "Grok 4.1 Fast (Non-reasoning)",
+      "slug": "grok-4-1-fast",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.365,
+      "source": "artificial_analysis_api",
+      "aa_id": "49fd01f9-887d-4479-b8ce-771a81ecef4e",
+      "fetch_date": "2025-12-13T12:12:49.864214"
+    },
+    {
+      "name": "Nova Micro",
+      "slug": "nova-micro",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.294,
+      "source": "artificial_analysis_api",
+      "aa_id": "344c6718-c573-41d4-9556-10287a3fa1fc",
+      "fetch_date": "2025-12-13T12:12:49.864218"
+    },
+    {
+      "name": "Nova 2.0 Omni (Non-reasoning)",
+      "slug": "nova-2-0-omni",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.411,
+      "source": "artificial_analysis_api",
+      "aa_id": "1f6478c9-3e22-4586-adbe-841782859677",
+      "fetch_date": "2025-12-13T12:12:49.864220"
+    },
+    {
+      "name": "Nova 2.0 Lite (Non-reasoning)",
+      "slug": "nova-2-0-lite",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.405,
+      "source": "artificial_analysis_api",
+      "aa_id": "76bce7fb-3a3f-4b66-a78d-35ccf3edf5d2",
+      "fetch_date": "2025-12-13T12:12:49.864223"
+    },
+    {
+      "name": "Nova 2.0 Lite (low)",
+      "slug": "nova-2-0-lite-reasoning-low",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.612,
+      "source": "artificial_analysis_api",
+      "aa_id": "6fd796d3-f346-4f66-97df-5da81714fc73",
+      "fetch_date": "2025-12-13T12:12:49.864225"
+    },
+    {
+      "name": "Nova 2.0 Omni (low)",
+      "slug": "nova-2-0-omni-reasoning-low",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.618,
+      "source": "artificial_analysis_api",
+      "aa_id": "b36ff8f3-0323-49d1-a063-ab09704fdb0c",
+      "fetch_date": "2025-12-13T12:12:49.864228"
+    },
+    {
+      "name": "Nova 2.0 Pro Preview (low)",
+      "slug": "nova-2-0-pro-reasoning-low",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.796,
+      "source": "artificial_analysis_api",
+      "aa_id": "f4274721-ef28-4121-aa88-8e97267a5a82",
+      "fetch_date": "2025-12-13T12:12:49.864231"
+    },
+    {
+      "name": "Nova 2.0 Lite (medium)",
+      "slug": "nova-2-0-lite-reasoning-medium",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.685,
+      "source": "artificial_analysis_api",
+      "aa_id": "fbdf8da1-b341-448c-b3cb-8aff1d8f70b9",
+      "fetch_date": "2025-12-13T12:12:49.864233"
+    },
+    {
+      "name": "Nova Premier",
+      "slug": "nova-premier",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.362,
+      "source": "artificial_analysis_api",
+      "aa_id": "e58bbffd-fdc2-412a-b6d7-ca0e3f5d611a",
+      "fetch_date": "2025-12-13T12:12:49.864239"
+    },
+    {
+      "name": "Nova 2.0 Omni (medium)",
+      "slug": "nova-2-0-omni-reasoning-medium",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.662,
+      "source": "artificial_analysis_api",
+      "aa_id": "018c60e8-e908-431a-ba57-c840b1df3987",
+      "fetch_date": "2025-12-13T12:12:49.864242"
+    },
+    {
+      "name": "Nova 2.0 Pro Preview (Non-reasoning)",
+      "slug": "nova-2-0-pro",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.52,
+      "source": "artificial_analysis_api",
+      "aa_id": "a20ae33a-46e1-41e6-81a0-fe8b00d2e538",
+      "fetch_date": "2025-12-13T12:12:49.864244"
+    },
+    {
+      "name": "Nova 2.0 Pro Preview (medium)",
+      "slug": "nova-2-0-pro-reasoning-medium",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.79,
+      "source": "artificial_analysis_api",
+      "aa_id": "0d94dc87-12c8-4d4a-8d99-804ce3f17bc2",
+      "fetch_date": "2025-12-13T12:12:49.864247"
+    },
+    {
+      "name": "Phi-4",
+      "slug": "phi-4",
+      "creator_name": "Microsoft Azure",
+      "creator_slug": "azure",
+      "ifbench": 0.235,
+      "source": "artificial_analysis_api",
+      "aa_id": "ee708f92-374e-4123-b900-e22d7b2afc19",
+      "fetch_date": "2025-12-13T12:12:49.864249"
+    },
+    {
+      "name": "Phi-4 Mini Instruct",
+      "slug": "phi-4-mini",
+      "creator_name": "Microsoft Azure",
+      "creator_slug": "azure",
+      "ifbench": 0.211,
+      "source": "artificial_analysis_api",
+      "aa_id": "9f873c2f-2c2d-4ccb-9e1b-71bf61b052be",
+      "fetch_date": "2025-12-13T12:12:49.864252"
+    },
+    {
+      "name": "Phi-4 Multimodal Instruct",
+      "slug": "phi-4-multimodal",
+      "creator_name": "Microsoft Azure",
+      "creator_slug": "azure",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "2cd04201-2b6e-47ef-853e-7601f705f2a8",
+      "fetch_date": "2025-12-13T12:12:49.864255"
+    },
+    {
+      "name": "LFM2 8B A1B",
+      "slug": "lfm2-8b-a1b",
+      "creator_name": "Liquid AI",
+      "creator_slug": "liquidai",
+      "ifbench": 0.263,
+      "source": "artificial_analysis_api",
+      "aa_id": "686ab020-ee58-4a70-a9ac-24d675a73506",
+      "fetch_date": "2025-12-13T12:12:49.864257"
+    },
+    {
+      "name": "LFM2 1.2B",
+      "slug": "lfm2-1-2b",
+      "creator_name": "Liquid AI",
+      "creator_slug": "liquidai",
+      "ifbench": 0.22,
+      "source": "artificial_analysis_api",
+      "aa_id": "0faadeeb-320c-45cf-9c76-5f8768f342e6",
+      "fetch_date": "2025-12-13T12:12:49.864260"
+    },
+    {
+      "name": "LFM2 2.6B",
+      "slug": "lfm2-2-6b",
+      "creator_name": "Liquid AI",
+      "creator_slug": "liquidai",
+      "ifbench": 0.195,
+      "source": "artificial_analysis_api",
+      "aa_id": "739e531a-eb0a-478f-bb67-5845b79ce65d",
+      "fetch_date": "2025-12-13T12:12:49.864263"
+    },
+    {
+      "name": "Solar Pro 2 (Non-reasoning)",
+      "slug": "solar-pro-2",
+      "creator_name": "Upstage",
+      "creator_slug": "upstage",
+      "ifbench": 0.337,
+      "source": "artificial_analysis_api",
+      "aa_id": "44db6283-aa82-4799-af4a-679fe0530845",
+      "fetch_date": "2025-12-13T12:12:49.864265"
+    },
+    {
+      "name": "Solar Pro 2 (Reasoning)",
+      "slug": "solar-pro-2-reasoning",
+      "creator_name": "Upstage",
+      "creator_slug": "upstage",
+      "ifbench": 0.371,
+      "source": "artificial_analysis_api",
+      "aa_id": "eb689f7a-f210-4a87-b407-f249897f2764",
+      "fetch_date": "2025-12-13T12:12:49.864268"
+    },
+    {
+      "name": "MiniMax-M2",
+      "slug": "minimax-m2",
+      "creator_name": "MiniMax",
+      "creator_slug": "minimax",
+      "ifbench": 0.723,
+      "source": "artificial_analysis_api",
+      "aa_id": "f74ea286-cd29-4eb4-af14-1389b19c21e5",
+      "fetch_date": "2025-12-13T12:12:49.864270"
+    },
+    {
+      "name": "Llama 3.1 Nemotron Instruct 70B",
+      "slug": "llama-3-1-nemotron-instruct-70b",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.307,
+      "source": "artificial_analysis_api",
+      "aa_id": "7393c56a-ec31-48e9-b804-c04f2d2cb641",
+      "fetch_date": "2025-12-13T12:12:49.864273"
+    },
+    {
+      "name": "NVIDIA Nemotron Nano 9B V2 (Reasoning)",
+      "slug": "nvidia-nemotron-nano-9b-v2-reasoning",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.276,
+      "source": "artificial_analysis_api",
+      "aa_id": "f1d52583-9d20-4099-99ac-b5df9430c3b6",
+      "fetch_date": "2025-12-13T12:12:49.864275"
+    },
+    {
+      "name": "Llama 3.1 Nemotron Nano 4B v1.1 (Reasoning)",
+      "slug": "llama-3-1-nemotron-nano-4b-reasoning",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.255,
+      "source": "artificial_analysis_api",
+      "aa_id": "b1fa84f8-1ed3-4124-b403-4655dafa4267",
+      "fetch_date": "2025-12-13T12:12:49.864278"
+    },
+    {
+      "name": "NVIDIA Nemotron Nano 9B V2 (Non-reasoning)",
+      "slug": "nvidia-nemotron-nano-9b-v2",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.271,
+      "source": "artificial_analysis_api",
+      "aa_id": "2e8694f9-7782-47a6-a6ba-fdce89d939c8",
+      "fetch_date": "2025-12-13T12:12:49.864281"
+    },
+    {
+      "name": "NVIDIA Nemotron Nano 12B v2 VL (Reasoning)",
+      "slug": "nvidia-nemotron-nano-12b-v2-vl-reasoning",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.319,
+      "source": "artificial_analysis_api",
+      "aa_id": "6e6e02fd-9cbd-417f-9bfc-673df89c313d",
+      "fetch_date": "2025-12-13T12:12:49.864283"
+    },
+    {
+      "name": "Llama 3.3 Nemotron Super 49B v1 (Reasoning)",
+      "slug": "llama-3-3-nemotron-super-49b-reasoning",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.381,
+      "source": "artificial_analysis_api",
+      "aa_id": "1a8ba535-df18-459b-ad40-3199191296d7",
+      "fetch_date": "2025-12-13T12:12:49.864286"
+    },
+    {
+      "name": "NVIDIA Nemotron Nano 12B v2 VL (Non-reasoning)",
+      "slug": "nvidia-nemotron-nano-12b-v2-vl",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.259,
+      "source": "artificial_analysis_api",
+      "aa_id": "ab7f016c-a29b-4710-bdf6-6a5cd96aacca",
+      "fetch_date": "2025-12-13T12:12:49.864288"
+    },
+    {
+      "name": "Llama Nemotron Super 49B v1.5 (Non-reasoning)",
+      "slug": "llama-nemotron-super-49b-v1-5",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.329,
+      "source": "artificial_analysis_api",
+      "aa_id": "26c0b5df-efa7-470f-a65e-2d883329e493",
+      "fetch_date": "2025-12-13T12:12:49.864291"
+    },
+    {
+      "name": "Llama Nemotron Super 49B v1.5 (Reasoning)",
+      "slug": "llama-nemotron-super-49b-v1-5-reasoning",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.37,
+      "source": "artificial_analysis_api",
+      "aa_id": "e1cfa926-9e2b-4a0d-8c31-48366a5041c5",
+      "fetch_date": "2025-12-13T12:12:49.864294"
+    },
+    {
+      "name": "Llama 3.1 Nemotron Ultra 253B v1 (Reasoning)",
+      "slug": "llama-3-1-nemotron-ultra-253b-v1-reasoning",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.382,
+      "source": "artificial_analysis_api",
+      "aa_id": "cf095603-72b6-47f8-8ee1-09a42890f92a",
+      "fetch_date": "2025-12-13T12:12:49.864296"
+    },
+    {
+      "name": "Llama 3.3 Nemotron Super 49B v1 (Non-reasoning)",
+      "slug": "llama-3-3-nemotron-super-49b",
+      "creator_name": "NVIDIA",
+      "creator_slug": "nvidia",
+      "ifbench": 0.395,
+      "source": "artificial_analysis_api",
+      "aa_id": "c4c3b42f-e0f0-48ca-b6f9-b296e7697806",
+      "fetch_date": "2025-12-13T12:12:49.864299"
+    },
+    {
+      "name": "Kimi K2 Thinking",
+      "slug": "kimi-k2-thinking",
+      "creator_name": "Kimi",
+      "creator_slug": "kimi",
+      "ifbench": 0.681,
+      "source": "artificial_analysis_api",
+      "aa_id": "bddebfd3-0a8d-47f5-b722-bc4c2ca5a5dc",
+      "fetch_date": "2025-12-13T12:12:49.864301"
+    },
+    {
+      "name": "Kimi Linear 48B A3B Instruct",
+      "slug": "kimi-linear-48b-a3b-instruct",
+      "creator_name": "Kimi",
+      "creator_slug": "kimi",
+      "ifbench": 0.281,
+      "source": "artificial_analysis_api",
+      "aa_id": "598de97d-029e-47b6-96ec-dbc1e0f9045a",
+      "fetch_date": "2025-12-13T12:12:49.864305"
+    },
+    {
+      "name": "Kimi K2 0905",
+      "slug": "kimi-k2-0905",
+      "creator_name": "Kimi",
+      "creator_slug": "kimi",
+      "ifbench": 0.417,
+      "source": "artificial_analysis_api",
+      "aa_id": "66445f84-b2e3-4202-afdc-92ba0f0e5f36",
+      "fetch_date": "2025-12-13T12:12:49.864307"
+    },
+    {
+      "name": "Molmo 7B-D",
+      "slug": "molmo-7b-d",
+      "creator_name": "Allen Institute for AI",
+      "creator_slug": "ai2",
+      "ifbench": 0.197,
+      "source": "artificial_analysis_api",
+      "aa_id": "af74f222-05c7-422d-a653-b9c0707c9c72",
+      "fetch_date": "2025-12-13T12:12:49.864310"
+    },
+    {
+      "name": "OLMo 3 7B Instruct",
+      "slug": "olmo-3-7b-instruct",
+      "creator_name": "Allen Institute for AI",
+      "creator_slug": "ai2",
+      "ifbench": 0.328,
+      "source": "artificial_analysis_api",
+      "aa_id": "8f74a6ed-f82f-4a2f-a96b-4914993e47da",
+      "fetch_date": "2025-12-13T12:12:49.864312"
+    },
+    {
+      "name": "OLMo 3 32B Think",
+      "slug": "olmo-3-32b-think",
+      "creator_name": "Allen Institute for AI",
+      "creator_slug": "ai2",
+      "ifbench": 0.491,
+      "source": "artificial_analysis_api",
+      "aa_id": "c8a3fa87-735e-49a9-afb1-270c5e9f53f7",
+      "fetch_date": "2025-12-13T12:12:49.864315"
+    },
+    {
+      "name": "OLMo 3 7B Think",
+      "slug": "olmo-3-7b-think",
+      "creator_name": "Allen Institute for AI",
+      "creator_slug": "ai2",
+      "ifbench": 0.415,
+      "source": "artificial_analysis_api",
+      "aa_id": "338216fb-62c2-48f1-898a-9166d12fb35e",
+      "fetch_date": "2025-12-13T12:12:49.864318"
+    },
+    {
+      "name": "Granite 4.0 H Small",
+      "slug": "granite-4-0-h-small",
+      "creator_name": "IBM",
+      "creator_slug": "ibm",
+      "ifbench": 0.315,
+      "source": "artificial_analysis_api",
+      "aa_id": "5dba8d07-9992-483c-81db-dac97cb15ba8",
+      "fetch_date": "2025-12-13T12:12:49.864320"
+    },
+    {
+      "name": "Granite 4.0 350M",
+      "slug": "granite-4-0-350m",
+      "creator_name": "IBM",
+      "creator_slug": "ibm",
+      "ifbench": 0.159,
+      "source": "artificial_analysis_api",
+      "aa_id": "54c7f3fc-7078-442a-b472-e8691257a88c",
+      "fetch_date": "2025-12-13T12:12:49.864323"
+    },
+    {
+      "name": "Granite 4.0 H 350M",
+      "slug": "granite-4-0-h-350m",
+      "creator_name": "IBM",
+      "creator_slug": "ibm",
+      "ifbench": 0.176,
+      "source": "artificial_analysis_api",
+      "aa_id": "a68afa0b-7fe2-4e9d-bf3e-741cce3c6aeb",
+      "fetch_date": "2025-12-13T12:12:49.864325"
+    },
+    {
+      "name": "Granite 4.0 H 1B",
+      "slug": "granite-4-0-h-nano-1b",
+      "creator_name": "IBM",
+      "creator_slug": "ibm",
+      "ifbench": 0.262,
+      "source": "artificial_analysis_api",
+      "aa_id": "dafbb6d2-4825-43d1-a927-feedcfd2e998",
+      "fetch_date": "2025-12-13T12:12:49.864328"
+    },
+    {
+      "name": "Granite 4.0 1B",
+      "slug": "granite-4-0-nano-1b",
+      "creator_name": "IBM",
+      "creator_slug": "ibm",
+      "ifbench": 0.205,
+      "source": "artificial_analysis_api",
+      "aa_id": "a2c8e7b2-57bf-4d1e-96ea-7944d786d94d",
+      "fetch_date": "2025-12-13T12:12:49.864331"
+    },
+    {
+      "name": "Granite 4.0 Micro",
+      "slug": "granite-4-0-micro",
+      "creator_name": "IBM",
+      "creator_slug": "ibm",
+      "ifbench": 0.248,
+      "source": "artificial_analysis_api",
+      "aa_id": "1fc32894-1060-493b-af94-62bb1068555e",
+      "fetch_date": "2025-12-13T12:12:49.864333"
+    },
+    {
+      "name": "Reka Flash 3",
+      "slug": "reka-flash-3",
+      "creator_name": "Reka AI",
+      "creator_slug": "reka-ai",
+      "ifbench": 0.304,
+      "source": "artificial_analysis_api",
+      "aa_id": "dbbcf240-a69e-4078-8f16-7c94c7a8c514",
+      "fetch_date": "2025-12-13T12:12:49.864336"
+    },
+    {
+      "name": "Hermes 4 - Llama-3.1 70B (Non-reasoning)",
+      "slug": "hermes-4-llama-3-1-70b",
+      "creator_name": "Nous Research",
+      "creator_slug": "nous-research",
+      "ifbench": 0.29,
+      "source": "artificial_analysis_api",
+      "aa_id": "235060f4-057d-4bd1-8b8e-4a92908c770e",
+      "fetch_date": "2025-12-13T12:12:49.864338"
+    },
+    {
+      "name": "Hermes 4 - Llama-3.1 405B (Non-reasoning)",
+      "slug": "hermes-4-llama-3-1-405b",
+      "creator_name": "Nous Research",
+      "creator_slug": "nous-research",
+      "ifbench": 0.348,
+      "source": "artificial_analysis_api",
+      "aa_id": "d3968fd3-97d8-4693-8d26-19cefc6f5d5f",
+      "fetch_date": "2025-12-13T12:12:49.864341"
+    },
+    {
+      "name": "Hermes 4 - Llama-3.1 405B (Reasoning)",
+      "slug": "hermes-4-llama-3-1-405b-reasoning",
+      "creator_name": "Nous Research",
+      "creator_slug": "nous-research",
+      "ifbench": 0.327,
+      "source": "artificial_analysis_api",
+      "aa_id": "82b207dd-d285-4a52-b2fc-2cbd27543899",
+      "fetch_date": "2025-12-13T12:12:49.864344"
+    },
+    {
+      "name": "DeepHermes 3 - Mistral 24B Preview (Non-reasoning)",
+      "slug": "deephermes-3-mistral-24b-preview",
+      "creator_name": "Nous Research",
+      "creator_slug": "nous-research",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "a8efb564-9d17-4d7f-8f43-e9110657ce21",
+      "fetch_date": "2025-12-13T12:12:49.864346"
+    },
+    {
+      "name": "Hermes 4 - Llama-3.1 70B (Reasoning)",
+      "slug": "hermes-4-llama-3-1-70b-reasoning",
+      "creator_name": "Nous Research",
+      "creator_slug": "nous-research",
+      "ifbench": 0.313,
+      "source": "artificial_analysis_api",
+      "aa_id": "6ba9e8eb-8124-436d-842f-dbe36df80c27",
+      "fetch_date": "2025-12-13T12:12:49.864349"
+    },
+    {
+      "name": "DeepHermes 3 - Llama-3.1 8B Preview (Non-reasoning)",
+      "slug": "deephermes-3-llama-3-1-8b-preview",
+      "creator_name": "Nous Research",
+      "creator_slug": "nous-research",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "b7726745-9c77-40c3-8452-974cb53d6fbc",
+      "fetch_date": "2025-12-13T12:12:49.864351"
+    },
+    {
+      "name": "Exaone 4.0 1.2B (Reasoning)",
+      "slug": "exaone-4-0-1-2b-reasoning",
+      "creator_name": "LG AI Research",
+      "creator_slug": "lg",
+      "ifbench": 0.23,
+      "source": "artificial_analysis_api",
+      "aa_id": "d734e2ce-5cf8-467f-8148-586d02671333",
+      "fetch_date": "2025-12-13T12:12:49.864354"
+    },
+    {
+      "name": "Exaone 4.0 1.2B (Non-reasoning)",
+      "slug": "exaone-4-0-1-2b",
+      "creator_name": "LG AI Research",
+      "creator_slug": "lg",
+      "ifbench": 0.253,
+      "source": "artificial_analysis_api",
+      "aa_id": "8273650d-40e5-45ee-aeda-df71de784164",
+      "fetch_date": "2025-12-13T12:12:49.864357"
+    },
+    {
+      "name": "EXAONE 4.0 32B (Reasoning)",
+      "slug": "exaone-4-0-32b-reasoning",
+      "creator_name": "LG AI Research",
+      "creator_slug": "lg",
+      "ifbench": 0.363,
+      "source": "artificial_analysis_api",
+      "aa_id": "44b19b51-5367-4ef9-a2ff-2f90b89a0867",
+      "fetch_date": "2025-12-13T12:12:49.864359"
+    },
+    {
+      "name": "EXAONE 4.0 32B (Non-reasoning)",
+      "slug": "exaone-4-0-32b",
+      "creator_name": "LG AI Research",
+      "creator_slug": "lg",
+      "ifbench": 0.335,
+      "source": "artificial_analysis_api",
+      "aa_id": "2f60d80d-c3d3-4a43-bded-0557898c4618",
+      "fetch_date": "2025-12-13T12:12:49.864362"
+    },
+    {
+      "name": "ERNIE 4.5 300B A47B",
+      "slug": "ernie-4-5-300b-a47b",
+      "creator_name": "Baidu",
+      "creator_slug": "baidu",
+      "ifbench": 0.391,
+      "source": "artificial_analysis_api",
+      "aa_id": "ae4fe623-80ab-4ea3-8921-70a18ea0fc7e",
+      "fetch_date": "2025-12-13T12:12:49.864367"
+    },
+    {
+      "name": "ERNIE 5.0 Thinking Preview",
+      "slug": "ernie-5-0-thinking-preview",
+      "creator_name": "Baidu",
+      "creator_slug": "baidu",
+      "ifbench": 0.414,
+      "source": "artificial_analysis_api",
+      "aa_id": "a518a64b-e337-48f3-85a1-ba7dc0e8f961",
+      "fetch_date": "2025-12-13T12:12:49.864370"
+    },
+    {
+      "name": "Cogito v2.1 (Reasoning)",
+      "slug": "cogito-v2-1-reasoning",
+      "creator_name": "Deep Cogito",
+      "creator_slug": "deepcogito",
+      "ifbench": 0.463,
+      "source": "artificial_analysis_api",
+      "aa_id": "ea5d2c10-1051-437d-95c2-18d5e4d14ff3",
+      "fetch_date": "2025-12-13T12:12:49.864373"
+    },
+    {
+      "name": "KAT-Coder-Pro V1",
+      "slug": "kat-coder-pro-v1",
+      "creator_name": "KwaiKAT",
+      "creator_slug": "kwaikat",
+      "ifbench": 0.684,
+      "source": "artificial_analysis_api",
+      "aa_id": "fb112343-c82c-4b43-afea-996bd5101d62",
+      "fetch_date": "2025-12-13T12:12:49.864375"
+    },
+    {
+      "name": "Motif-2-12.7B-Reasoning",
+      "slug": "motif-2-12-7b",
+      "creator_name": "Motif Technologies",
+      "creator_slug": "motif-technologies",
+      "ifbench": 0.57,
+      "source": "artificial_analysis_api",
+      "aa_id": "666eb13f-0d22-4438-8eb0-01876e1a8604",
+      "fetch_date": "2025-12-13T12:12:49.864378"
+    },
+    {
+      "name": "GLM-4.6 (Non-reasoning)",
+      "slug": "glm-4-6",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": 0.367,
+      "source": "artificial_analysis_api",
+      "aa_id": "946e7aab-db1c-4c3f-b0b3-7720d0cff187",
+      "fetch_date": "2025-12-13T12:12:49.864380"
+    },
+    {
+      "name": "Llama 65B",
+      "slug": "llama-65b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "fe11ab6c-a4dd-4c28-9fef-07da76d5ed14",
+      "fetch_date": "2025-12-13T12:12:49.864383"
+    },
+    {
+      "name": "GLM-4.5-Air",
+      "slug": "glm-4-5-air",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": 0.376,
+      "source": "artificial_analysis_api",
+      "aa_id": "5d303dc9-c027-401f-9803-4e9aa3331007",
+      "fetch_date": "2025-12-13T12:12:49.864386"
+    },
+    {
+      "name": "GLM-4.6 (Reasoning)",
+      "slug": "glm-4-6-reasoning",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": 0.434,
+      "source": "artificial_analysis_api",
+      "aa_id": "6a5d56e1-bb68-4205-8d9b-26b97888bc84",
+      "fetch_date": "2025-12-13T12:12:49.864388"
+    },
+    {
+      "name": "GLM-4.6V (Reasoning)",
+      "slug": "glm-4-6v-reasoning",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": 0.301,
+      "source": "artificial_analysis_api",
+      "aa_id": "d2d7dd95-770f-4cb0-9bbc-d275ac19c265",
+      "fetch_date": "2025-12-13T12:12:49.864391"
+    },
+    {
+      "name": "GLM-4.6V (Non-reasoning)",
+      "slug": "glm-4-6v",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "43098bd0-77ca-408b-b698-9d60b1d1c3b8",
+      "fetch_date": "2025-12-13T12:12:49.864394"
+    },
+    {
+      "name": "GLM-4.5V (Non-reasoning)",
+      "slug": "glm-4-5v",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": 0.286,
+      "source": "artificial_analysis_api",
+      "aa_id": "0081ab31-d10a-44a0-a10d-eee5533fec65",
+      "fetch_date": "2025-12-13T12:12:49.864396"
+    },
+    {
+      "name": "GLM-4.5V (Reasoning)",
+      "slug": "glm-4-5v-reasoning",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": 0.342,
+      "source": "artificial_analysis_api",
+      "aa_id": "3068def4-7270-4c06-a320-6f6a5623d564",
+      "fetch_date": "2025-12-13T12:12:49.864399"
+    },
+    {
+      "name": "Command A",
+      "slug": "command-a",
+      "creator_name": "Cohere",
+      "creator_slug": "cohere",
+      "ifbench": 0.365,
+      "source": "artificial_analysis_api",
+      "aa_id": "3bc32f13-5afa-4e28-bce1-10e57376686b",
+      "fetch_date": "2025-12-13T12:12:49.864401"
+    },
+    {
+      "name": "Apriel-v1.6-15B-Thinker",
+      "slug": "apriel-v1-6-15b-thinker",
+      "creator_name": "ServiceNow",
+      "creator_slug": "servicenow",
+      "ifbench": 0.691,
+      "source": "artificial_analysis_api",
+      "aa_id": "a71c1a35-ccc8-43f0-a5a2-070a690b9a00",
+      "fetch_date": "2025-12-13T12:12:49.864404"
+    },
+    {
+      "name": "Apriel-v1.5-15B-Thinker",
+      "slug": "apriel-v1-5-15b-thinker",
+      "creator_name": "ServiceNow",
+      "creator_slug": "servicenow",
+      "ifbench": 0.617,
+      "source": "artificial_analysis_api",
+      "aa_id": "ac1031bc-c53e-4af7-9c6e-2005e0ff44fa",
+      "fetch_date": "2025-12-13T12:12:49.864407"
+    },
+    {
+      "name": "Jamba Reasoning 3B",
+      "slug": "jamba-reasoning-3b",
+      "creator_name": "AI21 Labs",
+      "creator_slug": "ai21-labs",
+      "ifbench": 0.524,
+      "source": "artificial_analysis_api",
+      "aa_id": "f78138d6-2e04-4a84-919a-20d177cb6ff1",
+      "fetch_date": "2025-12-13T12:12:49.864409"
+    },
+    {
+      "name": "Jamba 1.7 Large",
+      "slug": "jamba-1-7-large",
+      "creator_name": "AI21 Labs",
+      "creator_slug": "ai21-labs",
+      "ifbench": 0.352,
+      "source": "artificial_analysis_api",
+      "aa_id": "78452c64-7303-4192-bca5-2d9ec5c623d4",
+      "fetch_date": "2025-12-13T12:12:49.864412"
+    },
+    {
+      "name": "Jamba 1.7 Mini",
+      "slug": "jamba-1-7-mini",
+      "creator_name": "AI21 Labs",
+      "creator_slug": "ai21-labs",
+      "ifbench": 0.314,
+      "source": "artificial_analysis_api",
+      "aa_id": "b4f14013-37dd-4c75-bd8a-378365d9ed77",
+      "fetch_date": "2025-12-13T12:12:49.864415"
+    },
+    {
+      "name": "Qwen3 4B 2507 (Reasoning)",
+      "slug": "qwen3-4b-2507-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.498,
+      "source": "artificial_analysis_api",
+      "aa_id": "2aacdc07-5f4e-4ab9-8ea5-5f7ab93f9eeb",
+      "fetch_date": "2025-12-13T12:12:49.864417"
+    },
+    {
+      "name": "Qwen3 Coder 480B A35B Instruct",
+      "slug": "qwen3-coder-480b-a35b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.405,
+      "source": "artificial_analysis_api",
+      "aa_id": "093883ed-f5fc-443b-8e18-afbfb166699e",
+      "fetch_date": "2025-12-13T12:12:49.864420"
+    },
+    {
+      "name": "Qwen3 VL 4B (Reasoning)",
+      "slug": "qwen3-vl-4b-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.366,
+      "source": "artificial_analysis_api",
+      "aa_id": "f93d0750-b659-4ceb-a123-7e657904ef2b",
+      "fetch_date": "2025-12-13T12:12:49.864422"
+    },
+    {
+      "name": "Qwen3 VL 235B A22B Instruct",
+      "slug": "qwen3-vl-235b-a22b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.427,
+      "source": "artificial_analysis_api",
+      "aa_id": "d58cf573-1bd3-4d1f-9182-5482a460f570",
+      "fetch_date": "2025-12-13T12:12:49.864425"
+    },
+    {
+      "name": "Qwen3 Coder 30B A3B Instruct",
+      "slug": "qwen3-coder-30b-a3b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.327,
+      "source": "artificial_analysis_api",
+      "aa_id": "da9fe224-8af3-46d7-a8c4-6220779c3f35",
+      "fetch_date": "2025-12-13T12:12:49.864428"
+    },
+    {
+      "name": "Qwen3 VL 235B A22B (Reasoning)",
+      "slug": "qwen3-vl-235b-a22b-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.565,
+      "source": "artificial_analysis_api",
+      "aa_id": "a803d3d0-d22e-49a0-ac2c-b9c6f1141065",
+      "fetch_date": "2025-12-13T12:12:49.864430"
+    },
+    {
+      "name": "Qwen3 235B A22B 2507 (Reasoning)",
+      "slug": "qwen3-235b-a22b-instruct-2507-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.512,
+      "source": "artificial_analysis_api",
+      "aa_id": "f6ccbe1d-bd7e-484b-9795-18cc9f91552d",
+      "fetch_date": "2025-12-13T12:12:49.864433"
+    },
+    {
+      "name": "Qwen3 Omni 30B A3B (Reasoning)",
+      "slug": "qwen3-omni-30b-a3b-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.434,
+      "source": "artificial_analysis_api",
+      "aa_id": "b97ef678-2d31-4375-9416-67ea97f87204",
+      "fetch_date": "2025-12-13T12:12:49.864435"
+    },
+    {
+      "name": "Qwen3 Omni 30B A3B Instruct",
+      "slug": "qwen3-omni-30b-a3b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.312,
+      "source": "artificial_analysis_api",
+      "aa_id": "0b226b82-1462-4860-bf1a-f8aed7024791",
+      "fetch_date": "2025-12-13T12:12:49.864438"
+    },
+    {
+      "name": "Qwen3 Max Thinking",
+      "slug": "qwen3-max-thinking",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.538,
+      "source": "artificial_analysis_api",
+      "aa_id": "cbac8c35-e069-4c73-823e-0953e6ed0e85",
+      "fetch_date": "2025-12-13T12:12:49.864441"
+    },
+    {
+      "name": "Qwen3 235B A22B 2507 Instruct",
+      "slug": "qwen3-235b-a22b-instruct-2507",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.461,
+      "source": "artificial_analysis_api",
+      "aa_id": "3373245b-e6dc-4b66-a7b0-3f06f9b7bd46",
+      "fetch_date": "2025-12-13T12:12:49.864443"
+    },
+    {
+      "name": "Qwen3 VL 30B A3B Instruct",
+      "slug": "qwen3-vl-30b-a3b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.331,
+      "source": "artificial_analysis_api",
+      "aa_id": "51d0b717-953d-4b44-af61-406c6b7dff39",
+      "fetch_date": "2025-12-13T12:12:49.864449"
+    },
+    {
+      "name": "Qwen3 VL 8B (Reasoning)",
+      "slug": "qwen3-vl-8b-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.399,
+      "source": "artificial_analysis_api",
+      "aa_id": "dec8073c-57e2-41c0-b1aa-7a62960f103f",
+      "fetch_date": "2025-12-13T12:12:49.864451"
+    },
+    {
+      "name": "Qwen3 VL 4B Instruct",
+      "slug": "qwen3-vl-4b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.318,
+      "source": "artificial_analysis_api",
+      "aa_id": "f5d83128-047f-496d-ba49-8a428abe8345",
+      "fetch_date": "2025-12-13T12:12:49.864454"
+    },
+    {
+      "name": "Qwen3 Next 80B A3B (Reasoning)",
+      "slug": "qwen3-next-80b-a3b-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.607,
+      "source": "artificial_analysis_api",
+      "aa_id": "c8a79180-7d16-4474-8701-9a77c0baa56a",
+      "fetch_date": "2025-12-13T12:12:49.864457"
+    },
+    {
+      "name": "Qwen3 VL 30B A3B (Reasoning)",
+      "slug": "qwen3-vl-30b-a3b-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.451,
+      "source": "artificial_analysis_api",
+      "aa_id": "ce3d286e-093d-413d-a81a-0270309f039e",
+      "fetch_date": "2025-12-13T12:12:49.864459"
+    },
+    {
+      "name": "Qwen3 30B A3B 2507 (Reasoning)",
+      "slug": "qwen3-30b-a3b-2507-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.507,
+      "source": "artificial_analysis_api",
+      "aa_id": "5e0164b3-d902-4bcb-a1b2-83b4f4cd6143",
+      "fetch_date": "2025-12-13T12:12:49.864462"
+    },
+    {
+      "name": "Qwen3 30B A3B 2507 Instruct",
+      "slug": "qwen3-30b-a3b-2507",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.331,
+      "source": "artificial_analysis_api",
+      "aa_id": "7ec1065a-c90e-41e4-bd17-abb7042eed76",
+      "fetch_date": "2025-12-13T12:12:49.864464"
+    },
+    {
+      "name": "Qwen3 Next 80B A3B Instruct",
+      "slug": "qwen3-next-80b-a3b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.397,
+      "source": "artificial_analysis_api",
+      "aa_id": "2698f6c6-e436-47ce-a583-dbc25596c571",
+      "fetch_date": "2025-12-13T12:12:49.864467"
+    },
+    {
+      "name": "Qwen Chat 14B",
+      "slug": "qwen-chat-14b",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "c43aa1f9-31bd-4a99-be70-84c5e6bd2e75",
+      "fetch_date": "2025-12-13T12:12:49.864470"
+    },
+    {
+      "name": "Qwen3 VL 8B Instruct",
+      "slug": "qwen3-vl-8b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.323,
+      "source": "artificial_analysis_api",
+      "aa_id": "3cf875b8-b6b5-42c0-ad70-617d5be59d00",
+      "fetch_date": "2025-12-13T12:12:49.864472"
+    },
+    {
+      "name": "Qwen3 4B 2507 Instruct",
+      "slug": "qwen3-4b-2507-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.335,
+      "source": "artificial_analysis_api",
+      "aa_id": "b0249961-b8b2-479d-8325-a29ea17c7b89",
+      "fetch_date": "2025-12-13T12:12:49.864475"
+    },
+    {
+      "name": "Qwen3 VL 32B Instruct",
+      "slug": "qwen3-vl-32b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.392,
+      "source": "artificial_analysis_api",
+      "aa_id": "6da314d3-a984-4734-8f31-47dd32fb4699",
+      "fetch_date": "2025-12-13T12:12:49.864478"
+    },
+    {
+      "name": "Qwen3 Max",
+      "slug": "qwen3-max",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.441,
+      "source": "artificial_analysis_api",
+      "aa_id": "7ae943a9-9310-4472-a834-c61f0ab68485",
+      "fetch_date": "2025-12-13T12:12:49.864480"
+    },
+    {
+      "name": "Qwen3 VL 32B (Reasoning)",
+      "slug": "qwen3-vl-32b-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.594,
+      "source": "artificial_analysis_api",
+      "aa_id": "d370fcbf-c4a1-41a2-abc4-d204fcc3fcbf",
+      "fetch_date": "2025-12-13T12:12:49.864483"
+    },
+    {
+      "name": "Ling-1T",
+      "slug": "ling-1t",
+      "creator_name": "InclusionAI",
+      "creator_slug": "inclusionai",
+      "ifbench": 0.348,
+      "source": "artificial_analysis_api",
+      "aa_id": "15b56b8e-7b93-4ed9-ac06-75c922e3b86e",
+      "fetch_date": "2025-12-13T12:12:49.864485"
+    },
+    {
+      "name": "Ling-mini-2.0",
+      "slug": "ling-mini-2-0",
+      "creator_name": "InclusionAI",
+      "creator_slug": "inclusionai",
+      "ifbench": 0.236,
+      "source": "artificial_analysis_api",
+      "aa_id": "3d64bf83-232e-427e-8590-26b478bae4a8",
+      "fetch_date": "2025-12-13T12:12:49.864488"
+    },
+    {
+      "name": "Ring-1T",
+      "slug": "ring-1t",
+      "creator_name": "InclusionAI",
+      "creator_slug": "inclusionai",
+      "ifbench": 0.446,
+      "source": "artificial_analysis_api",
+      "aa_id": "a29e66d6-1c3c-456a-8770-59ee3845b35d",
+      "fetch_date": "2025-12-13T12:12:49.864491"
+    },
+    {
+      "name": "Ring-flash-2.0",
+      "slug": "ring-flash-2-0",
+      "creator_name": "InclusionAI",
+      "creator_slug": "inclusionai",
+      "ifbench": 0.433,
+      "source": "artificial_analysis_api",
+      "aa_id": "47b7df55-5804-40de-ba11-317de786710a",
+      "fetch_date": "2025-12-13T12:12:49.864493"
+    },
+    {
+      "name": "Ling-flash-2.0",
+      "slug": "ling-flash-2-0",
+      "creator_name": "InclusionAI",
+      "creator_slug": "inclusionai",
+      "ifbench": 0.344,
+      "source": "artificial_analysis_api",
+      "aa_id": "882a5da3-94ca-4602-8693-c45970df17e2",
+      "fetch_date": "2025-12-13T12:12:49.864496"
+    },
+    {
+      "name": "Doubao Seed Code",
+      "slug": "doubao-seed-code",
+      "creator_name": "ByteDance Seed",
+      "creator_slug": "bytedance_seed",
+      "ifbench": 0.514,
+      "source": "artificial_analysis_api",
+      "aa_id": "4d6dd5ce-08cb-4e87-9288-1dd2f022aa35",
+      "fetch_date": "2025-12-13T12:12:49.864498"
+    },
+    {
+      "name": "Seed-OSS-36B-Instruct",
+      "slug": "seed-oss-36b-instruct",
+      "creator_name": "ByteDance Seed",
+      "creator_slug": "bytedance_seed",
+      "ifbench": 0.419,
+      "source": "artificial_analysis_api",
+      "aa_id": "5c6533f3-75a2-4109-b9a9-3623afc6b86a",
+      "fetch_date": "2025-12-13T12:12:49.864501"
+    },
+    {
+      "name": "o1",
+      "slug": "o1",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "5ad2f60f-ee05-49fd-85a0-cef69aa7cb7b",
+      "fetch_date": "2025-12-13T12:12:49.864504"
+    },
+    {
+      "name": "o1-preview",
+      "slug": "o1-preview",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "078f4dc8-5350-40a2-a5ea-e8359f795b70",
+      "fetch_date": "2025-12-13T12:12:49.864506"
+    },
+    {
+      "name": "o1-mini",
+      "slug": "o1-mini",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "b515503d-4d65-4a3f-8a4a-6c731e2b079f",
+      "fetch_date": "2025-12-13T12:12:49.864509"
+    },
+    {
+      "name": "GPT-4o (Aug '24)",
+      "slug": "gpt-4o-2024-08-06",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "8c1be908-67b6-4cf4-ba08-83ddbe44fde3",
+      "fetch_date": "2025-12-13T12:12:49.864512"
+    },
+    {
+      "name": "GPT-4o (May '24)",
+      "slug": "gpt-4o-2024-05-13",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "e98e911e-9fb2-4a9a-826e-3d681d0cdca8",
+      "fetch_date": "2025-12-13T12:12:49.864514"
+    },
+    {
+      "name": "GPT-4 Turbo",
+      "slug": "gpt-4-turbo",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "76aa6af5-fdc6-4739-a300-983f14e74a67",
+      "fetch_date": "2025-12-13T12:12:49.864517"
+    },
+    {
+      "name": "GPT-4o (Nov '24)",
+      "slug": "gpt-4o",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.343,
+      "source": "artificial_analysis_api",
+      "aa_id": "c1045dc0-4fd3-4adb-9548-18763e0d051f",
+      "fetch_date": "2025-12-13T12:12:49.864520"
+    },
+    {
+      "name": "GPT-4o mini",
+      "slug": "gpt-4o-mini",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.31,
+      "source": "artificial_analysis_api",
+      "aa_id": "b5c1c91a-7474-4409-9a9c-9c2ac45d9eb6",
+      "fetch_date": "2025-12-13T12:12:49.864522"
+    },
+    {
+      "name": "GPT-3.5 Turbo",
+      "slug": "gpt-35-turbo",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "037dec2f-51e8-4127-a1f1-85155dae7a1d",
+      "fetch_date": "2025-12-13T12:12:49.864525"
+    },
+    {
+      "name": "GPT-4o Realtime (Dec '24)",
+      "slug": "gpt-4o-realtime-dec-2024",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "e2e9ddc3-8c2d-4bf5-a60a-83a1afe61034",
+      "fetch_date": "2025-12-13T12:12:49.864528"
+    },
+    {
+      "name": "GPT-4o mini Realtime (Dec '24)",
+      "slug": "gpt-4o-mini-realtime-dec-2024",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "4343afb1-c928-44c9-92e2-68fa1195b6f5",
+      "fetch_date": "2025-12-13T12:12:49.864530"
+    },
+    {
+      "name": "o1-pro",
+      "slug": "o1-pro",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "e8d4100e-165b-4c5d-ac11-ac553590a334",
+      "fetch_date": "2025-12-13T12:12:49.864533"
+    },
+    {
+      "name": "GPT-4.1 mini",
+      "slug": "gpt-4-1-mini",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.383,
+      "source": "artificial_analysis_api",
+      "aa_id": "9f7c7566-a704-49a2-a383-cb3181da33a4",
+      "fetch_date": "2025-12-13T12:12:49.864539"
+    },
+    {
+      "name": "o3-mini (high)",
+      "slug": "o3-mini-high",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "076f2674-bc4b-4925-be59-50832eb8c090",
+      "fetch_date": "2025-12-13T12:12:49.864542"
+    },
+    {
+      "name": "o3-mini",
+      "slug": "o3-mini",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "2dad8957-4c16-4e74-bf2d-8b21514e0ae9",
+      "fetch_date": "2025-12-13T12:12:49.864544"
+    },
+    {
+      "name": "GPT-4.1 nano",
+      "slug": "gpt-4-1-nano",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.32,
+      "source": "artificial_analysis_api",
+      "aa_id": "72c358fd-7d45-4d68-89aa-699743710924",
+      "fetch_date": "2025-12-13T12:12:49.864547"
+    },
+    {
+      "name": "GPT-4",
+      "slug": "gpt-4",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "6a7c0e25-1dcb-4b15-8495-a8536a9da051",
+      "fetch_date": "2025-12-13T12:12:49.864550"
+    },
+    {
+      "name": "GPT-4.1",
+      "slug": "gpt-4-1",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.43,
+      "source": "artificial_analysis_api",
+      "aa_id": "3b608b70-6434-4baa-99ad-45d499703c67",
+      "fetch_date": "2025-12-13T12:12:49.864552"
+    },
+    {
+      "name": "o3-pro",
+      "slug": "o3-pro",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "ca04852c-eaae-4881-a208-f9b2ca3b7cd6",
+      "fetch_date": "2025-12-13T12:12:49.864555"
+    },
+    {
+      "name": "GPT-4.5 (Preview)",
+      "slug": "gpt-4-5",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "5ce30d25-5353-45bb-bef9-6b87480ba3a2",
+      "fetch_date": "2025-12-13T12:12:49.864557"
+    },
+    {
+      "name": "GPT-4o (ChatGPT)",
+      "slug": "gpt-4o-chatgpt",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "b4784397-aa28-411b-b011-9c4331bfa9c8",
+      "fetch_date": "2025-12-13T12:12:49.864560"
+    },
+    {
+      "name": "o4-mini (high)",
+      "slug": "o4-mini",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.687,
+      "source": "artificial_analysis_api",
+      "aa_id": "84b49308-6b93-47aa-a4f6-776ee1a1e8cd",
+      "fetch_date": "2025-12-13T12:12:49.864563"
+    },
+    {
+      "name": "GPT-4o (March 2025, chatgpt-4o-latest)",
+      "slug": "gpt-4o-chatgpt-03-25",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "575498d6-60ec-466b-9372-fea19911fd07",
+      "fetch_date": "2025-12-13T12:12:49.864565"
+    },
+    {
+      "name": "GPT-5 Codex (high)",
+      "slug": "gpt-5-codex",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": 0.741,
+      "source": "artificial_analysis_api",
+      "aa_id": "5d11e7a1-4f70-4e5a-9364-e193761d6757",
+      "fetch_date": "2025-12-13T12:12:49.864568"
+    },
+    {
+      "name": "GPT-3.5 Turbo (0613)",
+      "slug": "gpt-3-5-turbo-0613",
+      "creator_name": "OpenAI",
+      "creator_slug": "openai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "8b1a70d1-e05f-426b-9122-023d4629ab47",
+      "fetch_date": "2025-12-13T12:12:49.864571"
+    },
+    {
+      "name": "Llama 3.1 Instruct 70B",
+      "slug": "llama-3-1-instruct-70b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.344,
+      "source": "artificial_analysis_api",
+      "aa_id": "466aecdb-3d96-4191-bc52-b3366db38851",
+      "fetch_date": "2025-12-13T12:12:49.864573"
+    },
+    {
+      "name": "Llama 3.1 Instruct 8B",
+      "slug": "llama-3-1-instruct-8b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.286,
+      "source": "artificial_analysis_api",
+      "aa_id": "739684ba-0f63-4e2a-b4ee-30741c9e9320",
+      "fetch_date": "2025-12-13T12:12:49.864576"
+    },
+    {
+      "name": "Llama 3.2 Instruct 3B",
+      "slug": "llama-3-2-instruct-3b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.262,
+      "source": "artificial_analysis_api",
+      "aa_id": "71e8d48c-1920-4f27-8ea9-1f10becc615a",
+      "fetch_date": "2025-12-13T12:12:49.864579"
+    },
+    {
+      "name": "Llama 3 Instruct 70B",
+      "slug": "llama-3-instruct-70b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "aa83359a-d804-4f0b-b5bf-dc637711c26f",
+      "fetch_date": "2025-12-13T12:12:49.864581"
+    },
+    {
+      "name": "Llama 3 Instruct 8B",
+      "slug": "llama-3-instruct-8b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "82879bb8-89fb-4adc-b519-315b8ef30b77",
+      "fetch_date": "2025-12-13T12:12:49.864584"
+    },
+    {
+      "name": "Llama 3.2 Instruct 1B",
+      "slug": "llama-3-2-instruct-1b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": 0.228,
+      "source": "artificial_analysis_api",
+      "aa_id": "80f7860a-7665-4658-9f05-15bccf5f832f",
+      "fetch_date": "2025-12-13T12:12:49.864586"
+    },
+    {
+      "name": "Llama 2 Chat 7B",
+      "slug": "llama-2-chat-7b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "ffd65ef7-fbdb-4145-98ae-b5d01cda770b",
+      "fetch_date": "2025-12-13T12:12:49.864589"
+    },
+    {
+      "name": "Llama 2 Chat 70B",
+      "slug": "llama-2-chat-70b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "599da8e0-bd9c-4b38-a127-b50e371fbcf8",
+      "fetch_date": "2025-12-13T12:12:49.864592"
+    },
+    {
+      "name": "Llama 2 Chat 13B",
+      "slug": "llama-2-chat-13b",
+      "creator_name": "Meta",
+      "creator_slug": "meta",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "6b08a75a-19ee-40b4-be33-133b8ef42f92",
+      "fetch_date": "2025-12-13T12:12:49.864594"
+    },
+    {
+      "name": "Gemini 2.0 Pro Experimental (Feb '25)",
+      "slug": "gemini-2-0-pro-experimental-02-05",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "c6a47d8a-7517-46e2-8383-329fe7241725",
+      "fetch_date": "2025-12-13T12:12:49.864597"
+    },
+    {
+      "name": "Gemini 2.0 Flash (experimental)",
+      "slug": "gemini-2-0-flash-experimental",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "fddb72bd-60d3-41af-acc5-3df9a290eb8e",
+      "fetch_date": "2025-12-13T12:12:49.864599"
+    },
+    {
+      "name": "Gemini 1.5 Pro (Sep '24)",
+      "slug": "gemini-1-5-pro",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "2ac96b67-f4f8-4c8c-ac08-c7510faa7bb9",
+      "fetch_date": "2025-12-13T12:12:49.864602"
+    },
+    {
+      "name": "Gemini 2.0 Flash-Lite (Preview)",
+      "slug": "gemini-2-0-flash-lite-preview",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "3de55b83-e02b-412e-8211-315bbebe3e94",
+      "fetch_date": "2025-12-13T12:12:49.864605"
+    },
+    {
+      "name": "Gemini 2.0 Flash (Feb '25)",
+      "slug": "gemini-2-0-flash",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.402,
+      "source": "artificial_analysis_api",
+      "aa_id": "bcca0e70-7e80-4c07-b1fa-b33bcfb19e51",
+      "fetch_date": "2025-12-13T12:12:49.864608"
+    },
+    {
+      "name": "Gemini 1.5 Flash (Sep '24)",
+      "slug": "gemini-1-5-flash",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "41faf421-118b-465b-b170-d200776580d1",
+      "fetch_date": "2025-12-13T12:12:49.864610"
+    },
+    {
+      "name": "Gemini 1.5 Flash-8B",
+      "slug": "gemini-1-5-flash-8b",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "94229066-9381-4ee1-bf70-a16d63756a6e",
+      "fetch_date": "2025-12-13T12:12:49.864613"
+    },
+    {
+      "name": "Gemini 2.5 Flash (Reasoning)",
+      "slug": "gemini-2-5-flash-reasoning",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.503,
+      "source": "artificial_analysis_api",
+      "aa_id": "219ed587-60c5-4a48-9517-8480e08d0ca1",
+      "fetch_date": "2025-12-13T12:12:49.864615"
+    },
+    {
+      "name": "Gemini 1.0 Ultra",
+      "slug": "gemini-1-0-ultra",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "2ae624ca-25b4-4cc8-8970-cdfdd3320691",
+      "fetch_date": "2025-12-13T12:12:49.864618"
+    },
+    {
+      "name": "Gemini 2.5 Flash Preview (Non-reasoning)",
+      "slug": "gemini-2-5-flash-04-2025",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "55a3ebf6-6117-4cc1-8596-c6de6e552fd4",
+      "fetch_date": "2025-12-13T12:12:49.864621"
+    },
+    {
+      "name": "Gemini 2.5 Flash Preview (Reasoning)",
+      "slug": "gemini-2-5-flash-reasoning-04-2025",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "68c89ebf-779c-4445-9241-de964cd17355",
+      "fetch_date": "2025-12-13T12:12:49.864623"
+    },
+    {
+      "name": "Gemini 1.0 Pro",
+      "slug": "gemini-1-0-pro",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "8ddacd41-bf43-411b-aa30-43ebf0567dd8",
+      "fetch_date": "2025-12-13T12:12:49.864626"
+    },
+    {
+      "name": "Gemini 2.5 Flash (Non-reasoning)",
+      "slug": "gemini-2-5-flash",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.39,
+      "source": "artificial_analysis_api",
+      "aa_id": "6afbfb62-27e4-435e-9c85-d9fe1b92519e",
+      "fetch_date": "2025-12-13T12:12:49.864628"
+    },
+    {
+      "name": "Gemini 1.5 Pro (May '24)",
+      "slug": "gemini-1-5-pro-may-2024",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "16f2578b-1b28-4be3-b371-700c2677bcd6",
+      "fetch_date": "2025-12-13T12:12:49.864631"
+    },
+    {
+      "name": "Gemini 2.0 Flash Thinking Experimental (Dec '24)",
+      "slug": "gemini-2-0-flash-thinking-exp-1219",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "dfeeb904-e784-4d5c-ad66-9400146b150b",
+      "fetch_date": "2025-12-13T12:12:49.864634"
+    },
+    {
+      "name": "Gemini 2.5 Flash-Lite (Non-reasoning)",
+      "slug": "gemini-2-5-flash-lite",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.315,
+      "source": "artificial_analysis_api",
+      "aa_id": "1d81aa1c-64c8-442a-9c41-81b37e407b91",
+      "fetch_date": "2025-12-13T12:12:49.864636"
+    },
+    {
+      "name": "Gemini 2.5 Pro Preview (May' 25)",
+      "slug": "gemini-2-5-pro-05-06",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "073b5329-c4b3-4f1f-8f97-4753aadf4398",
+      "fetch_date": "2025-12-13T12:12:49.864639"
+    },
+    {
+      "name": "Gemini 2.0 Flash-Lite (Feb '25)",
+      "slug": "gemini-2-0-flash-lite-001",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "7b269763-ecc0-41ef-aa29-47ef632ac065",
+      "fetch_date": "2025-12-13T12:12:49.864642"
+    },
+    {
+      "name": "Gemini 1.5 Flash (May '24)",
+      "slug": "gemini-1-5-flash-may-2024",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "ac48c49d-9e77-4394-ac4e-d1ee51fd5fee",
+      "fetch_date": "2025-12-13T12:12:49.864644"
+    },
+    {
+      "name": "PALM-2",
+      "slug": "palm-2",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "515852e7-ba9c-4571-8cf9-82ad6b45f22f",
+      "fetch_date": "2025-12-13T12:12:49.864647"
+    },
+    {
+      "name": "Gemini 2.0 Flash Thinking Experimental (Jan '25)",
+      "slug": "gemini-2-0-flash-thinking-exp-0121",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "0399e614-5d46-484f-9183-e4f32d74e1c6",
+      "fetch_date": "2025-12-13T12:12:49.864649"
+    },
+    {
+      "name": "Gemini 2.5 Flash-Lite (Reasoning)",
+      "slug": "gemini-2-5-flash-lite-reasoning",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": 0.499,
+      "source": "artificial_analysis_api",
+      "aa_id": "f4e8194a-d0e6-48eb-92be-4307de5aeeec",
+      "fetch_date": "2025-12-13T12:12:49.864652"
+    },
+    {
+      "name": "Gemma 3n E4B Instruct Preview (May '25)",
+      "slug": "gemma-3n-e4b-preview-0520",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "bd2c3517-00d8-4ba5-a989-1f1e52f3ffab",
+      "fetch_date": "2025-12-13T12:12:49.864655"
+    },
+    {
+      "name": "Gemini 2.5 Pro Preview (Mar' 25)",
+      "slug": "gemini-2-5-pro-03-25",
+      "creator_name": "Google",
+      "creator_slug": "google",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "62de31e8-a1a3-429c-b634-a2afccfd9363",
+      "fetch_date": "2025-12-13T12:12:49.864660"
+    },
+    {
+      "name": "Claude 3.5 Sonnet (Oct '24)",
+      "slug": "claude-35-sonnet",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "0a603978-03b9-4f47-a273-2f7fd969be85",
+      "fetch_date": "2025-12-13T12:12:49.864662"
+    },
+    {
+      "name": "Claude 3.5 Sonnet (June '24)",
+      "slug": "claude-35-sonnet-june-24",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "aca9c1ad-fc86-49f3-a312-b1e517ea100c",
+      "fetch_date": "2025-12-13T12:12:49.864665"
+    },
+    {
+      "name": "Claude 3 Opus",
+      "slug": "claude-3-opus",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "7829427f-f0e3-4f6d-a228-5fbf70dacc02",
+      "fetch_date": "2025-12-13T12:12:49.864668"
+    },
+    {
+      "name": "Claude 3.5 Haiku",
+      "slug": "claude-3-5-haiku",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "033e4aa9-a556-4224-87b0-341ed1070257",
+      "fetch_date": "2025-12-13T12:12:49.864670"
+    },
+    {
+      "name": "Claude 3 Sonnet",
+      "slug": "claude-3-sonnet",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "b2e68f0a-8f66-4e4c-9821-2b786cea601b",
+      "fetch_date": "2025-12-13T12:12:49.864673"
+    },
+    {
+      "name": "Claude 3 Haiku",
+      "slug": "claude-3-haiku",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "1fc54cef-d179-48b1-a27d-046874e9b208",
+      "fetch_date": "2025-12-13T12:12:49.864675"
+    },
+    {
+      "name": "Claude Instant",
+      "slug": "claude-instant",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "83cb898e-05d9-4e4b-9de3-2d305014d923",
+      "fetch_date": "2025-12-13T12:12:49.864678"
+    },
+    {
+      "name": "Claude 4 Sonnet (Reasoning)",
+      "slug": "claude-4-sonnet-thinking",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.547,
+      "source": "artificial_analysis_api",
+      "aa_id": "a7564055-f8ba-4c4b-9e2d-060f61263645",
+      "fetch_date": "2025-12-13T12:12:49.864681"
+    },
+    {
+      "name": "Claude 3.7 Sonnet (Reasoning)",
+      "slug": "claude-3-7-sonnet-thinking",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.483,
+      "source": "artificial_analysis_api",
+      "aa_id": "13358187-4584-479c-ab43-5bcdf8f297a4",
+      "fetch_date": "2025-12-13T12:12:49.864683"
+    },
+    {
+      "name": "Claude 4.1 Opus (Non-reasoning)",
+      "slug": "claude-4-1-opus",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "f2f60e3a-e5f5-4471-acd2-9f2f29c76007",
+      "fetch_date": "2025-12-13T12:12:49.864686"
+    },
+    {
+      "name": "Claude 3.7 Sonnet (Non-reasoning)",
+      "slug": "claude-3-7-sonnet",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.44,
+      "source": "artificial_analysis_api",
+      "aa_id": "d925845d-39ad-4de3-8495-f176b79828c0",
+      "fetch_date": "2025-12-13T12:12:49.864689"
+    },
+    {
+      "name": "Claude 2.0",
+      "slug": "claude-2",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "ddc748d0-6a9b-466b-8d6c-68417980d56d",
+      "fetch_date": "2025-12-13T12:12:49.864691"
+    },
+    {
+      "name": "Claude 4 Opus (Reasoning)",
+      "slug": "claude-4-opus-thinking",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.537,
+      "source": "artificial_analysis_api",
+      "aa_id": "8a4a5ead-7789-4389-8400-30e9d20370b7",
+      "fetch_date": "2025-12-13T12:12:49.864694"
+    },
+    {
+      "name": "Claude 4.1 Opus (Reasoning)",
+      "slug": "claude-4-1-opus-thinking",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.554,
+      "source": "artificial_analysis_api",
+      "aa_id": "ccbfa8c3-a762-480b-aade-34fb9697f98c",
+      "fetch_date": "2025-12-13T12:12:49.864697"
+    },
+    {
+      "name": "Claude 4 Opus (Non-reasoning)",
+      "slug": "claude-4-opus",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.433,
+      "source": "artificial_analysis_api",
+      "aa_id": "504412c2-2ada-499b-aebf-7e0a35c9d286",
+      "fetch_date": "2025-12-13T12:12:49.864699"
+    },
+    {
+      "name": "Claude 4 Sonnet (Non-reasoning)",
+      "slug": "claude-4-sonnet",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": 0.454,
+      "source": "artificial_analysis_api",
+      "aa_id": "d034dafe-463d-4c50-956f-84fca657b26f",
+      "fetch_date": "2025-12-13T12:12:49.864702"
+    },
+    {
+      "name": "Claude 2.1",
+      "slug": "claude-21",
+      "creator_name": "Anthropic",
+      "creator_slug": "anthropic",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "9e141c0d-fc82-4e07-bb2e-fe0003bc030b",
+      "fetch_date": "2025-12-13T12:12:49.864704"
+    },
+    {
+      "name": "Mistral Large 2 (Nov '24)",
+      "slug": "mistral-large-2",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.312,
+      "source": "artificial_analysis_api",
+      "aa_id": "50f92d5f-f413-4c97-8dab-331101622a28",
+      "fetch_date": "2025-12-13T12:12:49.864707"
+    },
+    {
+      "name": "Mistral Large 2 (Jul '24)",
+      "slug": "mistral-large-2407",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.316,
+      "source": "artificial_analysis_api",
+      "aa_id": "1b05e346-e86a-4a20-8feb-7da8c65a99aa",
+      "fetch_date": "2025-12-13T12:12:49.864710"
+    },
+    {
+      "name": "Pixtral Large",
+      "slug": "pixtral-large-2411",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.345,
+      "source": "artificial_analysis_api",
+      "aa_id": "de0beaf0-c951-487a-8eb4-3dd12e74122c",
+      "fetch_date": "2025-12-13T12:12:49.864712"
+    },
+    {
+      "name": "Mistral Small 3",
+      "slug": "mistral-small-3",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.264,
+      "source": "artificial_analysis_api",
+      "aa_id": "e5dd499f-c330-45ec-9ff0-a99209c82af7",
+      "fetch_date": "2025-12-13T12:12:49.864715"
+    },
+    {
+      "name": "Mistral Small (Sep '24)",
+      "slug": "mistral-small",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "7c045ca0-b331-488d-af31-df0fd331dfd1",
+      "fetch_date": "2025-12-13T12:12:49.864717"
+    },
+    {
+      "name": "Mixtral 8x22B Instruct",
+      "slug": "mistral-8x22b-instruct",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "ca6c1412-f3c1-4391-9231-f83a702aa7af",
+      "fetch_date": "2025-12-13T12:12:49.864720"
+    },
+    {
+      "name": "Mistral Small (Feb '24)",
+      "slug": "mistral-small-2402",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "35d602fc-b8b8-4698-9f4d-f2ce11ca50e4",
+      "fetch_date": "2025-12-13T12:12:49.864723"
+    },
+    {
+      "name": "Mistral Large (Feb '24)",
+      "slug": "mistral-large",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "5e4e4590-a77e-4b66-95f8-f3960a1a7c68",
+      "fetch_date": "2025-12-13T12:12:49.864725"
+    },
+    {
+      "name": "Mixtral 8x7B Instruct",
+      "slug": "mixtral-8x7b-instruct",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "3edcb2ed-6981-4f88-a556-563f7f8f00aa",
+      "fetch_date": "2025-12-13T12:12:49.864728"
+    },
+    {
+      "name": "Mistral 7B Instruct",
+      "slug": "mistral-7b-instruct",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "217b34ec-5920-4fc1-8886-6a70a324837d",
+      "fetch_date": "2025-12-13T12:12:49.864731"
+    },
+    {
+      "name": "Mistral Small 3.1",
+      "slug": "mistral-small-3-1",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.299,
+      "source": "artificial_analysis_api",
+      "aa_id": "24ac5b00-5f03-4c47-8e37-522d1195383e",
+      "fetch_date": "2025-12-13T12:12:49.864733"
+    },
+    {
+      "name": "Mistral Medium 3",
+      "slug": "mistral-medium-3",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.393,
+      "source": "artificial_analysis_api",
+      "aa_id": "59e22326-1bca-4432-a5fa-147fbe8854e7",
+      "fetch_date": "2025-12-13T12:12:49.864736"
+    },
+    {
+      "name": "Magistral Small 1",
+      "slug": "magistral-small",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.248,
+      "source": "artificial_analysis_api",
+      "aa_id": "0fec07d5-a9b2-407a-b5f8-5bf10bd86b59",
+      "fetch_date": "2025-12-13T12:12:49.864739"
+    },
+    {
+      "name": "Magistral Medium 1",
+      "slug": "magistral-medium",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": 0.251,
+      "source": "artificial_analysis_api",
+      "aa_id": "660965b2-66d2-49ee-a6b9-79a6ac47d3c0",
+      "fetch_date": "2025-12-13T12:12:49.864741"
+    },
+    {
+      "name": "Mistral Medium",
+      "slug": "mistral-medium",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "1f05af98-1ec6-4506-a0b8-57a8c9b63878",
+      "fetch_date": "2025-12-13T12:12:49.864744"
+    },
+    {
+      "name": "Devstral Small (May '25)",
+      "slug": "devstral-small-2505",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "cc1fa238-1a76-486d-a997-22309275eadd",
+      "fetch_date": "2025-12-13T12:12:49.864746"
+    },
+    {
+      "name": "Mistral Saba",
+      "slug": "mistral-saba",
+      "creator_name": "Mistral",
+      "creator_slug": "mistral",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "7a7b52f6-fdef-4dae-9203-58c710ccc81d",
+      "fetch_date": "2025-12-13T12:12:49.864749"
+    },
+    {
+      "name": "DeepSeek R1 Distill Qwen 32B",
+      "slug": "deepseek-r1-distill-qwen-32b",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.229,
+      "source": "artificial_analysis_api",
+      "aa_id": "df95f83f-5ebb-466a-9d2d-b95efc8c012c",
+      "fetch_date": "2025-12-13T12:12:49.864752"
+    },
+    {
+      "name": "DeepSeek V3 (Dec '24)",
+      "slug": "deepseek-v3",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.348,
+      "source": "artificial_analysis_api",
+      "aa_id": "43fc5506-c5ed-4dee-9b85-962bf7ae3986",
+      "fetch_date": "2025-12-13T12:12:49.864754"
+    },
+    {
+      "name": "DeepSeek R1 Distill Qwen 14B",
+      "slug": "deepseek-r1-distill-qwen-14b",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.221,
+      "source": "artificial_analysis_api",
+      "aa_id": "b26ff709-1773-4595-ae44-78e0a5bac29c",
+      "fetch_date": "2025-12-13T12:12:49.864757"
+    },
+    {
+      "name": "DeepSeek-V2.5 (Dec '24)",
+      "slug": "deepseek-v2-5",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "bc4579d2-9c46-46c3-ace0-454039bf21bb",
+      "fetch_date": "2025-12-13T12:12:49.864760"
+    },
+    {
+      "name": "DeepSeek-Coder-V2",
+      "slug": "deepseek-coder-v2",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "8f0a75d6-8d00-4c2e-bcd4-8e88a570a93c",
+      "fetch_date": "2025-12-13T12:12:49.864762"
+    },
+    {
+      "name": "DeepSeek R1 Distill Llama 8B",
+      "slug": "deepseek-r1-distill-llama-8b",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.176,
+      "source": "artificial_analysis_api",
+      "aa_id": "0e49fe2d-dd3c-4ae5-b56f-a1c89e14b89e",
+      "fetch_date": "2025-12-13T12:12:49.864765"
+    },
+    {
+      "name": "DeepSeek LLM 67B Chat (V1)",
+      "slug": "deepseek-llm-67b-chat",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "7764d514-694f-444c-8d60-bdc6e24e223f",
+      "fetch_date": "2025-12-13T12:12:49.864768"
+    },
+    {
+      "name": "DeepSeek R1 Distill Qwen 1.5B",
+      "slug": "deepseek-r1-distill-qwen-1-5b",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.132,
+      "source": "artificial_analysis_api",
+      "aa_id": "444cdb1e-bab8-42cd-938c-b2d7a93e2da1",
+      "fetch_date": "2025-12-13T12:12:49.864770"
+    },
+    {
+      "name": "DeepSeek V3 0324",
+      "slug": "deepseek-v3-0324",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.41,
+      "source": "artificial_analysis_api",
+      "aa_id": "75e1c197-f239-4361-a9d6-66dccfead236",
+      "fetch_date": "2025-12-13T12:12:49.864773"
+    },
+    {
+      "name": "DeepSeek R1 (Jan '25)",
+      "slug": "deepseek-r1-0120",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.39,
+      "source": "artificial_analysis_api",
+      "aa_id": "0e34f05c-387e-4968-be15-ccec4a55d8c1",
+      "fetch_date": "2025-12-13T12:12:49.864775"
+    },
+    {
+      "name": "DeepSeek-V2-Chat",
+      "slug": "deepseek-v2",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "2d19c2d1-062d-436e-b2c2-3d3ecad34acc",
+      "fetch_date": "2025-12-13T12:12:49.864778"
+    },
+    {
+      "name": "DeepSeek V3.1 (Non-reasoning)",
+      "slug": "deepseek-v3-1",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.378,
+      "source": "artificial_analysis_api",
+      "aa_id": "fb65266f-5a7d-403c-85d5-ccdf0d1ca838",
+      "fetch_date": "2025-12-13T12:12:49.864781"
+    },
+    {
+      "name": "DeepSeek V3.1 (Reasoning)",
+      "slug": "deepseek-v3-1-reasoning",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.415,
+      "source": "artificial_analysis_api",
+      "aa_id": "198b717f-42c8-4ab7-a699-ae9373d669d3",
+      "fetch_date": "2025-12-13T12:12:49.864783"
+    },
+    {
+      "name": "DeepSeek V3.2 Exp (Non-reasoning)",
+      "slug": "deepseek-v3-2-0925",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.431,
+      "source": "artificial_analysis_api",
+      "aa_id": "07c35e00-2b12-44c8-91cc-408629cd569e",
+      "fetch_date": "2025-12-13T12:12:49.864786"
+    },
+    {
+      "name": "DeepSeek-V2.5",
+      "slug": "deepseek-v2-5-sep-2024",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "8a24865b-90d9-4e2b-a2fd-6851c2e9d627",
+      "fetch_date": "2025-12-13T12:12:49.864788"
+    },
+    {
+      "name": "DeepSeek Coder V2 Lite Instruct",
+      "slug": "deepseek-coder-v2-lite",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "c7327e6e-b27f-4b1b-859d-159a34e0ba1c",
+      "fetch_date": "2025-12-13T12:12:49.864791"
+    },
+    {
+      "name": "DeepSeek V3.2 Exp (Reasoning)",
+      "slug": "deepseek-v3-2-reasoning-0925",
+      "creator_name": "DeepSeek",
+      "creator_slug": "deepseek",
+      "ifbench": 0.541,
+      "source": "artificial_analysis_api",
+      "aa_id": "af134350-8ba3-4629-b56b-00bd6dcf60c4",
+      "fetch_date": "2025-12-13T12:12:49.864794"
+    },
+    {
+      "name": "Sonar Pro",
+      "slug": "sonar-pro",
+      "creator_name": "Perplexity",
+      "creator_slug": "perplexity",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "3435db18-9227-45a5-8e79-9546b14b5aaa",
+      "fetch_date": "2025-12-13T12:12:49.864796"
+    },
+    {
+      "name": "Sonar Reasoning",
+      "slug": "sonar-reasoning",
+      "creator_name": "Perplexity",
+      "creator_slug": "perplexity",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "04751bd4-0c5d-416b-a5f2-83727c5bfcda",
+      "fetch_date": "2025-12-13T12:12:49.864799"
+    },
+    {
+      "name": "Sonar",
+      "slug": "sonar",
+      "creator_name": "Perplexity",
+      "creator_slug": "perplexity",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "5ec4a0db-da66-4e46-9682-fceeed755ef8",
+      "fetch_date": "2025-12-13T12:12:49.864802"
+    },
+    {
+      "name": "Sonar Reasoning Pro",
+      "slug": "sonar-reasoning-pro",
+      "creator_name": "Perplexity",
+      "creator_slug": "perplexity",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "1edc272c-d799-44d6-909a-bf3c1909a3a0",
+      "fetch_date": "2025-12-13T12:12:49.864804"
+    },
+    {
+      "name": "Grok Beta",
+      "slug": "grok-beta",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "a04f5b78-f397-4fd8-a2b1-00dcab50324c",
+      "fetch_date": "2025-12-13T12:12:49.864807"
+    },
+    {
+      "name": "Grok 3 Reasoning Beta",
+      "slug": "grok-3-reasoning",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "ec3b22e6-48ac-416a-b4ae-55565a4f3046",
+      "fetch_date": "2025-12-13T12:12:49.864809"
+    },
+    {
+      "name": "Grok 3",
+      "slug": "grok-3",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": 0.469,
+      "source": "artificial_analysis_api",
+      "aa_id": "2443ac9e-a3db-423d-accb-8963f6fb0a53",
+      "fetch_date": "2025-12-13T12:12:49.864812"
+    },
+    {
+      "name": "Grok 2 (Dec '24)",
+      "slug": "grok-2-1212",
+      "creator_name": "xAI",
+      "creator_slug": "xai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "291a510a-dcc0-40df-8a80-b3aa31900a6c",
+      "fetch_date": "2025-12-13T12:12:49.864815"
+    },
+    {
+      "name": "OpenChat 3.5 (1210)",
+      "slug": "openchat-35",
+      "creator_name": "OpenChat",
+      "creator_slug": "openchat",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "ec60e57e-76d3-42e3-a0e3-80662225a639",
+      "fetch_date": "2025-12-13T12:12:49.864817"
+    },
+    {
+      "name": "Nova Pro",
+      "slug": "nova-pro",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.381,
+      "source": "artificial_analysis_api",
+      "aa_id": "546ec53f-273c-4af7-b13f-b88c41f45905",
+      "fetch_date": "2025-12-13T12:12:49.864820"
+    },
+    {
+      "name": "Nova Lite",
+      "slug": "nova-lite",
+      "creator_name": "Amazon",
+      "creator_slug": "aws",
+      "ifbench": 0.341,
+      "source": "artificial_analysis_api",
+      "aa_id": "5c3dd927-48a3-4f3c-8045-9b135f62dfbb",
+      "fetch_date": "2025-12-13T12:12:49.864822"
+    },
+    {
+      "name": "Phi-3 Medium Instruct 14B",
+      "slug": "phi-3-medium",
+      "creator_name": "Microsoft Azure",
+      "creator_slug": "azure",
+      "ifbench": 0.215,
+      "source": "artificial_analysis_api",
+      "aa_id": "865bca06-85ad-41e0-a657-7e64f2475bcf",
+      "fetch_date": "2025-12-13T12:12:49.864825"
+    },
+    {
+      "name": "Phi-3 Mini Instruct 3.8B",
+      "slug": "phi-3-mini",
+      "creator_name": "Microsoft Azure",
+      "creator_slug": "azure",
+      "ifbench": 0.239,
+      "source": "artificial_analysis_api",
+      "aa_id": "ded8d96e-835f-4359-947a-a4c3bb78e983",
+      "fetch_date": "2025-12-13T12:12:49.864828"
+    },
+    {
+      "name": "LFM 40B",
+      "slug": "lfm-40b",
+      "creator_name": "Liquid AI",
+      "creator_slug": "liquidai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "1299b9a8-af50-4742-a58b-24ff7eb48f9f",
+      "fetch_date": "2025-12-13T12:12:49.864830"
+    },
+    {
+      "name": "Solar Mini",
+      "slug": "solar-mini",
+      "creator_name": "Upstage",
+      "creator_slug": "upstage",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "d97713f2-afa6-4f8d-b2f3-ac89a24c4d6c",
+      "fetch_date": "2025-12-13T12:12:49.864833"
+    },
+    {
+      "name": "Solar Pro 2 (Preview) (Reasoning)",
+      "slug": "solar-pro-2-preview-reasoning",
+      "creator_name": "Upstage",
+      "creator_slug": "upstage",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "8e78cf7a-5b76-4beb-beba-b99c6233b208",
+      "fetch_date": "2025-12-13T12:12:49.864836"
+    },
+    {
+      "name": "Solar Pro 2 (Preview) (Non-reasoning)",
+      "slug": "solar-pro-2-preview",
+      "creator_name": "Upstage",
+      "creator_slug": "upstage",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "432d6c36-8825-47f3-b4eb-58529cea346b",
+      "fetch_date": "2025-12-13T12:12:49.864838"
+    },
+    {
+      "name": "DBRX Instruct",
+      "slug": "dbrx",
+      "creator_name": "Databricks",
+      "creator_slug": "databricks",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "1cb96708-f6c1-4668-9804-5db6ecac01ed",
+      "fetch_date": "2025-12-13T12:12:49.864842"
+    },
+    {
+      "name": "MiniMax M1 40k",
+      "slug": "minimax-m1-40k",
+      "creator_name": "MiniMax",
+      "creator_slug": "minimax",
+      "ifbench": 0.412,
+      "source": "artificial_analysis_api",
+      "aa_id": "385376b1-9815-47dd-83cc-85aac34f247d",
+      "fetch_date": "2025-12-13T12:12:49.864845"
+    },
+    {
+      "name": "MiniMax M1 80k",
+      "slug": "minimax-m1-80k",
+      "creator_name": "MiniMax",
+      "creator_slug": "minimax",
+      "ifbench": 0.418,
+      "source": "artificial_analysis_api",
+      "aa_id": "9ca246a7-cf13-42c9-9182-5b5ad6b79026",
+      "fetch_date": "2025-12-13T12:12:49.864847"
+    },
+    {
+      "name": "Kimi K2",
+      "slug": "kimi-k2",
+      "creator_name": "Kimi",
+      "creator_slug": "kimi",
+      "ifbench": 0.415,
+      "source": "artificial_analysis_api",
+      "aa_id": "441734a9-8901-4850-9bae-b474c370291f",
+      "fetch_date": "2025-12-13T12:12:49.864850"
+    },
+    {
+      "name": "Llama 3.1 Tulu3 405B",
+      "slug": "tulu3-405b",
+      "creator_name": "Allen Institute for AI",
+      "creator_slug": "ai2",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "f73f4711-9c61-40a7-a258-b71c14727f53",
+      "fetch_date": "2025-12-13T12:12:49.864853"
+    },
+    {
+      "name": "OLMo 2 32B",
+      "slug": "olmo-2-32b",
+      "creator_name": "Allen Institute for AI",
+      "creator_slug": "ai2",
+      "ifbench": 0.381,
+      "source": "artificial_analysis_api",
+      "aa_id": "54442579-2a4d-40cc-b264-bc4ff29e311a",
+      "fetch_date": "2025-12-13T12:12:49.864855"
+    },
+    {
+      "name": "OLMo 2 7B",
+      "slug": "olmo-2-7b",
+      "creator_name": "Allen Institute for AI",
+      "creator_slug": "ai2",
+      "ifbench": 0.244,
+      "source": "artificial_analysis_api",
+      "aa_id": "f818a7bb-6f23-4b24-8d52-6b9c1a5ca628",
+      "fetch_date": "2025-12-13T12:12:49.864858"
+    },
+    {
+      "name": "Granite 3.3 8B (Non-reasoning)",
+      "slug": "granite-3-3-8b-instruct",
+      "creator_name": "IBM",
+      "creator_slug": "ibm",
+      "ifbench": 0.224,
+      "source": "artificial_analysis_api",
+      "aa_id": "2cff73da-4855-403c-afc9-5540feadcc15",
+      "fetch_date": "2025-12-13T12:12:49.864860"
+    },
+    {
+      "name": "Reka Flash (Sep '24)",
+      "slug": "reka-flash",
+      "creator_name": "Reka AI",
+      "creator_slug": "reka-ai",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "a971b0c0-4c0f-484a-b018-e36b5be3409e",
+      "fetch_date": "2025-12-13T12:12:49.864863"
+    },
+    {
+      "name": "Hermes 3 - Llama-3.1 70B",
+      "slug": "hermes-3-llama-3-1-70b",
+      "creator_name": "Nous Research",
+      "creator_slug": "nous-research",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "1dcea4f7-7e8b-49f8-abe2-5860ff9f349e",
+      "fetch_date": "2025-12-13T12:12:49.864869"
+    },
+    {
+      "name": "GLM-4.5 (Reasoning)",
+      "slug": "glm-4.5",
+      "creator_name": "Z AI",
+      "creator_slug": "zai",
+      "ifbench": 0.441,
+      "source": "artificial_analysis_api",
+      "aa_id": "1cf439b8-0cfd-47b2-9de2-9a2157e6762b",
+      "fetch_date": "2025-12-13T12:12:49.864872"
+    },
+    {
+      "name": "Command-R+ (Apr '24)",
+      "slug": "command-r-plus-04-2024",
+      "creator_name": "Cohere",
+      "creator_slug": "cohere",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "76361085-f5dc-49ec-b069-fe56ca885933",
+      "fetch_date": "2025-12-13T12:12:49.864874"
+    },
+    {
+      "name": "Command-R (Mar '24)",
+      "slug": "command-r-03-2024",
+      "creator_name": "Cohere",
+      "creator_slug": "cohere",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "abe9f0c7-f4f6-430d-ba42-f45afdd4841b",
+      "fetch_date": "2025-12-13T12:12:49.864877"
+    },
+    {
+      "name": "Jamba 1.5 Large",
+      "slug": "jamba-1-5-large",
+      "creator_name": "AI21 Labs",
+      "creator_slug": "ai21-labs",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "b4ddb4c8-1400-44ab-8c2b-e2472088e7ff",
+      "fetch_date": "2025-12-13T12:12:49.864880"
+    },
+    {
+      "name": "Jamba 1.6 Large",
+      "slug": "jamba-1-6-large",
+      "creator_name": "AI21 Labs",
+      "creator_slug": "ai21-labs",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "92b19c88-fa87-4595-957e-fe9aa5fa5ad4",
+      "fetch_date": "2025-12-13T12:12:49.864882"
+    },
+    {
+      "name": "Jamba 1.6 Mini",
+      "slug": "jamba-1-6-mini",
+      "creator_name": "AI21 Labs",
+      "creator_slug": "ai21-labs",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "e8ffd75b-766f-4551-8c52-6e54706220eb",
+      "fetch_date": "2025-12-13T12:12:49.864885"
+    },
+    {
+      "name": "Jamba 1.5 Mini",
+      "slug": "jamba-1-5-mini",
+      "creator_name": "AI21 Labs",
+      "creator_slug": "ai21-labs",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "540ebc58-a2d8-4dc9-ba6b-973efa52fab1",
+      "fetch_date": "2025-12-13T12:12:49.864887"
+    },
+    {
+      "name": "Arctic Instruct",
+      "slug": "arctic-instruct",
+      "creator_name": "Snowflake",
+      "creator_slug": "snowflake",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "b3735511-c6ff-4928-8d72-2181444a4eb3",
+      "fetch_date": "2025-12-13T12:12:49.864890"
+    },
+    {
+      "name": "Qwen2.5 Max",
+      "slug": "qwen-2-5-max",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "b9dc72c6-7bea-4936-a55a-4b0c835fc755",
+      "fetch_date": "2025-12-13T12:12:49.864892"
+    },
+    {
+      "name": "Qwen2.5 Instruct 72B",
+      "slug": "qwen2-5-72b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.369,
+      "source": "artificial_analysis_api",
+      "aa_id": "b4f7d7a4-869a-4ee7-b17a-4046cd1e79fd",
+      "fetch_date": "2025-12-13T12:12:49.864895"
+    },
+    {
+      "name": "Qwen2.5 Coder Instruct 32B",
+      "slug": "qwen2-5-coder-32b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "04586102-6a28-48f8-a82e-85775d7ed779",
+      "fetch_date": "2025-12-13T12:12:49.864898"
+    },
+    {
+      "name": "Qwen2.5 Turbo",
+      "slug": "qwen-turbo",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "352f834f-a03c-4117-8a29-c3ccd8a568ce",
+      "fetch_date": "2025-12-13T12:12:49.864900"
+    },
+    {
+      "name": "Qwen2 Instruct 72B",
+      "slug": "qwen2-72b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "7656c62b-5345-435b-bf12-b6ce2ca0d58d",
+      "fetch_date": "2025-12-13T12:12:49.864903"
+    },
+    {
+      "name": "Qwen3 32B (Reasoning)",
+      "slug": "qwen3-32b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.363,
+      "source": "artificial_analysis_api",
+      "aa_id": "b00ecd62-a53f-4aed-b833-3e9d6b0170ba",
+      "fetch_date": "2025-12-13T12:12:49.864905"
+    },
+    {
+      "name": "Qwen3 235B A22B (Reasoning)",
+      "slug": "qwen3-235b-a22b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.387,
+      "source": "artificial_analysis_api",
+      "aa_id": "bbe6d782-e630-48d5-b11c-3ce37f373f1e",
+      "fetch_date": "2025-12-13T12:12:49.864908"
+    },
+    {
+      "name": "QwQ 32B",
+      "slug": "qwq-32b",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.388,
+      "source": "artificial_analysis_api",
+      "aa_id": "ceb4d610-d0a4-48c1-bea0-80ed76f1e5ca",
+      "fetch_date": "2025-12-13T12:12:49.864911"
+    },
+    {
+      "name": "Qwen3 30B A3B (Reasoning)",
+      "slug": "qwen3-30b-a3b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.415,
+      "source": "artificial_analysis_api",
+      "aa_id": "3e6cf518-a1f4-42d3-8fcf-827c9bd8e6d5",
+      "fetch_date": "2025-12-13T12:12:49.864913"
+    },
+    {
+      "name": "Qwen3 32B (Non-reasoning)",
+      "slug": "qwen3-32b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.315,
+      "source": "artificial_analysis_api",
+      "aa_id": "bf60740e-6aa5-422f-ba49-ef6e9d171205",
+      "fetch_date": "2025-12-13T12:12:49.864916"
+    },
+    {
+      "name": "Qwen Chat 72B",
+      "slug": "qwen-chat-72b",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "41f73c27-880c-4f30-8b07-9999ce89a4ae",
+      "fetch_date": "2025-12-13T12:12:49.864918"
+    },
+    {
+      "name": "Qwen3 235B A22B (Non-reasoning)",
+      "slug": "qwen3-235b-a22b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.366,
+      "source": "artificial_analysis_api",
+      "aa_id": "43573c57-2403-46fb-af4b-a93de9a0c3f5",
+      "fetch_date": "2025-12-13T12:12:49.864921"
+    },
+    {
+      "name": "Qwen3 14B (Reasoning)",
+      "slug": "qwen3-14b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.405,
+      "source": "artificial_analysis_api",
+      "aa_id": "4559e9f0-8aad-4681-89fb-68cb915e0f16",
+      "fetch_date": "2025-12-13T12:12:49.864924"
+    },
+    {
+      "name": "QwQ 32B-Preview",
+      "slug": "QwQ-32B-Preview",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "8823351e-8232-4c9c-8a1d-cd2c1d2c1196",
+      "fetch_date": "2025-12-13T12:12:49.864926"
+    },
+    {
+      "name": "Qwen3 1.7B (Non-reasoning)",
+      "slug": "qwen3-1.7b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.211,
+      "source": "artificial_analysis_api",
+      "aa_id": "2bb84433-f38e-4edc-9b65-4d7b1f473db9",
+      "fetch_date": "2025-12-13T12:12:49.864929"
+    },
+    {
+      "name": "Qwen3 8B (Non-reasoning)",
+      "slug": "qwen3-8b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.286,
+      "source": "artificial_analysis_api",
+      "aa_id": "b2dd592a-fbc5-458a-b26d-f3964cbab82f",
+      "fetch_date": "2025-12-13T12:12:49.864932"
+    },
+    {
+      "name": "Qwen3 4B (Reasoning)",
+      "slug": "qwen3-4b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.325,
+      "source": "artificial_analysis_api",
+      "aa_id": "191a2097-cce3-49cf-881e-0c790892059f",
+      "fetch_date": "2025-12-13T12:12:49.864934"
+    },
+    {
+      "name": "Qwen3 30B A3B (Non-reasoning)",
+      "slug": "qwen3-30b-a3b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.319,
+      "source": "artificial_analysis_api",
+      "aa_id": "f3169f25-8c6f-48e4-ae87-0cf872dc0ec1",
+      "fetch_date": "2025-12-13T12:12:49.864937"
+    },
+    {
+      "name": "Qwen3 1.7B (Reasoning)",
+      "slug": "qwen3-1.7b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.269,
+      "source": "artificial_analysis_api",
+      "aa_id": "5962d643-0a6f-4630-bb08-ab5720d80056",
+      "fetch_date": "2025-12-13T12:12:49.864939"
+    },
+    {
+      "name": "Qwen2.5 Instruct 32B",
+      "slug": "qwen2.5-32b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "1d0db5a3-3132-4213-a94b-c2e395d08283",
+      "fetch_date": "2025-12-13T12:12:49.864942"
+    },
+    {
+      "name": "Qwen3 0.6B (Non-reasoning)",
+      "slug": "qwen3-0.6b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.219,
+      "source": "artificial_analysis_api",
+      "aa_id": "0e5f6140-1154-4583-a3e0-8c032a338892",
+      "fetch_date": "2025-12-13T12:12:49.864945"
+    },
+    {
+      "name": "Qwen3 8B (Reasoning)",
+      "slug": "qwen3-8b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.335,
+      "source": "artificial_analysis_api",
+      "aa_id": "9dba61f5-78ee-4190-8d1d-8e7063ffd386",
+      "fetch_date": "2025-12-13T12:12:49.864947"
+    },
+    {
+      "name": "Qwen2.5 Coder Instruct 7B ",
+      "slug": "qwen2-5-coder-7b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "e410e854-104d-4b35-a171-899ff9d974bb",
+      "fetch_date": "2025-12-13T12:12:49.864950"
+    },
+    {
+      "name": "Qwen3 Max (Preview)",
+      "slug": "qwen3-max-preview",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.48,
+      "source": "artificial_analysis_api",
+      "aa_id": "5b2beb12-81a9-47a1-8a2a-d0a727185b50",
+      "fetch_date": "2025-12-13T12:12:49.864952"
+    },
+    {
+      "name": "Qwen3 14B (Non-reasoning)",
+      "slug": "qwen3-14b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.239,
+      "source": "artificial_analysis_api",
+      "aa_id": "ecc6524a-d521-458a-8327-5009e8ce6549",
+      "fetch_date": "2025-12-13T12:12:49.864955"
+    },
+    {
+      "name": "Qwen3 4B (Non-reasoning)",
+      "slug": "qwen3-4b-instruct",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "e46198a7-cd29-4afd-933d-cdf180f0f305",
+      "fetch_date": "2025-12-13T12:12:49.864958"
+    },
+    {
+      "name": "Qwen3 0.6B (Reasoning)",
+      "slug": "qwen3-0.6b-instruct-reasoning",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": 0.233,
+      "source": "artificial_analysis_api",
+      "aa_id": "4ae6c88d-9e4a-4850-89fe-18a1c04a66cc",
+      "fetch_date": "2025-12-13T12:12:49.864960"
+    },
+    {
+      "name": "Qwen1.5 Chat 110B",
+      "slug": "qwen1.5-110b-chat",
+      "creator_name": "Alibaba",
+      "creator_slug": "alibaba",
+      "ifbench": null,
+      "source": "artificial_analysis_api",
+      "aa_id": "d1768b3a-0a21-4e08-b3f6-56a9ab6cfbf3",
+      "fetch_date": "2025-12-13T12:12:49.864963"
+    }
+  ]
+}
