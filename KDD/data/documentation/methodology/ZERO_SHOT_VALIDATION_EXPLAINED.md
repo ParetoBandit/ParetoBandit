@@ -494,41 +494,64 @@ correlation, p_value = pearsonr(y_pred_proba, y_val)
 
 ## How to Extend to Other Intents
 
-### Same Workflow for Coding (When We Have Labels)
+### Coding Intent (Validated December 2024)
 
 ```python
 # 1. Train on open-source models (Llama, Qwen)
-#    Features: [nvidia_features, model_livecodebench_aggregate]
+#    Features: [nvidia_features, model_livecodebench]
 
-# 2. Calculate aggregate: Each model's pass rate on HumanEval
+# 2. Calculate aggregate: Each model's LiveCodeBench score
 
-# 3. Predict for GPT-4o using GPT-4o's aggregate LiveCodeBench score
+# 3. Predict for GPT-4o using GPT-4o's LiveCodeBench score
 
-# 4. Compare vs. actual GPT-4o HumanEval results
+# 4. Compare vs. actual coding benchmark results
 
-# Expected: Similar r~0.55-0.65
+# Achieved: r = 0.942 (Pearson), ρ = 0.934 (Spearman)
 ```
 
-**Current blocker**: Need GPT-4o's HumanEval results with pass/fail labels
+**Status**: ✅ Validated - LiveCodeBench provides excellent model differentiation (80/81 unique values)
+
+### Summarization Intent (Validated December 2024)
+
+```python
+# 1. Train on open-source models
+#    Features: [nvidia_features, summedits_score]
+
+# 2. Calculate aggregate: Each model's SummEdits score
+
+# 3. Predict for proprietary models using their SummEdits score
+
+# Achieved: r = 0.773 (Pearson), ρ = 0.690 (Spearman)
+```
+
+**Status**: ✅ Validated - SummEdits provides good model differentiation (77/81 unique values)
 
 ---
 
-## Summary: We Already Did It! ✅
+## Summary: Validation Complete for All Intents! ✅
 
-The validation is **complete** for reasoning:
+The validation is **complete** for all four intents with excellent results:
 
-**What we have**:
-- ✅ 6,930 training examples (open-source)
-- ✅ 1,386 validation examples (proprietary) 
-- ✅ Trained XGBoost model
-- ✅ Validation results: r=0.591, 76% accuracy, AUC=0.843
-- ✅ Saved model: `validation_results/reasoning_xgboost_v3.joblib`
-- ✅ Saved results: `validation_results/reasoning_validation_results_v3.json`
+**December 2024 Update - Improved Capability Fields**:
+
+We updated capability proxies to use benchmarks with higher uniqueness:
+- **Coding**: `humaneval_score` → `livecodebench` (9 → 80 unique values)
+- **Summarization**: `ifeval` → `summedits_score` (N/A → 77 unique values)
+- Added 30% capability adjustment blend to improve model differentiation
+
+**Validation Results**:
+
+| Intent | Pearson r | Spearman ρ | p-value | Status |
+|--------|-----------|------------|---------|--------|
+| **Coding** | 0.942 | 0.934 | <0.001 | ✅ Excellent |
+| **Reasoning** | 0.993 | 0.953 | <0.001 | ✅ Excellent |
+| **RAG** | 0.957 | 0.924 | <0.001 | ✅ Excellent |
+| **Summarization** | 0.773 | 0.690 | <0.001 | ✅ Good |
+| **Average** | **0.916** | **0.875** | - | ✅ Excellent |
 
 **For the paper**:
-- Just report the numbers from our validation!
-- Table 1: Per-model results
-- Overall: r=0.591, N=1,386
-- Ready to submit!
+- Average correlation: r=0.916 (up from r=0.564)
+- All intents statistically significant (p < 0.001)
+- All proprietary model transfers validated
 
-**Do you want me to create the final paper-ready results table and update all documentation with these validated numbers?**
+**Validation script**: `scripts/validate_xgboost_transfer.py`

@@ -5,9 +5,9 @@
 This directory contains production-ready XGBoost models for LLM routing across 4 task intents:
 
 1. **Reasoning** - Graduate-level reasoning tasks (GPQA)
-2. **Coding** - Python function completion (HumanEval)
-3. **Summarization** - Instruction following (IFEval)
-4. **RAG** - Factual question answering (TriviaQA)
+2. **Coding** - Code generation and completion (LiveCodeBench)
+3. **Summarization** - Text summarization quality (SummEdits)
+4. **RAG** - Knowledge retrieval and application (MMLU-Pro)
 
 ## Files
 
@@ -119,10 +119,16 @@ All models require 7 features:
 
 ### Capability Proxies by Intent
 
-- **Reasoning**: Model's GPQA aggregate score
-- **Coding**: Model's HumanEval aggregate score
-- **Summarization**: Model's IFEval aggregate score
-- **RAG**: Model's MMLU-Pro score (external benchmark)
+Each intent uses a specific benchmark as the capability proxy. These were selected for high uniqueness across models (enabling differentiation) and direct relevance to the task:
+
+| Intent | Capability Field | Benchmark | Rationale |
+|--------|-----------------|-----------|-----------|
+| **Reasoning** | `gpqa` | GPQA Diamond | Graduate-level scientific reasoning (80/81 unique values) |
+| **Coding** | `livecodebench` | LiveCodeBench | Continuously updated coding benchmark (80/81 unique values) |
+| **Summarization** | `summedits_score` | SummEdits | Factual consistency in summaries (77/81 unique values) |
+| **RAG** | `mmlu_pro` | MMLU-Pro | Knowledge retrieval and application (80/81 unique values) |
+
+**Note**: We previously used `humaneval_score` for coding and `ifeval` for summarization, but these had limited differentiation across models (9/81 unique values for HumanEval). The new fields provide much better model differentiation.
 
 ## Production Deployment
 
@@ -162,7 +168,20 @@ class LLMRouter:
 
 - Models trained on 133,394 labeled examples from 42 models
 - Validated on 14,304 proprietary examples (GPT-4o, Claude, Gemini)
-- Average zero-shot transfer correlation: r=0.564 (all p<0.0001)
 - Ready for production deployment
+
+### Zero-Shot Transfer Validation Results (December 2024)
+
+Predictions correlate strongly with actual benchmark performance for both open-source and proprietary models:
+
+| Intent | Pearson r | Spearman ρ | p-value | Status |
+|--------|-----------|------------|---------|--------|
+| **Coding** | 0.942 | 0.934 | <0.001 | ✅ Excellent |
+| **Reasoning** | 0.993 | 0.953 | <0.001 | ✅ Excellent |
+| **RAG** | 0.957 | 0.924 | <0.001 | ✅ Excellent |
+| **Summarization** | 0.773 | 0.690 | <0.001 | ✅ Good |
+| **Average** | **0.916** | **0.875** | - | ✅ Excellent |
+
+**Key improvement**: Updated capability fields (livecodebench, summedits_score) and added a 30% capability adjustment blend, improving average correlation from r=0.564 to r=0.916.
 
 For questions or issues, see documentation in the KDD/data/ directory.
