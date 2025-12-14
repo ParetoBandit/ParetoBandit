@@ -38,6 +38,10 @@ Since you are using Logistic Regression to predict success, you must explicitly 
 
 > "We constructed a Deterministic Evaluation Harness using open-source datasets (GPQA, LiveCodeBench, SummEdits, GAIA) to generate ground-truth binary labels ($y \in \{0,1\}$) for model performance. This allowed us to train our predictor $f(x)$ on objective correctness signals without the cost or variance of LLM-as-a-judge evaluation."
 
+**For the Methods Section (Handling Missing Data):**
+
+> "To address data sparsity in niche benchmarks (e.g., TerminalBench), we employed a Hierarchical Feature Imputation strategy. We utilized GPQA and LiveCodeBench (100% coverage on Artificial Analysis) as high-fidelity proxies for missing Agentic and Reasoning scores, ensuring our router provides valid predictions for the entire universe of 80+ models."
+
 ## Defensive Response for Reviewers
 
 ### If a reviewer complains that Natural Questions (NQ) is "old" (2019):
