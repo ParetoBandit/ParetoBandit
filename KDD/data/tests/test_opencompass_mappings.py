@@ -8,8 +8,9 @@ import sys
 import os
 import pytest
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add core_scripts directory to path
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(parent_dir, 'core_scripts'))
 
 from opencompass_name_mappings import OPENCOMPASS_TO_CACHE
 
