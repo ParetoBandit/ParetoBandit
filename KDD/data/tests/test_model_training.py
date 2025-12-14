@@ -112,7 +112,8 @@ class TestProductionModels:
     
     def test_all_models_exist(self):
         """Test that all 4 production models exist."""
-        models_dir = Path(__file__).parent.parent / 'production_models'
+        # Models now in llm_jury/models/production/
+        models_dir = Path(__file__).parent.parent.parent.parent / 'llm_jury' / 'models' / 'production'
         
         expected_models = [
             'reasoning_xgboost_model.joblib',
@@ -127,7 +128,8 @@ class TestProductionModels:
     
     def test_model_cards_exist(self):
         """Test that model cards exist for all models."""
-        models_dir = Path(__file__).parent.parent / 'production_models'
+        # Models now in llm_jury/models/production/
+        models_dir = Path(__file__).parent.parent.parent.parent / 'llm_jury' / 'models' / 'production'
         
         expected_cards = [
             'reasoning_model_card.json',
@@ -142,7 +144,8 @@ class TestProductionModels:
     
     def test_model_cards_structure(self):
         """Test that model cards have expected structure."""
-        models_dir = Path(__file__).parent.parent / 'production_models'
+        # Models now in llm_jury/models/production/
+        models_dir = Path(__file__).parent.parent.parent.parent / 'llm_jury' / 'models' / 'production'
         card_path = models_dir / 'rag_model_card.json'
         
         with open(card_path) as f:
@@ -162,7 +165,8 @@ class TestProductionModels:
         """Test that a model can be loaded."""
         try:
             import joblib
-            models_dir = Path(__file__).parent.parent / 'production_models'
+            # Models now in llm_jury/models/production/
+            models_dir = Path(__file__).parent.parent.parent.parent / 'llm_jury' / 'models' / 'production'
             model_path = models_dir / 'rag_xgboost_model.joblib'
             
             model = joblib.load(model_path)

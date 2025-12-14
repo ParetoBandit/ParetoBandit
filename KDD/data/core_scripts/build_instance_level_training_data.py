@@ -73,12 +73,9 @@ def download_opencompass_predictions():
         
         # Load name mappings
         try:
-            import sys
-            mapping_path = Path(__file__).parent / "opencompass_name_mappings.py"
-            if mapping_path.exists():
-                sys.path.insert(0, str(Path(__file__).parent))
-                from opencompass_name_mappings import OPENCOMPASS_TO_CACHE
-                print(f"✓ Loaded {len(OPENCOMPASS_TO_CACHE)} model name mappings")
+            # Import from llm_jury library
+            from llm_jury.prediction.models import OPENCOMPASS_TO_CACHE
+            print(f"✓ Loaded {len(OPENCOMPASS_TO_CACHE)} model name mappings")
                 
                 # Filter to only models we can map to cache
                 mapped_files = [f for f in prediction_files 
@@ -148,12 +145,9 @@ def download_opencompass_benchmark(benchmark_name: str, intent_name: str):
         
         # Load name mappings
         try:
-            import sys
-            mapping_path = Path(__file__).parent / "opencompass_name_mappings.py"
-            if mapping_path.exists():
-                sys.path.insert(0, str(Path(__file__).parent))
-                from opencompass_name_mappings import OPENCOMPASS_TO_CACHE
-                print(f"✓ Loaded {len(OPENCOMPASS_TO_CACHE)} model name mappings")
+            # Import from llm_jury library
+            from llm_jury.prediction.models import OPENCOMPASS_TO_CACHE
+            print(f"✓ Loaded {len(OPENCOMPASS_TO_CACHE)} model name mappings")
                 
                 # Filter to only models we can map to cache
                 mapped_files = [f for f in prediction_files 
@@ -1347,7 +1341,7 @@ def main():
         print(f"Total training examples: {len(combined_df):,}")
         print(f"With NVIDIA features: {combined_df['nvidia_complexity_score'].notna().sum():,}")
         print(f"\nReady for training! Run:")
-        print(f"  python3 KDD/data/train_logistic_regression_with_nvidia.py")
+        print(f"  python3 KDD/data/core_scripts/train_final_xgboost_models.py")
         
     else:
         print("\n" + "="*80)

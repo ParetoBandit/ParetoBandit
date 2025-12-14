@@ -17,9 +17,8 @@ from scipy.stats import pearsonr
 import json
 import sys
 
-# Add parent directory to path to import mapping
-sys.path.insert(0, str(Path(__file__).parent))
-from opencompass_name_mappings import OPENCOMPASS_TO_CACHE
+# Import from llm_jury library
+from llm_jury.prediction.models import OPENCOMPASS_TO_CACHE
 
 # Proprietary models
 PROPRIETARY_MODELS = ['gpt-4o-mini-2024-07-18']

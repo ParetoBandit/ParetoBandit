@@ -8,11 +8,12 @@ import sys
 import os
 import pytest
 
-# Add core_scripts directory to path
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(parent_dir, 'core_scripts'))
+# Add repository root to path
+repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, repo_root)
 
-from opencompass_name_mappings import OPENCOMPASS_TO_CACHE
+# Import from llm_jury library
+from llm_jury.prediction.models import OPENCOMPASS_TO_CACHE
 
 
 class TestOpenCompassMappings:

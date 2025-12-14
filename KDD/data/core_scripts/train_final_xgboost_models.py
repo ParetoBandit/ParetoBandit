@@ -23,9 +23,8 @@ import json
 import joblib
 import sys
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
-from opencompass_name_mappings import OPENCOMPASS_TO_CACHE
+# Import from llm_jury library
+from llm_jury.prediction.models import OPENCOMPASS_TO_CACHE
 
 
 def load_data():
