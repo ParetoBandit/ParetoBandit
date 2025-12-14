@@ -40,9 +40,16 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 import numpy as np
 
+# IMPORTANT: Import torch at module level to avoid segfaults on Mac.
+# When torch is lazily imported inside a function that loads transformers models,
+# it can cause segmentation faults due to library initialization order issues.
+# See: https://github.com/pytorch/pytorch/issues/78490
+import torch
+import torch.nn as nn
+
 logger = logging.getLogger(__name__)
 
-# Lazy load to avoid import overhead
+# Lazy load to avoid import overhead at module import time
 _model = None
 _tokenizer = None
 
@@ -96,17 +103,29 @@ class NvidiaComplexityResult:
 
 
 def _load_model():
-    """Lazy load the NVIDIA model and tokenizer."""
+    """
+    Lazy load the NVIDIA model and tokenizer.
+    
+    Uses manual weight loading to avoid segfaults with PyTorchModelHubMixin.from_pretrained()
+    in newer versions of transformers/huggingface_hub. The issue is related to meta device
+    handling in _load_state_dict_into_meta_model.
+    """
     global _model, _tokenizer
     
     if _model is not None:
         return _model, _tokenizer
     
-    import torch
-    import torch.nn as nn
-    from huggingface_hub import PyTorchModelHubMixin
     from transformers import AutoConfig, AutoModel, AutoTokenizer
+    from huggingface_hub import hf_hub_download
+    from safetensors.torch import load_file
     
+    logger.info("Loading NVIDIA prompt-task-and-complexity-classifier...")
+    
+    # Load config and tokenizer
+    config = AutoConfig.from_pretrained("nvidia/prompt-task-and-complexity-classifier")
+    _tokenizer = AutoTokenizer.from_pretrained("nvidia/prompt-task-and-complexity-classifier")
+    
+    # Define model architecture (matching NVIDIA's original structure)
     class MeanPooling(nn.Module):
         def __init__(self):
             super(MeanPooling, self).__init__()
@@ -127,26 +146,25 @@ def _load_model():
             self.fc = nn.Linear(input_size, num_classes)
 
         def forward(self, x):
-            x = self.fc(x)
-            return x
+            return self.fc(x)
 
-    class CustomModel(nn.Module, PyTorchModelHubMixin):
+    class CustomModel(nn.Module):
         def __init__(self, target_sizes, task_type_map, weights_map, divisor_map):
             super(CustomModel, self).__init__()
 
             self.backbone = AutoModel.from_pretrained("microsoft/DeBERTa-v3-base")
-            self.target_sizes = target_sizes.values()
+            self.target_sizes = list(target_sizes.values())
             self.task_type_map = task_type_map
             self.weights_map = weights_map
             self.divisor_map = divisor_map
 
-            self.heads = [
-                MulticlassHead(self.backbone.config.hidden_size, sz)
-                for sz in self.target_sizes
-            ]
-
-            for i, head in enumerate(self.heads):
+            # Create heads and register them with add_module to match saved weight names
+            # (head_0, head_1, etc. instead of heads.0, heads.1)
+            self.heads = []
+            for i, sz in enumerate(self.target_sizes):
+                head = MulticlassHead(self.backbone.config.hidden_size, sz)
                 self.add_module(f"head_{i}", head)
+                self.heads.append(head)
 
             self.pool = MeanPooling()
 
@@ -243,17 +261,25 @@ def _load_model():
 
             return self.process_logits(logits)
     
-    # Load model
-    logger.info("Loading NVIDIA prompt-task-and-complexity-classifier...")
-    config = AutoConfig.from_pretrained("nvidia/prompt-task-and-complexity-classifier")
-    _tokenizer = AutoTokenizer.from_pretrained("nvidia/prompt-task-and-complexity-classifier")
+    # Create model instance
     _model = CustomModel(
         target_sizes=config.target_sizes,
         task_type_map=config.task_type_map,
         weights_map=config.weights_map,
         divisor_map=config.divisor_map,
-    ).from_pretrained("nvidia/prompt-task-and-complexity-classifier")
+    )
+    
+    # Download and load weights manually (avoids PyTorchModelHubMixin segfault)
+    weights_path = hf_hub_download(
+        repo_id="nvidia/prompt-task-and-complexity-classifier",
+        filename="model.safetensors"
+    )
+    state_dict = load_file(weights_path)
+    
+    # Load weights (strict=True since architecture should match exactly now)
+    _model.load_state_dict(state_dict, strict=True)
     _model.eval()
+    
     logger.info("NVIDIA classifier loaded successfully")
     
     return _model, _tokenizer

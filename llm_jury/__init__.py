@@ -5,6 +5,17 @@ A library for routing prompts to optimal LLM models based on task complexity,
 domain category, and cost-quality tradeoffs using multi-objective optimization.
 """
 
+# IMPORTANT: Import torch first to avoid segfaults on Mac.
+# The `datasets` library imports torch, and if torch is first imported during
+# nested module imports (like when llm_jury.data imports datasets), it can cause
+# segmentation faults during later PyTorch model operations. Importing torch
+# at the top level ensures it's initialized in a clean context.
+# See: https://github.com/pytorch/pytorch/issues/78490
+try:
+    import torch
+except ImportError:
+    pass  # torch is optional for some functionality
+
 __version__ = "0.1.0"
 
 # Default baseline model for optimization comparisons
