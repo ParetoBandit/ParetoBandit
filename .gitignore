@@ -88,6 +88,17 @@ blog/prev/
 *.sqlite
 *.zip
 
+# Large training/intermediate data files (keep only production models)
+KDD/data/archive/
+KDD/data/instance_level_training_data/
+KDD/data/intermediate_data/
+**/livecodebench_prompts.csv
+**/instance_level_training_data.json
+**/instance_level_training_data.csv
+
+# Large JSON data files (over 1MB)
+data/real_intent_prompts_labeled*.json
+
 # Backup files
 *.bak
 *_backup*
