@@ -1,20 +1,39 @@
 {
   "intent": "coding",
-  "capability_proxy": "model_aggregate",
-  "n_total_examples": 6560,
-  "n_train_examples": 5576,
-  "n_test_examples": 984,
-  "n_models": 40,
-  "train_success_rate": 0.811154949784792,
-  "test_success_rate": 0.8109756097560976,
-  "training_accuracy": 0.9635939741750359,
-  "training_auc": 0.9936402924463945,
-  "cv_auc_mean": 0.9766429965435448,
-  "cv_auc_std": 0.003505415977934596,
-  "test_accuracy": 0.9166666666666666,
-  "test_auc": 0.9692847710674536,
-  "test_correlation": 0.7974319481096687,
-  "test_p_value": 1.160168838184172e-217,
+  "capability_proxy": "livecodebench",
+  "benchmark_name": "LiveCodeBench",
+  "trained_at": "2025-12-14T03:30:25.361634",
+  "n_total": 4920,
+  "n_train": 4100,
+  "n_test": 820,
+  "train_success_rate": 0.958780487804878,
+  "test_success_rate": 0.9207317073170732,
+  "cv_auc_mean": 0.7669136331601407,
+  "cv_auc_std": 0.07393607661683392,
+  "cv_acc_mean": 0.9287804878048782,
+  "cv_acc_std": 0.0663378765170935,
+  "test_accuracy": 0.9073170731707317,
+  "test_auc": 0.5435659704533876,
+  "test_correlation": 0.004885320638389774,
+  "test_p_value": 0.8889114671469199,
+  "test_spearman": 0.040771345990859825,
+  "feature_importance": {
+    "nvidia_creativity": 0.0766139104962349,
+    "nvidia_reasoning": 0.07660634070634842,
+    "nvidia_constraint": 0.0867713913321495,
+    "nvidia_domain_knowledge": 0.114574134349823,
+    "nvidia_contextual_knowledge": 0.07705504447221756,
+    "nvidia_few_shots": 0.056865233927965164,
+    "model_capability": 0.5115140080451965
+  },
+  "xgboost_params": {
+    "max_depth": 6,
+    "learning_rate": 0.1,
+    "n_estimators": 100,
+    "random_state": 42,
+    "eval_metric": "logloss",
+    "tree_method": "hist"
+  },
   "feature_names": [
     "nvidia_creativity",
     "nvidia_reasoning",
@@ -23,20 +42,5 @@
     "nvidia_contextual_knowledge",
     "nvidia_few_shots",
     "model_capability"
-  ],
-  "feature_importance": {
-    "nvidia_creativity": 0.06813798099756241,
-    "nvidia_reasoning": 0.07194094359874725,
-    "nvidia_constraint": 0.07145346701145172,
-    "nvidia_domain_knowledge": 0.0725073292851448,
-    "nvidia_contextual_knowledge": 0.0631714016199112,
-    "nvidia_few_shots": 0.09488973021507263,
-    "model_capability": 0.5578992366790771
-  },
-  "xgboost_params": {
-    "max_depth": 6,
-    "learning_rate": 0.1,
-    "n_estimators": 100,
-    "random_state": 42
-  }
+  ]
 }

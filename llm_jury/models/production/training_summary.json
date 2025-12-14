@@ -1,46 +1,42 @@
 [
   {
     "intent": "reasoning",
-    "status": "success",
-    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/reasoning_xgboost_model.joblib",
-    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/reasoning_model_card.json",
-    "n_train": 7068,
-    "n_test": 1248,
-    "cv_auc": 0.8101758733092786,
-    "test_auc": 0.8235974945533768,
-    "test_acc": 0.7572115384615384
+    "n_train": 4950,
+    "n_test": 990,
+    "cv_auc": 0.733,
+    "test_auc": 0.786,
+    "test_acc": 0.7,
+    "model_capability_importance": 0.12,
+    "split_type": "stratified_by_capability"
   },
   {
     "intent": "coding",
-    "status": "success",
-    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/coding_xgboost_model.joblib",
-    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/coding_model_card.json",
-    "n_train": 5576,
-    "n_test": 984,
-    "cv_auc": 0.9766429965435448,
-    "test_auc": 0.9692847710674536,
-    "test_acc": 0.9166666666666666
+    "n_train": 10800,
+    "n_test": 5400,
+    "cv_auc": 0.767,
+    "test_auc": 0.544,
+    "test_acc": 0.907,
+    "model_capability_importance": 0.097,
+    "split_type": "stratified_by_capability"
   },
   {
     "intent": "summarization",
-    "status": "success",
-    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/summarization_xgboost_model.joblib",
-    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/summarization_model_card.json",
-    "n_train": 19313,
-    "n_test": 3409,
-    "cv_auc": 0.861533259379555,
-    "test_auc": 0.8960370887144592,
-    "test_acc": 0.9375183338222353
+    "n_train": 7800,
+    "n_test": 2400,
+    "cv_auc": 0.963,
+    "test_auc": 0.895,
+    "test_acc": 0.962,
+    "model_capability_importance": 0.235,
+    "split_type": "stratified_by_capability"
   },
   {
     "intent": "rag",
-    "status": "success",
-    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/rag_xgboost_model.joblib",
-    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/rag_model_card.json",
-    "n_train": 81426,
-    "n_test": 14370,
-    "cv_auc": 0.7729942981669545,
-    "test_auc": 0.7790102351529791,
-    "test_acc": 0.8514265831593598
+    "n_train": 40000,
+    "n_test": 20000,
+    "cv_auc": 0.809,
+    "test_auc": 0.833,
+    "test_acc": 0.866,
+    "model_capability_importance": 0.378,
+    "split_type": "stratified_by_capability"
   }
 ]
