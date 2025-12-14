@@ -1,0 +1,93 @@
+{
+  "intent": "summarization",
+  "overall": {
+    "n": 3787,
+    "accuracy": 0.9493002376551359,
+    "auc": 0.9393134553194091,
+    "correlation": 0.7438680918700411,
+    "p_value": 0.0,
+    "calibration_error": 0.0002620625785513253,
+    "quality": "\u2705 EXCELLENT"
+  },
+  "per_model": [
+    {
+      "model": "claude-3-5-sonnet-20241022",
+      "n": 541,
+      "accuracy": 0.9519408502772643,
+      "auc": 0.9207957957957958,
+      "correlation": 0.6906079916277831,
+      "p_value": 7.008145932941605e-78,
+      "actual_success": 0.9316081330868762,
+      "predicted_success": 0.9308423399925232
+    },
+    {
+      "model": "claude-3-7-sonnet-20250219",
+      "n": 541,
+      "accuracy": 0.9519408502772643,
+      "auc": 0.9291618708799834,
+      "correlation": 0.7326212970274563,
+      "p_value": 4.089626853414381e-92,
+      "actual_success": 0.9297597042513863,
+      "predicted_success": 0.9293220639228821
+    },
+    {
+      "model": "gemini-1.5-pro-latest",
+      "n": 541,
+      "accuracy": 0.955637707948244,
+      "auc": 0.9708350305498982,
+      "correlation": 0.7973812650624295,
+      "p_value": 2.567487943945298e-120,
+      "actual_success": 0.9075785582255084,
+      "predicted_success": 0.9076143503189087
+    },
+    {
+      "model": "gemini-2.0-flash-exp",
+      "n": 541,
+      "accuracy": 0.9353049907578558,
+      "auc": 0.8875550220088035,
+      "correlation": 0.660271462316554,
+      "p_value": 4.937868427065644e-69,
+      "actual_success": 0.9057301293900185,
+      "predicted_success": 0.9077414870262146
+    },
+    {
+      "model": "gpt-4o-mini-2024-07-18",
+      "n": 541,
+      "accuracy": 0.9482439926062847,
+      "auc": 0.9549360231624171,
+      "correlation": 0.7535761579777742,
+      "p_value": 2.8470227509765226e-100,
+      "actual_success": 0.9205175600739371,
+      "predicted_success": 0.921636700630188
+    },
+    {
+      "model": "gpt4o-20240806",
+      "n": 541,
+      "accuracy": 0.9482439926062847,
+      "auc": 0.9550536162445814,
+      "correlation": 0.8013633566184091,
+      "p_value": 2.204068395865219e-122,
+      "actual_success": 0.9001848428835489,
+      "predicted_success": 0.8968561291694641
+    },
+    {
+      "model": "gpt4o-20241120",
+      "n": 541,
+      "accuracy": 0.9537892791127541,
+      "auc": 0.9574036511156186,
+      "correlation": 0.7546328884911759,
+      "p_value": 1.0502886415604693e-100,
+      "actual_success": 0.911275415896488,
+      "predicted_success": 0.9108065366744995
+    }
+  ],
+  "feature_importance": {
+    "nvidia_creativity": 0.1633249968290329,
+    "nvidia_reasoning": 0.1748403012752533,
+    "nvidia_constraint": 0.16960670053958893,
+    "nvidia_domain_knowledge": 0.16619673371315002,
+    "nvidia_contextual_knowledge": 0.14578278362751007,
+    "nvidia_few_shots": 0.1208481416106224,
+    "model_aggregate": 0.05940033495426178
+  }
+}

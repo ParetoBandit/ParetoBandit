@@ -1237,7 +1237,8 @@
       "cae_method": "bayesian",
       "ifbench": 0.381,
       "aime_25": 0.547,
-      "lcr": 0.17
+      "lcr": 0.17,
+      "context_length": 131072
     },
     {
       "aa_id": "1cf439b8-0cfd-47b2-9de2-9a2157e6762b",
@@ -8721,7 +8722,8 @@
       "cae_method": "bayesian",
       "ifbench": 0.369,
       "aime_25": 0.14,
-      "lcr": 0.203
+      "lcr": 0.203,
+      "context_length": 131072
     },
     {
       "aa_id": "b5c1c91a-7474-4409-9a9c-9c2ac45d9eb6",
@@ -8856,7 +8858,8 @@
       "cae_method": "weighted_zscore_fallback",
       "cae_sd": 0.5,
       "ifbench": 0.31,
-      "aime_25": 0.147
+      "aime_25": 0.147,
+      "context_length": 128000
     },
     {
       "aa_id": "bbe6d782-e630-48d5-b11c-3ce37f373f1e",

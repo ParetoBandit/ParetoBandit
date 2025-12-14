@@ -1,0 +1,46 @@
+[
+  {
+    "intent": "reasoning",
+    "status": "success",
+    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/reasoning_xgboost_model.joblib",
+    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/reasoning_model_card.json",
+    "n_train": 7068,
+    "n_test": 1248,
+    "cv_auc": 0.8101758733092786,
+    "test_auc": 0.8235974945533768,
+    "test_acc": 0.7572115384615384
+  },
+  {
+    "intent": "coding",
+    "status": "success",
+    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/coding_xgboost_model.joblib",
+    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/coding_model_card.json",
+    "n_train": 5576,
+    "n_test": 984,
+    "cv_auc": 0.9766429965435448,
+    "test_auc": 0.9692847710674536,
+    "test_acc": 0.9166666666666666
+  },
+  {
+    "intent": "summarization",
+    "status": "success",
+    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/summarization_xgboost_model.joblib",
+    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/summarization_model_card.json",
+    "n_train": 19313,
+    "n_test": 3409,
+    "cv_auc": 0.861533259379555,
+    "test_auc": 0.8960370887144592,
+    "test_acc": 0.9375183338222353
+  },
+  {
+    "intent": "rag",
+    "status": "success",
+    "model_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/rag_xgboost_model.joblib",
+    "metadata_path": "/Users/annette/repostitories/llm_jury/KDD/data/production_models/rag_model_card.json",
+    "n_train": 81426,
+    "n_test": 14370,
+    "cv_auc": 0.7729942981669545,
+    "test_auc": 0.7790102351529791,
+    "test_acc": 0.8514265831593598
+  }
+]

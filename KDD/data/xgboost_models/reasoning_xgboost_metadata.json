@@ -1,0 +1,55 @@
+{
+  "timestamp": "2025-12-13T15:46:59.420371",
+  "model_type": "XGBClassifier",
+  "intent": "reasoning",
+  "n_features": 7,
+  "feature_names": [
+    "nvidia_creativity",
+    "nvidia_reasoning",
+    "nvidia_constraint",
+    "nvidia_domain_knowledge",
+    "nvidia_contextual_knowledge",
+    "nvidia_few_shots",
+    "model_hle"
+  ],
+  "best_hyperparameters": {
+    "colsample_bytree": 0.7,
+    "gamma": 0,
+    "learning_rate": 0.05,
+    "max_depth": 5,
+    "min_child_weight": 1,
+    "n_estimators": 300,
+    "subsample": 0.8
+  },
+  "metrics": {
+    "train_acc": 0.7651834034876729,
+    "test_acc": 0.7337740384615384,
+    "cv_acc_mean": 0.721287968230117,
+    "cv_acc_std": 0.014442471451205663,
+    "cv_auc_mean": 0.792594873442318,
+    "cv_auc_std": 0.013975306319856766,
+    "test_auc": 0.8013086357497667,
+    "precision": 0.7405329593267882,
+    "recall": 0.6717557251908397,
+    "f1_score": 0.704469646430954,
+    "confusion_matrix": [
+      [
+        693,
+        185
+      ],
+      [
+        258,
+        528
+      ]
+    ],
+    "feature_importance": {
+      "nvidia_creativity": 0.10966508090496063,
+      "nvidia_reasoning": 0.19247876107692719,
+      "nvidia_constraint": 0.1349080353975296,
+      "nvidia_domain_knowledge": 0.14717431366443634,
+      "nvidia_contextual_knowledge": 0.1541200578212738,
+      "nvidia_few_shots": 0.17307567596435547,
+      "model_hle": 0.08857809007167816
+    }
+  }
+}

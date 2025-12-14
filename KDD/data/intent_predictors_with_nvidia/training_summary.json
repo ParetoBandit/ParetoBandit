@@ -1,0 +1,53 @@
+{
+  "reasoning": {
+    "metrics": {
+      "train_accuracy": 0.5411906193625977,
+      "test_accuracy": 0.5090144230769231,
+      "cv_accuracy_mean": 0.5432990063438085,
+      "cv_accuracy_std": 0.01246241743784529,
+      "cv_auc_mean": 0.5486922977122575,
+      "cv_auc_std": 0.013045795749545492,
+      "test_auc": 0.5243592307291032,
+      "precision": 0.47756874095513746,
+      "recall": 0.4198473282442748,
+      "f1_score": 0.4468517264725796,
+      "confusion_matrix": {
+        "tn": 517,
+        "fp": 361,
+        "fn": 456,
+        "tp": 330
+      }
+    },
+    "num_features": 6,
+    "features": [
+      "nvidia_creativity",
+      "nvidia_reasoning",
+      "nvidia_constraint",
+      "nvidia_domain_knowledge",
+      "nvidia_contextual_knowledge",
+      "nvidia_few_shots"
+    ],
+    "top_coefficients": [
+      {
+        "feature": "nvidia_few_shots",
+        "coefficient": 0.15326701673469068
+      },
+      {
+        "feature": "nvidia_reasoning",
+        "coefficient": -0.10880927162081877
+      },
+      {
+        "feature": "nvidia_contextual_knowledge",
+        "coefficient": -0.06881211704007115
+      },
+      {
+        "feature": "nvidia_constraint",
+        "coefficient": -0.0641378396587568
+      },
+      {
+        "feature": "nvidia_creativity",
+        "coefficient": 0.062343600236256576
+      }
+    ]
+  }
+}

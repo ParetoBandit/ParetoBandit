@@ -1,0 +1,33 @@
+{
+  "intent": "rag",
+  "overall": {
+    "n": 7983,
+    "accuracy": 0.8799949893523737,
+    "auc": 0.8064646884042367,
+    "correlation": 0.43131597740411165,
+    "p_value": 0.0,
+    "calibration_error": 0.006483273175848958,
+    "quality": "\u26a0\ufe0f  MODERATE"
+  },
+  "per_model": [
+    {
+      "model": "gpt-4o-mini-2024-07-18",
+      "n": 7983,
+      "accuracy": 0.8799949893523737,
+      "auc": 0.8064646884042367,
+      "correlation": 0.43131597740411165,
+      "p_value": 0.0,
+      "actual_success": 0.8776149317299261,
+      "predicted_success": 0.8711316585540771
+    }
+  ],
+  "feature_importance": {
+    "nvidia_creativity": 0.09234153479337692,
+    "nvidia_reasoning": 0.09245675057172775,
+    "nvidia_constraint": 0.08784151077270508,
+    "nvidia_domain_knowledge": 0.0900917649269104,
+    "nvidia_contextual_knowledge": 0.09981174021959305,
+    "nvidia_few_shots": 0.1006489023566246,
+    "model_aggregate": 0.436807781457901
+  }
+}

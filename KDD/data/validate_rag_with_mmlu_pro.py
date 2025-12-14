@@ -45,17 +45,17 @@ def load_mmlu_pro_scores():
     return mmlu_pro_map
 
 
-def map_model_names(model_name, mmlu_pro_map):
+def map_model_names(model_name, score_map):
     """Map OpenCompass model names to cache names using the mapping file."""
     # First try the explicit mapping
     if model_name in OPENCOMPASS_TO_CACHE:
         cache_name = OPENCOMPASS_TO_CACHE[model_name]
-        if cache_name in mmlu_pro_map:
-            return mmlu_pro_map[cache_name]
+        if cache_name in score_map:
+            return score_map[cache_name]
     
     # Try direct match
-    if model_name in mmlu_pro_map:
-        return mmlu_pro_map[model_name]
+    if model_name in score_map:
+        return score_map[model_name]
     
     return None
 
@@ -111,7 +111,7 @@ def validate_rag_with_mmlu_pro():
         print("\n❌ No proprietary models with MMLU-Pro scores found!")
         return
     
-    # Prepare features (using MMLU-Pro instead of self-calculated aggregate)
+    # Prepare features (using MMLU-Pro only)
     feature_cols = [
         'nvidia_creativity',
         'nvidia_reasoning',
@@ -174,7 +174,7 @@ def validate_rag_with_mmlu_pro():
     
     # Feature importance
     importances = model.feature_importances_
-    mmlu_pro_importance = importances[-1]
+    mmlu_pro_importance = importances[-1]  # Last is mmlu_pro
     print(f"  MMLU-Pro importance: {mmlu_pro_importance:.1%}")
     
     if correlation > 0.431:
