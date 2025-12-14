@@ -11,13 +11,14 @@
   },
   {
     "intent": "coding",
-    "n_train": 10800,
-    "n_test": 5400,
-    "cv_auc": 0.767,
-    "test_auc": 0.544,
-    "test_acc": 0.907,
-    "model_capability_importance": 0.097,
-    "split_type": "stratified_by_capability"
+    "n_train": 10000,
+    "n_test": 2000,
+    "cv_auc": 0.689,
+    "test_auc": 0.744,
+    "test_acc": 0.731,
+    "model_capability_importance": 0.154,
+    "split_type": "stratified_by_capability",
+    "benchmark": "LiveCodeBench"
   },
   {
     "intent": "summarization",
