@@ -11,14 +11,15 @@
   },
   {
     "intent": "coding",
-    "n_train": 10000,
+    "n_train": 6400,
     "n_test": 2000,
-    "cv_auc": 0.689,
-    "test_auc": 0.744,
-    "test_acc": 0.731,
-    "model_capability_importance": 0.154,
+    "cv_auc": 0.875,
+    "test_auc": 0.695,
+    "test_acc": 0.69,
+    "model_capability_importance": 0.313,
     "split_type": "stratified_by_capability",
-    "benchmark": "LiveCodeBench"
+    "benchmark": "LiveCodeBench (real evaluated)",
+    "data_source": "livecodebench.github.io/performances_generation.json"
   },
   {
     "intent": "summarization",
