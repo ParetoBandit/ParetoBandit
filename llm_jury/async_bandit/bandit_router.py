@@ -156,6 +156,118 @@ class OptimizationProfile:
         return ["quality_first", "balanced", "cost_saver", "low_latency"]
 
 
+# ---------------------------------------------------------------------------
+# Exploration Rate (User-Friendly Alpha Setting)
+# ---------------------------------------------------------------------------
+#
+# The exploration bonus is: Q_final = μ(x) + α·σ(x)
+#
+# Alpha (α) controls the RISK APPETITE of the router:
+#   - Higher α → More exploration (try unproven models to find better options)
+#   - Lower α → More exploitation (stick with known winners, minimize risk)
+#
+# Different product stages need different risk profiles:
+#   - Day 1 User: "Test everything! I want to learn which models work best."
+#   - Production Bank: "Never route to an unproven model. Zero risk."
+#
+# Reference Table:
+# ┌─────────────────┬───────┬────────────────────────────────────────────────────┐
+# │ Setting         │ Alpha │ Behavior                                           │
+# ├─────────────────┼───────┼────────────────────────────────────────────────────┤
+# │ static          │ 0.0   │ Pure exploitation. Trust mean only. (Bank Mode)    │
+# │ safe            │ 0.1   │ Minimal risk. Only explore if upside is huge.      │
+# │ balanced        │ 0.5   │ Standard bandit behavior. (Default)                │
+# │ aggressive      │ 2.0   │ Try everything! Fast learning. (Day 1 / Shadow)    │
+# └─────────────────┴───────┴────────────────────────────────────────────────────┘
+#
+# Think of it as: "How often should the router try unproven models to find
+# cheaper/better options?"
+
+
+class ExplorationRate:
+    """
+    Named presets for the exploration parameter.
+
+    Controls how often the router tries unproven models to find better options.
+    Higher values = more exploration (riskier but learns faster).
+
+    Usage:
+        # At router creation
+        router = BanditRouter.create(registry, exploration="safe")
+
+        # During routing (override default)
+        model, log = router.route("...", exploration="aggressive")
+
+        # Get the raw alpha value
+        alpha = ExplorationRate.get("safe")  # Returns 0.1
+
+    Presets:
+        static: Pure exploitation, zero risk (α=0.0) - for production/fintech
+        safe: Minimal exploration (α=0.1) - RECOMMENDED DEFAULT
+        balanced: Standard bandit (α=0.5) - reasonable exploration
+        aggressive: Maximum exploration (α=2.0) - for day-1/shadow mode
+    """
+
+    STATIC = 0.0       # Trust mean only. No gambling. (Bank Mode)
+    SAFE = 0.1         # Only gamble if upside is huge. (Production Default)
+    BALANCED = 0.5     # Standard Bandit behavior.
+    AGGRESSIVE = 2.0   # Try everything! (Calibration/Day 1 Mode)
+
+    _RATES = {
+        # Primary names
+        "static": STATIC,
+        "safe": SAFE,
+        "balanced": BALANCED,
+        "aggressive": AGGRESSIVE,
+        # Aliases
+        "none": STATIC,
+        "zero": STATIC,
+        "off": STATIC,
+        "production": SAFE,
+        "default": SAFE,
+        "low": SAFE,
+        "medium": BALANCED,
+        "normal": BALANCED,
+        "high": AGGRESSIVE,
+        "calibration": AGGRESSIVE,
+        "shadow": AGGRESSIVE,
+        "day1": AGGRESSIVE,
+        "day_1": AGGRESSIVE,
+        "learning": AGGRESSIVE,
+    }
+
+    @classmethod
+    def get(cls, name: str) -> float:
+        """
+        Get alpha value by name (case-insensitive).
+
+        Args:
+            name: Preset name ("safe", "aggressive") or a float string ("0.75")
+
+        Returns:
+            Alpha value as float
+
+        Examples:
+            ExplorationRate.get("safe")        # 0.1
+            ExplorationRate.get("aggressive")  # 2.0
+            ExplorationRate.get("0.75")        # 0.75
+        """
+        key = name.lower().replace("-", "_").replace(" ", "_")
+        if key in cls._RATES:
+            return cls._RATES[key]
+        # Allow direct float values like "0.75"
+        try:
+            return float(name)
+        except ValueError:
+            valid = ["static", "safe", "balanced", "aggressive"]
+            raise ValueError(f"Unknown exploration '{name}'. Valid: {valid} (or a float like '0.75')")
+
+    @classmethod
+    def list_rates(cls) -> List[str]:
+        """List all available rate names."""
+        return ["static", "safe", "balanced", "aggressive"]
+
+
 # For complexity-gated routing (no model-quality priors):
 # - We use a prompt complexity model to decide when to *gate* to a strong allowlist.
 # - This avoids the cold-start failure mode where cheap models are chosen for
@@ -712,7 +824,8 @@ class BanditRouter:
         model_registry: Dict[str, Dict[str, Any]],
         *,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        alpha: float = 0.5,
+        alpha: float = 0.1,  # Default to "safe" exploration
+        exploration: Optional[str] = None,  # User-friendly exploration rate
         state_path: Optional[Path] = None,
         normalizer_init: Optional[RunningZScoreNormalizer] = None,
         reward_mode: str = "z",
@@ -722,6 +835,11 @@ class BanditRouter:
         strong_domain_allowlist: Optional[List[str]] = None,
         embedding_dim: int = 384,
     ):
+        # Resolve exploration rate: user-friendly name takes precedence
+        if exploration is not None:
+            alpha = ExplorationRate.get(exploration)
+        self._default_exploration = float(alpha)
+
         self.registry = dict(model_registry)
         self.encoder = SentenceTransformer(context_model)
         self.bandit = DisjointLinUCBPolicy(list(self.registry.keys()), dim=embedding_dim, alpha=alpha)
@@ -942,6 +1060,7 @@ class BanditRouter:
         prompt: str,
         *,
         profile: Optional[str] = None,
+        exploration: Optional[str] = None,
         lambda_cost: Optional[float] = None,
         lambda_latency: Optional[float] = None,
         max_latency_s: Optional[float] = None,
@@ -976,6 +1095,12 @@ class BanditRouter:
                 - "cost_saver": Aggressive cost optimization
                 - "low_latency": Prioritize speed for real-time apps
                 If provided, overrides lambda_cost/lambda_latency unless explicitly set.
+            exploration: Controls how often the router tries unproven models.
+                - "static": Zero exploration, pure exploitation (fintech/production)
+                - "safe": Minimal exploration (DEFAULT, recommended)
+                - "balanced": Standard bandit behavior
+                - "aggressive": Maximum exploration (day-1/shadow mode)
+                Can also be a float like "0.75".
             lambda_cost: penalty per unit cost (user/business knob)
             lambda_latency: penalty per second (user/business knob)
             max_latency_s: optional hard constraint (filter models exceeding this)
@@ -991,11 +1116,14 @@ class BanditRouter:
             use_ucb_for_quality: if True use UCB as quality_hat, else use mean.
 
         Example:
-            # Using a named profile (recommended for most users)
-            model, log = router.route("Write code", profile="balanced")
+            # Using named presets (recommended)
+            model, log = router.route("Write code", profile="balanced", exploration="safe")
 
-            # Using explicit weights (for power users)
-            model, log = router.route("Write code", lambda_cost=25.0, lambda_latency=0.15)
+            # Day-1 calibration mode (aggressive learning)
+            model, log = router.route("Write code", exploration="aggressive")
+
+            # Production fintech (zero exploration)
+            model, log = router.route("Analyze risk", exploration="static")
         """
         # Resolve optimization profile
         if profile is not None:
@@ -1010,6 +1138,12 @@ class BanditRouter:
             lambda_cost = 0.0
         if lambda_latency is None:
             lambda_latency = 0.0
+
+        # Resolve exploration rate (alpha for UCB)
+        if exploration is not None:
+            alpha = ExplorationRate.get(exploration)
+        else:
+            alpha = self._default_exploration
 
         x = self.encoder.encode(prompt)
         x = l2_normalize(np.asarray(x, dtype=np.float64))
@@ -1067,7 +1201,7 @@ class BanditRouter:
             var = float(x.dot(self.bandit.A_inv[m]).dot(x))
             std = float(np.sqrt(max(var, 1e-12)))
             prior = float(self.model_priors.get(m, 0.0))
-            ucb = (mean + prior) + self.bandit.alpha * std
+            ucb = (mean + prior) + alpha * std  # alpha = exploration rate
             quality_hat = float(ucb if use_ucb_for_quality else (mean + prior))
 
             # Deterministic penalties (not learned)
@@ -1088,7 +1222,7 @@ class BanditRouter:
             var = float(x.dot(self.bandit.A_inv[best_model]).dot(x))
             std = float(np.sqrt(max(var, 1e-12)))
             prior = float(self.model_priors.get(best_model, 0.0))
-            ucb = (mean + prior) + self.bandit.alpha * std
+            ucb = (mean + prior) + alpha * std  # alpha = exploration rate
             best_quality = float(ucb if use_ucb_for_quality else (mean + prior))
             cost = float(self._estimate_cost_usd(best_model, input_tokens=in_tok, output_tokens=out_tok))
             latency = float(self._estimate_latency_s(best_model, output_tokens=out_tok))
@@ -1120,6 +1254,7 @@ class BanditRouter:
         *,
         top_k: int = 10,
         profile: Optional[str] = None,
+        exploration: Optional[str] = None,
         lambda_cost: Optional[float] = None,
         lambda_latency: Optional[float] = None,
         max_latency_s: Optional[float] = None,
@@ -1141,6 +1276,7 @@ class BanditRouter:
 
         Args:
             profile: Named optimization preset ("quality_first", "balanced", "cost_saver", "low_latency")
+            exploration: Exploration rate ("static", "safe", "balanced", "aggressive")
 
         Returns rows of:
           {model_id, utility, quality_hat, cost_usd, latency_s, display_name}
@@ -1157,6 +1293,12 @@ class BanditRouter:
             lambda_cost = 0.0
         if lambda_latency is None:
             lambda_latency = 0.0
+
+        # Resolve exploration rate
+        if exploration is not None:
+            alpha = ExplorationRate.get(exploration)
+        else:
+            alpha = self._default_exploration
 
         x = self.encoder.encode(prompt)
         x = l2_normalize(np.asarray(x, dtype=np.float64))
@@ -1193,7 +1335,7 @@ class BanditRouter:
             var = float(x.dot(self.bandit.A_inv[m]).dot(x))
             std = float(np.sqrt(max(var, 1e-12)))
             prior = float(self.model_priors.get(m, 0.0))
-            ucb = (mean + prior) + self.bandit.alpha * std
+            ucb = (mean + prior) + alpha * std  # alpha = exploration rate
             quality_hat = float(ucb if use_ucb_for_quality else (mean + prior))
 
             cost = float(self._estimate_cost_usd(m, input_tokens=in_tok, output_tokens=out_tok))
@@ -1431,7 +1573,8 @@ class BanditRouter:
         model_registry: Dict[str, Dict[str, Any]],
         *,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        alpha: float = 0.5,
+        exploration: str = "safe",
+        alpha: Optional[float] = None,
         reward_mode: str = "logit",
         priors: str = "auto",
         user_priors_path: Optional[Path] = None,
@@ -1443,7 +1586,13 @@ class BanditRouter:
         Args:
             model_registry: Dict of model_id -> metadata
             context_model: Sentence transformer model for embeddings
-            alpha: UCB exploration parameter
+            exploration: How often to try unproven models (controls risk appetite):
+                - "static": Zero exploration, pure exploitation (fintech/production)
+                - "safe": Minimal exploration (DEFAULT, recommended for production)
+                - "balanced": Standard bandit behavior
+                - "aggressive": Maximum exploration (day-1/shadow mode)
+                Can also be a float like "0.75".
+            alpha: Raw UCB parameter (overrides exploration if set)
             reward_mode: "logit" or "z"
             priors: Loading strategy:
                 - "auto": Try user, then bundled, then cold start
@@ -1462,18 +1611,23 @@ class BanditRouter:
             - USER:    ~/.llm_jury/priors/user_priors.npz (user additions)
 
         Example:
-            # Merged mode: bundled + user additions (recommended for most users)
-            router = BanditRouter.create(registry, priors="merged")
+            # Production mode (safe exploration, merged priors)
+            router = BanditRouter.create(registry, exploration="safe", priors="merged")
 
-            # Auto mode: user takes precedence if exists, else bundled
-            router = BanditRouter.create(registry, priors="auto")
+            # Day-1 calibration mode (aggressive learning)
+            router = BanditRouter.create(registry, exploration="aggressive")
 
-            # Force bundled priors only (ignore user customizations)
-            router = BanditRouter.create(registry, priors="bundled")
+            # Fintech mode (zero exploration, only exploit known winners)
+            router = BanditRouter.create(registry, exploration="static")
 
             # Cold start (for testing)
             router = BanditRouter.create(registry, priors="none")
         """
+        # Resolve exploration -> alpha
+        if alpha is not None:
+            resolved_alpha = float(alpha)
+        else:
+            resolved_alpha = ExplorationRate.get(exploration)
         # Resolve paths
         user_path = user_priors_path or (Path.home() / ".llm_jury" / "priors" / "user_priors.npz")
         bundled_path = bundled_priors_path or (Path(__file__).parent.parent.parent / "data" / "priors" / "shippable_priors.npz")
@@ -1483,7 +1637,7 @@ class BanditRouter:
             return cls._create_merged(
                 model_registry=model_registry,
                 context_model=context_model,
-                alpha=alpha,
+                alpha=resolved_alpha,
                 reward_mode=reward_mode,
                 user_path=user_path,
                 bundled_path=bundled_path,
@@ -1514,7 +1668,7 @@ class BanditRouter:
                 priors_npz=priors_to_load,
                 model_registry=model_registry,
                 context_model=context_model,
-                alpha=alpha,
+                alpha=resolved_alpha,
                 reward_mode=reward_mode,
             )
             router._priors_source = priors_source
@@ -1525,7 +1679,7 @@ class BanditRouter:
         router = cls(
             model_registry=model_registry,
             context_model=context_model,
-            alpha=alpha,
+            alpha=resolved_alpha,
             reward_mode=reward_mode,
         )
         router._priors_source = "none"

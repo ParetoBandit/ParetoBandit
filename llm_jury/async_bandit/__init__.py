@@ -79,6 +79,7 @@ try:
     from llm_jury.async_bandit.bandit_router import (
         BanditRouter,
         DisjointLinUCBPolicy,
+        ExplorationRate,
         OptimizationProfile,
         RoutingLog,
         SharedCovarianceLinUCBPolicy,
@@ -89,6 +90,7 @@ try:
     __all__ += [
         "BanditRouter",
         "DisjointLinUCBPolicy",
+        "ExplorationRate",
         "OptimizationProfile",
         "SharedCovarianceLinUCBPolicy",
         "RoutingLog",

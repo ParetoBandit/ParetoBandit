@@ -96,6 +96,7 @@ def cmd_recommend(args: argparse.Namespace) -> int:
         args.prompt,
         top_k=args.top_k,
         profile=args.profile,
+        exploration=args.exploration,
         lambda_cost=args.lambda_cost,
         lambda_latency=args.lambda_latency,
         max_latency_s=max_latency,
@@ -148,6 +149,13 @@ def add_recommend_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         choices=["quality_first", "balanced", "cost_saver", "low_latency"],
         help="Optimization preset: quality_first, balanced, cost_saver, low_latency",
+    )
+    # Exploration rate (controls risk appetite)
+    parser.add_argument(
+        "--exploration",
+        type=str,
+        default=None,
+        help="Exploration rate: static (0), safe (0.1), balanced (0.5), aggressive (2.0)",
     )
     # Raw weights (power users)
     parser.add_argument("--lambda-cost", type=float, default=None, help="Cost penalty weight (overrides profile)")

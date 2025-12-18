@@ -287,6 +287,68 @@ Think of weights as **penalties**:
 
 - Quality is 0.0 to 1.0 (a score of 0.9 is an A-grade student)
 - **Cost Penalty**: If λ_cost = 20, for every $0.01 spent, penalize the score by 0.2
+
+## Exploration Rate
+
+The exploration rate (α) controls the router's **risk appetite** — how often it tries unproven models to discover better options.
+
+### Why Different Users Need Different Settings
+
+| User Type | Need | Setting |
+|-----------|------|---------|
+| **Day-1 User** | "Test all models to learn what works. I don't care about a few bad answers today." | `aggressive` |
+| **Production App** | "Reasonable exploration, but don't break things." | `safe` |
+| **Fintech/Bank** | "NEVER route to an unproven model. Zero risk." | `static` |
+
+If you hardcode α=2.0, the Bank User will uninstall your library.
+If you hardcode α=0.0, the Day-1 User's router will never learn.
+
+### Named Presets
+
+| Setting | Alpha | Behavior |
+|---------|-------|----------|
+| `static` | 0.0 | Pure exploitation. Trust mean only. (Bank Mode) |
+| `safe` | 0.1 | Minimal exploration. Only explore if upside is huge. (**DEFAULT**) |
+| `balanced` | 0.5 | Standard bandit behavior. |
+| `aggressive` | 2.0 | Try everything! Fast learning. (Day-1/Shadow Mode) |
+
+### Usage
+
+```python
+# At router creation
+router = BanditRouter.create(registry, exploration="safe")
+
+# Override per-request
+model, log = router.route("Analyze risk", exploration="static")
+
+# Day-1 calibration mode
+model, log = router.route("Test this", exploration="aggressive")
+```
+
+### CLI
+
+```bash
+# Safe exploration (production default)
+python -m llm_jury.async_bandit.cli recommend \
+    --prompt "Analyze risk" \
+    --exploration safe
+
+# Aggressive exploration (calibration)
+python -m llm_jury.async_bandit.cli recommend \
+    --prompt "Test this" \
+    --exploration aggressive
+```
+
+### Shadow Mode Tip
+
+If running in "shadow mode" (responses logged but not shown to users), automatically boost to `aggressive`:
+
+```python
+exploration = "aggressive" if shadow_mode else "safe"
+model, log = router.route(prompt, exploration=exploration)
+```
+
+Since no real user sees the answer, you should explore wildly to learn faster
 - **Latency Penalty**: If λ_latency = 0.2, for every second waited, penalize the score by 0.2
 
 ## Code References
