@@ -201,7 +201,75 @@ After the model responds, the **Grader** (TieredGrader) evaluates the quality:
                                     └─────────────────┘
 ```
 
-The bandit updates its parameters so future similar prompts will route better.
+### The Rank-One Update (Real-Time Learning)
+
+When feedback arrives, the library does **not** retrain a neural network (which would take hours). Instead, it performs a simple **Rank-One Update** that takes **microseconds**.
+
+Each model has two variables representing its "brain":
+
+| Variable | Shape | Purpose |
+|----------|-------|---------|
+| **A** (Confidence Matrix) | 384×384 | Where in vector space we have data |
+| **b** (Reward Vector) | 384×1 | How much reward we got in each direction |
+
+When feedback arrives with prompt vector `x` and reward `r`:
+
+```
+A_new = A_old + (x · x')    # Outer product
+b_new = b_old + (r · x)     # Scaled direction
+```
+
+**What this physically does:**
+
+- **A Update**: Adds the "shape" of the prompt to the matrix. This tells the router: *"I have now seen this type of request. I am no longer guessing."* (Uncertainty ↓)
+
+- **b Update**: Pushes the model's weight vector based on the reward:
+  - If reward is **+1.0**: Push θ *towards* this prompt type. *"Do more of this."*
+  - If reward is **-1.0**: Push θ *away* from this prompt type. *"Never do this again."*
+
+### Code Verification
+
+This is exactly what the code does:
+
+```python
+# From DisjointLinUCBPolicy.update()
+def update(self, model: str, x: np.ndarray, reward: float) -> None:
+    # 1. Update Confidence Matrix (A) - "I've seen this type of prompt"
+    self.A[model] += np.outer(x, x)   # A_new = A_old + x·x'
+    
+    # 2. Update Reward Vector (b) - "This worked well/poorly"
+    self.b[model] += reward * x       # b_new = b_old + r·x
+    
+    # 3. Periodically recompute inverse for speed
+    if self._updates[model] % self.recompute_inv_every == 0:
+        self.A_inv[model] = np.linalg.inv(self.A[model])
+```
+
+### Persistence: User State vs Bundled Priors
+
+The library **never overwrites** the read-only `shippable_priors.npz` that ships with the package.
+
+Instead, it creates a separate `user_priors.npz`:
+
+| File | Location | Writable | Purpose |
+|------|----------|----------|---------|
+| `shippable_priors.npz` | `<package>/data/priors/` | No | Library defaults (frozen) |
+| `user_priors.npz` | `~/.llm_jury/priors/` | Yes | User's learned updates |
+
+**On startup:** Load bundled priors, then overlay user state if it exists.
+**On shutdown:** Save current matrices to user state.
+
+This ensures users never lose their training, even when upgrading the library.
+
+### The Result: Next Request
+
+The very next time `route()` is called:
+
+1. It uses the **new A** and **new b**
+2. Because **b** was nudged towards the prompt direction, `θ·x` gives a higher score for similar prompts
+3. Because **A** was increased, uncertainty **σ** is lower (more confident)
+
+**Summary:** The update is simply adding numbers to a saved state file. It is efficient, instant, and permanent.
 
 ## Prior Generation
 

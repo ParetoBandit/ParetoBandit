@@ -1457,6 +1457,84 @@ class BanditRouter:
         self.logs = []
         return updated
 
+    def report_feedback(
+        self,
+        request_id: str,
+        reward: float,
+        *,
+        response_text: Optional[str] = None,
+    ) -> bool:
+        """
+        Report direct feedback (Human Truth or Hard Truth) for a routed request.
+
+        This is the simple API for:
+          - **Human feedback**: User clicks thumbs-up/down, regenerate button
+          - **Code execution**: Did the SQL execute? Did the Python parse?
+
+        The router learns immediately via a rank-one update (microseconds).
+
+        Args:
+            request_id: The request_id returned by route()
+            reward: The reward signal:
+                    - 1.0 = success (user accepted, code ran)
+                    - 0.0 = neutral (user edited, inconclusive)
+                    - -1.0 = failure (user rejected, syntax error)
+            response_text: Optional response text (for logging/debugging)
+
+        Returns:
+            True if the request was found and updated, False otherwise.
+
+        Example (Hard Truth - Code Execution):
+            ```python
+            model, log = router.route("Write SQL to get users")
+            sql = client.generate(model, ...)
+
+            try:
+                db.execute(sql)
+                router.report_feedback(log.request_id, reward=1.0)
+            except:
+                router.report_feedback(log.request_id, reward=0.0)
+            ```
+
+        Example (Human Truth - User Feedback):
+            ```python
+            model, log = router.route(prompt)
+            response = client.generate(model, prompt)
+
+            # User clicks "thumbs up"
+            router.report_feedback(log.request_id, reward=1.0)
+
+            # User clicks "regenerate"
+            router.report_feedback(log.request_id, reward=-0.5)
+            ```
+
+        Notes:
+            - This bypasses the grader entirely (no LLM-as-a-Judge call).
+            - The reward is used directly for the bandit update.
+            - For automatic grading, use process_feedback() instead.
+        """
+        # Find the log
+        target_log: Optional[RoutingLog] = None
+        for log in self.logs:
+            if log.request_id == request_id:
+                target_log = log
+                break
+
+        if target_log is None:
+            return False
+
+        # Normalize context vector and update bandit
+        x = l2_normalize(np.asarray(target_log.context_vector, dtype=np.float64))
+        self.bandit.update(target_log.selected_model, x, float(reward))
+
+        # Update log metadata
+        target_log.response_text = response_text
+        target_log.reward_raw = float(reward)
+
+        # Remove from pending logs
+        self.logs = [log for log in self.logs if log.request_id != request_id]
+        return True
+
     def save_state(self, path: Optional[Path] = None) -> None:
         p = Path(path) if path is not None else self.state_path
         if p is None:

@@ -100,9 +100,18 @@ def main() -> int:
     grader = TieredGrader(soft_grader=soft, teacher_verifier=teacher)
 
     # Token overrides to avoid empty responses for known models
+    # Gemini 3.0+ and reasoning models often need higher limits to generate responses
     overrides = {
+        # Gemini 3.0 models - require ~4000 tokens to generate responses
         "google/gemini-3-pro-preview": 4000,
+        # Gemini 2.5 models - also benefit from higher limits
+        "google/gemini-2.5-pro": 4000,
+        "google/gemini-2.5-pro-preview-06-05": 4000,
+        "google/gemini-2.5-flash-preview-09-2025": 4000,
+        "google/gemini-2.5-flash-lite": 2000,
+        # Reasoning models
         "deepseek/deepseek-r1-0528-qwen3-8b": 2000,
+        # Other frontier models
         "anthropic/claude-opus-4.5": 1200,
         "x-ai/grok-4": 1200,
         "openai/gpt-5.2": 1200,
