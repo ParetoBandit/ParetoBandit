@@ -95,6 +95,7 @@ def cmd_recommend(args: argparse.Namespace) -> int:
     rows = router.rank_prompt(
         args.prompt,
         top_k=args.top_k,
+        profile=args.profile,
         lambda_cost=args.lambda_cost,
         lambda_latency=args.lambda_latency,
         max_latency_s=max_latency,
@@ -140,8 +141,17 @@ def add_recommend_args(parser: argparse.ArgumentParser) -> None:
         default="merged",
         choices=["merged", "auto", "user", "bundled", "none"],
     )
-    parser.add_argument("--lambda-cost", type=float, default=50.0)
-    parser.add_argument("--lambda-latency", type=float, default=0.05)
+    # Optimization profile (user-friendly)
+    parser.add_argument(
+        "--profile",
+        type=str,
+        default=None,
+        choices=["quality_first", "balanced", "cost_saver", "low_latency"],
+        help="Optimization preset: quality_first, balanced, cost_saver, low_latency",
+    )
+    # Raw weights (power users)
+    parser.add_argument("--lambda-cost", type=float, default=None, help="Cost penalty weight (overrides profile)")
+    parser.add_argument("--lambda-latency", type=float, default=None, help="Latency penalty weight (overrides profile)")
     parser.add_argument("--max-latency-s", type=float, default=0.0)
     parser.add_argument("--reward-mode", type=str, default="logit", choices=["logit", "z"])
     parser.add_argument("--output-tokens", type=int, default=600)

@@ -13,6 +13,77 @@ The system operates in two paths:
 - **Hot Path** (Router): Millisecond-scale model selection
 - **Cold Path** (Grader): Asynchronous quality assessment for learning
 
+## Why "Bandit"?
+
+The name comes from the slang term for a slot machine: the **"One-Armed Bandit."**
+
+### The Casino Analogy
+
+Imagine you are in a casino with 80 slot machines (models). You have a limited budget (prompts). Your goal is to figure out which machine pays out the most money (Quality), but you have to pay every time you pull the handle.
+
+**The Problem**: Do you keep pulling the handle of the machine that paid you $5 yesterday (**Exploit**)? Or do you risk money on a machine you've never touched, hoping it pays $100 (**Explore**)?
+
+**The Context**: In our case, it's a "**Contextual Bandit**" because the "winning machine" changes based on the weather (the Prompt). GPT-4 might win for poetry, but Llama-3 might win for code.
+
+### Where is the Randomness?
+
+The utility formula `U = Q - C - L` looks like a deterministic equation. So where's the "gambling"?
+
+In sophisticated bandits like LinUCB, we don't use random dice rolls (like Epsilon-Greedy). Instead, we use **"Optimism in the Face of Uncertainty"**:
+
+```
+Q_final = μ(x) + α · σ(x)
+          ────   ─────────
+          Mean   Uncertainty Bonus
+```
+
+- **μ (Mean)**: "I think Llama-3's quality is 0.70."
+- **σ (Uncertainty)**: "But I haven't used Llama-3 much, so I might be wrong by ±0.40."
+- **α (Alpha)**: Your "Curiosity Setting" (e.g., 1.0)
+
+**Example calculation:**
+
+| Model | Mean (μ) | Uncertainty (σ) | α | Score |
+|-------|----------|-----------------|---|-------|
+| Llama-3 | 0.70 | 0.40 | 1.0 | 0.70 + 0.40 = **1.10** |
+| GPT-4 | 0.95 | 0.01 | 1.0 | 0.95 + 0.01 = **0.96** |
+
+**Result**: The router picks Llama-3 (1.10) over GPT-4 (0.96).
+
+- Is it random? **No**, it's calculated.
+- Does it look random? **Yes**. To a user, it looks like the router "randomly" picked a worse model.
+- Why did it do it? Because the math said: "The potential upside of Llama-3 being amazing is worth the risk."
+
+### Why LinUCB Over True Randomness
+
+Old-school bandits (Epsilon-Greedy) literally flip a coin: "10% of the time, pick a random model."
+
+**Problem**: This is dangerous. It might randomly route a "Medical Diagnosis" prompt to a tiny 1B model just for fun.
+
+**LinUCB is safer:**
+- It only explores when there is **statistical ambiguity**
+- It will **never** randomly pick a model it knows is bad (low mean, low uncertainty)
+- It only picks models it doesn't know enough about (high uncertainty)
+
+### Code Verification
+
+This is exactly what the code does:
+
+```python
+# From bandit_router.py
+theta = self.A_inv[m] @ self.b[m]      # θ = learned weights
+mean = float(theta.dot(x))              # μ = θ · x
+var = float(x.dot(self.A_inv[m]).dot(x))
+std = float(np.sqrt(max(var, 1e-12)))   # σ = √(x'A⁻¹x)
+ucb = mean + self.alpha * std           # Q = μ + α·σ
+```
+
+### Summary
+
+- **"Bandit"**: Because you are gambling on which model gives the best reward
+- **"Randomness"**: Replaced by **uncertainty**. The router "hallucinates" that unknown models are better than they are, forcing it to test them
+- **Safety**: Unlike coin-flip exploration, LinUCB never picks a model it *knows* is bad
+
 ## How Routing Works: Prompt → Prediction
 
 ### 1. The Mapper: Embedding Model
@@ -164,9 +235,59 @@ U_model = q̂_model - λ_cost·Cost - λ_latency·Latency
 
 where:
   q̂ = (θ·x + prior) + α·√(x'A⁻¹x)    # Quality estimate with exploration
-  λ_cost ≈ 50                          # Cost sensitivity
-  λ_latency ≈ 0.05                     # Latency sensitivity (per second)
+  λ_cost = cost penalty weight         # Quality per dollar
+  λ_latency = latency penalty weight   # Quality per second
 ```
+
+## Optimization Profiles
+
+The weights `λ_cost` and `λ_latency` act as **exchange rates** converting money and time into "quality points":
+
+- **λ_cost**: "How much quality am I willing to sacrifice to save $1.00?"
+- **λ_latency**: "How much quality am I willing to sacrifice to save 1 second?"
+
+### Named Presets
+
+Instead of tuning raw floats, use named profiles:
+
+| Profile | λ_cost | λ_latency | Behavior |
+|---------|--------|-----------|----------|
+| `quality_first` | 0.1 | 0.05 | Maximize quality, ignore cost |
+| `balanced` | 10.0 | 0.10 | Reasonable trade-off |
+| `cost_saver` | 50.0 | 0.20 | Aggressive cost optimization |
+| `low_latency` | 1.0 | 0.50 | Prioritize speed |
+
+### Usage
+
+```python
+# Using a named profile (recommended)
+model, log = router.route("Write code", profile="balanced")
+
+# Using explicit weights (power users)
+model, log = router.route("Write code", lambda_cost=25.0, lambda_latency=0.15)
+```
+
+### CLI
+
+```bash
+# Use a profile
+python -m llm_jury.async_bandit.cli recommend \
+    --prompt "Write a fibonacci function" \
+    --profile balanced
+
+# Override with explicit weights
+python -m llm_jury.async_bandit.cli recommend \
+    --prompt "Write a fibonacci function" \
+    --lambda-cost 25.0 --lambda-latency 0.15
+```
+
+### The "Penalty" Analogy
+
+Think of weights as **penalties**:
+
+- Quality is 0.0 to 1.0 (a score of 0.9 is an A-grade student)
+- **Cost Penalty**: If λ_cost = 20, for every $0.01 spent, penalize the score by 0.2
+- **Latency Penalty**: If λ_latency = 0.2, for every second waited, penalize the score by 0.2
 
 ## Code References
 
@@ -181,14 +302,29 @@ where:
 ## Quick Start
 
 ```python
-from llm_jury.async_bandit import BanditRouter, PriorManager
+from llm_jury.async_bandit import BanditRouter, OptimizationProfile
 
 # Create router with automatic prior detection
 router = BanditRouter.create(model_registry, priors="merged")
 
-# Get the best model for a prompt
-model_id, log = router.route("Write a recursive fibonacci function")
+# Route using a named profile (recommended)
+model_id, log = router.route("Write a fibonacci function", profile="balanced")
+
+# Route with explicit weights (power users)
+model_id, log = router.route(
+    "Write a fibonacci function",
+    lambda_cost=25.0,
+    lambda_latency=0.15,
+)
 
 # Get top-k recommendations
-recommendations = router.rank_prompt("Explain quantum computing", top_k=5)
+recommendations = router.rank_prompt(
+    "Explain quantum computing",
+    top_k=5,
+    profile="quality_first",
+)
+
+# List available profiles
+print(OptimizationProfile.list_profiles())
+# ['quality_first', 'balanced', 'cost_saver', 'low_latency']
 ```

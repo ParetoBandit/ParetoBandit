@@ -84,6 +84,78 @@ from llm_jury.async_bandit.quality_cost_predictor import (
 
 DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # fast 384-dim
 
+
+# ---------------------------------------------------------------------------
+# Optimization Profiles (User-Friendly Presets)
+# ---------------------------------------------------------------------------
+#
+# The utility function is: U = Q - (w_cost * C) - (w_latency * L)
+#
+# Weights act as "exchange rates" converting money/time into quality points:
+#   - w_cost: Quality per dollar (ΔQ/$) - "How much quality to sacrifice to save $1?"
+#   - w_latency: Quality per second (ΔQ/s) - "How much quality to sacrifice to save 1s?"
+#
+# Reference Table:
+# ┌─────────────────┬──────────┬────────────┬─────────────────────────────────────────┐
+# │ Profile         │ w_cost   │ w_latency  │ Behavior                                │
+# ├─────────────────┼──────────┼────────────┼─────────────────────────────────────────┤
+# │ quality_first   │ 0.1      │ 0.05       │ Ignore price, maximize quality          │
+# │ balanced        │ 10.0     │ 0.10       │ Trade 1% quality to save $0.001         │
+# │ cost_saver      │ 50.0     │ 0.20       │ Aggressive cost optimization            │
+# │ low_latency     │ 1.0      │ 0.50       │ Prioritize speed over cost              │
+# └─────────────────┴──────────┴────────────┴─────────────────────────────────────────┘
+#
+# Think of weights as PENALTIES:
+#   "For every $0.01 spent, penalize the model's score by w_cost * 0.01"
+#   "For every second waited, penalize the model's score by w_latency * 1.0"
+
+
+class OptimizationProfile:
+    """
+    Named presets for the utility function weights.
+
+    Instead of tuning raw floats, users can pick a profile:
+        router.route("Write code", profile="balanced")
+
+    Profiles:
+        quality_first: Maximize quality, ignore cost/latency
+        balanced: Reasonable trade-off (default for most apps)
+        cost_saver: Aggressive cost optimization
+        low_latency: Prioritize speed for real-time apps
+    """
+
+    QUALITY_FIRST = {"lambda_cost": 0.1, "lambda_latency": 0.05}
+    BALANCED = {"lambda_cost": 10.0, "lambda_latency": 0.10}
+    COST_SAVER = {"lambda_cost": 50.0, "lambda_latency": 0.20}
+    LOW_LATENCY = {"lambda_cost": 1.0, "lambda_latency": 0.50}
+
+    _PROFILES = {
+        "quality_first": QUALITY_FIRST,
+        "quality-first": QUALITY_FIRST,
+        "balanced": BALANCED,
+        "cost_saver": COST_SAVER,
+        "cost-saver": COST_SAVER,
+        "penny_pincher": COST_SAVER,
+        "low_latency": LOW_LATENCY,
+        "low-latency": LOW_LATENCY,
+        "realtime": LOW_LATENCY,
+    }
+
+    @classmethod
+    def get(cls, name: str) -> Dict[str, float]:
+        """Get profile by name (case-insensitive, supports hyphens/underscores)."""
+        key = name.lower().replace("-", "_")
+        if key not in cls._PROFILES:
+            valid = ", ".join(sorted(set(cls._PROFILES.keys())))
+            raise ValueError(f"Unknown profile '{name}'. Valid profiles: {valid}")
+        return cls._PROFILES[key]
+
+    @classmethod
+    def list_profiles(cls) -> List[str]:
+        """List all available profile names."""
+        return ["quality_first", "balanced", "cost_saver", "low_latency"]
+
+
 # For complexity-gated routing (no model-quality priors):
 # - We use a prompt complexity model to decide when to *gate* to a strong allowlist.
 # - This avoids the cold-start failure mode where cheap models are chosen for
@@ -869,8 +941,9 @@ class BanditRouter:
         self,
         prompt: str,
         *,
-        lambda_cost: float = 0.0,
-        lambda_latency: float = 0.0,
+        profile: Optional[str] = None,
+        lambda_cost: Optional[float] = None,
+        lambda_latency: Optional[float] = None,
         max_latency_s: Optional[float] = None,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
@@ -897,6 +970,12 @@ class BanditRouter:
         - Learning still uses the grader's reward (quality-only).
 
         Args:
+            profile: Named optimization preset. One of:
+                - "quality_first": Maximize quality, ignore cost/latency
+                - "balanced": Reasonable trade-off (default for most apps)
+                - "cost_saver": Aggressive cost optimization
+                - "low_latency": Prioritize speed for real-time apps
+                If provided, overrides lambda_cost/lambda_latency unless explicitly set.
             lambda_cost: penalty per unit cost (user/business knob)
             lambda_latency: penalty per second (user/business knob)
             max_latency_s: optional hard constraint (filter models exceeding this)
@@ -910,7 +989,28 @@ class BanditRouter:
             epsilon: epsilon-greedy exploration rate
             candidate_models: optional allowlist of models (e.g. compliance mask)
             use_ucb_for_quality: if True use UCB as quality_hat, else use mean.
+
+        Example:
+            # Using a named profile (recommended for most users)
+            model, log = router.route("Write code", profile="balanced")
+
+            # Using explicit weights (for power users)
+            model, log = router.route("Write code", lambda_cost=25.0, lambda_latency=0.15)
         """
+        # Resolve optimization profile
+        if profile is not None:
+            profile_weights = OptimizationProfile.get(profile)
+            if lambda_cost is None:
+                lambda_cost = profile_weights["lambda_cost"]
+            if lambda_latency is None:
+                lambda_latency = profile_weights["lambda_latency"]
+
+        # Default to 0.0 if still None (legacy behavior)
+        if lambda_cost is None:
+            lambda_cost = 0.0
+        if lambda_latency is None:
+            lambda_latency = 0.0
+
         x = self.encoder.encode(prompt)
         x = l2_normalize(np.asarray(x, dtype=np.float64))
 
@@ -1019,8 +1119,9 @@ class BanditRouter:
         prompt: str,
         *,
         top_k: int = 10,
-        lambda_cost: float = 0.0,
-        lambda_latency: float = 0.0,
+        profile: Optional[str] = None,
+        lambda_cost: Optional[float] = None,
+        lambda_latency: Optional[float] = None,
         max_latency_s: Optional[float] = None,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
@@ -1038,9 +1139,25 @@ class BanditRouter:
         """
         Debug/testing helper: return the top-k model recommendations with full breakdown.
 
+        Args:
+            profile: Named optimization preset ("quality_first", "balanced", "cost_saver", "low_latency")
+
         Returns rows of:
           {model_id, utility, quality_hat, cost_usd, latency_s, display_name}
         """
+        # Resolve optimization profile
+        if profile is not None:
+            profile_weights = OptimizationProfile.get(profile)
+            if lambda_cost is None:
+                lambda_cost = profile_weights["lambda_cost"]
+            if lambda_latency is None:
+                lambda_latency = profile_weights["lambda_latency"]
+
+        if lambda_cost is None:
+            lambda_cost = 0.0
+        if lambda_latency is None:
+            lambda_latency = 0.0
+
         x = self.encoder.encode(prompt)
         x = l2_normalize(np.asarray(x, dtype=np.float64))
 
