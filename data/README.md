@@ -4,8 +4,14 @@ This document describes the data sources, collection methods, and fields availab
 
 ## Data Files
 
+### Model Data
 - **`models_cache.json`** - Primary model cache with all collected data
 - **`models_complete_composite_indices.json`** - Filtered cache with only models that have complete benchmark data
+
+### Quality Prediction Model Data
+- **`logreg_calibrated_all_intents.json`** - Calibrated LogReg model results for all intents
+- **`livecodebench_features_with_task_type.json`** - Cached NVIDIA prompt features for LiveCodeBench problems
+- **`coding_logreg_interaction_model.json`** - Coding intent model metadata
 
 ## Data Sources
 

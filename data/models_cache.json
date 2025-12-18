@@ -121,7 +121,10 @@
       "crs_100": 18.1,
       "crs_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.59,
+      "bigcodebench_instruct": 0.461,
+      "humaneval_plus": 0.6890000000000001
     },
     {
       "aa_id": "076f2674-bc4b-4925-be59-50832eb8c090",
@@ -209,7 +212,7 @@
       "humaneval_source": "OpenAI o3-mini",
       "mbpp_score": 91.0,
       "mbpp_source": "OpenAI o3-mini",
-      "swebench_verified": 69.1,
+      "swebench_verified": 0.691,
       "swebench_score_type": "agent",
       "swebench_source": "OpenAI o3 announcement",
       "humaneval_source_url": "https://openai.com/index/deliberative-alignment/",
@@ -253,7 +256,8 @@
       "cae": -0.233,
       "cae_sd": 0.429,
       "cae_100": 27.0,
-      "cae_method": "bayesian"
+      "cae_method": "bayesian",
+      "humaneval_plus": 0.89
     },
     {
       "aa_id": "0a603978-03b9-4f47-a273-2f7fd969be85",
@@ -342,8 +346,8 @@
       "humaneval_source": "Anthropic Model Card",
       "mbpp_score": 88.7,
       "mbpp_source": "Anthropic Model Card",
-      "swebench_verified": 50.8,
-      "swebench_lite": 40.7,
+      "swebench_verified": 0.508,
+      "swebench_lite": 0.40700000000000003,
       "swebench_score_type": "agentless",
       "swebench_source": "Agentless paper (ACL 2025)",
       "humaneval_source_url": "https://www.anthropic.com/news/claude-3-5-sonnet",
@@ -387,7 +391,10 @@
       "cae": 0.84,
       "cae_100": 64.0,
       "cae_method": "weighted_zscore_fallback",
-      "cae_sd": 0.5
+      "cae_sd": 0.5,
+      "bigcodebench_complete": 0.575,
+      "bigcodebench_instruct": 0.446,
+      "humaneval_plus": 0.8170000000000001
     },
     {
       "aa_id": "0a7dda4d-cc9c-4a90-abc1-abb5772c901b",
@@ -482,8 +489,8 @@
       "humaneval_source": "DeepSeek V3 Paper",
       "mbpp_score": 88.5,
       "mbpp_source": "DeepSeek V3 Paper",
-      "swebench_verified": 42.0,
-      "swebench_lite": 34.8,
+      "swebench_verified": 0.42,
+      "swebench_lite": 0.348,
       "swebench_score_type": "agentless",
       "swebench_source": "DeepSeek V3 paper",
       "humaneval_source_url": "https://arxiv.org/abs/2412.19437",
@@ -540,7 +547,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.57,
       "aime_25": 0.897,
-      "lcr": 0.65
+      "lcr": 0.65,
+      "bigcodebench_complete": 0.622,
+      "bigcodebench_instruct": 0.5
     },
     {
       "aa_id": "0e34f05c-387e-4968-be15-ccec4a55d8c1",
@@ -640,7 +649,7 @@
       "humaneval_source": "DeepSeek R1 Paper",
       "mbpp_score": 90.0,
       "mbpp_source": "DeepSeek R1 Paper",
-      "swebench_verified": 49.2,
+      "swebench_verified": 0.49200000000000005,
       "swebench_score_type": "agentless",
       "swebench_source": "DeepSeek R1 paper",
       "humaneval_source_url": "https://arxiv.org/abs/2501.12948",
@@ -697,7 +706,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.39,
       "aime_25": 0.68,
-      "lcr": 0.523
+      "lcr": 0.523,
+      "bigcodebench_complete": 0.5489999999999999,
+      "bigcodebench_instruct": 0.439,
+      "humaneval_plus": 0.866
     },
     {
       "aa_id": "13358187-4584-479c-ab43-5bcdf8f297a4",
@@ -778,7 +790,7 @@
       "reasoning_score_sd": 0.199,
       "reasoning_score_hdi_2.5": 46.3,
       "reasoning_score_hdi_97.5": 68.86,
-      "swebench_verified": 62.3,
+      "swebench_verified": 0.623,
       "swebench_score_type": "agent",
       "swebench_source": "Official Anthropic announcement",
       "swebench_source_url": "https://www.anthropic.com/news/claude-3-7-sonnet",
@@ -829,7 +841,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.483,
       "aime_25": 0.563,
-      "lcr": 0.607
+      "lcr": 0.607,
+      "bigcodebench_complete": 0.575,
+      "bigcodebench_instruct": 0.446
     },
     {
       "aa_id": "16c5b637-8bce-4252-81f2-1b87a36a4e4c",
@@ -925,7 +939,7 @@
       "humaneval_source": "OpenAI o3-mini",
       "mbpp_score": 91.0,
       "mbpp_source": "OpenAI o3-mini",
-      "swebench_verified": 69.1,
+      "swebench_verified": 0.691,
       "swebench_score_type": "agent",
       "swebench_source": "OpenAI o3 announcement",
       "humaneval_source_url": "https://openai.com/index/deliberative-alignment/",
@@ -973,7 +987,8 @@
       "cae_method": "bayesian",
       "ifbench": 0.714,
       "aime_25": 0.883,
-      "lcr": 0.693
+      "lcr": 0.693,
+      "humaneval_plus": 0.89
     },
     {
       "aa_id": "198b717f-42c8-4ab7-a699-ae9373d669d3",
@@ -1060,8 +1075,8 @@
       "humaneval_source": "DeepSeek V3 Paper",
       "mbpp_score": 88.5,
       "mbpp_source": "DeepSeek V3 Paper",
-      "swebench_verified": 42.0,
-      "swebench_lite": 34.8,
+      "swebench_verified": 0.42,
+      "swebench_lite": 0.348,
       "swebench_score_type": "agentless",
       "swebench_source": "DeepSeek V3 paper",
       "humaneval_source_url": "https://arxiv.org/abs/2412.19437",
@@ -1118,7 +1133,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.415,
       "aime_25": 0.897,
-      "lcr": 0.533
+      "lcr": 0.533,
+      "bigcodebench_complete": 0.622,
+      "bigcodebench_instruct": 0.5
     },
     {
       "aa_id": "1a8ba535-df18-459b-ad40-3199191296d7",
@@ -1238,7 +1255,9 @@
       "ifbench": 0.381,
       "aime_25": 0.547,
       "lcr": 0.17,
-      "context_length": 131072
+      "context_length": 131072,
+      "bigcodebench_complete": 0.48200000000000004,
+      "bigcodebench_instruct": 0.387
     },
     {
       "aa_id": "1cf439b8-0cfd-47b2-9de2-9a2157e6762b",
@@ -1496,7 +1515,9 @@
       "css_100": 61.7,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.273,
+      "bigcodebench_instruct": 0.195
     },
     {
       "aa_id": "222fb320-6e55-4672-846a-b6d5a24a45f4",
@@ -1639,7 +1660,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.283,
       "aime_25": 0.127,
-      "lcr": 0.057
+      "lcr": 0.057,
+      "bigcodebench_complete": 0.406,
+      "bigcodebench_instruct": 0.34700000000000003
     },
     {
       "aa_id": "2443ac9e-a3db-423d-accb-8963f6fb0a53",
@@ -1787,7 +1810,8 @@
       "cae_method": "bayesian",
       "ifbench": 0.469,
       "aime_25": 0.58,
-      "lcr": 0.547
+      "lcr": 0.547,
+      "humaneval_plus": 0.805
     },
     {
       "aa_id": "2660d74f-ce79-48a8-8b53-6e668e2071a2",
@@ -1940,7 +1964,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.58,
       "aime_25": 0.913,
-      "lcr": 0.74
+      "lcr": 0.74,
+      "bigcodebench_complete": 0.574,
+      "bigcodebench_instruct": 0.455
     },
     {
       "aa_id": "27202e5f-c82d-4710-92e9-4317877d4883",
@@ -2091,7 +2117,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.487,
       "aime_25": 0.877,
-      "lcr": 0.66
+      "lcr": 0.66,
+      "bigcodebench_complete": 0.624,
+      "bigcodebench_instruct": 0.47,
+      "humaneval_plus": 0.7929999999999999
     },
     {
       "aa_id": "2bfdd17a-e027-4068-a54e-b0e90a6df118",
@@ -2246,7 +2275,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.318,
       "aime_25": 0.207,
-      "lcr": 0.057
+      "lcr": 0.057,
+      "bigcodebench_complete": 0.525,
+      "bigcodebench_instruct": 0.428
     },
     {
       "aa_id": "2e6400f5-85ca-4ebc-ba8f-c2811a631138",
@@ -2399,7 +2430,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.367,
       "aime_25": 0.183,
-      "lcr": 0.067
+      "lcr": 0.067,
+      "bigcodebench_complete": 0.406,
+      "bigcodebench_instruct": 0.34700000000000003
     },
     {
       "aa_id": "344c6718-c573-41d4-9556-10287a3fa1fc",
@@ -2742,8 +2775,8 @@
       "humaneval_source": "OpenAI GPT-4 Paper",
       "mbpp_score": 80.1,
       "mbpp_source": "OpenAI GPT-4 Paper",
-      "swebench_verified": 33.2,
-      "swebench_lite": 26.0,
+      "swebench_verified": 0.332,
+      "swebench_lite": 0.26,
       "swebench_score_type": "agentless",
       "swebench_source": "SWE-bench original paper",
       "humaneval_source_url": "https://arxiv.org/abs/2303.08774",
@@ -2800,7 +2833,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.43,
       "aime_25": 0.347,
-      "lcr": 0.61
+      "lcr": 0.61,
+      "bigcodebench_complete": 0.593,
+      "bigcodebench_instruct": 0.489,
+      "humaneval_plus": 0.872
     },
     {
       "aa_id": "3bc32f13-5afa-4e28-bce1-10e57376686b",
@@ -2949,7 +2985,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.365,
       "aime_25": 0.13,
-      "lcr": 0.18
+      "lcr": 0.18,
+      "bigcodebench_complete": 0.452,
+      "bigcodebench_instruct": 0.371
     },
     {
       "aa_id": "3edcb2ed-6981-4f88-a556-563f7f8f00aa",
@@ -3068,7 +3106,9 @@
       "css_100": 69.9,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.502,
+      "bigcodebench_instruct": 0.406
     },
     {
       "aa_id": "43da3718-3d6e-40dd-901a-05664179ff7f",
@@ -3219,7 +3259,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.335,
       "aime_25": 0.27,
-      "lcr": 0.173
+      "lcr": 0.173,
+      "bigcodebench_complete": 0.504,
+      "bigcodebench_instruct": 0.45299999999999996
     },
     {
       "aa_id": "441734a9-8901-4850-9bae-b474c370291f",
@@ -3491,7 +3533,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.405,
       "aime_25": 0.557,
-      "lcr": 0
+      "lcr": 0,
+      "bigcodebench_complete": 0.522,
+      "bigcodebench_instruct": 0.39799999999999996
     },
     {
       "aa_id": "45c87531-2d57-48e0-8012-202cd636189e",
@@ -3582,8 +3626,8 @@
       "humaneval_source": "Meta Llama 3.1 Paper",
       "mbpp_score": 84.8,
       "mbpp_source": "Meta Llama 3.1 Paper",
-      "swebench_verified": 29.0,
-      "swebench_lite": 23.4,
+      "swebench_verified": 0.29,
+      "swebench_lite": 0.23399999999999999,
       "swebench_score_type": "agentless",
       "swebench_source": "Community benchmarks",
       "humaneval_source_url": "https://arxiv.org/abs/2407.21783",
@@ -3630,7 +3674,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.39,
       "aime_25": 0.03,
-      "lcr": 0.243
+      "lcr": 0.243,
+      "bigcodebench_complete": 0.5479999999999999,
+      "bigcodebench_instruct": 0.461
     },
     {
       "aa_id": "466aecdb-3d96-4191-bc52-b3366db38851",
@@ -3721,8 +3767,8 @@
       "humaneval_source": "Meta Llama 3.1 Paper",
       "mbpp_score": 74.7,
       "mbpp_source": "Meta Llama 3.1 Paper",
-      "swebench_verified": 22.7,
-      "swebench_lite": 18.0,
+      "swebench_verified": 0.22699999999999998,
+      "swebench_lite": 0.18,
       "swebench_score_type": "agentless",
       "swebench_source": "Community benchmarks",
       "humaneval_source_url": "https://arxiv.org/abs/2407.21783",
@@ -3761,7 +3807,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.344,
       "aime_25": 0.04,
-      "lcr": 0.063
+      "lcr": 0.063,
+      "bigcodebench_complete": 0.5479999999999999,
+      "bigcodebench_instruct": 0.461,
+      "humaneval_plus": 0.72
     },
     {
       "aa_id": "4dc12a38-b18f-4c43-8e1b-678f8434b5b1",
@@ -4111,7 +4160,7 @@
       "humaneval_source": "OpenAI o1 System Card",
       "mbpp_score": 89.0,
       "mbpp_source": "OpenAI o1 System Card",
-      "swebench_verified": 48.9,
+      "swebench_verified": 0.489,
       "swebench_score_type": "agentless",
       "swebench_source": "Community benchmarks",
       "humaneval_source_url": "https://openai.com/index/openai-o1-system-card/",
@@ -4155,7 +4204,8 @@
       "cae": 0.461,
       "cae_sd": 0.415,
       "cae_100": 46.8,
-      "cae_method": "bayesian"
+      "cae_method": "bayesian",
+      "humaneval_plus": 0.89
     },
     {
       "aa_id": "5c3dd927-48a3-4f3c-8045-9b135f62dfbb",
@@ -4511,8 +4561,8 @@
       "humaneval_source": "Mistral Large",
       "mbpp_score": 78.0,
       "mbpp_source": "Mistral Large",
-      "swebench_verified": 24.6,
-      "swebench_lite": 19.2,
+      "swebench_verified": 0.24600000000000002,
+      "swebench_lite": 0.192,
       "swebench_score_type": "agentless",
       "swebench_source": "Community benchmarks",
       "humaneval_source_url": "https://mistral.ai/news/mistral-large/",
@@ -4556,7 +4606,10 @@
       "cae": -1.35,
       "cae_100": 27.5,
       "cae_method": "weighted_zscore_fallback",
-      "cae_sd": 0.5
+      "cae_sd": 0.5,
+      "bigcodebench_complete": 0.38299999999999995,
+      "bigcodebench_instruct": 0.3,
+      "humaneval_plus": 0.72
     },
     {
       "aa_id": "5ea94a4a-55ac-4ea1-8898-2b3971e94af6",
@@ -4701,7 +4754,8 @@
       "cae_method": "bayesian",
       "ifbench": 0.537,
       "aime_25": 0.927,
-      "lcr": 0.68
+      "lcr": 0.68,
+      "humaneval_plus": 0.805
     },
     {
       "aa_id": "5fb47ff6-a30e-4c2c-96f2-55e95a13390f",
@@ -4820,7 +4874,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.304,
       "aime_25": 0.017,
-      "lcr": 0.117
+      "lcr": 0.117,
+      "bigcodebench_complete": 0.405,
+      "bigcodebench_instruct": 0.32799999999999996
     },
     {
       "aa_id": "6000145b-0e3d-4fef-a55f-bcaac84803b2",
@@ -4916,7 +4972,7 @@
       "humaneval_source": "DeepSeek R1 Paper",
       "mbpp_score": 90.0,
       "mbpp_source": "DeepSeek R1 Paper",
-      "swebench_verified": 49.2,
+      "swebench_verified": 0.49200000000000005,
       "swebench_score_type": "agentless",
       "swebench_source": "DeepSeek R1 paper",
       "humaneval_source_url": "https://arxiv.org/abs/2501.12948",
@@ -4955,7 +5011,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.199,
       "aime_25": 0.637,
-      "lcr": 0.13
+      "lcr": 0.13,
+      "bigcodebench_complete": 0.249,
+      "bigcodebench_instruct": 0.175
     },
     {
       "aa_id": "66445f84-b2e3-4202-afdc-92ba0f0e5f36",
@@ -5203,7 +5261,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.268,
       "aime_25": 0.22,
-      "lcr": 0.117
+      "lcr": 0.117,
+      "bigcodebench_complete": 0.273,
+      "bigcodebench_instruct": 0.195
     },
     {
       "aa_id": "71e8d48c-1920-4f27-8ea9-1f10becc615a",
@@ -5328,7 +5388,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.262,
       "aime_25": 0.033,
-      "lcr": 0.02
+      "lcr": 0.02,
+      "bigcodebench_complete": 0.28300000000000003,
+      "bigcodebench_instruct": 0.23399999999999999
     },
     {
       "aa_id": "72c358fd-7d45-4d68-89aa-699743710924",
@@ -5416,8 +5478,8 @@
       "humaneval_source": "OpenAI GPT-4 Paper",
       "mbpp_score": 80.1,
       "mbpp_source": "OpenAI GPT-4 Paper",
-      "swebench_verified": 33.2,
-      "swebench_lite": 26.0,
+      "swebench_verified": 0.332,
+      "swebench_lite": 0.26,
       "swebench_score_type": "agentless",
       "swebench_source": "SWE-bench original paper",
       "humaneval_source_url": "https://arxiv.org/abs/2303.08774",
@@ -5464,7 +5526,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.32,
       "aime_25": 0.24,
-      "lcr": 0.17
+      "lcr": 0.17,
+      "bigcodebench_complete": 0.574,
+      "bigcodebench_instruct": 0.461
     },
     {
       "aa_id": "739684ba-0f63-4e2a-b4ee-30741c9e9320",
@@ -5589,7 +5653,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.286,
       "aime_25": 0.043,
-      "lcr": 0.157
+      "lcr": 0.157,
+      "bigcodebench_complete": 0.405,
+      "bigcodebench_instruct": 0.32799999999999996
     },
     {
       "aa_id": "75e1c197-f239-4361-a9d6-66dccfead236",
@@ -5688,8 +5754,8 @@
       "humaneval_source": "DeepSeek V3 Paper",
       "mbpp_score": 88.5,
       "mbpp_source": "DeepSeek V3 Paper",
-      "swebench_verified": 42.0,
-      "swebench_lite": 34.8,
+      "swebench_verified": 0.42,
+      "swebench_lite": 0.348,
       "swebench_score_type": "agentless",
       "swebench_source": "DeepSeek V3 paper",
       "humaneval_source_url": "https://arxiv.org/abs/2412.19437",
@@ -5746,7 +5812,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.41,
       "aime_25": 0.41,
-      "lcr": 0.41
+      "lcr": 0.41,
+      "bigcodebench_complete": 0.622,
+      "bigcodebench_instruct": 0.5,
+      "humaneval_plus": 0.866
     },
     {
       "aa_id": "76361085-f5dc-49ec-b069-fe56ca885933",
@@ -5861,7 +5930,10 @@
       "css_100": 89.5,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.419,
+      "bigcodebench_instruct": 0.33799999999999997,
+      "humaneval_plus": 0.5670000000000001
     },
     {
       "aa_id": "7829427f-f0e3-4f6d-a228-5fbf70dacc02",
@@ -5949,8 +6021,8 @@
       "humaneval_source": "Anthropic Model Card",
       "mbpp_score": 82.4,
       "mbpp_source": "Anthropic Model Card",
-      "swebench_verified": 22.0,
-      "swebench_lite": 18.3,
+      "swebench_verified": 0.22,
+      "swebench_lite": 0.183,
       "swebench_score_type": "agentless",
       "swebench_source": "Agentless paper",
       "humaneval_source_url": "https://www.anthropic.com/news/claude-3-family",
@@ -5994,7 +6066,10 @@
       "cae": -1.51,
       "cae_100": 24.9,
       "cae_method": "weighted_zscore_fallback",
-      "cae_sd": 0.5
+      "cae_sd": 0.5,
+      "bigcodebench_complete": 0.574,
+      "bigcodebench_instruct": 0.455,
+      "humaneval_plus": 0.774
     },
     {
       "aa_id": "7b269763-ecc0-41ef-aa29-47ef632ac065",
@@ -6083,7 +6158,7 @@
       "humaneval_source": "Google Gemini 2.0",
       "mbpp_score": 85.0,
       "mbpp_source": "Google Gemini 2.0",
-      "swebench_verified": 32.4,
+      "swebench_verified": 0.324,
       "swebench_score_type": "agentless",
       "swebench_source": "Community benchmarks",
       "humaneval_source_url": "https://blog.google/technology/google-deepmind/google-gemini-ai-update-december-2024/",
@@ -6127,7 +6202,9 @@
       "cae": -0.82,
       "cae_100": 36.3,
       "cae_method": "weighted_zscore_fallback",
-      "cae_sd": 0.5
+      "cae_sd": 0.5,
+      "bigcodebench_complete": 0.599,
+      "bigcodebench_instruct": 0.45899999999999996
     },
     {
       "aa_id": "80f7860a-7665-4658-9f05-15bccf5f832f",
@@ -6252,7 +6329,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.228,
       "aime_25": 0,
-      "lcr": 0.05
+      "lcr": 0.05,
+      "bigcodebench_complete": 0.113,
+      "bigcodebench_instruct": 0.08199999999999999
     },
     {
       "aa_id": "82879bb8-89fb-4adc-b519-315b8ef30b77",
@@ -6370,7 +6449,9 @@
       "css_100": 51.7,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.369,
+      "bigcodebench_instruct": 0.319
     },
     {
       "aa_id": "84b49308-6b93-47aa-a4f6-776ee1a1e8cd",
@@ -6462,7 +6543,7 @@
       "reasoning_score_sd": 0.213,
       "reasoning_score_hdi_2.5": 74.64,
       "reasoning_score_hdi_97.5": 99.24,
-      "swebench_verified": 68.1,
+      "swebench_verified": 0.6809999999999999,
       "swebench_score_type": "agent",
       "swebench_source": "OpenAI o4-mini announcement",
       "swebench_source_url": "https://openai.com/",
@@ -6513,7 +6594,8 @@
       "cae_method": "bayesian",
       "ifbench": 0.687,
       "aime_25": 0.907,
-      "lcr": 0.55
+      "lcr": 0.55,
+      "humaneval_plus": 0.89
     },
     {
       "aa_id": "8a4a5ead-7789-4389-8400-30e9d20370b7",
@@ -6597,7 +6679,7 @@
       "reasoning_score_sd": 0.205,
       "reasoning_score_hdi_2.5": 61.69,
       "reasoning_score_hdi_97.5": 84.87,
-      "swebench_verified": 72.5,
+      "swebench_verified": 0.725,
       "swebench_score_type": "agent",
       "swebench_source": "Anthropic Claude 4 announcement",
       "swebench_source_url": "https://www.anthropic.com/news/claude-4",
@@ -6650,7 +6732,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.537,
       "aime_25": 0.733,
-      "lcr": 0.337
+      "lcr": 0.337,
+      "bigcodebench_complete": 0.574,
+      "bigcodebench_instruct": 0.455
     },
     {
       "aa_id": "c1045dc0-4fd3-4adb-9548-18763e0d051f",
@@ -6743,8 +6827,8 @@
       "humaneval_source": "OpenAI GPT-4o System Card",
       "mbpp_score": 87.0,
       "mbpp_source": "OpenAI GPT-4o System Card",
-      "swebench_verified": 41.3,
-      "swebench_lite": 33.2,
+      "swebench_verified": 0.413,
+      "swebench_lite": 0.332,
       "swebench_score_type": "agentless",
       "swebench_source": "Agentless paper (ACL 2025)",
       "humaneval_source_url": "https://openai.com/index/gpt-4o-system-card/",
@@ -6801,7 +6885,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.343,
       "aime_25": 0.06,
-      "lcr": 0
+      "lcr": 0,
+      "bigcodebench_complete": 0.589,
+      "bigcodebench_instruct": 0.48,
+      "humaneval_plus": 0.872
     },
     {
       "aa_id": "90e078f2-051b-4c63-8919-76618971cb3f",
@@ -6954,7 +7041,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.573,
       "aime_25": 0.88,
-      "lcr": 0.657
+      "lcr": 0.657,
+      "bigcodebench_complete": 0.575,
+      "bigcodebench_instruct": 0.446
     },
     {
       "aa_id": "922c69c7-9037-43c6-8bcf-a1c555e7f3eb",
@@ -7101,7 +7190,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.43,
       "aime_25": 0.193,
-      "lcr": 0.46
+      "lcr": 0.46,
+      "bigcodebench_complete": 0.614,
+      "bigcodebench_instruct": 0.49700000000000005
     },
     {
       "aa_id": "9741f3c2-cbb1-4a3f-99ee-7bd7384d9038",
@@ -7238,7 +7329,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.291,
       "aime_25": 0.317,
-      "lcr": 0.24
+      "lcr": 0.24,
+      "bigcodebench_complete": 0.273,
+      "bigcodebench_instruct": 0.195
     },
     {
       "aa_id": "976cc8ad-7904-4056-83c5-960181f47d5f",
@@ -7339,8 +7432,8 @@
       "humaneval_source": "Meta Llama 3.3",
       "mbpp_score": 82.1,
       "mbpp_source": "Meta Llama 3.3",
-      "swebench_verified": 32.4,
-      "swebench_lite": 26.0,
+      "swebench_verified": 0.324,
+      "swebench_lite": 0.26,
       "swebench_score_type": "agentless",
       "swebench_source": "Community benchmarks",
       "humaneval_source_url": "https://ai.meta.com/blog/llama-3-3/",
@@ -7397,7 +7490,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.471,
       "aime_25": 0.077,
-      "lcr": 0.15
+      "lcr": 0.15,
+      "bigcodebench_complete": 0.575,
+      "bigcodebench_instruct": 0.469,
+      "humaneval_plus": 0.72
     },
     {
       "aa_id": "9ca71ac4-41c8-42c0-87dd-5704a9e5b94d",
@@ -7509,7 +7605,9 @@
       "css_100": 86.8,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.5479999999999999,
+      "bigcodebench_instruct": 0.461
     },
     {
       "aa_id": "9dba61f5-78ee-4190-8d1d-8e7063ffd386",
@@ -7640,7 +7738,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.335,
       "aime_25": 0.19,
-      "lcr": 0
+      "lcr": 0,
+      "bigcodebench_complete": 0.461,
+      "bigcodebench_instruct": 0.376
     },
     {
       "aa_id": "9f7c7566-a704-49a2-a383-cb3181da33a4",
@@ -7728,8 +7828,8 @@
       "humaneval_source": "OpenAI GPT-4 Paper",
       "mbpp_score": 80.1,
       "mbpp_source": "OpenAI GPT-4 Paper",
-      "swebench_verified": 33.2,
-      "swebench_lite": 26.0,
+      "swebench_verified": 0.332,
+      "swebench_lite": 0.26,
       "swebench_score_type": "agentless",
       "swebench_source": "SWE-bench original paper",
       "humaneval_source_url": "https://arxiv.org/abs/2303.08774",
@@ -7776,7 +7876,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.383,
       "aime_25": 0.463,
-      "lcr": 0.423
+      "lcr": 0.423,
+      "bigcodebench_complete": 0.593,
+      "bigcodebench_instruct": 0.489
     },
     {
       "aa_id": "a6340098-d7ae-462d-b372-0a0a67fc44b4",
@@ -7922,7 +8024,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.543,
       "aime_25": 0.837,
-      "lcr": 0.703
+      "lcr": 0.703,
+      "bigcodebench_complete": 0.59,
+      "bigcodebench_instruct": 0.461
     },
     {
       "aa_id": "a7564055-f8ba-4c4b-9e2d-060f61263645",
@@ -8006,7 +8110,7 @@
       "reasoning_score_sd": 0.201,
       "reasoning_score_hdi_2.5": 61.63,
       "reasoning_score_hdi_97.5": 84.64,
-      "swebench_verified": 72.7,
+      "swebench_verified": 0.727,
       "swebench_score_type": "agent",
       "swebench_source": "Anthropic Claude 4 announcement",
       "swebench_source_url": "https://www.anthropic.com/news/claude-4",
@@ -8067,7 +8171,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.547,
       "aime_25": 0.743,
-      "lcr": 0.647
+      "lcr": 0.647,
+      "bigcodebench_complete": 0.575,
+      "bigcodebench_instruct": 0.446
     },
     {
       "aa_id": "aa83359a-d804-4f0b-b5bf-dc637711c26f",
@@ -8185,7 +8291,9 @@
       "css_100": 82.3,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.545,
+      "bigcodebench_instruct": 0.436
     },
     {
       "aa_id": "abe9f0c7-f4f6-430d-ba42-f45afdd4841b",
@@ -8300,7 +8408,9 @@
       "css_100": 74.0,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.452,
+      "bigcodebench_instruct": 0.371
     },
     {
       "aa_id": "adf9a85e-abc3-4f28-937b-db6655cc5238",
@@ -8445,7 +8555,8 @@
       "cae_method": "bayesian",
       "ifbench": 0.395,
       "aime_25": 0.14,
-      "lcr": 0.258
+      "lcr": 0.258,
+      "bigcodebench_complete": 0.431
     },
     {
       "aa_id": "b00ecd62-a53f-4aed-b833-3e9d6b0170ba",
@@ -8596,7 +8707,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.363,
       "aime_25": 0.73,
-      "lcr": 0
+      "lcr": 0,
+      "bigcodebench_complete": 0.523,
+      "bigcodebench_instruct": 0.45
     },
     {
       "aa_id": "b4f7d7a4-869a-4ee7-b17a-4046cd1e79fd",
@@ -8723,7 +8836,10 @@
       "ifbench": 0.369,
       "aime_25": 0.14,
       "lcr": 0.203,
-      "context_length": 131072
+      "context_length": 131072,
+      "bigcodebench_complete": 0.5589999999999999,
+      "bigcodebench_instruct": 0.45799999999999996,
+      "humaneval_plus": 0.591
     },
     {
       "aa_id": "b5c1c91a-7474-4409-9a9c-9c2ac45d9eb6",
@@ -8811,8 +8927,8 @@
       "humaneval_source": "OpenAI GPT-4o System Card",
       "mbpp_score": 87.0,
       "mbpp_source": "OpenAI GPT-4o System Card",
-      "swebench_verified": 41.3,
-      "swebench_lite": 33.2,
+      "swebench_verified": 0.413,
+      "swebench_lite": 0.332,
       "swebench_score_type": "agentless",
       "swebench_source": "Agentless paper (ACL 2025)",
       "humaneval_source_url": "https://openai.com/index/gpt-4o-system-card/",
@@ -8859,7 +8975,10 @@
       "cae_sd": 0.5,
       "ifbench": 0.31,
       "aime_25": 0.147,
-      "context_length": 128000
+      "context_length": 128000,
+      "bigcodebench_complete": 0.574,
+      "bigcodebench_instruct": 0.461,
+      "humaneval_plus": 0.835
     },
     {
       "aa_id": "bbe6d782-e630-48d5-b11c-3ce37f373f1e",
@@ -8979,7 +9098,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.387,
       "aime_25": 0.82,
-      "lcr": 0
+      "lcr": 0,
+      "bigcodebench_complete": 0.5589999999999999,
+      "bigcodebench_instruct": 0.45799999999999996
     },
     {
       "aa_id": "bcca0e70-7e80-4c07-b1fa-b33bcfb19e51",
@@ -9068,7 +9189,7 @@
       "humaneval_source": "Google Gemini 2.0",
       "mbpp_score": 85.0,
       "mbpp_source": "Google Gemini 2.0",
-      "swebench_verified": 32.4,
+      "swebench_verified": 0.324,
       "swebench_score_type": "agentless",
       "swebench_source": "Community benchmarks",
       "humaneval_source_url": "https://blog.google/technology/google-deepmind/google-gemini-ai-update-december-2024/",
@@ -9115,7 +9236,10 @@
       "cae_method": "bayesian",
       "ifbench": 0.402,
       "aime_25": 0.217,
-      "lcr": 0.283
+      "lcr": 0.283,
+      "bigcodebench_complete": 0.599,
+      "bigcodebench_instruct": 0.45899999999999996,
+      "humaneval_plus": 0.7559999999999999
     },
     {
       "aa_id": "bddebfd3-0a8d-47f5-b722-bc4c2ca5a5dc",
@@ -9386,7 +9510,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.523,
       "aime_25": 0.783,
-      "lcr": 0.643
+      "lcr": 0.643,
+      "bigcodebench_complete": 0.599,
+      "bigcodebench_instruct": 0.45899999999999996
     },
     {
       "aa_id": "ca6c1412-f3c1-4391-9231-f83a702aa7af",
@@ -9505,7 +9631,10 @@
       "css_100": 90.3,
       "css_method": "bayesian",
       "tau2": null,
-      "terminalbench_hard": null
+      "terminalbench_hard": null,
+      "bigcodebench_complete": 0.502,
+      "bigcodebench_instruct": 0.406,
+      "humaneval_plus": 0.72
     },
     {
       "aa_id": "ceb4d610-d0a4-48c1-bea0-80ed76f1e5ca",
@@ -9635,7 +9764,10 @@
       "terminalbench_hard": null,
       "ifbench": 0.388,
       "aime_25": 0.29,
-      "lcr": 0.25
+      "lcr": 0.25,
+      "bigcodebench_complete": 0.544,
+      "bigcodebench_instruct": 0.446,
+      "humaneval_plus": 0.872
     },
     {
       "aa_id": "d1122eff-ee85-4fdc-8a9f-23bee6590667",
@@ -9771,7 +9903,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.704,
       "aime_25": 0.957,
-      "lcr": 0.707
+      "lcr": 0.707,
+      "bigcodebench_complete": 0.624,
+      "bigcodebench_instruct": 0.47
     },
     {
       "aa_id": "de0beaf0-c951-487a-8eb4-3dd12e74122c",
@@ -10014,7 +10148,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.264,
       "aime_25": 0.043,
-      "lcr": 0
+      "lcr": 0,
+      "bigcodebench_complete": 0.504,
+      "bigcodebench_instruct": 0.45299999999999996
     },
     {
       "aa_id": "eab1492c-b853-4852-aa71-06b0ec2481c1",
@@ -10273,7 +10409,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.235,
       "aime_25": 0.18,
-      "lcr": 0
+      "lcr": 0,
+      "bigcodebench_complete": 0.5539999999999999,
+      "bigcodebench_instruct": 0.455
     },
     {
       "aa_id": "f0083258-8646-45b8-8082-7aaf6c2ea82a",
@@ -10557,7 +10695,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.499,
       "aime_25": 0.533,
-      "lcr": 0.513
+      "lcr": 0.513,
+      "bigcodebench_complete": 0.599,
+      "bigcodebench_instruct": 0.45899999999999996
     },
     {
       "aa_id": "ff9bc5e5-a02f-4270-983e-4b3f834f3363",
@@ -10801,7 +10941,7 @@
       "humaneval_source": "DeepSeek R1 Paper",
       "mbpp_score": 90.0,
       "mbpp_source": "DeepSeek R1 Paper",
-      "swebench_verified": 49.2,
+      "swebench_verified": 0.49200000000000005,
       "swebench_score_type": "agentless",
       "swebench_source": "DeepSeek R1 paper",
       "humaneval_source_url": "https://arxiv.org/abs/2501.12948",
@@ -10840,7 +10980,9 @@
       "cae_method": "bayesian",
       "ifbench": 0.276,
       "aime_25": 0.537,
-      "lcr": 0.11
+      "lcr": 0.11,
+      "bigcodebench_complete": 0.499,
+      "bigcodebench_instruct": 0.353
     },
     {
       "aa_id": "df95f83f-5ebb-466a-9d2d-b95efc8c012c",
@@ -10930,7 +11072,7 @@
       "humaneval_source": "DeepSeek R1 Paper",
       "mbpp_score": 90.0,
       "mbpp_source": "DeepSeek R1 Paper",
-      "swebench_verified": 49.2,
+      "swebench_verified": 0.49200000000000005,
       "swebench_score_type": "agentless",
       "swebench_source": "DeepSeek R1 paper",
       "humaneval_source_url": "https://arxiv.org/abs/2501.12948",
@@ -10969,7 +11111,9 @@
       "cae_sd": 0.5,
       "ifbench": 0.229,
       "aime_25": 0.63,
-      "lcr": 0.097
+      "lcr": 0.097,
+      "bigcodebench_complete": 0.5489999999999999,
+      "bigcodebench_instruct": 0.439
     }
   ]
 }

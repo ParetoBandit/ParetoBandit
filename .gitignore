@@ -103,3 +103,21 @@ data/real_intent_prompts_labeled*.json
 *.bak
 *_backup*
 
+# NVIDIA feature cache (regeneratable)
+data/nvidia_features_cache/
+
+# Async bandit artifacts (large, deployment-specific)
+data/router_state*.json
+data/router_state*.npz
+
+# Large model files (download separately or use Git LFS)
+data/complexity_classifier_final/model.safetensors
+data/quality_predictor/*.pt
+data/quality_predictor/*.bin
+
+# Warmup logs (regeneratable)
+data/warmup/*.jsonl
+data/warmup/*.json
+
+# Dense run logs (in-progress, regeneratable)
+data/priors/archetype_grid_dense_run.jsonl
