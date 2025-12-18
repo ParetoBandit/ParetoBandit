@@ -30,14 +30,9 @@ except ImportError as e:  # pragma: no cover
     raise ImportError("Missing dependency: sentence-transformers") from e
 
 try:
-    from llm_jury.async_bandit.local_complexity_classifier import LocalComplexityClassifier
+    from llm_jury.async_bandit.complexity import LocalComplexityClassifier, NvidiaComplexityClassifier
 except Exception:  # pragma: no cover
     LocalComplexityClassifier = None  # type: ignore[assignment]
-
-try:
-    # Optional fallback: NVIDIA prompt task + complexity classifier (HF download on first use).
-    from llm_jury.async_bandit.nvidia_complexity_classifier import NvidiaComplexityClassifier
-except Exception:  # pragma: no cover
     NvidiaComplexityClassifier = None  # type: ignore[assignment]
 
 from llm_jury.async_bandit.quality_cost_predictor import (

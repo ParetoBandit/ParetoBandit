@@ -1,38 +1,67 @@
 """
-Lightweight async bandit-focused exports for llm_jury.
+LLM Jury: Async Bandit Router for LLM Model Selection.
 
-This package now centers on the async bandit entrypoints and their supporting
-grader utilities. Other legacy modules were removed to slim the codebase.
+This package provides a contextual bandit-based router for selecting the optimal
+LLM model for each prompt, balancing quality, cost, and latency.
+
+Core Components:
+    BanditRouter        - Main router with LinUCB policy
+    TieredGrader        - Tiered grading (soft + hard verifier)
+    QualityCostPredictor - Local quality prediction model
+    PriorManager        - Prior loading/saving/merging
+
+Quick Start:
+    from llm_jury import BanditRouter, PriorManager
+
+    router = BanditRouter.create(model_registry, priors="merged")
+    model, log = router.route("Write a Python function...")
 """
 
 __version__ = "0.1.0"
 
-from llm_jury.async_bandit.grader import (  # noqa: F401
-    QualityCostPredictor,
-    TieredGrader,
-    OpenRouterTeacherVerifier,
+# Core graders (always available)
+from llm_jury.async_bandit.quality_cost_predictor import QualityCostPredictor  # noqa: F401
+from llm_jury.async_bandit.tiered_grader import (  # noqa: F401
     HardPromptHeuristics,
+    OpenRouterTeacherVerifier,
+    TieredGrader,
     UnsafePythonSubprocessVerifier,
 )
-from llm_jury.async_bandit.demo import run_demo  # noqa: F401
 
-try:  # Optional: bandit routing extras
-    from llm_jury.async_bandit.bandit import (  # noqa: F401
+# Prior management
+from llm_jury.async_bandit.judge import PriorManager  # noqa: F401
+
+# Optional: Demo
+try:
+    from llm_jury.async_bandit.demo_quality_grader import run_demo  # noqa: F401
+except Exception:  # pragma: no cover
+    run_demo = None
+
+# Optional: Bandit router (requires sentence-transformers)
+try:
+    from llm_jury.async_bandit.bandit_router import (  # noqa: F401
         BanditRouter,
         DisjointLinUCBPolicy,
         RoutingLog,
     )
-except Exception:  # pragma: no cover
-    BanditRouter = DisjointLinUCBPolicy = RoutingLog = None
+except ImportError:  # pragma: no cover
+    BanditRouter = None
+    DisjointLinUCBPolicy = None
+    RoutingLog = None
 
 __all__ = [
     "__version__",
+    # Graders
     "QualityCostPredictor",
     "TieredGrader",
     "OpenRouterTeacherVerifier",
     "HardPromptHeuristics",
     "UnsafePythonSubprocessVerifier",
+    # Prior management
+    "PriorManager",
+    # Demo
     "run_demo",
+    # Router
     "BanditRouter",
     "DisjointLinUCBPolicy",
     "RoutingLog",

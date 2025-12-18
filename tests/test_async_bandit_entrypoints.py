@@ -1,13 +1,18 @@
+"""
+Tests for async_bandit package entrypoints.
+"""
+
+
 def test_async_bandit_grader_entrypoints_import():
-    from llm_jury.async_bandit.grader import (
-        QualityCostPredictor,
-        TieredGrader,
-        OpenRouterTeacherVerifier,
+    """Test that core grader components can be imported."""
+    from llm_jury.async_bandit.quality_cost_predictor import QualityCostPredictor
+    from llm_jury.async_bandit.tiered_grader import (
         HardPromptHeuristics,
+        OpenRouterTeacherVerifier,
+        TieredGrader,
         UnsafePythonSubprocessVerifier,
     )
 
-    # Just sanity-check symbols exist
     assert QualityCostPredictor is not None
     assert TieredGrader is not None
     assert OpenRouterTeacherVerifier is not None
@@ -16,6 +21,48 @@ def test_async_bandit_grader_entrypoints_import():
 
 
 def test_async_bandit_package_import_does_not_crash():
-    # Should import even if bandit dependencies are missing (lazy import).
+    """Package should import even if optional dependencies are missing."""
     import llm_jury.async_bandit as ab  # noqa: F401
 
+    # Check core exports exist
+    assert hasattr(ab, "TieredGrader")
+    assert hasattr(ab, "QualityCostPredictor")
+    assert hasattr(ab, "PriorManager")
+
+
+def test_complexity_module_import():
+    """Test that complexity classifiers can be imported."""
+    from llm_jury.async_bandit.complexity import (
+        LocalComplexityClassifier,
+        NvidiaComplexityClassifier,
+        get_complexity_classifier,
+    )
+
+    assert LocalComplexityClassifier is not None
+    assert NvidiaComplexityClassifier is not None
+    assert get_complexity_classifier is not None
+
+
+def test_judge_module_import():
+    """Test that judge abstraction can be imported."""
+    from llm_jury.async_bandit.judge import (
+        Judge,
+        PriorConfig,
+        PriorManager,
+        create_custom_judge,
+    )
+
+    assert Judge is not None
+    assert PriorConfig is not None
+    assert PriorManager is not None
+    assert create_custom_judge is not None
+
+
+def test_main_package_import():
+    """Test that main llm_jury package imports correctly."""
+    import llm_jury
+
+    assert llm_jury.__version__ is not None
+    assert hasattr(llm_jury, "TieredGrader")
+    assert hasattr(llm_jury, "QualityCostPredictor")
+    assert hasattr(llm_jury, "PriorManager")
