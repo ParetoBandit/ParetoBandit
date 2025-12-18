@@ -2,6 +2,48 @@
 
 This folder contains a **small, check-in-friendly warm-start artifact** for the async bandit router.
 
+## How Routing Works: Prompt → Model Selection
+
+The router uses a **contextual bandit** (LinUCB) to match prompts to the best model:
+
+### Step 1: The Mapper (Embedding)
+The Sentence Transformer (`all-MiniLM-L6-v2`) converts text into a 384-dimensional vector:
+
+```
+Prompt: "Write a Python script..."  →  x = [0.05, -0.92, 0.44, ...]
+```
+
+This vector describes the prompt's position in "Meaning Space" — close to Coding, far from Poetry, etc.
+
+### Step 2: The Memory (Learned Weights)
+Each model has a weight vector θ learned from prior training:
+
+```
+θ_llama3 = A⁻¹ @ b
+```
+
+Models that performed well on coding prompts have high weights in "coding dimensions."
+
+### Step 3: The Lookup (Dot Product)
+Predicted quality is computed via dot product:
+
+```
+predicted_score = θ · x
+```
+
+- **Aligned vectors** → high score (0.95): "Llama-3 is great at Python"
+- **Opposing vectors** → low score (0.20): "Llama-3 struggles with French History"
+
+### Step 4: The Decision (UCB + Utility)
+We add exploration bonus and apply cost/latency penalties:
+
+```
+UCB = (θ·x + prior) + α·√(x'A⁻¹x)
+Utility = UCB - λ_cost·Cost - λ_latency·Latency
+```
+
+The model with highest **Utility** is selected.
+
 ## Prior Storage Locations
 
 | Location | Path | Writable | Purpose |

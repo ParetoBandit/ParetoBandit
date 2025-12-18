@@ -11,6 +11,46 @@ Design goals (per our architecture discussion):
 Important terminology:
   - This is Type B "competence risk" routing (avoid low-competence answers).
   - Policy safety (Type A) should be handled by provider / separate safety filter.
+
+How Routing Works: Prompt → Prediction
+---------------------------------------
+
+1. THE MAPPER: Embedding Model
+   When a user sends a prompt like "Write a Python script to parse JSON",
+   the Sentence Transformer (all-MiniLM-L6-v2) converts it into a 384-dimensional
+   context vector x:
+
+       Prompt: "Write Python..."  →  x = [0.05, -0.92, 0.44, ...]
+
+   This vector describes the prompt's position in "Meaning Space." The numbers
+   essentially say: "This is close to Coding, far from Poetry, somewhat close to Logic."
+
+2. THE MEMORY: Weight Vector (θ)
+   Each model (e.g., Llama-3) has its own weight vector θ that acts as its "Profile."
+   This vector was learned during prior generation (the archetype grid or synthetic warmup).
+
+   Because Llama-3 did well on the "Coding" cluster, its weights are high in the
+   dimensions that correspond to coding:
+
+       θ = A⁻¹ @ b   (solved via linear regression on observed rewards)
+
+3. THE LOOKUP: Dot Product
+   The bandit calculates the predicted quality using a dot product:
+
+       predicted_score = θ · x
+
+   - If the vectors align (prompt asks for Python, Llama-3's weights "point" towards
+     Python), the math produces a high score (e.g., 0.95).
+   - If they oppose (prompt asks for French History, Llama-3's weights point away
+     from History), the math produces a low score (e.g., 0.20).
+
+4. THE DECISION: UCB with Utility
+   We add exploration bonus and apply cost/latency penalties:
+
+       UCB = (θ·x + prior) + α·√(x'A⁻¹x)
+       Utility = UCB - λ_cost·Cost - λ_latency·Latency
+
+   The model with highest Utility wins.
 """
 
 from __future__ import annotations
