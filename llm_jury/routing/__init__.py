@@ -77,3 +77,13 @@ __all__ = [
     "classify_complexity",
     "classify_complexity_hybrid",
 ]
+
+# Optional: bandit router (contextual bandit + async grading loop)
+try:
+    from llm_jury.routing.bandit_router import BanditRouter, DisjointLinUCBPolicy, RoutingLog
+
+    __all__ += ["BanditRouter", "DisjointLinUCBPolicy", "RoutingLog"]
+except Exception:
+    # Avoid import-time dependency errors (sentence-transformers) if user only
+    # needs the lightweight routing classifiers.
+    pass
