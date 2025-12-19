@@ -42,22 +42,15 @@ import numpy as np
 
 
 # ---------------------------------------------------------------------------
-# Default Paths
+# Default Paths (using package resources for pip install compatibility)
 # ---------------------------------------------------------------------------
 
-def _get_user_priors_dir() -> Path:
-    """Get user-specific priors directory (~/.banditgpt/priors/)."""
-    return Path.home() / ".banditgpt" / "priors"
-
-
-def _get_user_priors_path() -> Path:
-    """Get default user priors file path."""
-    return _get_user_priors_dir() / "user_priors.npz"
-
-
-def _get_bundled_priors_path() -> Path:
-    """Get bundled priors path (read-only, ships with library)."""
-    return Path(__file__).parent.parent.parent / "data" / "priors" / "shippable_priors.npz"
+from banditgpt._resources import (
+    get_bundled_priors_path as _get_bundled_priors_path,
+    get_user_priors_path as _get_user_priors_path,
+    get_user_priors_dir as _get_user_priors_dir,
+    get_quality_predictor_path,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -809,7 +802,7 @@ def create_soft_judge(
     """
     from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
 
-    default_path = Path(__file__).parent.parent.parent / "data" / "quality_predictor" / "best_quality_predictor.pt"
+    default_path = get_quality_predictor_path("best_quality_predictor.pt")
     path = model_path or default_path
 
     predictor = QualityCostPredictor.load(path)
@@ -842,7 +835,7 @@ def create_tiered_judge(
         TieredGrader,
     )
 
-    default_path = Path(__file__).parent.parent.parent / "data" / "quality_predictor" / "best_quality_predictor.pt"
+    default_path = get_quality_predictor_path("best_quality_predictor.pt")
     path = soft_model_path or default_path
 
     soft = QualityCostPredictor.load(path)

@@ -66,21 +66,16 @@ banditgpt = "banditgpt.async_bandit.cli:main"
 [tool.hatch.build.targets.sdist]
 include = [
     "/banditgpt",
-    "/data/priors/*.npz",
-    "/data/priors/*.npy",
-    "/data/priors/*.jsonl",
-    "/data/models_cache.json",
-    "/data/complexity_classifier_final/*.json",
-    "/data/complexity_classifier_final/*.txt",
+    "/experiments",
+    "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["banditgpt"]
 
-[tool.hatch.build.targets.wheel.shared-data]
-"data/priors" = "share/banditgpt/priors"
-"data/models_cache.json" = "share/banditgpt/models_cache.json"
-"data/complexity_classifier_final" = "share/banditgpt/complexity_classifier_final"
+# Include data files in the wheel (they are inside the package now)
+[tool.hatch.build.targets.wheel.force-include]
+"banditgpt/data" = "banditgpt/data"
 
 # --- Testing ---
 [tool.pytest.ini_options]

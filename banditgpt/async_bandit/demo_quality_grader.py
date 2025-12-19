@@ -16,9 +16,8 @@ from typing import Dict, List, Tuple
 from dotenv import load_dotenv
 import numpy as np
 
-# Load .env from project root
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-load_dotenv(PROJECT_ROOT / ".env")
+# Load .env from current directory or user home
+load_dotenv()  # Will search current dir and parents for .env
 
 import torch
 

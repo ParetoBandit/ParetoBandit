@@ -1808,9 +1808,10 @@ class BanditRouter:
         else:
             resolved_alpha = ExplorationRate.get(exploration)
         # Resolve paths - prefer expert_priors.npz, fall back to shippable_priors.npz
-        user_path = user_priors_path or (Path.home() / ".banditgpt" / "priors" / "user_priors.npz")
-        default_bundled = Path(__file__).parent.parent.parent / "data" / "priors" / "expert_priors.npz"
-        fallback_bundled = Path(__file__).parent.parent.parent / "data" / "priors" / "shippable_priors.npz"
+        from banditgpt._resources import get_user_priors_path, get_expert_priors_path, get_bundled_priors_path
+        user_path = user_priors_path or get_user_priors_path()
+        default_bundled = get_expert_priors_path()
+        fallback_bundled = get_bundled_priors_path()
         if bundled_priors_path:
             bundled_path = bundled_priors_path
         elif default_bundled.exists():

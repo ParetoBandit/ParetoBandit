@@ -149,8 +149,14 @@ class QualityCostConfig:
     deterministic_edgecases_weight: float = 3.0  # upweight these samples in the loss (keep stable)
     
     checkpoint_dir: Path = field(
-        default_factory=lambda: Path(__file__).parent.parent.parent / "data" / "quality_predictor"
+        default_factory=lambda: _get_quality_predictor_dir()
     )
+
+
+def _get_quality_predictor_dir() -> Path:
+    """Get quality predictor directory using package resources."""
+    from banditgpt._resources import get_package_data_dir
+    return get_package_data_dir() / "quality_predictor"
 
 
 def get_device() -> torch.device:

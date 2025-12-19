@@ -27,16 +27,21 @@ from banditgpt.async_bandit.bandit_router import (
 )
 
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DEFAULT_BUNDLED_PRIORS = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
-DEFAULT_USER_PRIORS = Path.home() / ".banditgpt" / "priors" / "user_priors.npz"
+from banditgpt._resources import (
+    get_bundled_priors_path,
+    get_user_priors_path,
+    get_models_cache_path,
+)
+
+DEFAULT_BUNDLED_PRIORS = get_bundled_priors_path()
+DEFAULT_USER_PRIORS = get_user_priors_path()
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Recommend OpenRouter models for a prompt (async bandit hot path)")
     p.add_argument("--prompt", type=str, required=True, help="User prompt text")
     p.add_argument("--top-k", type=int, default=10, help="Number of models to return")
-    p.add_argument("--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"))
+    p.add_argument("--cache", type=str, default=str(get_models_cache_path()))
     p.add_argument("--state", type=str, default="", help="Optional router state JSON (BanditRouter.save_state)")
     p.add_argument("--priors", type=str, default="", help="Optional priors JSON (model_id -> prior score)")
     p.add_argument("--cost-prior-gamma", type=float, default=0.0, help="If >0, use cost-proportional priors: gamma*log(cost)")

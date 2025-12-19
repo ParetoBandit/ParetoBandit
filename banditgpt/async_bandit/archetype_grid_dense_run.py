@@ -36,9 +36,7 @@ from banditgpt.async_bandit.bandit_router import (
 from banditgpt.async_bandit.demo_quality_grader import call_openrouter
 from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
 from banditgpt.async_bandit.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
-
-
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+from banditgpt._resources import get_models_cache_path, get_priors_path, get_quality_predictor_path
 
 
 def _load_models(cache_path: Path) -> List[str]:
@@ -77,11 +75,11 @@ def _load_archetype_prompts(path: Path) -> List[Tuple[int, str]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Dense archetype grid run -> shippable priors")
-    ap.add_argument("--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"))
-    ap.add_argument("--grid", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
-    ap.add_argument("--grader", type=str, default=str(PROJECT_ROOT / "data" / "quality_predictor" / "best_quality_predictor.pt"))
-    ap.add_argument("--out", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"))
-    ap.add_argument("--log", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"))
+    ap.add_argument("--cache", type=str, default=str(get_models_cache_path()))
+    ap.add_argument("--grid", type=str, default=str(get_priors_path("archetype_grid_prompts.jsonl")))
+    ap.add_argument("--grader", type=str, default=str(get_quality_predictor_path()))
+    ap.add_argument("--out", type=str, default=str(get_priors_path("shippable_priors.npz")))
+    ap.add_argument("--log", type=str, default=str(get_priors_path("archetype_grid_dense_run.jsonl")))
     ap.add_argument("--resume", action="store_true")
 
     ap.add_argument("--context-model", type=str, default=DEFAULT_CONTEXT_MODEL)
@@ -100,7 +98,7 @@ def main() -> int:
     args = ap.parse_args()
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    load_dotenv(PROJECT_ROOT / ".env")
+    load_dotenv()  # Load from current dir or parents
 
     cache_path = Path(args.cache)
     grid_path = Path(args.grid)

@@ -25,9 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from banditgpt.async_bandit.bandit_router import DEFAULT_CONTEXT_MODEL
-
-
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+from banditgpt._resources import get_priors_path
 
 
 def _extract_prompt_from_lmsys_row(ex: Dict[str, Any]) -> Optional[str]:
@@ -91,7 +89,7 @@ def main() -> int:
     ap.add_argument("--k", type=int, default=500, help="Number of archetypes/clusters")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--context-model", type=str, default=DEFAULT_CONTEXT_MODEL)
-    ap.add_argument("--out", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
+    ap.add_argument("--out", type=str, default=str(get_priors_path("archetype_grid_prompts.jsonl")))
     ap.add_argument("--batch-size", type=int, default=256)
     args = ap.parse_args()
 

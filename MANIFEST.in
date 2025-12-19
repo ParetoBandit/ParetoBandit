@@ -1,19 +1,25 @@
 # Include license and readme
 include LICENSE
 include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
 
-# Include data files needed for the package
-recursive-include data/priors *.npz *.npy *.jsonl *.md
-include data/models_cache.json
-recursive-include data/complexity_classifier_final *.json *.txt
-
-# Exclude large model files (should be downloaded separately)
-exclude data/complexity_classifier_final/model.safetensors
+# Include package data files (now inside banditgpt/)
+recursive-include banditgpt/data *.npz *.npy *.jsonl *.json *.txt *.md
+graft banditgpt/data
 
 # Include type hints marker
 include banditgpt/py.typed
 
-# Exclude test and development files
+# Exclude large model files (should be downloaded separately)
+exclude banditgpt/data/complexity_classifier_final/model.safetensors
+exclude banditgpt/data/quality_predictor/*.pt
+exclude banditgpt/data/quality_predictor/*.bin
+
+# Include experiments (for reference, not in wheel)
+graft experiments
+
+# Exclude test and development files from wheel
 prune tests
 prune kdd_paper
 prune frontend

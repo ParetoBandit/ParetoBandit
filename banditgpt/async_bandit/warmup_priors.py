@@ -28,9 +28,7 @@ from dotenv import load_dotenv
 from banditgpt.async_bandit.demo_quality_grader import call_openrouter
 from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
 from banditgpt.async_bandit.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
-
-
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+from banditgpt._resources import get_models_cache_path, get_priors_path, get_quality_predictor_path
 
 
 def _load_models(cache_path: Path) -> List[str]:
@@ -69,9 +67,9 @@ def default_warmup_prompts() -> List[Tuple[str, str]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Warmup priors for all models in cache (no benchmarks).")
-    ap.add_argument("--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"))
-    ap.add_argument("--out-dir", type=str, default=str(PROJECT_ROOT / "data" / "priors"))
-    ap.add_argument("--grader", type=str, default=str(PROJECT_ROOT / "data" / "quality_predictor" / "best_quality_predictor.pt"))
+    ap.add_argument("--cache", type=str, default=str(get_models_cache_path()))
+    ap.add_argument("--out-dir", type=str, default=str(get_priors_path("").parent))
+    ap.add_argument("--grader", type=str, default=str(get_quality_predictor_path()))
     ap.add_argument("--max-models", type=int, default=0, help="0 = all models, otherwise limit for quick runs")
     ap.add_argument("--teacher-model", type=str, default="openai/gpt-4o")
     ap.add_argument("--teacher-max-tokens", type=int, default=64)
@@ -79,7 +77,7 @@ def main() -> int:
     ap.add_argument("--sleep", type=float, default=0.0)
     args = ap.parse_args()
 
-    load_dotenv(PROJECT_ROOT / ".env")
+    load_dotenv()  # Load from current dir or parents
 
     cache_path = Path(args.cache)
     out_dir = Path(args.out_dir)

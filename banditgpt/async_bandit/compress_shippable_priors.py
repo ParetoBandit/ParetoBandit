@@ -21,16 +21,14 @@ from pathlib import Path
 import numpy as np
 
 from banditgpt.async_bandit.bandit_router import BanditRouter, build_registry_from_models_cache
-
-
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+from banditgpt._resources import get_models_cache_path, get_priors_path
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Compress warmed state to shippable priors (<1MB)")
     ap.add_argument("--state", type=str, required=True, help="Path to router_state_*.json")
-    ap.add_argument("--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"))
-    ap.add_argument("--out", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"))
+    ap.add_argument("--cache", type=str, default=str(get_models_cache_path()))
+    ap.add_argument("--out", type=str, default=str(get_priors_path("shippable_priors.npz")))
     args = ap.parse_args()
 
     state_path = Path(args.state)

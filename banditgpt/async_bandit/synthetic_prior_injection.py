@@ -41,9 +41,7 @@ from banditgpt.async_bandit.bandit_router import BanditRouter, build_registry_fr
 from banditgpt.async_bandit.demo_quality_grader import call_openrouter
 from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
 from banditgpt.async_bandit.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
-
-
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+from banditgpt._resources import get_models_cache_path, get_quality_predictor_path, get_package_data_dir
 
 
 def _load_model_ids(cache_path: Path) -> List[str]:
@@ -142,9 +140,9 @@ def _load_proxy_prompts(
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Offline synthetic prior injection for BanditRouter")
-    ap.add_argument("--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"))
-    ap.add_argument("--out-state", type=str, default=str(PROJECT_ROOT / "data" / "router_state_synthetic.json"))
-    ap.add_argument("--grader", type=str, default=str(PROJECT_ROOT / "data" / "quality_predictor" / "best_quality_predictor.pt"))
+    ap.add_argument("--cache", type=str, default=str(get_models_cache_path()))
+    ap.add_argument("--out-state", type=str, default=str(get_package_data_dir() / "router_state_synthetic.json"))
+    ap.add_argument("--grader", type=str, default=str(get_quality_predictor_path()))
 
     ap.add_argument("--dataset", type=str, default="lmsys/chatbot_arena_conversations", help="HF dataset name")
     ap.add_argument("--split", type=str, default="train", help="HF dataset split")
@@ -177,7 +175,7 @@ def main() -> int:
     # Reduce tokenizer fork warnings
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-    load_dotenv(PROJECT_ROOT / ".env")
+    load_dotenv()  # Load from current dir or parents
 
     cache_path = Path(args.cache)
     registry = build_registry_from_models_cache(cache_path)

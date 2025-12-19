@@ -25,9 +25,16 @@ from typing import Optional
 
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DEFAULT_BUNDLED_PRIORS = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
-DEFAULT_USER_PRIORS = Path.home() / ".banditgpt" / "priors" / "user_priors.npz"
+from banditgpt._resources import (
+    get_bundled_priors_path,
+    get_user_priors_path,
+    get_models_cache_path,
+    get_package_data_dir,
+    get_priors_path,
+)
+
+DEFAULT_BUNDLED_PRIORS = get_bundled_priors_path()
+DEFAULT_USER_PRIORS = get_user_priors_path()
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +139,7 @@ def add_recommend_args(parser: argparse.ArgumentParser) -> None:
     """Add arguments for the recommend command."""
     parser.add_argument("--prompt", type=str, required=True, help="User prompt text")
     parser.add_argument("--top-k", type=int, default=10, help="Number of models to return")
-    parser.add_argument("--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"))
+    parser.add_argument("--cache", type=str, default=str(get_models_cache_path()))
     parser.add_argument("--state", type=str, default="", help="Optional router state JSON")
     parser.add_argument("--priors", type=str, default="", help="Optional priors JSON")
     parser.add_argument("--cost-prior-gamma", type=float, default=0.0)
@@ -194,8 +201,8 @@ def cmd_compress_priors(args: argparse.Namespace) -> int:
 def add_compress_priors_args(parser: argparse.ArgumentParser) -> None:
     """Add arguments for the compress-priors command."""
     parser.add_argument("--state", type=str, required=True, help="Path to router_state_*.json")
-    parser.add_argument("--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"))
-    parser.add_argument("--out", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"))
+    parser.add_argument("--cache", type=str, default=str(get_models_cache_path()))
+    parser.add_argument("--out", type=str, default=str(get_priors_path("shippable_priors.npz")))
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +233,7 @@ def add_archetype_cluster_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--split", type=str, default="train")
     parser.add_argument("--max-prompts", type=int, default=50000)
     parser.add_argument("--k", type=int, default=500, help="Number of clusters")
-    parser.add_argument("--out", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
+    parser.add_argument("--out", type=str, default=str(get_priors_path("archetype_grid_prompts.jsonl")))
 
 
 # ---------------------------------------------------------------------------
@@ -257,9 +264,9 @@ def cmd_archetype_dense_run(args: argparse.Namespace) -> int:
 
 def add_archetype_dense_run_args(parser: argparse.ArgumentParser) -> None:
     """Add arguments for archetype-dense-run command."""
-    parser.add_argument("--grid", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
-    parser.add_argument("--out", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"))
-    parser.add_argument("--log", type=str, default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"))
+    parser.add_argument("--grid", type=str, default=str(get_priors_path("archetype_grid_prompts.jsonl")))
+    parser.add_argument("--out", type=str, default=str(get_priors_path("shippable_priors.npz")))
+    parser.add_argument("--log", type=str, default=str(get_priors_path("archetype_grid_dense_run.jsonl")))
     parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--use-teacher", action="store_true")
     parser.add_argument("--teacher-model", type=str, default="openai/gpt-4o")

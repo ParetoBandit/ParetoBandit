@@ -114,10 +114,16 @@ data/router_state*.npz
 data/complexity_classifier_final/model.safetensors
 data/quality_predictor/*.pt
 data/quality_predictor/*.bin
+banditgpt/data/complexity_classifier_final/model.safetensors
+banditgpt/data/quality_predictor/*.pt
+banditgpt/data/quality_predictor/*.bin
+banditgpt/data/quality_predictor/
 
 # Warmup logs (regeneratable)
 data/warmup/*.jsonl
 data/warmup/*.json
+banditgpt/data/warmup/
 
 # Dense run logs (in-progress, regeneratable)
 data/priors/archetype_grid_dense_run.jsonl
+banditgpt/data/priors/archetype_grid_dense_run.jsonl
