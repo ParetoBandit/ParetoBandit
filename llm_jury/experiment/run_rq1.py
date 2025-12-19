@@ -114,7 +114,7 @@ class ExperimentConfig:
     """Configuration for RQ1 experiment."""
     # Dimensions
     dim: int = 384  # Match sentence-transformers/all-MiniLM-L6-v2
-    n_models: int = 10  # Number of models (from cache or simulated)
+    n_models: int = 0  # Number of models (0 = all from cache)
     n_clusters: int = 5  # Latent task clusters (Code, Math, Creative, Factual, Chat)
 
     # Model source
@@ -571,8 +571,8 @@ def parse_args() -> ExperimentConfig:
 
     # Environment
     parser.add_argument(
-        "--n-models", type=int, default=10,
-        help="Number of models to use from cache",
+        "--n-models", type=int, default=0,
+        help="Number of models to use from cache (0 = all models)",
     )
     parser.add_argument(
         "--n-clusters", type=int, default=5,

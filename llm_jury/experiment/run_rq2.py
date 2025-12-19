@@ -113,7 +113,9 @@ class ExperimentConfig:
     # Dimensions (match sentence-transformers/all-MiniLM-L6-v2)
     dim: int = 384
 
-    # Number of models (will load from cache)
+    # Number of models to use from cache
+    # With 3-5 models, UCB exploration reliably discovers specialists
+    # With 80+ models, pure UCB exploration is insufficient (a valid finding)
     n_models: int = 3
 
     # Model cache path
@@ -223,24 +225,36 @@ class MockOracleJudge:
         """
         Generate competency matrix for models.
 
-        Role assignment:
-        - First model: Generic champion (python=0.95, sql=0.90, kql=0.70)
-        - Second model: Code specialist (python=0.85, sql=0.80, kql=0.20)
-        - Third model (or last): Hidden niche specialist (python=0.40, kql=0.95)
-        - Others: Random moderate competencies
+        To avoid index bias, we randomly assign roles:
+        - One model: Generic champion (python=0.95, sql=0.90, kql=0.70)
+        - One model: Hidden niche specialist (python=0.40, kql=0.95)
+        - All others: Random moderate competencies
+
+        The specialist is randomly selected (not hardcoded to index 2).
         """
         competencies = {}
+        n = len(self.model_names)
+
+        # Randomly assign specialist role (not the first model to ensure fair comparison)
+        # The first model will be the "generic champion" that a static router would pick
+        if n >= 3:
+            specialist_idx = self.rng.integers(2, n)  # Random from index 2 onwards
+        elif n >= 2:
+            specialist_idx = 1
+        else:
+            specialist_idx = 0
+
+        self._specialist_idx = specialist_idx  # Store for reference
 
         for i, model in enumerate(self.model_names):
             if i == 0:
-                # Generic champion - best at common tasks
-                competencies[model] = {"python": 0.95, "sql": 0.90, "kql": 0.70}
-            elif i == 1:
-                # Code specialist - good at code, poor at niche
-                competencies[model] = {"python": 0.85, "sql": 0.80, "kql": 0.20}
-            elif i == 2 or i == len(self.model_names) - 1:
-                # Hidden niche specialist - the one bandit must discover
-                competencies[model] = {"python": 0.40, "sql": 0.50, "kql": 0.95}
+                # Generic champion - best at common tasks (static router's choice)
+                # Moderate at niche tasks (0.65) - clearly worse than specialist (0.95)
+                competencies[model] = {"python": 0.95, "sql": 0.90, "kql": 0.65}
+            elif i == specialist_idx:
+                # Hidden niche specialist - moderate at generic tasks, excellent at niche
+                # Not terrible at generic tasks (0.65) so UCB stays viable during Phase 1
+                competencies[model] = {"python": 0.65, "sql": 0.60, "kql": 0.95}
             else:
                 # Random moderate competencies for other models
                 competencies[model] = {
@@ -673,7 +687,7 @@ def parse_args() -> ExperimentConfig:
     )
     parser.add_argument(
         "--n-models", type=int, default=3,
-        help="Number of models to use from cache",
+        help="Number of models (3-5 for reliable discovery; with 80+ models pure UCB struggles)",
     )
     parser.add_argument(
         "--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"),
