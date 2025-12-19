@@ -1,150 +1,168 @@
-# RQ1: The "Shippable Brain" Advantage
+# LLM Jury Experiments
 
-## Manifold Alignment via Expert Distillation
-
-### The Problem
-
-Standard initialization (Uniform Exploration) yields uninformative priors (Σ ≈ I), which forces the bandit to re-learn known constraints. When deploying a contextual bandit router in production, the initial "cold-start" phase incurs significant regret as the agent explores all models equally—even when prior knowledge about optimal routing exists.
-
-### The Solution
-
-We employ **Expert Distillation**, where the router's covariance matrix is initialized by observing a teacher policy (e.g., GPT-4-based routing) on a synthetic support set. This effectively "pre-aligns" the decision manifold with the optimal policy frontier.
-
-Rather than uniform exploration:
-```python
-# Uniform (uninformative): picks random models
-arm = np.random.choice(models)
-```
-
-We use teacher demonstration:
-```python
-# Expert Distillation: teacher picks optimal 80% of the time
-if np.random.rand() < 0.8:
-    arm = oracle.get_best_model(context)  # Teacher's choice
-else:
-    arm = np.random.choice(models)  # 20% exploration for diversity
-```
-
-### The Result
-
-This alignment enables the bandit to start in an "Exploitation-Dominant" regime, reducing cumulative regret by **62.2%** compared to a cold-start baseline.
-
-| Initialization Method | Regret Reduction |
-|-----------------------|------------------|
-| Uniform Exploration   | 5.7%             |
-| **Expert Distillation** | **62.2%**      |
+This folder contains reproducible experiments for the KDD paper on **Density-Based Warm-Start for LLM Routing**.
 
 ---
 
-## Figure Caption
+## RQ1: Shippable Brain Advantage
 
-> **Figure 1: The Impact of Expert Distillation on Cold-Start Latency.**
+**Research Question**: *Does warm-starting with expert-distilled priors reduce regret compared to cold-start?*
+
+### Results
+
+| Agent | Cumulative Regret | Reduction |
+|-------|------------------|-----------|
+| Cold Start | 247.1 | — |
+| Warm Start | 89.9 | **63.6%** |
+
+### Run the Experiment
+
+```bash
+python -m llm_jury.experiment.run_rq1
+```
+
+**Output:**
+- `results/rq1/regret_curve.png` — Publication-ready plot
+- `results/rq1/regret_curve.pdf` — Vector format for papers
+- `results/rq1/metrics.json` — Raw numbers
+
+---
+
+## Expert Priors Generation
+
+The warm-start advantage comes from **Expert Distillation** — training priors where a teacher oracle picks the optimal model 80% of the time, rather than random exploration.
+
+### Why Expert Priors Work
+
+| Prior Type | What It Encodes | Effect of Confidence Boost |
+|------------|-----------------|---------------------------|
+| **Uniform (Old)** | "Everything is average" | Boosting makes bandit *stubborn* — ignores good options |
+| **Expert (New)** | "Model A wins for code" | Boosting makes bandit *confident* — exploits correct answer |
+
+**The Math**: In Bayesian terms, boosting prior confidence (λ_boost=50) is valid *only if the prior is informative*. Expert Distillation ensures the prior encodes "the right answer."
+
+### Generate Expert Priors
+
+```bash
+# Generate with default settings (seed=42)
+python -m llm_jury.experiment.generate_expert_priors generate
+
+# Custom settings
+python -m llm_jury.experiment.generate_expert_priors generate \
+    --seed 42 \
+    --epochs 5 \
+    --expert-rate 0.8
+```
+
+### Verify Existing Priors
+
+```bash
+python -m llm_jury.experiment.generate_expert_priors verify
+```
+
+**Output:**
+```
+[File Info]
+  Size: 21.1 MB
+
+[Training Hyperparameters]
+  expert_rate: 0.8
+  n_epochs: 5
+  seed: 42
+  context_model: sentence-transformers/all-MiniLM-L6-v2
+
+[Provenance]
+  prompts_hash: 33790ea90fa66e6a
+  rewards_hash: a0d3828174915a54
+```
+
+---
+
+## Reproducibility
+
+### Requirements
+
+1. **Data files** (in `data/priors/`):
+   - `archetype_grid_prompts.jsonl` — 497 prompts across topic clusters
+   - `archetype_grid_dense_run.jsonl` — Rewards from 81 models
+
+2. **Dependencies**:
+   ```bash
+   pip install sentence-transformers numpy matplotlib
+   ```
+
+### Reproduce Expert Priors
+
+```bash
+# This will generate identical priors to the shipped version
+python -m llm_jury.experiment.generate_expert_priors generate --seed 42
+```
+
+**Expected output:**
+- File size: ~21 MB
+- Prompts hash: `33790ea90fa66e6a`
+- Rewards hash: `a0d3828174915a54`
+
+### Reproduce RQ1 Results
+
+```bash
+python -m llm_jury.experiment.run_rq1
+```
+
+**Expected output:**
+- Cold Start Regret: ~247
+- Warm Start Regret: ~90
+- Regret Reduction: ~63%
+
+---
+
+## KDD Paper Methodology
+
+### Figure Caption (RQ1)
+
+> **Figure 1**: Cumulative regret comparison between cold-start (no priors) and warm-start (expert-distilled priors with λ_boost=50) agents over 2,000 routing decisions. The warm-start agent achieves 63.6% lower cumulative regret, demonstrating effective transfer of offline expert knowledge to online decision-making.
+
+### Methodology Paragraph
+
+> **Offline Bootstrapping via Expert Distillation**: Rather than initializing the contextual bandit with uniform priors (which encode "average noise"), we employ expert distillation where a teacher oracle selects the optimal model for each context 80% of the time during offline training. This aligns the covariance manifold with the optimal policy frontier, enabling immediate exploitation of high-quality routing decisions.
 >
-> While uniform priors provide negligible benefit (5.7% reduction, not shown), initializing the covariance matrix via Expert Distillation (Blue) reduces cumulative regret by 62.2% over the first 2,000 requests. The router exhibits near-zero regret in the initial phase (t < 500), demonstrating that the "Shippable Brain" successfully transfers the teacher's latent routing logic to the student edge-learner.
+> **Prior Precision Scaling (λ_boost)**: We scale the prior covariance by λ_boost=50 to calibrate agent confidence with the reliability of the distillation source. Since priors are generated by an oracle rather than random sampling, this effectively imparts a "strong prior" belief, instructing the agent to exploit the distilled expert policy while maintaining plasticity for online adaptation.
 
 ---
 
-## Methodology: Offline Bootstrapping
+## File Structure
 
-To minimize the "Time-to-Value" for new deployments, we forego the standard A₀ = I initialization. Instead, we generate a synthetic "Shippable Prior" by running an offline simulation where an **Oracle Judge** routes 1,000 diverse prompts to their optimal models.
+```
+llm_jury/experiment/
+├── README.md                    # This file
+├── run_rq1.py                   # Main RQ1 experiment script
+├── generate_expert_priors.py   # Expert priors generation
+├── run_rq2.py                   # RQ2: Niche Specialist Discovery
+└── run_rq3.py                   # RQ3: Tiered Grading Efficiency
 
-The resulting covariance accumulated in **A_prior** encodes the decision boundaries of the Oracle. We introduce a hyperparameter **λ_boost = 50** to scale this prior, calibrating the agent's initial confidence to match the reliability of the distillation corpus.
+data/priors/
+├── expert_priors.npz           # Expert-distilled priors (21 MB)
+├── shippable_priors.npz        # Legacy uniform priors (fallback)
+├── archetype_grid_prompts.jsonl
+└── archetype_grid_dense_run.jsonl
 
-```python
-# Load expert-distilled priors
-A_warm = A_prior * λ_boost  # Scale confidence
-b_warm = b_prior * λ_boost
-
-# Agent starts with "expert intuition"
-agent = DisjointLinUCB(A=A_warm, b=b_warm)
+results/rq1/
+├── regret_curve.png            # Publication plot
+├── regret_curve.pdf            # Vector format
+└── metrics.json                # Raw metrics
 ```
 
 ---
 
-## Reproduction
+## Citation
 
-### Step 1: Generate Expert Priors
+If you use these experiments in your research, please cite:
 
-```bash
-python -m llm_jury.experiment.generate_expert_priors \
-    --expert-rate 0.8 \
-    --epochs 5
+```bibtex
+@inproceedings{llmjury2025,
+  title={Density-Based Warm-Start for Adaptive LLM Routing},
+  author={...},
+  booktitle={KDD},
+  year={2025}
+}
 ```
-
-This creates `data/priors/expert_priors.npz` using:
-- **80% expert picks**: Oracle selects optimal model for each context
-- **20% exploration**: Random picks for diversity and numerical stability
-- **5 epochs**: Multiple passes through the 497-prompt corpus
-
-### Step 2: Run the Experiment
-
-```bash
-python -m llm_jury.experiment.run_rq1 \
-    --priors data/priors/expert_priors.npz \
-    --prior-strength 50 \
-    --n-test 3000
-```
-
-### Output
-
-- `results/rq1/regret_curve.png` - Publication-ready figure
-- `results/rq1/regret_curve.pdf` - Vector format for paper
-- `results/rq1/metrics.json` - Raw experimental data
-
----
-
-## Why This Matters for KDD
-
-1. **Practical**: We aren't inventing new math; we show how to make bandits actually usable in production (where waiting 2,000 steps for convergence is unacceptable).
-
-2. **Significant**: 62% is not a rounding error. It is the difference between a product that saves money on Day 1 vs. Day 30.
-
-3. **Reproducible**: "Distilling GPT-4 into a Linear Matrix" is a trendy, high-value concept that bridges foundation models with efficient edge deployment.
-
----
-
-## Technical Details
-
-### LinUCB Selection Rule
-
-$$\text{UCB}_a = \underbrace{\theta_a^\top x}_{\text{mean}} + \alpha \cdot \underbrace{\sqrt{x^\top A_a^{-1} x}}_{\text{uncertainty}}$$
-
-### Effect of Expert Distillation
-
-| Component | Uniform Exploration | Expert Distillation |
-|-----------|---------------------|---------------------|
-| A matrix  | Updated equally for all models | Concentrated on optimal models |
-| Uncertainty | High for all | Low for optimal, high for suboptimal |
-| θ weights | Point toward average | Point toward optimal |
-| Behavior | Explores everything | Exploits optimal immediately |
-
-### Prior Precision Scaling (λ_boost)
-
-While standard contextual bandits initialize with a high-variance prior (Σ ≈ **I**) to encourage exploration, this is suboptimal when the prior is derived from a high-quality expert.
-
-We introduce a scaling factor **λ_boost** to align the initial covariance magnitude with the *reliability* of the distillation source. Since our priors are generated by an Oracle (GPT-4) rather than random sampling, we scale the covariance matrix by **λ_boost = 50**.
-
-This effectively imparts a "Strong Prior" belief, instructing the agent to:
-1. **Exploit** the distilled expert policy immediately
-2. **Maintain plasticity** (nonzero variance) to adapt to potential distribution shifts in the online environment
-
-```python
-# Scale priors to match teacher reliability
-A_boosted = A_prior * λ_boost  # λ_boost = 50
-b_boosted = b_prior * λ_boost
-
-# Effect: sqrt(x' A⁻¹ x) becomes 50x smaller → exploitation-dominant
-```
-
-**Key Insight**: The boost parameter is not about "sample size inflation"—it's about calibrating the agent's confidence to match the reliability of the distillation source. An Oracle-derived prior deserves higher trust than a random-exploration prior.
-
----
-
-## Files
-
-| File | Description |
-|------|-------------|
-| `run_rq1.py` | Main experiment script |
-| `generate_expert_priors.py` | Expert Distillation training |
-| `data/priors/expert_priors.npz` | Pre-computed expert priors (81 models, 384-dim) |
-| `data/priors/prompt_embeddings.npy` | Cached prompt embeddings |
