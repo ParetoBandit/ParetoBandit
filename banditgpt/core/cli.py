@@ -11,8 +11,8 @@ Commands:
     synthetic-inject    - Pre-warm bandit on a proxy dataset
 
 Usage:
-    python -m banditgpt.async_bandit.cli recommend --prompt "Hello world"
-    python -m banditgpt.async_bandit.cli compress-priors --state router_state.json
+    python -m banditgpt.core.cli recommend --prompt "Hello world"
+    python -m banditgpt.core.cli compress-priors --state router_state.json
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ DEFAULT_USER_PRIORS = get_user_priors_path()
 
 def cmd_recommend(args: argparse.Namespace) -> int:
     """Get model recommendations for a prompt."""
-    from banditgpt.async_bandit.bandit_router import (
+    from banditgpt.core.bandit_router import (
         BanditRouter,
         build_cost_proportional_priors,
         build_registry_from_models_cache,
@@ -183,7 +183,7 @@ def add_recommend_args(parser: argparse.ArgumentParser) -> None:
 
 def cmd_compress_priors(args: argparse.Namespace) -> int:
     """Compress warmed state to shippable priors."""
-    from banditgpt.async_bandit.bandit_router import BanditRouter, build_registry_from_models_cache
+    from banditgpt.core.bandit_router import BanditRouter, build_registry_from_models_cache
 
     state_path = Path(args.state)
     cache_path = Path(args.cache)
@@ -213,7 +213,7 @@ def add_compress_priors_args(parser: argparse.ArgumentParser) -> None:
 def cmd_archetype_cluster(args: argparse.Namespace) -> int:
     """Cluster prompts from a dataset into representative archetypes."""
     # Import here to avoid heavy dependencies at module load
-    from banditgpt.async_bandit.archetype_grid import main as archetype_main
+    from banditgpt.core.archetype_grid import main as archetype_main
 
     # Re-parse args for the original script
     sys.argv = [
@@ -243,7 +243,7 @@ def add_archetype_cluster_args(parser: argparse.ArgumentParser) -> None:
 
 def cmd_archetype_dense_run(args: argparse.Namespace) -> int:
     """Run all models on archetype prompts and build priors."""
-    from banditgpt.async_bandit.archetype_grid_dense_run import main as dense_run_main
+    from banditgpt.core.archetype_grid_dense_run import main as dense_run_main
 
     argv = [
         "archetype_grid_dense_run",
@@ -280,7 +280,7 @@ def add_archetype_dense_run_args(parser: argparse.ArgumentParser) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        prog="banditgpt.async_bandit.cli",
+        prog="banditgpt.core.cli",
         description="Async bandit router CLI",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")

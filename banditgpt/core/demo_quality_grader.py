@@ -5,7 +5,7 @@ Demo: Compare Quality/Verbosity predictions across different models.
 This demo calls models via OpenRouter and grades their responses.
 
 Moved from `banditgpt.neural_routing.demo_quality_grader` to keep all async-bandit
-artifacts together under `banditgpt.async_bandit`.
+artifacts together under `banditgpt.core`.
 """
 
 import os
@@ -59,8 +59,8 @@ def call_openrouter(model_id: str, prompt: str, max_tokens: int = 500, *, timeou
 
 def run_demo():
     """Run demo comparing models."""
-    from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor, get_device
-    from banditgpt.async_bandit.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
+    from banditgpt.core.quality_cost_predictor import QualityCostPredictor, get_device
+    from banditgpt.core.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
 
     parser = argparse.ArgumentParser(description="Demo: grade OpenRouter model outputs")
     parser.add_argument("--use-teacher", action="store_true", help="Enable TieredGrader hard-path teacher verification (costly)")
@@ -149,7 +149,7 @@ def run_demo():
         z = (float(x) - float(mean)) / (float(std) + 1e-9)
         return float(max(min(z, clamp), -clamp))
 
-    from banditgpt.async_bandit.quality_cost_predictor import RunningZScoreNormalizer
+    from banditgpt.core.quality_cost_predictor import RunningZScoreNormalizer
 
     reward_norm_online = RunningZScoreNormalizer(
         mean_init=0.65,

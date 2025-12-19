@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from banditgpt.async_bandit.bandit_router import (
+from banditgpt.core.bandit_router import (
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,
 )

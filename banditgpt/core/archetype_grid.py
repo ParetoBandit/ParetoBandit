@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from banditgpt.async_bandit.bandit_router import DEFAULT_CONTEXT_MODEL
+from banditgpt.core.bandit_router import DEFAULT_CONTEXT_MODEL
 from banditgpt._resources import get_priors_path
 
 

@@ -59,7 +59,7 @@ BanditGPT fills the gap by being **lightweight**, **offline**, and **self-improv
 ## Quick Start
 
 ```python
-from banditgpt.async_bandit import BanditRouter
+from banditgpt.core import BanditRouter
 
 # Create router with automatic prior loading
 router = BanditRouter.create(model_registry, priors="merged")
@@ -143,7 +143,7 @@ router.route(prompt, exploration="static")      # Production: zero risk
 
 ```bash
 # Get recommendations for a prompt
-python -m banditgpt.async_bandit.cli recommend \
+python -m banditgpt.core.cli recommend \
     --prompt "Explain quantum computing" \
     --profile balanced \
     --exploration safe \

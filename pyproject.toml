@@ -61,7 +61,7 @@ Repository = "https://github.com/atabernermiller/banditgpt.git"
 Issues = "https://github.com/atabernermiller/banditgpt/issues"
 
 [project.scripts]
-banditgpt = "banditgpt.async_bandit.cli:main"
+banditgpt = "banditgpt.core.cli:main"
 
 [tool.hatch.build.targets.sdist]
 include = [

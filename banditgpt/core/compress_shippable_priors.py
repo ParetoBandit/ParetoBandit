@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from banditgpt.async_bandit.bandit_router import BanditRouter, build_registry_from_models_cache
+from banditgpt.core.bandit_router import BanditRouter, build_registry_from_models_cache
 from banditgpt._resources import get_models_cache_path, get_priors_path
 
 

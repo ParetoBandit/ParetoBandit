@@ -20,7 +20,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from banditgpt.async_bandit.bandit_router import (
+from banditgpt.core.bandit_router import (
     BanditRouter,
     build_registry_from_models_cache,
     build_cost_proportional_priors,

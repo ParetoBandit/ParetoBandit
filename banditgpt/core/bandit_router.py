@@ -70,12 +70,12 @@ except ImportError as e:  # pragma: no cover
     raise ImportError("Missing dependency: sentence-transformers") from e
 
 try:
-    from banditgpt.async_bandit.complexity import LocalComplexityClassifier, NvidiaComplexityClassifier
+    from banditgpt.core.complexity import LocalComplexityClassifier, NvidiaComplexityClassifier
 except Exception:  # pragma: no cover
     LocalComplexityClassifier = None  # type: ignore[assignment]
     NvidiaComplexityClassifier = None  # type: ignore[assignment]
 
-from banditgpt.async_bandit.quality_cost_predictor import (
+from banditgpt.core.quality_cost_predictor import (
     QualityCostPredictor,
     LogitReward,
     RunningZScoreNormalizer,
@@ -1895,7 +1895,7 @@ class BanditRouter:
             - b_vectors: union, user takes precedence on conflicts
             - A_shared: use user's if exists, else bundled
         """
-        from banditgpt.async_bandit.judge import PriorManager, PriorConfig
+        from banditgpt.core.judge import PriorManager, PriorConfig
 
         bundled_priors = None
         user_priors = None

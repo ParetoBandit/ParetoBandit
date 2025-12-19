@@ -339,12 +339,12 @@ model, log = router.route("Write code", lambda_cost=25.0, lambda_latency=0.15)
 
 ```bash
 # Use a profile
-python -m banditgpt.async_bandit.cli recommend \
+python -m banditgpt.core.cli recommend \
     --prompt "Write a fibonacci function" \
     --profile balanced
 
 # Override with explicit weights
-python -m banditgpt.async_bandit.cli recommend \
+python -m banditgpt.core.cli recommend \
     --prompt "Write a fibonacci function" \
     --lambda-cost 25.0 --lambda-latency 0.15
 ```
@@ -397,12 +397,12 @@ model, log = router.route("Test this", exploration="aggressive")
 
 ```bash
 # Safe exploration (production default)
-python -m banditgpt.async_bandit.cli recommend \
+python -m banditgpt.core.cli recommend \
     --prompt "Analyze risk" \
     --exploration safe
 
 # Aggressive exploration (calibration)
-python -m banditgpt.async_bandit.cli recommend \
+python -m banditgpt.core.cli recommend \
     --prompt "Test this" \
     --exploration aggressive
 ```
@@ -432,7 +432,7 @@ Since no real user sees the answer, you should explore wildly to learn faster
 ## Quick Start
 
 ```python
-from banditgpt.async_bandit import BanditRouter, OptimizationProfile
+from banditgpt.core import BanditRouter, OptimizationProfile
 
 # Create router with automatic prior detection
 router = BanditRouter.create(model_registry, priors="merged")

@@ -45,7 +45,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from banditgpt.async_bandit.bandit_router import (
+from banditgpt.core.bandit_router import (
     DEFAULT_CONTEXT_MODEL,
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,

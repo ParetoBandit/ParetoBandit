@@ -153,7 +153,7 @@ This is a cost-controlled warmup that still covers all models, but does **not** 
 1) Produce a warmed router state (synthetic prior injection):
 
 ```bash
-python -m banditgpt.async_bandit.synthetic_prior_injection \
+python -m banditgpt.core.synthetic_prior_injection \
   --dataset lmsys/chatbot_arena_conversations \
   --split train \
   --max-prompts 500 \
@@ -169,7 +169,7 @@ python -m banditgpt.async_bandit.synthetic_prior_injection \
 2) Compress the warmed state into a shippable priors bundle:
 
 ```bash
-python -m banditgpt.async_bandit.compress_shippable_priors \
+python -m banditgpt.core.compress_shippable_priors \
   --state data/router_state_synthetic.json
 ```
 
@@ -211,7 +211,7 @@ Suggested wording for docs/whitepaper:
 1) Build K representative prompts by clustering:
 
 ```bash
-python -m banditgpt.async_bandit.archetype_grid \
+python -m banditgpt.core.archetype_grid \
   --dataset lmsys/chatbot_arena_conversations \
   --split train \
   --max-prompts 50000 \
@@ -222,7 +222,7 @@ python -m banditgpt.async_bandit.archetype_grid \
 2) Run a dense grid: all models × K prompts, grade with TieredGrader, and export priors:
 
 ```bash
-python -m banditgpt.async_bandit.archetype_grid_dense_run \
+python -m banditgpt.core.archetype_grid_dense_run \
   --grid data/priors/archetype_grid_prompts.jsonl \
   --use-teacher \
   --teacher-model openai/gpt-4o \
@@ -235,7 +235,7 @@ python -m banditgpt.async_bandit.archetype_grid_dense_run \
 The recommend CLI will **auto-load** `data/priors/shippable_priors.npz` if it exists:
 
 ```bash
-python -m banditgpt.async_bandit.recommend \
+python -m banditgpt.core.recommend \
   --prompt 'Calculate the pH of a $10^{-8}$ M solution of HCl.' \
   --top-k 10 \
   --use-complexity-gating
@@ -244,7 +244,7 @@ python -m banditgpt.async_bandit.recommend \
 You can also provide an explicit path:
 
 ```bash
-python -m banditgpt.async_bandit.recommend \
+python -m banditgpt.core.recommend \
   --prompt 'Calculate the pH of a $10^{-8}$ M solution of HCl.' \
   --top-k 10 \
   --use-complexity-gating \
@@ -258,7 +258,7 @@ When a new model is released (e.g., GPT-5, DeepSeek-V3), you can install it into
 ### Option 1: Clone from a similar model (recommended)
 
 ```python
-from banditgpt.async_bandit import BanditRouter, PriorManager
+from banditgpt.core import BanditRouter, PriorManager
 
 # Load router with existing priors
 router = BanditRouter.from_shippable_priors(priors_npz, model_registry)
@@ -286,7 +286,7 @@ router.add_model("brand-new/model-v1")
 ### Option 3: Update priors via PriorManager
 
 ```python
-from banditgpt.async_bandit import PriorManager
+from banditgpt.core import PriorManager
 
 # Load user priors (falls back to bundled if not present)
 manager = PriorManager.user()

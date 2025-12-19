@@ -527,7 +527,7 @@ class PriorManager:
         from sentence_transformers import SentenceTransformer
         from sklearn.cluster import MiniBatchKMeans
 
-        from banditgpt.async_bandit.bandit_router import (
+        from banditgpt.core.bandit_router import (
             SharedCovarianceLinUCBPolicy,
             l2_normalize,
         )
@@ -661,7 +661,7 @@ class PriorManager:
 
             encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-        from banditgpt.async_bandit.bandit_router import l2_normalize
+        from banditgpt.core.bandit_router import l2_normalize
 
         # Reconstruct policy from priors
         model_ids = current_priors.get("model_ids", [])
@@ -800,7 +800,7 @@ def create_soft_judge(
     Good for: style, fluency, general quality.
     Not good for: factual correctness, math, code execution.
     """
-    from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
+    from banditgpt.core.quality_cost_predictor import QualityCostPredictor
 
     default_path = get_quality_predictor_path("best_quality_predictor.pt")
     path = model_path or default_path
@@ -829,8 +829,8 @@ def create_tiered_judge(
     Automatically uses the teacher (LLM-as-a-Judge) for hard prompts
     (math, code, logic) and the soft local grader for easy prompts.
     """
-    from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
-    from banditgpt.async_bandit.tiered_grader import (
+    from banditgpt.core.quality_cost_predictor import QualityCostPredictor
+    from banditgpt.core.tiered_grader import (
         OpenRouterTeacherVerifier,
         TieredGrader,
     )

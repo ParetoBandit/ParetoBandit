@@ -64,12 +64,12 @@ class TestPriorManager:
 
     def test_import(self):
         """Test that PriorManager can be imported."""
-        from banditgpt.async_bandit import PriorManager
+        from banditgpt.core import PriorManager
         assert PriorManager is not None
 
     def test_factory_methods(self):
         """Test factory method constructors."""
-        from banditgpt.async_bandit import PriorManager
+        from banditgpt.core import PriorManager
 
         # These should not raise
         bundled = PriorManager.bundled()
@@ -82,7 +82,7 @@ class TestPriorManager:
 
     def test_save_and_load(self, temp_dir, sample_priors):
         """Test saving and loading priors."""
-        from banditgpt.async_bandit import PriorManager, PriorConfig
+        from banditgpt.core import PriorManager, PriorConfig
 
         path = temp_dir / "test_priors.npz"
         manager = PriorManager(PriorConfig(source="none"), save_path=path)
@@ -104,7 +104,7 @@ class TestPriorManager:
 
     def test_merge_priors_union(self):
         """Test that merge_priors creates a union of models."""
-        from banditgpt.async_bandit import PriorManager
+        from banditgpt.core import PriorManager
 
         base = {
             "model_ids": ["a", "b"],
@@ -135,7 +135,7 @@ class TestPriorManager:
 
     def test_add_model_clone(self, sample_priors):
         """Test adding a model by cloning from existing."""
-        from banditgpt.async_bandit import PriorManager
+        from banditgpt.core import PriorManager
 
         manager = PriorManager.none()
 
@@ -156,7 +156,7 @@ class TestPriorManager:
 
     def test_add_model_cold_start(self, sample_priors):
         """Test adding a model with cold start (zeros)."""
-        from banditgpt.async_bandit import PriorManager
+        from banditgpt.core import PriorManager
 
         manager = PriorManager.none()
 
@@ -171,7 +171,7 @@ class TestPriorManager:
 
     def test_add_model_already_exists(self, sample_priors):
         """Test that adding an existing model returns unchanged priors."""
-        from banditgpt.async_bandit import PriorManager
+        from banditgpt.core import PriorManager
 
         manager = PriorManager.none()
         updated = manager.add_model(sample_priors, "model-a")
@@ -181,7 +181,7 @@ class TestPriorManager:
 
     def test_remove_model(self, sample_priors):
         """Test removing a model from priors."""
-        from banditgpt.async_bandit import PriorManager
+        from banditgpt.core import PriorManager
 
         manager = PriorManager.none()
         updated = manager.remove_model(sample_priors, "model-a")
@@ -201,7 +201,7 @@ class TestDisjointLinUCBPolicy:
 
     def test_add_model_cold_start(self):
         """Test adding a model with cold start."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
 
         policy = DisjointLinUCBPolicy(["model-a", "model-b"], dim=4, alpha=0.5)
 
@@ -223,7 +223,7 @@ class TestDisjointLinUCBPolicy:
 
     def test_add_model_clone(self):
         """Test adding a model by cloning."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
 
         policy = DisjointLinUCBPolicy(["model-a"], dim=4, alpha=0.5)
 
@@ -247,7 +247,7 @@ class TestDisjointLinUCBPolicy:
 
     def test_add_model_already_exists(self):
         """Test that adding an existing model returns False."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
 
         policy = DisjointLinUCBPolicy(["model-a"], dim=4)
         added = policy.add_model("model-a")
@@ -256,7 +256,7 @@ class TestDisjointLinUCBPolicy:
 
     def test_remove_model(self):
         """Test removing a model."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
 
         policy = DisjointLinUCBPolicy(["model-a", "model-b"], dim=4)
 
@@ -270,7 +270,7 @@ class TestDisjointLinUCBPolicy:
 
     def test_remove_model_not_exists(self):
         """Test removing a non-existent model returns False."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
 
         policy = DisjointLinUCBPolicy(["model-a"], dim=4)
         removed = policy.remove_model("model-nonexistent")
@@ -288,7 +288,7 @@ class TestExpertPriors:
 
     def test_create_and_save_expert_priors(self, temp_dir):
         """Test creating and saving expert priors in disjoint format."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
 
         model_names = ["model-a", "model-b", "model-c"]
         dim = 32
@@ -325,7 +325,7 @@ class TestExpertPriors:
 
     def test_load_expert_priors_format(self, temp_dir, sample_registry):
         """Test that expert priors are correctly loaded."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         # Create expert priors
         model_names = list(sample_registry.keys())
@@ -363,7 +363,7 @@ class TestExpertPriors:
 
     def test_expert_priors_float16_precision(self, temp_dir, sample_registry):
         """Test that float16 compression maintains acceptable precision."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         model_names = list(sample_registry.keys())
         dim = 384
@@ -402,7 +402,7 @@ class TestPriorStrength:
 
     def test_prior_strength_scales_matrices(self, temp_dir, sample_registry):
         """prior_strength multiplies A and b matrices."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         model_names = list(sample_registry.keys())
         dim = 384
@@ -437,7 +437,7 @@ class TestPriorStrength:
 
     def test_prior_strength_default_50(self, temp_dir, sample_registry):
         """Default prior_strength is 50.0 for expert priors."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         model_names = list(sample_registry.keys())
         dim = 384
@@ -469,7 +469,7 @@ class TestPriorStrength:
 
     def test_prior_strength_affects_ucb_confidence(self, temp_dir, sample_registry):
         """Higher prior_strength reduces UCB uncertainty."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         model_names = list(sample_registry.keys())
         dim = 384
@@ -520,7 +520,7 @@ class TestPriorFormatDetection:
 
     def test_detects_expert_format(self, temp_dir, sample_registry):
         """Detects A_stack as expert format."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         model_names = list(sample_registry.keys())
         dim = 384
@@ -547,7 +547,7 @@ class TestPriorFormatDetection:
 
     def test_detects_shared_format(self, temp_dir, sample_registry):
         """Detects A_shared as shared covariance format."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
+        from banditgpt.core.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
 
         # Create shared priors using the policy class
         models = list(sample_registry.keys())
@@ -570,7 +570,7 @@ class TestPriorFormatDetection:
 
     def test_create_prefers_expert_priors(self, temp_dir, sample_registry):
         """BanditRouter.create() prefers expert_priors.npz over shippable_priors.npz."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
+        from banditgpt.core.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
 
         models = list(sample_registry.keys())
         dim = 384
@@ -616,7 +616,7 @@ class TestBanditRouterCreate:
 
     def test_create_none_mode(self, sample_registry):
         """Test cold start with priors='none'."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         router = BanditRouter.create(sample_registry, priors="none")
 
@@ -626,7 +626,7 @@ class TestBanditRouterCreate:
 
     def test_create_with_nonexistent_paths(self, sample_registry, temp_dir):
         """Test that auto mode falls back to cold start when no priors exist."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         router = BanditRouter.create(
             sample_registry,
@@ -639,7 +639,7 @@ class TestBanditRouterCreate:
 
     def test_create_bundled_mode(self, sample_registry, temp_dir):
         """Test loading bundled priors."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
+        from banditgpt.core.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
 
         # Create fake bundled priors using the proper format
         bundled_path = temp_dir / "bundled.npz"
@@ -658,8 +658,8 @@ class TestBanditRouterCreate:
 
     def test_create_merged_mode(self, sample_registry, temp_dir):
         """Test merged mode combines bundled and user priors."""
-        from banditgpt.async_bandit import PriorManager, PriorConfig
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core import PriorManager, PriorConfig
+        from banditgpt.core.bandit_router import BanditRouter
 
         # Create bundled priors with models a, b using PriorManager format
         bundled_priors = {
@@ -720,7 +720,7 @@ class TestBanditRouterAddRemoveModel:
 
     def test_add_model_cold_start(self, sample_registry):
         """Test adding a model with cold start."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         router = BanditRouter.create(sample_registry, priors="none")
 
@@ -736,7 +736,7 @@ class TestBanditRouterAddRemoveModel:
 
     def test_add_model_clone(self, sample_registry):
         """Test adding a model by cloning."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         router = BanditRouter.create(sample_registry, priors="none")
 
@@ -756,7 +756,7 @@ class TestBanditRouterAddRemoveModel:
 
     def test_add_model_already_exists(self, sample_registry):
         """Test that adding an existing model returns False."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         router = BanditRouter.create(sample_registry, priors="none")
         added = router.add_model("model-a")
@@ -765,7 +765,7 @@ class TestBanditRouterAddRemoveModel:
 
     def test_remove_model(self, sample_registry):
         """Test removing a model."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         router = BanditRouter.create(sample_registry, priors="none")
         router.model_priors["model-a"] = 0.5
@@ -779,7 +779,7 @@ class TestBanditRouterAddRemoveModel:
 
     def test_remove_model_not_exists(self, sample_registry):
         """Test removing a non-existent model returns False."""
-        from banditgpt.async_bandit.bandit_router import BanditRouter
+        from banditgpt.core.bandit_router import BanditRouter
 
         router = BanditRouter.create(sample_registry, priors="none")
         removed = router.remove_model("nonexistent")
@@ -797,7 +797,7 @@ class TestJudgeFactories:
 
     def test_create_custom_judge(self):
         """Test creating a custom judge from a function."""
-        from banditgpt.async_bandit import create_custom_judge
+        from banditgpt.core import create_custom_judge
 
         def my_grader(prompt: str, response: str):
             score = len(response) / 100.0  # Simple length-based score
@@ -820,7 +820,7 @@ class TestPriorWorkflow:
 
     def test_full_workflow(self, temp_dir):
         """Test: load bundled -> add model -> save to user -> load merged."""
-        from banditgpt.async_bandit import PriorManager, PriorConfig
+        from banditgpt.core import PriorManager, PriorConfig
 
         # Step 1: Create "bundled" priors
         bundled_priors = {

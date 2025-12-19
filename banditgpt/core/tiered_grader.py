@@ -23,7 +23,7 @@ from typing import Any, Dict, Optional, Protocol, Tuple
 
 import subprocess
 
-from banditgpt.async_bandit.quality_cost_predictor import (
+from banditgpt.core.quality_cost_predictor import (
     LogitReward,
     RunningZScoreNormalizer,
     clip01,

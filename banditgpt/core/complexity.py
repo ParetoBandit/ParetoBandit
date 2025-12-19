@@ -6,7 +6,7 @@ This module provides two classifier implementations:
   - NvidiaComplexityClassifier: Uses NVIDIA's prompt-task-and-complexity-classifier (more features)
 
 Usage:
-    from banditgpt.async_bandit.complexity import (
+    from banditgpt.core.complexity import (
         LocalComplexityClassifier,
         NvidiaComplexityClassifier,
         get_complexity_classifier,

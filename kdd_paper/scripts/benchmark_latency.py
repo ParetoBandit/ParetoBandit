@@ -18,7 +18,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Any
 
-from banditgpt.async_bandit.bandit_router import (
+from banditgpt.core.bandit_router import (
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,
 )

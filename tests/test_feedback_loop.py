@@ -42,7 +42,7 @@ def sample_registry() -> Dict[str, Dict[str, Any]]:
 
 def create_test_router(sample_registry: Dict[str, Dict[str, Any]]):
     """Create a BanditRouter for testing with mocked embedding."""
-    from banditgpt.async_bandit.bandit_router import BanditRouter
+    from banditgpt.core.bandit_router import BanditRouter
     
     # Create router with actual initialization
     router = BanditRouter(
@@ -79,7 +79,7 @@ class TestReportFeedback:
 
     def test_import(self):
         """report_feedback is available on BanditRouter."""
-        from banditgpt.async_bandit import BanditRouter
+        from banditgpt.core import BanditRouter
         
         assert hasattr(BanditRouter, "report_feedback")
 
@@ -184,7 +184,7 @@ class TestRankOneUpdate:
 
     def test_a_matrix_update_formula(self):
         """A_new = A_old + x·x' (outer product)."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
         
         bandit = DisjointLinUCBPolicy(["model-a"], dim=4, alpha=0.1)
         
@@ -201,7 +201,7 @@ class TestRankOneUpdate:
 
     def test_b_vector_update_formula(self):
         """b_new = b_old + r·x."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
         
         bandit = DisjointLinUCBPolicy(["model-a"], dim=4, alpha=0.1)
         
@@ -218,7 +218,7 @@ class TestRankOneUpdate:
 
     def test_update_reduces_uncertainty(self):
         """After update, uncertainty (variance) decreases for similar prompts."""
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
         
         bandit = DisjointLinUCBPolicy(["model-a"], dim=4, alpha=0.1)
         
@@ -244,7 +244,7 @@ class TestRankOneUpdate:
     def test_update_is_fast(self):
         """Update should be O(d²) not O(d³)."""
         import time
-        from banditgpt.async_bandit.bandit_router import DisjointLinUCBPolicy
+        from banditgpt.core.bandit_router import DisjointLinUCBPolicy
         
         bandit = DisjointLinUCBPolicy(["model-a"], dim=384, alpha=0.1)
         x = np.random.randn(384)
@@ -269,13 +269,13 @@ class TestHardTruth:
 
     def test_code_verifier_protocol_exists(self):
         """CodeExecutionVerifier protocol is defined."""
-        from banditgpt.async_bandit.tiered_grader import CodeExecutionVerifier
+        from banditgpt.core.tiered_grader import CodeExecutionVerifier
         
         assert CodeExecutionVerifier is not None
 
     def test_unsafe_python_verifier_disabled_by_default(self):
         """UnsafePythonSubprocessVerifier refuses to run unless allow_unsafe=True."""
-        from banditgpt.async_bandit.tiered_grader import UnsafePythonSubprocessVerifier
+        from banditgpt.core.tiered_grader import UnsafePythonSubprocessVerifier
         
         verifier = UnsafePythonSubprocessVerifier(allow_unsafe=False)
         score, meta = verifier.verify("Write hello world", "print('hello')")
@@ -286,7 +286,7 @@ class TestHardTruth:
 
     def test_tiered_grader_uses_code_verifier_for_code_prompts(self):
         """TieredGrader uses code_verifier for code-like prompts when provided."""
-        from banditgpt.async_bandit.tiered_grader import TieredGrader, HardPromptHeuristics
+        from banditgpt.core.tiered_grader import TieredGrader, HardPromptHeuristics
         
         # Mock soft grader
         soft_grader = MagicMock()
@@ -325,13 +325,13 @@ class TestSyntheticTruth:
 
     def test_teacher_verifier_protocol_exists(self):
         """TeacherVerifier protocol is defined."""
-        from banditgpt.async_bandit.tiered_grader import TeacherVerifier
+        from banditgpt.core.tiered_grader import TeacherVerifier
         
         assert TeacherVerifier is not None
 
     def test_openrouter_teacher_verifier_requires_api_key(self):
         """OpenRouterTeacherVerifier returns error without API key."""
-        from banditgpt.async_bandit.tiered_grader import OpenRouterTeacherVerifier
+        from banditgpt.core.tiered_grader import OpenRouterTeacherVerifier
         
         with patch.dict("os.environ", {}, clear=True):
             verifier = OpenRouterTeacherVerifier(api_key_env="NONEXISTENT_KEY")
@@ -343,7 +343,7 @@ class TestSyntheticTruth:
 
     def test_tiered_grader_uses_teacher_for_hard_prompts(self):
         """TieredGrader uses teacher_verifier for hard prompts."""
-        from banditgpt.async_bandit.tiered_grader import TieredGrader
+        from banditgpt.core.tiered_grader import TieredGrader
         
         # Mock soft grader
         soft_grader = MagicMock()
@@ -374,7 +374,7 @@ class TestSyntheticTruth:
 
     def test_tiered_grader_skips_teacher_for_easy_prompts(self):
         """TieredGrader does NOT call teacher for easy prompts."""
-        from banditgpt.async_bandit.tiered_grader import TieredGrader
+        from banditgpt.core.tiered_grader import TieredGrader
         
         # Mock soft grader
         soft_grader = MagicMock()
@@ -488,7 +488,7 @@ class TestHardPromptHeuristics:
 
     def test_detects_math_prompts(self):
         """Detects math/calculation prompts as hard."""
-        from banditgpt.async_bandit.tiered_grader import HardPromptHeuristics
+        from banditgpt.core.tiered_grader import HardPromptHeuristics
         
         detector = HardPromptHeuristics()
         
@@ -499,7 +499,7 @@ class TestHardPromptHeuristics:
 
     def test_detects_code_prompts(self):
         """Detects code/programming prompts as hard."""
-        from banditgpt.async_bandit.tiered_grader import HardPromptHeuristics
+        from banditgpt.core.tiered_grader import HardPromptHeuristics
         
         detector = HardPromptHeuristics()
         
@@ -510,7 +510,7 @@ class TestHardPromptHeuristics:
 
     def test_detects_constraint_prompts(self):
         """Detects constraint-heavy prompts as hard."""
-        from banditgpt.async_bandit.tiered_grader import HardPromptHeuristics
+        from banditgpt.core.tiered_grader import HardPromptHeuristics
         
         detector = HardPromptHeuristics()
         
@@ -520,7 +520,7 @@ class TestHardPromptHeuristics:
 
     def test_easy_prompts_not_hard(self):
         """Creative/conversational prompts are NOT hard."""
-        from banditgpt.async_bandit.tiered_grader import HardPromptHeuristics
+        from banditgpt.core.tiered_grader import HardPromptHeuristics
         
         detector = HardPromptHeuristics()
         

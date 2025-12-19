@@ -1,12 +1,12 @@
 """
-Tests for async_bandit package entrypoints.
+Tests for banditgpt.core package entrypoints.
 """
 
 
-def test_async_bandit_grader_entrypoints_import():
+def test_core_grader_entrypoints_import():
     """Test that core grader components can be imported."""
-    from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
-    from banditgpt.async_bandit.tiered_grader import (
+    from banditgpt.core.quality_cost_predictor import QualityCostPredictor
+    from banditgpt.core.tiered_grader import (
         HardPromptHeuristics,
         OpenRouterTeacherVerifier,
         TieredGrader,
@@ -20,19 +20,19 @@ def test_async_bandit_grader_entrypoints_import():
     assert UnsafePythonSubprocessVerifier is not None
 
 
-def test_async_bandit_package_import_does_not_crash():
+def test_core_package_import_does_not_crash():
     """Package should import even if optional dependencies are missing."""
-    import banditgpt.async_bandit as ab  # noqa: F401
+    import banditgpt.core as core  # noqa: F401
 
     # Check core exports exist
-    assert hasattr(ab, "TieredGrader")
-    assert hasattr(ab, "QualityCostPredictor")
-    assert hasattr(ab, "PriorManager")
+    assert hasattr(core, "TieredGrader")
+    assert hasattr(core, "QualityCostPredictor")
+    assert hasattr(core, "PriorManager")
 
 
 def test_complexity_module_import():
     """Test that complexity classifiers can be imported."""
-    from banditgpt.async_bandit.complexity import (
+    from banditgpt.core.complexity import (
         LocalComplexityClassifier,
         NvidiaComplexityClassifier,
         get_complexity_classifier,
@@ -45,7 +45,7 @@ def test_complexity_module_import():
 
 def test_judge_module_import():
     """Test that judge abstraction can be imported."""
-    from banditgpt.async_bandit.judge import (
+    from banditgpt.core.judge import (
         Judge,
         PriorConfig,
         PriorManager,

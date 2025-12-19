@@ -1,5 +1,5 @@
 """
-Async Bandit Router for LLM Model Selection.
+Core module for BanditGPT - Contextual Bandit Router for LLM Model Selection.
 
 This package provides a contextual bandit-based router for selecting the optimal
 LLM model for each prompt, balancing quality, cost, and latency.
@@ -15,7 +15,7 @@ Prior Storage Locations:
     USER (read-write):    ~/.banditgpt/priors/user_priors.npz
 
 Quick Start:
-    from banditgpt.async_bandit import BanditRouter, PriorManager
+    from banditgpt.core import BanditRouter, PriorManager
 
     # Create router with automatic prior detection
     router = BanditRouter.create(model_registry, priors="merged")
@@ -30,13 +30,13 @@ Quick Start:
 from __future__ import annotations
 
 # Core graders
-from banditgpt.async_bandit.quality_cost_predictor import (
+from banditgpt.core.quality_cost_predictor import (
     LogitReward,
     QualityCostPredictor,
     RunningZScoreNormalizer,
     get_device,
 )
-from banditgpt.async_bandit.tiered_grader import (
+from banditgpt.core.tiered_grader import (
     HardPromptHeuristics,
     OpenRouterTeacherVerifier,
     TieredGrader,
@@ -44,7 +44,7 @@ from banditgpt.async_bandit.tiered_grader import (
 )
 
 # Judge abstraction and prior management
-from banditgpt.async_bandit.judge import (
+from banditgpt.core.judge import (
     Judge,
     JudgeWithComplexity,
     PriorConfig,
@@ -76,7 +76,7 @@ __all__ = [
 
 # Optional: Bandit router (requires sentence-transformers)
 try:
-    from banditgpt.async_bandit.bandit_router import (
+    from banditgpt.core.bandit_router import (
         BanditRouter,
         DisjointLinUCBPolicy,
         ExplorationRate,
@@ -102,7 +102,7 @@ except ImportError:
 
 # Optional: Complexity classifiers
 try:
-    from banditgpt.async_bandit.complexity import (
+    from banditgpt.core.complexity import (
         LocalComplexityClassifier,
         LocalComplexityResult,
         NvidiaComplexityClassifier,

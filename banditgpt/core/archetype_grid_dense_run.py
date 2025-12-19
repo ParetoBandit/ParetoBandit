@@ -27,15 +27,15 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from dotenv import load_dotenv
 
-from banditgpt.async_bandit.bandit_router import (
+from banditgpt.core.bandit_router import (
     DEFAULT_CONTEXT_MODEL,
     SharedCovarianceLinUCBPolicy,
     build_registry_from_models_cache,
     l2_normalize,
 )
-from banditgpt.async_bandit.demo_quality_grader import call_openrouter
-from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
-from banditgpt.async_bandit.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
+from banditgpt.core.demo_quality_grader import call_openrouter
+from banditgpt.core.quality_cost_predictor import QualityCostPredictor
+from banditgpt.core.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
 from banditgpt._resources import get_models_cache_path, get_priors_path, get_quality_predictor_path
 
 
