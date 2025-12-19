@@ -21,6 +21,21 @@ Key Insight:
     Uncertain = high exploration bonus = immediate discovery (no dip).
     Confidently Wrong = low exploration bonus = must learn the hard way.
 
+Justification (Why Synthetic Simulation):
+    While RQ1 establishes performance on realistic trace data, assessing the 
+    router's ability to unlearn "Confidently Wrong" priors requires precise 
+    control over the drift magnitude and prior strength.
+    
+    Therefore, we conducted a Controlled Simulation to isolate the 
+    "Plasticity-Stability Dilemma." We initialized the bandit with an 
+    artificially poisoned prior (μ_prior ≪ μ_true) to simulate a "Worst-Case 
+    Scenario" where a legacy expert system is suddenly rendered obsolete by 
+    a new specialist model. 
+    
+    This synthetic setup allows us to rigorously measure the Recovery Latency 
+    (number of interactions required to correct the belief) without the 
+    confounding factors of embedding noise.
+
 Usage:
     python -m llm_jury.experiment.run_rq2_poisoned
 
