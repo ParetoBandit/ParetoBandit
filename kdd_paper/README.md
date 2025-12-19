@@ -68,11 +68,11 @@ This folder contains all camera-ready figures, tables, and scripts for the KDD p
 
 ```bash
 # From repository root
-python -m llm_jury.experiment.run_rq1
-python -m llm_jury.experiment.run_rq2
-python -m llm_jury.experiment.run_rq2_poisoned
-python -m llm_jury.experiment.run_rq3
-python -m llm_jury.experiment.benchmark_latency
+python -m banditgpt.experiment.run_rq1
+python -m banditgpt.experiment.run_rq2
+python -m banditgpt.experiment.run_rq2_poisoned
+python -m banditgpt.experiment.run_rq3
+python -m banditgpt.experiment.benchmark_latency
 ```
 
 ---

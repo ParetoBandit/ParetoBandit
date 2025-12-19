@@ -1,4 +1,4 @@
-# LLM Jury Priors
+# BanditGPT Priors
 
 This folder contains **warm-start priors** for the async bandit router, enabling 63% regret reduction on Day 1.
 
@@ -6,10 +6,10 @@ This folder contains **warm-start priors** for the async bandit router, enabling
 
 ```bash
 # Generate expert-distilled priors (recommended)
-python -m llm_jury.experiment.generate_expert_priors generate --seed 42
+python -m banditgpt.experiment.generate_expert_priors generate --seed 42
 
 # Verify existing priors
-python -m llm_jury.experiment.generate_expert_priors verify
+python -m banditgpt.experiment.generate_expert_priors verify
 ```
 
 **Output:** `data/priors/expert_priors.npz` (~21 MB, 81 models, 384 dimensions)
@@ -62,7 +62,7 @@ The model with highest **Utility** is selected.
 |----------|------|----------|---------|
 | **BUNDLED** | `<package>/data/priors/expert_priors.npz` | No | Expert-distilled (63% improvement) |
 | **FALLBACK** | `<package>/data/priors/shippable_priors.npz` | No | Legacy shared priors |
-| **USER** | `~/.llm_jury/priors/user_priors.npz` | Yes | User customizations, new models |
+| **USER** | `~/.banditgpt/priors/user_priors.npz` | Yes | User customizations, new models |
 | **CUSTOM** | User-specified | Yes | Explicit path for special use cases |
 
 When you update priors (e.g., add a new model), changes go to the **USER** location by default.
@@ -118,7 +118,7 @@ Expert Distillation trains priors where a "teacher oracle" picks the optimal mod
 
 **Step 2:** Generate expert priors:
 ```bash
-python -m llm_jury.experiment.generate_expert_priors generate \
+python -m banditgpt.experiment.generate_expert_priors generate \
     --seed 42 \
     --epochs 5 \
     --expert-rate 0.8
@@ -126,7 +126,7 @@ python -m llm_jury.experiment.generate_expert_priors generate \
 
 **Step 3:** Verify the output:
 ```bash
-python -m llm_jury.experiment.generate_expert_priors verify
+python -m banditgpt.experiment.generate_expert_priors verify
 ```
 
 **Expected output:**
@@ -153,7 +153,7 @@ This is a cost-controlled warmup that still covers all models, but does **not** 
 1) Produce a warmed router state (synthetic prior injection):
 
 ```bash
-python -m llm_jury.async_bandit.synthetic_prior_injection \
+python -m banditgpt.async_bandit.synthetic_prior_injection \
   --dataset lmsys/chatbot_arena_conversations \
   --split train \
   --max-prompts 500 \
@@ -169,7 +169,7 @@ python -m llm_jury.async_bandit.synthetic_prior_injection \
 2) Compress the warmed state into a shippable priors bundle:
 
 ```bash
-python -m llm_jury.async_bandit.compress_shippable_priors \
+python -m banditgpt.async_bandit.compress_shippable_priors \
   --state data/router_state_synthetic.json
 ```
 
@@ -211,7 +211,7 @@ Suggested wording for docs/whitepaper:
 1) Build K representative prompts by clustering:
 
 ```bash
-python -m llm_jury.async_bandit.archetype_grid \
+python -m banditgpt.async_bandit.archetype_grid \
   --dataset lmsys/chatbot_arena_conversations \
   --split train \
   --max-prompts 50000 \
@@ -222,7 +222,7 @@ python -m llm_jury.async_bandit.archetype_grid \
 2) Run a dense grid: all models × K prompts, grade with TieredGrader, and export priors:
 
 ```bash
-python -m llm_jury.async_bandit.archetype_grid_dense_run \
+python -m banditgpt.async_bandit.archetype_grid_dense_run \
   --grid data/priors/archetype_grid_prompts.jsonl \
   --use-teacher \
   --teacher-model openai/gpt-4o \
@@ -235,7 +235,7 @@ python -m llm_jury.async_bandit.archetype_grid_dense_run \
 The recommend CLI will **auto-load** `data/priors/shippable_priors.npz` if it exists:
 
 ```bash
-python -m llm_jury.async_bandit.recommend \
+python -m banditgpt.async_bandit.recommend \
   --prompt 'Calculate the pH of a $10^{-8}$ M solution of HCl.' \
   --top-k 10 \
   --use-complexity-gating
@@ -244,7 +244,7 @@ python -m llm_jury.async_bandit.recommend \
 You can also provide an explicit path:
 
 ```bash
-python -m llm_jury.async_bandit.recommend \
+python -m banditgpt.async_bandit.recommend \
   --prompt 'Calculate the pH of a $10^{-8}$ M solution of HCl.' \
   --top-k 10 \
   --use-complexity-gating \
@@ -258,7 +258,7 @@ When a new model is released (e.g., GPT-5, DeepSeek-V3), you can install it into
 ### Option 1: Clone from a similar model (recommended)
 
 ```python
-from llm_jury.async_bandit import BanditRouter, PriorManager
+from banditgpt.async_bandit import BanditRouter, PriorManager
 
 # Load router with existing priors
 router = BanditRouter.from_shippable_priors(priors_npz, model_registry)
@@ -272,7 +272,7 @@ router.add_model(
 )
 
 # Save updated state
-router.save_state(Path("~/.llm_jury/priors/user_state.json").expanduser())
+router.save_state(Path("~/.banditgpt/priors/user_state.json").expanduser())
 ```
 
 ### Option 2: Cold start (for completely new models)
@@ -286,7 +286,7 @@ router.add_model("brand-new/model-v1")
 ### Option 3: Update priors via PriorManager
 
 ```python
-from llm_jury.async_bandit import PriorManager
+from banditgpt.async_bandit import PriorManager
 
 # Load user priors (falls back to bundled if not present)
 manager = PriorManager.user()
@@ -295,7 +295,7 @@ priors = manager.load()
 # Add new model
 priors = manager.add_model(priors, "deepseek/deepseek-v3", clone_from="deepseek/deepseek-r1")
 
-# Save to user location (~/.llm_jury/priors/)
+# Save to user location (~/.banditgpt/priors/)
 manager.save(priors)
 ```
 
@@ -311,5 +311,5 @@ manager.save(priors)
 
 - **Quote prompts containing `$...$`** (LaTeX) in the shell, otherwise `$10` may be expanded by your shell.
 - `shippable_priors.npz` is intended to provide a warm start; the router can still update online and diverge per-model.
-- When you call `PriorManager.save()`, it writes to `~/.llm_jury/priors/user_priors.npz` by default, preserving bundled priors.
+- When you call `PriorManager.save()`, it writes to `~/.banditgpt/priors/user_priors.npz` by default, preserving bundled priors.
 

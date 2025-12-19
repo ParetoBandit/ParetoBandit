@@ -1,10 +1,10 @@
-# LLM Jury Architecture
+# BanditGPT Architecture
 
 This document explains how the async bandit router selects the optimal LLM model for each prompt.
 
 ## Overview
 
-LLM Jury uses a **contextual bandit** (LinUCB) to route prompts to the best model based on:
+BanditGPT uses a **contextual bandit** (LinUCB) to route prompts to the best model based on:
 - **Quality**: Learned from past interactions
 - **Cost**: Token pricing from the model registry
 - **Latency**: Estimated response time
@@ -254,7 +254,7 @@ Instead, it creates a separate `user_priors.npz`:
 | File | Location | Writable | Purpose |
 |------|----------|----------|---------|
 | `shippable_priors.npz` | `<package>/data/priors/` | No | Library defaults (frozen) |
-| `user_priors.npz` | `~/.llm_jury/priors/` | Yes | User's learned updates |
+| `user_priors.npz` | `~/.banditgpt/priors/` | Yes | User's learned updates |
 
 **On startup:** Load bundled priors, then overlay user state if it exists.
 **On shutdown:** Save current matrices to user state.
@@ -339,12 +339,12 @@ model, log = router.route("Write code", lambda_cost=25.0, lambda_latency=0.15)
 
 ```bash
 # Use a profile
-python -m llm_jury.async_bandit.cli recommend \
+python -m banditgpt.async_bandit.cli recommend \
     --prompt "Write a fibonacci function" \
     --profile balanced
 
 # Override with explicit weights
-python -m llm_jury.async_bandit.cli recommend \
+python -m banditgpt.async_bandit.cli recommend \
     --prompt "Write a fibonacci function" \
     --lambda-cost 25.0 --lambda-latency 0.15
 ```
@@ -397,12 +397,12 @@ model, log = router.route("Test this", exploration="aggressive")
 
 ```bash
 # Safe exploration (production default)
-python -m llm_jury.async_bandit.cli recommend \
+python -m banditgpt.async_bandit.cli recommend \
     --prompt "Analyze risk" \
     --exploration safe
 
 # Aggressive exploration (calibration)
-python -m llm_jury.async_bandit.cli recommend \
+python -m banditgpt.async_bandit.cli recommend \
     --prompt "Test this" \
     --exploration aggressive
 ```
@@ -432,7 +432,7 @@ Since no real user sees the answer, you should explore wildly to learn faster
 ## Quick Start
 
 ```python
-from llm_jury.async_bandit import BanditRouter, OptimizationProfile
+from banditgpt.async_bandit import BanditRouter, OptimizationProfile
 
 # Create router with automatic prior detection
 router = BanditRouter.create(model_registry, priors="merged")

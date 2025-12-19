@@ -24,15 +24,15 @@ Reproducibility:
        - data/priors/archetype_grid_dense_run.jsonl (rewards from 36 models)
     
     2. Run with default settings (seed=42):
-       python -m llm_jury.experiment.generate_expert_priors
+       python -m banditgpt.experiment.generate_expert_priors
     
     3. Expected output:
        - File size: ~21 MB
        - 62.2% regret reduction vs cold-start (with prior_strength=50.0)
 
 Usage:
-    python -m llm_jury.experiment.generate_expert_priors
-    python -m llm_jury.experiment.generate_expert_priors --seed 42 --epochs 5
+    python -m banditgpt.experiment.generate_expert_priors
+    python -m banditgpt.experiment.generate_expert_priors --seed 42 --epochs 5
 
 Output:
     data/priors/expert_priors.npz - Expert-distilled priors
@@ -51,7 +51,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from llm_jury.async_bandit.bandit_router import (
+from banditgpt.async_bandit.bandit_router import (
     DEFAULT_CONTEXT_MODEL,
     DisjointLinUCBPolicy,
 )
@@ -355,7 +355,7 @@ def verify_priors(priors_path: Path) -> None:
     if "prompts_hash" in data and "rewards_hash" in data:
         print(f"\n[Reproducibility Check]")
         print(f"  To reproduce these priors, run:")
-        print(f"    python -m llm_jury.experiment.generate_expert_priors \\")
+        print(f"    python -m banditgpt.experiment.generate_expert_priors \\")
         print(f"      --seed {data.get('seed', 42)} \\")
         print(f"      --epochs {data.get('n_epochs', 5)} \\")
         print(f"      --expert-rate {data.get('expert_rate', 0.8)}")

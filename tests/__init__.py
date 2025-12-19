@@ -1,2 +1,2 @@
-"""Tests for LLM Jury."""
+"""Tests for BanditGPT."""
 

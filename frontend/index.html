@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM Jury - Intelligent Model Routing & Multi-Objective Optimization</title>
+    <title>BanditGPT - Intelligent Model Routing & Multi-Objective Optimization</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
         <div class="nav-container">
             <div class="logo">
                 <span class="logo-icon">⚖️</span>
-                <span class="logo-text">LLM Jury</span>
+                <span class="logo-text">BanditGPT</span>
             </div>
             <div class="nav-links">
                 <a href="#features">Features</a>
@@ -366,7 +366,7 @@
                 <div class="comparison-column recommended-column">
                     <div class="column-header recommended-header">
                         <span class="column-icon">🏆</span>
-                        <span class="column-title">LLM Jury Recommendation</span>
+                        <span class="column-title">BanditGPT Recommendation</span>
                     </div>
                     <div class="model-info-bar recommended-bar">
                         <span class="model-name-compare">GPT-5 mini (high)</span>
@@ -434,7 +434,7 @@
         <div class="container">
             <div class="section-header">
                 <span class="section-badge">The Process</span>
-                <h2 class="section-title">How LLM Jury Works</h2>
+                <h2 class="section-title">How BanditGPT Works</h2>
             </div>
 
             <div class="process-flow">
@@ -712,7 +712,7 @@
                     <button class="code-tab" data-tab="custom">Custom Weights</button>
                 </div>
                 <div class="code-content">
-                    <pre class="code-block" id="code-basic"><code><span class="code-keyword">from</span> llm_jury <span class="code-keyword">import</span> get_value_recommendations
+                    <pre class="code-block" id="code-basic"><code><span class="code-keyword">from</span> banditgpt <span class="code-keyword">import</span> get_value_recommendations
 
 <span class="code-comment"># Get optimal model for your constraints</span>
 recommendations = get_value_recommendations(
@@ -725,7 +725,7 @@ recommendations = get_value_recommendations(
 <span class="code-comment"># Get the top recommendation</span>
 best = recommendations[<span class="code-number">0</span>]
 <span class="code-keyword">print</span>(f<span class="code-string">"Use {best.model_name}: {best.reasoning}"</span>)</code></pre>
-                    <pre class="code-block hidden" id="code-advanced"><code><span class="code-keyword">from</span> llm_jury <span class="code-keyword">import</span> Optimizer, OptimizationStrategy, ModelRegistry
+                    <pre class="code-block hidden" id="code-advanced"><code><span class="code-keyword">from</span> banditgpt <span class="code-keyword">import</span> Optimizer, OptimizationStrategy, ModelRegistry
 
 <span class="code-comment"># Load models and set baseline</span>
 registry = ModelRegistry.load_cache()
@@ -745,7 +745,7 @@ results = optimizer.rank(
     decision=RoutingDecision(category=PromptCategory.CODING),
     top_k=<span class="code-number">5</span>,
 )</code></pre>
-                    <pre class="code-block hidden" id="code-custom"><code><span class="code-keyword">from</span> llm_jury <span class="code-keyword">import</span> Optimizer, ObjectiveRegistry, Objective
+                    <pre class="code-block hidden" id="code-custom"><code><span class="code-keyword">from</span> banditgpt <span class="code-keyword">import</span> Optimizer, ObjectiveRegistry, Objective
 
 <span class="code-comment"># Create custom objective registry</span>
 registry = ObjectiveRegistry.default()
@@ -822,7 +822,7 @@ optimizer = Optimizer(
                     </a>
                 </div>
                 <div class="cta-install">
-                    <code>pip install llm-jury</code>
+                    <code>pip install banditgpt</code>
                     <button class="copy-btn" onclick="copyInstall()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -841,7 +841,7 @@ optimizer = Optimizer(
                 <div class="footer-brand">
                     <div class="logo">
                         <span class="logo-icon">⚖️</span>
-                        <span class="logo-text">LLM Jury</span>
+                        <span class="logo-text">BanditGPT</span>
                     </div>
                     <p>Open-source multi-objective LLM routing and optimization.</p>
                 </div>
@@ -867,7 +867,7 @@ optimizer = Optimizer(
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>© 2025 LLM Jury. Open source under MIT License.</p>
+                <p>© 2025 BanditGPT. Open source under MIT License.</p>
             </div>
         </div>
     </footer>

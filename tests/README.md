@@ -158,7 +158,7 @@ Tests are designed to be CI-friendly:
 If you see `ModuleNotFoundError`, ensure you're running from the project root:
 
 ```bash
-cd /path/to/llm_jury
+cd /path/to/banditgpt
 python tests/run_all_tests.py
 ```
 
@@ -184,7 +184,7 @@ pip install pytest pytest-cov
 If you have `pytest-cov` installed:
 
 ```bash
-pytest tests/ --cov=llm_jury --cov-report=html
+pytest tests/ --cov=banditgpt --cov-report=html
 open htmlcov/index.html
 ```
 

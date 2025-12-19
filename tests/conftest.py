@@ -6,7 +6,7 @@ import pytest
 import sys
 from pathlib import Path
 
-# Ensure llm_jury is importable
+# Ensure banditgpt is importable
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 

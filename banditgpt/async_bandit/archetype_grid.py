@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from llm_jury.async_bandit.bandit_router import DEFAULT_CONTEXT_MODEL
+from banditgpt.async_bandit.bandit_router import DEFAULT_CONTEXT_MODEL
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent

@@ -4,8 +4,8 @@ Demo: Compare Quality/Verbosity predictions across different models.
 
 This demo calls models via OpenRouter and grades their responses.
 
-Moved from `llm_jury.neural_routing.demo_quality_grader` to keep all async-bandit
-artifacts together under `llm_jury.async_bandit`.
+Moved from `banditgpt.neural_routing.demo_quality_grader` to keep all async-bandit
+artifacts together under `banditgpt.async_bandit`.
 """
 
 import os
@@ -60,8 +60,8 @@ def call_openrouter(model_id: str, prompt: str, max_tokens: int = 500, *, timeou
 
 def run_demo():
     """Run demo comparing models."""
-    from llm_jury.async_bandit.quality_cost_predictor import QualityCostPredictor, get_device
-    from llm_jury.async_bandit.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
+    from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor, get_device
+    from banditgpt.async_bandit.tiered_grader import TieredGrader, OpenRouterTeacherVerifier
 
     parser = argparse.ArgumentParser(description="Demo: grade OpenRouter model outputs")
     parser.add_argument("--use-teacher", action="store_true", help="Enable TieredGrader hard-path teacher verification (costly)")
@@ -132,7 +132,7 @@ def run_demo():
     model_path = PROJECT_ROOT / "data" / "quality_predictor" / "best_quality_predictor.pt"
     if not model_path.exists():
         print(f"❌ Model not found at {model_path}")
-        print("   Run: python -m llm_jury.neural_routing.quality_cost_predictor --epochs 3")
+        print("   Run: python -m banditgpt.neural_routing.quality_cost_predictor --epochs 3")
         return
 
     print("Loading Quality/Cost Predictor...")
@@ -150,7 +150,7 @@ def run_demo():
         z = (float(x) - float(mean)) / (float(std) + 1e-9)
         return float(max(min(z, clamp), -clamp))
 
-    from llm_jury.async_bandit.quality_cost_predictor import RunningZScoreNormalizer
+    from banditgpt.async_bandit.quality_cost_predictor import RunningZScoreNormalizer
 
     reward_norm_online = RunningZScoreNormalizer(
         mean_init=0.65,

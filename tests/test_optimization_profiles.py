@@ -21,13 +21,13 @@ class TestOptimizationProfile:
 
     def test_import(self):
         """OptimizationProfile can be imported."""
-        from llm_jury.async_bandit import OptimizationProfile
+        from banditgpt.async_bandit import OptimizationProfile
 
         assert OptimizationProfile is not None
 
     def test_predefined_profiles(self):
         """Predefined profiles have expected values."""
-        from llm_jury.async_bandit.bandit_router import OptimizationProfile
+        from banditgpt.async_bandit.bandit_router import OptimizationProfile
 
         # Check all four profiles exist
         assert OptimizationProfile.QUALITY_FIRST == {"lambda_cost": 0.1, "lambda_latency": 0.05}
@@ -37,7 +37,7 @@ class TestOptimizationProfile:
 
     def test_get_by_name(self):
         """get() returns correct profile by name."""
-        from llm_jury.async_bandit.bandit_router import OptimizationProfile
+        from banditgpt.async_bandit.bandit_router import OptimizationProfile
 
         assert OptimizationProfile.get("quality_first") == OptimizationProfile.QUALITY_FIRST
         assert OptimizationProfile.get("balanced") == OptimizationProfile.BALANCED
@@ -46,7 +46,7 @@ class TestOptimizationProfile:
 
     def test_get_case_insensitive(self):
         """get() is case-insensitive."""
-        from llm_jury.async_bandit.bandit_router import OptimizationProfile
+        from banditgpt.async_bandit.bandit_router import OptimizationProfile
 
         assert OptimizationProfile.get("QUALITY_FIRST") == OptimizationProfile.QUALITY_FIRST
         assert OptimizationProfile.get("Quality_First") == OptimizationProfile.QUALITY_FIRST
@@ -54,7 +54,7 @@ class TestOptimizationProfile:
 
     def test_get_with_hyphens(self):
         """get() accepts hyphens instead of underscores."""
-        from llm_jury.async_bandit.bandit_router import OptimizationProfile
+        from banditgpt.async_bandit.bandit_router import OptimizationProfile
 
         assert OptimizationProfile.get("quality-first") == OptimizationProfile.QUALITY_FIRST
         assert OptimizationProfile.get("cost-saver") == OptimizationProfile.COST_SAVER
@@ -62,7 +62,7 @@ class TestOptimizationProfile:
 
     def test_get_aliases(self):
         """get() supports aliases."""
-        from llm_jury.async_bandit.bandit_router import OptimizationProfile
+        from banditgpt.async_bandit.bandit_router import OptimizationProfile
 
         # penny_pincher -> COST_SAVER
         assert OptimizationProfile.get("penny_pincher") == OptimizationProfile.COST_SAVER
@@ -71,14 +71,14 @@ class TestOptimizationProfile:
 
     def test_get_unknown_profile_raises(self):
         """get() raises ValueError for unknown profile."""
-        from llm_jury.async_bandit.bandit_router import OptimizationProfile
+        from banditgpt.async_bandit.bandit_router import OptimizationProfile
 
         with pytest.raises(ValueError, match="Unknown profile"):
             OptimizationProfile.get("nonexistent")
 
     def test_list_profiles(self):
         """list_profiles() returns all primary profile names."""
-        from llm_jury.async_bandit.bandit_router import OptimizationProfile
+        from banditgpt.async_bandit.bandit_router import OptimizationProfile
 
         profiles = OptimizationProfile.list_profiles()
         assert "quality_first" in profiles
@@ -98,13 +98,13 @@ class TestExplorationRate:
 
     def test_import(self):
         """ExplorationRate can be imported."""
-        from llm_jury.async_bandit import ExplorationRate
+        from banditgpt.async_bandit import ExplorationRate
 
         assert ExplorationRate is not None
 
     def test_predefined_rates(self):
         """Predefined rates have expected values."""
-        from llm_jury.async_bandit.bandit_router import ExplorationRate
+        from banditgpt.async_bandit.bandit_router import ExplorationRate
 
         assert ExplorationRate.STATIC == 0.0
         assert ExplorationRate.SAFE == 0.1
@@ -113,7 +113,7 @@ class TestExplorationRate:
 
     def test_get_by_name(self):
         """get() returns correct rate by name."""
-        from llm_jury.async_bandit.bandit_router import ExplorationRate
+        from banditgpt.async_bandit.bandit_router import ExplorationRate
 
         assert ExplorationRate.get("static") == 0.0
         assert ExplorationRate.get("safe") == 0.1
@@ -122,7 +122,7 @@ class TestExplorationRate:
 
     def test_get_case_insensitive(self):
         """get() is case-insensitive."""
-        from llm_jury.async_bandit.bandit_router import ExplorationRate
+        from banditgpt.async_bandit.bandit_router import ExplorationRate
 
         assert ExplorationRate.get("STATIC") == 0.0
         assert ExplorationRate.get("Safe") == 0.1
@@ -130,7 +130,7 @@ class TestExplorationRate:
 
     def test_get_aliases(self):
         """get() supports aliases."""
-        from llm_jury.async_bandit.bandit_router import ExplorationRate
+        from banditgpt.async_bandit.bandit_router import ExplorationRate
 
         # none/zero/off -> STATIC
         assert ExplorationRate.get("none") == 0.0
@@ -154,7 +154,7 @@ class TestExplorationRate:
 
     def test_get_float_string(self):
         """get() parses float strings."""
-        from llm_jury.async_bandit.bandit_router import ExplorationRate
+        from banditgpt.async_bandit.bandit_router import ExplorationRate
 
         assert ExplorationRate.get("0.75") == 0.75
         assert ExplorationRate.get("1.5") == 1.5
@@ -163,14 +163,14 @@ class TestExplorationRate:
 
     def test_get_unknown_rate_raises(self):
         """get() raises ValueError for unknown rate."""
-        from llm_jury.async_bandit.bandit_router import ExplorationRate
+        from banditgpt.async_bandit.bandit_router import ExplorationRate
 
         with pytest.raises(ValueError, match="Unknown exploration"):
             ExplorationRate.get("nonexistent")
 
     def test_list_rates(self):
         """list_rates() returns all primary rate names."""
-        from llm_jury.async_bandit.bandit_router import ExplorationRate
+        from banditgpt.async_bandit.bandit_router import ExplorationRate
 
         rates = ExplorationRate.list_rates()
         assert "static" in rates
@@ -198,7 +198,7 @@ class TestBanditRouterWithProfiles:
 
     def test_create_with_exploration_safe(self, sample_registry):
         """BanditRouter.create() accepts exploration='safe'."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter.create(
             model_registry=sample_registry,
@@ -210,7 +210,7 @@ class TestBanditRouterWithProfiles:
 
     def test_create_with_exploration_aggressive(self, sample_registry):
         """BanditRouter.create() accepts exploration='aggressive'."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter.create(
             model_registry=sample_registry,
@@ -222,7 +222,7 @@ class TestBanditRouterWithProfiles:
 
     def test_create_with_exploration_float(self, sample_registry):
         """BanditRouter.create() accepts exploration as float string."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter.create(
             model_registry=sample_registry,
@@ -234,7 +234,7 @@ class TestBanditRouterWithProfiles:
 
     def test_create_alpha_overrides_exploration(self, sample_registry):
         """alpha parameter takes precedence over exploration."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter.create(
             model_registry=sample_registry,
@@ -247,7 +247,7 @@ class TestBanditRouterWithProfiles:
 
     def test_init_with_exploration(self, sample_registry):
         """BanditRouter.__init__() accepts exploration parameter."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter(
             model_registry=sample_registry,
@@ -258,7 +258,7 @@ class TestBanditRouterWithProfiles:
 
     def test_route_with_profile(self, sample_registry):
         """route() accepts profile parameter."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter(
             model_registry=sample_registry,
@@ -276,7 +276,7 @@ class TestBanditRouterWithProfiles:
 
     def test_route_with_exploration_override(self, sample_registry):
         """route() exploration parameter overrides default."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter(
             model_registry=sample_registry,
@@ -294,7 +294,7 @@ class TestBanditRouterWithProfiles:
 
     def test_rank_prompt_with_profile(self, sample_registry):
         """rank_prompt() accepts profile parameter."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter(
             model_registry=sample_registry,
@@ -312,7 +312,7 @@ class TestBanditRouterWithProfiles:
 
     def test_rank_prompt_with_exploration(self, sample_registry):
         """rank_prompt() accepts exploration parameter."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         router = BanditRouter(
             model_registry=sample_registry,
@@ -339,7 +339,7 @@ class TestCLIArguments:
     def test_add_recommend_args_has_profile(self):
         """add_recommend_args includes --profile argument."""
         import argparse
-        from llm_jury.async_bandit.cli import add_recommend_args
+        from banditgpt.async_bandit.cli import add_recommend_args
 
         parser = argparse.ArgumentParser()
         add_recommend_args(parser)
@@ -351,7 +351,7 @@ class TestCLIArguments:
     def test_add_recommend_args_has_exploration(self):
         """add_recommend_args includes --exploration argument."""
         import argparse
-        from llm_jury.async_bandit.cli import add_recommend_args
+        from banditgpt.async_bandit.cli import add_recommend_args
 
         parser = argparse.ArgumentParser()
         add_recommend_args(parser)
@@ -363,7 +363,7 @@ class TestCLIArguments:
     def test_profile_choices(self):
         """--profile only accepts valid choices."""
         import argparse
-        from llm_jury.async_bandit.cli import add_recommend_args
+        from banditgpt.async_bandit.cli import add_recommend_args
 
         parser = argparse.ArgumentParser()
         add_recommend_args(parser)
@@ -388,7 +388,7 @@ class TestEdgeCases:
 
     def test_exploration_static_means_no_exploration_bonus(self):
         """With exploration='static', UCB should equal mean (no uncertainty bonus)."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         registry = {
             "model-a": {"display_name": "A"},
@@ -407,7 +407,7 @@ class TestEdgeCases:
 
     def test_exploration_and_profile_together(self):
         """Both exploration and profile can be specified together."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         registry = {"model-a": {"display_name": "A"}}
 
@@ -425,7 +425,7 @@ class TestEdgeCases:
 
     def test_none_exploration_uses_default(self):
         """If exploration=None in route(), use router's default."""
-        from llm_jury.async_bandit.bandit_router import BanditRouter
+        from banditgpt.async_bandit.bandit_router import BanditRouter
 
         registry = {"model-a": {"display_name": "A"}}
 

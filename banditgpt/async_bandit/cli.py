@@ -11,8 +11,8 @@ Commands:
     synthetic-inject    - Pre-warm bandit on a proxy dataset
 
 Usage:
-    python -m llm_jury.async_bandit.cli recommend --prompt "Hello world"
-    python -m llm_jury.async_bandit.cli compress-priors --state router_state.json
+    python -m banditgpt.async_bandit.cli recommend --prompt "Hello world"
+    python -m banditgpt.async_bandit.cli compress-priors --state router_state.json
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DEFAULT_BUNDLED_PRIORS = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
-DEFAULT_USER_PRIORS = Path.home() / ".llm_jury" / "priors" / "user_priors.npz"
+DEFAULT_USER_PRIORS = Path.home() / ".banditgpt" / "priors" / "user_priors.npz"
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ DEFAULT_USER_PRIORS = Path.home() / ".llm_jury" / "priors" / "user_priors.npz"
 
 def cmd_recommend(args: argparse.Namespace) -> int:
     """Get model recommendations for a prompt."""
-    from llm_jury.async_bandit.bandit_router import (
+    from banditgpt.async_bandit.bandit_router import (
         BanditRouter,
         build_cost_proportional_priors,
         build_registry_from_models_cache,
@@ -176,7 +176,7 @@ def add_recommend_args(parser: argparse.ArgumentParser) -> None:
 
 def cmd_compress_priors(args: argparse.Namespace) -> int:
     """Compress warmed state to shippable priors."""
-    from llm_jury.async_bandit.bandit_router import BanditRouter, build_registry_from_models_cache
+    from banditgpt.async_bandit.bandit_router import BanditRouter, build_registry_from_models_cache
 
     state_path = Path(args.state)
     cache_path = Path(args.cache)
@@ -206,7 +206,7 @@ def add_compress_priors_args(parser: argparse.ArgumentParser) -> None:
 def cmd_archetype_cluster(args: argparse.Namespace) -> int:
     """Cluster prompts from a dataset into representative archetypes."""
     # Import here to avoid heavy dependencies at module load
-    from llm_jury.async_bandit.archetype_grid import main as archetype_main
+    from banditgpt.async_bandit.archetype_grid import main as archetype_main
 
     # Re-parse args for the original script
     sys.argv = [
@@ -236,7 +236,7 @@ def add_archetype_cluster_args(parser: argparse.ArgumentParser) -> None:
 
 def cmd_archetype_dense_run(args: argparse.Namespace) -> int:
     """Run all models on archetype prompts and build priors."""
-    from llm_jury.async_bandit.archetype_grid_dense_run import main as dense_run_main
+    from banditgpt.async_bandit.archetype_grid_dense_run import main as dense_run_main
 
     argv = [
         "archetype_grid_dense_run",
@@ -273,7 +273,7 @@ def add_archetype_dense_run_args(parser: argparse.ArgumentParser) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        prog="llm_jury.async_bandit.cli",
+        prog="banditgpt.async_bandit.cli",
         description="Async bandit router CLI",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")

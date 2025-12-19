@@ -9,7 +9,7 @@ Benchmarks the router's inference latency to address the critique:
 Answer: No. The router adds <5ms (P99), which is <0.5% of total request time.
 
 Usage:
-    python -m llm_jury.experiment.benchmark_latency
+    python -m banditgpt.experiment.benchmark_latency
 """
 
 import time
@@ -18,7 +18,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Any
 
-from llm_jury.async_bandit.bandit_router import (
+from banditgpt.async_bandit.bandit_router import (
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,
 )

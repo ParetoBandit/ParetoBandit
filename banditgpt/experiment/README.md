@@ -1,4 +1,4 @@
-# LLM Jury Experiments
+# BanditGPT Experiments
 
 This folder contains reproducible experiments for the KDD paper on **Density-Based Warm-Start for LLM Routing**.
 
@@ -18,7 +18,7 @@ This folder contains reproducible experiments for the KDD paper on **Density-Bas
 ### Run the Experiment
 
 ```bash
-python -m llm_jury.experiment.run_rq1
+python -m banditgpt.experiment.run_rq1
 ```
 
 **Output:**
@@ -45,10 +45,10 @@ The warm-start advantage comes from **Expert Distillation** — training priors 
 
 ```bash
 # Generate with default settings (seed=42)
-python -m llm_jury.experiment.generate_expert_priors generate
+python -m banditgpt.experiment.generate_expert_priors generate
 
 # Custom settings
-python -m llm_jury.experiment.generate_expert_priors generate \
+python -m banditgpt.experiment.generate_expert_priors generate \
     --seed 42 \
     --epochs 5 \
     --expert-rate 0.8
@@ -57,7 +57,7 @@ python -m llm_jury.experiment.generate_expert_priors generate \
 ### Verify Existing Priors
 
 ```bash
-python -m llm_jury.experiment.generate_expert_priors verify
+python -m banditgpt.experiment.generate_expert_priors verify
 ```
 
 **Output:**
@@ -174,7 +174,7 @@ The priors encode relative model performance across 497 diverse prompts. Since:
 
 ```bash
 # This will generate identical priors to the shipped version
-python -m llm_jury.experiment.generate_expert_priors generate --seed 42
+python -m banditgpt.experiment.generate_expert_priors generate --seed 42
 ```
 
 **Expected output:**
@@ -185,7 +185,7 @@ python -m llm_jury.experiment.generate_expert_priors generate --seed 42
 ### Reproduce RQ1 Results
 
 ```bash
-python -m llm_jury.experiment.run_rq1
+python -m banditgpt.experiment.run_rq1
 ```
 
 **Expected output:**
@@ -216,7 +216,7 @@ python -m llm_jury.experiment.run_rq1
 ### Run the Experiment
 
 ```bash
-python -m llm_jury.experiment.run_rq3
+python -m banditgpt.experiment.run_rq3
 ```
 
 **Output:**
@@ -291,7 +291,7 @@ The log scale handles the massive price difference between `gpt-4o` ($5/1M) and 
 ## File Structure
 
 ```
-llm_jury/experiment/
+banditgpt/experiment/
 ├── README.md                    # This file
 ├── run_rq1.py                   # RQ1: Warm-Start Advantage
 ├── run_rq2.py                   # RQ2: Specialist Discovery

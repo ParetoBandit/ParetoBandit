@@ -1,5 +1,5 @@
 /**
- * LLM Jury - Landing Page Interactive Features
+ * BanditGPT - Landing Page Interactive Features
  * Includes: Particle animation, Pareto visualization, Query typing, Demo interactions
  */
 
@@ -5355,7 +5355,7 @@ function animateNumber(element, target) {
 // Copy Install Command
 // ============================================
 function copyInstall() {
-    navigator.clipboard.writeText('pip install llm-jury');
+    navigator.clipboard.writeText('pip install banditgpt');
     const btn = document.querySelector('.copy-btn');
     btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>';
     setTimeout(() => {
@@ -5396,6 +5396,6 @@ document.addEventListener('DOMContentLoaded', () => {
     animateStats();
     initSmoothScroll();
     
-    console.log('🚀 LLM Jury landing page initialized');
+    console.log('🚀 BanditGPT landing page initialized');
 });
 

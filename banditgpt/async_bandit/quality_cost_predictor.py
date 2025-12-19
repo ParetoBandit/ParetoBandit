@@ -22,8 +22,8 @@ Key Features:
 - F1 score optimization
 
 Usage:
-    python -m llm_jury.neural_routing.quality_cost_predictor --epochs 3
-    python -m llm_jury.neural_routing.quality_cost_predictor --epochs 3 --no-lmsys
+    python -m banditgpt.neural_routing.quality_cost_predictor --epochs 3
+    python -m banditgpt.neural_routing.quality_cost_predictor --epochs 3 --no-lmsys
 """
 
 import torch

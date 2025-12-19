@@ -21,8 +21,8 @@ Library Integration:
     - Shared priors (A_shared format, legacy)
 
 Usage:
-    python -m llm_jury.experiment.run_rq3
-    python -m llm_jury.experiment.run_rq3 --priors data/priors/expert_priors.npz
+    python -m banditgpt.experiment.run_rq3
+    python -m banditgpt.experiment.run_rq3 --priors data/priors/expert_priors.npz
 
 Output:
     - results/rq3/cost_quality_analysis.json - Analysis results
@@ -239,7 +239,7 @@ def analyze_cost_quality(config: ExperimentConfig) -> CostQualityAnalysis:
         raise FileNotFoundError(
             f"Priors not found: {config.priors_path}\n"
             f"Generate priors first:\n"
-            f"  python -m llm_jury.experiment.generate_expert_priors generate"
+            f"  python -m banditgpt.experiment.generate_expert_priors generate"
         )
 
     # Load priors (handles both expert and shared formats)

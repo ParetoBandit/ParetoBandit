@@ -1,4 +1,4 @@
-# LLM Jury
+# BanditGPT
 
 **A Local-First, Adaptive Router for Intelligent LLM Model Selection**
 
@@ -22,11 +22,11 @@ We propose a **Density-Based Warm-Start Framework** that compresses the latent p
 
 ---
 
-## Why LLM Jury?
+## Why BanditGPT?
 
 Most existing solutions fall into two traps: they are either **Static Classifiers** (they don't learn from your specific traffic) or **SaaS APIs** (they own the intelligence, not you).
 
-LLM Jury fills the gap by being **lightweight**, **offline**, and **self-improving**.
+BanditGPT fills the gap by being **lightweight**, **offline**, and **self-improving**.
 
 ### The Competitive Landscape
 
@@ -59,7 +59,7 @@ LLM Jury fills the gap by being **lightweight**, **offline**, and **self-improvi
 ## Quick Start
 
 ```python
-from llm_jury.async_bandit import BanditRouter
+from banditgpt.async_bandit import BanditRouter
 
 # Create router with automatic prior loading
 router = BanditRouter.create(model_registry, priors="merged")
@@ -143,7 +143,7 @@ router.route(prompt, exploration="static")      # Production: zero risk
 
 ```bash
 # Get recommendations for a prompt
-python -m llm_jury.async_bandit.cli recommend \
+python -m banditgpt.async_bandit.cli recommend \
     --prompt "Explain quantum computing" \
     --profile balanced \
     --exploration safe \
@@ -165,7 +165,7 @@ The router uses two prior locations:
 | Location | Path | Purpose |
 |----------|------|---------|
 | **Bundled** | `<package>/data/priors/expert_priors.npz` | Expert-distilled defaults (read-only) |
-| **User** | `~/.llm_jury/priors/user_priors.npz` | Your learned updates |
+| **User** | `~/.banditgpt/priors/user_priors.npz` | Your learned updates |
 
 Add new models dynamically:
 
@@ -189,14 +189,14 @@ The library applies a default `prior_strength=50.0` (λ_boost), which tells the 
 ## Installation
 
 ```bash
-pip install llm-jury
+pip install banditgpt
 ```
 
 Or from source:
 
 ```bash
-git clone https://github.com/atabernermiller/llm_jury.git
-cd llm_jury
+git clone https://github.com/atabernermiller/banditgpt.git
+cd banditgpt
 pip install -e .
 ```
 

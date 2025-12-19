@@ -1,4 +1,4 @@
-# LLM Jury: Technical Summary
+# BanditGPT: Technical Summary
 
 > **A Data-Efficient, Contextual Bandit Framework for Multi-Objective LLM Routing**
 
@@ -185,10 +185,10 @@ This generates synthetic ground truth, allowing the router to adapt to **Distrib
 If you use this work, please cite:
 
 ```bibtex
-@software{llm_jury,
-  title = {LLM Jury: A Data-Efficient Contextual Bandit Framework for Multi-Objective LLM Routing},
+@software{banditgpt,
+  title = {BanditGPT: A Data-Efficient Contextual Bandit Framework for Multi-Objective LLM Routing},
   author = {Taberner-Miller, Annette},
   year = {2024},
-  url = {https://github.com/atabernermiller/llm_jury}
+  url = {https://github.com/atabernermiller/banditgpt}
 }
 ```

@@ -1,5 +1,5 @@
 """
-LLM Jury: Async Bandit Router for LLM Model Selection.
+BanditGPT: Async Bandit Router for LLM Model Selection.
 
 This package provides a contextual bandit-based router for selecting the optimal
 LLM model for each prompt, balancing quality, cost, and latency.
@@ -11,7 +11,7 @@ Core Components:
     PriorManager        - Prior loading/saving/merging
 
 Quick Start:
-    from llm_jury import BanditRouter, PriorManager
+    from banditgpt import BanditRouter, PriorManager
 
     router = BanditRouter.create(model_registry, priors="merged")
     model, log = router.route("Write a Python function...")
@@ -20,8 +20,8 @@ Quick Start:
 __version__ = "0.1.0"
 
 # Core graders (always available)
-from llm_jury.async_bandit.quality_cost_predictor import QualityCostPredictor  # noqa: F401
-from llm_jury.async_bandit.tiered_grader import (  # noqa: F401
+from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor  # noqa: F401
+from banditgpt.async_bandit.tiered_grader import (  # noqa: F401
     HardPromptHeuristics,
     OpenRouterTeacherVerifier,
     TieredGrader,
@@ -29,17 +29,17 @@ from llm_jury.async_bandit.tiered_grader import (  # noqa: F401
 )
 
 # Prior management
-from llm_jury.async_bandit.judge import PriorManager  # noqa: F401
+from banditgpt.async_bandit.judge import PriorManager  # noqa: F401
 
 # Optional: Demo
 try:
-    from llm_jury.async_bandit.demo_quality_grader import run_demo  # noqa: F401
+    from banditgpt.async_bandit.demo_quality_grader import run_demo  # noqa: F401
 except Exception:  # pragma: no cover
     run_demo = None
 
 # Optional: Bandit router (requires sentence-transformers)
 try:
-    from llm_jury.async_bandit.bandit_router import (  # noqa: F401
+    from banditgpt.async_bandit.bandit_router import (  # noqa: F401
         BanditRouter,
         DisjointLinUCBPolicy,
         RoutingLog,

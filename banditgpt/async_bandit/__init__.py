@@ -12,10 +12,10 @@ Core Components:
 
 Prior Storage Locations:
     BUNDLED (read-only):  <package>/data/priors/shippable_priors.npz
-    USER (read-write):    ~/.llm_jury/priors/user_priors.npz
+    USER (read-write):    ~/.banditgpt/priors/user_priors.npz
 
 Quick Start:
-    from llm_jury.async_bandit import BanditRouter, PriorManager
+    from banditgpt.async_bandit import BanditRouter, PriorManager
 
     # Create router with automatic prior detection
     router = BanditRouter.create(model_registry, priors="merged")
@@ -30,13 +30,13 @@ Quick Start:
 from __future__ import annotations
 
 # Core graders
-from llm_jury.async_bandit.quality_cost_predictor import (
+from banditgpt.async_bandit.quality_cost_predictor import (
     LogitReward,
     QualityCostPredictor,
     RunningZScoreNormalizer,
     get_device,
 )
-from llm_jury.async_bandit.tiered_grader import (
+from banditgpt.async_bandit.tiered_grader import (
     HardPromptHeuristics,
     OpenRouterTeacherVerifier,
     TieredGrader,
@@ -44,7 +44,7 @@ from llm_jury.async_bandit.tiered_grader import (
 )
 
 # Judge abstraction and prior management
-from llm_jury.async_bandit.judge import (
+from banditgpt.async_bandit.judge import (
     Judge,
     JudgeWithComplexity,
     PriorConfig,
@@ -76,7 +76,7 @@ __all__ = [
 
 # Optional: Bandit router (requires sentence-transformers)
 try:
-    from llm_jury.async_bandit.bandit_router import (
+    from banditgpt.async_bandit.bandit_router import (
         BanditRouter,
         DisjointLinUCBPolicy,
         ExplorationRate,
@@ -102,7 +102,7 @@ except ImportError:
 
 # Optional: Complexity classifiers
 try:
-    from llm_jury.async_bandit.complexity import (
+    from banditgpt.async_bandit.complexity import (
         LocalComplexityClassifier,
         LocalComplexityResult,
         NvidiaComplexityClassifier,

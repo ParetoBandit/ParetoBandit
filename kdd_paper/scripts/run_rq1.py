@@ -26,7 +26,7 @@ Why DisjointLinUCB?
     exploration and proper exploitation of learned priors.
 
 Usage:
-    python -m llm_jury.experiment.run_rq1
+    python -m banditgpt.experiment.run_rq1
 
 Output:
     - results/rq1/regret_curve.png - Publication-ready figure
@@ -45,7 +45,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from llm_jury.async_bandit.bandit_router import (
+from banditgpt.async_bandit.bandit_router import (
     DEFAULT_CONTEXT_MODEL,
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,

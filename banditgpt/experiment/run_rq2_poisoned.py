@@ -50,7 +50,7 @@ Implementation Note:
     This custom variant isolates the plasticity mechanism for analysis.
 
 Usage:
-    python -m llm_jury.experiment.run_rq2_poisoned
+    python -m banditgpt.experiment.run_rq2_poisoned
 
 Output:
     - results/rq2/poisoned_adaptation.png - The clean KDD figure

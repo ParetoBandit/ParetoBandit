@@ -70,12 +70,12 @@ except ImportError as e:  # pragma: no cover
     raise ImportError("Missing dependency: sentence-transformers") from e
 
 try:
-    from llm_jury.async_bandit.complexity import LocalComplexityClassifier, NvidiaComplexityClassifier
+    from banditgpt.async_bandit.complexity import LocalComplexityClassifier, NvidiaComplexityClassifier
 except Exception:  # pragma: no cover
     LocalComplexityClassifier = None  # type: ignore[assignment]
     NvidiaComplexityClassifier = None  # type: ignore[assignment]
 
-from llm_jury.async_bandit.quality_cost_predictor import (
+from banditgpt.async_bandit.quality_cost_predictor import (
     QualityCostPredictor,
     LogitReward,
     RunningZScoreNormalizer,
@@ -1787,7 +1787,7 @@ class BanditRouter:
 
         Prior Locations:
             - BUNDLED: <package>/data/priors/expert_priors.npz (expert-distilled defaults)
-            - USER:    ~/.llm_jury/priors/user_priors.npz (user additions)
+            - USER:    ~/.banditgpt/priors/user_priors.npz (user additions)
 
         Example:
             # Production mode (safe exploration, merged priors, 62% regret reduction)
@@ -1808,7 +1808,7 @@ class BanditRouter:
         else:
             resolved_alpha = ExplorationRate.get(exploration)
         # Resolve paths - prefer expert_priors.npz, fall back to shippable_priors.npz
-        user_path = user_priors_path or (Path.home() / ".llm_jury" / "priors" / "user_priors.npz")
+        user_path = user_priors_path or (Path.home() / ".banditgpt" / "priors" / "user_priors.npz")
         default_bundled = Path(__file__).parent.parent.parent / "data" / "priors" / "expert_priors.npz"
         fallback_bundled = Path(__file__).parent.parent.parent / "data" / "priors" / "shippable_priors.npz"
         if bundled_priors_path:
@@ -1894,7 +1894,7 @@ class BanditRouter:
             - b_vectors: union, user takes precedence on conflicts
             - A_shared: use user's if exists, else bundled
         """
-        from llm_jury.async_bandit.judge import PriorManager, PriorConfig
+        from banditgpt.async_bandit.judge import PriorManager, PriorConfig
 
         bundled_priors = None
         user_priors = None

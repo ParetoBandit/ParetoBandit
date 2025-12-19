@@ -8,7 +8,7 @@ This is the "hot path" only:
   - Just: prompt -> context embedding -> utility ranking across models
 
 Prior Loading Priority (when --priors-mode=auto):
-  1. USER priors (~/.llm_jury/priors/user_priors.npz) - if exists
+  1. USER priors (~/.banditgpt/priors/user_priors.npz) - if exists
   2. BUNDLED priors (<package>/data/priors/shippable_priors.npz) - if exists
   3. COLD START (no priors)
 """
@@ -20,7 +20,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from llm_jury.async_bandit.bandit_router import (
+from banditgpt.async_bandit.bandit_router import (
     BanditRouter,
     build_registry_from_models_cache,
     build_cost_proportional_priors,
@@ -29,7 +29,7 @@ from llm_jury.async_bandit.bandit_router import (
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DEFAULT_BUNDLED_PRIORS = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
-DEFAULT_USER_PRIORS = Path.home() / ".llm_jury" / "priors" / "user_priors.npz"
+DEFAULT_USER_PRIORS = Path.home() / ".banditgpt" / "priors" / "user_priors.npz"
 
 
 def main() -> int:

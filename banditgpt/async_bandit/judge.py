@@ -15,7 +15,7 @@ Users can:
 
 Prior Storage Locations:
   - BUNDLED (read-only): <package>/data/priors/shippable_priors.npz
-  - USER (read-write):   ~/.llm_jury/priors/user_priors.npz
+  - USER (read-write):   ~/.banditgpt/priors/user_priors.npz
   - CUSTOM:              User-specified path
 
 When you update priors (e.g., add a new model), the changes are saved to the
@@ -46,8 +46,8 @@ import numpy as np
 # ---------------------------------------------------------------------------
 
 def _get_user_priors_dir() -> Path:
-    """Get user-specific priors directory (~/.llm_jury/priors/)."""
-    return Path.home() / ".llm_jury" / "priors"
+    """Get user-specific priors directory (~/.banditgpt/priors/)."""
+    return Path.home() / ".banditgpt" / "priors"
 
 
 def _get_user_priors_path() -> Path:
@@ -155,7 +155,7 @@ class PriorManager:
 
     Storage Locations:
         - BUNDLED (read-only):  <package>/data/priors/shippable_priors.npz
-        - USER (read-write):    ~/.llm_jury/priors/user_priors.npz
+        - USER (read-write):    ~/.banditgpt/priors/user_priors.npz
         - CUSTOM:               User-specified path
 
     When you call save(), changes go to USER location by default (not bundled).
@@ -170,7 +170,7 @@ class PriorManager:
         manager = PriorManager.user()
         priors = manager.load()
         # ... modify priors ...
-        manager.save(priors)  # Saves to ~/.llm_jury/priors/
+        manager.save(priors)  # Saves to ~/.banditgpt/priors/
 
         # Use custom priors file
         manager = PriorManager.from_file("my_priors.npz")
@@ -198,7 +198,7 @@ class PriorManager:
     @classmethod
     def user(cls) -> "PriorManager":
         """
-        Use user-specific priors (~/.llm_jury/priors/user_priors.npz).
+        Use user-specific priors (~/.banditgpt/priors/user_priors.npz).
 
         Falls back to bundled priors if user priors don't exist.
         Saves go to user location, preserving bundled priors.
@@ -222,7 +222,7 @@ class PriorManager:
             manager = PriorManager.merged()
             priors = manager.load()  # bundled + user merged
             priors = manager.add_model(priors, "new/model-v1")
-            manager.save(priors)  # Only saves user additions to ~/.llm_jury/
+            manager.save(priors)  # Only saves user additions to ~/.banditgpt/
 
         Merge strategy:
             - A_shared: Use user's if available, else bundled
@@ -440,7 +440,7 @@ class PriorManager:
         """
         Save priors to disk.
 
-        By default, saves to the user location (~/.llm_jury/priors/user_priors.npz)
+        By default, saves to the user location (~/.banditgpt/priors/user_priors.npz)
         to preserve bundled priors. Use `path` to override.
 
         Args:
@@ -534,7 +534,7 @@ class PriorManager:
         from sentence_transformers import SentenceTransformer
         from sklearn.cluster import MiniBatchKMeans
 
-        from llm_jury.async_bandit.bandit_router import (
+        from banditgpt.async_bandit.bandit_router import (
             SharedCovarianceLinUCBPolicy,
             l2_normalize,
         )
@@ -668,7 +668,7 @@ class PriorManager:
 
             encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-        from llm_jury.async_bandit.bandit_router import l2_normalize
+        from banditgpt.async_bandit.bandit_router import l2_normalize
 
         # Reconstruct policy from priors
         model_ids = current_priors.get("model_ids", [])
@@ -807,7 +807,7 @@ def create_soft_judge(
     Good for: style, fluency, general quality.
     Not good for: factual correctness, math, code execution.
     """
-    from llm_jury.async_bandit.quality_cost_predictor import QualityCostPredictor
+    from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
 
     default_path = Path(__file__).parent.parent.parent / "data" / "quality_predictor" / "best_quality_predictor.pt"
     path = model_path or default_path
@@ -836,8 +836,8 @@ def create_tiered_judge(
     Automatically uses the teacher (LLM-as-a-Judge) for hard prompts
     (math, code, logic) and the soft local grader for easy prompts.
     """
-    from llm_jury.async_bandit.quality_cost_predictor import QualityCostPredictor
-    from llm_jury.async_bandit.tiered_grader import (
+    from banditgpt.async_bandit.quality_cost_predictor import QualityCostPredictor
+    from banditgpt.async_bandit.tiered_grader import (
         OpenRouterTeacherVerifier,
         TieredGrader,
     )

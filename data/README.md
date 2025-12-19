@@ -1,4 +1,4 @@
-# LLM Jury Data Sources
+# BanditGPT Data Sources
 
 This document describes the data sources, collection methods, and fields available in the model cache.
 
@@ -99,7 +99,7 @@ Models are mapped from our internal names to OpenRouter model IDs. Some models m
 The data is collected via the ETL (Extract, Transform, Load) pipeline:
 
 ```python
-from llm_jury.etl import ETLPipeline
+from banditgpt.etl import ETLPipeline
 
 pipeline = ETLPipeline()
 pipeline.run(
@@ -180,9 +180,9 @@ OPENROUTER_API_KEY=your_key_here
 To refresh the cache with latest data:
 
 ```bash
-cd /path/to/llm_jury
+cd /path/to/banditgpt
 python -c "
-from llm_jury.etl import ETLPipeline
+from banditgpt.etl import ETLPipeline
 pipeline = ETLPipeline()
 pipeline.run(require_complete_benchmarks=True)
 "
@@ -191,6 +191,6 @@ pipeline.run(require_complete_benchmarks=True)
 Or use the CLI (if available):
 
 ```bash
-python -m llm_jury.etl.pipeline
+python -m banditgpt.etl.pipeline
 ```
 

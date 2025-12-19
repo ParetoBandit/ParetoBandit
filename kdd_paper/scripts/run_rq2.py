@@ -17,8 +17,8 @@ Analysis Approach:
     - Supports both expert (A_stack) and legacy shared (A_shared) formats
 
 Usage:
-    python -m llm_jury.experiment.run_rq2
-    python -m llm_jury.experiment.run_rq2 --priors data/priors/expert_priors.npz
+    python -m banditgpt.experiment.run_rq2
+    python -m banditgpt.experiment.run_rq2 --priors data/priors/expert_priors.npz
 
 Output:
     - results/rq2/specialization_analysis.json - Model specialization metrics
@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from llm_jury.async_bandit.bandit_router import (
+from banditgpt.async_bandit.bandit_router import (
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,
 )
@@ -179,7 +179,7 @@ def analyze_specialization(config: ExperimentConfig) -> SpecializationAnalysis:
         raise FileNotFoundError(
             f"Priors not found: {config.priors_path}\n"
             f"Generate expert priors first:\n"
-            f"  python -m llm_jury.experiment.generate_expert_priors generate"
+            f"  python -m banditgpt.experiment.generate_expert_priors generate"
         )
 
     # Detect format

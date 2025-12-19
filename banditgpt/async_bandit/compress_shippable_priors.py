@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from llm_jury.async_bandit.bandit_router import BanditRouter, build_registry_from_models_cache
+from banditgpt.async_bandit.bandit_router import BanditRouter, build_registry_from_models_cache
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
