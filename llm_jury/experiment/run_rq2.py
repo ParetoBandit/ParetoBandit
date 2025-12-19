@@ -355,13 +355,324 @@ def save_results(analysis: SpecializationAnalysis, output_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Distribution Drift Simulation
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DriftSimulationConfig:
+    """Configuration for drift simulation."""
+    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"
+    
+    # The "default" model the bandit is biased toward
+    default_model: str = "openai/gpt-4o"
+    
+    # The "specialist" model that excels at the niche task (will be zeroed out)
+    specialist_model: str = "amazon/nova-lite-v1"
+    
+    # Simulation parameters
+    n_steps: int = 200
+    alpha: float = 0.5
+    prior_strength: float = 50.0
+    
+    # Specialist advantage: how much better it is on the niche task
+    specialist_reward: float = 0.95
+    default_reward: float = 0.65
+    other_reward: float = 0.50
+    
+    seed: int = 42
+    output_dir: Path = Path("results/rq2")
+
+
+def run_drift_simulation(config: DriftSimulationConfig) -> Dict[str, Any]:
+    """
+    Simulate distribution drift where a "niche specialist" outperforms.
+    
+    Design for "Dip and Recover" pattern:
+    1. Use SMALL model subset (5 models) for cleaner learning signal
+    2. Default model has STRONG priors (confident it's good)
+    3. Specialist starts COLD (high uncertainty, zero mean)
+    4. Niche task: specialist=0.95, default=0.55, others=0.40
+    5. Bandit should: start with default → get poor reward → explore → find specialist
+    
+    This demonstrates PLASTICITY: the bandit can unlearn initial bias
+    and discover the specialist through online feedback.
+    """
+    print("\n" + "=" * 60)
+    print("RQ2: Distribution Drift Simulation")
+    print("=" * 60)
+    print(f"Default model (initial bias): {config.default_model}")
+    print(f"Specialist model (to discover): {config.specialist_model}")
+    print("=" * 60)
+    
+    np.random.seed(config.seed)
+    
+    # Use SMALL model subset for cleaner demonstration
+    # This makes the learning signal clear (5 models, not 81)
+    model_subset = [
+        config.default_model,      # GPT-4o: strong priors, mediocre on niche
+        config.specialist_model,   # Nova-Lite: cold start, excellent on niche  
+        "anthropic/claude-3.5-sonnet",  # Competitor 1
+        "google/gemini-2.0-flash-001",  # Competitor 2
+        "meta-llama/llama-3-70b-instruct",  # Competitor 3
+    ]
+    
+    print(f"\n[Drift] Using model subset ({len(model_subset)} models):")
+    for m in model_subset:
+        print(f"   - {m}")
+    
+    # Load priors for dimension
+    data = np.load(config.priors_path, allow_pickle=True)
+    dim = int(data["dim"])
+    all_model_names = [str(m) for m in data["model_names"]]
+    A_stack = np.asarray(data["A_stack"], dtype=np.float64)
+    b_stack = np.asarray(data["b_stack"], dtype=np.float64)
+    
+    # Create policy with ONLY the subset
+    policy = DisjointLinUCBPolicy(model_subset, dim=dim, alpha=config.alpha)
+    
+    # Initialize priors for each model in subset
+    print(f"\n[Drift] Initializing priors:")
+    for m in model_subset:
+        if m in all_model_names:
+            idx = all_model_names.index(m)
+            if m == config.specialist_model:
+                # SPECIALIST: Start COLD (high uncertainty, zero mean)
+                # This forces discovery through exploration
+                policy.A[m] = np.eye(dim) * 1.0  # Low confidence (identity)
+                policy.b[m] = np.zeros(dim)  # No learned preference
+                policy.A_inv[m] = np.linalg.inv(policy.A[m])
+                theta_norm = 0.0
+                print(f"   {m}: COLD START (||θ||=0, high uncertainty)")
+            elif m == config.default_model:
+                # DEFAULT: Strong priors (bandit believes it's good)
+                policy.A[m] = A_stack[idx] * config.prior_strength
+                policy.b[m] = b_stack[idx] * config.prior_strength
+                policy.A_inv[m] = np.linalg.inv(policy.A[m])
+                theta_norm = np.linalg.norm(policy.A_inv[m] @ policy.b[m])
+                print(f"   {m}: STRONG PRIORS (||θ||={theta_norm:.2f})")
+            else:
+                # OTHERS: Moderate priors
+                policy.A[m] = A_stack[idx] * (config.prior_strength * 0.3)
+                policy.b[m] = b_stack[idx] * (config.prior_strength * 0.3)
+                policy.A_inv[m] = np.linalg.inv(policy.A[m])
+                theta_norm = np.linalg.norm(policy.A_inv[m] @ policy.b[m])
+                print(f"   {m}: moderate priors (||θ||={theta_norm:.2f})")
+        else:
+            # Model not in priors, cold start
+            policy.A[m] = np.eye(dim) * 1.0
+            policy.b[m] = np.zeros(dim)
+            policy.A_inv[m] = np.eye(dim)
+            print(f"   {m}: not in priors (cold start)")
+    
+    # Ground truth rewards for NICHE TASK
+    # Specialist excels, default is mediocre, others are poor
+    ground_truth = {
+        config.specialist_model: 0.95,   # Excellent on niche
+        config.default_model: 0.55,      # Mediocre on niche (good generally, bad here)
+        "anthropic/claude-3.5-sonnet": 0.45,
+        "google/gemini-2.0-flash-001": 0.40,
+        "meta-llama/llama-3-70b-instruct": 0.42,
+    }
+    
+    print(f"\n[Drift] Ground truth rewards (niche task):")
+    for m, r in sorted(ground_truth.items(), key=lambda x: x[1], reverse=True):
+        marker = " <-- SPECIALIST" if m == config.specialist_model else ""
+        marker = " <-- DEFAULT (will struggle)" if m == config.default_model else marker
+        print(f"   {m.split('/')[-1]}: {r:.2f}{marker}")
+    
+    # Generate niche task context direction
+    niche_direction = np.random.randn(dim)
+    niche_direction = niche_direction / np.linalg.norm(niche_direction)
+    
+    # Track metrics
+    selections = {m: 0 for m in model_subset}
+    cumulative_rewards = []
+    specialist_selection_rate = []
+    default_selection_rate = []
+    per_step_rewards = []
+    
+    total_reward = 0.0
+    specialist_selections = 0
+    default_selections = 0
+    
+    print(f"\n[Drift] Running {config.n_steps} steps...")
+    print(f"   Expecting: Default dominates early → poor rewards → exploration → specialist discovered")
+    
+    for t in range(config.n_steps):
+        # Generate context: niche task with small noise
+        noise = np.random.randn(dim) * 0.1
+        context = niche_direction + noise
+        context = context / np.linalg.norm(context)
+        
+        # Select model using UCB
+        scores = {}
+        for m in model_subset:
+            theta = policy.A_inv[m] @ policy.b[m]
+            mean = float(theta.dot(context))
+            var = float(context.dot(policy.A_inv[m]).dot(context))
+            ucb = mean + config.alpha * np.sqrt(var)
+            scores[m] = ucb
+        
+        selected_model = max(scores, key=scores.get)
+        selections[selected_model] += 1
+        
+        if selected_model == config.specialist_model:
+            specialist_selections += 1
+        if selected_model == config.default_model:
+            default_selections += 1
+        
+        # Get reward from ground truth
+        base_reward = ground_truth.get(selected_model, 0.4)
+        reward = base_reward + np.random.randn() * 0.05
+        reward = np.clip(reward, 0, 1)
+        
+        # Update bandit
+        policy.update(selected_model, context, reward)
+        
+        # Track metrics
+        total_reward += reward
+        cumulative_rewards.append(total_reward / (t + 1))
+        specialist_selection_rate.append(specialist_selections / (t + 1))
+        default_selection_rate.append(default_selections / (t + 1))
+        per_step_rewards.append(reward)
+        
+        if (t + 1) % 50 == 0:
+            print(f"   Step {t+1}: default={default_selections/(t+1):.0%}, specialist={specialist_selections/(t+1):.0%}, reward={total_reward/(t+1):.3f}")
+    
+    # Final stats
+    print(f"\n[Drift] Final Results:")
+    print(f"   Default selection rate: {default_selections/config.n_steps:.1%}")
+    print(f"   Specialist selection rate: {specialist_selections/config.n_steps:.1%}")
+    print(f"   Average reward: {total_reward/config.n_steps:.3f}")
+    print(f"   Optimal reward: {ground_truth[config.specialist_model]:.3f}")
+    
+    top_selected = sorted(selections.items(), key=lambda x: x[1], reverse=True)
+    print(f"\n   Selection breakdown:")
+    for m, count in top_selected:
+        marker = " <-- SPECIALIST" if m == config.specialist_model else ""
+        marker = " <-- DEFAULT" if m == config.default_model else marker
+        print(f"      {m.split('/')[-1]}: {count} ({count/config.n_steps:.1%}){marker}")
+    
+    return {
+        "config": {k: str(v) if isinstance(v, Path) else v for k, v in asdict(config).items()},
+        "cumulative_rewards": cumulative_rewards,
+        "specialist_selection_rate": specialist_selection_rate,
+        "default_selection_rate": default_selection_rate,
+        "per_step_rewards": per_step_rewards,
+        "final_specialist_rate": specialist_selections / config.n_steps,
+        "final_default_rate": default_selections / config.n_steps,
+        "final_avg_reward": total_reward / config.n_steps,
+        "selections": selections,
+        "ground_truth": ground_truth,
+    }
+
+
+def plot_drift_simulation(results: Dict[str, Any], output_path: Path) -> None:
+    """
+    Plot the adaptation curve showing the "Dip and Recover" pattern.
+    
+    Expected pattern:
+    - Default selection high initially (bandit trusts priors)
+    - Poor rewards cause exploration
+    - Specialist discovered and selection rate rises
+    - Reward curve shows: dip → recovery
+    """
+    if not HAS_MATPLOTLIB:
+        print("[RQ2] Warning: matplotlib not available, skipping plot")
+        return
+    
+    # KDD Paper Settings
+    COLUMN_WIDTH = 3.5
+    FONT_SIZE = 9
+    DPI = 300
+    
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.size": FONT_SIZE,
+        "axes.labelsize": FONT_SIZE,
+        "xtick.labelsize": FONT_SIZE - 1,
+        "ytick.labelsize": FONT_SIZE - 1,
+        "legend.fontsize": FONT_SIZE - 1,
+        "figure.dpi": DPI,
+        "savefig.dpi": DPI,
+    })
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(COLUMN_WIDTH * 2, COLUMN_WIDTH * 0.8))
+    
+    steps = range(1, len(results["cumulative_rewards"]) + 1)
+    
+    # Get ground truth for reference lines
+    gt = results.get("ground_truth", {})
+    specialist_model = results["config"].get("specialist_model", "")
+    default_model = results["config"].get("default_model", "")
+    specialist_reward = gt.get(specialist_model, 0.95)
+    default_reward = gt.get(default_model, 0.55)
+    
+    # Plot 1: Selection Rates (shows the transition)
+    ax1.plot(steps, results["specialist_selection_rate"], 
+             color="#2CA02C", linewidth=2, label="Specialist (Nova-Lite)")
+    if "default_selection_rate" in results:
+        ax1.plot(steps, results["default_selection_rate"],
+                 color="#D62728", linewidth=2, label="Default (GPT-4o)")
+    
+    ax1.axhline(y=1.0, color="gray", linestyle="--", alpha=0.3)
+    ax1.axhline(y=0.0, color="gray", linestyle="--", alpha=0.3)
+    
+    ax1.set_xlabel("Requests")
+    ax1.set_ylabel("Cumulative Selection Rate")
+    ax1.set_title("Model Selection: Discovering Specialist")
+    ax1.set_ylim(-0.05, 1.05)
+    ax1.legend(loc="center right")
+    ax1.grid(True, alpha=0.3)
+    
+    # Add annotation for the "discovery" moment
+    if len(results["specialist_selection_rate"]) > 50:
+        rate_50 = results["specialist_selection_rate"][49]
+        rate_final = results["specialist_selection_rate"][-1]
+        if rate_final > rate_50 + 0.1:  # Significant improvement
+            ax1.annotate("Discovery\n& Adaptation", 
+                        xy=(100, (rate_50 + rate_final)/2),
+                        fontsize=7, ha="center",
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.3))
+    
+    # Plot 2: Average Reward (shows the "dip and recover")
+    ax2.plot(steps, results["cumulative_rewards"],
+             color="#1F77B4", linewidth=2, label="Adaptive Agent")
+    ax2.axhline(y=specialist_reward, 
+                color="#2CA02C", linestyle="--", alpha=0.7, 
+                label=f"Optimal ({specialist_reward:.2f})")
+    ax2.axhline(y=default_reward,
+                color="#D62728", linestyle="--", alpha=0.7, 
+                label=f"Default Only ({default_reward:.2f})")
+    
+    ax2.set_xlabel("Requests")
+    ax2.set_ylabel("Average Reward")
+    ax2.set_title("Reward: Dip and Recover")
+    ax2.legend(loc="lower right")
+    ax2.grid(True, alpha=0.3)
+    
+    # Set y-axis to show the full range
+    ax2.set_ylim(0.3, 1.0)
+    
+    plt.tight_layout(pad=1.0)
+    
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=DPI, bbox_inches="tight", facecolor="white")
+    plt.savefig(output_path.with_suffix(".pdf"), bbox_inches="tight", facecolor="white")
+    
+    print(f"[RQ2] Saved drift plot to {output_path}")
+    plt.close()
+    plt.rcParams.update(plt.rcParamsDefault)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
-def parse_args() -> ExperimentConfig:
+def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="RQ2: Analyze Model Specialization from Priors",
+        description="RQ2: Analyze Model Specialization & Run Drift Simulation",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -378,42 +689,90 @@ def parse_args() -> ExperimentConfig:
         "--output-dir", type=str, default="results/rq2",
         help="Output directory for results",
     )
+    parser.add_argument(
+        "--skip-drift", action="store_true",
+        help="Skip drift simulation (only run static analysis)",
+    )
+    parser.add_argument(
+        "--drift-steps", type=int, default=200,
+        help="Number of steps for drift simulation",
+    )
+    parser.add_argument(
+        "--default-model", type=str, default="openai/gpt-4o",
+        help="Default model the bandit is initially biased toward",
+    )
+    parser.add_argument(
+        "--specialist-model", type=str, default="amazon/nova-lite-v1",
+        help="Specialist model to discover (will be zeroed out)",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Random seed for reproducibility",
+    )
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    return ExperimentConfig(
+
+def main() -> int:
+    """Main entry point."""
+    args = parse_args()
+    
+    # Static analysis config
+    analysis_config = ExperimentConfig(
         priors_path=Path(args.priors),
         n_top_models=args.n_top_models,
         output_dir=Path(args.output_dir),
     )
 
-
-def main() -> int:
-    """Main entry point."""
-    config = parse_args()
-
     print("=" * 60)
     print("RQ2: Local Adaptation - Specialization Analysis")
     print("=" * 60)
-    print(f"Priors: {config.priors_path}")
-    print(f"Analyzing top: {config.n_top_models} models")
-    print(f"Output: {config.output_dir}")
+    print(f"Priors: {analysis_config.priors_path}")
+    print(f"Analyzing top: {analysis_config.n_top_models} models")
+    print(f"Output: {analysis_config.output_dir}")
     print("=" * 60)
 
-    # Analyze specialization
-    analysis = analyze_specialization(config)
+    # Part 1: Static Analysis
+    analysis = analyze_specialization(analysis_config)
+    save_results(analysis, analysis_config.output_dir / "specialization_analysis.json")
+    plot_specialization(analysis, analysis_config.output_dir / "model_coverage.png")
 
-    # Save outputs
-    save_results(analysis, config.output_dir / "specialization_analysis.json")
-    plot_specialization(analysis, config.output_dir / "model_coverage.png")
+    # Part 2: Drift Simulation (unless skipped)
+    if not args.skip_drift:
+        drift_config = DriftSimulationConfig(
+            priors_path=Path(args.priors),
+            default_model=args.default_model,
+            specialist_model=args.specialist_model,
+            n_steps=args.drift_steps,
+            seed=args.seed,
+            output_dir=Path(args.output_dir),
+        )
+        
+        drift_results = run_drift_simulation(drift_config)
+        
+        # Save drift results
+        drift_output = analysis_config.output_dir / "drift_results.json"
+        with open(drift_output, "w") as f:
+            # Convert numpy arrays to lists for JSON
+            serializable = {
+                k: (v if not isinstance(v, np.ndarray) else v.tolist())
+                for k, v in drift_results.items()
+            }
+            json.dump(serializable, f, indent=2)
+        print(f"[RQ2] Saved drift results to {drift_output}")
+        
+        plot_drift_simulation(drift_results, analysis_config.output_dir / "adaptation_curve.png")
 
-    print("=" * 60)
-    print("Analysis complete!")
+    print("\n" + "=" * 60)
+    print("RQ2 Complete!")
     print(f"  Priors format: {analysis.priors_format}")
     print(f"  Models analyzed: {len(analysis.model_names)}")
     print(f"  Specialist candidates: {len(analysis.specialist_candidates)}")
     print(f"  Generalist candidates: {len(analysis.generalist_candidates)}")
-    print(f"  Results saved to: {config.output_dir}")
+    if not args.skip_drift:
+        print(f"  Drift simulation: {args.drift_steps} steps")
+        print(f"  Final specialist rate: {drift_results['final_specialist_rate']:.1%}")
+    print(f"  Results saved to: {analysis_config.output_dir}")
     print("=" * 60)
 
     return 0
