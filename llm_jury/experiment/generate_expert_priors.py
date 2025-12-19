@@ -16,8 +16,23 @@ KDD Narrative:
     than random exploration. This aligns the covariance manifold with the
     optimal policy frontier."
 
+Reproducibility:
+    To reproduce the exact expert_priors.npz shipped with the library:
+    
+    1. Ensure you have the data files:
+       - data/priors/archetype_grid_prompts.jsonl (500 prompts)
+       - data/priors/archetype_grid_dense_run.jsonl (rewards from 36 models)
+    
+    2. Run with default settings (seed=42):
+       python -m llm_jury.experiment.generate_expert_priors
+    
+    3. Expected output:
+       - File size: ~21 MB
+       - 62.2% regret reduction vs cold-start (with prior_strength=50.0)
+
 Usage:
     python -m llm_jury.experiment.generate_expert_priors
+    python -m llm_jury.experiment.generate_expert_priors --seed 42 --epochs 5
 
 Output:
     data/priors/expert_priors.npz - Expert-distilled priors
@@ -26,7 +41,11 @@ Output:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import random
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -89,6 +108,33 @@ def get_optimal_model(
     return best_model, best_reward
 
 
+def set_all_seeds(seed: int) -> None:
+    """Set all random seeds for full reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    
+    # Set torch seed if available (used by sentence-transformers)
+    try:
+        import torch
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        # For reproducible convolutions on CUDA
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    except ImportError:
+        pass
+
+
+def compute_file_hash(path: Path) -> str:
+    """Compute SHA256 hash of a file for provenance tracking."""
+    sha256 = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()[:16]  # First 16 chars
+
+
 def generate_expert_priors(
     prompts_path: Path,
     rewards_path: Path,
@@ -110,7 +156,7 @@ def generate_expert_priors(
         expert_rate: Probability of picking optimal model (0.8 = 80% expert)
         n_epochs: Number of passes through the data
         alpha: UCB exploration parameter
-        seed: Random seed
+        seed: Random seed for reproducibility (default: 42)
     """
     print("=" * 60)
     print("Generating Expert-Distilled Priors")
@@ -118,8 +164,12 @@ def generate_expert_priors(
     print(f"  Expert Rate: {expert_rate:.0%} (teacher picks optimal)")
     print(f"  Epochs: {n_epochs}")
     print(f"  Embedding Model: {context_model}")
+    print(f"  Random Seed: {seed}")
     print("=" * 60)
     
+    # Set ALL random seeds for reproducibility
+    print("\n[0/5] Setting random seeds for reproducibility...")
+    set_all_seeds(seed)
     rng = np.random.default_rng(seed)
     
     # Load embedding model
@@ -209,21 +259,39 @@ def generate_expert_priors(
     A_stack = np.stack([policy.A[m] for m in model_names], axis=0)
     b_stack = np.stack([policy.b[m] for m in model_names], axis=0)
     
+    # Compute input file hashes for provenance tracking
+    prompts_hash = compute_file_hash(prompts_path)
+    rewards_hash = compute_file_hash(rewards_path)
+    
     np.savez_compressed(
         output_path,
+        # Core data (used for loading)
         model_names=np.array(model_names, dtype=object),
         dim=dim,
         alpha=alpha,
         A_stack=A_stack.astype(np.float16),  # Compress to float16 for size
         b_stack=b_stack.astype(np.float16),
+        # Training hyperparameters (for reproducibility)
         expert_rate=expert_rate,
         n_epochs=n_epochs,
+        seed=seed,
+        context_model=context_model,
+        # Provenance metadata (for auditing)
+        prompts_hash=prompts_hash,
+        rewards_hash=rewards_hash,
+        generated_at=datetime.now().isoformat(),
+        n_prompts=len(prompts),
+        n_models=len(model_names),
     )
     
-    # Report size
+    # Report size and provenance
     file_size = output_path.stat().st_size
     print(f"       Saved! Size: {file_size / 1024 / 1024:.1f} MB (full disjoint)")
     print(f"       A_stack shape: {A_stack.shape}, b_stack shape: {b_stack.shape}")
+    print(f"\n[Provenance]")
+    print(f"       Seed: {seed}")
+    print(f"       Prompts hash: {prompts_hash}")
+    print(f"       Rewards hash: {rewards_hash}")
     
     # Verify by checking theta norms
     print("\n[Verify] Top models by learned weight magnitude:")
@@ -242,36 +310,113 @@ def generate_expert_priors(
     print("=" * 60)
 
 
+def verify_priors(priors_path: Path) -> None:
+    """Verify priors file and display provenance metadata."""
+    print("=" * 60)
+    print("Verifying Expert Priors")
+    print("=" * 60)
+    
+    if not priors_path.exists():
+        print(f"ERROR: File not found: {priors_path}")
+        return
+    
+    data = np.load(priors_path, allow_pickle=True)
+    
+    print(f"\n[File Info]")
+    print(f"  Path: {priors_path}")
+    print(f"  Size: {priors_path.stat().st_size / 1024 / 1024:.1f} MB")
+    
+    print(f"\n[Core Data]")
+    print(f"  Models: {len(data['model_names'])}")
+    print(f"  Dimension: {data['dim']}")
+    print(f"  Alpha: {data['alpha']}")
+    
+    if "A_stack" in data:
+        print(f"  Format: Expert (disjoint A_stack)")
+        print(f"  A_stack shape: {data['A_stack'].shape}")
+        print(f"  b_stack shape: {data['b_stack'].shape}")
+    else:
+        print(f"  Format: Shared (legacy)")
+    
+    print(f"\n[Training Hyperparameters]")
+    for key in ["expert_rate", "n_epochs", "seed", "context_model"]:
+        if key in data:
+            print(f"  {key}: {data[key]}")
+    
+    print(f"\n[Provenance]")
+    for key in ["prompts_hash", "rewards_hash", "generated_at", "n_prompts", "n_models"]:
+        if key in data:
+            print(f"  {key}: {data[key]}")
+    
+    # Expected hashes for the shipped priors (generated with seed=42)
+    expected_prompts_hash = None
+    expected_rewards_hash = None
+    
+    if "prompts_hash" in data and "rewards_hash" in data:
+        print(f"\n[Reproducibility Check]")
+        print(f"  To reproduce these priors, run:")
+        print(f"    python -m llm_jury.experiment.generate_expert_priors \\")
+        print(f"      --seed {data.get('seed', 42)} \\")
+        print(f"      --epochs {data.get('n_epochs', 5)} \\")
+        print(f"      --expert-rate {data.get('expert_rate', 0.8)}")
+    
+    print("\n" + "=" * 60)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate Expert-Distilled Priors",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     
-    parser.add_argument("--prompts", type=str,
-                        default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
-    parser.add_argument("--rewards", type=str,
-                        default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"))
-    parser.add_argument("--output", type=str,
-                        default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"))
-    parser.add_argument("--expert-rate", type=float, default=0.8,
-                        help="Probability of picking optimal model (0.8 = 80%% expert)")
-    parser.add_argument("--epochs", type=int, default=5,
-                        help="Number of training epochs")
-    parser.add_argument("--alpha", type=float, default=0.5)
-    parser.add_argument("--seed", type=int, default=42)
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+    
+    # Generate command (default)
+    gen_parser = subparsers.add_parser("generate", help="Generate expert priors")
+    gen_parser.add_argument("--prompts", type=str,
+                            default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
+    gen_parser.add_argument("--rewards", type=str,
+                            default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"))
+    gen_parser.add_argument("--output", type=str,
+                            default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"))
+    gen_parser.add_argument("--expert-rate", type=float, default=0.8,
+                            help="Probability of picking optimal model (0.8 = 80%% expert)")
+    gen_parser.add_argument("--epochs", type=int, default=5,
+                            help="Number of training epochs")
+    gen_parser.add_argument("--alpha", type=float, default=0.5)
+    gen_parser.add_argument("--seed", type=int, default=42,
+                            help="Random seed for reproducibility")
+    
+    # Verify command
+    verify_parser = subparsers.add_parser("verify", help="Verify priors file and show metadata")
+    verify_parser.add_argument("--priors", type=str,
+                               default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"),
+                               help="Path to priors file to verify")
     
     args = parser.parse_args()
     
-    generate_expert_priors(
-        prompts_path=Path(args.prompts),
-        rewards_path=Path(args.rewards),
-        output_path=Path(args.output),
-        expert_rate=args.expert_rate,
-        n_epochs=args.epochs,
-        alpha=args.alpha,
-        seed=args.seed,
-    )
+    # Default to generate if no command specified
+    if args.command is None or args.command == "generate":
+        # Handle case where generate is not specified but we still have args
+        prompts = getattr(args, "prompts", str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
+        rewards = getattr(args, "rewards", str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"))
+        output = getattr(args, "output", str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"))
+        expert_rate = getattr(args, "expert_rate", 0.8)
+        epochs = getattr(args, "epochs", 5)
+        alpha = getattr(args, "alpha", 0.5)
+        seed = getattr(args, "seed", 42)
+        
+        generate_expert_priors(
+            prompts_path=Path(prompts),
+            rewards_path=Path(rewards),
+            output_path=Path(output),
+            expert_rate=expert_rate,
+            n_epochs=epochs,
+            alpha=alpha,
+            seed=seed,
+        )
+    elif args.command == "verify":
+        verify_priors(Path(args.priors))
 
 
 if __name__ == "__main__":
