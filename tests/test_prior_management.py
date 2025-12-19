@@ -279,6 +279,334 @@ class TestDisjointLinUCBPolicy:
 
 
 # ---------------------------------------------------------------------------
+# Expert Priors Tests
+# ---------------------------------------------------------------------------
+
+
+class TestExpertPriors:
+    """Tests for expert-distilled priors (A_stack/b_stack format)."""
+
+    def test_create_and_save_expert_priors(self, temp_dir):
+        """Test creating and saving expert priors in disjoint format."""
+        from llm_jury.async_bandit.bandit_router import DisjointLinUCBPolicy
+
+        model_names = ["model-a", "model-b", "model-c"]
+        dim = 32
+        
+        policy = DisjointLinUCBPolicy(model_names, dim=dim, alpha=0.5)
+        
+        # Simulate some updates
+        for _ in range(10):
+            x = np.random.randn(dim)
+            for m in model_names:
+                policy.update(m, x, np.random.rand())
+        
+        # Save in expert format (A_stack/b_stack)
+        path = temp_dir / "expert_priors.npz"
+        A_stack = np.stack([policy.A[m] for m in model_names], axis=0)
+        b_stack = np.stack([policy.b[m] for m in model_names], axis=0)
+        
+        np.savez_compressed(
+            path,
+            model_names=np.array(model_names, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=A_stack.astype(np.float16),
+            b_stack=b_stack.astype(np.float16),
+        )
+        
+        # Verify file exists and can be loaded
+        assert path.exists()
+        data = np.load(path, allow_pickle=True)
+        assert "A_stack" in data
+        assert "b_stack" in data
+        assert data["A_stack"].shape == (3, 32, 32)
+        assert data["b_stack"].shape == (3, 32)
+
+    def test_load_expert_priors_format(self, temp_dir, sample_registry):
+        """Test that expert priors are correctly loaded."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter
+
+        # Create expert priors
+        model_names = list(sample_registry.keys())
+        dim = 384
+        
+        A_stack = np.stack([np.eye(dim) * 2.0 for _ in model_names], axis=0)
+        b_stack = np.stack([np.ones(dim) * i for i, _ in enumerate(model_names)], axis=0)
+        
+        path = temp_dir / "expert.npz"
+        np.savez_compressed(
+            path,
+            model_names=np.array(model_names, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=A_stack.astype(np.float16),
+            b_stack=b_stack.astype(np.float16),
+        )
+        
+        # Load via BanditRouter
+        router = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            prior_strength=1.0,  # No scaling for test
+        )
+        
+        # Verify loaded correctly
+        for i, m in enumerate(model_names):
+            assert m in router.bandit.A
+            # b should match (with float16 -> float64 conversion tolerance)
+            np.testing.assert_array_almost_equal(
+                router.bandit.b[m],
+                np.ones(dim) * i,
+                decimal=2,
+            )
+
+    def test_expert_priors_float16_precision(self, temp_dir, sample_registry):
+        """Test that float16 compression maintains acceptable precision."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter
+
+        model_names = list(sample_registry.keys())
+        dim = 384
+        
+        # Create priors with specific values
+        A_orig = np.eye(dim) * 50.0  # Boosted
+        b_orig = np.random.randn(dim) * 10.0
+        
+        A_stack = np.stack([A_orig for _ in model_names], axis=0)
+        b_stack = np.stack([b_orig for _ in model_names], axis=0)
+        
+        path = temp_dir / "expert.npz"
+        np.savez_compressed(
+            path,
+            model_names=np.array(model_names, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=A_stack.astype(np.float16),
+            b_stack=b_stack.astype(np.float16),
+        )
+        
+        router = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            prior_strength=1.0,
+        )
+        
+        # Check precision is acceptable (within 1% for diagonal)
+        for m in model_names:
+            diag = np.diag(router.bandit.A[m])
+            np.testing.assert_allclose(diag, 50.0, rtol=0.01)
+
+
+class TestPriorStrength:
+    """Tests for the prior_strength (λ_boost) parameter."""
+
+    def test_prior_strength_scales_matrices(self, temp_dir, sample_registry):
+        """prior_strength multiplies A and b matrices."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter
+
+        model_names = list(sample_registry.keys())
+        dim = 384
+        
+        # Create expert priors with known values
+        A_stack = np.stack([np.eye(dim) for _ in model_names], axis=0)
+        b_stack = np.stack([np.ones(dim) for _ in model_names], axis=0)
+        
+        path = temp_dir / "expert.npz"
+        np.savez_compressed(
+            path,
+            model_names=np.array(model_names, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=A_stack.astype(np.float32),
+            b_stack=b_stack.astype(np.float32),
+        )
+        
+        # Load with strength=10.0
+        router = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            prior_strength=10.0,
+        )
+        
+        # A should be scaled by 10x
+        for m in model_names:
+            diag = np.diag(router.bandit.A[m])
+            np.testing.assert_allclose(diag, 10.0, rtol=0.01)
+            # b should also be scaled by 10x
+            np.testing.assert_allclose(router.bandit.b[m], 10.0, rtol=0.01)
+
+    def test_prior_strength_default_50(self, temp_dir, sample_registry):
+        """Default prior_strength is 50.0 for expert priors."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter
+
+        model_names = list(sample_registry.keys())
+        dim = 384
+        
+        A_stack = np.stack([np.eye(dim) for _ in model_names], axis=0)
+        b_stack = np.stack([np.ones(dim) for _ in model_names], axis=0)
+        
+        path = temp_dir / "expert.npz"
+        np.savez_compressed(
+            path,
+            model_names=np.array(model_names, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=A_stack.astype(np.float32),
+            b_stack=b_stack.astype(np.float32),
+        )
+        
+        # Load with default strength (should be 50.0)
+        router = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            # prior_strength defaults to 50.0
+        )
+        
+        # A diagonal should be 50.0
+        for m in model_names:
+            diag = np.diag(router.bandit.A[m])
+            np.testing.assert_allclose(diag, 50.0, rtol=0.01)
+
+    def test_prior_strength_affects_ucb_confidence(self, temp_dir, sample_registry):
+        """Higher prior_strength reduces UCB uncertainty."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter
+
+        model_names = list(sample_registry.keys())
+        dim = 384
+        
+        A_stack = np.stack([np.eye(dim) for _ in model_names], axis=0)
+        b_stack = np.stack([np.ones(dim) for _ in model_names], axis=0)
+        
+        path = temp_dir / "expert.npz"
+        np.savez_compressed(
+            path,
+            model_names=np.array(model_names, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=A_stack.astype(np.float32),
+            b_stack=b_stack.astype(np.float32),
+        )
+        
+        # Load with low strength
+        router_low = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            prior_strength=1.0,
+        )
+        
+        # Load with high strength
+        router_high = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            prior_strength=50.0,
+        )
+        
+        # Compute variance for a test context
+        x = np.random.randn(dim)
+        x = x / np.linalg.norm(x)
+        
+        m = model_names[0]
+        var_low = x @ router_low.bandit.A_inv[m] @ x
+        var_high = x @ router_high.bandit.A_inv[m] @ x
+        
+        # Higher strength = lower variance (more confidence)
+        assert var_high < var_low
+        # Roughly 50x difference
+        assert var_low / var_high > 40  # Allow some tolerance
+
+
+class TestPriorFormatDetection:
+    """Tests for automatic prior format detection."""
+
+    def test_detects_expert_format(self, temp_dir, sample_registry):
+        """Detects A_stack as expert format."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter
+
+        model_names = list(sample_registry.keys())
+        dim = 384
+        
+        path = temp_dir / "expert.npz"
+        np.savez_compressed(
+            path,
+            model_names=np.array(model_names, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=np.stack([np.eye(dim) for _ in model_names], axis=0),
+            b_stack=np.stack([np.zeros(dim) for _ in model_names], axis=0),
+        )
+        
+        # Should load without error (detects expert format)
+        router = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            prior_strength=1.0,
+        )
+        
+        assert router is not None
+        assert len(router.bandit.models) == len(sample_registry)
+
+    def test_detects_shared_format(self, temp_dir, sample_registry):
+        """Detects A_shared as shared covariance format."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
+
+        # Create shared priors using the policy class
+        models = list(sample_registry.keys())
+        policy = SharedCovarianceLinUCBPolicy(models, dim=384, alpha=0.5)
+        
+        path = temp_dir / "shared.npz"
+        policy.to_shippable_priors_npz(path)
+        
+        # Should load without error (detects shared format and inflates)
+        router = BanditRouter.load_from_shippable_priors(
+            priors_npz=path,
+            model_registry=sample_registry,
+            prior_strength=1.0,
+        )
+        
+        assert router is not None
+        # After inflation, each model should have its own A
+        for m in models:
+            assert m in router.bandit.A
+
+    def test_create_prefers_expert_priors(self, temp_dir, sample_registry):
+        """BanditRouter.create() prefers expert_priors.npz over shippable_priors.npz."""
+        from llm_jury.async_bandit.bandit_router import BanditRouter, SharedCovarianceLinUCBPolicy
+
+        models = list(sample_registry.keys())
+        dim = 384
+        
+        # Create both types of priors
+        expert_path = temp_dir / "expert_priors.npz"
+        shared_path = temp_dir / "shippable_priors.npz"
+        
+        # Expert priors with distinctive b values
+        np.savez_compressed(
+            expert_path,
+            model_names=np.array(models, dtype=object),
+            dim=dim,
+            alpha=0.5,
+            A_stack=np.stack([np.eye(dim) for _ in models], axis=0),
+            b_stack=np.stack([np.ones(dim) * 999 for _ in models], axis=0),  # Distinctive
+        )
+        
+        # Shared priors with different b values
+        policy = SharedCovarianceLinUCBPolicy(models, dim=dim, alpha=0.5)
+        policy.to_shippable_priors_npz(shared_path)
+        
+        # Create router - should prefer expert_priors.npz
+        router = BanditRouter.create(
+            sample_registry,
+            priors="bundled",
+            bundled_priors_path=expert_path,  # Explicitly use expert
+        )
+        
+        # Check that expert priors were loaded (b = 999 * strength)
+        m = models[0]
+        # With default strength=50, b should be 999 * 50 ≈ 49950
+        assert router.bandit.b[m][0] > 40000
+
+
+# ---------------------------------------------------------------------------
 # BanditRouter Tests
 # ---------------------------------------------------------------------------
 
@@ -373,6 +701,7 @@ class TestBanditRouterCreate:
             priors="merged",
             bundled_priors_path=bundled_path,
             user_priors_path=user_path,
+            prior_strength=1.0,  # Disable scaling for this test
         )
 
         assert router.priors_source == "merged"
