@@ -30,19 +30,6 @@ def test_core_package_import_does_not_crash():
     assert hasattr(core, "PriorManager")
 
 
-def test_complexity_module_import():
-    """Test that complexity classifiers can be imported."""
-    from banditgpt.core.complexity import (
-        LocalComplexityClassifier,
-        NvidiaComplexityClassifier,
-        get_complexity_classifier,
-    )
-
-    assert LocalComplexityClassifier is not None
-    assert NvidiaComplexityClassifier is not None
-    assert get_complexity_classifier is not None
-
-
 def test_judge_module_import():
     """Test that judge abstraction can be imported."""
     from banditgpt.core.judge import (

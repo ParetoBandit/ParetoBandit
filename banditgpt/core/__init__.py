@@ -53,6 +53,14 @@ from banditgpt.core.judge import (
     create_soft_judge,
     create_tiered_judge,
 )
+from banditgpt.core.prior_downloader import ensure_priors, PriorDownloadError
+from banditgpt.core.prior_manifest import (
+    PriorFileInfo,
+    PriorIntegrityError,
+    PriorsManifest,
+    load_priors_manifest,
+)
+from banditgpt.settings import Settings, load_settings
 
 __all__ = [
     # Judge abstraction
@@ -63,6 +71,14 @@ __all__ = [
     "create_soft_judge",
     "create_tiered_judge",
     "create_custom_judge",
+    "ensure_priors",
+    "PriorDownloadError",
+    "PriorsManifest",
+    "PriorIntegrityError",
+    "PriorFileInfo",
+    "load_priors_manifest",
+    "Settings",
+    "load_settings",
     # Graders
     "TieredGrader",
     "OpenRouterTeacherVerifier",
@@ -99,23 +115,3 @@ try:
     ]
 except ImportError:
     pass  # sentence-transformers not installed
-
-# Optional: Complexity classifiers
-try:
-    from banditgpt.core.complexity import (
-        LocalComplexityClassifier,
-        LocalComplexityResult,
-        NvidiaComplexityClassifier,
-        NvidiaComplexityResult,
-        get_complexity_classifier,
-    )
-
-    __all__ += [
-        "LocalComplexityClassifier",
-        "LocalComplexityResult",
-        "NvidiaComplexityClassifier",
-        "NvidiaComplexityResult",
-        "get_complexity_classifier",
-    ]
-except ImportError:
-    pass  # transformers not installed

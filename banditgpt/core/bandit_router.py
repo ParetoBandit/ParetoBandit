@@ -58,6 +58,7 @@ from __future__ import annotations
 import json
 import math
 import time
+import logging
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -69,17 +70,13 @@ try:
 except ImportError as e:  # pragma: no cover
     raise ImportError("Missing dependency: sentence-transformers") from e
 
-try:
-    from banditgpt.core.complexity import LocalComplexityClassifier, NvidiaComplexityClassifier
-except Exception:  # pragma: no cover
-    LocalComplexityClassifier = None  # type: ignore[assignment]
-    NvidiaComplexityClassifier = None  # type: ignore[assignment]
-
 from banditgpt.core.quality_cost_predictor import (
     QualityCostPredictor,
     LogitReward,
     RunningZScoreNormalizer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # fast 384-dim
@@ -267,37 +264,6 @@ class ExplorationRate:
         """List all available rate names."""
         return ["static", "safe", "balanced", "aggressive"]
 
-
-# For complexity-gated routing (no model-quality priors):
-# - We use a prompt complexity model to decide when to *gate* to a strong allowlist.
-# - This avoids the cold-start failure mode where cheap models are chosen for
-#   technically tricky prompts (e.g., weak-acid/autoionization edge cases).
-DEFAULT_STRONG_MODEL_ALLOWLIST = [
-    # Reasoning-strong / frontier-ish baselines (OpenRouter ids)
-    "deepseek/deepseek-r1",
-    "openai/o3-mini-high",
-    "openai/o1",
-    "openai/gpt-4o",
-    "openai/gpt-4.1",
-    "openai/gpt-4o-mini",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3.7-sonnet",
-    "google/gemini-3-pro-preview",
-    "google/gemini-2.5-pro",
-]
-
-# For domain-knowledge-heavy prompts, avoid "mini" class models by default.
-DEFAULT_STRONG_DOMAIN_ALLOWLIST = [
-    "deepseek/deepseek-r1",
-    "openai/o3-mini-high",
-    "openai/o1",
-    "openai/gpt-4o",
-    "openai/gpt-4.1",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3.7-sonnet",
-    "google/gemini-3-pro-preview",
-    "google/gemini-2.5-pro",
-]
 
 def build_cost_proportional_priors(
     registry: Dict[str, Dict[str, Any]],
@@ -830,9 +796,6 @@ class BanditRouter:
         normalizer_init: Optional[RunningZScoreNormalizer] = None,
         reward_mode: str = "z",
         model_priors: Optional[Dict[str, float]] = None,
-        complexity_classifier: Optional[Any] = None,
-        strong_model_allowlist: Optional[List[str]] = None,
-        strong_domain_allowlist: Optional[List[str]] = None,
         embedding_dim: int = 384,
     ):
         # Resolve exploration rate: user-friendly name takes precedence
@@ -861,20 +824,6 @@ class BanditRouter:
         if self.reward_mode not in {"z", "logit"}:
             raise ValueError("reward_mode must be 'z' or 'logit'")
         self.logit_reward = LogitReward(epsilon=1e-4)
-
-        # Optional complexity classifier for gating decisions.
-        # This is NOT a model-quality prior; it is a prompt-level policy signal.
-        self.complexity_classifier = complexity_classifier
-        if self.complexity_classifier is None and LocalComplexityClassifier is not None:
-            # Prefer local trained model (no network download).
-            cc = LocalComplexityClassifier(device="cpu")
-            if cc.is_available():
-                self.complexity_classifier = cc
-        if self.complexity_classifier is None and NvidiaComplexityClassifier is not None:
-            # Fallback: HF model (may download on first use).
-            self.complexity_classifier = NvidiaComplexityClassifier(device="cpu")
-        self.strong_model_allowlist = list(strong_model_allowlist or DEFAULT_STRONG_MODEL_ALLOWLIST)
-        self.strong_domain_allowlist = list(strong_domain_allowlist or DEFAULT_STRONG_DOMAIN_ALLOWLIST)
 
         self.state_path = Path(state_path) if state_path is not None else None
         self.logs: List[RoutingLog] = []
@@ -965,95 +914,53 @@ class BanditRouter:
         self.bandit.remove_model(model_id)
         self.model_priors.pop(model_id, None)
 
-        # Also remove from allowlists if present
-        if model_id in self.strong_model_allowlist:
-            self.strong_model_allowlist.remove(model_id)
-        if model_id in self.strong_domain_allowlist:
-            self.strong_domain_allowlist.remove(model_id)
-
         return True
 
     def list_models(self) -> List[str]:
         """Return list of all model IDs in the router."""
         return list(self.registry.keys())
 
-    def _complexity_gate_candidates(
+    def _compute_candidate_scores(
         self,
-        prompt: str,
         candidates: List[str],
-        *,
-        enabled: bool,
-        min_complexity: float = 0.25,
-        easy_confidence_min: float = 0.45,
-        min_domain_knowledge: float = 0.60,
-        gate_math: bool = True,
-    ) -> Tuple[List[str], Optional[Any], bool]:
+        x: np.ndarray,
+        alpha: float,
+        lambda_cost: float,
+        lambda_latency: float,
+        in_tok: Optional[int],
+        out_tok: int,
+        use_ucb_for_quality: bool,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Optionally restrict candidates based on prompt complexity.
+        Vectorized scoring for candidate models.
 
-        Policy:
-          - If complexity score >= min_complexity OR (task_type == Math and gate_math),
-            restrict to a configured strong allowlist (intersection with candidates).
-          - If the intersection is empty, fall back to original candidates.
+        Returns:
+            quality_hat: predicted quality per model
+            utility: utility per model (quality minus cost/latency penalties)
+            cost: estimated cost per model
+            latency: estimated latency per model
         """
-        if not enabled or self.complexity_classifier is None:
-            return candidates, None, False
+        theta = np.stack([self.bandit.A_inv[m] @ self.bandit.b[m] for m in candidates])
+        mean = theta @ x
 
-        try:
-            res = self.complexity_classifier.classify(prompt)
-        except Exception:
-            return candidates, None, False
+        A_inv_x = np.stack([self.bandit.A_inv[m] @ x for m in candidates])
+        var = (A_inv_x * x).sum(axis=1)
+        std = np.sqrt(np.maximum(var, 1e-12))
 
-        # Support both:
-        # - LocalComplexityResult (label/confidence/prompt_complexity_score)
-        # - NvidiaComplexityResult (prompt_complexity_score/domain_knowledge/task_type_1)
-        try:
-            score = float(getattr(res, "prompt_complexity_score", 0.0))
-        except Exception:
-            score = 0.0
+        prior = np.array([self.model_priors.get(m, 0.0) for m in candidates], dtype=float)
+        base_quality = mean + prior
+        quality_hat = base_quality + (alpha * std if use_ucb_for_quality else 0.0)
 
-        task = str(getattr(res, "task_type_1", "") or "")
-        try:
-            domain_knowledge = float(getattr(res, "domain_knowledge", 0.0))
-        except Exception:
-            domain_knowledge = 0.0
-
-        label = getattr(res, "label", None)
-        confidence = getattr(res, "confidence", None)
-        is_local = label is not None and confidence is not None
-        if is_local:
-            try:
-                label_i = int(label)
-            except Exception:
-                label_i = -1
-            try:
-                conf_f = float(confidence)
-            except Exception:
-                conf_f = 0.0
-            # If the local classifier is not confidently "easy", gate upward.
-            local_easy = (label_i == 0) and (conf_f >= float(easy_confidence_min)) and (score < float(min_complexity))
-            should_gate = not local_easy
-        else:
-            # NVIDIA model (or others with similar fields): gate if overall complexity high,
-            # domain knowledge high, or task type is explicitly Math.
-            should_gate = (
-                (score >= float(min_complexity))
-                or (domain_knowledge >= float(min_domain_knowledge))
-                or (gate_math and task.lower() == "math")
-            )
-        if not should_gate:
-            return candidates, res, False
-
-        # Use a stricter allowlist for high domain_knowledge prompts.
-        # For the local classifier, "not confidently easy" should route to the *strong domain* set,
-        # because these are exactly the brittle edge-cases (math/chem/probability) where small
-        # models are often confidently wrong.
-        if is_local:
-            base_allowlist = self.strong_domain_allowlist
-        else:
-            base_allowlist = self.strong_domain_allowlist if domain_knowledge >= float(min_domain_knowledge) else self.strong_model_allowlist
-        allow = [m for m in base_allowlist if m in candidates]
-        return (allow if allow else candidates), res, True
+        cost = np.array(
+            [self._estimate_cost_usd(m, input_tokens=in_tok, output_tokens=out_tok) for m in candidates],
+            dtype=float,
+        )
+        latency = np.array(
+            [self._estimate_latency_s(m, output_tokens=out_tok) for m in candidates],
+            dtype=float,
+        )
+        utility = quality_hat - float(lambda_cost) * cost - float(lambda_latency) * latency
+        return quality_hat, utility, cost, latency
 
     def route(
         self,
@@ -1068,12 +975,6 @@ class BanditRouter:
         output_tokens: Optional[int] = None,
         estimate_input_tokens: bool = True,
         default_output_tokens: int = 600,
-        use_complexity_gating: bool = False,
-        complexity_min_score: float = 0.25,
-        complexity_easy_confidence_min: float = 0.45,
-        complexity_min_domain_knowledge: float = 0.60,
-        complexity_gate_math: bool = True,
-        auto_knobs_from_complexity: bool = True,
         epsilon: float = 0.05,
         candidate_models: Optional[List[str]] = None,
         use_ucb_for_quality: bool = True,
@@ -1108,9 +1009,6 @@ class BanditRouter:
             output_tokens: override expected output tokens (for cost/latency math)
             estimate_input_tokens: if True and input_tokens is None, estimate from prompt text
             default_output_tokens: used when output_tokens is None
-            use_complexity_gating: if True, use prompt complexity to gate to a strong allowlist
-            complexity_min_score: gate when complexity score >= this
-            complexity_gate_math: gate when task_type_1 == 'Math'
             epsilon: epsilon-greedy exploration rate
             candidate_models: optional allowlist of models (e.g. compliance mask)
             use_ucb_for_quality: if True use UCB as quality_hat, else use mean.
@@ -1155,23 +1053,6 @@ class BanditRouter:
 
         candidates = candidate_models if candidate_models else list(self.registry.keys())
         candidates = [m for m in candidates if m in self.bandit.A]
-        candidates, _complexity, did_gate = self._complexity_gate_candidates(
-            prompt,
-            candidates,
-            enabled=use_complexity_gating,
-            min_complexity=complexity_min_score,
-            easy_confidence_min=complexity_easy_confidence_min,
-            min_domain_knowledge=complexity_min_domain_knowledge,
-            gate_math=complexity_gate_math,
-        )
-
-        # If we gated to a strong set, make sure default knobs don't force the
-        # router back into "cheapest within strong set" for hard prompts.
-        # We only auto-adjust when the caller hasn't provided explicit knobs.
-        if auto_knobs_from_complexity and did_gate and lambda_cost == 0.0 and lambda_latency == 0.0 and max_latency_s is None:
-            # More quality-biased defaults for complex/domain prompts.
-            lambda_cost = 50.0
-            lambda_latency = 0.05
 
         # Optional hard constraint: latency ceiling
         if max_latency_s is not None:
@@ -1190,43 +1071,27 @@ class BanditRouter:
         rng = np.random.default_rng()
         explore = eps > 0 and rng.random() < eps
 
-        best_model = candidates[0]
-        best_utility = -float("inf")
-        best_quality = float("nan")
+        quality_hat, utility, cost_arr, latency_arr = self._compute_candidate_scores(
+            candidates=candidates,
+            x=x,
+            alpha=float(alpha),
+            lambda_cost=float(lambda_cost),
+            lambda_latency=float(lambda_latency),
+            in_tok=in_tok,
+            out_tok=out_tok,
+            use_ucb_for_quality=use_ucb_for_quality,
+        )
 
-        # Compute utilities for all candidates (fast: O(#arms * d^2) dominated by dot products).
-        for m in candidates:
-            theta = self.bandit.A_inv[m] @ self.bandit.b[m]
-            mean = float(theta.dot(x))
-            var = float(x.dot(self.bandit.A_inv[m]).dot(x))
-            std = float(np.sqrt(max(var, 1e-12)))
-            prior = float(self.model_priors.get(m, 0.0))
-            ucb = (mean + prior) + alpha * std  # alpha = exploration rate
-            quality_hat = float(ucb if use_ucb_for_quality else (mean + prior))
-
-            # Deterministic penalties (not learned)
-            cost = float(self._estimate_cost_usd(m, input_tokens=in_tok, output_tokens=out_tok))
-            latency = float(self._estimate_latency_s(m, output_tokens=out_tok))
-            utility = quality_hat - float(lambda_cost) * cost - float(lambda_latency) * latency
-
-            if utility > best_utility:
-                best_utility = float(utility)
-                best_model = m
-                best_quality = float(quality_hat)
+        best_idx = int(np.argmax(utility))
+        best_model = candidates[best_idx]
+        best_quality = float(quality_hat[best_idx])
+        best_utility = float(utility[best_idx])
 
         if explore:
-            best_model = candidates[int(rng.integers(0, len(candidates)))]
-            # Recompute predicted quality/utility for the randomly chosen model (for logging).
-            theta = self.bandit.A_inv[best_model] @ self.bandit.b[best_model]
-            mean = float(theta.dot(x))
-            var = float(x.dot(self.bandit.A_inv[best_model]).dot(x))
-            std = float(np.sqrt(max(var, 1e-12)))
-            prior = float(self.model_priors.get(best_model, 0.0))
-            ucb = (mean + prior) + alpha * std  # alpha = exploration rate
-            best_quality = float(ucb if use_ucb_for_quality else (mean + prior))
-            cost = float(self._estimate_cost_usd(best_model, input_tokens=in_tok, output_tokens=out_tok))
-            latency = float(self._estimate_latency_s(best_model, output_tokens=out_tok))
-            best_utility = float(best_quality - float(lambda_cost) * cost - float(lambda_latency) * latency)
+            best_idx = int(rng.integers(0, len(candidates)))
+            best_model = candidates[best_idx]
+            best_quality = float(quality_hat[best_idx])
+            best_utility = float(utility[best_idx])
 
         # propensity under epsilon-greedy with deterministic argmax utility
         prop = (eps / len(candidates)) if explore else ((1.0 - eps) + (eps / len(candidates)))
@@ -1234,6 +1099,24 @@ class BanditRouter:
         model = best_model
         pred_quality = best_quality
         pred_utility = best_utility
+        try:
+            logger.debug(
+                "route_decision",
+                extra={
+                    "prompt_len": len(prompt or ""),
+                    "selected_model": model,
+                    "pred_quality": float(pred_quality),
+                    "pred_utility": float(pred_utility),
+                    "candidates": len(candidates),
+                    "explore": bool(explore),
+                    "epsilon": eps,
+                    "alpha": float(alpha),
+                    "lambda_cost": float(lambda_cost),
+                    "lambda_latency": float(lambda_latency),
+                },
+            )
+        except Exception:
+            pass
         req_id = str(time.time_ns())
         log = RoutingLog(
             request_id=req_id,
@@ -1262,12 +1145,6 @@ class BanditRouter:
         output_tokens: Optional[int] = None,
         estimate_input_tokens: bool = True,
         default_output_tokens: int = 600,
-        use_complexity_gating: bool = False,
-        complexity_min_score: float = 0.25,
-        complexity_easy_confidence_min: float = 0.45,
-        complexity_min_domain_knowledge: float = 0.60,
-        complexity_gate_math: bool = True,
-        auto_knobs_from_complexity: bool = True,
         candidate_models: Optional[List[str]] = None,
         use_ucb_for_quality: bool = True,
     ) -> List[Dict[str, Any]]:
@@ -1310,70 +1187,50 @@ class BanditRouter:
 
         candidates = candidate_models if candidate_models else list(self.registry.keys())
         candidates = [m for m in candidates if m in self.bandit.A]
-        candidates, complexity, did_gate = self._complexity_gate_candidates(
-            prompt,
-            candidates,
-            enabled=use_complexity_gating,
-            min_complexity=complexity_min_score,
-            easy_confidence_min=complexity_easy_confidence_min,
-            min_domain_knowledge=complexity_min_domain_knowledge,
-            gate_math=complexity_gate_math,
-        )
-
-        if auto_knobs_from_complexity and did_gate and lambda_cost == 0.0 and lambda_latency == 0.0 and max_latency_s is None:
-            lambda_cost = 50.0
-            lambda_latency = 0.05
 
         if max_latency_s is not None:
             cap = float(max_latency_s)
             candidates = [m for m in candidates if float(self._estimate_latency_s(m, output_tokens=out_tok)) <= cap]
 
+        quality_hat, utility, cost_arr, latency_arr = self._compute_candidate_scores(
+            candidates=candidates,
+            x=x,
+            alpha=float(alpha),
+            lambda_cost=float(lambda_cost),
+            lambda_latency=float(lambda_latency),
+            in_tok=in_tok,
+            out_tok=out_tok,
+            use_ucb_for_quality=use_ucb_for_quality,
+        )
+
+        k = int(max(1, top_k))
+        idx = np.arange(len(candidates))
+        if len(candidates) > k:
+            top_idx = np.argpartition(utility, -k)[-k:]
+        else:
+            top_idx = idx
+        # Stable ordering: primary by utility desc, secondary by original index to avoid
+        # tie-induced drift across runs.
+        order = np.lexsort((idx[top_idx], -utility[top_idx]))
+        top_idx = top_idx[order]
+
         rows: List[Dict[str, Any]] = []
-        for m in candidates:
-            theta = self.bandit.A_inv[m] @ self.bandit.b[m]
-            mean = float(theta.dot(x))
-            var = float(x.dot(self.bandit.A_inv[m]).dot(x))
-            std = float(np.sqrt(max(var, 1e-12)))
-            prior = float(self.model_priors.get(m, 0.0))
-            ucb = (mean + prior) + alpha * std  # alpha = exploration rate
-            quality_hat = float(ucb if use_ucb_for_quality else (mean + prior))
-
-            cost = float(self._estimate_cost_usd(m, input_tokens=in_tok, output_tokens=out_tok))
-            latency = float(self._estimate_latency_s(m, output_tokens=out_tok))
-            utility = float(quality_hat - float(lambda_cost) * cost - float(lambda_latency) * latency)
-
+        for i in top_idx:
+            m = candidates[i]
             reg = self.registry.get(m, {})
             rows.append(
                 {
                     "model_id": m,
                     "display_name": reg.get("display_name"),
-                    "utility": utility,
-                    "quality_hat": quality_hat,
-                    "prior": float(prior),
-                    "cost_usd": cost,
-                    "latency_s": latency,
+                    "utility": float(utility[i]),
+                    "quality_hat": float(quality_hat[i]),
+                    "prior": float(self.model_priors.get(m, 0.0)),
+                    "cost_usd": float(cost_arr[i]),
+                    "latency_s": float(latency_arr[i]),
                 }
             )
 
-        rows.sort(key=lambda r: float(r["utility"]), reverse=True)
-        k = int(max(1, top_k))
-        out = rows[:k]
-        # Attach complexity metadata to the first row for convenience.
-        if out and complexity is not None:
-            out[0]["_complexity"] = {
-                # Common (both local + NVIDIA)
-                "prompt_complexity_score": getattr(complexity, "prompt_complexity_score", None),
-                # Local model fields (if present)
-                "label": getattr(complexity, "label", None),
-                "confidence": getattr(complexity, "confidence", None),
-                # NVIDIA fields (if present)
-                "task_type_1": getattr(complexity, "task_type_1", None),
-                "task_type_2": getattr(complexity, "task_type_2", None),
-                "task_type_prob": getattr(complexity, "task_type_prob", None),
-                "reasoning": getattr(complexity, "reasoning", None),
-                "domain_knowledge": getattr(complexity, "domain_knowledge", None),
-            }
-        return out
+        return rows
 
     def _estimate_cost_usd(self, model_id: str, *, input_tokens: Optional[int], output_tokens: int) -> float:
         """
@@ -1808,16 +1665,50 @@ class BanditRouter:
         else:
             resolved_alpha = ExplorationRate.get(exploration)
         # Resolve paths - prefer expert_priors.npz, fall back to shippable_priors.npz
-        from banditgpt._resources import get_user_priors_path, get_expert_priors_path, get_bundled_priors_path
+        from banditgpt._resources import (
+            get_user_priors_path,
+            get_expert_priors_path,
+            get_bundled_priors_path,
+            get_priors_path,
+        )
+        from banditgpt.core.prior_manifest import verify_bundled_prior, load_priors_manifest
+
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         user_path = user_priors_path or get_user_priors_path()
         default_bundled = get_expert_priors_path()
         fallback_bundled = get_bundled_priors_path()
+        priors_dir = get_priors_path().parent
+        manifest = load_priors_manifest()
+
         if bundled_priors_path:
             bundled_path = bundled_priors_path
         elif default_bundled.exists():
             bundled_path = default_bundled
         else:
             bundled_path = fallback_bundled
+
+        # Validate bundled priors when they come from the package (skip custom overrides)
+        try:
+            if bundled_path.resolve().is_relative_to(priors_dir.resolve()):
+                verify_bundled_prior(bundled_path, manifest=manifest)
+        except AttributeError:
+            # Python <3.9 fallback: best-effort directory check
+            if str(priors_dir.resolve()) in str(bundled_path.resolve()):
+                verify_bundled_prior(bundled_path, manifest=manifest)
+        logger.debug(
+            "BanditRouter init resolved priors",
+            extra={
+                "priors_mode": priors,
+                "user_priors_path": str(user_path),
+                "bundled_priors_path": str(bundled_path),
+                "alpha": resolved_alpha,
+                "exploration": exploration,
+                "prior_strength": prior_strength,
+            },
+        )
 
         # Handle "merged" mode specially
         if priors == "merged":

@@ -48,6 +48,8 @@ full = [
     "openai>=1.0.0",
     "python-dotenv>=1.0.0",
 ]
+# Priors/data helpers (keeps core deps slim; may add fetch tooling later)
+data = []
 # Experiments (KDD paper reproduction)
 experiments = [
     "matplotlib>=3.7.0",
@@ -78,8 +80,10 @@ banditgpt = "banditgpt.core.cli:main"
 [tool.hatch.build.targets.sdist]
 include = [
     "/banditgpt",
-    "/experiments",
-    "/tests",
+    "/LICENSE",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/CONTRIBUTING.md",
 ]
 
 [tool.hatch.build.targets.wheel]

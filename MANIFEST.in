@@ -16,9 +16,6 @@ exclude banditgpt/data/complexity_classifier_final/model.safetensors
 exclude banditgpt/data/quality_predictor/*.pt
 exclude banditgpt/data/quality_predictor/*.bin
 
-# Include experiments (for reference, not in wheel)
-graft experiments
-
 # Exclude test and development files from wheel
 prune tests
 prune kdd_paper

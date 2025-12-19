@@ -200,6 +200,26 @@ The bundled priors are generated via **Expert Distillation**, not random explora
 
 The library applies a default `prior_strength=50.0` (λ_boost), which tells the bandit: *"Trust these expert priors as if they came from 50× more observations."*
 
+### Priors integrity and migration notes
+
+- Bundled priors are checksummed via `banditgpt/data/priors/manifest.json`. The library validates packaged priors on load; if a file is missing or corrupted, reinstall or restore it from git.
+- Post-install sanity check: `python -m banditgpt.core.cli verify-priors` (or `banditgpt verify-priors` if exposed via entrypoint).
+- To restore from git if needed: `git show <ref>:banditgpt/data/priors/shippable_priors.npz > shippable_priors.npz` (same for `expert_priors.npz`).
+
+### Getting priors from git (fallback)
+
+Priors ship inside the wheel. If you ever need to re-fetch them directly from git (e.g., corruption or custom build), you can pull them from the repo:
+
+```bash
+# From a clone or specific commit
+git show <ref>:banditgpt/data/priors/shippable_priors.npz > shippable_priors.npz
+git show <ref>:banditgpt/data/priors/expert_priors.npz > expert_priors.npz
+
+# Or via GitHub raw (replace org/repo/ref as needed)
+curl -L https://raw.githubusercontent.com/<org>/<repo>/<ref>/banditgpt/data/priors/shippable_priors.npz -o shippable_priors.npz
+curl -L https://raw.githubusercontent.com/<org>/<repo>/<ref>/banditgpt/data/priors/expert_priors.npz -o expert_priors.npz
+```
+
 ## Installation
 
 ```bash
@@ -239,6 +259,15 @@ pip install banditgpt[dev]
 - `openai` — for LLM-as-judge grading (OpenRouterTeacherVerifier)
 - `python-dotenv` — for loading API keys from `.env` files
 - `matplotlib` — for experiment visualizations
+
+---
+
+## Troubleshooting
+
+- Missing priors / checksum failure: run `banditgpt verify-priors` (or `python -m banditgpt.core.cli verify-priors`). If corruption is detected, reinstall or restore from git (`git show <ref>:banditgpt/data/priors/expert_priors.npz > expert_priors.npz`).
+- `sentence-transformers` / `transformers` missing: install core extras if you see import errors on `BanditRouter` (`pip install sentence-transformers transformers`).
+- OpenRouter key required: grading via `OpenRouterTeacherVerifier` needs `OPENROUTER_API_KEY` set; without it, teacher verification is skipped and a clear error is raised.
+- Enable debug logs: set `PYTHONLOGGING=DEBUG` (or configure the `logging` module) to see priors validation and router init resolution details when diagnosing installs.
 
 ---
 

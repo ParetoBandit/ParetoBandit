@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "priors_version": "v1",
+  "files": [
+    {
+      "name": "shippable_priors.npz",
+      "sha256": "965a5d0de62fc680a0e5810d2ec8c40a007adb96d4f42f74b0eb5d7db821533d",
+      "size_bytes": 333333,
+      "bundled": true,
+      "url": null
+    },
+    {
+      "name": "expert_priors.npz",
+      "sha256": "7ac68af03a25f0a2cc0c96709251af1e5b8b7c8686fe6fec7eeea6f3342a5c74",
+      "size_bytes": 22123776,
+      "bundled": true,
+      "url": null
+    }
+  ]
+}

@@ -30,6 +30,7 @@ from banditgpt.core.tiered_grader import (  # noqa: F401
 
 # Prior management
 from banditgpt.core.judge import PriorManager  # noqa: F401
+from banditgpt.settings import Settings, load_settings  # noqa: F401
 
 # Optional: Demo
 try:
@@ -59,6 +60,9 @@ __all__ = [
     "UnsafePythonSubprocessVerifier",
     # Prior management
     "PriorManager",
+    # Settings
+    "Settings",
+    "load_settings",
     # Demo
     "run_demo",
     # Router

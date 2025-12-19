@@ -55,6 +55,7 @@ from banditgpt.core.bandit_router import (
     DEFAULT_CONTEXT_MODEL,
     DisjointLinUCBPolicy,
 )
+from banditgpt._resources import get_priors_path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
@@ -374,11 +375,11 @@ def main():
     # Generate command (default)
     gen_parser = subparsers.add_parser("generate", help="Generate expert priors")
     gen_parser.add_argument("--prompts", type=str,
-                            default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
+                            default=str(get_priors_path("archetype_grid_prompts.jsonl")))
     gen_parser.add_argument("--rewards", type=str,
-                            default=str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"))
+                            default=str(get_priors_path("archetype_grid_dense_run.jsonl")))
     gen_parser.add_argument("--output", type=str,
-                            default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"))
+                            default=str(get_priors_path("expert_priors.npz")))
     gen_parser.add_argument("--expert-rate", type=float, default=0.8,
                             help="Probability of picking optimal model (0.8 = 80%% expert)")
     gen_parser.add_argument("--epochs", type=int, default=5,
@@ -390,7 +391,7 @@ def main():
     # Verify command
     verify_parser = subparsers.add_parser("verify", help="Verify priors file and show metadata")
     verify_parser.add_argument("--priors", type=str,
-                               default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"),
+                               default=str(get_priors_path("expert_priors.npz")),
                                help="Path to priors file to verify")
     
     args = parser.parse_args()
@@ -398,9 +399,9 @@ def main():
     # Default to generate if no command specified
     if args.command is None or args.command == "generate":
         # Handle case where generate is not specified but we still have args
-        prompts = getattr(args, "prompts", str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"))
-        rewards = getattr(args, "rewards", str(PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"))
-        output = getattr(args, "output", str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"))
+        prompts = getattr(args, "prompts", str(get_priors_path("archetype_grid_prompts.jsonl")))
+        rewards = getattr(args, "rewards", str(get_priors_path("archetype_grid_dense_run.jsonl")))
+        output = getattr(args, "output", str(get_priors_path("expert_priors.npz")))
         expert_rate = getattr(args, "expert_rate", 0.8)
         epochs = getattr(args, "epochs", 5)
         alpha = getattr(args, "alpha", 0.5)

@@ -75,3 +75,81 @@ jobs:
       - name: Check package
         run: |
           twine check dist/*
+
+      - name: Inspect artifacts (size and contents)
+        run: |
+          python - <<'PY'
+          import sys, tarfile, zipfile
+          from pathlib import Path
+
+          dist_dir = Path("dist")
+          wheels = list(dist_dir.glob("*.whl"))
+          sdists = list(dist_dir.glob("*.tar.gz"))
+          if not wheels or not sdists:
+            sys.exit("Missing wheel or sdist in dist/")
+
+          # Enforce size limits (40 MB wheel, 40 MB sdist)
+          for pkg in wheels + sdists:
+            size_mb = pkg.stat().st_size / (1024 * 1024)
+            if size_mb > 40:
+              sys.exit(f"{pkg.name} exceeds size limit: {size_mb:.1f} MB")
+
+          banned_prefixes = ("experiments/", "kdd_paper/", "docs/", ".github/")
+
+          def check_zip(path: Path):
+            with zipfile.ZipFile(path) as zf:
+              names = zf.namelist()
+            banned = [n for n in names if n.startswith(banned_prefixes)]
+            if banned:
+              sys.exit(f"Found banned files in wheel {path.name}: {banned[:5]}")
+
+          def check_tgz(path: Path):
+            with tarfile.open(path, "r:gz") as tf:
+              names = tf.getnames()
+            banned = [n for n in names if any(n.startswith(p) for p in banned_prefixes)]
+            if banned:
+              sys.exit(f"Found banned files in sdist {path.name}: {banned[:5]}")
+
+          for whl in wheels:
+            check_zip(whl)
+          for sd in sdists:
+            check_tgz(sd)
+          PY
+
+      - name: Smoke test wheel install
+        run: |
+          python - <<'PY'
+          import shutil
+          import subprocess
+          import sys
+          from pathlib import Path
+          import venv
+
+          dist_dir = Path("dist")
+          wheels = list(dist_dir.glob("*.whl"))
+          if not wheels:
+            sys.exit("No wheel found for smoke test")
+          wheel = wheels[0]
+
+          venv_dir = Path("smoke-venv")
+          if venv_dir.exists():
+            shutil.rmtree(venv_dir)
+          venv.EnvBuilder(with_pip=True).create(venv_dir)
+          python_bin = venv_dir / "bin" / "python"
+          pip_bin = venv_dir / "bin" / "pip"
+
+          subprocess.check_call([pip_bin, "install", str(wheel)])
+
+          code = r"""
+import banditgpt
+from banditgpt.core import BanditRouter, build_registry_from_models_cache
+from banditgpt._resources import get_models_cache_path
+
+registry = build_registry_from_models_cache(get_models_cache_path())
+router = BanditRouter.create(registry, priors="bundled", exploration="static")
+model_id, log = router.route("hello world", profile="balanced")
+assert model_id in registry
+print("smoke-ok", model_id)
+"""
+          subprocess.check_call([python_bin, "-c", code])
+          PY

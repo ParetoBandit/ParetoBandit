@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import re
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Protocol, Tuple
 
@@ -29,6 +30,8 @@ from banditgpt.core.quality_cost_predictor import (
     clip01,
     clipped_quality_reward,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ProductionGrader(Protocol):
@@ -247,6 +250,20 @@ class TieredGrader:
                 teacher_meta = dict(meta)
                 if used_teacher:
                     p_correct_raw = float(s)
+            try:
+                logger.debug(
+                    "tiered_grader_decision",
+                    extra={
+                        "is_hard": True,
+                        "used_teacher": bool(used_teacher),
+                        "used_code_verifier": bool(used_code_verifier),
+                        "teacher_ok": teacher_meta.get("ok"),
+                        "code_ok": code_meta.get("ok"),
+                        "p_correct_raw": p_correct_raw,
+                    },
+                )
+            except Exception:
+                pass
 
         # Rebuild production rewards from the chosen p_correct_raw.
         p_correct_clipped = clip01(p_correct_raw, eps=self.reward_clip_eps)

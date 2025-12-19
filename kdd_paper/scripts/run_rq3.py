@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
+from banditgpt._resources import get_priors_path, get_models_cache_path
 
 # Project root for locating data files
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -73,10 +74,10 @@ except ImportError:
 class ExperimentConfig:
     """Configuration for RQ3 experiment."""
     # Path to priors (default: expert_priors.npz from expert-distilled training)
-    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"
+    priors_path: Path = get_priors_path("expert_priors.npz")
 
     # Model costs from cache
-    models_cache_path: Path = PROJECT_ROOT / "data" / "models_cache.json"
+    models_cache_path: Path = get_models_cache_path()
 
     # Cost weights to analyze (the "knob" from w=0 to w=high)
     cost_weights: List[float] = None  # Set in __post_init__
@@ -516,7 +517,7 @@ def generate_system_impact_table(analysis: CostQualityAnalysis, output_path: Pat
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Load reward data
-    rewards_path = PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"
+    rewards_path = get_priors_path("archetype_grid_dense_run.jsonl")
     if not rewards_path.exists():
         print(f"[RQ3] Warning: {rewards_path} not found, skipping system impact table")
         return
@@ -665,12 +666,12 @@ def parse_args() -> ExperimentConfig:
 
     parser.add_argument(
         "--priors", type=str,
-        default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"),
+        default=str(get_priors_path("expert_priors.npz")),
         help="Path to priors NPZ (expert_priors.npz or shippable_priors.npz)",
     )
     parser.add_argument(
         "--cache", type=str,
-        default=str(PROJECT_ROOT / "data" / "models_cache.json"),
+        default=str(get_models_cache_path()),
         help="Path to models_cache.json for cost data",
     )
     parser.add_argument(

@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -27,6 +28,9 @@ else:
     from importlib_resources import files, as_file  # type: ignore[import-not-found]
 
 
+_PKG_DATA_DIR: Optional[Path] = None
+
+
 def get_package_data_dir() -> Path:
     """
     Get the path to the package's data directory.
@@ -34,20 +38,18 @@ def get_package_data_dir() -> Path:
     Returns:
         Path to banditgpt/data/ directory
     """
-    # Use importlib.resources to get the package data directory
-    # This works correctly after pip install
+    global _PKG_DATA_DIR
+    if _PKG_DATA_DIR is not None:
+        return _PKG_DATA_DIR
+
     data_files = files("banditgpt.data")
-    
-    # For directory access, we need to use the _path attribute or traverse
-    # In practice, we'll use as_file for individual files
-    # For directory path, fall back to __file__ based approach as backup
     try:
-        # Try to get the actual path (works in development and some install scenarios)
         with as_file(data_files) as data_path:
-            return Path(data_path)
+            _PKG_DATA_DIR = Path(data_path)
+            return _PKG_DATA_DIR
     except (TypeError, AttributeError):
-        # Fallback for edge cases
-        return Path(__file__).parent / "data"
+        _PKG_DATA_DIR = Path(__file__).parent / "data"
+        return _PKG_DATA_DIR
 
 
 def get_data_path(filename: str) -> Path:
@@ -76,14 +78,14 @@ def get_priors_path(filename: str = "shippable_priors.npz") -> Path:
     return get_package_data_dir() / "priors" / filename
 
 
-def get_complexity_classifier_path() -> Path:
+def get_priors_manifest_path() -> Path:
     """
-    Get the path to the complexity classifier directory.
-    
+    Get the path to the priors manifest file.
+
     Returns:
-        Path to banditgpt/data/complexity_classifier_final/
+        Path to banditgpt/data/priors/manifest.json
     """
-    return get_package_data_dir() / "complexity_classifier_final"
+    return get_priors_path("manifest.json")
 
 
 def get_quality_predictor_path(filename: str = "best_quality_predictor.pt") -> Path:
@@ -104,14 +106,20 @@ def get_user_data_dir() -> Path:
     Get the user-specific data directory (~/.banditgpt/).
     
     This directory is used for user-specific priors and cached data.
-    Creates the directory if it doesn't exist.
+    Creates the directory if it doesn't exist. Falls back to the system
+    temp directory if the home directory is not writable.
     
     Returns:
         Path to ~/.banditgpt/
     """
     user_dir = Path.home() / ".banditgpt"
-    user_dir.mkdir(parents=True, exist_ok=True)
-    return user_dir
+    try:
+        user_dir.mkdir(parents=True, exist_ok=True)
+        return user_dir
+    except OSError:
+        tmp_dir = Path(tempfile.gettempdir()) / "banditgpt"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        return tmp_dir
 
 
 def get_user_priors_dir() -> Path:

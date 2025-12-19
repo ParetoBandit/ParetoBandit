@@ -32,6 +32,11 @@ from banditgpt._resources import (
     get_package_data_dir,
     get_priors_path,
 )
+from banditgpt.core.prior_manifest import (
+    PriorIntegrityError,
+    load_priors_manifest,
+    verify_bundled_prior,
+)
 
 DEFAULT_BUNDLED_PRIORS = get_bundled_priors_path()
 DEFAULT_USER_PRIORS = get_user_priors_path()
@@ -237,6 +242,58 @@ def add_archetype_cluster_args(parser: argparse.ArgumentParser) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Command: verify-priors
+# ---------------------------------------------------------------------------
+
+
+def cmd_verify_priors(args: argparse.Namespace) -> int:
+    """Validate bundled priors (and optional user priors) with checksums."""
+    manifest = load_priors_manifest()
+    ok = True
+
+    for entry in manifest.files:
+        try:
+            verify_bundled_prior(entry.bundled_path, manifest=manifest)
+            print(f"[ok] {entry.name}")
+        except PriorIntegrityError as exc:
+            ok = False
+            print(f"[fail] {entry.name}: {exc}")
+
+    if args.check_user:
+        user_path = Path(args.user_priors)
+        if user_path.exists():
+            try:
+                np.load(user_path)
+                print(f"[ok] user priors: {user_path}")
+            except Exception as exc:  # pragma: no cover - corruption path
+                ok = False
+                print(f"[fail] user priors: {user_path} is not readable ({exc})")
+        else:
+            print(f"[warn] user priors not found at {user_path}")
+
+    if ok:
+        print("Priors verified successfully.")
+        return 0
+
+    print("One or more priors failed integrity checks.")
+    return 1
+
+
+def add_verify_priors_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--check-user",
+        action="store_true",
+        help="Also verify user priors if present (loadable NPZ).",
+    )
+    parser.add_argument(
+        "--user-priors",
+        type=str,
+        default=str(DEFAULT_USER_PRIORS),
+        help="Path to user priors (default: ~/.banditgpt/priors/user_priors.npz)",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Command: archetype-dense-run
 # ---------------------------------------------------------------------------
 
@@ -304,6 +361,11 @@ def main() -> int:
     dense_parser = subparsers.add_parser("archetype-dense-run", help="Dense run on archetypes")
     add_archetype_dense_run_args(dense_parser)
     dense_parser.set_defaults(func=cmd_archetype_dense_run)
+
+    # verify-priors
+    verify_parser = subparsers.add_parser("verify-priors", help="Validate bundled priors checksums")
+    add_verify_priors_args(verify_parser)
+    verify_parser.set_defaults(func=cmd_verify_priors)
 
     args = parser.parse_args()
 

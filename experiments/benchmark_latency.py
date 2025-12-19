@@ -22,13 +22,14 @@ from banditgpt.core.bandit_router import (
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,
 )
+from banditgpt._resources import get_priors_path
 
 # --- CONFIGURATION ---
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-RQ1_DATA_PATH = PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"
-RQ1_PROMPTS_PATH = PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"
-EXPERT_PRIORS_PATH = PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"
-SHARED_PRIORS_PATH = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
+RQ1_DATA_PATH = get_priors_path("archetype_grid_dense_run.jsonl")
+RQ1_PROMPTS_PATH = get_priors_path("archetype_grid_prompts.jsonl")
+EXPERT_PRIORS_PATH = get_priors_path("expert_priors.npz")
+SHARED_PRIORS_PATH = get_priors_path("shippable_priors.npz")
 OUTPUT_DIR = PROJECT_ROOT / "results" / "rq3"
 
 DIM = 384

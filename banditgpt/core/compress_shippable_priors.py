@@ -22,12 +22,14 @@ import numpy as np
 
 from banditgpt.core.bandit_router import BanditRouter, build_registry_from_models_cache
 from banditgpt._resources import get_models_cache_path, get_priors_path
+from banditgpt.settings import load_settings
 
 
 def main() -> int:
+    settings = load_settings()
     ap = argparse.ArgumentParser(description="Compress warmed state to shippable priors (<1MB)")
     ap.add_argument("--state", type=str, required=True, help="Path to router_state_*.json")
-    ap.add_argument("--cache", type=str, default=str(get_models_cache_path()))
+    ap.add_argument("--cache", type=str, default=str(settings.models_cache_path))
     ap.add_argument("--out", type=str, default=str(get_priors_path("shippable_priors.npz")))
     args = ap.parse_args()
 

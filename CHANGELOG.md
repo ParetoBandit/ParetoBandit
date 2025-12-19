@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Priors manifest with checksum validation and `verify-priors` CLI to detect corruption.
+- Public API contract documented via `__all__` with tests to guard exports; semver commitments clarified.
+- Release checklist: bump version, run full test suite, build wheel/sdist, clean-venv smoke test, publish, tag. Include priors manifest checksums for verification.
+
 ## [0.1.0] - 2025-01-XX
 
 ### Added

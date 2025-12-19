@@ -36,11 +36,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-
+from banditgpt._resources import get_priors_path
 from banditgpt.core.bandit_router import (
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,
 )
+from banditgpt._resources import get_priors_path
 
 # Project root for locating data files
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -64,7 +65,7 @@ except ImportError:
 class ExperimentConfig:
     """Configuration for RQ2 experiment."""
     # Use expert priors by default (generated via Expert Distillation)
-    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"
+    priors_path: Path = get_priors_path("expert_priors.npz")
 
     # Number of top models to analyze in detail
     n_top_models: int = 20
@@ -695,7 +696,7 @@ def parse_args():
 
     parser.add_argument(
         "--priors", type=str,
-        default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"),
+        default=str(get_priors_path("expert_priors.npz")),
         help="Path to priors file (supports expert_priors.npz or shippable_priors.npz)",
     )
     parser.add_argument(

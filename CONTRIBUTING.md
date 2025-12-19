@@ -68,6 +68,16 @@ pytest tests/ -v
    - Provide a clear description of the changes
    - Reference any related issues
 
+## Release Checklist
+
+1. Bump version in `pyproject.toml` and `banditgpt/__init__.py`.
+2. Update `CHANGELOG.md` with changes and include current priors manifest checksums from `banditgpt/data/priors/manifest.json`.
+3. Run full tests: `python -m pytest tests/ -v`.
+4. Build artifacts: `python -m build` (wheel + sdist).
+5. Clean-venv smoke test: new venv, install the wheel from `dist/`, run `banditgpt verify-priors`, and a minimal `BanditRouter.create(..., priors="bundled").route("hello", profile="balanced")`.
+6. Publish (trusted publishing or `twine upload dist/*`).
+7. Tag release: `git tag vX.Y.Z` and push tags.
+
 ## Reporting Issues
 
 When reporting issues, please include:

@@ -48,7 +48,6 @@ def create_test_router(sample_registry: Dict[str, Dict[str, Any]]):
     router = BanditRouter(
         model_registry=sample_registry,
         state_path=None,
-        complexity_classifier=None,  # Disable to avoid loading models
     )
     
     # Mock the encoder to return deterministic embeddings

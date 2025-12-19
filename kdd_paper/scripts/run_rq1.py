@@ -50,6 +50,7 @@ from banditgpt.core.bandit_router import (
     DisjointLinUCBPolicy,
     SharedCovarianceLinUCBPolicy,
 )
+from banditgpt._resources import get_priors_path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
@@ -70,10 +71,10 @@ except ImportError:
 @dataclass
 class ExperimentConfig:
     # Use expert priors by default (generated via Expert Distillation)
-    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"
-    prompts_path: Path = PROJECT_ROOT / "data" / "priors" / "archetype_grid_prompts.jsonl"
-    rewards_path: Path = PROJECT_ROOT / "data" / "priors" / "archetype_grid_dense_run.jsonl"
-    embeddings_cache: Optional[Path] = PROJECT_ROOT / "data" / "priors" / "prompt_embeddings.npy"
+    priors_path: Path = get_priors_path("expert_priors.npz")
+    prompts_path: Path = get_priors_path("archetype_grid_prompts.jsonl")
+    rewards_path: Path = get_priors_path("archetype_grid_dense_run.jsonl")
+    embeddings_cache: Optional[Path] = get_priors_path("prompt_embeddings.npy")
     context_model: str = DEFAULT_CONTEXT_MODEL  # MUST match priors training
     n_test: int = 2000
     alpha: float = 0.5
@@ -619,7 +620,7 @@ def parse_args() -> ExperimentConfig:
     )
 
     parser.add_argument("--priors", type=str,
-                        default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"))
+                        default=str(get_priors_path("expert_priors.npz")))
     parser.add_argument("--context-model", type=str, default=DEFAULT_CONTEXT_MODEL,
                         help="Embedding model (MUST match priors training)")
     parser.add_argument("--no-cache", action="store_true",
@@ -636,7 +637,7 @@ def parse_args() -> ExperimentConfig:
     # Determine cache path (None if disabled)
     cache_path: Optional[Path] = None
     if not args.no_cache:
-        cache_path = PROJECT_ROOT / "data" / "priors" / "prompt_embeddings.npy"
+        cache_path = get_priors_path("prompt_embeddings.npy")
 
     return ExperimentConfig(
         priors_path=Path(args.priors),

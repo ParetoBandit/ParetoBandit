@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import math
+import logging
 
 try:
     from tqdm import tqdm
@@ -166,6 +167,9 @@ def get_device() -> torch.device:
     elif torch.cuda.is_available():
         return torch.device("cuda")
     return torch.device("cpu")
+
+
+logger = logging.getLogger(__name__)
 
 
 def clip01(x: float, eps: float = 0.01) -> float:
@@ -774,6 +778,8 @@ class QualityCostPredictor(nn.Module):
         if config is None:
             config = QualityCostConfig()
         self.config = config
+        self._logit_reward = LogitReward(epsilon=float(self.config.reward_logit_eps))
+        self._default_clip_eps = float(self.config.reward_clip_eps)
         
         # Encoder
         self.encoder = AutoModel.from_pretrained(config.backbone)
@@ -874,7 +880,7 @@ class QualityCostPredictor(nn.Module):
             return_tensors='pt'
         )
         
-        with torch.no_grad():
+        with torch.inference_mode():
             input_ids = enc['input_ids'].to(device)
             attention_mask = enc['attention_mask'].to(device)
             
@@ -914,9 +920,8 @@ class QualityCostPredictor(nn.Module):
         # Hard failure mode: empty responses (timeouts / "thinking loop" stripped / crashes).
         # Treat as extremely low competence.
         if response is None or len(str(response).strip()) == 0:
-            eps = float(self.config.reward_clip_eps if clip_eps is None else clip_eps)
-            logit_eps = float(self.config.reward_logit_eps)
-            lr = LogitReward(epsilon=logit_eps)
+            eps = float(self._default_clip_eps if clip_eps is None else clip_eps)
+            lr = self._logit_reward
             p_correct_raw = 0.0
             p_correct_clipped = clip01(p_correct_raw, eps=eps)
             reward_raw = clipped_quality_reward(p_correct_raw, clip_eps=eps)
@@ -925,6 +930,17 @@ class QualityCostPredictor(nn.Module):
             reward_z = -3.0  # immediate "terrible" signal (normalized domain)
             t_route = self.config.routing_p_correct_threshold
             route_to_strong = None if t_route is None else True
+            try:
+                logger.debug(
+                    "quality_cost_predictor_empty_response",
+                    extra={
+                        "prompt_len": len(prompt or ""),
+                        "response_empty": True,
+                        "reward_logit": reward_logit,
+                    },
+                )
+            except Exception:
+                pass
             return {
                 "p_bad": 1.0,
                 "verbosity": 0.0,
@@ -944,9 +960,8 @@ class QualityCostPredictor(nn.Module):
         p_correct_raw = float(pred["quality"])
         verbosity = float(pred["verbosity"])
 
-        eps = float(self.config.reward_clip_eps if clip_eps is None else clip_eps)
-        logit_eps = float(self.config.reward_logit_eps)
-        lr = LogitReward(epsilon=logit_eps)
+        eps = float(self._default_clip_eps if clip_eps is None else clip_eps)
+        lr = self._logit_reward
 
         p_correct_clipped = clip01(p_correct_raw, eps=eps)
         reward_raw = clipped_quality_reward(p_correct_raw, clip_eps=eps)
