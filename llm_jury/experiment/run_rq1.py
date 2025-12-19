@@ -126,7 +126,7 @@ def analyze_priors(config: ExperimentConfig) -> PriorAnalysis:
         weight_norms[m] = float(np.linalg.norm(b_vec))
 
     # Analyze shared covariance matrix
-    A = policy.A_shared
+    A = policy.A
     try:
         eigenvalues = np.linalg.eigvalsh(A)
         condition_number = float(eigenvalues.max() / max(eigenvalues.min(), 1e-10))
