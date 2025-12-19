@@ -47,6 +47,53 @@ import numpy as np
 # Use project's actual bandit implementation (same as BanditRouter uses)
 from llm_jury.async_bandit.bandit_router import DisjointLinUCBPolicy
 
+# Project root for locating data files
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+# ---------------------------------------------------------------------------
+# Model Loading from Cache
+# ---------------------------------------------------------------------------
+
+def load_models_from_cache(cache_path: Path, max_models: int = 0) -> List[str]:
+    """
+    Load model IDs from the project's models_cache.json.
+
+    This uses the same format as the production BanditRouter.
+
+    Args:
+        cache_path: Path to models_cache.json
+        max_models: Maximum number of models to load (0 = all)
+
+    Returns:
+        List of OpenRouter model IDs (e.g., "anthropic/claude-3.5-haiku")
+    """
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Models cache not found: {cache_path}")
+
+    data = json.loads(cache_path.read_text())
+    models = data.get("models", [])
+
+    # Extract OpenRouter IDs
+    model_ids: List[str] = []
+    for m in models:
+        oid = (m or {}).get("openrouter_id")
+        if isinstance(oid, str) and oid.strip():
+            model_ids.append(oid.strip())
+
+    # De-duplicate while preserving order
+    seen = set()
+    unique: List[str] = []
+    for mid in model_ids:
+        if mid not in seen:
+            seen.add(mid)
+            unique.append(mid)
+
+    if max_models > 0:
+        unique = unique[:max_models]
+
+    return unique
+
 # Plotting (optional, for headless servers)
 try:
     import matplotlib
@@ -67,8 +114,11 @@ class ExperimentConfig:
     """Configuration for RQ1 experiment."""
     # Dimensions
     dim: int = 384  # Match sentence-transformers/all-MiniLM-L6-v2
-    n_models: int = 10  # Number of simulated models
+    n_models: int = 10  # Number of models (from cache or simulated)
     n_clusters: int = 5  # Latent task clusters (Code, Math, Creative, Factual, Chat)
+
+    # Model source
+    models_cache: Path = PROJECT_ROOT / "data" / "models_cache.json"
 
     # Experiment size
     n_pretrain: int = 500  # Size of "public" pretraining set
@@ -110,21 +160,27 @@ class SimulatedRoutingEnvironment:
     - Some models are specialists (high competence on 1-2 clusters)
     - Some models are generalists (moderate competence everywhere)
     - Reward noise reflects real grading uncertainty
+
+    Model names can be provided from the project's models_cache.json to use
+    real OpenRouter model IDs (e.g., "anthropic/claude-3.5-haiku").
     """
 
     def __init__(
         self,
-        n_models: int,
         n_clusters: int,
         dim: int,
+        model_names: List[str],
         noise_level: float = 0.1,
         rng: Optional[np.random.Generator] = None,
     ):
-        self.n_models = n_models
         self.n_clusters = n_clusters
         self.dim = dim
         self.noise_level = noise_level
         self.rng = rng or np.random.default_rng()
+
+        # Use provided model names (from models_cache.json or simulated)
+        self.model_names = list(model_names)
+        self.n_models = len(self.model_names)
 
         # Generate cluster centers in embedding space
         # These represent the "meaning" of each task type
@@ -133,9 +189,6 @@ class SimulatedRoutingEnvironment:
         # Generate model competencies
         # competencies[m, c] = base quality of model m on cluster c
         self.competencies = self._generate_model_competencies()
-
-        # Model names (for compatibility with DisjointLinUCBPolicy)
-        self.model_names = [f"model_{i}" for i in range(n_models)]
 
     def _generate_cluster_centers(self) -> np.ndarray:
         """Generate orthogonal-ish cluster centers."""
@@ -230,12 +283,21 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     print(f"[RQ1] Starting experiment with seed={config.seed}")
     rng = np.random.default_rng(config.seed)
 
-    # Create environment
-    print(f"[RQ1] Creating environment: {config.n_models} models, {config.n_clusters} clusters")
+    # Load model names from cache (same as production BanditRouter)
+    if config.models_cache.exists():
+        model_names = load_models_from_cache(config.models_cache, max_models=config.n_models)
+        print(f"[RQ1] Loaded {len(model_names)} models from {config.models_cache.name}")
+    else:
+        # Fallback to simulated names if cache doesn't exist
+        model_names = [f"model_{i}" for i in range(config.n_models)]
+        print(f"[RQ1] Using {len(model_names)} simulated model names (cache not found)")
+
+    # Create environment with real model names
+    print(f"[RQ1] Creating environment: {len(model_names)} models, {config.n_clusters} clusters")
     env = SimulatedRoutingEnvironment(
-        n_models=config.n_models,
         n_clusters=config.n_clusters,
         dim=config.dim,
+        model_names=model_names,
         noise_level=config.noise_level,
         rng=rng,
     )
@@ -472,10 +534,14 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
 
     # Convert config Path objects to strings for JSON serialization
     data = asdict(results)
-    if "config" in data and "output_dir" in data["config"]:
-        data["config"]["output_dir"] = str(data["config"]["output_dir"])
-    if "config" in data and "priors_path" in data["config"]:
-        data["config"]["priors_path"] = str(data["config"]["priors_path"]) if data["config"]["priors_path"] else None
+    if "config" in data:
+        cfg = data["config"]
+        if "output_dir" in cfg:
+            cfg["output_dir"] = str(cfg["output_dir"])
+        if "priors_path" in cfg:
+            cfg["priors_path"] = str(cfg["priors_path"]) if cfg["priors_path"] else None
+        if "models_cache" in cfg:
+            cfg["models_cache"] = str(cfg["models_cache"])
 
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
@@ -506,7 +572,7 @@ def parse_args() -> ExperimentConfig:
     # Environment
     parser.add_argument(
         "--n-models", type=int, default=10,
-        help="Number of simulated models",
+        help="Number of models to use from cache",
     )
     parser.add_argument(
         "--n-clusters", type=int, default=5,
@@ -519,6 +585,12 @@ def parse_args() -> ExperimentConfig:
     parser.add_argument(
         "--noise", type=float, default=0.1,
         help="Reward noise standard deviation",
+    )
+
+    # Model cache (same as production BanditRouter)
+    parser.add_argument(
+        "--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"),
+        help="Path to models_cache.json for loading real model IDs",
     )
 
     # Bandit parameters
@@ -551,6 +623,7 @@ def parse_args() -> ExperimentConfig:
         dim=args.dim,
         n_models=args.n_models,
         n_clusters=args.n_clusters,
+        models_cache=Path(args.cache),
         n_pretrain=args.n_pretrain,
         n_test=args.n_test,
         alpha=args.alpha,

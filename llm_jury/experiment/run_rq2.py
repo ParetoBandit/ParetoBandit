@@ -58,6 +58,51 @@ except ImportError:
     plt = None
 
 
+# Project root for locating data files
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+# ---------------------------------------------------------------------------
+# Model Loading from Cache
+# ---------------------------------------------------------------------------
+
+def load_models_from_cache(cache_path: Path, max_models: int = 0) -> List[str]:
+    """
+    Load model IDs from the project's models_cache.json.
+
+    Args:
+        cache_path: Path to models_cache.json
+        max_models: Maximum number of models to load (0 = all)
+
+    Returns:
+        List of OpenRouter model IDs (e.g., "anthropic/claude-3.5-haiku")
+    """
+    if not cache_path.exists():
+        raise FileNotFoundError(f"Models cache not found: {cache_path}")
+
+    data = json.loads(cache_path.read_text())
+    models = data.get("models", [])
+
+    model_ids: List[str] = []
+    for m in models:
+        oid = (m or {}).get("openrouter_id")
+        if isinstance(oid, str) and oid.strip():
+            model_ids.append(oid.strip())
+
+    # De-duplicate while preserving order
+    seen = set()
+    unique: List[str] = []
+    for mid in model_ids:
+        if mid not in seen:
+            seen.add(mid)
+            unique.append(mid)
+
+    if max_models > 0:
+        unique = unique[:max_models]
+
+    return unique
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -68,8 +113,11 @@ class ExperimentConfig:
     # Dimensions (match sentence-transformers/all-MiniLM-L6-v2)
     dim: int = 384
 
-    # Models: 0=GPT-4 (Generic King), 1=Llama (Code), 2=Haiku (KQL Specialist)
-    model_names: Tuple[str, ...] = ("gpt-4", "llama-3", "claude-haiku")
+    # Number of models (will load from cache)
+    n_models: int = 3
+
+    # Model cache path
+    models_cache: Path = PROJECT_ROOT / "data" / "models_cache.json"
 
     # Experiment size
     n_train: int = 500  # Phase 1: Generic Python/SQL training
@@ -156,20 +204,52 @@ class MockOracleJudge:
     This encodes the "hidden reality" that the bandit must discover.
     The competency matrix defines which model is actually best at each task,
     but this is NOT known to the bandit - it must discover it through exploration.
+
+    Competencies are assigned dynamically to models loaded from the cache:
+    - Model 0: Generic champion (best at python/sql, moderate at niche)
+    - Model 1: Code specialist (good at python, poor at niche)
+    - Model 2+: One becomes the hidden niche specialist
     """
 
     def __init__(self, model_names: List[str], rng: np.random.Generator):
-        self.model_names = model_names
+        self.model_names = list(model_names)
         self.rng = rng
 
-        # Ground truth competency matrix
-        # The bandit does NOT have access to this - it must discover through exploration
-        # Format: {model: {task: competency}}
-        self.competencies = {
-            "gpt-4": {"python": 0.95, "sql": 0.90, "kql": 0.70},
-            "llama-3": {"python": 0.85, "sql": 0.80, "kql": 0.20},
-            "claude-haiku": {"python": 0.40, "sql": 0.50, "kql": 0.95},
-        }
+        # Dynamically assign competencies based on model index
+        # This allows using real model names from the cache
+        self.competencies = self._generate_competencies()
+
+    def _generate_competencies(self) -> Dict[str, Dict[str, float]]:
+        """
+        Generate competency matrix for models.
+
+        Role assignment:
+        - First model: Generic champion (python=0.95, sql=0.90, kql=0.70)
+        - Second model: Code specialist (python=0.85, sql=0.80, kql=0.20)
+        - Third model (or last): Hidden niche specialist (python=0.40, kql=0.95)
+        - Others: Random moderate competencies
+        """
+        competencies = {}
+
+        for i, model in enumerate(self.model_names):
+            if i == 0:
+                # Generic champion - best at common tasks
+                competencies[model] = {"python": 0.95, "sql": 0.90, "kql": 0.70}
+            elif i == 1:
+                # Code specialist - good at code, poor at niche
+                competencies[model] = {"python": 0.85, "sql": 0.80, "kql": 0.20}
+            elif i == 2 or i == len(self.model_names) - 1:
+                # Hidden niche specialist - the one bandit must discover
+                competencies[model] = {"python": 0.40, "sql": 0.50, "kql": 0.95}
+            else:
+                # Random moderate competencies for other models
+                competencies[model] = {
+                    "python": self.rng.uniform(0.4, 0.7),
+                    "sql": self.rng.uniform(0.4, 0.7),
+                    "kql": self.rng.uniform(0.2, 0.5),
+                }
+
+        return competencies
 
     def _detect_task(self, text: str) -> str:
         """Detect task type from text."""
@@ -198,7 +278,6 @@ class MockOracleJudge:
 
     def get_baseline_model(self, task: str) -> Tuple[str, float]:
         """Get the 'default' model a static router would pick (best on python)."""
-        # A static router trained on generic benchmarks would always pick GPT-4
         default_model = max(self.model_names, key=lambda m: self.competencies[m]["python"])
         return default_model, self.competencies[default_model][task]
 
@@ -295,8 +374,17 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     np_rng = np.random.default_rng(config.seed)
     py_rng = random.Random(config.seed)
 
+    # Load model names from cache (same as production BanditRouter)
+    if config.models_cache.exists():
+        model_names = load_models_from_cache(config.models_cache, max_models=config.n_models)
+        print(f"[RQ2] Loaded {len(model_names)} models from {config.models_cache.name}")
+    else:
+        # Fallback to default names if cache doesn't exist
+        model_names = ["openai/gpt-4o", "meta-llama/llama-3-70b", "anthropic/claude-3.5-haiku"]
+        model_names = model_names[:config.n_models]
+        print(f"[RQ2] Using {len(model_names)} default model names (cache not found)")
+
     # Initialize components
-    model_names = list(config.model_names)
     embedder = MockEmbeddingEngine(config.dim, config.noise_level, np_rng)
     judge = MockOracleJudge(model_names, np_rng)
 
@@ -552,10 +640,12 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
 
     data = asdict(results)
     # Convert Path objects for JSON serialization
-    if "config" in data and "output_dir" in data["config"]:
-        data["config"]["output_dir"] = str(data["config"]["output_dir"])
-    if "config" in data and "model_names" in data["config"]:
-        data["config"]["model_names"] = list(data["config"]["model_names"])
+    if "config" in data:
+        cfg = data["config"]
+        if "output_dir" in cfg:
+            cfg["output_dir"] = str(cfg["output_dir"])
+        if "models_cache" in cfg:
+            cfg["models_cache"] = str(cfg["models_cache"])
 
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
@@ -582,6 +672,14 @@ def parse_args() -> ExperimentConfig:
         help="Number of KQL samples after distribution shift (Phase 2)",
     )
     parser.add_argument(
+        "--n-models", type=int, default=3,
+        help="Number of models to use from cache",
+    )
+    parser.add_argument(
+        "--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"),
+        help="Path to models_cache.json for loading real model IDs",
+    )
+    parser.add_argument(
         "--dim", type=int, default=384,
         help="Embedding dimension (384 matches sentence-transformers)",
     )
@@ -602,6 +700,8 @@ def parse_args() -> ExperimentConfig:
 
     return ExperimentConfig(
         dim=args.dim,
+        n_models=args.n_models,
+        models_cache=Path(args.cache),
         n_train=args.n_train,
         n_drift=args.n_drift,
         alpha=args.alpha,
@@ -618,10 +718,11 @@ def main() -> int:
     print("RQ2: Local Adaptation to Distribution Shift")
     print("=" * 60)
     print("Scenario: User shifts from Python/SQL to KQL queries")
-    print("Challenge: Discover that Haiku is the hidden KQL expert")
+    print("Challenge: Discover the hidden niche specialist")
     print("=" * 60)
     print(f"Configuration:")
-    print(f"  Models: {config.model_names}")
+    print(f"  Models from cache: {config.n_models}")
+    print(f"  Cache: {config.models_cache}")
     print(f"  Phase 1 (Generic): {config.n_train} samples")
     print(f"  Phase 2 (KQL Drift): {config.n_drift} samples")
     print(f"  Embedding dim: {config.dim}")
