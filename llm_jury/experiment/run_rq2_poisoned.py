@@ -36,6 +36,19 @@ Justification (Why Synthetic Simulation):
     (number of interactions required to correct the belief) without the 
     confounding factors of embedding noise.
 
+Implementation Note:
+    This script uses a custom `PoisonedLinUCB` class (not the library's 
+    `DisjointLinUCBPolicy`) because it requires:
+    
+    1. Memory Decay (γ): Standard LinUCB has infinite memory. To unlearn 
+       poisoned priors, we need discounted updates: A_new = γ·A_old + xx'
+       
+    2. Poison Injection: The `inject_poison()` method artificially creates
+       "confidently wrong" priors for the controlled experiment.
+    
+    The library's bandit (used in RQ1) proves real-world performance.
+    This custom variant isolates the plasticity mechanism for analysis.
+
 Usage:
     python -m llm_jury.experiment.run_rq2_poisoned
 
