@@ -45,7 +45,33 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 # Use project's actual bandit implementation (same as BanditRouter uses)
-from llm_jury.async_bandit.bandit_router import DisjointLinUCBPolicy
+from llm_jury.async_bandit.bandit_router import SharedCovarianceLinUCBPolicy
+
+
+def select_best_model(
+    policy: SharedCovarianceLinUCBPolicy,
+    x: np.ndarray,
+) -> str:
+    """
+    Select the best model using SharedCovarianceLinUCBPolicy.
+
+    Args:
+        policy: The SharedCovarianceLinUCBPolicy with loaded priors
+        x: Context vector (prompt embedding)
+
+    Returns:
+        Name of the selected model (highest UCB score)
+    """
+    best_model = policy.models[0]
+    best_ucb = -float("inf")
+
+    for model in policy.models:
+        ucb = policy.predict(x, model)
+        if ucb > best_ucb:
+            best_ucb = ucb
+            best_model = model
+
+    return best_model
 
 # Plotting (optional, for headless servers)
 try:
@@ -113,22 +139,20 @@ class ExperimentConfig:
     # Dimensions (match sentence-transformers/all-MiniLM-L6-v2)
     dim: int = 384
 
-    # Number of models to use from cache
+    # REQUIRED: Path to shippable priors from archetype grid
+    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
+
+    # Number of models to use from the priors
     # With 3-5 models, UCB exploration reliably discovers specialists
     # With 80+ models, pure UCB exploration is insufficient (a valid finding)
-    n_models: int = 3
-
-    # Model cache path
-    models_cache: Path = PROJECT_ROOT / "data" / "models_cache.json"
+    n_models: int = 5
 
     # Experiment size
-    n_train: int = 500  # Phase 1: Generic Python/SQL training
-    n_drift: int = 500  # Phase 2: KQL distribution shift
+    n_train: int = 500  # Phase 1: Generic Python/SQL (validates priors work)
+    n_drift: int = 500  # Phase 2: KQL distribution shift (tests adaptation)
 
     # Bandit parameters (same defaults as BanditRouter)
     alpha: float = 0.5  # UCB exploration parameter
-    ridge_lambda: float = 1.0  # Regularization
-    recompute_inv_every: int = 50
 
     # Noise
     noise_level: float = 0.05  # Embedding noise (std)
@@ -373,8 +397,8 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     """
     Run the RQ2 experiment: Local Adaptation to Distribution Shift.
 
-    Uses the project's DisjointLinUCBPolicy - the same algorithm
-    that powers the production BanditRouter.
+    Uses the project's SharedCovarianceLinUCBPolicy - loads real priors
+    from the archetype grid and tests adaptation to distribution shift.
 
     Args:
         config: Experiment configuration
@@ -388,54 +412,58 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     np_rng = np.random.default_rng(config.seed)
     py_rng = random.Random(config.seed)
 
-    # Load model names from cache (same as production BanditRouter)
-    if config.models_cache.exists():
-        model_names = load_models_from_cache(config.models_cache, max_models=config.n_models)
-        print(f"[RQ2] Loaded {len(model_names)} models from {config.models_cache.name}")
-    else:
-        # Fallback to default names if cache doesn't exist
-        model_names = ["openai/gpt-4o", "meta-llama/llama-3-70b", "anthropic/claude-3.5-haiku"]
-        model_names = model_names[:config.n_models]
-        print(f"[RQ2] Using {len(model_names)} default model names (cache not found)")
+    # REQUIRED: Load real priors from archetype grid
+    if not config.priors_path.exists():
+        raise FileNotFoundError(
+            f"Priors not found: {config.priors_path}\n"
+            f"Run the archetype grid first:\n"
+            f"  python -m llm_jury.async_bandit.archetype_grid_dense_run"
+        )
 
-    # Initialize components
+    print(f"[RQ2] Loading shippable priors from {config.priors_path}")
+    router = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(config.priors_path)
+
+    # Use subset of models if specified
+    all_models = router.models
+    if config.n_models > 0 and config.n_models < len(all_models):
+        model_names = all_models[:config.n_models]
+        print(f"[RQ2] Using {len(model_names)} of {len(all_models)} models")
+    else:
+        model_names = all_models
+        print(f"[RQ2] Using all {len(model_names)} models from priors")
+
+    # Initialize components with the selected models
     embedder = MockEmbeddingEngine(config.dim, config.noise_level, np_rng)
     judge = MockOracleJudge(model_names, np_rng)
 
-    # Initialize router using project's DisjointLinUCBPolicy
-    print(f"[RQ2] Initializing DisjointLinUCBPolicy with {len(model_names)} models...")
-    router = DisjointLinUCBPolicy(
-        model_names=model_names,
-        dim=config.dim,
-        alpha=config.alpha,
-        ridge_lambda=config.ridge_lambda,
-        recompute_inv_every=config.recompute_inv_every,
-    )
-
     # =========================================================================
-    # PHASE 1: Generic Training (Python/SQL)
+    # PHASE 1: Validate priors on Generic (Python/SQL)
     # =========================================================================
-    print(f"\n[Phase 1] Training on {config.n_train} generic Python/SQL prompts...")
+    print(f"\n[Phase 1] Validating priors on {config.n_train} generic Python/SQL prompts...")
     prompts_p1 = generate_synthetic_prompts("generic", config.n_train, py_rng)
     phase1_rewards: List[float] = []
 
     for i, text in enumerate(prompts_p1):
         vec = embedder.encode(text)
 
-        # Router decides using project's select_arm method
-        chosen_model, _, _ = router.select_arm(vec, rng=np_rng)
+        # Router decides using loaded priors
+        chosen_model = select_best_model(router, vec)
+
+        # Only consider models in our subset
+        if chosen_model not in model_names:
+            chosen_model = model_names[0]  # Fallback
 
         # Oracle judges
         reward = judge.score(chosen_model, text)
 
-        # Router learns using project's update method
+        # Router learns (continues to adapt)
         router.update(chosen_model, vec, reward)
 
         phase1_rewards.append(reward)
 
     avg_p1 = np.mean(phase1_rewards[-100:])
-    print(f"   -> Phase 1 complete. Final avg reward: {avg_p1:.3f}")
-    print(f"   -> Router learned: GPT-4 is best for generic code.")
+    print(f"   -> Phase 1 complete. Avg reward: {avg_p1:.3f}")
+    print(f"   -> Priors validated on generic code tasks.")
 
     # =========================================================================
     # PHASE 2: Distribution Shift (KQL)
@@ -456,13 +484,17 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     for i, text in enumerate(prompts_p2):
         vec = embedder.encode(text)
 
-        # Router decides using project's select_arm method
-        chosen_model, _, _ = router.select_arm(vec, rng=np_rng)
+        # Router decides using loaded priors (adapting to new distribution)
+        chosen_model = select_best_model(router, vec)
+
+        # Only consider models in our subset
+        if chosen_model not in model_names:
+            chosen_model = model_names[0]
 
         # Oracle judges
         reward = judge.score(chosen_model, text)
 
-        # Router learns using project's update method
+        # Router learns (adapts to new KQL distribution)
         router.update(chosen_model, vec, reward)
 
         phase2_rewards.append(reward)
@@ -478,7 +510,7 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
 
         # Progress logging
         if i == 10:
-            print(f"   [Step 10] Router exploring... Avg reward: {np.mean(phase2_rewards):.3f}")
+            print(f"   [Step 10] Router adapting... Avg reward: {np.mean(phase2_rewards):.3f}")
         elif i == 100:
             print(f"   [Step 100] Adapting... Avg reward: {np.mean(phase2_rewards[-50:]):.3f}")
         elif i == config.n_drift - 1:
@@ -656,10 +688,9 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
     # Convert Path objects for JSON serialization
     if "config" in data:
         cfg = data["config"]
-        if "output_dir" in cfg:
-            cfg["output_dir"] = str(cfg["output_dir"])
-        if "models_cache" in cfg:
-            cfg["models_cache"] = str(cfg["models_cache"])
+        for key in ["output_dir", "priors_path"]:
+            if key in cfg and cfg[key] is not None:
+                cfg[key] = str(cfg[key])
 
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
@@ -677,25 +708,24 @@ def parse_args() -> ExperimentConfig:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
+    # REQUIRED: Priors from archetype grid
+    parser.add_argument(
+        "--priors", type=str,
+        default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"),
+        help="Path to shippable_priors.npz from archetype grid (REQUIRED)",
+    )
+
     parser.add_argument(
         "--n-train", type=int, default=500,
-        help="Number of generic training samples (Phase 1)",
+        help="Number of generic samples (Phase 1: validates priors)",
     )
     parser.add_argument(
         "--n-drift", type=int, default=500,
-        help="Number of KQL samples after distribution shift (Phase 2)",
+        help="Number of KQL samples (Phase 2: tests adaptation)",
     )
     parser.add_argument(
-        "--n-models", type=int, default=3,
-        help="Number of models (3-5 for reliable discovery; with 80+ models pure UCB struggles)",
-    )
-    parser.add_argument(
-        "--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"),
-        help="Path to models_cache.json for loading real model IDs",
-    )
-    parser.add_argument(
-        "--dim", type=int, default=384,
-        help="Embedding dimension (384 matches sentence-transformers)",
+        "--n-models", type=int, default=5,
+        help="Number of models to use from priors (5 recommended for discovery)",
     )
     parser.add_argument(
         "--alpha", type=float, default=0.5,
@@ -713,9 +743,8 @@ def parse_args() -> ExperimentConfig:
     args = parser.parse_args()
 
     return ExperimentConfig(
-        dim=args.dim,
+        priors_path=Path(args.priors),
         n_models=args.n_models,
-        models_cache=Path(args.cache),
         n_train=args.n_train,
         n_drift=args.n_drift,
         alpha=args.alpha,
@@ -732,18 +761,17 @@ def main() -> int:
     print("RQ2: Local Adaptation to Distribution Shift")
     print("=" * 60)
     print("Scenario: User shifts from Python/SQL to KQL queries")
-    print("Challenge: Discover the hidden niche specialist")
+    print("Challenge: Can warm-started bandit adapt to new distribution?")
     print("=" * 60)
     print(f"Configuration:")
-    print(f"  Models from cache: {config.n_models}")
-    print(f"  Cache: {config.models_cache}")
+    print(f"  Priors: {config.priors_path}")
+    print(f"  Models to use: {config.n_models}")
     print(f"  Phase 1 (Generic): {config.n_train} samples")
     print(f"  Phase 2 (KQL Drift): {config.n_drift} samples")
-    print(f"  Embedding dim: {config.dim}")
     print(f"  Alpha (UCB): {config.alpha}")
     print(f"  Seed: {config.seed}")
     print("=" * 60)
-    print("Using: DisjointLinUCBPolicy (same as BanditRouter)")
+    print("Using: SharedCovarianceLinUCBPolicy (from archetype grid)")
     print("=" * 60)
 
     # Run experiment

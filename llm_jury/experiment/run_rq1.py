@@ -45,7 +45,35 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 # Use project's actual bandit implementation (same as BanditRouter uses)
-from llm_jury.async_bandit.bandit_router import DisjointLinUCBPolicy
+from llm_jury.async_bandit.bandit_router import SharedCovarianceLinUCBPolicy
+
+
+def select_best_model(
+    policy: SharedCovarianceLinUCBPolicy,
+    x: np.ndarray,
+) -> str:
+    """
+    Select the best model using SharedCovarianceLinUCBPolicy.
+
+    This is the same UCB selection logic used by the production router.
+
+    Args:
+        policy: The SharedCovarianceLinUCBPolicy with loaded priors
+        x: Context vector (prompt embedding)
+
+    Returns:
+        Name of the selected model (highest UCB score)
+    """
+    best_model = policy.models[0]
+    best_ucb = -float("inf")
+
+    for model in policy.models:
+        ucb = policy.predict(x, model)
+        if ucb > best_ucb:
+            best_ucb = ucb
+            best_model = model
+
+    return best_model
 
 # Project root for locating data files
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -114,20 +142,17 @@ class ExperimentConfig:
     """Configuration for RQ1 experiment."""
     # Dimensions
     dim: int = 384  # Match sentence-transformers/all-MiniLM-L6-v2
-    n_models: int = 0  # Number of models (0 = all from cache)
     n_clusters: int = 5  # Latent task clusters (Code, Math, Creative, Factual, Chat)
 
-    # Model source
-    models_cache: Path = PROJECT_ROOT / "data" / "models_cache.json"
+    # REQUIRED: Path to shippable priors from archetype grid
+    # These are loaded using SharedCovarianceLinUCBPolicy.from_shippable_priors_npz()
+    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
 
     # Experiment size
-    n_pretrain: int = 500  # Size of "public" pretraining set
     n_test: int = 2000  # Size of user deployment simulation
 
     # Bandit parameters (same defaults as BanditRouter)
     alpha: float = 0.5  # UCB exploration parameter
-    ridge_lambda: float = 1.0  # Regularization
-    recompute_inv_every: int = 50  # How often to recompute A^-1
 
     # Noise
     noise_level: float = 0.1  # Reward noise (std)
@@ -137,9 +162,6 @@ class ExperimentConfig:
 
     # Output
     output_dir: Path = Path("results/rq1")
-
-    # Optional: Use real priors instead of synthetic
-    priors_path: Optional[Path] = None
 
 
 # ---------------------------------------------------------------------------
@@ -271,8 +293,8 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     """
     Run the RQ1 experiment: Cold Start vs Warm Start.
 
-    Uses the project's DisjointLinUCBPolicy - the same algorithm
-    that powers the production BanditRouter.
+    Uses the project's SharedCovarianceLinUCBPolicy - the same algorithm
+    used to generate shippable priors from the archetype grid.
 
     Args:
         config: Experiment configuration
@@ -283,16 +305,22 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     print(f"[RQ1] Starting experiment with seed={config.seed}")
     rng = np.random.default_rng(config.seed)
 
-    # Load model names from cache (same as production BanditRouter)
-    if config.models_cache.exists():
-        model_names = load_models_from_cache(config.models_cache, max_models=config.n_models)
-        print(f"[RQ1] Loaded {len(model_names)} models from {config.models_cache.name}")
-    else:
-        # Fallback to simulated names if cache doesn't exist
-        model_names = [f"model_{i}" for i in range(config.n_models)]
-        print(f"[RQ1] Using {len(model_names)} simulated model names (cache not found)")
+    # REQUIRED: Load real priors from archetype grid
+    if not config.priors_path.exists():
+        raise FileNotFoundError(
+            f"Priors not found: {config.priors_path}\n"
+            f"Run the archetype grid first:\n"
+            f"  python -m llm_jury.async_bandit.archetype_grid_dense_run"
+        )
 
-    # Create environment with real model names
+    print(f"[RQ1] Loading shippable priors from {config.priors_path}")
+    agent_warm = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(config.priors_path)
+    print(f"[RQ1] Loaded {len(agent_warm.models)} models with pre-trained weights")
+
+    # Get model names from loaded priors
+    model_names = agent_warm.models
+
+    # Create simulated environment using the same models
     print(f"[RQ1] Creating environment: {len(model_names)} models, {config.n_clusters} clusters")
     env = SimulatedRoutingEnvironment(
         n_clusters=config.n_clusters,
@@ -302,45 +330,12 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
         rng=rng,
     )
 
-    # Initialize warm-start agent using project's DisjointLinUCBPolicy
-    print(f"[RQ1] Initializing warm-start agent (DisjointLinUCBPolicy)...")
-    agent_warm = DisjointLinUCBPolicy(
-        model_names=env.model_names,
+    # Initialize cold-start agent (fresh, no priors)
+    print(f"[RQ1] Initializing cold-start agent (empty SharedCovarianceLinUCBPolicy)...")
+    agent_cold = SharedCovarianceLinUCBPolicy(
+        model_names=model_names,
         dim=config.dim,
         alpha=config.alpha,
-        ridge_lambda=config.ridge_lambda,
-        recompute_inv_every=config.recompute_inv_every,
-    )
-
-    # Pre-train warm agent (or load real priors)
-    if config.priors_path and config.priors_path.exists():
-        print(f"[RQ1] Loading real priors from {config.priors_path}")
-        # Load priors using project's NPZ format
-        meta = {"dim": config.dim, "alpha": config.alpha, "ridge_lambda": config.ridge_lambda}
-        agent_warm = DisjointLinUCBPolicy.from_meta_and_npz(meta, config.priors_path)
-        # Update environment to match loaded models
-        env.model_names = agent_warm.models
-        env.n_models = len(agent_warm.models)
-        # Regenerate competencies for new model count
-        env.competencies = env._generate_model_competencies()
-    else:
-        print(f"[RQ1] Pre-training on {config.n_pretrain} synthetic samples...")
-        for _ in range(config.n_pretrain):
-            ctx, cluster_id = env.sample_context()
-            # Random exploration during pretraining (mimics archetype grid)
-            model_idx = rng.integers(0, env.n_models)
-            reward = env.get_reward(model_idx, cluster_id)
-            # Use project's update method
-            agent_warm.update(env.model_names[model_idx], ctx, reward)
-
-    # Initialize cold-start agent (fresh) using same policy class
-    print(f"[RQ1] Initializing cold-start agent (empty DisjointLinUCBPolicy)...")
-    agent_cold = DisjointLinUCBPolicy(
-        model_names=env.model_names,
-        dim=config.dim,
-        alpha=config.alpha,
-        ridge_lambda=config.ridge_lambda,
-        recompute_inv_every=config.recompute_inv_every,
     )
 
     # Run deployment simulation
@@ -354,16 +349,15 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
         ctx, cluster_id = env.sample_context()
         optimal_reward = env.get_optimal_reward(cluster_id)
 
-        # Warm agent decision using project's select_arm method
-        # Returns: (model_name, ucb_score, propensity)
-        model_warm, _, _ = agent_warm.select_arm(ctx, rng=rng)
+        # Warm agent decision using SharedCovarianceLinUCBPolicy
+        model_warm = select_best_model(agent_warm, ctx)
         model_idx_warm = env.model_names.index(model_warm)
         reward_warm = env.get_reward(model_idx_warm, cluster_id)
         # Update using project's update method
         agent_warm.update(model_warm, ctx, reward_warm)
 
-        # Cold agent decision using project's select_arm method
-        model_cold, _, _ = agent_cold.select_arm(ctx, rng=rng)
+        # Cold agent decision (no priors, learning from scratch)
+        model_cold = select_best_model(agent_cold, ctx)
         model_idx_cold = env.model_names.index(model_cold)
         reward_cold = env.get_reward(model_idx_cold, cluster_id)
         # Update using project's update method
@@ -536,12 +530,9 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
     data = asdict(results)
     if "config" in data:
         cfg = data["config"]
-        if "output_dir" in cfg:
-            cfg["output_dir"] = str(cfg["output_dir"])
-        if "priors_path" in cfg:
-            cfg["priors_path"] = str(cfg["priors_path"]) if cfg["priors_path"] else None
-        if "models_cache" in cfg:
-            cfg["models_cache"] = str(cfg["models_cache"])
+        for key in ["output_dir", "priors_path"]:
+            if key in cfg and cfg[key] is not None:
+                cfg[key] = str(cfg[key])
 
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
@@ -559,11 +550,14 @@ def parse_args() -> ExperimentConfig:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # Experiment size
+    # REQUIRED: Priors from archetype grid
     parser.add_argument(
-        "--n-pretrain", type=int, default=500,
-        help="Number of pretraining samples for warm agent",
+        "--priors", type=str,
+        default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"),
+        help="Path to shippable_priors.npz from archetype grid (REQUIRED)",
     )
+
+    # Experiment size
     parser.add_argument(
         "--n-test", type=int, default=2000,
         help="Number of test (deployment) samples",
@@ -571,26 +565,12 @@ def parse_args() -> ExperimentConfig:
 
     # Environment
     parser.add_argument(
-        "--n-models", type=int, default=0,
-        help="Number of models to use from cache (0 = all models)",
-    )
-    parser.add_argument(
         "--n-clusters", type=int, default=5,
-        help="Number of latent task clusters",
-    )
-    parser.add_argument(
-        "--dim", type=int, default=384,
-        help="Embedding dimension (384 matches sentence-transformers)",
+        help="Number of latent task clusters for simulation",
     )
     parser.add_argument(
         "--noise", type=float, default=0.1,
         help="Reward noise standard deviation",
-    )
-
-    # Model cache (same as production BanditRouter)
-    parser.add_argument(
-        "--cache", type=str, default=str(PROJECT_ROOT / "data" / "models_cache.json"),
-        help="Path to models_cache.json for loading real model IDs",
     )
 
     # Bandit parameters
@@ -605,12 +585,6 @@ def parse_args() -> ExperimentConfig:
         help="Random seed for reproducibility",
     )
 
-    # Real priors
-    parser.add_argument(
-        "--priors", type=str, default=None,
-        help="Path to real priors NPZ file (overrides synthetic pretraining)",
-    )
-
     # Output
     parser.add_argument(
         "--output-dir", type=str, default="results/rq1",
@@ -620,17 +594,13 @@ def parse_args() -> ExperimentConfig:
     args = parser.parse_args()
 
     return ExperimentConfig(
-        dim=args.dim,
-        n_models=args.n_models,
-        n_clusters=args.n_clusters,
-        models_cache=Path(args.cache),
-        n_pretrain=args.n_pretrain,
+        priors_path=Path(args.priors),
         n_test=args.n_test,
+        n_clusters=args.n_clusters,
         alpha=args.alpha,
         noise_level=args.noise,
         seed=args.seed,
         output_dir=Path(args.output_dir),
-        priors_path=Path(args.priors) if args.priors else None,
     )
 
 
@@ -642,18 +612,14 @@ def main() -> int:
     print("RQ1: The 'Shippable Brain' Advantage")
     print("=" * 60)
     print(f"Configuration:")
-    print(f"  Models: {config.n_models}")
-    print(f"  Clusters: {config.n_clusters}")
-    print(f"  Pretrain samples: {config.n_pretrain}")
+    print(f"  Priors: {config.priors_path}")
     print(f"  Test samples: {config.n_test}")
-    print(f"  Embedding dim: {config.dim}")
+    print(f"  Clusters: {config.n_clusters}")
     print(f"  Alpha (UCB): {config.alpha}")
     print(f"  Seed: {config.seed}")
     print(f"  Output: {config.output_dir}")
-    if config.priors_path:
-        print(f"  Real priors: {config.priors_path}")
     print("=" * 60)
-    print(f"Using: DisjointLinUCBPolicy (same as BanditRouter)")
+    print("Using: SharedCovarianceLinUCBPolicy (from archetype grid)")
     print("=" * 60)
 
     # Run experiment
