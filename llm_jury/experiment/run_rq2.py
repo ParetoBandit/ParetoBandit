@@ -153,10 +153,9 @@ class MockOracleJudge:
     """
     Simulates ground-truth quality scoring.
 
-    This encodes the "hidden reality" that the bandit must discover:
-    - GPT-4 (Model 0) is best at generic Python
-    - Llama (Model 1) is good at code
-    - Haiku (Model 2) is secretly the KQL expert
+    This encodes the "hidden reality" that the bandit must discover.
+    The competency matrix defines which model is actually best at each task,
+    but this is NOT known to the bandit - it must discover it through exploration.
     """
 
     def __init__(self, model_names: List[str], rng: np.random.Generator):
@@ -164,11 +163,12 @@ class MockOracleJudge:
         self.rng = rng
 
         # Ground truth competency matrix
-        # Rows: models, Columns: [python, sql, kql]
+        # The bandit does NOT have access to this - it must discover through exploration
+        # Format: {model: {task: competency}}
         self.competencies = {
             "gpt-4": {"python": 0.95, "sql": 0.90, "kql": 0.70},
             "llama-3": {"python": 0.85, "sql": 0.80, "kql": 0.20},
-            "claude-haiku": {"python": 0.40, "sql": 0.50, "kql": 0.95},  # SECRET KQL EXPERT
+            "claude-haiku": {"python": 0.40, "sql": 0.50, "kql": 0.95},
         }
 
     def _detect_task(self, text: str) -> str:
@@ -191,11 +191,16 @@ class MockOracleJudge:
         noise = self.rng.standard_normal() * 0.05
         return float(np.clip(base_score + noise, 0.0, 1.0))
 
-    def get_optimal_model(self, text: str) -> Tuple[str, float]:
-        """Get the oracle-optimal model for a given text."""
-        task = self._detect_task(text)
+    def get_optimal_model(self, task: str) -> Tuple[str, float]:
+        """Get the oracle-optimal model for a given task type."""
         best_model = max(self.model_names, key=lambda m: self.competencies[m][task])
         return best_model, self.competencies[best_model][task]
+
+    def get_baseline_model(self, task: str) -> Tuple[str, float]:
+        """Get the 'default' model a static router would pick (best on python)."""
+        # A static router trained on generic benchmarks would always pick GPT-4
+        default_model = max(self.model_names, key=lambda m: self.competencies[m]["python"])
+        return default_model, self.competencies[default_model][task]
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +262,11 @@ class ExperimentResults:
     phase1_rewards: List[float]
     phase2_rewards: List[float]
     phase2_model_choices: List[str]
-    discovery_step: int  # When bandit first routes majority to specialist
+    oracle_optimal_model: str  # The true best model for KQL (discovered by experiment)
+    oracle_optimal_reward: float  # Its expected reward
+    baseline_model: str  # What a static router would pick
+    baseline_reward: float  # Static router's expected reward on KQL
+    discovery_step: int  # When bandit first routes majority to optimal
     final_accuracy: float  # % of correct routing in last 100 steps
     convergence_reward: float  # Average reward in last 100 steps
     timestamp: str
@@ -334,8 +343,13 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
     phase2_rewards: List[float] = []
     phase2_choices: List[str] = []
 
+    # Discover the true optimal model from the oracle (bandit doesn't know this!)
+    oracle_optimal_model, oracle_optimal_reward = judge.get_optimal_model("kql")
+    baseline_model, baseline_reward = judge.get_baseline_model("kql")
+    print(f"   (Oracle truth: optimal={oracle_optimal_model} @ {oracle_optimal_reward:.2f}, "
+          f"static baseline={baseline_model} @ {baseline_reward:.2f})")
+
     discovery_step = -1
-    specialist_model = "claude-haiku"  # The hidden KQL expert
 
     for i, text in enumerate(prompts_p2):
         vec = embedder.encode(text)
@@ -352,30 +366,32 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
         phase2_rewards.append(reward)
         phase2_choices.append(chosen_model)
 
-        # Track discovery: when router first consistently picks specialist
+        # Track discovery: when router first consistently picks the oracle-optimal model
         if discovery_step < 0 and i >= 50:
             recent_choices = phase2_choices[-50:]
-            specialist_pct = recent_choices.count(specialist_model) / len(recent_choices)
-            if specialist_pct > 0.7:
+            optimal_pct = recent_choices.count(oracle_optimal_model) / len(recent_choices)
+            if optimal_pct > 0.7:
                 discovery_step = i
-                print(f"   [Step {i}] DISCOVERY! Router found the KQL specialist.")
+                print(f"   [Step {i}] DISCOVERY! Router found {oracle_optimal_model} is best for KQL.")
 
         # Progress logging
         if i == 10:
-            print(f"   [Step 10] Router confused... Avg reward: {np.mean(phase2_rewards):.3f}")
+            print(f"   [Step 10] Router exploring... Avg reward: {np.mean(phase2_rewards):.3f}")
         elif i == 100:
             print(f"   [Step 100] Adapting... Avg reward: {np.mean(phase2_rewards[-50:]):.3f}")
         elif i == config.n_drift - 1:
-            print(f"   [Step {i}] Converged! Avg reward: {np.mean(phase2_rewards[-100:]):.3f}")
+            print(f"   [Step {i}] Final avg reward: {np.mean(phase2_rewards[-100:]):.3f}")
 
-    # Compute final metrics
+    # Compute final metrics - how often did bandit find the oracle-optimal model?
     final_choices = phase2_choices[-100:]
-    final_accuracy = final_choices.count(specialist_model) / len(final_choices)
+    final_accuracy = final_choices.count(oracle_optimal_model) / len(final_choices)
     convergence_reward = float(np.mean(phase2_rewards[-100:]))
 
     print(f"\n[RQ2] Final Results:")
+    print(f"   Oracle optimal model: {oracle_optimal_model} (reward={oracle_optimal_reward:.2f})")
+    print(f"   Static baseline model: {baseline_model} (reward={baseline_reward:.2f})")
     print(f"   Discovery step: {discovery_step}")
-    print(f"   Final routing accuracy: {final_accuracy:.1%}")
+    print(f"   Final routing accuracy to optimal: {final_accuracy:.1%}")
     print(f"   Convergence reward: {convergence_reward:.3f}")
 
     return ExperimentResults(
@@ -383,6 +399,10 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
         phase1_rewards=phase1_rewards,
         phase2_rewards=phase2_rewards,
         phase2_model_choices=phase2_choices,
+        oracle_optimal_model=oracle_optimal_model,
+        oracle_optimal_reward=oracle_optimal_reward,
+        baseline_model=baseline_model,
+        baseline_reward=baseline_reward,
         discovery_step=discovery_step,
         final_accuracy=final_accuracy,
         convergence_reward=convergence_reward,
@@ -418,14 +438,14 @@ def plot_results(results: ExperimentResults, output_path: Path) -> None:
     # Plot the learning curve
     ax.plot(x, smoothed, color="#2CA02C", linewidth=2.5, label="Adaptive Router (LinUCB)")
 
-    # Reference lines
+    # Reference lines using actual oracle values (not hardcoded)
     ax.axhline(
-        y=0.70, color="#D62728", linestyle=":", linewidth=2,
-        label="Static Router (routes to GPT-4)"
+        y=results.baseline_reward, color="#D62728", linestyle=":", linewidth=2,
+        label=f"Static Router ({results.baseline_model})"
     )
     ax.axhline(
-        y=0.95, color="#7F7F7F", linestyle="--", linewidth=1.5,
-        label="Oracle Optimal (Haiku for KQL)"
+        y=results.oracle_optimal_reward, color="#7F7F7F", linestyle="--", linewidth=1.5,
+        label=f"Oracle Optimal ({results.oracle_optimal_model})"
     )
 
     # Mark discovery point
@@ -435,28 +455,34 @@ def plot_results(results: ExperimentResults, output_path: Path) -> None:
             label=f"Discovery (step {results.discovery_step})"
         )
 
-    # Annotations
+    # Dynamic annotation positions based on actual values
+    exploration_y = (results.baseline_reward + 0.1) / 2  # Between 0 and baseline
+    exploitation_y = (results.oracle_optimal_reward + results.baseline_reward) / 2 + 0.1
+
     ax.annotate(
-        "Exploration\n(Learning KQL)",
-        xy=(50, 0.55),
+        "Exploration\n(Discovering Specialist)",
+        xy=(50, exploration_y),
         fontsize=10,
         color="#FF7F0E",
         fontweight="bold",
     )
-    ax.annotate(
-        "Exploitation\n(Found Specialist)",
-        xy=(350, 0.88),
-        fontsize=10,
-        color="#2CA02C",
-        fontweight="bold",
-    )
+
+    n_drift = len(results.phase2_rewards)
+    if n_drift > 300:
+        ax.annotate(
+            "Exploitation\n(Found Optimal)",
+            xy=(n_drift * 0.7, exploitation_y),
+            fontsize=10,
+            color="#2CA02C",
+            fontweight="bold",
+        )
 
     # Labels and title
     ax.set_xlabel("Number of KQL Queries (Post-Drift)", fontsize=12)
     ax.set_ylabel("Reward (Quality Score)", fontsize=12)
     ax.set_title(
         "RQ2: Local Adaptation to Distribution Shift\n"
-        "Bandit Discovers Hidden KQL Specialist",
+        f"Bandit Discovers {results.oracle_optimal_model} is Optimal for KQL",
         fontsize=14,
         fontweight="bold",
         pad=15,
@@ -567,6 +593,7 @@ def main() -> int:
 
     print("=" * 60)
     print("Experiment complete!")
+    print(f"  Discovered optimal: {results.oracle_optimal_model}")
     print(f"  Discovery step: {results.discovery_step}")
     print(f"  Final accuracy: {results.final_accuracy:.1%}")
     print(f"  Results saved to: {config.output_dir}")
