@@ -393,19 +393,11 @@ def plot_pareto_frontier(analysis: CostQualityAnalysis, output_path: Path) -> No
         ax.scatter(pareto_costs, pareto_qualities, c="#2CA02C", s=60, zorder=3, label="Pareto Optimal")
         ax.plot(pareto_costs, pareto_qualities, "--", c="#2CA02C", alpha=0.5, zorder=2)
 
-        # Annotate Pareto points with staggered offsets to avoid overlap
-        # The first few points are clustered, so alternate up/down
-        offsets = [
-            (10, -5),    # 1. Cheapest: Right (avoid left edge clipping)
-            (10, 10),    # 2. Above Right
-            (10, -15),   # 3. Below Right
-            (10, 20),    # 4. Above Right (staggered)
-            (10, -25),   # 5. Below Right (staggered)
-        ]
+        # Annotate Pareto points - all labels to the right of their data points
         for i, (c, q, name) in enumerate(zip(pareto_costs, pareto_qualities, pareto_names)):
             if i < 5:
-                offset = offsets[i] if i < len(offsets) else (5, 5)
-                ax.annotate(name, (c, q), textcoords="offset points", xytext=offset, fontsize=7)
+                ax.annotate(name, (c, q), textcoords="offset points", xytext=(8, 0), 
+                           fontsize=7, va='center')
 
     # Highlight top by efficiency (stars)
     for m in analysis.top_by_efficiency[:3]:
