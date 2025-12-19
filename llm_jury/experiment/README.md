@@ -78,6 +78,53 @@ python -m llm_jury.experiment.generate_expert_priors verify
 
 ---
 
+## Appendix: Grading Methodology & Bias Analysis
+
+### Tiered Grading Architecture
+
+The archetype grid uses a **TieredGrader** to avoid over-reliance on any single LLM judge:
+
+| Grader | Samples | Percentage | When Used |
+|--------|---------|------------|-----------|
+| **Soft Grader** (local XGBoost) | 55,834 | **84.8%** | Default for most prompts |
+| **Teacher** (GPT-4o) | 10,010 | 15.2% | Only for "hard" prompts (math, code, logic) |
+
+**Key insight**: 85% of reward signals come from a local model, not the LLM teacher. This mitigates "judge memorization" concerns.
+
+### Bias Analysis: Does GPT-4o Favor Itself?
+
+**Top 10 Models by Average Reward:**
+
+| Rank | Model | Avg Reward | Provider |
+|------|-------|------------|----------|
+| 1 | `openai/gpt-4o` | 0.6020 | OpenAI |
+| 2 | `x-ai/grok-3` | 0.5982 | xAI |
+| 3 | `openai/gpt-4o-mini` | 0.5980 | OpenAI |
+| 4 | `cohere/command-a-03-2025` | 0.5958 | Cohere |
+| 5 | `google/gemini-2.5-flash-lite` | 0.5958 | Google |
+| 6 | `meta-llama/llama-4-maverick` | 0.5935 | Meta |
+| 7 | `anthropic/claude-sonnet-4` | 0.5925 | Anthropic |
+| 8 | `amazon/nova-lite-v1` | 0.5920 | Amazon |
+| 9 | `openai/gpt-4.1-mini` | 0.5908 | OpenAI |
+| 10 | `amazon/nova-pro-v1` | 0.5904 | Amazon |
+
+**Findings:**
+- GPT-4o ranks #1 but only **0.4% higher** than Grok-3 (non-OpenAI)
+- **7 of top 10** are non-OpenAI models (xAI, Cohere, Google, Meta, Anthropic, Amazon)
+- Many OpenAI models rank **poorly**: `o4-mini` (0.5356), `gpt-oss-20b` (0.5307)
+- Provider diversity in top rankings suggests minimal self-preference bias
+
+### Why This Matters for Reproducibility
+
+The priors encode relative model performance across 497 diverse prompts. Since:
+1. The soft grader (85%) is provider-agnostic
+2. Non-OpenAI models dominate top rankings
+3. OpenAI models show high variance (some good, some poor)
+
+...we conclude the expert priors reflect **genuine quality differences**, not judge memorization.
+
+---
+
 ## Reproducibility
 
 ### Requirements
