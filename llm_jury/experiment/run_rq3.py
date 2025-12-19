@@ -81,7 +81,7 @@ def load_model_costs(cache_path: Path) -> Dict[str, float]:
     """
     Load model costs from models_cache.json.
 
-    Returns dict mapping model_id -> cost per 1M tokens (input + output average).
+    Returns dict mapping model_id -> cost per 1M tokens (blended or average).
     """
     if not cache_path.exists():
         return {}
@@ -94,14 +94,16 @@ def load_model_costs(cache_path: Path) -> Dict[str, float]:
         if not model_id:
             continue
 
-        # Get pricing info
-        pricing = m.get("pricing", {})
-        prompt_cost = float(pricing.get("prompt", 0) or 0)
-        completion_cost = float(pricing.get("completion", 0) or 0)
-
-        # Average cost per token (simplified)
-        avg_cost = (prompt_cost + completion_cost) / 2
-        costs[model_id] = avg_cost
+        # Try blended cost first, then compute from input/output
+        blended = m.get("price_1m_blended")
+        if blended is not None and blended > 0:
+            costs[model_id] = float(blended)
+        else:
+            # Fall back to average of input and output cost
+            input_cost = float(m.get("input_cost_per_m", 0) or m.get("price_1m_input", 0) or 0)
+            output_cost = float(m.get("output_cost_per_m", 0) or m.get("price_1m_output", 0) or 0)
+            if input_cost > 0 or output_cost > 0:
+                costs[model_id] = (input_cost + output_cost) / 2
 
     return costs
 
