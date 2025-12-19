@@ -1,132 +1,56 @@
 #!/usr/bin/env python3
 """
-RQ2 Experiment: Local Adaptation to Distribution Shift
+RQ2 Experiment: Local Adaptation Analysis
 
 Research Question:
     Can the bandit discover that a "niche" model outperforms on a specific
     user distribution, even when generic benchmarks say otherwise?
 
-Experiment Design (Hybrid Validation Strategy):
-    - Phase 1: Train on generic Python/SQL prompts (public benchmark distribution)
-    - Phase 2: User distribution shifts to KQL (niche proprietary query language)
-    - The bandit must discover that Model 2 (Haiku) is secretly the KQL expert
+This experiment analyzes the REAL priors to understand model specialization.
+For actual adaptation testing, integrate with production traffic that has
+distribution shifts (e.g., user switches from Python to KQL queries).
 
-Key Insight:
-    Static routers trained on public benchmarks would route KQL to GPT-4 forever.
-    Our adaptive bandit discovers the hidden specialist and shifts traffic.
-
-Paper Explanation:
-    "We utilized a Hybrid Validation Strategy. First, we defined a synthetic text
-    corpus containing two distinct syntactic clusters: Python (Generic) and KQL
-    (Niche). We then simulated the embedding space by projecting these textual
-    clusters into 384-dimensional Gaussian distributions to rigorously test the
-    bandit's convergence rate without the noise of API latency."
+Analysis Approach:
+    - Load priors from archetype grid
+    - Analyze which models have learned weights for different embedding regions
+    - Identify potential specialists vs generalists based on weight patterns
 
 Usage:
     python -m llm_jury.experiment.run_rq2
-    python -m llm_jury.experiment.run_rq2 --n-train 1000 --n-drift 1000 --seed 42
+    python -m llm_jury.experiment.run_rq2 --priors data/priors/shippable_priors.npz
 
 Output:
-    - results/rq2/adaptation_curve.png - Learning curve showing discovery
-    - results/rq2/metrics.json - Raw experimental data
+    - results/rq2/specialization_analysis.json - Model specialization metrics
+    - results/rq2/model_coverage.png - Visualization of model weight coverage
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import random
 import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-# Use project's actual bandit implementation (same as BanditRouter uses)
+# Use project's actual bandit implementation
 from llm_jury.async_bandit.bandit_router import SharedCovarianceLinUCBPolicy
 
-
-def select_best_model(
-    policy: SharedCovarianceLinUCBPolicy,
-    x: np.ndarray,
-) -> str:
-    """
-    Select the best model using SharedCovarianceLinUCBPolicy.
-
-    Args:
-        policy: The SharedCovarianceLinUCBPolicy with loaded priors
-        x: Context vector (prompt embedding)
-
-    Returns:
-        Name of the selected model (highest UCB score)
-    """
-    best_model = policy.models[0]
-    best_ucb = -float("inf")
-
-    for model in policy.models:
-        ucb = policy.predict(x, model)
-        if ucb > best_ucb:
-            best_ucb = ucb
-            best_model = model
-
-    return best_model
+# Project root for locating data files
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 # Plotting (optional, for headless servers)
 try:
     import matplotlib
-    matplotlib.use("Agg")  # Non-interactive backend
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
     plt = None
-
-
-# Project root for locating data files
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-
-
-# ---------------------------------------------------------------------------
-# Model Loading from Cache
-# ---------------------------------------------------------------------------
-
-def load_models_from_cache(cache_path: Path, max_models: int = 0) -> List[str]:
-    """
-    Load model IDs from the project's models_cache.json.
-
-    Args:
-        cache_path: Path to models_cache.json
-        max_models: Maximum number of models to load (0 = all)
-
-    Returns:
-        List of OpenRouter model IDs (e.g., "anthropic/claude-3.5-haiku")
-    """
-    if not cache_path.exists():
-        raise FileNotFoundError(f"Models cache not found: {cache_path}")
-
-    data = json.loads(cache_path.read_text())
-    models = data.get("models", [])
-
-    model_ids: List[str] = []
-    for m in models:
-        oid = (m or {}).get("openrouter_id")
-        if isinstance(oid, str) and oid.strip():
-            model_ids.append(oid.strip())
-
-    # De-duplicate while preserving order
-    seen = set()
-    unique: List[str] = []
-    for mid in model_ids:
-        if mid not in seen:
-            seen.add(mid)
-            unique.append(mid)
-
-    if max_models > 0:
-        unique = unique[:max_models]
-
-    return unique
 
 
 # ---------------------------------------------------------------------------
@@ -136,283 +60,75 @@ def load_models_from_cache(cache_path: Path, max_models: int = 0) -> List[str]:
 @dataclass
 class ExperimentConfig:
     """Configuration for RQ2 experiment."""
-    # Dimensions (match sentence-transformers/all-MiniLM-L6-v2)
-    dim: int = 384
-
     # REQUIRED: Path to shippable priors from archetype grid
     priors_path: Path = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
 
-    # Number of models to use from the priors
-    # With 3-5 models, UCB exploration reliably discovers specialists
-    # With 80+ models, pure UCB exploration is insufficient (a valid finding)
-    n_models: int = 5
-
-    # Experiment size
-    n_train: int = 500  # Phase 1: Generic Python/SQL (validates priors work)
-    n_drift: int = 500  # Phase 2: KQL distribution shift (tests adaptation)
-
-    # Bandit parameters (same defaults as BanditRouter)
-    alpha: float = 0.5  # UCB exploration parameter
-
-    # Noise
-    noise_level: float = 0.05  # Embedding noise (std)
-
-    # Reproducibility
-    seed: int = 42
+    # Number of top models to analyze in detail
+    n_top_models: int = 20
 
     # Output
     output_dir: Path = Path("results/rq2")
 
 
 # ---------------------------------------------------------------------------
-# Mock Embedding Engine (Simulates text-embedding-3-small)
-# ---------------------------------------------------------------------------
-
-class MockEmbeddingEngine:
-    """
-    Simulates a real Embedding Model (e.g., sentence-transformers).
-
-    Maps text concepts to specific vector clusters in embedding space.
-    This is the "Option 3" rigorous math backend that projects textual
-    clusters into Gaussian distributions.
-    """
-
-    def __init__(self, dim: int, noise_level: float, rng: np.random.Generator):
-        self.dim = dim
-        self.noise_level = noise_level
-        self.rng = rng
-
-        # Define "Latent Concepts" as random directions in vector space
-        self.concepts = {
-            "python": self._random_unit_vector(),
-            "sql": self._random_unit_vector(),
-            "kql": self._random_unit_vector(),  # The Niche Concept
-        }
-
-    def _random_unit_vector(self) -> np.ndarray:
-        """Generate a random unit vector (cluster center)."""
-        v = self.rng.standard_normal(self.dim)
-        return v / np.linalg.norm(v)
-
-    def encode(self, text: str) -> np.ndarray:
-        """
-        Encode a single text string to an embedding vector.
-
-        Uses naive heuristics to detect category for simulation.
-        In production, this would be a real embedding model.
-        """
-        # Detect category (simple heuristics for simulation)
-        if "def " in text or "import " in text:
-            center = self.concepts["python"]
-        elif "SELECT" in text.upper():
-            center = self.concepts["sql"]
-        elif "|" in text:  # KQL pipe syntax
-            center = self.concepts["kql"]
-        else:
-            center = self.concepts["python"]  # Default
-
-        # Add Gaussian noise (simulates variance in phrasing)
-        noise = self.rng.standard_normal(self.dim) * self.noise_level
-        vec = center + noise
-
-        # Normalize to unit vector
-        return vec / np.linalg.norm(vec)
-
-
-# ---------------------------------------------------------------------------
-# Mock Oracle Judge (Simulates GPT-4o Grading)
-# ---------------------------------------------------------------------------
-
-class MockOracleJudge:
-    """
-    Simulates ground-truth quality scoring.
-
-    This encodes the "hidden reality" that the bandit must discover.
-    The competency matrix defines which model is actually best at each task,
-    but this is NOT known to the bandit - it must discover it through exploration.
-
-    Competencies are assigned dynamically to models loaded from the cache:
-    - Model 0: Generic champion (best at python/sql, moderate at niche)
-    - Model 1: Code specialist (good at python, poor at niche)
-    - Model 2+: One becomes the hidden niche specialist
-    """
-
-    def __init__(self, model_names: List[str], rng: np.random.Generator):
-        self.model_names = list(model_names)
-        self.rng = rng
-
-        # Dynamically assign competencies based on model index
-        # This allows using real model names from the cache
-        self.competencies = self._generate_competencies()
-
-    def _generate_competencies(self) -> Dict[str, Dict[str, float]]:
-        """
-        Generate competency matrix for models.
-
-        To avoid index bias, we randomly assign roles:
-        - One model: Generic champion (python=0.95, sql=0.90, kql=0.70)
-        - One model: Hidden niche specialist (python=0.40, kql=0.95)
-        - All others: Random moderate competencies
-
-        The specialist is randomly selected (not hardcoded to index 2).
-        """
-        competencies = {}
-        n = len(self.model_names)
-
-        # Randomly assign specialist role (not the first model to ensure fair comparison)
-        # The first model will be the "generic champion" that a static router would pick
-        if n >= 3:
-            specialist_idx = self.rng.integers(2, n)  # Random from index 2 onwards
-        elif n >= 2:
-            specialist_idx = 1
-        else:
-            specialist_idx = 0
-
-        self._specialist_idx = specialist_idx  # Store for reference
-
-        for i, model in enumerate(self.model_names):
-            if i == 0:
-                # Generic champion - best at common tasks (static router's choice)
-                # Moderate at niche tasks (0.65) - clearly worse than specialist (0.95)
-                competencies[model] = {"python": 0.95, "sql": 0.90, "kql": 0.65}
-            elif i == specialist_idx:
-                # Hidden niche specialist - moderate at generic tasks, excellent at niche
-                # Not terrible at generic tasks (0.65) so UCB stays viable during Phase 1
-                competencies[model] = {"python": 0.65, "sql": 0.60, "kql": 0.95}
-            else:
-                # Random moderate competencies for other models
-                competencies[model] = {
-                    "python": self.rng.uniform(0.4, 0.7),
-                    "sql": self.rng.uniform(0.4, 0.7),
-                    "kql": self.rng.uniform(0.2, 0.5),
-                }
-
-        return competencies
-
-    def _detect_task(self, text: str) -> str:
-        """Detect task type from text."""
-        if "|" in text:
-            return "kql"
-        elif "SELECT" in text.upper():
-            return "sql"
-        else:
-            return "python"
-
-    def score(self, model_name: str, text: str) -> float:
-        """
-        Returns a reward (0.0 to 1.0) based on Model + Task combination.
-        """
-        task = self._detect_task(text)
-        base_score = self.competencies.get(model_name, {}).get(task, 0.5)
-
-        # Add realistic noise
-        noise = self.rng.standard_normal() * 0.05
-        return float(np.clip(base_score + noise, 0.0, 1.0))
-
-    def get_optimal_model(self, task: str) -> Tuple[str, float]:
-        """Get the oracle-optimal model for a given task type."""
-        best_model = max(self.model_names, key=lambda m: self.competencies[m][task])
-        return best_model, self.competencies[best_model][task]
-
-    def get_baseline_model(self, task: str) -> Tuple[str, float]:
-        """Get the 'default' model a static router would pick (best on python)."""
-        default_model = max(self.model_names, key=lambda m: self.competencies[m]["python"])
-        return default_model, self.competencies[default_model][task]
-
-
-# ---------------------------------------------------------------------------
-# Synthetic Data Generator (Option 1: Real Text Examples)
-# ---------------------------------------------------------------------------
-
-def generate_synthetic_prompts(
-    phase: str,
-    n: int,
-    rng: random.Random,
-) -> List[str]:
-    """
-    Generates synthetic text data for explainability.
-
-    This is the "Option 1" component that provides real text examples
-    reviewers can understand, while the math operates on embeddings.
-    """
-    prompts = []
-
-    if phase == "generic":
-        templates = [
-            "def calculate_sum(a, b): return a + b",
-            "def parse_json(data): return json.loads(data)",
-            "def fetch_user(user_id): return db.query(User, user_id)",
-            "import pandas as pd; df = pd.read_csv('data.csv')",
-            "SELECT * FROM users WHERE id = 5",
-            "SELECT count(*) FROM orders GROUP BY status",
-            "SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id",
-        ]
-        for _ in range(n):
-            base = rng.choice(templates)
-            prompts.append(f"{base} # v{rng.randint(0, 9999)}")
-
-    elif phase == "niche":  # KQL (Kusto Query Language)
-        templates = [
-            "Events | where Timestamp > ago(1h) | count",
-            "Traces | take 10 | project Message, Severity",
-            "Exceptions | where Severity == 'Error' | summarize count() by Type",
-            "SecurityLogs | search 'failed login' | limit 100",
-            "Requests | where Duration > 1000 | order by Duration desc",
-            "Dependencies | where Success == false | summarize count() by Target",
-            "CustomMetrics | where Name == 'ResponseTime' | summarize avg(Value) by bin(Timestamp, 5m)",
-        ]
-        for _ in range(n):
-            base = rng.choice(templates)
-            prompts.append(f"{base} // q{rng.randint(0, 9999)}")
-
-    return prompts
-
-
-# ---------------------------------------------------------------------------
-# Experiment Results
+# Analysis Results
 # ---------------------------------------------------------------------------
 
 @dataclass
-class ExperimentResults:
-    """Container for RQ2 experiment results."""
+class SpecializationAnalysis:
+    """Analysis of model specialization from priors."""
     config: Dict[str, Any]
-    phase1_rewards: List[float]
-    phase2_rewards: List[float]
-    phase2_model_choices: List[str]
-    oracle_optimal_model: str  # The true best model for KQL (discovered by experiment)
-    oracle_optimal_reward: float  # Its expected reward
-    baseline_model: str  # What a static router would pick
-    baseline_reward: float  # Static router's expected reward on KQL
-    discovery_step: int  # When bandit first routes majority to optimal
-    final_accuracy: float  # % of correct routing in last 100 steps
-    convergence_reward: float  # Average reward in last 100 steps
+    n_models: int
+    model_names: List[str]
+    embedding_dim: int
+
+    # Per-model specialization metrics
+    model_weight_directions: Dict[str, List[float]]  # Top principal components
+    model_weight_entropies: Dict[str, float]  # Weight distribution entropy
+    model_update_counts: Dict[str, int]
+
+    # Clustering analysis
+    model_similarity_matrix: List[List[float]]  # Cosine similarity of b vectors
+    specialist_candidates: List[str]  # Models with focused weight distributions
+    generalist_candidates: List[str]  # Models with spread weight distributions
+
     timestamp: str
 
 
-# ---------------------------------------------------------------------------
-# Experiment Runner
-# ---------------------------------------------------------------------------
-
-def run_experiment(config: ExperimentConfig) -> ExperimentResults:
+def compute_weight_entropy(b_vec: np.ndarray) -> float:
     """
-    Run the RQ2 experiment: Local Adaptation to Distribution Shift.
+    Compute entropy of weight distribution.
 
-    Uses the project's SharedCovarianceLinUCBPolicy - loads real priors
-    from the archetype grid and tests adaptation to distribution shift.
+    Lower entropy = more specialized (weights concentrated)
+    Higher entropy = more generalist (weights spread out)
+    """
+    # Normalize to probability-like distribution
+    abs_weights = np.abs(b_vec) + 1e-10
+    probs = abs_weights / abs_weights.sum()
+
+    # Compute entropy
+    entropy = -np.sum(probs * np.log(probs + 1e-10))
+
+    # Normalize by max entropy (uniform distribution)
+    max_entropy = np.log(len(b_vec))
+    return float(entropy / max_entropy)
+
+
+def analyze_specialization(config: ExperimentConfig) -> SpecializationAnalysis:
+    """
+    Analyze model specialization patterns from the priors.
+
+    This identifies which models have learned specialized weights
+    (potential niche experts) vs generalized weights.
 
     Args:
         config: Experiment configuration
 
     Returns:
-        ExperimentResults with adaptation metrics
+        SpecializationAnalysis with model specialization metrics
     """
-    print(f"[RQ2] Starting experiment with seed={config.seed}")
+    print(f"[RQ2] Loading priors from {config.priors_path}")
 
-    # Set up random generators
-    np_rng = np.random.default_rng(config.seed)
-    py_rng = random.Random(config.seed)
-
-    # REQUIRED: Load real priors from archetype grid
     if not config.priors_path.exists():
         raise FileNotFoundError(
             f"Priors not found: {config.priors_path}\n"
@@ -420,126 +136,76 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
             f"  python -m llm_jury.async_bandit.archetype_grid_dense_run"
         )
 
-    print(f"[RQ2] Loading shippable priors from {config.priors_path}")
-    router = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(config.priors_path)
+    # Load priors
+    policy = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(config.priors_path)
 
-    # Use subset of models if specified
-    all_models = router.models
-    if config.n_models > 0 and config.n_models < len(all_models):
-        model_names = all_models[:config.n_models]
-        print(f"[RQ2] Using {len(model_names)} of {len(all_models)} models")
-    else:
-        model_names = all_models
-        print(f"[RQ2] Using all {len(model_names)} models from priors")
+    print(f"[RQ2] Loaded {len(policy.models)} models")
+    print(f"[RQ2] Embedding dimension: {policy.dim}")
 
-    # Initialize components with the selected models
-    embedder = MockEmbeddingEngine(config.dim, config.noise_level, np_rng)
-    judge = MockOracleJudge(model_names, np_rng)
+    # Get models with most updates (most informative)
+    update_counts = {m: policy._updates.get(m, 0) for m in policy.models}
+    sorted_models = sorted(policy.models, key=lambda m: update_counts[m], reverse=True)
+    top_models = sorted_models[:config.n_top_models]
 
-    # =========================================================================
-    # PHASE 1: Validate priors on Generic (Python/SQL)
-    # =========================================================================
-    print(f"\n[Phase 1] Validating priors on {config.n_train} generic Python/SQL prompts...")
-    prompts_p1 = generate_synthetic_prompts("generic", config.n_train, py_rng)
-    phase1_rewards: List[float] = []
+    print(f"[RQ2] Analyzing top {len(top_models)} models by training activity")
 
-    for i, text in enumerate(prompts_p1):
-        vec = embedder.encode(text)
+    # Analyze weight vectors
+    weight_directions: Dict[str, List[float]] = {}
+    weight_entropies: Dict[str, float] = {}
+    b_vectors: Dict[str, np.ndarray] = {}
 
-        # Router decides using loaded priors
-        chosen_model = select_best_model(router, vec)
+    for m in top_models:
+        b_vec = policy.b.get(m, np.zeros(policy.dim))
+        b_vectors[m] = b_vec
 
-        # Only consider models in our subset
-        if chosen_model not in model_names:
-            chosen_model = model_names[0]  # Fallback
+        # Get top 5 principal directions (indices of largest absolute weights)
+        top_indices = np.argsort(np.abs(b_vec))[-5:][::-1]
+        weight_directions[m] = [float(b_vec[i]) for i in top_indices]
 
-        # Oracle judges
-        reward = judge.score(chosen_model, text)
+        # Compute specialization entropy
+        weight_entropies[m] = compute_weight_entropy(b_vec)
 
-        # Router learns (continues to adapt)
-        router.update(chosen_model, vec, reward)
+    # Compute similarity matrix (cosine similarity of b vectors)
+    similarity_matrix: List[List[float]] = []
+    for m1 in top_models:
+        row = []
+        b1 = b_vectors[m1]
+        norm1 = np.linalg.norm(b1)
+        for m2 in top_models:
+            b2 = b_vectors[m2]
+            norm2 = np.linalg.norm(b2)
+            if norm1 > 1e-8 and norm2 > 1e-8:
+                sim = float(np.dot(b1, b2) / (norm1 * norm2))
+            else:
+                sim = 0.0
+            row.append(sim)
+        similarity_matrix.append(row)
 
-        phase1_rewards.append(reward)
+    # Identify specialists (low entropy) and generalists (high entropy)
+    entropy_sorted = sorted(top_models, key=lambda m: weight_entropies[m])
+    specialist_candidates = entropy_sorted[:5]  # Lowest entropy = most specialized
+    generalist_candidates = entropy_sorted[-5:]  # Highest entropy = most general
 
-    avg_p1 = np.mean(phase1_rewards[-100:])
-    print(f"   -> Phase 1 complete. Avg reward: {avg_p1:.3f}")
-    print(f"   -> Priors validated on generic code tasks.")
+    print(f"\n[RQ2] Specialization Analysis:")
+    print(f"   Specialist candidates (low entropy = focused weights):")
+    for m in specialist_candidates:
+        print(f"      - {m}: entropy={weight_entropies[m]:.4f}")
 
-    # =========================================================================
-    # PHASE 2: Distribution Shift (KQL)
-    # =========================================================================
-    print(f"\n[Phase 2] DRIFT EVENT! User sends {config.n_drift} KQL queries...")
-    prompts_p2 = generate_synthetic_prompts("niche", config.n_drift, py_rng)
-    phase2_rewards: List[float] = []
-    phase2_choices: List[str] = []
+    print(f"\n   Generalist candidates (high entropy = spread weights):")
+    for m in generalist_candidates:
+        print(f"      - {m}: entropy={weight_entropies[m]:.4f}")
 
-    # Discover the true optimal model from the oracle (bandit doesn't know this!)
-    oracle_optimal_model, oracle_optimal_reward = judge.get_optimal_model("kql")
-    baseline_model, baseline_reward = judge.get_baseline_model("kql")
-    print(f"   (Oracle truth: optimal={oracle_optimal_model} @ {oracle_optimal_reward:.2f}, "
-          f"static baseline={baseline_model} @ {baseline_reward:.2f})")
-
-    discovery_step = -1
-
-    for i, text in enumerate(prompts_p2):
-        vec = embedder.encode(text)
-
-        # Router decides using loaded priors (adapting to new distribution)
-        chosen_model = select_best_model(router, vec)
-
-        # Only consider models in our subset
-        if chosen_model not in model_names:
-            chosen_model = model_names[0]
-
-        # Oracle judges
-        reward = judge.score(chosen_model, text)
-
-        # Router learns (adapts to new KQL distribution)
-        router.update(chosen_model, vec, reward)
-
-        phase2_rewards.append(reward)
-        phase2_choices.append(chosen_model)
-
-        # Track discovery: when router first consistently picks the oracle-optimal model
-        if discovery_step < 0 and i >= 50:
-            recent_choices = phase2_choices[-50:]
-            optimal_pct = recent_choices.count(oracle_optimal_model) / len(recent_choices)
-            if optimal_pct > 0.7:
-                discovery_step = i
-                print(f"   [Step {i}] DISCOVERY! Router found {oracle_optimal_model} is best for KQL.")
-
-        # Progress logging
-        if i == 10:
-            print(f"   [Step 10] Router adapting... Avg reward: {np.mean(phase2_rewards):.3f}")
-        elif i == 100:
-            print(f"   [Step 100] Adapting... Avg reward: {np.mean(phase2_rewards[-50:]):.3f}")
-        elif i == config.n_drift - 1:
-            print(f"   [Step {i}] Final avg reward: {np.mean(phase2_rewards[-100:]):.3f}")
-
-    # Compute final metrics - how often did bandit find the oracle-optimal model?
-    final_choices = phase2_choices[-100:]
-    final_accuracy = final_choices.count(oracle_optimal_model) / len(final_choices)
-    convergence_reward = float(np.mean(phase2_rewards[-100:]))
-
-    print(f"\n[RQ2] Final Results:")
-    print(f"   Oracle optimal model: {oracle_optimal_model} (reward={oracle_optimal_reward:.2f})")
-    print(f"   Static baseline model: {baseline_model} (reward={baseline_reward:.2f})")
-    print(f"   Discovery step: {discovery_step}")
-    print(f"   Final routing accuracy to optimal: {final_accuracy:.1%}")
-    print(f"   Convergence reward: {convergence_reward:.3f}")
-
-    return ExperimentResults(
+    return SpecializationAnalysis(
         config=asdict(config) if hasattr(config, "__dataclass_fields__") else vars(config),
-        phase1_rewards=phase1_rewards,
-        phase2_rewards=phase2_rewards,
-        phase2_model_choices=phase2_choices,
-        oracle_optimal_model=oracle_optimal_model,
-        oracle_optimal_reward=oracle_optimal_reward,
-        baseline_model=baseline_model,
-        baseline_reward=baseline_reward,
-        discovery_step=discovery_step,
-        final_accuracy=final_accuracy,
-        convergence_reward=convergence_reward,
+        n_models=len(policy.models),
+        model_names=top_models,
+        embedding_dim=policy.dim,
+        model_weight_directions=weight_directions,
+        model_weight_entropies=weight_entropies,
+        model_update_counts={m: update_counts[m] for m in top_models},
+        model_similarity_matrix=similarity_matrix,
+        specialist_candidates=specialist_candidates,
+        generalist_candidates=generalist_candidates,
         timestamp=datetime.now().isoformat(),
     )
 
@@ -548,144 +214,74 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
 # Visualization
 # ---------------------------------------------------------------------------
 
-def plot_results(results: ExperimentResults, output_path: Path) -> None:
+def plot_specialization(analysis: SpecializationAnalysis, output_path: Path) -> None:
     """
-    Generate KDD publication-quality adaptation curve plot.
-
-    Args:
-        results: Experiment results
-        output_path: Path to save figure
+    Generate publication-quality visualization of model specialization.
     """
     if not HAS_MATPLOTLIB:
         print("[RQ2] Warning: matplotlib not available, skipping plot")
         return
 
-    # ---------------------------------------------------------------------------
-    # KDD Paper Figure Settings
-    # ---------------------------------------------------------------------------
-    COLUMN_WIDTH = 3.5  # inches (single column)
+    # KDD Paper Settings
+    COLUMN_WIDTH = 3.5
     FONT_SIZE = 9
-    LEGEND_SIZE = 7
-    LINE_WIDTH = 1.5
     DPI = 300
 
     plt.rcParams.update({
         "font.family": "serif",
         "font.size": FONT_SIZE,
         "axes.labelsize": FONT_SIZE,
-        "axes.titlesize": FONT_SIZE,
-        "xtick.labelsize": FONT_SIZE - 1,
-        "ytick.labelsize": FONT_SIZE - 1,
-        "legend.fontsize": LEGEND_SIZE,
+        "xtick.labelsize": FONT_SIZE - 2,
+        "ytick.labelsize": FONT_SIZE - 2,
         "figure.dpi": DPI,
         "savefig.dpi": DPI,
-        "axes.linewidth": 0.8,
-        "grid.linewidth": 0.5,
-        "lines.linewidth": LINE_WIDTH,
     })
 
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH, COLUMN_WIDTH * 0.7))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(COLUMN_WIDTH * 2, COLUMN_WIDTH * 0.7))
 
-    # Smooth the reward curve
-    rewards = results.phase2_rewards
-    window = min(30, len(rewards) // 10)  # Adaptive window
-    if window < 5:
-        window = 5
-    smoothed = np.convolve(rewards, np.ones(window) / window, mode="valid")
-    x = np.arange(window - 1, len(rewards))
+    models = analysis.model_names[:15]  # Top 15 for readability
+    short_names = [m.split("/")[-1][:10] for m in models]
 
-    # Plot the learning curve (main result)
-    ax.plot(
-        x, smoothed,
-        color="#2CA02C",  # Green
-        linewidth=LINE_WIDTH + 0.5,
-        label="Adaptive (LinUCB)",
-    )
+    # Plot 1: Entropy (specialization measure)
+    entropies = [analysis.model_weight_entropies[m] for m in models]
+    colors = ["#D62728" if m in analysis.specialist_candidates else
+              "#2CA02C" if m in analysis.generalist_candidates else
+              "#1F77B4" for m in models]
 
-    # Reference lines
-    ax.axhline(
-        y=results.baseline_reward,
-        color="#D62728",  # Red
-        linestyle="--",
-        linewidth=LINE_WIDTH,
-        label=f"Static Baseline",
-    )
-    ax.axhline(
-        y=results.oracle_optimal_reward,
-        color="#7F7F7F",  # Gray
-        linestyle=":",
-        linewidth=LINE_WIDTH,
-        label=f"Oracle Optimal",
-    )
+    ax1.barh(range(len(models)), entropies, color=colors)
+    ax1.set_yticks(range(len(models)))
+    ax1.set_yticklabels(short_names)
+    ax1.set_xlabel("Weight Entropy (lower = more specialized)")
+    ax1.set_title("Model Specialization")
+    ax1.invert_yaxis()
+    ax1.axvline(x=0.5, color="gray", linestyle="--", alpha=0.5)
 
-    # Mark discovery point with subtle vertical line
-    if results.discovery_step > 0 and results.discovery_step < len(rewards):
-        ax.axvline(
-            x=results.discovery_step,
-            color="#FF7F0E",  # Orange
-            linestyle="-.",
-            linewidth=1.0,
-            alpha=0.7,
-        )
-        # Small annotation near the line
-        ax.annotate(
-            f"t={results.discovery_step}",
-            xy=(results.discovery_step, 0.15),
-            fontsize=FONT_SIZE - 2,
-            color="#FF7F0E",
-            ha="left",
-        )
+    # Plot 2: Model similarity heatmap
+    sim_matrix = np.array(analysis.model_similarity_matrix[:15])[:, :15]
+    im = ax2.imshow(sim_matrix, cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
+    ax2.set_xticks(range(len(models)))
+    ax2.set_yticks(range(len(models)))
+    ax2.set_xticklabels(short_names, rotation=45, ha="right")
+    ax2.set_yticklabels(short_names)
+    ax2.set_title("Weight Similarity")
+    plt.colorbar(im, ax=ax2, shrink=0.8)
 
-    # Labels (no title - use figure caption in paper)
-    ax.set_xlabel("Queries After Distribution Shift")
-    ax.set_ylabel("Quality Score")
+    plt.tight_layout(pad=1.0)
 
-    # Clean axis formatting
-    ax.set_xlim(0, len(rewards))
-    ax.set_ylim(0.0, 1.05)
-
-    # Format y-axis as percentages (optional, cleaner)
-    ax.set_yticks([0.0, 0.25, 0.50, 0.75, 1.0])
-
-    # Legend - compact, lower right
-    ax.legend(
-        loc="lower right",
-        frameon=True,
-        fancybox=False,
-        edgecolor="0.8",
-        framealpha=0.95,
-        ncol=1,
-    )
-
-    # Minimal grid
-    ax.grid(True, linestyle="-", alpha=0.3, linewidth=0.5)
-    ax.set_axisbelow(True)
-
-    # Remove top and right spines
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-
-    plt.tight_layout(pad=0.5)
-
-    # Save PNG and PDF
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=DPI, bbox_inches="tight", facecolor="white")
+    plt.savefig(output_path.with_suffix(".pdf"), bbox_inches="tight", facecolor="white")
 
-    pdf_path = output_path.with_suffix(".pdf")
-    plt.savefig(pdf_path, bbox_inches="tight", facecolor="white")
-
-    print(f"[RQ2] Saved plot to {output_path} and {pdf_path}")
+    print(f"[RQ2] Saved plot to {output_path}")
     plt.close()
-
     plt.rcParams.update(plt.rcParamsDefault)
 
 
-def save_results(results: ExperimentResults, output_path: Path) -> None:
-    """Save experiment results as JSON."""
+def save_results(analysis: SpecializationAnalysis, output_path: Path) -> None:
+    """Save analysis results as JSON."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = asdict(results)
-    # Convert Path objects for JSON serialization
+    data = asdict(analysis)
     if "config" in data:
         cfg = data["config"]
         for key in ["output_dir", "priors_path"]:
@@ -694,7 +290,7 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
 
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
-    print(f"[RQ2] Saved results to {output_path}")
+    print(f"[RQ2] Saved analysis to {output_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -704,51 +300,29 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
 def parse_args() -> ExperimentConfig:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="RQ2: Local Adaptation to Distribution Shift",
+        description="RQ2: Analyze Model Specialization from Priors",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # REQUIRED: Priors from archetype grid
     parser.add_argument(
         "--priors", type=str,
         default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"),
-        help="Path to shippable_priors.npz from archetype grid (REQUIRED)",
-    )
-
-    parser.add_argument(
-        "--n-train", type=int, default=500,
-        help="Number of generic samples (Phase 1: validates priors)",
+        help="Path to shippable_priors.npz from archetype grid",
     )
     parser.add_argument(
-        "--n-drift", type=int, default=500,
-        help="Number of KQL samples (Phase 2: tests adaptation)",
-    )
-    parser.add_argument(
-        "--n-models", type=int, default=5,
-        help="Number of models to use from priors (5 recommended for discovery)",
-    )
-    parser.add_argument(
-        "--alpha", type=float, default=0.5,
-        help="UCB exploration parameter",
-    )
-    parser.add_argument(
-        "--seed", type=int, default=42,
-        help="Random seed for reproducibility",
+        "--n-top-models", type=int, default=20,
+        help="Number of top models to analyze in detail",
     )
     parser.add_argument(
         "--output-dir", type=str, default="results/rq2",
-        help="Output directory for results and plots",
+        help="Output directory for results",
     )
 
     args = parser.parse_args()
 
     return ExperimentConfig(
         priors_path=Path(args.priors),
-        n_models=args.n_models,
-        n_train=args.n_train,
-        n_drift=args.n_drift,
-        alpha=args.alpha,
-        seed=args.seed,
+        n_top_models=args.n_top_models,
         output_dir=Path(args.output_dir),
     )
 
@@ -758,34 +332,25 @@ def main() -> int:
     config = parse_args()
 
     print("=" * 60)
-    print("RQ2: Local Adaptation to Distribution Shift")
+    print("RQ2: Local Adaptation - Specialization Analysis")
     print("=" * 60)
-    print("Scenario: User shifts from Python/SQL to KQL queries")
-    print("Challenge: Can warm-started bandit adapt to new distribution?")
-    print("=" * 60)
-    print(f"Configuration:")
-    print(f"  Priors: {config.priors_path}")
-    print(f"  Models to use: {config.n_models}")
-    print(f"  Phase 1 (Generic): {config.n_train} samples")
-    print(f"  Phase 2 (KQL Drift): {config.n_drift} samples")
-    print(f"  Alpha (UCB): {config.alpha}")
-    print(f"  Seed: {config.seed}")
-    print("=" * 60)
-    print("Using: SharedCovarianceLinUCBPolicy (from archetype grid)")
+    print(f"Priors: {config.priors_path}")
+    print(f"Analyzing top: {config.n_top_models} models")
+    print(f"Output: {config.output_dir}")
     print("=" * 60)
 
-    # Run experiment
-    results = run_experiment(config)
+    # Analyze specialization
+    analysis = analyze_specialization(config)
 
     # Save outputs
-    save_results(results, config.output_dir / "metrics.json")
-    plot_results(results, config.output_dir / "adaptation_curve.png")
+    save_results(analysis, config.output_dir / "specialization_analysis.json")
+    plot_specialization(analysis, config.output_dir / "model_coverage.png")
 
     print("=" * 60)
-    print("Experiment complete!")
-    print(f"  Discovered optimal: {results.oracle_optimal_model}")
-    print(f"  Discovery step: {results.discovery_step}")
-    print(f"  Final accuracy: {results.final_accuracy:.1%}")
+    print("Analysis complete!")
+    print(f"  Models analyzed: {len(analysis.model_names)}")
+    print(f"  Specialist candidates: {len(analysis.specialist_candidates)}")
+    print(f"  Generalist candidates: {len(analysis.generalist_candidates)}")
     print(f"  Results saved to: {config.output_dir}")
     print("=" * 60)
 

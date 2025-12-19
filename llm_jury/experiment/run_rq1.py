@@ -6,30 +6,17 @@ Research Question:
     Does pre-training on clustered prompt archetypes reduce regret compared to
     a cold-start bandit during user deployment?
 
-Experiment Design:
-    - Environment: Simulated LLM routing with clustered prompt distributions
-    - Treatment A: Cold Start Bandit (Identity A, zero b vectors)
-    - Treatment B: Warm Start Bandit (Pre-trained on public data)
-    - Metric: Cumulative Regret over N user requests
-
-Key Insights:
-    - The warm-start agent should show near-zero regret from Day 1
-    - The cold-start agent pays a "learning tax" before converging
-    - The gap represents the business value of shippable priors
+This experiment loads REAL priors from the archetype grid and analyzes them.
+For actual regret comparison, integrate with production traffic or use 
+historical logs with ground-truth quality labels.
 
 Usage:
-    # Simulation mode (default)
     python -m llm_jury.experiment.run_rq1
-
-    # With real priors (if available)
     python -m llm_jury.experiment.run_rq1 --priors data/priors/shippable_priors.npz
 
-    # Custom configuration
-    python -m llm_jury.experiment.run_rq1 --n-pretrain 1000 --n-test 5000 --seed 42
-
 Output:
-    - results/rq1/regret_curve.png - Publication-ready figure
-    - results/rq1/metrics.json - Raw experimental data
+    - results/rq1/prior_analysis.json - Analysis of loaded priors
+    - results/rq1/prior_weights.png - Visualization of learned weights
 """
 
 from __future__ import annotations
@@ -40,92 +27,20 @@ import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 
-# Use project's actual bandit implementation (same as BanditRouter uses)
+# Use project's actual bandit implementation
 from llm_jury.async_bandit.bandit_router import SharedCovarianceLinUCBPolicy
-
-
-def select_best_model(
-    policy: SharedCovarianceLinUCBPolicy,
-    x: np.ndarray,
-) -> str:
-    """
-    Select the best model using SharedCovarianceLinUCBPolicy.
-
-    This is the same UCB selection logic used by the production router.
-
-    Args:
-        policy: The SharedCovarianceLinUCBPolicy with loaded priors
-        x: Context vector (prompt embedding)
-
-    Returns:
-        Name of the selected model (highest UCB score)
-    """
-    best_model = policy.models[0]
-    best_ucb = -float("inf")
-
-    for model in policy.models:
-        ucb = policy.predict(x, model)
-        if ucb > best_ucb:
-            best_ucb = ucb
-            best_model = model
-
-    return best_model
 
 # Project root for locating data files
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-
-# ---------------------------------------------------------------------------
-# Model Loading from Cache
-# ---------------------------------------------------------------------------
-
-def load_models_from_cache(cache_path: Path, max_models: int = 0) -> List[str]:
-    """
-    Load model IDs from the project's models_cache.json.
-
-    This uses the same format as the production BanditRouter.
-
-    Args:
-        cache_path: Path to models_cache.json
-        max_models: Maximum number of models to load (0 = all)
-
-    Returns:
-        List of OpenRouter model IDs (e.g., "anthropic/claude-3.5-haiku")
-    """
-    if not cache_path.exists():
-        raise FileNotFoundError(f"Models cache not found: {cache_path}")
-
-    data = json.loads(cache_path.read_text())
-    models = data.get("models", [])
-
-    # Extract OpenRouter IDs
-    model_ids: List[str] = []
-    for m in models:
-        oid = (m or {}).get("openrouter_id")
-        if isinstance(oid, str) and oid.strip():
-            model_ids.append(oid.strip())
-
-    # De-duplicate while preserving order
-    seen = set()
-    unique: List[str] = []
-    for mid in model_ids:
-        if mid not in seen:
-            seen.add(mid)
-            unique.append(mid)
-
-    if max_models > 0:
-        unique = unique[:max_models]
-
-    return unique
-
 # Plotting (optional, for headless servers)
 try:
     import matplotlib
-    matplotlib.use("Agg")  # Non-interactive backend
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     HAS_MATPLOTLIB = True
 except ImportError:
@@ -140,172 +55,51 @@ except ImportError:
 @dataclass
 class ExperimentConfig:
     """Configuration for RQ1 experiment."""
-    # Dimensions
-    dim: int = 384  # Match sentence-transformers/all-MiniLM-L6-v2
-    n_clusters: int = 5  # Latent task clusters (Code, Math, Creative, Factual, Chat)
-
     # REQUIRED: Path to shippable priors from archetype grid
-    # These are loaded using SharedCovarianceLinUCBPolicy.from_shippable_priors_npz()
     priors_path: Path = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
-
-    # Experiment size
-    n_test: int = 2000  # Size of user deployment simulation
-
-    # Bandit parameters (same defaults as BanditRouter)
-    alpha: float = 0.5  # UCB exploration parameter
-
-    # Noise
-    noise_level: float = 0.1  # Reward noise (std)
-
-    # Reproducibility
-    seed: int = 42
 
     # Output
     output_dir: Path = Path("results/rq1")
 
 
 # ---------------------------------------------------------------------------
-# Simulated Environment
-# ---------------------------------------------------------------------------
-
-class SimulatedRoutingEnvironment:
-    """
-    Simulates ground truth for LLM routing experiments.
-
-    This environment models:
-    - K latent task clusters (e.g., Code, Math, Creative)
-    - M models with different competencies per cluster
-    - Prompts sampled from cluster distributions
-    - Rewards based on model-cluster affinity
-
-    The environment is calibrated to match real-world observations:
-    - Some models are specialists (high competence on 1-2 clusters)
-    - Some models are generalists (moderate competence everywhere)
-    - Reward noise reflects real grading uncertainty
-
-    Model names can be provided from the project's models_cache.json to use
-    real OpenRouter model IDs (e.g., "anthropic/claude-3.5-haiku").
-    """
-
-    def __init__(
-        self,
-        n_clusters: int,
-        dim: int,
-        model_names: List[str],
-        noise_level: float = 0.1,
-        rng: Optional[np.random.Generator] = None,
-    ):
-        self.n_clusters = n_clusters
-        self.dim = dim
-        self.noise_level = noise_level
-        self.rng = rng or np.random.default_rng()
-
-        # Use provided model names (from models_cache.json or simulated)
-        self.model_names = list(model_names)
-        self.n_models = len(self.model_names)
-
-        # Generate cluster centers in embedding space
-        # These represent the "meaning" of each task type
-        self.cluster_centers = self._generate_cluster_centers()
-
-        # Generate model competencies
-        # competencies[m, c] = base quality of model m on cluster c
-        self.competencies = self._generate_model_competencies()
-
-    def _generate_cluster_centers(self) -> np.ndarray:
-        """Generate orthogonal-ish cluster centers."""
-        # Start with random vectors
-        centers = self.rng.standard_normal((self.n_clusters, self.dim))
-        # Normalize to unit vectors
-        norms = np.linalg.norm(centers, axis=1, keepdims=True)
-        centers = centers / np.maximum(norms, 1e-8)
-        return centers
-
-    def _generate_model_competencies(self) -> np.ndarray:
-        """
-        Generate model competency matrix.
-
-        Strategy:
-        - First few models are "specialists" (one cluster expert)
-        - Remaining models are "generalists" with moderate scores
-        """
-        competencies = self.rng.uniform(0.3, 0.6, (self.n_models, self.n_clusters))
-
-        # Make some models specialists (high on one cluster)
-        n_specialists = min(self.n_clusters, self.n_models)
-        for i in range(n_specialists):
-            competencies[i, i % self.n_clusters] = self.rng.uniform(0.85, 0.95)
-
-        return competencies
-
-    def sample_context(self) -> Tuple[np.ndarray, int]:
-        """
-        Sample a prompt embedding and its latent cluster.
-
-        Returns:
-            (context_vector, cluster_id)
-        """
-        # Sample cluster
-        cluster_id = self.rng.integers(0, self.n_clusters)
-        center = self.cluster_centers[cluster_id]
-
-        # Add noise to create variance within cluster
-        noise = self.rng.standard_normal(self.dim) * 0.15
-        context = center + noise
-
-        # Normalize
-        context = context / np.linalg.norm(context)
-        return context, cluster_id
-
-    def get_reward(self, model_idx: int, cluster_id: int) -> float:
-        """
-        Get noisy reward for model on cluster.
-
-        Returns:
-            Reward in [0, 1] range
-        """
-        base = self.competencies[model_idx, cluster_id]
-        noise = self.rng.standard_normal() * self.noise_level
-        return float(np.clip(base + noise, 0.0, 1.0))
-
-    def get_optimal_reward(self, cluster_id: int) -> float:
-        """Get best possible reward for cluster (oracle)."""
-        return float(np.max(self.competencies[:, cluster_id]))
-
-
-# ---------------------------------------------------------------------------
-# Experiment Runner
+# Analysis Results
 # ---------------------------------------------------------------------------
 
 @dataclass
-class ExperimentResults:
-    """Container for experiment results."""
+class PriorAnalysis:
+    """Analysis of loaded priors."""
     config: Dict[str, Any]
-    regret_cold: List[float]
-    regret_warm: List[float]
-    final_regret_cold: float
-    final_regret_warm: float
-    regret_reduction_pct: float
+    n_models: int
+    model_names: List[str]
+    embedding_dim: int
+    alpha: float
+    # Per-model statistics
+    model_update_counts: Dict[str, int]
+    model_weight_norms: Dict[str, float]
+    # Shared covariance analysis
+    covariance_condition_number: float
+    covariance_trace: float
+    # Top models by activity
+    top_models_by_updates: List[str]
     timestamp: str
 
 
-def run_experiment(config: ExperimentConfig) -> ExperimentResults:
+def analyze_priors(config: ExperimentConfig) -> PriorAnalysis:
     """
-    Run the RQ1 experiment: Cold Start vs Warm Start.
+    Load and analyze the shippable priors.
 
-    Uses the project's SharedCovarianceLinUCBPolicy - the same algorithm
-    used to generate shippable priors from the archetype grid.
+    This provides insight into what the bandit has learned without
+    requiring synthetic simulation.
 
     Args:
         config: Experiment configuration
 
     Returns:
-        ExperimentResults with regret curves and summary metrics
+        PriorAnalysis with statistics about the loaded priors
     """
-    print(f"[RQ1] Starting experiment with seed={config.seed}")
-    rng = np.random.default_rng(config.seed)
+    print(f"[RQ1] Loading priors from {config.priors_path}")
 
-    # REQUIRED: Load real priors from archetype grid
     if not config.priors_path.exists():
         raise FileNotFoundError(
             f"Priors not found: {config.priors_path}\n"
@@ -313,86 +107,57 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
             f"  python -m llm_jury.async_bandit.archetype_grid_dense_run"
         )
 
-    print(f"[RQ1] Loading shippable priors from {config.priors_path}")
-    agent_warm = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(config.priors_path)
-    print(f"[RQ1] Loaded {len(agent_warm.models)} models with pre-trained weights")
+    # Load priors
+    policy = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(config.priors_path)
 
-    # Get model names from loaded priors
-    model_names = agent_warm.models
+    print(f"[RQ1] Loaded {len(policy.models)} models")
+    print(f"[RQ1] Embedding dimension: {policy.dim}")
+    print(f"[RQ1] Alpha: {policy.alpha}")
 
-    # Create simulated environment using the same models
-    print(f"[RQ1] Creating environment: {len(model_names)} models, {config.n_clusters} clusters")
-    env = SimulatedRoutingEnvironment(
-        n_clusters=config.n_clusters,
-        dim=config.dim,
-        model_names=model_names,
-        noise_level=config.noise_level,
-        rng=rng,
-    )
+    # Analyze update counts per model
+    update_counts = {m: policy._updates.get(m, 0) for m in policy.models}
+    total_updates = sum(update_counts.values())
+    print(f"[RQ1] Total updates across all models: {total_updates}")
 
-    # Initialize cold-start agent (fresh, no priors)
-    print(f"[RQ1] Initializing cold-start agent (empty SharedCovarianceLinUCBPolicy)...")
-    agent_cold = SharedCovarianceLinUCBPolicy(
-        model_names=model_names,
-        dim=config.dim,
-        alpha=config.alpha,
-    )
+    # Analyze weight norms (b vectors)
+    weight_norms = {}
+    for m in policy.models:
+        b_vec = policy.b.get(m, np.zeros(policy.dim))
+        weight_norms[m] = float(np.linalg.norm(b_vec))
 
-    # Run deployment simulation
-    print(f"[RQ1] Running deployment simulation ({config.n_test} requests)...")
-    regret_warm: List[float] = []
-    regret_cold: List[float] = []
-    cum_regret_warm = 0.0
-    cum_regret_cold = 0.0
+    # Analyze shared covariance matrix
+    A = policy.A_shared
+    try:
+        eigenvalues = np.linalg.eigvalsh(A)
+        condition_number = float(eigenvalues.max() / max(eigenvalues.min(), 1e-10))
+    except Exception:
+        condition_number = float("inf")
 
-    for t in range(config.n_test):
-        ctx, cluster_id = env.sample_context()
-        optimal_reward = env.get_optimal_reward(cluster_id)
+    covariance_trace = float(np.trace(A))
 
-        # Warm agent decision using SharedCovarianceLinUCBPolicy
-        model_warm = select_best_model(agent_warm, ctx)
-        model_idx_warm = env.model_names.index(model_warm)
-        reward_warm = env.get_reward(model_idx_warm, cluster_id)
-        # Update using project's update method
-        agent_warm.update(model_warm, ctx, reward_warm)
+    # Top models by update count
+    sorted_models = sorted(policy.models, key=lambda m: update_counts[m], reverse=True)
+    top_models = sorted_models[:10]
 
-        # Cold agent decision (no priors, learning from scratch)
-        model_cold = select_best_model(agent_cold, ctx)
-        model_idx_cold = env.model_names.index(model_cold)
-        reward_cold = env.get_reward(model_idx_cold, cluster_id)
-        # Update using project's update method
-        agent_cold.update(model_cold, ctx, reward_cold)
+    print(f"\n[RQ1] Top 10 models by update count:")
+    for i, m in enumerate(top_models, 1):
+        print(f"   {i}. {m}: {update_counts[m]} updates, ||b||={weight_norms[m]:.4f}")
 
-        # Compute regret (using expected reward, not noisy)
-        expected_warm = env.competencies[model_idx_warm, cluster_id]
-        expected_cold = env.competencies[model_idx_cold, cluster_id]
+    print(f"\n[RQ1] Covariance matrix analysis:")
+    print(f"   Condition number: {condition_number:.2e}")
+    print(f"   Trace: {covariance_trace:.2f}")
 
-        cum_regret_warm += (optimal_reward - expected_warm)
-        cum_regret_cold += (optimal_reward - expected_cold)
-
-        regret_warm.append(cum_regret_warm)
-        regret_cold.append(cum_regret_cold)
-
-        if (t + 1) % 500 == 0:
-            print(f"   Step {t+1}: Cold={cum_regret_cold:.1f}, Warm={cum_regret_warm:.1f}")
-
-    # Compute summary statistics
-    final_cold = regret_cold[-1]
-    final_warm = regret_warm[-1]
-    reduction_pct = 100.0 * (final_cold - final_warm) / max(final_cold, 1e-8)
-
-    print(f"[RQ1] Final Results:")
-    print(f"   Cold Start Regret: {final_cold:.2f}")
-    print(f"   Warm Start Regret: {final_warm:.2f}")
-    print(f"   Regret Reduction: {reduction_pct:.1f}%")
-
-    return ExperimentResults(
+    return PriorAnalysis(
         config=asdict(config) if hasattr(config, "__dataclass_fields__") else vars(config),
-        regret_cold=regret_cold,
-        regret_warm=regret_warm,
-        final_regret_cold=final_cold,
-        final_regret_warm=final_warm,
-        regret_reduction_pct=reduction_pct,
+        n_models=len(policy.models),
+        model_names=policy.models,
+        embedding_dim=policy.dim,
+        alpha=policy.alpha,
+        model_update_counts=update_counts,
+        model_weight_norms=weight_norms,
+        covariance_condition_number=condition_number,
+        covariance_trace=covariance_trace,
+        top_models_by_updates=top_models,
         timestamp=datetime.now().isoformat(),
     )
 
@@ -401,133 +166,68 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
 # Visualization
 # ---------------------------------------------------------------------------
 
-def plot_results(results: ExperimentResults, output_path: Path) -> None:
+def plot_prior_analysis(analysis: PriorAnalysis, output_path: Path) -> None:
     """
-    Generate KDD publication-quality regret curve plot.
-
-    Args:
-        results: Experiment results
-        output_path: Path to save figure
+    Generate publication-quality visualization of prior weights.
     """
     if not HAS_MATPLOTLIB:
         print("[RQ1] Warning: matplotlib not available, skipping plot")
         return
 
-    # ---------------------------------------------------------------------------
-    # KDD Paper Figure Settings
-    # ---------------------------------------------------------------------------
-    # KDD uses two-column format. Single column width ~3.33", double ~7"
-    # We use single-column width for clarity
-    COLUMN_WIDTH = 3.5  # inches
+    # KDD Paper Settings
+    COLUMN_WIDTH = 3.5
     FONT_SIZE = 9
-    LEGEND_SIZE = 8
-    LINE_WIDTH = 1.5
-    DPI = 300  # Publication quality
+    DPI = 300
 
-    # Set matplotlib parameters for publication
     plt.rcParams.update({
         "font.family": "serif",
         "font.size": FONT_SIZE,
         "axes.labelsize": FONT_SIZE,
-        "axes.titlesize": FONT_SIZE,
-        "xtick.labelsize": FONT_SIZE - 1,
+        "xtick.labelsize": FONT_SIZE - 2,
         "ytick.labelsize": FONT_SIZE - 1,
-        "legend.fontsize": LEGEND_SIZE,
         "figure.dpi": DPI,
         "savefig.dpi": DPI,
-        "axes.linewidth": 0.8,
-        "grid.linewidth": 0.5,
-        "lines.linewidth": LINE_WIDTH,
     })
 
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH, COLUMN_WIDTH * 0.7))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(COLUMN_WIDTH * 2, COLUMN_WIDTH * 0.6))
 
-    n_test = len(results.regret_cold)
-    x = np.arange(1, n_test + 1)
+    # Plot 1: Update counts (top 15 models)
+    top_models = analysis.top_models_by_updates[:15]
+    counts = [analysis.model_update_counts[m] for m in top_models]
+    short_names = [m.split("/")[-1][:12] for m in top_models]
 
-    # Plot lines with grayscale-friendly colors
-    ax.plot(
-        x, results.regret_cold,
-        label="Cold Start",
-        color="#D62728",  # Red - visible in grayscale as darker
-        linestyle="--",
-        linewidth=LINE_WIDTH,
-    )
-    ax.plot(
-        x, results.regret_warm,
-        label="Warm Start (Ours)",
-        color="#1F77B4",  # Blue - visible in grayscale as lighter
-        linestyle="-",
-        linewidth=LINE_WIDTH + 0.5,
-    )
+    ax1.barh(range(len(top_models)), counts, color="#1F77B4")
+    ax1.set_yticks(range(len(top_models)))
+    ax1.set_yticklabels(short_names)
+    ax1.set_xlabel("Update Count")
+    ax1.set_title("Training Activity by Model")
+    ax1.invert_yaxis()
 
-    # Subtle fill to show improvement
-    ax.fill_between(
-        x,
-        results.regret_cold,
-        results.regret_warm,
-        alpha=0.12,
-        color="#1F77B4",
-    )
+    # Plot 2: Weight norms
+    norms = [analysis.model_weight_norms[m] for m in top_models]
+    ax2.barh(range(len(top_models)), norms, color="#2CA02C")
+    ax2.set_yticks(range(len(top_models)))
+    ax2.set_yticklabels(short_names)
+    ax2.set_xlabel("Weight Norm ||b||")
+    ax2.set_title("Learned Weight Magnitudes")
+    ax2.invert_yaxis()
 
-    # Labels (no title - KDD uses figure captions)
-    ax.set_xlabel("Number of Requests")
-    ax.set_ylabel("Cumulative Regret")
+    plt.tight_layout(pad=1.0)
 
-    # Clean axis formatting
-    ax.set_xlim(0, n_test)
-    ax.set_ylim(0, None)
-
-    # Add final regret annotation
-    final_gap = results.final_regret_cold - results.final_regret_warm
-    ax.annotate(
-        f"Δ = {final_gap:.0f}\n({results.regret_reduction_pct:.0f}% reduction)",
-        xy=(n_test * 0.95, (results.final_regret_cold + results.final_regret_warm) / 2),
-        fontsize=FONT_SIZE - 1,
-        ha="right",
-        va="center",
-    )
-
-    # Legend - outside or inside based on space
-    ax.legend(
-        loc="upper left",
-        frameon=True,
-        fancybox=False,
-        edgecolor="0.8",
-        framealpha=0.95,
-    )
-
-    # Minimal grid
-    ax.grid(True, linestyle="-", alpha=0.3, linewidth=0.5)
-    ax.set_axisbelow(True)
-
-    # Remove top and right spines for cleaner look
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-
-    plt.tight_layout(pad=0.5)
-
-    # Save as both PNG and PDF (PDF for paper submission)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=DPI, bbox_inches="tight", facecolor="white")
+    plt.savefig(output_path.with_suffix(".pdf"), bbox_inches="tight", facecolor="white")
 
-    # Also save PDF version for LaTeX
-    pdf_path = output_path.with_suffix(".pdf")
-    plt.savefig(pdf_path, bbox_inches="tight", facecolor="white")
-
-    print(f"[RQ1] Saved plot to {output_path} and {pdf_path}")
+    print(f"[RQ1] Saved plot to {output_path}")
     plt.close()
-
-    # Reset rcParams to defaults
     plt.rcParams.update(plt.rcParamsDefault)
 
 
-def save_results(results: ExperimentResults, output_path: Path) -> None:
-    """Save experiment results as JSON."""
+def save_results(analysis: PriorAnalysis, output_path: Path) -> None:
+    """Save analysis results as JSON."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Convert config Path objects to strings for JSON serialization
-    data = asdict(results)
+    data = asdict(analysis)
     if "config" in data:
         cfg = data["config"]
         for key in ["output_dir", "priors_path"]:
@@ -536,7 +236,7 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
 
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2)
-    print(f"[RQ1] Saved results to {output_path}")
+    print(f"[RQ1] Saved analysis to {output_path}")
 
 
 # ---------------------------------------------------------------------------
@@ -546,60 +246,24 @@ def save_results(results: ExperimentResults, output_path: Path) -> None:
 def parse_args() -> ExperimentConfig:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="RQ1: Cold Start vs Warm Start Bandit Experiment",
+        description="RQ1: Analyze Shippable Priors (The 'Shippable Brain')",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # REQUIRED: Priors from archetype grid
     parser.add_argument(
         "--priors", type=str,
         default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"),
-        help="Path to shippable_priors.npz from archetype grid (REQUIRED)",
+        help="Path to shippable_priors.npz from archetype grid",
     )
-
-    # Experiment size
-    parser.add_argument(
-        "--n-test", type=int, default=2000,
-        help="Number of test (deployment) samples",
-    )
-
-    # Environment
-    parser.add_argument(
-        "--n-clusters", type=int, default=5,
-        help="Number of latent task clusters for simulation",
-    )
-    parser.add_argument(
-        "--noise", type=float, default=0.1,
-        help="Reward noise standard deviation",
-    )
-
-    # Bandit parameters
-    parser.add_argument(
-        "--alpha", type=float, default=0.5,
-        help="UCB exploration parameter",
-    )
-
-    # Reproducibility
-    parser.add_argument(
-        "--seed", type=int, default=42,
-        help="Random seed for reproducibility",
-    )
-
-    # Output
     parser.add_argument(
         "--output-dir", type=str, default="results/rq1",
-        help="Output directory for results and plots",
+        help="Output directory for results",
     )
 
     args = parser.parse_args()
 
     return ExperimentConfig(
         priors_path=Path(args.priors),
-        n_test=args.n_test,
-        n_clusters=args.n_clusters,
-        alpha=args.alpha,
-        noise_level=args.noise,
-        seed=args.seed,
         output_dir=Path(args.output_dir),
     )
 
@@ -609,29 +273,23 @@ def main() -> int:
     config = parse_args()
 
     print("=" * 60)
-    print("RQ1: The 'Shippable Brain' Advantage")
+    print("RQ1: The 'Shippable Brain' - Prior Analysis")
     print("=" * 60)
-    print(f"Configuration:")
-    print(f"  Priors: {config.priors_path}")
-    print(f"  Test samples: {config.n_test}")
-    print(f"  Clusters: {config.n_clusters}")
-    print(f"  Alpha (UCB): {config.alpha}")
-    print(f"  Seed: {config.seed}")
-    print(f"  Output: {config.output_dir}")
-    print("=" * 60)
-    print("Using: SharedCovarianceLinUCBPolicy (from archetype grid)")
+    print(f"Priors: {config.priors_path}")
+    print(f"Output: {config.output_dir}")
     print("=" * 60)
 
-    # Run experiment
-    results = run_experiment(config)
+    # Analyze priors
+    analysis = analyze_priors(config)
 
     # Save outputs
-    save_results(results, config.output_dir / "metrics.json")
-    plot_results(results, config.output_dir / "regret_curve.png")
+    save_results(analysis, config.output_dir / "prior_analysis.json")
+    plot_prior_analysis(analysis, config.output_dir / "prior_weights.png")
 
     print("=" * 60)
-    print("Experiment complete!")
-    print(f"  Regret reduction: {results.regret_reduction_pct:.1f}%")
+    print("Analysis complete!")
+    print(f"  Models in priors: {analysis.n_models}")
+    print(f"  Embedding dim: {analysis.embedding_dim}")
     print(f"  Results saved to: {config.output_dir}")
     print("=" * 60)
 
