@@ -418,8 +418,8 @@ def plot_results(results: dict, output_path: Path) -> None:
     
     ax.set_xlabel("Interactions (Time)", fontsize=11)
     ax.set_ylabel("Reward / Estimated Quality (θ)", fontsize=11)
-    ax.set_title("RQ2: Overcoming 'Confidently Wrong' Priors\n"
-                 "(Poisoned Prior → Dip → Flip → Recovery)", fontsize=12, fontweight='bold')
+    ax.set_title("Figure 2: Simulation of Belief Recovery Under Poisoned Priors\n"
+                 "(Controlled experiment isolating the Plasticity-Stability Dilemma)", fontsize=11, fontweight='bold')
     
     ax.legend(loc='lower right', framealpha=0.9)
     ax.grid(True, alpha=0.3)
