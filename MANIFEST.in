@@ -1,0 +1,21 @@
+# Include license and readme
+include LICENSE
+include README.md
+
+# Include data files needed for the package
+recursive-include data/priors *.npz *.npy *.jsonl *.md
+include data/models_cache.json
+recursive-include data/complexity_classifier_final *.json *.txt
+
+# Exclude large model files (should be downloaded separately)
+exclude data/complexity_classifier_final/model.safetensors
+
+# Include type hints marker
+include banditgpt/py.typed
+
+# Exclude test and development files
+prune tests
+prune kdd_paper
+prune frontend
+prune docs
+prune .github
