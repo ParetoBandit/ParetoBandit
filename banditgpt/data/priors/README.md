@@ -1,18 +1,18 @@
 # BanditGPT Priors
 
-This folder contains **warm-start priors** for the async bandit router, enabling 63% regret reduction on Day 1.
+This folder contains **warm-start priors** for the contextual bandit router, enabling **63% regret reduction** on Day 1.
 
-## Quick Start: Generate Expert Priors
+## Quick Start
 
 ```bash
 # Generate expert-distilled priors (recommended)
-python -m banditgpt.experiment.generate_expert_priors generate --seed 42
+python experiments/generate_expert_priors.py generate --seed 42
 
 # Verify existing priors
-python -m banditgpt.experiment.generate_expert_priors verify
+python experiments/generate_expert_priors.py verify
 ```
 
-**Output:** `data/priors/expert_priors.npz` (~21 MB, 81 models, 384 dimensions)
+**Output:** `banditgpt/data/priors/expert_priors.npz` (~21 MB, 81 models, 384 dimensions)
 
 ## How Routing Works: Prompt → Model Selection
 
@@ -102,7 +102,53 @@ We treat that large file as a **build artifact** and compress it into `shippable
 
 ## How to Generate Priors
 
-### Option A (Recommended): Expert Distillation
+### Option A: Using PriorManager (Programmatic API)
+
+The library provides a high-level API for generating priors:
+
+```python
+from banditgpt.core import PriorManager, create_custom_judge
+import openai
+import os
+
+# Option 1: Custom judge (no local model needed)
+def gpt4o_judge(prompt: str, response: str):
+    client = openai.OpenAI(
+        api_key=os.environ["OPENROUTER_API_KEY"],
+        base_url="https://openrouter.ai/api/v1"
+    )
+    result = client.chat.completions.create(
+        model="openai/gpt-4o",
+        messages=[{"role": "user", "content": f"Rate 0.0-1.0:\n\n{prompt}\n\n{response}"}],
+        max_tokens=10,
+    )
+    return float(result.choices[0].message.content.strip()), {}
+
+judge = create_custom_judge(gpt4o_judge)
+
+# Option 2: Tiered judge (requires trained QualityCostPredictor)
+# from banditgpt.core import create_tiered_judge
+# judge = create_tiered_judge(use_teacher=True)
+
+# Generate priors
+manager = PriorManager.generate(
+    cluster_k=500,
+    dataset="lmsys/chatbot_arena_conversations",
+    max_prompts=50000,
+)
+
+priors = manager.build(
+    judge=judge,
+    models=["openai/gpt-4o", "anthropic/claude-3.5-sonnet", "amazon/nova-lite-v1"],
+    call_model=my_openrouter_call_fn,  # Your function: (model_id, prompt, max_tokens) -> response
+    workers=10,
+)
+
+# Save priors
+manager.save(priors)  # Saves to ~/.banditgpt/priors/user_priors.npz
+```
+
+### Option B (Recommended): Expert Distillation
 
 Expert Distillation trains priors where a "teacher oracle" picks the optimal model 80% of the time. This creates priors that encode **"the right answer"** rather than random noise.
 
@@ -118,7 +164,7 @@ Expert Distillation trains priors where a "teacher oracle" picks the optimal mod
 
 **Step 2:** Generate expert priors:
 ```bash
-python -m banditgpt.experiment.generate_expert_priors generate \
+python experiments/generate_expert_priors.py generate \
     --seed 42 \
     --epochs 5 \
     --expert-rate 0.8
@@ -126,7 +172,7 @@ python -m banditgpt.experiment.generate_expert_priors generate \
 
 **Step 3:** Verify the output:
 ```bash
-python -m banditgpt.experiment.generate_expert_priors verify
+python experiments/generate_expert_priors.py verify
 ```
 
 **Expected output:**

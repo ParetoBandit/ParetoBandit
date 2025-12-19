@@ -84,6 +84,12 @@ When reporting issues, please include:
 - Provide constructive feedback
 - Focus on the code, not the person
 
+## License
+
+By contributing to BanditGPT, you agree that your contributions will be licensed under the **Apache License 2.0**. This includes an explicit patent grant, ensuring enterprise users can safely use this library in commercial products.
+
+See [LICENSE](LICENSE) for the full license text.
+
 ## Questions?
 
 Feel free to open an issue for any questions about contributing.

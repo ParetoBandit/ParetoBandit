@@ -7,7 +7,7 @@ name = "banditgpt"
 version = "0.1.0"
 description = "A local-first, adaptive router for intelligent LLM model selection using contextual bandits"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 authors = [
     { name = "Annette Taberner-Miller", email = "annette@example.com" }
 ]
@@ -36,12 +36,24 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24.0",
+    "torch>=2.0.0",
     "sentence-transformers>=2.2.0",
     "transformers>=4.30.0",
-    "torch>=2.0.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
+# Full functionality (LLM-as-judge grading, API integration)
+full = [
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+]
+# Experiments (KDD paper reproduction)
+experiments = [
+    "matplotlib>=3.7.0",
+    "python-dotenv>=1.0.0",
+]
+# Development
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

@@ -1,0 +1,26 @@
+# BanditGPT Dependencies
+# ======================
+# Install with: pip install -r requirements.txt
+
+# Core Dependencies (required)
+# ----------------------------
+numpy>=1.24.0
+torch>=2.0.0
+sentence-transformers>=2.2.0
+transformers>=4.30.0
+pandas>=2.0.0
+
+# Optional: API Integration
+# -------------------------
+# Required for OpenRouterTeacherVerifier (LLM-as-judge grading)
+openai>=1.0.0
+
+# Optional: Environment Variables
+# -------------------------------
+# Required for loading API keys from .env files
+python-dotenv>=1.0.0
+
+# Optional: Experiments & Visualization
+# -------------------------------------
+# Required for running KDD paper experiments (plots)
+matplotlib>=3.7.0

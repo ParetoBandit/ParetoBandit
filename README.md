@@ -1,8 +1,14 @@
 # BanditGPT
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Tests](https://img.shields.io/badge/tests-127%20passed-brightgreen.svg)](#testing)
+
 **A Local-First, Adaptive Router for Intelligent LLM Model Selection**
 
-> *"Others build Maps (static benchmarks of the territory). We build a Compass (a tool that figures out where YOU are right now)."*
+> *"Others build Maps (static benchmarks). We build a Compass (learns where YOU are)."*
+
+📄 **Paper**: *Density-Based Warm-Start for Adaptive LLM Routing* (KDD 2025) — See [`kdd_paper/`](kdd_paper/README.md)
 
 ---
 
@@ -10,15 +16,23 @@
 
 Current LLM routers are either:
 
-- **(a) Static Classifiers** (e.g., RouteLLM) — which fail to adapt to user-specific data, or
-- **(b) Online Bandits** — which suffer from a prohibitive "Cold Start" phase (high cost/regret) before they become useful.
+- **(a) Static Classifiers** (e.g., RouteLLM) — fail to adapt to your specific data
+- **(b) Online Bandits** — suffer from prohibitive "Cold Start" (high cost/regret before becoming useful)
 
 ## Our Solution
 
-We propose a **Density-Based Warm-Start Framework** that compresses the latent performance of 80+ models into a lightweight **(<1MB)** covariance matrix. This enables:
+We propose a **Density-Based Warm-Start Framework** that compresses the latent performance of 80+ models into a lightweight **(<1MB)** covariance matrix:
 
+| Metric | Cold Start | Warm Start (Ours) |
+|--------|------------|-------------------|
+| Day-1 Regret | High | **63.6% lower** |
+| Adaptation | Slow | Immediate |
+| File Size | N/A | <1 MB |
+
+**Key Results:**
 - ✅ **Zero-Shot routing performance on Day 1**
 - ✅ **Plasticity to adapt to local distribution shifts**
+- ✅ **97% cost reduction** vs always using GPT-4o
 
 ---
 
@@ -200,14 +214,124 @@ cd banditgpt
 pip install -e .
 ```
 
+### Optional Dependencies
+
+```bash
+# Full functionality (LLM-as-judge grading via OpenRouter)
+pip install banditgpt[full]
+
+# Experiments (reproduce KDD paper figures)
+pip install banditgpt[experiments]
+
+# Development
+pip install banditgpt[dev]
+```
+
 ## Requirements
 
+**Core** (installed automatically):
 - Python 3.10+
+- numpy, torch, pandas
 - sentence-transformers
 - transformers
-- numpy
-- torch
+
+**Optional**:
+- `openai` — for LLM-as-judge grading (OpenRouterTeacherVerifier)
+- `python-dotenv` — for loading API keys from `.env` files
+- `matplotlib` — for experiment visualizations
+
+---
+
+## Testing
+
+```bash
+# Run all tests (127 tests, ~2 min)
+python -m pytest tests/ -v
+
+# Run integration tests only
+python -m pytest tests/test_integration.py -v
+```
+
+| Test Suite | Tests | Coverage |
+|------------|-------|----------|
+| Integration (end-to-end) | 30 | Router workflow, feedback, persistence |
+| Feedback Loop | 39 | Reward processing, bandit updates |
+| Prior Management | 26 | Load/save priors, dynamic models |
+| Optimization Profiles | 32 | Cost/quality trade-offs |
+
+See [`tests/README.md`](tests/README.md) for details.
+
+---
+
+## Project Structure
+
+```
+banditgpt/
+├── core/                    # Main router implementation
+│   ├── bandit_router.py     # BanditRouter, LinUCB policies
+│   ├── judge.py             # PriorManager, Judge abstraction
+│   └── tiered_grader.py     # Quality grading (soft + hard)
+├── data/
+│   └── priors/              # Bundled expert priors
+└── __init__.py
+
+experiments/                  # KDD paper experiments
+├── run_rq1.py               # Warm-start advantage
+├── run_rq2.py               # Specialist discovery
+└── run_rq3.py               # Cost-quality Pareto
+
+kdd_paper/                    # Camera-ready figures & tables
+├── figures/                 # PDF/PNG plots
+├── tables/                  # Markdown tables with LaTeX
+└── README.md                # Paper artifact guide
+
+tests/                        # 127 unit & integration tests
+```
+
+---
+
+## KDD Paper (2025)
+
+This repository accompanies our KDD 2025 paper: **"Density-Based Warm-Start for Adaptive LLM Routing"**.
+
+### Key Findings
+
+| Research Question | Key Result |
+|-------------------|------------|
+| **RQ1: Warm-Start** | 63.6% regret reduction vs cold-start |
+| **RQ2: Plasticity** | Router discovers specialists (Nova ‖θ‖=3.66 > GPT-4o ‖θ‖=1.66) |
+| **RQ3: Efficiency** | 97% cost reduction, +33.8% quality vs GPT-4o |
+
+### Reproduce Results
+
+```bash
+python experiments/run_rq1.py  # Figure 1: Regret curve
+python experiments/run_rq2.py  # Figure 3: Specialist landscape
+python experiments/run_rq3.py  # Figure 4: Pareto frontier
+```
+
+See [`kdd_paper/README.md`](kdd_paper/README.md) for complete artifact guide.
+
+---
+
+## Acknowledgments
+
+The bundled `expert_priors.npz` was generated using these open-source datasets:
+
+| Dataset | License | Usage |
+|---------|---------|-------|
+| [LMSYS Chatbot Arena](https://huggingface.co/datasets/lmsys/chatbot_arena_conversations) | CC-BY-4.0 | 497 archetype prompts (K-means clustering) |
+| [LMSYS Arena Preferences](https://huggingface.co/datasets/lmsys/lmsys-arena-human-preference-55k) | CC-BY-4.0 | Quality model training (preference labels) |
+| [NVIDIA HelpSteer2](https://huggingface.co/datasets/nvidia/HelpSteer2) | CC-BY-4.0 | Quality model training (multi-dim annotations) |
+
+Model responses (81 models × 497 prompts) were generated via [OpenRouter](https://openrouter.ai/).
+
+See [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md) for full citations and data pipeline details.
+
+---
 
 ## License
 
-MIT
+Apache License 2.0 — See [LICENSE](LICENSE) for details.
+
+**Why Apache 2.0?** This is the industry standard for ML infrastructure (TensorFlow, PyTorch, Hugging Face). It includes an explicit **patent grant**, giving enterprise users safety to embed this router in commercial products.

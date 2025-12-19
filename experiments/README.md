@@ -18,7 +18,11 @@ This folder contains reproducible experiments for the KDD paper on **Density-Bas
 ### Run the Experiment
 
 ```bash
-python -m banditgpt.experiment.run_rq1
+# Option 1: Run as module (from repo root)
+python -m experiments.run_rq1
+
+# Option 2: Run script directly
+python experiments/run_rq1.py
 ```
 
 **Output:**
@@ -45,10 +49,10 @@ The warm-start advantage comes from **Expert Distillation** — training priors 
 
 ```bash
 # Generate with default settings (seed=42)
-python -m banditgpt.experiment.generate_expert_priors generate
+python experiments/generate_expert_priors.py generate
 
 # Custom settings
-python -m banditgpt.experiment.generate_expert_priors generate \
+python experiments/generate_expert_priors.py generate \
     --seed 42 \
     --epochs 5 \
     --expert-rate 0.8
@@ -57,7 +61,7 @@ python -m banditgpt.experiment.generate_expert_priors generate \
 ### Verify Existing Priors
 
 ```bash
-python -m banditgpt.experiment.generate_expert_priors verify
+python experiments/generate_expert_priors.py verify
 ```
 
 **Output:**
@@ -174,7 +178,7 @@ The priors encode relative model performance across 497 diverse prompts. Since:
 
 ```bash
 # This will generate identical priors to the shipped version
-python -m banditgpt.experiment.generate_expert_priors generate --seed 42
+python experiments/generate_expert_priors.py generate --seed 42
 ```
 
 **Expected output:**
@@ -185,7 +189,7 @@ python -m banditgpt.experiment.generate_expert_priors generate --seed 42
 ### Reproduce RQ1 Results
 
 ```bash
-python -m banditgpt.experiment.run_rq1
+python experiments/run_rq1.py
 ```
 
 **Expected output:**
@@ -216,7 +220,7 @@ python -m banditgpt.experiment.run_rq1
 ### Run the Experiment
 
 ```bash
-python -m banditgpt.experiment.run_rq3
+python experiments/run_rq3.py
 ```
 
 **Output:**
@@ -291,30 +295,38 @@ The log scale handles the massive price difference between `gpt-4o` ($5/1M) and 
 ## File Structure
 
 ```
-banditgpt/experiment/
+experiments/                      # This folder
 ├── README.md                    # This file
 ├── run_rq1.py                   # RQ1: Warm-Start Advantage
 ├── run_rq2.py                   # RQ2: Specialist Discovery
 ├── run_rq2_poisoned.py          # RQ2: Dip & Recover simulation
 ├── run_rq3.py                   # RQ3: Cost-Quality Pareto
-└── generate_expert_priors.py    # Expert priors generation
+├── generate_expert_priors.py    # Expert priors generation
+└── benchmark_latency.py         # Router latency benchmarking
 
-data/priors/
+banditgpt/data/priors/
 ├── expert_priors.npz           # Expert-distilled priors (21 MB)
 ├── shippable_priors.npz        # Legacy uniform priors (fallback)
 ├── archetype_grid_prompts.jsonl
 └── archetype_grid_dense_run.jsonl
 
-results/
+results/                         # Generated outputs
 ├── rq1/
 │   ├── regret_curve.png        # RQ1: Regret comparison
+│   ├── regret_curve.pdf        # Vector format for papers
 │   └── metrics.json
 ├── rq2/
 │   ├── model_coverage.png      # RQ2: Specialist landscape
 │   └── poisoned_adaptation.png # RQ2: Dip & Recover
 └── rq3/
     ├── pareto_frontier.png     # RQ3: Cost-Quality frontier
+    ├── pareto_frontier.pdf     # Vector format for papers
     └── cost_quality_analysis.json
+
+kdd_paper/                       # Camera-ready artifacts
+├── figures/                    # Final PDF/PNG plots
+├── tables/                     # Markdown + LaTeX tables
+└── README.md                   # Complete artifact guide
 ```
 
 ---

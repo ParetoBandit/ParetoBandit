@@ -1,6 +1,22 @@
 # KDD 2025: Density-Based Warm-Start for Adaptive LLM Routing
 
-This folder contains all camera-ready figures, tables, and scripts for the KDD paper.
+> **Artifact Evaluation Ready** — All figures, tables, and code to reproduce results.
+
+This folder contains camera-ready figures, tables, and scripts for the KDD paper.
+
+---
+
+## Quick Reproduction
+
+```bash
+# From repository root — generate all figures and tables
+python experiments/run_rq1.py           # ~30s → Figure 1
+python experiments/run_rq2.py           # ~2m  → Figure 3
+python experiments/run_rq3.py           # ~1m  → Figure 4, Tables 1-2
+python experiments/benchmark_latency.py # ~10s → Table 3
+```
+
+**Requirements**: Python 3.10+, sentence-transformers, numpy, matplotlib
 
 ---
 
@@ -68,11 +84,11 @@ This folder contains all camera-ready figures, tables, and scripts for the KDD p
 
 ```bash
 # From repository root
-python -m banditgpt.experiment.run_rq1
-python -m banditgpt.experiment.run_rq2
-python -m banditgpt.experiment.run_rq2_poisoned
-python -m banditgpt.experiment.run_rq3
-python -m banditgpt.experiment.benchmark_latency
+python experiments/run_rq1.py
+python experiments/run_rq2.py
+python experiments/run_rq2_poisoned.py
+python experiments/run_rq3.py
+python experiments/benchmark_latency.py
 ```
 
 ---
