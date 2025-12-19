@@ -445,6 +445,67 @@ def save_results(analysis: CostQualityAnalysis, output_path: Path) -> None:
     print(f"[RQ3] Saved analysis to {output_path}")
 
 
+def generate_roi_table(analysis: CostQualityAnalysis, output_path: Path) -> None:
+    """
+    Generate ROI Leaderboard table for the paper.
+    
+    Shows ROI Factor = (||θ|| / cost) relative to GPT-4o baseline.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Get GPT-4o as baseline
+    gpt4o_theta = analysis.model_theta_norms.get("openai/gpt-4o", 1.0)
+    gpt4o_cost = analysis.model_costs.get("openai/gpt-4o", 1.0)
+    gpt4o_roi = gpt4o_theta / gpt4o_cost if gpt4o_cost > 0 else 1.0
+    
+    # Collect ROI data for all models with cost data
+    roi_data = []
+    for m in analysis.model_names:
+        theta = analysis.model_theta_norms.get(m, 0)
+        cost = analysis.model_costs.get(m, 0)
+        if cost > 0 and theta > 0:
+            roi = theta / cost
+            roi_factor = roi / gpt4o_roi
+            roi_data.append({
+                "model": m,
+                "short_name": m.split("/")[-1],
+                "cost": cost,
+                "theta": theta,
+                "roi_factor": roi_factor,
+            })
+    
+    # Sort by ROI factor descending
+    roi_data.sort(key=lambda x: x["roi_factor"], reverse=True)
+    
+    # Generate markdown table
+    lines = [
+        "# RQ3: ROI Leaderboard",
+        "",
+        "**ROI Factor** = (||θ|| / Cost) relative to GPT-4o baseline",
+        "",
+        "| Rank | Model | Cost/1M | ||θ|| | ROI Factor |",
+        "|------|-------|---------|-------|------------|",
+    ]
+    
+    for i, d in enumerate(roi_data[:15], 1):  # Top 15
+        marker = "★" if d["roi_factor"] > 10 else ""
+        lines.append(f"| {i} | {d['short_name'][:25]} | ${d['cost']:.3f} | {d['theta']:.2f} | {d['roi_factor']:.1f}x {marker}|")
+    
+    # Add GPT-4o reference row
+    lines.append(f"| Ref | gpt-4o (Baseline) | ${gpt4o_cost:.3f} | {gpt4o_theta:.2f} | 1.0x |")
+    
+    # Write markdown
+    md_path = output_path.with_suffix(".md")
+    md_path.write_text("\n".join(lines))
+    print(f"[RQ3] Saved ROI table to {md_path}")
+    
+    # Also save as JSON for programmatic use
+    json_path = output_path.with_name("roi_leaderboard.json")
+    with open(json_path, "w") as f:
+        json.dump(roi_data[:20], f, indent=2)
+    print(f"[RQ3] Saved ROI data to {json_path}")
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -498,6 +559,7 @@ def main() -> int:
     # Save outputs
     save_results(analysis, config.output_dir / "cost_quality_analysis.json")
     plot_pareto_frontier(analysis, config.output_dir / "pareto_frontier.png")
+    generate_roi_table(analysis, config.output_dir / "roi_table")
 
     print("=" * 60)
     print("RQ3 Analysis Complete!")

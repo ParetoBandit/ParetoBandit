@@ -204,13 +204,31 @@ python -m llm_jury.experiment.run_rq3
 
 ### Results
 
+#### Table 1: ROI Leaderboard
+
+**ROI Factor** = (||θ|| / Cost) relative to GPT-4o baseline. Shows "Expertise per Dollar."
+
+| Rank | Model | Cost/1M | ||θ|| | ROI Factor |
+|------|-------|---------|-------|------------|
+| 1 | amazon/nova-micro-v1 | $0.061 | 2.16 | **93.3x** ★ |
+| 2 | amazon/nova-lite-v1 | $0.105 | 3.66 | **91.6x** ★ |
+| 3 | meta-llama/llama-3.2-1b | $0.053 | 1.48 | 73.6x ★ |
+| 4 | meta-llama/llama-3.2-3b | $0.060 | 1.64 | 71.8x ★ |
+| 5 | deepseek-r1-qwen3-8b | $0.068 | 1.30 | 50.5x ★ |
+| ... | ... | ... | ... | ... |
+| Ref | **openai/gpt-4o** | $4.38 | 1.66 | 1.0x |
+
+**Key Insight**: Nova-Micro delivers **93x better ROI** than GPT-4o — same specialist confidence at 1/70th the cost.
+
+#### Pareto Frontier
+
 | Model | ||θ|| (Confidence) | Cost/1M | Pareto Optimal? |
 |-------|-------------------|---------|-----------------|
 | amazon/nova-lite-v1 | 3.66 | $0.105 | ✅ |
 | amazon/nova-micro-v1 | 2.16 | $0.061 | ✅ |
 | meta-llama/llama-3.2-3b | 1.64 | $0.060 | ✅ |
 | meta-llama/llama-3.2-1b | 1.48 | $0.053 | ✅ |
-| openai/gpt-4o | 1.35 | $5.00 | ❌ (dominated) |
+| openai/gpt-4o | 1.66 | $4.38 | ❌ (dominated) |
 
 ### Design Decisions
 
