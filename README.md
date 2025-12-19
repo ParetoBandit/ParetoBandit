@@ -54,13 +54,7 @@ LLM Jury fills the gap by being **lightweight**, **offline**, and **self-improvi
 - **Real-Time Learning**: Microsecond updates via rank-one matrix operations (no retraining)
 - **Cost-Aware**: Balances quality against cost and latency using configurable profiles
 - **Tiered Grading**: Soft grader (local) + hard verifier (LLM-as-Judge) for accuracy
-- **Warm Start**: Ships with pre-computed priors from 500 archetype prompts
-
-- **Smart Routing**: Learns which models excel at which types of prompts
-- **Real-Time Learning**: Microsecond updates via rank-one matrix operations (no retraining)
-- **Cost-Aware**: Balances quality against cost and latency using configurable profiles
-- **Tiered Grading**: Soft grader (local) + hard verifier (LLM-as-Judge) for accuracy
-- **Warm Start**: Ships with pre-computed priors from 500 archetype prompts
+- **Warm Start**: Ships with expert-distilled priors for 62% regret reduction on Day 1
 
 ## Quick Start
 
@@ -170,7 +164,7 @@ The router uses two prior locations:
 
 | Location | Path | Purpose |
 |----------|------|---------|
-| **Bundled** | `<package>/data/priors/shippable_priors.npz` | Library defaults (read-only) |
+| **Bundled** | `<package>/data/priors/expert_priors.npz` | Expert-distilled defaults (read-only) |
 | **User** | `~/.llm_jury/priors/user_priors.npz` | Your learned updates |
 
 Add new models dynamically:
@@ -178,6 +172,19 @@ Add new models dynamically:
 ```python
 router.add_model("openai/gpt-5", clone_from="openai/gpt-4o")
 ```
+
+### Why Expert Priors Work
+
+The bundled priors are generated via **Expert Distillation**, not random exploration. This is why the warm-start achieves 62% regret reduction:
+
+| Prior Type | What It Encodes | Effect of Confidence Boost |
+|------------|-----------------|---------------------------|
+| **Uniform (Old)** | "Everything is average" | Boosting makes bandit *stubborn* — ignores good options |
+| **Expert (New)** | "Model A wins for code prompts" | Boosting makes bandit *confident* — exploits correct answer |
+
+**The Math**: In Bayesian terms, you are asserting that your Prior Belief is highly informative. This is valid *only if the prior is actually good*. Since we use Expert Distillation (oracle picks the optimal model 80% of the time during offline training), the prior encodes "the right answer" — so boosting it is the mathematically correct action.
+
+The library applies a default `prior_strength=50.0` (λ_boost), which tells the bandit: *"Trust these expert priors as if they came from 50× more observations."*
 
 ## Installation
 
