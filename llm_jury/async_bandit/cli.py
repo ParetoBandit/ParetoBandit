@@ -70,6 +70,7 @@ def cmd_recommend(args: argparse.Namespace) -> int:
             model_registry=registry,
             reward_mode=args.reward_mode,
             alpha=0.5,
+            prior_strength=50.0,  # Expert distillation confidence boost
         )
         if model_priors:
             router.model_priors = {str(k): float(v) for k, v in model_priors.items()}

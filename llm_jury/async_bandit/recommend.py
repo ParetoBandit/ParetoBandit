@@ -91,6 +91,7 @@ def main() -> int:
             model_registry=registry,
             reward_mode=str(args.reward_mode),
             alpha=0.5,
+            prior_strength=50.0,  # Expert distillation confidence boost
         )
         if model_priors is not None:
             router.model_priors = {str(k): float(v) for k, v in dict(model_priors).items()}

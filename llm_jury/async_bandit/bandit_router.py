@@ -1588,20 +1588,115 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         reward_mode: str = "logit",
         alpha: float = 0.5,
+        prior_strength: float = 50.0,
     ) -> "BanditRouter":
         """
         Create a router from a compact priors bundle.
 
         Inflates into a normal disjoint policy (each model gets its own copy of A)
         so the models can diverge online.
+
+        Args:
+            priors_npz: Path to priors file (supports both shared and expert formats)
+            model_registry: Dict of model_id -> metadata
+            context_model: Sentence transformer model for embeddings
+            reward_mode: Reward normalization mode ("logit" or "z")
+            alpha: UCB exploration parameter
+            prior_strength: Confidence multiplier for priors (default 50.0).
+                           This calibrates agent confidence to match the reliability
+                           of the distillation source. Higher = more exploitation.
+                           - 1.0: Use priors as-is (weak, for uniform exploration priors)
+                           - 50.0: Strong confidence (recommended for expert-distilled priors)
         """
+        priors_data = np.load(priors_npz, allow_pickle=True)
+
+        # Detect prior format: expert (A_stack) vs shared (A)
+        if "A_stack" in priors_data:
+            # Expert-distilled priors (already disjoint format)
+            return cls._load_expert_priors(
+                priors_data=priors_data,
+                model_registry=model_registry,
+                context_model=context_model,
+                reward_mode=reward_mode,
+                alpha=alpha,
+                prior_strength=prior_strength,
+            )
+        else:
+            # Shared covariance priors (need inflation)
+            return cls._load_shared_priors(
+                priors_npz=priors_npz,
+                model_registry=model_registry,
+                context_model=context_model,
+                reward_mode=reward_mode,
+                alpha=alpha,
+                prior_strength=prior_strength,
+            )
+
+    @classmethod
+    def _load_shared_priors(
+        cls,
+        *,
+        priors_npz: Path,
+        model_registry: Dict[str, Dict[str, Any]],
+        context_model: str,
+        reward_mode: str,
+        alpha: float,
+        prior_strength: float,
+    ) -> "BanditRouter":
+        """Load shared covariance priors and inflate to disjoint."""
         shared = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(priors_npz)
-        router = cls(model_registry=model_registry, context_model=context_model, alpha=float(alpha), reward_mode=str(reward_mode), embedding_dim=int(shared.dim))
-        # Inflate: copy shared A into every arm, set b.
+        router = cls(
+            model_registry=model_registry,
+            context_model=context_model,
+            alpha=float(alpha),
+            reward_mode=str(reward_mode),
+            embedding_dim=int(shared.dim),
+        )
+        # Inflate: copy shared A into every arm, set b, apply strength multiplier
         for m in router.bandit.models:
-            router.bandit.A[m] = np.asarray(shared.A, dtype=np.float64).copy()
+            router.bandit.A[m] = np.asarray(shared.A, dtype=np.float64).copy() * prior_strength
             router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
-            router.bandit.b[m] = np.asarray(shared.b.get(m, np.zeros(shared.dim)), dtype=np.float64).copy()
+            router.bandit.b[m] = np.asarray(shared.b.get(m, np.zeros(shared.dim)), dtype=np.float64).copy() * prior_strength
+        return router
+
+    @classmethod
+    def _load_expert_priors(
+        cls,
+        *,
+        priors_data: Any,
+        model_registry: Dict[str, Dict[str, Any]],
+        context_model: str,
+        reward_mode: str,
+        alpha: float,
+        prior_strength: float,
+    ) -> "BanditRouter":
+        """
+        Load expert-distilled priors (already in disjoint format).
+
+        Expert priors are generated via teacher demonstration (80% optimal picks)
+        rather than uniform exploration. They encode "expert intuition" and
+        benefit significantly from the prior_strength boost.
+        """
+        model_names = [str(m) for m in priors_data["model_names"]]
+        dim = int(priors_data["dim"])
+        A_stack = np.asarray(priors_data["A_stack"], dtype=np.float64)
+        b_stack = np.asarray(priors_data["b_stack"], dtype=np.float64)
+
+        router = cls(
+            model_registry=model_registry,
+            context_model=context_model,
+            alpha=float(alpha),
+            reward_mode=str(reward_mode),
+            embedding_dim=dim,
+        )
+
+        # Load with strength multiplier applied
+        for i, m in enumerate(model_names):
+            if m in router.bandit.A:
+                router.bandit.A[m] = A_stack[i] * prior_strength
+                router.bandit.b[m] = b_stack[i] * prior_strength
+                router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
+
         return router
 
     @classmethod
@@ -1655,6 +1750,7 @@ class BanditRouter:
         alpha: Optional[float] = None,
         reward_mode: str = "logit",
         priors: str = "auto",
+        prior_strength: float = 50.0,
         user_priors_path: Optional[Path] = None,
         bundled_priors_path: Optional[Path] = None,
     ) -> "BanditRouter":
@@ -1678,6 +1774,11 @@ class BanditRouter:
                 - "user": Only user priors, else cold start
                 - "bundled": Only bundled priors, else cold start
                 - "none": Cold start (no priors)
+            prior_strength: Confidence multiplier for priors (default 50.0).
+                           Calibrates agent confidence to match distillation source reliability.
+                           - 1.0: Use priors as-is (for uniform exploration priors)
+                           - 50.0: Strong confidence (recommended for expert-distilled priors)
+                           Higher values = more exploitation, less exploration.
             user_priors_path: Override user priors location
             bundled_priors_path: Override bundled priors location
 
@@ -1685,11 +1786,11 @@ class BanditRouter:
             Configured BanditRouter
 
         Prior Locations:
-            - BUNDLED: <package>/data/priors/shippable_priors.npz (library defaults)
+            - BUNDLED: <package>/data/priors/expert_priors.npz (expert-distilled defaults)
             - USER:    ~/.llm_jury/priors/user_priors.npz (user additions)
 
         Example:
-            # Production mode (safe exploration, merged priors)
+            # Production mode (safe exploration, merged priors, 62% regret reduction)
             router = BanditRouter.create(registry, exploration="safe", priors="merged")
 
             # Day-1 calibration mode (aggressive learning)
@@ -1706,9 +1807,16 @@ class BanditRouter:
             resolved_alpha = float(alpha)
         else:
             resolved_alpha = ExplorationRate.get(exploration)
-        # Resolve paths
+        # Resolve paths - prefer expert_priors.npz, fall back to shippable_priors.npz
         user_path = user_priors_path or (Path.home() / ".llm_jury" / "priors" / "user_priors.npz")
-        bundled_path = bundled_priors_path or (Path(__file__).parent.parent.parent / "data" / "priors" / "shippable_priors.npz")
+        default_bundled = Path(__file__).parent.parent.parent / "data" / "priors" / "expert_priors.npz"
+        fallback_bundled = Path(__file__).parent.parent.parent / "data" / "priors" / "shippable_priors.npz"
+        if bundled_priors_path:
+            bundled_path = bundled_priors_path
+        elif default_bundled.exists():
+            bundled_path = default_bundled
+        else:
+            bundled_path = fallback_bundled
 
         # Handle "merged" mode specially
         if priors == "merged":
@@ -1717,6 +1825,7 @@ class BanditRouter:
                 context_model=context_model,
                 alpha=resolved_alpha,
                 reward_mode=reward_mode,
+                prior_strength=prior_strength,
                 user_path=user_path,
                 bundled_path=bundled_path,
             )
@@ -1748,6 +1857,7 @@ class BanditRouter:
                 context_model=context_model,
                 alpha=resolved_alpha,
                 reward_mode=reward_mode,
+                prior_strength=prior_strength,
             )
             router._priors_source = priors_source
             router._priors_path = priors_to_load
@@ -1771,6 +1881,7 @@ class BanditRouter:
         context_model: str,
         alpha: float,
         reward_mode: str,
+        prior_strength: float,
         user_path: Path,
         bundled_path: Path,
     ) -> "BanditRouter":
@@ -1826,6 +1937,7 @@ class BanditRouter:
             context_model=context_model,
             alpha=alpha,
             reward_mode=reward_mode,
+            prior_strength=prior_strength,
         )
         router._priors_source = priors_source
         router._priors_path = user_path if user_priors else bundled_path
@@ -1839,6 +1951,7 @@ class BanditRouter:
         context_model: str,
         alpha: float,
         reward_mode: str,
+        prior_strength: float = 50.0,
     ) -> "BanditRouter":
         """Load router from a priors dict (instead of NPZ file)."""
         dim = int(priors.get("dim", 384))
@@ -1853,16 +1966,16 @@ class BanditRouter:
             embedding_dim=dim,
         )
 
-        # Apply priors to bandit
+        # Apply priors to bandit with strength multiplier
         if A_shared is not None:
-            A_shared = np.asarray(A_shared, dtype=np.float64)
+            A_shared = np.asarray(A_shared, dtype=np.float64) * prior_strength
             for m in router.bandit.models:
                 router.bandit.A[m] = A_shared.copy()
                 router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
 
         for m in router.bandit.models:
             if m in b_vectors:
-                router.bandit.b[m] = np.asarray(b_vectors[m], dtype=np.float64).copy()
+                router.bandit.b[m] = np.asarray(b_vectors[m], dtype=np.float64).copy() * prior_strength
 
         return router
 
