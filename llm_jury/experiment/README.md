@@ -114,6 +114,28 @@ The archetype grid uses a **TieredGrader** to avoid over-reliance on any single 
 - Many OpenAI models rank **poorly**: `o4-mini` (0.5356), `gpt-oss-20b` (0.5307)
 - Provider diversity in top rankings suggests minimal self-preference bias
 
+### Why GPT-4o as the Baseline (Teacher-Student Consistency)
+
+**The Scientific Logic**: Our methodology (RQ1 & RQ2) relies on **Expert Distillation**. We used GPT-4o as the "Oracle Teacher" to generate the synthetic priors (`expert_priors.npz`). When using Knowledge Distillation, the upper bound of performance is defined by the Teacher.
+
+**The Metric**: We aren't trying to beat future models; we are trying to **recover the Teacher's performance at a fraction of the cost**. The router (Student) must be compared against its specific teacher (GPT-4o).
+
+**Empirical Justification**: In our experimental data, GPT-4o achieves the highest reward (0.602), making it the empirical SOTA:
+
+| Rank | Model | Reward |
+|------|-------|--------|
+| 1 | **openai/gpt-4o** | **0.602** |
+| 2 | x-ai/grok-3 | 0.598 |
+| 6 | meta-llama/llama-4-maverick | 0.593 |
+
+Comparing against Rank 2 or 6 would be "weakening the baseline," which reviewers dislike. GPT-4o is the hardest opponent.
+
+**Reference Model Stability**: GPT-4o is a known quantity with stable latency/cost profiles. Newer frontier models (o1, Gemini-2.5) often have variable latency, reasoning tokens, or beta quirks that make them messy baselines for routing papers.
+
+#### Baseline Text (for Paper)
+
+> **Baseline (The Teacher)**: We employ GPT-4o as the primary static baseline. In our evaluation corpus, it achieves the highest average reward (0.602), effectively serving as the empirical "ceiling" for performance. Furthermore, since our Shippable Priors are distilled from a GPT-4o oracle, this baseline allows us to directly measure the **Distillation Efficiency**—i.e., how much of the teacher's quality is retained by the router while reducing cost by 97%.
+
 ### Why This Matters for Reproducibility
 
 The priors encode relative model performance across 497 diverse prompts. Since:
