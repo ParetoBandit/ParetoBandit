@@ -347,7 +347,7 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
 
 def plot_results(results: ExperimentResults, output_path: Path) -> None:
     """
-    Generate publication-quality regret curve plot.
+    Generate KDD publication-quality regret curve plot.
 
     Args:
         results: Experiment results
@@ -357,91 +357,113 @@ def plot_results(results: ExperimentResults, output_path: Path) -> None:
         print("[RQ1] Warning: matplotlib not available, skipping plot")
         return
 
-    # Use a clean style
-    plt.style.use("seaborn-v0_8-whitegrid")
+    # ---------------------------------------------------------------------------
+    # KDD Paper Figure Settings
+    # ---------------------------------------------------------------------------
+    # KDD uses two-column format. Single column width ~3.33", double ~7"
+    # We use single-column width for clarity
+    COLUMN_WIDTH = 3.5  # inches
+    FONT_SIZE = 9
+    LEGEND_SIZE = 8
+    LINE_WIDTH = 1.5
+    DPI = 300  # Publication quality
 
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
+    # Set matplotlib parameters for publication
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.size": FONT_SIZE,
+        "axes.labelsize": FONT_SIZE,
+        "axes.titlesize": FONT_SIZE,
+        "xtick.labelsize": FONT_SIZE - 1,
+        "ytick.labelsize": FONT_SIZE - 1,
+        "legend.fontsize": LEGEND_SIZE,
+        "figure.dpi": DPI,
+        "savefig.dpi": DPI,
+        "axes.linewidth": 0.8,
+        "grid.linewidth": 0.5,
+        "lines.linewidth": LINE_WIDTH,
+    })
+
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH, COLUMN_WIDTH * 0.7))
 
     n_test = len(results.regret_cold)
     x = np.arange(1, n_test + 1)
 
-    # Plot lines
+    # Plot lines with grayscale-friendly colors
     ax.plot(
         x, results.regret_cold,
-        label="Cold Start (Standard Bandit)",
-        color="#D62728",
+        label="Cold Start",
+        color="#D62728",  # Red - visible in grayscale as darker
         linestyle="--",
-        linewidth=2,
-        alpha=0.9,
+        linewidth=LINE_WIDTH,
     )
     ax.plot(
         x, results.regret_warm,
-        label="Warm Start (Shippable Brain)",
-        color="#1F77B4",
-        linewidth=2.5,
+        label="Warm Start (Ours)",
+        color="#1F77B4",  # Blue - visible in grayscale as lighter
+        linestyle="-",
+        linewidth=LINE_WIDTH + 0.5,
     )
 
-    # Fill the gap to emphasize improvement
+    # Subtle fill to show improvement
     ax.fill_between(
         x,
         results.regret_cold,
         results.regret_warm,
-        alpha=0.15,
+        alpha=0.12,
         color="#1F77B4",
-        label=f"Regret Saved ({results.regret_reduction_pct:.0f}% reduction)",
     )
 
-    # Labels and title
-    ax.set_xlabel("Number of User Requests", fontsize=12)
-    ax.set_ylabel("Cumulative Regret (Lower is Better)", fontsize=12)
-    ax.set_title(
-        'RQ1: The "Shippable Brain" Advantage\n'
-        "Pre-trained Priors Eliminate Cold Start Regret",
-        fontsize=14,
-        fontweight="bold",
-        pad=15,
+    # Labels (no title - KDD uses figure captions)
+    ax.set_xlabel("Number of Requests")
+    ax.set_ylabel("Cumulative Regret")
+
+    # Clean axis formatting
+    ax.set_xlim(0, n_test)
+    ax.set_ylim(0, None)
+
+    # Add final regret annotation
+    final_gap = results.final_regret_cold - results.final_regret_warm
+    ax.annotate(
+        f"Δ = {final_gap:.0f}\n({results.regret_reduction_pct:.0f}% reduction)",
+        xy=(n_test * 0.95, (results.final_regret_cold + results.final_regret_warm) / 2),
+        fontsize=FONT_SIZE - 1,
+        ha="right",
+        va="center",
     )
 
-    # Annotations
-    # Cold start annotation (early steep slope)
-    if n_test > 200:
-        idx = 200
-        ax.annotate(
-            'High "Learning Tax"\n(Steep Initial Slope)',
-            xy=(idx, results.regret_cold[idx]),
-            xytext=(idx + 300, results.regret_cold[idx] + 20),
-            fontsize=9,
-            color="#D62728",
-            arrowprops=dict(arrowstyle="->", color="#D62728", lw=1.5),
-        )
+    # Legend - outside or inside based on space
+    ax.legend(
+        loc="upper left",
+        frameon=True,
+        fancybox=False,
+        edgecolor="0.8",
+        framealpha=0.95,
+    )
 
-    # Warm start annotation (flat early behavior)
-    if n_test > 100:
-        idx = 100
-        ax.annotate(
-            "Zero-Shot Performance\n(Near-Flat Slope)",
-            xy=(idx, results.regret_warm[idx]),
-            xytext=(idx + 200, results.regret_warm[idx] - 30),
-            fontsize=9,
-            color="#1F77B4",
-            fontweight="bold",
-            arrowprops=dict(arrowstyle="->", color="#1F77B4", lw=1.5),
-        )
+    # Minimal grid
+    ax.grid(True, linestyle="-", alpha=0.3, linewidth=0.5)
+    ax.set_axisbelow(True)
 
-    # Legend
-    ax.legend(fontsize=10, loc="upper left", frameon=True, shadow=True)
+    # Remove top and right spines for cleaner look
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
-    # Grid
-    ax.grid(True, linestyle=":", alpha=0.6)
+    plt.tight_layout(pad=0.5)
 
-    # Tight layout
-    plt.tight_layout()
-
-    # Save
+    # Save as both PNG and PDF (PDF for paper submission)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"[RQ1] Saved plot to {output_path}")
+    plt.savefig(output_path, dpi=DPI, bbox_inches="tight", facecolor="white")
+
+    # Also save PDF version for LaTeX
+    pdf_path = output_path.with_suffix(".pdf")
+    plt.savefig(pdf_path, bbox_inches="tight", facecolor="white")
+
+    print(f"[RQ1] Saved plot to {output_path} and {pdf_path}")
     plt.close()
+
+    # Reset rcParams to defaults
+    plt.rcParams.update(plt.rcParamsDefault)
 
 
 def save_results(results: ExperimentResults, output_path: Path) -> None:

@@ -416,7 +416,7 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResults:
 
 def plot_results(results: ExperimentResults, output_path: Path) -> None:
     """
-    Generate publication-quality adaptation curve plot.
+    Generate KDD publication-quality adaptation curve plot.
 
     Args:
         results: Experiment results
@@ -426,77 +426,124 @@ def plot_results(results: ExperimentResults, output_path: Path) -> None:
         print("[RQ2] Warning: matplotlib not available, skipping plot")
         return
 
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
+    # ---------------------------------------------------------------------------
+    # KDD Paper Figure Settings
+    # ---------------------------------------------------------------------------
+    COLUMN_WIDTH = 3.5  # inches (single column)
+    FONT_SIZE = 9
+    LEGEND_SIZE = 7
+    LINE_WIDTH = 1.5
+    DPI = 300
+
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.size": FONT_SIZE,
+        "axes.labelsize": FONT_SIZE,
+        "axes.titlesize": FONT_SIZE,
+        "xtick.labelsize": FONT_SIZE - 1,
+        "ytick.labelsize": FONT_SIZE - 1,
+        "legend.fontsize": LEGEND_SIZE,
+        "figure.dpi": DPI,
+        "savefig.dpi": DPI,
+        "axes.linewidth": 0.8,
+        "grid.linewidth": 0.5,
+        "lines.linewidth": LINE_WIDTH,
+    })
+
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH, COLUMN_WIDTH * 0.7))
 
     # Smooth the reward curve
     rewards = results.phase2_rewards
-    window = 30
+    window = min(30, len(rewards) // 10)  # Adaptive window
+    if window < 5:
+        window = 5
     smoothed = np.convolve(rewards, np.ones(window) / window, mode="valid")
     x = np.arange(window - 1, len(rewards))
 
-    # Plot the learning curve
-    ax.plot(x, smoothed, color="#2CA02C", linewidth=2.5, label="Adaptive Router (LinUCB)")
-
-    # Reference lines using actual oracle values (not hardcoded)
-    ax.axhline(
-        y=results.baseline_reward, color="#D62728", linestyle=":", linewidth=2,
-        label=f"Static Router ({results.baseline_model})"
-    )
-    ax.axhline(
-        y=results.oracle_optimal_reward, color="#7F7F7F", linestyle="--", linewidth=1.5,
-        label=f"Oracle Optimal ({results.oracle_optimal_model})"
+    # Plot the learning curve (main result)
+    ax.plot(
+        x, smoothed,
+        color="#2CA02C",  # Green
+        linewidth=LINE_WIDTH + 0.5,
+        label="Adaptive (LinUCB)",
     )
 
-    # Mark discovery point
-    if results.discovery_step > 0:
+    # Reference lines
+    ax.axhline(
+        y=results.baseline_reward,
+        color="#D62728",  # Red
+        linestyle="--",
+        linewidth=LINE_WIDTH,
+        label=f"Static Baseline",
+    )
+    ax.axhline(
+        y=results.oracle_optimal_reward,
+        color="#7F7F7F",  # Gray
+        linestyle=":",
+        linewidth=LINE_WIDTH,
+        label=f"Oracle Optimal",
+    )
+
+    # Mark discovery point with subtle vertical line
+    if results.discovery_step > 0 and results.discovery_step < len(rewards):
         ax.axvline(
-            x=results.discovery_step, color="#FF7F0E", linestyle="-.", alpha=0.7,
-            label=f"Discovery (step {results.discovery_step})"
+            x=results.discovery_step,
+            color="#FF7F0E",  # Orange
+            linestyle="-.",
+            linewidth=1.0,
+            alpha=0.7,
         )
-
-    # Dynamic annotation positions based on actual values
-    exploration_y = (results.baseline_reward + 0.1) / 2  # Between 0 and baseline
-    exploitation_y = (results.oracle_optimal_reward + results.baseline_reward) / 2 + 0.1
-
-    ax.annotate(
-        "Exploration\n(Discovering Specialist)",
-        xy=(50, exploration_y),
-        fontsize=10,
-        color="#FF7F0E",
-        fontweight="bold",
-    )
-
-    n_drift = len(results.phase2_rewards)
-    if n_drift > 300:
+        # Small annotation near the line
         ax.annotate(
-            "Exploitation\n(Found Optimal)",
-            xy=(n_drift * 0.7, exploitation_y),
-            fontsize=10,
-            color="#2CA02C",
-            fontweight="bold",
+            f"t={results.discovery_step}",
+            xy=(results.discovery_step, 0.15),
+            fontsize=FONT_SIZE - 2,
+            color="#FF7F0E",
+            ha="left",
         )
 
-    # Labels and title
-    ax.set_xlabel("Number of KQL Queries (Post-Drift)", fontsize=12)
-    ax.set_ylabel("Reward (Quality Score)", fontsize=12)
-    ax.set_title(
-        "RQ2: Local Adaptation to Distribution Shift\n"
-        f"Bandit Discovers {results.oracle_optimal_model} is Optimal for KQL",
-        fontsize=14,
-        fontweight="bold",
-        pad=15,
+    # Labels (no title - use figure caption in paper)
+    ax.set_xlabel("Queries After Distribution Shift")
+    ax.set_ylabel("Quality Score")
+
+    # Clean axis formatting
+    ax.set_xlim(0, len(rewards))
+    ax.set_ylim(0.0, 1.05)
+
+    # Format y-axis as percentages (optional, cleaner)
+    ax.set_yticks([0.0, 0.25, 0.50, 0.75, 1.0])
+
+    # Legend - compact, lower right
+    ax.legend(
+        loc="lower right",
+        frameon=True,
+        fancybox=False,
+        edgecolor="0.8",
+        framealpha=0.95,
+        ncol=1,
     )
 
-    ax.set_ylim(0.0, 1.05)
-    ax.legend(fontsize=10, loc="lower right", frameon=True, shadow=True)
-    ax.grid(True, linestyle=":", alpha=0.6)
+    # Minimal grid
+    ax.grid(True, linestyle="-", alpha=0.3, linewidth=0.5)
+    ax.set_axisbelow(True)
 
-    plt.tight_layout()
+    # Remove top and right spines
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout(pad=0.5)
+
+    # Save PNG and PDF
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"[RQ2] Saved plot to {output_path}")
+    plt.savefig(output_path, dpi=DPI, bbox_inches="tight", facecolor="white")
+
+    pdf_path = output_path.with_suffix(".pdf")
+    plt.savefig(pdf_path, bbox_inches="tight", facecolor="white")
+
+    print(f"[RQ2] Saved plot to {output_path} and {pdf_path}")
     plt.close()
+
+    plt.rcParams.update(plt.rcParamsDefault)
 
 
 def save_results(results: ExperimentResults, output_path: Path) -> None:
