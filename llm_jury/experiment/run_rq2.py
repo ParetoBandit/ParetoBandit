@@ -325,14 +325,15 @@ def plot_specialization(analysis: SpecializationAnalysis, output_path: Path) -> 
     ax1.set_title("Model Expertise", fontweight='bold')
     ax1.invert_yaxis()
     
-    # Add legend for colors
+    # Add legend for colors (bottom right with transparent background)
     from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor='#D62728', label='Specialist'),
         Patch(facecolor='#2CA02C', label='Generalist'),
         Patch(facecolor='#1F77B4', label='Other'),
     ]
-    ax1.legend(handles=legend_elements, loc='lower right', fontsize=7)
+    ax1.legend(handles=legend_elements, loc='upper right', fontsize=6, 
+               framealpha=0.7, edgecolor='none')
 
     # Panel 2: Model similarity heatmap
     # This shows which models have orthogonal vs similar learned weights
