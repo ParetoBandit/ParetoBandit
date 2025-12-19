@@ -11,9 +11,18 @@ This experiment analyzes REAL priors and model costs to understand:
     - How different cost weights affect model selection
     - The theoretical Pareto frontier based on learned weights
 
+Data Sources:
+    - expert_priors.npz: Real priors from expert-distilled training (81 models)
+    - models_cache.json: Real pricing data from OpenRouter API
+
+Library Integration:
+    Uses the library's prior loading logic to handle both:
+    - Expert priors (A_stack format, disjoint covariance)
+    - Shared priors (A_shared format, legacy)
+
 Usage:
     python -m llm_jury.experiment.run_rq3
-    python -m llm_jury.experiment.run_rq3 --priors data/priors/shippable_priors.npz
+    python -m llm_jury.experiment.run_rq3 --priors data/priors/expert_priors.npz
 
 Output:
     - results/rq3/cost_quality_analysis.json - Analysis results
@@ -31,9 +40,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
-
-# Use project's actual bandit implementation
-from llm_jury.async_bandit.bandit_router import SharedCovarianceLinUCBPolicy
 
 # Project root for locating data files
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -56,8 +62,8 @@ except ImportError:
 @dataclass
 class ExperimentConfig:
     """Configuration for RQ3 experiment."""
-    # REQUIRED: Path to shippable priors from archetype grid
-    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"
+    # Path to priors (default: expert_priors.npz from expert-distilled training)
+    priors_path: Path = PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"
 
     # Model costs from cache
     models_cache_path: Path = PROJECT_ROOT / "data" / "models_cache.json"
@@ -118,15 +124,15 @@ class CostQualityAnalysis:
     config: Dict[str, Any]
     n_models: int
     model_names: List[str]
+    priors_format: str  # "expert" (A_stack) or "shared" (A_shared)
 
     # Per-model metrics
-    model_costs: Dict[str, float]  # Cost per token
-    model_weight_norms: Dict[str, float]  # Proxy for learned quality
-    model_update_counts: Dict[str, int]  # Training activity
+    model_costs: Dict[str, float]  # Cost per 1M tokens
+    model_theta_norms: Dict[str, float]  # ||θ|| = ||A⁻¹ @ b|| - learned weight magnitude
     model_efficiency: Dict[str, float]  # Quality proxy / cost
 
     # Top models by different criteria
-    top_by_quality: List[str]  # Highest weight norms
+    top_by_quality: List[str]  # Highest theta norms
     top_by_efficiency: List[str]  # Best quality per dollar
     top_by_cost: List[str]  # Cheapest
 
@@ -166,12 +172,50 @@ def compute_pareto_frontier(
     return frontier
 
 
+def load_priors(priors_path: Path) -> Tuple[List[str], Dict[str, np.ndarray], Dict[str, np.ndarray], int, str]:
+    """
+    Load priors from NPZ file, handling both expert and shared formats.
+    
+    Returns:
+        (model_names, A_dict, b_dict, dim, format_name)
+        where A_dict and b_dict map model names to their matrices/vectors.
+    """
+    data = np.load(priors_path, allow_pickle=True)
+    
+    if "A_stack" in data:
+        # Expert priors (disjoint format)
+        model_names = [str(m) for m in data["model_names"]]
+        dim = int(data["dim"])
+        A_stack = np.asarray(data["A_stack"], dtype=np.float64)
+        b_stack = np.asarray(data["b_stack"], dtype=np.float64)
+        
+        A_dict = {m: A_stack[i] for i, m in enumerate(model_names)}
+        b_dict = {m: b_stack[i] for i, m in enumerate(model_names)}
+        
+        return model_names, A_dict, b_dict, dim, "expert"
+    else:
+        # Shared priors (legacy format)
+        model_names = [str(m) for m in data["models"]]
+        meta = json.loads(str(list(data["meta"])[0]))
+        dim = int(meta.get("dim", 384))
+        
+        A_shared = np.asarray(data["A"], dtype=np.float64)
+        b_stack = np.asarray(data["b_stack"], dtype=np.float64)
+        
+        # Use shared A for all models
+        A_dict = {m: A_shared for m in model_names}
+        b_dict = {m: b_stack[i] for i, m in enumerate(model_names)}
+        
+        return model_names, A_dict, b_dict, dim, "shared"
+
+
 def analyze_cost_quality(config: ExperimentConfig) -> CostQualityAnalysis:
     """
     Analyze cost-quality tradeoffs from real priors and model costs.
 
-    Uses weight norms as a proxy for learned quality (models with higher
-    weight norms have received more positive feedback during training).
+    Uses ||θ|| = ||A⁻¹ @ b|| as a proxy for learned quality. Models with 
+    higher theta norms have developed stronger "opinions" in the latent space,
+    indicating more confident expertise.
 
     Args:
         config: Experiment configuration
@@ -184,13 +228,14 @@ def analyze_cost_quality(config: ExperimentConfig) -> CostQualityAnalysis:
     if not config.priors_path.exists():
         raise FileNotFoundError(
             f"Priors not found: {config.priors_path}\n"
-            f"Run the archetype grid first:\n"
-            f"  python -m llm_jury.async_bandit.archetype_grid_dense_run"
+            f"Generate priors first:\n"
+            f"  python -m llm_jury.experiment.generate_expert_priors generate"
         )
 
-    # Load priors
-    policy = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(config.priors_path)
-    print(f"[RQ3] Loaded {len(policy.models)} models")
+    # Load priors (handles both expert and shared formats)
+    model_names, A_dict, b_dict, dim, priors_format = load_priors(config.priors_path)
+    print(f"[RQ3] Loaded {len(model_names)} models (format: {priors_format})")
+    print(f"[RQ3] Embedding dimension: {dim}")
 
     # Load model costs
     costs = load_model_costs(config.models_cache_path)
@@ -198,65 +243,68 @@ def analyze_cost_quality(config: ExperimentConfig) -> CostQualityAnalysis:
 
     # Compute metrics for each model
     model_costs: Dict[str, float] = {}
-    weight_norms: Dict[str, float] = {}
-    update_counts: Dict[str, int] = {}
+    theta_norms: Dict[str, float] = {}
     efficiency: Dict[str, float] = {}
 
-    for m in policy.models:
+    for m in model_names:
         # Get cost (default to 0 if not found)
         model_costs[m] = costs.get(m, 0.0)
 
-        # Weight norm as quality proxy
-        b_vec = policy.b.get(m, np.zeros(policy.dim))
-        weight_norms[m] = float(np.linalg.norm(b_vec))
-
-        # Update counts
-        update_counts[m] = policy._updates.get(m, 0)
+        # Compute θ = A⁻¹ @ b (learned weight vector)
+        A = A_dict[m]
+        b = b_dict[m]
+        try:
+            A_inv = np.linalg.inv(A)
+            theta = A_inv @ b
+            theta_norms[m] = float(np.linalg.norm(theta))
+        except np.linalg.LinAlgError:
+            # Singular matrix, use regularized inverse
+            theta_norms[m] = float(np.linalg.norm(b))
 
         # Efficiency = quality / cost (avoid division by zero)
         cost = model_costs[m]
         if cost > 0:
-            efficiency[m] = weight_norms[m] / cost
+            efficiency[m] = theta_norms[m] / cost
         else:
-            efficiency[m] = float("inf") if weight_norms[m] > 0 else 0.0
+            efficiency[m] = float("inf") if theta_norms[m] > 0 else 0.0
 
     # Top models by different criteria
-    models_with_data = [m for m in policy.models if model_costs.get(m, 0) > 0]
+    models_with_cost = [m for m in model_names if model_costs.get(m, 0) > 0]
 
-    top_by_quality = sorted(models_with_data, key=lambda m: weight_norms[m], reverse=True)[:10]
+    top_by_quality = sorted(models_with_cost, key=lambda m: theta_norms[m], reverse=True)[:10]
     top_by_efficiency = sorted(
-        [m for m in models_with_data if efficiency[m] < float("inf")],
+        [m for m in models_with_cost if efficiency[m] < float("inf")],
         key=lambda m: efficiency[m],
         reverse=True
     )[:10]
-    top_by_cost = sorted(models_with_data, key=lambda m: model_costs[m])[:10]
+    top_by_cost = sorted(models_with_cost, key=lambda m: model_costs[m])[:10]
 
     # Compute Pareto frontier
-    pareto = compute_pareto_frontier(policy.models, model_costs, weight_norms)
+    pareto = compute_pareto_frontier(model_names, model_costs, theta_norms)
 
-    print(f"\n[RQ3] Top 5 by Quality (weight norm):")
+    print(f"\n[RQ3] Top 5 by Quality (||θ|| = ||A⁻¹ @ b||):")
     for i, m in enumerate(top_by_quality[:5], 1):
-        print(f"   {i}. {m}: ||b||={weight_norms[m]:.4f}, cost=${model_costs[m]:.6f}")
+        print(f"   {i}. {m}: ||θ||={theta_norms[m]:.4f}, cost=${model_costs[m]:.4f}/1M")
 
-    print(f"\n[RQ3] Top 5 by Efficiency (quality/cost):")
+    print(f"\n[RQ3] Top 5 by Efficiency (||θ|| / cost):")
     for i, m in enumerate(top_by_efficiency[:5], 1):
-        print(f"   {i}. {m}: efficiency={efficiency[m]:.2f}, cost=${model_costs[m]:.6f}")
+        print(f"   {i}. {m}: efficiency={efficiency[m]:.2f}, cost=${model_costs[m]:.4f}/1M")
 
     print(f"\n[RQ3] Top 5 Cheapest:")
     for i, m in enumerate(top_by_cost[:5], 1):
-        print(f"   {i}. {m}: cost=${model_costs[m]:.6f}, ||b||={weight_norms[m]:.4f}")
+        print(f"   {i}. {m}: cost=${model_costs[m]:.6f}/1M, ||θ||={theta_norms[m]:.4f}")
 
     print(f"\n[RQ3] Pareto frontier ({len(pareto)} models):")
     for m, c, q in pareto[:5]:
-        print(f"   - {m}: cost=${c:.6f}, quality={q:.4f}")
+        print(f"   - {m}: cost=${c:.4f}/1M, ||θ||={q:.4f}")
 
     return CostQualityAnalysis(
         config=asdict(config) if hasattr(config, "__dataclass_fields__") else vars(config),
-        n_models=len(policy.models),
-        model_names=policy.models,
+        n_models=len(model_names),
+        model_names=model_names,
+        priors_format=priors_format,
         model_costs=model_costs,
-        model_weight_norms=weight_norms,
-        model_update_counts=update_counts,
+        model_theta_norms=theta_norms,
         model_efficiency=efficiency,
         top_by_quality=top_by_quality,
         top_by_efficiency=top_by_efficiency,
@@ -273,6 +321,8 @@ def analyze_cost_quality(config: ExperimentConfig) -> CostQualityAnalysis:
 def plot_pareto_frontier(analysis: CostQualityAnalysis, output_path: Path) -> None:
     """
     Generate publication-quality Pareto frontier plot.
+    
+    Shows cost vs quality (||θ||) tradeoff with Pareto-optimal models highlighted.
     """
     if not HAS_MATPLOTLIB:
         print("[RQ3] Warning: matplotlib not available, skipping plot")
@@ -293,12 +343,12 @@ def plot_pareto_frontier(analysis: CostQualityAnalysis, output_path: Path) -> No
         "savefig.dpi": DPI,
     })
 
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH * 1.2, COLUMN_WIDTH * 0.9))
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH * 1.4, COLUMN_WIDTH * 1.0))
 
     # Get all models with cost data
     models = [m for m in analysis.model_names if analysis.model_costs.get(m, 0) > 0]
     costs = [analysis.model_costs[m] for m in models]
-    qualities = [analysis.model_weight_norms[m] for m in models]
+    qualities = [analysis.model_theta_norms[m] for m in models]
 
     # Plot all models
     ax.scatter(costs, qualities, c="#CCCCCC", s=20, alpha=0.5, label="All Models")
@@ -307,24 +357,26 @@ def plot_pareto_frontier(analysis: CostQualityAnalysis, output_path: Path) -> No
     if analysis.pareto_frontier:
         pareto_costs = [p[1] for p in analysis.pareto_frontier]
         pareto_qualities = [p[2] for p in analysis.pareto_frontier]
-        pareto_names = [p[0].split("/")[-1][:8] for p in analysis.pareto_frontier]
+        pareto_names = [p[0].split("/")[-1][:10] for p in analysis.pareto_frontier]
 
         ax.scatter(pareto_costs, pareto_qualities, c="#2CA02C", s=60, zorder=3, label="Pareto Optimal")
         ax.plot(pareto_costs, pareto_qualities, "--", c="#2CA02C", alpha=0.5, zorder=2)
 
-        # Annotate top Pareto points
-        for i, (c, q, name) in enumerate(zip(pareto_costs[:3], pareto_qualities[:3], pareto_names[:3])):
-            ax.annotate(name, (c, q), textcoords="offset points", xytext=(5, 5), fontsize=6)
+        # Annotate Pareto points
+        for i, (c, q, name) in enumerate(zip(pareto_costs, pareto_qualities, pareto_names)):
+            if i < 5:  # Only annotate top 5
+                ax.annotate(name, (c, q), textcoords="offset points", xytext=(5, 5), fontsize=7)
 
-    # Highlight top by efficiency
+    # Highlight top by efficiency (stars)
     for m in analysis.top_by_efficiency[:3]:
         c = analysis.model_costs[m]
-        q = analysis.model_weight_norms[m]
-        ax.scatter([c], [q], c="#FF7F0E", s=80, marker="*", zorder=4)
+        q = analysis.model_theta_norms[m]
+        ax.scatter([c], [q], c="#FF7F0E", s=100, marker="*", zorder=4, label="High Efficiency" if m == analysis.top_by_efficiency[0] else "")
 
-    ax.set_xlabel("Cost per Token ($)")
-    ax.set_ylabel("Learned Weight Norm (Quality Proxy)")
+    ax.set_xlabel("Cost per 1M Tokens ($)", fontsize=10)
+    ax.set_ylabel(r"Learned Quality Proxy ($||\theta||$)", fontsize=10)
     ax.set_xscale("log")  # Log scale for cost (large range)
+    ax.set_title("RQ3: Cost vs Quality Pareto Frontier", fontsize=11, fontweight='bold')
 
     ax.legend(loc="lower right", fontsize=7)
     ax.grid(True, linestyle="-", alpha=0.2)
@@ -374,8 +426,8 @@ def parse_args() -> ExperimentConfig:
 
     parser.add_argument(
         "--priors", type=str,
-        default=str(PROJECT_ROOT / "data" / "priors" / "shippable_priors.npz"),
-        help="Path to shippable_priors.npz from archetype grid",
+        default=str(PROJECT_ROOT / "data" / "priors" / "expert_priors.npz"),
+        help="Path to priors NPZ (expert_priors.npz or shippable_priors.npz)",
     )
     parser.add_argument(
         "--cache", type=str,
@@ -416,7 +468,8 @@ def main() -> int:
     plot_pareto_frontier(analysis, config.output_dir / "pareto_frontier.png")
 
     print("=" * 60)
-    print("Analysis complete!")
+    print("RQ3 Analysis Complete!")
+    print(f"  Priors format: {analysis.priors_format}")
     print(f"  Models analyzed: {analysis.n_models}")
     print(f"  Pareto optimal models: {len(analysis.pareto_frontier)}")
     print(f"  Results saved to: {config.output_dir}")
