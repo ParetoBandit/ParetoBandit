@@ -396,11 +396,11 @@ def plot_pareto_frontier(analysis: CostQualityAnalysis, output_path: Path) -> No
         # Annotate Pareto points with staggered offsets to avoid overlap
         # The first few points are clustered, so alternate up/down
         offsets = [
-            (-35, -15),  # llama-1b: below and left
-            (5, 8),      # llama-3b: above and right
-            (5, -18),    # nova-micro: below and right
-            (5, 5),      # nova-lite: above and right (has space)
-            (5, 5),      # fallback
+            (10, -5),    # 1. Cheapest: Right (avoid left edge clipping)
+            (10, 10),    # 2. Above Right
+            (10, -15),   # 3. Below Right
+            (10, 20),    # 4. Above Right (staggered)
+            (10, -25),   # 5. Below Right (staggered)
         ]
         for i, (c, q, name) in enumerate(zip(pareto_costs, pareto_qualities, pareto_names)):
             if i < 5:
