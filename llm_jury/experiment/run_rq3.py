@@ -367,7 +367,28 @@ def plot_pareto_frontier(analysis: CostQualityAnalysis, output_path: Path) -> No
     if analysis.pareto_frontier:
         pareto_costs = [p[1] for p in analysis.pareto_frontier]
         pareto_qualities = [p[2] for p in analysis.pareto_frontier]
-        pareto_names = [p[0].split("/")[-1][:10] for p in analysis.pareto_frontier]
+        
+        # Create readable short names (keep model variant like "1b", "3b", "micro", "lite")
+        def short_name(full_name: str) -> str:
+            name = full_name.split("/")[-1]
+            # For llama models, keep the size indicator
+            if "llama" in name.lower():
+                # Extract size (1b, 3b, 8b, 70b, etc.)
+                import re
+                match = re.search(r'(\d+b)', name.lower())
+                if match:
+                    return f"llama-{match.group(1)}"
+            # For nova models, keep the variant
+            if "nova" in name.lower():
+                if "micro" in name.lower():
+                    return "nova-micro"
+                if "lite" in name.lower():
+                    return "nova-lite"
+                if "pro" in name.lower():
+                    return "nova-pro"
+            return name[:12]
+        
+        pareto_names = [short_name(p[0]) for p in analysis.pareto_frontier]
 
         ax.scatter(pareto_costs, pareto_qualities, c="#2CA02C", s=60, zorder=3, label="Pareto Optimal")
         ax.plot(pareto_costs, pareto_qualities, "--", c="#2CA02C", alpha=0.5, zorder=2)
