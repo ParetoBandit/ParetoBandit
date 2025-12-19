@@ -1,6 +1,18 @@
-# Async Bandit Shippable Priors
+# LLM Jury Priors
 
-This folder contains a **small, check-in-friendly warm-start artifact** for the async bandit router.
+This folder contains **warm-start priors** for the async bandit router, enabling 63% regret reduction on Day 1.
+
+## Quick Start: Generate Expert Priors
+
+```bash
+# Generate expert-distilled priors (recommended)
+python -m llm_jury.experiment.generate_expert_priors generate --seed 42
+
+# Verify existing priors
+python -m llm_jury.experiment.generate_expert_priors verify
+```
+
+**Output:** `data/priors/expert_priors.npz` (~21 MB, 81 models, 384 dimensions)
 
 ## How Routing Works: Prompt → Model Selection
 
@@ -48,22 +60,39 @@ The model with highest **Utility** is selected.
 
 | Location | Path | Writable | Purpose |
 |----------|------|----------|---------|
-| **BUNDLED** | `<package>/data/priors/shippable_priors.npz` | No | Ships with library, read-only defaults |
+| **BUNDLED** | `<package>/data/priors/expert_priors.npz` | No | Expert-distilled (63% improvement) |
+| **FALLBACK** | `<package>/data/priors/shippable_priors.npz` | No | Legacy shared priors |
 | **USER** | `~/.llm_jury/priors/user_priors.npz` | Yes | User customizations, new models |
 | **CUSTOM** | User-specified | Yes | Explicit path for special use cases |
 
 When you update priors (e.g., add a new model), changes go to the **USER** location by default.
 This preserves bundled priors while allowing personalization.
 
-## What is `shippable_priors.npz`?
+## What is `expert_priors.npz`?
 
-`shippable_priors.npz` is a compact “day‑1 intelligence” bundle built using the **Shared‑Covariance Trick**:
+`expert_priors.npz` is the **recommended** priors file (~21 MB), built using **Expert Distillation**:
 
-- Store **one shared covariance** matrix \(A_{shared}\) (float16)
-- Store **per‑model reward vectors** \(b_{model}\) (float16)
-- Keep small metadata (dim, alpha, etc.)
+| Property | Value |
+|----------|-------|
+| Format | Full Disjoint (A_stack, b_stack) |
+| Compression | float16 (21 MB vs 86 MB float32) |
+| Models | 81 |
+| Dimension | 384 |
+| Training | Oracle picks optimal 80% of time |
+| Result | 63% regret reduction |
 
-This avoids committing a huge disjoint LinUCB state where each model has its own \(A\) matrix.
+The library loads this by default with `prior_strength=50.0`.
+
+## What is `shippable_priors.npz`? (Legacy)
+
+`shippable_priors.npz` is the older "shared covariance" format (~300 KB):
+
+- Store **one shared covariance** matrix (A_shared) in float16
+- Store **per-model reward vectors** (b_model) in float16
+- Smaller file but lower performance (~5% regret reduction)
+
+The library falls back to this if `expert_priors.npz` is missing.
+
 
 ## What is the big `router_state_*.json` and why don’t we commit it?
 
@@ -71,9 +100,53 @@ A fully warmed router state produced by synthetic warmup can be **hundreds of MB
 
 We treat that large file as a **build artifact** and compress it into `shippable_priors.npz` for check‑in.
 
-## How to generate priors
+## How to Generate Priors
 
-### Option A: Synthetic prior injection (round‑robin)
+### Option A (Recommended): Expert Distillation
+
+Expert Distillation trains priors where a "teacher oracle" picks the optimal model 80% of the time. This creates priors that encode **"the right answer"** rather than random noise.
+
+**Why it works:**
+| Prior Type | What It Encodes | Effect of Boosting |
+|------------|-----------------|-------------------|
+| Uniform | "Everything is average" | Bandit becomes stubborn |
+| **Expert** | "Model A wins for code" | Bandit exploits correctly |
+
+**Step 1:** Ensure you have the training data:
+- `data/priors/archetype_grid_prompts.jsonl` (497 prompts)
+- `data/priors/archetype_grid_dense_run.jsonl` (rewards from 81 models)
+
+**Step 2:** Generate expert priors:
+```bash
+python -m llm_jury.experiment.generate_expert_priors generate \
+    --seed 42 \
+    --epochs 5 \
+    --expert-rate 0.8
+```
+
+**Step 3:** Verify the output:
+```bash
+python -m llm_jury.experiment.generate_expert_priors verify
+```
+
+**Expected output:**
+```
+[Training Hyperparameters]
+  expert_rate: 0.8
+  n_epochs: 5
+  seed: 42
+  context_model: sentence-transformers/all-MiniLM-L6-v2
+
+[Provenance]
+  prompts_hash: 33790ea90fa66e6a
+  rewards_hash: a0d3828174915a54
+```
+
+**Result:** 63.6% regret reduction with `prior_strength=50.0`
+
+---
+
+### Option B: Synthetic prior injection (round‑robin)
 
 This is a cost-controlled warmup that still covers all models, but does **not** run a dense grid.
 
