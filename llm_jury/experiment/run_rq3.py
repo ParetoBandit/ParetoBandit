@@ -478,13 +478,14 @@ def generate_roi_table(analysis: CostQualityAnalysis, output_path: Path) -> None
     roi_data.sort(key=lambda x: x["roi_factor"], reverse=True)
     
     # Generate markdown table
+    # Note: Use ‖θ‖ (Unicode double vertical bar) to avoid markdown table parsing issues
     lines = [
         "# RQ3: ROI Leaderboard",
         "",
-        "**ROI Factor** = (||θ|| / Cost) relative to GPT-4o baseline",
+        "**ROI Factor** = (‖θ‖ / Cost) relative to GPT-4o baseline",
         "",
-        "| Rank | Model | Cost/1M | ||θ|| | ROI Factor |",
-        "|------|-------|---------|-------|------------|",
+        "| Rank | Model | Cost/1M | ‖θ‖ | ROI Factor |",
+        "|------|-------|---------|-----|------------|",
     ]
     
     for i, d in enumerate(roi_data[:15], 1):  # Top 15

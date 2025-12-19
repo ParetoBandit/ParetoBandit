@@ -206,10 +206,10 @@ python -m llm_jury.experiment.run_rq3
 
 #### Table 1: ROI Leaderboard
 
-**ROI Factor** = (||θ|| / Cost) relative to GPT-4o baseline. Shows "Expertise per Dollar."
+**ROI Factor** = (‖θ‖ / Cost) relative to GPT-4o baseline. Shows "Expertise per Dollar."
 
-| Rank | Model | Cost/1M | ||θ|| | ROI Factor |
-|------|-------|---------|-------|------------|
+| Rank | Model | Cost/1M | ‖θ‖ | ROI Factor |
+|------|-------|---------|-----|------------|
 | 1 | amazon/nova-micro-v1 | $0.061 | 2.16 | **93.3x** ★ |
 | 2 | amazon/nova-lite-v1 | $0.105 | 3.66 | **91.6x** ★ |
 | 3 | meta-llama/llama-3.2-1b | $0.053 | 1.48 | 73.6x ★ |
@@ -222,8 +222,8 @@ python -m llm_jury.experiment.run_rq3
 
 #### Pareto Frontier
 
-| Model | ||θ|| (Confidence) | Cost/1M | Pareto Optimal? |
-|-------|-------------------|---------|-----------------|
+| Model | ‖θ‖ (Confidence) | Cost/1M | Pareto Optimal? |
+|-------|------------------|---------|-----------------|
 | amazon/nova-lite-v1 | 3.66 | $0.105 | ✅ |
 | amazon/nova-micro-v1 | 2.16 | $0.061 | ✅ |
 | meta-llama/llama-3.2-3b | 1.64 | $0.060 | ✅ |
