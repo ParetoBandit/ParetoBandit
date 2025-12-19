@@ -334,16 +334,20 @@ def plot_results(results: dict, output_path: Path) -> None:
         return np.concatenate([smoothed[:1]] * pad + [smoothed])
     
     steps = range(len(rewards))
-    smoothed_rewards = smooth(rewards)
+    smoothed_rewards = smooth(rewards, window=50)
+    
+    # Smooth the belief lines for cleaner "Flip" crossover visualization
+    smoothed_gpt4 = smooth(est_gpt4, window=10)
+    smoothed_nova = smooth(est_nova, window=10)
     
     # Plot 1: Smoothed reward curve (THE MAIN LINE)
     ax.plot(steps, smoothed_rewards, color='#2CA02C', linewidth=3, 
             label='System Accuracy', zorder=10)
     
-    # Plot 2: Internal belief estimates (θ)
-    ax.plot(steps, est_gpt4, color='#D62728', linestyle='--', alpha=0.6,
+    # Plot 2: Internal belief estimates (θ) - smoothed for clarity
+    ax.plot(steps, smoothed_gpt4, color='#D62728', linestyle='--', alpha=0.7,
             linewidth=2, label='Belief: GPT-4o (θ)')
-    ax.plot(steps, est_nova, color='#1F77B4', linestyle='--', alpha=0.6,
+    ax.plot(steps, smoothed_nova, color='#1F77B4', linestyle='--', alpha=0.7,
             linewidth=2, label='Belief: Nova-Lite (θ)')
     
     # Reference lines (ground truth)

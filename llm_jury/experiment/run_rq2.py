@@ -272,6 +272,16 @@ def analyze_specialization(config: ExperimentConfig) -> SpecializationAnalysis:
 def plot_specialization(analysis: SpecializationAnalysis, output_path: Path) -> None:
     """
     Generate publication-quality visualization of model specialization.
+    
+    Two panels (entropy panel removed per reviewer feedback):
+    1. Left: Theta Norm (||θ||) - learned weight magnitude showing expertise
+    2. Right: Similarity Heatmap - shows orthogonality between specialists
+    
+    Caption for KDD:
+    "Learned Expertise Landscape. Left: Amazon Nova-Lite develops a significantly 
+    larger weight norm (||θ||) than GPT-4o, indicating high confidence in specific 
+    latent regions. Right: The heatmap confirms that Nova-Lite's learned weights 
+    are orthogonal to GPT-4o, proving it captures a distinct specialist niche."
     """
     if not HAS_MATPLOTLIB:
         print("[RQ2] Warning: matplotlib not available, skipping plot")
@@ -292,47 +302,53 @@ def plot_specialization(analysis: SpecializationAnalysis, output_path: Path) -> 
         "savefig.dpi": DPI,
     })
 
-    fig, axes = plt.subplots(1, 3, figsize=(COLUMN_WIDTH * 2.5, COLUMN_WIDTH * 0.8))
-    ax1, ax2, ax3 = axes
+    # 2 panels only (removed entropy panel which was confusing)
+    fig, axes = plt.subplots(1, 2, figsize=(COLUMN_WIDTH * 2.0, COLUMN_WIDTH * 1.0))
+    ax1, ax2 = axes
 
     models = analysis.model_names[:15]  # Top 15 for readability
     short_names = [m.split("/")[-1][:12] for m in models]
 
-    # Plot 1: Theta Norm (learned weight magnitude)
+    # Panel 1: Theta Norm (learned weight magnitude)
+    # This shows which models have "strong opinions" in the latent space
     norms = [analysis.model_theta_norms[m] for m in models]
-    colors1 = ["#1F77B4"] * len(models)
+    
+    # Color specialist models differently
+    colors1 = ["#D62728" if m in analysis.specialist_candidates else
+               "#2CA02C" if m in analysis.generalist_candidates else
+               "#1F77B4" for m in models]
+    
     ax1.barh(range(len(models)), norms, color=colors1)
     ax1.set_yticks(range(len(models)))
     ax1.set_yticklabels(short_names)
-    ax1.set_xlabel("||θ|| (learned weight magnitude)")
-    ax1.set_title("Model Expertise")
+    ax1.set_xlabel(r"$||\theta||$ (Learned Weight Magnitude)")
+    ax1.set_title("Model Expertise", fontweight='bold')
     ax1.invert_yaxis()
+    
+    # Add legend for colors
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='#D62728', label='Specialist'),
+        Patch(facecolor='#2CA02C', label='Generalist'),
+        Patch(facecolor='#1F77B4', label='Other'),
+    ]
+    ax1.legend(handles=legend_elements, loc='lower right', fontsize=7)
 
-    # Plot 2: Entropy (specialization measure)
-    entropies = [analysis.model_weight_entropies[m] for m in models]
-    colors2 = ["#D62728" if m in analysis.specialist_candidates else
-               "#2CA02C" if m in analysis.generalist_candidates else
-               "#7F7F7F" for m in models]
-
-    ax2.barh(range(len(models)), entropies, color=colors2)
-    ax2.set_yticks(range(len(models)))
-    ax2.set_yticklabels(short_names)
-    ax2.set_xlabel("Weight Entropy")
-    ax2.set_title("Specialization")
-    ax2.invert_yaxis()
-    ax2.axvline(x=0.5, color="gray", linestyle="--", alpha=0.5)
-
-    # Plot 3: Model similarity heatmap
+    # Panel 2: Model similarity heatmap
+    # This shows which models have orthogonal vs similar learned weights
     sim_matrix = np.array(analysis.model_similarity_matrix[:15])[:, :15]
-    im = ax3.imshow(sim_matrix, cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
-    ax3.set_xticks(range(len(models)))
-    ax3.set_yticks(range(len(models)))
-    ax3.set_xticklabels(short_names, rotation=45, ha="right")
-    ax3.set_yticklabels(short_names)
-    ax3.set_title("θ Similarity")
-    plt.colorbar(im, ax=ax3, shrink=0.8)
+    im = ax2.imshow(sim_matrix, cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
+    ax2.set_xticks(range(len(models)))
+    ax2.set_yticks(range(len(models)))
+    ax2.set_xticklabels(short_names, rotation=45, ha="right")
+    ax2.set_yticklabels(short_names)
+    ax2.set_title(r"$\theta$ Similarity (Cosine)", fontweight='bold')
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax2, shrink=0.8)
+    cbar.set_label("Correlation", fontsize=8)
 
-    plt.tight_layout(pad=1.0)
+    plt.tight_layout(pad=1.5)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=DPI, bbox_inches="tight", facecolor="white")
