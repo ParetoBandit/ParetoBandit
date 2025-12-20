@@ -20,7 +20,7 @@ where $\hat{Q}(q, m)$ is the predicted quality, $C_m$ is cost, $L_m$ is latency,
 
 Our system has two asynchronous paths: (1) a \textbf{Hot Path} that performs millisecond-scale routing; and (2) a \textbf{Cold Path} that performs delayed quality assessment and updates the router.
 
-\paragraph{Context Embedding.} Each query is mapped to an embedding $\mathbf{x}=\phi(q)\in\mathbb{R}^{384}$ using a sentence transformer (all-MiniLM-L6-v2), encoding the prompt's position in a semantic ``meaning space.''
+\paragraph{Context Embedding.} Each query is mapped to an embedding $\mathbf{x}=\phi(q)\in\mathbb{R}^{384}$ using a sentence transformer (all-MiniLM-L6-v2), encoding the prompt's semantic representation in the embedding space.
 
 \paragraph{Disjoint LinUCB.} Each model $m$ maintains: $\mathbf{A}_m \in \mathbb{R}^{d \times d}$ (covariance) and $\mathbf{b}_m \in \mathbb{R}^{d}$ (reward accumulator). Predicted quality with exploration bonus:
 \begin{equation}
@@ -54,30 +54,30 @@ The first term ($\mathbf{x}_t^\top \hat{\boldsymbol{\theta}}_k$) represents \tex
 \subsection{Regret Formulation}
 \label{sec:regret}
 
-We evaluate the router's learning efficiency using \textbf{Cumulative Regret}, defined as the difference between the reward of the optimal policy and the router's chosen policy over $T$ rounds. This metric quantifies the ``cost of learning''---the performance lost while the bandit explores sub-optimal models to gather data:
+We evaluate learning efficiency through \textbf{cumulative regret}, defined as the total reward differential between the oracle optimal policy and the learned policy over $T$ rounds:
 \begin{equation}
 R_T = \sum_{t=1}^T \left( r(\mathbf{x}_t, k^*) - r(\mathbf{x}_t, k_t) \right)
 \end{equation}
-where $k^*$ is the optimal model for query $\mathbf{x}_t$ (determined by oracle ground truth), $k_t$ is the model selected by \ours{}, and $r(\cdot)$ is the realized reward. Minimizing $R_T$ implies the system quickly converges to the best model for every prompt type. Our ``Shippable Priors'' technique minimizes $R_T$ by pre-filling $\mathbf{A}_k$ and $\mathbf{b}_k$ with offline knowledge, effectively ``fast-forwarding'' past the initial high-regret exploration phase.
+where $k^*$ denotes the optimal model for query $\mathbf{x}_t$ (determined via oracle ground truth), $k_t$ represents the model selected by \ours{}, and $r(\cdot)$ is the realized reward. This metric quantifies the opportunity cost of exploration---the performance degradation incurred while the system gathers information about suboptimal models. Minimizing $R_T$ indicates rapid convergence to optimal model selection across diverse prompt types. Our shippable prior mechanism substantially reduces $R_T$ by initializing $\mathbf{A}_k$ and $\mathbf{b}_k$ with distilled offline knowledge, effectively amortizing the high-regret exploration phase across deployments.
 
 \subsection{User Control: The Tunable Objective ($\lambda$)}
 \label{sec:lambda}
 
-Standard bandits optimize purely for accuracy. However, production environments require strict control over non-functional requirements (FinOps and SLAs). We modify the reward function $r(\mathbf{x}, k)$ to penalize expensive or slow models based on user-defined sensitivity parameters:
+Conventional bandit algorithms optimize exclusively for prediction accuracy. However, production environments require explicit control over operational constraints such as budget allocation and service-level agreements. We augment the reward function $r(\mathbf{x}, k)$ to incorporate model cost and latency through user-defined sensitivity parameters:
 \begin{equation}
 r(\mathbf{x}, k) = \text{Quality}(\mathbf{x}, k) - \lambdacost \cdot \text{Cost}_k - \lambdalat \cdot \text{Latency}_k
 \end{equation}
-These $\lambda$ parameters act as ``knobs'' that reshape the optimization landscape:
+These sensitivity parameters $\lambdacost$ and $\lambdalat$ enable precise control over the cost-quality-latency trade-off space:
 \begin{itemize}[leftmargin=*,nosep]
-    \item $\lambdacost \to 0$: The bandit functions as a ``Max Performance'' router, selecting GPT-4o-class models regardless of price.
-    \item $\lambdacost \gg 0$: The effective reward for expensive models drops significantly. The bandit is mathematically forced to explore cheaper alternatives (e.g., Gemini Flash Lite), only selecting expensive models if the predicted quality gain ($\Delta\text{Quality}$) is massive enough to offset the cost penalty ($\lambdacost \cdot \Delta\text{Cost}$).
+    \item $\lambdacost \to 0$: The system operates in maximum performance mode, selecting frontier models (e.g., GPT-4o) without cost constraints.
+    \item $\lambdacost \gg 0$: The effective reward for expensive models decreases substantially. The bandit is incentivized to explore cost-efficient alternatives (e.g., Gemini~Flash~Lite), selecting expensive models only when the predicted quality differential ($\Delta\text{Quality}$) justifies the additional cost penalty ($\lambdacost \cdot \Delta\text{Cost}$).
 \end{itemize}
-This formulation ensures that cost-saving is not a heuristic rule, but an \emph{intrinsic mathematical property} of the routing policy.
+This formulation ensures that cost optimization emerges as an \emph{intrinsic property} of the learned routing policy rather than through heuristic post-processing.
 
 \subsection{Why Contextual Bandits?}
 \label{sec:pivot}
 
-Static classifiers~\cite{ong2024routellm} freeze after training. We use bandits for: (1) \textbf{Distribution Drift}---GPT-4o's capabilities shift monthly; our bandit adapts online. (2) \textbf{Domain Specificity}---discover \emph{local} specialists invisible to global benchmarks. (3) \textbf{Principled Exploration}---LinUCB explores only when uncertain, mathematically optimal under linear assumptions~\cite{abbasi2011improved}.
+Static classification approaches~\cite{ong2024routellm} require retraining when model capabilities evolve. We adopt contextual bandits for three fundamental advantages: (1)~\textbf{Distribution Drift Resilience}---model capabilities shift frequently (e.g., GPT-4o monthly updates); online learning enables continuous adaptation without manual intervention. (2)~\textbf{Domain-Specific Specialization}---the system autonomously discovers local specialists that excel in deployment-specific distributions but remain underrepresented in global benchmarks. (3)~\textbf{Principled Exploration}---LinUCB provably balances exploration and exploitation, achieving near-optimal regret bounds under linear reward assumptions~\cite{abbasi2011improved}.
 
 \subsection{Expert Distillation}
 \label{sec:distillation}
@@ -90,9 +90,9 @@ The cold-start problem is acute at modern scale (e.g., 81 models and 384-dimensi
 
 \paragraph{Prior Fitting.} We train the bandit by simulating teacher-optimal decisions: for each archetype embedding $\mathbf{x}$ and optimal model $m^*$, we apply the same rank-one updates used online. We repeat for 5 epochs.
 
-\paragraph{Prior Strength ($\lambdaboost$).} We scale priors as $\mathbf{A}_m \leftarrow \lambdaboost \cdot \mathbf{A}_m$. With $\lambdaboost=50$ (default), the exploration term shrinks by $1/\sqrt{50}$ and the policy favors exploitation. This is valid because the prior encodes teacher supervision rather than uninformative initialization.
+\paragraph{Prior Strength ($\lambdaboost$).} We scale priors as $\mathbf{A}_m \leftarrow \lambdaboost \cdot \mathbf{A}_m$. With $\lambdaboost=50$ (default), the exploration term in Equation~\ref{eq:ucb} reduces by a factor of $1/\sqrt{50}$, biasing the policy toward exploitation. This initialization is statistically valid because the prior matrix encodes informed teacher supervision rather than uninformative identity initialization.
 
-\paragraph{Specialist Discovery.} The router discovers specialists \emph{beyond} the teacher. Nova-Lite achieves $\|\boldsymbol{\theta}\|=3.66$ vs.\ GPT-4o's 1.66, with near-zero cosine similarity---proving it captures a distinct niche (Figure~\ref{fig:specialist_landscape}).
+\paragraph{Specialist Discovery.} Crucially, the router autonomously discovers specialists beyond the teacher's initial preference. Nova-Lite develops parameter norm $\|\boldsymbol{\theta}\|=3.66$ compared to GPT-4o's 1.66, with near-zero cosine similarity between their weight vectors. This orthogonality demonstrates that the system identifies distinct capability niches rather than merely replicating teacher preferences (Figure~\ref{fig:specialist_landscape}).
 
 \begin{figure}[t]
     \centering
@@ -102,7 +102,7 @@ The cold-start problem is acute at modern scale (e.g., 81 models and 384-dimensi
 \end{figure}
 \vspace{0.25em}
 
-The priors compress to \textbf{<1MB}---a ``Shippable Brain'' giving new deployments day-one intelligence.
+The complete prior representation compresses to under 1MB, enabling efficient distribution to production environments and providing immediate routing intelligence from the first query.
 
 \subsection{Engineering Viability}
 \label{sec:engineering}
