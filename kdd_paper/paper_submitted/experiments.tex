@@ -11,9 +11,7 @@
 
 \paragraph{Ground Truth.} GPT-4o-as-judge scoring normalized to $[0,1]$, achieving $>$80\% agreement with human preferences.
 
-\paragraph{Metrics.} Cumulative Regret: $\sum_{t=1}^{T}(r^* - r_t)$; Regret Reduction vs.\ cold-start; System Accuracy: macro-average of Math, Reasoning, MMLU (excluding HumanEval due to sparse coverage).
-
-\paragraph{Trace-Driven Evaluation.} All routing decisions use the production BanditRouter codebase. Model success is modeled via deterministic Bernoulli sampling based on Artificial Analysis benchmark scores, ensuring reproducibility.
+\paragraph{Metrics.} Cumulative Regret: $\sum_{t=1}^{T}(r^* - r_t)$; Regret Reduction vs.\ cold-start; System Accuracy: macro-average of Math, Reasoning, MMLU (excluding HumanEval due to sparse coverage).\footnote{All routing decisions use the production BanditRouter codebase. Model success is modeled via deterministic Bernoulli sampling based on Artificial Analysis benchmark scores, ensuring reproducibility.}
 
 % ============================================================================
 % RQ1: Warm-Start Advantage (Condensed)
