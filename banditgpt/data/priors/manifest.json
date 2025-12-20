@@ -11,8 +11,8 @@
     },
     {
       "name": "expert_priors.npz",
-      "sha256": "7ac68af03a25f0a2cc0c96709251af1e5b8b7c8686fe6fec7eeea6f3342a5c74",
-      "size_bytes": 22123776,
+      "sha256": "6c94ccdd950181e924440c1b91c8d5da94d298b2e54a6044addbb4cf10729c92",
+      "size_bytes": 22123846,
       "bundled": true,
       "url": null
     }
