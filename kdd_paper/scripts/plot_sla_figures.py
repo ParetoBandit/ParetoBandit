@@ -331,10 +331,10 @@ def plot_figure7_tunability(models):
         arrowprops=dict(arrowstyle='->', color=hybrid_color, lw=2)
     )
     
-    # Labels for regions
-    ax1.text(0.25, max(accuracies) + 0.8, '← Cost-Optimal', fontsize=11, 
+    # Labels for regions (positioned within the plot, not overlapping title)
+    ax1.text(0.25, min(accuracies) + 0.3, '← Cost-Optimal', fontsize=11, 
             color='gray', fontstyle='italic')
-    ax1.text(0.75, max(accuracies) + 0.8, 'High-Assurance →', fontsize=11,
+    ax1.text(0.75, min(accuracies) + 0.3, 'High-Assurance →', fontsize=11,
             color='gray', fontstyle='italic', ha='right')
     
     ax1.set_title(
