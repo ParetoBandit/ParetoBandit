@@ -342,9 +342,8 @@ def plot_figure7_tunability(models):
     
     lines = [line1, line2]
     labels = ['Accuracy (%)', 'Cost ($/1k)']
-    # Position legend in upper left where there's empty space (above the flat portion)
-    ax1.legend(lines, labels, loc='upper left', fontsize=11, framealpha=0.9, 
-               bbox_to_anchor=(0.02, 0.75))
+    # Position legend in lower right
+    ax1.legend(lines, labels, loc='lower right', fontsize=11, framealpha=0.9)
     ax1.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
