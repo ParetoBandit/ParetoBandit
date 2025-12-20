@@ -40,7 +40,7 @@ We evaluate our framework through two research questions:
 % RQ1: Warm-Start Advantage
 % ============================================================================
 
-\section{RQ1: Warm-Start Advantage}
+\section{Warm-Start Advantage}
 \label{sec:rq1}
 
 \textbf{Research Question}: Does shipping expert-distilled priors reduce cold-start regret compared to a naive bandit?
@@ -64,7 +64,7 @@ Figure~\ref{fig:regret_curve} shows cumulative regret over the evaluation horizo
 \begin{figure}[t]
     \centering
     \includegraphics[width=\columnwidth]{figures/figure1_regret_curve.pdf}
-    \caption{\textbf{RQ1: The Shippable Brain Advantage.} Cumulative regret comparison between cold-start (no priors) and warm-start (expert-distilled priors with $\lambdaboost=50$) agents over 2,000 routing decisions. The warm-start agent achieves \textbf{63.6\% lower cumulative regret}.}
+    \caption{\textbf{The Shippable Brain Advantage.} Cumulative regret comparison between cold-start (no priors) and warm-start (expert-distilled priors with $\lambdaboost=50$) agents over 2,000 routing decisions. The warm-start agent achieves \textbf{63.6\% lower cumulative regret}.}
     \label{fig:regret_curve}
 \end{figure}
 
@@ -121,7 +121,7 @@ Surprisingly, the Benchmark-Initialized policy performs \textbf{31\% worse} than
 % RQ2: Plasticity (Concept Drift)
 % ============================================================================
 
-\section{RQ2: Plasticity Under Concept Drift}
+\section{Plasticity Under Concept Drift}
 \label{sec:rq2}
 
 \textbf{Research Question}: Can the router adapt when its priors become obsolete? This addresses the \emph{Plasticity-Stability Dilemma}: strong priors improve exploitation but may resist correction when wrong.
@@ -163,7 +163,7 @@ Figure~\ref{fig:belief_recovery} visualizes the adaptation dynamics.
 \begin{figure}[t]
     \centering
     \includegraphics[width=\columnwidth]{figures/figure2_belief_recovery.png}
-    \caption{\textbf{RQ2: Belief Recovery Under Poisoned Priors.} The router initially clings to the poisoned prior (GPT-4o), experiencing a performance ``dip.'' As contradictory evidence accumulates, internal beliefs ($\theta$) cross over, and the router discovers and switches to the true specialist (Nova-Lite). This demonstrates the system's \textbf{plasticity}---it can unlearn confidently wrong priors within $\sim$200 interactions.}
+    \caption{\textbf{Belief Recovery Under Poisoned Priors.} The router initially clings to the poisoned prior (GPT-4o), experiencing a performance ``dip.'' As contradictory evidence accumulates, internal beliefs ($\theta$) cross over, and the router discovers and switches to the true specialist (Nova-Lite). This demonstrates the system's \textbf{plasticity}---it can unlearn confidently wrong priors within $\sim$200 interactions.}
     \label{fig:belief_recovery}
 \end{figure}
 
@@ -208,7 +208,7 @@ With no memory decay ($\gamma = 1.0$), the bandit never recovers---the poisoned 
 % RQ1-OOD: Out-of-Distribution Generalization
 % ============================================================================
 
-\section{RQ1-OOD: Out-of-Distribution Generalization}
+\section{Out-of-Distribution Generalization}
 \label{sec:rq1_ood}
 
 \textbf{Research Question}: Do calibrated priors transfer to out-of-distribution (OOD) prompts within a domain?
@@ -241,7 +241,7 @@ For each prompt, the ``reward'' is the selected model's benchmark score on that 
 \begin{table}[t]
 \centering
 \small
-\caption{\textbf{RQ1-OOD: Successful Transfer via Domain Calibration.} Calibrated priors show \emph{strong positive transfer} to held-out prompts, reducing regret by 85--99\% compared to cold start.}
+\caption{\textbf{Successful Transfer via Domain Calibration.} Calibrated priors show \emph{strong positive transfer} to held-out prompts, reducing regret by 85--99\% compared to cold start.}
 \label{tab:ood_results}
 \begin{tabular}{lccc}
 \toprule
@@ -261,7 +261,7 @@ Table~\ref{tab:ood_results} demonstrates that domain-calibrated priors achieve \
 \begin{figure}[t]
     \centering
     \includegraphics[width=\columnwidth]{figures/figure5_ood_generalization.png}
-    \caption{\textbf{RQ1-OOD: Successful Transfer via Domain Calibration.} Calibrated priors (green) achieve near-zero regret on held-out OOD prompts, while cold start (red) accumulates substantial regret through exploration. Average improvement: 93.5\%.}
+    \caption{\textbf{Successful Transfer via Domain Calibration.} Calibrated priors (green) achieve near-zero regret on held-out OOD prompts, while cold start (red) accumulates substantial regret through exploration. Average improvement: 93.5\%.}
     \label{fig:ood_generalization}
 \end{figure}
 
@@ -292,7 +292,7 @@ Because prompts within a domain share semantic structure (math word problems clu
 % RQ3: SOTA Baseline Comparison
 % ============================================================================
 
-\section{RQ3: Comparison with SOTA Baselines}
+\section{Comparison with SOTA Baselines}
 \label{sec:rq3_sota}
 
 \textbf{Research Question}: How does our approach compare to state-of-the-art routing systems (RouteLLM, FrugalGPT)?

@@ -3,7 +3,7 @@
 % The "Money Section" - crucial for KDD ADS Track
 % ============================================================================
 
-\section{RQ3: Cost-Quality Efficiency}
+\section{Cost-Quality Efficiency}
 \label{sec:rq3}
 
 \textbf{Research Question}: What is the business impact of intelligent routing? Can we simultaneously improve quality \emph{and} reduce cost?
@@ -23,7 +23,7 @@ Figure~\ref{fig:pareto} visualizes the cost-accuracy trade-off across routing st
 \begin{figure}[t]
     \centering
     \includegraphics[width=\columnwidth]{figures/figure4_pareto_frontier.pdf}
-    \caption{\textbf{RQ3: The Tiered Architecture Pareto Frontier.} Left: Cost vs.\ System Accuracy (macro-average of Math/Reasoning/MMLU/Instruction) for each routing strategy. BanditGPT's Standard Mode achieves the lowest cost (\$0.67/1k), while Hybrid Mode approaches FrugalGPT's accuracy with $O(1)$ scalability over 81+ models. Right: Domain breakdown showing the ``Verifier Trap''---Hybrid beats FrugalGPT on Instructions (98\% vs 95\%) via proactive prediction.}
+    \caption{\textbf{The Tiered Architecture Pareto Frontier.} Left: Cost vs.\ System Accuracy (macro-average of Math/Reasoning/MMLU/Instruction) for each routing strategy. BanditGPT's Standard Mode achieves the lowest cost (\$0.67/1k), while Hybrid Mode approaches FrugalGPT's accuracy with $O(1)$ scalability over 81+ models. Right: Domain breakdown showing the ``Verifier Trap''---Hybrid beats FrugalGPT on Instructions (98\% vs 95\%) via proactive prediction.}
     \label{fig:pareto}
 \end{figure}
 
