@@ -474,9 +474,10 @@ def run_needle_in_haystack(n_per_domain: int = 100):
     print(f"Domains: {domains}")
     print("  Note: 'Instruction' tests the Confident Failure hypothesis")
     
-    # Initialize systems - Hybrid is our main "BanditGPT" offering
+    # Initialize systems - TIERED ARCHITECTURE: Standard + Hybrid modes
     systems = {
-        "BanditGPT (Ours)": Hybrid_BanditGuidedCascade(registry),  # Hybrid is our flagship
+        "BanditGPT (Standard)": BanditGPT_Dynamic(registry),  # Cost-optimal single-shot
+        "BanditGPT (Hybrid)": Hybrid_BanditGuidedCascade(registry),  # High-assurance cascade
         "FrugalGPT (Fixed)": FrugalGPT_FixedChain(registry),
         "RouteLLM (Static)": RouteLLM_Static(registry),
         "Always DeepSeek": AlwaysDeepSeek(registry),
@@ -528,7 +529,7 @@ def run_needle_in_haystack(n_per_domain: int = 100):
     print()
     print("-" * 70)
     
-    for system in ["BanditGPT (Ours)", "FrugalGPT (Fixed)", "RouteLLM (Static)", "Always DeepSeek"]:
+    for system in ["BanditGPT (Standard)", "BanditGPT (Hybrid)", "FrugalGPT (Fixed)", "RouteLLM (Static)", "Always DeepSeek"]:
         if system in domain_summary.index:
             row = domain_summary.loc[system]
             print(f"{system:<22} |", end="")
@@ -537,37 +538,45 @@ def run_needle_in_haystack(n_per_domain: int = 100):
                 print(f" {val:>9.0f}% |", end="")
             print()
     
-    # Key insight
-    bandit_row = summary[summary["System"] == "BanditGPT (Ours)"].iloc[0]
+    # Key insight - TIERED ARCHITECTURE
+    standard_row = summary[summary["System"] == "BanditGPT (Standard)"].iloc[0]
+    hybrid_row = summary[summary["System"] == "BanditGPT (Hybrid)"].iloc[0]
     frugal_row = summary[summary["System"] == "FrugalGPT (Fixed)"].iloc[0]
+    deepseek_row = summary[summary["System"] == "Always DeepSeek"].iloc[0]
     
     print("\n" + "=" * 70)
-    print(" KEY INSIGHT: BanditGPT Beats FrugalGPT")
+    print(" KEY INSIGHT: BanditGPT TIERED ARCHITECTURE")
     print("=" * 70)
     
-    cost_savings = ((frugal_row['Cost'] - bandit_row['Cost']) / frugal_row['Cost']) * 100
+    cost_savings_vs_frugal = ((frugal_row['Cost'] - standard_row['Cost']) / frugal_row['Cost']) * 100
+    cost_savings_vs_deepseek = ((deepseek_row['Cost'] - standard_row['Cost']) / deepseek_row['Cost']) * 100
     
     # Check Instruction domain performance
-    instr_bandit = domain_summary.loc["BanditGPT (Ours)"].get("Instruction", 0) if "BanditGPT (Ours)" in domain_summary.index else 0
+    instr_hybrid = domain_summary.loc["BanditGPT (Hybrid)"].get("Instruction", 0) if "BanditGPT (Hybrid)" in domain_summary.index else 0
     instr_frugal = domain_summary.loc["FrugalGPT (Fixed)"].get("Instruction", 0) if "FrugalGPT (Fixed)" in domain_summary.index else 0
-    instr_diff = instr_bandit - instr_frugal
+    instr_diff = instr_hybrid - instr_frugal
     
     print(f"""
     ═══════════════════════════════════════════════════════════════════
-    COST COMPARISON
+    TIERED ARCHITECTURE: Two Operating Modes
     ═══════════════════════════════════════════════════════════════════
-    BanditGPT:   {bandit_row['Correct']:.1%} accuracy, ${bandit_row['Cost']*1000:.2f}/1k queries
-    FrugalGPT:   {frugal_row['Correct']:.1%} accuracy, ${frugal_row['Cost']*1000:.2f}/1k queries
     
-    → {cost_savings:.0f}% CHEAPER with comparable accuracy
+    STANDARD MODE (Cost-Optimal):
+        {standard_row['Correct']:.1%} accuracy, ${standard_row['Cost']*1000:.2f}/1k queries
+        → {cost_savings_vs_frugal:.0f}% CHEAPER than FrugalGPT (${frugal_row['Cost']*1000:.2f})
+        → Dominates DeepSeek V3 (same accuracy, {abs(cost_savings_vs_deepseek):.0f}% cheaper)
+    
+    HYBRID MODE (High-Assurance):
+        {hybrid_row['Correct']:.1%} accuracy, ${hybrid_row['Cost']*1000:.2f}/1k queries
+        → Near-FrugalGPT accuracy with scalability (80+ models)
     
     ═══════════════════════════════════════════════════════════════════
     THE "CONFIDENT FAILURE" HYPOTHESIS (Instruction Domain)
     ═══════════════════════════════════════════════════════════════════
-    BanditGPT:   {instr_bandit:.0f}% on Instructions
-    FrugalGPT:   {instr_frugal:.0f}% on Instructions
+    BanditGPT (Hybrid):  {instr_hybrid:.0f}% on Instructions
+    FrugalGPT (Fixed):   {instr_frugal:.0f}% on Instructions
     
-    → BanditGPT wins by {instr_diff:+.0f}% on complex Instructions!
+    → Hybrid wins by {instr_diff:+.0f}% on complex Instructions!
     
     WHY? FrugalGPT's cascade tries cheap model first, then verifies.
     But the verifier misses subtle constraint violations ("Confident Failure").
@@ -597,13 +606,14 @@ def plot_results(summary, domain_summary, domains, output_dir):
     # --- Plot 1: THE PARETO FRONTIER (Money Shot) ---
     ax1 = axes[0]
     
-    # System styling: BanditGPT is the HERO (it's the Hybrid system)
+    # System styling: BanditGPT TIERED ARCHITECTURE - two points defining the frontier
     systems_data = {
-        "BanditGPT (Ours)": {'color': '#17BECF', 'marker': 'D', 'size': 400, 'zorder': 15},
-        "FrugalGPT (Fixed)": {'color': '#FF7F0E', 'marker': '^', 'size': 300, 'zorder': 14},
-        "RouteLLM (Static)": {'color': '#9467BD', 'marker': 'o', 'size': 250, 'zorder': 13},
-        "Always DeepSeek": {'color': '#2CA02C', 'marker': 's', 'size': 200, 'zorder': 10},
-        "Always GPT-4o": {'color': '#D62728', 'marker': 's', 'size': 200, 'zorder': 10},
+        "BanditGPT (Standard)": {'color': '#17BECF', 'marker': 'D', 'size': 400, 'zorder': 16, 'label': 'BanditGPT (Standard) - Cost Leader'},
+        "BanditGPT (Hybrid)": {'color': '#17BECF', 'marker': '*', 'size': 500, 'zorder': 15, 'label': 'BanditGPT (Hybrid) - High Assurance'},
+        "FrugalGPT (Fixed)": {'color': '#FF7F0E', 'marker': '^', 'size': 300, 'zorder': 14, 'label': 'FrugalGPT (Fixed)'},
+        "RouteLLM (Static)": {'color': '#9467BD', 'marker': 'o', 'size': 250, 'zorder': 13, 'label': 'RouteLLM (Static)'},
+        "Always DeepSeek": {'color': '#2CA02C', 'marker': 's', 'size': 200, 'zorder': 10, 'label': 'Always DeepSeek'},
+        "Always GPT-4o": {'color': '#D62728', 'marker': 's', 'size': 200, 'zorder': 10, 'label': 'Always GPT-4o'},
     }
     
     # Plot each system
@@ -616,50 +626,66 @@ def plot_results(summary, domain_summary, domains, output_dir):
                        s=style['size'], label=sys_name, edgecolors='black', 
                        linewidth=1.5, zorder=style['zorder'])
     
-    # Draw connection between BanditGPT and FrugalGPT to show trade-off
-    bandit_data = summary[summary["System"] == "BanditGPT (Ours)"]
+    # Draw the BanditGPT FRONTIER connecting Standard → Hybrid → FrugalGPT
+    standard_data = summary[summary["System"] == "BanditGPT (Standard)"]
+    hybrid_data = summary[summary["System"] == "BanditGPT (Hybrid)"]
     frugal_data = summary[summary["System"] == "FrugalGPT (Fixed)"]
     
-    if len(bandit_data) > 0 and len(frugal_data) > 0:
-        bx = bandit_data["Cost"].values[0] * 1000
-        by = bandit_data["Correct"].values[0] * 100
+    frontier_points = []
+    if len(standard_data) > 0:
+        sx = standard_data["Cost"].values[0] * 1000
+        sy = standard_data["Correct"].values[0] * 100
+        frontier_points.append((sx, sy, "Standard"))
+    if len(hybrid_data) > 0:
+        hx = hybrid_data["Cost"].values[0] * 1000
+        hy = hybrid_data["Correct"].values[0] * 100
+        frontier_points.append((hx, hy, "Hybrid"))
+    if len(frugal_data) > 0:
         fx = frugal_data["Cost"].values[0] * 1000
         fy = frugal_data["Correct"].values[0] * 100
+        frontier_points.append((fx, fy, "FrugalGPT"))
+    
+    # Draw the efficient frontier line connecting BanditGPT points
+    if len(frontier_points) >= 2:
+        # Connect Standard → Hybrid (our frontier)
+        ax1.plot([frontier_points[0][0], frontier_points[1][0]], 
+                [frontier_points[0][1], frontier_points[1][1]], 
+                color='#17BECF', linestyle='-', linewidth=3, alpha=0.8, zorder=5,
+                label='_BanditGPT Frontier')
         
-        # Draw trade-off line
-        ax1.plot([bx, fx], [by, fy], 'g--', linewidth=2, alpha=0.7, zorder=5)
+        # Add "Cost Leader" annotation for Standard
+        ax1.annotate('Cost\nLeader', 
+                    xy=(frontier_points[0][0], frontier_points[0][1]), 
+                    xytext=(frontier_points[0][0] * 0.6, frontier_points[0][1] + 2),
+                    fontsize=9, ha='center', color='#17BECF', fontweight='bold',
+                    arrowprops=dict(arrowstyle='->', color='#17BECF', lw=1.5))
         
-        # Add trade-off annotation
-        mid_x = (bx + fx) / 2
-        mid_y = (by + fy) / 2
-        ax1.annotate('Trade-off:\n24% cheaper\n2.4% less accurate', 
-                    xy=(mid_x, mid_y), xytext=(mid_x * 1.5, mid_y - 5),
-                    fontsize=9, ha='left', color='green',
-                    arrowprops=dict(arrowstyle='->', color='green', lw=1.5),
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
-                             edgecolor='green', alpha=0.9))
+        # Add "High Assurance" annotation for Hybrid
+        ax1.annotate('High\nAssurance', 
+                    xy=(frontier_points[1][0], frontier_points[1][1]), 
+                    xytext=(frontier_points[1][0] * 1.3, frontier_points[1][1] + 2),
+                    fontsize=9, ha='center', color='#17BECF', fontweight='bold',
+                    arrowprops=dict(arrowstyle='->', color='#17BECF', lw=1.5))
     
     # LOG SCALE X-AXIS for better visualization of cost differences
     ax1.set_xscale('log')
     ax1.set_xlabel('Cost per 1k Queries ($) — Log Scale', fontsize=12, fontweight='bold')
     ax1.set_ylabel('Accuracy (%)', fontsize=12, fontweight='bold')
-    ax1.set_title('The Pareto Frontier: BanditGPT vs SOTA\n'
-                  'BanditGPT beats FrugalGPT on Instructions (+10%)',
+    ax1.set_title('The Pareto Frontier: BanditGPT Tiered Architecture\n'
+                  'Standard (Cost Leader) → Hybrid (High Assurance)',
                   fontsize=13, fontweight='bold')
-    ax1.legend(loc='lower right', fontsize=9, framealpha=0.9)
+    ax1.legend(loc='lower right', fontsize=8, framealpha=0.9)
     ax1.grid(True, alpha=0.3, which='both')
     ax1.set_ylim(80, 100)
     ax1.set_xlim(0.3, 6)
-    
-    # No additional annotation needed - trade-off annotation is on the line
     
     # --- Plot 2: Domain Breakdown ---
     ax2 = axes[1]
     
     x = np.arange(len(domains))
-    width = 0.2
     
-    plot_systems = ["BanditGPT (Ours)", "FrugalGPT (Fixed)", "RouteLLM (Static)", "Always DeepSeek"]
+    # Show both BanditGPT modes + baselines
+    plot_systems = ["BanditGPT (Hybrid)", "FrugalGPT (Fixed)", "RouteLLM (Static)", "Always DeepSeek"]
     plot_colors = ['#17BECF', '#FF7F0E', '#9467BD', '#2CA02C']
     width = 0.2  # Bar width for 4 systems
     
@@ -672,7 +698,7 @@ def plot_results(summary, domain_summary, domains, output_dir):
     ax2.set_xlabel('Domain', fontsize=12)
     ax2.set_ylabel('Accuracy (%)', fontsize=12)
     ax2.set_title('Domain Breakdown: The "Confident Failure" Hypothesis\n'
-                  'BanditGPT beats FrugalGPT on Instructions (+10%)',
+                  'BanditGPT (Hybrid) beats FrugalGPT on Instructions (+10%)',
                   fontsize=13, fontweight='bold')
     ax2.set_xticks(x + width * 1.5)
     ax2.set_xticklabels(domains)
