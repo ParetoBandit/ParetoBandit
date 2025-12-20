@@ -76,19 +76,13 @@ We call this the \textbf{``Shippable Brain''} paradigm: the intelligence of an e
 \textbf{Contributions.} This paper makes the following contributions:
 
 \begin{enumerate}[leftmargin=*]
-    \item We formalize the \textbf{Shippable Brain} paradigm for LLM routing, demonstrating that model expertise can be compressed into a <1MB prior that transfers across deployments (\S\ref{sec:method}).
+    \item \textbf{Scalable $O(1)$ Routing}: We propose a method to route over arbitrarily large model registries ($N=81+$) with constant inference latency, overcoming the linear bottleneck of cascading systems (\S\ref{sec:method}).
     
-    \item We identify the \textbf{Benchmark Trap}: initializing priors with public leaderboard scores (MMLU, HumanEval) yields \emph{31\% worse} performance than random initialization, proving that academic benchmarks are poor proxies for production quality (\S\ref{sec:benchmark_trap}).
+    \item \textbf{Shippable Priors}: We demonstrate that covariance matrices learned from dense offline grids can be ``shipped'' to new domains, enabling effective few-shot calibration that outperforms random initialization by $\sim$99\% (\S\ref{sec:rq1}).
     
-    \item We introduce a \textbf{Density-Based Warm-Start} algorithm that combines expert-distilled priors with online LinUCB learning, achieving both immediate utility and long-term adaptation (\S\ref{sec:algorithm}).
+    \item \textbf{Tiered \& Tunable Architecture}: We unify predictive routing and cascading into a single framework controlled by a quantile-calibrated cascade rate ($\lambda$), giving users linear control over the cost-accuracy trade-off (\S\ref{sec:rq3}).
     
-    \item We provide extensive empirical evaluation across four research questions:
-    \begin{itemize}
-        \item \textbf{RQ1 (Warm-Start)}: Does expert distillation reduce cold-start regret? (Yes: 63.6\% reduction)
-        \item \textbf{RQ1-OOD (Few-Shot Calibration)}: Does Few-Shot Calibration ($\sim$50--100 examples) enable a ``Prior-Informed Cold Start''? (Yes: 93.5\% regret reduction on held-out OOD benchmarks)
-        \item \textbf{RQ2 (Plasticity)}: Can the router discover local specialists not encoded in the prior? (Yes: Nova-Lite achieves $\|\theta\|=3.66$ vs.\ GPT-4o's $\|\theta\|=1.66$)
-        \item \textbf{RQ3 (SOTA Comparison)}: How does BanditGPT compare to FrugalGPT and RouteLLM? (BanditGPT: 24\% cheaper, +10\% on Instructions via ``Confident Failure'' avoidance)
-    \end{itemize}
+    \item \textbf{The ``Confident Failure'' Hypothesis}: We empirically identify a failure mode in standard cascades---where verifiers are fooled by plausible errors---and demonstrate how predictive routing mitigates this in high-complexity domains (\S\ref{sec:qualitative}).
     
     \item We release \textbf{BanditGPT}, an open-source library implementing our framework with bundled expert priors, available at \url{https://github.com/[redacted]/banditgpt}.
 \end{enumerate}
