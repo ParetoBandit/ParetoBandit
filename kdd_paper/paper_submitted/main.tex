@@ -72,19 +72,11 @@
 % ABSTRACT
 % ============================================================================
 \begin{abstract}
-The expansion of the Large Language Model (LLM) ecosystem has created a ``Long Tail'' of specialized models that offer high performance at a fraction of the cost of frontier generalists. However, existing routing systems fail to efficiently capitalize on this fragmentation: cascading frameworks (e.g., FrugalGPT) suffer from linear latency scaling ($O(N)$) and rely on rigid, small-chain configurations that overlook niche specialists.
+The exploding LLM ecosystem has created a ``Long Tail'' of specialized models offering high performance at a fraction of frontier costs. However, existing routing systems fail to capitalize on this fragmentation: cascading frameworks (e.g., FrugalGPT) suffer from $O(N)$ latency and rigid chains that miss niche specialists.
 
-In this work, we introduce \textbf{BanditGPT}, a scalable routing framework that utilizes ``Shippable Priors''---covariance matrices calibrated offline---to enable $O(1)$ predictive search over massive model pools. Unlike naive cold-start bandits that require thousands of interactions to converge, our approach leverages \textbf{Few-Shot Domain Calibration} (labeling $<$100 examples) to transfer learned model correlations to new domains, reducing Day 1 regret by \textbf{96--99\%} on held-out benchmarks.
+We introduce \textbf{BanditGPT}, a scalable routing framework using ``Shippable Priors''---covariance matrices calibrated offline---to enable $O(1)$ predictive search over massive model pools. Unlike cold-start bandits requiring thousands of interactions, our \textbf{Few-Shot Calibration} ($<$100 examples) transfers learned correlations to new domains, reducing Day 1 regret by \textbf{96--99\%}.
 
-We propose a \textbf{tiered architecture} that combines prediction and verification:
-
-\begin{itemize}
-    \item \textbf{Standard Mode (Cost-Optimal)}: A single-shot predictive router that defines a new Pareto frontier, achieving 92.0\% accuracy at \$0.46/1k queries---a \textbf{71\% cost reduction} compared to FrugalGPT (\$1.60) and 63\% compared to DeepSeek V3, while maintaining equal accuracy.
-    
-    \item \textbf{Hybrid Mode (Bandit-Guided Cascade)}: A high-assurance integration where the bandit acts as a ``Gatekeeper'' to a verification cascade. This addresses the ``Confident Failure'' phenomenon---where verifiers approve plausible-sounding but incorrect outputs---outperforming FrugalGPT by \textbf{+3\%} on complex Instruction Following tasks (\textbf{98.0\% vs 95.0\%}) by identifying high-risk prompts \emph{ex-ante} and bypassing fallible verification loops.
-\end{itemize}
-
-Finally, we introduce a linearly calibrated \textbf{Cascade Rate} parameter ($\lambda$) that allows users to dynamically navigate the Pareto frontier. By strictly controlling the percentage of queries routed to the expensive verifier (from 0\% to 100\%), users can precisely align inference costs with their financial SLAs. Our results establish BanditGPT as a robust solution for both cost-constrained and quality-critical environments.
+We propose a \textbf{tiered architecture}: (1) \textbf{Standard Mode} achieves 92.0\% accuracy at \$0.46/1k queries---\textbf{71\% cheaper} than FrugalGPT; (2) \textbf{Hybrid Mode} uses the bandit as a ``Gatekeeper'' to a verification cascade, addressing the ``Confident Failure'' phenomenon where verifiers approve plausible-but-wrong outputs, outperforming FrugalGPT by \textbf{+3\%} on instruction tasks (\textbf{98.0\% vs 95.0\%}) via \emph{ex-ante} prediction. A tunable \textbf{Cascade Rate} ($\lambda$) lets users navigate the Pareto frontier to align costs with financial SLAs.
 \end{abstract}
 
 % ============================================================================
