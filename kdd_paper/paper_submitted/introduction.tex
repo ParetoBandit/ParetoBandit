@@ -9,15 +9,9 @@ The proliferation of LLMs has created a new optimization challenge: \emph{model 
 
 Existing solutions have critical limitations: \textbf{Static classifiers}~\cite{ong2024routellm} cannot adapt to user-specific distributions. \textbf{Online bandits}~\cite{slivkins2019contextual} adapt but suffer from prohibitive cold-start---hundreds of costly queries wasted before intelligent decisions emerge.
 
-\textbf{Our Insight.} While user distributions vary, the \emph{latent structure} of model expertise is invariant. GPT-4o excels at complex reasoning universally; Nova-Lite dominates structured output tasks. This expertise can be learned offline and \emph{shipped} as a compressed prior.
+\textbf{Our Insight.} While user distributions vary, the \emph{latent structure} of model expertise is invariant. GPT-4o excels at reasoning; Nova-Lite dominates structured tasks. This expertise can be learned offline and \emph{shipped} as a compressed prior.
 
-We introduce a \textbf{Density-Based Warm-Start Framework} that solves cold-start via \emph{Expert Distillation}:
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Offline}: Dense evaluation (81 models $\times$ 497 archetypes) using GPT-4o as oracle
-    \item \textbf{Compression}: Distill expertise into \textbf{<1MB} covariance matrices
-    \item \textbf{Shipping}: Priors give day-one intelligence without exploration
-    \item \textbf{Adaptation}: Retain full plasticity via rank-one updates
-\end{enumerate}
+We introduce a \textbf{Density-Based Warm-Start Framework} that solves cold-start via \emph{Expert Distillation}: (1) dense offline evaluation (81 models $\times$ 497 archetypes) using GPT-4o as oracle; (2) compression into \textbf{<1MB} covariance matrices; (3) shipping priors for day-one intelligence; (4) retaining plasticity via rank-one updates.
 
 \begin{figure}[t]
     \centering
@@ -28,15 +22,4 @@ We introduce a \textbf{Density-Based Warm-Start Framework} that solves cold-star
 
 \textbf{Key Results.} On 2,000 real-world queries: \textbf{63.6\% regret reduction} vs.\ cold-start; \textbf{97.6\% cost savings} on equal-quality queries; \textbf{+6.1\% quality} with 67.7\% cost reduction vs.\ GPT-4o; \textbf{8.94ms} P99 latency (1.1\% overhead).
 
-\textbf{Contributions.}
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Scalable $O(1)$ Routing}: Route over 81+ models with constant latency (\S\ref{sec:method}).
-    
-    \item \textbf{Shippable Priors}: Covariance matrices enable few-shot calibration, outperforming random initialization by $\sim$99\% (\S\ref{sec:rq1}).
-    
-    \item \textbf{Tiered Architecture}: Unified predictive routing and cascading via quantile-calibrated cascade rate (\S\ref{sec:rq3}).
-    
-    \item \textbf{The ``Verifier Trap''}: Proactive prediction beats reactive verification on instruction tasks (98\% vs 95\%) (\S\ref{sec:confident_failure}).
-    
-    \item \textbf{BanditGPT}: Open-source implementation at \url{https://github.com/[redacted]/banditgpt}.
-\end{enumerate}
+\textbf{Contributions.} (1) \textbf{Scalable $O(1)$ Routing} over 81+ models (\S\ref{sec:method}). (2) \textbf{Shippable Priors} enabling few-shot calibration, outperforming random init by $\sim$99\% (\S\ref{sec:rq1}). (3) \textbf{Tiered Architecture} unifying prediction and cascading via tunable cascade rate (\S\ref{sec:rq3}). (4) \textbf{The ``Verifier Trap''}: proactive prediction beats reactive verification (98\% vs 95\%) (\S\ref{sec:confident_failure}). (5) \textbf{BanditGPT}: open-source at \url{https://github.com/[redacted]/banditgpt}.
