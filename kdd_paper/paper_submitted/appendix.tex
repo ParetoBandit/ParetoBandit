@@ -13,7 +13,7 @@
 All code, data, and pre-trained priors are available at:
 
 \begin{center}
-\url{https://github.com/[redacted]/banditgpt}
+\url{https://github.com/redacted/banditgpt}
 \end{center}
 
 \paragraph{Repository Contents.}
@@ -161,6 +161,7 @@ Table~\ref{tab:roi_full} presents the complete ROI leaderboard for all evaluated
 \footnotesize
 \caption{\textbf{Full ROI Leaderboard.} All 81 models ranked by ROI Factor = $\|\boldsymbol{\theta}\| / \text{Cost}$ relative to GPT-4o baseline. Top 15 models shown.}
 \label{tab:roi_full}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{clccc}
 \toprule
 \textbf{Rank} & \textbf{Model} & \textbf{Cost/1k} & \textbf{$\|\theta\|$} & \textbf{ROI} \\
@@ -183,7 +184,8 @@ Table~\ref{tab:roi_full} presents the complete ROI leaderboard for all evaluated
 \midrule
 \textit{Ref} & \textit{GPT-4o} & \textit{\$4.38} & \textit{1.66} & \textit{1.0×} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsection{Detailed Latency Breakdown}

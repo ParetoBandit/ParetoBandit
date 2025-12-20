@@ -1,26 +1,26 @@
 % ============================================================================
-% METHOD: Problem Definition & System Design (Condensed)
+% SECTION 2: FRAMEWORK
 % ============================================================================
 
-\section{Density-Based Warm-Start Framework}
+\section{Framework}
 \label{sec:method}
 
 \subsection{Problem Definition}
 \label{sec:problem}
 
-Given query $q$ and model pool $\mathcal{M} = \{m_1, \ldots, m_M\}$, select:
+Given a query $q$ and a model pool $\mathcal{M}=\{1,\ldots,M\}$, the router selects a model $m\in\mathcal{M}$ to maximize a utility that trades off predicted quality, cost, and latency:
 \begin{equation}
-m^* = \argmax_{m \in \mathcal{M}} \left[ \hat{Q}(q, m) - \lambdacost \cdot C_m - \lambdalat \cdot L_m \right]
+\pi(q) = \argmax_{m \in \mathcal{M}} \left[ \hat{Q}(q, m) - \lambdacost \cdot C_m - \lambdalat \cdot L_m \right]
 \label{eq:utility}
 \end{equation}
-where $\hat{Q}(q, m)$ is predicted quality, $C_m$ is cost, $L_m$ is latency, and $\lambdacost, \lambdalat$ are trade-off weights. The challenge: $\hat{Q}$ is unknown and must be learned, but naive online learning requires thousands of costly queries.
+where $\hat{Q}(q, m)$ is the predicted quality, $C_m$ is cost, $L_m$ is latency, and $\lambdacost,\lambdalat$ are trade-off weights. The challenge is that $\hat{Q}$ is initially unknown and must be learned online, but naive cold-start exploration can waste substantial budget before converging.
 
 \subsection{System Architecture}
 \label{sec:architecture}
 
-Our system has two paths: (1) \textbf{Hot Path}: millisecond-scale LinUCB selection; (2) \textbf{Cold Path}: asynchronous quality assessment for learning.
+Our system has two asynchronous paths: (1) a \textbf{Hot Path} that performs millisecond-scale routing; and (2) a \textbf{Cold Path} that performs delayed quality assessment and updates the router.
 
-\paragraph{Context Embedding.} Each query maps to $\mathbf{x} = \text{Embed}(q) \in \mathbb{R}^{384}$ using a sentence transformer (all-MiniLM-L6-v2), encoding semantic position in ``meaning space.''
+\paragraph{Context Embedding.} Each query is mapped to an embedding $\mathbf{x}=\phi(q)\in\mathbb{R}^{384}$ using a sentence transformer (all-MiniLM-L6-v2), encoding the prompt's position in a semantic ``meaning space.''
 
 \paragraph{Disjoint LinUCB.} Each model $m$ maintains: $\mathbf{A}_m \in \mathbb{R}^{d \times d}$ (covariance) and $\mathbf{b}_m \in \mathbb{R}^{d}$ (reward accumulator). Predicted quality with exploration bonus:
 \begin{equation}
@@ -36,6 +36,44 @@ where $\boldsymbol{\theta}_m = \mathbf{A}_m^{-1} \mathbf{b}_m$ encodes model $m$
 \label{eq:update}
 \end{align}
 
+\subsection{Algorithm Mechanics: Disjoint LinUCB}
+\label{sec:linucb}
+
+To solve the routing problem efficiently under uncertainty, we employ the Disjoint Linear Upper Confidence Bound (LinUCB) algorithm. We choose the \emph{disjoint} variant because LLM capabilities are often uncorrelated across disjoint architectures (e.g., a ``Math'' specialist like Grok has a completely different feature-response surface than a ``Creative'' model like Claude). Sharing parameters across arms (Hybrid LinUCB) would incorrectly bias the router to assume correlated performance where none exists.
+
+For each model (arm) $k$, we maintain a learned weight vector $\hat{\boldsymbol{\theta}}_k$ computed from ridge regression of historical contexts $\mathbf{x}$ onto rewards $r$:
+\begin{equation}
+\hat{\boldsymbol{\theta}}_k = \mathbf{A}_k^{-1} \mathbf{b}_k
+\end{equation}
+where $\mathbf{A}_k$ is the covariance matrix (initialized as $\mathbf{I}_d$) and $\mathbf{b}_k$ is the reward vector. The algorithm selects the model that maximizes the Upper Confidence Bound (UCB) of the estimated reward:
+\begin{equation}
+k_t = \argmax_{k \in \mathcal{K}} \left( \mathbf{x}_t^\top \hat{\boldsymbol{\theta}}_k + \alpha \sqrt{\mathbf{x}_t^\top \mathbf{A}_k^{-1} \mathbf{x}_t} \right)
+\end{equation}
+The first term ($\mathbf{x}_t^\top \hat{\boldsymbol{\theta}}_k$) represents \textbf{Exploitation} (predicted quality), while the second term represents \textbf{Exploration} (uncertainty). The hyperparameter $\alpha$ controls the aggressiveness of exploration.
+
+\subsection{Regret Formulation}
+\label{sec:regret}
+
+We evaluate the router's learning efficiency using \textbf{Cumulative Regret}, defined as the difference between the reward of the optimal policy and the router's chosen policy over $T$ rounds. This metric quantifies the ``cost of learning''---the performance lost while the bandit explores sub-optimal models to gather data:
+\begin{equation}
+R_T = \sum_{t=1}^T \left( r(\mathbf{x}_t, k^*) - r(\mathbf{x}_t, k_t) \right)
+\end{equation}
+where $k^*$ is the optimal model for query $\mathbf{x}_t$ (determined by oracle ground truth), $k_t$ is the model selected by \ours{}, and $r(\cdot)$ is the realized reward. Minimizing $R_T$ implies the system quickly converges to the best model for every prompt type. Our ``Shippable Priors'' technique minimizes $R_T$ by pre-filling $\mathbf{A}_k$ and $\mathbf{b}_k$ with offline knowledge, effectively ``fast-forwarding'' past the initial high-regret exploration phase.
+
+\subsection{User Control: The Tunable Objective ($\lambda$)}
+\label{sec:lambda}
+
+Standard bandits optimize purely for accuracy. However, production environments require strict control over non-functional requirements (FinOps and SLAs). We modify the reward function $r(\mathbf{x}, k)$ to penalize expensive or slow models based on user-defined sensitivity parameters:
+\begin{equation}
+r(\mathbf{x}, k) = \text{Quality}(\mathbf{x}, k) - \lambdacost \cdot \text{Cost}_k - \lambdalat \cdot \text{Latency}_k
+\end{equation}
+These $\lambda$ parameters act as ``knobs'' that reshape the optimization landscape:
+\begin{itemize}[leftmargin=*,nosep]
+    \item $\lambdacost \to 0$: The bandit functions as a ``Max Performance'' router, selecting GPT-4o-class models regardless of price.
+    \item $\lambdacost \gg 0$: The effective reward for expensive models drops significantly. The bandit is mathematically forced to explore cheaper alternatives (e.g., Gemini Flash Lite), only selecting expensive models if the predicted quality gain ($\Delta\text{Quality}$) is massive enough to offset the cost penalty ($\lambdacost \cdot \Delta\text{Cost}$).
+\end{itemize}
+This formulation ensures that cost-saving is not a heuristic rule, but an \emph{intrinsic mathematical property} of the routing policy.
+
 \subsection{Why Contextual Bandits?}
 \label{sec:pivot}
 
@@ -44,13 +82,13 @@ Static classifiers~\cite{ong2024routellm} freeze after training. We use bandits 
 \subsection{Expert Distillation}
 \label{sec:distillation}
 
-The cold-start problem: 81 models $\times$ 384 dimensions requires thousands of queries. We solve this via \textbf{Expert Distillation} using GPT-4o as teacher.
+The cold-start problem is acute at modern scale (e.g., 81 models and 384-dimensional contexts): learning reliable $\hat{Q}(q,m)$ estimates from scratch can require thousands of interactions. We address this via \textbf{Expert Distillation} using GPT-4o as a teacher.
 
 \paragraph{Archetype Grid.} We sample 50K prompts from LMSYS Chatbot Arena~\cite{zheng2023judging} and embed them with a sentence-transformer encoder. We then cluster via K-Means ($K=497$) and select centroid representatives, yielding 497 ``golden prompts'' spanning the task distribution.
 
-\paragraph{Dense Evaluation.} For each (model, archetype) pair, generate responses via OpenRouter and grade with GPT-4o (normalized $[0,1]$). The oracle achieves $>$80\% agreement with human preferences.
+\paragraph{Dense Evaluation.} For each (model, archetype) pair, we generate responses via OpenRouter and grade with GPT-4o (normalized to $[0,1]$). The teacher achieves $>$80\% agreement with human preferences.
 
-\paragraph{Prior Fitting.} Train the bandit by simulating oracle decisions: for each archetype with embedding $\mathbf{x}$ and optimal model $m^*$, apply rank-one updates. Repeat for 5 epochs.
+\paragraph{Prior Fitting.} We train the bandit by simulating teacher-optimal decisions: for each archetype embedding $\mathbf{x}$ and optimal model $m^*$, we apply the same rank-one updates used online. We repeat for 5 epochs.
 
 \paragraph{Prior Strength ($\lambdaboost$).} We scale priors as $\mathbf{A}_m \leftarrow \lambdaboost \cdot \mathbf{A}_m$. With $\lambdaboost=50$ (default), the exploration term shrinks by $1/\sqrt{50}$ and the policy favors exploitation. This is valid because the prior encodes teacher supervision rather than uninformative initialization.
 
@@ -62,7 +100,7 @@ The cold-start problem: 81 models $\times$ 384 dimensions requires thousands of 
     \caption{\textbf{Specialist Discovery.} Nova-Lite develops $2\times$ larger weight norms than GPT-4o, occupying orthogonal embedding regions for structured output tasks.}
     \label{fig:specialist_landscape}
 \end{figure}
-\vspace{-0.5em}
+\vspace{0.25em}
 
 The priors compress to \textbf{<1MB}---a ``Shippable Brain'' giving new deployments day-one intelligence.
 

@@ -7,9 +7,17 @@
 
 \paragraph{Dataset.} We use 497 archetypal prompts from LMSYS Chatbot Arena~\cite{zheng2023judging} via K-means clustering, with 2,000 sampled prompts for evaluation.
 
-\paragraph{Model Pool.} 81 production LLMs via OpenRouter: frontier (GPT-4o, Claude-3.5-Sonnet, Gemini-2.0), open-weight (Llama-3-70B, DeepSeek-V3), and cost-optimized (Nova-Lite, Nova-Micro).
+\paragraph{Model Pool.} 81 production LLMs via OpenRouter: frontier (GPT-4o, GPT-5.1, Claude Sonnet 4.5, Gemini 3 Pro, Grok-4), open-weight (Llama-3-70B, DeepSeek-V3), and cost-optimized (Nova-Lite, Nova-Micro).
 
-\paragraph{Ground Truth.} GPT-4o-as-judge scoring normalized to $[0,1]$, achieving $>$80\% agreement with human preferences.
+\paragraph{Ground Truth \& Evaluation Strategy.} We utilize GPT-4o-as-judge for scoring model outputs, normalized to $[0,1]$. This choice is motivated by three factors that ensure both internal consistency and external validity:
+
+\begin{itemize}[leftmargin=*,nosep]
+    \item \textbf{Human Alignment (External Validity):} GPT-4o achieves $>$80\% agreement with human preferences on LMSYS Chatbot Arena~\cite{zheng2023judging}, matching inter-annotator agreement levels and serving as a robust proxy for user satisfaction.
+    
+    \item \textbf{Teacher-Student Consistency (Internal Validity):} Since our ``Shippable Priors'' are distilled from GPT-4o supervision, using the same model for evaluation ensures that measured regret reflects the router's learning efficiency rather than alignment noise between disparate teacher models.
+    
+    \item \textbf{Adversarial Baseline (Robustness):} While utilizing a frontier model to judge itself introduces a risk of self-preference bias, this acts as a conservative constraint in our context. Any bias would artificially inflate the baseline score of the expensive expert (GPT-4o). Therefore, when \ours{} identifies a cheaper specialist (e.g., Nova-Lite) that the judge rates higher than itself, the efficiency gain is doubly credible.
+\end{itemize}
 
 \paragraph{Metrics.} Cumulative Regret: $\sum_{t=1}^{T}(r^* - r_t)$; Regret Reduction vs.\ cold-start; System Accuracy: macro-average of Math, Reasoning, MMLU (excluding HumanEval due to sparse coverage).\footnote{All routing decisions use the production BanditRouter codebase. Model success is modeled via deterministic Bernoulli sampling based on Artificial Analysis benchmark scores, ensuring reproducibility.}
 

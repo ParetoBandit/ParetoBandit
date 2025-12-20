@@ -33,6 +33,13 @@
 \usepackage{multirow}       % Multi-row tables
 \usepackage{pifont}         % Checkmarks (\ding)
 
+% ----------------------------------------------------------------------------
+% Typesetting robustness (reduce visible margin overflows)
+% ----------------------------------------------------------------------------
+\setlength{\emergencystretch}{2em}
+\tolerance=2000
+\hbadness=2000
+
 % ============================================================================
 % CUSTOM COMMANDS
 % ============================================================================
@@ -74,13 +81,9 @@
 % ABSTRACT
 % ============================================================================
 \begin{abstract}
-The LLM landscape is rapidly fragmenting: alongside frontier models, dozens of low-cost specialists now achieve strong performance on narrow task families. Real deployments therefore face a routing problem---selecting, per query, a model that best trades off quality, cost, and latency across large and changing model pools. Existing routers either (i) rely on fixed cascades that add sequential latency and expose only a small chain of models, or (ii) use online bandits that adapt but incur substantial cold-start exploration cost. Critically, both approaches require expensive offline profiling to add new models.
+The LLM ecosystem is rapidly fragmenting into a ``long tail'' of specialized models that achieve frontier performance at a fraction of the cost. However, existing routing systems fail to scale to this fragmentation: cascading frameworks suffer from $O(N)$ latency and rigid configurations, while online bandits face prohibitive cold-start costs.
 
-We present \ours{}, a routing framework that warm-starts contextual bandits using \emph{shippable priors}: compact per-model covariance statistics distilled offline from dense teacher supervision. With fewer than 100 calibration examples, the priors transfer to new domains and substantially reduce day-one regret relative to standard initialization, while preserving online adaptation under drift.
-
-\textbf{Zero-Overhead Scalability.} Unlike static routers that require re-training or cascades that require re-calibration, \ours{} decouples \emph{prompt difficulty} (learned once, model-agnostic) from \emph{model capability} (registered via public metadata). New models are onboarded in $O(1)$ time using only their API endpoint and reported benchmark scores as coarse safety filters; the bandit then autonomously verifies actual performance via online exploration.
-
-\ours{} supports a tiered deployment mode in which the bandit predicts when a query is high-risk and selectively triggers a verification cascade, improving reliability on instruction-following tasks where reactive verification is prone to ``confident failures.'' Across 80+ production models, \ours{} adds millisecond-scale routing overhead and enables a tunable cost--accuracy trade-off suitable for financial and latency SLAs.
+We present \ours{}, a scalable routing framework that utilizes \emph{shippable priors}---covariance matrices distilled offline from teacher supervision---to enable $O(1)$ predictive search over massive model pools. With fewer than 100 calibration examples, these priors reduce day-one regret by 96--99\% relative to standard initialization. To handle a fast-moving market, \ours{} decouples prompt difficulty from model capability, allowing new models to be integrated immediately via online exploration. Finally, we introduce a \emph{tiered architecture} that unifies cost and reliability. Standard mode establishes a new Pareto anchor, reducing inference costs by 61\% compared to FrugalGPT (\$0.70 vs.\ \$1.78/1k). Hybrid mode selectively triggers verification for high-risk prompts, addressing the ``confident failure'' phenomenon and outperforming cascading baselines by 3\% on complex instruction-following tasks.
 \end{abstract}
 
 % ============================================================================
