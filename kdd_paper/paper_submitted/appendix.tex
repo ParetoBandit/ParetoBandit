@@ -213,3 +213,47 @@ After receiving feedback $(m, \mathbf{x}, r)$:
 \end{algorithmic}
 
 This rank-one update takes $O(d^2)$ time, enabling real-time learning.
+
+% ============================================================================
+% SLA-Aware Routing (Moved from Main Paper)
+% ============================================================================
+
+\section{SLA-Aware Routing Framework}
+\label{app:sla}
+
+Rather than a rigid alternative to cascading, BanditGPT offers a \textbf{unified framework} controlled by the \emph{verification threshold} ($\lambda$):
+
+\begin{equation}
+\text{Action} = \begin{cases} 
+\text{Single-Shot} & \text{if } P(\text{Success}) > \lambda \\
+\text{Cascade} & \text{if } P(\text{Success}) \le \lambda
+\end{cases}
+\end{equation}
+
+\paragraph{Threshold Settings.}
+\begin{itemize}[leftmargin=*]
+    \item $\lambda = 0.0$ (Cost-Optimal): Never cascade. 92.8\% accuracy at \$10.23/1k.
+    \item $\lambda = 0.6$ (Sweet Spot): Cascade when uncertain.
+    \item $\lambda = 1.0$ (Max Accuracy): Always cascade. 99.6\% accuracy at \$17.63/1k.
+\end{itemize}
+
+\paragraph{Hard Budget Constraints.} BanditGPT supports hard constraints via a constrained action space:
+\begin{equation}
+\mathcal{A}_{\text{feasible}} = \{m \in \mathcal{M} : \text{cost}(m) \le C_{\max}, \text{latency}(m) \le L_{\max}\}
+\end{equation}
+
+When constrained to \$0.50/1k: GPT-4o and DeepSeek fail the constraint entirely, while BanditGPT maintains 85\% accuracy by auto-routing to cheap specialists.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/figure7_sla_tunability.pdf}
+    \caption{\textbf{Dialing the Pareto Frontier.} Users dynamically trade cost for accuracy via $\lambda$.}
+    \label{fig:sla_tunability_app}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/figure8_finops_constraints.pdf}
+    \caption{\textbf{Resilience Under Hard Budget Constraints.} Static policies fail; BanditGPT adapts.}
+    \label{fig:finops_app}
+\end{figure}

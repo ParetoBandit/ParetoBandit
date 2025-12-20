@@ -1,274 +1,95 @@
 % ============================================================================
-% METHOD: Problem Definition & System Design (Section 2)
+% METHOD: Problem Definition & System Design (Condensed)
 % ============================================================================
 
 \section{Density-Based Warm-Start Framework}
 \label{sec:method}
 
-We formalize the LLM routing problem and present our system architecture.
-
-% ---------------------------------------------------------------------------
-% 2.1 Problem Definition
-% ---------------------------------------------------------------------------
-
 \subsection{Problem Definition}
 \label{sec:problem}
 
-Given a user query $q$ and a pool of $M$ candidate models $\mathcal{M} = \{m_1, \ldots, m_M\}$, the routing problem is to select the model $m^*$ that maximizes a utility function balancing quality, cost, and latency:
-
+Given query $q$ and model pool $\mathcal{M} = \{m_1, \ldots, m_M\}$, select:
 \begin{equation}
 m^* = \argmax_{m \in \mathcal{M}} \left[ \hat{Q}(q, m) - \lambdacost \cdot C_m - \lambdalat \cdot L_m \right]
 \label{eq:utility}
 \end{equation}
-
-where $\hat{Q}(q, m)$ is the predicted quality of model $m$ on query $q$, $C_m$ is the token cost, $L_m$ is the expected latency, and $\lambdacost, \lambdalat$ are user-configurable trade-off weights.
-
-The challenge is that $\hat{Q}(q, m)$ is unknown \emph{a priori} and must be learned from interaction data. Static approaches train a classifier on benchmark datasets, but this fails when the deployment distribution differs from training. Online approaches learn $\hat{Q}$ through exploration, but require many costly queries before converging.
-
-% ---------------------------------------------------------------------------
-% 2.2 System Architecture
-% ---------------------------------------------------------------------------
+where $\hat{Q}(q, m)$ is predicted quality, $C_m$ is cost, $L_m$ is latency, and $\lambdacost, \lambdalat$ are trade-off weights. The challenge: $\hat{Q}$ is unknown and must be learned, but naive online learning requires thousands of costly queries.
 
 \subsection{System Architecture}
 \label{sec:architecture}
 
-Our system operates in two paths (Figure~\ref{fig:architecture}):
+Our system has two paths: (1) \textbf{Hot Path}: millisecond-scale LinUCB selection; (2) \textbf{Cold Path}: asynchronous quality assessment for learning.
 
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Hot Path (Router)}: Millisecond-scale model selection using LinUCB
-    \item \textbf{Cold Path (Grader)}: Asynchronous quality assessment for learning
-\end{itemize}
+\paragraph{Context Embedding.} Each query maps to $\mathbf{x} = \text{Embed}(q) \in \mathbb{R}^{384}$ using a sentence transformer (all-MiniLM-L6-v2), encoding semantic position in ``meaning space.''
 
-\subsubsection{Context Embedding}
-
-Each query $q$ is mapped to a $d$-dimensional context vector $\mathbf{x} \in \mathbb{R}^d$ using a sentence transformer (all-MiniLM-L6-v2, $d=384$):
-
-\begin{equation}
-\mathbf{x} = \text{Embed}(q) \in \mathbb{R}^{384}
-\end{equation}
-
-This vector encodes the semantic position of the query in ``meaning space''---queries about Python code cluster near other coding queries, while poetry prompts occupy a distant region.
-
-\subsubsection{Disjoint LinUCB Policy}
-
-We employ a \textbf{Disjoint LinUCB} policy~\cite{li2010contextual} where each model $m$ maintains independent sufficient statistics:
-
-\begin{itemize}[leftmargin=*]
-    \item $\mathbf{A}_m \in \mathbb{R}^{d \times d}$: Covariance matrix (``where we have data'')
-    \item $\mathbf{b}_m \in \mathbb{R}^{d}$: Reward accumulator (``what worked'')
-\end{itemize}
-
-The predicted quality with exploration bonus is:
-
+\paragraph{Disjoint LinUCB.} Each model $m$ maintains: $\mathbf{A}_m \in \mathbb{R}^{d \times d}$ (covariance) and $\mathbf{b}_m \in \mathbb{R}^{d}$ (reward accumulator). Predicted quality with exploration bonus:
 \begin{equation}
 \hat{Q}(q, m) = \underbrace{\boldsymbol{\theta}_m^\top \mathbf{x}}_{\text{exploitation}} + \underbrace{\alpha \sqrt{\mathbf{x}^\top \mathbf{A}_m^{-1} \mathbf{x}}}_{\text{exploration}}
 \label{eq:ucb}
 \end{equation}
+where $\boldsymbol{\theta}_m = \mathbf{A}_m^{-1} \mathbf{b}_m$ encodes model $m$'s learned strengths.
 
-where $\boldsymbol{\theta}_m = \mathbf{A}_m^{-1} \mathbf{b}_m$ is the learned weight vector for model $m$, and $\alpha$ controls exploration intensity.
-
-\textbf{Intuition}: The weight vector $\boldsymbol{\theta}_m$ acts as a ``profile'' for model $m$. If $m$ performs well on coding queries during training, its weights become high in dimensions corresponding to code. At inference, the dot product $\boldsymbol{\theta}_m^\top \mathbf{x}$ is high when the query $\mathbf{x}$ aligns with the model's strengths.
-
-\subsubsection{Rank-One Updates (Real-Time Learning)}
-
-When feedback arrives with context $\mathbf{x}$ and reward $r$, the bandit updates in $O(d^2)$ time:
-
+\paragraph{Real-Time Learning.} On feedback $(m, \mathbf{x}, r)$, rank-one updates in $O(d^2)$:
 \begin{align}
-\mathbf{A}_m &\leftarrow \mathbf{A}_m + \mathbf{x}\mathbf{x}^\top \quad \text{(uncertainty reduction)} \label{eq:update_a} \\
-\mathbf{b}_m &\leftarrow \mathbf{b}_m + r \cdot \mathbf{x} \quad \text{(reward direction)} \label{eq:update_b}
+\mathbf{A}_m &\leftarrow \mathbf{A}_m + \mathbf{x}\mathbf{x}^\top, \quad
+\mathbf{b}_m \leftarrow \mathbf{b}_m + r \cdot \mathbf{x}
+\label{eq:update}
 \end{align}
-
-This takes \textbf{microseconds}, not hours---enabling continuous adaptation without retraining.
-
-% ---------------------------------------------------------------------------
-% 2.3 The Pivot: Why Bandits Over Static Classifiers
-% ---------------------------------------------------------------------------
 
 \subsection{Why Contextual Bandits?}
 \label{sec:pivot}
 
-Static classifiers (e.g., RouteLLM~\cite{ong2024routellm}) train on fixed datasets and freeze. We chose contextual bandits for three reasons:
-
-\paragraph{1. Distribution Drift.} LLM providers update models continuously. GPT-4o's capabilities shift monthly; new models emerge weekly. A classifier trained in January becomes stale by March. Our bandit adapts \emph{online} through rank-one updates (Equations~\ref{eq:update_a}--\ref{eq:update_b}), tracking capability drift in real-time.
-
-\paragraph{2. Domain Specificity.} Static classifiers optimize for ``average user'' performance. If training data suggests Mistral is weak on Rust, the classifier \emph{always} avoids Mistral for Rust---even if your specific Rust queries are trivially simple. Our bandit discovers \emph{local} specialists invisible to global benchmarks.
-
-\paragraph{3. Principled Exploration.} Unlike epsilon-greedy or random sampling, LinUCB explores \emph{only when uncertain}. The exploration bonus $\alpha \sqrt{\mathbf{x}^\top \mathbf{A}_m^{-1} \mathbf{x}}$ is high only for (model, context) pairs with insufficient data. This is mathematically optimal under linear realizability assumptions~\cite{abbasi2011improved}.
-
-% ---------------------------------------------------------------------------
-% 2.4 Expert Distillation (Shippable Brain)
-% ---------------------------------------------------------------------------
+Static classifiers~\cite{ong2024routellm} freeze after training. We use bandits for: (1) \textbf{Distribution Drift}---GPT-4o's capabilities shift monthly; our bandit adapts online. (2) \textbf{Domain Specificity}---discover \emph{local} specialists invisible to global benchmarks. (3) \textbf{Principled Exploration}---LinUCB explores only when uncertain, mathematically optimal under linear assumptions~\cite{abbasi2011improved}.
 
 \subsection{Expert Distillation}
 \label{sec:distillation}
 
-The cold-start problem remains: with 81 models and 384 dimensions, naive exploration requires thousands of queries. We solve this through \textbf{Expert Distillation}, using GPT-4o as a teacher oracle.
+The cold-start problem: 81 models $\times$ 384 dimensions requires thousands of queries. We solve this via \textbf{Expert Distillation} using GPT-4o as teacher.
 
-\subsubsection{Archetype Grid Generation}
+\paragraph{Archetype Grid.} Sample 50K prompts from LMSYS Chatbot Arena~\cite{zheng2023judging}, embed with sentence transformer, cluster via K-Means ($K=497$), and select centroid representatives. This yields 497 ``golden prompts'' spanning the task distribution.
 
-We construct a representative prompt corpus through clustering:
+\paragraph{Dense Evaluation.} For each (model, archetype) pair, generate responses via OpenRouter and grade with GPT-4o (normalized $[0,1]$). The oracle achieves $>$80\% agreement with human preferences.
 
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Prompt Sampling}: Sample 50,000 prompts from LMSYS Chatbot Arena~\cite{zheng2023judging}, a diverse corpus of real user-LLM interactions.
-    
-    \item \textbf{Embedding}: Encode all prompts using the sentence transformer (all-MiniLM-L6-v2) to obtain 384-dimensional vectors.
-    
-    \item \textbf{Clustering}: Apply MiniBatch K-Means with $K=497$ to partition the embedding space into archetypal regions. Each cluster represents a distinct ``task type'' (e.g., Python debugging, SQL generation, creative writing).
-    
-    \item \textbf{Representative Selection}: For each cluster, select the single prompt closest to its centroid (by cosine similarity). This yields 497 ``golden prompts'' that span the task distribution.
-\end{enumerate}
+\paragraph{Prior Fitting.} Train the bandit by simulating oracle decisions: for each archetype with embedding $\mathbf{x}$ and optimal model $m^*$, apply rank-one updates. Repeat for 5 epochs.
 
-\subsubsection{Dense Evaluation with Teacher Oracle}
+\paragraph{Prior Strength ($\lambdaboost$).} Scale priors: $\mathbf{A}_m \leftarrow \lambdaboost \cdot \mathbf{A}_m$. With $\lambdaboost=50$ (default), the exploration term shrinks by $1/\sqrt{50}$, strongly favoring exploitation. This is valid because the prior genuinely encodes expert knowledge.
 
-We evaluate all models on all archetypes:
-
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Response Generation}: For each (model, archetype) pair, generate a response via the OpenRouter API. This produces an $81 \times 497 = 40,257$ response matrix.
-    
-    \item \textbf{Oracle Grading}: Use GPT-4o as a teacher judge to score each response on a quality scale. The teacher prompt asks: ``\emph{Rate this response's helpfulness, accuracy, and completeness on a scale of 0-10.}'' Scores are normalized to $[0, 1]$.
-    
-    \item \textbf{Expert Selection}: For each archetype, identify the optimal model (highest teacher score). The teacher oracle achieves $>80\%$ agreement with held-out human preferences.
-\end{enumerate}
-
-\subsubsection{Prior Fitting}
-
-We train the bandit by simulating expert routing decisions:
-
-\begin{enumerate}[leftmargin=*]
-    \item Initialize each model's statistics: $\mathbf{A}_m = \lambda_{\text{ridge}} \cdot \mathbf{I}$, $\mathbf{b}_m = \mathbf{0}$
-    
-    \item For each archetype with embedding $\mathbf{x}$ and oracle-selected model $m^*$:
-    \begin{itemize}
-        \item Update the selected model: $\mathbf{A}_{m^*} \leftarrow \mathbf{A}_{m^*} + \mathbf{x}\mathbf{x}^\top$
-        \item Push reward signal: $\mathbf{b}_{m^*} \leftarrow \mathbf{b}_{m^*} + r \cdot \mathbf{x}$
-    \end{itemize}
-    
-    \item Repeat for multiple epochs ($n=5$) to reinforce patterns.
-\end{enumerate}
-
-The key insight is that we train on \emph{oracle decisions}, not random exploration. The covariance matrix $\mathbf{A}_m$ accumulates mass in embedding regions where model $m$ was selected as optimal. The reward vector $\mathbf{b}_m$ points toward high-quality regions.
-
-\subsubsection{Prior Precision Scaling}
-
-A critical hyperparameter is the \textbf{prior strength} $\lambdaboost$, which scales the loaded priors:
-
-\begin{equation}
-\mathbf{A}_m \leftarrow \lambdaboost \cdot \mathbf{A}_m, \quad \mathbf{b}_m \leftarrow \lambdaboost \cdot \mathbf{b}_m
-\label{eq:prior_strength}
-\end{equation}
-
-This is equivalent to asserting that the priors come from $\lambdaboost$ times more observations than actually occurred. The effect on the UCB formula (Equation~\ref{eq:ucb}) is:
-
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Exploitation Boost}: The mean estimate $\boldsymbol{\theta}_m = \mathbf{A}_m^{-1}\mathbf{b}_m$ is unchanged (scaling cancels), but...
-    \item \textbf{Exploration Suppression}: The uncertainty term $\sqrt{\mathbf{x}^\top \mathbf{A}_m^{-1} \mathbf{x}}$ decreases by $1/\sqrt{\lambdaboost}$.
-\end{itemize}
-
-With $\lambdaboost = 50$ (our default), the bandit behaves as if it has seen 50$\times$ more data, strongly favoring exploitation of the expert prior. This is \emph{only valid when the prior is actually good}---random or uniform priors would become dangerously overconfident. Because we use Expert Distillation (oracle picks optimal model $>80\%$ of the time), the prior genuinely encodes ``the right answer,'' making the confidence boost mathematically justified.
-
-\paragraph{Shipping.} The resulting priors compress to \textbf{<1MB} (NPZ format). This ``Shippable Brain'' ships with the library, giving new deployments day-one intelligence.
-
-\subsubsection{Discovering Specialists Beyond the Teacher}
-
-A key concern: does Expert Distillation merely memorize GPT-4o's preferences? Our analysis reveals the opposite---the router discovers \emph{specialists} that outperform the teacher in specific latent regions.
-
-Figure~\ref{fig:specialist_landscape} visualizes the learned expertise landscape. We compute each model's weight norm $\|\boldsymbol{\theta}_m\| = \|\mathbf{A}_m^{-1}\mathbf{b}_m\|$, which measures the magnitude of learned preferences. Models with high $\|\boldsymbol{\theta}\|$ have developed strong, confident opinions about their capabilities.
+\paragraph{Specialist Discovery.} The router discovers specialists \emph{beyond} the teacher. Nova-Lite achieves $\|\boldsymbol{\theta}\|=3.66$ vs.\ GPT-4o's 1.66, with near-zero cosine similarity---proving it captures a distinct niche (Figure~\ref{fig:specialist_landscape}).
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\columnwidth]{figures/figure3_specialist_landscape.pdf}
-    \caption{\textbf{Learned Expertise Landscape.} Left: Amazon Nova-Lite develops a significantly larger weight norm ($\|\boldsymbol{\theta}\|=3.66$) than GPT-4o ($\|\boldsymbol{\theta}\|=1.66$), indicating high confidence in specific latent regions. Right: Cosine similarity heatmap confirms Nova-Lite's weights are \emph{orthogonal} to GPT-4o, proving it captures a distinct specialist niche rather than mimicking the teacher.}
+    \caption{\textbf{Specialist Discovery.} Nova-Lite develops $2\times$ larger weight norms than GPT-4o, occupying orthogonal embedding regions for structured output tasks.}
     \label{fig:specialist_landscape}
 \end{figure}
 
-\paragraph{Key Finding.} Nova-Lite achieves $\|\boldsymbol{\theta}\| = 3.66$, more than double GPT-4o's $\|\boldsymbol{\theta}\| = 1.66$. The cosine similarity between their weight vectors is near zero, confirming they occupy \emph{orthogonal} regions of the embedding space. Nova-Lite has become a confident specialist for structured output tasks (SQL, templates) where even the teacher recognizes its superiority.
-
-This demonstrates that Expert Distillation is not mere imitation---it discovers latent model capabilities that the teacher itself could not achieve.
-
-% ---------------------------------------------------------------------------
-% 2.5 Engineering Viability (Latency Analysis)
-% ---------------------------------------------------------------------------
+The priors compress to \textbf{<1MB}---a ``Shippable Brain'' giving new deployments day-one intelligence.
 
 \subsection{Engineering Viability}
 \label{sec:engineering}
 
-A routing system is only useful if it doesn't become a bottleneck. We benchmark our implementation on production hardware (Table~\ref{tab:latency}).
-
 \begin{table}[t]
 \centering
 \small
-\caption{\textbf{Latency Breakdown.} Router overhead is negligible compared to LLM generation time. Configuration: 81 models, 384 dimensions.}
+\caption{\textbf{Latency Breakdown.} Router adds 1.1\% overhead (81 models, 384 dims).}
 \label{tab:latency}
 \begin{tabular}{lrr}
 \toprule
-\textbf{Component} & \textbf{Latency (P99)} & \textbf{\% of Total} \\
+\textbf{Component} & \textbf{P99} & \textbf{\% Total} \\
 \midrule
-Router Inference (Ours) & 8.94 ms & 1.1\% \\
-Network / API Overhead & 50.00 ms & 6.2\% \\
+Router Inference & 8.94 ms & 1.1\% \\
+Network / API & 50.00 ms & 6.2\% \\
 LLM Generation & 750.00 ms & 92.7\% \\
-\midrule
-\textbf{Total System Latency} & \textbf{808.94 ms} & \textbf{100\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Key Results.}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{P99 Latency}: 8.94ms for routing decision (including embedding)
-    \item \textbf{Overhead Ratio}: 1.1\% of total request time
-    \item \textbf{Production SLA}: <10ms satisfies real-time requirements
-\end{itemize}
-
-The $O(d^2)$ matrix operations in LinUCB do not create an inference bottleneck. The cost savings from intelligent routing are effectively \textbf{free} from a latency perspective.
-
-\paragraph{Detailed Breakdown.}
-\begin{table}[t]
-\centering
-\small
-\caption{\textbf{Router Latency by Prior Type.} Expert priors add minimal overhead vs.\ shared priors.}
-\label{tab:latency_detail}
-\begin{tabular}{lccccc}
-\toprule
-\textbf{Prior Type} & \textbf{Mean} & \textbf{P50} & \textbf{P95} & \textbf{P99} & \textbf{Max} \\
-\midrule
-Expert Priors & 6.48ms & 6.36ms & 7.26ms & 8.94ms & 12.90ms \\
-Shared Priors & 3.83ms & 3.81ms & 4.00ms & 4.12ms & 9.27ms \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The expert priors configuration (81 independent $\mathbf{A}_m$ matrices) adds $\approx$3ms overhead compared to shared priors, but provides significantly better routing accuracy (see RQ1, \S\ref{sec:rq1}).
-
-% ---------------------------------------------------------------------------
-% 2.6 Bandit-Guided Cascade (Dynamic Chain Architecture)
-% ---------------------------------------------------------------------------
+Router overhead is negligible: 8.94ms P99 (Table~\ref{tab:latency}). The $O(d^2)$ matrix operations do not bottleneck; cost savings are effectively \textbf{free}.
 
 \subsection{Bandit-Guided Cascade}
 \label{sec:hybrid}
 
-While our bandit achieves excellent cost-quality trade-offs via single-shot routing, some applications require maximum accuracy at the expense of latency. We introduce a \textbf{Bandit-Guided Cascade} that combines the best of both worlds.
-
-\subsubsection{The Scaling Problem with Standard Cascades}
-
-FrugalGPT~\cite{chen2023frugalgpt} achieves high accuracy via cascading: try a cheap model, verify, and failover to an expensive model if needed. However, this architecture is fundamentally limited:
-
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Fixed Chain}: The cascade must be hardcoded (e.g., \texttt{Llama-3 $\to$ GPT-4o}). With 80+ models, you cannot include all specialists.
-    \item \textbf{$O(N)$ Latency}: If the chain has $N$ models, worst-case latency is $\sum_{i=1}^{N} L_i$---linear in chain length.
-    \item \textbf{Missed Specialists}: A biology question might best be answered by BioMistral, but if BioMistral isn't in the fixed chain, the system falls back to expensive generalists.
-\end{itemize}
-
-\subsubsection{Dynamic Chain Architecture}
-
-Our hybrid solves this by using the bandit as a \textbf{dynamic head} for the cascade:
-
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Bandit Selection ($O(1)$)}: Compute $\hat{Q}(q, m)$ for all 80+ models via vector similarity. Select the top candidate $m^*$ and obtain confidence score $c = \hat{Q}(q, m^*)$.
-    
-    \item \textbf{Confidence Gating}: If $c > \tau$ (threshold, e.g., 0.85), execute single-shot routing. Otherwise, engage the cascade.
-    
-    \item \textbf{Targeted Cascade}: The cascade starts from the bandit's selection $m^*$, not a generic cheap model. If $m^*$ is BioMistral for a biology query, the cascade begins with the specialist.
-\end{enumerate}
+For maximum accuracy, we introduce a \textbf{Bandit-Guided Cascade}. FrugalGPT~\cite{chen2023frugalgpt} achieves high accuracy via cascading but is limited to 2--3 models with $O(N)$ latency. Our hybrid uses the bandit as a \textbf{dynamic head}:
 
 \begin{equation}
 \text{Route}(q) = 
@@ -279,24 +100,21 @@ Our hybrid solves this by using the bandit as a \textbf{dynamic head} for the ca
 \label{eq:hybrid}
 \end{equation}
 
-\paragraph{Why It Works.} The bandit provides $O(1)$ selection over the entire model pool, unlocking specialists that fixed chains miss. The cascade provides a safety net for uncertain predictions. Table~\ref{tab:scaling_comparison} summarizes the architectural differences.
-
 \begin{table}[t]
 \centering
 \small
-\caption{\textbf{Fixed vs.\ Dynamic Chain Architecture.} Our hybrid combines $O(1)$ specialist access with cascade reliability.}
+\caption{\textbf{Fixed vs.\ Dynamic Cascade.} Our hybrid: $O(1)$ specialist access + cascade reliability.}
 \label{tab:scaling_comparison}
 \begin{tabular}{lcc}
 \toprule
-\textbf{Property} & \textbf{FrugalGPT} & \textbf{Ours (Hybrid)} \\
+\textbf{Property} & \textbf{FrugalGPT} & \textbf{Ours} \\
 \midrule
-Model Pool Size & 2--3 & 80+ \\
-Selection Logic & Hardcoded order & Context-aware \\
-Latency Scaling & $O(N)$ & $O(1)$ \\
+Model Pool & 2--3 & 80+ \\
+Latency & $O(N)$ & $O(1)$ \\
 Specialist Access & Poor & Excellent \\
-Adaptation & None & Online learning \\
+Adaptation & None & Online \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-This architecture positions our system as the \textbf{scaling layer} that makes cascading viable for massive model ecosystems.
+The bandit provides $O(1)$ selection over 80+ models, unlocking specialists that fixed chains miss; the cascade provides a safety net (Table~\ref{tab:scaling_comparison}).

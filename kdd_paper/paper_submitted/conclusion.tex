@@ -1,58 +1,21 @@
 % ============================================================================
-% CONCLUSION (Section 9)
-% Three-Beat Structure:
-%   1. Technical Victory: Solved Cold Start
-%   2. Business Victory: Broke Cost/Quality trade-off
-%   3. System Victory: Production-ready, not just academic
+% CONCLUSION (Condensed)
 % ============================================================================
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-In this work, we introduced the \textbf{Shippable Router}, a context-aware bandit system that operationalizes the ``Mixture of Agents'' paradigm for real-time production environments. By replacing standard random initialization with \textbf{Expert Distillation}---bootstrapping from a teacher oracle's covariance structure---we successfully eliminated the ``Cold-Start'' penalty that has historically hindered the adoption of online learning in LLM orchestration.
+We introduced \textbf{BanditGPT}, a context-aware routing system that eliminates the cold-start problem via \textbf{Expert Distillation}---bootstrapping from a teacher oracle's covariance structure compressed to <1MB.
 
-Our empirical evaluation on real-world routing traces demonstrates three critical contributions:
+\paragraph{Key Contributions.}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Cold-Start Elimination}: Expert priors achieve \textbf{63.6\% regret reduction} from day one. Few-Shot Calibration ($\sim$50--100 examples) enables \textbf{93.5\% regret reduction} on held-out benchmarks.
+    
+    \item \textbf{Pareto Efficiency}: BanditGPT achieves +6.1\% quality and $-$67.7\% cost vs.\ GPT-4o. On instruction tasks, Hybrid mode beats FrugalGPT (98\% vs 95\%) by predicting complexity \emph{before} generation.
+    
+    \item \textbf{Production Ready}: 8.94ms P99 latency (1.1\% overhead), self-correcting plasticity (recovers from bad priors in $\sim$200 steps), $O(1)$ scaling to 81+ models.
+\end{enumerate}
 
-% ---------------------------------------------------------------------------
-% Beat 1: Technical Victory (Cold Start Solved)
-% ---------------------------------------------------------------------------
+\paragraph{The Paradigm Shift.} Specialized models---when orchestrated by an expert-guided router---collectively outperform the frontier models they were distilled from. Nova-Lite at \$0.10/1M tokens, guided by our router, delivers higher quality than GPT-4o at \$4.38/1M tokens.
 
-\paragraph{1. Cold-Start Elimination via Few-Shot Calibration.}
-Expert-distilled priors, compressed to <1MB, provide \textbf{day-one intelligence} without exploration cost. RQ1 demonstrated \textbf{63.6\% regret reduction} compared to cold-start baselines---the gap represents real dollars saved from the first query. Critically, we show that \textbf{Few-Shot Calibration} ($\sim$50--100 labeled examples per domain) enables a \textbf{``Prior-Informed Cold Start''}: on held-out benchmarks (GSM8K, HumanEval, MMLU), calibrated priors achieve \textbf{93.5\% regret reduction} compared to naive deployment (RQ1-OOD). This is not ``Zero-Shot'' transfer---it requires minimal upfront labeling---but the cost is negligible compared to the 2,000+ interactions a naive bandit needs to converge. This ``Shippable Brain'' paradigm transforms LLM routing from a months-long calibration process into an instant deployment.
-
-% ---------------------------------------------------------------------------
-% Beat 2: Business Victory (Cost/Quality Trade-off Broken)
-% ---------------------------------------------------------------------------
-
-\paragraph{2. Economic Efficiency and SOTA Comparison.}
-BanditGPT establishes itself on the \textbf{Pareto Frontier}: 92.8\% accuracy at \$1.24/1k queries---\textbf{24\% cheaper} than FrugalGPT (\$1.63/1k). More critically, we demonstrate the \textbf{``Confident Failure'' hypothesis}: on complex instruction-following tasks, FrugalGPT's ex-post verification fails to catch plausible-sounding errors, achieving only 86\% accuracy. BanditGPT's ex-ante prediction identifies these high-risk prompts \emph{before} generation, routing directly to GPT-4o and achieving \textbf{96\% accuracy (+10\%)}. This proves that \emph{prediction beats verification} when ``checking the work'' is as hard as ``doing the work.''
-
-% ---------------------------------------------------------------------------
-% Beat 3: System Victory (Production-Ready)
-% ---------------------------------------------------------------------------
-
-\paragraph{3. Plasticity and Production Readiness.}
-Unlike static benchmark-based routers, our system exhibits high \textbf{plasticity}---successfully recovering from ``Confidently Wrong'' priors in under 200 interactions (RQ2)---while maintaining \textbf{8.94ms latency} (P99), representing just 1.1\% of total request time. The system is not merely theoretically sound; it is engineered for latency-critical production environments.
-
-% ---------------------------------------------------------------------------
-% Forward Compatibility
-% ---------------------------------------------------------------------------
-
-\paragraph{Forward Compatibility.}
-By decoupling routing logic from static leaderboards, we enable a sustainable deployment lifecycle. New frontier models can be instantly added as ``cold arms'' and evaluated dynamically via the bandit's exploration mechanism. The router adapts to capability drift, API changes, and emerging specialists---no manual retraining required.
-
-% ---------------------------------------------------------------------------
-% The Paradigm Shift
-% ---------------------------------------------------------------------------
-
-\paragraph{The Paradigm Shift.}
-Ultimately, this work \textbf{democratizes access to state-of-the-art intelligence}. We prove that specialized, cost-effective models---when orchestrated by a confident, expert-guided router---can collectively \emph{outperform} the very teacher models they were distilled from. Nova-Lite at \$0.10/1M tokens, guided by our router, delivers higher aggregate quality than GPT-4o at \$4.38/1M tokens.
-
-This is the future of LLM deployment: not a single ``best'' model, but an intelligent ensemble that routes each query to its optimal specialist. The Shippable Router makes this future accessible today---with zero cold-start cost, sub-10ms latency, and open-source availability.
-
-% ---------------------------------------------------------------------------
-% Artifact Release
-% ---------------------------------------------------------------------------
-
-\paragraph{Artifact Release.}
-We release \textbf{BanditGPT}, an open-source implementation with bundled expert priors, at \url{https://github.com/[redacted]/banditgpt}. The library includes all code to reproduce our experiments and deploy the router in production environments.
+\paragraph{Artifact Release.} We release BanditGPT with bundled expert priors at \url{https://github.com/[redacted]/banditgpt}.

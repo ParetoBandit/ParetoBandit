@@ -1,94 +1,42 @@
 % ============================================================================
-% INTRODUCTION
-% KDD 2025: Density-Based Warm-Start for Adaptive LLM Routing
+% INTRODUCTION (Condensed)
 % ============================================================================
 
 \section{Introduction}
 \label{sec:introduction}
 
-% ---------------------------------------------------------------------------
-% THE HOOK: Cold Start Problem
-% ---------------------------------------------------------------------------
+The proliferation of LLMs has created a new optimization challenge: \emph{model routing}---selecting the optimal model for each query from 80+ candidates spanning diverse capabilities and price points~\cite{chen2023frugalgpt, ong2024routellm}.
 
-The proliferation of Large Language Models (LLMs) has created a new optimization challenge: \emph{model routing}---the task of selecting the optimal model for each user query from a heterogeneous pool of candidates. With over 80 production-ready models spanning diverse architectures, capabilities, and price points, choosing the right model can yield order-of-magnitude improvements in cost efficiency without sacrificing quality~\cite{chen2023frugalgpt, ong2024routellm}.
+Existing solutions have critical limitations: \textbf{Static classifiers}~\cite{ong2024routellm} cannot adapt to user-specific distributions. \textbf{Online bandits}~\cite{slivkins2019contextual} adapt but suffer from prohibitive cold-start---hundreds of costly queries wasted before intelligent decisions emerge.
 
-Existing solutions fall into two paradigms, each with critical limitations:
+\textbf{Our Insight.} While user distributions vary, the \emph{latent structure} of model expertise is invariant. GPT-4o excels at complex reasoning universally; Nova-Lite dominates structured output tasks. This expertise can be learned offline and \emph{shipped} as a compressed prior.
 
+We introduce a \textbf{Density-Based Warm-Start Framework} that solves cold-start via \emph{Expert Distillation}:
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{Static Classifiers}~\cite{ong2024routellm, ding2024hybrid}: Train a fixed classifier (e.g., BERT) on public benchmarks to predict model suitability. These systems cannot adapt to user-specific distributions---if the classifier believes Mistral performs poorly on Rust code, it always will, even if your application's Rust queries are trivially simple.
-    
-    \item \textbf{Online Bandits}~\cite{slivkins2019contextual}: Learn optimal routing through exploration and exploitation. These systems adapt continuously but suffer from a prohibitive \emph{cold-start problem}: hundreds or thousands of costly queries must be wasted before the bandit accumulates sufficient statistics to make intelligent decisions.
+    \item \textbf{Offline}: Dense evaluation (81 models $\times$ 497 archetypes) using GPT-4o as oracle
+    \item \textbf{Compression}: Distill expertise into \textbf{<1MB} covariance matrices
+    \item \textbf{Shipping}: Priors give day-one intelligence without exploration
+    \item \textbf{Adaptation}: Retain full plasticity via rank-one updates
 \end{enumerate}
-
-The cold-start problem is particularly severe for LLM routing because each exploration step incurs real monetary cost (API calls to premium models like GPT-4o can exceed \$10/1M tokens) and real latency penalties. Organizations cannot afford to ``waste'' their first 1,000 queries on random exploration.
-
-% ---------------------------------------------------------------------------
-% THE SOLUTION: Shippable Brain (Expert Distillation)
-% ---------------------------------------------------------------------------
-
-\textbf{Our Insight.} We observe that while user-specific query distributions vary, the \emph{latent structure} of model expertise is largely invariant. GPT-4o excels at complex reasoning across all deployments; smaller models like Amazon Nova-Lite dominate structured output tasks universally. This expertise structure can be learned offline and \emph{shipped} as a compressed prior.
-
-We introduce a \textbf{Density-Based Warm-Start Framework} that solves the cold-start problem through \emph{Expert Distillation}. Our approach:
-
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Offline Learning}: Runs a dense evaluation grid (81 models $\times$ 497 archetypal prompts) using GPT-4o as an oracle judge, learning which models excel at which latent task regions.
-    
-    \item \textbf{Prior Compression}: Distills this expertise into a \textbf{<1MB} covariance matrix that encodes model-task affinities in embedding space.
-    
-    \item \textbf{Warm Initialization}: Ships these ``expert priors'' with the library, giving new deployments \emph{day-one intelligence} without any exploration cost.
-    
-    \item \textbf{Local Adaptation}: Retains full plasticity---the router continues learning from user-specific feedback, discovering local specialists invisible to the global prior.
-\end{enumerate}
-
-We call this the \textbf{``Shippable Brain''} paradigm: the intelligence of an expert system, compressed into a file that fits in a mobile app.
-
-% ---------------------------------------------------------------------------
-% THE IMPACT: Headline Metrics
-% ---------------------------------------------------------------------------
-
-\textbf{Key Results.} We evaluate our framework on a held-out corpus of 2,000 real-world queries and demonstrate:
-
-\begin{itemize}[leftmargin=*]
-    \item \textbf{63.6\% Regret Reduction}: Warm-start agents achieve 63.6\% lower cumulative regret compared to cold-start baselines over the evaluation horizon (Figure~\ref{fig:regret_curve}).
-    
-    \item \textbf{97.6\% Cost Savings}: On 226 query clusters where specialist and generalist models achieve equal quality, the router routes to models costing 97.6\% less than GPT-4o.
-    
-    \item \textbf{+6.1\% Quality Improvement}: The adaptive router achieves 6.1\% higher average quality than static GPT-4o routing while reducing cost by 67.7\%.
-    
-    \item \textbf{Negligible Overhead}: Router inference adds only 8.94ms (P99), representing 1.1\% of total request latency---the cost savings are effectively free.
-\end{itemize}
-
-% ---------------------------------------------------------------------------
-% FIGURE 1 PLACEMENT (Top Right, Page 1)
-% ---------------------------------------------------------------------------
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\columnwidth]{figures/figure1_regret_curve.pdf}
-    \caption{\textbf{The Shippable Brain Advantage.} Cumulative regret comparison between cold-start (no priors) and warm-start (expert-distilled priors with $\lambda_{\text{boost}}=50$) agents over 2,000 routing decisions. The warm-start agent achieves \textbf{63.6\% lower cumulative regret}, demonstrating immediate value from shipped priors. The gap widens initially (cold-start explores blindly) then stabilizes as both agents converge to local optima.}
+    \caption{\textbf{The Shippable Brain Advantage.} Warm-start achieves \textbf{63.6\% lower regret} than cold-start over 2,000 routing decisions.}
     \label{fig:regret_curve}
 \end{figure}
 
-% ---------------------------------------------------------------------------
-% CONTRIBUTIONS
-% ---------------------------------------------------------------------------
+\textbf{Key Results.} On 2,000 real-world queries: \textbf{63.6\% regret reduction} vs.\ cold-start; \textbf{97.6\% cost savings} on equal-quality queries; \textbf{+6.1\% quality} with 67.7\% cost reduction vs.\ GPT-4o; \textbf{8.94ms} P99 latency (1.1\% overhead).
 
-\textbf{Contributions.} This paper makes the following contributions:
-
+\textbf{Contributions.}
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{Scalable $O(1)$ Routing}: We propose a method to route over arbitrarily large model registries ($N=81+$) with constant inference latency, overcoming the linear bottleneck of cascading systems (\S\ref{sec:method}).
+    \item \textbf{Scalable $O(1)$ Routing}: Route over 81+ models with constant latency (\S\ref{sec:method}).
     
-    \item \textbf{Shippable Priors}: We demonstrate that covariance matrices learned from dense offline grids can be ``shipped'' to new domains, enabling effective few-shot calibration that outperforms random initialization by $\sim$99\% (\S\ref{sec:rq1}).
+    \item \textbf{Shippable Priors}: Covariance matrices enable few-shot calibration, outperforming random initialization by $\sim$99\% (\S\ref{sec:rq1}).
     
-    \item \textbf{Tiered \& Tunable Architecture}: We unify predictive routing and cascading into a single framework controlled by a quantile-calibrated cascade rate ($\lambda$), giving users linear control over the cost-accuracy trade-off (\S\ref{sec:rq3}).
+    \item \textbf{Tiered Architecture}: Unified predictive routing and cascading via quantile-calibrated cascade rate (\S\ref{sec:rq3}).
     
-    \item \textbf{The ``Verifier Trap''}: We empirically identify a failure mode in standard cascades---where verifiers approve plausible-sounding but incorrect outputs (``Confident Failures'')---and demonstrate how proactive prediction outperforms reactive verification on complex Instruction Following tasks (98.0\% vs 95.0\%) (\S\ref{sec:confident_failure}).
+    \item \textbf{The ``Verifier Trap''}: Proactive prediction beats reactive verification on instruction tasks (98\% vs 95\%) (\S\ref{sec:confident_failure}).
     
-    \item We release \textbf{BanditGPT}, an open-source library implementing our framework with bundled expert priors, available at \url{https://github.com/[redacted]/banditgpt}.
+    \item \textbf{BanditGPT}: Open-source implementation at \url{https://github.com/[redacted]/banditgpt}.
 \end{enumerate}
-
-% ---------------------------------------------------------------------------
-% PAPER ORGANIZATION
-% ---------------------------------------------------------------------------
-
-\textbf{Organization.} Section~\ref{sec:method} presents our density-based warm-start framework. Section~\ref{sec:experiments} describes our experimental setup. Sections~\ref{sec:rq1}--\ref{sec:rq3} present results for each research question. Section~\ref{sec:qualitative} provides qualitative analysis. Section~\ref{sec:related} discusses related work. Section~\ref{sec:conclusion} concludes.
