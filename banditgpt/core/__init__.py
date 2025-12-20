@@ -61,6 +61,7 @@ from banditgpt.core.prior_manifest import (
     load_priors_manifest,
 )
 from banditgpt.settings import Settings, load_settings
+from banditgpt.logging_utils import configure_logging
 
 __all__ = [
     # Judge abstraction
@@ -79,6 +80,7 @@ __all__ = [
     "load_priors_manifest",
     "Settings",
     "load_settings",
+    "configure_logging",
     # Graders
     "TieredGrader",
     "OpenRouterTeacherVerifier",

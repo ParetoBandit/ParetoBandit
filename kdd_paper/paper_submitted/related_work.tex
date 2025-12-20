@@ -1,0 +1,89 @@
+% ============================================================================
+% RELATED WORK (Section 8 - "Defense" Position)
+% Location: Between Experiments/Case Studies and Conclusion
+% Strategy: Reader is excited about 97% savings, now defend against
+%           "But why didn't you just use FrugalGPT/RouteLLM?"
+% Frame: Competitors are "good, but not production-ready"
+% ============================================================================
+
+\section{Related Work}
+\label{sec:related}
+
+Having demonstrated the system's impact (97.6\% cost savings, +6.1\% quality), we now address: \emph{``Why not use existing solutions?''} We categorize prior work into three buckets and explain why each fails in production Cold-Start scenarios.
+
+% ---------------------------------------------------------------------------
+% BUCKET 1: LLM Routing & Cascading
+% ---------------------------------------------------------------------------
+
+\subsection{LLM Routing and Cascading}
+
+Recent works like \textbf{FrugalGPT}~\cite{chen2023frugalgpt} and \textbf{RouteLLM}~\cite{ong2024routellm} have demonstrated the cost-saving potential of intelligent model selection. However, these approaches rely on supervised learning over static datasets (MMLU, GSM8K, Arena). While effective for benchmarks, they suffer from two production limitations:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Latency.} Cascading requires sequential calls: try cheap model $\rightarrow$ detect failure $\rightarrow$ call expensive model. This \emph{doubles} latency for hard queries. Our LinUCB approach makes a single routing decision in \textbf{<9ms}.
+    
+    \item \textbf{Drift Intolerance.} Supervised routers require retraining when provider APIs change---GPT-4o's capabilities shift monthly. Our bandit formulation adapts \emph{online} via rank-one updates.
+\end{enumerate}
+
+\paragraph{The Hidden Cold-Start.} FrugalGPT assumes a pre-trained completion scorer; RouteLLM ships a 500MB classifier. But where does this training data come from? Both require labeled examples matching your deployment distribution---the exact data you lack on day one.
+
+% ---------------------------------------------------------------------------
+% BUCKET 2: Contextual Bandits
+% ---------------------------------------------------------------------------
+
+\subsection{Contextual Bandits in Systems}
+
+Bandits are widely used in recommendation systems~\cite{li2010contextual}. However, standard bandit algorithms suffer from the \textbf{Cold-Start Problem}---requiring thousands of exploration steps before converging.
+
+With 81 models and 384 dimensions, naive LinUCB needs $\sim$2,000 queries to accumulate sufficient statistics. Each exploration costs money:
+\begin{itemize}[leftmargin=*]
+    \item GPT-4o API calls: \$4.38/1M tokens
+    \item Exploration budget for calibration: \$50--\$200
+    \item Time to useful routing: \emph{weeks}
+\end{itemize}
+
+We differentiate by introducing \textbf{Expert Distillation} (\S\ref{sec:distillation}), which bootstraps the bandit with covariance priors derived from a teacher oracle. This eliminates the ``exploration penalty'' and allows the router to be \textbf{shippable immediately}---63.6\% lower regret from day one (RQ1).
+
+% ---------------------------------------------------------------------------
+% BUCKET 3: Static Leaderboards
+% ---------------------------------------------------------------------------
+
+\subsection{Static Leaderboards}
+
+Public leaderboards (LMSYS Chatbot Arena~\cite{zheng2023judging}, HELM~\cite{liang2022holistic}, Open LLM Leaderboard) provide global model rankings. These are invaluable for general understanding but fail for routing:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{No Cost Awareness.} Arena rankings ignore price. A \#1 model at \$15/1M may be dominated by a \#5 model at \$0.10/1M for 80\% of queries.
+    
+    \item \textbf{``One Size Fits All.''} Global rankings average across all users. A model excellent at legal contracts may rank poorly due to weak creative writing---irrelevant if you only process contracts.
+\end{enumerate}
+
+Our system constructs a \textbf{``Personalized Leaderboard''} optimizing for \emph{your} utility function: $U = Q - \lambdacost \cdot C - \lambdalat \cdot L$. The bandit continuously re-ranks based on local performance.
+
+% ---------------------------------------------------------------------------
+% SUMMARY TABLE: The Shippable Advantage
+% ---------------------------------------------------------------------------
+
+\subsection{Summary: The Shippable Advantage}
+
+Table~\ref{tab:related_comparison} summarizes the gaps in prior work. The critical differentiator is \textbf{Cold-Start Readiness}---can you deploy without labeled data or exploration budget?
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Why Existing Solutions Fail in Production.} Our ``Shippable Priors'' approach uniquely solves the Cold-Start problem while retaining online adaptation.}
+\label{tab:related_comparison}
+\begin{tabular}{p{2.8cm}p{3cm}p{3cm}}
+\toprule
+\textbf{Competitor} & \textbf{Their Weakness} & \textbf{Our Solution} \\
+\midrule
+FrugalGPT / RouteLLM & Static benchmarks; sequential latency & Online learning; Single-shot (<9ms) \\[4pt]
+Standard Bandits (LinUCB) & Slow convergence (Cold-Start) & Expert Distillation (Shippable Priors) \\[4pt]
+LMSYS Leaderboard & ``One size fits all'' ranking & Context-aware routing (Specialist Discovery) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The Bottom Line.} FrugalGPT and RouteLLM work \emph{after} you've invested in training data. Standard bandits work \emph{after} weeks of exploration. Leaderboards work \emph{if} your queries match the global average.
+
+Our approach works \textbf{on day one}---with zero setup cost, using <1MB priors that encode expert knowledge and generalize via semantic embeddings. This is the ``Shippable Brain'' advantage.

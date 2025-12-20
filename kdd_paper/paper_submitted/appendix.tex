@@ -1,0 +1,213 @@
+% ============================================================================
+% APPENDIX (Mandatory for KDD)
+% No page limit - reviewers not required to read
+% ============================================================================
+
+\appendix
+
+\section{Reproducibility}
+\label{app:reproducibility}
+
+\subsection{Code and Data Availability}
+
+All code, data, and pre-trained priors are available at:
+
+\begin{center}
+\url{https://github.com/[redacted]/banditgpt}
+\end{center}
+
+\paragraph{Repository Contents.}
+\begin{itemize}[leftmargin=*]
+    \item \texttt{banditgpt/} --- Core library implementation
+    \item \texttt{banditgpt/data/priors/} --- Bundled expert priors (<1MB)
+    \item \texttt{experiments/} --- Scripts to reproduce all figures and tables
+    \item \texttt{kdd\_paper/} --- Camera-ready figures, tables, and LaTeX source
+    \item \texttt{tests/} --- 127 unit and integration tests
+\end{itemize}
+
+\paragraph{Reproducing Results.}
+\begin{verbatim}
+# Install
+pip install banditgpt
+
+# Reproduce figures
+python experiments/run_rq1.py    # Figure 1: Regret curve
+python experiments/run_rq2.py    # Figure 3: Specialist landscape
+python experiments/run_rq3.py    # Figure 4: Pareto frontier
+
+# Reproduce latency benchmarks
+python experiments/benchmark_latency.py  # Table 3
+\end{verbatim}
+
+\paragraph{Hardware and Software.}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Hardware}: Experiments run on a single CPU (Apple M2, 16GB RAM). No GPU required for routing inference.
+    \item \textbf{Software}: Python 3.10+, NumPy, Sentence-Transformers, PyTorch (for embeddings only)
+    \item \textbf{API Access}: Model responses generated via OpenRouter API (requires API key for regeneration; cached responses provided)
+\end{itemize}
+
+\paragraph{Random Seeds.}
+All experiments use \texttt{seed=42} for reproducibility. Results may vary slightly ($<1\%$) due to API response variability.
+
+% ============================================================================
+% Ethical Use of Data
+% ============================================================================
+
+\section{Ethical Considerations}
+\label{app:ethics}
+
+\subsection{Data Sources}
+
+This work uses only publicly available datasets and commercial APIs:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{LMSYS Chatbot Arena}~\cite{zheng2023judging}: CC-BY-4.0 licensed. Used for archetype prompt clustering (497 prompts). No personally identifiable information (PII) is present in the sampled prompts.
+    
+    \item \textbf{OpenRouter API}: Commercial API for LLM inference. All model responses are generated via standard API calls with no special access or data collection agreements.
+    
+    \item \textbf{GPT-4o as Judge}: Used as an oracle grader for quality estimation. Prompts are standard evaluation queries with no sensitive content.
+\end{itemize}
+
+\subsection{Intended Use}
+
+The BanditGPT router is designed for:
+\begin{itemize}[leftmargin=*]
+    \item Cost optimization in enterprise LLM deployments
+    \item Quality-aware model selection for production systems
+    \item Research on contextual bandit algorithms for LLM orchestration
+\end{itemize}
+
+The system does \textbf{not} perform content moderation, safety filtering, or policy enforcement. These concerns should be addressed by the underlying LLM providers or separate safety layers.
+
+\subsection{Potential Risks}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Model Bias Propagation}: If the teacher oracle (GPT-4o) has biases, these may be encoded in the shipped priors. Mitigation: the online learning component allows the router to adapt to local feedback, potentially correcting biased priors.
+    
+    \item \textbf{Cost Optimization vs. Quality}: Aggressive cost optimization ($\lambdacost > 50$) may route queries to lower-quality models. Mitigation: we recommend the ``balanced'' profile for most deployments.
+\end{itemize}
+
+% ============================================================================
+% Additional Tables (Overflow from Main Paper)
+% ============================================================================
+
+\section{Additional Experimental Results}
+\label{app:tables}
+
+\subsection{Full ROI Leaderboard}
+
+Table~\ref{tab:roi_full} presents the complete ROI leaderboard for all evaluated models.
+
+\begin{table}[h]
+\centering
+\small
+\caption{\textbf{Full ROI Leaderboard.} All 81 models ranked by ROI Factor = $\|\boldsymbol{\theta}\| / \text{Cost}$ relative to GPT-4o baseline. Top 15 models shown.}
+\label{tab:roi_full}
+\begin{tabular}{clccc}
+\toprule
+\textbf{Rank} & \textbf{Model} & \textbf{Cost/1M} & \textbf{$\|\boldsymbol{\theta}\|$} & \textbf{ROI Factor} \\
+\midrule
+1 & amazon/nova-micro-v1 & \$0.061 & 2.16 & 93.3× \\
+2 & amazon/nova-lite-v1 & \$0.105 & 3.66 & 91.6× \\
+3 & meta-llama/llama-3.2-1b-instruct & \$0.053 & 1.48 & 73.6× \\
+4 & meta-llama/llama-3.2-3b-instruct & \$0.060 & 1.64 & 71.8× \\
+5 & deepseek/deepseek-r1-0528-qwen3-8b & \$0.068 & 1.30 & 50.5× \\
+6 & meta-llama/llama-3-8b-instruct & \$0.070 & 1.33 & 50.0× \\
+7 & google/gemini-2.0-flash-lite-001 & \$0.131 & 1.58 & 31.7× \\
+8 & mistralai/ministral-3b & \$0.100 & 1.15 & 30.2× \\
+9 & meta-llama/llama-3.2-11b-vision-instruct & \$0.160 & 1.69 & 27.8× \\
+10 & meta-llama/llama-3.1-8b-instruct & \$0.100 & 0.98 & 25.9× \\
+11 & openai/gpt-oss-20b & \$0.100 & 0.92 & 24.3× \\
+12 & openai/gpt-4.1-nano & \$0.175 & 1.45 & 21.9× \\
+13 & mistralai/ministral-8b & \$0.150 & 1.24 & 21.8× \\
+14 & google/gemini-2.0-flash-001 & \$0.175 & 1.41 & 21.1× \\
+15 & mistralai/mistral-small-24b-instruct & \$0.150 & 1.17 & 20.5× \\
+\midrule
+\textit{Ref} & \textit{openai/gpt-4o} & \textit{\$4.375} & \textit{1.66} & \textit{1.0×} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Detailed Latency Breakdown}
+
+Table~\ref{tab:latency_full} provides detailed latency statistics across multiple runs.
+
+\begin{table}[h]
+\centering
+\small
+\caption{\textbf{Detailed Latency Benchmarks.} Router inference latency across 1,000 runs. Configuration: 81 models, 384 dimensions, batch size 1.}
+\label{tab:latency_full}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Prior Type} & \textbf{Mean} & \textbf{P50} & \textbf{P95} & \textbf{P99} & \textbf{Max} \\
+\midrule
+Expert Priors (Disjoint) & 6.48ms & 6.36ms & 7.26ms & 8.94ms & 12.90ms \\
+Shared Priors & 3.83ms & 3.81ms & 4.00ms & 4.12ms & 9.27ms \\
+Cold Start (Identity) & 3.21ms & 3.18ms & 3.52ms & 3.89ms & 7.14ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Hyperparameter Sensitivity}
+
+Table~\ref{tab:hyperparams} shows sensitivity to key hyperparameters.
+
+\begin{table}[h]
+\centering
+\small
+\caption{\textbf{Hyperparameter Sensitivity.} Effect of prior strength ($\lambdaboost$) and exploration rate ($\alpha$) on regret reduction vs. cold-start baseline.}
+\label{tab:hyperparams}
+\begin{tabular}{ccc}
+\toprule
+\textbf{$\lambdaboost$} & \textbf{$\alpha$} & \textbf{Regret Reduction} \\
+\midrule
+1.0 & 0.5 & 12.3\% \\
+10.0 & 0.5 & 41.7\% \\
+\textbf{50.0} & \textbf{0.5} & \textbf{63.6\%} \\
+100.0 & 0.5 & 58.2\% \\
+50.0 & 0.1 & 61.4\% \\
+50.0 & 1.0 & 55.8\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+% Algorithm Pseudocode
+% ============================================================================
+
+\section{Algorithm Details}
+\label{app:algorithm}
+
+\subsection{Routing Algorithm}
+
+Algorithm~\ref{alg:routing} presents the complete routing procedure.
+
+\begin{algorithm}[h]
+\caption{Density-Based Warm-Start Routing}
+\label{alg:routing}
+\begin{algorithmic}[1]
+\REQUIRE Query $q$, Model pool $\mathcal{M}$, Priors $\{(\mathbf{A}_m, \mathbf{b}_m)\}_{m \in \mathcal{M}}$
+\REQUIRE Cost weights $\lambdacost, \lambdalat$, Exploration rate $\alpha$
+\STATE $\mathbf{x} \leftarrow \text{Embed}(q)$ \COMMENT{384-dim sentence embedding}
+\FOR{each model $m \in \mathcal{M}$}
+    \STATE $\boldsymbol{\theta}_m \leftarrow \mathbf{A}_m^{-1} \mathbf{b}_m$ \COMMENT{Learned weights}
+    \STATE $\mu_m \leftarrow \boldsymbol{\theta}_m^\top \mathbf{x}$ \COMMENT{Predicted quality}
+    \STATE $\sigma_m \leftarrow \sqrt{\mathbf{x}^\top \mathbf{A}_m^{-1} \mathbf{x}}$ \COMMENT{Uncertainty}
+    \STATE $\text{UCB}_m \leftarrow \mu_m + \alpha \cdot \sigma_m$ \COMMENT{Upper confidence bound}
+    \STATE $U_m \leftarrow \text{UCB}_m - \lambdacost \cdot C_m - \lambdalat \cdot L_m$ \COMMENT{Utility}
+\ENDFOR
+\STATE $m^* \leftarrow \argmax_{m \in \mathcal{M}} U_m$
+\RETURN $m^*$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Online Update}
+
+After receiving feedback $(m, \mathbf{x}, r)$:
+
+\begin{algorithmic}[1]
+\STATE $\mathbf{A}_m \leftarrow \mathbf{A}_m + \mathbf{x}\mathbf{x}^\top$ \COMMENT{Reduce uncertainty}
+\STATE $\mathbf{b}_m \leftarrow \mathbf{b}_m + r \cdot \mathbf{x}$ \COMMENT{Update reward direction}
+\end{algorithmic}
+
+This rank-one update takes $O(d^2)$ time, enabling real-time learning.

@@ -205,6 +205,8 @@ The library applies a default `prior_strength=50.0` (λ_boost), which tells the 
 - Bundled priors are checksummed via `banditgpt/data/priors/manifest.json`. The library validates packaged priors on load; if a file is missing or corrupted, reinstall or restore it from git.
 - Post-install sanity check: `python -m banditgpt.core.cli verify-priors` (or `banditgpt verify-priors` if exposed via entrypoint).
 - To restore from git if needed: `git show <ref>:banditgpt/data/priors/shippable_priors.npz > shippable_priors.npz` (same for `expert_priors.npz`).
+- Determinism: routing top-k selection is stable (ties broken by original order) to reduce run-to-run drift in benchmarks; regret/latency may still vary slightly due to timing noise.
+- Security/IO: priors are loaded with `allow_pickle=False` and use fixed-width arrays to avoid unsafe object loading.
 
 ### Getting priors from git (fallback)
 

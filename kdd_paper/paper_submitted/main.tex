@@ -1,0 +1,132 @@
+% ============================================================================
+% KDD 2025 Paper: Density-Based Warm-Start for Adaptive LLM Routing
+% ============================================================================
+%
+% FORMAT REQUIREMENTS:
+% - Single PDF in ACM conference format
+% - \documentclass[sigconf,review]{acmart}
+% - Maximum 8 content pages (introduction through conclusions)
+% - References and optional appendix follow with no page limit
+% - First 8 pages must be self-contained; reviewers not required to read appendix
+%
+% ============================================================================
+
+\documentclass[sigconf,review]{acmart}
+
+% ============================================================================
+% PACKAGES
+% ============================================================================
+\usepackage{booktabs}       % Professional tables
+\usepackage{enumitem}       % List customization
+\usepackage{amsmath}        % Math
+\usepackage{amssymb}        % Math symbols
+\usepackage{algorithm}      % Algorithms
+\usepackage{algorithmic}    % Algorithm formatting
+\usepackage{graphicx}       % Figures
+\usepackage{xcolor}         % Colors
+\usepackage{hyperref}       % Links
+\usepackage{subcaption}     % Subfigures
+\usepackage{multirow}       % Multi-row tables
+\usepackage{pifont}         % Checkmarks (\ding)
+
+% ============================================================================
+% CUSTOM COMMANDS
+% ============================================================================
+\newcommand{\ours}{BanditGPT}
+\newcommand{\thetanorm}{\|\theta\|}
+\newcommand{\lambdacost}{\lambda_{\text{cost}}}
+\newcommand{\lambdalat}{\lambda_{\text{latency}}}
+\newcommand{\lambdaboost}{\lambda_{\text{boost}}}
+
+% Checkmarks for comparison tables
+\newcommand{\cmark}{\textcolor{green!70!black}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{red!70!black}{\ding{55}}}
+
+% ============================================================================
+% ACM METADATA (for review submission)
+% ============================================================================
+\setcopyright{none}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+% ============================================================================
+% TITLE AND AUTHORS
+% ============================================================================
+\title{Density-Based Warm-Start for Adaptive LLM Routing}
+
+% Anonymous submission for review
+\author{Anonymous Author(s)}
+\affiliation{%
+  \institution{Independent Researcher}
+  \city{}
+  \country{}
+}
+\email{}
+
+% ============================================================================
+% ABSTRACT
+% ============================================================================
+\begin{abstract}
+Large Language Model (LLM) routing---selecting the optimal model for each query from a heterogeneous pool---offers significant cost savings but faces a critical cold-start problem: online learning methods require hundreds of costly exploration queries before becoming effective. We introduce a \textbf{Density-Based Warm-Start Framework} that solves this through \emph{Expert Distillation}: compressing the latent expertise of 81 models into a lightweight (<1MB) covariance prior that ships with the library. Our ``Shippable Brain'' approach provides day-one intelligence while retaining full plasticity for local adaptation. 
+
+Evaluated on 2,000 real-world queries, our framework achieves: (1) \textbf{63.6\% regret reduction} vs.\ cold-start baselines, (2) \textbf{97.6\% cost savings} on equal-quality queries, and (3) \textbf{+6.1\% higher quality} than static GPT-4o routing at 67.7\% lower cost. Router overhead is just 8.94ms (P99), representing 1.1\% of total latency. We release BanditGPT, an open-source implementation with bundled expert priors.
+\end{abstract}
+
+% ============================================================================
+% KEYWORDS
+% ============================================================================
+\keywords{LLM Routing, Contextual Bandits, Warm-Start Learning, Expert Distillation, Cost Optimization}
+
+% ============================================================================
+% DOCUMENT
+% ============================================================================
+\begin{document}
+
+\maketitle
+
+% ============================================================================
+% MAIN CONTENT (8 pages max: Introduction through Conclusions)
+% ============================================================================
+%
+% SECTION STRUCTURE (with Related Work in "Defense" position):
+%   1. Introduction       ~1 page     [DONE]
+%   2. Method             ~1.5 pages  [DONE]
+%   3. Experimental Setup ~0.5 page   [DONE]
+%   4. RQ1: Warm-Start    ~0.75 page  [DONE]
+%   5. RQ2: Plasticity    ~1 page     [DONE]
+%   6. RQ3: Efficiency    ~1 page     [DONE]
+%   7. Case Studies       ~1 page     [DONE]
+%   8. Related Work       ~0.75 page  [DONE] (Defense position)
+%   9. Conclusion         ~0.5 page   [DONE]
+%   ─────────────────────────────────
+%   Total                 ~8 pages    [COMPLETE]
+%
+% ============================================================================
+
+\input{introduction}
+
+\input{method}              % Section 2: Density-Based Warm-Start Framework
+
+\input{experiments}         % Sections 3-5: Setup, RQ1, RQ2
+
+\input{rq3_efficiency}      % Section 6: RQ3 - Cost-Quality Efficiency
+
+\input{case_studies}        % Section 7: Qualitative Analysis / Case Studies
+
+\input{related_work}        % Section 8: Related Work ("Defense" position)
+
+\input{conclusion}          % Section 9: Conclusion
+
+% ============================================================================
+% REFERENCES (no page limit)
+% ============================================================================
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+% ============================================================================
+% APPENDIX (mandatory for KDD, no page limit)
+% ============================================================================
+\input{appendix}
+
+\end{document}

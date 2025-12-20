@@ -31,6 +31,7 @@ from banditgpt.core.tiered_grader import (  # noqa: F401
 # Prior management
 from banditgpt.core.judge import PriorManager  # noqa: F401
 from banditgpt.settings import Settings, load_settings  # noqa: F401
+from banditgpt.logging_utils import configure_logging  # noqa: F401
 
 # Optional: Demo
 try:
@@ -63,6 +64,7 @@ __all__ = [
     # Settings
     "Settings",
     "load_settings",
+    "configure_logging",
     # Demo
     "run_demo",
     # Router

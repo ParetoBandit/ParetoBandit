@@ -13,6 +13,7 @@ def test_banditgpt_public_api_contract():
         "PriorManager",
         "Settings",
         "load_settings",
+        "configure_logging",
         "run_demo",
         "BanditRouter",
         "DisjointLinUCBPolicy",
@@ -42,6 +43,7 @@ def test_banditgpt_core_public_api_contract():
         # Settings
         "Settings",
         "load_settings",
+        "configure_logging",
         # Graders
         # Settings is exported; ensure presence
         "TieredGrader",

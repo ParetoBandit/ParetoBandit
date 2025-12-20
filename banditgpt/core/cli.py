@@ -31,12 +31,14 @@ from banditgpt._resources import (
     get_models_cache_path,
     get_package_data_dir,
     get_priors_path,
+    get_priors_manifest_path,
 )
 from banditgpt.core.prior_manifest import (
     PriorIntegrityError,
     load_priors_manifest,
     verify_bundled_prior,
 )
+from banditgpt.settings import load_settings
 
 DEFAULT_BUNDLED_PRIORS = get_bundled_priors_path()
 DEFAULT_USER_PRIORS = get_user_priors_path()
@@ -294,6 +296,41 @@ def add_verify_priors_args(parser: argparse.ArgumentParser) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Command: info
+# ---------------------------------------------------------------------------
+
+
+def cmd_info(args: argparse.Namespace) -> int:
+    """Print package/runtime info (paths, manifest, settings)."""
+    settings = load_settings()
+    manifest = load_priors_manifest()
+    data = {
+        "version": "0.1.0",
+        "package_data_dir": str(get_package_data_dir()),
+        "models_cache_path": str(settings.models_cache_path),
+        "user_priors_dir": str(settings.user_priors_dir),
+        "bundled_priors": [
+            {
+                "name": f.name,
+                "sha256": f.sha256,
+                "size_bytes": f.size_bytes,
+            }
+            for f in manifest.files
+            if f.bundled
+        ],
+        "priors_manifest_path": str(get_priors_manifest_path()),
+        "priors_version": manifest.priors_version,
+        "schema_version": manifest.schema_version,
+        "settings": {
+            "default_prior_strength": settings.default_prior_strength,
+            "default_exploration": settings.default_exploration,
+        },
+    }
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Command: archetype-dense-run
 # ---------------------------------------------------------------------------
 
@@ -366,6 +403,10 @@ def main() -> int:
     verify_parser = subparsers.add_parser("verify-priors", help="Validate bundled priors checksums")
     add_verify_priors_args(verify_parser)
     verify_parser.set_defaults(func=cmd_verify_priors)
+
+    # info
+    info_parser = subparsers.add_parser("info", help="Show package/runtime info")
+    info_parser.set_defaults(func=cmd_info)
 
     args = parser.parse_args()
 

@@ -1,0 +1,35 @@
+% ============================================================================
+% QUALITATIVE ANALYSIS / CASE STUDIES (Condensed)
+% Purpose: Prove the router "makes sense" - not just lucky numbers
+% ============================================================================
+
+\section{Qualitative Analysis}
+\label{sec:qualitative}
+
+A natural concern: \emph{``Are the routing decisions semantically meaningful, or just lucky numbers?''} We present representative case studies.
+
+% ---------------------------------------------------------------------------
+% Representative Examples
+% ---------------------------------------------------------------------------
+
+\paragraph{Case 1: Specialist Win (SQL).}
+Query: \emph{``Generate a SQL query to find top 5 customers by order value.''}
+Router routes to Nova-Lite (score: 1.00) over GPT-4o (score: 0.00). SQL is a \emph{rigid syntax} task with deterministic structure---smaller, focused models excel. The router learned this pattern from oracle grading.
+
+\paragraph{Case 2: Teacher Fallback (Math).}
+Query: \emph{``What is the definite integral of $\sin(x)/x$ from 0 to $\infty$?''}
+Router routes to GPT-4o (score: 1.00) over Nova-Lite (score: 0.00). This requires the Dirichlet integral and multi-step symbolic reasoning---capabilities only frontier models possess.
+
+\paragraph{Case 3: Efficiency Opportunity (Q\&A).}
+Query: \emph{``Why do birds chirp in the morning?''}
+Router routes to Nova-Lite (score: 0.78) over GPT-4o (score: 0.75). Near-equal quality ($\Delta < 0.05$) triggers the efficiency rule: route to the 97.7\% cheaper option.
+
+% ---------------------------------------------------------------------------
+% Aggregate Statistics
+% ---------------------------------------------------------------------------
+
+\paragraph{Aggregate Statistics.}
+Across 497 clusters: 28 (5.6\%) are \textbf{Specialist Wins}, 35 (7.0\%) are \textbf{Teacher Fallbacks}, and 226 (45.5\%) are \textbf{Efficiency Opportunities}. The router's primary value comes from the last category---queries where expensive models provide no quality advantage, enabling 97.6\% cost savings on nearly half of all traffic.
+
+\paragraph{Why This Isn't Luck.}
+Three factors ensure meaningful decisions: (1) semantic embeddings map queries to a 384-dim meaning space where similar tasks cluster, (2) oracle grading evaluates actual response quality, and (3) multi-epoch training (5 epochs × 497 archetypes) reinforces consistent patterns.

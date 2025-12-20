@@ -1,0 +1,166 @@
+% ============================================================================
+% EXPERIMENTS: Performance & Plasticity (Sections 3-5)
+% ============================================================================
+
+\section{Experimental Setup}
+\label{sec:experiments}
+
+We evaluate our framework through two research questions:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{RQ1 (Performance)}: Does Expert Distillation reduce cold-start regret?
+    \item \textbf{RQ2 (Plasticity)}: Can the router adapt when priors become obsolete?
+\end{itemize}
+
+\subsection{Dataset and Models}
+
+\paragraph{Prompt Corpus.} We use 497 archetypal prompts derived from LMSYS Chatbot Arena~\cite{zheng2023judging} via K-means clustering (\S\ref{sec:distillation}). For evaluation, we sample 2,000 prompts with replacement, simulating a realistic query stream.
+
+\paragraph{Model Pool.} We evaluate 81 production LLMs accessed via OpenRouter, spanning:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Frontier models}: GPT-4o, Claude-3.5-Sonnet, Gemini-2.0
+    \item \textbf{Open-weight models}: Llama-3-70B, Mistral-Large, DeepSeek-V3
+    \item \textbf{Cost-optimized models}: Nova-Lite, Nova-Micro, Llama-3.2-3B
+\end{itemize}
+
+\paragraph{Ground Truth.} Model quality is measured via GPT-4o-as-judge scoring, normalized to $[0, 1]$. This oracle achieves $>80\%$ agreement with held-out human preferences on the Arena dataset.
+
+\paragraph{Metrics.} We report:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Cumulative Regret}: $\sum_{t=1}^{T} (r^* - r_t)$ where $r^*$ is the optimal reward and $r_t$ is the achieved reward at step $t$.
+    \item \textbf{Regret Reduction}: Percentage decrease vs.\ cold-start baseline.
+    \item \textbf{Recovery Latency}: Steps required to correct erroneous priors.
+\end{itemize}
+
+% ============================================================================
+% RQ1: Warm-Start Advantage
+% ============================================================================
+
+\section{RQ1: Warm-Start Advantage}
+\label{sec:rq1}
+
+\textbf{Research Question}: Does shipping expert-distilled priors reduce cold-start regret compared to a naive bandit?
+
+\subsection{Experimental Design}
+
+We compare two agents over 2,000 routing decisions:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Cold-Start Agent}: DisjointLinUCB initialized with identity matrices ($\mathbf{A}_m = \mathbf{I}$, $\mathbf{b}_m = \mathbf{0}$). Must learn everything from scratch through exploration.
+    
+    \item \textbf{Warm-Start Agent}: DisjointLinUCB initialized with expert-distilled priors, scaled by $\lambdaboost = 50$. Starts with ``day-one intelligence.''
+\end{enumerate}
+
+Both agents use identical hyperparameters: $\alpha = 0.5$ (exploration), 384-dimensional embeddings (all-MiniLM-L6-v2), and the same random seed for query ordering.
+
+\subsection{Results}
+
+Figure~\ref{fig:regret_curve} shows cumulative regret over the evaluation horizon.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/figure1_regret_curve.pdf}
+    \caption{\textbf{RQ1: The Shippable Brain Advantage.} Cumulative regret comparison between cold-start (no priors) and warm-start (expert-distilled priors with $\lambdaboost=50$) agents over 2,000 routing decisions. The warm-start agent achieves \textbf{63.6\% lower cumulative regret}.}
+    \label{fig:regret_curve}
+\end{figure}
+
+\paragraph{Key Findings.}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{63.6\% Regret Reduction}: The warm-start agent accumulates 63.6\% less regret than the cold-start baseline over the evaluation horizon.
+    
+    \item \textbf{Immediate Exploitation}: The warm-start agent makes intelligent routing decisions from step 1, while the cold-start agent wastes early queries on random exploration.
+    
+    \item \textbf{Widening Gap}: The regret gap is largest in the first 500 steps (when cold-start is exploring blindly), then stabilizes as both agents converge to local optima.
+    
+    \item \textbf{No Convergence Penalty}: The warm-start agent does not sacrifice long-term performance for short-term gains---it maintains its advantage throughout.
+\end{itemize}
+
+\paragraph{Ablation: Prior Strength.} We vary $\lambdaboost \in \{1, 10, 50, 100\}$ and find $\lambdaboost = 50$ optimal. Lower values under-exploit the priors; higher values over-suppress exploration, preventing adaptation to held-out query types.
+
+% ============================================================================
+% RQ2: Plasticity (Concept Drift)
+% ============================================================================
+
+\section{RQ2: Plasticity Under Concept Drift}
+\label{sec:rq2}
+
+\textbf{Research Question}: Can the router adapt when its priors become obsolete? This addresses the \emph{Plasticity-Stability Dilemma}: strong priors improve exploitation but may resist correction when wrong.
+
+\subsection{The ``Confidently Wrong'' Problem}
+
+Consider a scenario where:
+\begin{itemize}[leftmargin=*]
+    \item A legacy system was trained when GPT-4o was state-of-the-art for all tasks.
+    \item A new specialist model (Nova-Lite) is released that dominates a specific niche.
+    \item The priors \emph{confidently} believe GPT-4o is optimal (high $\|\boldsymbol{\theta}_{\text{GPT-4o}}\|$, low uncertainty).
+\end{itemize}
+
+The bandit faces a trap: its high confidence suppresses exploration, so it keeps routing to GPT-4o, receiving suboptimal rewards. Can it eventually discover the new specialist?
+
+\subsection{Experimental Design: Poisoned Priors Simulation}
+
+We construct a controlled experiment isolating this phenomenon:
+
+\paragraph{Setup.}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Two models}: GPT-4o (default) and Nova-Lite (specialist)
+    \item \textbf{Ground truth}: Nova-Lite achieves $r = 0.95$ on a niche task; GPT-4o achieves only $r = 0.60$
+    \item \textbf{Poisoned priors}: We inject ``confidently wrong'' priors claiming GPT-4o has expected reward 1.0 and Nova-Lite has expected reward 0.1
+    \item \textbf{Memory decay}: We add exponential decay ($\gamma = 0.90$) to enable unlearning
+\end{itemize}
+
+\paragraph{Expected Pattern (``Dip and Recover'').}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{The Dip} (Steps 0--200): Bandit trusts poisoned priors, routes to GPT-4o, receives suboptimal $r \approx 0.60$.
+    \item \textbf{The Flip} (Steps 200--300): Accumulated bad rewards erode GPT-4o's estimated quality. Exploration bonus eventually triggers a trial of Nova-Lite.
+    \item \textbf{The Recovery} (Steps 300+): Nova-Lite's true quality ($r = 0.95$) is discovered. Bandit switches permanently, reward shoots up.
+\end{enumerate}
+
+\subsection{Results}
+
+Figure~\ref{fig:belief_recovery} visualizes the adaptation dynamics.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/figure2_belief_recovery.png}
+    \caption{\textbf{RQ2: Belief Recovery Under Poisoned Priors.} The router initially clings to the poisoned prior (GPT-4o), experiencing a performance ``dip.'' As contradictory evidence accumulates, internal beliefs ($\theta$) cross over, and the router discovers and switches to the true specialist (Nova-Lite). This demonstrates the system's \textbf{plasticity}---it can unlearn confidently wrong priors within $\sim$200 interactions.}
+    \label{fig:belief_recovery}
+\end{figure}
+
+\paragraph{Key Findings.}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Recovery is Possible}: Despite starting with ``confidently wrong'' priors, the bandit successfully discovers the specialist within $\sim$200 steps.
+    
+    \item \textbf{The Dip is Real}: The bandit initially clings to GPT-4o (first $\sim$100 steps show $>90\%$ GPT-4o selection), suffering a measurable performance dip.
+    
+    \item \textbf{Belief Crossover}: The internal estimates ($\theta_{\text{GPT-4o}}$ and $\theta_{\text{Nova}}$) cross over around step 200, triggering the behavioral switch.
+    
+    \item \textbf{Permanent Recovery}: Once Nova-Lite is discovered, the bandit commits to it. Final 100 steps show $>95\%$ Nova-Lite selection with average reward $\approx 0.93$.
+\end{itemize}
+
+\paragraph{Safety Implication.} This result demonstrates that the ``Shippable Brain'' is not a permanent liability. If the shipped priors become obsolete (e.g., a model is deprecated, a new specialist emerges), the system can self-correct through normal operation---no manual intervention required.
+
+\subsection{Recovery Latency Analysis}
+
+We measure \textbf{Recovery Latency}: the number of steps until Nova-Lite's estimated quality exceeds GPT-4o's (the ``flip'' point).
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Recovery Latency vs.\ Memory Decay.} Stronger decay ($\gamma$ closer to 0) enables faster unlearning but reduces stability. $\gamma = 0.90$ balances plasticity and exploitation.}
+\label{tab:recovery_latency}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Memory Decay ($\gamma$)} & \textbf{Recovery Latency} & \textbf{Final Nova Rate} \\
+\midrule
+0.80 (fast decay) & 87 steps & 98.2\% \\
+0.90 (balanced) & 196 steps & 96.7\% \\
+0.95 (slow decay) & 412 steps & 89.3\% \\
+1.00 (no decay) & $>$600 steps (never) & 34.1\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+With no memory decay ($\gamma = 1.0$), the bandit never recovers---the poisoned priors dominate forever. With moderate decay ($\gamma = 0.90$), recovery occurs within $\sim$200 steps, representing a reasonable operational window for production systems that may encounter distribution shifts.

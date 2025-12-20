@@ -1,0 +1,97 @@
+% ============================================================================
+% INTRODUCTION
+% KDD 2025: Density-Based Warm-Start for Adaptive LLM Routing
+% ============================================================================
+
+\section{Introduction}
+\label{sec:introduction}
+
+% ---------------------------------------------------------------------------
+% THE HOOK: Cold Start Problem
+% ---------------------------------------------------------------------------
+
+The proliferation of Large Language Models (LLMs) has created a new optimization challenge: \emph{model routing}---the task of selecting the optimal model for each user query from a heterogeneous pool of candidates. With over 80 production-ready models spanning diverse architectures, capabilities, and price points, choosing the right model can yield order-of-magnitude improvements in cost efficiency without sacrificing quality~\cite{chen2023frugalgpt, ong2024routellm}.
+
+Existing solutions fall into two paradigms, each with critical limitations:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Static Classifiers}~\cite{ong2024routellm, ding2024hybrid}: Train a fixed classifier (e.g., BERT) on public benchmarks to predict model suitability. These systems cannot adapt to user-specific distributions---if the classifier believes Mistral performs poorly on Rust code, it always will, even if your application's Rust queries are trivially simple.
+    
+    \item \textbf{Online Bandits}~\cite{slivkins2019contextual}: Learn optimal routing through exploration and exploitation. These systems adapt continuously but suffer from a prohibitive \emph{cold-start problem}: hundreds or thousands of costly queries must be wasted before the bandit accumulates sufficient statistics to make intelligent decisions.
+\end{enumerate}
+
+The cold-start problem is particularly severe for LLM routing because each exploration step incurs real monetary cost (API calls to premium models like GPT-4o can exceed \$10/1M tokens) and real latency penalties. Organizations cannot afford to ``waste'' their first 1,000 queries on random exploration.
+
+% ---------------------------------------------------------------------------
+% THE SOLUTION: Shippable Brain (Expert Distillation)
+% ---------------------------------------------------------------------------
+
+\textbf{Our Insight.} We observe that while user-specific query distributions vary, the \emph{latent structure} of model expertise is largely invariant. GPT-4o excels at complex reasoning across all deployments; smaller models like Amazon Nova-Lite dominate structured output tasks universally. This expertise structure can be learned offline and \emph{shipped} as a compressed prior.
+
+We introduce a \textbf{Density-Based Warm-Start Framework} that solves the cold-start problem through \emph{Expert Distillation}. Our approach:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Offline Learning}: Runs a dense evaluation grid (81 models $\times$ 497 archetypal prompts) using GPT-4o as an oracle judge, learning which models excel at which latent task regions.
+    
+    \item \textbf{Prior Compression}: Distills this expertise into a \textbf{<1MB} covariance matrix that encodes model-task affinities in embedding space.
+    
+    \item \textbf{Warm Initialization}: Ships these ``expert priors'' with the library, giving new deployments \emph{day-one intelligence} without any exploration cost.
+    
+    \item \textbf{Local Adaptation}: Retains full plasticity---the router continues learning from user-specific feedback, discovering local specialists invisible to the global prior.
+\end{enumerate}
+
+We call this the \textbf{``Shippable Brain''} paradigm: the intelligence of an expert system, compressed into a file that fits in a mobile app.
+
+% ---------------------------------------------------------------------------
+% THE IMPACT: Headline Metrics
+% ---------------------------------------------------------------------------
+
+\textbf{Key Results.} We evaluate our framework on a held-out corpus of 2,000 real-world queries and demonstrate:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{63.6\% Regret Reduction}: Warm-start agents achieve 63.6\% lower cumulative regret compared to cold-start baselines over the evaluation horizon (Figure~\ref{fig:regret_curve}).
+    
+    \item \textbf{97.6\% Cost Savings}: On 226 query clusters where specialist and generalist models achieve equal quality, the router routes to models costing 97.6\% less than GPT-4o.
+    
+    \item \textbf{+6.1\% Quality Improvement}: The adaptive router achieves 6.1\% higher average quality than static GPT-4o routing while reducing cost by 67.7\%.
+    
+    \item \textbf{Negligible Overhead}: Router inference adds only 8.94ms (P99), representing 1.1\% of total request latency---the cost savings are effectively free.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% FIGURE 1 PLACEMENT (Top Right, Page 1)
+% ---------------------------------------------------------------------------
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/figure1_regret_curve.pdf}
+    \caption{\textbf{The Shippable Brain Advantage.} Cumulative regret comparison between cold-start (no priors) and warm-start (expert-distilled priors with $\lambda_{\text{boost}}=50$) agents over 2,000 routing decisions. The warm-start agent achieves \textbf{63.6\% lower cumulative regret}, demonstrating immediate value from shipped priors. The gap widens initially (cold-start explores blindly) then stabilizes as both agents converge to local optima.}
+    \label{fig:regret_curve}
+\end{figure}
+
+% ---------------------------------------------------------------------------
+% CONTRIBUTIONS
+% ---------------------------------------------------------------------------
+
+\textbf{Contributions.} This paper makes the following contributions:
+
+\begin{enumerate}[leftmargin=*]
+    \item We formalize the \textbf{Shippable Brain} paradigm for LLM routing, demonstrating that model expertise can be compressed into a <1MB prior that transfers across deployments (\S\ref{sec:method}).
+    
+    \item We introduce a \textbf{Density-Based Warm-Start} algorithm that combines expert-distilled priors with online LinUCB learning, achieving both immediate utility and long-term adaptation (\S\ref{sec:algorithm}).
+    
+    \item We provide extensive empirical evaluation across three research questions:
+    \begin{itemize}
+        \item \textbf{RQ1 (Warm-Start)}: Does expert distillation reduce cold-start regret? (Yes: 63.6\% reduction)
+        \item \textbf{RQ2 (Plasticity)}: Can the router discover local specialists not encoded in the prior? (Yes: Nova-Lite achieves $\|\theta\|=3.66$ vs.\ GPT-4o's $\|\theta\|=1.66$)
+        \item \textbf{RQ3 (Efficiency)}: What is the cost-quality Pareto frontier? (+6.1\% quality at 67.7\% lower cost)
+    \end{itemize}
+    
+    \item We release \textbf{BanditGPT}, an open-source library implementing our framework with bundled expert priors, available at \url{https://github.com/[redacted]/banditgpt}.
+\end{enumerate}
+
+% ---------------------------------------------------------------------------
+% PAPER ORGANIZATION
+% ---------------------------------------------------------------------------
+
+\textbf{Organization.} Section~\ref{sec:method} presents our density-based warm-start framework. Section~\ref{sec:experiments} describes our experimental setup. Sections~\ref{sec:rq1}--\ref{sec:rq3} present results for each research question. Section~\ref{sec:qualitative} provides qualitative analysis. Section~\ref{sec:related} discusses related work. Section~\ref{sec:conclusion} concludes.
