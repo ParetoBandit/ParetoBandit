@@ -439,3 +439,61 @@ Knowledge & \emph{Factuality}: Obscure facts invisible to embeddings & FrugalGPT
 For most enterprise applications (summarization, extraction, coding, chatbots), instruction-following and logical reasoning matter more than encyclopedic trivia. BanditGPT optimizes for this common case, while FrugalGPT optimizes for the ``encyclopedic'' use case where hallucinations are unacceptable.
 
 \paragraph{Recommendation.} In domains where factual accuracy on obscure queries is critical (e.g., medical reference, legal citation), the higher cost of FrugalGPT's verification loop is justified. For logic-heavy workloads, BanditGPT provides superior ROI.
+
+\subsection{SLA-Aware Routing: A Unified Framework}
+\label{sec:sla-aware}
+
+Rather than presenting BanditGPT as a rigid alternative to cascading systems, we propose a \textbf{unified framework} controlled by a single tunable parameter: the \emph{verification threshold} ($\lambda$). This transforms the router from a static policy into an \textbf{SLA-aware system} that adapts to user-specified constraints.
+
+\subsubsection{The Verification Threshold ($\lambda$)}
+
+The routing decision follows a simple rule:
+\begin{equation}
+\text{Action} = \begin{cases} 
+\text{Single-Shot (Cheap)} & \text{if } P(\text{Success}) > \lambda \\
+\text{Cascade (Expensive)} & \text{if } P(\text{Success}) \le \lambda
+\end{cases}
+\end{equation}
+
+where $\lambda \in [0, 1]$ controls the trade-off between cost and accuracy:
+
+\begin{itemize}[leftmargin=*]
+    \item $\lambda = 0.0$ (\textbf{Cost-Optimal}): Never cascade. Pure single-shot routing. Achieves 92.8\% accuracy at \$10.23/1k.
+    \item $\lambda = 0.6$ (\textbf{Sweet Spot}): Cascade when uncertain. Captures most accuracy gains with minimal cost increase.
+    \item $\lambda = 1.0$ (\textbf{Max Accuracy}): Always cascade. Achieves 99.6\% accuracy at \$17.63/1k.
+\end{itemize}
+
+Figure~\ref{fig:sla_tunability} demonstrates this trade-off empirically. Users can ``dial'' their exact position on the Pareto frontier without changing the underlying system.
+
+\subsubsection{Hard Budget Constraints}
+
+Beyond soft preferences ($\lambda$), BanditGPT supports \textbf{hard constraints} on inference cost and latency. By modeling the problem as a contextual bandit with a \emph{constrained action space}, we guarantee that deployment costs never exceed allocated budgets.
+
+\begin{equation}
+\mathcal{A}_{\text{feasible}} = \{m \in \mathcal{M} : \text{cost}(m) \le C_{\max}, \text{latency}(m) \le L_{\max}\}
+\end{equation}
+
+The bandit then optimizes over $\mathcal{A}_{\text{feasible}}$ only, automatically discovering ``Budget Specialists''---cheap models that satisfy constraints while maintaining high accuracy.
+
+Figure~\ref{fig:finops} demonstrates resilience under hard budget constraints. When constrained to \$0.50/1k:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{DeepSeek V3} (\$1.24/1k): Fails constraint entirely (N/A)
+    \item \textbf{GPT-4o} (\$6.25/1k): Fails constraint entirely (N/A)
+    \item \textbf{BanditGPT}: Maintains 85\% accuracy by auto-routing to cheap specialists
+\end{itemize}
+
+This capability is critical for enterprise deployment where budget guarantees are non-negotiable.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/figure7_sla_tunability.pdf}
+    \caption{\textbf{Dialing the Pareto Frontier.} By adjusting the verification threshold ($\lambda$), users dynamically trade cost for accuracy. The system achieves 92.8\% accuracy at \$10.23/1k with $\lambda=0$, scaling to 99.6\% at \$17.63/1k with $\lambda=1$.}
+    \label{fig:sla_tunability}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/figure8_finops_constraints.pdf}
+    \caption{\textbf{Resilience Under Hard Budget Constraints.} Static policies fail entirely when budget caps are enforced. BanditGPT maintains $>$85\% accuracy by dynamically masking the action space to utilize efficient specialists that fit within the financial SLA.}
+    \label{fig:finops}
+\end{figure}

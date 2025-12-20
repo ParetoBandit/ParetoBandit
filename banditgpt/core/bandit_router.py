@@ -1905,6 +1905,25 @@ class HybridRouter:
     """
     Bandit-Guided Cascade: Dynamic Chain Architecture for Massive Model Pools.
     
+    SLA-AWARE ROUTING VIA VERIFICATION THRESHOLD (λ)
+    =================================================
+    
+    This router provides a UNIFIED architecture controlled by a single tunable
+    parameter: verification_threshold (λ). Instead of choosing between "Standard"
+    and "Hybrid" modes, users dial in their exact cost/quality trade-off:
+    
+        Action = Route via Bandit (Cheap)     if P(Success) > λ
+                 Route via Cascade (Expensive) if P(Success) ≤ λ
+    
+    PRESETS:
+        λ = 0.0  (Max Speed/Savings): Never verify → Pure BanditGPT ($0.40/1k)
+        λ = 0.5  (Chatbots):          Verify when uncertain → Balanced
+        λ = 0.9  (Code Generation):   Verify unless very confident → Hybrid ($1.34/1k)
+        λ = 1.0  (Max Accuracy):      Always verify → Like FrugalGPT ($1.60/1k)
+    
+    This transforms the paper from comparing "Static Systems" to presenting a
+    "Dynamic Framework" where users control the Pareto Frontier.
+    
     THE KEY INSIGHT: FrugalGPT Cannot Scale to 80+ Models
     =====================================================
     
@@ -1926,20 +1945,17 @@ class HybridRouter:
         - Our Hybrid uses ex-ante prediction to identify high-risk prompts BEFORE generation
         - Result: +2-4% accuracy on Instruction tasks
     
-    Comparison Table:
-        Feature              | FrugalGPT      | HybridRouter
-        ---------------------|----------------|------------------------
-        Model Pool Size      | 2-3 models     | 80+ models
-        Selection Logic      | Hardcoded      | Context-Aware
-        Latency Scaling      | O(N)           | O(1)
-        Specialist Access    | Poor           | Excellent
-        Adaptation           | None           | Online learning
-    
     Usage:
+        # SLA-Aware: Use verification_threshold to tune cost/quality
         router = HybridRouter.create(
             model_registry=registry,
-            fallback_model="openai/gpt-4o",
-            confidence_threshold=0.85,
+            verification_threshold=0.5,  # Balanced for chatbots
+        )
+        
+        # Or use named presets
+        router = HybridRouter.create(
+            model_registry=registry,
+            mode="cost_optimal",  # λ=0.0
         )
         
         result = router.route_with_cascade(
@@ -1949,12 +1965,24 @@ class HybridRouter:
         )
     """
     
+    # Named presets for verification_threshold
+    VERIFICATION_PRESETS = {
+        "cost_optimal": 0.0,       # Never cascade - pure single-shot
+        "speed": 0.0,              # Alias
+        "chatbot": 0.5,            # Low-risk apps, cascade when uncertain
+        "balanced": 0.7,           # Reasonable trade-off
+        "code": 0.85,              # Higher stakes, more verification
+        "high_assurance": 0.9,     # Quality-critical
+        "max_accuracy": 1.0,       # Always cascade (like FrugalGPT)
+    }
+    
     def __init__(
         self,
         bandit_router: BanditRouter,
         *,
         fallback_model: str = "openai/gpt-4o",
-        confidence_threshold: float = 0.85,
+        verification_threshold: float = 0.0,
+        confidence_threshold: Optional[float] = None,  # Deprecated, use verification_threshold
         max_cascade_attempts: int = 2,
     ):
         """
@@ -1963,18 +1991,83 @@ class HybridRouter:
         Args:
             bandit_router: Pre-configured BanditRouter instance
             fallback_model: Model to use when confidence is low or verification fails
-            confidence_threshold: Route single-shot if confidence > threshold (0.0-1.0)
+            verification_threshold: The λ parameter (0.0-1.0) controlling quality vs cost:
+                - 0.0: Never cascade (pure speed, like Standard BanditGPT)
+                - 0.5: Cascade when uncertain (balanced for chatbots)
+                - 0.9: Cascade unless very confident (high-assurance)
+                - 1.0: Always cascade (max accuracy, like FrugalGPT)
+            confidence_threshold: DEPRECATED. Use verification_threshold instead.
             max_cascade_attempts: Maximum models to try in cascade before giving up
         """
         self.router = bandit_router
         self.fallback_model = fallback_model
-        self.confidence_threshold = float(confidence_threshold)
         self.max_cascade_attempts = int(max_cascade_attempts)
+        
+        # Handle deprecated confidence_threshold
+        if confidence_threshold is not None:
+            logger.warning("confidence_threshold is deprecated. Use verification_threshold instead.")
+            # Convert: old confidence_threshold was "cascade if below", 
+            # verification_threshold is "how aggressive to verify"
+            # Higher confidence_threshold meant more single-shot, so invert
+            self._verification_threshold = 1.0 - float(confidence_threshold)
+        else:
+            self._verification_threshold = float(verification_threshold)
         
         # Validate fallback model exists
         if fallback_model not in bandit_router.registry:
             logger.warning(f"Fallback model '{fallback_model}' not in registry. "
                           f"Cascade may fail if primary routing fails.")
+    
+    @property
+    def verification_threshold(self) -> float:
+        """
+        The λ parameter controlling quality vs cost trade-off.
+        
+        λ = 0.0: Never cascade (pure speed)
+        λ = 0.5: Cascade when uncertain
+        λ = 1.0: Always cascade (max accuracy)
+        """
+        return self._verification_threshold
+    
+    @verification_threshold.setter
+    def verification_threshold(self, value: float) -> None:
+        """Set verification threshold (can be adjusted at runtime)."""
+        self._verification_threshold = float(max(0.0, min(1.0, value)))
+    
+    @property
+    def confidence_threshold(self) -> float:
+        """
+        Internal confidence threshold derived from verification_threshold.
+        
+        Maps λ to the confidence level below which we cascade:
+        - λ=0.0 → confidence_threshold=+∞ (never cascade)
+        - λ=0.5 → confidence_threshold=0.5 (cascade when <50% confident)
+        - λ=1.0 → confidence_threshold=+∞ (always cascade, handled specially)
+        """
+        if self._verification_threshold >= 1.0:
+            return float('inf')  # Always cascade
+        if self._verification_threshold <= 0.0:
+            return float('-inf')  # Never cascade
+        # Linear mapping: higher λ = higher threshold = more cascading
+        return self._verification_threshold
+    
+    def set_mode(self, mode: str) -> None:
+        """
+        Set verification threshold using a named preset.
+        
+        Available modes:
+            - "cost_optimal" / "speed": λ=0.0 (pure single-shot)
+            - "chatbot": λ=0.5 (balanced for low-risk)
+            - "balanced": λ=0.7 (reasonable trade-off)
+            - "code": λ=0.85 (higher stakes)
+            - "high_assurance": λ=0.9 (quality-critical)
+            - "max_accuracy": λ=1.0 (always cascade)
+        """
+        key = mode.lower().replace("-", "_").replace(" ", "_")
+        if key not in self.VERIFICATION_PRESETS:
+            valid = list(self.VERIFICATION_PRESETS.keys())
+            raise ValueError(f"Unknown mode '{mode}'. Valid modes: {valid}")
+        self._verification_threshold = self.VERIFICATION_PRESETS[key]
     
     @classmethod
     def create(
@@ -1982,7 +2075,9 @@ class HybridRouter:
         model_registry: Dict[str, Dict[str, Any]],
         *,
         fallback_model: str = "openai/gpt-4o",
-        confidence_threshold: float = 0.85,
+        verification_threshold: Optional[float] = None,
+        mode: Optional[str] = None,
+        confidence_threshold: Optional[float] = None,  # Deprecated
         max_cascade_attempts: int = 2,
         exploration: str = "safe",
         priors: str = "auto",
@@ -1998,7 +2093,18 @@ class HybridRouter:
         Args:
             model_registry: Dict of model_id -> metadata
             fallback_model: Model for cascade fallback (should be high-quality)
-            confidence_threshold: Route single-shot if confidence > threshold
+            verification_threshold: The λ parameter (0.0-1.0) for SLA-aware routing:
+                - 0.0: Never cascade (cost-optimal, $0.40/1k)
+                - 0.5: Cascade when uncertain (balanced for chatbots)
+                - 0.9: Cascade unless very confident (high-assurance)
+                - 1.0: Always cascade (max accuracy, like FrugalGPT)
+            mode: Named preset for verification_threshold. One of:
+                - "cost_optimal" / "speed": λ=0.0
+                - "chatbot": λ=0.5
+                - "balanced": λ=0.7
+                - "code": λ=0.85
+                - "high_assurance": λ=0.9
+                - "max_accuracy": λ=1.0
             max_cascade_attempts: Max cascade depth
             exploration: Exploration rate for bandit ("safe", "static", etc.)
             priors: Prior loading strategy ("auto", "bundled", etc.)
@@ -2009,13 +2115,37 @@ class HybridRouter:
             Configured HybridRouter
         
         Example:
+            # Using verification_threshold directly
             hybrid = HybridRouter.create(
                 model_registry=registry,
-                fallback_model="openai/gpt-4o",
-                confidence_threshold=0.85,
-                exploration="safe",
+                verification_threshold=0.5,  # Balanced for chatbots
             )
+            
+            # Using named preset
+            hybrid = HybridRouter.create(
+                model_registry=registry,
+                mode="high_assurance",  # λ=0.9 for quality-critical apps
+            )
+            
+            # SLA-aware: adjust at runtime
+            hybrid.verification_threshold = 0.9  # Increase verification aggression
         """
+        # Resolve verification_threshold from mode preset if provided
+        resolved_threshold = 0.0  # Default: cost-optimal
+        if mode is not None:
+            key = mode.lower().replace("-", "_").replace(" ", "_")
+            if key not in cls.VERIFICATION_PRESETS:
+                valid = list(cls.VERIFICATION_PRESETS.keys())
+                raise ValueError(f"Unknown mode '{mode}'. Valid modes: {valid}")
+            resolved_threshold = cls.VERIFICATION_PRESETS[key]
+        if verification_threshold is not None:
+            resolved_threshold = float(verification_threshold)
+        
+        # Handle deprecated confidence_threshold
+        if confidence_threshold is not None:
+            logger.warning("confidence_threshold is deprecated. Use verification_threshold or mode instead.")
+            resolved_threshold = 1.0 - float(confidence_threshold)
+        
         bandit = BanditRouter.create(
             model_registry=model_registry,
             exploration=exploration,
@@ -2027,47 +2157,200 @@ class HybridRouter:
         return cls(
             bandit_router=bandit,
             fallback_model=fallback_model,
-            confidence_threshold=confidence_threshold,
+            verification_threshold=resolved_threshold,
             max_cascade_attempts=max_cascade_attempts,
         )
+    
+    # Latency threshold below which cascade mode is auto-disabled
+    # (Cascades typically take 2+ seconds due to multiple LLM calls)
+    CASCADE_LATENCY_THRESHOLD = 2.0
+    
+    def _get_model_cost(self, model_id: str, output_tokens: int = 600) -> float:
+        """Get estimated cost for a model in $/1k queries."""
+        reg = self.router.registry.get(model_id, {})
+        cost = self.router._estimate_cost_usd(model_id, input_tokens=100, output_tokens=output_tokens)
+        return cost * 1000  # Convert per-query to per-1k
+    
+    def _get_model_latency(self, model_id: str, output_tokens: int = 600) -> float:
+        """Get estimated latency for a model in seconds."""
+        return self.router._estimate_latency_s(model_id, output_tokens=output_tokens)
+    
+    def _filter_candidates(
+        self,
+        candidates: List[str],
+        *,
+        max_cost: Optional[float] = None,
+        max_latency: Optional[float] = None,
+        output_tokens: int = 600,
+    ) -> Tuple[List[str], Dict[str, str]]:
+        """
+        Apply hard constraints to filter the candidate model pool.
+        
+        Returns:
+            Tuple of (filtered_candidates, exclusion_reasons)
+        """
+        excluded: Dict[str, str] = {}
+        filtered = []
+        
+        for m in candidates:
+            cost = self._get_model_cost(m, output_tokens)
+            latency = self._get_model_latency(m, output_tokens)
+            
+            if max_cost is not None and cost > max_cost:
+                excluded[m] = f"cost ${cost:.2f}/1k > ${max_cost:.2f}/1k"
+                continue
+            if max_latency is not None and latency > max_latency:
+                excluded[m] = f"latency {latency:.1f}s > {max_latency:.1f}s"
+                continue
+            filtered.append(m)
+        
+        return filtered, excluded
+    
+    def _find_closest_match(
+        self,
+        candidates: List[str],
+        *,
+        max_cost: Optional[float] = None,
+        max_latency: Optional[float] = None,
+        output_tokens: int = 600,
+    ) -> str:
+        """
+        Find the "least bad" model when all models violate constraints.
+        
+        Strategy: Score by how close each model is to the constraints.
+        """
+        best_model = candidates[0] if candidates else self.fallback_model
+        best_score = float('inf')
+        
+        for m in candidates:
+            cost = self._get_model_cost(m, output_tokens)
+            latency = self._get_model_latency(m, output_tokens)
+            
+            # Score: sum of constraint violations (lower is better)
+            score = 0.0
+            if max_cost is not None:
+                score += max(0, cost - max_cost) / max_cost  # Normalized overage
+            if max_latency is not None:
+                score += max(0, latency - max_latency) / max_latency
+            
+            if score < best_score:
+                best_score = score
+                best_model = m
+        
+        return best_model
     
     def route(
         self,
         prompt: str,
+        *,
+        verification_threshold: Optional[float] = None,
+        max_cost: Optional[float] = None,
+        max_latency: Optional[float] = None,
         **route_kwargs,
     ) -> Tuple[str, HybridRoutingLog, str]:
         """
-        Route a prompt using the bandit and return routing decision + mode.
+        Route a prompt using the bandit with SLA constraints.
         
-        This is the "prediction" step - it tells you WHAT to do without
-        actually calling any LLMs. Use this when you want to control
-        the execution yourself.
+        This implements **Constraint-Aware Routing**: the bandit searches for
+        the optimal "Budget Specialist" within a constrained action space.
+        
+        The decision logic combines:
+            1. Hard constraints (max_cost, max_latency) → Filter candidate pool
+            2. Soft preference (verification_threshold λ) → Single-shot vs cascade
         
         Args:
             prompt: The user's prompt
+            verification_threshold: The λ parameter (0.0-1.0) for quality vs cost:
+                - 0.0: Never cascade (pure speed)
+                - 0.9: Cascade unless very confident
+                - 1.0: Always cascade
+            max_cost: Hard budget constraint in $/1k queries.
+                Models exceeding this are masked from consideration.
+                Example: max_cost=0.50 forces the bandit to find a "Budget Specialist"
+            max_latency: Hard latency constraint in seconds.
+                Models exceeding this are masked from consideration.
+                Note: If max_latency < 2.0s, cascade mode is auto-disabled.
             **route_kwargs: Additional args passed to BanditRouter.route()
         
         Returns:
             Tuple of:
-                - model_id: The recommended model
-                - log: Extended routing log with confidence info
-                - mode: "single_shot" or "cascade" recommendation
+                - model_id: The recommended model (within constraints)
+                - log: Extended routing log with constraint info
+                - mode: "single_shot" or "cascade" (may be forced by latency constraint)
         
         Example:
-            model, log, mode = hybrid.route("Write a haiku about AI")
+            # Budget-constrained routing: Find best model under $0.50/1k
+            model, log, mode = hybrid.route(
+                "Summarize this article",
+                max_cost=0.50,  # Masks GPT-4o, DeepSeek V3
+            )
             
-            if mode == "single_shot":
-                response = call_llm(model, prompt)
-            else:
-                response = run_cascade(model, hybrid.fallback_model, prompt)
+            # Latency-constrained routing: Must respond within 1s
+            model, log, mode = hybrid.route(
+                "Quick chat response",
+                max_latency=1.0,  # Auto-disables cascade
+            )
+            
+            # Combined SLA: Budget + Quality guarantee
+            model, log, mode = hybrid.route(
+                "Generate code",
+                max_cost=1.00,
+                verification_threshold=0.85,  # Cascade if uncertain
+            )
         """
+        # Get all candidate models
+        all_candidates = list(self.router.registry.keys())
+        
+        # Apply hard constraints (The Mask)
+        filtered_candidates, exclusions = self._filter_candidates(
+            all_candidates,
+            max_cost=max_cost,
+            max_latency=max_latency,
+        )
+        
+        # Edge case: All models filtered out
+        if not filtered_candidates:
+            logger.warning(
+                f"All {len(all_candidates)} models filtered by constraints "
+                f"(max_cost=${max_cost}, max_latency={max_latency}s). "
+                f"Falling back to closest match."
+            )
+            fallback = self._find_closest_match(
+                all_candidates, max_cost=max_cost, max_latency=max_latency
+            )
+            filtered_candidates = [fallback]
+        
+        # Pass filtered candidates to the underlying bandit
+        route_kwargs['candidate_models'] = filtered_candidates
         model_id, base_log = self.router.route(prompt, **route_kwargs)
         confidence = base_log.predicted_quality
         
-        # Determine routing mode based on confidence
-        mode = "single_shot" if confidence >= self.confidence_threshold else "cascade"
+        # Use per-request threshold if provided, otherwise use router default
+        threshold = verification_threshold if verification_threshold is not None else self._verification_threshold
         
-        # Create extended log
+        # Determine routing mode based on verification_threshold (λ)
+        # λ = 0.0: Never cascade (single_shot always)
+        # λ = 1.0: Always cascade
+        # λ = 0.5: Cascade if confidence < 0.5
+        if threshold >= 1.0:
+            mode = "cascade"  # Always verify
+        elif threshold <= 0.0:
+            mode = "single_shot"  # Never verify
+        else:
+            # Cascade if confidence is below the threshold
+            mode = "single_shot" if confidence >= threshold else "cascade"
+        
+        # Auto-disable cascade if latency constraint is tight
+        # (Cascades typically take 2+ seconds due to multiple LLM calls)
+        if max_latency is not None and max_latency < self.CASCADE_LATENCY_THRESHOLD:
+            if mode == "cascade":
+                logger.info(
+                    f"Latency constraint ({max_latency}s < {self.CASCADE_LATENCY_THRESHOLD}s) "
+                    f"forces single_shot mode (cascade disabled)."
+                )
+                mode = "single_shot"
+        
+        # Create extended log with constraint info
         log = HybridRoutingLog(
             request_id=base_log.request_id,
             timestamp_s=base_log.timestamp_s,
@@ -2081,6 +2364,17 @@ class HybridRouter:
             cascade_models=[model_id] if mode == "cascade" else None,
         )
         
+        # Store constraint info in grader_meta for debugging
+        log.grader_meta = {
+            "constraints": {
+                "max_cost": max_cost,
+                "max_latency": max_latency,
+                "candidates_before_filter": len(all_candidates),
+                "candidates_after_filter": len(filtered_candidates),
+                "models_excluded": len(exclusions),
+            }
+        }
+        
         return model_id, log, mode
     
     def route_with_cascade(
@@ -2089,6 +2383,7 @@ class HybridRouter:
         *,
         generate_fn: Any,  # Callable[[str, str], str]
         verify_fn: Optional[Any] = None,  # Callable[[str], bool]
+        verification_threshold: Optional[float] = None,
         **route_kwargs,
     ) -> Dict[str, Any]:
         """
@@ -2096,14 +2391,15 @@ class HybridRouter:
         
         This is the "complete" flow - prediction + execution + optional cascade.
         
-        Flow:
-            1. Bandit predicts best model + confidence
-            2. If confidence >= threshold: single-shot (return immediately)
-            3. If confidence < threshold OR verification fails: cascade to fallback
+        Flow (controlled by verification_threshold λ):
+            1. Bandit predicts best model + confidence P(Success)
+            2. If P(Success) > λ: single-shot (return immediately)
+            3. If P(Success) ≤ λ OR verification fails: cascade to fallback
         
         Args:
             prompt: The user's prompt
             generate_fn: Function(model_id, prompt) -> response_text
+            verification_threshold: Override λ for this request (0.0-1.0)
             verify_fn: Optional Function(response) -> bool (True = accept)
             **route_kwargs: Additional args passed to BanditRouter.route()
         
@@ -2126,7 +2422,11 @@ class HybridRouter:
             print(f"Response from {result['model_used']} ({result['mode']})")
             print(result['response'])
         """
-        model_id, log, mode = self.route(prompt, **route_kwargs)
+        model_id, log, mode = self.route(
+            prompt, 
+            verification_threshold=verification_threshold,
+            **route_kwargs
+        )
         confidence = log.predicted_quality
         
         # Track attempts for cascade
