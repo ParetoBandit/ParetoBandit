@@ -1,0 +1,197 @@
+% ============================================================================
+% EVALUATION: Setup + RQs (Consolidated for narrative flow)
+% ============================================================================
+
+\section{Evaluation}
+\label{sec:evaluation}
+
+We evaluate \ours{} along three deployment-relevant axes: cold-start performance (day-one behavior), plasticity under drift or misspecified priors, and cost--quality efficiency relative to established baselines.
+
+\subsection{Experimental Setup}
+\label{sec:experiments}
+
+\paragraph{Dataset.} We use 497 archetypal prompts from LMSYS Chatbot Arena~\cite{zheng2023judging} via K-means clustering, with 2,000 sampled prompts for evaluation.
+
+\paragraph{Model Pool.} We route across 81 production LLMs via OpenRouter, spanning frontier, open-weight, and cost-optimized families. Examples include GPT-4o, Claude 3.5 Sonnet, Gemini 2.0, DeepSeek-V3, Nova-Lite, and Nova-Micro.
+
+\paragraph{Ground Truth.} We use GPT-4o-as-judge scoring normalized to $[0,1]$, achieving $>$80\% agreement with human preferences.
+
+\paragraph{Metrics.} Cumulative regret: $\sum_{t=1}^{T}(r^* - r_t)$; regret reduction vs.\ cold-start; and system accuracy (macro-average of Math, Reasoning, and MMLU; excluding HumanEval due to sparse coverage).\footnote{All routing decisions use the production BanditRouter codebase. Model success is modeled via deterministic Bernoulli sampling based on Artificial Analysis benchmark scores, ensuring reproducibility.}
+
+% ============================================================================
+% Warm-start
+% ============================================================================
+
+\subsection{Warm-Start Advantage}
+\label{sec:rq1}
+
+We test whether shipping expert-distilled priors reduces cold-start regret.
+
+We compare cold-start (identity initialization) vs.\ warm-start (expert priors, $\lambdaboost=50$) agents over 2,000 routing decisions.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/figure1_regret_curve.pdf}
+    \caption{\textbf{Warm-Start Advantage.} Expert-distilled priors achieve \textbf{63.6\% lower regret} than cold-start, with the gap widening early when cold-start explores blindly.}
+    \label{fig:regret_curve}
+\end{figure}
+\vspace{-0.5em}
+
+\paragraph{Results.} Warm-start achieves \textbf{63.6\% regret reduction} (Figure~\ref{fig:regret_curve}). The gap is largest in the first 500 steps: warm-start makes useful decisions from step 1 while cold-start spends budget on avoidable exploration.
+
+\paragraph{The Benchmark Trap.} Initializing from public benchmark leaderboards (MMLU, HumanEval, MATH-500) performs worse than random initialization (Table~\ref{tab:benchmark_trap}). Benchmark-optimal models can differ from production-optimal models, motivating priors distilled from deployment-like distributions rather than static leaderboards.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{The Benchmark Trap.} Public benchmarks hurt; expert distillation helps.}
+\label{tab:benchmark_trap}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Initialization} & \textbf{Regret} & \textbf{vs.\ Cold Start} \\
+\midrule
+Cold Start (Random) & 63.7 & --- \\
+Benchmark-Initialized & 83.5 & $-$31\% (worse) \\
+\textbf{Expert-Distilled} & \textbf{20.4} & \textbf{+68\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{OOD Generalization.} On held-out benchmarks (GSM8K, HumanEval, MMLU) using published scores as ground truth, few-shot calibration ($\sim$50--100 examples) achieves \textbf{93.5\% average regret reduction} vs.\ cold-start: 96\% on Math, 99\% on Code, 85\% on Knowledge.
+
+% ============================================================================
+% Plasticity
+% ============================================================================
+
+\subsection{Plasticity Under Concept Drift}
+\label{sec:rq2}
+
+We test whether the router can recover when shipped priors become misspecified.
+
+We simulate ``poisoned priors'' where the bandit confidently believes GPT-4o is optimal when Nova-Lite actually dominates. With memory decay ($\gamma=0.90$), the bandit recovers within $\sim$200 steps (Figure~\ref{fig:belief_recovery}). Without decay ($\gamma=1.0$), it does not recover. This demonstrates that shipped priors provide a starting point rather than a permanent constraint.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/figure2_belief_recovery.png}
+    \caption{\textbf{Belief Recovery.} The router overcomes poisoned priors within $\sim$200 steps, demonstrating self-correction without manual intervention.}
+    \label{fig:belief_recovery}
+\end{figure}
+\vspace{-0.5em}
+
+% ============================================================================
+% Efficiency + baselines
+% ============================================================================
+
+\subsection{Cost--Quality Efficiency and Baselines}
+\label{sec:rq3}
+
+We evaluate whether routing can improve both cost and quality relative to static policies and existing routers.
+
+\paragraph{Baselines.} Static (always GPT-4o, always DeepSeek-V3); RouteLLM~\cite{ong2024routellm} (official library v0.2.0); and FrugalGPT~\cite{chen2023frugalgpt} (methodology-based cascade: DeepSeek $\to$ GPT-4o). We report Bandit (single-shot) and Hybrid (selective verification) variants of \ours{}.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{SOTA Comparison.} Hybrid approaches FrugalGPT accuracy while operating over an 80+ model pool without fixed chains.}
+\label{tab:sota_comparison}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{System} & \textbf{Acc.} & \textbf{Cost} & \textbf{Latency} & \textbf{Pool} \\
+\midrule
+FrugalGPT & 96.7\% & \$0.67/1k & 0.96s & 2--3 \\
+\textbf{Hybrid (Ours)} & 95.3\% & \$1.34/1k & 0.99s & \textbf{80+} \\
+Bandit (Ours) & 86.0\% & \$1.26/1k & 0.89s & 80+ \\
+RouteLLM & 82.7\% & \$2.89/1k & 1.20s & 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Key Findings.} Hybrid achieves 95.3\% accuracy, within 1.4\% of FrugalGPT, while supporting access to 80+ models. Bandit outperforms RouteLLM while being cheaper in this evaluation.
+
+\subsubsection{The ``Verifier Trap''}
+\label{sec:confident_failure}
+
+Hybrid outperforms FrugalGPT on instruction-following (\textbf{98.0\% vs 95.0\%}). FrugalGPT relies on reactive verification: the cheap model answers first, then a verifier attempts to detect failures. However, verifiers can be fooled by ``confident failures''---plausible-sounding outputs that violate subtle constraints. In our evaluation, 35\% of DeepSeek's failures passed verification.
+
+\ours{} uses proactive prediction: it identifies high-risk prompts \emph{before} generation and selectively routes them to GPT-4o (or triggers verification), avoiding silent failures where the system returns incorrect outputs with high confidence.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Domain Breakdown.} Hybrid beats FrugalGPT on Instructions (+3\%) via proactive prediction.}
+\label{tab:domain_breakdown}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{System} & \textbf{Math} & \textbf{Code} & \textbf{Instr.} & \textbf{Know.} \\
+\midrule
+\textbf{Hybrid} & 89\% & 99\% & \textbf{98\%} & 89\% \\
+FrugalGPT & \textbf{98\%} & 98\% & 95\% & \textbf{98\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Cost--Quality Frontier.} Figure~\ref{fig:pareto} visualizes the cost--accuracy landscape. \ours{} provides two operating regimes: a single-shot mode that prioritizes cost and a hybrid mode that increases assurance by selectively invoking verification. A single threshold parameter controls how aggressively verification is used, enabling smooth navigation of the Pareto frontier.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/figure4_pareto_frontier.pdf}
+    \caption{\textbf{Pareto Frontier.} Left: Cost vs.\ system accuracy. \ours{} provides a low-cost single-shot regime and a higher-assurance hybrid regime. Right: Domain breakdown shows Hybrid beats FrugalGPT on Instructions (98\% vs 95\%).}
+    \label{fig:pareto}
+\end{figure}
+
+\paragraph{Breaking the Trade-off.} Table~\ref{tab:system_impact} reports improvement over static policies in a representative setting. The adaptive router can exceed a frontier-only policy on average quality while reducing spend by reserving expensive models for high-risk prompts.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{System Impact.} Adaptive routing improves quality while reducing cost vs.\ a frontier-only policy.}
+\label{tab:system_impact}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Policy} & \textbf{Quality} & \textbf{Cost/1k} & \textbf{$\Delta$ Cost} & \textbf{$\Delta$ Quality} \\
+\midrule
+Static: GPT-4o & 0.63 & \$4.38 & --- & --- \\
+Static: Nova-Lite & 0.61 & \$0.10 & $-$97.6\% & $-$2.8\% \\
+\midrule
+\textbf{Adaptive (Ours)} & \textbf{0.67} & \textbf{\$1.42} & \textbf{$-$67.7\%} & \textbf{+6.1\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{ROI Leaderboard.} Specialists can deliver substantially better ``quality-per-dollar'' than frontier models for the prompts where they succeed (Table~\ref{tab:roi}).
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{ROI Leaderboard.} Specialists deliver substantially better value than GPT-4o in their niches.}
+\label{tab:roi}
+\begin{tabular}{clcc}
+\toprule
+\textbf{Rank} & \textbf{Model} & \textbf{Cost/1k} & \textbf{ROI} \\
+\midrule
+1 & Nova-Micro & \$0.06 & 93.3× \\
+2 & Nova-Lite & \$0.10 & 91.6× \\
+3 & Llama-3.2-1B & \$0.05 & 73.6× \\
+\midrule
+\textit{Ref} & \textit{GPT-4o} & \textit{\$4.38} & \textit{1.0×} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================================
+% Qualitative
+% ============================================================================
+
+\subsection{Qualitative Analysis}
+\label{sec:qualitative}
+
+We manually inspect representative routing decisions to assess whether model choices align with semantic structure.
+
+\paragraph{Case 1: Specialist Win.} \emph{``Generate a SQL query to find top 5 customers by order value.''} $\to$ Nova-Lite (1.00) over GPT-4o (0.00). SQL is rigid syntax where smaller models often excel.
+
+\paragraph{Case 2: Frontier Fallback.} \emph{``What is the definite integral of $\sin(x)/x$ from 0 to $\infty$?''} $\to$ GPT-4o (1.00) over Nova-Lite (0.00). Requires specialized reasoning (Dirichlet integral), where frontier models dominate.
+
+\paragraph{Case 3: Efficiency Opportunity.} \emph{``Why do birds chirp in the morning?''} $\to$ Nova-Lite (0.78) over GPT-4o (0.75). Near-equal quality triggers substantially cheaper routing.
+
+\paragraph{Aggregate.} Across 497 clusters: 5.6\% specialist wins, 7.0\% frontier fallbacks, and 45.5\% efficiency opportunities where expensive models add little or no quality.
+

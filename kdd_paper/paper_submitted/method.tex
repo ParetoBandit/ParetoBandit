@@ -46,13 +46,13 @@ Static classifiers~\cite{ong2024routellm} freeze after training. We use bandits 
 
 The cold-start problem: 81 models $\times$ 384 dimensions requires thousands of queries. We solve this via \textbf{Expert Distillation} using GPT-4o as teacher.
 
-\paragraph{Archetype Grid.} Sample 50K prompts from LMSYS Chatbot Arena~\cite{zheng2023judging}, embed with sentence transformer, cluster via K-Means ($K=497$), and select centroid representatives. This yields 497 ``golden prompts'' spanning the task distribution.
+\paragraph{Archetype Grid.} We sample 50K prompts from LMSYS Chatbot Arena~\cite{zheng2023judging} and embed them with a sentence-transformer encoder. We then cluster via K-Means ($K=497$) and select centroid representatives, yielding 497 ``golden prompts'' spanning the task distribution.
 
 \paragraph{Dense Evaluation.} For each (model, archetype) pair, generate responses via OpenRouter and grade with GPT-4o (normalized $[0,1]$). The oracle achieves $>$80\% agreement with human preferences.
 
 \paragraph{Prior Fitting.} Train the bandit by simulating oracle decisions: for each archetype with embedding $\mathbf{x}$ and optimal model $m^*$, apply rank-one updates. Repeat for 5 epochs.
 
-\paragraph{Prior Strength ($\lambdaboost$).} Scale priors: $\mathbf{A}_m \leftarrow \lambdaboost \cdot \mathbf{A}_m$. With $\lambdaboost=50$ (default), the exploration term shrinks by $1/\sqrt{50}$, strongly favoring exploitation. This is valid because the prior genuinely encodes expert knowledge.
+\paragraph{Prior Strength ($\lambdaboost$).} We scale priors as $\mathbf{A}_m \leftarrow \lambdaboost \cdot \mathbf{A}_m$. With $\lambdaboost=50$ (default), the exploration term shrinks by $1/\sqrt{50}$ and the policy favors exploitation. This is valid because the prior encodes teacher supervision rather than uninformative initialization.
 
 \paragraph{Specialist Discovery.} The router discovers specialists \emph{beyond} the teacher. Nova-Lite achieves $\|\boldsymbol{\theta}\|=3.66$ vs.\ GPT-4o's 1.66, with near-zero cosine similarity---proving it captures a distinct niche (Figure~\ref{fig:specialist_landscape}).
 
@@ -87,10 +87,29 @@ LLM Generation & 750.00 ms & 92.7\% \\
 
 Router overhead is negligible: 8.94ms P99 (Table~\ref{tab:latency}). The $O(d^2)$ matrix operations do not bottleneck; cost savings are effectively \textbf{free}.
 
+\subsection{Zero-Overhead Scalability}
+\label{sec:scalability}
+
+A critical limitation of existing routers is their \emph{$O(N)$ scaling cost}: adding a new model requires running calibration benchmarks (FrugalGPT) or re-training a classifier (RouteLLM). In rapidly evolving markets---where new models launch weekly---this creates an operational bottleneck.
+
+\paragraph{Benchmarks as Metadata, Not Engine.} We decouple the ``intelligence'' from the ``registry.'' The bandit's priors encode \emph{what makes prompts difficult}---this knowledge is model-agnostic and learned once. When a new model releases, we do not re-run benchmarks; we simply register its API endpoint and attach public metadata (reported scores, pricing) as coarse \textbf{safety filters}.
+
+\paragraph{Day-1 Integration Workflow.}
+\begin{enumerate}[leftmargin=*,nosep]
+    \item \textbf{Release}: Model X launches with claimed Math score 85\%.
+    \item \textbf{Registration}: Add to registry with \texttt{min\_quality=85}, cost metadata. Time: seconds.
+    \item \textbf{SLA Filter}: Model X is eligible for prompts where quality floor $<85\%$.
+    \item \textbf{Exploration}: Bandit allocates small traffic via UCB exploration bonus.
+    \item \textbf{Convergence}: Within $\sim$50--100 samples, the bandit learns Model X's \emph{actual} contextual performance---independent of claimed benchmarks.
+    \item \textbf{Self-Correction}: If Model X underperforms its claims, the bandit autonomously reduces its traffic share.
+\end{enumerate}
+
+\paragraph{Online Verification vs.\ Offline Profiling.} Traditional routers verify models \emph{before} deployment; we verify \emph{during} deployment. This enables ``drop-in'' scalability: the system continuously evaluates new models against real traffic, discovering specialists that static benchmarks miss while demoting models that fail to deliver.
+
 \subsection{Bandit-Guided Cascade}
 \label{sec:hybrid}
 
-For maximum accuracy, we introduce a \textbf{Bandit-Guided Cascade}. FrugalGPT~\cite{chen2023frugalgpt} achieves high accuracy via cascading but is limited to 2--3 models with $O(N)$ latency. Our hybrid uses the bandit as a \textbf{dynamic head}:
+For maximum accuracy, we introduce a \textbf{Bandit-Guided Cascade}. FrugalGPT~\cite{chen2023frugalgpt} achieves high accuracy via cascading but is limited to short, fixed chains and incurs sequential model-call latency. Our hybrid uses the bandit as a \textbf{dynamic head}:
 
 \begin{equation}
 \text{Route}(q) = 
@@ -104,18 +123,18 @@ For maximum accuracy, we introduce a \textbf{Bandit-Guided Cascade}. FrugalGPT~\
 \begin{table}[t]
 \centering
 \small
-\caption{\textbf{Fixed vs.\ Dynamic Cascade.} Our hybrid: $O(1)$ specialist access + cascade reliability.}
+\caption{\textbf{Fixed vs.\ Dynamic Cascade.} Our hybrid enables single-pass routing over a large pool while retaining cascade reliability when needed.}
 \label{tab:scaling_comparison}
 \begin{tabular}{lcc}
 \toprule
 \textbf{Property} & \textbf{FrugalGPT} & \textbf{Ours} \\
 \midrule
 Model Pool & 2--3 & 80+ \\
-Latency & $O(N)$ & $O(1)$ \\
+Sequential Calls & Yes & No (unless verification triggers) \\
 Specialist Access & Poor & Excellent \\
 Adaptation & None & Online \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The bandit provides $O(1)$ selection over 80+ models, unlocking specialists that fixed chains miss; the cascade provides a safety net (Table~\ref{tab:scaling_comparison}).
+The bandit provides single-pass scoring over 80+ models, unlocking specialists that fixed chains miss; the selective cascade provides a safety net (Table~\ref{tab:scaling_comparison}).

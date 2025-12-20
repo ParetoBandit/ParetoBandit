@@ -90,6 +90,62 @@ The system does \textbf{not} perform content moderation, safety filtering, or po
 \end{itemize}
 
 % ============================================================================
+% Scalability Details
+% ============================================================================
+
+\section{Zero-Overhead Scalability: Technical Details}
+\label{app:scalability}
+
+This section elaborates on the scalability architecture that enables $O(1)$ model onboarding.
+
+\subsection{Benchmarks as Metadata, Not Training Data}
+
+A key architectural distinction is that we use benchmark scores only as \textbf{coarse safety filters}, not as training data for the router:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FrugalGPT/RouteLLM}: Require running calibration prompts through new models to train/calibrate the router. Adding Model X requires $\sim$500--1000 API calls to learn its behavior. This is $O(N)$ scaling.
+    
+    \item \textbf{BanditGPT}: The ``brain'' (prior covariances) learns what makes prompts \emph{difficult}---this knowledge is model-agnostic. A new model simply joins the pool with its public metadata. Time to onboard: seconds.
+\end{itemize}
+
+\subsection{The ``Warm Start'' vs.\ ``New Model'' Distinction}
+
+\paragraph{Warm Start (One-Time, Offline).} We train the system on historical data to teach it what ``hard'' looks like. The 81-model $\times$ 497-archetype evaluation generates teacher supervision for prior fitting. This is a \textbf{fixed cost} amortized across all deployments.
+
+\paragraph{New Model (Continuous, Online).} When a new model releases, it enters an ecosystem that is \emph{already intelligent}. The router knows: ``This prompt embedding pattern indicates hard math---I won't give it to the new model until it proves itself on easier prompts.'' The new model doesn't need its own ``warm start'' because the intelligence is in prompt understanding, not model enumeration.
+
+\subsection{Safety Filters from Public Metadata}
+
+We use publicly reported benchmark scores (e.g., from release announcements or Artificial Analysis) as \textbf{optional hard constraints}:
+
+\begin{verbatim}
+# Day 1: Register new model with metadata
+router.add_model(
+    model_id="new-model/v1",
+    cost_per_1k=0.50,
+    metadata={"math_score": 85}  # From release blog
+)
+
+# The bandit handles everything else
+result = router.route(prompt, min_quality=80)
+\end{verbatim}
+
+The \texttt{min\_quality=80} filter ensures the new model is only eligible for prompts where the quality floor is below its claimed capability. The bandit then autonomously verifies whether the model \emph{actually} performs at that level via UCB exploration.
+
+\subsection{Self-Correction via Online Learning}
+
+If a model's claimed benchmarks are inflated, the bandit self-corrects:
+
+\begin{enumerate}[leftmargin=*,nosep]
+    \item Initial: Model X claims 90\% math accuracy; allocated exploration traffic.
+    \item Reality: Actual performance is 70\% (reward signal from judge feedback).
+    \item Update: Bandit reduces $\hat{Q}(q, X)$ via rank-one covariance updates.
+    \item Convergence: Within $\sim$50--100 samples, traffic share reflects true capability.
+\end{enumerate}
+
+This ``trust but verify'' approach enables immediate deployment without blocking on expensive offline profiling, while the online learning ensures the system converges to accurate model assessments.
+
+% ============================================================================
 % Additional Tables (Overflow from Main Paper)
 % ============================================================================
 
@@ -107,7 +163,7 @@ Table~\ref{tab:roi_full} presents the complete ROI leaderboard for all evaluated
 \label{tab:roi_full}
 \begin{tabular}{clccc}
 \toprule
-\textbf{Rank} & \textbf{Model} & \textbf{Cost/1M} & \textbf{$\|\theta\|$} & \textbf{ROI} \\
+\textbf{Rank} & \textbf{Model} & \textbf{Cost/1k} & \textbf{$\|\theta\|$} & \textbf{ROI} \\
 \midrule
 1 & Nova-Micro-v1 & \$0.06 & 2.16 & 93.3× \\
 2 & Nova-Lite-v1 & \$0.11 & 3.66 & 91.6× \\
@@ -221,20 +277,20 @@ This rank-one update takes $O(d^2)$ time, enabling real-time learning.
 \section{SLA-Aware Routing Framework}
 \label{app:sla}
 
-Rather than a rigid alternative to cascading, BanditGPT offers a \textbf{unified framework} controlled by the \emph{verification threshold} ($\lambda$):
+Rather than a rigid alternative to cascading, BanditGPT offers a \textbf{unified framework} controlled by a verification threshold ($\tau_{\text{verify}}$):
 
 \begin{equation}
 \text{Action} = \begin{cases} 
-\text{Single-Shot} & \text{if } P(\text{Success}) > \lambda \\
-\text{Cascade} & \text{if } P(\text{Success}) \le \lambda
+\text{Single-Shot} & \text{if } P(\text{Success}) > \tau_{\text{verify}} \\
+\text{Cascade} & \text{if } P(\text{Success}) \le \tau_{\text{verify}}
 \end{cases}
 \end{equation}
 
 \paragraph{Threshold Settings.}
 \begin{itemize}[leftmargin=*]
-    \item $\lambda = 0.0$ (Cost-Optimal): Never cascade. 92.8\% accuracy at \$10.23/1k.
-    \item $\lambda = 0.6$ (Sweet Spot): Cascade when uncertain.
-    \item $\lambda = 1.0$ (Max Accuracy): Always cascade. 99.6\% accuracy at \$17.63/1k.
+    \item $\tau_{\text{verify}} = 0.0$ (Cost-Optimal): Never cascade (single-shot routing).
+    \item $\tau_{\text{verify}} = 0.6$ (Balanced): Cascade when uncertain.
+    \item $\tau_{\text{verify}} = 1.0$ (Max Assurance): Always cascade (equivalent to always verifying).
 \end{itemize}
 
 \paragraph{Hard Budget Constraints.} BanditGPT supports hard constraints via a constrained action space:
@@ -247,7 +303,7 @@ When constrained to \$0.50/1k: GPT-4o and DeepSeek fail the constraint entirely,
 \begin{figure}[h]
     \centering
     \includegraphics[width=\linewidth]{figures/figure7_sla_tunability.pdf}
-    \caption{\textbf{Dialing the Pareto Frontier.} Users dynamically trade cost for accuracy via $\lambda$.}
+    \caption{\textbf{Dialing the Pareto Frontier.} Users dynamically trade cost for accuracy via $\tau_{\text{verify}}$.}
     \label{fig:sla_tunability_app}
 \end{figure}
 

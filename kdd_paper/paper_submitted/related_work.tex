@@ -5,9 +5,9 @@
 \section{Related Work}
 \label{sec:related}
 
-Existing LLM routing approaches fall into three categories, each with critical limitations that BanditGPT addresses.
+Existing LLM routing approaches fall into three categories, each with limitations that \ours{} addresses.
 
-\textbf{Cascading systems} like FrugalGPT~\cite{chen2023frugalgpt} and RouteLLM~\cite{ong2024routellm} achieve cost savings through sequential model calls, but suffer from $O(N)$ latency scaling and fixed 2--3 model chains that miss specialist opportunities. More critically, they rely on \emph{ex-post verification} that fails on ``Confident Failures''---plausible-sounding wrong answers that fool verifiers (86\% vs our 96\% on instructions). Our $O(1)$ vector search over 80+ models, combined with \emph{ex-ante prediction}, eliminates both bottlenecks.
+\textbf{Cascading systems} like FrugalGPT~\cite{chen2023frugalgpt} and RouteLLM~\cite{ong2024routellm} achieve cost savings through sequential model calls, but are typically limited to short, fixed chains that do not exploit large specialist pools. More critically, they rely on \emph{ex-post verification}, which can fail on ``confident failures''---plausible outputs that violate subtle constraints. Both systems also require $O(N)$ profiling to add new models: FrugalGPT needs calibration runs to tune its verifier, while RouteLLM requires re-training its classifier on preference data. \ours{} performs single-pass scoring over 80+ models and uses \emph{ex-ante prediction} to selectively invoke verification for high-risk prompts.
 
 \textbf{Contextual bandits}~\cite{li2010contextual} offer adaptive routing but require $\sim$2,000 queries (\$50--200 exploration cost) before convergence---prohibitive for production deployment. Our \textbf{Expert Distillation} bootstraps from teacher priors, achieving 63.6\% regret reduction from day one without exploration overhead.
 
@@ -16,18 +16,18 @@ Existing LLM routing approaches fall into three categories, each with critical l
 \begin{table}[t]
 \centering
 \footnotesize
-\caption{\textbf{Comparison with Prior Work.} BanditGPT uniquely combines cold-start readiness with massive model pools.}
+\caption{\textbf{Comparison with Prior Work.} BanditGPT uniquely combines cold-start readiness with zero-overhead scalability.}
 \label{tab:related_comparison}
 \begin{tabular}{p{2.2cm}p{2.8cm}p{2.6cm}}
 \toprule
 \textbf{System} & \textbf{Weakness} & \textbf{Our Solution} \\
 \midrule
-FrugalGPT & $O(N)$ latency; 86\% Instr. & $O(1)$; 96\% \\
-RouteLLM & Static; No adaptation & Online learning \\
-Std.\ Bandits & Cold-Start (1000s) & Expert Distillation \\
-Leaderboards & Global; No cost & Context-aware \\
+FrugalGPT & Fixed chains; $O(N)$ calibration & Large pool; $O(1)$ onboarding \\
+RouteLLM & Static; Re-train for new models & Online learning; Metadata-only \\
+Std.\ Bandits & Cold-Start (1000s queries) & Expert Distillation \\
+Leaderboards & Global; No cost-awareness & Context-aware utility \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The key differentiator is \textbf{cold-start readiness}: FrugalGPT/RouteLLM require training data investment; standard bandits need weeks of exploration. BanditGPT works \textbf{on day one} with <1MB shipped priors.
+The key differentiator is \textbf{zero-overhead scalability}: FrugalGPT/RouteLLM require $O(N)$ profiling to add models; we use benchmarks only as optional ``safety rails'' derived from public metadata, not as training data. New models are verified \emph{during} deployment via online exploration, enabling drop-in integration for the rapidly evolving LLM landscape.

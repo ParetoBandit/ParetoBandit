@@ -13,7 +13,7 @@ We introduced \textbf{BanditGPT}, a context-aware routing system that eliminates
     
     \item \textbf{Pareto Efficiency}: BanditGPT achieves +6.1\% quality and $-$67.7\% cost vs.\ GPT-4o. On instruction tasks, Hybrid mode beats FrugalGPT (98\% vs 95\%) by predicting complexity \emph{before} generation.
     
-    \item \textbf{Production Ready}: 8.94ms P99 latency (1.1\% overhead), self-correcting plasticity (recovers from bad priors in $\sim$200 steps), $O(1)$ scaling to 81+ models.
+    \item \textbf{Production Ready}: 8.94ms P99 routing overhead (1.1\%), self-correcting plasticity (recovers from bad priors in $\sim$200 steps), and single-pass routing over 81+ models.
 \end{enumerate}
 
 \paragraph{The Paradigm Shift.} Specialized models---when orchestrated by an expert-guided router---collectively outperform the frontier models they were distilled from. Nova-Lite at \$0.10/1M tokens, guided by our router, delivers higher quality than GPT-4o at \$4.38/1M tokens.

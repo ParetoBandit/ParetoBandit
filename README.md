@@ -96,11 +96,11 @@ For maximum accuracy with automatic fallback:
 ```python
 from banditgpt import HybridRouter
 
-# Create hybrid router (Bandit + Cascade)
+# Create hybrid router with cascade_rate (λ)
 hybrid = HybridRouter.create(
     model_registry=registry,
     fallback_model="openai/gpt-4o",
-    confidence_threshold=0.85,  # Single-shot if confident
+    cascade_rate=0.5,  # Verify ~50% of predictions
 )
 
 # Route with automatic cascade
@@ -122,6 +122,97 @@ print(f"Model: {result['model_used']}, Mode: {result['mode']}")
 | Selection | Hardcoded | Context-aware |
 | Latency | O(N) | **O(1)** |
 | Adaptation | None | Online learning |
+
+---
+
+## The 3-Stage Routing Funnel
+
+BanditGPT implements a **Constraint-Aware Architecture** where routing happens in three distinct phases:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  PHASE 1: HARD FILTERING (SLA Compliance)                       │
+│  ─────────────────────────────────────────                      │
+│  Filter out models that violate business constraints:           │
+│    • min_quality=70  → Remove models with benchmark < 70%       │
+│    • max_cost=1.00   → Remove models costing > $1.00/1k         │
+│    • max_latency=2.0 → Remove models slower than 2 seconds      │
+│                                                                 │
+│  Result: Candidate pool shrinks from 80+ to ~10-20 "legal" models│
+└─────────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  PHASE 2: BANDIT SELECTION (Expertise)                          │
+│  ─────────────────────────────────────                          │
+│  Pick the best model from the filtered pool using learned prior │
+│    • Contextual: "This prompt is about Python → pick CodeLlama" │
+│    • O(1) lookup via pre-computed covariance matrix             │
+│                                                                 │
+│  Result: Single best model selected                             │
+└─────────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  PHASE 3: CASCADE DECISION (Lambda Tuning)                      │
+│  ─────────────────────────────────────────                      │
+│  Apply cascade_rate (λ) to decide if verification is needed     │
+│    • λ=0.0: Never cascade (Standard Mode)                       │
+│    • λ=0.5: Cascade ~50% of predictions                         │
+│    • λ=1.0: Always cascade (Max Accuracy)                       │
+│                                                                 │
+│  Result: Execute single_shot OR cascade with fallback           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### The Business Knobs
+
+| Knob | What It Does | Mechanism | Value |
+|------|--------------|-----------|-------|
+| **min_quality** | Sets a "Competence Floor" | Masks models with benchmark scores below threshold (e.g., `math_500 < 50%`) | Prevents "cheap but dumb" routing |
+| **max_cost** | Sets a "Budget Cap" | Masks models costing more than limit (e.g., `> $1.00/1k`) | Strict FinOps control |
+| **max_latency** | Sets a "Speed Limit" | Masks models slower than SLA (e.g., `> 2.0s`) | Critical for real-time apps |
+| **cascade_rate** (λ) | Quality/Cost Slider | Controls % of predictions that get verified | Trades cost for reliability |
+
+```python
+# Example: Budget-constrained routing with quality floor
+model, log, mode = router.route(
+    "Solve this calculus integral",
+    min_quality=70,    # Only models with benchmark ≥ 70%
+    max_cost=1.00,     # Only models costing ≤ $1.00/1k
+    cascade_rate=0.3,  # Verify 30% of predictions
+)
+```
+
+### Unified Architecture: Standard Mode = λ=0
+
+> *"Rather than maintaining separate codepaths, BanditGPT implements a unified routing logic where Standard Mode is simply the special case of λ=0. This ensures that critical safety features—such as hard budget constraints (`max_cost`) and benchmark quality floors (`min_quality`)—are universally applied to all queries, regardless of the verification strategy selected."*
+
+| Mode | cascade_rate | Phase 1 (Filters) | Phase 2 (Bandit) | Phase 3 (Cascade) | Speed |
+|------|-------------|-------------------|------------------|-------------------|-------|
+| **Standard** | 0.0 | ✅ Applied | ✅ Applied | ❌ Skipped | O(1) |
+| **Hybrid** | 0.3 | ✅ Applied | ✅ Applied | ✅ ~30% verified | O(1) + verify |
+| **Max Accuracy** | 1.0 | ✅ Applied | ✅ Applied | ✅ Always | O(1) + verify |
+
+```python
+# Standard Mode: Pure O(1) with constraints
+model, log, mode = router.route(
+    prompt,
+    min_quality=70,
+    max_cost=1.00,
+    cascade_rate=0.0,  # Standard Mode (default)
+)
+# mode = "single_shot" (always)
+
+# Hybrid Mode: Same constraints + verification
+model, log, mode = router.route(
+    prompt,
+    min_quality=70,
+    max_cost=1.00,
+    cascade_rate=0.5,  # Verify ~50%
+)
+# mode = "single_shot" or "cascade"
+```
+
+**Why This Matters**: You aren't just getting a "better bandit" — you're getting an **Enterprise-Ready Routing System** that respects real-world engineering constraints (budget, latency, quality floors) while still enabling adaptive, context-aware model selection.
 
 ## How It Works
 

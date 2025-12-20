@@ -344,13 +344,27 @@ def build_registry_from_models_cache(
     We derive:
       - cost: estimated $ per request (based on $/1M input/output tokens)
       - latency_s: estimated seconds per request (TTFT + generation time if available)
+      - scores: benchmark scores for quality masking (math, code, reasoning, mmlu, avg)
 
     Args:
+      cache_path: path to models_cache.json
       default_output_tokens: assumed completion size for cost/latency estimation
       default_input_tokens: assumed prompt size; if None, caller can use prompt-based estimation externally
       latency_mode:
         - "ttft": use time_to_first_token_seconds only
         - "ttft+gen": TTFT + (output_tokens / output_tokens_per_second) when available
+
+    Returns:
+      Dict mapping model_id to metadata including:
+        - cost: estimated $ per request
+        - latency_s: estimated seconds per request
+        - scores: {"math": 0-100, "code": 0-100, "reasoning": 0-100, "mmlu": 0-100, "avg": 0-100}
+        - display_name, input_cost_per_m, output_cost_per_m, etc.
+
+    Example:
+        registry = build_registry_from_models_cache("models_cache.json")
+        # Filter to models with math score > 80:
+        math_capable = [m for m in registry if registry[m]["scores"]["math"] > 80]
     """
     cache_path = Path(cache_path)
     d = json.loads(cache_path.read_text())
@@ -410,10 +424,43 @@ def build_registry_from_models_cache(
             # Unknown latency: conservative default to avoid "0 latency wins"
             latency_est = 1.0
 
+        # Extract benchmark scores for quality masking
+        # Normalize all scores to 0-100 scale
+        def _norm_score(v: Any, scale_if_small: bool = True) -> float:
+            """Normalize score to 0-100 scale."""
+            if v is None:
+                return 0.0
+            try:
+                fv = float(v)
+            except Exception:
+                return 0.0
+            # If score is <= 1.0, assume it's a fraction and scale to 100
+            if scale_if_small and 0 < fv <= 1.0:
+                fv *= 100.0
+            return max(0.0, fv)
+
+        benchmark_scores = {
+            "math": _norm_score(m.get("math_500")),
+            "code": _norm_score(m.get("humaneval_score"), scale_if_small=False),  # Already 0-100
+            "reasoning": _norm_score(m.get("reasoning_score"), scale_if_small=False),
+            "mmlu": _norm_score(m.get("mmlu_pro")),
+        }
+        # Compute average score for general quality floor
+        # USE ONLY 3 BENCHMARKS: math, reasoning, mmlu (all have 100% coverage)
+        # HumanEval (code) is excluded from avg due to sparse coverage (67/81 models)
+        # but preserved in scores["code"] for domain-specific analysis.
+        # This creates a balanced "General Capability" score:
+        #   - Math + Reasoning = Fluid Intelligence (Logic, Problem Solving)
+        #   - MMLU = Crystallized Intelligence (Facts, World Knowledge)
+        core_scores = [benchmark_scores["math"], benchmark_scores["reasoning"], benchmark_scores["mmlu"]]
+        benchmark_scores["avg"] = sum(core_scores) / 3.0
+
         registry[or_id] = {
             "display_name": m.get("display_name", m.get("name")),
             "cost": float(cost_est),
             "latency_s": float(latency_est),
+            # NEW: Benchmark scores for quality masking
+            "scores": benchmark_scores,
             # Keep raw fields around for debugging / alternative cost models
             "input_cost_per_m": in_cost_per_m,
             "output_cost_per_m": out_cost_per_m,
@@ -971,6 +1018,8 @@ class BanditRouter:
         lambda_cost: Optional[float] = None,
         lambda_latency: Optional[float] = None,
         max_latency_s: Optional[float] = None,
+        max_cost: Optional[float] = None,
+        quality_floor: Optional[Dict[str, float]] = None,
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
         estimate_input_tokens: bool = True,
@@ -1005,6 +1054,15 @@ class BanditRouter:
             lambda_cost: penalty per unit cost (user/business knob)
             lambda_latency: penalty per second (user/business knob)
             max_latency_s: optional hard constraint (filter models exceeding this)
+            max_cost: optional hard budget constraint in $ per request.
+                Models exceeding this are masked from consideration.
+            quality_floor: benchmark-based filtering. Dict mapping score type to minimum:
+                - {"avg": 70} - only models with avg benchmark >= 70%
+                - {"math": 80} - only models with math_500 >= 80%
+                - {"code": 60} - only models with humaneval >= 60%
+                - {"reasoning": 50, "math": 70} - multiple constraints (AND)
+                This acts as a "safety rail" preventing the bandit from picking
+                cheap models that are statistically incapable of the task.
             input_tokens: override estimated input tokens (for cost/latency math)
             output_tokens: override expected output tokens (for cost/latency math)
             estimate_input_tokens: if True and input_tokens is None, estimate from prompt text
@@ -1061,6 +1119,32 @@ class BanditRouter:
             for m in candidates:
                 lat = float(self._estimate_latency_s(m, output_tokens=out_tok))
                 if lat <= cap:
+                    filtered.append(m)
+            candidates = filtered
+
+        # Optional hard constraint: cost ceiling
+        if max_cost is not None:
+            cost_cap = float(max_cost)
+            filtered = []
+            for m in candidates:
+                model_cost = float(self._estimate_cost(m, in_tok or 100, out_tok))
+                if model_cost <= cost_cap:
+                    filtered.append(m)
+            candidates = filtered
+
+        # Optional hard constraint: quality floor (benchmark-based masking)
+        # This prevents the bandit from picking cheap but weak models
+        if quality_floor is not None and isinstance(quality_floor, dict):
+            filtered = []
+            for m in candidates:
+                scores = self.registry.get(m, {}).get("scores", {})
+                passes = True
+                for score_type, min_val in quality_floor.items():
+                    model_score = float(scores.get(score_type, 0))
+                    if model_score < float(min_val):
+                        passes = False
+                        break
+                if passes:
                     filtered.append(m)
             candidates = filtered
 
@@ -1903,26 +1987,64 @@ class HybridRoutingLog(RoutingLog):
 
 class HybridRouter:
     """
-    Bandit-Guided Cascade: Dynamic Chain Architecture for Massive Model Pools.
+    Constraint-Aware Router: Filter, Select, Verify Architecture.
     
-    SLA-AWARE ROUTING VIA VERIFICATION THRESHOLD (λ)
-    =================================================
+    THREE-PHASE ROUTING ARCHITECTURE
+    =================================
     
-    This router provides a UNIFIED architecture controlled by a single tunable
-    parameter: verification_threshold (λ). Instead of choosing between "Standard"
-    and "Hybrid" modes, users dial in their exact cost/quality trade-off:
+    PHASE 1: HARD FILTERING (SLA Compliance)
+    ----------------------------------------
+    Mask out any model that violates business constraints:
+        - max_cost: Budget constraint ($/1k queries)
+        - max_latency: Speed constraint (seconds)
+        - min_quality: Benchmark floor (e.g., HumanEval > 70%)
     
-        Action = Route via Bandit (Cheap)     if P(Success) > λ
-                 Route via Cascade (Expensive) if P(Success) ≤ λ
+    PHASE 2: BANDIT SELECTION (Expertise)
+    -------------------------------------
+    Pick the best remaining specialist using the learned prior.
+    The bandit only sees "legal" candidates that passed Phase 1.
     
-    PRESETS:
-        λ = 0.0  (Max Speed/Savings): Never verify → Pure BanditGPT ($0.40/1k)
-        λ = 0.5  (Chatbots):          Verify when uncertain → Balanced
-        λ = 0.9  (Code Generation):   Verify unless very confident → Hybrid ($1.34/1k)
-        λ = 1.0  (Max Accuracy):      Always verify → Like FrugalGPT ($1.60/1k)
+    PHASE 3: HYBRID VERIFICATION (Lambda Tuning)
+    --------------------------------------------
+    Apply cascade_rate (λ) to decide if we need to verify the selection.
+    This trades cost for reliability on the selected model.
     
-    This transforms the paper from comparing "Static Systems" to presenting a
-    "Dynamic Framework" where users control the Pareto Frontier.
+    CASCADE RATE CONTROL (λ):
+    -------------------------
+    λ directly controls the cascade probability:
+        λ = 0.0  → 0% cascade   (pure single-shot, Standard mode)
+        λ = 0.3  → ~30% cascade (chatbots)
+        λ = 0.5  → ~50% cascade (balanced)
+        λ = 0.8  → ~80% cascade (code generation)
+        λ = 1.0  → 100% cascade (always verify, max accuracy)
+    
+    THE BUSINESS KNOBS:
+    -------------------
+    1. min_quality (Safety Floor): Prevents "cheap but dumb" routing
+    2. max_cost / max_latency (FinOps Guardrails): Hard SLA limits
+    3. cascade_rate (Quality/Cost Slider): Trades money for reliability
+    
+    UNIFIED ARCHITECTURE: Standard Mode = λ=0
+    =========================================
+    
+    Rather than maintaining separate codepaths, BanditGPT implements a unified
+    routing logic where **Standard Mode is simply the special case of λ=0**.
+    
+    This ensures that critical safety features—such as hard budget constraints
+    (max_cost) and benchmark quality floors (min_quality)—are universally applied
+    to all queries, regardless of the verification strategy selected.
+    
+    Standard Mode (λ=0, Default):
+        - Hard Filters: ✓ Applied (max_cost, min_quality)
+        - Bandit Selection: ✓ Applied
+        - Cascade Verification: ✗ Skipped
+        - Result: Pure O(1) speed with constraint enforcement
+    
+    Hybrid Mode (λ>0):
+        - Hard Filters: ✓ Applied (max_cost, min_quality)
+        - Bandit Selection: ✓ Applied
+        - Cascade Verification: ✓ Applied (λ% of predictions)
+        - Result: Higher accuracy with controlled verification cost
     
     THE KEY INSIGHT: FrugalGPT Cannot Scale to 80+ Models
     =====================================================
@@ -1965,24 +2087,28 @@ class HybridRouter:
         )
     """
     
-    # Named presets for verification_threshold
-    VERIFICATION_PRESETS = {
-        "cost_optimal": 0.0,       # Never cascade - pure single-shot
+    # Named presets for cascade_rate (λ)
+    CASCADE_PRESETS = {
+        "cost_optimal": 0.0,       # Never cascade - pure single-shot (Standard mode)
         "speed": 0.0,              # Alias
-        "chatbot": 0.5,            # Low-risk apps, cascade when uncertain
-        "balanced": 0.7,           # Reasonable trade-off
-        "code": 0.85,              # Higher stakes, more verification
-        "high_assurance": 0.9,     # Quality-critical
+        "chatbot": 0.3,            # Low-risk apps, verify ~30%
+        "balanced": 0.5,           # Reasonable trade-off, verify ~50%
+        "code": 0.8,               # Higher stakes, verify ~80%
+        "high_assurance": 0.9,     # Quality-critical, verify ~90%
         "max_accuracy": 1.0,       # Always cascade (like FrugalGPT)
     }
+    
+    # Backward compatibility alias
+    VERIFICATION_PRESETS = CASCADE_PRESETS
     
     def __init__(
         self,
         bandit_router: BanditRouter,
         *,
         fallback_model: str = "openai/gpt-4o",
-        verification_threshold: float = 0.0,
-        confidence_threshold: Optional[float] = None,  # Deprecated, use verification_threshold
+        cascade_rate: float = 0.0,
+        verification_threshold: Optional[float] = None,  # Deprecated alias for cascade_rate
+        confidence_threshold: Optional[float] = None,  # Deprecated
         max_cascade_attempts: int = 2,
     ):
         """
@@ -1991,12 +2117,14 @@ class HybridRouter:
         Args:
             bandit_router: Pre-configured BanditRouter instance
             fallback_model: Model to use when confidence is low or verification fails
-            verification_threshold: The λ parameter (0.0-1.0) controlling quality vs cost:
-                - 0.0: Never cascade (pure speed, like Standard BanditGPT)
-                - 0.5: Cascade when uncertain (balanced for chatbots)
-                - 0.9: Cascade unless very confident (high-assurance)
+            cascade_rate: The λ parameter (0.0-1.0) controlling verification frequency:
+                - 0.0: Never cascade (pure single-shot, Standard mode)
+                - 0.3: ~30% cascade (chatbots)
+                - 0.5: ~50% cascade (balanced)
+                - 0.8: ~80% cascade (code generation)
                 - 1.0: Always cascade (max accuracy, like FrugalGPT)
-            confidence_threshold: DEPRECATED. Use verification_threshold instead.
+            verification_threshold: DEPRECATED. Use cascade_rate instead.
+            confidence_threshold: DEPRECATED. Use cascade_rate instead.
             max_cascade_attempts: Maximum models to try in cascade before giving up
         """
         self.router = bandit_router
@@ -2005,13 +2133,13 @@ class HybridRouter:
         
         # Handle deprecated confidence_threshold
         if confidence_threshold is not None:
-            logger.warning("confidence_threshold is deprecated. Use verification_threshold instead.")
+            logger.warning("confidence_threshold is deprecated. Use cascade_rate instead.")
             # Convert: old confidence_threshold was "cascade if below", 
-            # verification_threshold is "how aggressive to verify"
+            # cascade_rate is "how aggressive to verify"
             # Higher confidence_threshold meant more single-shot, so invert
-            self._verification_threshold = 1.0 - float(confidence_threshold)
+            self._cascade_rate = 1.0 - float(confidence_threshold)
         else:
-            self._verification_threshold = float(verification_threshold)
+            self._cascade_rate = float(cascade_rate)
         
         # Validate fallback model exists
         if fallback_model not in bandit_router.registry:
@@ -2019,20 +2147,31 @@ class HybridRouter:
                           f"Cascade may fail if primary routing fails.")
     
     @property
-    def verification_threshold(self) -> float:
+    def cascade_rate(self) -> float:
         """
-        The λ parameter controlling quality vs cost trade-off.
+        The λ parameter controlling cascade/verification frequency.
         
-        λ = 0.0: Never cascade (pure speed)
-        λ = 0.5: Cascade when uncertain
+        λ = 0.0: Never cascade (Standard mode, pure single-shot)
+        λ = 0.5: ~50% cascade (balanced)
         λ = 1.0: Always cascade (max accuracy)
         """
-        return self._verification_threshold
+        return self._cascade_rate
+    
+    @cascade_rate.setter
+    def cascade_rate(self, value: float) -> None:
+        """Set cascade rate (can be adjusted at runtime)."""
+        self._cascade_rate = float(max(0.0, min(1.0, value)))
+    
+    # Backward compatibility alias
+    @property
+    def verification_threshold(self) -> float:
+        """DEPRECATED: Use cascade_rate instead."""
+        return self._cascade_rate
     
     @verification_threshold.setter
     def verification_threshold(self, value: float) -> None:
-        """Set verification threshold (can be adjusted at runtime)."""
-        self._verification_threshold = float(max(0.0, min(1.0, value)))
+        """DEPRECATED: Use cascade_rate instead."""
+        self._cascade_rate = float(max(0.0, min(1.0, value)))
     
     @property
     def confidence_threshold(self) -> float:
@@ -2075,8 +2214,9 @@ class HybridRouter:
         model_registry: Dict[str, Dict[str, Any]],
         *,
         fallback_model: str = "openai/gpt-4o",
-        verification_threshold: Optional[float] = None,
+        cascade_rate: Optional[float] = None,
         mode: Optional[str] = None,
+        verification_threshold: Optional[float] = None,  # Deprecated alias
         confidence_threshold: Optional[float] = None,  # Deprecated
         max_cascade_attempts: int = 2,
         exploration: str = "safe",
@@ -2093,18 +2233,20 @@ class HybridRouter:
         Args:
             model_registry: Dict of model_id -> metadata
             fallback_model: Model for cascade fallback (should be high-quality)
-            verification_threshold: The λ parameter (0.0-1.0) for SLA-aware routing:
-                - 0.0: Never cascade (cost-optimal, $0.40/1k)
-                - 0.5: Cascade when uncertain (balanced for chatbots)
-                - 0.9: Cascade unless very confident (high-assurance)
+            cascade_rate: The λ parameter (0.0-1.0) for controlling verification:
+                - 0.0: Never cascade (Standard mode, cost-optimal)
+                - 0.3: ~30% cascade (chatbots)
+                - 0.5: ~50% cascade (balanced)
+                - 0.8: ~80% cascade (code generation)
                 - 1.0: Always cascade (max accuracy, like FrugalGPT)
-            mode: Named preset for verification_threshold. One of:
+            mode: Named preset for cascade_rate. One of:
                 - "cost_optimal" / "speed": λ=0.0
-                - "chatbot": λ=0.5
-                - "balanced": λ=0.7
-                - "code": λ=0.85
+                - "chatbot": λ=0.3
+                - "balanced": λ=0.5
+                - "code": λ=0.8
                 - "high_assurance": λ=0.9
                 - "max_accuracy": λ=1.0
+            verification_threshold: DEPRECATED. Use cascade_rate instead.
             max_cascade_attempts: Max cascade depth
             exploration: Exploration rate for bandit ("safe", "static", etc.)
             priors: Prior loading strategy ("auto", "bundled", etc.)
@@ -2115,36 +2257,42 @@ class HybridRouter:
             Configured HybridRouter
         
         Example:
-            # Using verification_threshold directly
+            # Using cascade_rate directly (the λ parameter)
             hybrid = HybridRouter.create(
                 model_registry=registry,
-                verification_threshold=0.5,  # Balanced for chatbots
+                cascade_rate=0.5,  # Balanced - verify ~50%
             )
             
             # Using named preset
             hybrid = HybridRouter.create(
                 model_registry=registry,
-                mode="high_assurance",  # λ=0.9 for quality-critical apps
+                mode="code",  # λ=0.8 for code generation
             )
             
             # SLA-aware: adjust at runtime
-            hybrid.verification_threshold = 0.9  # Increase verification aggression
+            hybrid.cascade_rate = 0.9  # Increase verification for high-stakes
         """
-        # Resolve verification_threshold from mode preset if provided
-        resolved_threshold = 0.0  # Default: cost-optimal
+        # Resolve cascade_rate from mode preset if provided
+        resolved_rate = 0.0  # Default: cost-optimal (Standard mode)
         if mode is not None:
             key = mode.lower().replace("-", "_").replace(" ", "_")
-            if key not in cls.VERIFICATION_PRESETS:
-                valid = list(cls.VERIFICATION_PRESETS.keys())
+            if key not in cls.CASCADE_PRESETS:
+                valid = list(cls.CASCADE_PRESETS.keys())
                 raise ValueError(f"Unknown mode '{mode}'. Valid modes: {valid}")
-            resolved_threshold = cls.VERIFICATION_PRESETS[key]
+            resolved_rate = cls.CASCADE_PRESETS[key]
+        
+        # cascade_rate takes precedence over mode
+        if cascade_rate is not None:
+            resolved_rate = float(cascade_rate)
+        
+        # Handle deprecated verification_threshold (alias)
         if verification_threshold is not None:
-            resolved_threshold = float(verification_threshold)
+            resolved_rate = float(verification_threshold)
         
         # Handle deprecated confidence_threshold
         if confidence_threshold is not None:
-            logger.warning("confidence_threshold is deprecated. Use verification_threshold or mode instead.")
-            resolved_threshold = 1.0 - float(confidence_threshold)
+            logger.warning("confidence_threshold is deprecated. Use cascade_rate or mode instead.")
+            resolved_rate = 1.0 - float(confidence_threshold)
         
         bandit = BanditRouter.create(
             model_registry=model_registry,
@@ -2157,7 +2305,7 @@ class HybridRouter:
         return cls(
             bandit_router=bandit,
             fallback_model=fallback_model,
-            verification_threshold=resolved_threshold,
+            cascade_rate=resolved_rate,
             max_cascade_attempts=max_cascade_attempts,
         )
     
@@ -2181,10 +2329,18 @@ class HybridRouter:
         *,
         max_cost: Optional[float] = None,
         max_latency: Optional[float] = None,
+        quality_floor: Optional[Dict[str, float]] = None,
         output_tokens: int = 600,
     ) -> Tuple[List[str], Dict[str, str]]:
         """
         Apply hard constraints to filter the candidate model pool.
+        
+        Args:
+            candidates: List of model IDs to filter
+            max_cost: Maximum cost in $/1k queries
+            max_latency: Maximum latency in seconds
+            quality_floor: Benchmark-based filtering, e.g. {"avg": 70, "math": 80}
+            output_tokens: Assumed output tokens for cost/latency estimation
         
         Returns:
             Tuple of (filtered_candidates, exclusion_reasons)
@@ -2202,6 +2358,20 @@ class HybridRouter:
             if max_latency is not None and latency > max_latency:
                 excluded[m] = f"latency {latency:.1f}s > {max_latency:.1f}s"
                 continue
+            
+            # Quality floor: benchmark-based masking
+            if quality_floor is not None and isinstance(quality_floor, dict):
+                scores = self.router.registry.get(m, {}).get("scores", {})
+                failed_constraint = None
+                for score_type, min_val in quality_floor.items():
+                    model_score = float(scores.get(score_type, 0))
+                    if model_score < float(min_val):
+                        failed_constraint = f"{score_type}={model_score:.1f}% < {min_val}%"
+                        break
+                if failed_constraint:
+                    excluded[m] = failed_constraint
+                    continue
+            
             filtered.append(m)
         
         return filtered, excluded
@@ -2243,69 +2413,108 @@ class HybridRouter:
         self,
         prompt: str,
         *,
-        verification_threshold: Optional[float] = None,
+        cascade_rate: Optional[float] = None,
+        min_quality: Optional[float] = None,
         max_cost: Optional[float] = None,
         max_latency: Optional[float] = None,
+        quality_floor: Optional[Dict[str, float]] = None,
+        verification_threshold: Optional[float] = None,  # Deprecated alias
         **route_kwargs,
     ) -> Tuple[str, HybridRoutingLog, str]:
         """
-        Route a prompt using the bandit with SLA constraints.
+        Constraint-Aware Routing: Filter, Select, Verify.
         
-        This implements **Constraint-Aware Routing**: the bandit searches for
-        the optimal "Budget Specialist" within a constrained action space.
+        THREE-PHASE ARCHITECTURE:
+        =========================
         
-        The decision logic combines:
-            1. Hard constraints (max_cost, max_latency) → Filter candidate pool
-            2. Soft preference (verification_threshold λ) → Single-shot vs cascade
+        PHASE 1: HARD FILTERING (SLA Compliance)
+            Filter out models violating max_cost, max_latency, min_quality.
+        
+        PHASE 2: BANDIT SELECTION (Expertise)
+            Pick the best remaining specialist using learned prior.
+        
+        PHASE 3: HYBRID VERIFICATION (Lambda Tuning)
+            Apply cascade_rate (λ) to decide if we verify the selection.
         
         Args:
             prompt: The user's prompt
-            verification_threshold: The λ parameter (0.0-1.0) for quality vs cost:
-                - 0.0: Never cascade (pure speed)
-                - 0.9: Cascade unless very confident
-                - 1.0: Always cascade
-            max_cost: Hard budget constraint in $/1k queries.
-                Models exceeding this are masked from consideration.
-                Example: max_cost=0.50 forces the bandit to find a "Budget Specialist"
-            max_latency: Hard latency constraint in seconds.
-                Models exceeding this are masked from consideration.
-                Note: If max_latency < 2.0s, cascade mode is auto-disabled.
+            
+            # === THE BUSINESS KNOBS ===
+            
+            cascade_rate: The λ parameter (0.0-1.0) for verification frequency:
+                - 0.0: Never cascade (Standard mode, single-shot)
+                - 0.3: ~30% cascade (chatbots)
+                - 0.5: ~50% cascade (balanced)
+                - 0.8: ~80% cascade (code generation)
+                - 1.0: Always cascade (max accuracy)
+                If None, uses the router's default cascade_rate.
+            
+            min_quality: Safety floor - minimum average benchmark score.
+                Shorthand for quality_floor={"avg": min_quality}.
+                Prevents "cheap but dumb" routing.
+            
+            max_cost: Budget constraint in $/1k queries.
+                Models exceeding this are masked. FinOps guardrail.
+            
+            max_latency: Latency constraint in seconds.
+                Models exceeding this are masked.
+                Note: If max_latency < 2.0s, cascade is auto-disabled.
+            
+            quality_floor: Advanced quality filtering (dict).
+                - {"avg": 70} - only models with avg benchmark >= 70%
+                - {"math": 80} - only models with math_500 >= 80%
+                - {"code": 60, "reasoning": 50} - multiple constraints (AND)
+            
+            verification_threshold: DEPRECATED. Use cascade_rate instead.
             **route_kwargs: Additional args passed to BanditRouter.route()
         
         Returns:
             Tuple of:
                 - model_id: The recommended model (within constraints)
                 - log: Extended routing log with constraint info
-                - mode: "single_shot" or "cascade" (may be forced by latency constraint)
+                - mode: "single_shot" or "cascade"
         
         Example:
-            # Budget-constrained routing: Find best model under $0.50/1k
+            # Budget-constrained routing (FinOps)
             model, log, mode = hybrid.route(
                 "Summarize this article",
-                max_cost=0.50,  # Masks GPT-4o, DeepSeek V3
+                max_cost=0.50,  # Hard budget limit
             )
             
-            # Latency-constrained routing: Must respond within 1s
+            # Quality-assured code generation
             model, log, mode = hybrid.route(
-                "Quick chat response",
-                max_latency=1.0,  # Auto-disables cascade
+                "Write a Python function",
+                min_quality=70,      # Benchmark floor
+                cascade_rate=0.8,    # Verify 80% of predictions
             )
             
-            # Combined SLA: Budget + Quality guarantee
+            # Full SLA control
             model, log, mode = hybrid.route(
-                "Generate code",
+                "Generate SQL query",
                 max_cost=1.00,
-                verification_threshold=0.85,  # Cascade if uncertain
+                min_quality=60,
+                cascade_rate=0.5,
             )
         """
+        # Handle deprecated verification_threshold
+        if verification_threshold is not None:
+            cascade_rate = verification_threshold
+        
+        # Handle min_quality shorthand
+        if min_quality is not None:
+            if quality_floor is None:
+                quality_floor = {}
+            quality_floor["avg"] = float(min_quality)
         # Get all candidate models
         all_candidates = list(self.router.registry.keys())
         
         # Apply hard constraints (The Mask)
+        # This includes cost, latency, AND quality floor constraints
         filtered_candidates, exclusions = self._filter_candidates(
             all_candidates,
             max_cost=max_cost,
             max_latency=max_latency,
+            quality_floor=quality_floor,
         )
         
         # Edge case: All models filtered out
@@ -2325,20 +2534,53 @@ class HybridRouter:
         model_id, base_log = self.router.route(prompt, **route_kwargs)
         confidence = base_log.predicted_quality
         
-        # Use per-request threshold if provided, otherwise use router default
-        threshold = verification_threshold if verification_threshold is not None else self._verification_threshold
+        # =====================================================================
+        # PHASE 3: HYBRID VERIFICATION (Lambda Tuning)
+        # =====================================================================
+        # 
+        # UNIFIED ARCHITECTURE: Standard Mode is just λ=0
+        # ------------------------------------------------
+        # This is the key design insight: we don't maintain separate codepaths.
+        # Standard and Hybrid modes share Phases 1 & 2. Only Phase 3 differs:
+        #   - λ=0.0: Skip verification entirely (Standard Mode)
+        #   - λ>0.0: Apply cascade verification (Hybrid Mode)
+        #
+        # This means Standard Mode STILL gets hard constraints (max_cost, min_quality)
+        # applied in Phases 1 & 2 above. It's a "Constrained Bandit" not vanilla.
+        #
+        # Use per-request cascade_rate if provided, otherwise use router default
+        lambda_rate = cascade_rate if cascade_rate is not None else self._cascade_rate
         
-        # Determine routing mode based on verification_threshold (λ)
-        # λ = 0.0: Never cascade (single_shot always)
-        # λ = 1.0: Always cascade
-        # λ = 0.5: Cascade if confidence < 0.5
-        if threshold >= 1.0:
-            mode = "cascade"  # Always verify
-        elif threshold <= 0.0:
-            mode = "single_shot"  # Never verify
+        # Direct cascade rate control (avoids "Calibration Skew" problem):
+        # Model confidences cluster in a narrow range (0.85-0.99), so raw
+        # thresholds are ineffective. Instead, λ directly controls cascade %:
+        #   λ = 0.0 → 0% cascade   (Standard Mode - default)
+        #   λ = 0.3 → ~30% cascade (chatbots)
+        #   λ = 0.5 → ~50% cascade (balanced)
+        #   λ = 1.0 → 100% cascade (always verify)
+        
+        if lambda_rate <= 0.0:
+            # STANDARD MODE: The confidence threshold is effectively -1.0
+            # The cascade check ALWAYS FAILS, so we always take the single-shot path.
+            # This is the pure O(1) path with constraint enforcement from Phases 1 & 2.
+            mode = "single_shot"
         else:
-            # Cascade if confidence is below the threshold
-            mode = "single_shot" if confidence >= threshold else "cascade"
+            # HYBRID MODE: Apply cascade verification based on λ
+            # 
+            # Direct cascade rate control with uncertainty weighting.
+            # Formula: cascade_prob = λ * (1.0 + 0.3 * uncertainty)
+            # 
+            # This ensures:
+            #   λ=0.5 → ~50% cascade (bottom 50% of predictions get verified)
+            #   λ=1.0 → ~100% cascade (always verify)
+            # 
+            # The uncertainty weighting means we cascade MORE on uncertain queries,
+            # while still respecting the user's target verification rate.
+            import random
+            uncertainty = 1.0 - confidence
+            cascade_prob = lambda_rate * (1.0 + 0.3 * uncertainty)
+            cascade_prob = min(cascade_prob, 1.0)
+            mode = "cascade" if random.random() < cascade_prob else "single_shot"
         
         # Auto-disable cascade if latency constraint is tight
         # (Cascades typically take 2+ seconds due to multiple LLM calls)

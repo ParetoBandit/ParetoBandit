@@ -1311,7 +1311,7 @@
       "mixeval_score": 76.0,
       "mixeval_hard_score": 77.0,
       "scicode": 0.358,
-      "reasoning_score": 50.41,
+      "reasoning_score": 32.47,
       "ifbench": 0.41,
       "terminalbench_hard": 0.142
     },
@@ -1553,7 +1553,7 @@
       "mixeval_score": 68.0,
       "mixeval_hard_score": 57.99999999999999,
       "scicode": 0.333,
-      "reasoning_score": 21.95,
+      "reasoning_score": 29.0,
       "ifbench": 0.343,
       "terminalbench_hard": 0.078
     },
@@ -2036,7 +2036,7 @@
       "mixeval_score": 66.0,
       "mixeval_hard_score": 53.0,
       "scicode": 0.229,
-      "reasoning_score": 21.63,
+      "reasoning_score": 26.0,
       "ifbench": 0.31
     },
     {

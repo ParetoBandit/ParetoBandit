@@ -27,6 +27,7 @@
 \usepackage{algorithmic}    % Algorithm formatting
 \usepackage{graphicx}       % Figures
 \usepackage{xcolor}         % Colors
+\usepackage{microtype}      % Better justification; fewer overfull boxes
 \usepackage{hyperref}       % Links
 \usepackage{subcaption}     % Subfigures
 \usepackage{multirow}       % Multi-row tables
@@ -73,11 +74,13 @@
 % ABSTRACT
 % ============================================================================
 \begin{abstract}
-The exploding LLM ecosystem has created a ``Long Tail'' of specialized models offering high performance at a fraction of frontier costs. However, existing routing systems fail to capitalize on this fragmentation: cascading frameworks (e.g., FrugalGPT) suffer from $O(N)$ latency and rigid chains that miss niche specialists.
+The LLM landscape is rapidly fragmenting: alongside frontier models, dozens of low-cost specialists now achieve strong performance on narrow task families. Real deployments therefore face a routing problem---selecting, per query, a model that best trades off quality, cost, and latency across large and changing model pools. Existing routers either (i) rely on fixed cascades that add sequential latency and expose only a small chain of models, or (ii) use online bandits that adapt but incur substantial cold-start exploration cost. Critically, both approaches require expensive offline profiling to add new models.
 
-We introduce \textbf{BanditGPT}, a scalable routing framework using ``Shippable Priors''---covariance matrices calibrated offline---to enable $O(1)$ predictive search over massive model pools. Unlike cold-start bandits requiring thousands of interactions, our \textbf{Few-Shot Calibration} ($<$100 examples) transfers learned correlations to new domains, reducing Day 1 regret by \textbf{96--99\%}.
+We present \ours{}, a routing framework that warm-starts contextual bandits using \emph{shippable priors}: compact per-model covariance statistics distilled offline from dense teacher supervision. With fewer than 100 calibration examples, the priors transfer to new domains and substantially reduce day-one regret relative to standard initialization, while preserving online adaptation under drift.
 
-We propose a \textbf{tiered architecture}: (1) \textbf{Standard Mode} achieves 92.0\% accuracy at \$0.46/1k queries---\textbf{71\% cheaper} than FrugalGPT; (2) \textbf{Hybrid Mode} uses the bandit as a ``Gatekeeper'' to a verification cascade, addressing the ``Confident Failure'' phenomenon where verifiers approve plausible-but-wrong outputs, outperforming FrugalGPT by \textbf{+3\%} on instruction tasks (\textbf{98.0\% vs 95.0\%}) via \emph{ex-ante} prediction. A tunable \textbf{Cascade Rate} ($\lambda$) lets users navigate the Pareto frontier to align costs with financial SLAs.
+\textbf{Zero-Overhead Scalability.} Unlike static routers that require re-training or cascades that require re-calibration, \ours{} decouples \emph{prompt difficulty} (learned once, model-agnostic) from \emph{model capability} (registered via public metadata). New models are onboarded in $O(1)$ time using only their API endpoint and reported benchmark scores as coarse safety filters; the bandit then autonomously verifies actual performance via online exploration.
+
+\ours{} supports a tiered deployment mode in which the bandit predicts when a query is high-risk and selectively triggers a verification cascade, improving reliability on instruction-following tasks where reactive verification is prone to ``confident failures.'' Across 80+ production models, \ours{} adds millisecond-scale routing overhead and enables a tunable cost--accuracy trade-off suitable for financial and latency SLAs.
 \end{abstract}
 
 % ============================================================================
@@ -115,11 +118,7 @@ We propose a \textbf{tiered architecture}: (1) \textbf{Standard Mode} achieves 9
 
 \input{method}              % Section 2: Density-Based Warm-Start Framework
 
-\input{experiments}         % Sections 3-5: Setup, Warm-Start, Plasticity
-
-\input{rq3_efficiency}      % Section 6: Cost-Quality Efficiency
-
-\input{case_studies}        % Section 7: Qualitative Analysis / Case Studies
+\input{evaluation}          % Section 3: Experimental Setup + RQs
 
 \input{related_work}        % Section 8: Related Work ("Defense" position)
 
