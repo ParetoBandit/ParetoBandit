@@ -607,9 +607,10 @@ def plot_results(summary, domain_summary, domains, output_dir):
     ax1 = axes[0]
     
     # System styling: BanditGPT TIERED ARCHITECTURE - two points defining the frontier
+    # IMPORTANT: Colors must match the bar chart for consistency
     systems_data = {
-        "BanditGPT (Standard)": {'color': '#17BECF', 'marker': 'D', 'size': 400, 'zorder': 16, 'label': 'BanditGPT (Standard) - Cost Leader'},
-        "BanditGPT (Hybrid)": {'color': '#17BECF', 'marker': '*', 'size': 500, 'zorder': 15, 'label': 'BanditGPT (Hybrid) - High Assurance'},
+        "BanditGPT (Standard)": {'color': '#0D8A8A', 'marker': 'D', 'size': 400, 'zorder': 16, 'label': 'BanditGPT (Standard)'},
+        "BanditGPT (Hybrid)": {'color': '#17BECF', 'marker': '*', 'size': 500, 'zorder': 15, 'label': 'BanditGPT (Hybrid)'},
         "FrugalGPT (Fixed)": {'color': '#FF7F0E', 'marker': '^', 'size': 300, 'zorder': 14, 'label': 'FrugalGPT (Fixed)'},
         "RouteLLM (Static)": {'color': '#9467BD', 'marker': 'o', 'size': 250, 'zorder': 13, 'label': 'RouteLLM (Static)'},
         "Always DeepSeek": {'color': '#2CA02C', 'marker': 's', 'size': 200, 'zorder': 10, 'label': 'Always DeepSeek'},
@@ -647,20 +648,20 @@ def plot_results(summary, domain_summary, domains, output_dir):
     
     # Draw the efficient frontier line connecting BanditGPT points
     if len(frontier_points) >= 2:
-        # Connect Standard → Hybrid (our frontier)
+        # Connect Standard → Hybrid (our frontier) - gradient effect with dashed line
         ax1.plot([frontier_points[0][0], frontier_points[1][0]], 
                 [frontier_points[0][1], frontier_points[1][1]], 
-                color='#17BECF', linestyle='-', linewidth=3, alpha=0.8, zorder=5,
+                color='#0D8A8A', linestyle='--', linewidth=2.5, alpha=0.7, zorder=5,
                 label='_BanditGPT Frontier')
         
-        # Add "Cost Leader" annotation for Standard
+        # Add "Cost Leader" annotation for Standard (dark cyan)
         ax1.annotate('Cost\nLeader', 
                     xy=(frontier_points[0][0], frontier_points[0][1]), 
                     xytext=(frontier_points[0][0] * 0.6, frontier_points[0][1] + 2),
-                    fontsize=9, ha='center', color='#17BECF', fontweight='bold',
-                    arrowprops=dict(arrowstyle='->', color='#17BECF', lw=1.5))
+                    fontsize=9, ha='center', color='#0D8A8A', fontweight='bold',
+                    arrowprops=dict(arrowstyle='->', color='#0D8A8A', lw=1.5))
         
-        # Add "High Assurance" annotation for Hybrid
+        # Add "High Assurance" annotation for Hybrid (light cyan)
         ax1.annotate('High\nAssurance', 
                     xy=(frontier_points[1][0], frontier_points[1][1]), 
                     xytext=(frontier_points[1][0] * 1.3, frontier_points[1][1] + 2),
