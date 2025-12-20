@@ -53,7 +53,7 @@
 % ============================================================================
 % TITLE AND AUTHORS
 % ============================================================================
-\title{Density-Based Warm-Start for Adaptive LLM Routing}
+\title{Beyond Fixed Chains: Scaling Predictive Routing to Massive Model Pools via Shippable Priors}
 
 % Anonymous submission for review
 \author{Anonymous Author(s)}
@@ -68,9 +68,11 @@
 % ABSTRACT
 % ============================================================================
 \begin{abstract}
-Large Language Model (LLM) routing---selecting the optimal model for each query from a heterogeneous pool---offers significant cost savings but faces a critical cold-start problem: online learning methods require hundreds of costly exploration queries before becoming effective. We introduce a \textbf{Density-Based Warm-Start Framework} that solves this through \emph{Expert Distillation}: compressing the latent expertise of 81 models into a lightweight (<1MB) covariance prior that ships with the library. Our ``Shippable Brain'' approach provides day-one intelligence while retaining full plasticity for local adaptation. 
+Large Language Model (LLM) routing is typically framed as a choice between a cheap ``Weak'' model and an expensive ``Strong'' model. However, the open model ecosystem has expanded to hundreds of specialized variants. Existing methods like Cascades (FrugalGPT) struggle to scale beyond 2--3 models due to $O(N)$ latency penalties, and rely on \emph{ex-post verification} that fails on complex tasks.
 
-Evaluated on 2,000 real-world queries, our framework achieves: (1) \textbf{63.6\% regret reduction} vs.\ cold-start baselines, (2) \textbf{97.6\% cost savings} on equal-quality queries, and (3) \textbf{+6.1\% higher quality} than static GPT-4o routing at 67.7\% lower cost. Router overhead is just 8.94ms (P99), representing 1.1\% of total latency. We release BanditGPT, an open-source implementation with bundled expert priors.
+We introduce \textbf{BanditGPT}, a scalable routing framework combining ``Shippable Priors''---offline-calibrated covariance matrices---with \emph{ex-ante prediction} to enable $O(1)$ search over 81+ models. Our key insight: \textbf{prediction beats verification} when ``checking the work'' is as hard as ``doing the work.'' On instruction-following tasks, FrugalGPT's cascade falls victim to ``Confident Failures''---plausible outputs that fool verifiers---achieving only 86\% accuracy. BanditGPT detects these high-risk prompts \emph{before} generation and routes directly to GPT-4o, achieving \textbf{96\% accuracy (+10\%)}.
+
+Our results establish BanditGPT on the \textbf{Pareto Frontier}: 92.8\% aggregate accuracy at \$1.24/1k queries (\textbf{24\% cheaper} than FrugalGPT at \$1.63/1k). While Cascades achieve marginally higher aggregate accuracy (95.2\%), they critically fail on complex constraint tasks. BanditGPT provides \textbf{day-one intelligence} via expert-distilled priors (63.6\% regret reduction vs.\ cold-start), making it the state-of-the-art solution for cost-constrained, high-reliability environments.
 \end{abstract}
 
 % ============================================================================

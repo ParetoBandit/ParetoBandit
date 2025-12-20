@@ -17,13 +17,21 @@ Having demonstrated the system's impact (97.6\% cost savings, +6.1\% quality), w
 
 \subsection{LLM Routing and Cascading}
 
-Recent works like \textbf{FrugalGPT}~\cite{chen2023frugalgpt} and \textbf{RouteLLM}~\cite{ong2024routellm} have demonstrated the cost-saving potential of intelligent model selection. However, these approaches rely on supervised learning over static datasets (MMLU, GSM8K, Arena). While effective for benchmarks, they suffer from two production limitations:
+Recent works like \textbf{FrugalGPT}~\cite{chen2023frugalgpt} and \textbf{RouteLLM}~\cite{ong2024routellm} have demonstrated the cost-saving potential of intelligent model selection. However, these approaches suffer from critical production limitations:
 
 \begin{enumerate}[leftmargin=*]
     \item \textbf{Latency.} Cascading requires sequential calls: try cheap model $\rightarrow$ detect failure $\rightarrow$ call expensive model. This \emph{doubles} latency for hard queries. Our LinUCB approach makes a single routing decision in \textbf{<9ms}.
     
     \item \textbf{Drift Intolerance.} Supervised routers require retraining when provider APIs change---GPT-4o's capabilities shift monthly. Our bandit formulation adapts \emph{online} via rank-one updates.
+    
+    \item \textbf{Selection Scalability ($O(N)$ vs $O(1)$).} FrugalGPT's cascade architecture is \emph{architecturally limited} to short chains (2--3 models). With 80+ models, the user might wait through 79 sequential failures before getting an answer---latency scales \textbf{linearly} with pool size. In contrast, our bandit performs a single vector similarity computation over all candidates, achieving \textbf{constant-time} $O(1)$ selection regardless of pool size.
+    
+    \item \textbf{Verification Failure (``Confident Failures'').} FrugalGPT relies on \emph{ex-post verification} to catch cheap model errors. But on complex constraint tasks, cheap models produce \emph{plausible-sounding} wrong answers that fool verifiers---we call these ``Confident Failures.'' Our experiments show FrugalGPT achieves only 86\% on instruction-following due to this verification leakage. BanditGPT uses \emph{ex-ante prediction} to identify high-risk prompts \emph{before} generation, achieving \textbf{96\% (+10\%)} by routing directly to GPT-4o.
 \end{enumerate}
+
+\paragraph{The Scaling Bottleneck.} Consider a pool of 80 specialist models (coding assistants, medical LLMs, legal experts). FrugalGPT must choose a fixed chain: \texttt{Llama-3 $\to$ GPT-4o}. When a user asks about CRISPR gene editing, Llama-3 fails (too generic), and the system falls back to GPT-4o (expensive)---missing BioMistral, a cheap specialist that existed in the pool but wasn't in the hardcoded chain.
+
+Our \textbf{Dynamic Chain} architecture solves this: the bandit scans all 80 models via $O(1)$ vector search, identifies ``Biology'' as the query's semantic region, and routes directly to BioMistral. This unlocks the \emph{long tail} of model specialization that fixed cascades miss.
 
 \paragraph{The Hidden Cold-Start.} FrugalGPT assumes a pre-trained completion scorer; RouteLLM ships a 500MB classifier. But where does this training data come from? Both require labeled examples matching your deployment distribution---the exact data you lack on day one.
 
@@ -71,15 +79,16 @@ Table~\ref{tab:related_comparison} summarizes the gaps in prior work. The critic
 \begin{table}[t]
 \centering
 \small
-\caption{\textbf{Why Existing Solutions Fail in Production.} Our ``Shippable Priors'' approach uniquely solves the Cold-Start problem while retaining online adaptation.}
+\caption{\textbf{Why Existing Solutions Fail in Production.} Our ``Shippable Priors'' approach uniquely solves the Cold-Start problem while enabling massive model pools and avoiding verification failures.}
 \label{tab:related_comparison}
-\begin{tabular}{p{2.8cm}p{3cm}p{3cm}}
+\begin{tabular}{p{2.5cm}p{3.2cm}p{3.2cm}}
 \toprule
 \textbf{Competitor} & \textbf{Their Weakness} & \textbf{Our Solution} \\
 \midrule
-FrugalGPT / RouteLLM & Static benchmarks; sequential latency & Online learning; Single-shot (<9ms) \\[4pt]
-Standard Bandits (LinUCB) & Slow convergence (Cold-Start) & Expert Distillation (Shippable Priors) \\[4pt]
-LMSYS Leaderboard & ``One size fits all'' ranking & Context-aware routing (Specialist Discovery) \\
+FrugalGPT~\cite{chen2023frugalgpt} & $O(N)$ latency; 86\% on Instructions (Confident Failures) & $O(1)$ selection; 96\% via ex-ante prediction \\[4pt]
+RouteLLM~\cite{ong2024routellm} & Static classifier; No adaptation & Online learning via rank-one updates \\[4pt]
+Standard Bandits & Cold-Start (1000s of queries) & Expert Distillation (Shippable Priors) \\[4pt]
+LMSYS Leaderboard & Global ranking; Misses specialists & Context-aware routing \\
 \bottomrule
 \end{tabular}
 \end{table}

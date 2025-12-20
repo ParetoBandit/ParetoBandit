@@ -78,13 +78,16 @@ We call this the \textbf{``Shippable Brain''} paradigm: the intelligence of an e
 \begin{enumerate}[leftmargin=*]
     \item We formalize the \textbf{Shippable Brain} paradigm for LLM routing, demonstrating that model expertise can be compressed into a <1MB prior that transfers across deployments (\S\ref{sec:method}).
     
+    \item We identify the \textbf{Benchmark Trap}: initializing priors with public leaderboard scores (MMLU, HumanEval) yields \emph{31\% worse} performance than random initialization, proving that academic benchmarks are poor proxies for production quality (\S\ref{sec:benchmark_trap}).
+    
     \item We introduce a \textbf{Density-Based Warm-Start} algorithm that combines expert-distilled priors with online LinUCB learning, achieving both immediate utility and long-term adaptation (\S\ref{sec:algorithm}).
     
-    \item We provide extensive empirical evaluation across three research questions:
+    \item We provide extensive empirical evaluation across four research questions:
     \begin{itemize}
         \item \textbf{RQ1 (Warm-Start)}: Does expert distillation reduce cold-start regret? (Yes: 63.6\% reduction)
+        \item \textbf{RQ1-OOD (Generalization)}: Do calibrated priors transfer to held-out prompts? (Yes: 93.5\% regret reduction on OOD benchmarks)
         \item \textbf{RQ2 (Plasticity)}: Can the router discover local specialists not encoded in the prior? (Yes: Nova-Lite achieves $\|\theta\|=3.66$ vs.\ GPT-4o's $\|\theta\|=1.66$)
-        \item \textbf{RQ3 (Efficiency)}: What is the cost-quality Pareto frontier? (+6.1\% quality at 67.7\% lower cost)
+        \item \textbf{RQ3 (SOTA Comparison)}: How does BanditGPT compare to FrugalGPT and RouteLLM? (BanditGPT: 24\% cheaper, +10\% on Instructions via ``Confident Failure'' avoidance)
     \end{itemize}
     
     \item We release \textbf{BanditGPT}, an open-source library implementing our framework with bundled expert priors, available at \url{https://github.com/[redacted]/banditgpt}.

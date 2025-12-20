@@ -24,3 +24,8 @@ python-dotenv>=1.0.0
 # -------------------------------------
 # Required for running KDD paper experiments (plots)
 matplotlib>=3.7.0
+
+# Optional: OOD Evaluation Datasets
+# ---------------------------------
+# Required for loading GSM8K, HumanEval, MMLU datasets
+datasets>=2.14.0

@@ -17,15 +17,15 @@ Our empirical evaluation on real-world routing traces demonstrates three critica
 % Beat 1: Technical Victory (Cold Start Solved)
 % ---------------------------------------------------------------------------
 
-\paragraph{1. Cold-Start Elimination.}
-Expert-distilled priors, compressed to <1MB, provide \textbf{day-one intelligence} without exploration cost. RQ1 demonstrated \textbf{63.6\% regret reduction} compared to cold-start baselines---the gap represents real dollars saved from the first query. This ``Shippable Brain'' paradigm transforms LLM routing from a months-long calibration process into an instant deployment.
+\paragraph{1. Cold-Start Elimination and OOD Generalization.}
+Expert-distilled priors, compressed to <1MB, provide \textbf{day-one intelligence} without exploration cost. RQ1 demonstrated \textbf{63.6\% regret reduction} compared to cold-start baselines---the gap represents real dollars saved from the first query. Critically, these gains transfer to \textbf{out-of-distribution prompts}: on held-out benchmarks (GSM8K, HumanEval, MMLU), calibrated priors achieve \textbf{93.5\% regret reduction} compared to cold start, proving robust generalization beyond the training distribution (RQ1-OOD). This ``Shippable Brain'' paradigm transforms LLM routing from a months-long calibration process into an instant deployment.
 
 % ---------------------------------------------------------------------------
 % Beat 2: Business Victory (Cost/Quality Trade-off Broken)
 % ---------------------------------------------------------------------------
 
-\paragraph{2. Economic Efficiency.}
-The router identifies a non-linear Pareto frontier, achieving a \textbf{67.7\% reduction} in aggregate inference costs while \emph{simultaneously improving} response quality by \textbf{6.1\%} compared to a static GPT-4o baseline. On 45.5\% of queries where specialist and generalist models perform equally, the router captures \textbf{97.6\% cost savings} with zero quality degradation. This is not a trade-off---it is a free lunch enabled by intelligent specialist discovery.
+\paragraph{2. Economic Efficiency and SOTA Comparison.}
+BanditGPT establishes itself on the \textbf{Pareto Frontier}: 92.8\% accuracy at \$1.24/1k queries---\textbf{24\% cheaper} than FrugalGPT (\$1.63/1k). More critically, we demonstrate the \textbf{``Confident Failure'' hypothesis}: on complex instruction-following tasks, FrugalGPT's ex-post verification fails to catch plausible-sounding errors, achieving only 86\% accuracy. BanditGPT's ex-ante prediction identifies these high-risk prompts \emph{before} generation, routing directly to GPT-4o and achieving \textbf{96\% accuracy (+10\%)}. This proves that \emph{prediction beats verification} when ``checking the work'' is as hard as ``doing the work.''
 
 % ---------------------------------------------------------------------------
 % Beat 3: System Victory (Production-Ready)

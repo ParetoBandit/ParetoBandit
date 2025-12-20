@@ -560,8 +560,8 @@ def plot_results(results: ExperimentResults, output_path: Path) -> None:
 
     ax.plot(x, results.cumulative_regret_cold, label="Cold Start (No Priors)",
             color="#D62728", linestyle="--", linewidth=1.5)
-    ax.plot(x, results.cumulative_regret_warm, label="Warm Start (Shippable Brain)",
-            color="#1F77B4", linestyle="-", linewidth=2.0)
+    ax.plot(x, results.cumulative_regret_warm, label="BanditGPT (Shippable Priors)",
+            color="#17BECF", linestyle="-", linewidth=2.0)
 
     ax.fill_between(x, results.cumulative_regret_cold, results.cumulative_regret_warm,
                     alpha=0.15, color="#1F77B4")

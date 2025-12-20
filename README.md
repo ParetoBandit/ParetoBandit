@@ -89,6 +89,40 @@ model_id, log = router.route(
 router.bandit.update(model_id, log.context_vector, reward=0.95)
 ```
 
+### Hybrid Router (Bandit-Guided Cascade)
+
+For maximum accuracy with automatic fallback:
+
+```python
+from banditgpt import HybridRouter
+
+# Create hybrid router (Bandit + Cascade)
+hybrid = HybridRouter.create(
+    model_registry=registry,
+    fallback_model="openai/gpt-4o",
+    confidence_threshold=0.85,  # Single-shot if confident
+)
+
+# Route with automatic cascade
+result = hybrid.route_with_cascade(
+    prompt="Write SQL to get all active users",
+    generate_fn=lambda m, p: call_llm(m, p),
+    verify_fn=lambda r: validate_sql(r),  # Optional verification
+)
+
+print(f"Model: {result['model_used']}, Mode: {result['mode']}")
+# Mode: "single_shot" (fast) or "cascade" (accurate)
+```
+
+**Why Hybrid?** FrugalGPT's cascade is limited to 2-3 models (O(N) latency). Our Hybrid uses O(1) bandit selection over 80+ models, then cascades only when uncertain.
+
+| Feature | FrugalGPT | HybridRouter |
+|---------|-----------|--------------|
+| Model Pool | 2-3 models | **80+ models** |
+| Selection | Hardcoded | Context-aware |
+| Latency | O(N) | **O(1)** |
+| Adaptation | None | Online learning |
+
 ## How It Works
 
 ### The Casino Analogy

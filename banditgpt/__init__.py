@@ -44,11 +44,15 @@ try:
     from banditgpt.core.bandit_router import (  # noqa: F401
         BanditRouter,
         DisjointLinUCBPolicy,
+        HybridRouter,
+        HybridRoutingLog,
         RoutingLog,
     )
 except ImportError:  # pragma: no cover
     BanditRouter = None
     DisjointLinUCBPolicy = None
+    HybridRouter = None
+    HybridRoutingLog = None
     RoutingLog = None
 
 __all__ = [
@@ -70,5 +74,7 @@ __all__ = [
     # Router
     "BanditRouter",
     "DisjointLinUCBPolicy",
+    "HybridRouter",
+    "HybridRoutingLog",
     "RoutingLog",
 ]
