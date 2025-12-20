@@ -14,13 +14,13 @@
 \paragraph{Metrics.} Cumulative Regret: $\sum_{t=1}^{T}(r^* - r_t)$; Regret Reduction vs.\ cold-start; System Accuracy: macro-average of Math, Reasoning, MMLU (excluding HumanEval due to sparse coverage).\footnote{All routing decisions use the production BanditRouter codebase. Model success is modeled via deterministic Bernoulli sampling based on Artificial Analysis benchmark scores, ensuring reproducibility.}
 
 % ============================================================================
-% RQ1: Warm-Start Advantage (Condensed)
+% Warm-Start Advantage (Condensed)
 % ============================================================================
 
 \section{Warm-Start Advantage}
 \label{sec:rq1}
 
-\textbf{RQ1}: Does shipping expert-distilled priors reduce cold-start regret?
+Does shipping expert-distilled priors reduce cold-start regret?
 
 We compare cold-start (identity initialization) vs.\ warm-start (expert priors, $\lambdaboost=50$) agents over 2,000 routing decisions.
 
@@ -30,6 +30,7 @@ We compare cold-start (identity initialization) vs.\ warm-start (expert priors, 
     \caption{\textbf{Warm-Start Advantage.} Expert-distilled priors achieve \textbf{63.6\% lower regret} than cold-start, with the gap widening in early steps when cold-start explores blindly.}
     \label{fig:regret_curve}
 \end{figure}
+\vspace{-0.5em}
 
 \paragraph{Results.} Warm-start achieves \textbf{63.6\% regret reduction} (Figure~\ref{fig:regret_curve}). The gap is largest in the first 500 steps; warm-start makes intelligent decisions from step 1 while cold-start wastes queries on random exploration.
 
@@ -54,13 +55,13 @@ Benchmark-Initialized & 83.5 & $-$31\% (worse) \\
 \paragraph{OOD Generalization.} On held-out benchmarks (GSM8K, HumanEval, MMLU) using published scores as ground truth, few-shot calibration ($\sim$50--100 examples) achieves \textbf{93.5\% average regret reduction} vs.\ cold-start: 96\% on Math, 99\% on Code, 85\% on Knowledge. This validates that calibrated priors transfer to unseen prompts.
 
 % ============================================================================
-% RQ2: Plasticity (Heavily Condensed)
+% Plasticity (Heavily Condensed)
 % ============================================================================
 
 \section{Plasticity Under Concept Drift}
 \label{sec:rq2}
 
-\textbf{RQ2}: Can the router adapt when priors become obsolete?
+Can the router adapt when priors become obsolete?
 
 We simulate ``poisoned priors'' where the bandit confidently believes GPT-4o is optimal when Nova-Lite actually dominates. With memory decay ($\gamma=0.90$), the bandit recovers within $\sim$200 steps (Figure~\ref{fig:belief_recovery}). Without decay ($\gamma=1.0$), it never recovers. This demonstrates the system's \textbf{plasticity}---shipped priors are not permanent liabilities.
 
@@ -70,15 +71,16 @@ We simulate ``poisoned priors'' where the bandit confidently believes GPT-4o is 
     \caption{\textbf{Belief Recovery.} The router overcomes poisoned priors within $\sim$200 steps, demonstrating self-correction without manual intervention.}
     \label{fig:belief_recovery}
 \end{figure}
+\vspace{-0.5em}
 
 % ============================================================================
-% RQ3: SOTA Baseline Comparison (Condensed)
+% SOTA Baseline Comparison (Condensed)
 % ============================================================================
 
 \section{Comparison with SOTA Baselines}
 \label{sec:rq3_sota}
 
-\textbf{RQ3}: How does BanditGPT compare to RouteLLM and FrugalGPT?
+How does BanditGPT compare to RouteLLM and FrugalGPT?
 
 \paragraph{Baselines.} Static (GPT-4o, DeepSeek-V3); RouteLLM~\cite{ong2024routellm} (official library v0.2.0); FrugalGPT~\cite{chen2023frugalgpt} (methodology-based cascade: DeepSeek $\to$ GPT-4o); Bandit and Hybrid (ours).
 

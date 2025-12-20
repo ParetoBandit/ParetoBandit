@@ -18,6 +18,7 @@
 % ============================================================================
 \usepackage{booktabs}       % Professional tables
 \usepackage{enumitem}       % List customization
+\setlist{nosep}             % Remove list spacing globally
 \usepackage{amsmath}        % Math
 % Fix conflict between amssymb and ACM fonts (Bbbk already defined)
 \let\Bbbk\relax
@@ -99,9 +100,9 @@ We propose a \textbf{tiered architecture}: (1) \textbf{Standard Mode} achieves 9
 %   1. Introduction       ~1 page     [DONE]
 %   2. Method             ~1.5 pages  [DONE]
 %   3. Experimental Setup ~0.5 page   [DONE]
-%   4. RQ1: Warm-Start    ~0.75 page  [DONE]
-%   5. RQ2: Plasticity    ~1 page     [DONE]
-%   6. RQ3: Efficiency    ~1 page     [DONE]
+%   4. Warm-Start         ~0.75 page  [DONE]
+%   5. Plasticity          ~1 page     [DONE]
+%   6. Efficiency          ~1 page     [DONE]
 %   7. Case Studies       ~1 page     [DONE]
 %   8. Related Work       ~0.75 page  [DONE] (Defense position)
 %   9. Conclusion         ~0.5 page   [DONE]
@@ -114,9 +115,9 @@ We propose a \textbf{tiered architecture}: (1) \textbf{Standard Mode} achieves 9
 
 \input{method}              % Section 2: Density-Based Warm-Start Framework
 
-\input{experiments}         % Sections 3-5: Setup, RQ1, RQ2
+\input{experiments}         % Sections 3-5: Setup, Warm-Start, Plasticity
 
-\input{rq3_efficiency}      % Section 6: RQ3 - Cost-Quality Efficiency
+\input{rq3_efficiency}      % Section 6: Cost-Quality Efficiency
 
 \input{case_studies}        % Section 7: Qualitative Analysis / Case Studies
 
