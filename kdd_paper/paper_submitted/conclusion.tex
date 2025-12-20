@@ -1,21 +1,18 @@
 % ============================================================================
-% CONCLUSION (Condensed)
+% CONCLUSION
 % ============================================================================
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We introduced \textbf{BanditGPT}, a context-aware routing system that eliminates the cold-start problem via \textbf{Expert Distillation}---bootstrapping from a teacher oracle's covariance structure compressed to <1MB.
+In this work, we presented \ours{}, a framework that transitions LLM routing from static, reactive cascades to scalable, predictive decision-making. By distilling offline teacher supervision into ``Shippable Priors,'' we resolve the cold-start problem that has historically prevented the adoption of contextual bandits in production, achieving a \textbf{64.6\% reduction in Day-1 regret} and enabling effective routing from the very first query.
 
-\paragraph{Key Contributions.}
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Cold-Start Elimination}: Expert priors achieve \textbf{63.6\% regret reduction} from day one. Few-Shot Calibration ($\sim$50--100 examples) enables \textbf{93.5\% regret reduction} on held-out benchmarks.
-    
-    \item \textbf{Pareto Efficiency}: BanditGPT achieves +6.1\% quality and $-$67.7\% cost vs.\ GPT-4o. On instruction tasks, Hybrid mode beats FrugalGPT (98\% vs 95\%) by predicting complexity \emph{before} generation.
-    
-    \item \textbf{Production Ready}: 8.94ms P99 routing overhead (1.1\%), self-correcting plasticity (recovers from bad priors in $\sim$200 steps), and single-pass routing over 81+ models.
-\end{enumerate}
+\paragraph{Business-Adaptive Routing via Tunable Objectives.}
+Crucially, our architecture recognizes that ``optimality'' is not a universal constant but a business-specific constraint. Through the reward function's sensitivity parameters ($\lambdacost, \lambdalat$), \ours{} offers organizations precise control over their operational trade-offs. A FinOps-focused team can aggressively penalize cost ($\lambdacost \gg 0$) to enforce budget caps, while a user-facing application can penalize latency ($\lambdalat \gg 0$) to guarantee SLAs. This transforms routing from a rigid technical hurdle into a flexible lever for business alignment.
 
-\paragraph{The Paradigm Shift.} Specialized models---when orchestrated by an expert-guided router---collectively outperform the frontier models they were distilled from. Nova-Lite at \$0.10/1M tokens, guided by our router, delivers higher quality than GPT-4o at \$4.38/1M tokens.
+\paragraph{Future-Proofing Beyond Benchmarks.}
+Finally, \ours{} addresses the scalability crisis in the rapidly expanding model ecosystem. Traditional routers relying on static benchmarks face a ``Calibration Bottleneck'' ($O(N)$), requiring expensive offline profiling for every new model release. Furthermore, as public benchmarks saturate and diverge from real-world utility, static rankings become increasingly unreliable.
 
-\paragraph{Artifact Release.} We release BanditGPT with bundled expert priors at \url{https://github.com/redacted/banditgpt}.
+Our framework decouples \emph{Prompt Difficulty} (learned once) from \emph{Model Capability} (verified online). By using public metadata merely as coarse initialization filters, \ours{} shifts the burden of proof from offline benchmarks to online exploration. This allows the system to onboard new models in $O(1)$ time---simply registering an API endpoint---and autonomously discover their utility on live traffic. As the ``Long Tail'' of specialized models grows, \ours{} ensures that production systems can instantly leverage these efficient specialists without the maintenance burden of fixed chains.
+
+\paragraph{Artifact Release.} We release \ours{} with bundled expert priors at \url{https://github.com/[redacted]/banditgpt}.
