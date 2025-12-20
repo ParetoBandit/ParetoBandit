@@ -277,40 +277,41 @@ def plot_figure7_tunability(models):
     standard_color = '#0D8A8A'  # Dark cyan (matches Pareto plot)
     hybrid_color = '#17BECF'    # Light cyan (matches Pareto plot)
     
-    # STANDARD MODE: λ = 0 (pure single-shot, cost-optimal)
-    standard_idx = 0  # λ = 0
+    # STANDARD MODE: λ ≤ 0.1 (cost-optimal, minimal cascading)
+    # We show λ=0.05 as representative of the "standard mode zone"
+    standard_idx = np.argmin(np.abs(lambda_values - 0.05))
     standard_lambda = lambda_values[standard_idx]
     standard_acc = accuracies[standard_idx]
     standard_cost = costs[standard_idx]
     
-    # HYBRID MODE: λ = 0.9 (high-assurance with cascade)
+    # HYBRID MODE: λ ≈ 0.9 (high-assurance with aggressive cascading)
     hybrid_idx = np.argmin(np.abs(lambda_values - 0.9))
     hybrid_lambda = lambda_values[hybrid_idx]
     hybrid_acc = accuracies[hybrid_idx]
     hybrid_cost = costs[hybrid_idx]
     
-    # Mark Standard Mode
+    # Mark Standard Mode (smaller markers to avoid clipping)
     ax1.axvline(x=standard_lambda, color=standard_color, linestyle=':', linewidth=2, alpha=0.7)
-    ax1.scatter([standard_lambda], [standard_acc], color=standard_color, s=250, zorder=10,
-               edgecolors='black', linewidths=2, marker='D', label='_Standard')
-    ax2.scatter([standard_lambda], [standard_cost], color=standard_color, s=250, zorder=10,
-               edgecolors='black', linewidths=2, marker='D')
+    ax1.scatter([standard_lambda], [standard_acc], color=standard_color, s=120, zorder=10,
+               edgecolors='black', linewidths=1.5, marker='D', label='_Standard')
+    ax2.scatter([standard_lambda], [standard_cost], color=standard_color, s=120, zorder=10,
+               edgecolors='black', linewidths=1.5, marker='D')
     
     # Mark Hybrid Mode
     ax1.axvline(x=hybrid_lambda, color=hybrid_color, linestyle=':', linewidth=2, alpha=0.7)
-    ax1.scatter([hybrid_lambda], [hybrid_acc], color=hybrid_color, s=300, zorder=10,
-               edgecolors='black', linewidths=2, marker='*', label='_Hybrid')
-    ax2.scatter([hybrid_lambda], [hybrid_cost], color=hybrid_color, s=300, zorder=10,
-               edgecolors='black', linewidths=2, marker='*')
+    ax1.scatter([hybrid_lambda], [hybrid_acc], color=hybrid_color, s=200, zorder=10,
+               edgecolors='black', linewidths=1.5, marker='*', label='_Hybrid')
+    ax2.scatter([hybrid_lambda], [hybrid_cost], color=hybrid_color, s=200, zorder=10,
+               edgecolors='black', linewidths=1.5, marker='*')
     
     # Annotation for Standard Mode (position to the right)
     ax1.annotate(
         f'Standard Mode\n'
-        f'λ = {standard_lambda:.1f}\n'
+        f'λ ≤ 0.1\n'
         f'Accuracy: {standard_acc:.1f}%\n'
         f'Cost: ${standard_cost:.2f}/1k',
         xy=(standard_lambda, standard_acc),
-        xytext=(0.12, standard_acc + 0.8),
+        xytext=(0.15, standard_acc + 0.5),
         fontsize=10, fontweight='bold',
         ha='left', va='bottom',
         bbox=dict(boxstyle='round,pad=0.4', facecolor=standard_color, alpha=0.2),
@@ -320,7 +321,7 @@ def plot_figure7_tunability(models):
     # Annotation for Hybrid Mode
     ax1.annotate(
         f'Hybrid Mode\n'
-        f'λ = {hybrid_lambda:.1f}\n'
+        f'λ ≈ 0.9\n'
         f'Accuracy: {hybrid_acc:.1f}%\n'
         f'Cost: ${hybrid_cost:.2f}/1k',
         xy=(hybrid_lambda, hybrid_acc),
@@ -331,11 +332,7 @@ def plot_figure7_tunability(models):
         arrowprops=dict(arrowstyle='->', color=hybrid_color, lw=2)
     )
     
-    # Labels for regions (positioned within the plot, not overlapping title)
-    ax1.text(0.25, min(accuracies) + 0.3, '← Cost-Optimal', fontsize=11, 
-            color='gray', fontstyle='italic')
-    ax1.text(0.75, min(accuracies) + 0.3, 'High-Assurance →', fontsize=11,
-            color='gray', fontstyle='italic', ha='right')
+    # Region labels removed - Standard/Hybrid annotations already convey this info
     
     ax1.set_title(
         'Figure 7: Dialing the Pareto Frontier (Real Model Data)\n'
