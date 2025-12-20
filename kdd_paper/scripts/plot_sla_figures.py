@@ -304,14 +304,14 @@ def plot_figure7_tunability(models):
     ax2.scatter([hybrid_lambda], [hybrid_cost], color=hybrid_color, s=200, zorder=10,
                edgecolors='black', linewidths=1.5, marker='*')
     
-    # Annotation for Standard Mode (position to the right)
+    # Annotation for Standard Mode (position up and to the left to avoid blocking curve)
     ax1.annotate(
         f'Standard Mode\n'
         f'λ ≤ 0.1\n'
         f'Accuracy: {standard_acc:.1f}%\n'
         f'Cost: ${standard_cost:.2f}/1k',
         xy=(standard_lambda, standard_acc),
-        xytext=(0.15, standard_acc + 0.5),
+        xytext=(0.18, 96.5),
         fontsize=10, fontweight='bold',
         ha='left', va='bottom',
         bbox=dict(boxstyle='round,pad=0.4', facecolor=standard_color, alpha=0.2),
