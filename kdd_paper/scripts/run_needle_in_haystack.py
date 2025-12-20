@@ -677,17 +677,17 @@ def plot_results(summary, domain_summary, domains, output_dir):
     ax1.legend(loc='lower right', fontsize=8, framealpha=0.9)
     ax1.grid(True, alpha=0.3, which='both')
     ax1.set_ylim(80, 100)
-    ax1.set_xlim(0.3, 6)
+    ax1.set_xlim(0.2, 6)  # Extended to show Standard mode ($0.40)
     
     # --- Plot 2: Domain Breakdown ---
     ax2 = axes[1]
     
     x = np.arange(len(domains))
     
-    # Show both BanditGPT modes + baselines
-    plot_systems = ["BanditGPT (Hybrid)", "FrugalGPT (Fixed)", "RouteLLM (Static)", "Always DeepSeek"]
-    plot_colors = ['#17BECF', '#FF7F0E', '#9467BD', '#2CA02C']
-    width = 0.2  # Bar width for 4 systems
+    # Show BOTH BanditGPT modes + baselines (5 systems total)
+    plot_systems = ["BanditGPT (Standard)", "BanditGPT (Hybrid)", "FrugalGPT (Fixed)", "RouteLLM (Static)", "Always DeepSeek"]
+    plot_colors = ['#0D8A8A', '#17BECF', '#FF7F0E', '#9467BD', '#2CA02C']  # Darker cyan for Standard
+    width = 0.16  # Narrower bars to fit 5 systems
     
     for i, (sys, color) in enumerate(zip(plot_systems, plot_colors)):
         if sys in domain_summary.index:
@@ -697,12 +697,12 @@ def plot_results(summary, domain_summary, domains, output_dir):
     
     ax2.set_xlabel('Domain', fontsize=12)
     ax2.set_ylabel('Accuracy (%)', fontsize=12)
-    ax2.set_title('Domain Breakdown: The "Confident Failure" Hypothesis\n'
-                  'BanditGPT (Hybrid) beats FrugalGPT on Instructions (+10%)',
+    ax2.set_title('Domain Breakdown: Tiered Architecture\n'
+                  'Hybrid beats FrugalGPT on Instructions (+10%)',
                   fontsize=13, fontweight='bold')
-    ax2.set_xticks(x + width * 1.5)
+    ax2.set_xticks(x + width * 2)  # Center for 5 bars
     ax2.set_xticklabels(domains)
-    ax2.legend(loc='lower right', fontsize=9)
+    ax2.legend(loc='lower right', fontsize=8)
     ax2.grid(True, alpha=0.3, axis='y')
     ax2.set_ylim(60, 105)
     
