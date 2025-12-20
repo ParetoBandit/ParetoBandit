@@ -696,8 +696,8 @@ def plot_results(summary, domain_summary, domains, output_dir):
             bars = ax2.bar(x + i * width, values, width, label=sys, color=color,
                           edgecolor='black', linewidth=0.5)
     
-    ax2.set_xlabel('Domain', fontsize=12)
-    ax2.set_ylabel('Accuracy (%)', fontsize=12)
+    ax2.set_xlabel('Domain', fontsize=12, fontweight='bold')
+    ax2.set_ylabel('Accuracy (%)', fontsize=12, fontweight='bold')
     ax2.set_title('Domain Breakdown: Tiered Architecture\n'
                   'Hybrid beats FrugalGPT on Instructions (+10%)',
                   fontsize=13, fontweight='bold')
