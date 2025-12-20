@@ -227,9 +227,10 @@ def plot_figure7_tunability(models):
     # Plot
     fig, ax1 = plt.subplots(figsize=(10, 6))
     
-    accuracy_color = '#2E86AB'
-    cost_color = '#E94F37'
-    sweet_spot_color = '#2CA02C'
+    # Colorblind-friendly palette (Paul Tol's bright scheme)
+    accuracy_color = '#0077BB'  # Blue - distinguishable for all color vision types
+    cost_color = '#EE7733'      # Orange - distinct from blue for colorblind viewers
+    sweet_spot_color = '#009988' # Teal - works well as accent color
     
     # Accuracy curve
     line1, = ax1.plot(lambda_values, accuracies, color=accuracy_color, 
@@ -255,20 +256,22 @@ def plot_figure7_tunability(models):
     sweet_acc = accuracies[sweet_idx]
     sweet_cost = costs[sweet_idx]
     
-    # Mark sweet spot
+    # Mark sweet spot - move annotation to the RIGHT of the point
     ax1.axvline(x=sweet_lambda, color=sweet_spot_color, linestyle=':', linewidth=2, alpha=0.7)
     ax1.scatter([sweet_lambda], [sweet_acc], color=accuracy_color, s=200, zorder=10,
                edgecolors='black', linewidths=2, marker='*')
     ax2.scatter([sweet_lambda], [sweet_cost], color=cost_color, s=200, zorder=10,
                edgecolors='black', linewidths=2, marker='*')
     
+    # Position annotation to the RIGHT of the data point (not on axis)
+    annotation_x = max(sweet_lambda + 0.12, 0.15)  # Ensure it's not on the y-axis
     ax1.annotate(
-        f'Sweet Spot\n'
+        f'Cost Optimal\n'
         f'λ = {sweet_lambda:.1f}\n'
         f'Accuracy: {sweet_acc:.1f}%\n'
         f'Cost: ${sweet_cost:.2f}/1k',
         xy=(sweet_lambda, sweet_acc),
-        xytext=(sweet_lambda + 0.15, sweet_acc - 3),
+        xytext=(annotation_x, sweet_acc - 2),
         fontsize=11, fontweight='bold',
         ha='left', va='top',
         bbox=dict(boxstyle='round,pad=0.5', facecolor=sweet_spot_color, alpha=0.2),
@@ -276,7 +279,7 @@ def plot_figure7_tunability(models):
     )
     
     # Labels
-    ax1.text(0.1, max(accuracies) + 1, '← Fast & Cheap', fontsize=11, 
+    ax1.text(0.15, max(accuracies) + 1, '← Fast & Cheap', fontsize=11, 
             color='gray', fontstyle='italic')
     ax1.text(0.9, max(accuracies) + 1, 'Safe & Expensive →', fontsize=11,
             color='gray', fontstyle='italic', ha='right')
@@ -289,7 +292,9 @@ def plot_figure7_tunability(models):
     
     lines = [line1, line2]
     labels = ['Accuracy (%)', 'Cost ($/1k)']
-    ax1.legend(lines, labels, loc='center left', fontsize=11, framealpha=0.9)
+    # Position legend in upper left where there's empty space (above the flat portion)
+    ax1.legend(lines, labels, loc='upper left', fontsize=11, framealpha=0.9, 
+               bbox_to_anchor=(0.02, 0.75))
     ax1.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
