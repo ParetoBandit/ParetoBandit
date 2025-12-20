@@ -661,10 +661,10 @@ def plot_results(summary, domain_summary, domains, output_dir):
                     fontsize=9, ha='center', color='#0D8A8A', fontweight='bold',
                     arrowprops=dict(arrowstyle='->', color='#0D8A8A', lw=1.5))
         
-        # Add "High Assurance" annotation for Hybrid (light cyan)
+        # Add "High Assurance" annotation for Hybrid (light cyan) - positioned up and right
         ax1.annotate('High\nAssurance', 
                     xy=(frontier_points[1][0], frontier_points[1][1]), 
-                    xytext=(frontier_points[1][0] * 1.3, frontier_points[1][1] + 2),
+                    xytext=(frontier_points[1][0] * 2.2, frontier_points[1][1] + 4),
                     fontsize=9, ha='center', color='#17BECF', fontweight='bold',
                     arrowprops=dict(arrowstyle='->', color='#17BECF', lw=1.5))
     
