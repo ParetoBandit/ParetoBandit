@@ -273,39 +273,68 @@ def plot_figure7_tunability(models):
     ax2.set_ylabel('Cost ($/1k queries)', fontsize=14, fontweight='bold', color=cost_color)
     ax2.tick_params(axis='y', labelcolor=cost_color, labelsize=12)
     
-    # Find and mark sweet spot (best accuracy/cost ratio)
-    ratios = [a / max(c, 0.01) for a, c in zip(accuracies, costs)]
-    sweet_idx = np.argmax(ratios)
-    sweet_lambda = lambda_values[sweet_idx]
-    sweet_acc = accuracies[sweet_idx]
-    sweet_cost = costs[sweet_idx]
+    # Define Standard and Hybrid operating modes
+    standard_color = '#0D8A8A'  # Dark cyan (matches Pareto plot)
+    hybrid_color = '#17BECF'    # Light cyan (matches Pareto plot)
     
-    # Mark sweet spot - move annotation to the RIGHT of the point
-    ax1.axvline(x=sweet_lambda, color=sweet_spot_color, linestyle=':', linewidth=2, alpha=0.7)
-    ax1.scatter([sweet_lambda], [sweet_acc], color=accuracy_color, s=200, zorder=10,
-               edgecolors='black', linewidths=2, marker='*')
-    ax2.scatter([sweet_lambda], [sweet_cost], color=cost_color, s=200, zorder=10,
+    # STANDARD MODE: λ = 0 (pure single-shot, cost-optimal)
+    standard_idx = 0  # λ = 0
+    standard_lambda = lambda_values[standard_idx]
+    standard_acc = accuracies[standard_idx]
+    standard_cost = costs[standard_idx]
+    
+    # HYBRID MODE: λ = 0.9 (high-assurance with cascade)
+    hybrid_idx = np.argmin(np.abs(lambda_values - 0.9))
+    hybrid_lambda = lambda_values[hybrid_idx]
+    hybrid_acc = accuracies[hybrid_idx]
+    hybrid_cost = costs[hybrid_idx]
+    
+    # Mark Standard Mode
+    ax1.axvline(x=standard_lambda, color=standard_color, linestyle=':', linewidth=2, alpha=0.7)
+    ax1.scatter([standard_lambda], [standard_acc], color=standard_color, s=250, zorder=10,
+               edgecolors='black', linewidths=2, marker='D', label='_Standard')
+    ax2.scatter([standard_lambda], [standard_cost], color=standard_color, s=250, zorder=10,
+               edgecolors='black', linewidths=2, marker='D')
+    
+    # Mark Hybrid Mode
+    ax1.axvline(x=hybrid_lambda, color=hybrid_color, linestyle=':', linewidth=2, alpha=0.7)
+    ax1.scatter([hybrid_lambda], [hybrid_acc], color=hybrid_color, s=300, zorder=10,
+               edgecolors='black', linewidths=2, marker='*', label='_Hybrid')
+    ax2.scatter([hybrid_lambda], [hybrid_cost], color=hybrid_color, s=300, zorder=10,
                edgecolors='black', linewidths=2, marker='*')
     
-    # Position annotation to the RIGHT of the data point (not on axis)
-    annotation_x = max(sweet_lambda + 0.12, 0.15)  # Ensure it's not on the y-axis
+    # Annotation for Standard Mode (position to the right)
     ax1.annotate(
-        f'Cost Optimal\n'
-        f'λ = {sweet_lambda:.1f}\n'
-        f'Accuracy: {sweet_acc:.1f}%\n'
-        f'Cost: ${sweet_cost:.2f}/1k',
-        xy=(sweet_lambda, sweet_acc),
-        xytext=(annotation_x, sweet_acc - 2),
-        fontsize=11, fontweight='bold',
-        ha='left', va='top',
-        bbox=dict(boxstyle='round,pad=0.5', facecolor=sweet_spot_color, alpha=0.2),
-        arrowprops=dict(arrowstyle='->', color=sweet_spot_color, lw=2)
+        f'Standard Mode\n'
+        f'λ = {standard_lambda:.1f}\n'
+        f'Accuracy: {standard_acc:.1f}%\n'
+        f'Cost: ${standard_cost:.2f}/1k',
+        xy=(standard_lambda, standard_acc),
+        xytext=(0.12, standard_acc + 0.8),
+        fontsize=10, fontweight='bold',
+        ha='left', va='bottom',
+        bbox=dict(boxstyle='round,pad=0.4', facecolor=standard_color, alpha=0.2),
+        arrowprops=dict(arrowstyle='->', color=standard_color, lw=2)
     )
     
-    # Labels
-    ax1.text(0.15, max(accuracies) + 1, '← Fast & Cheap', fontsize=11, 
+    # Annotation for Hybrid Mode
+    ax1.annotate(
+        f'Hybrid Mode\n'
+        f'λ = {hybrid_lambda:.1f}\n'
+        f'Accuracy: {hybrid_acc:.1f}%\n'
+        f'Cost: ${hybrid_cost:.2f}/1k',
+        xy=(hybrid_lambda, hybrid_acc),
+        xytext=(hybrid_lambda - 0.25, hybrid_acc + 1.5),
+        fontsize=10, fontweight='bold',
+        ha='center', va='bottom',
+        bbox=dict(boxstyle='round,pad=0.4', facecolor=hybrid_color, alpha=0.2),
+        arrowprops=dict(arrowstyle='->', color=hybrid_color, lw=2)
+    )
+    
+    # Labels for regions
+    ax1.text(0.25, max(accuracies) + 0.8, '← Cost-Optimal', fontsize=11, 
             color='gray', fontstyle='italic')
-    ax1.text(0.9, max(accuracies) + 1, 'Safe & Expensive →', fontsize=11,
+    ax1.text(0.75, max(accuracies) + 0.8, 'High-Assurance →', fontsize=11,
             color='gray', fontstyle='italic', ha='right')
     
     ax1.set_title(
