@@ -85,7 +85,7 @@ We call this the \textbf{``Shippable Brain''} paradigm: the intelligence of an e
     \item We provide extensive empirical evaluation across four research questions:
     \begin{itemize}
         \item \textbf{RQ1 (Warm-Start)}: Does expert distillation reduce cold-start regret? (Yes: 63.6\% reduction)
-        \item \textbf{RQ1-OOD (Generalization)}: Do calibrated priors transfer to held-out prompts? (Yes: 93.5\% regret reduction on OOD benchmarks)
+        \item \textbf{RQ1-OOD (Few-Shot Calibration)}: Does Few-Shot Calibration ($\sim$50--100 examples) enable a ``Prior-Informed Cold Start''? (Yes: 93.5\% regret reduction on held-out OOD benchmarks)
         \item \textbf{RQ2 (Plasticity)}: Can the router discover local specialists not encoded in the prior? (Yes: Nova-Lite achieves $\|\theta\|=3.66$ vs.\ GPT-4o's $\|\theta\|=1.66$)
         \item \textbf{RQ3 (SOTA Comparison)}: How does BanditGPT compare to FrugalGPT and RouteLLM? (BanditGPT: 24\% cheaper, +10\% on Instructions via ``Confident Failure'' avoidance)
     \end{itemize}

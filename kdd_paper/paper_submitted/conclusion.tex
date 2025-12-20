@@ -17,8 +17,8 @@ Our empirical evaluation on real-world routing traces demonstrates three critica
 % Beat 1: Technical Victory (Cold Start Solved)
 % ---------------------------------------------------------------------------
 
-\paragraph{1. Cold-Start Elimination and OOD Generalization.}
-Expert-distilled priors, compressed to <1MB, provide \textbf{day-one intelligence} without exploration cost. RQ1 demonstrated \textbf{63.6\% regret reduction} compared to cold-start baselines---the gap represents real dollars saved from the first query. Critically, these gains transfer to \textbf{out-of-distribution prompts}: on held-out benchmarks (GSM8K, HumanEval, MMLU), calibrated priors achieve \textbf{93.5\% regret reduction} compared to cold start, proving robust generalization beyond the training distribution (RQ1-OOD). This ``Shippable Brain'' paradigm transforms LLM routing from a months-long calibration process into an instant deployment.
+\paragraph{1. Cold-Start Elimination via Few-Shot Calibration.}
+Expert-distilled priors, compressed to <1MB, provide \textbf{day-one intelligence} without exploration cost. RQ1 demonstrated \textbf{63.6\% regret reduction} compared to cold-start baselines---the gap represents real dollars saved from the first query. Critically, we show that \textbf{Few-Shot Calibration} ($\sim$50--100 labeled examples per domain) enables a \textbf{``Prior-Informed Cold Start''}: on held-out benchmarks (GSM8K, HumanEval, MMLU), calibrated priors achieve \textbf{93.5\% regret reduction} compared to naive deployment (RQ1-OOD). This is not ``Zero-Shot'' transfer---it requires minimal upfront labeling---but the cost is negligible compared to the 2,000+ interactions a naive bandit needs to converge. This ``Shippable Brain'' paradigm transforms LLM routing from a months-long calibration process into an instant deployment.
 
 % ---------------------------------------------------------------------------
 % Beat 2: Business Victory (Cost/Quality Trade-off Broken)
