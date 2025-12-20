@@ -19,6 +19,8 @@
 \usepackage{booktabs}       % Professional tables
 \usepackage{enumitem}       % List customization
 \usepackage{amsmath}        % Math
+% Fix conflict between amssymb and ACM fonts (Bbbk already defined)
+\let\Bbbk\relax
 \usepackage{amssymb}        % Math symbols
 \usepackage{algorithm}      % Algorithms
 \usepackage{algorithmic}    % Algorithm formatting
@@ -32,6 +34,8 @@
 % ============================================================================
 % CUSTOM COMMANDS
 % ============================================================================
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
 \newcommand{\ours}{BanditGPT}
 \newcommand{\thetanorm}{\|\theta\|}
 \newcommand{\lambdacost}{\lambda_{\text{cost}}}
