@@ -646,13 +646,14 @@ def plot_results(summary, domain_summary, domains, output_dir):
         fy = frugal_data["Correct"].values[0] * 100
         frontier_points.append((fx, fy, "FrugalGPT"))
     
-    # Draw the efficient frontier line connecting BanditGPT points
+    # Draw the efficient frontier line connecting all frontier points
     if len(frontier_points) >= 2:
-        # Connect Standard → Hybrid (our frontier) - gradient effect with dashed line
-        ax1.plot([frontier_points[0][0], frontier_points[1][0]], 
-                [frontier_points[0][1], frontier_points[1][1]], 
+        # Connect Standard → Hybrid → FrugalGPT (full efficient frontier)
+        frontier_x = [fp[0] for fp in frontier_points]
+        frontier_y = [fp[1] for fp in frontier_points]
+        ax1.plot(frontier_x, frontier_y, 
                 color='#0D8A8A', linestyle='--', linewidth=2.5, alpha=0.7, zorder=5,
-                label='_BanditGPT Frontier')
+                label='Efficient Frontier')
         
         # Add "Cost Leader" annotation for Standard (dark cyan)
         ax1.annotate('Cost\nLeader', 
@@ -661,10 +662,10 @@ def plot_results(summary, domain_summary, domains, output_dir):
                     fontsize=9, ha='center', color='#0D8A8A', fontweight='bold',
                     arrowprops=dict(arrowstyle='->', color='#0D8A8A', lw=1.5))
         
-        # Add "High Assurance" annotation for Hybrid (light cyan) - positioned up and right
+        # Add "High Assurance" annotation for Hybrid - positioned to the right of the point
         ax1.annotate('High\nAssurance', 
                     xy=(frontier_points[1][0], frontier_points[1][1]), 
-                    xytext=(frontier_points[1][0] * 2.2, frontier_points[1][1] + 4),
+                    xytext=(frontier_points[1][0] * 1.8, frontier_points[1][1] - 3),
                     fontsize=9, ha='center', color='#17BECF', fontweight='bold',
                     arrowprops=dict(arrowstyle='->', color='#17BECF', lw=1.5))
     
