@@ -78,16 +78,16 @@ Table~\ref{tab:related_comparison} summarizes the gaps in prior work. The critic
 
 \begin{table}[t]
 \centering
-\small
+\footnotesize
 \caption{\textbf{Why Existing Solutions Fail in Production.} Our ``Shippable Priors'' approach uniquely solves the Cold-Start problem while enabling massive model pools and avoiding verification failures.}
 \label{tab:related_comparison}
-\begin{tabular}{p{2.5cm}p{3.2cm}p{3.2cm}}
+\begin{tabular}{p{2.2cm}p{3.0cm}p{2.8cm}}
 \toprule
 \textbf{Competitor} & \textbf{Their Weakness} & \textbf{Our Solution} \\
 \midrule
-FrugalGPT~\cite{chen2023frugalgpt} & $O(N)$ latency; 86\% on Instructions (Confident Failures) & $O(1)$ selection; 96\% via ex-ante prediction \\[4pt]
-RouteLLM~\cite{ong2024routellm} & Static classifier; No adaptation & Online learning via rank-one updates \\[4pt]
-Standard Bandits & Cold-Start (1000s of queries) & Expert Distillation (Shippable Priors) \\[4pt]
+FrugalGPT & $O(N)$ latency; 86\% on Instructions & $O(1)$ selection; 96\% via prediction \\[3pt]
+RouteLLM & Static classifier; No adaptation & Online learning via rank-one updates \\[3pt]
+Standard Bandits & Cold-Start (1000s of queries) & Expert Distillation \\[3pt]
 LMSYS Leaderboard & Global ranking; Misses specialists & Context-aware routing \\
 \bottomrule
 \end{tabular}
