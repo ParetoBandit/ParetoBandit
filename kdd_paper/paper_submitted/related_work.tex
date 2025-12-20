@@ -1,38 +1,22 @@
 % ============================================================================
-% RELATED WORK (Condensed)
+% RELATED WORK (Smooth Narrative)
 % ============================================================================
 
 \section{Related Work}
 \label{sec:related}
 
-We address: \emph{``Why not use existing solutions?''}
+Existing LLM routing approaches fall into three categories, each with critical limitations that BanditGPT addresses.
 
-\subsection{LLM Routing and Cascading}
+\textbf{Cascading systems} like FrugalGPT~\cite{chen2023frugalgpt} and RouteLLM~\cite{ong2024routellm} achieve cost savings through sequential model calls, but suffer from $O(N)$ latency scaling and fixed 2--3 model chains that miss specialist opportunities. More critically, they rely on \emph{ex-post verification} that fails on ``Confident Failures''---plausible-sounding wrong answers that fool verifiers (86\% vs our 96\% on instructions). Our $O(1)$ vector search over 80+ models, combined with \emph{ex-ante prediction}, eliminates both bottlenecks.
 
-\textbf{FrugalGPT}~\cite{chen2023frugalgpt} and \textbf{RouteLLM}~\cite{ong2024routellm} demonstrate cost-saving potential but have production limitations:
+\textbf{Contextual bandits}~\cite{li2010contextual} offer adaptive routing but require $\sim$2,000 queries (\$50--200 exploration cost) before convergence---prohibitive for production deployment. Our \textbf{Expert Distillation} bootstraps from teacher priors, achieving 63.6\% regret reduction from day one without exploration overhead.
 
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{$O(N)$ Latency}: Cascading requires sequential calls, doubling latency for hard queries. We route in \textbf{<9ms}.
-    
-    \item \textbf{Fixed Chains}: FrugalGPT is limited to 2--3 models. With 80+ specialists, you miss cheap domain experts (e.g., BioMistral for CRISPR queries). Our $O(1)$ vector search unlocks the long tail.
-    
-    \item \textbf{Verification Failure}: FrugalGPT relies on \emph{ex-post verification}, but cheap models produce plausible-sounding wrong answers that fool verifiers (``Confident Failures''). We use \emph{ex-ante prediction}: 96\% vs 86\% on instructions.
-    
-    \item \textbf{Drift Intolerance}: Supervised routers require retraining monthly. Our bandit adapts online.
-\end{enumerate}
-
-\subsection{Contextual Bandits}
-
-Standard bandits~\cite{li2010contextual} suffer from \textbf{Cold-Start}: 81 models $\times$ 384 dims needs $\sim$2,000 queries (\$50--200 exploration cost, weeks to converge). We solve this via \textbf{Expert Distillation}---bootstrapping from teacher priors for 63.6\% regret reduction from day one.
-
-\subsection{Static Leaderboards}
-
-LMSYS~\cite{zheng2023judging}, HELM~\cite{liang2022holistic} provide global rankings but (1) ignore cost, and (2) average across all users. We build a \textbf{personalized leaderboard} optimizing \emph{your} utility function.
+\textbf{Static leaderboards} (LMSYS~\cite{zheng2023judging}, HELM~\cite{liang2022holistic}) provide global rankings but ignore cost and average across all users. We build a personalized, cost-aware ranking optimized for each deployment's utility function.
 
 \begin{table}[t]
 \centering
 \footnotesize
-\caption{\textbf{Comparison with Prior Work.} BanditGPT uniquely solves Cold-Start while enabling massive model pools.}
+\caption{\textbf{Comparison with Prior Work.} BanditGPT uniquely combines cold-start readiness with massive model pools.}
 \label{tab:related_comparison}
 \begin{tabular}{p{2.2cm}p{2.8cm}p{2.6cm}}
 \toprule
@@ -46,4 +30,4 @@ Leaderboards & Global; No cost & Context-aware \\
 \end{tabular}
 \end{table}
 
-\paragraph{The Bottom Line.} FrugalGPT/RouteLLM work \emph{after} training data investment. Standard bandits work \emph{after} weeks of exploration. Our approach works \textbf{on day one} with <1MB shipped priors.
+The key differentiator is \textbf{cold-start readiness}: FrugalGPT/RouteLLM require training data investment; standard bandits need weeks of exploration. BanditGPT works \textbf{on day one} with <1MB shipped priors.

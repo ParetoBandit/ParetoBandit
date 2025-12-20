@@ -125,8 +125,4 @@ FrugalGPT & \textbf{98\%} & 98\% & 95\% & \textbf{98\%} \\
 \end{tabular}
 \end{table}
 
-\paragraph{The Trade-off.} FrugalGPT wins on Knowledge (verifier catches hallucinations) while BanditGPT wins on Instructions (proactive beats reactive). For logic-heavy workloads, BanditGPT provides superior ROI; for encyclopedic accuracy, FrugalGPT's verification is justified.
-
-\subsection{Tiered Deployment}
-
-We recommend: (1) \textbf{Default Mode (Bandit)} for cost-sensitive applications (\$1.24/1k, 92.8\% accuracy); (2) \textbf{High-Assurance Mode (Hybrid)} for strict constraint satisfaction, trading modest cost increase for +10\% reliability on instruction tasks.
+\paragraph{The Trade-off.} FrugalGPT wins on Knowledge (verifier catches hallucinations) while BanditGPT wins on Instructions (proactive beats reactive). We recommend: (1) \textbf{Default Mode (Bandit)} for cost-sensitive workloads (\$1.24/1k, 92.8\% accuracy); (2) \textbf{High-Assurance Mode (Hybrid)} for strict constraint satisfaction (+10\% reliability on instructions).
