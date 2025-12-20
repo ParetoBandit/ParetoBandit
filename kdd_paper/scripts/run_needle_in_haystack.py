@@ -698,14 +698,29 @@ def plot_results(summary, domain_summary, domains, output_dir):
     
     ax2.set_xlabel('Domain', fontsize=12, fontweight='bold')
     ax2.set_ylabel('Accuracy (%)', fontsize=12, fontweight='bold')
-    ax2.set_title('Domain Breakdown: Tiered Architecture\n'
-                  'Hybrid beats FrugalGPT on Instructions (+10%)',
+    ax2.set_title('Domain Breakdown: Prediction vs Verification\n'
+                  'Different architectures excel at different difficulty types',
                   fontsize=13, fontweight='bold')
     ax2.set_xticks(x + width * 2)  # Center for 5 bars
     ax2.set_xticklabels(domains)
     ax2.legend(loc='lower right', fontsize=8)
     ax2.grid(True, alpha=0.3, axis='y')
-    ax2.set_ylim(60, 105)
+    ax2.set_ylim(60, 108)
+    
+    # Add annotations to highlight the trade-off
+    # "Prediction Wins" on Instructions (rightmost domain)
+    instr_idx = domains.index("Instruction") if "Instruction" in domains else len(domains) - 1
+    ax2.annotate('Prediction\nWins (+10%)', 
+                xy=(instr_idx + width * 1, 96), xytext=(instr_idx + width * 1, 103),
+                fontsize=8, ha='center', color='#17BECF', fontweight='bold',
+                arrowprops=dict(arrowstyle='->', color='#17BECF', lw=1.2))
+    
+    # "Verification Wins" on Knowledge
+    know_idx = domains.index("Knowledge") if "Knowledge" in domains else 3
+    ax2.annotate('Verification\nWins', 
+                xy=(know_idx + width * 2, 94), xytext=(know_idx + width * 2, 103),
+                fontsize=8, ha='center', color='#FF7F0E', fontweight='bold',
+                arrowprops=dict(arrowstyle='->', color='#FF7F0E', lw=1.2))
     
     plt.tight_layout()
     plt.savefig(output_dir / "needle_in_haystack.png", dpi=150, bbox_inches='tight')

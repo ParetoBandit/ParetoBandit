@@ -407,3 +407,35 @@ We recommend a \textbf{tiered deployment strategy} based on application requirem
 \end{enumerate}
 
 \paragraph{Practical Guidance.} Users can switch between modes at runtime based on query metadata (e.g., \texttt{mode="high\_assurance"} for legal queries). The hybrid mode incurs only $\sim$8\% additional cost over standard BanditGPT but eliminates ``Confident Failure'' risk on complex tasks.
+
+\subsection{Limitations: The Predictive Boundary}
+\label{sec:limitations}
+
+Our results reveal a distinct boundary between \textbf{Predictive Routing} (BanditGPT) and \textbf{Verification-Based Cascading} (FrugalGPT). Table~\ref{tab:prediction_vs_verification} summarizes when each architecture excels.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Prediction vs. Verification}: Different difficulty types favor different architectures.}
+\label{tab:prediction_vs_verification}
+\begin{tabular}{lp{3.5cm}ll}
+\toprule
+\textbf{Domain} & \textbf{Difficulty Type} & \textbf{Winner} & \textbf{Why} \\
+\midrule
+Instructions & \emph{Complexity}: Multiple constraints visible in prompt & BanditGPT & Bandit sees complexity \emph{ex-ante} \\
+Knowledge & \emph{Factuality}: Obscure facts invisible to embeddings & FrugalGPT & Verifier catches hallucinations \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{The Knowledge Gap.} On MMLU, BanditGPT (80\%) trails FrugalGPT (92\%) by 12 percentage points. This is because ``knowledge gaps'' are \emph{invisible} to semantic routing---a prompt asking for an obscure fact (``Who won the 1956 Australian Open?'') appears semantically identical to one asking for a common fact (``Who won the 2023 Super Bowl?''). The bandit cannot predict whether a model ``knows'' a specific fact; it can only predict whether a model handles a \emph{type} of prompt.
+
+\paragraph{The Business Trade-off.} The 12\% accuracy drop on Knowledge is the price of cost efficiency (\$0.40 vs \$1.60):
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FrugalGPT}: ``Double-check everything, in case it's an obscure fact.'' \emph{Cost: \$1.60/1k.}
+    \item \textbf{BanditGPT}: ``This prompt looks simple; the cheap model probably knows it.'' \emph{Cost: \$0.40/1k. Correct 80\% of the time.}
+\end{itemize}
+
+For most enterprise applications (summarization, extraction, coding, chatbots), instruction-following and logical reasoning matter more than encyclopedic trivia. BanditGPT optimizes for this common case, while FrugalGPT optimizes for the ``encyclopedic'' use case where hallucinations are unacceptable.
+
+\paragraph{Recommendation.} In domains where factual accuracy on obscure queries is critical (e.g., medical reference, legal citation), the higher cost of FrugalGPT's verification loop is justified. For logic-heavy workloads, BanditGPT provides superior ROI.
