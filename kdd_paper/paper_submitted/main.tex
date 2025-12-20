@@ -53,7 +53,7 @@
 % ============================================================================
 % TITLE AND AUTHORS
 % ============================================================================
-\title{Beyond Fixed Chains: Scaling Predictive Routing to Massive Model Pools via Shippable Priors}
+\title{Beyond Fixed Chains: Scalable Predictive Routing with Shippable Priors}
 
 % Anonymous submission for review
 \author{Anonymous Author(s)}
@@ -68,11 +68,19 @@
 % ABSTRACT
 % ============================================================================
 \begin{abstract}
-Large Language Model (LLM) routing is typically framed as a choice between a cheap ``Weak'' model and an expensive ``Strong'' model. However, the open model ecosystem has expanded to hundreds of specialized variants. Existing methods like Cascades (FrugalGPT) struggle to scale beyond 2--3 models due to $O(N)$ latency penalties, and rely on \emph{ex-post verification} that fails on complex tasks.
+The expansion of the Large Language Model (LLM) ecosystem has created a ``Long Tail'' of specialized models that offer high performance at a fraction of the cost of frontier generalists. However, existing routing systems fail to efficiently capitalize on this fragmentation: cascading frameworks (e.g., FrugalGPT) suffer from linear latency scaling ($O(N)$) and rely on rigid, small-chain configurations that overlook niche specialists.
 
-We introduce \textbf{BanditGPT}, a scalable routing framework combining ``Shippable Priors''---offline-calibrated covariance matrices---with \emph{ex-ante prediction} to enable $O(1)$ search over 81+ models. Our key insight: \textbf{prediction beats verification} when ``checking the work'' is as hard as ``doing the work.'' On instruction-following tasks, FrugalGPT's cascade falls victim to ``Confident Failures''---plausible outputs that fool verifiers---achieving only 86\% accuracy. BanditGPT detects these high-risk prompts \emph{before} generation and routes directly to GPT-4o, achieving \textbf{96\% accuracy (+10\%)}.
+In this work, we introduce \textbf{BanditGPT}, a scalable routing framework that utilizes ``Shippable Priors''---covariance matrices calibrated offline---to enable $O(1)$ predictive search over massive model pools. Unlike naive cold-start bandits, our approach leverages \textbf{Few-Shot Domain Calibration} (labeling $<$100 examples) to transfer learned correlations to new domains, reducing Day 1 regret by \textbf{96--99\%}.
 
-Our results establish BanditGPT on the \textbf{Pareto Frontier}: 92.8\% aggregate accuracy at \$1.24/1k queries (\textbf{24\% cheaper} than FrugalGPT at \$1.63/1k). While Cascades achieve marginally higher aggregate accuracy (95.2\%), they critically fail on complex constraint tasks. BanditGPT provides \textbf{day-one intelligence} via expert-distilled priors (63.6\% regret reduction vs.\ cold-start). Furthermore, we demonstrate that \textbf{Few-Shot Calibration} ($\sim$50--100 labeled examples) enables a ``Prior-Informed Cold Start,'' reducing initial regret by \textbf{93.5\%} on held-out benchmarks (GSM8K, HumanEval, MMLU)---making BanditGPT the state-of-the-art solution for cost-constrained, high-reliability environments.
+We propose a \textbf{tiered architecture} combining prediction and verification:
+
+\begin{itemize}
+    \item \textbf{Standard Mode (Cost-Optimal)}: A single-shot predictive router that defines a new Pareto frontier, achieving 92.0\% accuracy at \$0.46/1k queries---a \textbf{71\% cost reduction} compared to FrugalGPT (\$1.60) and 63\% compared to DeepSeek V3.
+    
+    \item \textbf{Hybrid Mode (Bandit-Guided Cascade)}: A high-assurance integration where the bandit acts as a ``Gatekeeper'' to a FrugalGPT-style cascade. This addresses the ``Confident Failure'' phenomenon in instruction following, using \emph{ex-ante prediction} to bypass weaker models on complex constraints.
+\end{itemize}
+
+Our results demonstrate that while the Standard Mode is optimal for high-throughput environments, the Hybrid Mode recovers \textbf{+10\% accuracy} on complex tasks where verifiers fail, establishing BanditGPT as a robust solution for both cost-constrained and quality-critical applications.
 \end{abstract}
 
 % ============================================================================
