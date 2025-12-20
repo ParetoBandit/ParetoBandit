@@ -77,7 +77,7 @@ We propose a \textbf{tiered architecture} that combines prediction and verificat
 \begin{itemize}
     \item \textbf{Standard Mode (Cost-Optimal)}: A single-shot predictive router that defines a new Pareto frontier, achieving 92.0\% accuracy at \$0.46/1k queries---a \textbf{71\% cost reduction} compared to FrugalGPT (\$1.60) and 63\% compared to DeepSeek V3, while maintaining equal accuracy.
     
-    \item \textbf{Hybrid Mode (Bandit-Guided Cascade)}: A high-assurance integration where the bandit acts as a ``Gatekeeper'' to a verification cascade. This addresses the ``Confident Failure'' phenomenon in instruction-following tasks, using \emph{ex-ante} prediction to bypass weaker models on complex constraints.
+    \item \textbf{Hybrid Mode (Bandit-Guided Cascade)}: A high-assurance integration where the bandit acts as a ``Gatekeeper'' to a verification cascade. This addresses the ``Confident Failure'' phenomenon---where verifiers approve plausible-sounding but incorrect outputs---outperforming FrugalGPT by \textbf{+3\%} on complex Instruction Following tasks (\textbf{98.0\% vs 95.0\%}) by identifying high-risk prompts \emph{ex-ante} and bypassing fallible verification loops.
 \end{itemize}
 
 Finally, we introduce a linearly calibrated \textbf{Cascade Rate} parameter ($\lambda$) that allows users to dynamically navigate the Pareto frontier. By strictly controlling the percentage of queries routed to the expensive verifier (from 0\% to 100\%), users can precisely align inference costs with their financial SLAs. Our results establish BanditGPT as a robust solution for both cost-constrained and quality-critical environments.

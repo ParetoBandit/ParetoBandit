@@ -16,8 +16,10 @@ def test_banditgpt_public_api_contract():
         "configure_logging",
         "run_demo",
         "BanditRouter",
+        "HybridRouter",
         "DisjointLinUCBPolicy",
         "RoutingLog",
+        "HybridRoutingLog",
     }
     assert set(mod.__all__) == expected
 
@@ -56,11 +58,13 @@ def test_banditgpt_core_public_api_contract():
         "get_device",
         # Router + policies
         "BanditRouter",
+        "HybridRouter",
         "DisjointLinUCBPolicy",
         "ExplorationRate",
         "OptimizationProfile",
         "SharedCovarianceLinUCBPolicy",
         "RoutingLog",
+        "HybridRoutingLog",
         "build_registry_from_models_cache",
         "build_cost_proportional_priors",
     }

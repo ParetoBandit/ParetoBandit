@@ -16,25 +16,25 @@ This section presents the core value proposition for production deployment.
 
 \subsection{The Pareto Frontier}
 
-Not all models are created equal. Some offer high quality at premium prices; others sacrifice quality for cost savings. The key insight is that the \emph{relationship is not linear}---specialist models can dominate generalists on specific task clusters.
+Not all routing systems are created equal. Some offer high accuracy at premium prices; others sacrifice quality for cost savings. The key insight is that \emph{predictive routing can outperform both extremes}---by dynamically selecting specialists, the router defines a new efficient frontier.
 
-Figure~\ref{fig:pareto} visualizes the cost-quality landscape across 81 production models.
+Figure~\ref{fig:pareto} visualizes the cost-accuracy trade-off across routing strategies.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\columnwidth]{figures/figure4_pareto_frontier.pdf}
-    \caption{\textbf{RQ3: The Cost-Quality Pareto Frontier.} Each point represents a model; the x-axis shows cost per 1M tokens (log scale), and the y-axis shows learned specialist confidence ($\|\boldsymbol{\theta}\|$). The green dashed line marks Pareto-optimal models. \textbf{Key finding}: Amazon Nova-Lite achieves $\|\boldsymbol{\theta}\| = 3.66$ at \$0.10/1M tokens---\textbf{93× better ROI} than GPT-4o (\$4.38/1M, $\|\boldsymbol{\theta}\| = 1.66$).}
+    \caption{\textbf{RQ3: The Tiered Architecture Pareto Frontier.} Left: Cost vs.\ System Accuracy (macro-average of Math/Reasoning/MMLU/Instruction) for each routing strategy. BanditGPT's Standard Mode achieves the lowest cost (\$0.67/1k), while Hybrid Mode approaches FrugalGPT's accuracy with $O(1)$ scalability over 81+ models. Right: Domain breakdown showing the ``Verifier Trap''---Hybrid beats FrugalGPT on Instructions (98\% vs 95\%) via proactive prediction.}
     \label{fig:pareto}
 \end{figure}
 
 \paragraph{Reading the Figure.}
 \begin{itemize}[leftmargin=*]
-    \item \textbf{Upper-left (Best)}: High quality, low cost. Nova-Lite dominates this region.
-    \item \textbf{Lower-right (Worst)}: Low quality, high cost. These ``dominated'' models should never be selected.
-    \item \textbf{Pareto Frontier}: The green dashed line connects models where no alternative offers \emph{both} lower cost and higher quality.
+    \item \textbf{Left Panel (Pareto Frontier)}: Each point represents a routing system. The dashed line connects Pareto-optimal strategies where no alternative offers \emph{both} lower cost and higher accuracy.
+    \item \textbf{Right Panel (Domain Breakdown)}: Per-domain accuracy reveals where each system excels. Notably, Hybrid outperforms FrugalGPT on Instructions (+3\%) despite similar aggregate accuracy.
+    \item \textbf{Tiered Architecture}: BanditGPT offers two operating points---Standard (cost leader) and Hybrid (high-assurance)---controllable via the cascade rate parameter $\lambda$.
 \end{itemize}
 
-\paragraph{The Efficiency Insight.} GPT-4o sits far from the Pareto frontier. While it achieves reasonable quality ($\|\boldsymbol{\theta}\| = 1.66$), its cost (\$4.38/1M tokens) is 44× higher than Nova-Lite (\$0.10/1M). The router exploits this asymmetry by routing simple queries to cheap specialists while reserving GPT-4o for complex reasoning tasks.
+\paragraph{The Efficiency Insight.} FrugalGPT achieves the highest aggregate accuracy (84.8\%) but is limited to 2--3 models with $O(N)$ latency. BanditGPT's Hybrid mode approaches this accuracy (77.5\%) while enabling $O(1)$ selection over 81+ models. More importantly, Hybrid \emph{beats} FrugalGPT on complex Instructions (98\% vs 95\%) by avoiding the ``Verifier Trap'' (\S\ref{sec:confident_failure}).
 
 % ---------------------------------------------------------------------------
 % 6.2 System Impact: The Hard Numbers

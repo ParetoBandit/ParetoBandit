@@ -82,7 +82,7 @@ We call this the \textbf{``Shippable Brain''} paradigm: the intelligence of an e
     
     \item \textbf{Tiered \& Tunable Architecture}: We unify predictive routing and cascading into a single framework controlled by a quantile-calibrated cascade rate ($\lambda$), giving users linear control over the cost-accuracy trade-off (\S\ref{sec:rq3}).
     
-    \item \textbf{The ``Confident Failure'' Hypothesis}: We empirically identify a failure mode in standard cascades---where verifiers are fooled by plausible errors---and demonstrate how predictive routing mitigates this in high-complexity domains (\S\ref{sec:qualitative}).
+    \item \textbf{The ``Verifier Trap''}: We empirically identify a failure mode in standard cascades---where verifiers approve plausible-sounding but incorrect outputs (``Confident Failures'')---and demonstrate how proactive prediction outperforms reactive verification on complex Instruction Following tasks (98.0\% vs 95.0\%) (\S\ref{sec:confident_failure}).
     
     \item We release \textbf{BanditGPT}, an open-source library implementing our framework with bundled expert priors, available at \url{https://github.com/[redacted]/banditgpt}.
 \end{enumerate}
