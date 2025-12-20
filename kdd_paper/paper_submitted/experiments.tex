@@ -394,3 +394,16 @@ Always DeepSeek & 95\% & 89\% & 71\% & 84\% \\
 \end{itemize}
 
 \paragraph{Conclusion.} While FrugalGPT achieves slightly higher aggregate accuracy (95.2\% vs 92.8\%), it struggles critically on complex constraint tasks. BanditGPT demonstrates that for domains where verification is unreliable, \textbf{prediction beats verification}.
+
+\subsection{Deployment Recommendation: Two Operating Modes}
+\label{sec:deployment_modes}
+
+We recommend a \textbf{tiered deployment strategy} based on application requirements:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Default Mode (BanditGPT)}: For cost-sensitive or high-throughput applications, the standard BanditGPT offers optimal Pareto efficiency. At \$1.24/1k queries (24\% cheaper than FrugalGPT), it provides 92.8\% accuracy with $O(1)$ selection over 81+ models. This is the recommended starting point for most deployments.
+    
+    \item \textbf{High-Assurance Mode (Hybrid)}: For domains requiring strict constraint satisfaction (e.g., legal document generation, complex instruction-following, safety-critical applications), we recommend the Bandit-Guided Cascade. This trades a modest cost increase (\$1.34/1k) for significant reliability gains (+10\% on instruction tasks). The bandit acts as a ``gatekeeper,'' routing high-risk prompts directly to GPT-4o while allowing cheap specialists to handle confident queries.
+\end{enumerate}
+
+\paragraph{Practical Guidance.} Users can switch between modes at runtime based on query metadata (e.g., \texttt{mode="high\_assurance"} for legal queries). The hybrid mode incurs only $\sim$8\% additional cost over standard BanditGPT but eliminates ``Confident Failure'' risk on complex tasks.
