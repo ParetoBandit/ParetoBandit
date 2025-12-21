@@ -31,7 +31,6 @@ def run_real_adaptation_simulation():
     ]
     
     # 2. Initialize Router with HLE Priors
-    # We use a moderate prior strength. Gemini has the highest HLE.
     router = BanditRouter.create(
         model_registry=registry,
         priors="benchmark",
@@ -43,7 +42,7 @@ def run_real_adaptation_simulation():
     
     # 3. Simulation Loop
     n_phase1 = 50
-    n_phase2 = 150 
+    n_phase2 = 450 # Increased to show full Claude recovery
     n_total = n_phase1 + n_phase2
     
     # Metrics
@@ -123,7 +122,7 @@ def run_real_adaptation_simulation():
     ax1.set_ylim(0, 1.05)
     
     # Right: Rolling Reward (Dip and Recover)
-    window = 15
+    window = 30
     rolling_reward = [np.mean(per_step_rewards[max(0, i-window):i+1]) for i in range(n_total)]
     
     ax2.plot(steps, rolling_reward, color="#333333", lw=2, label="Bandit Router")
