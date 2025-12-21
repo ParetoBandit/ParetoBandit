@@ -31,16 +31,15 @@ def run_real_adaptation_simulation():
     ]
     
     # 2. Initialize Router with HLE Priors
-    # FAST ADAPTATION: Lower prior_strength and lower forgetting_factor
+    # SESSION-LEVEL ADAPTATION: Very low prior_strength and aggressive forgetting
     router = BanditRouter.create(
         model_registry=registry,
         priors="benchmark",
-        prior_strength=5.0, 
-        exploration="balanced",
-        forgetting_factor=0.85
+        prior_strength=2.0, # Low trust in priors for specialized tasks
+        exploration="aggressive", # High alpha for faster discovery
+        forgetting_factor=0.75 # Aggressive forgetting
     )
-    # Set alpha to allow for visible exploration
-    router.bandit.alpha = 2.0 
+    # router.bandit.alpha is set by exploration="aggressive" (~3.0)
     
     # 3. Simulation Loop
     n_phase1 = 50
