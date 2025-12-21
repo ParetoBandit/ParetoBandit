@@ -13,14 +13,14 @@ The core of the router is a curated registry of **80 Large Language Models (LLMs
     *   **TTFT Measurement**: Measured using the streaming API, recording the delta between the initial request start and the arrival of the first token.
     *   **OTPS Calculation**: Calculated by counting tokens received during the streaming session and dividing by the total generation time (excluding TTFT).
 
-## 2. HLE Priors Dataset
+## 2. HLE Priors Methodology
 
-To "warm-start" the bandit and avoid the "cold start" problem, we calculated a covariance matrix and sum vector from a large-scale prompt dataset.
+The "HLE Priors" are not a raw dataset, but rather a set of statistical initializations ($A$ and $b$ matrices) that combine model benchmarks with prompt embeddings. This allows the router to start with "expert intuition" rather than a cold start.
 
-*   **Source**: A subset of **33,000 prompts** from the LMSYS Chatbot Arena dataset.
-*   **Deduplication**: We performed rigorous deduplication, resulting in **26,223 unique prompts**. This ensures that the "expert intuition" built into the router is not biased by repeated common queries (e.g., "Hello", "Hi").
-*   **Embeddings**: All prompts were embedded into a 384-dimensional space using the `sentence-transformers/all-MiniLM-L6-v2` model.
-*   **Leakage Prevention**: We explicitly excluded all prompts present in our evaluation set from this training set to ensure the integrity of our experiments.
+*   **Model Benchmarks (The "Labels")**: We use the HLE scores from **Artificial Analysis** as the ground-truth average performance for each model.
+*   **Prompt Dataset (The "Context")**: We use a deduplicated subset of **26,223 prompts** from the LMSYS Chatbot Arena to map the semantic space of user queries.
+*   **Synthesis**: We utilize **Ridge Initialization** to "warm-start" the bandit. We mathematically simulate a scenario where each model has already processed all 26,223 prompts, receiving a reward equal to its HLE score for each. This populates the covariance matrix ($A$) and sum vector ($b$) for every model in the registry.
+*   **Leakage Prevention**: All 496 prompts used in our evaluation were explicitly removed from the 26,223-prompt training set to ensure zero data leakage.
 
 ## 3. Evaluation Dataset
 
