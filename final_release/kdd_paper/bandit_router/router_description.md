@@ -40,7 +40,25 @@ BanditGPT empowers users with intuitive controls to align the router with their 
 *   **Hard Constraints**: Users can set `max_cost` (per 1k tokens) or `max_latency` to ensure the router never exceeds their budget or performance requirements.
 *   **Forgetting Factor** ($f$): Controls the rate at which the bandit "forgets" past observations (including the prior). A value of 1.0 retains all history, while lower values (e.g., 0.95) allow for faster adaptation to changing user needs.
     -   *Impact*: Lowering $f$ significantly accelerates the discovery of niche specialists (see [Figure 4](file:///Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_4/figure_4_description.md) for a detailed speed comparison).
-## 4. Mathematical Foundation: Pareto-Chebyshev Optimization
+### Table 1: Latency Overhead
+We measure the computational cost of the router to ensure it is suitable for production use.
+
+| Component | Mean Latency (ms) | P95 Latency (ms) |
+| :--- | :--- | :--- |
+| **Total Overhead** | **21.07 ms** | **46.89 ms** |
+
+- **Insight**: The overhead is <4% of a typical LLM request, making the router's intelligence effectively "free" in terms of user experience.
+- **Details**: See [Table 1 Description](file:///Users/annette/repostitories/llm_jury/final_release/kdd_paper/table_1/table_1_description.md).
+
+| Component | Mean Latency (ms) | P95 Latency (ms) | Description |
+| :--- | :--- | :--- | :--- |
+| **Embedding** | 11.55 ms | 26.68 ms | Prompt vectorization via `all-MiniLM-L6-v2`. |
+| **Filtering** | 0.07 ms | 0.18 ms | Constraint checking (cost, latency, quality). |
+| **Scoring** | 9.44 ms | 22.27 ms | Contextual Bandit UCB calculation (80 models). |
+| **Total** | **21.07 ms** | **46.89 ms** | **Total overhead per request.** |
+
+> [!NOTE]
+> For a detailed breakdown and practical implications, see [Table 1](file:///Users/annette/repostitories/llm_jury/final_release/kdd_paper/table_1/table_1_description.md).
 
 To balance the competing objectives of **Quality**, **Cost**, and **Latency**, BanditGPT utilizes a **Pareto-Chebyshev Scalarization** approach. This ensures that the router finds a mathematically sound "compromise" that respects user-defined priorities.
 
