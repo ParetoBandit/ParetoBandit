@@ -110,8 +110,8 @@ def run_real_adaptation_simulation():
         ax1.plot(steps, selection_rates[m], color=colors[m], lw=2, label=label)
     
     ax1.axvline(x=n_phase1, color='black', ls='--', alpha=0.5)
-    ax1.text(n_phase1/2, 1.15, "Coding", ha='center', fontweight='bold')
-    ax1.text(n_phase1 + n_phase2/2, 1.15, "Specialist", ha='center', fontweight='bold')
+    ax1.text(n_phase1 - 8, 1.18, "Coding", ha='right', fontweight='bold', fontsize=5)
+    ax1.text(n_phase1 + 8, 1.18, "Specialist", ha='left', fontweight='bold', fontsize=5)
     
     ax1.set_xlabel("Requests")
     ax1.set_ylabel("Selection Rate")
@@ -135,7 +135,7 @@ def run_real_adaptation_simulation():
     ax2.set_xlabel("Requests")
     ax2.set_ylabel(f"Rolling Reward (w={window})")
     ax2.set_title("Reward: Dip and Recover", fontweight="bold")
-    ax2.set_ylim(0, 1.05)
+    ax2.set_ylim(0, 1.3)
     
     plt.tight_layout()
     output_path = base_dir / "figure2_adaptation.png"
