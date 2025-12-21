@@ -38,7 +38,10 @@ The use of an LLM-as-a-judge for ground truth has several important implications
 
 1.  **Alignment with Judge Preferences**: The Bandit Router learns to select models that align with the preferences of the GPT-4o/DeBERTa hybrid judge. While LLM judges are highly correlated with human preferences, they can exhibit "self-preference" or "verbosity" biases.
 2.  **Relative Regret**: The cumulative regret shown in our figures is calculated relative to the "optimal" model as determined by the judge for each specific prompt. A reduction in regret indicates that the router is successfully learning to predict and match the judge's preferences faster than a cold-start approach.
-3.  **Mitigating Circularity**: To ensure our results were not merely an artifact of GPT-4o's internal biases, we conducted Out-of-Distribution (OOD) evaluations on specialized benchmarks (GSM8K, HumanEval, MMLU). In these experiments, we replaced the LLM judge with **published benchmark scores** as the ground truth. The consistent regret reduction across both LMSYS (LLM judge) and OOD (benchmark scores) confirms that the HLE priors capture generalizable model quality correlations.
+3.  **Mitigating Circularity and Self-Grading Bias**: A common concern in LLM-as-a-judge frameworks is "self-preference bias," where a model (e.g., GPT-4o) may favor its own responses. We address this through three layers of mitigation:
+    *   **Hybrid Grading**: ~85% of standard prompts are graded by the **DeBERTa-v3-small** "soft grader." This model was trained on human preferences (HelpSteer2/LMSYS Arena), meaning the majority of the bandit's learning signal is derived from human-aligned proxies rather than GPT-4o itself.
+    *   **OOD Verification**: As discussed above, our Out-of-Distribution experiments replace the LLM judge entirely with **objective benchmark scores**. The fact that the router achieves significant regret reduction on these benchmarks proves that it is learning generalizable quality features, not just "how to please GPT-4o."
+    *   **Relative Optimization**: The bandit optimizes for *relative* regret. Even if GPT-4o were perfectly biased toward itself, the router would still need to learn the relative ranking of the other 79 models to minimize regret when GPT-4o is not the selected arm.
 
 ## 5. Data Acquisition Summary
 
