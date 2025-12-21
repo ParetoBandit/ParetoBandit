@@ -27,10 +27,20 @@ The "HLE Priors" are not a raw dataset, but rather a set of statistical initiali
 The performance of the router was validated using a dedicated evaluation set with ground-truth rewards.
 
 *   **Prompts**: A set of **496 unique prompts**, split into a training set (397) and a testing set (99) for cross-validation.
-*   **Ground Truth Rewards**: For each prompt, we utilized a matrix of rewards representing the "true" quality of each model's response. These rewards were derived from historical LLM-as-a-judge evaluations.
+*   **Ground Truth Rewards**: For each prompt, we utilized a matrix of rewards representing the "true" quality of each model's response. These rewards were derived from a **Tiered LLM-as-a-Judge** system:
+    *   **Judge Models**: We utilized a hybrid grading approach. A "soft grader" (**DeBERTa-v3-small** fine-tuned on NVIDIA HelpSteer2 and LMSYS Arena preferences) handled ~85% of standard conversational prompts. For complex tasks (math, code, logic), the system escalated to a "teacher" judge (**GPT-4o**) via the OpenRouter API.
+    *   **Reward Metric**: The judge provides a quality score in the range [0, 1], which is then logit-transformed for use in the bandit's linear reward model.
 *   **5-Fold Cross-Validation**: Our experiments utilize 5-fold cross-validation across this dataset to provide statistically robust measures of regret reduction.
 
-## 4. Data Acquisition Summary
+## 4. Implications of the LLM-as-a-Judge
+
+The use of an LLM-as-a-judge for ground truth has several important implications for our results:
+
+1.  **Alignment with Judge Preferences**: The Bandit Router learns to select models that align with the preferences of the GPT-4o/DeBERTa hybrid judge. While LLM judges are highly correlated with human preferences, they can exhibit "self-preference" or "verbosity" biases.
+2.  **Relative Regret**: The cumulative regret shown in our figures is calculated relative to the "optimal" model as determined by the judge for each specific prompt. A reduction in regret indicates that the router is successfully learning to predict and match the judge's preferences faster than a cold-start approach.
+3.  **Mitigating Circularity**: To ensure our results were not merely an artifact of GPT-4o's internal biases, we conducted Out-of-Distribution (OOD) evaluations on specialized benchmarks (GSM8K, HumanEval, MMLU). In these experiments, we replaced the LLM judge with **published benchmark scores** as the ground truth. The consistent regret reduction across both LMSYS (LLM judge) and OOD (benchmark scores) confirms that the HLE priors capture generalizable model quality correlations.
+
+## 5. Data Acquisition Summary
 
 | Data Type | Source | Purpose |
 | :--- | :--- | :--- |
