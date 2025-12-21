@@ -116,7 +116,7 @@ def run_real_adaptation_simulation():
     ax1.set_xlabel("Requests")
     ax1.set_ylabel("Selection Rate")
     ax1.set_title("Model Selection: Adaptation", fontweight="bold")
-    ax1.legend(fontsize=6, loc='center left', bbox_to_anchor=(0, 0.5))
+    ax1.legend(fontsize=7, loc='lower right')
     ax1.set_ylim(0, 1.05)
     
     # Right: Rolling Reward (Dip and Recover)
