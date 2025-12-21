@@ -35,7 +35,8 @@ def run_real_adaptation_simulation():
         model_registry=registry,
         priors="benchmark",
         prior_strength=20.0, 
-        exploration="balanced"
+        exploration="balanced",
+        forgetting_factor=0.98
     )
     # Set alpha to allow for visible exploration
     router.bandit.alpha = 1.5 

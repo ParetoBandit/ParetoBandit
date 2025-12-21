@@ -104,11 +104,12 @@ def estimate_tokens_rough(text: str) -> int:
 # ---------------------------------------------------------------------------
 class DisjointLinUCBPolicy:
     """Disjoint LinUCB: one ridge regression per arm."""
-    def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1, ridge_lambda: float = 1.0):
+    def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1, ridge_lambda: float = 1.0, forgetting_factor: float = 1.0):
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
         self.ridge_lambda = float(ridge_lambda)
+        self.gamma = float(forgetting_factor) # Forgetting factor (1.0 = no forgetting)
         # Initialize A=I*lambda, b=0
         self.A = {m: np.eye(self.dim) * self.ridge_lambda for m in self.models}
         self.b = {m: np.zeros(self.dim, dtype=np.float64) for m in self.models}
@@ -137,8 +138,17 @@ class DisjointLinUCBPolicy:
 
     def update(self, model: str, x: np.ndarray, reward: float) -> None:
         if model not in self.A: return
-        self.A[model] += np.outer(x, x)
-        self.b[model] += float(reward) * x
+        
+        # Apply forgetting factor to ALL models (or just the selected one?)
+        # Standard LinUCB with forgetting factor usually applies it to the selected arm's statistics
+        # to allow it to "unlearn" old rewards for that specific arm.
+        self.A[model] = self.gamma * self.A[model] + np.outer(x, x)
+        self.b[model] = self.gamma * self.b[model] + float(reward) * x
+        
+        # Ensure A remains invertible by adding a small ridge if gamma < 1
+        if self.gamma < 1.0:
+            self.A[model] += (1.0 - self.gamma) * np.eye(self.dim) * self.ridge_lambda
+            
         self.A_inv[model] = np.linalg.inv(self.A[model])
 
     def save_state(self, path: Path | str) -> None:
@@ -184,10 +194,16 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         alpha: float = 0.1,
         embedding_dim: int = 384,
+        forgetting_factor: float = 1.0,
     ):
         self.registry = dict(model_registry)
         self.encoder = SentenceTransformer(context_model)
-        self.bandit = DisjointLinUCBPolicy(list(self.registry.keys()), dim=embedding_dim, alpha=alpha)
+        self.bandit = DisjointLinUCBPolicy(
+            list(self.registry.keys()), 
+            dim=embedding_dim, 
+            alpha=alpha,
+            forgetting_factor=forgetting_factor
+        )
         self.logs: List[RoutingLog] = []
         self.model_priors: Dict[str, float] = {} # Optional scalar priors
 
@@ -199,6 +215,7 @@ class BanditRouter:
         priors: str = "benchmark", # Default to HLE
         prior_strength: float = 20.0,
         exploration: str = "safe",
+        forgetting_factor: float = 1.0,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
         benchmark_key: str = "hle",
@@ -231,7 +248,7 @@ class BanditRouter:
         # 3. Initialize
         # Load Saved State (Overrides priors)
         if state_path and Path(state_path).exists():
-            router = cls(model_registry, context_model=context_model, alpha=alpha)
+            router = cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor)
             router.bandit.load_state(state_path)
             return router
 
@@ -251,12 +268,13 @@ class BanditRouter:
                 context_model=context_model,
                 alpha=alpha,
                 prior_strength=prior_strength,
+                forgetting_factor=forgetting_factor,
                 priors_meta_path=meta_path,
                 benchmark_key=benchmark_key
             )
             
         # Cold Start
-        return cls(model_registry, context_model=context_model, alpha=alpha)
+        return cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor)
 
     @classmethod
     def load_from_benchmark(
@@ -267,6 +285,7 @@ class BanditRouter:
         alpha: float,
         prior_strength: float,
         priors_meta_path: Path,
+        forgetting_factor: float = 1.0,
         benchmark_key: str = "hle",
     ) -> "BanditRouter":
         """Initialize with HLE priors using covariance matrix."""
@@ -275,7 +294,13 @@ class BanditRouter:
         sum_vec = meta["sum_vec"]
         dim = sum_vec.shape[0]
         
-        router = cls(model_registry, context_model=context_model, alpha=alpha, embedding_dim=dim)
+        router = cls(
+            model_registry, 
+            context_model=context_model, 
+            alpha=alpha, 
+            embedding_dim=dim,
+            forgetting_factor=forgetting_factor
+        )
         
         # Ridge Update: A += strength * Cov, b += strength * score * Sum
         # NORMALIZATION FIX: Divide by N (26223) to make strength mean "number of observations"
