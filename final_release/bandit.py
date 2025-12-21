@@ -194,6 +194,7 @@ class BanditRouter:
         exploration: str = "safe",
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
+        benchmark_key: str = "hle",
     ) -> "BanditRouter":
         """
         Create a configured router.
@@ -204,6 +205,7 @@ class BanditRouter:
             prior_strength: Strength of the prior (default 20.0).
             exploration: "static", "safe", "balanced", "aggressive".
             state_path: Optional path to a saved bandit state (.npz).
+            benchmark_key: Key in models.json to use for priors (default "hle").
         """
         base_dir = Path(__file__).parent
         
@@ -242,7 +244,8 @@ class BanditRouter:
                 context_model=context_model,
                 alpha=alpha,
                 prior_strength=prior_strength,
-                priors_meta_path=meta_path
+                priors_meta_path=meta_path,
+                benchmark_key=benchmark_key
             )
             
         # Cold Start
