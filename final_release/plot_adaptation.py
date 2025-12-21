@@ -110,14 +110,14 @@ def run_real_adaptation_simulation():
         ax1.plot(steps, selection_rates[m], color=colors[m], lw=2, label=label)
     
     ax1.axvline(x=n_phase1, color='black', ls='--', alpha=0.5)
-    ax1.text(n_phase1/2, 0.9, "Coding", ha='center', fontweight='bold')
-    ax1.text(n_phase1 + n_phase2/2, 0.9, "Specialist", ha='center', fontweight='bold')
+    ax1.text(n_phase1/2, 1.15, "Coding", ha='center', fontweight='bold')
+    ax1.text(n_phase1 + n_phase2/2, 1.15, "Specialist", ha='center', fontweight='bold')
     
     ax1.set_xlabel("Requests")
     ax1.set_ylabel("Selection Rate")
     ax1.set_title("Model Selection: Adaptation", fontweight="bold")
-    ax1.legend(fontsize=7, loc='lower right')
-    ax1.set_ylim(0, 1.05)
+    ax1.legend(fontsize=7, loc='upper right')
+    ax1.set_ylim(0, 1.3)
     
     # Right: Rolling Reward (Dip and Recover)
     window = 30
