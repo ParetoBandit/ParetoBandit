@@ -16,13 +16,15 @@ def main():
     
     # 1. Load Models and Costs
     print("Loading models and costs...")
-    with open(base_dir / "models.json") as f:
+    # Look in the final_release root (two levels up)
+    root_dir = base_dir.parent.parent
+    with open(root_dir / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
     # 2. Initialize Router with HLE Priors
     print("Initializing router with HLE priors...")
-    priors_meta_path = base_dir / "data/priors_meta_large.npz"
+    priors_meta_path = root_dir / "data/priors_meta_large.npz"
     router = BanditRouter.load_from_benchmark(
         model_registry=registry,
         context_model="sentence-transformers/all-MiniLM-L6-v2",
@@ -88,10 +90,24 @@ def main():
     plt.scatter(p_costs, p_confs, color='#e74c3c', s=80, edgecolors='black', label='Pareto Optimal Models')
     
     # Label Pareto Models
-    for d in pareto_points:
-        # Adjust label position slightly based on cost to avoid overlap
+    for i, d in enumerate(pareto_points):
+        # Manual offsets for the first few models which are very crowded
+        if i == 0: # Gemma
+            y_off, x_off = 10, -30
+        elif i == 1: # Llama 3.2
+            y_off, x_off = -15, -10
+        elif i == 2: # DeepSeek
+            y_off, x_off = 12, -20
+        elif i == 3: # Qwen
+            y_off, x_off = -15, 5
+        elif i == 4: # gpt-oss-20B
+            y_off, x_off = 10, 5
+        else:
+            # Alternate others
+            y_off, x_off = (5, 5) if i % 2 == 0 else (-12, 5)
+            
         plt.annotate(d["name"], (d["cost"], d["confidence"]), 
-                     xytext=(5, 5), textcoords='offset points', fontsize=8, fontweight='bold')
+                     xytext=(x_off, y_off), textcoords='offset points', fontsize=8, fontweight='bold')
     
     plt.xscale('log')
     plt.xlabel("Cost per 1M Blended Tokens ($)", fontsize=12)
