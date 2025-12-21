@@ -1,0 +1,92 @@
+% Distillation Diagram - Shippable Priors Creation
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,calc,fit,backgrounds,decorations.pathreplacing}
+
+\begin{document}
+
+\tikzstyle{phase} = [rectangle, draw, fill=gray!10, text width=10em, text centered, rounded corners, minimum height=2em, font=\bfseries]
+\tikzstyle{block} = [rectangle, draw, fill=blue!20, text width=8em, text centered, rounded corners, minimum height=2.5em]
+\tikzstyle{datablock} = [rectangle, draw, fill=green!20, text width=7em, text centered, rounded corners, minimum height=2em]
+\tikzstyle{outputblock} = [rectangle, draw, fill=purple!30, text width=8em, text centered, rounded corners, minimum height=3em]
+\tikzstyle{arrow} = [thick,->,>=stealth]
+
+\begin{tikzpicture}[node distance=1.2cm, auto]
+
+% PHASE 1: Offline Teacher Supervision
+\node [phase] (phase1) {PHASE 1: Offline Distillation};
+
+\node [datablock, below=of phase1] (dataset) {Calibration\\Dataset\\{\small 2k prompts}};
+
+\node [block, below=of dataset, fill=orange!20] (teacher) {Teacher Model\\{\small GPT-4o}\\{\small Ground Truth}};
+
+\node [datablock, below=of teacher] (labels) {Quality Labels\\{\small $Q(x,m) \in [0,1]$}};
+
+% PHASE 2: Covariance Learning
+\node [phase, right=3cm of phase1] (phase2) {PHASE 2: Covariance Learning};
+
+\node [block, below=of phase2] (embedding) {Embed Prompts\\{\small $\mathbf{x} \in \mathbb{R}^{384}$}};
+
+\node [block, below=of embedding] (bandit) {Train Bandit\\{\small Per-Model\\Covariance}};
+
+\node [datablock, below=of bandit] (covariance) {$\mathbf{A}_m \in \mathbb{R}^{384 \times 384}$\\{\small Per-model}};
+
+% PHASE 3: Compression
+\node [phase, right=3cm of phase2] (phase3) {PHASE 3: Compression};
+
+\node [block, below=of phase3] (compress) {Low-Rank\\Approximation\\{\small SVD/PCA}};
+
+\node [outputblock, below=of compress] (prior) {Shippable Prior\\{\small <1MB total}\\{\small 81 models}};
+
+\node [datablock, below=of prior] (metadata) {+ API Metadata\\{\small cost, latency}};
+
+% Arrows - Horizontal Flow
+\draw [arrow] (phase1) -- (phase2);
+\draw [arrow] (phase2) -- (phase3);
+
+% Arrows - Vertical Flow Phase 1
+\draw [arrow] (dataset) -- (teacher);
+\draw [arrow] (teacher) -- node[right, text width=2.5cm, align=center, font=\scriptsize] {Run all models\\Get rewards} (labels);
+
+% Arrows - Vertical Flow Phase 2
+\draw [arrow] (labels) -| node[near start, above, font=\scriptsize] {Features} (embedding);
+\draw [arrow] (embedding) -- (bandit);
+\draw [arrow] (bandit) -- node[right, text width=2.5cm, align=center, font=\scriptsize] {$\mathbf{A}_m = \sum \mathbf{x}\mathbf{x}^T$} (covariance);
+
+% Arrows - Vertical Flow Phase 3
+\draw [arrow] (covariance) -| (compress);
+\draw [arrow] (compress) -- node[right, font=\scriptsize] {Compress} (prior);
+\draw [arrow] (prior) -- (metadata);
+
+% Bottom: Deployment
+\node [outputblock, below=2cm of bandit, fill=green!30, text width=12em, minimum height=3em] (deploy) {
+\textbf{Deployment Ready}\\
+Download 1MB prior\\
+Zero user calibration needed
+};
+
+\draw [arrow, thick, dashed] (metadata) -| (deploy);
+\draw [arrow, thick, dashed] (prior) -- (deploy);
+
+% Annotations
+\node[draw, dashed, fit=(dataset) (teacher) (labels), inner sep=0.3cm, fill=yellow!10, opacity=0.3, label=left:\textbf{Expensive}] (offline) {};
+
+\node[draw, dashed, fit=(embedding) (bandit) (covariance), inner sep=0.3cm, fill=blue!10, opacity=0.3] (learning) {};
+
+\node[draw, dashed, fit=(compress) (prior) (metadata), inner sep=0.3cm, fill=purple!10, opacity=0.3, label=right:\textbf{Shipped}] (shipping) {};
+
+% Timeline annotation
+\draw [decorate, decoration={brace, amplitude=10pt, mirror}] 
+  (-1.5,-8.5) -- (-1.5,-0.5) node [midway, left=0.3cm, text width=2.5cm, align=center, font=\scriptsize] {
+  One-time\\offline cost\\(Author-borne)
+};
+
+\draw [decorate, decoration={brace, amplitude=10pt}] 
+  (10.5,-0.5) -- (10.5,-6.5) node [midway, right=0.3cm, text width=2.5cm, align=center, font=\scriptsize] {
+  Amortized\\across all\\users
+};
+
+\end{tikzpicture}
+
+\end{document}
+

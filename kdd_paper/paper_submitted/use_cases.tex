@@ -1,0 +1,53 @@
+% ============================================================================
+% SECTION 1.5: DEMOCRATIZATION THROUGH USE CASES
+% ============================================================================
+
+\section{Democratization Through Adaptive Routing}
+\label{sec:use_cases}
+
+To ground our technical contributions in real-world impact, we illustrate how \ours{} enables previously infeasible workflows across diverse user segments. Each scenario demonstrates the barrier that high LLM costs create and how adaptive routing removes it.
+
+\subsection{Student Projects: Enabling AI Education at Scale}
+
+\paragraph{Scenario.} A computer science student developing a research paper summarization tool as a capstone project needs to process 5,000 academic abstracts. Using GPT-4o exclusively costs \$21.90 (5,000 queries × \$4.38 per 1k)---prohibitive for a course assignment with zero funding.
+
+\paragraph{With BanditGPT.} The router identifies that 72\% of abstracts (straightforward summaries) can be handled by Gemini~Flash~Lite (\$0.10/1k), while 28\% (complex technical content) require GPT-4o. Total cost: \textbf{\$3.50}---an 84\% reduction that makes the project viable. The student gains hands-on AI experience that frontier-only pricing would have denied.
+
+\paragraph{Broader Impact.} By reducing the economic barrier to entry, \ours{} expands access to AI education from elite institutions with generous API budgets to community colleges and under-resourced programs. Students learn to build AI-augmented applications without financial gatekeeping.
+
+\subsection{Independent Researchers: Unlocking Qualitative Analysis}
+
+\paragraph{Scenario.} A social science researcher analyzing 10,000 interview transcripts for thematic patterns using LLM-assisted coding. Frontier-model costs (\$43.80 per 1k queries × 10k = \$438) are prohibitive without grant funding, forcing reliance on manual coding or abandonment of computational methods.
+
+\paragraph{With BanditGPT.} \ours{} allocates expensive models only to nuanced, ambiguous passages requiring deep reasoning (12\% of transcripts), while routing straightforward thematic tagging to cost-efficient specialists. Total cost: \textbf{\$14.20}---a 68\% reduction that fits within discretionary budgets. The researcher gains access to computational methods previously reserved for well-funded labs.
+
+\paragraph{Methodological Shift.} Cost-efficient routing enables \emph{exploratory analysis} rather than hypothesis-driven workflows. Researchers can afford iterative prompt refinement, testing multiple coding schemes without budget anxiety. This shifts AI from a luxury tool to a standard methodological component.
+
+\subsection{Startups: Converting AI from Cost Center to Differentiator}
+
+\paragraph{Scenario.} An early-stage legal tech startup building an automated contract review tool serves 500 users generating 100k queries monthly. At GPT-4o pricing (\$438 per 100k), annual inference costs exceed \$52,000---unsustainable for a pre-revenue company with 18-month runway.
+
+\paragraph{With BanditGPT.} Standard mode reduces costs to \textbf{\$70 per 100k} (\$8,400 annually)---an 84\% reduction that converts AI from an existential risk to a viable feature. Hybrid mode (\$134 per 100k = \$16,080 annually) provides high-assurance routing for risk-sensitive legal queries while maintaining affordability.
+
+\paragraph{Product Viability.} This cost structure enables the startup to offer competitive pricing (\$15/user/month) that undercuts incumbents while maintaining healthy margins. Without adaptive routing, the company would face a binary choice: eliminate AI features or accept negative unit economics. \ours{} creates a third path: affordable, reliable AI that scales with user growth.
+
+\subsection{Enterprises: Scaling AI Automation Profitably}
+
+\paragraph{Scenario.} A Fortune 500 customer support organization processing 10M queries annually considers LLM-powered ticket triage and response generation. At frontier-model pricing (\$4.38/1k), annual costs reach \textbf{\$43.8M}---prohibitive despite clear efficiency gains (reducing human agent time by 40\%).
+
+\paragraph{With BanditGPT.} Standard mode reduces costs to \textbf{\$7.0M annually} (84\% reduction), delivering positive ROI when balanced against agent cost savings (\$25M in reduced labor). Hybrid mode (\$13.4M) provides selective verification for high-stakes queries (billing disputes, account closures) while maintaining cost-effectiveness on routine inquiries.
+
+\paragraph{Organizational Transformation.} At these economics, AI transitions from experimental pilot to core infrastructure. The enterprise deploys LLMs across customer support, internal knowledge bases, document processing, and code generation---workflows where frontier-only pricing blocked adoption despite technical feasibility.
+
+\subsection{Cross-Cutting Themes}
+
+Three patterns emerge across these use cases:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Volume Enablement:} Cost reduction directly translates to increased experimentation volume. Students run 6× more experiments; researchers analyze larger datasets; startups serve more users.
+    \item \textbf{Quality Preservation:} Users do not sacrifice reliability for affordability. Hybrid mode provides a tunable dial, allowing calibration to domain-specific risk tolerance.
+    \item \textbf{Creativity Unlocking:} When cost ceases to be the primary constraint, users shift from ``Can we afford this?'' to ``What becomes possible?'' This cognitive shift drives innovation in application design and problem formulation.
+\end{enumerate}
+
+\paragraph{Design Philosophy.} These scenarios informed \ours{}'s architecture: cold-start efficiency targets users who cannot afford exploration; tunable $\lambda$ supports diverse risk profiles; open-source release ensures zero licensing barriers. The technical contributions in \S\ref{sec:method} exist not as ends in themselves, but as mechanisms for democratizing access to LLM capabilities.
+

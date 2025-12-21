@@ -1,0 +1,25 @@
+% ============================================================================
+% SECTION: CONCLUSION (CONCISE - Compressed from 0.75 to 0.5 pages)
+% ============================================================================
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+The fragmentation of the LLM ecosystem into 80+ specialized models offers unprecedented cost-reduction opportunities, yet adaptive routing remains inaccessible due to operational barriers: existing tools require labeled datasets, scorer training, and days of setup. We presented \ours{}, a framework that democratizes adaptive routing through shippable priors (enabling zero-calibration deployment), zero-benchmark model addition (30-second registration vs.\ days of profiling), and intuitive constraint interfaces (\texttt{max\_budget}, \texttt{min\_quality}). Evaluation on 2,000 prompts across 81 models demonstrates 61--84\% cost reduction while maintaining 95--98\% accuracy, with routing overhead of 8.94ms P99 (1.1\% of latency).
+
+By removing expertise barriers alongside economic barriers, we expand the accessible user base from ML specialists (a single-digit share of developers, $\approx$5\%) to general programmers (the large majority, $\approx$70--80\%)---an order-of-magnitude expansion ($\approx 15$--$25\times$) in the addressable developer base~\cite{stackoverflow2024survey,github2025developer,evansdata2024population}. This estimate derives from industry surveys: the 2024 Stack Overflow Developer Survey reports that ML/AI specialists comprise a small fraction of professional developers ($\approx$4--6\%), while general software developers proficient in Python/JavaScript (the skill level required for \ours{}) comprise the vast majority ($\approx$70--80\%), yielding a conservative 15--25$\times$ baseline expansion. Category definitions differ slightly between surveys; we report approximate ranges and focus on the order-of-magnitude gap rather than exact percentages. GitHub's 2024 Octoverse report corroborates this order-of-magnitude expansion, noting that while AI-related contributions are surging, the primary developer population remains focused on general application development. This "multiplier effect" of AI democratization aligns with recent systematic reviews~\cite{chan2025democratizing}, which highlight how lowering technical barriers accelerates innovation across diverse domains. This work demonstrates that democratizing AI access requires addressing not only algorithmic efficiency, but the operational complexity that confines proven techniques to specialized teams.
+
+\paragraph{Future Work.}
+Promising directions include: \textbf{(1)} Extending priors to multimodal routing (vision, audio); \textbf{(2)} Adaptive prior updating as model capabilities evolve; \textbf{(3)} Privacy-preserving prior distillation for enterprise deployments; \textbf{(4)} Integration with prompt optimization frameworks to jointly optimize prompts and model selection.
+
+\paragraph{Broader Impact.}
+By expanding access to cost-efficient AI, we enable resource-constrained users---students, independent researchers, small teams---to experiment at volumes previously reserved for well-funded organizations. This democratization can accelerate innovation in underserved domains (education, nonprofit research, civic applications) where budgets constrain exploration.
+
+\textbf{Environmental Sustainability.} Strategic routing also acts as a lever for Green AI. Routing a query to a cost-efficient specialist (e.g., Nova-Micro) instead of a frontier model (e.g., GPT-4o) suggests a substantial reduction in compute and associated energy use per inference~\cite{luccioni2023power}. Our evaluation shows that \ours{} shifts 45.5\% of traffic to cost-efficient specialists while maintaining 95--98\% accuracy. Extrapolating to production scale under similar traffic patterns, this represents substantial reductions in datacenter energy consumption and carbon footprint compared to frontier-only deployments.
+
+However, broader adoption of LLMs raises concerns about labor displacement and potential misuse. We emphasize that \ours{} is a tool for \emph{optimization}, not advocacy for uncritical LLM deployment. Users must consider ethical implications of their applications alongside technical metrics.
+
+\paragraph{Call for Accessible AI Infrastructure.}
+The AI community has made remarkable progress in algorithmic innovation, yet deployment barriers limit real-world impact. We advocate for: open-source tools with pre-trained components (shippable priors, embeddings), accessible interfaces requiring minimal ML expertise, and transparent cost-quality trade-offs. By prioritizing operational simplicity, we can expand AI's transformative potential from elite institutions to anyone with creativity and an internet connection.
+
+

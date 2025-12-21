@@ -1,0 +1,58 @@
+% ============================================================================
+% INTRODUCTION (REVISED v2 - Dual Barriers: Cost + Expertise)
+% ============================================================================
+
+\section{Introduction}
+\label{sec:introduction}
+
+The transformative potential of Large Language Models (LLMs) remains largely inaccessible due to two compounding barriers. While frontier models like GPT-4o and Claude~3.5~Sonnet demonstrate remarkable capabilities across reasoning, coding, and creative tasks, their deployment costs---\$4--15 per 1,000 queries---create economic barriers for resource-constrained users. Simultaneously, existing tools for cost optimization require \emph{expertise barriers}: extensive ML knowledge, labeled calibration datasets, and days of setup time. Students cannot afford exploratory experiments and lack training data for calibration. Independent researchers face prohibitive costs and lack computational infrastructure. Startups must choose between burning runway on inference costs or hiring ML engineers to implement complex routing systems. The result is systematic over-provisioning: users default to expensive frontier models out of both uncertainty and lack of accessible alternatives.
+
+This dual-barrier crisis persists despite favorable market evolution. The LLM ecosystem has fragmented into over 80 commercially available models spanning reasoning-optimized generalists (e.g., GPT-4o), domain-specific specialists (e.g., DeepSeek~Coder), and ultra-efficient distillations (e.g., Gemini~Flash~Lite at \$0.10 per 1k queries). Adaptive routing systems demonstrate that strategic model selection can reduce costs by 60--80\% without quality degradation~\cite{chen2023frugalgpt,ong2024routellm}. Yet these systems remain inaccessible to the majority of potential users.
+
+\paragraph{Why Existing Tools Don't Democratize Access.} Current adaptive routing approaches face operational barriers that limit adoption:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Calibration requirements:} FrugalGPT~\cite{chen2023frugalgpt} often needs hundreds to thousands of labeled examples to optimize model chains and train domain-specific scoring functions. A student lacks annotated data; a startup lacks time to collect it; a researcher in the humanities lacks ML infrastructure to process it.
+    \item \textbf{Expertise dependencies:} Effective cascade design requires deep knowledge of LLM capabilities to manually curate model tiers and balance precision-recall trade-offs in verification. This specialist knowledge is unavailable to most potential users.
+    \item \textbf{Maintenance overhead:} Static systems require expensive recalibration when model capabilities evolve or new models launch. In rapidly evolving markets (80+ models, weekly releases), $O(N)$ maintenance creates a continuous operational burden.
+    \item \textbf{Setup complexity:} Implementing existing systems takes days to weeks, requiring cross-organizational coordination (ML teams + domain experts) and iterative tuning. This timeline eliminates rapid experimentation and deters exploratory use cases.
+\end{itemize}
+
+Consequently, adaptive routing remains confined to organizations with dedicated ML teams---precisely the opposite of democratization.
+
+\paragraph{Our Contribution: Accessibility Through Simplicity.} We present \ours{}, an open-source routing framework designed to remove both cost and expertise barriers through three core principles:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Zero-Calibration Deployment:} Through \emph{shippable priors}---compact covariance matrices distilled offline from expert supervision---\ours{} achieves production-ready routing from the first query. Users download a 1MB prior file and deploy in minutes, without providing labeled data or training scoring functions. This eliminates the calibration barrier that prices out students, researchers, and small teams.
+    
+    \item \textbf{Autonomous Model Discovery:} By decoupling prompt-difficulty learning from model-capability profiling, \ours{} operates without manual chain design. The system autonomously discovers which models excel for which prompt types through online exploration, removing the need for LLM expertise. When new models launch, users register via public metadata (seconds) rather than re-running benchmarks (days).
+    
+    \item \textbf{Tunable Simplicity:} A single sensitivity parameter ($\lambda$) enables smooth navigation between operational modes. Standard mode (\$0.70 per 1k queries, 61\% cheaper than FrugalGPT) maximizes experimentation volume for students and researchers. Hybrid mode (\$1.34 per 1k, 98\% reliability) provides selective verification for production deployments. Users dial between "cost leader" and "high assurance" without architectural changes or ML expertise.
+\end{enumerate}
+
+\paragraph{Learning from Prior Work.} Rather than competing with existing systems, we learn from their strengths and address their accessibility limitations. FrugalGPT demonstrates that cascading achieves high reliability---we incorporate this via our hybrid mode. RouteLLM shows that preference learning captures user intent---we leverage this through offline distillation. Standard contextual bandits provide principled exploration---we preserve this while eliminating cold-start costs (\$50--200) through warm-start initialization. Our contribution is not algorithmic novelty for its own sake, but \emph{operational accessibility}: making adaptive routing deployable by anyone with basic programming skills, not just ML specialists.
+
+\paragraph{Impact Across User Segments.} By removing dual barriers, \ours{} unlocks previously infeasible use cases:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Students:} Deploy in 5 minutes without labeled data or ML coursework. Process 5k abstracts for \$3.50 (vs.\ \$21.90 GPT-4o-only), enabling AI education access beyond elite institutions.
+    \item \textbf{Independent Researchers:} Afford large-scale qualitative analysis (\$14.20 vs.\ \$438) without ML infrastructure or training data. Iterate on coding schemes through experimentation rather than upfront optimization.
+    \item \textbf{Startups:} Deploy without hiring ML engineers (\$150k+ salary). Reduce inference costs by 84\% (\$8.4k vs.\ \$52k annually) while maintaining engineering autonomy.
+    \item \textbf{Enterprises:} Enable decentralized AI adoption. Support, sales, and HR teams deploy independently (2 weeks vs.\ 6--12 months), eliminating ML team dependencies that create organizational bottlenecks.
+\end{itemize}
+
+\paragraph{Technical Validation for Trust.} For users to adopt accessible routing, they must trust that ease of use does not sacrifice quality. This paper provides rigorous empirical proof:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Warm-Start Efficiency (\S\ref{sec:rq1}):} Pre-trained priors achieve 64.6\% regret reduction vs.\ cold-start, with zero user-provided calibration data.
+    \item \textbf{Adaptive Plasticity (\S\ref{sec:rq2}):} \ours{} autonomously corrects for model capability drift and teacher bias, ensuring long-term reliability without manual intervention.
+    \item \textbf{Accessibility-Performance Trade-Off (\S\ref{sec:rq3}):} Standard mode reduces costs by 61\% vs.\ FrugalGPT (\$0.70 vs.\ \$1.78 per 1k) despite eliminating calibration requirements. Hybrid mode matches FrugalGPT's reliability (95\% accuracy) while operating over an 80+ model pool and outperforming on instruction-following tasks (98\% vs.\ 95\%).
+    \item \textbf{Production Viability (\S\ref{sec:engineering}):} Routing overhead is 8.94ms P99 (1.1\% of total latency). Setup time is minutes (vs.\ days for baselines). Required expertise is none (vs.\ ML team for baselines).
+\end{itemize}
+
+\paragraph{Complementary Alternatives, Not Competition.} We position \ours{} not as a superior replacement, but as a complementary alternative optimized for different operational contexts. FrugalGPT excels when users have labeled data, ML expertise, and stable prompt distributions where upfront optimization costs amortize over long deployments. \ours{} excels when users lack calibration data or specialists, face rapidly evolving model ecosystems, or prioritize rapid deployment over asymptotic optimality. Both approaches are valuable; we expand the accessibility frontier to users for whom existing tools remain out of reach.
+
+\paragraph{Open-Source Release for Maximum Impact.} To ensure accessibility extends beyond algorithm design to actual deployment, we release \ours{} as open-source software with pre-trained priors. Users can deploy immediately without data collection, model training, or configuration tuning---reducing the barrier from "requires ML team" to "requires pip install." By providing a trustworthy, production-ready tool with minimal setup friction, we aim to shift the default from "use expensive models to be safe" to "use adaptive routing to be effective and sustainable."
+
+The remainder of this paper presents the technical framework enabling these capabilities (\S\ref{sec:method}), experimental validation across production-scale benchmarks (\S\ref{sec:evaluation}), and comparative analysis showing how operational simplicity complements technical performance (\S\ref{sec:related}, \S\ref{sec:qualitative}).
+

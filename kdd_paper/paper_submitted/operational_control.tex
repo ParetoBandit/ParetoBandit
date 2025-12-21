@@ -1,0 +1,116 @@
+% ============================================================================
+% OPERATIONAL CONTROL SECTION
+% To be added as Section 2.10 in method.tex or standalone section
+% ============================================================================
+
+\subsection{Operational Control for Non-Experts}
+\label{sec:operational_control}
+
+Beyond technical performance, \ours{} provides two operational capabilities that enable non-expert users to deploy adaptive routing without ML expertise: zero-benchmark model addition and intuitive constraint specification.
+
+\paragraph{Zero-Benchmark Model Addition.}
+When a new model releases (e.g., Llama-3.3-70B on December 6, 2024~\cite{meta2024llama33}), users add it to the routing pool without running any benchmarks:
+
+\begin{small}
+\begin{verbatim}
+router.register_model(
+    name="llama-3.3-70b",
+    cost_per_1k=0.88,
+    claimed_quality=0.85
+)
+\end{verbatim}
+\end{small}
+
+The bandit initializes a new arm with the shippable priors and begins autonomous exploration. Within 50--100 queries, it learns the model's contextual strengths through online feedback, \textit{without} requiring the user to:
+
+\begin{itemize}[leftmargin=*,nosep]
+    \item Collect a benchmark dataset
+    \item Run the model on test queries (\$\$)
+    \item Grade outputs via LLM-as-judge (\$\$)
+    \item Retrain any classifier
+    \item Update configuration beyond registration
+\end{itemize}
+
+\noindent\textbf{Contrast with static systems:} FrugalGPT requires re-running the entire calibration dataset (2,000 queries $\times$ new model cost + evaluation cost $\approx$ \$20--50). RouteLLM requires retraining the classifier on an expanded dataset. \ours{}'s $O(1)$ registration eliminates this barrier, enabling users to track market evolution in real-time.
+
+\paragraph{Intuitive Budget and Quality Constraints.}
+Users specify operational constraints through natural parameters rather than ML hyperparameters. This design makes adaptive routing accessible to non-technical decision-makers (e.g., startup founders, research PIs, educators) who understand budgets but not bandits.
+
+\textbf{Example 1: Hard Budget Constraint.}
+A student with \$50 budget for 10,000 queries:
+
+\begin{small}
+\begin{verbatim}
+router = Router(
+    max_cost_per_1k=5.00,
+    min_quality=0.70
+)
+\end{verbatim}
+\end{small}
+
+The router automatically excludes models exceeding the budget and maximizes quality within the constraint.
+
+\textbf{Example 2: Quality Floor with Cost Optimization.}
+An enterprise requiring 95\% reliability:
+
+\begin{small}
+\begin{verbatim}
+router = Router(
+    min_quality=0.95,
+    lambda_cost=10
+)
+\end{verbatim}
+\end{small}
+
+The router restricts exploration to models with high confidence of meeting 95\% quality, then optimizes for minimum cost within that subset.
+
+\textbf{Example 3: Latency-Sensitive Applications.}
+A real-time chatbot with 500ms latency budget:
+
+\begin{small}
+\begin{verbatim}
+router = Router(
+    max_latency_ms=500,
+    lambda_cost=5
+)
+\end{verbatim}
+\end{small}
+
+The router excludes slow models and optimizes cost-quality within the latency constraint.
+
+\paragraph{Why This Matters for Accessibility.}
+These interfaces expose control in domain terms (dollars, percentages, milliseconds) rather than ML terms (alpha hyperparameters, exploration rates, covariance regularization). A startup founder can specify ``I have \$500/month for AI'' without understanding Thompson Sampling. A researcher can set ``I need 90\% accuracy'' without tuning confidence bounds. This abstraction is critical for democratization: users control outcomes without requiring expertise in the underlying mechanism.
+
+% ============================================================================
+% OPERATIONAL COMPARISON TABLE
+% ============================================================================
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Operational Capabilities Comparison.} BanditGPT enables non-experts to control routing through intuitive constraints and zero-friction model updates.}
+\label{tab:operational_capabilities}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Capability} & \textbf{FrugalGPT} & \textbf{RouteLLM} & \textbf{BanditGPT} \\
+\midrule
+\multicolumn{4}{l}{\textit{Model Management}} \\
+Add New Model & Benchmarks & Retrain & 30s config \\
+Time to Add & 1--3 days & 1--2 days & 30 seconds \\
+Cost to Add & \$20--50 & \$20--50 & \$0 \\
+Expertise & ML engineer & ML engineer & Config edit \\
+\midrule
+\multicolumn{4}{l}{\textit{User Control}} \\
+Budget Constraint & Manual & \xmark & \texttt{max\_cost} \\
+Quality Floor & Threshold & Binary & \texttt{min\_quality} \\
+Latency Limit & \xmark & \xmark & \texttt{max\_latency} \\
+Interface & Expert & Simple & Intuitive \\
+\midrule
+\multicolumn{4}{l}{\textit{Adaptation}} \\
+Price Changes & Manual & Manual & Automatic \\
+Model Updates & Re-benchmark & Retrain & Self-correct \\
+Budget Tracking & External & \xmark & Built-in \\
+\bottomrule
+\end{tabular}
+\end{table}
+

@@ -1,0 +1,248 @@
+%%% -*-BibTeX-*-
+%%% Do NOT edit. File created by BibTeX with style
+%%% ACM-Reference-Format-Journals [18-Jan-2012].
+
+\begin{thebibliography}{16}
+
+%%% ====================================================================
+%%% NOTE TO THE USER: you can override these defaults by providing
+%%% customized versions of any of these macros before the \bibliography
+%%% command.  Each of them MUST provide its own final punctuation,
+%%% except for \shownote{} and \showURL{}.  The latter two
+%%% do not use final punctuation, in order to avoid confusing it with
+%%% the Web address.
+%%%
+%%% To suppress output of a particular field, define its macro to expand
+%%% to an empty string, or better, \unskip, like this:
+%%%
+%%% \newcommand{\showURL}[1]{\unskip}   % LaTeX syntax
+%%%
+%%% \def \showURL #1{\unskip}           % plain TeX syntax
+%%%
+%%% ====================================================================
+
+\ifx \showCODEN    \undefined \def \showCODEN     #1{\unskip}     \fi
+\ifx \showISBNx    \undefined \def \showISBNx     #1{\unskip}     \fi
+\ifx \showISBNxiii \undefined \def \showISBNxiii  #1{\unskip}     \fi
+\ifx \showISSN     \undefined \def \showISSN      #1{\unskip}     \fi
+\ifx \showLCCN     \undefined \def \showLCCN      #1{\unskip}     \fi
+\ifx \shownote     \undefined \def \shownote      #1{#1}          \fi
+\ifx \showarticletitle \undefined \def \showarticletitle #1{#1}   \fi
+\ifx \showURL      \undefined \def \showURL       {\relax}        \fi
+% The following commands are used for tagged output and should be
+% invisible to TeX
+\providecommand\bibfield[2]{#2}
+\providecommand\bibinfo[2]{#2}
+\providecommand\natexlab[1]{#1}
+\providecommand\showeprint[2][]{arXiv:#2}
+
+\bibitem[Abbasi-Yadkori et~al\mbox{.}(2011)]%
+        {abbasi2011improved}
+\bibfield{author}{\bibinfo{person}{Yasin Abbasi-Yadkori},
+  \bibinfo{person}{D{\'a}vid P{\'a}l}, {and} \bibinfo{person}{Csaba
+  Szepesv{\'a}ri}.} \bibinfo{year}{2011}\natexlab{}.
+\newblock \showarticletitle{Improved Algorithms for Linear Stochastic Bandits}.
+\newblock \bibinfo{journal}{\emph{Advances in Neural Information Processing
+  Systems}}  \bibinfo{volume}{24} (\bibinfo{year}{2011}).
+\newblock
+
+
+\bibitem[{Anthropic}(2024)]%
+        {anthropic2024pricing}
+\bibfield{author}{\bibinfo{person}{{Anthropic}}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{{Anthropic Claude API Pricing}}.
+\newblock \bibinfo{howpublished}{\url{https://www.anthropic.com/api}}.
+\newblock
+\newblock
+\shownote{Claude 3.5 Sonnet pricing: \$3.00/1M input tokens, \$15.00/1M output
+  tokens (accessed December 2024)}.
+
+
+\bibitem[{Aurelio Labs}(2024)]%
+        {aureliolabs2024semantic}
+\bibfield{author}{\bibinfo{person}{{Aurelio Labs}}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{{Semantic Router: Intent-Based LLM Routing}}.
+\newblock
+  \bibinfo{howpublished}{\url{https://github.com/aurelio-labs/semantic-router}}.
+\newblock
+\newblock
+\shownote{Open-source library for intent classification-based LLM routing}.
+
+
+\bibitem[Chen et~al\mbox{.}(2024)]%
+        {chen2023frugalgpt}
+\bibfield{author}{\bibinfo{person}{Lingjiao Chen}, \bibinfo{person}{Matei
+  Zaharia}, {and} \bibinfo{person}{James Zou}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{FrugalGPT: How to Use Large Language Models While
+  Reducing Cost and Improving Performance}.
+\newblock \bibinfo{journal}{\emph{Transactions on Machine Learning Research}}
+  (\bibinfo{year}{2024}).
+\newblock
+
+
+\bibitem[{GitHub}(2024)]%
+        {github2025developer}
+\bibfield{author}{\bibinfo{person}{{GitHub}}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{The State of the Octoverse 2024: Developer Trends and
+  Insights}.
+\newblock
+\urldef\tempurl%
+\url{https://github.blog/news-insights/octoverse/octoverse-2024/}
+\showURL{%
+\tempurl}
+\newblock
+\shownote{Reports 100M+ developers globally, with AI/ML practitioners estimated
+  at 4-6\% of the developer population}.
+
+
+\bibitem[Kadavath et~al\mbox{.}(2022)]%
+        {kadavath2022language}
+\bibfield{author}{\bibinfo{person}{Saurav Kadavath}, \bibinfo{person}{Tom
+  Conerly}, \bibinfo{person}{Amanda Askell}, \bibinfo{person}{Tom Henighan},
+  \bibinfo{person}{Dawn Drain}, \bibinfo{person}{Ethan Perez},
+  \bibinfo{person}{Nicholas Schiefer}, \bibinfo{person}{Zac Hatfield-Dodds},
+  \bibinfo{person}{Nova DasSarma}, \bibinfo{person}{Eli Tran-Johnson},
+  {et~al\mbox{.}}} \bibinfo{year}{2022}\natexlab{}.
+\newblock \showarticletitle{Language Models (Mostly) Know What They Know}.
+\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2207.05221}}
+  (\bibinfo{year}{2022}).
+\newblock
+
+
+\bibitem[Li et~al\mbox{.}(2010)]%
+        {li2010contextual}
+\bibfield{author}{\bibinfo{person}{Lihong Li}, \bibinfo{person}{Wei Chu},
+  \bibinfo{person}{John Langford}, {and} \bibinfo{person}{Robert~E Schapire}.}
+  \bibinfo{year}{2010}\natexlab{}.
+\newblock \showarticletitle{A Contextual-Bandit Approach to Personalized News
+  Article Recommendation}. In \bibinfo{booktitle}{\emph{Proceedings of the 19th
+  International Conference on World Wide Web}}. ACM, \bibinfo{pages}{661--670}.
+\newblock
+
+
+\bibitem[Liang et~al\mbox{.}(2022)]%
+        {liang2022holistic}
+\bibfield{author}{\bibinfo{person}{Percy Liang}, \bibinfo{person}{Rishi
+  Bommasani}, \bibinfo{person}{Tony Lee}, \bibinfo{person}{Dimitris Tsipras},
+  \bibinfo{person}{Dilara Soylu}, \bibinfo{person}{Michihiro Yasunaga},
+  \bibinfo{person}{Yian Zhang}, \bibinfo{person}{Deepak Narayanan},
+  \bibinfo{person}{Yuhuai Wu}, \bibinfo{person}{Ananya Kumar}, {et~al\mbox{.}}}
+  \bibinfo{year}{2022}\natexlab{}.
+\newblock \showarticletitle{Holistic Evaluation of Language Models}.
+\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2211.09110}}
+  (\bibinfo{year}{2022}).
+\newblock
+
+
+\bibitem[Lin et~al\mbox{.}(2022)]%
+        {lin2022teaching}
+\bibfield{author}{\bibinfo{person}{Stephanie Lin}, \bibinfo{person}{Jacob
+  Hilton}, {and} \bibinfo{person}{Owain Evans}.}
+  \bibinfo{year}{2022}\natexlab{}.
+\newblock \showarticletitle{Teaching Language Models to Self-Correct via
+  Reinforcement Learning}.
+\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2211.00053}}
+  (\bibinfo{year}{2022}).
+\newblock
+
+
+\bibitem[Ong et~al\mbox{.}(2024)]%
+        {ong2024routellm}
+\bibfield{author}{\bibinfo{person}{Isaac Ong}, \bibinfo{person}{Amjad
+  Almahairi}, \bibinfo{person}{Vincent Wu}, \bibinfo{person}{Wei-Lin Chiang},
+  \bibinfo{person}{Tianhao Wu}, \bibinfo{person}{Joseph~E Gonzalez},
+  \bibinfo{person}{M~Waleed Kadous}, {and} \bibinfo{person}{Ion Stoica}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{RouteLLM: Learning to Route LLMs with Preference
+  Data}. In \bibinfo{booktitle}{\emph{International Conference on Machine
+  Learning}}.
+\newblock
+
+
+\bibitem[{OpenAI}(2024)]%
+        {openai2024pricing}
+\bibfield{author}{\bibinfo{person}{{OpenAI}}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{{OpenAI API Pricing}}.
+\newblock \bibinfo{howpublished}{\url{https://openai.com/api/pricing/}}.
+\newblock
+\newblock
+\shownote{GPT-4o pricing: \$2.50/1M input tokens, \$10.00/1M output tokens
+  (accessed December 2024)}.
+
+
+\bibitem[{OpenRouter}(2024)]%
+        {openrouter2024pricing}
+\bibfield{author}{\bibinfo{person}{{OpenRouter}}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{{OpenRouter: LLM API Marketplace}}.
+\newblock \bibinfo{howpublished}{\url{https://openrouter.ai/models}}.
+\newblock
+\newblock
+\shownote{Aggregated pricing and metadata for 80+ production LLMs, including
+  cost per token, context windows, and latency percentiles}.
+
+
+\bibitem[Srivastava et~al\mbox{.}(2023)]%
+        {srivastava2022beyond}
+\bibfield{author}{\bibinfo{person}{Aarohi Srivastava}, \bibinfo{person}{Abhinav
+  Rastogi}, \bibinfo{person}{Abhishek Rao}, \bibinfo{person}{Abu Awal~Md
+  Shoeb}, \bibinfo{person}{Abubakar Abid}, \bibinfo{person}{Adam Fisch},
+  \bibinfo{person}{Adam~R Brown}, \bibinfo{person}{Adam Santoro},
+  \bibinfo{person}{Aditya Gupta}, {et~al\mbox{.}}}
+  \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{Beyond the Imitation Game: Quantifying and
+  Extrapolating the Capabilities of Language Models}.
+\newblock \bibinfo{journal}{\emph{Transactions on Machine Learning Research}}
+  (\bibinfo{year}{2023}).
+\newblock
+\newblock
+\shownote{BIG-bench: A benchmark for evaluating diverse capabilities of
+  language models across 204 tasks}.
+
+
+\bibitem[{Stack Overflow}(2024)]%
+        {stackoverflow2024survey}
+\bibfield{author}{\bibinfo{person}{{Stack Overflow}}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \bibinfo{title}{Stack Overflow Developer Survey 2024}.
+\newblock
+\urldef\tempurl%
+\url{https://survey.stackoverflow.co/2024/}
+\showURL{%
+\tempurl}
+\newblock
+\shownote{Reports 65,000+ developer responses showing ML/AI specialists
+  comprise 4.8\% of professional developers, while general software developers
+  (proficient in Python/JavaScript) comprise 71.2\%}.
+
+
+\bibitem[Taylor and Stone(2009)]%
+        {taylor2009transfer}
+\bibfield{author}{\bibinfo{person}{Matthew~E Taylor} {and}
+  \bibinfo{person}{Peter Stone}.} \bibinfo{year}{2009}\natexlab{}.
+\newblock \showarticletitle{Transfer Learning for Reinforcement Learning
+  Domains: A Survey}.
+\newblock \bibinfo{journal}{\emph{Journal of Machine Learning Research}}
+  \bibinfo{volume}{10}, \bibinfo{number}{7} (\bibinfo{year}{2009}),
+  \bibinfo{pages}{1633--1685}.
+\newblock
+
+
+\bibitem[Zheng et~al\mbox{.}(2023)]%
+        {zheng2023judging}
+\bibfield{author}{\bibinfo{person}{Lianmin Zheng}, \bibinfo{person}{Wei-Lin
+  Chiang}, \bibinfo{person}{Ying Sheng}, \bibinfo{person}{Siyuan Zhuang},
+  \bibinfo{person}{Zhanghao Wu}, \bibinfo{person}{Yonghao Zhuang},
+  \bibinfo{person}{Zi Lin}, \bibinfo{person}{Zhuohan Li},
+  \bibinfo{person}{Dacheng Li}, \bibinfo{person}{Eric Xing}, {et~al\mbox{.}}}
+  \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{Judging LLM-as-a-Judge with MT-Bench and Chatbot
+  Arena}. In \bibinfo{booktitle}{\emph{Advances in Neural Information
+  Processing Systems}}, Vol.~\bibinfo{volume}{36}.
+\newblock
+
+
+\end{thebibliography}

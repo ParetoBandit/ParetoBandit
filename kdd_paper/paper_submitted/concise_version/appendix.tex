@@ -146,38 +146,6 @@ If a model's claimed benchmarks are inflated, the bandit self-corrects:
 This ``trust but verify'' approach enables immediate deployment without blocking on expensive offline profiling, while the online learning ensures the system converges to accurate model assessments.
 
 % ============================================================================
-% Judge Validation Details
-% ============================================================================
-
-\section{LLM-as-a-Judge Validation}
-\label{app:judge_validation}
-
-To ensure the reliability of GPT-4o as an automated grader, we conducted an internal validation study on a held-out subset of 500 prompts sampled from the task distribution.
-
-\subsection{Validation Methodology}
-
-\paragraph{Human Labeling.} We collected binary preference labels (Model A vs. Model B) from three independent human annotators for a 500-prompt subset. Annotators were instructed to favor responses that were factually correct, followed all instructions, and maintained a helpful tone. Conflicts were resolved via majority vote.
-
-\paragraph{GPT-4o Grading.} We provided the same prompt pairs to GPT-4o using the standard MT-Bench grading prompt~\cite{zheng2023judging}. The model was required to provide a reasoning trace before outputting a final preference.
-
-\subsection{Agreement Results}
-
-GPT-4o achieved a \textbf{82.4\% agreement rate} with the human majority vote. This level of consistency is on par with the inter-annotator agreement observed among our human experts (84.1\%), validating GPT-4o as a robust proxy for human quality judgment in this domain. These results are consistent with the foundational findings of Zheng et al.~\cite{zheng2023judging}, who reported human-level agreement for GPT-4-class judges across MT-Bench and Chatbot Arena.
-
-\subsection{Bias Mitigation}
-
-We implemented two standard techniques to mitigate known LLM-as-a-judge biases:
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Position Bias}: We swapped the order of Model A and Model B for each pair and required the judge to be consistent across both orderings.
-    \item \textbf{Verbosity Bias}: The grading prompt explicitly instructed the judge to penalize "fluff" and reward concise, correct answers.
-\end{itemize}
-In cases of persistent disagreement or position bias, the pair was flagged for human review.
-
-\subsection{Robustness to Judge Choice}
-
-A common concern in LLM-as-a-judge frameworks is that results may be sensitive to the specific judge model used. To test the directional robustness of our findings, we conducted a targeted study on 100 prompts where the bandit's chosen model and GPT-4o's preferred model showed the largest disagreement in predicted quality. We presented these 100 pairs to human annotators without revealing which model was the teacher's favorite. In \textbf{78\% of cases}, human rankings matched the GPT-4o-based judgment, suggesting that the judge's preferences are directionally aligned with human intuition even in difficult, high-disagreement scenarios. This indicates that our conclusions regarding model efficiency and specialist performance are robust to the choice of judge.
-
-% ============================================================================
 % Additional Tables (Overflow from Main Paper)
 % ============================================================================
 

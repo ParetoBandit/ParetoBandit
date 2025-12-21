@@ -1,0 +1,92 @@
+This is BibTeX, Version 0.99d (TeX Live 2025)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main_CONCISE.aux
+The style file: ACM-Reference-Format.bst
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+Database file #1: references.bib
+Warning--I didn't find a database entry for "openrouter2024pricing"
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
+Reallocated global_strs (elt_size=200001) to 20 items from 10.
+Reallocated glb_str_end (elt_size=4) to 20 items from 10.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
+Warning--page numbers missing in both pages and numpages fields in abbasi2011improved
+Warning--no number and no volume in chen2023frugalgpt
+Warning--page numbers missing in both pages and numpages fields in chen2023frugalgpt
+Warning--no number and no volume in chen2021evaluating
+Warning--page numbers missing in both pages and numpages fields in chen2021evaluating
+Warning--no number and no volume in cobbe2021training
+Warning--page numbers missing in both pages and numpages fields in cobbe2021training
+Warning--empty publisher in guo2017calibration
+Warning--empty address in guo2017calibration
+Warning--no number and no volume in hendrycks2020measuring
+Warning--page numbers missing in both pages and numpages fields in hendrycks2020measuring
+Warning--no number and no volume in kadavath2022language
+Warning--page numbers missing in both pages and numpages fields in kadavath2022language
+Warning--empty publisher in li2010contextual
+Warning--empty address in li2010contextual
+Warning--no number and no volume in liang2022holistic
+Warning--page numbers missing in both pages and numpages fields in liang2022holistic
+Warning--no number and no volume in lightman2023let
+Warning--page numbers missing in both pages and numpages fields in lightman2023let
+Warning--no number and no volume in lin2022teaching
+Warning--page numbers missing in both pages and numpages fields in lin2022teaching
+Warning--no number and no volume in luccioni2023power
+Warning--page numbers missing in both pages and numpages fields in luccioni2023power
+Warning--empty publisher in ong2024routellm
+Warning--empty address in ong2024routellm
+Warning--page numbers missing in both pages and numpages fields in ong2024routellm
+Warning--no number and no volume in democratizing2025usability
+Warning--page numbers missing in both pages and numpages fields in democratizing2025usability
+Warning--no number and no volume in srivastava2022beyond
+Warning--page numbers missing in both pages and numpages fields in srivastava2022beyond
+Warning--no number and no volume in wang2024survey
+Warning--page numbers missing in both pages and numpages fields in wang2024survey
+Warning--empty publisher in zheng2023judging
+Warning--empty address in zheng2023judging
+Warning--page numbers missing in both pages and numpages fields in zheng2023judging
+You've used 28 entries,
+            6056 wiz_defined-function locations,
+            1622 strings with 24313 characters,
+and the built_in function-call counts, 29766 in all, are:
+= -- 3922
+> -- 1262
+< -- 0
++ -- 432
+- -- 454
+* -- 2196
+:= -- 3096
+add.period$ -- 147
+call.type$ -- 28
+change.case$ -- 231
+chr.to.int$ -- 28
+cite$ -- 63
+duplicate$ -- 2363
+empty$ -- 1697
+format.name$ -- 522
+if$ -- 7236
+int.to.chr$ -- 2
+int.to.str$ -- 1
+missing$ -- 80
+newline$ -- 285
+num.names$ -- 196
+pop$ -- 1022
+preamble$ -- 1
+purify$ -- 454
+quote$ -- 0
+skip$ -- 817
+stack$ -- 0
+substring$ -- 1696
+swap$ -- 150
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 630
+warning$ -- 35
+while$ -- 150
+width$ -- 0
+write$ -- 570
+(There were 36 warnings)

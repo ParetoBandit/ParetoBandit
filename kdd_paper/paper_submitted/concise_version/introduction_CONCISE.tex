@@ -1,0 +1,29 @@
+% ============================================================================
+% SECTION 1: INTRODUCTION (CONCISE - Compressed from 1.5 to 1.0 pages)
+% ============================================================================
+
+\section{Introduction}
+\label{sec:introduction}
+
+Large language models have created unprecedented opportunities for creative and analytical work, yet access remains concentrated among those with substantial budgets or ML expertise. Frontier models (GPT-4o, Claude-3.5-Sonnet) cost \$4--15 per 1,000 queries at late-2024 on-demand prices~\cite{openai2025pricing,anthropic2025pricing}, creating \emph{economic barriers} that exclude students, independent researchers, and resource-constrained startups. While the ecosystem has fragmented into more than 80 specialized models offering comparable quality at \$0.10--0.88 per 1,000 queries (snapshot as of December 2024)~\cite{openrouter2025models,artificialanalysis2025}, practitioners face \emph{expertise barriers}: existing routing tools require hundreds to thousands of labeled examples for calibration in typical deployments~\cite{chen2023frugalgpt}, domain-specific scorer training, and nontrivial setup time. These dual barriers result in systematic over-provisioning (users default to expensive models) or abandoned optimization entirely.
+
+Existing solutions address one barrier while perpetuating the other. FrugalGPT~\cite{chen2023frugalgpt} reduces costs via cascading chains but requires extensive offline profiling and expert-designed scoring functions. RouteLLM~\cite{ong2024routellm} simplifies binary routing but relies on thousands of preference pairs and classifier retraining when models evolve. Semantic routers (e.g., Aurelio~\cite{aureliolabs2024semantic}) offer deterministic control but require manual intent definitions that are brittle as model capabilities evolve or new domains emerge. Contextual bandit approaches~\cite{li2010contextual,abbasi2011improved} provide principled online learning under uncertainty, but naive cold-start deployments in large LLM pools can incur substantial regret before converging (as we show in Section~\ref{sec:rq1}). The central challenge: \textit{Can we achieve cost-efficient routing with operational simplicity accessible to non-experts?}
+
+\paragraph{Our Approach: Shippable Priors for Accessible Routing.}
+We present \ours{}, an open-source framework that removes both barriers through three innovations: \textbf{(1) Shippable priors}---covariance matrices (<1MB) distilled offline from teacher supervision---enable production-ready routing from the first query, eliminating user-provided calibration data. \textbf{(2) Zero-benchmark model addition}---users register new models in 30 seconds; the bandit autonomously learns their strengths via online exploration (vs.\ 1--3 days of offline profiling). \textbf{(3) Intuitive constraint interfaces}---users specify \texttt{max\_budget}, \texttt{min\_quality}, \texttt{max\_latency} rather than ML hyperparameters, enabling non-technical decision-makers to control routing.
+
+\paragraph{Evaluation and Impact.}
+Experiments on 2,000 real-world prompts across 81 production models demonstrate: \textbf{Warm-start efficiency} (\S\ref{sec:rq1})---shippable priors reduce day-one regret by 96--99\% versus cold-start with <100 calibration examples. \textbf{Cost-quality frontier} (\S\ref{sec:rq3})---standard mode achieves \$0.70 per 1k queries (61\% cheaper than FrugalGPT's \$1.78 in our simulation) despite zero calibration requirements; hybrid mode delivers 98\% reliability (3pp over cascading baselines) across 80+ models without manual chain design. \textbf{Operational simplicity}---routing overhead is 8.94ms P99 (1.1\% of total latency); adding new models requires 30 seconds (vs.\ days); budget/quality constraints specified via intuitive parameters.
+
+By releasing pre-trained priors and accessible control interfaces, we expand adaptive routing from ML specialists (requiring labeled datasets and domain expertise) to general programmers (requiring basic Python skills), increasing the addressable user base by roughly an order of magnitude ($\approx 15$--$25\times$)~\cite{stackoverflow2024survey,github2025developer}. Our work demonstrates that democratizing AI access requires addressing not only cost, but the operational complexity that confines proven techniques to specialized teams.
+
+\paragraph{Contributions.}
+\begin{itemize}[leftmargin=*,nosep]
+    \item \textbf{Shippable priors} for warm-start contextual bandits, achieving 96--99\% regret reduction with zero user-provided calibration data.
+    \item \textbf{Zero-benchmark model addition} enabling users to track market evolution via 30-second registration without offline profiling.
+    \item \textbf{Intuitive constraint interfaces} democratizing control through domain terms (\texttt{max\_budget}, \texttt{min\_quality}) rather than ML hyperparameters.
+    \item \textbf{Empirical validation} demonstrating 61--84\% cost reduction while maintaining 95--98\% accuracy across 2,000 prompts and 81 models.
+    \item \textbf{Open-source release} with pre-trained priors, expanding adaptive routing from ML specialists to general practitioners.
+\end{itemize}
+
+

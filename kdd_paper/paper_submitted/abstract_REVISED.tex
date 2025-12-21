@@ -1,0 +1,14 @@
+% ============================================================================
+% ABSTRACT (REVISED - Democratization-First Framing)
+% ============================================================================
+
+\begin{abstract}
+The transformative potential of Large Language Models remains largely inaccessible: frontier models cost \$4--15 per 1,000 queries, creating prohibitive barriers for students, independent researchers, startups, and cost-constrained enterprises. While the ecosystem has fragmented into 80+ models spanning frontier generalists and ultra-efficient specialists (\$0.10/1k), practitioners lack tools to identify when cheaper alternatives suffice. The result is systematic over-provisioning: users default to expensive models out of uncertainty, paying 10--100× more than necessary.
+
+We present \ours{}, an open-source routing framework that democratizes access to LLM capabilities through adaptive model selection. By distilling offline expert supervision into \emph{shippable priors}---compact covariance matrices under 1MB---we enable production-ready routing from the first query, eliminating the \$50--200 cold-start exploration costs that price out resource-constrained users. Our framework achieves a 96--99\% reduction in day-one regret with fewer than 100 calibration examples, while preserving adaptive plasticity to handle evolving model capabilities.
+
+\ours{} establishes a new state-of-the-art Pareto frontier for cost-quality trade-offs: \textbf{Standard mode} reduces inference costs by 61\% compared to FrugalGPT (\$0.70 vs.\ \$1.78 per 1k queries), enabling high-volume experimentation on limited budgets. \textbf{Hybrid mode} achieves 98\% reliability on instruction-following tasks (outperforming cascading baselines by 3 percentage points) while maintaining affordability (\$1.34 per 1k). A single tunable parameter ($\lambda$) enables smooth navigation between ``Cost Leader'' and ``High Assurance'' operational regimes, supporting diverse user needs from educational projects to production deployments.
+
+Evaluation on 2,000 real-world prompts across 81 production models demonstrates that strategic routing delivers frontier-class quality while reducing costs by 61--84\%. Routing overhead is 8.94ms P99 (1.1\% of total latency), making cost savings effectively free. By releasing \ours{} as open-source infrastructure with pre-trained priors, we aim to expand access to AI capabilities from well-funded institutions to the broader community of students, researchers, and innovators whose creativity is currently suppressed by economic barriers.
+\end{abstract}
+

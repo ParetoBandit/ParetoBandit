@@ -12,7 +12,7 @@
 \paragraph{Ground Truth \& Evaluation Strategy.} We utilize GPT-4o-as-judge for scoring model outputs, normalized to $[0,1]$. This choice is motivated by three factors that ensure both internal consistency and external validity:
 
 \begin{itemize}[leftmargin=*,nosep]
-    \item \textbf{Human Alignment (External Validity):} GPT-4o achieves $>$80\% agreement with human preferences on LMSYS Chatbot Arena~\cite{zheng2023judging}, matching inter-annotator agreement levels and serving as a robust proxy for user satisfaction.
+    \item \textbf{Human Alignment (External Validity):} GPT-4o achieves $>$80\% agreement with human preferences, matching inter-annotator agreement levels observed in frontier model evaluations~\cite{zheng2023judging}.
     
     \item \textbf{Teacher-Student Consistency (Internal Validity):} Since our ``Shippable Priors'' are distilled from GPT-4o supervision, using the same model for evaluation ensures that measured regret reflects the router's learning efficiency rather than alignment noise between disparate teacher models.
     

@@ -1,0 +1,114 @@
+%%% -*-BibTeX-*-
+%%% Do NOT edit. File created by BibTeX with style
+%%% ACM-Reference-Format-Journals [18-Jan-2012].
+
+\begin{thebibliography}{6}
+
+%%% ====================================================================
+%%% NOTE TO THE USER: you can override these defaults by providing
+%%% customized versions of any of these macros before the \bibliography
+%%% command.  Each of them MUST provide its own final punctuation,
+%%% except for \shownote{} and \showURL{}.  The latter two
+%%% do not use final punctuation, in order to avoid confusing it with
+%%% the Web address.
+%%%
+%%% To suppress output of a particular field, define its macro to expand
+%%% to an empty string, or better, \unskip, like this:
+%%%
+%%% \newcommand{\showURL}[1]{\unskip}   % LaTeX syntax
+%%%
+%%% \def \showURL #1{\unskip}           % plain TeX syntax
+%%%
+%%% ====================================================================
+
+\ifx \showCODEN    \undefined \def \showCODEN     #1{\unskip}     \fi
+\ifx \showISBNx    \undefined \def \showISBNx     #1{\unskip}     \fi
+\ifx \showISBNxiii \undefined \def \showISBNxiii  #1{\unskip}     \fi
+\ifx \showISSN     \undefined \def \showISSN      #1{\unskip}     \fi
+\ifx \showLCCN     \undefined \def \showLCCN      #1{\unskip}     \fi
+\ifx \shownote     \undefined \def \shownote      #1{#1}          \fi
+\ifx \showarticletitle \undefined \def \showarticletitle #1{#1}   \fi
+\ifx \showURL      \undefined \def \showURL       {\relax}        \fi
+% The following commands are used for tagged output and should be
+% invisible to TeX
+\providecommand\bibfield[2]{#2}
+\providecommand\bibinfo[2]{#2}
+\providecommand\natexlab[1]{#1}
+\providecommand\showeprint[2][]{arXiv:#2}
+
+\bibitem[Abbasi-Yadkori et~al\mbox{.}(2011)]%
+        {abbasi2011improved}
+\bibfield{author}{\bibinfo{person}{Yasin Abbasi-Yadkori},
+  \bibinfo{person}{D{\'a}vid P{\'a}l}, {and} \bibinfo{person}{Csaba
+  Szepesv{\'a}ri}.} \bibinfo{year}{2011}\natexlab{}.
+\newblock \showarticletitle{Improved Algorithms for Linear Stochastic Bandits}.
+\newblock \bibinfo{journal}{\emph{Advances in Neural Information Processing
+  Systems}}  \bibinfo{volume}{24} (\bibinfo{year}{2011}).
+\newblock
+
+
+\bibitem[Chen et~al\mbox{.}(2024)]%
+        {chen2023frugalgpt}
+\bibfield{author}{\bibinfo{person}{Lingjiao Chen}, \bibinfo{person}{Matei
+  Zaharia}, {and} \bibinfo{person}{James Zou}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{FrugalGPT: How to Use Large Language Models While
+  Reducing Cost and Improving Performance}.
+\newblock \bibinfo{journal}{\emph{Transactions on Machine Learning Research}}
+  (\bibinfo{year}{2024}).
+\newblock
+
+
+\bibitem[Li et~al\mbox{.}(2010)]%
+        {li2010contextual}
+\bibfield{author}{\bibinfo{person}{Lihong Li}, \bibinfo{person}{Wei Chu},
+  \bibinfo{person}{John Langford}, {and} \bibinfo{person}{Robert~E Schapire}.}
+  \bibinfo{year}{2010}\natexlab{}.
+\newblock \showarticletitle{A Contextual-Bandit Approach to Personalized News
+  Article Recommendation}. In \bibinfo{booktitle}{\emph{Proceedings of the 19th
+  International Conference on World Wide Web}}. ACM, \bibinfo{pages}{661--670}.
+\newblock
+
+
+\bibitem[Liang et~al\mbox{.}(2022)]%
+        {liang2022holistic}
+\bibfield{author}{\bibinfo{person}{Percy Liang}, \bibinfo{person}{Rishi
+  Bommasani}, \bibinfo{person}{Tony Lee}, \bibinfo{person}{Dimitris Tsipras},
+  \bibinfo{person}{Dilara Soylu}, \bibinfo{person}{Michihiro Yasunaga},
+  \bibinfo{person}{Yian Zhang}, \bibinfo{person}{Deepak Narayanan},
+  \bibinfo{person}{Yuhuai Wu}, \bibinfo{person}{Ananya Kumar}, {et~al\mbox{.}}}
+  \bibinfo{year}{2022}\natexlab{}.
+\newblock \showarticletitle{Holistic Evaluation of Language Models}.
+\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2211.09110}}
+  (\bibinfo{year}{2022}).
+\newblock
+
+
+\bibitem[Ong et~al\mbox{.}(2024)]%
+        {ong2024routellm}
+\bibfield{author}{\bibinfo{person}{Isaac Ong}, \bibinfo{person}{Amjad
+  Almahairi}, \bibinfo{person}{Vincent Wu}, \bibinfo{person}{Wei-Lin Chiang},
+  \bibinfo{person}{Tianhao Wu}, \bibinfo{person}{Joseph~E Gonzalez},
+  \bibinfo{person}{M~Waleed Kadous}, {and} \bibinfo{person}{Ion Stoica}.}
+  \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{RouteLLM: Learning to Route LLMs with Preference
+  Data}. In \bibinfo{booktitle}{\emph{International Conference on Machine
+  Learning}}.
+\newblock
+
+
+\bibitem[Zheng et~al\mbox{.}(2023)]%
+        {zheng2023judging}
+\bibfield{author}{\bibinfo{person}{Lianmin Zheng}, \bibinfo{person}{Wei-Lin
+  Chiang}, \bibinfo{person}{Ying Sheng}, \bibinfo{person}{Siyuan Zhuang},
+  \bibinfo{person}{Zhanghao Wu}, \bibinfo{person}{Yonghao Zhuang},
+  \bibinfo{person}{Zi Lin}, \bibinfo{person}{Zhuohan Li},
+  \bibinfo{person}{Dacheng Li}, \bibinfo{person}{Eric Xing}, {et~al\mbox{.}}}
+  \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{Judging LLM-as-a-Judge with MT-Bench and Chatbot
+  Arena}. In \bibinfo{booktitle}{\emph{Advances in Neural Information
+  Processing Systems}}, Vol.~\bibinfo{volume}{36}.
+\newblock
+
+
+\end{thebibliography}

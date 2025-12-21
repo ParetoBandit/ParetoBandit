@@ -1,0 +1,243 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{openai2024pricing,anthropic2024pricing}
+\citation{openrouter2024pricing}
+\citation{chen2023frugalgpt}
+\citation{chen2023frugalgpt}
+\citation{ong2024routellm}
+\citation{aureliolabs2024semantic}
+\citation{li2010contextual,abbasi2011improved}
+\citation{stackoverflow2024survey,github2025developer}
+\@writefile{toc}{\contentsline {section}{Abstract}{1}{section*.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\newlabel{sec:introduction}{{1}{1}{Introduction}{section.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Our Approach: Shippable Priors for Accessible Routing.}{1}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Evaluation and Impact.}{1}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Contributions.}{1}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Democratization Through Adaptive Routing}{2}{section.2}\protected@file@percent }
+\newlabel{sec:use_cases}{{2}{2}{Democratization Through Adaptive Routing}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Student Projects: Learning Without Prerequisites}{2}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The Dual Barrier.}{2}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{With BanditGPT.}{2}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Operational Advantages.}{2}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Impact.}{2}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Startup Deployment: Scale Without Specialists}{2}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The Infrastructure Barrier.}{2}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{With BanditGPT.}{2}{section*.12}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces \textbf  {Accessibility Impact Across User Types.} BanditGPT removes economic and operational barriers for diverse stakeholders.}}{2}{table.caption.16}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:use_case_summary}{{1}{2}{\textbf {Accessibility Impact Across User Types.} BanditGPT removes economic and operational barriers for diverse stakeholders}{table.caption.16}{}}
+\@writefile{toc}{\contentsline {paragraph}{Market Evolution.}{2}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Multi-Service Optimization.}{2}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Impact.}{2}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Broader Impact Across User Types}{2}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Cross-Cutting Themes.}{2}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Operational Comparison}{2}{subsection.2.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces \textbf  {Accessibility Requirements.} We prioritize operational simplicity to expand beyond ML specialists.}}{3}{table.caption.18}\protected@file@percent }
+\newlabel{tab:accessibility_comparison}{{2}{3}{\textbf {Accessibility Requirements.} We prioritize operational simplicity to expand beyond ML specialists}{table.caption.18}{}}
+\@writefile{toc}{\contentsline {paragraph}{Design Philosophy.}{3}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Framework}{3}{section.3}\protected@file@percent }
+\newlabel{sec:method}{{3}{3}{Framework}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Problem Definition}{3}{subsection.3.1}\protected@file@percent }
+\newlabel{sec:problem}{{3.1}{3}{Problem Definition}{subsection.3.1}{}}
+\newlabel{eq:utility}{{1}{3}{Problem Definition}{equation.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}System Architecture}{3}{subsection.3.2}\protected@file@percent }
+\newlabel{sec:architecture}{{3.2}{3}{System Architecture}{subsection.3.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Context Embedding.}{3}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Disjoint LinUCB.}{3}{section*.21}\protected@file@percent }
+\newlabel{eq:ucb}{{2}{3}{Disjoint LinUCB}{equation.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces \textbf  {BanditGPT System Architecture.} The system accepts user queries, extracts contextual features via sentence encoder, uses shippable priors to warm-start a LinUCB bandit, selects from an 81-model pool via UCB, and updates online via reward feedback. Offline distillation (left annotation) amortizes expensive teacher supervision across all users. Online operation (right annotation) requires zero user-provided calibration data, enabling $O(1)$ model addition without benchmarking.}}{3}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:architecture}{{1}{3}{\textbf {BanditGPT System Architecture.} The system accepts user queries, extracts contextual features via sentence encoder, uses shippable priors to warm-start a LinUCB bandit, selects from an 81-model pool via UCB, and updates online via reward feedback. Offline distillation (left annotation) amortizes expensive teacher supervision across all users. Online operation (right annotation) requires zero user-provided calibration data, enabling $O(1)$ model addition without benchmarking}{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {paragraph}{Real-Time Learning.}{3}{section*.23}\protected@file@percent }
+\newlabel{eq:update}{{3}{3}{Real-Time Learning}{equation.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Algorithm Mechanics: Disjoint LinUCB}{3}{subsection.3.3}\protected@file@percent }
+\newlabel{sec:linucb}{{3.3}{3}{Algorithm Mechanics: Disjoint LinUCB}{subsection.3.3}{}}
+\citation{ong2024routellm}
+\citation{abbasi2011improved}
+\citation{zheng2023judging}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Regret Formulation}{4}{subsection.3.4}\protected@file@percent }
+\newlabel{sec:regret}{{3.4}{4}{Regret Formulation}{subsection.3.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}User Control: The Tunable Objective ($\lambda $)}{4}{subsection.3.5}\protected@file@percent }
+\newlabel{sec:lambda}{{3.5}{4}{User Control: The Tunable Objective ($\lambda $)}{subsection.3.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.6}Why Contextual Bandits?}{4}{subsection.3.6}\protected@file@percent }
+\newlabel{sec:pivot}{{3.6}{4}{Why Contextual Bandits?}{subsection.3.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.7}Expert Distillation}{4}{subsection.3.7}\protected@file@percent }
+\newlabel{sec:distillation}{{3.7}{4}{Expert Distillation}{subsection.3.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{Archetype Grid.}{4}{section*.24}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Dense Evaluation.}{4}{section*.25}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Prior Fitting.}{4}{section*.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Prior Strength ($\lambda _{\text  {boost}}$).}{4}{section*.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Specialist Discovery.}{4}{section*.29}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.8}Engineering Viability}{4}{subsection.3.8}\protected@file@percent }
+\newlabel{sec:engineering}{{3.8}{4}{Engineering Viability}{subsection.3.8}{}}
+\citation{openrouter2024pricing}
+\citation{chen2023frugalgpt}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces \textbf  {Shippable Prior Distillation.} We amortize expensive offline distillation across users through a three-phase process: (Phase 1) Teacher supervision on calibration datasets generates quality labels from GPT-4o; (Phase 2) Contextual bandit training learns per-model covariance matrices $\mathbf  {A}_m \in \mathbb  {R}^{384 \times 384}$; (Phase 3) Low-rank compression via SVD reduces the prior package to <1MB for distribution. Users download pre-trained priors, eliminating cold-start regret without providing any calibration data. The one-time offline cost (author-borne) is amortized across all deployments.}}{5}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:distillation}{{2}{5}{\textbf {Shippable Prior Distillation.} We amortize expensive offline distillation across users through a three-phase process: (Phase 1) Teacher supervision on calibration datasets generates quality labels from GPT-4o; (Phase 2) Contextual bandit training learns per-model covariance matrices $\mathbf {A}_m \in \mathbb {R}^{384 \times 384}$; (Phase 3) Low-rank compression via SVD reduces the prior package to <1MB for distribution. Users download pre-trained priors, eliminating cold-start regret without providing any calibration data. The one-time offline cost (author-borne) is amortized across all deployments}{figure.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces \textbf  {Specialist Discovery.} Nova-Lite develops $2\times $ larger weight norms than GPT-4o, occupying orthogonal embedding regions for structured output tasks.}}{5}{figure.caption.30}\protected@file@percent }
+\newlabel{fig:specialist_landscape}{{3}{5}{\textbf {Specialist Discovery.} Nova-Lite develops $2\times $ larger weight norms than GPT-4o, occupying orthogonal embedding regions for structured output tasks}{figure.caption.30}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces \textbf  {Latency Breakdown.} Router adds 1.1\% overhead (81 models, 384 dims).}}{5}{table.caption.31}\protected@file@percent }
+\newlabel{tab:latency}{{3}{5}{\textbf {Latency Breakdown.} Router adds 1.1\% overhead (81 models, 384 dims)}{table.caption.31}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.9}Zero-Overhead Scalability}{5}{subsection.3.9}\protected@file@percent }
+\newlabel{sec:scalability}{{3.9}{5}{Zero-Overhead Scalability}{subsection.3.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{Benchmarks as Metadata, Not Engine.}{5}{section*.32}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces \textbf  {Fixed vs.\ Dynamic Cascade.} Our hybrid enables single-pass routing over a large pool while retaining cascade reliability when needed.}}{5}{table.caption.36}\protected@file@percent }
+\newlabel{tab:scaling_comparison}{{4}{5}{\textbf {Fixed vs.\ Dynamic Cascade.} Our hybrid enables single-pass routing over a large pool while retaining cascade reliability when needed}{table.caption.36}{}}
+\@writefile{toc}{\contentsline {paragraph}{Day-1 Integration Workflow.}{5}{section*.33}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Online Verification vs.\ Offline Profiling.}{5}{section*.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.10}Bandit-Guided Cascade}{5}{subsection.3.10}\protected@file@percent }
+\newlabel{sec:hybrid}{{3.10}{5}{Bandit-Guided Cascade}{subsection.3.10}{}}
+\newlabel{eq:hybrid}{{8}{5}{Bandit-Guided Cascade}{equation.8}{}}
+\citation{zheng2023judging}
+\citation{zheng2023judging}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces \textbf  {Routing Decision Flow.} Users control system behavior via operating mode and sensitivity parameters. Standard mode (left path) provides single-shot UCB routing optimized for cost leadership, suitable for students and startups. Hybrid mode (right path) performs uncertainty-aware routing, triggering selective verification for low-confidence predictions to ensure high assurance for enterprises. Online feedback continuously updates bandit parameters ($\mathbf  {A}_m$, $\mathbf  {b}_m$) in both modes, enabling autonomous adaptation to model evolution and distribution drift.}}{6}{figure.caption.35}\protected@file@percent }
+\newlabel{fig:routing_logic}{{4}{6}{\textbf {Routing Decision Flow.} Users control system behavior via operating mode and sensitivity parameters. Standard mode (left path) provides single-shot UCB routing optimized for cost leadership, suitable for students and startups. Hybrid mode (right path) performs uncertainty-aware routing, triggering selective verification for low-confidence predictions to ensure high assurance for enterprises. Online feedback continuously updates bandit parameters ($\mathbf {A}_m$, $\mathbf {b}_m$) in both modes, enabling autonomous adaptation to model evolution and distribution drift}{figure.caption.35}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Evaluation}{6}{section.4}\protected@file@percent }
+\newlabel{sec:evaluation}{{4}{6}{Evaluation}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Experimental Setup}{6}{subsection.4.1}\protected@file@percent }
+\newlabel{sec:experiments}{{4.1}{6}{Experimental Setup}{subsection.4.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Dataset \& Models.}{6}{section*.37}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Ground Truth.}{6}{section*.38}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces \textbf  {Warm-Start Advantage.} Expert-distilled priors achieve \textbf  {64.6\% lower regret} than cold-start, with the gap widening early when cold-start explores blindly.}}{6}{figure.caption.40}\protected@file@percent }
+\newlabel{fig:regret_curve}{{5}{6}{\textbf {Warm-Start Advantage.} Expert-distilled priors achieve \textbf {64.6\% lower regret} than cold-start, with the gap widening early when cold-start explores blindly}{figure.caption.40}{}}
+\@writefile{toc}{\contentsline {paragraph}{Metrics.}{6}{section*.39}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Warm-Start Advantage}{6}{subsection.4.2}\protected@file@percent }
+\newlabel{sec:rq1}{{4.2}{6}{Warm-Start Advantage}{subsection.4.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Results.}{6}{section*.41}\protected@file@percent }
+\newlabel{sec:benchmark_trap}{{4.2.1}{6}{Benchmark Initialization Pathology}{subsubsection.4.2.1}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Benchmark Initialization Pathology}{6}{subsubsection.4.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}OOD Generalization}{6}{subsubsection.4.2.2}\protected@file@percent }
+\citation{chen2023frugalgpt}
+\citation{ong2024routellm}
+\citation{kadavath2022language,lin2022teaching}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces \textbf  {The Benchmark Trap.} Public benchmarks hurt; expert distillation helps.}}{7}{table.caption.42}\protected@file@percent }
+\newlabel{tab:benchmark_trap}{{5}{7}{\textbf {The Benchmark Trap.} Public benchmarks hurt; expert distillation helps}{table.caption.42}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces \textbf  {Belief Recovery.} The router overcomes poisoned priors within $\sim $200 steps, demonstrating self-correction without manual intervention.}}{7}{figure.caption.43}\protected@file@percent }
+\newlabel{fig:belief_recovery}{{6}{7}{\textbf {Belief Recovery.} The router overcomes poisoned priors within $\sim $200 steps, demonstrating self-correction without manual intervention}{figure.caption.43}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Plasticity Under Concept Drift}{7}{subsection.4.3}\protected@file@percent }
+\newlabel{sec:rq2}{{4.3}{7}{Plasticity Under Concept Drift}{subsection.4.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Belief Recovery.}{7}{section*.44}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Implications.}{7}{section*.45}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Cost--Quality Efficiency (The Pareto Frontier)}{7}{subsection.4.4}\protected@file@percent }
+\newlabel{sec:rq3}{{4.4}{7}{Cost--Quality Efficiency (The Pareto Frontier)}{subsection.4.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces \textbf  {SOTA Comparison.} Standard mode is the cost leader; Hybrid mode approaches cascading accuracy while operating over an 80+ model pool without fixed chains.}}{7}{table.caption.46}\protected@file@percent }
+\newlabel{tab:sota_comparison}{{6}{7}{\textbf {SOTA Comparison.} Standard mode is the cost leader; Hybrid mode approaches cascading accuracy while operating over an 80+ model pool without fixed chains}{table.caption.46}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces \textbf  {Domain Breakdown.} Hybrid beats FrugalGPT on Instruction (+3\%) via proactive prediction.}}{7}{table.caption.50}\protected@file@percent }
+\newlabel{tab:domain_breakdown}{{7}{7}{\textbf {Domain Breakdown.} Hybrid beats FrugalGPT on Instruction (+3\%) via proactive prediction}{table.caption.50}{}}
+\@writefile{toc}{\contentsline {paragraph}{Standard Mode: Cost Leadership.}{7}{section*.47}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Hybrid Mode: High Assurance.}{7}{section*.48}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Overcoming Teacher Bias.}{7}{section*.49}\protected@file@percent }
+\newlabel{sec:confident_failure}{{4.4.1}{7}{The Confident Failure Phenomenon}{subsubsection.4.4.1}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}The Confident Failure Phenomenon}{7}{subsubsection.4.4.1}\protected@file@percent }
+\citation{chen2023frugalgpt}
+\citation{ong2024routellm}
+\citation{zheng2023judging}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces \textbf  {Pareto Frontier.} Left: Cost vs.\ system accuracy. BanditGPT{} provides a low-cost single-shot regime and a higher-assurance hybrid regime. Shaded regions indicate ideal operating zones for cost-constrained users (Standard Mode, suitable for students and startups) vs.\ risk-averse enterprises (Hybrid Mode, suitable for high-assurance deployments). Right: Domain breakdown shows Hybrid beats FrugalGPT on Instructions (98\% vs 95\%).}}{8}{figure.caption.52}\protected@file@percent }
+\newlabel{fig:pareto}{{7}{8}{\textbf {Pareto Frontier.} Left: Cost vs.\ system accuracy. \ours {} provides a low-cost single-shot regime and a higher-assurance hybrid regime. Shaded regions indicate ideal operating zones for cost-constrained users (Standard Mode, suitable for students and startups) vs.\ risk-averse enterprises (Hybrid Mode, suitable for high-assurance deployments). Right: Domain breakdown shows Hybrid beats FrugalGPT on Instructions (98\% vs 95\%)}{figure.caption.52}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces \textbf  {System Impact.} Adaptive routing improves quality while reducing cost vs.\ a frontier-only policy.}}{8}{table.caption.54}\protected@file@percent }
+\newlabel{tab:system_impact}{{8}{8}{\textbf {System Impact.} Adaptive routing improves quality while reducing cost vs.\ a frontier-only policy}{table.caption.54}{}}
+\@writefile{toc}{\contentsline {paragraph}{Cost--Quality Frontier.}{8}{section*.51}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Transcending Static Policies.}{8}{section*.53}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{ROI Leaderboard.}{8}{section*.55}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Qualitative Analysis}{8}{subsection.4.5}\protected@file@percent }
+\newlabel{sec:qualitative}{{4.5}{8}{Qualitative Analysis}{subsection.4.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Case 1: Specialist Superiority.}{8}{section*.57}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces \textbf  {ROI Leaderboard.} Specialists deliver substantially better value than GPT-4o in their niches.}}{8}{table.caption.56}\protected@file@percent }
+\newlabel{tab:roi}{{9}{8}{\textbf {ROI Leaderboard.} Specialists deliver substantially better value than GPT-4o in their niches}{table.caption.56}{}}
+\@writefile{toc}{\contentsline {paragraph}{Case 2: Frontier Necessity.}{8}{section*.58}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Case 3: Cost Arbitrage.}{8}{section*.59}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Distribution Analysis.}{8}{section*.60}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Related Work}{8}{section.5}\protected@file@percent }
+\newlabel{sec:related_work}{{5}{8}{Related Work}{section.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Cascading Architectures.}{8}{section*.61}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Supervised Routing.}{8}{section*.62}\protected@file@percent }
+\citation{aureliolabs2024semantic}
+\citation{li2010contextual}
+\citation{abbasi2011improved}
+\citation{taylor2009transfer}
+\citation{liang2022holistic,srivastava2022beyond}
+\citation{stackoverflow2024survey,github2025developer}
+\bibstyle{ACM-Reference-Format}
+\bibdata{references}
+\bibcite{abbasi2011improved}{{1}{2011}{{Abbasi-Yadkori et~al\mbox  {.}}}{{}}}
+\bibcite{anthropic2024pricing}{{2}{2024}{{Anthropic}}{{}}}
+\bibcite{aureliolabs2024semantic}{{3}{2024}{{Aurelio Labs}}{{}}}
+\bibcite{chen2023frugalgpt}{{4}{2024}{{Chen et~al\mbox  {.}}}{{}}}
+\bibcite{github2025developer}{{5}{2024}{{GitHub}}{{}}}
+\bibcite{kadavath2022language}{{6}{2022}{{Kadavath et~al\mbox  {.}}}{{}}}
+\bibcite{li2010contextual}{{7}{2010}{{Li et~al\mbox  {.}}}{{}}}
+\@writefile{toc}{\contentsline {paragraph}{Intent-Based Routing.}{9}{section*.63}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Contextual Bandits.}{9}{section*.64}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{LLM Benchmarking.}{9}{section*.65}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion}{9}{section.6}\protected@file@percent }
+\newlabel{sec:conclusion}{{6}{9}{Conclusion}{section.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Future Work.}{9}{section*.66}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Broader Impact.}{9}{section*.67}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Call for Accessible AI Infrastructure.}{9}{section*.68}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{9}{section*.70}\protected@file@percent }
+\bibcite{liang2022holistic}{{8}{2022}{{Liang et~al\mbox  {.}}}{{}}}
+\bibcite{lin2022teaching}{{9}{2022}{{Lin et~al\mbox  {.}}}{{}}}
+\bibcite{ong2024routellm}{{10}{2024}{{Ong et~al\mbox  {.}}}{{}}}
+\bibcite{openai2024pricing}{{11}{2024}{{OpenAI}}{{}}}
+\bibcite{openrouter2024pricing}{{12}{2024}{{OpenRouter}}{{}}}
+\bibcite{srivastava2022beyond}{{13}{2023}{{Srivastava et~al\mbox  {.}}}{{}}}
+\bibcite{stackoverflow2024survey}{{14}{2024}{{Stack Overflow}}{{}}}
+\bibcite{taylor2009transfer}{{15}{2009}{{Taylor and Stone}}{{}}}
+\bibcite{zheng2023judging}{{16}{2023}{{Zheng et~al\mbox  {.}}}{{}}}
+\citation{zheng2023judging}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Reproducibility}{10}{appendix.A}\protected@file@percent }
+\newlabel{app:reproducibility}{{A}{10}{Reproducibility}{appendix.A}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {A.1}Code and Data Availability}{10}{subsection.A.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Repository Contents.}{10}{section*.71}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Reproducing Results.}{10}{section*.72}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Hardware and Software.}{10}{section*.73}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Random Seeds.}{10}{section*.74}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {B}Ethical Considerations}{10}{appendix.B}\protected@file@percent }
+\newlabel{app:ethics}{{B}{10}{Ethical Considerations}{appendix.B}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.1}Data Sources}{10}{subsection.B.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.2}Intended Use}{10}{subsection.B.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.3}Potential Risks}{10}{subsection.B.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {C}Zero-Overhead Scalability: Technical Details}{10}{appendix.C}\protected@file@percent }
+\newlabel{app:scalability}{{C}{10}{Zero-Overhead Scalability: Technical Details}{appendix.C}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.1}Benchmarks as Metadata, Not Training Data}{10}{subsection.C.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.2}The ``Warm Start'' vs.\ ``New Model'' Distinction}{10}{subsection.C.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Warm Start (One-Time, Offline).}{10}{section*.75}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{New Model (Continuous, Online).}{11}{section*.76}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.3}Safety Filters from Public Metadata}{11}{subsection.C.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.4}Self-Correction via Online Learning}{11}{subsection.C.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {D}Additional Experimental Results}{11}{appendix.D}\protected@file@percent }
+\newlabel{app:tables}{{D}{11}{Additional Experimental Results}{appendix.D}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {D.1}Full ROI Leaderboard}{11}{subsection.D.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {D.2}Detailed Latency Breakdown}{11}{subsection.D.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {D.3}Hyperparameter Sensitivity}{11}{subsection.D.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces \textbf  {Full ROI Leaderboard.} All 81 models ranked by ROI Factor = $\|\boldsymbol  {\theta }\| / \text  {Cost}$ relative to GPT-4o baseline. Top 15 models shown.}}{11}{table.caption.77}\protected@file@percent }
+\newlabel{tab:roi_full}{{10}{11}{\textbf {Full ROI Leaderboard.} All 81 models ranked by ROI Factor = $\|\boldsymbol {\theta }\| / \text {Cost}$ relative to GPT-4o baseline. Top 15 models shown}{table.caption.77}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces \textbf  {Detailed Latency Benchmarks.} Router inference latency across 1,000 runs (81 models, 384 dims).}}{11}{table.caption.78}\protected@file@percent }
+\newlabel{tab:latency_full}{{11}{11}{\textbf {Detailed Latency Benchmarks.} Router inference latency across 1,000 runs (81 models, 384 dims)}{table.caption.78}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces \textbf  {Hyperparameter Sensitivity.} Effect of prior strength ($\lambda _{\text  {boost}}$) and exploration rate ($\alpha $) on regret reduction vs.\ cold-start baseline.}}{11}{table.caption.79}\protected@file@percent }
+\newlabel{tab:hyperparams}{{12}{11}{\textbf {Hyperparameter Sensitivity.} Effect of prior strength ($\lambda _{\text {boost}}$) and exploration rate ($\alpha $) on regret reduction vs.\ cold-start baseline}{table.caption.79}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {E}Algorithm Details}{11}{appendix.E}\protected@file@percent }
+\newlabel{app:algorithm}{{E}{11}{Algorithm Details}{appendix.E}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {E.1}Routing Algorithm}{11}{subsection.E.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {E.2}Online Update}{11}{subsection.E.2}\protected@file@percent }
+\newlabel{tocindent-1}{0pt}
+\newlabel{tocindent0}{0pt}
+\newlabel{tocindent1}{6.30899pt}
+\newlabel{tocindent2}{14.53499pt}
+\newlabel{tocindent3}{18.198pt}
+\newlabel{tocindent4}{0pt}
+\newlabel{tocindent5}{0pt}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces \textbf  {Resilience Under Hard Budget Constraints.} Static policies fail; BanditGPT adapts.}}{12}{figure.caption.83}\protected@file@percent }
+\newlabel{fig:finops_app}{{9}{12}{\textbf {Resilience Under Hard Budget Constraints.} Static policies fail; BanditGPT adapts}{figure.caption.83}{}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Density-Based Warm-Start Routing}}{12}{algorithm.1}\protected@file@percent }
+\newlabel{alg:routing}{{1}{12}{Density-Based Warm-Start Routing}{algorithm.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {F}SLA-Aware Routing Framework}{12}{appendix.F}\protected@file@percent }
+\newlabel{app:sla}{{F}{12}{SLA-Aware Routing Framework}{appendix.F}{}}
+\@writefile{toc}{\contentsline {paragraph}{Threshold Settings.}{12}{section*.80}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Hard Budget Constraints.}{12}{section*.81}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces \textbf  {Dialing the Pareto Frontier.} Users dynamically trade cost for accuracy via $\tau _{\text  {verify}}$.}}{12}{figure.caption.82}\protected@file@percent }
+\newlabel{fig:sla_tunability_app}{{8}{12}{\textbf {Dialing the Pareto Frontier.} Users dynamically trade cost for accuracy via $\tau _{\text {verify}}$}{figure.caption.82}{}}
+\newlabel{TotPages}{{12}{12}{}{page.12}{}}
+\gdef \@abspage@last{12}

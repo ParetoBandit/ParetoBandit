@@ -1,0 +1,111 @@
+% ============================================================================
+% SECTION: DEMOCRATIZATION USE CASES (CONCISE - Fits 1.5 pages)
+% Condensed from 2.5 pages to 1.5 pages while preserving key narratives
+% ============================================================================
+
+\section{Democratization Through Adaptive Routing}
+\label{sec:use_cases}
+
+To ground our technical contributions in real-world impact, we illustrate how \ours{} removes dual barriers---cost (frontier models are prohibitively expensive) and expertise (existing tools require ML knowledge)---through representative scenarios.
+
+\subsection{Student Projects: Learning Without Prerequisites}
+
+\paragraph{The Dual Barrier.} A student building a paper summarization tool (5,000 abstracts) faces prohibitive costs (\$21.90 for GPT-4o-only) and lacks the hundreds to thousands of labeled examples typically required to calibrate FrugalGPT~\cite{chen2023frugalgpt}.
+
+\paragraph{With BanditGPT.} The student installs via pip, downloads pre-trained priors (1MB), and deploys in 5 minutes:
+
+\begin{small}
+\begin{verbatim}
+router = Router(mode="standard", lambda_cost=10,
+                max_budget_total=50.00)
+\end{verbatim}
+\end{small}
+
+\noindent Cost: \textbf{\$3.50} (84\% reduction). Expertise required: \textbf{None}.
+
+\paragraph{Operational Advantages.} The student specifies their semester budget (\texttt{max\_budget\_total=50}) and the router automatically tracks spending. When Llama-3.3-70B releases mid-semester, adding it requires 30 seconds (\texttt{router.register\_model("llama-3.3", cost=0.88)}) versus FrugalGPT's 1--3 days of benchmarking (\$2.63 + labor). The router autonomously learns the new model's strengths through 50 queries (\$0.044 exploration cost).
+
+\paragraph{Impact.} By eliminating economic and expertise barriers, \ours{} expands AI education from elite institutions (which provide API budgets and ML coursework) to community colleges and online learners lacking both resources.
+
+\subsection{Startup Deployment: Scale Without Specialists}
+
+\paragraph{The Infrastructure Barrier.} An early-stage legal tech startup (3 engineers, no ML team) faces \$52k annual inference costs plus \$225k infrastructure costs to implement FrugalGPT (illustrative breakdown based on representative ML engineer salaries and cloud pricing~\cite{builtin2025salary,openai2025pricing}): hiring an ML engineer (\$150k), collecting calibration data, maintaining a separate ML pipeline, and monitoring scorer drift. Infrastructure costs exceed inference savings, making adaptive routing economically infeasible.
+
+\paragraph{With BanditGPT.} The team deploys without ML specialists:
+
+\begin{small}
+\begin{verbatim}
+router = Router(mode="hybrid", lambda_cost=3,
+                max_cost_per_1k=2.00)
+\end{verbatim}
+\end{small}
+
+\noindent Annual costs: \textbf{\$8.4k} in standard mode (84\% reduction), \textbf{\$16k} in hybrid mode (high-assurance). Setup: existing engineering team, zero ML expertise.
+
+\paragraph{Market Evolution.} As new models release monthly (DeepSeek-V3, Llama-3.3, Gemini-2.0), engineers add each in 30 seconds without benchmarking. The router autonomously evaluates models on live traffic and shifts routing patterns to maximize cost savings, enabling continuous market tracking without dedicated ML resources (snapshot as of December 2024)~\cite{openrouter2025models,artificialanalysis2025}.
+
+\paragraph{Multi-Service Optimization.} The startup runs multiple services with independent operational constraints:
+
+\begin{small}
+\begin{verbatim}
+chatbot = Router(min_quality=0.90, lambda_cost=3)  # quality-first
+code_review = Router(min_quality=0.70, lambda_cost=10)  # cost-first
+\end{verbatim}
+\end{small}
+
+Each optimizes autonomously without manual routing logic or cross-service coordination.
+
+\paragraph{Impact.} By removing infrastructure barriers, \ours{} converts AI from "requires dedicated ML team" to "add via standard engineering workflow," enabling small teams to compete with incumbents possessing ML departments.
+
+\subsection{Broader Impact Across User Types}
+
+Table~\ref{tab:use_case_summary} summarizes how \ours{} addresses barriers across diverse users:
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Accessibility Impact Across User Types.} BanditGPT removes economic and operational barriers for diverse stakeholders. Figures are illustrative, based on representative industry benchmarks for large-scale deployments.}
+\label{tab:use_case_summary}
+\begin{tabular}{p{1.2cm}p{1.5cm}p{1.5cm}p{2.5cm}}
+\toprule
+\textbf{User} & \textbf{Cost Barrier} & \textbf{Expertise Barrier} & \textbf{With BanditGPT} \\
+\midrule
+Student & \$22 → \$3.50 (84\%) & No training data, no scorer & 5-min setup, \$50 budget control \\
+Researcher & \$438 → \$14 (68\%) & No ML background, weeks of annotation & Zero calibration, quality floors \\
+Startup & \$52k → \$8k (84\%) & \$225k infrastructure cost & No ML team, 30s model updates \\
+Enterprise & \$44M → \$7M (84\%) & 6--12 month ML coordination & 2-week deploy, zero dependencies \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Cross-Cutting Themes.}
+Three patterns emerge: \textbf{(1) Ease unlocks adoption}---cost reduction alone fails if setup requires ML expertise; by providing immediate usability (pre-trained priors, autonomous learning), we expand the user base from "ML practitioners" to "anyone who can write Python." \textbf{(2) Zero-friction evolution enables experimentation}---when adding models requires days and \$20--50, users hesitate; with 30-second registration, users continuously benefit from new releases. \textbf{(3) Intuitive control democratizes decision-making}---exposing constraints via domain terms (\texttt{max\_budget=\$50}, \texttt{min\_quality=90\%}) rather than ML hyperparameters enables non-experts to control routing without understanding bandits~\cite{democratizing2025usability}.
+
+\subsection{Operational Comparison}
+
+\begin{table}[t]
+\centering
+\small
+\caption{\textbf{Accessibility Requirements.} Figures for time are approximate and based on representative small-team deployments; BanditGPT requires only a one-time configuration step.}
+\label{tab:accessibility_comparison}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Requirement} & \textbf{FrugalGPT} & \textbf{RouteLLM} & \textbf{BanditGPT} \\
+\midrule
+Calibration Data & Hundreds to low thousands & Thousands of pairs & 0 \\
+Scorer Training & BERT finetune & Classifier & No \\
+Model Addition & 1--3 days & 1--2 days & 30 seconds \\
+Budget Control & Manual & \xmark & Built-in \\
+Setup Time & Days & Hours & Minutes \\
+Expertise & High & Medium & None \\
+\midrule
+Target User & ML teams & ML practitioners & Anyone \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:accessibility_comparison} quantifies operational differences. By eliminating calibration, scorer training, and benchmarking requirements, \ours{} reduces barriers from "requires ML team" to "requires pip install," expanding adaptive routing from specialized deployments to mainstream adoption.
+
+\paragraph{Design Philosophy.} These scenarios informed \ours{}'s architecture: shippable priors eliminate calibration; online learning removes expertise dependencies; tunable $\lambda$ supports diverse contexts; 30-second model registration enables market tracking; intuitive constraints (\texttt{max\_budget}, \texttt{min\_quality}, \texttt{max\_latency}) democratize control. The technical contributions exist not as algorithmic novelty for its own sake, but as mechanisms for democratizing adaptive routing.
+
+
