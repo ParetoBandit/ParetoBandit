@@ -49,11 +49,12 @@ router = BanditRouter.create(state_path="my_bandit_state.npz")
 
 ## 5. Evaluation & Significance
 
-To re-run the 5-fold validation and statistical significance tests:
+To re-run the 5-fold validation, statistical significance tests, and adaptation curve:
 
 ```bash
 python plot_regret.py
 python validate_significance.py
+python plot_adaptation.py
 ```
 
 ## 6. Data Preparation (Optional)
