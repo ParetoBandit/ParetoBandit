@@ -9,24 +9,39 @@ def main():
     prompts_path = Path("banditgpt/data/priors/lmsys_all_prompts.jsonl")
     output_path = base_dir / "data/priors_meta_large.npz"
     
+    # Load Evaluation Prompts to exclude (Data Leakage Fix)
+    eval_prompts = set()
+    for p_file in ["data/train_prompts.jsonl", "data/test_prompts.jsonl"]:
+        p_path = base_dir / p_file
+        if p_path.exists():
+            with open(p_path) as f:
+                for line in f:
+                    eval_prompts.add(json.loads(line)["prompt"].strip())
+    
+    print(f"Loaded {len(eval_prompts)} evaluation prompts to exclude.")
+    
     print(f"Loading prompts from {prompts_path}...")
     prompts = []
+    excluded_count = 0
     with open(prompts_path) as f:
         for line in f:
             try:
                 data = json.loads(line)
-                # Handle different formats if necessary, assuming "prompt" key or raw text
                 if isinstance(data, dict):
                     text = data.get("prompt") or data.get("text") or data.get("content")
                 else:
                     text = str(data)
                 
                 if text:
-                    prompts.append(text)
+                    clean_text = text.strip()
+                    if clean_text in eval_prompts:
+                        excluded_count += 1
+                        continue
+                    prompts.append(clean_text)
             except Exception as e:
                 print(f"Skipping bad line: {e}")
                 
-    print(f"Loaded {len(prompts)} prompts.")
+    print(f"Loaded {len(prompts)} prompts (Excluded {excluded_count} evaluation prompts).")
     
     # Embed
     print("Embedding prompts (this may take a while)...")

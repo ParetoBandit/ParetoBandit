@@ -82,7 +82,6 @@ def main():
         context_model="sentence-transformers/all-MiniLM-L6-v2",
         alpha=0.5,
         prior_strength=20.0,
-        reward_mode="logit",
         priors_meta_path=priors_meta_path
     )
     
@@ -95,7 +94,7 @@ def main():
             best_reward = max(cluster_rewards.values()) if cluster_rewards else 0.0
             
             # Select
-            chosen, _, _ = router.bandit.select_arm(x)
+            chosen, _ = router.bandit.select_arm(x)
             observed = cluster_rewards.get(chosen, 0.0)
             
             # Update
