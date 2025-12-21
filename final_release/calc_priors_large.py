@@ -22,7 +22,10 @@ def main():
     
     print(f"Loading prompts from {prompts_path}...")
     prompts = []
+    seen = set()
     excluded_count = 0
+    duplicate_count = 0
+    
     with open(prompts_path) as f:
         for line in f:
             try:
@@ -34,14 +37,24 @@ def main():
                 
                 if text:
                     clean_text = text.strip()
+                    # 1. Check for Data Leakage (Evaluation Prompts)
                     if clean_text in eval_prompts:
                         excluded_count += 1
                         continue
+                    
+                    # 2. Check for Duplicates
+                    if clean_text in seen:
+                        duplicate_count += 1
+                        continue
+                    
+                    seen.add(clean_text)
                     prompts.append(clean_text)
             except Exception as e:
                 print(f"Skipping bad line: {e}")
                 
-    print(f"Loaded {len(prompts)} prompts (Excluded {excluded_count} evaluation prompts).")
+    print(f"Loaded {len(prompts)} unique prompts.")
+    print(f" - Excluded (Data Leakage): {excluded_count}")
+    print(f" - Excluded (Duplicates): {duplicate_count}")
     
     # Embed
     print("Embedding prompts (this may take a while)...")
