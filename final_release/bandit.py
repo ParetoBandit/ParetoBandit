@@ -16,6 +16,7 @@ import time
 import logging
 from dataclasses import dataclass, asdict
 from pathlib import Path
+from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -135,6 +136,29 @@ class DisjointLinUCBPolicy:
                 best_model = m
         
         return best_model, float(best_ucb)
+    
+    def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000) -> Dict[str, float]:
+        """Calculate the probability of each model being the best via posterior sampling."""
+        model_samples = {}
+        valid_models = [m for m in models if m in self.A]
+        
+        for m in valid_models:
+            theta_hat = self.A_inv[m] @ self.b[m]
+            # Sample weights from the posterior N(theta_hat, A_inv)
+            samples = np.random.multivariate_normal(theta_hat, self.A_inv[m], n_samples)
+            model_samples[m] = samples @ x
+            
+        if not model_samples: return {m: 0.0 for m in models}
+        
+        # Determine how many times each model was the winner across samples
+        stacked_samples = np.stack([model_samples[m] for m in valid_models])
+        winners = np.argmax(stacked_samples, axis=0)
+        
+        counts = Counter(winners)
+        probs = {m: 0.0 for m in models}
+        for i, m in enumerate(valid_models):
+            probs[m] = counts[i] / n_samples
+        return probs
 
     def update(self, model: str, x: np.ndarray, reward: float) -> None:
         if model not in self.A: return
@@ -420,6 +444,24 @@ class BanditRouter:
         self.logs.append(log)
         
         return best_model, log
+
+    def get_probabilities(self, context: str | np.ndarray, model_ids: List[str] | None = None) -> Dict[str, float]:
+        """Get the probability of each model being the specialist for a given context."""
+        x = self._get_context_vector(context)
+        models = model_ids if model_ids else self.bandit.models
+        return self.bandit.get_probabilities(x, models)
+
+    def update(self, model_id: str, context: str | np.ndarray, reward: float) -> None:
+        """Update the bandit's internal state with a new observation."""
+        x = self._get_context_vector(context)
+        self.bandit.update(model_id, x, reward)
+
+    def _get_context_vector(self, context: str | np.ndarray) -> np.ndarray:
+        """Convert string prompt or array to a normalized context vector."""
+        if isinstance(context, str):
+            x = self.encoder.encode(context)
+            return l2_normalize(x)
+        return context
 
     def save_state(self, path: Path | str) -> None:
         """Save the bandit's learned state to disk."""

@@ -1,0 +1,7 @@
+{
+  "epochs": 18,
+  "expert": 0.75,
+  "lambda": 8.0,
+  "reduction": -7.420528733364082,
+  "name": "e18_exp75_l8"
+}

@@ -2,7 +2,7 @@
 %%% Do NOT edit. File created by BibTeX with style
 %%% ACM-Reference-Format-Journals [18-Jan-2012].
 
-\begin{thebibliography}{28}
+\begin{thebibliography}{24}
 
 %%% ====================================================================
 %%% NOTE TO THE USER: you can override these defaults by providing
@@ -84,6 +84,17 @@
 \shownote{Open-source library for intent classification-based LLM routing}.
 
 
+\bibitem[Bietti et~al\mbox{.}(2021)]%
+        {bietti2021contextual}
+\bibfield{author}{\bibinfo{person}{Alberto Bietti}, \bibinfo{person}{Alekh
+  Agarwal}, {and} \bibinfo{person}{John Langford}.}
+  \bibinfo{year}{2021}\natexlab{}.
+\newblock \showarticletitle{Contextual Bandits with Large Action Spaces: Made
+  Practical}. In \bibinfo{booktitle}{\emph{International Conference on Machine
+  Learning}}. PMLR, \bibinfo{pages}{939--948}.
+\newblock
+
+
 \bibitem[{Built In}(2025)]%
         {builtin2025salary}
 \bibfield{author}{\bibinfo{person}{{Built In}}.}
@@ -117,34 +128,6 @@
   Reducing Cost and Improving Performance}.
 \newblock \bibinfo{journal}{\emph{Transactions on Machine Learning Research}}
   (\bibinfo{year}{2024}).
-\newblock
-
-
-\bibitem[Chen et~al\mbox{.}(2021)]%
-        {chen2021evaluating}
-\bibfield{author}{\bibinfo{person}{Mark Chen}, \bibinfo{person}{Jerry Tworek},
-  \bibinfo{person}{Heewoo Jun}, \bibinfo{person}{Qiming Yuan},
-  \bibinfo{person}{Henrique Ponde de~Oliveira Pinto}, \bibinfo{person}{Jared
-  Kaplan}, \bibinfo{person}{Harri Edwards}, \bibinfo{person}{Yuri Burda},
-  \bibinfo{person}{Nicholas Joseph}, \bibinfo{person}{Greg Brockman},
-  {et~al\mbox{.}}} \bibinfo{year}{2021}\natexlab{}.
-\newblock \showarticletitle{Evaluating Large Language Models Trained on Code}.
-\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2107.03374}}
-  (\bibinfo{year}{2021}).
-\newblock
-
-
-\bibitem[Cobbe et~al\mbox{.}(2021)]%
-        {cobbe2021training}
-\bibfield{author}{\bibinfo{person}{Karl Cobbe}, \bibinfo{person}{Vineet
-  Kosaraju}, \bibinfo{person}{Mohammad Bavarian}, \bibinfo{person}{Mark Chen},
-  \bibinfo{person}{Heewoo Jun}, \bibinfo{person}{Lukasz Kaiser},
-  \bibinfo{person}{Matthias Plappert}, \bibinfo{person}{Jerry Tworek},
-  \bibinfo{person}{Jacob Hilton}, \bibinfo{person}{Reiichiro Nakano},
-  {et~al\mbox{.}}} \bibinfo{year}{2021}\natexlab{}.
-\newblock \showarticletitle{Training Verifiers to Solve Math Word Problems}.
-\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2110.14168}}
-  (\bibinfo{year}{2021}).
 \newblock
 
 
@@ -185,19 +168,6 @@
 \newblock
 
 
-\bibitem[Hendrycks et~al\mbox{.}(2020)]%
-        {hendrycks2020measuring}
-\bibfield{author}{\bibinfo{person}{Dan Hendrycks}, \bibinfo{person}{Collin
-  Burns}, \bibinfo{person}{Steven Basart}, \bibinfo{person}{Andy Zou},
-  \bibinfo{person}{Mantas Mazeika}, \bibinfo{person}{Dawn Song}, {and}
-  \bibinfo{person}{Jacob Steinhardt}.} \bibinfo{year}{2020}\natexlab{}.
-\newblock \showarticletitle{Measuring Massive Multitask Language
-  Understanding}.
-\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2009.03300}}
-  (\bibinfo{year}{2020}).
-\newblock
-
-
 \bibitem[Kadavath et~al\mbox{.}(2022)]%
         {kadavath2022language}
 \bibfield{author}{\bibinfo{person}{Saurav Kadavath}, \bibinfo{person}{Tom
@@ -234,20 +204,6 @@
 \newblock \showarticletitle{Holistic Evaluation of Language Models}.
 \newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2211.09110}}
   (\bibinfo{year}{2022}).
-\newblock
-
-
-\bibitem[Lightman et~al\mbox{.}(2023)]%
-        {lightman2023let}
-\bibfield{author}{\bibinfo{person}{Hunter Lightman}, \bibinfo{person}{Vineet
-  Kosaraju}, \bibinfo{person}{Yuri Burda}, \bibinfo{person}{Harri Edwards},
-  \bibinfo{person}{Bowen Baker}, \bibinfo{person}{Teddy Lee},
-  \bibinfo{person}{Jan Leike}, \bibinfo{person}{John Schulman},
-  \bibinfo{person}{Ilya Sutskever}, {and} \bibinfo{person}{Karl Cobbe}.}
-  \bibinfo{year}{2023}\natexlab{}.
-\newblock \showarticletitle{Let's Verify Step by Step}.
-\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2305.20050}}
-  (\bibinfo{year}{2023}).
 \newblock
 
 
@@ -357,18 +313,6 @@
 \shownote{Reports 65,000+ developer responses showing ML/AI specialists
   comprise 4.8\% of professional developers, while general software developers
   (proficient in Python/JavaScript) comprise 71.2\%}.
-
-
-\bibitem[Taylor and Stone(2009)]%
-        {taylor2009transfer}
-\bibfield{author}{\bibinfo{person}{Matthew~E Taylor} {and}
-  \bibinfo{person}{Peter Stone}.} \bibinfo{year}{2009}\natexlab{}.
-\newblock \showarticletitle{Transfer Learning for Reinforcement Learning
-  Domains: A Survey}.
-\newblock \bibinfo{journal}{\emph{Journal of Machine Learning Research}}
-  \bibinfo{volume}{10}, \bibinfo{number}{7} (\bibinfo{year}{2009}),
-  \bibinfo{pages}{1633--1685}.
-\newblock
 
 
 \bibitem[Wang et~al\mbox{.}(2024)]%

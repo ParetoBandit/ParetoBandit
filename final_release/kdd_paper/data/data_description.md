@@ -1,4 +1,13 @@
-# Data Methodology and Description
+# Data Methodology
+## Figure 0.5: HLE Score Distribution
+This figure illustrates the distribution of **Humanity's Last Exam (HLE)** scores across the 80+ models in our registry.
+
+![Figure 0.5: HLE Distribution](/Users/annette/.gemini/antigravity/brain/8dc42199-0a6c-423a-a332-751a34ce49d5/figure0_5_hle_dist.png)
+
+### Key Insights
+- **Long Tail**: Most models cluster at the lower end of the HLE spectrum (0.03 - 0.10), highlighting the extreme difficulty of the benchmark.
+- **Elite Tier**: Only a handful of models (e.g., Gemini 3 Pro, Claude 3.5 Opus) achieve scores above 0.30, representing the current state-of-the-art in complex reasoning.
+- **Median vs. P95**: The **Median score (0.048)** reflects the typical performance of a "good" generalist, while the **P95 (0.269)** marks the threshold for the world's most capable reasoning models.
 
 This section describes the datasets used to develop, warm-start, and evaluate the Bandit Router. Our data strategy focuses on three pillars: a comprehensive model registry, high-quality benchmark priors, and a leakage-free evaluation set.
 

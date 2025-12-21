@@ -16,8 +16,8 @@ def main():
     
     # 1. Load Models and Costs
     print("Loading models and costs...")
-    # Look in the final_release root (two levels up)
-    root_dir = base_dir.parent.parent
+    # Look in the current directory (final_release root)
+    root_dir = base_dir
     with open(root_dir / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}

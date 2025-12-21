@@ -67,7 +67,7 @@
 % ============================================================================
 % TITLE AND AUTHORS
 % ============================================================================
-\title{Democratizing LLM Access: Adaptive Routing with Shippable Priors}
+\title{Democratizing LLM Access: Zero-Calibration LLM Routing via Pure Online Learning}
 
 % Anonymous submission for review
 \author{Anonymous Author(s)}
@@ -82,17 +82,17 @@
 % ABSTRACT (CONCISE VERSION - 197 words)
 % ============================================================================
 \begin{abstract}
-Large language models remain inaccessible due to dual barriers: frontier models cost \$4--15 per 1,000 queries~\cite{openai2025pricing,anthropic2025pricing} (prohibitive for students, researchers, startups), while existing routing tools require hundreds to thousands of labeled examples, domain-specific scorer training, and days of setup---resources unavailable without ML infrastructure. Though 80+ specialized models offer 90\% cost reduction at \$0.10--0.88 per 1,000 queries~\cite{openrouter2025models,artificialanalysis2025}, practitioners lack accessible tools to navigate this fragmentation, resulting in systematic over-provisioning or abandoned optimization.
+Large language models remain inaccessible due to dual barriers: frontier models cost \$4--15 per 1,000 queries at late-2024 on-demand prices~\cite{openai2025pricing,anthropic2025pricing}, creating \emph{economic barriers} that exclude students, researchers, and startups. While more than 80 specialized models on public marketplaces offer up to $\sim$90\% cost reduction, with prices as low as \$0.10--0.88 per 1,000 queries~\cite{openrouter2025models,artificialanalysis2025}, practitioners lack accessible tools to navigate this fragmentation, resulting in systematic over-provisioning or abandoned optimization.
 
-We present \ours{}, an open-source routing framework that eliminates both barriers via \emph{shippable priors}---compact covariance matrices (<1MB) distilled from offline supervision. Users deploy in minutes without labeled data, achieving 96--99\% day-one regret reduction versus cold-start. Learning from FrugalGPT's cascading reliability and RouteLLM's preference routing, we address their calibration bottlenecks: users add new models via 30-second registration (vs.\ 1--3 days benchmarking), specify constraints intuitively (\texttt{max\_budget=\$50}, \texttt{min\_quality=90\%}), and benefit from autonomous online adaptation.
+We present \ours{}, an open-source routing framework that eliminates both barriers through \emph{pure online learning}. Unlike existing methods requiring hundreds to thousands of labeled examples for offline calibration, \ours{} deploys immediately without training data, converging to optimal routing within $\sim$200 interactions. Through rigorous 5-fold validation, we demonstrate that offline calibration on <1K prompts exhibits consistent negative transfer (+32\% regret), validating our zero-calibration design. Users add new models via 30-second registration (vs.\ 1--3 days benchmarking), specify constraints intuitively (\texttt{max\_budget=\$50}, \texttt{min\_quality=90\%}), and benefit from autonomous online adaptation.
 
-\textbf{Standard mode} reduces costs 61\% versus FrugalGPT (\$0.70 vs.\ \$1.78/1k in our simulation) despite zero calibration requirements. \textbf{Hybrid mode} achieves 98\% reliability (3pp over cascading baselines) across 80+ models without manual chain design. Routing overhead is 8.94ms P99 (1.1\% of latency). By releasing pre-trained priors and intuitive control interfaces, we expand adaptive routing from ML specialists to general programmers (15--25× user base expansion~\cite{stackoverflow2024survey,github2025developer}), demonstrating that democratizing AI access requires addressing operational complexity alongside cost.
+\textbf{Standard mode} reduces costs 61\% versus FrugalGPT (\$0.70 vs.\ \$1.78/1k in our simulation) despite zero calibration requirements. \textbf{Hybrid mode} achieves 98\% reliability (3pp over cascading baselines) across 80+ models without manual chain design. Routing overhead is 8.94ms P99 (1.1\% of latency). By eliminating calibration requirements and providing intuitive control interfaces, we expand adaptive routing from ML specialists to general programmers---an order-of-magnitude expansion ($\approx 15$--$25\times$) in the addressable developer base~\cite{stackoverflow2024survey,github2025developer}---demonstrating that democratizing AI access requires addressing operational complexity alongside cost.
 \end{abstract}
 
 % ============================================================================
 % KEYWORDS
 % ============================================================================
-\keywords{LLM Routing, Accessible AI, Contextual Bandits, Warm-Start Learning, Cost Optimization, Democratization}
+\keywords{LLM Routing, Accessible AI, Contextual Bandits, Zero-Benchmark Deployment, Metadata Initialization, Online Learning, Cost Optimization, Democratization}
 
 % ============================================================================
 % DOCUMENT

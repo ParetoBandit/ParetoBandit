@@ -55,6 +55,20 @@ except ImportError:  # pragma: no cover
     HybridRoutingLog = None
     RoutingLog = None
 
+# Model Registry (with benchmark-based initialization)
+try:
+    from banditgpt.core.registry import (  # noqa: F401
+        load_default_registry,
+        get_benchmark_average,
+        create_minimal_registry,
+        get_models_by_benchmark_tier,
+    )
+except ImportError:  # pragma: no cover
+    load_default_registry = None
+    get_benchmark_average = None
+    create_minimal_registry = None
+    get_models_by_benchmark_tier = None
+
 __all__ = [
     "__version__",
     # Graders
@@ -77,4 +91,9 @@ __all__ = [
     "HybridRouter",
     "HybridRoutingLog",
     "RoutingLog",
+    # Model Registry (Metadata-Guided Initialization)
+    "load_default_registry",
+    "get_benchmark_average",
+    "create_minimal_registry",
+    "get_models_by_benchmark_tier",
 ]

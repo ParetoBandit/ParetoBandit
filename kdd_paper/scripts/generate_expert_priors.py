@@ -1,41 +1,39 @@
 #!/usr/bin/env python3
 """
-Generate Expert-Distilled Priors for RQ1 Experiment.
+Generate Dense Priors for RQ1 Experiment.
 
-Problem with Uniform Exploration:
-    Priors generated via random model selection encode "average noise"
-    rather than "expert intuition". When boosted, they amplify wrong biases.
+Problem with Sparse/Simulated Priors:
+    Simulating a bandit process (even with "Expert Distillation") leaves many
+    arms unexplored. The agent incorrectly learns that unobserved arms have
+    zero reward (Confident Ignorance). When boosted with high prior_strength,
+    this prevents the agent from exploring potentially better models.
 
-Solution - Expert Distillation:
-    Simulate a teacher oracle that picks the best model 80% of the time.
-    This aligns the covariance matrix with the optimal policy.
+Solution - Dense Priors:
+    We utilize the full dense dataset (all models evaluated on all prompts)
+    to train the priors. This corresponds to a full Ridge Regression on the
+    offline data.
 
-KDD Narrative:
-    "We utilize Expert Distillation where the student router is initialized
-    by observing optimal routing decisions from a teacher oracle, rather
-    than random exploration. This aligns the covariance manifold with the
-    optimal policy frontier."
+    The agent learns accurate mean estimates (θ) for ALL models, allowing it
+    to correctly rank even "second best" models without false confidence
+    that they are worthless.
 
 Reproducibility:
-    To reproduce the exact expert_priors.npz shipped with the library:
-    
     1. Ensure you have the data files:
-       - data/priors/archetype_grid_prompts.jsonl (500 prompts)
-       - data/priors/archetype_grid_dense_run.jsonl (rewards from 36 models)
-    
-    2. Run with default settings (seed=42):
-       python -m banditgpt.experiment.generate_expert_priors
-    
+       - data/priors/archetype_grid_prompts.jsonl
+       - data/priors/archetype_grid_dense_run.jsonl
+
+    2. Run with default settings:
+       python -m kdd_paper.scripts.generate_expert_priors
+
     3. Expected output:
-       - File size: ~21 MB
-       - 62.2% regret reduction vs cold-start (with prior_strength=50.0)
+       - Full Disjoint Priors (A_stack, b_stack)
+       - Trained on 100% of available dense data
 
 Usage:
-    python -m banditgpt.experiment.generate_expert_priors
-    python -m banditgpt.experiment.generate_expert_priors --seed 42 --epochs 5
+    python -m kdd_paper.scripts.generate_expert_priors
 
 Output:
-    data/priors/expert_priors.npz - Expert-distilled priors
+    data/priors/expert_priors.npz - Dense priors
 """
 
 from __future__ import annotations
@@ -136,34 +134,28 @@ def compute_file_hash(path: Path) -> str:
     return sha256.hexdigest()[:16]  # First 16 chars
 
 
-def generate_expert_priors(
+def generate_dense_priors(
     prompts_path: Path,
     rewards_path: Path,
     output_path: Path,
     context_model: str = DEFAULT_CONTEXT_MODEL,
-    expert_rate: float = 0.8,
-    n_epochs: int = 5,
     alpha: float = 0.5,
     seed: int = 42,
 ) -> None:
     """
-    Generate expert-distilled priors.
+    Generate dense priors from full offline dataset.
     
     Args:
         prompts_path: Path to archetype_grid_prompts.jsonl
         rewards_path: Path to archetype_grid_dense_run.jsonl
         output_path: Where to save the priors
         context_model: Embedding model (must match priors training)
-        expert_rate: Probability of picking optimal model (0.8 = 80% expert)
-        n_epochs: Number of passes through the data
         alpha: UCB exploration parameter
         seed: Random seed for reproducibility (default: 42)
     """
     print("=" * 60)
-    print("Generating Expert-Distilled Priors")
+    print("Generating Dense Priors (Full Offline Data)")
     print("=" * 60)
-    print(f"  Expert Rate: {expert_rate:.0%} (teacher picks optimal)")
-    print(f"  Epochs: {n_epochs}")
     print(f"  Embedding Model: {context_model}")
     print(f"  Random Seed: {seed}")
     print("=" * 60)
@@ -213,42 +205,34 @@ def generate_expert_priors(
     print(f"       Loaded rewards for {len(truth)} clusters")
     
     # Create fresh bandit
-    print("[5/5] Training with Expert Distillation...")
+    print("[5/5] Training with Full Dense Data...")
     policy = DisjointLinUCBPolicy(
         model_names=model_names,
         dim=dim,
         alpha=alpha,
     )
     
-    n_expert = 0
-    n_random = 0
+    n_updates = 0
     
-    for epoch in range(n_epochs):
-        # Shuffle order each epoch
-        perm = rng.permutation(len(prompts))
+    # Iterate through ALL prompts
+    for idx in range(len(prompts)):
+        x = embeddings[idx]
+        cluster = cluster_ids[idx]
         
-        for idx in perm:
-            x = embeddings[idx]
-            cluster = cluster_ids[idx]
-            
-            # Expert Distillation: teacher picks optimal 80% of the time
-            if rng.random() < expert_rate:
-                # EXPERT: Pick the best model (teacher demonstration)
-                model, reward = get_optimal_model(cluster, truth, model_names)
-                n_expert += 1
-            else:
-                # EXPLORATION: Pick random model (for diversity)
-                model = model_names[rng.integers(0, len(model_names))]
-                reward = truth.get(cluster, {}).get(model, 0.5)
-                n_random += 1
-            
-            # Update bandit with this (context, action, reward) tuple
-            policy.update(model, x, reward)
+        # Dense Update: Update ALL models for this prompt
+        # This is equivalent to Ridge Regression on the full dataset
+        cluster_rewards = truth.get(cluster, {})
         
-        print(f"       Epoch {epoch + 1}/{n_epochs} complete")
+        for model in model_names:
+            # If we have a reward for this model on this cluster, update it
+            if model in cluster_rewards:
+                reward = cluster_rewards[model]
+                policy.update(model, x, reward)
+                n_updates += 1
     
-    print(f"\n       Expert picks: {n_expert} ({100*n_expert/(n_expert+n_random):.1f}%)")
-    print(f"       Random picks: {n_random} ({100*n_random/(n_expert+n_random):.1f}%)")
+    print(f"\n       Training complete.")
+    print(f"       Total updates: {n_updates}")
+    print(f"       Avg updates per model: {n_updates / len(model_names):.1f}")
     
     # Save priors in FULL DISJOINT format for maximum performance
     # Each model keeps its own A matrix (captures per-model confidence from expert training)
@@ -273,8 +257,6 @@ def generate_expert_priors(
         A_stack=A_stack.astype(np.float16),  # Compress to float16 for size
         b_stack=b_stack.astype(np.float16),
         # Training hyperparameters (for reproducibility)
-        expert_rate=expert_rate,
-        n_epochs=n_epochs,
         seed=seed,
         context_model=context_model,
         # Provenance metadata (for auditing)
@@ -307,14 +289,15 @@ def generate_expert_priors(
         print(f"       {m}: ||θ|| = {norm:.4f}")
     
     print("\n" + "=" * 60)
-    print("Expert Priors Generated Successfully!")
+    print("\n" + "=" * 60)
+    print("Dense Priors Generated Successfully!")
     print("=" * 60)
 
 
 def verify_priors(priors_path: Path) -> None:
     """Verify priors file and display provenance metadata."""
     print("=" * 60)
-    print("Verifying Expert Priors")
+    print("Verifying Dense Priors")
     print("=" * 60)
     
     if not priors_path.exists():
@@ -340,7 +323,7 @@ def verify_priors(priors_path: Path) -> None:
         print(f"  Format: Shared (legacy)")
     
     print(f"\n[Training Hyperparameters]")
-    for key in ["expert_rate", "n_epochs", "seed", "context_model"]:
+    for key in ["seed", "context_model"]:
         if key in data:
             print(f"  {key}: {data[key]}")
     
@@ -356,10 +339,8 @@ def verify_priors(priors_path: Path) -> None:
     if "prompts_hash" in data and "rewards_hash" in data:
         print(f"\n[Reproducibility Check]")
         print(f"  To reproduce these priors, run:")
-        print(f"    python -m banditgpt.experiment.generate_expert_priors \\")
-        print(f"      --seed {data.get('seed', 42)} \\")
-        print(f"      --epochs {data.get('n_epochs', 5)} \\")
-        print(f"      --expert-rate {data.get('expert_rate', 0.8)}")
+        print(f"    python -m kdd_paper.scripts.generate_expert_priors \\")
+        print(f"      --seed {data.get('seed', 42)}")
     
     print("\n" + "=" * 60)
 
@@ -380,10 +361,6 @@ def main():
                             default=str(get_priors_path("archetype_grid_dense_run.jsonl")))
     gen_parser.add_argument("--output", type=str,
                             default=str(get_priors_path("expert_priors.npz")))
-    gen_parser.add_argument("--expert-rate", type=float, default=0.8,
-                            help="Probability of picking optimal model (0.8 = 80%% expert)")
-    gen_parser.add_argument("--epochs", type=int, default=5,
-                            help="Number of training epochs")
     gen_parser.add_argument("--alpha", type=float, default=0.5)
     gen_parser.add_argument("--seed", type=int, default=42,
                             help="Random seed for reproducibility")
@@ -402,17 +379,10 @@ def main():
         prompts = getattr(args, "prompts", str(get_priors_path("archetype_grid_prompts.jsonl")))
         rewards = getattr(args, "rewards", str(get_priors_path("archetype_grid_dense_run.jsonl")))
         output = getattr(args, "output", str(get_priors_path("expert_priors.npz")))
-        expert_rate = getattr(args, "expert_rate", 0.8)
-        epochs = getattr(args, "epochs", 5)
-        alpha = getattr(args, "alpha", 0.5)
-        seed = getattr(args, "seed", 42)
-        
-        generate_expert_priors(
+        generate_dense_priors(
             prompts_path=Path(prompts),
             rewards_path=Path(rewards),
             output_path=Path(output),
-            expert_rate=expert_rate,
-            n_epochs=epochs,
             alpha=alpha,
             seed=seed,
         )

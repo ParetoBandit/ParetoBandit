@@ -38,9 +38,8 @@ BanditGPT empowers users with intuitive controls to align the router with their 
     *   `low_latency`: Minimizes Time to First Token (TTFT) for interactive applications.
     *   `balanced`: The default "sweet spot" for most users.
 *   **Hard Constraints**: Users can set `max_cost` (per 1k tokens) or `max_latency` to ensure the router never exceeds their budget or performance requirements.
-*   **Forgetting Factor ($\gamma$)**: A critical parameter for non-stationary environments. It determines how quickly the router "unlearns" old data and priors to adapt to new feedback.
-    *   **High $\gamma$ (e.g., 1.0)**: Maximum stability. The router retains all historical data and priors. Best for stable environments where model performance is consistent.
-    *   **Low $\gamma$ (e.g., 0.75 - 0.9)**: Maximum agility. The router aggressively weights recent feedback. Best for "Session-Level" adaptation where the user's current task (e.g., specialized coding) differs significantly from the general priors.
+*   **Forgetting Factor** ($f$): Controls the rate at which the bandit "forgets" past observations (including the prior). A value of 1.0 retains all history, while lower values (e.g., 0.95) allow for faster adaptation to changing user needs.
+    -   *Impact*: Lowering $f$ significantly accelerates the discovery of niche specialists (see [Figure 4](file:///Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_4/figure_4_description.md) for a detailed speed comparison).
 ## 4. Mathematical Foundation: Pareto-Chebyshev Optimization
 
 To balance the competing objectives of **Quality**, **Cost**, and **Latency**, BanditGPT utilizes a **Pareto-Chebyshev Scalarization** approach. This ensures that the router finds a mathematically sound "compromise" that respects user-defined priorities.

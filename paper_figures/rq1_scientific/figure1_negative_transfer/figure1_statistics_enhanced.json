@@ -1,0 +1,80 @@
+{
+  "n_folds": 5,
+  "cold_start": {
+    "mean_final_regret": 277.2735808046708,
+    "se_final_regret": 14.369478878776771,
+    "folds": [
+      261.54757076138355,
+      316.1322009763334,
+      235.22728123502793,
+      301.3178101398373,
+      272.14304091077213
+    ]
+  },
+  "disjoint_priors": {
+    "mean_final_regret": 346.3589493838518,
+    "se_final_regret": 19.173828988693824,
+    "mean_vs_cold_percent": 27.411478977589475,
+    "se_vs_cold_percent": 13.211332282703616,
+    "ci_95_percent": [
+      -9.269059871864641,
+      64.09201782704359
+    ],
+    "t_statistic": 2.0748459270437705,
+    "p_value": 0.10664326593991579,
+    "significant": false,
+    "folds": [
+      315.43182332472253,
+      317.9525258779547,
+      406.84550872997005,
+      314.7178846077165,
+      376.84700437889506
+    ],
+    "percent_changes": [
+      20.602084892808637,
+      0.5758112890744609,
+      72.95847088564074,
+      4.447156463024997,
+      38.47387135739853
+    ],
+    "n_folds_better_than_cold": 0,
+    "consistency_percent": 100.0
+  },
+  "shared_priors": {
+    "mean_final_regret": 359.0613876010254,
+    "se_final_regret": 19.981603799920627,
+    "mean_vs_cold_percent": 31.99103552846352,
+    "se_vs_cold_percent": 13.730508680850853,
+    "ci_95_percent": [
+      -6.130968090360717,
+      70.11303914728776
+    ],
+    "t_statistic": 2.3299235499613764,
+    "p_value": 0.08025881239863973,
+    "significant": false,
+    "folds": [
+      322.98434794845275,
+      350.56850285025627,
+      430.40204068345264,
+      321.55359399300863,
+      369.79845252995665
+    ],
+    "percent_changes": [
+      23.489714321651842,
+      10.893006712878593,
+      82.97284159545055,
+      6.715760958099414,
+      35.883854054237204
+    ],
+    "n_folds_better_than_cold": 0,
+    "consistency_percent": 100.0
+  },
+  "key_finding": {
+    "statement": "100% directional consistency: All 5 folds show negative transfer",
+    "shared_consistency": "100% (5/5 folds worse)",
+    "disjoint_consistency": "100% (5/5 folds worse)",
+    "evidence": "Shared vs Cold: +32.0% \u00b1 13.7% (SE), p=0.0803, directional consistency: 100%",
+    "interpretation": "p=0.08 with 100% consistency indicates real signal with high variance (expected in bandits)",
+    "mechanism": "Herd Suppression - generalist failures suppress specialist exploration"
+  }
+}

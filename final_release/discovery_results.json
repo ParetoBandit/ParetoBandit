@@ -1,0 +1,15 @@
+{
+  "target_model": {
+    "id": "deepseek/deepseek-r1",
+    "name": "DeepSeek R1",
+    "prior": 0.059,
+    "posterior": 1.0
+  },
+  "teacher_pet": {
+    "id": "google/gemini-3-pro-preview",
+    "name": "Gemini 3 Pro Preview (high)",
+    "prior": 0.941,
+    "posterior": 0.0
+  },
+  "niche": "TimescaleDB IoT Specialist"
+}
