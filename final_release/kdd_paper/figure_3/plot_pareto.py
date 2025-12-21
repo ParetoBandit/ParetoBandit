@@ -91,23 +91,25 @@ def main():
     
     # Label Pareto Models
     for i, d in enumerate(pareto_points):
-        # Manual offsets for the first few models which are very crowded
+        # Manual offsets and alignment for the first few models which are very crowded
+        ha = 'left'
         if i == 0: # Gemma
-            y_off, x_off = 10, -30
+            y_off, x_off, ha = 10, -10, 'right'
         elif i == 1: # Llama 3.2
-            y_off, x_off = -15, -10
+            y_off, x_off, ha = -25, 5, 'left'
         elif i == 2: # DeepSeek
-            y_off, x_off = 12, -20
+            y_off, x_off, ha = 20, 5, 'left'
         elif i == 3: # Qwen
-            y_off, x_off = -15, 5
+            y_off, x_off, ha = -15, 10, 'left'
         elif i == 4: # gpt-oss-20B
-            y_off, x_off = 10, 5
+            y_off, x_off, ha = 15, 10, 'left'
         else:
             # Alternate others
             y_off, x_off = (5, 5) if i % 2 == 0 else (-12, 5)
             
         plt.annotate(d["name"], (d["cost"], d["confidence"]), 
-                     xytext=(x_off, y_off), textcoords='offset points', fontsize=8, fontweight='bold')
+                     xytext=(x_off, y_off), textcoords='offset points', 
+                     fontsize=8, fontweight='bold', ha=ha)
     
     plt.xscale('log')
     plt.xlabel("Cost per 1M Blended Tokens ($)", fontsize=12)
