@@ -13,18 +13,12 @@ The core of the router is a curated registry of **80 Large Language Models (LLMs
     *   **TTFT Measurement**: Measured using the streaming API, recording the delta between the initial request start and the arrival of the first token.
     *   **OTPS Calculation**: Calculated by counting tokens received during the streaming session and dividing by the total generation time (excluding TTFT).
 
-## 2. AA Quality Index Priors
+## 2. HLE Priors Methodology
 
-The "AA Quality Index" is a composite metric that provides a robust measure of model performance across diverse domains. It is used to initialize the bandit's statistical parameters ($A$ and $b$ matrices), giving the router "expert intuition" out-of-the-box.
+The "HLE Priors" are not a raw dataset, but rather a set of statistical initializations ($A$ and $b$ matrices) that combine model benchmarks with prompt embeddings. This allows the router to start with "expert intuition" rather than a cold start.
 
-*   **Composite Formula**: The index is calculated as a weighted average of multiple benchmarks:
-    *   **25% HLE**: Humanity's Last Exam (Reasoning/Knowledge)
-    *   **20% MMLU-Pro**: Multi-task Language Understanding
-    *   **15% GPQA**: Graduate-level Reasoning
-    *   **15% MATH-500**: Mathematical Problem Solving
-    *   **15% LiveCodeBench**: Programming and Code Generation
-    *   **10% MixEval-Hard**: Real-world Hard Queries
-*   **Synthesis**: We utilize **Ridge Initialization** to "warm-start" the bandit. We mathematically simulate a scenario where each model has already processed **26,223 prompts** from the LMSYS Chatbot Arena, receiving a reward equal to its **AA Quality Index** for each. This populates the covariance matrix ($A$) and sum vector ($b$) for every model in the registry.
+*   **Model Benchmarks (The "Labels")**: We utilize the **Humanity's Last Exam (HLE)** score for each model. HLE is a challenging benchmark designed to test models at the limit of human knowledge, making it an excellent proxy for general reasoning and knowledge quality.
+*   **Synthesis**: We utilize **Ridge Initialization** to "warm-start" the bandit. We mathematically simulate a scenario where each model has already processed **26,223 prompts** from the LMSYS Chatbot Arena, receiving a reward equal to its **HLE score** for each. This populates the covariance matrix ($A$) and sum vector ($b$) for every model in the registry.
 *   **Leakage Prevention**: All 496 prompts used in our evaluation were explicitly removed from the 26,223-prompt training set to ensure zero data leakage.
 
 ## 3. Evaluation Dataset

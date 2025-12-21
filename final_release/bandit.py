@@ -257,7 +257,7 @@ class BanditRouter:
         alpha: float,
         prior_strength: float,
         priors_meta_path: Path,
-        benchmark_key: str = "aa_quality_index",
+        benchmark_key: str = "hle",
     ) -> "BanditRouter":
         """Initialize with HLE priors using covariance matrix."""
         meta = np.load(priors_meta_path)
