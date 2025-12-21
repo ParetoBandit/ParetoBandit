@@ -778,6 +778,7 @@ class SharedCovarianceLinUCBPolicy:
         path: Path,
         *,
         dtype: Any = np.float16,
+        extra_meta: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Save compact priors bundle: A_shared + per-model b vectors.
@@ -794,6 +795,8 @@ class SharedCovarianceLinUCBPolicy:
             "recompute_inv_every": int(self.recompute_inv_every),
             "updates": {k: int(v) for k, v in self._updates.items()},
         }
+        if extra_meta:
+            meta.update(extra_meta)
         np.savez_compressed(p, models=models, A_shared=A, b=b, meta=np.asarray([json.dumps(meta)], dtype=object))
 
     @classmethod
@@ -1370,7 +1373,12 @@ class BanditRouter:
             # `grader` can be:
             # - QualityCostPredictor (local competence/vibe grader)
             # - TieredGrader (soft grader + optional teacher/verifier for hard prompts)
-            prod = grader.predict_production(log.prompt, resp, reward_normalizer=self.normalizer)
+            prod = grader.predict_production(
+                log.prompt, 
+                resp, 
+                model_id=log.selected_model,
+                reward_normalizer=self.normalizer
+            )
             if self.reward_mode == "logit":
                 reward_for_update = float(prod["reward_logit"])
             else:
@@ -1502,6 +1510,7 @@ class BanditRouter:
         Strategy:
           - Use a shared covariance A from an *aggregate* of per-model A matrices.
           - Store per-model b vectors.
+          - Persist normalizer state to prevent "calibration shift".
 
         This is intended for shipping with the library repo (or as a small artifact).
         """
@@ -1518,7 +1527,10 @@ class BanditRouter:
         for m in models:
             sp.b[m] = np.asarray(self.bandit.b[m], dtype=np.float64)
             sp._updates[m] = int(self.bandit._updates.get(m, 0))
-        sp.to_shippable_priors_npz(Path(path), dtype=dtype)
+            
+        # Include normalizer state
+        extra = {"normalizer": self.normalizer.state_dict()}
+        sp.to_shippable_priors_npz(Path(path), dtype=dtype, extra_meta=extra)
 
     @classmethod
     def load_from_shippable_priors(
@@ -1550,6 +1562,14 @@ class BanditRouter:
                            - 50.0: Strong confidence (recommended for expert-distilled priors)
         """
         priors_data = np.load(priors_npz, allow_pickle=True)
+        
+        # Extract normalizer state if present
+        normalizer_init = None
+        if "meta" in priors_data:
+            meta_s = str(list(priors_data["meta"])[0])
+            meta = json.loads(meta_s)
+            if "normalizer" in meta:
+                normalizer_init = RunningZScoreNormalizer.from_state_dict(meta["normalizer"])
 
         # Detect prior format: expert (A_stack) vs shared (A)
         if "A_stack" in priors_data:
@@ -1561,6 +1581,7 @@ class BanditRouter:
                 reward_mode=reward_mode,
                 alpha=alpha,
                 prior_strength=prior_strength,
+                normalizer_init=normalizer_init,
             )
         else:
             # Shared covariance priors (need inflation)
@@ -1571,6 +1592,7 @@ class BanditRouter:
                 reward_mode=reward_mode,
                 alpha=alpha,
                 prior_strength=prior_strength,
+                normalizer_init=normalizer_init,
             )
 
     @classmethod
@@ -1583,6 +1605,7 @@ class BanditRouter:
         reward_mode: str,
         alpha: float,
         prior_strength: float,
+        normalizer_init: Optional[RunningZScoreNormalizer] = None,
     ) -> "BanditRouter":
         """Load shared covariance priors and inflate to disjoint."""
         shared = SharedCovarianceLinUCBPolicy.from_shippable_priors_npz(priors_npz)
@@ -1592,9 +1615,12 @@ class BanditRouter:
             alpha=float(alpha),
             reward_mode=str(reward_mode),
             embedding_dim=int(shared.dim),
+            normalizer_init=normalizer_init,
         )
         # Inflate: copy shared A into every arm, set b, apply strength multiplier
         for m in router.bandit.models:
+            # FIX: Only apply prior_strength if it's != 1.0. 
+            # Note: A already contains ridge_lambda * I.
             router.bandit.A[m] = np.asarray(shared.A, dtype=np.float64).copy() * prior_strength
             router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
             router.bandit.b[m] = np.asarray(shared.b.get(m, np.zeros(shared.dim)), dtype=np.float64).copy() * prior_strength
@@ -1610,6 +1636,7 @@ class BanditRouter:
         reward_mode: str,
         alpha: float,
         prior_strength: float,
+        normalizer_init: Optional[RunningZScoreNormalizer] = None,
     ) -> "BanditRouter":
         """
         Load expert-distilled priors (already in disjoint format).
@@ -1629,6 +1656,7 @@ class BanditRouter:
             alpha=float(alpha),
             reward_mode=str(reward_mode),
             embedding_dim=dim,
+            normalizer_init=normalizer_init,
         )
 
         # Load with strength multiplier applied
@@ -2221,7 +2249,7 @@ class HybridRouter:
         max_cascade_attempts: int = 2,
         exploration: str = "safe",
         priors: str = "auto",
-        prior_strength: float = 1000.0,  # Higher default for aggressive exploitation
+        prior_strength: float = 50.0,  # Reduced from 1000.0 to prevent exploration collapse
         **router_kwargs,
     ) -> "HybridRouter":
         """

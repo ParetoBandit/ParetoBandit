@@ -44,6 +44,7 @@ class ProductionGrader(Protocol):
         prompt: str,
         response: str,
         *,
+        model_id: Optional[str] = None,
         reward_normalizer: Optional[RunningZScoreNormalizer] = None,
     ) -> Dict[str, Any]: ...
 
@@ -207,6 +208,7 @@ class TieredGrader:
         code_verifier: Optional[CodeExecutionVerifier] = None,
         reward_clip_eps: float = 0.01,
         reward_logit_eps: float = 1e-4,
+        cross_judge_model_id: str = "anthropic/claude-3-5-sonnet-20241022",
     ):
         self.soft_grader = soft_grader
         self.hard_detector = hard_detector or HardPromptHeuristics()
@@ -214,12 +216,14 @@ class TieredGrader:
         self.code_verifier = code_verifier
         self.reward_clip_eps = float(reward_clip_eps)
         self.logit = LogitReward(epsilon=float(reward_logit_eps))
+        self.cross_judge_model_id = cross_judge_model_id
 
     def predict_production(
         self,
         prompt: str,
         response: str,
         *,
+        model_id: Optional[str] = None,
         reward_normalizer: Optional[RunningZScoreNormalizer] = None,
     ) -> Dict[str, Any]:
         # Always compute the soft grader result (useful for meta and fallback).
@@ -245,7 +249,24 @@ class TieredGrader:
                 if used_code_verifier:
                     p_correct_raw = float(s)
             if (not used_code_verifier) and self.teacher_verifier is not None:
-                s, meta = self.teacher_verifier.verify(prompt, response)
+                # Bias Mitigation: If grading GPT-4o, use a different model
+                original_teacher = getattr(self.teacher_verifier, "model_id", "openai/gpt-4o")
+                is_self_grading = (model_id == original_teacher)
+                
+                if is_self_grading:
+                    # Switch to cross-judge
+                    logger.info(f"Self-grading detected for {model_id}. Switching judge to {self.cross_judge_model_id}")
+                    # Temporarily swap model_id if it's an OpenRouterTeacherVerifier
+                    if hasattr(self.teacher_verifier, "model_id"):
+                        old_id = self.teacher_verifier.model_id
+                        self.teacher_verifier.model_id = self.cross_judge_model_id
+                        s, meta = self.teacher_verifier.verify(prompt, response)
+                        self.teacher_verifier.model_id = old_id
+                    else:
+                        s, meta = self.teacher_verifier.verify(prompt, response)
+                else:
+                    s, meta = self.teacher_verifier.verify(prompt, response)
+                    
                 used_teacher = bool(meta.get("ok", False))
                 teacher_meta = dict(meta)
                 if used_teacher:
