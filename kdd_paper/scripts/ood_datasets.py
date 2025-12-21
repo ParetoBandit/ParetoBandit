@@ -265,13 +265,6 @@ DOMAIN_CONFIG = {
     },
     "code": {
         "loader": load_humaneval_prompts,
-        "benchmark_key": "humaneval_score",
-        "benchmark_scale": 100,  # HumanEval is 0-100, not 0-1
-        "description": "HumanEval code generation → HumanEval benchmark",
-        "default_n": 164,
-    },
-    "code_live": {
-        "loader": load_humaneval_prompts,
         "benchmark_key": "livecodebench",
         "description": "HumanEval prompts → LiveCodeBench benchmark",
         "default_n": 164,

@@ -539,8 +539,7 @@ def plot_ood_results(results: OODExperimentResults, output_path: Path) -> None:
     
     domain_titles = {
         "math": "Math (GSM8K → MATH-500)",
-        "code": "Code (HumanEval)",
-        "code_live": "Code (LiveCodeBench)",
+        "code": "Code (HumanEval → LiveCodeBench)",
         "knowledge": "Knowledge (MMLU → MMLU-Pro)",
         "graduate": "Graduate QA (GPQA)",
     }
@@ -592,7 +591,7 @@ def plot_combined_results(all_results: Dict[str, OODExperimentResults], output_p
     
     domain_titles = {
         "math": "Math (GSM8K)",
-        "code": "Code (HumanEval)",
+        "code": "Code (LiveCodeBench)",
         "knowledge": "Knowledge (MMLU)",
     }
     
@@ -664,7 +663,7 @@ def parse_args() -> OODExperimentConfig:
     )
     
     parser.add_argument("--domain", type=str, default="math",
-                        choices=["math", "code", "code_live", "knowledge", "graduate", "all"],
+                        choices=["math", "code", "knowledge", "graduate", "all"],
                         help="Domain to evaluate")
     parser.add_argument("--priors", type=str,
                         default=str(get_priors_path("expert_priors.npz")))
