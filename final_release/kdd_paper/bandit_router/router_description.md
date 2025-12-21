@@ -38,7 +38,25 @@ BanditGPT empowers users with intuitive controls to align the router with their 
     *   `low_latency`: Minimizes Time to First Token (TTFT) for interactive applications.
     *   `balanced`: The default "sweet spot" for most users.
 *   **Hard Constraints**: Users can set `max_cost` (per 1k tokens) or `max_latency` to ensure the router never exceeds their budget or performance requirements.
-*   **Alpha (Exploration)**: Adjusts how much the router "experiments" with new models vs. sticking to what it knows works.
+## 4. Mathematical Foundation: Pareto-Chebyshev Optimization
+
+To balance the competing objectives of **Quality**, **Cost**, and **Latency**, BanditGPT utilizes a **Pareto-Chebyshev Scalarization** approach. This ensures that the router finds a mathematically sound "compromise" that respects user-defined priorities.
+
+### The Scalarization Function
+For each model $m$, we calculate a combined utility score $U_m$ using the following formula:
+
+$$U_m = \max_{i \in \{Q, C, L\}} \left( w_i \cdot |f_i(m) - z_i^*| \right)$$
+
+Where:
+*   $f_i(m)$ is the predicted value for objective $i$ (Quality, Cost, or Latency).
+*   $z_i^*$ is the "ideal" value for that objective (e.g., maximum quality, zero cost, zero latency).
+*   $w_i$ is the user-defined weight for that objective.
+
+### Why Chebyshev?
+Unlike simple weighted sums, which can fail to find solutions on non-convex Pareto fronts, Chebyshev scalarization is guaranteed to find any Pareto-optimal point. This is critical for LLM routing, where the trade-off between a "cheap but slow" model and a "fast but expensive" model may not be linear.
+
+### Shadow Pricing for "Free" Models
+To prevent models with zero cost (e.g., local models or free tier APIs) from having an infinite advantage, we implement a **Shadow Price** mechanism. This assigns a nominal, non-zero cost to free models during the optimization phase, ensuring they are selected based on their quality and latency merits rather than just their price tag.
 
 ## 4. Impact on Society
 

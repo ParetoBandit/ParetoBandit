@@ -41,7 +41,17 @@ The use of an LLM-as-a-judge for ground truth has several important implications
 3.  **Mitigating Circularity and Self-Grading Bias**: A common concern in LLM-as-a-judge frameworks is "self-preference bias," where a model (e.g., GPT-4o) may favor its own responses. We address this through three layers of mitigation:
     *   **Hybrid Grading**: ~85% of standard prompts are graded by the **DeBERTa-v3-small** "soft grader." This model was trained on human preferences (HelpSteer2/LMSYS Arena), meaning the majority of the bandit's learning signal is derived from human-aligned proxies rather than GPT-4o itself.
     *   **OOD Verification**: As discussed above, our Out-of-Distribution experiments replace the LLM judge entirely with **objective benchmark scores**. The fact that the router achieves significant regret reduction on these benchmarks proves that it is learning generalizable quality features, not just "how to please GPT-4o."
-    *   **Relative Optimization**: The bandit optimizes for *relative* regret. Even if GPT-4o were perfectly biased toward itself, the router would still need to learn the relative ranking of the other 79 models to minimize regret when GPT-4o is not the selected arm.
+## 6. Out-of-Distribution (OOD) Verification Benchmarks
+
+To address concerns about data leakage and generalization, we validated the Bandit Router on three truly held-out domains. In these experiments, the LLM-as-a-judge was replaced with **objective, published benchmark scores** as the ground-truth reward.
+
+| Domain | Prompt Source | Ground-Truth Benchmark |
+| :--- | :--- | :--- |
+| **Math** | GSM8K | MATH-500 |
+| **Code** | HumanEval | HumanEval (Pass@1) |
+| **Knowledge** | MMLU | MMLU-Pro |
+
+The success of the warm-started bandit on these domains proves that the semantic correlations learned from LMSYS conversational data transfer effectively to specialized technical tasks.
 
 ## 5. Data Acquisition Summary
 
