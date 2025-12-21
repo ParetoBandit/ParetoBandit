@@ -40,34 +40,6 @@ The use of an LLM-as-a-judge for ground truth has several important implications
 3.  **Mitigating Circularity and Self-Grading Bias**: A common concern in LLM-as-a-judge frameworks is "self-preference bias," where a model (e.g., GPT-4o) may favor its own responses. We address this through three layers of mitigation:
     *   **Cross-Grading Mitigation**: To eliminate "self-preference bias," the system implements a **Cross-Grading** protocol. Whenever the model being evaluated is **GPT-4o**, the system automatically switches the "teacher" judge to an equivalent high-quality model (**Claude 3.5 Sonnet**). This ensures that GPT-4o never provides the ground-truth score for its own responses, removing the primary source of circularity in the reward signal.
     *   **Hybrid Grading**: ~85% of standard prompts are graded by the **DeBERTa-v3-small** "soft grader." This model was trained on human preferences (HelpSteer2/LMSYS Arena), meaning the majority of the bandit's learning signal is derived from human-aligned proxies rather than GPT-4o itself.
-    *   **OOD Verification**: We further validate the router on held-out domains using **objective benchmark scores** (MATH-500, LiveCodeBench, MMLU-Pro). The consistent regret reduction across these benchmarks confirms that the router learns generalizable quality features that transfer beyond the judge's specific preferences.
-## 6. Out-of-Distribution (OOD) Verification Benchmarks
-
-To address concerns about data leakage and generalization, we validated the Bandit Router on three truly held-out domains. In these experiments, the LLM-as-a-judge was replaced with **objective, published benchmark scores** as the ground-truth reward.
-
-| Domain | Prompt Source | Ground-Truth Benchmark | Model Coverage |
-| :--- | :--- | :--- | :--- |
-| **Math** | GSM8K | MATH-500 | 80/80 (100%) |
-| **Code** | HumanEval | LiveCodeBench | 80/80 (100%) |
-| **Knowledge** | MMLU | MMLU-Pro | 80/80 (100%) |
-
-> [!NOTE]
-> We utilize **LiveCodeBench** for the code domain because it provides 100% coverage across our model registry and is more resistant to data contamination than older benchmarks like HumanEval. This ensures that the bandit's performance is evaluated against a truly objective and comprehensive ground truth for all 80 models.
-
-### 7. OOD Transfer Analysis and Negative Transfer
-
-Our OOD experiments reveal that the effectiveness of "Expert Priors" is highly dependent on the correlation between the warm-start benchmark (HLE) and the target domain.
-
-| Domain | Benchmark | Correlation with HLE | Transfer Result (Strength=1.0) |
-| :--- | :--- | :--- | :--- |
-| **Code** | LiveCodeBench | **0.7844** | **Positive (23.2% reduction)** |
-| **Knowledge** | MMLU-Pro | **0.5046** | **Positive (10.5% reduction)** |
-| **Math** | MATH-500 | **0.4115** | **Negative (-225.9%)** |
-
-#### Key Insights:
-1.  **Sensitivity to Prior Strength**: High prior strength (e.g., 50.0) can lead to **Negative Transfer** if the priors are even slightly misaligned with the target domain. This occurs because the bandit becomes "over-confident" in its initial beliefs and takes longer to adapt to the true rewards of the new domain.
-2.  **Domain Alignment**: The strong positive transfer in the Code domain proves that HLE captures generalizable reasoning features that translate well to programming. The negative transfer in Math suggests that general reasoning (as measured by HLE) is a poor proxy for specialized math performance, necessitating a lower prior strength or domain-specific warm-starting.
-3.  **The Value of Online Learning**: Even in cases of negative transfer, the bandit's online learning mechanism eventually overcomes the misleading priors. The OOD verification serves as a "stress test" that highlights the importance of balancing expert intuition with real-world observation.
 
 ## 5. Data Acquisition Summary
 
