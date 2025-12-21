@@ -6,7 +6,7 @@ This section describes the datasets used to develop, warm-start, and evaluate th
 
 The core of the router is a curated registry of **80 Large Language Models (LLMs)**. For each model, we maintain the following metadata:
 
-*   **Quality (HLE Score)**: Obtained from the **Artificial Analysis API**. The Humanity's Last Exam (HLE) benchmark provides a robust measure of model reasoning and knowledge. For newer models where HLE was not yet available, we utilized `reasoning_score` as a high-correlation fallback.
+*   **Quality (HLE Score)**: Obtained from the **Artificial Analysis API**. The Humanity's Last Exam (HLE) benchmark provides a robust measure of model reasoning and knowledge. Our final registry achieves 100% coverage for HLE scores across all 80 models.
 *   **Cost**: Input and output costs per million tokens, sourced from the **OpenRouter API**.
 *   **Latency**: Real-world performance metrics including Time to First Token (TTFT) and Output Tokens Per Second (OTPS), also sourced from Artificial Analysis.
 
