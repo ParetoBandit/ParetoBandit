@@ -2,7 +2,7 @@
 Production-grade contextual bandit router (Hot Path).
 
 Core Features:
-1. HLE Prior as Default: Initializes with "expert intuition" from 33k prompts.
+1. HLE Prior as Default: Initializes with "expert intuition" from 26k prompts.
 2. Default Registry: Automatically loads 80+ models with cost/latency data.
 3. Multi-Objective: Balances Quality, Cost, and Latency.
 4. Constraints: Supports max_cost, max_latency, and quality floors.

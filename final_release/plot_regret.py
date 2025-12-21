@@ -61,8 +61,8 @@ def main():
     embeddings = embeddings[indices]
     cluster_ids = [cluster_ids[i] for i in indices]
     
-    # Run Simulation on Full Dataset (Prior from 33k Prompts)
-    print("Running Simulation with Large Priors (33k prompts)...")
+    # Run Simulation on Full Dataset (Prior from 26k Prompts)
+    print("Running Simulation with Large Priors (26k prompts)...")
     
     # Load Large Priors Metadata
     priors_meta_path = base_dir / "data/priors_meta_large.npz"
@@ -112,7 +112,7 @@ def main():
     # Plot
     plt.figure(figsize=(10, 6))
     plt.plot(cold_curve, label="Cold Start", linestyle="--", color="gray")
-    plt.plot(hle_curve, label="HLE Prior (33k Prompts Covariance)", linewidth=2, color="blue")
+    plt.plot(hle_curve, label="HLE Prior (26k Prompts Covariance)", linewidth=2, color="blue")
     plt.xlabel("Requests")
     plt.ylabel("Cumulative Regret")
     plt.title("Figure 1: HLE Prior vs Cold Start (Full Dataset, Large Prior)")
