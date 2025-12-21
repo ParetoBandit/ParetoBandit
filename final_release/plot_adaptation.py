@@ -21,13 +21,10 @@ def run_real_adaptation_simulation():
     with open(base_dir / "data/adaptation_sim_data.json") as f:
         sim_data = json.load(f)
     
-    # Selected models for the plot
+    # Selected models for the plot (Focusing on the main adaptation story)
     selected_models = [
         'google/gemini-3-pro-preview',
-        'anthropic/claude-3.7-sonnet:thinking',
-        'openai/gpt-4o',
-        'meta-llama/llama-3-70b-instruct',
-        'amazon/nova-lite-v1'
+        'anthropic/claude-3.7-sonnet:thinking'
     ]
     
     # 2. Initialize Router with HLE Priors
