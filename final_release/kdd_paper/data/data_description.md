@@ -8,7 +8,10 @@ The core of the router is a curated registry of **80 Large Language Models (LLMs
 
 *   **Quality (HLE Score)**: Obtained from the **Artificial Analysis API**. The Humanity's Last Exam (HLE) benchmark provides a robust measure of model reasoning and knowledge. Our final registry achieves 100% coverage for HLE scores across all 80 models.
 *   **Cost**: Input and output costs per million tokens, sourced from the **OpenRouter API**.
-*   **Latency**: Real-world performance metrics including Time to First Token (TTFT) and Output Tokens Per Second (OTPS), also sourced from Artificial Analysis.
+*   **Latency**: Real-world performance metrics including Time to First Token (TTFT) and Output Tokens Per Second (OTPS). While we utilize **Artificial Analysis** for baseline comparisons, our production latency data is obtained via a custom sampling script (`scripts/fetch_openrouter_latency.py`) that performs the following:
+    *   **Sampling Strategy**: 100 independent API calls per model to OpenRouter with a 0.1-second delay between samples to capture variance.
+    *   **TTFT Measurement**: Measured using the streaming API, recording the delta between the initial request start and the arrival of the first token.
+    *   **OTPS Calculation**: Calculated by counting tokens received during the streaming session and dividing by the total generation time (excluding TTFT).
 
 ## 2. HLE Priors Dataset
 
@@ -33,7 +36,7 @@ The performance of the router was validated using a dedicated evaluation set wit
 | :--- | :--- | :--- |
 | Model Benchmarks | Artificial Analysis API | Quality Priors (HLE) |
 | Model Pricing | OpenRouter API | Cost Optimization |
-| Model Latency | Artificial Analysis | Latency Optimization |
+| Model Latency | OpenRouter / Artificial Analysis | Latency Optimization |
 | Prior Prompts | LMSYS Chatbot Arena | Warm-start Covariance |
 | Evaluation Prompts | Internal Dataset | Performance Validation |
 
