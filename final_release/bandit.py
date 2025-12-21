@@ -25,11 +25,18 @@ try:
 except ImportError as e:
     raise ImportError("Missing dependency: sentence-transformers") from e
 
-from .quality_predictor import (
-    QualityCostPredictor,
-    LogitReward,
-    RunningZScoreNormalizer,
-)
+try:
+    from .quality_predictor import (
+        QualityCostPredictor,
+        LogitReward,
+        RunningZScoreNormalizer,
+    )
+except (ImportError, ValueError):
+    from quality_predictor import (
+        QualityCostPredictor,
+        LogitReward,
+        RunningZScoreNormalizer,
+    )
 
 logger = logging.getLogger(__name__)
 

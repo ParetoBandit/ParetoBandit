@@ -1,7 +1,13 @@
 import os
 import numpy as np
 from pathlib import Path
-from final_release.bandit import BanditRouter
+try:
+    from .bandit import BanditRouter
+except (ImportError, ValueError):
+    try:
+        from final_release.bandit import BanditRouter
+    except (ImportError, ValueError):
+        from bandit import BanditRouter
 
 def test_persistence():
     print("Testing Bandit Router Persistence...")

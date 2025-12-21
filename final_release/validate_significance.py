@@ -4,7 +4,13 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from sklearn.model_selection import KFold
 from scipy import stats
-from .bandit import BanditRouter
+try:
+    from .bandit import BanditRouter
+except (ImportError, ValueError):
+    try:
+        from final_release.bandit import BanditRouter
+    except (ImportError, ValueError):
+        from bandit import BanditRouter
 
 def main():
     base_dir = Path(__file__).parent

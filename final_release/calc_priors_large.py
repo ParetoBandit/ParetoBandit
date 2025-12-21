@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer
 def main():
     # Paths
     base_dir = Path(__file__).parent
-    prompts_path = Path("banditgpt/data/priors/lmsys_all_prompts.jsonl")
+    prompts_path = base_dir / "data/lmsys_all_prompts.jsonl"
     output_path = base_dir / "data/priors_meta_large.npz"
     
     # Load Evaluation Prompts to exclude (Data Leakage Fix)

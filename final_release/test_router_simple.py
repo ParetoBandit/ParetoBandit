@@ -1,6 +1,12 @@
 import sys
 from pathlib import Path
-from final_release.bandit import BanditRouter
+try:
+    from .bandit import BanditRouter
+except (ImportError, ValueError):
+    try:
+        from final_release.bandit import BanditRouter
+    except (ImportError, ValueError):
+        from bandit import BanditRouter
 
 def main():
     print("Testing BanditRouter Refactor...")

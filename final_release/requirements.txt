@@ -1,0 +1,11 @@
+numpy
+torch
+transformers
+sentence-transformers
+pandas
+matplotlib
+scikit-learn
+scipy
+requests
+python-dotenv
+tqdm

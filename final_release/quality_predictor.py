@@ -156,7 +156,10 @@ class QualityCostConfig:
 
 def _get_quality_predictor_dir() -> Path:
     """Get quality predictor directory using package resources."""
-    from ._resources import get_package_data_dir
+    try:
+        from ._resources import get_package_data_dir
+    except (ImportError, ValueError):
+        from _resources import get_package_data_dir
     return get_package_data_dir() / "quality_predictor"
 
 
