@@ -45,11 +45,14 @@ The use of an LLM-as-a-judge for ground truth has several important implications
 
 To address concerns about data leakage and generalization, we validated the Bandit Router on three truly held-out domains. In these experiments, the LLM-as-a-judge was replaced with **objective, published benchmark scores** as the ground-truth reward.
 
-| Domain | Prompt Source | Ground-Truth Benchmark |
-| :--- | :--- | :--- |
-| **Math** | GSM8K | MATH-500 |
-| **Code** | HumanEval | HumanEval (Pass@1) |
-| **Knowledge** | MMLU | MMLU-Pro |
+| Domain | Prompt Source | Ground-Truth Benchmark | Model Coverage |
+| :--- | :--- | :--- | :--- |
+| **Math** | GSM8K | MATH-500 | 80/80 (100%) |
+| **Code** | HumanEval | HumanEval (Pass@1) | 67/80 (83.8%) |
+| **Knowledge** | MMLU | MMLU-Pro | 80/80 (100%) |
+
+> [!NOTE]
+> For models missing specific benchmark data (primarily in the Code domain), the evaluation script utilizes a neutral default reward of 0.5. This ensures that the bandit is not unfairly penalized for selecting models with unavailable public benchmarks, while still prioritizing models with verified high performance.
 
 The success of the warm-started bandit on these domains proves that the semantic correlations learned from LMSYS conversational data transfer effectively to specialized technical tasks.
 
