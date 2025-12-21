@@ -4,8 +4,12 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from bandit import BanditRouter
 
-def run_adaptation_simulation():
-    print("Running Adaptation Simulation (Dip and Recover)...")
+def run_real_adaptation_simulation():
+    """
+    Simulates a domain shift from 'General Coding' to a 'Specialized Task' 
+    where the HLE-favored model (Gemini) fails and a specialist (Claude) excels.
+    """
+    print("Running Real-Data Adaptation Simulation (Coding -> Specialist)...")
     
     # 1. Setup
     base_dir = Path(__file__).parent
@@ -13,104 +17,128 @@ def run_adaptation_simulation():
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
-    # Models for simulation
-    default_model = "openai/gpt-4o"
-    specialist_model = "amazon/nova-lite-v1"
-    others = [
-        "anthropic/claude-3.5-sonnet",
-        "google/gemini-2.0-flash-001",
-        "meta-llama/llama-3-70b-instruct"
+    # Load pre-embedded real data (Coding and Specialist domains)
+    with open(base_dir / "data/adaptation_sim_data.json") as f:
+        sim_data = json.load(f)
+    
+    # Selected models for the plot
+    selected_models = [
+        'google/gemini-3-pro-preview',
+        'anthropic/claude-3.7-sonnet:thinking',
+        'openai/gpt-4o',
+        'meta-llama/llama-3-70b-instruct',
+        'amazon/nova-lite-v1'
     ]
-    model_subset = [default_model, specialist_model] + others
     
     # 2. Initialize Router with HLE Priors
-    # We'll use a high prior strength to show the "initial bias"
+    # We use a moderate prior strength. Gemini has the highest HLE.
     router = BanditRouter.create(
         model_registry=registry,
         priors="benchmark",
-        prior_strength=50.0,
+        prior_strength=20.0, 
         exploration="balanced"
     )
+    # Set alpha to allow for visible exploration
+    router.bandit.alpha = 1.5 
     
-    # Force specialist to start COLD (high uncertainty) to simulate a "hidden expert"
-    # In reality, Nova-Lite has an HLE score, but we want to show discovery.
-    dim = router.bandit.dim
-    router.bandit.A[specialist_model] = np.eye(dim) * 1.0
-    router.bandit.b[specialist_model] = np.zeros(dim)
-    router.bandit.A_inv[specialist_model] = np.linalg.inv(router.bandit.A[specialist_model])
+    # 3. Simulation Loop
+    n_phase1 = 50
+    n_phase2 = 150 
+    n_total = n_phase1 + n_phase2
     
-    # 3. Ground Truth Rewards for "Niche Task"
-    ground_truth = {
-        specialist_model: 0.95,   # The hidden expert
-        default_model: 0.55,      # The generalist (struggles here)
-        "anthropic/claude-3.5-sonnet": 0.45,
-        "google/gemini-2.0-flash-001": 0.40,
-        "meta-llama/llama-3-70b-instruct": 0.42,
-    }
+    # Metrics
+    selection_counts = {m: 0 for m in selected_models}
+    selection_rates = {m: [] for m in selected_models}
+    per_step_rewards = []
     
-    # 4. Simulation Loop
-    n_steps = 200
-    niche_direction = np.random.randn(dim)
-    niche_direction /= np.linalg.norm(niche_direction)
-    
-    specialist_selections = 0
-    default_selections = 0
-    
-    specialist_rate = []
-    default_rate = []
-    avg_rewards = []
-    total_reward = 0.0
-    
-    for t in range(n_steps):
-        # Context with noise
-        x = niche_direction + np.random.randn(dim) * 0.1
-        x /= np.linalg.norm(x)
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+
+    print(f"Phase 1: General Coding ({n_phase1} steps)")
+    for t in range(n_total):
+        if t < n_phase1:
+            # Domain: Coding (Gemini is strong)
+            item = sim_data['coding'][t % len(sim_data['coding'])]
+        else:
+            if t == n_phase1:
+                print(f"Phase 2: Specialized Task ({n_phase2} steps) - DISTRIBUTION SHIFT!")
+            # Domain: Specialized (Claude is strong, Gemini is weak)
+            item = sim_data['specialized'][(t - n_phase1) % len(sim_data['specialized'])]
         
-        # Select (using the subset)
-        chosen, _ = router.bandit.select_arm(x, candidates=model_subset)
+        x = np.array(item['embedding'])
         
-        # Reward
-        base_r = ground_truth.get(chosen, 0.4)
-        reward = np.clip(base_r + np.random.randn() * 0.05, 0, 1)
+        # Select model
+        chosen, _ = router.bandit.select_arm(x, candidates=selected_models)
         
-        # Update
+        # Get real reward from data
+        logit = item['rewards'].get(chosen, -5.0)
+        reward = sigmoid(logit)
+        
+        # Update Bandit
         router.bandit.update(chosen, x, reward)
         
-        # Track
-        if chosen == specialist_model: specialist_selections += 1
-        if chosen == default_model: default_selections += 1
+        # Track metrics
+        if chosen in selection_counts:
+            selection_counts[chosen] += 1
         
-        total_reward += reward
-        specialist_rate.append(specialist_selections / (t + 1))
-        default_rate.append(default_selections / (t + 1))
-        avg_rewards.append(total_reward / (t + 1))
+        for m in selected_models:
+            selection_rates[m].append(selection_counts[m] / (t + 1))
+            
+        per_step_rewards.append(reward)
         
-    # 5. Plotting
-    print("Generating Plot...")
-    plt.rcParams.update({"font.family": "serif", "font.size": 9})
+    # 4. Plotting
+    print("Generating Figure 2...")
+    plt.rcParams.update({
+        "font.family": "serif", 
+        "font.size": 9,
+        "axes.grid": True,
+        "grid.alpha": 0.3
+    })
+    
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 2.8))
     
-    steps = range(1, n_steps + 1)
+    steps = range(1, n_total + 1)
     
     # Left: Selection Rates
-    ax1.plot(steps, specialist_rate, color="#2CA02C", lw=2, label="Specialist (Nova-Lite)")
-    ax1.plot(steps, default_rate, color="#D62728", lw=2, label="Default (GPT-4o)")
+    colors = {
+        'google/gemini-3-pro-preview': '#1F77B4', # Blue
+        'anthropic/claude-3.7-sonnet:thinking': '#2CA02C', # Green
+        'openai/gpt-4o': '#D62728', # Red
+        'meta-llama/llama-3-70b-instruct': '#9467BD', # Purple
+        'amazon/nova-lite-v1': '#FF7F0E' # Orange
+    }
+    
+    for m in selected_models:
+        label = m.split('/')[-1].replace(':thinking', '')
+        ax1.plot(steps, selection_rates[m], color=colors[m], lw=2, label=label)
+    
+    ax1.axvline(x=n_phase1, color='black', ls='--', alpha=0.5)
+    ax1.text(n_phase1/2, 0.9, "Coding", ha='center', fontweight='bold')
+    ax1.text(n_phase1 + n_phase2/2, 0.9, "Specialist", ha='center', fontweight='bold')
+    
     ax1.set_xlabel("Requests")
     ax1.set_ylabel("Selection Rate")
-    ax1.set_title("Model Selection: Discovery", fontweight="bold")
-    ax1.legend(fontsize=7)
-    ax1.grid(alpha=0.3)
+    ax1.set_title("Model Selection: Adaptation", fontweight="bold")
+    ax1.legend(fontsize=6, loc='center left', bbox_to_anchor=(0, 0.5))
+    ax1.set_ylim(0, 1.05)
     
-    # Right: Reward (Dip and Recover)
-    ax2.plot(steps, avg_rewards, color="#1F77B4", lw=2, label="Adaptive Agent")
-    ax2.axhline(y=0.95, color="#2CA02C", ls="--", alpha=0.5, label="Optimal (0.95)")
-    ax2.axhline(y=0.55, color="#D62728", ls="--", alpha=0.5, label="Default Only (0.55)")
+    # Right: Rolling Reward (Dip and Recover)
+    window = 15
+    rolling_reward = [np.mean(per_step_rewards[max(0, i-window):i+1]) for i in range(n_total)]
+    
+    ax2.plot(steps, rolling_reward, color="#333333", lw=2, label="Bandit Router")
+    ax2.axvline(x=n_phase1, color='black', ls='--', alpha=0.5)
+    
+    # Reference lines for optimal rewards
+    coding_opt = sigmoid(3.68)
+    specialized_opt = sigmoid(9.21) # Claude's reward in Cluster 13
+    ax2.hlines(y=coding_opt, xmin=0, xmax=n_phase1, color='#2CA02C', ls=':', alpha=0.6, label="Opt (Coding)")
+    ax2.hlines(y=specialized_opt, xmin=n_phase1, xmax=n_total, color='#2CA02C', ls=':', alpha=0.6, label="Opt (Specialist)")
+    
     ax2.set_xlabel("Requests")
-    ax2.set_ylabel("Average Reward")
+    ax2.set_ylabel(f"Rolling Reward (w={window})")
     ax2.set_title("Reward: Dip and Recover", fontweight="bold")
-    ax2.legend(fontsize=7, loc="lower right")
-    ax2.grid(alpha=0.3)
-    ax2.set_ylim(0.3, 1.0)
+    ax2.set_ylim(0, 1.05)
     
     plt.tight_layout()
     output_path = base_dir / "figure2_adaptation.png"
@@ -118,4 +146,4 @@ def run_adaptation_simulation():
     print(f"Saved plot to {output_path}")
     
 if __name__ == "__main__":
-    run_adaptation_simulation()
+    run_real_adaptation_simulation()

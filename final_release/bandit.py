@@ -278,18 +278,20 @@ class BanditRouter:
         router = cls(model_registry, context_model=context_model, alpha=alpha, embedding_dim=dim)
         
         # Ridge Update: A += strength * Cov, b += strength * score * Sum
-        A_update = prior_strength * cov_matrix
+        # NORMALIZATION FIX: Divide by N (26223) to make strength mean "number of observations"
+        N = 26223.0
+        A_update = prior_strength * (cov_matrix / N)
         
         for m in router.bandit.models:
             # Scale initial identity
-            router.bandit.A[m] *= prior_strength
+            router.bandit.A[m] *= 1.0 # Keep identity at 1.0
             
             # Get score (default 0 if missing)
             score = float(model_registry.get(m, {}).get(benchmark_key) or 0.0)
             
             if score > 0:
                 router.bandit.A[m] += A_update
-                router.bandit.b[m] += prior_strength * score * sum_vec
+                router.bandit.b[m] += prior_strength * score * (sum_vec / N)
                 
             # Recompute inverse
             router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
