@@ -94,11 +94,11 @@ def main():
         # Manual offsets and alignment for the first few models which are very crowded
         ha = 'left'
         if i == 0: # Gemma
-            y_off, x_off, ha = 10, 0, 'center'
+            y_off, x_off, ha = 10, -40, 'left'
         elif i == 1: # Llama 3.2
             y_off, x_off, ha = -20, 0, 'center'
         elif i == 2: # DeepSeek
-            y_off, x_off, ha = 15, 5, 'left'
+            y_off, x_off, ha = 8, 5, 'left'
         elif i == 3: # Qwen
             y_off, x_off, ha = -15, 10, 'left'
         elif i == 4: # gpt-oss-20B
@@ -112,6 +112,7 @@ def main():
                      fontsize=8, fontweight='bold', ha=ha)
     
     plt.xscale('log')
+    plt.xlim(left=min(costs) * 0.2, right=max(costs) * 1.5)
     plt.xlabel("Cost per 1M Blended Tokens ($)", fontsize=12)
     plt.ylabel("Learned Specialist Confidence (||\u03b8||)", fontsize=12)
     plt.title("Figure 3: Specialist Confidence vs. Cost (Pareto Frontier)", fontsize=14, fontweight='bold')

@@ -17,13 +17,14 @@ def main():
     # 1. Load Models and Costs
     print("Loading models and costs...")
     # Look in the current directory (final_release root)
-    with open(base_dir / "models.json") as f:
+    root_dir = base_dir
+    with open(root_dir / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
     # 2. Initialize Router with HLE Priors
     print("Initializing router with HLE priors...")
-    priors_meta_path = base_dir / "data/priors_meta_large.npz"
+    priors_meta_path = root_dir / "data/priors_meta_large.npz"
     router = BanditRouter.load_from_benchmark(
         model_registry=registry,
         context_model="sentence-transformers/all-MiniLM-L6-v2",
@@ -93,11 +94,11 @@ def main():
         # Manual offsets and alignment for the first few models which are very crowded
         ha = 'left'
         if i == 0: # Gemma
-            y_off, x_off, ha = 10, 0, 'center'
+            y_off, x_off, ha = 10, -40, 'left'
         elif i == 1: # Llama 3.2
             y_off, x_off, ha = -20, 0, 'center'
         elif i == 2: # DeepSeek
-            y_off, x_off, ha = 15, 5, 'left'
+            y_off, x_off, ha = 8, 5, 'left'
         elif i == 3: # Qwen
             y_off, x_off, ha = -15, 10, 'left'
         elif i == 4: # gpt-oss-20B
@@ -111,6 +112,7 @@ def main():
                      fontsize=8, fontweight='bold', ha=ha)
     
     plt.xscale('log')
+    plt.xlim(left=min(costs) * 0.2, right=max(costs) * 1.5)
     plt.xlabel("Cost per 1M Blended Tokens ($)", fontsize=12)
     plt.ylabel("Learned Specialist Confidence (||\u03b8||)", fontsize=12)
     plt.title("Figure 3: Specialist Confidence vs. Cost (Pareto Frontier)", fontsize=14, fontweight='bold')
