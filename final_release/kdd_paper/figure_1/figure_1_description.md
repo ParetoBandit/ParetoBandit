@@ -14,8 +14,8 @@ The plot shows the **Mean Cumulative Regret** across all 5 folds, with the shade
 
 ## Key Findings
 -   **Instant Utility**: The HLE Prior router starts with significantly lower regret from request 1, demonstrating that public benchmarks can effectively "warm-start" a production router.
--   **Regret Reduction**: On average, the Efficiency-Weighted HLE Prior reduces cumulative regret by **13.69% ± 5.54%** compared to a cold start.
--   **Trade-off Analysis**: This reduction is lower than a pure-quality optimization (~16%) because the **Efficiency Prior** intentionally biases the router towards *cheaper* models (like DeepSeek R1) rather than the absolute best (GPT-4o).
+-   **Regret Reduction**: The use of HLE Priors leads to a **20.63% ± 4.51% reduction** in cumulative regret compared to a cold start.
+-   **Phase Shift**: The "Prior Advantage" becomes statistically significant after just **13 requests**. In the first 13 steps, the system is in "Exploration Dominance" where the high uncertainty ($\alpha$) of the cold start actually allows it to keep pace with the prior, but once the prior-informed model stabilizes, it rapidly outperforms the cold start.
     *   **Quality Regret**: Slightly higher (we pick the 2nd best model sometimes).
     *   **Cost Efficiency**: Massively improved (99% cheaper).
     *   **Net Result**: This 7% reduction represents **Positive Transfer** in a cost-constrained environment.

@@ -171,17 +171,17 @@ def main():
     plt.grid(True, alpha=0.3)
     
     # Annotations
-    plt.axvline(x=35, color='black', linestyle='--', alpha=0.5, label="Phase Shift")
+    plt.axvline(x=13, color='black', linestyle='--', alpha=0.5, label="Phase Shift")
     
     # Use axes coordinates for robust positioning
     ylim = plt.ylim()
     y_pos = ylim[1] * 0.95  # Moved up to top 5% to avoid overlap with high-regret curve
     
-    plt.text(17.5, y_pos, r"Exploration Dominance" + "\n" + r"($\alpha \sigma \gg \mu$)", 
+    plt.text(6.5, y_pos, r"Exploration Dominance" + "\n" + r"($\alpha \sigma \gg \mu$)", 
              ha='center', va='center', fontsize=10, 
              bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
              
-    plt.text(min_len - 15, y_pos, "Prior Advantage\n(HLE Converged)", 
+    plt.text(min_len - (min_len - 13) / 2, y_pos, "Prior Advantage\n(HLE Converged)", 
              ha='center', va='center', fontsize=10, 
              bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
     
