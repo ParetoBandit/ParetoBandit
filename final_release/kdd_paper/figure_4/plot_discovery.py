@@ -46,7 +46,7 @@ def plot_discovery():
     # Add an arrow and text to highlight the discovery
     target_idx = 1
     ax.annotate('Specialist Discovery!', 
-                xy=(target_idx + width/2, posteriors[target_idx]), 
+                xy=(target_idx + width/2 + 0.1, posteriors[target_idx]), 
                 xytext=(target_idx + 0.5, posteriors[target_idx] + 0.1),
                 arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=8),
                 fontsize=12, fontweight='bold', color='#e74c3c')
