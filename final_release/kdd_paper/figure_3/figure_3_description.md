@@ -11,10 +11,10 @@ Figure 3 visualizes the **Pareto Frontier** between the router's learned special
 -   **Data Source**: The weights are derived from the **HLE (Humanity's Last Exam) Priors**, representing the router's "expert intuition" after processing 26,223 high-quality benchmark prompts.
 
 ## Key Observations
--   **The Frontier**: The red dashed line represents the Pareto optimal models—those that offer the highest confidence for a given cost bracket.
--   **High-End Specialists**: Models like **Gemini 3 Pro Preview** occupy the top-right, offering the highest learned confidence but at a premium price.
--   **Efficiency Leaders**: Mid-tier models like **DeepSeek V3.1 Terminus** and **gpt-oss-120B** provide a significant "confidence-per-dollar" advantage, forming the elbow of the curve.
--   **Commodity Models**: Low-cost models (left side) show lower $||\theta||$ norms, indicating they are treated more as generalists with less specific domain expertise learned so far.
+-   **The Frontier**: The red dashed line represents the Pareto optimal models across three distinct economic tiers:
+-   **Premium Specialists**: Models like **Gemini 3 Pro Preview** and **Gemini 2.5 Pro** occupy the top-right, offering the highest learned confidence ($||\theta|| > 0.7$) but at a premium price point ($>\$3/1\text{M}$ tokens).
+-   **Efficiency Leaders**: The "elbow" of the curve is defined by **DeepSeek V3.1 Terminus** and **gpt-oss-120B**, which provide superior expert confidence normalized for cost.
+-   **Commodity Specialists**: Lower-cost entry points like **DeepSeek R1 (Qwen3-8B)** and **Gemma 3 4B** form the start of the frontier, providing non-trivial specialization at near-zero costs ($<\$0.07/1\text{M}$ tokens).
 
 ## Significance and Importance
 This figure is central to the KDD paper as it demonstrates the **mathematical transparency** and **operational efficiency** of the Bandit Router:
