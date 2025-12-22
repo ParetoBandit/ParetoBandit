@@ -25,9 +25,7 @@ def simulate_niche_discovery():
     router = BanditRouter.load_from_benchmark(
         model_registry=registry,
         context_model="sentence-transformers/all-MiniLM-L6-v2",
-        alpha=0.1,
-        prior_strength=20.0,
-        forgetting_factor=0.9,
+        # Use system defaults (alpha=1.0, prior_strength=40.0)
         priors_meta_path=priors_meta_path
     )
     
@@ -56,14 +54,13 @@ def simulate_niche_discovery():
     
     for i in range(n_requests):
         # In this niche, the target_model is the clear winner
-        # We bypass the router's selection to force-feed it the "truth" of this niche
+        # We teach the bandit about all models in this specific context
+        context_bias = np.append(context, 1.0)
         for m_id in router.bandit.models:
             reward = 1.0 if m_id == target_model else 0.2
             # Add some noise
             reward += np.random.normal(0, 0.05)
-            # Append bias term
-        context_bias = np.append(context, 1.0)
-        router.bandit.update(m_id, context_bias, reward)
+            router.bandit.update(m_id, context_bias, reward)
             
     # 5. Capture Posteriors
     posteriors = {}

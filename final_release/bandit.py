@@ -336,7 +336,7 @@ class BanditRouter:
         alpha: float = 1.0,
         prior_strength: float = 40.0,
         priors_meta_path: Optional[Path] = None,
-        forgetting_factor: float = 1.0,
+        forgetting_factor: float = 0.9,
         benchmark_key: str = "hle",
     ) -> "BanditRouter":
         """Initialize with HLE priors using covariance matrix."""
