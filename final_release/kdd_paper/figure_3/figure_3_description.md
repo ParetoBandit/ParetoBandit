@@ -12,8 +12,8 @@ Figure 3 visualizes the **Pareto Frontier** between the router's learned special
 
 ## Key Observations
 -   **The Frontier**: The red dashed line represents the Pareto optimal models—those that offer the highest confidence for a given cost bracket.
--   **High-End Specialists**: Models like **Gemini 3 Pro Preview** and **GPT-5.1 (high)** occupy the top-right, offering the highest learned confidence but at a premium price.
--   **Efficiency Leaders**: Mid-tier models like **Kimi K2 Thinking** and **gpt-oss-120B** provide a significant "confidence-per-dollar" advantage, forming the elbow of the curve.
+-   **High-End Specialists**: Models like **Gemini 3 Pro Preview** occupy the top-right, offering the highest learned confidence but at a premium price.
+-   **Efficiency Leaders**: Mid-tier models like **DeepSeek V3.1 Terminus** and **gpt-oss-120B** provide a significant "confidence-per-dollar" advantage, forming the elbow of the curve.
 -   **Commodity Models**: Low-cost models (left side) show lower $||\theta||$ norms, indicating they are treated more as generalists with less specific domain expertise learned so far.
 
 ## Significance and Importance

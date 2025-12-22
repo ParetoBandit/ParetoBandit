@@ -333,9 +333,9 @@ class BanditRouter:
         *,
         model_registry: Dict[str, Dict[str, Any]],
         context_model: str,
-        alpha: float,
-        prior_strength: float,
-        priors_meta_path: Path,
+        alpha: float = 1.0,
+        prior_strength: float = 40.0,
+        priors_meta_path: Optional[Path] = None,
         forgetting_factor: float = 1.0,
         benchmark_key: str = "hle",
     ) -> "BanditRouter":

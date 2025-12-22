@@ -27,8 +27,7 @@ def main():
     router = BanditRouter.load_from_benchmark(
         model_registry=registry,
         context_model="sentence-transformers/all-MiniLM-L6-v2",
-        alpha=0.5,
-        prior_strength=20.0,
+        # Use system defaults (alpha=1.0, prior_strength=40.0)
         priors_meta_path=priors_meta_path
     )
     
@@ -94,14 +93,31 @@ def main():
     
     # Label Pareto Models
     for i, d in enumerate(pareto_points):
+        # Alternate placement: Below, Above, Below, Above
+        if i % 2 == 0:
+            xytext_offset = (5, -15) # Below
+        else:
+            xytext_offset = (5, 10)  # Above
+
+        ha_val = 'left'
+
+        # Specific override for DeepSeek R1 to align "3" with the center of the point
+        if "DeepSeek R1" in d["name"]:
+             # The label is "DeepSeek R1 0528 Qwen3 8B"
+             # "3" is near the end. Shifting x-offset by ~20 points with ha='right'
+             # should put the "3" roughly over the point.
+             xytext_offset = (20, 10) 
+             ha_val = 'right'
+
         # Use a more robust labeling strategy with high zorder
         plt.annotate(
             d["name"].split('(')[0].strip(),
             xy=(d["cost"], d["confidence"]),
-            xytext=(5, 8),
+            xytext=xytext_offset,
             textcoords='offset points',
             fontsize=8,
             fontweight='bold',
+            ha=ha_val,
             zorder=10, # Ensure labels are in front
             bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.9, ec='gray', lw=0.5)
         )
