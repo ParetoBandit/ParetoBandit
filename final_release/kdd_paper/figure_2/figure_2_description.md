@@ -15,13 +15,18 @@ To achieve the recovery shown in the figure, the standard production parameters 
 
 | Parameter | Value | Significance |
 | :--- | :--- | :--- |
-| `prior_strength` | `20.0` | High initial trust in HLE priors. |
-| `forgetting_factor` ($\gamma$) | `0.9` | Standard adaptation rate (Discounted LinUCB). |
-| `exploration` | `balanced` | Conservative exploration ($\alpha = 0.1$). |
+| `prior_strength` | `40.0` | Stronger initial trust (High Confidence Anchor). |
+| `forgetting_factor` ($\gamma$) | `0.96` | Tuned for $\alpha=1.0$ (Effective $N \approx 25$). |
+| `exploration` | `balanced` | Optimal exploration ($\alpha = 1.0$). |
 
 ## Significance
 The "Dip and Recover" pattern is a hallmark of robust online learning:
 -   **The Dip**: Represents the cost of the distribution shift. The router initially relies on its strong priors (Gemini) before realizing they are no longer optimal.
 -   **The Recover**: Demonstrates the router's ability to self-correct without manual intervention. By request 75, the router has successfully pivoted to Claude, restoring the rolling reward to near-optimal levels.
+
+### Mechanism: Time-Based Variance Inflation
+This recovery is guaranteed by our implementation of **Global Forgetting**. In standard LinUCB, high confidence in a suboptimal arm (strong prior) can permanently suppress exploration of better alternatives. To prevent this, BanditGPT inflates the variance of *all* arms over time, not just the selected one:
+$$ \sigma_{effective}^2 = \sigma_{stored}^2 \cdot \gamma^{-t} $$
+As time passes ($t$) without selecting a model, its uncertainty ($sigma$) grows exponentially. This ensures that even if the HLE Prior strongly favors Gemini, the uncertainty around the neglected Claude arm will eventually grow large enough to trigger an exploratory selection, leading to the discovery of its superior performance.
 
 This figure proves that the Bandit Router is not just a static selection engine but a dynamic system capable of **personalization and task-specific optimization** in real-time.

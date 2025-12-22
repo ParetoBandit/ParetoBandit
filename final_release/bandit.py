@@ -107,6 +107,8 @@ class DisjointLinUCBPolicy:
         self.A = {m: np.eye(self.dim) * self.ridge_lambda for m in self.models}
         self.b = {m: np.zeros(self.dim, dtype=np.float64) for m in self.models}
         self.A_inv = {m: np.linalg.inv(self.A[m]) for m in self.models}
+        self.last_update = {m: 0 for m in self.models} # Track last update step
+        self.t = 0 # Global time step
 
     def add_arm(self, model_name: str) -> None:
         """Add a new arm (model) to the bandit dynamically."""
@@ -116,6 +118,7 @@ class DisjointLinUCBPolicy:
         self.A[model_name] = np.eye(self.dim) * self.ridge_lambda
         self.b[model_name] = np.zeros(self.dim, dtype=np.float64)
         self.A_inv[model_name] = np.linalg.inv(self.A[model_name])
+        self.last_update[model_name] = self.t
 
     def select_arm(self, x: np.ndarray, candidates: Optional[List[str]] = None) -> Tuple[str, float]:
         candidates = candidates or self.models
@@ -129,9 +132,20 @@ class DisjointLinUCBPolicy:
             # UCB = mean + alpha * std
             theta = self.A_inv[m] @ self.b[m]
             mean = float(theta.dot(x))
+            
+            # Global Forgetting: Inflate variance based on staleness
+            # A_effective = A_stored * gamma^(dt)
+            # Var_effective = x^T A_eff^-1 x = x^T (A^-1 * gamma^-dt) x = Var_stored * gamma^-dt
+            dt = self.t - self.last_update[m]
+            decay_factor = self.gamma ** dt
+            
             var = float(x.dot(self.A_inv[m]).dot(x))
-            std = float(np.sqrt(max(var, 1e-12)))
+            # Inflate variance for staleness
+            var_inflated = var / max(decay_factor, 1e-12) 
+            
+            std = float(np.sqrt(max(var_inflated, 1e-12)))
             ucb = mean + self.alpha * std
+            
             if ucb > best_ucb:
                 best_ucb = ucb
                 best_model = m
@@ -164,17 +178,25 @@ class DisjointLinUCBPolicy:
     def update(self, model: str, x: np.ndarray, reward: float) -> None:
         if model not in self.A: return
         
-        # Apply forgetting factor to ALL models (or just the selected one?)
-        # Standard LinUCB with forgetting factor usually applies it to the selected arm's statistics
-        # to allow it to "unlearn" old rewards for that specific arm.
-        self.A[model] = self.gamma * self.A[model] + np.outer(x, x)
-        self.b[model] = self.gamma * self.b[model] + float(reward) * x
+        self.t += 1 # Increment global clock
         
-        # Ensure A remains invertible by adding a small ridge if gamma < 1
-        if self.gamma < 1.0:
-            self.A[model] += (1.0 - self.gamma) * np.eye(self.dim) * self.ridge_lambda
+        # Synchronize decay before update
+        dt = self.t - self.last_update[model]
+        if dt > 0:
+            effective_gamma = self.gamma ** dt
+            self.A[model] *= effective_gamma
+            self.b[model] *= effective_gamma
             
+            # Maintain invertibility with ridge
+            if self.gamma < 1.0:
+                 self.A[model] += (1.0 - effective_gamma) * np.eye(self.dim) * self.ridge_lambda
+        
+        # Add new data
+        self.A[model] += np.outer(x, x)
+        self.b[model] += float(reward) * x
+        
         self.A_inv[model] = np.linalg.inv(self.A[model])
+        self.last_update[model] = self.t
 
     def save_state(self, path: Path | str) -> None:
         """Save A and b matrices to a compressed NPZ file."""
