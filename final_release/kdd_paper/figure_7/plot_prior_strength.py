@@ -172,7 +172,7 @@ def main():
     plt.annotate(
         'THE "GOLDEN RATIO"\n(Perfect Stability)',
         xy=(x_pos[-1], regret_40[-1]),
-        xytext=(x_pos[-1] - 1.0, regret_40[-1] - 2.5),
+        xytext=(x_pos[-1] - 0.8, regret_40[-1] - 1.2),
         fontsize=10,
         fontweight='bold',
         color='blue',
