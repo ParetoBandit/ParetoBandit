@@ -39,7 +39,7 @@ def run_real_adaptation_simulation():
         priors="benchmark",
         prior_strength=40.0, # Standard trust (High confidence in benchmark)
         exploration="balanced", # Standard alpha (1.0)
-        forgetting_factor=0.96 # Tuned: 0.96 balances adaptation speed vs effective N for alpha=1.0
+        forgetting_factor=0.98 # Standard system default (Goldilocks for alpha=1.0)
     )
     # Note: With Alpha=1.0, we need gamma >= 0.96 (Effective N ~25) to reduce uncertainty enough to exploit.
     

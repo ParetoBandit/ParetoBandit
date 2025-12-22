@@ -16,7 +16,7 @@ To achieve the recovery shown in the figure, the standard production parameters 
 | Parameter | Value | Significance |
 | :--- | :--- | :--- |
 | `prior_strength` | `40.0` | Stronger initial trust (High Confidence Anchor). |
-| `forgetting_factor` ($\gamma$) | `0.96` | Tuned for $\alpha=1.0$ (Effective $N \approx 25$). |
+| `forgetting_factor` ($\gamma$) | `0.98` | "Goldilocks" value for $\alpha=1.0$ (Effective $N \approx 50$). |
 | `exploration` | `balanced` | Optimal exploration ($\alpha = 1.0$). |
 
 ## Significance

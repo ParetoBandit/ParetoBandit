@@ -96,7 +96,7 @@ def estimate_tokens_rough(text: str) -> int:
 # ---------------------------------------------------------------------------
 class DisjointLinUCBPolicy:
     """Disjoint LinUCB: one ridge regression per arm."""
-    def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 1.0, ridge_lambda: float = 1.0, forgetting_factor: float = 1.0):
+    def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 1.0, ridge_lambda: float = 1.0, forgetting_factor: float = 0.98):
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
@@ -241,7 +241,7 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         alpha: float = 1.0,
         embedding_dim: int = 384,
-        forgetting_factor: float = 1.0,
+        forgetting_factor: float = 0.98,
         benchmark_key: str = "hle",
     ):
         self.registry = dict(model_registry)
@@ -266,7 +266,7 @@ class BanditRouter:
         priors: str = "benchmark", # Default to HLE
         prior_strength: float = 40.0,
         exploration: str = "balanced",
-        forgetting_factor: float = 0.9,
+        forgetting_factor: float = 0.98,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
         benchmark_key: str = "hle",
@@ -336,7 +336,7 @@ class BanditRouter:
         alpha: float = 1.0,
         prior_strength: float = 40.0,
         priors_meta_path: Optional[Path] = None,
-        forgetting_factor: float = 0.9,
+        forgetting_factor: float = 0.98,
         benchmark_key: str = "hle",
     ) -> "BanditRouter":
         """Initialize with HLE priors using covariance matrix."""

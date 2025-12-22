@@ -12,7 +12,7 @@ Figure 3 visualizes the **Pareto Frontier** between the router's learned special
 
 ## Key Observations
 -   **The Frontier**: The red dashed line represents the Pareto optimal models across three distinct economic tiers:
--   **Premium Specialists**: Models like **Gemini 3 Pro Preview** and **Gemini 2.5 Pro** occupy the top-right, offering the highest learned confidence ($||\theta|| > 0.7$) but at a premium price point ($>\$3/1\text{M}$ tokens).
+-   **Premium Specialists**: Models like **Gemini 3 Pro Preview** and **Gemini 2.5 Pro** occupy the top-right, offering the highest learned confidence ($||\theta|| > 0.7$) but at a premium price point ($>\$3.40/1\text{M}$ tokens).
 -   **Efficiency Leaders**: The "elbow" of the curve is defined by **DeepSeek V3.1 Terminus** and **gpt-oss-120B**, which provide superior expert confidence normalized for cost.
 -   **Commodity Specialists**: Lower-cost entry points like **DeepSeek R1 (Qwen3-8B)** and **Gemma 3 4B** form the start of the frontier, providing non-trivial specialization at near-zero costs ($<\$0.07/1\text{M}$ tokens).
 
