@@ -22,6 +22,7 @@ To ensure consistency across figures, the Figure 6 simulation uses the following
 3.  **Cumulative Regret**: We track the sum of losses compared to the Oracle:
     $$Regret_{cumulative} = \sum_{t=1}^{T} \max(0, R_{best} - R_{observed})$$
 4.  **Averaging**: All curves represent the mean of **10 independent shuffles** of the 100-request sequence to ensure statistical significance.
+5.  **Leakage Prevention**: Evaluation prompts (HelpSteer2) were strictly excluded from the LMSYS/Arena corpus used to build the embedding-space priors, ensuring a zero-shot start with respect to the specific test content.
 
 ## Key Observations
 1.  **Priors are Bedrock**: The "HLE Priors Only" baseline (Regret ~61.6) vastly outperforms the "Cold Start" bandit (Regret ~79.3). This **23% reduction in regret** proves that starting with a prior—even a conservative one—is strictly better than exploring from scratch.

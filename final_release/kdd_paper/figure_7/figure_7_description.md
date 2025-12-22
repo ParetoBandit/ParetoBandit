@@ -23,6 +23,7 @@ To ensure empirical rigor, the simulation follows a strict evaluation protocol:
     $$Regret_{cumulative} = \sum_{t=1}^{T} \max(0, R_{best} - R_{chosen})$$
     where $R_{chosen}$ is the reward of the model selected by the BanditGPT policy at time $t$.
 5.  **Simulation Parameters**: Each data point is averaged over 10 independent seeds with distinct prompt shuffles (100 requests each) to eliminate bias from prompt ordering.
+6.  **Data Leakage Protection**: To ensure the integrity of the evaluation, the HLE priors were constructed using a disjoint pool of prompts (LMSYS/Chatbot Arena). Any prompt appearing in the HelpSteer2 evaluation set was explicitly filtered out from the prior generation process (using `calc_priors_large.py`). This guarantees that the bandit's initial knowledge is based on general linguistic patterns and benchmark performance, not on specific exposure to the test samples.
 
 > **Caption: Plasticity vs. Stability.** Enabling continuous feedback incurs a minor "Learning Tax" (+3% regret) compared to a frozen prior (in the N=20 case), but remains 20% superior to Cold Start while ensuring resilience to drift.
 
