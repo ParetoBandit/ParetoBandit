@@ -36,10 +36,10 @@ DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # ---------------------------------------------------------------------------
 class OptimizationProfile:
     """Named presets for utility function weights (Quality vs Cost vs Latency)."""
-    QUALITY_FIRST = {"lambda_cost": 0.1, "lambda_latency": 0.05}
-    BALANCED = {"lambda_cost": 50.0, "lambda_latency": 0.10}
-    COST_SAVER = {"lambda_cost": 1.0, "lambda_latency": 0.20}
-    LOW_LATENCY = {"lambda_cost": 0.1, "lambda_latency": 0.50}
+    QUALITY_FIRST = {"lambda_cost": 0.005, "lambda_latency": 0.005}
+    BALANCED      = {"lambda_cost": 1.42,  "lambda_latency": 0.1}
+    COST_SAVER    = {"lambda_cost": 5.0,   "lambda_latency": 1.0}
+    LOW_LATENCY   = {"lambda_cost": 0.1,   "lambda_latency": 8.0}
 
     _PROFILES = {
         "quality_first": QUALITY_FIRST,
@@ -62,7 +62,7 @@ class ExplorationRate:
     """Named presets for exploration (Alpha)."""
     STATIC = 0.0       # Pure exploitation
     SAFE = 0.1         # Minimal exploration
-    BALANCED = 0.1     # Tuned: 0.1 minimizes cumulative regret with HLE priors
+    BALANCED = 1.0     # Tuned: 1.0 minimizes cumulative regret (Sweet Spot)
     AGGRESSIVE = 2.0   # High exploration
 
     _RATES = {
@@ -96,7 +96,7 @@ def estimate_tokens_rough(text: str) -> int:
 # ---------------------------------------------------------------------------
 class DisjointLinUCBPolicy:
     """Disjoint LinUCB: one ridge regression per arm."""
-    def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1, ridge_lambda: float = 1.0, forgetting_factor: float = 1.0):
+    def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 1.0, ridge_lambda: float = 1.0, forgetting_factor: float = 1.0):
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
@@ -478,21 +478,26 @@ class BanditRouter:
         costs = {m: self._estimate_cost(m, in_tok, output_tokens) for m in filtered}
         lats = {m: self._estimate_latency(m, output_tokens) for m in filtered}
         
-        # Linear Cost Normalization
-        # We use linear because log-cost penalizes the low-end jumps (Llama->Flash) 
-        # more than high-end, which is counter-productive for this specific tradeoff.
-        min_cost, max_cost = min(costs.values()), max(costs.values())
-        cost_range = max_cost - min_cost if max_cost > min_cost else 1.0
+        # Log-MinMax Normalization
+        # We use log because costs/latencies span orders of magnitude.
+        # Fixed floor to avoid log(0)
+        EPS = 1e-9
         
-        min_lat, max_lat = min(lats.values()), max(lats.values())
-        lat_range = max_lat - min_lat if max_lat > min_lat else 1.0
+        log_costs = {m: np.log(max(costs[m], EPS)) for m in filtered}
+        log_lats = {m: np.log(max(lats[m], EPS)) for m in filtered}
+        
+        min_c, max_c = min(log_costs.values()), max(log_costs.values())
+        range_c = max_c - min_c if max_c > min_c else 1.0
+        
+        min_l, max_l = min(log_lats.values()), max(log_lats.values())
+        range_l = max_l - min_l if max_l > min_l else 1.0
         
         for m in filtered:
             quality = ucbs[m]
             
-            # Normalize Cost (Linear) and Latency (Linear) to [0, 1]
-            norm_cost = (costs[m] - min_cost) / cost_range
-            norm_lat = (lats[m] - min_lat) / lat_range
+            # Normalize to [0, 1] in Log Space
+            norm_cost = (log_costs[m] - min_c) / range_c
+            norm_lat = (log_lats[m] - min_l) / range_l
             
             # Utility = Quality - (w_c * NormCost) - (w_l * NormLatency)
             utility = quality - (lambda_cost * norm_cost) - (lambda_latency * norm_lat)

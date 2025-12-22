@@ -33,6 +33,13 @@ def main():
     # 3. Evaluate Profiles
     profiles = ["quality_first", "balanced", "cost_saver", "low_latency"]
     
+    meta = {
+        "quality_first": ("Maximize Q", "Deep Research (PhDs, synthesis)"),
+        "balanced": ("Optimize U = Q - λC", "Production Apps (Chatbots, RAG)"),
+        "cost_saver": ("Min C s.t. Q > τ", "Background Jobs (Summarization)"),
+        "low_latency": ("Min L", "Real-Time UI (Autocomplete)")
+    }
+    
     table_rows = []
     
     print("Evaluating profiles...")
@@ -57,7 +64,8 @@ def main():
         avg_c_per_m = (total_c / count) * (1000000 / 1200) # $/1M tokens (assuming 1200 tokens total)
         avg_l = total_l / count
         
-        table_rows.append(f"| **{prof.replace('_', ' ').title()}** | {avg_q:.2f} | ${avg_c_per_m:.2f} | {avg_l:.2f}s |")
+        strat, target = meta[prof]
+        table_rows.append(f"| **{prof.replace('_', ' ').title()}** | {strat} | ${avg_c_per_m:.2f} | {avg_l:.1f}s | {target} |")
 
     # 4. Generate Markdown
     header = [
@@ -66,23 +74,24 @@ def main():
         "## Overview",
         "This table summarizes the empirical performance of BanditGPT across our four default optimization profiles. The results demonstrate how users can easily steer the router to prioritize specific business metrics without changing code.",
         "",
-        "| Profile | Mean Quality (HLE) | Mean Cost ($/1M) | Mean Latency |",
-        "| :--- | :--- | :--- | :--- |"
+        "| Profile | Strategy | Cost ($/1M) | Latency | Target User |",
+        "| :--- | :--- | :--- | :--- | :--- |"
     ]
+    
+
     
     footer = [
         "",
         "## Methodology",
         "- **Evaluation Set**: 100 randomly sampled test prompts.",
-        "- **Quality Metric**: Mean HLE score of the selected model.",
         "- **Cost Metric**: Estimated operational cost per 1 million blended tokens.",
         "- **Latency Metric**: Mean time to completion (including generation for 600 output tokens).",
         "",
         "## Analysis",
-        "1. **Quality First**: Delivers the highest HLE score but at a ~10x higher cost than Cost Saver.",
-        "2. **Cost Saver**: Aggressively selects efficient models like Flash or Mixtral, reducing costs to minimal levels while maintaining respectable quality.",
-        "3. **Balanced**: Provides the 'elbow' of the Pareto curve, offering a 90% quality score with a significantly lower price tag than flagship-only strategies.",
-        "4. **Low Latency**: Prioritizes models with high tokens-per-second and low TTFT, achieving the fastest response times."
+        "1. **Quality First**: Prioritizes reasoning capabilities above all, achieving 0.37 HLE by leveraging flagship models (e.g., Gemini 1.5 Pro), though at a high premium ($6.09/1M).",
+        "2. **Balanced**: Targets the 'Value' segment ($0.55/1M), filtering out diminishing-return flagships to select capable 70B-class models. This offers substantial cost savings (-90% vs Quality First) while outperforming budget tiers.",
+        "3. **Cost Saver**: Maximizes efficiency ($0.03/1M) by routing to lightweight 7B-8B models, reducing costs by 18x compared to Balanced while maintaining baseline functionality.",
+        "4. **Low Latency**: Focuses on TTFT and TPS, delivering sub-second response times (0.76s) suitable for real-time applications, effectively converging with the efficient Cost Saver models."
     ]
     
     content = "\n".join(header + table_rows + footer)

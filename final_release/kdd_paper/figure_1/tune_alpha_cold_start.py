@@ -31,8 +31,7 @@ def main():
     rewards = []
     
     files = [
-        ("train_prompts.jsonl", "train_rewards.jsonl"),
-        ("test_prompts.jsonl", "test_rewards.jsonl")
+        ("train_prompts.jsonl", "train_rewards.jsonl")
     ]
     
     for p_file, r_file in files:

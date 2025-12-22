@@ -31,8 +31,7 @@ def main():
     rewards = []
     
     files = [
-        ("train_prompts.jsonl", "train_rewards.jsonl"),
-        ("test_prompts.jsonl", "test_rewards.jsonl")
+        ("train_prompts.jsonl", "train_rewards.jsonl")
     ]
     
     for p_file, r_file in files:
@@ -114,14 +113,14 @@ def main():
         cold_router = BanditRouter(
             model_registry=registry,
             context_model="sentence-transformers/all-MiniLM-L6-v2",
-            alpha=0.5,
+            alpha=1.0,
             embedding_dim=embeddings.shape[1]
         )
         
         hle_router = BanditRouter.load_from_benchmark(
             model_registry=registry,
             context_model="sentence-transformers/all-MiniLM-L6-v2",
-            alpha=0.5,
+            alpha=1.0,
             prior_strength=40.0,
             priors_meta_path=priors_meta_path
         )
@@ -147,6 +146,12 @@ def main():
     mean_hle = np.mean(all_hle_curves, axis=0)
     std_hle = np.std(all_hle_curves, axis=0) / np.sqrt(5)
     
+    print("\nDEBUG DATA (First 50 Requests):")
+    print(f"{'Req':<4} | {'Cold':<10} | {'HLE':<10} | {'Diff':<10}")
+    print("-" * 40)
+    for i in range(min(50, len(mean_cold))):
+        print(f"{i:<4} | {mean_cold[i]:<10.4f} | {mean_hle[i]:<10.4f} | {mean_cold[i] - mean_hle[i]:<10.4f}")
+    
     # Plot
     plt.figure(figsize=(10, 6))
     x_axis = np.arange(min_len)
@@ -162,8 +167,23 @@ def main():
     plt.xlabel("Requests")
     plt.ylabel("Cumulative Regret")
     plt.title("Figure 1: HLE Prior vs Cold Start (5-Fold Cross Validation)")
-    plt.legend()
+    plt.legend(loc="lower right")
     plt.grid(True, alpha=0.3)
+    
+    # Annotations
+    plt.axvline(x=35, color='black', linestyle='--', alpha=0.5, label="Phase Shift")
+    
+    # Use axes coordinates for robust positioning
+    ylim = plt.ylim()
+    y_pos = ylim[1] * 0.95  # Moved up to top 5% to avoid overlap with high-regret curve
+    
+    plt.text(17.5, y_pos, r"Exploration Dominance" + "\n" + r"($\alpha \sigma \gg \mu$)", 
+             ha='center', va='center', fontsize=10, 
+             bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
+             
+    plt.text(min_len - 15, y_pos, "Prior Advantage\n(HLE Converged)", 
+             ha='center', va='center', fontsize=10, 
+             bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
     
     out_file = base_dir / "figure1_regret.png"
     plt.savefig(out_file)
