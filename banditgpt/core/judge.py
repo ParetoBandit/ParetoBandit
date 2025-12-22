@@ -50,7 +50,6 @@ from banditgpt._resources import (
     get_bundled_priors_path as _get_bundled_priors_path,
     get_user_priors_path as _get_user_priors_path,
     get_user_priors_dir as _get_user_priors_dir,
-    get_quality_predictor_path,
 )
 from banditgpt.core.prior_manifest import load_priors_manifest, verify_bundled_prior
 
@@ -853,59 +852,31 @@ class PriorManager:
 # ---------------------------------------------------------------------------
 
 
-def create_soft_judge(
-    model_path: Optional[Path] = None,
-) -> Judge:
-    """
-    Create a soft (local, fast) judge using the QualityCostPredictor.
-
-    This is the default DeBERTa-based grader that runs locally.
-    Good for: style, fluency, general quality.
-    Not good for: factual correctness, math, code execution.
-    """
-    from banditgpt.core.quality_cost_predictor import QualityCostPredictor
-
-    default_path = get_quality_predictor_path("best_quality_predictor.pt")
-    path = model_path or default_path
-
-    predictor = QualityCostPredictor.load(path)
-    predictor.eval()
-
-    class SoftJudge:
-        def grade(self, prompt: str, response: str) -> Tuple[float, Dict[str, Any]]:
-            result = predictor.predict_production(prompt, response)
-            reward = float(result.get("reward_logit", 0.0))
-            return reward, {"source": "soft", "raw": result}
-
-    return SoftJudge()
-
-
 def create_tiered_judge(
-    soft_model_path: Optional[Path] = None,
+    *,
     teacher_model: str = "openai/gpt-4o",
     teacher_max_tokens: int = 64,
     use_teacher: bool = True,
+    cross_judge_model_id: str = "anthropic/claude-3-5-sonnet-20241022",
 ) -> Judge:
     """
-    Create a tiered judge (soft + optional hard teacher).
+    Create a tiered judge (optional hard teacher).
 
     Automatically uses the teacher (LLM-as-a-Judge) for hard prompts
-    (math, code, logic) and the soft local grader for easy prompts.
+    (math, code, logic). If no teacher is provided, this judge will
+    return neutral scores.
     """
-    from banditgpt.core.quality_cost_predictor import QualityCostPredictor
     from banditgpt.core.tiered_grader import (
         OpenRouterTeacherVerifier,
         TieredGrader,
     )
 
-    default_path = get_quality_predictor_path("best_quality_predictor.pt")
-    path = soft_model_path or default_path
-
-    soft = QualityCostPredictor.load(path)
-    soft.eval()
-
     teacher = OpenRouterTeacherVerifier(model_id=teacher_model, max_tokens=teacher_max_tokens) if use_teacher else None
-    grader = TieredGrader(soft_grader=soft, teacher_verifier=teacher)
+    grader = TieredGrader(
+        soft_grader=None, 
+        teacher_verifier=teacher,
+        cross_judge_model_id=cross_judge_model_id
+    )
 
     class TieredJudge:
         def grade(self, prompt: str, response: str) -> Tuple[float, Dict[str, Any]]:

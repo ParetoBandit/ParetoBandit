@@ -11,7 +11,28 @@ This figure illustrates the distribution of **Humanity's Last Exam (HLE)** score
 
 This section describes the datasets used to develop, warm-start, and evaluate the Bandit Router. Our data strategy focuses on three pillars: a comprehensive model registry, high-quality benchmark priors, and a leakage-free evaluation set.
 
-## 1. Model Registry (`models.json`)
+## 1. Clustering Methodology
+To support the **Contextual Cluster Prior**, we analyzed the structure of **unique prompts** from the LMSYS dataset (deduplicated to ensure diversity) to identify distinct task types.
+
+### Offline Analysis (Paper)
+- **Algorithm**: K-Means Clustering on `all-MiniLM-L6-v2` embeddings.
+- **Determining K**: We used the **Elbow Method** and **Silhouette Score** analysis, which indicated an optimal $K=8$ clusters.
+- **Clusters Identified**: The clusters roughly correspond to:
+    1.  **Math & Logic** (High reasoning)
+    2.  **Creative Writing**
+    3.  **Coding & Debugging**
+    4.  **General Knowledge / QA**
+    5.  **Data Extraction**
+    6.  **Translation**
+    7.  **Roleplay**
+    8.  **Summarization**
+
+### Online Implementation (BanditRouter)
+For the live system, we implemented a **Metadata-Based Heuristic** to map new models to these clusters instantly without requiring re-training or offline clustering.
+- **Mapping**: We check the model's ID, description, and tags for keywords (e.g., "math", "code", "reasoning").
+- **Benefit**: This allows a new model (e.g., "DeepSeek R1") to immediately benefit from the "Math" cluster prior boost if it is tagged appropriately, solving the "Cold Start" problem while maintaining the theoretical rigor of the offline analysis.
+
+## 2. Model Registry (`models.json`)
 
 The core of the router is a curated registry of **80 Large Language Models (LLMs)**. For each model, we maintain the following metadata:
 

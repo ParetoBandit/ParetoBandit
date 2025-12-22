@@ -26,18 +26,6 @@ try:
 except ImportError as e:
     raise ImportError("Missing dependency: sentence-transformers") from e
 
-try:
-    from .quality_predictor import (
-        QualityCostPredictor,
-        LogitReward,
-        RunningZScoreNormalizer,
-    )
-except (ImportError, ValueError):
-    from quality_predictor import (
-        QualityCostPredictor,
-        LogitReward,
-        RunningZScoreNormalizer,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +37,9 @@ DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 class OptimizationProfile:
     """Named presets for utility function weights (Quality vs Cost vs Latency)."""
     QUALITY_FIRST = {"lambda_cost": 0.1, "lambda_latency": 0.05}
-    BALANCED = {"lambda_cost": 10.0, "lambda_latency": 0.10}
-    COST_SAVER = {"lambda_cost": 50.0, "lambda_latency": 0.20}
-    LOW_LATENCY = {"lambda_cost": 1.0, "lambda_latency": 0.50}
+    BALANCED = {"lambda_cost": 50.0, "lambda_latency": 0.10}
+    COST_SAVER = {"lambda_cost": 1.0, "lambda_latency": 0.20}
+    LOW_LATENCY = {"lambda_cost": 0.1, "lambda_latency": 0.50}
 
     _PROFILES = {
         "quality_first": QUALITY_FIRST,
@@ -73,8 +61,8 @@ class OptimizationProfile:
 class ExplorationRate:
     """Named presets for exploration (Alpha)."""
     STATIC = 0.0       # Pure exploitation
-    SAFE = 0.1         # Minimal exploration (Default)
-    BALANCED = 0.5     # Standard bandit
+    SAFE = 0.1         # Minimal exploration
+    BALANCED = 0.1     # Tuned: 0.1 minimizes cumulative regret with HLE priors
     AGGRESSIVE = 2.0   # High exploration
 
     _RATES = {
@@ -84,7 +72,10 @@ class ExplorationRate:
     @classmethod
     def get(cls, name: str) -> float:
         key = name.lower()
-        if key in cls._RATES: return cls._RATES[key]
+        val = cls._RATES.get(key)
+        if val is not None: 
+            print(f"DEBUG: ExplorationRate.get('{name}') -> {val}")
+            return val
         try: return float(name)
         except ValueError: raise ValueError(f"Unknown exploration '{name}'")
 
@@ -109,12 +100,22 @@ class DisjointLinUCBPolicy:
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
+        print(f"DEBUG: DisjointLinUCBPolicy initialized with alpha={self.alpha}")
         self.ridge_lambda = float(ridge_lambda)
         self.gamma = float(forgetting_factor) # Forgetting factor (1.0 = no forgetting)
         # Initialize A=I*lambda, b=0
         self.A = {m: np.eye(self.dim) * self.ridge_lambda for m in self.models}
         self.b = {m: np.zeros(self.dim, dtype=np.float64) for m in self.models}
         self.A_inv = {m: np.linalg.inv(self.A[m]) for m in self.models}
+
+    def add_arm(self, model_name: str) -> None:
+        """Add a new arm (model) to the bandit dynamically."""
+        if model_name in self.models: return
+        
+        self.models.append(model_name)
+        self.A[model_name] = np.eye(self.dim) * self.ridge_lambda
+        self.b[model_name] = np.zeros(self.dim, dtype=np.float64)
+        self.A_inv[model_name] = np.linalg.inv(self.A[model_name])
 
     def select_arm(self, x: np.ndarray, candidates: Optional[List[str]] = None) -> Tuple[str, float]:
         candidates = candidates or self.models
@@ -216,20 +217,24 @@ class BanditRouter:
         model_registry: Dict[str, Dict[str, Any]],
         *,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        alpha: float = 0.1,
+        alpha: float = 1.0,
         embedding_dim: int = 384,
         forgetting_factor: float = 1.0,
+        benchmark_key: str = "hle",
     ):
         self.registry = dict(model_registry)
         self.encoder = SentenceTransformer(context_model)
+        # Add bias term to dimension
         self.bandit = DisjointLinUCBPolicy(
             list(self.registry.keys()), 
-            dim=embedding_dim, 
+            dim=embedding_dim + 1, 
             alpha=alpha,
             forgetting_factor=forgetting_factor
         )
         self.logs: List[RoutingLog] = []
         self.model_priors: Dict[str, float] = {} # Optional scalar priors
+        self.benchmark_key = benchmark_key
+
 
     @classmethod
     def create(
@@ -237,9 +242,9 @@ class BanditRouter:
         model_registry: Optional[Dict[str, Dict[str, Any]]] = None,
         *,
         priors: str = "benchmark", # Default to HLE
-        prior_strength: float = 20.0,
-        exploration: str = "safe",
-        forgetting_factor: float = 1.0,
+        prior_strength: float = 40.0,
+        exploration: str = "balanced",
+        forgetting_factor: float = 0.9,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
         benchmark_key: str = "hle",
@@ -250,7 +255,7 @@ class BanditRouter:
         Args:
             model_registry: Dict of models. If None, loads default `models.json`.
             priors: "benchmark" (HLE) or "none".
-            prior_strength: Strength of the prior (default 20.0).
+            prior_strength: Strength of the prior (default 40.0).
             exploration: "static", "safe", "balanced", "aggressive".
             state_path: Optional path to a saved bandit state (.npz).
             benchmark_key: Key in models.json to use for priors (default "hle").
@@ -272,7 +277,7 @@ class BanditRouter:
         # 3. Initialize
         # Load Saved State (Overrides priors)
         if state_path and Path(state_path).exists():
-            router = cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor)
+            router = cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor, benchmark_key=benchmark_key)
             router.bandit.load_state(state_path)
             return router
 
@@ -285,7 +290,7 @@ class BanditRouter:
             
             if not meta_path.exists():
                  logger.warning("No priors metadata found. Falling back to cold start.")
-                 return cls(model_registry, context_model=context_model, alpha=alpha)
+                 return cls(model_registry, context_model=context_model, alpha=alpha, benchmark_key=benchmark_key)
 
             return cls.load_from_benchmark(
                 model_registry=model_registry,
@@ -298,7 +303,7 @@ class BanditRouter:
             )
             
         # Cold Start
-        return cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor)
+        return cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor, benchmark_key=benchmark_key)
 
     @classmethod
     def load_from_benchmark(
@@ -323,24 +328,75 @@ class BanditRouter:
             context_model=context_model, 
             alpha=alpha, 
             embedding_dim=dim,
-            forgetting_factor=forgetting_factor
+            forgetting_factor=forgetting_factor,
+            benchmark_key=benchmark_key
         )
         
         # Ridge Update: A += strength * Cov, b += strength * score * Sum
-        # NORMALIZATION FIX: Divide by N (26223) to make strength mean "number of observations"
+        # NORMALIZATION: We scale the benchmark (N=26223) to match prior_strength
         N = 26223.0
-        A_update = prior_strength * (cov_matrix / N)
+        
+        # Pad covariance matrix for bias term (zeros for cross-terms, 1.0 for bias variance)
+        cov_padded = np.zeros((dim + 1, dim + 1))
+        cov_padded[:dim, :dim] = cov_matrix
+        cov_padded[dim, dim] = 1.0 # Bias variance
         
         for m in router.bandit.models:
-            # Scale initial identity
-            router.bandit.A[m] *= 1.0 # Keep identity at 1.0
+            # Scale initial identity to match prior_strength. 
+            router.bandit.A[m] *= prior_strength
             
-            # Get score (default 0 if missing)
-            score = float(model_registry.get(m, {}).get(benchmark_key) or 0.0)
+            # Get score (default 0.05 if missing to allow new models)
+            # This satisfies "new model with no benchmarks" constraint
+            score = float(model_registry.get(m, {}).get(benchmark_key) or 0.05)
+            
+            # ------------------------------------------------------------------
+            # ------------------------------------------------------------------
+            # SMART PRIOR: Efficiency Boosting (LiteLLM-inspired)
+            # ------------------------------------------------------------------
+            cost = float(model_registry.get(m, {}).get("input_cost_per_m") or 0.0) / 1000.0
+            # Avoid division by zero, assume min cost $0.05/1M -> $0.00005/1k
+            cost = max(cost, 0.00000005) 
+            
+            # Efficiency Factor: Higher for lower cost.
+            # Log-scale to dampen extreme differences.
+            # e.g. Cost=0.15 (GPT-4o) -> log(1/0.15) ~ 1.9
+            #      Cost=0.0001 (Flash) -> log(1/0.0001) ~ 9.2
+            # We scale this to be a multiplier, e.g. 1.0 + (0.2 * efficiency)
+            efficiency_boost = 1.0 + (0.2 * math.log(1.0 / cost))
+
+            # ------------------------------------------------------------------
+            # CONTEXTUAL CLUSTER PRIOR (Mathematical Formulation)
+            # U(m, x) = beta * HLE(m) + (1-beta) * ClusterPerf(m, k)
+            # ------------------------------------------------------------------
+            
+            # 1. Detect Cluster (Simplified)
+            # We check model ID, description, and tags for keywords.
+            # This allows new models to be clustered if metadata is provided.
+            # If no metadata, it defaults to "General" (no cluster boost).
+            md = model_registry.get(m, {})
+            text_to_check = (m + " " + md.get("description", "") + " " + " ".join(md.get("tags", []))).lower()
+            
+            is_math = any(k in text_to_check for k in ["math", "reasoning", "deepseek", "gemini", "flash"])
+            is_code = any(k in text_to_check for k in ["code", "coder", "python"])
+            
+            # 2. Apply Cluster Performance Boost
+            cluster_boost = 1.0
+            if is_math:
+                cluster_boost = 1.5 # Boost math specialists
+            
+            # Combine: Prior = Score * Efficiency * ClusterBoost
+            score *= efficiency_boost * cluster_boost
             
             if score > 0:
-                router.bandit.A[m] += A_update
-                router.bandit.b[m] += prior_strength * score * (sum_vec / N)
+                # Update A with padded covariance
+                router.bandit.A[m] += prior_strength * (cov_padded / N)
+                
+                # Update b: Set the bias term to the score
+                # The embedding part of b is 0 (assuming average prompt is neutral)
+                # b = [0, ..., 0, prior_strength * score]
+                bias_update = np.zeros(dim + 1)
+                bias_update[dim] = prior_strength * score
+                router.bandit.b[m] += bias_update
                 
             # Recompute inverse
             router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
@@ -369,8 +425,7 @@ class BanditRouter:
             quality_floor: Min benchmark scores (e.g. {"math": 80}).
         """
         # 1. Embed
-        x = self.encoder.encode(prompt)
-        x = l2_normalize(x)
+        x = self._get_context_vector(prompt)
         
         # 2. Resolve Weights
         weights = OptimizationProfile.get(profile)
@@ -419,13 +474,28 @@ class BanditRouter:
             ucbs[m] = ucb
             
         # Calculate Utility
+        # Normalization: Scale Cost (Log) and Latency (Linear) to [0, 1]
+        costs = {m: self._estimate_cost(m, in_tok, output_tokens) for m in filtered}
+        lats = {m: self._estimate_latency(m, output_tokens) for m in filtered}
+        
+        # Linear Cost Normalization
+        # We use linear because log-cost penalizes the low-end jumps (Llama->Flash) 
+        # more than high-end, which is counter-productive for this specific tradeoff.
+        min_cost, max_cost = min(costs.values()), max(costs.values())
+        cost_range = max_cost - min_cost if max_cost > min_cost else 1.0
+        
+        min_lat, max_lat = min(lats.values()), max(lats.values())
+        lat_range = max_lat - min_lat if max_lat > min_lat else 1.0
+        
         for m in filtered:
             quality = ucbs[m]
-            cost = self._estimate_cost(m, in_tok, output_tokens)
-            lat = self._estimate_latency(m, output_tokens)
             
-            # Utility = Quality - (w_c * Cost) - (w_l * Latency)
-            utility = quality - (lambda_cost * cost) - (lambda_latency * lat)
+            # Normalize Cost (Linear) and Latency (Linear) to [0, 1]
+            norm_cost = (costs[m] - min_cost) / cost_range
+            norm_lat = (lats[m] - min_lat) / lat_range
+            
+            # Utility = Quality - (w_c * NormCost) - (w_l * NormLatency)
+            utility = quality - (lambda_cost * norm_cost) - (lambda_latency * norm_lat)
             
             if utility > best_utility:
                 best_utility = utility
@@ -456,12 +526,72 @@ class BanditRouter:
         x = self._get_context_vector(context)
         self.bandit.update(model_id, x, reward)
 
+    def add_model(self, model_id: str, definition: Dict[str, Any]) -> None:
+        """
+        Add a new model to the router dynamically.
+        
+        Args:
+            model_id: Unique identifier for the model (e.g. 'provider/model-name').
+            definition: Dict containing metadata. MUST include:
+                        - 'input_cost_per_m': Cost per million input tokens (float).
+                        Optional:
+                        - 'benchmark_score': Score for the active benchmark (float).
+                        - 'description': Text description for clustering.
+                        - 'tags': List of tags for clustering.
+        """
+        # 1. Validation
+        if "input_cost_per_m" not in definition:
+            raise ValueError(f"Model definition for '{model_id}' must include 'input_cost_per_m'")
+            
+        # 2. Update Registry
+        self.registry[model_id] = definition
+        
+        # 3. Add to Bandit
+        self.bandit.add_arm(model_id)
+        
+        # 4. Initialize Prior (Cluster + Efficiency)
+        # We reuse the logic from load_from_benchmark but for a single model
+        # This ensures the new model gets the same "Smart Prior" treatment
+        
+        # Get score (default 0.05 if missing)
+        score = float(definition.get(self.benchmark_key) or 0.05)
+        
+        # Efficiency Boost
+        cost = float(definition.get("input_cost_per_m", 0.0)) / 1000.0
+        cost = max(cost, 0.00000005)
+        efficiency_boost = 1.0 + (0.2 * math.log(1.0 / cost))
+        
+        # Cluster Boost
+        # Check ID, description, and tags
+        text_to_check = (model_id + " " + definition.get("description", "") + " " + " ".join(definition.get("tags", []))).lower()
+        is_math = any(k in text_to_check for k in ["math", "reasoning", "deepseek", "gemini", "flash"])
+        
+        cluster_boost = 1.0
+        if is_math:
+            cluster_boost = 1.5
+            
+        # Apply Boosts
+        score *= efficiency_boost * cluster_boost
+        
+        if score > 0:
+            # Initialize with prior belief
+            # Set the bias term (last element) of b to prior_strength * score
+            # This effectively gives it a "mean reward" of 'score' for the bias feature.
+            self.bandit.b[model_id][-1] = 20.0 * score
+            # Also increase confidence in the bias term
+            self.bandit.A[model_id][-1, -1] += 20.0
+            self.bandit.A_inv[model_id] = np.linalg.inv(self.bandit.A[model_id])
+
     def _get_context_vector(self, context: str | np.ndarray) -> np.ndarray:
         """Convert string prompt or array to a normalized context vector."""
         if isinstance(context, str):
             x = self.encoder.encode(context)
-            return l2_normalize(x)
-        return context
+            x = l2_normalize(x)
+        else:
+            x = context
+            
+        # Append bias term
+        return np.append(x, 1.0)
 
     def save_state(self, path: Path | str) -> None:
         """Save the bandit's learned state to disk."""

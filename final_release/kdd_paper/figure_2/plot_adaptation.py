@@ -2,7 +2,11 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from bandit import BanditRouter
+import sys
+from pathlib import Path
+# Add parent to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from final_release.bandit import BanditRouter
 
 def run_real_adaptation_simulation():
     """
@@ -13,12 +17,13 @@ def run_real_adaptation_simulation():
     
     # 1. Setup
     base_dir = Path(__file__).parent
-    with open(base_dir / "models.json") as f:
+    root_dir = base_dir.parent.parent
+    with open(root_dir / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
     # Load pre-embedded real data (Coding and Specialist domains)
-    with open(base_dir / "data/adaptation_sim_data.json") as f:
+    with open(root_dir / "data/adaptation_sim_data.json") as f:
         sim_data = json.load(f)
     
     # Selected models for the plot (Focusing on the main adaptation story)
@@ -32,9 +37,9 @@ def run_real_adaptation_simulation():
     router = BanditRouter.create(
         model_registry=registry,
         priors="benchmark",
-        prior_strength=2.0, # Low trust in priors for specialized tasks
-        exploration="aggressive", # High alpha for faster discovery
-        forgetting_factor=0.75 # Aggressive forgetting
+        prior_strength=20.0, # Standard trust
+        exploration="balanced", # Standard alpha (0.1)
+        forgetting_factor=0.9 # Standard forgetting
     )
     # router.bandit.alpha is set by exploration="aggressive" (~3.0)
     
@@ -65,14 +70,16 @@ def run_real_adaptation_simulation():
         x = np.array(item['embedding'])
         
         # Select model
-        chosen, _ = router.bandit.select_arm(x, candidates=selected_models)
+        # Append bias term
+        x_bias = np.append(x, 1.0)
+        chosen, _ = router.bandit.select_arm(x_bias, candidates=selected_models)
         
         # Get real reward from data
         logit = item['rewards'].get(chosen, -5.0)
         reward = sigmoid(logit)
         
         # Update Bandit
-        router.bandit.update(chosen, x, reward)
+        router.bandit.update(chosen, x_bias, reward)
         
         # Track metrics
         if chosen in selection_counts:

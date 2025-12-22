@@ -21,7 +21,6 @@ python test_router_simple.py
 ## 3. Core Components
 
 - **`bandit.py`**: The primary entry point. Contains the `BanditRouter` class and multi-objective optimization logic.
-- **`quality_predictor.py`**: The neural quality grader trained on HelpSteer2 and LMSYS Arena.
 - **`models.json`**: The model registry containing quality (HLE), cost, and latency metadata for 80+ models.
 - **`data/`**: Contains the pre-computed priors (`priors_meta_large.npz`) and evaluation datasets.
 
@@ -55,6 +54,11 @@ To re-run the 5-fold validation, statistical significance tests, and adaptation 
 python plot_regret.py
 python validate_significance.py
 python plot_adaptation.py
+
+# New Evaluation Metrics (KDD Paper)
+python kdd_paper/figure_5/plot_constraints.py
+python kdd_paper/figure_6/simulate_feedback_sparsity.py
+python kdd_paper/table_4/evaluate_profiles.py
 ```
 
 ## 6. Data Preparation (Optional)

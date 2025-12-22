@@ -11,13 +11,13 @@ The simulation is divided into two distinct phases:
 2.  **Phase 2: Specialized Task (Requests 51-500)**: A distribution shift occurs. The prompts shift to a specialized domain where Gemini's performance drops significantly, while **Claude 3.7 Sonnet** becomes the optimal choice.
 
 ## Parameters for "Session-Level" Adaptation
-To achieve the rapid recovery shown in the figure (optimal performance within ~25 requests), the following parameters were utilized:
+To achieve the recovery shown in the figure, the standard production parameters were utilized:
 
 | Parameter | Value | Significance |
 | :--- | :--- | :--- |
-| `prior_strength` | `2.0` | Lowers initial trust in HLE priors to allow faster learning from new feedback. |
-| `forgetting_factor` ($\gamma$) | `0.75` | Aggressively discounts older observations, enabling the router to "unlearn" the Gemini preference. |
-| `exploration` | `aggressive` | Increases the exploration rate ($\alpha \approx 3.0$) to quickly discover the new specialist. |
+| `prior_strength` | `20.0` | High initial trust in HLE priors. |
+| `forgetting_factor` ($\gamma$) | `0.9` | Standard adaptation rate (Discounted LinUCB). |
+| `exploration` | `balanced` | Conservative exploration ($\alpha = 0.1$). |
 
 ## Significance
 The "Dip and Recover" pattern is a hallmark of robust online learning:

@@ -1,0 +1,27 @@
+[
+  {
+    "System": "Aurelio AI",
+    "Acc": 0.861004,
+    "Cost": 0.0018855540000000002
+  },
+  {
+    "System": "BanditGPT (Ours)",
+    "Acc": 0.867989,
+    "Cost": 6.8e-05
+  },
+  {
+    "System": "FrugalGPT",
+    "Acc": 0.7126480000000001,
+    "Cost": 0.001631875
+  },
+  {
+    "System": "LiteLLM",
+    "Acc": 0.868152,
+    "Cost": 0.000175
+  },
+  {
+    "System": "RouteLLM",
+    "Acc": 0.7537999999999999,
+    "Cost": 0.0030043300000000004
+  }
+]

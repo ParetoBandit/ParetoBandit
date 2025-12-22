@@ -70,8 +70,7 @@ try:
 except ImportError as e:  # pragma: no cover
     raise ImportError("Missing dependency: sentence-transformers") from e
 
-from banditgpt.core.quality_cost_predictor import (
-    QualityCostPredictor,
+from banditgpt.core.reward import (
     LogitReward,
     RunningZScoreNormalizer,
 )
@@ -1362,6 +1361,9 @@ class BanditRouter:
         """
         Cold path: attach responses, grade, compute reward_z, update bandit.
 
+        The `grader` must provide a `predict_production` method that returns a dict
+        containing at least 'reward_raw'. It can optionally return 'reward_z' and 'reward_logit'.
+
         Returns the updated logs for storage.
         """
         updated: List[RoutingLog] = []
@@ -1370,9 +1372,7 @@ class BanditRouter:
             if resp is None:
                 continue
 
-            # `grader` can be:
-            # - QualityCostPredictor (local competence/vibe grader)
-            # - TieredGrader (soft grader + optional teacher/verifier for hard prompts)
+            # `grader` can be any object providing a predict_production method
             prod = grader.predict_production(
                 log.prompt, 
                 resp, 

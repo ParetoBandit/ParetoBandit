@@ -1,0 +1,39 @@
+{
+  "cost_limits": [
+    0.0001,
+    0.001,
+    0.005,
+    0.01,
+    0.05,
+    0.1,
+    0.2,
+    0.5
+  ],
+  "results": {
+    "0.0001": {
+      "deepseek/deepseek-r1-0528-qwen3-8b": 85,
+      "google/gemma-3-4b-it": 5
+    },
+    "0.001": {
+      "openai/gpt-oss-120b": 90
+    },
+    "0.005": {
+      "deepseek/deepseek-v3.1-terminus": 90
+    },
+    "0.01": {
+      "google/gemini-3-pro-preview": 90
+    },
+    "0.05": {
+      "google/gemini-3-pro-preview": 90
+    },
+    "0.1": {
+      "google/gemini-3-pro-preview": 90
+    },
+    "0.2": {
+      "google/gemini-3-pro-preview": 90
+    },
+    "0.5": {
+      "google/gemini-3-pro-preview": 90
+    }
+  }
+}

@@ -6,8 +6,7 @@ LLM model for each prompt, balancing quality, cost, and latency.
 
 Core Components:
     BanditRouter        - Main router with LinUCB policy
-    TieredGrader        - Tiered grading (soft + hard verifier)
-    QualityCostPredictor - Local quality prediction model
+    TieredGrader        - Tiered grading (optional teacher verifier)
     PriorManager        - Prior loading/saving/merging
 
 Quick Start:
@@ -19,8 +18,6 @@ Quick Start:
 
 __version__ = "0.1.0"
 
-# Core graders (always available)
-from banditgpt.core.quality_cost_predictor import QualityCostPredictor  # noqa: F401
 from banditgpt.core.tiered_grader import (  # noqa: F401
     HardPromptHeuristics,
     OpenRouterTeacherVerifier,
@@ -72,7 +69,6 @@ except ImportError:  # pragma: no cover
 __all__ = [
     "__version__",
     # Graders
-    "QualityCostPredictor",
     "TieredGrader",
     "OpenRouterTeacherVerifier",
     "HardPromptHeuristics",

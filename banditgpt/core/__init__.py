@@ -6,8 +6,7 @@ LLM model for each prompt, balancing quality, cost, and latency.
 
 Core Components:
     BanditRouter        - Main router with LinUCB policy
-    TieredGrader        - Tiered grading (soft + hard verifier)
-    QualityCostPredictor - Local quality prediction model
+    TieredGrader        - Tiered grading (optional teacher verifier)
     PriorManager        - Prior loading/saving/merging
 
 Prior Storage Locations:
@@ -29,13 +28,14 @@ Quick Start:
 
 from __future__ import annotations
 
-# Core graders
-from banditgpt.core.quality_cost_predictor import (
+# Core reward utilities
+from banditgpt.core.reward import (
     LogitReward,
-    QualityCostPredictor,
     RunningZScoreNormalizer,
-    get_device,
+    clip01,
 )
+
+# Core graders
 from banditgpt.core.tiered_grader import (
     HardPromptHeuristics,
     OpenRouterTeacherVerifier,
@@ -50,7 +50,6 @@ from banditgpt.core.judge import (
     PriorConfig,
     PriorManager,
     create_custom_judge,
-    create_soft_judge,
     create_tiered_judge,
 )
 from banditgpt.core.prior_downloader import ensure_priors, PriorDownloadError
@@ -69,7 +68,6 @@ __all__ = [
     "JudgeWithComplexity",
     "PriorConfig",
     "PriorManager",
-    "create_soft_judge",
     "create_tiered_judge",
     "create_custom_judge",
     "ensure_priors",
@@ -86,10 +84,9 @@ __all__ = [
     "OpenRouterTeacherVerifier",
     "HardPromptHeuristics",
     "UnsafePythonSubprocessVerifier",
-    "QualityCostPredictor",
     "RunningZScoreNormalizer",
     "LogitReward",
-    "get_device",
+    "clip01",
 ]
 
 # Optional: Bandit router (requires sentence-transformers)

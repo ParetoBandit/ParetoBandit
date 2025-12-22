@@ -15,24 +15,24 @@ def simulate_niche_discovery():
     root_dir = Path(__file__).parent
     
     # 1. Load Models
+    root_dir = Path(__file__).parent.parent.parent
     with open(root_dir / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
-    # 2. Initialize Router with HLE Priors (The "Teacher")
-    # We use a lower prior_strength so it can actually learn within a reasonable number of steps
+    # 3. Initialize Router with Defaults (HLE)
     priors_meta_path = root_dir / "data/priors_meta_large.npz"
     router = BanditRouter.load_from_benchmark(
         model_registry=registry,
         context_model="sentence-transformers/all-MiniLM-L6-v2",
-        alpha=1.0,
-        prior_strength=5.0, 
+        alpha=0.1,
+        prior_strength=20.0,
+        forgetting_factor=0.9,
         priors_meta_path=priors_meta_path
     )
     
     # 3. Define the "Niche"
-    # We'll pick a model that has low HLE priors but we'll simulate it being the BEST in a specific niche.
-    # Let's pick 'deepseek/deepseek-r1' as our "Hidden Specialist".
+    # Let's pick 'deepseek/deepseek-r1' as our "Specialist".
     # In HLE it has 0.093, while Gemini 3 Pro has 0.372.
     target_model = "deepseek/deepseek-r1"
     teacher_pet = "google/gemini-3-pro-preview"
@@ -61,7 +61,9 @@ def simulate_niche_discovery():
             reward = 1.0 if m_id == target_model else 0.2
             # Add some noise
             reward += np.random.normal(0, 0.05)
-            router.bandit.update(m_id, context, reward)
+            # Append bias term
+        context_bias = np.append(context, 1.0)
+        router.bandit.update(m_id, context_bias, reward)
             
     # 5. Capture Posteriors
     posteriors = {}

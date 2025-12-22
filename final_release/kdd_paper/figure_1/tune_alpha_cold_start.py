@@ -70,15 +70,7 @@ def main():
     cluster_ids = [cluster_ids[i] for i in indices]
     
     # 5-Fold Cross Validation
-    print("Running 5-Fold Cross Validation...")
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    
-    all_cold_curves = []
-    all_hle_curves = []
-    reductions = []
-    
-    # Load Large Priors Metadata
-    priors_meta_path = root_dir / "data/priors_meta_large.npz"
     
     def run_sim(router, fold_embeddings, fold_cluster_ids):
         regrets = []
@@ -103,75 +95,59 @@ def main():
             regrets.append(cum_regret)
         return regrets
 
-    for fold, (train_idx, test_idx) in enumerate(kf.split(embeddings)):
-        print(f" Processing Fold {fold+1}/5...")
-        
-        # We use the test_idx for each fold to simulate a fresh run on a subset
-        fold_embeddings = embeddings[test_idx]
-        fold_cluster_ids = [cluster_ids[i] for i in test_idx]
-        
-        # Initialize Routers for this fold
-        cold_router = BanditRouter(
-            model_registry=registry,
-            context_model="sentence-transformers/all-MiniLM-L6-v2",
-            alpha=0.5,
-            embedding_dim=embeddings.shape[1]
-        )
-        
-        hle_router = BanditRouter.load_from_benchmark(
-            model_registry=registry,
-            context_model="sentence-transformers/all-MiniLM-L6-v2",
-            alpha=0.5,
-            prior_strength=40.0,
-            priors_meta_path=priors_meta_path
-        )
-        
-        cold_curve = run_sim(cold_router, fold_embeddings, fold_cluster_ids)
-        hle_curve = run_sim(hle_router, fold_embeddings, fold_cluster_ids)
-        
-        all_cold_curves.append(cold_curve)
-        all_hle_curves.append(hle_curve)
-        
-        red = (cold_curve[-1] - hle_curve[-1]) / cold_curve[-1] * 100 if cold_curve[-1] > 0 else 0
-        reductions.append(red)
+    alphas = [0.1, 0.3, 0.5, 0.7, 1.0, 2.0]
+    results = {}
 
-    # Aggregate Results
-    # Since folds might have slightly different sizes, we truncate to the minimum length
-    min_len = min(len(c) for c in all_cold_curves)
-    all_cold_curves = np.array([c[:min_len] for c in all_cold_curves])
-    all_hle_curves = np.array([c[:min_len] for c in all_hle_curves])
+    print(f"Tuning Alpha for COLD START: {alphas}")
     
-    mean_cold = np.mean(all_cold_curves, axis=0)
-    std_cold = np.std(all_cold_curves, axis=0) / np.sqrt(5)
+    for alpha in alphas:
+        print(f"\nTesting Alpha = {alpha}...")
+        all_cold_curves = []
+        
+        for fold, (train_idx, test_idx) in enumerate(kf.split(embeddings)):
+            # We use the test_idx for each fold to simulate a fresh run on a subset
+            fold_embeddings = embeddings[test_idx]
+            fold_cluster_ids = [cluster_ids[i] for i in test_idx]
+            
+            # COLD START ROUTER (No Priors)
+            cold_router = BanditRouter(
+                model_registry=registry,
+                context_model="sentence-transformers/all-MiniLM-L6-v2",
+                alpha=alpha,
+                embedding_dim=embeddings.shape[1]
+            )
+            
+            cold_curve = run_sim(cold_router, fold_embeddings, fold_cluster_ids)
+            all_cold_curves.append(cold_curve)
+            
+        # Aggregate Results
+        min_len = min(len(c) for c in all_cold_curves)
+        all_cold_curves = np.array([c[:min_len] for c in all_cold_curves])
+        
+        mean_cold = np.mean(all_cold_curves, axis=0)
+        final_regret = mean_cold[-1]
+        results[alpha] = final_regret
+        print(f"  -> Final Cumulative Regret: {final_regret:.4f}")
+
+    print("\n" + "="*40)
+    print("FINAL RESULTS (COLD START)")
+    print("="*40)
+    best_alpha = None
+    min_regret = float('inf')
+    max_regret = float('-inf')
     
-    mean_hle = np.mean(all_hle_curves, axis=0)
-    std_hle = np.std(all_hle_curves, axis=0) / np.sqrt(5)
-    
-    # Plot
-    plt.figure(figsize=(10, 6))
-    x_axis = np.arange(min_len)
-    
-    # Cold Start
-    plt.plot(x_axis, mean_cold, label="Cold Start (Mean)", linestyle="--", color="gray")
-    plt.fill_between(x_axis, mean_cold - std_cold, mean_cold + std_cold, color="gray", alpha=0.2)
-    
-    # HLE Prior
-    plt.plot(x_axis, mean_hle, label="HLE Prior (26k Prompts, Mean)", linewidth=2, color="blue")
-    plt.fill_between(x_axis, mean_hle - std_hle, mean_hle + std_hle, color="blue", alpha=0.1)
-    
-    plt.xlabel("Requests")
-    plt.ylabel("Cumulative Regret")
-    plt.title("Figure 1: HLE Prior vs Cold Start (5-Fold Cross Validation)")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    out_file = base_dir / "figure1_regret.png"
-    plt.savefig(out_file)
-    print(f"Saved plot to {out_file}")
-    
-    mean_red = np.mean(reductions)
-    std_red = np.std(reductions) / np.sqrt(5)
-    print(f"Final Mean Regret Reduction: {mean_red:.2f}% ± {std_red:.2f}%")
+    for alpha, regret in results.items():
+        print(f"Alpha {alpha:<4}: {regret:.4f}")
+        if regret < min_regret:
+            min_regret = regret
+            best_alpha = alpha
+        if regret > max_regret:
+            max_regret = regret
+            
+    print("-" * 40)
+    print(f"OPTIMAL ALPHA: {best_alpha} (Regret: {min_regret:.4f})")
+    print(f"SPREAD: {max_regret - min_regret:.4f}")
+    print("="*40)
 
 if __name__ == "__main__":
     main()

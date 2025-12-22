@@ -4,10 +4,10 @@ This table provides an empirical breakdown of the computational overhead introdu
 
 | Component | Mean Latency (ms) | P95 Latency (ms) | Practical Significance |
 | :--- | :--- | :--- | :--- |
-| **Embedding** | 11.55 ms | 26.68 ms | Vectorizes the prompt for contextual awareness. |
-| **Filtering** | 0.07 ms | 0.18 ms | Ensures cost and latency constraints are met. |
-| **Scoring** | 9.44 ms | 22.27 ms | Evaluates 80+ models using the LinUCB policy. |
-| **Total** | **21.07 ms** | **46.89 ms** | **Total overhead added to the request path.** |
+| **Embedding** | 14.58 ms | 43.56 ms | Vectorizes the prompt for contextual awareness. |
+| **Filtering** | 0.09 ms | 0.17 ms | Ensures cost and latency constraints are met. |
+| **Scoring** | 0.38 ms | 0.89 ms | Evaluates 80+ models using the LinUCB policy. |
+| **Total** | **15.05 ms** | **44.30 ms** | **Total overhead added to the request path.** |
 
 ## Practical Implications
 

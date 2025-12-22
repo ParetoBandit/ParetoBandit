@@ -24,11 +24,10 @@ from typing import Any, Dict, Optional, Protocol, Tuple
 
 import subprocess
 
-from banditgpt.core.quality_cost_predictor import (
+from banditgpt.core.reward import (
     LogitReward,
     RunningZScoreNormalizer,
     clip01,
-    clipped_quality_reward,
 )
 
 logger = logging.getLogger(__name__)
@@ -202,7 +201,7 @@ class TieredGrader:
     def __init__(
         self,
         *,
-        soft_grader: ProductionGrader,
+        soft_grader: Optional[ProductionGrader] = None,
         hard_detector: Optional[HardPromptHeuristics] = None,
         teacher_verifier: Optional[TeacherVerifier] = None,
         code_verifier: Optional[CodeExecutionVerifier] = None,
@@ -226,8 +225,16 @@ class TieredGrader:
         model_id: Optional[str] = None,
         reward_normalizer: Optional[RunningZScoreNormalizer] = None,
     ) -> Dict[str, Any]:
-        # Always compute the soft grader result (useful for meta and fallback).
-        soft = self.soft_grader.predict_production(prompt, response, reward_normalizer=reward_normalizer)
+        # Always compute the soft grader result if available.
+        if self.soft_grader is not None:
+            soft = self.soft_grader.predict_production(prompt, response, reward_normalizer=reward_normalizer)
+        else:
+            soft = {
+                "reward_raw": 0.5,
+                "p_correct_raw": 0.5,
+                "p_correct_clipped": 0.5,
+                "competence_risk": 0.5,
+            }
 
         is_hard = self.hard_detector.is_hard(prompt)
         used_teacher = False
@@ -288,7 +295,7 @@ class TieredGrader:
 
         # Rebuild production rewards from the chosen p_correct_raw.
         p_correct_clipped = clip01(p_correct_raw, eps=self.reward_clip_eps)
-        reward_raw = clipped_quality_reward(p_correct_raw, clip_eps=self.reward_clip_eps)
+        reward_raw = clip01(p_correct_raw, eps=self.reward_clip_eps)
         reward_logit = float(self.logit.transform(p_correct_raw)) if (response or "").strip() else float(self.logit.min_val * 1.5)
 
         reward_z = None

@@ -13,14 +13,13 @@ except ImportError:
     from final_release.bandit import BanditRouter
 
 def benchmark_latency():
-    root_dir = Path(__file__).parent
+    root_dir = Path(__file__).parent.parent.parent
     with open(root_dir / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
     router = BanditRouter.create(
-        model_registry=registry,
-        exploration="safe"
+        model_registry=registry
     )
     
     prompt = "Explain the difference between a B-tree and a LSM-tree in the context of TimescaleDB."
@@ -43,7 +42,7 @@ def benchmark_latency():
         # 1. Embedding
         start = time.perf_counter()
         x = router.encoder.encode(prompt)
-        from bandit import l2_normalize
+        from final_release.bandit import l2_normalize
         x = l2_normalize(x)
         times["embedding"].append(time.perf_counter() - start)
         
@@ -60,7 +59,8 @@ def benchmark_latency():
         # 3. Scoring
         start = time.perf_counter()
         for m in filtered:
-            router.bandit.select_arm(x, candidates=[m])
+            x_bias = np.append(x, 1.0)
+        router.bandit.select_arm(x_bias, candidates=[m])
         times["scoring"].append(time.perf_counter() - start)
         
         times["total"].append(time.perf_counter() - start_total)

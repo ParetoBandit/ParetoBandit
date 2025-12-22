@@ -16,8 +16,7 @@ def main():
     
     # 1. Load Models and Costs
     print("Loading models and costs...")
-    # Look in the current directory (final_release root)
-    root_dir = base_dir
+    root_dir = Path(__file__).parent.parent.parent
     with open(root_dir / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
@@ -72,61 +71,63 @@ def main():
         else:
             d["is_pareto"] = False
 
+    print("Pareto Optimal Models:")
+    for p in pareto_points:
+        print(f"  {p['name']} ({p['id']}): Cost={p['cost']:.4f}, Confidence={p['confidence']:.4f}")
+
     # 5. Plot
     print("Generating Figure 3...")
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(10, 6))
     
     costs = [d["cost"] for d in data]
     confs = [d["confidence"] for d in data]
     
-    plt.scatter(costs, confs, alpha=0.4, color='#7f8c8d', label='All Models (80+)')
+    plt.scatter(costs, confs, alpha=0.3, color='#7f8c8d', s=20, label='All Models (80+)')
     
     # Plot Pareto Front line
     p_costs = [d["cost"] for d in pareto_points]
     p_confs = [d["confidence"] for d in pareto_points]
     
     # Add a step line to show the frontier
-    plt.step(p_costs, p_confs, where='post', color='#e74c3c', linestyle='--', alpha=0.6, label='Pareto Frontier')
-    plt.scatter(p_costs, p_confs, color='#e74c3c', s=80, edgecolors='black', label='Pareto Optimal Models')
+    plt.step(p_costs, p_confs, where='post', color='#e74c3c', linewidth=2, alpha=0.8, label='Pareto Frontier')
+    plt.scatter(p_costs, p_confs, color='#e74c3c', s=100, edgecolors='black', zorder=5, label='Pareto Optimal Models')
     
     # Label Pareto Models
     for i, d in enumerate(pareto_points):
-        # Manual offsets and alignment for the first few models which are very crowded
-        ha = 'left'
-        if i == 0: # Gemma
-            y_off, x_off, ha = 10, -40, 'left'
-        elif i == 1: # Llama 3.2
-            y_off, x_off, ha = -20, 0, 'center'
-        elif i == 2: # DeepSeek
-            y_off, x_off, ha = 8, 5, 'left'
-        elif i == 3: # Qwen
-            y_off, x_off, ha = -15, 10, 'left'
-        elif i == 4: # gpt-oss-20B
-            y_off, x_off, ha = 15, 10, 'left'
-        else:
-            # Alternate others
-            y_off, x_off = (5, 5) if i % 2 == 0 else (-12, 5)
-            
-        plt.annotate(d["name"], (d["cost"], d["confidence"]), 
-                     xytext=(x_off, y_off), textcoords='offset points', 
-                     fontsize=8, fontweight='bold', ha=ha)
+        # Use a more robust labeling strategy with high zorder
+        plt.annotate(
+            d["name"].split('(')[0].strip(),
+            xy=(d["cost"], d["confidence"]),
+            xytext=(5, 8),
+            textcoords='offset points',
+            fontsize=8,
+            fontweight='bold',
+            zorder=10, # Ensure labels are in front
+            bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.9, ec='gray', lw=0.5)
+        )
     
     plt.xscale('log')
-    plt.xlim(left=min(costs) * 0.2, right=max(costs) * 1.5)
-    plt.xlabel("Cost per 1M Blended Tokens ($)", fontsize=12)
-    plt.ylabel("Learned Specialist Confidence (||\u03b8||)", fontsize=12)
-    plt.title("Figure 3: Specialist Confidence vs. Cost (Pareto Frontier)", fontsize=14, fontweight='bold')
+    plt.xlim(left=min(costs) * 0.5, right=max(costs) * 1.5)
+    plt.xlabel("Cost ($ per 1M blended tokens) - Log Scale", fontsize=10)
+    plt.ylabel("Expert Confidence (||θ||)", fontsize=10)
+    plt.title("Figure 3: The Pareto Frontier of Expert Intuition", fontsize=12, fontweight='bold')
+    
+    # Further expand Y-axis to avoid "squished" look
+    min_c, max_c = min(confs), max(confs)
+    padding = (max_c - min_c) * 0.2
+    plt.ylim(min_c - padding, max_c + padding)
+    
+    plt.legend(loc='lower right', fontsize=9, framealpha=0.9)
     plt.grid(True, which="both", ls="-", alpha=0.15)
-    plt.legend(loc='lower right', frameon=True, shadow=True)
     
     # Add a note about methodology
-    plt.figtext(0.15, 0.02, "Note: Confidence is measured by the Euclidean norm of the learned LinUCB weights (\u03b8) derived from HLE priors.", 
-                fontsize=9, style='italic', alpha=0.7)
+    plt.figtext(0.15, 0.02, "Note: Confidence is measured by the Euclidean norm of the learned LinUCB weights (θ) derived from HLE priors.", 
+                fontsize=8, style='italic', alpha=0.7)
     
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    output_path = base_dir / "figure3_pareto.png"
-    plt.savefig(output_path, dpi=300)
-    print(f"Saved plot to {output_path}")
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    out_file = base_dir / "figure3_pareto.png"
+    plt.savefig(out_file, dpi=300)
+    print(f"Saved plot to {out_file}")
 
 if __name__ == "__main__":
     main()
