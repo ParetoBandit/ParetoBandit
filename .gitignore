@@ -124,3 +124,12 @@ banditgpt/data/warmup/
 # Dense run logs (in-progress, regeneratable)
 data/priors/archetype_grid_dense_run.jsonl
 banditgpt/data/priors/archetype_grid_dense_run.jsonl
+
+# Large PyTorch models
+*.pt
+internal_judge.pt
+
+# Large data files  
+*_agreed.jsonl
+*_comparison.jsonl
+helpsteer_gemini_*.jsonl
