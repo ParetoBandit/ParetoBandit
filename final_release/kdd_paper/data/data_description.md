@@ -1,6 +1,6 @@
 # Data Methodology
 ## Figure 0.5: HLE Score Distribution
-This figure illustrates the distribution of **Humanity's Last Exam (HLE)** scores across the 80+ models in our registry.
+This figure illustrates the distribution of **Humanity's Last Exam (HLE)** scores across the 66 models in our registry.
 
 ![Figure 0.5: HLE Distribution](/Users/annette/.gemini/antigravity/brain/8dc42199-0a6c-423a-a332-751a34ce49d5/figure0_5_hle_dist.png)
 
@@ -33,15 +33,14 @@ For the live system, we implemented a **Metadata-Based Heuristic** to map new mo
 - **Benefit**: This allows a new model (e.g., "DeepSeek R1") to immediately benefit from the "Math" cluster prior boost if it is tagged appropriately, solving the "Cold Start" problem while maintaining the theoretical rigor of the offline analysis.
 
 ## 2. Model Registry (`models.json`)
+The core of the router is a curated registry of **66 Large Language Models (LLMs)**. For each model, we maintain the following metadata:
 
-The core of the router is a curated registry of **80 Large Language Models (LLMs)**. For each model, we maintain the following metadata:
-
-*   **Quality (HLE Score)**: Obtained from the **Artificial Analysis API**. The Humanity's Last Exam (HLE) benchmark provides a robust measure of model reasoning and knowledge. Our final registry achieves 100% coverage for HLE scores across all 80 models.
+*   **Reasoning (HLE Score)**: Sourced from the [Humanity's Last Exam (HLE)](https://humanityslastexam.ai/) benchmark (higher is better). This metric provides a robust measure of model reasoning and knowledge at the limit of human capability. Our final registry achieves 100% coverage for HLE scores across all 66 models.
+*   **Hallucination (AA-Omniscience)**: Sourced from the [Artificial Analysis AA-Omniscience](https://artificialanalysis.ai/evaluations/omniscience) benchmark (lower is better). This metric measures how often a model provides an incorrect answer when it should have refused or admitted ignorance.
+*   **Hallucination (Vectara)**: Sourced from the [Vectara Hallucination Leaderboard](https://github.com/vectara/hallucination-leaderboard) (lower is better). This measures the "Faithfulness" of models during summarization tasks.
+*   **Composite Hallucination Risk (Harmonic Risk Score)**: To ensure robust risk-aware routing, we combine the AA-Omniscience and Vectara scores into a single **Composite Risk** value. We utilize a **Harmonic Mean of Truthfulness rates** ($100 - \text{Rate}$) to calculate this. This method ensures that a catastrophic failure in either dimension (e.g., highly unfaithful OR highly overconfident) remains visible in the final risk signal, preventing a high score in one area from masking a critical risk in another.
 *   **Cost**: Input and output costs per million tokens, sourced from the **OpenRouter API**.
-*   **Latency**: Real-world performance metrics including Time to First Token (TTFT) and Output Tokens Per Second (OTPS). While we utilize **Artificial Analysis** for baseline comparisons, our production latency data is obtained via a custom sampling script (`scripts/fetch_openrouter_latency.py`) that performs the following:
-    *   **Sampling Strategy**: 100 independent API calls per model to OpenRouter with a 0.1-second delay between samples to capture variance.
-    *   **TTFT Measurement**: Measured using the streaming API, recording the delta between the initial request start and the arrival of the first token.
-    *   **OTPS Calculation**: Calculated by counting tokens received during the streaming session and dividing by the total generation time (excluding TTFT).
+*   **Latency**: Real-world performance metrics including Time to First Token (TTFT) and Output Tokens Per Second (OTPS).
 
 ## 2. HLE Priors Methodology
 
@@ -76,6 +75,9 @@ The use of an LLM-as-a-judge for ground truth has several important implications
 | Data Type | Source | Purpose |
 | :--- | :--- | :--- |
 | Model Benchmarks | Artificial Analysis API | Quality Priors (HLE) |
+| Hallucination Rate | Artificial Analysis | Calibration Risk (AA-Omniscience) |
+| Hallucination Rate | Vectara Leaderboard | Faithfulness Risk |
+| Composite Risk | Internal (Harmonic) | Robust Risk Utility |
 | Model Pricing | OpenRouter API | Cost Optimization |
 | Model Latency | OpenRouter / Artificial Analysis | Latency Optimization |
 | Prior Prompts | LMSYS Chatbot Arena | Warm-start Covariance |

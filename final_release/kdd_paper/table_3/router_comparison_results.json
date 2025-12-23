@@ -1,0 +1,37 @@
+{
+  "config": {
+    "weak_model": "mistralai/mixtral-8x7b-instruct",
+    "strong_model": "openai/gpt-4o",
+    "n_samples": 500,
+    "burn_in": 100,
+    "n_runs": 1,
+    "mock_mode": true
+  },
+  "weak_only_accuracy": {
+    "mean": 0.398,
+    "std": 0.0
+  },
+  "apgr_scores": {
+    "BanditGPT": {
+      "mean": 0.5110033222591361,
+      "std": 0.0,
+      "all_scores": [
+        0.5110033222591361
+      ]
+    },
+    "RouteLLM": {
+      "mean": 0.5068438538205982,
+      "std": 0.0,
+      "all_scores": [
+        0.5068438538205982
+      ]
+    },
+    "FrugalGPT": {
+      "mean": 0.3240664451827243,
+      "std": 0.0,
+      "all_scores": [
+        0.3240664451827243
+      ]
+    }
+  }
+}

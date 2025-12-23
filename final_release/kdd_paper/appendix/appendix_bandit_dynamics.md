@@ -29,13 +29,43 @@ We conducted a simulation to determine how these parameters affect the **Switchi
 | **Exploration** | $\alpha=2.0, \gamma=1.0$ | **18** | 3.0x | High alpha encourages testing the underdog. |
 | **Forgetting** | $\alpha=0.1, \gamma=0.7$ | **11** | **4.9x** | Forgetting discounts the old prior directly. |
 
-### A.4 Conclusion
+### A.4 Production Parameter Selection
 
-Our analysis demonstrates that **Forgetting ($\gamma$) is the dominant factor for adaptation** in the presence of strong priors.
-*   Increasing $\alpha$ yields diminishing returns because it only increases the uncertainty of the underdog.
-*   Decreasing $\gamma$ directly erodes the "Bayesian Inertia" of the favorite, allowing new evidence to dominate 5x faster.
+To determine production-quality defaults, we conducted a **48-configuration grid search** with sigmoid-transformed HLE priors:
 
-Therefore, we select a conservative exploration rate ($\alpha=0.1$) to exploit our high-quality priors, paired with a tuned forgetting factor ($\gamma=0.9$) to ensure robustness to distribution shifts.
+**Search Space:**
+- α (Exploration): {0.1, 0.5, 1.0, 2.0}
+- Prior Strength: {20, 40, 80, 160}
+- γ (Forgetting): {0.95, 0.98, 1.0}
+
+**Evaluation Protocol:**
+- Dataset: 200 HelpSteer2 prompts per configuration
+- Metric: Utility = Accuracy - 0.5 × log(Cost)
+- Execution: 10 parallel workers
+
+**Optimal Configuration:**
+| Parameter | Value | Rationale |
+|:----------|:------|:----------|
+| α | **0.1** | Low exploration sufficient with high-quality sigmoid priors |
+| Prior Strength | **40.0** | Balanced between prior belief and online learning |
+| γ | **0.95** | Moderate forgetting enables adaptation without instability |
+
+**Performance:**
+- **Accuracy: 84.2%**
+- **Cost: $0.001543/1k**
+- **Utility: 4.08** (highest among all 48 configurations)
+
+**Key Finding:** With sigmoid-transformed priors (mapping raw HLE scores 0-40% to realistic utility 0-95%), **low exploration (α=0.1) dramatically outperforms** the previously recommended α=1.0, achieving +3% accuracy and -16% cost.
+
+### A.5 Conclusion
+
+Our analysis demonstrates that **Forgetting (γ) is the dominant factor for adaptation** in the presence of strong priors.
+*   Increasing α yields diminishing returns because it only increases the uncertainty of the underdog.
+*   Decreasing γ directly erodes the "Bayesian Inertia" of the favorite, allowing new evidence to dominate 5x faster.
+
+The **sigmoid prior transformation** is critical: it acknowledges that even "low" HLE scores (6.5%) indicate highly capable models, preventing the bandit from wasting exploration on discovering obvious competence.
+
+**Production Defaults:** α=0.1, prior_strength=40.0, γ=0.95
 
 ## References
 

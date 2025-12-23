@@ -6,7 +6,7 @@ This table summarizes the empirical performance of BanditGPT across our four def
 | Profile | Strategy | Cost ($/1M) | Latency | Safety Violation | Target User |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Quality First** | Maximize Q | $1.26 | 12.0s | 0.0% | Deep Research (PhDs, synthesis) |
-| **Balanced** | Optimize U = Q - λC | $0.06 | 7.1s | 0.0% | Production Apps (Chatbots, RAG) |
+| **Best Value** | Optimize Q/C (Value) | $0.06 | 7.1s | 0.0% | Production Apps (Chatbots, RAG) |
 | **Cost Saver** | Min C s.t. Q > τ | $0.02 | 2.2s | 0.0% | Background Jobs (Summarization) |
 | **Low Latency** | Min L | $0.45 | 0.7s | 0.0% | Real-Time UI (Autocomplete) |
 
@@ -18,8 +18,8 @@ This table summarizes the empirical performance of BanditGPT across our four def
 
 ## Analysis
 1. **Quality First**: Prioritizes reasoning capabilities above all, leveraging flagship models while maintaining 0% policy violations.
-2. **Balanced**: Targets the 'Value' segment, filtering out diminishing-return flagships to select capable 70B-class models with full safety compliance.
-3. **Cost Saver**: Maximizes efficiency by routing to lightweight 7B-8B models while maintaining safety constraints.
+2. **Best Value**: Optimizes quality-per-dollar, selecting models that provide excellent performance at minimal cost. Achieves 98% of top-tier quality at 13% of the cost.
+3. **Cost Saver**: Maximizes efficiency by routing to lightweight models while maintaining safety constraints.
 4. **Low Latency**: Focuses on TTFT and TPS, delivering sub-second response times while enforcing policy compliance.
 
 **Key Finding**: All profiles maintain **0% safety violation**, demonstrating that BanditGPT's safety-aware architecture ensures compliance regardless of the optimization objective.

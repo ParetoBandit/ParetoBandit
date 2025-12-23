@@ -3,12 +3,12 @@
     "id": "deepseek/deepseek-r1",
     "name": "DeepSeek R1",
     "prior": 0.3238411046479013,
-    "posterior": 0.3238411046479013
+    "posterior": 0.5014844072728181
   },
   "teacher_pet": {
     "id": "google/gemini-3-pro-preview",
     "name": "Gemini 3 Pro Preview (high)",
     "prior": 1.251502538407781,
-    "posterior": 1.251502538407781
+    "posterior": 0.15037928604999423
   }
 }

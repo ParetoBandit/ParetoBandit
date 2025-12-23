@@ -110,6 +110,16 @@ Use budget-based selection:
 
 This models a **mixed-strategy policy**: when queries have similar expected rewards (the "safe plateau"), uniformly sample to hit budget constraints.
 
+### Continuous Cost Control (Tunability)
+
+By employing a budget-based tie-breaking strategy, BanditGPT enables **continuous cost control**. Operators can target any specific efficiency rate (e.g., 60.5%) with the guarantee that the router will fill that budget using only the safest available queries, maintaining zero policy violations until the safe capacity is fully exhausted.
+
+This provides:
+- **Precise budget targeting**: Hit exact efficiency levels (not just discrete thresholds)
+- **Safety-first ordering**: Always routes safest queries to weak model first
+- **Smooth tradeoff curves**: No step functions or discontinuities
+- **Operational flexibility**: Dial in cost savings to exact business requirements
+
 ### Why This Matters
 
 > [!IMPORTANT]

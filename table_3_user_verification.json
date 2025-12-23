@@ -1,0 +1,16 @@
+{
+  "User-Provided Metrics Prompt (Mid-Hard)": {
+    "BanditGPT": {
+      "model": "deepseek/deepseek-v3.1-terminus",
+      "response": "TP: 195  \nFP: 65  \nTN: 700  \nFN: 40  \nPrecision: 0.75  \nRecall: 0.83  \nF1: 0.79"
+    },
+    "LiteLLM": {
+      "model": "google/gemini-2.0-flash-001",
+      "response": "TP: 195\nFP: 65\nTN: 740\nFN: 45\nPrecision: 0.75\nRecall: 0.81\nF1: 0.78\n"
+    },
+    "RouteLLM": {
+      "model": "openai/gpt-4o",
+      "response": "TP = 195  \nFP = 65  \nTN = 700  \nFN = 45  \n\nPrecision = 0.75  \nRecall = 0.81  \nF1 Score = 0.78"
+    }
+  }
+}

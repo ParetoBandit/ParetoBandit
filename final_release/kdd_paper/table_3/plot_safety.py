@@ -29,6 +29,7 @@ from final_release.kdd_paper.table_3.router_performance_comparison import (
     FrugalGPTRouter,
     config,
 )
+from final_release.kdd_paper.table_3.router_evaluation import get_evaluator
 from tqdm import tqdm
 
 
@@ -64,18 +65,14 @@ def run_single_leakage_experiment(n_samples=1000, burn_in=500, run_id=0):
     # BURN-IN: Train BanditGPT (same as Table 3)
     run_bandit_burnin(df, bandit_router, n_burnin=burn_in)
     
-    # POLICY DEFINITION: Use keyword classifier to label restricted queries
-    # This is the safety policy that routers should enforce
-    from high_risk_prompt_classifier import HighRiskPromptClassifier
-    policy_clf = HighRiskPromptClassifier(threshold=5.0)
+    # POLICY DEFINITION: Use SHARED evaluator (ensures consistency with Table 3)
+    evaluator = get_evaluator(policy_threshold=5.0)
     
     print(f"\n[Policy] Classifying queries as restricted/unrestricted...")
-    policy_restricted = []
-    for q in tqdm(df["question"], desc="Policy classification"):
-        result = policy_clf.classify(q)
-        policy_restricted.append(result.label == "high")
-    
-    policy_restricted = np.array(policy_restricted)
+    policy_restricted = evaluator.classify_policy_restricted(
+        df["question"].tolist(),
+        desc="Policy classification"
+    )
     
     print(f"\nPolicy-Restricted Queries: {policy_restricted.sum()} ({100*policy_restricted.mean():.1f}%)")
     print("  (Medical/Legal/Financial keywords detected)")
@@ -106,42 +103,13 @@ def run_single_leakage_experiment(n_samples=1000, burn_in=500, run_id=0):
 
 def calculate_leakage_at_target_efficiency(df, prob_col, restricted_mask, target_efficiency):
     """
-    Budget-based selection with randomized tie-breaking (dithering).
-    
-    Instead of threshold-based routing, this selects the TOP K queries to send
-    to weak model to exactly hit the target efficiency. Handles ties (clustered scores)
-    by adding tiny random noise, creating smooth curves.
-    
-    This models a "Mixed Strategy Policy": for queries with indistinguishable
-    expected rewards (the safe plateau), uniformly sample from the safe set.
+    CANONICAL implementation - delegates to shared RouterEvaluator.
+    Ensures consistency between Figure 9 and Table 3.
     """
-    n_total = len(df)
-    n_weak = int(n_total * target_efficiency)
-    
-    # Add tiny random noise to break ties (Dithering)
-    # This spreads the [0.3-0.4] cluster into a smooth gradient
-    # Noise is small enough not to swap Safe vs Risk categories
-    noise = np.random.uniform(0, 1e-6, size=n_total)
-    scores_with_noise = df[prob_col].values + noise
-    
-    # Sort by score (descending) - highest confidence first
-    sorted_indices = np.argsort(-scores_with_noise)
-    
-    # Select top K queries to send to weak
-    selected_mask = np.zeros(n_total, dtype=bool)
-    selected_mask[sorted_indices[:n_weak]] = True
-    
-    # Calculate violation rate
-    # What fraction of RESTRICTED queries were selected?
-    if restricted_mask.sum() > 0:
-        violation_rate = selected_mask[restricted_mask].mean()
-    else:
-        violation_rate = 0.0
-    
-    # Actual efficiency (should be close to target)
-    actual_efficiency = selected_mask.mean()
-    
-    return actual_efficiency, violation_rate
+    evaluator = get_evaluator()
+    return evaluator.calculate_leakage_at_target_efficiency(
+        df, prob_col, restricted_mask, target_efficiency
+    )
 
 
 def calculate_leakage_ci(all_run_dfs, confidence=0.95):
@@ -250,7 +218,7 @@ def plot_risk_leakage_with_ci(results, restricted_count, output_path=None):
     # Annotations
     plt.fill_between([0, 1], 0, 1, color='red', alpha=0.03)
     plt.annotate('COMPLIANT ZONE\n(High Efficiency, Zero Violations)', 
-                 xy=(0.5, 0.05), xytext=(0.6, 0.25),
+                 xy=(0.5, 0.05), xytext=(0.6, 0.15),
                  arrowprops=dict(arrowstyle='->', color='darkgreen', lw=2),
                  fontsize=11, fontweight='bold', color='darkgreen',
                  bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="darkgreen"))

@@ -10,6 +10,7 @@ from final_release.kdd_paper.table_3.router_performance_comparison import (
     run_bandit_burnin,
     BanditGPTRouter,
 )
+from final_release.kdd_paper.table_3.router_evaluation import get_evaluator
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
@@ -25,21 +26,24 @@ bandit_router = BanditGPTRouter(model_registry)
 print("\n[Burn-in] Training BanditGPT...")
 run_bandit_burnin(df, bandit_router, n_burnin=500)
 
+# Get shared evaluator (ensures consistency with Figure 9 and Table 3)
+evaluator = get_evaluator(policy_threshold=5.0)
+
+# Classify restricted queries using SHARED evaluator
+print("\n[Policy] Classifying restricted queries...")
+restricted = evaluator.classify_policy_restricted(
+    df["question"].tolist(),
+    desc="Policy classification"
+)
+
 # Score queries
 print("\n[Scoring] Computing scores...")
 scores = []
-restricted = []
-
-for q in tqdm(df["question"]):
+for q in tqdm(df["question"], desc="Scoring"):
     score = bandit_router.predict_proba(q)
     scores.append(score)
-    
-    # Check if restricted
-    sensitivity = bandit_router.router._classify_sensitivity(q)
-    restricted.append(sensitivity == "HIGH")
 
 scores = np.array(scores)
-restricted = np.array(restricted)
 
 # Analyze
 print(f"\n{'='*60}")

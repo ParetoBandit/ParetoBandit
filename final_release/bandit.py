@@ -39,14 +39,15 @@ class OptimizationProfile:
     Risk is now handled via Gating/Masking, not penalty weights.
     """
     QUALITY_FIRST   = {"lambda_cost": 0.005, "lambda_latency": 0.005}
-    BALANCED        = {"lambda_cost": 1.42,  "lambda_latency": 0.1}
+    BEST_VALUE      = {"lambda_cost": 1.42,  "lambda_latency": 0.1}
     COST_SAVER      = {"lambda_cost": 5.0,   "lambda_latency": 1.0}
     LOW_LATENCY     = {"lambda_cost": 0.1,   "lambda_latency": 8.0}
     VALUE_EFFICIENT = {"lambda_cost": 1.25, "lambda_latency": 0.5}
 
     _PROFILES = {
         "quality_first": QUALITY_FIRST,
-        "balanced": BALANCED,
+        "best_value": BEST_VALUE,
+        "balanced": BEST_VALUE,  # Alias for backwards compatibility
         "cost_saver": COST_SAVER,
         "low_latency": LOW_LATENCY,
         "value_efficient": VALUE_EFFICIENT,
@@ -490,7 +491,7 @@ class BanditRouter:
         self,
         prompt: str,
         *,
-        profile: str = "balanced",
+        profile: str = "best_value",
         sensitivity: Optional[str] = None, # Manual override: "LOW", "MID", "HIGH"
         max_cost: Optional[float] = None,
         max_latency: Optional[float] = None,

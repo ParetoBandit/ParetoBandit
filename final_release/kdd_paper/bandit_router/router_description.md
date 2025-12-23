@@ -47,7 +47,17 @@ While the bandit requires feedback to learn, this feedback is sourced from **ext
 *   **vs. LiteLLM**: LiteLLM is the essential "plumbing" of the LLM world. BanditGPT adds the "brain" that decides *which* pipe to use.
 *   **vs. Semantic Router**: Aurelio AI's Semantic Router is excellent for intent (e.g., "Is this a sales query?"). BanditGPT uses similar embedding technology but applies it to **Quality Prediction**, asking "Which model will give the best answer for this specific vector?"
 
-## 3. User-Adjustable Parameters
+### 4. Production-Optimized Defaults
+
+To ensure robust performance across diverse workloads, we finalized BanditGPT's default parameters through a **48-configuration grid search** on the HelpSteer2 dataset:
+
+*   **α (Exploration) = 0.1**: We found that a low exploration rate is optimal when paired with high-quality **Sigmoid Priors**. The system avoids wasting budget on exploring obvious competence in established models.
+*   **γ (Forgetting Factor) = 0.95**: This value provides the optimal balance between historical stability and modern adaptation, allowing the router to pivot to a new market leader (like DeepSeek V3) within ~10-20 requests.
+*   **Sigmoid Transformation**: We map raw benchmark scores (e.g., Humanity's Last Exam) into utility priors using a sigmoid function. This acknowledges that even models with "low" benchmark scores (6.5%) are highly capable of handling general-purpose instructions, significantly reducing the "discovery tax" usually paid by bandit algorithms.
+
+For a detailed analysis of these parameters and the grid search methodology, see [Appendix A](file:///Users/annette/repostitories/llm_jury/final_release/kdd_paper/appendix/appendix_bandit_dynamics.md).
+
+## 5. User-Adjustable Parameters
 
 BanditGPT empowers users with intuitive controls to align the router with their specific business or creative goals:
 
