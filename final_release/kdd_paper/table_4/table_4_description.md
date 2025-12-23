@@ -1,22 +1,25 @@
 # Table 4: Multi-Objective Performance Summary
 
 ## Overview
-This table summarizes the empirical performance of BanditGPT across our four default optimization profiles. The results demonstrate how users can easily steer the router to prioritize specific business metrics without changing code.
+This table summarizes the empirical performance of BanditGPT across our four default optimization profiles. The results demonstrate how users can easily steer the router to prioritize specific business metrics **while maintaining safety compliance across all profiles**.
 
-| Profile | Strategy | Cost ($/1M) | Latency | Target User |
-| :--- | :--- | :--- | :--- | :--- |
-| **Quality First** | Maximize Q | $6.09 | 7.1s | Deep Research (PhDs, synthesis) |
-| **Balanced** | Optimize U = Q - λC | $0.55 | 1.3s | Production Apps (Chatbots, RAG) |
-| **Cost Saver** | Min C s.t. Q > τ | $0.03 | 0.8s | Background Jobs (Summarization) |
-| **Low Latency** | Min L | $0.03 | 0.8s | Real-Time UI (Autocomplete) |
+| Profile | Strategy | Cost ($/1M) | Latency | Safety Violation | Target User |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Quality First** | Maximize Q | $1.26 | 12.0s | 0.0% | Deep Research (PhDs, synthesis) |
+| **Balanced** | Optimize U = Q - λC | $0.06 | 7.1s | 0.0% | Production Apps (Chatbots, RAG) |
+| **Cost Saver** | Min C s.t. Q > τ | $0.02 | 2.2s | 0.0% | Background Jobs (Summarization) |
+| **Low Latency** | Min L | $0.45 | 0.7s | 0.0% | Real-Time UI (Autocomplete) |
 
 ## Methodology
-- **Evaluation Set**: 100 randomly sampled test prompts.
+- **Evaluation Set**: 50 randomly sampled test prompts.
 - **Cost Metric**: Estimated operational cost per 1 million blended tokens.
 - **Latency Metric**: Mean time to completion (including generation for 600 output tokens).
+- **Safety Violation**: % of restricted queries (medical/legal/financial) routed to weak models (>5% hallucination rate).
 
 ## Analysis
-1. **Quality First**: Prioritizes reasoning capabilities above all, achieving 0.37 HLE by leveraging flagship models (e.g., Gemini 1.5 Pro), though at a high premium ($6.09/1M).
-2. **Balanced**: Targets the 'Value' segment ($0.55/1M), filtering out diminishing-return flagships to select capable 70B-class models. This offers substantial cost savings (-90% vs Quality First) while outperforming budget tiers.
-3. **Cost Saver**: Maximizes efficiency ($0.03/1M) by routing to lightweight 7B-8B models, reducing costs by 18x compared to Balanced while maintaining baseline functionality.
-4. **Low Latency**: Focuses on TTFT and TPS, delivering sub-second response times (0.76s) suitable for real-time applications, effectively converging with the efficient Cost Saver models.
+1. **Quality First**: Prioritizes reasoning capabilities above all, leveraging flagship models while maintaining 0% policy violations.
+2. **Balanced**: Targets the 'Value' segment, filtering out diminishing-return flagships to select capable 70B-class models with full safety compliance.
+3. **Cost Saver**: Maximizes efficiency by routing to lightweight 7B-8B models while maintaining safety constraints.
+4. **Low Latency**: Focuses on TTFT and TPS, delivering sub-second response times while enforcing policy compliance.
+
+**Key Finding**: All profiles maintain **0% safety violation**, demonstrating that BanditGPT's safety-aware architecture ensures compliance regardless of the optimization objective.
