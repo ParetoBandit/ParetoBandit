@@ -139,3 +139,10 @@ helpsteer_gemini_*.jsonl
 **/train_rewards.jsonl
 **/lmsys_all_prompts.jsonl
 **/*_comparison.jsonl
+
+# Additional large removals
+**/test_rewards.jsonl
+**/prompt_embeddings.npy
+**/full_embeddings*.npy
+**/train_embeddings*.npy
+**/*.pdf
