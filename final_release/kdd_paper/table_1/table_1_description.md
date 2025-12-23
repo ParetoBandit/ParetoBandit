@@ -4,16 +4,16 @@ This table provides an empirical breakdown of the computational overhead introdu
 
 | Component | Mean Latency (ms) | P95 Latency (ms) | Practical Significance |
 | :--- | :--- | :--- | :--- |
-| **Embedding** | 14.58 ms | 43.56 ms | Vectorizes the prompt for contextual awareness. |
-| **Filtering** | 0.09 ms | 0.17 ms | Ensures cost and latency constraints are met. |
-| **Scoring** | 0.38 ms | 0.89 ms | Evaluates 80+ models using the LinUCB policy. |
-| **Total** | **15.05 ms** | **44.30 ms** | **Total overhead added to the request path.** |
+| **Embedding** | 8.43 ms | 9.19 ms | Vectorizes the prompt for contextual awareness. |
+| **Filtering** | 0.04 ms | 0.04 ms | Ensures cost and latency constraints are met. |
+| **Scoring** | 1.05 ms | 1.23 ms | Evaluates 53 models using the LinUCB policy. |
+| **Total** | **9.52 ms** | **10.36 ms** | **Total overhead added to the request path.** |
 
 ## Practical Implications
 
-1. **Negligible Overhead**: In the context of LLM inference, where Time-to-First-Token (TTFT) typically ranges from **200ms to 2,000ms**, a 21ms overhead represents a **1-4% increase** in latency. This is practically imperceptible to end-users.
-2. **High Scalability**: The filtering and scoring components are highly optimized, allowing the router to handle hundreds of models with sub-10ms logic. The primary bottleneck is the embedding step, which can be further optimized using local GPU inference or smaller models.
-3. **Production Ready**: The low P95 latency (46ms) ensures that the router does not introduce significant jitter or "tail latency" into the application, making it suitable for real-time chat and agentic workflows.
+1. **Negligible Overhead**: In the context of LLM inference, where Time-to-First-Token (TTFT) typically ranges from **200ms to 2,000ms**, a 10ms overhead represents a **0.5-5% increase** in latency. This is practically imperceptible to end-users.
+2. **High Scalability**: The filtering and scoring components are highly optimized, allowing the router to handle 53 models with sub-2ms logic. The primary bottleneck is the embedding step, which can be further optimized using local GPU inference or smaller models.
+3. **Production Ready**: The low P95 latency (10.36ms) ensures that the router does not introduce significant jitter or "tail latency" into the application, making it suitable for real-time chat and agentic workflows.
 4. **Efficiency vs. Quality**: The minor latency cost is offset by significant gains in response quality (by selecting specialists) and cost savings (by avoiding over-provisioned models).
 
 ## Reproduction
