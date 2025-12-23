@@ -133,3 +133,9 @@ internal_judge.pt
 *_agreed.jsonl
 *_comparison.jsonl
 helpsteer_gemini_*.jsonl
+
+# Large data files (regeneratable)
+**/expert_priors*.npz
+**/train_rewards.jsonl
+**/lmsys_all_prompts.jsonl
+**/*_comparison.jsonl
