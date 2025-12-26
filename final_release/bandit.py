@@ -26,6 +26,11 @@ try:
 except ImportError as e:
     raise ImportError("Missing dependency: sentence-transformers") from e
 
+try:
+    from cluster_detector import ClusterDetector
+except ImportError:
+    ClusterDetector = None  # Optional feature
+
 
 logger = logging.getLogger(__name__)
 
@@ -265,6 +270,8 @@ class RoutingLog:
     predicted_utility: float
     cost_usd: float
     latency_s: float
+    cluster_id: Optional[int] = None  # Detected semantic cluster
+    cluster_similarity: Optional[float] = None  # Similarity to cluster centroid
 
 class BanditRouter:
     """
@@ -279,9 +286,21 @@ class BanditRouter:
         embedding_dim: int = 384,
         forgetting_factor: float = 0.95,
         benchmark_key: str = "hle",
+        cluster_boost_weight: float = 0.1,  # Default 10% boost for z=1.0
     ):
         self.registry = dict(model_registry)
         self.encoder = SentenceTransformer(context_model)
+        
+        # Initialize cluster detector if available
+        self.cluster_detector = None
+        if ClusterDetector is not None:
+            try:
+                # Share encoder to avoid loading twice
+                self.cluster_detector = ClusterDetector(encoder=self.encoder)
+                logger.info(f"✓ Cluster detector initialized with {self.cluster_detector.n_clusters} clusters")
+            except Exception as e:
+                logger.warning(f"Could not initialize cluster detector: {e}")
+        
         # Add bias term to dimension
         self.bandit = DisjointLinUCBPolicy(
             list(self.registry.keys()), 
@@ -292,6 +311,7 @@ class BanditRouter:
         self.logs: List[RoutingLog] = []
         self.model_priors: Dict[str, float] = {} # Optional scalar priors
         self.benchmark_key = benchmark_key
+        self.cluster_boost_weight = cluster_boost_weight
 
 
     @classmethod
@@ -306,6 +326,7 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
         benchmark_key: str = "hle",
+        cluster_boost_weight: float = 0.1,  # Cluster-aware reward boost
     ) -> "BanditRouter":
         """
         Create a configured router.
@@ -317,6 +338,7 @@ class BanditRouter:
             exploration: "static", "safe", "balanced", "aggressive".
             state_path: Optional path to a saved bandit state (.npz).
             benchmark_key: Key in models.json to use for priors (default "hle").
+            cluster_boost_weight: Reward boost weight for cluster specialization (default 0.1).
         """
         base_dir = Path(__file__).parent
         
@@ -335,7 +357,9 @@ class BanditRouter:
         # 3. Initialize
         # Load Saved State (Overrides priors)
         if state_path and Path(state_path).exists():
-            router = cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor, benchmark_key=benchmark_key)
+            router = cls(model_registry, context_model=context_model, alpha=alpha, 
+                        forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
+                        cluster_boost_weight=cluster_boost_weight)
             router.bandit.load_state(state_path)
             return router
 
@@ -348,7 +372,8 @@ class BanditRouter:
             
             if not meta_path.exists():
                  logger.warning("No priors metadata found. Falling back to cold start.")
-                 return cls(model_registry, context_model=context_model, alpha=alpha, benchmark_key=benchmark_key)
+                 return cls(model_registry, context_model=context_model, alpha=alpha, 
+                           benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight)
 
             return cls.load_from_benchmark(
                 model_registry=model_registry,
@@ -357,11 +382,14 @@ class BanditRouter:
                 prior_strength=prior_strength,
                 forgetting_factor=forgetting_factor,
                 priors_meta_path=meta_path,
-                benchmark_key=benchmark_key
+                benchmark_key=benchmark_key,
+                cluster_boost_weight=cluster_boost_weight
             )
             
         # Cold Start
-        return cls(model_registry, context_model=context_model, alpha=alpha, forgetting_factor=forgetting_factor, benchmark_key=benchmark_key)
+        return cls(model_registry, context_model=context_model, alpha=alpha, 
+                  forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
+                  cluster_boost_weight=cluster_boost_weight)
 
     @classmethod
     def load_from_benchmark(
@@ -374,6 +402,7 @@ class BanditRouter:
         priors_meta_path: Optional[Path] = None,
         forgetting_factor: float = 0.95,
         benchmark_key: str = "hle",
+        cluster_boost_weight: float = 0.1,
     ) -> "BanditRouter":
         """Initialize with HLE priors using covariance matrix."""
         meta = np.load(priors_meta_path)
@@ -387,7 +416,8 @@ class BanditRouter:
             alpha=alpha, 
             embedding_dim=dim,
             forgetting_factor=forgetting_factor,
-            benchmark_key=benchmark_key
+            benchmark_key=benchmark_key,
+            cluster_boost_weight=cluster_boost_weight
         )
         
         # Ridge Update: A += strength * Cov, b += strength * score * Sum
@@ -509,6 +539,15 @@ class BanditRouter:
         # 1. Embed & Context
         x = self._get_context_vector(prompt)
         
+        # Detect cluster if detector available
+        cluster_id = None
+        cluster_similarity = None
+        if self.cluster_detector is not None:
+            try:
+                cluster_id, cluster_similarity = self.cluster_detector.detect_cluster(prompt)
+            except Exception as e:
+                logger.warning(f"Cluster detection failed: {e}")
+        
         # 2. Resolve Weights
         weights = OptimizationProfile.get(profile).copy()
         lambda_cost = weights["lambda_cost"]
@@ -619,18 +658,76 @@ class BanditRouter:
                 best_model = m
                 
         # 5. Log
-        log = RoutingLog(
+        log  = RoutingLog(
             request_id=str(time.time_ns()),
             timestamp_s=time.time(),
             prompt=prompt,
             selected_model=best_model,
             predicted_utility=float(best_utility),
             cost_usd=self._estimate_cost(best_model, in_tok, output_tokens),
-            latency_s=self._estimate_latency(best_model, output_tokens)
+            latency_s=self._estimate_latency(best_model, output_tokens),
+            cluster_id=cluster_id,
+            cluster_similarity=cluster_similarity
         )
         self.logs.append(log)
         
         return best_model, log
+    
+    def process_feedback(
+        self,
+        request_id: str,
+        reward: float,
+        *,
+        cluster_boost: bool = True
+    ) -> None:
+        """
+        Process feedback for a routing decision with optional cluster-aware boost.
+        
+        Args:
+            request_id: ID from RoutingLog
+            reward: Base reward (0-1, typically from judge)
+            cluster_boost: Whether to apply cluster-aware reward boosting
+        """
+        # Find the routing log
+        log = None
+        for l in self.logs:
+            if l.request_id == request_id:
+                log = l
+                break
+        
+        if log is None:
+            logger.warning(f"No routing log found for request_id={request_id}")
+            return
+        
+        # Apply cluster boost if enabled and cluster was detected
+        boosted_reward = reward
+        boost_amount = 0.0
+        
+        if cluster_boost and log.cluster_id is not None:
+            # Look up model's z-score for this cluster
+            model_data = self.registry.get(log.selected_model, {})
+            z_scores = model_data.get('cluster_z_scores')
+            
+            if z_scores and len(z_scores) > log.cluster_id:
+                z_score = z_scores[log.cluster_id]
+                
+                # Boost formula: reward *= (1 + z_score * boost_weight)
+                # Positive z-score → model excels at this cluster → get bonus
+                # Negative z-score → model weak at this cluster → get penalty
+                boost_factor = 1.0 + (z_score * self.cluster_boost_weight)
+                boosted_reward = reward * boost_factor
+                boost_amount = boosted_reward - reward
+                
+                if abs(boost_amount) > 0.01:  # Log significant boosts
+                    logger.info(
+                        f"Cluster boost: model={log.selected_model}, "
+                        f"cluster={log.cluster_id}, z={z_score:.2f}, "
+                        f"reward: {reward:.3f} → {boosted_reward:.3f} ({boost_amount:+.3f})"
+                    )
+        
+        # Update bandit with boosted reward
+        x = self._get_context_vector(log.prompt)
+        self.bandit.update(log.selected_model, x, boosted_reward)
 
     def get_probabilities(self, context: str | np.ndarray, model_ids: List[str] | None = None) -> Dict[str, float]:
         """Get the probability of each model being the specialist for a given context."""
