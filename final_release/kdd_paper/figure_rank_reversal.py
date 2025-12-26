@@ -38,9 +38,9 @@ COLOR_MAP = {
 
 def load_data():
     # Script is in final_release/kdd_paper/
-    # models.json is in final_release/models.json
-    base_dir = Path(__file__).parent.parent
-    with open(base_dir / "models.json") as f:
+    # models.json is in banditgpt/models.json
+    project_root = Path(__file__).parent.parent.parent
+    with open(project_root / "banditgpt" / "models.json") as f:
         data = json.load(f)
     
     registry = {m["openrouter_id"]: m for m in data["models"]}

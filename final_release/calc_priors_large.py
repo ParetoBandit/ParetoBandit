@@ -5,14 +5,15 @@ from sentence_transformers import SentenceTransformer
 
 def main():
     # Paths
-    base_dir = Path(__file__).parent
-    prompts_path = base_dir / "data/lmsys_all_prompts.jsonl"
-    output_path = base_dir / "data/priors_meta_large.npz"
+    project_root = Path(__file__).parent.parent
+    data_dir = project_root / "banditgpt" / "data"
+    prompts_path = data_dir / "lmsys_all_prompts.jsonl"
+    output_path = data_dir / "priors_meta_large.npz"
     
     # Load Evaluation Prompts to exclude (Data Leakage Fix)
     eval_prompts = set()
-    for p_file in ["data/train_prompts.jsonl", "data/test_prompts.jsonl"]:
-        p_path = base_dir / p_file
+    for p_file in ["train_prompts.jsonl", "test_prompts.jsonl"]:
+        p_path = data_dir / p_file
         if p_path.exists():
             with open(p_path) as f:
                 for line in f:

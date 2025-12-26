@@ -3,8 +3,9 @@ from pathlib import Path
 
 def main():
     # Paths
-    source_path = Path(__file__).parent / "data/models_cache_with_hle.json"
-    dest_path = Path(__file__).parent / "models.json"
+    project_root = Path(__file__).parent.parent
+    source_path = project_root / "banditgpt/data/models_cache_with_hle.json"
+    dest_path = project_root / "banditgpt/models.json"
     
     # Load
     with open(source_path) as f:

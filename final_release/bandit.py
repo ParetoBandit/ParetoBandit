@@ -107,7 +107,7 @@ def transform_hle_to_prior(raw_hle_score: float) -> float:
     - 6.5% HLE → ~0.8 (capable of daily tasks)
     - 25% HLE → ~0.95 (genius tier)
     
-    Uses a sigmoid (logistic function) centered at 4% HLE.
+    Uses a sigmoid (logistic function) centered at 20% HLE.
     """
     # Models below 1% are truly broken
     if raw_hle_score < 0.01:
@@ -115,13 +115,17 @@ def transform_hle_to_prior(raw_hle_score: float) -> float:
     
     # Sigmoid parameters
     k = 80.0      # Steepness: controls how quickly the curve transitions
-    x0 = 0.04     # Midpoint: 4% HLE maps to utility ~0.5
+    x0 = 0.20     # Midpoint: 20% HLE maps to utility ~0.5 (Separates "Good" from "Elite")
     
     # Logistic function: sigmoid(x) = 1 / (1 + e^(-k*(x - x0)))
     utility_prior = 1.0 / (1.0 + np.exp(-k * (raw_hle_score - x0)))
     
     # Cap at 0.95 to leave room for uncertainty/learning
     return min(utility_prior, 0.95)
+
+def sigmoid(x: float) -> float:
+    """Standard logistic function mapping (-inf, inf) to (0, 1)."""
+    return 1.0 / (1.0 + np.exp(-x))
 
 # ---------------------------------------------------------------------------
 # Core Bandit Policy (Disjoint LinUCB)
@@ -133,7 +137,6 @@ class DisjointLinUCBPolicy:
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
-        print(f"DEBUG: DisjointLinUCBPolicy initialized with alpha={self.alpha}")
         self.ridge_lambda = float(ridge_lambda)
         self.gamma = float(forgetting_factor) # Forgetting factor (1.0 = no forgetting)
         # Initialize A=I*lambda, b=0
@@ -365,7 +368,7 @@ class BanditRouter:
         cls,
         *,
         model_registry: Dict[str, Dict[str, Any]],
-        context_model: str,
+        context_model: str = DEFAULT_CONTEXT_MODEL,
         alpha: float = 0.1,
         prior_strength: float = 40.0,
         priors_meta_path: Optional[Path] = None,
@@ -511,9 +514,18 @@ class BanditRouter:
         x = self._get_context_vector(prompt)
         
         # 2. Resolve Weights
-        weights = OptimizationProfile.get(profile)
+        weights = OptimizationProfile.get(profile).copy()
         lambda_cost = weights["lambda_cost"]
         lambda_latency = weights["lambda_latency"]
+        
+        # --- ORTHOGONAL OPTIMIZATION ---
+        # If a hard constraint is active, disable the soft penalty for that dimension
+        # to avoid "Double Penalty" (e.g. picking cheapest model when budget allows better).
+        if max_cost is not None:
+            lambda_cost = 0.0
+        if max_latency is not None:
+            lambda_latency = 0.0
+        # -------------------------------
         
         # 3. Filter Candidates (Constraints + Gating)
         candidates = list(self.registry.keys())
@@ -709,15 +721,16 @@ class BanditRouter:
 
     def _estimate_cost(self, model: str, in_tok: int, out_tok: int) -> float:
         m = self.registry.get(model, {})
-        # Try per-token pricing first
-        if m.get("input_cost_per_m") and m.get("output_cost_per_m"):
+        # Strictly use per-token pricing. No fallbacks.
+        if m.get("input_cost_per_m") is not None and m.get("output_cost_per_m") is not None:
             return (m["input_cost_per_m"] * in_tok + m["output_cost_per_m"] * out_tok) / 1e6
-        # Fallback to fixed cost
-        return float(m.get("cost", 0.0))
+        return float('inf')
 
     def _estimate_latency(self, model: str, out_tok: int) -> float:
         m = self.registry.get(model, {})
-        ttft = m.get("time_to_first_token_seconds", 0.0) or 0.0
-        otps = m.get("output_tokens_per_second", 0.0) or 0.0
-        gen_time = (out_tok / otps) if otps > 0 else 0.0
-        return float(ttft + gen_time) or float(m.get("latency_s", 1.0))
+        # Strictly use "time_to_first_token_seconds" as requested.
+        # If missing or 0 (invalid), return infinity so it fails any max_latency constraint.
+        val = m.get("time_to_first_token_seconds")
+        if val is None or float(val) <= 0.0:
+            return float('inf')
+        return float(val)

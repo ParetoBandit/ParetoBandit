@@ -6,20 +6,19 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from sklearn.model_selection import KFold
 try:
-    from .bandit import BanditRouter
-except (ImportError, ValueError):
-    try:
-        from final_release.bandit import BanditRouter
-    except (ImportError, ValueError):
-        from bandit import BanditRouter
+    from banditgpt import BanditRouter
+except ImportError:
+    import sys
+    sys.path.append(str(Path(__file__).parent.parent))
+    from banditgpt import BanditRouter
 
 def main():
-    base_dir = Path(__file__).parent
-    data_dir = base_dir / "data"
+    project_root = Path(__file__).parent.parent
+    data_dir = project_root / "banditgpt" / "data"
     
     # Load Models
     print("Loading models...")
-    with open(base_dir / "models.json") as f:
+    with open(project_root / "banditgpt" / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
@@ -76,7 +75,7 @@ def main():
     reductions = []
     
     # Load Large Priors Metadata
-    priors_meta_path = base_dir / "data/priors_meta_large.npz"
+    priors_meta_path = data_dir / "priors_meta_large.npz"
     
     def run_sim(router, fold_embeddings, fold_cluster_ids):
         regrets = []

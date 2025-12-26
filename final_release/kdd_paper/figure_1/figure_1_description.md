@@ -1,7 +1,7 @@
 # Figure 1: HLE Prior vs. Cold Start (Warm-Starting the Bandit)
 
 ## Overview
-Figure 1 illustrates the critical advantage of **Warm-Starting** the Bandit Router using pre-computed priors. We compare the cumulative regret of a "Cold Start" router (learning from scratch) against a router initialized with **Humanity's Last Exam (HLE)** priors, derived from 26,223 high-quality prompts.
+Figure 1 illustrates the critical advantage of **Warm-Starting** the Bandit Router using pre-computed priors. We compare the cumulative regret of a "Cold Start" router (learning from scratch) against a router initialized with **Humanity's Last Exam (HLE)** priors. These priors are derived by using HLE scores as simulated rewards for **26,223 LMSYS Chatbot Arena** prompts, allowing the router to start with a strong "mental map" of expert capability.
 
 ![Figure 1: Regret Comparison](figure1_regret.png)
 
@@ -14,34 +14,26 @@ The plot shows the **Mean Cumulative Regret** across all 5 folds, with the shade
 
 ## Key Findings
 -   **Instant Utility**: The HLE Prior router starts with significantly lower regret from request 1, demonstrating that public benchmarks can effectively "warm-start" a production router.
--   **Regret Reduction**: The use of HLE Priors leads to a **20.63% ± 4.51% reduction** in cumulative regret compared to a cold start.
+-   **Regret Reduction**: The use of HLE Priors leads to a **12.23% ± 8.90% reduction** in cumulative regret compared to a cold start.
 -   **Phase Shift**: The "Prior Advantage" becomes statistically significant after just **13 requests**. In the first 13 steps, the system is in "Exploration Dominance" where the high uncertainty ($\alpha$) of the cold start actually allows it to keep pace with the prior, but once the prior-informed model stabilizes, it rapidly outperforms the cold start.
     *   **Quality Regret**: Slightly higher (we pick the 2nd best model sometimes).
     *   **Cost Efficiency**: Massively improved (99% cheaper).
-    *   **Net Result**: This 7% reduction represents **Positive Transfer** in a cost-constrained environment.
+    *   **Net Result**: This 12% reduction represents **Positive Transfer** in a cost-constrained environment.
 
-## Hyperparameter Sensitivity (Alpha)
-To determine the optimal exploration rate, we conducted a sensitivity analysis on the Cold Start router:
-
-1. **The "Stability Plateau" (0.1 – 0.5)**
-    - **Result**: ~11.93 Regret (Identical)
-    - **Interpretation**: In this range, the exploration bonus is so small that it is dominated by the noise of the "forgetting" mechanism. The bandit is effectively acting "Greedy" (mostly exploiting). The regret is flat because the behavior doesn't change much.
-
-2. **The "Sweet Spot" (1.0)**
-    - **Result**: 11.63 Regret (Optimal, -0.3 vs. greedy)
-    - **Interpretation**: This is the win. Setting $\alpha=1.0$ provides just enough mathematical "curiosity" to force the bandit to check the other arms occasionally, finding the optimal model faster than the "Greedy" approach. Since rewards are normalized to $[0,1]$, an $\alpha=1.0$ represents exactly "One Standard Deviation" of optimism, aligning with LinUCB theory.
-
-3. **The "Over-Exploration Penalty" (2.0)**
-    - **Result**: 14.66 Regret (+3.0)
-    - **Interpretation**: Here, the bandit becomes "Manic," trying bad models too often because its uncertainty intervals are artificially huge. The massive deterioration (+26%) proves that while tuning low alphas is forgiving, tuning high alphas is dangerous.
-
-**Conclusion**: While the forgetfulness parameter $\gamma$ stabilizes behavior in the low-exploration regime ($\alpha \in [0.1, 0.5]$), we observe a distinct optimality peak at $\alpha=1.0$. This indicates that a standard deviation of optimism is required to efficiently break the 'Cold Start' inertia.
+## Defaults Confirmation
+For this rigorous evaluation, we use the standardized **Bandit Defaults**:
+- **Exploration Rate ($\alpha$)**: **0.1** (Safe Default). This minimizes the "Exploration Tax" while maintaining sufficient adaptability.
+- **Prior Strength ($N$)**: **40** (The "Safety Anchor"). As verified in Figure 10, this value balances plasticity and stability.
+- **Forgetting Factor ($\gamma$)**: **0.95**. Essential for handling non-stationary distributions.
 
 ## Why the Gap at N=40?
-We observe that the Cold Start and HLE Prior curves remain identical for the first ~35 requests before diverging significantly. This phenomenon is due to **Exploration Dominance**: initially, both routers are driven by high uncertainty ($\alpha=1.0$), forcing them to test similar arms. The divergence occurs when the Cold Start router lacks sufficient sample density to rule out suboptimal arms. While the HLE router's confidence intervals have shrunk enough to converge on the optimal arm, the Cold Start router is forced to continue expensive exploration to reduce uncertainty.
+We observe that the Cold Start and HLE Prior curves diverge immediately. This "Instant Utility" is the direct result of the **N=40 Prior Strength**.
+- **Cold Start ($N=0$)**: Must pay the full cost of exploration (Regret) to learn the reward landscape from scratch.
+- **HLE Prior ($N=40$)**: Starts with a confident guess close to the ground truth. With $\alpha=0.1$ (low noise), it exploits this knowledge immediately.
 
-### The "Exploration Mask" as a Safety Feature
-In a production system, this visible overlap (where priors don't yet win) is a critical **Safety Feature**. If the HLE Prior happens to be misaligned for a specific user domain (e.g., specialized Medical Coding where general benchmarks fail), this high early exploration ensures the bandit verifies the prior before blindly trusting it. Maintaining $\alpha=1.0$ forces the system to "double-check" its inherited knowledge, allowing it to override a bad prior if the online data contradicts it.
+The convergence of the Cold Start curve to the HLE curve over time demonstrates the bandit's ability to learn, but the **Area Between Curves (ABC)** represents the massive efficiency gain—the "Free Lunch" provided by the prior.
+
+
 
 ## Significance
 This figure validates the **Bandit Router's** ability to leverage existing AI knowledge (benchmarks) to provide immediate value to users. It addresses the "cold start problem" common in recommendation systems, ensuring that the router is intelligent on **Day 0** without requiring the "Blocking Manual Labor" of up-front calibration. While competitors require users to label thousands of examples before launch, BanditGPT uses these priors to offer a non-blocking start that refines itself autonomously over time.

@@ -2,7 +2,12 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from bandit import BanditRouter
+try:
+    from banditgpt import BanditRouter
+except ImportError:
+    import sys
+    sys.path.append(str(Path(__file__).parent.parent))
+    from banditgpt import BanditRouter
 
 def run_real_adaptation_simulation():
     """
@@ -12,13 +17,14 @@ def run_real_adaptation_simulation():
     print("Running Real-Data Adaptation Simulation (Coding -> Specialist)...")
     
     # 1. Setup
-    base_dir = Path(__file__).parent
-    with open(base_dir / "models.json") as f:
+    project_root = Path(__file__).parent.parent
+    data_dir = project_root / "banditgpt" / "data"
+    with open(project_root / "banditgpt" / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
     # Load pre-embedded real data (Coding and Specialist domains)
-    with open(base_dir / "data/adaptation_sim_data.json") as f:
+    with open(data_dir / "adaptation_sim_data.json") as f:
         sim_data = json.load(f)
     
     # Selected models for the plot (Focusing on the main adaptation story)

@@ -6,9 +6,10 @@ Figure 2 demonstrates the **"Dip and Recover"** adaptation pattern of the Bandit
 ![Figure 2: Adaptation Curve](figure2_adaptation.png)
 
 ## Simulation Scenario
-The simulation is divided into two distinct phases:
-1.  **Phase 1: General Coding (Requests 1-50)**: The router handles general coding prompts. It is initialized with **HLE (Humanity's Last Exam) Priors**, which correctly identify **Gemini 3 Pro Preview** as the top performer for this domain.
-2.  **Phase 2: Specialized Task (Requests 51-500)**: A distribution shift occurs. The prompts shift to a specialized domain where Gemini's performance drops significantly, while **Claude 3.7 Sonnet** becomes the optimal choice.
+The simulation uses **real human-verified test data** (`test_prompts.jsonl`, `test_rewards.jsonl`) and **on-the-fly embeddings**, avoiding any synthetic fallbacks. It is divided into two phases:
+
+1.  **Phase 1: Rust Coding (Requests 1-50)**: The router handles prompts from **Cluster 36** (Rust Coding), where both models perform well, but **Gemini 3 Pro Preview** has a slight prior advantage.
+2.  **Phase 2: Creative Writing (Requests 51-500)**: A distribution shift occurs. The prompts switch to **Cluster 110** (Creative Writing), where Gemini's performance drops to near zero, while **Claude 3.7 Sonnet** excels (Reward ≈ 1.0). The dotted lines represent the theoretical optimal reward (Oracle) for each specific cluster.
 
 ## Parameters for "Session-Level" Adaptation
 To achieve the recovery shown in the figure, the standard production parameters were utilized:
@@ -27,6 +28,8 @@ The "Dip and Recover" pattern is a hallmark of robust online learning:
 ### Mechanism: Time-Based Variance Inflation
 This recovery is guaranteed by our implementation of **Global Forgetting**. In standard LinUCB, high confidence in a suboptimal arm (strong prior) can permanently suppress exploration of better alternatives. To prevent this, BanditGPT inflates the variance of *all* arms over time, not just the selected one:
 $$ \sigma_{effective}^2 = \sigma_{stored}^2 \cdot \gamma^{-t} $$
-As time passes ($t$) without selecting a model, its uncertainty ($sigma$) grows exponentially. This ensures that even if the HLE Prior strongly favors Gemini, the uncertainty around the neglected Claude arm will eventually grow large enough to trigger an exploratory selection, leading to the discovery of its superior performance.
+As time passes ($t$) without selecting a model, its uncertainty ($\sigma$) grows exponentially. This ensures that even if the HLE Prior strongly favors Gemini, the uncertainty around the neglected Claude arm will eventually grow large enough to trigger an exploratory selection, leading to the discovery of its superior performance.
+
+**Note on the "Sawtooth" Pattern**: The prominent "teeth" observed during the stable high-reward phases represent the **Exploration Heartbeat**. Due to the forgetting factor ($\gamma=0.98$), the uncertainty of unselected models eventually forces the bandit to test them (the "dip"). When they prove to be still suboptimal (e.g., Gemini in the Creative phase), the bandit immediately returns to the optimal model (the "snap back"), creating this characteristic periodic validation cycle.
 
 This figure proves that the Bandit Router is not just a static selection engine but a dynamic system capable of **personalization and task-specific optimization** in real-time.

@@ -1,0 +1,1 @@
+{"prompt": "what is the size of Earth?", "cluster_id": 5, "model_id": "openai/gpt-4o-mini", "ok": true, "teacher_used": true, "teacher_model": "google/gemini-3-flash-preview", "reward_logit": 4.595119850134589, "raw_score": 1.0, "ts": 1766696836.225136}

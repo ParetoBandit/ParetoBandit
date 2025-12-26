@@ -4,12 +4,15 @@ from pathlib import Path
 import sys
 
 # Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from final_release.bandit import BanditRouter
+try:
+    from banditgpt import BanditRouter, l2_normalize
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+    from banditgpt import BanditRouter, l2_normalize
 
 def run_prior_comparison():
-    root_dir = Path(__file__).parent.parent
-    with open(root_dir / "models.json") as f:
+    project_root = Path(__file__).parent.parent.parent
+    with open(project_root / "banditgpt" / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
@@ -30,7 +33,6 @@ def run_prior_comparison():
         
         # Check initial UCB scores for the target model vs others
         x = router.encoder.encode(math_prompt)
-        from final_release.bandit import l2_normalize
         x = l2_normalize(x)
         
         # Get top 5 models by initial UCB

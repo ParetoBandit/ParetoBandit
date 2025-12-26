@@ -7,14 +7,14 @@ Figure 4 demonstrates the Bandit Router's ability to "discover" specialists in s
 
 ## Methodology
 -   **Prior Confidence (HLE)**: The initial specialist confidence ($||\theta||$) derived from the global **HLE (Humanity's Last Exam)** benchmark priors.
--   **Posterior Confidence (Learned)**: The specialist confidence ($||\theta||$) after a sequence of 150 requests in a highly technical niche.
--   **The Niche**: We simulate a domain (e.g., complex database optimization) where a specific model significantly outperforms the benchmark-leading generalists.
--   **The Specialist**: **DeepSeek R1** is the true specialist for this niche.
--   **The Process**: The bandit was updated online using the real `BanditRouter` library logic. The raw confidence scores ($||\theta||$) are plotted directly, representing the strength of the learned specialist associations.
+-   **Posterior Confidence (Learned)**: The specialist confidence ($||\theta||$) after a sequence of **99 real test requests** in a highly technical niche.
+-   **The Niche**: We simulate a domain (e.g., complex reasoning/math) where a specific model significantly outperforms the benchmark-leading generalists.
+-   **The Specialist**: **DeepSeek R1 Distill Llama 70B** is the true specialist for this niche.
+-   **The Metric ($\theta$)**: The confidence scores plotted are the **L2 norm of the learned parameter vector** ($||\theta|| = ||A^{-1}b||$) in the Disjoint LinUCB algorithm. This value represents the magnitude of the learned association between the context features and the model's reward—essentially how "confident" the bandit is that this model is a specialist for the current context.
 
 ## Key Observations
--   **The Discovery**: **DeepSeek R1**'s confidence grows from a low prior (~0.08) to become the absolute leader (~0.99). This represents the bandit "discovering" that DeepSeek is the true specialist for this specific task.
--   **Teacher Correction**: While the HLE "teacher" initially favored **Gemini 3 Pro** (Prior: 0.31), the bandit correctly learns that its relative expertise in this niche is significantly lower than the discovered specialist.
+-   **The Discovery**: **DeepSeek R1**'s confidence grows from a negligible prior (**~0.00002**) to become a strong specialist (**~0.47**). This represents the bandit "discovering" that DeepSeek is the true specialist for this specific task, overcoming a near-zero prior.
+-   **Teacher Correction**: While the HLE "teacher" initially strongly favored **Gemini 3 Pro** (Prior: **~1.43**), the bandit correctly learns that its relative expertise in this specific niche is significantly lower (Posterior: **~0.09**), effectively "correcting" the teacher's assumption for this workload.
 -   **Adaptation Speed (Forgetting Factor)**: The speed of this discovery is highly sensitive to the **Forgetting Factor** ($f$). By lowering $f$, the system can "forget" the global prior faster to prioritize local evidence.
 
 | Step | $f=1.0$ (Stable) | $f=0.95$ (Balanced) | $f=0.9$ (Agile) |

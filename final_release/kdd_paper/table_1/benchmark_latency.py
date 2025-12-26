@@ -11,15 +11,18 @@ import sys
 
 # Setup paths
 script_dir = Path(__file__).parent
-repo_root = script_dir.parent.parent.parent  # Go to llm_jury root
-sys.path.insert(0, str(repo_root / "final_release"))
+project_root = script_dir.parent.parent.parent  # Go to llm_jury root
 
-from bandit import BanditRouter, l2_normalize
+try:
+    from banditgpt import BanditRouter, l2_normalize
+except ImportError:
+    sys.path.insert(0, str(project_root))
+    from banditgpt import BanditRouter, l2_normalize
 
 def benchmark_latency():
     # Load real model registry  
-    # repo_root = llm_jury/, models.json is in llm_jury/final_release/
-    models_path = repo_root / "final_release" / "models.json"
+    # project_root = llm_jury/, models.json is in llm_jury/banditgpt/
+    models_path = project_root / "banditgpt" / "models.json"
     with open(models_path) as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}

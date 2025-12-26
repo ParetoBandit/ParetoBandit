@@ -4,13 +4,16 @@ from pathlib import Path
 import sys
 
 # Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from final_release.bandit import BanditRouter
+try:
+    from banditgpt import BanditRouter
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+    from banditgpt import BanditRouter
 
 def run_regret_comparison():
-    root_dir = Path(__file__).parent.parent
-    data_dir = root_dir / "data"
-    with open(root_dir / "models.json") as f:
+    project_root = Path(__file__).parent.parent.parent
+    data_dir = project_root / "banditgpt" / "data"
+    with open(project_root / "banditgpt" / "models.json") as f:
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     

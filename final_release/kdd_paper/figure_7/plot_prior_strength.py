@@ -1,7 +1,12 @@
-#!/usr/bin/env python3
 """
-Figure 7: Prior Strength Comparison (N=20 vs N=40)
-Visualizes how increasing prior strength eliminates the "Learning Tax" (regret inversion).
+Figure 7: Prior Strength vs. Feedback Stability (The Learning Tax)
+
+Clean, rigorous evaluation showing:
+- Real BanditRouter with actual LinUCB implementation
+- Test set ONLY (1,000 prompts, strict hold-out)
+- Individual ground truth rewards
+- Comparison of N=0 (Cold), N=5 (Warm), N=40 (Stubborn)
+- 50 seeds per data point for statistical significance
 """
 
 import json
@@ -9,205 +14,200 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
 try:
-    from final_release.bandit import BanditRouter
-except (ImportError, ValueError):
+    from banditgpt import BanditRouter
+except ImportError:
     import sys
-    sys.path.append(str(Path(__file__).parent.parent.parent))
-    from bandit import BanditRouter
-
-def run_simulation(registry, priors_meta_path, embeddings, cluster_ids, truth, prior_strength, num_seeds=10, target_requests=100):
-    """Run simulations for different feedback rates and return final regret values."""
-    feedback_rates = [0.01, 0.1, 0.5, 1.0]
-    results = {}
-    
-    # Generate consistent sequences
-    sequences = []
-    for seed in range(num_seeds):
-        np.random.seed(seed)
-        idx = np.arange(len(embeddings))
-        np.random.shuffle(idx)
-        valid_seq = []
-        for i in idx:
-            if cluster_ids[i] in truth:
-                valid_seq.append(i)
-                if len(valid_seq) >= target_requests: break
-        sequences.append(valid_seq)
-    
-    for freq in feedback_rates:
-        all_final_regrets = []
-        
-        for seed_idx, seq in enumerate(sequences):
-            np.random.seed(seed_idx)
-            
-            router = BanditRouter.load_from_benchmark(
-                model_registry=registry,
-                context_model="sentence-transformers/all-MiniLM-L6-v2",
-                alpha=0.1, 
-                prior_strength=prior_strength,
-                forgetting_factor=1.0,
-                priors_meta_path=priors_meta_path
-            )
-            
-            cum_regret = 0.0
-            
-            for idx in seq:
-                x = embeddings[idx]
-                cid = cluster_ids[idx]
-                cluster_rewards = truth[cid]
-                
-                valid_candidates = list(cluster_rewards.keys())
-                best_reward = max(cluster_rewards.values())
-                
-                x_with_bias = np.append(x, 1.0)
-                chosen, _ = router.bandit.select_arm(x_with_bias, candidates=valid_candidates)
-                
-                observed = cluster_rewards.get(chosen, 0.0)
-                
-                if np.random.random() < freq:
-                    router.bandit.update(chosen, x_with_bias, observed)
-                
-                regret = max(0, best_reward - observed)
-                cum_regret += regret
-            
-            all_final_regrets.append(cum_regret)
-        
-        results[freq] = np.mean(all_final_regrets)
-    
-    return results
+    sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+    from banditgpt import BanditRouter
 
 def main():
     base_dir = Path(__file__).parent
-    project_dir = base_dir.parent.parent
-    data_dir = project_dir / "data"
+    root_dir = base_dir.parent.parent
+    project_root = root_dir.parent
+    data_dir = project_root / "banditgpt" / "data"
     
-    print("Loading data...")
-    with open(project_dir / "models.json") as f:
+    print("="*60)
+    print("FIGURE 7: PRIOR STRENGTH VS FEEDBACK STABILITY")
+    print("="*60)
+    
+    # Configuration
+    FEEDBACK_RATES = [0.01, 0.1, 0.5, 1.0]  # 1%, 10%, 50%, 100%
+    SEEDS = 50                              # For statistical significance
+    REQUESTS = 500                          # Per seed
+    
+    # Load Models
+    print("\n[1/5] Loading model registry...")
+    with open(project_root / "banditgpt" / "models.json") as f:
         models_data = json.load(f)
-    registry = {m["openrouter_id"]: dict(m) for m in models_data["models"]}
+    registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
-    prompts = []
-    rewards = []
-    
-    for prefix in ["train", "test"]:
-        p_path = data_dir / f"{prefix}_prompts.jsonl"
-        r_path = data_dir / f"{prefix}_rewards.jsonl"
-        if p_path.exists():
-            with open(p_path) as f:
-                for line in f: prompts.append(json.loads(line))
-        if r_path.exists():
-            with open(r_path) as f:
-                for line in f: rewards.append(json.loads(line))
-    
-    # Build Truth
-    truth = {}
-    for r in rewards:
-        if r.get("ok"):
-            c = r["cluster_id"]
-            m = r["model_id"]
-            logit = r.get("reward_logit", 0.0)
-            val = 1.0 / (1.0 + np.exp(-logit))
-            if c not in truth: truth[c] = {}
-            truth[c][m] = val
-    
-    # Embed
-    print("Embedding prompts...")
+    # Load Test Data
+    print("\n[2/5] Loading TEST data...")
+    test_prompts = []
+    with open(data_dir / "test_prompts.jsonl") as f:
+        for line in f:
+            test_prompts.append(json.loads(line))
+            
+    test_rewards = []
+    with open(data_dir / "test_rewards.jsonl") as f:
+        for line in f:
+            test_rewards.append(json.loads(line))
+            
+    # Build ground truth lookup
+    ground_truth = {}
+    for r in test_rewards:
+        if not r.get("ok"):
+            continue
+            
+        # Use prompt if available, fallback to (cluster_id, model_id)
+        if "prompt" in r:
+            lookup_key = (r["prompt"], r["model_id"])
+        else:
+            lookup_key = (r["cluster_id"], r["model_id"])
+            
+        ground_truth[lookup_key] = r["reward_logit"]
+            
+    print(f"  Loaded {len(test_prompts)} prompts and {len(ground_truth)} reward entries")
+
+    # [3/5] Pre-compute Embeddings
+    print("\n[3/5] Computing embeddings for eval set...")
     encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-    np.random.seed(42)
-    sample_indices = np.random.choice(len(prompts), min(2000, len(prompts)), replace=False)
-    sampled_prompts = [prompts[i] for i in sample_indices]
+    prompt_texts = [p["prompt"] for p in test_prompts]
+    all_embeddings = encoder.encode(prompt_texts, normalize_embeddings=True, show_progress_bar=True)
+    cluster_ids = [p["cluster_id"] for p in test_prompts]
+
+    # [4/5] Run Simulations
+    print(f"\n[4/5] Running simulations ({len(FEEDBACK_RATES)} rates × 3 N-values × {SEEDS} seeds)...")
     
-    embeddings = encoder.encode([p["prompt"] for p in sampled_prompts], normalize_embeddings=True)
-    cluster_ids = [p["cluster_id"] for p in sampled_prompts]
+    results = {
+        "N=0 (Cold)": [],
+        "N=5 (Warm)": [],
+        "N=40 (Stubborn)": []
+    }
     
-    priors_meta_path = data_dir / "priors_meta_large.npz"
+    # Simulation configurations
+    configs = [
+        ("N=0 (Cold)", "none", 0.0),      # No priors
+        ("N=5 (Warm)", "large", 5.0),     # Weak priors
+        ("N=40 (Stubborn)", "large", 40.0) # Strong priors
+    ]
     
-    # Run simulations for both prior strengths
-    print("Running simulation with prior_strength=20...")
-    results_20 = run_simulation(registry, priors_meta_path, embeddings, cluster_ids, truth, prior_strength=20.0)
-    
-    print("Running simulation with prior_strength=40...")
-    results_40 = run_simulation(registry, priors_meta_path, embeddings, cluster_ids, truth, prior_strength=40.0)
-    
-    # Prepare data for plotting
-    feedback_labels = ["1%", "10%", "50%", "100%"]
-    feedback_rates = [0.01, 0.1, 0.5, 1.0]
-    
-    regret_20 = [results_20[f] for f in feedback_rates]
-    regret_40 = [results_40[f] for f in feedback_rates]
-    
-    print("\nResults:")
-    print(f"{'Feedback':<10} | {'N=20':>10} | {'N=40':>10}")
-    print("-" * 35)
-    for i, label in enumerate(feedback_labels):
-        print(f"{label:<10} | {regret_20[i]:>10.2f} | {regret_40[i]:>10.2f}")
-    
-    # Plot
+    for label, prior_type, n_val in configs:
+        print(f"\n  Testing {label}...")
+        rate_results = []
+        
+        for rate in FEEDBACK_RATES:
+            print(f"    Feedback Rate: {rate*100:.0f}%...")
+            seed_regrets = []
+            
+            for seed in range(SEEDS):
+                np.random.seed(seed)
+                
+                # Sample 500 requests for this seed
+                indices = np.random.choice(len(all_embeddings), REQUESTS, replace=False)
+                fold_embeddings = all_embeddings[indices]
+                fold_cluster_ids = [cluster_ids[i] for i in indices]
+                fold_prompts = [prompt_texts[i] for i in indices]
+                
+                # Initialize router
+                router = BanditRouter.create(
+                    model_registry=registry,
+                    priors=prior_type,
+                    prior_strength=n_val,
+                    exploration="safe"
+                )
+                
+                # Run session
+                regret = run_session(router, fold_embeddings, fold_prompts, fold_cluster_ids, ground_truth, feedback_rate=rate)
+                seed_regrets.append(regret)
+            
+            rate_results.append(np.mean(seed_regrets))
+            
+        results[label] = rate_results
+
+    # [5/5] Plot Results
+    print("\n[5/5] Generating Figure 7...")
     plt.figure(figsize=(10, 6))
     
-    x_pos = np.arange(len(feedback_labels))
+    styles = {
+        "N=0 (Cold)": ('k--', 'o'),
+        "N=5 (Warm)": ('g-', 's'),
+        "N=40 (Stubborn)": ('r-', '^')
+    }
     
-    # 1. Plot Cold Start Baseline
-    plt.axhline(y=15.72, color='black', linestyle='--', linewidth=2, label='Cold Start Baseline (100% Feedback)')
-    
-    # 2. Plot lines
-    plt.plot(x_pos, regret_20, 'o-', color='red', linewidth=3, markersize=10, label='Weak Prior (prior_strength=20)')
-    plt.plot(x_pos, regret_40, 's-', color='blue', linewidth=3, markersize=10, label='Strong Prior (prior_strength=40)')
-    
-    # Annotate the gap at 100% (The Learning Tax)
-    gap = regret_20[-1] - regret_40[-1]
-    if gap > 0.01:
-        plt.annotate(
-            f'THE "LEARNING TAX"\n(+{gap:.2f} Regret)',
-            xy=(x_pos[-1], regret_20[-1]),
-            xytext=(x_pos[-1] - 1.2, regret_20[-1] + 1.2),
-            fontsize=10,
-            fontweight='bold',
-            color='red',
-            arrowprops=dict(arrowstyle='->', connectionstyle="arc3,rad=.2", color='red', lw=1.5),
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='red', alpha=0.9)
-        )
-    
-    plt.annotate(
-        'THE "GOLDEN RATIO"\n(Perfect Stability)',
-        xy=(x_pos[-1], regret_40[-1]),
-        xytext=(x_pos[-1] - 0.8, regret_40[-1] - 1.2),
-        fontsize=10,
-        fontweight='bold',
-        color='blue',
-        arrowprops=dict(arrowstyle='->', connectionstyle="arc3,rad=-.2", color='blue', lw=1.5),
-        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='blue', alpha=0.9)
-    )
-    
-    # Annotate the 20% win
-    superiority = ((15.72 / 12.45) - 1) * 100
-    plt.annotate(
-        f'~{superiority:.0f}% Superior to Cold Start',
-        xy=(0, 14.5),
-        xytext=(0.2, 14.0),
-        fontsize=11,
-        fontweight='bold',
-        color='green',
-        bbox=dict(boxstyle='round,pad=0.5', facecolor='white', edgecolor='green', alpha=0.9)
-    )
+    x = [r * 100 for r in FEEDBACK_RATES]
+    for label, y_values in results.items():
+        ls, marker = styles[label]
+        plt.plot(x, y_values, ls, marker=marker, linewidth=2, markersize=8, label=label)
 
-    plt.xticks(x_pos, feedback_labels)
-    plt.xlabel("Feedback Rate (Live Traffic)", fontsize=12, fontweight='bold')
-    plt.ylabel("Cumulative Regret (Lower is Better)", fontsize=12, fontweight='bold')
-    plt.title("Figure 7: Plasticity vs. Stability", fontsize=16, fontweight='bold', pad=20)
-    plt.legend(loc='lower left', frameon=True, shadow=True)
-    plt.grid(axis='y', linestyle='--', alpha=0.3)
+    plt.xlabel('Feedback Rate (%)', fontsize=12)
+    plt.ylabel(f'Mean Cumulative Regret (T={REQUESTS})', fontsize=12)
+    plt.title('Figure 7: Prior Strength vs. Feedback Stability\nPreventing the "Learning Tax"', fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
     
-    # Set y-axis limits to show everything clearly
-    plt.ylim(10, 17)
+    output_path = base_dir / "figure7_prior_strength.png"
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    print(f"Saved plot to {output_path}")
     
-    plt.tight_layout()
+    print("\n✅ COMPLETE!")
+
+def run_session(router, embeddings, prompt_texts, cluster_ids, ground_truth, feedback_rate):
+    """Run a single session and return final cumulative regret."""
+    cumulative_regret = 0.0
     
-    out_file = base_dir / "figure7_prior_strength.png"
-    plt.savefig(out_file, dpi=150)
-    print(f"\nSaved plot to {out_file}")
-    print(f"Caption: \"Plasticity vs. Stability. Enabling continuous feedback incurs a minor 'Learning Tax' (+3% regret) compared to a frozen prior, but remains 20% superior to Cold Start while ensuring resilience to drift.\"")
+    for embedding, prompt, cluster_id in zip(embeddings, prompt_texts, cluster_ids):
+        # Route
+        selected_model_id, _ = router.route(embedding.tolist())
+        
+        # Get ground truth
+        oracle_reward, selected_reward = get_rewards(prompt, cluster_id, selected_model_id, ground_truth)
+        
+        # Accumulate regret
+        cumulative_regret += (oracle_reward - selected_reward)
+        
+        # Feedback (Probabilistic)
+        if np.random.random() < feedback_rate:
+            # Try prompt-level first, then cluster
+            reward_logit = ground_truth.get((prompt, selected_model_id))
+            if reward_logit is None:
+                reward_logit = ground_truth.get((cluster_id, selected_model_id), 0.0)
+                
+            trace_id = router.routing_logs[-1].trace_id
+            router.process_feedback(trace_id, reward_logit)
+            
+    return cumulative_regret
+
+def get_rewards(prompt, cluster_id, selected_model_id, ground_truth):
+    """Find oracle and selected rewards [0, 1] for a prompt."""
+    
+    # Extract rewards for this specific prompt (with cluster fallback)
+    possible_rewards = {}
+    
+    # Get all model IDs available in ground truth
+    all_model_ids = set(m for _, m in ground_truth.keys())
+    
+    for mid in all_model_ids:
+        # Try prompt-level first
+        logit = ground_truth.get((prompt, mid))
+        if logit is None:
+            # Fallback to cluster-level
+            logit = ground_truth.get((cluster_id, mid))
+            
+        if logit is not None:
+            possible_rewards[mid] = 1 / (1 + np.exp(-logit))
+            
+    if not possible_rewards:
+        # Fallback to neutral reward if no data at all
+        return 0.5, 0.5
+        
+    oracle_reward = max(possible_rewards.values())
+    selected_reward = possible_rewards.get(selected_model_id, 0.5) 
+    
+    return oracle_reward, selected_reward
 
 if __name__ == "__main__":
     main()

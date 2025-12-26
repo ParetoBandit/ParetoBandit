@@ -20,19 +20,17 @@ def simulate_niche_discovery():
         models_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     
-    # 3. Initialize Router with Defaults (HLE)
-    priors_meta_path = root_dir / "data/priors_meta_large.npz"
-    router = BanditRouter.load_from_benchmark(
-        model_registry=registry,
-        context_model="sentence-transformers/all-MiniLM-L6-v2",
-        # Use system defaults (alpha=1.0, prior_strength=40.0)
-        priors_meta_path=priors_meta_path
+    # 3. Initialize Router with Library Defaults
+    # Defaults: prior_strength=40.0, exploration='safe' (α=0.1), forgetting_factor=0.95
+    router = BanditRouter.create(
+        model_registry=registry
+        # All other parameters use library defaults
     )
     
     # 3. Define the "Niche"
-    # Let's pick 'deepseek/deepseek-r1' as our "Specialist".
-    # In HLE it has 0.093, while Gemini 3 Pro has 0.372.
-    target_model = "deepseek/deepseek-r1"
+    # Let's pick 'deepseek/deepseek-r1-distill-llama-70b' as our "Specialist".
+    # In HLE it has low score, while Gemini 3 Pro has high score.
+    target_model = "deepseek/deepseek-r1-distill-llama-70b"
     teacher_pet = "google/gemini-3-pro-preview"
     
     print(f"Target Model: {target_model}")
@@ -44,23 +42,40 @@ def simulate_niche_discovery():
         theta = router.bandit.A_inv[m_id] @ router.bandit.b[m_id]
         priors[m_id] = np.linalg.norm(theta)
     
-    # 4. Run Simulation in the Niche
-    # We simulate 100 requests where the target_model always gets reward 1.0 and others get 0.2
-    n_requests = 150
-    context = np.random.randn(384) # Fixed context for simplicity in this niche
-    context /= np.linalg.norm(context)
+    # 4. Load Real Test Prompts (No Data Leakage)
+    # Use test_prompts.jsonl to ensure no overlap with prior training
+    test_prompts = []
+    prompts_path = root_dir / "data" / "test_prompts.jsonl"
+    if prompts_path.exists():
+        with open(prompts_path) as f:
+            for line in f:
+                test_prompts.append(json.loads(line))
     
-    print(f"Simulating {n_requests} requests in the '{target_model}' niche...")
+    # Sample 500 prompts for the simulation
+    np.random.seed(42)
+    n_requests = 500
+    if len(test_prompts) >= n_requests:
+        selected_prompts = np.random.choice(test_prompts, n_requests, replace=False)
+    else:
+        selected_prompts = test_prompts
+        n_requests = len(selected_prompts)
     
-    for i in range(n_requests):
-        # In this niche, the target_model is the clear winner
-        # We teach the bandit about all models in this specific context
-        context_bias = np.append(context, 1.0)
+    print(f"Simulating {n_requests} requests in the '{target_model}' niche using real test prompts...")
+    
+    for i, prompt_data in enumerate(selected_prompts):
+        prompt_text = prompt_data["prompt"]
+        # Get context vector from the router's encoder
+        context_vec = router._get_context_vector(prompt_text)
+        
+        # In this niche, the target_model is the clear specialist
+        # Simulate rewards where DeepSeek R1 excels
         for m_id in router.bandit.models:
-            reward = 1.0 if m_id == target_model else 0.2
-            # Add some noise
-            reward += np.random.normal(0, 0.05)
-            router.bandit.update(m_id, context_bias, reward)
+            if m_id == target_model:
+                reward = np.random.uniform(0.9, 1.0)  # High performance
+            else:
+                reward = np.random.uniform(0.1, 0.3)  # Lower performance
+            
+            router.bandit.update(m_id, context_vec, reward)
             
     # 5. Capture Posteriors
     posteriors = {}
@@ -72,19 +87,20 @@ def simulate_niche_discovery():
     results = {
         "target_model": {
             "id": target_model,
-            "name": registry[target_model]["name"],
+            "name": registry[target_model]["display_name"],
             "prior": priors[target_model],
             "posterior": posteriors[target_model]
         },
         "teacher_pet": {
             "id": teacher_pet,
-            "name": registry[teacher_pet]["name"],
+            "name": registry[teacher_pet]["display_name"],
             "prior": priors[teacher_pet],
             "posterior": posteriors[teacher_pet]
         }
     }
     
-    with open(root_dir / "discovery_results.json", "w") as f:
+    output_path = root_dir / "kdd_paper" / "figure_4" / "discovery_results.json"
+    with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
     
     print("Simulation complete. Results saved to discovery_results.json")

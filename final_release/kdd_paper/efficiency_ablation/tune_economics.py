@@ -6,14 +6,20 @@ import math
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from final_release.bandit import BanditRouter, l2_normalize, OptimizationProfile
+try:
+    from banditgpt import BanditRouter, l2_normalize, OptimizationProfile
+except ImportError:
+    import sys
+    sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+    from banditgpt import BanditRouter, l2_normalize, OptimizationProfile
 
 # ==============================================================================
 # 1. SETUP & DATA
 # ==============================================================================
 def load_data():
-    base_dir = Path("final_release")
-    with open(base_dir / "data" / "models_cache_with_hle.json") as f:
+    project_root = Path(__file__).parent.parent.parent.parent
+    data_dir = project_root / "banditgpt" / "data"
+    with open(data_dir / "models_cache_with_hle.json") as f:
         m_data = json.load(f)
     registry = {m["openrouter_id"]: m for m in m_data["models"] if "openrouter_id" in m and m.get("price_1m_blended", 0) > 0.01}
     

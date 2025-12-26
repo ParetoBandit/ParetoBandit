@@ -47,18 +47,18 @@ The core of the router is a curated registry of **66 Large Language Models (LLMs
 The "HLE Priors" are not a raw dataset, but rather a set of statistical initializations ($A$ and $b$ matrices) that combine model benchmarks with prompt embeddings. This allows the router to start with "expert intuition" rather than a cold start.
 
 *   **Model Benchmarks (The "Labels")**: We utilize the **Humanity's Last Exam (HLE)** score for each model. HLE is a challenging benchmark designed to test models at the limit of human knowledge, making it an excellent proxy for general reasoning and knowledge quality.
-*   **Synthesis**: We utilize **Ridge Initialization** to "warm-start" the bandit. We mathematically simulate a scenario where each model has already processed **26,223 prompts** from the LMSYS Chatbot Arena, receiving a reward equal to its **HLE score** for each. This populates the covariance matrix ($A$) and sum vector ($b$) for every model in the registry.
-*   **Leakage Prevention**: All 496 prompts used in our evaluation were explicitly removed from the 26,223-prompt training set to ensure zero data leakage.
+*   **Synthesis**: We utilize **Ridge Initialization** to "warm-start" the bandit. We mathematically simulate a scenario where each model has already processed **21,719 prompts** from the LMSYS Chatbot Arena, receiving a reward equal to its **HLE score** for each. This populates the covariance matrix ($A$) and sum vector ($b$) for every model in the registry.
+*   **Leakage Prevention**: All 5,000 prompts used in our evaluation (4,000 train + 1,000 test) were explicitly removed from the 26,719 total unique LMSYS prompts to ensure zero data leakage. The prior covariance matrix is constructed exclusively from the remaining 21,719 prompts.
 
 ## 3. Evaluation Dataset
 
 The performance of the router was validated using a dedicated evaluation set with ground-truth rewards.
 
-*   **Prompts**: A set of **496 unique prompts**, split into a training set (397) and a testing set (99) for cross-validation.
+*   **Prompts**: A set of **5,000 unique prompts** from LMSYS Chatbot Arena, split into a training set (4,000) and a hold-out testing set (1,000) for rigorous evaluation.
 *   **Ground Truth Rewards**: For each prompt, we utilized a matrix of rewards representing the "true" quality of each model's response. These rewards were derived from a **Tiered LLM-as-a-Judge** system:
     *   **Judge Models**: We utilized a hybrid grading approach. A "soft grader" (**DeBERTa-v3-small** fine-tuned on NVIDIA HelpSteer2 and LMSYS Arena preferences) handled ~85% of standard conversational prompts. For complex tasks (math, code, logic), the system escalated to a "teacher" judge (**GPT-4o**) via the OpenRouter API.
     *   **Reward Metric**: The judge provides a quality score in the range [0, 1], which is then logit-transformed for use in the bandit's linear reward model.
-*   **5-Fold Cross-Validation**: Our experiments utilize 5-fold cross-validation across this dataset to provide statistically robust measures of regret reduction.
+*   **Evaluation Protocol**: Our experiments utilize **5-fold cross-validation** on the 1,000-prompt test set to provide statistically robust measures of regret reduction with confidence intervals. Each fold processes 200 unique prompts, ensuring no data leakage from the prior covariance matrix.
 
 ## 4. Implications of the LLM-as-a-Judge
 

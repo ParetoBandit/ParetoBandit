@@ -3,18 +3,21 @@ import numpy as np
 from pathlib import Path
 
 try:
-    from final_release.bandit import BanditRouter
+    from banditgpt import BanditRouter
+    # Safety classifier lives in banditgpt root or similar
+    import sys
+    sys.path.append(str(Path(__file__).parent.parent.parent))
     from final_release.high_risk_prompt_classifier import HighRiskPromptClassifier
 except (ImportError, ValueError):
     import sys
     sys.path.append(str(Path(__file__).parent.parent.parent))
-    from bandit import BanditRouter
-    from high_risk_prompt_classifier import HighRiskPromptClassifier
+    from banditgpt import BanditRouter
+    from final_release.high_risk_prompt_classifier import HighRiskPromptClassifier
 
 def main():
-    base_dir = Path(__file__).parent
-    project_dir = base_dir.parent.parent
-    data_dir = project_dir / "data"
+    root_dir = Path(__file__).parent.parent.parent
+    project_root = root_dir.parent
+    data_dir = project_root / "banditgpt" / "data"
     
     # 1. Load Router
     print("Initializing router...")

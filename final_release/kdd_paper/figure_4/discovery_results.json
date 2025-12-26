@@ -1,14 +1,14 @@
 {
   "target_model": {
-    "id": "deepseek/deepseek-r1",
-    "name": "DeepSeek R1",
-    "prior": 0.0782020322677523,
-    "posterior": 0.9866888785493616
+    "id": "deepseek/deepseek-r1-distill-llama-70b",
+    "name": "DeepSeek R1 Distill Llama 70B",
+    "prior": 2.2218443213702596e-05,
+    "posterior": 0.47437472070044395
   },
   "teacher_pet": {
     "id": "google/gemini-3-pro-preview",
     "name": "Gemini 3 Pro Preview (high)",
-    "prior": 0.3128081290710092,
-    "posterior": 0.3714357150965028
+    "prior": 1.4249456604636972,
+    "posterior": 0.08923684286411863
   }
 }
