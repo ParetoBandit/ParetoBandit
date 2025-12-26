@@ -53,8 +53,10 @@ boosted_reward = base_reward × boost_factor
 **Benefits:**
 1. **Faster Specialization**: Models learn their strengths 2-3x faster
 2. **No Cold Start**: Works immediately with comparative advantage from historical data
-3. **Configurable**: `cluster_boost_weight` adjustable (0.0 to 0.5)
-4. **Graceful Degradation**: Falls back to standard learning if cluster detection unavailable
+3. **No Retraining Required**: Unlike transfer learning or fine-tuning approaches [CITATION NEEDED], cluster-aware priors leverage existing benchmark data without requiring model updates
+4. **No Calibration Set Required**: Traditional routing systems require running each new model against a carefully curated, representative prompt set to establish baseline performance [CITATION NEEDED]. Our cluster z-score priors eliminate this overhead entirely—models receive informed specialization signals from deployment
+5. **Configurable**: `cluster_boost_weight` adjustable (0.0 to 0.5)
+6. **Graceful Degradation**: Falls back to standard learning if cluster detection unavailable
 
 ## 2. Model Registry (`models.json`)
 The core of the router is a curated registry of **66 Large Language Models (LLMs)**. For each model, we maintain the following metadata:
