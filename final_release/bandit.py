@@ -471,13 +471,9 @@ class BanditRouter:
             is_math = any(k in text_to_check for k in ["math", "reasoning", "deepseek", "gemini", "flash"])
             is_code = any(k in text_to_check for k in ["code", "coder", "python"])
             
-            # 2. Apply Cluster Performance Boost
-            cluster_boost = 1.0
-            if is_math:
-                cluster_boost = 1.5  # Boost math specialists
-            
-            # Combine: Prior = Score * Efficiency * ClusterBoost
-            score *= efficiency_boost * cluster_boost
+            # Cluster boost now handled via process_feedback() with ClusterDetector
+            # Apply efficiency boost only to priors
+            score *= efficiency_boost
             
             if score > 0:
                 # Update A with padded covariance
@@ -722,7 +718,8 @@ class BanditRouter:
                 boosted_reward = reward * boost_factor
                 boost_amount = boosted_reward - reward
                 
-                if abs(boost_amount) > 0.01:  # Log significant boosts
+                # Log all boosts for debugging
+            if True:  # Log significant boosts
                     logger.info(
                         f"Cluster boost: model={log.selected_model}, "
                         f"cluster={log.cluster_id}, z={z_score:.2f}, "
@@ -775,17 +772,11 @@ class BanditRouter:
         raw_score = float(definition.get(self.benchmark_key) or 0.05)
         score = transform_hle_to_prior(raw_score)
         
-        # Cluster Boost
-        # Check ID, description, and tags
-        text_to_check = (model_id + " " + definition.get("description", "") + " " + " ".join(definition.get("tags", []))).lower()
-        is_math = any(k in text_to_check for k in ["math", "reasoning", "deepseek", "gemini", "flash"])
-        
-        cluster_boost = 1.0
-        if is_math:
-            cluster_boost = 1.5
-            
-        # Apply Boosts: Efficiency * Cluster
-        score *= efficiency_boost * cluster_boost
+        # Efficiency Boost only (cluster boost via process_feedback)
+        cost = float(definition.get("input_cost_per_m", 0.0)) / 1000.0
+        cost = max(cost, 0.00000005)
+        efficiency_boost = 1.0 + (0.2 * math.log(1.0 / cost))
+        score *= efficiency_boost
         
         if score > 0:
             # Initialize with prior belief

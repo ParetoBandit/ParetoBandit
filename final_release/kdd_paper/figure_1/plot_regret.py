@@ -24,18 +24,18 @@ except ImportError:
     from banditgpt import BanditRouter
 
 
-def run_single_trial(trial_idx, embeddings, prompt_texts, cluster_ids, ground_truth, all_model_ids, registry):
+def run_single_trial(trial_idx, prompt_texts, cluster_ids, ground_truth, all_model_ids, registry):
     'Run a single trial with shuffled prompts.'
     np.random.seed(42 + trial_idx)
-    indices = np.random.permutation(len(embeddings))
-    trial_embeddings = embeddings[indices]
+    indices = np.random.permutation(len(prompt_texts))
     trial_prompts = [prompt_texts[i] for i in indices]
     trial_clusters = [cluster_ids[i] for i in indices]
-    cold_router = BanditRouter.create(model_registry=registry, priors="none", exploration="safe")
-    hle_router = BanditRouter.create(model_registry=registry, priors="benchmark", exploration="safe")
-    cold_regrets = simulate_bandit(cold_router, trial_embeddings, trial_prompts, trial_clusters, ground_truth, all_model_ids)
-    hle_regrets = simulate_bandit(hle_router, trial_embeddings, trial_prompts, trial_clusters, ground_truth, all_model_ids)
-    return (trial_idx, cold_regrets, hle_regrets)
+    # Test BanditGPT: Cold-start (no priors) vs Warm-start (benchmark priors)
+    cold_router = BanditRouter.create(model_registry=registry, priors="none", exploration="safe", cluster_boost_weight=0.3)
+    warm_router = BanditRouter.create(model_registry=registry, priors="benchmark", exploration="safe", cluster_boost_weight=0.3)
+    cold_regrets = simulate_bandit(cold_router, trial_prompts, trial_clusters, ground_truth, all_model_ids)
+    warm_regrets = simulate_bandit(warm_router, trial_prompts, trial_clusters, ground_truth, all_model_ids)
+    return (trial_idx, cold_regrets, warm_regrets)
 
 def main():
     base_dir = Path(__file__).parent
@@ -110,19 +110,12 @@ def main():
     if len(ground_truth) < len(unique_clusters) * len(model_ids) * 0.95:
         print(f"  ⚠️  WARNING: Only {len(ground_truth)} / {len(unique_clusters) * len(model_ids)} entries")
     
-    # Extract prompt embeddings and cluster IDs
+    # Extract cluster IDs and prompt texts
     print("\n[4/5] Processing prompt data...")
     cluster_ids = [p["cluster_id"] for p in prompts]
-    embeddings = np.array([p.get("embedding") for p in prompts if "embedding" in p])
+    prompt_texts = [p["prompt"] for p in prompts]
     
-    # If embeddings not in file, compute them
-    if len(embeddings) == 0:
-        print("  Computing embeddings...")
-        encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-        prompt_texts = [p["prompt"] for p in prompts]
-        embeddings = encoder.encode(prompt_texts, normalize_embeddings=True, show_progress_bar=True)
-    
-    print(f"  Embeddings shape: {embeddings.shape}")
+    print(f"  Prompts: {len(prompt_texts)}")
     print(f"  Cluster IDs: {len(cluster_ids)}")
     
     # Pre-extract model IDs for efficient lookup in simulate_bandit
@@ -131,10 +124,7 @@ def main():
     # Multi-Trial Evaluation for Statistical Rigor
     NUM_TRIALS = 10
     print(f"\n[5/5] Running {NUM_TRIALS} Trials (Parallel Execution)...")
-    print(f"  Each trial: {len(embeddings)} prompts with different random ordering")
-    
-    # Prepare data once
-    prompt_texts = [p["prompt"] for p in prompts]
+    print(f"  Each trial: {len(prompt_texts)} prompts with different random ordering")
     
     # Run trials in parallel
     all_cold_curves = []
@@ -146,7 +136,6 @@ def main():
             future = executor.submit(
                 run_single_trial,
                 trial_idx,
-                embeddings,
                 prompt_texts,
                 cluster_ids,
                 ground_truth,
@@ -236,25 +225,23 @@ def main():
     
     print("\n✅ COMPLETE!")
 
-def simulate_bandit(router, embeddings, prompt_texts, cluster_ids, ground_truth, model_ids):
+def simulate_bandit(router, prompt_texts, cluster_ids, ground_truth, model_ids):
     """
-    Simulate bandit on a sequence of prompts.
+    Simulate BanditGPT router on a sequence of prompts.
+    Shows power of priors by comparing cold-start vs warm-start.
     
     Returns cumulative regret at each step.
     """
     regrets = []
     cumulative_regret = 0.0
     
-    for i in range(len(embeddings)):
-        embedding = embeddings[i]
+    for i in range(len(prompt_texts)):
         prompt_text = prompt_texts[i]
         cluster_id = cluster_ids[i]
         
-        # Prepare context vector (add bias term like router does)
-        context_vector = np.append(embedding, 1.0)
-        
-        # Get bandit's model selection directly (bypass routing overhead)
-        selected_model_id, _ = router.bandit.select_arm(context_vector)
+        # Use router.route() WITHOUT profile to avoid cost penalties
+        # This shows pure bandit learning with/without priors
+        selected_model_id, log = router.route(prompt_text)
         
         # 1. Find all rewards for this specific prompt
         # Fallback to cluster rewards if prompt-level rewards are missing
@@ -294,8 +281,8 @@ def simulate_bandit(router, embeddings, prompt_texts, cluster_ids, ground_truth,
         cumulative_regret += instant_regret
         regrets.append(cumulative_regret)
         
-        # Provide feedback to bandit (LinUCB update) - direct call for performance
-        router.bandit.update(selected_model_id, context_vector, selected_reward)
+        # Use router.process_feedback() for proper bandit update
+        router.process_feedback(log.request_id, selected_reward)
     
     return regrets
 
