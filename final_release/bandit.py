@@ -286,7 +286,7 @@ class BanditRouter:
         embedding_dim: int = 384,
         forgetting_factor: float = 0.95,
         benchmark_key: str = "hle",
-        cluster_boost_weight: float = 0.1,  # Default 10% boost for z=1.0
+        cluster_boost_weight: float = 0.0,  # Default: disabled until validated
     ):
         self.registry = dict(model_registry)
         self.encoder = SentenceTransformer(context_model)
@@ -326,7 +326,7 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
         benchmark_key: str = "hle",
-        cluster_boost_weight: float = 0.1,  # Cluster-aware reward boost
+        cluster_boost_weight: float = 0.0,  # Cluster-aware reward boost (disabled by default)
     ) -> "BanditRouter":
         """
         Create a configured router.
@@ -338,7 +338,7 @@ class BanditRouter:
             exploration: "static", "safe", "balanced", "aggressive".
             state_path: Optional path to a saved bandit state (.npz).
             benchmark_key: Key in models.json to use for priors (default "hle").
-            cluster_boost_weight: Reward boost weight for cluster specialization (default 0.1).
+            cluster_boost_weight: Reward boost weight for cluster specialization (default 0.0, disabled).
         """
         base_dir = Path(__file__).parent
         
