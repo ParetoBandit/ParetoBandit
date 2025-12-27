@@ -15,7 +15,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from banditgpt import BanditRouter
-from final_release.baselines import BaRPRouter, PILOTRouter
+from final_release.baselines import BaRPRouter, PILOTRouter, LLMBanditRouter
 from final_release.kdd_paper.table_3.router_performance_comparison import (
     load_model_registry,
     load_battle_dataset,
@@ -53,6 +53,10 @@ def simulate_rolling_quality(router_name, df, registry, encoder, n_runs=5):
         static_router = FrugalGPTRouter()
     elif router_name == "RouteLLM":
         static_router = RouteLLMRouter()
+    elif router_name == "PILOT":
+        static_router = PILOTRouter(registry=registry)
+    elif router_name == "LLMBandit":
+        static_router = LLMBanditRouter(registry=registry, lambda_pref=0.5)
 
     all_runs_curves = []
 
@@ -78,19 +82,25 @@ def simulate_rolling_quality(router_name, df, registry, encoder, n_runs=5):
                 emb = query_embeddings[i]
                 ctx = np.append(emb, 1.0)
                 selected, _ = run_router.bandit.select_arm(ctx)
-            elif router_name in ["FrugalGPT", "RouteLLM"]:
+            elif router_name in ["FrugalGPT", "RouteLLM", "PILOT"]:
                 prob_weak = static_router.predict_proba(query)
                 selected = weak_model if prob_weak > 0.5 else strong_model
-            else: # Oracles
+            elif router_name == "LLMBandit":
+                # LLMBandit uses Thompson Sampling for routing
+                selected = static_router.route(query)
+            else: # BaRP Oracle
                 selected = strong_model
 
             # 2. Get Reward
             reward = get_reward(selected)
             rewards.append(reward)
             
-            # 3. Update Bandit
+            # 3. Update Bandit/LLMBandit
             if router_name == "BanditGPT":
                 run_router.bandit.update(selected, ctx, reward)
+            elif router_name == "LLMBandit":
+                # Update LLMBandit's Beta distributions
+                static_router.update(selected, reward)
         
         # Calculate Exponential Moving Average (EMA) for this run
         # span=200 makes it responsive but smooth
@@ -124,8 +134,10 @@ def main():
     # 3. Run Simulation
     routers_config = [
         ("BanditGPT\n(Ours)", "BanditGPT"),
+        ("LLMBandit\n(Bandit)", "LLMBandit"),
         ("RouteLLM\n(Static)", "RouteLLM"),
         ("FrugalGPT\n(Cascade)", "FrugalGPT"),
+        ("PILOT\n(Budget)", "PILOT"),
         ("BaRP Oracle\n(Target)", "BaRP")
     ]
     
@@ -141,7 +153,9 @@ def main():
     
     colors = {
         "BanditGPT\n(Ours)": '#2E86AB',
+        "LLMBandit\n(Bandit)": '#E67E22',
         "BaRP Oracle\n(Target)": '#C73E1D',
+        "PILOT\n(Budget)": '#6A4C93',
         "FrugalGPT\n(Cascade)": '#F18F01',
         "RouteLLM\n(Static)": '#A23B72'
     }

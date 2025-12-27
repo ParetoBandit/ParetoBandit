@@ -1,0 +1,260 @@
+======================================================================
+5-FOLD CROSS-VALIDATION: CLUSTER BOOST WEIGHT OPTIMIZATION
+======================================================================
+
+📂 Loading training data...
+✓ Loaded 4000 prompts
+✓ Loaded rewards for 4000 unique prompts
+
+🔀 Creating 5 folds...
+  Fold 1: 3200 train, 800 validation
+  Fold 2: 3200 train, 800 validation
+  Fold 3: 3200 train, 800 validation
+  Fold 4: 3200 train, 800 validation
+  Fold 5: 3200 train, 800 validation
+
+🔍 Testing 7 weights with 5-fold CV...
+----------------------------------------------------------------------
+
+📊 Weight = 0.0
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+  Cumulative Regret: 153.028 ± 76.637
+  Mean Regret: 0.1913
+  Accuracy: 0.5% ± 0.4%
+  Avg Evaluated: 800 prompts/fold
+
+📊 Weight = 0.05
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+  Cumulative Regret: 194.962 ± 36.143
+  Mean Regret: 0.2437
+  Accuracy: 2.2% ± 1.8%
+  Avg Evaluated: 800 prompts/fold
+
+📊 Weight = 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+  Cumulative Regret: 164.336 ± 54.177
+  Mean Regret: 0.2054
+  Accuracy: 2.0% ± 1.5%
+  Avg Evaluated: 800 prompts/fold
+
+📊 Weight = 0.15
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+  Cumulative Regret: 91.996 ± 52.869
+  Mean Regret: 0.1150
+  Accuracy: 3.6% ± 3.1%
+  Avg Evaluated: 800 prompts/fold
+
+📊 Weight = 0.2
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+  Cumulative Regret: 87.160 ± 27.440
+  Mean Regret: 0.1090
+  Accuracy: 1.2% ± 0.8%
+  Avg Evaluated: 800 prompts/fold
+
+📊 Weight = 0.3
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+  Cumulative Regret: 67.968 ± 39.573
+  Mean Regret: 0.0850
+  Accuracy: 2.9% ± 3.8%
+  Avg Evaluated: 800 prompts/fold
+
+📊 Weight = 0.5
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Loading golden prompts from /Users/annette/repostitories/llm_jury/final_release/data/golden_prompts.jsonl...
+Encoding 100 golden prompts...
+✓ Loaded 100 cluster centroids
+  WARNING: Priors may not be loaded! b_norm = 0.0002457669840885883
+  Cumulative Regret: 116.412 ± 48.248
+  Mean Regret: 0.1455
+  Accuracy: 2.7% ± 4.1%
+  Avg Evaluated: 800 prompts/fold
+
+======================================================================
+RESULTS SUMMARY
+======================================================================
+
+🏆 Best by Cumulative Regret (Primary Metric):
+   Weight: 0.3
+   Regret: 67.968 ± 39.573
+   Accuracy: 2.9% ± 3.8%
+
+🏆 Best by Accuracy:
+   Weight: 0.15
+   Accuracy: 3.6% ± 3.1%
+   Regret: 91.996 ± 52.869
+
+📊 Default (0.1) Performance:
+   Regret: 164.336 ± 54.177
+   Accuracy: 2.0% ± 1.5%
+
+✨ Improvement over default: +58.6%
+
+✓ Saved plot: /Users/annette/repostitories/llm_jury/final_release/cluster_boost_5fold_cv.png
+
+======================================================================
+✅ RECOMMENDATION: cluster_boost_weight = 0.3
+======================================================================

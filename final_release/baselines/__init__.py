@@ -1,5 +1,5 @@
 """Baseline routing systems for comparison."""
 
-from .routers import BaRPRouter, PILOTRouter
+from .routers import BaRPRouter, PILOTRouter, LLMBanditRouter
 
-__all__ = ['BaRPRouter', 'PILOTRouter']
+__all__ = ['BaRPRouter', 'PILOTRouter', 'LLMBanditRouter']

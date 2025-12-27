@@ -32,12 +32,9 @@ def main():
     print("FIGURE 2: ADAPTATION DYNAMICS")
     print("="*60)
     
-    # Configuration
-    # These specific clusters show good adaptation dynamics
-    PHASE1_CLUSTER = 36   # Rust Coding (Gemini strong)
-    PHASE2_CLUSTER = 110  # Creative Writing (Claude strong)
-    PHASE1_REQUESTS = 50
-    PHASE2_REQUESTS = 450
+    # Configuration: Use entire test set split into phases
+    PHASE1_REQUESTS = 200  # Initial learning phase
+    PHASE2_REQUESTS = 800  # Adaptation/continued learning phase
     
     # Load Models
     print("\n[1/6] Loading model registry...")
@@ -47,7 +44,7 @@ def main():
     registry = {m["openrouter_id"]: m for m in models_data["models"]}
     print(f"  Loaded {len(registry)} models")
     
-    # Load Test Data ONLY
+    # Load Test Data
     print("\n[2/6] Loading TEST data (strict hold-out)...")
     test_prompts_path = data_dir / "test_prompts.jsonl"
     test_rewards_path = data_dir / "test_rewards.jsonl"
@@ -88,23 +85,20 @@ def main():
     
     print(f"  Built ground truth lookup with {len(ground_truth)} entries")
     
-    # Filter prompts for target clusters
-    print("\n[4/6] Filtering prompts for adaptation scenario...")
-    phase1_prompts = [p for p in all_prompts if p["cluster_id"] == PHASE1_CLUSTER]
-    phase2_prompts = [p for p in all_prompts if p["cluster_id"] == PHASE2_CLUSTER]
+    # Use all test data - split naturally into phases
+    print("\n[4/6] Splitting test data into phases...")
     
-    print(f"  Phase 1 (Cluster {PHASE1_CLUSTER}): {len(phase1_prompts)} prompts available")
-    print(f"  Phase 2 (Cluster {PHASE2_CLUSTER}): {len(phase2_prompts)} prompts available")
-    
-    if len(phase1_prompts) < PHASE1_REQUESTS:
-        raise ValueError(f"Need {PHASE1_REQUESTS} Phase 1 prompts, only have {len(phase1_prompts)}")
-    if len(phase2_prompts) < PHASE2_REQUESTS:
-        raise ValueError(f"Need {PHASE2_REQUESTS} Phase 2 prompts, only have {len(phase2_prompts)}")
-    
-    # Sample prompts (deterministic)
+    # Shuffle for randomness
     np.random.seed(42)
-    phase1_sample = np.random.choice(phase1_prompts, PHASE1_REQUESTS, replace=False).tolist()
-    phase2_sample = np.random.choice(phase2_prompts, PHASE2_REQUESTS, replace=False).tolist()
+    shuffled_prompts = np.random.permutation(all_prompts).tolist()
+    
+    # Split into phases
+    phase1_sample = shuffled_prompts[:PHASE1_REQUESTS]
+    phase2_sample = shuffled_prompts[PHASE1_REQUESTS:PHASE1_REQUESTS+PHASE2_REQUESTS]
+    
+    print(f"  Phase 1: {len(phase1_sample)} prompts")
+    print(f"  Phase 2: {len(phase2_sample)} prompts")
+    print(f"  Total: {len(phase1_sample) + len(phase2_sample)} prompts")
     
     # Compute embeddings
     print("\n[5/6] Computing prompt embeddings...")
@@ -118,7 +112,7 @@ def main():
     
     # Combine into full sequence
     all_embeddings = np.vstack([phase1_embeddings, phase2_embeddings])
-    all_cluster_ids = [PHASE1_CLUSTER] * PHASE1_REQUESTS + [PHASE2_CLUSTER] * PHASE2_REQUESTS
+    all_cluster_ids = [p['cluster_id'] for p in phase1_sample] + [p['cluster_id'] for p in phase2_sample]
     all_prompt_texts = phase1_texts + phase2_texts
     
     print(f"  Total sequence length: {len(all_embeddings)}")
@@ -129,7 +123,8 @@ def main():
         model_registry=registry,
         prior_strength=40.0,           # Strong prior
         exploration="balanced",        # alpha=1.0 for faster adaptation
-        forgetting_factor=0.98         # Enables adaptation to shift
+        forgetting_factor=0.98,        # Enables adaptation to shift
+        cluster_boost_weight=0.3       # Cluster-aware reward boosting
     )
     
     # Simulate
@@ -176,8 +171,8 @@ def simulate_adaptation(router, embeddings, prompt_texts, cluster_ids, ground_tr
     selections = []
     
     for i, (embedding, prompt_text, cluster_id) in enumerate(zip(embeddings, prompt_texts, cluster_ids)):
-        # Get bandit's model selection
-        selected_model_id, _ = router.route(embedding.tolist())
+        # Get bandit's model selection (use prompt_text for cluster detection)
+        selected_model_id, log = router.route(prompt_text, profile="balanced")
         selections.append(selected_model_id)
         
         # Get actual reward for selected model (prompt-level first, then cluster)
@@ -194,15 +189,8 @@ def simulate_adaptation(router, embeddings, prompt_texts, cluster_ids, ground_tr
             
         rewards.append(reward_sigmoid)
         
-        # Provide feedback to bandit
-        try:
-            if hasattr(router, 'routing_logs') and len(router.routing_logs) > 0:
-                trace_id = router.routing_logs[-1].trace_id
-                # Consistent with LinUCB prior initialization (0-1 probability space)
-                feedback_reward = reward_sigmoid
-                router.process_feedback(trace_id, feedback_reward)
-        except Exception as e:
-            print(f"Warning: Feedback failed at step {i}: {e}")
+        # Provide feedback with cluster boost
+        router.process_feedback(log.request_id, reward_sigmoid, cluster_boost=True)
     
     return {
         'rewards': rewards,

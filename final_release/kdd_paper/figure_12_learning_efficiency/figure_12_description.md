@@ -29,6 +29,8 @@ We evaluate the sample efficiency of BanditGPT against static baselines. Startin
 ## Baselines
 
 - **BanditGPT (Ours)**: Online learning with LinUCB + benchmark priors
+- **LLMBandit (Bandit)**: Thompson Sampling with preference-conditioned routing (Yang Li et al., 2025)
 - **BaRP Oracle (Target)**: Always routes to strongest model (theoretical maximum)
 - **RouteLLM (Static)**: Pre-trained Matrix Factorization router
 - **FrugalGPT (Cascade)**: Cascade-based routing with learned scorer
+- **PILOT (Budget)**: Budget-constrained routing optimizer
