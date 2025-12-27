@@ -27,9 +27,10 @@ except ImportError as e:
     raise ImportError("Missing dependency: sentence-transformers") from e
 
 try:
-    from cluster_detector import ClusterDetector
+    from .cluster_detector import ClusterDetector
 except ImportError:
     ClusterDetector = None  # Optional feature
+
 
 
 logger = logging.getLogger(__name__)
@@ -454,7 +455,7 @@ class BanditRouter:
             # e.g. Cost=0.15 (GPT-4o) -> log(1/0.15) ~ 1.9
             #      Cost=0.0001 (Flash) -> log(1/0.0001) ~ 9.2
             # We scale this to be a multiplier, e.g. 1.0 + (0.0 * efficiency) -> No Boost (Relies on Utility)
-            efficiency_boost = 1.0 + (0.0 * math.log(1.0 / cost))
+            efficiency_boost = 1.0 + (0.2 * math.log(1.0 / cost))
 
             # ------------------------------------------------------------------
             # CONTEXTUAL CLUSTER PRIOR (Mathematical Formulation)
