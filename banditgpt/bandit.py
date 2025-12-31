@@ -14,12 +14,18 @@ import json
 import math
 import time
 import logging
+import os
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
+import re
 
 import numpy as np
+
+# Set environment variable to avoid hangs in multi-threaded/multi-process environments
+# This is a common issue with SentenceTransformers on Mac/Linux.
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -30,6 +36,12 @@ try:
     from .cluster_detector import ClusterDetector
 except ImportError:
     ClusterDetector = None  # Optional feature
+
+try:
+    import joblib
+except ImportError:
+    joblib = None
+
 
 
 
@@ -83,14 +95,19 @@ class ExplorationRate:
     DEFAULT = SAFE  # Optimal: α=0.1 with sigmoid-transformed priors
 
     @classmethod
-    def get(cls, name: str) -> float:
-        key = name.lower()
-        val = cls._RATES.get(key)
-        if val is not None: 
-            print(f"DEBUG: ExplorationRate.get('{name}') -> {val}")
-            return val
-        try: return float(name)
-        except ValueError: raise ValueError(f"Unknown exploration '{name}'")
+    def get(cls, name: Any) -> float:
+        if isinstance(name, (int, float)):
+            return float(name)
+        
+        try:
+            key = str(name).lower()
+            val = cls._RATES.get(key)
+            if val is not None: 
+                print(f"DEBUG: ExplorationRate.get('{name}') -> {val}")
+                return val
+            return float(name)
+        except (ValueError, AttributeError):
+            raise ValueError(f"Unknown exploration '{name}'")
 
 # ---------------------------------------------------------------------------
 # Helper Functions
@@ -139,7 +156,7 @@ def sigmoid(x: float) -> float:
 class DisjointLinUCBPolicy:
     """Disjoint LinUCB: one ridge regression per arm."""
     def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1,
-                 prior_strength: float = 40.0, ridge_lambda: float = 1.0, forgetting_factor: float = 0.95):
+                 ridge_lambda: float = 1.0, forgetting_factor: float = 0.95):
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
@@ -161,6 +178,16 @@ class DisjointLinUCBPolicy:
         self.b[model_name] = np.zeros(self.dim, dtype=np.float64)
         self.A_inv[model_name] = np.linalg.inv(self.A[model_name])
         self.last_update[model_name] = self.t
+
+    def delete_arm(self, model_name: str) -> None:
+        """Remove an arm from the bandit."""
+        if model_name in self.models:
+            self.models.remove(model_name)
+        if model_name in self.A: del self.A[model_name]
+        if model_name in self.b: del self.b[model_name]
+        if model_name in self.A_inv: del self.A_inv[model_name]
+        if model_name in self.last_update: del self.last_update[model_name]
+
 
     def select_arm(self, x: np.ndarray, candidates: Optional[List[str]] = None) -> Tuple[str, float]:
         candidates = candidates or self.models
@@ -273,6 +300,7 @@ class RoutingLog:
     latency_s: float
     cluster_id: Optional[int] = None  # Detected semantic cluster
     cluster_similarity: Optional[float] = None  # Similarity to cluster centroid
+    context_vector: Optional[np.ndarray] = None # Cached embedding for updates
 
 class BanditRouter:
     """
@@ -285,12 +313,23 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         alpha: float = 0.1,
         embedding_dim: int = 384,
+        ridge_lambda: float = 1.0,
         forgetting_factor: float = 0.95,
         benchmark_key: str = "hle",
         cluster_boost_weight: float = 0.0,  # Default: disabled until validated
+        pca_path: Optional[Path | str] = None, # Path to PCA model
     ):
         self.registry = dict(model_registry)
         self.encoder = SentenceTransformer(context_model)
+        
+        # Initialize PCA if provided
+        self.pca = None
+        if pca_path and joblib:
+            try:
+                self.pca = joblib.load(pca_path)
+                logger.info(f"✓ Hybrid PCA initialized (384->{self.pca.n_components})")
+            except Exception as e:
+                logger.warning(f"Failed to load PCA model: {e}")
         
         # Initialize cluster detector if available
         self.cluster_detector = None
@@ -302,17 +341,199 @@ class BanditRouter:
             except Exception as e:
                 logger.warning(f"Could not initialize cluster detector: {e}")
         
+        # -----------------------------------------------------------------------
+        # FEATURE VECTOR DIMENSION LOGIC
+        # Base Embedding (384) + Handcrafted Features (7) + Cluster Distances (5) + Bias (1) = 397
+        # NOTE: High dimensionality (~400 params per arm) is expensive for online bandits.
+        # Without strong priors (N_eff), convergence would take 10k+ steps.
+        # Priors are essential here to bridge the "cold start" gap.
+        # -----------------------------------------------------------------------
+        enc_dim = self.encoder.get_sentence_embedding_dimension()
+        
+        # Check effective dimension
+        # If PCA is active, base dim is PCA components (32)
+        if self.pca:
+            base_dim = self.pca.n_components
+        else:
+            base_dim = enc_dim
+            
+        if embedding_dim == enc_dim:
+             # User likely passed default 384 (or we just want auto-calc).
+             # We are adding 13 features (8 explicit + 5 cluster).
+             embedding_dim = base_dim + 13
+        
         # Add bias term to dimension
         self.bandit = DisjointLinUCBPolicy(
             list(self.registry.keys()), 
             dim=embedding_dim + 1, 
             alpha=alpha,
+            ridge_lambda=ridge_lambda,
             forgetting_factor=forgetting_factor
         )
+        
+        # Initialize Security Scanner (Lazy)
+        self._toxicity_scanner = None
+        try:
+             from llm_guard.input_scanners import Toxicity
+             self._toxicity_scanner = Toxicity(threshold=0.5)
+             logger.info("✓ Toxicity scanner initialized")
+        except ImportError:
+             logger.info("Toxicity scanner not available (llm-guard not installed). Feature will be 0.0.")
+        except Exception as e:
+             logger.warning(f"Failed to initialize toxicity scanner: {e}")
+
         self.logs: List[RoutingLog] = []
-        self.model_priors: Dict[str, float] = {} # Optional scalar priors
+        self.model_priors: Dict[str, float] = {} 
         self.benchmark_key = benchmark_key
         self.cluster_boost_weight = cluster_boost_weight
+        
+        # New Model Admission: Probation List
+        # Stores model_id -> request_count_at_admission (or just boolean check in pruner)
+        self.probation_models: Dict[str, Dict[str, Any]] = {} 
+
+
+    def _count_syllables(self, word: str) -> int:
+        """Heuristic syllable counter for Flesch-Kincaid."""
+        word = word.lower().strip(".:;?!")
+        if not word: return 0
+        if len(word) <= 3: return 1
+        
+        # Count vowel groups
+        count = len(re.findall(r'[aeiouy]+', word))
+        # Subtract silent 'e' at end
+        if word.endswith('e'):
+            count -= 1
+        # Subtract consecutive vowels (already handled by regex group)
+        return max(1, count)
+
+    def _extract_handcrafted_features(self, text: str) -> np.ndarray:
+        """
+        Extract explicit features for routing logic.
+        1. is_code_heavy
+        2. requires_json
+        3. input_length_log
+        4. list_density
+        5. instruction_density
+        6. flesch_kincaid
+        7. question_count
+        8. toxicity_score
+        """
+        if not text:
+            return np.zeros(8)
+        
+        # --- BASICS ---
+        total_len = len(text)
+        words = re.findall(r'\b\w+\b', text.lower())
+        n_words = len(words)
+        lines = text.split('\n')
+        n_lines = len(lines)
+        
+        # 1. Code Heavy
+        code_blocks = re.findall(r'`{1,3}(.*?)`{1,3}', text, re.DOTALL)
+        code_len = sum(len(c) for c in code_blocks)
+        is_code_heavy = (code_len / total_len) if total_len > 0 else 0.0
+        
+        # 2. Requires JSON
+        json_keywords = ["json", "valid format", "schema", "output format"]
+        requires_json = 1.0 if any(k in text.lower() for k in json_keywords) else 0.0
+        
+        # 3. Input Length (Log)
+        n_tokens = n_words * 1.3
+        input_length_log = np.log(n_tokens + 1.0)
+        
+        # 4. List Density
+        list_markers = [l for l in lines if l.strip().startswith(('-', '*', '1.', '2.'))]
+        list_density = (len(list_markers) / n_lines) if n_lines > 0 else 0.0
+        
+        # --- COMPLEXITY ---
+        
+        # 5. Instruction Density
+        imperatives = {"create", "write", "solve", "analyze", "explain", "summarize", "find", "calculate", "implement", "design"}
+        n_imperatives = sum(1 for w in words if w in imperatives)
+        instruction_density = (n_imperatives / n_words) if n_words > 0 else 0.0
+        
+        # 6. Flesch-Kincaid Grade
+        sentences = re.split(r'[.!?]+', text)
+        n_sentences = max(1, len([s for s in sentences if s.strip()]))
+        
+        if n_words > 0:
+            n_syllables = sum(self._count_syllables(w) for w in words)
+            fk_grade = 0.39 * (n_words / n_sentences) + 11.8 * (n_syllables / n_words) - 15.59
+        else:
+            fk_grade = 0.0
+            
+        fk_normalized = max(0.0, min(fk_grade, 20.0)) / 20.0
+        
+        # 7. Question Count
+        q_count = text.count('?')
+        question_count = np.log(q_count + 1.0)
+        
+        # --- SECURITY ---
+        
+        # 8. Toxicity Score
+        toxicity_score = 0.0
+        if self._toxicity_scanner:
+            try:
+                _, _, score = self._toxicity_scanner.scan(text)
+                toxicity_score = score
+            except Exception:
+                pass
+        
+        return np.array([
+            is_code_heavy, requires_json, input_length_log, list_density,
+            instruction_density, fk_normalized, question_count,
+            toxicity_score
+        ])
+
+    def _get_cluster_distances(self, embedding: np.ndarray) -> np.ndarray:
+        """
+        Get distances to the 5 Fixed Anchor Clusters.
+        
+        Args:
+            embedding: Normalized sentence embedding (384,)
+        """
+        k = 5
+        if not self.cluster_detector:
+            return np.zeros(k) # Fallback
+            
+        try:
+            # Use Fixed Anchors (Math, Coding, etc)
+            return self.cluster_detector.get_anchor_distances(embedding)
+        except Exception as e:
+            logger.warning(f"Cluster detection failed: {e}")
+            return np.zeros(k)
+
+    def _get_context_vector(self, context: str | np.ndarray) -> np.ndarray:
+        """Convert string prompt or array to a normalized context vector."""
+        if isinstance(context, str):
+            # 1. Semantic Embedding (384 -> 32 if PCA)
+            # Captures DOMAIN/TOPIC (e.g. "Math", "Creative Writing")
+            emb_full = self.encoder.encode(context)
+            emb_full = l2_normalize(emb_full)
+            
+            if self.pca:
+                # Project 384 -> 32
+                # reshape to (1, 384) for transform, then flatten
+                emb_reduced = self.pca.transform(emb_full.reshape(1, -1)).flatten()
+            else:
+                emb_reduced = emb_full
+            
+            # 2. Handcrafted Features (8)
+            # Captures COMPLEXITY/DIFFICULTY (e.g. "Simple Arithmetic" vs "Calculus")
+            # Addressing the limitation of semantic embeddings which cluster all "Math" together.
+            feats = self._extract_handcrafted_features(context)
+            
+            # 3. Cluster Distances (5)
+            # Must use full 384-dim embedding for distance calculation
+            cluster_dists = self._get_cluster_distances(emb_full)
+            
+            # Concatenate: [Embedding, Explicit, Clusters]
+            x = np.concatenate([emb_reduced, feats, cluster_dists])
+        else:
+            x = context
+            
+        # Append bias term (Last dim)
+        return np.append(x, 1.0)
 
 
     @classmethod
@@ -321,8 +542,9 @@ class BanditRouter:
         model_registry: Optional[Dict[str, Dict[str, Any]]] = None,
         *,
         priors: str = "benchmark", # Default to HLE with sigmoid transformation
-        prior_strength: float = 40.0,
+        prior_n_effective: float = 20.0,
         exploration: str = "safe",  # Optimal: α=0.1
+        ridge_lambda: float = 1.0,
         forgetting_factor: float = 0.95,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
@@ -335,8 +557,10 @@ class BanditRouter:
         Args:
             model_registry: Dict of models. If None, loads default `models.json`.
             priors: "benchmark" (HLE) or "none".
-            prior_strength: Strength of the prior (default 40.0).
+            prior_n_effective: Effective sample size of the prior (N_eff). Controls how much we trust offline clusters.
+                               Default 20.0 (roughly 0.1% of 21k samples).
             exploration: "static", "safe", "balanced", "aggressive".
+            ridge_lambda: Regularization parameter (default 1.0).
             state_path: Optional path to a saved bandit state (.npz).
             benchmark_key: Key in models.json to use for priors (default "hle").
             cluster_boost_weight: Reward boost weight for cluster specialization (default 0.0, disabled).
@@ -356,41 +580,51 @@ class BanditRouter:
         alpha = ExplorationRate.get(exploration)
         
         # 3. Initialize
+        # Determine PCA path
+        pca_path_default = base_dir / "data" / "pca_32.joblib"
+        
         # Load Saved State (Overrides priors)
         if state_path and Path(state_path).exists():
-            router = cls(model_registry, context_model=context_model, alpha=alpha, 
+            router = cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
                         forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
-                        cluster_boost_weight=cluster_boost_weight)
+                        cluster_boost_weight=cluster_boost_weight, pca_path=pca_path_default)
             router.bandit.load_state(state_path)
             return router
 
         # Load HLE Priors (Default)
         if priors == "benchmark":
-            meta_path = base_dir / "data" / "priors_meta_large.npz"
+            # Prefer PCA priors if available
+            meta_path = base_dir / "data" / "priors_meta_pca.npz"
             if not meta_path.exists():
-                # Fallback to small if large doesn't exist (e.g. in test env)
+                meta_path = base_dir / "data" / "priors_meta_clusters.npz"
+            if not meta_path.exists():
+                # Fallback to small if clusters doesn't exist
                 meta_path = base_dir / "data" / "priors_meta.npz"
             
             if not meta_path.exists():
                  logger.warning("No priors metadata found. Falling back to cold start.")
-                 return cls(model_registry, context_model=context_model, alpha=alpha, 
-                           benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight)
+                 return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+                           benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight,
+                           pca_path=pca_path_default if pca_path_default.exists() else None)
 
             return cls.load_from_benchmark(
                 model_registry=model_registry,
                 context_model=context_model,
                 alpha=alpha,
-                prior_strength=prior_strength,
+                prior_n_effective=prior_n_effective,
+                ridge_lambda=ridge_lambda,
                 forgetting_factor=forgetting_factor,
                 priors_meta_path=meta_path,
                 benchmark_key=benchmark_key,
-                cluster_boost_weight=cluster_boost_weight
+                cluster_boost_weight=cluster_boost_weight,
+                pca_path=pca_path_default if pca_path_default.exists() else None
             )
             
         # Cold Start
-        return cls(model_registry, context_model=context_model, alpha=alpha, 
+        return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
                   forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
-                  cluster_boost_weight=cluster_boost_weight)
+                  cluster_boost_weight=cluster_boost_weight,
+                  pca_path=pca_path_default if pca_path_default.exists() else None)
 
     @classmethod
     def load_from_benchmark(
@@ -399,11 +633,13 @@ class BanditRouter:
         model_registry: Dict[str, Dict[str, Any]],
         context_model: str = DEFAULT_CONTEXT_MODEL,
         alpha: float = 0.1,
-        prior_strength: float = 40.0,
+        prior_n_effective: float = 20.0,
+        ridge_lambda: float = 1.0,
         priors_meta_path: Optional[Path] = None,
         forgetting_factor: float = 0.95,
         benchmark_key: str = "hle",
         cluster_boost_weight: float = 0.1,
+        pca_path: Optional[Path] = None,
     ) -> "BanditRouter":
         """Initialize with HLE priors using covariance matrix."""
         meta = np.load(priors_meta_path)
@@ -416,23 +652,56 @@ class BanditRouter:
             context_model=context_model, 
             alpha=alpha, 
             embedding_dim=dim,
-            forgetting_factor=forgetting_factor,
+            ridge_lambda=ridge_lambda,
             benchmark_key=benchmark_key,
-            cluster_boost_weight=cluster_boost_weight
+            cluster_boost_weight=cluster_boost_weight,
+            pca_path=pca_path
         )
         
-        # Ridge Update: A += strength * Cov, b += strength * score * Sum
-        # NORMALIZATION: We scale the benchmark (N=26223) to match prior_strength
-        N = 26223.0
+        # Ridge Update: A += gamma * Cov, b += gamma * score * Sum
+        # NORMALIZATION: We scale the benchmark (N=26223) to N_effective
+        
+        # New Logic: Load Cluster Sums
+        cluster_sums = meta["cluster_sums"] # (100, 384)
+        global_sum = meta["global_sum"]     # (384,)
+        n_clusters = cluster_sums.shape[0]
+        
+        # Calculate Gamma (Scaling Factor)
+        # gamma = N_effective / N_offline
+        # prior_n_effective is N_effective (e.g. 50)
+        # If meta has cluster_counts, use them. Otherwise use shape of global_sum? No, global_sum is dim.
+        # Check if 'count' is in meta, otherwise infer or default.
+        if "cluster_counts" in meta:
+            total_samples = float(np.sum(meta["cluster_counts"]))
+        else:
+            # Fallback if specific counts not found (should be there for meta_clusters)
+            # Assumption: priors_meta.npz logic
+            total_samples = 21000.0 
+            
+        gamma = prior_n_effective / max(total_samples, 1.0)
         
         # Pad covariance matrix for bias term (zeros for cross-terms, 1.0 for bias variance)
-        cov_padded = np.zeros((dim + 1, dim + 1))
-        cov_padded[:dim, :dim] = cov_matrix
-        cov_padded[dim, dim] = 1.0 # Bias variance
+        # AND pad for new handcrafted features if strict dimensions don't match
+        # Prior Cov is (384, 384). Router dim is likely 388 (+1 bias).
+        
+        current_dim = router.bandit.dim # e.g. 389 (384+4+1)
+        prior_dim = dim # e.g. 384
+        
+        cov_padded = np.eye(current_dim) # Default to identity for new features/bias
+        # Fill strictly the top-left block with the prior covariance
+        # This means new features start with Identity covariance (neutral prior)
+        cov_padded[:prior_dim, :prior_dim] = cov_matrix
+        
+        # Pre-calculate scaled covariance to add to A
+        # A_0 = gamma * Sum(xx^T) + lambda * I
+        # We only add gamma * cov_padded because A is already initialized to lambda * I
+        A_prior_update = gamma * cov_padded
+        
+        # Ensure bias term (last element) has variance 1.0 (It is already 1.0 from eye init)
         
         for m in router.bandit.models:
-            # Scale initial identity to match prior_strength. 
-            router.bandit.A[m] *= prior_strength
+            # Update A with the prior
+            router.bandit.A[m] += A_prior_update
             
             # Get score (default 0.05 if missing to allow new models)
             # This satisfies "new model with no benchmarks" constraint
@@ -440,9 +709,61 @@ class BanditRouter:
             
             # Transform HLE score to realistic utility prior
             # Raw HLE scores are 0-40%, but even 6% indicates a highly capable model
-            score = transform_hle_to_prior(raw_score)
-            
             # ------------------------------------------------------------------
+            # CLUSTER-AWARE PRIOR (The "Heatmap" Logic)
+            # ------------------------------------------------------------------
+            # Instead of Global HLE, we use per-cluster success rates.
+            # b_initial = Sum( Success_Rate[k] * Cluster_Sum_Vec[k] ) over all k=1..100
+            
+            cluster_rates = model_registry.get(m, {}).get("cluster_success_rates", [])
+            
+            # If model has no cluster data, fallback to global HLE or neutral
+            if not cluster_rates or len(cluster_rates) != n_clusters:
+                # Fallback: Just use global HLE for all clusters (effectively the old way)
+                # Or just use the raw score as a flat prior
+                score = transform_hle_to_prior(raw_score)
+                # bias update (scalar * global_sum)
+                bias_update_vec = (score * global_sum)
+            else:
+                # Vectorized operation: 
+                # weighted_sum = sum( rate[k] * cluster_sum[k] )
+                # rates is (100,), cluster_sums is (100, 384) -> dot product
+                
+                # Transform rates? The user says "Success Rate * x_i" directly.
+                # But success rates are 0.9, 0.4 etc. 
+                # Should we transform them like HLE?
+                # User example: "Add 0.9 * x_A". So raw rate is fine.
+                # However, LinUCB rewards are usually 0-1 sigmoid.
+                # Initialize assuming rates correspond to expected reward.
+                
+                rates_array = np.array(cluster_rates)
+                
+                # Weighted sum of feature vectors
+                # result shape: (384,)
+                weighted_sum_features = np.dot(rates_array, cluster_sums)
+                
+                bias_update_vec = weighted_sum_features
+
+            # Apply Strength scaling (Gamma)
+            # router.bandit.b[m] is shape (dim,)
+            # We add to the first `prior_dim` elements
+            
+            # Note: b vector accumulates x*y. Here y is the success rate.
+            # So we enable the bandit to "know" which features correlate with success.
+            # b_0 = gamma * Sum(x * y)
+            router.bandit.b[m][:prior_dim] += gamma * bias_update_vec
+
+            # Update the Bias Term (Last Element)
+            # This represents the "average" success across the whole space
+            # we want: gamma * Sum(1 * y) = gamma * Sum(y)
+            # Sum(y) = avg_success * total_samples
+            if cluster_rates and len(cluster_rates) == n_clusters:
+                avg_success = np.dot(rates_array, meta["cluster_counts"]) / total_samples
+                router.bandit.b[m][-1] += gamma * (avg_success * total_samples)
+            else:
+                 # Fallback: Treat raw_score as average success
+                 router.bandit.b[m][-1] += gamma * (raw_score * total_samples)
+
             # ------------------------------------------------------------------
             # SMART PRIOR: Efficiency Boosting (LiteLLM-inspired)
             # ------------------------------------------------------------------
@@ -474,23 +795,345 @@ class BanditRouter:
             
             # Cluster boost now handled via process_feedback() with ClusterDetector
             # Apply efficiency boost only to priors
-            score *= efficiency_boost
+            # Apply Efficiency to the final B vector?
+            # "Smart Prior" implies it prefers efficient models.
+            # Apply Efficiency to the final B vector?
+            # "Smart Prior" implies it prefers efficient models.
+            # Retaining this boost for now but applied to the calculated vector.
+            router.bandit.b[m] *= efficiency_boost
             
-            if score > 0:
-                # Update A with padded covariance
-                router.bandit.A[m] += prior_strength * (cov_padded / N)
-                
-                # Update b: Set the bias term to the score
-                # The embedding part of b is 0 (assuming average prompt is neutral)
-                # b = [0, ..., 0, prior_strength * score]
-                bias_update = np.zeros(dim + 1)
-                bias_update[dim] = prior_strength * score
-                router.bandit.b[m] += bias_update
-                
             # Recompute inverse
             router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
             
         return router
+
+    # ---------------------------------------------------------------------------
+    # New Model Admission Protocol ("Transfer & Verify")
+    # ---------------------------------------------------------------------------
+    
+    def _calculate_global_stats(self) -> Dict[str, Tuple[float, float, float]]:
+        """Calculate min/max/mean stats for all registered models to normalize features."""
+        stats = {
+            "cost": [],
+            "latency": [],
+            "hle": [],
+            "context": []
+        }
+        
+        for m_data in self.registry.values():
+            stats["cost"].append(float(m_data.get("input_cost_per_m") or 0.0))
+            stats["latency"].append(float(m_data.get("time_to_first_token_seconds") or 0.0))
+            stats["hle"].append(float(m_data.get(self.benchmark_key) or 0.0))
+            stats["context"].append(float(m_data.get("context_length") or 4096.0))
+            
+        def safe_stats(values):
+            arr = np.array(values)
+            return (float(np.min(arr)), float(np.max(arr)), float(np.mean(arr)))
+            
+        return {
+            "cost": safe_stats(stats["cost"]),
+            "latency": safe_stats(stats["latency"]),
+            "hle": safe_stats(stats["hle"]),
+            "context": safe_stats(stats["context"])
+        }
+
+    def _vectorize_model_metadata(self, model_data: Dict[str, Any], global_stats: Dict[str, Tuple[float, float, float]]) -> np.ndarray:
+        """
+        Create a static feature vector V for transfer learning.
+        V = [Norm(Cost), Norm(Latency), Norm(HLE_Score), Context_Window_Log_Norm]
+        """
+        # Extract
+        cost = float(model_data.get("input_cost_per_m") or 0.0)
+        lat = float(model_data.get("time_to_first_token_seconds") or 0.0)
+        hle = float(model_data.get(self.benchmark_key) or 0.0)
+        ctx = float(model_data.get("context_length") or 4096.0)
+        
+        # Helper: MinMax Normalize to [0, 1]
+        def normalize(val, key, log=False):
+            min_v, max_v, _ = global_stats[key]
+            if log:
+                val = np.log(val + 1e-9)
+                min_v = np.log(min_v + 1e-9)
+                max_v = np.log(max_v + 1e-9)
+            
+            if max_v - min_v < 1e-9: return 0.5
+            return (val - min_v) / (max_v - min_v)
+            
+        # Vector Construction
+        return np.array([
+            normalize(cost, "cost"),
+            normalize(lat, "latency"),
+            normalize(hle, "hle"),
+            normalize(ctx, "context", log=True)
+        ])
+
+    def _is_pareto_dominated(self, new_model_data: Dict[str, Any]) -> bool:
+        """
+        Phase 1: Optimizer Gatekeeper.
+        Checks if the new model (with Optimistic Reward=1.0) is dominated by existing models
+        across all major utility profiles (Quality, Cost, Latency).
+        """
+        # Hypothetical perfect score components
+        # We calculate what the score WOULD be if Reward=1.0
+        
+        # 1. Normalize New Model inputs
+        # We need the runtime normalization statistics (from active pool) used in select_arm
+        # But here we can approximate using the global registry stats for "Admission"
+        
+        costs = [float(m.get("input_cost_per_m") or 0.0) for m in self.registry.values()]
+        lats = [float(m.get("time_to_first_token_seconds") or 0.0) for m in self.registry.values()]
+        
+        min_c, max_c = min(costs), max(costs)
+        min_l, max_l = min(lats), max(lats)
+        
+        def get_score(reward, cost, lat, profile):
+            # Normalize Cost/Lat (Log-MinMax as per router logic)
+            # Clip for safety
+            cost = max(cost, 1e-9)
+            lat = max(lat, 1e-9)
+            
+            # Log transform
+            c_log = math.log(cost)
+            l_log = math.log(lat)
+            
+            min_c_log, max_c_log = math.log(max(min_c, 1e-9)), math.log(max_c)
+            min_l_log, max_l_log = math.log(max(min_l, 1e-9)), math.log(max_l)
+            
+            c_norm = (c_log - min_c_log) / (max_c_log - min_c_log) if max_c_log > min_c_log else 0.0
+            l_norm = (l_log - min_l_log) / (max_l_log - min_l_log) if max_l_log > min_l_log else 0.0
+            
+            # Score = Reward - (w_c * C) - (w_l * L)
+            return reward - (profile["lambda_cost"] * c_norm) - (profile["lambda_latency"] * l_norm)
+
+        new_cost = float(new_model_data.get("input_cost_per_m") or 0.0)
+        new_lat = float(new_model_data.get("time_to_first_token_seconds") or 0.0)
+        
+        # Profiles to check
+        profiles = [
+            OptimizationProfile.QUALITY_FIRST,
+            OptimizationProfile.BEST_VALUE,
+            OptimizationProfile.COST_SAVER,
+            OptimizationProfile.LOW_LATENCY
+        ]
+        
+        # Check dominance
+        is_useful_in_any_profile = False
+        
+        for profile in profiles:
+            # Optimistic Score for New Model (Reward = 1.0)
+            opt_score = get_score(1.0, new_cost, new_lat, profile)
+            
+            # Best Score among existing models (using their ESTIMATED quality from registry or HLE?)
+            # Use HLE as a proxy for "current known quality" for the gatekeeper check
+            best_existing = -float("inf")
+            for m_id, m_data in self.registry.items():
+                if m_id == new_model_data["openrouter_id"]: continue
+                
+                m_hle = transform_hle_to_prior(float(m_data.get(self.benchmark_key) or 0.0))
+                m_cost = float(m_data.get("input_cost_per_m") or 0.0)
+                m_lat = float(m_data.get("time_to_first_token_seconds") or 0.0)
+                
+                score = get_score(m_hle, m_cost, m_lat, profile)
+                if score > best_existing:
+                    best_existing = score
+            
+            # If the new model (even with perfect score) can beat the best existing model
+            # in THIS profile, then it is NOT dominated.
+            if opt_score >= best_existing:
+                is_useful_in_any_profile = True
+                break
+        
+        return not is_useful_in_any_profile
+
+    def admit_new_model(self, model_data: Dict[str, Any], dampening: float = 0.1) -> bool:
+        """
+        Validate and Initialize a new model using Ridge Regression Transfer.
+        Returns True if admitted, False if rejected.
+        """
+        model_id = model_data["openrouter_id"]
+        
+        # 1. Update Registry temporarily to include new stats (or just use local var)
+        # We need it in registry for stats calculation, but if we reject, we remove it.
+        # Ideally check BEFORE adding.
+        
+        # Phase 1: Admission Check
+        if self._is_pareto_dominated(model_data):
+            logger.info(f"Refusing admission to {model_id}: Pareto Dominated (even with optimistic reward).")
+            return False
+            
+        # Add to registry
+        self.registry[model_id] = model_data
+        
+        # Phase 2: Initialization (Transfer)
+        stats = self._calculate_global_stats()
+        new_vec = self._vectorize_model_metadata(model_data, stats)
+        
+        # Find Neighbors
+        candidates = []
+        for m_id in self.bandit.models:
+            if m_id == model_id: continue
+            if m_id not in self.registry: continue
+            
+            m_vec = self._vectorize_model_metadata(self.registry[m_id], stats)
+            dist = np.linalg.norm(new_vec - m_vec)
+            candidates.append((dist, m_id))
+            
+        # Sort by distance
+        candidates.sort(key=lambda x: x[0])
+        neighbors = candidates[:3] # Top 3
+        
+        if not neighbors:
+             # Fallback: Just add initialized (Identity)
+             self.bandit.add_arm(model_id)
+        else:
+            # Average Matrices
+            A_sum = np.zeros_like(self.bandit.A[neighbors[0][1]])
+            b_sum = np.zeros_like(self.bandit.b[neighbors[0][1]])
+            
+            for _, n_id in neighbors:
+                A_sum += self.bandit.A[n_id]
+                b_sum += self.bandit.b[n_id]
+                
+            A_avg = A_sum / len(neighbors)
+            b_avg = b_sum / len(neighbors)
+            
+            # Dampen (Inflate Variance)
+            # A_new = eps * A_avg + (1-eps) * I * lambda
+            lambda_reg = self.bandit.ridge_lambda
+            identity = np.eye(A_avg.shape[0]) * lambda_reg
+            
+            A_new = (dampening * A_avg) + ((1.0 - dampening) * identity)
+            b_new = dampening * b_avg
+            
+            # Register in Bandit
+            self.bandit.add_arm(model_id)
+            self.bandit.A[model_id] = A_new
+            self.bandit.b[model_id] = b_new
+            self.bandit.A_inv[model_id] = np.linalg.inv(A_new)
+            
+            logger.info(f"Initialized {model_id} via transfer from: {[n[1] for n in neighbors]}")
+
+        # Phase 3: Probation
+        self.probation_models[model_id] = {
+            "start_t": self.bandit.t,
+            "status": "PROBATION",
+            "immune_until": self.bandit.t + 500
+        }
+        
+        return True
+
+    def prune_arms(self, min_requests: int = 1000, selection_threshold: float = 0.001) -> List[str]:
+        """
+        Lazy Pruning (Eviction) Mechanism.
+        Removes models that are "Starved" (Selection < 0.1%) AND "Dominated" (Pareto sub-optimal).
+        
+        Args:
+            min_requests: Only prune if we have at least this many logs (warm-up check).
+            selection_threshold: Usage frequency below which a model is considered "Starved".
+            
+        Returns:
+            List of removed model IDs.
+        """
+        if len(self.logs) < min_requests:
+            return []
+            
+        # 1. Calculate Selection Rates (Starvation Check)
+        # Using a sliding window of last 1000 requests for relevance, or all?
+        # User implies periodic check, so let's use the last N logs matching min_requests
+        recent_logs = self.logs[-min_requests:]
+        counts = Counter(l.selected_model for l in recent_logs)
+        total = len(recent_logs)
+        
+        starved_candidates = []
+        for m in self.bandit.models:
+            # Check Probation Immunity
+            if m in self.probation_models:
+                p_info = self.probation_models[m]
+                # If immune, skip
+                if self.bandit.t < p_info["immune_until"]:
+                    continue
+                # If graduated, remove from probation map (cleanup)
+                if self.bandit.t >= p_info["immune_until"]:
+                    del self.probation_models[m]
+                    
+            rate = counts[m] / total
+            if rate < selection_threshold:
+                starved_candidates.append(m)
+                
+        if not starved_candidates:
+            return []
+            
+        # 2. Calculate "Learned Quality" (Real mu)
+        # We average the predicted utility over the recent contexts for ALL models (not just starved)
+        # to establish the current Pareto Frontier.
+        
+        # Sample contexts: Use unique contexts from recent logs, capped at 50 for speed
+        sample_contexts = [l.context_vector for l in recent_logs if l.context_vector is not None]
+        # De-duplicate by bytes hash if needed, or just take every kth
+        if len(sample_contexts) > 50:
+             # Take 50 evenly spaced
+             indices = np.linspace(0, len(sample_contexts)-1, 50, dtype=int)
+             sample_contexts = [sample_contexts[i] for i in indices]
+             
+        if not sample_contexts:
+            return [] # Cannot estimate quality
+            
+        # Compute Mean Utility for each model m on these contexts
+        # mu = Mean(x^T * theta)
+        model_quality = {}
+        for m in self.bandit.models:
+            if m not in self.bandit.A_inv: continue
+            theta = self.bandit.A_inv[m] @ self.bandit.b[m]
+            
+            utilities = []
+            for x in sample_contexts:
+                utilities.append(float(np.dot(theta, x)))
+            
+            model_quality[m] = float(np.mean(utilities))
+            
+        # 3. Check Dominance
+        # A Starved model is removed ONLY if it is strictly dominated by another model.
+        # Dominated means: Exists B such that Cost(B) < Cost(A) AND Quality(B) > Quality(A).
+        # We also usually check Latency. User said "Cheaper AND Higher Win Rate".
+        # Let's stick to Cost/Quality for KDD simplifiction, or include Latency if critical.
+        # User prompt: "Is there another model that is Cheaper AND has a higher empirical Win Rate?"
+        
+        removed = []
+        for victim in starved_candidates:
+            victim_q = model_quality.get(victim, -float('inf'))
+            victim_c = float(self.registry.get(victim, {}).get("input_cost_per_m") or 0.0)
+            
+            is_dominated = False
+            dominator = None
+            
+            for other in self.bandit.models:
+                if other == victim: continue
+                if other in removed: continue # Don't compare against already marked for death
+                
+                other_q = model_quality.get(other, -float('inf'))
+                other_c = float(self.registry.get(other, {}).get("input_cost_per_m") or 0.0)
+                
+                # Strict Dominance Check
+                # Equal cost/quality is not dominance.
+                if other_c <= victim_c and other_q > victim_q:
+                     is_dominated = True
+                     dominator = other
+                     break
+                # Or Significantly Cheaper and Equal Quality?
+                # User said "Cheaper AND Higher Win Rate". Strict on both?
+                # Usually standard Pareto is <= and >= with at least one strict.
+                # Let's assume strict on Quality, <= on Cost.
+                
+            if is_dominated:
+                # EVICT
+                logger.info(f"Evicting {victim}: Starved (<0.1%) and Dominated by {dominator} (Q:{other_q:.2f}>{victim_q:.2f}, C:{other_c}<={victim_c})")
+                self.bandit.delete_arm(victim)
+                del self.registry[victim]
+                removed.append(victim)
+                
+        return removed
+
+
 
     def _classify_sensitivity(self, text: str) -> str:
         """
@@ -519,7 +1162,7 @@ class BanditRouter:
 
     def route(
         self,
-        prompt: str,
+        prompt: str | np.ndarray,
         *,
         profile: str = "best_value",
         sensitivity: Optional[str] = None, # Manual override: "LOW", "MID", "HIGH"
@@ -539,6 +1182,9 @@ class BanditRouter:
         """
         # 1. Embed & Context
         x = self._get_context_vector(prompt)
+        
+        # We still need the text for logging and cluster detection if prompt is an array
+        prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded Prompt]"
         
         # Detect cluster if detector available
         cluster_id = None
@@ -568,7 +1214,7 @@ class BanditRouter:
         
         # --- RISK GATING ---
         # Two-Tier System: Only HIGH triggers gating
-        eff_sensitivity = sensitivity.upper() if sensitivity else self._classify_sensitivity(prompt)
+        eff_sensitivity = sensitivity.upper() if sensitivity else self._classify_sensitivity(prompt_text)
         
         # HIGH: <= 2.5% Risk (Forces safe models like GPT-4o)
         # LOW: No Filter (Bandit optimizes freely)
@@ -627,31 +1273,41 @@ class BanditRouter:
             ucbs[m] = ucb
             
         # Calculate Utility
-        # Normalization: Scale Cost (Log) and Latency (Linear) to [0, 1]
+        # Normalization: Scale Cost (Log) and Latency (Linear) to [0, 1] relative to the pool
         costs = {m: self._estimate_cost(m, in_tok, output_tokens) for m in filtered}
         lats = {m: self._estimate_latency(m, output_tokens) for m in filtered}
         
-        # Log-MinMax Normalization
+        # Log-MinMax Normalization for Cost (Handles large dynamic range)
         EPS = 1e-9
-        
         log_costs = {m: np.log(max(costs[m], EPS)) for m in filtered}
-        log_lats = {m: np.log(max(lats[m], EPS)) for m in filtered}
-        
         min_c, max_c = min(log_costs.values()), max(log_costs.values())
-        range_c = max_c - min_c if max_c > min_c else 1.0
+        range_c = max_c - min_c
         
+        # Linear MinMax Normalization for Latency (Usually tighter range)
+        # Or Log if we expect 0.1s vs 10s. Let's use Log to be safe against outliers.
+        log_lats = {m: np.log(max(lats[m], EPS)) for m in filtered}
         min_l, max_l = min(log_lats.values()), max(log_lats.values())
-        range_l = max_l - min_l if max_l > min_l else 1.0
+        range_l = max_l - min_l
         
         for m in filtered:
             quality = ucbs[m]
             
-            # Normalize to [0, 1] in Log Space
-            norm_cost = (log_costs[m] - min_c) / range_c
-            norm_lat = (log_lats[m] - min_l) / range_l
+            # Normalize to [0, 1]
+            # 0.0 = Cheapest/Fastest in pool
+            # 1.0 = Most Expensive/Slowest in pool
             
-            # Utility = Quality - (w_c * NormCost) - (w_l * NormLatency)
-            # Risk is handled by GATING, so no penalty here.
+            # Stability Check: If range is negligible (e.g. all same cost), set to 0.0
+            if range_c < 1e-9:
+                norm_cost = 0.0
+            else:
+                norm_cost = (log_costs[m] - min_c) / range_c
+                
+            if range_l < 1e-9:
+                norm_lat = 0.0
+            else:
+                norm_lat = (log_lats[m] - min_l) / range_l
+            
+            # This ensures w_c=1.0 means "Cost difference of pool width is equal to 1.0 Quality"
             utility = quality - (lambda_cost * norm_cost) - (lambda_latency * norm_lat)
             
             if utility > best_utility:
@@ -662,13 +1318,32 @@ class BanditRouter:
         log  = RoutingLog(
             request_id=str(time.time_ns()),
             timestamp_s=time.time(),
-            prompt=prompt,
+            prompt=prompt_text,
             selected_model=best_model,
             predicted_utility=float(best_utility),
             cost_usd=self._estimate_cost(best_model, in_tok, output_tokens),
             latency_s=self._estimate_latency(best_model, output_tokens),
             cluster_id=cluster_id,
-            cluster_similarity=cluster_similarity
+            cluster_similarity=cluster_similarity,
+            context_vector=x # Cache for feedback loop
+        )
+        # Trigger Lazy Pruning (Periodically)
+        # e.g., every 100 requests (for demo) or 1000
+        if len(self.logs) % 100 == 0:
+             self.prune_arms(min_requests=100) # Lower min_requests for testing/demo
+             
+        # 5. Log
+        log  = RoutingLog(
+            request_id=str(time.time_ns()),
+            timestamp_s=time.time(),
+            prompt=prompt_text,
+            selected_model=best_model,
+            predicted_utility=float(best_utility),
+            cost_usd=self._estimate_cost(best_model, in_tok, output_tokens),
+            latency_s=self._estimate_latency(best_model, output_tokens),
+            cluster_id=cluster_id,
+            cluster_similarity=cluster_similarity,
+            context_vector=x # Cache for feedback loop
         )
         self.logs.append(log)
         
@@ -728,7 +1403,8 @@ class BanditRouter:
                     )
         
         # Update bandit with boosted reward
-        x = self._get_context_vector(log.prompt)
+        # Use cached context vector to avoid re-encoding
+        x = log.context_vector if log.context_vector is not None else self._get_context_vector(log.prompt)
         self.bandit.update(log.selected_model, x, boosted_reward)
 
     def get_probabilities(self, context: str | np.ndarray, model_ids: List[str] | None = None) -> Dict[str, float]:
@@ -788,16 +1464,6 @@ class BanditRouter:
             self.bandit.A[model_id][-1, -1] += 20.0
             self.bandit.A_inv[model_id] = np.linalg.inv(self.bandit.A[model_id])
 
-    def _get_context_vector(self, context: str | np.ndarray) -> np.ndarray:
-        """Convert string prompt or array to a normalized context vector."""
-        if isinstance(context, str):
-            x = self.encoder.encode(context)
-            x = l2_normalize(x)
-        else:
-            x = context
-            
-        # Append bias term
-        return np.append(x, 1.0)
 
     def save_state(self, path: Path | str) -> None:
         """Save the bandit's learned state to disk."""
