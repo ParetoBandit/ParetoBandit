@@ -51,7 +51,7 @@ def compute_cluster_performance(rewards: List[dict]) -> Dict[str, Dict[int, List
     return model_cluster_scores
 
 def compute_cluster_success_rates(model_cluster_scores: Dict[str, Dict[int, List[float]]], 
-                                   num_clusters: int = 500) -> Dict[str, dict]:
+                                   num_clusters: int = 100) -> Dict[str, dict]:
     """
     Compute success rate vector and best cluster for each model.
     
@@ -154,7 +154,7 @@ def main():
     
     # Compute success rates
     print("\nComputing success rate vectors...")
-    model_metrics = compute_cluster_success_rates(model_cluster_scores, num_clusters=500)
+    model_metrics = compute_cluster_success_rates(model_cluster_scores, num_clusters=100)
     
     # Print sample results
     print("\n=== Sample Results ===")

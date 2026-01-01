@@ -69,16 +69,17 @@ def run_real_adaptation_simulation():
             item = sim_data['specialized'][(t - n_phase1) % len(sim_data['specialized'])]
         
         x = np.array(item['embedding'])
+        x_vec = router._get_context_vector(x)
         
         # Select model
-        chosen, _ = router.bandit.select_arm(x, candidates=selected_models)
+        chosen, _ = router.bandit.select_arm(x_vec, candidates=selected_models)
         
         # Get real reward from data
         logit = item['rewards'].get(chosen, -5.0)
         reward = sigmoid(logit)
         
         # Update Bandit
-        router.bandit.update(chosen, x, reward)
+        router.bandit.update(chosen, x_vec, reward)
         
         # Track metrics
         if chosen in selection_counts:

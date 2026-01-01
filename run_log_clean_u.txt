@@ -1,0 +1,174 @@
+============================================================
+FIGURE 1: REGRET REDUCTION ANALYSIS (CLUSTER PRIORS)
+============================================================
+
+[1/5] Loading model registry...
+  Loaded 36 models
+
+[2/5] Loading TEST data (strict hold-out)...
+  Loaded 1000 total prompts (Test Only)
+
+[3/5] Loading ground truth rewards...
+  Loaded 36000 combined reward entries
+  Built ground truth lookup with 35917 entries
+  Test set clusters: 100
+  Models: 36
+  Expected entries: 3600
+
+[4/5] Processing prompt data...
+  Prompts: 1000
+  Cluster IDs: 1000
+
+[5/5] Running 30 Trials (Sequential Execution)...
+  Each trial: 1000 prompts with different random ordering
+  [Optimization] ClusterDetector disabled for speed (Cluster features will be 0)
+
+[Optimization] Pre-computing context vectors for all prompts...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+  Unique prompts to encode: 1000
+  Encoded 0/1000...  Encoded 100/1000...  Encoded 200/1000...  Encoded 300/1000...  Encoded 400/1000...  Encoded 500/1000...  Encoded 600/1000...  Encoded 700/1000...  Encoded 800/1000...  Encoded 900/1000...  ✓ Pre-computed 1000 vectors.
+    Running Trial 1/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+/Users/annette/repostitories/llm_jury/banditgpt/bandit.py:762: RuntimeWarning: invalid value encountered in scalar divide
+  avg_success = np.dot(rates_array, meta["cluster_counts"]) / total_samples
+    ✓ Trial 1 complete (Length: 999)
+    Running Trial 2/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 2 complete (Length: 999)
+    Running Trial 3/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 3 complete (Length: 998)
+    Running Trial 4/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 4 complete (Length: 997)
+    Running Trial 5/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 5 complete (Length: 998)
+    Running Trial 6/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 6 complete (Length: 999)
+    Running Trial 7/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 7 complete (Length: 999)
+    Running Trial 8/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 8 complete (Length: 998)
+    Running Trial 9/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 9 complete (Length: 997)
+    Running Trial 10/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 10 complete (Length: 999)
+    Running Trial 11/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 11 complete (Length: 1000)
+    Running Trial 12/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 12 complete (Length: 997)
+    Running Trial 13/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 13 complete (Length: 999)
+    Running Trial 14/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 14 complete (Length: 997)
+    Running Trial 15/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 15 complete (Length: 999)
+    Running Trial 16/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 16 complete (Length: 1000)
+    Running Trial 17/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 17 complete (Length: 999)
+    Running Trial 18/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 18 complete (Length: 996)
+    Running Trial 19/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 19 complete (Length: 998)
+    Running Trial 20/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 20 complete (Length: 1000)
+    Running Trial 21/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 21 complete (Length: 999)
+    Running Trial 22/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 22 complete (Length: 996)
+    Running Trial 23/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 23 complete (Length: 999)
+    Running Trial 24/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 24 complete (Length: 998)
+    Running Trial 25/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 25 complete (Length: 996)
+    Running Trial 26/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 26 complete (Length: 997)
+    Running Trial 27/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 27 complete (Length: 998)
+    Running Trial 28/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 28 complete (Length: 997)
+    Running Trial 29/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 29 complete (Length: 999)
+    Running Trial 30/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 30 complete (Length: 994)
+
+[INFO] Truncating curves to common length: 994 (due to Strict Mode skipping)
+
+============================================================
+RESULTS (Mean across 30 trials)
+============================================================
+
+Final Cold Start Regret: 114.399 ± 8.531
+Final Warm Start Regret: 24.239 ± 0.000
+  Cold Start IQR: [108.045, 121.030]
+  Warm Start IQR: [24.500, 24.500]
+Final Regret Reduction: 78.81%
+
+Mean Maximum Gap: 90.160 at request 994
+  Cold Start regret at peak: 114.399
+  Warm Start regret at peak: 24.239
+  Peak reduction: 78.81%
+
+Generating plot...
+
+Plot saved to: /Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/regret_comparison.png
+
+✅ COMPLETE!

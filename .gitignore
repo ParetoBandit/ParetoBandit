@@ -146,3 +146,14 @@ helpsteer_gemini_*.jsonl
 **/full_embeddings*.npy
 **/train_embeddings*.npy
 **/*.pdf
+
+# Large reward data files (>10MB)
+banditgpt/data/*_rewards*.jsonl
+banditgpt/data/lmsys_all_prompts*.jsonl
+banditgpt/data/helpsteer*.jsonl
+
+# Keep small essential files
+!banditgpt/data/test_prompts.jsonl
+!banditgpt/data/train_prompts.jsonl
+!banditgpt/data/train_prompts_sampled_1k.jsonl
+!banditgpt/data/golden_prompts.jsonl

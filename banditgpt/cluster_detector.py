@@ -48,7 +48,7 @@ class ClusterDetector:
         Golden prompts are the representatives closest to each cluster center.
         """
         # Try to load golden prompts
-        base_dir = Path(__file__).parent / "data"
+        base_dir = Path(__file__).parent / "priors"
         golden_path = base_dir / "golden_prompts.jsonl"
         
         if not golden_path.exists():
@@ -123,19 +123,23 @@ class ClusterDetector:
         np.savez_compressed(path, centroids=self.centroids)
         print(f"✓ Saved centroids to {path}")
     
-    def detect_cluster(self, prompt: str) -> Tuple[int, float]:
+    def detect_cluster(self, prompt: str | np.ndarray) -> Tuple[int, float]:
         """
         Detect which cluster a prompt belongs to.
         
         Args:
-            prompt: User input text
+            prompt: User input text or pre-computed embedding
             
         Returns:
             (cluster_id, similarity): Cluster ID and cosine similarity to centroid
         """
-        # Encode prompt
-        embedding = self.encoder.encode([prompt], normalize_embeddings=True, 
-                                       show_progress_bar=False)[0]
+        # Encode prompt if it's a string
+        if isinstance(prompt, str):
+            embedding = self.encoder.encode([prompt], normalize_embeddings=True, 
+                                           show_progress_bar=False)[0]
+        else:
+            # Use provided embedding (ensure it's normalized)
+            embedding = prompt / (np.linalg.norm(prompt) + 1e-8)
         
         # Compute cosine similarity to all centroids
         similarities = np.dot(self.centroids, embedding)
@@ -166,6 +170,43 @@ class ClusterDetector:
         
         return [(int(idx), float(similarities[idx])) for idx in top_k_indices]
 
+    # Fixed Anchor Clusters for hybrid features (KDD Paper)
+    # Selected based on distinct semantic types: 
+    # 12: Python Coding, 55: Math/Arithmetic, 96: Creative Writing, 49: Jokes/Humor, 27: Explanation/Reasoning
+    ANCHOR_CLUSTERS = {
+        12: "Coding",
+        55: "Math",
+        96: "Creative Writing",
+        49: "Jokes",
+        27: "Reasoning"
+    }
+
+    def get_anchor_distances(self, prompt_embedding: np.ndarray) -> np.ndarray:
+        """
+        Compute distances to the 5 fixed anchor clusters.
+        
+        Using fixed anchors (Math, Coding, etc.) ensures the feature semantics 
+        remain stable across requests, unlike "nearest 5 clusters".
+        
+        Args:
+            prompt_embedding: Normalized embedding vector (384,)
+            
+        Returns:
+            distances: Array of 5 float distances (1 - cosine_similarity)
+        """
+        # Get subset of centroids for anchors
+        anchor_ids = sorted(self.ANCHOR_CLUSTERS.keys())
+        anchor_centroids = self.centroids[anchor_ids]
+        
+        # Calculate cosine similarity: dot product of normalized vectors
+        # Shape: (5_anchors, 384) @ (384,) -> (5,)
+        similarities = np.dot(anchor_centroids, prompt_embedding)
+        
+        # Convert to distance (1 - similarity)
+        # We clip to [0, 2] range to handle float errors
+        distances = 1.0 - similarities
+        return np.clip(distances, 0.0, 2.0)
+
 
 def main():
     """Demo: Test cluster detection."""
@@ -195,7 +236,7 @@ def main():
         print()
     
     # Save centroids for faster future loading
-    output_path = Path(__file__).parent / "data" / "cluster_centroids.npz"
+    output_path = Path(__file__).parent / "priors" / "cluster_centroids.npz"
     detector.save_centroids(output_path)
     
     print(f"\n✓ Cluster detection ready for production use!")

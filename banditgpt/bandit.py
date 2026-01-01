@@ -593,13 +593,8 @@ class BanditRouter:
 
         # Load HLE Priors (Default)
         if priors == "benchmark":
-            # Prefer PCA priors if available
-            meta_path = base_dir / "data" / "priors_meta_pca.npz"
-            if not meta_path.exists():
-                meta_path = base_dir / "data" / "priors_meta_clusters.npz"
-            if not meta_path.exists():
-                # Fallback to small if clusters doesn't exist
-                meta_path = base_dir / "data" / "priors_meta.npz"
+            # Use PCA-based priors (45D: 32 PCA + 8 handcrafted + 5 cluster)
+            meta_path = base_dir / "priors" / "priors_meta_pca.npz"
             
             if not meta_path.exists():
                  logger.warning("No priors metadata found. Falling back to cold start.")
@@ -729,14 +724,15 @@ class BanditRouter:
                 # weighted_sum = sum( rate[k] * cluster_sum[k] )
                 # rates is (100,), cluster_sums is (100, 384) -> dot product
                 
-                # Transform rates? The user says "Success Rate * x_i" directly.
-                # But success rates are 0.9, 0.4 etc. 
-                # Should we transform them like HLE?
-                # User example: "Add 0.9 * x_A". So raw rate is fine.
-                # However, LinUCB rewards are usually 0-1 sigmoid.
-                # Initialize assuming rates correspond to expected reward.
+                # IMPORTANT: 'cluster_rates' is a Dict {"0": 0.9, ...}. 
+                # We must convert to list ordered by integer index 0..N-1 to match cluster_sums rows.
+                ordered_rates = []
+                for k in range(n_clusters):
+                    # Default to global score or 0.5 if missing specific cluster
+                    val = cluster_rates.get(str(k), cluster_rates.get(k, 0.5)) 
+                    ordered_rates.append(float(val))
                 
-                rates_array = np.array(cluster_rates)
+                rates_array = np.array(ordered_rates)
                 
                 # Weighted sum of feature vectors
                 # result shape: (384,)

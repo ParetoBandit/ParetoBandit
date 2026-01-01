@@ -1,0 +1,211 @@
+/Users/annette/repostitories/llm_jury/banditgpt/bandit.py:762: RuntimeWarning: invalid value encountered in scalar divide
+  avg_success = np.dot(rates_array, meta["cluster_counts"]) / total_samples
+============================================================
+FIGURE 1: REGRET REDUCTION ANALYSIS (CLUSTER PRIORS)
+============================================================
+
+[1/5] Loading model registry...
+  Loaded 36 models
+
+[2/5] Loading TEST data (strict hold-out)...
+  Loaded 1000 total prompts (Test Only)
+
+[3/5] Loading ground truth rewards...
+  Loaded 36000 combined reward entries
+  Built ground truth lookup with 35917 entries
+  Test set clusters: 100
+  Models: 36
+  Expected entries: 3600
+
+[4/5] Processing prompt data...
+  Prompts: 1000
+  Cluster IDs: 1000
+
+[5/5] Running 30 Trials (Sequential Execution)...
+  Each trial: 1000 prompts with different random ordering
+  [Optimization] ClusterDetector disabled for speed (Cluster features will be 0)
+
+[Optimization] Pre-computing context vectors for all prompts...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+  Unique prompts to encode: 1000
+  Encoded 0/1000...  Encoded 100/1000...  Encoded 200/1000...  Encoded 300/1000...  Encoded 400/1000...  Encoded 500/1000...  Encoded 600/1000...  Encoded 700/1000...  Encoded 800/1000...  Encoded 900/1000...  ✓ Pre-computed 1000 vectors.
+    Running Trial 1/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 1 complete (Length: 999)
+    Running Trial 2/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 2 complete (Length: 999)
+    Running Trial 3/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 3 complete (Length: 998)
+    Running Trial 4/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 4 complete (Length: 997)
+    Running Trial 5/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 5 complete (Length: 998)
+    Running Trial 6/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 6 complete (Length: 999)
+    Running Trial 7/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 7 complete (Length: 999)
+    Running Trial 8/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 8 complete (Length: 998)
+    Running Trial 9/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 9 complete (Length: 997)
+    Running Trial 10/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 10 complete (Length: 999)
+    Running Trial 11/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 11 complete (Length: 1000)
+    Running Trial 12/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 12 complete (Length: 997)
+    Running Trial 13/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 13 complete (Length: 999)
+    Running Trial 14/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 14 complete (Length: 997)
+    Running Trial 15/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 15 complete (Length: 999)
+    Running Trial 16/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 16 complete (Length: 1000)
+    Running Trial 17/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 17 complete (Length: 999)
+    Running Trial 18/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 18 complete (Length: 996)
+    Running Trial 19/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+DEBUG: ExplorationRate.get('safe') -> 0.1
+    ✓ Trial 19 complete (Length: 998)
+    Running Trial 20/30...
+DEBUG: ExplorationRate.get('safe') -> 0.1
+Traceback (most recent call last):
+  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 356, in <module>
+    main()
+  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 209, in main
+    _, cold_curve, warm_curve = run_single_trial(
+                                ^^^^^^^^^^^^^^^^^
+  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
+    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_n_effective=0.0)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/repostitories/llm_jury/banditgpt/bandit.py", line 624, in create
+    return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/repostitories/llm_jury/banditgpt/bandit.py", line 323, in __init__
+    self.encoder = SentenceTransformer(context_model)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/sentence_transformers/SentenceTransformer.py", line 327, in __init__
+    modules, self.module_kwargs = self._load_sbert_model(
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/sentence_transformers/SentenceTransformer.py", line 2305, in _load_sbert_model
+    module = module_class.load(
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/sentence_transformers/models/Transformer.py", line 352, in load
+    init_kwargs = cls._load_init_kwargs(
+                  ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/sentence_transformers/models/Transformer.py", line 385, in _load_init_kwargs
+    config = cls.load_config(
+             ^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/sentence_transformers/models/Transformer.py", line 450, in load_config
+    config = super().load_config(
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/sentence_transformers/models/Module.py", line 193, in load_config
+    config_path = load_file_path(
+                  ^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/sentence_transformers/util/file_io.py", line 96, in load_file_path
+    return hf_hub_download(
+           ^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1007, in hf_hub_download
+    return _hf_hub_download_to_cache_dir(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1070, in _hf_hub_download_to_cache_dir
+    (url_to_download, etag, commit_hash, expected_size, xet_file_data, head_call_error) = _get_metadata_or_catch_error(
+                                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1543, in _get_metadata_or_catch_error
+    metadata = get_hf_file_metadata(
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 114, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 1460, in get_hf_file_metadata
+    r = _request_wrapper(
+        ^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 283, in _request_wrapper
+    response = _request_wrapper(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/file_download.py", line 306, in _request_wrapper
+    response = http_backoff(method=method, url=url, **params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/utils/_http.py", line 306, in http_backoff
+    response = session.request(method=method, url=url, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/huggingface_hub/utils/_http.py", line 95, in send
+    return super().send(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/requests/adapters.py", line 644, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/urllib3/connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/site-packages/urllib3/connection.py", line 565, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/http/client.py", line 1430, in getresponse
+    response.begin()
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/http/client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/http/client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/socket.py", line 720, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/ssl.py", line 1251, in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/ssl.py", line 1103, in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
