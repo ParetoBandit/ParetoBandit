@@ -707,21 +707,24 @@ class BanditRouter:
         # Ridge Update: A += init_scale * Cov, b += belief_scale * score * Sum
         # NORMALIZATION: We scale the benchmark (N=26223) to N_effective
         
-        # New Logic: Load Cluster Sums
-        cluster_sums = meta["cluster_sums"] # (100, 384)
-        global_sum = meta["global_sum"]     # (384,)
+        # Load Cluster Statistics
+        cluster_sums = meta["cluster_sums"]     # (100, 45)
+        cluster_counts = meta["cluster_counts"] # (100,)
+        global_sum = meta["global_sum"]         # (45,)
         n_clusters = cluster_sums.shape[0]
+        
+        # Calculate total samples first (needed for normalization)
+        total_samples = float(np.sum(cluster_counts))
+        
+        # NORMALIZATION: Convert sums to means for fair CSR vs HLE comparison
+        # This ensures prior_n_effective has equivalent strength for both
+        cluster_means = cluster_sums / cluster_counts[:, np.newaxis]  # Shape: (100, 45)
+        global_mean = global_sum / max(total_samples, 1.0)            # Shape: (45,)
         
         # -----------------------------------------------------------------------
         # TWO-KNOB SCALING FRAMEWORK
         # -----------------------------------------------------------------------
-        # Calculate N_offline from metadata
-        if "cluster_counts" in meta:
-            total_samples = float(np.sum(meta["cluster_counts"]))
-        else:
-            # Fallback if specific counts not found (should be there for meta_clusters)
-            # Assumption: priors_meta.npz logic
-            total_samples = 21000.0 
+        # Note: total_samples already calculated above for normalization 
         
         # Knob 1: Structural Stiffness (Initialization Scaling for A Matrix)
         # Controls how confident we are in the covariance structure
@@ -799,8 +802,9 @@ class BanditRouter:
             if benchmark_key == "hle":
                 # HLE MODE: Generic priors (ignore cluster_success_rates even if available)
                 # Creates a uniform prior across all clusters based on overall performance
+                # Use global MEAN (not sum) for fair comparison with CSR
                 transformed_utility_score = transform_hle_to_prior(raw_hle_score)
-                prior_mean_update_vector = transformed_utility_score * global_sum
+                prior_mean_update_vector = transformed_utility_score * global_mean
             else:
                 # CSR MODE: Task-specific priors using cluster success rates
                 model_cluster_success_rates = model_registry.get(m, {}).get("cluster_success_rates", [])
@@ -808,7 +812,7 @@ class BanditRouter:
                 # Fallback to HLE if cluster data is missing
                 if not model_cluster_success_rates or len(model_cluster_success_rates) != n_clusters:
                     transformed_utility_score = transform_hle_to_prior(raw_hle_score)
-                    prior_mean_update_vector = transformed_utility_score * global_sum
+                    prior_mean_update_vector = transformed_utility_score * global_mean
                 else:
                     # Use cluster-specific success rates
                     # Convert Dict {"0": 0.9, "1": 0.85, ...} to ordered list [0.9, 0.85, ...]
@@ -824,14 +828,17 @@ class BanditRouter:
                     
                     cluster_rates_ordered_array = np.array(cluster_rates_list)
                     
-                    # Weighted sum: Σ(cluster_rate[k] * cluster_sum_vector[k])
+                    # Weighted MEAN: Σ(cluster_rate[k] * cluster_mean_vector[k])
+                    # Use means (not sums) for fair comparison with HLE
                     # Shape: (100,) @ (100, 45) -> (45,)
-                    prior_mean_update_vector = np.dot(cluster_rates_ordered_array, cluster_sums)
+                    prior_mean_update_vector = np.dot(cluster_rates_ordered_array, cluster_means)
 
             # Apply Belief Strength Scaling (Knob 2: prior_n_effective)
             # b[m] accumulates weighted feature vectors: Σ(x * reward)
-            # Scale by belief_scale = prior_n_effective / N_offline
-            router.bandit.b[m][:prior_dim] += belief_scale * prior_mean_update_vector
+            # IMPORTANT: We use prior_n_effective directly (not belief_scale) because
+            # cluster_means and global_mean are already divided by N_offline
+            # Using belief_scale would divide by N_offline twice!
+            router.bandit.b[m][:prior_dim] += prior_n_effective * prior_mean_update_vector
 
             # Update Bias Term (Last Element)
             # Represents average expected reward across all contexts
@@ -843,10 +850,10 @@ class BanditRouter:
                     cluster_rates_ordered_array, 
                     meta["cluster_counts"]
                 ) / max(total_samples, 1.0)
-                router.bandit.b[m][-1] += belief_scale * (weighted_avg_success * total_samples)
+                router.bandit.b[m][-1] += prior_n_effective * weighted_avg_success
             else:
                 # HLE mode or fallback: Use flat transformed score
-                router.bandit.b[m][-1] += belief_scale * (transformed_utility_score * total_samples)
+                router.bandit.b[m][-1] += prior_n_effective * transformed_utility_score
 
             # ------------------------------------------------------------------
             # SMART PRIOR: Efficiency Boosting (LiteLLM-inspired)
