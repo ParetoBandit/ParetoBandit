@@ -541,14 +541,15 @@ class BanditRouter:
         cls,
         model_registry: Optional[Dict[str, Dict[str, Any]]] = None,
         *,
-        priors: str = "benchmark", # Default to HLE with sigmoid transformation
+        priors: str = "csr",  # CSR (cluster success rates) or HLE (generic) or none
         prior_n_effective: float = 20.0,
+        prior_structure_n_effective: Optional[float] = None,
         exploration: str = "safe",  # Optimal: α=0.1
         ridge_lambda: float = 1.0,
         forgetting_factor: float = 0.95,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         state_path: Optional[Path | str] = None,
-        benchmark_key: str = "hle",
+        benchmark_key: str = "hle",  # Deprecated: use priors="hle" instead
         cluster_boost_weight: float = 0.0,  # Cluster-aware reward boost (disabled by default)
     ) -> "BanditRouter":
         """
@@ -556,16 +557,27 @@ class BanditRouter:
         
         Args:
             model_registry: Dict of models. If None, loads default `models.json`.
-            priors: "benchmark" (HLE) or "none".
-            prior_n_effective: Effective sample size of the prior (N_eff). Controls how much we trust offline clusters.
+            priors: Prior type to load:
+                - "csr": Cluster Success Rates (task-specific, recommended)
+                - "hle": Hard Label Evaluation scores (generic)
+                - "benchmark": Deprecated alias for "csr"
+                - "none": Cold start (no priors)
+            prior_n_effective: Effective sample size for belief strength (b vector scaling).
                                Default 20.0 (roughly 0.1% of 21k samples).
+            prior_structure_n_effective: Effective sample size for structural stiffness (A matrix scaling).
+                                         Default None = Infinite stiffness (unscaled covariance).
             exploration: "static", "safe", "balanced", "aggressive".
-            ridge_lambda: Regularization parameter (default 1.0).
+            ridge_lambda: Regularization parameter (default 1.0, auto-scales with structure).
             state_path: Optional path to a saved bandit state (.npz).
-            benchmark_key: Key in models.json to use for priors (default "hle").
+            benchmark_key: Deprecated. Use priors="hle" instead.
             cluster_boost_weight: Reward boost weight for cluster specialization (default 0.0, disabled).
         """
         base_dir = Path(__file__).parent
+        
+        # Backward compatibility: "benchmark" → "csr"
+        if priors == "benchmark":
+            logger.warning("priors='benchmark' is deprecated. Use priors='csr' instead.")
+            priors = "csr"
         
         # 1. Load Default Registry if needed
         if model_registry is None:
@@ -591,8 +603,33 @@ class BanditRouter:
             router.bandit.load_state(state_path)
             return router
 
-        # Load HLE Priors (Default)
-        if priors == "benchmark":
+        # Load HLE Priors (Generic Structure + Generic Mean)
+        if priors == "hle":
+            # Use same PCA-based structural priors as CSR
+            meta_path = base_dir / "priors" / "priors_meta_pca.npz"
+            
+            if not meta_path.exists():
+                 logger.warning("No priors metadata found. Falling back to cold start.")
+                 return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+                           benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight,
+                           pca_path=pca_path_default if pca_path_default.exists() else None)
+
+            return cls.load_from_benchmark(
+                model_registry=model_registry,
+                context_model=context_model,
+                alpha=alpha,
+                prior_n_effective=prior_n_effective,
+                prior_structure_n_effective=prior_structure_n_effective,
+                ridge_lambda=ridge_lambda,
+                forgetting_factor=forgetting_factor,
+                priors_meta_path=meta_path,
+                benchmark_key="hle",  # Use generic HLE scores instead of cluster success rates
+                cluster_boost_weight=cluster_boost_weight,
+                pca_path=pca_path_default if pca_path_default.exists() else None
+            )
+            
+        # Load CSR Priors (Generic Structure + Task-Specific Cluster Success Rates)
+        if priors == "csr":
             # Use PCA-based priors (45D: 32 PCA + 8 handcrafted + 5 cluster)
             meta_path = base_dir / "priors" / "priors_meta_pca.npz"
             
@@ -607,19 +644,25 @@ class BanditRouter:
                 context_model=context_model,
                 alpha=alpha,
                 prior_n_effective=prior_n_effective,
+                prior_structure_n_effective=prior_structure_n_effective,
                 ridge_lambda=ridge_lambda,
                 forgetting_factor=forgetting_factor,
                 priors_meta_path=meta_path,
-                benchmark_key=benchmark_key,
+                benchmark_key="csr",  # Use CSR mode (cluster success rates)
                 cluster_boost_weight=cluster_boost_weight,
                 pca_path=pca_path_default if pca_path_default.exists() else None
             )
             
-        # Cold Start
-        return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
-                  forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
-                  cluster_boost_weight=cluster_boost_weight,
-                  pca_path=pca_path_default if pca_path_default.exists() else None)
+        # Cold Start (No Priors)
+        if priors == "none":
+            logger.info("Cold start mode: No priors loaded.")
+            return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+                      forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
+                      cluster_boost_weight=cluster_boost_weight,
+                      pca_path=pca_path_default if pca_path_default.exists() else None)
+        
+        # Unknown priors type
+        raise ValueError(f"Unknown priors type: '{priors}'. Use 'csr', 'hle', or 'none'.")
 
     @classmethod
     def load_from_benchmark(
@@ -629,6 +672,7 @@ class BanditRouter:
         context_model: str = DEFAULT_CONTEXT_MODEL,
         alpha: float = 0.1,
         prior_n_effective: float = 20.0,
+        prior_structure_n_effective: Optional[float] = None,
         ridge_lambda: float = 1.0,
         priors_meta_path: Optional[Path] = None,
         forgetting_factor: float = 0.95,
@@ -636,7 +680,14 @@ class BanditRouter:
         cluster_boost_weight: float = 0.1,
         pca_path: Optional[Path] = None,
     ) -> "BanditRouter":
-        """Initialize with HLE priors using covariance matrix."""
+        """
+        Initialize with HLE priors using covariance matrix.
+        
+        Two-Knob Scaling:
+            prior_n_effective: Controls belief strength (b vector scaling). Default 20.0.
+            prior_structure_n_effective: Controls structural stiffness (A matrix scaling). 
+                                         Default None = Infinite stiffness (unscaled).
+        """
         meta = np.load(priors_meta_path)
         cov_matrix = meta["cov_matrix"]
         sum_vec = meta["sum_vec"]
@@ -653,7 +704,7 @@ class BanditRouter:
             pca_path=pca_path
         )
         
-        # Ridge Update: A += gamma * Cov, b += gamma * score * Sum
+        # Ridge Update: A += init_scale * Cov, b += belief_scale * score * Sum
         # NORMALIZATION: We scale the benchmark (N=26223) to N_effective
         
         # New Logic: Load Cluster Sums
@@ -661,19 +712,47 @@ class BanditRouter:
         global_sum = meta["global_sum"]     # (384,)
         n_clusters = cluster_sums.shape[0]
         
-        # Calculate Gamma (Scaling Factor)
-        # gamma = N_effective / N_offline
-        # prior_n_effective is N_effective (e.g. 50)
-        # If meta has cluster_counts, use them. Otherwise use shape of global_sum? No, global_sum is dim.
-        # Check if 'count' is in meta, otherwise infer or default.
+        # -----------------------------------------------------------------------
+        # TWO-KNOB SCALING FRAMEWORK
+        # -----------------------------------------------------------------------
+        # Calculate N_offline from metadata
         if "cluster_counts" in meta:
             total_samples = float(np.sum(meta["cluster_counts"]))
         else:
             # Fallback if specific counts not found (should be there for meta_clusters)
             # Assumption: priors_meta.npz logic
             total_samples = 21000.0 
+        
+        # Knob 1: Structural Stiffness (Initialization Scaling for A Matrix)
+        # Controls how confident we are in the covariance structure
+        if prior_structure_n_effective is None:
+            init_scale = 1.0  # Infinite stiffness (unscaled, full N_offline strength)
+        else:
+            init_scale = prior_structure_n_effective / max(total_samples, 1.0)
             
-        gamma = prior_n_effective / max(total_samples, 1.0)
+        # Knob 2: Belief Strength (Scaling for b Vector)
+        # Controls how confident we are in the mean quality scores
+        # NOTE: Named 'belief_scale' to avoid collision with self.gamma (forgetting factor)
+        belief_scale = prior_n_effective / max(total_samples, 1.0)
+        
+        # Adaptive Ridge Regularization
+        # Scale ridge_lambda to match the prior strength to prevent ridge from dominating
+        # For infinite stiffness (init_scale=1.0), keep original ridge_lambda
+        # For scaled priors, make ridge proportional to structure
+        if prior_structure_n_effective is not None and init_scale < 0.1:
+            # Structure is weak (scaled down), scale ridge proportionally
+            # Use 10x multiplier for stability while keeping ridge in same range as structure
+            effective_ridge_lambda = init_scale * 10.0
+            logger.info(f"Adaptive ridge: {ridge_lambda:.3f} → {effective_ridge_lambda:.6f} (10x init_scale)")
+        else:
+            # Structure is strong or infinite, use original ridge
+            effective_ridge_lambda = ridge_lambda
+        
+        # Update router's bandit with effective ridge
+        # Reinitialize A matrices with adaptive ridge
+        for m in router.bandit.models:
+            router.bandit.A[m] = np.eye(router.bandit.dim) * effective_ridge_lambda
+            router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
         
         # Pad covariance matrix for bias term (zeros for cross-terms, 1.0 for bias variance)
         # AND pad for new handcrafted features if strict dimensions don't match
@@ -687,10 +766,10 @@ class BanditRouter:
         # This means new features start with Identity covariance (neutral prior)
         cov_padded[:prior_dim, :prior_dim] = cov_matrix
         
-        # Pre-calculate scaled covariance to add to A
-        # A_0 = gamma * Sum(xx^T) + lambda * I
-        # We only add gamma * cov_padded because A is already initialized to lambda * I
-        A_prior_update = gamma * cov_padded
+        # Apply Initialization Scaling to Covariance (Knob 1)
+        # A_prior = init_scale * Sum(xx^T)
+        # We add this to the existing A = lambda * I
+        A_prior_update = init_scale * cov_padded
         
         # Ensure bias term (last element) has variance 1.0 (It is already 1.0 from eye init)
         
@@ -698,67 +777,76 @@ class BanditRouter:
             # Update A with the prior
             router.bandit.A[m] += A_prior_update
             
-            # Get score (default 0.05 if missing to allow new models)
-            # This satisfies "new model with no benchmarks" constraint
-            raw_score = float(model_registry.get(m, {}).get(benchmark_key) or 0.05)
+            # Get raw benchmark score (default 0.05 for new models)
+            # This fallback enables "new model with no benchmarks" constraint
+            raw_hle_score = float(model_registry.get(m, {}).get(benchmark_key) or 0.05)
             
-            # Transform HLE score to realistic utility prior
-            # Raw HLE scores are 0-40%, but even 6% indicates a highly capable model
             # ------------------------------------------------------------------
-            # CLUSTER-AWARE PRIOR (The "Heatmap" Logic)
+            # PRIOR MEAN CALCULATION: HLE (Generic) vs CSR (Task-Specific)
             # ------------------------------------------------------------------
-            # Instead of Global HLE, we use per-cluster success rates.
-            # b_initial = Sum( Success_Rate[k] * Cluster_Sum_Vec[k] ) over all k=1..100
+            # We compute the initial belief vector (b) based on prior knowledge:
+            # - HLE: Flat prior using generic benchmark performance
+            # - CSR: Structured prior using per-cluster success rates
             
-            cluster_rates = model_registry.get(m, {}).get("cluster_success_rates", [])
+            # Initialize variables for later bias term calculation
+            model_cluster_success_rates = None  # Dict of cluster_id -> success_rate
+            cluster_rates_ordered_array = None  # Numpy array aligned with cluster_sums
+            transformed_utility_score = None    # Sigmoid-transformed HLE score (0-1 range)
             
-            # If model has no cluster data, fallback to global HLE or neutral
-            if not cluster_rates or len(cluster_rates) != n_clusters:
-                # Fallback: Just use global HLE for all clusters (effectively the old way)
-                # Or just use the raw score as a flat prior
-                score = transform_hle_to_prior(raw_score)
-                # bias update (scalar * global_sum)
-                bias_update_vec = (score * global_sum)
+            # CRITICAL: Different prior modes use different data sources
+            # benchmark_key="hle" -> Generic HLE benchmark scores
+            # benchmark_key="csr" -> Cluster-specific success rates
+            if benchmark_key == "hle":
+                # HLE MODE: Generic priors (ignore cluster_success_rates even if available)
+                # Creates a uniform prior across all clusters based on overall performance
+                transformed_utility_score = transform_hle_to_prior(raw_hle_score)
+                prior_mean_update_vector = transformed_utility_score * global_sum
             else:
-                # Vectorized operation: 
-                # weighted_sum = sum( rate[k] * cluster_sum[k] )
-                # rates is (100,), cluster_sums is (100, 384) -> dot product
+                # CSR MODE: Task-specific priors using cluster success rates
+                model_cluster_success_rates = model_registry.get(m, {}).get("cluster_success_rates", [])
                 
-                # IMPORTANT: 'cluster_rates' is a Dict {"0": 0.9, ...}. 
-                # We must convert to list ordered by integer index 0..N-1 to match cluster_sums rows.
-                ordered_rates = []
-                for k in range(n_clusters):
-                    # Default to global score or 0.5 if missing specific cluster
-                    val = cluster_rates.get(str(k), cluster_rates.get(k, 0.5)) 
-                    ordered_rates.append(float(val))
-                
-                rates_array = np.array(ordered_rates)
-                
-                # Weighted sum of feature vectors
-                # result shape: (384,)
-                weighted_sum_features = np.dot(rates_array, cluster_sums)
-                
-                bias_update_vec = weighted_sum_features
+                # Fallback to HLE if cluster data is missing
+                if not model_cluster_success_rates or len(model_cluster_success_rates) != n_clusters:
+                    transformed_utility_score = transform_hle_to_prior(raw_hle_score)
+                    prior_mean_update_vector = transformed_utility_score * global_sum
+                else:
+                    # Use cluster-specific success rates
+                    # Convert Dict {"0": 0.9, "1": 0.85, ...} to ordered list [0.9, 0.85, ...]
+                    # to align with cluster_sums row indices
+                    cluster_rates_list = []
+                    for cluster_idx in range(n_clusters):
+                        # Try string key first, then int key, default to 0.5
+                        rate = model_cluster_success_rates.get(
+                            str(cluster_idx), 
+                            model_cluster_success_rates.get(cluster_idx, 0.5)
+                        )
+                        cluster_rates_list.append(float(rate))
+                    
+                    cluster_rates_ordered_array = np.array(cluster_rates_list)
+                    
+                    # Weighted sum: Σ(cluster_rate[k] * cluster_sum_vector[k])
+                    # Shape: (100,) @ (100, 45) -> (45,)
+                    prior_mean_update_vector = np.dot(cluster_rates_ordered_array, cluster_sums)
 
-            # Apply Strength scaling (Gamma)
-            # router.bandit.b[m] is shape (dim,)
-            # We add to the first `prior_dim` elements
-            
-            # Note: b vector accumulates x*y. Here y is the success rate.
-            # So we enable the bandit to "know" which features correlate with success.
-            # b_0 = gamma * Sum(x * y)
-            router.bandit.b[m][:prior_dim] += gamma * bias_update_vec
+            # Apply Belief Strength Scaling (Knob 2: prior_n_effective)
+            # b[m] accumulates weighted feature vectors: Σ(x * reward)
+            # Scale by belief_scale = prior_n_effective / N_offline
+            router.bandit.b[m][:prior_dim] += belief_scale * prior_mean_update_vector
 
-            # Update the Bias Term (Last Element)
-            # This represents the "average" success across the whole space
-            # we want: gamma * Sum(1 * y) = gamma * Sum(y)
-            # Sum(y) = avg_success * total_samples
-            if cluster_rates and len(cluster_rates) == n_clusters:
-                avg_success = np.dot(rates_array, meta["cluster_counts"]) / total_samples
-                router.bandit.b[m][-1] += gamma * (avg_success * total_samples)
+            # Update Bias Term (Last Element)
+            # Represents average expected reward across all contexts
+            # For CSR: weighted average of cluster success rates
+            # For HLE: flat transformed utility score
+            if model_cluster_success_rates and len(model_cluster_success_rates) == n_clusters:
+                # CSR mode: Compute weighted average success rate
+                weighted_avg_success = np.dot(
+                    cluster_rates_ordered_array, 
+                    meta["cluster_counts"]
+                ) / max(total_samples, 1.0)
+                router.bandit.b[m][-1] += belief_scale * (weighted_avg_success * total_samples)
             else:
-                 # Fallback: Treat raw_score as average success
-                 router.bandit.b[m][-1] += gamma * (raw_score * total_samples)
+                # HLE mode or fallback: Use flat transformed score
+                router.bandit.b[m][-1] += belief_scale * (transformed_utility_score * total_samples)
 
             # ------------------------------------------------------------------
             # SMART PRIOR: Efficiency Boosting (LiteLLM-inspired)
