@@ -150,6 +150,13 @@ def sigmoid(x: float) -> float:
     """Standard logistic function mapping (-inf, inf) to (0, 1)."""
     return 1.0 / (1.0 + np.exp(-x))
 
+def safe_inv(A: np.ndarray) -> np.ndarray:
+    """Safe matrix inversion with pseudo-inverse fallback for stability."""
+    try:
+        return np.linalg.inv(A)
+    except np.linalg.LinAlgError:
+        return np.linalg.pinv(A)
+
 # ---------------------------------------------------------------------------
 # Core Bandit Policy (Disjoint LinUCB)
 # ---------------------------------------------------------------------------
@@ -165,7 +172,10 @@ class DisjointLinUCBPolicy:
         # Initialize A=I*lambda, b=0
         self.A = {m: np.eye(self.dim) * self.ridge_lambda for m in self.models}
         self.b = {m: np.zeros(self.dim, dtype=np.float64) for m in self.models}
-        self.A_inv = {m: np.linalg.inv(self.A[m]) for m in self.models}
+        
+        # Precompute A_inv for hot-path speed
+        self.A_inv = {m: safe_inv(self.A[m]) for m in self.models}
+                
         self.last_update = {m: 0 for m in self.models} # Track last update step
         self.t = 0 # Global time step
 
@@ -176,7 +186,7 @@ class DisjointLinUCBPolicy:
         self.models.append(model_name)
         self.A[model_name] = np.eye(self.dim) * self.ridge_lambda
         self.b[model_name] = np.zeros(self.dim, dtype=np.float64)
-        self.A_inv[model_name] = np.linalg.inv(self.A[model_name])
+        self.A_inv[model_name] = safe_inv(self.A[model_name])
         self.last_update[model_name] = self.t
 
     def delete_arm(self, model_name: str) -> None:
@@ -264,7 +274,7 @@ class DisjointLinUCBPolicy:
         self.A[model] += np.outer(x, x)
         self.b[model] += float(reward) * x
         
-        self.A_inv[model] = np.linalg.inv(self.A[model])
+        self.A_inv[model] = safe_inv(self.A[model])
         self.last_update[model] = self.t
 
     def save_state(self, path: Path | str) -> None:
@@ -284,7 +294,7 @@ class DisjointLinUCBPolicy:
             if a_key in data and b_key in data:
                 self.A[m] = data[a_key]
                 self.b[m] = data[b_key]
-                self.A_inv[m] = np.linalg.inv(self.A[m])
+                self.A_inv[m] = safe_inv(self.A[m])
 
 # ---------------------------------------------------------------------------
 # Main Router Class
@@ -311,6 +321,7 @@ class BanditRouter:
         model_registry: Dict[str, Dict[str, Any]],
         *,
         context_model: str = DEFAULT_CONTEXT_MODEL,
+        context_encoder=None,  # NEW: Optional pre-initialized encoder for dependency injection
         alpha: float = 0.1,
         embedding_dim: int = 384,
         ridge_lambda: float = 1.0,
@@ -320,7 +331,12 @@ class BanditRouter:
         pca_path: Optional[Path | str] = None, # Path to PCA model
     ):
         self.registry = dict(model_registry)
-        self.encoder = SentenceTransformer(context_model)
+        
+        # Use provided encoder or initialize new one
+        if context_encoder is not None:
+            self.encoder = context_encoder
+        else:
+            self.encoder = SentenceTransformer(context_model)
         
         # Initialize PCA if provided
         self.pca = None
@@ -539,33 +555,44 @@ class BanditRouter:
     @classmethod
     def create(
         cls,
-        model_registry: Optional[Dict[str, Dict[str, Any]]] = None,
-        *,
-        priors: str = "csr",  # CSR (cluster success rates) or HLE (generic) or none
-        prior_n_effective: float = 20.0,
+        model_registry: Optional[Dict[str, Dict]] = None,
+        context_model: str = "pca",
+        context_encoder=None,  # NEW: Optional pre-initialized encoder for testing/DI
+        prior_n_effective: Optional[float] = None,
         prior_structure_n_effective: Optional[float] = None,
-        exploration: str = "safe",  # Optimal: α=0.1
+        alpha: Optional[float] = None,
+        exploration: str = "safe",
+        state_path: Optional[str] = None,
+        priors: str = "csr",
+        benchmark_key: Optional[str] = None,
         ridge_lambda: float = 1.0,
-        forgetting_factor: float = 0.95,
-        context_model: str = DEFAULT_CONTEXT_MODEL,
-        state_path: Optional[Path | str] = None,
-        benchmark_key: str = "hle",  # Deprecated: use priors="hle" instead
-        cluster_boost_weight: float = 0.0,  # Cluster-aware reward boost (disabled by default)
+        forgetting_factor: float = 1.0,
+        cluster_boost_weight: float = 0.0
     ) -> "BanditRouter":
         """
-        Create a configured router.
+        Factory method to create a BanditRouter with optional priors.
         
         Args:
-            model_registry: Dict of models. If None, loads default `models.json`.
+            model_registry: Dict of {model_id: model_metadata}.
+            context_model: "pca" (default) or "sbert".
+            context_encoder: Optional pre-initialized encoder (for testing or custom encoders).
+                           If provided, context_model is ignored.
             priors: Prior type to load:
                 - "csr": Cluster Success Rates (task-specific, recommended)
                 - "hle": Hard Label Evaluation scores (generic)
                 - "benchmark": Deprecated alias for "csr"
                 - "none": Cold start (no priors)
             prior_n_effective: Effective sample size for belief strength (b vector scaling).
-                               Default 20.0 (roughly 0.1% of 21k samples).
+                              Default: Auto-selected based on priors type:
+                                - CSR: 20.0 (optimal for early advantage from ablation study)
+                                - HLE: 60.0 (optimal for HLE from ablation study)
+                                - none: 0.0 (no priors)
             prior_structure_n_effective: Effective sample size for structural stiffness (A matrix scaling).
-                                         Default None = Infinite stiffness (unscaled covariance).
+                                        Default: Auto-selected based on priors type:
+                                          - CSR: 20.0 (optimal for early advantage)
+                                          - HLE: 10.0 (optimal for HLE)
+                                          - none: 20.0 (structure only, no mean)
+                              Note: None = Infinite stiffness (deprecated, not recommended).
             exploration: "static", "safe", "balanced", "aggressive".
             ridge_lambda: Regularization parameter (default 1.0, auto-scales with structure).
             state_path: Optional path to a saved bandit state (.npz).
@@ -579,6 +606,27 @@ class BanditRouter:
             logger.warning("priors='benchmark' is deprecated. Use priors='csr' instead.")
             priors = "csr"
         
+        # Auto-select optimal parameters based on prior type (from z-score ablation study)
+        if prior_n_effective is None:
+            if priors == "csr":
+                prior_n_effective = 20.0  # Optimal for CSR early advantage
+            elif priors == "hle":
+                prior_n_effective = 60.0  # Optimal for HLE
+            elif priors == "none":
+                prior_n_effective = 0.0   # No priors
+            else:
+                prior_n_effective = 20.0  # Default fallback
+        
+        if prior_structure_n_effective is None:
+            if priors == "csr":
+                prior_structure_n_effective = 20.0  # Optimal for CSR
+            elif priors == "hle":
+                prior_structure_n_effective = 10.0  # Optimal for HLE
+            elif priors == "none":
+                prior_structure_n_effective = 20.0  # Structure only, no mean
+            else:
+                prior_structure_n_effective = 20.0  # Default fallback
+        
         # 1. Load Default Registry if needed
         if model_registry is None:
             models_path = base_dir / "models.json"
@@ -591,13 +639,24 @@ class BanditRouter:
         # 2. Resolve Exploration
         alpha = ExplorationRate.get(exploration)
         
+        # --- Parameter Validation ---
+        # Ensure prior parameters are valid numbers and non-negative
+        if prior_n_effective is not None:
+            if not np.isfinite(prior_n_effective) or prior_n_effective < 0:
+                raise ValueError(f"Invalid prior_n_effective: {prior_n_effective}. Must be finite and non-negative.")
+        
+        if prior_structure_n_effective is not None:
+            if not np.isfinite(prior_structure_n_effective) or prior_structure_n_effective < 0:
+                raise ValueError(f"Invalid prior_structure_n_effective: {prior_structure_n_effective}. Must be finite and non-negative.")
+        
         # 3. Initialize
         # Determine PCA path
         pca_path_default = base_dir / "data" / "pca_32.joblib"
         
         # Load Saved State (Overrides priors)
         if state_path and Path(state_path).exists():
-            router = cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+            router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                        alpha=alpha, ridge_lambda=ridge_lambda,
                         forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
                         cluster_boost_weight=cluster_boost_weight, pca_path=pca_path_default)
             router.bandit.load_state(state_path)
@@ -610,13 +669,15 @@ class BanditRouter:
             
             if not meta_path.exists():
                  logger.warning("No priors metadata found. Falling back to cold start.")
-                 return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+                 return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                           alpha=alpha, ridge_lambda=ridge_lambda,
                            benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight,
                            pca_path=pca_path_default if pca_path_default.exists() else None)
 
             return cls.load_from_benchmark(
                 model_registry=model_registry,
                 context_model=context_model,
+                context_encoder=context_encoder,
                 alpha=alpha,
                 prior_n_effective=prior_n_effective,
                 prior_structure_n_effective=prior_structure_n_effective,
@@ -635,13 +696,15 @@ class BanditRouter:
             
             if not meta_path.exists():
                  logger.warning("No priors metadata found. Falling back to cold start.")
-                 return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+                 return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                           alpha=alpha, ridge_lambda=ridge_lambda,
                            benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight,
                            pca_path=pca_path_default if pca_path_default.exists() else None)
 
             return cls.load_from_benchmark(
                 model_registry=model_registry,
                 context_model=context_model,
+                context_encoder=context_encoder,
                 alpha=alpha,
                 prior_n_effective=prior_n_effective,
                 prior_structure_n_effective=prior_structure_n_effective,
@@ -656,7 +719,8 @@ class BanditRouter:
         # Cold Start (No Priors)
         if priors == "none":
             logger.info("Cold start mode: No priors loaded.")
-            return cls(model_registry, context_model=context_model, alpha=alpha, ridge_lambda=ridge_lambda,
+            return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                      alpha=alpha, ridge_lambda=ridge_lambda,
                       forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
                       cluster_boost_weight=cluster_boost_weight,
                       pca_path=pca_path_default if pca_path_default.exists() else None)
@@ -670,6 +734,7 @@ class BanditRouter:
         *,
         model_registry: Dict[str, Dict[str, Any]],
         context_model: str = DEFAULT_CONTEXT_MODEL,
+        context_encoder=None,  # NEW: For dependency injection
         alpha: float = 0.1,
         prior_n_effective: float = 20.0,
         prior_structure_n_effective: Optional[float] = None,
@@ -695,7 +760,8 @@ class BanditRouter:
         
         router = cls(
             model_registry, 
-            context_model=context_model, 
+            context_model=context_model,
+            context_encoder=context_encoder,
             alpha=alpha, 
             embedding_dim=dim,
             ridge_lambda=ridge_lambda,
@@ -755,7 +821,7 @@ class BanditRouter:
         # Reinitialize A matrices with adaptive ridge
         for m in router.bandit.models:
             router.bandit.A[m] = np.eye(router.bandit.dim) * effective_ridge_lambda
-            router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
+            router.bandit.A_inv[m] = safe_inv(router.bandit.A[m])
         
         # Pad covariance matrix for bias term (zeros for cross-terms, 1.0 for bias variance)
         # AND pad for new handcrafted features if strict dimensions don't match
@@ -814,24 +880,35 @@ class BanditRouter:
                     transformed_utility_score = transform_hle_to_prior(raw_hle_score)
                     prior_mean_update_vector = transformed_utility_score * global_mean
                 else:
-                    # Use cluster-specific success rates
-                    # Convert Dict {"0": 0.9, "1": 0.85, ...} to ordered list [0.9, 0.85, ...]
-                    # to align with cluster_sums row indices
-                    cluster_rates_list = []
+                    # Use cluster-specific z-scores (normalized success rates)
+                    # Extract z-scores from {"0": {"raw": 0.9, "z_score": 1.2}, ...}
+                    # Z-scores eliminate frontier model bias by normalizing per-cluster
+                    cluster_z_scores_list = []
                     for cluster_idx in range(n_clusters):
-                        # Try string key first, then int key, default to 0.5
-                        rate = model_cluster_success_rates.get(
-                            str(cluster_idx), 
-                            model_cluster_success_rates.get(cluster_idx, 0.5)
-                        )
-                        cluster_rates_list.append(float(rate))
+                        cluster_data = model_cluster_success_rates.get(str(cluster_idx))
+                        if cluster_data is None:
+                            cluster_data = model_cluster_success_rates.get(cluster_idx)
+                        
+                        # Strict: expect dict with z_score, no fallback
+                        if not isinstance(cluster_data, dict) or 'z_score' not in cluster_data:
+                            raise ValueError(
+                                f"Missing z_score for model {m}, cluster {cluster_idx}. "
+                                f"Run update_success_rates.py to regenerate cluster_success_rates."
+                            )
+                        
+                        cluster_z_scores_list.append(float(cluster_data['z_score']))
                     
-                    cluster_rates_ordered_array = np.array(cluster_rates_list)
+                    cluster_z_scores_array = np.array(cluster_z_scores_list)
                     
-                    # Weighted MEAN: Σ(cluster_rate[k] * cluster_mean_vector[k])
-                    # Use means (not sums) for fair comparison with HLE
+                    # Transform z-scores to positive weights using sigmoid
+                    # sigmoid(z) maps (-inf, inf) -> (0, 1)
+                    # This gives: bad performance -> low weight, good performance -> high weight
+                    cluster_weights = 1.0 / (1.0 + np.exp(-cluster_z_scores_array))
+                    
+                    # Weighted MEAN: Σ(weight[k] * cluster_mean_vector[k])
+                    # Weights derived from z-scores, not raw success rates
                     # Shape: (100,) @ (100, 45) -> (45,)
-                    prior_mean_update_vector = np.dot(cluster_rates_ordered_array, cluster_means)
+                    prior_mean_update_vector = np.dot(cluster_weights, cluster_means)
 
             # Apply Belief Strength Scaling (Knob 2: prior_n_effective)
             # b[m] accumulates weighted feature vectors: Σ(x * reward)
@@ -845,9 +922,9 @@ class BanditRouter:
             # For CSR: weighted average of cluster success rates
             # For HLE: flat transformed utility score
             if model_cluster_success_rates and len(model_cluster_success_rates) == n_clusters:
-                # CSR mode: Compute weighted average success rate
+                # CSR mode: Compute weighted average using z-score-derived weights
                 weighted_avg_success = np.dot(
-                    cluster_rates_ordered_array, 
+                    cluster_weights,  # From sigmoid(z_scores), not raw rates
                     meta["cluster_counts"]
                 ) / max(total_samples, 1.0)
                 router.bandit.b[m][-1] += prior_n_effective * weighted_avg_success
@@ -894,7 +971,7 @@ class BanditRouter:
             router.bandit.b[m] *= efficiency_boost
             
             # Recompute inverse
-            router.bandit.A_inv[m] = np.linalg.inv(router.bandit.A[m])
+            router.bandit.A_inv[m] = safe_inv(router.bandit.A[m])
             
         return router
 
@@ -1100,7 +1177,7 @@ class BanditRouter:
             self.bandit.add_arm(model_id)
             self.bandit.A[model_id] = A_new
             self.bandit.b[model_id] = b_new
-            self.bandit.A_inv[model_id] = np.linalg.inv(A_new)
+            self.bandit.A_inv[model_id] = safe_inv(A_new)
             
             logger.info(f"Initialized {model_id} via transfer from: {[n[1] for n in neighbors]}")
 
@@ -1553,7 +1630,7 @@ class BanditRouter:
             self.bandit.b[model_id][-1] = 20.0 * score
             # Also increase confidence in the bias term
             self.bandit.A[model_id][-1, -1] += 20.0
-            self.bandit.A_inv[model_id] = np.linalg.inv(self.bandit.A[model_id])
+            self.bandit.A_inv[model_id] = safe_inv(self.bandit.A[model_id])
 
 
     def save_state(self, path: Path | str) -> None:
