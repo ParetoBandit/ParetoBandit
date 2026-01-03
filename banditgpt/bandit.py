@@ -1562,8 +1562,8 @@ class BanditRouter:
                 boosted_reward = reward * boost_factor
                 boost_amount = boosted_reward - reward
                 
-                # Log all boosts for debugging
-            if True:  # Log significant boosts
+                # Log significant boosts
+                if abs(boost_amount) > 0.01:
                     logger.info(
                         f"Cluster boost: model={log.selected_model}, "
                         f"cluster={log.cluster_id}, z={z_score:.2f}, "
