@@ -350,11 +350,13 @@ def run_pareto_frontier(train_data, test_data, registry, encoder,
     print(f"Architecture LOCKED: N_struct={champion_n_struct}, N_prior={champion_n_prior}")
     print(f"{'='*70}")
     
-    # Cost profiles to sweep
+    # Cost profiles to sweep (KDD Expanded Spectrum)
     profiles = [
         {"name": "Max Quality",  "lambda_cost": 0.0},
-        {"name": "Balanced",     "lambda_cost": 0.5},
-        {"name": "Budget",       "lambda_cost": 5.0},
+        {"name": "Arbitrage",    "lambda_cost": 0.5},
+        {"name": "Balanced",     "lambda_cost": 2.0},
+        {"name": "Budget",       "lambda_cost": 10.0},
+        {"name": "Ultra Cheap",  "lambda_cost": 50.0},
     ]
     
     frontier_results = []
@@ -634,7 +636,7 @@ def execute_perfect_pareto_protocol():
         train_data, test_data, registry, encoder,
         champion_n_struct=champion_n_struct,
         champion_n_prior=champion_n_prior,
-        n_trials=1  # Fast sweep
+        n_trials=3  # Multi-trial for Confidence Intervals
     )
     
     # Plot frontier

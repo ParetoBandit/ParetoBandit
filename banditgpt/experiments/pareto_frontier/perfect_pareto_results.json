@@ -46,23 +46,37 @@
       {
         "profile": "Max Quality",
         "lambda_cost": 0.0,
-        "cost_mean": 3.286824668705402,
-        "cost_std": 0.0,
-        "utility_mean": 0.9847094801223242
+        "cost_mean": 4.75883452259599,
+        "cost_std": 1.0408690972754353,
+        "utility_mean": 0.9867482161060143
+      },
+      {
+        "profile": "Arbitrage",
+        "lambda_cost": 0.5,
+        "cost_mean": 0.030587168138634047,
+        "cost_std": 0.011491173179594041,
+        "utility_mean": 0.9561671763506626
       },
       {
         "profile": "Balanced",
-        "lambda_cost": 0.5,
-        "cost_mean": 0.04656982670744139,
-        "cost_std": 0.0,
-        "utility_mean": 0.9683995922528033
+        "lambda_cost": 2.0,
+        "cost_mean": 0.02322563960584437,
+        "cost_std": 0.013172245355073319,
+        "utility_mean": 0.8861705742439687
       },
       {
         "profile": "Budget",
-        "lambda_cost": 5.0,
-        "cost_mean": 0.015511606837920487,
-        "cost_std": 0.0,
-        "utility_mean": 0.9235474006116208
+        "lambda_cost": 10.0,
+        "cost_mean": 0.014274858642201833,
+        "cost_std": 0.0014278758853409612,
+        "utility_mean": 0.8729187903499831
+      },
+      {
+        "profile": "Ultra Cheap",
+        "lambda_cost": 50.0,
+        "cost_mean": 0.012172273190621813,
+        "cost_std": 9.370426254255976e-05,
+        "utility_mean": 0.7753992524634726
       }
     ]
   }
