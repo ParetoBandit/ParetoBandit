@@ -91,8 +91,14 @@ def simulate_bandit(router, prompts, rewards_dict, name="Bandit"):
     skipped = 0
     
     for i, prompt in enumerate(prompts):
-        # Get bandit's selection
-        selected_model = router.route(prompt)
+        # Get bandit's selection (route returns tuple: (model_id, log))
+        route_result = router.route(prompt)
+        if isinstance(route_result, tuple):
+            selected_model, routing_log = route_result
+        else:
+            # Fallback if route returns just model_id
+            selected_model = route_result
+            routing_log = None
         
         # Get oracle (best possible model for this prompt)
         prompt_rewards = rewards_dict.get(prompt, {})
@@ -112,12 +118,11 @@ def simulate_bandit(router, prompts, rewards_dict, name="Bandit"):
         cumulative_regret.append(total_regret)
         
         # Update bandit with feedback (simulate learning)
-        router.process_feedback(
-            trace_id=f"sim_{i}",
-            reward=actual_reward,
-            cost=0.0,
-            latency=0.0
-        )
+        if routing_log:
+            router.process_feedback(
+                request_id=routing_log.request_id,
+                reward=actual_reward
+            )
         
         if (i + 1) % 50 == 0:
             print(f"  [{name}] T={i+1}/{len(prompts)}, Cumulative Regret: {total_regret:.3f}, Skipped: {skipped}")

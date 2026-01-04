@@ -703,9 +703,10 @@ class BanditRouter:
                 10 → (1.0, 0.48) # log(11)/5 ≈ 0.48
                 100 → (1.0, 0.92) # log(101)/5 ≈ 0.92
             """
-            binary = FeatureTransformer.binarize(raw_count)
-            log_val = FeatureTransformer.log1p(raw_count)
-            normalized = FeatureTransformer.normalize_log(log_val, max_log)
+            # Inline to avoid NameError in static method
+            binary = 1.0 if raw_count > 0 else 0.0
+            log_val = float(np.log1p(max(0, raw_count)))
+            normalized = float(np.clip(log_val / max_log, 0.0, 1.0))
             return (binary, normalized)
 
 
@@ -1908,8 +1909,8 @@ class BanditRouter:
             predicted_utility=float(best_utility),
             cost_usd=self._estimate_cost(best_model, in_tok, output_tokens),
             latency_s=self._estimate_latency(best_model, output_tokens),
-            cluster_id=cluster_id,
-            cluster_similarity=cluster_similarity,
+            cluster_id=None,  # Legacy: No longer computed (Virtual Anchors replace this)
+            cluster_similarity=None,  # Legacy
             context_vector=x # Cache for feedback loop
         )
         # Trigger Lazy Pruning (Periodically)
@@ -1926,8 +1927,8 @@ class BanditRouter:
             predicted_utility=float(best_utility),
             cost_usd=self._estimate_cost(best_model, in_tok, output_tokens),
             latency_s=self._estimate_latency(best_model, output_tokens),
-            cluster_id=cluster_id,
-            cluster_similarity=cluster_similarity,
+            cluster_id=None,  # Legacy: replaced by Virtual Anchors
+            cluster_similarity=None,
             context_vector=x # Cache for feedback loop
         )
         self.logs.append(log)
