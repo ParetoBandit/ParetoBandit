@@ -772,11 +772,18 @@ class BanditRouter:
             # 3. Virtual Anchor Distances (N)
             anchor_dists = self._get_cluster_distances(emb_full)
             
+            
             # 4. Zero-Shot Hardness Score (1)
             # Projection onto Reference Complexity Vector
-            hardness_score = float(np.dot(emb_full, self.complexity_vector))
-            # SIGNAL BOOSTING: Scale score to meaningful magnitude for the bandit
-            hardness_feat = np.array([hardness_score * 10.0])
+            raw_projection = float(np.dot(emb_full, self.complexity_vector))
+            
+            # CRITICAL: Normalize to [0,1] using sigmoid for pretrained weights to work
+            # Without normalization, raw_projection can be -3.2 or +15.4, breaking the weights
+            hardness_score_normalized = 1.0 / (1.0 + np.exp(-raw_projection))
+            
+            # No additional scaling needed - pretrained weights expect [0,1] range
+            hardness_feat = np.array([hardness_score_normalized])
+
             
             # Concatenate: [Embedding, Handcrafted, Anchors, Hardness, Bias]
             x = np.concatenate([emb_reduced, feats, anchor_dists, hardness_feat])
