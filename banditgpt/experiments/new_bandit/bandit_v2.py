@@ -1031,7 +1031,10 @@ class BanditRouter:
             
             # Perform Zero-Shot Warm Start (initializes b vectors with HLE-based priors)
             router._load_zero_shot_priors(prior_n_effective)
-            router._procedural_warmup(n_samples=50)
+            # Shape covariance matrix with procedural warmup
+            # KDD correction: Reduced samples from 50 -> 15 to shape covariance 
+            # without being overconfident/stubborn (Effective N ~ 15 + 20 = 35)
+            router._procedural_warmup(n_samples=15)
             return router
             
         # Cold Start (No Priors)
