@@ -650,6 +650,10 @@ class BanditRouter:
         - Log-scaled: Captures the incremental difficulty (the "slope")
         
         This allows: Reward = θ_step * has_feature + θ_slope * log(density)
+        
+        **CRITICAL: Numerical Stability**
+        All features MUST be normalized to [0,1] to prevent matrix inversion instability.
+        Raw log values can range from 0 to 10+, causing numerical issues.
         """
         
         @staticmethod
@@ -663,22 +667,46 @@ class BanditRouter:
             return float(np.log1p(max(0, x)))
         
         @staticmethod
-        def split_signal(raw_count: float) -> Tuple[float, float]:
+        def normalize_log(log_value: float, max_expected: float = 10.0) -> float:
             """
-            Split a raw count into linearizable components.
+            Normalize log-scaled values to [0,1] for numerical stability.
+            
+            Args:
+                log_value: The log-transformed value
+                max_expected: Expected maximum (e.g., log(20000) ≈ 10 for token counts)
             
             Returns:
-                (binary_presence, log_intensity)
+                Normalized value in [0,1]
+            
+            **Why this matters:**
+            LinUCB inverts the matrix A. If features have wildly different scales
+            (e.g., binary=1, log_length=10), the matrix becomes ill-conditioned.
+            Normalization prevents numerical instability.
+            """
+            return float(np.clip(log_value / max_expected, 0.0, 1.0))
+        
+        @staticmethod
+        def split_signal(raw_count: float, max_log: float = 5.0) -> Tuple[float, float]:
+            """
+            Split a raw count into linearizable AND normalized components.
+            
+            Args:
+                raw_count: The raw count value
+                max_log: Maximum expected log value for normalization
+            
+            Returns:
+                (binary_presence, normalized_log_intensity)
             
             Example:
                 0 → (0.0, 0.0)
-                1 → (1.0, 0.69)  # log(1+1)
-                10 → (1.0, 2.40) # log(1+10)
+                1 → (1.0, 0.14)  # log(2)/5 ≈ 0.14
+                10 → (1.0, 0.48) # log(11)/5 ≈ 0.48
+                100 → (1.0, 0.92) # log(101)/5 ≈ 0.92
             """
-            return (
-                FeatureTransformer.binarize(raw_count),
-                FeatureTransformer.log1p(raw_count)
-            )
+            binary = FeatureTransformer.binarize(raw_count)
+            log_val = FeatureTransformer.log1p(raw_count)
+            normalized = FeatureTransformer.normalize_log(log_val, max_log)
+            return (binary, normalized)
 
 
     def _extract_handcrafted_features(self, text: str) -> np.ndarray:
@@ -723,8 +751,11 @@ class BanditRouter:
         json_keywords = ["json", "valid format", "schema", "output format"]
         requires_json = 1.0 if any(k in text.lower() for k in json_keywords) else 0.0
         
-        # 3. Input Length (log-scaled continuous)
-        input_length_log = np.log(n_tokens + 1.0)
+        # 3. Input Length (log-scaled continuous, normalized to [0,1])
+        # Max expected: log(10000) ≈ 9.2, use 10.0 as upper bound
+        input_length_log = self.FeatureTransformer.normalize_log(
+            np.log(n_tokens + 1.0), max_expected=10.0
+        )
         
         # 4. List Density (continuous)
         list_markers = [l for l in lines if l.strip().startswith(('-', '*', '1.', '2.'))]
@@ -773,11 +804,14 @@ class BanditRouter:
         question_count = float(text.count('?'))
         has_question, question_count_log = self.FeatureTransformer.split_signal(question_count)
         
-        # 14-15. Length: Binary threshold + Log scaling
+        # 14-15. Length: Binary threshold + Log scaling (normalized)
         # Binary: Is this a "long" prompt? (>500 tokens)
         length_penalty_bin = 1.0 if n_tokens > 500 else 0.0
-        # Continuous: Log-scaled length
-        length_penalty_log = np.log1p(n_tokens)
+        # Continuous: Log-scaled length, normalized to [0,1]
+        # Max expected: log(10000) ≈ 9.2
+        length_penalty_log = self.FeatureTransformer.normalize_log(
+            np.log1p(n_tokens), max_expected=10.0
+        )
         
         return np.array([
             # Original continuous features (1-7)
