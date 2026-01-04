@@ -33,12 +33,12 @@ class ClusterDetector:
         self.encoder = encoder or SentenceTransformer(encoder_model)
         
         # Load or compute centroids
+        # Load or compute centroids
         if centroids_path and centroids_path.exists():
             self.centroids = self._load_centroids(centroids_path)
         else:
             # Compute from golden prompts
             self.centroids = self._compute_centroids_from_golden_prompts()
-        
         self.n_clusters = len(self.centroids)
     
     def _compute_centroids_from_golden_prompts(self) -> np.ndarray:

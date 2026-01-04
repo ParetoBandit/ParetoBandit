@@ -1,0 +1,69 @@
+{
+  "protocol": "Perfect Pareto: HLE Minimum Regret",
+  "stage1": {
+    "grid": {
+      "n_struct_values": [
+        10,
+        60,
+        250
+      ],
+      "n_prior_values": [
+        10,
+        60,
+        250
+      ],
+      "fixed_lambda": 0.0
+    },
+    "champion": {
+      "n_struct": 250,
+      "n_prior": 10,
+      "regret": 0.015290519877675823
+    },
+    "heatmap": [
+      [
+        0.9347604485219164,
+        0.9551478083588175,
+        0.9847094801223242
+      ],
+      [
+        0.9714576962283384,
+        0.9694189602446484,
+        0.9714576962283384
+      ],
+      [
+        0.9714576962283384,
+        0.9663608562691132,
+        0.9347604485219164
+      ]
+    ]
+  },
+  "stage2": {
+    "architecture_locked": {
+      "n_struct": 250,
+      "n_prior": 10
+    },
+    "frontier": [
+      {
+        "profile": "Max Quality",
+        "lambda_cost": 0.0,
+        "cost_mean": 3.286824668705402,
+        "cost_std": 0.0,
+        "utility_mean": 0.9847094801223242
+      },
+      {
+        "profile": "Balanced",
+        "lambda_cost": 0.5,
+        "cost_mean": 0.04656982670744139,
+        "cost_std": 0.0,
+        "utility_mean": 0.9683995922528033
+      },
+      {
+        "profile": "Budget",
+        "lambda_cost": 5.0,
+        "cost_mean": 0.015511606837920487,
+        "cost_std": 0.0,
+        "utility_mean": 0.9235474006116208
+      }
+    ]
+  }
+}
