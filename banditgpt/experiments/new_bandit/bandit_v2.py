@@ -563,9 +563,9 @@ class BanditRouter:
                 logger.warning(f"Could not initialize cluster detector: {e}")
         
         # -----------------------------------------------------------------------
-        # FEATURE VECTOR DIMENSION LOGIC (Updated for Hardness Switch)
-        # Base Embedding (384/32) + Handcrafted (8) + Cluster Distances (5) + 
-        # Hardness Switch (1) + Bias (1) = 47 (or 398 without PCA)
+        # FEATURE VECTOR DIMENSION LOGIC (Updated for Heuristic Hardness)
+        # Base Embedding (384/32) + Handcrafted (11) + Cluster Distances (5) + 
+        # Hardness Score (1) + Bias (1) = 50 (or 401 without PCA)
         # NOTE: High dimensionality (~400 params per arm) is expensive for online bandits.
         # Without strong priors (N_eff), convergence would take 10k+ steps.
         # Priors are essential here to bridge the "cold start" gap.
@@ -581,8 +581,8 @@ class BanditRouter:
             
         if embedding_dim == enc_dim:
              # User likely passed default 384 (or we just want auto-calc).
-             # We are adding 14 features (8 explicit + 5 cluster + 1 hardness).
-             embedding_dim = base_dim + 14
+             # We are adding 17 features (11 handcrafted + 5 cluster + 1 hardness).
+             embedding_dim = base_dim + 17
         
         # Add bias term to dimension
         self.bandit = DisjointLinUCBPolicy(
@@ -638,9 +638,12 @@ class BanditRouter:
         6. flesch_kincaid
         7. question_count
         8. toxicity_score
+        9. has_code_block (NEW: explicit code fence detection)
+        10. latex_density (NEW: math/LaTeX symbol density)
+        11. length_penalty (NEW: normalized token count)
         """
         if not text:
-            return np.zeros(8)
+            return np.zeros(11)
         
         # --- BASICS ---
         total_len = len(text)
@@ -700,10 +703,27 @@ class BanditRouter:
             except Exception:
                 pass
         
+        # --- HEURISTIC HARDNESS FEATURES ---
+        
+        # 9. Has Code Block (Explicit)
+        # Embeddings can miss short but complex code snippets
+        has_code_block = 1.0 if '```' in text else 0.0
+        
+        # 10. LaTeX Density
+        # Short math problems with high symbol density are hard
+        latex_symbols = text.count('$') + text.count('\\') + text.count('^') + text.count('_{')
+        latex_density = min(latex_symbols / max(n_words, 1), 1.0)  # Normalize by word count
+        
+        # 11. Length Penalty (Normalized)
+        # Longer prompts often require larger context models
+        # Normalize to [0, 1] assuming 2000 tokens as "long"
+        length_penalty = min(n_tokens / 2000.0, 1.0)
+        
         return np.array([
             is_code_heavy, requires_json, input_length_log, list_density,
             instruction_density, fk_normalized, question_count,
-            toxicity_score
+            toxicity_score,
+            has_code_block, latex_density, length_penalty
         ])
 
     def _get_cluster_distances(self, embedding: np.ndarray) -> np.ndarray:
@@ -726,8 +746,8 @@ class BanditRouter:
         """
         Convert string prompt or array to a normalized context vector.
         
-        Structure with Zero-Shot Hardness:
-        [Embedding (32/384) | Handcrafted (8) | Anchors (N) | Hardness Score (1) | Bias (1)]
+        Structure with Zero-Shot Hardness + Heuristic Features:
+        [Embedding (32/384) | Handcrafted (11) | Anchors (5) | Hardness Score (1) | Bias (1)]
         
         The Hardness Score is the "Semantic Complexity" signal:
         - S_hard = prompt_embedding · Reference_Complexity_Vector
