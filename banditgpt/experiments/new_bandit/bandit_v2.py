@@ -888,17 +888,17 @@ class BanditRouter:
             #   - Extremely hard (0.90) → 0.999
             # The 0.049 difference is small but mathematically visible to LinUCB.
             # 
-            # Empirically calibrated on N=1000 LMSYS prompts:
-            #   μ (center): -0.0033
-            #   σ (spread):  0.0958
-            #   k (gain):    1/σ ≈ 10.44
+            # Empirically calibrated on N=1000 TRAIN prompts only (NO data leakage):
+            #   μ (center): -0.0037
+            #   σ (spread):  0.0950
+            #   k (gain):    1/σ ≈ 10.53
             # 
             # Formula: sigmoid(z) where z = k * (x - μ)
             # This maps (-∞, ∞) → (0, 1) smoothly, no clipping.
             
-            COMPLEXITY_MU = -0.0033  # Mean from empirical validation (N=1000)
-            COMPLEXITY_SIGMA = 0.0958  # Std dev from empirical validation
-            k = 1.0 / COMPLEXITY_SIGMA  # Gain: ~10.44
+            COMPLEXITY_MU = -0.0037  # Mean from train-only calibration (N=1000)
+            COMPLEXITY_SIGMA = 0.0950  # Std dev from train-only calibration
+            k = 1.0 / COMPLEXITY_SIGMA  # Gain: ~10.53
             
             z_score = k * (raw_projection - COMPLEXITY_MU)
             hardness_score_normalized = sigmoid(z_score)

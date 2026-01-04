@@ -61,13 +61,13 @@ def main():
     
     # Load prompts
     print("\nLoading prompts...")
-    test_prompts = load_prompts(TEST_PROMPTS_PATH, max_samples=500)
-    train_prompts = load_prompts(TRAIN_PROMPTS_PATH, max_samples=500)
-    all_prompts = test_prompts + train_prompts
+    # CRITICAL: Use ONLY train prompts for calibration to avoid data leakage!
+    # Test prompts should remain unseen for proper evaluation.
+    train_prompts = load_prompts(TRAIN_PROMPTS_PATH, max_samples=1000)
+    all_prompts = train_prompts
     
-    print(f"✓ Loaded {len(all_prompts)} prompts")
-    print(f"  - Test: {len(test_prompts)}")
-    print(f"  - Train: {len(train_prompts)}")
+    print(f"✓ Loaded {len(all_prompts)} TRAIN prompts for calibration")
+
     
     if len(all_prompts) == 0:
         print("\nERROR: No prompts loaded. Using synthetic samples...")
