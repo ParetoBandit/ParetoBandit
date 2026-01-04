@@ -1030,6 +1030,7 @@ class BanditRouter:
             
             # Perform Zero-Shot Warm Start (initializes b vectors with HLE-based priors)
             router._load_zero_shot_priors(prior_n_effective)
+            router._procedural_warmup(n_samples=50)
             return router
             
         # Cold Start (No Priors)
