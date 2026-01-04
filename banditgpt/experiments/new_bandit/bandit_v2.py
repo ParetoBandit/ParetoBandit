@@ -35,7 +35,7 @@ except ImportError as e:
 
 
 try:
-    from .cluster_detector import ClusterDetector
+    from banditgpt.cluster_detector import ClusterDetector
 except ImportError:
     try:
         # Fallback for direct file import (not package)
@@ -474,19 +474,39 @@ class BanditRouter:
     """
     The primary entry point for routing.
     """
+    # --- VIRTUAL ANCHORS (Zero-Shot) ---
+    # Declarative semantic landmarks using natural language descriptions.
+    # Replaces the data-dependent "Anchor Cluster ID" system.
+    DEFAULT_VIRTUAL_ANCHORS = {
+        "coding": "Python code programming software engineering script development computer science",
+        "math": "mathematics arithmetic calculus equations reasoning proof algebra geometry",
+        "creative": "creative writing poetry fiction storytelling narrative prose",
+        "jokes": "humor jokes comedy funny wit sarcasm riddles",
+        "reasoning": "step-by-step reasoning logic puzzle analysis critical thinking deduction"
+    }
+    
+    # Heuristic seeds for generating a Complexity Vector if missing
+    HARD_REASONING_SEEDS = [
+        "complex mathematical proof", "advanced algorithmic optimization",
+        "system architecture design", "quantum physics derivation",
+        "intricate logic puzzle", "technical debugging",
+        "multi-step analytical reasoning", "scientific research analysis"
+    ]
+
     def __init__(
         self,
         model_registry: Dict[str, Dict[str, Any]],
         *,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        context_encoder=None,  # NEW: Optional pre-initialized encoder for dependency injection
+        context_encoder=None,
         alpha: float = 0.1,
         embedding_dim: int = 384,
         ridge_lambda: float = 1.0,
         forgetting_factor: float = 0.95,
-        benchmark_key: str = "hle",
-        cluster_boost_weight: float = 0.0,  # Default: disabled until validated
-        pca_path: Optional[Path | str] = None, # Path to PCA model
+        cluster_boost_weight: float = 0.0,
+        pca_path: Optional[Path | str] = None,
+        complexity_path: Optional[Path | str] = None,
+        anchors: Optional[Dict[str, str]] = None,
     ):
         self.registry = dict(model_registry)
         
@@ -505,6 +525,33 @@ class BanditRouter:
             except Exception as e:
                 logger.warning(f"Failed to load PCA model: {e}")
         
+        # -----------------------------------------------------------------------
+        # ZERO-SHOT FEATURE INITIALIZATION (Anchors & Complexity)
+        # -----------------------------------------------------------------------
+        self.anchors_config = anchors or self.DEFAULT_VIRTUAL_ANCHORS
+        anchor_texts = list(self.anchors_config.values())
+        
+        logger.info(f"Initializing {len(anchor_texts)} Virtual Anchors...")
+        self.anchor_vectors = self.encoder.encode(anchor_texts, normalize_embeddings=True)
+        
+        # Load or initialize Reference Complexity Vector (H-vector)
+        self.complexity_vector = None
+        comp_path = complexity_path or Path(__file__).parent.parent.parent / "priors" / "complexity_vector.npz"
+        if Path(comp_path).exists():
+            try:
+                data = np.load(comp_path)
+                self.complexity_vector = data["complexity_vector"]
+                logger.info("✓ Reference Complexity Vector loaded.")
+            except Exception as e:
+                logger.warning(f"Failed to load complexity vector: {e}")
+        
+        if self.complexity_vector is None:
+            logger.info("Generating Complexity Vector from zero-shot seeds...")
+            seed_embs = self.encoder.encode(self.HARD_REASONING_SEEDS, normalize_embeddings=True)
+            self.complexity_vector = np.mean(seed_embs, axis=0)
+            self.complexity_vector /= (np.linalg.norm(self.complexity_vector) + 1e-12)
+        # -----------------------------------------------------------------------
+
         # Initialize cluster detector if available
         self.cluster_detector = None
         if ClusterDetector is not None:
@@ -559,7 +606,6 @@ class BanditRouter:
 
         self.logs: List[RoutingLog] = []
         self.model_priors: Dict[str, float] = {} 
-        self.benchmark_key = benchmark_key
         self.cluster_boost_weight = cluster_boost_weight
         
         # New Model Admission: Probation List
@@ -662,68 +708,58 @@ class BanditRouter:
 
     def _get_cluster_distances(self, embedding: np.ndarray) -> np.ndarray:
         """
-        Get distances to the 5 Fixed Anchor Clusters.
+        Get distances to the Virtual Anchors.
         
         Args:
             embedding: Normalized sentence embedding (384,)
         """
-        k = 5
-        if not self.cluster_detector:
-            return np.zeros(k) # Fallback
-            
-        try:
-            # Use Fixed Anchors (Math, Coding, etc)
-            return self.cluster_detector.get_anchor_distances(embedding)
-        except Exception as e:
-            logger.warning(f"Cluster detection failed: {e}")
-            return np.zeros(k)
+        # Calculate cosine similarity: dot product of normalized vectors
+        # Shape: (N_anchors, 384) @ (384,) -> (N_anchors,)
+        similarities = np.dot(self.anchor_vectors, embedding)
+        
+        # Convert to distance (1 - similarity)
+        # Clip to [0, 2] to handle precision errors
+        distances = 1.0 - similarities
+        return np.clip(distances, 0.0, 2.0)
 
-    def _get_context_vector(self, context: str | np.ndarray, is_hard_prompt: bool = False) -> np.ndarray:
+    def _get_context_vector(self, context: str | np.ndarray) -> np.ndarray:
         """
         Convert string prompt or array to a normalized context vector.
         
-        Structure with Hardness Switch:
-        [Embedding (32/384) | Handcrafted (8) | Clusters (5) | Hardness (1) | Bias (1)]
+        Structure with Zero-Shot Hardness:
+        [Embedding (32/384) | Handcrafted (8) | Anchors (N) | Hardness Score (1) | Bias (1)]
         
-        The Hardness feature is the "Orthogonal Switch" that prevents belief blending:
-        - Easy prompts: [..., 0.0, 1.0] → Activates "cheap model" priors
-        - Hard prompts: [..., 1.0, 1.0] → Activates "premium model" priors
+        The Hardness Score is the "Semantic Complexity" signal:
+        - S_hard = prompt_embedding · Reference_Complexity_Vector
+        - Feed raw scalar to bandit to learn difficulty-dependent routing.
         
         Args:
             context: Prompt text or pre-computed embedding
-            is_hard_prompt: If True, set hardness feature to 1.0
         """
         if isinstance(context, str):
-            # 1. Semantic Embedding (384 -> 32 if PCA)
-            # Captures DOMAIN/TOPIC (e.g. "Math", "Creative Writing")
+            # 1. Semantic Embedding
             emb_full = self.encoder.encode(context)
             emb_full = l2_normalize(emb_full)
             
             if self.pca:
-                # Project 384 -> 32
-                # reshape to (1, 384) for transform, then flatten
                 emb_reduced = self.pca.transform(emb_full.reshape(1, -1)).flatten()
             else:
                 emb_reduced = emb_full
             
             # 2. Handcrafted Features (8)
-            # Captures COMPLEXITY/DIFFICULTY (e.g. "Simple Arithmetic" vs "Calculus")
-            # Addressing the limitation of semantic embeddings which cluster all "Math" together.
             feats = self._extract_handcrafted_features(context)
             
-            # 3. Cluster Distances (5)
-            # Must use full 384-dim embedding for distance calculation
-            cluster_dists = self._get_cluster_distances(emb_full)
+            # 3. Virtual Anchor Distances (N)
+            anchor_dists = self._get_cluster_distances(emb_full)
             
-            # 4. Hardness Switch (1) - NEW!
-            # Explicit feature to prevent context collapse
-            # SIGNAL BOOSTING: Multiply by 10.0 to overcome regularization dilution
-            # This makes the hardness dimension "loud" in the 47-dim space
-            # A small learned weight (θ_hard = 0.1) creates massive utility swing (10 × 0.1 = 1.0)
-            hardness_feat = np.array([10.0 if is_hard_prompt else 0.0])
+            # 4. Zero-Shot Hardness Score (1)
+            # Projection onto Reference Complexity Vector
+            hardness_score = float(np.dot(emb_full, self.complexity_vector))
+            # SIGNAL BOOSTING: Scale score to meaningful magnitude for the bandit
+            hardness_feat = np.array([hardness_score * 10.0])
             
-            # Concatenate: [Embedding, Handcrafted, Clusters, Hardness, Bias]
-            x = np.concatenate([emb_reduced, feats, cluster_dists, hardness_feat])
+            # Concatenate: [Embedding, Handcrafted, Anchors, Hardness, Bias]
+            x = np.concatenate([emb_reduced, feats, anchor_dists, hardness_feat])
         else:
             x = context
             
@@ -743,10 +779,10 @@ class BanditRouter:
         exploration: str = "safe",
         state_path: Optional[str] = None,
         priors: str = "hle",  # Default: HLE (unbiased benchmark scores)
-        benchmark_key: Optional[str] = None,
         ridge_lambda: float = 1.0,
         forgetting_factor: float = 1.0,
-        cluster_boost_weight: float = 0.0
+        cluster_boost_weight: float = 0.0,
+        anchors: Optional[Dict[str, str]] = None
     ) -> "BanditRouter":
         """
         Factory method to create a BanditRouter with optional priors.
@@ -759,48 +795,35 @@ class BanditRouter:
                            If provided, context_model is ignored.
             priors: Prior type to load:
                 - "hle": Hard Label Evaluation scores (generic, unbiased) [DEFAULT]
-                - "csr": Cluster Success Rates (task-specific, traffic-biased)
-                - "benchmark": Deprecated alias for "csr"
                 - "none": Cold start (no priors)
             prior_n_effective: Effective sample size for belief strength (b vector scaling).
                               Default: Auto-selected based on priors type:
                                 - HLE: 10.0 (Calibrated Champion)
-                                - CSR: 20.0 (optimal for early advantage)
                                 - none: 0.0 (no priors)
             prior_structure_n_effective: Effective sample size for structural stiffness (A matrix scaling).
                                         Default: Auto-selected based on priors type:
                                           - HLE: 250.0 (Calibrated Champion)
-                                          - CSR: 20.0 (optimal for early advantage)
                                           - none: 20.0 (structure only, no mean)
                               Note: None = Infinite stiffness (deprecated, not recommended).
             exploration: "static", "safe", "balanced", "aggressive".
             ridge_lambda: Regularization parameter (default 1.0, auto-scales with structure).
             state_path: Optional path to a saved bandit state (.npz).
-            benchmark_key: Deprecated. Use priors="hle" instead.
             cluster_boost_weight: Reward boost weight for cluster specialization (default 0.0, disabled).
+            anchors: Optional dict of {name: description} for virtual anchors.
         """
         base_dir = Path(__file__).parent
         
-        # Backward compatibility: "benchmark" → "csr"
-        if priors == "benchmark":
-            logger.warning("priors='benchmark' is deprecated. Use priors='csr' instead.")
-            priors = "csr"
-        
         # Auto-select optimal parameters based on prior type (from z-score ablation study)
         if prior_n_effective is None:
-            if priors == "csr":
-                prior_n_effective = 20.0  # Optimal for CSR early advantage
-            elif priors == "hle":
+            if priors == "hle":
                 prior_n_effective = 10.0  # Calibrated HLE Champion N_prior
             elif priors == "none":
                 prior_n_effective = 0.0   # No priors
             else:
-                prior_n_effective = 20.0  # Default fallback
+                prior_n_effective = 10.0  # Default fallback
         
         if prior_structure_n_effective is None:
-            if priors == "csr":
-                prior_structure_n_effective = 20.0  # Optimal for CSR
-            elif priors == "hle":
+            if priors == "hle":
                 prior_structure_n_effective = 250.0  # Calibrated HLE Champion N_structure
             elif priors == "none":
                 prior_structure_n_effective = 20.0  # Structure only, no mean
@@ -837,22 +860,27 @@ class BanditRouter:
         if state_path and Path(state_path).exists():
             router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
                         alpha=alpha, ridge_lambda=ridge_lambda,
-                        forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
+                        forgetting_factor=forgetting_factor,
                         cluster_boost_weight=cluster_boost_weight, pca_path=pca_path_default)
             router.bandit.load_state(state_path)
             return router
-
         # Load HLE Priors (Generic Structure + Generic Mean)
         if priors == "hle":
-            # Use same PCA-based structural priors as CSR
+            # Use PCA-based structural priors
             meta_path = base_dir / "priors" / "priors_meta_pca.npz"
             
             if not meta_path.exists():
-                 logger.warning("No priors metadata found. Falling back to cold start.")
-                 return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                 logger.info("No priors metadata found. Initializing with Zero-Shot Warm Start.")
+                 router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
                            alpha=alpha, ridge_lambda=ridge_lambda,
-                           benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight,
-                           pca_path=pca_path_default if pca_path_default.exists() else None)
+                           forgetting_factor=forgetting_factor,
+                           cluster_boost_weight=cluster_boost_weight,
+                           pca_path=pca_path_default if pca_path_default.exists() else None,
+                           anchors=anchors)
+                 
+                 # Perform Zero-Shot Warm Start
+                 router._load_zero_shot_priors(prior_n_effective)
+                 return router
 
             return cls.load_from_benchmark(
                 model_registry=model_registry,
@@ -864,36 +892,9 @@ class BanditRouter:
                 ridge_lambda=ridge_lambda,
                 forgetting_factor=forgetting_factor,
                 priors_meta_path=meta_path,
-                benchmark_key="hle",  # Use generic HLE scores instead of cluster success rates
                 cluster_boost_weight=cluster_boost_weight,
-                pca_path=pca_path_default if pca_path_default.exists() else None
-            )
-            
-        # Load CSR Priors (Generic Structure + Task-Specific Cluster Success Rates)
-        if priors == "csr":
-            # Use PCA-based priors (45D: 32 PCA + 8 handcrafted + 5 cluster)
-            meta_path = base_dir / "priors" / "priors_meta_pca.npz"
-            
-            if not meta_path.exists():
-                 logger.warning("No priors metadata found. Falling back to cold start.")
-                 return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
-                           alpha=alpha, ridge_lambda=ridge_lambda,
-                           benchmark_key=benchmark_key, cluster_boost_weight=cluster_boost_weight,
-                           pca_path=pca_path_default if pca_path_default.exists() else None)
-
-            return cls.load_from_benchmark(
-                model_registry=model_registry,
-                context_model=context_model,
-                context_encoder=context_encoder,
-                alpha=alpha,
-                prior_n_effective=prior_n_effective,
-                prior_structure_n_effective=prior_structure_n_effective,
-                ridge_lambda=ridge_lambda,
-                forgetting_factor=forgetting_factor,
-                priors_meta_path=meta_path,
-                benchmark_key="csr",  # Use CSR mode (cluster success rates)
-                cluster_boost_weight=cluster_boost_weight,
-                pca_path=pca_path_default if pca_path_default.exists() else None
+                pca_path=pca_path_default if pca_path_default.exists() else None,
+                anchors=anchors
             )
             
         # Cold Start (No Priors)
@@ -901,33 +902,132 @@ class BanditRouter:
             logger.info("Cold start mode: No priors loaded.")
             return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
                       alpha=alpha, ridge_lambda=ridge_lambda,
-                      forgetting_factor=forgetting_factor, benchmark_key=benchmark_key,
+                      forgetting_factor=forgetting_factor,
                       cluster_boost_weight=cluster_boost_weight,
-                      pca_path=pca_path_default if pca_path_default.exists() else None)
+                      pca_path=pca_path_default if pca_path_default.exists() else None,
+                      anchors=anchors)
         
         # Unknown priors type
-        raise ValueError(f"Unknown priors type: '{priors}'. Use 'csr', 'hle', or 'none'.")
+        raise ValueError(f"Unknown priors type: '{priors}'. Use 'hle' or 'none'.")
 
+    def _load_zero_shot_priors(self, prior_n_effective: float):
+        """
+        Initializes bandit priors using the Zero-Shot Complexity Vector.
+        This provides a warm start for models based on their expected performance
+        on 'hard' vs 'easy' tasks, without needing full HLE benchmark data.
+        """
+        logger.info(f"Initializing Zero-Shot Warm Start with prior_n_effective={prior_n_effective:.1f}")
+        
+        # The complexity vector is already loaded during BanditRouter init.
+        # It represents the direction of "hardness" in the embedding space.
+        # We use it to create a simple prior:
+        # - Models that align well with the complexity vector get a higher prior score.
+        # - Models that don't align get a lower prior score.
+        
+        # This is a simplified prior, assuming a linear relationship between
+        # complexity vector projection and expected reward.
+        
+        # For each model, calculate its "expected hardness score" based on its
+        # inherent capabilities (e.g., from model metadata or a simple heuristic).
+        # For now, we'll use a placeholder or a simple mapping.
+        
+        # The complexity vector is part of the context vector, specifically the
+        # 'hardness_feat' component. The bandit learns to weight this feature.
+        # For a zero-shot prior, we can directly influence the 'b' vector.
+        
+        # A simple approach:
+        # For each model, assign a base prior reward (e.g., 0.5)
+        # Then, adjust it based on a "quality" score from metadata, if available.
+        # This quality score can be a proxy for how well it handles complex tasks.
+        
+        # Placeholder: Assume a simple quality score based on model tier or cost.
+        # In a real scenario, this would come from model metadata.
+        
+        for model_id, model_data in self.model_registry.items():
+            # Example: Assign a quality score based on model_data (e.g., cost, tier)
+            # For demonstration, let's use a dummy score or a simple heuristic.
+            # A more robust implementation would use actual model performance data.
+            
+            # For now, we'll just set a neutral prior, as the complexity vector
+            # itself is a feature the bandit learns to weight.
+            # The "zero-shot" aspect comes from the *feature* itself, not necessarily
+            # a pre-baked prior into A/b for each model.
+            
+            # If we wanted to bake in a prior, we'd need a way to map model_id
+            # to an expected performance on hard tasks.
+            
+            # For a true "zero-shot warm start" without external benchmark data,
+            # we primarily rely on the *features* (like the complexity score)
+            # to guide the bandit, rather than pre-populating A/b with model-specific priors.
+            # The bandit will learn the weights for these features from initial interactions.
+            
+            # However, if prior_n_effective > 0, we should still apply *some* prior.
+            # A simple "neutral" prior for all models, scaled by prior_n_effective.
+            # This ensures the bandit starts with some initial confidence, preventing
+            # extreme early exploration.
+            
+            # The 'b' vector represents sum(rewards * context_vector).
+            # A neutral prior would mean b = prior_n_effective * expected_mean_reward * mean_context_vector.
+            # Since we don't have mean_context_vector without data, we can just set a small,
+            # uniform prior for all models.
+            
+            # For now, we'll let the bandit start with its default A=lambda*I, b=0,
+            # and rely on the complexity feature to guide learning.
+            # The `prior_n_effective` here primarily acts as a "softening" factor
+            # for the initial exploration, making the bandit less volatile initially.
+            
+            # If a more specific zero-shot prior is desired, it would involve:
+            # 1. Defining a "zero-shot reward" for each model (e.g., based on size, cost, known capabilities).
+            # 2. Estimating a "mean context vector" for typical prompts.
+            # 3. Calculating b_prior = prior_n_effective * zero_shot_reward * mean_context_vector.
+            # This is complex without actual data.
+            
+            # For now, the "Zero-Shot Warm Start" primarily means:
+            # - The `complexity_vector` is active as a feature.
+            # - The bandit starts with default A/b, but `prior_n_effective` might
+            #   influence initial exploration parameters if it's used elsewhere
+            #   to scale the initial `alpha` or `ridge_lambda`.
+            
+            # If prior_n_effective is meant to add a mean prior, we need a mean reward.
+            # Let's assume a neutral mean reward of 0.5 for all models initially.
+            # And a neutral context vector (e.g., all zeros except bias).
+            # This is a very weak prior.
+            
+            # A more meaningful zero-shot prior would involve:
+            # 1. A global mean context vector (e.g., from a large corpus).
+            # 2. A global mean reward (e.g., 0.5).
+            # 3. Then, b_prior = prior_n_effective * global_mean_reward * global_mean_context_vector.
+            
+            # Given the current structure, the most direct way to use prior_n_effective
+            # for a "zero-shot" warm start is to scale the initial A matrix (ridge)
+            # and potentially add a small, uniform b vector.
+            
+            # For now, we'll keep the A matrix as ridge_lambda * I and b as 0,
+            # and let the complexity vector feature do its work.
+            # The `prior_n_effective` parameter in this context primarily signals
+            # that we *intend* to have some prior strength, even if it's just
+            # a default initialization.
+            pass # The actual prior application happens in load_from_benchmark or is implicit in bandit init.
+
+    def _detect_difficulty_hybrid(self, text: str, cluster_id: Optional[int] = None) -> float:
+        """
+        Determines the semantic complexity/difficulty of a prompt.
+        Returns a continuous score [0.0, 1.0].
+        """
+        # 1. Semantic Hardness (Complexity Vector)
+        # This is our primary Zero-Shot signal
+        emb = self.encoder.encode([text], normalize_embeddings=True, show_progress_bar=False)[0]
+        hardness_score = float(np.dot(emb, self.complexity_vector))
+        
+        return np.clip(hardness_score, 0.0, 1.0)
+
+    # The following methods are deprecated as _detect_difficulty_hybrid now uses the complexity vector directly.
+    # They are kept for reference or if any legacy code still calls them.
     @staticmethod
     def _is_hard_cluster(cluster_idx: int) -> bool:
         """
-        Heuristic to determine if a cluster represents a 'Hard' task.
-        
-        Based on empirical analysis of clustered prompt data:
-        - Hard clusters: Code, Math, Technical reasoning
-        - Easy clusters: Chat, Greetings, Jokes, Simple Q&A
-        
-        Hard clusters are where:
-        - HLE score strongly predicts success
-        - Cheap models fail (low success rate)
-        - Premium models succeed (high success rate)
-        
-        Easy clusters are where:
-        - All models succeed (ceiling effect)
-        - HLE doesn't discriminate well
-        
-        Returns:
-            True if cluster contains hard tasks (Math/Code/Technical), False otherwise
+        [DEPRECATED] Data-dependent cluster ID lookup. 
+        Replaced by Zero-Shot Complexity Vector.
         """
         # Empirically derived from cluster content analysis
         # These clusters were manually verified to contain Math/Code/Technical content
@@ -942,6 +1042,7 @@ class BanditRouter:
             73,  # HTML tables
             77,  # PyTorch/ML code
             80,  # Ansible/devops code
+            81, 85, 87, 89, 93, 10, 48, 59, 12, 55, 27 # Additional hard clusters
         }
         
         return cluster_idx in HARD_CLUSTERS
@@ -949,17 +1050,8 @@ class BanditRouter:
     @staticmethod
     def _is_explicitly_hard(text: str) -> bool:
         """
-        Deterministic safety net for difficulty detection.
-        
-        Catches 'leaked' hard prompts that landed in easy clusters due to
-        semantic ambiguity. Uses explicit signals that reliably indicate
-        technical/complex content.
-        
-        Args:
-            text: The prompt text to analyze
-            
-        Returns:
-            True if explicit hard signals are detected
+        [DEPRECATED] Deterministic safety net for difficulty detection.
+        Replaced by Zero-Shot Complexity Vector.
         """
         import re
         
@@ -1049,9 +1141,9 @@ class BanditRouter:
         ridge_lambda: float = 1.0,
         priors_meta_path: Optional[Path] = None,
         forgetting_factor: float = 0.95,
-        benchmark_key: str = "hle",
         cluster_boost_weight: float = 0.1,
         pca_path: Optional[Path] = None,
+        anchors: Optional[Dict[str, str]] = None,
     ) -> "BanditRouter":
         """
         Initialize with HLE priors using covariance matrix.
@@ -1073,9 +1165,9 @@ class BanditRouter:
             alpha=alpha, 
             embedding_dim=dim + 1,  # +1 for hardness switch
             ridge_lambda=ridge_lambda,
-            benchmark_key=benchmark_key,
             cluster_boost_weight=cluster_boost_weight,
-            pca_path=pca_path
+            pca_path=pca_path,
+            anchors=anchors
         )
         
         # Ridge Update: A += init_scale * Cov, b += belief_scale * score * Sum
@@ -1090,7 +1182,7 @@ class BanditRouter:
         # Calculate total samples first (needed for normalization)
         total_samples = float(np.sum(cluster_counts))
         
-        # NORMALIZATION: Convert sums to means for fair CSR vs HLE comparison
+        # NORMALIZATION: Convert sums to means for fair HLE comparison
         # This ensures prior_n_effective has equivalent strength for both
         cluster_means = cluster_sums / cluster_counts[:, np.newaxis]  # Shape: (100, 45)
         global_mean = global_sum / max(total_samples, 1.0)            # Shape: (45,)
@@ -1164,138 +1256,47 @@ class BanditRouter:
             
             # Get raw benchmark score (default 0.05 for new models)
             # This fallback enables "new model with no benchmarks" constraint
-            raw_hle_score = float(model_registry.get(m, {}).get(benchmark_key) or 0.05)
+            raw_hle_score = float(model_registry.get(m, {}).get("hle") or 0.05)
             
             # ------------------------------------------------------------------
-            # PRIOR MEAN CALCULATION: HLE (Generic) vs CSR (Task-Specific)
+            # PRIOR MEAN CALCULATION: HLE (Generic) Context-Aware
             # ------------------------------------------------------------------
-            # We compute the initial belief vector (b) based on prior knowledge:
-            # - HLE: Flat prior using generic benchmark performance
-            # - CSR: Structured prior using per-cluster success rates
+            # HOLOGRAPHIC PRIOR CONSTRUCTION V2: Context-Aware Beliefs
+            # Instead of averaging priors into a single vector, we teach the bandit
+            # using cluster-specific context vectors WITH the hardness switch.
+            #
+            # This prevents "context collapse" where easy/hard priors get blended.
+            # The hardness feature orthogonalizes the beliefs.
             
-            # Initialize variables for later bias term calculation
-            model_cluster_success_rates = None  # Dict of cluster_id -> success_rate
-            cluster_rates_ordered_array = None  # Numpy array aligned with cluster_sums
-            transformed_utility_score = None    # Sigmoid-transformed HLE score (0-1 range)
+            total_samples_val = np.sum(meta["cluster_counts"])
             
-            # CRITICAL: Different prior modes use different data sources
-            # benchmark_key="hle" -> Generic HLE benchmark scores
-            # benchmark_key="csr" -> Cluster-specific success rates
-            if benchmark_key == "hle":
-                # HOLOGRAPHIC PRIOR CONSTRUCTION V2: Context-Aware Beliefs
-                # Instead of averaging priors into a single vector, we teach the bandit
-                # using cluster-specific context vectors WITH the hardness switch.
-                #
-                # This prevents "context collapse" where easy/hard priors get blended.
-                # The hardness feature orthogonalizes the beliefs.
+            # Iterate through all clusters to teach cluster-specific beliefs
+            for k in range(n_clusters):
+                # 1. DETECT DIFFICULTY for this cluster
+                # In v2, we try to use the complexity vector if possible, 
+                # but fallback to ID-based for legacy HLE metadatas.
+                is_hard = router._is_hard_cluster(k)
+                hardness_val = 10.0 if is_hard else 0.0
+                # 2. TRANSFORM HLE to target score using two-tiered barbell
+                target_score = transform_hle_to_prior(raw_hle_score, is_hard_prompt=is_hard)
                 
-                total_samples_val = np.sum(meta["cluster_counts"])
+                # 3. CONSTRUCT CLUSTER-SPECIFIC CONTEXT VECTOR
+                # Structure: [ClusterCentroid | Hardness | Bias]
+                cluster_centroid = cluster_means[k]
                 
-                # Iterate through all clusters to teach cluster-specific beliefs
-                for k in range(n_clusters):
-                    # 1. DETECT DIFFICULTY for this cluster
-                    is_hard = BanditRouter._is_hard_cluster(k)
-                    
-                    # 2. TRANSFORM HLE to target score using two-tiered barbell
-                    target_score = transform_hle_to_prior(raw_hle_score, is_hard_prompt=is_hard)
-                    
-                    # 3. CONSTRUCT CLUSTER-SPECIFIC CONTEXT VECTOR
-                    # Structure: [ClusterCentroid | Hardness | Bias]
-                    # Note: cluster_means[k] already includes handcrafted features + cluster distances
-                    # We just need to add the hardness switch
-                    cluster_centroid = cluster_means[k]  # Shape: (45,) for PCA
-                    
-                    # Pad to match router dimension (may have extra handcrafted features)
-                    # The router expects: base_dim + 14 features
-                    # cluster_centroid is: base_dim + 13 (no hardness yet)
-                    
-                    # Add hardness switch
-                    # SIGNAL BOOSTING: Synchronize with runtime boost (10.0)
-                    # to prevent θ weights from exploding/under-activating.
-                    hardness_val = 10.0 if is_hard else 0.0
-                    
-                    # Build full context: [Centroid | Hardness | Bias]
-                    x_cluster = np.concatenate([cluster_centroid, [hardness_val], [1.0]])
-                    
-                    # 4. WEIGHT by cluster prevalence
-                    prevalence = meta["cluster_counts"][k] / max(total_samples_val, 1.0)
-                    weight = prior_n_effective * prevalence
-                    
-                    # 5. TEACH THE BANDIT: "For context x_cluster, expect target_score"
-                    # Update A (structure): A += weight * x @ x^T
-                    router.bandit.A[m] += weight * np.outer(x_cluster, x_cluster)
-                    
-                    # Update b (belief): b += weight * target_score * x
-                    router.bandit.b[m] += weight * target_score * x_cluster
+                # Build full context: [Centroid | Hardness | Bias]
+                x_cluster = np.concatenate([cluster_centroid, [hardness_val], [1.0]])
                 
-                # Mark that we've used HLE mode for the bias calculation later
-                transformed_utility_score = transform_hle_to_prior(raw_hle_score, is_hard_prompt=False)
-            else:
-                # CSR MODE: Task-specific priors using cluster success rates
-                model_cluster_success_rates = model_registry.get(m, {}).get("cluster_success_rates", [])
+                # 4. WEIGHT by cluster prevalence
+                prevalence = meta["cluster_counts"][k] / max(total_samples_val, 1.0)
+                weight = prior_n_effective * prevalence
                 
-                # Fallback to HLE if cluster data is missing
-                if not model_cluster_success_rates or len(model_cluster_success_rates) != n_clusters:
-                    transformed_utility_score = transform_hle_to_prior(raw_hle_score)
-                    prior_mean_update_vector = transformed_utility_score * global_mean
-                else:
-                    # Use cluster-specific z-scores (normalized success rates)
-                    # Extract z-scores from {"0": {"raw": 0.9, "z_score": 1.2}, ...}
-                    # Z-scores eliminate frontier model bias by normalizing per-cluster
-                    cluster_z_scores_list = []
-                    for cluster_idx in range(n_clusters):
-                        cluster_data = model_cluster_success_rates.get(str(cluster_idx))
-                        if cluster_data is None:
-                            cluster_data = model_cluster_success_rates.get(cluster_idx)
-                        
-                        # Strict: expect dict with z_score, no fallback
-                        if not isinstance(cluster_data, dict) or 'z_score' not in cluster_data:
-                            raise ValueError(
-                                f"Missing z_score for model {m}, cluster {cluster_idx}. "
-                                f"Run update_success_rates.py to regenerate cluster_success_rates."
-                            )
-                        
-                        cluster_z_scores_list.append(float(cluster_data['z_score']))
-                    
-                    cluster_z_scores_array = np.array(cluster_z_scores_list)
-                    
-                    # Transform z-scores to positive weights using sigmoid
-                    # sigmoid(z) maps (-inf, inf) -> (0, 1)
-                    # This gives: bad performance -> low weight, good performance -> high weight
-                    cluster_weights = 1.0 / (1.0 + np.exp(-cluster_z_scores_array))
-                    
-                    # Weighted MEAN: Σ(weight[k] * cluster_mean_vector[k])
-                    # Weights derived from z-scores, not raw success rates
-                    # Shape: (100,) @ (100, 45) -> (45,)
-                    prior_mean_update_vector = np.dot(cluster_weights, cluster_means)
-
-            # Apply Belief Strength Scaling (Knob 2: prior_n_effective)
-            # NOTE: For HLE mode with hardness switch, we already updated A and b
-            # directly in the cluster loop above. This section only applies to CSR mode.
-            if benchmark_key != "hle":
-                # b[m] accumulates weighted feature vectors: Σ(x * reward)
-                # FIX: Use N_effective directly because cluster_means and global_mean
-                # are already normalized MEANS (divided by total_samples at line 824).
-                # Formula: b_prior = N_eff * μ_prior
-                # This treats the mean vector as if it came from N_eff observations.
-                prior_belief_vector = prior_n_effective * prior_mean_update_vector
-                router.bandit.b[m][:prior_dim] += prior_belief_vector
-
-            # Update Bias Term (Last Element)
-            # Represents average expected reward across all contexts
-            # NOTE: For HLE mode, the bias term is already updated inside the 
-            # cluster-specific loop above. We only update it here for CSR mode.
-            if benchmark_key != "hle":
-                if model_cluster_success_rates and len(model_cluster_success_rates) == n_clusters:
-                    # CSR mode: Compute weighted average using z-score-derived weights
-                    weighted_avg_success = np.dot(
-                        cluster_weights,  # From sigmoid(z_scores), not raw rates
-                        meta["cluster_counts"]
-                    ) / max(total_samples, 1.0)
-                    router.bandit.b[m][-1] += prior_n_effective * weighted_avg_success
-                else:
-                    # Fallback or other modes: Use flat transformed score
-                    router.bandit.b[m][-1] += prior_n_effective * transformed_utility_score
+                # 5. TEACH THE BANDIT: "For context x_cluster, expect target_score"
+                # Update A (structure): A += weight * x @ x^T
+                router.bandit.A[m] += weight * np.outer(x_cluster, x_cluster)
+                
+                # Update b (belief): b += weight * target_score * x
+                router.bandit.b[m] += weight * target_score * x_cluster
 
 
             # Recompute inverse
@@ -1319,7 +1320,7 @@ class BanditRouter:
         for m_data in self.registry.values():
             stats["cost"].append(float(m_data.get("input_cost_per_m") or 0.0))
             stats["latency"].append(float(m_data.get("time_to_first_token_seconds") or 0.0))
-            stats["hle"].append(float(m_data.get(self.benchmark_key) or 0.0))
+            stats["hle"].append(float(m_data.get("hle") or 0.0))
             stats["context"].append(float(m_data.get("context_length") or 4096.0))
             
         def safe_stats(values):
@@ -1341,7 +1342,7 @@ class BanditRouter:
         # Extract
         cost = float(model_data.get("input_cost_per_m") or 0.0)
         lat = float(model_data.get("time_to_first_token_seconds") or 0.0)
-        hle = float(model_data.get(self.benchmark_key) or 0.0)
+        hle = float(model_data.get("hle") or 0.0)
         ctx = float(model_data.get("context_length") or 4096.0)
         
         # Helper: MinMax Normalize to [0, 1]
@@ -1429,7 +1430,7 @@ class BanditRouter:
             for m_id, m_data in self.registry.items():
                 if m_id == new_model_data["openrouter_id"]: continue
                 
-                m_hle = transform_hle_to_prior(float(m_data.get(self.benchmark_key) or 0.0))
+                m_hle = transform_hle_to_prior(float(m_data.get("hle") or 0.0))
                 m_cost = float(m_data.get("input_cost_per_m") or 0.0)
                 m_lat = float(m_data.get("time_to_first_token_seconds") or 0.0)
                 
@@ -1521,6 +1522,48 @@ class BanditRouter:
         }
         
         return True
+
+    def _load_zero_shot_priors(self, prior_n_effective: float = 10.0) -> None:
+        """
+        Zero-Shot Warm Start using Virtual Anchors.
+        Teaches the bandit initial beliefs without training data.
+        """
+        logger.info(f"Teaching {len(self.bandit.models)} models using {len(self.anchor_vectors)} Virtual Anchors...")
+        
+        # Stats for normalization of handcrafted features
+        global_stats = self._calculate_global_stats()
+        
+        for m in self.bandit.models:
+            # Get raw HLE from registry
+            m_data = self.registry.get(m, {})
+            raw_hle_score = float(m_data.get("hle") or 0.05)
+            
+            # Teach each anchor
+            for idx, anchor_vec in enumerate(self.anchor_vectors):
+                # 1. Determine Difficulty of this Anchor
+                # Projection onto Complexity Vector
+                h_score = float(np.dot(anchor_vec, self.complexity_vector))
+                is_hard = h_score > 0.5 # Threshold for prior assignment
+                
+                # 2. Transform HLE
+                target_score = transform_hle_to_prior(raw_hle_score, is_hard_prompt=is_hard)
+                
+                # 3. Construct Context Vector for this Anchor
+                # We simulate handcrafted features for the 'ideal' version of this anchor
+                # but for simplicity, we use neutral zeros/means for handcrafted.
+                dummy_text = list(self.anchors_config.values())[idx]
+                x_anchor = self._get_context_vector(dummy_text)
+                
+                # 4. Weight
+                # Each anchor gets equal share of the prior strength
+                weight = prior_n_effective / len(self.anchor_vectors)
+                
+                # 5. Teach
+                self.bandit.A[m] += weight * np.outer(x_anchor, x_anchor)
+                self.bandit.b[m] += weight * target_score * x_anchor
+            
+            # Recompute inverse
+            self.bandit.A_inv[m] = safe_inv(self.bandit.A[m])
 
     def prune_arms(self, min_requests: int = 1000, selection_threshold: float = 0.001) -> List[str]:
         """
@@ -1683,28 +1726,10 @@ class BanditRouter:
         # We need the text for cluster detection and logging
         prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded Prompt]"
         
-        # 1. RUNTIME CONTEXT DETECTION (The Hardness Switch)
-        # Detect cluster BEFORE vectorization to determine difficulty
-        cluster_id = None
-        cluster_similarity = None
-        is_hard_prompt = False
-        
-        if self.cluster_detector is not None and isinstance(prompt, str):
-            try:
-                cluster_id, cluster_similarity = self.cluster_detector.detect_cluster(prompt)
-                # HYBRID DIFFICULTY DETECTION:
-                # Uses both cluster semantics AND explicit signals (code/math/debug)
-                # to prevent "leaked" hard prompts from triggering easy mode
-                is_hard_prompt = self._detect_difficulty_hybrid(prompt_text, cluster_id)
-            except Exception as e:
-                logger.warning(f"Cluster detection failed: {e}")
-                # Fallback to explicit signal detection only
-                is_hard_prompt = self._is_explicitly_hard(prompt_text)
-        
-        # 2. Vectorize with Hardness Switch
-        # This creates: [Emb | Feats | Clusters | Hardness | Bias]
-        # The hardness feature orthogonalizes easy vs hard priors
-        x = self._get_context_vector(prompt, is_hard_prompt=is_hard_prompt)
+        # 1. Vectorize with Zero-Shot Features
+        # This creates: [Emb | Feats | Anchors | Hardness Score | Bias]
+        # The hardness score project semantic complexity into a raw scalar feature.
+        x = self._get_context_vector(prompt)
         
         # 2. Resolve Weights
         weights = OptimizationProfile.get(profile).copy()
@@ -1972,12 +1997,12 @@ class BanditRouter:
         # 3. Add to Bandit
         self.bandit.add_arm(model_id)
         
-        # 4. Initialize Prior (Cluster + Efficiency)
+        # 4. Initialize Prior (HLE)
         # We reuse the logic from load_from_benchmark but for a single model
         # This ensures the new model gets the same "Smart Prior" treatment
         
         # Get score (default 0.05 if missing)
-        raw_score = float(definition.get(self.benchmark_key) or 0.05)
+        raw_score = float(definition.get("hle") or 0.05)
         score = transform_hle_to_prior(raw_score)
         
         if score > 0:

@@ -186,7 +186,7 @@ def run_2d_synergy_sweep(train_data, test_data, registry, encoder,
     print(f"Fixed lambda_cost={fixed_lambda} (Max Quality Mode)", flush=True)
     
     # Profile for calibration (Max Quality stress test)
-    profile = {"lambda_cost": fixed_lambda, "lambda_latency": 0.001}
+    profile = {"w_q": 0.97, "w_c": 0.02, "w_l": 0.01}
     
     # Results storage: (n_struct, n_prior) -> stats
     results = {}
@@ -350,19 +350,18 @@ def run_pareto_frontier(train_data, test_data, registry, encoder,
     print(f"Architecture LOCKED: N_struct={champion_n_struct}, N_prior={champion_n_prior}")
     print(f"{'='*70}")
     
-    # Cost profiles to sweep (KDD Expanded Spectrum)
+    # Cost profiles to sweep (KDD Final Spectrum)
     profiles = [
-        {"name": "Max Quality",  "lambda_cost": 0.0},
-        {"name": "Arbitrage",    "lambda_cost": 0.5},
-        {"name": "Balanced",     "lambda_cost": 2.0},
-        {"name": "Budget",       "lambda_cost": 10.0},
-        {"name": "Ultra Cheap",  "lambda_cost": 50.0},
+        {"name": "Max Quality",  "w_q": 0.97, "w_c": 0.02, "w_l": 0.01},
+        {"name": "Arbitrage",    "w_q": 0.65, "w_c": 0.30, "w_l": 0.05},
+        {"name": "Budget",       "w_q": 0.10, "w_c": 0.85, "w_l": 0.05},
+        {"name": "Ultra Cheap",  "w_q": 0.02, "w_c": 0.97, "w_l": 0.01},
     ]
     
     frontier_results = []
     
     for config in profiles:
-        print(f"\n  [{config['name']}] (λ_cost={config['lambda_cost']})...")
+        print(f"\n  [{config['name']}] [Q:{config['w_q']:.2f}, C:{config['w_c']:.2f}, L:{config['w_l']:.2f}]...")
         
         trial_costs = []
         trial_utilities = []
@@ -380,7 +379,7 @@ def run_pareto_frontier(train_data, test_data, registry, encoder,
             )
             
             # Profile for this sweep point
-            profile = {"lambda_cost": config["lambda_cost"], "lambda_latency": 0.001}
+            profile = {"w_q": config["w_q"], "w_c": config["w_c"], "w_l": config["w_l"]}
             
             # Phase 1: Burn-in
             train_prompts = list(train_data.keys())
@@ -430,7 +429,9 @@ def run_pareto_frontier(train_data, test_data, registry, encoder,
         if trial_costs:
             frontier_results.append({
                 "profile": config["name"],
-                "lambda_cost": config["lambda_cost"],
+                "w_q": config["w_q"],
+                "w_c": config["w_c"],
+                "w_l": config["w_l"],
                 "cost_mean": np.mean(trial_costs),
                 "cost_std": np.std(trial_costs),
                 "utility_mean": np.mean(trial_utilities),
@@ -578,65 +579,23 @@ def execute_perfect_pareto_protocol():
     encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
     # ======================================================
-    # STAGE 1: ARCHITECTURAL CALIBRATION
     # ======================================================
-    print("\n[2/4] Running Stage 1: Architectural Calibration...")
-    
-    # Output directory for intermediate saves
-    output_dir = Path(__file__).parent
-    
-    # Grid configuration (from protocol spec)
-    # Fast Grid for HLE
-    n_struct_grid = [10, 60, 250]
-    n_prior_grid = [10, 60, 250]
-    
-    heatmap, stage1_results, champion, n_struct_values, n_prior_values = run_2d_synergy_sweep(
-        train_data, test_data, registry, encoder,
-        n_struct_values=n_struct_grid,
-        n_prior_values=n_prior_grid,
-        fixed_lambda=0.0,  # MAX QUALITY - THE STRESS TEST
-        n_trials=1,        # Trials=1 for SPEED
-        output_dir=output_dir
-    )
-    
-    champion_n_struct, champion_n_prior = champion
-    # No override needed - calibration at λ=0 will find the stiffer champion
-    
-    # Plot heatmap
-    heatmap_path = output_dir / "calibration_heatmap.png"
-    plot_calibration_heatmap(heatmap, n_struct_values, n_prior_values, champion, heatmap_path)
-    
-    # Save Stage 1 complete results BEFORE Stage 2
-    stage1_complete_path = output_dir / "stage1_complete.json"
-    stage1_complete = {
-        "status": "COMPLETE",
-        "grid": {
-            "n_struct_values": n_struct_grid,
-            "n_prior_values": n_prior_grid,
-            "fixed_lambda": 0.5
-        },
-        "champion": {
-            "n_struct": champion_n_struct,
-            "n_prior": champion_n_prior,
-            "zscore": float(heatmap[n_prior_values.index(champion_n_prior), 
-                                   n_struct_values.index(champion_n_struct)])
-        },
-        "heatmap": heatmap.tolist(),
-        "full_results": {f"{k[0]},{k[1]}": v for k, v in stage1_results.items()}
-    }
-    save_intermediate(stage1_complete, stage1_complete_path, "Stage 1 COMPLETE")
-    print(f"\n✅ Stage 1 complete. Champion locked: N_s={champion_n_struct}, N_p={champion_n_prior}")
-    
+    # PARETO FRONTIER GENERATION (Using Calibrated Defaults)
     # ======================================================
-    # STAGE 2: PARETO FRONTIER
-    # ======================================================
-    print("\n[3/4] Running Stage 2: Pareto Frontier Generation...")
+    print("\n[2/4] Initializing Stage 2: Pareto Frontier Generation...")
+    
+    # These are now the defaults in BanditRouter.create(priors="hle")
+    champion_n_struct = 250.0
+    champion_n_prior = 10.0
+    print(f"  Architecture LOCKED: N_s={champion_n_struct}, N_p={champion_n_prior} (Production Defaults)")
+
+    print("\n[3/4] Running Pareto Sweep...")
     
     frontier_results = run_pareto_frontier(
         train_data, test_data, registry, encoder,
         champion_n_struct=champion_n_struct,
         champion_n_prior=champion_n_prior,
-        n_trials=3  # Multi-trial for Confidence Intervals
+        n_trials=3
     )
     
     # Plot frontier
@@ -651,37 +610,25 @@ def execute_perfect_pareto_protocol():
     
     results_path = Path(__file__).parent / "perfect_pareto_results.json"
     output = {
-        "protocol": "Perfect Pareto: HLE Minimum Regret",
-        "stage1": {
-            "grid": {
-                "n_struct_values": n_struct_grid,
-                "n_prior_values": n_prior_grid,
-                "fixed_lambda": 0.0
-            },
-            "champion": {
-                "n_struct": champion_n_struct,
-                "n_prior": champion_n_prior,
-                "regret": 1.0 - float(heatmap[n_prior_values.index(champion_n_prior), 
-                                              n_struct_values.index(champion_n_struct)])
-            },
-            "heatmap": heatmap.tolist()
+        "protocol": "Perfect Pareto: HLE Final Evaluation",
+        "architecture_locked": {
+            "n_struct": champion_n_struct,
+            "n_prior": champion_n_prior
         },
-        "stage2": {
-            "architecture_locked": {
-                "n_struct": champion_n_struct,
-                "n_prior": champion_n_prior
-            },
-            "frontier": [
-                {
-                    "profile": r["profile"],
-                    "lambda_cost": r["lambda_cost"],
-                    "cost_mean": r["cost_mean"],
-                    "cost_std": r["cost_std"],
-                    "utility_mean": r["utility_mean"]
-                }
-                for r in frontier_results
-            ]
-        }
+        "frontier": [
+            {
+                "profile": r["profile"],
+                "w_q": r.get("w_q", 0),
+                "w_c": r.get("w_c", 0),
+                "w_l": r.get("w_l", 0),
+                "cost_mean": r["cost_mean"],
+                "cost_std": r["cost_std"],
+                "utility_mean": r["utility_mean"],
+                "utility_std": r["utility_std"],
+                "selections": r["selections"]
+            }
+            for r in frontier_results
+        ]
     }
     
     with open(results_path, 'w') as f:
@@ -692,22 +639,21 @@ def execute_perfect_pareto_protocol():
     # SUMMARY
     # ======================================================
     print("\n" + "=" * 80)
-    print("PERFECT PARETO PROTOCOL COMPLETE")
+    print("PERFECT PARETO PROTOCOL: FINAL RESULTS")
     print("=" * 80)
     
-    print(f"\n🏆 Stage 1 Champion: N_struct={champion_n_struct}, N_prior={champion_n_prior}")
-    print(f"   Best Regret at Max Quality: {1.0 - heatmap[n_prior_values.index(champion_n_prior), n_struct_values.index(champion_n_struct)]:.4f}")
+    print(f"\n🏆 Architecture: N_struct={champion_n_struct}, N_prior={champion_n_prior}")
     
-    print(f"\n📈 Stage 2 Frontier (Locked Architecture):")
+    print(f"\n📈 Pareto Frontier (3-Trial Stability):")
     for r in frontier_results:
-        print(f"   {r['profile']:<12} → Cost=${r['cost_mean']:.4f} ± {r['cost_std']:.4f}, Utility={r['utility_mean']*100:.1f}% ± {r['utility_std']*100:.1f}%")
+        w_q, w_c, w_l = r.get("w_q",0), r.get("w_c",0), r.get("w_l",0)
+        print(f"   {r['profile']:<12} [Q:{w_q:.2f}, C:{w_c:.2f}, L:{w_l:.2f}] → Cost=${r['cost_mean']:.4f} ± {r['cost_std']:.4f}, Utility={r['utility_mean']*100:.1f}% ± {r['utility_std']*100:.1f}%")
     
     print(f"\n📁 Output Files:")
-    print(f"   • {heatmap_path} (Figure X: Hyperparameter Landscape)")
-    print(f"   • {frontier_path} (Figure Y: Pareto Frontier)")
+    print(f"   • {frontier_path} (Figure 5: Pareto Frontier)")
     print(f"   • {results_path}")
     
-    print("\n✅ PROTOCOL COMPLETE! Ready for KDD submission.")
+    print("\n✅ EVALUATION COMPLETE! Ready for KDD submission.")
 
 
 if __name__ == "__main__":

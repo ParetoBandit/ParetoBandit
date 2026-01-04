@@ -1,0 +1,398 @@
+[
+  {
+    "n_prior": 1,
+    "n_struct": 50,
+    "avg_zscore": 0.29634115057716964,
+    "avg_cost": 0.04852999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 2,
+    "n_struct": 50,
+    "avg_zscore": 0.29634115057716964,
+    "avg_cost": 0.04852999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 5,
+    "n_struct": 50,
+    "avg_zscore": 0.29634115057716964,
+    "avg_cost": 0.04852999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 10,
+    "n_struct": 50,
+    "avg_zscore": 0.29634115057716964,
+    "avg_cost": 0.04852999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 20,
+    "n_struct": 50,
+    "avg_zscore": 0.29634115057716964,
+    "avg_cost": 0.04852999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 50,
+    "n_struct": 50,
+    "avg_zscore": 0.29634115057716964,
+    "avg_cost": 0.04852999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 1,
+    "n_struct": 20,
+    "avg_zscore": 0.29316845150264714,
+    "avg_cost": 0.04830999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 2,
+    "n_struct": 20,
+    "avg_zscore": 0.29316845150264714,
+    "avg_cost": 0.04830999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 5,
+    "n_struct": 20,
+    "avg_zscore": 0.29316845150264714,
+    "avg_cost": 0.04830999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 10,
+    "n_struct": 20,
+    "avg_zscore": 0.29316845150264714,
+    "avg_cost": 0.04830999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 20,
+    "n_struct": 20,
+    "avg_zscore": 0.29316845150264714,
+    "avg_cost": 0.04830999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 50,
+    "n_struct": 20,
+    "avg_zscore": 0.29316845150264714,
+    "avg_cost": 0.04830999999999994,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-5-chat": 1
+    }
+  },
+  {
+    "n_prior": 1,
+    "n_struct": 100,
+    "avg_zscore": 0.28340156250967385,
+    "avg_cost": 0.04838899999999995,
+    "n_unique": 4,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 38,
+      "openai/gpt-5-chat": 1,
+      "openai/gpt-oss-120b": 1
+    }
+  },
+  {
+    "n_prior": 2,
+    "n_struct": 100,
+    "avg_zscore": 0.28340156250967385,
+    "avg_cost": 0.04838899999999995,
+    "n_unique": 4,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 38,
+      "openai/gpt-5-chat": 1,
+      "openai/gpt-oss-120b": 1
+    }
+  },
+  {
+    "n_prior": 5,
+    "n_struct": 100,
+    "avg_zscore": 0.28340156250967385,
+    "avg_cost": 0.04838899999999995,
+    "n_unique": 4,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 38,
+      "openai/gpt-5-chat": 1,
+      "openai/gpt-oss-120b": 1
+    }
+  },
+  {
+    "n_prior": 10,
+    "n_struct": 100,
+    "avg_zscore": 0.28340156250967385,
+    "avg_cost": 0.04838899999999995,
+    "n_unique": 4,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 38,
+      "openai/gpt-5-chat": 1,
+      "openai/gpt-oss-120b": 1
+    }
+  },
+  {
+    "n_prior": 20,
+    "n_struct": 100,
+    "avg_zscore": 0.28340156250967385,
+    "avg_cost": 0.04838899999999995,
+    "n_unique": 4,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 38,
+      "openai/gpt-5-chat": 1,
+      "openai/gpt-oss-120b": 1
+    }
+  },
+  {
+    "n_prior": 50,
+    "n_struct": 100,
+    "avg_zscore": 0.28340156250967385,
+    "avg_cost": 0.04838899999999995,
+    "n_unique": 4,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 38,
+      "openai/gpt-5-chat": 1,
+      "openai/gpt-oss-120b": 1
+    }
+  },
+  {
+    "n_prior": 1,
+    "n_struct": 5,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.027959999999999985,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 1,
+    "n_struct": 10,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.028179999999999983,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 2,
+    "n_struct": 5,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.027959999999999985,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 2,
+    "n_struct": 10,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.028179999999999983,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 5,
+    "n_struct": 5,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.027959999999999985,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 5,
+    "n_struct": 10,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.028179999999999983,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 10,
+    "n_struct": 5,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.027959999999999985,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 10,
+    "n_struct": 10,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.028179999999999983,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 20,
+    "n_struct": 5,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.027959999999999985,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 20,
+    "n_struct": 10,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.028179999999999983,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 50,
+    "n_struct": 5,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.027959999999999985,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 60,
+      "google/gemma-3-27b-it": 39,
+      "openai/gpt-4.1-nano": 1
+    }
+  },
+  {
+    "n_prior": 50,
+    "n_struct": 10,
+    "avg_zscore": 0.2791208409039529,
+    "avg_cost": 0.028179999999999983,
+    "n_unique": 3,
+    "has_premium": false,
+    "selections": {
+      "google/gemma-3-12b-it": 58,
+      "google/gemma-3-27b-it": 41,
+      "openai/gpt-4.1-nano": 1
+    }
+  }
+]

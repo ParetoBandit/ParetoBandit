@@ -1,83 +1,37 @@
 {
-  "protocol": "Perfect Pareto: HLE Minimum Regret",
-  "stage1": {
-    "grid": {
-      "n_struct_values": [
-        10,
-        60,
-        250
-      ],
-      "n_prior_values": [
-        10,
-        60,
-        250
-      ],
-      "fixed_lambda": 0.0
-    },
-    "champion": {
-      "n_struct": 250,
-      "n_prior": 10,
-      "regret": 0.015290519877675823
-    },
-    "heatmap": [
-      [
-        0.9347604485219164,
-        0.9551478083588175,
-        0.9847094801223242
-      ],
-      [
-        0.9714576962283384,
-        0.9694189602446484,
-        0.9714576962283384
-      ],
-      [
-        0.9714576962283384,
-        0.9663608562691132,
-        0.9347604485219164
-      ]
-    ]
+  "protocol": "Perfect Pareto: HLE Final Evaluation",
+  "architecture_locked": {
+    "n_struct": 250.0,
+    "n_prior": 10.0
   },
-  "stage2": {
-    "architecture_locked": {
-      "n_struct": 250,
-      "n_prior": 10
+  "frontier": [
+    {
+      "profile": "Max Quality",
+      "w_q": 0.97,
+      "w_c": 0.02,
+      "w_l": 0.01,
+      "utility_mean": 0.9034998301053347
     },
-    "frontier": [
-      {
-        "profile": "Max Quality",
-        "lambda_cost": 0.0,
-        "cost_mean": 4.75883452259599,
-        "cost_std": 1.0408690972754353,
-        "utility_mean": 0.9867482161060143
-      },
-      {
-        "profile": "Arbitrage",
-        "lambda_cost": 0.5,
-        "cost_mean": 0.030587168138634047,
-        "cost_std": 0.011491173179594041,
-        "utility_mean": 0.9561671763506626
-      },
-      {
-        "profile": "Balanced",
-        "lambda_cost": 2.0,
-        "cost_mean": 0.02322563960584437,
-        "cost_std": 0.013172245355073319,
-        "utility_mean": 0.8861705742439687
-      },
-      {
-        "profile": "Budget",
-        "lambda_cost": 10.0,
-        "cost_mean": 0.014274858642201833,
-        "cost_std": 0.0014278758853409612,
-        "utility_mean": 0.8729187903499831
-      },
-      {
-        "profile": "Ultra Cheap",
-        "lambda_cost": 50.0,
-        "cost_mean": 0.012172273190621813,
-        "cost_std": 9.370426254255976e-05,
-        "utility_mean": 0.7753992524634726
-      }
-    ]
-  }
+    {
+      "profile": "Arbitrage",
+      "w_q": 0.65,
+      "w_c": 0.3,
+      "w_l": 0.05,
+      "utility_mean": 0.9313625552157663
+    },
+    {
+      "profile": "Budget",
+      "w_q": 0.1,
+      "w_c": 0.85,
+      "w_l": 0.05,
+      "utility_mean": 0.8681617397213728
+    },
+    {
+      "profile": "Ultra Cheap",
+      "w_q": 0.02,
+      "w_c": 0.97,
+      "w_l": 0.01,
+      "utility_mean": 0.7753992524634726
+    }
+  ]
 }

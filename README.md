@@ -278,6 +278,49 @@ router.route(prompt, exploration="aggressive")  # Day 1: learn fast
 router.route(prompt, exploration="static")      # Production: zero risk
 ```
 
+### Two-Knob Prior Scaling
+
+BanditGPT implements a **Two-Knob Framework** for independent control of prior strength:
+
+| Knob | Parameter | What It Controls | Default | Effect |
+|------|-----------|------------------|---------|--------|
+| **Knob 1: Structural Stiffness** | `prior_structure_n_effective` | Covariance matrix strength (how confident we are in feature correlations) | `None` (infinite) | Higher = less exploration |
+| **Knob 2: Belief Strength** | `prior_n_effective` | Mean vector strength (how confident we are in model quality scores) | `20.0` | Higher = stronger priors |
+
+```python
+# Default: Infinite structural stiffness + moderate belief strength
+router = BanditRouter.create(
+    priors="benchmark",
+    prior_structure_n_effective=None,  # Infinite stiffness (unscaled covariance)
+    prior_n_effective=20.0,            # Moderate belief strength
+)
+
+# Custom: Reduce structural stiffness while keeping belief strength
+router = BanditRouter.create(
+    priors="benchmark",
+    prior_structure_n_effective=1000.0,  # Moderate structural stiffness
+    prior_n_effective=20.0,              # Moderate belief strength
+)
+
+# Ablation: Zero beliefs, full structure (test covariance manifold only)
+router = BanditRouter.create(
+    priors="benchmark",
+    prior_structure_n_effective=None,  # Full structural stiffness
+    prior_n_effective=0.0,             # Zero belief priors
+)
+```
+
+**The Math:**
+- `init_scale = prior_structure_n_effective / N_offline` (scales covariance matrix `A`)
+- `belief_scale = prior_n_effective / N_offline` (scales mean vectors `b`)
+- With `N_offline ≈ 21,719` samples in the prior
+- `prior_structure_n_effective=None` → `init_scale=1.0` (infinite stiffness, full covariance strength)
+
+**When to Use:**
+- **Production (Default)**: Use infinite stiffness for maximum zero-shot performance
+- **Ablation Studies**: Vary knobs independently to isolate structural vs. belief contributions
+- **Custom Domains**: Reduce structural stiffness if your domain differs significantly from training data
+
 ## CLI
 
 ```bash

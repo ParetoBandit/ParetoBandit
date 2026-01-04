@@ -238,10 +238,10 @@ def simulate_bandit_frontier_utility(train_prompts, test_prompts, registry, hle_
     frontier_points = []
     
     lambda_configs = [
-        {"name": "Max Quality",  "lambda_cost": 0.0},
-        {"name": "Arbitrage",    "lambda_cost": 0.50},
-        {"name": "Budget",       "lambda_cost": 5.0},
-        {"name": "Ultra Cheap",  "lambda_cost": 50.0},
+        {"name": "Max Quality",  "w_q": 0.97, "w_c": 0.02, "w_l": 0.01},
+        {"name": "Arbitrage",    "w_q": 0.65, "w_c": 0.30, "w_l": 0.05},
+        {"name": "Budget",       "w_q": 0.10, "w_c": 0.85, "w_l": 0.05},
+        {"name": "Ultra Cheap",  "w_q": 0.02, "w_c": 0.97, "w_l": 0.01},
     ]
     
     for config in lambda_configs:
@@ -249,7 +249,7 @@ def simulate_bandit_frontier_utility(train_prompts, test_prompts, registry, hle_
         easy_utils, hard_utils = [], []
         all_selections = defaultdict(int)
         
-        profile = {"lambda_cost": config["lambda_cost"], "lambda_latency": 0.001}
+        profile = {"w_q": config["w_q"], "w_c": config["w_c"], "w_l": config["w_l"]}
         
         for trial in range(n_trials):
             result = simulate_bandit_utility(
@@ -268,11 +268,13 @@ def simulate_bandit_frontier_utility(train_prompts, test_prompts, registry, hle_
             avg_util = np.mean(utilities)
             avg_easy = np.mean(easy_utils)
             avg_hard = np.mean(hard_utils)
-            print(f"  {config['name']:15} (λ={config['lambda_cost']:<4}) -> ${np.mean(costs):.4f}, "
+            print(f"  {config['name']:15} [Q:{config['w_q']:.2f}, C:{config['w_c']:.2f}, L:{config['w_l']:.2f}] -> ${np.mean(costs):.4f}, "
                   f"Utility={avg_util*100:.1f}% (Easy={avg_easy*100:.1f}%, Hard={avg_hard*100:.1f}%)")
             frontier_points.append({
                 "profile": config["name"],
-                "lambda_cost": config["lambda_cost"],
+                "w_q": config["w_q"],
+                "w_c": config["w_c"],
+                "w_l": config["w_l"],
                 "cost_mean": np.mean(costs),
                 "cost_std": np.std(costs),
                 "utility_mean": np.mean(utilities),
