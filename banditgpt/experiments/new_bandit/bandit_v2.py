@@ -1027,32 +1027,48 @@ class BanditRouter:
         for model_id in self.bandit.models:
             # Determine archetype from model metadata or heuristics
             hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
-            is_reasoning = hle > 0.25  # High HLE = reasoning model
+            is_reasoning = hle > 0.15  # High HLE = reasoning model
             
             archetype = "reasoning_model" if is_reasoning else "turbo_model"
             
             if archetype in data.get("models", {}):
-                weights_dict = data["models"][archetype]["weights"]
+                weights_config = data["models"][archetype]["weights"]
                 
-                # Build theta vector matching our feature structure:
-                # [Embedding(32) | Handcrafted(11) | Anchors(5) | Hardness(1) | Bias(1)]
+                # Build theta vector matching our NEW feature structure:
+                # [Embedding(32) | Handcrafted(15) | Anchors(5) | Hardness(1) | Bias(1)]
                 theta = np.zeros(self.bandit.dim)
                 
-                # Set anchor weights (assuming indices: emb_dim + handcrafted_dim + i)
-                anchor_start = 32 + 11  # After PCA embedding and handcrafted features
-                theta[anchor_start + 0] = weights_dict.get("anchor_coding", 0.0)
-                theta[anchor_start + 1] = weights_dict.get("anchor_math", 0.0)
-                theta[anchor_start + 2] = weights_dict.get("anchor_reasoning", 0.0)
-                theta[anchor_start + 3] = weights_dict.get("anchor_creative", 0.0)
-                theta[anchor_start + 4] = weights_dict.get("anchor_humor", 0.0)
+                # Handcrafted features (8-15 in the feature array, after embedding)
+                # Features 1-7 (code_heavy, requires_json, etc.) don't have pretrained weights yet
+                # Features 8-15 are the linearized signals that DO have weights
+                handcrafted_start = 32  # After PCA embedding
                 
-                # Set complexity score weight
-                theta[anchor_start + 5] = weights_dict.get("complexity_score", 0.0)
+                handcrafted_weights = weights_config.get("handcrafted", {})
+                theta[handcrafted_start + 7] = handcrafted_weights.get("has_code_block", 0.0)
+                theta[handcrafted_start + 8] = handcrafted_weights.get("code_block_count_log", 0.0)
+                theta[handcrafted_start + 9] = handcrafted_weights.get("has_latex", 0.0)
+                theta[handcrafted_start + 10] = handcrafted_weights.get("latex_density_log", 0.0)
+                theta[handcrafted_start + 11] = handcrafted_weights.get("has_question", 0.0)
+                theta[handcrafted_start + 12] = handcrafted_weights.get("question_count_log", 0.0)
+                theta[handcrafted_start + 13] = handcrafted_weights.get("length_penalty_bin", 0.0)
+                theta[handcrafted_start + 14] = handcrafted_weights.get("length_penalty_log", 0.0)
                 
-                # Set bias
-                theta[-1] = weights_dict.get("bias", 0.0)
+                # Anchor weights (after embedding + handcrafted = 32 + 15 = 47)
+                anchor_start = 32 + 15
+                anchor_weights = weights_config.get("anchors", {})
+                theta[anchor_start + 0] = anchor_weights.get("coding", 0.0)
+                theta[anchor_start + 1] = anchor_weights.get("math", 0.0)
+                theta[anchor_start + 2] = anchor_weights.get("reasoning", 0.0)
+                theta[anchor_start + 3] = anchor_weights.get("creative", 0.0)
+                theta[anchor_start + 4] = anchor_weights.get("humor", 0.0)
                 
-                #Set b = prior_n_effective * ridge_lambda * theta
+                # Complexity score weight (after anchors: 47 + 5 = 52)
+                theta[anchor_start + 5] = weights_config.get("complexity_score", 0.0)
+                
+                # Bias (last element: 53)
+                theta[-1] = weights_config.get("bias", 0.0)
+                
+                # Set b = prior_n_effective * ridge_lambda * theta
                 self.bandit.b[model_id] = prior_n_effective * self.bandit.ridge_lambda * theta
             else:
                 # Fallback to HLE

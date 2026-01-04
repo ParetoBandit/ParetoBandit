@@ -1,11 +1,13 @@
 {
-    "description": "Pretrained weights for BanditRouter v2 with Virtual Anchors. Maps model archetypes to initial theta weights providing 'Initial Intuition' while maintaining 'High Plasticity' (A = λI).",
-    "version": "1.0.0",
+    "description": "Pretrained weights for BanditRouter v2 with Feature Linearization. Maps model archetypes to initial theta weights providing 'Initial Intuition' while maintaining 'High Plasticity' (A = λI).",
+    "version": "2.0.0",
     "feature_structure": {
-        "description": "Feature vector structure (total 50 dims with PCA)",
+        "description": "Feature vector structure with linearized signals (total 54 dims with PCA)",
         "dims": [
             "embedding: 32 (PCA-reduced)",
-            "handcrafted: 11 (code_heavy, json, length_log, list_density, instruction_density, flesch, questions, toxicity, has_code_block, latex_density, length_penalty)",
+            "handcrafted: 15 (7 original + 8 linearized)",
+            "  - Original (7): code_heavy, requires_json, input_length_log, list_density, instruction_density, flesch, toxicity",
+            "  - Linearized (8): has_code_block, code_block_log, has_latex, latex_log, has_question, question_log, length_bin, length_log",
             "anchors: 5 (coding, math, reasoning, creative, humor)",
             "complexity_score: 1",
             "bias: 1"
@@ -23,15 +25,27 @@
                 "openai/gpt-oss-120b"
             ],
             "weights": {
-                "anchor_coding": 2.5,
-                "anchor_math": 2.5,
-                "anchor_reasoning": 2.0,
-                "anchor_creative": 0.5,
-                "anchor_humor": 0.0,
+                "handcrafted": {
+                    "has_code_block": 1.5,
+                    "code_block_count_log": 0.3,
+                    "has_latex": 2.0,
+                    "latex_density_log": 0.5,
+                    "has_question": 0.0,
+                    "question_count_log": 0.0,
+                    "length_penalty_bin": 0.5,
+                    "length_penalty_log": 0.2
+                },
+                "anchors": {
+                    "coding": 2.5,
+                    "math": 2.5,
+                    "reasoning": 2.0,
+                    "creative": 0.5,
+                    "humor": 0.0
+                },
                 "complexity_score": 3.0,
                 "bias": -0.5
             },
-            "rationale": "Strong positive weights on hard features (coding, math, complexity). Negative bias requires prompt to prove it needs intelligence."
+            "rationale": "Step functions (has_latex=2.0) provide massive boost when hardness indicators present. Continuous slopes (latex_density_log=0.5) add incremental difficulty. Negative bias requires proof of complexity."
         },
         "turbo_model": {
             "description": "Fast/cheap models (HLE < 0.10): gpt-4o, haiku-4.5, llama-3.1-70b, ministral-8b, gemma-3, etc.",
@@ -44,22 +58,35 @@
                 "meta-llama/llama-4-scout"
             ],
             "weights": {
-                "anchor_coding": -1.0,
-                "anchor_math": -1.5,
-                "anchor_reasoning": -1.0,
-                "anchor_creative": 0.8,
-                "anchor_humor": 1.2,
+                "handcrafted": {
+                    "has_code_block": -1.5,
+                    "code_block_count_log": -0.3,
+                    "has_latex": -2.0,
+                    "latex_density_log": -0.5,
+                    "has_question": 0.2,
+                    "question_count_log": 0.1,
+                    "length_penalty_bin": -0.3,
+                    "length_penalty_log": -0.1
+                },
+                "anchors": {
+                    "coding": -1.0,
+                    "math": -1.5,
+                    "reasoning": -1.0,
+                    "creative": 0.8,
+                    "humor": 1.2
+                },
                 "complexity_score": -3.0,
                 "bias": 1.5
             },
-            "rationale": "Negative weights on hard features to avoid selecting cheap model for complex tasks. Positive bias wins by default for simple prompts."
+            "rationale": "Negative step functions (has_latex=-2.0) strongly penalize ANY hardness. Negative slopes prevent selection as difficulty grows. Positive bias wins by default for simple prompts."
         }
     },
     "usage_notes": [
+        "Feature Linearization (v2.0): Binary features capture step functions, log features capture slopes.",
         "The loader in _load_zero_shot_priors maps each model to an archetype based on HLE score:",
         "  - HLE > 0.15 → reasoning_model archetype",
         "  - HLE ≤ 0.15 → turbo_model archetype",
-        "These weights assume complexity_score and anchor similarities are normalized to [0,1].",
+        "Key insight: 'Having 50 LaTeX equations isn't 50x harder than having 1' - that's what log scaling captures.",
         "The bandit learns quickly from user feedback, so these are just starting points."
     ]
 }
