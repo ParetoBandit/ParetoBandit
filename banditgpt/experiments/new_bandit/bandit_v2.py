@@ -884,42 +884,26 @@ class BanditRouter:
                         cluster_boost_weight=cluster_boost_weight, pca_path=pca_path_default)
             router.bandit.load_state(state_path)
             return router
-        # Load HLE Priors (Generic Structure + Generic Mean)
+        
+        # HLE Priors Mode: Use Zero-Shot Warm Start
+        # With Virtual Anchors, we don't need LMSYS covariance matrices.
+        # The 50-dimensional feature space learns fast with A = λI.
         if priors == "hle":
-            # Use PCA-based structural priors
-            meta_path = base_dir / "priors" / "priors_meta_pca.npz"
+            logger.info("Initializing with Zero-Shot Warm Start (Virtual Anchors + Identity Covariance)")
+            router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                        alpha=alpha, ridge_lambda=ridge_lambda,
+                        forgetting_factor=forgetting_factor,
+                        cluster_boost_weight=cluster_boost_weight,
+                        pca_path=pca_path_default if pca_path_default.exists() else None,
+                        anchors=anchors)
             
-            if not meta_path.exists():
-                 logger.info("No priors metadata found. Initializing with Zero-Shot Warm Start.")
-                 router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
-                           alpha=alpha, ridge_lambda=ridge_lambda,
-                           forgetting_factor=forgetting_factor,
-                           cluster_boost_weight=cluster_boost_weight,
-                           pca_path=pca_path_default if pca_path_default.exists() else None,
-                           anchors=anchors)
-                 
-                 # Perform Zero-Shot Warm Start
-                 router._load_zero_shot_priors(prior_n_effective)
-                 return router
-
-            return cls.load_from_benchmark(
-                model_registry=model_registry,
-                context_model=context_model,
-                context_encoder=context_encoder,
-                alpha=alpha,
-                prior_n_effective=prior_n_effective,
-                prior_structure_n_effective=prior_structure_n_effective,
-                ridge_lambda=ridge_lambda,
-                forgetting_factor=forgetting_factor,
-                priors_meta_path=meta_path,
-                cluster_boost_weight=cluster_boost_weight,
-                pca_path=pca_path_default if pca_path_default.exists() else None,
-                anchors=anchors
-            )
+            # Perform Zero-Shot Warm Start (initializes b vectors with HLE-based priors)
+            router._load_zero_shot_priors(prior_n_effective)
+            return router
             
         # Cold Start (No Priors)
         if priors == "none":
-            logger.info("Cold start mode: No priors loaded.")
+            logger.info("Cold start mode: Pure identity initialization.")
             return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
                       alpha=alpha, ridge_lambda=ridge_lambda,
                       forgetting_factor=forgetting_factor,
@@ -932,113 +916,67 @@ class BanditRouter:
 
     def _load_zero_shot_priors(self, prior_n_effective: float):
         """
-        Initializes bandit priors using the Zero-Shot Complexity Vector.
-        This provides a warm start for models based on their expected performance
-        on 'hard' vs 'easy' tasks, without needing full HLE benchmark data.
+        Load pretrained weights from default_weights.json.
+        
+        Philosophy:
+        - A = λI (Identity → High Plasticity, adapts to user's data)
+        - θ = pretrained from JSON (Initial Intuition for reasoning/turbo archetypes)
+        - b = prior_n_effective * ridge_lambda * θ
         """
-        logger.info(f"Initializing Zero-Shot Warm Start with prior_n_effective={prior_n_effective:.1f}")
+        logger.info(f"Loading pretrained weights (N_eff={prior_n_effective:.1f})")
         
-        # The complexity vector is already loaded during BanditRouter init.
-        # It represents the direction of "hardness" in the embedding space.
-        # We use it to create a simple prior:
-        # - Models that align well with the complexity vector get a higher prior score.
-        # - Models that don't align get a lower prior score.
+        weights_path = Path(__file__).parent / "priors" / "default_weights.json"
         
-        # This is a simplified prior, assuming a linear relationship between
-        # complexity vector projection and expected reward.
+        if not weights_path.exists():
+            logger.warning(f"Pretrained weights not found. Using HLE fallback.")
+            for model_id in self.bandit.models:
+                raw_hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
+                neutral_ctx = np.zeros(self.bandit.dim)
+                neutral_ctx[-1] = 1.0
+                self.bandit.b[model_id] = prior_n_effective * raw_hle * neutral_ctx
+            return
         
-        # For each model, calculate its "expected hardness score" based on its
-        # inherent capabilities (e.g., from model metadata or a simple heuristic).
-        # For now, we'll use a placeholder or a simple mapping.
+        with open(weights_path) as f:
+            data = json.load(f)
         
-        # The complexity vector is part of the context vector, specifically the
-        # 'hardness_feat' component. The bandit learns to weight this feature.
-        # For a zero-shot prior, we can directly influence the 'b' vector.
-        
-        # A simple approach:
-        # For each model, assign a base prior reward (e.g., 0.5)
-        # Then, adjust it based on a "quality" score from metadata, if available.
-        # This quality score can be a proxy for how well it handles complex tasks.
-        
-        # Placeholder: Assume a simple quality score based on model tier or cost.
-        # In a real scenario, this would come from model metadata.
-        
-        for model_id, model_data in self.model_registry.items():
-            # Example: Assign a quality score based on model_data (e.g., cost, tier)
-            # For demonstration, let's use a dummy score or a simple heuristic.
-            # A more robust implementation would use actual model performance data.
+        # Map model IDs to archetypes (reasoning vs turbo)
+        for model_id in self.bandit.models:
+            # Determine archetype from model metadata or heuristics
+            hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
+            is_reasoning = hle > 0.25  # High HLE = reasoning model
             
-            # For now, we'll just set a neutral prior, as the complexity vector
-            # itself is a feature the bandit learns to weight.
-            # The "zero-shot" aspect comes from the *feature* itself, not necessarily
-            # a pre-baked prior into A/b for each model.
+            archetype = "reasoning_model" if is_reasoning else "turbo_model"
             
-            # If we wanted to bake in a prior, we'd need a way to map model_id
-            # to an expected performance on hard tasks.
-            
-            # For a true "zero-shot warm start" without external benchmark data,
-            # we primarily rely on the *features* (like the complexity score)
-            # to guide the bandit, rather than pre-populating A/b with model-specific priors.
-            # The bandit will learn the weights for these features from initial interactions.
-            
-            # However, if prior_n_effective > 0, we should still apply *some* prior.
-            # A simple "neutral" prior for all models, scaled by prior_n_effective.
-            # This ensures the bandit starts with some initial confidence, preventing
-            # extreme early exploration.
-            
-            # The 'b' vector represents sum(rewards * context_vector).
-            # A neutral prior would mean b = prior_n_effective * expected_mean_reward * mean_context_vector.
-            # Since we don't have mean_context_vector without data, we can just set a small,
-            # uniform prior for all models.
-            
-            # For now, we'll let the bandit start with its default A=lambda*I, b=0,
-            # and rely on the complexity feature to guide learning.
-            # The `prior_n_effective` here primarily acts as a "softening" factor
-            # for the initial exploration, making the bandit less volatile initially.
-            
-            # If a more specific zero-shot prior is desired, it would involve:
-            # 1. Defining a "zero-shot reward" for each model (e.g., based on size, cost, known capabilities).
-            # 2. Estimating a "mean context vector" for typical prompts.
-            # 3. Calculating b_prior = prior_n_effective * zero_shot_reward * mean_context_vector.
-            # This is complex without actual data.
-            
-            # For now, the "Zero-Shot Warm Start" primarily means:
-            # - The `complexity_vector` is active as a feature.
-            # - The bandit starts with default A/b, but `prior_n_effective` might
-            #   influence initial exploration parameters if it's used elsewhere
-            #   to scale the initial `alpha` or `ridge_lambda`.
-            
-            # If prior_n_effective is meant to add a mean prior, we need a mean reward.
-            # Let's assume a neutral mean reward of 0.5 for all models initially.
-            # And a neutral context vector (e.g., all zeros except bias).
-            # This is a very weak prior.
-            
-            # A more meaningful zero-shot prior would involve:
-            # 1. A global mean context vector (e.g., from a large corpus).
-            # 2. A global mean reward (e.g., 0.5).
-            # 3. Then, b_prior = prior_n_effective * global_mean_reward * global_mean_context_vector.
-            
-            # Given the current structure, the most direct way to use prior_n_effective
-            # for a "zero-shot" warm start is to scale the initial A matrix (ridge)
-            # and potentially add a small, uniform b vector.
-            
-            # For now, we'll keep the A matrix as ridge_lambda * I and b as 0,
-            # and let the complexity vector feature do its work.
-            # The `prior_n_effective` parameter in this context primarily signals
-            # that we *intend* to have some prior strength, even if it's just
-            # a default initialization.
-            pass # The actual prior application happens in load_from_benchmark or is implicit in bandit init.
+            if archetype in data.get("models", {}):
+                weights_dict = data["models"][archetype]["weights"]
+                
+                # Build theta vector matching our feature structure:
+                # [Embedding(32) | Handcrafted(11) | Anchors(5) | Hardness(1) | Bias(1)]
+                theta = np.zeros(self.bandit.dim)
+                
+                # Set anchor weights (assuming indices: emb_dim + handcrafted_dim + i)
+                anchor_start = 32 + 11  # After PCA embedding and handcrafted features
+                theta[anchor_start + 0] = weights_dict.get("anchor_coding", 0.0)
+                theta[anchor_start + 1] = weights_dict.get("anchor_math", 0.0)
+                theta[anchor_start + 2] = weights_dict.get("anchor_reasoning", 0.0)
+                theta[anchor_start + 3] = weights_dict.get("anchor_creative", 0.0)
+                theta[anchor_start + 4] = weights_dict.get("anchor_humor", 0.0)
+                
+                # Set complexity score weight
+                theta[anchor_start + 5] = weights_dict.get("complexity_score", 0.0)
+                
+                # Set bias
+                theta[-1] = weights_dict.get("bias", 0.0)
+                
+                #Set b = prior_n_effective * ridge_lambda * theta
+                self.bandit.b[model_id] = prior_n_effective * self.bandit.ridge_lambda * theta
+            else:
+                # Fallback to HLE
+                raw_hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
+                neutral_ctx = np.zeros(self.bandit.dim)
+                neutral_ctx[-1] = 1.0
+                self.bandit.b[model_id] = prior_n_effective * raw_hle * neutral_ctx
 
-    def _detect_difficulty_hybrid(self, text: str, cluster_id: Optional[int] = None) -> float:
-        """
-        Determines the semantic complexity/difficulty of a prompt.
-        Returns a continuous score [0.0, 1.0].
-        """
-        # 1. Semantic Hardness (Complexity Vector)
-        # This is our primary Zero-Shot signal
-        emb = self.encoder.encode([text], normalize_embeddings=True, show_progress_bar=False)[0]
-        hardness_score = float(np.dot(emb, self.complexity_vector))
-        
         return np.clip(hardness_score, 0.0, 1.0)
 
     # The following methods are deprecated as _detect_difficulty_hybrid now uses the complexity vector directly.
@@ -1148,181 +1086,6 @@ class BanditRouter:
             
         return False
 
-    @classmethod
-    def load_from_benchmark(
-        cls,
-        *,
-        model_registry: Dict[str, Dict[str, Any]],
-        context_model: str = DEFAULT_CONTEXT_MODEL,
-        context_encoder=None,  # NEW: For dependency injection
-        alpha: float = 0.1,
-        prior_n_effective: float = 20.0,
-        prior_structure_n_effective: Optional[float] = None,
-        ridge_lambda: float = 1.0,
-        priors_meta_path: Optional[Path] = None,
-        forgetting_factor: float = 0.95,
-        cluster_boost_weight: float = 0.1,
-        pca_path: Optional[Path] = None,
-        anchors: Optional[Dict[str, str]] = None,
-    ) -> "BanditRouter":
-        """
-        Initialize with HLE priors using covariance matrix.
-        
-        Two-Knob Scaling:
-            prior_n_effective: Controls belief strength (b vector scaling). Default 20.0.
-            prior_structure_n_effective: Controls structural stiffness (A matrix scaling). 
-                                         Default None = Infinite stiffness (unscaled).
-        """
-        meta = np.load(priors_meta_path)
-        cov_matrix = meta["cov_matrix"]
-        sum_vec = meta["sum_vec"]
-        dim = sum_vec.shape[0]
-        
-        router = cls(
-            model_registry, 
-            context_model=context_model,
-            context_encoder=context_encoder,
-            alpha=alpha, 
-            embedding_dim=dim + 1,  # +1 for hardness switch
-            ridge_lambda=ridge_lambda,
-            cluster_boost_weight=cluster_boost_weight,
-            pca_path=pca_path,
-            anchors=anchors
-        )
-        
-        # Ridge Update: A += init_scale * Cov, b += belief_scale * score * Sum
-        # NORMALIZATION: We scale the benchmark (N=26223) to N_effective
-        
-        # Load Cluster Statistics
-        cluster_sums = meta["cluster_sums"]     # (100, 45)
-        cluster_counts = meta["cluster_counts"] # (100,)
-        global_sum = meta["global_sum"]         # (45,)
-        n_clusters = cluster_sums.shape[0]
-        
-        # Calculate total samples first (needed for normalization)
-        total_samples = float(np.sum(cluster_counts))
-        
-        # NORMALIZATION: Convert sums to means for fair HLE comparison
-        # This ensures prior_n_effective has equivalent strength for both
-        cluster_means = cluster_sums / cluster_counts[:, np.newaxis]  # Shape: (100, 45)
-        global_mean = global_sum / max(total_samples, 1.0)            # Shape: (45,)
-        
-        # -----------------------------------------------------------------------
-        # TWO-KNOB SCALING FRAMEWORK (CORRECTED)
-        # -----------------------------------------------------------------------
-        # Note: total_samples already calculated above for normalization 
-        
-        # Knob 1: Structural Stiffness (Initialization Scaling for A Matrix)
-        # Controls how confident we are in the covariance structure
-        #
-        # CRITICAL FIX: The covariance matrix in priors_meta_pca.npz is already
-        # a NORMALIZED covariance (mean, not sum). Therefore, we scale it directly
-        # by prior_structure_n_effective to simulate N_eff samples, NOT divide by total_samples.
-        #
-        # Old (Buggy): init_scale = prior_structure_n_effective / total_samples
-        #   This created A ≈ I (tiny), b ≈ 60μ (large) → θ ≈ 60μ (explodes to 50-60 range)
-        #
-        # New (Correct): init_scale = prior_structure_n_effective
-        #   This creates A ≈ 60*Cov, b ≈ 60μ → θ = (60*Cov)^(-1)(60μ) ≈ Cov^(-1)μ ≈ 1.0
-        #
-        # Result: Quality scores return to 0.0-1.0 range, cost penalties become meaningful
-        if prior_structure_n_effective is None:
-            init_scale = 1.0  # Infinite stiffness (unscaled, full N_offline strength)
-        else:
-            init_scale = prior_structure_n_effective  # CORRECTED: No division
-            
-        # Knob 2: Belief Strength (b Vector Scaling)
-        # We use prior_n_effective DIRECTLY in the b vector update (see line ~1115).
-        # This is correct because global_mean and cluster_means are already normalized MEANS,
-        # not SUMS. The update formula is: b += N_eff * mean_vector
-        # This makes the prior strength independent of the offline dataset size.
-        
-        # Ridge Floor (The Baseline Variance λI)
-        # Always maintain the original ridge_lambda to ensure stability and 
-        # a baseline exploration radius, even when Prior Structure is zero.
-        effective_ridge_lambda = ridge_lambda
-        logger.info(f"Ridge Floor: λ = {effective_ridge_lambda:.3f}")
-        logger.info(f"Structural Scaling: init_scale = {init_scale:.3f}")
-        logger.info(f"Belief Scaling: prior_n_effective = {prior_n_effective:.3f}")
-        
-        # Update router's bandit with effective ridge
-        # Reinitialize A matrices with adaptive ridge
-        for m in router.bandit.models:
-            router.bandit.A[m] = np.eye(router.bandit.dim) * effective_ridge_lambda
-            router.bandit.A_inv[m] = safe_inv(router.bandit.A[m])
-        
-        # Pad covariance matrix for bias term (zeros for cross-terms, 1.0 for bias variance)
-        # AND pad for new handcrafted features if strict dimensions don't match
-        # Prior Cov is (384, 384). Router dim is likely 388 (+1 bias).
-        
-        current_dim = router.bandit.dim # e.g. 389 (384+4+1)
-        prior_dim = dim # e.g. 384
-        
-        cov_padded = np.eye(current_dim) # Default to identity for new features/bias
-        # Fill strictly the top-left block with the prior covariance
-        # This means new features start with Identity covariance (neutral prior)
-        cov_padded[:prior_dim, :prior_dim] = cov_matrix
-        
-        # Apply Initialization Scaling to Covariance (Knob 1)
-        # A_prior = init_scale * Sum(xx^T)
-        # We add this to the existing A = lambda * I
-        A_prior_update = init_scale * cov_padded
-        
-        # Ensure bias term (last element) has variance 1.0 (It is already 1.0 from eye init)
-        
-        for m in router.bandit.models:
-            # Update A with the prior
-            router.bandit.A[m] += A_prior_update
-            
-            # Get raw benchmark score (default 0.05 for new models)
-            # This fallback enables "new model with no benchmarks" constraint
-            raw_hle_score = float(model_registry.get(m, {}).get("hle") or 0.05)
-            
-            # ------------------------------------------------------------------
-            # PRIOR MEAN CALCULATION: HLE (Generic) Context-Aware
-            # ------------------------------------------------------------------
-            # HOLOGRAPHIC PRIOR CONSTRUCTION V2: Context-Aware Beliefs
-            # Instead of averaging priors into a single vector, we teach the bandit
-            # using cluster-specific context vectors WITH the hardness switch.
-            #
-            # This prevents "context collapse" where easy/hard priors get blended.
-            # The hardness feature orthogonalizes the beliefs.
-            
-            total_samples_val = np.sum(meta["cluster_counts"])
-            
-            # Iterate through all clusters to teach cluster-specific beliefs
-            for k in range(n_clusters):
-                # 1. DETECT DIFFICULTY for this cluster
-                # In v2, we try to use the complexity vector if possible, 
-                # but fallback to ID-based for legacy HLE metadatas.
-                is_hard = router._is_hard_cluster(k)
-                hardness_val = 10.0 if is_hard else 0.0
-                # 2. TRANSFORM HLE to target score using two-tiered barbell
-                target_score = transform_hle_to_prior(raw_hle_score, is_hard_prompt=is_hard)
-                
-                # 3. CONSTRUCT CLUSTER-SPECIFIC CONTEXT VECTOR
-                # Structure: [ClusterCentroid | Hardness | Bias]
-                cluster_centroid = cluster_means[k]
-                
-                # Build full context: [Centroid | Hardness | Bias]
-                x_cluster = np.concatenate([cluster_centroid, [hardness_val], [1.0]])
-                
-                # 4. WEIGHT by cluster prevalence
-                prevalence = meta["cluster_counts"][k] / max(total_samples_val, 1.0)
-                weight = prior_n_effective * prevalence
-                
-                # 5. TEACH THE BANDIT: "For context x_cluster, expect target_score"
-                # Update A (structure): A += weight * x @ x^T
-                router.bandit.A[m] += weight * np.outer(x_cluster, x_cluster)
-                
-                # Update b (belief): b += weight * target_score * x
-                router.bandit.b[m] += weight * target_score * x_cluster
-
-
-            # Recompute inverse
-            router.bandit.A_inv[m] = safe_inv(router.bandit.A[m])
-            
-        return router
 
     # ---------------------------------------------------------------------------
     # New Model Admission Protocol ("Transfer & Verify")
