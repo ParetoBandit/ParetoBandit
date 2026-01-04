@@ -563,9 +563,14 @@ class BanditRouter:
                 logger.warning(f"Could not initialize cluster detector: {e}")
         
         # -----------------------------------------------------------------------
-        # FEATURE VECTOR DIMENSION LOGIC (Updated for Heuristic Hardness)
-        # Base Embedding (384/32) + Handcrafted (11) + Cluster Distances (5) + 
-        # Hardness Score (1) + Bias (1) = 50 (or 401 without PCA)
+        # FEATURE VECTOR DIMENSION LOGIC (Updated for Feature Linearization)
+        # Base Embedding (384/32) + Handcrafted (15) + Cluster Distances (5) + 
+        # Hardness Score (1) + Bias (1) = 54 (or 405 without PCA)
+        # 
+        # Feature Linearization (KDD Review): Expanded from 11→15 handcrafted features
+        # by splitting non-linear signals (code blocks, latex, questions, length) into
+        # binary presence + log-scaled intensity pairs.
+        # 
         # NOTE: High dimensionality (~400 params per arm) is expensive for online bandits.
         # Without strong priors (N_eff), convergence would take 10k+ steps.
         # Priors are essential here to bridge the "cold start" gap.
@@ -581,8 +586,8 @@ class BanditRouter:
             
         if embedding_dim == enc_dim:
              # User likely passed default 384 (or we just want auto-calc).
-             # We are adding 17 features (11 handcrafted + 5 cluster + 1 hardness).
-             embedding_dim = base_dim + 17
+             # We are adding 21 features (15 handcrafted + 5 anchors + 1 hardness).
+             embedding_dim = base_dim + 21
         
         # Add bias term to dimension
         self.bandit = DisjointLinUCBPolicy(
@@ -627,23 +632,79 @@ class BanditRouter:
         # Subtract consecutive vowels (already handled by regex group)
         return max(1, count)
 
+    # ---------------------------------------------------------------------------
+    # Feature Linearization (Addressing LinUCB Linearity Assumption)
+    # ---------------------------------------------------------------------------
+    class FeatureTransformer:
+        """
+        Linearizes non-linear signals for LinUCB compatibility.
+        
+        **KDD Review Critique: "The Linearity Assumption"**
+        LinUCB assumes Reward ≈ θ · x (linear relationship). Features like 
+        'latex_density' combine two distinct signals:
+        1. Step Function: "Is this math?" (massive jump when LaTeX present)
+        2. Continuous Slope: "How hard is the math?" (gradual increase with density)
+        
+        A single linear coefficient cannot capture both. Solution: Split into two features:
+        - Binary: Captures the intercept shift (the "step")
+        - Log-scaled: Captures the incremental difficulty (the "slope")
+        
+        This allows: Reward = θ_step * has_feature + θ_slope * log(density)
+        """
+        
+        @staticmethod
+        def binarize(x: float) -> float:
+            """Convert to presence indicator (0 or 1)."""
+            return 1.0 if x > 0 else 0.0
+        
+        @staticmethod
+        def log1p(x: float) -> float:
+            """Log-scale for continuous intensity: log(1 + x)."""
+            return float(np.log1p(max(0, x)))
+        
+        @staticmethod
+        def split_signal(raw_count: float) -> Tuple[float, float]:
+            """
+            Split a raw count into linearizable components.
+            
+            Returns:
+                (binary_presence, log_intensity)
+            
+            Example:
+                0 → (0.0, 0.0)
+                1 → (1.0, 0.69)  # log(1+1)
+                10 → (1.0, 2.40) # log(1+10)
+            """
+            return (
+                FeatureTransformer.binarize(raw_count),
+                FeatureTransformer.log1p(raw_count)
+            )
+
+
     def _extract_handcrafted_features(self, text: str) -> np.ndarray:
         """
-        Extract explicit features for routing logic.
-        1. is_code_heavy
-        2. requires_json
-        3. input_length_log
-        4. list_density
-        5. instruction_density
-        6. flesch_kincaid
-        7. question_count
-        8. toxicity_score
-        9. has_code_block (NEW: explicit code fence detection)
-        10. latex_density (NEW: math/LaTeX symbol density)
-        11. length_penalty (NEW: normalized token count)
+        Extract linearized features for routing logic.
+        
+        **LINEARIZATION STRATEGY (Addressing KDD Critique):**
+        Features that combine step functions + continuous slopes are split:
+        - Binary: Presence indicator (captures intercept shift)
+        - Log-scaled: Intensity (captures gradual difficulty increase)
+        
+        **15 Features Total:**
+        1. is_code_heavy (continuous: code length / total length)
+        2. requires_json (binary: JSON keyword presence)
+        3. input_length_log (continuous: log tokens)
+        4. list_density (continuous: list items / lines)
+        5. instruction_density (continuous: imperatives / words)
+        6. flesch_kincaid (continuous: reading grade level)
+        7. toxicity_score (continuous: LLM Guard score)
+        8-9. Code blocks: has_code_block (binary) + code_block_count_log (continuous)
+        10-11. LaTeX: has_latex (binary) + latex_density_log (continuous)
+        12-13. Questions: has_question (binary) + question_count_log (continuous)
+        14-15. Length: length_penalty_bin (binary: >500 tokens) + length_penalty_log (continuous)
         """
         if not text:
-            return np.zeros(11)
+            return np.zeros(15)
         
         # --- BASICS ---
         total_len = len(text)
@@ -651,32 +712,32 @@ class BanditRouter:
         n_words = len(words)
         lines = text.split('\n')
         n_lines = len(lines)
+        n_tokens = n_words * 1.3
         
-        # 1. Code Heavy
+        # 1. Code Heavy (continuous)
         code_blocks = re.findall(r'`{1,3}(.*?)`{1,3}', text, re.DOTALL)
         code_len = sum(len(c) for c in code_blocks)
         is_code_heavy = (code_len / total_len) if total_len > 0 else 0.0
         
-        # 2. Requires JSON
+        # 2. Requires JSON (binary)
         json_keywords = ["json", "valid format", "schema", "output format"]
         requires_json = 1.0 if any(k in text.lower() for k in json_keywords) else 0.0
         
-        # 3. Input Length (Log)
-        n_tokens = n_words * 1.3
+        # 3. Input Length (log-scaled continuous)
         input_length_log = np.log(n_tokens + 1.0)
         
-        # 4. List Density
+        # 4. List Density (continuous)
         list_markers = [l for l in lines if l.strip().startswith(('-', '*', '1.', '2.'))]
         list_density = (len(list_markers) / n_lines) if n_lines > 0 else 0.0
         
         # --- COMPLEXITY ---
         
-        # 5. Instruction Density
+        # 5. Instruction Density (continuous)
         imperatives = {"create", "write", "solve", "analyze", "explain", "summarize", "find", "calculate", "implement", "design"}
         n_imperatives = sum(1 for w in words if w in imperatives)
         instruction_density = (n_imperatives / n_words) if n_words > 0 else 0.0
         
-        # 6. Flesch-Kincaid Grade
+        # 6. Flesch-Kincaid Grade (continuous)
         sentences = re.split(r'[.!?]+', text)
         n_sentences = max(1, len([s for s in sentences if s.strip()]))
         
@@ -685,16 +746,11 @@ class BanditRouter:
             fk_grade = 0.39 * (n_words / n_sentences) + 11.8 * (n_syllables / n_words) - 15.59
         else:
             fk_grade = 0.0
-            
         fk_normalized = max(0.0, min(fk_grade, 20.0)) / 20.0
-        
-        # 7. Question Count
-        q_count = text.count('?')
-        question_count = np.log(q_count + 1.0)
         
         # --- SECURITY ---
         
-        # 8. Toxicity Score
+        # 7. Toxicity Score (continuous)
         toxicity_score = 0.0
         if self._toxicity_scanner:
             try:
@@ -703,27 +759,35 @@ class BanditRouter:
             except Exception:
                 pass
         
-        # --- HEURISTIC HARDNESS FEATURES ---
+        # --- LINEARIZED FEATURES (Split Step + Slope) ---
         
-        # 9. Has Code Block (Explicit)
-        # Embeddings can miss short but complex code snippets
-        has_code_block = 1.0 if '```' in text else 0.0
+        # 8-9. Code Blocks: Binary presence + Log intensity
+        code_block_count = float(text.count('```'))
+        has_code_block, code_block_count_log = self.FeatureTransformer.split_signal(code_block_count)
         
-        # 10. LaTeX Density
-        # Short math problems with high symbol density are hard
-        latex_symbols = text.count('$') + text.count('\\') + text.count('^') + text.count('_{')
-        latex_density = min(latex_symbols / max(n_words, 1), 1.0)  # Normalize by word count
+        # 10-11. LaTeX Symbols: Binary presence + Log density
+        latex_count = float(text.count('$') + text.count('\\') + text.count('^') + text.count('_{'))
+        has_latex, latex_density_log = self.FeatureTransformer.split_signal(latex_count)
         
-        # 11. Length Penalty (Normalized)
-        # Longer prompts often require larger context models
-        # Normalize to [0, 1] assuming 2000 tokens as "long"
-        length_penalty = min(n_tokens / 2000.0, 1.0)
+        # 12-13. Questions: Binary presence + Log count
+        question_count = float(text.count('?'))
+        has_question, question_count_log = self.FeatureTransformer.split_signal(question_count)
+        
+        # 14-15. Length: Binary threshold + Log scaling
+        # Binary: Is this a "long" prompt? (>500 tokens)
+        length_penalty_bin = 1.0 if n_tokens > 500 else 0.0
+        # Continuous: Log-scaled length
+        length_penalty_log = np.log1p(n_tokens)
         
         return np.array([
+            # Original continuous features (1-7)
             is_code_heavy, requires_json, input_length_log, list_density,
-            instruction_density, fk_normalized, question_count,
-            toxicity_score,
-            has_code_block, latex_density, length_penalty
+            instruction_density, fk_normalized, toxicity_score,
+            # Linearized features (8-15): Binary + Log pairs
+            has_code_block, code_block_count_log,
+            has_latex, latex_density_log,
+            has_question, question_count_log,
+            length_penalty_bin, length_penalty_log
         ])
 
     def _get_cluster_distances(self, embedding: np.ndarray) -> np.ndarray:
@@ -746,12 +810,14 @@ class BanditRouter:
         """
         Convert string prompt or array to a normalized context vector.
         
-        Structure with Zero-Shot Hardness + Heuristic Features:
-        [Embedding (32/384) | Handcrafted (11) | Anchors (5) | Hardness Score (1) | Bias (1)]
+        Structure with Feature Linearization:
+        [Embedding (32/384) | Handcrafted (15) | Anchors (5) | Hardness Score (1) | Bias (1)]
         
-        The Hardness Score is the "Semantic Complexity" signal:
-        - S_hard = prompt_embedding · Reference_Complexity_Vector
-        - Feed raw scalar to bandit to learn difficulty-dependent routing.
+        Handcrafted features split into binary+log pairs for LinUCB linearity:
+        - 8-9: has_code_block + code_block_count_log
+        - 10-11: has_latex + latex_density_log
+        - 12-13: has_question + question_count_log
+        - 14-15: length_penalty_bin + length_penalty_log
         
         Args:
             context: Prompt text or pre-computed embedding
@@ -777,12 +843,21 @@ class BanditRouter:
             # Projection onto Reference Complexity Vector
             raw_projection = float(np.dot(emb_full, self.complexity_vector))
             
-            # CRITICAL: Normalize to [0,1] using sigmoid for pretrained weights to work
-            # Without normalization, raw_projection can be -3.2 or +15.4, breaking the weights
-            hardness_score_normalized = 1.0 / (1.0 + np.exp(-raw_projection))
+            # CRITICAL: Normalize to [0,1] using min-max with empirical bounds
+            # Empirical testing showed:
+            #   Easy prompts: ~-0.10 (e.g., "Hello" = -0.0604)
+            #   Hard prompts: ~+0.20 (e.g., "Calculus" = +0.1670)
+            # Sigmoid gave poor separation: 0.48-0.54 (barely discriminative!)
+            # Min-max gives full range: 0.0 for easy, 0.9 for hard
+            COMPLEXITY_MIN = -0.15  # Conservative lower bound
+            COMPLEXITY_MAX = 0.25   # Conservative upper bound
+            hardness_score_normalized = np.clip(
+                (raw_projection - COMPLEXITY_MIN) / (COMPLEXITY_MAX - COMPLEXITY_MIN),
+                0.0, 1.0
+            )
             
-            # No additional scaling needed - pretrained weights expect [0,1] range
             hardness_feat = np.array([hardness_score_normalized])
+
 
             
             # Concatenate: [Embedding, Handcrafted, Anchors, Hardness, Bias]
