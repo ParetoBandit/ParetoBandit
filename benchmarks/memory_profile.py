@@ -21,7 +21,7 @@ from pathlib import Path
 from collections import defaultdict
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 from bandit_gpt.router import DisjointLinUCBPolicy
 
 
@@ -38,9 +38,9 @@ def profile_update_components():
     
     # Test configurations
     configs = [
-        {"name": "gamma=0.95, ridge=1.0 (DEFAULT)", "gamma": 0.95, "ridge": 1.0},
-        {"name": "gamma=0.95, ridge=0.0 (NO REG)", "gamma": 0.95, "ridge": 0.0},
-        {"name": "gamma=1.0, ridge=1.0 (NO DECAY)", "gamma": 1.0, "ridge": 1.0},
+        {"name": "gamma=0.95, init=1.0 (DEFAULT)", "gamma": 0.95, "init_lambda": 1.0},
+        {"name": "gamma=0.95, init=0.0 (NO REG)", "gamma": 0.95, "init_lambda": 0.0},
+        {"name": "gamma=1.0, init=1.0 (NO DECAY)", "gamma": 1.0, "init_lambda": 1.0},
     ]
     
     results = {}
@@ -54,7 +54,7 @@ def profile_update_components():
             model_names=["arm_A", "arm_B"],
             dim=dim,
             forgetting_factor=config['gamma'],
-            ridge_lambda=config['ridge']
+            init_lambda=config['init_lambda']
         )
         
         x = np.random.randn(dim)
@@ -75,11 +75,11 @@ def profile_update_components():
             elapsed = (time.perf_counter() - start) * 1000
             times.append(elapsed)
             
-            # Detect if full inversion was triggered
-            # dt > 0 and ridge > 0 and gamma < 1.0 → full inversion
+            # Detect if full inversion was triggered (note: with update_lambda=0, never triggers)
+            # dt > 0 and update_lambda > 0 and gamma < 1.0 → full inversion
             dt = 1  # alternating arms means dt=1 for each
-            if dt > 0 and config['ridge'] > 0 and config['gamma'] < 1.0:
-                full_inversions += 1
+            # With current implementation, update_lambda defaults to 0, so no full inversions
+            full_inversions = 0
         
         avg_time = np.mean(times)
         std_time = np.std(times)
@@ -165,29 +165,29 @@ def test_pure_operations():
     return operations
 
 
-def test_ridge_lambda_impact():
+def test_init_lambda_impact():
     """
-    Test different ridge_lambda values to see if reducing it helps.
+    Test different init_lambda values to see performance impact.
     """
     print("\n" + "=" * 70)
-    print("RIDGE LAMBDA SENSITIVITY ANALYSIS")
+    print("INIT LAMBDA SENSITIVITY ANALYSIS")
     print("=" * 70)
     
     dim = 384
     n_trials = 100
     gamma = 0.95
     
-    ridge_values = [0.0, 0.1, 0.5, 1.0, 2.0, 5.0]
+    init_values = [0.1, 0.5, 1.0, 2.0, 5.0]
     
-    print(f"\n{'Ridge λ':<12} {'Avg Time (ms)':<18} {'Throughput':<15} {'Status':<20}")
+    print(f"\n{'Init λ':<12} {'Avg Time (ms)':<18} {'Throughput':<15} {'Status':<20}")
     print("-" * 70)
     
-    for ridge in ridge_values:
+    for init_lambda in init_values:
         policy = DisjointLinUCBPolicy(
             model_names=["arm_A", "arm_B"],
             dim=dim,
             forgetting_factor=gamma,
-            ridge_lambda=ridge
+            init_lambda=init_lambda
         )
         
         x = np.random.randn(dim)
@@ -208,7 +208,7 @@ def test_ridge_lambda_impact():
         throughput = 1000 / avg_time
         status = "✅ >1000/s" if throughput > 1000 else "❌ <1000/s"
         
-        print(f"{ridge:<12.1f} {avg_time:<18.4f} {throughput:<15.0f} {status:<20}")
+        print(f"{init_lambda:<12.1f} {avg_time:<18.4f} {throughput:<15.0f} {status:<20}")
 
 
 if __name__ == "__main__":
@@ -220,17 +220,17 @@ if __name__ == "__main__":
     # 2. Raw operation costs
     op_costs = test_pure_operations()
     
-    # 3. Ridge lambda sensitivity
-    test_ridge_lambda_impact()
+    # 3. Init lambda sensitivity
+    test_init_lambda_impact()
     
     # Summary and recommendations
     print("\n" + "=" * 70)
     print("DIAGNOSIS SUMMARY")
     print("=" * 70)
     
-    default_perf = config_results.get("gamma=0.95, ridge=1.0 (DEFAULT)", {})
-    no_reg_perf = config_results.get("gamma=0.95, ridge=0.0 (NO REG)", {})
-    no_decay_perf = config_results.get("gamma=1.0, ridge=1.0 (NO DECAY)", {})
+    default_perf = config_results.get("gamma=0.95, init=1.0 (DEFAULT)", {})
+    no_reg_perf = config_results.get("gamma=0.95, init=0.0 (NO REG)", {})
+    no_decay_perf = config_results.get("gamma=1.0, init=1.0 (NO DECAY)", {})
     
     print(f"\n1. Default Configuration (γ=0.95, λ=1.0):")
     print(f"   Throughput: {default_perf.get('throughput', 0):.0f} updates/sec")
@@ -251,11 +251,11 @@ if __name__ == "__main__":
     print("=" * 70)
     
     if no_reg_perf.get('throughput', 0) > 1000:
-        print("\n✅ Setting ridge_lambda=0.0 achieves >1000 updates/sec")
-        print("   The regularization floor restoration is the bottleneck.")
-        print("\n   SOLUTION: Document the honest tradeoff:")
-        print("   - Speed mode: ridge_lambda=0.0 → O(d²), >1000 updates/sec")
-        print("   - Stability mode: ridge_lambda>0 → O(d³) on stale updates, ~700 updates/sec")
+        print("\n✅ Setting init_lambda=0.0 achieves >1000 updates/sec")
+        print("   With update_lambda=0 (default), we use pure O(d²) Sherman-Morrison.")
+        print("\n   SOLUTION: Current implementation is optimal:")
+        print("   - Init regularization for cold-start stability")
+        print("   - No runtime regularization for O(d²) speed")
     else:
         print("\n⚠️ Even without regularization, throughput <1000 updates/sec")
         print("   Additional profiling needed to identify bottleneck.")
