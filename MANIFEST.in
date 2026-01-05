@@ -4,6 +4,12 @@ include README.md
 include CHANGELOG.md
 include CONTRIBUTING.md
 
+# Include static assets (complexity vector, models.json)
+include src/bandit_gpt/assets/*.npz
+include src/bandit_gpt/config/models.json
+recursive-include src/bandit_gpt/assets *
+recursive-include src/bandit_gpt/config *.json
+
 # Include package data files (now inside banditgpt/)
 recursive-include banditgpt/data *.npz *.npy *.jsonl *.json *.txt *.md
 graft banditgpt/data
@@ -15,6 +21,18 @@ include banditgpt/py.typed
 exclude banditgpt/data/complexity_classifier_final/model.safetensors
 exclude banditgpt/data/quality_predictor/*.pt
 exclude banditgpt/data/quality_predictor/*.bin
+
+# Exclude development data (training source, not needed by users)
+exclude dev_data/*
+recursive-exclude dev_data *
+
+# Exclude experiments (research artifacts, not production code)
+exclude experiments/*
+recursive-exclude experiments *
+
+# Exclude benchmarks (development tools, not end-user code)
+exclude benchmarks/*
+recursive-exclude benchmarks *
 
 # Exclude test and development files from wheel
 prune tests

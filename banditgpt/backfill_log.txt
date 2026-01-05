@@ -1,7 +1,0 @@
-============================================================
-BACKFILLING TRAINING DATA GAPS
-============================================================
-
-Found 265 missing entries to backfill
-Backfilling:   0%|          | 0/265 [00:00<?, ?it/s]Backfilling:   0%|          | 1/265 [01:59<8:44:41, 119.25s/it]Backfilling:   1%|          | 2/265 [02:59<6:09:18, 84.25s/it] Backfilling:   1%|          | 3/265 [02:59<3:20:29, 45.91s/it]Backfilling:   2%|▏         | 4/265 [02:59<2:01:28, 27.93s/it]Backfilling:   2%|▏         | 5/265 [03:34<2:12:22, 30.55s/it]Backfilling:   2%|▏         | 6/265 [03:35<1:27:27, 20.26s/it]Backfilling:   3%|▎         | 7/265 [03:35<59:05, 13.74s/it]  Backfilling:   3%|▎         | 8/265 [04:20<1:41:07, 23.61s/it]Backfilling:   3%|▎         | 9/265 [05:07<2:11:54, 30.91s/it]Backfilling:   4%|▍         | 10/265 [06:02<2:43:53, 38.56s/it]/Users/annette/.pyenv/versions/3.12.11/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
-  warnings.warn('resource_tracker: There appear to be %d '

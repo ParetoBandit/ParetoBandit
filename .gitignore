@@ -159,3 +159,6 @@ banditgpt/data/helpsteer*.jsonl
 !banditgpt/data/golden_prompts.jsonl
 # Large log files
 run_log*.txt
+# Large data files
+src/bandit_gpt/data/*_rewards*.jsonl
+src/bandit_gpt/data/helpsteer*.jsonl
