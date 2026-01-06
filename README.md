@@ -395,6 +395,22 @@ b_new = b_old + r·x     # "This worked well/poorly" (push θ toward/away)
 
 This takes **microseconds**, not hours.
 
+### Response to Feature Linearization Critique
+
+We deliberately employ a **"Binary + Log" transformation** ($\phi(x) = [\mathbb{I}_{x>0}, \ln(1+x)]$) rather than binning or piecewise linearization. This choice is driven by the bias-variance trade-off specific to Online Learning:
+
+**1. Sample Efficiency (The Curse of Dimensionality)**
+
+Standard Discretization (e.g., decile binning) would increase the dimensionality of our handcrafted features from $d=14$ to $d \approx 140$. In the LinUCB framework, regret scales with $O(d \sqrt{T})$. Expanding the feature space by an order of magnitude would drastically extend the "Cold Start" period, causing unacceptable performance degradation in the early deployment phase ($N < 10^4$).
+
+**2. Zero-Inflated Distribution Handling**
+
+Our prompt telemetry shows that features like `code_density` and `latex_count` are highly zero-inflated (sparse). The Binary Presence feature explicitly models the "Contextual Mode Switch" (e.g., the qualitative jump from Chat to Coding), effectively learning a separate intercept for these tasks.
+
+**3. Weber-Fechner Alignment**
+
+We rely on the domain assumption that LLM processing difficulty follows the Weber-Fechner Law (logarithmic scaling). The computational burden of processing 200 tokens vs. 100 tokens is significant; the difference between 10,200 and 10,100 is negligible. The logarithmic term encodes this "diminishing marginal impact" using a single parameter, maximizing the information-per-parameter ratio.
+
 ## Configuration
 
 ### Optimization Profiles
