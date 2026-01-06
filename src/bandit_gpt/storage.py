@@ -121,6 +121,8 @@ class SqliteContextStore(ContextStore):
     def __init__(self, db_path: str | Path = "router_context.db", ttl_seconds: int = 86400 * 7):
         self.db_path = str(db_path)
         self.ttl = ttl_seconds
+        self.write_timeout = 5.0  # seconds
+        self.read_timeout = 1.0   # seconds
         self._init_db()
     
     def _init_db(self):
@@ -141,31 +143,102 @@ class SqliteContextStore(ContextStore):
             conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON context_log(created_at)")
     
     def save_context(self, request_id: str, context: np.ndarray, model_id: str) -> None:
-        blob = pickle.dumps(context, protocol=pickle.HIGHEST_PROTOCOL)
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO context_log (request_id, context_blob, model_id, created_at) VALUES (?, ?, ?, ?)",
-                (request_id, blob, model_id, time.time())
-            )
+        """Save context with robust error handling (never crashes router)."""
+        try:
+            blob = pickle.dumps(context, protocol=pickle.HIGHEST_PROTOCOL)
+            with sqlite3.connect(self.db_path, timeout=self.write_timeout) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO context_log (request_id, context_blob, model_id, created_at) VALUES (?, ?, ?, ?)",
+                    (request_id, blob, model_id, time.time())
+                )
+                conn.commit()
+        except sqlite3.OperationalError as e:
+            # Database locked - log but don't crash router
+            import logging
+            logging.error(f"Failed to persist context {request_id}: {e}")
+        except Exception as e:
+            # Never crash the router for a storage error
+            import logging
+            logging.error(f"Unexpected error persisting context {request_id}: {e}")
     
     def get_context(self, request_id: str) -> Tuple[np.ndarray | None, str | None]:
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "SELECT context_blob, model_id FROM context_log WHERE request_id = ?",
-                (request_id,)
-            )
-            row = cursor.fetchone()
-            if row:
-                context = pickle.loads(row[0])
-                return context, row[1]
-        return None, None
+        """Retrieve context with timeout and error handling."""
+        try:
+            with sqlite3.connect(self.db_path, timeout=self.read_timeout) as conn:
+                cursor = conn.execute(
+                    "SELECT context_blob, model_id FROM context_log WHERE request_id = ?",
+                    (request_id,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    context = pickle.loads(row[0])
+                    return context, row[1]
+            return None, None
+        except sqlite3.OperationalError:
+            # Database locked - return None (feedback will be dropped)
+            import logging
+            logging.warning(f"Database locked when retrieving context {request_id}")
+            return None, None
+        except Exception as e:
+            import logging
+            logging.error(f"Error retrieving context {request_id}: {e}")
+            return None, None
     
-    def prune(self) -> int:
+    def prune(self, force: bool = False) -> int:
         """Remove entries older than TTL. Returns count of deleted rows."""
-        cutoff = time.time() - self.ttl
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("DELETE FROM context_log WHERE created_at < ?", (cutoff,))
-            return cursor.rowcount
+        try:
+            with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                if force:
+                    # Delete everything (for testing/reset)
+                    cursor = conn.execute("DELETE FROM context_log")
+                else:
+                    # Delete records older than TTL
+                    cutoff = time.time() - self.ttl
+                    cursor = conn.execute("DELETE FROM context_log WHERE created_at < ?", (cutoff,))
+                
+                deleted = cursor.rowcount
+                conn.commit()
+                
+                if deleted > 0:
+                    import logging
+                    logging.info(f"Pruned {deleted} old contexts from store")
+                
+                return deleted
+        except Exception as e:
+            import logging
+            logging.error(f"Error pruning contexts: {e}")
+            return 0
+    
+    def stats(self) -> dict:
+        """Get database statistics for monitoring/debugging."""
+        try:
+            with sqlite3.connect(self.db_path, timeout=1.0) as conn:
+                # Get counts and timestamps
+                row = conn.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        MIN(created_at) as oldest,
+                        MAX(created_at) as newest
+                    FROM context_log
+                """).fetchone()
+                
+                total, oldest, newest = row
+                
+                # Get database file size
+                from pathlib import Path
+                db_size_mb = Path(self.db_path).stat().st_size / (1024 * 1024)
+                
+                return {
+                    "total_contexts": total,
+                    "oldest_timestamp": oldest,
+                    "newest_timestamp": newest,
+                    "db_size_mb": round(db_size_mb, 2),
+                    "ttl_days": self.ttl / 86400
+                }
+        except Exception as e:
+            import logging
+            logging.error(f"Error getting stats: {e}")
+            return {}
 
 
 # ---------------------------------------------------------------------------
