@@ -83,13 +83,17 @@ def load_rewards(path: Path, label: str) -> Dict:
 
 def get_model_cost(model: Dict) -> float:
     """Calculate average cost per 1k tokens in USD."""
-    if "price_1m_input" not in model or "price_1m_output" not in model:
+    # Support both naming conventions in models.json
+    input_cost = model.get("price_1m_input") or model.get("input_cost_per_m")
+    output_cost = model.get("price_1m_output") or model.get("output_cost_per_m")
+    
+    if input_cost is None or output_cost is None:
         return 0.0
     
     # Standard metric: Blended cost per 1k tokens (50/50 split)
     # price_1m is in USD per 1M tokens. 
     # To get USD per 1k tokens: divide by 1000.
-    cost_per_1k = (0.5 * model["price_1m_input"] + 0.5 * model["price_1m_output"]) / 1000.0
+    cost_per_1k = (0.5 * input_cost + 0.5 * output_cost) / 1000.0
     return cost_per_1k
 
 
