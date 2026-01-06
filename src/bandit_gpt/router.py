@@ -136,6 +136,43 @@ class RouterConfig:
     pruning_min_samples: int = 50
     
     # ---------------------------------------------------------------------------
+    # Probation Subsidy: Cold Start Optimism Boost (KDD "Zombie Mode" Fix)
+    # ---------------------------------------------------------------------------
+    # Temporary UCB bonus for models with < pruning_min_samples observations.
+    # 
+    # **Problem (Cold Start Vulnerability)**:
+    # If a new model's initial prior is slightly pessimistic (e.g., UCB=0.90 vs 
+    # champion UCB=0.98), it may never be selected naturally. The forgetting factor
+    # needs to inflate the champion's uncertainty massively before the new model 
+    # becomes competitive, which can take days in high-traffic systems ("Zombie Mode").
+    # 
+    # **Solution (Probation Subsidy)**:
+    # Apply an additive utility boost to models in probation (< min_samples) to ensure
+    # they receive traffic during the evaluation period. This is optimistic initialization
+    # applied selectively to probationary arms only.
+    # 
+    # **Mathematical Effect**:
+    # UCB_boosted = UCB_standard + probation_bonus
+    # 
+    # A 5% boost (0.05) is typically sufficient to bridge the gap between competitors
+    # on the Pareto frontier without giving genuinely bad models excessive traffic.
+    # 
+    # **Duration**: Boost expires automatically once model reaches pruning_min_samples.
+    # **Risk Mitigation**: Risk gating (hallucination threshold) still applies.
+    # 
+    # **Tuning Guidance**:
+    # Tune (0.10-0.15) for aggressive exploration, (0.02-0.03) for conservative.
+    # Set to 0.0 to disable.
+    probation_bonus: float = 0.10
+    
+    # ---------------------------------------------------------------------------
+    # Minimum samples required before a model is eligible for pruning.
+    # Also defines the "probation period" for the decaying bonus.
+    # For experiments with limited data, use a smaller value (15-20).
+    # ---------------------------------------------------------------------------
+    pruning_min_samples: int = 15
+    
+    # ---------------------------------------------------------------------------
     # Procedural Warmup: Covariance Shaping (KDD Reviewer Fix)
     # ---------------------------------------------------------------------------
     # Number of synthetic samples for procedural warmup to shape covariance matrix.
@@ -638,7 +675,21 @@ class DisjointLinUCBPolicy:
         if model_name in self.last_update: del self.last_update[model_name]
 
 
-    def select_arm(self, x: np.ndarray, candidates: List[str | None] = None) -> Tuple[str, float]:
+    def select_arm(
+        self, 
+        x: np.ndarray, 
+        candidates: List[str | None] = None
+    ) -> Tuple[str, float]:
+        """
+        Select the best arm (model) using Upper Confidence Bound (UCB).
+        
+        Args:
+            x: Context vector
+            candidates: List of candidate model IDs (None = all models)
+            
+        Returns:
+            Tuple of (best_model_id, best_ucb_score)
+        """
         candidates = candidates or self.models
         candidates = [m for m in candidates if m in self.A]
         if not candidates: raise ValueError("No candidates available")
@@ -2229,6 +2280,22 @@ class BanditRouter:
         
         return True
 
+    def _get_sample_counts(self, arms: Optional[List[str]] = None) -> Dict[str, int]:
+        """
+        Count selectors in logs using O(N) Counter optimization.
+        
+        Args:
+            arms: List of arm IDs to count (None = all arms in bandit)
+            
+        Returns:
+            Dictionary mapping arm ID to sample count
+        """
+        from collections import Counter
+        counts = Counter(log.selected_model for log in self.logs)
+        
+        arms_to_count = arms if arms is not None else self.bandit.models
+        return {arm: counts.get(arm, 0) for arm in arms_to_count}
+
 
     def prune_arms(self, confidence_alpha: float = 2.0, niche_protection_threshold: float = 0.75) -> List[str]:
         """
@@ -2313,9 +2380,7 @@ class BanditRouter:
         arms_to_prune = []
         
         # Pre-calculate sample counts for Min-Sample Probation check
-        arm_sample_counts = {}
-        for arm in active_arms:
-            arm_sample_counts[arm] = len([log for log in self.logs if log.selected_model == arm])
+        arm_sample_counts = self._get_sample_counts(active_arms)
         
         for candidate in active_arms:
             if candidate not in bounds:
@@ -2741,7 +2806,15 @@ class BanditRouter:
         best_model = filtered[0]
         best_utility = -float("inf")
         
-        # Pre-compute UCBs
+        # Identify probationary models (< pruning_min_samples observations)
+        # These will receive a temporary UCB boost to prevent "zombie mode"
+        sample_counts = self._get_sample_counts(filtered)
+        probation_ids = {
+            m for m in filtered 
+            if sample_counts.get(m, 0) < self.config.pruning_min_samples
+        }
+        
+        # Pre-compute quality scores (UCBs) with proper exploration rate
         ucbs = {}
         for m in filtered:
             _, ucb = self.bandit.select_arm(x, candidates=[m])
@@ -2753,10 +2826,27 @@ class BanditRouter:
         # Score each candidate
         for m in filtered:
             quality = ucbs[m]
+            
+            # Apply Decaying Probation Subsidy in QUALITY-SPACE (KDD Reviewer Fix)
+            # 
+            # CRITICAL: The bonus must be applied to the quality term BEFORE profile
+            # weighting, not to the final utility. This ensures profile-invariant behavior:
+            # - Max Quality (w_q=0.97): +0.10 quality → +0.097 utility
+            # - Arbitrage (w_q=0.75):   +0.10 quality → +0.075 utility  
+            # - Best Value (w_q=0.40):  +0.10 quality → +0.040 utility
+            #
+            # This preserves cost-sensitive routing: cheap models retain their advantage
+            # in cost-focused profiles, while still getting fair exploration.
+            if self.config.probation_bonus > 0:
+                count = sample_counts.get(m, 0)
+                if count < self.config.pruning_min_samples:
+                    decay = 1.0 - (count / self.config.pruning_min_samples)
+                    quality += self.config.probation_bonus * decay
+            
             norm_cost = cost_penalties[m]
             norm_lat = latency_penalties[m]
             
-            # Weighted utility
+            # Weighted utility (bonus already incorporated into quality)
             utility = (w_q * quality) + (w_c * (1.0 - norm_cost)) + (w_l * (1.0 - norm_lat))
             
             if utility > best_utility:
