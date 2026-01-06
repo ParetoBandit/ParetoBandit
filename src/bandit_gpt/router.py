@@ -259,6 +259,38 @@ class RouterConfig:
     market_latency_ceiling: float = 5.0  # seconds
     
     # ---------------------------------------------------------------------------
+    # RESILIENCE DEFAULTS: Pessimistic Fallbacks (KDD "Fail-Operational" Fix)
+    # ---------------------------------------------------------------------------
+    # Used when registry metadata is missing or malformed.
+    # 
+    # **Philosophy: "Pessimistic" vs "Fail-Secure" vs "Optimistic"**
+    # - Fail-Secure (float('inf')): Model is banned → All models missing data = OUTAGE
+    # - Optimistic ($0.00): Router floods unknown models → Potential budget blowout
+    # - Pessimistic (expensive/slow): Model treated as luxury → Service UP, conservative
+    # 
+    # By assuming unknown models are expensive (Opus tier) and slow, we:
+    # 1. Keep traffic flowing during metadata corruption/config failures
+    # 2. Prevent budget blowouts (unknown models only picked if strictly necessary)
+    # 3. Quality becomes the primary differentiator among "expensive" models
+    # ---------------------------------------------------------------------------
+    
+    default_missing_cost_per_m: float = 10.00
+    """
+    Pessimistic cost fallback when input_cost_per_m/output_cost_per_m is missing.
+    
+    Set to $10/1M tokens (Opus/o1-high tier) to treat unknown models as expensive.
+    This prevents them from winning cost-sensitive races while keeping them eligible.
+    """
+    
+    default_missing_latency: float = 2.0
+    """
+    Pessimistic latency fallback when time_to_first_token_seconds is missing.
+    
+    Set to 2.0 seconds (slow but usable) to prevent unknown models from winning
+    low-latency races unfairly while remaining eligible for selection.
+    """
+    
+    # ---------------------------------------------------------------------------
     # Progressive Registration API: Empirical Priors (Bayesian Initialization)
     # ---------------------------------------------------------------------------
     # These values encode domain knowledge from LLM ecosystem cost/performance analysis.
@@ -3148,17 +3180,58 @@ class BanditRouter:
 
 
     def _estimate_cost(self, model: str, in_tok: int, out_tok: int) -> float:
+        """
+        Estimate cost with Pessimistic Defaults for resilience.
+        
+        Prevents 'All-Infinity' outage if registry schema breaks or config
+        update fails. Unknown models are treated as Opus-tier expensive,
+        keeping the service operational in conservative mode.
+        
+        Args:
+            model: Model identifier
+            in_tok: Input token count
+            out_tok: Output token count
+            
+        Returns:
+            Estimated cost in USD
+        """
         m = self.registry.get(model, {})
-        # Strictly use per-token pricing. No fallbacks.
-        if m.get("input_cost_per_m") is not None and m.get("output_cost_per_m") is not None:
-            return (m["input_cost_per_m"] * in_tok + m["output_cost_per_m"] * out_tok) / 1e6
-        return float('inf')
+        
+        # Extract costs with type validation
+        input_cost = m.get("input_cost_per_m")
+        output_cost = m.get("output_cost_per_m")
+        
+        # Validate: Must be numbers (guard against schema corruption)
+        if input_cost is None or not isinstance(input_cost, (int, float)):
+            input_cost = self.config.default_missing_cost_per_m
+            
+        if output_cost is None or not isinstance(output_cost, (int, float)):
+            # Output typically 3x input cost (market convention)
+            output_cost = self.config.default_missing_cost_per_m * 3.0
+        
+        # Calculation: now guaranteed to return valid float, never inf
+        return (input_cost * in_tok + output_cost * out_tok) / 1e6
 
     def _estimate_latency(self, model: str, out_tok: int) -> float:
+        """
+        Estimate latency with Pessimistic Defaults for resilience.
+        
+        Prevents routing failures when time_to_first_token_seconds is missing.
+        Unknown models are treated as slow (2.0s) but usable.
+        
+        Args:
+            model: Model identifier
+            out_tok: Output token count (unused, for API consistency)
+            
+        Returns:
+            Estimated time to first token in seconds
+        """
         m = self.registry.get(model, {})
-        # Strictly use "time_to_first_token_seconds" as requested.
-        # If missing or 0 (invalid), return infinity so it fails any max_latency constraint.
         val = m.get("time_to_first_token_seconds")
-        if val is None or float(val) <= 0.0:
-            return float('inf')
+        
+        # Validate: Must be positive number
+        if val is None or not isinstance(val, (int, float)) or val <= 0.0:
+            # Fallback to "slow but usable" instead of infinity
+            return self.config.default_missing_latency
+            
         return float(val)

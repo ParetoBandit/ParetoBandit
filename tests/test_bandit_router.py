@@ -204,3 +204,197 @@ def test_no_zombie_models():
     # At least 3 models should receive traffic (out of 10)
     assert models_with_traffic >= 3, \
         f"Too few models explored: {sample_counts}"
+
+
+# =============================================================================
+# RESILIENCE TESTS: Pessimistic Defaults (Fail-Operational)
+# =============================================================================
+
+def test_estimate_cost_pessimistic_defaults():
+    """
+    Test that _estimate_cost uses pessimistic defaults when metadata is missing.
+    
+    Critical resilience behavior: Missing cost data should NOT return infinity,
+    which would cause all models to be rejected, leading to service outage.
+    Instead, return expensive-tier pricing to keep service operational.
+    """
+    # Registry with missing cost metadata
+    registry_missing_costs = {
+        "model_a": {
+            "openrouter_id": "provider/model-a",
+            "display_name": "Model A",
+            "hle": 0.50,
+            # Missing: input_cost_per_m, output_cost_per_m
+        },
+        "model_b": {
+            "openrouter_id": "provider/model-b",
+            "display_name": "Model B",
+            "hle": 0.60,
+            "input_cost_per_m": 2.0,
+            # Missing: output_cost_per_m only
+        },
+        "model_c": {
+            "openrouter_id": "provider/model-c",
+            "display_name": "Model C",
+            "hle": 0.70,
+            "input_cost_per_m": 5.0,
+            "output_cost_per_m": 15.0  # Complete metadata
+        }
+    }
+    
+    router = BanditRouter.create(model_registry=registry_missing_costs, priors="hle")
+    
+    # Test model_a: Both costs missing
+    cost_a = router._estimate_cost("model_a", in_tok=1000, out_tok=500)
+    assert cost_a != float('inf'), "Missing costs should NOT return infinity"
+    assert cost_a > 0, "Cost should be positive"
+    # Expected: (10.0 * 1000 + 30.0 * 500) / 1e6 = 0.025 (pessimistic tier)
+    assert cost_a == pytest.approx(0.025, rel=0.01), f"Expected pessimistic cost, got {cost_a}"
+    
+    # Test model_b: Output cost missing only
+    cost_b = router._estimate_cost("model_b", in_tok=1000, out_tok=500)
+    assert cost_b != float('inf'), "Missing output cost should NOT return infinity"
+    # Expected: (2.0 * 1000 + 30.0 * 500) / 1e6 = 0.017 (input from registry, output pessimistic)
+    assert cost_b == pytest.approx(0.017, rel=0.01), f"Expected mixed cost, got {cost_b}"
+    
+    # Test model_c: Complete metadata
+    cost_c = router._estimate_cost("model_c", in_tok=1000, out_tok=500)
+    # Expected: (5.0 * 1000 + 15.0 * 500) / 1e6 = 0.0125
+    assert cost_c == pytest.approx(0.0125, rel=0.01), f"Expected accurate cost, got {cost_c}"
+
+
+def test_estimate_latency_pessimistic_defaults():
+    """
+    Test that _estimate_latency uses pessimistic defaults when metadata is missing.
+    
+    Critical resilience behavior: Missing latency data should NOT return infinity.
+    """
+    registry_missing_latency = {
+        "model_a": {
+            "openrouter_id": "provider/model-a",
+            "display_name": "Model A",
+            "hle": 0.50,
+            "input_cost_per_m": 1.0,
+            "output_cost_per_m": 3.0,
+            # Missing: time_to_first_token_seconds
+        },
+        "model_b": {
+            "openrouter_id": "provider/model-b",
+            "display_name": "Model B",
+            "hle": 0.60,
+            "input_cost_per_m": 2.0,
+            "output_cost_per_m": 6.0,
+            "time_to_first_token_seconds": 0.0  # Invalid: zero latency
+        },
+        "model_c": {
+            "openrouter_id": "provider/model-c",
+            "display_name": "Model C",
+            "hle": 0.70,
+            "input_cost_per_m": 5.0,
+            "output_cost_per_m": 15.0,
+            "time_to_first_token_seconds": 0.5  # Valid latency
+        }
+    }
+    
+    router = BanditRouter.create(model_registry=registry_missing_latency, priors="hle")
+    
+    # Test model_a: Latency missing
+    latency_a = router._estimate_latency("model_a", out_tok=500)
+    assert latency_a != float('inf'), "Missing latency should NOT return infinity"
+    assert latency_a == router.config.default_missing_latency, \
+        f"Expected pessimistic latency {router.config.default_missing_latency}, got {latency_a}"
+    
+    # Test model_b: Invalid zero latency
+    latency_b = router._estimate_latency("model_b", out_tok=500)
+    assert latency_b != float('inf'), "Zero latency should NOT return infinity"
+    assert latency_b == router.config.default_missing_latency, \
+        f"Expected pessimistic latency for invalid zero, got {latency_b}"
+    
+    # Test model_c: Valid latency
+    latency_c = router._estimate_latency("model_c", out_tok=500)
+    assert latency_c == 0.5, f"Expected accurate latency 0.5, got {latency_c}"
+
+
+def test_estimate_cost_malformed_types():
+    """
+    Test that _estimate_cost handles malformed/corrupted metadata types gracefully.
+    
+    Simulates schema corruption where cost fields contain non-numeric values.
+    """
+    registry_malformed = {
+        "model_string": {
+            "openrouter_id": "provider/model-string",
+            "display_name": "Model String",
+            "hle": 0.50,
+            "input_cost_per_m": "not_a_number",  # String instead of float
+            "output_cost_per_m": 3.0
+        },
+        "model_none": {
+            "openrouter_id": "provider/model-none",
+            "display_name": "Model None",
+            "hle": 0.60,
+            "input_cost_per_m": None,  # Explicit None
+            "output_cost_per_m": None
+        },
+        "model_list": {
+            "openrouter_id": "provider/model-list",
+            "display_name": "Model List",
+            "hle": 0.70,
+            "input_cost_per_m": [1.0, 2.0],  # List instead of scalar
+            "output_cost_per_m": {"value": 3.0}  # Dict instead of scalar
+        }
+    }
+    
+    router = BanditRouter.create(model_registry=registry_malformed, priors="hle")
+    
+    # All malformed types should fall back to pessimistic defaults, never crash
+    for model in registry_malformed.keys():
+        try:
+            cost = router._estimate_cost(model, in_tok=1000, out_tok=500)
+            assert cost != float('inf'), f"{model}: Malformed types should NOT return infinity"
+            assert cost > 0, f"{model}: Cost should be positive"
+            assert isinstance(cost, float), f"{model}: Cost should be float"
+        except Exception as e:
+            pytest.fail(f"{model}: _estimate_cost should not raise {type(e).__name__}: {e}")
+
+
+def test_routing_with_missing_metadata():
+    """
+    Integration test: Verify entire routing pipeline handles missing metadata.
+    
+    This is the end-to-end "Fail-Operational" test - if a config update wipes
+    cost/latency fields, the router should continue operating in conservative mode.
+    """
+    # Simulate corrupted registry where ALL models have missing metadata
+    registry_all_missing = {
+        "model_a": {
+            "openrouter_id": "provider/model-a",
+            "display_name": "Model A",
+            "hle": 0.85,
+            # No cost or latency metadata
+        },
+        "model_b": {
+            "openrouter_id": "provider/model-b",
+            "display_name": "Model B",
+            "hle": 0.50,
+            # No cost or latency metadata
+        }
+    }
+    
+    router = BanditRouter.create(model_registry=registry_all_missing, priors="hle")
+    
+    # Routing should NOT fail - this is the critical resilience requirement
+    try:
+        model, log = router.route("Test prompt for resilience", profile="arbitrage")
+        assert model in registry_all_missing.keys(), \
+            f"Selected model should be from registry, got {model}"
+        assert log.cost_usd > 0, "Cost should be calculated (not inf or 0)"
+        assert log.latency_s > 0, "Latency should be calculated (not inf or 0)"
+        
+        # With identical pessimistic costs, quality (HLE) should differentiate
+        # model_a has higher HLE, so should be preferred in arbitrage profile
+        assert model == "model_a", \
+            f"With equal costs, higher HLE model 'model_a' should be preferred, got {model}"
+            
+    except Exception as e:
+        pytest.fail(f"Routing should not fail with missing metadata: {type(e).__name__}: {e}")
