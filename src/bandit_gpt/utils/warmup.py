@@ -199,11 +199,11 @@ def procedural_warmup(router: BanditRouter, n_samples: int = 50):
             # Calculate expected reward using pretrained theta
             expected_reward = float(np.dot(theta, x_full))
             
-            # Update A and b (shapes the elliptical confidence region)
-            router.bandit.A[model_id] += np.outer(x_full, x_full)
-            router.bandit.b[model_id] += expected_reward * x_full
-        
-        # Recompute A_inv after warmup
-        router.bandit.A_inv[model_id] = safe_inv(router.bandit.A[model_id])
+            # Trust the data generation process - use natural weight=1.0
+            # This prevents "Zombie Priors" by not artificially inflating prior strength.
+            # With weight=1.0, 100 synthetic samples = magnitude of ~100 in A matrix.
+            # A single new real observation adds 1.0, giving ratio 1:100.
+            # Result: Stable (won't flap on 1 error) but plastic (reacts to 5-10 errors).
+            router.bandit.update(model_id, x_full, reward=expected_reward, weight=1.0)
     
     logger.info("✓ Procedural warmup complete. Covariance shaped with feature correlations.")
