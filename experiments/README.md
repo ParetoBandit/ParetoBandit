@@ -16,6 +16,8 @@ This directory contains all experimental code for the BanditGPT KDD submission.
 | **Section 4.4** | Hybrid pruning protects niche "unicorn" models | [`04_safety_pruning/`](04_safety_pruning/) | `fig4_unicorn_survival.pdf` |
 | **Section 4.5** | BanditGPT achieves better cost-quality tradeoffs than random routing | [`05_cost_tradeoff/`](05_cost_tradeoff/) | `fig5_pareto_frontier.pdf` |
 | **Appendix A** | Prior strength sensitivity: Default N=10 provides optimal convergence | [`06_sensitivity_analysis/`](06_sensitivity_analysis/) | `fig6_sensitivity_analysis.pdf` |
+| **Figure 1** | Pareto Arbitrage: BanditGPT lies above the model convex hull ("Free Lunch") | [`07_pareto_arbitrage/`](07_pareto_arbitrage/) | `fig1_arbitrage_curve.pdf` |
+
 
 ---
 
