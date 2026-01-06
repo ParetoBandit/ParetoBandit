@@ -25,7 +25,7 @@ import threading
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from collections import Counter, deque
-from typing import Any, Dict, List, Tuple, Optional, Literal
+from typing import Any, Dict, List, Tuple, Optional, Literal, TypedDict
 import re
 
 import numpy as np
@@ -336,6 +336,7 @@ class RouterConfig:
         adds ~25% predictive power beyond semantics.
         """
         
+        
         # Default Metadata (when cost/latency unknown)
         # -------------------------------------------
         default_cost_per_1m: float = 0.5
@@ -343,6 +344,28 @@ class RouterConfig:
         
         default_latency_s: float = 1.0
         """Default latency (1.0s) for models with unknown speed."""
+        
+        # Prior Strength (Bayesian Pseudocounts)
+        # --------------------------------------
+        prior_pseudocounts: float = 20.0
+        """
+        Effective sample size for Bayesian priors.
+        
+        **Purpose**: Controls how strongly the initial priors influence 
+        model selection before real data accumulates.
+        
+        **Interpretation**: Equivalent to N virtual observations supporting 
+        the prior belief. Higher values = stronger prior, slower adaptation.
+        Lower values = weaker prior, faster adaptation to data.
+        
+        **Default 20.0**: Moderate strength, requiring ~20-50 real observations 
+        to overcome prior beliefs. Balances cold-start performance with 
+        rapid adaptation to deployment-specific patterns.
+        
+        **Tuning**: 
+        - Increase (30-50) for more conservative exploration
+        - Decrease (10-15) for faster adaptation to new data
+        """
     
     # Initialize registration config
     registration: RegistrationConfig = field(default_factory=RegistrationConfig)
@@ -543,8 +566,20 @@ def transform_hle_to_prior(
 #   - Data terms (xx^T) keep matrix well-conditioned with steady traffic
 #   - Only risks singularity if traffic stops AND decay continues → rare edge case
 #
+#
 # Empirical validation: See benchmarks/diagnose_performance.py
 # ---------------------------------------------------------------------------
+
+# Type definition for bandit state snapshot
+class BanditState(TypedDict):
+    """Snapshot of bandit state during update operations."""
+    A: np.ndarray
+    b: np.ndarray
+    A_inv: np.ndarray
+    timestamp: int
+    needs_full_inversion: bool
+
+
 class DisjointLinUCBPolicy:
     """Disjoint LinUCB: one ridge regression per arm."""
     def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1,
@@ -660,6 +695,166 @@ class DisjointLinUCBPolicy:
             probs[m] = counts[i] / n_samples
         return probs
 
+    # -------------------------------------------------------------------------
+    # Helper Methods for update() - Atomicity Refactoring
+    # -------------------------------------------------------------------------
+    
+    def _snapshot_bandit_state(self, model: str) -> BanditState:
+        """
+        Phase 1: Snapshot current bandit state (thread-safe).
+        
+        Acquires lock briefly to copy current A, b, A_inv, and timestamps.
+        Copying matrices is fast (~0.1ms) with NumPy's optimized memcpy.
+        
+        Args:
+            model: Model identifier
+            
+        Returns:
+            BanditState snapshot
+        """
+        with self._lock:
+            return BanditState(
+                A=self.A[model].copy(),
+                b=self.b[model].copy(),
+                A_inv=self.A_inv[model].copy(),
+                timestamp=self.last_update[model],
+                needs_full_inversion=False
+            )
+    
+    def _apply_temporal_decay(self, state: BanditState, model: str) -> BanditState:
+        """
+        Phase 2a: Apply forgetting factor using Scaled Sherman-Morrison.
+        
+        Mathematical insight: (γA)^(-1) = (1/γ) A^(-1)
+        This allows us to apply decay directly to A_inv in O(d²) instead of
+        requiring O(d³) matrix inversion.
+        
+        Args:
+            state: Current bandit state
+            model: Model identifier
+            
+        Returns:
+            Updated state with decay applied
+        """
+        with self._lock:
+            current_t = self.t
+        
+        dt = current_t - state['timestamp']
+        
+        if dt > 0 and self.gamma < 1.0:
+            # Apply forgetting factor using Scaled Sherman-Morrison
+            effective_gamma = self.gamma ** dt
+            decay_inv = 1.0 / effective_gamma
+            
+            # 1. Decay A matrix
+            state['A'] *= effective_gamma
+            
+            # 2. Scale A_inv directly (O(d²) - the key optimization!)
+            state['A_inv'] *= decay_inv
+            
+            # 3. Decay b vector
+            state['b'] *= effective_gamma
+            
+            # 4. Restore Regularization Floor (if configured)
+            # This breaks the rank-1 structure and requires full inversion
+            if self.update_lambda > 0:
+                restore_reg = (1.0 - effective_gamma) * self.update_lambda
+                np.fill_diagonal(state['A'], state['A'].diagonal() + restore_reg)
+                state['needs_full_inversion'] = True
+        
+        return state
+    
+    def _add_observation(
+        self, 
+        state: BanditState, 
+        x: np.ndarray, 
+        reward: float, 
+        weight: float
+    ) -> BanditState:
+        """
+        Phase 2b: Add new observation to A and b matrices.
+        
+        Updates:
+        - A_new = A_old + weight * x @ x^T
+        - b_new = b_old + weight * reward * x
+        
+        Args:
+            state: Current bandit state
+            x: Context vector
+            reward: Observed reward
+            weight: Importance weight
+            
+        Returns:
+            Updated state with observation added
+        """
+        state['A'] += weight * np.outer(x, x)
+        state['b'] += weight * float(reward) * x
+        return state
+    
+    def _update_inverse_matrix(
+        self, 
+        state: BanditState, 
+        x: np.ndarray, 
+        weight: float
+    ) -> BanditState:
+        """
+        Phase 2c: Update A_inv using Sherman-Morrison or full inversion.
+        
+        Sherman-Morrison Formula (O(d²)):
+        (A + w*xx^T)^-1 = A^-1 - w*(A^-1 x)(x^T A^-1) / (1 + w*x^T A^-1 x)
+        
+        Falls back to full inversion (O(d³)) if:
+        - Regularization floor was applied (breaks rank-1 structure)
+        - Sherman-Morrison becomes numerically unstable
+        
+        Args:
+            state: Current bandit state
+            x: Context vector
+            weight: Importance weight
+            
+        Returns:
+            Updated state with A_inv recalculated
+        """
+        if state['needs_full_inversion']:
+            # Forgetting factor applied diagonal adjustment
+            # Sherman-Morrison doesn't apply, recompute from scratch
+            state['A_inv'] = safe_inv(state['A'])
+        else:
+            # Standard weighted rank-1 update via Sherman-Morrison
+            z = state['A_inv'] @ x  # z = A^-1 @ x
+            
+            # Denominator: 1 + w * x^T @ A^-1 @ x = 1 + w * dot(x, z)
+            denom = 1.0 + weight * float(np.dot(x, z))
+            
+            # Stability check: avoid division by near-zero
+            if abs(denom) < 1e-8:
+                logger.warning(f"Sherman-Morrison unstable (denom={denom:.2e}), using full inverse")
+                state['A_inv'] = safe_inv(state['A'])
+            else:
+                # Update: A^-1_new = A^-1_old - w * outer(z, z) / denom
+                state['A_inv'] -= (weight * np.outer(z, z)) / denom
+        
+        return state
+    
+    def _commit_bandit_state(self, model: str, state: BanditState) -> None:
+        """
+        Phase 3: Atomically commit updated state (thread-safe).
+        
+        Re-acquires lock to swap the computed results. Uses "Last Write Wins"
+        semantics - we don't validate timestamps because in bandit theory,
+        update ordering doesn't affect convergence guarantees.
+        
+        Args:
+            model: Model identifier
+            state: Updated bandit state to commit
+        """
+        with self._lock:
+            self.A[model] = state['A']
+            self.b[model] = state['b']
+            self.A_inv[model] = state['A_inv']
+            self.last_update[model] = self.t
+            self.t += 1
+
     def update(self, model: str, x: np.ndarray, reward: float, weight: float = 1.0) -> None:
         """
         Update the model's A and b matrices with new observation.
@@ -682,135 +877,15 @@ class DisjointLinUCBPolicy:
                     Use weight = (1 - cluster_mu) for difficulty-based weighting.
                     Hard tasks (μ=0.5) get weight=0.5, easy tasks (μ=0.95) get weight=0.05.
         """
-        if model not in self.A: return
+        if model not in self.A:
+            return
         
-        # =====================================================================
-        # PHASE 1: SNAPSHOT (Fast Read ~0.1ms with lock)
-        # =====================================================================
-        # Acquire lock briefly to copy current state. Copying a 400x400 float64
-        # matrix is fast (~0.1ms) since NumPy uses optimized memcpy for 
-        # contiguous arrays.
-        with self._lock:
-            A_current = self.A[model].copy()
-            b_current = self.b[model].copy()
-            A_inv_current = self.A_inv[model].copy()
-            last_update_ts = self.last_update[model]
-            current_t = self.t
-        # Lock released - routing calls can now proceed in parallel!
-        
-        # =====================================================================
-        # PHASE 2: HEAVY MATH (Outside Critical Section ~50ms, no lock)
-        # =====================================================================
-        # All expensive operations happen here without holding the lock.
-        # This is where the O(d³) matrix inversion occurs for stale models.
-        # ---------------------------------------------------------------------
-        # SCALED SHERMAN-MORRISON (KDD Review Fix)
-        # ---------------------------------------------------------------------
-        # Reviewer Critique: "The default config makes O(d²) unreachable."
-        # 
-        # Problem: In multi-arm bandits with 30+ models, dt > 0 for ~95% of
-        # updates (different arms selected). The naive implementation set
-        # needs_full_inversion = True whenever dt > 0 AND gamma < 1.0,
-        # forcing O(d³) inversions constantly despite claiming O(d²).
-        #
-        # Solution: Scaled Sherman-Morrison
-        # Mathematical insight: (γA)^(-1) = (1/γ) A^(-1)
-        # 
-        # We can apply decay DIRECTLY to A_inv in O(d²):
-        #   A_new = γ A_old  →  A_inv_new = (1/γ) A_inv_old
-        # 
-        # This preserves the O(d²) path even with forgetting_factor < 1.0.
-        # The diagonal regularization adjustment is the ONLY case requiring O(d³).
-        # ---------------------------------------------------------------------
-        dt = current_t - last_update_ts
-        needs_full_inversion = False
-        
-        if dt > 0 and self.gamma < 1.0:
-            # Apply forgetting factor using Scaled Sherman-Morrison
-            effective_gamma = self.gamma ** dt
-            
-            # Key insight: If A scales by γ, then A^(-1) scales by 1/γ
-            # This is O(d²) element-wise multiplication, not O(d³) inversion!
-            decay_inv = 1.0 / effective_gamma
-            
-            # 1. Decay A matrix (needed for θ = A^(-1) b in predict())
-            A_current *= effective_gamma
-            
-            # 2. Scale A_inv directly (O(d²) - the key optimization!)
-            A_inv_current *= decay_inv
-            
-            # 3. Decay b vector (O(d))
-            b_current *= effective_gamma
-            
-            # 4. Restore Regularization Floor (Optional - Initialization-Only Pattern)
-            # Standard Discounted LinUCB: A = γA + (1-γ)λI + xx^T
-            # The (1-γ)λI term prevents A from decaying to zero indefinitely.
-            #
-            # **KEY INSIGHT**: In online bandits with steady traffic, the continuous
-            # addition of xx^T keeps A well-conditioned. We only need λ for cold-start.
-            #
-            # **Performance Impact**:
-            # - If update_lambda=0: Pure O(d²) via Scaled Sherman-Morrison ✓
-            # - If update_lambda>0: O(d³) due to diagonal adjustment
-            #
-            # IMPORTANT: This diagonal adjustment breaks the rank-1 structure,
-            # forcing O(d³) re-inversion instead of O(d²) Sherman-Morrison.
-            if self.update_lambda > 0:
-                restore_reg = (1.0 - effective_gamma) * self.update_lambda
-                # Add regularization floor to A
-                np.fill_diagonal(A_current, A_current.diagonal() + restore_reg)
-                # This diagonal adjustment invalidates our scaled A_inv
-                needs_full_inversion = True
-        
-        # Add new observation with importance weighting
-        A_current += weight * np.outer(x, x)
-        b_current += weight * float(reward) * x
-        
-        # Update A_inv efficiently using Sherman-Morrison Formula or full inversion
-        # For weighted update: A_new = A_old + w * x @ x.T
-        # 
-        # Sherman-Morrison: (A + w*uv^T)^-1 = A^-1 - w*(A^-1 u)(v^T A^-1) / (1 + w * v^T A^-1 u)
-        # For symmetric case (u = v = x):
-        #   A_new^-1 = A^-1 - w * (A^-1 @ x @ x^T @ A^-1) / (1 + w * x^T @ A^-1 @ x)
-        #            = A^-1 - w * outer(z, z) / (1 + w * dot(x, z))  where z = A^-1 @ x
-        #
-        # Complexity: O(d²) instead of O(d³) for full inversion
-        if needs_full_inversion:
-            # Forgetting factor applied diagonal adjustment
-            # Sherman-Morrison doesn't apply, recompute from scratch
-            # THIS IS THE EXPENSIVE PATH (~50ms) that now runs without holding lock!
-            A_inv_current = safe_inv(A_current)
-        else:
-            # Standard weighted rank-1 update via Sherman-Morrison
-            z = A_inv_current @ x  # z = A^-1 @ x
-            
-            # Denominator: 1 + w * x^T @ A^-1 @ x = 1 + w * dot(x, z)
-            denom = 1.0 + weight * float(np.dot(x, z))
-            
-            # Stability check: avoid division by near-zero
-            if abs(denom) < 1e-8:
-                logger.warning(f"Sherman-Morrison unstable (denom={denom:.2e}), using full inverse")
-                A_inv_current = safe_inv(A_current)
-            else:
-                # Update: A^-1_new = A^-1_old - w * outer(z, z) / denom
-                A_inv_current -= (weight * np.outer(z, z)) / denom
-        
-        # =====================================================================
-        # PHASE 3: SWAP (Atomic Commit ~0.1ms with lock)
-        # =====================================================================
-        # Re-acquire lock to commit the results atomically.
-        # 
-        # Consistency Semantics: "Last Write Wins"
-        # We don't validate timestamps because in standard bandit theory,
-        # update ordering doesn't affect convergence guarantees. The variance
-        # inflation in select_arm() already handles staleness.
-        with self._lock:
-            self.A[model] = A_current
-            self.b[model] = b_current
-            self.A_inv[model] = A_inv_current
-            self.last_update[model] = self.t
-            self.t += 1
-        # Lock released - total hold time: ~0.2ms (snapshot + swap)
+        # Orchestrate the 5-phase update process using focused helper methods
+        state = self._snapshot_bandit_state(model)
+        state = self._apply_temporal_decay(state, model)
+        state = self._add_observation(state, x, reward, weight)
+        state = self._update_inverse_matrix(state, x, weight)
+        self._commit_bandit_state(model, state)
 
     def _check_numerical_stability(self, model: str, config: 'RouterConfig' = None) -> None:
         """
@@ -854,23 +929,82 @@ class DisjointLinUCBPolicy:
 
 
     def save_state(self, path: Path | str) -> None:
-        """Save A and b matrices to a compressed NPZ file."""
+        """
+        Save A and b matrices to a compressed NPZ file with metadata.
+        
+        Stores dimension metadata to enable validation on load, preventing
+        crashes from dimension mismatches due to PCA fallback or feature changes.
+        """
         data = {}
+        # Save metadata for validation
+        data['_metadata_dim'] = self.dim
+        data['_metadata_models'] = list(self.models)
+        
         for m in self.models:
             data[f"{m}_A"] = self.A[m]
             data[f"{m}_b"] = self.b[m]
         np.savez_compressed(path, **data)
 
     def load_state(self, path: Path | str) -> None:
-        """Load A and b matrices from a compressed NPZ file."""
+        """
+        Load A and b matrices from a compressed NPZ file with dimension validation.
+        
+        Validates that saved dimension matches current bandit dimension to prevent
+        silent matrix misalignment crashes. Raises clear error if dimensions don't match.
+        
+        Raises:
+            ValueError: If saved dimension doesn't match current bandit dimension.
+                       Suggests clearing state or updating feature configuration.
+        """
         data = np.load(path)
+        
+        # Validate dimension compatibility
+        if '_metadata_dim' in data:
+            saved_dim = int(data['_metadata_dim'])
+            if saved_dim != self.dim:
+                raise ValueError(
+                    f"Dimension mismatch: saved state has dim={saved_dim}, "
+                    f"but current bandit expects dim={self.dim}. "
+                    f"This can happen when:\n"
+                    f"  1. PCA fallback changes (384D embeddings vs 32D compressed)\n"
+                    f"  2. Virtual anchor set is modified\n"
+                    f"  3. Feature engineering pipeline changes\n"
+                    f"To fix:\n"
+                    f"  - Delete the saved state file to start fresh, OR\n"
+                    f"  - Ensure PCA and feature config match the saved state"
+                )
+        else:
+            # Legacy state file without metadata - warn but proceed
+            logger.warning(
+                f"Loading state from {path} without dimension metadata. "
+                f"This may cause issues if dimensions have changed. "
+                f"Current dim={self.dim}"
+            )
+        
+        # Load matrices with dimension validation
         for m in self.models:
             a_key = f"{m}_A"
             b_key = f"{m}_b"
             if a_key in data and b_key in data:
-                self.A[m] = data[a_key]
-                self.b[m] = data[b_key]
+                A_loaded = data[a_key]
+                b_loaded = data[b_key]
+                
+                # Validate shapes
+                if A_loaded.shape != (self.dim, self.dim):
+                    raise ValueError(
+                        f"Matrix A for model '{m}' has wrong shape: "
+                        f"expected ({self.dim}, {self.dim}), got {A_loaded.shape}"
+                    )
+                if b_loaded.shape != (self.dim,):
+                    raise ValueError(
+                        f"Vector b for model '{m}' has wrong shape: "
+                        f"expected ({self.dim},), got {b_loaded.shape}"
+                    )
+                
+                self.A[m] = A_loaded
+                self.b[m] = b_loaded
                 self.A_inv[m] = safe_inv(self.A[m])
+
 
 # ---------------------------------------------------------------------------
 # Main Router Class
@@ -1266,45 +1400,14 @@ class BanditRouter:
         """
         Ultra-fast regex-based toxicity proxy (<1ms).
         
-        Replaces heavy ML scanner (llm-guard, 100-300ms) in hot path.
-        Heavy scanner moved to async audit (Tier 2).
-        
-        Pattern-based triggers derived from common toxicity categories:
-        - Violence: Physical harm language
-        - Hate Speech: Discrimination, slurs
-        - Explicit Content: Sexual/graphic content
-        - Security Threats: Hacking, exploitation
+        Delegates to FeatureTransformer.fast_toxicity_heuristic for implementation.
+        See features.py for full details.
         
         Returns:
             Toxicity score in [0, 1], compatible with LinUCB feature vector
-            
-        Performance: <1ms (vs 100-300ms for ML scanner)
-        
-        Production Note: For scale, replace with Bloom Filter (O(1) lookup)
         """
-        if not text:
-            return 0.0
-        
-        # Trigger patterns by category
-        triggers = {
-            'violence': ['kill', 'attack', 'murder', 'destroy', 'shoot', 'stab', 'bomb', 'weapon'],
-            'hate': ['hate', 'racist', 'nazi', 'terrorist', 'slur', 'bigot'],
-            'explicit': ['porn', 'xxx', 'sex', 'nude', 'nsfw'],
-            'security': ['hack', 'exploit', 'crack', 'stolen', 'leak', 'bypass', 'jailbreak'],
-            'self_harm': ['suicide', 'self-harm', 'cutting']
-        }
-        
-        text_lower = text.lower()
-        score = 0.0
-        
-        # Score accumulation (each trigger adds 0.15, caps at 1.0)
-        for category, words in triggers.items():
-            for word in words:
-                if word in text_lower:
-                    score += 0.15
-                    break  # Only count category once
-        
-        return min(1.0, score)
+        from .features import FeatureTransformer
+        return FeatureTransformer.fast_toxicity_heuristic(text)
 
     def _extract_handcrafted_features(self, text: str) -> np.ndarray:
         """
@@ -1509,13 +1612,15 @@ class BanditRouter:
             else:
                 prior_n_effective = 10.0  # Default fallback
         
+        
+        config = RouterConfig()
         if prior_structure_n_effective is None:
             if priors == "hle":
                 prior_structure_n_effective = 250.0  # Calibrated HLE Champion N_structure
             elif priors == "none":
-                prior_structure_n_effective = 20.0  # Structure only, no mean
+                prior_structure_n_effective = config.registration.prior_pseudocounts  # Structure only, no mean
             else:
-                prior_structure_n_effective = 20.0  # Default fallback
+                prior_structure_n_effective = config.registration.prior_pseudocounts  # Default fallback
         
         # 1. Load Default Registry if needed
         if model_registry is None:
@@ -1541,7 +1646,8 @@ class BanditRouter:
         
         # 3. Initialize
         # Determine PCA path - in data/ subdirectory
-        pca_path_default = base_dir / "data" / "pca_32.joblib"
+        # PCA file is now in root data/ directory
+        pca_path_default = base_dir.parent.parent / "data" / "pca_32.joblib"
         if not pca_path_default.exists():
             logger.warning(f"PCA file not found at {pca_path_default}. Router will use 384-dim embeddings.")
         
@@ -2407,6 +2513,309 @@ class BanditRouter:
                     return "HIGH"
             return "LOW"
 
+    # -------------------------------------------------------------------------
+    # Helper Methods for route() - Atomicity Refactoring
+    # -------------------------------------------------------------------------
+    
+    def _build_routing_features(self, prompt: str | np.ndarray) -> Tuple[np.ndarray, str]:
+        """
+        Build context vector with embeddings, features, and anchors.
+        
+        Args:
+            prompt: Input prompt (string or pre-embedded vector)
+            
+        Returns:
+            Tuple of (context_vector, prompt_text)
+        """
+        prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded Prompt]"
+        x = self._get_context_vector(prompt)
+        return x, prompt_text
+    
+    def _resolve_utility_weights(
+        self,
+        profile: str,
+        max_cost: float | None,
+        max_latency: float | None
+    ) -> Tuple[float, float, float]:
+        """
+        Resolve optimization profile weights and apply orthogonal optimization.
+        
+        **Orthogonal Optimization:**
+        If a hard constraint is active, disable the soft penalty for that dimension
+        and re-allocate weight to Quality to avoid "Double Penalty".
+        
+        Args:
+            profile: Optimization profile name
+            max_cost: Hard cost constraint (optional)
+            max_latency: Hard latency constraint (optional)
+            
+        Returns:
+            Tuple of (w_q, w_c, w_l) weights
+        """
+        weights = OptimizationProfile.get(profile).copy()
+        w_q = weights.get("w_q", 1.0 - weights.get("w_c", 0.0) - weights.get("w_l", 0.0))
+        w_c = weights.get("w_c", 0.0)
+        w_l = weights.get("w_l", 0.0)
+        
+        # Orthogonal Optimization
+        if max_cost is not None:
+            w_q += w_c
+            w_c = 0.0
+        if max_latency is not None:
+            w_q += w_l
+            w_l = 0.0
+            
+        return w_q, w_c, w_l
+    
+    def _apply_risk_gating(
+        self,
+        prompt_text: str,
+        sensitivity: str | None
+    ) -> List[str]:
+        """
+        Filter models by hallucination risk based on sensitivity tier.
+        
+        Two-Tier System:
+        - HIGH: <= 2.5% Risk (Forces safe models like GPT-4o)
+        - LOW: No Filter (Bandit optimizes freely)
+        
+        Args:
+            prompt_text: Input prompt text
+            sensitivity: Manual override ("LOW"/"HIGH") or None for auto-classification
+            
+        Returns:
+            List of candidate model IDs
+        """
+        candidates = list(self.registry.keys())
+        
+        # Classify sensitivity
+        eff_sensitivity = sensitivity.upper() if sensitivity else self._classify_sensitivity(prompt_text)
+        
+        # Apply gating for HIGH sensitivity
+        if eff_sensitivity == "HIGH":
+            safe_subset = []
+            threshold = 2.5
+            for m in candidates:
+                meta = self.registry.get(m, {})
+                risk_score = float(meta.get("hallucination_vectara", meta.get("hallucination_rate", 8.0)))
+                if risk_score <= threshold:
+                    safe_subset.append(m)
+            
+            if safe_subset:
+                candidates = safe_subset
+            else:
+                logger.warning(f"No models passed HIGH (<= {threshold}%) gate. Falling back to full pool.")
+        
+        return candidates
+    
+    def _filter_by_constraints(
+        self,
+        candidates: List[str],
+        prompt: str | np.ndarray,
+        max_cost: float | None,
+        max_latency: float | None,
+        quality_floor: Dict[str, float | None] | None,
+        input_tokens: int | None,
+        output_tokens: int
+    ) -> List[str]:
+        """
+        Apply hard constraints (cost, latency, quality floor).
+        
+        Args:
+            candidates: List of candidate model IDs
+            prompt: Input prompt
+            max_cost: Maximum cost constraint (optional)
+            max_latency: Maximum latency constraint (optional)
+            quality_floor: Quality score minimums (optional)
+            input_tokens: Input token count (optional, estimated if None)
+            output_tokens: Output token count
+            
+        Returns:
+            List of models passing all constraints
+        """
+        prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded]"
+        in_tok = input_tokens or estimate_tokens_rough(prompt_text)
+        
+        filtered = []
+        for m in candidates:
+            # Check Cost
+            cost = self._estimate_cost(m, in_tok, output_tokens)
+            if max_cost is not None and cost > max_cost:
+                continue
+            
+            # Check Latency
+            lat = self._estimate_latency(m, output_tokens)
+            if max_latency is not None and lat > max_latency:
+                continue
+            
+            # Check Quality Floor
+            if quality_floor:
+                scores = self.registry.get(m, {}).get("scores", {})
+                passes = True
+                for k, v in quality_floor.items():
+                    if float(scores.get(k, 0)) < v:
+                        passes = False
+                        break
+                if not passes:
+                    continue
+                    
+            filtered.append(m)
+            
+        if not filtered:
+            filtered = list(self.registry.keys())  # Ultimate fallback
+            
+        return filtered
+    
+    def _calculate_penalties(
+        self,
+        filtered: List[str],
+        input_tokens: int,
+        output_tokens: int
+    ) -> Tuple[Dict[str, float], Dict[str, float]]:
+        """
+        Calculate absolute cost and latency penalties for each model.
+        
+        Uses market anchors (not relative to current pool) for stable penalties:
+        - Cost: Floor=$0.0005/1k, Ceiling=$10.00/1k
+        - Latency: Floor=0.05s, Ceiling=5.0s
+        
+        Args:
+            filtered: List of candidate model IDs
+            input_tokens: Input token count
+            output_tokens: Output token count
+            
+        Returns:
+            Tuple of (cost_penalties, latency_penalties) dicts
+        """
+        # Calculate costs and latencies
+        costs = {m: self._estimate_cost(m, input_tokens, output_tokens) for m in filtered}
+        lats = {m: self._estimate_latency(m, output_tokens) for m in filtered}
+        
+        # Cost penalties (absolute, using market anchors)
+        cost_penalties = {}
+        for m in filtered:
+            cost_per_1k = costs[m] * 1000  # Convert to $/1k tokens
+            cost_penalties[m] = self._calculate_absolute_penalty(cost_per_1k)
+        
+        # Latency penalties (absolute)
+        config = RouterConfig()
+        LATENCY_FLOOR = config.market_latency_floor
+        LATENCY_RANGE = config.latency_range_log
+        
+        latency_penalties = {}
+        for m in filtered:
+            safe_lat = max(lats[m], LATENCY_FLOOR)
+            log_lat = np.log(safe_lat)
+            norm_lat = (log_lat - np.log(LATENCY_FLOOR)) / LATENCY_RANGE
+            latency_penalties[m] = max(0.0, min(1.0, norm_lat))
+        
+        return cost_penalties, latency_penalties
+    
+    def _score_candidates(
+        self,
+        filtered: List[str],
+        x: np.ndarray,
+        w_q: float,
+        w_c: float,
+        w_l: float,
+        input_tokens: int,
+        output_tokens: int
+    ) -> Tuple[str, float]:
+        """
+        Calculate utility scores and select best model.
+        
+        Utility = (w_q * UCB) + (w_c * (1 - Cost_Penalty)) + (w_l * (1 - Latency_Penalty))
+        
+        Args:
+            filtered: List of candidate model IDs
+            x: Context vector
+            w_q: Quality weight
+            w_c: Cost weight  
+            w_l: Latency weight
+            input_tokens: Input token count
+            output_tokens: Output token count
+            
+        Returns:
+            Tuple of (best_model, best_utility)
+        """
+        best_model = filtered[0]
+        best_utility = -float("inf")
+        
+        # Pre-compute UCBs
+        ucbs = {}
+        for m in filtered:
+            _, ucb = self.bandit.select_arm(x, candidates=[m])
+            ucbs[m] = ucb
+        
+        # Calculate penalties
+        cost_penalties, latency_penalties = self._calculate_penalties(filtered, input_tokens, output_tokens)
+        
+        # Score each candidate
+        for m in filtered:
+            quality = ucbs[m]
+            norm_cost = cost_penalties[m]
+            norm_lat = latency_penalties[m]
+            
+            # Weighted utility
+            utility = (w_q * quality) + (w_c * (1.0 - norm_cost)) + (w_l * (1.0 - norm_lat))
+            
+            if utility > best_utility:
+                best_utility = utility
+                best_model = m
+                
+        return best_model, best_utility
+    
+    def _trigger_periodic_pruning(self) -> None:
+        """
+        Trigger successive elimination pruning at configured intervals.
+        
+        Uses anchor-based domination check instead of log-based heuristics.
+        """
+        if len(self.logs) % 100 == 0:
+            self.prune_arms()  # Confidence alpha defaults to 2.0 (~95% CI)
+    
+    def _create_routing_log(
+        self,
+        prompt_text: str,
+        model: str,
+        utility: float,
+        x: np.ndarray,
+        input_tokens: int,
+        output_tokens: int
+    ) -> RoutingLog:
+        """
+        Create and persist routing log.
+        
+        Args:
+            prompt_text: Input prompt text
+            model: Selected model ID
+            utility: Predicted utility score
+            x: Context vector (cached for feedback loop)
+            input_tokens: Input token count
+            output_tokens: Output token count
+            
+        Returns:
+            RoutingLog object
+        """
+        log = RoutingLog(
+            request_id=str(time.time_ns()),
+            timestamp_s=time.time(),
+            prompt=prompt_text,
+            selected_model=model,
+            predicted_utility=float(utility),
+            cost_usd=self._estimate_cost(model, input_tokens, output_tokens),
+            latency_s=self._estimate_latency(model, output_tokens),
+            cluster_id=None,  # Legacy: replaced by Virtual Anchors
+            cluster_similarity=None,
+            context_vector=x  # Cache for feedback loop
+        )
+        self.logs.append(log)
+        
+        # Save context for delayed feedback (RLHF, human ratings, etc.)
+        self.context_store.save_context(log.request_id, x, model)
+        
+        return log
+
     def route(
         self,
         prompt: str | np.ndarray,
@@ -2427,177 +2836,22 @@ class BanditRouter:
         - MID: Gate <= 5.0% Risk. (Best for General Knowledge/Coding)
         - HIGH: Gate <= 2.5% Risk. (Best for Medical/Legal/High-Stakes)
         """
-        # We need the text for cluster detection and logging
-        prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded Prompt]"
-        
-        # 1. Vectorize with Zero-Shot Features
-        # This creates: [Emb | Feats | Anchors | Hardness Score | Bias]
-        # The hardness score project semantic complexity into a raw scalar feature.
-        x = self._get_context_vector(prompt)
-        
-        # 2. Resolve Weights
-        weights = OptimizationProfile.get(profile).copy()
-        w_q = weights.get("w_q", 1.0 - weights.get("w_c", 0.0) - weights.get("w_l", 0.0))
-        w_c = weights.get("w_c", 0.0)
-        w_l = weights.get("w_l", 0.0)
-        
-        # --- ORTHOGONAL OPTIMIZATION ---
-        # If a hard constraint is active, disable the soft penalty for that dimension
-        # and re-allocate weight to Quality to avoid "Double Penalty".
-        if max_cost is not None:
-            w_q += w_c
-            w_c = 0.0
-        if max_latency is not None:
-            w_q += w_l
-            w_l = 0.0
-        # -------------------------------
-        
-        # 3. Filter Candidates (Constraints + Gating)
-        candidates = list(self.registry.keys())
-        
-        # --- RISK GATING ---
-        # Two-Tier System: Only HIGH triggers gating
-        eff_sensitivity = sensitivity.upper() if sensitivity else self._classify_sensitivity(prompt_text)
-        
-        # HIGH: <= 2.5% Risk (Forces safe models like GPT-4o)
-        # LOW: No Filter (Bandit optimizes freely)
-        if eff_sensitivity == "HIGH":
-            safe_subset = []
-            threshold = 2.5
-            for m in candidates:
-                meta = self.registry.get(m, {})
-                risk_score = float(meta.get("hallucination_vectara", meta.get("hallucination_rate", 8.0)))
-                if risk_score <= threshold:
-                    safe_subset.append(m)
-            
-            if safe_subset:
-                candidates = safe_subset
-            else:
-                logger.warning(f"No models passed HIGH (<= {threshold}%) gate. Falling back to full pool.")
-        # -------------------
-
-        # Estimate tokens
-        in_tok = input_tokens or estimate_tokens_rough(prompt)
-        
-        filtered = []
-        for m in candidates:
-            # Check Cost
-            cost = self._estimate_cost(m, in_tok, output_tokens)
-            if max_cost is not None and cost > max_cost: continue
-            
-            # Check Latency
-            lat = self._estimate_latency(m, output_tokens)
-            if max_latency is not None and lat > max_latency: continue
-            
-            # Check Quality Floor
-            if quality_floor:
-                scores = self.registry.get(m, {}).get("scores", {})
-                passes = True
-                for k, v in quality_floor.items():
-                    if float(scores.get(k, 0)) < v:
-                        passes = False
-                        break
-                if not passes: continue
-                
-            filtered.append(m)
-            
-        if not filtered:
-            filtered = list(self.registry.keys()) # Ultimate fallback
-            # In production, raise error or return default
-            
-        # 4. Score Candidates
-        best_model = filtered[0]
-        best_utility = -float("inf")
-        
-        # Pre-compute UCBs
-        ucbs = {}
-        for m in filtered:
-            _, ucb = self.bandit.select_arm(x, candidates=[m])
-            ucbs[m] = ucb
-            
-        # Calculate Utility
-        costs = {m: self._estimate_cost(m, in_tok, output_tokens) for m in filtered}
-        lats = {m: self._estimate_latency(m, output_tokens) for m in filtered}
-        
-        # --- ABSOLUTE COST PENALTY (Logarithmic Market Width) ---
-        # Use absolute penalty based on fixed market anchors, not relative to current pool.
-        # This ensures a model's cost penalty is determined by its actual price tag,
-        # not by what other models happen to be loaded.
-        # 
-        # Math: penalty = (log(cost) - log(floor)) / range
-        # Floor: $0.0005/1k, Ceiling: $10.00/1k, Range: 10.0
-        
-        # Convert cost to per-1k basis for absolute penalty calculation
-        cost_penalties = {}
-        for m in filtered:
-            cost_per_1k = costs[m] * 1000  # Convert to $/1k tokens
-            cost_penalties[m] = self._calculate_absolute_penalty(cost_per_1k)
-        
-        # --- ABSOLUTE LATENCY PENALTY (Logarithmic Market Width) ---
-        # Apply same absolute anchor approach to latency for consistency.
-        # This makes lambda_cost and lambda_latency directly comparable.
-        # 
-        # Latency Anchors:
-        # Floor: 0.05s (instant/cached)
-        # Ceiling: 5.0s (timeout threshold)
-        # Range: ln(5.0) - ln(0.05) ≈ 4.6
-        
-        # Use RouterConfig for consistency (Source of Truth Fix)
-        config = RouterConfig()
-        LATENCY_FLOOR = config.market_latency_floor
-        LATENCY_CEILING = config.market_latency_ceiling
-        LATENCY_RANGE = config.latency_range_log
-        
-        latency_penalties = {}
-        for m in filtered:
-            # Clip to floor to avoid log domain errors
-            safe_lat = max(lats[m], LATENCY_FLOOR)
-            log_lat = np.log(safe_lat)
-            
-            # Normalize absolutely: 0.0 = instant, 1.0 = timeout
-            norm_lat = (log_lat - np.log(LATENCY_FLOOR)) / LATENCY_RANGE
-            latency_penalties[m] = max(0.0, min(1.0, norm_lat))
-        
-        for m in filtered:
-            quality = ucbs[m]
-            
-            # Cost penalty (absolute, 0-1 scale)
-            norm_cost = cost_penalties[m]
-            
-            # Latency penalty (absolute, 0-1 scale)
-            norm_lat = latency_penalties[m]
-            
-            # Utility = (w_q * Quality) + (w_c * (1 - Cost Penalty)) + (w_l * (1 - Latency Penalty))
-            # Now all factors are in the same 0-1 absolute scale
-            utility = (w_q * quality) + (w_c * (1.0 - norm_cost)) + (w_l * (1.0 - norm_lat))
-            
-            if utility > best_utility:
-                best_utility = utility
-                best_model = m
-                
-                
-        # Trigger Successive Elimination Pruning (Periodically)
-        # Uses anchor-based domination check instead of log-based heuristics
-        if len(self.logs) % 100 == 0:
-             self.prune_arms()  # Confidence alpha defaults to 2.0 (~95% CI)
-             
-        log  = RoutingLog(
-            request_id=str(time.time_ns()),
-            timestamp_s=time.time(),
-            prompt=prompt_text,
-            selected_model=best_model,
-            predicted_utility=float(best_utility),
-            cost_usd=self._estimate_cost(best_model, in_tok, output_tokens),
-            latency_s=self._estimate_latency(best_model, output_tokens),
-            cluster_id=None,  # Legacy: replaced by Virtual Anchors
-            cluster_similarity=None,
-            context_vector=x # Cache for feedback loop
+        # Orchestrate the 8-phase routing process using focused helper methods
+        x, prompt_text = self._build_routing_features(prompt)
+        w_q, w_c, w_l = self._resolve_utility_weights(profile, max_cost, max_latency)
+        candidates = self._apply_risk_gating(prompt_text, sensitivity)
+        filtered = self._filter_by_constraints(
+            candidates, prompt, max_cost, max_latency, quality_floor, input_tokens, output_tokens
         )
-        self.logs.append(log)
         
-        # Save context for delayed feedback (RLHF, human ratings, etc.)
-        # This persists beyond the 100s deque horizon
-        self.context_store.save_context(log.request_id, x, best_model)
+        # Estimate tokens for scoring
+        in_tok = input_tokens or estimate_tokens_rough(prompt_text)
+        
+        best_model, best_utility = self._score_candidates(
+            filtered, x, w_q, w_c, w_l, in_tok, output_tokens
+        )
+        self._trigger_periodic_pruning()
+        log = self._create_routing_log(prompt_text, best_model, best_utility, x, in_tok, output_tokens)
         
         return best_model, log
     
@@ -2732,9 +2986,11 @@ class BanditRouter:
             # Initialize with prior belief
             # Set the bias term (last element) of b to prior_strength * score
             # This effectively gives it a "mean reward" of 'score' for the bias feature.
-            self.bandit.b[model_id][-1] = 20.0 * score
+            config = RouterConfig()
+            pseudocounts = config.registration.prior_pseudocounts
+            self.bandit.b[model_id][-1] = pseudocounts * score
             # Also increase confidence in the bias term
-            self.bandit.A[model_id][-1, -1] += 20.0
+            self.bandit.A[model_id][-1, -1] += pseudocounts
             self.bandit.A_inv[model_id] = safe_inv(self.bandit.A[model_id])
 
 

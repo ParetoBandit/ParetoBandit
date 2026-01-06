@@ -118,7 +118,7 @@ class SqliteContextStore(ContextStore):
     - For longer retention, increase ttl_seconds or backup to S3
     """
     
-    def __init__(self, db_path: str | Path = "router_context.db", ttl_seconds: int = 86400 * 7):
+    def __init__(self, db_path: str | Path = "data/router_context.db", ttl_seconds: int = 86400 * 7):
         self.db_path = str(db_path)
         self.ttl = ttl_seconds
         self.write_timeout = 5.0  # seconds

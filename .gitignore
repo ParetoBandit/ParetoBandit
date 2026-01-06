@@ -170,3 +170,6 @@ router_context.db-wal
 
 # Large offline dataset files
 src/bandit_gpt/data/offline_dataset/*.jsonl
+
+# Root data directory (artifacts & state)
+data/

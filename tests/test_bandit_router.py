@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import json
 from pathlib import Path
-from banditgpt import BanditRouter, OptimizationProfile, ExplorationRate
+from bandit_gpt import BanditRouter, OptimizationProfile, ExplorationRate
 
 @pytest.fixture
 def sample_registry():
