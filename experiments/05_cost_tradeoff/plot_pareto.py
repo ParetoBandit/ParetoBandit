@@ -103,47 +103,47 @@ def plot_pareto_frontier(results: dict, output_path: Path):
             markeredgecolor='white', markeredgewidth=2.5)
     
     # 8. Overlap-Free Annotations
-    # Top 3 models with quadrant-based positioning
-    sorted_by_quality = sorted(model_baselines, key=lambda x: x["quality"], reverse=True)
-    top_models = sorted_by_quality[:3]
-    
-    for i, model in enumerate(top_models):
-        # Highlight with star marker
-        ax.scatter(model["cost"], model["quality"], 
-                  color=COLORS["bandit"], s=250, alpha=0.9, marker='*',
-                  zorder=7, edgecolors='white', linewidths=2)
+    # Only show gpt-5-chat label
+    for model in model_baselines:
+        # Check if this is gpt-5-chat
+        model_id = model.get("model", "")
+        display_name = model.get("display_name", "")
         
-        # Get display name
-        name = model.get("display_name", model.get("model", "Unknown"))
-        name = name.replace("Preview", "").replace("(high)", "").strip()
-        if len(name) > 25:
-            name = name[:22] + "..."
-        
-        # Quadrant-based offset logic to avoid overlaps
-        x_pos, y_pos = model["cost"], model["quality"]
-        if i == 0:  # Top model - position well above and to the right, clear of Max Quality label
-            xytext = (35, 30)
-        elif i == 1:  # Second - position above left  
-            xytext = (-70, 15)
-        else:  # Third - position below right
-            xytext = (20, -25)
-        
-        ax.annotate(name, 
-                   xy=(x_pos, y_pos),
-                   xytext=xytext,
-                   textcoords='offset points',
-                   fontsize=10,
-                   fontweight='bold',
-                   color=COLORS["bandit"],
-                   bbox=dict(boxstyle='round,pad=0.4', 
-                           facecolor='white', 
-                           edgecolor=COLORS["bandit"],
-                           linewidth=2,
-                           alpha=0.95),
-                   arrowprops=dict(arrowstyle='->', 
-                                 connectionstyle='arc3,rad=0.15',
-                                 color=COLORS["bandit"],
-                                 lw=2))
+        # Match gpt-5-chat (case-insensitive, flexible matching)
+        if "gpt-5-chat" in model_id.lower() or "gpt-5-chat" in display_name.lower():
+            # Highlight with star marker
+            ax.scatter(model["cost"], model["quality"], 
+                      color=COLORS["bandit"], s=250, alpha=0.9, marker='*',
+                      zorder=7, edgecolors='white', linewidths=2)
+            
+            # Get display name
+            name = model.get("display_name", model.get("model", "Unknown"))
+            name = name.replace("Preview", "").replace("(high)", "").strip()
+            if len(name) > 25:
+                name = name[:22] + "..."
+            
+            # Position label to the left and well above to show arrow head
+            x_pos, y_pos = model["cost"], model["quality"]
+            xytext = (-80, 40)  # Left of point, raised to show arrow head
+            
+            # Offset arrow target slightly to create space from data point
+            ax.annotate(name, 
+                       xy=(x_pos * 1.05, y_pos),  # Offset slightly right of data point
+                       xytext=xytext,
+                       textcoords='offset points',
+                       fontsize=10,
+                       fontweight='bold',
+                       color=COLORS["bandit"],
+                       bbox=dict(boxstyle='round,pad=0.4', 
+                               facecolor='white', 
+                               edgecolor=COLORS["bandit"],
+                               linewidth=2,
+                               alpha=0.95),
+                       arrowprops=dict(arrowstyle='->', 
+                                     connectionstyle='arc3,rad=0.15',
+                                     color=COLORS["bandit"],
+                                     lw=2))
+            break  # Only label one model
     
     # 9. BanditGPT Profile Labels (overlap-free)
     for i, p in enumerate(frontier):
@@ -184,7 +184,7 @@ def plot_pareto_frontier(results: dict, output_path: Path):
     ax.set_ylim(0.75, 1.05)
     
     # Horizontal legend at bottom (maximizes data canvas)
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.08),
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.12),
               ncol=3, fontsize=11, framealpha=0.98, 
               edgecolor='gray', fancybox=True)
     
