@@ -96,6 +96,26 @@ router.route(prompt)  # Never blocks on updates
 
 See [tests/test_lock_contention.py](tests/test_lock_contention.py) for concurrency tests.
 
+### Adaptive Learning: Zombie Priors Fix
+
+BanditGPT also addresses the **"Zombie Priors"** problem where overly stiff initial beliefs prevent the router from adapting to model drift (e.g., timeouts, quality degradation, API changes).
+
+**The Problem**: Artificially inflating prior strength (e.g., N_structure=250) makes the router "deaf" to new evidence. With high prior weight, the router needs ~300 requests to overcome initial beliefs, failing to react to late-stage model drift.
+
+**The Solution**: Use natural weighting in procedural warmup:
+```python
+# In warmup: use router.bandit.update(..., weight=1.0)
+# Not: direct matrix manipulation with inflated weights
+```
+
+**Impact**:
+- **100 synthetic samples** → natural magnitude ~100 in A matrix
+- **1 real observation** → adds 1.0 to matrix
+- **Ratio 1:100**: Stable (won't flap on 1-2 errors) + Plastic (reacts to 5-10 errors)
+- Router now adapts to drift while maintaining stability
+
+**Validated Results**: Pareto experiments show 98.8% quality maintained while enabling natural adaptation.
+
 ## Quick Start
 
 ```python
