@@ -81,14 +81,16 @@ def load_rewards(path: Path, label: str) -> Dict:
     return dict(prompt_data)
 
 
-def get_model_cost(model: Dict, input_tokens: int = 100, output_tokens: int = 200) -> float:
-    """Calculate cost per request in USD from real pricing data."""
+def get_model_cost(model: Dict) -> float:
+    """Calculate average cost per 1k tokens in USD."""
     if "price_1m_input" not in model or "price_1m_output" not in model:
-        return None
+        return 0.0
     
-    cost = (input_tokens * model["price_1m_input"] + 
-            output_tokens * model["price_1m_output"]) / 1_000_000
-    return cost
+    # Standard metric: Blended cost per 1k tokens (50/50 split)
+    # price_1m is in USD per 1M tokens. 
+    # To get USD per 1k tokens: divide by 1000.
+    cost_per_1k = (0.5 * model["price_1m_input"] + 0.5 * model["price_1m_output"]) / 1000.0
+    return cost_per_1k
 
 
 # =============================================================================
@@ -100,7 +102,7 @@ def run_pareto_sweep(
     test_data: Dict,
     registry: Dict,
     encoder,
-    n_trials: int = 3
+    n_trials: int = 10
 ) -> List[Dict]:
     """
     Sweep cost profiles to generate Pareto frontier.
@@ -124,7 +126,6 @@ def run_pareto_sweep(
         {"name": "Max Quality",  **OptimizationProfile.MAX_QUALITY},
         {"name": "Arbitrage",    **OptimizationProfile.ARBITRAGE},
         {"name": "Best Value",   **OptimizationProfile.BEST_VALUE},
-        {"name": "Cost Saver",   **OptimizationProfile.COST_SAVER},
     ]
     
     frontier_results = []
@@ -193,11 +194,11 @@ def run_pareto_sweep(
             router.bandit.alpha = original_alpha
             
             if costs:
-                avg_cost = np.mean(costs) * 1000  # Convert to per-1k-tokens
+                avg_cost = np.mean(costs)
                 avg_quality = np.mean(qualities)
                 trial_costs.append(avg_cost)
                 trial_qualities.append(avg_quality)
-                print(f"Cost=${avg_cost:.4f}, Quality={avg_quality*100:.1f}%")
+                print(f"Cost=${avg_cost:.4f}, Quality={avg_quality*100:4.1f}%")
         
         if trial_costs:
             frontier_results.append({
@@ -238,14 +239,14 @@ def compute_individual_models(test_data: Dict, registry: Dict) -> List[Dict]:
             if model_id in data["rewards"]:
                 qualities.append(data["rewards"][model_id])
         
-        if qualities and len(qualities) > 10:  # Need sufficient coverage
+        if qualities:
+            avg_q = float(np.mean(qualities))
             model_points.append({
-                "model_id": model_id,
-                "name": model.get("display_name", model_id),
-                "cost": cost * 1000,
-                "quality": np.mean(qualities),
-                "coverage": len(qualities)
+                "model": model_id,
+                "cost": cost,
+                "quality": avg_q
             })
+            # print(f"    {model_id[:30]:30} ${cost:8.5f} {avg_q*100:5.11f}%")
     
     print(f"  ✓ Computed {len(model_points)} model baselines")
     return model_points
@@ -271,7 +272,7 @@ def main():
     
     # Run Pareto sweep
     frontier_results = run_pareto_sweep(
-        train_data, test_data, registry, encoder, n_trials=3
+        train_data, test_data, registry, encoder, n_trials=3  # Reduced for quick validation
     )
     
     # Compute baselines
