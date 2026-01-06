@@ -86,10 +86,15 @@ def plot_pareto_frontier(results: dict, output_path: Path):
                 linestyle='--', alpha=0.8, label='Model-Only Frontier', zorder=3,
                 marker='o', markersize=8, markeredgecolor='white', markeredgewidth=1.5)
     
-    # 6. Random Baseline
-    avg_quality = np.mean(m_qualities)
-    ax.axhline(y=avg_quality, color=COLORS["baseline"], linestyle=':', lw=2.5,
-               alpha=0.7, label=f'Random Selection ({avg_quality*100:.1f}%)', zorder=1)
+    # 6. Random Baseline (empirical simulation - KDD Review Fix)
+    random = results.get("random_baseline", {})
+    if random:
+        ax.errorbar(random["cost_mean"], random["quality_mean"],
+                    xerr=random["cost_std"], yerr=random["quality_std"],
+                    color=COLORS["baseline"], fmt='X', markersize=14,
+                    capsize=6, capthick=2, alpha=0.9,
+                    label=f'Random Selection (Empirical)', zorder=4,
+                    markeredgecolor='white', markeredgewidth=2)
     
     # 7. BanditGPT Frontier (THE MAIN EVENT)
     # Error bars

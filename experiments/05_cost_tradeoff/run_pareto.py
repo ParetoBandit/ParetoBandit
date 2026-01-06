@@ -256,6 +256,82 @@ def compute_individual_models(test_data: Dict, registry: Dict) -> List[Dict]:
     return model_points
 
 
+def run_random_baseline(
+    test_data: Dict,
+    registry: Dict,
+    n_trials: int = 10
+) -> Dict:
+    """
+    Simulate random model selection baseline (KDD Review Fix).
+    
+    This provides a fair empirical comparison by actually simulating
+    what happens when you randomly select models on the test set.
+    
+    For each trial:
+    1. For each test prompt, randomly select a model (uniform distribution)
+    2. Record (cost, quality) for that selection
+    3. Compute average cost and quality across all prompts
+    
+    Args:
+        test_data: Test prompts with rewards
+        registry: Model registry with cost information
+        n_trials: Number of trials for variance estimation (default: 10)
+    
+    Returns:
+        {
+            "cost_mean": float,
+            "cost_std": float,
+            "quality_mean": float,
+            "quality_std": float,
+            "selections": dict of model selection counts
+        }
+    """
+    print(f"\n🎲 Running random baseline ({n_trials} trials)...")
+    
+    trial_costs = []
+    trial_qualities = []
+    all_selections = defaultdict(int)
+    available_models = list(registry.keys())
+    
+    for trial in range(n_trials):
+        costs = []
+        qualities = []
+        
+        for prompt, data in test_data.items():
+            # Randomly select model (uniform distribution)
+            model_id = random.choice(available_models)
+            all_selections[model_id] += 1
+            
+            # Get reward if available for this model on this prompt
+            if model_id in data["rewards"]:
+                model = registry[model_id]
+                cost = get_model_cost(model)
+                quality = data["rewards"][model_id]
+                
+                if cost is not None:
+                    costs.append(cost)
+                    qualities.append(quality)
+        
+        if costs:
+            trial_costs.append(np.mean(costs))
+            trial_qualities.append(np.mean(qualities))
+            print(f"  Trial {trial+1}/{n_trials}: Cost=${np.mean(costs):.4f}, Quality={np.mean(qualities)*100:.1f}%")
+    
+    result = {
+        "cost_mean": float(np.mean(trial_costs)),
+        "cost_std": float(np.std(trial_costs)),
+        "quality_mean": float(np.mean(trial_qualities)),
+        "quality_std": float(np.std(trial_qualities)),
+        "selections": dict(all_selections)
+    }
+    
+    print(f"  ✓ Random baseline: Cost=${result['cost_mean']:.4f} ± ${result['cost_std']:.4f}, "
+          f"Quality={result['quality_mean']*100:.1f}% ± {result['quality_std']*100:.2f}%")
+    
+    return result
+
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -281,6 +357,7 @@ def main():
     
     # Compute baselines
     model_baselines = compute_individual_models(test_data, registry)
+    random_baseline = run_random_baseline(test_data, registry, n_trials=10)
     
     # Save results
     output_dir = Path(__file__).parent / "results"
@@ -293,7 +370,8 @@ def main():
             "description": "Cost-Quality Pareto Frontier",
             "data_source": "100% real data (train_rewards_hle_models.jsonl, test_rewards_hle_models.jsonl)",
             "frontier": frontier_results,
-            "model_baselines": model_baselines
+            "model_baselines": model_baselines,
+            "random_baseline": random_baseline
         }, f, indent=2)
     
     print(f"\n✅ Results saved to: {results_path}")
