@@ -366,23 +366,19 @@ DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 class OptimizationProfile:
     """Named presets for utility function weights (Quality vs Cost vs Latency).
     Weights MUST sum to 1.0 (100%).
+    
+    These 4 profiles define the Pareto frontier for cost-quality tradeoffs.
     """
-    MAX_QUALITY     = {"w_q": 0.97, "w_c": 0.02, "w_l": 0.01}
-    ARBITRAGE       = {"w_q": 0.65, "w_c": 0.30, "w_l": 0.05}
-    BEST_VALUE      = {"w_q": 0.40, "w_c": 0.50, "w_l": 0.10}
-    BALANCED        = BEST_VALUE
-    COST_SAVER      = {"w_q": 0.10, "w_c": 0.85, "w_l": 0.05}
-    LOW_LATENCY     = {"w_q": 0.10, "w_c": 0.10, "w_l": 0.80}
-    VALUE_EFFICIENT = {"w_q": 0.30, "w_c": 0.60, "w_l": 0.10}
+    MAX_QUALITY     = {"w_q": 0.97, "w_c": 0.02, "w_l": 0.01}  # Premium tier
+    ARBITRAGE       = {"w_q": 0.65, "w_c": 0.30, "w_l": 0.05}  # Best quality for cost
+    BEST_VALUE      = {"w_q": 0.40, "w_c": 0.50, "w_l": 0.10}  # True middle ground
+    COST_SAVER      = {"w_q": 0.10, "w_c": 0.85, "w_l": 0.05}  # Ultra budget
 
     _PROFILES = {
         "max_quality": MAX_QUALITY,
         "arbitrage": ARBITRAGE,
         "best_value": BEST_VALUE,
-        "balanced": BALANCED,
         "cost_saver": COST_SAVER,
-        "low_latency": LOW_LATENCY,
-        "value_efficient": VALUE_EFFICIENT,
     }
 
     @classmethod
@@ -1273,11 +1269,7 @@ class BanditRouter:
             # 2. Handcrafted Features (8)
             feats = self._extract_handcrafted_features(context)
             
-            # 3. Virtual Anchor Distances (N)
-            anchor_dists = self._get_cluster_distances(emb_full)
-            
-            
-            # 4. Zero-Shot Hardness Score (1)
+            # 3. Zero-Shot Hardness Score (1)
             # Projection onto Reference Complexity Vector
             raw_projection = float(np.dot(emb_full, self.complexity_vector))
             
@@ -1319,8 +1311,8 @@ class BanditRouter:
 
 
             
-            # Concatenate: [Embedding, Handcrafted, Anchors, Hardness, Bias]
-            x = np.concatenate([emb_reduced, feats, anchor_dists, hardness_feat])
+            # Concatenate: [Embedding, Handcrafted, Hardness, Bias]
+            x = np.concatenate([emb_reduced, feats, hardness_feat])
         else:
             x = context
             
@@ -1442,10 +1434,10 @@ class BanditRouter:
                 raise ValueError(f"Invalid prior_structure_n_effective: {prior_structure_n_effective}. Must be finite and non-negative.")
         
         # 3. Initialize
-        # Determine PCA path - look in parent banditgpt directories
-        pca_path_default = base_dir.parent.parent / "data" / "pca_32.joblib"
+        # Determine PCA path - in data/ subdirectory
+        pca_path_default = base_dir / "data" / "pca_32.joblib"
         if not pca_path_default.exists():
-            pca_path_default = base_dir.parent.parent / "priors" / "pca_32.joblib"
+            logger.warning(f"PCA file not found at {pca_path_default}. Router will use 384-dim embeddings.")
         
         # Load Saved State (Overrides priors)
         if state_path and Path(state_path).exists():

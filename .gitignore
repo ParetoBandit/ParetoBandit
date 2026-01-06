@@ -162,3 +162,11 @@ run_log*.txt
 # Large data files
 src/bandit_gpt/data/*_rewards*.jsonl
 src/bandit_gpt/data/helpsteer*.jsonl
+
+# Large database files
+router_context.db
+router_context.db-shm
+router_context.db-wal
+
+# Large offline dataset files
+src/bandit_gpt/data/offline_dataset/*.jsonl

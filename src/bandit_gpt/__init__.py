@@ -1,4 +1,4 @@
-from .bandit import BanditRouter, OptimizationProfile, ExplorationRate, sigmoid, transform_hle_to_prior
+from .router import BanditRouter, OptimizationProfile, ExplorationRate, sigmoid, transform_hle_to_prior
 
 try:
     from .cluster_detector import ClusterDetector
