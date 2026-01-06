@@ -1257,6 +1257,55 @@ class BanditRouter:
         )
 
 
+    # ---------------------------------------------------------------------------
+    # Tier 1 Safety: Fast Toxicity Heuristic
+    # ---------------------------------------------------------------------------
+    
+    @staticmethod
+    def _fast_toxicity_heuristic(text: str) -> float:
+        """
+        Ultra-fast regex-based toxicity proxy (<1ms).
+        
+        Replaces heavy ML scanner (llm-guard, 100-300ms) in hot path.
+        Heavy scanner moved to async audit (Tier 2).
+        
+        Pattern-based triggers derived from common toxicity categories:
+        - Violence: Physical harm language
+        - Hate Speech: Discrimination, slurs
+        - Explicit Content: Sexual/graphic content
+        - Security Threats: Hacking, exploitation
+        
+        Returns:
+            Toxicity score in [0, 1], compatible with LinUCB feature vector
+            
+        Performance: <1ms (vs 100-300ms for ML scanner)
+        
+        Production Note: For scale, replace with Bloom Filter (O(1) lookup)
+        """
+        if not text:
+            return 0.0
+        
+        # Trigger patterns by category
+        triggers = {
+            'violence': ['kill', 'attack', 'murder', 'destroy', 'shoot', 'stab', 'bomb', 'weapon'],
+            'hate': ['hate', 'racist', 'nazi', 'terrorist', 'slur', 'bigot'],
+            'explicit': ['porn', 'xxx', 'sex', 'nude', 'nsfw'],
+            'security': ['hack', 'exploit', 'crack', 'stolen', 'leak', 'bypass', 'jailbreak'],
+            'self_harm': ['suicide', 'self-harm', 'cutting']
+        }
+        
+        text_lower = text.lower()
+        score = 0.0
+        
+        # Score accumulation (each trigger adds 0.15, caps at 1.0)
+        for category, words in triggers.items():
+            for word in words:
+                if word in text_lower:
+                    score += 0.15
+                    break  # Only count category once
+        
+        return min(1.0, score)
+
     def _extract_handcrafted_features(self, text: str) -> np.ndarray:
         """
         Extract linearized features for routing logic.

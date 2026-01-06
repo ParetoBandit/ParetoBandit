@@ -191,13 +191,10 @@ class FeatureExtractor:
         # --- SECURITY ---
         
         # 6. Toxicity Score (continuous)
-        toxicity_score = 0.0
-        if self._toxicity_scanner:
-            try:
-                _, _, score = self._toxicity_scanner.scan(text)
-                toxicity_score = score
-            except Exception:
-                pass
+        # TIER 1: Fast heuristic (<1ms) for feature vector
+        # Heavy ML scanner (llm-guard) moved to async audit (Tier 2)
+        from bandit_gpt.router import BanditRouter
+        toxicity_score = BanditRouter._fast_toxicity_heuristic(text)
         
         # --- LINEARIZED FEATURES (Split Step + Slope) ---
         
