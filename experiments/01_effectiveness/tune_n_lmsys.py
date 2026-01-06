@@ -36,7 +36,7 @@ from bandit_gpt.utils import calibrate_complexity
 # =============================================================================
 # CONFIGURATION  
 # =============================================================================
-LMSYS_PATH = repo_root / "src/bandit_gpt/data/lmsys_barbell_20k.jsonl"
+LMSYS_PATH = repo_root / "src/bandit_gpt/data/lmsys_barbell_20k_minimal.jsonl"
 OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_PLOT = OUTPUT_DIR / "sensitivity_n_lmsys.pdf"
 OUTPUT_JSON = OUTPUT_DIR / "sensitivity_n_lmsys.json"
@@ -141,27 +141,17 @@ def load_barbell_prompts():
     with open(LMSYS_PATH, 'r') as f:
         for line in f:
             try:
-                data = json.loads(line)
-                
-                # Extract prompt from conversation
-                # (Barbell dataset already filtered to turn==1)
-                conversation = data.get('conversation', [])
-                for message in conversation:
-                    if message.get('role') == 'user':
-                        prompt = message.get('content', '')
-                        if prompt:
-                            prompts.append(prompt)
-                        break
-                        
+                data = json.loads(line.strip())
+                # Extract prompt directly (minimal dataset has prompt as field)
+                prompt = data.get('prompt', '')
+                if prompt:
+                    prompts.append(prompt)
             except (json.JSONDecodeError, KeyError):
                 continue
     
-    # Deduplicate
-    unique_prompts = list(set(prompts))
-    print(f"✓ Loaded {len(prompts)} records")
-    print(f"✓ Deduplicated to {len(unique_prompts)} unique prompts")
+    print(f"✓ Loaded {len(prompts)} prompts")
     
-    return unique_prompts
+    return prompts
 
 
 def load_model_hle_map():
