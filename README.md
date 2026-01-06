@@ -116,6 +116,37 @@ BanditGPT also addresses the **"Zombie Priors"** problem where overly stiff init
 
 **Validated Results**: Pareto experiments show 98.8% quality maintained while enabling natural adaptation.
 
+### Self-Healing PCA: JIT Calibration
+
+BanditGPT prevents production outages from missing or mismatched PCA artifacts through **Just-In-Time (JIT) Calibration**:
+
+**The Problem**: Static binary artifacts (.joblib) create fragile dependencies:
+- **Missing artifact** → Crash loop
+- **Dimension mismatch** (encoder upgrade) → Silent drift or crash
+- **No auto-recovery** → Manual intervention required
+
+**The Solution**: Automatic PCA validation and training on startup:
+
+```python
+# Router automatically handles PCA artifacts
+router = BanditRouter(model_registry, pca_path="data/pca_32.joblib")
+# If missing or mismatched: auto-trains in ~2s using synthetic data
+# If valid: loads from disk
+```
+
+**How It Works**:
+1. **Validate**: Check PCA dimensions match current encoder
+2. **JIT Train**: If invalid, generate 1000 synthetic prompts → train PCA (~2s)
+3. **Persist**: Save for next startup (cache-aside pattern)
+4. **Verify**: Log explained variance, warn if < 60%
+
+**Benefits**:
+- **Zero Downtime**: Starts successfully even without artifacts
+- **Version Safety**: Handles encoder upgrades automatically
+- **Observability**: Logs variance capture for monitoring
+
+See [tests/test_self_healing_pca.py](tests/test_self_healing_pca.py) for validation tests.
+
 ## Quick Start
 
 ```python

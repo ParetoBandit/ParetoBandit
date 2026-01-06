@@ -938,14 +938,9 @@ class BanditRouter:
         else:
             self.encoder = SentenceTransformer(context_model)
         
-        # Initialize PCA if provided
+        # Self-healing PCA initialization (prevents outages from missing/mismatched artifacts)
         self.pca = None
-        if pca_path and joblib:
-            try:
-                self.pca = joblib.load(pca_path)
-                logger.info(f"✓ Hybrid PCA initialized (384->{self.pca.n_components})")
-            except Exception as e:
-                logger.warning(f"Failed to load PCA model: {e}")
+        self._ensure_pca_ready(pca_path)
         
         # -----------------------------------------------------------------------
         # ZERO-SHOT FEATURE INITIALIZATION (Anchors & Complexity)
@@ -1628,7 +1623,220 @@ class BanditRouter:
                 neutral_ctx[-1] = 1.0
                 self.bandit.b[model_id] = prior_n_effective * raw_hle * neutral_ctx
 
+    # ---------------------------------------------------------------------------
+    # Self-Healing PCA (JIT Calibration)
+    # ---------------------------------------------------------------------------
+    
+    def _generate_synthetic_data(self, n: int = 1000) -> List[str]:
+        """
+        Generate synthetic prompts for PCA calibration.
+        
+        Uses the same archetypes as procedural warmup to ensure consistency
+        between PCA manifold and warmup covariance structure.
+        
+        Args:
+            n: Number of synthetic prompts to generate (default: 1000)
+               For robust PCA, need ~10x the target dimensionality (32 dims → ~320 samples)
+               
+        Returns:
+            List of synthetic prompt strings
+        """
+        import random
+        
+        # Template patterns matching procedural warmup archetypes
+        templates = {
+            "math": [
+                "Solve the integral of {expr} with respect to {var}",
+                "Prove that {theorem} using mathematical induction",
+                "Find the derivative of {function} and explain each step",
+                "Calculate the eigenvalues of the matrix {matrix}",
+                "Determine if the series {series} converges or diverges"
+            ],
+            "coding": [
+                "Write a Python function to {task} using {library}",
+                "Implement {algorithm} in {language} with time complexity analysis",
+                "Debug this {language} code that {problem}",
+                "Create a {language} class for {task} with unit tests",
+                "Optimize this {algorithm} implementation for {constraint}"
+            ],
+            "reasoning": [
+                "Analyze the logical structure of {argument} and identify fallacies",
+                "Develop a step-by-step solution for {problem}",
+                "Compare and contrast {concept_a} with {concept_b}",
+                "Explain the causal relationship between {cause} and {effect}",
+                "Evaluate the validity of {claim} given {evidence}"
+            ],
+            "creative": [
+                "Write a {genre} story about {topic} in {style}",
+                "Compose a poem about {subject} using {form}",
+                "Create a dialogue between {character_a} and {character_b} about {topic}",
+                "Describe {scene} from the perspective of {viewpoint}",
+                "Develop a plot outline for a {genre} involving {element}"
+            ],
+            "chat": [
+                "What is {simple_concept} and why is it important?",
+                "Can you explain {topic} in simple terms?",
+                "Tell me about {subject}",
+                "Why does {phenomenon} happen?",
+                "What's the difference between {concept_a} and {concept_b}?"
+            ]
+        }
+        
+        # Fill placeholders with variations
+        fill_values = {
+            "expr": ["x^2 + 3x + 2", "sin(x)cos(x)", "e^(2x)", "ln(x^2)"],
+            "var": ["x", "y", "t", "theta"],
+            "theorem": ["Fermat's Last Theorem", "the Pythagorean identity", "Euler's formula"],
+            "function": ["f(x) = x^3 + 2x", "g(x) = sqrt(x+1)", "h(x) = e^x / x"],
+            "matrix": ["[[1,2],[3,4]]", "a 3x3 identity matrix", "[[2,-1],[4,3]]"],
+            "series": ["sum(1/n^2)", "sum((-1)^n/n)", "sum(1/n!)"],
+            "task": ["parse JSON", "sort a list", "find duplicates", "merge dictionaries"],
+            "library": ["pandas", "numpy", "requests", "pathlib"],
+            "algorithm": ["binary search", "quicksort", "dijkstra's", "BFS"],
+            "language": ["Python", "JavaScript", "Java", "C++"],
+            "problem": ["throws TypeError", "has memory leak", "returns wrong output"],
+            "constraint": ["memory", "speed", "readability"],
+            "argument": ["this logical claim", "the premise that AI is conscious"],
+            "concept_a": ["AI", "machine learning", "neural networks"],
+            "concept_b": ["automation", "deep learning", "decision trees"],
+            "cause": ["climate change", "urbanization", "technology adoption"],
+            "effect": ["sea level rise", "habitat loss", "social transformation"],
+            "claim": ["this hypothesis", "the assertion", "the theory"],
+            "evidence": ["the data", "experimental results", "historical records"],
+            "genre": ["science fiction", "mystery", "romance", "thriller"],
+            "topic": ["time travel", "AI", "space exploration", "ancient civilizations"],
+            "style": ["Hemingway's style", "a humorous tone", "dark and moody"],
+            "subject": ["autumn", "technology", "love", "nature"],
+            "form": ["haiku", "sonnet", "free verse"],
+            "character_a": ["a scientist", "an AI", "a detective"],
+            "character_b": ["a philosopher", "a child", "a criminal"],
+            "scene": ["a futuristic city", "a quiet forest", "a busy marketplace"],
+            "viewpoint": ["a bird", "an alien observer", "a time traveler"],
+            "element": ["time loops", "parallel universes", "mind reading"],
+            "simple_concept": ["photosynthesis", "gravity", "democracy"],
+            "phenomenon": ["rain", "lightning", "the aurora borealis"]
+        }
+        
+        prompts = []
+        random.seed(42)  # Deterministic for reproducibility
+        
+        # Generate n prompts by sampling templates and filling placeholders
+        archetype_keys = list(templates.keys())
+        for _ in range(n):
+            archetype = random.choice(archetype_keys)
+            template = random.choice(templates[archetype])
+            
+            # Fill placeholders
+            prompt = template
+            for placeholder, values in fill_values.items():
+                if f"{{{placeholder}}}" in prompt:
+                    prompt = prompt.replace(f"{{{placeholder}}}", random.choice(values))
+            
+            prompts.append(prompt)
+        
+        return prompts
+    
+    def _ensure_pca_ready(self, pca_path: Optional[Path | str], target_variance: float = 0.60) -> None:
+        """
+        Self-Healing PCA: Load existing PCA, validate it, or train new one via JIT calibration.
+        
+        This prevents production outages from:
+        - Missing PCA artifacts
+        - Dimension mismatches (encoder upgrades)
+        - Manifold collapse (low variance capture)
+        
+        Args:
+            pca_path: Path to PCA artifact (optional)
+            target_variance: Minimum explained variance threshold (default: 0.60)
+                            Logs warning if PCA captures < 60% of variance
+        """
+        pca_loaded = False
+        
+        # Check if joblib is available
+        try:
+            import joblib as jl
+        except ImportError:
+            logger.warning("joblib not available - cannot use PCA compression")
+            return
+        
+        # Phase 1: Try loading existing PCA
+        if pca_path and Path(pca_path).exists():
+            try:
+                candidate_pca = jl.load(pca_path)
+                
+                # Validation: Dimension check
+                expected_dim = self.encoder.get_sentence_embedding_dimension()
+                actual_dim = candidate_pca.n_features_in_
+                
+                if actual_dim == expected_dim:
+                    self.pca = candidate_pca
+                    explained_var = np.sum(candidate_pca.explained_variance_ratio_)
+                    logger.info(
+                        f"✓ PCA loaded from {pca_path} "
+                        f"({actual_dim}→{candidate_pca.n_components_}, "
+                        f"variance={explained_var:.1%})"
+                    )
+                    pca_loaded = True
+                else:
+                    logger.warning(
+                        f"⚠️ PCA dimension mismatch! "
+                        f"Encoder: {expected_dim}D, PCA: {actual_dim}D. "
+                        f"Re-training with JIT calibration."
+                    )
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to load PCA artifact: {e}. Re-training.")
+        
+        # Phase 2: JIT Calibration (if needed)
+        if not pca_loaded:
+            logger.info("⚡ JIT PCA Calibration: Training new PCA on synthetic data...")
+            
+            # Generate synthetic prompts matching procedural warmup
+            synthetic_prompts = self._generate_synthetic_data(n=1000)
+            logger.info(f"  Generated {len(synthetic_prompts)} synthetic prompts")
+            
+            # Encode to get embeddings
+            logger.info("  Encoding prompts...")
+            embeddings = self.encoder.encode(
+                synthetic_prompts,
+                show_progress_bar=False,
+                normalize_embeddings=True
+            )
+            logger.info(f"  Embeddings shape: {embeddings.shape}")
+            
+            # Fit PCA
+            from sklearn.decomposition import PCA
+            n_components = 32  # Target dimensionality
+            new_pca = PCA(n_components=n_components)
+            new_pca.fit(embeddings)
+            
+            # Variance validation
+            explained_var = np.sum(new_pca.explained_variance_ratio_)
+            logger.info(f"  JIT PCA Explained Variance: {explained_var:.1%}")
+            
+            if explained_var < target_variance:
+                logger.error(
+                    f"🛑 CRITICAL: PCA manifold collapse! "
+                    f"Variance capture {explained_var:.1%} < target {target_variance:.1%}. "
+                    f"Consider increasing n_components or checking encoder quality."
+                )
+                # Proceed anyway (better than crashing), but flag for monitoring
+            
+            self.pca = new_pca
+            logger.info(f"  ✓ JIT PCA ready ({embeddings.shape[1]}→{n_components})")
+            
+            # Phase 3: Persist for next startup (cache-aside pattern)
+            if pca_path:
+                try:
+                    import joblib
+                    pca_path = Path(pca_path)
+                    pca_path.parent.mkdir(parents=True, exist_ok=True)
+                    jl.dump(new_pca, pca_path)
+                    logger.info(f"  💾 Saved JIT PCA to {pca_path} for future use")
+                except Exception as e:
+                    logger.warning(f"  ⚠️ Could not persist PCA (non-fatal): {e}")
+
     def _procedural_warmup(self, n_samples: int = 50):
+
         """
         Shape the covariance matrix A using synthetic archetypal prompts.
         
