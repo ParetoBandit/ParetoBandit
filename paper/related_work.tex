@@ -1,0 +1,136 @@
+\section{Related Work}
+
+This comparison is critical for positioning BanditGPT. The existing literature is strong, but each paper has a specific "blind spot" that BanditGPT addresses. Below we contrast BanditGPT against four key academic papers and three industry standards.
+
+\subsection{Academic Comparisons}
+
+\subsubsection{vs. ``C2MAB-V'' (Dai et al., 2024)}
+\noindent \textbf{Their Focus:} Routing to a combination (set) of LLMs for collaborative tasks (e.g., ``Use GPT-4 and Claude-2 together''). They handle the combinatorial explosion using relaxation techniques on a local-cloud architecture.
+
+\noindent \textbf{The Gap:} They focus on orchestration, not granular single-model selection. Their context is high-level (Task Type), missing the semantic nuance of the specific prompt. They also start Cold, learning purely from online feedback.
+
+\noindent \textbf{BanditGPT Difference:}
+``Unlike C2MAB-V \cite{dai2024c2mabv}, which focuses on the combinatorial selection of sets of LLMs for collaborative tasks, BanditGPT targets the high-frequency single-model routing problem. Furthermore, while C2MAB-V suffers from cold-start inefficiency by learning strictly online, BanditGPT eliminates the initial regret cliff via Synthetic Procedural Warmup, transferring structural knowledge before the first real user request.''
+
+\subsubsection{vs. ``PILOT: Adaptive LLM Routing'' (Panda et al., 2025)}
+\noindent \textbf{Their Focus:} Initializing a shared embedding space using Human Preference Data (e.g., Chatbot Arena logs) and using LinUCB with a knapsack constraint for budgeting.
+
+\noindent \textbf{The Gap:} They rely on Real Human Data for initialization. This data is sparse, noisy, and expensive to curate. It essentially ``memorizes'' the leaderboard. They also use standard dense embeddings, which can wash out fine-grained signals.
+
+\noindent \textbf{BanditGPT Difference:}
+``While PILOT \cite{panda2025pilot} initializes its router using sparse and noisy human preference data, BanditGPT introduces Generative Calibration: using high-density synthetic data to pre-train the covariance matrix. This allows us to deliberately cover `corner cases' (e.g., complex LaTeX math) that are underrepresented in human logs, ensuring a more robust feature geometry ($A$) than methods relying solely on organic traces.''
+
+\subsubsection{vs. ``LLM Bandit'' (Li, 2025)}
+\noindent \textbf{Their Focus:} Preference-Conditioned routing. They allow users to specify a weight vector $\omega$ (e.g., ``80\% Quality, 20\% Cost'') at inference time. They use ``Model Identity Vectors'' learned via IRT.
+
+\noindent \textbf{The Gap:} Their training phase is not a true bandit; it requires Full-Information Offline Supervision (evaluating all models on all training prompts) to learn the identity vectors. This is computationally expensive ($O(N \times K)$ evaluations).
+
+\noindent \textbf{BanditGPT Difference:}
+``Li \cite{li2025llmbandit} relies on expensive full-information offline evaluation to construct model identity vectors, requiring exhaustive inference on the training set. BanditGPT achieves comparable routing precision with partial-feedback online learning, utilizing Explicit Syntactic Skip-Connections (Regex features) to detect model-specific strengths without the prohibitive cost of an offline exhaustive search.''
+
+\subsubsection{vs. ``BaRP'' (Anonymous ICLR 2026)}
+\noindent \textbf{Their Focus:} A Policy Gradient (Deep RL) approach that also conditions on user preferences. They aim to solve the ``One Policy, Many Trade-offs'' problem using REINFORCE.
+
+\noindent \textbf{The Gap:} Deep RL (Policy Gradients) is notoriously sample inefficient and unstable compared to Linear Bandits. They lack a mechanism for injecting prior domain knowledge (Cold Start), meaning the router behaves randomly for the first few thousand requests.
+
+\noindent \textbf{BanditGPT Difference:}
+``BaRP proposes a Deep RL policy that offers inference-time controllability but suffers from high sample complexity and cold-start instability. BanditGPT addresses this via a White-Box Linear Architecture initialized with Structural Priors. By mathematically injecting domain beliefs (e.g., `Code requires Reasoning') into the covariance matrix, we achieve convergence orders of magnitude faster than black-box neural policies.''
+
+\begin{table*}[h]
+\centering
+\caption{Summary Comparison of Bandit Routers}
+\label{tab:comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llllll@{}}
+\toprule
+\textbf{Feature} & \textbf{C2MAB-V (Dai)} & \textbf{PILOT (Panda)} & \textbf{LLM Bandit (Li)} & \textbf{BaRP (Anon)} & \textbf{BanditGPT (Ours)} \\ \midrule
+\textbf{Routing Target} & Combinatorial Set & Single Model & Single Model & Single Model & Single Model \\
+\textbf{Initialization} & Cold Start & Human Data (Sparse) & Full Offline Eval & Random Weights & Synthetic Priors (Dense) \\
+\textbf{Algorithm} & Relaxed Opt. & LinUCB & PPO / IRT & Policy Gradient & LinUCB + Calibration \\
+\textbf{Input Context} & Task Type & Dense Embedding & Identity Vectors & Dense Embedding & Hybrid (Embed + Syntax) \\
+\textbf{Novelty Claim} & Multi-Model Sets & Human Pref. Init & Preference Control & Preference Control & Sim-to-Real Transfer \\ \bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+\subsection{A Taxonomy of LLM Routing Architectures}
+
+Recent advances in efficient LLM inference have led to a diverse landscape of routing strategies. We categorize existing open-source solutions into three primary architectures—Cascades, Static Predictors, and Semantic Maps—and contrast them with our proposed Adaptive Bandit framework.
+
+\subsubsection{Cascading Architectures}
+
+Cascading systems, exemplified by FrugalGPT \cite{chen2023frugalgpt}, optimize cost by sequentially querying models from cheapest to most expensive. The router evaluates the response of a smaller model (e.g., Llama-3-8B) using a scoring function; if the score is insufficient, the query is escalated to a larger model (e.g., GPT-4).
+
+\noindent \textbf{Limitation:} While cost-efficient, cascades introduce non-deterministic latency and multi-inference overhead. A difficult query incurs the latency sum of all failed attempts plus the final success, leading to ``latency spikes'' that are unacceptable for real-time production systems (e.g., voice agents). Furthermore, the ``scoring function'' often requires an additional LLM call, partially negating the cost savings.
+
+\subsubsection{Static Preference Predictors}
+
+Predictive routers, such as RouteLLM \cite{ong2024routellm}, train a classifier (e.g., BERT or Matrix Factorization) to predict the ``win-rate'' of a model pair based on human preference datasets like LMSYS Chatbot Arena.
+
+\noindent \textbf{Limitation:} These policies are static. They are trained offline on global preference data and cannot adapt to domain-specific drift (e.g., a new internal coding standard) without expensive retraining. Additionally, they suffer from the ``Cold Start'' problem: adding a newly released model requires collecting thousands of new pairwise comparisons before the router can effectively utilize it.
+
+\subsubsection{Semantic Maps}
+
+Semantic routers (e.g., Aurelio, Semantic Router) utilize static embedding centroids to map queries to predefined routes based on semantic similarity. A query is routed to the ``Math'' model if its embedding vector is sufficiently close to a cluster of reference math prompts.
+
+\noindent \textbf{Limitation:} This approach relies on the ``Topic $\approx$ Difficulty'' fallacy. It assumes that all queries within a semantic cluster require the same level of capability. As a result, it fails to distinguish between simple arithmetic (solvable by Haiku) and complex proofs (requiring Opus), forcing the user to provision for the worst-case complexity within each topic.
+
+\subsubsection{BanditGPT: The Adaptive Single-Shot Router}
+
+BanditGPT (Ours) addresses the limitations of the above categories by formulating routing as a Contextual Linear Bandit problem.
+
+\begin{itemize}
+    \item \textbf{Vs. Cascades:} It is a \textit{Single-Shot} router. It predicts the optimal model before inference, guaranteeing deterministic latency and strictly one inference cost per request.
+    \item \textbf{Vs. Predictors:} It is an \textit{Online Learner}. Through continuous bandit feedback (e.g., user acceptance/rejection), it updates its covariance matrix $\mathbf{A}$ in real-time, adapting to distribution shifts that static predictors miss.
+    \item \textbf{Vs. Semantic Maps:} It utilizes a \textit{Hybrid Context} (Embeddings + Syntactic Features). By explicitly encoding structural complexity (e.g., \texttt{latex\_density}, \texttt{code\_block\_count}) orthogonal to semantic meaning, it disentangles ``Topic'' from ``Hardness,'' allowing granular routing within domains.
+\end{itemize}
+
+\begin{table*}[h]
+\centering
+\caption{Feature Comparison of Routing Frameworks}
+\label{tab:routing_comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llllll@{}}
+\toprule
+\textbf{Architecture} & \textbf{Representative} & \textbf{Inference Latency} & \textbf{Adaptability} & \textbf{Cold Start Handling} & \textbf{Context Awareness} \\ \midrule
+Cascade & FrugalGPT & High (Sequential) & None (Static Thresholds) & N/A & Output Scoring \\
+Predictor & RouteLLM & Low (Single-Shot) & Low (Offline Training) & High Cost (Requires Labeling) & Dense Embedding \\
+Semantic Map & Aurelio & Lowest (Vector Search) & None (Fixed Centroids) & Manual Assignment & Semantic Cluster \\
+Bandit (Ours) & BanditGPT & Low (Linear Ops) & High (Online Update) & Sim-to-Real Transfer & Hybrid (Sem + Syntax) \\ \bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+\noindent \textit{Table~\ref{tab:routing_comparison}: A comparison of standard open-source routing architectures. BanditGPT uniquely combines single-shot latency with online adaptability and automated cold-start handling via synthetic priors.}
+
+\subsection{Baseline Selection and Experimental Justification}
+
+We benchmark BanditGPT against RouteLLM (Matrix Factorization), which represents the current state-of-the-art for static routing. To ensure a strong baseline, we utilize the ``Augmented'' version of RouteLLM trained on both LMSYS and Nectar datasets.
+
+We exclude FrugalGPT from our latency-constrained experiments, as its sequential cascading mechanism violates our strict requirement for deterministic sub-500ms time-to-first-token (TTFT). We exclude Semantic Router as it lacks a mechanism for quality-aware routing within a single semantic domain.
+
+\subsection{Synthesis}
+
+Current open-source routing solutions generally fall into three categories: Cascades, Predictors, and Static Maps.
+1. \textbf{Cascades} like FrugalGPT optimize cost by sequentially chaining models, but introduce non-deterministic latency and multi-inference overhead.
+2. \textbf{Predictors} like RouteLLM train static classifiers on offline human preferences, lacking the ability to adapt to online distribution shifts without expensive retraining.
+3. \textbf{Static Maps} (e.g., Semantic Router) rely on fixed embedding centroids, failing to detect hardness variations within semantic clusters.
+
+BanditGPT unifies the strengths of these approaches while mitigating their weaknesses. It achieves the single-shot latency of Static Maps, the quality awareness of Predictors, and the cost-efficiency of Cascades, all driven by a novel Online Linear Bandit initialized with Synthetic Priors to ensure robust cold-start performance.
+
+\begin{table*}[h]
+\centering
+\caption{When to Choose What: Decision Matrix}
+\label{tab:decision_matrix}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{Scenario} & \textbf{Use FrugalGPT} & \textbf{Use RouteLLM} & \textbf{Use Aurelio} & \textbf{Use BanditGPT} \\ \midrule
+\textbf{Primary Goal} & Minimize cost at all costs (even latency) & General-purpose chat routing (Chatbot Arena style) & Guardrailing or very strict topic enforcement & Production Routing (Latency + Cost + Quality balance) \\
+\textbf{Inference Constraints} & Latency is flexible (users can wait) & High compute available for routing model & Zero-shot, rule-based logic required & Low Latency (<50ms overhead) required \\
+\textbf{Data Availability} & None required & Requires Human Preference logs & Requires ``Golden Examples'' for clusters & None (Synthetic Warmup handles it) \\
+\textbf{Adaptability} & Static policy & Static policy (requires retraining) & Static policy & Dynamic (Learns from user feedback) \\
+\textbf{Handling New Models} & Easy (just add to chain) & Hard (needs new training data) & Easy (manual assignment) & Instant (via Registry + Warmup) \\ \bottomrule
+\end{tabular}%
+}
+\end{table*}
