@@ -123,7 +123,7 @@ def create_router_with_custom_covariance(cov_type="full", cov_matrix=None, n_off
     
     # Get paths
     base_dir = Path(__file__).parent.parent.parent
-    pca_path = base_dir / "data" / "pca_32.joblib"
+    pca_path = base_dir / "artifacts" / "pca_32.joblib"
     priors_meta_path = base_dir / "priors" / "priors_meta_pca.npz"
     
     if not pca_path.exists():

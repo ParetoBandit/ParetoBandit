@@ -1747,7 +1747,7 @@ class BanditRouter:
         # 3. Initialize
         # Determine PCA path - in data/ subdirectory
         # PCA file is now in root data/ directory
-        pca_path_default = base_dir.parent.parent / "data" / "pca_32.joblib"
+        pca_path_default = base_dir.parent.parent / "artifacts" / "pca_32.joblib"
         if not pca_path_default.exists():
             logger.warning(f"PCA file not found at {pca_path_default}. Router will use 384-dim embeddings.")
         

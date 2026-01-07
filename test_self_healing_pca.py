@@ -54,7 +54,7 @@ def test_normal_case():
     print("="*70)
     
     # Use default PCA path (should exist)
-    pca_path = Path(__file__).parent / "src" / "bandit_gpt" / "data" / "pca_32.joblib"
+    pca_path = Path(__file__).parent / "artifacts" / "pca_32.joblib"
     
     if not pca_path.exists():
         print(f"⚠️  SKIP: Default PCA not found at {pca_path}")
