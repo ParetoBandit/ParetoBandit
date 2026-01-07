@@ -119,7 +119,14 @@ class SqliteContextStore(ContextStore):
     """
     
     def __init__(self, db_path: str | Path = "data/router_context.db", ttl_seconds: int = 86400 * 7):
-        self.db_path = str(db_path)
+        # Resolve path relative to project root if not absolute
+        path = Path(db_path)
+        if not path.is_absolute():
+            # Get project root (parent of src/bandit_gpt/)
+            project_root = Path(__file__).parent.parent.parent
+            path = project_root / db_path
+        
+        self.db_path = str(path)
         self.ttl = ttl_seconds
         self.write_timeout = 5.0  # seconds
         self.read_timeout = 1.0   # seconds

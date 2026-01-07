@@ -68,21 +68,53 @@ def load_train_prompts(filename: str = "train_prompts.jsonl") -> List[Dict]:
     return prompts
 
 
-def load_oracle_rewards(model_id: str, prompts: List[Dict]) -> np.ndarray:
+def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict[str, Dict[str, float]]:
     """
-    [PLACEHOLDER] Load oracle rewards for a specific model.
+    Load oracle rewards from JSONL file for offline replay evaluation.
+    
+    Returns nested dict: prompt_text → model_id → reward
+    This enables O(1) lookup: oracle_rewards[prompt][model_id]
     
     Args:
-        model_id: model identifier (e.g., "gpt-4")
-        prompts: list of prompts
+        filename: JSONL file with model responses and rewards
     
     Returns:
-        oracle rewards (shape: [n_prompts])
+        Dict mapping prompt → {model_id → raw_score}
+    
+    Example:
+        >>> oracle = load_oracle_rewards()
+        >>> reward = oracle["What is 2+2?"]["openai/gpt-4o"]
+        0.95
     """
-    # TODO: Implement actual oracle reward loading
-    # For now, return dummy data
-    n = len(prompts)
-    return np.random.uniform(0.7, 1.0, size=n)
+    # Try offline_dataset subdirectory first (HLE-filtered data)
+    filepath = DATA_DIR / "offline_dataset" / filename
+    if not filepath.exists():
+        # Fallback to main data directory
+        filepath = DATA_DIR / filename
+    
+    if not filepath.exists():
+        raise FileNotFoundError(f"Oracle rewards not found at {filepath}")
+    
+    oracle_rewards: Dict[str, Dict[str, float]] = {}
+    
+    with open(filepath) as f:
+        for line in f:
+            entry = json.loads(line)
+            if entry.get("ok"):  # Only include successful responses
+                prompt = entry["prompt"]
+                model_id = entry["model_id"]
+                reward = entry["raw_score"]
+                
+                if prompt not in oracle_rewards:
+                    oracle_rewards[prompt] = {}
+                oracle_rewards[prompt][model_id] = reward
+    
+    # Summary stats
+    n_prompts = len(oracle_rewards)
+    n_models = len(set(m for rewards in oracle_rewards.values() for m in rewards))
+    print(f"✓ Loaded oracle rewards: {n_prompts} prompts × {n_models} models")
+    
+    return oracle_rewards
 
 
 def load_model_registry() -> Dict[str, Dict]:
@@ -90,7 +122,7 @@ def load_model_registry() -> Dict[str, Dict]:
     Load model registry from models.json.
     
     Returns:
-        dict mapping model_id -> {bias, weights}
+        dict mapping openrouter_id -> model config
     """
     models_file = PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models.json"
     
@@ -98,10 +130,21 @@ def load_model_registry() -> Dict[str, Dict]:
         raise FileNotFoundError(f"models.json not found at {models_file}")
     
     with open(models_file) as f:
-        models = json.load(f)
+        data = json.load(f)
     
-    print(f"✓ Loaded {len(models)} models from registry")
-    return models
+    # Handle nested format: {"models": [...]}
+    if isinstance(data, dict) and "models" in data:
+        models_list = data["models"]
+    elif isinstance(data, list):
+        models_list = data
+    else:
+        raise ValueError(f"Unexpected models.json format: {type(data)}")
+    
+    # Convert to dict keyed by openrouter_id
+    registry = {m["openrouter_id"]: m for m in models_list}
+    
+    print(f"✓ Loaded {len(registry)} models from registry")
+    return registry
 
 
 def create_train_test_split(

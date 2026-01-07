@@ -30,8 +30,8 @@ def calculate_cumulative_regret(
         >>> calculate_cumulative_regret(selected, oracle)
         array([0.4, 0.6, 0.9])
     """
-    selected = np.array(selected)
-    oracle = np.array(oracle)
+    selected = np.array(selected_rewards)
+    oracle = np.array(oracle_rewards)
     
     instantaneous_regret = oracle - selected
     cumulative_regret = np.cumsum(instantaneous_regret)

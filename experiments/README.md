@@ -17,6 +17,7 @@ This directory contains all experimental code for the BanditGPT KDD submission.
 | **Section 4.5** | BanditGPT achieves better cost-quality tradeoffs than random routing | [`05_cost_tradeoff/`](05_cost_tradeoff/) | `fig5_pareto_frontier.pdf` |
 | **Appendix A** | Prior strength sensitivity: Default N=10 provides optimal convergence | [`06_sensitivity_analysis/`](06_sensitivity_analysis/) | `fig6_sensitivity_analysis.pdf` |
 | **Figure 1** | Pareto Arbitrage: BanditGPT lies above the model convex hull ("Free Lunch") | [`07_pareto_arbitrage/`](07_pareto_arbitrage/) | `fig1_arbitrage_curve.pdf` |
+| **Section 4.6** | Cold Start Defense: BanditGPT priors solve the cold-start problem | [`08_regret_convergence/`](08_regret_convergence/) | `fig8_regret_convergence.pdf` |
 
 
 ---
@@ -43,6 +44,8 @@ python 03_warmup_dynamics/run_warmup_velocity.py
 python 04_safety_pruning/run_unicorn_simulation.py
 python 05_cost_tradeoff/run_pareto.py
 python 06_sensitivity_analysis/run_sensitivity.py
+python 07_pareto_arbitrage/run_arbitrage.py
+python 08_regret_convergence/run_convergence.py
 ```
 
 ### 3. Generate All Plots
@@ -55,6 +58,8 @@ python 03_warmup_dynamics/plot_early_convergence.py
 python 04_safety_pruning/plot_survival_rate.py
 python 05_cost_tradeoff/plot_pareto.py
 python 06_sensitivity_analysis/plot_sensitivity.py
+python 07_pareto_arbitrage/plot_arbitrage.py
+python 08_regret_convergence/plot_convergence.py
 ```
 
 ---

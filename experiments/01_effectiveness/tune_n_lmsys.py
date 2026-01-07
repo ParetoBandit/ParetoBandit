@@ -36,7 +36,7 @@ from bandit_gpt.utils import calibrate_complexity
 # =============================================================================
 # CONFIGURATION  
 # =============================================================================
-LMSYS_PATH = repo_root / "src/bandit_gpt/data/lmsys_barbell_20k_minimal.jsonl"
+LMSYS_PATH = repo_root / "src/bandit_gpt/data/offline_dataset/lmsys_barbell_20k_minimal.jsonl"
 OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_PLOT = OUTPUT_DIR / "sensitivity_n_lmsys.pdf"
 OUTPUT_JSON = OUTPUT_DIR / "sensitivity_n_lmsys.json"

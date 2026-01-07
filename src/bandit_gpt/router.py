@@ -706,6 +706,22 @@ class DisjointLinUCBPolicy:
         if model_name in self.A_inv: del self.A_inv[model_name]
         if model_name in self.last_update: del self.last_update[model_name]
 
+    def refresh_inverse_cache(self) -> None:
+        """
+        Recomputes A_inv for all models after a bulk load.
+        
+        This is needed when loading pre-trained warmup state, where A matrices
+        are updated directly but the inverse cache becomes stale.
+        
+        Thread-safe: Uses lock to prevent concurrent reads during refresh.
+        """
+        with self._lock:
+            self.A_inv = {}
+            for m in self.models:
+                if m in self.A:
+                    # Recompute inverse using safe_inv (handles near-singular matrices)
+                    self.A_inv[m] = safe_inv(self.A[m])
+
 
     def select_arm(
         self, 
@@ -1667,6 +1683,7 @@ class BanditRouter:
                            If provided, context_model is ignored.
             priors: Prior type to load:
                 - "hle": Hard Label Evaluation scores (generic, unbiased) [DEFAULT]
+                - "warmup": Pre-generated synthetic experience from IRT simulation
                 - "none": Cold start (no priors)
             prior_n_effective: Effective sample size for belief strength (b vector scaling).
                               Default: Auto-selected based on priors type:
@@ -1745,7 +1762,61 @@ class BanditRouter:
             router.bandit.load_state(state_path)
             return router
         
+        # Warmup Priors Mode: Load Pre-Generated Synthetic Experience
+        if priors == "warmup":
+            priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
+            
+            if not priors_path.exists():
+                logger.warning(f"⚠️ Warmup file not found at {priors_path}! Falling back to cold start.")
+                # Fallback to cold start
+                return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                          alpha=alpha,
+                          init_lambda=init_lambda,
+                          update_lambda=update_lambda,
+                          forgetting_factor=forgetting_factor,
+                          cluster_boost_weight=cluster_boost_weight,
+                          pca_path=pca_path_default if pca_path_default.exists() else None,
+                          anchors=anchors)
+            
+            if joblib is None:
+                raise ImportError("joblib is required for warmup priors loading. Install with: pip install joblib")
+            
+            logger.info(f"⚡ Loading Pre-Computed Warmup from {priors_path}")
+            
+            # Load the warmup data
+            warmup_data = joblib.load(priors_path)
+            n_warmup_samples = warmup_data.get("n", "unknown")
+            logger.info(f"   Warmup contains {n_warmup_samples} synthetic samples")
+            
+            # Create router instance first
+            router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
+                        alpha=alpha,
+                        init_lambda=init_lambda,
+                        update_lambda=update_lambda,
+                        forgetting_factor=forgetting_factor,
+                        cluster_boost_weight=cluster_boost_weight,
+                        pca_path=pca_path_default if pca_path_default.exists() else None,
+                        anchors=anchors)
+            
+            # Inject the pre-trained matrices directly into the bandit
+            # We must ensure only models that exist in both warmup and registry are updated
+            models_loaded = 0
+            for model_id in router.bandit.models:
+                if model_id in warmup_data["A"] and model_id in warmup_data["b"]:
+                    router.bandit.A[model_id] = warmup_data["A"][model_id]
+                    router.bandit.b[model_id] = warmup_data["b"][model_id]
+                    models_loaded += 1
+            
+            logger.info(f"   Loaded warmup state for {models_loaded}/{len(router.bandit.models)} models")
+            
+            # CRITICAL: Refresh inverse cache after bulk state injection
+            router.bandit.refresh_inverse_cache()
+            
+            logger.info("   ✅ Warmup state loaded successfully")
+            return router
+        
         # HLE Priors Mode: Use Zero-Shot Warm Start
+
         # With Virtual Anchors, we don't need LMSYS covariance matrices.
         # The 50-dimensional feature space learns fast with A = λI.
         if priors == "hle":
@@ -1780,7 +1851,8 @@ class BanditRouter:
                       anchors=anchors)
         
         # Unknown priors type
-        raise ValueError(f"Unknown priors type: '{priors}'. Use 'hle' or 'none'.")
+        raise ValueError(f"Unknown priors type: '{priors}'. Use 'hle', 'warmup', or 'none'.")
+
 
     def _load_zero_shot_priors(self, prior_n_effective: float):
         """
