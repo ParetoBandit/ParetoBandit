@@ -177,6 +177,124 @@ router.process_feedback(request_id, reward)  # Still works!
 
 See [tests/test_durable_context_store.py](tests/test_durable_context_store.py) for validation tests.
 
+### Database Storage: Where Your Data Lives
+
+BanditGPT automatically creates a SQLite database to persist routing contexts, but **only when you actually use feedback**. Understanding where this database lives and when it's created helps you manage your installation.
+
+#### Storage Location (Automatic Detection)
+
+The database location depends on how you're using BanditGPT:
+
+| Environment | Database Location | When It's Created |
+|-------------|-------------------|-------------------|
+| **Library Install** (`pip install`) | `~/.bandit_gpt/router_context.db` | On first feedback |
+| **Development** (cloned repo) | `<repo>/data/router_context.db` | On first feedback |
+| **Custom Path** | User-specified absolute path | On first feedback |
+
+**How it works:**
+```python
+from bandit_gpt import BanditRouter
+
+# Create router - NO database created yet
+router = BanditRouter.create()
+
+# Route prompts - NO database created
+model = router.route("What is Python?")
+
+# Process feedback - NOW database is created
+router.process_feedback(request_id, reward=0.95)  # ← Database created here
+```
+
+#### Lazy Initialization (No Wasted Files)
+
+**The Problem**: Earlier versions created the database immediately on import, cluttering your filesystem even if you never used feedback.
+
+**The Solution**: Lazy initialization means the database is **only created when you actually need it**:
+
+```python
+# Routing-only workflow - NO files created
+router = BanditRouter.create()
+for prompt in prompts:
+    model = router.route(prompt)
+    # No database files created!
+
+# Feedback workflow - Database created on first use
+router.process_feedback(request_id, reward)  # ← Creates ~/.bandit_gpt/router_context.db
+```
+
+**What gets created** (when you use feedback):
+```
+~/.bandit_gpt/
+├── router_context.db      # SQLite database (starts at ~20KB)
+├── router_context.db-wal  # Write-ahead log (for concurrency)
+└── router_context.db-shm  # Shared memory file
+```
+
+#### Managing Database Size
+
+The database grows over time as you process more feedback. BanditGPT includes automatic cleanup:
+
+```python
+# Check database stats
+stats = router.context_store.stats()
+print(f"Total contexts: {stats['total_contexts']}")
+print(f"Database size: {stats['db_size_mb']} MB")
+
+# Manually prune old entries (older than 7 days by default)
+deleted = router.context_store.prune()
+print(f"Deleted {deleted} old contexts")
+```
+
+**Default TTL**: Context entries are automatically pruned after **7 days**. You can customize this:
+
+```python
+from bandit_gpt.storage import SqliteContextStore
+
+# Custom TTL: 30 days
+store = SqliteContextStore(ttl_seconds=86400 * 30)
+router = BanditRouter.create(context_store=store)
+```
+
+#### Development vs Production
+
+**Development Setup** (cloned repo):
+- Database created at: `<repo>/data/router_context.db`
+- Easy to inspect, delete, and regenerate
+- Automatically detected via presence of `.git`, `pyproject.toml`, etc.
+
+**Production Setup** (pip install):
+- Database created at: `~/.bandit_gpt/router_context.db`
+- Persists across package upgrades
+- Per-user isolation (safe for multi-user systems)
+- Writable location (no permission errors)
+
+**Finding your database:**
+```bash
+# Library install
+ls -lh ~/.bandit_gpt/router_context.db
+
+# Development
+ls -lh data/router_context.db
+```
+
+#### Custom Database Location
+
+You can specify a custom path for full control:
+
+```python
+from bandit_gpt.storage import SqliteContextStore
+
+# Custom location
+store = SqliteContextStore(db_path="/var/app/bandit_router.db")
+router = BanditRouter.create(context_store=store)
+```
+
+**Best practices:**
+- ✅ Use default for most cases (automatic, just works)
+- ✅ Use custom path for production deployments with specific storage requirements
+- ✅ Use absolute paths for deterministic behavior
+- ❌ Don't hardcode paths that might not exist on other machines
+
 ### Tiered Safety: Async Toxicity Auditing
 
 BanditGPT uses **Optimistic Safety with Asynchronous Audit** to prevent toxicity scanning from destroying P99 latency:
