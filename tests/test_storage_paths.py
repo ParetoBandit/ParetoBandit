@@ -92,7 +92,7 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             self.assertIn(".bandit_gpt", str(expected_user_path))
     
     def test_relative_path_creates_parent_dirs(self):
-        """Test that parent directories are created automatically."""
+        """Test that parent directories are created automatically on first use."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "subdir" / "nested" / "test.db"
             
@@ -102,7 +102,14 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             # Initialize store with path
             store = SqliteContextStore(db_path=str(db_path))
             
-            # Parent dirs should be created
+            # Parent dirs still shouldn't exist (lazy init)
+            self.assertFalse(db_path.parent.exists())
+            
+            # Trigger database creation
+            import numpy as np
+            store.save_context("test", np.random.rand(32), "model")
+            
+            # Now parent dirs should be created
             self.assertTrue(db_path.parent.exists())
             self.assertTrue(Path(store.db_path).exists())
     
@@ -114,13 +121,16 @@ class TestSqliteContextStorePaths(unittest.TestCase):
         try:
             store = SqliteContextStore(db_path=str(user_db_path))
             
-            # Verify it was created
-            self.assertTrue(Path(store.db_path).exists())
+            # DB should NOT exist yet (lazy init)
+            self.assertFalse(Path(store.db_path).exists())
             
             # Test basic operations
             import numpy as np
             test_context = np.random.rand(32)
             store.save_context("test_request_123", test_context, "test/model")
+            
+            # Now it should exist
+            self.assertTrue(Path(store.db_path).exists(), "Database should be created after first save")
             
             # Retrieve it
             retrieved_ctx, retrieved_model = store.get_context("test_request_123")
@@ -132,6 +142,11 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             # Cleanup
             if user_db_path.exists():
                 user_db_path.unlink()
+                # Clean up WAL and SHM files
+                for suffix in ["-wal", "-shm"]:
+                    wal_file = Path(str(user_db_path) + suffix)
+                    if wal_file.exists():
+                        wal_file.unlink()
                 # Try to remove dir if empty
                 try:
                     user_db_path.parent.rmdir()

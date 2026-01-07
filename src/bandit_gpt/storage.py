@@ -122,6 +122,9 @@ class SqliteContextStore(ContextStore):
         """
         Initialize SQLite context store with intelligent path resolution.
         
+        **Lazy Initialization**: Database file is NOT created until first use.
+        This prevents cluttering ~/.bandit_gpt/ for users who only route without feedback.
+        
         **Path Resolution Strategy**:
         - Absolute path: Use as-is
         - Relative path in dev mode: Resolve to repo's data/ directory
@@ -140,14 +143,24 @@ class SqliteContextStore(ContextStore):
             # Smart resolution: detect dev mode vs library install
             resolved_path = self._resolve_db_path(path)
         
-        # Ensure parent directory exists
-        resolved_path.parent.mkdir(parents=True, exist_ok=True)
-        
         self.db_path = str(resolved_path)
         self.ttl = ttl_seconds
         self.write_timeout = 5.0  # seconds
         self.read_timeout = 1.0   # seconds
-        self._init_db()
+        self._initialized = False  # Lazy initialization flag
+    
+    def _ensure_initialized(self):
+        """
+        Lazy initialization: Create database only on first use.
+        
+        This prevents creating ~/.bandit_gpt/router_context.db for users who
+        never use context storage (e.g., routing-only without feedback).
+        """
+        if not self._initialized:
+            # Ensure parent directory exists before creating DB
+            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+            self._init_db()
+            self._initialized = True
     
     @staticmethod
     def _resolve_db_path(relative_path: Path) -> Path:
@@ -216,6 +229,7 @@ class SqliteContextStore(ContextStore):
     
     def save_context(self, request_id: str, context: np.ndarray, model_id: str) -> None:
         """Save context with robust error handling (never crashes router)."""
+        self._ensure_initialized()  # Lazy init: create DB on first save
         try:
             blob = pickle.dumps(context, protocol=pickle.HIGHEST_PROTOCOL)
             with sqlite3.connect(self.db_path, timeout=self.write_timeout) as conn:
@@ -235,6 +249,7 @@ class SqliteContextStore(ContextStore):
     
     def get_context(self, request_id: str) -> Tuple[np.ndarray | None, str | None]:
         """Retrieve context with timeout and error handling."""
+        self._ensure_initialized()  # Lazy init: create DB if needed for retrieval
         try:
             with sqlite3.connect(self.db_path, timeout=self.read_timeout) as conn:
                 cursor = conn.execute(
@@ -258,6 +273,7 @@ class SqliteContextStore(ContextStore):
     
     def prune(self, force: bool = False) -> int:
         """Remove entries older than TTL. Returns count of deleted rows."""
+        self._ensure_initialized()  # Lazy init: create DB if pruning non-existent DB
         try:
             with sqlite3.connect(self.db_path, timeout=10.0) as conn:
                 if force:
@@ -283,6 +299,7 @@ class SqliteContextStore(ContextStore):
     
     def stats(self) -> dict:
         """Get database statistics for monitoring/debugging."""
+        self._ensure_initialized()  # Lazy init: create DB if getting stats
         try:
             with sqlite3.connect(self.db_path, timeout=1.0) as conn:
                 # Get counts and timestamps
