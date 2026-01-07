@@ -4,6 +4,7 @@ Data loading utilities for BanditGPT experiments.
 Provides consistent data loading across all experiments.
 """
 
+import gzip
 import json
 import numpy as np
 from pathlib import Path
@@ -75,6 +76,8 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
     Returns nested dict: prompt_text → model_id → reward
     This enables O(1) lookup: oracle_rewards[prompt][model_id]
     
+    Automatically detects and decompresses .gz files.
+    
     Args:
         filename: JSONL file with model responses and rewards
     
@@ -87,17 +90,32 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
         0.95
     """
     # Try offline_dataset subdirectory first (HLE-filtered data)
-    filepath = DATA_DIR / "offline_dataset" / filename
-    if not filepath.exists():
-        # Fallback to main data directory
-        filepath = DATA_DIR / filename
+    base_filepath = DATA_DIR / "offline_dataset" / filename
     
-    if not filepath.exists():
-        raise FileNotFoundError(f"Oracle rewards not found at {filepath}")
+    # Check for compressed version first (.gz)
+    if not base_filepath.exists() and not filename.endswith('.gz'):
+        gz_path = DATA_DIR / "offline_dataset" / f"{filename}.gz"
+        if gz_path.exists():
+            base_filepath = gz_path
+    
+    # Fallback to main data directory
+    if not base_filepath.exists():
+        base_filepath = DATA_DIR / filename
+        if not base_filepath.exists() and not filename.endswith('.gz'):
+            gz_path = DATA_DIR / f"{filename}.gz"
+            if gz_path.exists():
+                base_filepath = gz_path
+    
+    if not base_filepath.exists():
+        raise FileNotFoundError(f"Oracle rewards not found at {base_filepath}")
     
     oracle_rewards: Dict[str, Dict[str, float]] = {}
     
-    with open(filepath) as f:
+    # Open with gzip if .gz extension, otherwise normal open
+    open_fn = gzip.open if str(base_filepath).endswith('.gz') else open
+    mode = 'rt' if str(base_filepath).endswith('.gz') else 'r'
+    
+    with open_fn(base_filepath, mode) as f:
         for line in f:
             entry = json.loads(line)
             if entry.get("ok"):  # Only include successful responses
