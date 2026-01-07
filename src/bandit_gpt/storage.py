@@ -119,18 +119,83 @@ class SqliteContextStore(ContextStore):
     """
     
     def __init__(self, db_path: str | Path = "data/router_context.db", ttl_seconds: int = 86400 * 7):
-        # Resolve path relative to project root if not absolute
-        path = Path(db_path)
-        if not path.is_absolute():
-            # Get project root (parent of src/bandit_gpt/)
-            project_root = Path(__file__).parent.parent.parent
-            path = project_root / db_path
+        """
+        Initialize SQLite context store with intelligent path resolution.
         
-        self.db_path = str(path)
+        **Path Resolution Strategy**:
+        - Absolute path: Use as-is
+        - Relative path in dev mode: Resolve to repo's data/ directory
+        - Relative path in library mode: Resolve to ~/.bandit_gpt/
+        
+        Args:
+            db_path: Database file path (default: "data/router_context.db")
+            ttl_seconds: Time-to-live for context entries (default: 7 days)
+        """
+        path = Path(db_path)
+        
+        if path.is_absolute():
+            # User provided absolute path - use as-is
+            resolved_path = path
+        else:
+            # Smart resolution: detect dev mode vs library install
+            resolved_path = self._resolve_db_path(path)
+        
+        # Ensure parent directory exists
+        resolved_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        self.db_path = str(resolved_path)
         self.ttl = ttl_seconds
         self.write_timeout = 5.0  # seconds
         self.read_timeout = 1.0   # seconds
         self._init_db()
+    
+    @staticmethod
+    def _resolve_db_path(relative_path: Path) -> Path:
+        """
+        Resolve database path intelligently based on install mode.
+        
+        **Detection Logic**:
+        1. Check if running from development repo (has .git or pyproject.toml nearby)
+        2. If dev mode: Use repo's data/ directory
+        3. If library mode: Use ~/.bandit_gpt/
+        
+        This prevents issues with pip installs where site-packages may be read-only.
+        
+        Args:
+            relative_path: Relative path like "data/router_context.db"
+        
+        Returns:
+            Resolved absolute path
+        """
+        # Get the package installation directory
+        package_dir = Path(__file__).parent.parent.parent  # banditGPT repo root or site-packages parent
+        
+        # Check for development mode indicators
+        is_dev_mode = (
+            (package_dir / ".git").exists() or  # Git repo
+            (package_dir / "pyproject.toml").exists() or  # Python project
+            (package_dir / "setup.py").exists() or  # Legacy setup
+            (package_dir / "README.md").exists()  # Project readme
+        )
+        
+        if is_dev_mode:
+            # Development mode: Use repo's data/ directory
+            resolved = package_dir / relative_path
+            import logging
+            logging.getLogger(__name__).info(
+                f"Dev mode detected: Using repo database at {resolved}"
+            )
+        else:
+            # Library install mode: Use user directory
+            # Extract just the filename to avoid creating nested dirs
+            db_filename = relative_path.name if relative_path.name else "router_context.db"
+            resolved = Path.home() / ".bandit_gpt" / db_filename
+            import logging
+            logging.getLogger(__name__).info(
+                f"Library mode detected: Using user database at {resolved}"
+            )
+        
+        return resolved
     
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:

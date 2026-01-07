@@ -1,336 +1,0 @@
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 206, in main
-    _, cold_curve, hle_curve = run_single_trial(
-                               ^^^^^^^^^^^^^^^^^
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 33, in run_single_trial
-    cold_router = BanditRouter.create(registry, exploration="safe", priors="none", prior_strength=0.0)
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-============================================================
-FIGURE 1: REGRET REDUCTION ANALYSIS
-============================================================
-
-[1/5] Loading model registry...
-  Loaded 36 models
-
-[2/5] Loading TEST data (strict hold-out)...
-  Loaded 5000 total prompts (Train + Test)
-
-[3/5] Loading ground truth rewards...
-  Loaded 89622 combined reward entries
-  Built ground truth lookup with 67999 entries
-  Test set clusters: 100
-  Models: 36
-  Expected entries: 3600
-
-[4/5] Processing prompt data...
-  Prompts: 5000
-  Cluster IDs: 5000
-
-[5/5] Running 30 Trials (Sequential Execution)...
-  Each trial: 5000 prompts with different random ordering
-  [Optimization] ClusterDetector disabled for speed (Cluster features will be 0)
-
-[Optimization] Pre-computing context vectors for all prompts...
-DEBUG: ExplorationRate.get('safe') -> 0.1
-  Unique prompts to encode: 5000
-  Encoded 0/5000...  Encoded 100/5000...  Encoded 200/5000...  Encoded 300/5000...  Encoded 400/5000...  Encoded 500/5000...  Encoded 600/5000...  Encoded 700/5000...  Encoded 800/5000...  Encoded 900/5000...  Encoded 1000/5000...  Encoded 1100/5000...  Encoded 1200/5000...  Encoded 1300/5000...  Encoded 1400/5000...  Encoded 1500/5000...  Encoded 1600/5000...  Encoded 1700/5000...  Encoded 1800/5000...  Encoded 1900/5000...  Encoded 2000/5000...  Encoded 2100/5000...  Encoded 2200/5000...  Encoded 2300/5000...  Encoded 2400/5000...  Encoded 2500/5000...  Encoded 2600/5000...  Encoded 2700/5000...  Encoded 2800/5000...  Encoded 2900/5000...  Encoded 3000/5000...  Encoded 3100/5000...  Encoded 3200/5000...  Encoded 3300/5000...  Encoded 3400/5000...  Encoded 3500/5000...  Encoded 3600/5000...  Encoded 3700/5000...  Encoded 3800/5000...  Encoded 3900/5000...  Encoded 4000/5000...  Encoded 4100/5000...  Encoded 4200/5000...  Encoded 4300/5000...  Encoded 4400/5000...  Encoded 4500/5000...  Encoded 4600/5000...  Encoded 4700/5000...  Encoded 4800/5000...  Encoded 4900/5000...  ✓ Pre-computed 5000 vectors.
-    Running Trial 1/30...
-    ✗ Trial 1 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 2/30...
-    ✗ Trial 2 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 3/30...
-    ✗ Trial 3 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 4/30...
-    ✗ Trial 4 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 5/30...
-    ✗ Trial 5 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 6/30...
-    ✗ Trial 6 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 7/30...
-    ✗ Trial 7 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 8/30...
-    ✗ Trial 8 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 9/30...
-    ✗ Trial 9 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 10/30...
-    ✗ Trial 10 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 11/30...
-    ✗ Trial 11 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 12/30...
-    ✗ Trial 12 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 13/30...
-    ✗ Trial 13 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 14/30...
-    ✗ Trial 14 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 15/30...
-    ✗ Trial 15 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 16/30...
-    ✗ Trial 16 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 17/30...
-    ✗ Trial 17 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 18/30...
-    ✗ Trial 18 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 19/30...
-    ✗ Trial 19 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 20/30...
-    ✗ Trial 20 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 21/30...
-    ✗ Trial 21 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 22/30...
-    ✗ Trial 22 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 23/30...
-    ✗ Trial 23 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 24/30...
-    ✗ Trial 24 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 25/30...
-    ✗ Trial 25 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 26/30...
-    ✗ Trial 26 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 27/30...
-    ✗ Trial 27 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 28/30...
-    ✗ Trial 28 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 29/30...
-    ✗ Trial 29 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-    Running Trial 30/30...
-    ✗ Trial 30 failed: BanditRouter.create() got an unexpected keyword argument 'prior_strength'
-Traceback (most recent call last):
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 353, in <module>
-    main()
-  File "/Users/annette/repostitories/llm_jury/final_release/kdd_paper/figure_1/plot_regret.py", line 223, in main
-    min_len = min(len(c) for c in all_cold_curves + all_hle_curves)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: min() iterable argument is empty
