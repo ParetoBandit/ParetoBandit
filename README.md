@@ -674,6 +674,163 @@ curl -L https://raw.githubusercontent.com/<org>/<repo>/<ref>/banditgpt/data/prio
 curl -L https://raw.githubusercontent.com/<org>/<repo>/<ref>/banditgpt/data/priors/expert_priors.npz -o expert_priors.npz
 ```
 
+## Prior Initialization Modes
+
+BanditGPT supports three prior initialization strategies, each trading off between initial knowledge, file dependencies, and mathematical stability.
+
+### Comparison Table
+
+| Mode | A Matrix | b Vector | File Required | Pros | Cons |
+|------|----------|----------|---------------|------|------|
+| **Cold Start** (`priors="none"`) | λI (identity) | 0 (no beliefs) | None | Unbiased baseline | Slow convergence (~1k requests) |
+| **HLE** (`priors="hle"`) | λI (identity) | HLE bias injection | None | Fast, benchmark-guided | No correlations (diagonal only) |
+| **Warmup** (`priors="warmup"`) | Dense (20k samples) | IRT-simulated rewards | 0.85MB `.joblib` | **Full correlations** ("SQL" ↔ "Python") | Requires pre-generation |
+
+### A. Cold Start (`priors="none"`)
+
+Pure unbiased baseline with no domain knowledge:
+
+```python
+router = BanditRouter.create(registry, priors="none")
+# A = λI (identity matrix)
+# b = 0 (zero vector)
+```
+
+**Use Cases:**
+- Academic benchmarking (unbiased baseline)
+- Research experiments requiring tabula rasa
+- Testing pure exploration strategies
+
+**Mathematical Properties:**
+- Maximum plasticity (learns purely from real data)
+- No correlations assumed between features
+- Requires ~1,000 interactions to build stable beliefs
+
+---
+
+### B. HLE (`priors="hle"`)
+
+Lightweight prior based on benchmark scores (Hard Label Evaluation):
+
+```python
+router = BanditRouter.create(
+    registry,
+    priors="hle",
+    prior_n_effective=10.0  # Belief strength (default)
+)
+# A = λI (pure identity, NO procedural warmup)
+# b = N_eff * λ * θ_HLE (HLE scores → bias term)
+```
+
+**Why No Procedural Warmup?**
+
+The **Rank Deficiency Problem**: With d≈53 dimensions, 100 procedural samples would create a rank-deficient covariance matrix:
+
+- **Estimating d×d covariance**: ~2,800 parameters
+- **Rule of thumb**: Need ~10d samples for stable estimation
+- **Required samples**: ~530
+- **Procedural warmup samples**: 100 ❌
+
+**Mathematical Issue**: Small-sample covariances hallucinate spurious correlations from noise (e.g., "SQL prompts need LaTeX models" from 2 out of 3 coincidental matches).
+
+**Solution**: Keep A = λI (pure identity) and let **real user data** build correlations naturally.
+
+**Use Cases:**
+- ✅ **Production deployments** (recommended) - Fast, no files
+- ✅ Environments with limited disk space
+- ✅ When you have HLE benchmark scores
+- ✅ Cold-start with lightweight domain knowledge
+
+---
+
+### C. Warmup (`priors="warmup"`)
+
+Dense covariance learned from 20,000 simulated interactions:
+
+```python
+router = BanditRouter.create(
+    registry,
+    priors="warmup",
+    prior_n_effective=100.0  # Effective belief strength (default)
+)
+# A = A_simulated * (100/20000)  # Dense matrix, scaled
+# b = b_simulated * (100/20000)  # IRT rewards, scaled
+```
+
+**What You Get:**
+- **740,000 Bayesian updates** (20k prompts × 37 models)
+- **Dense covariance matrix** with learned correlations:
+  - Code ↔ Math (models good at coding tend to be good at math)
+  - Reasoning ↔ Complexity (complex prompts require reasoning models)
+  - Chat ↔ Creativity (conversational tasks correlate with creative ability)
+- **Tunable strength** via `prior_n_effective` parameter
+
+**The Scaling Fix** (Critical):
+
+Without scaling (raw N=20,000):
+```
+Diagonal of A ≈ 20,000
+New update adds 1.0
+Impact ratio: 1:20,000 = 0.005% → ZOMBIE MODE ❌
+Router ignores real data!
+```
+
+With scaling (N=100):
+```
+Diagonal of A ≈ 100
+New update adds 1.0
+Impact ratio: 1:100 = 1% → Adaptable ✅
+Router learns from real data!
+```
+
+**Mathematical Property**: Scaling preserves learned weights θ = A⁻¹b while adjusting plasticity:
+```
+θ_scaled = (A × s)⁻¹ (b × s) = A⁻¹b = θ_raw  ← Same preferences!
+```
+
+**Use Cases:**
+- ✅ Production with "smart Day 0" routing
+- ✅ Maximizing initial routing quality
+- ✅ Deployments where 0.85MB overhead is acceptable
+- ✅ When you need feature correlations from Day 1
+
+**File Requirement:**
+- `data/priors_warmup.joblib`: ~0.85 MB (852 KB)
+- Generated once via `scripts/generate_warmup.py` (~1.7 hours)
+
+---
+
+### Decision Tree
+
+```
+Do you have HLE benchmark scores?
+├─ No  → Use "none" (cold start)
+└─ Yes → Do you need feature correlations from Day 1?
+         ├─ No  → Use "hle" (recommended for most)
+         └─ Yes → Do you have 0.85MB disk space + time for generation?
+                  ├─ No  → Use "hle" (best approximation)
+                  └─ Yes → Use "warmup" (maximum Day-0 quality)
+```
+
+### Sample Size Requirements
+
+| Goal | Required Samples | Rationale |
+|------|------------------|-----------|
+| **Non-singular matrix** | N ≥ d | Minimum for invertibility |
+| **Stable estimation** | N ≥ 10d | Rule of thumb for covariance |
+| **High-quality correlations** | N ≫ 10d | Reduce noise, increase signal |
+
+**For d=53 dimensions:**
+- Minimum: 53 samples
+- Stable: 530 samples
+- Warmup: 20,000 samples ✅
+
+**Why 100 samples fails**: Creates noisy, unstable correlations. Better to use clean identity matrix.
+
+---
+
+
+
 ## Installation
 
 ```bash

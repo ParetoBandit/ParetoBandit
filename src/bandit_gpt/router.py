@@ -1709,6 +1709,8 @@ class BanditRouter:
                 prior_n_effective = 10.0  # Calibrated HLE Champion N_prior
             elif priors == "none":
                 prior_n_effective = 0.0   # No priors
+            elif priors == "warmup":
+                prior_n_effective = 100.0  # Warmup default: Balance geometry preservation with plasticity
             else:
                 prior_n_effective = 10.0  # Default fallback
         
@@ -1785,8 +1787,24 @@ class BanditRouter:
             
             # Load the warmup data
             warmup_data = joblib.load(priors_path)
-            n_warmup_samples = warmup_data.get("n", "unknown")
+            n_warmup_samples = warmup_data.get("n", 20000)  # Default to 20k if missing
+            
+            # CRITICAL: Calculate Scaling Factor to Prevent "Zombie Mode"
+            # 
+            # Mathematical Rationale:
+            # - Raw warmup has N=20,000 updates → Very high confidence
+            # - Without scaling, a single new update has ratio 1:20,000 → Router ignores real data
+            # - Solution: Scale to desired prior strength (e.g., N=100)
+            #   * Preserves geometry (learned correlations in A remain accurate)
+            #   * Adjusts plasticity (router can adapt to new data)
+            # 
+            # Formula: scale = N_desired / N_warmup
+            # - Multiply both A and b by same scale to preserve θ = A⁻¹b
+            # - Example: 100 / 20,000 = 0.005 → shrinks confidence by 200x
+            scale_factor = prior_n_effective / float(n_warmup_samples)
+            
             logger.info(f"   Warmup contains {n_warmup_samples} synthetic samples")
+            logger.info(f"   Scaling to effective N={prior_n_effective:.1f} (scale={scale_factor:.4f})")
             
             # Create router instance first
             router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
@@ -1798,13 +1816,16 @@ class BanditRouter:
                         pca_path=pca_path_default if pca_path_default.exists() else None,
                         anchors=anchors)
             
-            # Inject the pre-trained matrices directly into the bandit
-            # We must ensure only models that exist in both warmup and registry are updated
+            # Inject the pre-trained matrices WITH SCALING
+            # Both A and b are scaled by the same factor to preserve learned weights θ = A⁻¹b
             models_loaded = 0
             for model_id in router.bandit.models:
                 if model_id in warmup_data["A"] and model_id in warmup_data["b"]:
-                    router.bandit.A[model_id] = warmup_data["A"][model_id]
-                    router.bandit.b[model_id] = warmup_data["b"][model_id]
+                    # Scale A (Covariance) - Preserves shape, adjusts confidence
+                    router.bandit.A[model_id] = warmup_data["A"][model_id] * scale_factor
+                    
+                    # Scale b (Reward History) - Must match A scaling to preserve θ
+                    router.bandit.b[model_id] = warmup_data["b"][model_id] * scale_factor
                     models_loaded += 1
             
             logger.info(f"   Loaded warmup state for {models_loaded}/{len(router.bandit.models)} models")
@@ -1816,11 +1837,8 @@ class BanditRouter:
             return router
         
         # HLE Priors Mode: Use Zero-Shot Warm Start
-
-        # With Virtual Anchors, we don't need LMSYS covariance matrices.
-        # The 50-dimensional feature space learns fast with A = λI.
         if priors == "hle":
-            logger.info("Initializing with Zero-Shot Warm Start (Virtual Anchors + Identity Covariance)")
+            logger.info("Initializing with HLE Priors (Identity Covariance + HLE Bias)")
             router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
                         alpha=alpha,
                         init_lambda=init_lambda,
@@ -1830,12 +1848,15 @@ class BanditRouter:
                         pca_path=pca_path_default if pca_path_default.exists() else None,
                         anchors=anchors)
             
-            # Perform Zero-Shot Warm Start (initializes b vectors with HLE-based priors)
+            # Inject HLE scores into b vectors (bias term)
+            # A remains as λI (identity) to avoid rank deficiency from small samples
+            # Mathematical Rationale:
+            # - Estimating a d×d covariance matrix requires ~10d samples for stability
+            # - With d≈53, procedural warmup (N=100) is insufficient (need ~530 samples)
+            # - Small-sample covariances hallucinate spurious correlations from noise
+            # - Identity A = λI is mathematically clean and learns from real data quickly
             router._load_zero_shot_priors(prior_n_effective)
-            # Shape covariance matrix with procedural warmup
-            # KDD Fix: Increased 15 → 100 samples (≈2d for d≈54)
-            # 5 archetypes × 20 samples each = sufficient to shape 54D covariance
-            router._procedural_warmup(n_samples=RouterConfig.procedural_warmup_samples)
+            
             return router
             
         # Cold Start (No Priors)
