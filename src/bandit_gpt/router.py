@@ -1764,8 +1764,12 @@ class BanditRouter:
             router.bandit.load_state(state_path)
             return router
         
-        # Warmup Priors Mode: Load Pre-Generated Synthetic Experience
+        # ---------------------------------------------------------
+        # OPTION 1: WARMUP (The "Simulated Brain")
+        # ---------------------------------------------------------
         if priors == "warmup":
+            # Load the matrix that ALREADY contains the HLE knowledge 
+            # (because the simulator used HLE to generate rewards)
             priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
             
             if not priors_path.exists():
@@ -1833,12 +1837,17 @@ class BanditRouter:
             # CRITICAL: Refresh inverse cache after bulk state injection
             router.bandit.refresh_inverse_cache()
             
-            logger.info("   ✅ Warmup state loaded successfully")
+            logger.info(f"✅ Loaded Warmup Matrix (Scaled to N={prior_n_effective})")
             return router
         
-        # HLE Priors Mode: Use Zero-Shot Warm Start
-        if priors == "hle":
-            logger.info("Initializing with HLE Priors (Identity Covariance + HLE Bias)")
+        # ---------------------------------------------------------
+        # OPTION 2: HLE ONLY (The "Heuristic Shortcut")
+        # ---------------------------------------------------------
+        elif priors == "hle":
+            # Manually inject beliefs into a diagonal Identity matrix
+            # This is the "Poor Man's Warmup"
+            logger.info(f"⚠️ Using simple HLE heuristics (No covariance)")
+            
             router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
                         alpha=alpha,
                         init_lambda=init_lambda,
@@ -1848,20 +1857,23 @@ class BanditRouter:
                         pca_path=pca_path_default if pca_path_default.exists() else None,
                         anchors=anchors)
             
-            # Inject HLE scores into b vectors (bias term)
-            # A remains as λI (identity) to avoid rank deficiency from small samples
-            # Mathematical Rationale:
-            # - Estimating a d×d covariance matrix requires ~10d samples for stability
-            # - With d≈53, procedural warmup (N=100) is insufficient (need ~530 samples)
-            # - Small-sample covariances hallucinate spurious correlations from noise
-            # - Identity A = λI is mathematically clean and learns from real data quickly
-            router._load_zero_shot_priors(prior_n_effective)
+            # Mathematical trick to bias the starting theta
+            # theta_initial = A_inv * b
+            # If A=I, then b should be the expected reward vector
+            for model_id in router.bandit.models:
+                hle = router.registry.get(model_id, {}).get("hle", 0.5)
+                # We boost the diagonal of A to represent confidence
+                np.fill_diagonal(router.bandit.A[model_id], 1.0 + prior_n_effective)
+                # b vector gets the HLE score scaled by prior strength
+                router.bandit.b[model_id] += (hle * prior_n_effective)
             
             return router
             
-        # Cold Start (No Priors)
-        if priors == "none":
-            logger.info("Cold start mode: Pure identity initialization.")
+        # ---------------------------------------------------------
+        # OPTION 3: COLD (The "Blank Slate")
+        # ---------------------------------------------------------
+        else:
+            logger.info("❄️ Cold Start (Identity Matrix)")
             return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
                       alpha=alpha,
                       init_lambda=init_lambda,
@@ -1870,9 +1882,6 @@ class BanditRouter:
                       cluster_boost_weight=cluster_boost_weight,
                       pca_path=pca_path_default if pca_path_default.exists() else None,
                       anchors=anchors)
-        
-        # Unknown priors type
-        raise ValueError(f"Unknown priors type: '{priors}'. Use 'hle', 'warmup', or 'none'.")
 
 
     def _load_zero_shot_priors(self, prior_n_effective: float):
