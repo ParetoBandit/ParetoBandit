@@ -2,11 +2,21 @@
 """
 generate_warmup.py
 
-End-to-End Synthetic Warmup Generator.
-1. Generates 20,000 synthetic prompts (Math, Code, Chat).
-2. Simulates rewards using Item Response Theory (IRT).
-3. Updates a BanditRouter to build dense A matrices (Covariance) and b vectors (Beliefs).
-4. Saves the resulting state to 'data/priors_warmup.joblib'.
+End-to-End Mixed Warmup Generator (20,000 prompts).
+
+Strategy ("Best of Both Worlds"):
+1. Bucket 1 (7,000): Hard prompts from routellm/gpt4_judge_battles (filtered for code/math/long reasoning)
+2. Bucket 2 (7,000): Domain-specific synthetic (Math, Code, Reasoning archetypes)
+3. Bucket 3 (6,000): Simple/noise synthetic (Chat, easy questions)
+
+Workflow:
+- Mines hard prompts using streaming HuggingFace dataset access
+- Generates controlled synthetic data for domain coverage
+- Simulates rewards using Item Response Theory (IRT)
+- Updates a BanditRouter to build dense A matrices and b vectors
+- Saves the resulting state to 'data/priors_warmup.joblib'
+
+Reference: RouteLLM dataset - https://huggingface.co/datasets/routellm/gpt4_judge_battles
 """
 
 import sys
@@ -23,12 +33,18 @@ sys.path.append(str(PROJECT_ROOT))
 from src.bandit_gpt.router import BanditRouter
 from experiments.utils.data_loader import load_model_registry
 from sentence_transformers import SentenceTransformer
+from datasets import load_dataset
 
 # CONFIGURATION
 # Export to root/data directory (absolute path for clarity)
 OUTPUT_PATH = PROJECT_ROOT / "data" / "priors_warmup.joblib"
 N_SAMPLES = 20000
 SEED = 42
+
+# Bucket allocation ("Best of Both Worlds" strategy)
+N_ROUTELLM_HARD = 7000      # Hard prompts from RouteLLM (famous for tricking weak models)
+N_DOMAIN_SPECIFIC = 7000    # Synthetic domain coverage (Math, Code, Reasoning)
+N_SIMPLE_NOISE = 6000       # Synthetic easy prompts (Chat, simple questions)
 
 def ir_theory_reward(model_skill: float, difficulty: float) -> float:
     """
@@ -94,6 +110,203 @@ def ir_theory_reward(model_skill: float, difficulty: float) -> float:
     
     return probability
 
+def mine_hard_prompts_from_routellm(n: int = 7000, seed: int = 42) -> list:
+    """
+    Mine hard prompts from RouteLLM's gpt4_judge_battles dataset.
+    
+    Uses streaming mode to avoid downloading the full dataset.
+    Filters for prompts with code, math, or long reasoning (structural complexity).
+    
+    Args:
+        n: Number of hard prompts to mine (default: 7000)
+        seed: Random seed for reproducibility
+        
+    Returns:
+        List of hard prompt strings
+    """
+    import random
+    import re
+    
+    random.seed(seed)
+    
+    print(f"   ⛏️  Mining {n} hard prompts from RouteLLM (gpt4_judge_battles)...")
+    print("      (Using streaming mode to avoid full download)")
+    
+    # Load dataset in streaming mode
+    ds = load_dataset("routellm/gpt4_judge_battles", split="train", streaming=True)
+    
+    hard_prompts = []
+    candidates_seen = 0
+    
+    # Feature detection patterns (lightweight)
+    code_pattern = re.compile(r'```|def |class |import |function|\bcode\b', re.IGNORECASE)
+    math_pattern = re.compile(r'\\frac|\\int|derivative|integral|theorem|prove|equation|calculate', re.IGNORECASE)
+    
+    for row in ds:
+        # Extract prompt (handle both string and list formats)
+        prompt = row['prompt'][0] if isinstance(row['prompt'], list) else row['prompt']
+        
+        # Apply filtering: code, math, or long reasoning
+        has_code = bool(code_pattern.search(prompt))
+        has_math = bool(math_pattern.search(prompt))
+        is_long = len(prompt) > 200  # Long prompts often indicate complex reasoning
+        
+        # Only keep if it has structural complexity
+        if has_code or has_math or is_long:
+            hard_prompts.append(prompt)
+            
+            if len(hard_prompts) >= n:
+                break
+        
+        candidates_seen += 1
+        
+        # Progress updates
+        if candidates_seen % 5000 == 0:
+            print(f"      Scanned {candidates_seen} prompts, found {len(hard_prompts)} hard ones...")
+    
+    print(f"   ✓ Mined {len(hard_prompts)} hard prompts (scanned {candidates_seen} total)")
+    
+    return hard_prompts
+
+def generate_domain_specific_prompts(n: int = 7000, seed: int = 42) -> list:
+    """
+    Generate domain-specific synthetic prompts (Math, Code, Reasoning).
+    
+    Args:
+        n: Number of domain-specific prompts to generate
+        seed: Random seed for reproducibility
+        
+    Returns:
+        List of synthetic prompt strings
+    """
+    import random
+    random.seed(seed + 1)  # Different seed from routellm mining
+    
+    print(f"   ⚙️  Generating {n} domain-specific synthetic prompts...")
+    
+    # Domain-specific templates (Math, Code, Reasoning)
+    templates = {
+        "math": [
+            "Solve the integral of {expr} with respect to {var}",
+            "Prove that {theorem} using mathematical induction",
+            "Find the derivative of {function} and explain each step",
+            "Calculate the eigenvalues of the matrix {matrix}",
+            "Determine if the series {series} converges or diverges"
+        ],
+        "coding": [
+            "Write a Python function to {task} using {library}",
+            "Implement {algorithm} in {language} with time complexity analysis",
+            "Debug this {language} code that {problem}",
+            "Create a {language} class for {task} with unit tests",
+            "Optimize this {algorithm} implementation for {constraint}"
+        ],
+        "reasoning": [
+            "Analyze the logical structure of {argument} and identify fallacies",
+            "Develop a step-by-step solution for {problem}",
+            "Compare and contrast {concept_a} with {concept_b}",
+            "Explain the causal relationship between {cause} and {effect}",
+            "Evaluate the validity of {claim} given {evidence}"
+        ]
+    }
+    
+    # Fill values for placeholders
+    fill_values = {
+        "expr": ["x^2 + 3x + 2", "sin(x)cos(x)", "e^(2x)", "ln(x^2)"],
+        "var": ["x", "y", "t", "theta"],
+        "theorem": ["Fermat's Last Theorem", "the Pythagorean identity", "Euler's formula"],
+        "function": ["f(x) = x^3 + 2x", "g(x) = sqrt(x+1)", "h(x) = e^x / x"],
+        "matrix": ["[[1,2],[3,4]]", "a 3x3 identity matrix", "[[2,-1],[4,3]]"],
+        "series": ["sum(1/n^2)", "sum((-1)^n/n)", "sum(1/n!)"],
+        "task": ["parse JSON", "sort a list", "find duplicates", "merge dictionaries"],
+        "library": ["pandas", "numpy", "requests", "pathlib"],
+        "algorithm": ["binary search", "quicksort", "dijkstra's", "BFS"],
+        "language": ["Python", "JavaScript", "Java", "C++"],
+        "problem": ["throws TypeError", "has memory leak", "returns wrong output"],
+        "constraint": ["memory", "speed", "readability"],
+        "argument": ["this logical claim", "the premise that AI is conscious"],
+        "concept_a": ["AI", "machine learning", "neural networks"],
+        "concept_b": ["automation", "deep learning", "decision trees"],
+        "cause": ["climate change", "urbanization", "technology adoption"],
+        "effect": ["sea level rise", "habitat loss", "social transformation"],
+        "claim": ["this hypothesis", "the assertion", "the theory"],
+        "evidence": ["the data", "experimental results", "historical records"]
+    }
+    
+    prompts = []
+    archetype_keys = list(templates.keys())
+    
+    for _ in range(n):
+        archetype = random.choice(archetype_keys)
+        template = random.choice(templates[archetype])
+        
+        # Fill placeholders
+        result = template
+        for placeholder, options in fill_values.items():
+            if "{" + placeholder + "}" in result:
+                result = result.replace("{" + placeholder + "}", random.choice(options))
+        
+        prompts.append(result)
+    
+    print(f"   ✓ Generated {len(prompts)} domain-specific prompts")
+    return prompts
+
+def generate_simple_prompts(n: int = 6000, seed: int = 42) -> list:
+    """
+    Generate simple/noise synthetic prompts (Chat, easy questions).
+    
+    Args:
+        n: Number of simple prompts to generate
+        seed: Random seed for reproducibility
+        
+    Returns:
+        List of synthetic prompt strings
+    """
+    import random
+    random.seed(seed + 2)  # Different seed
+    
+    print(f"   💬 Generating {n} simple/noise synthetic prompts...")
+    
+    # Simple chat templates
+    templates = {
+        "chat": [
+            "What is {simple_concept} and why is it important?",
+            "Can you explain {topic} in simple terms?",
+            "Tell me about {subject}",
+            "Why does {phenomenon} happen?",
+            "What's the difference between {concept_a} and {concept_b}?",
+            "Hi",
+            "Hello",
+            "How are you?",
+            "Tell me a joke",
+            "What's the weather like?"
+        ]
+    }
+    
+    fill_values = {
+        "simple_concept": ["photosynthesis", "gravity", "democracy", "inflation"],
+        "topic": ["climate change", "artificial intelligence", "the internet"],
+        "subject": ["cats", "history", "cooking", "music"],
+        "phenomenon": ["rain", "lightning", "the aurora borealis"],
+        "concept_a": ["coffee", "cats", "summer"],
+        "concept_b": ["tea", "dogs", "winter"]
+    }
+    
+    prompts = []
+    
+    for _ in range(n):
+        template = random.choice(templates["chat"])
+        
+        # Fill placeholders if any
+        result = template
+        for placeholder, options in fill_values.items():
+            if "{" + placeholder + "}" in result:
+                result = result.replace("{" + placeholder + "}", random.choice(options))
+        
+        prompts.append(result)
+    
+    print(f"   ✓ Generated {len(prompts)} simple prompts")
+    return prompts
+
 def main():
     print(f"🚀 Starting Synthetic Warmup Generator (N={N_SAMPLES})...")
     
@@ -111,10 +324,32 @@ def main():
         context_encoder=encoder
     )
     
-    # 2. Generate Synthetic Prompts
-    # We need a mix to cover the feature space
-    print("   Generating synthetic prompts...")
-    prompts = router._generate_synthetic_data(n=N_SAMPLES)
+    # 2. Generate Mixed Dataset (Three Buckets)
+    print("\n📦 Building Mixed Warmup Dataset (20,000 prompts)...")
+    
+    # Bucket 1: RouteLLM Hard Prompts (Augmented Mining)
+    routellm_prompts = mine_hard_prompts_from_routellm(n=N_ROUTELLM_HARD, seed=SEED)
+    
+    # Bucket 2: Domain-Specific Synthetic (Controlled Coverage)
+    domain_prompts = generate_domain_specific_prompts(n=N_DOMAIN_SPECIFIC, seed=SEED)
+    
+    # Bucket 3: Simple/Noise Synthetic (Easy Baselines)
+    simple_prompts = generate_simple_prompts(n=N_SIMPLE_NOISE, seed=SEED)
+    
+    # Combine and shuffle for IID training
+    print("\n   🔀 Combining and shuffling buckets...")
+    all_prompts = routellm_prompts + domain_prompts + simple_prompts
+    
+    import random
+    random.seed(SEED)
+    random.shuffle(all_prompts)
+    
+    print(f"   ✓ Total prompts: {len(all_prompts)}")
+    print(f"      - RouteLLM Hard: {len(routellm_prompts)}")
+    print(f"      - Domain-Specific: {len(domain_prompts)}")
+    print(f"      - Simple/Noise: {len(simple_prompts)}")
+    
+    prompts = all_prompts
     
     print(f"   Simulating {len(prompts)} interactions across {len(router.bandit.models)} models...")
     
