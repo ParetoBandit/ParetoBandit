@@ -27,6 +27,7 @@ from pathlib import Path
 from collections import Counter, deque
 from typing import Any, Dict, List, Tuple, Optional, Literal, TypedDict
 import re
+import copy
 
 import numpy as np
 
@@ -464,19 +465,44 @@ class OptimizationProfile:
     MAX_QUALITY     = {"w_q": 0.97, "w_c": 0.02, "w_l": 0.01}  # Premium tier
     ARBITRAGE       = {"w_q": 0.75, "w_c": 0.20, "w_l": 0.05}  # Best quality for cost
     BEST_VALUE      = {"w_q": 0.40, "w_c": 0.55, "w_l": 0.05}  # Cost-focused balance
+    COST_SAVER      = {"w_q": 0.10, "w_c": 0.85, "w_l": 0.05}  # Aggressive token reduction
+    LOW_LATENCY     = {"w_q": 0.20, "w_c": 0.10, "w_l": 0.70}  # Real-time applications
 
     _PROFILES = {
         "max_quality": MAX_QUALITY,
         "arbitrage": ARBITRAGE,
         "best_value": BEST_VALUE,
+        "cost_saver": COST_SAVER,
+        "low_latency": LOW_LATENCY,
     }
 
     @classmethod
     def get(cls, name: Union[str, Dict[str, float]]) -> Dict[str, float]:
         """Get profile weights by name or return dict if already a profile."""
         if isinstance(name, dict):
-            # Pass-through for custom weight dicts
-            return name
+            # Pass-through for custom weight dicts with normalization
+            weights = dict(name) # Shallow copy
+            
+            # Ensure at least one key exists
+            if not any(k in weights for k in ["w_q", "w_c", "w_l"]):
+                raise ValueError("Custom profile must contain at least one of ['w_q', 'w_c', 'w_l']")
+            
+            # Fill missing keys with 0.0
+            for k in ["w_q", "w_c", "w_l"]:
+                if k not in weights:
+                    weights[k] = 0.0
+            
+            # Normalize to sum to 1.0 if not already
+            total = sum(weights.values())
+            if total <= 0:
+                raise ValueError("Weights must sum to a positive value")
+            
+            if abs(total - 1.0) > 1e-6:
+                logger.debug(f"Normalizing custom profile weights from total={total}")
+                for k in weights:
+                    weights[k] /= total
+            
+            return weights
             
         if not isinstance(name, str):
             raise TypeError(f"Profile must be a string or dict, got {type(name)}")
@@ -686,6 +712,37 @@ class DisjointLinUCBPolicy:
                 
         self.last_update = {m: 0 for m in self.models} # Track last update step
         self.t = 0 # Global time step
+
+    def __deepcopy__(self, memo):
+        """
+        Custom deepcopy to handle thread locks.
+        
+        Locks cannot be pickled or deepcopied directly. We create a new lock
+        for the clone while deepcopying all numerical state (A, b, A_inv, etc.).
+        """
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        
+        # Copy basic attributes
+        result.models = copy.deepcopy(self.models, memo)
+        result.dim = self.dim
+        result.alpha = self.alpha
+        result.gamma = self.gamma
+        result.init_lambda = self.init_lambda
+        result.update_lambda = self.update_lambda
+        result.t = self.t
+        result.last_update = copy.deepcopy(self.last_update, memo)
+        
+        # Copy major state (numpy arrays copy well)
+        result.A = copy.deepcopy(self.A, memo)
+        result.b = copy.deepcopy(self.b, memo)
+        result.A_inv = copy.deepcopy(self.A_inv, memo)
+        
+        # Create a FRESH lock for the clone
+        result._lock = threading.Lock()
+        
+        return result
 
     def add_arm(self, model_name: str) -> None:
         """Add a new arm (model) to the bandit dynamically."""
@@ -1290,6 +1347,51 @@ class BanditRouter:
         self._feature_map = self._build_feature_map()
 
 
+    def __deepcopy__(self, memo):
+        """
+        Custom deepcopy for BanditRouter to handle unpicklable components.
+        
+        1. Shared Encoder: The SentenceTransformer is stateless and contains 
+           locks. We share it across clones rather than copying.
+        2. Bandit Policy: Uses its own custom __deepcopy__ for its internal lock.
+        3. Context Store: Re-initialized or shared depending on type.
+        """
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        
+        # Copy configuration and registry
+        result.config = copy.deepcopy(self.config, memo)
+        result.registry = copy.deepcopy(self.registry, memo)
+        result.anchors_config = copy.deepcopy(self.anchors_config, memo)
+        
+        # SHARE the encoder (stateless, contains locks)
+        result.encoder = self.encoder
+        
+        # Deepcopy the bandit policy (calls its custom __deepcopy__)
+        result.bandit = copy.deepcopy(self.bandit, memo)
+        
+        # Re-copy other stateful/cached components
+        result.pca = copy.deepcopy(self.pca, memo)
+        result.anchor_vectors = copy.deepcopy(self.anchor_vectors, memo)
+        result.complexity_vector = copy.deepcopy(self.complexity_vector, memo)
+        result.cluster_detector = copy.deepcopy(self.cluster_detector, memo)
+        result._feature_extractor = copy.deepcopy(self._feature_extractor, memo)
+        result.logs = copy.deepcopy(self.logs, memo)
+        result.model_priors = copy.deepcopy(self.model_priors, memo)
+        result.probation_models = copy.deepcopy(self.probation_models, memo)
+        result._feature_map = copy.deepcopy(self._feature_map, memo)
+        
+        # Handle Context Store: Share the connection
+        # Since it handles its own internal concurrency (SQLite WAL), sharing is safe.
+        result.context_store = self.context_store
+        
+        # Share scanner if it exists
+        result._toxicity_scanner = self._toxicity_scanner
+        
+        return result
+
+
     def _build_feature_map(self) -> Dict[str, int]:
         """
         Build a mapping from feature names to vector indices.
@@ -1706,11 +1808,11 @@ class BanditRouter:
         # Auto-select optimal parameters based on prior type (from z-score ablation study)
         if prior_n_effective is None:
             if priors == "hle":
-                prior_n_effective = 10.0  # Calibrated HLE Champion N_prior
+                prior_n_effective = 10.0  # HLE optimal (Fair Fight experiment: N=10 → regret=2345.34)
             elif priors == "none":
                 prior_n_effective = 0.0   # No priors
             elif priors == "warmup":
-                prior_n_effective = 100.0  # Warmup default: Balance geometry preservation with plasticity
+                prior_n_effective = 1000.0  # Warmup optimal (Fair Fight experiment: N=1000 → regret=307.63)
             else:
                 prior_n_effective = 10.0  # Default fallback
         
@@ -1726,7 +1828,7 @@ class BanditRouter:
         
         # 1. Load Default Registry if needed
         if model_registry is None:
-            models_path = base_dir / "models.json"
+            models_path = base_dir / "config" / "models.json"
             if not models_path.exists():
                 raise FileNotFoundError(f"Default models.json not found at {models_path}")
             with open(models_path) as f:
@@ -2295,9 +2397,9 @@ class BanditRouter:
         new_cost = float(new_model_data.get("input_cost_per_m") or 0.0)
         new_lat = float(new_model_data.get("time_to_first_token_seconds") or 0.0)
         
-        # Profiles to check
         profiles = [
             OptimizationProfile.MAX_QUALITY,
+            OptimizationProfile.ARBITRAGE,
             OptimizationProfile.BEST_VALUE,
             OptimizationProfile.COST_SAVER,
             OptimizationProfile.LOW_LATENCY
@@ -2732,7 +2834,7 @@ class BanditRouter:
     
     def _resolve_utility_weights(
         self,
-        profile: str,
+        profile: str | Dict[str, float],
         max_cost: float | None,
         max_latency: float | None
     ) -> Tuple[float, float, float]:
@@ -3044,7 +3146,7 @@ class BanditRouter:
         self,
         prompt: str | np.ndarray,
         *,
-        profile: str = "best_value",
+        profile: str | Dict[str, float] = "best_value",
         sensitivity: str | None = None, # Manual override: "LOW", "MID", "HIGH"
         max_cost: float | None = None,
         max_latency: float | None = None,
