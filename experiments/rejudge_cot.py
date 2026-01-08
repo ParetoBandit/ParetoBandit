@@ -231,14 +231,14 @@ class CoTRewardGenerator:
         return np.log(score / (1 - score))
 
     def process_task(self, task):
-        cluster_id, prompt_text, model_id = task
+        prompt_text, model_id = task
         
         # 1. Get Response (Cached or New)
         response = self.get_model_response(model_id, prompt_text)
         
         if not response:
             return {
-                "cluster_id": cluster_id, "model_id": model_id, "ok": False, "ts": time.time()
+                "model_id": model_id, "ok": False, "ts": time.time()
             }
 
         # 2. Judge with CoT Panel
@@ -246,7 +246,6 @@ class CoTRewardGenerator:
         reward_logit = self.logit_transform(final_score)
         
         return {
-            "cluster_id": cluster_id,
             "model_id": model_id,
             "prompt": prompt_text,
             "response": response,
@@ -258,7 +257,7 @@ class CoTRewardGenerator:
             "ts": time.time()
         }
 
-    def run(self, prompts_file, models_file, output_file, cache_file):
+    def run(self, prompts_file, models_file, output_file, cache_file, is_lmsys=False, limit=None):
         # 1. Load Cache
         self.load_cache(cache_file)
         
@@ -266,7 +265,24 @@ class CoTRewardGenerator:
         prompts = []
         with open(prompts_file) as f:
             for line in f:
-                prompts.append(json.loads(line))
+                data = json.loads(line)
+                if is_lmsys:
+                    # Check for direct 'prompt' key first (cleaned format)
+                    if 'prompt' in data:
+                        prompts.append(data)
+                    else:
+                        # Fallback to raw LMSYS format: conversation[0]['content']
+                        try:
+                            prompt_text = data['conversation'][0]['content']
+                            prompts.append({"prompt": prompt_text})
+                        except:
+                            continue
+                else:
+                    prompts.append(data)
+        
+        if limit:
+            prompts = prompts[:limit]
+            print(f"Limiting to first {limit} prompts.")
         
         # 3. Load Models
         with open(models_file) as f:
@@ -279,13 +295,13 @@ class CoTRewardGenerator:
         tasks = []
         for p in prompts:
             for m in models:
-                tasks.append((p["cluster_id"], p["prompt"], m))
+                tasks.append((p["prompt"], m))
                 
         # 5. Run Parallel
         print(f"Saving to {output_file} (Appending)")
-        # Clear output if fresh start desired? No, assume appends or manual clear. 
-        # Actually user might want FRESH output for 'cot' run.
-        with open(output_file, 'w') as f: pass
+        # Clear output or create if doesn't exist
+        if not output_file.exists():
+            with open(output_file, 'w') as f: pass
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {executor.submit(self.process_task, t): t for t in tasks}
@@ -298,11 +314,33 @@ class CoTRewardGenerator:
                     pbar.update(1)
 
 if __name__ == "__main__":
-    base = Path(__file__).parent
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", type=str, default="pareto", choices=["pareto", "distribution"])
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of prompts to process")
+    args = parser.parse_args()
+
+    root = Path(__file__).parent.parent
     gen = CoTRewardGenerator(max_workers=64)
-    gen.run(
-        prompts_file=base / "data/test_prompts.jsonl",
-        models_file=base / "models.json",
-        output_file=base / "data/test_rewards_pareto.jsonl",
-        cache_file=base / "data/test_rewards_cache.jsonl"
-    )
+    
+    models_file = root / "src/bandit_gpt/config/models.json"
+    
+    if args.mode == "distribution":
+        # Process the 888 new prompts for the distribution warmup
+        gen.run(
+            prompts_file=root / "data/lmsys_needs_rewards_combined.jsonl",
+            models_file=models_file,
+            output_file=root / "data/lmsys_new_rewards_888.jsonl",
+            cache_file=root / "data/lmsys_rewards_cache.jsonl",
+            is_lmsys=True,
+            limit=args.limit
+        )
+    else:
+        # Original Pareto logic
+        gen.run(
+            prompts_file=root / "src/bandit_gpt/data/test_prompts.jsonl",
+            models_file=models_file,
+            output_file=root / "src/bandit_gpt/data/test_rewards_pareto.jsonl",
+            cache_file=root / "src/bandit_gpt/data/test_rewards_cache.jsonl",
+            limit=args.limit
+        )
