@@ -1362,34 +1362,8 @@ class BanditRouter:
         self.pca = None
         self._ensure_pca_ready(pca_path)
         
-        # -----------------------------------------------------------------------
-        # ZERO-SHOT FEATURE INITIALIZATION (Anchors & Complexity)
-        # -----------------------------------------------------------------------
-        self.anchors_config = anchors or self.DEFAULT_VIRTUAL_ANCHORS
-        anchor_texts = list(self.anchors_config.values())
         
-        logger.info(f"Initializing {len(anchor_texts)} Virtual Anchors...")
-        self.anchor_vectors = self.encoder.encode(anchor_texts, normalize_embeddings=True)
-        
-        # Load or initialize Reference Complexity Vector (H-vector)
-        self.complexity_vector = None
-        comp_path = complexity_path or Path(__file__).parent.parent.parent / "priors" / "complexity_vector.npz"
-        if Path(comp_path).exists():
-            try:
-                data = np.load(comp_path)
-                self.complexity_vector = data["complexity_vector"]
-                logger.info("✓ Reference Complexity Vector loaded.")
-            except Exception as e:
-                logger.warning(f"Failed to load complexity vector: {e}")
-        
-        if self.complexity_vector is None:
-            logger.info("Generating Complexity Vector from zero-shot seeds...")
-            seed_embs = self.encoder.encode(self.HARD_REASONING_SEEDS, normalize_embeddings=True)
-            self.complexity_vector = np.mean(seed_embs, axis=0)
-            self.complexity_vector /= (np.linalg.norm(self.complexity_vector) + 1e-12)
-        # -----------------------------------------------------------------------
-
-        # Initialize cluster detector if available
+        # Initialize cluster detector if available (kept for diversity detection)
         self.cluster_detector = None
         if ClusterDetector is not None:
             try:
@@ -1400,54 +1374,27 @@ class BanditRouter:
                 logger.warning(f"Could not initialize cluster detector: {e}")
         
         
-        # Initialize feature extractor first (needed for dynamic dimension detection)
-        self._feature_extractor = FeatureExtractor()
-        
         # -----------------------------------------------------------------------
-        # FEATURE VECTOR DIMENSION LOGIC (Dynamic Feature Detection)
+        # FEATURE VECTOR DIMENSION LOGIC (Simplified - KDD Review)
         # 
-        # Instead of hardcoding feature counts, we extract a test feature vector
-        # to dynamically determine dimensions. This makes the code robust to
-        # feature engineering changes.
+        # Based on statistical significance analysis, removed all non-PCA features.
+        # Only PCA semantic embedding provides consistent predictive value.
         # 
-        # Feature composition:
-        # - Base Embedding: PCA components (23) or raw (384)
-        # - Handcrafted: Extracted from FeatureExtractor (currently 1: length_penalty_log)
-        # - Anchor Distances: 5 (coding, math, creative, jokes, reasoning)
-        # - Hardness Score: 1
-        # - Bias: 1
+        # Structure: [PCA Embedding (23 or 384) | Bias (1)]
         # 
-        # Total dimension is calculated dynamically below.
+        # Total dimension: n_pca_components + 1 (bias)
         # -----------------------------------------------------------------------
         
-        # Dynamically determine embedding dimension
+        # Determine embedding dimension
         enc_dim = self.encoder.get_sentence_embedding_dimension()
         
         if self.pca:
-            embedding_dim_base = self.pca.n_components
+            embedding_dim = self.pca.n_components + 1  # PCA + bias
         else:
-            embedding_dim_base = enc_dim
+            embedding_dim = enc_dim + 1  # Full embedding + bias
         
-        # Dynamically determine handcrafted feature count by extracting from test prompt
-        test_handcrafted = self._feature_extractor.extract_features("test prompt")
-        n_handcrafted = len(test_handcrafted)
-        
-        # Count other features:
-        # - Anchors: len(self.anchor_vectors) 
-        # - Hardness: 1
-        # Note: Bias term is added separately in _get_context_vector
-        n_anchors = len(self.anchor_vectors)
-        n_hardness = 1
-        
-        # Calculate total dimension (without bias, bias added in _get_context_vector)
-        total_dim_without_bias = embedding_dim_base + n_handcrafted + n_anchors + n_hardness
-        
-        # Add bias for bandit dimension
-        embedding_dim = total_dim_without_bias + 1  # +1 for bias
-        
-        logger.debug(f"Dynamic feature dimensions: "
-                    f"embedding={embedding_dim_base}, handcrafted={n_handcrafted}, "
-                    f"anchors={n_anchors}, hardness={n_hardness}, "
+        logger.debug(f"Feature dimensions: "
+                    f"pca={self.pca.n_components if self.pca else 'none'}, "
                     f"total={embedding_dim} (including bias)")
         
         # Initialize bandit with calculated dimension
@@ -1517,7 +1464,6 @@ class BanditRouter:
         # Copy configuration and registry
         result.config = copy.deepcopy(self.config, memo)
         result.registry = copy.deepcopy(self.registry, memo)
-        result.anchors_config = copy.deepcopy(self.anchors_config, memo)
         
         # SHARE the encoder (stateless, contains locks)
         result.encoder = self.encoder
@@ -1565,32 +1511,12 @@ class BanditRouter:
         else:
             embedding_dim = self.encoder.get_sentence_embedding_dimension()
         
-        # Handcrafted features start after embedding
-        handcrafted_start = embedding_dim
-        
-        # Map handcrafted features (14 total)
-        handcrafted_names = [
-            "is_code_heavy", "requires_json", "list_density",
-            "instruction_density", "flesch_kincaid", "toxicity_score",
-            "has_code_binarize", "code_block_count_log",
-            "has_latex", "latex_density_log",
-            "has_question", "question_count_log",
-            "length_penalty_bin", "length_penalty_log"
-        ]
-        for i, name in enumerate(handcrafted_names):
-            feature_map[name] = handcrafted_start + i
-        
-        # Virtual Anchors start after handcrafted features
-        anchor_start = handcrafted_start + 14
-        anchor_names = list(self.anchors_config.keys())
-        for i, anchor in enumerate(anchor_names):
-            feature_map[f"anchor_{anchor}"] = anchor_start + i
-        
-        # Hardness score (complexity)
-        feature_map["complexity_score"] = anchor_start + len(anchor_names)
+        # PCA components  
+        for i in range(embedding_dim):
+            feature_map[f"pca_{i}"] = i
         
         # Bias term (always last)
-        feature_map["bias"] = anchor_start + len(anchor_names) + 1
+        feature_map["bias"] = embedding_dim
         
         return feature_map
 
@@ -1674,20 +1600,9 @@ class BanditRouter:
             bias = reg_config.balanced_bias
             weights["complexity_score"] = reg_config.balanced_complexity_weight
         
-        # 3. Apply Archetypes (The Semantic Anchors)
-        # Maps simple string tags to Virtual Anchors
-        for cap in capabilities:
-            if cap == "general":
-                # Boost everything slightly
-                for anchor in self.anchors_config.keys():
-                    weights[f"anchor_{anchor}"] = reg_config.general_anchor_boost
-            else:
-                # Targeted boost
-                weights[f"anchor_{cap}"] = reg_config.anchor_boost
-                
-                # If it's a coding model, also boost the structural feature
-                if cap == "coding":
-                    weights["has_code_binarize"] = reg_config.coding_structural_boost
+        
+        # OLD: Archetype mapping to virtual anchors - REMOVED
+        # Anchors removed in KDD simplification
         
         # 4. Apply Power User Overrides (Explicit Weights)
         # If the user DOES know specifics, let them overwrite our guesses
@@ -1764,61 +1679,28 @@ class BanditRouter:
         from .features import FeatureTransformer
         return FeatureTransformer.fast_toxicity_heuristic(text)
 
-    def _extract_handcrafted_features(self, text: str) -> np.ndarray:
-        """
-        Extract linearized features for routing logic.
-        
-        Delegates to FeatureExtractor for actual extraction.
-        See features.py for full implementation details.
-        
-        **14 Features Total:**
-        1. is_code_heavy (continuous: code length / total length)
-        2. requires_json (binary: JSON keyword presence)
-        3. list_density (continuous: list items / lines)
-        4. instruction_density (continuous: imperatives / words)
-        5. flesch_kincaid (continuous: reading grade level)
-        6. toxicity_score (continuous: LLM Guard score)
-        7-8. Code blocks: has_code_block (binary) + code_block_count_log (continuous)
-        9-10. LaTeX: has_latex (binary) + latex_density_log (continuous)
-        11-12. Questions: has_question (binary) + question_count_log (continuous)
-        13-14. Length: length_penalty_bin (binary: >500 tokens) + length_penalty_log (continuous)
-        """
-        return self._feature_extractor.extract_features(text)
 
-    def _get_cluster_distances(self, embedding: np.ndarray) -> np.ndarray:
-        """
-        Get distances to the Virtual Anchors.
-        
-        Args:
-            embedding: Normalized sentence embedding (384,)
-        """
-        # Calculate cosine similarity: dot product of normalized vectors
-        # Shape: (N_anchors, 384) @ (384,) -> (N_anchors,)
-        similarities = np.dot(self.anchor_vectors, embedding)
-        
-        # Convert to distance (1 - similarity)
-        # Clip to [0, 2] to handle precision errors
-        distances = 1.0 - similarities
-        return np.clip(distances, 0.0, 2.0)
 
     def _get_context_vector(self, context: str | np.ndarray) -> np.ndarray:
         """
         Convert string prompt or array to a normalized context vector.
         
-        Structure with Feature Linearization:
-        [Embedding (32/384) | Handcrafted (14) | Anchors (5) | Hardness Score (1) | Bias (1)]
+        **Simplified Feature Vector (KDD Simplification):**
+        Based on feature significance analysis, removed low-value features:
+        - Removed: anchors (5 features, p>0.05 for 4/5)
+        - Removed: hardness score (1 feature, minimal predictive value)
+        - Removed: handcrafted features (1 feature, redundant with PCA)
         
-        Handcrafted features split into binary+log pairs for LinUCB linearity:
-        - 7-8: has_code_block + code_block_count_log
-        - 9-10: has_latex + latex_density_log
-        - 11-12: has_question + question_count_log
-        - 13-14: length_penalty_bin + length_penalty_log
+        Structure: [PCA Embedding (23) | Bias (1)] = 24-d
         
         Args:
             context: Prompt text or pre-computed embedding
+            
+        Returns:
+            24-dimensional feature vector (23 PCA + 1 bias)
         """
         if isinstance(context, str):
-            # 1. Semantic Embedding
+            # 1. Semantic Embedding with PCA
             emb_full = self.encoder.encode(context)
             emb_full = l2_normalize(emb_full)
             
@@ -1827,63 +1709,11 @@ class BanditRouter:
             else:
                 emb_reduced = emb_full
             
-            # 2. Handcrafted Features (8)
-            feats = self._extract_handcrafted_features(context)
-            
-            # 3. Virtual Anchor Distances (5)
-            anchor_dists = self._get_cluster_distances(emb_full)
-            
-            # 4. Zero-Shot Hardness Score (1)
-            # Projection onto Reference Complexity Vector
-            raw_projection = float(np.dot(emb_full, self.complexity_vector))
-            
-            # CRITICAL: Sigmoid normalization to preserve gradient sensitivity
-            # 
-            # KDD Critique: "The Normalization Cliff"
-            # Min-max with hard clipping creates dead zones: prompts projecting to +0.45
-            # and +0.90 both clip to 1.0, becoming indistinguishable to the bandit.
-            # 
-            # Solution: Sigmoid normalization maintains gradient even at extremes:
-            #   - Moderately hard (0.45) → 0.95
-            #   - Extremely hard (0.90) → 0.999
-            # The 0.049 difference is small but mathematically visible to LinUCB.
-            # 
-            # Empirically calibrated on N=1000 TRAIN prompts only (NO data leakage):
-            #   μ (center): -0.0037
-            #   σ (spread):  0.0950
-            #   k (gain):    1/σ ≈ 10.53
-            # 
-            # Formula: sigmoid(z) where z = k * (x - μ)
-            # This maps (-∞, ∞) → (0, 1) smoothly, no clipping.
-            
-            # Calibration Source: validate_complexity_bounds.py (N=1000 train prompts)
-            # Bootstrap 95% CI: μ ∈ [-0.012, +0.005], σ ∈ [0.088, 0.102]
-            # See: banditgpt/experiments/new_bandit/validate_complexity_bounds.py
-            
-            # Use calibrated values if available (from router.calibrate() call),
-            # otherwise fall back to LMSYS defaults
-            COMPLEXITY_MU = getattr(self, 'calibrated_complexity_mu', -0.0037)
-            COMPLEXITY_SIGMA = getattr(self, 'calibrated_complexity_sigma', 0.0950)
-            k = 1.0 / COMPLEXITY_SIGMA
-            
-            z_score = k * (raw_projection - COMPLEXITY_MU)
-            hardness_score_normalized = sigmoid(z_score)
-            
-            hardness_feat = np.array([hardness_score_normalized])
-
-
-
-
-            
-            # Concatenate: [Embedding, Handcrafted, Anchors, Hardness, Bias]
-            x = np.concatenate([emb_reduced, feats, anchor_dists, hardness_feat])
+            # 2. Append bias term
+            return np.append(emb_reduced, 1.0)
         else:
-            # Context is already a vector (possibly from a previous call)
-            # Return as-is WITHOUT appending bias (already present)
+            # Context is already a vector
             return context
-            
-        # Append bias term (Last dim)
-        return np.append(x, 1.0)
 
     @classmethod
     def admix_theta_from_neighbors(
@@ -2777,22 +2607,24 @@ class BanditRouter:
         Returns:
             List of pruned model IDs.
         """
-        # 1. Define Evaluation Set: Virtual Anchors represent "corners" of prompt space
-        # If an arm can't win here, it likely can't win anywhere
-        if self.anchors_config is None or len(self.anchors_config) == 0:
-            logger.warning("No anchor configs available for pruning")
-            return []
+        # 1. Create eval vectors for pruning (simplified - no anchors)
+        # Use synthetic test prompts instead of virtual anchors
+        test_prompts = [
+            "Write a detailed explanation",
+            "Solve this complex problem",
+            "Create a comprehensive analysis",
+            "Explain the technical details",
+            "Generate a creative solution"
+        ]
         
-        # Build full context vectors for each anchor using _get_context_vector
-        # This ensures proper PCA compression and dimensionality matching
+        
         eval_vectors = []
-        for anchor_name, anchor_text in self.anchors_config.items():
+        for prompt in test_prompts:
             try:
-                # Use the same context vector generation as routing
-                x = self._get_context_vector(anchor_text)
+                x = self._get_context_vector(prompt)
                 eval_vectors.append(x)
             except Exception as e:
-                logger.warning(f"Failed to create eval vector for anchor '{anchor_name}': {e}")
+                logger.warning(f"Failed to create eval vector: {e}")
                 continue
         
         if len(eval_vectors) == 0:
@@ -3247,14 +3079,6 @@ class BanditRouter:
                 
         return best_model, best_utility, (w_q + w_c + w_l)
     
-    def _trigger_periodic_pruning(self) -> None:
-        """
-        Trigger successive elimination pruning at configured intervals.
-        
-        Uses anchor-based domination check instead of log-based heuristics.
-        """
-        if len(self.logs) % 100 == 0:
-            self.prune_arms()  # Confidence alpha defaults to 2.0 (~95% CI)
     
     def _create_routing_log(
         self,
@@ -3376,7 +3200,7 @@ class BanditRouter:
         best_model, best_utility, total_weight = self._score_candidates(
             filtered, x, w_q, w_c, w_l, in_tok, output_tokens
         )
-        self._trigger_periodic_pruning()
+        # Pruning removed for V1 (fixed portfolio)
         log = self._create_routing_log(
             prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
         )
