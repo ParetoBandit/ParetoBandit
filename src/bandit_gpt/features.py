@@ -137,22 +137,23 @@ class FeatureExtractor:
     """
     Extracts handcrafted features from text prompts.
     
-    **LINEARIZATION STRATEGY (Addressing KDD Critique):**
-    Features that combine step functions + continuous slopes are split:
-    - Binary: Presence indicator (captures intercept shift)
-    - Log-scaled: Intensity (captures gradual difficulty increase)
+    **SIMPLIFIED FEATURE SET (Based on KDD Feature Significance Analysis):**
+    Analysis showed that most handcrafted features have minimal predictive power.
+    Keeping only the most significant feature to reduce dimensionality and improve
+    sample efficiency.
     
-    **14 Features Total:**
-    1. is_code_heavy (continuous: code length / total length)
-    2. requires_json (binary: JSON keyword presence)
-    3. list_density (continuous: list items / lines)
-    4. instruction_density (continuous: imperatives / words)
-    5. flesch_kincaid (continuous: reading grade level)
-    6. toxicity_score (continuous: LLM Guard score)
-    7-8. Code blocks: has_code_block (binary) + code_block_count_log (continuous)
-    9-10. LaTeX: has_latex (binary) + latex_density_log (continuous)
-    11-12. Questions: has_question (binary) + question_count_log (continuous)
-    13-14. Length: length_penalty_bin (binary: >500 tokens) + length_penalty_log (continuous)
+    **1 Feature Total:**
+    1. length_penalty_log: Normalized log-scaled prompt length [0,1]
+       - Statistically significant predictor (p < 0.05) for multiple models
+       - Captures prompt complexity proxy with minimal overhead
+    
+    **Removed Features (low significance):**
+    - is_code_heavy, requires_json, list_density, instruction_density
+    - flesch_kincaid, toxicity_score
+    - has_code_block, code_block_count_log
+    - has_latex, latex_density_log
+    - has_question, question_count_log
+    - length_penalty_bin (redundant with log version)
     """
     
     def __init__(self, toxicity_scanner=None):
@@ -181,95 +182,106 @@ class FeatureExtractor:
     
     def extract_features(self, text: str) -> np.ndarray:
         """
-        Extract linearized features for routing logic.
+        Extract simplified features for routing logic.
+        
+        **SIMPLIFIED FEATURE SET:**
+        Based on feature significance analysis, keeping only the most predictive feature.
         
         Args:
             text: Input text prompt
         
         Returns:
-            Feature vector of shape (14,) containing:
-            - 6 continuous features
-            - 4 binary/log pairs (8 features total)
+            Feature vector of shape (1,) containing:
+            - length_penalty_log: Normalized log-scaled prompt length
         """
         if not text:
-            return np.zeros(14)
+            return np.zeros(1)
         
-        # --- BASICS ---
-        total_len = len(text)
+        # Count tokens (rough estimate: words * 1.3)
         words = re.findall(r'\b\w+\b', text.lower())
-        n_words = len(words)
-        lines = text.split('\n')
-        n_lines = len(lines)
-        n_tokens = n_words * 1.3
+        n_tokens = len(words) * 1.3
         
-        # 1. Code Heavy (continuous)
-        code_blocks = re.findall(r'`{1,3}(.*?)`{1,3}', text, re.DOTALL)
-        code_len = sum(len(c) for c in code_blocks)
-        is_code_heavy = (code_len / total_len) if total_len > 0 else 0.0
-        
-        # 2. Requires JSON (binary)
-        json_keywords = ["json", "valid format", "schema", "output format"]
-        requires_json = 1.0 if any(k in text.lower() for k in json_keywords) else 0.0
-        
-        # 3. List Density (continuous)
-        list_markers = [l for l in lines if l.strip().startswith(('-', '*', '1.', '2.'))]
-        list_density = (len(list_markers) / n_lines) if n_lines > 0 else 0.0
-        
-        # --- COMPLEXITY ---
-        
-        # 4. Instruction Density (continuous)
-        imperatives = {"create", "write", "solve", "analyze", "explain", "summarize", "find", "calculate", "implement", "design"}
-        n_imperatives = sum(1 for w in words if w in imperatives)
-        instruction_density = (n_imperatives / n_words) if n_words > 0 else 0.0
-        
-        # 5. Flesch-Kincaid Grade (continuous)
-        sentences = re.split(r'[.!?]+', text)
-        n_sentences = max(1, len([s for s in sentences if s.strip()]))
-        
-        if n_words > 0:
-            n_syllables = sum(self.count_syllables(w) for w in words)
-            fk_grade = 0.39 * (n_words / n_sentences) + 11.8 * (n_syllables / n_words) - 15.59
-        else:
-            fk_grade = 0.0
-        fk_normalized = max(0.0, min(fk_grade, 20.0)) / 20.0
-        
-        # --- SECURITY ---
-        
-        # 6. Toxicity Score (continuous)
-        # TIER 1: Fast heuristic (<1ms) for feature vector
-        # Heavy ML scanner (llm-guard) moved to async audit (Tier 2)
-        toxicity_score = _fast_toxicity_heuristic(text)
-        
-        # --- LINEARIZED FEATURES (Split Step + Slope) ---
-        
-        # 7-8. Code Blocks: Binary presence + Log intensity
-        code_block_count = float(text.count('```'))
-        has_code_block, code_block_count_log = FeatureTransformer.split_signal(code_block_count)
-        
-        # 9-10. LaTeX Symbols: Binary presence + Log density
-        latex_count = float(text.count('$') + text.count('\\') + text.count('^') + text.count('_{'))
-        has_latex, latex_density_log = FeatureTransformer.split_signal(latex_count)
-        
-        # 11-12. Questions: Binary presence + Log count
-        question_count = float(text.count('?'))
-        has_question, question_count_log = FeatureTransformer.split_signal(question_count)
-        
-        # 13-14. Length: Binary threshold + Log scaling (normalized)
-        # Binary: Is this a "long" prompt? (>500 tokens)
-        length_penalty_bin = 1.0 if n_tokens > 500 else 0.0
-        # Continuous: Log-scaled length, normalized to [0,1]
+        # Length: Log-scaled length, normalized to [0,1]
         # Max expected: log(10000) ≈ 9.2
         length_penalty_log = FeatureTransformer.normalize_log(
             np.log1p(n_tokens), max_expected=10.0
         )
         
+        return np.array([length_penalty_log])
+
+    def extract_trap_features(self, text: str) -> np.ndarray:
+        """
+        Extract trap detection features for arbitrage routing.
+        
+        These features create "shortcuts" for the bandit to detect failure modes
+        where cheap models (gpt-oss, gemma) fail but flagships succeed.
+        
+        **Single Source of Truth:**
+        This method is used by BOTH router.py and generate_warmup.py to ensure
+        identical feature extraction logic. This prevents "simulation gaps" where
+        the warmup trains on different signals than the router uses.
+        
+        **6 Features Total:**
+        1. is_non_english (binary): Non-ASCII characters (Korean, Chinese, etc.)
+        2. is_adversarial (binary): Jailbreak/system override patterns
+        3. is_tool_use (binary): Real-time/search requests
+        4. log_length (continuous): Log-normalized prompt length
+        5. code_density (continuous): Code character density
+        6. math_density (continuous): Math indicator density
+        
+        Args:
+            text: Input text prompt
+            
+        Returns:
+            6-dimensional feature vector for trap detection
+        """
+        if not text:
+            return np.zeros(6)
+        
+        text_lower = text.lower()
+        
+        # 1. Kill Switches (Binary Flags)
+        # Non-English detection (often breaks OSS tokenization)
+        # CRITICAL: Must match router.py logic exactly
+        is_non_english = 1.0 if any(ord(c) > 255 for c in text[:1000]) else 0.0
+        
+        # Adversarial pattern detection
+        jailbreak_patterns = [
+            r"ignore previous", r"system instruction", r"role play", 
+            r"act as", r"jailbreak", r"unfiltered", r"system:"
+        ]
+        is_adversarial = 1.0 if any(re.search(p, text_lower) for p in jailbreak_patterns) else 0.0
+        
+        # Tool use / real-time query detection
+        tool_patterns = [
+            r"weather", r"stock price", r"current time", 
+            r"latest news", r"search for", r"who won",
+            r"date today", r"what is the date", r"current", 
+            r"price of", r"who is the president"
+        ]
+        is_tool_use = 1.0 if any(re.search(p, text_lower) for p in tool_patterns) else 0.0
+        
+        # 2. Complexity Proxies (Continuous)
+        # Log-normalized length (stabilizes variance)
+        log_length = np.log(len(text) + 1.0) / 10.0  # Scale to ~0-1 range
+        
+        # Code density heuristic
+        code_chars = set("{}[]();=<>!_")
+        code_count = sum(1 for c in text if c in code_chars)
+        code_density = code_count / (len(text) + 1)
+        
+        # Math density (LaTeX-ish)
+        math_indicators = ["sum", "int", "frac", "sqrt", "theta", "pi", "=", "+", "-"]
+        math_count = sum(text_lower.count(m) for m in math_indicators)
+        words = text_lower.split()
+        math_density = math_count / (len(words) + 1)  # Normalize by word count
+        
         return np.array([
-            # Original continuous features (1-6)
-            is_code_heavy, requires_json, list_density,
-            instruction_density, fk_normalized, toxicity_score,
-            # Linearized features (7-14): Binary + Log pairs
-            has_code_block, code_block_count_log,
-            has_latex, latex_density_log,
-            has_question, question_count_log,
-            length_penalty_bin, length_penalty_log
-        ])
+            is_non_english,
+            is_adversarial,
+            is_tool_use,
+            log_length,
+            code_density,
+            math_density
+        ], dtype=np.float32)
+

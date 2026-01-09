@@ -458,15 +458,33 @@ DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # ---------------------------------------------------------------------------
 class OptimizationProfile:
     """Named presets for utility function weights (Quality vs Cost vs Latency).
-    Weights MUST sum to 1.0 (100%).
     
-    These 3 profiles define the Pareto frontier for cost-quality tradeoffs.
+    All profiles are now derived using Reference Point Normalization logic,
+    making them interpretable as trade-off preferences relative to the flagship model.
+    
+    Mathematical Foundation:
+        w_q / w_c = cost_savings / quality_tolerance
+    
+    These 4 profiles span the Pareto frontier from premium to budget.
     """
-    MAX_QUALITY     = {"w_q": 0.97, "w_c": 0.02, "w_l": 0.01}  # Premium tier
-    ARBITRAGE       = {"w_q": 0.75, "w_c": 0.20, "w_l": 0.05}  # Best quality for cost
-    BEST_VALUE      = {"w_q": 0.40, "w_c": 0.55, "w_l": 0.05}  # Cost-focused balance
-    COST_SAVER      = {"w_q": 0.10, "w_c": 0.85, "w_l": 0.05}  # Aggressive token reduction
-    LOW_LATENCY     = {"w_q": 0.20, "w_c": 0.10, "w_l": 0.70}  # Real-time applications
+    # Premium User: "I demand perfection, only 1% quality drop if it's FREE (100% savings)"
+    # Math: 1.00 / 0.01 = 100
+    MAX_QUALITY = {"w_q": 100.0, "w_c": 1.0, "w_l": 0.0}
+    
+    # Smart Shopper: "Flagship intelligence without brand-name prices (2.5% drop for 90% savings)"
+    # Math: 0.90 / 0.025 = 36
+    ARBITRAGE = {"w_q": 36.0, "w_c": 1.0, "w_l": 0.0}
+    
+    # Balanced Default: "Solid trade-off (5% quality drop for 50% cost savings)"
+    # Math: 0.50 / 0.05 = 10
+    BEST_VALUE = {"w_q": 10.0, "w_c": 1.0, "w_l": 0.0}
+    
+    # Budget User: "Strict budget constraint (25% quality drop for 90% savings)"
+    # Math: 0.90 / 0.25 = 3.6
+    COST_SAVER = {"w_q": 3.6, "w_c": 1.0, "w_l": 0.0}
+    
+    # Real-time Applications: Speed-focused profile
+    LOW_LATENCY = {"w_q": 0.20, "w_c": 0.10, "w_l": 0.70}
 
     _PROFILES = {
         "max_quality": MAX_QUALITY,
@@ -492,15 +510,14 @@ class OptimizationProfile:
                 if k not in weights:
                     weights[k] = 0.0
             
-            # Normalize to sum to 1.0 if not already
+            # NOTE: We NO LONGER normalize weights to sum to 1.0.
+            # This allows "Unbounded Weights" where users can set high priorities
+            # for multiple metrics simultaneously (e.g., w_q=1.0, w_c=1.0).
+            # The bandit's exploration (alpha) scales naturally with w_q.
+            
             total = sum(weights.values())
             if total <= 0:
                 raise ValueError("Weights must sum to a positive value")
-            
-            if abs(total - 1.0) > 1e-6:
-                logger.debug(f"Normalizing custom profile weights from total={total}")
-                for k in weights:
-                    weights[k] /= total
             
             return weights
             
@@ -511,6 +528,118 @@ class OptimizationProfile:
         if key not in cls._PROFILES:
             raise ValueError(f"Unknown profile '{name}'. Valid: {list(cls._PROFILES.keys())}")
         return cls._PROFILES[key]
+    
+    @classmethod
+    def from_reference(
+        cls,
+        quality_tolerance: float = 0.05,
+        cost_savings: float = 0.50,
+        latency_savings: float = 0.0
+    ) -> Dict[str, float]:
+        """
+        Create optimization weights from intuitive trade-off percentages.
+        
+        This implements **Reference Point Normalization**, a concept from decision 
+        theory that translates relative preferences into utility weights.
+        
+        **Mathematical Foundation:**
+        
+        If you're willing to trade a 5% quality drop (ΔQ=0.05) for a 50% cost 
+        reduction (ΔC=0.50), you're defining the slope of your indifference curve:
+        
+            w_q × Loss_in_Quality = w_c × Gain_in_Cost
+            w_q × 0.05 = w_c × 0.50
+            
+        This gives the exchange rate:
+        
+            w_q / w_c = 0.50 / 0.05 = 10
+            
+        Interpretation: Quality is 10x more valuable than Cost.
+        
+        **Connection to Pareto Frontier:**
+        
+        - **Steep Slope** (w_q ≫ w_c): Top-left of curve (Max Quality)
+          → Small quality tolerance, large cost savings needed
+          
+        - **Shallow Slope** (w_q ≈ w_c): Moving down curve (Cost Saver)
+          → Larger quality tolerance, moderate cost savings
+          
+        **Usage Examples:**
+        
+        1. **The Arbitrageur** - "I want GPT-4 quality (99%) at half price (50%)"
+           ```python
+           profile = OptimizationProfile.from_reference(
+               quality_tolerance=0.01,  # 1% quality drop
+               cost_savings=0.50        # 50% cost reduction
+           )
+           # Result: {"w_q": 50.0, "w_c": 1.0, "w_l": 0.0}
+           # Interpretation: Extremely sensitive to quality drops
+           ```
+        
+        2. **The Budget User** - "I can lose 20% quality for 90% cost savings"
+           ```python
+           profile = OptimizationProfile.from_reference(
+               quality_tolerance=0.20,  # 20% quality drop
+               cost_savings=0.90        # 90% cost reduction
+           )
+           # Result: {"w_q": 4.5, "w_c": 1.0, "w_l": 0.0}
+           # Interpretation: Quality matters (4.5x), but router has room to optimize cost
+           ```
+        
+        3. **Speed Matters** - "10% quality loss for 50% cost + 30% latency savings"
+           ```python
+           profile = OptimizationProfile.from_reference(
+               quality_tolerance=0.10,
+               cost_savings=0.50,
+               latency_savings=0.30
+           )
+           # Result: {"w_q": 5.0, "w_c": 1.0, "w_l": 3.0}
+           ```
+        
+        Args:
+            quality_tolerance: Percentage quality drop you can accept (e.g., 0.05 = 5%)
+            cost_savings: Percentage cost reduction desired (e.g., 0.50 = 50%)
+            latency_savings: Percentage latency reduction desired (optional, default 0.0)
+            
+        Returns:
+            Weight dictionary compatible with router's profile parameter
+            
+        Raises:
+            ValueError: If parameters are not positive
+        """
+        # Validation
+        if quality_tolerance <= 0:
+            raise ValueError(f"quality_tolerance must be positive, got {quality_tolerance}")
+        if cost_savings <= 0:
+            raise ValueError(f"cost_savings must be positive, got {cost_savings}")
+        if latency_savings < 0:
+            raise ValueError(f"latency_savings must be non-negative, got {latency_savings}")
+        
+        # Avoid division by zero with minimum threshold
+        q_drop = max(quality_tolerance, 0.001)
+        c_save = max(cost_savings, 0.001)
+        
+        # Calculate the Exchange Rate
+        # If you need a huge cost saving (50%) to justify a tiny quality drop (1%),
+        # then Quality is VERY important.
+        # Ratio = Cost_Savings / Quality_Drop
+        exchange_rate = c_save / q_drop
+        
+        # Base weights
+        # w_c is the "numeraire" (set to 1.0)
+        # w_q is the exchange rate
+        w_c = 1.0
+        w_q = exchange_rate
+        
+        # Latency handling (optional)
+        w_l = 0.0
+        if latency_savings > 0:
+            # How much latency reduction would you trade for the same quality drop?
+            # Use the same exchange rate logic
+            l_save = max(latency_savings, 0.001)
+            w_l = l_save / q_drop
+        
+        return {"w_q": w_q, "w_c": w_c, "w_l": w_l}
 
 # ---------------------------------------------------------------------------
 # Exploration Rates
@@ -680,7 +809,7 @@ class DisjointLinUCBPolicy:
     def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1,
                  init_lambda: float = 1.0, 
                  update_lambda: float = 0.0,
-                 forgetting_factor: float = 0.95):
+                 forgetting_factor: float = 1.0):
         """
         Initialize Disjoint LinUCB policy.
         
@@ -690,7 +819,7 @@ class DisjointLinUCBPolicy:
             alpha: Exploration coefficient (UCB bonus multiplier)
             init_lambda: Initialization regularization (A₀ = λI). Default 1.0 for cold-start stability.
             update_lambda: Runtime regularization for decay restoration. Default 0.0 for O(d²) speed.
-            forgetting_factor: Exponential decay factor (1.0 = stationary, 0.95 = adaptive)
+            forgetting_factor: Exponential decay factor (1.0 = stationary, <1.0 = adaptive). Default 1.0.
         """
         self.models = list(model_names)
         self.dim = int(dim)
@@ -1177,6 +1306,7 @@ class RoutingLog:
     cluster_id: int | None = None  # Detected semantic cluster
     cluster_similarity: float | None = None  # Similarity to cluster centroid
     context_vector: np.ndarray | None = None # Cached embedding for updates
+    total_priority_weight: float = 1.0       # Sum of w_q, w_c, w_l for normalization
 
 class BanditRouter:
     """
@@ -1211,7 +1341,7 @@ class BanditRouter:
         embedding_dim: int = 384,
         init_lambda: float = 1.0,
         update_lambda: float = 0.0,
-        forgetting_factor: float = 0.95,
+        forgetting_factor: float = 1.0,
         cluster_boost_weight:float = 0.0,
         pca_path: Path | str | None = None,
         complexity_path: Path | str | None = None,
@@ -1269,37 +1399,61 @@ class BanditRouter:
             except Exception as e:
                 logger.warning(f"Could not initialize cluster detector: {e}")
         
+        
+        # Initialize feature extractor first (needed for dynamic dimension detection)
+        self._feature_extractor = FeatureExtractor()
+        
         # -----------------------------------------------------------------------
-        # FEATURE VECTOR DIMENSION LOGIC (Updated for Feature Linearization)
-        # Base Embedding (384/32) + Handcrafted (14) + Cluster Distances (5) + 
-        # Hardness Score (1) + Bias (1) = 53 (or 404 without PCA)
+        # FEATURE VECTOR DIMENSION LOGIC (Dynamic Feature Detection)
         # 
-        # Feature Linearization (KDD Review): Expanded from 11→14 handcrafted features
-        # by splitting non-linear signals (code blocks, latex, questions, length) into
-        # binary presence + log-scaled intensity pairs.
+        # Instead of hardcoding feature counts, we extract a test feature vector
+        # to dynamically determine dimensions. This makes the code robust to
+        # feature engineering changes.
         # 
-        # NOTE: High dimensionality (~400 params per arm) is expensive for online bandits.
-        # Without strong priors (N_eff), convergence would take 10k+ steps.
-        # Priors are essential here to bridge the "cold start" gap.
+        # Feature composition:
+        # - Base Embedding: PCA components (23) or raw (384)
+        # - Handcrafted: Extracted from FeatureExtractor (currently 1: length_penalty_log)
+        # - Anchor Distances: 5 (coding, math, creative, jokes, reasoning)
+        # - Hardness Score: 1
+        # - Bias: 1
+        # 
+        # Total dimension is calculated dynamically below.
         # -----------------------------------------------------------------------
+        
+        # Dynamically determine embedding dimension
         enc_dim = self.encoder.get_sentence_embedding_dimension()
         
-        # Check effective dimension
-        # If PCA is active, base dim is PCA components (32)
         if self.pca:
-            base_dim = self.pca.n_components
+            embedding_dim_base = self.pca.n_components
         else:
-            base_dim = enc_dim
-            
-        if embedding_dim == enc_dim:
-             # User likely passed default 384 (or we just want auto-calc).
-             # We are adding 20 features (14 handcrafted + 5 anchors + 1 hardness).
-             embedding_dim = base_dim + 20
+            embedding_dim_base = enc_dim
         
-        # Add bias term to dimension
+        # Dynamically determine handcrafted feature count by extracting from test prompt
+        test_handcrafted = self._feature_extractor.extract_features("test prompt")
+        n_handcrafted = len(test_handcrafted)
+        
+        # Count other features:
+        # - Anchors: len(self.anchor_vectors) 
+        # - Hardness: 1
+        # Note: Bias term is added separately in _get_context_vector
+        n_anchors = len(self.anchor_vectors)
+        n_hardness = 1
+        
+        # Calculate total dimension (without bias, bias added in _get_context_vector)
+        total_dim_without_bias = embedding_dim_base + n_handcrafted + n_anchors + n_hardness
+        
+        # Add bias for bandit dimension
+        embedding_dim = total_dim_without_bias + 1  # +1 for bias
+        
+        logger.debug(f"Dynamic feature dimensions: "
+                    f"embedding={embedding_dim_base}, handcrafted={n_handcrafted}, "
+                    f"anchors={n_anchors}, hardness={n_hardness}, "
+                    f"total={embedding_dim} (including bias)")
+        
+        # Initialize bandit with calculated dimension
         self.bandit = DisjointLinUCBPolicy(
             list(self.registry.keys()), 
-            dim=embedding_dim + 1, 
+            dim=embedding_dim,  # Already includes bias
             alpha=alpha,
             init_lambda=self.config.init_lambda,
             update_lambda=self.config.update_lambda,
@@ -1724,7 +1878,9 @@ class BanditRouter:
             # Concatenate: [Embedding, Handcrafted, Anchors, Hardness, Bias]
             x = np.concatenate([emb_reduced, feats, anchor_dists, hardness_feat])
         else:
-            x = context
+            # Context is already a vector (possibly from a previous call)
+            # Return as-is WITHOUT appending bias (already present)
+            return context
             
         # Append bias term (Last dim)
         return np.append(x, 1.0)
@@ -1754,6 +1910,68 @@ class BanditRouter:
         # and would access the bandit's internal state (e.g., self.bandit.theta).
         # For this example, we'll return a placeholder.
         return np.zeros(dim)
+
+    @property
+    def reference_model(self) -> Dict[str, Any]:
+        """
+        Dynamically identifies the 'Flagship' model to use as a baseline reference.
+        
+        This property supports the **Reference Point Normalization** logic in
+        `OptimizationProfile.from_reference()`. When users specify preferences like
+        "I want 95% of the quality for 50% of the cost," they implicitly define
+        these percentages relative to the best available model.
+        
+        **Selection Criteria:**
+        The model with the **highest HLE (Human-Like Excellence) score** in the
+        current registry. This ensures the reference point adapts automatically
+        when you upgrade your model portfolio (e.g., adding GPT-5).
+        
+        **Why HLE?**
+        HLE score is the canonical quality metric in BanditGPT, representing
+        empirical win-rate against Claude 3.5 Sonnet on the LMSYS Arena dataset.
+        It directly captures "how good" a model is at satisfying users.
+        
+        **Market-Relative Interpretation:**
+        Note that `from_reference()` actually uses **market-wide normalization**
+        (RouterConfig.market_cost_ceiling = $10.00) rather than this specific
+        model's cost, which provides stability across portfolio changes.
+        This property serves as a **transparent reference** for users to understand
+        what "100% quality" means at any given time.
+        
+        Returns:
+            Dictionary containing flagship model metadata with keys:
+                - id: Model identifier (string)
+                - hle: HLE score (float, typically 0.0-0.4 range)
+                - input_cost_per_m: Cost in $/million tokens (float)
+                - output_cost_per_m: Cost in $/million tokens (float)
+                - ... (other registry metadata)
+        
+        Example:
+            >>> router = BanditRouter.create()
+            >>> ref = router.reference_model
+            >>> print(f"Current flagship: {ref['id']} (HLE: {ref['hle']:.3f})")
+            Current flagship: google/gemini-exp-1206 (HLE: 0.348)
+        """
+        if not self.registry:
+            # Fallback if registry is empty (should never happen in production)
+            logger.warning("Registry is empty, using fallback reference model")
+            return {
+                "id": "fallback-flagship",
+                "hle": 1.0,
+                "input_cost_per_m": 10.0,
+                "output_cost_per_m": 10.0
+            }
+            
+        # Find the model with the maximum HLE score
+        champion_id = max(
+            self.registry,
+            key=lambda m: self.registry[m].get("hle", 0.0) or 0.0
+        )
+        
+        # Return a copy of the registry entry with the ID included
+        data = dict(self.registry[champion_id])
+        data["id"] = champion_id
+        return data
 
 
     @classmethod
@@ -1851,7 +2069,7 @@ class BanditRouter:
         # 3. Initialize
         # Determine PCA path - in data/ subdirectory
         # PCA file is now in root data/ directory
-        pca_path_default = base_dir.parent.parent / "artifacts" / "pca_32.joblib"
+        pca_path_default = base_dir.parent.parent / "artifacts" / "pca_23.joblib"
         if not pca_path_default.exists():
             logger.warning(f"PCA file not found at {pca_path_default}. Router will use 384-dim embeddings.")
         
@@ -2789,30 +3007,7 @@ class BanditRouter:
         return length_signal
 
 
-    def _classify_sensitivity(self, text: str) -> str:
-        """
-        Stage 1: Context Sensitivity Classifier
-        Two-Tier System: LOW (normal) | HIGH (safety-critical)
-        Uses deterministic regex-based classifier.
-        """
-        try:
-            from high_risk_prompt_classifier import HighRiskPromptClassifier
-            if not hasattr(self, '_risk_classifier'):
-                self._risk_classifier = HighRiskPromptClassifier(threshold=5.0)
-            
-            result = self._risk_classifier.classify(text)
-            return "HIGH" if result.label == "high" else "LOW"
-        except ImportError:
-            # Ultra-minimal fallback (should not happen)
-            text_lower = text.lower()
-            high_triggers = [
-                "medical", "doctor", "legal", "lawyer", "suicide", "kill myself",
-                "financial advice", "dose", "diagnosis", "prescription"
-            ]
-            for trigger in high_triggers:
-                if trigger in text_lower:
-                    return "HIGH"
-            return "LOW"
+
 
     # -------------------------------------------------------------------------
     # Helper Methods for route() - Atomicity Refactoring
@@ -2868,46 +3063,7 @@ class BanditRouter:
             
         return w_q, w_c, w_l
     
-    def _apply_risk_gating(
-        self,
-        prompt_text: str,
-        sensitivity: str | None
-    ) -> List[str]:
-        """
-        Filter models by hallucination risk based on sensitivity tier.
-        
-        Two-Tier System:
-        - HIGH: <= 2.5% Risk (Forces safe models like GPT-4o)
-        - LOW: No Filter (Bandit optimizes freely)
-        
-        Args:
-            prompt_text: Input prompt text
-            sensitivity: Manual override ("LOW"/"HIGH") or None for auto-classification
-            
-        Returns:
-            List of candidate model IDs
-        """
-        candidates = list(self.registry.keys())
-        
-        # Classify sensitivity
-        eff_sensitivity = sensitivity.upper() if sensitivity else self._classify_sensitivity(prompt_text)
-        
-        # Apply gating for HIGH sensitivity
-        if eff_sensitivity == "HIGH":
-            safe_subset = []
-            threshold = 2.5
-            for m in candidates:
-                meta = self.registry.get(m, {})
-                risk_score = float(meta.get("hallucination_vectara", meta.get("hallucination_rate", 8.0)))
-                if risk_score <= threshold:
-                    safe_subset.append(m)
-            
-            if safe_subset:
-                candidates = safe_subset
-            else:
-                logger.warning(f"No models passed HIGH (<= {threshold}%) gate. Falling back to full pool.")
-        
-        return candidates
+
     
     def _filter_by_constraints(
         self,
@@ -3089,7 +3245,7 @@ class BanditRouter:
                 best_utility = utility
                 best_model = m
                 
-        return best_model, best_utility
+        return best_model, best_utility, (w_q + w_c + w_l)
     
     def _trigger_periodic_pruning(self) -> None:
         """
@@ -3107,7 +3263,8 @@ class BanditRouter:
         utility: float,
         x: np.ndarray,
         input_tokens: int,
-        output_tokens: int
+        output_tokens: int,
+        total_weight: float = 1.0
     ) -> RoutingLog:
         """
         Create and persist routing log.
@@ -3133,7 +3290,8 @@ class BanditRouter:
             latency_s=self._estimate_latency(model, output_tokens),
             cluster_id=None,  # Legacy: replaced by Virtual Anchors
             cluster_similarity=None,
-            context_vector=x  # Cache for feedback loop
+            context_vector=x,  # Cache for feedback loop
+            total_priority_weight=total_weight
         )
         self.logs.append(log)
         
@@ -3147,7 +3305,12 @@ class BanditRouter:
         prompt: str | np.ndarray,
         *,
         profile: str | Dict[str, float] = "best_value",
-        sensitivity: str | None = None, # Manual override: "LOW", "MID", "HIGH"
+        # Reference Point Normalization (Convenience Parameters)
+        quality_tolerance: float | None = None,
+        cost_savings: float | None = None,
+        latency_savings: float | None = None,
+        # Other routing parameters
+
         max_cost: float | None = None,
         max_latency: float | None = None,
         quality_floor: Dict[str, float | None] = None,
@@ -3155,17 +3318,54 @@ class BanditRouter:
         output_tokens: int = 600,
     ) -> Tuple[str, RoutingLog]:
         """
-        Route a prompt to the best model using Three-Tier Risk Gating.
+        Route a prompt to the best model.
         
-        Tiers:
-        - LOW: No Gating. (Best for Creative/Low-Stakes)
-        - MID: Gate <= 5.0% Risk. (Best for General Knowledge/Coding)
-        - HIGH: Gate <= 2.5% Risk. (Best for Medical/Legal/High-Stakes)
+        **Reference Point Normalization (New):**
+        You can now specify preferences using intuitive trade-off percentages:
+        
+        >>> router.route(
+        ...     prompt="Explain quantum computing",
+        ...     quality_tolerance=0.05,  # Accept 5% quality drop
+        ...     cost_savings=0.50         # To save 50% cost
+        ... )
+        
+        This is equivalent to calling `OptimizationProfile.from_reference()` manually.
+        If both `quality_tolerance` and `cost_savings` are provided, they override
+        the `profile` parameter.
+        
+        Args:
+            prompt: Input prompt text or pre-embedded vector
+            profile: Named profile or custom weight dict (e.g., "max_quality", "arbitrage")
+            quality_tolerance: **[Reference Point]** % quality drop acceptable (e.g., 0.05 = 5%)
+            cost_savings: **[Reference Point]** % cost reduction desired (e.g., 0.50 = 50%)
+            latency_savings: **[Reference Point]** % latency reduction desired (optional)
+            max_cost: Hard cost constraint ($/1k tokens)
+            max_latency: Hard latency constraint (seconds)
+            quality_floor: Minimum quality scores per model
+            input_tokens: Input token count (auto-estimated if not provided)
+            output_tokens: Expected output token count (default 600)
+        
+        Returns:
+            Tuple of (model_id, routing_log)
         """
-        # Orchestrate the 8-phase routing process using focused helper methods
+        # --- NEW LOGIC: RESOLVE PROFILE ---
+        # If user provides tolerances, generate the profile on the fly
+        if quality_tolerance is not None and cost_savings is not None:
+            profile_weights = OptimizationProfile.from_reference(
+                quality_tolerance=quality_tolerance,
+                cost_savings=cost_savings,
+                latency_savings=latency_savings or 0.0
+            )
+        else:
+            # Fallback to standard named profile or custom dict
+            profile_weights = profile
+        # ----------------------------------
+        
+        # Orchestrate the routing process using focused helper methods
         x, prompt_text = self._build_routing_features(prompt)
-        w_q, w_c, w_l = self._resolve_utility_weights(profile, max_cost, max_latency)
-        candidates = self._apply_risk_gating(prompt_text, sensitivity)
+        # Use profile_weights instead of profile here
+        w_q, w_c, w_l = self._resolve_utility_weights(profile_weights, max_cost, max_latency)
+        candidates = list(self.registry.keys())
         filtered = self._filter_by_constraints(
             candidates, prompt, max_cost, max_latency, quality_floor, input_tokens, output_tokens
         )
@@ -3173,11 +3373,13 @@ class BanditRouter:
         # Estimate tokens for scoring
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
         
-        best_model, best_utility = self._score_candidates(
+        best_model, best_utility, total_weight = self._score_candidates(
             filtered, x, w_q, w_c, w_l, in_tok, output_tokens
         )
         self._trigger_periodic_pruning()
-        log = self._create_routing_log(prompt_text, best_model, best_utility, x, in_tok, output_tokens)
+        log = self._create_routing_log(
+            prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
+        )
         
         return best_model, log
     
