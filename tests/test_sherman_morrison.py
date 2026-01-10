@@ -2,12 +2,9 @@
 """
 Unit Test: Sherman-Morrison Math Correctness
 
-Verifies that the Scaled Sherman-Morrison optimization correctly handles:
-1. Matrix decay with forgetting_factor < 1.0
-2. Mathematical consistency (A @ A_inv ≈ I)
-3. Proper triggering of O(d²) vs O(d³) paths
-
-This validates the core mathematical claim of O(d²) complexity.
+Verifies that the Sherman-Morrison optimization:
+1. Maintains mathematical consistency (A @ A_inv ≈ I)
+2. Handles updates correctly without expensive full inversion
 """
 import sys
 from pathlib import Path
@@ -23,7 +20,9 @@ def test_scaled_sherman_morrison():
     Verify that Scaled Sherman-Morrison handles decay efficiently.
     """
     print("=" * 70)
-    print("SCALED SHERMAN-MORRISON OPTIMIZATION TEST")
+    print("=" * 70)
+    print("SHERMAN-MORRISON OPTIMIZATION TEST")
+    print("=" * 70)
     print("=" * 70)
     
     # Create a simple 3-arm bandit with forgetting enabled
@@ -38,18 +37,16 @@ def test_scaled_sherman_morrison():
         dim=dim,
         alpha=0.1,
         init_lambda=init_lambda,
-        update_lambda=update_lambda,
-        forgetting_factor=forgetting_factor
+        update_lambda=update_lambda
     )
     
     print(f"\nConfiguration:")
     print(f"  Models: {len(models)}")
     print(f"  Dimension: {dim}")
-    print(f"  Forgetting Factor: {forgetting_factor}")
+    print(f"  Dimension: {dim}")
     print(f"  Init Lambda: {init_lambda}")
     print(f"  Update Lambda: {update_lambda}")
-    print(f"\nNote: With update_lambda=0, we rely on Scaled Sherman-Morrison for speed.")
-    print(f"      Diagonal regularization floor restoration is disabled.")
+    print(f"\nNote: With update_lambda=0, we rely on Sherman-Morrison for speed.")
     
     # Simulate alternating updates (realistic multi-arm scenario)
     print(f"\n{'Step':<6} {'Model':<10} {'dt':<5} {'Staleness':<12} {'Expected':<15}")
@@ -82,11 +79,10 @@ def test_scaled_sherman_morrison():
     print("-" * 70)
     print(f"\nResults:")
     print(f"  All updates: Pure O(d²) Sherman-Morrison")
-    print(f"  No full inversions triggered (update_lambda=0)")
     
     # Test passes if we used Sherman-Morrison throughout
     if full_inversion_count == 0:
-        print(f"\n✅ PASS: All updates used Scaled Sherman-Morrison (O(d²))")
+        print(f"\n✅ PASS: All updates used Sherman-Morrison (O(d²))")
         print(f"  No expensive O(d³) matrix inversions occurred")
         success = True
     else:
@@ -110,8 +106,7 @@ def test_consistency():
         model_names=models,
         dim=dim,
         alpha=0.1,
-        init_lambda=1.0,  # Use default to ensure A doesn't decay to zero
-        forgetting_factor=0.95
+        init_lambda=1.0  # Use default to ensure A doesn't decay to zero
     )
     
     model = "test_model"
@@ -148,11 +143,10 @@ if __name__ == "__main__":
     test2_pass = test_consistency()
     
     if test1_pass and test2_pass:
-        print("\n🎉 All tests passed! Scaled Sherman-Morrison is working correctly.")
+        print("\n🎉 All tests passed! Sherman-Morrison is working correctly.")
         print("\nKey Takeaway:")
-        print("  - Decay is now O(d²) via scaled A_inv update")
-        print("  - Only diagonal regularization restoration forces O(d³)")
-        print("  - This is the optimal tradeoff for stable LinUCB with forgetting")
+        print("  - Update is O(d²) via A_inv update")
+        print("  - This is the optimal tradeoff for stable LinUCB")
         sys.exit(0)
     else:
         print("\n❌ Some tests failed. Review the implementation.")

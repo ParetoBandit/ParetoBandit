@@ -8,9 +8,9 @@ single-model convex hull.
 
 Key visual elements:
 - Cost (log scale) vs Hard Task Accuracy (%)
-- Model convex hull (baseline frontier)
-- BanditGPT point above the curve
-- "Dumbbell" variance intervals showing reliability contrast
+- Model convex hull (baseline frontier, Orange)
+- BanditGPT Pareto Curve (Blue line connecting profiles)
+- Random Baseline (Rose cross)
 """
 
 import json
@@ -18,8 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from matplotlib.ticker import PercentFormatter
-from scipy.spatial import ConvexHull
-
+import seaborn as sns
 
 def load_results():
     """Load results from run_arbitrage.py"""
@@ -34,194 +33,145 @@ def load_results():
     with open(results_path) as f:
         return json.load(f)
 
-
 def plot_arbitrage_curve(results: dict, output_path: Path):
     """
     Create KDD publication-quality Pareto Arbitrage plot.
-    
-    The "Free Lunch" visualization:
-    - X-axis: Cost ($/1M tokens) on log scale
-    - Y-axis: Hard Task Success Rate (%)
-    - Model Convex Hull: Orange dashed line (baseline frontier)
-    - BanditGPT: Blue diamond ABOVE the hull
-    - Random: X marker with HIGH variance "dumbbell"
     """
     # KDD-Quality Aesthetics
     plt.style.use('seaborn-v0_8-whitegrid')
-    fig, ax = plt.subplots(figsize=(12, 8))
+    # Use standard reliable fonts
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans', 'sans-serif']
     
-    # Color-Blind Friendly Palette (Nature/Science standard)
+    fig, ax = plt.subplots(figsize=(10, 7))
+    
+    # Color-Blind Friendly Palette
     COLORS = {
         "models": "#999999",      # Gray for individual models
         "frontier": "#E69F00",    # Orange for model frontier
-        "bandit": "#0072B2",      # Blue for BanditGPT
+        "bandit": "#0072B2",      # Blue for BanditGPT Curve
         "random": "#CC79A7",      # Rose for random baseline
-        "free_lunch": "#56B4E9",  # Sky blue for efficiency gain
+        "annotation": "#333333"
     }
     
     # Extract data
     model_baselines = results["model_baselines"]
     pareto_frontier = results["pareto_frontier"]
-    bandit = results["bandit_arbitrage"]
-    random = results["random_baseline"]
+    bandit_curve = results["bandit_curve"]
+    random_res = results["random_baseline"]
     
-    # Filter out zero-cost models for log scale
+    # -------------------------------------------------------------------------
+    # 1. Plot Individual Models
+    # -------------------------------------------------------------------------
+    # Filter for log scale (cost > 0)
     valid_models = [m for m in model_baselines if m["cost"] > 0]
-    m_costs = np.array([m["cost"] for m in valid_models])
-    m_qualities = np.array([m["quality"] for m in valid_models])
+    m_costs = [m["cost"] for m in valid_models]
+    m_qualities = [m["quality"] for m in valid_models]
     
-    # 1. Plot individual models (gray scatter)
-    ax.scatter(m_costs, m_qualities, color=COLORS["models"], s=80, alpha=0.5,
-               label='Individual Models', zorder=2, edgecolors='white', linewidths=1)
+    ax.scatter(m_costs, m_qualities, color=COLORS["models"], s=60, alpha=0.4,
+               label='Individual Models', zorder=2, edgecolors='white')
     
-    # 2. Plot Model Pareto Frontier (convex hull)
-    valid_frontier = [m for m in pareto_frontier if m["cost"] > 0]
-    if len(valid_frontier) > 1:
-        f_costs = np.array([m["cost"] for m in valid_frontier])
-        f_qualities = np.array([m["quality"] for m in valid_frontier])
+    # -------------------------------------------------------------------------
+    # 2. Plot Static Pareto Frontier (Convex Hull)
+    # -------------------------------------------------------------------------
+    # Sort by cost for line plotting
+    frontier_points = sorted([m for m in pareto_frontier if m["cost"] > 0], key=lambda x: x["cost"])
+    if frontier_points:
+        f_costs = [m["cost"] for m in frontier_points]
+        f_qualities = [m["quality"] for m in frontier_points]
         
-        # Sort by cost for proper line plotting
-        sort_idx = np.argsort(f_costs)
-        f_costs = f_costs[sort_idx]
-        f_qualities = f_qualities[sort_idx]
-        
-        ax.plot(f_costs, f_qualities, color=COLORS["frontier"], lw=3,
-                linestyle='--', alpha=0.9, label='Model-Only Frontier', zorder=3,
-                marker='o', markersize=8, markeredgecolor='white', markeredgewidth=1.5)
+        ax.plot(f_costs, f_qualities, color=COLORS["frontier"], lw=2.5,
+                linestyle='--', alpha=0.8, label='Static Model Frontier', zorder=3,
+                marker='o', markersize=6)
+                
+    # -------------------------------------------------------------------------
+    # 3. Plot Random Baseline
+    # -------------------------------------------------------------------------
+    ax.errorbar(random_res["cost_mean"], random_res["quality_mean"],
+                xerr=random_res["cost_std"], yerr=random_res["quality_std"],
+                color=COLORS["random"], fmt='X', markersize=12,
+                capsize=5, elinewidth=2, alpha=0.9,
+                label='Random Selection', zorder=4,
+                markeredgecolor='white')
     
-    # 3. Random Baseline with HIGH variance "dumbbell" (The Contrast)
-    ax.errorbar(random["cost_mean"], random["quality_mean"],
-                xerr=random["cost_std"], yerr=random["quality_std"] * 3,  # Amplify for visual effect
-                color=COLORS["random"], fmt='X', markersize=16,
-                capsize=10, capthick=3, elinewidth=3, alpha=0.8,
-                label=f'Random Selection (High Variance)', zorder=4,
-                markeredgecolor='white', markeredgewidth=2)
+    ax.annotate("Random", 
+                (random_res["cost_mean"], random_res["quality_mean"]),
+                xytext=(-30, -30), textcoords='offset points',
+                fontsize=10, color=COLORS["random"], fontweight='bold')
+
+    # -------------------------------------------------------------------------
+    # 4. Plot BanditGPT Arbitrage Curve
+    # -------------------------------------------------------------------------
+    # Sort by cost
+    bandit_points = sorted(bandit_curve, key=lambda x: x["cost_mean"])
+    b_costs = [b["cost_mean"] for b in bandit_points]
+    b_qualities = [b["quality_mean"] for b in bandit_points]
     
-    # 4. BanditGPT Arbitrage with LOW variance "dumbbell" (THE WIN)
-    ax.errorbar(bandit["cost_mean"], bandit["quality_mean"],
-                xerr=bandit["cost_std"], yerr=bandit["quality_std"],
-                color=COLORS["bandit"], fmt='D', markersize=16,
-                capsize=6, capthick=2, elinewidth=2, alpha=0.95,
-                label=f'BanditGPT Arbitrage (Low Variance)', zorder=6,
-                markeredgecolor='white', markeredgewidth=2)
-    
-    # 5. Annotate BanditGPT point
-    ax.annotate("Arbitrage", 
-                (bandit["cost_mean"], bandit["quality_mean"]),
-                xytext=(15, 20), 
-                textcoords='offset points', 
-                fontsize=12,
-                fontweight='bold', 
-                color=COLORS["bandit"],
-                bbox=dict(boxstyle='round,pad=0.5', 
-                         facecolor='white', 
-                         edgecolor=COLORS["bandit"],
-                         linewidth=2,
-                         alpha=0.95),
-                arrowprops=dict(arrowstyle='->', 
-                              connectionstyle='arc3,rad=0.1',
-                              color=COLORS["bandit"],
-                              lw=2))
-    
-    # 6. Annotate Random baseline
-    ax.annotate("Random\n(unreliable)", 
-                (random["cost_mean"], random["quality_mean"]),
-                xytext=(-70, -50), 
-                textcoords='offset points', 
-                fontsize=10,
-                fontweight='bold', 
-                color=COLORS["random"],
-                bbox=dict(boxstyle='round,pad=0.4', 
-                         facecolor='white', 
-                         edgecolor=COLORS["random"],
-                         linewidth=2,
-                         alpha=0.9),
-                arrowprops=dict(arrowstyle='->', 
-                              connectionstyle='arc3,rad=-0.1',
-                              color=COLORS["random"],
-                              lw=1.5))
-    
-    # 7. Add "FREE LUNCH" annotation if applicable
-    if bandit["quality_mean"] > random["quality_mean"]:
-        quality_gain = (bandit["quality_mean"] - random["quality_mean"]) * 100
-        
-        # Position label closer to Arbitrage point (above and to the right)
-        ax.annotate(f'+{quality_gain:.1f}% Quality\nat Lower Cost!',
-                    xy=(bandit["cost_mean"], bandit["quality_mean"]),
-                    xytext=(60, -40),  # Offset: right and slightly below the point
-                    textcoords='offset points',
-                    fontsize=11,
-                    fontweight='bold',
-                    color=COLORS["free_lunch"],
-                    bbox=dict(boxstyle='round,pad=0.4',
-                             facecolor='#E6F3FF',
-                             edgecolor=COLORS["free_lunch"],
-                             linewidth=2),
-                    arrowprops=dict(arrowstyle='fancy',
-                                  connectionstyle='arc3,rad=-0.2',
-                                  color=COLORS["free_lunch"],
-                                  lw=2))
-    
-    # 8. Professional Formatting
+    # Plot the curve
+    ax.plot(b_costs, b_qualities, color=COLORS["bandit"], lw=3,
+            linestyle='-', alpha=1.0, label='BanditGPT Arbitrage', zorder=5,
+            marker='D', markersize=8, markeredgecolor='white')
+            
+    # Annotate specific profiles
+    for b in bandit_points:
+        name = b["profile"]
+        if name in ["Arbitrage", "Max Quality", "Cost Saver"]:
+            xy = (b["cost_mean"], b["quality_mean"])
+            
+            # Smart offset logic
+            if name == "Arbitrage":
+                offset = (-60, 20)
+                ha = 'right'
+            elif name == "Max Quality":
+                offset = (-20, 15)
+                ha = 'right'
+            else:
+                offset = (10, -20)
+                ha = 'left'
+                
+            ax.annotate(name, xy, xytext=offset, textcoords='offset points',
+                        fontsize=10, fontweight='bold', color=COLORS["bandit"],
+                        arrowprops=dict(arrowstyle='->', color=COLORS["bandit"], lw=1.5),
+                        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec=COLORS["bandit"], alpha=0.8))
+
+    # -------------------------------------------------------------------------
+    # 5. Formatting
+    # -------------------------------------------------------------------------
     ax.set_xscale('log')
-    ax.set_xlabel('Cost per 1M Tokens (USD, Log Scale)', 
-                  fontsize=14, fontweight='bold', labelpad=10)
-    ax.set_ylabel('Hard Task Success Rate (%)', 
-                  fontsize=14, fontweight='bold', labelpad=10)
-    ax.set_title('The Pareto Arbitrage Curve: BanditGPT\'s "Free Lunch"',
-                 fontsize=16, fontweight='bold', pad=20)
+    ax.set_xlabel('Cost per 1M Tokens (USD, Log Scale)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Quality (Oracle Reward)', fontsize=12, fontweight='bold')
     
-    # Subtitle with key claim
-    ax.text(0.5, 1.02, 
-            'Flagship Quality at Budget Prices: Routing Intelligence Above Static Selection',
-            transform=ax.transAxes, ha='center', fontsize=11, 
-            fontstyle='italic', color='gray')
+    ax.set_title("The Free Lunch: BanditGPT vs Static Frontier", fontsize=14, fontweight='bold', pad=15)
     
-    # Format y-axis as percentage
+    # Format Y axis as percentage
     ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     
-    # Set axis limits for clarity
-    ax.set_ylim(0.85, 1.02)  # Focus on high-quality region
+    # Add Grid
+    ax.grid(True, which="both", ls="-", alpha=0.2)
     
     # Legend
-    ax.legend(loc='lower right', fontsize=11, framealpha=0.95,
-              edgecolor='gray', fancybox=True)
+    ax.legend(loc='lower right', frameon=True, framealpha=0.95, fancybox=True)
     
-    ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
-    ax.tick_params(labelsize=11)
-    
+    # Save
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(output_path, dpi=300)
     print(f"✅ Plot saved to: {output_path}")
 
-
 def main():
-    """Generate KDD-quality Pareto Arbitrage visualization."""
     print("="*70)
-    print("PLOTTING PARETO ARBITRAGE CURVE (Figure 1)")
+    print("PLOTTING PARETO ARBITRAGE CURVE")
     print("="*70)
     
-    # Load results
-    print("\n📊 Loading results...")
     results = load_results()
-    print(f"  ✓ Loaded {len(results['model_baselines'])} model baselines")
-    print(f"  ✓ Loaded {len(results['pareto_frontier'])} frontier points")
+    print(f"Loaded results: {len(results['model_baselines'])} baselines, {len(results['bandit_curve'])} bandit points")
     
-    # Generate plot
     output_dir = Path(__file__).parent / "results"
     output_path = output_dir / "fig1_arbitrage_curve.pdf"
     
-    print(f"\n🎨 Generating publication-quality plot...")
     plot_arbitrage_curve(results, output_path)
     
-    # Also save as PNG for quick preview
-    png_path = output_path.with_suffix('.png')
-    plot_arbitrage_curve(results, png_path)
-    
-    print("\n✅ Done! The plot shows BanditGPT's 'Free Lunch' above the model frontier.")
-    print("   - Low variance 'dumbbell' for BanditGPT = reliable routing")
-    print("   - High variance 'dumbbell' for Random = unreliable selection")
-
+    # PNG preview
+    plot_arbitrage_curve(results, output_path.with_suffix(".png"))
 
 if __name__ == "__main__":
     main()

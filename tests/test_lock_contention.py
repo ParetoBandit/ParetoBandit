@@ -28,7 +28,7 @@ class TestSnapshotSwapCorrectness:
             ["model_a", "model_b"], 
             dim=20, 
             alpha=0.1, 
-            forgetting_factor=0.95
+            update_lambda=0.0
         )
         
         np.random.seed(42)
@@ -50,7 +50,7 @@ class TestSnapshotSwapCorrectness:
             ["model_a", "model_b"],
             dim=10,
             alpha=0.1,
-            forgetting_factor=0.95
+            update_lambda=0.0
         )
         
         np.random.seed(123)
@@ -114,7 +114,7 @@ class TestThreadSafety:
             ["model_a", "model_b"],
             dim=10,
             alpha=0.1,
-            forgetting_factor=0.95
+            update_lambda=0.0
         )
         
         errors = []
@@ -153,7 +153,7 @@ class TestThreadSafety:
             ["model_a", "model_b"],
             dim=50,  # Larger dimension for slower updates
             alpha=0.1,
-            forgetting_factor=0.95
+            update_lambda=0.0
         )
         
         # Pre-populate with some data
@@ -220,7 +220,7 @@ class TestThreadSafety:
             ["model_a"],
             dim=10,
             alpha=0.1,
-            forgetting_factor=0.95
+            update_lambda=0.0
         )
         
         def update_worker(iterations, seed_offset):

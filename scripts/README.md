@@ -30,6 +30,16 @@ python scripts/generate_warmup.py
 - `SEED`: Random seed for reproducibility (default: 42)
 - `OUTPUT_PATH`: Save location (default: `data/priors_warmup.joblib`)
 
+### Important Note on Estimated Fields
+
+Since the source data table only provided Input Cost and Quality, Standard Industry Heuristics were used for the missing fields. You may want to adjust these if you have exact data:
+
+- **Output Cost**: Estimated at **3x Input Cost** (Standard ratio for most providers).
+- **Latency (`time_to_first_token_seconds`)**: Estimated based on parameter count (e.g., 4B models ≈ 0.18s, 70B+ models ≈ 0.5s+).
+- **Context Length**: Defaulted to **128k** (Standard for modern models), except:
+  - `gemini-2.5-flash-preview`: Set to **1M**
+  - `gpt-oss-20b`: Set to **16k** (conservative estimate)
+
 **Using Warmup in Experiments**:
 ```python
 from src.bandit_gpt.router import BanditRouter

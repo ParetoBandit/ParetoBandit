@@ -1,0 +1,32 @@
+\section{Introduction}
+
+The rapid democratization of Large Language Models (LLMs) has created a fragmented landscape defined by competing axes of capability, cost, and latency. While frontier models (e.g., GPT-4o, Claude 3.5 Sonnet) offer state-of-the-art reasoning, they are often prohibitively expensive for high-throughput applications. Conversely, efficient models (e.g., Llama-3-8B) are cost-effective but prone to failure on complex tasks. This capability asymmetry necessitates \textbf{LLM Routing}: the dynamic assignment of each query to the most efficient model capable of solving it.
+
+In commercial deployment settings---such as coding assistants or customer support chatbots---this routing decision is constrained by strict Service Level Objectives (SLOs). Operators must often guarantee Time-to-First-Token (TTFT) latency below strict thresholds while keeping monthly inference spend within budget caps, all without degrading task success rates. Existing solutions struggle to satisfy these competing operational constraints simultaneously.
+
+\subsection{The Routing Trilemma}
+Current routing architectures impose severe trade-offs that limit their adoption in production environments:
+
+\begin{itemize}
+    \item \textbf{Latency Penalties (Cascades):} Approaches like FrugalGPT optimize cost by sequentially querying models until a confidence threshold is met \cite{chen2023frugalgpt}. While effective, this introduces variable latency that grows with the number of fallback calls, often violating real-time SLOs.
+    \item \textbf{Supervision Bottlenecks (Predictors):} Supervised routers like RouteLLM rely on massive datasets of human preference labels (e.g., Chatbot Arena) for training \cite{ong2024routellm}. This creates a static policy that adapts to domain shifts (e.g., new proprietary coding standards) only via expensive retraining and fresh labeling cycles.
+    \item \textbf{Granularity Blind-Spots (Semantic Maps):} Static embedding routers cluster queries by topic (e.g., ``Math''), assuming uniform difficulty within a cluster. They often fail to distinguish between trivial arithmetic and complex proofs, leading to systematic over-provisioning and measurable budget wastage on evaluation logs.
+\end{itemize}
+
+\subsection{Why Contextual Bandits?}
+To address these limitations, we formulate routing as a \textbf{Contextual Linear Bandit} problem. Unlike supervised classifiers, bandits naturally handle the partial feedback inherent in production systems: we observe the outcome (success/failure) only for the selected model, never the counterfactuals.
+
+While recent works such as BaRP \cite{ruan2024barp} and PILOT \cite{shin2023pilot} have explored bandit-based routing to optimize scalar performance-cost trade-offs, they typically suffer from the ``Cold Start'' problem---performing near-randomly in the earliest rounds until sufficient data accumulates. Furthermore, many rely on deep reinforcement learning policies with high sample complexity.
+
+In contrast, our focus is on single-shot routing under strict latency constraints with an explicit cold-start mitigation mechanism. We propose a lightweight, interpretable linear framework initialized via \textbf{Generative Calibration}: prior to deployment, the router’s covariance matrix is pre-conditioned using synthetic prompts labeled by a teacher model. This transfers structural knowledge about prompt difficulty (e.g., prompts with formal mathematical notation may systematically differ in difficulty) into the bandit’s prior, allowing it to deploy with near-optimal performance from the very first request while retaining the plasticity to learn from real user feedback.
+
+\subsection{Our Contribution: BanditGPT}
+We present \textbf{BanditGPT}, an adaptive routing framework designed for latency-constrained production environments. Our primary contributions are:
+
+\begin{itemize}
+    \item \textbf{Elimination of Cold Start} via a procedural warm-up method that uses $\sim$20,000 synthetic samples to pre-condition the bandit's feature geometry, matching the performance of static SOTA baselines (see Section 4.1) within 50 interactions on realistic replay logs.
+    \item \textbf{Cost-Efficient Pareto Frontier} achieved through a 37\% reduction in aggregate token costs compared to static best-arm policies on our stratified evaluation set, while maintaining a win-rate within 2\% of the oracle.
+    \item \textbf{Single-Shot Latency} with a deterministic routing overhead on the order of 10ms, satisfying real-time latency requirements that cascading architectures often violate.
+\end{itemize}
+
+Together, these properties make BanditGPT suitable for real-time, cost-sensitive LLM applications where both budget and latency are tightly constrained.

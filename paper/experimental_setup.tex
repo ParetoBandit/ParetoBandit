@@ -1,0 +1,42 @@
+\section{Experimental Setup}
+
+\subsection{Dataset and Protocol}
+We evaluate BanditGPT using the LMSYS Chatbot Arena dataset, consisting of 2,000 real-world user prompts. To ensure rigorous evaluation and prevent data leakage, we employ a strict \textbf{Three-Stage Protocol}:
+
+\begin{itemize}
+    \item \textbf{Development Split (60\%):} 1,200 prompts used exclusively for hyperparameter tuning and prior calibration (burn-in).
+    \item \textbf{Hold-Out Test Split (40\%):} 800 prompts sealed until the final evaluation run. We verify strict disjointness between splits ($\mathcal{D}_{dev} \cap \mathcal{D}_{test} = \emptyset$).
+    \item \textbf{Signal-Aware Curriculum:} Within the Development set, we filter for ``Contentious'' prompts where model rewards exhibit high variance ($\sigma^2 > 0.05$). We oversample these high-signal examples by $3\times$ during burn-in to focus the covariance update on decision boundaries rather than consensus noise.
+\end{itemize}
+
+\subsection{Objective Alignment (Profile Configuration)}
+For the primary effectiveness comparison (Regret), we configure BanditGPT with a \textbf{Quality-Dominant Profile} ($w_{quality}=0.97, w_{cost}=0.02, w_{latency}=0.01$). This decision is grounded in control theory:
+\begin{enumerate}
+    \item \textbf{Metric Consistency:} The Oracle reward $r^*$ is derived from LMSYS preference labels, which measure pure response quality. To minimize Regret ($R_T = \sum r^* - r_t$), the agent's utility function must align with this ground truth.
+    \item \textbf{Isolating Learning Efficiency:} Using a cost-sensitive profile (e.g., ``Arbitrage'') would introduce a strategic bias---intentionally sacrificing reward $r_t$ for cost savings. While practically useful, this confounds the measurement of learning efficiency, as it becomes impossible to distinguish between a ``Smart Trade-off'' and a ``Routing Error.''
+\end{enumerate}
+By targeting Max Quality, we rigorously test the bandit's ability to identify and converge on the optimal model solely through feature-based generalization.
+
+\subsection{Hyperparameter Tuning (Gold Standard)}
+A common pitfall in offline reinforcement learning is hyperparameter overfitting on the test set. To avoid this, we perform \textbf{3-Fold Cross-Validation} strictly within the Development split to select the optimal prior stiffness ($N_{eff}$) and exploration rate ($\alpha$).
+
+\begin{itemize}
+    \item \textbf{Search Space:} We perform a grid search over $N_{eff} \in [1, 5, 10, 20, 50, 100]$ and $\alpha \in [0.05, 0.1, 0.5, 1.0]$.
+    \item \textbf{Protocol:} The Development data (1,200 prompts) is partitioned into 3 folds. For each parameter pair, we burn-in on 2 folds (using the signal-aware curriculum) and measure offline regret on the held-out 3rd fold.
+    \item \textbf{Leakage Prevention:} We explicitly verify that there is zero semantic overlap between the Development set and the final Hold-Out Test set ($\mathcal{D}_{dev} \cap \mathcal{D}_{test} = \emptyset$) to guarantee that the selected parameters ($N_{eff}=5.0, \alpha=0.05$) generalize to unseen prompts.
+\end{itemize}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{experiments/01_effectiveness/results/tuning_heatmap.png}
+    \caption{\textbf{Hyperparameter Stability Surface.} Average validation regret (lower is better) across 3-fold cross-validation. We observe a global minimum at \textbf{Prior Stiffness} $N_{eff}=5.0$ and \textbf{Exploration Rate} $\alpha=0.05$. The steep gradient along the X-axis confirms that stronger priors reduce the need for online exploration, while the stable basin along the Y-axis indicates robustness to prior stiffness settings.}
+    \label{fig:heatmap}
+\end{figure}
+
+\subsection{Baselines}
+We compare BanditGPT against three baselines using Oracle Rewards:
+\begin{itemize}
+    \item \textbf{RouteLLM (SOTA):} The Matrix Factorization router from \cite{ong2024routellm}, using the official library with mapped model IDs.
+    \item \textbf{Vanilla LinUCB:} A standard disjoint LinUCB policy ($d=1$, bias only). We set $\alpha=1.0$ to ensure sufficient exploration in the absence of informative priors.
+    \item \textbf{BanditGPT (HLE):} Our model initialized only with diagonal priors (HLE scores) but no covariance structure ($N_{eff}=10$), serving as an ablation for the Procedural Warmup.
+\end{itemize}

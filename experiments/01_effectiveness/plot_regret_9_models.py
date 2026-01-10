@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Plot cumulative regret comparison for Experiment 01.
+Plot cumulative regret comparison for 9-Model Experiment.
 
-Generates: fig1_cumulative_regret.pdf
+Generates: fig_regret_9_models.pdf
 """
 
 import sys
@@ -18,13 +18,13 @@ from utils.plotting import apply_kdd_style, save_kdd_style_plot, COLORS
 
 
 def load_results():
-    """Load results from run_baselines.py."""
-    results_file = Path(__file__).parent / "results" / "effectiveness_results.json"
+    """Load results from effectiveness_results_9_models.json."""
+    results_file = Path(__file__).parent / "results" / "effectiveness_results_9_models.json"
     
     if not results_file.exists():
         raise FileNotFoundError(
             f"Results not found at {results_file}. "
-            "Run `python run_baselines.py` first."
+            "Run `python run_baselines_9_models.py` first."
         )
     
     with open(results_file) as f:
@@ -34,7 +34,7 @@ def load_results():
 
 
 def compute_statistics(regret_curves):
-    """Compute mean and CI for regret curves across seeds."""
+    """Compute mean and 95% CI for regret curves across seeds."""
     curves = np.array(regret_curves)  # Shape: [n_seeds, n_timesteps]
     
     mean_curve = np.mean(curves, axis=0)
@@ -52,14 +52,12 @@ def create_regret_plot(results):
     apply_kdd_style()
     fig, ax = plt.subplots(figsize=(10, 5))
     
-    # Define method order and colors
+    # Define method order and colors (Updated keys for 9-model run)
     methods = {
-        "routellm_static": {"label": "RouteLLM (Static SOTA)", "color": COLORS["purple"], "linestyle": "-", "linewidth": 2.5},
+        "routellm_mf": {"label": "RouteLLM (MF Baseline)", "color": COLORS["purple"], "linestyle": "-", "linewidth": 2.5},
         "banditgpt_warmup": {"label": "BanditGPT Warmup (Ours)", "color": COLORS["blue"], "linestyle": "-", "linewidth": 2.5},
-        "banditgpt_hle": {"label": "BanditGPT HLE", "color": COLORS["cyan"], "linestyle": "--", "linewidth": 2},
+        "banditgpt_hle": {"label": "BanditGPT HLE", "color": "#56B4E9", "linestyle": "--", "linewidth": 2},
         "vanilla_linucb": {"label": "Vanilla LinUCB", "color": COLORS["green"], "linestyle": "-.", "linewidth": 2},
-        "epsilon_greedy_0.1": {"label": "ε-greedy (ε=0.1)", "color": COLORS["orange"], "linestyle": ":", "linewidth": 2},
-        "banditgpt_none": {"label": "BanditGPT Cold Start", "color": COLORS["red"], "linestyle": "--", "linewidth": 1.5},
         "random": {"label": "Random", "color": COLORS["gray"], "linestyle": ":", "linewidth": 1.5},
     }
     
@@ -82,21 +80,20 @@ def create_regret_plot(results):
             linewidth=style["linewidth"]
         )
         
-        # Add CI shading (only for main methods to avoid clutter)
-        if method_key in ["routellm_static", "banditgpt_warmup", "banditgpt_hle"]:
-            ax.fill_between(
-                timesteps,
-                mean_regret - ci,
-                mean_regret + ci,
-                alpha=0.15,
-                color=style["color"]
-            )
+        # Add CI shading
+        ax.fill_between(
+            timesteps,
+            mean_regret - ci,
+            mean_regret + ci,
+            alpha=0.15,
+            color=style["color"]
+        )
     
     # Formatting
     ax.set_xlabel("Timestep (T)", fontsize=13, fontweight="bold")
     ax.set_ylabel("Cumulative Regret", fontsize=13, fontweight="bold")
     ax.set_title(
-        "Cumulative Regret: Static SOTA vs Adaptive Learning\\n(Mean ± 95% CI over 10 seeds, Train/Test Split)",
+        "Cumulative Regret (9-Model Portfolio)\\n(Mean ± 95% CI over 10 seeds)",
         fontsize=14,
         fontweight="bold"
     )
@@ -104,7 +101,7 @@ def create_regret_plot(results):
     ax.grid(alpha=0.3, linestyle="--")
     
     # Save plot
-    save_kdd_style_plot(fig, "fig1_cumulative_regret.pdf", output_dir="results")
+    save_kdd_style_plot(fig, "fig_regret_9_models.pdf", output_dir="results")
     plt.close()
 
 
@@ -115,12 +112,10 @@ def print_summary_stats(results):
     print("="*70)
     
     method_order = [
-        "routellm_static",
+        "routellm_mf",
         "banditgpt_warmup", 
         "banditgpt_hle",
         "vanilla_linucb",
-        "epsilon_greedy_0.1",
-        "banditgpt_none",
         "random"
     ]
     
@@ -139,7 +134,7 @@ def print_summary_stats(results):
 
 def main():
     """Generate regret plot."""
-    print("Generating cumulative regret plot...")
+    print("Generating cumulative regret plot for 9 models...")
     
     try:
         results = load_results()
@@ -147,7 +142,7 @@ def main():
         print_summary_stats(results)
         
         print("\n✅ Plot generated successfully!")
-        print("   Output: experiments/01_effectiveness/results/fig1_cumulative_regret.pdf")
+        print("   Output: experiments/01_effectiveness/results/fig_regret_9_models.pdf")
     
     except FileNotFoundError as e:
         print(f"❌ Error: {e}")

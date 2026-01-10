@@ -87,7 +87,14 @@ logger = logging.getLogger(__name__)
 class RouterConfig:
     """
     Centralized configuration for BanditRouter magic numbers.
+    
+    ✅ **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
+    
     All values are derived from empirical analysis or market data.
+    
+    **NOTE**: A legacy `LegacyRouterConfig` (Pydantic) exists in config.py for the deprecated
+    virtual anchors architecture. That config is for `core.py` (BanditGPT), not this router.
+    This dataclass is the single source of truth for the current production router.
     """
     
     # ---------------------------------------------------------------------------

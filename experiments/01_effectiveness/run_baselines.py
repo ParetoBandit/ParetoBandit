@@ -5,8 +5,16 @@ Experiment 01: Effectiveness Comparison (KDD-Compliant Offline Replay)
 Compares BanditGPT against baselines using REAL data:
 - Random selection (no learning)
 - ε-greedy (ε=0.1, learns running averages)
-- Vanilla LinUCB (bias-only context, learns)
+- Vanilla LinUCB (α=0.1, bias-only context, learns)
+- RouteLLM (SOTA static router, no learning) [TODO: Install library]
 - BanditGPT (full semantic features, learns)
+
+Train/Test Split Methodology:
+- Data Source: LMSYS Arena dataset (first-turn prompts only)
+- Split Type: Random I.I.D. split (976 train, 976 test)
+- Distribution: Both splits from same timeframe/distribution
+- Burn-in: BanditGPT methods learn on training data before test evaluation
+- Oracle: Calculated only over available models (prevents inflated regret)
 
 Critical: All methods use ORACLE REWARD LOOKUP, not random generation.
 Output: results/effectiveness_results.json
@@ -14,6 +22,8 @@ Output: results/effectiveness_results.json
 
 import sys
 import json
+import copy
+import random
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
@@ -127,7 +137,7 @@ def run_vanilla_linucb(
     prompts: List[str],
     oracle_rewards: Dict[str, Dict[str, float]],
     available_models: List[str],
-    alpha: float = 1.0,
+    alpha: float = 1.0,  # Fix C: Increased from 0.1 to 1.0 for aggressive exploration
     seed: int = 42
 ) -> Dict:
     """
@@ -146,7 +156,11 @@ def run_vanilla_linucb(
     selected_models = []
     selected_rewards = []
     
-    for prompt in tqdm(prompts, desc="LinUCB", leave=False):
+    # DEBUG: Track model selection distribution
+    from collections import Counter
+    model_selections = Counter()
+    
+    for i, prompt in enumerate(tqdm(prompts, desc="LinUCB", leave=False)):
         # Context: bias-only
         x = np.array([1.0])
         
@@ -156,13 +170,26 @@ def run_vanilla_linucb(
             A_inv = np.linalg.inv(A[m])
             theta = A_inv @ b[m]
             ucb = theta @ x + alpha * np.sqrt(x @ A_inv @ x)
-            ucb_scores[m] = ucb
+            ucb_scores[m] = float(ucb)
         
-        # Select best UCB
-        model_id = max(ucb_scores, key=lambda m: ucb_scores[m])
+        # Fix B: Randomized Tie-Breaking
+        # Prevent "Index 0" curse where the first model always wins ties
+        best_score = max(ucb_scores.values())
+        candidates = [m for m, s in ucb_scores.items() if s == best_score]
+        
+        # Use stable hash for reproducibility across processes
+        import zlib
+        prompt_hash = zlib.adler32(prompt.encode('utf-8'))
+        rng_step = np.random.RandomState(seed + (prompt_hash % 10000))
+        model_id = rng_step.choice(candidates)
+        model_selections[model_id] += 1
         
         # ORACLE LOOKUP
         reward = oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+        
+        # DEBUG: Log first 10 selections
+        if i < 10:
+            print(f"    [{i}] Selected: {model_id[:30]:30s} | UCB: {ucb_scores[model_id]:.3f} | Reward: {reward:.3f}")
         
         # UPDATE (Sherman-Morrison style, but simple for d=1)
         A[model_id] += np.outer(x, x)
@@ -171,6 +198,12 @@ def run_vanilla_linucb(
         selected_models.append(model_id)
         selected_rewards.append(reward)
     
+    # DEBUG: Print selection distribution
+    print(f"\n  Model Selection Distribution (Vanilla LinUCB):")
+    for model, count in model_selections.most_common(5):
+        pct = 100 * count / len(prompts)
+        print(f"    {model[:40]:40s}: {count:4d} ({pct:5.1f}%)")
+    
     return {
         "method": "vanilla_linucb",
         "selected_models": selected_models,
@@ -178,11 +211,131 @@ def run_vanilla_linucb(
     }
 
 
-def run_banditgpt(
+def run_routellm_baseline(
     prompts: List[str],
     oracle_rewards: Dict[str, Dict[str, float]],
     registry: Dict[str, Dict],
+    available_models: List[str],
+    cached_scores: Dict[str, float] = None,
+    seed: int = 42
+) -> Dict:
+    """
+    Optimized RouteLLM Baseline: Deterministic Anchors + Fast Execution.
+    """
+    print(f"Running RouteLLM (Deterministic Anchors, seed={seed})...")
+    
+    # 1. SETUP ANCHORS FOR HLE (Fixed, not median-based)
+    # For HLE metric, the difficulty is shifted far right, so we need:
+    # - Strong: Best model (only one that can solve hardest queries)
+    # - Weak: A "historically strong" model that can solve easiest 5-10%
+    #   This creates a meaningful routing boundary, not a trivial "always pick best"
+    
+    # Find the best model by HLE
+    sorted_models = sorted(
+        available_models, 
+        key=lambda m: registry[m].get("hle", 0), 
+        reverse=True
+    )
+    strong_anchor = sorted_models[0]  # Gemini 3 Pro (HLE=0.372)
+    
+    # Weak anchor: Look for GPT-OSS-120B specifically (mid-tier model for meaningful routing)
+    # If not available, use the model closest to HLE=0.185
+    weak_anchor = None
+    for model_id in available_models:
+        if "gpt-oss-120b" in model_id.lower():
+            weak_anchor = model_id
+            break
+    
+    # Fallback: Use model with HLE closest to 0.185 (the "mid-tier" for routing)
+    if weak_anchor is None:
+        target_hle = 0.185
+        weak_anchor = min(available_models, key=lambda m: abs(registry[m].get("hle", 0) - target_hle))
+    
+    if seed == 0:
+        print(f"  ⚓ Anchors: Strong={strong_anchor} ({registry[strong_anchor].get('hle', 0):.3f}), "
+              f"Weak={weak_anchor} ({registry[weak_anchor].get('hle', 0):.3f})")
+
+    # 2. INITIALIZE CONTROLLER (Do this ONCE, outside the loop)
+    # This prevents reloading weights 1,000 times
+    try:
+        from routellm.controller import Controller
+        # We use a lightweight router (mf) to avoid downloading huge models
+        controller = Controller(
+            routers=["mf"], 
+            strong_model="gpt-4-1106-preview", 
+            weak_model="mixtral-8x7b-instruct-v0.1"
+        )
+        router = controller.routers["mf"]
+        has_library = True
+    except ImportError:
+        print("  ⚠️  RouteLLM library not installed. Returning empty.")
+        return {"method": "routellm_mf", "selected_models": [], "rewards": []}
+
+    selected_models = []
+    selected_rewards = []
+    THRESHOLD = 0.5 
+    
+    # 3. FAST LOOP
+    for prompt in tqdm(prompts, desc="RouteLLM", leave=False):
+        # A. Get Score (Use Cache or Compute)
+        if cached_scores is not None and prompt in cached_scores:
+            win_rate = cached_scores[prompt]
+        else:
+            # This is now fast because 'router' is already loaded
+            try:
+                win_rate = router.calculate_strong_win_rate(prompt)
+            except Exception:
+                win_rate = 0.5 # Default to uncertainty on error
+                
+            if cached_scores is not None:
+                cached_scores[prompt] = win_rate
+        
+        # B. Deterministic Selection
+        prompt_rewards = oracle_rewards.get(prompt, {})
+        
+        # Filter to only models that are in our registry (available_models)
+        valid_models = [m for m in prompt_rewards if m in available_models]
+        
+        if win_rate > THRESHOLD:
+            # Router wants Strong
+            if strong_anchor in valid_models:
+                choice = strong_anchor
+            elif valid_models:
+                choice = max(valid_models, key=lambda m: registry[m].get("hle", 0))
+            else:
+                # No valid models, fallback to strong anchor anyway
+                choice = strong_anchor
+        else:
+            # Router wants Weak
+            if weak_anchor in valid_models:
+                choice = weak_anchor
+            elif valid_models:
+                choice = min(valid_models, key=lambda m: registry[m].get("hle", 0))
+            else:
+                # No valid models, fallback to weak anchor anyway
+                choice = weak_anchor
+        
+        reward = prompt_rewards.get(choice, 0.0)
+        selected_models.append(choice)
+        selected_rewards.append(reward)
+        
+    return {
+        "method": "routellm_mf",
+        "selected_models": selected_models,
+        "rewards": selected_rewards
+    }
+
+
+
+def run_banditgpt(
+    test_prompts: List[str],
+    test_oracle_rewards: Dict[str, Dict[str, float]],
+    train_prompts: List[str],
+    train_oracle_rewards: Dict[str, Dict[str, float]],
+    registry: Dict[str, Dict],
     encoder,
+    priors: str = "hle",
+    prior_n_effective: float = None,
     seed: int = 42
 ) -> Dict:
     """
@@ -194,41 +347,309 @@ def run_banditgpt(
     - Virtual anchor similarities
     - Complexity score
     
+    Args:
+        test_prompts: Test prompts for evaluation
+        test_oracle_rewards: Oracle rewards for test prompts
+        train_prompts: Training prompts for burn-in
+        train_oracle_rewards: Oracle rewards for training prompts
+        priors: Prior initialization strategy ("none", "hle", "warmup")
+        prior_n_effective: Effective sample size (None = use default for strategy)
+    
     This is the method we're trying to prove works!
     """
-    print(f"Running BanditGPT (seed={seed})...")
+    print(f"Running BanditGPT (priors={priors}, N_eff={prior_n_effective}, seed={seed})...")
     
     # Fresh router for this trial (clean slate)
-    router = BanditRouter.create(
-        registry,
-        exploration="safe",  # α=0.1
-        priors="hle",
-        prior_n_effective=10.0,
-        context_encoder=encoder,
-    )
+    create_kwargs = {
+        "exploration": "balanced",  # Fix: align with LinUCB alpha=1.0
+        "priors": priors,
+        "context_encoder": encoder,
+    }
     
+    # Add prior_n_effective only if specified (otherwise use router defaults)
+    if prior_n_effective is not None:
+        create_kwargs["prior_n_effective"] = prior_n_effective
+    
+    router = BanditRouter.create(registry, **create_kwargs)
+    
+    # BURN-IN PHASE: Learn from training data (don't count regret)
+    print(f"  🔥 Burn-in on {len(train_prompts)} training prompts...")
+    for prompt in tqdm(train_prompts, desc=f"  Burn-in-{priors}", leave=False):
+        model_id, log = router.route(prompt, profile="arbitrage")
+        reward = train_oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+        router.update(model_id, prompt, reward)
+    
+    # TEST PHASE: Evaluate on held-out test data (count regret)
+    print(f"  ✅ Testing on {len(test_prompts)} test prompts...")
     selected_models = []
     selected_rewards = []
     
-    for prompt in tqdm(prompts, desc="BanditGPT", leave=False):
+    # DEBUG: Track model selection distribution
+    from collections import Counter
+    model_selections = Counter()
+    
+    for i, prompt in enumerate(tqdm(test_prompts, desc=f"BanditGPT-{priors}", leave=False)):
         # ROUTE (uses full semantic features)
-        model_id, log = router.route(prompt, profile="arbitrage")
+        model_id, log = router.route(prompt, profile="max_quality")
+        model_selections[model_id] += 1
         
         # ORACLE LOOKUP
-        reward = oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+        reward = test_oracle_rewards.get(prompt, {}).get(model_id, 0.0)
         
-        # UPDATE (the critical learning step!)
-        # Pass the prompt text; router will re-encode to get context vector
+        # DEBUG: Log first 10 selections
+        if i < 10:
+            print(f"    [{i}] Selected: {model_id[:30]:30s} | Reward: {reward:.3f}")
+        
+        # UPDATE (continue learning during test - online learning)
+        # DISABLE for offline evaluation match with tuning script
+        # router.update(model_id, prompt, reward)
+        
+        selected_models.append(model_id)
+        selected_rewards.append(reward)
+    
+    # DEBUG: Print selection distribution
+    print(f"\n  Model Selection Distribution ({priors}):")
+    for model, count in model_selections.most_common(5):
+        pct = 100 * count / len(test_prompts)
+        print(f"    {model[:40]:40s}: {count:4d} ({pct:5.1f}%)")
+    
+    method_name = f"banditgpt_{priors}"
+    if prior_n_effective is not None:
+        method_name += f"_n{int(prior_n_effective)}"
+    
+    return {
+        "method": method_name,
+        "selected_models": selected_models,
+        "rewards": selected_rewards
+    }
+
+
+def burn_in_router(
+    train_prompts: List[str],
+    train_oracle_rewards: Dict[str, Dict[str, float]],
+    registry: Dict[str, Dict],
+    encoder,
+    priors: str = "hle",
+    prior_n_effective: float = None
+) -> BanditRouter:
+    """
+    Burn-in phase: Train router on training data.
+    
+    Returns a router that has learned from training data.
+    This router can then be cloned for multiple test runs.
+    """
+    print(f"  🔥 Burn-in BanditGPT (priors={priors})...")
+    
+    # Fresh router
+    create_kwargs = {
+        "exploration": "balanced",  # Fix: align with LinUCB alpha=1.0
+        "priors": priors,
+        "context_encoder": encoder,
+    }
+    
+    if prior_n_effective is not None:
+        create_kwargs["prior_n_effective"] = prior_n_effective
+    
+    router = BanditRouter.create(registry, **create_kwargs)
+    
+    # Learn from training data
+    for prompt in tqdm(train_prompts, desc=f"  Burn-in-{priors}", leave=False):
+        model_id, log = router.route(prompt, profile="max_quality")
+        reward = train_oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+        router.update(model_id, prompt, reward)
+    
+    print(f"  ✅ Burn-in complete ({len(train_prompts)} training prompts)")
+    return router
+
+
+def test_router(
+    router: BanditRouter,
+    test_prompts: List[str],
+    test_oracle_rewards: Dict[str, Dict[str, float]],
+    priors: str = "hle",
+    seed: int = 42
+) -> Dict:
+    """
+    Test phase: Evaluate burned-in router on test data.
+    
+    The router continues to learn online during testing.
+    """
+    selected_models = []
+    selected_rewards = []
+    
+    # Strict Greedy for Evaluation (Test the learned policy)
+    # router.bandit.alpha = 0.0 # Disabled: Maintain LinUCB exploration for online learning
+    
+    for prompt in tqdm(test_prompts, desc=f"BanditGPT-{priors}", leave=False):
+        # ROUTE
+        model_id, log = router.route(prompt, profile="max_quality")
+        
+        # ORACLE LOOKUP
+        reward = test_oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+        
+        # UPDATE (continue learning online)
         router.update(model_id, prompt, reward)
         
         selected_models.append(model_id)
         selected_rewards.append(reward)
     
+    method_name = f"banditgpt_{priors}"
+    
     return {
-        "method": "banditgpt",
+        "method": method_name,
         "selected_models": selected_models,
         "rewards": selected_rewards
     }
+
+
+# =============================================================================
+# KDD PROTOCOL: Curriculum Burn-In & Signal-Aware Oversampling
+# =============================================================================
+
+from sklearn.model_selection import train_test_split
+
+def prepare_data_split():
+    """
+    Standard KDD Split: 
+    - Loads pre-configured splits from 'splits.json' (Consistency)
+    - STRICT: No fallback to random splitting (Reproducibility)
+    
+    Returns: dev_prompts, test_prompts
+    """
+    splits_path = Path(__file__).parent / "results" / "splits.json"
+    
+    if not splits_path.exists():
+        raise FileNotFoundError(
+            f"❌ Critical Error: {splits_path} not found.\n"
+            "   Please run 'experiments/01_effectiveness/run_budget_experiment.py' first\n"
+            "   to generate the canonical KDD dev/test splits."
+        )
+        
+    print(f"\n📦 Loading Canonical KDD Splits from {splits_path.name}...")
+    with open(splits_path) as f:
+        splits_data = json.load(f)
+        
+    dev = splits_data["dev_pool"]
+    test = splits_data["holdout_pool"]
+    
+    # CRITICAL: Verify Disjointness
+    overlap = set(dev).intersection(set(test))
+    assert len(overlap) == 0, f"❌ DATA LEAKAGE DETECTED! Found {len(overlap)} overlapping prompts."
+    print("  ✅ Split Integrity Verified: No overlap between Dev and Test.")
+        
+    return dev, test
+
+def generate_curriculum(dev_prompts, oracle_rewards):
+    """
+    Signal-Aware Curriculum:
+    Oversamples 'Contentious' prompts to force the bandit to learn decision boundaries.
+    """
+    hard_train = []
+    easy_train = []
+    
+    # 1. Filter by Variance
+    for p in dev_prompts:
+        rewards = list(oracle_rewards.get(p, {}).values())
+        if not rewards: continue
+        
+        # Variance > 0.05 means models disagree (High Signal)
+        if np.var(rewards) > 0.05:
+            hard_train.append(p)
+        else:
+            easy_train.append(p)
+            
+    # 2. Construct Balanced Curriculum
+    # Oversample Hard 3x to match the volume of Easy prompts
+    # This teaches the bandit "When to switch" rather than "Always pick cheap"
+    burn_in_list = []
+    burn_in_list.extend(hard_train * 3)
+    
+    # Fill the rest with random Easy prompts to maintain distribution
+    # (Or use all easy prompts if you want full coverage, but balanced is better for learning)
+    target_len = len(burn_in_list) 
+    if easy_train:
+        # Sample easy prompts to match the hard volume (50/50 split)
+        selected_easy = np.random.choice(easy_train, min(len(easy_train), target_len), replace=False)
+        burn_in_list.extend(selected_easy)
+        
+    print(f"  Curriculum Generated: {len(burn_in_list)} items")
+    print(f"    - Hard (Boosted): {len(hard_train)} original -> {len(hard_train)*3} boosted")
+    print(f"    - Easy (Sampled): {len(selected_easy)}")
+    
+    # 3. Shuffle to simulate I.I.D. stream
+    random.shuffle(burn_in_list)
+    
+    return burn_in_list
+
+def perform_burn_in(router, burn_in_list, oracle_rewards):
+    """
+    The 'Warm Up' Phase. 
+    Updates the bandit's internal matrices (A, b) without recording Regret metrics.
+    """
+    print(f"  🔥 Burning in on {len(burn_in_list)} curriculum prompts...")
+    
+    for prompt in tqdm(burn_in_list, desc="  Burn-in", leave=False):
+        # 1. Select Arm (Exploiting current knowledge)
+        # We assume 'arbitrage' profile for learning to balance cost/quality
+        model_id, _ = router.route(prompt, profile="arbitrage")
+        
+        # 2. Get Reward (Oracle)
+        reward = oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+        
+        # 3. Update Bandit (The Learning Step)
+        # This populates the Covariance Matrix A with real-world correlations
+        router.update(model_id, prompt, reward)
+        
+    print("  ✅ Burn-in complete. Router is hot.")
+    return router
+
+def analyze_by_difficulty(
+    all_method_rewards: Dict[str, np.ndarray],
+    test_prompts: List[str],
+    oracle_best: np.ndarray,
+    available_models: List[str],
+    test_oracle_rewards: Dict[str, Dict[str, float]]
+):
+    """
+    Categorizes prompts into 'Easy' vs 'Hard' and reports bucketed regret.
+    
+    'Hard' = Context Matters (High Variance in model performance)
+    'Easy' = Safe Pick (Low Variance, most models give similar rewards)
+    """
+    print("\n" + "="*70)
+    print("🔍 BREAKDOWN BY DIFFICULTY (Contextual Lift Analysis)")
+    print("="*70)
+    
+    # 1. Classify Prompts by Oracle Variance
+    hard_indices = []
+    easy_indices = []
+    
+    for i, prompt in enumerate(test_prompts):
+        rewards = [test_oracle_rewards[prompt].get(m, 0.0) for m in available_models]
+        # High variance means routing is critical (models disagree)
+        if np.var(rewards) > 0.05:
+            hard_indices.append(i)
+        else:
+            easy_indices.append(i)
+            
+    print(f"  Bucket: EASY (Low Var)  |  n={len(easy_indices):4d} prompts")
+    print(f"  Bucket: HARD (High Var) |  n={len(hard_indices):4d} prompts")
+    print("-" * 70)
+    
+    # 2. Report Regret per Bucket
+    print(f"{'Method':25s} | {'Easy Regret':12s} | {'Hard Regret':12s} | {'Total'}")
+    print("-" * 70)
+    
+    for method, avg_rewards in all_method_rewards.items():
+        # Calculate regret for each bucket
+        # Regret = Oracle Best - Selected Reward
+        easy_regret = np.sum(oracle_best[easy_indices] - avg_rewards[easy_indices])
+        hard_regret = np.sum(oracle_best[hard_indices] - avg_rewards[hard_indices])
+        total_regret = easy_regret + hard_regret
+        
+        print(f"{method:25s} | {easy_regret:12.1f} | {hard_regret:12.1f} | {total_regret:7.1f}")
+    
+    print("="*70)
 
 
 # =============================================================================
@@ -236,119 +657,198 @@ def run_banditgpt(
 # =============================================================================
 
 def main():
-    """Run all baseline comparisons with real data."""
+    """Run all baseline comparisons with train/test split and burn-in."""
     print("=" * 70)
     print("EXPERIMENT 01: EFFECTIVENESS COMPARISON")
-    print("KDD-Compliant Offline Replay Evaluation")
+    print("Protocol: Curriculum Burn-In & Signal-Aware Oversampling")
     print("=" * 70)
     
-    # Load oracle rewards (real data from test set)
-    print("\n📦 Loading data...")
-    oracle_rewards = load_oracle_rewards("test_rewards_hle_models.jsonl")
+    # 1. Load & Merge Data
+    print("\n📦 Loading and Merging Corpus...")
+    train_oracle_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
+    test_oracle_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
     
-    # Get prompts from oracle rewards keys
-    prompts = list(oracle_rewards.keys())
-    print(f"  ✓ {len(prompts)} test prompts")
+    all_rewards = {**train_oracle_rewards, **test_oracle_rewards}
+    all_prompts = list(all_rewards.keys())
+    print(f"  ✓ Total Prompts: {len(all_prompts)}")
+    
+    # 2. Split Data (Dev vs Test)
+    # Delegates logic to prepare_data_split (which checks for splits.json)
+    dev_prompts, test_prompts = prepare_data_split()
+        
+    print(f"  ✓ Dev Set (Burn-in): {len(dev_prompts)}")
+    print(f"  ✓ Test Set (Hold-out): {len(test_prompts)}")
+    
+    # 3. Generate Curriculum from Dev
+    print("\n🎓 Generating Signal-Aware Curriculum...")
+    burn_in_list = generate_curriculum(dev_prompts, all_rewards)
     
     # Load model registry to get available models
     registry = load_model_registry()
     
-    # Filter to models that have rewards in at least 50% of prompts
+    # Filter to models that have rewards in at least 50% of test prompts
     model_coverage = defaultdict(int)
-    for prompt_rewards in oracle_rewards.values():
+    for prompt in test_prompts:
+        prompt_rewards = all_rewards.get(prompt, {})
         for model_id in prompt_rewards:
             model_coverage[model_id] += 1
     
-    min_coverage = len(prompts) * 0.5
+    min_coverage = len(test_prompts) * 0.5
     available_models = [
         m for m in registry.keys() 
         if model_coverage.get(m, 0) >= min_coverage
     ]
     print(f"  ✓ {len(available_models)} models with ≥50% coverage")
     
-    # Initialize shared encoder (avoid reloading for each trial)
+    # Initialize shared encoder
     print("\n🔧 Initializing encoder...")
     encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
-    # Calculate oracle best (upper bound)
+    # Calculate oracle best for TEST set (available models only)
     oracle_best = []
-    for prompt in prompts:
-        rewards = oracle_rewards.get(prompt, {})
-        if rewards:
-            oracle_best.append(max(rewards.values()))
-        else:
-            oracle_best.append(0.0)
-    oracle_best = np.array(oracle_best)
-    print(f"  ✓ Oracle best computed (mean={np.mean(oracle_best):.3f})")
+    valid_test_prompts = []
     
-    # Run experiments with multiple seeds
-    n_seeds = 10
-    results = {}
-    
-    for seed in range(n_seeds):
-        print(f"\n{'='*70}")
-        print(f"SEED {seed + 1}/{n_seeds}")
-        print("=" * 70)
+    print("  ⚖️  Calculating Fair Oracle (Test Set)...")
+    for prompt in test_prompts:
+        rewards = all_rewards.get(prompt, {})
+        available_rewards = [
+            rewards.get(m, 0.0) for m in available_models 
+            if m in rewards
+        ]
         
-        # Shuffle prompts for this seed
-        rng = np.random.RandomState(seed)
-        prompt_order = rng.permutation(len(prompts))
-        shuffled_prompts = [prompts[i] for i in prompt_order]
-        shuffled_oracle_best = oracle_best[prompt_order]
-        
-        # Run all methods
-        random_result = run_random_baseline(
-            shuffled_prompts, oracle_rewards, available_models, seed=seed
-        )
-        epsilon_result = run_epsilon_greedy(
-            shuffled_prompts, oracle_rewards, available_models, seed=seed
-        )
-        linucb_result = run_vanilla_linucb(
-            shuffled_prompts, oracle_rewards, available_models, seed=seed
-        )
-        banditgpt_result = run_banditgpt(
-            shuffled_prompts, oracle_rewards, registry, encoder, seed=seed
-        )
-        
-        # Calculate cumulative regret for each method
-        for result in [random_result, epsilon_result, linucb_result, banditgpt_result]:
-            method = result["method"]
-            cum_regret = calculate_cumulative_regret(
-                result["rewards"],
-                shuffled_oracle_best
-            )
+        if available_rewards:
+            best_val = max(available_rewards)
+            oracle_best.append(best_val)
+            valid_test_prompts.append(prompt)
             
-            if method not in results:
-                results[method] = []
+    oracle_best = np.array(oracle_best)
+    test_prompts = valid_test_prompts
+    print(f"  ✓ Oracle computed on {len(oracle_best)} valid test prompts")
+
+    # Experiment Configuration
+    n_seeds = 10 # Robust stats
+    results = {}
+    method_raw_rewards = defaultdict(list)
+    
+    # Optimal Hyperparameters (from Gold Standard Tuning)
+    # Typically found: N_eff=5.0, Alpha=0.05
+    best_n_eff = 1.0
+    best_alpha = 0.1
+    
+    experiments = [
+        {"name": "Random", "priors": None, "strategy": "random"},
+        {"name": "Cold Start (LinUCB)", "priors": "none", "strategy": "linucb"}, # Baseline A
+        {"name": "HLE Priors (Diagonal)", "priors": "hle", "strategy": "linucb"}, # Baseline B
+        {"name": "BanditGPT (Curriculum)", "priors": "warmup", "strategy": "banditgpt"} # OUR METHOD
+    ]
+    
+    # -------------------------------------------------------------------------
+    # BURN-IN PHASE (BanditGPT Only)
+    # -------------------------------------------------------------------------
+    # We create ONE burned-in router instance and clone it for seeds.
+    # This represents the "Deployed Model" state.
+    
+    print("\n" + "="*40)
+    print("🔥 BURN-IN PHASE (BanditGPT)")
+    print("="*40)
+    
+    print("Initializing Master Router...")
+    master_router = BanditRouter.create(
+        registry, 
+        context_encoder=encoder,
+        priors="warmup", 
+        prior_n_effective=best_n_eff,
+        alpha=best_alpha
+    )
+    
+    perform_burn_in(master_router, burn_in_list, all_rewards)
+    
+    
+    # -------------------------------------------------------------------------
+    # TEST PHASE
+    # -------------------------------------------------------------------------
+    print("\n" + "="*40)
+    print(f"🚀 TEST PHASE ({n_seeds} Seeds)")
+    print("="*40)
+    
+    # Pre-calculating RouteLLM scores (cached across seeds for efficiency)
+    routellm_scores_cache = {}
+    
+    # Shuffle prompts ONCE for consistent ordering across all seeds
+    test_data_combined = list(zip(test_prompts, oracle_best))
+    rng_shuffle = np.random.RandomState(42)
+    rng_shuffle.shuffle(test_data_combined)
+    shuffled_prompts = [item[0] for item in test_data_combined]
+    shuffled_oracle = np.array([item[1] for item in test_data_combined])
+
+    for seed in range(n_seeds):
+        print(f"\nSEED {seed + 1}/{n_seeds}")
+        
+        # 1. Random Baseline
+        random_res = run_random_baseline(shuffled_prompts, all_rewards, available_models, seed=seed)
+        
+        # 2. Vanilla LinUCB (Starts COLD on Test Set)
+        linucb_res = run_vanilla_linucb(shuffled_prompts, all_rewards, available_models, seed=seed)
+        
+        # 3. RouteLLM (Static) - Optimized with cache
+        routellm_res = run_routellm_baseline(
+            shuffled_prompts, all_rewards, registry, available_models, 
+            cached_scores=routellm_scores_cache, seed=seed
+        )
+        
+        # 4. BanditGPT with HLE (Starts COLD+HLE on Test Set, no burn-in)
+        # To show benefit of burn-in vs just priors
+        router_hle = BanditRouter.create(
+            registry, 
+            context_encoder=encoder,
+            priors="hle", 
+            prior_n_effective=10.0, # Default for HLE
+            alpha=best_alpha
+        )
+        hle_res = test_router(router_hle, shuffled_prompts, all_rewards, priors="hle", seed=seed)
+
+        # 5. BanditGPT (Curriculum Tuned)
+        # Clone the Hot Router
+        router_hot = copy.deepcopy(master_router)
+        
+        # CRITICAL: Reset random seed for this trial
+        # The deepcopy preserves the RNG state, causing identical decisions across seeds
+        # We need to reset the bandit's internal random state
+        router_hot.bandit.rng = np.random.RandomState(seed)
+        
+        bandit_res = test_router(router_hot, shuffled_prompts, all_rewards, priors="warmup", seed=seed)
+        
+        # Collect Results
+        run_results = [random_res, linucb_res, routellm_res, hle_res, bandit_res]
+        
+        for res in run_results:
+            method = res["method"]
+            cum_regret = calculate_cumulative_regret(res["rewards"], shuffled_oracle)
+            
+            if method not in results: results[method] = []
             results[method].append(cum_regret.tolist())
             
-            # Print summary for this run
-            final_regret = cum_regret[-1]
-            avg_reward = np.mean(result["rewards"])
-            print(f"  {method:20s}: regret={final_regret:7.1f}, reward={avg_reward:.3f}")
+            method_raw_rewards[method].append(res["rewards"])
+            
+            print(f"  {method:25s}: Regret={cum_regret[-1]:7.1f}")
+
+    # Analysis & Saving
+    averaged_rewards = {
+        m: np.mean(np.array(r), axis=0) for m, r in method_raw_rewards.items()
+    }
+    analyze_by_difficulty(
+        averaged_rewards, 
+        shuffled_prompts, # Last shuffle
+        shuffled_oracle, # Last shuffle
+        available_models, 
+        all_rewards # Full lookup
+    )
     
-    # Save results
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(exist_ok=True)
-    
-    output_file = output_dir / "effectiveness_results.json"
-    with open(output_file, "w") as f:
+    with open(output_dir / "effectiveness_results.json", "w") as f:
         json.dump(results, f, indent=2)
-    
-    print(f"\n✅ Results saved to {output_file}")
-    
-    # Print final summary
-    print("\n" + "=" * 70)
-    print("SUMMARY (Average Final Cumulative Regret)")
-    print("=" * 70)
-    for method, regret_runs in results.items():
-        final_regrets = [run[-1] for run in regret_runs]
-        mean_regret = np.mean(final_regrets)
-        std_regret = np.std(final_regrets)
-        print(f"  {method:20s}: {mean_regret:7.1f} ± {std_regret:.1f}")
-    
-    print("\n📊 Next step: Run `python plot_regret.py` to generate figures")
-
+    print(f"\n✅ Results saved to {output_dir / 'effectiveness_results.json'}")
 
 if __name__ == "__main__":
     main()

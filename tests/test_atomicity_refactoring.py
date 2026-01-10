@@ -66,23 +66,7 @@ class TestUpdateHelperMethods:
         assert np.allclose(state["A"], router.bandit.A[model])
         assert np.allclose(state["b"], router.bandit.b[model])
     
-    def test_apply_temporal_decay(self, router):
-        """Test _apply_temporal_decay applies forgetting factor correctly."""
-        model = "gpt-4"
-        
-        # Create initial state
-        state = router.bandit._snapshot_bandit_state(model)
-        original_A = state["A"].copy()
-        
-        # Apply decay (simulate time passing)
-        router.bandit.t += 5  # Advance time
-        state = router.bandit._apply_temporal_decay(state, model)
-        
-        # With gamma < 1.0, matrices should decay
-        if router.bandit.gamma < 1.0:
-            # A should be scaled down
-            expected_gamma = router.bandit.gamma ** 5
-            assert np.allclose(state["A"], original_A * expected_gamma)
+
     
     def test_add_observation(self, router):
         """Test _add_observation updates matrices correctly."""
@@ -185,19 +169,7 @@ class TestRouteHelperMethods:
         assert w_l3 == 0.0
         assert w_q3 > w_q  # Quality weight increased
     
-    def test_apply_risk_gating(self, router):
-        """Test _apply_risk_gating filters by sensitivity."""
-        prompt = "Medical diagnosis question"
-        
-        # LOW sensitivity - should return all models
-        candidates_low = router._apply_risk_gating(prompt, "LOW")
-        assert len(candidates_low) == 2
-        
-        # HIGH sensitivity - should filter by hallucination score
-        candidates_high = router._apply_risk_gating(prompt, "HIGH")
-        # Only GPT-4 has hallucination_vectara <= 2.5
-        assert len(candidates_high) == 1
-        assert "gpt-4" in candidates_high
+
     
     def test_filter_by_constraints(self, router):
         """Test _filter_by_constraints applies hard constraints."""

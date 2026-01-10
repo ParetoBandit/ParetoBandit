@@ -144,9 +144,25 @@ class AnchorConfig(BaseModel):
 
 # --- 5. Master Configuration ---
 
-class RouterConfig(BaseModel):
+class LegacyRouterConfig(BaseModel):
     """
-    Master configuration for BanditRouter.
+    ⚠️ DEPRECATED: Legacy configuration for older BanditRouter architecture.
+    
+    This config is for the virtual anchors + regex features architecture,
+    which has been simplified in the production router.
+    
+    **MIGRATION**:
+    Use the `RouterConfig` dataclass in `router.py` instead, which supports:
+    - 24D embeddings (23 PCA + 1 bias)
+    - HLE-based utility calibration
+    - Production stability parameters
+    
+    This class is maintained for backward compatibility with `core.py` (BanditGPT),
+    which is also deprecated. Will be removed in v2.0.
+    
+    ---
+    
+    Master configuration for BanditRouter (legacy architecture).
     
     This is the single source of truth for router architecture, ensuring:
     - Virtual Anchors are properly defined
@@ -155,7 +171,7 @@ class RouterConfig(BaseModel):
     - Complexity calibration uses real data
     
     Example:
-        config = RouterConfig(
+        config = LegacyRouterConfig(
             anchors=[
                 AnchorConfig(name="coding", definition="python java algorithm..."),
                 AnchorConfig(name="math", definition="calculus integral derivative..."),
@@ -276,7 +292,7 @@ class RouterConfig(BaseModel):
         description="Ridge regularization for LinUCB. Higher = more exploration."
     )
     exploration_rate: float = Field(
-        0.1,
+        0.05,
         ge=0.0,
         le=2.0,
         description="Alpha for UCB exploration. Higher = more exploration, lower = more exploitation."
@@ -288,7 +304,7 @@ class RouterConfig(BaseModel):
         description="Time decay gamma for non-stationary environments. 1.0 = no decay, <1.0 = exponential forgetting."
     )
     prior_n_effective: float = Field(
-        20.0,
+        100.0,
         ge=0,
         description="Effective sample count for priors. Higher = more trust in priors."
     )
@@ -421,15 +437,17 @@ def get_default_intuition() -> IntuitionConfig:
 
 # --- 7. Config Loader ---
 
-def load_config(path: str) -> RouterConfig:
+def load_config(path: str) -> LegacyRouterConfig:
     """
-    Load RouterConfig from a JSON or YAML file.
+    Load LegacyRouterConfig from a JSON or YAML file.
+    
+    ⚠️ DEPRECATED: Use RouterConfig dataclass from router.py instead.
     
     Args:
         path: Path to config file (*.json or *.yaml)
         
     Returns:
-        Validated RouterConfig
+        Validated LegacyRouterConfig
         
     Raises:
         ValidationError: If config is invalid
@@ -452,4 +470,4 @@ def load_config(path: str) -> RouterConfig:
     else:
         raise ValueError(f"Unsupported config format: {path.suffix}. Use .json or .yaml")
     
-    return RouterConfig(**data)
+    return LegacyRouterConfig(**data)

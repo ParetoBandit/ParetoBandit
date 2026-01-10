@@ -44,7 +44,6 @@ def test_stability_check_triggers():
         dim=dim,
         init_lambda=config.init_lambda,
         update_lambda=config.update_lambda,
-        forgetting_factor=0.85  # Aggressive decay to trigger instability faster
     )
     
     print(f"\nConfiguration:")
@@ -142,8 +141,7 @@ def test_normal_operation():
         model_names=["arm_A", "arm_B"],
         dim=dim,
         init_lambda=config.init_lambda,
-        update_lambda=config.update_lambda,
-        forgetting_factor=0.95
+        update_lambda=config.update_lambda
     )
     
     x = np.random.randn(dim)
