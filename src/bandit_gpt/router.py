@@ -814,11 +814,21 @@ class DisjointLinUCBPolicy:
             v_A_inv = v @ A_inv
             denominator = 1.0 + (v @ A_inv_u)
             
-            if abs(denominator) > 1e-10:  # Avoid division by zero
+            # KDD REVIEW FIX: Stricter safety floor (1e-6 instead of 1e-10)
+            # Near-zero denominator indicates numerical instability in Sherman-Morrison
+            if abs(denominator) > 1e-6:
+                # Safe to use Sherman-Morrison formula
                 self.A_inv[model] = A_inv - np.outer(A_inv_u, v_A_inv) / denominator
             else:
-                # Rare: rank-1 update causes singularity, recompute inverse
-                logger.warning(f"Sherman-Morrison singularity for {model}, recomputing inverse")
+                # CRITICAL: Denominator too small, fallback to O(d³) with fresh regularization
+                logger.warning(
+                    f"⚠️ Sherman-Morrison near-singularity for {model}: "
+                    f"|denominator|={abs(denominator):.2e} < 1e-6. "
+                    f"Injecting fresh regularization and recomputing inverse."
+                )
+                # Inject fresh regularization to restore conditioning
+                self.A[model] += self.init_lambda * np.eye(self.dim)
+                # Full O(d³) recomputation with regularized matrix
                 self.A_inv[model] = safe_inv(self.A[model])
             
             # Global counter only (timestamp already updated above in decay block)
