@@ -48,24 +48,29 @@ class FeatureService:
         pca_path: Optional[Path | str] = None,
         pca_components: int = 23,
         target_variance: float = 0.60,
-        allow_jit_training: bool = True
+        allow_jit_training: bool = True,
+        calibration_file: Optional[Path | str] = None,
     ):
         """
-        Initialize feature extraction service.
+        Initialize FeatureService with sentence encoder and optional PCA.
         
         Args:
-            encoder_model: Sentence transformer model for embeddings
-            pca_path: Path to PCA model (optional, will JIT calibrate if missing)
-            pca_components: Number of PCA components (default: 23)
-            target_variance: Minimum explained variance threshold for PCA
+            encoder_model: SentenceTransformer model name
+            pca_components: Number of PCA components (default 23 for 24D with bias)
+            pca_path: Path to pre-trained PCA model (optional)
+            target_variance: Minimum explained variance for PCA (default 0.60)
             allow_jit_training: Allow JIT PCA training if artifact missing (default: True)
                               Set to False in strict production to crash-fast instead of hanging
+            calibration_file: Path to real prompts for PCA calibration (optional)
+                             Line-delimited text file. Used instead of synthetic data
+                             to train domain-specific PCA projections.
         """
         self.encoder_model = encoder_model
         self.pca_path = Path(pca_path) if pca_path else None
         self.pca_components = pca_components
         self.target_variance = target_variance
         self.allow_jit_training = allow_jit_training
+        self.calibration_file = Path(calibration_file) if calibration_file else None
         
         # Lazy initialization
         self._encoder = None
@@ -211,7 +216,7 @@ class FeatureService:
             logger.info("⚡ JIT PCA Calibration: Training new PCA on synthetic data...")
             
             # Generate synthetic prompts matching procedural warmup
-            synthetic_prompts = self._generate_synthetic_data(n=1000)
+            synthetic_prompts = self._generate_synthetic_data(n_samples=1000)
             logger.info(f"  Generated {len(synthetic_prompts)} synthetic prompts")
             
             # Encode to get embeddings
@@ -272,7 +277,49 @@ class FeatureService:
                 except Exception as e:
                     logger.warning(f"  ⚠️ Could not persist PCA (non-fatal): {e}")
     
-    def _generate_synthetic_data(self, n: int = 1000) -> list[str]:
+    def _generate_synthetic_data(self, n_samples: int = 1000) -> List[str]:
+        """
+        Generate synthetic prompts for PCA training.
+        
+        **KDD REVIEW WARNING: Domain Bias Risk**
+        
+        Synthetic data is biased toward English math/coding tasks. If production
+        traffic is in a different domain (e.g., Japanese legal contracts), the PCA
+        projection may filter out critical semantic variance.
+        
+        **Solution**: Use calibration_file parameter in __init__() to load real
+        prompts from your domain before falling back to synthetic data.
+        
+        Args:
+            n_samples: Number of synthetic samples to generate
+            
+        Returns:
+            List of synthetic prompt strings
+        """
+        # If calibration file provided, load real prompts
+        if self.calibration_file and self.calibration_file.exists():
+            logger.info(f"Loading calibration prompts from {self.calibration_file}")
+            try:
+                with open(self.calibration_file, 'r', encoding='utf-8') as f:
+                    prompts = [line.strip() for line in f if line.strip()]
+                if len(prompts) >= n_samples:
+                    logger.info(f"  ✓ Loaded {len(prompts)} real prompts (domain-specific)")
+                    return prompts[:n_samples]
+                else:
+                    logger.warning(
+                        f"  ⚠️  Only {len(prompts)} prompts in calibration file, "
+                        f"need {n_samples}. Supplementing with synthetic data."
+                    )
+                    # Use what we have + synthetic to fill gap
+                    synthetic = self._generate_synthetic_fallback(n_samples - len(prompts))
+                    return prompts + synthetic
+            except Exception as e:
+                logger.error(f"Failed to load calibration file: {e}. Using synthetic data.")
+        
+        # Fallback to synthetic data
+        return self._generate_synthetic_fallback(n_samples)
+    
+    def _generate_synthetic_fallback(self, n_samples: int) -> List[str]:
         """
         Generate synthetic prompts for PCA calibration.
         

@@ -1,5 +1,9 @@
+# Production imports
 from .router import BanditRouter, OptimizationProfile, ExplorationRate, RouterConfig, sigmoid
 from .feature_service import FeatureService
+
+# Note: RouterConfig is the production @dataclass from router.py
+# Legacy Pydantic config is in config_legacy.py (deprecated)
 
 try:
     from .cluster_detector import ClusterDetector
