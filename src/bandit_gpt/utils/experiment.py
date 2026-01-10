@@ -76,9 +76,19 @@ class ExperimentBurnIn:
             else:
                 easy_train.append(p)
                 
-        # Oversample Hard 3x to match the volume of Easy prompts
+        # FIXED: Oversample hard prompts WITH REPLACEMENT to avoid exact duplicates
+        # Strategy: Create 3x samples from hard pool (can include repeats), 
+        # then balance with easy prompts for 50/50 split
         burn_in_list = []
-        burn_in_list.extend(hard_train * 3)
+        
+        if hard_train:
+            # Sample with replacement to get diversity while emphasizing hard prompts
+            hard_samples = np.random.choice(
+                hard_train,
+                size=len(hard_train) * 3,
+                replace=True  # This creates variety in which prompts are repeated
+            ).tolist()
+            burn_in_list.extend(hard_samples)
         
         # Sample easy prompts to match the hard volume (50/50 split)
         target_len = len(burn_in_list) 
@@ -86,7 +96,7 @@ class ExperimentBurnIn:
             selected_easy = np.random.choice(
                 easy_train, 
                 min(len(easy_train), target_len), 
-                replace=False
+                replace=True  # Allow repeats to reach target size
             ).tolist()
             burn_in_list.extend(selected_easy)
             
@@ -138,11 +148,17 @@ class ExperimentBurnIn:
         dev_prompts, test_prompts = self.get_splits()
         curriculum = self.generate_curriculum(dev_prompts)
         
+        # Use existing PCA artifact (don't recreate)
+        from pathlib import Path as P
+        pca_path = P(__file__).parent.parent.parent / "artifacts" / "pca_23.joblib"
+        
         router = BanditRouter.create(
             self.registry,
             context_encoder=self.encoder,
             priors=priors,
-            prior_n_effective=prior_n_effective
+            prior_n_effective=prior_n_effective,
+            update_lambda=1.0,  # Strong ongoing regularization for intensive burn-in
+            pca_path=pca_path  # Use existing PCA data
         )
         router.bandit.alpha = alpha
         

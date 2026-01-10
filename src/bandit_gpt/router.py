@@ -1147,8 +1147,8 @@ class BanditRouter:
             list(self.registry.keys()), 
             dim=embedding_dim,  # Already includes bias
             alpha=alpha,
-            init_lambda=self.config.init_lambda,
-            update_lambda=self.config.update_lambda,
+            init_lambda=init_lambda,  # Use parameter, not config
+            update_lambda=update_lambda,  # Use parameter, not config
             forgetting_factor=forgetting_factor
         )
         
@@ -1657,6 +1657,16 @@ class BanditRouter:
                         router.bandit.b[model_id] = warmup_data["b"][model_id] * scale
                 
                 router.bandit.refresh_inverse_cache()
+                
+                # CRITICAL FIX: Add regularization after scaling to prevent numerical instability
+                # When prior_n_effective is very small (e.g., 0.1), the scale factor (0.1/20000 = 5e-6)  
+                # makes matrices extremely small, causing A_inv to explode.
+                # Solution: Add init_lambda regularization to ensure matrices stay well-conditioned.
+                for model_id in router.bandit.models:
+                    router.bandit.A[model_id] += np.eye(router.bandit.dim) * router.bandit.init_lambda
+                
+                router.bandit.refresh_inverse_cache()
+                logger.info(f"✅ Applied post-warmup regularization (λ={router.bandit.init_lambda}) for stability")
             else:
                 logger.warning(f"Warmup priors not found at {priors_path}. Using cold start.")
         

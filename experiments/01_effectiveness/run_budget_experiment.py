@@ -125,11 +125,15 @@ def run_gold_standard_tuning():
                 curriculum = burn_in_helper.generate_curriculum(fold_train)
                 
                 # B. Burn-in (Prime)
+                # Use existing PCA artifact (don't recreate)
+                pca_path = Path(__file__).parent.parent.parent / "artifacts" / "pca_23.joblib"
                 router = BanditRouter.create(
                     registry, 
                     context_encoder=encoder, 
                     priors="warmup",
-                    prior_n_effective=n
+                    prior_n_effective=n,
+                    update_lambda=1.0,  # Strong regularization for intensive burn-in
+                    pca_path=pca_path  # Use existing PCA data
                 )
                 router.bandit.alpha = alpha # Set targeted exploration immediately?
                 # Usually burn-in uses a fixed policy. Let's assume the router uses 'alpha' for routing
@@ -177,11 +181,15 @@ def run_gold_standard_tuning():
     
     # A. Train on FULL Dev Set with Curriculum (using centralized curriculum generation)
     full_curriculum = burn_in_helper.generate_curriculum(dev_pool)
+    # Use existing PCA artifact (don't recreate)
+    pca_path = Path(__file__).parent.parent.parent / "artifacts" / "pca_23.joblib"
     final_router = BanditRouter.create(
         registry,
         context_encoder=encoder,
         priors="warmup",
-        prior_n_effective=best_config['n_eff']
+        prior_n_effective=best_config['n_eff'],
+        update_lambda=1.0,  # Strong regularization for intensive burn-in
+        pca_path=pca_path  # Use existing PCA data
     )
     final_router.bandit.alpha = best_config['alpha']
     
