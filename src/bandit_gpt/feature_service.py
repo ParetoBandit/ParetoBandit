@@ -234,17 +234,31 @@ class FeatureService:
             logger.info(f"  JIT PCA Explained Variance: {explained_var:.1%}")
             
             if explained_var < self.target_variance:
-                error_msg = (
-                    f"PCA variance too low: {explained_var:.2%} < target {self.target_variance:.2%}. "
-                    f"This indicates poor embedding quality. Recommendations:\n"
-                    f"  1. Increase n_components (currently {self.pca_components})\n"
-                    f"  2. Check encoder quality ({self.encoder_model})\n"
-                    f"  3. Review synthetic data distribution\n"
-                    f"With d={self.pca_components + 1}, LinUCB needs ~{10 * (self.pca_components + 1)} samples to warm up. "
-                    f"Low-quality features will hurt sample efficiency."
+                # KDD REVIEW FIX: Safe Fallback to Raw Embeddings
+                # 
+                # CRITICAL: Proceeding with low-variance PCA means >40% of semantic
+                # signal is lost, effectively routing on noise rather than meaning.
+                # 
+                # Better to fallback to raw 384D embeddings:
+                # - Slower: O(384²) updates vs O(24²)  
+                # - Correct: Full semantic routing vs noise-based routing
+                # 
+                # This prevents silent performance degradation. Users will see critical
+                # log and know to retrain PCA with more data or higher n_components.
+                logger.critical(
+                    f"🛑 PCA VARIANCE TOO LOW: {explained_var:.2%} < {self.target_variance:.2%}\n"
+                    f"   ⚠️  FALLBACK TO RAW EMBEDDINGS ({self.encoder.get_sentence_embedding_dimension()}D) FOR SAFETY\n"
+                    f"   📊 Impact: Slower updates (O({self.encoder.get_sentence_embedding_dimension()}²) vs O({self.pca_components}²)) but CORRECT semantic routing\n"
+                    f"   🔧 Fix: Retrain PCA with more data or increase n_components in config\n"
+                    f"   📍 PCA path: {self.pca_path}"
                 )
-                logger.error(f"🛑 {error_msg}")
-                raise ValueError(error_msg)
+                # Disable PCA - use raw embeddings
+                self._pca = None
+                # Update dimension to raw embedding size + bias term
+                raw_dim = self.encoder.get_sentence_embedding_dimension()
+                self._dimension = raw_dim + 1  # 384 + 1 = 385
+                logger.info(f"   ✅ Using raw {raw_dim}D embeddings (+ 1 bias) = {self._dimension}D features")
+                return  # Skip setting self._pca, will use raw in extract_features()
             
             self._pca = new_pca
             logger.info(f"  ✓ JIT PCA ready ({embeddings.shape[1]}→{self.pca_components})")
