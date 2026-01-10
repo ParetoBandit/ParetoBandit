@@ -8,7 +8,7 @@ without risking breaking the router core.
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -414,7 +414,7 @@ class FeatureService:
         
         # Generate n prompts by sampling templates and filling placeholders
         archetype_keys = list(templates.keys())
-        for _ in range(n):
+        for _ in range(n_samples):
             archetype = random.choice(archetype_keys)
             template = random.choice(templates[archetype])
             

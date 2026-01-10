@@ -1110,7 +1110,7 @@ class BanditRouter:
         if self.pca:
             embedding_dim = self.pca.n_components + 1  # PCA + bias
         else:
-            embedding_dim = enc_dim + 1  # Full embedding + bias
+            embedding_dim = self.encoder.get_sentence_embedding_dimension() + 1  # Full embedding + bias
         
         logger.debug(f"Feature dimensions: "
                     f"pca={self.pca.n_components if self.pca else 'none'}, "
@@ -1128,17 +1128,6 @@ class BanditRouter:
         
         # Initialize Security Scanner (Lazy)
         self._toxicity_scanner = None
-        try:
-             from llm_guard.input_scanners import Toxicity
-             self._toxicity_scanner = Toxicity(threshold=0.5)
-             logger.info("✓ Toxicity scanner initialized")
-        except ImportError:
-             logger.info("Toxicity scanner not available (llm-guard not installed). Feature will be 0.0.")
-        except Exception as e:
-             logger.warning(f"Failed to initialize toxicity scanner: {e}")
-        
-        # Initialize Feature Extractor
-        self._feature_extractor = FeatureExtractor(toxicity_scanner=self._toxicity_scanner)
 
 
         # ---------------------------------------------------------------------------
@@ -1195,18 +1184,12 @@ class BanditRouter:
         result.anchor_vectors = copy.deepcopy(self.anchor_vectors, memo)
         result.complexity_vector = copy.deepcopy(self.complexity_vector, memo)
         result.cluster_detector = copy.deepcopy(self.cluster_detector, memo)
-        result._feature_extractor = copy.deepcopy(self._feature_extractor, memo)
         result.logs = copy.deepcopy(self.logs, memo)
         result.model_priors = copy.deepcopy(self.model_priors, memo)
         result.probation_models = copy.deepcopy(self.probation_models, memo)
         result._feature_map = copy.deepcopy(self._feature_map, memo)
         
         # Handle Context Store: Share the connection
-        # Since it handles its own internal concurrency (SQLite WAL), sharing is safe.
-        result.context_store = self.context_store
-        
-        # Share scanner if it exists
-        result._toxicity_scanner = self._toxicity_scanner
         
         return result
 
@@ -1411,15 +1394,12 @@ class BanditRouter:
         """
         Ultra-fast regex-based toxicity proxy (<1ms).
         
-        Delegates to FeatureTransformer.fast_toxicity_heuristic for implementation.
-        See features.py for full details.
-        
         Returns:
-            Toxicity score in [0, 1], compatible with LinUCB feature vector
+            Toxicity score in [0, 1]
         """
-        # NOTE: FeatureTransformer was removed with legacy features.py
-        # If trap features are needed, implement directly or use feature_service.py
-        return FeatureTransformer.fast_toxicity_heuristic(text)
+        # Feature removed in Radical Simplification Jan 2026.
+        # Now returns 0.0 to prevent breakage in legacy code paths.
+        return 0.0
 
 
 
@@ -1629,229 +1609,75 @@ class BanditRouter:
     @classmethod
     def create(
         cls,
-        model_registry: Dict[str, Dict | None] = None,
+        model_registry: Dict[str, Any] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        context_encoder=None,  # NEW: Optional pre-initialized encoder for testing/DI
-        prior_n_effective: float | None = None,
-        prior_structure_n_effective: float | None = None,
+        context_encoder=None,
         alpha: float | None = None,
         exploration: str = "safe",
-        state_path: str | None = None,
-        priors: str = "hle",  # Default: HLE (unbiased benchmark scores)
-        init_lambda: float = 1.0,
-        update_lambda: float = 0.0,
-        forgetting_factor: float = 1.0,
-        cluster_boost_weight: float = 0.0,
-        anchors: Dict[str, str | None] = None
+        priors: str = "hle",
+        **kwargs
     ) -> "BanditRouter":
         """
-        Factory method to create a BanditRouter with optional priors.
-        
-        Args:
-            model_registry: Dict of {model_id: model_metadata}.
-            context_model: Sentence-transformers model name (default: "sentence-transformers/all-MiniLM-L6-v2").
-                          PCA compression is applied separately if pca_path exists.
-            context_encoder: Optional pre-initialized encoder (for testing or custom encoders).
-                           If provided, context_model is ignored.
-            priors: Prior type to load:
-                - "hle": Hard Label Evaluation scores (generic, unbiased) [DEFAULT]
-                - "warmup": Pre-generated synthetic experience from IRT simulation
-                - "none": Cold start (no priors)
-            prior_n_effective: Effective sample size for belief strength (b vector scaling).
-                              Default: Auto-selected based on priors type:
-                                - HLE: 10.0 (Calibrated Champion)
-                                - none: 0.0 (no priors)
-            prior_structure_n_effective: Effective sample size for structural stiffness (A matrix scaling).
-                                        Default: Auto-selected based on priors type:
-                                          - HLE: 250.0 (Calibrated Champion)
-                                          - none: 20.0 (structure only, no mean)
-                              Note: None = Infinite stiffness (deprecated, not recommended).
-            exploration: "static", "safe", "balanced", "aggressive".
-            init_lambda: Initialization regularization λ (default 1.0).
-            update_lambda: Runtime regularization (default 0.0 for O(d²)).
-            state_path: Optional path to a saved bandit state (.npz).
-            cluster_boost_weight: Reward boost weight for cluster specialization (default 0.0, disabled).
-            anchors: Optional dict of {name: description} for virtual anchors.
+        Backward compatibility factory method to create a BanditRouter.
         """
-        base_dir = Path(__file__).parent
-        
-        # Auto-select optimal parameters based on prior type (from z-score ablation study)
-        if prior_n_effective is None:
-            if priors == "hle":
-                prior_n_effective = 10.0  # HLE optimal (Fair Fight experiment: N=10 → regret=2345.34)
-            elif priors == "none":
-                prior_n_effective = 0.0   # No priors
-            elif priors == "warmup":
-                prior_n_effective = 1000.0  # Warmup optimal (Fair Fight experiment: N=1000 → regret=307.63)
-            else:
-                prior_n_effective = 10.0  # Default fallback
-        
-        
-        config = RouterConfig()
-        if prior_structure_n_effective is None:
-            if priors == "hle":
-                prior_structure_n_effective = 250.0  # Calibrated HLE Champion N_structure
-            else:
-                prior_structure_n_effective = 10.0  # Default structure pseudocounts
-        
-        # 1. Load Default Registry if needed
-        if model_registry is None:
-            models_path = base_dir / "config" / "models.json"
-            if not models_path.exists():
-                raise FileNotFoundError(f"Default models.json not found at {models_path}")
-            with open(models_path) as f:
-                data = json.load(f)
-            model_registry = {m["openrouter_id"]: m for m in data["models"]}
+        # 1. Resolve Alpha from exploration string
+        if alpha is None:
+            exploration_map = {
+                "static": 0.0,
+                "safe": 0.2,
+                "balanced": 0.5,
+                "aggressive": 1.0
+            }
+            alpha = exploration_map.get(exploration, 0.5)
             
-        # 2. Resolve Exploration
-        alpha = ExplorationRate.get(exploration)
+        # 2. Pop arguments that shouldn't be passed to __init__
+        state_path = kwargs.pop("state_path", None)
+        prior_n_effective = kwargs.pop("prior_n_effective", 10.0)
+
+        # 3. Initialize Router
+        router = cls(
+            model_registry=model_registry,
+            context_model=context_model,
+            context_encoder=context_encoder,
+            alpha=alpha,
+            **kwargs
+        )
         
-        # --- Parameter Validation ---
-        # Ensure prior parameters are valid numbers and non-negative
-        if prior_n_effective is not None:
-            if not np.isfinite(prior_n_effective) or prior_n_effective < 0:
-                raise ValueError(f"Invalid prior_n_effective: {prior_n_effective}. Must be finite and non-negative.")
-        
-        if prior_structure_n_effective is not None:
-            if not np.isfinite(prior_structure_n_effective) or prior_structure_n_effective < 0:
-                raise ValueError(f"Invalid prior_structure_n_effective: {prior_structure_n_effective}. Must be finite and non-negative.")
-        
-        # 3. Initialize
-        # Determine PCA path - in data/ subdirectory
-        # PCA file is now in root data/ directory
-        pca_path_default = base_dir.parent.parent / "artifacts" / "pca_23.joblib"
-        if not pca_path_default.exists():
-            logger.warning(f"PCA file not found at {pca_path_default}. Router will use 384-dim embeddings.")
-        
-        # Load Saved State (Overrides priors)
-        if state_path and Path(state_path).exists():
-            router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
-                        alpha=alpha,
-                        init_lambda=init_lambda,
-                        update_lambda=update_lambda,
-                        forgetting_factor=forgetting_factor,
-                        cluster_boost_weight=cluster_boost_weight, pca_path=pca_path_default)
-            router.bandit.load_state(state_path)
-            return router
-        
-        # ---------------------------------------------------------
-        # OPTION 1: WARMUP (The "Simulated Brain")
-        # ---------------------------------------------------------
-        if priors == "warmup":
-            # Load the matrix that ALREADY contains the HLE knowledge 
-            # (because the simulator used HLE to generate rewards)
-            priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
-            
-            if not priors_path.exists():
-                logger.warning(f"⚠️ Warmup file not found at {priors_path}! Falling back to cold start.")
-                # Fallback to cold start
-                return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
-                          alpha=alpha,
-                          init_lambda=init_lambda,
-                          update_lambda=update_lambda,
-                          forgetting_factor=forgetting_factor,
-                          cluster_boost_weight=cluster_boost_weight,
-                          pca_path=pca_path_default if pca_path_default.exists() else None,
-                          anchors=anchors)
-            
-            if joblib is None:
-                raise ImportError("joblib is required for warmup priors loading. Install with: pip install joblib")
-            
-            logger.info(f"⚡ Loading Pre-Computed Warmup from {priors_path}")
-            
-            # Load the warmup data
-            warmup_data = joblib.load(priors_path)
-            n_warmup_samples = warmup_data.get("n", 20000)  # Default to 20k if missing
-            
-            # CRITICAL: Calculate Scaling Factor to Prevent "Zombie Mode"
-            # 
-            # Mathematical Rationale:
-            # - Raw warmup has N=20,000 updates → Very high confidence
-            # - Without scaling, a single new update has ratio 1:20,000 → Router ignores real data
-            # - Solution: Scale to desired prior strength (e.g., N=100)
-            #   * Preserves geometry (learned correlations in A remain accurate)
-            #   * Adjusts plasticity (router can adapt to new data)
-            # 
-            # Formula: scale = N_desired / N_warmup
-            # - Multiply both A and b by same scale to preserve θ = A⁻¹b
-            # - Example: 100 / 20,000 = 0.005 → shrinks confidence by 200x
-            scale_factor = prior_n_effective / float(n_warmup_samples)
-            
-            logger.info(f"   Warmup contains {n_warmup_samples} synthetic samples")
-            logger.info(f"   Scaling to effective N={prior_n_effective:.1f} (scale={scale_factor:.4f})")
-            
-            # Create router instance first
-            router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
-                        alpha=alpha,
-                        init_lambda=init_lambda,
-                        update_lambda=update_lambda,
-                        forgetting_factor=forgetting_factor,
-                        cluster_boost_weight=cluster_boost_weight,
-                        pca_path=pca_path_default if pca_path_default.exists() else None,
-                        anchors=anchors)
-            
-            # Inject the pre-trained matrices WITH SCALING
-            # Both A and b are scaled by the same factor to preserve learned weights θ = A⁻¹b
-            models_loaded = 0
+        # 4. Apply Priors
+        if priors == "hle":
+            # Diagonal injection of benchmark scores
             for model_id in router.bandit.models:
-                if model_id in warmup_data["A"] and model_id in warmup_data["b"]:
-                    # Scale A (Covariance) - Preserves shape, adjusts confidence
-                    router.bandit.A[model_id] = warmup_data["A"][model_id] * scale_factor
-                    
-                    # Scale b (Reward History) - Must match A scaling to preserve θ
-                    router.bandit.b[model_id] = warmup_data["b"][model_id] * scale_factor
-                    models_loaded += 1
-            
-            logger.info(f"   Loaded warmup state for {models_loaded}/{len(router.bandit.models)} models")
-            
-            # CRITICAL: Refresh inverse cache after bulk state injection
-            router.bandit.refresh_inverse_cache()
-            
-            logger.info(f"✅ Loaded Warmup Matrix (Scaled to N={prior_n_effective})")
-            return router
-        
-        # ---------------------------------------------------------
-        # OPTION 2: HLE ONLY (The "Heuristic Shortcut")
-        # ---------------------------------------------------------
-        elif priors == "hle":
-            # Manually inject beliefs into a diagonal Identity matrix
-            # This is the "Poor Man's Warmup"
-            logger.info(f"⚠️ Using simple HLE heuristics (No covariance)")
-            
-            router = cls(model_registry, context_model=context_model, context_encoder=context_encoder,
-                        alpha=alpha,
-                        init_lambda=init_lambda,
-                        update_lambda=update_lambda,
-                        forgetting_factor=forgetting_factor,
-                        cluster_boost_weight=cluster_boost_weight,
-                        pca_path=pca_path_default if pca_path_default.exists() else None,
-                        anchors=anchors)
-            
-            # Mathematical trick to bias the starting theta
-            # theta_initial = A_inv * b
-            # If A=I, then b should be the expected reward vector
-            for model_id in router.bandit.models:
-                hle = router.registry.get(model_id, {}).get("hle", 0.5)
-                # We boost the diagonal of A to represent confidence
+                hle = router.registry.get(model_id, {}).get("hle", 0.15)
+                # Boost diagonal for confidence
                 np.fill_diagonal(router.bandit.A[model_id], 1.0 + prior_n_effective)
-                # b vector gets the HLE score scaled by prior strength
+                # Set prior mean
                 router.bandit.b[model_id] += (hle * prior_n_effective)
-            
-            return router
-            
-        # ---------------------------------------------------------
-        # OPTION 3: COLD (The "Blank Slate")
-        # ---------------------------------------------------------
-        else:
-            logger.info("❄️ Cold Start (Identity Matrix)")
-            return cls(model_registry, context_model=context_model, context_encoder=context_encoder,
-                      alpha=alpha,
-                      init_lambda=init_lambda,
-                      update_lambda=update_lambda,
-                      forgetting_factor=forgetting_factor,
-                      cluster_boost_weight=cluster_boost_weight,
-                      pca_path=pca_path_default if pca_path_default.exists() else None,
-                      anchors=anchors)
+                
+        elif priors == "warmup":
+            # Load pre-computed matrices from disk
+            priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
+            if priors_path.exists():
+                import joblib
+                warmup_data = joblib.load(priors_path)
+                n_warmup = warmup_data.get("n", 20000)
+                scale = prior_n_effective / float(n_warmup)
+                
+                for model_id in router.bandit.models:
+                    if model_id in warmup_data["A"] and model_id in warmup_data["b"]:
+                        router.bandit.A[model_id] = warmup_data["A"][model_id] * scale
+                        router.bandit.b[model_id] = warmup_data["b"][model_id] * scale
+                
+                router.bandit.refresh_inverse_cache()
+            else:
+                logger.warning(f"Warmup priors not found at {priors_path}. Using cold start.")
+        
+        # 6. Load state if provided (overwrites any priors applied above)
+        if state_path:
+            router.load_state(state_path)
+                
+        return router
+
+
 
 
     def _load_zero_shot_priors(self, prior_n_effective: float):
@@ -3065,6 +2891,10 @@ class BanditRouter:
     def save_state(self, path: Path | str) -> None:
         """Save the bandit's learned state to disk."""
         self.bandit.save_state(path)
+
+    def load_state(self, path: Path | str) -> None:
+        """Load the bandit's learned state from disk."""
+        self.bandit.load_state(path)
 
     def calibrate(self, prompts: List[str], *, apply: bool = True, verbose: bool = False) -> Dict[str, float]:
         """

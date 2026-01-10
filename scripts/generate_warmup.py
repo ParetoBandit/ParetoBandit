@@ -31,10 +31,10 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
 from src.bandit_gpt.router import BanditRouter
+from src.bandit_gpt.utils.heuristics import HeuristicService
 from experiments.utils.data_loader import load_model_registry
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
-from src.bandit_gpt.router import BanditRouter
 
 
 # CONFIGURATION
@@ -422,13 +422,11 @@ def main():
     encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     
     # Initialize a "Blank" Router
-    # We set priors="none" because we are ABOUT to build the priors manually.
+    # High alpha for exploration during warmup
     print("   Initializing blank router (cold start)...")
-    router = BanditRouter.create(
+    router = BanditRouter(
         registry,
-        exploration="safe",
-        priors="none", 
-        context_encoder=encoder
+        alpha=0.5
     )
     
     # 2. Generate Mixed Dataset (Three Buckets)
@@ -542,16 +540,10 @@ def main():
 
         
             # A. Analyze Context (The "Map")
-            difficulty = router._detect_difficulty_score(prompt)
+            difficulty = HeuristicService.detect_difficulty(prompt)
             
             # --- NEW: Feature Detection for Traps ---
-            # CRITICAL: Use shared FeatureExtractor method for single source of truth
-            # This ensures warmup and router use IDENTICAL logic (prevents simulation gap)
-            trap_feats = router._feature_extractor.extract_trap_features(prompt)
-            is_non_english = trap_feats[0] == 1.0
-            is_adversarial = trap_feats[1] == 1.0
-            is_tool_use = trap_feats[2] == 1.0
-            is_trap = is_non_english or is_adversarial or is_tool_use
+            is_trap = HeuristicService.detect_trap(prompt)
             # ----------------------------------------
             
             # B. Update Every Model (The "Compass")
