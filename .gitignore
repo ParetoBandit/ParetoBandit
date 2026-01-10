@@ -171,5 +171,9 @@ router_context.db-wal
 # Large offline dataset files
 src/bandit_gpt/data/offline_dataset/*.jsonl
 
+# Keep split-specific reward files (essential for experiments)
+!src/bandit_gpt/data/offline_dataset/dev_rewards.jsonl.gz
+!src/bandit_gpt/data/offline_dataset/holdout_rewards.jsonl.gz
+
 # Root data directory (artifacts & state)
 data/
