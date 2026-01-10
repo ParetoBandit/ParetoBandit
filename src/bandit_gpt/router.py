@@ -307,8 +307,8 @@ class OptimizationProfile:
     MAX_QUALITY = {"w_q": 0.99, "w_c": 0.01, "w_l": 0.00}
     
     # Smart Shopper: "Flagship quality at reasonable cost"
-    # w_q/w_c = 0.85/0.15 = 5.67 → willing to pay 5.67x more for 1% better quality
-    ARBITRAGE = {"w_q": 0.85, "w_c": 0.15, "w_l": 0.00}
+    # w_q/w_c = 0.80/0.20 = 4.0 → willing to pay 4.0x more for 1% better quality
+    ARBITRAGE = {"w_q": 0.80, "w_c": 0.20, "w_l": 0.00}
     
     # Balanced Default: "Solid trade-off between quality and cost"
     # w_q/w_c = 0.70/0.30 = 2.33 → willing to pay 2.33x more for 1% better quality
@@ -1544,6 +1544,24 @@ class BanditRouter:
                 np.zeros(bandit.dim, dtype=np.float64)
             )
 
+    # Feature and Context Extraction (Delegated to FeatureService)
+    # ---------------------------------------------------------------------------
+    
+    def _get_context_vector(self, prompt: str | np.ndarray) -> np.ndarray:
+        """
+        Proxy method to extract features via the FeatureService.
+        
+        This method is maintained for backward compatibility with 
+        experiment scripts and internal feedback loops.
+        
+        Args:
+            prompt: Input text or pre-encoded vector
+            
+        Returns:
+            Normalized feature vector [PCA, bias]
+        """
+        return self.features.extract_features(prompt)
+
     @property
     def reference_model(self) -> Dict[str, Any]:
         """
@@ -1625,7 +1643,7 @@ class BanditRouter:
         if alpha == None:
             exploration_map = {
                 "static": 0.0,
-                "safe": 0.2,
+                "safe": 0.1,
                 "balanced": 0.5,
                 "aggressive": 1.0
             }
@@ -1633,7 +1651,7 @@ class BanditRouter:
             
         # 2. Pop arguments that shouldn't be passed to __init__
         state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 10.0)
+        prior_n_effective = kwargs.pop("prior_n_effective", 20.0)
 
         # 3. Initialize Router
         router = cls(
@@ -1654,7 +1672,12 @@ class BanditRouter:
                 
         elif priors == "warmup":
             # Load pre-computed matrices from disk
-            priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
+            priors_path = kwargs.pop("warmup_path", None)
+            if priors_path:
+                priors_path = Path(priors_path)
+            else:
+                priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
+                
             if priors_path.exists():
                 import joblib
                 warmup_data = joblib.load(priors_path)
