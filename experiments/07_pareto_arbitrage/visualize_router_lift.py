@@ -45,31 +45,32 @@ def compute_pareto_frontier(points: list) -> list:
             max_quality = p["quality"]
     return frontier
 
-def main(prior_n_effective: float = 100.0, alpha: float = 0.05):
+def main(prior_n_effective: float = 20.0, alpha: float = 0.1):
     print("="*70)
     print("ROUTER LIFT VISUALIZATION: THE MONEY CHART")
     print(f"Parameters: N={prior_n_effective}, alpha={alpha}")
     print("="*70)
 
     # 1. Load Data
-    print("📦 Loading data...")
+    print("📦 Loading model registry and setup...")
     project_root = Path(__file__).parent.parent.parent
-    train_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
-    test_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
-    all_rewards = {**train_rewards, **test_rewards}
     full_registry = load_model_registry()
     splits_path = project_root / "experiments" / "01_effectiveness" / "results" / "splits.json"
     priors_file = project_root / "data" / "priors_warmup.joblib"
-
-    # Initialize ExperimentBurnIn to get canonical splits
-    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
-    burner = ExperimentBurnIn(full_registry, all_rewards, splits_path, encoder=encoder)
     
-    # 2. Get dev and holdout test prompts using ExperimentBurnIn
-    print("📊 Loading canonical dev/test splits...")
-    dev_prompts, test_prompts_pool = burner.get_splits()
-    print(f"  ✓ Dev prompts: {len(dev_prompts)}")
-    print(f"  ✓ Test prompts: {len(test_prompts_pool)}")
+    # Initialize ExperimentBurnIn
+    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
+    burner = ExperimentBurnIn(full_registry, {}, splits_path, encoder=encoder)
+    
+    # 2. Get dev and test prompts WITH rewards automatically joined
+    print("📊 Loading canonical splits with rewards...")
+    (dev_prompts, dev_rewards), (test_prompts_pool, test_rewards) = burner.get_splits(load_rewards=True)
+    print(f"  ✓ Dev prompts: {len(dev_prompts)} with {len(dev_rewards)} reward entries")
+    print(f"  ✓ Test prompts: {len(test_prompts_pool)} with {len(test_rewards)} reward entries")
+    
+    # Combine for backward compatibility with rest of script
+    all_rewards = {**dev_rewards, **test_rewards}
+
 
     # 3. Identify 9-Model Portfolio (>=50% coverage in test set)
     print("⚖️ Identifying 9-model portfolio...")
