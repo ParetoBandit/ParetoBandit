@@ -800,10 +800,18 @@ class DisjointLinUCBPolicy:
                     f"trace(A_inv)={trace:.2e} > {threshold:.2e}. "
                     f"Injecting λI to restore conditioning."
                 )
+                # KDD OPTIMIZATION: Preserve Theta During Stability Reset
+                # Capture learned preferences before regularization
+                old_theta = self.A_inv[model] @ self.b[model]
+                
                 # Inject identity regularization to restore numerical stability
                 self.A[model] += self.init_lambda * np.eye(self.dim)
                 # Must recompute inverse after manual regularization injection
                 self.A_inv[model] = safe_inv(self.A[model])
+                
+                # Update b to preserve theta direction: b_new = A_new @ theta_old
+                # This prevents "amnesia effect" where model forgets learned preferences
+                self.b[model] = self.A[model] @ old_theta
             
             # Add observation: A += weight * x x^T, b += weight * reward * x
             self.A[model] += weight * np.outer(x, x)
@@ -831,10 +839,18 @@ class DisjointLinUCBPolicy:
                     f"|denominator|={abs(denominator):.2e} < 1e-6. "
                     f"Injecting fresh regularization and recomputing inverse."
                 )
+                # KDD OPTIMIZATION: Preserve Theta During Stability Reset
+                # Capture learned preferences before regularization
+                old_theta = self.A_inv[model] @ self.b[model]
+                
                 # Inject fresh regularization to restore conditioning
                 self.A[model] += self.init_lambda * np.eye(self.dim)
                 # Full O(d³) recomputation with regularized matrix
                 self.A_inv[model] = safe_inv(self.A[model])
+                
+                # Update b to preserve theta direction: b_new = A_new @ theta_old
+                # This prevents "amnesia effect" where model forgets learned preferences
+                self.b[model] = self.A[model] @ old_theta
             
             # Global counter only (timestamp already updated above in decay block)
             self.t += 1
