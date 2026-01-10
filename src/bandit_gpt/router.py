@@ -69,12 +69,10 @@ SpeedProfile = Literal["fast", "balanced", "slow"]
 # ---------------------------------------------------------------------------
 try:
     from bandit_gpt.storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from bandit_gpt.features import FeatureExtractor
     from bandit_gpt.utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv
 except ImportError:
     # Fallback for direct file import (not installed as package)
     from .storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from .features import FeatureExtractor
     from .utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv
 
 logger = logging.getLogger(__name__)
@@ -1403,7 +1401,8 @@ class BanditRouter:
         Returns:
             Toxicity score in [0, 1], compatible with LinUCB feature vector
         """
-        from .features import FeatureTransformer
+        # NOTE: FeatureTransformer was removed with legacy features.py
+        # If trap features are needed, implement directly or use feature_service.py
         return FeatureTransformer.fast_toxicity_heuristic(text)
 
 
