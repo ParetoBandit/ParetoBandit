@@ -1,7 +1,7 @@
 import sys
 import argparse
 from pathlib import Path
-from .bandit import BanditRouter
+from .router import BanditRouter
 
 def main():
     parser = argparse.ArgumentParser(description="BanditGPT: Adaptive LLM Router CLI")

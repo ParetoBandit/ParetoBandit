@@ -98,6 +98,11 @@ class FeatureService:
         if self._pca is None:
             self._ensure_pca_ready()
         return self._pca
+
+    @property
+    def dimension(self) -> int:
+        """Total feature dimension (PCA + bias)."""
+        return self.pca_components + 1
     
     def get_dimension(self) -> int:
         """

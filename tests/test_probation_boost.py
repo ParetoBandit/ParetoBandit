@@ -62,7 +62,7 @@ def test_probation_boost_overcomes_bad_luck():
     
     # Model A: Gets 3 easy prompts (succeeds)
     for i in range(3):
-        model, log = router.route("Easy task", candidates=None)
+        model, log = router.route("Easy task")
         # Force selection to model_a for controlled test
         if i < 3:
             # Manually route to ensure we test both models

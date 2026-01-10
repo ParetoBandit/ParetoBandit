@@ -40,19 +40,25 @@ class TestCustomProfiles(unittest.TestCase):
         self.assertEqual(model_c, "cheap-low-quality")
 
     def test_normalization(self):
-        # Test weights that don't sum to 1.0 (e.g., 50/50 balance)
+        # NOTE: We NO LONGER normalize weights to sum to 1.0.
+        # This allows "Unbounded Weights" where users can set high priorities
+        # for multiple metrics simultaneously.
         custom_unnormalized = {"w_q": 10.0, "w_c": 10.0} 
         weights = OptimizationProfile.get(custom_unnormalized)
-        self.assertAlmostEqual(weights["w_q"], 0.5)
-        self.assertAlmostEqual(weights["w_c"], 0.5)
-        self.assertAlmostEqual(weights["w_l"], 0.0)
+        
+        self.assertEqual(weights["w_q"], 10.0)
+        self.assertEqual(weights["w_c"], 10.0)
+        self.assertEqual(weights["w_l"], 0.0)
 
     def test_new_profiles(self):
         # Test that cost_saver and low_latency aliases work
-        weights_cs = OptimizationProfile.get("cost-saver")
-        self.assertEqual(weights_cs["w_c"], 0.85)
+        weights_cs = OptimizationProfile.get("cost_saver")
+        # COST_SAVER = {"w_q": 3.6, "w_c": 1.0, "w_l": 0.0}
+        self.assertEqual(weights_cs["w_q"], 3.6)
+        self.assertEqual(weights_cs["w_c"], 1.0)
         
         weights_ll = OptimizationProfile.get("low_latency")
+        # LOW_LATENCY = {"w_q": 0.20, "w_c": 0.10, "w_l": 0.70}
         self.assertEqual(weights_ll["w_l"], 0.70)
 
 if __name__ == "__main__":

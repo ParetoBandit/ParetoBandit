@@ -598,9 +598,32 @@ class DisjointLinUCBPolicy:
         
         # Precompute A_inv for hot-path speed
         self.A_inv = {m: safe_inv(self.A[m]) for m in self.models}
-                
-        self.last_update = {m: 0 for m in self.models} # Track last update step
-        self.t = 0 # Global time step
+        
+        self.last_update = {m: 0 for m in self.models}  # Track last update step
+        self.t = 0  # Global time step
+
+    def bandit_is_stable(self, model_id: str) -> bool:
+        """
+        O(d) stability check using trace of the precision matrix (A).
+        
+        A more rigorous spectral check (lambda_min > threshold) is O(d³).
+        The trace check is a cheaper proxy that detects manifold collapse
+        or extreme numerical instability.
+        """
+        if model_id not in self.A:
+            return True
+        trace = np.trace(self.A[model_id])
+        # Heuristic: Expect trace to be at least d * init_lambda
+        # If it's significantly lower, something is wrong with the updates
+        return trace > (self.dim * self.init_lambda * 0.1)
+
+    def _check_numerical_stability(self, model_id: str, config: Any) -> None:
+        """Periodic stability check and repair."""
+        if not self.bandit_is_stable(model_id):
+            logger.warning(f"⚠️ Stability alert for {model_id}! Trace={np.trace(self.A[model_id]):.4f}. Resetting.")
+            self.A[model_id] = np.eye(self.dim) * self.init_lambda
+            self.b[model_id] = np.zeros(self.dim)
+            self.A_inv[model_id] = safe_inv(self.A[model_id])
 
     def __deepcopy__(self, memo):
         """
@@ -1071,6 +1094,19 @@ class BanditRouter:
             config: Router configuration object
         """
         self.config = config or RouterConfig()
+        if model_registry is None:
+            # Load default models.json from config/
+            base_dir = Path(__file__).parent
+            models_path = base_dir / "config" / "models.json"
+            if not models_path.exists():
+                logger.warning(f"Default models.json not found at {models_path}. Initializing with empty registry.")
+                model_registry = {}
+            else:
+                import json
+                with open(models_path) as f:
+                    data = json.load(f)
+                model_registry = {m["openrouter_id"]: m for m in data["models"]}
+
         self.registry = dict(model_registry)
         
         # -----------------------------------------------------------------------
@@ -1082,35 +1118,25 @@ class BanditRouter:
             logger.info("Using injected FeatureService")
         else:
             # Create default service from legacy parameters
+            # --- Simplified Feature & Performance Layer (Jan 2026) ---
+            # Feature extraction is now delegated to FeatureService (The Eyes)
+            # Standard Dimension: 23 PCA + 1 Bias = 24D
             from .feature_service import FeatureService as FS
-            
-            # Handle legacy context_encoder parameter
-            if context_encoder is not None:
-                logger.warning(
-                    "context_encoder parameter is deprecated. "
-                    "Use feature_service=FeatureService(encoder_model=...) instead."
-                )
-                # Create wrapper that uses provided encoder
-                # For now, we'll create a standard service and warn
-                self.features = FS(
-                    encoder_model=context_model,
-                    pca_path=pca_path
-                )
-            else:
-                self.features = FS(
-                    encoder_model=context_model,
-                    pca_path=pca_path
-                )
+            self.features = FS(
+                encoder_model=context_model,
+                pca_path=pca_path,
+                allow_jit_training=True
+            )
             logger.info(f"Created default FeatureService with encoder={context_model}")
         
         # For backward compatibility, expose encoder and pca as properties
+        # These are now properties of the FeatureService itself
         self.encoder = self.features.encoder
         self.pca = self.features.pca
         
-        if self.pca:
-            embedding_dim = self.pca.n_components + 1  # PCA + bias
-        else:
-            embedding_dim = self.encoder.get_sentence_embedding_dimension() + 1  # Full embedding + bias
+        # Calculate dimension dynamically from feature service
+        # Default is 24 (23 PCA + 1 bias)
+        embedding_dim = self.features.dimension
         
         logger.debug(f"Feature dimensions: "
                     f"pca={self.pca.n_components if self.pca else 'none'}, "
@@ -1389,44 +1415,9 @@ class BanditRouter:
     # Tier 1 Safety: Fast Toxicity Heuristic
     # ---------------------------------------------------------------------------
     
-    @staticmethod
-    def _fast_toxicity_heuristic(text: str) -> float:
-        """
-        Ultra-fast regex-based toxicity proxy (<1ms).
-        
-        Returns:
-            Toxicity score in [0, 1]
-        """
-        # Feature removed in Radical Simplification Jan 2026.
-        # Now returns 0.0 to prevent breakage in legacy code paths.
-        return 0.0
 
 
 
-    def _get_context_vector(self, context: str | np.ndarray) -> np.ndarray:
-        """
-        Convert string prompt or array to a normalized context vector.
-        
-        **Architectural Change:**
-        Feature extraction has been moved to FeatureService (The Eyes).
-        This method now delegates to the feature service for clean separation.
-        
-        **Simplified Feature Vector (KDD Simplification):**
-        Based on feature significance analysis, removed low-value features:
-        - Removed: anchors (5 features, p>0.05 for 4/5)
-        - Removed: hardness score (1 feature, minimal predictive value)
-        - Removed: handcrafted features (1 feature, redundant with PCA)
-        
-        Structure: [PCA Embedding (23) | Bias (1)] = 24-d
-        
-        Args:
-            context: Prompt text or pre-computed embedding
-            
-        Returns:
-            24-dimensional feature vector (23 PCA + 1 bias)
-        """
-        # Delegate to FeatureService (The Eyes)
-        return self.features.extract_features(context)
 
     @classmethod
     def admix_theta_from_neighbors(
@@ -1621,7 +1612,7 @@ class BanditRouter:
         Backward compatibility factory method to create a BanditRouter.
         """
         # 1. Resolve Alpha from exploration string
-        if alpha is None:
+        if alpha == None:
             exploration_map = {
                 "static": 0.0,
                 "safe": 0.2,
@@ -1648,10 +1639,8 @@ class BanditRouter:
             # Diagonal injection of benchmark scores
             for model_id in router.bandit.models:
                 hle = router.registry.get(model_id, {}).get("hle", 0.15)
-                # Boost diagonal for confidence
-                np.fill_diagonal(router.bandit.A[model_id], 1.0 + prior_n_effective)
-                # Set prior mean
-                router.bandit.b[model_id] += (hle * prior_n_effective)
+                # KDD Simplification: Only set prior on bias term (last dimension)
+                router.bandit.b[model_id][-1] += (hle * prior_n_effective)
                 
         elif priors == "warmup":
             # Load pre-computed matrices from disk
@@ -1716,39 +1705,12 @@ class BanditRouter:
             if archetype in data.get("models", {}):
                 weights_config = data["models"][archetype]["weights"]
                 
-                # Build theta vector matching our NEW feature structure:
-                # [Embedding(32) | Handcrafted(14) | Anchors(5) | Hardness(1) | Bias(1)]
+                # KDD Simplification: Pure Decision Engine (24D)
+                # We no longer use handcrafted or anchor features.
+                # Initialize bias term with HLE-based specialist prior.
                 theta = np.zeros(self.bandit.dim)
-                
-                # Handcrafted features (7-14 in the feature array, after embedding)
-                # Features 1-6 (code_heavy, requires_json, etc.) don't have pretrained weights yet
-                # Features 7-14 are the linearized signals that DO have weights
-                handcrafted_start = 32  # After PCA embedding
-                
-                handcrafted_weights = weights_config.get("handcrafted", {})
-                theta[handcrafted_start + 6] = handcrafted_weights.get("has_code_block", 0.0)
-                theta[handcrafted_start + 7] = handcrafted_weights.get("code_block_count_log", 0.0)
-                theta[handcrafted_start + 8] = handcrafted_weights.get("has_latex", 0.0)
-                theta[handcrafted_start + 9] = handcrafted_weights.get("latex_density_log", 0.0)
-                theta[handcrafted_start + 10] = handcrafted_weights.get("has_question", 0.0)
-                theta[handcrafted_start + 11] = handcrafted_weights.get("question_count_log", 0.0)
-                theta[handcrafted_start + 12] = handcrafted_weights.get("length_penalty_bin", 0.0)
-                theta[handcrafted_start + 13] = handcrafted_weights.get("length_penalty_log", 0.0)
-                
-                # Anchor weights (after embedding + handcrafted = 32 + 14 = 46)
-                anchor_start = 32 + 14
-                anchor_weights = weights_config.get("anchors", {})
-                theta[anchor_start + 0] = anchor_weights.get("coding", 0.0)
-                theta[anchor_start + 1] = anchor_weights.get("math", 0.0)
-                theta[anchor_start + 2] = anchor_weights.get("reasoning", 0.0)
-                theta[anchor_start + 3] = anchor_weights.get("creative", 0.0)
-                theta[anchor_start + 4] = anchor_weights.get("humor", 0.0)
-                
-                # Complexity score weight (after anchors: 46 + 5 = 51)
-                theta[anchor_start + 5] = weights_config.get("complexity_score", 0.0)
-                
-                # Bias (last element: 52)
-                theta[-1] = weights_config.get("bias", 0.0)
+                raw_hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
+                theta[-1] = raw_hle  # Bias term captures global specialist probability
                 
                 # Compute b = N_eff * λ * θ (pseudocounts for θ)
                 self.bandit.b[model_id] = prior_n_effective * self.bandit.init_lambda * theta
@@ -1872,104 +1834,6 @@ class BanditRouter:
         
         return prompts
     
-    def _ensure_pca_ready(self, pca_path: Optional[Path | str], target_variance: float = 0.60) -> None:
-        """
-        Self-Healing PCA: Load existing PCA, validate it, or train new one via JIT calibration.
-        
-        This prevents production outages from:
-        - Missing PCA artifacts
-        - Dimension mismatches (encoder upgrades)
-        - Manifold collapse (low variance capture)
-        
-        Args:
-            pca_path: Path to PCA artifact (optional)
-            target_variance: Minimum explained variance threshold (default: 0.60)
-                            Logs warning if PCA captures < 60% of variance
-        """
-        pca_loaded = False
-        
-        # Check if joblib is available
-        try:
-            import joblib as jl
-        except ImportError:
-            logger.warning("joblib not available - cannot use PCA compression")
-            return
-        
-        # Phase 1: Try loading existing PCA
-        if pca_path and Path(pca_path).exists():
-            try:
-                candidate_pca = jl.load(pca_path)
-                
-                # Validation: Dimension check
-                expected_dim = self.encoder.get_sentence_embedding_dimension()
-                actual_dim = candidate_pca.n_features_in_
-                
-                if actual_dim == expected_dim:
-                    self.pca = candidate_pca
-                    explained_var = np.sum(candidate_pca.explained_variance_ratio_)
-                    logger.info(
-                        f"✓ PCA loaded from {pca_path} "
-                        f"({actual_dim}→{candidate_pca.n_components_}, "
-                        f"variance={explained_var:.1%})"
-                    )
-                    pca_loaded = True
-                else:
-                    logger.warning(
-                        f"⚠️ PCA dimension mismatch! "
-                        f"Encoder: {expected_dim}D, PCA: {actual_dim}D. "
-                        f"Re-training with JIT calibration."
-                    )
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to load PCA artifact: {e}. Re-training.")
-        
-        # Phase 2: JIT Calibration (if needed)
-        if not pca_loaded:
-            logger.info("⚡ JIT PCA Calibration: Training new PCA on synthetic data...")
-            
-            # Generate synthetic prompts matching procedural warmup
-            synthetic_prompts = self._generate_synthetic_data(n=1000)
-            logger.info(f"  Generated {len(synthetic_prompts)} synthetic prompts")
-            
-            # Encode to get embeddings
-            logger.info("  Encoding prompts...")
-            embeddings = self.encoder.encode(
-                synthetic_prompts,
-                show_progress_bar=False,
-                normalize_embeddings=True
-            )
-            logger.info(f"  Embeddings shape: {embeddings.shape}")
-            
-            # Fit PCA
-            from sklearn.decomposition import PCA
-            n_components = 32  # Target dimensionality
-            new_pca = PCA(n_components=n_components)
-            new_pca.fit(embeddings)
-            
-            # Variance validation
-            explained_var = np.sum(new_pca.explained_variance_ratio_)
-            logger.info(f"  JIT PCA Explained Variance: {explained_var:.1%}")
-            
-            if explained_var < target_variance:
-                logger.error(
-                    f"🛑 CRITICAL: PCA manifold collapse! "
-                    f"Variance capture {explained_var:.1%} < target {target_variance:.1%}. "
-                    f"Consider increasing n_components or checking encoder quality."
-                )
-                # Proceed anyway (better than crashing), but flag for monitoring
-            
-            self.pca = new_pca
-            logger.info(f"  ✓ JIT PCA ready ({embeddings.shape[1]}→{n_components})")
-            
-            # Phase 3: Persist for next startup (cache-aside pattern)
-            if pca_path:
-                try:
-                    import joblib
-                    pca_path = Path(pca_path)
-                    pca_path.parent.mkdir(parents=True, exist_ok=True)
-                    jl.dump(new_pca, pca_path)
-                    logger.info(f"  💾 Saved JIT PCA to {pca_path} for future use")
-                except Exception as e:
-                    logger.warning(f"  ⚠️ Could not persist PCA (non-fatal): {e}")
 
     def _procedural_warmup(self, n_samples: int = 50):
 
@@ -2256,7 +2120,8 @@ class BanditRouter:
             Tuple of (context_vector, prompt_text)
         """
         prompt_text = prompt if isinstance(prompt, str) else "[Pre-embedded Prompt]"
-        x = self._get_context_vector(prompt)
+        # Delegate to FeatureService (The Eyes)
+        x = self.features.extract_features(prompt)
         return x, prompt_text
     
     def _resolve_utility_weights(
@@ -2685,13 +2550,13 @@ class BanditRouter:
 
     def get_probabilities(self, context: str | np.ndarray, model_ids: List[str] | None = None) -> Dict[str, float]:
         """Get the probability of each model being the specialist for a given context."""
-        x = self._get_context_vector(context)
+        x = self.features.extract_features(context)
         models = model_ids if model_ids else self.bandit.models
         return self.bandit.get_probabilities(x, models)
 
     def update(self, model_id: str, context: str | np.ndarray, reward: float, weight: float = 1.0) -> None:
         """Update the bandit's internal state with a new observation."""
-        x = self._get_context_vector(context)
+        x = self.features.extract_features(context)
         self.bandit.update(model_id, x, reward, weight)
         
         # Periodic stability check (cheap O(d) operation)
