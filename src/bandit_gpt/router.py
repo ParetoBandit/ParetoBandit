@@ -286,33 +286,40 @@ DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # Optimization Profiles
 # ---------------------------------------------------------------------------
 class OptimizationProfile:
-    """Named presets for utility function weights (Quality vs Cost vs Latency).
-    
-    All profiles are now derived using Reference Point Normalization logic,
-    making them interpretable as trade-off preferences relative to the flagship model.
-    
-    Mathematical Foundation:
-        w_q / w_c = cost_savings / quality_tolerance
-    
-    These 4 profiles span the Pareto frontier from premium to budget.
     """
-    # Premium User: "I demand perfection, only 1% quality drop if it's FREE (100% savings)"
-    # Math: 1.00 / 0.01 = 100
-    MAX_QUALITY = {"w_q": 100.0, "w_c": 0.001, "w_l": 0.0}
+    Named presets for utility function weights (Quality vs Cost vs Latency).
     
-    # Smart Shopper: "Flagship intelligence without brand-name prices (2.5% drop for 90% savings)"
-    # Math: 0.90 / 0.025 = 36
-    ARBITRAGE = {"w_q": 36.0, "w_c": 1.0, "w_l": 0.0}
+    **KDD FIX (Jan 2026)**: All weights are pre-normalized to sum to 1.0.
+    This ensures:
+    - Interpretable trade-off ratios (w_q/w_c represents economic exchange rate)
+    - Consistent exploration scaling (α_eff = α * w_q)
+    - Predictable utility scores in [0, 1] range
     
-    # Balanced Default: "Solid trade-off (5% quality drop for 50% cost savings)"
-    # Math: 0.50 / 0.05 = 10
-    BEST_VALUE = {"w_q": 10.0, "w_c": 1.0, "w_l": 0.0}
+    **Economic Interpretation**:
+    The ratio w_q/w_c represents "How much would I pay (in % cost) for 1% quality gain?"
+    Examples:
+    - w_q=0.99, w_c=0.01 → willing to pay 99¢ for 1¢ quality → extremely quality-sensitive
+    - w_q=0.50, w_c=0.50 → willing to pay 50¢ for 1¢ quality → balanced
+    """
     
-    # Budget User: "Strict budget constraint (25% quality drop for 90% savings)"
-    # Math: 0.90 / 0.25 = 3.6
-    COST_SAVER = {"w_q": 3.6, "w_c": 1.0, "w_l": 0.0}
+    # Premium User: "Quality is paramount, cost is almost irrelevant"
+    # w_q/w_c = 0.99/0.01 = 99 → willing to pay 99x more for 1% better quality
+    MAX_QUALITY = {"w_q": 0.99, "w_c": 0.01, "w_l": 0.00}
     
-    # Real-time Applications: Speed-focused profile
+    # Smart Shopper: "Flagship quality at reasonable cost"
+    # w_q/w_c = 0.90/0.10 = 9 → willing to pay 9x more for 1% better quality
+    ARBITRAGE = {"w_q": 0.90, "w_c": 0.10, "w_l": 0.00}
+    
+    # Balanced Default: "Solid trade-off between quality and cost"
+    # w_q/w_c = 0.70/0.30 = 2.33 → willing to pay 2.33x more for 1% better quality
+    BEST_VALUE = {"w_q": 0.70, "w_c": 0.30, "w_l": 0.00}
+    
+    # Budget User: "Cost matters more, acceptable quality drop for savings"
+    # w_q/w_c = 0.40/0.60 = 0.67 → only willing to pay 0.67x more for 1% quality
+    COST_SAVER = {"w_q": 0.40, "w_c": 0.60, "w_l": 0.00}
+    
+    # Real-time Applications: Speed is critical
+    # w_l dominates, willing to sacrifice both quality and cost for speed
     LOW_LATENCY = {"w_q": 0.20, "w_c": 0.10, "w_l": 0.70}
 
     _PROFILES = {
@@ -1066,6 +1073,7 @@ class BanditRouter:
         anchors: Dict[str, str | None] = None,
         context_store: ContextStore | None = None,
         config: RouterConfig | None = None,
+        verbose_routing: bool = False,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -1092,8 +1100,10 @@ class BanditRouter:
             anchors: (Deprecated) Custom virtual anchor definitions
             context_store: Persistent storage for delayed feedback
             config: Router configuration object
+            verbose_routing: Enable detailed breakdown logs for each routing decision
         """
         self.config = config or RouterConfig()
+        self.verbose_routing = verbose_routing
         if model_registry is None:
             # Load default models.json from config/
             base_dir = Path(__file__).parent
@@ -2147,13 +2157,19 @@ class BanditRouter:
         If a hard constraint is active, disable the soft penalty for that dimension
         and re-allocate weight to Quality to avoid "Double Penalty".
         
+        **KDD FIX (Jan 2026 - Phase 1):**
+        Weights are normalized to sum to 1.0 to ensure:
+        - Scale-invariant trade-off ratios (w_q=100, w_c=1 ≡ w_q=1, w_c=0.01)
+        - Interpretable utility scores in [0, 1] range
+        - Exploration bonus proportional to quality importance
+        
         Args:
             profile: Optimization profile name
             max_cost: Hard cost constraint (optional)
             max_latency: Hard latency constraint (optional)
             
         Returns:
-            Tuple of (w_q, w_c, w_l) weights
+            Tuple of (w_q, w_c, w_l) weights (normalized to sum to 1.0)
         """
         weights = OptimizationProfile.get(profile).copy()
         w_q = weights.get("w_q", 1.0 - weights.get("w_c", 0.0) - weights.get("w_l", 0.0))
@@ -2167,6 +2183,17 @@ class BanditRouter:
         if max_latency is not None:
             w_q += w_l
             w_l = 0.0
+        
+        # KDD FIX: Normalize weights to sum to 1.0
+        total = w_q + w_c + w_l
+        if total > 1e-9:  # Avoid division by zero
+            w_q = w_q / total
+            w_c = w_c / total
+            w_l = w_l / total
+        else:
+            # Degenerate case: default to quality-only
+            logger.warning(f"Weight normalization failed (total={total}). Defaulting to pure quality.")
+            w_q, w_c, w_l = 1.0, 0.0, 0.0
             
         return w_q, w_c, w_l
     
@@ -2284,73 +2311,81 @@ class BanditRouter:
         w_l: float,
         input_tokens: int,
         output_tokens: int
-    ) -> Tuple[str, float]:
+    ) -> Tuple[str, float, float]:
         """
         Calculate utility scores and select best model.
         
-        Utility = (w_q * UCB) + (w_c * (1 - Cost_Penalty)) + (w_l * (1 - Latency_Penalty))
+        **KDD FINAL VERSION (Jan 2026)**:
+        Uses an ADDITIVE utility formula that separates deterministic trade-offs 
+        from exploration uncertainty.
         
-        Args:
-            filtered: List of candidate model IDs
-            x: Context vector
-            w_q: Quality weight
-            w_c: Cost weight  
-            w_l: Latency weight
-            input_tokens: Input token count
-            output_tokens: Output token count
-            
-        Returns:
-            Tuple of (best_model, best_utility)
+        Formula:
+          Utility = Base_Utility + Exploration_Bonus
+          Base_Utility = (w_q * mean_quality) + (w_c * cost_savings) + (w_l * lat_savings)
+          Exploration_Bonus = alpha * w_q * std_quality
+          
+        This ensures:
+        1. Exploration only scales with quality importance (w_q).
+        2. Cost signals are never drowned out in cost-sensitive profiles.
+        3. The trade-off between mean quality and cost is perfectly linear.
         """
         best_model = filtered[0]
         best_utility = -float("inf")
         
-        # Identify probationary models (< pruning_min_samples observations)
-        # These will receive a temporary UCB boost to prevent "zombie mode"
         sample_counts = self._get_sample_counts(filtered)
-        probation_ids = {
-            m for m in filtered 
-            if sample_counts.get(m, 0) < self.config.pruning_min_samples
-        }
-        
-        # Pre-compute quality scores (UCBs) with proper exploration rate
-        ucbs = {}
-        for m in filtered:
-            _, ucb = self.bandit.select_arm(x, candidates=[m])
-            ucbs[m] = ucb
-        
-        # Calculate penalties
         cost_penalties, latency_penalties = self._calculate_penalties(filtered, input_tokens, output_tokens)
         
-        # Score each candidate
         for m in filtered:
-            quality = ucbs[m]
+            # 1. Calculate deterministic quality prediction (mean)
+            with self.bandit._lock:
+                theta = self.bandit.A_inv[m] @ self.bandit.b[m]
+                mean_quality = float(theta.dot(x))
+                
+                # Global Forgetting Adjustment
+                dt = self.bandit.t - self.bandit.last_update[m]
+                decay_factor = self.bandit.gamma ** dt
+                
+                # 2. Calculate exploration uncertainty (std)
+                var = float(x.dot(self.bandit.A_inv[m]).dot(x))
+                var_inflated = var / max(decay_factor, 1e-12) 
+                std = float(np.sqrt(max(var_inflated, 1e-12)))
             
-            # Apply Decaying Probation Subsidy in QUALITY-SPACE (KDD Reviewer Fix)
-            # 
-            # CRITICAL: The bonus must be applied to the quality term BEFORE profile
-            # weighting, not to the final utility. This ensures profile-invariant behavior:
-            # - Max Quality (w_q=0.97): +0.10 quality → +0.097 utility
-            # - Arbitrage (w_q=0.75):   +0.10 quality → +0.075 utility  
-            # - Best Value (w_q=0.40):  +0.10 quality → +0.040 utility
-            #
-            # This preserves cost-sensitive routing: cheap models retain their advantage
-            # in cost-focused profiles, while still getting fair exploration.
+            # 3. Calculate separate utility components
+            norm_cost = cost_penalties[m]
+            norm_lat = latency_penalties[m]
+            
+            # Base Trade-off Utility (Deterministic)
+            base_utility = (
+                w_q * mean_quality + 
+                w_c * (1.0 - norm_cost) + 
+                w_l * (1.0 - norm_lat)
+            )
+            
+            # Exploration Bonus (Proportional to w_q)
+            exploration_bonus = self.bandit.alpha * w_q * std
+            
+            # Probation Bonus (Legacy support)
+            probation_bonus = 0.0
             if self.config.probation_bonus > 0:
                 count = sample_counts.get(m, 0)
                 if count < self.config.pruning_min_samples:
                     decay = 1.0 - (count / self.config.pruning_min_samples)
-                    quality += self.config.probation_bonus * decay
+                    probation_bonus = self.config.probation_bonus * w_q * decay
             
-            norm_cost = cost_penalties[m]
-            norm_lat = latency_penalties[m]
+            # FINAL ADDITIVE UTILITY
+            total_utility = base_utility + exploration_bonus + probation_bonus
             
-            # Weighted utility (bonus already incorporated into quality)
-            utility = (w_q * quality) + (w_c * (1.0 - norm_cost)) + (w_l * (1.0 - norm_lat))
+            if self.verbose_routing:
+                logger.info(f"Scoring {m:15s} | Utility: {total_utility:8.4f}")
+                logger.info(f"  > [Base]   Q_util: {w_q*mean_quality:6.4f} (m={mean_quality:.3f}) | C_util: {w_c*(1-norm_cost):6.4f} | L_util: {w_l*(1-norm_lat):6.4f}")
+                logger.info(f"  > [Bonus]  Explore: {exploration_bonus:6.4f} (std={std:.3f}) | Probation: {probation_bonus:6.4f}")
             
-            if utility > best_utility:
-                best_utility = utility
+            if total_utility > best_utility:
+                best_utility = total_utility
                 best_model = m
+                
+        if self.verbose_routing:
+            logger.info(f"WINNER: {best_model} (Utility={best_utility:.4f})")
                 
         return best_model, best_utility, (w_q + w_c + w_l)
     
