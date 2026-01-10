@@ -135,6 +135,40 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
     return oracle_rewards
 
 
+def load_dev_rewards() -> Dict[str, Dict[str, float]]:
+    """
+    Load development set rewards from canonical split.
+    
+    This is a convenience function that loads dev_rewards.jsonl.gz,
+    which contains only rewards for prompts in the development pool.
+    
+    Returns:
+        Dict mapping prompt → {model_id → raw_score}
+    
+    Example:
+        >>> dev_rewards = load_dev_rewards()
+        >>> # Only contains prompts from dev_pool in splits.json
+    """
+    return load_oracle_rewards("dev_rewards.jsonl.gz")
+
+
+def load_holdout_rewards() -> Dict[str, Dict[str, float]]:
+    """
+    Load holdout (test) set rewards from canonical split.
+    
+    This is a convenience function that loads holdout_rewards.jsonl.gz,
+    which contains only rewards for prompts in the holdout pool.
+    
+    Returns:
+        Dict mapping prompt → {model_id → raw_score}
+    
+    Example:
+        >>> holdout_rewards = load_holdout_rewards()
+        >>> # Only contains prompts from holdout_pool in splits.json
+    """
+    return load_oracle_rewards("holdout_rewards.jsonl.gz")
+
+
 def load_model_registry() -> Dict[str, Dict]:
     """
     Load model registry from models.json.

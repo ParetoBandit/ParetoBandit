@@ -1,4 +1,5 @@
 import json
+import gzip
 import pytest
 import numpy as np
 from pathlib import Path
@@ -106,3 +107,86 @@ def test_create_burned_in_router(mock_registry, mock_rewards, temp_splits):
             has_update = True
             break
     assert has_update, "Router should have been updated during burn-in"
+
+
+# ============================================================================
+# NEW TESTS FOR SPLIT GENERATION AND REWARD JOINING
+# ============================================================================
+
+def test_create_canonical_splits(mock_rewards, tmp_path):
+    """Test the new create_canonical_splits() static method."""
+    splits_path = tmp_path / "new_splits.json"
+    
+    # Create splits
+    dev, holdout = ExperimentBurnIn.create_canonical_splits(
+        oracle_rewards=mock_rewards,
+        splits_path=splits_path,
+        test_ratio=0.33,  # 1 of 3 prompts for holdout
+        random_state=42
+    )
+    
+    # Verify splits were created
+    assert splits_path.exists()
+    assert len(dev) == 2
+    assert len(holdout) == 1
+    
+    # Verify disjointness
+    assert set(dev).isdisjoint(set(holdout))
+    
+    # Verify file contents
+    with open(splits_path) as f:
+        data = json.load(f)
+    assert "dev_pool" in data
+    assert "holdout_pool" in data
+    assert data["dev_pool"] == dev
+    assert data["holdout_pool"] == holdout
+
+
+def test_create_canonical_splits_reproducible(mock_rewards, tmp_path):
+    """Test that create_canonical_splits() is reproducible with same seed."""
+    splits_path1 = tmp_path / "splits1.json"
+    splits_path2 = tmp_path / "splits2.json"
+    
+    # Create splits twice with same seed
+    dev1, holdout1 = ExperimentBurnIn.create_canonical_splits(
+        mock_rewards, splits_path1, test_ratio=0.33, random_state=42
+    )
+    dev2, holdout2 = ExperimentBurnIn.create_canonical_splits(
+        mock_rewards, splits_path2, test_ratio=0.33, random_state=42
+    )
+    
+    # Should be identical
+    assert dev1 == dev2
+    assert holdout1 == holdout2
+
+
+def test_create_canonical_splits_data_leakage(tmp_path):
+    """Test that create_canonical_splits() would catch data leakage (edge case)."""
+    # This is more of a sanity check - with proper implementation,
+    # there should never be leakage
+    oracle_rewards = {f"p{i}": {"model_a": 0.5} for i in range(100)}
+    splits_path = tmp_path / "splits.json"
+    
+    dev, holdout = ExperimentBurnIn.create_canonical_splits(
+        oracle_rewards, splits_path, test_ratio=0.4, random_state=42
+    )
+    
+    # Verify no overlap
+    overlap = set(dev).intersection(set(holdout))
+    assert len(overlap) == 0, f"Found {len(overlap)} overlapping prompts"
+
+
+def test_get_splits_backward_compatible_signature(mock_registry, mock_rewards, temp_splits):
+    """Test that get_splits() maintains backward compatible signature."""
+    burner = ExperimentBurnIn(mock_registry, mock_rewards, temp_splits)
+   
+    # Test default behavior (no argument)
+    result_default = burner.get_splits()
+    assert isinstance(result_default, tuple)
+    assert len(result_default) == 2
+    assert isinstance(result_default[0], list)
+    assert isinstance(result_default[1], list)
+    
+    # Test explicit False
+    result_false = burner.get_splits(load_rewards=False)
+    assert result_default == result_false

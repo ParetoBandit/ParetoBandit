@@ -23,7 +23,7 @@ import numpy as np
 import random
 import json
 from pathlib import Path
-from sklearn.model_selection import train_test_split, KFold
+from sklearn.model_selection import KFold
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -46,50 +46,52 @@ def run_gold_standard_tuning():
     print("🏆 GOLD STANDARD TUNING (3-Fold CV + Hold-out)")
     print("="*70)
     
-    # 1. Load Data
-    print("📦 Loading corpus...")
+    # 1. Load registry and setup
+    print("📦 Loading model registry...")
     registry = load_model_registry()
-    train_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
-    test_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
-    full_corpus = {**train_rewards, **test_rewards}
-    all_prompts = list(full_corpus.keys())
+    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
-    # 2. Strict Split (60% Dev / 40% Hold-out)
-    dev_pool, holdout_pool = train_test_split(all_prompts, test_size=0.4, random_state=42)
-    
-    print(f"  ✓ Corpus: {len(all_prompts)}")
-    print(f"  ✂️  Dev Set (CV): {len(dev_pool)}")
-    print(f"  🔒 Hold-out Set: {len(holdout_pool)}")
-    
-    # Save splits for reproducibility
+    # 2. Load canonical splits with rewards automatically joined
     splits_path = Path(__file__).parent / "results" / "splits.json"
-    splits_path.parent.mkdir(exist_ok=True)
-    with open(splits_path, "w") as f:
-        json.dump({
-            "dev_pool": dev_pool,
-            "holdout_pool": holdout_pool
-        }, f, indent=2)
-    print(f"  💾 Saved Splits to {splits_path}")
     
+    if not splits_path.exists():
+        # Create canonical splits first
+        print(f"📝 Generating canonical splits...")
+        from experiments.utils.data_loader import load_oracle_rewards
+        train_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
+        test_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
+        full_corpus = {**train_rewards, **test_rewards}
+        
+        ExperimentBurnIn.create_canonical_splits(
+            oracle_rewards=full_corpus,
+            splits_path=splits_path,
+            test_ratio=0.4,
+            random_state=42
+        )
     
-    # 3. 3-Fold Cross Validation
-    print("\n🔄 Starting 3-Fold CV Grid Search...")
+    # Initialize ExperimentBurnIn
+    burn_in_helper = ExperimentBurnIn(
+        registry=registry,
+        oracle_rewards={},  # Not needed anymore - will load from split files
+        splits_path=splits_path,
+        encoder=encoder
+    )
     
-    # ASSERTION: Ensure Strict Separation
+    # Get splits WITH rewards automatically joined
+    print("📂 Loading canonical splits with rewards...")
+    (dev_pool, dev_rewards), (holdout_pool, holdout_rewards) = burn_in_helper.get_splits(load_rewards=True)
+    
+    print(f"  ✓ Dev Set (CV): {len(dev_pool)} prompts, {len(dev_rewards)} with rewards")
+    print(f"  ✓ Hold-out Set: {len(holdout_pool)} prompts, {len(holdout_rewards)} with rewards")
+    
+    # Verify strict separation
     dev_set = set(dev_pool)
     holdout_set = set(holdout_pool)
     assert dev_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Dev and Hold-out sets overlap."
     print(f"  ✅ Verified Disjoint Splits (Intersection: {len(dev_set.intersection(holdout_set))})")
-
-    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
-    # Initialize ExperimentBurnIn for curriculum generation
-    burn_in_helper = ExperimentBurnIn(
-        registry=registry,
-        oracle_rewards=full_corpus,
-        splits_path=splits_path,
-        encoder=encoder
-    )
+    # Combine rewards for curriculum generation (only uses dev_pool anyway)
+    full_corpus = {**dev_rewards, **holdout_rewards}
     
     kf = KFold(n_splits=3, shuffle=True, random_state=42)
     
