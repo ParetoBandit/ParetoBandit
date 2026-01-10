@@ -307,8 +307,8 @@ class OptimizationProfile:
     MAX_QUALITY = {"w_q": 0.99, "w_c": 0.01, "w_l": 0.00}
     
     # Smart Shopper: "Flagship quality at reasonable cost"
-    # w_q/w_c = 0.90/0.10 = 9 → willing to pay 9x more for 1% better quality
-    ARBITRAGE = {"w_q": 0.90, "w_c": 0.10, "w_l": 0.00}
+    # w_q/w_c = 0.85/0.15 = 5.67 → willing to pay 5.67x more for 1% better quality
+    ARBITRAGE = {"w_q": 0.85, "w_c": 0.15, "w_l": 0.00}
     
     # Balanced Default: "Solid trade-off between quality and cost"
     # w_q/w_c = 0.70/0.30 = 2.33 → willing to pay 2.33x more for 1% better quality
