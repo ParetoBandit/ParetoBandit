@@ -2438,7 +2438,7 @@ class BanditRouter:
         self,
         prompt: str | np.ndarray,
         *,
-        profile: str | Dict[str, float] = "best_value",
+        profile: str | Dict[str, float] = "arbitrage",
         # Reference Point Normalization (Convenience Parameters)
         quality_tolerance: float | None = None,
         cost_savings: float | None = None,
