@@ -394,9 +394,10 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
         # Traps bypass IRT: They are binary capability checks
         return model_hle
     
-    # 1. Map HLE (0.7-0.98) to a wider "Ability Logit" (-2 to +3)
-    # This expands the dynamic range so differences are felt
-    ability_logit = (model_hle - 0.75) * 20.0
+    # 1. Map HLE (0.7-0.98) to a wider "Ability Logit" (-1 to +6.6)
+    # Centered at 0.65 (not 0.75) to give weak models proper credit on easy tasks
+    # This ensures weak models (HLE=0.76) achieve ~95% on easy prompts
+    ability_logit = (model_hle - 0.65) * 20.0
     
     # 2. Map Difficulty (0.0-1.0) to "Difficulty Logit" (-1.2 to +4.8)
     # Tuned to 6.0 (not 8.0) for healthier gradient:
