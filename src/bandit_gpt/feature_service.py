@@ -104,6 +104,11 @@ class FeatureService:
         """Total feature dimension (PCA + bias)."""
         return self.pca_components + 1
     
+    @property
+    def bias_index(self) -> int:
+        """Bias term is always the last element."""
+        return -1
+    
     def get_dimension(self) -> int:
         """
         Get feature vector dimensionality.

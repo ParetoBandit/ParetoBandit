@@ -190,3 +190,28 @@ def test_get_splits_backward_compatible_signature(mock_registry, mock_rewards, t
     # Test explicit False
     result_false = burner.get_splits(load_rewards=False)
     assert result_default == result_false
+
+
+def test_create_canonical_splits_stratified(tmp_path):
+    """Test that stratified splits actually balance the distributions."""
+    # Create 100 prompts: 50 STEM, 50 CODE
+    oracle_rewards = {}
+    for i in range(50):
+        oracle_rewards[f"STEM calculation theorem {i}"] = {"m1": 0.9}
+        oracle_rewards[f"CODE function debug {i}"] = {"m1": 0.5}
+        
+    splits_path = tmp_path / "stratified_splits.json"
+    dev, holdout = ExperimentBurnIn.create_canonical_splits(
+        oracle_rewards, splits_path, test_ratio=0.5, random_state=42
+    )
+    
+    # In a perfect stratified split, we should have 25 STEM and 25 CODE in each
+    dev_stem = [p for p in dev if "STEM" in p]
+    dev_code = [p for p in dev if "CODE" in p]
+    holdout_stem = [p for p in holdout if "STEM" in p]
+    holdout_code = [p for p in holdout if "CODE" in p]
+    
+    assert len(dev_stem) == 25
+    assert len(dev_code) == 25
+    assert len(holdout_stem) == 25
+    assert len(holdout_code) == 25
