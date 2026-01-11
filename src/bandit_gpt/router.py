@@ -24,7 +24,7 @@ import os
 import threading
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from collections import Counter, deque
+from collections import Counter, deque, defaultdict
 from typing import Any, Dict, List, Tuple, Optional, Literal, TypedDict
 import re
 import copy
@@ -82,6 +82,37 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 @dataclass
+class RegistrationConfig:
+    """
+    Bayesian priors for new model admission.
+    
+    These values shape the initial belief state (theta) for a new model 
+    before we have observed any real traffic.
+    
+    Scientific Justification:
+    - Bias: The intercept term. A positive bias (e.g., +0.5) gives a model 
+      a ~62% starting probability of being picked, encouraging exploration.
+      A negative bias (e.g., -0.5) makes it a "backup" (~38% prob).
+    - Complexity Weight: How the model responds to hard prompts. 
+      "Fast" models usually struggle (-0.5), "Slow" models usually excel (+0.5).
+    """
+    # Fast Profile (e.g., Haiku, Flash) -> Bias towards usage, penalty on complexity
+    fast_bias: float = 0.5
+    fast_complexity_weight: float = -0.5
+    
+    # Slow Profile (e.g., Opus, GPT-4) -> Bias against usage (cost), bonus on complexity
+    slow_bias: float = -0.5
+    slow_complexity_weight: float = 0.5
+    
+    # Balanced Profile (e.g., GPT-3.5, Sonnet) -> Neutral priors
+    balanced_bias: float = 0.0
+    balanced_complexity_weight: float = 0.0
+    
+    # Fallback Metadata (Pessimistic Defaults for Resilience)
+    default_cost_per_1m: float = 10.00  # Assume expensive ($10/1M)
+    default_latency_s: float = 2.0      # Assume slow (2s)
+
+@dataclass
 class RouterConfig:
     """
     Centralized configuration for BanditRouter magic numbers.
@@ -129,6 +160,7 @@ class RouterConfig:
     probation_requests: int = 500      # Probation period length (requests)
     pruning_min_samples: int = 30      # Min samples for probation subsidy decay
     probation_bonus: float = 0.10      # Quality boost for probationary models
+    max_probation_models: int = 10     # [KDD FIX]: Max models allowed in probation simultaneously
     
     # Pruning constants removed - relying on UCB natural exploration/exploitation balance
     # No explicit model removal or probation periods required.
@@ -266,8 +298,9 @@ class RouterConfig:
     # Optimization: Run tune_registration_priors.py on your data to find optimal values.
     # ---------------------------------------------------------------------------
     
-    # RegistrationConfig removed - trusting LinUCB to learn from data
-    # instead of encoding rigid priors
+    
+    # [RESTORED] Registration Priors for Progressive Model Admission
+    registration: RegistrationConfig = field(default_factory=RegistrationConfig)
     
     @property
     def cost_range_log(self) -> float:
@@ -731,6 +764,12 @@ class DisjointLinUCBPolicy:
                 # Global Forgetting: Inflate variance based on staleness
                 # A_effective = A_stored * gamma^(dt)
                 # Var_effective = x^T A_eff^-1 x = x^T (A^-1 * gamma^-dt) x = Var_stored * gamma^-dt
+                #
+                # [KDD REVIEW FIX C: Time-Delta Logic]
+                # This inflation covers the "gap" between the model's last update and 
+                # the current selection time. Since A is only decayed during update(),
+                # we must explicitly inflate the variance here to reflect increased
+                # uncertainty as time passes without new observations for this model.
                 dt = self.t - self.last_update[m]
                 decay_factor = self.gamma ** dt
                 
@@ -752,14 +791,21 @@ class DisjointLinUCBPolicy:
         model_samples = {}
         valid_models = [m for m in models if m in self.A]
         
-        for m in valid_models:
-            theta_hat = self.A_inv[m] @ self.b[m]
+        snapshots = {}
+        with self._lock:
+            for m in valid_models:
+                A_inv_m = self.A_inv[m]
+                theta_hat = A_inv_m @ self.b[m]
+                snapshots[m] = (A_inv_m, theta_hat)
+        
+        if not snapshots: return {m: 0.0 for m in models}
+        
+        for m, (A_inv_m, theta_hat) in snapshots.items():
             # Sample weights from the posterior N(theta_hat, A_inv)
-            samples = np.random.multivariate_normal(theta_hat, self.A_inv[m], n_samples)
+            # Computation is outside global lock to maintain latency
+            samples = np.random.multivariate_normal(theta_hat, A_inv_m, n_samples)
             model_samples[m] = samples @ x
             
-        if not model_samples: return {m: 0.0 for m in models}
-        
         # Determine how many times each model was the winner across samples
         stacked_samples = np.stack([model_samples[m] for m in valid_models])
         winners = np.argmax(stacked_samples, axis=0)
@@ -802,16 +848,27 @@ class DisjointLinUCBPolicy:
         with self.model_locks[model]:
             # Apply time-proportional decay based on elapsed steps
             # KDD Review Fix: Use time-based decay (gamma^dt) to match variance inflation in select_arm()
+            #
+            # [KDD REVIEW FIX C: Time-Delta Logic]
+            # This decay catches A up from its last update to the current global time.
+            # Because select_arm() inflates variance based on the same dt, 
+            # this logic is theoretically sound and avoids "double-dipping" 
+            # (at dt=0, inflation factor is 1.0).
             if self.gamma < 1.0:
                 dt = self.t - self.last_update[model]
                 # Clamp dt to prevent numerical underflow when gamma is small
                 decay_factor = self.gamma ** min(dt, 1000)
                 
-                self.A[model] *= decay_factor
-                self.b[model] *= decay_factor
+                # [KDD REVIEW FIX]: Atomic Pointer Swap
+                # Read old/calculate new locally, then swap under global lock
+                # to ensure select_arm sees consistent A/b pair.
+                new_A = self.A[model] * decay_factor
+                new_b = self.b[model] * decay_factor
                 
-                # Update timestamp after applying decay
-                self.last_update[model] = self.t
+                with self._lock:
+                    self.A[model] = new_A
+                    self.b[model] = new_b
+                    self.last_update[model] = self.t
             
             # KDD REVIEW FIX (Critique B): JIT Regularization Injection
             # Check for numerical instability BEFORE Sherman-Morrison update
@@ -831,33 +888,47 @@ class DisjointLinUCBPolicy:
                 old_theta = self.A_inv[model] @ self.b[model]
                 
                 # Inject identity regularization to restore numerical stability
-                self.A[model] += self.init_lambda * np.eye(self.dim)
-                # Must recompute inverse after manual regularization injection
-                self.A_inv[model] = safe_inv(self.A[model])
+                # [KDD REVIEW FIX A2]: COW re-assignment instead of +=
+                self.A[model] = self.A[model] + (self.init_lambda * np.eye(self.dim))
                 
-                # Update b to preserve theta direction: b_new = A_new @ theta_old
-                # This prevents "amnesia effect" where model forgets learned preferences
-                self.b[model] = self.A[model] @ old_theta
+                # Must recompute inverse after manual regularization injection
+                # [KDD REVIEW FIX]: Atomic Pointer Swap
+                new_A_inv = safe_inv(new_A)
+                new_b = new_A @ old_theta
+                
+                with self._lock:
+                    self.A[model] = new_A
+                    self.b[model] = new_b
+                    self.A_inv[model] = new_A_inv
             
             # Add observation: A += weight * x x^T, b += weight * reward * x
-            self.A[model] += weight * np.outer(x, x)
-            self.b[model] += weight * reward * x
+            # [KDD REVIEW FIX A5]: COW re-assignment instead of +=
+            self.A[model] = self.A[model] + (weight * np.outer(x, x))
+            self.b[model] = self.b[model] + (weight * reward * x)
             
             # Sherman-Morrison inverse update (O(d²))
             # Formula: (A + uv^T)^{-1} = A^{-1} - (A^{-1} u v^T A^{-1}) / (1 + v^T A^{-1} u)
-            A_inv = self.A_inv[model]
+            A_inv_current = self.A_inv[model] # Capture reference
             u = x * np.sqrt(weight)
             v = x * np.sqrt(weight)
             
-            A_inv_u = A_inv @ u
-            v_A_inv = v @ A_inv
+            A_inv_u = A_inv_current @ u
+            v_A_inv = v @ A_inv_current
             denominator = 1.0 + (v @ A_inv_u)
             
             # KDD REVIEW FIX: Stricter safety floor (1e-6 instead of 1e-10)
-            # Near-zero denominator indicates numerical instability in Sherman-Morrison
             if abs(denominator) > 1e-6:
                 # Safe to use Sherman-Morrison formula
-                self.A_inv[model] = A_inv - np.outer(A_inv_u, v_A_inv) / denominator
+                new_A_inv = A_inv_current - np.outer(A_inv_u, v_A_inv) / denominator
+                new_A = self.A[model] + (weight * np.outer(x, x))
+                new_b = self.b[model] + (weight * reward * x)
+                
+                # [KDD REVIEW FIX]: Atomic Pointer Swap for Consistency
+                with self._lock:
+                    self.A[model] = new_A
+                    self.b[model] = new_b
+                    self.A_inv[model] = new_A_inv
+                    self.t += 1
             else:
                 # CRITICAL: Denominator too small, fallback to O(d³) with fresh regularization
                 logger.warning(
@@ -865,21 +936,19 @@ class DisjointLinUCBPolicy:
                     f"|denominator|={abs(denominator):.2e} < 1e-6. "
                     f"Injecting fresh regularization and recomputing inverse."
                 )
-                # KDD OPTIMIZATION: Preserve Theta During Stability Reset
                 # Capture learned preferences before regularization
                 old_theta = self.A_inv[model] @ self.b[model]
                 
                 # Inject fresh regularization to restore conditioning
-                self.A[model] += self.init_lambda * np.eye(self.dim)
-                # Full O(d³) recomputation with regularized matrix
-                self.A_inv[model] = safe_inv(self.A[model])
+                new_A = self.A[model] + (weight * np.outer(x, x)) + (self.init_lambda * np.eye(self.dim))
+                new_A_inv = safe_inv(new_A)
+                new_b = new_A @ old_theta
                 
-                # Update b to preserve theta direction: b_new = A_new @ theta_old
-                # This prevents "amnesia effect" where model forgets learned preferences
-                self.b[model] = self.A[model] @ old_theta
-            
-            # Global counter only (timestamp already updated above in decay block)
-            self.t += 1
+                with self._lock:
+                    self.A[model] = new_A
+                    self.b[model] = new_b
+                    self.A_inv[model] = new_A_inv
+                    self.t += 1
 
 
     def _check_numerical_stability(self, model: str, config: 'RouterConfig' = None) -> None:
@@ -1075,14 +1144,14 @@ class BanditRouter:
         Initialize BanditRouter with separated feature extraction.
         
         **Architectural Separation (Eyes, Brain, Memory):**
-        - FeatureService (The Eyes): Feature extraction
+        - FeatureService (The Eyes): Feature extraction (or legacy fallback)
         - RouterCore (The Brain): LinUCB selection
         - FeedbackLoop (The Memory): Matrix updates
         
         Args:
             model_registry: Dictionary of model configurations
-            feature_service: Optional FeatureService for custom feature extraction
-                           If None, creates default service using context_model/pca_path
+            feature_service: Optional FeatureService instance for custom feature extraction.
+                           If None, falls back to legacy default service using context_model/pca_path.
             context_model: Encoder model name (used if feature_service=None)
             context_encoder: Pre-initialized encoder (legacy, overrides context_model)
             pca_path: Path to PCA model (used if feature_service=None)
@@ -1161,6 +1230,18 @@ class BanditRouter:
         # Initialize Security Scanner (Lazy)
         self._toxicity_scanner = None
 
+        # [NEW] Pareto Configuration
+        # Lambda ($) values: "How much Quality % are you willing to sacrifice to save $1?"
+        self.PARETO_PROFILES = {
+            "cost_saver": 10.0,       # High penalty: $0.10 savings ≈ 1% quality drop
+            "smart_shopper": 0.5,     # Balanced: $2.00 savings ≈ 1% quality drop
+            "rational_luxury": 0.05   # Low penalty: Only huge costs matter
+        }
+        # Controls the "Optimism" of the Pareto Filter (UCB)
+        # 1.0 = Standard UCB. Higher = Keep uncertain models alive longer.
+        # [KDD REVIEW FIX]: Increased to 2.0 to ensure gatekeeper is more generous than judge.
+        self.PARETO_EXPLORATION_CONSTANT = 2.0
+
 
         # ---------------------------------------------------------------------------
         # Tiered Context Storage (KDD Review Fix: "Feedback Horizon Fallacy")
@@ -1178,14 +1259,30 @@ class BanditRouter:
         # Oldest logs are automatically evicted when buffer is full.
         # IMPORTANT: process_feedback() must be called before log is evicted!
         self.logs: deque[RoutingLog] = deque(maxlen=RouterConfig.max_log_size)
+        # [KDD REVIEW FIX]: Parallel index for O(1) feedback lookups
+        self.log_index: Dict[str, RoutingLog] = {}
         self.model_priors: Dict[str, float] = {} 
         self.cluster_boost_weight = cluster_boost_weight
         
+        # [KDD REVIEW FIX]: Persistent Tracking (Monotonic Probation)
+        # Prevents "Rolling Window Fallacy" where models receive a probation bonus 
+        # after their early logs are evicted from self.logs.
+        self.model_counts: Dict[str, int] = defaultdict(int)
+        
         # New Model Admission: Probation List
-        # Stores model_id -> request_count_at_admission (or just boolean check in pruner)
         self.probation_models: Dict[str, Dict[str, Any]] = {} 
         # Feature name to index mapping for Progressive Registration
         self._feature_map = self._build_feature_map()
+        
+        # [KDD REVIEW FIX]: Precompute Market Anchors for Performance
+        # CPU profiling showed redundant log calls and Config creation in hot loop
+        self._market_cost_floor = self.config.market_cost_floor
+        self._market_cost_floor_log = np.log(self.config.market_cost_floor)
+        self._market_cost_range = self.config.cost_range_log
+        
+        self._market_lat_floor = self.config.market_latency_floor
+        self._market_lat_floor_log = np.log(self.config.market_latency_floor)
+        self._market_lat_range = self.config.latency_range_log
 
 
     def __deepcopy__(self, memo):
@@ -1348,8 +1445,8 @@ class BanditRouter:
         dim = self.bandit.dim
         theta_vector = np.zeros(dim, dtype=np.float64)
         
-        # Fill the bias term (always last index)
-        theta_vector[-1] = bias
+        # Fill the bias term (explicit indexing)
+        theta_vector[self.features.bias_index] = bias
         
         # Map dictionary keys to vector indices
         for feature_name, val in weights.items():
@@ -1368,8 +1465,16 @@ class BanditRouter:
                 registry=self.registry,
                 bandit=self.bandit,
                 encoder=self.encoder,
-                alpha=0.8  # 80% neighbor knowledge, 20% regularization
+                alpha=0.8,  # DEPRECATED: kept for API compatibility
+                n_effective=5.0  # Balanced prior strength for neighbor bootstrapping
             )
+            
+            # [KDD REVIEW FIX - Bug A: "First-Child" Bias Correction]
+            # Capture whether bootstrapping actually happened.
+            # If admix_theta_from_neighbors found no suitable neighbor, it returns:
+            #   A = init_lambda * I, b = zeros(dim)
+            # We detect this case to determine if we should apply manual priors.
+            is_bootstrapped = not (np.linalg.norm(b_init) < 1e-12)
             
             # Add arm with bootstrapped parameters
             self.bandit.models.append(model_id)
@@ -1380,11 +1485,27 @@ class BanditRouter:
         else:
             # First model - use standard initialization
             self.bandit.add_arm(model_id)
+            is_bootstrapped = False
         
-        # 7. Override b vector to encode the prior (only if using Tier A/B/C knowledge)
-        # If we bootstrapped from a neighbor, we DON'T want to overwrite with hand-coded priors
-        # The neighbor's learned knowledge is more valuable than our guesses
-        if len(self.bandit.models) == 1:  # Only for the very first model
+        # 7. Apply Manual Prior (T-Shirt Sizing) ONLY if Bootstrapping Failed
+        # [KDD REVIEW FIX - Bug A]: The "First-Child" Bias Correction
+        #
+        # CRITICAL: Apply manual prior if and only if no semantic transfer occurred.
+        #
+        # Scenario 1: Bootstrapping succeeded (found similar neighbor)
+        #   - is_bootstrapped = True
+        #   - b already contains neighbor's preferences scaled by n_effective
+        #   - DO NOT overwrite with manual priors (neighbor knowledge > T-shirt sizing)
+        #
+        # Scenario 2: Bootstrapping failed (no suitable neighbor found)
+        #   - is_bootstrapped = False
+        #   - b = zeros(dim) (default/identity initialization)
+        #   - DO apply manual priors to give the model a reasonable starting bias
+        #
+        # This fixes the original bug where manual priors were only applied to the
+        # very first model (len(models)==1), causing subsequent models without neighbors
+        # to start with b=0 and lose the "fast"/"slow" signal from speed parameter.
+        if not is_bootstrapped:
             # Standard prior encoding: b = A @ theta
             # With A = lambda*I, we get: b = lambda * theta
             self.bandit.b[model_id] = self.bandit.init_lambda * theta_vector
@@ -1425,6 +1546,7 @@ class BanditRouter:
 
 
 
+
     @classmethod
     def admix_theta_from_neighbors(
         cls,
@@ -1432,55 +1554,85 @@ class BanditRouter:
         registry: Dict[str, Dict],
         bandit: 'DisjointLinUCBPolicy',
         encoder,  # SentenceTransformer or compatible encoder
-        alpha: float = 0.8,
+        alpha: float = 0.8,  # DEPRECATED: kept for API compatibility
+        n_effective: float = 5.0,  # Tunable prior strength (pseudocount of observations)
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Bootstrap a new model's (A, b) from its nearest neighbor in embedding space.
         
-        **KDD REVIEW FIX (Critique C)**: Sample Efficiency via Shared Priors
+        **KDD REVIEW FIX (Concern B)**: The "Prior Belief" Reset
         
-        With d=24 features, LinUCB needs ~240 samples (10×d) to learn stable parameters.
-        For a 20-model registry, that's 5,000 requests just for warmup.
+        [CRITICAL ALGORITHMIC FIX - Jan 2026]:
+        Previous implementation transferred both A and b matrices, which caused the
+        "Confident Transfer Trap": new models inherited the CONFIDENCE of mature
+        neighbors (e.g., A with 1M samples → tiny confidence intervals → no exploration).
         
-        This method addresses the cold-start problem by:
-        1. Computing embedding similarity between model descriptions
-        2. Finding the nearest neighbor among existing models
-        3. Inheriting theta parameters from that neighbor (weighted by alpha)
+        **New Strategy: Transfer θ (Preferences), Reset A (Confidence)**:
+        1. Find nearest neighbor by embedding similarity
+        2. Extract neighbor's learned preferences: θ_neighbor = A_inv @ b_neighbor  
+        3. Initialize new model with:
+           - A_new = init_lambda * I  (Identity → Maximum Uncertainty)
+           - b_new = init_lambda * θ_neighbor * n_effective  (Tunable prior strength)
+        4. Result: Same preferences, but high exploration potential
         
         **Mathematical Justification:**
-        If models A and B are semantically similar (e.g., both are coding specialists),
-        then their ideal theta vectors should also be similar. By bootstrapping from
-        a neighbor's learned parameters, we can reduce warmup time from 240 to ~50 samples.
+        - θ encodes "what contexts this model is good for" (direction)
+        - A encodes "how confident we are in θ" (magnitude)
+        - We want to transfer domain knowledge (θ) but not sampling history (A)
+        - By resetting A to λI, the new model starts with wide confidence intervals,
+          allowing it to quickly diverge from the neighbor if it performs differently.
+        - n_effective controls prior strength: low (1.0) = weak prior/high exploration,
+          high (10.0) = strong prior/quick exploitation, default (5.0) = balanced warmup
+        
+        **Concrete Example:**
+        - Neighbor "GPT-4" has θ = [+0.8 (complexity), +0.3 (math), ...]
+        - After 1M samples, its A has large eigenvalues → tight confidence
+        - New model "GPT-4-Turbo" bootstraps:
+          - OLD (buggy): Inherits 80% of A → thinks it has 800k samples → fossilized
+          - NEW (fixed): Gets θ as prior, but A = λI → thinks it has 0 samples → explores
         
         Args:
             model_id: The new model to initialize
             registry: Model registry with display_name metadata
             bandit: LinUCB policy with existing model parameters
             encoder: SentenceTransformer for computing similarity
-            alpha: Mixing coefficient (0.0 = pure identity, 1.0 = pure neighbor)
-                   Default 0.8 = 80% neighbor knowledge, 20% regularization
+            alpha: DEPRECATED (kept for backward compatibility, not used)
+            n_effective: Tunable prior strength (default: 5.0). Simulates N samples
+                worth of confidence in the neighbor's preferences. Higher values mean
+                stronger priors (faster exploitation), lower means weaker priors
+                (more exploration).
         
         Returns:
-            Tuple of (A_bootstrapped, b_bootstrapped)
+            Tuple of (A_new, b_new) where:
+            - A_new = init_lambda * I (fresh identity, maximum uncertainty)
+            - b_new = init_lambda * θ_neighbor * n_effective (scaled prior strength)
             
         Example:
-            >>> # Adding a new coding model
+            >>> # Adding a new coding model with balanced prior
             >>> A, b = admix_theta_from_neighbors(
             ...     "deepseek-coder",
             ...     registry,
             ...     bandit,
             ...     encoder,
-            ...     alpha=0.8
+            ...     n_effective=5.0
             ... )
-            # Result: Inherits 80% of theta from similar model (e.g., "codellama")
+            # Result: Inherits preferences from similar model, but with fresh exploration
         """
         # Get model description for embedding
         model_info = registry.get(model_id, {})
         model_desc = model_info.get("display_name", model_id)
         
-        # Compute embedding for new model
+        # Compute embedding for new model (with caching)
+        # [KDD OPTIMIZATION]: Cache embeddings to avoid recomputation
         try:
-            new_embedding = encoder.encode([model_desc], convert_to_numpy=True)[0]
+            # Check if embedding is already cached
+            if '_embedding' in model_info:
+                new_embedding = model_info['_embedding']
+            else:
+                new_embedding = encoder.encode([model_desc], convert_to_numpy=True)[0]
+                # Cache for future use (Pareto checks, etc.)
+                if model_id in registry:
+                    registry[model_id]['_embedding'] = new_embedding
         except Exception as e:
             logger.warning(f"Failed to encode {model_id}: {e}. Using identity init.")
             return (
@@ -1499,7 +1651,13 @@ class BanditRouter:
             neighbor_desc = neighbor_info.get("display_name", neighbor_id)
             
             try:
-                neighbor_embedding = encoder.encode([neighbor_desc], convert_to_numpy=True)[0]
+                # [KDD OPTIMIZATION]: Use cached embedding if available
+                if '_embedding' in neighbor_info:
+                    neighbor_embedding = neighbor_info['_embedding']
+                else:
+                    neighbor_embedding = encoder.encode([neighbor_desc], convert_to_numpy=True)[0]
+                    # Cache for future use
+                    registry[neighbor_id]['_embedding'] = neighbor_embedding
                 
                 # Cosine similarity
                 similarity = np.dot(new_embedding, neighbor_embedding) / (
@@ -1515,23 +1673,31 @@ class BanditRouter:
         
         # Bootstrap from neighbor if found
         if best_neighbor and best_similarity > 0.5:  # Only use if moderately similar
-            # Mix neighbor's parameters with identity init
-            A_neighbor = bandit.A[best_neighbor]
-            b_neighbor = bandit.b[best_neighbor]
+            # [KDD REVIEW FIX]: Extract θ from neighbor, reset A to identity
             
-            A_identity = np.eye(bandit.dim) * bandit.init_lambda
-            b_identity = np.zeros(bandit.dim, dtype=np.float64)
+            # Step 1: Extract neighbor's learned preferences (θ = A_inv @ b)
+            with bandit._lock:  # Thread-safe read
+                A_inv_neighbor = bandit.A_inv[best_neighbor]
+                b_neighbor = bandit.b[best_neighbor]
             
-            # Weighted combination
-            A_bootstrapped = alpha * A_neighbor + (1 - alpha) * A_identity
-            b_bootstrapped = alpha * b_neighbor + (1 - alpha) * b_identity
+            theta_neighbor = A_inv_neighbor @ b_neighbor
+            
+            # Step 2: Initialize new model with fresh uncertainty but neighbor's preferences
+            # [KDD ENHANCEMENT]: Tunable prior strength via n_effective parameter
+            # Low n_effective (e.g., 1.0) = Weak prior, high exploration
+            # High n_effective (e.g., 10.0) = Strong prior, quick exploitation
+            # Default 5.0 = Balanced warmup
+            
+            A_new = np.eye(bandit.dim) * bandit.init_lambda  # Maximum uncertainty
+            b_new = (bandit.init_lambda * theta_neighbor) * n_effective  # Scaled prior strength
             
             logger.info(
                 f"✨ Bootstrapping {model_id} from neighbor {best_neighbor} "
-                f"(similarity={best_similarity:.2f}, alpha={alpha})"
+                f"(similarity={best_similarity:.2f}, n_effective={n_effective}). "
+                f"Transferred θ (preferences), reset A (confidence) for exploration."
             )
             
-            return A_bootstrapped, b_bootstrapped
+            return A_new, b_new
         else:
             # No suitable neighbor, use identity
             logger.info(f"No suitable neighbor for {model_id} (best_sim={best_similarity:.2f}), using identity init")
@@ -1684,10 +1850,16 @@ class BanditRouter:
             if priors_path:
                 priors_path = Path(priors_path)
             else:
-                # Default location
-                priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
+                # Default location (development root or package data)
+                # KDD POLISH: Robust path resolution
+                base_dir = Path(__file__).resolve().parent
+                priors_path = base_dir.parent.parent / "data" / "priors_warmup.joblib"
                 
-            if priors_path.exists():
+                # Check for alternative location in package assets if root data is missing
+                if not priors_path.exists():
+                    priors_path = base_dir / "assets" / "priors_warmup.joblib"
+                
+            if priors_path and priors_path.exists():
                 import joblib
                 warmup_data = joblib.load(priors_path)
                 n_warmup = warmup_data.get("n", 20000)
@@ -1986,171 +2158,280 @@ class BanditRouter:
         """
         Phase 1: Optimizer Gatekeeper (Corrected).
         
-        Checks if the new model (with Optimistic Reward=1.0) is dominated by existing models
+        Checks if the new model (with Optimistic Reward=0.95) is dominated by existing models
         using ABSOLUTE MARKET ANCHORS.
         
-        CRITICAL FIX: This now matches _score_candidates() logic exactly.
-        Previously, it used relative normalization (min/max of current pool), which
+        The baseline check must use absolute market width to prevent local entrapment.
+        Previous logic used relative stats from the current registry, which 
         caused false rejections for models that looked "expensive" locally but were
         actually "cheap" globally.
+        
+        [KDD REVIEW FIX - Improvement B]: Minimum Novelty Check
+        Also rejects "feature spam" - near-duplicate models that differ only in price.
         """
+        # [KDD REVIEW FIX - Improvement B]: Minimum Novelty Check
+        # Prevent "Feature Spam" where providers release 100 variations of a model,
+        # each $0.0001 cheaper. While they aren't strictly dominated by the 0.05 margin,
+        # they shouldn't all enter the registry and dilute attention.
+        #
+        # Strategy: Compute embedding similarity. If new model is too similar to ANY
+        # existing model (cosine similarity > 0.9, i.e., distance < 0.1), reject it
+        # ONLY IF probation is at capacity. If we have room, allow the variation through
+        # so it can compete in probation (max_probation_models limit provides the throttle).
         
-        # --- Helper: Calculate Utility using Market Anchors (Same as Router) ---
-        def get_absolute_utility(quality_score: float, cost_per_m: float, lat_s: float, profile: Dict[str, float]) -> float:
-            # 1. Cost Penalty (Absolute Market Scale)
-            # Convert $/1M -> $/1k to match RouterConfig standards
-            cost_per_1k = cost_per_m / 1000.0
-            norm_cost = self._calculate_absolute_penalty(cost_per_1k)
-            
-            # 2. Latency Penalty (Absolute Market Scale)
-            # Logic duplicated from _calculate_penalties to ensure consistency
-            safe_lat = max(lat_s, self.config.market_latency_floor)
-            log_lat = math.log(safe_lat)
-            min_log = math.log(self.config.market_latency_floor)
-            # Pre-calculated range from config
-            norm_lat = (log_lat - min_log) / self.config.latency_range_log
-            norm_lat = max(0.0, min(1.0, norm_lat))
-            
-            # 3. Resolve Weights (Exchange Rates)
-            # Use the raw weights directly (KDD Compliant)
-            w_q = profile.get("w_q", 0.0)
-            w_c = profile.get("w_c", 0.0)
-            w_l = profile.get("w_l", 0.0)
-            
-            # 4. Calculate Score
-            # Note: We do NOT add exploration bonus here (this is a deterministic check)
-            return (
-                w_q * quality_score + 
-                w_c * (1.0 - norm_cost) + 
-                w_l * (1.0 - norm_lat)
-            )
-
-        # --- Check Dominance ---
-        new_cost = float(new_model_data.get("input_cost_per_m") or 0.0)
-        new_lat = float(new_model_data.get("time_to_first_token_seconds") or 0.0)
+        new_model_id = new_model_data.get("openrouter_id", "unknown")
+        new_model_desc = new_model_data.get("display_name", new_model_id)
         
-        profiles = [
-            OptimizationProfile.MAX_QUALITY,
-            OptimizationProfile.ARBITRAGE,
-            OptimizationProfile.BEST_VALUE,
-            OptimizationProfile.COST_SAVER,
-            OptimizationProfile.LOW_LATENCY
-        ]
-        
-        # Default to admission if something goes wrong
-        is_useful_in_any_profile = False
-        
-        for profile in profiles:
-            # 1. Optimistic Score for New Model
-            # Reward = 1.0 (Assume it's the best model ever)
-            opt_score = get_absolute_utility(1.0, new_cost, new_lat, profile)
+        try:
+            # [KDD OPTIMIZATION]: Use cached embedding if available
+            if '_embedding' in new_model_data:
+                new_embedding = new_model_data['_embedding']
+            else:
+                new_embedding = self.encoder.encode([new_model_desc], convert_to_numpy=True)[0]
+                # Cache for admix_theta_from_neighbors reuse
+                new_model_data['_embedding'] = new_embedding
+                
+            new_embedding_norm = new_embedding / (np.linalg.norm(new_embedding) + 1e-12)
             
-            # 2. Compare against Best Existing Model in this profile
-            best_existing_score = -float("inf")
-            
+            # Check similarity to all existing models
             for m_id, m_data in self.registry.items():
-                if m_id == new_model_data["openrouter_id"]: continue
-                
-                # Use current Quality Score belief (or prior)
-                # We give existing models a slight 'benefit of the doubt' (1.0 factor)
-                # KDD FIX: Use 'initial_quality'
-                m_qs = float(m_data.get("initial_quality") or 0.15)
-                m_cost = float(m_data.get("input_cost_per_m") or 0.0)
-                m_lat = float(m_data.get("time_to_first_token_seconds") or 0.0)
-                
-                score = get_absolute_utility(m_qs, m_cost, m_lat, profile)
-                if score > best_existing_score:
-                    best_existing_score = score
-            
-            # 3. The Verdict
-            # If the new model (at its absolute best) can beat the current winner, admit it.
-            if opt_score >= best_existing_score:
-                is_useful_in_any_profile = True
-                break
+                m_desc = m_data.get("display_name", m_id)
+                try:
+                    # [KDD OPTIMIZATION]: Use cached embedding if available
+                    if '_embedding' in m_data:
+                        m_embedding = m_data['_embedding']
+                    else:
+                        m_embedding = self.encoder.encode([m_desc], convert_to_numpy=True)[0]
+                        # Cache for future checks
+                        self.registry[m_id]['_embedding'] = m_embedding
+                    m_embedding_norm = m_embedding / (np.linalg.norm(m_embedding) + 1e-12)
+                    
+                    # Cosine similarity
+                    similarity = float(np.dot(new_embedding_norm, m_embedding_norm))
+                    
+                    # If too similar (similarity > 0.9), this is likely a near-duplicate
+                    # [KDD REVIEW FIX - Improvement B]: Check probation capacity first
+                    if similarity > 0.9:
+                        # Check if we have room in probation to evaluate this variation
+                        try:
+                            probation_count = sum(1 for m in self.probation_models.values() 
+                                                if self.bandit.t < m.get('immune_until', 0))
+                            
+                            if probation_count < self.config.max_probation_models:
+                                # We have capacity - allow this variation to compete in probation
+                                logger.info(
+                                    f"⚠️ Near-duplicate detected: {new_model_id} similar to {m_id} "
+                                    f"(similarity={similarity:.3f}), but probation has room "
+                                    f"({probation_count}/{self.config.max_probation_models}). Allowing through."
+                                )
+                                # Don't reject - let it through to Pareto check
+                            else:
+                                # Probation is full - activate spam protection
+                                logger.info(
+                                    f"🚫 Novelty Rejection: {new_model_id} is near-duplicate of {m_id} "
+                                    f"(similarity={similarity:.3f}). Probation full ({probation_count}/"
+                                    f"{self.config.max_probation_models}). Feature spam protection active."
+                                )
+                                return True  # Reject as dominated (spam)
+                        except Exception as e:
+                            # If probation check fails, fall through to Pareto check (don't reject on errors)
+                            logger.debug(f"Probation check failed for novelty protection: {e}")
+                        
+                except Exception as e:
+                    logger.debug(f"Failed to encode {m_id} for novelty check: {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.warning(f"Failed to encode new model {new_model_id} for novelty check: {e}")
+            # If encoding fails, fall through to Pareto check (don't reject on errors)
         
-        return not is_useful_in_any_profile
+        # Proceed with standard Pareto dominance check
+        def get_absolute_utility(
+            quality_score: float, 
+            cost_per_m: float, 
+            lat_s: float, 
+            profile: Dict[str, float]
+        ) -> float:
+            """Calculate utility using absolute market normalization."""
+            # Cost Utility (Higher is Cheaper)
+            c_norm = (np.log(10.00) - np.log(max(cost_per_m/1000.0, 0.0005))) / (np.log(10.00) - np.log(0.0005))
+            c_norm = np.clip(c_norm, 0, 1)
+            
+            # Latency Utility (Higher is Faster)
+            l_norm = (np.log(5.0) - np.log(max(lat_s, 0.05))) / (np.log(5.0) - np.log(0.05))
+            l_norm = np.clip(l_norm, 0, 1)
+            
+            # Linear weighted sum
+            return profile['w_q'] * quality_score + profile['w_c'] * c_norm + profile['w_l'] * l_norm
+
+        for m_id, m_data in self.registry.items():
+            domination_count = 0
+            profiles = ["max_quality", "arbitrage", "cost_saver", "low_latency"]
+            
+            for p_name in profiles:
+                p = OptimizationProfile.get(p_name)
+                u_existing = get_absolute_utility(
+                    m_data.get('initial_quality', 0.5), # KDD FIX
+                    m_data.get('cost_per_1m_tokens', 10.0),
+                    m_data.get('median_latency_s', 2.0),
+                    p
+                )
+                # [KDD REVIEW FIX]: Relax optimism from 1.0 to 0.95 (Refined Admissions)
+                # Prevents "Spam Models" that are slightly cheaper from flooding the registry
+                # even if they likely have terrible quality.
+                u_new = get_absolute_utility(
+                    0.95, 
+                    new_model_data.get('cost_per_1m_tokens', 10.0),
+                    new_model_data.get('median_latency_s', 2.0),
+                    p
+                )
+                if u_existing > u_new + 0.05:
+                    domination_count += 1
+            
+            if domination_count == len(profiles):
+                logger.info(f"🚫 Pareto Rejection: {new_model_data.get('openrouter_id')} dominated by {m_id}")
+                return True
+                
+        return False
+
+    def _get_contextual_stats(self, model_id: str, x: np.ndarray, in_tok: int, out_tok: int) -> Dict[str, Any]:
+        """
+        Get context-aware statistics (Mean, Uncertainty, Cost) for a single model.
+        Used to build the dynamic Pareto frontier for a specific prompt.
+        """
+        # 1. Get LinUCB Predictions (Quality)
+        with self.bandit._lock: # Thread-safe read
+            # Mean (Predicted Quality)
+            theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
+            mean_quality = float(theta.dot(x))
+            
+            # Uncertainty (Std Dev) for Optimism
+            dt = self.bandit.t - self.bandit.last_update[model_id]
+            decay_factor = self.bandit.gamma ** dt
+            var = float(x.dot(self.bandit.A_inv[model_id]).dot(x))
+            var_inflated = var / max(decay_factor, 1e-12)
+            uncertainty = float(np.sqrt(max(var_inflated, 1e-12)))
+
+        # 2. Get Cost (Estimated)
+        cost_usd = self._estimate_cost(model_id, in_tok, out_tok)
+        cost_per_1k = cost_usd * 1000.0
+        
+        return {
+            "id": model_id,
+            "mean_quality": mean_quality,
+            "uncertainty": uncertainty,
+            "cost": cost_per_1k
+        }
+
+    def _filter_pareto_frontier(self, candidates: List[str], x: np.ndarray, in_tok: int, out_tok: int) -> List[str]:
+        """
+        Step A: The Optimistic Pareto Filter.
+        Prunes models that are strictly dominated by others based on (Cost vs. Potential Quality).
+        """
+        stats = {
+            m: self._get_contextual_stats(m, x, in_tok, out_tok) 
+            for m in candidates
+        }
+        
+        survivors = []
+        for cand_id in candidates:
+            cand = stats[cand_id]
+            cand_potential = cand['mean_quality'] + (self.PARETO_EXPLORATION_CONSTANT * cand['uncertainty'])
+            
+            is_dominated = False
+            for opp_id in candidates:
+                if cand_id == opp_id: continue
+                opp = stats[opp_id]
+                opp_potential = opp['mean_quality'] + (self.PARETO_EXPLORATION_CONSTANT * opp['uncertainty'])
+                
+                if (opp['cost'] <= cand['cost']) and (opp_potential > cand_potential):
+                    if (opp['cost'] < cand['cost']) or (opp_potential > cand_potential + 1e-6):
+                        is_dominated = True
+                        break
+            
+            if not is_dominated:
+                survivors.append(cand_id)
+        
+        return survivors if survivors else candidates
+
 
     def admit_new_model(self, model_data: Dict[str, Any], dampening: float = 0.1) -> bool:
         """
-        Validate and Initialize a new model using Ridge Regression Transfer.
-        Returns True if admitted, False if rejected.
+        Validate and Initialize a new model using semantic neighbor transfer.
+        
+        [KDD REVIEW FIX - Concern B]: Consolidated with register_model pipeline.
+        Both startup and runtime paths now use the same admix_theta_from_neighbors
+        logic (fixed to transfer θ only, reset A for exploration).
+        
+        Args:
+            model_data: Model metadata dictionary with openrouter_id, cost, etc.
+            dampening: DEPRECATED (kept for API compatibility, not used)
+        
+        Returns:
+            True if admitted, False if rejected
         """
         model_id = model_data["openrouter_id"]
         
-        # 1. Update Registry temporarily to include new stats (or just use local var)
-        # We need it in registry for stats calculation, but if we reject, we remove it.
-        # Ideally check BEFORE adding.
-        
-        # Phase 1: Admission Check
+        # Phase 1: Admission Gatekeeping
+        # Check if model is Pareto dominated (with optimistic quality=0.95)
         if self._is_pareto_dominated(model_data):
-            logger.info(f"Refusing admission to {model_id}: Pareto Dominated (even with optimistic reward).")
+            logger.info(f"Refusing admission to {model_id}: Pareto Dominated (even with 0.95 optimistic reward).")
             return False
             
-        # Add to registry
+        # [KDD REVIEW FIX]: Probation Spam Guard
+        # Check how many models are currently in probation
+        probation_count = sum(1 for m in self.probation_models.values() 
+                            if self.bandit.t < m.get('immune_until', 0))
+        
+        if probation_count >= self.config.max_probation_models:
+            logger.warning(
+                f"🚫 Admission Denied for {model_id}: Too many models in probation ({probation_count}). "
+                f"Wait for existing models to graduate or increase max_probation_models."
+            )
+            return False
+            
+        # Phase 2: Initialization via Semantic Transfer
+        # [KDD REVIEW FIX - Concern B]: Use the same logic as register_model
+        # This ensures both paths use the fixed θ-only transfer (no confident transfer trap)
+        
+        # Add to registry first (needed by admix_theta_from_neighbors)
         self.registry[model_id] = model_data
         
-        # Phase 2: Initialization (Transfer)
-        stats = self._calculate_global_stats()
-        new_vec = self._vectorize_model_metadata(model_data, stats)
+        # Use the consolidated bootstrapping logic
+        # This will:
+        # 1. Find semantically similar neighbor via embedding
+        # 2. Extract neighbor's learned preferences (θ = A_inv @ b)
+        # 3. Initialize with A = λI (fresh), b = λ × θ (preferences)
+        A_init, b_init = self.admix_theta_from_neighbors(
+            model_id=model_id,
+            registry=self.registry,
+            bandit=self.bandit,
+            encoder=self.encoder,
+            n_effective=5.0  # Balanced prior strength for neighbor bootstrapping
+        )
         
-        # Find Neighbors
-        candidates = []
-        for m_id in self.bandit.models:
-            if m_id == model_id: continue
-            if m_id not in self.registry: continue
-            
-            m_vec = self._vectorize_model_metadata(self.registry[m_id], stats)
-            dist = np.linalg.norm(new_vec - m_vec)
-            candidates.append((dist, m_id))
-            
-        # Sort by distance
-        candidates.sort(key=lambda x: x[0])
-        neighbors = candidates[:3] # Top 3
+        # Add arm to bandit with bootstrapped parameters
+        self.bandit.models.append(model_id)
+        self.bandit.A[model_id] = A_init
+        self.bandit.b[model_id] = b_init
+        self.bandit.A_inv[model_id] = safe_inv(A_init)
+        self.bandit.last_update[model_id] = self.bandit.t
         
-        if not neighbors:
-             # Fallback: Just add initialized (Identity)
-             self.bandit.add_arm(model_id)
-        else:
-            # Average Matrices
-            A_sum = np.zeros_like(self.bandit.A[neighbors[0][1]])
-            b_sum = np.zeros_like(self.bandit.b[neighbors[0][1]])
-            
-            for _, n_id in neighbors:
-                A_sum += self.bandit.A[n_id]
-                b_sum += self.bandit.b[n_id]
-                
-            A_avg = A_sum / len(neighbors)
-            b_avg = b_sum / len(neighbors)
-            
-            # Dampen (Inflate Variance)
-            # A_new = eps * A_avg + (1-eps) * I * lambda
-            lambda_reg = self.bandit.init_lambda
-            identity = np.eye(A_avg.shape[0]) * lambda_reg
-            
-            A_new = (dampening * A_avg) + ((1.0 - dampening) * identity)
-            b_new = dampening * b_avg
-            
-            # Register in Bandit
-            self.bandit.add_arm(model_id)
-            self.bandit.A[model_id] = A_new
-            self.bandit.b[model_id] = b_new
-            self.bandit.A_inv[model_id] = safe_inv(A_new)
-            
-            logger.info(f"Initialized {model_id} via transfer from: {[n[1] for n in neighbors]}")
+        logger.info(
+            f"✅ Admitted {model_id} via semantic transfer. "
+            f"Initialized with θ from neighbor, fresh A for exploration."
+        )
 
-        # Phase 3: Probation
-        # Probation period = 500 requests
-        # Rationale: ~5x the convergence window (estimated 100 requests for LinUCB)
-        # This gives new models time to receive feedback before pruning evaluation.
-        # Configurable via: self.probation_period (set in __init__ if needed)
-
+        # Phase 3: Probation Tracking
+        # New models get 500-request probation period
         self.probation_models[model_id] = {
             "start_t": self.bandit.t,
             "status": "PROBATION",
-            "immune_until": self.bandit.t + RouterConfig.probation_requests
+            "immune_until": self.bandit.t + self.config.probation_requests
         }
         
         return True
+
 
     def _get_sample_counts(self, arms: Optional[List[str]] = None) -> Dict[str, int]:
         """
@@ -2162,11 +2443,11 @@ class BanditRouter:
         Returns:
             Dictionary mapping arm ID to sample count
         """
-        from collections import Counter
-        counts = Counter(log.selected_model for log in self.logs)
-        
+        # [KDD REVIEW FIX]: Use persistent counts to avoid Rolling Window fallacy
+        # Ephemeral log counting via Counter(self.logs) is only used for debugging or 
+        # when persistent counts are not yet initialized (bulk load logic).
         arms_to_count = arms if arms is not None else self.bandit.models
-        return {arm: counts.get(arm, 0) for arm in arms_to_count}
+        return {arm: self.model_counts.get(arm, 0) for arm in arms_to_count}
 
 
 
@@ -2348,16 +2629,12 @@ class BanditRouter:
             cost_per_1k = costs[m] * 1000  # Convert to $/1k tokens
             cost_penalties[m] = self._calculate_absolute_penalty(cost_per_1k)
         
-        # Latency penalties (absolute)
-        config = RouterConfig()
-        LATENCY_FLOOR = config.market_latency_floor
-        LATENCY_RANGE = config.latency_range_log
-        
+        # [KDD REVIEW FIX]: Use precomputed anchors
         latency_penalties = {}
         for m in filtered:
-            safe_lat = max(lats[m], LATENCY_FLOOR)
+            safe_lat = max(lats[m], self._market_lat_floor)
             log_lat = np.log(safe_lat)
-            norm_lat = (log_lat - np.log(LATENCY_FLOOR)) / LATENCY_RANGE
+            norm_lat = (log_lat - self._market_lat_floor_log) / self._market_lat_range
             latency_penalties[m] = max(0.0, min(1.0, norm_lat))
         
         return cost_penalties, latency_penalties
@@ -2429,8 +2706,10 @@ class BanditRouter:
             exploration_bonus = self.bandit.alpha * alpha_scale * w_q * std
             
             # Probation Bonus (Legacy support)
+            # [KDD REVIEW FIX - Improvement A]: Link to probation_models list
+            # Only apply bonus if model is ACTUALLY in probation, not just low sample count
             probation_bonus = 0.0
-            if self.config.probation_bonus > 0:
+            if self.config.probation_bonus > 0 and m in self.probation_models:
                 count = sample_counts.get(m, 0)
                 if count < self.config.pruning_min_samples:
                     decay = 1.0 - (count / self.config.pruning_min_samples)
@@ -2491,7 +2770,13 @@ class BanditRouter:
             context_vector=x,  # Cache for feedback loop
             total_priority_weight=total_weight
         )
+        # [KDD REVIEW FIX]: Manage parallel index eviction before deque append
+        if len(self.logs) >= (self.logs.maxlen or float('inf')):
+            old_log = self.logs[0]
+            self.log_index.pop(old_log.request_id, None)
+            
         self.logs.append(log)
+        self.log_index[log.request_id] = log
         
         # Save context for delayed feedback (RLHF, human ratings, etc.)
         self.context_store.save_context(log.request_id, x, model)
@@ -2502,7 +2787,7 @@ class BanditRouter:
         self,
         prompt: str | np.ndarray,
         *,
-        profile: str | Dict[str, float] = "arbitrage",
+        profile: str | Dict[str, float] = "smart_shopper", # Changed default
         # Reference Point Normalization (Convenience Parameters)
         quality_tolerance: float | None = None,
         cost_savings: float | None = None,
@@ -2561,8 +2846,6 @@ class BanditRouter:
         
         # Orchestrate the routing process using focused helper methods
         x, prompt_text = self._build_routing_features(prompt)
-        # Use profile_weights instead of profile here
-        w_q, w_c, w_l, alpha_scale = self._resolve_utility_weights(profile_weights, max_cost, max_latency)
         candidates = list(self.registry.keys())
         filtered = self._filter_by_constraints(
             candidates, prompt, max_cost, max_latency, quality_floor, input_tokens, output_tokens
@@ -2570,10 +2853,48 @@ class BanditRouter:
         
         # Estimate tokens for scoring
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
+
+        # [NEW] Logic Branch: Pareto vs Legacy
+        # Check if the requested profile is one of our new Pareto/Lambda profiles
+        is_pareto_mode = isinstance(profile_weights, str) and profile_weights in self.PARETO_PROFILES
         
-        best_model, best_utility, total_weight = self._score_candidates(
-            filtered, x, w_q, w_c, w_l, alpha_scale, in_tok, output_tokens
-        )
+        best_model = None
+        best_utility = -float('inf')
+        total_weight = 1.0
+
+        if is_pareto_mode:
+            # --- PATH A: NEW PARETO LOGIC ---
+            
+            # Step 1: Optimistic Pareto Filter
+            # Prunes dominated models (e.g., Opus is removed if GPT-4 is cheaper & better)
+            efficient_models = self._filter_pareto_frontier(filtered, x, in_tok, output_tokens)
+            
+            # Step 2: Linear Utility Selection
+            # Score = Quality - (Lambda * Cost)
+            lambda_val = self.PARETO_PROFILES[profile_weights]
+            
+            for m in efficient_models:
+                stats = self._get_contextual_stats(m, x, in_tok, output_tokens)
+                
+                # Use Mean Quality (Conservative) for final selection
+                # We subtract Cost * Lambda (Penalty)
+                utility = stats['mean_quality'] - (lambda_val * stats['cost'])
+                
+                if utility > best_utility:
+                    best_utility = utility
+                    best_model = m
+            
+            # For logging compatibility
+            total_weight = lambda_val 
+
+        else:
+            # --- PATH B: LEGACY LOGIC (Keep for backward compatibility) ---
+            # Use _resolve_utility_weights and _score_candidates as before
+            w_q, w_c, w_l, alpha_scale = self._resolve_utility_weights(profile_weights, max_cost, max_latency)
+            best_model, best_utility, total_weight = self._score_candidates(
+                filtered, x, w_q, w_c, w_l, alpha_scale, in_tok, output_tokens
+            )
+
         # Pruning removed for V1 (fixed portfolio)
         log = self._create_routing_log(
             prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
@@ -2596,12 +2917,8 @@ class BanditRouter:
             reward: Base reward (0-1, typically from judge)
             cluster_boost: Whether to apply cluster-aware reward boosting
         """
-        # Find the routing log
-        log = None
-        for l in self.logs:
-            if l.request_id == request_id:
-                log = l
-                break
+        # [KDD REVIEW FIX]: O(1) lookup via parallel index instead of O(N) linear scan
+        log = self.log_index.get(request_id)
         
         # Fallback to context_store for delayed feedback (RLHF)
         if log is None:
@@ -2643,6 +2960,9 @@ class BanditRouter:
                         f"cluster={log.cluster_id}, z={z_score:.2f}, "
                         f"reward: {reward:.3f} → {boosted_reward:.3f} ({boost_amount:+.3f})"
                     )
+        
+        # [KDD REVIEW FIX]: Persistent monotonicity (Probation Fix)
+        self.model_counts[log.selected_model] += 1
         
         # Update bandit with boosted reward
         # Use cached context vector to avoid re-encoding
@@ -2912,18 +3232,12 @@ class BanditRouter:
             - 0.0 = At or below market floor
             - 1.0 = At or above market ceiling
         """
-        # Constants (Derived from Logarithmic Market Width)
-        # Use config for consistency
-        config = RouterConfig()
-        MARKET_FLOOR_LOG = np.log(config.market_cost_floor)
-        MARKET_RANGE = config.cost_range_log
-        
-        # Log Transform (clip to floor to avoid log(0))
-        safe_cost = max(cost_per_1k, config.market_cost_floor)
+        # [KDD REVIEW FIX]: Use precomputed market anchors (Performance)
+        safe_cost = max(cost_per_1k, self._market_cost_floor)
         log_cost = math.log(safe_cost)
         
         # Normalize: (Current - Floor) / Range
-        penalty = (log_cost - MARKET_FLOOR_LOG) / MARKET_RANGE
+        penalty = (log_cost - self._market_cost_floor_log) / self._market_cost_range
         
         # Clip to [0, 1]
         return max(0.0, min(1.0, penalty))
