@@ -68,8 +68,6 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     print(f"  ✓ Dev prompts: {len(dev_prompts)} with {len(dev_rewards)} reward entries")
     print(f"  ✓ Test prompts: {len(test_prompts_pool)} with {len(test_rewards)} reward entries")
     
-    # Combine for backward compatibility with rest of script
-    all_rewards = {**dev_rewards, **test_rewards}
 
 
     # 3. Identify 9-Model Portfolio (>=50% coverage in test set)
@@ -77,7 +75,7 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     
     model_coverage = defaultdict(int)
     for p in test_prompts_pool:
-        rewards = all_rewards.get(p, {})
+        rewards = burner.oracle_rewards.get(p, {})
         for m in rewards:
             model_coverage[m] += 1
             
@@ -93,7 +91,7 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     
     for m_id in available_models:
         # Get actual rewards and token counts for this model on the test set
-        relevant_prompts = [p for p in test_prompts_pool if m_id in all_rewards.get(p, {})]
+        relevant_prompts = [p for p in test_prompts_pool if m_id in burner.oracle_rewards.get(p, {})]
         
         if not relevant_prompts:
             continue
@@ -103,7 +101,7 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
         
         for p in relevant_prompts:
             # 1. Get Reward
-            qualities.append(all_rewards[p][m_id])
+            qualities.append(burner.oracle_rewards[p][m_id])
             
             # 2. Get ACTUAL Cost (Not Heuristic)
             # Use rough estimation based on word count for consistency with router logic
@@ -151,7 +149,8 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     router = BanditRouter.create(
         burner.registry,
         context_encoder=burner.encoder,
-        priors=str(priors_file),
+        priors="warmup",
+        warmup_path=str(priors_file),
         prior_n_effective=prior_n_effective,
         pca_path=str(pca_path)
     )
@@ -173,7 +172,7 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
         model_id, _ = router.route(prompt, profile=p_name)
         
         # Oracle Reward
-        reward = all_rewards.get(prompt, {}).get(model_id, 0.0)
+        reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
         router.update(model_id, prompt, reward)
     
     # Reset Alpha for Evaluation (User specified parameter)
@@ -209,7 +208,7 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
         
         for p in tqdm(actual_test_prompts, desc=f"Eval {label}", leave=False):
             model_id, _ = router.route(p, profile=profile_name)
-            if model_id in all_rewards.get(p, {}):
+            if model_id in burner.oracle_rewards.get(p, {}):
                 model_data = registry[model_id]
                 
                 # Calculate ACTUAL cost (using same logic as baselines)
@@ -222,7 +221,7 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
                 real_cost = (est_input * in_rate) + (est_output * out_rate)
                 costs.append(real_cost * 1000) # Scale to $/1k
                 
-                qualities.append(all_rewards[p][model_id])
+                qualities.append(burner.oracle_rewards[p][model_id])
         
         
         router_results.append({

@@ -172,31 +172,35 @@ class FeatureService:
             return
         
         # Phase 1: Try loading existing PCA
-        if self.pca_path and self.pca_path.exists():
-            try:
-                candidate_pca = jl.load(self.pca_path)
-                
-                # Validation: Dimension check
-                expected_dim = self.encoder.get_sentence_embedding_dimension()
-                actual_dim = candidate_pca.n_features_in_
-                
-                if actual_dim == expected_dim:
-                    self._pca = candidate_pca
-                    explained_var = np.sum(candidate_pca.explained_variance_ratio_)
-                    logger.info(
-                        f"✓ PCA loaded from {self.pca_path} "
-                        f"({actual_dim}→{candidate_pca.n_components_}, "
-                        f"variance={explained_var:.1%})"
-                    )
-                    pca_loaded = True
-                else:
-                    logger.warning(
-                        f"⚠️ PCA dimension mismatch! "
-                        f"Encoder: {expected_dim}D, PCA: {actual_dim}D. "
-                        f"Re-training with JIT calibration."
-                    )
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to load PCA artifact: {e}. Re-training.")
+        if self.pca_path:
+            logger.info(f"Attempting to load PCA from: {self.pca_path.absolute()}")
+            if self.pca_path.exists():
+                try:
+                    candidate_pca = jl.load(self.pca_path)
+                    
+                    # Validation: Dimension check
+                    expected_dim = self.encoder.get_sentence_embedding_dimension()
+                    actual_dim = candidate_pca.n_features_in_
+                    
+                    if actual_dim == expected_dim:
+                        self._pca = candidate_pca
+                        explained_var = np.sum(candidate_pca.explained_variance_ratio_)
+                        logger.info(
+                            f"✓ PCA loaded successfully "
+                            f"({actual_dim}→{candidate_pca.n_components_}, "
+                            f"variance={explained_var:.1%})"
+                        )
+                        pca_loaded = True
+                    else:
+                        logger.warning(
+                            f"⚠️ PCA dimension mismatch! "
+                            f"Encoder: {expected_dim}D, PCA: {actual_dim}D. "
+                            f"Re-training with JIT calibration."
+                        )
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to load PCA artifact at {self.pca_path}: {e}. Re-training.")
+            else:
+                logger.warning(f"⚠️ PCA artifact not found at {self.pca_path.absolute()}")
         
         # Phase 2: JIT Calibration (if needed)
         if not pca_loaded:

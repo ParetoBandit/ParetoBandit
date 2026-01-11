@@ -302,9 +302,9 @@ class OptimizationProfile:
     - w_q=0.50, w_c=0.50 → willing to pay 50¢ for 1¢ quality → balanced
     """
     
-    # Premium User: "Quality is paramount, cost is almost irrelevant"
-    # w_q/w_c = 0.99/0.01 = 99 → willing to pay 99x more for 1% better quality
-    MAX_QUALITY = {"w_q": 0.99, "w_c": 0.01, "w_l": 0.00}
+    # Premium User: "Quality is paramount, but outrageous costs for tiny gains are avoided"
+    # w_q/w_c = 0.98/0.02 = 49 → willing to pay 49x more for 1% better quality
+    MAX_QUALITY = {"w_q": 0.98, "w_c": 0.02, "w_l": 0.00}
     
     # Smart Shopper: "Flagship quality at reasonable cost"
     # w_q/w_c = 0.80/0.20 = 4.0 → willing to pay 4.0x more for 1% better quality
@@ -1673,16 +1673,21 @@ class BanditRouter:
         if priors == "hle":
             # Diagonal injection of benchmark scores
             for model_id in router.bandit.models:
-                hle = router.registry.get(model_id, {}).get("hle", 0.15)
-                # KDD Simplification: Only set prior on bias term (last dimension)
-                router.bandit.b[model_id][-1] += (hle * prior_n_effective)
+                # Use empirical Success Probability if available, fallback to raw HLE
+                m_data = router.registry.get(model_id, {})
+                hle_val = m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle", 0.15)
                 
-        elif priors == "warmup":
+                # KDD Simplification: Only set prior on bias term (last dimension)
+                router.bandit.b[model_id][-1] += (hle_val * prior_n_effective)
+                
+        elif priors == "warmup" or (isinstance(priors, str) and (priors.endswith(".joblib") or "/" in priors)):
             # Load pre-computed matrices from disk
-            priors_path = warmup_path
+            priors_path = warmup_path or (priors if priors != "warmup" else None)
+            
             if priors_path:
                 priors_path = Path(priors_path)
             else:
+                # Default location
                 priors_path = Path(__file__).parent.parent.parent / "data" / "priors_warmup.joblib"
                 
             if priors_path.exists():
@@ -1699,14 +1704,11 @@ class BanditRouter:
                 router.bandit.refresh_inverse_cache()
                 
                 # CRITICAL FIX: Add regularization after scaling to prevent numerical instability
-                # When prior_n_effective is very small (e.g., 0.1), the scale factor (0.1/20000 = 5e-6)  
-                # makes matrices extremely small, causing A_inv to explode.
-                # Solution: Add init_lambda regularization to ensure matrices stay well-conditioned.
                 for model_id in router.bandit.models:
                     router.bandit.A[model_id] += np.eye(router.bandit.dim) * router.bandit.init_lambda
                 
                 router.bandit.refresh_inverse_cache()
-                logger.info(f"✅ Applied post-warmup regularization (λ={router.bandit.init_lambda}) for stability")
+                logger.info(f"✅ Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
             else:
                 logger.warning(f"Warmup priors not found at {priors_path}. Using cold start.")
         
