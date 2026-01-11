@@ -45,7 +45,7 @@ def compute_pareto_frontier(points: list) -> list:
             max_quality = p["quality"]
     return frontier
 
-def main(prior_n_effective: float = 20.0, alpha: float = 0.1):
+def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     print("="*70)
     print("ROUTER LIFT VISUALIZATION: THE MONEY CHART")
     print(f"Parameters: N={prior_n_effective}, alpha={alpha}")
@@ -309,7 +309,7 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize router lift vs Pareto frontier")
-    parser.add_argument("--N", type=float, default=100.0, help="Prior N effective (default: 100.0)")
+    parser.add_argument("--N", type=float, default=50.0, help="Prior N effective (default: 50.0)")
     parser.add_argument("--alpha", type=float, default=0.05, help="Exploration alpha (default: 0.05)")
     args = parser.parse_args()
     main(prior_n_effective=args.N, alpha=args.alpha)
