@@ -40,6 +40,59 @@ def safe_inv(A: np.ndarray) -> np.ndarray:
         return np.linalg.pinv(A)
 
 
+def get_heuristic_prior(
+    model_data: Dict[str, Any],
+    dim: int,
+    init_lambda: float = 1.0,
+    n_effective: float = 5.0,
+    default_quality: float = 0.5
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute heuristic prior (A, b) for a new model not in the warmup joblib.
+    
+    Strategy: 
+    Constructs a synthetic prior that mimics having seen 'n_effective' samples
+    with an average reward equal to the model's quality score.
+    
+    **Numerical Stability Note:**
+    By initializing A = init_lambda * I, we ensure the matrix is invertible
+    at t=0, matching the standard LinUCB regularization.
+    
+    Args:
+        model_data: Dictionary containing model metadata (quality_score, etc.)
+        dim: Feature vector dimension (including bias)
+        init_lambda: Regularization strength (default: 1.0)
+        n_effective: Effective number of samples to represent in the prior (default: 5.0)
+        default_quality: Fallback quality score if none found in metadata (default: 0.5)
+        
+    Returns:
+        Tuple of (A_prior, b_prior)
+    """
+    # 1. Initialize A (Covariance) with regularization
+    A = init_lambda * np.eye(dim)
+    
+    # 2. Initialize b (Reward Vector)
+    b = np.zeros(dim)
+    
+    # 3. Apply the "Prior Belief"
+    # Priority: quality_score (composite) > empirical_hle > raw_hle > initial_quality > fallback
+    quality = (
+        model_data.get("quality_score") or 
+        model_data.get("empirical_hle") or 
+        model_data.get("raw_hle") or 
+        model_data.get("initial_quality") or 
+        default_quality
+    )
+    
+    # CRITICAL: b[-1] assumes the BIAS term is the LAST feature in the vector.
+    # Verification Reference: src.bandit_gpt.feature_service.FeatureService.extract_features
+    # Logic: np.append(emb_reduced, 1.0) -> bias is absolutely the last element.
+    prior_reward_sum = float(quality) * float(n_effective)
+    b[-1] = prior_reward_sum
+    
+    return A, b
+
+
 def procedural_warmup(router: BanditRouter, n_samples: int = 50):
     """
     Shape the covariance matrix A using synthetic archetypal prompts.

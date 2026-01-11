@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+import pytest
+import numpy as np
+import joblib
+import os
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from bandit_gpt.router import BanditRouter
+from bandit_gpt.utils.warmup import get_heuristic_prior
+
+class TestHeuristicPrior:
+    def test_get_heuristic_prior_shapes(self):
+        """Verify that get_heuristic_prior returns matrices of correct shape."""
+        dim = 24
+        model_data = {"quality_score": 0.8}
+        A, b = get_heuristic_prior(model_data, dim)
+        
+        assert A.shape == (dim, dim)
+        assert b.shape == (dim,)
+        assert np.allclose(A, np.eye(dim))
+        
+    def test_get_heuristic_prior_values(self):
+        """Verify that quality and n_effective correctly set the bias term."""
+        dim = 24
+        quality = 0.8
+        n_eff = 10.0
+        model_data = {"quality_score": quality}
+        
+        A, b = get_heuristic_prior(model_data, dim, n_effective=n_eff)
+        
+        # Bias should be the last element
+        assert b[-1] == quality * n_eff
+        assert np.all(b[:-1] == 0)
+        
+    def test_get_heuristic_prior_fallbacks(self):
+        """Verify fallback priority for different quality fields."""
+        dim = 24
+        
+        # 1. quality_score
+        res = get_heuristic_prior({"quality_score": 0.9, "empirical_hle": 0.1}, dim)
+        assert res[1][-1] == 0.9 * 5.0
+        
+        # 2. empirical_hle
+        res = get_heuristic_prior({"empirical_hle": 0.8, "raw_hle": 0.2}, dim)
+        assert res[1][-1] == 0.8 * 5.0
+        
+        # 3. raw_hle
+        res = get_heuristic_prior({"raw_hle": 0.7, "initial_quality": 0.3}, dim)
+        assert res[1][-1] == 0.7 * 5.0
+        
+        # 4. initial_quality
+        res = get_heuristic_prior({"initial_quality": 0.6}, dim)
+        assert res[1][-1] == 0.6 * 5.0
+        
+        # 5. default
+        res = get_heuristic_prior({}, dim, default_quality=0.4)
+        assert res[1][-1] == 0.4 * 5.0
+
+class TestCascadingWarmup:
+    @patch('joblib.load')
+    @patch('pathlib.Path.exists')
+    def test_cascading_initialization_flow(self, mock_exists, mock_load):
+        """Verify that BanditRouter.create correctly handles hits and misses in joblib."""
+        mock_exists.return_value = True
+        
+        # Mock joblib data: only 'model_a' exists
+        mock_load.return_value = {
+            "A": {"model_a": np.eye(24) * 100},
+            "b": {"model_a": np.ones(24) * 10},
+            "n": 20000
+        }
+        
+        # Mock feature service instance
+        mock_fs = MagicMock()
+        mock_fs.dimension = 24
+        mock_fs.pca_components = 23
+        
+        # Registry with two models
+        registry = {
+            "model_a": {"quality_score": 0.9},
+            "model_b": {"quality_score": 0.5}  # Missing from joblib
+        }
+        
+        # Create router (priors_warmup.joblib exists according to mock_exists)
+        # We inject the mock_fs to avoid real PCA/Encoder initialization
+        router = BanditRouter.create(
+            model_registry=registry,
+            priors="warmup",
+            prior_n_effective=20.0,
+            warmup_path="mock_priors.joblib",
+            feature_service=mock_fs
+        )
+        
+        # model_a should be from joblib (scaled)
+        # scale = 20 / 20000 = 0.001
+        # scaled_A = 100 * 0.001 = 0.1
+        # b = 10 * 0.001 = 0.01
+        
+        # Note: router.bandit.A["model_a"] will also have init_lambda adding np.eye later in router.py
+        # router.bandit.A[model_id] += np.eye(router.bandit.dim) * router.bandit.init_lambda (default lambda=1.0)
+        # So A_final = 0.1*I + 1.0*I = 1.1*I
+        assert np.allclose(router.bandit.A["model_a"][0, 0], 1.1)
+        assert np.allclose(router.bandit.b["model_a"][0], 0.01)
+        
+        # model_b should be heuristic-warmup
+        # A_heuristic is initialized with init_lambda*I = 1.0*I
+        # THEN BanditRouter.create adds lambda*I again:
+        # So model_b A should be 2.0*I
+        assert np.allclose(router.bandit.A["model_b"][0, 0], 2.0)
+        
+        # b[-1] = quality * prior_n_effective = 0.5 * 20.0 = 10.0
+        assert router.bandit.b["model_b"][-1] == 10.0
+        assert np.all(router.bandit.b["model_b"][:-1] == 0)
+
+if __name__ == "__main__":
+    pytest.main([__file__])

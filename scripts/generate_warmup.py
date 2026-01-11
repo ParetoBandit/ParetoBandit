@@ -415,6 +415,43 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
     return prob
 
 
+def get_domain_ability(model_data: dict, prompt: str, default_hle: float) -> float:
+    """
+    Returns domain-specific ability, normalizing hard benchmarks 
+    to the standard IRT Ability scale (0.75 - 0.99).
+    """
+    # 1. Detect Domain (Regex patterns match your generation templates)
+    p_lower = prompt.lower()
+    
+    # Matches 'generate_domain_specific_prompts' templates for coding
+    is_coding = any(k in p_lower for k in [
+        "def ", "import ", "class ", "function", "code", "debug", "algorithm", "```",
+        "implement", "python", "java", "script", "optimize", "json"
+    ])
+    
+    # Matches 'generate_domain_specific_prompts' templates for math
+    is_math = any(k in p_lower for k in ["integral", "theorem", "calculate", "derivative", "equation", "prove"])
+    
+    # 2. Select & Normalize Score
+    # We cap the raw score at 0.50 (Max Expected for these hard benchmarks)
+    # Then map it to the 0.23 range (0.75 -> 0.98)
+    
+    # Note: Using case-insensitive keys as found in models.json (Livecode vs livecode_score)
+    livecode = model_data.get("Livecode") or model_data.get("livecode_score")
+    gpqa = model_data.get("GPQA") or model_data.get("gpqa_score")
+
+    if is_coding and livecode:
+        # Normalize: LiveCode 0.0-0.5 => Ability 0.75-0.98
+        return 0.75 + (min(float(livecode), 0.50) / 0.50) * 0.23
+
+    elif is_math and gpqa:
+        # Normalize: GPQA 0.0-0.5 => Ability 0.75-0.98
+        return 0.75 + (min(float(gpqa), 0.50) / 0.50) * 0.23
+        
+    # 3. Fallback to General Quality (already normalized)
+    return default_hle
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate synthetic warmup data for BanditRouter.")
     parser.add_argument(
@@ -524,17 +561,29 @@ def main():
     BATCH_SIZE = 100
     updates_count = 0
     
-    # Pre-calculate empirical HLE map for fast lookup
-    # CRITICAL: Use empirical_hle (actual success rates) not raw_hle (benchmark scores)
+    # Pre-calculate quality score map for fast lookup
+    # CRITICAL: Use quality_score (composite: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
     model_hle_map = {}
     missing_hle_models = []
     
-    # First pass: collect all available HLE scores
+    # First pass: collect all available quality scores
     for model_id in router.bandit.models:
-        # Use empirical_hle: Dev set success rates (0.76-0.98, already clipped to [0.01, 0.99])
-        empirical_hle = router.registry.get(model_id, {}).get("empirical_hle", None)
-        if empirical_hle is not None:
-            model_hle_map[model_id] = empirical_hle
+        # Use quality_score: Composite metric normalized to [0, 1]
+        m_data = router.registry.get(model_id, {})
+        quality_score = m_data.get("quality_score")
+        
+        # Fallback to legacy HLE fields for backward compatibility
+        if quality_score is None:
+            raw_hle = m_data.get("raw_hle") or m_data.get("hle")
+            if raw_hle is not None:
+                # Legacy scaling: [0.0 - 0.30] to [0.75 - 0.98]
+                quality_score = 0.75 + (min(raw_hle, 0.30) / 0.30) * 0.23
+        
+        if quality_score is not None:
+            # Quality score is already normalized [0, 1], scale to IRT range [0.75 - 0.98]
+            # This keeps IRT simulator stable and matches production success rates
+            scaled_prob = 0.75 + quality_score * 0.23
+            model_hle_map[model_id] = scaled_prob
         else:
             missing_hle_models.append(model_id)
     
@@ -543,7 +592,7 @@ def main():
         # Use mean of existing models as fallback (e.g., ~0.90)
         # This gives new models a fair fighting chance instead of punitive 0.50
         avg_hle = np.mean(list(model_hle_map.values())) if model_hle_map else 0.85
-        print(f"     ⚠ {len(missing_hle_models)} model(s) missing empirical_hle")
+        print(f"     ⚠ {len(missing_hle_models)} model(s) missing quality_score")
         print(f"       Using mean imputation: {avg_hle:.3f} (prevents 'death spiral' for new models)")
         
         for model_id in missing_hle_models:
@@ -585,10 +634,16 @@ def main():
             
             # B. Update Every Model (The "Compass")
             for model_id in router.bandit.models:
-                # Get base capability
-                base_hle = model_hle_map[model_id]
+                # [NEW] Get Component-Aware Ability
+                base_hle_default = model_hle_map[model_id]
+                model_data = router.registry.get(model_id, {})
                 
-                # --- FIX: USE IRT TO GENERATE CONTEXTUAL REWARD ---
+                domain_hle = get_domain_ability(
+                    model_data, 
+                    prompt, 
+                    base_hle_default
+                )
+                
                 if is_trap:
                     # Keep existing "Trap" logic (Kill Switch) - it's good Arbitrage
                     input_cost = router.registry.get(model_id, {}).get("price_1m_blended", 10.0)
@@ -600,11 +655,11 @@ def main():
                     elif is_flagship:
                         prob_success = 1.0  # Force win (The model handles it perfectly)
                     else:
-                        prob_success = base_hle  # Bridge models get base probability
-                else:
-                    # Use IRT for standard prompts
+                        prob_success = domain_hle  # Bridge models get domain probability
+                if not is_trap:
+                    # [NEW] Use domain_hle instead of base_hle
                     # This teaches: "Weak models fail hard prompts, succeed at easy ones"
-                    prob_success = simulate_irt_reward(base_hle, difficulty)
+                    prob_success = simulate_irt_reward(domain_hle, difficulty)
                 # --------------------------------------------------
                 
                 # --- CRITICAL: Bernoulli Sampling (Thompson Style) ---

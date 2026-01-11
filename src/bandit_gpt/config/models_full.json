@@ -150,6 +150,56 @@
       "description": "Global Maximum: The theoretical ceiling.",
       "raw_hle": 0.046,
       "empirical_hle": 0.9808
+    },
+    {
+      "openrouter_id": "anthropic/claude-3.5-sonnet",
+      "input_cost_per_m": 3.0,
+      "output_cost_per_m": 15.0,
+      "hle": 0.039,
+      "context_length": 200000,
+      "time_to_first_token_seconds": 0.8,
+      "speed_profile": "balanced",
+      "capabilities": [
+        "reasoning",
+        "coding",
+        "creative"
+      ],
+      "description": "Claude 3.5 Sonnet: Strong coding and reasoning model.",
+      "raw_hle": 0.039,
+      "empirical_hle": 0.95
+    },
+    {
+      "openrouter_id": "meta-llama/llama-3.1-8b-instruct",
+      "input_cost_per_m": 0.1,
+      "output_cost_per_m": 0.1,
+      "hle": 0.051,
+      "context_length": 128000,
+      "time_to_first_token_seconds": 0.36,
+      "speed_profile": "fast",
+      "capabilities": [
+        "general",
+        "coding"
+      ],
+      "description": "Llama 3.1 8B: Ultra-cheap, fast inference for budget routing.",
+      "raw_hle": 0.051,
+      "empirical_hle": 0.85
+    },
+    {
+      "openrouter_id": "openai/o1",
+      "input_cost_per_m": 15.0,
+      "output_cost_per_m": 60.0,
+      "hle": 0.077,
+      "context_length": 200000,
+      "time_to_first_token_seconds": 2.0,
+      "speed_profile": "slow",
+      "capabilities": [
+        "reasoning",
+        "math",
+        "coding"
+      ],
+      "description": "OpenAI o1: Premium reasoning model with deep thinking capabilities.",
+      "raw_hle": 0.077,
+      "empirical_hle": 0.97
     }
   ]
 }

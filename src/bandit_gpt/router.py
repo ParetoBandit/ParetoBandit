@@ -69,11 +69,11 @@ SpeedProfile = Literal["fast", "balanced", "slow"]
 # ---------------------------------------------------------------------------
 try:
     from bandit_gpt.storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from bandit_gpt.utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv
+    from bandit_gpt.utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv, get_heuristic_prior
 except ImportError:
     # Fallback for direct file import (not installed as package)
     from .storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from .utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv
+    from .utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv, get_heuristic_prior
 
 logger = logging.getLogger(__name__)
 
@@ -287,45 +287,41 @@ DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # ---------------------------------------------------------------------------
 class OptimizationProfile:
     """
-    Named presets for utility function weights (Quality vs Cost vs Latency).
+    Named presets for utility function weights.
     
-    **KDD FIX (Jan 2026)**: All weights are pre-normalized to sum to 1.0.
-    This ensures:
-    - Interpretable trade-off ratios (w_q/w_c represents economic exchange rate)
-    - Consistent exploration scaling (α_eff = α * w_q)
-    - Predictable utility scores in [0, 1] range
+    Weights are Exchange Rates:
+    - w_c = 1.0  (Base Currency: $1.00 USD)
+    - w_q = X    (Value of 1% Quality Gain in USD)
     
-    **Economic Interpretation**:
-    The ratio w_q/w_c represents "How much would I pay (in % cost) for 1% quality gain?"
-    Examples:
-    - w_q=0.99, w_c=0.01 → willing to pay 99¢ for 1¢ quality → extremely quality-sensitive
-    - w_q=0.50, w_c=0.50 → willing to pay 50¢ for 1¢ quality → balanced
+    alpha_scale controls Risk Tolerance:
+    - 0.01: Risk Averse (Strict Exploitation)
+    - 1.00: Risk Neutral (Standard Exploration)
+    - 2.00: Risk Seeking (High Exploration)
     """
     
-    # Premium User: "Quality is paramount, but outrageous costs for tiny gains are avoided"
-    # w_q/w_c = 0.98/0.02 = 49 → willing to pay 49x more for 1% better quality
-    MAX_QUALITY = {"w_q": 0.98, "w_c": 0.02, "w_l": 0.00}
+    # 1. MAX QUALITY ("Rational Luxury")
+    # Target: GPT-4.1 @ $5.00
+    # "Spare No Expense" - w_c=0.1 removes price sensitivity. w_l=0.0 removes time anxiety.
+    MAX_QUALITY = {"w_q": 30.0, "w_c": 0.1, "w_l": 0.0, "alpha_scale": 0.01}
     
-    # Smart Shopper: "Flagship quality at reasonable cost"
-    # w_q/w_c = 0.80/0.20 = 4.0 → willing to pay 4.0x more for 1% better quality
-    ARBITRAGE = {"w_q": 0.80, "w_c": 0.20, "w_l": 0.00}
+    # 2. ARBITRAGE ("Smart Shopper")
+    # Target: Gemini Flash @ $1.51
+    # "The Value King" - w_q=5.0 balances quality vs cost to lock onto Flash.
+    ARBITRAGE = {"w_q": 5.0, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 0.1}
     
-    # Balanced Default: "Solid trade-off between quality and cost"
-    # w_q/w_c = 0.70/0.30 = 2.33 → willing to pay 2.33x more for 1% better quality
-    BEST_VALUE = {"w_q": 0.70, "w_c": 0.30, "w_l": 0.00}
-    
-    # Budget User: "Cost matters more, acceptable quality drop for savings"
-    # w_q/w_c = 0.40/0.60 = 0.67 → only willing to pay 0.67x more for 1% quality
-    COST_SAVER = {"w_q": 0.40, "w_c": 0.60, "w_l": 0.00}
-    
-    # Real-time Applications: Speed is critical
-    # w_l dominates, willing to sacrifice both quality and cost for speed
-    LOW_LATENCY = {"w_q": 0.20, "w_c": 0.10, "w_l": 0.70}
+    # 3. COST SAVER ("The Penny Pincher")
+    # Target: Gemma-3-12b @ $0.24
+    # "The Penny Pincher" - w_q=0.1 forces it to grab the cheapest model that 
+    # isn't broken. Aggressively optimizes for the $0.16-$0.24 range.
+    COST_SAVER = {"w_q": 0.1, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 0.5}
+
+    # 4. LOW LATENCY ("Real Time")
+    # Goal: For chat/voice interfaces.
+    LOW_LATENCY = {"w_q": 5.0, "w_c": 0.5, "w_l": 50.0, "alpha_scale": 0.5}
 
     _PROFILES = {
         "max_quality": MAX_QUALITY,
         "arbitrage": ARBITRAGE,
-        "best_value": BEST_VALUE,
         "cost_saver": COST_SAVER,
         "low_latency": LOW_LATENCY,
     }
@@ -1613,10 +1609,10 @@ class BanditRouter:
                 "output_cost_per_m": 10.0
             }
             
-        # Find the model with the maximum HLE score
+        # Find the model with the maximum quality score (composite metric)
         champion_id = max(
             self.registry,
-            key=lambda m: self.registry[m].get("hle", 0.0) or 0.0
+            key=lambda m: self.registry[m].get("quality_score") or self.registry[m].get("hle", 0.0) or 0.0
         )
         
         # Return a copy of the registry entry with the ID included
@@ -1651,7 +1647,7 @@ class BanditRouter:
             
         # 2. Extract arguments for the factory, not the constructor
         state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 50.0)
+        prior_n_effective = kwargs.pop("prior_n_effective", 20.0) # Reduced for faster adaptation
         warmup_path = kwargs.pop("warmup_path", None)
 
         # 3. Initialize Router
@@ -1673,9 +1669,10 @@ class BanditRouter:
         if priors == "hle":
             # Diagonal injection of benchmark scores
             for model_id in router.bandit.models:
-                # Use empirical Success Probability if available, fallback to raw HLE
+                # Use quality_score (composite metric: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
+                # Fallback to legacy HLE fields for backward compatibility
                 m_data = router.registry.get(model_id, {})
-                hle_val = m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle", 0.15)
+                hle_val = m_data.get("quality_score") or m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle", 0.15)
                 
                 # KDD Simplification: Only set prior on bias term (last dimension)
                 router.bandit.b[model_id][-1] += (hle_val * prior_n_effective)
@@ -1696,10 +1693,33 @@ class BanditRouter:
                 n_warmup = warmup_data.get("n", 20000)
                 scale = prior_n_effective / float(n_warmup)
                 
+                missing_models = []
                 for model_id in router.bandit.models:
-                    if model_id in warmup_data["A"] and model_id in warmup_data["b"]:
+                    # Layer 1: Try Robust Offline Priors
+                    if (model_id in warmup_data.get("A", {})) and (model_id in warmup_data.get("b", {})):
                         router.bandit.A[model_id] = warmup_data["A"][model_id] * scale
                         router.bandit.b[model_id] = warmup_data["b"][model_id] * scale
+                    # Layer 2: Gap-Filling (Cascading Fallback)
+                    else:
+                        missing_models.append(model_id)
+                        model_data = router.registry.get(model_id, {})
+                        
+                        A_heuristic, b_heuristic = get_heuristic_prior(
+                            model_data=model_data,
+                            dim=router.bandit.dim,
+                            init_lambda=router.bandit.init_lambda,
+                            n_effective=prior_n_effective
+                        )
+                        router.bandit.A[model_id] = A_heuristic
+                        router.bandit.b[model_id] = b_heuristic
+                
+                if missing_models:
+                    logger.warning(
+                        f"⚠️ Warmup Partial Miss: {len(missing_models)} models not in joblib. "
+                        f"Applied heuristic initialization for: {missing_models}"
+                    )
+                else:
+                    logger.info("✅ Warmup Complete: All models initialized from offline priors.")
                 
                 router.bandit.refresh_inverse_cache()
                 
@@ -1911,14 +1931,14 @@ class BanditRouter:
         stats = {
             "cost": [],
             "latency": [],
-            "hle": [],
+            "quality": [],
             "context": []
         }
         
         for m_data in self.registry.values():
             stats["cost"].append(float(m_data.get("input_cost_per_m") or 0.0))
             stats["latency"].append(float(m_data.get("time_to_first_token_seconds") or 0.0))
-            stats["hle"].append(float(m_data.get("hle") or 0.0))
+            stats["quality"].append(float(m_data.get("quality_score") or 0.0))
             stats["context"].append(float(m_data.get("context_length") or 4096.0))
             
         def safe_stats(values):
@@ -1928,19 +1948,19 @@ class BanditRouter:
         return {
             "cost": safe_stats(stats["cost"]),
             "latency": safe_stats(stats["latency"]),
-            "hle": safe_stats(stats["hle"]),
+            "quality": safe_stats(stats["quality"]),
             "context": safe_stats(stats["context"])
         }
 
     def _vectorize_model_metadata(self, model_data: Dict[str, Any], global_stats: Dict[str, Tuple[float, float, float]]) -> np.ndarray:
         """
         Create a static feature vector V for transfer learning.
-        V = [Norm(Cost), Norm(Latency), Norm(HLE_Score), Context_Window_Log_Norm]
+        V = [Norm(Cost), Norm(Latency), Norm(Quality_Score), Context_Window_Log_Norm]
         """
         # Extract
         cost = float(model_data.get("input_cost_per_m") or 0.0)
         lat = float(model_data.get("time_to_first_token_seconds") or 0.0)
-        hle = float(model_data.get("hle") or 0.0)
+        qs = float(model_data.get("quality_score") or 0.0)
         ctx = float(model_data.get("context_length") or 4096.0)
         
         # Helper: MinMax Normalize to [0, 1]
@@ -1958,52 +1978,54 @@ class BanditRouter:
         return np.array([
             normalize(cost, "cost"),
             normalize(lat, "latency"),
-            normalize(hle, "hle"),
+            normalize(qs, "quality"),
             normalize(ctx, "context", log=True)
         ])
 
     def _is_pareto_dominated(self, new_model_data: Dict[str, Any]) -> bool:
         """
-        Phase 1: Optimizer Gatekeeper.
+        Phase 1: Optimizer Gatekeeper (Corrected).
+        
         Checks if the new model (with Optimistic Reward=1.0) is dominated by existing models
-        across all major utility profiles (Quality, Cost, Latency).
+        using ABSOLUTE MARKET ANCHORS.
+        
+        CRITICAL FIX: This now matches _score_candidates() logic exactly.
+        Previously, it used relative normalization (min/max of current pool), which
+        caused false rejections for models that looked "expensive" locally but were
+        actually "cheap" globally.
         """
-        # Hypothetical perfect score components
-        # We calculate what the score WOULD be if Reward=1.0
         
-        # 1. Normalize New Model inputs
-        # We need the runtime normalization statistics (from active pool) used in select_arm
-        # But here we can approximate using the global registry stats for "Admission"
-        
-        costs = [float(m.get("input_cost_per_m") or 0.0) for m in self.registry.values()]
-        lats = [float(m.get("time_to_first_token_seconds") or 0.0) for m in self.registry.values()]
-        
-        min_c, max_c = min(costs), max(costs)
-        min_l, max_l = min(lats), max(lats)
-        
-        def get_score(reward, cost, lat, profile):
-            # Normalize Cost/Lat (Log-MinMax as per router logic)
-            # Clip for safety
-            cost = max(cost, 1e-9)
-            lat = max(lat, 1e-9)
+        # --- Helper: Calculate Utility using Market Anchors (Same as Router) ---
+        def get_absolute_utility(quality_score: float, cost_per_m: float, lat_s: float, profile: Dict[str, float]) -> float:
+            # 1. Cost Penalty (Absolute Market Scale)
+            # Convert $/1M -> $/1k to match RouterConfig standards
+            cost_per_1k = cost_per_m / 1000.0
+            norm_cost = self._calculate_absolute_penalty(cost_per_1k)
             
-            # Log transform
-            c_log = math.log(cost)
-            l_log = math.log(lat)
+            # 2. Latency Penalty (Absolute Market Scale)
+            # Logic duplicated from _calculate_penalties to ensure consistency
+            safe_lat = max(lat_s, self.config.market_latency_floor)
+            log_lat = math.log(safe_lat)
+            min_log = math.log(self.config.market_latency_floor)
+            # Pre-calculated range from config
+            norm_lat = (log_lat - min_log) / self.config.latency_range_log
+            norm_lat = max(0.0, min(1.0, norm_lat))
             
-            min_c_log, max_c_log = math.log(max(min_c, 1e-9)), math.log(max_c)
-            min_l_log, max_l_log = math.log(max(min_l, 1e-9)), math.log(max_l)
-            
-            c_norm = (c_log - min_c_log) / (max_c_log - min_c_log) if max_c_log > min_c_log else 0.0
-            l_norm = (l_log - min_l_log) / (max_l_log - min_l_log) if max_l_log > min_l_log else 0.0
-            
-            # Weight-based utility Score = (w_q * Quality) + (w_c * (1 - C)) + (w_l * (1 - L))
-            w_q = profile.get("w_q", 1.0 - profile.get("w_c", 0.0) - profile.get("w_l", 0.0))
+            # 3. Resolve Weights (Exchange Rates)
+            # Use the raw weights directly (KDD Compliant)
+            w_q = profile.get("w_q", 0.0)
             w_c = profile.get("w_c", 0.0)
             w_l = profile.get("w_l", 0.0)
             
-            return (w_q * reward) + (w_c * (1.0 - c_norm)) + (w_l * (1.0 - l_norm))
+            # 4. Calculate Score
+            # Note: We do NOT add exploration bonus here (this is a deterministic check)
+            return (
+                w_q * quality_score + 
+                w_c * (1.0 - norm_cost) + 
+                w_l * (1.0 - norm_lat)
+            )
 
+        # --- Check Dominance ---
         new_cost = float(new_model_data.get("input_cost_per_m") or 0.0)
         new_lat = float(new_model_data.get("time_to_first_token_seconds") or 0.0)
         
@@ -2015,31 +2037,34 @@ class BanditRouter:
             OptimizationProfile.LOW_LATENCY
         ]
         
-        # Check dominance
+        # Default to admission if something goes wrong
         is_useful_in_any_profile = False
         
         for profile in profiles:
-            # Optimistic Score for New Model (Reward = 1.0)
-            opt_score = get_score(1.0, new_cost, new_lat, profile)
+            # 1. Optimistic Score for New Model
+            # Reward = 1.0 (Assume it's the best model ever)
+            opt_score = get_absolute_utility(1.0, new_cost, new_lat, profile)
             
-            # Best Score among existing models (using their HLE directly)
-            # No transformation - trust the bandit to learn from data
-            best_existing = -float("inf")
+            # 2. Compare against Best Existing Model in this profile
+            best_existing_score = -float("inf")
+            
             for m_id, m_data in self.registry.items():
                 if m_id == new_model_data["openrouter_id"]: continue
                 
-                # Use raw HLE with slight positive bias (0.7) as simple prior
-                m_hle = float(m_data.get("hle") or 0.15) * 0.7
+                # Use current Quality Score belief (or prior)
+                # We give existing models a slight 'benefit of the doubt' (1.0 factor)
+                # KDD FIX: Use 'quality_score', not 'hle'
+                m_qs = float(m_data.get("quality_score") or 0.15)
                 m_cost = float(m_data.get("input_cost_per_m") or 0.0)
                 m_lat = float(m_data.get("time_to_first_token_seconds") or 0.0)
                 
-                score = get_score(m_hle, m_cost, m_lat, profile)
-                if score > best_existing:
-                    best_existing = score
+                score = get_absolute_utility(m_qs, m_cost, m_lat, profile)
+                if score > best_existing_score:
+                    best_existing_score = score
             
-            # If the new model (even with perfect score) can beat the best existing model
-            # in THIS profile, then it is NOT dominated.
-            if opt_score >= best_existing:
+            # 3. The Verdict
+            # If the new model (at its absolute best) can beat the current winner, admit it.
+            if opt_score >= best_existing_score:
                 is_useful_in_any_profile = True
                 break
         
@@ -2181,53 +2206,56 @@ class BanditRouter:
         profile: str | Dict[str, float],
         max_cost: float | None,
         max_latency: float | None
-    ) -> Tuple[float, float, float]:
+    ) -> Tuple[float, float, float, float]:
         """
-        Resolve optimization profile weights and apply orthogonal optimization.
+        Resolve optimization profile weights.
+
+        **KDD COMPLIANCE UPDATE (Jan 2026): Exchange Rate Logic**
+        Weights are NO LONGER normalized to sum to 1.0.
         
-        **Orthogonal Optimization:**
-        If a hard constraint is active, disable the soft penalty for that dimension
-        and re-allocate weight to Quality to avoid "Double Penalty".
+        They act as economic exchange rates:
+        - w_c = 1.0  (Base currency: $1.00)
+        - w_q = 100.0 (Value of 1% Quality gain relative to $1.00)
         
-        **KDD FIX (Jan 2026 - Phase 1):**
-        Weights are normalized to sum to 1.0 to ensure:
-        - Scale-invariant trade-off ratios (w_q=100, w_c=1 ≡ w_q=1, w_c=0.01)
-        - Interpretable utility scores in [0, 1] range
-        - Exploration bonus proportional to quality importance
-        
+        This allows the router to correctly trade off inputs with vastly 
+        different scales (e.g., Cost in [0, 15] vs Quality in [0, 1]).
+
         Args:
             profile: Optimization profile name
             max_cost: Hard cost constraint (optional)
             max_latency: Hard latency constraint (optional)
-            
+
         Returns:
-            Tuple of (w_q, w_c, w_l) weights (normalized to sum to 1.0)
+            Tuple of (w_q, w_c, w_l, alpha_scale) raw weights
         """
+        # Get raw weights (copy to avoid mutating class profile)
         weights = OptimizationProfile.get(profile).copy()
-        w_q = weights.get("w_q", 1.0 - weights.get("w_c", 0.0) - weights.get("w_l", 0.0))
+        
+        # Extract individual components (default to 0.0 if missing)
+        w_q = weights.get("w_q", 0.0)
         w_c = weights.get("w_c", 0.0)
         w_l = weights.get("w_l", 0.0)
         
-        # Orthogonal Optimization
+        # EXTRACT ALPHA SCALE (Risk Aversion Factor)
+        # Default to 1.0 (Standard Exploration) if missing
+        alpha_scale = weights.get("alpha_scale", 1.0)
+
+        # Orthogonal Optimization:
+        # If a hard constraint exists, disable the soft optimization for that 
+        # dimension and re-allocate its "importance" to Quality.
+        # Since we aren't summing to 1, we just add the raw value.
         if max_cost is not None:
             w_q += w_c
             w_c = 0.0
+        
         if max_latency is not None:
             w_q += w_l
             w_l = 0.0
+
+        # KDD FIX: Removed normalization block.
+        # We return the raw exchange rates directly.
         
-        # KDD FIX: Normalize weights to sum to 1.0
-        total = w_q + w_c + w_l
-        if total > 1e-9:  # Avoid division by zero
-            w_q = w_q / total
-            w_c = w_c / total
-            w_l = w_l / total
-        else:
-            # Degenerate case: default to quality-only
-            logger.warning(f"Weight normalization failed (total={total}). Defaulting to pure quality.")
-            w_q, w_c, w_l = 1.0, 0.0, 0.0
-            
-        return w_q, w_c, w_l
+        return w_q, w_c, w_l, alpha_scale
     
 
     
@@ -2341,6 +2369,7 @@ class BanditRouter:
         w_q: float,
         w_c: float,
         w_l: float,
+        alpha_scale: float,
         input_tokens: int,
         output_tokens: int
     ) -> Tuple[str, float, float]:
@@ -2354,12 +2383,13 @@ class BanditRouter:
         Formula:
           Utility = Base_Utility + Exploration_Bonus
           Base_Utility = (w_q * mean_quality) + (w_c * cost_savings) + (w_l * lat_savings)
-          Exploration_Bonus = alpha * w_q * std_quality
+          Exploration_Bonus = alpha * scaling_factor * w_q * std_quality
           
         This ensures:
         1. Exploration only scales with quality importance (w_q).
         2. Cost signals are never drowned out in cost-sensitive profiles.
         3. The trade-off between mean quality and cost is perfectly linear.
+        4. Risk-averse profiles (Max Quality) can opt-out of exploration.
         """
         best_model = filtered[0]
         best_utility = -float("inf")
@@ -2393,8 +2423,10 @@ class BanditRouter:
                 w_l * (1.0 - norm_lat)
             )
             
-            # Exploration Bonus (Proportional to w_q)
-            exploration_bonus = self.bandit.alpha * w_q * std
+            # Exploration Bonus (Proportional to w_q AND Profile Risk Tolerance)
+            # MAX_QUALITY (alpha_scale=0.01) -> Bonus is negligible -> Pure Exploitation
+            # ARBITRAGE (alpha_scale=1.0) -> Bonus is standard -> Healthy Exploration
+            exploration_bonus = self.bandit.alpha * alpha_scale * w_q * std
             
             # Probation Bonus (Legacy support)
             probation_bonus = 0.0
@@ -2530,7 +2562,7 @@ class BanditRouter:
         # Orchestrate the routing process using focused helper methods
         x, prompt_text = self._build_routing_features(prompt)
         # Use profile_weights instead of profile here
-        w_q, w_c, w_l = self._resolve_utility_weights(profile_weights, max_cost, max_latency)
+        w_q, w_c, w_l, alpha_scale = self._resolve_utility_weights(profile_weights, max_cost, max_latency)
         candidates = list(self.registry.keys())
         filtered = self._filter_by_constraints(
             candidates, prompt, max_cost, max_latency, quality_floor, input_tokens, output_tokens
@@ -2540,7 +2572,7 @@ class BanditRouter:
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
         
         best_model, best_utility, total_weight = self._score_candidates(
-            filtered, x, w_q, w_c, w_l, in_tok, output_tokens
+            filtered, x, w_q, w_c, w_l, alpha_scale, in_tok, output_tokens
         )
         # Pruning removed for V1 (fixed portfolio)
         log = self._create_routing_log(

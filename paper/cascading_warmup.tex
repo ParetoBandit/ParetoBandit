@@ -1,0 +1,72 @@
+% Required packages in your preamble:
+% \usepackage{amsmath}
+% \usepackage{algorithm}
+% \usepackage{algpseudocode}
+
+\section{Methodology}
+
+\subsection{Cascading Warmup Initialization for Dynamic Action Spaces}
+\label{sec:cascading_warmup}
+
+\subsubsection{Problem Formulation}
+In production contextual bandit deployments, the set of available actions (arms) $\mathcal{A}$ is non-stationary. While offline policy evaluation allows us to generate robust priors for the set of historical models $\mathcal{A}_{hist}$, operational requirements frequently introduce new models $\mathcal{A}_{new}$ (e.g., newly released LLMs) that were absent from the offline logs.
+
+Standard initialization strategies fail in this hybrid scenario:
+\begin{itemize}
+    \item \textbf{Cold Initialization} ($\mathbf{A}=\lambda \mathbf{I}, \mathbf{b}=\mathbf{0}$): Ignores rich historical data, leading to excessive exploration costs.
+    \item \textbf{Static Warmup}: Fails for $a \in \mathcal{A}_{new}$, leading to undefined behavior or silent fallbacks to identity matrices that put new (potentially superior) models at a disadvantage compared to warmed-up incumbents.
+\end{itemize}
+
+\subsubsection{Methodology}
+We propose a \textit{Cascading Warmup Strategy} that integrates offline posterior distributions with metadata-driven heuristic priors. This ensures that the bandit policy $\pi_t$ begins with a consistent belief state across both historical and novel actions.
+
+The initialization process for the parameters $\theta_a$ of each arm $a \in \mathcal{A}_{t}$ follows a hierarchical decision path:
+
+\begin{equation}
+    (\mathbf{A}_{a,0}, \mathbf{b}_{a,0}) = 
+    \begin{cases} 
+    (\mathbf{A}_{offline}, \mathbf{b}_{offline}) & \text{if } a \in \mathcal{A}_{hist} \quad (\text{Level 1}) \\
+    (\mathbf{A}_{heuristic}, \mathbf{b}_{heuristic}) & \text{if } a \in \mathcal{A}_{new} \quad (\text{Level 2})
+    \end{cases}
+\end{equation}
+
+\paragraph{Level 1: Offline Posterior (Strong Prior)}
+For models present in the historical logs, we initialize using the sufficient statistics derived from the offline dataset $\mathcal{D}_{hist}$. To prevent model rigidity, we introduce a scaling factor $\gamma$ (where $0 < \gamma \le 1$) to dampen the offline counts, effectively treating the offline data as a limited pseudo-sample:
+\begin{equation}
+    \mathbf{A}_{a,0} = \gamma \sum_{i \in \mathcal{D}_a} \mathbf{x}_i \mathbf{x}_i^\top + \lambda \mathbf{I}, \quad \mathbf{b}_{a,0} = \gamma \sum_{i \in \mathcal{D}_a} r_i \mathbf{x}_i
+\end{equation}
+
+\paragraph{Level 2: Heuristic Gap-Filling (Weak Prior)}
+For novel models $a \in \mathcal{A}_{new}$ where $\mathcal{D}_a = \emptyset$, we synthesize a heuristic prior based on the model's static metadata (e.g., reported benchmark quality $q_a \in [0,1]$). We construct the statistics to simulate an \textit{Effective Sample Size} ($n_{eff}$), concentrating the prior belief on the bias term (intercept) while maintaining high variance to encourage Upper Confidence Bound (UCB) exploration.
+
+Let the bias feature be at index $d$ (the last dimension). The heuristic statistics are defined as:
+\begin{align}
+    \mathbf{A}_{heuristic} &= \lambda \mathbf{I} \\
+    \mathbf{b}_{heuristic} &= [0, \dots, 0, q_a \cdot n_{eff}]^\top
+\end{align}
+
+Here, $q_a \cdot n_{eff}$ represents a synthetic cumulative reward observed over $n_{eff}$ virtual interactions. By initializing $\mathbf{A}$ with the identity matrix (rather than adding $n_{eff}$ mass to the diagonal), we maintain a large value for $\mathbf{A}^{-1}$, ensuring that the confidence interval width ($\alpha \sqrt{\mathbf{x}^\top \mathbf{A}^{-1} \mathbf{x}}$) remains wide.
+
+This formulation effectively communicates to the bandit: \textit{"We believe this model has an average quality of $q_a$, but our confidence in this belief is low."} This allows $a \in \mathcal{A}_{new}$ to immediately compete with warmed-up incumbents based on its theoretical potential, solving the cold-start discrepancy.
+
+\begin{algorithm}[t]
+\caption{Cascading Initialization Strategy}
+\label{alg:cascading_init}
+\begin{algorithmic}[1]
+\Require Current Action Inventory $\mathcal{A}_{t}$, Offline Statistics $\mathcal{S}_{offline}$, Model Metadata $\mathcal{R}$, Hyperparameters $\lambda, n_{eff}$
+\Ensure Initialized Bandit Parameters $\{\mathbf{A}_a, \mathbf{b}_a\}_{a \in \mathcal{A}_t}$
+
+\For{each arm $a \in \mathcal{A}_{t}$}
+    \If{$a \in \mathcal{S}_{offline}$}
+        \State $\mathbf{A}_{a} \gets \text{Scale}(\mathcal{S}_{offline}[a].\mathbf{A})$ \Comment{Level 1: Offline Prior}
+        \State $\mathbf{b}_{a} \gets \text{Scale}(\mathcal{S}_{offline}[a].\mathbf{b})$
+    \Else
+        \State $q_a \gets \mathcal{R}[a].\text{initial\_quality} \text{ or } 0.5$ \Comment{Level 2: Gap-Filling}
+        \State $\mathbf{A}_{a} \gets \lambda \mathbf{I}_d$
+        \State $\mathbf{b}_{a} \gets \mathbf{0}_d$
+        \State $\mathbf{b}_{a}[d] \gets q_a \times n_{eff}$ \Comment{Inject prior into bias dimension}
+    \EndIf
+\EndFor
+\State \Return $\{\mathbf{A}_a, \mathbf{b}_a\}_{a \in \mathcal{A}_t}$
+\end{algorithmic}
+\end{algorithm}

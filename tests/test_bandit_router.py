@@ -45,8 +45,8 @@ def test_routing_decisions(sample_registry):
     assert model in ["openai/gpt-4o", "google/gemma-3-2b-it"]
     assert log.selected_model == model
     
-    # Test with profile (use best_value as a cost-sensitive proxy)
-    model_cs, log_cs = router.route(prompt, profile="best_value")
+    # Test with profile (use arbitrage as a cost-sensitive proxy)
+    model_cs, log_cs = router.route(prompt, profile="arbitrage")
     assert model_cs == "google/gemma-3-2b-it"
 
 def test_feedback_learning(sample_registry):

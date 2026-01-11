@@ -5,7 +5,7 @@ Calibration and warmup utilities for the BanditRouter.
 """
 
 from .calibration import sigmoid, calibrate_complexity
-from .warmup import procedural_warmup, safe_inv
+from .warmup import procedural_warmup, safe_inv, get_heuristic_prior
 from .experiment import ExperimentBurnIn
 
 __all__ = [
@@ -13,5 +13,6 @@ __all__ = [
     "calibrate_complexity",
     "procedural_warmup",
     "safe_inv",
+    "get_heuristic_prior",
     "ExperimentBurnIn",
 ]

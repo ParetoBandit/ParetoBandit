@@ -1,0 +1,38 @@
+\subsection{Component-Aware Reward Simulation}
+\label{sec:component_aware_warmup}
+
+\subsubsection{Motivation: The Specialization Bleaching Problem}
+Standard warmup procedures often rely on a single scalar metric (e.g., Elo or MMLU) to represent a model's utility. However, this approach suffers from \textit{Specialization Bleaching}, where distinct capabilities are averaged out. For instance, a ``Coding Specialist'' model with low general knowledge but state-of-the-art code generation would be initialized with a mediocre prior, causing the bandit to under-exploit it for programming tasks until sufficient online data is collected.
+
+To address this, our synthetic data generation process incorporates \textit{Domain-Specific Benchmarks}, enabling the bandit to learn a disjoint covariance structure that recognizes specialists prior to deployment.
+
+\subsubsection{Domain-Conditional Ability Mapping}
+We define a domain mapping function $\delta: \mathcal{P} \to \{\text{Math}, \text{Code}, \text{General}\}$ that classifies synthetic prompts based on lexical features. The latent ability parameter $\theta_{a}$ for arm $a$ is no longer a scalar, but a vector conditional on the prompt domain $d = \delta(p)$.
+
+Since specialized benchmarks (e.g., GPQA for math, LiveCodeBench for coding) often exhibit high difficulty with lower raw accuracy ceilings (e.g., SOTA $\approx 0.50$) compared to general benchmarks (SOTA $\approx 0.90$), direct usage of raw scores would result in artificially low reward probabilities. We introduce a \textit{Percentile Normalization} function to map disparate benchmark scales to a unified Item Response Theory (IRT) ability space $\Theta \in [0.75, 0.98]$:
+
+\begin{equation}
+    \theta_{a,d} = 
+    \begin{cases} 
+        \Phi(S_{a}^{\text{GPQA}}, 0.50) & \text{if } d = \text{Math} \\
+        \Phi(S_{a}^{\text{LiveCode}}, 0.50) & \text{if } d = \text{Code} \\
+        \Phi(S_{a}^{\text{Composite}}, 1.00) & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+Where $\Phi(s, s_{max})$ is the linear projection of a raw score $s$ onto the target probability manifold:
+
+\begin{equation}
+    \Phi(s, s_{max}) = 0.75 + \left( \min\left(\frac{s}{s_{max}}, 1.0\right) \times 0.23 \right)
+\end{equation}
+
+Here, $s_{max}$ represents the empirical ceiling for the specific benchmark (e.g., $0.50$ for GPQA), ensuring that a specialized model achieving $45\%$ raw accuracy is correctly mapped to a high-competence prior ($\theta \approx 0.957$).
+
+\subsubsection{Synthetic Reward Generation}
+The binary reward $r_{t} \in \{0,1\}$ for a synthetic interaction is sampled from a Bernoulli distribution governed by the logistic Item Response Theory model:
+
+\begin{equation}
+    P(r_{t}=1 | a, p) = \sigma \left( \alpha (\theta_{a, \delta(p)} - \beta) - \gamma(d_p - \epsilon) \right)
+\end{equation}
+
+Where $\sigma$ is the sigmoid function, $d_p$ is the estimated prompt difficulty, and $\theta_{a, \delta(p)}$ is the domain-normalized ability. This ensures the initialized covariance matrix $\mathbf{A}_a$ captures the interaction terms between specific context features (e.g., code tokens) and the model's specialized performance.
