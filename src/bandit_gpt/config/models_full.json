@@ -166,7 +166,7 @@
       ],
       "description": "Claude 3.5 Sonnet: Strong coding and reasoning model.",
       "raw_hle": 0.039,
-      "empirical_hle": 0.95
+      "empirical_hle": 0.9506
     },
     {
       "openrouter_id": "meta-llama/llama-3.1-8b-instruct",
@@ -182,7 +182,7 @@
       ],
       "description": "Llama 3.1 8B: Ultra-cheap, fast inference for budget routing.",
       "raw_hle": 0.051,
-      "empirical_hle": 0.85
+      "empirical_hle": 0.7373
     },
     {
       "openrouter_id": "openai/o1",
@@ -199,7 +199,7 @@
       ],
       "description": "OpenAI o1: Premium reasoning model with deep thinking capabilities.",
       "raw_hle": 0.077,
-      "empirical_hle": 0.97
+      "empirical_hle": 0.9698
     }
   ]
 }

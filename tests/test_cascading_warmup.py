@@ -25,7 +25,7 @@ class TestHeuristicPrior:
         dim = 24
         quality = 0.8
         n_eff = 10.0
-        model_data = {"quality_score": quality}
+        model_data = {"initial_quality": quality}
         
         A, b = get_heuristic_prior(model_data, dim, n_effective=n_eff)
         
@@ -37,8 +37,8 @@ class TestHeuristicPrior:
         """Verify fallback priority for different quality fields."""
         dim = 24
         
-        # 1. quality_score
-        res = get_heuristic_prior({"quality_score": 0.9, "empirical_hle": 0.1}, dim)
+        # 1. initial_quality
+        res = get_heuristic_prior({"initial_quality": 0.9, "empirical_hle": 0.1}, dim)
         assert res[1][-1] == 0.9 * 5.0
         
         # 2. empirical_hle

@@ -23,7 +23,7 @@
       "norm_GPQA": 0.0,
       "norm_Livecode": 0.0,
       "norm_IFbench": 0.0,
-      "quality_score": 0.0228
+      "initial_quality": 0.0228
     },
     {
       "openrouter_id": "google/gemma-3-4b-it",
@@ -48,7 +48,7 @@
       "norm_GPQA": 0.1944,
       "norm_Livecode": 0.0732,
       "norm_IFbench": 0.1778,
-      "quality_score": 0.1111
+      "initial_quality": 0.1111
     },
     {
       "openrouter_id": "google/gemma-3-12b-it",
@@ -73,7 +73,7 @@
       "norm_GPQA": 0.2778,
       "norm_Livecode": 0.1098,
       "norm_IFbench": 0.3778,
-      "quality_score": 0.1628
+      "initial_quality": 0.1628
     },
     {
       "openrouter_id": "openai/gpt-oss-20b",
@@ -98,7 +98,7 @@
       "norm_GPQA": 0.75,
       "norm_Livecode": 0.8902,
       "norm_IFbench": 1.0,
-      "quality_score": 0.6119
+      "initial_quality": 0.6119
     },
     {
       "openrouter_id": "google/gemma-3-27b-it",
@@ -124,7 +124,7 @@
       "norm_GPQA": 0.3889,
       "norm_Livecode": 0.1098,
       "norm_IFbench": 0.2667,
-      "quality_score": 0.1723
+      "initial_quality": 0.1723
     },
     {
       "openrouter_id": "x-ai/grok-3-mini",
@@ -150,12 +150,12 @@
       "norm_GPQA": 0.8889,
       "norm_Livecode": 0.7927,
       "norm_IFbench": 0.5778,
-      "quality_score": 0.585
+      "initial_quality": 0.585
     },
     {
       "openrouter_id": "google/gemini-2.5-flash-preview-09-2025",
-      "input_cost_per_m": 0.3,
-      "output_cost_per_m": 2.5,
+      "input_cost_per_m": 0.1,
+      "output_cost_per_m": 0.4,
       "hle": 0.127,
       "context_length": 1000000,
       "time_to_first_token_seconds": 0.5,
@@ -176,7 +176,7 @@
       "norm_GPQA": 0.8889,
       "norm_Livecode": 0.8049,
       "norm_IFbench": 0.7111,
-      "quality_score": 0.6336
+      "initial_quality": 0.6336
     },
     {
       "openrouter_id": "anthropic/claude-opus-4.5",
@@ -203,7 +203,7 @@
       "norm_GPQA": 1.0,
       "norm_Livecode": 1.0,
       "norm_IFbench": 0.8444,
-      "quality_score": 0.9767
+      "initial_quality": 0.9767
     },
     {
       "openrouter_id": "openai/gpt-4.1",
@@ -230,7 +230,7 @@
       "norm_GPQA": 0.7222,
       "norm_Livecode": 0.5,
       "norm_IFbench": 0.5111,
-      "quality_score": 0.3687
+      "initial_quality": 0.3687
     },
     {
       "openrouter_id": "anthropic/claude-3.5-sonnet",
@@ -247,8 +247,8 @@
       ],
       "description": "Claude 3.5 Sonnet: Strong coding and reasoning model.",
       "raw_hle": 0.039,
-      "empirical_hle": 0.95,
-      "dev_success_rate": 0.95,
+      "empirical_hle": 0.9506,
+      "dev_success_rate": 0.9506,
       "GPQA": 0.599,
       "Livecode": 0.381,
       "IFbench": 0.5,
@@ -256,7 +256,7 @@
       "norm_GPQA": 0.6236,
       "norm_Livecode": 0.4037,
       "norm_IFbench": 0.6667,
-      "quality_score": 0.3366
+      "initial_quality": 0.3366
     },
     {
       "openrouter_id": "meta-llama/llama-3.1-8b-instruct",
@@ -272,8 +272,8 @@
       ],
       "description": "Llama 3.1 8B: Ultra-cheap, fast inference for budget routing.",
       "raw_hle": 0.051,
-      "empirical_hle": 0.85,
-      "dev_success_rate": 0.85,
+      "empirical_hle": 0.7373,
+      "dev_success_rate": 0.7373,
       "GPQA": 0.259,
       "Livecode": 0.116,
       "IFbench": 0.25,
@@ -281,7 +281,7 @@
       "norm_GPQA": 0.1514,
       "norm_Livecode": 0.0805,
       "norm_IFbench": 0.1111,
-      "quality_score": 0.0902
+      "initial_quality": 0.0902
     },
     {
       "openrouter_id": "openai/o1",
@@ -298,8 +298,8 @@
       ],
       "description": "OpenAI o1: Premium reasoning model with deep thinking capabilities.",
       "raw_hle": 0.077,
-      "empirical_hle": 0.97,
-      "dev_success_rate": 0.97,
+      "empirical_hle": 0.9698,
+      "dev_success_rate": 0.9698,
       "GPQA": 0.747,
       "Livecode": 0.679,
       "IFbench": 0.55,
@@ -307,7 +307,7 @@
       "norm_GPQA": 0.8292,
       "norm_Livecode": 0.7671,
       "norm_IFbench": 0.7778,
-      "quality_score": 0.5394
+      "initial_quality": 0.5394
     }
   ]
 }

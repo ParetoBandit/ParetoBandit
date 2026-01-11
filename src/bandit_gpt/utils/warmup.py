@@ -75,12 +75,12 @@ def get_heuristic_prior(
     b = np.zeros(dim)
     
     # 3. Apply the "Prior Belief"
-    # Priority: quality_score (composite) > empirical_hle > raw_hle > initial_quality > fallback
+    # Priority: initial_quality (composite) > empirical_hle > raw_hle > hle > fallback
     quality = (
-        model_data.get("quality_score") or 
+        model_data.get("initial_quality") or 
         model_data.get("empirical_hle") or 
         model_data.get("raw_hle") or 
-        model_data.get("initial_quality") or 
+        model_data.get("hle") or 
         default_quality
     )
     

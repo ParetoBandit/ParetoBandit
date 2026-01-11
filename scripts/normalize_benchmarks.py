@@ -70,7 +70,7 @@ def normalize_benchmarks():
             if norm_field in model:
                 quality_score += model[norm_field] * weight
         
-        model['quality_score'] = round(quality_score, 4)
+        model['initial_quality'] = round(quality_score, 4)
     
     # Save the updated models.json
     with open(MODELS_PATH, 'w') as f:
@@ -80,7 +80,7 @@ def normalize_benchmarks():
     print("\nNormalized fields added:")
     for benchmark in benchmarks:
         print(f"  - norm_{benchmark}")
-    print("  - quality_score (weighted average: 40% hle, 25% GPQA, 20% Livecode, 15% IFbench)")
+    print("  - initial_quality (weighted average: 40% hle, 25% GPQA, 20% Livecode, 15% IFbench)")
 
 if __name__ == "__main__":
     normalize_benchmarks()

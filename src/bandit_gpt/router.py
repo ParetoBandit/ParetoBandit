@@ -1612,7 +1612,7 @@ class BanditRouter:
         # Find the model with the maximum quality score (composite metric)
         champion_id = max(
             self.registry,
-            key=lambda m: self.registry[m].get("quality_score") or self.registry[m].get("hle", 0.0) or 0.0
+            key=lambda m: self.registry[m].get("initial_quality") or self.registry[m].get("hle", 0.0) or 0.0
         )
         
         # Return a copy of the registry entry with the ID included
@@ -1669,10 +1669,10 @@ class BanditRouter:
         if priors == "hle":
             # Diagonal injection of benchmark scores
             for model_id in router.bandit.models:
-                # Use quality_score (composite metric: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
-                # Fallback to legacy HLE fields for backward compatibility
+                # Use initial_quality (composite metric: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
+                # Fallback to empirical_hle -> raw_hle -> hle
                 m_data = router.registry.get(model_id, {})
-                hle_val = m_data.get("quality_score") or m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle", 0.15)
+                hle_val = m_data.get("initial_quality") or m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle", 0.15)
                 
                 # KDD Simplification: Only set prior on bias term (last dimension)
                 router.bandit.b[model_id][-1] += (hle_val * prior_n_effective)
@@ -1938,7 +1938,7 @@ class BanditRouter:
         for m_data in self.registry.values():
             stats["cost"].append(float(m_data.get("input_cost_per_m") or 0.0))
             stats["latency"].append(float(m_data.get("time_to_first_token_seconds") or 0.0))
-            stats["quality"].append(float(m_data.get("quality_score") or 0.0))
+            stats["quality"].append(float(m_data.get("initial_quality") or 0.0))
             stats["context"].append(float(m_data.get("context_length") or 4096.0))
             
         def safe_stats(values):
@@ -1960,7 +1960,7 @@ class BanditRouter:
         # Extract
         cost = float(model_data.get("input_cost_per_m") or 0.0)
         lat = float(model_data.get("time_to_first_token_seconds") or 0.0)
-        qs = float(model_data.get("quality_score") or 0.0)
+        qs = float(model_data.get("initial_quality") or 0.0)
         ctx = float(model_data.get("context_length") or 4096.0)
         
         # Helper: MinMax Normalize to [0, 1]
@@ -2053,8 +2053,8 @@ class BanditRouter:
                 
                 # Use current Quality Score belief (or prior)
                 # We give existing models a slight 'benefit of the doubt' (1.0 factor)
-                # KDD FIX: Use 'quality_score', not 'hle'
-                m_qs = float(m_data.get("quality_score") or 0.15)
+                # KDD FIX: Use 'initial_quality'
+                m_qs = float(m_data.get("initial_quality") or 0.15)
                 m_cost = float(m_data.get("input_cost_per_m") or 0.0)
                 m_lat = float(m_data.get("time_to_first_token_seconds") or 0.0)
                 

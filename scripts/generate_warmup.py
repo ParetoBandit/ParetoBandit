@@ -562,38 +562,39 @@ def main():
     updates_count = 0
     
     # Pre-calculate quality score map for fast lookup
-    # CRITICAL: Use quality_score (composite: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
+    # CRITICAL: Use initial_quality (composite: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
+    # Fallback to empirical_hle for older models
     model_hle_map = {}
     missing_hle_models = []
     
     # First pass: collect all available quality scores
     for model_id in router.bandit.models:
-        # Use quality_score: Composite metric normalized to [0, 1]
         m_data = router.registry.get(model_id, {})
-        quality_score = m_data.get("quality_score")
+        # Use initial_quality: Composite metric normalized to [0, 1]
+        initial_quality = m_data.get("initial_quality")
         
-        # Fallback to legacy HLE fields for backward compatibility
-        if quality_score is None:
-            raw_hle = m_data.get("raw_hle") or m_data.get("hle")
+        # Fallback to empirical_hle -> raw_hle -> hle
+        if initial_quality is None:
+            raw_hle = m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle")
             if raw_hle is not None:
-                # Legacy scaling: [0.0 - 0.30] to [0.75 - 0.98]
-                quality_score = 0.75 + (min(raw_hle, 0.30) / 0.30) * 0.23
+                # Map raw hle to 0.75-0.98 range
+                initial_quality = 0.75 + (min(raw_hle, 0.30) / 0.30) * 0.23
         
-        if quality_score is not None:
-            # Quality score is already normalized [0, 1], scale to IRT range [0.75 - 0.98]
-            # This keeps IRT simulator stable and matches production success rates
-            scaled_prob = 0.75 + quality_score * 0.23
+        if initial_quality is not None:
+            # We scale [0, 1] quality to [0.75, 0.98] range for IRT
+            # Formula: Base + Quality * Range
+            scaled_prob = 0.75 + initial_quality * 0.23
             model_hle_map[model_id] = scaled_prob
         else:
             missing_hle_models.append(model_id)
+            model_hle_map[model_id] = 0.75 # Floor
     
-    # Second pass: impute missing values with mean (prevent "death spiral")
     if missing_hle_models:
+        print(f"     ⚠ {len(missing_hle_models)} model(s) missing initial_quality")
         # Use mean of existing models as fallback (e.g., ~0.90)
         # This gives new models a fair fighting chance instead of punitive 0.50
         avg_hle = np.mean(list(model_hle_map.values())) if model_hle_map else 0.85
-        print(f"     ⚠ {len(missing_hle_models)} model(s) missing quality_score")
-        print(f"       Using mean imputation: {avg_hle:.3f} (prevents 'death spiral' for new models)")
+        print(f"       Using floor imputation (0.75) for missing initial_quality (prevents 'death spiral' for new models)")
         
         for model_id in missing_hle_models:
             model_hle_map[model_id] = avg_hle
