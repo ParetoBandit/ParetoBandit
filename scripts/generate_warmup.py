@@ -19,6 +19,7 @@ Workflow:
 Reference: RouteLLM dataset - https://huggingface.co/datasets/routellm/gpt4_judge_battles
 """
 
+import argparse
 import sys
 import numpy as np
 import joblib
@@ -415,34 +416,70 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
 
 
 def main():
-    print(f"🚀 Starting Synthetic Warmup Generator (N={N_SAMPLES})...")
+    parser = argparse.ArgumentParser(description="Generate synthetic warmup data for BanditRouter.")
+    parser.add_argument(
+        "--models", "-m", 
+        type=str, 
+        default=None, 
+        help="Path to model registry JSON (defaults to src/bandit_gpt/config/models.json)"
+    )
+    parser.add_argument(
+        "--samples", "-n", 
+        type=int, 
+        default=N_SAMPLES, 
+        help=f"Number of total samples to generate (default: {N_SAMPLES})"
+    )
+    parser.add_argument(
+        "--output", "-o", 
+        type=str, 
+        default=str(OUTPUT_PATH), 
+        help=f"Path to save warmup joblib file (default: {OUTPUT_PATH})"
+    )
+    args = parser.parse_args()
+
+    # Dynamic Bucket Allocation based on total samples
+    ratio_hard = N_ROUTELLM_HARD / N_SAMPLES
+    ratio_domain = N_DOMAIN_SPECIFIC / N_SAMPLES
+    ratio_simple = N_SIMPLE_NOISE / N_SAMPLES
+    ratio_traps = N_ROUTER_TRAPS / N_SAMPLES
+
+    n_hard = int(args.samples * ratio_hard)
+    n_domain = int(args.samples * ratio_domain)
+    n_simple = int(args.samples * ratio_simple)
+    n_traps = args.samples - n_hard - n_domain - n_simple  # Remainder to traps
+
+    print(f"🚀 Starting Synthetic Warmup Generator (N={args.samples})...")
     
     # 1. Setup
-    registry = load_model_registry()
+    registry = load_model_registry(args.models)
     encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     
-    # Initialize a "Blank" Router
+    # Initialize a "Blank" Router with standard PCA
     # High alpha for exploration during warmup
-    print("   Initializing blank router (cold start)...")
-    router = BanditRouter(
+    print("   Initializing blank router (cold start) with standard PCA...")
+    pca_path = PROJECT_ROOT / "artifacts" / "pca_23.joblib"
+    router = BanditRouter.create(
         registry,
-        alpha=0.5
+        context_encoder=encoder,
+        alpha=0.5,
+        priors="none",
+        pca_path=pca_path
     )
     
     # 2. Generate Mixed Dataset (Three Buckets)
-    print("\n📦 Building Mixed Warmup Dataset (20,000 prompts)...")
+    print(f"\n📦 Building Mixed Warmup Dataset ({args.samples} prompts)...")
     
     # Bucket 1: RouteLLM Hard Prompts (Augmented Mining)
-    routellm_prompts = mine_hard_prompts_from_routellm(n=N_ROUTELLM_HARD, seed=SEED)
+    routellm_prompts = mine_hard_prompts_from_routellm(n=n_hard, seed=SEED)
     
     # Bucket 2: Domain-Specific Synthetic (Controlled Coverage)
-    domain_prompts = generate_domain_specific_prompts(n=N_DOMAIN_SPECIFIC, seed=SEED)
+    domain_prompts = generate_domain_specific_prompts(n=n_domain, seed=SEED)
     
     # Bucket 3: Simple/Noise Synthetic (Easy Baselines)
-    simple_prompts = generate_simple_prompts(n=N_SIMPLE_NOISE, seed=SEED)
+    simple_prompts = generate_simple_prompts(n=n_simple, seed=SEED)
     
     # Bucket 4: Router Traps (Arbitrage Signal)
-    trap_prompts = generate_router_traps(n=N_ROUTER_TRAPS, seed=SEED)
+    trap_prompts = generate_router_traps(n=n_traps, seed=SEED)
     
     # Combine and shuffle for IID training
     print("\n   🔀 Combining and shuffling buckets...")
@@ -608,20 +645,21 @@ def main():
         router.bandit.A[model_id] = router.bandit.A[model_id] * PLASTICITY_FACTOR
         router.bandit.b[model_id] = router.bandit.b[model_id] * PLASTICITY_FACTOR  # <--- CRITICAL: Scale b too!
     
-    print(f"   ✓ Warmup priors effectively treated as {int(N_SAMPLES * PLASTICITY_FACTOR)} real samples")
+    print(f"   ✓ Warmup priors effectively treated as {int(args.samples * PLASTICITY_FACTOR)} real samples")
     
     # We extract strictly the LinUCB matrices
     state_to_save = {
         "A": router.bandit.A,  # The Covariance Matrices (The Map) - with plasticity applied
         "b": router.bandit.b,  # The Reward Vectors (The Compass)
-        "n": N_SAMPLES,        # Metadata
+        "n": args.samples,        # Metadata
         "plasticity_factor": PLASTICITY_FACTOR  # Record the scaling for reproducibility
     }
     
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(state_to_save, OUTPUT_PATH)
+    out_file = Path(args.output)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(state_to_save, out_file)
     
-    print(f"💾 Saved Warmup Priors to: {OUTPUT_PATH}")
+    print(f"💾 Saved Warmup Priors to: {out_file}")
     print("   You can now use priors='warmup' in your experiments.")
 
 if __name__ == "__main__":

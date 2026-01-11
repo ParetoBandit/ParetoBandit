@@ -169,14 +169,17 @@ def load_holdout_rewards() -> Dict[str, Dict[str, float]]:
     return load_oracle_rewards("holdout_rewards.jsonl.gz")
 
 
-def load_model_registry() -> Dict[str, Dict]:
+def load_model_registry(path: Optional[str | Path] = None) -> Dict[str, Dict]:
     """
-    Load model registry from models.json.
+    Load model registry from models.json or a custom path.
     
     Returns:
         dict mapping openrouter_id -> model config
     """
-    models_file = PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models.json"
+    if path:
+        models_file = Path(path)
+    else:
+        models_file = PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models.json"
     
     if not models_file.exists():
         raise FileNotFoundError(f"models.json not found at {models_file}")

@@ -22,11 +22,12 @@ from src.bandit_gpt.router import BanditRouter
 from experiments.utils.data_loader import load_model_registry
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
-from src.bandit_gpt.router import transform_hle_to_prior
+from src.bandit_gpt.router import BanditRouter
+from src.bandit_gpt.utils.heuristics import HeuristicService
 
 # CONFIGURATION
 # Export to root/data directory (absolute path for clarity)
-OUTPUT_PATH = PROJECT_ROOT / "data" / "priors_warmup_2_models.joblib"
+OUTPUT_PATH = PROJECT_ROOT / "data" / "priors_warmup_fair_test.joblib"
 N_SAMPLES = 20000
 SEED = 42
 
@@ -211,6 +212,20 @@ def generate_simple_prompts(n: int = 6000, seed: int = 42) -> list:
     print(f"   ✓ Generated {len(prompts)} simple prompts")
     return prompts
 
+def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool = False) -> float:
+    """Simulates outcome using IRT logic (P = Sigmoid(Ability - Difficulty))."""
+    if is_trap:
+        return model_hle
+    
+    # Map HLE (0.7-0.98) to Ability Logit
+    ability_logit = (model_hle - 0.65) * 20.0
+    # Map Difficulty (0.0-1.0) to Difficulty Logit
+    difficulty_logit = (difficulty_score - 0.2) * 6.0
+    
+    logit = ability_logit - difficulty_logit
+    prob = 1 / (1 + math.exp(-logit))
+    return prob
+
 def main():
     print(f"🚀 Starting Synthetic Warmup Generator (2-Model Subset, N={N_SAMPLES})...")
     
@@ -218,7 +233,7 @@ def main():
     full_registry = load_model_registry()
     
     # --- FILTER TO 2 MODELS ---
-    target_models = ["openai/gpt-oss-120b", "google/gemini-3-pro-preview"]
+    target_models = ["google/gemini-2.5-flash-preview-09-2025", "anthropic/claude-opus-4.5"]
     registry = {k: v for k, v in full_registry.items() if k in target_models}
     
     if len(registry) != 2:
@@ -299,18 +314,18 @@ def main():
             context_vector = router._get_context_vector(prompt)
         
             # A. Analyze Context (The "Map")
-            difficulty = router._detect_difficulty_score(prompt)
+            difficulty = HeuristicService.detect_difficulty(prompt)
+            is_trap = HeuristicService.detect_trap(prompt)
             
             # B. Update Every Model (The "Compass")
             for model_id in router.bandit.models:
-                hle = model_hle_map[model_id]
+                base_hle = model_hle_map[model_id]
                 
-                # Calculate Reward using Router's Transformation Logic
-                prob_success = transform_hle_to_prior(
-                   raw_hle_score=hle, 
-                   difficulty_score=difficulty,
-                )
-                reward = prob_success
+                # Use IRT for standard prompts
+                prob_success = simulate_irt_reward(base_hle, difficulty, is_trap=is_trap)
+                
+                # Bernoulli Sampling (Thompson Style)
+                reward = 1.0 if random.random() < prob_success else 0.0
                 
                 # C. Update the Bandit State
                 router.update(model_id, context_vector, reward)

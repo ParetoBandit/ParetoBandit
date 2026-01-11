@@ -20,15 +20,18 @@ Critical: All methods use ORACLE REWARD LOOKUP, not random generation.
 Output: results/effectiveness_results.json
 """
 
+from typing import Dict, List, Tuple, Any
+import argparse
 import sys
-import json
-import copy
-import random
 import numpy as np
-from pathlib import Path
-from tqdm import tqdm
+import json
+import joblib
+import random
+import time
+import logging
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from tqdm import tqdm
+from pathlib import Path
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -40,6 +43,7 @@ from utils.metrics import calculate_cumulative_regret
 # Import BanditRouter for full system evaluation
 from src.bandit_gpt.router import BanditRouter, DEFAULT_CONTEXT_MODEL
 from src.bandit_gpt.storage import SqliteContextStore
+from src.bandit_gpt.utils.experiment import ExperimentBurnIn
 from sentence_transformers import SentenceTransformer
 
 
@@ -502,106 +506,7 @@ def test_router(
     }
 
 
-# =============================================================================
-# KDD PROTOCOL: Curriculum Burn-In & Signal-Aware Oversampling
-# =============================================================================
-
-from sklearn.model_selection import train_test_split
-
-def prepare_data_split():
-    """
-    Standard KDD Split: 
-    - Loads pre-configured splits from 'splits.json' (Consistency)
-    - STRICT: No fallback to random splitting (Reproducibility)
-    
-    Returns: dev_prompts, test_prompts
-    """
-    splits_path = Path(__file__).parent / "results" / "splits.json"
-    
-    if not splits_path.exists():
-        raise FileNotFoundError(
-            f"❌ Critical Error: {splits_path} not found.\n"
-            "   Please run 'experiments/01_effectiveness/run_budget_experiment.py' first\n"
-            "   to generate the canonical KDD dev/test splits."
-        )
-        
-    print(f"\n📦 Loading Canonical KDD Splits from {splits_path.name}...")
-    with open(splits_path) as f:
-        splits_data = json.load(f)
-        
-    dev = splits_data["dev_pool"]
-    test = splits_data["holdout_pool"]
-    
-    # CRITICAL: Verify Disjointness
-    overlap = set(dev).intersection(set(test))
-    assert len(overlap) == 0, f"❌ DATA LEAKAGE DETECTED! Found {len(overlap)} overlapping prompts."
-    print("  ✅ Split Integrity Verified: No overlap between Dev and Test.")
-        
-    return dev, test
-
-def generate_curriculum(dev_prompts, oracle_rewards):
-    """
-    Signal-Aware Curriculum:
-    Oversamples 'Contentious' prompts to force the bandit to learn decision boundaries.
-    """
-    hard_train = []
-    easy_train = []
-    
-    # 1. Filter by Variance
-    for p in dev_prompts:
-        rewards = list(oracle_rewards.get(p, {}).values())
-        if not rewards: continue
-        
-        # Variance > 0.05 means models disagree (High Signal)
-        if np.var(rewards) > 0.05:
-            hard_train.append(p)
-        else:
-            easy_train.append(p)
-            
-    # 2. Construct Balanced Curriculum
-    # Oversample Hard 3x to match the volume of Easy prompts
-    # This teaches the bandit "When to switch" rather than "Always pick cheap"
-    burn_in_list = []
-    burn_in_list.extend(hard_train * 3)
-    
-    # Fill the rest with random Easy prompts to maintain distribution
-    # (Or use all easy prompts if you want full coverage, but balanced is better for learning)
-    target_len = len(burn_in_list) 
-    if easy_train:
-        # Sample easy prompts to match the hard volume (50/50 split)
-        selected_easy = np.random.choice(easy_train, min(len(easy_train), target_len), replace=False)
-        burn_in_list.extend(selected_easy)
-        
-    print(f"  Curriculum Generated: {len(burn_in_list)} items")
-    print(f"    - Hard (Boosted): {len(hard_train)} original -> {len(hard_train)*3} boosted")
-    print(f"    - Easy (Sampled): {len(selected_easy)}")
-    
-    # 3. Shuffle to simulate I.I.D. stream
-    random.shuffle(burn_in_list)
-    
-    return burn_in_list
-
-def perform_burn_in(router, burn_in_list, oracle_rewards):
-    """
-    The 'Warm Up' Phase. 
-    Updates the bandit's internal matrices (A, b) without recording Regret metrics.
-    """
-    print(f"  🔥 Burning in on {len(burn_in_list)} curriculum prompts...")
-    
-    for prompt in tqdm(burn_in_list, desc="  Burn-in", leave=False):
-        # 1. Select Arm (Exploiting current knowledge)
-        # We assume 'arbitrage' profile for learning to balance cost/quality
-        model_id, _ = router.route(prompt, profile="arbitrage")
-        
-        # 2. Get Reward (Oracle)
-        reward = oracle_rewards.get(prompt, {}).get(model_id, 0.0)
-        
-        # 3. Update Bandit (The Learning Step)
-        # This populates the Covariance Matrix A with real-world correlations
-        router.update(model_id, prompt, reward)
-        
-    print("  ✅ Burn-in complete. Router is hot.")
-    return router
+# Removed local implementations in favor of src.bandit_gpt.utils.experiment.ExperimentBurnIn
 
 def analyze_by_difficulty(
     all_method_rewards: Dict[str, np.ndarray],
@@ -658,59 +563,68 @@ def analyze_by_difficulty(
 
 def main():
     """Run all baseline comparisons with train/test split and burn-in."""
+    parser = argparse.ArgumentParser(description="Run effectiveness baselines.")
+    parser.add_argument("--models", type=str, help="Path to custom models.json")
+    parser.add_argument("--warmup", type=str, help="Path to custom priors_warmup.joblib")
+    parser.add_argument("--output", type=str, default="effectiveness_results.json", help="Output results filename")
+    args = parser.parse_args()
+
     print("=" * 70)
     print("EXPERIMENT 01: EFFECTIVENESS COMPARISON")
     print("Protocol: Curriculum Burn-In & Signal-Aware Oversampling")
     print("=" * 70)
     
-    # 1. Load & Merge Data
-    print("\n📦 Loading and Merging Corpus...")
-    train_oracle_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
-    test_oracle_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
+    # 1. Load Data & Initialize Centralized Experiment Burn-In
+    print("\n📦 Initializing Experiment Framework...")
+    registry = load_model_registry(args.models)
+    splits_path = Path(__file__).parent / "results" / "splits.json"
     
-    all_rewards = {**train_oracle_rewards, **test_oracle_rewards}
-    all_prompts = list(all_rewards.keys())
-    print(f"  ✓ Total Prompts: {len(all_prompts)}")
+    # Pre-load full rewards pool for baseline lookups
+    train_rewards_raw = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
+    test_rewards_raw = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
+    all_rewards = {**train_rewards_raw, **test_rewards_raw}
     
-    # 2. Split Data (Dev vs Test)
-    # Delegates logic to prepare_data_split (which checks for splits.json)
-    dev_prompts, test_prompts = prepare_data_split()
-        
+    # Initialize shared encoder
+    print("🔧 Initializing encoder...")
+    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
+    
+    burner = ExperimentBurnIn(registry, all_rewards, splits_path, encoder=encoder)
+    
+    # 2. Get Canonical Splits with Rewards
+    print("📊 Loading Canonical KDD Splits...")
+    (dev_prompts, dev_rewards), (test_prompts_pool, test_rewards) = burner.get_splits(load_rewards=True)
+    
     print(f"  ✓ Dev Set (Burn-in): {len(dev_prompts)}")
-    print(f"  ✓ Test Set (Hold-out): {len(test_prompts)}")
+    print(f"  ✓ Test Set (Hold-out): {len(test_prompts_pool)}")
     
     # 3. Generate Curriculum from Dev
-    print("\n🎓 Generating Signal-Aware Curriculum...")
-    burn_in_list = generate_curriculum(dev_prompts, all_rewards)
+    print("\n🎓 Generating Signal-Aware Curriculum from Dev set...")
+    burn_in_list = burner.generate_curriculum(dev_prompts)
     
-    # Load model registry to get available models
-    registry = load_model_registry()
-    
-    # Filter to models that have rewards in at least 50% of test prompts
+    # 4. Identify 9-Model Portfolio based on Test Pool coverage
+    print("⚖️  Identifying model portfolio...")
     model_coverage = defaultdict(int)
-    for prompt in test_prompts:
+    for prompt in test_prompts_pool:
+        # Check rewards in the combined pool for coverage check
         prompt_rewards = all_rewards.get(prompt, {})
         for model_id in prompt_rewards:
             model_coverage[model_id] += 1
     
-    min_coverage = len(test_prompts) * 0.5
+    min_coverage = len(test_prompts_pool) * 0.5
     available_models = [
         m for m in registry.keys() 
         if model_coverage.get(m, 0) >= min_coverage
     ]
-    print(f"  ✓ {len(available_models)} models with ≥50% coverage")
+    print(f"  ✓ {len(available_models)} models with ≥50% coverage in test pool")
     
-    # Initialize shared encoder
-    print("\n🔧 Initializing encoder...")
-    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
-    
-    # Calculate oracle best for TEST set (available models only)
+    # 5. Calculate Oracle Best for Hold-out set
     oracle_best = []
     valid_test_prompts = []
     
-    print("  ⚖️  Calculating Fair Oracle (Test Set)...")
-    for prompt in test_prompts:
-        rewards = all_rewards.get(prompt, {})
+    print("  ⚖️  Calculating Fair Oracle (Hold-out Set)...")
+    for prompt in test_prompts_pool:
+        # Use the specific hold-out rewards for the test phase
+        rewards = test_rewards.get(prompt, {})
         available_rewards = [
             rewards.get(m, 0.0) for m in available_models 
             if m in rewards
@@ -723,7 +637,7 @@ def main():
             
     oracle_best = np.array(oracle_best)
     test_prompts = valid_test_prompts
-    print(f"  ✓ Oracle computed on {len(oracle_best)} valid test prompts")
+    print(f"  ✓ Oracle computed on {len(oracle_best)} valid hold-out prompts")
 
     # Experiment Configuration
     n_seeds = 10 # Robust stats
@@ -752,16 +666,21 @@ def main():
     print("🔥 BURN-IN PHASE (BanditGPT)")
     print("="*40)
     
-    print("Initializing Master Router...")
+    # KDD FIX: Explicitly pass the 23-dimension PCA path to avoid JIT trigger
+    pca_path = Path(__file__).parent.parent.parent / "src" / "artifacts" / "pca_23.joblib"
+    
+    print(f"Initializing Master Router (PCA: {pca_path.name})...")
     master_router = BanditRouter.create(
         registry, 
         context_encoder=encoder,
         priors="warmup", 
         prior_n_effective=best_n_eff,
-        alpha=best_alpha
+        alpha=best_alpha,
+        pca_path=pca_path,
+        warmup_path=args.warmup
     )
     
-    perform_burn_in(master_router, burn_in_list, all_rewards)
+    burner.perform_burn_in(master_router, burn_in_list)
     
     
     # -------------------------------------------------------------------------
@@ -803,7 +722,9 @@ def main():
             context_encoder=encoder,
             priors="hle", 
             prior_n_effective=10.0, # Default for HLE
-            alpha=best_alpha
+            alpha=best_alpha,
+            pca_path=pca_path,
+            warmup_path=args.warmup
         )
         hle_res = test_router(router_hle, shuffled_prompts, all_rewards, priors="hle", seed=seed)
 
@@ -846,9 +767,9 @@ def main():
     
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(exist_ok=True)
-    with open(output_dir / "effectiveness_results.json", "w") as f:
+    with open(output_dir / args.output, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\n✅ Results saved to {output_dir / 'effectiveness_results.json'}")
+    print(f"\n✅ Results saved to {output_dir / args.output}")
 
 if __name__ == "__main__":
     main()

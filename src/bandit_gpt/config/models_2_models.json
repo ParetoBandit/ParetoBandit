@@ -1,0 +1,20 @@
+{
+    "models": [
+        {
+            "openrouter_id": "google/gemini-2.5-flash-preview-09-2025",
+            "input_cost_per_m": 0.3,
+            "output_cost_per_m": 2.5,
+            "hle": 0.127,
+            "raw_hle": 0.127,
+            "empirical_hle": 0.9793
+        },
+        {
+            "openrouter_id": "anthropic/claude-opus-4.5",
+            "input_cost_per_m": 5.0,
+            "output_cost_per_m": 25.0,
+            "hle": 0.284,
+            "raw_hle": 0.284,
+            "empirical_hle": 0.9775
+        }
+    ]
+}

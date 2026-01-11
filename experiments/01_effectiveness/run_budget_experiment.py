@@ -23,7 +23,7 @@ import numpy as np
 import random
 import json
 from pathlib import Path
-from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split, KFold
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -46,43 +46,54 @@ def run_gold_standard_tuning():
     print("🏆 GOLD STANDARD TUNING (3-Fold CV + Hold-out)")
     print("="*70)
     
-    # 1. Load registry and setup
-    print("📦 Loading model registry...")
+    # 1. Load Data
+    print("📦 Loading corpus...")
     registry = load_model_registry()
+    train_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
+    test_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
+    full_corpus = {**train_rewards, **test_rewards}
+    all_prompts = list(full_corpus.keys())
+    
+    # 2. Strict Split (60% Dev / 40% Hold-out)
+    dev_pool, holdout_pool = train_test_split(all_prompts, test_size=0.4, random_state=42)
+    
+    print(f"  ✓ Corpus: {len(all_prompts)}")
+    print(f"  ✂️  Dev Set (CV): {len(dev_pool)}")
+    print(f"  🔒 Hold-out Set: {len(holdout_pool)}")
+    
+    # Save splits for reproducibility
+    splits_path = Path(__file__).parent / "results" / "splits.json"
+    splits_path.parent.mkdir(exist_ok=True)
+    with open(splits_path, "w") as f:
+        json.dump({
+            "dev_pool": dev_pool,
+            "holdout_pool": holdout_pool
+        }, f, indent=2)
+    print(f"  💾 Saved Splits to {splits_path}")
+    
+    
+    # 3. 3-Fold Cross Validation
+    print("\n🔄 Starting 3-Fold CV Grid Search...")
+    
+    # ASSERTION: Ensure Strict Separation
+    dev_set = set(dev_pool)
+    holdout_set = set(holdout_pool)
+    assert dev_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Dev and Hold-out sets overlap."
+    print(f"  ✅ Verified Disjoint Splits (Intersection: {len(dev_set.intersection(holdout_set))})")
+
     encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
-    # 2. Load canonical splits with rewards automatically joined
-    splits_path = Path(__file__).parent / "results" / "splits.json"
+    # CRITICAL FIX #3: Filter corpus to registry models BEFORE any regret calculations
+    # The full corpus has 39 models, but router only has 9 models in registry
+    # Regret must be relative to the 9-model portfolio, not all 39
+    registry_models = set(registry.keys())
+    filtered_corpus = {}
+    for prompt, model_rewards in full_corpus.items():
+        filtered_corpus[prompt] = {m: r for m, r in model_rewards.items() if m in registry_models}
     
-    if not splits_path.exists():
-        # Create canonical splits first
-        print(f"📝 Generating canonical splits...")
-        from experiments.utils.data_loader import load_oracle_rewards
-        train_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
-        test_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
-        full_corpus = {**train_rewards, **test_rewards}
-        
-        ExperimentBurnIn.create_canonical_splits(
-            oracle_rewards=full_corpus,
-            splits_path=splits_path,
-            test_ratio=0.4,
-            random_state=42
-        )
-    
-    # Initialize ExperimentBurnIn
-    burn_in_helper = ExperimentBurnIn(
-        registry=registry,
-        oracle_rewards={},  # Not needed anymore - will load from split files
-        splits_path=splits_path,
-        encoder=encoder
-    )
-    
-    # Get splits WITH rewards automatically joined
-    print("📂 Loading canonical splits with rewards...")
-    (dev_pool, dev_rewards), (holdout_pool, holdout_rewards) = burn_in_helper.get_splits(load_rewards=True)
-    
-    print(f"  ✓ Dev Set (CV): {len(dev_pool)} prompts, {len(dev_rewards)} with rewards")
-    print(f"  ✓ Hold-out Set: {len(holdout_pool)} prompts, {len(holdout_rewards)} with rewards")
+    print(f"  ✓ Dev Set (CV): {len(dev_pool)} prompts")
+    print(f"  ✓ Hold-out Set: {len(holdout_pool)} prompts")
+    print(f"  ✓ Filtered corpus: {len(filtered_corpus)} prompts × {len(registry_models)} models")
     
     # Verify strict separation
     dev_set = set(dev_pool)
@@ -90,8 +101,14 @@ def run_gold_standard_tuning():
     assert dev_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Dev and Hold-out sets overlap."
     print(f"  ✅ Verified Disjoint Splits (Intersection: {len(dev_set.intersection(holdout_set))})")
     
-    # Combine rewards for curriculum generation (only uses dev_pool anyway)
-    full_corpus = {**dev_rewards, **holdout_rewards}
+    # Initialize ExperimentBurnIn for curriculum generation
+    # Use filtered_corpus to ensure curriculum only considers registry models
+    burn_in_helper = ExperimentBurnIn(
+        registry=registry,
+        oracle_rewards=filtered_corpus,
+        splits_path=splits_path,
+        encoder=encoder
+    )
     
     kf = KFold(n_splits=3, shuffle=True, random_state=42)
     
@@ -144,15 +161,15 @@ def run_gold_standard_tuning():
                 
                 for p in curriculum:
                     m, _ = router.route(p, profile="max_quality")
-                    r = full_corpus[p].get(m, 0.0)
+                    r = filtered_corpus[p].get(m, 0.0)
                     router.update(m, p, r)
                     
                 # C. Offline Eval on Fold Val
                 val_regret = 0.0
                 for p in fold_val:
                     m, _ = router.route(p, profile="max_quality")
-                    r = full_corpus[p].get(m, 0.0)
-                    best = max(full_corpus[p].values()) if full_corpus[p] else 0.0
+                    r = filtered_corpus[p].get(m, 0.0)
+                    best = max(filtered_corpus[p].values()) if filtered_corpus[p] else 0.0
                     val_regret += (best - r)
                     # No Update for Offline Eval
                 
@@ -172,7 +189,7 @@ def run_gold_standard_tuning():
                 best_config = {"n_eff": n, "alpha": alpha}
                 tag = "🌟 New Best"
                 
-            print(f"{n:<8.1f} | {alpha:<6.1f} | {mean_regret:<12.4f} | {std_regret:<10.4f} | {tag}")
+            print(f"{n:<8.1f} | {alpha:<6.2f} | {mean_regret:<12.4f} | {std_regret:<10.4f} | {tag}")
             
     save_heatmap_data(heatmap_results)
     print("-" * 80)
@@ -198,7 +215,7 @@ def run_gold_standard_tuning():
     print(f"   🔥 Burning in on {len(full_curriculum)} samples (Full Dev Curriculum)...")
     for p in full_curriculum:
         m, _ = final_router.route(p, profile="max_quality")
-        r = full_corpus[p].get(m, 0.0)
+        r = filtered_corpus[p].get(m, 0.0)
         final_router.update(m, p, r)
         
     # B. Online Eval on Hold-out
@@ -206,8 +223,8 @@ def run_gold_standard_tuning():
     holdout_regret = 0.0
     for p in holdout_pool:
         m, _ = final_router.route(p, profile="max_quality")
-        r = full_corpus[p].get(m, 0.0)
-        best = max(full_corpus[p].values()) if full_corpus[p] else 0.0
+        r = filtered_corpus[p].get(m, 0.0)
+        best = max(filtered_corpus[p].values()) if filtered_corpus[p] else 0.0
         holdout_regret += (best - r)
         
         # ONLINE UPDATE

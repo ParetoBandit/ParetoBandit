@@ -1063,7 +1063,7 @@ class BanditRouter:
         context_encoder=None,
         pca_path: Path | str | None = None,
         # Bandit parameters (The Brain)
-        alpha: float = 0.1,
+        alpha: float = 0.05,
         embedding_dim: int = 384,
         init_lambda: float = 1.0,
         update_lambda: float = 0.0,
@@ -1643,23 +1643,30 @@ class BanditRouter:
         if alpha == None:
             exploration_map = {
                 "static": 0.0,
-                "safe": 0.1,
+                "safe": 0.05,
                 "balanced": 0.5,
                 "aggressive": 1.0
             }
             alpha = exploration_map.get(exploration, 0.5)
             
-        # 2. Pop arguments that shouldn't be passed to __init__
+        # 2. Extract arguments for the factory, not the constructor
         state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 20.0)
+        prior_n_effective = kwargs.pop("prior_n_effective", 50.0)
+        warmup_path = kwargs.pop("warmup_path", None)
 
         # 3. Initialize Router
+        # Filter kwargs to only include those accepted by __init__
+        import inspect
+        sig = inspect.signature(cls.__init__)
+        valid_params = sig.parameters.keys()
+        init_kwargs = {k: v for k, v in kwargs.items() if k in valid_params}
+
         router = cls(
             model_registry=model_registry,
             context_model=context_model,
             context_encoder=context_encoder,
             alpha=alpha,
-            **kwargs
+            **init_kwargs
         )
         
         # 4. Apply Priors
@@ -1672,7 +1679,7 @@ class BanditRouter:
                 
         elif priors == "warmup":
             # Load pre-computed matrices from disk
-            priors_path = kwargs.pop("warmup_path", None)
+            priors_path = warmup_path
             if priors_path:
                 priors_path = Path(priors_path)
             else:

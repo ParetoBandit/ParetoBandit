@@ -130,61 +130,7 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1):
     # 4. Burn in Once, Evaluate with Multiple Profiles
     print("\n🚀 Burning in router...")
     
-    # --- DEBUGGING INSTRUMENTATION ---
-    # Subclass Router to inspect utility calculation internals
-    class DebugBanditRouter(BanditRouter):
-        def _score_candidates(self, filtered, x, w_q, w_c, w_l, input_tokens, output_tokens):
-            best_model, best_utility, total_weight = super()._score_candidates(
-                filtered, x, w_q, w_c, w_l, input_tokens, output_tokens
-            )
-            
-            # Print debug info for the first prompt of each profile run 
-            # (We use a hacky static counter attached to the function)
-            if not hasattr(self, "_debug_count"): self._debug_count = 0
-            
-            if self._debug_count < 3: # Print for first 3 calls
-                print(f"\n[DEBUG] Profile: q={w_q}, c={w_c}")
-                
-                # Re-calculate partially to inspect components
-                sample_counts = self._get_sample_counts(filtered)
-                cost_penalties, _ = self._calculate_penalties(filtered, input_tokens, output_tokens)
-                
-                print(f"  {'Model':<20} | {'Quality (UCB)':<13} | {'Cost (1-P)':<12} | {'Q Term':<10} | {'C Term':<10} | {'Utility':<10}")
-                print("  " + "-"*90)
-                
-                debug_items = []
-                for m in filtered:
-                    _, ucb = self.bandit.select_arm(x, candidates=[m])
-                    
-                    # Apply probation logic manually for debug view
-                    if self.config.probation_bonus > 0:
-                        count = sample_counts.get(m, 0)
-                        if count < self.config.pruning_min_samples:
-                            decay = 1.0 - (count / self.config.pruning_min_samples)
-                            ucb += self.config.probation_bonus * decay
-                            
-                    norm_cost = cost_penalties[m]
-                    cost_term = w_c * (1.0 - norm_cost)
-                    q_term = w_q * ucb
-                    util = q_term + cost_term
-                    debug_items.append((m, ucb, 1.0-norm_cost, q_term, cost_term, util))
-                
-                # Sort by Utility
-                debug_items.sort(key=lambda x: x[5], reverse=True)
-                
-                for item in debug_items[:5]: # Show top 5
-                    m, ucb, cost_score, q_term, c_term, util = item
-                    print(f"  {m[:20]:<20} | {ucb:.4f}        | {cost_score:.4f}       | {q_term:.4f}     | {c_term:.4f}     | {util:.4f}")
-                print(f"  Selected: {best_model}")
-                    
-            self._debug_count += 1
-            return best_model, best_utility, total_weight
-
-    # Patch the burner to use our debug router class
-    # We have to monkeypatch create_burned_in_router logic or just instantiate manually
-    # easier to just instantiate manually since we have the code in main()
-    
-    # Manual Burn-In with Debug Router
+    # Manual Burn-In with Production Router
     # FIX: Use Randomized Profiles to ensure exploration of the full Pareto frontier.
     
     # 2. Get splits ONCE and freeze them
@@ -199,11 +145,15 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1):
     curriculum = list(dev_prompts)
     random.shuffle(curriculum)
     
-    router = DebugBanditRouter.create(
+    # Explicitly use pca_23.joblib
+    pca_path = project_root / "artifacts" / "pca_23.joblib"
+    
+    router = BanditRouter.create(
         burner.registry,
         context_encoder=burner.encoder,
         priors=str(priors_file),
-        prior_n_effective=prior_n_effective
+        prior_n_effective=prior_n_effective,
+        pca_path=str(pca_path)
     )
     
     # FIX: Force Aggressive Exploration during Burn-in
@@ -249,9 +199,6 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1):
     # This is the realistic deployment scenario: one router, multiple user preferences
     for label, profile_name, color, marker in profiles:
         print(f"  Evaluating {label} profile...")
-        
-        # Reset debug counter to see prints for this profile
-        if hasattr(router, "_debug_count"): router._debug_count = 0
         
         # CRITICAL: Do NOT set alpha=0 here! 
         # With alpha=0 (pure exploitation), the bandit ignores profile weights and just
