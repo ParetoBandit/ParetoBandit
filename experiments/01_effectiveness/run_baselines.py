@@ -646,8 +646,8 @@ def main():
     
     # Optimal Hyperparameters (from Gold Standard Tuning)
     # Typically found: N_eff=5.0, Alpha=0.05
-    best_n_eff = 1.0
-    best_alpha = 0.1
+    best_n_eff = 50.0
+    best_alpha = 0.05
     
     experiments = [
         {"name": "Random", "priors": None, "strategy": "random"},
@@ -721,7 +721,7 @@ def main():
             registry, 
             context_encoder=encoder,
             priors="hle", 
-            prior_n_effective=10.0, # Default for HLE
+            prior_n_effective=50.0, # Default for HLE
             alpha=best_alpha,
             pca_path=pca_path,
             warmup_path=args.warmup
