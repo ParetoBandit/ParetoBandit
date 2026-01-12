@@ -1232,11 +1232,18 @@ class BanditRouter:
         self._toxicity_scanner = None
 
         # [NEW] Pareto Configuration
-        # Lambda ($) values: "How much Quality % are you willing to sacrifice to save $1?"
+        # Lambda values for Pareto utility: utility = quality - (λ * cost_penalty)
+        # [KDD FIX]: Rescaled for normalized [0,1] quality and cost_penalty inputs
+        # With both in [0,1] range, λ controls the quality-cost tradeoff:
+        #   λ=1.0: Equal weight (50/50 quality-cost tradeoff)
+        #   λ=0.5: Quality-biased (67% quality, 33% cost)
+        #   λ=0.05: Quality-focused (95% quality, 5% cost)
+        # Previous cost_saver λ=10.0 was calibrated for unnormalized cost,
+        # causing utility range [-10, 1] where cost dominated 10x over quality.
         self.PARETO_PROFILES = {
-            "cost_saver": 10.0,       # High penalty: $0.10 savings ≈ 1% quality drop
-            "smart_shopper": 0.5,     # Balanced: $2.00 savings ≈ 1% quality drop
-            "rational_luxury": 0.05   # Low penalty: Only huge costs matter
+            "cost_saver": 1.0,        # Balanced: Equal weight to quality and cost (50/50)
+            "smart_shopper": 0.5,     # Quality-biased: 67% quality, 33% cost
+            "rational_luxury": 0.05   # Quality-focused: 95% quality, 5% cost
         }
         # Controls the "Optimism" of the Pareto Filter (UCB)
         # 1.0 = Standard UCB. Higher = Keep uncertain models alive longer.
