@@ -1828,13 +1828,20 @@ class BanditRouter:
         if priors == "hle":
             # Diagonal injection of benchmark scores
             for model_id in router.bandit.models:
-                # Use initial_quality (composite metric: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
-                # Fallback to empirical_hle -> raw_hle -> hle
+                # [KDD FIX]: Use ONLY initial_quality (composite: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
+                # Previous code cascaded through empirical_hle→raw_hle→hle, mixing semantically different metrics.
+                # This caused initialization inconsistency - all models should use the same composite metric.
                 m_data = router.registry.get(model_id, {})
-                hle_val = m_data.get("initial_quality") or m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle", 0.15)
+                quality_score = m_data.get("initial_quality")
+                
+                if quality_score is None:
+                    raise ValueError(
+                        f"Model '{model_id}' missing 'initial_quality' field in registry. "
+                        f"All models must have a composite quality score for consistent HLE priors."
+                    )
                 
                 # KDD Simplification: Only set prior on bias term (last dimension)
-                router.bandit.b[model_id][-1] += (hle_val * prior_n_effective)
+                router.bandit.b[model_id][-1] += (quality_score * prior_n_effective)
                 
         elif priors == "warmup" or (isinstance(priors, str) and (priors.endswith(".joblib") or "/" in priors)):
             # Load pre-computed matrices from disk
