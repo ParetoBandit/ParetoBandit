@@ -164,7 +164,7 @@ def run_gold_standard_tuning():
                 assert train_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Train fold overlaps with Hold-out."
                 assert val_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Val fold overlaps with Hold-out."
                 
-                # A. Apply Curriculum to Fold Train (using centralized curriculum generation)
+                # A. Apply Curriculum to Fold Train
                 curriculum = burn_in_helper.generate_curriculum(fold_train)
                 
                 # B. Burn-in (Prime)
@@ -246,7 +246,7 @@ def run_gold_standard_tuning():
     # 4. Final Evaluation
     print("\n🔒 Final Evaluation on Hold-out...")
     
-    # A. Train on FULL Dev Set with Curriculum (using centralized curriculum generation)
+    # A. Train on FULL Dev Set with Curriculum
     full_curriculum = burn_in_helper.generate_curriculum(dev_pool)
     # Use existing PCA artifact (don't recreate)
     pca_path = Path(__file__).parent.parent.parent / "artifacts" / "pca_23.joblib"

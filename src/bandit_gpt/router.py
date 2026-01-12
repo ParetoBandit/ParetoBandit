@@ -2704,14 +2704,11 @@ class BanditRouter:
             norm_cost = cost_penalties[m]
             norm_lat = latency_penalties[m]
             
-            # [KDD FIX]: Normalize θ^T x to [0, 1] for consistent weight interpretation
-            # LinUCB's predictions are unbounded (empirical range: [0.31, 2.25]).
-            # Without normalization, quality contributions become unpredictable:
-            #   - At θ=0.3: ARBITRAGE quality (0.24) swamped by cost (0.50)
-            #   - At θ=2.0: ARBITRAGE quality (1.60) dominates cost (0.50)
-            # Clipping ensures all three components (quality, cost, latency) operate
-            # on the same [0, 1] scale for predictable utility trade-offs.
-            norm_quality = max(0.0, min(1.0, mean_quality))
+            # Use raw quality prediction with floor at 0
+            # The warmup priors were trained on [0,1] rewards, so predictions 
+            # should naturally be on the correct scale. We just clip negative values.
+            # Sigmoid was compressing differences too much (e.g., 0.9→0.71, 1.1→0.75)
+            norm_quality = max(0.0, mean_quality)
             
             # Base Trade-off Utility (Deterministic)
             base_utility = (
