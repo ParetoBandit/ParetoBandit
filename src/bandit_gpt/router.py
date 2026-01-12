@@ -96,12 +96,13 @@ class RegistrationConfig:
     - Complexity Weight: How the model responds to hard prompts. 
       "Fast" models usually struggle (-0.5), "Slow" models usually excel (+0.5).
     """
-    # Fast Profile (e.g., Haiku, Flash) -> Bias towards usage, penalty on complexity
-    fast_bias: float = 0.5
+    # Fast Profile (e.g., Haiku, Flash) -> No bias adjustment (neutral)
+    fast_bias: float = 0.0
     fast_complexity_weight: float = -0.5
     
-    # Slow Profile (e.g., Opus, GPT-4) -> Bias against usage (cost), bonus on complexity
-    slow_bias: float = -0.5
+    # Slow Profile (e.g., Opus, GPT-4) -> Bias TOWARDS usage (believe expensive = high quality)
+    # KDD FIX: Positive bias encodes belief that expensive models have latent quality
+    slow_bias: float = 0.05
     slow_complexity_weight: float = 0.5
     
     # Balanced Profile (e.g., GPT-3.5, Sonnet) -> Neutral priors
@@ -1252,8 +1253,8 @@ class BanditRouter:
         # causing utility range [-10, 1] where cost dominated 10x over quality.
         self.PARETO_PROFILES = {
             "cost_saver": 1.0,        # Balanced: Equal weight to quality and cost (50/50)
-            "smart_shopper": 0.005,   # High-quality: Favor grok-3-mini (~97%)
-            "rational_luxury": 0.0     # Pure Quality: Select highest quality regardless of cost
+            "smart_shopper": 0.02,    # Push toward grok: stronger cost penalty
+            "rational_luxury": 0.0     # Pure Quality: Cost-invariant (κ=0 is rational)
         }
         # Controls the "Optimism" of the Pareto Filter (UCB)
         # 1.0 = Standard UCB. Higher = Keep uncertain models alive longer.
@@ -1921,6 +1922,44 @@ class BanditRouter:
                 logger.info(f"✅ Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
             else:
                 logger.warning(f"Warmup priors not found at {priors_path}. Using cold start.")
+        
+        # 5. Post-Warmup Bias Injection (KDD FIX: Apply T-Shirt Sizing After Loading Priors)
+        # We do this AFTER loading priors to ensure business logic adjusts data.
+        # The bias is scaled by confidence to avoid "Dilution" problem.
+        reg_config = RegistrationConfig()
+        
+        for model_id in router.bandit.models:
+            speed = router.registry.get(model_id, {}).get("speed_profile", "balanced")
+            
+            # 1. Determine the Bias Shift (Delta Theta)
+            bias_shift = 0.0
+            if speed == "fast":
+                bias_shift = reg_config.fast_bias
+            elif speed == "slow":
+                bias_shift = reg_config.slow_bias
+            
+            if abs(bias_shift) > 0.01:  # Skip negligible biases
+                # 2. Scale by Confidence (The "Dilution" Fix)
+                # We want to shift prediction θ by 'bias_shift'.
+                # Since θ = A_inv @ b, we must shift b by (A @ delta_theta).
+                # For the bias feature (last index), this simplifies to:
+                # b[-1] += A[-1, -1] * bias_shift
+                
+                bias_idx = router.features.bias_index
+                
+                # Get current confidence level for the bias term
+                confidence = router.bandit.A[model_id][bias_idx, bias_idx]
+                
+                # Apply the scaled shift
+                router.bandit.b[model_id][bias_idx] += (confidence * bias_shift)
+                
+                logger.info(
+                    f"⚖️ Applied {speed} bias ({bias_shift:+.2f}) to {model_id}. "
+                    f"Scaled impact: {confidence:.1f} * {bias_shift} = {confidence*bias_shift:+.2f} added to b."
+                )
+        
+        # Refresh inverse cache after bias injection
+        router.bandit.refresh_inverse_cache()
         
         # 6. Load state if provided (overwrites any priors applied above)
         if state_path:
