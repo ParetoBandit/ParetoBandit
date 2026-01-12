@@ -11,7 +11,7 @@ Protocol:
        - Split Dev into 3 folds.
        - For each fold:
             - Train on 2/3 (Curriculum Oversampling applied HERE).
-            - Offline Eval on 1/3.
+            - Online Eval on 1/3 (Interleaved Test-Then-Train).
        - Average Regret across folds.
     3. Final Check:
        - Retrain on FULL Dev set (Curriculum applied).
@@ -46,30 +46,33 @@ def run_gold_standard_tuning():
     print("🏆 GOLD STANDARD TUNING (3-Fold CV + Hold-out)")
     print("="*70)
     
-    # 1. Load Data
-    print("📦 Loading corpus...")
+    # 1. Initialize Experiment Framework
+    print("📦 Initializing Experiment Framework...")
     registry = load_model_registry()
-    train_rewards = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
-    test_rewards = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
-    full_corpus = {**train_rewards, **test_rewards}
-    all_prompts = list(full_corpus.keys())
+    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
-    # 2. Strict Split (60% Dev / 40% Hold-out)
-    dev_pool, holdout_pool = train_test_split(all_prompts, test_size=0.4, random_state=42)
-    
-    print(f"  ✓ Corpus: {len(all_prompts)}")
-    print(f"  ✂️  Dev Set (CV): {len(dev_pool)}")
-    print(f"  🔒 Hold-out Set: {len(holdout_pool)}")
-    
-    # Save splits for reproducibility
+    # Save splits path for centralized loading
     splits_path = Path(__file__).parent / "results" / "splits.json"
-    splits_path.parent.mkdir(exist_ok=True)
-    with open(splits_path, "w") as f:
-        json.dump({
-            "dev_pool": dev_pool,
-            "holdout_pool": holdout_pool
-        }, f, indent=2)
-    print(f"  💾 Saved Splits to {splits_path}")
+    
+    # Initialize ExperimentBurnIn
+    burn_in_helper = ExperimentBurnIn(
+        registry=registry,
+        splits_path=splits_path,
+        encoder=encoder
+    )
+    
+    # 2. Get Canonical Splits with Rewards (Centralized)
+    print("📊 Loading Canonical KDD Splits...")
+    # This replaces manual loading and manual train_test_split
+    (dev_pool, dev_rewards), (holdout_pool, holdout_rewards) = burn_in_helper.get_splits(load_rewards=True)
+    
+    # Combine into full filtered corpus
+    filtered_corpus = {**dev_rewards, **holdout_rewards}
+    registry_models = set(registry.keys())
+    
+    print(f"  ✓ Dev Set (CV): {len(dev_pool)}")
+    print(f"  🔒 Hold-out Set: {len(holdout_pool)}")
+    print(f"  ✓ Filtered corpus: {len(filtered_corpus)} prompts × {len(registry_models)} models")
     
     
     # 3. 3-Fold Cross Validation
@@ -81,34 +84,7 @@ def run_gold_standard_tuning():
     assert dev_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Dev and Hold-out sets overlap."
     print(f"  ✅ Verified Disjoint Splits (Intersection: {len(dev_set.intersection(holdout_set))})")
 
-    encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
-    # CRITICAL FIX #3: Filter corpus to registry models BEFORE any regret calculations
-    # The full corpus has 39 models, but router only has 9 models in registry
-    # Regret must be relative to the 9-model portfolio, not all 39
-    registry_models = set(registry.keys())
-    filtered_corpus = {}
-    for prompt, model_rewards in full_corpus.items():
-        filtered_corpus[prompt] = {m: r for m, r in model_rewards.items() if m in registry_models}
-    
-    print(f"  ✓ Dev Set (CV): {len(dev_pool)} prompts")
-    print(f"  ✓ Hold-out Set: {len(holdout_pool)} prompts")
-    print(f"  ✓ Filtered corpus: {len(filtered_corpus)} prompts × {len(registry_models)} models")
-    
-    # Verify strict separation
-    dev_set = set(dev_pool)
-    holdout_set = set(holdout_pool)
-    assert dev_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Dev and Hold-out sets overlap."
-    print(f"  ✅ Verified Disjoint Splits (Intersection: {len(dev_set.intersection(holdout_set))})")
-    
-    # Initialize ExperimentBurnIn for curriculum generation
-    # Use filtered_corpus to ensure curriculum only considers registry models
-    burn_in_helper = ExperimentBurnIn(
-        registry=registry,
-        oracle_rewards=filtered_corpus,
-        splits_path=splits_path,
-        encoder=encoder
-    )
     
     kf = KFold(n_splits=3, shuffle=True, random_state=42)
     
@@ -151,7 +127,6 @@ def run_gold_standard_tuning():
                     context_encoder=encoder, 
                     priors="warmup",
                     prior_n_effective=n,
-                    update_lambda=1.0,  # Strong regularization for intensive burn-in
                     pca_path=pca_path  # Use existing PCA data
                 )
                 router.bandit.alpha = alpha # Set targeted exploration immediately?
@@ -164,14 +139,17 @@ def run_gold_standard_tuning():
                     r = filtered_corpus[p].get(m, 0.0)
                     router.update(m, p, r)
                     
-                # C. Offline Eval on Fold Val
+                # C. Online Eval on Fold Val (Interleaved Test-Then-Train)
+                # CRITICAL FIX: Update bandit to credit exploration (aligns with hold-out protocol)
                 val_regret = 0.0
                 for p in fold_val:
                     m, _ = router.route(p, profile="max_quality")
                     r = filtered_corpus[p].get(m, 0.0)
                     best = max(filtered_corpus[p].values()) if filtered_corpus[p] else 0.0
                     val_regret += (best - r)
-                    # No Update for Offline Eval
+                    
+                    # ONLINE UPDATE: Credit exploration for future decisions
+                    router.update(m, p, r)
                 
                 fold_regrets.append(val_regret / len(fold_val))
                 
@@ -207,7 +185,6 @@ def run_gold_standard_tuning():
         context_encoder=encoder,
         priors="warmup",
         prior_n_effective=best_config['n_eff'],
-        update_lambda=1.0,  # Strong regularization for intensive burn-in
         pca_path=pca_path  # Use existing PCA data
     )
     final_router.bandit.alpha = best_config['alpha']
