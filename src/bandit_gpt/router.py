@@ -334,9 +334,18 @@ class OptimizationProfile:
     
     # 1. MAX QUALITY ("Rational Luxury")
     # Target: GPT-4.1 @ $5.00
-    # "Spare No Expense" - w_c=0.1 removes price sensitivity. w_l=0.0 removes time anxiety.
-    # KDD FIX: Increased alpha_scale from 0.01->0.3 to ensure discovery of best models
-    MAX_QUALITY = {"w_q": 30.0, "w_c": 0.1, "w_l": 0.0, "alpha_scale": 0.3}
+    # CRITICAL FIX: Increased w_c from 0.1 → 1.0 to prevent "Penny-Wise, Pound-Foolish" behavior
+    # 
+    # Problem (w_c=0.1): Router paid $3 extra for 0.67% quality gain (300:1 quality:cost ratio)
+    # - Quality edge: 30 × 0.0067 = 0.20 utility
+    # - Cost savings: 0.1 × 0.69 = 0.07 utility → Quality wins despite being negligible
+    # 
+    # Solution (w_c=1.0): Cost becomes competitive (30:1 ratio)
+    # - Quality edge: 30 × 0.0067 = 0.20 utility  
+    # - Cost savings: 1.0 × 0.69 = 0.69 utility → Cost wins for tiny quality differences
+    # 
+    # Interpretation: "Spare almost no expense, but don't waste money on meaningless gains"
+    MAX_QUALITY = {"w_q": 30.0, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 0.3}
     
     # 2. ARBITRAGE ("Smart Shopper")
     # Bias towards Cost (w_c=1.0) to break Prior Lock and find value (Grok/Flash).
