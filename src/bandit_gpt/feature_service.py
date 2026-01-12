@@ -8,7 +8,7 @@ without risking breaking the router core.
 
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Union
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -17,10 +17,52 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
+# Maximum prompt length to prevent OOM on very long inputs
+MAX_PROMPT_LENGTH = 50000  # ~12k tokens
+
+
 def l2_normalize(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     """L2 normalization with numerical stability."""
+    x = np.asarray(x, dtype=np.float64)
     norm = np.linalg.norm(x)
-    return x / (norm + eps)
+    if norm < eps:
+        logger.warning(f"Near-zero norm ({norm:.2e}) in l2_normalize, returning original")
+        return x
+    return x / norm
+
+
+def validate_feature_vector(x: np.ndarray, context: str = "") -> np.ndarray:
+    """
+    Validate feature vector for numerical issues.
+    
+    Checks for NaN, Inf, and extreme values that could destabilize LinUCB.
+    
+    Args:
+        x: Feature vector to validate
+        context: Description for error messages (e.g., "prompt: 'hello world'")
+        
+    Returns:
+        Validated (and potentially clipped) feature vector
+        
+    Raises:
+        ValueError: If vector contains NaN values
+    """
+    if np.any(np.isnan(x)):
+        raise ValueError(f"Feature vector contains NaN values. {context}")
+    
+    if np.any(np.isinf(x)):
+        logger.warning(f"Feature vector contains Inf values, clipping. {context}")
+        x = np.clip(x, -1e6, 1e6)
+    
+    # Check for extreme values in PCA components (not bias)
+    pca_components = x[:-1]
+    if np.any(np.abs(pca_components) > 10):
+        logger.warning(
+            f"Feature vector has extreme values (max={np.max(np.abs(pca_components)):.2f}). "
+            f"This may indicate PCA calibration issues. {context}"
+        )
+    
+    return x
 
 
 class FeatureService:
@@ -109,6 +151,15 @@ class FeatureService:
         """Bias term is always the last element."""
         return -1
     
+    @property
+    def using_pca(self) -> bool:
+        """Check if PCA compression is active (vs raw embeddings)."""
+        # Trigger PCA loading if not done yet
+        if self._pca is None:
+            _ = self.pca
+        # Check if we fell back to raw embeddings
+        return self._pca is not None
+    
     def get_dimension(self) -> int:
         """
         Get feature vector dimensionality.
@@ -120,7 +171,32 @@ class FeatureService:
             self._dimension = self.pca_components + 1  # PCA + bias
         return self._dimension
     
-    def extract_features(self, prompt: str | np.ndarray) -> np.ndarray:
+    def get_feature_names(self) -> List[str]:
+        """
+        Get human-readable feature names for interpretability.
+        
+        Returns:
+            List of feature names matching vector indices
+            
+        Example:
+            >>> fs = FeatureService()
+            >>> names = fs.get_feature_names()
+            >>> names[:3]
+            ['PCA_0', 'PCA_1', 'PCA_2']
+            >>> names[-1]
+            'bias'
+        """
+        dim = self.dimension
+        # Check if using raw embeddings (fallback mode)
+        if self._pca is None and self._dimension and self._dimension > self.pca_components + 1:
+            # Raw embedding mode
+            names = [f"emb_{i}" for i in range(dim - 1)]
+        else:
+            names = [f"PCA_{i}" for i in range(dim - 1)]
+        names.append("bias")
+        return names
+    
+    def extract_features(self, prompt: Union[str, np.ndarray]) -> np.ndarray:
         """
         Convert prompt to feature vector.
         
@@ -133,6 +209,10 @@ class FeatureService:
         Returns:
             24-dimensional feature vector (23 PCA + 1 bias)
             
+        Raises:
+            ValueError: If prompt is empty or feature extraction fails
+            TypeError: If prompt is wrong type
+            
         Example:
             >>> features = FeatureService()
             >>> vector = features.extract_features("Explain quantum computing")
@@ -141,9 +221,31 @@ class FeatureService:
             >>> vector[-1]  # Bias term
             1.0
         """
+        # Handle pre-computed vectors
         if isinstance(prompt, np.ndarray):
-            # Already a feature vector
+            # Validate dimension
+            if len(prompt) != self.dimension:
+                raise ValueError(
+                    f"Pre-computed vector has dimension {len(prompt)}, "
+                    f"expected {self.dimension}"
+                )
             return prompt
+        
+        # Type validation
+        if not isinstance(prompt, str):
+            raise TypeError(f"Expected str or np.ndarray, got {type(prompt)}")
+        
+        # Empty/whitespace validation
+        if not prompt or not prompt.strip():
+            raise ValueError("Prompt cannot be empty or whitespace-only")
+        
+        # Length validation (prevent OOM)
+        if len(prompt) > MAX_PROMPT_LENGTH:
+            logger.warning(
+                f"Prompt length ({len(prompt)}) exceeds maximum ({MAX_PROMPT_LENGTH}). "
+                f"Truncating to prevent OOM."
+            )
+            prompt = prompt[:MAX_PROMPT_LENGTH]
         
         # 1. Semantic Embedding
         emb_full = self.encoder.encode(prompt, normalize_embeddings=True)
@@ -153,10 +255,69 @@ class FeatureService:
         if self.pca:
             emb_reduced = self.pca.transform(emb_full.reshape(1, -1)).flatten()
         else:
-            emb_reduced = emb_full[:self.pca_components]
+            # Fallback: use raw embeddings (no PCA)
+            emb_reduced = emb_full
         
         # 3. Append bias term
-        return np.append(emb_reduced, 1.0)
+        result = np.append(emb_reduced, 1.0)
+        
+        # 4. Validate output
+        result = validate_feature_vector(result, context=f"prompt: '{prompt[:50]}...'")
+        
+        return result
+    
+    def extract_features_batch(self, prompts: List[str]) -> np.ndarray:
+        """
+        Extract features for multiple prompts efficiently.
+        
+        Uses batch encoding which is faster than sequential calls.
+        
+        Args:
+            prompts: List of prompt strings
+            
+        Returns:
+            Array of shape (n_prompts, dimension)
+            
+        Example:
+            >>> fs = FeatureService()
+            >>> vectors = fs.extract_features_batch(["Hello", "World"])
+            >>> vectors.shape
+            (2, 24)
+        """
+        if not prompts:
+            return np.empty((0, self.dimension))
+        
+        # Validate all prompts
+        valid_prompts = []
+        for i, p in enumerate(prompts):
+            if not isinstance(p, str):
+                raise TypeError(f"Prompt {i} is not a string: {type(p)}")
+            if not p.strip():
+                raise ValueError(f"Prompt {i} is empty or whitespace-only")
+            if len(p) > MAX_PROMPT_LENGTH:
+                logger.warning(f"Prompt {i} truncated from {len(p)} to {MAX_PROMPT_LENGTH}")
+                p = p[:MAX_PROMPT_LENGTH]
+            valid_prompts.append(p)
+        
+        # Batch encode
+        embeddings = self.encoder.encode(
+            valid_prompts,
+            normalize_embeddings=True,
+            show_progress_bar=len(valid_prompts) > 100
+        )
+        
+        # Normalize each embedding
+        embeddings = np.array([l2_normalize(e) for e in embeddings])
+        
+        # PCA transform
+        if self.pca is not None:
+            embeddings = self.pca.transform(embeddings)
+        
+        # Append bias column
+        bias_column = np.ones((len(embeddings), 1))
+        result = np.hstack([embeddings, bias_column])
+        
+        return result
     
     def _ensure_pca_ready(self) -> None:
         """
