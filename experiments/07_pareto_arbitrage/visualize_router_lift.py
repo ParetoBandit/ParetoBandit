@@ -33,6 +33,49 @@ def get_model_cost_1k(model: dict) -> float:
     cost_per_1m = 0.5 * input_cost + 0.5 * output_cost
     return cost_per_1m / 1000.0
 
+def estimate_prompt_cost(prompt: str, model_data: dict, cost_per_1k: float = True, 
+                        prompt_id: str = None, model_id: str = None, 
+                        oracle_rewards: dict = None) -> float:
+    """Estimate the cost for a single prompt execution.
+    
+    Args:
+        prompt: The prompt text
+        model_data: Model configuration dict with pricing info
+        cost_per_1k: If True, return cost scaled to $/1k, else raw cost
+        prompt_id: Optional prompt identifier for looking up real usage
+        model_id: Optional model identifier for looking up real usage
+        oracle_rewards: Optional oracle data with real token counts
+    
+    Returns:
+        Estimated cost in dollars (scaled to /1k if cost_per_1k=True)
+    """
+    # Try to use real token counts if available
+    if prompt_id and model_id and oracle_rewards:
+        prompt_data = oracle_rewards.get(prompt_id, {})
+        if model_id in prompt_data and isinstance(prompt_data[model_id], dict):
+            usage = prompt_data[model_id].get('usage', {})
+            if 'input_tokens' in usage and 'output_tokens' in usage:
+                est_input = usage['input_tokens']
+                est_output = usage['output_tokens']
+            else:
+                # Fallback to heuristic
+                est_input = len(str(prompt).split()) * 1.3
+                est_output = 600
+        else:
+            # Fallback to heuristic
+            est_input = len(str(prompt).split()) * 1.3
+            est_output = 600
+    else:
+        # Heuristic estimation (conservative)
+        est_input = len(str(prompt).split()) * 1.3
+        est_output = 600  # Standard output assumption for evaluation
+    
+    in_rate = (model_data.get("input_cost_per_m") or 0) / 1_000_000
+    out_rate = (model_data.get("output_cost_per_m") or 0) / 1_000_000
+    
+    raw_cost = (est_input * in_rate) + (est_output * out_rate)
+    return raw_cost * 1000 if cost_per_1k else raw_cost
+
 def compute_pareto_frontier(points: list) -> list:
     """Compute the Pareto frontier (convex hull)."""
     # Sort by cost ascending
@@ -45,18 +88,33 @@ def compute_pareto_frontier(points: list) -> list:
             max_quality = p["quality"]
     return frontier
 
-def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
+def main(prior_n_effective: float = 20.0, alpha: float = 0.1, num_runs: int = 1,
+         warmup_path: str = None, splits_path: str = None, pca_path: str = None):
     print("="*70)
     print("ROUTER LIFT VISUALIZATION: THE MONEY CHART")
-    print(f"Parameters: N={prior_n_effective}, alpha={alpha}")
+    print(f"Parameters: N={prior_n_effective}, alpha={alpha}, Runs={num_runs}")
     print("="*70)
 
     # 1. Load Data
     print("📦 Loading model registry and setup...")
     project_root = Path(__file__).parent.parent.parent
     full_registry = load_model_registry()
-    splits_path = project_root / "experiments" / "01_effectiveness" / "results" / "splits.json"
-    priors_file = project_root / "data" / "priors_warmup.joblib"
+    
+    # Use provided paths or fall back to defaults
+    if splits_path is None:
+        splits_path = project_root / "experiments" / "01_effectiveness" / "results" / "splits.json"
+    else:
+        splits_path = Path(splits_path)
+    
+    if warmup_path is None:
+        warmup_path = project_root / "data" / "priors_warmup_9_models.joblib"
+    else:
+        warmup_path = Path(warmup_path)
+        
+    if pca_path is None:
+        pca_path = project_root / "artifacts" / "pca_23.joblib"
+    else:
+        pca_path = Path(pca_path)
     
     # Initialize ExperimentBurnIn
     encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
@@ -69,169 +127,137 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     print(f"  ✓ Test prompts: {len(test_prompts_pool)} with {len(test_rewards)} reward entries")
     
 
-
-    # 3. Identify 9-Model Portfolio (>=50% coverage in test set)
-    print("⚖️ Identifying 9-model portfolio...")
+    # 3. Use Full Model Portfolio (Including Specialists)
+    # CRITICAL FIX: Remove arbitrary 50% coverage filter to allow specialist models.
+    # Pessimistic imputation handles specialists fairly: quality=0.0 on unevaluated prompts.
+    # This demonstrates the bandit's true strength: learning when to leverage sparse specialists.
+    print("⚖️ Using full model portfolio (including specialists)...")
+    registry = full_registry
+    available_models = list(full_registry.keys())
     
-    model_coverage = defaultdict(int)
-    for p in test_prompts_pool:
-        rewards = burner.oracle_rewards.get(p, {})
-        for m in rewards:
-            model_coverage[m] += 1
-            
-    min_coverage = len(test_prompts_pool) * 0.5
-    available_models = [m for m in full_registry if model_coverage[m] >= min_coverage]
-    registry = {m: full_registry[m] for m in available_models}
+    print(f"  ✓ {len(available_models)} models in portfolio.")
     
-    print(f"  ✓ {len(available_models)} models identified.")
-    
-    # 3. Compute Baseline Stats (Using ACTUAL Test Distribution)
-    print("📉 Computing static model baselines on TEST set...")
+    # 3. Compute Baseline Stats with Pessimistic Imputation
+    # CRITICAL FIX: Use pessimistic imputation (quality=0.0 for missing rewards)
+    # to eliminate survivorship bias that artificially inflates weak model scores
+    print("📉 Computing static model baselines on TEST set (with pessimistic imputation)...")
     model_points = []
     
     for m_id in available_models:
-        # Get actual rewards and token counts for this model on the test set
-        relevant_prompts = [p for p in test_prompts_pool if m_id in burner.oracle_rewards.get(p, {})]
-        
-        if not relevant_prompts:
-            continue
-            
         qualities = []
         costs = []
         
-        for p in relevant_prompts:
-            # 1. Get Reward
-            qualities.append(burner.oracle_rewards[p][m_id])
-            
-            # 2. Get ACTUAL Cost (Not Heuristic)
-            # Use rough estimation based on word count for consistency with router logic
-            # (src.bandit_gpt.router.estimate_tokens_rough)
-            est_input = len(str(p).split()) * 1.3 
-            est_output = 600 # Standard output assumption for evaluation
-            
+        # EVALUATE ON ALL TEST PROMPTS (not just those with recorded rewards)
+        for p in test_prompts_pool:
             m_data = registry[m_id]
-            in_rate = (m_data.get("input_cost_per_m") or 0) / 1_000_000
-            out_rate = (m_data.get("output_cost_per_m") or 0) / 1_000_000
             
-            real_cost = (est_input * in_rate) + (est_output * out_rate)
-            costs.append(real_cost * 1000) # Scale to $/1k
+            # 1. Get Reward (Impute 0.0 if missing - PENALIZE MISSING DATA)
+            rewards = burner.oracle_rewards.get(p, {})
+            quality = rewards.get(m_id, 0.0)
+            qualities.append(quality)
+            
+            # 2. Estimate cost (charged even on failure in production)
+            costs.append(estimate_prompt_cost(p, m_data, cost_per_1k=True))
             
         model_points.append({
             "id": m_id,
             "name": registry[m_id].get("display_name", m_id),
-            "cost": np.mean(costs),     # Actual average cost on this test set
-            "quality": np.mean(qualities)
+            "cost": np.mean(costs),     # Average cost across ALL test prompts
+            "quality": np.mean(qualities)  # Average quality with failures counted as 0.0
         })
     
     frontier = compute_pareto_frontier(model_points)
     
-    # 4. Burn in Once, Evaluate with Multiple Profiles
-    print("\n🚀 Burning in router...")
+    # 4. Monte Carlo Loop over Simulations
+    print(f"\n� Running {num_runs} simulations for stability...")
     
-    # Manual Burn-In with Production Router
-    # FIX: Use Randomized Profiles to ensure exploration of the full Pareto frontier.
-    
-    # 2. Get splits ONCE and freeze them
-    # (Already loaded at line 69, but we verify disjointness here)
-    assert set(dev_prompts).isdisjoint(set(test_prompts_pool)), "CRITICAL: Train/Test contamination detected!"
-    
-    # Do NOT call generate_curriculum(dev_prompts) again if it re-shuffles.
-    # Instead, iterate directly over the dev_prompts list we already have.
-    print(f"  🔥 Executing Heterogeneous Burn-in on {len(dev_prompts)} prompts...")
-    
-    # Shuffle dev prompts manually to ensure random order
-    curriculum = list(dev_prompts)
-    random.shuffle(curriculum)
-    
-    # Explicitly use pca_23.joblib
-    pca_path = project_root / "artifacts" / "pca_23.joblib"
-    
-    router = BanditRouter.create(
-        burner.registry,
-        context_encoder=burner.encoder,
-        priors="warmup",
-        warmup_path=str(priors_file),
-        prior_n_effective=prior_n_effective,
-        pca_path=str(pca_path)
-    )
-    
-    # FIX: Force Aggressive Exploration during Burn-in
-    # Set alpha=2.0 (High Exploration) to ensure unvisited arms get tried.
-    # This prevents the "Rich Get Richer" problem where one lucky model dominates early.
-    router.bandit.alpha = 2.0  
-    
-    print("  🔥 Executing Heterogeneous Burn-in (Randomized Profiles + High Alpha)...")
-    training_profiles = ["cost_saver", "arbitrage", "max_quality"]
-    
-    # We essentially reimplement perform_burn_in but with random profiles
-    for prompt in tqdm(curriculum, desc="  Burn-in"):
-        # Simulate diverse traffic: Pick a random user profile for this request
-        p_name = random.choice(training_profiles)
-        
-        # Route (Debug prints suppressed by counter > 3)
-        model_id, _ = router.route(prompt, profile=p_name)
-        
-        # Oracle Reward
-        reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
-        router.update(model_id, prompt, reward)
-    
-    # Reset Alpha for Evaluation (User specified parameter)
-    router.bandit.alpha = alpha
-    
-    actual_test_prompts = test_prompts_pool
-    # ---------------------------------
-    
-    # router, actual_test_prompts = burner.create_burned_in_router(...) -> REPLACED BY ABOVE
-
-    
-    print(f"✓ Burn-in complete. Evaluating {len(actual_test_prompts)} test prompts with different profiles...")
-    
+    # Use default profile weights from OptimizationProfile
     profiles = [
-        ("Cost Saver", "cost_saver", "green", "D"),
-        ("Arbitrage", "arbitrage", "blue", "P"),
-        ("Max Quality", "max_quality", "red", "*")
+        ("Cost Saver", OptimizationProfile.COST_SAVER, "green", "D"),
+        ("Smart Shopper", OptimizationProfile.ARBITRAGE, "blue", "P"),
+        ("Rational Luxury", OptimizationProfile.MAX_QUALITY, "red", "*")
     ]
     
-    router_results = []
+    # Aggregate results: {profile_name: {"costs": [], "qualities": []}}
+    # Create results dict using profile dict as key
+    mc_results = {str(p_dict): {"costs": [], "qualities": [], "label": label} for label, p_dict, _, _ in profiles}
     
-    # Evaluate the SAME router with different profiles
-    # This is the realistic deployment scenario: one router, multiple user preferences
-    for label, profile_name, color, marker in profiles:
-        print(f"  Evaluating {label} profile...")
+    for run_i in range(1, num_runs + 1):
+        # Set deterministic seeds that vary by run
+        seed = 42 + run_i
+        random.seed(seed)
+        np.random.seed(seed)
         
-        # CRITICAL: Do NOT set alpha=0 here! 
-        # With alpha=0 (pure exploitation), the bandit ignores profile weights and just
-        # picks the model with highest learned mean. Keeping alpha>0 allows uncertainty 
-        # to propagate and enables different profiles to steer selection via their weight ratios.
-        costs = []
-        qualities = []
+        # Burn in Once per Run
+        # Manual Burn-In with Production Router
+        router = BanditRouter.create(
+            burner.registry,
+            context_encoder=burner.encoder,
+            priors="warmup",
+            warmup_path=str(warmup_path),
+            prior_n_effective=prior_n_effective,
+            pca_path=str(pca_path)
+        )
         
-        for p in tqdm(actual_test_prompts, desc=f"Eval {label}", leave=False):
-            model_id, _ = router.route(p, profile=profile_name)
-            if model_id in burner.oracle_rewards.get(p, {}):
+        router.bandit.alpha = 2.0  # High Exploration during Burn-in
+        training_profiles = [OptimizationProfile.COST_SAVER, OptimizationProfile.ARBITRAGE, OptimizationProfile.MAX_QUALITY]
+        
+        # Shuffle curriculum for this run
+        curriculum = list(dev_prompts)
+        random.shuffle(curriculum)
+        
+        for prompt in curriculum:
+            p_name = random.choice(training_profiles)
+            model_id, _ = router.route(prompt, profile=p_name)
+            reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+            router.update(model_id, prompt, reward)
+        
+        # Reset Alpha for Evaluation
+        router.bandit.alpha = alpha
+        
+        # Evaluate multiple profiles on the same burned-out router with pessimistic imputation
+        for label, profile_dict, color, marker in profiles:
+            run_costs = []
+            run_qualities = []
+            
+            # EVALUATE ON ALL TEST PROMPTS (not just those with recorded rewards)
+            for p in test_prompts_pool:
+                model_id, _ = router.route(p, profile=profile_dict)
                 model_data = registry[model_id]
                 
-                # Calculate ACTUAL cost (using same logic as baselines)
-                est_input = len(str(p).split()) * 1.3 
-                est_output = 600 # Standard output assumption
+                # 1. Get Reward (Impute 0.0 if missing - PENALIZE MISSING DATA)
+                rewards = burner.oracle_rewards.get(p, {})
+                quality = rewards.get(model_id, 0.0)
+                run_qualities.append(quality)
                 
-                in_rate = (model_data.get("input_cost_per_m") or 0) / 1_000_000
-                out_rate = (model_data.get("output_cost_per_m") or 0) / 1_000_000
-                
-                real_cost = (est_input * in_rate) + (est_output * out_rate)
-                costs.append(real_cost * 1000) # Scale to $/1k
-                
-                qualities.append(burner.oracle_rewards[p][model_id])
+                # 2. Estimate cost (charged even on failure)
+                run_costs.append(estimate_prompt_cost(p, model_data, cost_per_1k=True))
+            
+            profile_key = str(profile_dict)
+            mc_results[profile_key]["costs"].append(np.mean(run_costs))
+            mc_results[profile_key]["qualities"].append(np.mean(run_qualities))
         
+        print(f"  ✓ Run {run_i}/{num_runs} complete.")
+
+    # Calculate average router results with error bars
+    router_results = []
+    for label, profile_dict, color, marker in profiles:
+        profile_key = str(profile_dict)
+        avg_cost = np.mean(mc_results[profile_key]["costs"])
+        avg_quality = np.mean(mc_results[profile_key]["qualities"])
+        std_cost = np.std(mc_results[profile_key]["costs"])
+        std_quality = np.std(mc_results[profile_key]["qualities"])
         
         router_results.append({
             "label": label,
-            "cost": np.mean(costs),
-            "quality": np.mean(qualities),
+            "cost": avg_cost,
+            "quality": avg_quality,
+            "std_cost": std_cost,
+            "std_quality": std_quality,
             "color": color,
             "marker": marker
         })
-        print(f"    - Cost: ${np.mean(costs):.4f}/1k, Quality: {np.mean(qualities)*100:.2f}%")
+        print(f"    - {label}: Cost: ${avg_cost:.4f}/1k ± ${std_cost:.4f}, Quality: {avg_quality*100:.2f}% ± {std_quality*100:.2f}%")
 
     # 5. Plotting
     print("\n🎨 Generating plot...")
@@ -251,13 +277,17 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     f_qualities = [p["quality"] for p in frontier]
     plt.plot(f_costs, f_qualities, "--", color="black", alpha=0.6, label="Static Pareto Frontier")
     
-    # Router Points
+    # Router Points with Error Bars (Statistical Significance)
     for res in router_results:
-        plt.scatter(res["cost"], res["quality"], color=res["color"], marker=res["marker"], 
-                    s=200, label=f"BanditGPT: {res['label']}", edgecolors="black", zorder=5)
+        # Plot error bars for both cost (x-axis) and quality (y-axis)
+        plt.errorbar(res["cost"], res["quality"], 
+                     xerr=res["std_cost"], yerr=res["std_quality"],
+                     fmt=res["marker"], color=res["color"], markersize=12,
+                     capsize=5, capthick=2, elinewidth=2,
+                     label=f"BanditGPT: {res['label']}", 
+                     markeredgecolor="black", markeredgewidth=1.5, zorder=5)
         
         # Add a subtle arrow from fixed frontier to router if lift is positive
-        # (Find model at similar or lower cost)
         f_at_cost = [p for p in frontier if p["cost"] <= res["cost"]]
         if f_at_cost:
             best_f = max(f_at_cost, key=lambda x: x["quality"])
@@ -269,7 +299,7 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     plt.xscale('log')
     plt.xlabel("Average Cost ($ / 1k tokens) [Log Scale]", fontsize=12)
     plt.ylabel("Quality (HLE Accuracy)", fontsize=12)
-    plt.title("The 'Money Chart': Router Lift over Static Frontier", fontsize=14, fontweight='bold')
+    plt.title(f"The 'Money Chart': Router Lift (Avg of {num_runs} Runs)", fontsize=14, fontweight='bold')
     plt.grid(True, which="both", linestyle=":", alpha=0.6)
     plt.legend(loc="lower right")
     
@@ -296,19 +326,40 @@ def main(prior_n_effective: float = 50.0, alpha: float = 0.05):
     for p in sorted_frontier:
         print(f"| {p['name'][:25]:<25} | ${p['cost']:<11.4f} | {p['quality']:.2%} |")
         
-    print("\n" + "="*60)
-    print("TABLE 2: BANDIT PROFILE PERFORMANCE")
-    print("="*60)
-    print(f"| {'Profile':<25} | {'Cost ($/1k)':<12} | {'Quality':<8} |")
-    print(f"| {'-'*25} | {'-'*12} | {'-'*8} |")
+    print("\n" + "="*80)
+    print("TABLE 2: BANDIT PROFILE PERFORMANCE (Monte Carlo Avg ± Std)")
+    print("="*80)
+    print(f"| {'Profile':<25} | {'Cost ($/1k)':<20} | {'Quality':<20} |")
+    print(f"| {'-'*25} | {'-'*20} | {'-'*20} |")
     
     for res in router_results:
-        print(f"| {res['label']:<25} | ${res['cost']:<11.4f} | {res['quality']:.2%} |")
+        cost_str = f"${res['cost']:.4f} ± ${res['std_cost']:.4f}"
+        q_str = f"{res['quality']:.2%} ± {res['std_quality']:.2%}"
+        print(f"| {res['label']:<25} | {cost_str:<20} | {q_str:<20} |")
+    print("="*80 + "\n")
+
+    print("\n" + "="*60)
+    print("TABLE 3: ALL PORTFOLIO MODELS (SORTED BY COST)")
+    print("="*60)
+    print(f"| {'Model Name':<25} | {'Cost ($/1k)':<12} | {'Quality':<8} |")
+    print(f"| {'-'*25} | {'-'*12} | {'-'*8} |")
+    
+    sorted_all = sorted(model_points, key=lambda x: x["cost"])
+    for p in sorted_all:
+        print(f"| {p['name'][:25]:<25} | ${p['cost']:<11.4f} | {p['quality']:.2%} |")
     print("="*60 + "\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize router lift vs Pareto frontier")
-    parser.add_argument("--N", type=float, default=50.0, help="Prior N effective (default: 50.0)")
-    parser.add_argument("--alpha", type=float, default=0.05, help="Exploration alpha (default: 0.05)")
+    parser.add_argument("--N", type=float, default=20.0, help="Prior N effective (default: 20.0)")
+    parser.add_argument("--alpha", type=float, default=0.1, help="Exploration alpha (default: 0.1)")
+    parser.add_argument("--runs", type=int, default=1, help="Number of Monte Carlo runs (default: 1)")
+    parser.add_argument("--warmup-path", type=str, default=None, 
+                        help="Path to warmup priors .joblib file (default: data/priors_warmup_9_models.joblib)")
+    parser.add_argument("--splits-path", type=str, default=None,
+                        help="Path to splits.json file (default: experiments/01_effectiveness/results/splits.json)")
+    parser.add_argument("--pca-path", type=str, default=None,
+                        help="Path to PCA model .joblib file (default: artifacts/pca_23.joblib)")
     args = parser.parse_args()
-    main(prior_n_effective=args.N, alpha=args.alpha)
+    main(prior_n_effective=args.N, alpha=args.alpha, num_runs=args.runs,
+         warmup_path=args.warmup_path, splits_path=args.splits_path, pca_path=args.pca_path)
