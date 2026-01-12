@@ -1,6 +1,7 @@
 import re
 import json
 import gzip
+import pickle
 import random
 import numpy as np
 from pathlib import Path
@@ -156,7 +157,8 @@ class ExperimentBurnIn:
 
     def get_splits(
         self, 
-        load_rewards: bool = False
+        load_rewards: bool = False,
+        use_cache: bool = True
     ) -> Tuple[List[str], List[str]] | Tuple[Tuple[List[str], Dict], Tuple[List[str], Dict]]:
         """
         Loads pre-configured splits from 'splits.json'.
@@ -165,6 +167,8 @@ class ExperimentBurnIn:
             load_rewards: If True, also load split-specific rewards and return them
                          joined with the prompts. This uses dev_rewards.jsonl.gz and
                          holdout_rewards.jsonl.gz for automatic joining.
+            use_cache: If True, use pickle cache to avoid slow gzip decompression.
+                      Cache is invalidated if source files are modified.
         
         Returns:
             If load_rewards=False (default):
@@ -203,8 +207,8 @@ class ExperimentBurnIn:
         if not load_rewards:
             return dev, test
         
-        # Load split-specific rewards
-        import gzip
+        # Load split-specific rewards with caching
+        import pickle
         from pathlib import Path
         
         # __file__ is in src/bandit_gpt/utils/experiment.py
@@ -212,14 +216,63 @@ class ExperimentBurnIn:
         data_dir = Path(__file__).parent.parent / "data" / "offline_dataset"
         dev_rewards_path = data_dir / "dev_rewards.jsonl.gz"
         holdout_rewards_path = data_dir / "holdout_rewards.jsonl.gz"
+        cache_path = data_dir / "rewards_cache.pkl"
         
         registry_models = set(self.registry.keys())
+        
+        # Check if cache is valid
+        cache_valid = False
+        if use_cache and cache_path.exists():
+            try:
+                cache_mtime = cache_path.stat().st_mtime
+                dev_mtime = dev_rewards_path.stat().st_mtime
+                holdout_mtime = holdout_rewards_path.stat().st_mtime
+                
+                # Cache is valid if it's newer than both source files
+                if cache_mtime > dev_mtime and cache_mtime > holdout_mtime:
+                    cache_valid = True
+            except Exception:
+                cache_valid = False
+        
+        # Load from cache if valid
+        if cache_valid:
+            print("   📦 Loading rewards from cache (fast path)...")
+            try:
+                with open(cache_path, 'rb') as f:
+                    cached_data = pickle.load(f)
+                    dev_rewards = cached_data['dev_rewards']
+                    holdout_rewards = cached_data['holdout_rewards']
+                    
+                # Filter to current registry (in case registry changed)
+                dev_rewards = {
+                    p: {m: r for m, r in rewards.items() if m in registry_models}
+                    for p, rewards in dev_rewards.items()
+                }
+                holdout_rewards = {
+                    p: {m: r for m, r in rewards.items() if m in registry_models}
+                    for p, rewards in holdout_rewards.items()
+                }
+                
+                print(f"   ✓ Loaded {len(dev_rewards)} dev + {len(holdout_rewards)} holdout prompts from cache")
+                
+                self.oracle_rewards.update(dev_rewards)
+                self.oracle_rewards.update(holdout_rewards)
+                
+                return (dev, dev_rewards), (test, holdout_rewards)
+            except Exception as e:
+                print(f"   ⚠️  Cache load failed ({e}), falling back to gzip...")
+                cache_valid = False
+        
+        # Load from gzip (slow path)
+        print("   📊 Loading rewards from gzipped files (this may take 10-15 minutes)...")
         
         # Load dev rewards
         dev_rewards: Dict[str, Dict[str, float]] = {}
         if dev_rewards_path.exists():
+            print(f"      Decompressing dev_rewards.jsonl.gz...")
             with gzip.open(dev_rewards_path, 'rt') as f:
-                for line in f:
+                lines = f.readlines()
+                for line in tqdm(lines, desc="      Processing dev rewards", leave=False):
                     entry = json.loads(line)
                     if entry.get("ok"):
                         prompt = entry["prompt"]
@@ -242,8 +295,10 @@ class ExperimentBurnIn:
         # Load holdout rewards
         holdout_rewards: Dict[str, Dict[str, float]] = {}
         if holdout_rewards_path.exists():
+            print(f"      Decompressing holdout_rewards.jsonl.gz...")
             with gzip.open(holdout_rewards_path, 'rt') as f:
-                for line in f:
+                lines = f.readlines()
+                for line in tqdm(lines, desc="      Processing holdout rewards", leave=False):
                     entry = json.loads(line)
                     if entry.get("ok"):
                         prompt = entry["prompt"]
@@ -262,6 +317,19 @@ class ExperimentBurnIn:
                 f"❌ holdout_rewards.jsonl.gz not found at {holdout_rewards_path}\n"
                 f"   Run: python3 scripts/create_split_rewards.py"
             )
+        
+        # Save to cache for next time
+        if use_cache:
+            print(f"   💾 Saving rewards cache for future runs...")
+            try:
+                with open(cache_path, 'wb') as f:
+                    pickle.dump({
+                        'dev_rewards': dev_rewards,
+                        'holdout_rewards': holdout_rewards
+                    }, f)
+                print(f"   ✓ Cache saved to {cache_path}")
+            except Exception as e:
+                print(f"   ⚠️  Could not save cache: {e}")
         
         self.oracle_rewards.update(dev_rewards)
         self.oracle_rewards.update(holdout_rewards)

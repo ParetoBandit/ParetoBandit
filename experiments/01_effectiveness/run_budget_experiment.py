@@ -16,6 +16,15 @@ Protocol:
     3. Final Check:
        - Retrain on FULL Dev set (Curriculum applied).
        - Online Evaluation on Hold-out (Bandit continues learning).
+
+Expected Runtime:
+    - First run: 30-45 minutes (includes 10-15 min data loading + grid search)
+    - Subsequent runs: 15-30 minutes (uses cached rewards, ~5 sec loading)
+    - Grid: 28 hyperparameter configs × 3 folds = 84 iterations
+
+Progress:
+    Script will print detailed progress for each phase. If silent for >1 minute,
+    data loading is in progress (gzip decompression).
 """
 
 import sys
@@ -24,6 +33,8 @@ import random
 import json
 from pathlib import Path
 from sklearn.model_selection import train_test_split, KFold
+from tqdm import tqdm
+import time
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -98,12 +109,21 @@ def run_gold_standard_tuning():
     # Pre-calculate folds to ensure consistency? No, kf.split is deterministic with state.
     
     print("-" * 80)
-    print(f"{'N_eff':<8} | {'Alpha':<6} | {'Avg Regret':<12} | {'Std Dev':<10} | {'Status'}")
+    print(f"{'N_eff':<8} | {'Alpha':<6} | {'Avg Regret':<12} | {'Std Dev':<10} | {'Time':<8} | {'Status'}")
     print("-" * 80)
+    
+    total_configs = len(grid_n_eff) * len(grid_alpha)
+    config_idx = 0
+    start_time = time.time()
     
     for n in grid_n_eff:
         for alpha in grid_alpha:
+            config_idx += 1
+            config_start = time.time()
+            
             fold_regrets = []
+            
+            print(f"\n[{config_idx}/{total_configs}] Testing N_eff={n}, Alpha={alpha}...")
             
             for fold_i, (train_idx, val_idx) in enumerate(kf.split(dev_pool)):
                 fold_train = [dev_pool[i] for i in train_idx]
@@ -134,7 +154,7 @@ def run_gold_standard_tuning():
                 # but 'update' logic is policy-agnostic (LinUCB). 
                 # Yes, we set it.
                 
-                for p in curriculum:
+                for p in tqdm(curriculum, desc=f"  Fold {fold_i+1}/3 Burn-in", leave=False):
                     m, _ = router.route(p, profile="max_quality")
                     r = filtered_corpus[p].get(m, 0.0)
                     router.update(m, p, r)
@@ -142,7 +162,7 @@ def run_gold_standard_tuning():
                 # C. Online Eval on Fold Val (Interleaved Test-Then-Train)
                 # CRITICAL FIX: Update bandit to credit exploration (aligns with hold-out protocol)
                 val_regret = 0.0
-                for p in fold_val:
+                for p in tqdm(fold_val, desc=f"  Fold {fold_i+1}/3 Validation", leave=False):
                     m, _ = router.route(p, profile="max_quality")
                     r = filtered_corpus[p].get(m, 0.0)
                     best = max(filtered_corpus[p].values()) if filtered_corpus[p] else 0.0
@@ -156,6 +176,8 @@ def run_gold_standard_tuning():
             mean_regret = np.mean(fold_regrets)
             std_regret = np.std(fold_regrets)
             
+            config_time = time.time() - config_start
+            
             heatmap_results.append({
                 "n_eff": n, "alpha": alpha, 
                 "mean_regret": mean_regret, "std_regret": std_regret
@@ -166,8 +188,18 @@ def run_gold_standard_tuning():
                 best_score = mean_regret
                 best_config = {"n_eff": n, "alpha": alpha}
                 tag = "🌟 New Best"
+            
+            # Estimate time remaining
+            elapsed = time.time() - start_time
+            avg_time_per_config = elapsed / config_idx
+            remaining_configs = total_configs - config_idx
+            eta_seconds = avg_time_per_config * remaining_configs
+            eta_min = eta_seconds / 60
                 
-            print(f"{n:<8.1f} | {alpha:<6.2f} | {mean_regret:<12.4f} | {std_regret:<10.4f} | {tag}")
+            print(f"{n:<8.1f} | {alpha:<6.2f} | {mean_regret:<12.4f} | {std_regret:<10.4f} | {config_time:<8.1f}s | {tag}")
+            if remaining_configs > 0:
+                print(f"         ETA: {eta_min:.1f} minutes ({remaining_configs} configs remaining)")
+            
             
     save_heatmap_data(heatmap_results)
     print("-" * 80)
@@ -190,7 +222,7 @@ def run_gold_standard_tuning():
     final_router.bandit.alpha = best_config['alpha']
     
     print(f"   🔥 Burning in on {len(full_curriculum)} samples (Full Dev Curriculum)...")
-    for p in full_curriculum:
+    for p in tqdm(full_curriculum, desc="   Final Burn-in", leave=False):
         m, _ = final_router.route(p, profile="max_quality")
         r = filtered_corpus[p].get(m, 0.0)
         final_router.update(m, p, r)
@@ -198,7 +230,7 @@ def run_gold_standard_tuning():
     # B. Online Eval on Hold-out
     print(f"   🚀 Evaluating Online on {len(holdout_pool)} Hold-out prompts...")
     holdout_regret = 0.0
-    for p in holdout_pool:
+    for p in tqdm(holdout_pool, desc="   Holdout Evaluation", leave=False):
         m, _ = final_router.route(p, profile="max_quality")
         r = filtered_corpus[p].get(m, 0.0)
         best = max(filtered_corpus[p].values()) if filtered_corpus[p] else 0.0
