@@ -338,9 +338,9 @@ class OptimizationProfile:
     MAX_QUALITY = {"w_q": 30.0, "w_c": 0.1, "w_l": 0.0, "alpha_scale": 0.01}
     
     # 2. ARBITRAGE ("Smart Shopper")
-    # Target: Gemini Flash @ $1.51
-    # "The Value King" - w_q=5.0 balances quality vs cost to lock onto Flash.
-    ARBITRAGE = {"w_q": 5.0, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 0.1}
+    # Balanced cost-quality tradeoff: 80% quality, 20% cost weight
+    # Targets the "sweet spot" on the Pareto frontier
+    ARBITRAGE = {"w_q": 0.80, "w_c": 0.20, "w_l": 0.0, "alpha_scale": 0.1}
     
     # 3. COST SAVER ("The Penny Pincher")
     # Target: Gemma-3-12b @ $0.24
