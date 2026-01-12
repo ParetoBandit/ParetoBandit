@@ -21,7 +21,7 @@ Validated on N=196 test prompts (banditgpt/experiments/new_bandit/validate_proce
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Any, Tuple
 import logging
 
 import numpy as np
@@ -75,14 +75,16 @@ def get_heuristic_prior(
     b = np.zeros(dim)
     
     # 3. Apply the "Prior Belief"
-    # Priority: initial_quality (composite) > empirical_hle > raw_hle > hle > fallback
-    quality = (
-        model_data.get("initial_quality") or 
-        model_data.get("empirical_hle") or 
-        model_data.get("raw_hle") or 
-        model_data.get("hle") or 
-        default_quality
-    )
+    # [KDD FIX]: Use ONLY initial_quality (composite metric) for consistency
+    # Matches fix in router.py - no cascading through semantically different metrics
+    quality = model_data.get("initial_quality")
+    
+    if quality is None:
+        logger.warning(
+            f"Model missing 'initial_quality' field, using default={default_quality}. "
+            f"This may cause inconsistent initialization."
+        )
+        quality = default_quality
     
     # CRITICAL: b[-1] assumes the BIAS term is the LAST feature in the vector.
     # Verification Reference: src.bandit_gpt.feature_service.FeatureService.extract_features
