@@ -2720,15 +2720,11 @@ class BanditRouter:
                 w_l * (1.0 - norm_lat)
             )
             
-            # Exploration Bonus (Controlled by Profile Risk Tolerance)
-            # [KDD FIX]: Removed w_q multiplier - exploration should be controlled by alpha_scale only
-            # Previously multiplied by w_q, causing MAX_QUALITY (w_q=30) to explore 11x MORE
-            # than ARBITRAGE (w_q=0.8), which was backwards from intent.
-            # Now alpha_scale directly controls exploration intensity:
-            #   MAX_QUALITY (alpha_scale=0.3): Low exploration (exploitation-focused)
-            #   ARBITRAGE (alpha_scale=1.0): Standard exploration (finds value)
-            #   COST_SAVER (alpha_scale=0.5): Moderate exploration
-            exploration_bonus = self.bandit.alpha * alpha_scale * std
+            # Exploration Bonus (Scaled by Quality Weight)
+            # CRITICAL FIX: Exploration must be scaled by w_q to match base utility scale.
+            # Without w_q: MAX_QUALITY exploration is 2500x weaker than exploitation!
+            # With w_q: exploration becomes proportional to value at risk.
+            exploration_bonus = self.bandit.alpha * alpha_scale * w_q * std
             
             # Probation Bonus (Legacy support)
             # [KDD REVIEW FIX - Improvement A]: Link to probation_models list
