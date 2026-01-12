@@ -1850,12 +1850,13 @@ class BanditRouter:
             if priors_path:
                 priors_path = Path(priors_path)
             else:
-                # Default location (development root or package data)
-                # KDD POLISH: Robust path resolution
+                # Default location (KDD versioned artifacts or package assets)
+                # Primary: artifacts/ (versioned, committed to git)
+                # Fallback: assets/ (bundled with pip install)
                 base_dir = Path(__file__).resolve().parent
-                priors_path = base_dir.parent.parent / "data" / "priors_warmup.joblib"
+                priors_path = base_dir.parent.parent / "artifacts" / "priors_warmup.joblib"
                 
-                # Check for alternative location in package assets if root data is missing
+                # Check for alternative location in package assets if artifacts missing
                 if not priors_path.exists():
                     priors_path = base_dir / "assets" / "priors_warmup.joblib"
                 

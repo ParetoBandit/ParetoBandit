@@ -39,8 +39,8 @@ from datasets import load_dataset
 
 
 # CONFIGURATION
-# Export to root/data directory (absolute path for clarity)
-OUTPUT_PATH = PROJECT_ROOT / "data" / "priors_warmup.joblib"
+# Export to root/artifacts directory (versioned for KDD reproducibility)
+OUTPUT_PATH = PROJECT_ROOT / "artifacts" / "priors_warmup.joblib"
 N_SAMPLES = 20000
 SEED = 42
 
