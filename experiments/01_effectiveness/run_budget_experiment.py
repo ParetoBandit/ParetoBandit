@@ -57,6 +57,10 @@ def run_gold_standard_tuning():
     print("🏆 GOLD STANDARD TUNING (3-Fold CV + Hold-out)")
     print("="*70)
     
+    # Determinism controls for reproducibility
+    np.random.seed(42)
+    random.seed(42)
+    
     # 1. Initialize Experiment Framework
     print("📦 Initializing Experiment Framework...")
     registry = load_model_registry()
@@ -95,6 +99,21 @@ def run_gold_standard_tuning():
     assert dev_set.isdisjoint(holdout_set), "CRITICAL: Data Leakage! Dev and Hold-out sets overlap."
     print(f"  ✅ Verified Disjoint Splits (Intersection: {len(dev_set.intersection(holdout_set))})")
 
+    # Baseline: Random Policy Regret
+    print("\n📊 Computing Random Baseline...")
+    random_regret = 0.0
+    for p in dev_pool:
+        if p in filtered_corpus:
+            models = list(filtered_corpus[p].keys())
+            if models:
+                m = random.choice(models)
+                r = filtered_corpus[p].get(m, 0.0)
+                best = max(filtered_corpus[p].values())
+                random_regret += (best - r)
+    avg_random_regret = random_regret / len(dev_pool)
+    print(f"  📉 Random Policy Regret: {avg_random_regret:.4f}")
+    print(f"     (Target: Beat this baseline with learned policy)")
+
     
     
     kf = KFold(n_splits=3, shuffle=True, random_state=42)
@@ -102,9 +121,18 @@ def run_gold_standard_tuning():
     grid_n_eff = [0.1, 1.0, 5.0, 10.0, 20.0, 50.0, 100.0]
     grid_alpha = [0.05, 0.1, 0.5, 1.0]
     
+    # Variance penalty for robust hyperparameter selection
+    # With only 3 folds, we penalize high-variance configs to avoid overfitting to noise
+    VARIANCE_PENALTY = 0.5  # 0.0 = ignore variance, 1.0 = heavily penalize
+    
     heatmap_results = []
     best_config = None
     best_score = float('inf')
+    best_mean = float('inf')
+    best_std = float('inf')
+    
+    # Store per-fold results for debugging
+    fold_regrets_all = {}
     
     # Pre-calculate folds to ensure consistency? No, kf.split is deterministic with state.
     
@@ -147,12 +175,9 @@ def run_gold_standard_tuning():
                     context_encoder=encoder, 
                     priors="warmup",
                     prior_n_effective=n,
+                    alpha=alpha,  # Set exploration parameter during creation
                     pca_path=pca_path  # Use existing PCA data
                 )
-                router.bandit.alpha = alpha # Set targeted exploration immediately?
-                # Usually burn-in uses a fixed policy. Let's assume the router uses 'alpha' for routing
-                # but 'update' logic is policy-agnostic (LinUCB). 
-                # Yes, we set it.
                 
                 for p in tqdm(curriculum, desc=f"  Fold {fold_i+1}/3 Burn-in", leave=False):
                     m, _ = router.route(p, profile="max_quality")
@@ -183,9 +208,17 @@ def run_gold_standard_tuning():
                 "mean_regret": mean_regret, "std_regret": std_regret
             })
             
+            # Store per-fold results for debugging
+            fold_regrets_all[(n, alpha)] = fold_regrets
+            
+            # Variance-aware selection: penalize unstable configurations
+            score = mean_regret + VARIANCE_PENALTY * std_regret
+            
             tag = ""
-            if mean_regret < best_score:
-                best_score = mean_regret
+            if score < best_score:
+                best_score = score
+                best_mean = mean_regret
+                best_std = std_regret
                 best_config = {"n_eff": n, "alpha": alpha}
                 tag = "🌟 New Best"
             
@@ -203,7 +236,12 @@ def run_gold_standard_tuning():
             
     save_heatmap_data(heatmap_results)
     print("-" * 80)
-    print(f"🏆 Winner: N={best_config['n_eff']}, Alpha={best_config['alpha']} (Regret: {best_score:.4f})")
+    print(f"🏆 Winner: N={best_config['n_eff']}, Alpha={best_config['alpha']}")
+    print(f"   Score (mean + {VARIANCE_PENALTY}*std): {best_score:.4f}")
+    print(f"   Raw Regret: {best_mean:.4f} ± {best_std:.4f}")
+    
+    improvement = (avg_random_regret - best_mean) / avg_random_regret if avg_random_regret > 0 else 0
+    print(f"   🚀 Improvement over Random: {improvement:.1%}")
     
     # 4. Final Evaluation
     print("\n🔒 Final Evaluation on Hold-out...")
@@ -217,9 +255,9 @@ def run_gold_standard_tuning():
         context_encoder=encoder,
         priors="warmup",
         prior_n_effective=best_config['n_eff'],
+        alpha=best_config['alpha'],  # Set exploration parameter during creation
         pca_path=pca_path  # Use existing PCA data
     )
-    final_router.bandit.alpha = best_config['alpha']
     
     print(f"   🔥 Burning in on {len(full_curriculum)} samples (Full Dev Curriculum)...")
     for p in tqdm(full_curriculum, desc="   Final Burn-in", leave=False):

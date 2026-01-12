@@ -9,6 +9,10 @@ against the Pareto frontier of a 9-model portfolio.
 import sys
 import json
 import argparse
+import logging
+
+# Configure logging to show router debug output
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 import random
 import numpy as np
 import matplotlib.pyplot as plt
@@ -74,7 +78,8 @@ def estimate_prompt_cost(prompt: str, model_data: dict, cost_per_1k: float = Tru
     out_rate = (model_data.get("output_cost_per_m") or 0) / 1_000_000
     
     raw_cost = (est_input * in_rate) + (est_output * out_rate)
-    return raw_cost * 1000 if cost_per_1k else raw_cost
+    total_tokens = max(1, est_input + est_output)
+    return (raw_cost / total_tokens * 1000) if cost_per_1k else raw_cost
 
 def compute_pareto_frontier(points: list) -> list:
     """Compute the Pareto frontier (convex hull)."""
@@ -206,11 +211,52 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1, num_runs: int = 1,
         curriculum = list(dev_prompts)
         random.shuffle(curriculum)
         
-        for prompt in curriculum:
-            p_name = random.choice(training_profiles)
-            model_id, _ = router.route(prompt, profile=p_name)
+        # Profile-Specific Burn-in Strategy
+        # CRITICAL: To teach cost-awareness, we need ARBITRAGE-specific training
+        # Random profile mixing creates inconsistent utility signals
+        
+        # Partition curriculum by profile focus
+        arbitrage_curriculum = curriculum[:len(curriculum)//3]
+        cost_saver_curriculum = curriculum[len(curriculum)//3:2*len(curriculum)//3]
+        max_quality_curriculum = curriculum[2*len(curriculum)//3:]
+        
+        # Burn-in Phase 1: ARBITRAGE-focused (cost-aware)
+
+        for i, prompt in enumerate(tqdm(arbitrage_curriculum, desc="   Burn-in (ARBITRAGE)")):
+            # KDD DEBUG: Trace first 3 decisions to diagnose selection collapse
+            if i < 3:
+                router.verbose_routing = True
+                print(f"\n[DEBUG] Tracing ARBITRAGE prompt {i}:")
+            else:
+                router.verbose_routing = False
+            model_id, _ = router.route(prompt, profile=OptimizationProfile.ARBITRAGE)
             reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
             router.update(model_id, prompt, reward)
+            
+        # Burn-in Phase 2: COST_SAVER-focused (extreme cost sensitivity)
+        for i, prompt in enumerate(tqdm(cost_saver_curriculum, desc="   Burn-in (COST_SAVER)")):
+            # KDD DEBUG: Trace first 3 decisions to diagnose selection collapse
+            if i < 3:
+                router.verbose_routing = True
+                print(f"\n[DEBUG] Tracing COST_SAVER prompt {i}:")
+            else:
+                router.verbose_routing = False
+            model_id, _ = router.route(prompt, profile=OptimizationProfile.COST_SAVER)
+            reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+            router.update(model_id, prompt, reward)
+            
+        # Burn-in Phase 3: MAX_QUALITY-focused (quality-only)
+        for i, prompt in enumerate(tqdm(max_quality_curriculum, desc="   Burn-in (MAX_QUALITY)")):
+            # KDD DEBUG: Trace first 3 decisions to diagnose selection collapse
+            if i < 3:
+                router.verbose_routing = True
+                print(f"\n[DEBUG] Tracing MAX_QUALITY prompt {i}:")
+            else:
+                router.verbose_routing = False
+            model_id, _ = router.route(prompt, profile=OptimizationProfile.MAX_QUALITY)
+            reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+            router.update(model_id, prompt, reward)
+        
         
         # Reset Alpha for Evaluation
         router.bandit.alpha = alpha

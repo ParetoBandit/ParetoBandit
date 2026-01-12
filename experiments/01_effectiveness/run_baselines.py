@@ -27,6 +27,7 @@ import numpy as np
 import json
 import joblib
 import random
+import copy
 import time
 import logging
 from collections import defaultdict
@@ -579,16 +580,11 @@ def main():
     registry = load_model_registry(args.models)
     splits_path = Path(__file__).parent / "results" / "splits.json"
     
-    # Pre-load full rewards pool for baseline lookups
-    train_rewards_raw = load_oracle_rewards("lmsys_train_final_rewards_1k_clean.jsonl.gz")
-    test_rewards_raw = load_oracle_rewards("lmsys_test_final_rewards_1k_clean.jsonl.gz")
-    all_rewards = {**train_rewards_raw, **test_rewards_raw}
-    
     # Initialize shared encoder
     print("🔧 Initializing encoder...")
     encoder = SentenceTransformer(DEFAULT_CONTEXT_MODEL)
     
-    burner = ExperimentBurnIn(registry, all_rewards, splits_path, encoder=encoder)
+    burner = ExperimentBurnIn(registry, splits_path=splits_path, encoder=encoder)
     
     # 2. Get Canonical Splits with Rewards
     print("📊 Loading Canonical KDD Splits...")
@@ -606,7 +602,7 @@ def main():
     model_coverage = defaultdict(int)
     for prompt in test_prompts_pool:
         # Check rewards in the combined pool for coverage check
-        prompt_rewards = all_rewards.get(prompt, {})
+        prompt_rewards = burner.oracle_rewards.get(prompt, {})
         for model_id in prompt_rewards:
             model_coverage[model_id] += 1
     
@@ -704,14 +700,14 @@ def main():
         print(f"\nSEED {seed + 1}/{n_seeds}")
         
         # 1. Random Baseline
-        random_res = run_random_baseline(shuffled_prompts, all_rewards, available_models, seed=seed)
+        random_res = run_random_baseline(shuffled_prompts, burner.oracle_rewards, available_models, seed=seed)
         
         # 2. Vanilla LinUCB (Starts COLD on Test Set)
-        linucb_res = run_vanilla_linucb(shuffled_prompts, all_rewards, available_models, seed=seed)
+        linucb_res = run_vanilla_linucb(shuffled_prompts, burner.oracle_rewards, available_models, seed=seed)
         
         # 3. RouteLLM (Static) - Optimized with cache
         routellm_res = run_routellm_baseline(
-            shuffled_prompts, all_rewards, registry, available_models, 
+            shuffled_prompts, burner.oracle_rewards, registry, available_models, 
             cached_scores=routellm_scores_cache, seed=seed
         )
         
@@ -726,7 +722,7 @@ def main():
             pca_path=pca_path,
             warmup_path=args.warmup
         )
-        hle_res = test_router(router_hle, shuffled_prompts, all_rewards, priors="hle", seed=seed)
+        hle_res = test_router(router_hle, shuffled_prompts, burner.oracle_rewards, priors="hle", seed=seed)
 
         # 5. BanditGPT (Curriculum Tuned)
         # Clone the Hot Router
@@ -737,7 +733,7 @@ def main():
         # We need to reset the bandit's internal random state
         router_hot.bandit.rng = np.random.RandomState(seed)
         
-        bandit_res = test_router(router_hot, shuffled_prompts, all_rewards, priors="warmup", seed=seed)
+        bandit_res = test_router(router_hot, shuffled_prompts, burner.oracle_rewards, priors="warmup", seed=seed)
         
         # Collect Results
         run_results = [random_res, linucb_res, routellm_res, hle_res, bandit_res]
@@ -762,7 +758,7 @@ def main():
         shuffled_prompts, # Last shuffle
         shuffled_oracle, # Last shuffle
         available_models, 
-        all_rewards # Full lookup
+        burner.oracle_rewards # Full lookup
     )
     
     output_dir = Path(__file__).parent / "results"
