@@ -94,7 +94,8 @@ def compute_pareto_frontier(points: list) -> list:
     return frontier
 
 def main(prior_n_effective: float = 20.0, alpha: float = 0.1, num_runs: int = 1,
-         warmup_path: str = None, splits_path: str = None, pca_path: str = None):
+         warmup_path: str = None, splits_path: str = None, pca_path: str = None,
+         skip_burnin: bool = False):
     print("="*70)
     print("ROUTER LIFT VISUALIZATION: THE MONEY CHART")
     print(f"Parameters: N={prior_n_effective}, alpha={alpha}, Runs={num_runs}")
@@ -176,11 +177,12 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1, num_runs: int = 1,
     # 4. Monte Carlo Loop over Simulations
     print(f"\n� Running {num_runs} simulations for stability...")
     
-    # Use default profile weights from OptimizationProfile
+    # Use Pareto string profiles (not legacy dicts) to enable Pareto filtering
+    # String profiles activate PATH A (Pareto mode) in router.route()
     profiles = [
-        ("Cost Saver", OptimizationProfile.COST_SAVER, "green", "D"),
-        ("Smart Shopper", OptimizationProfile.ARBITRAGE, "blue", "P"),
-        ("Rational Luxury", OptimizationProfile.MAX_QUALITY, "red", "*")
+        ("Cost Saver", "cost_saver", "green", "D"),
+        ("Smart Shopper", "smart_shopper", "blue", "P"),
+        ("Rational Luxury", "rational_luxury", "red", "*")
     ]
     
     # Aggregate results: {profile_name: {"costs": [], "qualities": []}}
@@ -204,58 +206,40 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1, num_runs: int = 1,
             pca_path=str(pca_path)
         )
         
-        router.bandit.alpha = 2.0  # High Exploration during Burn-in
+        router.bandit.alpha = 2.0  # FLASHLIGHT METHOD: High exploration during burn-in to visit all models
         training_profiles = [OptimizationProfile.COST_SAVER, OptimizationProfile.ARBITRAGE, OptimizationProfile.MAX_QUALITY]
         
         # Shuffle curriculum for this run
         curriculum = list(dev_prompts)
         random.shuffle(curriculum)
         
-        # Profile-Specific Burn-in Strategy
-        # CRITICAL: To teach cost-awareness, we need ARBITRAGE-specific training
-        # Random profile mixing creates inconsistent utility signals
-        
-        # Partition curriculum by profile focus
-        arbitrage_curriculum = curriculum[:len(curriculum)//3]
-        cost_saver_curriculum = curriculum[len(curriculum)//3:2*len(curriculum)//3]
-        max_quality_curriculum = curriculum[2*len(curriculum)//3:]
-        
-        # Burn-in Phase 1: ARBITRAGE-focused (cost-aware)
-
-        for i, prompt in enumerate(tqdm(arbitrage_curriculum, desc="   Burn-in (ARBITRAGE)")):
-            # KDD DEBUG: Trace first 3 decisions to diagnose selection collapse
-            if i < 3:
-                router.verbose_routing = True
-                print(f"\n[DEBUG] Tracing ARBITRAGE prompt {i}:")
-            else:
-                router.verbose_routing = False
-            model_id, _ = router.route(prompt, profile=OptimizationProfile.ARBITRAGE)
-            reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
-            router.update(model_id, prompt, reward)
+        # Burn-in Phase (skip for cold-start evaluation)
+        if not skip_burnin:
+            # FLASHLIGHT METHOD: High exploration to ensure all models get visited
+            router.bandit.alpha = 2.0
             
-        # Burn-in Phase 2: COST_SAVER-focused (extreme cost sensitivity)
-        for i, prompt in enumerate(tqdm(cost_saver_curriculum, desc="   Burn-in (COST_SAVER)")):
-            # KDD DEBUG: Trace first 3 decisions to diagnose selection collapse
-            if i < 3:
-                router.verbose_routing = True
-                print(f"\n[DEBUG] Tracing COST_SAVER prompt {i}:")
-            else:
-                router.verbose_routing = False
-            model_id, _ = router.route(prompt, profile=OptimizationProfile.COST_SAVER)
-            reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
-            router.update(model_id, prompt, reward)
-            
-        # Burn-in Phase 3: MAX_QUALITY-focused (quality-only)
-        for i, prompt in enumerate(tqdm(max_quality_curriculum, desc="   Burn-in (MAX_QUALITY)")):
-            # KDD DEBUG: Trace first 3 decisions to diagnose selection collapse
-            if i < 3:
-                router.verbose_routing = True
-                print(f"\n[DEBUG] Tracing MAX_QUALITY prompt {i}:")
-            else:
-                router.verbose_routing = False
-            model_id, _ = router.route(prompt, profile=OptimizationProfile.MAX_QUALITY)
-            reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
-            router.update(model_id, prompt, reward)
+            for label, profile_str, _, _ in profiles:
+                print(f"\n   Burn-in ({label})...")
+                burn_curriculum = curriculum[:400]  # 400 prompts per profile
+                
+                for i, prompt in enumerate(tqdm(burn_curriculum, desc=f"      {label}", leave=False)):
+                    # KDD DEBUG: Trace first 3 decisions
+                    if i < 3:
+                        router.verbose_routing = True
+                        print(f"\n[DEBUG] Tracing {label} prompt {i}:")
+                    else:
+                        router.verbose_routing = False
+                    
+                    # POLICY-BASED: Let router select using the actual profile
+                    model_id, _ = router.route(prompt, profile=profile_str)
+                    
+                    # Get oracle reward for the SELECTED model
+                    reward = burner.oracle_rewards.get(prompt, {}).get(model_id, 0.0)
+                    
+                    # Update bandit with the selection and reward
+                    router.update(model_id, prompt, reward)
+        else:
+            print("\n   [SKIP BURN-IN] Cold-start evaluation using priors only")
         
         
         # Reset Alpha for Evaluation
@@ -406,6 +390,9 @@ if __name__ == "__main__":
                         help="Path to splits.json file (default: experiments/01_effectiveness/results/splits.json)")
     parser.add_argument("--pca-path", type=str, default=None,
                         help="Path to PCA model .joblib file (default: artifacts/pca_23.joblib)")
+    parser.add_argument("--skip-burnin", action="store_true",
+                        help="Skip burn-in for cold-start evaluation (KDD: demonstrates prior value)")
     args = parser.parse_args()
     main(prior_n_effective=args.N, alpha=args.alpha, num_runs=args.runs,
-         warmup_path=args.warmup_path, splits_path=args.splits_path, pca_path=args.pca_path)
+         warmup_path=args.warmup_path, splits_path=args.splits_path, pca_path=args.pca_path,
+         skip_burnin=args.skip_burnin)

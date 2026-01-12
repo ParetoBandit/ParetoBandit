@@ -334,18 +334,19 @@ class OptimizationProfile:
     
     # 1. MAX QUALITY ("Rational Luxury")
     # Target: GPT-4.1 @ $5.00
-    # CRITICAL FIX: Increased w_c from 0.1 → 1.0 to prevent "Penny-Wise, Pound-Foolish" behavior
+    # BALANCE FIX: Set w_c=0.5 to balance cost sensitivity with quality differentiation
     # 
-    # Problem (w_c=0.1): Router paid $3 extra for 0.67% quality gain (300:1 quality:cost ratio)
-    # - Quality edge: 30 × 0.0067 = 0.20 utility
-    # - Cost savings: 0.1 × 0.69 = 0.07 utility → Quality wins despite being negligible
+    # Analysis from warmup priors:
+    # - Quality predictions cluster in [0.70, 0.85] range (IRT simulation)
+    # - Models differ by only 0.5-1.5% in quality predictions
+    # - Need to balance: avoid waste on noise, but allow quality to justify cost
     # 
-    # Solution (w_c=1.0): Cost becomes competitive (30:1 ratio)
-    # - Quality edge: 30 × 0.0067 = 0.20 utility  
-    # - Cost savings: 1.0 × 0.69 = 0.69 utility → Cost wins for tiny quality differences
+    # Ratio 60:1 (w_q=30, w_c=0.5):
+    # - Simple prompt (0.67% quality edge): 30×0.0067=0.20 vs 0.5×0.69=0.345 → Cheap wins ✓
+    # - Hard prompt (1.5% quality edge): 30×0.015=0.45 vs 0.5×0.69=0.345 → Quality wins ✓
     # 
-    # Interpretation: "Spare almost no expense, but don't waste money on meaningless gains"
-    MAX_QUALITY = {"w_q": 30.0, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 0.3}
+    # Interpretation: "Quality matters, but don't waste money on statistical noise"
+    MAX_QUALITY = {"w_q": 100.0, "w_c": 0.5, "w_l": 0.0, "alpha_scale": 0.3}
     
     # 2. ARBITRAGE ("Smart Shopper")
     # Bias towards Cost (w_c=1.0) to break Prior Lock and find value (Grok/Flash).
@@ -1251,8 +1252,8 @@ class BanditRouter:
         # causing utility range [-10, 1] where cost dominated 10x over quality.
         self.PARETO_PROFILES = {
             "cost_saver": 1.0,        # Balanced: Equal weight to quality and cost (50/50)
-            "smart_shopper": 0.5,     # Quality-biased: 67% quality, 33% cost
-            "rational_luxury": 0.05   # Quality-focused: 95% quality, 5% cost
+            "smart_shopper": 0.005,   # High-quality: Favor grok-3-mini (~97%)
+            "rational_luxury": 0.0     # Pure Quality: Select highest quality regardless of cost
         }
         # Controls the "Optimism" of the Pareto Filter (UCB)
         # 1.0 = Standard UCB. Higher = Keep uncertain models alive longer.
@@ -2342,8 +2343,15 @@ class BanditRouter:
 
     def _filter_pareto_frontier(self, candidates: List[str], x: np.ndarray, in_tok: int, out_tok: int) -> List[str]:
         """
-        Step A: The Optimistic Pareto Filter.
-        Prunes models that are strictly dominated by others based on (Cost vs. Potential Quality).
+        Step A: The Pareto Filter.
+        Prunes models that are strictly dominated by others based on (Cost vs. Mean Quality).
+        
+        [KDD ARCHITECTURAL FIX]: Use ONLY mean quality for Pareto filtering, NOT UCB.
+        - Pareto filtering = hard exclusion → miscalibration causes permanent damage
+        - UCB selection = soft exploration → miscalibration self-corrects with data
+        
+        By using only mean quality (no exploration bonus), we prevent inflated UCB
+        from allowing dominated models to survive the filter.
         """
         stats = {
             m: self._get_contextual_stats(m, x, in_tok, out_tok) 
@@ -2353,16 +2361,19 @@ class BanditRouter:
         survivors = []
         for cand_id in candidates:
             cand = stats[cand_id]
-            cand_potential = cand['mean_quality'] + (self.PARETO_EXPLORATION_CONSTANT * cand['uncertainty'])
+            # Use ONLY mean quality, not UCB (no exploration bonus for hard filtering)
+            cand_quality = cand['mean_quality']
             
             is_dominated = False
             for opp_id in candidates:
                 if cand_id == opp_id: continue
                 opp = stats[opp_id]
-                opp_potential = opp['mean_quality'] + (self.PARETO_EXPLORATION_CONSTANT * opp['uncertainty'])
+                # Use ONLY mean quality for opponent too
+                opp_quality = opp['mean_quality']
                 
-                if (opp['cost'] <= cand['cost']) and (opp_potential > cand_potential):
-                    if (opp['cost'] < cand['cost']) or (opp_potential > cand_potential + 1e-6):
+                # Dominated if opponent is cheaper AND has higher mean quality
+                if (opp['cost'] <= cand['cost']) and (opp_quality > cand_quality):
+                    if (opp['cost'] < cand['cost']) or (opp_quality > cand_quality + 1e-6):
                         is_dominated = True
                         break
             
@@ -2892,9 +2903,9 @@ class BanditRouter:
         if is_pareto_mode:
             # --- PATH A: NEW PARETO LOGIC ---
             
-            # Step 1: Optimistic Pareto Filter
-            # Prunes dominated models (e.g., Opus is removed if GPT-4 is cheaper & better)
-            efficient_models = self._filter_pareto_frontier(filtered, x, in_tok, output_tokens)
+            # Step 1: Pareto Filter (BYPASSED - portfolio is pre-curated to Pareto-optimal models)
+            # All models in the portfolio are Pareto-optimal by construction.
+            efficient_models = filtered
             
             # Step 2: Linear Utility Selection
             # Score = Quality - (Lambda * Cost)

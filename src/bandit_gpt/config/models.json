@@ -16,14 +16,7 @@
       "raw_hle": 0.053,
       "empirical_hle": 0.7665,
       "dev_success_rate": 0.7665,
-      "GPQA": 0.15,
-      "Livecode": 0.05,
-      "IFbench": 0.2,
-      "norm_hle": 0.0571,
-      "norm_GPQA": 0.0,
-      "norm_Livecode": 0.0,
-      "norm_IFbench": 0.0,
-      "initial_quality": 0.0228
+      "initial_quality": 0.7725
     },
     {
       "openrouter_id": "google/gemma-3-4b-it",
@@ -41,14 +34,7 @@
       "raw_hle": 0.052,
       "empirical_hle": 0.8967,
       "dev_success_rate": 0.8967,
-      "GPQA": 0.29,
-      "Livecode": 0.11,
-      "IFbench": 0.28,
-      "norm_hle": 0.0531,
-      "norm_GPQA": 0.1944,
-      "norm_Livecode": 0.0732,
-      "norm_IFbench": 0.1778,
-      "initial_quality": 0.1111
+      "initial_quality": 0.8988
     },
     {
       "openrouter_id": "google/gemma-3-12b-it",
@@ -66,14 +52,7 @@
       "raw_hle": 0.048,
       "empirical_hle": 0.9483,
       "dev_success_rate": 0.9483,
-      "GPQA": 0.35,
-      "Livecode": 0.14,
-      "IFbench": 0.37,
-      "norm_hle": 0.0367,
-      "norm_GPQA": 0.2778,
-      "norm_Livecode": 0.1098,
-      "norm_IFbench": 0.3778,
-      "initial_quality": 0.1628
+      "initial_quality": 0.9463
     },
     {
       "openrouter_id": "openai/gpt-oss-20b",
@@ -87,44 +66,11 @@
         "general",
         "coding"
       ],
-      "description": "Mid-Range: Legacy reliable option.",
+      "description": "Mid-Range: Best quality under $0.20/M.",
       "raw_hle": 0.098,
       "empirical_hle": 0.9497,
       "dev_success_rate": 0.9497,
-      "GPQA": 0.69,
-      "Livecode": 0.78,
-      "IFbench": 0.65,
-      "norm_hle": 0.2408,
-      "norm_GPQA": 0.75,
-      "norm_Livecode": 0.8902,
-      "norm_IFbench": 1.0,
-      "initial_quality": 0.6119
-    },
-    {
-      "openrouter_id": "google/gemma-3-27b-it",
-      "input_cost_per_m": 0.19,
-      "output_cost_per_m": 0.57,
-      "hle": 0.047,
-      "context_length": 128000,
-      "time_to_first_token_seconds": 0.35,
-      "speed_profile": "balanced",
-      "capabilities": [
-        "reasoning",
-        "coding",
-        "math"
-      ],
-      "description": "Mid-Range Plus: High quality open weights.",
-      "raw_hle": 0.047,
-      "empirical_hle": 0.955,
-      "dev_success_rate": 0.955,
-      "GPQA": 0.43,
-      "Livecode": 0.14,
-      "IFbench": 0.32,
-      "norm_hle": 0.0327,
-      "norm_GPQA": 0.3889,
-      "norm_Livecode": 0.1098,
-      "norm_IFbench": 0.2667,
-      "initial_quality": 0.1723
+      "initial_quality": 0.9510
     },
     {
       "openrouter_id": "x-ai/grok-3-mini",
@@ -139,71 +85,11 @@
         "math",
         "general"
       ],
-      "description": "High Efficiency: Flagship quality for under $1/M.",
+      "description": "High Efficiency: Near-flagship quality at under $1/M. Fills gap until gemini-flash is available.",
       "raw_hle": 0.111,
       "empirical_hle": 0.9792,
       "dev_success_rate": 0.9792,
-      "GPQA": 0.79,
-      "Livecode": 0.7,
-      "IFbench": 0.46,
-      "norm_hle": 0.2939,
-      "norm_GPQA": 0.8889,
-      "norm_Livecode": 0.7927,
-      "norm_IFbench": 0.5778,
-      "initial_quality": 0.585
-    },
-    {
-      "openrouter_id": "google/gemini-2.5-flash-preview-09-2025",
-      "input_cost_per_m": 0.1,
-      "output_cost_per_m": 0.4,
-      "hle": 0.127,
-      "context_length": 1000000,
-      "time_to_first_token_seconds": 0.5,
-      "speed_profile": "balanced",
-      "capabilities": [
-        "reasoning",
-        "context",
-        "coding"
-      ],
-      "description": "Premium Value: Near-perfect quality at 1/4 flagship price.",
-      "raw_hle": 0.127,
-      "empirical_hle": 0.9793,
-      "dev_success_rate": 0.9805,
-      "GPQA": 0.79,
-      "Livecode": 0.71,
-      "IFbench": 0.52,
-      "norm_hle": 0.3592,
-      "norm_GPQA": 0.8889,
-      "norm_Livecode": 0.8049,
-      "norm_IFbench": 0.7111,
-      "initial_quality": 0.6336
-    },
-    {
-      "openrouter_id": "anthropic/claude-opus-4.5",
-      "input_cost_per_m": 5.0,
-      "output_cost_per_m": 25.0,
-      "hle": 0.284,
-      "context_length": 200000,
-      "time_to_first_token_seconds": 2.5,
-      "speed_profile": "slow",
-      "capabilities": [
-        "reasoning",
-        "coding",
-        "multimodal",
-        "complex_workflows"
-      ],
-      "description": "The Alpha: Anthropic's most powerful model, specifically superior on extreme reasoning tasks.",
-      "raw_hle": 0.284,
-      "empirical_hle": 0.9775,
-      "dev_success_rate": 0.9775,
-      "GPQA": 0.87,
-      "Livecode": 0.87,
-      "IFbench": 0.58,
-      "norm_hle": 1.0,
-      "norm_GPQA": 1.0,
-      "norm_Livecode": 1.0,
-      "norm_IFbench": 0.8444,
-      "initial_quality": 0.9767
+      "initial_quality": 0.9712
     },
     {
       "openrouter_id": "openai/gpt-4.1",
@@ -219,95 +105,11 @@
         "math",
         "coding"
       ],
-      "description": "Global Maximum: The theoretical ceiling.",
+      "description": "Global Maximum: The theoretical quality ceiling at 98%.",
       "raw_hle": 0.046,
       "empirical_hle": 0.9808,
       "dev_success_rate": 0.9808,
-      "GPQA": 0.67,
-      "Livecode": 0.46,
-      "IFbench": 0.43,
-      "norm_hle": 0.0286,
-      "norm_GPQA": 0.7222,
-      "norm_Livecode": 0.5,
-      "norm_IFbench": 0.5111,
-      "initial_quality": 0.3687
-    },
-    {
-      "openrouter_id": "anthropic/claude-3.5-sonnet",
-      "input_cost_per_m": 3.0,
-      "output_cost_per_m": 15.0,
-      "hle": 0.039,
-      "context_length": 200000,
-      "time_to_first_token_seconds": 0.8,
-      "speed_profile": "balanced",
-      "capabilities": [
-        "reasoning",
-        "coding",
-        "creative"
-      ],
-      "description": "Claude 3.5 Sonnet: Strong coding and reasoning model.",
-      "raw_hle": 0.039,
-      "empirical_hle": 0.9506,
-      "dev_success_rate": 0.9506,
-      "GPQA": 0.599,
-      "Livecode": 0.381,
-      "IFbench": 0.5,
-      "norm_hle": 0.0,
-      "norm_GPQA": 0.6236,
-      "norm_Livecode": 0.4037,
-      "norm_IFbench": 0.6667,
-      "initial_quality": 0.3366
-    },
-    {
-      "openrouter_id": "meta-llama/llama-3.1-8b-instruct",
-      "input_cost_per_m": 0.1,
-      "output_cost_per_m": 0.1,
-      "hle": 0.051,
-      "context_length": 128000,
-      "time_to_first_token_seconds": 0.36,
-      "speed_profile": "fast",
-      "capabilities": [
-        "general",
-        "coding"
-      ],
-      "description": "Llama 3.1 8B: Ultra-cheap, fast inference for budget routing.",
-      "raw_hle": 0.051,
-      "empirical_hle": 0.7373,
-      "dev_success_rate": 0.7373,
-      "GPQA": 0.259,
-      "Livecode": 0.116,
-      "IFbench": 0.25,
-      "norm_hle": 0.049,
-      "norm_GPQA": 0.1514,
-      "norm_Livecode": 0.0805,
-      "norm_IFbench": 0.1111,
-      "initial_quality": 0.0902
-    },
-    {
-      "openrouter_id": "openai/o1",
-      "input_cost_per_m": 15.0,
-      "output_cost_per_m": 60.0,
-      "hle": 0.077,
-      "context_length": 200000,
-      "time_to_first_token_seconds": 2.0,
-      "speed_profile": "slow",
-      "capabilities": [
-        "reasoning",
-        "math",
-        "coding"
-      ],
-      "description": "OpenAI o1: Premium reasoning model with deep thinking capabilities.",
-      "raw_hle": 0.077,
-      "empirical_hle": 0.9698,
-      "dev_success_rate": 0.9698,
-      "GPQA": 0.747,
-      "Livecode": 0.679,
-      "IFbench": 0.55,
-      "norm_hle": 0.1551,
-      "norm_GPQA": 0.8292,
-      "norm_Livecode": 0.7671,
-      "norm_IFbench": 0.7778,
-      "initial_quality": 0.5394
+      "initial_quality": 0.9800
     }
   ]
 }

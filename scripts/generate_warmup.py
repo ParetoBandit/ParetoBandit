@@ -453,7 +453,10 @@ def get_domain_ability(model_data: dict, prompt: str, default_hle: float) -> flo
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate synthetic warmup data for BanditRouter.")
+    parser = argparse.ArgumentParser(
+        description="Generate Warmup Priors for BanditRouter",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "--models", "-m", 
         type=str, 
@@ -461,16 +464,29 @@ def main():
         help="Path to model registry JSON (defaults to src/bandit_gpt/config/models.json)"
     )
     parser.add_argument(
-        "--samples", "-n", 
-        type=int, 
-        default=N_SAMPLES, 
-        help=f"Number of total samples to generate (default: {N_SAMPLES})"
+        "--samples", type=int, default=N_SAMPLES,
+        help=f"Total synthetic prompts to generate (default: {N_SAMPLES})"
     )
     parser.add_argument(
-        "--output", "-o", 
-        type=str, 
-        default=str(OUTPUT_PATH), 
-        help=f"Path to save warmup joblib file (default: {OUTPUT_PATH})"
+        "--output", type=str, default=str(OUTPUT_PATH),
+        help="Output path for warmup priors (default: artifacts/priors_warmup.joblib)"
+    )
+    parser.add_argument(
+        "--pca-path", type=str, default="artifacts/pca_23.joblib",
+        help="Path to PCA transform model (default: artifacts/pca_23.joblib)"
+    )
+    parser.add_argument(
+        "--use-real-data", action="store_true",
+        help="Include real dev prompts in hybrid warmup generation"
+    )
+    parser.add_argument(
+        "--real-data-weight", type=float, default=10.0,
+        help="Weight multiplier for real dev samples (default: 10.0)"
+    )
+    parser.add_argument(
+        "--splits-path", type=str, 
+        default="experiments/01_effectiveness/results/splits.json",
+        help="Path to splits.json for loading dev data"
     )
     args = parser.parse_args()
 
@@ -491,19 +507,60 @@ def main():
     registry = load_model_registry(args.models)
     encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     
-    # Initialize a "Blank" Router with standard PCA
-    # High alpha for exploration during warmup
-    print("   Initializing blank router (cold start) with standard PCA...")
-    pca_path = PROJECT_ROOT / "artifacts" / "pca_23.joblib"
+    # 1. Initialize Router (Start from scratch, no prior knowledge)
+    print(f"\n📝 Initializing BanditRouter with {len(registry)} models...")
+    pca_path = Path(args.pca_path) if Path(args.pca_path).exists() else None
+    
     router = BanditRouter.create(
-        registry,
+        model_registry=registry,
         context_encoder=encoder,
         alpha=0.5,
         priors="none",
         pca_path=pca_path
     )
     
-    # 2. Generate Mixed Dataset (Three Buckets)
+    # 2. Load Real Dev Data (if hybrid mode enabled)
+    real_prompts = []
+    real_rewards_dict = {}
+    
+    if args.use_real_data:
+        print(f"\n🔗 Loading Real Dev Data for Hybrid Warmup...")
+        from src.bandit_gpt.utils.experiment import ExperimentBurnIn
+        
+        splits_path = Path(args.splits_path)
+        if not splits_path.exists():
+            print(f"   ⚠️  Splits file not found: {splits_path}")
+            print(f"   Continuing with synthetic data only")
+        else:
+            try:
+                burn_in = ExperimentBurnIn(
+                    registry=registry,
+                    splits_path=splits_path,
+                    encoder=encoder
+                )
+                (dev_prompts, dev_rewards), _ = burn_in.get_splits(load_rewards=True)
+                
+                # Filter to only models in router registry
+                registry_models = set(router.bandit.models)
+                filtered_dev_rewards = {}
+                for prompt in dev_prompts:
+                    if prompt in dev_rewards:
+                        filtered_dev_rewards[prompt] = {
+                            m: r for m, r in dev_rewards[prompt].items() 
+                            if m in registry_models
+                        }
+                
+                real_prompts = list(filtered_dev_rewards.keys())
+                real_rewards_dict = filtered_dev_rewards
+                
+                print(f"   ✓ Loaded {len(real_prompts)} dev prompts")
+                print(f"   ✓ Weight multiplier: {args.real_data_weight}x")
+                print(f"   ✓ Effective samples: {len(real_prompts) * args.real_data_weight:.0f}")
+            except Exception as e:
+                print(f"   ⚠️  Error loading dev data: {e}")
+                print(f"   Continuing with synthetic data only")
+    
+    # 3. Generate Mixed Dataset (Three Buckets)
     print(f"\n📦 Building Mixed Warmup Dataset ({args.samples} prompts)...")
     
     # Bucket 1: RouteLLM Hard Prompts (Augmented Mining)
@@ -675,6 +732,51 @@ def main():
                 # PASS THE VECTOR, NOT THE STRING
                 router.update(model_id, context_vector, simulated_outcome)
                 updates_count += 1
+
+    # 4.5. Train on Real Dev Data (Weighted LinUCB Updates)
+    if real_prompts:
+        print(f"\n📊 Training on Real Dev Data ({len(real_prompts)} prompts, {args.real_data_weight}x weight)...")
+        real_updates_count = 0
+        
+        # Collect stats for sanity check
+        all_real_rewards = []
+        for prompt in real_prompts:
+            rewards = real_rewards_dict.get(prompt, {})
+            all_real_rewards.extend([float(r) for r in rewards.values() if isinstance(r, (int, float))])
+
+        if all_real_rewards:
+            print(f"      Reward Stats: Min={min(all_real_rewards):.4f}, Max={max(all_real_rewards):.4f}, Mean={np.mean(all_real_rewards):.4f}")
+            if max(all_real_rewards) > 1.0 or min(all_real_rewards) < 0.0:
+                print("      ⚠️  WARNING: Rewards outside [0,1] detected! Clipping...")
+
+        for prompt in tqdm(real_prompts, desc="      Real Data"):
+            # Get context vector
+            context_vector = router.features.extract_features(prompt)
+            
+            # Get actual rewards for this prompt
+            prompt_rewards = real_rewards_dict.get(prompt, {})
+            
+            # Update each model with its actual reward
+            for model_id in router.bandit.models:
+                if model_id in prompt_rewards:
+                    # CRITICAL FIX: Clamp reward to [0, 1]
+                    raw_reward = prompt_rewards[model_id]
+                    actual_reward = max(0.0, min(1.0, float(raw_reward)))
+                    
+                    # Weighted update: Apply weight multiplier to both A and b
+                    # NOTE: Plasticity factor (0.1) is applied globally later to ALL data
+                    # So we just use the raw weight multiplier here
+                    x = context_vector
+                    w = args.real_data_weight
+                    
+                    # Manual weighted LinUCB update
+                    router.bandit.A[model_id] += w * np.outer(x, x)
+                    router.bandit.b[model_id] += w * (actual_reward * x)
+                    real_updates_count +=1
+        
+        print(f"   ✓ Processed {real_updates_count} weighted real updates")
+        print(f"   ✓ Effective contribution: {real_updates_count * args.real_data_weight / (updates_count + real_updates_count * args.real_data_weight):.1%} of total")
+        updates_count += real_updates_count
 
     # 5. Apply Plasticity Factor (Prevent "Frozen Policy")
     print(f"✅ Training complete. Processed {updates_count} simulated updates.")
