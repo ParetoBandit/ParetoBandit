@@ -107,7 +107,7 @@ def main(prior_n_effective: float = 20.0, alpha: float = 0.1, num_runs: int = 1,
         splits_path = Path(splits_path)
     
     if warmup_path is None:
-        warmup_path = project_root / "data" / "priors_warmup_9_models.joblib"
+        warmup_path = project_root / "artifacts" / "priors_warmup.joblib"
     else:
         warmup_path = Path(warmup_path)
         
@@ -355,7 +355,7 @@ if __name__ == "__main__":
     parser.add_argument("--alpha", type=float, default=0.1, help="Exploration alpha (default: 0.1)")
     parser.add_argument("--runs", type=int, default=1, help="Number of Monte Carlo runs (default: 1)")
     parser.add_argument("--warmup-path", type=str, default=None, 
-                        help="Path to warmup priors .joblib file (default: data/priors_warmup_9_models.joblib)")
+                        help="Path to warmup priors .joblib file (default: artifacts/priors_warmup.joblib)")
     parser.add_argument("--splits-path", type=str, default=None,
                         help="Path to splits.json file (default: experiments/01_effectiveness/results/splits.json)")
     parser.add_argument("--pca-path", type=str, default=None,
