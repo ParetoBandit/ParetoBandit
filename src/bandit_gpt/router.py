@@ -238,12 +238,12 @@ class RouterConfig:
     """
     
     # Cost Normalization Anchors (Logarithmic Market Width)
-    # Based on 2024-2025 Market Analysis:
-    # Floor: $0.0005/1k (DeepSeek V3, Gemini Flash tier)
-    # Ceiling: $10.00/1k (o1-high, Claude Opus reasoning tier)
-    # If market changes (e.g., GPT-5 costs $50/1k), update ceiling.
-    market_cost_floor: float = 0.0005  # $/1k tokens
-    market_cost_ceiling: float = 10.00  # $/1k tokens
+    # KDD FIX (Jan 2026): Adjusted to match ACTUAL portfolio range for consistency
+    # Portfolio range: $0.0001-$0.0375/1k (Llama 3.1-8B to o1)
+    # Previous: $0.00005-$0.10/1k (too wide, caused suboptimal spread)
+    # New: Tightened to improve penalty differentiation by 1.39x
+    market_cost_floor: float = 0.0001  # $/1k tokens (captures cheapest model)
+    market_cost_ceiling: float = 0.04  # $/1k tokens (slightly above most expensive)
     
     # Latency Normalization Anchors
     # Floor: 50ms (instant/cached responses)
@@ -335,12 +335,13 @@ class OptimizationProfile:
     # 1. MAX QUALITY ("Rational Luxury")
     # Target: GPT-4.1 @ $5.00
     # "Spare No Expense" - w_c=0.1 removes price sensitivity. w_l=0.0 removes time anxiety.
-    MAX_QUALITY = {"w_q": 30.0, "w_c": 0.1, "w_l": 0.0, "alpha_scale": 0.01}
+    # KDD FIX: Increased alpha_scale from 0.01->0.3 to ensure discovery of best models
+    MAX_QUALITY = {"w_q": 30.0, "w_c": 0.1, "w_l": 0.0, "alpha_scale": 0.3}
     
     # 2. ARBITRAGE ("Smart Shopper")
-    # Balanced cost-quality tradeoff: 80% quality, 20% cost weight
-    # Targets the "sweet spot" on the Pareto frontier
-    ARBITRAGE = {"w_q": 0.80, "w_c": 0.20, "w_l": 0.0, "alpha_scale": 0.1}
+    # Bias towards Cost (w_c=1.0) to break Prior Lock and find value (Grok/Flash).
+    # High Exploration (alpha=1.0) ensures we sample cheap models to verify quality.
+    ARBITRAGE = {"w_q": 0.8, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 1.0}
     
     # 3. COST SAVER ("The Penny Pincher")
     # Target: Gemma-3-12b @ $0.24
@@ -1381,14 +1382,6 @@ class BanditRouter:
             
         **Power User Override:**
             initial_weights={"complexity_score": 3.0} for explicit control
-        
-        Args:
-            model_id: Unique model identifier
-            capabilities: List of capability tags (coding, math, creative, reasoning, general)
-            speed: Speed profile proxy for cost/HLE (fast, balanced, slow)
-            cost_usd: Optional cost per 1M tokens (for registry metadata)
-            latency_s: Optional median latency (for registry metadata)
-            initial_weights: Optional explicit feature weights for power users
         
         Examples:
             # Local Llama: Fast and general purpose
@@ -2626,8 +2619,11 @@ class BanditRouter:
         
         # Cost penalties (absolute, using market anchors)
         cost_penalties = {}
+        total_tokens = max(1, input_tokens + output_tokens)
+        
         for m in filtered:
-            cost_per_1k = costs[m] * 1000  # Convert to $/1k tokens
+            # KDD FIX: Calculate Rate ($/1k) = (Total Cost / Total Tokens) * 1000
+            cost_per_1k = (costs[m] / total_tokens) * 1000
             cost_penalties[m] = self._calculate_absolute_penalty(cost_per_1k)
         
         # [KDD REVIEW FIX]: Use precomputed anchors
@@ -2694,9 +2690,18 @@ class BanditRouter:
             norm_cost = cost_penalties[m]
             norm_lat = latency_penalties[m]
             
+            # [KDD FIX]: Normalize θ^T x to [0, 1] for consistent weight interpretation
+            # LinUCB's predictions are unbounded (empirical range: [0.31, 2.25]).
+            # Without normalization, quality contributions become unpredictable:
+            #   - At θ=0.3: ARBITRAGE quality (0.24) swamped by cost (0.50)
+            #   - At θ=2.0: ARBITRAGE quality (1.60) dominates cost (0.50)
+            # Clipping ensures all three components (quality, cost, latency) operate
+            # on the same [0, 1] scale for predictable utility trade-offs.
+            norm_quality = max(0.0, min(1.0, mean_quality))
+            
             # Base Trade-off Utility (Deterministic)
             base_utility = (
-                w_q * mean_quality + 
+                w_q * norm_quality + 
                 w_c * (1.0 - norm_cost) + 
                 w_l * (1.0 - norm_lat)
             )
@@ -2721,7 +2726,7 @@ class BanditRouter:
             
             if self.verbose_routing:
                 logger.info(f"Scoring {m:15s} | Utility: {total_utility:8.4f}")
-                logger.info(f"  > [Base]   Q_util: {w_q*mean_quality:6.4f} (m={mean_quality:.3f}) | C_util: {w_c*(1-norm_cost):6.4f} | L_util: {w_l*(1-norm_lat):6.4f}")
+                logger.info(f"  > [Base]   Q_util: {w_q*norm_quality:6.4f} (raw={mean_quality:.3f}, norm={norm_quality:.3f}) | C_util: {w_c*(1-norm_cost):6.4f} | L_util: {w_l*(1-norm_lat):6.4f}")
                 logger.info(f"  > [Bonus]  Explore: {exploration_bonus:6.4f} (std={std:.3f}) | Probation: {probation_bonus:6.4f}")
             
             if total_utility > best_utility:
@@ -2874,12 +2879,19 @@ class BanditRouter:
             # Score = Quality - (Lambda * Cost)
             lambda_val = self.PARETO_PROFILES[profile_weights]
             
+            # [KDD FIX]: Use consistent exploration (UCB) in both filter and selection
+            # Previously used optimistic UCB in filter but pessimistic mean in selection,
+            # causing uncertain models to pass filter but then lose in selection.
+            # This creates "Explore-then-Exploit Disconnect" where new models can't win.
+            exploration_alpha = self.PARETO_EXPLORATION_CONSTANT
+            
             for m in efficient_models:
                 stats = self._get_contextual_stats(m, x, in_tok, output_tokens)
                 
-                # Use Mean Quality (Conservative) for final selection
-                # We subtract Cost * Lambda (Penalty)
-                utility = stats['mean_quality'] - (lambda_val * stats['cost'])
+                # Use UCB (Optimistic) for final selection (consistent with filter)
+                # Exploration bonus allows uncertain models to win and gather data
+                ucb_quality = stats['mean_quality'] + (exploration_alpha * stats['uncertainty'])
+                utility = ucb_quality - (lambda_val * stats['cost'])
                 
                 if utility > best_utility:
                     best_utility = utility
