@@ -1820,11 +1820,11 @@ class BanditRouter:
                 "balanced": 0.5,
                 "aggressive": 1.0
             }
-            alpha = exploration_map.get(exploration, 0.5)
+            alpha = exploration_map.get(exploration, 1.0)
             
         # 2. Extract arguments for the factory, not the constructor
         state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 20.0) # Reduced for faster adaptation
+        prior_n_effective = kwargs.pop("prior_n_effective", 100.0) # Optimized for quality
         warmup_path = kwargs.pop("warmup_path", None)
 
         # 3. Initialize Router
