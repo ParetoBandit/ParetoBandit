@@ -29,12 +29,13 @@
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
       "gpqa": 0.87,
-      "livecode_score": 0.87
+      "livecodebench": 0.87
     },
     {
       "openrouter_id": "x-ai/grok-3-mini",
       "input_cost_per_m": 0.8,
       "output_cost_per_m": 2.4,
+      "price_1m_blended": 1.8666666666666667,
       "hle": 0.111,
       "context_length": 128000,
       "time_to_first_token_seconds": 0.4,
@@ -51,12 +52,13 @@
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
       "gpqa": 0.79,
-      "livecode_score": 0.7
+      "livecodebench": 0.7
     },
     {
       "openrouter_id": "openai/gpt-4.1",
       "input_cost_per_m": 2.0,
       "output_cost_per_m": 8.0,
+      "price_1m_blended": 6.0,
       "hle": 0.046,
       "context_length": 128000,
       "time_to_first_token_seconds": 1.2,
@@ -73,13 +75,14 @@
       "initial_quality": 0.9751382694023194,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.46,
+      "livecodebench": 0.46,
       "gpqa": 0.67
     },
     {
       "openrouter_id": "anthropic/claude-opus-4.5",
       "input_cost_per_m": 5.0,
       "output_cost_per_m": 25.0,
+      "price_1m_blended": 18.333333333333332,
       "hle": 0.284,
       "context_length": 200000,
       "time_to_first_token_seconds": 2.5,
@@ -96,7 +99,7 @@
       "initial_quality": 0.9716413916146298,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.87,
+      "livecodebench": 0.87,
       "gpqa": 0.87
     },
     {
@@ -121,7 +124,7 @@
       "initial_quality": 0.9716413916146298,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.85,
+      "livecodebench": 0.85,
       "gpqa": 0.85
     },
     {
@@ -146,7 +149,6 @@
       "ttft_samples": 0,
       "math_500": 0.992,
       "humaneval_score": 92.6,
-      "livecodebench": 0.808,
       "mmlu_pro": 0.853,
       "gpqa": 0.827,
       "aime": 0.903,
@@ -170,7 +172,7 @@
       "initial_quality": 0.9707671721677075,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.81
+      "livecodebench": 0.81
     },
     {
       "name": "Claude 3.7 Sonnet (Reasoning)",
@@ -208,8 +210,7 @@
       "hle": 0.103,
       "initial_quality": 0.969892952720785,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121,
-      "livebench_score": 0.38
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Grok 3",
@@ -263,6 +264,7 @@
       "openrouter_id": "openai/o1",
       "input_cost_per_m": 15.0,
       "output_cost_per_m": 60.0,
+      "price_1m_blended": 45.0,
       "hle": 0.077,
       "context_length": 200000,
       "time_to_first_token_seconds": 2.0,
@@ -278,7 +280,7 @@
       "initial_quality": 0.965521855486173,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.68,
+      "livecodebench": 0.68,
       "gpqa": 0.75
     },
     {
@@ -467,8 +469,7 @@
       "hle": 0.07,
       "initial_quality": 0.9602765388046387,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121,
-      "livecode_score": 0.85
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Claude 4.5 Sonnet (Reasoning)",
@@ -570,6 +571,7 @@
       "openrouter_id": "google/gemini-2.5-flash-preview-09-2025",
       "input_cost_per_m": 0.3,
       "output_cost_per_m": 2.5,
+      "price_1m_blended": 1.7666666666666666,
       "hle": 0.127,
       "context_length": 1000000,
       "time_to_first_token_seconds": 0.5,
@@ -586,15 +588,15 @@
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
       "gpqa": 0.79,
-      "livecode_score": 0.71
+      "livecodebench": 0.71
     },
     {
       "openrouter_id": "openai/gpt-oss-120b",
       "display_name": "gpt-oss-120B (high)",
       "hle": 0.185,
-      "input_cost_per_m": 0.02,
-      "output_cost_per_m": 0.1,
-      "price_1m_blended": 0.060000000000000005,
+      "input_cost_per_m": 0.039,
+      "output_cost_per_m": 0.19,
+      "price_1m_blended": 0.13966666666666666,
       "time_to_first_token_seconds": 0.3,
       "output_tokens_per_second": 339.122,
       "math_500": 0.902,
@@ -605,8 +607,8 @@
       "hallucination_rate": 90.0,
       "hallucination_vectara": 14.2,
       "hallucination_composite": 82.09,
-      "price_1m_input": 0.02,
-      "price_1m_output": 0.1,
+      "price_1m_input": 0.039,
+      "price_1m_output": 0.19,
       "lowest_latency_seconds": 0.3,
       "lowest_latency_provider": "DeepInfra",
       "latency_scraped_at": "2025-12-23T19:00:00-08:00",
@@ -617,7 +619,7 @@
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
       "gpqa": 0.78,
-      "livecode_score": 0.88
+      "livecodebench": 0.88
     },
     {
       "name": "Claude 4.5 Haiku (Reasoning)",
@@ -669,6 +671,7 @@
       "openrouter_id": "anthropic/claude-3.5-sonnet",
       "input_cost_per_m": 3.0,
       "output_cost_per_m": 15.0,
+      "price_1m_blended": 11.0,
       "hle": 0.039,
       "context_length": 200000,
       "time_to_first_token_seconds": 0.8,
@@ -684,7 +687,7 @@
       "initial_quality": 0.9445405887600357,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.38,
+      "livecodebench": 0.38,
       "gpqa": 0.6
     },
     {
@@ -714,7 +717,7 @@
       "initial_quality": 0.9445405887600357,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.92,
+      "livecodebench": 0.92,
       "gpqa": 0.91
     },
     {
@@ -768,6 +771,7 @@
       "openrouter_id": "google/gemma-3-12b-it",
       "input_cost_per_m": 0.13,
       "output_cost_per_m": 0.39,
+      "price_1m_blended": 0.30333333333333334,
       "hle": 0.048,
       "context_length": 128000,
       "time_to_first_token_seconds": 0.25,
@@ -782,13 +786,14 @@
       "initial_quality": 0.9401694915254238,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.14,
+      "livecodebench": 0.14,
       "gpqa": 0.35
     },
     {
       "openrouter_id": "google/gemma-3-27b-it",
       "input_cost_per_m": 0.19,
       "output_cost_per_m": 0.57,
+      "price_1m_blended": 0.44333333333333336,
       "hle": 0.047,
       "context_length": 128000,
       "time_to_first_token_seconds": 0.35,
@@ -804,7 +809,7 @@
       "initial_quality": 0.9401694915254238,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.14,
+      "livecodebench": 0.14,
       "gpqa": 0.43
     },
     {
@@ -859,6 +864,7 @@
       "openrouter_id": "openai/gpt-oss-20b",
       "input_cost_per_m": 0.17,
       "output_cost_per_m": 0.51,
+      "price_1m_blended": 0.39666666666666667,
       "hle": 0.098,
       "context_length": 16000,
       "time_to_first_token_seconds": 0.3,
@@ -873,7 +879,7 @@
       "initial_quality": 0.9366726137377341,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.78,
+      "livecodebench": 0.78,
       "gpqa": 0.69
     },
     {
@@ -921,8 +927,7 @@
       "hle": 0.211,
       "initial_quality": 0.9366726137377341,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121,
-      "livebench_score": 0.8
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Nova Pro",
@@ -1086,13 +1091,14 @@
       "initial_quality": 0.893835860838537,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.42,
+      "livecodebench": 0.42,
       "gpqa": 0.59
     },
     {
       "openrouter_id": "google/gemma-3-4b-it",
       "input_cost_per_m": 0.085,
       "output_cost_per_m": 0.255,
+      "price_1m_blended": 0.19833333333333333,
       "hle": 0.052,
       "context_length": 128000,
       "time_to_first_token_seconds": 0.18,
@@ -1107,7 +1113,7 @@
       "initial_quality": 0.8894647636039252,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.11,
+      "livecodebench": 0.11,
       "gpqa": 0.29
     },
     {
@@ -1203,7 +1209,7 @@
       "initial_quality": 0.866735057983943,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.23
+      "livebench_scor e": 0.23
     },
     {
       "name": "Grok 4",
@@ -1279,7 +1285,7 @@
       "initial_quality": 0.8370115967885816,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.3,
+      "livecodebench": 0.3,
       "gpqa": 0.47
     },
     {
@@ -1323,6 +1329,7 @@
       "openrouter_id": "mistralai/ministral-3b",
       "input_cost_per_m": 0.08,
       "output_cost_per_m": 0.24,
+      "price_1m_blended": 0.18666666666666668,
       "hle": 0.053,
       "context_length": 128000,
       "time_to_first_token_seconds": 0.15,
@@ -1337,13 +1344,14 @@
       "initial_quality": 0.7653256021409457,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.25,
+      "livecodebench": 0.25,
       "gpqa": 0.36
     },
     {
       "openrouter_id": "meta-llama/llama-3.1-8b-instruct",
       "input_cost_per_m": 0.1,
       "output_cost_per_m": 0.1,
+      "price_1m_blended": 0.1,
       "hle": 0.051,
       "context_length": 128000,
       "time_to_first_token_seconds": 0.36,
@@ -1358,7 +1366,7 @@
       "initial_quality": 0.7425958965209635,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.12,
+      "livecodebench": 0.12,
       "gpqa": 0.26
     },
     {
@@ -1389,7 +1397,7 @@
       "initial_quality": 0.3771721677074041,
       "initial_quality_source": "dev_rewards_complete",
       "initial_quality_n_obs": 1121,
-      "livebench_score": 0.02,
+      "livecodebench": 0.02,
       "gpqa": 0.2
     }
   ],

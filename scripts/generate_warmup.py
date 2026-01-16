@@ -2,7 +2,7 @@
 """
 generate_warmup.py
 
-End-to-End Mixed Warmup Generator (20,000 prompts).
+End-to-End FCI-Based Warmup Generator (20,000 prompts).
 
 Strategy ("Best of Both Worlds"):
 1. Bucket 1 (7,000): Hard prompts from routellm/gpt4_judge_battles (filtered for code/math/long reasoning)
@@ -12,9 +12,15 @@ Strategy ("Best of Both Worlds"):
 Workflow:
 - Mines hard prompts using streaming HuggingFace dataset access
 - Generates controlled synthetic data for domain coverage
-- Simulates rewards using Item Response Theory (IRT)
+- Uses FCI (Frontier Capability Index) for model quality assessment
+- Simulates rewards using Item Response Theory (IRT) with FCI-based abilities
 - Updates a BanditRouter to build dense A matrices and b vectors
-- Saves the resulting state to 'data/priors_warmup.joblib'
+- Saves the resulting state to 'artifacts/priors_warmup.joblib'
+
+Quality Metric:
+- FCI = (HLE + GPQA + LiveCodeBench) / 3
+- Only models with complete FCI data are included
+- Models with missing benchmarks are skipped (no fallbacks)
 
 Reference: RouteLLM dataset - https://huggingface.co/datasets/routellm/gpt4_judge_battles
 """
@@ -388,9 +394,10 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
     - Strong models succeed at both (but are more expensive)
     
     Args:
-        model_hle: The model's general ability (0.0 - 1.0)
+        model_hle: The model's FCI-based ability (0.75 - 0.98 range, IRT-scaled)
+                   FCI = (HLE + GPQA + LiveCodeBench) / 3, scaled for IRT simulation
         difficulty_score: The prompt's difficulty (0.0 - 1.0)
-        is_trap: If True, bypass IRT and use static HLE (trap logic handled elsewhere)
+        is_trap: If True, bypass IRT and use static ability (trap logic handled elsewhere)
         temperature: Temperature scaling factor (default 0.5)
                     T < 1.0 = sharper transitions (more binary)
                     T = 1.0 = standard sigmoid
@@ -425,57 +432,58 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
     return prob
 
 
-def get_domain_ability(model_data: dict, prompt: str, default_hle: float) -> float:
+def get_domain_ability(model_data: dict, prompt: str, default_fci_ability: float) -> float:
     """
-    Returns domain-specific ability, normalizing hard benchmarks 
-    with realistic dynamic range (0.20 - 0.95).
+    Returns domain-specific FCI-based ability with realistic dynamic range.
     
-    KDD REVIEW FIX: Previous version had 0.75 floor, causing "grade inflation"
-    where even incompetent models got 75% success rate. New range allows
-    weak models to actually fail on hard prompts (20% success) while strong
-    models excel (95% success). This 75-point spread (vs. previous 23-point)
-    creates the signal contrast needed for the router to learn quality gaps.
+    Uses FCI component benchmarks (GPQA for math, LiveCodeBench for code) to adjust
+    the model's ability for domain-specific prompts. This allows weak models to
+    fail on hard domain tasks while strong models excel.
+    
+    Args:
+        model_data: Model configuration dict with benchmark scores
+        prompt: The prompt text to analyze for domain
+        default_fci_ability: Default FCI-based ability (already scaled to 0.75-0.98 range)
+        
+    Returns:
+        Domain-adjusted ability in [0.20, 0.95] range for IRT simulation
     """
-    # 1. Detect Domain (Regex patterns match your generation templates)
+    # 1. Detect Domain (matches generation templates)
     p_lower = prompt.lower()
     
-    # Matches 'generate_domain_specific_prompts' templates for coding
+    # Coding domain indicators
     is_coding = any(k in p_lower for k in [
         "def ", "import ", "class ", "function", "code", "debug", "algorithm", "```",
         "implement", "python", "java", "script", "optimize", "json"
     ])
     
-    # Matches 'generate_domain_specific_prompts' templates for math
-    is_math = any(k in p_lower for k in ["integral", "theorem", "calculate", "derivative", "equation", "prove"])
+    # Math domain indicators
+    is_math = any(k in p_lower for k in [
+        "integral", "theorem", "calculate", "derivative", "equation", "prove",
+        "eigenvalue", "matrix", "series", "converge"
+    ])
     
-    # 2. Select & Normalize Score with REALISTIC dynamic range
-    # We cap the raw score at 0.50 (Max Expected for these hard benchmarks)
-    # Then map it to a WIDE range (0.20 -> 0.95) to allow true differentiation
-    
-    # Try multiple field name variants (models use different conventions)
-    livecode = (model_data.get("livecode_score") or 
-                model_data.get("Livecode") or 
-                model_data.get("livecodebench") or
-                model_data.get("livecode"))
-    
+    # 2. Get domain-specific benchmark scores (FCI components)
+    livecodebench = model_data.get("livecodebench")
     gpqa = (model_data.get("gpqa") or 
             model_data.get("GPQA") or 
             model_data.get("gpqa_score"))
-
-    if is_coding and livecode:
-        # NEW: LiveCode 0.0 => 20% success, 0.5 => 95% success (75-point spread)
-        # OLD: LiveCode 0.0 => 75% success, 0.5 => 98% success (23-point spread)
-        normalized_score = min(float(livecode), 0.50) / 0.50
-        return 0.20 + (normalized_score * 0.75)
-
+    
+    # 3. Domain-specific FCI adjustment
+    if is_coding and livecodebench:
+        # Use LiveCodeBench score for coding tasks
+        # Maps [0.0, 0.85] to [0.20, 0.95] for wide differentiation
+        normalized = min(float(livecodebench), 0.85) / 0.85
+        return 0.20 + (normalized * 0.75)
+    
     elif is_math and gpqa:
-        # NEW: GPQA 0.0 => 20% success, 0.5 => 95% success (75-point spread)
-        # OLD: GPQA 0.0 => 75% success, 0.5 => 98% success (23-point spread)
-        normalized_score = min(float(gpqa), 0.50) / 0.50
-        return 0.20 + (normalized_score * 0.75)
-        
-    # 3. Fallback to General Quality (already normalized)
-    return default_hle
+        # Use GPQA score for math tasks
+        # Maps [0.0, 0.91] to [0.20, 0.95] for wide differentiation
+        normalized = min(float(gpqa), 0.91) / 0.91
+        return 0.20 + (normalized * 0.75)
+    
+    # 4. Fallback to general FCI-based ability
+    return default_fci_ability
 
 
 def main():
@@ -542,12 +550,12 @@ def main():
     
     # Show benchmark coverage diagnostic
     print(f"\n📊 Model Benchmark Coverage (for Domain-Specific Abilities):")
-    print(f"   {'Model':<50} {'HLE':<8} {'GPQA':<8} {'LiveCode':<10}")
-    print(f"   {'-'*78}")
+    print(f"   {'Model':<50} {'HLE':<8} {'GPQA':<8} {'LiveCodeBench':<15}")
+    print(f"   {'-'*85}")
     
     hle_count = 0
     gpqa_count = 0
-    livecode_count = 0
+    livecodebench_count = 0
     
     for model_id in router.bandit.models:
         model_data = registry.get(model_id, {})
@@ -558,33 +566,30 @@ def main():
                 model_data.get("GPQA") or 
                 model_data.get("gpqa_score"))
         
-        livecode = (model_data.get("livecode_score") or 
-                    model_data.get("Livecode") or 
-                    model_data.get("livecodebench") or
-                    model_data.get("livecode"))
+        livecodebench = model_data.get("livecodebench")
         
         hle_str = f"{hle:.3f}" if hle is not None else "❌"
         gpqa_str = f"{gpqa:.2f}" if gpqa is not None else "❌"
-        livecode_str = f"{livecode:.2f}" if livecode is not None else "❌"
+        livecodebench_str = f"{livecodebench:.3f}" if livecodebench is not None else "❌"
         
         if hle is not None:
             hle_count += 1
         if gpqa is not None:
             gpqa_count += 1
-        if livecode is not None:
-            livecode_count += 1
+        if livecodebench is not None:
+            livecodebench_count += 1
         
-        print(f"   {model_id:<50} {hle_str:<8} {gpqa_str:<8} {livecode_str:<10}")
+        print(f"   {model_id:<50} {hle_str:<8} {gpqa_str:<8} {livecodebench_str:<15}")
     
     n_models = len(router.bandit.models)
-    print(f"\n   ✅ HLE (General):  {hle_count}/{n_models} models ({hle_count/n_models*100:.0f}%)")
-    print(f"   ✅ GPQA (Math):    {gpqa_count}/{n_models} models ({gpqa_count/n_models*100:.0f}%)")
-    print(f"   ✅ LiveCode (Code): {livecode_count}/{n_models} models ({livecode_count/n_models*100:.0f}%)")
+    print(f"\n   ✅ HLE (General):       {hle_count}/{n_models} models ({hle_count/n_models*100:.0f}%)")
+    print(f"   ✅ GPQA (Math):         {gpqa_count}/{n_models} models ({gpqa_count/n_models*100:.0f}%)")
+    print(f"   ✅ LiveCodeBench (Code): {livecodebench_count}/{n_models} models ({livecodebench_count/n_models*100:.0f}%)")
     
-    if gpqa_count == n_models and livecode_count == n_models:
+    if gpqa_count == n_models and livecodebench_count == n_models:
         print(f"   🎉 PERFECT COVERAGE: All models have domain-specific benchmarks!")
-    elif gpqa_count > 0 or livecode_count > 0:
-        print(f"   ⚠️  Some models missing benchmarks - will use HLE fallback")
+    elif gpqa_count > 0 or livecodebench_count > 0:
+        print(f"   ⚠️  Some models missing benchmarks - will use FCI fallback for those domains")
     
     # 2. Load Real Dev Data (if hybrid mode enabled)
     real_prompts = []
@@ -657,72 +662,96 @@ def main():
     
     prompts = all_prompts
     
-    print(f"   Simulating {len(prompts)} interactions across {len(router.bandit.models)} models...")
+    # 3. Pre-calculate FCI scores for fast lookup
+    # CRITICAL: Use FCI (Frontier Capability Index) = (HLE + GPQA + LiveCodeBench) / 3
+    # This is the same metric used for Pareto frontier selection
+    model_hle_map = {}
+    missing_fci_models = []  # Initialize before use
     
-    # 3. Analyze HLE Score Coverage
-    models_with_hle = 0
-    models_with_fallback = 0
-    hle_scores = []
+    print(f"\n📊 Calculating FCI Scores for {len(router.bandit.models)} models...")
+    print(f"   FCI = (HLE + GPQA + LiveCodeBench) / 3")
+    print(f"   {'Model':<50} {'FCI':<8} {'Source':<15}")
+    print(f"   {'-'*75}")
     
+    # First pass: calculate FCI from benchmarks
     for model_id in router.bandit.models:
-        hle = router.registry.get(model_id, {}).get("hle", None)
-        if hle is not None:
-            models_with_hle += 1
-            hle_scores.append(hle)
+        m_data = router.registry.get(model_id, {})
+        
+        # Get the three FCI components
+        hle = m_data.get("hle")
+        gpqa = m_data.get("gpqa")
+        # LiveCodeBench (coding benchmark)
+        livecodebench = m_data.get("livecodebench")
+        
+        # Calculate FCI if all three benchmarks are available
+        if hle is not None and gpqa is not None and livecodebench is not None:
+            fci = (float(hle) + float(gpqa) + float(livecodebench)) / 3.0
+            
+            # Scale FCI [0, 1] to IRT ability range [0.75, 0.98]
+            # This maps to success probabilities for the IRT simulation
+            scaled_ability = 0.75 + fci * 0.23
+            model_hle_map[model_id] = scaled_ability
+            
+            print(f"   {model_id:<50} {fci:.4f}   {'FCI complete':<15}")
         else:
-            models_with_fallback += 1
+            # Missing benchmark data - cannot calculate FCI
+            missing_fci_models.append(model_id)
+            missing_benchmarks = []
+            if hle is None:
+                missing_benchmarks.append("HLE")
+            if gpqa is None:
+                missing_benchmarks.append("GPQA")
+            if livecodebench is None:
+                missing_benchmarks.append("LiveCodeBench")
+            
+            print(f"   {model_id:<50} {'N/A':<8}   Missing: {', '.join(missing_benchmarks)}")
     
-    print(f"   HLE Coverage:")
-    print(f"     ✓ Models with HLE scores: {models_with_hle}/{len(router.bandit.models)}")
-    if models_with_fallback > 0:
-        print(f"     ⚠ Models using fallback (0.5): {models_with_fallback}")
-    if hle_scores:
-        print(f"     HLE range: [{min(hle_scores):.3f}, {max(hle_scores):.3f}], mean={np.mean(hle_scores):.3f}")
+    # Handle models with incomplete FCI data - SKIP THEM (no fallbacks)
+    if missing_fci_models:
+        print(f"\n   ❌ SKIPPING {len(missing_fci_models)} model(s) with incomplete FCI data:")
+        for model_id in missing_fci_models:
+            print(f"      - {model_id}")
+        
+        print(f"\n   💡 To include these models, add missing benchmarks to models.json:")
+        print(f"      FCI = (HLE + GPQA + LiveCodeBench) / 3")
+        
+        # Remove models with incomplete FCI from the router
+        original_count = len(router.bandit.models)
+        router.bandit.models = [m for m in router.bandit.models if m not in missing_fci_models]
+        
+        # Also remove from bandit state and registry
+        for model_id in missing_fci_models:
+            if model_id in router.bandit.A:
+                del router.bandit.A[model_id]
+            if model_id in router.bandit.b:
+                del router.bandit.b[model_id]
+            if model_id in router.registry:
+                del router.registry[model_id]
+        
+        print(f"\n   ✓ Continuing with {len(router.bandit.models)}/{original_count} models with complete FCI data")
+        
+        if len(router.bandit.models) == 0:
+            print(f"\n   ❌ ERROR: No models with complete FCI data! Cannot generate warmup priors.")
+            print(f"      Ensure all models in the registry have HLE, GPQA, and LiveCodeBench scores.")
+            return
     
-    # 4. Training Loop (Optimized Batch Processing)
+    # 4. FCI Coverage Summary
+    print(f"\n   🎯 Starting IRT Simulation: {len(prompts)} prompts × {len(router.bandit.models)} models...")
+    
+    models_with_complete_fci = len([m for m in router.bandit.models if m not in missing_fci_models])
+    fci_abilities = [ability for model_id, ability in model_hle_map.items() if model_id not in missing_fci_models]
+    
+    print(f"   FCI Coverage Summary:")
+    print(f"     ✓ Complete FCI (HLE+GPQA+LiveCodeBench): {models_with_complete_fci}/{len(router.bandit.models)} models")
+    if missing_fci_models:
+        print(f"     ⚠️  Using fallback ability: {len(missing_fci_models)} models")
+    if fci_abilities:
+        print(f"     Ability range (IRT-scaled): [{min(fci_abilities):.3f}, {max(fci_abilities):.3f}], mean={np.mean(fci_abilities):.3f}")
+    
+    # 5. Training Loop (Optimized Batch Processing)
     print("   🚀 Processing updates in batches for speed...")
     BATCH_SIZE = 100
     updates_count = 0
-    
-    # Pre-calculate quality score map for fast lookup
-    # CRITICAL: Use initial_quality (composite: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
-    # Fallback to empirical_hle for older models
-    model_hle_map = {}
-    missing_hle_models = []
-    
-    # First pass: collect all available quality scores
-    for model_id in router.bandit.models:
-        m_data = router.registry.get(model_id, {})
-        # Use initial_quality: Composite metric normalized to [0, 1]
-        initial_quality = m_data.get("initial_quality")
-        
-        # Fallback to empirical_hle -> raw_hle -> hle
-        if initial_quality is None:
-            raw_hle = m_data.get("empirical_hle") or m_data.get("raw_hle") or m_data.get("hle")
-            if raw_hle is not None:
-                # Map raw hle to 0.75-0.98 range
-                initial_quality = 0.75 + (min(raw_hle, 0.30) / 0.30) * 0.23
-        
-        if initial_quality is not None:
-            # We scale [0, 1] quality to [0.75, 0.98] range for IRT
-            # Formula: Base + Quality * Range
-            scaled_prob = 0.75 + initial_quality * 0.23
-            model_hle_map[model_id] = scaled_prob
-        else:
-            missing_hle_models.append(model_id)
-            model_hle_map[model_id] = 0.75 # Floor
-    
-    if missing_hle_models:
-        print(f"     ⚠ {len(missing_hle_models)} model(s) missing initial_quality")
-        # Use mean of existing models as fallback (e.g., ~0.90)
-        # This gives new models a fair fighting chance instead of punitive 0.50
-        avg_hle = np.mean(list(model_hle_map.values())) if model_hle_map else 0.85
-        print(f"       Using floor imputation (0.75) for missing initial_quality (prevents 'death spiral' for new models)")
-        
-        for model_id in missing_hle_models:
-            model_hle_map[model_id] = avg_hle
-            print(f"         - {model_id}: {avg_hle:.3f}")
-
 
     for i in tqdm(range(0, len(prompts), BATCH_SIZE), desc="Processing Batches"):
         batch_prompts = prompts[i:i+BATCH_SIZE]
@@ -758,14 +787,15 @@ def main():
             
             # B. Update Every Model (The "Compass")
             for model_id in router.bandit.models:
-                # [NEW] Get Component-Aware Ability
-                base_hle_default = model_hle_map[model_id]
+                # Get FCI-based ability (already scaled to IRT range)
+                base_fci_ability = model_hle_map[model_id]
                 model_data = router.registry.get(model_id, {})
                 
-                domain_hle = get_domain_ability(
+                # Adjust for domain-specific performance using FCI components
+                domain_ability = get_domain_ability(
                     model_data, 
                     prompt, 
-                    base_hle_default
+                    base_fci_ability
                 )
                 
                 # Get model pricing for capability checks
@@ -780,7 +810,7 @@ def main():
                     elif is_flagship:
                         prob_success = 1.0  # Force win (The model handles it perfectly)
                     else:
-                        prob_success = domain_hle  # Bridge models get domain probability
+                        prob_success = domain_ability  # Bridge models get domain probability
                         
                 # KDD REVIEW FIX: Binary Cliffs (Ground Truth Anchors)
                 # For the top 10% hardest prompts, weak models MUST fail
@@ -793,13 +823,13 @@ def main():
                 elif difficulty > 0.9 and is_flagship:
                     # BINARY ANCHOR: Flagship models have high (but not perfect) success on ultra-hard
                     # Use domain ability directly rather than IRT (which can compress signal)
-                    prob_success = min(0.95, domain_hle * 1.1)  # Cap at 95%, boost by 10%
+                    prob_success = min(0.95, domain_ability * 1.1)  # Cap at 95%, boost by 10%
                     
                 else:
                     # Standard IRT simulation for normal difficulty range
-                    # [NEW] Use domain_hle instead of base_hle
+                    # Use FCI-based domain ability for IRT simulation
                     # This teaches: "Weak models fail hard prompts, succeed at easy ones"
-                    prob_success = simulate_irt_reward(domain_hle, difficulty)
+                    prob_success = simulate_irt_reward(domain_ability, difficulty)
                 # --------------------------------------------------
                 
                 # --- CRITICAL: Bernoulli Sampling (Thompson Style) ---
