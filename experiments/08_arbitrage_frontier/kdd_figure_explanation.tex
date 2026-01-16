@@ -37,3 +37,10 @@ The router achieves significant cost savings by routing most prompts to the effi
 % Minor boundary deviations result from UCB exploration bonus.
 % }
 
+\subsection{Decision Boundary Analysis: The Hybrid Frontier}
+To evaluate the router's precision in a realistic enterprise scenario, we analyzed the decision boundary between a high-performance open-weight model (\texttt{gpt-oss-120b}, FCI: 0.615) and a state-of-the-art proprietary flagship (\texttt{gemini-3-pro}, FCI: 0.734).
+
+We specifically excluded mid-tier proprietary models (e.g., \texttt{gemini-2.5}) from this visualization, as our preliminary analysis showed they were effectively ``dominated'' by the open-weight baseline—offering negligible quality gains ($<1\%$) for significant cost premiums ($>20\times$).
+
+The resulting decision boundary (Figure 3) illustrates a \textbf{Strategic Offloading} behavior. The router treats the open-weight model as the default ``workhorse'' for commodity tasks (Blue), capitalizing on its 98\% cost efficiency. However, for prompts requiring deep reasoning (where the FCI gap of $\Delta Q \approx 0.12$ is most pronounced), the router crosses the indifference threshold, justifying the \$7.00/M premium of the flagship (Red). This confirms the system's ability to construct a \textit{composite intelligence} that is cheaper than the mid-tier yet smarter than the flagship on a cost-adjusted basis.
+
