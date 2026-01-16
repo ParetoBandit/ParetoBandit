@@ -213,6 +213,11 @@ def get_custom_profiles() -> Dict[str, Dict]:
         Dict mapping profile name to weight dict
     """
     profiles = {
+        "auto": {
+            "name": "Auto (Production)",
+            "description": "Default Pareto profile (λ=0.02, very quality-focused)",
+            "weights": "auto"  # Use the built-in "auto" profile
+        },
         "cost_saver": {
             "name": "Cost Saver",
             "description": "Minimize cost (best low-cost option)",

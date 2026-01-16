@@ -251,6 +251,20 @@ def plot_selection_distribution(results: Dict, output_path: Path):
         output_path: Path to save figure
     """
     profile_results = results["profile_results"]
+    model_baselines = results["model_baselines"]
+    
+    # Create a quality lookup dict and get all unique models
+    model_quality = {m["model_id"]: m["quality"] for m in model_baselines}
+    
+    # Get all unique models selected across all profiles, sorted by quality (low to high)
+    all_models = set()
+    for result in profile_results:
+        all_models.update(result["model_selections"].keys())
+    
+    # Sort all models by quality (ascending for barh - lowest at bottom, highest at top)
+    all_models_sorted = sorted(all_models, key=lambda x: model_quality.get(x, 0))
+    model_positions = {model: i for i, model in enumerate(all_models_sorted)}
+    model_display_names = [m.split("/")[-1] for m in all_models_sorted]
     
     fig, axes = plt.subplots(1, len(profile_results), 
                             figsize=(16, 6), sharey=True)
@@ -260,43 +274,53 @@ def plot_selection_distribution(results: Dict, output_path: Path):
     
     # Color scheme for profiles
     profile_colors = {
-        "Cost Saver": "#27ae60",      # Green
-        "High Quality": "#c0392b",    # Red
-        "Balanced": "#e67e22"          # Orange
+        "Auto (Production)": "#9b59b6",  # Purple
+        "Cost Saver": "#27ae60",         # Green
+        "High Quality": "#c0392b",       # Red
+        "Balanced": "#e67e22"            # Orange
     }
     
     for ax, result in zip(axes, profile_results):
         selections = result["model_selections"]
         profile_name = result["profile_name"]
         
-        # Sort by count
-        sorted_models = sorted(selections.items(), 
-                             key=lambda x: x[1], reverse=True)
-        
-        models = [m.split("/")[-1] for m, _ in sorted_models]
-        counts = [c for _, c in sorted_models]
-        percentages = [100 * c / sum(counts) for c in counts]
+        # Create arrays for all models, with 0 for unselected models
+        percentages_array = []
+        for model in all_models_sorted:
+            if model in selections:
+                total = sum(selections.values())
+                pct = 100 * selections[model] / total
+                percentages_array.append(pct)
+            else:
+                percentages_array.append(0)  # Not selected by this profile
         
         # Create bar chart with profile-specific color
         bar_color = profile_colors.get(profile_name, 'steelblue')
-        bars = ax.barh(models, percentages, color=bar_color, alpha=0.75, 
+        bars = ax.barh(model_display_names, percentages_array, color=bar_color, alpha=0.75, 
                       edgecolor='black', linewidth=1.5)
         
-        # Add value labels
-        for bar, pct in zip(bars, percentages):
-            width = bar.get_width()
-            ax.text(width + 2, bar.get_y() + bar.get_height()/2,
-                   f'{pct:.1f}%',
-                   ha='left', va='center', fontsize=11, fontweight='bold')
+        # Add value labels only for non-zero bars
+        for bar, pct in zip(bars, percentages_array):
+            if pct > 0:  # Only show labels for selected models
+                width = bar.get_width()
+                ax.text(width + 2, bar.get_y() + bar.get_height()/2,
+                       f'{pct:.1f}%',
+                       ha='left', va='center', fontsize=11, fontweight='bold')
         
-        # Calculate lambda
-        w_q = result["weights"]["w_q"]
-        w_c = result["weights"]["w_c"]
-        lambda_val = w_c / w_q if w_q > 0 else float('inf')
+        # Calculate lambda (handle "auto" profile)
+        weights = result["weights"]
+        if weights == "auto":
+            lambda_val = 0.02  # Default auto profile λ
+            weight_text = 'profile="auto"'
+        else:
+            w_q = weights["w_q"]
+            w_c = weights["w_c"]
+            lambda_val = w_c / w_q if w_q > 0 else float('inf')
+            weight_text = f'w_q={w_q:.1f}, w_c={w_c:.1f}'
         
         ax.set_xlabel('Selection Frequency (%)', fontsize=12, fontweight='bold')
         ax.set_title(f'{profile_name}\n'
-                    f'λ={lambda_val:.1f} (w_q={w_q:.1f}, w_c={w_c:.1f})\n'
+                    f'λ={lambda_val:.2f} ({weight_text})\n'
                     f'Avg Cost: ${result["avg_cost"]*1000:.2f}/M',
                     fontweight='bold', fontsize=13, pad=15)
         ax.grid(axis='x', alpha=0.3, linestyle=':', linewidth=0.5)
@@ -327,7 +351,7 @@ def create_summary_table(results: Dict):
     print("="*100)
     
     # Header
-    print(f"\n{'Profile':<18} {'λ':<8} {'w_q':<6} {'w_c':<6} "
+    print(f"\n{'Profile':<20} {'λ':<8} {'w_q':<6} {'w_c':<6} "
           f"{'Cost ($/1M)':<13} {'Quality (FCI)':<15} {'Success Rate':<15}")
     print("-" * 100)
     
@@ -336,13 +360,22 @@ def create_summary_table(results: Dict):
         cost = result["avg_cost"] * 1000  # Convert to per-1M
         quality = result["avg_quality"] * 100
         success = result["success_rate"] * 100
-        w_q = result["weights"]["w_q"]
-        w_c = result["weights"]["w_c"]
-        lambda_val = w_c / w_q if w_q > 0 else float('inf')
+        weights = result["weights"]
         
-        print(f"{result['profile_name']:<18} "
+        if weights == "auto":
+            lambda_val = 0.02
+            w_q_str = "auto"
+            w_c_str = "auto"
+        else:
+            w_q = weights["w_q"]
+            w_c = weights["w_c"]
+            lambda_val = w_c / w_q if w_q > 0 else float('inf')
+            w_q_str = f"{w_q:.1f}"
+            w_c_str = f"{w_c:.1f}"
+        
+        print(f"{result['profile_name']:<20} "
               f"{lambda_val:<8.2f} "
-              f"{w_q:<6.1f} {w_c:<6.1f} "
+              f"{w_q_str:<6} {w_c_str:<6} "
               f"${cost:<12.5f} "
               f"{quality:<14.2f}% "
               f"{success:<14.2f}%")
@@ -389,11 +422,16 @@ def main():
     # Show profile lambda values
     print("\n📐 Profile Tradeoff Parameters (λ = w_c/w_q):")
     for result in results['profile_results']:
-        w_q = result["weights"]["w_q"]
-        w_c = result["weights"]["w_c"]
-        lambda_val = w_c / w_q if w_q > 0 else float('inf')
-        print(f"  {result['profile_name']:<15} λ={lambda_val:<6.2f} "
-              f"(w_q={w_q:.1f}, w_c={w_c:.1f})")
+        weights = result["weights"]
+        if weights == "auto":
+            lambda_val = 0.02
+            weight_str = 'profile="auto"'
+        else:
+            w_q = weights["w_q"]
+            w_c = weights["w_c"]
+            lambda_val = w_c / w_q if w_q > 0 else float('inf')
+            weight_str = f"w_q={w_q:.1f}, w_c={w_c:.1f}"
+        print(f"  {result['profile_name']:<20} λ={lambda_val:<6.2f} ({weight_str})")
     print(f"\n  Note: Lower λ → quality-focused, Higher λ → cost-focused")
     
     # Create output directory
