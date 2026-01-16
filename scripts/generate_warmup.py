@@ -372,11 +372,15 @@ def perturb_prompt(text: str, noise_level: float = 0.3, seed: int = None) -> str
     return result
 
 
-def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool = False) -> float:
+def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool = False, temperature: float = 0.5) -> float:
     """
-    Simulates outcome using Item Response Theory (IRT) logic.
+    Simulates outcome using Item Response Theory (IRT) logic with temperature scaling.
     
-    IRT Equation: P(success) = Sigmoid(Ability - Difficulty)
+    IRT Equation: P(success) = Sigmoid((Ability - Difficulty) / T)
+    
+    KDD REVIEW FIX: Added temperature parameter to sharpen decision boundaries.
+    Lower temperature (< 1.0) makes the transition from failure to success steeper,
+    simulating the binary pass/fail nature of real production outcomes.
     
     This creates context-dependent rewards that teach the bandit:
     - Weak models succeed at easy prompts (low difficulty)
@@ -387,6 +391,10 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
         model_hle: The model's general ability (0.0 - 1.0)
         difficulty_score: The prompt's difficulty (0.0 - 1.0)
         is_trap: If True, bypass IRT and use static HLE (trap logic handled elsewhere)
+        temperature: Temperature scaling factor (default 0.5)
+                    T < 1.0 = sharper transitions (more binary)
+                    T = 1.0 = standard sigmoid
+                    T > 1.0 = softer transitions (more gradual)
     
     Returns:
         Probability of success (0.0 - 1.0)
@@ -409,8 +417,10 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
     # 3. IRT Equation
     logit = ability_logit - difficulty_logit
     
-    # 4. Sigmoid Probability
-    prob = 1 / (1 + math.exp(-logit))
+    # 4. Temperature-Scaled Sigmoid Probability
+    # Dividing by temperature sharpens (T<1) or softens (T>1) the curve
+    # T=0.5 makes the transition ~2x steeper, creating more binary outcomes
+    prob = 1 / (1 + math.exp(-logit / temperature))
     
     return prob
 
@@ -418,7 +428,13 @@ def simulate_irt_reward(model_hle: float, difficulty_score: float, is_trap: bool
 def get_domain_ability(model_data: dict, prompt: str, default_hle: float) -> float:
     """
     Returns domain-specific ability, normalizing hard benchmarks 
-    to the standard IRT Ability scale (0.75 - 0.99).
+    with realistic dynamic range (0.20 - 0.95).
+    
+    KDD REVIEW FIX: Previous version had 0.75 floor, causing "grade inflation"
+    where even incompetent models got 75% success rate. New range allows
+    weak models to actually fail on hard prompts (20% success) while strong
+    models excel (95% success). This 75-point spread (vs. previous 23-point)
+    creates the signal contrast needed for the router to learn quality gaps.
     """
     # 1. Detect Domain (Regex patterns match your generation templates)
     p_lower = prompt.lower()
@@ -432,21 +448,31 @@ def get_domain_ability(model_data: dict, prompt: str, default_hle: float) -> flo
     # Matches 'generate_domain_specific_prompts' templates for math
     is_math = any(k in p_lower for k in ["integral", "theorem", "calculate", "derivative", "equation", "prove"])
     
-    # 2. Select & Normalize Score
+    # 2. Select & Normalize Score with REALISTIC dynamic range
     # We cap the raw score at 0.50 (Max Expected for these hard benchmarks)
-    # Then map it to the 0.23 range (0.75 -> 0.98)
+    # Then map it to a WIDE range (0.20 -> 0.95) to allow true differentiation
     
-    # Note: Using case-insensitive keys as found in models.json (Livecode vs livecode_score)
-    livecode = model_data.get("Livecode") or model_data.get("livecode_score")
-    gpqa = model_data.get("GPQA") or model_data.get("gpqa_score")
+    # Try multiple field name variants (models use different conventions)
+    livecode = (model_data.get("livecode_score") or 
+                model_data.get("Livecode") or 
+                model_data.get("livecodebench") or
+                model_data.get("livecode"))
+    
+    gpqa = (model_data.get("gpqa") or 
+            model_data.get("GPQA") or 
+            model_data.get("gpqa_score"))
 
     if is_coding and livecode:
-        # Normalize: LiveCode 0.0-0.5 => Ability 0.75-0.98
-        return 0.75 + (min(float(livecode), 0.50) / 0.50) * 0.23
+        # NEW: LiveCode 0.0 => 20% success, 0.5 => 95% success (75-point spread)
+        # OLD: LiveCode 0.0 => 75% success, 0.5 => 98% success (23-point spread)
+        normalized_score = min(float(livecode), 0.50) / 0.50
+        return 0.20 + (normalized_score * 0.75)
 
     elif is_math and gpqa:
-        # Normalize: GPQA 0.0-0.5 => Ability 0.75-0.98
-        return 0.75 + (min(float(gpqa), 0.50) / 0.50) * 0.23
+        # NEW: GPQA 0.0 => 20% success, 0.5 => 95% success (75-point spread)
+        # OLD: GPQA 0.0 => 75% success, 0.5 => 98% success (23-point spread)
+        normalized_score = min(float(gpqa), 0.50) / 0.50
+        return 0.20 + (normalized_score * 0.75)
         
     # 3. Fallback to General Quality (already normalized)
     return default_hle
@@ -483,11 +509,6 @@ def main():
         "--real-data-weight", type=float, default=10.0,
         help="Weight multiplier for real dev samples (default: 10.0)"
     )
-    parser.add_argument(
-        "--splits-path", type=str, 
-        default="experiments/01_effectiveness/results/splits.json",
-        help="Path to splits.json for loading dev data"
-    )
     args = parser.parse_args()
 
     # Dynamic Bucket Allocation based on total samples
@@ -519,46 +540,91 @@ def main():
         pca_path=pca_path
     )
     
+    # Show benchmark coverage diagnostic
+    print(f"\n📊 Model Benchmark Coverage (for Domain-Specific Abilities):")
+    print(f"   {'Model':<50} {'HLE':<8} {'GPQA':<8} {'LiveCode':<10}")
+    print(f"   {'-'*78}")
+    
+    hle_count = 0
+    gpqa_count = 0
+    livecode_count = 0
+    
+    for model_id in router.bandit.models:
+        model_data = registry.get(model_id, {})
+        hle = model_data.get("hle") or model_data.get("raw_hle")
+        
+        # Try multiple field variants
+        gpqa = (model_data.get("gpqa") or 
+                model_data.get("GPQA") or 
+                model_data.get("gpqa_score"))
+        
+        livecode = (model_data.get("livecode_score") or 
+                    model_data.get("Livecode") or 
+                    model_data.get("livecodebench") or
+                    model_data.get("livecode"))
+        
+        hle_str = f"{hle:.3f}" if hle is not None else "❌"
+        gpqa_str = f"{gpqa:.2f}" if gpqa is not None else "❌"
+        livecode_str = f"{livecode:.2f}" if livecode is not None else "❌"
+        
+        if hle is not None:
+            hle_count += 1
+        if gpqa is not None:
+            gpqa_count += 1
+        if livecode is not None:
+            livecode_count += 1
+        
+        print(f"   {model_id:<50} {hle_str:<8} {gpqa_str:<8} {livecode_str:<10}")
+    
+    n_models = len(router.bandit.models)
+    print(f"\n   ✅ HLE (General):  {hle_count}/{n_models} models ({hle_count/n_models*100:.0f}%)")
+    print(f"   ✅ GPQA (Math):    {gpqa_count}/{n_models} models ({gpqa_count/n_models*100:.0f}%)")
+    print(f"   ✅ LiveCode (Code): {livecode_count}/{n_models} models ({livecode_count/n_models*100:.0f}%)")
+    
+    if gpqa_count == n_models and livecode_count == n_models:
+        print(f"   🎉 PERFECT COVERAGE: All models have domain-specific benchmarks!")
+    elif gpqa_count > 0 or livecode_count > 0:
+        print(f"   ⚠️  Some models missing benchmarks - will use HLE fallback")
+    
     # 2. Load Real Dev Data (if hybrid mode enabled)
     real_prompts = []
     real_rewards_dict = {}
     
     if args.use_real_data:
-        print(f"\n🔗 Loading Real Dev Data for Hybrid Warmup...")
+        print(f"\n🔗 Loading Real Dev Data for Hybrid Warmup (100% Coverage)...")
         from src.bandit_gpt.utils.experiment import ExperimentBurnIn
         
-        splits_path = Path(args.splits_path)
-        if not splits_path.exists():
-            print(f"   ⚠️  Splits file not found: {splits_path}")
-            print(f"   Continuing with synthetic data only")
-        else:
-            try:
-                burn_in = ExperimentBurnIn(
-                    registry=registry,
-                    splits_path=splits_path,
-                    encoder=encoder
-                )
-                (dev_prompts, dev_rewards), _ = burn_in.get_splits(load_rewards=True)
-                
-                # Filter to only models in router registry
-                registry_models = set(router.bandit.models)
-                filtered_dev_rewards = {}
-                for prompt in dev_prompts:
-                    if prompt in dev_rewards:
+        try:
+            # Use new direct loading method for complete datasets
+            burn_in = ExperimentBurnIn(
+                registry=registry,
+                encoder=encoder
+            )
+            (dev_prompts, dev_rewards), _ = burn_in.load_complete_datasets(use_cache=True)
+            
+            # Filter to only models in router registry
+            registry_models = set(router.bandit.models)
+            filtered_dev_rewards = {}
+            for prompt in dev_prompts:
+                if prompt in dev_rewards:
+                    # Only keep prompts with ALL models present (100% coverage)
+                    prompt_models = set(dev_rewards[prompt].keys())
+                    if registry_models.issubset(prompt_models):
                         filtered_dev_rewards[prompt] = {
                             m: r for m, r in dev_rewards[prompt].items() 
                             if m in registry_models
                         }
-                
-                real_prompts = list(filtered_dev_rewards.keys())
-                real_rewards_dict = filtered_dev_rewards
-                
-                print(f"   ✓ Loaded {len(real_prompts)} dev prompts")
-                print(f"   ✓ Weight multiplier: {args.real_data_weight}x")
-                print(f"   ✓ Effective samples: {len(real_prompts) * args.real_data_weight:.0f}")
-            except Exception as e:
-                print(f"   ⚠️  Error loading dev data: {e}")
-                print(f"   Continuing with synthetic data only")
+            
+            real_prompts = list(filtered_dev_rewards.keys())
+            real_rewards_dict = filtered_dev_rewards
+            
+            print(f"   ✓ Loaded {len(real_prompts)} dev prompts (100% model coverage)")
+            print(f"   ✓ Weight multiplier: {args.real_data_weight}x")
+            print(f"   ✓ Effective samples: {len(real_prompts) * args.real_data_weight:.0f}")
+            print(f"   ✓ Using TRUE oracle rewards (no simulation)")
+        except Exception as e:
+            print(f"   ⚠️  Error loading dev data: {e}")
+            print(f"   Continuing with synthetic data only")
     
     # 3. Generate Mixed Dataset (Three Buckets)
     print(f"\n📦 Building Mixed Warmup Dataset ({args.samples} prompts)...")
@@ -702,19 +768,35 @@ def main():
                     base_hle_default
                 )
                 
+                # Get model pricing for capability checks
+                input_cost = router.registry.get(model_id, {}).get("price_1m_blended", 10.0)
+                is_weak = input_cost < 0.50
+                is_flagship = input_cost >= 0.80
+                
                 if is_trap:
                     # Keep existing "Trap" logic (Kill Switch) - it's good Arbitrage
-                    input_cost = router.registry.get(model_id, {}).get("price_1m_blended", 10.0)
-                    is_weak = input_cost < 0.50
-                    is_flagship = input_cost >= 0.80
-                    
                     if is_weak:
                         prob_success = 0.0  # Force fail (The model effectively crashes)
                     elif is_flagship:
                         prob_success = 1.0  # Force win (The model handles it perfectly)
                     else:
                         prob_success = domain_hle  # Bridge models get domain probability
-                if not is_trap:
+                        
+                # KDD REVIEW FIX: Binary Cliffs (Ground Truth Anchors)
+                # For the top 10% hardest prompts, weak models MUST fail
+                # This creates deterministic signal that cheap models can't handle expert tasks
+                elif difficulty > 0.9 and is_weak:
+                    # BINARY CLIFF: Weak models deterministically fail on ultra-hard prompts
+                    # No probabilistic simulation - this is a known failure mode
+                    prob_success = 0.0  # Hard fail (e.g., Ministral cannot prove Fermat's Last Theorem)
+                    
+                elif difficulty > 0.9 and is_flagship:
+                    # BINARY ANCHOR: Flagship models have high (but not perfect) success on ultra-hard
+                    # Use domain ability directly rather than IRT (which can compress signal)
+                    prob_success = min(0.95, domain_hle * 1.1)  # Cap at 95%, boost by 10%
+                    
+                else:
+                    # Standard IRT simulation for normal difficulty range
                     # [NEW] Use domain_hle instead of base_hle
                     # This teaches: "Weak models fail hard prompts, succeed at easy ones"
                     prob_success = simulate_irt_reward(domain_hle, difficulty)

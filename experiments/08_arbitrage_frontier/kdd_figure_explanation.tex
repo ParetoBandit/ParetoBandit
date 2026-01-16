@@ -1,0 +1,36 @@
+% KDD Figure Caption for Arbitrage Frontier Visualization
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/kdd_rational_boundary.png}
+\caption{\textbf{The Arbitrage Frontier: Router Decision Boundary in Quality-Cost Space.} 
+Each point represents a test prompt, colored by the router's routing decision using the production LinUCB algorithm. The dashed line represents the economic indifference curve with slope $1/\lambda = 50$, where $\lambda = 0.02$ is the cost-quality trade-off parameter for the \textit{Auto} profile. 
+%
+Red points (routed to GPT-5.1) cluster in regions where the quality gain $\Delta Q$ justifies the cost premium $\Delta C \approx \$6/1M$ tokens. 
+%
+Blue points (routed to GPT-OSS-120B) represent prompts where the marginal quality gain is insufficient to justify the cost. 
+%
+The horizontal clustering at $\Delta C \approx \$6$ reflects the fixed pricing differential between models ($\$5.625$ vs. $\$0.06$ per 1M tokens), revealing that \textbf{the router's intelligence lies in the X-axis}: it has learned to predict that the same \$6 investment yields wildly different returns depending on prompt complexity. 
+%
+For simple queries ($\Delta Q < 0.12$, left), the marginal quality gain is negligible and the cheap model is selected. 
+%
+For complex tasks ($\Delta Q > 0.12$, right), the expensive model provides substantial value and is worth the 100$\times$ cost premium. 
+%
+Minor deviations from the theoretical boundary result from the exploration bonus ($\alpha \times \text{uncertainty}$) inherent in LinUCB, demonstrating the algorithm's adaptive learning behavior.
+%
+The router achieves 82.9\% cost savings by routing most prompts to the efficient model while reserving the premium model for high-value tasks.
+}
+\label{fig:arbitrage_frontier}
+\end{figure}
+
+% Alternative shorter version for space-constrained venues:
+% 
+% \caption{\textbf{The Arbitrage Frontier.} 
+% Router decisions in quality-cost space using LinUCB. 
+% The dashed line shows the indifference curve (slope = $1/\lambda = 50$).
+% Points cluster horizontally at $\Delta C \approx \$6$ (fixed pricing differential), 
+% while quality gains vary by prompt complexity ($\Delta Q \in [0.05, 0.17]$).
+% Red: routed to expensive model (17\%); Blue: routed to cheap model (83\%).
+% Minor boundary deviations result from UCB exploration bonus.
+% }
+

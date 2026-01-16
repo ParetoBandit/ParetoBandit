@@ -336,6 +336,179 @@ class ExperimentBurnIn:
         
         return (dev, dev_rewards), (test, holdout_rewards)
 
+    def load_complete_datasets(
+        self,
+        use_cache: bool = True
+    ) -> Tuple[Tuple[List[str], Dict[str, Dict[str, float]]], Tuple[List[str], Dict[str, Dict[str, float]]]]:
+        """
+        Directly loads the complete dev and holdout datasets (100% model coverage).
+        
+        This method bypasses splits.json and loads dev_rewards_complete.jsonl.gz and
+        holdout_rewards_complete.jsonl.gz directly. These files contain only prompts
+        with 100% model coverage across all models in the dataset.
+        
+        Args:
+            use_cache: If True, use pickle cache to avoid slow gzip decompression.
+                      Cache is invalidated if source files are modified.
+        
+        Returns:
+            Tuple[
+                Tuple[List[str], Dict[str, Dict[str, float]]],  # (dev_prompts, dev_rewards)
+                Tuple[List[str], Dict[str, Dict[str, float]]]   # (holdout_prompts, holdout_rewards)
+            ]
+        
+        Example:
+            >>> burner = ExperimentBurnIn(registry=registry, encoder=encoder)
+            >>> (dev_prompts, dev_rewards), (holdout_prompts, holdout_rewards) = burner.load_complete_datasets()
+            >>> print(f"Loaded {len(dev_prompts)} dev prompts with 100% coverage")
+        """
+        import pickle
+        from pathlib import Path
+        
+        # __file__ is in src/bandit_gpt/utils/experiment.py
+        # Go up to src/bandit_gpt, then to data/offline_dataset
+        data_dir = Path(__file__).parent.parent / "data" / "offline_dataset"
+        dev_rewards_path = data_dir / "dev_rewards_complete.jsonl.gz"
+        holdout_rewards_path = data_dir / "holdout_rewards_complete.jsonl.gz"
+        cache_path = data_dir / "rewards_complete_cache.pkl"
+        
+        registry_models = set(self.registry.keys())
+        
+        # Check if cache is valid
+        cache_valid = False
+        if use_cache and cache_path.exists():
+            try:
+                cache_mtime = cache_path.stat().st_mtime
+                dev_mtime = dev_rewards_path.stat().st_mtime
+                holdout_mtime = holdout_rewards_path.stat().st_mtime
+                
+                # Cache is valid if it's newer than both source files
+                if cache_mtime > dev_mtime and cache_mtime > holdout_mtime:
+                    cache_valid = True
+            except Exception:
+                cache_valid = False
+        
+        # Load from cache if valid
+        if cache_valid:
+            print("   📦 Loading complete datasets from cache (fast path)...")
+            try:
+                with open(cache_path, 'rb') as f:
+                    cached_data = pickle.load(f)
+                    dev_prompts = cached_data['dev_prompts']
+                    dev_rewards = cached_data['dev_rewards']
+                    holdout_prompts = cached_data['holdout_prompts']
+                    holdout_rewards = cached_data['holdout_rewards']
+                    
+                # Filter to current registry (in case registry changed)
+                dev_rewards = {
+                    p: {m: r for m, r in rewards.items() if m in registry_models}
+                    for p, rewards in dev_rewards.items()
+                }
+                holdout_rewards = {
+                    p: {m: r for m, r in rewards.items() if m in registry_models}
+                    for p, rewards in holdout_rewards.items()
+                }
+                
+                # Update prompt lists to match filtered rewards
+                dev_prompts = list(dev_rewards.keys())
+                holdout_prompts = list(holdout_rewards.keys())
+                
+                print(f"   ✓ Loaded {len(dev_prompts)} dev + {len(holdout_prompts)} holdout prompts from cache")
+                
+                self.oracle_rewards.update(dev_rewards)
+                self.oracle_rewards.update(holdout_rewards)
+                
+                return (dev_prompts, dev_rewards), (holdout_prompts, holdout_rewards)
+            except Exception as e:
+                print(f"   ⚠️  Cache load failed ({e}), falling back to gzip...")
+                cache_valid = False
+        
+        # Load from gzip (slow path)
+        print("   📊 Loading complete datasets from gzipped files...")
+        
+        # Load dev rewards
+        dev_rewards: Dict[str, Dict[str, float]] = {}
+        if dev_rewards_path.exists():
+            print(f"      Decompressing dev_rewards_complete.jsonl.gz...")
+            with gzip.open(dev_rewards_path, 'rt') as f:
+                lines = f.readlines()
+                for line in tqdm(lines, desc="      Processing dev rewards", leave=False):
+                    entry = json.loads(line)
+                    if entry.get("ok"):
+                        prompt = entry["prompt"]
+                        model_id = entry["model_id"]
+                        reward = entry["raw_score"]
+                        
+                        # Filter to registry models
+                        if model_id not in registry_models:
+                            continue
+                            
+                        if prompt not in dev_rewards:
+                            dev_rewards[prompt] = {}
+                        dev_rewards[prompt][model_id] = reward
+        else:
+            raise FileNotFoundError(
+                f"❌ dev_rewards_complete.jsonl.gz not found at {dev_rewards_path}\n"
+                f"   This file should contain prompts with 100% model coverage."
+            )
+        
+        # Load holdout rewards
+        holdout_rewards: Dict[str, Dict[str, float]] = {}
+        if holdout_rewards_path.exists():
+            print(f"      Decompressing holdout_rewards_complete.jsonl.gz...")
+            with gzip.open(holdout_rewards_path, 'rt') as f:
+                lines = f.readlines()
+                for line in tqdm(lines, desc="      Processing holdout rewards", leave=False):
+                    entry = json.loads(line)
+                    if entry.get("ok"):
+                        prompt = entry["prompt"]
+                        model_id = entry["model_id"]
+                        reward = entry["raw_score"]
+                        
+                        # Filter to registry models
+                        if model_id not in registry_models:
+                            continue
+                            
+                        if prompt not in holdout_rewards:
+                            holdout_rewards[prompt] = {}
+                        holdout_rewards[prompt][model_id] = reward
+        else:
+            raise FileNotFoundError(
+                f"❌ holdout_rewards_complete.jsonl.gz not found at {holdout_rewards_path}\n"
+                f"   This file should contain prompts with 100% model coverage."
+            )
+        
+        dev_prompts = list(dev_rewards.keys())
+        holdout_prompts = list(holdout_rewards.keys())
+        
+        # Verify disjointness
+        overlap = set(dev_prompts).intersection(set(holdout_prompts))
+        if overlap:
+            raise ValueError(f"❌ DATA LEAKAGE DETECTED! Found {len(overlap)} overlapping prompts.")
+        
+        print(f"   ✓ Loaded {len(dev_prompts)} dev prompts")
+        print(f"   ✓ Loaded {len(holdout_prompts)} holdout prompts")
+        print(f"   ✓ All prompts have 100% model coverage")
+        
+        # Save cache for future use
+        if use_cache:
+            try:
+                with open(cache_path, 'wb') as f:
+                    pickle.dump({
+                        'dev_prompts': dev_prompts,
+                        'dev_rewards': dev_rewards,
+                        'holdout_prompts': holdout_prompts,
+                        'holdout_rewards': holdout_rewards
+                    }, f, protocol=pickle.HIGHEST_PROTOCOL)
+                print(f"   ✓ Cache saved to {cache_path}")
+            except Exception as e:
+                print(f"   ⚠️  Could not save cache: {e}")
+        
+        self.oracle_rewards.update(dev_rewards)
+        self.oracle_rewards.update(holdout_rewards)
+        
+        return (dev_prompts, dev_rewards), (holdout_prompts, holdout_rewards)
+
 
     def generate_curriculum(self, dev_prompts: List[str]) -> List[str]:
         """

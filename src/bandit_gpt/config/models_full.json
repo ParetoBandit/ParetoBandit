@@ -14,7 +14,10 @@
       ],
       "description": "Floor Price: The absolute cheapest option.",
       "raw_hle": 0.053,
-      "empirical_hle": 0.7665
+      "empirical_hle": 0.7665,
+      "initial_quality": 0.7653256021409457,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "google/gemma-3-4b-it",
@@ -30,7 +33,10 @@
       ],
       "description": "Budget King: Massive quality jump for negligible cost increase.",
       "raw_hle": 0.052,
-      "empirical_hle": 0.8967
+      "empirical_hle": 0.8967,
+      "initial_quality": 0.8894647636039252,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "google/gemma-3-12b-it",
@@ -46,7 +52,10 @@
       ],
       "description": "Balanced Budget: Solid reasoning at low cost.",
       "raw_hle": 0.048,
-      "empirical_hle": 0.9483
+      "empirical_hle": 0.9483,
+      "initial_quality": 0.9401694915254238,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "openai/gpt-oss-20b",
@@ -62,7 +71,10 @@
       ],
       "description": "Mid-Range: Legacy reliable option.",
       "raw_hle": 0.098,
-      "empirical_hle": 0.9497
+      "empirical_hle": 0.9497,
+      "initial_quality": 0.9366726137377341,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "google/gemma-3-27b-it",
@@ -79,7 +91,10 @@
       ],
       "description": "Mid-Range Plus: High quality open weights.",
       "raw_hle": 0.047,
-      "empirical_hle": 0.955
+      "empirical_hle": 0.955,
+      "initial_quality": 0.9401694915254238,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "x-ai/grok-3-mini",
@@ -96,7 +111,12 @@
       ],
       "description": "High Efficiency: Flagship quality for under $1/M.",
       "raw_hle": 0.111,
-      "empirical_hle": 0.9792
+      "empirical_hle": 0.9792,
+      "initial_quality": 0.9751382694023194,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121,
+      "gpqa": 0.79,
+      "livecode_score": 0.7
     },
     {
       "openrouter_id": "google/gemini-2.5-flash-preview-09-2025",
@@ -113,7 +133,12 @@
       ],
       "description": "Premium Value: Near-perfect quality at 1/4 flagship price.",
       "raw_hle": 0.127,
-      "empirical_hle": 0.9793
+      "empirical_hle": 0.9793,
+      "initial_quality": 0.9506601248884923,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121,
+      "gpqa": 0.79,
+      "livecode_score": 0.71
     },
     {
       "openrouter_id": "anthropic/claude-opus-4.5",
@@ -131,7 +156,10 @@
       ],
       "description": "The Alpha: Anthropic's most powerful model, specifically superior on extreme reasoning tasks.",
       "raw_hle": 0.284,
-      "empirical_hle": 0.9775
+      "empirical_hle": 0.9775,
+      "initial_quality": 0.9716413916146298,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "openai/gpt-4.1",
@@ -149,7 +177,10 @@
       ],
       "description": "Global Maximum: The theoretical ceiling.",
       "raw_hle": 0.046,
-      "empirical_hle": 0.9808
+      "empirical_hle": 0.9808,
+      "initial_quality": 0.9751382694023194,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "anthropic/claude-3.5-sonnet",
@@ -166,7 +197,10 @@
       ],
       "description": "Claude 3.5 Sonnet: Strong coding and reasoning model.",
       "raw_hle": 0.039,
-      "empirical_hle": 0.9506
+      "empirical_hle": 0.9506,
+      "initial_quality": 0.9445405887600357,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "meta-llama/llama-3.1-8b-instruct",
@@ -182,7 +216,10 @@
       ],
       "description": "Llama 3.1 8B: Ultra-cheap, fast inference for budget routing.",
       "raw_hle": 0.051,
-      "empirical_hle": 0.7373
+      "empirical_hle": 0.7373,
+      "initial_quality": 0.7425958965209635,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "openai/o1",
@@ -199,7 +236,10 @@
       ],
       "description": "OpenAI o1: Premium reasoning model with deep thinking capabilities.",
       "raw_hle": 0.077,
-      "empirical_hle": 0.9698
+      "empirical_hle": 0.9698,
+      "initial_quality": 0.965521855486173,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "openai/gpt-5.1",
@@ -225,7 +265,12 @@
       "latency_scraped_at": "2025-12-23T18:55:00-08:00",
       "overall_success_rate": 0.9641158139191426,
       "context_length": 400000,
-      "architecture": "GPT"
+      "architecture": "GPT",
+      "initial_quality": 0.9786351471900091,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121,
+      "gpqa": 0.87,
+      "livecode_score": 0.87
     },
     {
       "openrouter_id": "mistralai/ministral-8b",
@@ -251,7 +296,10 @@
       "latency_scraped_at": "2025-12-23T18:57:00-08:00",
       "overall_success_rate": 0.7725507707312812,
       "context_length": 131072,
-      "architecture": "Mistral"
+      "architecture": "Mistral",
+      "initial_quality": 0.8370115967885816,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "meta-llama/llama-4-scout",
@@ -277,7 +325,10 @@
       "latency_scraped_at": "2025-12-23T19:00:00-08:00",
       "overall_success_rate": 0.8573010327312077,
       "context_length": 327680,
-      "architecture": "Llama4"
+      "architecture": "Llama4",
+      "initial_quality": 0.893835860838537,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "openai/gpt-5-chat",
@@ -303,7 +354,10 @@
       "latency_scraped_at": "2025-12-23T19:00:00-08:00",
       "overall_success_rate": 0.9781512040872083,
       "context_length": 128000,
-      "architecture": "GPT"
+      "architecture": "GPT",
+      "initial_quality": 0.9751382694023194,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "openai/gpt-oss-120b",
@@ -329,7 +383,12 @@
       "latency_scraped_at": "2025-12-23T19:00:00-08:00",
       "overall_success_rate": 0.8971912422200191,
       "context_length": 131072,
-      "architecture": "GPT"
+      "architecture": "GPT",
+      "initial_quality": 0.9471632471008028,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121,
+      "gpqa": 0.78,
+      "livecode_score": 0.88
     },
     {
       "openrouter_id": "meta-llama/llama-3.2-1b-instruct",
@@ -355,7 +414,10 @@
       "latency_scraped_at": "2025-12-23T18:57:00-08:00",
       "overall_success_rate": 0.4736819783819815,
       "context_length": 60000,
-      "architecture": "Llama3"
+      "architecture": "Llama3",
+      "initial_quality": 0.3771721677074041,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "google/gemini-3-pro-preview",
@@ -380,7 +442,10 @@
       "latency_scraped_at": "2025-12-23T19:00:00-08:00",
       "overall_success_rate": 0.7360327292799614,
       "context_length": 1048576,
-      "architecture": "Gemini"
+      "architecture": "Gemini",
+      "initial_quality": 0.9445405887600357,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Claude 3.5 Haiku",
@@ -575,7 +640,10 @@
       "measured_at": 1766304641.062331,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.103
+      "hle": 0.103,
+      "initial_quality": 0.969892952720785,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "o3",
@@ -619,7 +687,10 @@
       "measured_at": 1766304846.794662,
       "latency_n_samples": 30,
       "latency_n_failures": 70,
-      "hle": 0.2
+      "hle": 0.2,
+      "initial_quality": 0.9707671721677075,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "DeepSeek V3.1 (Reasoning)",
@@ -781,7 +852,10 @@
       "measured_at": 1766305525.906431,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.051
+      "hle": 0.051,
+      "initial_quality": 0.969892952720785,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Gemini 2.5 Pro",
@@ -825,7 +899,10 @@
       "measured_at": 1766305969.285683,
       "latency_n_samples": 47,
       "latency_n_failures": 53,
-      "hle": 0.211
+      "hle": 0.211,
+      "initial_quality": 0.9366726137377341,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Nova Micro",
@@ -868,7 +945,10 @@
       "measured_at": 1766306327.8958368,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.047
+      "hle": 0.047,
+      "initial_quality": 0.8746030330062445,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Command A",
@@ -912,7 +992,10 @@
       "measured_at": 1766306728.475523,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.046
+      "hle": 0.046,
+      "initial_quality": 0.9550312221231045,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Mixtral 8x7B Instruct",
@@ -945,7 +1028,10 @@
       "measured_at": 1766306861.395437,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.045
+      "hle": 0.045,
+      "initial_quality": 0.8046654772524533,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Mistral Small 3.2",
@@ -989,7 +1075,10 @@
       "measured_at": 1766306943.22347,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.043
+      "hle": 0.043,
+      "initial_quality": 0.9375468331846566,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Kimi K2",
@@ -1012,9 +1101,9 @@
       "ttft_p99": 1.1085,
       "ttft_samples": 0,
       "math_500": 0.971,
-      "livecodebench": 0.556,
+      "livecodebench": 0.85,
       "mmlu_pro": 0.824,
-      "gpqa": 0.766,
+      "gpqa": 0.84,
       "aime": 0.693,
       "mixeval_score": 72.0,
       "mixeval_hard_score": 69.0,
@@ -1031,7 +1120,11 @@
       "measured_at": 1766307170.6863759,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.07
+      "hle": 0.07,
+      "initial_quality": 0.9602765388046387,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121,
+      "livecode_score": 0.85
     },
     {
       "name": "Qwen3 14B (Reasoning)",
@@ -1109,7 +1202,10 @@
       "measured_at": 1766307526.3368561,
       "latency_n_samples": 60,
       "latency_n_failures": 40,
-      "hle": 0.042
+      "hle": 0.042,
+      "initial_quality": 0.902578055307761,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Llama 3.1 Instruct 70B",
@@ -1152,7 +1248,10 @@
       "measured_at": 1766307626.9586902,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.046
+      "hle": 0.046,
+      "initial_quality": 0.8728545941123996,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Nova Pro",
@@ -1187,7 +1286,10 @@
       "measured_at": 1766307905.079178,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.034
+      "hle": 0.034,
+      "initial_quality": 0.9357983942908119,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Nova Lite",
@@ -1230,7 +1332,10 @@
       "measured_at": 1766308116.042343,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.046
+      "hle": 0.046,
+      "initial_quality": 0.9113202497769849,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "GLM-4.5-Air",
@@ -1349,7 +1454,10 @@
       "measured_at": 1766308786.777382,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.239
+      "hle": 0.239,
+      "initial_quality": 0.8492506690454951,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Llama 3.2 Instruct 11B (Vision)",
@@ -1594,7 +1702,10 @@
       "measured_at": 1766310148.472872,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.052
+      "hle": 0.052,
+      "initial_quality": 0.9611507582515612,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Command-R+",
@@ -1864,7 +1975,10 @@
       "measured_at": 1766311431.46813,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.033
+      "hle": 0.033,
+      "initial_quality": 0.9611507582515612,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Claude 4.5 Sonnet (Reasoning)",
@@ -1908,7 +2022,10 @@
       "measured_at": 1766311595.995455,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.173
+      "hle": 0.173,
+      "initial_quality": 0.9576538804638716,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Llama 4 Maverick",
@@ -1952,7 +2069,10 @@
       "measured_at": 1766311673.1388228,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.048
+      "hle": 0.048,
+      "initial_quality": 0.8990811775200713,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Llama 3.3 Instruct 70B",
@@ -2155,7 +2275,10 @@
       "measured_at": 1766312321.604009,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.097
+      "hle": 0.097,
+      "initial_quality": 0.945414808206958,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Claude 4 Sonnet (Reasoning)",
@@ -2198,7 +2321,10 @@
       "measured_at": 1766312453.9610848,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.096
+      "hle": 0.096,
+      "initial_quality": 0.9637734165923282,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Llama 3 Instruct 70B",
@@ -2730,7 +2856,10 @@
       "measured_at": 1766315324.800433,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.041
+      "hle": 0.041,
+      "initial_quality": 0.866735057983943,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "Gemini 2.5 Flash-Lite (Reasoning)",
@@ -2773,7 +2902,10 @@
       "measured_at": 1766315601.019572,
       "latency_n_samples": 100,
       "latency_n_failures": 0,
-      "hle": 0.064
+      "hle": 0.064,
+      "initial_quality": 0.9436663693131134,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "name": "DeepSeek R1 Distill Llama 70B",
@@ -2879,7 +3011,10 @@
       "hallucination_vectara": 1.4,
       "hallucination_composite": 68.14,
       "price_1m_input": 1.25,
-      "price_1m_output": 10.0
+      "price_1m_output": 10.0,
+      "initial_quality": 0.9716413916146298,
+      "initial_quality_source": "dev_rewards_complete",
+      "initial_quality_n_obs": 1121
     },
     {
       "openrouter_id": "qwen/qwen3-0.6b-04-28",
