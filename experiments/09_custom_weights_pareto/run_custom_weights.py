@@ -420,7 +420,8 @@ def main():
     # Load real holdout test data with complete coverage for Pareto models
     logger.info("\n📊 Loading holdout test data...")
     pareto_models = set(registry.keys())
-    test_samples = load_test_data(n_samples=100, model_filter=pareto_models)
+    # Use all 750 holdout prompts for comprehensive evaluation
+    test_samples = load_test_data(n_samples=750, model_filter=pareto_models)
     
     # Initialize router with Pareto-specific warmup priors
     logger.info("\n🔧 Initializing BanditRouter with Pareto warmup priors...")

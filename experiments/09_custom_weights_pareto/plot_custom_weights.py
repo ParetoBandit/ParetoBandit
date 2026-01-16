@@ -304,8 +304,9 @@ def plot_selection_distribution(results: Dict, output_path: Path):
     
     axes[0].set_ylabel('Model', fontsize=13, fontweight='bold')
     
-    plt.suptitle('How λ = w_c/w_q Controls Model Selection\n'
-                'Router behavior on 100 test prompts with different weight profiles',
+    n_prompts = results.get('n_test_samples', 100)
+    plt.suptitle(f'How λ = w_c/w_q Controls Model Selection\n'
+                f'Router behavior on {n_prompts} test prompts with different weight profiles',
                 fontweight='bold', fontsize=16, y=1.00)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
