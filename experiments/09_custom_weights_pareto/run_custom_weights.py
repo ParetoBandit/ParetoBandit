@@ -352,10 +352,13 @@ def run_profile_experiment(
 
 def compute_model_baselines(test_samples: List[Dict], registry: Dict) -> List[Dict]:
     """
-    Compute cost and quality for each individual model.
+    Compute cost and quality (FCI) for each individual model.
     These form the Pareto frontier baseline.
+    
+    Uses theoretical FCI scores from model registry (initial_quality),
+    not empirical test performance.
     """
-    logger.info("\n📈 Computing individual model baselines...")
+    logger.info("\n📈 Computing individual model baselines using FCI scores...")
     
     model_points = []
     
@@ -364,28 +367,40 @@ def compute_model_baselines(test_samples: List[Dict], registry: Dict) -> List[Di
         if cost == 0.0:
             continue
         
-        # Calculate average quality across all test samples
-        qualities = []
+        # Use FCI score from registry (initial_quality)
+        fci_quality = model_info.get("initial_quality")
+        
+        if fci_quality is None:
+            logger.warning(f"  ⚠️  {model_id} missing initial_quality (FCI), skipping")
+            continue
+        
+        # Also calculate empirical performance for comparison
+        empirical_qualities = []
         for sample in test_samples:
             if model_id in sample["rewards"]:
-                qualities.append(sample["rewards"][model_id])
+                empirical_qualities.append(sample["rewards"][model_id])
         
-        if qualities:
-            avg_quality = float(np.mean(qualities))
-            success_rate = sum(1 for q in qualities if q > 0.8) / len(qualities)
-            
-            model_points.append({
-                "model_id": model_id,
-                "model_name": model_info.get("display_name", model_id),
-                "cost": cost,
-                "quality": avg_quality,
-                "success_rate": success_rate,
-                "n_samples": len(qualities)
-            })
-            
-            logger.info(f"  {model_id:30s} Cost=${cost:.5f}, Quality={avg_quality*100:.2f}%, Success={success_rate*100:.1f}%")
+        if empirical_qualities:
+            empirical_avg = float(np.mean(empirical_qualities))
+            success_rate = sum(1 for q in empirical_qualities if q > 0.8) / len(empirical_qualities)
+        else:
+            empirical_avg = fci_quality  # Fallback to FCI if no test data
+            success_rate = 0.0
+        
+        model_points.append({
+            "model_id": model_id,
+            "model_name": model_info.get("display_name", model_id),
+            "cost": cost,
+            "quality": fci_quality,  # Use FCI for Pareto analysis
+            "empirical_quality": empirical_avg,  # Track empirical for comparison
+            "success_rate": success_rate,
+            "n_samples": len(empirical_qualities)
+        })
+        
+        logger.info(f"  {model_id:30s} Cost=${cost:.5f}, FCI={fci_quality*100:.2f}%, "
+                   f"Empirical={empirical_avg*100:.2f}% (Δ={abs(fci_quality-empirical_avg)*100:.1f}%)")
     
-    logger.info(f"  ✓ Computed {len(model_points)} model baselines")
+    logger.info(f"  ✓ Computed {len(model_points)} model baselines using FCI scores")
     return model_points
 
 
@@ -407,14 +422,18 @@ def main():
     pareto_models = set(registry.keys())
     test_samples = load_test_data(n_samples=100, model_filter=pareto_models)
     
-    # Initialize router with warmup priors
-    logger.info("\n🔧 Initializing BanditRouter with warmup priors...")
+    # Initialize router with Pareto-specific warmup priors
+    logger.info("\n🔧 Initializing BanditRouter with Pareto warmup priors...")
+    PROJECT_ROOT = Path(__file__).parent.parent.parent
+    warmup_path = PROJECT_ROOT / "artifacts" / "priors_warmup_pareto.joblib"
+    
     router = BanditRouter.create(
         model_registry=registry,
-        priors="warmup",  # Use pretrained warmup priors
+        priors=str(warmup_path),  # Use Pareto-specific warmup priors
         alpha=0.0  # Pure exploitation for evaluation (greedy)
     )
     logger.info(f"  ✓ Router initialized with {len(router.bandit.models)} models")
+    logger.info(f"  ✓ Using warmup priors from: {warmup_path}")
     
     # Verify all models have warmup priors loaded
     logger.info("\n🔍 Verifying warmup priors for all models...")
