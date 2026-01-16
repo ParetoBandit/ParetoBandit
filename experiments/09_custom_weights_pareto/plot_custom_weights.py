@@ -243,6 +243,9 @@ def plot_selection_distribution(results: Dict, output_path: Path):
     """
     Create bar chart showing model selection distribution for each profile.
     
+    This is the key visualization showing how λ = w_c/w_q controls
+    which models the router selects from the Pareto frontier.
+    
     Args:
         results: Experiment results dict
         output_path: Path to save figure
@@ -250,13 +253,21 @@ def plot_selection_distribution(results: Dict, output_path: Path):
     profile_results = results["profile_results"]
     
     fig, axes = plt.subplots(1, len(profile_results), 
-                            figsize=(15, 5), sharey=True)
+                            figsize=(16, 6), sharey=True)
     
     if len(profile_results) == 1:
         axes = [axes]
     
+    # Color scheme for profiles
+    profile_colors = {
+        "Cost Saver": "#27ae60",      # Green
+        "High Quality": "#c0392b",    # Red
+        "Balanced": "#e67e22"          # Orange
+    }
+    
     for ax, result in zip(axes, profile_results):
         selections = result["model_selections"]
+        profile_name = result["profile_name"]
         
         # Sort by count
         sorted_models = sorted(selections.items(), 
@@ -266,30 +277,39 @@ def plot_selection_distribution(results: Dict, output_path: Path):
         counts = [c for _, c in sorted_models]
         percentages = [100 * c / sum(counts) for c in counts]
         
-        # Create bar chart
-        bars = ax.barh(models, percentages, color='steelblue', alpha=0.7)
+        # Create bar chart with profile-specific color
+        bar_color = profile_colors.get(profile_name, 'steelblue')
+        bars = ax.barh(models, percentages, color=bar_color, alpha=0.75, 
+                      edgecolor='black', linewidth=1.5)
         
         # Add value labels
         for bar, pct in zip(bars, percentages):
             width = bar.get_width()
-            ax.text(width, bar.get_y() + bar.get_height()/2,
+            ax.text(width + 2, bar.get_y() + bar.get_height()/2,
                    f'{pct:.1f}%',
-                   ha='left', va='center', fontsize=9)
+                   ha='left', va='center', fontsize=11, fontweight='bold')
         
-        ax.set_xlabel('Selection Frequency (%)')
-        ax.set_title(f'{result["profile_name"]}\n'
-                    f'(w_q={result["weights"]["w_q"]:.1f}, '
-                    f'w_c={result["weights"]["w_c"]:.1f})',
-                    fontweight='bold')
-        ax.grid(axis='x', alpha=0.3)
+        # Calculate lambda
+        w_q = result["weights"]["w_q"]
+        w_c = result["weights"]["w_c"]
+        lambda_val = w_c / w_q if w_q > 0 else float('inf')
+        
+        ax.set_xlabel('Selection Frequency (%)', fontsize=12, fontweight='bold')
+        ax.set_title(f'{profile_name}\n'
+                    f'λ={lambda_val:.1f} (w_q={w_q:.1f}, w_c={w_c:.1f})\n'
+                    f'Avg Cost: ${result["avg_cost"]*1000:.2f}/M',
+                    fontweight='bold', fontsize=13, pad=15)
+        ax.grid(axis='x', alpha=0.3, linestyle=':', linewidth=0.5)
+        ax.set_xlim(0, 110)  # Slight margin for labels
     
-    axes[0].set_ylabel('Model')
+    axes[0].set_ylabel('Model', fontsize=13, fontweight='bold')
     
-    plt.suptitle('Model Selection Distribution by Weight Profile',
-                fontweight='bold', fontsize=14, y=1.02)
+    plt.suptitle('How λ = w_c/w_q Controls Model Selection\n'
+                'Router behavior on 100 test prompts with different weight profiles',
+                fontweight='bold', fontsize=16, y=1.00)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"✅ Selection distribution saved to: {output_path}")
+    print(f"✅ Model selection distribution saved to: {output_path}")
     
     return fig, axes
 
@@ -382,18 +402,18 @@ def main():
     # Generate plots
     print("\n📈 Generating visualizations...")
     
-    # 1. Pareto curve
-    pareto_path = output_dir / "pareto_curve.png"
-    plot_pareto_curve(results, pareto_path)
-    
-    # 2. Selection distribution
+    # Main visualization: Selection distribution (clearest demonstration)
     dist_path = output_dir / "selection_distribution.png"
     plot_selection_distribution(results, dist_path)
     
-    # 3. Print summary table
+    # Optional: Pareto curve (commented out - harder to follow)
+    # pareto_path = output_dir / "pareto_curve.png"
+    # plot_pareto_curve(results, pareto_path)
+    
+    # Print summary table
     create_summary_table(results)
     
-    print(f"\n✅ All visualizations saved to: {output_dir}")
+    print(f"\n✅ Primary visualization saved to: {dist_path}")
 
 
 if __name__ == "__main__":
