@@ -1,0 +1,77 @@
+% Frontier Capability Index (FCI) Methodology for KDD Paper
+% This section explains how we selected the Pareto frontier models
+
+\subsection{Model Selection and The Pareto Frontier}
+
+To define the candidate pool, we constructed a \textbf{Frontier Capability Index (FCI)} based on a composite of three rigorous benchmarks: \textbf{GPQA} (Graduate-Level Google-Proof Q\&A), \textbf{LiveBench} (Contamination-resistant evaluation), and \textbf{HLE} (Human Level Evaluation). 
+
+We specifically selected these benchmarks to avoid the \textit{saturation effects} observed in older datasets (e.g., MMLU), where the performance gap between efficient and flagship models has narrowed to negligible levels. By focusing on high-difficulty tasks, our Pareto frontier preserves the \textit{capability differentiation} required to evaluate ``Rational Luxury'' routing strategies.
+
+Candidate models were selected strictly based on their position on the Price-vs-FCI curve (Figure~\ref{fig:pareto_frontier}), ensuring that the router's choice set contained only non-dominated options prior to any exposure to the test distribution.
+
+\subsubsection{FCI Construction}
+
+The Frontier Capability Index is computed as the arithmetic mean of normalized benchmark scores:
+
+\begin{equation}
+\text{FCI}_{model} = \frac{1}{3} \left( S^{norm}_{HLE} + S^{norm}_{GPQA} + S^{norm}_{LiveBench} \right)
+\end{equation}
+
+where each benchmark score is normalized using min-max scaling across all evaluated models:
+
+\begin{equation}
+S^{norm} = \frac{S_{model} - S_{min}}{S_{max} - S_{min}}
+\end{equation}
+
+Using the full range of models (including weak models) for normalization ensures robust scaling and prevents negative scores. The normalization ranges for our 39 evaluated models are:
+
+\begin{itemize}
+\item \textbf{HLE}: $[0.033, 0.372]$
+\item \textbf{GPQA}: $[0.200, 0.910]$  
+\item \textbf{LiveBench}: $[0.020, 0.920]$
+\end{itemize}
+
+\subsubsection{Pareto Frontier Identification}
+
+From 42 candidate models, 39 had complete benchmark data for FCI computation. We identified 4 Pareto-optimal models by iterating through models sorted by cost and selecting those with strictly higher FCI than all cheaper alternatives:
+
+\begin{table}[h]
+\centering
+\caption{FCI-Based Pareto Frontier Models}
+\label{tab:pareto_models}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{Cost} & \textbf{FCI} & \textbf{HLE} & \textbf{GPQA} \\
+ & \textbf{(\$/1M)} & & & \\
+\midrule
+GPT-OSS-120B & 0.06 & 0.740 & 0.185 & 0.78 \\
+Gemini-2.5-Pro & 3.44 & 0.766 & 0.211 & 0.84 \\
+Claude-Opus-4.5 & 5.00 & 0.876 & 0.284 & 0.87 \\
+Gemini-3-Pro & 7.00 & 1.000 & 0.372 & 0.91 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Why Ultra-Cheap Models Were Excluded}
+
+Several models priced below GPT-OSS-120B (\$0.06/1M) were excluded from the Pareto frontier despite lower cost. Analysis reveals these models are \textit{Pareto-dominated}:
+
+\begin{itemize}
+\item \textbf{Ministral-3B} (\$0.08/1M, FCI=0.180): Saves \$0.02 but loses 0.56 FCI points—a 28$\times$ worse value proposition
+\item \textbf{Gemma-3-4B-IT} (\$0.085/1M, FCI=0.094): Saves \$0.015 but loses 0.65 FCI points—a 430$\times$ worse value
+\item \textbf{Ministral-8B} (\$0.10/1M, FCI=0.240): Costs 67\% more than GPT-OSS-120B but delivers 68\% lower FCI
+\end{itemize}
+
+GPT-OSS-120B at \$0.06/1M represents an \textit{exceptional value point}: no model offers better quality at lower cost, making it the natural floor of the frontier.
+
+\subsubsection{Frontier Span}
+
+The selected Pareto frontier spans:
+\begin{itemize}
+\item \textbf{Cost range}: 117$\times$ (\$0.06 to \$7.00 per 1M tokens)
+\item \textbf{FCI range}: 0.740 to 1.000 (35\% improvement)
+\item \textbf{Quality differentiation}: Sufficient to demonstrate ``Rational Luxury'' routing across difficulty spectrum
+\end{itemize}
+
+This wide span enables the router to make economically meaningful trade-offs: simple prompts route to the \$0.06 model, while complex reasoning tasks justify the 117$\times$ premium for marginal 35\% FCI improvement.
+

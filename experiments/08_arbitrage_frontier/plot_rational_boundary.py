@@ -43,17 +43,17 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
         Dictionary with plot statistics
     """
     # 1. Setup Data Containers
-    deltas_q = []  # Quality Gain (GPT-5.1 - GPT-OSS-120B)
-    deltas_c = []  # Cost Premium (GPT-5.1 - GPT-OSS-120B)
+    deltas_q = []  # Quality Gain (Gemini-3-Pro - GPT-OSS-120B)
+    deltas_c = []  # Cost Premium (Gemini-3-Pro - GPT-OSS-120B)
     winners = []   # Who actually won?
     prompts_text = []
 
-    # Define your contenders from Pareto frontier
-    # - Most Expensive (Highest Quality): GPT-5.1 (97.9% quality, $1.25/M input)
-    # - Cheapest (Good Value): GPT-OSS-120B (94.7% quality, $0.02/M input)
+    # Define your contenders from FCI-based Pareto frontier
+    # - Most Expensive (Highest Quality): Gemini-3-Pro-Preview (FCI=1.000, $7.00/M)
+    # - Cheapest (Best Value): GPT-OSS-120B (FCI=0.740, $0.06/M)
     # These are the two extremes of the Pareto frontier, showing maximum
-    # quality-cost trade-off range.
-    expensive_id = "openai/gpt-5.1"
+    # quality-cost trade-off range (116x cost difference, 26% FCI improvement).
+    expensive_id = "google/gemini-3-pro-preview"
     cheap_id = "openai/gpt-oss-120b"
     
     # Get profile lambda to draw the theoretical line
@@ -83,10 +83,10 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
             stats_chp = router._get_contextual_stats(cheap_id, x, 100, 600)
             
             # Calculate Deltas
-            # Quality: How much better is GPT-5.1 vs GPT-OSS-120B? (0-1 scale)
+            # Quality: How much better is Gemini-3-Pro vs GPT-OSS-120B? (0-1 scale)
             dQ = stats_exp['mean_quality'] - stats_chp['mean_quality']
             
-            # Cost: How much more does GPT-5.1 cost? ($/1k tokens)
+            # Cost: How much more does Gemini-3-Pro cost? ($/1k tokens)
             # Raw values are more interpretable for this visualization
             dC = stats_exp['cost'] - stats_chp['cost'] 
             
@@ -100,8 +100,8 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
                 ucb_exp = stats_exp['mean_quality'] + router.bandit.alpha * stats_exp.get('uncertainty', 0) - (lambda_val * stats_exp['cost'])
                 ucb_chp = stats_chp['mean_quality'] + router.bandit.alpha * stats_chp.get('uncertainty', 0) - (lambda_val * stats_chp['cost'])
                 print(f"\n   Debug Prompt {i}: '{p[:50]}...'")
-                print(f"      GPT-5.1:     Q={stats_exp['mean_quality']:.4f}, C=${stats_exp['cost']:.4f}, UCB≈{ucb_exp:.4f}")
-                print(f"      GPT-OSS-120B: Q={stats_chp['mean_quality']:.4f}, C=${stats_chp['cost']:.4f}, UCB≈{ucb_chp:.4f}")
+                print(f"      Gemini-3-Pro:  Q={stats_exp['mean_quality']:.4f}, C=${stats_exp['cost']:.4f}, UCB≈{ucb_exp:.4f}")
+                print(f"      GPT-OSS-120B:  Q={stats_chp['mean_quality']:.4f}, C=${stats_chp['cost']:.4f}, UCB≈{ucb_chp:.4f}")
                 print(f"      ΔQ={dQ:.4f}, ΔC=${dC:.4f}, Winner={model_id}")
                 print(f"      Note: UCB includes exploration bonus (α × uncertainty)")
             
@@ -190,11 +190,11 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
     
     # Title and labels
     plt.title("Rational Luxury: The Arbitrage Frontier", fontsize=18, fontweight='bold', pad=20)
-    plt.xlabel("Predicted Quality Gain: ΔQ (GPT-5.1 - GPT-OSS-120B)", fontsize=14)
+    plt.xlabel("Predicted Quality Gain: ΔQ (Gemini-3-Pro - GPT-OSS-120B)", fontsize=14)
     plt.ylabel("Cost Premium: ΔC ($/1M tokens)", fontsize=14)
     
     # Legend
-    expensive_patch = plt.scatter([], [], c='#FF4B4B', alpha=0.6, s=60, edgecolors='w', linewidths=1.5, label='Routed to GPT-5.1')
+    expensive_patch = plt.scatter([], [], c='#FF4B4B', alpha=0.6, s=60, edgecolors='w', linewidths=1.5, label='Routed to Gemini-3-Pro')
     cheap_patch = plt.scatter([], [], c='#1F77B4', alpha=0.6, s=60, edgecolors='w', linewidths=1.5, label='Routed to GPT-OSS-120B')
     plt.legend(loc='upper right', fontsize=11)
     
@@ -228,7 +228,7 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
     
     print(f"\n📊 Statistics:")
     print(f"   Total prompts: {stats['n_prompts']}")
-    print(f"   Routed to GPT-5.1: {stats['n_expensive']} ({stats['pct_expensive']:.1f}%)")
+    print(f"   Routed to Gemini-3-Pro: {stats['n_expensive']} ({stats['pct_expensive']:.1f}%)")
     print(f"   Routed to GPT-OSS-120B: {stats['n_cheap']} ({100-stats['pct_expensive']:.1f}%)")
     print(f"   Mean Quality Gain: {stats['mean_dQ']:.2f}")
     print(f"   Mean Cost Premium: ${stats['mean_dC']:.4f}")

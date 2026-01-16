@@ -72,36 +72,9 @@
       "empirical_hle": 0.9808,
       "initial_quality": 0.9751382694023194,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
-    },
-    {
-      "openrouter_id": "openai/gpt-5-chat",
-      "display_name": "GPT-5 (ChatGPT)",
-      "hle": 0.058,
-      "input_cost_per_m": 1.25,
-      "output_cost_per_m": 10.0,
-      "price_1m_blended": 5.625,
-      "time_to_first_token_seconds": 0.52,
-      "output_tokens_per_second": 121.316,
-      "math_500": 0.975,
-      "humaneval_score": null,
-      "mmlu_pro": 0.82,
-      "description": "GPT-5 Chat is designed for advanced, natural, multimodal, and context-aware conversations for enterprise applications.",
-      "tags": [],
-      "hallucination_rate": 81.0,
-      "hallucination_vectara": 1.4,
-      "hallucination_composite": 68.14,
-      "price_1m_input": 1.25,
-      "price_1m_output": 10.0,
-      "lowest_latency_seconds": 0.52,
-      "lowest_latency_provider": "OpenAI",
-      "latency_scraped_at": "2025-12-23T19:00:00-08:00",
-      "overall_success_rate": 0.9781512040872083,
-      "context_length": 128000,
-      "architecture": "GPT",
-      "initial_quality": 0.9751382694023194,
-      "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.46,
+      "gpqa": 0.67
     },
     {
       "openrouter_id": "anthropic/claude-opus-4.5",
@@ -122,7 +95,9 @@
       "empirical_hle": 0.9775,
       "initial_quality": 0.9716413916146298,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.87,
+      "gpqa": 0.87
     },
     {
       "openrouter_id": "openai/gpt-5",
@@ -145,7 +120,9 @@
       "price_1m_output": 10.0,
       "initial_quality": 0.9716413916146298,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.85,
+      "gpqa": 0.85
     },
     {
       "name": "o3",
@@ -192,7 +169,8 @@
       "hle": 0.2,
       "initial_quality": 0.9707671721677075,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.81
     },
     {
       "name": "Claude 3.7 Sonnet (Reasoning)",
@@ -230,7 +208,8 @@
       "hle": 0.103,
       "initial_quality": 0.969892952720785,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.38
     },
     {
       "name": "Grok 3",
@@ -277,7 +256,8 @@
       "hle": 0.051,
       "initial_quality": 0.969892952720785,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.43
     },
     {
       "openrouter_id": "openai/o1",
@@ -297,7 +277,9 @@
       "empirical_hle": 0.9698,
       "initial_quality": 0.965521855486173,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.68,
+      "gpqa": 0.75
     },
     {
       "name": "Claude 4 Sonnet (Reasoning)",
@@ -343,7 +325,8 @@
       "hle": 0.096,
       "initial_quality": 0.9637734165923282,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.66
     },
     {
       "name": "DeepSeek V3 0324",
@@ -390,7 +373,8 @@
       "hle": 0.052,
       "initial_quality": 0.9611507582515612,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.41
     },
     {
       "name": "GPT-4o",
@@ -437,7 +421,8 @@
       "hle": 0.033,
       "initial_quality": 0.9611507582515612,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.43
     },
     {
       "name": "Kimi K2",
@@ -530,7 +515,8 @@
       "hle": 0.173,
       "initial_quality": 0.9576538804638716,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.71
     },
     {
       "name": "Command A",
@@ -577,7 +563,8 @@
       "hle": 0.046,
       "initial_quality": 0.9550312221231045,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.29
     },
     {
       "openrouter_id": "google/gemini-2.5-flash-preview-09-2025",
@@ -675,7 +662,8 @@
       "hle": 0.097,
       "initial_quality": 0.945414808206958,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.62
     },
     {
       "openrouter_id": "anthropic/claude-3.5-sonnet",
@@ -695,7 +683,9 @@
       "empirical_hle": 0.9506,
       "initial_quality": 0.9445405887600357,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.38,
+      "gpqa": 0.6
     },
     {
       "openrouter_id": "google/gemini-3-pro-preview",
@@ -723,7 +713,9 @@
       "architecture": "Gemini",
       "initial_quality": 0.9445405887600357,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.92,
+      "gpqa": 0.91
     },
     {
       "name": "Gemini 2.5 Flash-Lite (Reasoning)",
@@ -769,7 +761,8 @@
       "hle": 0.064,
       "initial_quality": 0.9436663693131134,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.69
     },
     {
       "openrouter_id": "google/gemma-3-12b-it",
@@ -788,7 +781,9 @@
       "empirical_hle": 0.9483,
       "initial_quality": 0.9401694915254238,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.14,
+      "gpqa": 0.35
     },
     {
       "openrouter_id": "google/gemma-3-27b-it",
@@ -808,7 +803,9 @@
       "empirical_hle": 0.955,
       "initial_quality": 0.9401694915254238,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.14,
+      "gpqa": 0.43
     },
     {
       "name": "Mistral Small 3.2",
@@ -855,7 +852,8 @@
       "hle": 0.043,
       "initial_quality": 0.9375468331846566,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.28
     },
     {
       "openrouter_id": "openai/gpt-oss-20b",
@@ -874,7 +872,9 @@
       "empirical_hle": 0.9497,
       "initial_quality": 0.9366726137377341,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.78,
+      "gpqa": 0.69
     },
     {
       "name": "Gemini 2.5 Pro",
@@ -921,7 +921,8 @@
       "hle": 0.211,
       "initial_quality": 0.9366726137377341,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.8
     },
     {
       "name": "Nova Pro",
@@ -959,53 +960,8 @@
       "hle": 0.034,
       "initial_quality": 0.9357983942908119,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
-    },
-    {
-      "name": "Nova Lite",
-      "price_1m_input": 0.06,
-      "price_1m_output": 0.24,
-      "price_1m_blended": 0.105,
-      "output_tokens_per_second": 90.3261707575568,
-      "time_to_first_token_seconds": 0.8132919270498679,
-      "display_name": "Nova Lite",
-      "input_cost_per_m": 0.06,
-      "output_cost_per_m": 0.24,
-      "openrouter_id": "amazon/nova-lite-v1",
-      "ttft_mean": 0.36,
-      "ttft_std": 0.072,
-      "ttft_ci_95_lower": 0.324,
-      "ttft_ci_95_upper": 0.39599999999999996,
-      "ttft_p50": 0.36,
-      "ttft_p95": 0.46799999999999997,
-      "ttft_p99": 0.54,
-      "ttft_samples": 0,
-      "math_500": 0.765,
-      "humaneval_score": 58.0,
-      "livecodebench": 0.167,
-      "mmlu_pro": 0.59,
-      "gpqa": 0.433,
-      "aime": 0.107,
-      "mbpp_score": 62.0,
-      "mixeval_score": 61.0,
-      "mixeval_hard_score": 52.0,
-      "scicode": 0.139,
-      "reasoning_score": 18.95,
-      "ifbench": 0.341,
-      "terminalbench_hard": 0.007,
-      "time_to_first_token_std": 0.14218339018893467,
-      "time_to_first_token_ci_lower": 0.7850796577462821,
-      "time_to_first_token_ci_upper": 0.8415041963534536,
-      "output_tokens_per_second_std": 41.315271129050316,
-      "output_tokens_per_second_ci_lower": 82.1283246245129,
-      "output_tokens_per_second_ci_upper": 98.52401689060069,
-      "measured_at": 1766308116.042343,
-      "latency_n_samples": 100,
-      "latency_n_failures": 0,
-      "hle": 0.046,
-      "initial_quality": 0.9113202497769849,
-      "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.23
     },
     {
       "name": "Llama 3.1 Instruct 405B",
@@ -1051,7 +1007,8 @@
       "hle": 0.042,
       "initial_quality": 0.902578055307761,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.31
     },
     {
       "name": "Llama 4 Maverick",
@@ -1098,7 +1055,8 @@
       "hle": 0.048,
       "initial_quality": 0.8990811775200713,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.4
     },
     {
       "openrouter_id": "meta-llama/llama-4-scout",
@@ -1127,7 +1085,9 @@
       "architecture": "Llama4",
       "initial_quality": 0.893835860838537,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.42,
+      "gpqa": 0.59
     },
     {
       "openrouter_id": "google/gemma-3-4b-it",
@@ -1146,53 +1106,9 @@
       "empirical_hle": 0.8967,
       "initial_quality": 0.8894647636039252,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
-    },
-    {
-      "name": "Nova Micro",
-      "price_1m_input": 0.035,
-      "price_1m_output": 0.14,
-      "price_1m_blended": 0.061,
-      "output_tokens_per_second": 187.3950588761927,
-      "time_to_first_token_seconds": 0.7184400808019563,
-      "display_name": "Nova Micro",
-      "input_cost_per_m": 0.035,
-      "output_cost_per_m": 0.14,
-      "openrouter_id": "amazon/nova-micro-v1",
-      "ttft_mean": 0.326,
-      "ttft_std": 0.06520000000000001,
-      "ttft_ci_95_lower": 0.2934,
-      "ttft_ci_95_upper": 0.35860000000000003,
-      "ttft_p50": 0.326,
-      "ttft_p95": 0.4238,
-      "ttft_p99": 0.489,
-      "ttft_samples": 0,
-      "math_500": 0.703,
-      "humaneval_score": 45.0,
-      "livecodebench": 0.14,
-      "mmlu_pro": 0.531,
-      "gpqa": 0.358,
-      "aime": 0.08,
-      "mbpp_score": 52.0,
-      "mixeval_score": 57.99999999999999,
-      "mixeval_hard_score": 49.0,
-      "scicode": 0.094,
-      "reasoning_score": 15.89,
-      "ifbench": 0.294,
-      "terminalbench_hard": 0.014,
-      "time_to_first_token_std": 0.12525838033627473,
-      "time_to_first_token_ci_lower": 0.6935861006437805,
-      "time_to_first_token_ci_upper": 0.7432940609601322,
-      "output_tokens_per_second_std": 643.8762709628307,
-      "output_tokens_per_second_ci_lower": 59.63603772432805,
-      "output_tokens_per_second_ci_upper": 315.15408002805736,
-      "measured_at": 1766306327.8958368,
-      "latency_n_samples": 100,
-      "latency_n_failures": 0,
-      "hle": 0.047,
-      "initial_quality": 0.8746030330062445,
-      "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.11,
+      "gpqa": 0.29
     },
     {
       "name": "Llama 3.1 Instruct 70B",
@@ -1238,7 +1154,8 @@
       "hle": 0.046,
       "initial_quality": 0.8728545941123996,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.23
     },
     {
       "name": "Phi-4",
@@ -1285,7 +1202,8 @@
       "hle": 0.041,
       "initial_quality": 0.866735057983943,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.23
     },
     {
       "name": "Grok 4",
@@ -1330,7 +1248,8 @@
       "hle": 0.239,
       "initial_quality": 0.8492506690454951,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.82
     },
     {
       "openrouter_id": "mistralai/ministral-8b",
@@ -1359,7 +1278,9 @@
       "architecture": "Mistral",
       "initial_quality": 0.8370115967885816,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.3,
+      "gpqa": 0.47
     },
     {
       "name": "Mixtral 8x7B Instruct",
@@ -1395,7 +1316,8 @@
       "hle": 0.045,
       "initial_quality": 0.8046654772524533,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.07
     },
     {
       "openrouter_id": "mistralai/ministral-3b",
@@ -1414,7 +1336,9 @@
       "empirical_hle": 0.7665,
       "initial_quality": 0.7653256021409457,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.25,
+      "gpqa": 0.36
     },
     {
       "openrouter_id": "meta-llama/llama-3.1-8b-instruct",
@@ -1433,7 +1357,9 @@
       "empirical_hle": 0.7373,
       "initial_quality": 0.7425958965209635,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.12,
+      "gpqa": 0.26
     },
     {
       "openrouter_id": "meta-llama/llama-3.2-1b-instruct",
@@ -1462,7 +1388,9 @@
       "architecture": "Llama3",
       "initial_quality": 0.3771721677074041,
       "initial_quality_source": "dev_rewards_complete",
-      "initial_quality_n_obs": 1121
+      "initial_quality_n_obs": 1121,
+      "livebench_score": 0.02,
+      "gpqa": 0.2
     }
   ],
   "version": "1.0.0",
