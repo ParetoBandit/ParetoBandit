@@ -1,14 +1,18 @@
 """
-Rational Luxury Decision Boundary Visualization
-================================================
+Rational Luxury Decision Boundary Visualization (5-Model Pareto Frontier v4.1.0)
+=================================================================================
 
 This script demonstrates the "Auto" (Rational Luxury) paradigm by visualizing
-the economic trade-offs your router makes between cost and quality.
+the economic trade-offs your router makes between cost and quality across
+the 5-model Pareto-optimal frontier.
 
 The visualization shows:
 - X-Axis: Quality Gain (ΔQ) - How much better the expensive model is
 - Y-Axis: Cost Premium (ΔC) - How much more the expensive model costs
 - The Decision Boundary: The indifference curve where the router is neutral
+
+Quality is measured using FCI (Frontier Capability Index) - a composite score
+combining HLE, GPQA, and LiveCodeBench benchmarks.
 
 For KDD submission - demonstrates theoretical grounding in Rational Choice Theory.
 """
@@ -43,18 +47,18 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
         Dictionary with plot statistics
     """
     # 1. Setup Data Containers
-    deltas_q = []  # Quality Gain (Gemini-3-Pro - GPT-OSS-120B)
-    deltas_c = []  # Cost Premium (Gemini-3-Pro - GPT-OSS-120B)
+    deltas_q = []  # Quality Gain (Gemini 3 Pro - GPT-OSS-120B)
+    deltas_c = []  # Cost Premium (Gemini 3 Pro - GPT-OSS-120B)
     winners = []   # Who actually won?
     prompts_text = []
 
-    # Define your contenders from FCI-based Pareto frontier
-    # - Most Expensive (Highest Quality): Gemini-3-Pro-Preview (FCI=1.000, $7.00/M)
-    # - Cheapest (Best Value): GPT-OSS-120B (FCI=0.740, $0.06/M)
-    # These are the two extremes of the Pareto frontier, showing maximum
-    # quality-cost trade-off range (116x cost difference, 26% FCI improvement).
-    expensive_id = "google/gemini-3-pro-preview"
-    cheap_id = "openai/gpt-oss-120b"
+    # Define your contenders from FCI-based Pareto frontier (5 models total)
+    # Based on initial_quality (FCI scores) from models_pareto.json v4.1.0:
+    # - Flagship: Gemini 3 Pro (FCI=0.7340, $7.00/M)
+    # - Baseline: GPT-OSS-120B (FCI=0.6150, $0.14/M)
+    # This comparison shows 19.4% FCI improvement at 50x cost premium.
+    expensive_id = "google/gemini-3-pro-preview"  # Flagship model
+    cheap_id = "openai/gpt-oss-120b"  # Baseline model
     
     # Get profile lambda to draw the theoretical line
     # New profile system: Score = Quality - (Lambda * Cost)
@@ -67,6 +71,7 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
         slope = 1.0 / lambda_val  # For Lambda=0.02, slope=50
     except:
         # Fallback to default
+        lambda_val = 0.02
         slope = 50.0 
 
     print("🤖 Scoring prompts...")
@@ -83,10 +88,10 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
             stats_chp = router._get_contextual_stats(cheap_id, x, 100, 600)
             
             # Calculate Deltas
-            # Quality: How much better is Gemini-3-Pro vs GPT-OSS-120B? (0-1 scale)
+            # Quality: How much better is Gemini 3 Pro vs gpt-oss-120b? (0-1 scale)
             dQ = stats_exp['mean_quality'] - stats_chp['mean_quality']
             
-            # Cost: How much more does Gemini-3-Pro cost? ($/1k tokens)
+            # Cost: How much more does Gemini 3 Pro cost? ($/1k tokens)
             # Raw values are more interpretable for this visualization
             dC = stats_exp['cost'] - stats_chp['cost'] 
             
@@ -100,8 +105,8 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
                 ucb_exp = stats_exp['mean_quality'] + router.bandit.alpha * stats_exp.get('uncertainty', 0) - (lambda_val * stats_exp['cost'])
                 ucb_chp = stats_chp['mean_quality'] + router.bandit.alpha * stats_chp.get('uncertainty', 0) - (lambda_val * stats_chp['cost'])
                 print(f"\n   Debug Prompt {i}: '{p[:50]}...'")
-                print(f"      Gemini-3-Pro:  Q={stats_exp['mean_quality']:.4f}, C=${stats_exp['cost']:.4f}, UCB≈{ucb_exp:.4f}")
-                print(f"      GPT-OSS-120B:  Q={stats_chp['mean_quality']:.4f}, C=${stats_chp['cost']:.4f}, UCB≈{ucb_chp:.4f}")
+                print(f"      Gemini 3 Pro (flagship):  Q={stats_exp['mean_quality']:.4f}, C=${stats_exp['cost']:.4f}, UCB≈{ucb_exp:.4f}")
+                print(f"      gpt-oss-120b (baseline):  Q={stats_chp['mean_quality']:.4f}, C=${stats_chp['cost']:.4f}, UCB≈{ucb_chp:.4f}")
                 print(f"      ΔQ={dQ:.4f}, ΔC=${dC:.4f}, Winner={model_id}")
                 print(f"      Note: UCB includes exploration bonus (α × uncertainty)")
             
@@ -189,13 +194,13 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
         plt.ylim(y_min_plot, y_max_plot)
     
     # Title and labels
-    plt.title("Rational Luxury: The Arbitrage Frontier", fontsize=18, fontweight='bold', pad=20)
-    plt.xlabel("Predicted Quality Gain: ΔQ (Gemini-3-Pro - GPT-OSS-120B)", fontsize=14)
+    plt.title("Rational Luxury: The Arbitrage Frontier (Baseline vs Flagship)", fontsize=18, fontweight='bold', pad=20)
+    plt.xlabel("Predicted Quality Gain: ΔQ (Gemini 3 Pro - gpt-oss-120b) [FCI Scale]", fontsize=14)
     plt.ylabel("Cost Premium: ΔC ($/1M tokens)", fontsize=14)
     
     # Legend
-    expensive_patch = plt.scatter([], [], c='#FF4B4B', alpha=0.6, s=60, edgecolors='w', linewidths=1.5, label='Routed to Gemini-3-Pro')
-    cheap_patch = plt.scatter([], [], c='#1F77B4', alpha=0.6, s=60, edgecolors='w', linewidths=1.5, label='Routed to GPT-OSS-120B')
+    expensive_patch = plt.scatter([], [], c='#FF4B4B', alpha=0.6, s=60, edgecolors='w', linewidths=1.5, label='Routed to Gemini 3 Pro')
+    cheap_patch = plt.scatter([], [], c='#1F77B4', alpha=0.6, s=60, edgecolors='w', linewidths=1.5, label='Routed to gpt-oss-120b')
     plt.legend(loc='upper right', fontsize=11)
     
     plt.tight_layout()
@@ -228,9 +233,9 @@ def plot_rational_decision_boundary(router, test_prompts, oracle_data=None):
     
     print(f"\n📊 Statistics:")
     print(f"   Total prompts: {stats['n_prompts']}")
-    print(f"   Routed to Gemini-3-Pro: {stats['n_expensive']} ({stats['pct_expensive']:.1f}%)")
-    print(f"   Routed to GPT-OSS-120B: {stats['n_cheap']} ({100-stats['pct_expensive']:.1f}%)")
-    print(f"   Mean Quality Gain: {stats['mean_dQ']:.2f}")
+    print(f"   Routed to Gemini 3 Pro (flagship): {stats['n_expensive']} ({stats['pct_expensive']:.1f}%)")
+    print(f"   Routed to gpt-oss-120b (baseline): {stats['n_cheap']} ({100-stats['pct_expensive']:.1f}%)")
+    print(f"   Mean Quality Gain (FCI): {stats['mean_dQ']:.4f}")
     print(f"   Mean Cost Premium: ${stats['mean_dC']:.4f}")
     print(f"   Indifference Slope: {stats['slope']:.1f}")
     
@@ -241,42 +246,44 @@ def main():
     """
     Example usage of the rational boundary visualization.
     """
-    print("=" * 60)
+    print("=" * 70)
     print("Rational Luxury Decision Boundary Visualization")
-    print("=" * 60)
+    print("5-Model Pareto Frontier v4.1.0 with FCI Quality Metrics")
+    print("=" * 70)
     print("📊 Using Production UCB Algorithm (LinUCB)")
     print("   - Score: mean_quality + α×uncertainty - λ×cost")
+    print("   - Quality measured using FCI (HLE + GPQA + LiveCodeBench composite)")
     print("   - Balances exploitation and exploration")
-    print("   - Shows real-world router behavior")
+    print("   - Shows real-world router behavior across Pareto-optimal models")
     
-    # Load your router with Pareto models
-    print("\n📦 Loading router with Pareto-optimal models...")
+    # Load your router with binary models (2 extremes for visualization)
+    print("\n📦 Loading router with binary model comparison (cheapest vs best)...")
     try:
         from sentence_transformers import SentenceTransformer
         import json
         
         PROJECT_ROOT = Path(__file__).parent.parent.parent
         
-        # Load Binary model registry (ONLY 2 models for pure indifference curve)
-        models_path = PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models_binary.json"
+        # Load BINARY model registry (2 extreme models for visualization)
+        models_path = PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models_pareto_binary.json"
         
         # Specify PCA path and BINARY warmup priors
         pca_path = PROJECT_ROOT / "artifacts" / "pca_23.joblib"
-        warmup_path = PROJECT_ROOT / "artifacts" / "priors_warmup_binary.joblib"
+        warmup_path = PROJECT_ROOT / "artifacts" / "priors_warmup_pareto_binary.joblib"
         
-        # Load models as dictionary (models_binary.json contains ONLY 2 models)
+        # Load models as dictionary
         with open(models_path) as f:
             models_data = json.load(f)
         model_registry = {m["openrouter_id"]: m for m in models_data["models"]}
         
-        # Verify binary universe
+        # Verify binary model setup (2 extremes for visualization)
         if len(model_registry) != 2:
             print(f"   ⚠️  WARNING: Expected 2 models, found {len(model_registry)}")
             print(f"      Available models: {list(model_registry.keys())}")
-            raise ValueError(f"models_binary.json must contain exactly 2 models for valid indifference curve")
+            raise ValueError(f"Binary config must contain exactly 2 models (cheapest + highest quality)")
         
-        print(f"   🎯 Binary Universe: {list(model_registry.keys())}")
-        print(f"   ✅ Perfect 2-model system for indifference curve visualization")
+        print(f"   🎯 Binary Comparison: {list(model_registry.keys())}")
+        print(f"   ✅ Extreme models loaded for decision boundary visualization")
         
         # Initialize encoder
         encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
@@ -287,25 +294,36 @@ def main():
         router = BanditRouter.create(
             model_registry=model_registry,
             context_encoder=encoder,
-            priors=str(warmup_path),  # Explicit path to Pareto hybrid warmup
+            priors=str(warmup_path),  # Explicit path to Pareto warmup priors
             pca_path=pca_path,
             alpha=0.5
         )
-        print(f"✅ Router loaded with {len(router.bandit.models)} models (binary universe)")
+        print(f"✅ Router loaded with {len(router.bandit.models)} models (binary comparison)")
         print(f"   Models: {', '.join(list(router.bandit.models))}")
+        
+        # Print FCI scores for reference
+        print(f"\n📊 FCI Scores (Frontier Capability Index):")
+        for model_id in sorted(router.bandit.models, key=lambda m: model_registry[m].get('initial_quality', 0), reverse=True):
+            fci = model_registry[model_id].get('initial_quality', 0)
+            cost = model_registry[model_id].get('price_1m_blended', 0)
+            print(f"   - {model_id}: FCI={fci:.4f}, Cost=${cost:.2f}/M")
     except Exception as e:
         print(f"❌ Error loading router: {e}")
         import traceback
         traceback.print_exc()
         print("\nMake sure you have:")
-        print("  1. Generated Pareto warmup priors (see experiments/08_arbitrage_frontier/WARMUP_UPDATES.md)")
-        print("  2. Run: python scripts/generate_warmup.py --models src/bandit_gpt/config/models_pareto.json")
+        print("  1. Generated binary warmup priors: artifacts/priors_warmup_pareto_binary.joblib")
+        print("  2. PCA model: artifacts/pca_23.joblib")
+        print("  3. Binary config: src/bandit_gpt/config/models_pareto_binary.json")
+        print("\nTo generate warmup priors, run:")
+        print("  python scripts/generate_warmup.py --models src/bandit_gpt/config/models_pareto_binary.json \\")
+        print("    --output artifacts/priors_warmup_pareto_binary.joblib")
         return
     
     # Load test prompts
     print("\n📝 Loading test prompts...")
     # Create an EXTREMELY diverse set spanning from trivial to impossible
-    # We need prompts that will show GPT-5.1 having significantly higher quality gains
+    # We need prompts that will show the 5-model frontier making quality-cost trade-offs
     test_prompts = [
         # TRIVIAL (0-1% quality gain expected)
         "Hi",
@@ -369,13 +387,24 @@ def main():
     print("\nFor your KDD paper, use this interpretation:")
     print("-" * 60)
     print("""
-Figure 3 illustrates the decision boundary of the 'Auto' profile. 
+Figure 3 illustrates the decision boundary of the 'Auto' profile comparing
+baseline vs flagship models from the 5-model Pareto frontier (v4.1.0). 
 The dashed line represents the router's economic indifference curve 
-(λ = w_c/w_q). Prompts below the line represent high-difficulty tasks 
-where the quality gain (ΔQ) justifies the cost premium (ΔC), triggering 
-a route to the SOTA model. Prompts above the line—including simple 
-'Hello World' queries—are routed to the efficient model, as the marginal 
-quality gain is insufficient to justify the cost.
+(λ = w_c/w_q = 0.02). Quality is measured using FCI (Frontier Capability Index), 
+a composite score combining HLE, GPQA, and LiveCodeBench benchmarks.
+
+Prompts below the line represent high-difficulty tasks where the quality 
+gain (ΔQ ≈ 19%) justifies the cost premium (ΔC = $6.86), triggering a route 
+to Gemini 3 Pro (FCI=0.734, flagship, $7.00/M). Prompts above the line—
+including simpler queries—are routed to gpt-oss-120b (FCI=0.615, baseline, 
+$0.14/M), as the marginal quality improvement is insufficient to justify 
+the 50x cost premium.
+
+This demonstrates economically rational routing: the system automatically
+balances quality improvements against cost premiums based on predicted
+task difficulty, selecting from the full 5-model Pareto frontier 
+(Ministral 8B, gpt-oss-120b, Gemini 2.5 Pro, GPT-5.1, Gemini 3 Pro) to 
+optimize the quality-cost trade-off for each prompt.
     """)
     print("-" * 60)
 
