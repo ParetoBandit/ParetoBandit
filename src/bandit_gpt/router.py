@@ -321,202 +321,51 @@ DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # ---------------------------------------------------------------------------
 class OptimizationProfile:
     """
-    Named presets for utility function weights.
+    Simplified profile system with two modes:
+    1. "auto": Intelligent default routing (handled by PARETO_PROFILES)
+    2. "custom": Pass a dict with custom weights for full control
     
-    Weights are Exchange Rates:
-    - w_c = 1.0  (Base Currency: $1.00 USD)
-    - w_q = X    (Value of 1% Quality Gain in USD)
+    Custom Profile Format:
+    - w_q: Quality weight (how much you value quality)
+    - w_c: Cost weight (penalty for higher cost)
+    - w_l: Latency weight (penalty for higher latency)
+    - alpha_scale: Optional exploration scaling (default: 1.0)
     
-    alpha_scale controls Risk Tolerance:
-    - 0.01: Risk Averse (Strict Exploitation)
-    - 1.00: Risk Neutral (Standard Exploration)
-    - 2.00: Risk Seeking (High Exploration)
+    Example:
+        {"w_q": 10.0, "w_c": 1.0, "w_l": 0.5}
     """
-    
-    # 1. MAX QUALITY ("Rational Luxury")
-    # Target: GPT-4.1 @ $5.00
-    # BALANCE FIX: Set w_c=0.5 to balance cost sensitivity with quality differentiation
-    # 
-    # Analysis from warmup priors:
-    # - Quality predictions cluster in [0.70, 0.85] range (IRT simulation)
-    # - Models differ by only 0.5-1.5% in quality predictions
-    # - Need to balance: avoid waste on noise, but allow quality to justify cost
-    # 
-    # Ratio 60:1 (w_q=30, w_c=0.5):
-    # - Simple prompt (0.67% quality edge): 30×0.0067=0.20 vs 0.5×0.69=0.345 → Cheap wins ✓
-    # - Hard prompt (1.5% quality edge): 30×0.015=0.45 vs 0.5×0.69=0.345 → Quality wins ✓
-    # 
-    # Interpretation: "Quality matters, but don't waste money on statistical noise"
-    MAX_QUALITY = {"w_q": 100.0, "w_c": 0.5, "w_l": 0.0, "alpha_scale": 0.3}
-    
-    # 2. ARBITRAGE ("Smart Shopper")
-    # Bias towards Cost (w_c=1.0) to break Prior Lock and find value (Grok/Flash).
-    # High Exploration (alpha=1.0) ensures we sample cheap models to verify quality.
-    ARBITRAGE = {"w_q": 0.8, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 1.0}
-    
-    # 3. COST SAVER ("The Penny Pincher")
-    # Target: Gemma-3-12b @ $0.24
-    # "The Penny Pincher" - w_q=0.1 forces it to grab the cheapest model that 
-    # isn't broken. Aggressively optimizes for the $0.16-$0.24 range.
-    COST_SAVER = {"w_q": 0.1, "w_c": 1.0, "w_l": 0.0, "alpha_scale": 0.5}
-
-    # 4. LOW LATENCY ("Real Time")
-    # Goal: For chat/voice interfaces.
-    LOW_LATENCY = {"w_q": 5.0, "w_c": 0.5, "w_l": 50.0, "alpha_scale": 0.5}
-
-    _PROFILES = {
-        "max_quality": MAX_QUALITY,
-        "arbitrage": ARBITRAGE,
-        "cost_saver": COST_SAVER,
-        "low_latency": LOW_LATENCY,
-    }
 
     @classmethod
     def get(cls, name: Union[str, Dict[str, float]]) -> Dict[str, float]:
-        """Get profile weights by name or return dict if already a profile."""
+        """
+        Get profile weights.
+        
+        Args:
+            name: Either "auto" or a custom dict with weights
+        
+        Returns:
+            Profile weights dictionary
+        """
         if isinstance(name, dict):
-            # Pass-through for custom weight dicts with normalization
-            weights = dict(name) # Shallow copy
+            # Validate custom weight dict
+            weights = dict(name)
             
-            # Ensure at least one key exists
             if not any(k in weights for k in ["w_q", "w_c", "w_l"]):
                 raise ValueError("Custom profile must contain at least one of ['w_q', 'w_c', 'w_l']")
             
             # Fill missing keys with 0.0
             for k in ["w_q", "w_c", "w_l"]:
-                if k not in weights:
-                    weights[k] = 0.0
+                weights.setdefault(k, 0.0)
             
-            # NOTE: We NO LONGER normalize weights to sum to 1.0.
-            # This allows "Unbounded Weights" where users can set high priorities
-            # for multiple metrics simultaneously (e.g., w_q=1.0, w_c=1.0).
-            # The bandit's exploration (alpha) scales naturally with w_q.
-            
-            total = sum(weights.values())
-            if total <= 0:
+            if sum(weights[k] for k in ["w_q", "w_c", "w_l"]) <= 0:
                 raise ValueError("Weights must sum to a positive value")
             
             return weights
             
-        if not isinstance(name, str):
-            raise TypeError(f"Profile must be a string or dict, got {type(name)}")
-            
-        key = name.lower().replace("-", "_")
-        if key not in cls._PROFILES:
-            raise ValueError(f"Unknown profile '{name}'. Valid: {list(cls._PROFILES.keys())}")
-        return cls._PROFILES[key]
-    
-    @classmethod
-    def from_reference(
-        cls,
-        quality_tolerance: float = 0.05,
-        cost_savings: float = 0.50,
-        latency_savings: float = 0.0
-    ) -> Dict[str, float]:
-        """
-        Create optimization weights from intuitive trade-off percentages.
+        if name == "auto":
+            return {"_pareto_mode": True}
         
-        This implements **Reference Point Normalization**, a concept from decision 
-        theory that translates relative preferences into utility weights.
-        
-        **Mathematical Foundation:**
-        
-        If you're willing to trade a 5% quality drop (ΔQ=0.05) for a 50% cost 
-        reduction (ΔC=0.50), you're defining the slope of your indifference curve:
-        
-            w_q × Loss_in_Quality = w_c × Gain_in_Cost
-            w_q × 0.05 = w_c × 0.50
-            
-        This gives the exchange rate:
-        
-            w_q / w_c = 0.50 / 0.05 = 10
-            
-        Interpretation: Quality is 10x more valuable than Cost.
-        
-        **Connection to Pareto Frontier:**
-        
-        - **Steep Slope** (w_q ≫ w_c): Top-left of curve (Max Quality)
-          → Small quality tolerance, large cost savings needed
-          
-        - **Shallow Slope** (w_q ≈ w_c): Moving down curve (Cost Saver)
-          → Larger quality tolerance, moderate cost savings
-          
-        **Usage Examples:**
-        
-        1. **The Arbitrageur** - "I want GPT-4 quality (99%) at half price (50%)"
-           ```python
-           profile = OptimizationProfile.from_reference(
-               quality_tolerance=0.01,  # 1% quality drop
-               cost_savings=0.50        # 50% cost reduction
-           )
-           # Result: {"w_q": 50.0, "w_c": 1.0, "w_l": 0.0}
-           # Interpretation: Extremely sensitive to quality drops
-           ```
-        
-        2. **The Budget User** - "I can lose 20% quality for 90% cost savings"
-           ```python
-           profile = OptimizationProfile.from_reference(
-               quality_tolerance=0.20,  # 20% quality drop
-               cost_savings=0.90        # 90% cost reduction
-           )
-           # Result: {"w_q": 4.5, "w_c": 1.0, "w_l": 0.0}
-           # Interpretation: Quality matters (4.5x), but router has room to optimize cost
-           ```
-        
-        3. **Speed Matters** - "10% quality loss for 50% cost + 30% latency savings"
-           ```python
-           profile = OptimizationProfile.from_reference(
-               quality_tolerance=0.10,
-               cost_savings=0.50,
-               latency_savings=0.30
-           )
-           # Result: {"w_q": 5.0, "w_c": 1.0, "w_l": 3.0}
-           ```
-        
-        Args:
-            quality_tolerance: Percentage quality drop you can accept (e.g., 0.05 = 5%)
-            cost_savings: Percentage cost reduction desired (e.g., 0.50 = 50%)
-            latency_savings: Percentage latency reduction desired (optional, default 0.0)
-            
-        Returns:
-            Weight dictionary compatible with router's profile parameter
-            
-        Raises:
-            ValueError: If parameters are not positive
-        """
-        # Validation
-        if quality_tolerance <= 0:
-            raise ValueError(f"quality_tolerance must be positive, got {quality_tolerance}")
-        if cost_savings <= 0:
-            raise ValueError(f"cost_savings must be positive, got {cost_savings}")
-        if latency_savings < 0:
-            raise ValueError(f"latency_savings must be non-negative, got {latency_savings}")
-        
-        # Avoid division by zero with minimum threshold
-        q_drop = max(quality_tolerance, 0.001)
-        c_save = max(cost_savings, 0.001)
-        
-        # Calculate the Exchange Rate
-        # If you need a huge cost saving (50%) to justify a tiny quality drop (1%),
-        # then Quality is VERY important.
-        # Ratio = Cost_Savings / Quality_Drop
-        exchange_rate = c_save / q_drop
-        
-        # Base weights
-        # w_c is the "numeraire" (set to 1.0)
-        # w_q is the exchange rate
-        w_c = 1.0
-        w_q = exchange_rate
-        
-        # Latency handling (optional)
-        w_l = 0.0
-        if latency_savings > 0:
-            # How much latency reduction would you trade for the same quality drop?
-            # Use the same exchange rate logic
-            l_save = max(latency_savings, 0.001)
-            w_l = l_save / q_drop
-        
-        return {"w_q": w_q, "w_c": w_c, "w_l": w_l}
+        raise ValueError(f"Unknown profile '{name}'. Use 'auto' or pass a custom dict.")
 
 # ---------------------------------------------------------------------------
 # Exploration Rates
@@ -1249,16 +1098,15 @@ class BanditRouter:
         #   λ=1.0: Equal weight (50/50 quality-cost tradeoff)
         #   λ=0.5: Quality-biased (67% quality, 33% cost)
         #   λ=0.05: Quality-focused (95% quality, 5% cost)
-        # Previous cost_saver λ=10.0 was calibrated for unnormalized cost,
-        # causing utility range [-10, 1] where cost dominated 10x over quality.
+        # Simplified Profile System: "auto" is the intelligent default
+        # Lambda = 0.02 is calibrated to balance quality and cost optimally
+        # Users can pass "custom" (dict) for full control over weights
         self.PARETO_PROFILES = {
-            "cost_saver": 1.0,        # Balanced: Equal weight to quality and cost (50/50)
-            "smart_shopper": 0.02,    # Push toward grok: stronger cost penalty
-            "rational_luxury": 0.0     # Pure Quality: Cost-invariant (κ=0 is rational)
+            "auto": 0.02,    # Smart routing: balances quality and cost intelligently
         }
         # Controls the "Optimism" of the Pareto Filter (UCB)
         # 1.0 = Standard UCB. Higher = Keep uncertain models alive longer.
-        # [KDD REVIEW FIX]: Increased to 2.0 to ensure gatekeeper is more generous than judge.
+        # Set to 2.0 to ensure gatekeeper is more generous than judge.
         self.PARETO_EXPLORATION_CONSTANT = 2.0
 
 
@@ -1467,17 +1315,39 @@ class BanditRouter:
             else:
                 logger.warning(f"Unknown feature '{feature_name}' in initial_weights. Skipping.")
         
-        # 6. Add to Bandit with Neighbor Bootstrapping (KDD Review Fix - Critique C)
-        # Instead of cold-starting with A=I, b=0, bootstrap from similar models
+        # 6. Add to Bandit with Latent Semantic Transfer (KDD V1: Progressive Learning)
+        # Instead of hardcoded heuristics, use semantic similarity to find neighbors
+        # and dynamically adjust prior strength based on confidence in the match
         if len(self.bandit.models) > 0:
-            # Use neighbor bootstrapping if there are existing models
+            # Build semantic DNA and find best neighbor
+            dna_str = self._get_model_dna(model_id, capabilities, speed)
+            neighbor, similarity = self._find_semantic_neighbor(model_id, dna_str)
+            
+            # Dynamic n_effective based on similarity confidence
+            # Empirically optimized via hyperparameter sweep (see experiments_v1/latent_semantic_transfer/sweep_n_eff.py)
+            # High similarity (>0.8) -> Strong prior transfer (n_effective=5.0)
+            # Medium similarity (0.6-0.8) -> Balanced transfer (n_effective=3.0)  
+            # Low similarity (<0.6) -> Weak prior, high exploration (n_effective=1.0)
+            if similarity > 0.8:
+                n_effective = 5.0  # Optimal for high similarity (empirically validated)
+            elif similarity > 0.6:
+                n_effective = 3.0   # Proportionally adjusted
+            else:
+                n_effective = 1.0   # Minimal transfer for low similarity
+            
+            logger.info(
+                f"🔍 Latent Semantic Transfer: {model_id} "
+                f"matched to {neighbor} (sim: {similarity:.3f}, n_eff: {n_effective})"
+            )
+            
+            # Use neighbor bootstrapping with dynamic prior strength
             A_init, b_init = self.admix_theta_from_neighbors(
                 model_id=model_id,
                 registry=self.registry,
                 bandit=self.bandit,
                 encoder=self.encoder,
                 alpha=0.8,  # DEPRECATED: kept for API compatibility
-                n_effective=5.0  # Balanced prior strength for neighbor bootstrapping
+                n_effective=n_effective  # Dynamic prior strength based on similarity
             )
             
             # [KDD REVIEW FIX - Bug A: "First-Child" Bias Correction]
@@ -1553,14 +1423,122 @@ class BanditRouter:
     # Tier 1 Safety: Fast Toxicity Heuristic
     # ---------------------------------------------------------------------------
     
+    # ---------------------------------------------------------------------------
+    # Latent Semantic Transfer: Progressive Learning for New Models
+    # ---------------------------------------------------------------------------
+    
+    def _get_model_dna(
+        self, 
+        model_id: str, 
+        capabilities: List[str] = None, 
+        speed: str = None
+    ) -> str:
+        """
+        Creates a semantic string representing the model's 'DNA' for embedding.
+        
+        This combines the model ID, capabilities, and speed profile into a 
+        rich semantic description that can be embedded and compared to find
+        similar models for knowledge transfer.
+        
+        Args:
+            model_id: The model identifier (e.g., "gpt-4-turbo", "claude-3-opus")
+            capabilities: List of model capabilities (e.g., ["coding", "math"])
+            speed: Speed profile ("fast", "balanced", "slow")
+            
+        Returns:
+            A space-separated string combining all semantic information
+            
+        Example:
+            >>> dna = _get_model_dna("deepseek-coder-v2", ["coding"], "slow")
+            >>> dna
+            "deepseek coder v2 coding slow"
+        """
+        # Normalize model ID: replace separators with spaces for better embedding
+        parts = [model_id.replace("-", " ").replace("/", " ").replace("_", " ")]
+        
+        if capabilities:
+            parts.extend(capabilities)
+        if speed:
+            parts.append(speed)
+            
+        return " ".join(parts).lower()
+    
+    def _find_semantic_neighbor(
+        self, 
+        model_id: str, 
+        dna_str: str
+    ) -> Tuple[Optional[str], float]:
+        """
+        Finds the most similar existing model in the registry using embeddings.
+        
+        This is the core of Latent Semantic Transfer: instead of hardcoded rules,
+        we use the semantic similarity between model "DNA" strings to find the
+        best neighbor for knowledge transfer.
+        
+        Args:
+            model_id: The new model to find a neighbor for
+            dna_str: The semantic DNA string of the new model
+            
+        Returns:
+            Tuple of (best_neighbor_id, similarity_score)
+            Returns (None, 0.0) if no suitable neighbor is found
+            
+        Example:
+            >>> neighbor, sim = _find_semantic_neighbor("gpt-4-turbo", "gpt 4 turbo fast")
+            >>> neighbor, sim
+            ("gpt-4", 0.92)
+        """
+        if not self.registry or len(self.bandit.models) < 1:
+            return None, 0.0
+        
+        # 1. Embed the new model's DNA
+        try:
+            new_vec = self.encoder.encode([dna_str], convert_to_numpy=True)[0]
+        except Exception as e:
+            logger.warning(f"Failed to encode DNA for {model_id}: {e}")
+            return None, 0.0
+        
+        # 2. Compare against existing models (with caching)
+        best_neighbor = None
+        best_sim = -1.0
+        
+        for m_id in self.bandit.models:
+            if m_id == model_id:
+                continue
+            
+            m_data = self.registry.get(m_id, {})
+            
+            # Use cached embedding or generate it
+            if "dna_embedding" not in m_data:
+                # Generate DNA for existing model
+                m_capabilities = m_data.get("capabilities", [])
+                m_speed = m_data.get("speed_profile", "balanced")
+                m_dna = self._get_model_dna(m_id, m_capabilities, m_speed)
+                
+                try:
+                    m_data["dna_embedding"] = self.encoder.encode([m_dna], convert_to_numpy=True)[0]
+                except Exception as e:
+                    logger.debug(f"Failed to encode DNA for {m_id}: {e}")
+                    continue
+            
+            # Compute cosine similarity
+            try:
+                m_vec = m_data["dna_embedding"]
+                sim = np.dot(new_vec, m_vec) / (
+                    np.linalg.norm(new_vec) * np.linalg.norm(m_vec) + 1e-12
+                )
+                
+                if sim > best_sim:
+                    best_sim = sim
+                    best_neighbor = m_id
+            except Exception as e:
+                logger.debug(f"Failed to compute similarity with {m_id}: {e}")
+                continue
+        
+        return best_neighbor, best_sim
 
-
-
-
-
-    @classmethod
     def admix_theta_from_neighbors(
-        cls,
+        self,
         model_id: str,
         registry: Dict[str, Dict],
         bandit: 'DisjointLinUCBPolicy',
@@ -1629,29 +1607,34 @@ class BanditRouter:
             ... )
             # Result: Inherits preferences from similar model, but with fresh exploration
         """
-        # Get model description for embedding
+        # [V1 FIX]: Use semantic DNA instead of display_name for better matching
+        # This ensures consistency with _find_semantic_neighbor() predictions
         model_info = registry.get(model_id, {})
-        model_desc = model_info.get("display_name", model_id)
+        capabilities = model_info.get("capabilities", [])
+        speed = model_info.get("speed_profile", "balanced")
         
-        # Compute embedding for new model (with caching)
+        # Build semantic DNA string
+        model_dna = self._get_model_dna(model_id, capabilities, speed)
+        
+        # Compute embedding for new model (with caching using DNA key)
         # [KDD OPTIMIZATION]: Cache embeddings to avoid recomputation
         try:
-            # Check if embedding is already cached
-            if '_embedding' in model_info:
-                new_embedding = model_info['_embedding']
+            # Check if DNA embedding is already cached
+            if 'dna_embedding' in model_info:
+                new_embedding = model_info['dna_embedding']
             else:
-                new_embedding = encoder.encode([model_desc], convert_to_numpy=True)[0]
-                # Cache for future use (Pareto checks, etc.)
+                new_embedding = encoder.encode([model_dna], convert_to_numpy=True)[0]
+                # Cache for future use (DNA-based caching)
                 if model_id in registry:
-                    registry[model_id]['_embedding'] = new_embedding
+                    registry[model_id]['dna_embedding'] = new_embedding
         except Exception as e:
-            logger.warning(f"Failed to encode {model_id}: {e}. Using identity init.")
+            logger.warning(f"Failed to encode DNA for {model_id}: {e}. Using identity init.")
             return (
                 np.eye(bandit.dim) * bandit.init_lambda,
                 np.zeros(bandit.dim, dtype=np.float64)
             )
         
-        # Find nearest neighbor among existing models
+        # Find nearest neighbor among existing models using DNA embeddings
         best_neighbor = None
         best_similarity = -1.0
         
@@ -1659,16 +1642,20 @@ class BanditRouter:
             if neighbor_id == model_id:
                 continue
             neighbor_info = registry.get(neighbor_id, {})
-            neighbor_desc = neighbor_info.get("display_name", neighbor_id)
+            
+            # Build neighbor DNA
+            neighbor_capabilities = neighbor_info.get("capabilities", [])
+            neighbor_speed = neighbor_info.get("speed_profile", "balanced")
+            neighbor_dna = self._get_model_dna(neighbor_id, neighbor_capabilities, neighbor_speed)
             
             try:
-                # [KDD OPTIMIZATION]: Use cached embedding if available
-                if '_embedding' in neighbor_info:
-                    neighbor_embedding = neighbor_info['_embedding']
+                # [KDD OPTIMIZATION]: Use cached DNA embedding if available
+                if 'dna_embedding' in neighbor_info:
+                    neighbor_embedding = neighbor_info['dna_embedding']
                 else:
-                    neighbor_embedding = encoder.encode([neighbor_desc], convert_to_numpy=True)[0]
-                    # Cache for future use
-                    registry[neighbor_id]['_embedding'] = neighbor_embedding
+                    neighbor_embedding = encoder.encode([neighbor_dna], convert_to_numpy=True)[0]
+                    # Cache for future use (DNA-based)
+                    registry[neighbor_id]['dna_embedding'] = neighbor_embedding
                 
                 # Cosine similarity
                 similarity = np.dot(new_embedding, neighbor_embedding) / (
@@ -1702,10 +1689,13 @@ class BanditRouter:
             A_new = np.eye(bandit.dim) * bandit.init_lambda  # Maximum uncertainty
             b_new = (bandit.init_lambda * theta_neighbor) * n_effective  # Scaled prior strength
             
+            # Calculate transferred theta norm for verification
+            theta_norm = np.linalg.norm(theta_neighbor)
+            
             logger.info(
                 f"✨ Bootstrapping {model_id} from neighbor {best_neighbor} "
-                f"(similarity={best_similarity:.2f}, n_effective={n_effective}). "
-                f"Transferred θ (preferences), reset A (confidence) for exploration."
+                f"(similarity={best_similarity:.3f}, n_effective={n_effective}). "
+                f"Transferred θ (||θ||={theta_norm:.4f}), reset A (confidence) for exploration."
             )
             
             return A_new, b_new
@@ -1803,74 +1793,65 @@ class BanditRouter:
         cls,
         model_registry: Dict[str, Any] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        context_encoder=None,
-        alpha: float | None = None,
-        exploration: str = "safe",
-        priors: str = "hle",
+        priors: str = "warmup",  # Default to loading priors
         **kwargs
     ) -> "BanditRouter":
         """
-        Backward compatibility factory method to create a BanditRouter.
+        Factory method to create a fully initialized router.
+        
+        Args:
+            model_registry: Dictionary of model configurations
+            context_model: Model to use for embedding generation
+            priors: Prior initialization strategy ("warmup" or path to .joblib file)
+            **kwargs: Additional arguments passed to __init__ or prior loading
+        
+        Returns:
+            Fully initialized BanditRouter instance
         """
-        # 1. Resolve Alpha from exploration string
-        if alpha == None:
+        # 1. Extract factory-specific arguments (not passed to __init__)
+        state_path = kwargs.pop("state_path", None)
+        prior_n_effective = kwargs.pop("prior_n_effective", 100.0)
+        warmup_path = kwargs.pop("warmup_path", None)
+        
+        # Legacy support: map old 'exploration' parameter to 'alpha'
+        exploration = kwargs.pop("exploration", None)
+        alpha = kwargs.pop("alpha", None)
+        
+        if alpha is None and exploration is not None:
             exploration_map = {
                 "static": 0.0,
                 "safe": 0.05,
                 "balanced": 0.5,
                 "aggressive": 1.0
             }
-            alpha = exploration_map.get(exploration, 1.0)
-            
-        # 2. Extract arguments for the factory, not the constructor
-        state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 100.0) # Optimized for quality
-        warmup_path = kwargs.pop("warmup_path", None)
+            alpha = exploration_map.get(exploration, 0.05)
+        elif alpha is None:
+            alpha = 0.05  # Default to safe exploration
 
-        # 3. Initialize Router
-        # Filter kwargs to only include those accepted by __init__
+        # 2. Filter kwargs to only include those accepted by __init__
         import inspect
         sig = inspect.signature(cls.__init__)
         valid_params = sig.parameters.keys()
         init_kwargs = {k: v for k, v in kwargs.items() if k in valid_params}
 
+        # 3. Initialize the Router (Standard)
         router = cls(
             model_registry=model_registry,
             context_model=context_model,
-            context_encoder=context_encoder,
             alpha=alpha,
             **init_kwargs
         )
         
-        # 4. Apply Priors
-        if priors == "hle":
-            # Diagonal injection of benchmark scores
-            for model_id in router.bandit.models:
-                # [KDD FIX]: Use ONLY initial_quality (composite: 40% HLE, 25% GPQA, 20% Livecode, 15% IFbench)
-                # Previous code cascaded through empirical_hle→raw_hle→hle, mixing semantically different metrics.
-                # This caused initialization inconsistency - all models should use the same composite metric.
-                m_data = router.registry.get(model_id, {})
-                quality_score = m_data.get("initial_quality")
-                
-                if quality_score is None:
-                    raise ValueError(
-                        f"Model '{model_id}' missing 'initial_quality' field in registry. "
-                        f"All models must have a composite quality score for consistent HLE priors."
-                    )
-                
-                # KDD Simplification: Only set prior on bias term (last dimension)
-                router.bandit.b[model_id][-1] += (quality_score * prior_n_effective)
-                
-        elif priors == "warmup" or (isinstance(priors, str) and (priors.endswith(".joblib") or "/" in priors)):
-            # Load pre-computed matrices from disk
+        # 4. Load Priors (The Data Truth)
+        # This loads the dense matrices from disk (A_inv, b, etc.)
+        if priors == "warmup" or (isinstance(priors, str) and (priors.endswith(".joblib") or "/" in priors)):
+            # Determine priors path
             priors_path = warmup_path or (priors if priors != "warmup" else None)
             
             if priors_path:
                 priors_path = Path(priors_path)
             else:
-                # Default location (KDD versioned artifacts or package assets)
-                # Primary: artifacts/ (versioned, committed to git)
-                # Fallback: assets/ (bundled with pip install)
+                # Default location (versioned artifacts or package assets)
                 base_dir = Path(__file__).resolve().parent
                 priors_path = base_dir.parent.parent / "artifacts" / "priors_warmup.joblib"
                 
@@ -1921,47 +1902,47 @@ class BanditRouter:
                 router.bandit.refresh_inverse_cache()
                 logger.info(f"✅ Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
             else:
-                logger.warning(f"Warmup priors not found at {priors_path}. Using cold start.")
+                logger.warning(f"⚠️ Warmup priors not found at {priors_path}. Using cold start.")
         
-        # 5. Post-Warmup Bias Injection (KDD FIX: Apply T-Shirt Sizing After Loading Priors)
-        # We do this AFTER loading priors to ensure business logic adjusts data.
-        # The bias is scaled by confidence to avoid "Dilution" problem.
-        reg_config = RegistrationConfig()
+        # 5. [FIX] Post-Warmup Bias Injection (The Business Logic)
+        # This applies the T-Shirt Sizing (e.g., slow_bias=-0.5) *on top* of the warmup data.
+        # It scales the bias by the loaded confidence (A) so it actually moves the needle.
+        reg_config = router.config.registration
+        bias_idx = router.features.bias_index
+        
+        logger.info("💉 Injecting T-Shirt Sizing biases into warmed-up state...")
         
         for model_id in router.bandit.models:
+            # Check model speed profile from registry
             speed = router.registry.get(model_id, {}).get("speed_profile", "balanced")
             
-            # 1. Determine the Bias Shift (Delta Theta)
+            # Determine Shift Amount
             bias_shift = 0.0
             if speed == "fast":
-                bias_shift = reg_config.fast_bias
+                bias_shift = reg_config.fast_bias      # e.g., +0.5
             elif speed == "slow":
-                bias_shift = reg_config.slow_bias
+                bias_shift = reg_config.slow_bias      # e.g., -0.5 or -1.0
             
-            if abs(bias_shift) > 0.01:  # Skip negligible biases
-                # 2. Scale by Confidence (The "Dilution" Fix)
-                # We want to shift prediction θ by 'bias_shift'.
-                # Since θ = A_inv @ b, we must shift b by (A @ delta_theta).
-                # For the bias feature (last index), this simplifies to:
-                # b[-1] += A[-1, -1] * bias_shift
+            if abs(bias_shift) > 0.0:
+                # SCALING FIX:
+                # We want the prediction (theta) to shift by 'bias_shift'.
+                # Since b = A * theta, we must shift b by (A * bias_shift).
+                # For the bias dimension (diagonal), this is just A[i,i] * shift.
                 
-                bias_idx = router.features.bias_index
-                
-                # Get current confidence level for the bias term
                 confidence = router.bandit.A[model_id][bias_idx, bias_idx]
+                injection_amount = confidence * bias_shift
                 
-                # Apply the scaled shift
-                router.bandit.b[model_id][bias_idx] += (confidence * bias_shift)
+                router.bandit.b[model_id][bias_idx] += injection_amount
                 
-                logger.info(
-                    f"⚖️ Applied {speed} bias ({bias_shift:+.2f}) to {model_id}. "
-                    f"Scaled impact: {confidence:.1f} * {bias_shift} = {confidence*bias_shift:+.2f} added to b."
+                logger.debug(
+                    f"   - {model_id} ({speed}): Confidence {confidence:.1f} × Bias {bias_shift} "
+                    f"-> Added {injection_amount:+.2f} to b-vector."
                 )
-        
-        # Refresh inverse cache after bias injection
+
+        # 6. Refresh inverse cache to be safe (though b-update doesn't strictly require it)
         router.bandit.refresh_inverse_cache()
         
-        # 6. Load state if provided (overwrites any priors applied above)
+        # 7. Load state if provided (overwrites any priors applied above)
         if state_path:
             router.load_state(state_path)
                 
@@ -2551,47 +2532,32 @@ class BanditRouter:
     
     def _resolve_utility_weights(
         self,
-        profile: str | Dict[str, float],
+        profile: Dict[str, float],
         max_cost: float | None,
         max_latency: float | None
     ) -> Tuple[float, float, float, float]:
         """
-        Resolve optimization profile weights.
+        Extract and adjust weights from custom profile dict.
 
-        **KDD COMPLIANCE UPDATE (Jan 2026): Exchange Rate Logic**
-        Weights are NO LONGER normalized to sum to 1.0.
-        
-        They act as economic exchange rates:
-        - w_c = 1.0  (Base currency: $1.00)
-        - w_q = 100.0 (Value of 1% Quality gain relative to $1.00)
-        
-        This allows the router to correctly trade off inputs with vastly 
-        different scales (e.g., Cost in [0, 15] vs Quality in [0, 1]).
+        Weights are economic exchange rates (not normalized):
+        - w_c = 1.0  (Base: $1.00)
+        - w_q = 10.0 (10% quality gain worth $1.00)
+        - w_l = 5.0  (5s latency reduction worth $1.00)
 
         Args:
-            profile: Optimization profile name
+            profile: Custom weight dict (already validated)
             max_cost: Hard cost constraint (optional)
             max_latency: Hard latency constraint (optional)
 
         Returns:
-            Tuple of (w_q, w_c, w_l, alpha_scale) raw weights
+            Tuple of (w_q, w_c, w_l, alpha_scale)
         """
-        # Get raw weights (copy to avoid mutating class profile)
-        weights = OptimizationProfile.get(profile).copy()
-        
-        # Extract individual components (default to 0.0 if missing)
-        w_q = weights.get("w_q", 0.0)
-        w_c = weights.get("w_c", 0.0)
-        w_l = weights.get("w_l", 0.0)
-        
-        # EXTRACT ALPHA SCALE (Risk Aversion Factor)
-        # Default to 1.0 (Standard Exploration) if missing
-        alpha_scale = weights.get("alpha_scale", 1.0)
+        w_q = profile.get("w_q", 0.0)
+        w_c = profile.get("w_c", 1.0)
+        w_l = profile.get("w_l", 0.0)
+        alpha_scale = profile.get("alpha_scale", 1.0)
 
-        # Orthogonal Optimization:
-        # If a hard constraint exists, disable the soft optimization for that 
-        # dimension and re-allocate its "importance" to Quality.
-        # Since we aren't summing to 1, we just add the raw value.
+        # If hard constraint exists, disable soft optimization for that dimension
         if max_cost is not None:
             w_q += w_c
             w_c = 0.0
@@ -2600,9 +2566,6 @@ class BanditRouter:
             w_q += w_l
             w_l = 0.0
 
-        # KDD FIX: Removed normalization block.
-        # We return the raw exchange rates directly.
-        
         return w_q, w_c, w_l, alpha_scale
     
 
@@ -2864,13 +2827,7 @@ class BanditRouter:
         self,
         prompt: str | np.ndarray,
         *,
-        profile: str | Dict[str, float] = "smart_shopper", # Changed default
-        # Reference Point Normalization (Convenience Parameters)
-        quality_tolerance: float | None = None,
-        cost_savings: float | None = None,
-        latency_savings: float | None = None,
-        # Other routing parameters
-
+        profile: str | Dict[str, float] = "auto",
         max_cost: float | None = None,
         max_latency: float | None = None,
         quality_floor: Dict[str, float | None] = None,
@@ -2880,45 +2837,47 @@ class BanditRouter:
         """
         Route a prompt to the best model.
         
-        **Reference Point Normalization (New):**
-        You can now specify preferences using intuitive trade-off percentages:
+        **Usage:**
+        ```python
+        # Simple: Just use defaults (intelligent "auto" routing)
+        model_id, log = router.route("Write a Python function")
         
-        >>> router.route(
-        ...     prompt="Explain quantum computing",
-        ...     quality_tolerance=0.05,  # Accept 5% quality drop
-        ...     cost_savings=0.50         # To save 50% cost
-        ... )
+        # Custom: Pass explicit weights for full control
+        model_id, log = router.route(
+            "Complex task",
+            profile={"w_q": 10.0, "w_c": 1.0, "w_l": 0.5}
+        )
+        ```
         
-        This is equivalent to calling `OptimizationProfile.from_reference()` manually.
-        If both `quality_tolerance` and `cost_savings` are provided, they override
-        the `profile` parameter.
+        **Profiles:**
+        - `"auto"` (default): Pareto-optimal routing with λ=0.02
+          - Cheap models win easy tasks
+          - Expensive models win hard tasks
+        - Custom dict: `{"w_q": ..., "w_c": ..., "w_l": ...}`
+          - w_q: Quality weight (how much you value quality)
+          - w_c: Cost penalty (1.0 = base currency)
+          - w_l: Latency penalty
         
         Args:
-            prompt: Input prompt text or pre-embedded vector
-            profile: Named profile or custom weight dict (e.g., "max_quality", "arbitrage")
-            quality_tolerance: **[Reference Point]** % quality drop acceptable (e.g., 0.05 = 5%)
-            cost_savings: **[Reference Point]** % cost reduction desired (e.g., 0.50 = 50%)
-            latency_savings: **[Reference Point]** % latency reduction desired (optional)
-            max_cost: Hard cost constraint ($/1k tokens)
-            max_latency: Hard latency constraint (seconds)
+            prompt: Input text or pre-embedded vector
+            profile: "auto" or custom weight dict
+            max_cost: Hard cost ceiling ($/1k tokens)
+            max_latency: Hard latency ceiling (seconds)
             quality_floor: Minimum quality scores per model
-            input_tokens: Input token count (auto-estimated if not provided)
-            output_tokens: Expected output token count (default 600)
+            input_tokens: Input token count (auto-estimated if None)
+            output_tokens: Expected output tokens (default 600)
         
         Returns:
-            Tuple of (model_id, routing_log)
+            Tuple of (selected_model_id, routing_log)
         """
-        # --- NEW LOGIC: RESOLVE PROFILE ---
-        # If user provides tolerances, generate the profile on the fly
-        if quality_tolerance is not None and cost_savings is not None:
-            profile_weights = OptimizationProfile.from_reference(
-                quality_tolerance=quality_tolerance,
-                cost_savings=cost_savings,
-                latency_savings=latency_savings or 0.0
-            )
+        # --- RESOLVE PROFILE ---
+        is_pareto_mode = (profile == "auto")
+        
+        if is_pareto_mode:
+            profile_weights = "auto"
         else:
-            # Fallback to standard named profile or custom dict
-            profile_weights = profile
+            # Validate custom profile dict
+            profile_weights = OptimizationProfile.get(profile)
         # ----------------------------------
         
         # Orchestrate the routing process using focused helper methods
@@ -2930,10 +2889,6 @@ class BanditRouter:
         
         # Estimate tokens for scoring
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
-
-        # [NEW] Logic Branch: Pareto vs Legacy
-        # Check if the requested profile is one of our new Pareto/Lambda profiles
-        is_pareto_mode = isinstance(profile_weights, str) and profile_weights in self.PARETO_PROFILES
         
         best_model = None
         best_utility = -float('inf')
@@ -2972,8 +2927,8 @@ class BanditRouter:
             total_weight = lambda_val 
 
         else:
-            # --- PATH B: LEGACY LOGIC (Keep for backward compatibility) ---
-            # Use _resolve_utility_weights and _score_candidates as before
+            # --- PATH B: CUSTOM WEIGHTS ---
+            # Multi-objective routing with user-specified weights
             w_q, w_c, w_l, alpha_scale = self._resolve_utility_weights(profile_weights, max_cost, max_latency)
             best_model, best_utility, total_weight = self._score_candidates(
                 filtered, x, w_q, w_c, w_l, alpha_scale, in_tok, output_tokens
