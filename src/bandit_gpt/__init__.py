@@ -28,7 +28,8 @@ def __getattr__(name):
             "  OLD: from bandit_gpt.core import BanditGPT\n"
             "       router = BanditGPT()\n\n"
             "  NEW: from bandit_gpt import BanditRouter\n"
-            "       router = BanditRouter.create(priors='hle')\n\n"
+            "       router = BanditRouter.create(priors='warmup')\n"
+            "       model, log = router.route(prompt, profile='auto')\n\n"
             "See migration guide at: https://github.com/atabernermiller/banditGPT/wiki/Migration-v2",
             DeprecationWarning,
             stacklevel=2

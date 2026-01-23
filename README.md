@@ -349,8 +349,7 @@ router = BanditRouter.create(model_registry, priors="merged")
 # Route a prompt (uses learned priors + uncertainty exploration)
 model_id, log = router.route(
     "Write a Python function to parse JSON",
-    profile="balanced",      # Cost/quality trade-off
-    exploration="safe",      # Risk appetite
+    profile="auto",          # Intelligent routing (default)
 )
 
 # After getting feedback, update the bandit
@@ -533,17 +532,19 @@ We rely on the domain assumption that LLM processing difficulty follows the Webe
 
 ### Optimization Profiles
 
-Control cost/quality trade-offs with named presets:
+Simplified profile system with two modes:
 
-| Profile | λ_cost | λ_latency | Use Case |
-|---------|--------|-----------|----------|
-| `quality_first` | 0.1 | 0.05 | Best quality, ignore cost |
-| `balanced` | 10.0 | 0.10 | Reasonable trade-off |
-| `cost_saver` | 50.0 | 0.20 | Aggressive cost cutting |
-| `low_latency` | 1.0 | 0.50 | Speed over cost |
+| Profile | Description |
+|---------|-------------|
+| `auto` | **Default** - Intelligent routing that balances quality and cost |
+| `custom` | Pass a dict with custom weights for full control |
 
 ```python
-router.route(prompt, profile="cost_saver")
+# Use auto (default)
+router.route(prompt, profile="auto")
+
+# Or pass custom weights
+router.route(prompt, profile={"w_q": 10.0, "w_c": 1.0, "w_l": 0.5})
 ```
 
 ### Exploration Rate
@@ -553,13 +554,14 @@ Control risk appetite (how often to try unproven models):
 | Setting | Alpha | Use Case |
 |---------|-------|----------|
 | `static` | 0.0 | Zero risk (fintech/production) |
-| `safe` | 0.1 | **Default** - minimal exploration |
+| `safe` | 0.05 | **Default** - minimal exploration |
 | `balanced` | 0.5 | Standard bandit behavior |
-| `aggressive` | 2.0 | Day-1 calibration / shadow mode |
+| `aggressive` | 1.0 | Day-1 calibration / shadow mode |
 
 ```python
-router.route(prompt, exploration="aggressive")  # Day 1: learn fast
-router.route(prompt, exploration="static")      # Production: zero risk
+# Set during router creation
+router = BanditRouter.create(exploration="safe")  # Default
+router = BanditRouter.create(alpha=0.1)           # Or set alpha directly
 ```
 
 ### Two-Knob Prior Scaling

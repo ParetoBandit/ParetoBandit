@@ -177,3 +177,7 @@ src/bandit_gpt/data/offline_dataset/*.jsonl
 
 # Root data directory (artifacts & state)
 data/
+
+# RouteLLM comparison data
+data/routellm/*.jsonl.gz
+data/routellm/*.jsonl

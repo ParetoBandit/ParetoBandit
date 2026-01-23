@@ -58,7 +58,7 @@ def test_persistent_probation_bonus():
 
     for i in range(20): # More than max_log_size (10)
         # route() creates logs and adds them to self.logs, triggering eviction
-        router.route(prompt="other prompt", profile="cost_saver")
+        router.route(prompt="other prompt", profile="auto")
         
     # Verify log eviction
     log_models = [log.selected_model for log in router.logs]

@@ -45,8 +45,8 @@ def test_routing_decisions(sample_registry):
     assert model in ["openai/gpt-4o", "google/gemma-3-2b-it"]
     assert log.selected_model == model
     
-    # Test with profile (use arbitrage as a cost-sensitive proxy)
-    model_cs, log_cs = router.route(prompt, profile="arbitrage")
+    # Test with profile (use auto as default intelligent routing)
+    model_cs, log_cs = router.route(prompt, profile="auto")
     assert model_cs == "google/gemma-3-2b-it"
 
 def test_feedback_learning(sample_registry):
@@ -157,7 +157,7 @@ def test_probation_subsidy():
     # Route some prompts and verify sample counting works
     N = 50
     for i in range(N):
-        model, log = router.route(f"Test prompt {i}", profile="arbitrage")
+        model, log = router.route(f"Test prompt {i}", profile="auto")
         router.process_feedback(log.request_id, reward=0.8)
     
     # Verify sample counts are tracked
@@ -193,7 +193,7 @@ def test_no_zombie_models():
     # Route 500 prompts using arbitrage profile
     N = 500
     for i in range(N):
-        model, log = router.route(f"Test prompt {i}", profile="arbitrage")
+        model, log = router.route(f"Test prompt {i}", profile="auto")
         # Provide feedback proportional to HLE
         hle = registry[model]["hle"]
         reward = min(1.0, hle + np.random.normal(0, 0.1))
@@ -390,7 +390,7 @@ def test_routing_with_missing_metadata():
     
     # Routing should NOT fail - this is the critical resilience requirement
     try:
-        model, log = router.route("Test prompt for resilience", profile="arbitrage")
+        model, log = router.route("Test prompt for resilience", profile="auto")
         assert model in registry_all_missing.keys(), \
             f"Selected model should be from registry, got {model}"
         assert log.cost_usd > 0, "Cost should be calculated (not inf or 0)"

@@ -13,8 +13,11 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Import from centralized config
+from .config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+
 # Default context model
-DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
 
 
 # Maximum prompt length to prevent OOM on very long inputs
@@ -302,16 +305,25 @@ class FeatureService:
         # Batch encode
         embeddings = self.encoder.encode(
             valid_prompts,
-            normalize_embeddings=True,
+            normalize_embeddings=True,  # Already normalized by encoder
             show_progress_bar=len(valid_prompts) > 100
         )
         
-        # Normalize each embedding
-        embeddings = np.array([l2_normalize(e) for e in embeddings])
+        # Note: Embeddings already normalized by encoder, no need for double normalization
+        # embeddings = np.array([l2_normalize(e) for e in embeddings])  # Redundant
         
         # PCA transform
         if self.pca is not None:
             embeddings = self.pca.transform(embeddings)
+            
+            # Validate and fix numerical issues
+            if np.any(np.isnan(embeddings)):
+                logger.warning(f"PCA transform produced NaN values for {np.sum(np.any(np.isnan(embeddings), axis=1))} prompts. Replacing with zeros.")
+                embeddings = np.nan_to_num(embeddings, nan=0.0)
+            
+            if np.any(np.isinf(embeddings)):
+                logger.warning(f"PCA transform produced Inf values. Clipping to ±1e6.")
+                embeddings = np.clip(embeddings, -1e6, 1e6)
         
         # Append bias column
         bias_column = np.ones((len(embeddings), 1))

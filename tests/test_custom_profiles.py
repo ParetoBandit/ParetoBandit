@@ -50,16 +50,17 @@ class TestCustomProfiles(unittest.TestCase):
         self.assertEqual(weights["w_c"], 10.0)
         self.assertEqual(weights["w_l"], 0.0)
 
-    def test_new_profiles(self):
-        # Test that cost_saver and low_latency aliases work
-        weights_cs = OptimizationProfile.get("cost_saver")
-        # COST_SAVER = {"w_q": 3.6, "w_c": 1.0, "w_l": 0.0}
-        self.assertEqual(weights_cs["w_q"], 3.6)
-        self.assertEqual(weights_cs["w_c"], 1.0)
-        
-        weights_ll = OptimizationProfile.get("low_latency")
-        # LOW_LATENCY = {"w_q": 0.20, "w_c": 0.10, "w_l": 0.70}
-        self.assertEqual(weights_ll["w_l"], 0.70)
+    def test_auto_profile(self):
+        # Test that "auto" profile returns a marker for Pareto routing
+        weights_auto = OptimizationProfile.get("auto")
+        self.assertIn("_pareto_mode", weights_auto)
+        self.assertTrue(weights_auto["_pareto_mode"])
+    
+    def test_unknown_profile_raises_error(self):
+        # Test that unknown profile names raise errors
+        with self.assertRaises(ValueError) as ctx:
+            OptimizationProfile.get("unknown_profile")
+        self.assertIn("Unknown profile", str(ctx.exception))
 
 if __name__ == "__main__":
     unittest.main()

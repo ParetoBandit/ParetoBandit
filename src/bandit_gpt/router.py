@@ -314,7 +314,9 @@ class RouterConfig:
         return np.log(self.market_latency_ceiling) - np.log(self.market_latency_floor)
 
 
-DEFAULT_CONTEXT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+from .config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+
+DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
 
 # ---------------------------------------------------------------------------
 # Optimization Profiles

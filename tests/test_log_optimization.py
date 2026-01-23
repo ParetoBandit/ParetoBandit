@@ -22,7 +22,7 @@ def test_log_indexing_and_eviction():
         
         request_ids = []
         for i in range(10):
-            model, log = router.route(prompt=f"test {i}", profile="cost_saver")
+            model, log = router.route(prompt=f"test {i}", profile="auto")
             request_ids.append(log.request_id)
             
         # Deque should only have 5 items
@@ -56,7 +56,7 @@ def test_feedback_lookup_performance():
         print(f"🚀 Populating {limit} logs...")
         last_rid = None
         for i in range(limit):
-            model, log = router.route(prompt=f"speed test {i}", profile="cost_saver")
+            model, log = router.route(prompt=f"speed test {i}", profile="auto")
             last_rid = log.request_id
             
         # Measure feedback time

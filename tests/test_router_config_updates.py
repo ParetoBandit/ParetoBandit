@@ -6,10 +6,10 @@ from bandit_gpt.router import BanditRouter, OptimizationProfile, ExplorationRate
 
 class TestRouterConfigurationUpdates(unittest.TestCase):
     """
-    Unit tests for recent router configuration updates:
-    1. ARBITRAGE profile weights updated to w_q=0.80, w_c=0.20
-    2. Default alpha changed to 0.1 (via exploration="safe")
-    3. Default prior_n_effective changed to 20.0
+    Unit tests for router configuration:
+    1. Simplified profile system: "auto" and "custom"
+    2. Default alpha changed to 0.05 (via exploration="safe")
+    3. Default prior_n_effective is 100.0
     """
 
     def setUp(self):
@@ -31,53 +31,32 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
             }
         }
 
-    def test_arbitrage_profile_weights(self):
-        """Test that ARBITRAGE profile has updated weights."""
-        arbitrage = OptimizationProfile.ARBITRAGE
-        
-        self.assertEqual(arbitrage["w_q"], 0.80, 
-                        "ARBITRAGE quality weight should be 0.80")
-        self.assertEqual(arbitrage["w_c"], 0.20, 
-                        "ARBITRAGE cost weight should be 0.20")
-        self.assertEqual(arbitrage["w_l"], 0.00, 
-                        "ARBITRAGE latency weight should be 0.00")
-
-    def test_arbitrage_profile_ratio(self):
-        """Test that ARBITRAGE w_q/w_c ratio is 4.0."""
-        arbitrage = OptimizationProfile.ARBITRAGE
-        ratio = arbitrage["w_q"] / arbitrage["w_c"]
-        
-        self.assertAlmostEqual(ratio, 4.0, places=1,
-                              msg="ARBITRAGE should have w_q/w_c ratio of 4.0")
-
-    def test_arbitrage_profile_retrieval(self):
-        """Test that 'arbitrage' string maps to correct weights."""
-        weights = OptimizationProfile.get("arbitrage")
-        
-        self.assertEqual(weights["w_q"], 0.80)
-        self.assertEqual(weights["w_c"], 0.20)
-        self.assertEqual(weights["w_l"], 0.00)
+    def test_auto_profile(self):
+        """Test that 'auto' profile returns Pareto mode marker."""
+        weights = OptimizationProfile.get("auto")
+        self.assertIn("_pareto_mode", weights)
+        self.assertTrue(weights["_pareto_mode"])
 
     def test_default_alpha_via_exploration_safe(self):
-        """Test that exploration='safe' maps to alpha=0.1."""
+        """Test that exploration='safe' maps to alpha=0.05."""
         router = BanditRouter.create(
             model_registry=self.model_registry,
             exploration="safe"
         )
         
-        self.assertEqual(router.bandit.alpha, 0.1,
-                        "exploration='safe' should result in alpha=0.1")
+        self.assertEqual(router.bandit.alpha, 0.05,
+                        "exploration='safe' should result in alpha=0.05")
 
     def test_default_alpha_via_create_no_args(self):
-        """Test that BanditRouter.create() defaults to alpha=0.1."""
+        """Test that BanditRouter.create() defaults to alpha=0.05."""
         router = BanditRouter.create(model_registry=self.model_registry)
         
-        # Default exploration is "safe" which should map to 0.1
-        self.assertEqual(router.bandit.alpha, 0.1,
-                        "BanditRouter.create() should default to alpha=0.1")
+        # Default exploration is "safe" which should map to 0.05
+        self.assertEqual(router.bandit.alpha, 0.05,
+                        "BanditRouter.create() should default to alpha=0.05")
 
     def test_exploration_rate_safe_constant(self):
-        """Test that ExplorationRate.SAFE is 0.1."""
+        """Test that ExplorationRate.SAFE is 0.05."""
         self.assertEqual(ExplorationRate.SAFE, 0.1,
                         "ExplorationRate.SAFE should be 0.1")
 

@@ -71,6 +71,6 @@ def test_smart_shopper_selection():
     # Force the profile to be recognized
     router.PARETO_PROFILES["test_shopper"] = 0.5
     
-    selected, _ = router.route("test prompt", profile="test_shopper")
+    selected, _ = router.route("test prompt", profile="auto")
     
     assert selected == "cheap", "Should pick 'cheap' model due to high cost penalty"

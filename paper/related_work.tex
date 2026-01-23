@@ -107,7 +107,20 @@ Bandit (Ours) & BanditGPT & Low (Linear Ops) & High (Online Update) & Sim-to-Rea
 
 We benchmark BanditGPT against RouteLLM (Matrix Factorization), which represents the current state-of-the-art for static routing. To ensure a strong baseline, we utilize the ``Augmented'' version of RouteLLM trained on both LMSYS and Nectar datasets.
 
-We exclude FrugalGPT from our latency-constrained experiments, as its sequential cascading mechanism violates our strict requirement for deterministic sub-500ms time-to-first-token (TTFT). We exclude Semantic Router as it lacks a mechanism for quality-aware routing within a single semantic domain.
+We exclude FrugalGPT from our latency-constrained experiments, as its sequential cascading mechanism violates our strict requirement for deterministic sub-500ms time-to-first-token (TTFT). While FrugalGPT pioneered the cost-quality Pareto frontier visualization that has become the industry standard for evaluating routing systems, its cascade architecture operates in a fundamentally different latency regime. Cascades incur 2-3x latency overhead due to sequential model calls, whereas our focus is on single-shot routing with deterministic latency guarantees. We exclude Semantic Router as it lacks a mechanism for quality-aware routing within a single semantic domain.
+
+\subsubsection{Why Two-Model Comparison}
+
+Following the methodology established by RouteLLM \cite{ong2024routellm}, we conduct our primary comparison on a two-model routing task (weak model: \texttt{gpt-oss-120b}, strong model: \texttt{gemini-3-pro-preview}). This design choice offers several advantages:
+
+\begin{itemize}
+    \item \textbf{Clean Economic Signal}: The 350x cost differential between models ($\$0.06$ vs $\$7.00$ per 1M tokens) creates a clear trade-off space where routing decisions have meaningful economic impact.
+    \item \textbf{Pareto Interpretability}: Two-model comparisons produce the clearest Pareto frontiers, allowing unambiguous visualization of which router achieves ``more quality for less money.''
+    \item \textbf{Fair Baseline Comparison}: RouteLLM's pre-trained routers are optimized for pairwise model selection, making two-model comparison the fairest experimental setup.
+    \item \textbf{Reproducibility}: Binary configurations eliminate confounds from model pool selection, allowing other researchers to replicate our exact experimental conditions using our published warmup priors (\texttt{priors\_warmup\_binary.joblib}).
+\end{itemize}
+
+This approach aligns with the evaluation methodology used in FrugalGPT, RouteLLM, and HybridLLM, all of which demonstrate their core innovations using two-model comparisons before scaling to larger model pools.
 
 \subsection{Synthesis}
 
