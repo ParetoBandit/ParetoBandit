@@ -1058,7 +1058,7 @@ class BanditRouter:
             # Create default service from legacy parameters
             # --- Simplified Feature & Performance Layer (Jan 2026) ---
             # Feature extraction is now delegated to FeatureService (The Eyes)
-            # Standard Dimension: 23 PCA + 1 Bias = 24D
+            # Dimension is auto-detected from PCA file (PCA components + 1 bias)
             from .feature_service import FeatureService as FS
             self.features = FS(
                 encoder_model=context_model,

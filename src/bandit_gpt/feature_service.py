@@ -91,7 +91,7 @@ class FeatureService:
         self,
         encoder_model: str = DEFAULT_CONTEXT_MODEL,
         pca_path: Optional[Path | str] = None,
-        pca_components: int = 23,
+        pca_components: int = None,  # Auto-detect from PCA file if not specified
         target_variance: float = 0.60,
         allow_jit_training: bool = True,
         calibration_file: Optional[Path | str] = None,
@@ -101,8 +101,8 @@ class FeatureService:
         
         Args:
             encoder_model: SentenceTransformer model name
-            pca_components: Number of PCA components (default 23 for 24D with bias)
-            pca_path: Path to pre-trained PCA model (optional)
+            pca_components: Number of PCA components (auto-detected from PCA file if None)
+            pca_path: Path to pre-trained PCA model (optional, defaults to DEFAULT_PCA_PATH)
             target_variance: Minimum explained variance for PCA (default 0.60)
             allow_jit_training: Allow JIT PCA training if artifact missing (default: True)
                               Set to False in strict production to crash-fast instead of hanging
@@ -111,8 +111,15 @@ class FeatureService:
                              to train domain-specific PCA projections.
         """
         self.encoder_model = encoder_model
-        self.pca_path = Path(pca_path) if pca_path else None
-        self.pca_components = pca_components
+        
+        # If no PCA path provided, use the default from config_legacy
+        if pca_path is None:
+            from .config_legacy import DEFAULT_PCA_PATH
+            self.pca_path = DEFAULT_PCA_PATH
+        else:
+            self.pca_path = Path(pca_path)
+            
+        self.pca_components = pca_components  # Will be set from loaded PCA if None
         self.target_variance = target_variance
         self.allow_jit_training = allow_jit_training
         self.calibration_file = Path(calibration_file) if calibration_file else None
@@ -362,6 +369,9 @@ class FeatureService:
                     
                     if actual_dim == expected_dim:
                         self._pca = candidate_pca
+                        # Auto-detect components from loaded PCA if not specified
+                        if self.pca_components is None:
+                            self.pca_components = candidate_pca.n_components_
                         explained_var = np.sum(candidate_pca.explained_variance_ratio_)
                         logger.info(
                             f"✓ PCA loaded successfully "
@@ -417,8 +427,14 @@ class FeatureService:
             
             # Fit PCA
             from sklearn.decomposition import PCA
-            new_pca = PCA(n_components=self.pca_components)
+            # If pca_components not specified, default to 32 for JIT training
+            n_components = self.pca_components if self.pca_components is not None else 32
+            new_pca = PCA(n_components=n_components)
             new_pca.fit(embeddings)
+            
+            # Update pca_components from fitted PCA
+            if self.pca_components is None:
+                self.pca_components = new_pca.n_components_
             
             # KDD REVIEW FIX (Critique C): Strict PCA Variance Validation
             # Low variance capture indicates manifold collapse or insufficient components

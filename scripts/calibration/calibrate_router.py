@@ -8,7 +8,7 @@ calibrate a router for production use.
 Usage:
     python3 calibrate_router.py \
         --calibration-data my_data.jsonl \
-        --gamma 0.002 \
+        --gamma 0.01 \
         --output my_calibrated_router.joblib
 
 Input format (calibration-data):
@@ -27,16 +27,25 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 import argparse
 import json
 import joblib
+import gzip
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 
 from bandit_gpt.calibration import CalibratedRouter, apply_gamma_scaling, embed_prompt
+from bandit_gpt.config_legacy import (
+    DEFAULT_SENTENCE_TRANSFORMER,
+    DEFAULT_WARMUP_PRIORS_PATH,
+    DEFAULT_PCA_PATH,
+    CANONICAL_DEV_DATA_PATH,
+    CANONICAL_CALIBRATED_ROUTER_PATH
+)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Calibrate router for your domain")
     parser.add_argument(
-        "--calibration-data", type=str, required=True,
+        "--calibration-data", type=str,
+        default=str(CANONICAL_DEV_DATA_PATH),
         help="Path to calibration data (JSONL with 'prompt' and 'rewards' fields)"
     )
     parser.add_argument(
@@ -46,12 +55,12 @@ def main():
     )
     parser.add_argument(
         "--pca", type=str,
-        default="artifacts/pca_23_routellm.joblib",
-        help="Path to PCA model"
+        default=str(DEFAULT_PCA_PATH),
+        help="Path to PCA model (default: 32-component PCA)"
     )
     parser.add_argument(
-        "--gamma", type=float, required=True,
-        help="Gamma calibration factor (from find_gamma.py)"
+        "--gamma", type=float, default=0.010,
+        help="Gamma calibration factor (default: 0.010, optimal from find_gamma.py)"
     )
     parser.add_argument(
         "--alpha", type=float, default=1.0,
@@ -62,8 +71,9 @@ def main():
         help="Cost penalty for strong model (default: 0.0 = quality-first)"
     )
     parser.add_argument(
-        "--output", type=str, required=True,
-        help="Output file for calibrated router (.joblib)"
+        "--output", type=str,
+        default=str(CANONICAL_CALIBRATED_ROUTER_PATH),
+        help="Output file for calibrated router (.joblib, default: canonical path)"
     )
     
     args = parser.parse_args()
@@ -76,7 +86,6 @@ def main():
     print("\n📥 Loading resources...")
     warmup_priors_original = joblib.load(Path(args.warmup_priors))
     pca_model = joblib.load(Path(args.pca))
-    from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     print(f"   ✅ Warmup priors: {warmup_priors_original['n_prompts']:,} samples")
     print(f"   ✅ PCA: {pca_model.n_components} components")
@@ -92,9 +101,31 @@ def main():
     
     # Load calibration data
     print(f"\n📊 Loading calibration data from: {args.calibration_data}")
-    with open(args.calibration_data) as f:
-        calibration_data = [json.loads(line) for line in f]
-    print(f"   ✅ Loaded {len(calibration_data)} calibration samples")
+    if args.calibration_data.endswith('.gz'):
+        with gzip.open(args.calibration_data, 'rt') as f:
+            raw_data = [json.loads(line) for line in f]
+    else:
+        with open(args.calibration_data) as f:
+            raw_data = [json.loads(line) for line in f]
+    
+    # Transform data: group by prompt and create rewards dict
+    from collections import defaultdict
+    by_prompt = defaultdict(list)
+    for item in raw_data:
+        by_prompt[item['prompt']].append(item)
+    
+    calibration_data = []
+    for prompt, items in by_prompt.items():
+        rewards = {}
+        for item in items:
+            # Use raw_score as reward (0.0-1.0 scale)
+            rewards[item['model_id']] = item['raw_score']
+        calibration_data.append({
+            'prompt': prompt,
+            'rewards': rewards
+        })
+    
+    print(f"   ✅ Loaded {len(calibration_data)} calibration samples ({len(raw_data)} model responses)")
     
     # Validate
     if not calibration_data:
