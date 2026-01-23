@@ -39,6 +39,9 @@ OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_da
 CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
 CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
 
+# RouteLLM battles rewards dataset (corrected winner labels)
+ROUTELLM_BATTLES_REWARDS_PATH = OFFLINE_DATASET_DIR / "routellm_battles_rewards.jsonl"
+
 # Calibrated router path
 BANDIT_DATA_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data"
 CANONICAL_CALIBRATED_ROUTER_PATH = BANDIT_DATA_DIR / "artifacts" / "canonical_router_calibrated.joblib"

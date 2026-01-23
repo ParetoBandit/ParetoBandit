@@ -18,7 +18,7 @@ Usage:
     
     # With custom settings:
     python3 scripts/train_pca_from_routellm.py \\
-        --input src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl \\
+        --input <path-to-battles-file> \\
         --output src/artifacts/pca_23.joblib \\
         --n-components 23 \\
         --max-prompts 80000
@@ -37,7 +37,11 @@ import numpy as np
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_PCA_PATH
+from bandit_gpt.config_legacy import (
+    DEFAULT_SENTENCE_TRANSFORMER,
+    DEFAULT_PCA_PATH,
+    ROUTELLM_BATTLES_REWARDS_PATH
+)
 
 
 def load_prompts_from_battles(battles_file: Path, max_prompts: int = 80000) -> list:
@@ -217,8 +221,8 @@ Why PCA?
     
     parser.add_argument(
         "--input", type=str,
-        default="src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl",
-        help="Input battles JSONL file (default: routellm_battles_rewards.jsonl)"
+        default=str(ROUTELLM_BATTLES_REWARDS_PATH),
+        help="Input battles JSONL file (default: canonical RouteLLM battles rewards path)"
     )
     parser.add_argument(
         "--output", type=str,

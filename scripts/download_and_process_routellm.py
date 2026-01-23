@@ -32,12 +32,19 @@ Usage:
 
 import json
 import argparse
+import sys
 from pathlib import Path
 from collections import defaultdict
 from tqdm import tqdm
 from datasets import load_dataset
 import os
 from dotenv import load_dotenv
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from bandit_gpt.config_legacy import ROUTELLM_BATTLES_REWARDS_PATH
 
 # Load HuggingFace token
 load_dotenv()
@@ -349,8 +356,8 @@ Environment:
     
     parser.add_argument(
         "--output", type=str,
-        default="src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl",
-        help="Output JSONL file path (default: src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl)"
+        default=str(ROUTELLM_BATTLES_REWARDS_PATH),
+        help="Output JSONL file path (default: canonical RouteLLM battles rewards path)"
     )
     parser.add_argument(
         "--max-battles", type=int, default=100000,

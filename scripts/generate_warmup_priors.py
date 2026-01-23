@@ -26,7 +26,11 @@ ROUTELLM_DATA_DIR = PROJECT_ROOT / "data" / "routellm" / "data"
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_WARMUP_PRIORS_PATH
+from bandit_gpt.config_legacy import (
+    DEFAULT_SENTENCE_TRANSFORMER,
+    DEFAULT_WARMUP_PRIORS_PATH,
+    ROUTELLM_BATTLES_REWARDS_PATH
+)
 
 # Models for RouteLLM comparison
 WEAK_MODEL = "mistralai/mixtral-8x7b-instruct"
@@ -351,7 +355,7 @@ def main():
     )
     parser.add_argument(
         "--rewards-file", type=str,
-        default="src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl",
+        default=str(ROUTELLM_BATTLES_REWARDS_PATH),
         help="Path to file with real rewards (corrected RouteLLM battles dataset)"
     )
     parser.add_argument(
