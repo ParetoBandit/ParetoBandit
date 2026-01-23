@@ -39,9 +39,9 @@ OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_da
 CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
 CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
 
-# Calibration results paths
-CALIBRATION_RESULTS_DIR = PROJECT_ROOT / "experiments_v1" / "calibration" / "results"
-CANONICAL_CALIBRATED_ROUTER_PATH = CALIBRATION_RESULTS_DIR / "artifacts" / "canonical_router_calibrated.joblib"
+# Calibrated router path
+BANDIT_DATA_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data"
+CANONICAL_CALIBRATED_ROUTER_PATH = BANDIT_DATA_DIR / "artifacts" / "canonical_router_calibrated.joblib"
 
 # Model registry path
 DEFAULT_MODEL_REGISTRY_PATH = PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models.json"
