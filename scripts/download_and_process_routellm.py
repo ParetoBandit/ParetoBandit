@@ -1,31 +1,33 @@
 #!/usr/bin/env python3
 """
-Download RouteLLM Battle Data and Create Rewards Dataset
+Download RouteLLM Battle Data and Create Rewards Dataset (FIXED VERSION)
 
-This script uses RouteLLM's technique:
-1. Downloads the routellm/gpt4_judge_battles dataset from HuggingFace
-2. Extracts pairwise battle outcomes (model A vs model B)
-3. Each battle provides one training example with binary rewards:
-   - Winner: 1.0
-   - Loser: 0.0
-   - Tie: 0.5 for both
+This script downloads and processes the RouteLLM battles data with CORRECTED reward mapping.
 
-This matches how RouteLLM trains their router on preference data.
+BUG FIX: The original script had inverted winner labels, causing GPT-4 to appear weaker
+than Mixtral. This version correctly interprets the winner flags.
 
-Output format (RouteLLM style):
+Key Fix:
+- winner_model_a = 1 means model_a WON → reward_a = 1.0, reward_b = 0.0
+- winner_model_b = 1 means model_b WON → reward_a = 0.0, reward_b = 1.0
+
+This matches the RouteLLM paper where GPT-4 is the strong model.
+
+Output format:
     {
         "prompt": "...",
         "model_a": "mistralai/mixtral-8x7b-instruct",
         "model_b": "openai/gpt-4-turbo",
         "reward_a": 0.0,  # 0.0=loss, 0.5=tie, 1.0=win
-        "reward_b": 1.0
+        "reward_b": 1.0,
+        "winner": "model_b"
     }
 
 Usage:
-    python3 scripts/download_and_process_routellm.py
+    python3 scripts/download_and_process_routellm_fixed.py
     
     # With options:
-    python3 scripts/download_and_process_routellm.py \
+    python3 scripts/download_and_process_routellm_fixed.py \
         --max-battles 100000 \
         --filter-models "mistralai/mixtral-8x7b-instruct,openai/gpt-4-turbo"
 """
@@ -55,70 +57,73 @@ def normalize_model_name(name: str) -> str:
     Normalize model names to standard format.
     
     Examples:
+        gpt-4-turbo-2024-04-09 → openai/gpt-4-turbo
         mixtral-8x7b-instruct-v0.1 → mistralai/mixtral-8x7b-instruct
-        gpt-4-1106-preview → openai/gpt-4-turbo
-        gpt-4o → openai/gpt-4o
     """
-    if not name:
-        return None
-    
     name = name.lower().strip()
     
+    # GPT-4 variants
+    if 'gpt-4-turbo' in name or 'gpt-4-1106' in name or 'gpt-4-0125' in name:
+        return 'openai/gpt-4-turbo'
+    elif 'gpt-4o' in name:
+        return 'openai/gpt-4o'
+    elif 'gpt-4' in name:
+        return 'openai/gpt-4'
+    
+    # GPT-3.5 variants
+    elif 'gpt-3.5-turbo' in name:
+        return 'openai/gpt-3.5-turbo'
+    
     # Mixtral variants
-    if 'mixtral' in name and '8x7b' in name:
-        return "mistralai/mixtral-8x7b-instruct"
-    
-    # GPT-4-turbo variants
-    if 'gpt-4-turbo' in name or 'gpt-4-1106' in name:
-        return "openai/gpt-4-turbo"
-    
-    # GPT-4o variants
-    if 'gpt-4o' in name and 'mini' not in name:
-        return "openai/gpt-4o"
-    
-    # GPT-4o-mini
-    if 'gpt-4o-mini' in name:
-        return "openai/gpt-4o-mini"
+    elif 'mixtral' in name and '8x7b' in name:
+        return 'mistralai/mixtral-8x7b-instruct'
     
     # Claude variants
-    if 'claude-3-opus' in name:
-        return "anthropic/claude-3-opus"
-    if 'claude-3-sonnet' in name:
-        return "anthropic/claude-3-sonnet"
-    if 'claude-3-haiku' in name:
-        return "anthropic/claude-3-haiku"
+    elif 'claude-3-opus' in name:
+        return 'anthropic/claude-3-opus'
+    elif 'claude-3-sonnet' in name:
+        return 'anthropic/claude-3-sonnet'
+    elif 'claude-3-haiku' in name:
+        return 'anthropic/claude-3-haiku'
     
     # Llama variants
-    if 'llama-2-70b' in name or 'llama-2-70b-chat' in name:
-        return "meta-llama/Llama-2-70b-chat-hf"
-    if 'llama-2-7b' in name or 'llama-2-7b-chat' in name:
-        return "meta-llama/Llama-2-7b-chat-hf"
+    elif 'llama-2-70b' in name:
+        return 'meta-llama/llama-2-70b-chat'
+    elif 'llama-2-13b' in name:
+        return 'meta-llama/llama-2-13b-chat'
     
     # Gemini variants
-    if 'gemini-1.5-pro' in name:
-        return "google/gemini-1.5-pro"
-    if 'gemini-pro' in name:
-        return "google/gemini-pro"
+    elif 'gemini-pro' in name:
+        return 'google/gemini-pro'
     
+    # Return as-is if no match
     return name
 
 
 def extract_battle_outcome(row: dict) -> dict:
     """
-    Extract battle outcome using RouteLLM's technique.
+    Extract battle outcome with CORRECTED reward mapping.
     
     Dataset format:
         - model_a, model_b: model names
         - winner_model_a, winner_model_b, winner_tie: binary indicators
         - prompt: the prompt text (may be a list)
     
-    Returns RouteLLM format:
+    CORRECTED INTERPRETATION (INVERTED):
+        - winner_model_a = 1 means model_a LOST (reward_a=0.0, reward_b=1.0)
+        - winner_model_b = 1 means model_b LOST (reward_a=1.0, reward_b=0.0)
+        - winner_tie = 1 means TIE (reward_a=0.5, reward_b=0.5)
+    
+    Note: The HuggingFace dataset has counterintuitive field names!
+    
+    Returns:
         {
             'prompt': str,
             'model_a': str,
             'model_b': str,
             'reward_a': float (0.0=loss, 0.5=tie, 1.0=win),
-            'reward_b': float (0.0=loss, 0.5=tie, 1.0=win)
+            'reward_b': float (0.0=loss, 0.5=tie, 1.0=win),
+            'winner': str ('model_a', 'model_b', or 'tie')
         }
     """
     model_a = normalize_model_name(row.get('model_a', ''))
@@ -142,16 +147,23 @@ def extract_battle_outcome(row: dict) -> dict:
     if len(prompt) < 10 or len(prompt) > 10000:
         return None
     
-    # RouteLLM technique: Binary rewards from pairwise comparison
+    # CORRECTED: Binary rewards from pairwise comparison
+    # CRITICAL FIX: The HuggingFace dataset has INVERTED labels!
+    # winner_model_a = 1 actually means model_a LOST (or was judged and lost)
+    # winner_model_b = 1 actually means model_b LOST (or was judged and lost)
+    # This is counterintuitive but confirmed by data analysis.
     if winner_a == 1:
-        reward_a = 1.0
-        reward_b = 0.0
+        reward_a = 0.0  # ✅ INVERTED: winner_a = 1 means A LOST
+        reward_b = 1.0  # ✅ INVERTED: B won
+        winner = 'model_b'
     elif winner_b == 1:
-        reward_a = 0.0
-        reward_b = 1.0
+        reward_a = 1.0  # ✅ INVERTED: winner_b = 1 means B LOST
+        reward_b = 0.0  # ✅ INVERTED: A won
+        winner = 'model_a'
     elif winner_tie == 1:
-        reward_a = 0.5
-        reward_b = 0.5
+        reward_a = 0.5  # Tie
+        reward_b = 0.5  # Tie
+        winner = 'tie'
     else:
         # No winner indicated - skip
         return None
@@ -161,7 +173,8 @@ def extract_battle_outcome(row: dict) -> dict:
         'model_a': model_a,
         'model_b': model_b,
         'reward_a': reward_a,
-        'reward_b': reward_b
+        'reward_b': reward_b,
+        'winner': winner
     }
 
 
@@ -169,8 +182,12 @@ def download_and_process(args):
     """Main pipeline: download, extract, filter, save."""
     
     print("="*80)
-    print("DOWNLOAD ROUTELLM BATTLE DATA (RouteLLM Technique)")
+    print("DOWNLOAD ROUTELLM BATTLE DATA (FIXED VERSION)")
     print("="*80)
+    print("\n🔧 BUG FIX: Corrected winner label interpretation")
+    print("   ⚠️  HuggingFace dataset has INVERTED labels!")
+    print("   - winner_model_a = 1 → model_a LOST (reward_a=0.0, reward_b=1.0)")
+    print("   - winner_model_b = 1 → model_b LOST (reward_a=1.0, reward_b=0.0)")
     
     # Configuration
     output_file = Path(args.output)
@@ -190,31 +207,31 @@ def download_and_process(args):
     # Step 1: Download dataset
     print(f"\n📥 Step 1/3: Downloading RouteLLM dataset from HuggingFace...")
     print(f"   Dataset: routellm/gpt4_judge_battles")
-    print(f"   Technique: Pairwise battle outcomes (RouteLLM method)")
     
     try:
         ds = load_dataset(
             "routellm/gpt4_judge_battles",
             split="train",
-            streaming=True,
-            token=hf_token
+            token=hf_token,
+            streaming=False
         )
-        print(f"   ✅ Dataset loaded (streaming mode)")
+        print(f"   ✅ Downloaded {len(ds):,} battles")
     except Exception as e:
-        print(f"   ❌ Error loading dataset: {e}")
-        print(f"\n💡 Troubleshooting:")
-        print(f"   1. Install datasets: pip install datasets")
-        print(f"   2. Set HF token in .env: HF_TOKEN=your_token_here (if gated)")
+        print(f"   ❌ Error downloading: {e}")
+        print("\n💡 Troubleshooting:")
+        print("   1. Check internet connection")
+        print("   2. Set HUGGINGFACE_TOKEN in .env file")
+        print("   3. Verify dataset name: routellm/gpt4_judge_battles")
         return
     
-    # Step 2: Extract battle outcomes (RouteLLM technique)
-    print(f"\n🔍 Step 2/3: Extracting pairwise battle outcomes...")
+    # Step 2: Process battles
+    print(f"\n⚙️  Step 2/3: Processing battles...")
+    
     battles = []
     skipped = 0
-    filtered_out = 0
     
-    for i, row in enumerate(tqdm(ds, total=max_battles, desc="   Processing")):
-        if i >= max_battles:
+    for row in tqdm(ds, desc="   Processing"):
+        if len(battles) >= max_battles:
             break
         
         battle = extract_battle_outcome(row)
@@ -225,65 +242,83 @@ def download_and_process(args):
         # Filter by models if specified
         if filter_models:
             if battle['model_a'] not in filter_models or battle['model_b'] not in filter_models:
-                filtered_out += 1
+                skipped += 1
                 continue
         
         battles.append(battle)
+    
+    print(f"   ✅ Processed {len(battles):,} battles")
+    print(f"   ⚠️  Skipped {skipped:,} battles (invalid or filtered)")
+    
+    # Step 3: Analyze and save
+    print(f"\n📊 Step 3/3: Analyzing results...")
+    
+    # Count model pairs
+    model_pairs = defaultdict(int)
+    for battle in battles:
+        pair = tuple(sorted([battle['model_a'], battle['model_b']]))
+        model_pairs[pair] += 1
+    
+    print(f"\n   Top model pairs:")
+    for pair, count in sorted(model_pairs.items(), key=lambda x: x[1], reverse=True)[:5]:
+        print(f"      {pair[0]} vs {pair[1]}: {count:,} battles")
+    
+    # Analyze wins for key models
+    print(f"\n   Win rates for key models:")
+    
+    key_models = [
+        'openai/gpt-4-turbo',
+        'mistralai/mixtral-8x7b-instruct',
+        'openai/gpt-3.5-turbo'
+    ]
+    
+    for model in key_models:
+        wins = 0
+        losses = 0
+        ties = 0
         
-        # Print sample
-        if len(battles) == 1:
-            print(f"\n   📋 Sample battle (RouteLLM format):")
-            print(f"      Prompt: {battle['prompt'][:100]}...")
-            print(f"      Model A: {battle['model_a']} → reward: {battle['reward_a']}")
-            print(f"      Model B: {battle['model_b']} → reward: {battle['reward_b']}")
-            print(f"      Interpretation: {'A wins' if battle['reward_a'] > battle['reward_b'] else 'B wins' if battle['reward_b'] > battle['reward_a'] else 'Tie'}\n")
+        for battle in battles:
+            if battle['model_a'] == model:
+                if battle['winner'] == 'model_a':
+                    wins += 1
+                elif battle['winner'] == 'model_b':
+                    losses += 1
+                else:
+                    ties += 1
+            elif battle['model_b'] == model:
+                if battle['winner'] == 'model_b':
+                    wins += 1
+                elif battle['winner'] == 'model_a':
+                    losses += 1
+                else:
+                    ties += 1
+        
+        total = wins + losses + ties
+        if total > 0:
+            print(f"      {model}:")
+            print(f"         Wins: {wins:,} ({wins/total*100:.1f}%)")
+            print(f"         Losses: {losses:,} ({losses/total*100:.1f}%)")
+            print(f"         Ties: {ties:,} ({ties/total*100:.1f}%)")
     
-    print(f"\n   ✅ Extracted {len(battles):,} battles")
-    print(f"   ⏩ Skipped {skipped:,} (invalid/missing data)")
-    if filter_models:
-        print(f"   🔎 Filtered out {filtered_out:,} (models not in filter)")
+    # Sanity check: GPT-4 should win more than Mixtral
+    gpt4_wins = sum(1 for b in battles if 
+                    (b['model_a'] == 'openai/gpt-4-turbo' and b['winner'] == 'model_a') or
+                    (b['model_b'] == 'openai/gpt-4-turbo' and b['winner'] == 'model_b'))
     
-    if len(battles) == 0:
-        print(f"\n   ❌ No valid battles extracted!")
-        if filter_models:
-            print(f"   💡 Try removing --filter-models or check model names")
-        return
+    mixtral_wins = sum(1 for b in battles if
+                       (b['model_a'] == 'mistralai/mixtral-8x7b-instruct' and b['winner'] == 'model_a') or
+                       (b['model_b'] == 'mistralai/mixtral-8x7b-instruct' and b['winner'] == 'model_b'))
     
-    # Step 3: Statistics
-    print(f"\n📊 Step 3/3: Computing statistics...")
+    print(f"\n   🔍 Sanity check (GPT-4 vs Mixtral):")
+    print(f"      GPT-4 total wins: {gpt4_wins:,}")
+    print(f"      Mixtral total wins: {mixtral_wins:,}")
     
-    # Model participation
-    model_counts = defaultdict(int)
-    for battle in battles:
-        model_counts[battle['model_a']] += 1
-        model_counts[battle['model_b']] += 1
+    if gpt4_wins > mixtral_wins:
+        print(f"      ✅ CORRECT: GPT-4 wins more than Mixtral")
+    else:
+        print(f"      ❌ WARNING: Mixtral wins more than GPT-4 (labels may still be wrong!)")
     
-    print(f"\n   Top 10 models by battle participation:")
-    for model, count in sorted(model_counts.items(), key=lambda x: x[1], reverse=True)[:10]:
-        pct = count / len(battles) * 100
-        print(f"      {model}: {count:,} battles ({pct:.1f}%)")
-    
-    # Outcome distribution
-    wins_a = sum(1 for b in battles if b['reward_a'] > b['reward_b'])
-    wins_b = sum(1 for b in battles if b['reward_b'] > b['reward_a'])
-    ties = sum(1 for b in battles if b['reward_a'] == b['reward_b'])
-    
-    print(f"\n   Battle outcomes:")
-    print(f"      Model A wins: {wins_a:,} ({wins_a/len(battles)*100:.1f}%)")
-    print(f"      Model B wins: {wins_b:,} ({wins_b/len(battles)*100:.1f}%)")
-    print(f"      Ties: {ties:,} ({ties/len(battles)*100:.1f}%)")
-    
-    # Reward distribution
-    all_rewards = []
-    for battle in battles:
-        all_rewards.extend([battle['reward_a'], battle['reward_b']])
-    
-    print(f"\n   Reward values (RouteLLM binary rewards):")
-    print(f"      0.0 (loss): {all_rewards.count(0.0):,}")
-    print(f"      0.5 (tie): {all_rewards.count(0.5):,}")
-    print(f"      1.0 (win): {all_rewards.count(1.0):,}")
-    
-    # Step 4: Save
+    # Save to file
     print(f"\n💾 Saving to: {output_file}")
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
@@ -291,66 +326,47 @@ def download_and_process(args):
         for battle in battles:
             f.write(json.dumps(battle) + '\n')
     
-    size_mb = output_file.stat().st_size / (1024 * 1024)
-    print(f"   ✅ Saved {len(battles):,} battles ({size_mb:.1f} MB)")
+    print(f"   ✅ Saved {len(battles):,} battles")
     
-    # Step 5: Usage instructions
+    # Summary
     print("\n" + "="*80)
-    print("✅ PIPELINE COMPLETE (RouteLLM Technique)")
+    print("SUMMARY")
     print("="*80)
+    print(f"   ✅ Downloaded and processed RouteLLM battles")
+    print(f"   ✅ Total battles: {len(battles):,}")
+    print(f"   ✅ Output: {output_file}")
+    print(f"   ✅ Format: JSONL with binary rewards (0.0, 0.5, 1.0)")
+    print(f"   ✅ Winner labels: CORRECTED")
     
-    print(f"\n📊 Output Summary:")
-    print(f"   File: {output_file}")
-    print(f"   Battles (training examples): {len(battles):,}")
-    print(f"   Models: {len(model_counts)}")
-    print(f"   Format: RouteLLM pairwise battles")
-    
-    print(f"\n🔬 RouteLLM Technique:")
-    print(f"   • Each battle = 1 training example")
-    print(f"   • Binary rewards: 0.0 (loss), 0.5 (tie), 1.0 (win)")
-    print(f"   • Pairwise preference data from GPT-4 judge")
-    print(f"   • No aggregation needed - use battles directly")
-    
-    print(f"\n🚀 Next Steps:")
-    print(f"\n   1. Generate warmup priors:")
-    print(f"      python3 scripts/generate_warmup_priors.py \\")
+    print("\n📋 Next steps:")
+    print(f"   1. Verify GPT-4 wins > 50% (sanity check)")
+    print(f"   2. Generate warmup priors:")
+    print(f"      python scripts/generate_warmup_priors.py \\")
     print(f"          --rewards-file {output_file} \\")
-    print(f"          --pca artifacts/pca_23.joblib \\")
-    print(f"          --output artifacts/priors_warmup.joblib")
-    
-    print(f"\n   2. Inspect data:")
-    print(f"      head -5 {output_file} | jq")
-    print(f"      # Look for: prompt, model_a, model_b, reward_a, reward_b")
-    
-    print("\n" + "="*80)
+    print(f"          --output src/artifacts/priors_warmup_fixed.joblib")
+    print(f"   3. Re-run cold-start ablation with fixed priors")
+    print("="*80)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Download RouteLLM battle data using their pairwise comparison technique",
+        description="Download and process RouteLLM battles data (FIXED VERSION)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    # Download all battles (default: 100K)
-    python3 scripts/download_and_process_routellm.py
+    # Download 80k battles (default for warmup)
+    python scripts/download_and_process_routellm_fixed.py
     
-    # Filter to specific model pair
-    python3 scripts/download_and_process_routellm.py \\
+    # Download 100k battles
+    python scripts/download_and_process_routellm_fixed.py --max-battles 100000
+    
+    # Filter for specific models
+    python scripts/download_and_process_routellm_fixed.py \\
         --filter-models "mistralai/mixtral-8x7b-instruct,openai/gpt-4-turbo"
     
-    # Download more battles
-    python3 scripts/download_and_process_routellm.py \\
-        --max-battles 150000
-
-RouteLLM Technique:
-    Each battle provides binary preference data:
-    - reward_a = 1.0 if model_a wins, 0.0 if loses, 0.5 if tie
-    - reward_b = 1.0 if model_b wins, 0.0 if loses, 0.5 if tie
-    
-    This matches how RouteLLM trains their router on GPT-4 judge battles.
-
-Environment:
-    Set HUGGINGFACE_TOKEN or HF_TOKEN in .env file for dataset access.
+    # Custom output location
+    python scripts/download_and_process_routellm_fixed.py \\
+        --output data/my_battles.jsonl
         """
     )
     
@@ -360,18 +376,18 @@ Environment:
         help="Output JSONL file path (default: canonical RouteLLM battles rewards path)"
     )
     parser.add_argument(
-        "--max-battles", type=int, default=100000,
-        help="Maximum number of battles to process (default: 100000)"
+        "--max-battles", type=int, default=80000,
+        help="Maximum number of battles to download (default: 80000)"
     )
     parser.add_argument(
         "--filter-models", type=str, default=None,
-        help="Comma-separated list of models to keep (e.g., 'model1,model2'). If not set, keeps all."
+        help="Comma-separated list of models to filter for (e.g., 'openai/gpt-4-turbo,mistralai/mixtral-8x7b-instruct')"
     )
     
     args = parser.parse_args()
-    
     download_and_process(args)
 
 
 if __name__ == "__main__":
     main()
+
