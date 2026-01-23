@@ -608,7 +608,8 @@ class ExperimentBurnIn:
         
         # Use existing PCA artifact (don't recreate)
         from pathlib import Path as P
-        pca_path = P(__file__).parent.parent.parent / "artifacts" / "pca_23.joblib"
+        from bandit_gpt.config_legacy import DEFAULT_PCA_PATH
+        pca_path = DEFAULT_PCA_PATH
         
         router = BanditRouter.create(
             self.registry,

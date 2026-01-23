@@ -32,7 +32,7 @@ from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 from scipy.stats import gaussian_kde
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_PCA_PATH
 
 
 def load_battles_with_rewards(battles_file: Path, max_samples: int = 80000):
@@ -344,7 +344,7 @@ def main():
     # Paths
     project_root = Path(__file__).parent.parent.parent
     battles_file = project_root / "src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl"
-    pca_file = project_root / "src/artifacts/pca_23.joblib"
+    pca_file = DEFAULT_PCA_PATH
     output_dir = Path(__file__).parent
     
     print(f"\n📋 Configuration:")

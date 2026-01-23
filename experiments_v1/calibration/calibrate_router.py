@@ -25,7 +25,7 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_WARMUP_PRIORS_PATH
 
 
 def apply_gamma_scaling(priors: dict, gamma: float) -> dict:
@@ -145,7 +145,7 @@ def main():
     )
     parser.add_argument(
         "--warmup-priors", type=str,
-        default="../../data/routellm/artifacts/priors_warmup_routellm_pca24.joblib",
+        default=str(DEFAULT_WARMUP_PRIORS_PATH),
         help="Path to warmup priors"
     )
     parser.add_argument(

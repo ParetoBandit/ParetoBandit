@@ -26,7 +26,7 @@ ROUTELLM_DATA_DIR = PROJECT_ROOT / "data" / "routellm" / "data"
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_WARMUP_PRIORS_PATH
 
 # Models for RouteLLM comparison
 WEAK_MODEL = "mistralai/mixtral-8x7b-instruct"
@@ -356,7 +356,7 @@ def main():
     )
     parser.add_argument(
         "--output", type=str, 
-        default="../artifacts/priors_warmup_routellm_pca24.joblib",
+        default=str(DEFAULT_WARMUP_PRIORS_PATH),
         help="Output path for warmup priors (relative to scripts/)"
     )
     parser.add_argument(

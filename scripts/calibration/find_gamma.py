@@ -85,7 +85,7 @@ def main():
     )
     parser.add_argument(
         "--warmup-priors", type=str,
-        default="data/routellm/artifacts/priors_warmup_routellm_pca24.joblib",
+        default=str(DEFAULT_WARMUP_PRIORS_PATH),
         help="Path to warmup priors"
     )
     parser.add_argument(
@@ -117,7 +117,7 @@ def main():
     print("\n📥 Loading resources...")
     warmup_priors = joblib.load(Path(args.warmup_priors))
     pca_model = joblib.load(Path(args.pca))
-    from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+    from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_WARMUP_PRIORS_PATH
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     print(f"   ✅ Warmup priors: {warmup_priors['n_prompts']:,} samples")
     print(f"   ✅ PCA: {pca_model.n_components} components")

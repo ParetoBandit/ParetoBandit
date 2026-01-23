@@ -97,8 +97,9 @@ def main():
     # Paths
     base_path = Path(__file__).parent
     eval_file = base_path / "results" / "eval_rewards_mixtral_gpt4turbo.jsonl"
-    pca_file = base_path.parent.parent / "artifacts" / "pca_23.joblib"
-    priors_file = base_path.parent.parent / "data" / "routellm" / "artifacts" / "priors_warmup_routellm_pca24.joblib"
+    from bandit_gpt.config_legacy import DEFAULT_PCA_PATH, DEFAULT_WARMUP_PRIORS_PATH
+    pca_file = DEFAULT_PCA_PATH
+    priors_file = DEFAULT_WARMUP_PRIORS_PATH
     
     # Load resources
     print("\n📥 Loading resources...")

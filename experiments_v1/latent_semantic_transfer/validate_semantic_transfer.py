@@ -364,7 +364,8 @@ def test_ablation_mismatched_neighbor(
     )
     
     # Load priors
-    priors_path = Path(__file__).parent.parent.parent / "data" / "routellm" / "priors_warmup_routellm_pca24.joblib"
+    from bandit_gpt.config_legacy import DEFAULT_WARMUP_PRIORS_PATH
+    priors_path = DEFAULT_WARMUP_PRIORS_PATH
     priors_data = joblib.load(priors_path)
     A_matrices = priors_data['A']
     b_vectors = priors_data['b']
@@ -807,7 +808,8 @@ def main():
         print(f"   - {model_id}")
     
     # Load real warmup priors from RouteLLM data
-    priors_path = Path(__file__).parent.parent.parent / "data" / "routellm" / "priors_warmup_routellm_pca24.joblib"
+    from bandit_gpt.config_legacy import DEFAULT_WARMUP_PRIORS_PATH
+    priors_path = DEFAULT_WARMUP_PRIORS_PATH
     load_warmup_priors(router, priors_path)
     
     # Load real rewards once (for both main test and ablation)

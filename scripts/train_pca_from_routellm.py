@@ -37,7 +37,7 @@ import numpy as np
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_PCA_PATH
 
 
 def load_prompts_from_battles(battles_file: Path, max_prompts: int = 80000) -> list:
@@ -222,8 +222,8 @@ Why PCA?
     )
     parser.add_argument(
         "--output", type=str,
-        default="src/artifacts/pca_23.joblib",
-        help="Output PCA model path (default: src/artifacts/pca_23.joblib)"
+        default=str(DEFAULT_PCA_PATH),
+        help=f"Output PCA model path (default: {DEFAULT_PCA_PATH})"
     )
     parser.add_argument(
         "--n-components", type=int, default=23,

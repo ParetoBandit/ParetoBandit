@@ -75,7 +75,8 @@ def create_base_router(registry: Dict[str, Dict]) -> BanditRouter:
     )
     
     # Load priors for base models
-    priors_path = Path(__file__).parent.parent.parent / "data" / "routellm" / "priors_warmup_routellm_pca24.joblib"
+    from bandit_gpt.config_legacy import DEFAULT_WARMUP_PRIORS_PATH
+    priors_path = DEFAULT_WARMUP_PRIORS_PATH
     priors_data = joblib.load(priors_path)
     A_matrices = priors_data['A']
     b_vectors = priors_data['b']
