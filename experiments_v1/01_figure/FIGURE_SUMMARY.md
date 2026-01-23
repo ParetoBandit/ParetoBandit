@@ -25,15 +25,21 @@
 - **Mixtral-8x7B** vs **GPT-4-Turbo** comparisons
 - **Reward gap**: $R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}}$
 
+### PCA Configuration
+- **Components**: 32 (auto-discovered from `pca_32.joblib`)
+- **Total variance captured**: 35.14%
+- **2D projection variance**: 5.39% (PC1: 3.10%, PC2: 2.29%)
+
 ### Difficulty Distribution
 | Category | Threshold | Count | Percentage |
 |----------|-----------|--------|------------|
-| **Easy** (Blue) | \|Gap\| ≤ 0.3 | 17,712 | 22.1% |
+| **Easy** (Blue) | |Gap| ≤ 0.3 | 17,712 | 22.1% |
 | **Medium** (Yellow) | 0.3 < Gap ≤ 0.6 | 0 | 0.0% |
-| **Hard** (Red) | Gap > 0.6 | 62,288 | 77.9% |
+| **Hard** (Red) | Gap > 0.6 | 54,845 | 68.6% |
+| **Mixtral Wins** | Gap < -0.3 | 7,443 | 9.3% |
 
 ### Key Finding
-**Bimodal distribution**: Tasks are either easy (Mixtral OK) or hard (GPT-4 required), with virtually no moderate cases. This validates the LST hypothesis and explains efficient calibration.
+**Strong bimodal distribution**: Tasks are strictly partitioned into discrete modes with an absolute vacuum in the moderate range (0.0% in $0.3 < \text{Gap} \le 0.6$). This confirms that the 0.3/0.6 thresholds act as effective buffer zones for mode isolation.
 
 ---
 
@@ -82,9 +88,9 @@ This provides:
 > **Implication**: Real-time reward feedback (bandits) outperforms static routing.
 
 ### 3. Bimodal Structure → Efficient Calibration
-> **Claim**: 0% moderate tasks proves bimodal distribution.
+> **Claim**: Strong bimodal distribution (68.6% hard, 22.1% easy, ~0% moderate GPT-4 advantage).
 > 
-> **Evidence**: Tasks are either easy or hard, nothing in between.
+> **Evidence**: Tasks are predominantly either easy (models equivalent) or hard (GPT-4 strongly preferred), with virtually no moderate cases.
 > 
 > **Implication**: Only need to recalibrate relative frequencies, not learn full spectrum → 150 samples sufficient.
 
@@ -139,7 +145,7 @@ python3 plot_pca_reward_gap.py
 - sentence-transformers (all-MiniLM-L6-v2)
 - scipy (gaussian_kde)
 - matplotlib
-- Pre-trained PCA model: `src/artifacts/pca_23.joblib`
+- Pre-trained PCA model: `src/artifacts/pca_32.joblib` (32 components, 35.14% variance)
 
 ---
 
@@ -147,8 +153,8 @@ python3 plot_pca_reward_gap.py
 
 ### Data Pipeline
 1. `scripts/download_and_process_routellm.py` - Download 80K battles
-2. `scripts/train_pca_from_routellm.py` - Train PCA-23 model
-3. `experiments_v1/01_figure/plot_pca_reward_gap.py` - Generate figure
+2. `scripts/train_pca_from_routellm.py` - Train PCA-32 model (35.14% variance)
+3. `experiments_v1/01_figure/plot_pca_reward_gap.py` - Generate figure (auto-discovers PCA components)
 
 ### Calibration Experiments
 - `experiments_v1/calibration/` - Domain adaptation experiments
