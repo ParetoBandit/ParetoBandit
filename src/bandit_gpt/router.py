@@ -1101,10 +1101,10 @@ class BanditRouter:
         #   λ=0.5: Quality-biased (67% quality, 33% cost)
         #   λ=0.05: Quality-focused (95% quality, 5% cost)
         # Simplified Profile System: "auto" is the intelligent default
-        # Lambda = 0.02 is calibrated to balance quality and cost optimally
+        # Lambda = 0.05 is calibrated to balance quality and cost optimally
         # Users can pass "custom" (dict) for full control over weights
         self.PARETO_PROFILES = {
-            "auto": 0.02,    # Smart routing: balances quality and cost intelligently
+            "auto": 0.05,    # Smart routing: balances quality and cost intelligently
         }
         # Controls the "Optimism" of the Pareto Filter (UCB)
         # 1.0 = Standard UCB. Higher = Keep uncertain models alive longer.

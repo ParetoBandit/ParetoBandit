@@ -649,7 +649,7 @@ Our analysis reveals that \\textbf{{\\(\\gamma={recommended_gamma:.3f}\\)}} prov
 \\begin{{itemize}}
     \\item \\textbf{{Influence Balance}}: Calibration/Prior ratio of {results[recommended_gamma]['calib_prior_ratio']:.3f}, ensuring calibration data has sufficient influence without completely discarding warmup knowledge
     \\item \\textbf{{Policy Adaptation}}: {abs(results[recommended_gamma]['final_strong_pct'] - baseline_usage):.1f} percentage point shift in routing strategy (from {baseline_usage:.1f}\\% to {results[recommended_gamma]['final_strong_pct']:.1f}\\% strong model usage)
-    \\item \\textbf{{Quality Preservation}}: {results[recommended_gamma]['avg_reward']:.4f} average reward, representing {((results[recommended_gamma]['avg_reward'] / results[1.0]['avg_reward']) - 1) * 100:+.1f}\\% change from baseline
+    \\item \\textbf{{Quality Preservation}}: {results[recommended_gamma]['avg_reward']:.4f} average reward{'' if results[1.0]['avg_reward'] == 0 else f", representing {((results[recommended_gamma]['avg_reward'] / results[1.0]['avg_reward']) - 1) * 100:+.1f}\\% change from baseline"}
     \\item \\textbf{{Effective Sample Size}}: Reduces prior strength from {results[1.0]['eff_n']:,} to {results[recommended_gamma]['eff_n']:,} effective samples, enabling rapid adaptation
 \\end{{itemize}}
 

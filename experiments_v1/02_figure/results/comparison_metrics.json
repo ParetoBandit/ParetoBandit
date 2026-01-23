@@ -7,14 +7,14 @@
   "gamma_scaled": {
     "strong_pct": 100.0,
     "quality": 0.9706666666666667,
-    "effective_n": 3.237419539690857,
-    "gamma": 0.01
+    "effective_n": 16.187097698454288,
+    "gamma": 0.05
   },
   "fully_calibrated": {
-    "strong_pct": 16.0,
-    "quality": 0.8506666666666667,
-    "effective_n": 34.63032147809802,
-    "calibration_contribution": 31.39290193840716,
-    "calibration_prior_ratio": 9.696890240368688
+    "strong_pct": 16.8,
+    "quality": 0.8453333333333334,
+    "effective_n": 53.68386807799349,
+    "calibration_contribution": 37.4967703795392,
+    "calibration_prior_ratio": 2.316460373444202
   }
 }
