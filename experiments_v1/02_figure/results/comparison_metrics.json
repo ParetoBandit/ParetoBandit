@@ -1,0 +1,20 @@
+{
+  "warmup_only": {
+    "strong_pct": 100.0,
+    "quality": 0.9706666666666667,
+    "effective_n": 425.60403285587296
+  },
+  "gamma_scaled": {
+    "strong_pct": 99.73333333333333,
+    "quality": 0.9706666666666667,
+    "effective_n": 4.25604032855873,
+    "gamma": 0.01
+  },
+  "fully_calibrated": {
+    "strong_pct": 0.26666666666666666,
+    "quality": 0.8226666666666667,
+    "effective_n": 16.099059936831676,
+    "calibration_contribution": 11.843019608272947,
+    "calibration_prior_ratio": 2.7826380142134317
+  }
+}

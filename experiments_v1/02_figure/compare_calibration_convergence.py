@@ -14,6 +14,7 @@ real-world performance.
 """
 
 import argparse
+import gzip
 import json
 import joblib
 import numpy as np
@@ -27,7 +28,15 @@ from tqdm import tqdm
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from bandit_gpt.router import BanditRouter
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, STRONG_MODEL_EQUIVALENTS
+from bandit_gpt.config_legacy import (
+    DEFAULT_SENTENCE_TRANSFORMER, 
+    STRONG_MODEL_EQUIVALENTS,
+    DEFAULT_PCA_PATH,
+    DEFAULT_WARMUP_PRIORS_PATH,
+    CANONICAL_HOLDOUT_DATA_PATH,
+    CANONICAL_CALIBRATED_ROUTER_PATH,
+    PROJECT_ROOT
+)
 
 
 def create_model_mapper(router_models: List[str], eval_data_sample: dict) -> Dict[str, str]:
@@ -94,26 +103,28 @@ def evaluate_router(router: BanditRouter, eval_data: List[dict], model_mapper: D
     }
 
 
-def get_effective_n(router: BanditRouter) -> Dict[str, float]:
+def get_effective_n(router: BanditRouter, models: List[str] = None) -> Dict[str, float]:
     """Get effective sample size for each model in the router."""
     n_eff = {}
-    for model in router.bandit.models:
-        # Trace of A matrix / context_dim ≈ effective N
-        n_eff[model] = np.trace(router.bandit.A[model]) / router.bandit.dim
+    model_list = models if models else router.bandit.models
+    for model in model_list:
+        if model in router.bandit.A:
+            # Trace of A matrix / context_dim ≈ effective N
+            n_eff[model] = np.trace(router.bandit.A[model]) / router.bandit.dim
     return n_eff
 
 
 def main():
     parser = argparse.ArgumentParser(description="Compare before/after calibration convergence")
     parser.add_argument("--warmup-priors", type=str, 
-                       default="../../../data/routellm/artifacts/priors_warmup_routellm_pca24.joblib")
+                       default=str(DEFAULT_WARMUP_PRIORS_PATH))
     parser.add_argument("--calibrated-router", type=str, 
-                       default="../data/canonical_router_calibrated.joblib")
+                       default=str(CANONICAL_CALIBRATED_ROUTER_PATH))
     parser.add_argument("--holdout-data", type=str, 
-                       default="../data/canonical_holdout_evaluation.jsonl")
-    parser.add_argument("--pca", type=str, default="../../../artifacts/pca_23_routellm.joblib")
+                       default=str(CANONICAL_HOLDOUT_DATA_PATH))
+    parser.add_argument("--pca", type=str, default=str(DEFAULT_PCA_PATH))
     parser.add_argument("--registry", type=str, 
-                       default="../../../src/bandit_gpt/config/models.json",
+                       default=str(PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models.json"),
                        help="Model registry JSON file")
     parser.add_argument("--output", type=str, default="calibration_convergence_comparison")
     parser.add_argument("--gamma", type=float, default=0.010, 
@@ -132,11 +143,32 @@ def main():
     warmup_state = joblib.load(Path(args.warmup_priors))
     calibrated_state = joblib.load(Path(args.calibrated_router))
     
-    # Load holdout data
-    with open(args.holdout_data) as f:
-        holdout_data = [json.loads(line) for line in f]
+    # Load holdout data (handles both .jsonl and .jsonl.gz)
+    if args.holdout_data.endswith('.gz'):
+        with gzip.open(args.holdout_data, 'rt') as f:
+            raw_data = [json.loads(line) for line in f]
+    else:
+        with open(args.holdout_data) as f:
+            raw_data = [json.loads(line) for line in f]
     
-    print(f"   ✅ Loaded {len(holdout_data)} holdout samples")
+    # Transform data: group by prompt and create rewards dict
+    from collections import defaultdict
+    by_prompt = defaultdict(list)
+    for item in raw_data:
+        by_prompt[item['prompt']].append(item)
+    
+    holdout_data = []
+    for prompt, items in by_prompt.items():
+        rewards = {}
+        for item in items:
+            # Use raw_score as reward (0.0-1.0 scale)
+            rewards[item['model_id']] = item['raw_score']
+        holdout_data.append({
+            'prompt': prompt,
+            'rewards': rewards
+        })
+    
+    print(f"   ✅ Loaded {len(holdout_data)} holdout samples ({len(raw_data)} model responses)")
     
     # Load model registry
     with open(args.registry) as f:
@@ -176,7 +208,7 @@ def main():
     
     router_warmup.bandit.refresh_inverse_cache()
     
-    n_eff_warmup = get_effective_n(router_warmup)
+    n_eff_warmup = get_effective_n(router_warmup, models)
     print(f"\n📊 Effective Sample Sizes:")
     print(f"   {weak_model.split('/')[-1]}: {n_eff_warmup[weak_model]:,.0f}")
     print(f"   {strong_model.split('/')[-1]}: {n_eff_warmup[strong_model]:,.0f}")
@@ -212,7 +244,7 @@ def main():
     
     router_gamma.bandit.refresh_inverse_cache()
     
-    n_eff_gamma = get_effective_n(router_gamma)
+    n_eff_gamma = get_effective_n(router_gamma, models)
     print(f"\n📊 Effective Sample Sizes After Gamma Scaling:")
     print(f"   {weak_model.split('/')[-1]}: {n_eff_gamma[weak_model]:,.0f}")
     print(f"   {strong_model.split('/')[-1]}: {n_eff_gamma[strong_model]:,.0f}")
@@ -249,7 +281,7 @@ def main():
     
     router_calibrated.bandit.refresh_inverse_cache()
     
-    n_eff_calibrated = get_effective_n(router_calibrated)
+    n_eff_calibrated = get_effective_n(router_calibrated, models)
     print(f"\n📊 Effective Sample Sizes After Calibration:")
     print(f"   {weak_model.split('/')[-1]}: {n_eff_calibrated[weak_model]:,.0f}")
     print(f"   {strong_model.split('/')[-1]}: {n_eff_calibrated[strong_model]:,.0f}")
@@ -275,11 +307,33 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    # Use publication-quality settings for KDD
+    plt.rcParams.update({
+        'font.size': 10,
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
+        'axes.labelsize': 11,
+        'axes.titlesize': 12,
+        'axes.linewidth': 1.2,
+        'xtick.labelsize': 9,
+        'ytick.labelsize': 9,
+        'legend.fontsize': 8,
+        'legend.framealpha': 0.9,
+        'figure.titlesize': 13,
+        'figure.dpi': 100,
+        'savefig.dpi': 300,
+        'savefig.bbox': 'tight',
+        'pdf.fonttype': 42,  # TrueType fonts for PDF
+        'ps.fonttype': 42
+    })
     
-    scenarios = ['Warmup Only\n(Before Calibration)', 
-                f'Warmup + γ={args.gamma}\n(No Calibration Data)',
-                'Fully Calibrated\n(After 1,121 samples)']
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    
+    # Shorter, cleaner labels for publication
+    scenarios = ['Warmup\nOnly', 
+                f'γ-Scaled\n($\\gamma$={args.gamma})',
+                'Calibrated\n(1.1K samples)']
+    
     strong_pcts = [results_warmup['strong_pct'], 
                    results_gamma['strong_pct'], 
                    results_calibrated['strong_pct']]
@@ -290,68 +344,179 @@ def main():
               n_eff_gamma[strong_model], 
               n_eff_calibrated[strong_model]]
     
-    # Plot 1: Strong Model Usage
+    # Professional color scheme: muted, colorblind-friendly
+    # Blue (baseline) -> Orange (intermediate) -> Green (target)
+    colors = ['#4C72B0', '#DD8452', '#55A868']
+    bar_width = 0.65
+    
+    # Plot 1: Strong Model Usage - THE CLIFF EFFECT
     ax1 = axes[0]
-    bars1 = ax1.bar(scenarios, strong_pcts, color=['#d62728', '#ff7f0e', '#2ca02c'], 
-                   edgecolor='black', linewidth=2, alpha=0.8)
-    ax1.axhline(16.3, color='gold', linestyle='--', linewidth=2, label='Oracle Optimal (16.3%)')
-    ax1.axhline(23.3, color='green', linestyle=':', linewidth=2, label='Target (23.3%)')
+    bars1 = ax1.bar(range(3), strong_pcts, color=colors, 
+                   edgecolor='white', linewidth=1.5, alpha=0.9, width=bar_width)
+    
+    # Add subtle shadow effect for depth
+    for i, bar in enumerate(bars1):
+        ax1.bar(i, strong_pcts[i], color='black', alpha=0.1, 
+               width=bar_width, zorder=0, linewidth=0)
+    
+    # Cleaner annotations - focus on the key insight
+    # Bracket showing the dramatic drop
+    bracket_y = max(results_gamma['strong_pct'], results_calibrated['strong_pct']) + 8
+    ax1.plot([1, 1], [results_gamma['strong_pct']+2, bracket_y], 'k-', lw=1.5, alpha=0.6)
+    ax1.plot([2, 2], [results_calibrated['strong_pct']+2, bracket_y], 'k-', lw=1.5, alpha=0.6)
+    ax1.plot([1, 2], [bracket_y, bracket_y], 'k-', lw=1.5, alpha=0.6)
+    
+    delta = results_gamma['strong_pct'] - results_calibrated['strong_pct']
+    ax1.text(1.5, bracket_y + 3, f'Δ = −{delta:.1f} pp', ha='center', fontsize=10, 
+            fontweight='bold', color='#C44E52')
+    
+    # Add value labels on bars with better positioning
+    for i, val in enumerate(strong_pcts):
+        y_offset = 3 if val > 5 else 1
+        ax1.text(i, val + y_offset,
+                f'{val:.1f}%', ha='center', va='bottom', fontsize=11, fontweight='bold')
+    
+    ax1.set_ylabel('Strong Model Usage (%)', fontsize=11, fontweight='bold')
+    ax1.set_title('(a) Policy Convergence', fontsize=12, fontweight='bold', pad=10)
+    ax1.set_xticks(range(3))
+    ax1.set_xticklabels(scenarios, fontsize=9)
+    ax1.grid(axis='y', alpha=0.25, linestyle='-', linewidth=0.5, color='gray')
+    ax1.set_ylim([0, 115])
+    ax1.set_axisbelow(True)
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    
+    # Plot 2: Quality Score - THE TRADEOFF
+    ax2 = axes[1]
+    bars2 = ax2.bar(range(3), qualities, color=colors, 
+                   edgecolor='white', linewidth=1.5, alpha=0.9, width=bar_width)
+    
+    # Add subtle shadow effect
+    for i, bar in enumerate(bars2):
+        ax2.bar(i, qualities[i], color='black', alpha=0.1, 
+               width=bar_width, zorder=0, linewidth=0)
+    
+    # Show the quality tradeoff with a cleaner line
+    quality_drop = results_warmup['avg_reward'] - results_calibrated['avg_reward']
+    quality_drop_pct = (quality_drop / results_warmup['avg_reward']) * 100
+    
+    # Connecting line showing tradeoff
+    ax2.plot([0, 2], [results_warmup['avg_reward'], results_calibrated['avg_reward']], 
+            color='#8C564B', linestyle='--', alpha=0.5, linewidth=2, zorder=1)
+    
+    # Annotation with arrow
+    mid_y = (results_warmup['avg_reward'] + results_calibrated['avg_reward']) / 2
+    ax2.annotate(f'−{quality_drop_pct:.1f}%', 
+                xy=(1, mid_y), xytext=(1, mid_y - 0.02),
+                ha='center', fontsize=9, fontweight='bold', color='#8C564B',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                         edgecolor='#8C564B', linewidth=1.5, alpha=0.9))
     
     # Add value labels on bars
-    for bar, val in zip(bars1, strong_pcts):
-        height = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:.1f}%', ha='center', va='bottom', fontsize=12, fontweight='bold')
+    for i, val in enumerate(qualities):
+        ax2.text(i, val + 0.004,
+                f'{val:.3f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
     
-    ax1.set_ylabel('Strong Model Usage (%)', fontsize=13, fontweight='bold')
-    ax1.set_title('Model Usage Convergence', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=10)
-    ax1.grid(axis='y', alpha=0.3)
-    ax1.set_ylim([0, 50])
+    ax2.set_ylabel('Quality Score', fontsize=11, fontweight='bold')
+    ax2.set_title('(b) Quality-Cost Tradeoff', fontsize=12, fontweight='bold', pad=10)
+    ax2.set_xticks(range(3))
+    ax2.set_xticklabels(scenarios, fontsize=9)
+    ax2.grid(axis='y', alpha=0.25, linestyle='-', linewidth=0.5, color='gray')
+    ax2.set_ylim([0.80, 0.99])
+    ax2.set_axisbelow(True)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
     
-    # Plot 2: Quality Score
-    ax2 = axes[1]
-    bars2 = ax2.bar(scenarios, qualities, color=['#d62728', '#ff7f0e', '#2ca02c'], 
-                   edgecolor='black', linewidth=2, alpha=0.8)
-    ax2.axhline(0.9853, color='gold', linestyle='--', linewidth=2, label='Oracle (0.9853)')
-    ax2.axhline(0.8507, color='green', linestyle=':', linewidth=2, label='Target (0.8507)')
-    
-    for bar, val in zip(bars2, qualities):
-        height = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:.4f}', ha='center', va='bottom', fontsize=12, fontweight='bold')
-    
-    ax2.set_ylabel('Quality Score', fontsize=13, fontweight='bold')
-    ax2.set_title('Quality Maintenance', fontsize=14, fontweight='bold')
-    ax2.legend(fontsize=10)
-    ax2.grid(axis='y', alpha=0.3)
-    ax2.set_ylim([0.8, 1.0])
-    
-    # Plot 3: Effective N (showing calibration impact)
+    # Plot 3: Effective N - BAYESIAN PLASTICITY
     ax3 = axes[2]
-    bars3 = ax3.bar(scenarios, n_effs, color=['#d62728', '#ff7f0e', '#2ca02c'], 
-                   edgecolor='black', linewidth=2, alpha=0.8)
+    bars3 = ax3.bar(range(3), n_effs, color=colors, 
+                   edgecolor='white', linewidth=1.5, alpha=0.9, width=bar_width)
     
-    for bar, val in zip(bars3, n_effs):
-        height = bar.get_height()
-        ax3.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:,.0f}', ha='center', va='bottom', fontsize=12, fontweight='bold')
+    # Add subtle shadow effect
+    for i, bar in enumerate(bars3):
+        ax3.bar(i, n_effs[i], color='black', alpha=0.1, 
+               width=bar_width, zorder=0, linewidth=0)
     
-    ax3.set_ylabel('Effective Sample Size', fontsize=13, fontweight='bold')
-    ax3.set_title('Prior Strength (Lower = More Adaptable)', fontsize=14, fontweight='bold')
-    ax3.grid(axis='y', alpha=0.3)
+    # Cleaner annotations on log scale
+    # (1) -> (2): 99% reduction with bracket
+    reduction_pct = (1 - n_eff_gamma[strong_model]/n_eff_warmup[strong_model]) * 100
+    
+    # Geometric mean for log scale positioning
+    mid_y_12 = np.sqrt(n_eff_warmup[strong_model] * n_eff_gamma[strong_model])
+    ax3.annotate('', xy=(1, n_eff_gamma[strong_model]*1.4), xytext=(0, n_eff_warmup[strong_model]/1.4),
+                arrowprops=dict(arrowstyle='->', lw=2, color='#4C72B0', alpha=0.7))
+    ax3.text(0.5, mid_y_12, f'$\\gamma$-scale\n−{reduction_pct:.0f}%', 
+            ha='center', fontsize=8, color='#4C72B0', fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.25', facecolor='white', 
+                     edgecolor='#4C72B0', linewidth=1.2, alpha=0.9))
+    
+    # (2) -> (3): Calibration adds data
+    calib_contribution = n_eff_calibrated[strong_model] - n_eff_gamma[strong_model]
+    calib_ratio = calib_contribution / n_eff_gamma[strong_model]
+    
+    mid_y_23 = np.sqrt(n_eff_gamma[strong_model] * n_eff_calibrated[strong_model])
+    ax3.annotate('', xy=(2, n_eff_calibrated[strong_model]/1.3), xytext=(1, n_eff_gamma[strong_model]*1.4),
+                arrowprops=dict(arrowstyle='->', lw=2, color='#55A868', alpha=0.7))
+    ax3.text(1.5, mid_y_23, f'Calib.\n+{calib_contribution:.0f} N\n({calib_ratio:.1f}×)', 
+            ha='center', fontsize=8, color='#55A868', fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.25', facecolor='white', 
+                     edgecolor='#55A868', linewidth=1.2, alpha=0.9))
+    
+    # Add value labels on bars
+    for i, val in enumerate(n_effs):
+        y_pos = val * 1.35 if val > 10 else val * 1.5
+        ax3.text(i, y_pos,
+                f'{val:.0f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
+    
+    ax3.set_ylabel('Effective Sample Size', fontsize=11, fontweight='bold')
+    ax3.set_title('(c) Bayesian Plasticity', fontsize=12, fontweight='bold', pad=10)
+    ax3.set_xticks(range(3))
+    ax3.set_xticklabels(scenarios, fontsize=9)
+    ax3.grid(axis='y', alpha=0.25, linestyle='-', linewidth=0.5, color='gray', which='major')
     ax3.set_yscale('log')
+    ax3.set_ylim([2, 700])
+    ax3.set_axisbelow(True)
+    ax3.spines['top'].set_visible(False)
+    ax3.spines['right'].set_visible(False)
     
-    plt.suptitle(
-        f'Calibration Convergence: The Impact of γ-Scaling + Calibration Data\n'
-        f'Convergence happens DURING calibration (1,121 samples), not during holdout evaluation',
-        fontsize=13, fontweight='bold', y=1.00
+    # Format y-axis for log scale readability
+    from matplotlib.ticker import LogLocator, LogFormatter
+    ax3.yaxis.set_major_locator(LogLocator(base=10, numticks=10))
+    ax3.yaxis.set_minor_locator(LogLocator(base=10, subs=np.arange(2, 10) * 0.1, numticks=100))
+    ax3.yaxis.set_major_formatter(LogFormatter(base=10, labelOnlyBase=False))
+    
+    # Overall figure title - concise for publication
+    fig.suptitle(
+        'Calibration Convergence: Policy Shift Occurs During Calibration Phase',
+        fontsize=13, fontweight='bold', y=0.99
     )
     
-    plt.tight_layout()
+    # Add subtle background
+    fig.patch.set_facecolor('white')
+    fig.patch.set_alpha(1.0)
+    
+    plt.tight_layout(rect=[0, 0.02, 1, 0.97])
+    
+    # Add caption-style note at bottom
+    fig.text(0.5, 0.01, 
+            'Convergence occurs during calibration (1,121 samples), not during holdout evaluation (750 samples). '
+            'γ-scaling enables plasticity; calibration data drives convergence.',
+            ha='center', fontsize=8, style='italic', color='gray', wrap=True)
+    
+    # Save high-resolution version for publication
     plot_file = output_dir / "calibration_convergence_comparison.png"
-    plt.savefig(plot_file, dpi=150, bbox_inches='tight')
+    plt.savefig(plot_file, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
     print(f"   ✅ Saved: {plot_file}")
+    
+    # Also save PDF for LaTeX (vector format)
+    plot_file_pdf = output_dir / "calibration_convergence_comparison.pdf"
+    plt.savefig(plot_file_pdf, format='pdf', bbox_inches='tight', facecolor='white', edgecolor='none')
+    print(f"   ✅ Saved: {plot_file_pdf}")
+    
+    # Save EPS for some journals
+    plot_file_eps = output_dir / "calibration_convergence_comparison.eps"
+    plt.savefig(plot_file_eps, format='eps', bbox_inches='tight', facecolor='white', edgecolor='none')
+    print(f"   ✅ Saved: {plot_file_eps}")
     
     # Save metrics
     metrics_file = output_dir / "comparison_metrics.json"

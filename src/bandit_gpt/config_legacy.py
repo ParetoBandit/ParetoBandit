@@ -32,5 +32,14 @@ DATA_DIR = PROJECT_ROOT / "data"
 DEFAULT_PCA_PATH = ARTIFACTS_DIR / "pca_23.joblib"
 
 # Path to warmup priors trained on RouteLLM data
-DEFAULT_WARMUP_PRIORS_PATH = DATA_DIR / "routellm" / "artifacts" / "priors_warmup_routellm_pca24.joblib"
+DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
+
+# Canonical offline dataset paths
+OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset"
+CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
+CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
+
+# Calibration results paths
+CALIBRATION_RESULTS_DIR = PROJECT_ROOT / "experiments_v1" / "calibration" / "results"
+CANONICAL_CALIBRATED_ROUTER_PATH = CALIBRATION_RESULTS_DIR / "artifacts" / "canonical_router_calibrated.joblib"
 
