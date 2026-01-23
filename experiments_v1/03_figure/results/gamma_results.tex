@@ -40,3 +40,88 @@ The router uses corrected RouteLLM data (GPT-4-Turbo wins 68.6\% vs Mixtral 9.3\
 \end{itemize}
 \end{table}
 
+\vspace{1em}
+\subsection*{Results Interpretation}
+
+\subsubsection*{What You're Looking At}
+This experiment answers: \textbf{``How much should we trust 80,000 warmup samples vs. 1,121 calibration samples?''}
+The gamma factor ($\gamma$) scales the warmup prior covariance, controlling its effective influence.
+Too high ($\gamma=1.0$): warmup dominates, router cannot adapt (0.0 reward).
+Too low ($\gamma \leq 0.005$): warmup wasted, calibration dominates (high variance).
+Just right ($\gamma=0.01$): balanced influence enables effective domain adaptation.
+
+\subsubsection*{Key Findings from the Table}
+
+\paragraph{The Failure Mode ($\gamma=1.0$):}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item \textbf{Effective N = 80,000}: Warmup acts as if it contributed 80,000 samples
+    \item \textbf{Calib/Prior Ratio = 0.014}: Calibration has only 1.4\% influence vs warmup
+    \item \textbf{Avg Reward = 0.0000}: Router is ``stuck''---cannot learn from new data
+    \item \textbf{Interpretation}: The warmup prior is so strong that 1,121 calibration samples cannot move the policy at all. The router remains frozen at the warmup baseline (53.3\% GPT-4 usage), which is suboptimal for the calibration domain.
+\end{itemize}
+
+\paragraph{The Sweet Spot ($\gamma=0.010$, Recommended):}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item \textbf{Effective N = 800}: Warmup acts like 800 samples (1\% of original strength)
+    \item \textbf{Calib/Prior Ratio = 1.401}: Calibration has 1.4× the influence of warmup
+    \item \textbf{Strong\% = 65.7\%}: GPT-4 usage increases by 12.4 pp from baseline
+    \item \textbf{Avg Reward = 0.2284}: Router achieves good quality on calibration data
+    \item \textbf{Interpretation}: The warmup provides a strong ``linguistic foundation'' (equivalent to 800 high-quality samples), but calibration can effectively adapt the policy. This achieves the best balance: leveraging warmup knowledge while adapting to the new domain.
+\end{itemize}
+
+\paragraph{The Aggressive Option ($\gamma=0.050$):}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item \textbf{Effective N = 4,000}: Warmup acts like 4,000 samples (5\% of original)
+    \item \textbf{Calib/Prior Ratio = 0.280}: Warmup still has 3.6× influence vs calibration
+    \item \textbf{Strong\% = 68.3\%}: Highest GPT-4 usage (15.0 pp increase)
+    \item \textbf{Conv. Rate = 0.01346}: Fastest convergence
+    \item \textbf{Avg Reward = 0.1302}: Lower quality than $\gamma=0.01$
+    \item \textbf{Interpretation}: Faster adaptation but at the cost of quality. Use this if you need rapid policy changes and can tolerate lower initial quality. The warmup still provides substantial guidance (4k equivalent samples).
+\end{itemize}
+
+\paragraph{The Over-Calibration Zone ($\gamma \leq 0.005$):}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item \textbf{Effective N $\leq$ 400}: Warmup contributes very little
+    \item \textbf{Calib/Prior Ratio $\geq$ 2.803}: Calibration dominates (2.8×+ influence)
+    \item \textbf{Avg Reward}: Slightly higher (0.25--0.27) but with high variance
+    \item \textbf{Interpretation}: At this point, you've essentially thrown away the 80k warmup investment. The router is learning almost entirely from 1,121 calibration samples, which may lead to overfitting and instability. The marginal reward gains don't justify losing the warmup benefits.
+\end{itemize}
+
+\subsubsection*{Practical Decision Guide}
+
+\paragraph{Use $\gamma=0.010$ (Recommended) when:}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item You want to leverage warmup knowledge while adapting to a new domain
+    \item You have 1,000--2,000 calibration samples available
+    \item You prioritize quality and stability over convergence speed
+    \item You're deploying to production and need reliable performance
+\end{itemize}
+
+\paragraph{Use $\gamma=0.050$ when:}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item You need rapid adaptation (e.g., A/B testing, rapid iteration)
+    \item The calibration domain differs significantly from warmup
+    \item You can tolerate lower initial quality for faster convergence
+    \item You have mechanisms to handle higher variance in early stages
+\end{itemize}
+
+\paragraph{Never use $\gamma=1.0$ because:}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item The router cannot adapt (0.0 reward proves no learning)
+    \item You're wasting calibration data
+    \item Performance will be suboptimal for the target domain
+\end{itemize}
+
+\paragraph{Avoid $\gamma \leq 0.005$ because:}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item You're throwing away the 80k warmup investment
+    \item High variance and potential overfitting on limited calibration data
+    \item Marginal reward gains don't justify the loss of stability
+\end{itemize}
+
+\subsubsection*{Bottom Line}
+The recommended $\gamma=0.010$ achieves the core goal: \textbf{enabling 1,121 calibration samples to effectively adapt 80,000 warmup priors}.
+The Calib/Prior ratio of 1.401 means calibration has slightly more influence than warmup, allowing adaptation while preserving the ``linguistic foundation.''
+The result: GPT-4 usage increases from 53.3\% to 65.7\% (+12.4 pp), with 0.2284 average reward and stable convergence.
+This demonstrates that warmup priors provide value beyond just sample efficiency---they offer numerical stability and semantic guidance that pure calibration cannot match.
+
