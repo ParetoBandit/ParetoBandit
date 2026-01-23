@@ -24,8 +24,11 @@ from collections import defaultdict
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
 
 from bandit_gpt.router import BanditRouter
+from bandit_gpt.config_legacy import STRONG_MODEL_EQUIVALENTS
+from data_loader import CANONICAL_DEV_REWARDS, CANONICAL_HOLDOUT_REWARDS
 
 
 def load_shared_prompts(rewards_file: Path) -> List[Dict[str, float]]:
@@ -87,11 +90,17 @@ def create_base_router(registry: Dict[str, Dict]) -> BanditRouter:
         router.bandit.b["mistralai/mixtral-8x7b-instruct"] = b_vectors["mistralai/mixtral-8x7b-instruct"].copy()
         router.bandit.A_inv["mistralai/mixtral-8x7b-instruct"] = np.linalg.inv(router.bandit.A["mistralai/mixtral-8x7b-instruct"])
     
-    # For GPT-4o, use GPT-4-turbo priors as surrogate
-    if "openai/gpt-4o" in router.bandit.models and "openai/gpt-4-turbo" in A_matrices:
-        router.bandit.A["openai/gpt-4o"] = A_matrices["openai/gpt-4-turbo"].copy()
-        router.bandit.b["openai/gpt-4o"] = b_vectors["openai/gpt-4-turbo"].copy()
-        router.bandit.A_inv["openai/gpt-4o"] = np.linalg.inv(router.bandit.A["openai/gpt-4o"])
+    # For strong models, use capability-tier mapping to find priors
+    # e.g., GPT-4o can use GPT-4-turbo priors as they're in the same capability tier
+    for strong_model in STRONG_MODEL_EQUIVALENTS:
+        if strong_model in router.bandit.models:
+            # Find any available equivalent strong model in priors
+            for equiv_model in STRONG_MODEL_EQUIVALENTS:
+                if equiv_model in A_matrices and equiv_model != strong_model:
+                    router.bandit.A[strong_model] = A_matrices[equiv_model].copy()
+                    router.bandit.b[strong_model] = b_vectors[equiv_model].copy()
+                    router.bandit.A_inv[strong_model] = np.linalg.inv(router.bandit.A[strong_model])
+                    break
     
     return router
 
@@ -359,9 +368,8 @@ def main():
     print("Method: Test n_eff ∈ {1, 3, 5, 7, 10, 15, 20} over 5 trials each")
     
     # Load data
-    base_path = Path(__file__).parent.parent.parent / "src" / "bandit_gpt" / "data" / "offline_dataset"
-    dev_file = base_path / "dev_rewards_complete.jsonl.gz"
-    holdout_file = base_path / "holdout_rewards_complete.jsonl.gz"
+    dev_file = CANONICAL_DEV_REWARDS
+    holdout_file = CANONICAL_HOLDOUT_REWARDS
     
     print(f"\n📂 Loading prompts...")
     dev_prompts = load_shared_prompts(dev_file)

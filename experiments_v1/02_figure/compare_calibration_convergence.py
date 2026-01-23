@@ -6,8 +6,11 @@ Shows that convergence happens DURING calibration, not during holdout.
 
 Compares:
 1. Warmup-only policy (before calibration)
-2. Calibrated policy (after 1,121 calibration samples)
-3. Holdout performance (frozen policy to show it's already converged)
+2. Gamma-scaled policy (simulated impact of gamma without calibration data)
+3. Fully calibrated (after 1,121 calibration samples)
+
+Uses the actual BanditRouter from src/bandit_gpt/router.py to validate
+real-world performance.
 """
 
 import argparse
@@ -15,62 +18,25 @@ import json
 import joblib
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
 from pathlib import Path
 from typing import Dict, List
 from tqdm import tqdm
-from sentence_transformers import SentenceTransformer
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
 
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-def embed_prompt(prompt: str, encoder: SentenceTransformer, pca_model) -> np.ndarray:
-    """Embed prompt with PCA."""
-    embedding = encoder.encode(prompt, convert_to_numpy=True, show_progress_bar=False)
-    embedding = pca_model.transform(embedding.reshape(1, -1)).flatten()
-    return np.append(embedding, 1.0)
-
-
-class SimpleRouter:
-    """Simple LinUCB router without online learning."""
-    
-    def __init__(self, A: Dict, b: Dict, models: List[str], encoder, pca_model, alpha: float = 1.0):
-        self.A = {m: A[m].copy() for m in models}
-        self.b = {m: b[m].copy() for m in models}
-        self.models = models
-        self.encoder = encoder
-        self.pca_model = pca_model
-        self.alpha = alpha
-    
-    def select_model(self, prompt: str) -> str:
-        """Select model using UCB (frozen policy)."""
-        context = embed_prompt(prompt, self.encoder, self.pca_model)
-        
-        ucb_scores = {}
-        for model in self.models:
-            A_inv = np.linalg.inv(self.A[model])
-            theta = A_inv @ self.b[model]
-            
-            expected = theta @ context
-            uncertainty = np.sqrt(context @ A_inv @ context)
-            ucb_scores[model] = expected + self.alpha * uncertainty
-        
-        return max(ucb_scores, key=ucb_scores.get)
-    
-    def get_effective_n(self) -> Dict[str, float]:
-        """Get effective sample size for each model."""
-        n_eff = {}
-        for model in self.models:
-            # Trace of A matrix / context_dim ≈ effective N
-            n_eff[model] = np.trace(self.A[model]) / len(self.b[model])
-        return n_eff
+from bandit_gpt.router import BanditRouter
+from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, STRONG_MODEL_EQUIVALENTS
 
 
 def create_model_mapper(router_models: List[str], eval_data_sample: dict) -> Dict[str, str]:
-    """Create model name mapping."""
+    """Create model name mapping between router and evaluation data."""
     available_models = list(eval_data_sample['rewards'].keys())
     
     mapper = {}
     weak_models = ["mistralai/mixtral-8x7b-instruct"]
-    strong_models = ["openai/gpt-4-turbo", "openai/gpt-4o"]
+    strong_models = STRONG_MODEL_EQUIVALENTS
     
     for router_model in router_models:
         if router_model in weak_models:
@@ -86,15 +52,34 @@ def create_model_mapper(router_models: List[str], eval_data_sample: dict) -> Dic
     return mapper
 
 
-def evaluate_frozen_policy(router: SimpleRouter, eval_data: List[dict], model_mapper: Dict[str, str]) -> Dict:
-    """Evaluate with frozen policy (no learning)."""
-    strong_model = router.models[1]
+def evaluate_router(router: BanditRouter, eval_data: List[dict], model_mapper: Dict[str, str]) -> Dict:
+    """
+    Evaluate BanditRouter on holdout data with frozen policy.
     
-    model_selections = {m: 0 for m in router.models}
+    Args:
+        router: BanditRouter instance (no learning, just routing)
+        eval_data: List of evaluation samples with prompts and rewards
+        model_mapper: Maps router model IDs to evaluation data model IDs
+        
+    Returns:
+        Dict with evaluation metrics
+    """
+    # Determine strong model (typically the second model in the list)
+    models = list(router.registry.keys())
+    strong_model = models[1] if len(models) > 1 else models[0]
+    
+    model_selections = {m: 0 for m in models}
     total_reward = 0.0
     
     for item in tqdm(eval_data, desc="Evaluating"):
-        selected_model = router.select_model(item['prompt'])
+        # Route using the actual BanditRouter (frozen, no feedback)
+        selected_model, log = router.route(
+            item['prompt'], 
+            profile="auto",  # Use default routing profile
+            output_tokens=600
+        )
+        
+        # Map to evaluation data model name
         eval_model = model_mapper.get(selected_model, selected_model)
         reward = item['rewards'].get(eval_model, 0.0)
         
@@ -109,6 +94,15 @@ def evaluate_frozen_policy(router: SimpleRouter, eval_data: List[dict], model_ma
     }
 
 
+def get_effective_n(router: BanditRouter) -> Dict[str, float]:
+    """Get effective sample size for each model in the router."""
+    n_eff = {}
+    for model in router.bandit.models:
+        # Trace of A matrix / context_dim ≈ effective N
+        n_eff[model] = np.trace(router.bandit.A[model]) / router.bandit.dim
+    return n_eff
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compare before/after calibration convergence")
     parser.add_argument("--warmup-priors", type=str, 
@@ -118,6 +112,9 @@ def main():
     parser.add_argument("--holdout-data", type=str, 
                        default="../data/canonical_holdout_evaluation.jsonl")
     parser.add_argument("--pca", type=str, default="../../../artifacts/pca_23_routellm.joblib")
+    parser.add_argument("--registry", type=str, 
+                       default="../../../src/bandit_gpt/config/models.json",
+                       help="Model registry JSON file")
     parser.add_argument("--output", type=str, default="calibration_convergence_comparison")
     parser.add_argument("--gamma", type=float, default=0.010, 
                        help="Gamma value used during calibration")
@@ -127,25 +124,33 @@ def main():
     print("="*80)
     print("CALIBRATION CONVERGENCE ANALYSIS")
     print("Showing that convergence happens DURING calibration, not during holdout")
+    print("Using actual BanditRouter from src/bandit_gpt/router.py")
     print("="*80)
     
     # Load resources
     print("\n📥 Loading resources...")
     warmup_state = joblib.load(Path(args.warmup_priors))
     calibrated_state = joblib.load(Path(args.calibrated_router))
-    pca_model = joblib.load(Path(args.pca))
-    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     
+    # Load holdout data
     with open(args.holdout_data) as f:
         holdout_data = [json.loads(line) for line in f]
     
     print(f"   ✅ Loaded {len(holdout_data)} holdout samples")
+    
+    # Load model registry
+    with open(args.registry) as f:
+        registry_data = json.load(f)
+        model_registry = {m["openrouter_id"]: m for m in registry_data["models"]}
     
     models = warmup_state['models']
     strong_model = models[1]
     weak_model = models[0]
     
     model_mapper = create_model_mapper(models, holdout_data[0])
+    
+    print(f"\n📋 Models: {weak_model.split('/')[-1]} (weak), {strong_model.split('/')[-1]} (strong)")
+    print(f"📋 Registry: {len(model_registry)} models loaded")
     
     # ========================================================================
     # SCENARIO 1: Warmup-only (before calibration)
@@ -154,17 +159,30 @@ def main():
     print("SCENARIO 1: WARMUP-ONLY POLICY (Before Calibration)")
     print("="*80)
     
-    router_warmup = SimpleRouter(
-        warmup_state['A'], warmup_state['b'], models, encoder, pca_model
+    # Create router with warmup state only (no gamma scaling, no calibration)
+    router_warmup = BanditRouter(
+        model_registry=model_registry,
+        context_model=DEFAULT_SENTENCE_TRANSFORMER,
+        pca_path=args.pca,
+        alpha=0.0,  # No exploration (frozen policy for evaluation)
+        forgetting_factor=1.0,  # No decay
     )
     
-    n_eff_warmup = router_warmup.get_effective_n()
+    # Load warmup state directly into bandit
+    for model_id in models:
+        if model_id in warmup_state['A'] and model_id in warmup_state['b']:
+            router_warmup.bandit.A[model_id] = warmup_state['A'][model_id].copy()
+            router_warmup.bandit.b[model_id] = warmup_state['b'][model_id].copy()
+    
+    router_warmup.bandit.refresh_inverse_cache()
+    
+    n_eff_warmup = get_effective_n(router_warmup)
     print(f"\n📊 Effective Sample Sizes:")
     print(f"   {weak_model.split('/')[-1]}: {n_eff_warmup[weak_model]:,.0f}")
     print(f"   {strong_model.split('/')[-1]}: {n_eff_warmup[strong_model]:,.0f}")
     
     print(f"\n🤖 Evaluating warmup-only policy on holdout...")
-    results_warmup = evaluate_frozen_policy(router_warmup, holdout_data, model_mapper)
+    results_warmup = evaluate_router(router_warmup, holdout_data, model_mapper)
     
     print(f"\n📈 Results:")
     print(f"   Strong model usage: {results_warmup['strong_pct']:.1f}%")
@@ -177,20 +195,31 @@ def main():
     print(f"SCENARIO 2: WARMUP + GAMMA SCALING (γ={args.gamma})")
     print("="*80)
     
-    # Apply gamma scaling to warmup matrices
-    A_gamma = {m: args.gamma * warmup_state['A'][m].copy() for m in models}
-    b_gamma = {m: args.gamma * warmup_state['b'][m].copy() for m in models}
+    # Create router with gamma-scaled warmup state
+    router_gamma = BanditRouter(
+        model_registry=model_registry,
+        context_model=DEFAULT_SENTENCE_TRANSFORMER,
+        pca_path=args.pca,
+        alpha=0.0,  # No exploration (frozen policy)
+        forgetting_factor=1.0,
+    )
     
-    router_gamma = SimpleRouter(A_gamma, b_gamma, models, encoder, pca_model)
+    # Apply gamma scaling to warmup matrices before loading
+    for model_id in models:
+        if model_id in warmup_state['A'] and model_id in warmup_state['b']:
+            router_gamma.bandit.A[model_id] = args.gamma * warmup_state['A'][model_id].copy()
+            router_gamma.bandit.b[model_id] = args.gamma * warmup_state['b'][model_id].copy()
     
-    n_eff_gamma = router_gamma.get_effective_n()
+    router_gamma.bandit.refresh_inverse_cache()
+    
+    n_eff_gamma = get_effective_n(router_gamma)
     print(f"\n📊 Effective Sample Sizes After Gamma Scaling:")
     print(f"   {weak_model.split('/')[-1]}: {n_eff_gamma[weak_model]:,.0f}")
     print(f"   {strong_model.split('/')[-1]}: {n_eff_gamma[strong_model]:,.0f}")
     print(f"   Reduction: {(1 - n_eff_gamma[strong_model]/n_eff_warmup[strong_model])*100:.1f}%")
     
     print(f"\n🤖 Evaluating gamma-scaled policy on holdout...")
-    results_gamma = evaluate_frozen_policy(router_gamma, holdout_data, model_mapper)
+    results_gamma = evaluate_router(router_gamma, holdout_data, model_mapper)
     
     print(f"\n📈 Results:")
     print(f"   Strong model usage: {results_gamma['strong_pct']:.1f}%")
@@ -203,11 +232,24 @@ def main():
     print("SCENARIO 3: FULLY CALIBRATED (After 1,121 Dev Samples)")
     print("="*80)
     
-    router_calibrated = SimpleRouter(
-        calibrated_state['A'], calibrated_state['b'], models, encoder, pca_model
+    # Create router with fully calibrated state
+    router_calibrated = BanditRouter(
+        model_registry=model_registry,
+        context_model=DEFAULT_SENTENCE_TRANSFORMER,
+        pca_path=args.pca,
+        alpha=0.0,  # No exploration (frozen policy)
+        forgetting_factor=1.0,
     )
     
-    n_eff_calibrated = router_calibrated.get_effective_n()
+    # Load calibrated state
+    for model_id in models:
+        if model_id in calibrated_state['A'] and model_id in calibrated_state['b']:
+            router_calibrated.bandit.A[model_id] = calibrated_state['A'][model_id].copy()
+            router_calibrated.bandit.b[model_id] = calibrated_state['b'][model_id].copy()
+    
+    router_calibrated.bandit.refresh_inverse_cache()
+    
+    n_eff_calibrated = get_effective_n(router_calibrated)
     print(f"\n📊 Effective Sample Sizes After Calibration:")
     print(f"   {weak_model.split('/')[-1]}: {n_eff_calibrated[weak_model]:,.0f}")
     print(f"   {strong_model.split('/')[-1]}: {n_eff_calibrated[strong_model]:,.0f}")
@@ -219,7 +261,7 @@ def main():
     print(f"   Calibration/Prior ratio: {calib_contribution / n_eff_gamma[strong_model]:.3f}")
     
     print(f"\n🤖 Evaluating calibrated policy on holdout...")
-    results_calibrated = evaluate_frozen_policy(router_calibrated, holdout_data, model_mapper)
+    results_calibrated = evaluate_router(router_calibrated, holdout_data, model_mapper)
     
     print(f"\n📈 Results:")
     print(f"   Strong model usage: {results_calibrated['strong_pct']:.1f}%")

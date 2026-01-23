@@ -296,8 +296,8 @@ cat results/pareto_results.json | jq
 ## 📐 Experiment Parameters
 
 ### Data Sources:
-- **Dev Set**: `data/routellm/data/dev_rewards_mixtral_gpt4o.jsonl` (1,132 prompts)
-- **Holdout Set**: `data/routellm/data/holdout_rewards_mixtral_gpt4o.jsonl` (739 prompts)
+- **Dev Set**: `src/bandit_gpt/data/offline_dataset/dev_rewards_complete.jsonl.gz` (1,121 prompts × 42 models)
+- **Holdout Set**: `src/bandit_gpt/data/offline_dataset/holdout_rewards_complete.jsonl.gz` (750 prompts × 42 models)
 - **Warmup Priors**: `data/routellm/artifacts/priors_warmup_routellm_pca24.joblib`
 - **PCA Model**: `data/routellm/artifacts/pca_23_routellm.joblib`
 

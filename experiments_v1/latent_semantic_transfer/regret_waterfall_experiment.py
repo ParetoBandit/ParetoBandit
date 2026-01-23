@@ -23,8 +23,10 @@ from dataclasses import dataclass
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
 
 from bandit_gpt.router import BanditRouter
+from data_loader import CANONICAL_DEV_REWARDS
 
 
 @dataclass
@@ -320,7 +322,7 @@ def main():
     print("3. Latent Semantic Transfer (Ours): Adaptive n_eff")
     
     # Load real rewards
-    rewards_file = Path(__file__).parent.parent.parent / "src" / "bandit_gpt" / "data" / "offline_dataset" / "dev_rewards_complete.jsonl.gz"
+    rewards_file = CANONICAL_DEV_REWARDS
     print(f"\n📂 Loading real rewards: {rewards_file}")
     real_rewards = load_real_rewards(rewards_file)
     print(f"   ✓ Loaded {len(real_rewards['openai/gpt-5-chat'])} GPT-5 samples")

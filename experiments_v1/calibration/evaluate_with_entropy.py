@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from collections import deque
-from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, STRONG_MODEL_EQUIVALENTS
 
 
 def embed_prompt(prompt: str, encoder: SentenceTransformer, pca_model) -> np.ndarray:
@@ -70,7 +70,8 @@ def create_model_mapper(router_models: List[str], eval_data_sample: dict) -> Dic
     
     mapper = {}
     weak_models = ["mistralai/mixtral-8x7b-instruct"]
-    strong_models = ["openai/gpt-4-turbo", "openai/gpt-4o", "openai/gpt-4", "openai/gpt-4.1"]
+    # Extended list for this script to handle additional GPT-4 variants
+    strong_models = STRONG_MODEL_EQUIVALENTS + ["openai/gpt-4", "openai/gpt-4.1"]
     
     for router_model in router_models:
         if router_model in weak_models:

@@ -15,6 +15,10 @@ from typing import List, Dict, Tuple, Optional
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data"
 
+# Canonical dataset paths (single source of truth)
+CANONICAL_DEV_REWARDS = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset" / "dev_rewards_complete.jsonl.gz"
+CANONICAL_HOLDOUT_REWARDS = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset" / "holdout_rewards_complete.jsonl.gz"
+
 
 def load_test_prompts(filename: str = "test_prompts.jsonl") -> List[Dict]:
     """
@@ -139,34 +143,38 @@ def load_dev_rewards() -> Dict[str, Dict[str, float]]:
     """
     Load development set rewards from canonical split.
     
-    This is a convenience function that loads dev_rewards.jsonl.gz,
-    which contains only rewards for prompts in the development pool.
+    This is a convenience function that loads dev_rewards_complete.jsonl.gz,
+    which contains rewards for all models on development prompts.
+    
+    Canonical location: src/bandit_gpt/data/offline_dataset/dev_rewards_complete.jsonl.gz
     
     Returns:
         Dict mapping prompt → {model_id → raw_score}
     
     Example:
         >>> dev_rewards = load_dev_rewards()
-        >>> # Only contains prompts from dev_pool in splits.json
+        >>> # Contains 1,121 prompts × 42 models
     """
-    return load_oracle_rewards("dev_rewards.jsonl.gz")
+    return load_oracle_rewards("offline_dataset/dev_rewards_complete.jsonl.gz")
 
 
 def load_holdout_rewards() -> Dict[str, Dict[str, float]]:
     """
     Load holdout (test) set rewards from canonical split.
     
-    This is a convenience function that loads holdout_rewards.jsonl.gz,
-    which contains only rewards for prompts in the holdout pool.
+    This is a convenience function that loads holdout_rewards_complete.jsonl.gz,
+    which contains rewards for all models on holdout prompts.
+    
+    Canonical location: src/bandit_gpt/data/offline_dataset/holdout_rewards_complete.jsonl.gz
     
     Returns:
         Dict mapping prompt → {model_id → raw_score}
     
     Example:
         >>> holdout_rewards = load_holdout_rewards()
-        >>> # Only contains prompts from holdout_pool in splits.json
+        >>> # Contains 750 prompts × 42 models
     """
-    return load_oracle_rewards("holdout_rewards.jsonl.gz")
+    return load_oracle_rewards("offline_dataset/holdout_rewards_complete.jsonl.gz")
 
 
 def load_model_registry(path: Optional[str | Path] = None) -> Dict[str, Dict]:

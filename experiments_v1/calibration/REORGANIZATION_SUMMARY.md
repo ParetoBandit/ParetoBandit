@@ -8,6 +8,10 @@ This folder has been reorganized to follow Python software engineering best prac
 - **Results** (experimental outputs)
 - **Raw data** (remains in `data/routellm/`)
 
+**Notes:** 
+- The calibration convergence comparison script has been moved to `experiments_v1/02_figure/compare_calibration_convergence.py` since it generates Figure 2 for the paper.
+- Dataset preparation scripts have been removed since canonical datasets are pre-filtered and ready to use at `src/bandit_gpt/data/offline_dataset/`.
+
 ## New Structure
 
 ```
@@ -34,11 +38,7 @@ experiments_v1/calibration/
 │   ├── evaluate_calibrated_router.py   # Holdout evaluation
 │   ├── evaluate_bandit_convergence.py  # Convergence metrics
 │   ├── evaluate_convergence_metrics.py # Additional metrics
-│   ├── evaluate_with_entropy.py        # Entropy analysis
-│   ├── compare_calibration_convergence.py # Compare scenarios
-│   ├── prepare_canonical_dev.py        # Prepare dev data
-│   ├── prepare_canonical_holdout.py    # Prepare holdout data
-│   └── prepare_dev_data.py             # Dev data preparation
+│   └── evaluate_with_entropy.py        # Entropy analysis
 │
 └── results/                            # Experimental outputs
     ├── artifacts/

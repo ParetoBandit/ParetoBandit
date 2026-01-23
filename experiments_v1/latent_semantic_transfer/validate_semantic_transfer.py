@@ -34,6 +34,7 @@ will produce better warmup behavior than fixed heuristics.
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
 
 import json
 import logging
@@ -46,6 +47,7 @@ import gzip
 
 from bandit_gpt.router import BanditRouter
 from bandit_gpt.feature_service import FeatureService
+from data_loader import CANONICAL_DEV_REWARDS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -483,7 +485,7 @@ def test_warmup_efficiency(
     
     # Use pre-loaded real rewards if not provided
     if real_rewards is None:
-        rewards_file = Path(__file__).parent.parent.parent / "src" / "bandit_gpt" / "data" / "offline_dataset" / "dev_rewards_complete.jsonl.gz"
+        rewards_file = CANONICAL_DEV_REWARDS
         
         print(f"\n📂 Loading real rewards from offline dataset...")
         print(f"   Path: {rewards_file}")
@@ -813,7 +815,7 @@ def main():
     load_warmup_priors(router, priors_path)
     
     # Load real rewards once (for both main test and ablation)
-    rewards_file = Path(__file__).parent.parent.parent / "src" / "bandit_gpt" / "data" / "offline_dataset" / "dev_rewards_complete.jsonl.gz"
+    rewards_file = CANONICAL_DEV_REWARDS
     print(f"\n📂 Loading real rewards from offline dataset...")
     print(f"   Path: {rewards_file}")
     real_rewards = load_real_rewards(rewards_file)

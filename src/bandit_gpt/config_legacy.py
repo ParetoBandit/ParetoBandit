@@ -14,6 +14,11 @@ from pathlib import Path
 # Sentence Transformer model used for semantic embeddings throughout the project
 DEFAULT_SENTENCE_TRANSFORMER = "sentence-transformers/all-MiniLM-L6-v2"
 
+# Model tier mapping for capability-equivalent substitutions
+# Used when a model is no longer available but has a capability-tier equivalent
+# e.g., gpt-4-turbo → gpt-4o (both are strong models in the same capability tier)
+STRONG_MODEL_EQUIVALENTS = ["openai/gpt-4-turbo", "openai/gpt-4o"]
+
 # ==============================================================================
 # Artifact Paths
 # ==============================================================================

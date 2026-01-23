@@ -17,6 +17,9 @@ from collections import defaultdict
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "utils"))
+
+from data_loader import CANONICAL_DEV_REWARDS
 
 
 def load_shared_prompts(dev_file: Path):
@@ -52,7 +55,7 @@ def load_shared_prompts(dev_file: Path):
 
 
 def main():
-    dev_file = Path(__file__).parent.parent.parent / "src" / "bandit_gpt" / "data" / "offline_dataset" / "dev_rewards_complete.jsonl.gz"
+    dev_file = CANONICAL_DEV_REWARDS
     
     print("="*80)
     print("ORACLE DEFINITION ANALYSIS")
