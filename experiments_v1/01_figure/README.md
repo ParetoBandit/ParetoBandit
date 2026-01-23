@@ -62,9 +62,21 @@ This figure provides empirical evidence for:
 4. **Density Estimation**: Gaussian KDE with bandwidth 0.1
 
 ### Difficulty Thresholds
-- **Easy**: |Gap| ≤ 0.3 (Mixtral sufficient)
-- **Medium**: 0.3 < Gap ≤ 0.6 (Mixed performance)
-- **Hard**: Gap > 0.6 (GPT-4 required)
+
+Rewards are binary from pairwise judge comparisons: 1.0 (win), 0.5 (tie), 0.0 (loss).
+Gap = R_GPT4-Turbo - R_Mixtral ranges from -1.0 to +1.0.
+
+- **Easy**: |Gap| ≤ 0.3 
+  - Practical meaning: Models perform nearly equally (e.g., both tie, or GPT-4 wins only slightly more often)
+  - Implication: Mixtral is sufficient, routing to it saves cost
+  
+- **Medium**: 0.3 < Gap ≤ 0.6 
+  - Practical meaning: GPT-4 wins more often, but not decisively
+  - Note: 0% of prompts fall in this range (bimodal distribution)
+  
+- **Hard**: Gap > 0.6 
+  - Practical meaning: GPT-4 wins decisively (e.g., Gap=1.0 means GPT-4 always wins, Mixtral always loses)
+  - Implication: Quality difference justifies the cost of GPT-4
 
 ## Statistics
 

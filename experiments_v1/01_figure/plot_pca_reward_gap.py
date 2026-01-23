@@ -6,6 +6,13 @@ This script visualizes the semantic structure of 80K RouteLLM prompts
 by projecting them into 2D using PCA, colored by the reward gap:
     
     Reward Gap = R_GPT4-Turbo - R_Mixtral
+    
+where rewards are binary: 1.0 (win), 0.5 (tie), 0.0 (loss).
+Gap ranges from -1.0 to +1.0.
+
+Difficulty Thresholds:
+- Easy (|Gap| ≤ 0.3): Models perform nearly equally, Mixtral is sufficient
+- Hard (Gap > 0.6): GPT-4 wins decisively, quality difference justifies cost
 
 The visualization reveals:
 - Where in semantic space GPT-4-Turbo dominates (red)
@@ -30,7 +37,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
-from sklearn.decomposition import PCA
 from scipy.stats import gaussian_kde
 from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_PCA_PATH
 
@@ -308,18 +314,6 @@ def create_visualization(X_2d, reward_gaps, output_dir: Path):
             fontweight='bold'
         )
     
-    # Add interpretation text
-    axes[1].text(
-        0.5, 0.95,
-        'Key Insight: Hard prompts occupy distinct semantic neighborhoods',
-        transform=axes[1].transAxes,
-        ha='center',
-        va='top',
-        fontsize=11,
-        style='italic',
-        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    )
-    
     plt.tight_layout()
     
     # Save figure
@@ -345,7 +339,7 @@ def main():
     project_root = Path(__file__).parent.parent.parent
     battles_file = project_root / "src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl"
     pca_file = DEFAULT_PCA_PATH
-    output_dir = Path(__file__).parent
+    output_dir = Path(__file__).parent / "results"
     
     print(f"\n📋 Configuration:")
     print(f"   Input: {battles_file}")
