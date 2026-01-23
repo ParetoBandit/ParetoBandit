@@ -44,7 +44,7 @@ This value provides:
 ## Experimental Design
 
 ### Gamma Values Tested
-1.0, 0.1, 0.050, 0.020, 0.010, 0.005, 0.002, 0.001
+1.0, 0.010
 
 ### Dataset
 - **Calibration**: 1,121 samples
@@ -63,13 +63,7 @@ This value provides:
 | Gamma | Eff. N | Calib/Prior | Strong % | Reward | Conv. Rate |
 |-------|--------|-------------|----------|--------|------------|
 | 1.000 | 80,000 | 0.014 | 46.7% | 0.8109 | 0.002976 |
-| 0.100 | 8,000 | 0.140 | 31.1% | 0.7797 | 0.016152 |
-| 0.050 | 4,000 | 0.280 | 25.8% | 0.7529 | 0.019185 |
-| 0.020 | 1,600 | 0.701 | 22.1% | 0.7074 | 0.017614 |
 | 0.010 ⭐ | 800 | 1.401 | 22.2% | 0.6717 | 0.012653 |
-| 0.005 | 400 | 2.803 | 22.5% | 0.6557 | 0.009767 |
-| 0.002 | 160 | 7.006 | 20.9% | 0.6476 | 0.011025 |
-| 0.001 | 80 | 14.012 | 22.8% | 0.6423 | 0.014467 |
 
 
 ⭐ = Recommended value
@@ -122,7 +116,7 @@ This figure supports:
 
 ### Citation Example
 
-> We systematically evaluated gamma values from 0.001 to 1.0 to determine the optimal covariance inflation factor. Our analysis (Figure~\ref{fig:optimal_gamma}) reveals that γ=0.010 provides the optimal balance, achieving a Calibration/Prior ratio of 1.401. This enables 1,121 calibration samples to effectively adapt 80,000 warmup priors, resulting in a 24.5 percentage point shift in routing strategy.
+> We systematically evaluated gamma values from 0.010 to 1.0 to determine the optimal covariance inflation factor. Our analysis (Figure~\ref{fig:optimal_gamma}) reveals that γ=0.010 provides the optimal balance, achieving a Calibration/Prior ratio of 1.401. This enables 1,121 calibration samples to effectively adapt 80,000 warmup priors, resulting in a 24.5 percentage point shift in routing strategy.
 
 ## Related Experiments
 
@@ -132,6 +126,6 @@ This figure supports:
 
 ---
 
-**Created**: 1769190207.1942577  
+**Created**: 1769190630.5812988  
 **Dataset**: 1,121 calibration samples, 80,000 warmup samples  
 **Recommended**: γ = 0.010
