@@ -351,8 +351,8 @@ def main():
     )
     parser.add_argument(
         "--rewards-file", type=str,
-        default=str(ROUTELLM_DATA_DIR / "routellm_battles_clean.jsonl"),
-        help="Path to file with real rewards (leakage-free warmup dataset)"
+        default="src/bandit_gpt/data/offline_dataset/routellm_battles_rewards.jsonl",
+        help="Path to file with real rewards (corrected RouteLLM battles dataset)"
     )
     parser.add_argument(
         "--output", type=str, 
