@@ -28,8 +28,9 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 ARTIFACTS_DIR = PROJECT_ROOT / "src" / "artifacts"
 DATA_DIR = PROJECT_ROOT / "data"
 
-# Path to the PCA model (23 components) trained on RouteLLM data
-DEFAULT_PCA_PATH = ARTIFACTS_DIR / "pca_23.joblib"
+# Path to the PCA model (32 components) trained on RouteLLM data
+# 32 components capture 35.14% variance vs 29.01% for 23 components (+6.14% improvement)
+DEFAULT_PCA_PATH = ARTIFACTS_DIR / "pca_32.joblib"
 
 # Path to warmup priors trained on RouteLLM data
 DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
