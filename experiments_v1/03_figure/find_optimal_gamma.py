@@ -35,7 +35,8 @@ from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
     DEFAULT_PCA_PATH,
-    CANONICAL_DEV_DATA_PATH
+    CANONICAL_DEV_DATA_PATH,
+    DEFAULT_MODEL_REGISTRY_PATH
 )
 
 
@@ -119,6 +120,50 @@ def compute_convergence_rate(metrics: List[Dict]) -> float:
     return abs(slope)
 
 
+def load_model_registry() -> Dict[str, Dict]:
+    """
+    Load model registry from models.json.
+    
+    Returns:
+        Dict mapping openrouter_id to model config
+    """
+    with open(DEFAULT_MODEL_REGISTRY_PATH) as f:
+        data = json.load(f)
+    
+    # Handle nested format: {"models": [...]}
+    if isinstance(data, dict) and "models" in data:
+        models_list = data["models"]
+    else:
+        models_list = data
+    
+    # Create lookup by openrouter_id
+    return {model["openrouter_id"]: model for model in models_list}
+
+
+def get_model_display_name(openrouter_id: str, model_registry: Dict[str, Dict]) -> str:
+    """
+    Get display name for a model from the registry.
+    
+    Args:
+        openrouter_id: Model ID (e.g., "openai/gpt-4o")
+        model_registry: Model registry dict
+    
+    Returns:
+        Display name if found, otherwise a cleaned version of the openrouter_id
+    """
+    if openrouter_id in model_registry:
+        return model_registry[openrouter_id].get("display_name", openrouter_id)
+    
+    # If not found, try to create a reasonable display name
+    # Remove provider prefix and clean up
+    if "/" in openrouter_id:
+        _, model_name = openrouter_id.split("/", 1)
+        # Convert kebab-case to Title Case
+        return " ".join(word.capitalize() for word in model_name.replace("-", " ").split())
+    
+    return openrouter_id
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Find optimal gamma calibration factor for domain adaptation"
@@ -167,9 +212,17 @@ def main():
     warmup_priors = joblib.load(Path(args.warmup_priors))
     pca_model = joblib.load(Path(args.pca))
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
+    model_registry = load_model_registry()
+    
+    # Get display names for models
+    model_display_names = [
+        get_model_display_name(model_id, model_registry) 
+        for model_id in warmup_priors['models']
+    ]
+    
     print(f"   ✅ Warmup priors: {warmup_priors['n_prompts']:,} samples")
     print(f"   ✅ PCA: {pca_model.n_components} components")
-    print(f"   ✅ Models: {', '.join(warmup_priors['models'])}")
+    print(f"   ✅ Models: {', '.join(model_display_names)}")
     
     # Load calibration data (handles both .jsonl and .jsonl.gz)
     print(f"\n📊 Loading calibration data from: {args.calibration_data}")
@@ -492,7 +545,7 @@ OPTIMAL GAMMA ANALYSIS
 Dataset:
 • Calibration: {len(calibration_data):,} samples
 • Warmup: {warmup_priors['n_prompts']:,} samples
-• Models: {warmup_priors['models'][0]} vs {warmup_priors['models'][1]}
+• Models: {model_display_names[0]} vs {model_display_names[1]}
 
 Recommended: γ = {recommended_gamma:.3f}
 
