@@ -3,16 +3,25 @@
 \includegraphics[width=\textwidth]{experiments_v1/03_figure/results/optimal_gamma_analysis.pdf}
 \caption{%
 \textbf{Optimal Gamma Calibration Analysis with 32-Component PCA.}
-We systematically evaluate 8 gamma values to determine the optimal covariance inflation factor for domain adaptation.
-The router uses 80,000 warmup samples (corrected RouteLLM data where GPT-4-Turbo wins 68.6\% vs Mixtral's 9.3\%) with 32-component PCA (35.14\% variance) and 1,121 calibration samples.
-\textbf{(Top-left)} Policy adaptation curves show how different gamma values affect convergence speed and final routing strategy.
-\textbf{(Top-center)} Prior weakening effect demonstrates the relationship between gamma and final strong model usage (baseline: 53.3\% at $\gamma=1.0$).
-\textbf{(Top-right)} Influence balance quantifies the Calibration/Prior ratio, with values near 1.0 indicating balanced influence.
-\textbf{(Middle row)} Adaptation magnitude, prior strength, and quality performance across gamma values.
-\textbf{(Bottom row)} Convergence rate analysis and summary statistics.
-The recommended gamma ($\gamma=0.010$, highlighted in red) achieves a Calibration/Prior ratio of 1.401, enabling 1,121 calibration samples to effectively adapt 80,000 warmup priors (effective N = 800).
-This results in a 12.4 percentage point increase in GPT-4 usage (from 53.3\% to 65.7\%) while achieving 0.2284 average reward.
-The 32-component PCA provides better semantic representation (+6.14\% variance) compared to 23 components, enabling more nuanced routing decisions.
+Gamma ($\gamma$) controls how much we trust 80,000 warmup samples vs. 1,121 calibration samples---think of it as a ``volume knob'' for the warmup priors.
+We systematically evaluate 8 gamma values to find the sweet spot between leveraging warmup knowledge and adapting to new data.
+The router uses corrected RouteLLM data (GPT-4-Turbo wins 68.6\% vs Mixtral's 9.3\%) with 32-component PCA (35.14\% variance).
+%
+\textbf{(Top-left) Policy Adaptation:} Lines show how GPT-4 usage evolves over calibration samples. Flat lines ($\gamma=1.0$) indicate the router is ``stuck'' at the warmup policy, while steep lines ($\gamma=0.01, 0.05$) show active learning.
+%
+\textbf{(Top-center) Prior Weakening:} How gamma affects final GPT-4 usage. The baseline (53.3\% at $\gamma=1.0$) shows warmup alone is insufficient. The ``elbow'' around $\gamma=0.01$ (65.7\%) reveals the optimal adaptation point.
+%
+\textbf{(Top-right) Influence Balance:} Calib/Prior ratio answers ``who's in charge?'' Values near 1.0 indicate balanced influence; $\gamma=0.01$ achieves ratio 1.401 (calibration slightly outweighs warmup).
+%
+\textbf{(Middle-left) Adaptation Magnitude:} Change from baseline. Zero change ($\gamma=1.0$) means no learning; +12.4 pp ($\gamma=0.01$) shows significant but stable adaptation.
+%
+\textbf{(Middle-center) Prior Strength:} Effective N shows how many ``equivalent samples'' the warmup contributes. At $\gamma=0.01$, 80k warmup acts like 800 samples---helpful but not overwhelming.
+%
+\textbf{(Middle-right) Quality:} Average reward on calibration data. Zero reward ($\gamma=1.0$) confirms no adaptation; 0.2284 ($\gamma=0.01$) shows good quality with balanced influence.
+%
+\textbf{(Bottom) Convergence:} How fast the policy stabilizes. $\gamma=0.05$ converges fastest (0.01346) but sacrifices warmup benefits; $\gamma=0.01$ is slower (0.00125) but more stable.
+%
+\textbf{Recommendation:} Use $\gamma=0.010$ (highlighted in red) for production. It achieves balanced Calib/Prior influence (ratio 1.401), increases GPT-4 usage by 12.4 pp (53.3\%$\rightarrow$65.7\%), and maintains quality (0.2284 reward). The 32-component PCA captures +6.14\% more semantic variance than 23 components, enabling nuanced routing decisions.
 }
 \label{fig:optimal_gamma}
 \end{figure}
