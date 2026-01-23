@@ -1,0 +1,38 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{Gamma Calibration Results with 32-Component PCA.}
+Systematic evaluation of 8 gamma values for optimal covariance inflation.
+The router uses 80,000 warmup samples (corrected RouteLLM data with GPT-4 > Mixtral) and 1,121 calibration samples.
+Gamma controls the effective weight of warmup priors: smaller values allow calibration data to dominate.
+The recommended $\gamma = 0.010$ achieves balanced Calib/Prior influence (ratio 1.401), enabling effective domain adaptation while leveraging warmup knowledge.
+}
+\label{tab:gamma_results}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Gamma} & \textbf{Eff. N} & \textbf{Calib/Prior} & \textbf{Strong\%} & \textbf{Avg Reward} & \textbf{Conv. Rate} \\
+\midrule
+1.000 & 80,000 & 0.014 & 53.3\% & 0.0000 & 0.00297 \\
+0.100 & 8,000 & 0.140 & 64.9\% & 0.1008 & 0.01227 \\
+0.050 & 4,000 & 0.280 & 68.3\% & 0.1302 & 0.01346 \\
+0.020 & 1,600 & 0.701 & 67.8\% & 0.1945 & 0.00760 \\
+\rowcolor{lightgray}
+\textbf{0.010} & \textbf{800} & \textbf{1.401} & \textbf{65.7\%} & \textbf{0.2284} & \textbf{0.00125} \\
+0.005 & 400 & 2.803 & 65.4\% & 0.2498 & 0.00356 \\
+0.002 & 160 & 7.006 & 63.7\% & 0.2667 & 0.00347 \\
+0.001 & 80 & 14.012 & 66.4\% & 0.2533 & 0.00114 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\footnotesize
+\textbf{Key Findings:}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{Effective N}: Number of equivalent warmup samples after gamma scaling ($N_{\text{eff}} = \gamma \times 80{,}000$)
+    \item \textbf{Calib/Prior Ratio}: Relative influence of calibration vs warmup ($\frac{1{,}121}{N_{\text{eff}}}$). Values near 1.0 indicate balanced influence.
+    \item \textbf{Strong\%}: Percentage of times GPT-4-Turbo selected (baseline: 53.3\% with $\gamma=1.0$)
+    \item \textbf{Avg Reward}: Mean reward on calibration data (0.0 for $\gamma=1.0$ indicates no adaptation)
+    \item \textbf{Conv. Rate}: Speed of policy convergence (higher = faster adaptation)
+    \item \textbf{Recommended $\gamma=0.010$}: Achieves balanced influence (ratio 1.401), increases GPT-4 usage by 12.4 pp, and maintains quality (0.2284 reward)
+\end{itemize}
+\end{table}
+
