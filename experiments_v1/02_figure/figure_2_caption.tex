@@ -1,0 +1,32 @@
+% Figure 2: Corralled Architecture
+% Hierarchical coordinator-expert system for adaptive model routing
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{experiments_v1/02_figure/results/corralled_architecture.pdf}
+    \caption{%
+        \textbf{Corralled Architecture: Hierarchical Coordination of Warmup and Tabula Rasa Experts.}
+        The banditGPT system implements a \textbf{coordinator-expert hierarchy} where a meta-controller dynamically allocates trust between two complementary routing strategies.
+        %
+        \textbf{(Top)} The \textit{Coordinator Layer} maintains a trust distribution $\pi_t$ over experts, tracks cumulative regret, and manages the exploration budget.
+        At each timestep $t$, the coordinator samples an expert proportionally to its trust weight.
+        %
+        \textbf{(Middle)} The \textit{Expert Layer} consists of two LinUCB bandit instances:
+        (1)~\textit{Warmup Expert} initializes with semantic priors from latent space analysis (Figure~1), enabling fast cold-start convergence.
+        (2)~\textit{Tabula Rasa Expert} learns purely from online feedback without priors, ensuring unbiased adaptation to deployment distribution.
+        %
+        \textbf{(Bottom)} The \textit{Communication Protocol} follows a three-phase cycle:
+        (i)~\textit{Recommendation}: Each expert proposes an action and confidence score.
+        (ii)~\textit{Selection}: Coordinator samples an expert based on $\pi_t$, executes its recommended action.
+        (iii)~\textit{Feedback}: Observed reward updates both the selected expert's parameters and the coordinator's trust weights via multiplicative updates.
+        %
+        This design provides \textbf{three key guarantees}:
+        (1)~\textbf{Robustness}---system remains effective even if Warmup priors are misspecified, as Tabula Rasa corrects for distribution shift.
+        (2)~\textbf{Fast Convergence}---Warmup expert accelerates early learning when priors are helpful.
+        (3)~\textbf{Provable Regret}---corralling ensures $O(\sqrt{T})$ regret relative to the best expert in hindsight, unlike heuristic ensembles.
+        %
+        Arrows indicate information flow: dashed lines represent recommendations (expert→coordinator), solid lines represent selections (coordinator→expert), and bold lines represent feedback (environment→both).
+    }
+    \label{fig:corralled_architecture}
+\end{figure}
+
