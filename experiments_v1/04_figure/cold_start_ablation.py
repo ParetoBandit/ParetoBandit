@@ -110,26 +110,20 @@ class TabulaRasaRouter:
 
 def map_model_to_data(router_model: str, data_models: List[str]) -> str:
     """
-    Map router model ID to data model ID, handling equivalents.
+    Map router model ID to data model ID.
     
     Args:
         router_model: Model ID from router (e.g., 'openai/gpt-4-turbo')
         data_models: Available model IDs in data
         
     Returns:
-        Mapped model ID that exists in data
+        Model ID that exists in data, or router_model if not found
     """
     # Direct match
     if router_model in data_models:
         return router_model
     
-    # Check for strong model equivalents
-    if router_model in STRONG_MODEL_EQUIVALENTS:
-        for equivalent in STRONG_MODEL_EQUIVALENTS:
-            if equivalent in data_models:
-                return equivalent
-    
-    # Fallback to original
+    # If not found, return original (will result in 0.0 reward)
     return router_model
 
 

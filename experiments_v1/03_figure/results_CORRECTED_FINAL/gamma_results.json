@@ -1,0 +1,112 @@
+{
+  "gamma_values_tested": [
+    1.0,
+    0.5,
+    0.3,
+    0.2,
+    0.15,
+    0.1,
+    0.05,
+    0.02,
+    0.01,
+    0.005,
+    0.002,
+    0.001
+  ],
+  "calibration_samples": 1121,
+  "warmup_samples": 80000,
+  "models": [
+    "mistralai/mixtral-8x7b-instruct",
+    "openai/gpt-4-turbo"
+  ],
+  "results": {
+    "1.0": {
+      "final_strong_pct": 53.33329585310843,
+      "avg_reward": 0.800178412132025,
+      "eff_n": 80000,
+      "calib_prior_ratio": 0.0140125,
+      "convergence_rate": 0.0030087698297659496
+    },
+    "0.5": {
+      "final_strong_pct": 56.207832975132874,
+      "avg_reward": 0.8019625334522748,
+      "eff_n": 40000,
+      "calib_prior_ratio": 0.028025,
+      "convergence_rate": 0.005591933459982243
+    },
+    "0.3": {
+      "final_strong_pct": 58.77667575055126,
+      "avg_reward": 0.8278322925958965,
+      "eff_n": 24000,
+      "calib_prior_ratio": 0.04670833333333333,
+      "convergence_rate": 0.007745425347987237
+    },
+    "0.2": {
+      "final_strong_pct": 61.27942428448577,
+      "avg_reward": 0.8438893844781445,
+      "eff_n": 16000,
+      "calib_prior_ratio": 0.0700625,
+      "convergence_rate": 0.009698746467561992
+    },
+    "0.15": {
+      "final_strong_pct": 63.34304909113884,
+      "avg_reward": 0.8447814451382694,
+      "eff_n": 12000,
+      "calib_prior_ratio": 0.09341666666666666,
+      "convergence_rate": 0.011315064379586976
+    },
+    "0.1": {
+      "final_strong_pct": 65.91421360521137,
+      "avg_reward": 0.8447814451382694,
+      "eff_n": 8000,
+      "calib_prior_ratio": 0.140125,
+      "convergence_rate": 0.012900896404768375
+    },
+    "0.05": {
+      "final_strong_pct": 68.81412390243196,
+      "avg_reward": 0.848349687778769,
+      "eff_n": 4000,
+      "calib_prior_ratio": 0.28025,
+      "convergence_rate": 0.013135310500786397
+    },
+    "0.02": {
+      "final_strong_pct": 68.41299033474148,
+      "avg_reward": 0.8510258697591436,
+      "eff_n": 1600,
+      "calib_prior_ratio": 0.700625,
+      "convergence_rate": 0.006383378328134658
+    },
+    "0.01": {
+      "final_strong_pct": 66.97902053572943,
+      "avg_reward": 0.8510258697591436,
+      "eff_n": 800,
+      "calib_prior_ratio": 1.40125,
+      "convergence_rate": 0.0004923431678513552
+    },
+    "0.005": {
+      "final_strong_pct": 64.08837479680705,
+      "avg_reward": 0.8617305976806423,
+      "eff_n": 400,
+      "calib_prior_ratio": 2.8025,
+      "convergence_rate": 0.005729995932769053
+    },
+    "0.002": {
+      "final_strong_pct": 61.99112569948583,
+      "avg_reward": 0.8715432649420161,
+      "eff_n": 160,
+      "calib_prior_ratio": 7.00625,
+      "convergence_rate": 0.008238784513664549
+    },
+    "0.001": {
+      "final_strong_pct": 63.43602664711023,
+      "avg_reward": 0.848349687778769,
+      "eff_n": 80,
+      "calib_prior_ratio": 14.0125,
+      "convergence_rate": 0.005856232621493397
+    }
+  },
+  "recommended_gamma": 0.01,
+  "recommendation_reason": "provides balanced Calib/Prior influence",
+  "target_usage": null,
+  "baseline_usage": 53.33329585310843
+}

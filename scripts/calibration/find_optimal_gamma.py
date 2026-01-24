@@ -40,14 +40,82 @@ from bandit_gpt.config_legacy import (
 )
 
 
+class TabulaRasaRouter:
+    """LinUCB router initialized from scratch (A=I, b=0)."""
+    
+    def __init__(self, models: List[str], context_dim: int, alpha: float = 1.0):
+        self.models = models
+        self.alpha = alpha
+        self.context_dim = context_dim
+        self.A = {m: np.eye(context_dim) for m in models}
+        self.b = {m: np.zeros(context_dim) for m in models}
+        self.selections = {m: 0 for m in models}
+    
+    def select_model(self, context: np.ndarray) -> str:
+        ucb_scores = {}
+        for model in self.models:
+            A_inv = np.linalg.inv(self.A[model])
+            theta = A_inv @ self.b[model]
+            expected = theta @ context
+            uncertainty = np.sqrt(context @ A_inv @ context)
+            ucb_scores[model] = expected + self.alpha * uncertainty
+        selected = max(ucb_scores, key=ucb_scores.get)
+        self.selections[selected] += 1
+        return selected
+    
+    def update(self, context: np.ndarray, model: str, reward: float):
+        context = context.reshape(-1, 1)
+        self.A[model] += context @ context.T
+        self.b[model] += (reward * context).flatten()
+    
+    def get_model_usage(self) -> Dict[str, float]:
+        total = sum(self.selections.values())
+        if total == 0:
+            return {m: 100.0 / len(self.models) for m in self.models}
+        return {m: (count / total) * 100 for m, count in self.selections.items()}
+
+
+def map_model_to_data(router_model: str, data_models: List[str]) -> str:
+    """
+    Map router model ID to data model ID.
+    
+    Args:
+        router_model: Model ID from router (e.g., 'openai/gpt-4-turbo')
+        data_models: Available model IDs in data
+        
+    Returns:
+        Model ID that exists in data, or router_model if not found
+    """
+    # Direct match
+    if router_model in data_models:
+        return router_model
+    
+    # If not found, return original (will result in 0.0 reward)
+    return router_model
+
+
+def compute_oracle_reward(item: dict, models: List[str]) -> float:
+    """Compute the best possible reward (oracle) for this prompt."""
+    data_models = list(item['rewards'].keys())
+    available_rewards = []
+    
+    for router_model in models:
+        data_model = map_model_to_data(router_model, data_models)
+        reward = item['rewards'].get(data_model, 0.0)
+        available_rewards.append(reward)
+    
+    return max(available_rewards) if available_rewards else 0.0
+
+
 def run_calibration_experiment(
     calibration_data: List[dict],
     warmup_priors: dict,
     encoder: SentenceTransformer,
     pca_model,
     gamma: float,
-    verbose: bool = False
-) -> Tuple[List[Dict], float, float]:
+    verbose: bool = False,
+    compute_regret: bool = False
+) -> Tuple[List[Dict], float, float, float]:
     """
     Run calibration with a specific gamma value.
     
@@ -55,6 +123,7 @@ def run_calibration_experiment(
         metrics: List of metric snapshots during calibration
         final_strong_pct: Final strong model usage percentage
         avg_reward: Average reward achieved
+        cumulative_regret: Total regret (if compute_regret=True)
     """
     
     # Apply gamma scaling
@@ -70,6 +139,7 @@ def run_calibration_experiment(
     # Track metrics over time
     metrics = []
     total_reward = 0.0
+    cumulative_regret = 0.0
     
     for i, item in enumerate(calibration_data):
         # Embed
@@ -77,10 +147,20 @@ def run_calibration_experiment(
         
         # Select and update
         selected_model = router.select_model(context)
-        reward = item['rewards'].get(selected_model, 0.0)
+        
+        # Map model to data (handle gpt-4-turbo -> gpt-4o equivalence)
+        data_models = list(item['rewards'].keys())
+        data_model = map_model_to_data(selected_model, data_models)
+        reward = item['rewards'].get(data_model, 0.0)
+        
         router.update(context, selected_model, reward)
         
         total_reward += reward
+        
+        # Compute regret if requested
+        if compute_regret:
+            oracle_reward = compute_oracle_reward(item, warmup_priors['models'])
+            cumulative_regret += (oracle_reward - reward)
         
         # Record metrics at intervals
         if i % 10 == 0 or i == len(calibration_data) - 1:
@@ -89,14 +169,54 @@ def run_calibration_experiment(
                 'sample': i + 1,
                 'model_usage': usage,
                 'strong_pct': usage.get(warmup_priors['models'][1], 0.0),  # Assume 2nd is strong
-                'avg_reward': total_reward / (i + 1)
+                'avg_reward': total_reward / (i + 1),
+                'cumulative_regret': cumulative_regret if compute_regret else 0.0
             })
     
     # Final metrics
     final_strong_pct = metrics[-1]['strong_pct']
     avg_reward = total_reward / len(calibration_data)
     
-    return metrics, final_strong_pct, avg_reward
+    return metrics, final_strong_pct, avg_reward, cumulative_regret
+
+
+def run_tabula_rasa_experiment(
+    calibration_data: List[dict],
+    models: List[str],
+    context_dim: int,
+    encoder: SentenceTransformer,
+    pca_model,
+    verbose: bool = False
+) -> Tuple[float, float]:
+    """
+    Run tabula rasa baseline (A=I, b=0).
+    
+    Returns:
+        avg_reward: Average reward achieved
+        cumulative_regret: Total regret
+    """
+    router = TabulaRasaRouter(models=models, context_dim=context_dim, alpha=1.0)
+    
+    total_reward = 0.0
+    cumulative_regret = 0.0
+    
+    for item in calibration_data:
+        context = embed_prompt(item['prompt'], encoder, pca_model)
+        selected_model = router.select_model(context)
+        
+        # Map model to data (handle gpt-4-turbo -> gpt-4o equivalence)
+        data_models = list(item['rewards'].keys())
+        data_model = map_model_to_data(selected_model, data_models)
+        reward = item['rewards'].get(data_model, 0.0)
+        
+        router.update(context, selected_model, reward)
+        
+        total_reward += reward
+        oracle_reward = compute_oracle_reward(item, models)
+        cumulative_regret += (oracle_reward - reward)
+    
+    avg_reward = total_reward / len(calibration_data)
+    return avg_reward, cumulative_regret
 
 
 def compute_convergence_rate(metrics: List[Dict]) -> float:
@@ -189,7 +309,7 @@ def main():
     )
     parser.add_argument(
         "--gamma-values", type=float, nargs='+',
-        default=[1.0, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001],
+        default=[1.0, 0.5, 0.3, 0.2, 0.15, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001],
         help="Gamma values to test"
     )
     parser.add_argument(
@@ -199,6 +319,10 @@ def main():
     parser.add_argument(
         "--verbose", action="store_true",
         help="Print detailed progress"
+    )
+    parser.add_argument(
+        "--compare-tabula-rasa", action="store_true",
+        help="Compare against tabula rasa baseline (for cold-start ablation)"
     )
     
     args = parser.parse_args()
@@ -272,7 +396,39 @@ def main():
         print("   2. {'prompt': '...', 'model_id': '...', 'raw_score': 0.0}")
         return
     
-    print(f"   ✅ Loaded {len(calibration_data)} calibration samples")
+    # Filter for prompts with both models (especially GPT-4-Turbo)
+    print(f"\n🔍 Filtering for prompts with both models...")
+    filtered_data = []
+    for item in calibration_data:
+        # Check if we have both models in the rewards
+        has_both = all(model in item['rewards'] for model in warmup_priors['models'])
+        if has_both:
+            filtered_data.append(item)
+    
+    if len(filtered_data) < len(calibration_data):
+        print(f"   ⚠️  Filtered {len(calibration_data)} → {len(filtered_data)} prompts (both models present)")
+        calibration_data = filtered_data
+    else:
+        print(f"   ✅ All {len(calibration_data)} prompts have both models")
+    
+    if not calibration_data:
+        print("❌ No prompts with both models found!")
+        return
+    
+    # Run tabula rasa baseline if requested
+    tabula_rasa_reward = None
+    tabula_rasa_regret = None
+    if args.compare_tabula_rasa:
+        print(f"\n🔬 Running Tabula Rasa Baseline...")
+        tabula_rasa_reward, tabula_rasa_regret = run_tabula_rasa_experiment(
+            calibration_data,
+            warmup_priors['models'],
+            warmup_priors['context_dim'],
+            encoder,
+            pca_model,
+            verbose=args.verbose
+        )
+        print(f"   ✅ Tabula Rasa: Reward={tabula_rasa_reward:.4f}, Regret={tabula_rasa_regret:.2f}")
     
     # Run experiments
     print(f"\n🔬 Testing {len(args.gamma_values)} gamma values...")
@@ -282,13 +438,14 @@ def main():
         if args.verbose:
             print(f"\n  Testing γ = {gamma}...")
         
-        metrics, final_usage, avg_reward = run_calibration_experiment(
+        metrics, final_usage, avg_reward, cumulative_regret = run_calibration_experiment(
             calibration_data,
             warmup_priors,
             encoder,
             pca_model,
             gamma,
-            verbose=args.verbose
+            verbose=args.verbose,
+            compute_regret=args.compare_tabula_rasa
         )
         
         convergence_rate = compute_convergence_rate(metrics)
@@ -297,6 +454,7 @@ def main():
             'metrics': metrics,
             'final_strong_pct': final_usage,
             'avg_reward': avg_reward,
+            'cumulative_regret': cumulative_regret if args.compare_tabula_rasa else None,
             'eff_n': int(warmup_priors['n_prompts'] * gamma),
             'calib_prior_ratio': len(calibration_data) / (warmup_priors['n_prompts'] * gamma),
             'convergence_rate': convergence_rate
@@ -305,6 +463,8 @@ def main():
         if args.verbose:
             print(f"    Final strong usage: {final_usage:.1f}%")
             print(f"    Avg reward: {avg_reward:.4f}")
+            if args.compare_tabula_rasa:
+                print(f"    Cumulative regret: {cumulative_regret:.2f}")
             print(f"    Convergence rate: {convergence_rate:.6f}")
     
     # Create output directory
@@ -315,17 +475,40 @@ def main():
     print("\n" + "="*80)
     print("RESULTS: Gamma Factor Comparison")
     print("="*80)
-    print(f"\n{'Gamma':>8} {'Eff. N':>10} {'Calib/Prior':>12} {'Strong%':>10} {'Reward':>10} {'Conv.Rate':>12}")
-    print("-"*80)
+    
+    if args.compare_tabula_rasa:
+        print(f"\n{'Gamma':>8} {'Eff. N':>10} {'Calib/Prior':>12} {'Strong%':>10} {'Reward':>10} {'Regret':>10} {'vs TR':>10}")
+        print("-"*80)
+        print(f"{'TR':>8} {'N/A':>10} {'N/A':>12} {'N/A':>10} {tabula_rasa_reward:>10.4f} {tabula_rasa_regret:>10.2f} {'baseline':>10}")
+        print("-"*80)
+    else:
+        print(f"\n{'Gamma':>8} {'Eff. N':>10} {'Calib/Prior':>12} {'Strong%':>10} {'Reward':>10} {'Conv.Rate':>12}")
+        print("-"*80)
     
     baseline_usage = results[1.0]['final_strong_pct']
     
     for gamma in sorted(args.gamma_values, reverse=True):
         r = results[gamma]
-        print(f"{gamma:>8.3f} {r['eff_n']:>10,} {r['calib_prior_ratio']:>12.3f} "
-              f"{r['final_strong_pct']:>9.1f}% {r['avg_reward']:>10.4f} {r['convergence_rate']:>12.6f}")
+        if args.compare_tabula_rasa:
+            regret_diff = r['cumulative_regret'] - tabula_rasa_regret
+            advantage = "WIN" if regret_diff < 0 else "LOSE" if regret_diff > 0 else "TIE"
+            print(f"{gamma:>8.3f} {r['eff_n']:>10,} {r['calib_prior_ratio']:>12.3f} "
+                  f"{r['final_strong_pct']:>9.1f}% {r['avg_reward']:>10.4f} {r['cumulative_regret']:>10.2f} {advantage:>10}")
+        else:
+            print(f"{gamma:>8.3f} {r['eff_n']:>10,} {r['calib_prior_ratio']:>12.3f} "
+                  f"{r['final_strong_pct']:>9.1f}% {r['avg_reward']:>10.4f} {r['convergence_rate']:>12.6f}")
     
     print("="*80)
+    
+    # Find optimal gamma for regret minimization if comparing with tabula rasa
+    if args.compare_tabula_rasa:
+        print("\n🎯 Optimal Gamma for Regret Minimization:")
+        best_gamma_regret = min(args.gamma_values, key=lambda g: results[g]['cumulative_regret'])
+        best_regret = results[best_gamma_regret]['cumulative_regret']
+        regret_improvement = ((tabula_rasa_regret - best_regret) / tabula_rasa_regret) * 100
+        print(f"   Best gamma: γ = {best_gamma_regret:.3f}")
+        print(f"   Cumulative regret: {best_regret:.2f} (vs {tabula_rasa_regret:.2f} for tabula rasa)")
+        print(f"   Improvement: {regret_improvement:+.1f}%")
     
     # Find optimal gamma based on multiple criteria
     print("\n🎯 Optimal Gamma Selection:")

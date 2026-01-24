@@ -37,8 +37,14 @@ DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
 
 # Canonical offline dataset paths
 OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset"
-CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
-CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
+
+# 2-model datasets (Mixtral + GPT-4-Turbo only - the models the router chooses between)
+CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_2models.jsonl.gz"
+CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_2models.jsonl.gz"
+
+# 3-model datasets (includes GPT-4o for reference/analysis - NOT for routing)
+DEV_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
+HOLDOUT_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
 
 # RouteLLM battles rewards dataset (corrected winner labels)
 ROUTELLM_BATTLES_REWARDS_PATH = OFFLINE_DATASET_DIR / "routellm_battles_rewards.jsonl"
