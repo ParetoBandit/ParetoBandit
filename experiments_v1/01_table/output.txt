@@ -1,0 +1,101 @@
+============================================================
+DATASET COMPOSITION ANALYSIS
+============================================================
+
+============================================================
+Analyzing: Dev Set
+============================================================
+Total prompts: 1,121
+
+Category breakdown:
+  Coding              :    430 ( 38.4%)
+  Conversational      :    426 ( 38.0%)
+  Creative            :    115 ( 10.3%)
+  Knowledge           :    109 (  9.7%)
+  Math/Logic          :     41 (  3.7%)
+
+Length statistics:
+  Mean: 452 chars
+  Median: 146 chars
+  Min: 5 chars
+  Max: 2583 chars
+
+============================================================
+Analyzing: Holdout Set
+============================================================
+Total prompts: 750
+
+Category breakdown:
+  Coding              :    298 ( 39.7%)
+  Conversational      :    278 ( 37.1%)
+  Creative            :     73 (  9.7%)
+  Knowledge           :     70 (  9.3%)
+  Math/Logic          :     31 (  4.1%)
+
+Length statistics:
+  Mean: 454 chars
+  Median: 147 chars
+  Min: 5 chars
+  Max: 2583 chars
+
+============================================================
+LATEX TABLE (KDD Format)
+============================================================
+
+\begin{table}[t]
+\centering
+\caption{Dataset Composition and Provenance}
+\label{tab:dataset_composition}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Category} & \textbf{Warmup} & \textbf{Dev} & \textbf{Holdout} & \textbf{Total} & \textbf{\%} \\
+\midrule
+Coding               & 31,236 &    430 &    298 &  31,964 &  39.0\% \\
+Conversational       & 30,027 &    426 &    278 &  30,731 &  37.5\% \\
+Creative             &  7,996 &    115 &     73 &   8,184 &  10.0\% \\
+Knowledge            &  7,622 &    109 &     70 &   7,801 &   9.5\% \\
+Math/Logic           &  3,116 &     41 &     31 &   3,188 &   3.9\% \\
+\midrule
+\textbf{Total} & \textbf{80,000} & \textbf{1,121} & \textbf{750} & \textbf{81,871} & \textbf{100.0\%} \\
+\bottomrule
+\end{tabular}
+\vspace{0.5em}
+
+\begin{tablenotes}
+\small
+\item \textbf{Data Sources:}
+\item \textit{Warmup Set (80k)}: LMSYS Arena battles from RouteLLM dataset \cite{routellm2024}. Used for PCA training (384→32 dims) and LinUCB warmup priors.
+\item \textit{Dev Set (1,121)}: Stratified evaluation set with mixtral-8x7b and gpt-4o responses. Used for online learning.
+\item \textit{Holdout Set (750)}: Held-out test set, disjoint from warmup and dev. Used for final evaluation.
+\item \textbf{Semantic Categories:} Prompts classified using keyword-based heuristics into Coding (programming tasks), Math/Logic (reasoning, proofs), Creative (writing, storytelling), Knowledge (factual queries), and Conversational (general chat).
+\item \textbf{Quality Assurance:} All prompts manually verified for data leakage. Warmup set is completely disjoint from evaluation sets.
+\end{tablenotes}
+\end{table}
+
+
+✅ Saved to: /Users/annette/repostitories/banditGPT/experiments_v1/01_table/table_dataset_composition.tex
+
+============================================================
+SUMMARY
+============================================================
+
+Data Provenance:
+  1. PCA Training: RouteLLM battles (80k prompts)
+     - Source: LMSYS Arena via HuggingFace
+     - Dataset: routellm/gpt4_judge_battles
+     - Purpose: Train PCA (384→23 dims)
+
+  2. Warmup Priors: Same as PCA (80k prompts)
+     - Purpose: Initialize LinUCB matrices (A, b)
+     - Models: mixtral-8x7b-instruct, gpt-4-turbo
+
+  3. Dev Set: 1,121 prompts
+     - Source: KDD rigorous splits
+     - Purpose: Online learning and calibration
+
+  4. Holdout Set: 750 prompts
+     - Source: KDD rigorous splits
+     - Purpose: Final evaluation (held-out)
+
+Total dataset: 81,871 prompts
