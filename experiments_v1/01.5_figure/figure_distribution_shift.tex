@@ -1,0 +1,92 @@
+% KDD-compliant LaTeX for Distribution Shift Analysis
+% Experiment 01.5: Feature Distribution Shift
+
+\subsection{Distribution Shift Analysis}
+\label{sec:distribution_shift}
+
+Understanding the relationship between training (warmup prior) and deployment (production) distributions is critical for designing robust adaptive routing systems. When these distributions differ significantly---a phenomenon known as \emph{covariate shift}~\cite{shimodaira2000improving}---models trained on historical data may exhibit degraded performance in production. We demonstrate that such shift exists in our setting and show how our hybrid bandit approach naturally adapts to this challenge.
+
+\subsubsection{Formal Quantification of Domain Mismatch}
+
+To provide rigorous mathematical evidence for domain mismatch, we calculate the Population Stability Index (PSI) between the source feature distribution $P$ (Warmup priors) and the target distribution $Q$ (RouteLLM deployment). The PSI measures the shift in the semantic center of gravity within the PCA-reduced feature space~\cite{yurdakul2018statistical}:
+
+\begin{equation}
+\text{PSI} = \sum_{i=1}^{B} \left( (\%P_i - \%Q_i) \cdot \ln\left(\frac{\%P_i}{\%Q_i}\right) \right)
+\label{eq:psi}
+\end{equation}
+
+\noindent where $B$ represents the number of semantic bins (clusters) in the feature space, $\%P_i$ is the percentage of samples from the Warmup prior in bin $i$, and $\%Q_i$ is the percentage of samples from the RouteLLM target in bin $i$.
+
+\paragraph{Interpretation.} Standard industry thresholds~\cite{yurdakul2018statistical} define: $\text{PSI} < 0.1$ indicates no significant shift, $0.1 \leq \text{PSI} < 0.2$ indicates moderate shift, $0.2 \leq \text{PSI} < 0.25$ indicates significant shift requiring monitoring, and \textbf{PSI $\geq$ 0.25 indicates substantial shift} justifying adaptive correction mechanisms. Our empirical analysis yields \textbf{PSI = 0.275}, exceeding this critical threshold and providing mathematical justification for the negative transfer observed when using fixed warmup priors.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{experiments_v1/01.5_figure/results/distribution_shift_pc1.png}
+\caption{\textbf{Feature distribution shift between training and deployment.} \textbf{Top:} Density comparison on PC1 shows significant covariate shift (PSI = 0.275) with training data (blue) exhibiting clear bimodal structure while deployment data (red) is more unimodal and left-shifted. \textbf{Bottom:} Decomposition of training data reveals bimodality arises from two distinct task clusters---easy tasks (45.4\%, teal) centered at PC1 = $-0.105$ and hard tasks (22.4\%, purple) centered at PC1 = $0.365$. The shift toward easier tasks in deployment (mean shift = $-0.064$) demonstrates the need for adaptive routing strategies.}
+\label{fig:distribution_shift}
+\end{figure}
+
+\subsubsection{Empirical Findings}
+
+Figure~\ref{fig:distribution_shift} presents our distribution shift analysis. The top panel shows the overall comparison: training data exhibits a pronounced bimodal structure with peaks at PC1 $\approx -0.1$ and PC1 $\approx 0.4$, while deployment data is more unimodal and left-shifted (mean = $-0.004$ vs. $0.060$). We measure \textbf{PSI = 0.275}, well above the 0.2 threshold, indicating \emph{significant distribution shift}.
+
+The bottom panel explains the bimodal structure by decomposing training data into task difficulty clusters. Using PC1 thresholds (PC1 $< 0.0$ for easy, PC1 $> 0.2$ for hard), we observe:
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item \textbf{Easy tasks} (45.4\%): Centered at PC1 = $-0.105$, representing prompts where the weak model (Mixtral) performs adequately
+    \item \textbf{Hard tasks} (22.4\%): Centered at PC1 = $0.365$, requiring the strong model (GPT-4-Turbo) for acceptable quality
+\end{itemize}
+
+\noindent The deployment distribution shifts toward the easy cluster (mean shift = $-0.064$), suggesting production traffic contains proportionally more tasks solvable by the weak model than anticipated from training data alone.
+
+\paragraph{Empirical Evidence of Domain Mismatch.} The distribution shift translates directly to model performance discrepancies. Table~\ref{tab:domain_mismatch} compares prior expectations (estimated from source data) against observed rewards on the RouteLLM deployment distribution:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Prior Expectation} & \textbf{Observed Reward} & \textbf{Reward Delta} \\
+\midrule
+GPT-4-Turbo & 0.94 & 0.84 & $-10.6\%$ \\
+Mixtral-8x7B & 0.45 & 0.81 & $+80.0\%$ \\
+\bottomrule
+\end{tabular}
+\caption{Domain mismatch manifests as large discrepancies between prior expectations and observed rewards. The 80\% increase in Mixtral's utility on RouteLLM data indicates target prompts are substantially less complex than source training data.}
+\label{tab:domain_mismatch}
+\end{table}
+
+\noindent The 80\% increase in the observed utility of Mixtral compared to source priors demonstrates that the target distribution is substantially less complex than the training set. This \emph{renders the warmup bias toward flagship models a source of negative transfer}---fixed priors would over-route to the expensive GPT-4-Turbo when the cheaper Mixtral suffices for most production queries.
+
+\subsubsection{Implications for Routing}
+
+This covariate shift has three critical implications:
+
+\paragraph{Warmup Priors May Be Miscalibrated.} When $P(x) \neq Q(x)$, priors estimated on training data may assign incorrect routing probabilities. Our analysis shows the deployment distribution is shifted toward easier tasks, meaning priors trained on historical data may \emph{over-route} to the expensive strong model. The PSI = 0.275 provides mathematical justification for the meta-weight volatility observed in corralling algorithms (see Figure~\ref{fig:corralling_weights}): when the master algorithm encounters a domain mismatch of this magnitude, the importance-weighted loss for the Warmup Expert increases sharply, triggering automatic down-weighting of the miscalibrated prior.
+
+\paragraph{Production Distribution Is Often Unknown \emph{A Priori}.} In real-world deployment, the true production distribution is rarely known in advance. User behavior, seasonal effects, and evolving use cases cause distribution drift~\cite{lu2018learning}. Our PSI = 0.275 demonstrates this is not a hypothetical concern---even with representative training data, significant shift occurs.
+
+\paragraph{Hybrid Bandits Provide Robust Adaptation.} Unlike pure bandit algorithms that learn from scratch or static routers that rely entirely on fixed priors, our hybrid approach (see Section~\ref{sec:hybrid_bandit}) combines the strengths of both:
+\begin{itemize}[leftmargin=*,noitemsep,topsep=2pt]
+    \item \textbf{Cold-start performance:} Warmup priors provide reasonable initial routing decisions, even if miscalibrated (avoiding random exploration)
+    \item \textbf{Adaptive correction:} Bandit learning continuously updates routing based on observed production rewards, correcting for distribution shift. Empirically, our Hybrid model achieves \textbf{1.26$\times$ near-optimal recovery} despite PSI = 0.275, demonstrating robustness to domain mismatch
+    \item \textbf{Exploration-exploitation balance:} The hybrid formulation (Equation~\ref{eq:hybrid_ucb}) combines prior knowledge with empirical evidence, naturally transitioning from prior-driven to data-driven routing as confidence grows
+    \item \textbf{Automatic miscalibration detection:} When PSI $\geq$ 0.25, the system automatically down-weights miscalibrated priors through importance-weighted losses, recovering near-optimal performance without manual intervention
+\end{itemize}
+
+\noindent This is particularly valuable when deploying to new user populations or domains where the production distribution cannot be predicted from historical data alone. The PSI = 0.275 observed in our setting is representative of real-world deployment scenarios where user behavior, seasonal effects, and evolving use cases cause substantial distribution drift~\cite{lu2018learning}.
+
+\subsubsection{Comparison to Related Work}
+
+Prior work on LLM routing~\cite{ong2024routellm,chen2024frugalgpt} typically assumes the deployment distribution matches training distribution. RouteLLM~\cite{ong2024routellm} trains matrix factorization models on battle data but does not analyze distribution shift or provide mechanisms for adaptation. FrugalGPT~\cite{chen2024frugalgpt} uses fixed cascading policies without online learning. In contrast, our hybrid bandit approach:
+\begin{enumerate}[leftmargin=*,noitemsep,topsep=2pt]
+    \item \textbf{Quantifies shift:} PSI analysis reveals significant covariate shift (0.275)
+    \item \textbf{Adapts continuously:} Bandit updates correct for miscalibration over time
+    \item \textbf{Handles uncertainty:} Works effectively even when production distribution is unknown
+\end{enumerate}
+
+\noindent The bimodal structure we observe (Figure~\ref{fig:distribution_shift}, bottom) also provides insight into task semantics: easy and hard tasks occupy distinct regions of embedding space, suggesting PC1 captures meaningful difficulty gradients. This validates using PCA-reduced features for bandit learning.
+
+\subsubsection{Summary}
+
+Our distribution shift analysis provides rigorous mathematical and empirical evidence for domain mismatch: (1) \textbf{PSI = 0.275 $>$ 0.25 threshold} indicates substantial shift requiring adaptive correction, (2) \textbf{Mixtral's 80\% reward increase} on deployment data demonstrates that target prompts are significantly less complex than source training, rendering warmup bias toward flagship models a source of negative transfer, and (3) \textbf{production distributions are often unknown \emph{a priori}}, making fixed routing policies inherently brittle. The hybrid bandit framework we propose (Section~\ref{sec:method}) directly addresses these challenges through automatic miscalibration detection and adaptive correction, achieving 1.26$\times$ near-optimal performance despite substantial distribution shift. This robustness is critical for production deployment where evolving user behavior and use cases cause continuous distribution drift.
+

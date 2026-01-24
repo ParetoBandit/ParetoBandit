@@ -1,0 +1,140 @@
+% BibTeX entries for Distribution Shift Analysis
+% Add these to your paper's bibliography file
+
+% PSI and distribution shift foundations
+@article{shimodaira2000improving,
+  title={Improving predictive inference under covariate shift by weighting the log-likelihood function},
+  author={Shimodaira, Hidetoshi},
+  journal={Journal of Statistical Planning and Inference},
+  volume={90},
+  number={2},
+  pages={227--244},
+  year={2000},
+  publisher={Elsevier},
+  note={Foundational work on covariate shift and importance weighting}
+}
+
+@article{yurdakul2018statistical,
+  title={Statistical properties of population stability index},
+  author={Yurdakul, Banu},
+  journal={Western Michigan University},
+  year={2018},
+  note={Establishes PSI thresholds: < 0.1 (no shift), 0.1-0.2 (moderate), 0.2-0.25 (significant), ≥ 0.25 (substantial)}
+}
+
+@inproceedings{lu2018learning,
+  title={Learning under concept drift: A review},
+  author={Lu, Jie and Liu, Anjin and Dong, Fan and Gu, Feng and Gama, Joao and Zhang, Guangquan},
+  booktitle={IEEE Transactions on Knowledge and Data Engineering},
+  volume={31},
+  number={12},
+  pages={2346--2363},
+  year={2018},
+  publisher={IEEE},
+  note={Comprehensive review of distribution drift in production ML systems}
+}
+
+% LLM routing baselines
+@inproceedings{ong2024routellm,
+  title={RouteLLM: Learning to Route LLMs with Preference Data},
+  author={Ong, Isaac and Almahairi, Amjad and Wu, Vincent and Chiang, Wei-Lin and Wu, Tianhao and Gonzalez, Joseph E and Kadous, M Waleed and Stoica, Ion},
+  booktitle={arxiv preprint arXiv:2406.18665},
+  year={2024},
+  note={Matrix factorization approach to LLM routing; does not analyze distribution shift}
+}
+
+@article{chen2024frugalgpt,
+  title={FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance},
+  author={Chen, Lingjiao and Zaharia, Matei and Zou, James},
+  journal={arXiv preprint arXiv:2305.05176},
+  year={2023},
+  note={Cascading approach to LLM routing; uses fixed policies without online learning}
+}
+
+% Additional relevant references (optional, depending on your paper's scope)
+
+@inproceedings{sugiyama2007covariate,
+  title={Covariate shift adaptation by importance weighted cross validation},
+  author={Sugiyama, Masashi and Krauledat, Matthias and M{\"u}ller, Klaus-Robert},
+  booktitle={Journal of Machine Learning Research},
+  volume={8},
+  number={5},
+  year={2007},
+  note={Importance weighting techniques for handling covariate shift}
+}
+
+@article{quinonero2009dataset,
+  title={Dataset shift in machine learning},
+  author={Quionero-Candela, Joaquin and Sugiyama, Masashi and Schwaighofer, Anton and Lawrence, Neil D},
+  journal={MIT Press},
+  year={2009},
+  note={Book on dataset shift, including covariate, prior, and concept shift}
+}
+
+@inproceedings{gama2014survey,
+  title={A survey on concept drift adaptation},
+  author={Gama, Joao and Zliobaite, Indre and Bifet, Albert and Pechenizkiy, Mykola and Bouchachia, Abdelhamid},
+  booktitle={ACM computing surveys (CSUR)},
+  volume={46},
+  number={4},
+  pages={1--37},
+  year={2014},
+  publisher={ACM},
+  note={Survey of adaptive techniques for evolving distributions}
+}
+
+% Bandit algorithms (if you reference these in your hybrid approach)
+
+@article{auer2002finite,
+  title={Finite-time analysis of the multiarmed bandit problem},
+  author={Auer, Peter and Cesa-Bianchi, Nicolo and Fischer, Paul},
+  journal={Machine learning},
+  volume={47},
+  number={2},
+  pages={235--256},
+  year={2002},
+  publisher={Springer},
+  note={UCB algorithm foundations}
+}
+
+@article{agarwal2017corralling,
+  title={Corralling a band of bandit algorithms},
+  author={Agarwal, Alekh and Luo, Haipeng and Neyshabur, Behnam and Schapire, Robert E},
+  booktitle={Conference on Learning Theory (COLT)},
+  pages={12--38},
+  year={2017},
+  note={Meta-algorithm that combines multiple bandit experts; relevant for your hybrid approach}
+}
+
+% Embeddings and semantic features
+
+@inproceedings{reimers2019sentence,
+  title={Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks},
+  author={Reimers, Nils and Gurevych, Iryna},
+  booktitle={Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)},
+  pages={3982--3992},
+  year={2019},
+  note={SentenceTransformer used for prompt embeddings in our analysis}
+}
+
+% Production ML monitoring
+
+@inproceedings{breck2017ml,
+  title={The ML test score: A rubric for ML production readiness and technical debt reduction},
+  author={Breck, Eric and Cai, Shanqing and Nielsen, Eric and Salib, Michael and Sculley, D},
+  booktitle={2017 IEEE International Conference on Big Data (Big Data)},
+  pages={1123--1132},
+  year={2017},
+  organization={IEEE},
+  note={Discusses importance of monitoring distribution shift in production}
+}
+
+@inproceedings{sculley2015hidden,
+  title={Hidden technical debt in machine learning systems},
+  author={Sculley, David and Holt, Gary and Golovin, Daniel and Davydov, Eugene and Phillips, Todd and Ebner, Dietmar and Chaudhary, Vinay and Young, Michael and Crespo, Jean-Francois and Dennison, Dan},
+  booktitle={Advances in neural information processing systems},
+  volume={28},
+  year={2015},
+  note={Foundational paper on challenges of production ML, including distribution shift}
+}
+
