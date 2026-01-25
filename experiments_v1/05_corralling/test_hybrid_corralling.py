@@ -463,8 +463,19 @@ def main():
                 'cumulative_regret': float(metrics['cumulative_regret']),
                 'avg_reward': float(metrics['avg_reward']),
                 'model_usage': metrics['model_usage'],
-                'total_samples': metrics['total_samples']
+                'total_samples': metrics['total_samples'],
+                'regret_history': [float(x) for x in metrics.get('regret_history', [])],
+                'reward_history': [float(x) for x in metrics.get('reward_history', [])]
             }
+            # Add expert weights if available (for hybrid router)
+            if 'expert_weights_history' in metrics:
+                results_serializable[name]['expert_weights_history'] = [
+                    [float(w) for w in weights] for weights in metrics['expert_weights_history']
+                ]
+            if 'final_expert_weights' in metrics and metrics['final_expert_weights'] is not None:
+                results_serializable[name]['final_expert_weights'] = [
+                    float(w) for w in metrics['final_expert_weights']
+                ]
         json.dump(results_serializable, f, indent=2)
     
     # Generate plots

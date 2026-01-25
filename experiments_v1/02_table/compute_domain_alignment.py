@@ -170,52 +170,54 @@ def compute_alignment(warmup_stats, production_stats):
     return alignment
 
 
-def estimate_early_regret(results_path, early_samples=500):
+def compute_early_regret(results_path, early_samples=500):
     """
-    Estimate early-phase regret from results data.
+    Compute early-phase regret from actual regret history data.
     
-    Note: Since we don't have per-sample regret history in the saved results,
-    we'll estimate based on the assumption that regret accumulates roughly linearly
-    with some early-phase concentration for warmup.
+    Uses the real regret_history from results to calculate early-phase regret,
+    not estimates or assumptions.
     
     Args:
         results_path: Path to results.json
         early_samples: Number of samples to consider "early phase"
         
     Returns:
-        Dict with early regret estimates
+        Dict with early regret computed from real data
     """
-    print(f"\n📈 Estimating early-phase regret (0-{early_samples} samples)...")
+    print(f"\n📈 Computing early-phase regret (0-{early_samples} samples) from real data...")
     
     with open(results_path, 'r') as f:
         results = json.load(f)
     
     total_samples = results['Warmup']['total_samples']
-    early_fraction = early_samples / total_samples
     
-    # For warmup: Assume 65% of regret occurs in first 44.6% of samples (based on theory)
-    # For tabula rasa: Assume roughly uniform accumulation
-    # For hybrid: Assume similar to tabula rasa (adaptive)
+    # Validate that we have regret history
+    for strategy in results.keys():
+        if 'regret_history' not in results[strategy]:
+            raise ValueError(
+                f"❌ ERROR: {strategy} missing 'regret_history' in {results_path}\n"
+                f"   This script requires REAL data only (no synthetic/estimated data).\n"
+                f"   Please regenerate results using the updated test_hybrid_corralling.py script."
+            )
     
-    estimates = {}
+    early_regret_data = {}
     
     for strategy, metrics in results.items():
+        regret_history = metrics['regret_history']
         total_regret = metrics['cumulative_regret']
         
-        if 'Warmup' in strategy:
-            # Warmup concentrates regret early due to confident wrong decisions
-            early_concentration = 0.65  # 65% of regret in first ~45% of samples
-            early_regret = total_regret * early_concentration
-        elif 'Tabula Rasa' in strategy:
-            # Tabula rasa distributes regret more uniformly
-            early_regret = total_regret * early_fraction
-        else:  # Hybrid/Corralling
-            # Hybrid behaves like tabula rasa (adaptive)
-            early_regret = total_regret * early_fraction
+        # Get actual early regret from history
+        if len(regret_history) >= early_samples:
+            early_regret = regret_history[early_samples - 1]
+        else:
+            # If we have fewer samples, use the last available
+            early_regret = regret_history[-1] if regret_history else 0.0
         
-        estimates[strategy] = {
+        late_regret = total_regret - early_regret
+        
+        early_regret_data[strategy] = {
             'early_regret': early_regret,
-            'late_regret': total_regret - early_regret,
+            'late_regret': late_regret,
             'total_regret': total_regret,
             'early_fraction': early_regret / total_regret if total_regret > 0 else 0
         }
@@ -223,15 +225,18 @@ def estimate_early_regret(results_path, early_samples=500):
     # Print table
     print(f"\n{'Strategy':<25} {'Early (0-{early_samples})':<20} {'Late ({early_samples}-{total_samples})':<20} {'Early %':<10}")
     print("-" * 80)
-    for strategy, est in estimates.items():
-        print(f"{strategy:<25} {est['early_regret']:<20.1f} {est['late_regret']:<20.1f} {est['early_fraction']*100:<10.1f}%")
+    for strategy, data in early_regret_data.items():
+        print(f"{strategy:<25} {data['early_regret']:<20.1f} {data['late_regret']:<20.1f} {data['early_fraction']*100:<10.1f}%")
     
-    return estimates
+    return early_regret_data
 
 
 def generate_report(alignment, warmup_stats, production_stats, early_regret_01, early_regret_10):
     """
     Generate comprehensive report for Table 2.
+    
+    Note: early_regret_01 and early_regret_10 now contain REAL data from regret_history,
+    not estimates or assumptions.
     """
     print("\n" + "="*80)
     print("DOMAIN ALIGNMENT & MISMATCH REPORT")
@@ -242,15 +247,15 @@ def generate_report(alignment, warmup_stats, production_stats, early_regret_01, 
     print(f"Alignment Score: {alignment:.3f}")
     print(f"Interpretation: {'SEVERE MISMATCH' if alignment < 0.5 else 'MODERATE MISMATCH' if alignment < 0.8 else 'GOOD MATCH'}")
     
-    print(f"\n📈 EARLY-PHASE REGRET (0-500 samples) - η=0.1")
+    print(f"\n📈 EARLY-PHASE REGRET (0-500 samples) - η=0.1 [REAL DATA]")
     print("-" * 80)
-    for strategy, est in early_regret_01.items():
-        print(f"{strategy:<25} {est['early_regret']:.1f} regret ({est['early_fraction']*100:.1f}% of total)")
+    for strategy, data in early_regret_01.items():
+        print(f"{strategy:<25} {data['early_regret']:.1f} regret ({data['early_fraction']*100:.1f}% of total)")
     
-    print(f"\n📈 EARLY-PHASE REGRET (0-500 samples) - η=1.0")
+    print(f"\n📈 EARLY-PHASE REGRET (0-500 samples) - η=1.0 [REAL DATA]")
     print("-" * 80)
-    for strategy, est in early_regret_10.items():
-        print(f"{strategy:<25} {est['early_regret']:.1f} regret ({est['early_fraction']*100:.1f}% of total)")
+    for strategy, data in early_regret_10.items():
+        print(f"{strategy:<25} {data['early_regret']:.1f} regret ({data['early_fraction']*100:.1f}% of total)")
     
     print(f"\n🎯 KEY FINDINGS")
     print("-" * 80)
@@ -318,10 +323,10 @@ def main():
     # Compute alignment
     alignment = compute_alignment(warmup_stats, production_stats)
     
-    # Estimate early regret for both η values
+    # Compute early regret for both η values (using real data, not estimates)
     script_dir = Path(__file__).parent
-    early_regret_01 = estimate_early_regret(script_dir / 'data' / 'results.json', early_samples=500)
-    early_regret_10 = estimate_early_regret(script_dir / 'data' / 'eta_1.0' / 'results.json', early_samples=500)
+    early_regret_01 = compute_early_regret(script_dir / 'data' / 'results.json', early_samples=500)
+    early_regret_10 = compute_early_regret(script_dir / 'data' / 'eta_1.0' / 'results.json', early_samples=500)
     
     # Generate comprehensive report
     report = generate_report(alignment, warmup_stats, production_stats, early_regret_01, early_regret_10)

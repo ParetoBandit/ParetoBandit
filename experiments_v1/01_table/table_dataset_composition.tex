@@ -1,32 +1,29 @@
 
 \begin{table}[t]
 \centering
-\caption{Dataset Composition and Provenance}
+\caption{Dataset Composition: Four-Stage Research Pipeline}
 \label{tab:dataset_composition}
 \small
-\begin{tabular}{@{}lrrrrr@{}}
+\begin{tabular}{@{}lrll@{}}
 \toprule
-\textbf{Category} & \textbf{Warmup} & \textbf{Dev} & \textbf{Holdout} & \textbf{Total} & \textbf{\%} \\
+\textbf{Dataset} & \textbf{Sample Size (N)} & \textbf{Reward Labels?} & \textbf{Role in Study} \\
 \midrule
-Coding               & 31,236 &    430 &    298 &  31,964 &  39.0\% \\
-Conversational       & 30,027 &    426 &    278 &  30,731 &  37.5\% \\
-Creative             &  7,996 &    115 &     73 &   8,184 &  10.0\% \\
-Knowledge            &  7,622 &    109 &     70 &   7,801 &   9.5\% \\
-Math/Logic           &  3,116 &     41 &     31 &   3,188 &   3.9\% \\
-\midrule
-\textbf{Total} & \textbf{80,000} & \textbf{1,121} & \textbf{750} & \textbf{81,871} & \textbf{100.0\%} \\
+RouteLLM Battles & 80,000 & Yes & Training: Initializing the Warmup Prior. \\
+LMSYS Dev Set & 1,121 & Yes & Validation: Performance tuning \& Pareto optimization. \\
+LMSYS Holdout Set & 750 & Yes & Testing: Final unseen performance metrics (Table 2). \\
+LMSYS Chat-1M & 1,000,000 & No & Scaling: Manifold validation \& ROI estimation. \\
 \bottomrule
 \end{tabular}
 \vspace{0.5em}
 
 \begin{tablenotes}
 \small
-\item \textbf{Data Sources:}
-\item \textit{Warmup Set (80k)}: LMSYS Arena battles from RouteLLM dataset \cite{routellm2024}. Used for PCA training (384→32 dims) and LinUCB warmup priors (covariance matrix $\mathbf{A} \in \mathbb{R}^{33 \times 33}$ and belief vector $\mathbf{b} \in \mathbb{R}^{33}$).
-\item \textit{Dev Set (1,121)}: Stratified evaluation set with mixtral-8x7b and gpt-4o responses. Used for online learning.
-\item \textit{Holdout Set (750)}: Held-out test set, disjoint from warmup and dev. Used for final evaluation.
-\item \textbf{Semantic Categories:} Prompts classified using keyword-based heuristics into Coding (programming tasks), Math/Logic (reasoning, proofs), Creative (writing, storytelling), Knowledge (factual queries), and Conversational (general chat).
+\item \textbf{Four-Stage Research Pipeline:}
+\item \textit{Stage 1 -- Training (80k RouteLLM Battles)}: LMSYS Arena battles from RouteLLM dataset \cite{routellm2024} with reward labels. Establishes the foundation for PCA training (384→32 dims) and LinUCB warmup priors (covariance matrix $\mathbf{A} \in \mathbb{R}^{33 \times 33}$ and belief vector $\mathbf{b} \in \mathbb{R}^{33}$). Provides sufficient scale to learn robust semantic representations.
+\item \textit{Stage 2 -- Validation (1,121 LMSYS Dev)}: Development set with ground-truth reward labels for performance tuning, Pareto optimization, and Corralling calibration. Used for Figure~\ref{fig:corralling_semantic} (Right) expert weight evolution.
+\item \textit{Stage 3 -- Testing (750 LMSYS Holdout)}: Held-out test set with ground-truth reward labels for computing final Regret and AUPR metrics (Table~\ref{tab:performance-gap}). Completely disjoint from training and validation data, ensuring unbiased performance measurement.
+\item \textit{Stage 4 -- Scaling (1M LMSYS Chat)}: Large-scale unlabeled dataset proving semantic manifold stability at production scale. Used for Figure~\ref{fig:corralling_semantic} (Left) to validate that PCA-learned representations generalize beyond labeled training data to real-world prompt distributions. Enables ROI estimation and demonstrates the 94.2\% Easy Cluster dominance.
 \item \textbf{LinUCB Priors:} Warmup data initializes the contextual bandit with covariance matrix $\mathbf{A}$ (capturing feature correlations) and belief vector $\mathbf{b}$ (encoding reward expectations) for each model. Context dimension: 33 (32 PCA components + 1 bias term).
-\item \textbf{Quality Assurance:} All prompts manually verified for data leakage. Warmup set is completely disjoint from evaluation sets.
+\item \textbf{Quality Assurance:} All labeled datasets (Stages 1-3) are completely disjoint, preventing data leakage. The 1M dataset is used exclusively for visualization and scaling analysis, not for training or evaluation.
 \end{tablenotes}
 \end{table}

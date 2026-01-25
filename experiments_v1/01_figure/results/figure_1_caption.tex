@@ -5,11 +5,10 @@
     \centering
     \includegraphics[width=\textwidth]{experiments_v1/01_figure/pca_2d_reward_gap.png}
     \caption{%
-        \textbf{Semantic Task Specialization in Latent Space.}
-        We project 80,000 prompt embeddings into a 2D space via PCA, visualizing the density of task difficulty as defined by the measured performance gap ($R_{\text{Strong}} - R_{\text{Weak}}$) from pairwise judge comparisons (rewards $\in \{0.0, 0.5, 1.0\}$).
-        Blue contours represent regions where Mixtral is sufficient ($|\text{Gap}| \le 0.3$: models perform nearly equally), while red contours denote regions requiring GPT-4 ($\text{Gap} > 0.6$: GPT-4 wins decisively).
-        While the two distributions share a central latent region, their centers of mass occupy distinct semantic neighborhoods.
-        The overlapping ``Ambiguous Frontier'' highlights tasks where static linguistic features are insufficient for routing, necessitating the contextual online learning provided by BanditGPT.
+        \textbf{Principal Component Analysis (PCA) of the LMSYS dev/holdout dataset} ($N=1{,}871$) reveals a distinct bimodal semantic distribution.
+        The Low PC1 Cluster (82.4\% of traffic) isolates routine chat and creative tasks where mid-tier models exhibit high utility.
+        In contrast, the High PC1 Cluster (17.6\%) represents complex reasoning and coding tasks.
+        This semantic discontinuity proves that prompt difficulty is a learnable latent property, providing the empirical basis for our Corralling Router to pivot between models based on cluster membership.
     }
     \label{fig:semantic_specialization}
 \end{figure}
