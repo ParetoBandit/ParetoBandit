@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 4: Pareto Frontier - The Competitive Victory
+Figure 5: Pareto Frontier - The Competitive Victory
 
 This script demonstrates how banditGPT Hybrid (η=1.0) defines a new Pareto Frontier,
 consistently outperforming RouteLLM-style baselines across all budget tiers.
@@ -290,7 +290,7 @@ def routellm_routing_sequential(prompts_data: List[Dict], controller: Controller
 
 
 # =============================================================================
-# FIXED PARETO GENERATION LOGIC (KDD PRODUCTION VERSION)
+# FIXED PARETO GENERATION LOGIC (PRODUCTION VERSION)
 # =============================================================================
 
 def normalize_prior_strength(priors: Dict, target_sample_size: float = 10.0) -> Dict:
@@ -543,12 +543,15 @@ def banditgpt_hybrid_routing(train_data: List[Dict], eval_data: List[Dict],
 
 def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict], 
                             model_costs: Dict, encoder: SentenceTransformer, 
-                            pca, warmup_priors: Dict) -> Dict[str, List[Tuple[float, float]]]:
+                            pca, warmup_priors: Dict) -> Tuple[Dict[str, List[Tuple[float, float]]], Dict]:
     """
     Generate Pareto frontier using REAL data only.
     
     IMPORTANT: All methods evaluated on eval_data (holdout).
                banditGPT trains on train_data first, then evaluates on eval_data.
+    
+    Returns:
+        (results, stats): Results dict with (cost, reward) tuples and stats dict with standard deviations
     """
     logger.info("\n" + "="*70)
     logger.info("GENERATING PARETO FRONTIER (REAL DATA ONLY)")
@@ -687,6 +690,7 @@ def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict],
         logger.info(f"   {model_costs[model_id]['name']}: ${raw_cost:.6f} → {normalized:.4f}")
     
     hybrid_points = []
+    hybrid_stats = []  # Track standard deviations
     
     # Sweep cost penalties (normalized)
     # CRITICAL FIX: λ must be commensurate with reward range [0,1]
@@ -715,19 +719,34 @@ def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict],
         
         avg_reward = np.mean(trial_rewards)
         avg_cost = np.mean(trial_costs)
+        std_reward = np.std(trial_rewards, ddof=1) if len(trial_rewards) > 1 else 0.0
+        std_cost = np.std(trial_costs, ddof=1) if len(trial_costs) > 1 else 0.0
         
         if avg_reward > 0:
             hybrid_points.append((avg_cost, avg_reward))
+            hybrid_stats.append({
+                "cost_std": std_cost,
+                "reward_std": std_reward,
+                "n_trials": len(trial_rewards)
+            })
         
-        logger.info(f"   [{i}/{len(cost_penalties)}] λ={lambda_val:.1f}: Reward={avg_reward:.4f}, Cost=${avg_cost:.6f} (5 trials)")
+        logger.info(f"   [{i}/{len(cost_penalties)}] λ={lambda_val:.1f}: "
+                   f"Reward={avg_reward:.4f}±{std_reward:.4f}, "
+                   f"Cost=${avg_cost:.6f}±${std_cost:.6f} (5 trials)")
     
     results["banditGPT-Hybrid"] = hybrid_points
     logger.info(f"   ✓ Generated {len(hybrid_points)} points")
     
-    # Save final intermediate
-    save_results(results, output_dir, len(eval_data), prefix="intermediate_")
+    # Prepare stats dictionary
+    stats = {
+        "banditGPT-Hybrid": hybrid_stats
+    }
     
-    return results
+    # Save final results with statistics
+    save_results(results, output_dir, len(eval_data), prefix="intermediate_",
+                include_stats=True, stats_data=stats)
+    
+    return results, stats
 
 
 # =============================================================================
@@ -763,12 +782,14 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
                       color=colors[strategy], marker='*',
                       label=strategy, edgecolors='black', linewidths=2.5, zorder=10)
         elif strategy == "RouteLLM-MF":
-            # [KDD STANDARD] Apply convex hull to RouteLLM too (fair comparison)
+            # Apply convex hull to RouteLLM too (fair comparison)
             sorted_points = sorted(points, key=lambda x: x[0])
             
-            # Convex Hull: Keep only Pareto-optimal points
+            # Convex Hull: Keep only Pareto-optimal points and identify dominated ones
             hull_costs = []
             hull_rewards = []
+            dominated_costs = []
+            dominated_rewards = []
             current_max_reward = -float('inf')
             
             for c, r in sorted_points:
@@ -776,18 +797,29 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
                     hull_costs.append(c)
                     hull_rewards.append(r)
                     current_max_reward = r
+                else:
+                    # This point is dominated
+                    dominated_costs.append(c)
+                    dominated_rewards.append(r)
             
-            # Plot frontier
+            # Plot frontier line
             ax.plot(hull_costs, hull_rewards, 
                    color=colors[strategy], linewidth=3.5, 
                    label=f'{strategy} (Pareto Frontier)', alpha=0.85, marker='o', markersize=7)
             
-            # Show raw points faintly
+            # Show all raw points faintly (including dominated)
             raw_c = [p[0] for p in points]
             raw_r = [p[1] for p in points]
             ax.scatter(raw_c, raw_r, color=colors[strategy], alpha=0.2, s=30, zorder=1)
+            
+            # Explicitly mark dominated points with X
+            if dominated_costs:
+                ax.scatter(dominated_costs, dominated_rewards, 
+                          color=colors[strategy], marker='x', s=200, 
+                          linewidths=3, alpha=0.9, zorder=5,
+                          label=f'{strategy} (Dominated)')
         elif strategy == "banditGPT-Hybrid":
-            # [KDD STANDARD] Plot the Pareto Frontier (Convex Hull), not raw sweep points
+            # Plot the Pareto Frontier (Convex Hull), not raw sweep points
             # This eliminates non-monotonic "dips" that suggest instability
             
             # Sort by cost
@@ -796,6 +828,8 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
             # Convex Hull Logic: Keep point only if it improves Reward over previous max
             hull_costs = []
             hull_rewards = []
+            dominated_costs = []
+            dominated_rewards = []
             current_max_reward = -float('inf')
             
             for c, r in sorted_points:
@@ -803,16 +837,27 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
                     hull_costs.append(c)
                     hull_rewards.append(r)
                     current_max_reward = r
+                else:
+                    # This point is dominated
+                    dominated_costs.append(c)
+                    dominated_rewards.append(r)
             
             # Plot the clean Frontier line
             ax.plot(hull_costs, hull_rewards, 
                    color=colors[strategy], linewidth=3.5, 
                    label=f'{strategy} (Pareto Frontier)', alpha=0.9, marker='D', markersize=7)
             
-            # Plot raw points faintly to show scientific honesty
+            # Plot all raw points faintly to show scientific honesty
             raw_c = [p[0] for p in points]
             raw_r = [p[1] for p in points]
             ax.scatter(raw_c, raw_r, color=colors[strategy], alpha=0.3, s=30, zorder=1)
+            
+            # Explicitly mark dominated points with X
+            if dominated_costs:
+                ax.scatter(dominated_costs, dominated_rewards, 
+                          color=colors[strategy], marker='x', s=200, 
+                          linewidths=3, alpha=0.9, zorder=5,
+                          label=f'{strategy} (Dominated)')
     
     # Production standard line
     production_quality = 0.80
@@ -822,43 +867,78 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
     ax.set_xlabel('Average Cost per Request ($)', fontsize=17, fontweight='bold')
     ax.set_ylabel('Average Reward (Quality)', fontsize=17, fontweight='bold')
     ax.set_title(
-        'Figure 4: Pareto Frontier - The Competitive Victory\n'
+        'Figure 5: Pareto Frontier - The Competitive Victory\n'
         f'banditGPT Hybrid Dominates Across All Budget Tiers (N={n_prompts:,})',
         fontsize=19, fontweight='bold', pad=20
     )
     
     ax.grid(True, alpha=0.3, linestyle='--', linewidth=1)
-    ax.legend(loc='upper right', fontsize=13, framealpha=0.95, ncol=2)
+    
+    # Organize legend with better grouping
+    handles, labels = ax.get_legend_handles_labels()
+    # Reorder to group by method: Oracle, banditGPT (frontier + dominated), RouteLLM (frontier + dominated), Static models, Production line
+    ax.legend(loc='lower right', fontsize=12, framealpha=0.95, ncol=2, 
+             columnspacing=1.0, handletextpad=0.5)
+    
     ax.set_xlim(left=-0.0005)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:.4f}'))
     
     plt.tight_layout()
     
-    output_file = output_dir / 'figure4_pareto_frontier.png'
+    output_file = output_dir / 'figure5_pareto_frontier.png'
     plt.savefig(output_file, dpi=300, bbox_inches='tight', facecolor='white')
     logger.info(f"\n✅ Saved: {output_file}")
     
-    output_file_hires = output_dir / 'figure4_pareto_frontier_hires.png'
+    output_file_hires = output_dir / 'figure5_pareto_frontier_hires.png'
     plt.savefig(output_file_hires, dpi=600, bbox_inches='tight', facecolor='white')
     logger.info(f"✅ Saved high-res: {output_file_hires}")
     
     plt.close()
 
 
-def save_results(results: Dict, output_dir: Path, n_prompts: int, prefix: str = ""):
-    """Save results to JSON."""
+def save_results(results: Dict, output_dir: Path, n_prompts: int, prefix: str = "", 
+                 include_stats: bool = False, stats_data: Dict = None):
+    """
+    Save results to JSON with optional statistical information.
+    
+    Args:
+        results: Dict of strategy -> list of (cost, reward) tuples
+        output_dir: Output directory path
+        n_prompts: Number of prompts in evaluation
+        prefix: Optional filename prefix
+        include_stats: Whether to include standard deviation data
+        stats_data: Optional dict with strategy -> list of statistics per point
+    """
     filename = f'{prefix}pareto_results.json' if prefix else 'pareto_results.json'
     output_file = output_dir / filename
+    
+    strategies_data = {}
+    for strategy, points in results.items():
+        if include_stats and stats_data and strategy in stats_data:
+            # Include standard deviations for methods with multiple trials
+            strategies_data[strategy] = [
+                {
+                    "cost": float(c), 
+                    "reward": float(r),
+                    "cost_std": float(stats_data[strategy][i].get("cost_std", 0.0)),
+                    "reward_std": float(stats_data[strategy][i].get("reward_std", 0.0))
+                }
+                for i, (c, r) in enumerate(points)
+            ]
+        else:
+            # No stats available (deterministic baselines)
+            strategies_data[strategy] = [
+                {"cost": float(c), "reward": float(r)} 
+                for c, r in points
+            ]
     
     results_serializable = {
         "metadata": {
             "n_prompts": n_prompts,
-            "description": "Pareto frontier - REAL DATA ONLY"
+            "description": "Pareto frontier - REAL DATA ONLY",
+            "includes_statistics": include_stats
         },
-        "strategies": {
-            strategy: [{"cost": float(c), "reward": float(r)} for c, r in points]
-            for strategy, points in results.items()
-        }
+        "strategies": strategies_data
     }
     
     with open(output_file, 'w') as f:
@@ -873,7 +953,7 @@ def save_results(results: Dict, output_dir: Path, n_prompts: int, prefix: str = 
 
 def main():
     logger.info("="*70)
-    logger.info("FIGURE 4: PARETO FRONTIER ANALYSIS")
+    logger.info("FIGURE 5: PARETO FRONTIER ANALYSIS")
     logger.info("="*70)
     logger.info("\n⚠️  REAL DATA ONLY - NO SYNTHETIC FALLBACKS")
     logger.info("📊 Proper Train/Test Split:")
@@ -905,15 +985,16 @@ def main():
     logger.info(f"  ✓ PCA: {DEFAULT_PCA_PATH}")
     
     # Generate Pareto frontier
-    results = generate_pareto_frontier(train_data, eval_data, model_costs, encoder, pca, warmup_priors)
+    results, result_stats = generate_pareto_frontier(train_data, eval_data, model_costs, encoder, pca, warmup_priors)
     
     # Visualize
     output_dir = Path(__file__).parent / "results"
     logger.info("\n🎨 Creating visualizations...")
     plot_pareto_frontier(results, stats["eval_prompts"], output_dir)
     
-    # Save
-    save_results(results, output_dir, stats["eval_prompts"])
+    # Save final results with statistics
+    save_results(results, output_dir, stats["eval_prompts"], 
+                include_stats=True, stats_data=result_stats)
     
     logger.info("\n" + "="*70)
     logger.info("✅ PARETO FRONTIER ANALYSIS COMPLETE!")

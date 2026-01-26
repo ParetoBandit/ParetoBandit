@@ -1,5 +1,5 @@
-% Complete Data Points for Figure 4: Pareto Frontier
-% All experimental results for KDD submission
+% Complete Data Points for Figure 5: Pareto Frontier
+% All experimental results
 
 \section*{Appendix: Complete Experimental Data}
 
@@ -78,7 +78,7 @@ $\tau$ & \textbf{Cost (\$/req)} & \textbf{Reward} & \textbf{Status} & \textbf{No
 0.10 & 0.008477 & 0.8453 & Dominated & \textcolor{blue}{Added: High cost} \\
 0.08 & 0.010493 & 0.8227 & Dominated & \textcolor{blue}{Added: High cost} \\
 0.04 & 0.012661 & 0.8107 & Dominated & Significant degradation \\
-0.00 & 0.013000 & 0.8120 & Dominated & Pure GPT-4 (worst) \\
+0.00 & 0.013000 & 0.8120 & Dominated & Pure GPT-4-Turbo (worst) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -109,18 +109,18 @@ Oracle & 0.001954 & 0.9533 & 6.6$\times$ (+15.9\% quality) \\
 \end{tabular}
 \end{table}
 
-\textbf{The ``Stupidity Tax'' Phenomenon:}
+\textbf{The ``Negative Intelligence Tax'' Phenomenon:}
 
-This dataset exhibits a rare but scientifically significant pattern: the expensive model (GPT-4) performs \textit{worse} on average than the cheap model (Mistral). This creates a ``Stupidity Tax'' where users pay $43\times$ more to \textit{decrease} quality by $1.3\%$.
+This dataset exhibits a rare but scientifically significant pattern: the expensive model (GPT-4-Turbo) performs \textit{worse} on average than the cheap model (Mistral). This creates a ``Negative Intelligence Tax'' where users pay $43\times$ more to \textit{decrease} quality by $1.3\%$.
 
 This inversion occurs because:
 \begin{itemize}
     \item \textbf{Domain Specialization:} Mistral excels on the $94.2\%$ of routine, domain-specific prompts
-    \item \textbf{Overengineering Penalty:} GPT-4 introduces unnecessary latency and generalization bias
-    \item \textbf{Sparse Hard Cluster:} Only $\sim 6\%$ of prompts truly benefit from GPT-4's reasoning
+    \item \textbf{Overengineering Penalty:} GPT-4-Turbo introduces unnecessary latency and generalization bias
+    \item \textbf{Sparse Hard Cluster:} Only $\sim 6\%$ of prompts truly benefit from GPT-4-Turbo's reasoning
 \end{itemize}
 
-The Oracle demonstrates that \textit{perfect routing} can extract value from the expensive model (achieving 0.953 at only $6.6\times$ cost), but this requires identifying the exact prompts where GPT-4 outperforms---a task that static routers fail at catastrophically.
+The Oracle demonstrates that \textit{perfect routing} can extract value from the expensive model (achieving 0.953 at only $6.6\times$ cost), but this requires identifying the exact prompts where GPT-4-Turbo outperforms---a task that static routers fail at catastrophically.
 
 \subsection*{Data Collection Timeline}
 
@@ -178,7 +178,7 @@ RouteLLM-MF & 28 & 10 (36\%) & 18 (64\%) \\
 \begin{itemize}
     \item \texttt{pareto\_results\_final.json} - Complete experimental data
     \item \texttt{priors\_warmup\_normalized.joblib} - Sanitized warmup priors
-    \item \texttt{figure4\_pareto\_with\_dominated.png} - Publication figure
+    \item \texttt{figure5\_pareto\_with\_dominated.png} - Publication figure
 \end{itemize}
 
 \textbf{Seeds Used:}

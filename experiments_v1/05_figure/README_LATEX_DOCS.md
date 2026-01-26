@@ -1,6 +1,6 @@
-# KDD LaTeX Documentation - Complete Package
+# LaTeX Documentation - Complete Package
 
-This directory contains all LaTeX files and data needed for the KDD submission of Figure 4 (Pareto Frontier experiment).
+This directory contains all LaTeX files and data needed for Figure 5 (Pareto Frontier experiment).
 
 ## 📄 LaTeX Files (Ready to Copy-Paste)
 
@@ -8,7 +8,7 @@ This directory contains all LaTeX files and data needed for the KDD submission o
 
 **`PARETO_FRONTIER_METHODOLOGY.tex`** - Core paper content
 - **Section 4**: Experimental Methodology
-  - Datasets and Models (N=1,871 prompts, Mistral vs GPT-4)
+  - Datasets and Models (N=1,871 prompts, Mistral vs GPT-4-Turbo)
   - Baselines (Static, Oracle, RouteLLM-MF)
   - Proposed Method (banditGPT-Hybrid with dual experts)
   - Evaluation Protocol (Zero-Leakage Protocol)
@@ -51,8 +51,8 @@ This directory contains all LaTeX files and data needed for the KDD submission o
   - All metadata (λ values, thresholds, timestamps)
 
 ### Figures
-- **`results/figure4_pareto_with_dominated.png`** (300 dpi)
-- **`results/figure4_pareto_with_dominated_hires.png`** (600 dpi)
+- **`results/figure5_pareto_with_dominated.png`** (300 dpi)
+- **`results/figure5_pareto_with_dominated_hires.png`** (600 dpi)
 
 ## 📈 Key Results at a Glance
 
@@ -75,7 +75,7 @@ Quality Span: 0.8227 - 0.9088 (+10.5%)
 τ=0.15 → $0.006511, Reward: 0.8827 ⭐ PEAK (then degrades)
 τ=0.10 → $0.008477, Reward: 0.8453 ❌ Dominated
 τ=0.08 → $0.010493, Reward: 0.8227 ❌ Dominated
-τ=0.00 → $0.013000, Reward: 0.8120 ❌ Dominated (Pure GPT-4)
+τ=0.00 → $0.013000, Reward: 0.8120 ❌ Dominated (Pure GPT-4-Turbo)
 
 Pareto Frontier: 10 points (36% efficient)
 Dominated Points: 18 (especially $0.008-$0.013 range)
@@ -86,13 +86,13 @@ Dominated Points: 18 (especially $0.008-$0.013 range)
 - **Oracle Gap**: Closed 66.2% (vs RouteLLM's 53.8%)
 - **Intelligence Tax**: RouteLLM loses quality beyond $0.0065
 
-## 🎯 For KDD Submission
+## 🎯 For Submission
 
 ### Copy to Paper (Sections 4 & 5)
 1. Open `PARETO_FRONTIER_METHODOLOGY.tex`
 2. Copy entire contents to your main paper
 3. Adjust section numbering if needed
-4. Compile with standard KDD template
+4. Compile with standard template
 
 ### Copy to Appendix
 1. Open `COMPLETE_DATA_POINTS.tex`
@@ -147,13 +147,13 @@ from training set only).
 | Summary tables | `RESULTS_SUMMARY.tex` | Tables 2-3 |
 | Complete data | `COMPLETE_DATA_POINTS.tex` | Appendix |
 | Raw numbers | `results/pareto_results_final.json` | Data file |
-| Checklist | `KDD_SUBMISSION_CHECKLIST.md` | Reference |
+| Checklist | `SUBMISSION_CHECKLIST.md` | Reference |
 
 ## 🚀 Quick Start for Paper Writing
 
 1. **Add Methods**: Copy Section 4 from `PARETO_FRONTIER_METHODOLOGY.tex`
 2. **Add Results**: Copy Section 5 from `PARETO_FRONTIER_METHODOLOGY.tex`
-3. **Add Figure**: Use `figure4_pareto_with_dominated.png` with caption from `RESULTS_SUMMARY.tex`
+3. **Add Figure**: Use `figure5_pareto_with_dominated.png` with caption from `RESULTS_SUMMARY.tex`
 4. **Add Tables**: Copy Tables 2-3 from `RESULTS_SUMMARY.tex`
 5. **Add Appendix**: Copy from `COMPLETE_DATA_POINTS.tex` (optional, for full transparency)
 
@@ -169,7 +169,7 @@ All anticipated questions addressed in `RESULTS_SUMMARY.tex` Section: "Anticipat
 
 ## ✅ Status
 
-**All LaTeX documentation complete and KDD-compliant.**
+**All LaTeX documentation complete.**
 
 - Total: 3 LaTeX files (2,500+ lines)
 - Format: Ready for ACM Reference Format
@@ -182,4 +182,4 @@ All anticipated questions addressed in `RESULTS_SUMMARY.tex` Section: "Anticipat
 
 **Last Updated**: January 25, 2026  
 **Experiment Date**: January 25, 2026, 13:01-14:43 PM  
-**Status**: ✅ Ready for KDD 2026 Submission
+**Status**: ✅ Ready for Submission

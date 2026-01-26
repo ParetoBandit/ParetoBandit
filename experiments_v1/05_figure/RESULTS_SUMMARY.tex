@@ -1,9 +1,9 @@
-% KDD Figure 4 - Results Summary and Caption
+% Figure 5 - Results Summary and Caption
 % Complete numerical results for the Pareto Frontier experiment
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/figure4_pareto_with_dominated.png}
+\includegraphics[width=0.95\textwidth]{figures/figure5_pareto_with_dominated.png}
 \caption{\textbf{Pareto Frontier: The Competitive Victory.} 
 \texttt{banditGPT-Hybrid} (blue diamonds) dominates RouteLLM-MF (red circles) across all quality tiers. 
 \textbf{Key Observations:} 
@@ -23,7 +23,7 @@ Evaluation on $N=750$ holdout prompts with strict zero-leakage protocol (normali
 
 \subsection*{Table 2: Comparative Performance at Peak Quality}
 
-\textit{Unlike static policies where upgrading to GPT-4 incurs a $43\times$ cost increase for a net quality loss ($-1.3\%$), banditGPT-Hybrid successfully leverages the expensive model to unlock a $+10.4\%$ quality gain while still costing $27\%$ less than the GPT-4 baseline.}
+\textit{Unlike static policies where upgrading to GPT-4-Turbo incurs a $43\times$ cost increase for a net quality loss ($-1.3\%$), banditGPT-Hybrid successfully leverages the expensive model to unlock a $+10.4\%$ quality gain while still costing $27\%$ less than the GPT-4-Turbo baseline.}
 
 \vspace{1em}
 
@@ -48,9 +48,9 @@ Evaluation on $N=750$ holdout prompts with strict zero-leakage protocol (normali
 \textbf{Key Narrative Points:}
 
 \begin{enumerate}
-    \item \textbf{The ``Stupidity Tax''}: Static users pay $43\times$ more to get $1.3\%$ worse quality
+    \item \textbf{The ``Negative Intelligence Tax''}: Static users pay $43\times$ more to get $1.3\%$ worse quality
     \item \textbf{Synergistic Breakout}: banditGPT exceeds both individual models ($0.909 > 0.823, 0.812$)
-    \item \textbf{Budget Efficiency}: Achieves $27\%$ lower cost than GPT-4 while delivering $+11.9\%$ better quality
+    \item \textbf{Budget Efficiency}: Achieves $27\%$ lower cost than GPT-4-Turbo while delivering $+11.9\%$ better quality
     \item \textbf{Oracle Gap}: Closes $66.2\%$ of the gap (vs RouteLLM's $46.2\%$)
 \end{enumerate}
 
@@ -75,7 +75,7 @@ Oracle & \multicolumn{2}{c}{\$0.001954} & \multicolumn{2}{c}{0.953} \\
     \item Worst Point: \$0.012661 @ Reward 0.811 (\textbf{8.1\% degradation} from peak)
 \end{itemize}
 
-\textbf{Key Insight:} This demonstrates the ``Intelligence Tax''---RouteLLM's threshold-based approach cannot distinguish between prompts where GPT-4 helps vs. hurts, leading to negative returns on investment beyond \$0.0065.
+\textbf{Key Insight:} This demonstrates the ``Intelligence Tax''---RouteLLM's threshold-based approach cannot distinguish between prompts where GPT-4-Turbo helps vs. hurts, leading to negative returns on investment beyond \$0.0065.
 
 \subsection*{Quality Improvement Metrics}
 
@@ -117,7 +117,8 @@ At comparable cost (\$0.009), \texttt{banditGPT} achieves \textbf{10.5\% higher 
 
 \textbf{RouteLLM Configuration:}
 \begin{itemize}
-    \item Router: Matrix Factorization (pre-trained on Augment-100k)
+    \item Router: Matrix Factorization (MF) variant~\cite{routellm2024}
+    \item Pre-training: Augment-100k dataset (80k preference battles)
     \item Thresholds: 28 values from $\tau \in [0.0, 1.0]$
     \item Processing: Sequential (rate-limit compliant, 750 prompts × 28 thresholds)
     \item Total API calls: 21,000 embeddings
@@ -139,7 +140,7 @@ At comparable cost (\$0.009), \texttt{banditGPT} achieves \textbf{10.5\% higher 
 
 All \texttt{banditGPT} results represent means over 5 trials. Standard errors were negligible ($< 0.002$ reward, $< \$0.0001$ cost) due to the large holdout set ($N=750$) and stable learned policies. The 2.9\% quality improvement over RouteLLM's peak is statistically significant at $p < 0.001$ (paired t-test).
 
-\subsection*{Key Takeaways for KDD Reviewers}
+\subsection*{Key Takeaways}
 
 \begin{enumerate}
     \item \textbf{The ``Inverted U'' is Real:} RouteLLM's non-monotonic behavior (18 dominated points) is not an artifact but a fundamental limitation of threshold-based routing on inverted-quality distributions.
@@ -161,7 +162,7 @@ All \texttt{banditGPT} results represent means over 5 trials. Standard errors we
 
 \textbf{Q1: Why does RouteLLM perform worse at higher costs?}
 
-A: RouteLLM uses a pre-trained threshold calibrated on aggregate statistics. On our dataset, Mistral outperforms GPT-4 on average (0.823 vs. 0.812). When RouteLLM's threshold forces more GPT-4 usage, it allocates the expensive model to prompts where it actually hurts quality. \texttt{banditGPT} learns this inversion online, using GPT-4 only for the \textasciitilde6\% of prompts where it genuinely helps.
+A: RouteLLM uses a pre-trained threshold calibrated on aggregate statistics. On our dataset, Mistral outperforms GPT-4-Turbo on average (0.823 vs. 0.812). When RouteLLM's threshold forces more GPT-4-Turbo usage, it allocates the expensive model to prompts where it actually hurts quality. \texttt{banditGPT} learns this inversion online, using GPT-4-Turbo only for the \textasciitilde6\% of prompts where it genuinely helps.
 
 \textbf{Q2: Is the gap in RouteLLM's curve due to insufficient threshold sampling?}
 

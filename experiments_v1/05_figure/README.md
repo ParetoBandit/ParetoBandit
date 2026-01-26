@@ -1,15 +1,15 @@
-# Figure 4: Pareto Frontier Experiment
+# Figure 5: Pareto Frontier Experiment
 
 **Complete experimental validation of banditGPT-Hybrid vs. RouteLLM-MF**
 
-This directory contains the finalized scripts, data, and KDD-compliant LaTeX documentation for Figure 4 (Pareto Frontier) of the banditGPT paper.
+This directory contains the finalized scripts, data, and LaTeX documentation for Figure 5 (Pareto Frontier) of the banditGPT paper.
 
 ---
 
 ## 📁 Directory Structure
 
 ```
-04_figure/
+05_figure/
 ├── generate_pareto_frontier.py          # Main experiment script
 ├── sanitize_priors.py                   # Prior normalization (Neff=10)
 ├── check_calibration.py                 # Calibration verification tool
@@ -18,13 +18,13 @@ This directory contains the finalized scripts, data, and KDD-compliant LaTeX doc
 ├── RESULTS_SUMMARY.tex                  # Figure caption & tables
 ├── COMPLETE_DATA_POINTS.tex             # Appendix (all 38 points)
 │
-├── README_KDD_LATEX_DOCS.md             # LaTeX usage guide
-├── KDD_FILES_INDEX.md                   # Master file index
+├── README_LATEX_DOCS.md                 # LaTeX usage guide
+├── FILES_INDEX.md                       # Master file index
 │
 └── results/
     ├── pareto_results_final.json        # Complete experimental data
-    ├── figure4_pareto_with_dominated.png      # Main figure (300 dpi)
-    └── figure4_pareto_with_dominated_hires.png # High-res (600 dpi)
+    ├── figure5_pareto_with_dominated.png      # Main figure (300 dpi)
+    └── figure5_pareto_with_dominated_hires.png # High-res (600 dpi)
 ```
 
 ---
@@ -35,14 +35,14 @@ This directory contains the finalized scripts, data, and KDD-compliant LaTeX doc
 
 ```bash
 # Ensure you're in the correct directory
-cd experiments_v1/04_figure/
+cd experiments_v1/05_figure/
 
 # Run the complete Pareto frontier sweep (takes ~50 min)
 python generate_pareto_frontier.py
 
 # Results will be saved to:
 # - results/pareto_results_final.json
-# - results/figure4_pareto_with_dominated.png
+# - results/figure5_pareto_with_dominated.png
 ```
 
 ### Generate the Plot Only
@@ -61,7 +61,7 @@ If you already have `pareto_results_final.json`:
 ### Key Findings
 
 **The "Negative Intelligence Tax"**
-- GPT-4 costs **43× more** than Mixtral but delivers **1.3% worse** quality (0.812 vs 0.823)
+- GPT-4-Turbo costs **43× more** than Mixtral but delivers **1.3% worse** quality (0.812 vs 0.823)
 - This makes adaptive routing not just "efficient" but **necessary** to extract value
 
 **banditGPT Victory**
@@ -84,7 +84,7 @@ If you already have `pareto_results_final.json`:
 
 ---
 
-## 📝 LaTeX Documentation (KDD-Compliant)
+## 📝 LaTeX Documentation
 
 ### For Your Paper
 
@@ -95,10 +95,10 @@ If you already have `pareto_results_final.json`:
 2. **Results Section**
    - File: `PARETO_FRONTIER_METHODOLOGY.tex`
    - Copy: Section 5 (Results and Discussion)
-   - Includes: "The Stupidity Tax", "The Synergistic Breakout", "Inverted U Analysis"
+   - Includes: "The Negative Intelligence Tax", "The Synergistic Breakout", "Inverted U Analysis"
 
-3. **Figure 4**
-   - Image: `results/figure4_pareto_with_dominated.png`
+3. **Figure 5**
+   - Image: `results/figure5_pareto_with_dominated.png`
    - Caption: Use from `RESULTS_SUMMARY.tex`
    - Table 2: Copy from `PARETO_FRONTIER_METHODOLOGY.tex`
 
@@ -108,8 +108,8 @@ If you already have `pareto_results_final.json`:
 
 ### Documentation Guide
 
-- **`README_KDD_LATEX_DOCS.md`** - Detailed usage instructions
-- **`KDD_FILES_INDEX.md`** - Master index with quick copy-paste guide
+- **`README_LATEX_DOCS.md`** - Detailed usage instructions
+- **`FILES_INDEX.md`** - Master index with quick copy-paste guide
 
 ---
 
@@ -134,7 +134,8 @@ If you already have `pareto_results_final.json`:
 - **Trials**: 5 independent runs per λ (seeds 42-46)
 
 ### RouteLLM Configuration
-- **Router**: Matrix Factorization (pre-trained on Augment-100k)
+- **Router**: Matrix Factorization (MF variant, pre-trained on Augment-100k dataset)
+- **Reference**: Ong et al. (2024) - RouteLLM: Learning to Route LLMs with Preference Data
 - **Thresholds**: 28 values from τ ∈ [0.0, 1.0]
 - **Processing**: Sequential (rate-limit compliant)
 
@@ -162,7 +163,7 @@ If you already have `pareto_results_final.json`:
 
 **Outputs:**
 - `results/pareto_results_final.json` - Complete data (38 points)
-- `results/figure4_pareto_with_dominated.png` - Main figure
+- `results/figure5_pareto_with_dominated.png` - Main figure
 
 **Runtime:** ~50 minutes (10 banditGPT trials + 28 RouteLLM thresholds)
 
@@ -285,7 +286,7 @@ If you use this experimental setup or data, please cite:
 @inproceedings{banditgpt2026,
   title={banditGPT: Adaptive LLM Routing via Online Learning},
   author={[Your Name]},
-  booktitle={Proceedings of the 32nd ACM SIGKDD Conference},
+  booktitle={Proceedings of the Conference},
   year={2026}
 }
 ```
@@ -296,18 +297,18 @@ If you use this experimental setup or data, please cite:
 
 For questions about:
 - **Experiment execution**: Check `generate_pareto_frontier.py` docstrings
-- **LaTeX documentation**: See `README_KDD_LATEX_DOCS.md`
+- **LaTeX documentation**: See `README_LATEX_DOCS.md`
 - **Data format**: See `COMPLETE_DATA_POINTS.tex`
 
 ---
 
 ## ✅ Status
 
-**All files verified and ready for KDD 2026 submission**
+**All files verified and ready for publication**
 
 - ✅ Scripts tested and reproducible
 - ✅ Data verified (38 points, zero leakage)
-- ✅ LaTeX KDD-compliant
+- ✅ LaTeX compliant
 - ✅ Figures publication-ready (300 + 600 dpi)
 - ✅ "Negative Intelligence Tax" narrative complete
 

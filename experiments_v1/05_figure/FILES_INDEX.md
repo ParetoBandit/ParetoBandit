@@ -1,4 +1,4 @@
-# KDD Submission Files - Complete Index
+# Submission Files - Complete Index
 
 ## 📄 PRIMARY LaTeX FILES FOR PAPER
 
@@ -7,7 +7,7 @@
 
 **Contents**:
 - **Section 4**: Experimental Methodology
-  - 4.1: Datasets and Models (N=1,871, Mistral vs GPT-4)
+  - 4.1: Datasets and Models (N=1,871, Mistral vs GPT-4-Turbo)
   - 4.2: Baselines (Static, Oracle, RouteLLM-MF)
   - 4.3: Proposed Method (banditGPT-Hybrid)
   - 4.4: Evaluation Protocol (Zero-Leakage)
@@ -25,7 +25,7 @@
 - ✅ All numbers verified from `pareto_results_final.json`
 - ✅ Addresses data leakage concerns explicitly
 
-**Use**: Copy Sections 4-5 directly into your KDD paper
+**Use**: Copy Sections 4-5 directly into your paper
 
 ---
 
@@ -94,7 +94,7 @@
 
 ---
 
-### 6. **README_KDD_LATEX_DOCS.md**
+### 6. **README_LATEX_DOCS.md**
 **Purpose**: Quick-start guide for using the LaTeX files
 
 **Contents**:
@@ -108,7 +108,7 @@
 
 ---
 
-### 7. **KDD_SUBMISSION_CHECKLIST.md**
+### 7. **SUBMISSION_CHECKLIST.md**
 **Purpose**: Final pre-submission checklist
 
 **Contents**:
@@ -118,7 +118,7 @@
 - Reviewer rebuttals prepared
 - All requirements met
 
-**Use**: Final check before submitting to KDD
+**Use**: Final check before submission
 
 ---
 
@@ -131,8 +131,8 @@
   - All metadata preserved
 
 ### Figures
-- **`results/figure4_pareto_with_dominated.png`** (300 dpi)
-- **`results/figure4_pareto_with_dominated_hires.png`** (600 dpi)
+- **`results/figure5_pareto_with_dominated.png`** (300 dpi)
+- **`results/figure5_pareto_with_dominated_hires.png`** (600 dpi)
 
 ### Priors
 - **`priors_warmup_normalized.joblib`** - Sanitized warmup priors (Neff=10)
@@ -145,7 +145,7 @@
 Previously, Table 2 showed standard "efficiency trade-offs." Now it highlights:
 
 1. **"The Stupidity Tax"** 
-   - GPT-4 costs 43× more but delivers 1.3% WORSE quality
+   - GPT-4-Turbo costs 43× more but delivers 1.3% WORSE quality
    - Unique finding that sets your paper apart
 
 2. **"The Synergistic Breakout"**
@@ -181,9 +181,9 @@ This makes your contribution more scientifically significant and memorable.
    Paste: Into your paper's Results section
    ```
 
-3. **Figure 4**:
+3. **Figure 5**:
    ```
-   Image: results/figure4_pareto_with_dominated.png
+   Image: results/figure5_pareto_with_dominated.png
    Caption: Use from RESULTS_SUMMARY.tex (lines 1-20)
    ```
 
@@ -229,7 +229,7 @@ Use these exact phrases (verified against data):
 ## ✅ FINAL STATUS
 
 **All LaTeX files are**:
-- ✅ KDD-compliant formatting
+- ✅ Standard formatting
 - ✅ Verified against actual data
 - ✅ Ready to copy-paste
 - ✅ Include all 38 data points (10 banditGPT + 28 RouteLLM)
@@ -255,13 +255,13 @@ Use these exact phrases (verified against data):
 | All data points | `COMPLETE_DATA_POINTS.tex` | Tables A1-A3 |
 | Narrative guide | `NEGATIVE_INTELLIGENCE_TAX_SUMMARY.md` | Full doc |
 | Verification | `TABLE2_VERIFICATION.md` | Full doc |
-| Quick start | `README_KDD_LATEX_DOCS.md` | Full doc |
-| Final checklist | `KDD_SUBMISSION_CHECKLIST.md` | Full doc |
+| Quick start | `README_LATEX_DOCS.md` | Full doc |
+| Final checklist | `SUBMISSION_CHECKLIST.md` | Full doc |
 
 ---
 
 **Last Updated**: January 25, 2026  
 **Experiment Completed**: January 25, 2026, 13:01-14:43 PM  
-**Status**: 🎉 Ready for KDD 2026 Submission  
+**Status**: 🎉 Ready for Submission  
 **Location**: `/Users/annette/repostitories/banditGPT/experiments_v1/04_figure/`
 
