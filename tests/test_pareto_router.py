@@ -10,8 +10,13 @@ from bandit_gpt.router import BanditRouter
 
 def test_pareto_frontier_filtering():
     """
-    Verify that the router correctly prunes dominated models 
-    but keeps 'uncertain' ones alive (Optimism).
+    Verify that the router correctly prunes dominated models based on mean quality.
+    
+    [KDD ARCHITECTURAL FIX]: Filter uses ONLY mean quality, not UCB.
+    - Pareto filtering = hard exclusion → miscalibration causes permanent damage
+    - UCB selection = soft exploration → miscalibration self-corrects with data
+    
+    Uncertainty/exploration happens in the SELECTION phase, not the filtering phase.
     """
     # 1. Setup a dummy router
     router = BanditRouter.create()
@@ -19,16 +24,16 @@ def test_pareto_frontier_filtering():
     # Mock specific stats for 3 models to test the logic
     # Scenario:
     # - Model A: Cheap & Okay (The Baseline)
-    # - Model B: Expensive & Identical to A (Dominated -> Should be Pruned)
-    # - Model C: Expensive but High Uncertainty (New -> Should Survive)
+    # - Model B: Expensive & Same Quality as A (Dominated -> Should be Pruned)
+    # - Model C: Expensive but BETTER Quality (Not Dominated -> Should Survive)
     
     # We mock _get_contextual_stats to return controlled values
     original_get_stats = router._get_contextual_stats
     
     mock_stats = {
         "model_a": {"id": "model_a", "mean_quality": 0.80, "uncertainty": 0.01, "cost": 0.50},
-        "model_b": {"id": "model_b", "mean_quality": 0.80, "uncertainty": 0.01, "cost": 5.00}, # Dominated by A
-        "model_c": {"id": "model_c", "mean_quality": 0.80, "uncertainty": 0.50, "cost": 5.00}, # Saved by Uncertainty
+        "model_b": {"id": "model_b", "mean_quality": 0.80, "uncertainty": 0.01, "cost": 5.00}, # Dominated by A (same quality, higher cost)
+        "model_c": {"id": "model_c", "mean_quality": 0.90, "uncertainty": 0.01, "cost": 5.00}, # Not dominated (better quality justifies cost)
     }
     
     router._get_contextual_stats = lambda m, x, i, o: mock_stats[m]
@@ -39,9 +44,9 @@ def test_pareto_frontier_filtering():
     survivors = router._filter_pareto_frontier(candidates, np.zeros(10), 0, 0)
     
     # 3. Assertions
-    assert "model_a" in survivors, "Baseline should survive"
-    assert "model_b" not in survivors, "Expensive duplicate should be pruned"
-    assert "model_c" in survivors, "Uncertain model should survive (Optimism)"
+    assert "model_a" in survivors, "Baseline should survive (cheap)"
+    assert "model_b" not in survivors, "Expensive duplicate should be pruned (dominated by A)"
+    assert "model_c" in survivors, "Better quality model should survive (not dominated)"
     
     # Restore method
     router._get_contextual_stats = original_get_stats

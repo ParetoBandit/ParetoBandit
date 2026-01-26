@@ -2919,9 +2919,21 @@ class BanditRouter:
         if is_pareto_mode:
             # --- PATH A: NEW PARETO LOGIC ---
             
-            # Step 1: Pareto Filter (BYPASSED - portfolio is pre-curated to Pareto-optimal models)
-            # All models in the portfolio are Pareto-optimal by construction.
-            efficient_models = filtered
+            # Step 1: Dynamic Pareto Filter (ENABLED)
+            # Prune models that are strictly dominated for THIS specific prompt.
+            # A model is dominated if another model exists that is BOTH:
+            #   1. Cheaper (lower cost)
+            #   2. Better (higher predicted quality for this context)
+            efficient_models = self._filter_pareto_frontier(
+                filtered, 
+                x, 
+                in_tok, 
+                output_tokens
+            )
+            
+            # Fallback: If filter removes everything (edge case), use all valid candidates
+            if not efficient_models:
+                efficient_models = filtered
             
             # Step 2: Linear Utility Selection
             # Score = Quality - (Lambda * Cost)
