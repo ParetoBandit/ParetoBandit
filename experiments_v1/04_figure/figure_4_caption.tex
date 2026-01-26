@@ -12,7 +12,7 @@ The \emph{Easy cluster} (PC1 $< 0.3$, blue, 94.2\% of prompts) exhibits high sem
 The \emph{Hard cluster} (PC1 $\geq 0.3$, red, 5.8\% of prompts) requires more capable models.
 %
 \textbf{(Right)} Expert weight evolution during Corralling training on N=1,121 labeled samples from dev dataset.
-The algorithm initially relies on warmup priors (orange) but shifts weight to tabula rasa (green) after discovering that the warmup expert's bias toward expensive flagship models (GPT-4, Claude-3) yields lower quality on the Easy cluster.
+The algorithm initially relies on warmup priors (orange) but shifts weight to tabula rasa (green) after discovering that the warmup expert's bias toward expensive flagship models (GPT-4-Turbo, Claude-3) yields lower quality on the Easy cluster.
 Final weights: Warmup=0.130, Tabula Rasa=0.870, demonstrating the algorithm's ability to unlearn harmful priors.
 Notably, the algorithm optimizes purely for quality (no explicit cost penalty), yet cost savings emerge naturally as a byproduct of correcting the ``expensive bias''---the warmup expert's overreliance on flagship models that provide no quality advantage on routine tasks.
 %
@@ -103,7 +103,7 @@ The warmup expert uses gamma-scaled priors ($\gamma = 0.05$) from RouteLLM, whil
 
 \paragraph{Experimental Results.}
 Figure~\ref{fig:corralling_semantic} shows that Corralling successfully unlearns the warmup bias.
-The warmup expert, trained on RouteLLM data emphasizing quality, exhibits an ``expensive bias''---overreliance on flagship models (GPT-4, Claude-3) even when they provide no quality advantage.
+The warmup expert, trained on RouteLLM data emphasizing quality, exhibits an ``expensive bias''---overreliance on flagship models (GPT-4-Turbo, Claude-3) even when they provide no quality advantage.
 The \emph{Easy cluster} (94.2\% of prompts) can be served with equal quality by cheaper models like Mixtral.
 Corralling detects this through higher losses on the warmup expert (due to suboptimal quality, not cost) and shifts weight to tabula rasa, which discovers that Mixtral achieves comparable quality at lower cost.
 Critically, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$); cost savings emerge naturally as a byproduct of correcting the quality-based bias.

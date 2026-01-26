@@ -14,7 +14,7 @@ This script implements the mathematically correct Corralled algorithm:
    - Demonstrate that "Easy" cluster (94.1%) is exploitable
 
 **Key Insight:**
-The warmup expert is biased toward flagships (GPT-4, Claude-3), but the Mixtral
+The warmup expert is biased toward flagships (GPT-4-Turbo, Claude-3), but the Mixtral
 model has high utility in the "Easy" cluster. Corralling allows the algorithm to
 unlearn the warmup bias and shift weight to the tabula rasa expert that discovers
 Mixtral's value.

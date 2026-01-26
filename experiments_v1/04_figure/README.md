@@ -26,7 +26,7 @@ The implementation follows the principle that **you cannot evaluate what you can
 
 We have two experts:
 1. **Warmup Expert**: LinUCB initialized with priors from RouteLLM
-   - Biased toward flagships (GPT-4, Claude-3)
+   - Biased toward flagships (GPT-4-Turbo, Claude-3)
    - May suffer from negative transfer if domain mismatch exists
 
 2. **Tabula Rasa Expert**: LinUCB initialized from scratch (A=I, b=0)
@@ -158,7 +158,7 @@ for context in X_nd:
 
 ### Key Insight
 
-The warmup expert exhibits an "expensive bias"---overreliance on flagship models (GPT-4, Claude-3) even when they provide no quality advantage. The **Easy cluster** (94.1% of prompts) can be served with equal quality by cheaper models like Mixtral.
+The warmup expert exhibits an "expensive bias"---overreliance on flagship models (GPT-4-Turbo, Claude-3) even when they provide no quality advantage. The **Easy cluster** (94.1% of prompts) can be served with equal quality by cheaper models like Mixtral.
 
 Corralling allows the algorithm to:
 1. Start with warmup priors (fast convergence)

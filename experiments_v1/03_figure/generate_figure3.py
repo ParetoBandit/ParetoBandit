@@ -104,7 +104,7 @@ state_box = FancyBboxPatch(
 )
 ax.add_patch(state_box)
 ax.text(3.75, 5.25, r'Samples: $n = 720$', fontsize=10, ha='center', weight='bold')
-ax.text(3.75, 4.95, r'Recommendation: GPT-4', fontsize=9, ha='center')
+ax.text(3.75, 4.95, r'Recommendation: GPT-4-Turbo', fontsize=9, ha='center')
 
 # Tabula Rasa Expert (Right)
 tabula_x, tabula_y = 8, 4.5
@@ -139,7 +139,7 @@ exec_width, exec_height = 5, 1
 create_box(ax, exec_x, exec_y, exec_width, exec_height, color_execution, alpha=0.2, linewidth=2)
 
 ax.text(7, 3.5, 'Selected Action', fontsize=12, weight='bold', ha='center')
-ax.text(7, 3.15, r'Model: GPT-4  |  Reward: $r = 0.92$', fontsize=10, ha='center', family='monospace')
+ax.text(7, 3.15, r'Model: GPT-4-Turbo  |  Reward: $r = 0.92$', fontsize=10, ha='center', family='monospace')
 
 # ============================================================================
 # FEEDBACK LAYER (Bottom)
