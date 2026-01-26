@@ -32,61 +32,49 @@ Scaling & Chat-1M & 594,199 & Manifold validation \\
 \end{tabular}
 \end{table}
 
-\subsection{Model Portfolio \& Cost Structure}
+\subsection{Model Topology \& Baselines}
 
-We evaluate routing across a diverse portfolio of six commercial LLMs spanning three capability tiers, as shown in Table~\ref{tab:models}. Costs are based on published API pricing as of January 2026.
+To ensure a rigorous, controlled comparison against the current state-of-the-art static router, RouteLLM, we deliberately mirrored their primary evaluation topology.
 
-\begin{table}[t]
-\centering
-\caption{Model Portfolio and Inference Costs}
-\label{tab:models}
-\begin{tabular}{lcc}
-\toprule
-\textbf{Model} & \textbf{Tier} & \textbf{Cost (\$/1M tokens)} \\
-\midrule
-GPT-4-Turbo & Frontier & 10.00 \\
-Claude-3.5-Sonnet & Frontier & 8.00 \\
-GPT-3.5-Turbo & Mid-tier & 2.00 \\
-Mixtral-8x7B & Mid-tier & 0.60 \\
-Llama-3-70B & Efficient & 0.80 \\
-Llama-3-8B & Efficient & 0.10 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\begin{itemize}
+    \item \textbf{Weak Model}: \texttt{mistralai/mixtral-8x7b-instruct} (Cost: $\approx$ \$0.30 / 1M tokens).
+    \item \textbf{Strong Model}: \texttt{openai/gpt-4-turbo} (Cost: $\approx$ \$10.00 -- \$30.00 / 1M tokens).
+\end{itemize}
+
+By adopting this exact configuration, we isolate the algorithmic contribution (Static Classification vs.\ Adaptive Corralling) from variance caused by model capability shifts. While newer models (e.g., Llama-3, GPT-4o) exist, using a different topology would confound the results.
+
+We compare banditGPT against four distinct baselines:
+
+\begin{enumerate}
+    \item \textbf{Single Model (Static)}: Routing 100\% of traffic to either Mixtral (Low Cost, High Risk) or GPT-4-Turbo (High Cost, Low Risk).
+    
+    \item \textbf{Random Policy}: Uniform random selection (Baseline for ``zero intelligence'').
+    
+    \item \textbf{RouteLLM (SOTA Static)}~\cite{ong2024routellm}: A Matrix Factorization router trained on the LMSYS data. This represents the current industry standard for efficiency.
+    
+    \item \textbf{Oracle (Theoretical Bound)}: A clairvoyant router that always selects the model with the highest reward-to-cost ratio for every prompt.
+\end{enumerate}
 
 \subsection{Evaluation Metrics}
 
-We assess routing performance using three complementary metrics:
+We evaluate performance using three key metrics standard in cost-aware routing literature:
 
 \begin{itemize}
-    \item \textbf{Reward (Quality)}: Win rate against the GPT-4-Turbo baseline, measured via pairwise preference judgments. A reward of $r=1.0$ indicates the selected model's response was preferred; $r=0.0$ indicates the baseline was preferred.
+    \item \textbf{Average Reward ($\bar{r}$)}: The mean quality score of the selected responses.
     
-    \item \textbf{Cost Efficiency}: Average inference cost per query, measured in dollars per 1M tokens. Lower is better.
+    \item \textbf{Normalized Cost ($\bar{c}$)}: The average inference cost, normalized such that GPT-4-Turbo $\approx 1.0$.
     
-    \item \textbf{Oracle Gap Closure}: The fraction of the performance gap between the static baseline and the oracle (perfect routing) that our method closes:
+    \item \textbf{Gap Closure (\%)}: The percentage of the performance gap between the Weak Model and the Oracle that the router recovers, defined as:
     \begin{equation}
-    \text{Gap Closure} = \frac{R_{\text{banditGPT}} - R_{\text{baseline}}}{R_{\text{oracle}} - R_{\text{baseline}}}
+    \text{Gap Closure} = \frac{R_{\text{router}} - R_{\text{weak}}}{R_{\text{oracle}} - R_{\text{weak}}} \times 100\%
     \end{equation}
-    where $R$ denotes the average reward.
 \end{itemize}
-
-\subsection{Baselines}
-
-We compare banditGPT against three baselines:
-
-\begin{enumerate}
-    \item \textbf{Static GPT-4-Turbo}: Routes all traffic to the frontier model. Represents the ``always use the best model'' strategy.
-    
-    \item \textbf{RouteLLM}~\cite{ong2024routellm}: State-of-the-art static router trained on LMSYS preference data using a binary classifier (Mixtral-8x7B vs.\ GPT-4-Turbo).
-    
-    \item \textbf{Oracle}: Perfect routing with access to ground-truth rewards for all models on all prompts. Represents the theoretical upper bound.
-\end{enumerate}
 
 \subsection{Implementation Details}
 
-\textbf{Embedding Model}: We use \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} to generate 384-dimensional sentence embeddings for all prompts.
+\textbf{Embeddings}: We use \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} (384-d), reduced to 24 dimensions via PCA to simulate low-latency production constraints ($< 20$ms overhead).
 
-\textbf{Hyperparameters}: We set $\lambda=1.0$ (cost-quality trade-off), $\gamma=0.05$ (mixing parameter), $\alpha=1.0$ (UCB exploration), and $\neff=5.0$ (semantic transfer confidence). Sensitivity analysis (Appendix~E) confirms robustness across a $20\times$ range of $\neff$.
+\textbf{Infrastructure}: Experiments were conducted on a standard CPU node for bandit updates, demonstrating the algorithm's lightweight footprint compared to GPU-heavy router training.
 
-\textbf{Compute}: All experiments run on a single NVIDIA A100 GPU with 40GB memory. Total wall-clock time for the complete evaluation pipeline is approximately 6 hours.
+\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ and the corralling learning rate $\eta=1.0$ based on sensitivity sweeps in the Dev Set.
 
