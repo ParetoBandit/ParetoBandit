@@ -500,6 +500,11 @@ class DisjointLinUCBPolicy:
         
         self.last_update = {m: 0 for m in self.models}  # Track last update step
         self.t = 0  # Global time step
+        
+        # [KDD FIX] Track effective regularization level per model
+        # Ensures principled lower bound on eigenvalues (proactive approach)
+        # Prevents singularity in low-traffic regimes with forgetting factor < 1.0
+        self.regularization_floor = {m: self.init_lambda for m in self.models}
 
     def bandit_is_stable(self, model_id: str) -> bool:
         """
@@ -685,6 +690,11 @@ class DisjointLinUCBPolicy:
         lost update race condition. Each model has its own lock, so updates to
         Model A don't block updates to Model B.
         
+        **KDD REVIEW FIX: Proactive Regularization Floor**
+        Tracks effective lambda decay and proactively maintains eigenvalue floor.
+        Prevents singularity in low-traffic regimes with forgetting factor < 1.0.
+        Amortized O(d²) with rare O(d³) maintenance cycles.
+        
         **Performance:**
         Sherman-Morrison update is O(d²) ≈ 0.5ms for d=24, negligible compared
         to network latency. Holding lock during update is acceptable.
@@ -702,69 +712,78 @@ class DisjointLinUCBPolicy:
         
         # Hold model-specific lock for entire update (eliminates race condition)
         with self.model_locks[model]:
-            # Apply time-proportional decay based on elapsed steps
-            # KDD Review Fix: Use time-based decay (gamma^dt) to match variance inflation in select_arm()
-            #
-            # [KDD REVIEW FIX C: Time-Delta Logic]
-            # This decay catches A up from its last update to the current global time.
-            # Because select_arm() inflates variance based on the same dt, 
-            # this logic is theoretically sound and avoids "double-dipping" 
-            # (at dt=0, inflation factor is 1.0).
+            # 1. Calculate Time Decay
+            dt = 0
+            decay_factor = 1.0
             if self.gamma < 1.0:
                 dt = self.t - self.last_update[model]
                 # Clamp dt to prevent numerical underflow when gamma is small
                 decay_factor = self.gamma ** min(dt, 1000)
-                
-                # [KDD REVIEW FIX]: Atomic Pointer Swap
-                # Read old/calculate new locally, then swap under global lock
-                # to ensure select_arm sees consistent A/b pair.
-                new_A = self.A[model] * decay_factor
-                new_b = self.b[model] * decay_factor
-                
-                with self._lock:
-                    self.A[model] = new_A
-                    self.b[model] = new_b
-                    self.last_update[model] = self.t
+
+            # 2. [KDD FIX] Proactive Regularization Maintenance
+            # Instead of waiting for singularity (reactive), ensure A >= lambda_min I (proactive)
+            current_lambda = self.regularization_floor.get(model, self.init_lambda)
+            new_lambda = current_lambda * decay_factor
             
-            # KDD REVIEW FIX (Critique B): JIT Regularization Injection
-            # Check for numerical instability BEFORE Sherman-Morrison update
-            # In low-traffic regimes with gamma < 1.0, A can decay toward singularity
-            # Use trace(A_inv) as O(d) proxy: if A → 0, then A_inv → ∞
-            trace = np.trace(self.A_inv[model])
-            threshold = 100 * self.dim  # Conservative: trigger at 100x expected trace
+            # Threshold: Reinject if prior strength drops below 10% of init
+            lambda_threshold = self.init_lambda * 0.1
             
-            if trace > threshold:
-                logger.warning(
-                    f"🛡️ JIT regularization for {model}: "
-                    f"trace(A_inv)={trace:.2e} > {threshold:.2e}. "
-                    f"Injecting λI to restore conditioning."
+            if new_lambda < lambda_threshold:
+                # MAINTENANCE MODE: Inject fresh regularization (Rare O(d³))
+                logger.info(
+                    f"🔧 Maintenance: Restoring regularization floor for {model} "
+                    f"(λ_eff={new_lambda:.2e} < {lambda_threshold:.2e})"
                 )
-                # KDD OPTIMIZATION: Preserve Theta During Stability Reset
-                # Capture learned preferences before regularization
+                
+                # Preserve learned preferences before regularization
                 old_theta = self.A_inv[model] @ self.b[model]
                 
-                # Inject identity regularization to restore numerical stability
-                # [KDD REVIEW FIX A2]: COW re-assignment instead of +=
-                self.A[model] = self.A[model] + (self.init_lambda * np.eye(self.dim))
+                # Calculate how much lambda to add to get back to init_lambda
+                missing_lambda = self.init_lambda - new_lambda
                 
-                # Must recompute inverse after manual regularization injection
-                # [KDD REVIEW FIX]: Atomic Pointer Swap
-                new_A_inv = safe_inv(new_A)
+                # Apply decay + Injection
+                # A_new = (A_old * decay) + (missing_lambda * I)
+                new_A = (self.A[model] * decay_factor) + (missing_lambda * np.eye(self.dim))
+                new_b = self.b[model] * decay_factor
+                
+                # Restore b to preserve theta: b_new = A_new @ theta
                 new_b = new_A @ old_theta
                 
+                # Full inversion required (Safe & Robust)
+                new_A_inv = safe_inv(new_A)
+                
+                # Reset tracker
+                self.regularization_floor[model] = self.init_lambda
+                
+                # Update state atomically
                 with self._lock:
                     self.A[model] = new_A
                     self.b[model] = new_b
                     self.A_inv[model] = new_A_inv
+                    self.last_update[model] = self.t
+                    
+                # Continue to apply current observation below
+                
+            else:
+                # STANDARD MODE: Fast Decay (Common O(d²))
+                if self.gamma < 1.0:
+                    self.regularization_floor[model] = new_lambda  # Update tracker
+                    new_A = self.A[model] * decay_factor
+                    new_b = self.b[model] * decay_factor
+                    
+                    with self._lock:
+                        self.A[model] = new_A
+                        self.b[model] = new_b
+                        self.last_update[model] = self.t
             
+            # 3. Standard Sherman-Morrison Update (Data Integration)
             # Add observation: A += weight * x x^T, b += weight * reward * x
-            # [KDD REVIEW FIX A5]: COW re-assignment instead of +=
-            self.A[model] = self.A[model] + (weight * np.outer(x, x))
-            self.b[model] = self.b[model] + (weight * reward * x)
+            x_outer = weight * np.outer(x, x)
+            reward_x = weight * reward * x
             
             # Sherman-Morrison inverse update (O(d²))
             # Formula: (A + uv^T)^{-1} = A^{-1} - (A^{-1} u v^T A^{-1}) / (1 + v^T A^{-1} u)
-            A_inv_current = self.A_inv[model] # Capture reference
+            A_inv_current = self.A_inv[model]
             u = x * np.sqrt(weight)
             v = x * np.sqrt(weight)
             
@@ -776,8 +795,8 @@ class DisjointLinUCBPolicy:
             if abs(denominator) > 1e-6:
                 # Safe to use Sherman-Morrison formula
                 new_A_inv = A_inv_current - np.outer(A_inv_u, v_A_inv) / denominator
-                new_A = self.A[model] + (weight * np.outer(x, x))
-                new_b = self.b[model] + (weight * reward * x)
+                new_A = self.A[model] + x_outer
+                new_b = self.b[model] + reward_x
                 
                 # [KDD REVIEW FIX]: Atomic Pointer Swap for Consistency
                 with self._lock:
@@ -792,13 +811,18 @@ class DisjointLinUCBPolicy:
                     f"|denominator|={abs(denominator):.2e} < 1e-6. "
                     f"Injecting fresh regularization and recomputing inverse."
                 )
-                # Capture learned preferences before regularization
+                # Preserve learned preferences before regularization
                 old_theta = self.A_inv[model] @ self.b[model]
                 
                 # Inject fresh regularization to restore conditioning
-                new_A = self.A[model] + (weight * np.outer(x, x)) + (self.init_lambda * np.eye(self.dim))
+                new_A = self.A[model] + x_outer + (self.init_lambda * np.eye(self.dim))
                 new_A_inv = safe_inv(new_A)
+                
+                # Restore b to preserve theta
                 new_b = new_A @ old_theta
+                
+                # Reset regularization floor since we just injected init_lambda
+                self.regularization_floor[model] = self.init_lambda
                 
                 with self._lock:
                     self.A[model] = new_A
