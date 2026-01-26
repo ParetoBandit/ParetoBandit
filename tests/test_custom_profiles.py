@@ -24,7 +24,7 @@ class TestCustomProfiles(unittest.TestCase):
                 "time_to_first_token_seconds": 0.1
             }
         }
-        self.router = BanditRouter(self.model_registry)
+        self.router = BanditRouter(self.model_registry, use_corralling=True)
 
     def test_custom_weight_dict(self):
         # Test 1: Extreme Quality focus

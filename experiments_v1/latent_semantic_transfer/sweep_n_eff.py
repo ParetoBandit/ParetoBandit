@@ -74,7 +74,8 @@ def create_base_router(registry: Dict[str, Dict]) -> BanditRouter:
         model_registry=registry,
         alpha=0.05,
         init_lambda=1.0,
-        verbose_routing=False
+        verbose_routing=False,
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     
     # Load priors for base models

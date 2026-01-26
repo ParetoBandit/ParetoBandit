@@ -44,7 +44,8 @@ def test_feature_spam_protection():
     router = BanditRouter(
         model_registry=registry,
         alpha=0.1,
-        init_lambda=1.0
+        init_lambda=1.0,
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     router.config.max_probation_models = 10  # Ensure we have room
     
@@ -99,7 +100,8 @@ def test_legitimate_new_model():
     router = BanditRouter(
         model_registry=registry,
         alpha=0.1,
-        init_lambda=1.0
+        init_lambda=1.0,
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     
     print("\n" + "="*60)
@@ -157,7 +159,8 @@ def test_spam_rejection_when_probation_full():
     router = BanditRouter(
         model_registry=registry,
         alpha=0.1,
-        init_lambda=1.0
+        init_lambda=1.0,
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     router.config.max_probation_models = 1  # Very tight limit
     

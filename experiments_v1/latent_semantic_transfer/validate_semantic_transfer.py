@@ -362,7 +362,8 @@ def test_ablation_mismatched_neighbor(
         model_registry=registry,
         alpha=0.05,
         init_lambda=1.0,
-        verbose_routing=False
+        verbose_routing=False,
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     
     # Load priors
@@ -802,7 +803,8 @@ def main():
         model_registry=registry,
         alpha=0.05,
         init_lambda=1.0,
-        verbose_routing=False  # Less noise
+        verbose_routing=False,  # Less noise
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     
     print(f"\n📦 Initialized router with {len(registry)} base models:")

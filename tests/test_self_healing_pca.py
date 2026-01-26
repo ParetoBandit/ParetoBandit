@@ -30,7 +30,8 @@ class TestSelfHealingPCA:
         
         router = BanditRouter(
             model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
-            pca_path=fake_path
+            pca_path=fake_path,
+            use_corralling=True  # Enable corralling for safety guarantees
         )
         
         # Should have auto-trained PCA
@@ -50,7 +51,8 @@ class TestSelfHealingPCA:
             # Create a router that will generate PCA
             router1 = BanditRouter(
                 model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path
+                pca_path=pca_path,
+                use_corralling=True  # Enable corralling for safety guarantees
             )
             
             # PCA should be saved
@@ -59,7 +61,8 @@ class TestSelfHealingPCA:
             # Create new router - should load saved PCA
             router2 = BanditRouter(
                 model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path
+                pca_path=pca_path,
+                use_corralling=True  # Enable corralling for safety guarantees
             )
             
             assert router2.pca is not None, "PCA should load from disk"
@@ -68,7 +71,8 @@ class TestSelfHealingPCA:
     def test_synthetic_data_generation(self):
         """Test synthetic prompt generation for PCA training."""
         router = BanditRouter(
-            model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}}
+            model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
+            use_corralling=True  # Enable corralling for safety guarantees
         )
         
         # Generate synthetic prompts
@@ -85,7 +89,8 @@ class TestSelfHealingPCA:
     def test_pca_variance_validation(self):
         """Test that PCA variance is checked and logged."""
         router = BanditRouter(
-            model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}}
+            model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
+            use_corralling=True  # Enable corralling for safety guarantees
         )
         
         if router.pca is not None:
@@ -97,7 +102,8 @@ class TestSelfHealingPCA:
         """Test router works when no PCA path is provided."""
         router = BanditRouter(
             model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
-            pca_path=None
+            pca_path=None,
+            use_corralling=True  # Enable corralling for safety guarantees
         )
         
         # Should work fine without PCA (full dimensionality)
@@ -111,7 +117,8 @@ class TestSelfHealingPCA:
             # First initialization - will JIT train
             router1 = BanditRouter(
                 model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path
+                pca_path=pca_path,
+                use_corralling=True  # Enable corralling for safety guarantees
             )
             
             # Should have persisted
@@ -123,7 +130,8 @@ class TestSelfHealingPCA:
             # Second initialization - should load from disk
             router2 = BanditRouter(
                 model_registry={"test/model": {"openrouter_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path
+                pca_path=pca_path,
+                use_corralling=True  # Enable corralling for safety guarantees
             )
             
             # Should have same variance (loaded same PCA)
@@ -141,7 +149,8 @@ class TestPCAIntegration:
                 "test/model1": {"openrouter_id": "test/model1", "hle": 0.8},
                 "test/model2": {"openrouter_id": "test/model2", "hle": 0.6}
             },
-            pca_path="/tmp/test_routing_pca.joblib"
+            pca_path="/tmp/test_routing_pca.joblib",
+            use_corralling=True  # Enable corralling for safety guarantees
         )
         
         # Should be able to route

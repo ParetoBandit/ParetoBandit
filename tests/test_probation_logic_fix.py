@@ -48,7 +48,8 @@ def test_probation_bonus_requires_membership():
     router = BanditRouter(
         model_registry=registry,
         alpha=0.1,
-        init_lambda=1.0
+        init_lambda=1.0,
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     
     print("✅ Router initialized with 2 models")

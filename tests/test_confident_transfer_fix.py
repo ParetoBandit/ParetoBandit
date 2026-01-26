@@ -42,7 +42,8 @@ def test_theta_only_transfer():
     router = BanditRouter(
         model_registry=registry,
         alpha=0.1,
-        init_lambda=1.0
+        init_lambda=1.0,
+        use_corralling=True  # Enable corralling for safety guarantees
     )
     
     print("✅ Router initialized with 1 model (GPT-4)")
