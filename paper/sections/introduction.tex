@@ -1,0 +1,34 @@
+\section{Introduction}
+
+The deployment of Large Language Models (LLMs) is governed by a steep ``Intelligence Tax'': the assumption that higher performance requires linearly higher inference costs. Consequently, industrial applications often default to routing all traffic to frontier models (e.g., GPT-4 and its variants), treating cheaper models as strictly inferior approximations.
+
+This assumption is increasingly flawed. Recent benchmarks reveal that specialized open-weights models (e.g., Mixtral-8x7B, Llama-3) can match or exceed the performance of frontier models on specific task clusters while costing orders of magnitude less. This phenomenon, which we term \emph{Quality Inversion}, transforms routing from a simple interpolation problem into a complex discovery problem. The goal is no longer just to ``save money on easy queries,'' but to identify the sparse, non-obvious sub-manifolds where the expensive model provides unique value.
+
+Current state-of-the-art routers, such as RouteLLM~\cite{ong2024routellm} and FrugalGPT~\cite{chen2023frugalgpt}, address this via static supervision. They train a ``hardness classifier'' on offline datasets to predict which model to use. However, these static approaches suffer from two critical failures in production:
+
+\begin{itemize}
+    \item \textbf{Prior Rigidity}: They are trained on general-purpose public datasets (e.g., LMSYS Chatbot Arena~\cite{zheng2023judging}) that may not reflect domain-specific quality inversions. As we demonstrate, when a static router is forced to utilize an expensive model based on general ``hardness'' features, it often degrades performance on tasks where the cheaper model is actually superior.
+    
+    \item \textbf{The ``Cold Start'' Catastrophe}: The LLM landscape is highly non-stationary; new state-of-the-art models are released weekly. Static routers require expensive re-training and data collection to admit new models. Standard contextual bandits offer an online alternative but suffer from ``cold start'' periods where they must randomly explore (and fail) on thousands of requests before learning the utility of a new model.
+\end{itemize}
+
+In this work, we introduce \textbf{banditGPT}, a cost-aware routing framework that reformulates LLM selection as a \emph{Lifelong Learning} problem. Instead of a static classifier, we propose a hierarchical \emph{Expert Corralling} architecture~\cite{agarwal2017corralling} that manages a portfolio of routing strategies. To ensure safety, the router utilizes a mixing-enabled update rule that allows it to ``decisively decommission'' priors that are invalidated by online evidence (Figure~5). To ensure agility, we introduce \emph{Latent Semantic Transfer}, a protocol that enables zero-shot admission of new models. By transferring the learned preference vector ($\thetavec$) of a semantic neighbor (e.g., GPT-4-Turbo) while resetting the confidence matrix ($\Amat$), the router inherits an immediate ``intuition'' about the new model's capabilities while retaining the plasticity to learn its specific nuances (Figure~6).
+
+\subsection{Contributions}
+
+Our contributions are as follows:
+
+\begin{enumerate}
+    \item \textbf{Empirical Analysis of Quality Inversion}: We demonstrate a real-world scenario where a cheaper model (Mixtral-8x7B) outperforms the frontier baseline (GPT-4-Turbo) on average ($0.823$ vs.\ $0.812$), proving that static ``intelligence tax'' assumptions are detrimental even when using optimized frontier models.
+    
+    \item \textbf{Algorithm (Expert Corralling)}: We implement a robust bandit architecture with a mixing parameter ($\gamma=0.05$) that prevents ``expert death,'' allowing the system to recover from non-stationary distribution shifts.
+    
+    \item \textbf{Algorithm (Semantic Transfer)}: We propose a zero-shot admission mechanism that eliminates the exploration regret of new model deployment, validated via sensitivity analysis to be robust across hyperparameter settings.
+    
+    \item \textbf{Performance}: We achieve a state-of-the-art reward of $0.91$ on production traffic, closing $66\%$ of the optimality gap while reducing costs by $27\%$ compared to the GPT-4-Turbo baseline.
+\end{enumerate}
+
+\subsection{Precision in Baseline Specification}
+
+Throughout this paper, we explicitly distinguish between the original GPT-4 model (released March 2023) and GPT-4-Turbo (the optimized variant with improved efficiency). Our empirical evaluation uses \textbf{GPT-4-Turbo} as the frontier baseline, reflecting the current production standard. When we refer to ``GPT-4 and its variants'' in general discussion, we are describing the broader class of frontier models; all quantitative comparisons are against the specific GPT-4-Turbo deployment configuration used in our dataset.
+
