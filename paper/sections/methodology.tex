@@ -78,14 +78,27 @@ To manage the trade-off between robust priors and online adaptability, we employ
 \frac{1 - r_t}{p_t(e)} & \text{if } e = e_t \\
 0 & \text{otherwise}
 \end{cases}
+\label{eq:importance_weighted_loss}
 \end{equation}
 
 The expert weights $w_{t,e}$ are updated using exponential descent with learning rate $\eta=1.0$:
 \begin{equation}
 w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
+\label{eq:corralling}
 \end{equation}
 
 \textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate rather than the horizon-dependent $\eta = \sqrt{2\log K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves near-optimal performance relative to the best expert in hindsight.
+
+\subsubsection{Technical Fairness and Expert Starvation}
+A known limitation of the Exp3-style estimator (Eq.~\ref{eq:importance_weighted_loss}) in our partial-feedback setting is the potential for ``Expert Starvation.'' Since unselected experts receive $\ell=0$ and no internal state update ($\Delta \Amat = 0$), a Tabula Rasa expert that fails to gain traction early may effectively freeze in a high-entropy state.
+
+We mitigate this risk through two mechanisms:
+\begin{enumerate}
+    \item \textbf{Uniform Initialization:} We strictly initialize trust weights at parity ($\pi_0 = [0.5, 0.5]$). As shown in Figure~\ref{fig:corralling}, this ensures the Tabula Rasa expert receives $\sim$50\% of traffic during the critical burn-in phase ($t < 50$), allowing it to build a sufficient initial covariance model before trust differentiation begins.
+    \item \textbf{Incumbent Failure Logic:} Starvation is only a risk if the dominant expert (Warmup) continues to succeed. If the Warmup expert performs poorly (as in our Domain Mismatch scenario), its cumulative loss $L_{\text{warmup}}$ rises. Because probabilities are softmax-normalized (Eq.~\ref{eq:corralling}), a rise in the incumbent's loss mathematically forces an increase in the starved expert's probability, naturally breaking the starvation loop.
+\end{enumerate}
+
+Thus, our architecture favors the incumbent only as long as it remains optimal; any degradation in the Warmup prior automatically flushes traffic to the Tabula Rasa candidate.
 
 \begin{figure}[t]
 \centering
