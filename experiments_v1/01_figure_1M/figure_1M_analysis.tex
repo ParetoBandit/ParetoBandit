@@ -35,21 +35,21 @@ High PC1 (\%) & 17.6\% & \textbf{5.9\%} \\
 
 The shift from 17.6\% ``Hard'' prompts in the Holdout set to 5.9\% in the Chat-1M production data reframes the routing challenge.
 
-\textbf{1. The "Trap" is Rare but Costly.}
-While the ``High PC1'' cluster (where Mixtral wins) shrinks to 5.9\%, it remains the most dangerous segment. A static router that sends these complex tasks to GPT-4-Turbo (based on a ``Hard = Expensive'' heuristic) actively harms the user experience on the most technical queries, creating a ``Quality Hole'' in the service.
+\textbf{1. The "Artifact" is Rare but Valuable.}
+While the ``High PC1'' cluster (strict constraint templates where Mixtral wins) shrinks to 5.9\%, it remains economically significant. A static router that sends these formatting-constrained prompts to GPT-4-Turbo (based on perceived ``complexity'') pays the Alignment Tax unnecessarily. The artifact is rare, but exploiting it is pure profit.
 
-\textbf{2. The "Nuance" is Expensive.}
-The growth of the ``Low PC1'' cluster (to 94.1\%) means that production traffic is dominated by tasks where GPT-4-Turbo has a $+0.13$ advantage. This validates the need for a \textbf{Cost-Aware} objective. A naive ``minimize cost'' router would switch 94\% of traffic to Mixtral, sacrificing significant quality. \texttt{banditGPT}'s ability to find the \emph{sub-manifold} within this 94\% where Mixtral is ``good enough'' is the only path to the reported 27\% cost savings.
+\textbf{2. The "Natural Language" Zone Requires Precision.}
+The growth of the ``Low PC1'' cluster (to 94.1\%) means that production traffic is dominated by tasks where GPT-4-Turbo's RLHF alignment provides value ($+0.13$ advantage). A naive ``minimize cost'' router would switch 94\% of traffic to Mixtral, sacrificing conversational quality. \texttt{banditGPT}'s ability to find the \emph{sub-manifold} within this 94\% where Mixtral is ``good enough'' while exploiting the 5.9\% formatting artifact is the path to 27\% cost savings without quality degradation.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.48\textwidth]{experiments_v1/01_figure_1M/results/figure1_lmsys_1M_pca.png}
-\caption{\textbf{Semantic Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts reveals overwhelming dominance of routine tasks (Low PC1: 94.1\%, blue). The $PC1=0.3$ decision boundary (dashed line) remains stable despite 317$\times$ scale increase. High PC1 cluster (red, 5.9\%) represents specialized tasks where Mixtral outperforms GPT-4-Turbo. This distribution shift from holdout (82.4\%/17.6\%) to production (94.1\%/5.9\%) proves we cannot simply ``route easy to cheap'': the Performance Paradox makes routing fundamentally context-dependent.}
+\caption{\textbf{Semantic Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts reveals overwhelming dominance of natural language tasks (Low PC1: 94.1\%, blue). The $PC1=0.3$ decision boundary (dashed line) remains stable despite 317$\times$ scale increase. High PC1 cluster (red, 5.9\%) represents strict constraint-satisfaction templates where Mixtral outperforms GPT-4-Turbo. This distribution shift from holdout (82.4\%/17.6\%) to production (94.1\%/5.9\%) demonstrates Forensic Agility: the router exploits a rare but valuable formatting artifact while carefully navigating the dominant natural language zone.}
 \label{fig:scale_validation}
 \end{figure}
 
 \textbf{Conclusion.}
-The 1M scale validation proves that we cannot simply ``route easy tasks to cheap models'' (because the ``easy'' tasks actually benefit from GPT-4-Turbo). Instead, we must \textbf{surgically offload the ``Paradox'' tasks} (High PC1) to the cheap model to fund the usage of GPT-4-Turbo on the routine tasks that necessitate it.
+The 1M scale validation proves the value of Forensic Agility. The router must: (1) exploit the rare formatting artifact (High PC1, 5.9\%) where alignment is a liability, and (2) precisely navigate the dominant natural language zone (Low PC1, 94.1\%) to find where Mixtral is ``good enough.'' This is not task difficulty routing---it is \textbf{production failure mode exploitation}.
 
 \subsubsection{Conservative Stress Test Interpretation}
 

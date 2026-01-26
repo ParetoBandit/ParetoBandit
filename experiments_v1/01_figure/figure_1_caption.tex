@@ -1,13 +1,12 @@
-% Figure 1 Caption: LMSYS Holdout Semantic Structure (CORRECTED - Performance Paradox)
+% Figure 1 Caption: LMSYS Semantic Structure (Forensic Update)
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_holdout_pca.png}
-\caption{\textbf{The Complexity Paradox: Bimodal structure reveals a "Quality Inversion" on hard tasks.} 
-We project 1,871 LMSYS prompts onto the first two principal components. 
-\textbf{Left:} The semantic manifold splits into two distinct clusters. 
-The \textbf{High PC1 Cluster} (Red, 17.6\%) isolates complex coding and reasoning tasks. Crucially, our data reveals a \textbf{Performance Inversion} in this region: the open-weights model (Mixtral) outperforms the flagship (GPT-4-Turbo) by a margin of $\Delta = -0.68$, likely due to reduced refusal and specialized coding priors. 
-The \textbf{Low PC1 Cluster} (Blue, 82.4\%) represents general conversational tasks where the flagship model retains a classic advantage ($\Delta = +0.13$). 
-\textbf{Right:} This structure flips the traditional routing logic: the "Economic Opportunity" is not just offloading easy tasks, but \textbf{correcting the mis-routing of complex tasks} where the expensive model actively degrades performance.}
+\caption{\textbf{Exploiting the Alignment Tax.} 
+\textbf{Left:} The semantic manifold separates into two clusters. 
+The \textbf{High PC1 Cluster} (Red, 17.6\%) is dominated by strict "Text Completion" templates. Crucially, the cheaper model (Mixtral) outperforms the flagship (GPT-4-Turbo) here ($\Delta = -0.68$), likely because GPT-4-Turbo's conversational alignment violates the strict "no-chat" formatting constraints. 
+The \textbf{Low PC1 Cluster} (Blue, 82.4\%) represents standard open-ended chat, where GPT-4-Turbo retains its advantage ($\Delta = +0.13$).
+\textbf{Right:} \texttt{banditGPT} identifies this inversion automatically, offloading these strict tasks to the cheaper model not because they are "easy," but because the flagship model is \textbf{structurally maladapted} to them.}
 \label{fig:lmsys_holdout_structure}
 \end{figure}

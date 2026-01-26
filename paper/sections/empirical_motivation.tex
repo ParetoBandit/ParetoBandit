@@ -2,22 +2,22 @@
 
 Before presenting our routing algorithm, we first establish that LLM routing is a structured problem amenable to learning, rather than a random optimization task.
 
-\subsection{Bimodal Task Distribution and the Performance Paradox}
+\subsection{Bimodal Task Distribution and the ``Alignment Tax''}
 
 We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. Despite the 2D projection capturing only 5.39\% of the total variance, a clear bimodal semantic structure emerges (Figure~\ref{fig:pca}). The distribution reveals two distinct clusters separated by a decision boundary at $\text{PC1} \approx 0.3$:
 
 \begin{itemize}
-    \item \textbf{Low PC1 ``Nuance Zone'' (82.4\%)}: Represents routine conversational queries, simple creative tasks, and information requests. Crucially, the flagship model (GPT-4-Turbo) retains an advantage here (Mean Gap $+0.13$), likely due to better zero-shot coherence and world knowledge.
+    \item \textbf{Low PC1 ``Natural Language'' (82.4\%)}: Represents routine conversational queries, creative tasks, and information requests. The flagship model (GPT-4-Turbo) retains an advantage here (Mean Gap $+0.13$), reflecting the value of RLHF alignment for nuanced, open-ended dialogue.
     
-    \item \textbf{High PC1 ``Complexity Trap'' (17.6\%)}: Isolates complex coding challenges, technical documentation, and specialized reasoning. Paradoxically, the cheaper model (Mixtral-8x7B) \emph{outperforms} the flagship here (Mean Gap $-0.68$), likely due to reduced safety refusals and specialized priors.
+    \item \textbf{High PC1 ``Strict Constraint Satisfaction'' (17.6\%)}: Forensic analysis reveals 85\% of this cluster consists of explicit completion templates (``only send..., don't repeat...'')---strict formatting constraints common in production systems. Here, the cheaper model (Mixtral-8x7B) \emph{outperforms} the flagship (Mean Gap $-0.68$), exposing an \textbf{Alignment Tax}: RLHF-trained models systematically fail negative instructions due to their optimization for verbosity and helpfulness.
 \end{itemize}
 
-This spatial separation reveals a \textbf{Performance Paradox} that invalidates conventional routing wisdom: a static ``hardness-based'' strategy that sends complex tasks to the expensive model would actively degrade quality on 17.6\% of traffic while wasting budget.
+This spatial separation reveals genuine economic value in production data artifacts: a static ``hardness-based'' router would send constraint-heavy prompts to GPT-4-Turbo, paying a format compliance penalty. Our router's discovery of this cluster demonstrates \textbf{Forensic Agility}---the ability to exploit hidden failure modes in frontier models.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/figure1_pca.png}
-\caption{Bimodal semantic structure reveals the Performance Paradox. PCA projection of 1,871 LMSYS prompts shows two clusters: Low PC1 (82.4\%) where GPT-4-Turbo wins (Gap $+0.13$), and High PC1 (17.6\%) where Mixtral paradoxically outperforms (Gap $-0.68$). This inverts traditional routing assumptions: the ``complex'' tasks benefit from the cheaper model. Decision boundary at PC1 $\approx$ 0.3.}
+\caption{Bimodal semantic structure reveals the Alignment Tax. PCA projection of 1,871 LMSYS prompts shows two clusters: Low PC1 (82.4\%) where GPT-4-Turbo wins (Gap $+0.13$), and High PC1 (17.6\%, 85\% strict completion templates) where Mixtral outperforms (Gap $-0.68$). The router discovered a production artifact---constraint-satisfaction prompts where RLHF alignment becomes a liability. Decision boundary at PC1 $\approx$ 0.3.}
 \label{fig:pca}
 \end{figure}
 
@@ -25,7 +25,7 @@ This spatial separation reveals a \textbf{Performance Paradox} that invalidates 
 
 To ensure these findings were not an artifact of the smaller holdout set, we extended our analysis to the complete LMSYS Chat-1M dataset, comprising 594,199 unique prompts---a $317\times$ increase in scale.
 
-Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown in Table~\ref{tab:spectral}, the decision boundary remains stable at $\text{PC1}=0.3$. However, the distribution shifts significantly: the production traffic is even more skewed toward the Low PC1 cluster (94.1\%) than the holdout set (82.4\%)---the zone where GPT-4-Turbo retains an advantage.
+Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown in Table~\ref{tab:spectral}, the decision boundary remains stable at $\text{PC1}=0.3$. However, the distribution shifts significantly: production traffic is overwhelmingly natural language (Low PC1: 94.1\%), with the strict constraint artifact shrinking to just 5.9\%. This makes the artifact more valuable: it is a rare, high-confidence exploitation opportunity.
 
 \begin{table}[t]
 \centering
@@ -36,13 +36,13 @@ Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown
 \textbf{Metric} & \textbf{Holdout ($N=1.8$k)} & \textbf{Chat-1M ($N=594$k)} \\
 \midrule
 PC1 Variance & 3.10\% & 3.10\% \\
-Low PC1 (GPT-4-Turbo wins) & 82.4\% & 94.1\% \\
-High PC1 (Mixtral wins) & 17.6\% & 5.9\% \\
+Natural Language (Low PC1) & 82.4\% & 94.1\% \\
+Strict Constraints (High PC1) & 17.6\% & 5.9\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In production (Chat-1M), the Performance Paradox creates two opposing economic pressures: (1) The High PC1 ``Complexity Trap'' shrinks to 5.9\%, but routing these tasks to GPT-4-Turbo creates a ``Quality Hole'' where users pay more for worse results. (2) The Low PC1 cluster grows to 94.1\%, requiring careful identification of the sub-manifold where Mixtral is ``good enough'' to avoid sacrificing quality. A naive ``minimize cost'' approach would fail on the latter; a naive ``hardness classifier'' would fail on the former. This necessitates adaptive, context-aware routing.
+\textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In production (Chat-1M), the Alignment Tax artifact becomes rarer (5.9\%) but more valuable: it is a high-confidence exploitation zone where Mixtral consistently wins. Meanwhile, the natural language zone (94.1\%) requires careful sub-manifold discovery to avoid quality degradation. This dual challenge---exploiting rare artifacts while preserving quality on common tasks---necessitates adaptive, context-aware routing that static classifiers cannot achieve.
 
 \subsection{Distribution Shift: The ``Negative Transfer'' Trap}
 
