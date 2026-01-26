@@ -63,3 +63,40 @@ When a new model $m_{\text{new}}$ is registered, we identify its nearest semanti
 
 This decouples the expectation (mean) from the certainty (variance). The router effectively starts with a hypothesis---``This model behaves like GPT-4''---but maintains high variance (controlled by $\neff$), allowing it to aggressively exploit the model where the hypothesis holds while rapidly correcting where it diverges.
 
+\subsection{Corralling: Adaptive Expert Combination}
+
+To manage the trade-off between robust priors and online adaptability, we employ the Corralling algorithm. This meta-learning framework aggregates two distinct experts:
+
+\begin{itemize}
+    \item \textbf{Warmup Expert}: Initialized with priors $\thetavec_{\text{warm}}$ derived from offline RouteLLM data.
+    \item \textbf{Tabula Rasa Expert}: Initialized with uninformative priors ($\Amat=\mathbf{I}$, $\bvec=\mathbf{0}$).
+\end{itemize}
+
+\textbf{The Algorithm}: At each round $t$, the coordinator samples an expert $e_t \sim p_t$ and observes the reward $r_t$. Since we only observe the reward for the chosen expert, we compute an unbiased importance-weighted loss estimate:
+\begin{equation}
+\hat{\ell}_{t,e} = \begin{cases}
+\frac{1 - r_t}{p_t(e)} & \text{if } e = e_t \\
+0 & \text{otherwise}
+\end{cases}
+\end{equation}
+
+The expert weights $w_{t,e}$ are updated using exponential descent with learning rate $\eta=1.0$:
+\begin{equation}
+w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
+\end{equation}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/figure4_corralling_weights.png}
+\caption{Corralling Learns to Exploit Semantic Structure. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps. The algorithm initially relies on the Warmup Expert (Orange) but detects a mismatch (PSI=0.275). It rapidly shifts authority to the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility is a feature, not a bug---it represents persistent exploration that maintains a ``hot standby'' capability for distribution shifts.}
+\label{fig:corralling}
+\end{figure}
+
+\subsection{Semantic Projection \& Scalability}
+
+To validate the router's generalization capability, we projected the learned policy onto the full LMSYS Chat-1M dataset ($N=594$k). As shown in Figure~\ref{fig:corralling} (Left), the ``Easy Cluster'' ($\text{PC1} < 0.3$) accounts for $94.2\%$ of traffic.
+
+\textbf{Implication}: By identifying this structure, the router effectively unlocks a $94\%$ opportunity for cost reduction that static ``hard'' classifiers miss.
+
+\textbf{Separation of Optimization and Visualization}: Crucially, we train only on the labeled Dev set ($N=1{,}121$) and project the policy onto the unlabeled 1M set. This ensures the cluster analysis is a valid test of semantic generalization, not just memorization.
+
