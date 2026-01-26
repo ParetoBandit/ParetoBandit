@@ -19,7 +19,7 @@ In this work, we introduce \textbf{banditGPT}, a cost-aware routing framework th
 Our contributions are as follows:
 
 \begin{enumerate}
-    \item \textbf{Empirical Analysis of Quality Inversion}: We demonstrate a real-world scenario where a cheaper model (Mixtral-8x7B) outperforms the frontier baseline (GPT-4-Turbo) on average ($0.823$ vs.\ $0.812$), proving that static ``intelligence tax'' assumptions are detrimental even when using optimized frontier models.
+    \item \textbf{Empirical Analysis of Quality Inversion}: Adopting the standard RouteLLM evaluation topology (Mixtral-8x7B vs.\ GPT-4-Turbo) to ensure strict benchmarking consistency, we demonstrate a real-world scenario where the cheaper model outperforms the frontier baseline on average ($0.823$ vs.\ $0.812$). This isolates the algorithmic advantage of our router and proves that static ``intelligence tax'' assumptions are detrimental even when using optimized frontier models.
     
     \item \textbf{Algorithm (Expert Corralling)}: We implement a robust bandit architecture with a mixing parameter ($\gamma=0.05$) that prevents ``expert death,'' allowing the system to recover from non-stationary distribution shifts.
     
