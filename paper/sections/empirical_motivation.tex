@@ -44,3 +44,44 @@ Hard (High PC1) & 17.6\% & 5.9\% \\
 
 \textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In a real-world deployment (Chat-1M), static routing using flagship models (like GPT-4-Turbo) is an \emph{economic catastrophe}: it over-serves 94\% of traffic. For a deployment processing 1M requests/day, this inefficiency translates to an estimated \$2.3M/year in unnecessary inference costs. This structural mismatch between training incentives and deployment economics creates the ``Negative Intelligence Tax'' that banditGPT is designed to eliminate.
 
+\subsection{Distribution Shift: The ``Negative Transfer'' Trap}
+
+A fundamental challenge in routing is \emph{covariate shift}: the phenomenon where the distribution of prompts in production ($Q$) differs from the offline training data ($P$). If significant shift exists, static priors (like those used by RouteLLM) will be miscalibrated, leading to \emph{Negative Transfer}.
+
+To quantify this, we calculated the Population Stability Index (PSI) between our Warmup Priors (Source) and the RouteLLM deployment data (Target). As shown in Figure~\ref{fig:shift}, we observe a significant domain mismatch:
+\begin{equation}
+\text{PSI} = \sum (\%P_i - \%Q_i) \ln(\%P_i / \%Q_i) = \mathbf{0.275}
+\end{equation}
+
+This exceeds the critical industry threshold of $0.25$, indicating substantial distribution shift.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{figures/figure2_distribution_shift.png}
+\caption{Feature Distribution Shift. (Top) The deployment distribution (Red) is significantly left-shifted compared to the training data (Blue), with PSI=0.275. (Bottom) This shift is driven by a higher prevalence of ``Easy Tasks'' in production than anticipated.}
+\label{fig:shift}
+\end{figure}
+
+\textbf{The Consequence} (Table~\ref{tab:prior_mismatch}): This shift is not harmless; it actively degrades performance.
+
+\begin{itemize}
+    \item \textbf{GPT-4-Turbo}: Prior expectation $0.94$ $\to$ Observed $0.84$ (Overestimated utility).
+    \item \textbf{Mixtral}: Prior expectation $0.45$ $\to$ Observed $0.81$ (Underestimated utility by $+80\%$).
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\caption{Prior Miscalibration Due to Distribution Shift}
+\label{tab:prior_mismatch}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Prior Expectation} & \textbf{Observed} & \textbf{Error} \\
+\midrule
+GPT-4-Turbo & 0.94 & 0.84 & $-10.6\%$ \\
+Mixtral-8x7B & 0.45 & 0.81 & $+80.0\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Conclusion}: The offline priors are structurally biased against the cheaper model. A static router trained on $P$ would erroneously route traffic to GPT-4-Turbo based on outdated ``hardness'' beliefs. This necessitates the Adaptive Corralling mechanism (Section~3) to dynamically down-weight these misspecified priors in real-time.
+
