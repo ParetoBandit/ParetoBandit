@@ -1,0 +1,99 @@
+\documentclass[sigconf,anonymous]{acmart}
+
+% KDD 2026 Conference Paper
+% Document class: acmart with sigconf option for KDD proceedings
+
+% Remove copyright notice for anonymous submission
+\setcopyright{none}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+% Packages
+% Note: acmart already loads amsmath, amssymb, amsfonts, graphicx, hyperref, booktabs
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{multirow}
+
+% Custom commands
+\newcommand{\neff}{n_{\text{eff}}}
+\newcommand{\thetavec}{\boldsymbol{\theta}}
+\newcommand{\Amat}{\mathbf{A}}
+\newcommand{\bvec}{\mathbf{b}}
+
+% Title and authors
+\title{banditGPT: Lifelong Learning for LLM Routing via Latent Semantic Transfer and Expert Corralling}
+
+% Anonymous submission - remove for camera ready
+\author{Anonymous Authors}
+\affiliation{%
+  \institution{Anonymous Institution}
+}
+\email{anonymous@example.com}
+
+% For camera-ready, replace with actual author information:
+% \author{First Author}
+% \affiliation{%
+%   \institution{Your Institution}
+%   \city{City}
+%   \state{State}
+%   \country{Country}
+% }
+% \email{first.author@institution.edu}
+
+\begin{document}
+
+\begin{abstract}
+Large Language Model (LLM) routing is traditionally framed as a static trade-off between cost and quality, relying on the assumption that frontier models consistently outperform cheaper alternatives. However, production environments often exhibit \emph{quality inversions}---domain-specific scenarios where smaller, open-weights models outperform significantly more expensive proprietary ones. In such settings, static routers (e.g., RouteLLM) fail to adapt, incurring a ``Negative Intelligence Tax'' by routing traffic to expensive models that degrade performance.
+
+We introduce \textbf{banditGPT}, an adaptive routing framework designed for the non-stationary realities of LLM deployment. Unlike static classifiers, banditGPT treats routing as a continuous resource allocation problem managed by a Corralling Algorithm. This architecture dynamically aggregates a portfolio of experts, utilizing a mixing parameter ($\gamma$) to prevent ``expert death'' and enable decisive decommissioning of misspecified priors. To address the challenge of frequent model releases, we propose \emph{Latent Semantic Transfer}, a mechanism that decouples preference ($\thetavec$) from confidence ($\Amat$), enabling the router to inherit ``intuition'' from semantic neighbors and achieve zero-shot readiness without the ``cold start'' penalty typical of bandit algorithms.
+
+Evaluated on a real-world dataset of production prompts ($N=1{,}871$), banditGPT identifies a synergistic routing policy that achieves a state-of-the-art reward of $0.91$, outperforming both the static GPT-4-Turbo baseline ($0.81$) and the RouteLLM benchmark ($0.87$). Our approach closes $66.2\%$ of the gap to the Oracle while reducing inference costs by $27\%$. Furthermore, sensitivity analysis confirms the system is robust to hyperparameter selection ($\neff$), making it an operationally viable solution for cost-aware, lifelong LLM routing.
+\end{abstract}
+
+% CCS Concepts
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10010147.10010178.10010179</concept_id>
+<concept_desc>Computing methodologies~Machine learning</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010257.10010293.10010294</concept_id>
+<concept_desc>Computing methodologies~Neural networks</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010178.10010187</concept_id>
+<concept_desc>Computing methodologies~Online learning settings</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Computing methodologies~Machine learning}
+\ccsdesc[300]{Computing methodologies~Neural networks}
+\ccsdesc[500]{Computing methodologies~Online learning settings}
+
+% Keywords
+\keywords{Large Language Models, Routing, Contextual Bandits, Corralling, Transfer Learning, Online Learning, Cost Optimization}
+
+\maketitle
+
+% Include sections
+% \input{sections/introduction}
+% \input{sections/related_work}
+% \input{sections/methodology}
+% \input{sections/experiments}
+% \input{sections/results}
+% \input{sections/conclusion}
+
+% Bibliography
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}
+
