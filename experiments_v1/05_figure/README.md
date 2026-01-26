@@ -2,7 +2,7 @@
 
 **Complete experimental validation of banditGPT-Hybrid vs. RouteLLM-MF**
 
-This directory contains the finalized scripts, data, and LaTeX documentation for Figure 5 (Pareto Frontier) of the banditGPT paper.
+This directory contains the scripts and data for Figure 5 (Pareto Frontier) of the banditGPT paper.
 
 ---
 
@@ -11,21 +11,15 @@ This directory contains the finalized scripts, data, and LaTeX documentation for
 ```
 05_figure/
 ├── generate_pareto_frontier.py          # Main experiment script
-├── sanitize_priors.py                   # Prior normalization (Neff=10)
 ├── check_calibration.py                 # Calibration verification tool
-│
-├── PARETO_FRONTIER_METHODOLOGY.tex      # Main paper (Sections 4 & 5)
-├── RESULTS_SUMMARY.tex                  # Figure caption & tables
-├── COMPLETE_DATA_POINTS.tex             # Appendix (all 38 points)
-│
-├── README_LATEX_DOCS.md                 # LaTeX usage guide
-├── FILES_INDEX.md                       # Master file index
-│
+├── README.md                             # This file
 └── results/
     ├── pareto_results_final.json        # Complete experimental data
     ├── figure5_pareto_with_dominated.png      # Main figure (300 dpi)
     └── figure5_pareto_with_dominated_hires.png # High-res (600 dpi)
 ```
+
+**Note:** Prior normalization (Neff=10) is now handled automatically in the router code, so no separate script is needed.
 
 ---
 
@@ -84,35 +78,6 @@ If you already have `pareto_results_final.json`:
 
 ---
 
-## 📝 LaTeX Documentation
-
-### For Your Paper
-
-1. **Methods Section**
-   - File: `PARETO_FRONTIER_METHODOLOGY.tex`
-   - Copy: Section 4 (Experimental Methodology)
-
-2. **Results Section**
-   - File: `PARETO_FRONTIER_METHODOLOGY.tex`
-   - Copy: Section 5 (Results and Discussion)
-   - Includes: "The Negative Intelligence Tax", "The Synergistic Breakout", "Inverted U Analysis"
-
-3. **Figure 5**
-   - Image: `results/figure5_pareto_with_dominated.png`
-   - Caption: Use from `RESULTS_SUMMARY.tex`
-   - Table 2: Copy from `PARETO_FRONTIER_METHODOLOGY.tex`
-
-4. **Supplementary Materials**
-   - File: `COMPLETE_DATA_POINTS.tex`
-   - Contains: All 38 data points in tables, reproducibility info
-
-### Documentation Guide
-
-- **`README_LATEX_DOCS.md`** - Detailed usage instructions
-- **`FILES_INDEX.md`** - Master index with quick copy-paste guide
-
----
-
 ## 🔬 Experiment Details
 
 ### Dataset
@@ -167,22 +132,6 @@ If you already have `pareto_results_final.json`:
 
 **Runtime:** ~50 minutes (10 banditGPT trials + 28 RouteLLM thresholds)
 
-### `sanitize_priors.py`
-**Prior normalization script** - Fixes "Arrogant Prior" issue
-
-**Purpose:** Scale warmup priors to Neff=10 effective samples
-
-**Input:** `src/artifacts/priors_warmup.joblib` (original 80k battles)  
-**Output:** `src/artifacts/priors_warmup_normalized.joblib` (sanitized)
-
-**Algorithm:**
-1. Load original priors (high confidence mass)
-2. Scale A and b matrices to achieve trace(A) = Neff × dim
-3. Preserve feature correlations while resetting prior strength
-4. Save normalized priors with all metadata
-
-**When to Run:** Only if regenerating priors from scratch
-
 ### `check_calibration.py`
 **Calibration verification tool** - "Truth Serum" for router predictions
 
@@ -204,13 +153,10 @@ python check_calibration.py
 
 ## 📈 Reproducing the Results
 
-### Full Reproduction (from scratch)
+### Full Reproduction
 
 ```bash
-# 1. Ensure priors are normalized (only if regenerating)
-python sanitize_priors.py
-
-# 2. Run the complete experiment
+# Run the complete experiment
 python generate_pareto_frontier.py
 
 # Expected output:
@@ -218,6 +164,8 @@ python generate_pareto_frontier.py
 # - 28 RouteLLM points (sequential threshold sweep)
 # - Total runtime: ~50 minutes
 ```
+
+**Note:** Prior normalization (Neff=10) happens automatically inside the router during initialization.
 
 ### Quick Verification (using existing data)
 
@@ -297,8 +245,8 @@ If you use this experimental setup or data, please cite:
 
 For questions about:
 - **Experiment execution**: Check `generate_pareto_frontier.py` docstrings
-- **LaTeX documentation**: See `README_LATEX_DOCS.md`
-- **Data format**: See `COMPLETE_DATA_POINTS.tex`
+- **Calibration verification**: See `check_calibration.py`
+- **Data format**: See `results/pareto_results_final.json`
 
 ---
 
@@ -308,10 +256,10 @@ For questions about:
 
 - ✅ Scripts tested and reproducible
 - ✅ Data verified (38 points, zero leakage)
-- ✅ LaTeX compliant
 - ✅ Figures publication-ready (300 + 600 dpi)
 - ✅ "Negative Intelligence Tax" narrative complete
+- ✅ Prior normalization (Neff=10) handled automatically in router
 
-**Last Updated**: January 25, 2026  
+**Last Updated**: January 26, 2026  
 **Experiment Date**: January 25, 2026, 13:01-14:43 PM
 
