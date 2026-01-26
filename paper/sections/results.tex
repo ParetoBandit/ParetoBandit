@@ -52,3 +52,54 @@ Our approach closes $66.2\%$ of the optimality gap $\frac{0.909 - 0.823}{0.953 -
 
 In the ultra-low budget regime ($< \$0.004$), RouteLLM initially outperforms banditGPT. This reflects the ``Cost of Autonomy'': the online learner must pay an exploration penalty (regret) to discover the decision boundary, whereas the static router exploits pre-computed knowledge for free. However, this upfront investment pays dividends: once the budget permits ($> \$0.008$), banditGPT breaks through the static ceiling that confines RouteLLM.
 
+\subsection{Algorithmic Safety: Adaptive Prior Decommissioning}
+
+While Figure~\ref{fig:pareto} demonstrates average efficiency, production systems require worst-case safety. A critical vulnerability in prior-based routing is \emph{Negative Transfer}: if the offline priors are misspecified (e.g., trained on ``Hard'' data but deployed on ``Easy'' traffic), the router may stubbornly over-provision resources.
+
+Figure~\ref{fig:decommission} visualizes the internal dynamics of our Corralling Algorithm handling this exact scenario.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/figure6_expert_decommission.png}
+\caption{The ``Step Function'' of Decisive Decommissioning. (Top) Evolution of expert weights during the first 500 steps. The system initially explores the Warmup Expert (Orange), but detects a high loss due to domain mismatch. At $t \approx 50$, the cumulative evidence triggers a sharp exponential decay, effectively decommissioning the harmful prior by $t=200$. (Bottom) Cumulative loss comparison confirms the Tabula Rasa expert (Green) is strictly superior.}
+\label{fig:decommission}
+\end{figure}
+
+\textbf{The ``Step Function'' Mechanism}: The sharp drop in Warmup weight at $t \approx 50$ is not an artifact but a designed feature of the Importance-Weighted Loss estimator. When the Warmup expert makes a mistake while its probability $p_t$ is low, the penalty $\hat{\ell} = \ell_t / p_t$ explodes. This creates a ``death spiral'' for the misspecified expert, ensuring that harmful priors are removed from the decision path within 100--200 steps rather than lingering for thousands.
+
+\textbf{Outcome}: By decisively decommissioning the biased prior, the system pivots $85\%$ of traffic to Mixtral, achieving a $97.6\%$ cost reduction without manual intervention.
+
+\subsection{Operational Agility: Zero-Shot Readiness}
+
+In the fast-moving LLM landscape, models are released weekly. Standard bandit algorithms suffer a ``Cold Start'' penalty---a period of random exploration required to learn a new model's utility.
+
+To evaluate agility, we simulated a ``Mid-Flight Upgrade'' event where a new model (``GPT-5.1'') is released at $t=300$. We compare a standard Cold Start initialization against our Latent Semantic Transfer.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/figure7_zero_shot.png}
+\caption{Zero-Shot Readiness. When a new model is released at $t=300$, the Cold Start baseline (Red) suffers a catastrophic regression ($3.3 \to 1.7$ reward), requiring 500 steps to recover. In contrast, Latent Semantic Transfer (Green) maintains performance ($\sim 4.5$) by inheriting the ``intuition'' of a semantic neighbor.}
+\label{fig:zeroshot}
+\end{figure}
+
+\textbf{The Cold Start Dip}: The baseline router (Red Line) treats the new model as a complete unknown. It forces users to endure $\sim$500 steps of degraded performance ($R < 3.0$) while it relearns the decision boundary from scratch.
+
+\textbf{The Transfer Advantage}: By transferring the preference vector $\thetavec$ from a semantic neighbor (GPT-4-Turbo) while resetting confidence $\Amat$, banditGPT (Green Line) achieves Zero-Shot Readiness. It effectively says, ``I suspect this model behaves like GPT-4, but I'm open to being proven wrong.'' This results in a $2.8\times$ performance advantage during the critical adoption window.
+
+\subsection{Robustness: Sensitivity Analysis}
+
+A common critique of transfer learning is hyperparameter sensitivity: Does the system fail if we trust the neighbor too much or too little?
+
+We performed a sensitivity sweep on the Effective Prior Strength ($\neff$), ranging from $1.0$ (Weak Trust) to $20.0$ (Strong Trust).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/figure8_sensitivity.png}
+\caption{Robustness to Prior Strength ($\neff$). We vary the strength of the transferred prior from $\neff=1$ to $\neff=20$. All transfer configurations (Blue/Teal lines) significantly outperform the Cold Start baseline (Red). The overlap of the trajectories confirms that performance is driven by the direction of the transferred mean ($\thetavec$), not the tightness of the confidence interval.}
+\label{fig:sensitivity}
+\end{figure}
+
+\textbf{Invariance Result}: As shown in Figure~\ref{fig:sensitivity}, the performance trajectories for $\neff=1$ (Weak) and $\neff=20$ (Strong) are nearly indistinguishable.
+
+\textbf{Implication}: This confirms mathematically that the benefit comes from the mean initialization ($\hat{\thetavec} \approx \thetavec_{\text{neighbor}}$). Even a weak suggestion is sufficient to guide the router away from the Cold Start failure mode. Consequently, $\neff$ does not require precise tuning; any value $\in [1, 20]$ yields near-optimal results.
+
