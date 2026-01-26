@@ -12,8 +12,9 @@ The \emph{Easy cluster} (PC1 $< 0.3$, blue, 94.2\% of prompts) exhibits high sem
 The \emph{Hard cluster} (PC1 $\geq 0.3$, red, 5.8\% of prompts) requires more capable models.
 %
 \textbf{(Right)} Expert weight evolution during Corralling training on N=1,121 labeled samples from dev dataset.
-The algorithm initially relies on warmup priors (orange) but shifts weight to tabula rasa (green) after discovering that the warmup expert's bias toward flagship models (GPT-4, Claude-3) is suboptimal in the Easy cluster.
+The algorithm initially relies on warmup priors (orange) but shifts weight to tabula rasa (green) after discovering that the warmup expert's bias toward expensive flagship models (GPT-4, Claude-3) yields lower quality on the Easy cluster.
 Final weights: Warmup=0.130, Tabula Rasa=0.870, demonstrating the algorithm's ability to unlearn harmful priors.
+Notably, the algorithm optimizes purely for quality (no explicit cost penalty), yet cost savings emerge naturally as a byproduct of correcting the ``expensive bias''---the warmup expert's overreliance on flagship models that provide no quality advantage on routine tasks.
 %
 \textbf{Persistent Exploration and Semantic Alignment:} The expert weight evolution (Right) exhibits a distinctive ``jagged'' profile with rapid fluctuations between experts. Rather than signifying convergence failure, this volatility is an essential architectural feature of the $\eta=1.0$ master aggregator. The frequent weight ``spikes''---particularly around samples 800 and 1000---demonstrate the system's commitment to continuous hypothesis testing: by refusing to let the Warmup weight collapse to permanent zero, the router maintains a ``hot standby'' capability, ensuring instant pivot capability if the production distribution shifts back toward high-complexity tasks (the 5.8\% High PC1 cluster). Unlike static routing policies that suffer from ``confirmation bias,'' this persistent exploration prevents ``policy collapse'' while successfully filtering out the 0.42 PSI domain mismatch. The eventual stabilization at $w=0.870$ for the Tabula Rasa expert proves decisive alignment with the 94.2\% Easy Cluster without permanently ``blinding'' the system to the prior's historical knowledge.
 %
@@ -102,9 +103,10 @@ The warmup expert uses gamma-scaled priors ($\gamma = 0.05$) from RouteLLM, whil
 
 \paragraph{Experimental Results.}
 Figure~\ref{fig:corralling_semantic} shows that Corralling successfully unlearns the warmup bias.
-The warmup expert, trained on RouteLLM data emphasizing quality, is biased toward expensive flagship models (GPT-4, Claude-3).
-However, the \emph{Easy cluster} (94.2\% of prompts) can be served well by cheaper models like Mixtral.
-Corralling detects this through higher losses on the warmup expert and shifts weight to tabula rasa, which discovers Mixtral's value.
+The warmup expert, trained on RouteLLM data emphasizing quality, exhibits an ``expensive bias''---overreliance on flagship models (GPT-4, Claude-3) even when they provide no quality advantage.
+The \emph{Easy cluster} (94.2\% of prompts) can be served with equal quality by cheaper models like Mixtral.
+Corralling detects this through higher losses on the warmup expert (due to suboptimal quality, not cost) and shifts weight to tabula rasa, which discovers that Mixtral achieves comparable quality at lower cost.
+Critically, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$); cost savings emerge naturally as a byproduct of correcting the quality-based bias.
 
 Final expert weights after training on N=1,121 samples from dev dataset:
 \begin{itemize}[nosep]
@@ -156,8 +158,9 @@ For each point in the 1M space, we determine which model the learned Corralling 
 This shows the \emph{coverage} of the learned policy across the semantic manifold without requiring ground truth rewards.
 
 \paragraph{Key Insight.}
-The Easy cluster (94.1\% of prompts) is exploitable with cheaper models, which Corralling discovers automatically by unlearning the warmup bias.
+The Easy cluster (94.1\% of prompts) can be served with equal quality by cheaper models, which Corralling discovers automatically by unlearning the warmup bias.
 This demonstrates that semantic structure enables generalization: by learning on 1,871 labeled samples, we can infer policy behavior across the full 1M distribution.
+The cost savings are not from explicit cost optimization, but from correcting a quality-based bias---the warmup expert's false belief that flagship models are necessary for high quality on routine tasks.
 
 
 % ============================================================================

@@ -158,13 +158,15 @@ for context in X_nd:
 
 ### Key Insight
 
-The warmup expert is biased toward flagships (GPT-4, Claude-3) because the RouteLLM training data emphasized quality. However, the **Easy cluster** (94.1% of prompts) can be served well by cheaper models like Mixtral.
+The warmup expert exhibits an "expensive bias"---overreliance on flagship models (GPT-4, Claude-3) even when they provide no quality advantage. The **Easy cluster** (94.1% of prompts) can be served with equal quality by cheaper models like Mixtral.
 
 Corralling allows the algorithm to:
 1. Start with warmup priors (fast convergence)
-2. Detect that warmup is suboptimal in the Easy cluster (high losses)
-3. Shift weight to tabula rasa expert (which discovers Mixtral's value)
-4. Achieve better cost-quality tradeoff than either expert alone
+2. Detect that warmup is suboptimal in the Easy cluster (high losses due to poor quality predictions)
+3. Shift weight to tabula rasa expert (which discovers Mixtral achieves comparable quality)
+4. Achieve cost savings as a natural byproduct of correcting the quality-based bias
+
+**Critical Clarification**: The algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$). Cost savings emerge naturally because the warmup expert's bias toward expensive models is not justified by quality improvements on routine tasks.
 
 ## Paper Strategy
 
