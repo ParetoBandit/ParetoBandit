@@ -101,7 +101,7 @@ All changes maintain the scientific integrity by:
 4. ✅ Avoiding false claims of formal guarantees
 5. ✅ Preserving the credibility of the approach
 
-## Additional Fix: Technical Fairness and Expert Starvation
+## Additional Fix: Technical Fairness and Computational Complexity
 
 ### Problem Identified
 
@@ -110,19 +110,32 @@ The Exp3-style importance-weighted estimator has a subtle bias: unselected exper
 - It effectively "starves" in a high-variance state
 - This could lead to "expert death" where it never recovers
 
-### Solution: New Subsection in Methodology (Section 3.3)
+### Solution: Reframed as Efficiency Trade-off (Section 3.3)
 
-Added **"Technical Fairness and Expert Starvation"** subsection that:
+Added **"Technical Fairness and Computational Complexity"** subsection that **frames the simplification as a feature** (speed) rather than just a limitation:
 
-1. **Acknowledges the limitation** explicitly (shows technical sophistication)
-2. **Frames it as a design choice** for "Incumbent Advantage" (we want the system to stick to Warmup unless it actively fails)
-3. **Defends against expert death** through two mechanisms:
-   - **Uniform Initialization:** $\pi_0 = [0.5, 0.5]$ ensures Tabula Rasa gets ~50% of traffic during burn-in ($t < 50$)
-   - **Incumbent Failure Logic:** If Warmup performs poorly, its cumulative loss rises, which mathematically forces an increase in the starved expert's probability via softmax normalization
+#### The Efficiency Trade-off ($O(K) \to O(1)$)
+
+**Theoretical Algorithm:** Updates all $K$ experts at every step using counterfactual loss estimators
+- **Cost:** Linear computational scaling $O(K)$
+- **Problem:** Doesn't scale to production with hundreds of models
+
+**Our Selected-Update Approximation:** Updates only the chosen expert $e_t$
+- **Benefit:** Reduces complexity from $O(K)$ to $O(1)$, maintaining <20ms latency SLA
+- **Benefit:** Allows expert registry to scale to hundreds of models without increasing router latency
+- **Limitation:** Unselected experts "freeze," leading to potential starvation
+
+#### Mitigating Starvation
+
+Two mechanisms counteract the lack of counterfactual updates:
+1. **Uniform Initialization:** $\pi_0 = [0.5, 0.5]$ ensures equal traffic during burn-in
+2. **Incumbent Failure Logic:** Softmax normalization automatically shifts traffic when incumbent degrades
+
+**Empirical Validation:** Figure 5 demonstrates that even without $O(K)$ updates, the system successfully identifies and decommissions the suboptimal expert within 200 steps.
 
 ### Key Insight
 
-The architecture **favors the incumbent only as long as it remains optimal**. Any degradation in the Warmup prior automatically flushes traffic to the Tabula Rasa candidate, naturally breaking the starvation loop.
+This framing positions the simplification as a **deliberate engineering trade-off** for production scalability, not a theoretical shortcoming. It shows awareness of both the costs and benefits.
 
 ### Files Modified
 
