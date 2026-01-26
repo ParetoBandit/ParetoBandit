@@ -12,6 +12,13 @@
         \textbf{(Middle)} The \textit{Expert Layer} consists of a \textit{Warmup Expert} (initialized with semantic priors) and a \textit{Tabula Rasa Expert} (learning from scratch).
         \textbf{(Bottom)} The \textit{Feedback Phase} updates the coordinator via importance-weighted losses $\ell = (1-r)/\pi_i$.
         %
+        This design provides \textbf{three key guarantees}:
+        (1)~\textbf{Robustness}---system remains effective even if Warmup priors are misspecified.
+        (2)~\textbf{Fast Convergence}---Warmup expert accelerates early learning.
+        (3)~\textbf{Principled Regret Minimization}---while prioritizing $O(1)$ production latency over strict theoretical compliance, the objective function drives the system toward the optimal policy, achieving low empirical regret relative to the best expert (Figure~\ref{fig:corralling}).
+        %
+        Arrows indicate information flow: dashed lines represent recommendations (expert→coordinator), solid lines represent selections (coordinator→expert), and bold lines represent feedback (environment→both).
+        %
         \textit{Note on Values:} The diagram depicts an illustrative snapshot where the Warmup expert retains dominance ($\pi \approx 0.72$), typical of the ``Natural Language'' cluster (Low PC1). However, as shown in the experimental dynamics (Figure~\ref{fig:corralling}), the aggressive learning rate ($\eta=1.0$) allows the system to rapidly invert these weights if the Warmup expert's performance degrades, preventing expert starvation.
     }
     \label{fig:corralled_architecture}
