@@ -4,7 +4,7 @@
 
 **Goal**: Create a clear, publication-quality diagram showing the coordinator-expert hierarchy with information flows.
 
-**Style**: Clean, professional, suitable for academic paper (ICML/NeurIPS/KDD)
+**Style**: Clean, professional, suitable for academic publication
 
 **Format**: TikZ (LaTeX) or SVG for vector graphics
 

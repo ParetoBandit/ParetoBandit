@@ -266,7 +266,7 @@ INDEX.md (you are here)
 - **Folder**: `experiments_v1/05_corralling/`
 - **Key Files**:
   - `test_hybrid_corralling.py` - Unit tests
-  - `results/CORRALLING_BREAKTHROUGH_KDD.tex` - Experimental results
+  - `results/CORRALLING_BREAKTHROUGH.tex` - Experimental results
   - `README.md` - Experiment documentation
 
 ---
