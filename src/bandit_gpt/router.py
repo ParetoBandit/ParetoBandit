@@ -128,24 +128,6 @@ class RouterConfig:
     """
     
     # ---------------------------------------------------------------------------
-    # HLE → Utility Transformation Parameters (Two-Tiered Calibration)
-    # ---------------------------------------------------------------------------
-    # Empirical Basis (validated on N=1000 LMSYS prompts):
-    #   - HLE range across 35 models: [0.05, 0.35]
-    #   - Complexity μ=-0.0037, σ=0.095 (see validate_complexity_bounds.py)
-    #   - Ablation sensitivity: easy_floor ±2% regret, hard_exponent ±5% regret
-    # 
-    # Two-Tiered Approach:
-    #   EASY PROMPTS: utility = easy_floor + easy_slope * hle_score
-    #   HARD PROMPTS: utility = (hle_score / hard_max_benchmark) ^ hard_exponent
-    # ---------------------------------------------------------------------------
-    easy_floor: float = 0.95           # Base success rate for easy prompts
-    easy_slope: float = 0.05           # HLE contribution slope for easy prompts  
-    hard_max_benchmark: float = 0.35   # Best-in-class HLE score (GPT-4/Claude-3)
-    hard_exponent: float = 2.0         # Power-law exponent (2.0 optimal from grid search)
-    calibration_validated: bool = True # ✓ Validated on N=1000 LMSYS train prompts
-    
-    # ---------------------------------------------------------------------------
     # Production Stability: Memory Management
     # ---------------------------------------------------------------------------
     # KDD Reviewer Fix: Prevent OOM from unbounded log growth.
