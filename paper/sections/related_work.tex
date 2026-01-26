@@ -1,0 +1,60 @@
+\section{Related Work}
+
+Current approaches to LLM efficiency generally fall into three categories: Cascades, Static Routers, and Generic Bandits. We contrast banditGPT against each, highlighting the specific limitations our architecture addresses.
+
+\subsection{Cascading Architectures}
+
+Cascading systems, exemplified by FrugalGPT~\cite{chen2023frugalgpt}, optimize cost by sequentially querying models from cheapest to most expensive. The router evaluates the response of a smaller model using a scoring function; if the score is insufficient, the query is escalated.
+
+\textbf{The Limitation}: Cascades introduce non-deterministic latency. A difficult query incurs the sum of all failed inference times plus the final success. For real-time applications requiring strict SLA compliance (e.g., $<500$ms TTFT), the ``latency spikes'' of cascading chains are prohibitive.
+
+\textbf{Our Approach}: banditGPT is a \emph{Single-Shot Router}. It predicts the optimal model before inference, guaranteeing deterministic latency and strictly one inference cost per request.
+
+\subsection{Static Preference Predictors}
+
+Predictive routers, such as RouteLLM~\cite{ong2024routellm}, train a classifier (e.g., Matrix Factorization or BERT) to predict model performance based on offline datasets like LMSYS Chatbot Arena~\cite{zheng2023judging}.
+
+\textbf{The Limitation}: These policies are static. As demonstrated in Section~5.1, they suffer from \emph{Prior Rigidity}: when the production distribution exhibits ``Quality Inversion'' (where cheap models outperform expensive ones on specific tasks), static routers fail to adapt, incurring an ``Over-Provisioning Penalty.'' Furthermore, they suffer from the Cold Start problem: adding a new model requires collecting thousands of new samples and retraining the router.
+
+\textbf{Our Approach}: banditGPT is an \emph{Online Learner}. Through continuous feedback, it updates its beliefs in real-time. Crucially, our Latent Semantic Transfer mechanism (Section~5.3) enables zero-shot admission of new models without the retraining bottleneck.
+
+\subsection{Contextual Bandits in NLP}
+
+The use of Multi-Armed Bandits (MAB) for model selection is an emerging field. Recent works like LLM-Bandit and C2MAB apply standard LinUCB~\cite{li2010contextual} or Thompson Sampling~\cite{agrawal2013thompson} to routing.
+
+\textbf{The Limitation}: Standard bandit algorithms assume stationarity and well-specified priors. They lack safety mechanisms for ``Negative Transfer,'' where a transferred prior is actively harmful (as seen in our PSI=0.275 shift). They also struggle with ``Expert Death,'' where a bad start permanently marginalizes a potentially good model.
+
+\textbf{Our Approach}: We introduce Expert Corralling~\cite{agarwal2017corralling} to the LLM routing domain. By maintaining a portfolio of experts (Warmup vs.\ Tabula Rasa) and dynamically mixing them, banditGPT provides a worst-case safety guarantee that standard LinUCB implementations lack.
+
+\subsection{Feature Comparison Matrix}
+
+Table~\ref{tab:comparison} contrasts banditGPT with leading open-source frameworks.
+
+\begin{table}[t]
+\centering
+\caption{Feature Comparison of Routing Frameworks}
+\label{tab:comparison}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Feature} & \textbf{FrugalGPT} & \textbf{RouteLLM} & \textbf{Aurelio} & \textbf{banditGPT} \\
+ & \textbf{(Cascade)} & \textbf{(Static)} & \textbf{(Semantic)} & \textbf{(Ours)} \\
+\midrule
+Inference Latency & High & Low & Lowest & Low \\
+ & (Sequential) & (Single-Shot) & (Vector) & (Single-Shot) \\
+\midrule
+Adaptability & None & Low & None & High \\
+ & (Static) & (Offline) & (Fixed) & (Online) \\
+\midrule
+Safety Mechanism & Score & None & None & Expert \\
+ & Thresholds & & & Corralling \\
+\midrule
+New Model & Manual & Retraining & Manual & Zero-Shot \\
+Handling & Chain Update & Required & Assignment & Transfer \\
+\midrule
+Context & Output & Dense & Semantic & Latent \\
+Awareness & Scoring & Embedding & Cluster & Semantic (PCA) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
