@@ -1,0 +1,10 @@
+%% Figure 6 Caption - Zero-Shot Readiness
+%% Short version for figures-only sections
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\columnwidth]{experiments_v1/06_figure/results/figure6_adaptive_efficiency.png}
+    \caption{\textbf{Zero-Shot Readiness via Latent Semantic Transfer.} When a new model (GPT-5.1) is released at $t=300$, the baseline Cold Start approach (red) suffers a catastrophic performance drop from 3.3 to 1.7, requiring 500 steps to recover. In contrast, our Latent Semantic Transfer method (green) maintains high performance ($\sim$4.5) by inheriting learned preferences from the semantically similar GPT-4-Turbo. This demonstrates the router's ability to adapt to new models without the exploration penalty that plagues traditional bandit algorithms.}
+    \label{fig:zero-shot-readiness}
+\end{figure}
+

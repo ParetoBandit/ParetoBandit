@@ -46,6 +46,10 @@ CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_2models.jso
 DEV_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
 HOLDOUT_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
 
+# All models datasets (includes all available models from LMSys Arena)
+DEV_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete_all_models.jsonl.gz"
+HOLDOUT_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete_all_models.jsonl.gz"
+
 # RouteLLM battles rewards dataset (corrected winner labels)
 ROUTELLM_BATTLES_REWARDS_PATH = OFFLINE_DATASET_DIR / "routellm_battles_rewards.jsonl"
 

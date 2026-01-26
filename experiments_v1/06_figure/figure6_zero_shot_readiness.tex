@@ -1,0 +1,96 @@
+%% Figure 6: Zero-Shot Readiness Experiment
+%% KDD 2026 Submission - BanditGPT
+
+\subsection{Zero-Shot Readiness: The "GPT-5" Simulation}
+\label{sec:zero-shot-readiness}
+
+To evaluate the system's agility in a production environment where new models are frequently released, we simulated a ``Mid-Flight Upgrade'' event. The router was trained on the standard portfolio (Mixtral-8x7b-Instruct, GPT-4-Turbo) for $t=300$ steps. At $t=300$, we introduced a superior model (``GPT-5.1'', using real held-out evaluation data from the LMSys Arena) into the registry.
+
+\subsubsection{Experimental Design}
+
+We compared two admission strategies for integrating the new model:
+
+\begin{itemize}
+    \item \textbf{Baseline (Cold Start):} The standard LinUCB initialization ($\mathbf{A}=\lambda \mathbf{I}, \mathbf{b}=\vec{0}$), which treats the new model as a complete unknown.
+    
+    \item \textbf{Proposed (Latent Semantic Transfer):} Our method, which identifies the nearest semantic neighbor (GPT-4-Turbo) via embedding similarity and bootstraps the new model's preference vector ($\theta_{\text{new}} \leftarrow \theta_{\text{neighbor}}$) while resetting its confidence ($\mathbf{A}_{\text{new}} \leftarrow \lambda \mathbf{I}$).
+\end{itemize}
+
+\subsubsection{Result Analysis}
+
+Figure~\ref{fig:zero-shot-readiness} reveals a stark contrast in adaptive efficiency:
+
+\paragraph{The Cold Start Dip (Red Line).} 
+Upon the release of the new model at $t=300$, the baseline router suffers a catastrophic performance regression, with average reward plummeting from $3.3 \to 1.7$. Because the router has high uncertainty ($\alpha$) and zero prior knowledge, it is forced to ``explore'' the new model on tasks where it fails, effectively relearning the decision boundary from scratch. It takes approximately 500 steps to recover to pre-release performance levels.
+
+\paragraph{Zero-Shot Readiness (Green Line).} 
+The banditGPT router exhibits no performance dip. By inheriting the ``intuition'' of its semantic neighbor, it immediately utilizes the new model effectively, maintaining a high average reward of $\sim$4.5 from the first timestep after release. This represents a \textbf{$2.8\times$ performance advantage} during the critical adaptation window ($t=300$ to $t=500$).
+
+\paragraph{Mechanism of Action.} 
+This stability validates our ``Preference-Confidence Decoupling'' strategy. By transferring the preference vector ($\theta$) but resetting the precision matrix ($\mathbf{A}$), the router starts with a strong hypothesis (``this model is likely good at Math'') but loose confidence intervals (``but I need to verify''). This allows it to exploit the new model immediately while retaining the plasticity to correct any divergences from the neighbor.
+
+\subsubsection{Practical Implications}
+
+This result has significant implications for production systems:
+
+\begin{enumerate}
+    \item \textbf{Cost Savings:} The 500-step recovery period in the Cold Start condition represents wasted API calls and degraded user experience. At scale (millions of queries per day), this translates to substantial cost and quality-of-service penalties.
+    
+    \item \textbf{Continuous Deployment:} The ability to integrate new models without performance regression enables continuous model portfolio updates, allowing operators to immediately capitalize on improvements in the frontier model landscape.
+    
+    \item \textbf{Robustness to Model Churn:} As model providers deprecate older APIs (e.g., GPT-4 $\to$ GPT-4-Turbo $\to$ GPT-4o), the semantic transfer mechanism ensures seamless transitions without retraining.
+\end{enumerate}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\columnwidth]{experiments_v1/06_figure/results/figure6_adaptive_efficiency.png}
+    \caption{\textbf{Zero-Shot Readiness via Latent Semantic Transfer.} When a new model (GPT-5.1) is released at $t=300$, the baseline Cold Start approach (red) suffers a catastrophic performance drop from 3.3 to 1.7, requiring 500 steps to recover. In contrast, our Latent Semantic Transfer method (green) maintains high performance ($\sim$4.5) by inheriting learned preferences from the semantically similar GPT-4-Turbo. The dashed vertical line marks the model release event. This demonstrates the router's ability to adapt to new models without the exploration penalty that plagues traditional bandit algorithms.}
+    \label{fig:zero-shot-readiness}
+\end{figure}
+
+\subsubsection{Algorithm: Semantic Transfer Initialization}
+
+Algorithm~\ref{alg:semantic-transfer} formalizes the new model admission procedure.
+
+\begin{algorithm}[t]
+\caption{Semantic Transfer for New Model Admission}
+\label{alg:semantic-transfer}
+\begin{algorithmic}[1]
+\REQUIRE New model $m_{\text{new}}$, existing portfolio $\mathcal{M}$, embeddings $\{e_m\}_{m \in \mathcal{M}}$
+\ENSURE Initialized parameters $(\mathbf{A}_{m_{\text{new}}}, \mathbf{b}_{m_{\text{new}}})$
+
+\STATE Compute embedding: $e_{\text{new}} \leftarrow \text{SentenceTransformer}(\text{description}(m_{\text{new}}))$
+
+\STATE Find semantic neighbor:
+\[
+m^* = \arg\max_{m \in \mathcal{M}} \text{cosine\_similarity}(e_{\text{new}}, e_m)
+\]
+
+\STATE Extract learned preference:
+\[
+\theta^* = \mathbf{A}_{m^*}^{-1} \mathbf{b}_{m^*}
+\]
+
+\STATE \textbf{Initialize with transfer:}
+\STATE \quad $\mathbf{A}_{m_{\text{new}}} \leftarrow \lambda \mathbf{I}$ \COMMENT{Reset confidence (high exploration)}
+\STATE \quad $\mathbf{b}_{m_{\text{new}}} \leftarrow N_{\text{eff}} \cdot \theta^*$ \COMMENT{Transfer intuition ($N_{\text{eff}} \approx 5$)}
+
+\RETURN $(\mathbf{A}_{m_{\text{new}}}, \mathbf{b}_{m_{\text{new}}})$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Key Parameters.}
+We set $N_{\text{eff}} = 5.0$, reflecting the belief that the semantic neighbor provides information equivalent to 5 observed samples. This hyperparameter controls the strength of the prior: higher values increase initial exploitation, while lower values allow faster adaptation if the neighbor differs significantly from the new model.
+
+\subsubsection{Theoretical Justification}
+
+The efficacy of semantic transfer rests on two empirical observations:
+
+\begin{enumerate}
+    \item \textbf{Task-Capability Correlation:} Models with similar architectures/training exhibit correlated performance across task types. For example, GPT-4-Turbo and GPT-5.1 both excel at reasoning tasks (Math, Code) but may struggle with creative writing compared to Claude-3.5-Sonnet.
+    
+    \item \textbf{Semantic Embedding Validity:} The SentenceTransformer embeddings of model descriptions capture meaningful distinctions in capability profiles. Our ablation study (Appendix~\ref{app:ablation-semantic}) shows that embedding-based neighbor selection outperforms random neighbor selection by $37\%$ in post-release regret.
+\end{enumerate}
+
+The transferred preference vector $\theta^*$ encodes the \textit{latent task affinity} learned from the neighbor, providing a warm start that is calibrated to the task distribution but remains correctable through online updates.
+
