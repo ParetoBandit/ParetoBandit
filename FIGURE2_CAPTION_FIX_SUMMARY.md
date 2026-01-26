@@ -126,7 +126,9 @@ The architecture **favors the incumbent only as long as it remains optimal**. An
 
 ### Files Modified
 
-- `paper/sections/methodology.tex`: Added equation labels and new subsection
+- `paper/sections/methodology.tex`: Added equation labels and new subsection (Section 3.3)
+- `experiments_v1/04_figure/figure3_caption.tex`: Added Technical Fairness paragraph after Theoretical Motivation
+- `experiments_v1/03_figure/figure_2_caption.tex`: Updated caption to clarify that diagram values are illustrative and reference the dynamic weight inversion capability
 
 ## Impact
 

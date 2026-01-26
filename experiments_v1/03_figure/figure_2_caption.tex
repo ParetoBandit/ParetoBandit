@@ -1,4 +1,4 @@
-% Figure 2: Corralled Architecture
+% Figure 2: Corralled Architecture (Updated for Technical Fairness)
 % Hierarchical coordinator-expert system for adaptive model routing
 
 \begin{figure}[t]
@@ -8,23 +8,11 @@
         \textbf{Corralled Architecture: Hierarchical Coordination of Warmup and Tabula Rasa Experts.}
         The banditGPT system implements a \textbf{coordinator-expert hierarchy} where a meta-controller dynamically allocates trust between two complementary routing strategies.
         %
-        \textbf{(Top)} The \textit{Coordinator Layer} maintains a trust distribution $\pi_t$ over experts, tracks cumulative regret, and manages the exploration budget.
-        At each timestep $t$, the coordinator samples an expert proportionally to its trust weight.
+        \textbf{(Top)} The \textit{Coordinator Layer} maintains a trust distribution $\pi_t$ over experts.
+        \textbf{(Middle)} The \textit{Expert Layer} consists of a \textit{Warmup Expert} (initialized with semantic priors) and a \textit{Tabula Rasa Expert} (learning from scratch).
+        \textbf{(Bottom)} The \textit{Feedback Phase} updates the coordinator via importance-weighted losses $\ell = (1-r)/\pi_i$.
         %
-        \textbf{(Middle)} The \textit{Expert Layer} consists of two LinUCB bandit instances:
-        (1)~\textit{Warmup Expert} initializes with semantic priors from latent space analysis (Figure~1), enabling fast cold-start convergence.
-        (2)~\textit{Tabula Rasa Expert} learns purely from online feedback without priors, ensuring unbiased adaptation to deployment distribution.
-        The coordinator samples an expert based on $\pi_t$, which then recommends an action that is executed.
-        %
-        \textbf{(Bottom)} The \textit{Feedback Phase} computes importance-weighted losses and updates both layers:
-        The system calculates the loss $\ell = \frac{1-r}{\pi_i}$ for the selected expert, updates the coordinator's cumulative losses $L[i] \leftarrow L[i] + \ell$, renormalizes the trust distribution $\pi \leftarrow \text{normalize}(\exp(-\eta L))$, and updates the expert's LinUCB parameters $(A, b)$ using the observed context-action-reward tuple.
-        %
-        This design provides \textbf{three key guarantees}:
-        (1)~\textbf{Robustness}---system remains effective even if Warmup priors are misspecified, as Tabula Rasa corrects for distribution shift.
-        (2)~\textbf{Fast Convergence}---Warmup expert accelerates early learning when priors are helpful.
-        (3)~\textbf{Principled Aggregation}---system minimizes regret relative to the best expert by leveraging the importance-weighted objective of the Corralling framework~\cite{agarwal2017corralling}, avoiding the brittleness of heuristic ensembles.
-        %
-        Arrows indicate information flow: dashed lines represent recommendations (expert→coordinator), solid lines represent selections (coordinator→expert), and bold lines represent feedback (environment→both).
+        \textit{Note on Values:} The diagram depicts an illustrative snapshot where the Warmup expert retains dominance ($\pi \approx 0.72$), typical of the ``Natural Language'' cluster (Low PC1). However, as shown in the experimental dynamics (Figure~\ref{fig:corralling}), the aggressive learning rate ($\eta=1.0$) allows the system to rapidly invert these weights if the Warmup expert's performance degrades, preventing expert starvation.
     }
     \label{fig:corralled_architecture}
 \end{figure}

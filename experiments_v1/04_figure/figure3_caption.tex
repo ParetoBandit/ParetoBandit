@@ -85,6 +85,17 @@ This ensures that the system inherits the \emph{behavioral properties} of the th
     \item If warmup priors are harmful (negative transfer), the importance-weighted penalty explodes, forcing a shift to the Tabula Rasa expert.
 \end{itemize}
 
+\paragraph{Technical Fairness and Expert Starvation.}
+A known limitation of the Exp3-style estimator (Eq.~\ref{eq:importance_weighted_loss}) in our partial-feedback setting is the potential for ``Expert Starvation.'' Since unselected experts receive $\ell=0$ and no internal state update ($\Delta A = 0$), a Tabula Rasa expert that fails to gain traction early may effectively freeze in a high-entropy state.
+
+We mitigate this risk through two mechanisms:
+\begin{enumerate}[nosep]
+    \item \textbf{Uniform Initialization:} We strictly initialize trust weights at parity ($\pi_0 = [0.5, 0.5]$). As shown in Figure~\ref{fig:corralling_semantic}, this ensures the Tabula Rasa expert receives $\sim$50\% of traffic during the critical burn-in phase ($t < 50$), allowing it to build a sufficient initial covariance model before trust differentiation begins.
+    \item \textbf{Incumbent Failure Logic:} Starvation is only a risk if the dominant expert (Warmup) continues to succeed. If the Warmup expert performs poorly (as in our Domain Mismatch scenario), its cumulative loss $L_{\text{warmup}}$ rises. Because probabilities are softmax-normalized (Eq.~\ref{eq:exponential_weights}), a rise in the incumbent's loss mathematically forces an increase in the starved expert's probability, naturally breaking the starvation loop.
+\end{enumerate}
+
+Thus, our architecture favors the incumbent only as long as it remains optimal; any degradation in the Warmup prior automatically flushes traffic to the Tabula Rasa candidate.
+
 \paragraph{Implementation Details.}
 We use $\eta = 1.0$ (learning rate) and initialize with uniform weights $w_{1,e} = 1/E$.
 The warmup expert uses gamma-scaled priors ($\gamma = 0.05$) from RouteLLM, while the tabula rasa expert initializes with $A = I$ and $b = 0$.
