@@ -31,26 +31,25 @@ High PC1 (\%) & 17.6\% & \textbf{5.9\%} \\
 
 \noindent\textbf{Key Finding:} The principal components and the $PC1 = 0.3$ decision boundary remain perfectly stable across a 317$\times$ scale increase, demonstrating \emph{spectral invariance}. This proves that the router's semantic logic is scale-invariant and generalizes to production-scale traffic.
 
-\subsubsection{The Economic Catastrophe: 94\% Waste}
+\subsubsection{The Economic Implication: Scale Magnifies the Paradox}
 
-The shift from 17.6\% to 5.9\% ``Hard'' prompts (High PC1 cluster) reveals a critical insight: \textbf{our initial holdout evaluation represented an artificially difficult production environment}. Real-world LMSYS traffic is overwhelmingly routine (94.1\% Low PC1), making the Warmup Prior's bias toward expensive models not merely inefficient---it is an \emph{economic catastrophe}.
+The shift from 17.6\% ``Hard'' prompts in the Holdout set to 5.9\% in the Chat-1M production data reframes the routing challenge.
+
+\textbf{1. The "Trap" is Rare but Costly.}
+While the ``High PC1'' cluster (where Mixtral wins) shrinks to 5.9\%, it remains the most dangerous segment. A static router that sends these complex tasks to GPT-4-Turbo (based on a ``Hard = Expensive'' heuristic) actively harms the user experience on the most technical queries, creating a ``Quality Hole'' in the service.
+
+\textbf{2. The "Nuance" is Expensive.}
+The growth of the ``Low PC1'' cluster (to 94.1\%) means that production traffic is dominated by tasks where GPT-4-Turbo has a $+0.13$ advantage. This validates the need for a \textbf{Cost-Aware} objective. A naive ``minimize cost'' router would switch 94\% of traffic to Mixtral, sacrificing significant quality. \texttt{banditGPT}'s ability to find the \emph{sub-manifold} within this 94\% where Mixtral is ``good enough'' is the only path to the reported 27\% cost savings.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.48\textwidth]{experiments_v1/01_figure_1M/results/figure1_lmsys_1M_pca.png}
-\caption{\textbf{Semantic Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts reveals overwhelming dominance of routine tasks (Low PC1: 94.1\%, blue). The $PC1=0.3$ decision boundary (dashed line) remains stable despite 317$\times$ scale increase. High PC1 cluster (red, 5.9\%) represents complex reasoning tasks requiring flagship models. This distribution shift from holdout (82.4\%/17.6\%) to production (94.1\%/5.9\%) exposes the economic catastrophe of static routing: \textbf{94\% of production traffic is over-served by expensive models}.}
+\caption{\textbf{Semantic Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts reveals overwhelming dominance of routine tasks (Low PC1: 94.1\%, blue). The $PC1=0.3$ decision boundary (dashed line) remains stable despite 317$\times$ scale increase. High PC1 cluster (red, 5.9\%) represents specialized tasks where Mixtral outperforms GPT-4-Turbo. This distribution shift from holdout (82.4\%/17.6\%) to production (94.1\%/5.9\%) proves we cannot simply ``route easy to cheap'': the Performance Paradox makes routing fundamentally context-dependent.}
 \label{fig:scale_validation}
 \end{figure}
 
-\paragraph{Quantifying the Waste.}
-Consider a production deployment processing 1M requests/day:
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Holdout-based estimate:} 82.4\% routine $\rightarrow$ 824K requests over-served
-    \item \textbf{Reality (Chat-1M):} 94.1\% routine $\rightarrow$ \textbf{941K requests over-served}
-    \item \textbf{Additional waste:} 117K requests/day ($+$14\% underestimate)
-\end{itemize}
-
-At GPT-4 pricing (\$20/M tokens vs. Mixtral \$0.54/M tokens), this represents an additional \textbf{\$2.3M/year in unnecessary costs} for a single 1M-request/day deployment.
+\textbf{Conclusion.}
+The 1M scale validation proves that we cannot simply ``route easy tasks to cheap models'' (because the ``easy'' tasks actually benefit from GPT-4-Turbo). Instead, we must \textbf{surgically offload the ``Paradox'' tasks} (High PC1) to the cheap model to fund the usage of GPT-4-Turbo on the routine tasks that necessitate it.
 
 \subsubsection{Conservative Stress Test Interpretation}
 

@@ -1,18 +1,13 @@
-% Figure 1: Semantic Task Specialization in Latent Space
-% KDE density visualization of 80K RouteLLM prompts
-% PCA: 32 components capturing 35.14% variance, 2D projection shows 5.39%
+% Figure 1 Caption: LMSYS Holdout Semantic Structure (CORRECTED - Performance Paradox)
 
 \begin{figure}[t]
-    \centering
-    \includegraphics[width=\textwidth]{experiments_v1/01_figure/results/pca_2d_reward_gap.png}
-    \caption{%
-        \textbf{The Geography of Difficulty: Semantic Task Specialization in Latent Space.}
-        (Left) We project 80,000 RouteLLM prompt embeddings into a 2D PCA space (32 components capturing 35.14\% variance), visualizing task difficulty as a heatmap of the hard/easy density ratio.
-        The visualization reveals a \textbf{Core-Shell Architecture}: a high-density ``Hard'' perimeter (Red, 68.6\% of data, $\Delta = 1.0$) encapsulating a varied ``Easy/Mixed'' core (Blue/White, 22.1\% easy, $\Delta = 0.0$).
-        This geography proves that high-difficulty tasks cluster in semantically distinct neighborhoods---specialized domains, complex logic, technical edge cases---while general conversational tasks occupy the center.
-        (Right) The bimodal distribution bar chart confirms a \textbf{Decisive Bimodality}: exactly 0.0\% of prompts fall in the moderate range ($0.3 < \Delta \le 0.6$), creating an absolute vacuum that justifies our discrete mode-isolation approach over continuous regressors.
-        The 68.6\% ``Hard'' skew represents the \textbf{RouteLLM Anchor}---a legacy constraint from human preference bias that BanditGPT overcomes via Bayesian Recalibration.
-    }
-    \label{fig:semantic_specialization}
+\centering
+\includegraphics[width=0.95\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_holdout_pca.png}
+\caption{\textbf{The Complexity Paradox: Bimodal structure reveals a "Quality Inversion" on hard tasks.} 
+We project 1,871 LMSYS prompts onto the first two principal components. 
+\textbf{Left:} The semantic manifold splits into two distinct clusters. 
+The \textbf{High PC1 Cluster} (Red, 17.6\%) isolates complex coding and reasoning tasks. Crucially, our data reveals a \textbf{Performance Inversion} in this region: the open-weights model (Mixtral) outperforms the flagship (GPT-4-Turbo) by a margin of $\Delta = -0.68$, likely due to reduced refusal and specialized coding priors. 
+The \textbf{Low PC1 Cluster} (Blue, 82.4\%) represents general conversational tasks where the flagship model retains a classic advantage ($\Delta = +0.13$). 
+\textbf{Right:} This structure flips the traditional routing logic: the "Economic Opportunity" is not just offloading easy tasks, but \textbf{correcting the mis-routing of complex tasks} where the expensive model actively degrades performance.}
+\label{fig:lmsys_holdout_structure}
 \end{figure}
-

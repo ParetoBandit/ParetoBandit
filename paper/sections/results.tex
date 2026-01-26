@@ -1,5 +1,19 @@
 \section{Results \& Discussion}
 
+\subsection{Semantic Structure and the "Performance Paradox"}
+\label{sec:semantic_structure}
+
+Projecting the prompts onto the semantic manifold reveals a bimodal distribution (Figure~\ref{fig:lmsys_holdout_structure}) that exposes a fundamental flaw in traditional "Difficulty-Based" routing.
+
+\paragraph{The High PC1 "Complexity Trap" (17.6\%).}
+The High PC1 cluster isolates technical tasks (Code, Math, Logic). Conventional wisdom suggests routing these "Hard" tasks to the strongest model (GPT-4-Turbo). However, our data reveals a \textbf{Performance Paradox}: this cluster is dominated by the cheaper model (Mixtral-8x7B), which achieves a mean gap of $-0.68$ (Mixtral $>$ GPT-4-Turbo). This suggests that for specialized technical queries, the flagship model's tendency toward verbosity or safety refusals becomes a liability. A static router that sends "Hard" tasks to GPT-4-Turbo incurs a \textbf{Negative Intelligence Tax}: paying 40$\times$ more to get worse results.
+
+\paragraph{The Low PC1 "Nuance Zone" (82.4\%).}
+Conversely, the routine conversational cluster (Low PC1) is where the flagship model actually shines (Mean Gap $+0.13$). While these tasks appear "Easy," they rely on the subtle coherence and world knowledge where GPT-4-Turbo retains an edge.
+
+\paragraph{Implication.}
+This structural inversion explains why static routers fail (Figure~\ref{fig:pareto}). They incorrectly assume "Complexity requires Cost." Our approach succeeds by learning the inverse: exploiting the "Cheap Specialist" for hard tasks while preserving budget to apply the "Expensive Generalist" where it truly adds value (the Low PC1 tail).
+
 \subsection{The Competitive Victory: Pareto Dominance}
 
 Figure~\ref{fig:pareto} illustrates the cost-quality trade-off for all tested routers. The X-axis represents normalized cost (lower is better), and the Y-axis represents average reward (higher is better).

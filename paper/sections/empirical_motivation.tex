@@ -2,22 +2,22 @@
 
 Before presenting our routing algorithm, we first establish that LLM routing is a structured problem amenable to learning, rather than a random optimization task.
 
-\subsection{Bimodal Task Distribution}
+\subsection{Bimodal Task Distribution and the Performance Paradox}
 
 We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. Despite the 2D projection capturing only 5.39\% of the total variance, a clear bimodal semantic structure emerges (Figure~\ref{fig:pca}). The distribution reveals two distinct clusters separated by a decision boundary at $\text{PC1} \approx 0.3$:
 
 \begin{itemize}
-    \item \textbf{Routine Cluster (Low PC1, 82.4\%)}: Represents routine conversational queries, simple creative tasks, and information requests where the performance delta between flagship and mid-tier models is marginal.
+    \item \textbf{Low PC1 ``Nuance Zone'' (82.4\%)}: Represents routine conversational queries, simple creative tasks, and information requests. Crucially, the flagship model (GPT-4-Turbo) retains an advantage here (Mean Gap $+0.13$), likely due to better zero-shot coherence and world knowledge.
     
-    \item \textbf{Reasoning Cluster (High PC1, 17.6\%)}: Isolates complex coding challenges, multi-step reasoning, and mathematical proofs that strictly require flagship model capabilities.
+    \item \textbf{High PC1 ``Complexity Trap'' (17.6\%)}: Isolates complex coding challenges, technical documentation, and specialized reasoning. Paradoxically, the cheaper model (Mixtral-8x7B) \emph{outperforms} the flagship here (Mean Gap $-0.68$), likely due to reduced safety refusals and specialized priors.
 \end{itemize}
 
-This spatial separation provides the empirical justification for contextual routing: a static strategy would either over-spend on the 82.4\% of routine tasks or under-perform on the 17.6\% of critical tasks.
+This spatial separation reveals a \textbf{Performance Paradox} that invalidates conventional routing wisdom: a static ``hardness-based'' strategy that sends complex tasks to the expensive model would actively degrade quality on 17.6\% of traffic while wasting budget.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/figure1_pca.png}
-\caption{Bimodal semantic structure of LLM routing tasks. PCA projection of 1,871 LMSYS prompts reveals two distinct clusters: Routine tasks (Low PC1, 82.4\%) where cheaper models suffice, and Reasoning tasks (High PC1, 17.6\%) requiring flagship capabilities. Decision boundary at PC1 $\approx$ 0.3 provides empirical justification for contextual routing.}
+\caption{Bimodal semantic structure reveals the Performance Paradox. PCA projection of 1,871 LMSYS prompts shows two clusters: Low PC1 (82.4\%) where GPT-4-Turbo wins (Gap $+0.13$), and High PC1 (17.6\%) where Mixtral paradoxically outperforms (Gap $-0.68$). This inverts traditional routing assumptions: the ``complex'' tasks benefit from the cheaper model. Decision boundary at PC1 $\approx$ 0.3.}
 \label{fig:pca}
 \end{figure}
 
@@ -25,7 +25,7 @@ This spatial separation provides the empirical justification for contextual rout
 
 To ensure these findings were not an artifact of the smaller holdout set, we extended our analysis to the complete LMSYS Chat-1M dataset, comprising 594,199 unique prompts---a $317\times$ increase in scale.
 
-Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown in Table~\ref{tab:spectral}, the decision boundary remains stable at $\text{PC1}=0.3$. However, the distribution shifts significantly: the production traffic is even more skewed toward routine tasks (94.1\%) than the holdout set (82.4\%).
+Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown in Table~\ref{tab:spectral}, the decision boundary remains stable at $\text{PC1}=0.3$. However, the distribution shifts significantly: the production traffic is even more skewed toward the Low PC1 cluster (94.1\%) than the holdout set (82.4\%)---the zone where GPT-4-Turbo retains an advantage.
 
 \begin{table}[t]
 \centering
@@ -36,13 +36,13 @@ Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown
 \textbf{Metric} & \textbf{Holdout ($N=1.8$k)} & \textbf{Chat-1M ($N=594$k)} \\
 \midrule
 PC1 Variance & 3.10\% & 3.10\% \\
-Routine (Low PC1) & 82.4\% & 94.1\% \\
-Hard (High PC1) & 17.6\% & 5.9\% \\
+Low PC1 (GPT-4-Turbo wins) & 82.4\% & 94.1\% \\
+High PC1 (Mixtral wins) & 17.6\% & 5.9\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In a real-world deployment (Chat-1M), static routing using flagship models (like GPT-4-Turbo) is an \emph{economic catastrophe}: it over-serves 94\% of traffic. For a deployment processing 1M requests/day, this inefficiency translates to an estimated \$2.3M/year in unnecessary inference costs. This structural mismatch between training incentives and deployment economics creates the ``Negative Intelligence Tax'' that banditGPT is designed to eliminate.
+\textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In production (Chat-1M), the Performance Paradox creates two opposing economic pressures: (1) The High PC1 ``Complexity Trap'' shrinks to 5.9\%, but routing these tasks to GPT-4-Turbo creates a ``Quality Hole'' where users pay more for worse results. (2) The Low PC1 cluster grows to 94.1\%, requiring careful identification of the sub-manifold where Mixtral is ``good enough'' to avoid sacrificing quality. A naive ``minimize cost'' approach would fail on the latter; a naive ``hardness classifier'' would fail on the former. This necessitates adaptive, context-aware routing.
 
 \subsection{Distribution Shift: The ``Negative Transfer'' Trap}
 
@@ -58,7 +58,7 @@ This exceeds the critical industry threshold of $0.25$, indicating substantial d
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/figure2_distribution_shift.png}
-\caption{Figure 2: Feature Distribution Shift. (Top) The deployment distribution (Red) is significantly left-shifted compared to the training data (Blue), with PSI=0.275. (Bottom) This shift is driven by a higher prevalence of ``Easy Tasks'' in production than anticipated.}
+\caption{Feature Distribution Shift. (Top) The deployment distribution (Red) is significantly left-shifted compared to the training data (Blue), with PSI=0.275. (Bottom) This shift is driven by a higher prevalence of Low PC1 tasks in production than anticipated.}
 \label{fig:shift}
 \end{figure}
 
