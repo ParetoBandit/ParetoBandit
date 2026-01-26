@@ -516,13 +516,6 @@ class DisjointLinUCBPolicy:
         # If it's significantly lower, something is wrong with the updates
         return trace > (self.dim * self.init_lambda * 0.1)
 
-    def _check_numerical_stability(self, model_id: str, config: Any) -> None:
-        """Periodic stability check and repair."""
-        if not self.bandit_is_stable(model_id):
-            logger.warning(f"⚠️ Stability alert for {model_id}! Trace={np.trace(self.A[model_id]):.4f}. Resetting.")
-            self.A[model_id] = np.eye(self.dim) * self.init_lambda
-            self.b[model_id] = np.zeros(self.dim)
-            self.A_inv[model_id] = safe_inv(self.A[model_id])
 
     def __deepcopy__(self, memo):
         """
