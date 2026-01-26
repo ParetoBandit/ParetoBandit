@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 3: Corralled Bandit Algorithm with Semantic Projection
+Figure 4: Corralled Bandit Algorithm with Semantic Projection
 
 This script implements the mathematically correct Corralled algorithm:
 1. **Optimization Phase**: Learn on labeled data (1,121 dev prompts with real rewards)
@@ -22,7 +22,7 @@ Mixtral's value.
 **Paper Strategy:**
 - Main Results: Report regret/AUPR on dev dataset (N=1,121) with actual rewards
 - Figure 1 & Appendix D: Use 1M dataset to show semantic manifold and cluster coverage
-- Figure 3 (this script): Show Corralling learns to exploit the Easy cluster
+- Figure 4 (this script): Show Corralling learns to exploit the Easy cluster
 
 Usage:
     python experiments_v1/03_figure/corralled_semantic_analysis.py --learning-rate 1.0
@@ -591,7 +591,7 @@ def print_summary(training_metrics: Dict, policy_projection: Dict, X_2d: np.ndar
     print("\n📝 FOR THE PAPER:")
     print(f"   • Main Results: Report regret/AUPR on LMSYS Holdout (labeled data)")
     print(f"   • Figure 1 & Appendix D: Show 1M semantic manifold proves Easy cluster exists")
-    print(f"   • Figure 3 (this): Show Corralling exploits the Easy cluster")
+    print(f"   • Figure 4 (this): Show Corralling exploits the Easy cluster")
     print(f"   • No fake numbers: Optimization uses only labeled data with real rewards")
 
 

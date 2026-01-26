@@ -1,4 +1,4 @@
-# Figure 3: Corralled Bandit with Semantic Projection
+# Figure 4: Corralled Bandit with Semantic Projection
 
 ## Overview
 
@@ -189,7 +189,7 @@ Use **1M Dataset** to show semantic structure:
 
 **Why 1M?** To show the semantic structure is robust and generalizes.
 
-### Figure 3 (This Experiment)
+### Figure 4 (This Experiment)
 
 Show **Corralling learns to exploit the Easy cluster**:
 - Train on labeled data (1,871 samples)
@@ -271,7 +271,7 @@ This implementation is mathematically sound because:
 
 ### Figure Caption
 
-> **Figure 3: Corralling Learns to Exploit the Easy Cluster.** 
+> **Figure 4: Corralling Learns to Exploit the Easy Cluster.** 
 > (Left) Semantic structure of LMSYS Chat-1M dataset showing Easy cluster (94.1%) and Hard cluster (5.9%). 
 > (Right) Expert weight evolution during training on N=1,871 labeled samples. The algorithm initially relies on warmup priors but shifts weight to tabula rasa after discovering that cheaper models (e.g., Mixtral) perform well in the Easy cluster. This demonstrates the safety guarantee of Corralling: if warmup priors are suboptimal, the algorithm automatically adapts.
 

@@ -51,7 +51,7 @@ Changed language from claiming guarantees to acknowledging inspiration and empir
 - Changed "converges at a rate" → "is expected to converge at a rate"
 - Added disclaimer: "While our implementation includes practical modifications (fixed learning rates, selective expert updates), the empirical results in Section~\ref{sec:results} demonstrate that the system achieves near-optimal performance consistent with this theoretical intuition."
 
-### 4. Figure 3 Caption (`experiments_v1/04_figure/figure3_caption.tex`)
+### 4. Figure 4 Caption (`experiments_v1/04_figure/figure_4_caption.tex`)
 
 **Changes:**
 - Line 22: "safety guarantee" → "adaptive behavior"
@@ -140,7 +140,7 @@ This framing positions the simplification as a **deliberate engineering trade-of
 ### Files Modified
 
 - `paper/sections/methodology.tex`: Added equation labels and new subsection (Section 3.3)
-- `experiments_v1/04_figure/figure3_caption.tex`: Added Technical Fairness paragraph after Theoretical Motivation
+- `experiments_v1/04_figure/figure_4_caption.tex`: Added Technical Fairness paragraph after Theoretical Motivation
 - `experiments_v1/03_figure/figure_2_caption.tex`: Updated caption to clarify that diagram values are illustrative and reference the dynamic weight inversion capability
 
 ## Impact
