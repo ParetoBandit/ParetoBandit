@@ -1,4 +1,4 @@
-# Figure 2: Corralled Architecture
+# Figure 3: Corralled Architecture
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# Figure 2: Corralled Architecture - Complete Documentation Index
+# Figure 3: Corralled Architecture - Complete Documentation Index
 
 ## Quick Navigation
 
@@ -9,7 +9,7 @@
 | [IMPLEMENTATION_GUIDE.md](#implementation_guidemd) | How to use the code | Engineers, Practitioners |
 | [THEORY_VS_IMPLEMENTATION.md](#theory_vs_implementationmd) | Algorithm comparison | Researchers, Advanced users |
 | [DIAGRAM_SPECIFICATION.md](#diagram_specificationmd) | Visual design guide | Designers, Paper authors |
-| [figure_2_caption.tex](#figure_2_captiontex) | LaTeX caption | Paper authors |
+| [figure_3_caption.tex](#figure_2_captiontex) | LaTeX caption | Paper authors |
 
 ---
 
@@ -129,7 +129,7 @@
 
 ## DIAGRAM_SPECIFICATION.md
 
-**Purpose**: Detailed specifications for creating Figure 2 visual diagram
+**Purpose**: Detailed specifications for creating Figure 3 visual diagram
 
 **Key Sections**:
 1. **Visual Design Overview**: Style, format, colors
@@ -160,7 +160,7 @@
 
 ---
 
-## figure_2_caption.tex
+## figure_3_caption.tex
 
 **Purpose**: LaTeX caption for inclusion in paper
 
@@ -177,7 +177,7 @@
 
 **Usage**:
 ```latex
-\input{experiments_v1/02_figure/figure_2_caption.tex}
+\input{experiments_v1/02_figure/figure_3_caption.tex}
 ```
 
 ---
@@ -212,7 +212,7 @@ INDEX.md (you are here)
     │   ├─→ TikZ template
     │   └─→ Figure creation
     │
-    └─→ figure_2_caption.tex
+    └─→ figure_3_caption.tex
         └─→ LaTeX caption
 ```
 
@@ -245,7 +245,7 @@ INDEX.md (you are here)
 3. THEORY_VS_IMPLEMENTATION.md - Full read
 4. experiments_v1/05_corralling/ - Review experiments
 5. DIAGRAM_SPECIFICATION.md - Plan figure
-6. figure_2_caption.tex - Review caption
+6. figure_3_caption.tex - Review caption
 7. Done! Ready to write paper section.
 
 ---
@@ -273,7 +273,7 @@ INDEX.md (you are here)
 
 ## Paper Integration
 
-### Where Figure 2 Should Appear
+### Where Figure 3 Should Appear
 
 **Section 3: Methodology**
 - Subsection 3.2: Hierarchical Coordinator-Expert Architecture
@@ -295,7 +295,7 @@ The figure should be accompanied by:
 
 ### Cross-References
 
-Figure 2 should reference:
+Figure 3 should reference:
 - **Figure 1**: Semantic structure that informs Warmup initialization
 - **Figure 3**: Convergence comparison (Coordinator vs individual experts)
 - **Table 1**: Regret bounds for different algorithms
@@ -313,7 +313,7 @@ Figure 2 should reference:
 ### Q2: Where is the actual code?
 **A**: `src/bandit_gpt/router.py`, lines 3349-3484
 
-### Q3: How do I create Figure 2?
+### Q3: How do I create Figure 3?
 **A**: Follow DIAGRAM_SPECIFICATION.md, use the TikZ template provided
 
 ### Q4: What's the difference between theoretical and implemented corralling?
@@ -362,7 +362,7 @@ See THEORY_VS_IMPLEMENTATION.md, Section "When to Use Which Version"
 For questions about:
 - **Implementation**: See IMPLEMENTATION_GUIDE.md troubleshooting
 - **Theory**: See THEORY_VS_IMPLEMENTATION.md
-- **Paper**: See figure_2_caption.tex and DIAGRAM_SPECIFICATION.md
+- **Paper**: See figure_3_caption.tex and DIAGRAM_SPECIFICATION.md
 
 ---
 
@@ -396,7 +396,7 @@ For questions about:
 | IMPLEMENTATION_GUIDE.md | 450 | ~3500 | 20 min |
 | THEORY_VS_IMPLEMENTATION.md | 450 | ~3600 | 30 min |
 | DIAGRAM_SPECIFICATION.md | 400 | ~2500 | 15 min (reference) |
-| figure_2_caption.tex | 33 | ~300 | 2 min |
+| figure_3_caption.tex | 33 | ~300 | 2 min |
 | **Total** | **2321** | **~16700** | **~107 min** |
 
 ---

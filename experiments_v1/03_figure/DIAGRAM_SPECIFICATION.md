@@ -1,4 +1,4 @@
-# Figure 2: Corralled Architecture Diagram Specification
+# Figure 3: Corralled Architecture Diagram Specification
 
 ## Visual Design Overview
 

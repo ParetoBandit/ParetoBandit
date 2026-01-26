@@ -1,8 +1,8 @@
-# Figure 2 Documentation: Complete Summary
+# Figure 3 Documentation: Complete Summary
 
 ## ✅ What Was Created
 
-The `experiments_v1/02_figure/` folder now contains a **comprehensive documentation suite** for the Corralled Architecture (Figure 2), including implementation details, theoretical comparisons, and practical guides.
+The `experiments_v1/02_figure/` folder now contains a **comprehensive documentation suite** for the Corralled Architecture (Figure 3), including implementation details, theoretical comparisons, and practical guides.
 
 ## 📁 Files Created (7 Total)
 
@@ -74,7 +74,7 @@ Detailed side-by-side comparison of theory vs code
 ---
 
 ### 5. **DIAGRAM_SPECIFICATION.md** (400 lines)
-Complete specifications for creating Figure 2 visual
+Complete specifications for creating Figure 3 visual
 
 **Key Content**:
 - Visual design overview (style, colors, layout)

@@ -1,4 +1,4 @@
-# Figure 2 Caption Correction Summary
+# Figure 3 Caption Correction Summary
 
 **Date**: January 25, 2026  
 **Issue**: Mismatch between caption description and actual figure content
@@ -7,7 +7,7 @@
 
 ## Problem Identified
 
-The original caption's **(Bottom)** section described a "Communication Protocol" with a three-phase cycle, but the actual bottom subplot of Figure 2 shows the **Feedback Phase** with specific mathematical formulas.
+The original caption's **(Bottom)** section described a "Communication Protocol" with a three-phase cycle, but the actual bottom subplot of Figure 3 shows the **Feedback Phase** with specific mathematical formulas.
 
 ### Original Caption (Bottom Section)
 ```
@@ -44,7 +44,7 @@ The coordinator samples an expert based on πₜ, which then recommends an actio
 
 ## Figure Structure Verification
 
-**Actual layers in Figure 2** (from code in `generate_figure2.py`):
+**Actual layers in Figure 3** (from code in `generate_figure2.py`):
 1. **Top**: Coordinator Layer (lines 68-79)
 2. **Middle**: Expert Layer - Warmup Expert (lines 86-107) and Tabula Rasa Expert (lines 109-131)
 3. **Middle-Bottom**: Selected Action / Execution Layer (lines 136-142)

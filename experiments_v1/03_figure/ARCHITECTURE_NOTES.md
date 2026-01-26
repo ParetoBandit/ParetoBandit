@@ -420,7 +420,7 @@ This figure should:
 
 ### Algorithm Box Suggestion
 
-Include this pseudocode in the paper alongside Figure 2:
+Include this pseudocode in the paper alongside Figure 3:
 
 ```
 Algorithm: Corralling Coordinator

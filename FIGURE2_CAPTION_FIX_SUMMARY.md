@@ -20,7 +20,7 @@ Changed language from claiming guarantees to acknowledging inspiration and empir
 
 ## Files Fixed
 
-### 1. Figure 2 Caption (`experiments_v1/03_figure/figure_2_caption.tex`)
+### 1. Figure 3 Caption (`experiments_v1/03_figure/figure_3_caption.tex`)
 
 **Before:**
 ```latex

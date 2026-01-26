@@ -1,5 +1,5 @@
 """
-Generate Figure 2: Corralled Architecture Diagram
+Generate Figure 3: Corralled Architecture Diagram
 Shows the coordinator-expert hierarchy with information flows.
 """
 
@@ -254,28 +254,28 @@ ax.text(7, 9.8,
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 
 # Save the figure
-output_path = '/Users/annette/repostitories/banditGPT/experiments_v1/02_figure/results/figure2_corralled_architecture.png'
+output_path = '/Users/annette/repostitories/banditGPT/experiments_v1/03_figure/results/figure3_corralled_architecture.png'
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
 print(f"✓ Saved figure to: {output_path}")
 
 # Also save as PDF for paper
-output_path_pdf = '/Users/annette/repostitories/banditGPT/experiments_v1/02_figure/results/figure2_corralled_architecture.pdf'
+output_path_pdf = '/Users/annette/repostitories/banditGPT/experiments_v1/03_figure/results/figure3_corralled_architecture.pdf'
 plt.savefig(output_path_pdf, bbox_inches='tight', facecolor='white')
 print(f"✓ Saved PDF to: {output_path_pdf}")
 
 # Also save to paper figures directory
-paper_output_path = '/Users/annette/repostitories/banditGPT/paper/figures/figure2_corralled_architecture.png'
+paper_output_path = '/Users/annette/repostitories/banditGPT/paper/figures/figure3_corralled_architecture.png'
 plt.savefig(paper_output_path, dpi=300, bbox_inches='tight', facecolor='white')
 print(f"✓ Saved to paper figures: {paper_output_path}")
 
-paper_output_pdf = '/Users/annette/repostitories/banditGPT/paper/figures/figure2_corralled_architecture.pdf'
+paper_output_pdf = '/Users/annette/repostitories/banditGPT/paper/figures/figure3_corralled_architecture.pdf'
 plt.savefig(paper_output_pdf, bbox_inches='tight', facecolor='white')
 print(f"✓ Saved PDF to paper figures: {paper_output_pdf}")
 
 plt.show()
 
 print("\n" + "="*60)
-print("Figure 2 Generation Complete!")
+print("Figure 3 Generation Complete!")
 print("="*60)
 print("\nKey Features:")
 print("  • Three-layer hierarchy (Coordinator, Experts, Execution)")
