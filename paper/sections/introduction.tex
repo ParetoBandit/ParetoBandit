@@ -1,6 +1,6 @@
 \section{Introduction}
 
-The deployment of Large Language Models (LLMs) is governed by a steep ``Intelligence Tax'': the assumption that higher performance requires linearly higher inference costs. Consequently, industrial applications often default to routing all traffic to frontier models (e.g., GPT-4 and its variants), treating cheaper models as strictly inferior approximations.
+The deployment of Large Language Models (LLMs) is governed by a steep ``Intelligence Tax'': the assumption that higher performance requires linearly higher inference costs. Consequently, industrial applications often default to routing all traffic to frontier models (e.g., GPT-4-Turbo and its variants), treating cheaper models as strictly inferior approximations.
 
 This assumption is increasingly flawed. Recent benchmarks reveal that specialized open-weights models (e.g., Mixtral-8x7B, Llama-3) can match or exceed the performance of frontier models on specific task clusters while costing orders of magnitude less. This phenomenon, which we term \emph{Quality Inversion}, transforms routing from a simple interpolation problem into a complex discovery problem. The goal is no longer just to ``save money on easy queries,'' but to identify the sparse, non-obvious sub-manifolds where the expensive model provides unique value.
 

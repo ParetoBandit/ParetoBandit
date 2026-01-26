@@ -27,13 +27,13 @@ Figure~\ref{fig:pareto} illustrates the cost-quality trade-off for all tested ro
 
 \subsubsection{The ``Over-Provisioning Penalty'' of Static Routing}
 
-A critical finding is the non-monotonic behavior of the RouteLLM benchmark. As shown in Figure~\ref{fig:pareto}, RouteLLM's performance collapses when the threshold is lowered to admit more GPT-4 traffic ($\tau < 0.10$).
+A critical finding is the non-monotonic behavior of the RouteLLM benchmark. As shown in Figure~\ref{fig:pareto}, RouteLLM's performance collapses when the threshold is lowered to admit more GPT-4-Turbo traffic ($\tau < 0.10$).
 
 \textbf{The Phenomenon}: Users paying \$0.013 (Maximum Cost) receive a reward of $0.812$---worse than the \$0.0003 Mistral baseline ($0.823$). We term this the ``Over-Provisioning Penalty'': paying a $43\times$ cost premium to \emph{decrease} quality by $1.3\%$.
 
-\textbf{The Cause}: Static routers interpolate based on general ``hardness.'' They cannot distinguish the $6\%$ of prompts where GPT-4 is actually better from the $94\%$ where it is simply slower and more verbose.
+\textbf{The Cause}: Static routers interpolate based on general ``hardness.'' They cannot distinguish the $6\%$ of prompts where GPT-4-Turbo is actually better from the $94\%$ where it is simply slower and more verbose.
 
-\textbf{The Solution}: banditGPT (Blue Line) learns this inversion online. By using GPT-4 only when statistically justified, it achieves a peak reward of $0.909$, enabling a $+10.4\%$ quality gain while still reducing costs by $27\%$ compared to the naive GPT-4 baseline.
+\textbf{The Solution}: banditGPT (Blue Line) learns this inversion online. By using GPT-4-Turbo only when statistically justified, it achieves a peak reward of $0.909$, enabling a $+10.4\%$ quality gain while still reducing costs by $27\%$ compared to the naive GPT-4-Turbo baseline.
 
 \subsection{Gap Closure Analysis}
 
@@ -99,7 +99,7 @@ To evaluate agility, we simulated a ``Mid-Flight Upgrade'' event where a new mod
 
 \textbf{The Cold Start Dip}: The baseline router (Red Line) treats the new model as a complete unknown. It forces users to endure $\sim$500 steps of degraded performance ($R < 3.0$) while it relearns the decision boundary from scratch.
 
-\textbf{The Transfer Advantage}: By transferring the preference vector $\thetavec$ from a semantic neighbor (GPT-4-Turbo) while resetting confidence $\Amat$, banditGPT (Green Line) achieves Zero-Shot Readiness. It effectively says, ``I suspect this model behaves like GPT-4, but I'm open to being proven wrong.'' This results in a $2.8\times$ performance advantage during the critical adoption window.
+\textbf{The Transfer Advantage}: By transferring the preference vector $\thetavec$ from a semantic neighbor (GPT-4-Turbo) while resetting confidence $\Amat$, banditGPT (Green Line) achieves Zero-Shot Readiness. It effectively says, ``I suspect this model behaves like GPT-4-Turbo, but I'm open to being proven wrong.'' This results in a $2.8\times$ performance advantage during the critical adoption window.
 
 \subsection{Robustness: Sensitivity Analysis}
 

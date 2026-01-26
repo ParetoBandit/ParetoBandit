@@ -61,7 +61,7 @@ When a new model $m_{\text{new}}$ is registered, we identify its nearest semanti
 \thetavec_{\text{new}} \leftarrow \thetavec_{\text{near}}, \quad \Amat_{\text{new}} \leftarrow \neff\mathbf{I}
 \end{equation}
 
-This decouples the expectation (mean) from the certainty (variance). The router effectively starts with a hypothesis---``This model behaves like GPT-4''---but maintains high variance (controlled by $\neff$), allowing it to aggressively exploit the model where the hypothesis holds while rapidly correcting where it diverges.
+This decouples the expectation (mean) from the certainty (variance). The router effectively starts with a hypothesis---``This model behaves like GPT-4-Turbo''---but maintains high variance (controlled by $\neff$), allowing it to aggressively exploit the model where the hypothesis holds while rapidly correcting where it diverges.
 
 \subsection{Corralling: Adaptive Expert Combination}
 
