@@ -29,13 +29,14 @@ Table~\ref{tab:performance} quantifies our performance relative to the theoretic
 \centering
 \caption{Comparative Performance at Peak Quality}
 \label{tab:performance}
-\begin{tabular}{lccc}
+\small
+\begin{tabular}{@{}p{3.5cm}ccp{2.5cm}@{}}
 \toprule
-\textbf{Routing Strategy} & \textbf{Cost (\$/req)} & \textbf{Quality} & \textbf{Gap to Oracle} \\
+\textbf{Routing Strategy} & \textbf{Cost} & \textbf{Quality} & \textbf{Gap to Oracle} \\
 \midrule
 \multicolumn{4}{l}{\textit{Static Baselines}} \\
 Static-Mixtral 8x7B & 0.00030 & 0.823 & 100.0\% \\
-Static-GPT-4-Turbo & 0.01300 & 0.812 & 108.5\% (Regresses) \\
+Static-GPT-4-Turbo & 0.01300 & 0.812 & 108.5\% (Regr.) \\
 \midrule
 \multicolumn{4}{l}{\textit{Dynamic Routers}} \\
 RouteLLM-MF (SOTA) & 0.00651 & 0.883 & 53.8\% \\

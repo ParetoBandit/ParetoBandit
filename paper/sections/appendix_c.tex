@@ -11,20 +11,21 @@ All results are \textbf{means over 5 independent trials} (random seeds 42-46) on
 \centering
 \caption{banditGPT-Hybrid: Cost-Quality Trade-off Sweep}
 \label{tab:banditgpt_complete}
-\begin{tabular}{ccccl}
+\footnotesize
+\begin{tabular}{@{}ccccp{3.5cm}@{}}
 \toprule
-$\lambda$ & \textbf{Cost (\$/req)} & \textbf{Reward} & \textbf{Status} & \textbf{Notes} \\
+$\lambda$ & \textbf{Cost} & \textbf{Reward} & \textbf{Status} & \textbf{Notes} \\
 \midrule
-0.0  & 0.009771 & 0.9085 & Pareto & Pure quality optimization \\
-0.0  & 0.009541 & \textbf{0.9088} & \textbf{Pareto} & \textbf{Peak quality} \\
-0.0  & 0.008897 & 0.8851 & Dominated & Trial variance \\
-0.01 & 0.008378 & 0.8973 & Pareto & Strong quality \\
-0.02 & 0.007420 & 0.8728 & Pareto & Balanced regime \\
-0.05 & 0.004624 & 0.8584 & Pareto & Cost-conscious \\
-0.1  & 0.000714 & 0.8237 & Pareto & High penalty \\
-0.2  & 0.000294 & 0.8227 & Pareto & Maximum cost aversion \\
-0.5  & 0.000294 & 0.8227 & Dominated & Collapsed to cheap \\
-1.0+ & 0.000294 & 0.8227 & Dominated & Collapsed to cheap \\
+0.0  & 0.00977 & 0.9085 & Pareto & Pure quality optimization \\
+0.0  & 0.00954 & \textbf{0.9088} & \textbf{Pareto} & \textbf{Peak quality} \\
+0.0  & 0.00890 & 0.8851 & Dominated & Trial variance \\
+0.01 & 0.00838 & 0.8973 & Pareto & Strong quality \\
+0.02 & 0.00742 & 0.8728 & Pareto & Balanced regime \\
+0.05 & 0.00462 & 0.8584 & Pareto & Cost-conscious \\
+0.1  & 0.00071 & 0.8237 & Pareto & High penalty \\
+0.2  & 0.00029 & 0.8227 & Pareto & Maximum cost aversion \\
+0.5  & 0.00029 & 0.8227 & Dominated & Collapsed to cheap \\
+1.0+ & 0.00029 & 0.8227 & Dominated & Collapsed to cheap \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -46,39 +47,39 @@ All results from sequential evaluation on holdout set ($N=750$ prompts). Total: 
 \centering
 \caption{RouteLLM-MF: Threshold Sweep Results (Sorted by Cost)}
 \label{tab:routellm_complete}
-\small
-\begin{tabular}{ccccl}
+\footnotesize
+\begin{tabular}{@{}ccccp{3cm}@{}}
 \toprule
-$\tau$ & \textbf{Cost (\$/req)} & \textbf{Reward} & \textbf{Status} & \textbf{Notes} \\
+$\tau$ & \textbf{Cost} & \textbf{Reward} & \textbf{Status} & \textbf{Notes} \\
 \midrule
-1.00 & 0.000294 & 0.8227 & Pareto & Pure Mixtral \\
-0.96 & 0.000294 & 0.8227 & Dominated & \\
-0.92 & 0.000294 & 0.8227 & Dominated & \\
-0.88 & 0.000294 & 0.8227 & Dominated & \\
-0.83 & 0.000294 & 0.8227 & Dominated & \\
-0.79 & 0.000294 & 0.8227 & Dominated & \\
-0.75 & 0.000294 & 0.8227 & Dominated & \\
-0.71 & 0.000311 & 0.8227 & Dominated & \\
-0.67 & 0.000311 & 0.8227 & Dominated & \\
-0.63 & 0.000328 & 0.8227 & Dominated & \\
-0.58 & 0.000328 & 0.8227 & Dominated & \\
-0.54 & 0.000413 & 0.8280 & Pareto & \\
-0.50 & 0.000446 & 0.8293 & Pareto & \\
-0.46 & 0.000734 & 0.8360 & Pareto & \\
-0.42 & 0.001022 & 0.8360 & Dominated & \\
-0.38 & 0.001429 & 0.8427 & Pareto & \\
-0.33 & 0.002462 & 0.8573 & Pareto & \\
-0.29 & 0.002700 & 0.8573 & Dominated & Gap fill \\
-0.25 & 0.002767 & 0.8587 & Pareto & \\
-0.21 & 0.003479 & 0.8680 & Pareto & Gap fill \\
-0.18 & 0.004834 & 0.8773 & Pareto & Gap fill \\
-0.15 & 0.006511 & 0.8827 & Pareto & \textbf{PEAK QUALITY} \\
-0.12 & 0.006884 & 0.8827 & Dominated & Gap fill \\
-0.10 & 0.007579 & 0.8720 & Dominated & Descent begins \\
-0.10 & 0.008477 & 0.8453 & Dominated & High cost \\
-0.08 & 0.010493 & 0.8227 & Dominated & High cost \\
-0.04 & 0.012661 & 0.8107 & Dominated & Significant degradation \\
-0.00 & 0.013000 & 0.8120 & Dominated & Pure GPT-4 (worst) \\
+1.00 & 0.00029 & 0.8227 & Pareto & Pure Mixtral \\
+0.96 & 0.00029 & 0.8227 & Dominated & \\
+0.92 & 0.00029 & 0.8227 & Dominated & \\
+0.88 & 0.00029 & 0.8227 & Dominated & \\
+0.83 & 0.00029 & 0.8227 & Dominated & \\
+0.79 & 0.00029 & 0.8227 & Dominated & \\
+0.75 & 0.00029 & 0.8227 & Dominated & \\
+0.71 & 0.00031 & 0.8227 & Dominated & \\
+0.67 & 0.00031 & 0.8227 & Dominated & \\
+0.63 & 0.00033 & 0.8227 & Dominated & \\
+0.58 & 0.00033 & 0.8227 & Dominated & \\
+0.54 & 0.00041 & 0.8280 & Pareto & \\
+0.50 & 0.00045 & 0.8293 & Pareto & \\
+0.46 & 0.00073 & 0.8360 & Pareto & \\
+0.42 & 0.00102 & 0.8360 & Dominated & \\
+0.38 & 0.00143 & 0.8427 & Pareto & \\
+0.33 & 0.00246 & 0.8573 & Pareto & \\
+0.29 & 0.00270 & 0.8573 & Dominated & Gap fill \\
+0.25 & 0.00277 & 0.8587 & Pareto & \\
+0.21 & 0.00348 & 0.8680 & Pareto & Gap fill \\
+0.18 & 0.00483 & 0.8773 & Pareto & Gap fill \\
+0.15 & 0.00651 & 0.8827 & Pareto & \textbf{PEAK} \\
+0.12 & 0.00688 & 0.8827 & Dominated & Gap fill \\
+0.10 & 0.00758 & 0.8720 & Dominated & Descent \\
+0.10 & 0.00848 & 0.8453 & Dominated & High cost \\
+0.08 & 0.01049 & 0.8227 & Dominated & High cost \\
+0.04 & 0.01266 & 0.8107 & Dominated & Degradation \\
+0.00 & 0.01300 & 0.8120 & Dominated & Pure GPT-4 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -98,13 +99,14 @@ $\tau$ & \textbf{Cost (\$/req)} & \textbf{Reward} & \textbf{Status} & \textbf{No
 \centering
 \caption{Reference Points - The ``Negative Intelligence Tax''}
 \label{tab:references}
-\begin{tabular}{lccc}
+\footnotesize
+\begin{tabular}{@{}p{3.5cm}ccp{3cm}@{}}
 \toprule
-\textbf{Method} & \textbf{Cost (\$/req)} & \textbf{Reward} & \textbf{Cost Multiplier} \\
+\textbf{Method} & \textbf{Cost} & \textbf{Reward} & \textbf{Cost Multiplier} \\
 \midrule
-Mixtral-8x7B (Static) & 0.000294 & 0.8227 & $1.0\times$ (Baseline) \\
-GPT-4-Turbo (Static) & 0.013000 & 0.8120 & $44.2\times$ (-1.3\% quality) \\
-Oracle & 0.001954 & 0.9533 & $6.6\times$ (+15.9\% quality) \\
+Mixtral-8x7B (Static) & 0.00029 & 0.8227 & $1.0\times$ (Baseline) \\
+GPT-4-Turbo (Static) & 0.01300 & 0.8120 & $44.2\times$ (-1.3\%) \\
+Oracle & 0.00195 & 0.9533 & $6.6\times$ (+15.9\%) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -161,7 +163,8 @@ After applying Pareto filtering:
 \centering
 \caption{Dominance Analysis}
 \label{tab:dominance}
-\begin{tabular}{lccc}
+\footnotesize
+\begin{tabular}{@{}p{3.5cm}ccc@{}}
 \toprule
 \textbf{Method} & \textbf{Total Points} & \textbf{Pareto} & \textbf{Dominated} \\
 \midrule
