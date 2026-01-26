@@ -1,18 +1,18 @@
 \section{Results \& Discussion}
 
-\subsection{Semantic Structure and the "Alignment Tax"}
+\subsection{Forensic Discovery: The Alignment Tax}
 \label{sec:semantic_structure}
 
-Projecting the prompts onto the semantic manifold reveals a bimodal distribution (Figure~\ref{fig:lmsys_holdout_structure}) that exposes a critical failure mode of frontier model alignment.
+Spatial analysis of the semantic manifold (Figure~\ref{fig:lmsys_holdout_structure}) reveals two clusters at PC1 = 0.3. Validation against ground-truth reward gaps exposes a performance inversion that enables the router's success.
 
-\paragraph{The High PC1 "Constraint Satisfaction" Cluster (17.6\%).}
-Forensic analysis reveals this cluster is 85\% dominated by strict completion templates (``You are the text completion model... only send the completion... don't repeat...'')---explicit negative constraints commonly used in production systems. Here, the cheaper model (Mixtral-8x7B) achieves a mean gap of $-0.68$ (Mixtral $>$ GPT-4-Turbo). This reveals an \textbf{Alignment Tax}: RLHF-optimized models are trained to be ``helpful'' and verbose, causing them to systematically violate negative instructions. A static router that sends these constraint-heavy prompts to GPT-4-Turbo incurs a \textbf{Format Compliance Penalty}: paying 40$\times$ more to get worse adherence to strict formatting rules.
+\paragraph{The High PC1 ``Strictness Zone'' (17.6\%).}
+Forensic analysis reveals this cluster is 85\% dominated by strict completion templates (``You are the text completion model... only send the completion... don't repeat...'')---explicit negative constraints. Here, the cheaper model (Mixtral-8x7B) achieves a mean gap of $-0.68$ (Mixtral $>$ GPT-4-Turbo). This reveals an \textbf{Alignment Tax}: RLHF-optimized models systematically violate negative instructions due to their training for verbosity and helpfulness. A static router that sends these constraint-heavy prompts to GPT-4-Turbo pays 40$\times$ more for worse format compliance.
 
-\paragraph{The Low PC1 "Natural Language" Cluster (82.4\%).}
-Conversely, the natural conversational cluster (Low PC1) is where GPT-4-Turbo's alignment is beneficial (Mean Gap $+0.13$). These prompts benefit from the nuanced coherence and helpfulness that RLHF provides.
+\paragraph{The Low PC1 ``Nuance Zone'' (82.4\%).}
+Conversely, the open-ended conversational cluster (Low PC1) is where GPT-4-Turbo's alignment provides value (Mean Gap $+0.13$). Routing this entire cluster to Mixtral would degrade quality---the router must surgically identify the sub-manifold where cost savings are possible without quality loss.
 
-\paragraph{Implication: Forensic Agility.}
-This structure demonstrates that banditGPT does not merely learn ``task difficulty''---it discovers \emph{hidden artifacts in production data} that represent genuine economic value. The router exploited an alignment failure mode (strict instruction-following) that human intuition would likely miss. This ``Forensic Agility'' is more valuable than semantic reasoning: it proves the system finds cost savings in the messy reality of production traffic, not idealized task taxonomies.
+\paragraph{Implication: Counter-Intuitive Economics.}
+The routing opportunity inverts conventional wisdom. We do not save money by routing ``easy'' tasks to cheap models---we save money by identifying ``strict'' tasks where the expensive model actively fails. This transforms the Alignment Tax from a quality problem into a cost-saving opportunity through \textbf{Forensic Agility}---discovering hidden failure modes in production data that human intuition would miss.
 
 \subsection{The Competitive Victory: Pareto Dominance}
 

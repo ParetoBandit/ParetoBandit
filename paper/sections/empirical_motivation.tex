@@ -2,22 +2,38 @@
 
 Before presenting our routing algorithm, we first establish that LLM routing is a structured problem amenable to learning, rather than a random optimization task.
 
-\subsection{Bimodal Task Distribution and the ``Alignment Tax''}
+\subsection{Forensic Cluster Analysis: The ``Alignment Tax''}
 
-We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. Despite the 2D projection capturing only 5.39\% of the total variance, a clear bimodal semantic structure emerges (Figure~\ref{fig:pca}). The distribution reveals two distinct clusters separated by a decision boundary at $\text{PC1} \approx 0.3$:
+We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. A spatial analysis of the semantic manifold (PC1 cutoff at 0.3) reveals two distinct clusters. \textbf{Critically}, checking the ground-truth reward gaps within these spatial regions exposes a \textbf{Performance Inversion} that contradicts standard ``complexity'' assumptions (Table~\ref{tab:cluster_inversion}).
 
-\begin{itemize}
-    \item \textbf{Low PC1 ``Natural Language'' (82.4\%)}: Represents routine conversational queries, creative tasks, and information requests. The flagship model (GPT-4-Turbo) retains an advantage here (Mean Gap $+0.13$), reflecting the value of RLHF alignment for nuanced, open-ended dialogue.
-    
-    \item \textbf{High PC1 ``Strict Constraint Satisfaction'' (17.6\%)}: Forensic analysis reveals 85\% of this cluster consists of explicit completion templates (``only send..., don't repeat...'')---strict formatting constraints common in production systems. Here, the cheaper model (Mixtral-8x7B) \emph{outperforms} the flagship (Mean Gap $-0.68$), exposing an \textbf{Alignment Tax}: RLHF-trained models systematically fail negative instructions due to their optimization for verbosity and helpfulness.
-\end{itemize}
+\begin{table}[t]
+\centering
+\caption{The Cluster Inversion: Spatial Analysis Validated Against Reward Gaps}
+\label{tab:cluster_inversion}
+\begin{tabular}{@{}lllr@{}}
+\toprule
+\textbf{Cluster} & \textbf{Semantic Type} & \textbf{Mean Gap} & \textbf{Winner} \\
+& & $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$ & \\
+\midrule
+Low PC1 ($< 0.3$) & Open-Ended Chat & $+0.133$ & GPT-4-Turbo \\
+High PC1 ($\geq 0.3$) & Strict/Constrained & $-0.682$ & Mixtral-8x7B \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-This spatial separation reveals genuine economic value in production data artifacts: a static ``hardness-based'' router would send constraint-heavy prompts to GPT-4-Turbo, paying a format compliance penalty. Our router's discovery of this cluster demonstrates \textbf{Forensic Agility}---the ability to exploit hidden failure modes in frontier models.
+\paragraph{The Low PC1 ``Nuance Zone'' (82.4\%).}
+Contrary to the assumption that routine tasks are ``easy,'' the Low PC1 cluster is dominated by open-ended conversational prompts where the frontier model's superior instruction following and world knowledge yield a significant advantage ($+0.133$). This is the ``Quality Moat.'' A naive router that offloads this entire cluster to Mixtral would degrade performance. banditGPT succeeds not by dumping this cluster, but by surgically preserving it for the expensive model.
+
+\paragraph{The High PC1 ``Strictness Zone'' (17.6\%).}
+The ``Hard'' cluster---visually distinct in Figure~\ref{fig:pca}---is actually defined by strict formatting constraints (forensic analysis reveals 85\% are ``text completion only, no chat'' templates). Here, the frontier model suffers from an \textbf{Alignment Tax}: its RLHF conditioning toward helpfulness causes verbosity that violates negative constraints. The open-weights model, being less aggressively aligned, adheres strictly to the format, winning by a massive margin ($-0.682$).
+
+\paragraph{Conclusion.}
+The routing opportunity is counter-intuitive. We do not save money by routing ``easy'' tasks to cheap models; we save money by identifying the ``Strict'' tasks where the expensive model actively fails, effectively turning a quality problem (Alignment Tax) into a cost-saving solution.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/figure1_pca.png}
-\caption{Bimodal semantic structure reveals the Alignment Tax. PCA projection of 1,871 LMSYS prompts shows two clusters: Low PC1 (82.4\%) where GPT-4-Turbo wins (Gap $+0.13$), and High PC1 (17.6\%, 85\% strict completion templates) where Mixtral outperforms (Gap $-0.68$). The router discovered a production artifact---constraint-satisfaction prompts where RLHF alignment becomes a liability. Decision boundary at PC1 $\approx$ 0.3.}
+\caption{Forensic Discovery of the Alignment Tax. PCA projection of 1,871 LMSYS prompts reveals spatial clustering at PC1 $\approx$ 0.3. Validation against ground-truth reward gaps exposes a performance inversion: the Low PC1 ``Nuance Zone'' (Blue, 82.4\%) is where GPT-4-Turbo retains a classic advantage ($\Delta=+0.13$), refuting the notion that routine traffic is ``easy.'' The High PC1 ``Strictness Zone'' (Red, 17.6\%, 85\% strict completion templates) is where the open-weights model dominates ($\Delta=-0.68$), likely due to the frontier model's alignment artifacts.}
 \label{fig:pca}
 \end{figure}
 
