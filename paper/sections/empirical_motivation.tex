@@ -1,0 +1,46 @@
+\section{Empirical Motivation: The Semantic Structure of Routing}
+
+Before presenting our routing algorithm, we first establish that LLM routing is a structured problem amenable to learning, rather than a random optimization task.
+
+\subsection{Bimodal Task Distribution}
+
+We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. Despite the 2D projection capturing only 5.39\% of the total variance, a clear bimodal semantic structure emerges (Figure~\ref{fig:pca}). The distribution reveals two distinct clusters separated by a decision boundary at $\text{PC1} \approx 0.3$:
+
+\begin{itemize}
+    \item \textbf{Routine Cluster (Low PC1, 82.4\%)}: Represents routine conversational queries, simple creative tasks, and information requests where the performance delta between flagship and mid-tier models is marginal.
+    
+    \item \textbf{Reasoning Cluster (High PC1, 17.6\%)}: Isolates complex coding challenges, multi-step reasoning, and mathematical proofs that strictly require flagship model capabilities.
+\end{itemize}
+
+This spatial separation provides the empirical justification for contextual routing: a static strategy would either over-spend on the 82.4\% of routine tasks or under-perform on the 17.6\% of critical tasks.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{figures/figure1_pca.png}
+\caption{Bimodal semantic structure of LLM routing tasks. PCA projection of 1,871 LMSYS prompts reveals two distinct clusters: Routine tasks (Low PC1, 82.4\%) where cheaper models suffice, and Reasoning tasks (High PC1, 17.6\%) requiring flagship capabilities. Decision boundary at PC1 $\approx$ 0.3 provides empirical justification for contextual routing.}
+\label{fig:pca}
+\end{figure}
+
+\subsection{Scale Validation: The ``Economic Catastrophe''}
+
+To ensure these findings were not an artifact of the smaller holdout set, we extended our analysis to the complete LMSYS Chat-1M dataset, comprising 594,199 unique prompts---a $317\times$ increase in scale.
+
+Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown in Table~\ref{tab:spectral}, the decision boundary remains stable at $\text{PC1}=0.3$. However, the distribution shifts significantly: the production traffic is even more skewed toward routine tasks (94.1\%) than the holdout set (82.4\%).
+
+\begin{table}[t]
+\centering
+\caption{Spectral Invariance at Scale}
+\label{tab:spectral}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Holdout ($N=1.8$k)} & \textbf{Chat-1M ($N=594$k)} \\
+\midrule
+PC1 Variance & 3.10\% & 3.10\% \\
+Routine (Low PC1) & 82.4\% & 94.1\% \\
+Hard (High PC1) & 17.6\% & 5.9\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In a real-world deployment (Chat-1M), static routing using flagship models (like GPT-4-Turbo) is an \emph{economic catastrophe}: it over-serves 94\% of traffic. For a deployment processing 1M requests/day, this inefficiency translates to an estimated \$2.3M/year in unnecessary inference costs. This structural mismatch between training incentives and deployment economics creates the ``Negative Intelligence Tax'' that banditGPT is designed to eliminate.
+
