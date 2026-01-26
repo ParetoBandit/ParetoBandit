@@ -19,7 +19,7 @@ The system consists of three distinct layers of decision-making, as illustrated 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure3_architecture.png}
-\caption{The banditGPT Corralling Architecture. A hierarchical meta-learner manages a portfolio of experts. The Coordinator (Top) maintains a trust distribution $\pi$ over experts. Experts (Middle) independently recommend models based on their distinct priors (Warmup vs.\ Tabula Rasa). The system observes the reward (Bottom) and updates both the selected expert's internal state and the coordinator's trust weights via importance-weighted feedback.}
+\caption{Figure 3: The banditGPT Corralling Architecture. A hierarchical meta-learner manages a portfolio of experts. The Coordinator (Top) maintains a trust distribution $\pi$ over experts. Experts (Middle) independently recommend models based on their distinct priors (Warmup vs.\ Tabula Rasa). The system observes the reward (Bottom) and updates both the selected expert's internal state and the coordinator's trust weights via importance-weighted feedback.}
 \label{fig:architecture}
 \end{figure}
 
