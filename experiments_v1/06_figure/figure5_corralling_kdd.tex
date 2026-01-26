@@ -95,11 +95,12 @@ Figure~\ref{fig:corralling} shows the expert weight evolution over 500 routing d
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.48\textwidth]{results/figure5_corralling_weights.pdf}
-\caption{\textbf{Corralling Algorithm: Phased Stress Test (Distribution Shift Detection).} 
-This controlled experiment demonstrates the system's ability to detect and react to distribution shifts using mock experts with fixed selection strategies. Learning rate $\eta=0.3$ balances Phase 1 stability with Phase 2 responsiveness.
-(Top) Expert weight evolution across two phases. \textbf{Phase 1} ($t<50$): Both models perform equally well ($\mu=0.85$), system maintains roughly equal weights (40-60\% with exploration noise). \textbf{Phase 2} ($t \geq 50$): Distribution shift causes GPT-4 to fail ($\mu=0.2$) while Mixtral succeeds ($\mu=0.9$). System detects the mismatch and decisively decommissions the failing expert within 14 steps. The visible ``knee'' at $t=50$ demonstrates adaptive behavior.
-(Bottom) Cumulative loss comparison: Losses track similarly before the shift, then diverge dramatically afterward. Final gap: +109.0 (287\% more loss for stubborn expert), validating the decommissioning decision.}
+\includegraphics[width=0.95\linewidth]{results/figure5_corralling_weights.pdf}
+\caption{\textbf{Adaptive Prior Decommissioning: Phased Stress Test.} 
+We simulate a sudden distribution shift at $t=50$ to evaluate router agility.
+\textbf{Phase 1 (Neutral Zone):} For $t < 50$, both models perform well. The router maintains uniform exploration ($\pi \approx 0.5$), validating that it does not prematurely collapse to a prior.
+\textbf{Phase 2 (The Shift):} At $t=50$ (Blue Dashed Line), the environment shifts to "Alignment Tax" tasks where the Warmup Expert fails.
+\textbf{The Reaction:} The system detects the loss divergence immediately. Within $\Delta t = 14$ steps, it triggers \textbf{Decisive Decommissioning} (Red Line), dropping the harmful prior to $<10\%$ weight. This proves the system acts as an automatic safety valve against production drift.}
 \label{fig:corralling}
 \end{figure}
 
