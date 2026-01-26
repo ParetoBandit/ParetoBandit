@@ -1,0 +1,54 @@
+\section{Results \& Discussion}
+
+\subsection{The Competitive Victory: Pareto Dominance}
+
+Figure~\ref{fig:pareto} illustrates the cost-quality trade-off for all tested routers. The X-axis represents normalized cost (lower is better), and the Y-axis represents average reward (higher is better).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/figure5_pareto_frontier.png}
+\caption{The Competitive Victory. banditGPT-Hybrid (Blue Diamonds) dominates RouteLLM-MF (Red Circles) across the high-quality regime. Key Observations: (1) RouteLLM exhibits an ``Inverted-U'' failure mode, peaking at \$0.0065 (Reward: 0.883) before degrading as costs increase. The dominated points (Red X's) confirm that spending more money (\$0.008--\$0.013) actually yields worse quality. (2) banditGPT maintains strictly monotonic improvement, breaking the 0.88 ceiling to reach 0.909. (3) The Oracle bound (Green Star) shows we close 66.2\% of the gap.}
+\label{fig:pareto}
+\end{figure}
+
+\subsubsection{The ``Over-Provisioning Penalty'' of Static Routing}
+
+A critical finding is the non-monotonic behavior of the RouteLLM benchmark. As shown in Figure~\ref{fig:pareto}, RouteLLM's performance collapses when the threshold is lowered to admit more GPT-4 traffic ($\tau < 0.10$).
+
+\textbf{The Phenomenon}: Users paying \$0.013 (Maximum Cost) receive a reward of $0.812$---worse than the \$0.0003 Mistral baseline ($0.823$). We term this the ``Over-Provisioning Penalty'': paying a $43\times$ cost premium to \emph{decrease} quality by $1.3\%$.
+
+\textbf{The Cause}: Static routers interpolate based on general ``hardness.'' They cannot distinguish the $6\%$ of prompts where GPT-4 is actually better from the $94\%$ where it is simply slower and more verbose.
+
+\textbf{The Solution}: banditGPT (Blue Line) learns this inversion online. By using GPT-4 only when statistically justified, it achieves a peak reward of $0.909$, enabling a $+10.4\%$ quality gain while still reducing costs by $27\%$ compared to the naive GPT-4 baseline.
+
+\subsection{Gap Closure Analysis}
+
+Table~\ref{tab:performance} quantifies our performance relative to the theoretical upper bound.
+
+\begin{table}[t]
+\centering
+\caption{Comparative Performance at Peak Quality}
+\label{tab:performance}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Routing Strategy} & \textbf{Cost (\$/req)} & \textbf{Quality} & \textbf{Gap to Oracle} \\
+\midrule
+\multicolumn{4}{l}{\textit{Static Baselines}} \\
+Static-Mixtral 8x7B & 0.00030 & 0.823 & 100.0\% \\
+Static-GPT-4-Turbo & 0.01300 & 0.812 & 108.5\% (Regresses) \\
+\midrule
+\multicolumn{4}{l}{\textit{Dynamic Routers}} \\
+RouteLLM-MF (SOTA) & 0.00651 & 0.883 & 53.8\% \\
+banditGPT-Hybrid & 0.00954 & 0.909 & 33.8\% \\
+\midrule
+Oracle (Upper Bound) & 0.00195 & 0.953 & 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Our approach closes $66.2\%$ of the optimality gap $\frac{0.909 - 0.823}{0.953 - 0.823}$, significantly outperforming RouteLLM's $46.2\%$ closure.
+
+\subsection{The Cost of Autonomy}
+
+In the ultra-low budget regime ($< \$0.004$), RouteLLM initially outperforms banditGPT. This reflects the ``Cost of Autonomy'': the online learner must pay an exploration penalty (regret) to discover the decision boundary, whereas the static router exploits pre-computed knowledge for free. However, this upfront investment pays dividends: once the budget permits ($> \$0.008$), banditGPT breaks through the static ceiling that confines RouteLLM.
+
