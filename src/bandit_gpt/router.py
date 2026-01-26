@@ -3368,7 +3368,9 @@ class BanditRouter:
 
 class CorrallingRouter:
     """
-    Simplified Corralling Bandits: Adaptively combine multiple bandit strategies.
+    [KDD FIXED] Corralling Bandits with Mixing Parameter to prevent 'Expert Death'.
+    
+    Implements Exp4-style updates with explicit exploration floor (gamma).
     
     **High-Level Idea (Non-Technical):**
     Instead of betting everything on warmup priors, we hedge our bets by running
@@ -3379,6 +3381,17 @@ class CorrallingRouter:
     If warmup priors are harmful (domain mismatch), the algorithm automatically
     shifts weight to tabula rasa. If warmup priors are helpful, they dominate.
     This provides safety guarantees against negative transfer.
+    
+    **Critical Fix (KDD Reviewer Feedback):**
+    In non-stationary environments (new models, data shifts), pure exponential weighting
+    can cause "Expert Death" - once an expert's weight drops to ~10^-16, the router
+    stops listening to it forever, even if conditions change. The mixing parameter (gamma)
+    ensures every expert maintains a minimum probability (γ/K), allowing recovery.
+    
+    **Theoretical Guarantee:**
+    - gamma > 0 ensures no expert's probability ever drops to zero.
+    - This allows recovery in non-stationary environments (e.g., if a bad expert 
+      becomes good later, we will still sample it enough to notice).
     
     **Computational Overhead:**
     - Memory: 2x (store two sets of A/b matrices)
@@ -3397,6 +3410,8 @@ class CorrallingRouter:
         experts: List of bandit instances (typically [warmup_router, tabula_rasa_router])
         models: List of model IDs (must match across all experts)
         learning_rate: How quickly to adapt weights (default: 0.1)
+        gamma: Mixing parameter γ. Minimum prob for any expert is γ/N.
+               Prevents 'Expert Death' in non-stationary settings. (default: 0.05)
         
     Example:
         >>> # Create two experts
@@ -3404,7 +3419,7 @@ class CorrallingRouter:
         >>> tabula_rasa = TabulaRasaRouter(models, context_dim=24, alpha=1.0)
         >>> 
         >>> # Wrap them in Corralling
-        >>> hybrid = CorrallingRouter(experts=[warmup, tabula_rasa], models=models)
+        >>> hybrid = CorrallingRouter(experts=[warmup, tabula_rasa], models=models, gamma=0.05)
         >>> 
         >>> # Use like any other router
         >>> selected = hybrid.select_model(context)
@@ -3415,12 +3430,21 @@ class CorrallingRouter:
         self,
         experts: List,
         models: List[str],
-        learning_rate: float = 0.1
+        learning_rate: float = 0.1,
+        gamma: float = 0.05  # [FIX] Mixing parameter (5% uniform exploration)
     ):
-        """Initialize Corralling with uniform expert weights."""
+        """
+        Initialize Corralling with uniform expert weights and exploration floor.
+        
+        Args:
+            learning_rate: eta (η) for exponential updates
+            gamma: Mixing parameter γ. Minimum prob for any expert is γ/N.
+                   Prevents 'Expert Death' in non-stationary settings.
+        """
         self.experts = experts
         self.models = models
         self.learning_rate = learning_rate
+        self.gamma = gamma  # The "Life Support" parameter
         self.n_experts = len(experts)
         
         # Exponential weights (start uniform)
@@ -3433,10 +3457,22 @@ class CorrallingRouter:
         self.expert_selections = [0] * self.n_experts
         self.selections = {m: 0 for m in models}
         self.last_expert_idx = None
+        self.last_expert_prob = None  # Track actual prob used for selection
+    
+    def _get_mixed_distribution(self) -> np.ndarray:
+        """
+        Compute P_t = (1-γ) * w_t + γ/K
+        This mixes the learned policy (w_t) with uniform exploration (1/K).
+        
+        Returns:
+            Mixed probability distribution over experts
+        """
+        uniform_dist = np.ones(self.n_experts) / self.n_experts
+        return (1 - self.gamma) * self.weights + self.gamma * uniform_dist
     
     def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
         """
-        Select model by sampling from the expert distribution.
+        Select model using the MIXED distribution (prevents Expert Death).
         
         **Overhead:** O(1) - just one random sample and one expert query.
         
@@ -3447,9 +3483,13 @@ class CorrallingRouter:
         Returns:
             Selected model ID
         """
-        # Pick an expert according to current weights
-        expert_idx = np.random.choice(self.n_experts, p=self.weights)
+        # [FIX] Use mixed distribution instead of raw weights
+        probs = self._get_mixed_distribution()
+        
+        expert_idx = np.random.choice(self.n_experts, p=probs)
+        
         self.last_expert_idx = expert_idx
+        self.last_expert_prob = probs[expert_idx]  # Save for unbiased update
         self.expert_selections[expert_idx] += 1
         
         # Ask that expert which model to use (pass through total_steps)
@@ -3460,7 +3500,7 @@ class CorrallingRouter:
     
     def update(self, context: np.ndarray, model: str, reward: float):
         """
-        Update expert weights and the selected expert's internal state.
+        Update weights using Importance-Weighted Loss with Mixed Probability.
         
         **Importance-Weighted Loss Estimation (Corralling Algorithm):**
         Based on Agarwal et al. (2017), we use unbiased loss estimation:
@@ -3468,10 +3508,16 @@ class CorrallingRouter:
         - Loss is weighted by 1/p (inverse selection probability) for unbiased estimation
         - Non-chosen experts get 0 loss (we don't observe counterfactuals)
         
+        **Critical Fix (KDD Reviewer):**
+        We MUST use the MIXED probability (p_t) for the estimator denominator, not raw weights.
+        If we used raw weights, the estimator would be biased. Since p_t >= gamma/K, 
+        this term is bounded (max loss <= K/gamma), preventing numerical instability.
+        
         This ensures that:
         1. Experts are only penalized for decisions they actually made
         2. The weight update is unbiased (no artificial volatility)
         3. Bad experts naturally get downweighted over time
+        4. No expert can be permanently "killed" (Expert Death prevention)
         
         **Overhead:** O(1) - just update the chosen expert's loss.
         
@@ -3483,14 +3529,16 @@ class CorrallingRouter:
         # Convert reward to loss
         observed_loss = 1.0 - reward
         
-        # KDD FIX: Importance-weighted loss estimation
-        # This ensures unbiased learning from the actual outcomes
+        # Initialize loss vector
         losses = np.zeros(self.n_experts)
         
-        # Only the chosen expert gets penalized
-        # Weight by 1/p for importance sampling (makes estimator unbiased)
-        p_chosen = self.weights[self.last_expert_idx]
-        losses[self.last_expert_idx] = observed_loss / max(p_chosen, 1e-6)  # Avoid division by zero
+        # [FIX] Use the MIXED probability (p_t) for the estimator denominator
+        # If we used raw weights, the estimator would be biased.
+        # Since p_t >= gamma/K, this term is bounded (max loss <= K/gamma).
+        p_chosen = self.last_expert_prob
+        
+        # Importance-Weighted Estimator: l_hat = l_obs / p_chosen
+        losses[self.last_expert_idx] = observed_loss / p_chosen
         
         # Non-chosen experts get 0 loss (we didn't observe their counterfactual outcome)
         # This is correct because we're estimating expected loss over the selection distribution
@@ -3498,7 +3546,7 @@ class CorrallingRouter:
         # Update cumulative losses
         self.cumulative_losses += losses
         
-        # Update weights: w_i ∝ exp(-eta * loss_i)
+        # Standard Exp4 Update: w_i ∝ exp(-eta * loss_i)
         # This exponentially downweights bad experts
         log_weights = -self.learning_rate * self.cumulative_losses
         log_weights -= log_weights.max()  # Numerical stability

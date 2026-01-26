@@ -109,14 +109,17 @@ To generate the complete cost-quality trade-off curve, we sweep routing aggressi
 \end{align}
 
 \paragraph{BanditGPT Threshold Mapping}
+
+Crucially, we employ \textbf{Dynamic Pareto Filtering} (see Section~\ref{sec:dynamic_pareto_filtering}). For every incoming prompt $x$, the router constructs a local Pareto frontier based on contextual quality predictions $\hat{r}(x)$, restricting the search space to non-dominated models before the LinUCB selection policy is applied.
+
 \begin{align}
 w_q &= \tau \quad \text{(quality weight)} \\
 w_c &= 1 - \tau \quad \text{(cost weight)} \\
 \text{utility}_m &= w_q \cdot \text{UCB}_m - w_c \cdot \text{cost}_m \\
-\text{selected} &= \argmax_m \text{utility}_m
+\text{selected} &= \argmax_{m \in \mathcal{P}(x)} \text{utility}_m
 \end{align}
 
-At each threshold, we obtain a $(cost, quality)$ operating point. The collection of 11 points forms the Pareto frontier curve, allowing visual comparison of economic trade-offs.
+where $\mathcal{P}(x)$ denotes the context-dependent Pareto-optimal subset. At each threshold, we obtain a $(cost, quality)$ operating point. The collection of 11 points forms the Pareto frontier curve, allowing visual comparison of economic trade-offs.
 
 \subsubsection{Training and Evaluation Phases}
 
@@ -125,7 +128,8 @@ At each threshold, we obtain a $(cost, quality)$ operating point. The collection
     \item Initialize: Load binary warmup priors, create $\mathbf{A}_m, \mathbf{b}_m$ matrices
     \item For each prompt $p$ in training set:
         \begin{enumerate}
-            \item Route: $m^* = \argmax_m (w_q \cdot \text{UCB}_m - w_c \cdot \text{cost}_m)$
+            \item Compute Pareto frontier: $\mathcal{P}(x) = \{m : \nexists m' \text{ with } \hat{r}_{m'}(x) > \hat{r}_m(x) \text{ and } c_{m'} < c_m\}$
+            \item Route: $m^* = \argmax_{m \in \mathcal{P}(x)} (w_q \cdot \text{UCB}_m - w_c \cdot \text{cost}_m)$
             \item Observe: $r = \texttt{raw\_score}[p, m^*]$
             \item Update: $\mathbf{A}_{m^*} \leftarrow \mathbf{A}_{m^*} + \mathbf{x}\mathbf{x}^T$, $\mathbf{b}_{m^*} \leftarrow \mathbf{b}_{m^*} + r \cdot \mathbf{x}$
         \end{enumerate}
