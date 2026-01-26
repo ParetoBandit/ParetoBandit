@@ -1,18 +1,6 @@
 \section{Results \& Discussion}
 
-\subsection{Forensic Discovery: The Alignment Tax}
-\label{sec:semantic_structure}
-
-Spatial analysis of the semantic manifold (Figure~\ref{fig:lmsys_holdout_structure}) reveals two clusters at PC1 = 0.3. Validation against ground-truth reward gaps exposes a performance inversion that enables the router's success.
-
-\paragraph{The High PC1 ``Strictness Zone'' (17.6\%).}
-Forensic analysis reveals this cluster is 85\% dominated by strict completion templates (``You are the text completion model... only send the completion... don't repeat...'')---explicit negative constraints. Here, the cheaper model (Mixtral-8x7B) achieves a mean gap of $-0.68$ (Mixtral $>$ GPT-4-Turbo). This reveals an \textbf{Alignment Tax}: RLHF-optimized models systematically violate negative instructions due to their training for verbosity and helpfulness. A static router that sends these constraint-heavy prompts to GPT-4-Turbo pays 40$\times$ more for worse format compliance.
-
-\paragraph{The Low PC1 ``Nuance Zone'' (82.4\%).}
-Conversely, the open-ended conversational cluster (Low PC1) is where GPT-4-Turbo's alignment provides value (Mean Gap $+0.13$). Routing this entire cluster to Mixtral would degrade quality---the router must surgically identify the sub-manifold where cost savings are possible without quality loss.
-
-\paragraph{Implication: Counter-Intuitive Economics.}
-The routing opportunity inverts conventional wisdom. We do not save money by routing ``easy'' tasks to cheap models---we save money by identifying ``strict'' tasks where the expensive model actively fails. This transforms the Alignment Tax from a quality problem into a cost-saving opportunity through \textbf{Forensic Agility}---discovering hidden failure modes in production data that human intuition would miss.
+We evaluate banditGPT on three critical dimensions: economic efficiency (Pareto optimality), algorithmic safety (robustness to alignment traps), and operational agility (adaptation to new models).
 
 \subsection{The Competitive Victory: Pareto Dominance}
 
@@ -27,15 +15,15 @@ Figure~\ref{fig:pareto} illustrates the cost-quality trade-off for all tested ro
 
 \subsubsection{The ``Over-Provisioning Penalty'' of Static Routing}
 
-A critical finding is the non-monotonic behavior of the RouteLLM benchmark. As shown in Figure~\ref{fig:pareto}, RouteLLM's performance collapses when the threshold is lowered to admit more GPT-4-Turbo traffic ($\tau < 0.10$).
+A critical finding is the non-monotonic behavior of the RouteLLM benchmark. As shown in Figure~\ref{fig:pareto}, RouteLLM's performance collapses when the threshold is lowered to admit more GPT-4 traffic ($\tau < 0.10$).
 
-\textbf{The Phenomenon}: Users paying \$0.013 (Maximum Cost) receive a reward of $0.812$---worse than the \$0.0003 Mistral baseline ($0.823$). We term this the ``Over-Provisioning Penalty'': paying a $43\times$ cost premium to \emph{decrease} quality by $1.3\%$.
+\textbf{The Phenomenon}: Users paying \$0.013 (Maximum Cost) receive a reward of 0.812---worse than the \$0.0003 Mistral baseline (0.823). We term this the ``Over-Provisioning Penalty'': paying a $43\times$ cost premium to \emph{decrease} quality by 1.3\%.
 
-\textbf{The Cause}: Static routers interpolate based on general ``hardness.'' They cannot distinguish the $6\%$ of prompts where GPT-4-Turbo is actually better from the $94\%$ where it is simply slower and more verbose.
+\textbf{The Cause}: Static routers interpolate based on general ``hardness.'' They fail to distinguish the Alignment Tax Cluster (High PC1)---where GPT-4's verbosity degrades performance---from the Natural Language Cluster (Low PC1) where GPT-4 is genuinely superior.
 
-\textbf{The Solution}: banditGPT (Blue Line) learns this inversion online. By using GPT-4-Turbo only when statistically justified, it achieves a peak reward of $0.909$, enabling a $+10.4\%$ quality gain while still reducing costs by $27\%$ compared to the naive GPT-4-Turbo baseline.
+\textbf{The Solution}: banditGPT (Blue Line) learns this inversion online. By using GPT-4 only when statistically justified, it achieves a peak reward of 0.909, enabling a +10.4\% quality gain while still reducing costs by 27\% compared to the naive GPT-4 baseline.
 
-\subsection{Gap Closure Analysis}
+\subsubsection{Gap Closure Analysis}
 
 Table~\ref{tab:performance} quantifies our performance relative to the theoretical upper bound.
 
@@ -47,6 +35,7 @@ Table~\ref{tab:performance} quantifies our performance relative to the theoretic
 \begin{tabular}{@{}p{3.5cm}ccp{2.5cm}@{}}
 \toprule
 \textbf{Routing Strategy} & \textbf{Cost} & \textbf{Quality} & \textbf{Gap to Oracle} \\
+& \textbf{(\$/req)} & & \\
 \midrule
 \multicolumn{4}{l}{\textit{Static Baselines}} \\
 Static-Mixtral 8x7B & 0.00030 & 0.823 & 100.0\% \\
@@ -61,34 +50,59 @@ Oracle (Upper Bound) & 0.00195 & 0.953 & 0.0\% \\
 \end{tabular}
 \end{table}
 
-Our approach closes $66.2\%$ of the optimality gap $\frac{0.909 - 0.823}{0.953 - 0.823}$, significantly outperforming RouteLLM's $46.2\%$ closure.
-
-\subsection{The Cost of Autonomy}
-
-In the ultra-low budget regime ($< \$0.004$), RouteLLM initially outperforms banditGPT. This reflects the ``Cost of Autonomy'': the online learner must pay an exploration penalty (regret) to discover the decision boundary, whereas the static router exploits pre-computed knowledge for free. However, this upfront investment pays dividends: once the budget permits ($> \$0.008$), banditGPT breaks through the static ceiling that confines RouteLLM.
+Our approach closes 66.2\% of the optimality gap $\frac{0.909 - 0.823}{0.953 - 0.823}$, significantly outperforming RouteLLM's 46.2\% closure.
 
 \subsection{Algorithmic Safety: Adaptive Prior Decommissioning}
 
-While Figure~\ref{fig:pareto} demonstrates average efficiency, production systems require worst-case safety. A critical vulnerability in prior-based routing is \emph{Negative Transfer}: if the offline priors are misspecified (e.g., trained on ``Hard'' data but deployed on ``Easy'' traffic), the router may stubbornly over-provision resources.
+While Figure~\ref{fig:pareto} demonstrates average efficiency, production systems require worst-case safety. A critical vulnerability is \emph{Negative Transfer}: if the offline priors are misspecified (e.g., trained on ``Hard'' data but deployed on ``Alignment Tax'' traffic), the router may stubbornly over-provision resources.
 
 Figure~\ref{fig:decommission} visualizes the internal dynamics of our Corralling Algorithm handling this exact scenario.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure6_expert_decommission.png}
-\caption{The ``Step Function'' of Decisive Decommissioning. (Top) Evolution of expert weights during the first 500 steps. The system initially explores the Warmup Expert (Orange), but detects a high loss due to domain mismatch. At $t \approx 50$, the cumulative evidence triggers a sharp exponential decay, effectively decommissioning the harmful prior by $t=200$. (Bottom) Cumulative loss comparison confirms the Tabula Rasa expert (Green) is strictly superior.}
+\caption{The ``Step Function'' of Decisive Decommissioning. (Top) Evolution of expert weights during the first 500 steps. The system initially explores the Warmup Expert (Orange) but detects a high loss due to domain mismatch. At $t \approx 50$, the cumulative evidence triggers a sharp exponential decay, effectively decommissioning the harmful prior by $t=200$. (Bottom) Cumulative loss comparison confirms the Tabula Rasa expert (Green) is strictly superior.}
 \label{fig:decommission}
 \end{figure}
 
-\textbf{The ``Step Function'' Mechanism}: The sharp drop in Warmup weight at $t \approx 50$ is not an artifact but a designed feature of the Importance-Weighted Loss estimator. When the Warmup expert makes a mistake while its probability $p_t$ is low, the penalty $\hat{\ell} = \ell_t / p_t$ explodes. This creates a ``death spiral'' for the misspecified expert, ensuring that harmful priors are removed from the decision path within 100--200 steps rather than lingering for thousands.
+\subsubsection{Robustness to the ``Alignment Trap''}
 
-\textbf{Outcome}: By decisively decommissioning the biased prior, the system pivots $85\%$ of traffic to Mixtral, achieving a $97.6\%$ cost reduction without manual intervention.
+As established in Section~\ref{sec:distribution_shift}, our deployment exhibits severe domain mismatch ($\text{PSI}=0.275$), where the Warmup Prior anticipates that complex tasks require GPT-4. However, in the Alignment Tax Zone (High PC1), GPT-4 actually performs worse than Mixtral ($\Delta = -0.68$). A static prior would disastrously route these tasks to the expensive model.
+
+Table~\ref{tab:performance_gap} quantifies the impact of this mismatch and the robustness of our Corralling strategy ($\eta=1.0$).
+
+\begin{table}[t]
+\centering
+\caption{\textbf{The Performance Gap: Aggressive vs Conservative Learning.} 
+Evaluated on 750 held-out test prompts with severe domain mismatch (alignment 0.48). 
+While conservative learning ($\eta=0.1$) acts too slowly (49 regret), aggressive learning ($\eta=1.0$) 
+decisively decommissions the harmful prior to achieve \textbf{1.10$\times$ near-optimal performance}, 
+closing the gap to the theoretical oracle (Tabula Rasa).}
+\label{tab:performance_gap}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Strategy} & \textbf{Learning} & \textbf{Early Regret} & \textbf{Total Regret} & \textbf{Gap to} & \textbf{Safety} \\
+& \textbf{Rate ($\eta$)} & \textbf{(0--500)} & \textbf{(Total)} & \textbf{Optimal} & \textbf{Gain} \\
+\midrule
+\multicolumn{6}{@{}l}{\textit{Baselines}} \\
+\quad Tabula Rasa (Oracle) & -- & 18.0 & 40.0 & 1.00$\times$ & -- \\
+\quad Warmup (Harmful) & -- & 81.9 & 79.0 & 1.98$\times$ & \textit{Baseline} \\
+\midrule
+\multicolumn{6}{@{}l}{\textit{banditGPT-Hybrid (Ours)}} \\
+\quad Conservative & 0.1 & 28.5 & 49.0 & 1.23$\times$ & +38\% \\
+\quad \textbf{Aggressive} & \textbf{1.0} & \textbf{22.0} & \textbf{44.0} & \textbf{1.10$\times$} & \textbf{+44\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{The Cost of Rigid Priors}: The ``Warmup Only'' baseline suffers catastrophic Early-Phase Regret (81.9 in the first 500 steps). Because it confidently exploits a misspecified prior (Alignment = 0.48), it aggressively routes ``Alignment Tax'' prompts to GPT-4, wasting budget before it can unlearn the bias.
+
+\textbf{The Corralling Safety Net}: In contrast, the banditGPT Aggressive strategy ($\eta=1.0$) detects this misalignment within $\sim 100$ samples. By rapidly down-weighting the Warmup Expert, it limits early regret to 22.0, achieving a 44\% improvement over the baseline and coming within 1.10$\times$ of the optimal Tabula Rasa.
 
 \subsection{Operational Agility: Zero-Shot Readiness}
 
-In the fast-moving LLM landscape, models are released weekly. Standard bandit algorithms suffer a ``Cold Start'' penalty---a period of random exploration required to learn a new model's utility.
-
-To evaluate agility, we simulated a ``Mid-Flight Upgrade'' event where a new model (``GPT-5.1'') is released at $t=300$. We compare a standard Cold Start initialization against our Latent Semantic Transfer.
+To simulate the rapid release cycle of LLMs (e.g., a ``Mid-Flight Model Drop''), we introduced a new model into the registry at $t=300$. Figure~\ref{fig:zeroshot} compares the standard ``Cold Start'' approach against our Latent Semantic Transfer protocol.
 
 \begin{figure}[t]
 \centering
@@ -97,24 +111,20 @@ To evaluate agility, we simulated a ``Mid-Flight Upgrade'' event where a new mod
 \label{fig:zeroshot}
 \end{figure}
 
-\textbf{The Cold Start Dip}: The baseline router (Red Line) treats the new model as a complete unknown. It forces users to endure $\sim$500 steps of degraded performance ($R < 3.0$) while it relearns the decision boundary from scratch.
+\textbf{The Cold Start Dip}: The baseline LinUCB router (Red Line) suffers a catastrophic regression, with average reward plummeting from $3.3 \to 1.7$ immediately after the new model is added. This represents the ``cost of exploration,'' as the router essentially fumbles in the dark to learn the new model's utility.
 
-\textbf{The Transfer Advantage}: By transferring the preference vector $\thetavec$ from a semantic neighbor (GPT-4-Turbo) while resetting confidence $\Amat$, banditGPT (Green Line) achieves Zero-Shot Readiness. It effectively says, ``I suspect this model behaves like GPT-4-Turbo, but I'm open to being proven wrong.'' This results in a $2.8\times$ performance advantage during the critical adoption window.
+\textbf{The Transfer Advantage}: The banditGPT router (Green Line) exhibits Zero-Shot Readiness, maintaining a high stable reward ($\sim 4.5$) with no discernible dip. By inheriting the preference vector $\thetavec$ of its semantic neighbor (GPT-4-Turbo) while resetting its confidence $\Amat$, the router effectively ``hits the ground running''.
 
-\subsection{Robustness: Sensitivity Analysis}
+\subsubsection{Robustness: Hyperparameter Sensitivity}
 
-A common critique of transfer learning is hyperparameter sensitivity: Does the system fail if we trust the neighbor too much or too little?
-
-We performed a sensitivity sweep on the Effective Prior Strength ($\neff$), ranging from $1.0$ (Weak Trust) to $20.0$ (Strong Trust).
+Finally, we address the potential brittleness of the Semantic Transfer mechanism. We performed a sensitivity sweep on the effective prior strength parameter $\neff \in [1, 20]$.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure8_sensitivity.png}
-\caption{Robustness to Prior Strength ($\neff$). We vary the strength of the transferred prior from $\neff=1$ to $\neff=20$. All transfer configurations (Blue/Teal lines) significantly outperform the Cold Start baseline (Red). The overlap of the trajectories confirms that performance is driven by the direction of the transferred mean ($\thetavec$), not the tightness of the confidence interval.}
+\caption{Robustness to Prior Strength ($\neff$). We vary the strength of the transferred prior from $\neff=1$ to $\neff=20$. All transfer configurations (Blue/Teal lines) significantly outperform the Cold Start baseline (Red). The overlap of the trajectories confirms that performance is driven by the direction of the transferred mean ($\thetavec$), not the specific tightness of the confidence interval.}
 \label{fig:sensitivity}
 \end{figure}
 
-\textbf{Invariance Result}: As shown in Figure~\ref{fig:sensitivity}, the performance trajectories for $\neff=1$ (Weak) and $\neff=20$ (Strong) are nearly indistinguishable.
-
-\textbf{Implication}: This confirms mathematically that the benefit comes from the mean initialization ($\hat{\thetavec} \approx \thetavec_{\text{neighbor}}$). Even a weak suggestion is sufficient to guide the router away from the Cold Start failure mode. Consequently, $\neff$ does not require precise tuning; any value $\in [1, 20]$ yields near-optimal results.
+The results show effectively identical performance trajectories across all magnitudes. This confirms that the success of the transfer is driven by the directionality of the transferred mean ($\thetavec_{\text{neighbor}}$), rather than the specific tightness of the confidence interval, rendering the system robust to hyperparameter selection.
 

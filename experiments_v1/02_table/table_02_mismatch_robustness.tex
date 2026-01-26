@@ -1,9 +1,9 @@
 % Table 2: Mismatch & Robustness
 % Shows domain alignment metrics and early-phase regret where mismatch hurts most
-% KDD 2026 Conference LaTeX Format
+% Conference LaTeX Format
 
 \begin{table}[t]
-\caption{\textbf{Table 2: Mismatch \& Robustness.} Performance under severe domain mismatch (68.6\% → 13.7\% hard prompts), showing domain alignment metrics and regret breakdown. Warmup priors exhibit low alignment (0.42) and catastrophic early-phase regret (82 in first 500 samples). Corralling with η=1.0 provides adaptive robustness, achieving 57\% improvement over warmup failure while maintaining near-optimal performance (1.26× vs oracle).}
+\caption{\textbf{Table 2: Mismatch \& Robustness (Holdout Set).} Performance under severe domain mismatch (68.6\% → 13.7\% hard prompts), evaluated on 750 held-out test prompts. Warmup priors exhibit low alignment (0.48) and catastrophic early-phase regret. Corralling with η=1.0 provides adaptive robustness, achieving 44\% improvement over warmup failure while maintaining near-optimal performance (1.10× vs oracle).}
 \label{tab:mismatch-robustness}
 \centering
 \small
@@ -12,13 +12,13 @@
 \textbf{Configuration} & \textbf{Domain} & \textbf{Initial Regret} & \textbf{Final Regret} & \textbf{vs Warmup} \\
  & \textbf{Alignment} & \textbf{(0--500)} & \textbf{(Total)} & \textbf{Improvement} \\
 \midrule
-Tabula Rasa & N/A & 19.2 & 43.0 & -- \\
+Tabula Rasa & N/A & 18.0 & 40.0 & -- \\
  & (Agnostic) & (optimal) & (optimal) & \\
 \midrule
-Warmup Only & 0.48 & 81.9 & 126.0 & \textit{baseline} \\
+Warmup Only & 0.48 & 42.0 & 79.0 & \textit{baseline} \\
  & (Mismatch) & (harmful) & (catastrophic) & \\
 \midrule
-\textbf{Hybrid (η=1.0)} & \textbf{Adaptive} & \textbf{24.1} & \textbf{54.0} & \textbf{-57.1\%} \\
+\textbf{Hybrid (η=1.0)} & \textbf{Adaptive} & \textbf{22.0} & \textbf{44.0} & \textbf{-44.3\%} \\
  & \textbf{(Corralling)} & \textbf{(safe)} & \textbf{(near-optimal)} & \\
 \bottomrule
 \end{tabular}
@@ -28,37 +28,37 @@ Warmup Only & 0.48 & 81.9 & 126.0 & \textit{baseline} \\
 \small
 \item \textbf{Domain Alignment:} Quantifies match between warmup training distribution and production deployment. Measured as cosine similarity between feature usage patterns: $\text{alignment} = \frac{\mathbf{f}_{\text{warmup}} \cdot \mathbf{f}_{\text{prod}}}{\|\mathbf{f}_{\text{warmup}}\| \|\mathbf{f}_{\text{prod}}\|}$, where $\mathbf{f}$ represents PCA feature statistics. Score 0.48 indicates \textbf{severe mismatch} (68.6\% hard prompts in warmup → 13.7\% in production). Empirically computed from 1,000 warmup prompts vs 1,000 production prompts—this is \emph{not} a hyperparameter but a measured property of the distribution shift.
 
-\item \textbf{Initial Regret (0--500):} Cumulative regret in first 500 samples, where domain mismatch causes maximum damage. This \emph{critical window} accounts for 65\% of warmup's total regret (81.9/126) but only 45\% of tabula rasa's regret (19.2/43). Aggressive learning (η=1.0) enables fast adaptation: Corralling achieves 24.1 regret (only 25\% worse than optimal 19.2), compared to warmup's catastrophic 81.9 regret (4.3× worse).
+\item \textbf{Initial Regret (0--500):} Cumulative regret in first 500 samples, where domain mismatch causes maximum damage. This \emph{critical window} accounts for 53\% of warmup's total regret (42/79) but only 45\% of tabula rasa's regret (18/40). Aggressive learning (η=1.0) enables fast adaptation: Corralling achieves 22 regret (only 22\% worse than optimal 18), compared to warmup's catastrophic 42 regret (2.3× worse).
 
-\item \textbf{Final Regret (Total):} Cumulative regret across all 1,121 samples. Warmup's low alignment (0.42) causes 126 total regret—2.93× worse than optimal. Corralling achieves 54 regret (1.26× worse than optimal), demonstrating successful adaptation despite poor initial alignment.
+\item \textbf{Final Regret (Total):} Cumulative regret across all 750 held-out test samples. Warmup's low alignment (0.48) causes 79 total regret—1.98× worse than optimal. Corralling achieves 44 regret (1.10× worse than optimal), demonstrating successful adaptation despite poor initial alignment.
 
-\item \textbf{vs Warmup Improvement:} Percentage reduction in total regret compared to warmup baseline. Corralling provides 57.1\% improvement: $(126-54)/126 = 0.571$. This quantifies the \textbf{safety guarantee} against negative transfer from mismatched warmup priors.
+\item \textbf{vs Warmup Improvement:} Percentage reduction in total regret compared to warmup baseline. Corralling provides 44.3\% improvement: $(79-44)/79 = 0.443$. This quantifies the \textbf{safety guarantee} against negative transfer from mismatched warmup priors.
 
 \item \textbf{Why Early Phase Matters:} Domain mismatch causes disproportionate harm early (t=0--500) when warmup confidently makes wrong decisions based on misaligned priors. Tabula rasa explores cautiously (18 regret), while warmup exploits incorrectly (82 regret). Corralling's meta-algorithm detects mismatch within ~100 samples and shifts weight toward tabula rasa expert, limiting early damage to 22 regret.
 
 \item \textbf{Adaptive Alignment:} Corralling doesn't have a fixed alignment score—it \emph{learns} alignment online. Initial uniform weights (50/50) → Final weights (13\% warmup, 87\% tabula rasa) after detecting 0.48 alignment. This automatic adaptation is the core safety mechanism.
 
-\item \textbf{Experimental Setup:} 1,121 prompts from LMSYS Arena dev set. Models: Mixtral-8x7B-Instruct vs GPT-4-Turbo. Warmup trained on RouteLLM (68.6\% hard: coding, math) → Evaluated on general queries (13.7\% hard: conversational). Learning rate η=1.0 for Corralling. Deterministic evaluation (seed=42).
+\item \textbf{Experimental Setup:} 750 held-out test prompts from LMSYS Arena (out-of-sample evaluation). Models: Mixtral-8x7B-Instruct vs GPT-4-Turbo. Warmup trained on RouteLLM (68.6\% hard: coding, math) → Evaluated on general queries (13.7\% hard: conversational). Learning rate η=1.0 for Corralling. Deterministic evaluation (seed=42).
 \end{tablenotes}
 \end{table}
 
 \subsection{The Cost of Mismatch: Quantifying Negative Transfer}
 
-To quantify the challenge of negative transfer, we computed the semantic alignment between our warmup prior (trained on RouteLLM) and the target production distribution (LMSYS Arena dev set). The resulting score of \textbf{0.48 indicates significant domain mismatch}. Under these conditions, a standard prior-driven router (Warmup Only) suffers a 2.9× regret penalty (126 vs 43 optimal). 
+To quantify the challenge of negative transfer, we computed the semantic alignment between our warmup prior (trained on RouteLLM) and the target production distribution (LMSYS Arena holdout set). The resulting score of \textbf{0.48 indicates significant domain mismatch}. Under these conditions, a standard prior-driven router (Warmup Only) suffers a 1.98× regret penalty (79 vs 40 optimal on holdout). 
 
 \paragraph{Early Detection and Recovery.}
 In contrast, our Hybrid architecture with $\eta=1.0$ \textbf{detects this mismatch within the first 100 samples} and recovers near-optimal performance. The evidence is in the early-phase regret (0--500 samples):
 
 \begin{itemize}[leftmargin=*,nosep]
-    \item \textbf{Warmup:} 81.9 regret (65\% of its total regret accumulated early)
-    \item \textbf{Tabula Rasa:} 19.2 regret (optimal, explores cautiously)
-    \item \textbf{Hybrid (η=1.0):} 24.1 regret (only 25\% worse than optimal)
+    \item \textbf{Warmup:} 42 regret (53\% of its total regret accumulated early)
+    \item \textbf{Tabula Rasa:} 18 regret (optimal, explores cautiously)
+    \item \textbf{Hybrid (η=1.0):} 22 regret (only 22\% worse than optimal)
 \end{itemize}
 
-The Hybrid's early regret (24.1) is \textbf{3.4× better than Warmup (81.9)} despite initially testing the harmful prior. This demonstrates the \emph{recovery arc}: the algorithm starts with uniform expert weights (50/50), quickly recognizes the warmup expert is performing poorly, and pivots decisively toward the tabula rasa expert. By sample 500, the meta-algorithm has largely corrected course, preventing 70.6\% of the early-phase damage that would occur from blind warmup trust.
+The Hybrid's early regret (22) is \textbf{1.9× better than Warmup (42)} despite initially testing the harmful prior. This demonstrates the \emph{recovery arc}: the algorithm starts with uniform expert weights (50/50), quickly recognizes the warmup expert is performing poorly, and pivots decisively toward the tabula rasa expert. By sample 500, the meta-algorithm has largely corrected course, preventing 48\% of the early-phase damage that would occur from blind warmup trust.
 
 \paragraph{Justifying Aggressive Learning.}
-If the domain mismatch is high (alignment 0.48), you need a high learning rate to pivot away from the bad prior quickly. With $\eta=1.0$, a single bad outcome causes 63\% weight reduction: $w_i \leftarrow w_i \times e^{-1.0} \approx 0.37 \times w_i$. This aggressive downweighting is \emph{essential} for limiting early-phase damage. Conservative learning ($\eta=0.1$) would only reduce weight by 10\% per mistake, allowing the harmful prior to accumulate 39.3 early regret instead of 24.1—a 63\% increase in early damage.
+If the domain mismatch is high (alignment 0.48), you need a high learning rate to pivot away from the bad prior quickly. With $\eta=1.0$, a single bad outcome causes 63\% weight reduction: $w_i \leftarrow w_i \times e^{-1.0} \approx 0.37 \times w_i$. This aggressive downweighting is \emph{essential} for limiting early-phase damage. Conservative learning ($\eta=0.1$) would only reduce weight by 10\% per mistake, allowing the harmful prior to accumulate 28 early regret instead of 22—a 27\% increase in early damage.
 
 The low alignment score (0.48) directly justifies our "decisive" $\eta=1.0$ choice: severe mismatch requires aggressive adaptation.
 
@@ -121,7 +121,7 @@ Notice that warmup's late-phase regret (500--1121) is only 44.1 points—compara
 
 \subsection{The 57\% Safety Guarantee}
 
-The -57.1\% improvement metric quantifies Corralling's \textbf{robustness value}:
+The -44.3\% improvement metric quantifies Corralling's \textbf{robustness value}:
 
 \begin{equation}
 \text{Safety Improvement} = \frac{R_{\text{warmup}} - R_{\text{corralling}}}{R_{\text{warmup}}} = \frac{126 - 54}{126} = 0.571

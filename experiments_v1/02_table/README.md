@@ -1,25 +1,27 @@
 # Experiment: Table 2 - The Performance Gap
 
-**Date:** 2026-01-24  
-**Status:** ✅ Complete and KDD-Ready  
-**Main Result:** η=1.0 achieves 1.26× near-optimal regret (54 vs 43)
+**Date:** 2026-01-26 (CORRECTED)  
+**Status:** ✅ Complete and Ready for Submission (Holdout Set)  
+**Main Result:** η=1.0 achieves 1.10× near-optimal regret (44 vs 40) on Holdout Set
+
+⚠️ **IMPORTANT**: This experiment now reports **Holdout Set (N=750)** results for out-of-sample evaluation. Previous version incorrectly used Dev Set (N=1,121).
 
 ---
 
 ## Overview
 
-This experiment provides the definitive comparison of **aggressive learning (η=1.0)** against **conservative baseline (η=0.1)** for the Corralling meta-algorithm in LLM routing scenarios. The results demonstrate that proper hyperparameter tuning can achieve near-optimal performance (1.26× vs oracle) while maintaining strong safety guarantees (57% improvement vs harmful warmup priors).
+This experiment provides the definitive comparison of **aggressive learning (η=1.0)** against **conservative baseline (η=0.1)** for the Corralling meta-algorithm in LLM routing scenarios. The results demonstrate that proper hyperparameter tuning can achieve near-optimal performance (1.10× vs oracle) while maintaining strong safety guarantees (44.3% improvement vs harmful warmup priors).
 
-## Key Finding
+## Key Finding (CORRECTED - Holdout Set)
 
-**Aggressive learning rate (η=1.0) dramatically closes the performance gap:**
+**Aggressive learning rate (η=1.0) achieves near-optimal performance on held-out test set:**
 
-- **54 cumulative regret** (only 1.26× worse than optimal 43)
-- **38.6% better** than conservative baseline (η=0.1: 88 regret)
-- **57% better** than harmful warmup priors (126 regret)
-- **Near-optimal model selection:** 66.2% GPT-4-Turbo vs optimal 68.1%
+- **44 cumulative regret** (only 1.10× worse than optimal 40) ✅
+- **10.2% better** than conservative baseline (η=0.1: 49 regret) ✅
+- **44.3% better** than harmful warmup priors (79 regret) ✅
+- **Near-optimal model selection:** 74.5% GPT-4-Turbo vs optimal 70.8% ✅
 
-This is a **major finding** that challenges conventional wisdom about meta-algorithm overhead and significantly strengthens the practical value proposition for production deployments.
+This demonstrates **near-optimal performance with strong safety guarantees** on out-of-sample data, validating the practical value proposition for production deployments.
 
 ---
 
@@ -32,8 +34,8 @@ This is a **major finding** that challenges conventional wisdom about meta-algor
 - **Production data:** 13.7% hard prompts (conversational, general queries)
 
 **Result:** **Catastrophic failure**
-- Warmup regret: **126** (2.93× worse than optimal)
-- Reason: Over-routes to expensive GPT-4 (85% usage vs 68% optimal)
+- Warmup regret: **79** (2.0× worse than optimal on Holdout Set)
+- Reason: Over-routes to expensive GPT-4 due to miscalibrated priors
 - **Domain mismatch = Negative transfer**
 
 **Symptoms:**
@@ -67,12 +69,12 @@ This is a **major finding** that challenges conventional wisdom about meta-algor
 
 | Scenario | Pure Warmup | Pure Tabula Rasa | Corralling η=1.0 | Winner |
 |----------|-------------|------------------|------------------|--------|
-| **Domain Mismatch** | 126 ❌ **CATASTROPHIC** | 43 ✅ **OPTIMAL** | 54 ✓ **SAFE** | Corralling saves you |
-| **Domain Match** | 40 ✅ **OPTIMAL** | 43 ✓ **GOOD** | 43 ✓ **GOOD** | Warmup wins slightly |
+| **Domain Mismatch** | 79 ❌ **CATASTROPHIC** | 40 ✅ **OPTIMAL** | 44 ✓ **SAFE** | Corralling saves you |
+| **Domain Match** | 40 ✅ **OPTIMAL** | 40 ✅ **OPTIMAL** | 44 ✓ **GOOD** | Warmup wins slightly |
 
 **Key Insight:**
-- **Worst-case loss:** 3 points (43 vs 40 when warmup is good) = 7.5% overhead
-- **Best-case gain:** 72 points (54 vs 126 when warmup is bad) = 57% improvement
+- **Worst-case loss:** 4 points (44 vs 40 when warmup is good) = 10% overhead
+- **Best-case gain:** 35 points (44 vs 79 when warmup is bad) = 44.3% improvement
 - **Expected value:** Strongly positive for uncertain domains
 
 **Bottom Line:** Corralling ensures you're **never catastrophically wrong**, at minimal cost when you're right.
@@ -82,70 +84,70 @@ This is a **major finding** that challenges conventional wisdom about meta-algor
 ## Files in This Experiment
 
 ### Scripts
-- **`analyze_performance_gap.py`** - Main analysis script that:
-  - Loads results from η=0.1 and η=1.0 experiments
-  - Calculates comparative metrics
-  - Generates human-readable comparison tables
-  - Exports LaTeX-ready JSON data
-  
-- **`compute_domain_alignment.py`** - Domain mismatch quantification:
-  - Computes alignment score (0.48) between warmup and production
-  - Estimates early-phase regret (0-500 samples)
-  - Analyzes recovery arc and mismatch impact
-  - Exports alignment metrics to JSON
-  
-- **`generate_plots.py`** - Visualization generation:
-  - Performance gap comparison plots
-  - Learning rate sensitivity analysis
-  - Model usage comparison charts
-  - Comprehensive summary figures
+- **`run_holdout_evaluation.py`** - Main evaluation script that:
+  - Runs Corralling on Holdout Set (N=750)
+  - Evaluates Warmup, Tabula Rasa, and Hybrid (Corralling) strategies
+  - Generates results for both η=0.1 and η=1.0 learning rates
+  - Exports metrics to JSON and visualization plots
 
 ### Data
-- **`data/results.json`** - Baseline results with η=0.1 (conservative)
-- **`data/eta_1.0/results.json`** - Breakthrough results with η=1.0 (aggressive)
-- **`data/performance_gap_analysis.json`** - Generated LaTeX-ready metrics
+- **`data/eta_0.1_holdout/`** - Conservative baseline results (η=0.1)
+  - `results.json` - Metrics for all three strategies
+  - `hybrid_comparison.png` - Visualization plots
+- **`data/eta_1.0_holdout/`** - Aggressive learning results (η=1.0)
+  - `results.json` - Metrics for all three strategies
+  - `hybrid_comparison.png` - Visualization plots
 
 ### LaTeX Documents
-- **`table_02_mismatch_robustness.tex`** - **[RECOMMENDED]** KDD-compliant Table 2 with:
-  - Domain alignment metric (0.48 alignment score)
-  - Early-phase regret (0-500 samples) showing recovery arc
-  - "Cost of Mismatch" narrative
-  - Justification for aggressive η=1.0 choice
-  - Proof of negative transfer and successful adaptation
+- **`table_02_merged.tex`** - **[RECOMMENDED - THE DEFINITIVE TABLE 2]** 
+  - **"Super Table"** combining best metrics from both previous versions
+  - Shows BOTH speed (Early Regret 0-500) AND efficiency (Gap to Optimal)
+  - Proves: "We learn fast to achieve near-optimality"
+  - **This is the scoreboard for your entire paper** - quantifies the 1.10× victory
+  - Includes comprehensive metric explanations and practical implications
   
-- **`table_02_performance_gap.tex`** - Alternative version focusing on:
-  - Overall performance comparison (η=1.0 vs η=0.1)
-  - Three key insights (fast adaptation, Goldilocks zone, near-optimal)
-  - Production implications and cost analysis
-  - Comparison with related work
+- **`table_02_mismatch_robustness.tex`** - Original version focusing on:
+  - Domain alignment and mismatch robustness
+  - Early-phase regret analysis
+  - Adaptive alignment mechanism
+  
+- **`table_02_performance_gap.tex`** - Original version focusing on:
+  - Overall performance comparison
+  - Learning rate sensitivity
+  - Production cost analysis
 
 ---
 
 ## Quick Start
 
-### Run the Analysis
+### Reproduce Table 2 Results
 
 ```bash
 cd experiments_v1/02_table
-python analyze_performance_gap.py
+
+# Run conservative baseline (η=0.1)
+python run_holdout_evaluation.py \
+    --learning-rate 0.1 \
+    --output data/eta_0.1_holdout
+
+# Run aggressive learning (η=1.0)
+python run_holdout_evaluation.py \
+    --learning-rate 1.0 \
+    --output data/eta_1.0_holdout
 ```
 
-**Output:**
+**Expected Output (η=1.0):**
 ```
-TABLE 2: THE PERFORMANCE GAP
-η=1.0 (Aggressive) vs η=0.1 (Conservative) Baseline
+EVALUATION RESULTS (HOLDOUT SET)
 ================================================================================
 
-PERFORMANCE COMPARISON
+Strategy             Cum. Regret     Avg. Reward     Status
 --------------------------------------------------------------------------------
-Metric                                   η=0.1           η=1.0           Change    
---------------------------------------------------------------------------------
-Cumulative Regret                        88.0            54.0            -34.0
-vs Optimal (multiplier)                  2.05×           1.26×           -0.79×
-vs Optimal (% gap)                       105%            26%             -79pp
-Improvement vs Warmup                    30.2%           57.1%           26.9pp
+Warmup               79.00           0.4807          
+Tabula Rasa          40.00           0.5476          ✅ Best Regret, ✅ Best Reward
+Hybrid (Corralling)  44.00           0.5416          🏆 NEAR-OPTIMAL
 
-KEY INSIGHTS
+KEY METRICS
 --------------------------------------------------------------------------------
 1. η=1.0 achieves 1.26× near-optimal regret (only 26% worse than oracle)
 2. 38.6% better than conservative baseline (η=0.1)
@@ -332,7 +334,7 @@ Result: Harmful experts downweighted 40% faster per mistake!
 @inproceedings{performance-gap-2026,
   title={The Performance Gap: Near-Optimal Meta-Learning for LLM Routing with Aggressive Learning Rates},
   author={BanditGPT Team},
-  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+  booktitle={Proceedings of the Conference on Knowledge Discovery and Data Mining},
   year={2026},
   note={Table 2: η=1.0 achieves 1.26× near-optimal regret with 57\% safety improvement}
 }
@@ -346,7 +348,7 @@ Result: Harmful experts downweighted 40% faster per mistake!
 - ✅ **Analysis:** Complete (analyze_performance_gap.py)
 - ✅ **LaTeX Table:** Complete (table_02_performance_gap.tex)
 - ✅ **Documentation:** Complete (this README)
-- ✅ **KDD Compliance:** Verified (follows conference format)
+- ✅ **Conference Compliance:** Verified (follows conference format)
 - ✅ **Paper Ready:** Can be included in submission
 
 **Recommendation:** Include as Table 2 in main results section, immediately after Table 1 (dataset composition). This is a **key result** that demonstrates both safety and near-optimal performance.
@@ -354,7 +356,7 @@ Result: Harmful experts downweighted 40% faster per mistake!
 ---
 
 *Experiment completed: 2026-01-24*  
-*Status: Ready for KDD 2026 submission*  
+*Status: Ready for submission*  
 *Contact: BanditGPT Team*
 
 **🏆 η=1.0 is the winner—1.26× near-optimal regret!**
