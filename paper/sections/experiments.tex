@@ -1,0 +1,92 @@
+\section{Experimental Setup}
+
+To evaluate banditGPT in a realistic production environment, we utilize a large-scale dataset of real-world prompts, ground-truth rewards, and commercial inference costs.
+
+\subsection{Dataset \& Ground Truth}
+
+We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023judging}, widely considered the gold standard for human preference alignment. As detailed in Table~\ref{tab:dataset}, we implement a strict \emph{Four-Stage Research Pipeline} to ensure zero data leakage between training, tuning, and evaluation:
+
+\begin{enumerate}
+    \item \textbf{Training (Warmup)}: We utilize 80,000 historical battles from the RouteLLM dataset to initialize the ``Warmup Expert'' priors.
+    
+    \item \textbf{Validation (Online Learning)}: A disjoint set of 1,121 prompts (Dev Set) is used for online bandit updates and hyperparameter tuning.
+    
+    \item \textbf{Testing (Frozen Evaluation)}: A final held-out set of 750 prompts is reserved exclusively for the frozen evaluation of the Pareto Frontier (Table~\ref{tab:results}), measuring generalization to unseen future prompts.
+    
+    \item \textbf{Scaling (Manifold Validation)}: To validate structural robustness, we project the full Chat-1M dataset ($N=10^6$) onto our PCA space, confirming that the learned semantic features generalize to production-scale traffic.
+\end{enumerate}
+
+\begin{table}[t]
+\centering
+\caption{Dataset Composition}
+\label{tab:dataset}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Stage} & \textbf{Source} & \textbf{Size} & \textbf{Purpose} \\
+\midrule
+Training & RouteLLM & 80,000 & Warmup Expert priors \\
+Validation & LMSYS Dev & 1,121 & Online learning \& tuning \\
+Testing & LMSYS Holdout & 750 & Frozen evaluation \\
+Scaling & Chat-1M & 594,199 & Manifold validation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Model Portfolio \& Cost Structure}
+
+We evaluate routing across a diverse portfolio of six commercial LLMs spanning three capability tiers, as shown in Table~\ref{tab:models}. Costs are based on published API pricing as of January 2026.
+
+\begin{table}[t]
+\centering
+\caption{Model Portfolio and Inference Costs}
+\label{tab:models}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Model} & \textbf{Tier} & \textbf{Cost (\$/1M tokens)} \\
+\midrule
+GPT-4-Turbo & Frontier & 10.00 \\
+Claude-3.5-Sonnet & Frontier & 8.00 \\
+GPT-3.5-Turbo & Mid-tier & 2.00 \\
+Mixtral-8x7B & Mid-tier & 0.60 \\
+Llama-3-70B & Efficient & 0.80 \\
+Llama-3-8B & Efficient & 0.10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Evaluation Metrics}
+
+We assess routing performance using three complementary metrics:
+
+\begin{itemize}
+    \item \textbf{Reward (Quality)}: Win rate against the GPT-4-Turbo baseline, measured via pairwise preference judgments. A reward of $r=1.0$ indicates the selected model's response was preferred; $r=0.0$ indicates the baseline was preferred.
+    
+    \item \textbf{Cost Efficiency}: Average inference cost per query, measured in dollars per 1M tokens. Lower is better.
+    
+    \item \textbf{Oracle Gap Closure}: The fraction of the performance gap between the static baseline and the oracle (perfect routing) that our method closes:
+    \begin{equation}
+    \text{Gap Closure} = \frac{R_{\text{banditGPT}} - R_{\text{baseline}}}{R_{\text{oracle}} - R_{\text{baseline}}}
+    \end{equation}
+    where $R$ denotes the average reward.
+\end{itemize}
+
+\subsection{Baselines}
+
+We compare banditGPT against three baselines:
+
+\begin{enumerate}
+    \item \textbf{Static GPT-4-Turbo}: Routes all traffic to the frontier model. Represents the ``always use the best model'' strategy.
+    
+    \item \textbf{RouteLLM}~\cite{ong2024routellm}: State-of-the-art static router trained on LMSYS preference data using a binary classifier (Mixtral-8x7B vs.\ GPT-4-Turbo).
+    
+    \item \textbf{Oracle}: Perfect routing with access to ground-truth rewards for all models on all prompts. Represents the theoretical upper bound.
+\end{enumerate}
+
+\subsection{Implementation Details}
+
+\textbf{Embedding Model}: We use \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} to generate 384-dimensional sentence embeddings for all prompts.
+
+\textbf{Hyperparameters}: We set $\lambda=1.0$ (cost-quality trade-off), $\gamma=0.05$ (mixing parameter), $\alpha=1.0$ (UCB exploration), and $\neff=5.0$ (semantic transfer confidence). Sensitivity analysis (Appendix~E) confirms robustness across a $20\times$ range of $\neff$.
+
+\textbf{Compute}: All experiments run on a single NVIDIA A100 GPU with 40GB memory. Total wall-clock time for the complete evaluation pipeline is approximately 6 hours.
+
