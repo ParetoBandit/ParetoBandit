@@ -159,14 +159,16 @@ def run_adaptation_experiment():
             b_neighbor = router_transfer.b[NEIGHBOR_MODEL]
             theta_neighbor = np.linalg.inv(A_neighbor) @ b_neighbor
             
-            # 2. Transfer Intuition, Reset Confidence
-            # A = Identity (High Uncertainty / Exploration)
-            # b = Theta * N_effective (Prior Bias)
+            # 2. Transfer Intuition with Proper Bayesian Prior
+            # [KDD FIX] Scale BOTH A and b to preserve mean while scaling confidence
+            # A = n_eff * I (Precision scaled by effective sample size)
+            # b = n_eff * theta (Moment scaled to preserve mean: theta_hat = theta)
+            # This ensures variance ~ 1/n_eff (confidence increases with n_eff)
             N_effective = 5.0 # We trust the neighbor ~5 samples worth
             
             router_transfer.models.append(NEW_MODEL)
-            router_transfer.A[NEW_MODEL] = np.eye(context_dim)
-            router_transfer.b[NEW_MODEL] = 1.0 * theta_neighbor * N_effective
+            router_transfer.A[NEW_MODEL] = N_effective * np.eye(context_dim)
+            router_transfer.b[NEW_MODEL] = N_effective * theta_neighbor
             
             logger.info(f"   ✓ Transfer complete. Inherited θ from {NEIGHBOR_MODEL}")
 
