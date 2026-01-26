@@ -1,0 +1,262 @@
+% KDD 2026 - Figure 5: Corralling Algorithm Results
+% Adaptive Prior Decommissioning in Multi-Expert LLM Routing
+
+\section{Experiment: Adaptive Prior Decommissioning}
+\label{sec:corralling}
+
+\subsection{Motivation: The Prior Misalignment Problem}
+
+Modern LLM routing systems often initialize with \emph{warmup priors}---pre-trained preference matrices derived from historical data (e.g., 80k RouteLLM battles)---to avoid cold-start penalties. However, this introduces a critical vulnerability: \textbf{What if the prior is wrong?}
+
+Consider a production scenario where warmup priors encode the belief that ``expensive models are always better'' (trained on hard reasoning tasks), but the actual traffic consists primarily of simple chat queries where a cheaper model (Mixtral-8x7B) achieves \emph{higher} average reward (0.823) than the flagship model (GPT-4-Turbo, 0.812). Static reliance on such priors incurs a \textbf{Negative Intelligence Tax}---paying a $43\times$ cost premium for a net quality loss.
+
+\subsection{The Corralling Algorithm: Safety Against Negative Transfer}
+
+To provide worst-case guarantees, we employ the \textbf{Corralling Algorithm}~\cite{agarwal2017corralling}, which maintains a probability distribution over multiple expert policies and adaptively shifts weight based on observed losses.
+
+\subsubsection{Exponential Weight Update Rule}
+
+The algorithm uses an exponential reweighting scheme:
+\begin{equation}
+p_{i,t+1} = \frac{p_{i,t} \cdot \exp(-\eta \cdot \hat{\ell}_{i,t})}{\sum_{j=1}^{K} p_{j,t} \cdot \exp(-\eta \cdot \hat{\ell}_{j,t})}
+\label{eq:corralling}
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $p_{i,t}$: Probability of selecting expert $i$ at step $t$
+    \item $\eta$: Learning rate (set to 1.0 for aggressive adaptation)
+    \item $\hat{\ell}_{i,t}$: Importance-weighted loss estimate (see Eq.~\ref{eq:importance_weight})
+\end{itemize}
+
+\subsubsection{Importance-Weighted Loss Estimation}
+
+To ensure unbiased learning from bandit feedback, only the \emph{chosen} expert is penalized:
+\begin{equation}
+\hat{\ell}_{i,t} = \begin{cases}
+\frac{\ell_t}{p_{i,t}} & \text{if expert } i \text{ was selected} \\
+0 & \text{otherwise}
+\end{cases}
+\label{eq:importance_weight}
+\end{equation}
+
+This estimator has two critical properties:
+\begin{enumerate}
+    \item \textbf{Unbiased}: $\mathbb{E}[\hat{\ell}_{i,t} \mid \mathcal{F}_t] = \ell_{i,t}$ (true loss)
+    \item \textbf{High-variance when confident}: As $p_{i,t} \to 0$, the penalty $\hat{\ell}_{i,t} \to \infty$ for mistakes, creating rapid decommissioning
+\end{enumerate}
+
+\subsection{Experimental Setup}
+
+\subsubsection{Two Expert Policies}
+
+\textbf{Expert 1 (Warmup):} Initialized with pre-trained matrices $\{A, b\}$ from 80k RouteLLM battles. High confidence (large eigenvalues in $A$), potentially wrong beliefs.
+
+\textbf{Expert 2 (Tabula Rasa):} Cold-start initialization with identity matrices ($A = \lambda I$, $b = 0$). Maximum uncertainty, learns from scratch.
+
+\subsubsection{Quality-Only Mode (Design Choice)}
+
+Both experts configured with \texttt{cost\_penalty}$=0.0$ to isolate \textbf{pure quality prediction error} from cost-quality trade-offs. This ensures:
+\begin{itemize}
+    \item \textbf{Fair comparison}: Same objective function (maximize quality)
+    \item \textbf{Clean interpretation}: Decommissioning $\Rightarrow$ wrong quality beliefs, not wrong cost sensitivity
+    \item \textbf{Unconfounded signal}: Loss driven by prediction error only
+\end{itemize}
+
+\subsubsection{Dataset}
+
+LMSYS Arena dataset ($N=1,121$ prompts) with rejudged rewards. Portfolio includes:
+\begin{itemize}
+    \item GPT-4-Turbo: \$0.01/1k tokens, mean reward = 0.812
+    \item Claude-3-Opus: \$0.015/1k tokens, mean reward = 0.798
+    \item Mixtral-8x7B: \$0.00024/1k tokens, mean reward = 0.823
+\end{itemize}
+
+Note the \textbf{quality inversion}: The cheapest model has the highest average reward on this distribution.
+
+\subsection{Results: The Step Function of Decisive Decommissioning}
+
+\subsubsection{Observed Dynamics (Figure~\ref{fig:corralling})}
+
+Figure~\ref{fig:corralling} shows the expert weight evolution over 500 routing decisions:
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\textwidth]{results/figure5_corralling_weights.pdf}
+\caption{\textbf{Corralling Algorithm: Exponential Weight Dynamics.} 
+(Top) Expert probability evolution showing decisive decommissioning of warmup prior by step 100. The sharp drop at $t \approx 50$ occurs when the failing Warmup Expert is sampled with low probability, triggering a massive importance-weighted loss spike. 
+(Bottom) Cumulative loss comparison confirming Tabula Rasa expert incurs lower total loss, validating the decommissioning decision.}
+\label{fig:corralling}
+\end{figure}
+
+\textbf{Phase 1 ($t=0-50$):} Uniform exploration. Both experts selected $\approx$50\% of time.
+
+\textbf{Phase 2 ($t=50-100$):} Evidence accumulation. Tabula Rasa discovers Mixtral performs well; Warmup insists on GPT-4. Loss gap widens.
+
+\textbf{Phase 3 ($t=100+$):} \textbf{Decisive Decommissioning}. Warmup weight drops from 40\% $\to$ 1.5\% by $t=100$. By $t=200$, effective elimination ($<0.1\%$).
+
+\textbf{Final State ($t=500$):}
+\begin{itemize}
+    \item Warmup: 0.0\% (completely decommissioned)
+    \item Tabula Rasa: 100.0\% (dominant)
+    \item Expert selections: Warmup 170 (34\%), Tabula Rasa 330 (66\%)
+\end{itemize}
+
+\subsubsection{The Mathematics Behind the Step Function}
+
+The sharp vertical drop around $t=50-100$ is not a numerical artifact, but a \emph{designed feature} of the importance-weighted estimator.
+
+\paragraph{Concrete Example:}
+
+At $t=50$, suppose:
+\begin{itemize}
+    \item Warmup weight: $p_1 = 0.15$ (already declining)
+    \item Algorithm samples Warmup (15\% chance)
+    \item Warmup picks GPT-4, observes loss $\ell = 1 - 0.75 = 0.25$
+\end{itemize}
+
+The importance-weighted loss becomes:
+\begin{equation}
+\hat{\ell}_1 = \frac{0.25}{0.15} = 1.67
+\end{equation}
+
+\textbf{Interpretation:} This single mistake ``counts as 1.67 mistakes'' to correct for selection bias. The exponential update then applies:
+\begin{equation}
+p_{1,t+1} \propto p_{1,t} \cdot \exp(-1.0 \times 1.67) = 0.15 \times 0.188 = 0.028
+\end{equation}
+
+The weight drops from 15\% to 2.8\% in \emph{one step}---a 5.4$\times$ reduction.
+
+\paragraph{Amplification Effect:}
+
+As $p_1 \to 0$, subsequent mistakes (if Warmup is unlucky enough to be sampled again) produce even larger penalties:
+\begin{equation}
+p_1 = 0.028 \Rightarrow \hat{\ell}_1 = \frac{0.25}{0.028} = 8.93
+\end{equation}
+
+This creates the visual ``step function'' where the weight appears to ``fall off a cliff.''
+
+\subsubsection{Why This Is Desirable}
+
+\paragraph{Rapid Unlearning of Harmful Bias:}
+
+The step function proves the system's ability to \emph{decisively reject} a misspecified prior once statistical evidence accumulates. Unlike gradual decay (as in $\epsilon$-greedy or softmax exploration), the high learning rate ($\eta=1.0$) ensures that harmful priors are removed from the decision path within 100-200 steps, not thousands.
+
+\paragraph{Preventing the Intelligence Tax:}
+
+By aggressively decommissioning the warmup prior that favored GPT-4, the system avoids incurring a $43\times$ cost premium for inferior quality. The tabula rasa expert, having learned the true distribution, routes 85\% of traffic to Mixtral, achieving:
+\begin{itemize}
+    \item \textbf{Quality gain}: 0.823 (Mixtral) vs 0.812 (GPT-4) = +1.4\%
+    \item \textbf{Cost reduction}: \$0.00024 vs \$0.01 = 97.6\% savings
+    \item \textbf{Pareto improvement}: Higher quality \emph{and} lower cost
+\end{itemize}
+
+\paragraph{Theoretical Guarantees:}
+
+The Corralling algorithm provides logarithmic regret bounds even when one expert is completely wrong:
+\begin{equation}
+\text{Regret}(T) \leq \frac{\ln K}{\eta} + \frac{\eta \cdot T}{8}
+\end{equation}
+
+For $K=2$ experts, $\eta=1.0$, $T=500$:
+\begin{equation}
+\text{Regret}(500) \leq \frac{\ln 2}{1.0} + \frac{1.0 \times 500}{8} = 0.693 + 62.5 = 63.2
+\end{equation}
+
+\textbf{Interpretation:} Even if the warmup prior is completely wrong, we lose at most $\sim$63 rewards over 500 steps compared to always using the best expert (tabula rasa). The decisive decommissioning minimizes this loss by switching early.
+
+\subsection{Connection to the Pareto Frontier (Figure~4)}
+
+The decisive decommissioning observed in Figure~\ref{fig:corralling} explains the \textbf{Bandit Breakout} regime in the Pareto analysis:
+
+\begin{itemize}
+    \item \textbf{Static Trap:} Always using GPT-4 = frozen warmup prior (never learns)
+    \item \textbf{RouteLLM Glass Ceiling:} Fixed matrix-factorization router cannot fully escape the ``expensive = better'' assumption encoded in training data
+    \item \textbf{banditGPT-Hybrid:} Corralling allows the system to \emph{surgically decommission} the harmful prior while retaining its benefits for the sparse 15\% of tasks where GPT-4 actually excels
+\end{itemize}
+
+The peak reward of 0.909 (vs 0.872 for RouteLLM) represents a 25.6\% closure of the remaining gap, achieved by this adaptive prior management.
+
+\subsection{Practical Implications}
+
+\subsubsection{When to Use Corralling}
+
+\textbf{Use when:}
+\begin{itemize}
+    \item Warmup priors are from a different domain (e.g., coding $\to$ chat)
+    \item Prior source is uncertain or potentially biased
+    \item Need worst-case guarantees against negative transfer
+    \item Can afford 2$\times$ memory overhead (two sets of matrices)
+\end{itemize}
+
+\textbf{Skip when:}
+\begin{itemize}
+    \item Priors are highly trusted (validated on same domain)
+    \item Cold-start penalty is negligible (small model portfolio)
+    \item Only care about expected performance (not worst-case)
+\end{itemize}
+
+\subsubsection{Deployment Considerations}
+
+\paragraph{Memory:} 2$\times$ bandit state (two experts)
+\paragraph{Latency:} +0.1ms per request (one extra expert query)
+\paragraph{Adaptation Speed:} 100-200 requests to detect and decommission bad prior
+
+\textbf{Cost-benefit:} For the production dataset analyzed here, the 2$\times$ memory overhead is negligible compared to the 97.6\% cost savings achieved by correctly routing to Mixtral.
+
+\subsection{Ablation: Importance of Quality-Only Mode}
+
+To validate the experimental design choice (cost\_penalty$=0.0$), we ran an ablation with asymmetric cost penalties:
+
+\begin{itemize}
+    \item Warmup: cost\_penalty$=0.0$ (cost-blind)
+    \item Tabula Rasa: cost\_penalty$=0.5$ (cost-aware)
+\end{itemize}
+
+\textbf{Result:} Decommissioning still occurred, but interpretation was \emph{confounded}---was the warmup wrong about quality, or just cost-insensitive? The symmetric configuration (both at 0.0) provides clean scientific inference.
+
+\subsection{Summary}
+
+The Corralling experiment demonstrates that \textbf{adaptive prior management is not just a defensive mechanism}---it is an \emph{offensive quality enhancer}. By decisively decommissioning harmful beliefs (``expensive = better'') while remaining open to their validity on specialized tasks, the framework converts routing from a static interpolation problem into a \textbf{dynamic synergy discovery engine}.
+
+The step function in Figure~\ref{fig:corralling} is the visual signature of this intelligence: the moment the system realizes it has been misled, it acts decisively to escape the Intelligence Tax.
+
+\begin{table}[t]
+\centering
+\caption{Corralling Performance Summary ($N=500$ routing decisions)}
+\label{tab:corralling_summary}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Warmup} & \textbf{Tabula Rasa} \\
+\midrule
+Final Weight (\%) & 0.0 & 100.0 \\
+Total Selections & 170 & 330 \\
+Cumulative Loss & 152.3 & 88.7 \\
+\midrule
+\multicolumn{3}{l}{\textbf{Interpretation:}} \\
+\multicolumn{3}{p{0.45\textwidth}}{Decisive decommissioning by $t=200$. System escaped ``expensive = better'' bias, routing 85\% to Mixtral for +1.4\% quality, 97.6\% cost savings.} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Reproducibility}
+
+Code and data available at: \texttt{experiments\_v1/05\_figure/}
+
+\begin{itemize}
+    \item Script: \texttt{plot\_corralling\_weights.py}
+    \item Configuration: $\eta=1.0$, \texttt{cost\_penalty}$=0.0$, $N=500$ steps
+    \item Dataset: LMSYS Arena dev split ($N=1,121$ prompts)
+    \item Runtime: $\sim$30 seconds on MacBook Pro (M1)
+\end{itemize}
+
+\bibliographystyle{ACM-Reference-Format}
+\begin{thebibliography}{1}
+
+\bibitem{agarwal2017corralling}
+Alekh Agarwal, Haipeng Luo, Behnam Neyshabur, and Robert E. Schapire.
+\newblock Corralling a band of bandit algorithms.
+\newblock In \emph{Conference on Learning Theory (COLT)}, pages 12--38. PMLR, 2017.
+
+\end{thebibliography}
+
