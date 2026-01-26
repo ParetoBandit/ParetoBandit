@@ -1,0 +1,58 @@
+\section{Methodology}
+
+We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. Our framework, banditGPT, introduces a hierarchical architecture that addresses two fundamental challenges in production routing: safety against non-stationary quality shifts and agility in adopting new models.
+
+\subsection{Problem Formulation}
+
+Let $x_t \in \mathbb{R}^d$ denote the context vector (embedding) for a user prompt at time $t$. We maintain a dynamic registry of models (arms) $\mathcal{M}_t$. For each request, the policy $\pi$ selects an arm $a_t \in \mathcal{M}_t$, observing a scalar reward $r_t \in [0, 1]$ (quality) and incurring a deterministic cost $c_t \in \mathbb{R}^+$ (inference price).
+
+Unlike standard regret minimization, our objective is to maximize quality subject to a budget constraint, formulated as a Lagrangian relaxation with a user-defined penalty $\lambda$:
+\begin{equation}
+\text{Maximize } \sum_{t=1}^T \left( \mathbb{E}[r_t(a_t) | x_t] - \lambda \cdot c_t(a_t) \right)
+\end{equation}
+where $\lambda$ controls the trade-off between performance and economy. A high $\lambda$ forces the router to identify ``easy'' prompts where cheaper models suffice, while a low $\lambda$ prioritizes quality regardless of cost.
+
+\subsection{The banditGPT Architecture}
+
+The system consists of three distinct layers of decision-making:
+
+\subsubsection{Layer 1: Dynamic Pareto Filtering}
+
+To strictly enforce efficiency, we implement a per-request dominance check before the bandit layer. For a given context $x_t$, we estimate the expected quality $\hat{r}_m(x_t)$ for all $m \in \mathcal{M}_t$. We construct a local Pareto frontier $\mathcal{P}_{x_t} \subseteq \mathcal{M}_t$ such that a model $m$ is excluded if there exists another model $m'$ where:
+\begin{equation}
+\hat{r}_{m'}(x_t) \ge \hat{r}_m(x_t) \quad \text{and} \quad c_{m'} < c_m
+\end{equation}
+
+This \emph{Dynamic Pareto Filtering} ensures the bandit policy never explores strictly dominated actions, accelerating convergence by pruning the search space.
+
+\subsubsection{Layer 2: Expert Corralling for Robustness}
+
+Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms. We mitigate this via \emph{Expert Corralling}~\cite{agarwal2017corralling}, a meta-learning strategy that manages a portfolio of expert policies (e.g., a ``Warmup Expert'' with static priors and a ``Tabula Rasa Expert'' with high plasticity).
+
+The master algorithm updates the probability distribution over experts $w_{i,t}$ using an exponential weight update based on importance-weighted loss estimates $\hat{\ell}_{i,t}$. Crucially, to prevent ``Expert Death'' (where a temporarily poor expert's weight vanishes, rendering it unrecoverable), we implement a mixing parameter $\gamma$:
+\begin{equation}
+p_{i,t} = (1 - \gamma) \frac{w_{i,t}}{\sum_j w_{j,t}} + \frac{\gamma}{K}
+\end{equation}
+
+We set $\gamma=0.05$, imposing a uniform exploration floor that guarantees asymptotic recovery if the optimal expert changes over time.
+
+\subsubsection{Layer 3: Cost-Aware LinUCB}
+
+Each expert $i$ models the reward function using Bayesian Ridge Regression (LinUCB~\cite{li2010contextual}). We approximate the reward surface of model $m$ as a linear function of the context: $\mathbb{E}[r | x] = x^\top \theta^*_m$. The policy selects the arm maximizing the Upper Confidence Bound (UCB) of the composite utility:
+\begin{equation}
+a_t = \arg\max_{a \in \mathcal{P}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \alpha \sqrt{x_t^\top \Amat_a^{-1} x_t} - \lambda c_a \right)
+\end{equation}
+
+To ensure numerical stability during long-running operations, we implement an \emph{Amortized Regularization Floor}. We track the effective decay of the precision matrix $\Amat_a$ and proactively reinject regularization $\lambda_{\text{ridge}}\mathbf{I}$ whenever the smallest eigenvalue risks dropping below a safety threshold, preventing singular matrix inversions without the cost of $O(d^3)$ operations at every step.
+
+\subsection{Latent Semantic Transfer (Zero-Shot Admission)}
+
+A critical bottleneck in LLM routing is the ``Cold Start'' problem: when a new model is released, standard bandits must explore it randomly to learn its utility. We propose \emph{Latent Semantic Transfer} to enable zero-shot readiness.
+
+When a new model $m_{\text{new}}$ is registered, we identify its nearest semantic neighbor $m_{\text{near}}$ (e.g., embedding similarity between model descriptions or card data). We initialize the new model's parameters by transferring the neighbor's learned preference vector $\thetavec_{\text{near}}$ while resetting the confidence:
+\begin{equation}
+\thetavec_{\text{new}} \leftarrow \thetavec_{\text{near}}, \quad \Amat_{\text{new}} \leftarrow \neff\mathbf{I}
+\end{equation}
+
+This decouples the expectation (mean) from the certainty (variance). The router effectively starts with a hypothesis---``This model behaves like GPT-4''---but maintains high variance (controlled by $\neff$), allowing it to aggressively exploit the model where the hypothesis holds while rapidly correcting where it diverges.
+
