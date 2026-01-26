@@ -303,7 +303,7 @@ class SimpleLinUCBRouter:
         self.A = {m: warmup_priors['A'][m].copy() for m in models}
         self.b = {m: warmup_priors['b'][m].copy() for m in models}
     
-    def select_model(self, context: np.ndarray) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = None) -> str:
         """Select model using UCB (takes pre-computed context vector)."""
         ucb_scores = {}
         for model in self.models:

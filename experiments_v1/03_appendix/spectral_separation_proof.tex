@@ -1,9 +1,9 @@
-\subsection{Mathematical Proof: Error Bounding via Spectral Separation}
+\subsection{Theoretical Motivation: Error Bounding via Spectral Separation}
 \label{appendix:spectral_separation}
 
-To formally justify the efficacy of our router, we derive the relationship between the spectral separation in Figure~1 and the regret upper bound of the meta-algorithm.
+To provide theoretical context for our router's design, we discuss the relationship between the spectral separation in Figure~1 and the expected convergence behavior of the meta-algorithm.
 
-In a contextual bandit, the probability of a routing error (selecting a sub-optimal model) is inversely proportional to the margin of separation in the feature space. Even with only 3.10\% variance in PC1, the bimodal distribution creates a ``low-density'' corridor that acts as a natural buffer for the decision engine.
+In contextual bandit theory, the probability of a routing error (selecting a sub-optimal model) is inversely proportional to the margin of separation in the feature space. Even with only 3.10\% variance in PC1, the bimodal distribution creates a ``low-density'' corridor that acts as a natural buffer for the decision engine.
 
 \subsubsection{The Margin of Decision}
 
@@ -13,13 +13,13 @@ P(d(x, H) < \epsilon) \approx 0
 \end{equation}
 for a sufficiently small $\epsilon$. This means that very few prompts sit in the ``ambiguous zone,'' allowing the Hybrid router to achieve its 99.7\% usage shift without frequent misclassifications.
 
-\subsubsection{Bounding the Routing Regret}
+\subsubsection{Expected Routing Regret}
 
-Because the clusters are spatially distinct ($N=1{,}541$ vs. $N=330$), the Thompson Sampling mechanism converges at a rate determined by the sub-Gaussianity of the rewards within each cluster. Given the spectral gap $\Delta_{\text{gap}}$ between the Low and High PC1 clusters:
+Because the clusters are spatially distinct ($N=1{,}541$ vs. $N=330$), the Thompson Sampling mechanism is expected to converge at a rate determined by the sub-Gaussianity of the rewards within each cluster. For standard Thompson Sampling with a spectral gap $\Delta_{\text{gap}}$ between the Low and High PC1 clusters, the theoretical regret bound takes the form:
 \begin{equation}
 R(T) \le \sum_{a \in \mathcal{A}} \frac{8 \ln(T)}{\Delta_{\text{gap}}} + \left(1 + \frac{\pi^2}{3}\right) \sum_{a \in \mathcal{A}} \Delta_a
 \end{equation}
 where $\mathcal{A}$ is the set of available models and $\Delta_a$ is the sub-optimality gap for model $a$.
 
-Since $\Delta_{\text{gap}}$ is maximized by the bimodal separation shown in Figure~1, the ``search space'' for the optimal policy is effectively reduced to a binary classification problem rather than a continuous 384-dimensional regression.
+Since $\Delta_{\text{gap}}$ is large due to the bimodal separation shown in Figure~1, the ``search space'' for the optimal policy is effectively reduced to a binary classification problem rather than a continuous 384-dimensional regression. Our empirical results demonstrate that the system achieves near-optimal performance consistent with this theoretical intuition.
 

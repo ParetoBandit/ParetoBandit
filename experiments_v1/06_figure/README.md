@@ -1,184 +1,257 @@
-# Figure 6: Zero-Shot Readiness Experiment
+# Figure 5: Corralling Algorithm - Exponential Weight Evolution
 
 ## Overview
 
-This experiment demonstrates **Latent Semantic Transfer**, a novel capability that allows the router to integrate new models without the "Cold Start" performance penalty that plagues traditional bandit algorithms.
+This experiment visualizes the **Corralling Algorithm** (Agarwal et al., 2017) as implemented in `BanditRouter`. The key insight is **adaptive decommissioning of misspecified priors**: when warmup priors have high confidence but wrong beliefs, the algorithm exponentially downweights them in favor of learning from scratch.
 
-## Key Result
+## The Algorithm: Exponential Weights for Expert Corralling
 
-When GPT-5.1 is released at t=300:
-- **Cold Start Baseline**: Performance crashes from 3.3 → 1.7 (catastrophic dip)
-- **Semantic Transfer (Ours)**: Performance maintains at ~4.5 (zero-shot readiness)
+The Corralling algorithm maintains a distribution over multiple "expert" policies and adaptively shifts weight based on observed losses:
 
-**Impact**: 2.8× performance advantage during the critical 500-step adaptation window.
+```
+p_{i,t+1} = p_{i,t} · exp(-η · ℓ_{i,t}) / Z_t
+```
+
+Where:
+- **p_{i,t}**: Probability of selecting expert i at step t
+- **η**: Learning rate (controls adaptation speed)
+- **ℓ_{i,t}**: Importance-weighted loss estimate for expert i
+- **Z_t**: Normalization constant (sum of all weights)
+
+### Two Experts in BanditGPT
+
+1. **Warmup Expert**: Initialized with 80k RouteLLM battle priors
+   - High confidence (large A matrices)
+   - Potentially wrong (domain mismatch risk)
+
+2. **Tabula Rasa Expert**: Learns from scratch
+   - Low confidence initially (identity A matrices)
+   - Adapts quickly to new data
+
+## Key Innovation: Importance-Weighted Loss Estimation
+
+The implementation uses an unbiased loss estimator to avoid "phantom penalties":
+
+```python
+# Only the chosen expert gets penalized
+p_chosen = self.weights[self.last_expert_idx]
+losses[self.last_expert_idx] = observed_loss / max(p_chosen, 1e-6)
+
+# Non-chosen experts get 0 loss (no counterfactual)
+# This ensures unbiased learning
+```
+
+This prevents artificial volatility where experts are penalized for decisions they didn't make.
+
+## Expected Behavior: "Decisive Decommissioning"
+
+When warmup priors are **misspecified** (e.g., "expensive models are always better"), you should observe:
+
+1. **Phase 1 (t=0-50)**: Uniform exploration
+   - Both experts selected ~50% of the time
+   - Warmup starts confident but makes mistakes
+
+2. **Phase 2 (t=50-200)**: Evidence accumulation
+   - Tabula Rasa discovers cheap model (e.g., Mixtral) performs well
+   - Warmup insists on expensive models
+   - Loss gap widens
+
+3. **Phase 3 (t=200+)**: Exponential decommissioning
+   - Sharp drop in warmup weight (exp(-η·Δℓ) decay)
+   - System stabilizes on Tabula Rasa policy
+   - **Final weight**: Warmup <20%, Tabula Rasa >80%
+
+## Usage
+
+### Basic Execution
+
+```bash
+cd experiments_v1/05_figure
+python plot_corralling_weights.py
+```
+
+### Requirements
+
+- Real LMSYS data in `data/dev_prompts_for_rejudge.jsonl` and `data/dev_rewards_gpt4turbo_rejudged.jsonl`
+- Production router from `src/bandit_gpt/router.py`
+- Warmup priors (automatically loaded from `artifacts/priors_warmup.joblib`)
+
+### Output
+
+- `results/figure5_corralling_weights.pdf`: Publication-quality plot
+- `results/figure5_corralling_weights.png`: Web-friendly version
+
+## Mathematical Foundation
+
+### Why Exponential Weights?
+
+The exponential weight update provides several guarantees:
+
+1. **Logarithmic Regret Bound**: 
+   ```
+   Regret ≤ (ln K) / η + η·T / 8
+   ```
+   Where K=2 experts, T=total steps
+
+2. **Adaptive Mixing**: Automatically interpolates between experts without manual tuning
+
+3. **Safety Against Negative Transfer**: Even if warmup is harmful, performance converges to the better expert
+
+### Learning Rate Trade-off
+
+- **η=0.1**: Slow adaptation, smooth curves, conservative
+- **η=1.0**: Aggressive decommissioning, sharp transitions (used in experiments)
+- **η=5.0**: Extremely aggressive, may overreact to noise
+
+## Experimental Parameters
+
+```python
+models = [
+    "openai/gpt-4-turbo",
+    "anthropic/claude-3-opus-20240229", 
+    "mistralai/mixtral-8x7b-instruct"
+]
+
+learning_rate = 1.0  # Aggressive decommissioning
+n_samples = 500      # Routing decisions to simulate
+cost_penalty = 0.0   # Quality-only (isolates prediction error)
+```
+
+### Design Choice: Quality-Only Mode (cost_penalty=0.0)
+
+**Why Zero Cost Penalty?**
+
+Setting `cost_penalty=0.0` for both experts is a deliberate design choice that isolates the **pure prior misalignment** phenomenon:
+
+1. **What it isolates**: Decommissioning driven purely by wrong quality predictions
+   - If warmup believes "GPT-4 > Mixtral" but true data shows "Mixtral > GPT-4"
+   - Prior accumulates loss from prediction errors, not cost miscalibration
+   - Cleanly demonstrates the "Prior Misalignment" safety mechanism
+
+2. **What it eliminates**: Confounding cost-quality trade-offs
+   - Without cost penalty, both experts optimize pure quality
+   - Comparison is fair: same objective, different initialization
+   - Result shows whether warmup prior's quality beliefs are correct
+
+3. **When this happens naturally**: Quality inversion in the dataset
+   - If your LMSYS data shows Mixtral outperforms GPT-4 on reward
+   - But warmup prior was trained on data where expensive models dominate
+   - Decommissioning happens automatically from quality mismatch alone
+
+**Alternative Experiment**: Non-Zero Cost Penalty
+
+To demonstrate cost sensitivity misalignment, try:
+
+```python
+# Scenario: Warmup has CORRECT quality beliefs but WRONG cost sensitivity
+warmup_expert = CostAwareLinUCBRouter(..., cost_penalty=0.0)   # Cost-blind
+tabula_rasa = CostAwareTabulaRasaRouter(..., cost_penalty=0.5) # Cost-aware
+```
+
+Expected result: If both predict quality equally well, but TR discovers cost savings, it will be preferred even with correct warmup quality predictions.
+
+## Interpreting Results
+
+### Success Metrics
+
+✅ **Decisive Decommissioning**: Warmup weight <20% by t=500
+- Indicates prior mismatch was correctly detected
+- System adapted to true reward distribution
+
+⚖️ **Balanced Mixing**: Both weights 30-70% by t=500
+- Indicates both experts contribute useful information
+- Warmup priors partially correct
+
+✅ **Warmup Dominance**: Warmup weight >80% by t=500
+- Indicates priors were well-calibrated
+- Cold-start penalty avoided
+
+### Debug Checklist
+
+If you don't observe decommissioning:
+
+1. **Check η**: Too low (<0.5) → adaptation too slow
+2. **Check data quality**: Are rewards noisy or all similar?
+3. **Check prior strength**: Are A matrices too large (overconfident)?
+4. **Check model diversity**: Do models have different cost/quality trade-offs?
+
+## Connection to Paper
+
+This experiment generates **Figure 5** in the paper, demonstrating:
+
+> "When warmup priors encode domain-specific beliefs (e.g., 'expensive=better'), 
+> the Corralling algorithm provides robustness by adaptively downweighting 
+> misspecified experts once sufficient evidence accumulates."
+
+The visualization supports the claim that **hybrid bandits with Corralling provide worst-case guarantees** against negative transfer while retaining the benefits of warmup when priors are correct.
+
+## References
+
+1. Agarwal et al. (2017). "Corralling a Band of Bandit Algorithms." COLT 2017.
+2. Agarwal & Zhang (2022). "Corralling a Larger Band of Bandits." UAI 2022.
+3. Your codebase: `src/bandit_gpt/router.py` (CorrallingRouter class, line 3376+)
 
 ## Files
 
-### Experiment Code
-- `plot_adaptive_effeciency.py` - Main experiment script
-  - Trains router on Mixtral + GPT-4-Turbo (t=0-299)
-  - Releases GPT-5.1 at t=300
-  - Compares Cold Start vs Semantic Transfer
+- `plot_corralling_weights.py`: Main experiment script
+- `README.md`: This documentation
+- `results/`: Output directory for figures (created automatically)
 
-### Results
-- `results/figure6_adaptive_efficiency.png` - Generated figure
+## Advanced Usage
 
-### LaTeX Files (KDD 2026 Submission)
-- `figure6_zero_shot_readiness.tex` - Full section with methods, results, discussion, and algorithm
-- `figure6_caption.tex` - Short caption-only version for figures section
-- `UPDATE_SUMMARY.md` - Technical details of implementation updates
+### Modify Learning Rate
 
-## Running the Experiment
-
-```bash
-cd /Users/annette/repostitories/banditGPT
-python3 experiments_v1/06_figure/plot_adaptive_effeciency.py
-```
-
-**Requirements:**
-- Uses `DEV_DATA_PATH_ALL_MODELS` from `config_legacy.py`
-- Requires all 3 models in dataset: Mixtral, GPT-4-Turbo, GPT-5.1
-- PCA model: `DEFAULT_PCA_PATH` (32 components)
-- Sentence Transformer: `DEFAULT_SENTENCE_TRANSFORMER`
-
-**Output:**
-- Figure saved to: `results/figure6_adaptive_efficiency.png`
-- Logs show performance at each 100-step interval
-
-## Experimental Design
-
-### Phase 1: Warmup (t=0 to t=299)
-- Portfolio: Mixtral-8x7b-Instruct, GPT-4-Turbo
-- Both routers train identically
-- Learn task preferences for existing models
-
-### Phase 2: Model Release (t=300)
-Event: GPT-5.1 becomes available
-
-**Baseline (Cold Start):**
 ```python
-A_new = λI          # Identity matrix (no confidence)
-b_new = 0           # Zero bias (no prior knowledge)
+# Conservative (smooth decommissioning)
+results = run_corralling_experiment(..., learning_rate=0.1)
+
+# Aggressive (sharp decommissioning)  
+results = run_corralling_experiment(..., learning_rate=5.0)
 ```
 
-**Proposed (Semantic Transfer):**
+### Use Different Data Split
+
 ```python
-A_new = λI                    # Reset confidence (encourage exploration)
-b_new = N_eff * θ_neighbor    # Inherit preference from GPT-4-Turbo
-θ_neighbor = A_gpt4turbo^(-1) @ b_gpt4turbo  # Extract learned preference
+# Use holdout set instead of dev
+prompts, rewards = load_lmsys_data(split="holdout")
 ```
 
-### Phase 3: Adaptation (t=301 to t=1000)
-- Both routers continue learning
-- Cold Start: Must explore to discover GPT-5.1's strengths
-- Semantic Transfer: Immediately exploits inherited knowledge
+### Compare Multiple η Values
 
-## Key Insights
-
-### 1. Preference-Confidence Decoupling
-By transferring θ (preference) but resetting A (confidence), the router:
-- **Exploits** immediately (θ tells it what tasks the new model is good at)
-- **Explores** adaptively (low A means high uncertainty, encourages verification)
-
-### 2. Production Implications
-- **No downtime** during model releases
-- **Immediate quality** instead of 500-step learning curve
-- **Cost savings** by avoiding exploration failures
-
-### 3. Semantic Neighbor Selection
-Uses SentenceTransformer embeddings to find most similar model:
-- GPT-4-Turbo → GPT-5.1: High similarity (both OpenAI reasoning models)
-- Transfer works because similar models have correlated task preferences
-
-## Algorithm
-
-```
-function ADMIT_NEW_MODEL(m_new, existing_portfolio):
-    1. Embed new model description
-    2. Find nearest semantic neighbor via cosine similarity
-    3. Extract neighbor's preference vector θ*
-    4. Initialize:
-       - A_new = λI (high exploration)
-       - b_new = N_eff × θ* (inherited intuition)
-    5. Add to portfolio
+```python
+for eta in [0.1, 0.5, 1.0, 2.0, 5.0]:
+    results = run_corralling_experiment(..., learning_rate=eta)
+    plot_weight_evolution(results, output_dir / f"eta_{eta}")
 ```
 
-**Hyperparameter**: `N_eff = 5.0` (neighbor provides ~5 samples worth of information)
+## Troubleshooting
 
-## Data Source
+### "Data not found" Error
 
-- **Dataset**: `dev_rewards_complete_all_models.jsonl.gz`
-- **Size**: 48,203 entries across 43 models
-- **Models Used**:
-  - `mistralai/mixtral-8x7b-instruct`: 1,121 samples
-  - `openai/gpt-4-turbo`: 1,121 samples
-  - `openai/gpt-5.1`: 1,121 samples (used as "new release")
-
-**Reward Signal**: `reward_logit` field (ranges -5 to +5, continuous quality metric)
-
-## Integration with Paper
-
-### Full Section
-Use `figure6_zero_shot_readiness.tex` for the complete Methods + Results + Discussion section:
-```latex
-\input{experiments_v1/06_figure/figure6_zero_shot_readiness.tex}
+Ensure you have:
+```
+data/dev_prompts_for_rejudge.jsonl
+data/dev_rewards_gpt4turbo_rejudged.jsonl
 ```
 
-### Figure Only
-Use `figure6_caption.tex` in your figures section:
-```latex
-\input{experiments_v1/06_figure/figure6_caption.tex}
-```
+If missing, the script will attempt to fall back to `holdout_*` files.
 
-## Performance Metrics
+### "Model not in registry" Error
 
-### Quantitative Results
-- **t=300** (Pre-release): Both ~3.3
-- **t=400** (Post-release):
-  - Cold Start: 2.573 (⬇ 22% drop)
-  - Semantic Transfer: 4.044 (⬆ 23% gain)
-- **t=500** (Adaptation):
-  - Cold Start: 1.654 (⬇ 50% drop - worst point)
-  - Semantic Transfer: 4.595 (⬆ 39% gain)
-- **t=800** (Recovery):
-  - Both converge to ~4.595
+Check `src/bandit_gpt/config/models.json` contains the models specified in the script. Update the `models` list to match available models in your registry.
 
-### Key Metric
-**Cumulative Regret (t=300 to t=800)**:
-- Cold Start: Loses ~1,200 quality points during exploration
-- Semantic Transfer: Minimal regret, maintains high quality throughout
+### "Dimension mismatch" Error
 
-## Theoretical Foundation
+This occurs if PCA fallback changes dimensionality. Solution:
+1. Ensure `artifacts/priors_warmup.joblib` matches current PCA configuration
+2. Or delete saved state to trigger fresh initialization
 
-### Why It Works
-1. **Task-Capability Correlation**: Similar models have similar strengths
-   - GPT-4-Turbo good at Math → GPT-5.1 likely good at Math
-   - Transfer preserves this learned task affinity
+## Next Steps
 
-2. **Embedding Validity**: SentenceTransformer captures meaningful model similarity
-   - Ablation: Semantic neighbor selection > random by 37%
+After generating Figure 5, you can:
 
-3. **Online Correction**: Reset A allows adaptation if transfer is imperfect
-   - High uncertainty → still explores if neighbor was wrong
-
-## Future Work
-
-- **Multi-Neighbor Transfer**: Weighted average of top-k neighbors
-- **Dynamic N_eff**: Learn transfer strength from validation data
-- **Embedding Fine-tuning**: Train model-specific embeddings on routing data
-
-## Citation
-
-```bibtex
-@inproceedings{banditgpt2026,
-  title={BanditGPT: Latent Semantic Transfer for Zero-Shot Model Routing},
-  author={...},
-  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
-  year={2026}
-}
-```
-
-## Contact
-
-For questions about this experiment, see the main project README or the UPDATE_SUMMARY.md file in this directory.
+1. **Ablation Study**: Test different η values to show adaptation speed trade-off
+2. **Domain Transfer**: Test with intentionally wrong priors (e.g., swap model costs)
+3. **Multi-Expert**: Extend to 3+ experts (e.g., add "pessimistic prior")
+4. **Theory Validation**: Verify regret bound holds empirically
 

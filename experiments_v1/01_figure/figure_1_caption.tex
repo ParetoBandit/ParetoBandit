@@ -4,9 +4,9 @@
 \centering
 \includegraphics[width=0.95\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_holdout_pca.png}
 \caption{\textbf{Exploiting the Alignment Tax.} 
-\textbf{Left:} The semantic manifold separates into two clusters. 
-The \textbf{High PC1 Cluster} (Red, 17.6\%) is dominated by strict "Text Completion" templates. Crucially, the cheaper model (Mixtral) outperforms the flagship (GPT-4-Turbo) here ($\Delta = -0.68$), likely because GPT-4-Turbo's conversational alignment violates the strict "no-chat" formatting constraints. 
-The \textbf{Low PC1 Cluster} (Blue, 82.4\%) represents standard open-ended chat, where GPT-4-Turbo retains its advantage ($\Delta = +0.13$).
-\textbf{Right:} \texttt{banditGPT} identifies this inversion automatically, offloading these strict tasks to the cheaper model not because they are "easy," but because the flagship model is \textbf{structurally maladapted} to them.}
+\textbf{Left:} The semantic manifold separates into two clusters based on RLHF failure modes.
+The \textbf{Alignment Tax Cluster} (Red, 17.6\%) is dominated by strict constraint templates where the open-weights model (Mixtral) outperforms the flagship (GPT-4) by $\Delta = -0.68$. This inversion occurs because GPT-4's aggressive helpfulness alignment often violates strict formatting negative constraints.
+The \textbf{Natural Language Cluster} (Blue, 82.4\%) represents open-ended chat where GPT-4's nuance retains the advantage ($\Delta = +0.13$).
+\textbf{Right:} \texttt{banditGPT} identifies this inversion automatically, routing the "Alignment Tax" tasks to the cheaper model not because they are easy, but because the flagship model is \textbf{structurally maladapted} to them.}
 \label{fig:lmsys_holdout_structure}
 \end{figure}

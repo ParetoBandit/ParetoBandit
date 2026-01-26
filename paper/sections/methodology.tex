@@ -34,14 +34,14 @@ This \emph{Dynamic Pareto Filtering} ensures the bandit policy never explores st
 
 \subsubsection{Layer 2: Expert Corralling for Robustness}
 
-Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms. We mitigate this via \emph{Expert Corralling}~\cite{agarwal2017corralling}, a meta-learning strategy that manages a portfolio of expert policies (e.g., a ``Warmup Expert'' with static priors and a ``Tabula Rasa Expert'' with high plasticity).
+Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms. We mitigate this via a meta-learning strategy \emph{inspired by} Expert Corralling~\cite{agarwal2017corralling}, which manages a portfolio of expert policies (e.g., a ``Warmup Expert'' with static priors and a ``Tabula Rasa Expert'' with high plasticity).
 
 The master algorithm updates the probability distribution over experts $w_{i,t}$ using an exponential weight update based on importance-weighted loss estimates $\hat{\ell}_{i,t}$. Crucially, to prevent ``Expert Death'' (where a temporarily poor expert's weight vanishes, rendering it unrecoverable), we implement a mixing parameter $\gamma$:
 \begin{equation}
 p_{i,t} = (1 - \gamma) \frac{w_{i,t}}{\sum_j w_{j,t}} + \frac{\gamma}{K}
 \end{equation}
 
-We set $\gamma=0.05$, imposing a uniform exploration floor that guarantees asymptotic recovery if the optimal expert changes over time.
+We set $\gamma=0.05$, imposing a uniform exploration floor that enables asymptotic recovery if the optimal expert changes over time.
 
 \subsubsection{Layer 3: Cost-Aware LinUCB}
 
@@ -65,14 +65,14 @@ This decouples the expectation (mean) from the certainty (variance). The router 
 
 \subsection{Corralling: Adaptive Expert Combination}
 
-To manage the trade-off between robust priors and online adaptability, we employ the Corralling algorithm. This meta-learning framework aggregates two distinct experts:
+To manage the trade-off between robust priors and online adaptability, we employ a simplified variant of the Corralling algorithm~\cite{agarwal2017corralling}. This meta-learning framework aggregates two distinct experts:
 
 \begin{itemize}
     \item \textbf{Warmup Expert}: Initialized with priors $\thetavec_{\text{warm}}$ derived from offline RouteLLM data.
     \item \textbf{Tabula Rasa Expert}: Initialized with uninformative priors ($\Amat=\mathbf{I}$, $\bvec=\mathbf{0}$).
 \end{itemize}
 
-\textbf{The Algorithm}: At each round $t$, the coordinator samples an expert $e_t \sim p_t$ and observes the reward $r_t$. Since we only observe the reward for the chosen expert, we compute an unbiased importance-weighted loss estimate:
+\textbf{The Algorithm}: At each round $t$, the coordinator samples an expert $e_t \sim p_t$ and observes the reward $r_t$. Since we only observe the reward for the chosen expert, we compute an importance-weighted loss estimate:
 \begin{equation}
 \hat{\ell}_{t,e} = \begin{cases}
 \frac{1 - r_t}{p_t(e)} & \text{if } e = e_t \\
@@ -84,6 +84,8 @@ The expert weights $w_{t,e}$ are updated using exponential descent with learning
 \begin{equation}
 w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
 \end{equation}
+
+\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate rather than the horizon-dependent $\eta = \sqrt{2\log K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves near-optimal performance relative to the best expert in hindsight.
 
 \begin{figure}[t]
 \centering

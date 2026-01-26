@@ -23,22 +23,22 @@ where $\mathcal{A}$ is the set of available models and $\Delta_a$ is the sub-opt
 
 Since $\Delta_{\text{gap}}$ is maximized by the bimodal separation shown in Figure~1, the ``search space'' for the optimal policy is effectively reduced to a binary classification problem rather than a continuous 384-dimensional regression.
 
-\subsubsection{Meta-Algorithm Regret Guarantee}
+\subsubsection{Meta-Algorithm Expected Behavior}
 
-The theoretical soundness of our $\eta=1.0$ meta-algorithm is established through the following regret bound:
+The theoretical Corralling framework motivates our $\eta=1.0$ meta-algorithm design. The standard regret bound for such algorithms takes the form:
 \begin{equation}
 \label{eq:meta_regret}
 R(T) \le \mathcal{O}\left( \frac{\ln(N)}{\eta} + \sqrt{T \ln(T)} \right)
 \end{equation}
 where $N$ is the number of expert routers in the ensemble, $\eta$ is the learning rate, and $T$ is the time horizon.
 
-This bound demonstrates sublinear regret growth with two key components:
+This bound suggests sublinear regret growth with two key components:
 \begin{itemize}
     \item \textbf{Exploration term} $\frac{\ln(N)}{\eta}$: Captures the cost of identifying the best expert router among $N$ candidates. With $\eta=1.0$, this term is minimized while maintaining stable weight updates.
     \item \textbf{Convergence term} $\sqrt{T \ln(T)}$: Represents the standard Thompson Sampling convergence rate, independent of the learning rate choice.
 \end{itemize}
 
-The choice of $\eta=1.0$ is optimal because it balances rapid adaptation (larger $\eta$ reduces the exploration term) with stability (smaller $\eta$ prevents oscillations in expert weights). Our empirical results in Section~5 confirm that $\eta=1.0$ achieves the best performance across all tested configurations.
+The choice of $\eta=1.0$ balances rapid adaptation (larger $\eta$ reduces the exploration term) with stability (smaller $\eta$ prevents oscillations in expert weights). Our empirical results in Section~5 confirm that $\eta=1.0$ achieves the best performance across all tested configurations, consistent with this theoretical intuition.
 
 \subsubsection{Decision Margin Hypothesis}
 
@@ -54,5 +54,5 @@ where $\sigma^2$ is the variance of the reward distribution within each cluster.
 The bimodal structure ensures that $\Delta_{\text{gap}}$ is large relative to $\sigma$, making misclassification exponentially unlikely. This spectral separation directly translates to the routing regret bound in Equation~\eqref{eq:meta_regret}, as the effective number of ``hard'' routing decisions is drastically reduced.
 
 \paragraph{Practical Implications.}
-The combination of spectral separation and the meta-algorithm's regret guarantee provides both theoretical and empirical justification for our approach. The router can reliably distinguish between prompts requiring different model capabilities, while the meta-algorithm efficiently learns to weight expert opinions without excessive exploration cost.
+The combination of spectral separation and the meta-algorithm's expected behavior provides both theoretical motivation and empirical validation for our approach. The router can reliably distinguish between prompts requiring different model capabilities, while the meta-algorithm efficiently learns to weight expert opinions without excessive exploration cost.
 

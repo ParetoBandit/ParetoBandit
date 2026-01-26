@@ -38,7 +38,7 @@ closing the gap to the theoretical oracle (Tabula Rasa).}
 
 \vspace{0.5em}
 \paragraph{The Performance Gap Quantified.}
-Table~\ref{tab:performance_gap} demonstrates that \textbf{aggressive learning achieves near-optimal performance} (1.10$\times$) while maintaining strong safety guarantees (44\% improvement over harmful priors). The key insight: when domain mismatch is uncertain—which is typical in production deployments—the cost of conservative learning (49 vs 44 regret) outweighs its marginal stability benefits. Our aggressive configuration ($\eta=1.0$) strikes the optimal balance: fast enough to recover from mismatch, stable enough to preserve good priors.
+Table~\ref{tab:performance_gap} demonstrates that \textbf{aggressive learning achieves near-optimal performance} (1.10$\times$) while maintaining strong robustness to harmful priors (44\% improvement). The key insight: when domain mismatch is uncertain—which is typical in production deployments—the cost of conservative learning (49 vs 44 regret) outweighs its marginal stability benefits. Our aggressive configuration ($\eta=1.0$) strikes the optimal balance: fast enough to recover from mismatch, stable enough to preserve good priors.
 
 \paragraph{Practical Implications.}
 At production scale (1M prompts/month), the 5-point regret improvement (49 → 44) translates to meaningful cost savings while ensuring operational safety. More critically, the \textbf{early-phase performance} (22 vs 28.5 regret in first 500 samples) ensures that deployments are robust from day one, rather than accumulating unnecessary costs during a prolonged learning phase. This makes banditGPT-Hybrid with $\eta=1.0$ an \emph{operationally viable} solution for cost-aware, lifelong LLM routing.

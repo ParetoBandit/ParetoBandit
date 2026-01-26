@@ -19,7 +19,7 @@ Final weights: Warmup=0.130, Tabula Rasa=0.870, demonstrating the algorithm's ab
 %
 \textbf{Decoupling Internal Uncertainty from External Performance:} The most significant finding is the decoupling of jagged weight evolution from stable reward output. Despite the dynamic weight shifting, the average reward stabilizes at $\sim$0.90 after 400 samples and remains flat throughout the remaining 721 samples. Furthermore, cumulative regret grows strictly linearly (not exponentially) after the initial exploration phase, proving that the router's periodic testing of the prior is mathematically bounded---the cost of this persistent exploration is marginal compared to the gains achieved by correctly routing 94.2\% of routine tasks to mid-tier models. This demonstrates that while internal uncertainty operates ``behind the scenes,'' user-facing performance remains perfectly stable. The system achieves both adaptability (through weight volatility) and reliability (through stable rewards), with exploration ``mistakes'' small enough that overall efficiency is preserved.
 %
-This illustrates the \emph{safety guarantee} of Corralling: if warmup priors suffer from negative transfer due to domain mismatch, the algorithm automatically adapts by downweighting the biased expert.
+This illustrates the \emph{adaptive behavior} of Corralling: if warmup priors suffer from negative transfer due to domain mismatch, the algorithm automatically adapts by downweighting the biased expert.
 }
 \label{fig:corralling_semantic}
 \end{figure*}
@@ -32,9 +32,9 @@ This illustrates the \emph{safety guarantee} of Corralling: if warmup priors suf
 \subsection{Corralling: Adaptive Expert Combination}
 \label{sec:corralling}
 
-We employ the \emph{Corralling} algorithm~\cite{agarwal2017corralling} to adaptively combine two bandit strategies:
+We employ a simplified variant of the \emph{Corralling} algorithm~\cite{agarwal2017corralling} to adaptively combine two bandit strategies:
 a warmup expert initialized with priors from RouteLLM, and a tabula rasa expert learning from scratch.
-This provides a safety guarantee: if warmup priors are harmful due to domain mismatch, the algorithm automatically shifts weight to the tabula rasa expert.
+This provides adaptive robustness: if warmup priors are harmful due to domain mismatch, the algorithm automatically shifts weight to the tabula rasa expert.
 
 \paragraph{Problem Setup.}
 We have $E$ experts (in our case, $E=2$), each implementing a bandit algorithm.
@@ -73,18 +73,16 @@ w_{t+1,e} = \frac{\exp(-\eta \cdot L_{t,e})}{\sum_{e'=1}^{E} \exp(-\eta \cdot L_
 \end{equation}
 where $\eta > 0$ is the learning rate controlling adaptation speed.
 
-\paragraph{Safety Guarantee.}
-Corralling provides a regret bound relative to the best expert in hindsight~\cite{agarwal2017corralling}:
+\paragraph{Theoretical Motivation.}
+Our architecture is grounded in the \emph{Corralling} framework~\cite{agarwal2017corralling}, which theoretically establishes that a meta-learner can achieve sublinear regret relative to the best expert in hindsight:
 \begin{equation}
 \mathbb{E}[\text{Regret}] \leq \min_{e \in [E]} \mathbb{E}[\text{Regret}_e] + O\left(\sqrt{T \log E}\right)
 \end{equation}
-where $\text{Regret}_e$ is the regret of expert $e$ and $T$ is the number of rounds.
-
-This means:
+While our implementation simplifies the update rule (updating only the selected expert to ensure $O(1)$ latency rather than $O(K)$), we retain the core \textbf{Importance-Weighted Loss} objective (Eq.~\ref{eq:importance_weighted_loss}).
+This ensures that the system inherits the \emph{behavioral properties} of the theoretical algorithm:
 \begin{itemize}[nosep]
-    \item If warmup priors are helpful, Corralling performs nearly as well as the warmup expert
-    \item If warmup priors are harmful (negative transfer), Corralling performs nearly as well as tabula rasa
-    \item The overhead is only $O(\sqrt{T \log E})$, which is negligible for $E=2$
+    \item If warmup priors are helpful, the meta-learner aligns with the Warmup expert.
+    \item If warmup priors are harmful (negative transfer), the importance-weighted penalty explodes, forcing a shift to the Tabula Rasa expert.
 \end{itemize}
 
 \paragraph{Implementation Details.}

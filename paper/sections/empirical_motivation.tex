@@ -60,44 +60,35 @@ Strict Constraints (High PC1) & 17.6\% & 5.9\% \\
 
 \textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In production (Chat-1M), the Alignment Tax artifact becomes rarer (5.9\%) but more valuable: it is a high-confidence exploitation zone where Mixtral consistently wins. Meanwhile, the natural language zone (94.1\%) requires careful sub-manifold discovery to avoid quality degradation. This dual challenge---exploiting rare artifacts while preserving quality on common tasks---necessitates adaptive, context-aware routing that static classifiers cannot achieve.
 
-\subsection{Distribution Shift: The ``Negative Transfer'' Trap}
+\subsection{Distribution Shift: The ``Alignment Trap''}
+\label{sec:distribution_shift}
 
-A fundamental challenge in routing is \emph{covariate shift}: the phenomenon where the distribution of prompts in production ($Q$) differs from the offline training data ($P$). If significant shift exists, static priors (like those used by RouteLLM) will be miscalibrated, leading to \emph{Negative Transfer}.
+A fundamental risk in routing is \textbf{Covariate Shift}: when the distribution of tasks in production ($Q$) differs from the offline training data ($P$), priors become toxic.
 
-To quantify this, we calculated the Population Stability Index (PSI) between our Warmup Priors (Source) and the RouteLLM deployment data (Target). As shown in Figure~\ref{fig:shift}, we observe a significant domain mismatch:
-\begin{equation}
-\text{PSI} = \sum (\%P_i - \%Q_i) \ln(\%P_i / \%Q_i) = \mathbf{0.275}
-\end{equation}
+\subsubsection{Forensic Decomposition of the Shift}
+To understand the nature of this shift, we decomposed the source (Offline) and target (Production) distributions not by ``difficulty,'' but by the \textbf{Ground Truth Reward Gaps} discovered in Section 2.1 (Table~\ref{tab:cluster_inversion}). As shown in Figure~\ref{fig:distribution_shift} (Bottom), the latent space separates into two functional zones:
 
-This exceeds the critical industry threshold of $0.25$, indicating substantial distribution shift.
+\begin{enumerate}
+    \item \textbf{Natural Language Zone (PC1 $< 0.3$):} The domain of open-ended chat, where GPT-4's nuance yields a positive advantage ($\Delta = +0.13$, from Table~\ref{tab:cluster_inversion}).
+    \item \textbf{Alignment Tax Zone (PC1 $\geq 0.3$):} The domain of strict constraints, where GPT-4's alignment artifacts cause it to fail against Mixtral ($\Delta = -0.68$, from Table~\ref{tab:cluster_inversion}).
+\end{enumerate}
+
+\subsubsection{The ``Learned Bias'' of Offline Priors}
+Calculating the Population Stability Index (PSI) yields a significant shift of \textbf{0.275}. However, the \emph{direction} of the shift reveals the specific danger (Figure~\ref{fig:distribution_shift}):
+\begin{itemize}
+    \item \textbf{Offline Data (Blue):} Heavily weighted toward the ``Alignment Tax'' zone. A static router trained here learns to be \textbf{pessimistic} about GPT-4, effectively ``learning'' that strict constraints are dangerous.
+    \item \textbf{Production Data (Red):} Heavily shifted toward the ``Natural Language'' zone. Here, GPT-4 is safe and superior.
+\end{itemize}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/figure2_distribution_shift.png}
-\caption{Feature Distribution Shift. (Top) The deployment distribution (Red) is significantly left-shifted compared to the training data (Blue), with PSI=0.275. (Bottom) This shift is driven by a higher prevalence of Low PC1 tasks in production than anticipated.}
-\label{fig:shift}
+\caption{\textbf{The ``Alignment Trap'': Distribution Shift exposes offline blind spots.}
+\textbf{Top:} Density comparison (PSI = 0.275) shows a structural mismatch between Offline Training priors (Blue) and Production traffic (Red) in the PC1 feature space.
+\textbf{Bottom:} Decomposition based on the reward gap zones from Table~\ref{tab:cluster_inversion}. The Alignment Tax Cluster (Right Peak, PC1 > 0.3, where Mixtral wins with $\Delta = -0.68$) is over-represented in offline data. The Natural Language Cluster (Left Peak, PC1 < 0.3, where GPT-4 wins with $\Delta = +0.13$) dominates production traffic.
+\textbf{The Mismatch:} The Offline Prior over-indexes on the Alignment Tax cluster, leading to a ``Learned Helplessness'' bias where it underestimates GPT-4's utility on the dominant Natural Language traffic.}
+\label{fig:distribution_shift}
 \end{figure}
 
-\textbf{The Consequence} (Table~\ref{tab:prior_mismatch}): This shift is not harmless; it actively degrades performance.
-
-\begin{itemize}
-    \item \textbf{GPT-4-Turbo}: Prior expectation $0.94$ $\to$ Observed $0.84$ (Overestimated utility).
-    \item \textbf{Mixtral}: Prior expectation $0.45$ $\to$ Observed $0.81$ (Underestimated utility by $+80\%$).
-\end{itemize}
-
-\begin{table}[t]
-\centering
-\caption{Prior Miscalibration Due to Distribution Shift}
-\label{tab:prior_mismatch}
-\begin{tabular}{lccc}
-\toprule
-\textbf{Model} & \textbf{Prior Expectation} & \textbf{Observed} & \textbf{Error} \\
-\midrule
-GPT-4-Turbo & 0.94 & 0.84 & $-10.6\%$ \\
-Mixtral-8x7B & 0.45 & 0.81 & $+80.0\%$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{Conclusion}: The offline priors are structurally biased against the cheaper model. A static router trained on $P$ would erroneously route traffic to GPT-4-Turbo based on outdated ``hardness'' beliefs. This necessitates the Adaptive Corralling mechanism (Section~3) to dynamically down-weight these misspecified priors in real-time.
+\textbf{The Consequence (Negative Transfer):} Because the Offline Prior is traumatized by the Alignment Tax artifacts in the training set, it creates a \textbf{``False Negative'' Policy}---it hesitates to route routine chat tasks to GPT-4 because it overestimates the risk of refusal/verbosity errors. This necessitates the \textbf{Tabula Rasa} expert (Section~3), which, unburdened by this prior bias, correctly identifies the safety of the production manifold.
 

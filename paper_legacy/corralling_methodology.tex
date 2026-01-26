@@ -34,7 +34,7 @@ The selection distribution is computed as:
 
 This ensures that even if the Warmup Expert dominates early on, the Tabula Rasa Expert maintains a minimum $2.5\%$ selection probability, allowing the system to detect and recover from domain shift or the introduction of superior new models.
 
-\paragraph{Theoretical Guarantee.} With $\gamma > 0$, every expert $i$ satisfies $p_{i,t} \geq \gamma/K$ for all $t$, ensuring:
+\paragraph{Practical Properties.} With $\gamma > 0$, every expert $i$ satisfies $p_{i,t} \geq \gamma/K$ for all $t$, ensuring:
 \begin{itemize}
     \item \textbf{Bounded Importance Weights}: The loss estimator $\ell_{i,t}/p_{i,t} \leq K/\gamma$, preventing numerical instability.
     \item \textbf{Adaptation to Non-Stationarity}: If an initially poor expert becomes optimal (e.g., due to a model update), the system will sample it $\Omega(\gamma T / K)$ times over horizon $T$, sufficient to detect the shift and reallocate weight.
@@ -62,12 +62,12 @@ The Corralling router is implemented as a wrapper around arbitrary expert polici
 \end{algorithmic}
 \end{algorithm}
 
-\paragraph{Regret Bound.} Under the assumption of bounded losses $\ell_{i,t} \in [0, L]$, the Corralling algorithm achieves:
+\paragraph{Theoretical Motivation.} Under the assumption of bounded losses $\ell_{i,t} \in [0, L]$, the theoretical Corralling algorithm achieves:
 \begin{equation}
     \text{Regret}_T \leq \frac{\ln K}{\eta} + \frac{\eta L^2 T}{2} + \gamma T
 \end{equation}
 
-The first two terms represent the standard Exp4 regret, while the final $\gamma T$ term is the cost of forced exploration. Setting $\eta = \sqrt{2\ln K / (L^2 T)}$ and $\gamma = O(1/\sqrt{T})$ yields $O(\sqrt{T \ln K})$ regret.
+The first two terms represent the standard Exp4 regret, while the final $\gamma T$ term is the cost of forced exploration. Setting $\eta = \sqrt{2\ln K / (L^2 T)}$ and $\gamma = O(1/\sqrt{T})$ yields $O(\sqrt{T \ln K})$ regret. Our implementation uses fixed hyperparameters for practical efficiency.
 
 \paragraph{Practical Configuration.} In our experiments, we use $\eta = 0.1$ and $\gamma = 0.05$, prioritizing rapid adaptation over asymptotic optimality. This configuration ensures that if warmup priors are misspecified, the system pivots to the Tabula Rasa expert within $\sim$100 samples, while maintaining safety against transient noise.
 

@@ -56,7 +56,7 @@ class TabulaRasaRouter:
         # Track selections
         self.selections = {m: 0 for m in models}
     
-    def select_model(self, context: np.ndarray) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = None) -> str:
         """Select model using UCB."""
         ucb_scores = {}
         for model in self.models:
@@ -345,9 +345,10 @@ def print_summary(results: Dict[str, Dict]):
 def main():
     parser = argparse.ArgumentParser(description='Test Hybrid/Corralling Router')
     parser.add_argument('--gamma', type=float, default=0.05, help='Gamma scaling for warmup priors')
-    parser.add_argument('--sample-size', type=int, default=1121, help='Number of samples to evaluate')
+    parser.add_argument('--sample-size', type=int, default=None, help='Number of samples to evaluate')
     parser.add_argument('--learning-rate', type=float, default=0.1, help='Corralling learning rate')
     parser.add_argument('--output', type=str, default='results/hybrid_corralling', help='Output directory')
+    parser.add_argument('--split', type=str, default='dev', choices=['dev', 'holdout'], help='Data split to use')
     args = parser.parse_args()
     
     output_dir = Path(args.output)
@@ -356,10 +357,16 @@ def main():
     print("="*80)
     print("HYBRID/CORRALLING ROUTER EVALUATION")
     print("="*80)
+    print(f"Data Split: {args.split.upper()}")
     print(f"Gamma: {args.gamma}")
-    print(f"Sample Size: {args.sample_size}")
+    print(f"Sample Size: {args.sample_size or 'ALL'}")
     print(f"Learning Rate: {args.learning_rate}")
     print(f"Output: {output_dir}")
+    
+    if args.split == 'holdout':
+        print("\n⚠️  IMPORTANT: Using HOLDOUT set for out-of-sample evaluation")
+        print("   Dev set was used for hyperparameter tuning")
+        print("   Holdout set provides unbiased performance metrics")
     
     # Load resources
     print("\n📦 Loading resources...")
@@ -377,10 +384,12 @@ def main():
     print(f"   Models: {models}")
     print(f"   Context Dim: {context_dim}")
     
-    # Load data
-    print("\n📊 Loading evaluation data...")
-    data = load_data(Path(CANONICAL_DEV_DATA_PATH), sample_size=args.sample_size)
-    print(f"   Loaded {len(data)} samples")
+    # Load data based on split
+    print(f"\n📊 Loading {args.split.upper()} evaluation data...")
+    from bandit_gpt.config_legacy import CANONICAL_HOLDOUT_DATA_PATH
+    data_path = Path(CANONICAL_HOLDOUT_DATA_PATH) if args.split == 'holdout' else Path(CANONICAL_DEV_DATA_PATH)
+    data = load_data(data_path, sample_size=args.sample_size)
+    print(f"   Loaded {len(data)} samples from {args.split.upper()} set")
     
     # Scale priors
     priors_scaled = apply_gamma_scaling(warmup_priors, gamma=args.gamma)
