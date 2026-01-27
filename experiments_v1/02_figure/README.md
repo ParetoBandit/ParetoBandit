@@ -1,6 +1,8 @@
-# Experiment 01.5: Feature Distribution Shift Analysis
+# Experiment 02: Feature Distribution Shift Analysis (Statistical Analysis Only)
 
 **Purpose**: Analyze and visualize covariate shift between Source/Prior data and RouteLLM deployment data using Population Stability Index (PSI) and 1D density plots of the first principal component.
+
+**Important**: This is a **pure statistical analysis experiment** - it does NOT use BanditRouter or corralling. It provides motivational evidence for why adaptive routing is needed. For actual routing experiments that use corralling, see experiments like `07_figure/plot_ablation.py`.
 
 ## Overview
 

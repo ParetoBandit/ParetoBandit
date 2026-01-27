@@ -1,5 +1,9 @@
 % KDD-compliant LaTeX for Distribution Shift Analysis
-% Experiment 01.5: Feature Distribution Shift
+% Experiment 01.5/02: Feature Distribution Shift (Statistical Analysis)
+% NOTE: This experiment performs pure statistical analysis (PSI computation, density plots).
+% It does NOT use BanditRouter or corralling - it provides motivational evidence
+% for why adaptive routing is needed in other experiments.
+% DEPRECATED: Use experiments_v1/02_figure/ instead (contains actual implementation).
 
 \subsection{Distribution Shift Analysis}
 \label{sec:distribution_shift}
@@ -21,7 +25,7 @@ To provide rigorous mathematical evidence for domain mismatch, we calculate the 
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{experiments_v1/01.5_figure/results/distribution_shift_pc1.png}
+\includegraphics[width=0.95\textwidth]{experiments_v1/02_figure/results/distribution_shift_pc1.png}
 \caption{\textbf{The "Alignment Trap": Distribution Shift exposes offline blind spots.}
 \textbf{Top:} Density comparison (PSI = 0.275) shows a structural mismatch between Offline Training priors (Blue) and Production traffic (Red).
 \textbf{Bottom:} We decompose the distribution based on \textbf{Ground Truth Reward Gaps} rather than arbitrary thresholds.
