@@ -1,15 +1,12 @@
 """
-Shared utilities for BanditGPT experiments.
+Experiment Utilities
 
-This module provides common functionality used across all experiments:
-- KDD-style plotting
-- Metric calculation
-- Data loading
+This module provides shared utilities for running evaluations and experiments.
 
-Usage:
-    from experiments.utils.plotting import save_kdd_style_plot
-    from experiments.utils.metrics import calculate_cumulative_regret
-    from experiments.utils.data_loader import load_test_prompts
+Key Components:
+    - AlignedEvaluator: Atomic data loader preventing prompt-reward misalignment
 """
 
-__all__ = ["plotting", "metrics", "data_loader"]
+from .aligned_evaluator import AlignedEvaluator, EvaluationItem
+
+__all__ = ['AlignedEvaluator', 'EvaluationItem']

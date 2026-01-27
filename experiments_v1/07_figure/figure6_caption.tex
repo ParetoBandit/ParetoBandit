@@ -1,10 +1,22 @@
 %% Figure 6 Caption - Zero-Shot Readiness
 %% Short version for figures-only sections
 
-\begin{figure}[t]
+\begin{figure*}[t]
     \centering
-    \includegraphics[width=0.95\columnwidth]{experiments_v1/06_figure/results/figure6_adaptive_efficiency.png}
-    \caption{\textbf{Zero-Shot Readiness via Latent Semantic Transfer.} When a new model (GPT-5.1) is released at $t=300$, the baseline Cold Start approach (red) suffers a catastrophic performance drop from 3.3 to 1.7, requiring 500 steps to recover. In contrast, our Latent Semantic Transfer method (green) maintains high performance ($\sim$4.5) by inheriting learned preferences from the semantically similar GPT-4-Turbo. This demonstrates the router's ability to adapt to new models without the exploration penalty that plagues traditional bandit algorithms.}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{experiments_v1/07_figure/results/figure6_ablation_study.png}
+        \caption{Ablation Study: Cold Start vs. Warmup vs. Semantic Transfer}
+        \label{fig:ablation-study}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{experiments_v1/07_figure/results/figure6_adaptive_efficiency.png}
+        \caption{Production Router: Heterogeneous Experts Strategy}
+        \label{fig:adaptive-efficiency}
+    \end{subfigure}
+    \caption{\textbf{Zero-Shot Readiness via Heterogeneous Experts and Semantic Transfer.} \textbf{(Left)} Three-way ablation shows Cold Start (red) suffers catastrophic performance drop when GPT-5.1 is released at $t=300$. Warmup Only (orange) improves burn-in but still dips at model release. Warmup + Semantic Transfer (green) maintains peak performance by transferring learned preferences from GPT-4-Turbo. \textbf{(Right)} Production router with Heterogeneous Experts Strategy: Conservative expert (blue, $\alpha \to 0.01$) handles stable periods efficiently. When GPT-5.1 arrives, semantic transfer enables zero-shot exploitation. Adaptive expert (red, $\alpha = 2.0$) provides backup vigilance. Meta-learner (Corralling) automatically balances exploration and exploitation based on real-time performance.}
     \label{fig:zero-shot-readiness}
-\end{figure}
+\end{figure*}
 

@@ -2,9 +2,9 @@
 Production-grade contextual bandit router (Hot Path).
 
 Core Features:
-1. HLE Prior as Default: Initializes with "expert intuition" from 26k prompts.
+1. Warmup Priors: Initializes with learned preferences from 80k battles.
 2. Default Registry: Automatically loads 80+ models with cost/latency data.
-3. Multi-Objective: Balances Quality, Cost, and Latency.
+3. Corralling: Meta-learning over warmup and tabula rasa experts.
 4. Constraints: Supports max_cost, max_latency, and quality floors.
 
 New Model Registration:
@@ -339,57 +339,6 @@ class RouterConfig:
 from .config_legacy import DEFAULT_SENTENCE_TRANSFORMER
 
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
-
-# ---------------------------------------------------------------------------
-# Optimization Profiles
-# ---------------------------------------------------------------------------
-class OptimizationProfile:
-    """
-    Simplified profile system with two modes:
-    1. "auto": Intelligent default routing (handled by PARETO_PROFILES)
-    2. "custom": Pass a dict with custom weights for full control
-    
-    Custom Profile Format:
-    - w_q: Quality weight (how much you value quality)
-    - w_c: Cost weight (penalty for higher cost)
-    - w_l: Latency weight (penalty for higher latency)
-    - alpha_scale: Optional exploration scaling (default: 1.0)
-    
-    Example:
-        {"w_q": 10.0, "w_c": 1.0, "w_l": 0.5}
-    """
-
-    @classmethod
-    def get(cls, name: Union[str, Dict[str, float]]) -> Dict[str, float]:
-        """
-        Get profile weights.
-        
-        Args:
-            name: Either "auto" or a custom dict with weights
-        
-        Returns:
-            Profile weights dictionary
-        """
-        if isinstance(name, dict):
-            # Validate custom weight dict
-            weights = dict(name)
-            
-            if not any(k in weights for k in ["w_q", "w_c", "w_l"]):
-                raise ValueError("Custom profile must contain at least one of ['w_q', 'w_c', 'w_l']")
-            
-            # Fill missing keys with 0.0
-            for k in ["w_q", "w_c", "w_l"]:
-                weights.setdefault(k, 0.0)
-            
-            if sum(weights[k] for k in ["w_q", "w_c", "w_l"]) <= 0:
-                raise ValueError("Weights must sum to a positive value")
-            
-            return weights
-            
-        if name == "auto":
-            return {"_pareto_mode": True}
-        
-        raise ValueError(f"Unknown profile '{name}'. Use 'auto' or pass a custom dict.")
 
 # ---------------------------------------------------------------------------
 # Exploration Rates
@@ -1041,6 +990,9 @@ class BanditRouter:
         context_store: ContextStore | None = None,
         config: RouterConfig | None = None,
         verbose_routing: bool = False,
+        use_corralling: bool = True,  # Enable corralling by default
+        corralling_learning_rate: float = 0.1,
+        corralling_gamma: float = 0.05,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -1071,6 +1023,9 @@ class BanditRouter:
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
+        self.use_corralling = use_corralling
+        self.corralling_learning_rate = corralling_learning_rate
+        self.corralling_gamma = corralling_gamma
         if model_registry is None:
             # Load default models.json from config/
             base_dir = Path(__file__).parent
@@ -1131,24 +1086,13 @@ class BanditRouter:
         
         # Initialize Security Scanner (Lazy)
         self._toxicity_scanner = None
-
-        # [NEW] Pareto Configuration
-        # Lambda values for Pareto utility: utility = quality - (λ * cost_penalty)
-        # [KDD FIX]: Rescaled for normalized [0,1] quality and cost_penalty inputs
-        # With both in [0,1] range, λ controls the quality-cost tradeoff:
-        #   λ=1.0: Equal weight (50/50 quality-cost tradeoff)
-        #   λ=0.5: Quality-biased (67% quality, 33% cost)
-        #   λ=0.05: Quality-focused (95% quality, 5% cost)
-        # Simplified Profile System: "auto" is the intelligent default
-        # Lambda = 0.05 is calibrated to balance quality and cost optimally
-        # Users can pass "custom" (dict) for full control over weights
-        self.PARETO_PROFILES = {
-            "auto": 0.05,    # Smart routing: balances quality and cost intelligently
-        }
-        # Controls the "Optimism" of the Pareto Filter (UCB)
-        # 1.0 = Standard UCB. Higher = Keep uncertain models alive longer.
-        # Set to 2.0 to ensure gatekeeper is more generous than judge.
-        self.PARETO_EXPLORATION_CONSTANT = 2.0
+        
+        # Initialize Corralling Router (if enabled)
+        self.corralling_router = None
+        if self.use_corralling:
+            # Create two experts: one with current bandit (warmup), one tabula rasa
+            # This will be properly initialized in create() after priors are loaded
+            pass
 
 
         # ---------------------------------------------------------------------------
@@ -1280,9 +1224,9 @@ class BanditRouter:
         **Tier A: Archetypes** - "I know the model's intent"
             capabilities=["coding", "math"] applies semantic anchor boosts
             
-        **Tier B: T-Shirt Sizing** - "I know cost/speed but not HLE"
+        **Tier B: T-Shirt Sizing** - "I know cost/speed but not priors"
             speed="fast" sets positive bias (cheap → use by default)
-            speed="slow" sets negative bias (expensive → use selectively)
+            speed="slow" sets positive bias (expensive → reserve for hard tasks)
             
         **Tier C: Agnostic** - "I have no information"
             Just model_id initializes with neutral priors and high variance
@@ -1315,8 +1259,8 @@ class BanditRouter:
         bias = 0.0
         
         # 2. Apply T-Shirt Sizing (The Bias Term)
-        # If HLE is unknown, use Speed/Cost as prior for "Default Mode"
-        # Values from RouterConfig.registration (cientifically justified)
+        # Use Speed/Cost as prior for "Default Mode" when no warmup priors exist
+        # Values from RouterConfig.registration (scientifically justified)
         reg_config = self.config.registration
         
         if speed == "fast":
@@ -1449,7 +1393,6 @@ class BanditRouter:
         self.registry[model_id] = {
             "cost_per_1m_tokens": cost_usd,
             "median_latency_s": latency_s,
-            "hle_score": None,  # Unknown HLE (will be learned)
             "capabilities": capabilities,
             "speed_profile": speed
         }
@@ -1465,6 +1408,51 @@ class BanditRouter:
             f"Cost: ${cost_usd:.2f}/1M | "
             f"Latency: {latency_s:.2f}s"
         )
+        
+        # 9. [KDD FIX] Propagate to Corralling Experts (Dynamic Model Admission)
+        # If using Corralling, experts need to know about the new model too.
+        # This enables the production system to add models at runtime while maintaining
+        # both warmup (with semantic transfer) and tabula rasa expert routing.
+        if self.use_corralling and self.corralling_router:
+            logger.info(f"🔄 Propagating {model_id} to Corralling experts...")
+            
+            # A. Calculate Normalized Cost (needed for experts)
+            # Mirror logic from BanditRouter.create() for consistency
+            # Assume output cost is 3x input if not explicitly provided
+            output_cost = cost_usd * 3.0 
+            avg_cost_per_1k = ((cost_usd + output_cost) / 2.0) / 1000.0
+            norm_cost = self._calculate_absolute_penalty(avg_cost_per_1k)
+            
+            # B. Get the Initial Matrices
+            # If is_bootstrapped, we have A_init/b_init from semantic transfer
+            # If not, we used manual priors (T-shirt sizing)
+            if is_bootstrapped:
+                # Semantic transfer happened - use transferred matrices
+                prior_A = A_init
+                prior_b = b_init
+            else:
+                # Manual prior or first model - use current bandit state
+                prior_A = self.bandit.A[model_id]
+                prior_b = self.bandit.b[model_id]
+            
+            # C. Update Experts
+            # Expert 0: Warmup (CostAwareLinUCB) - Gets the semantic priors
+            # Expert 1: Tabula Rasa (CostAwareTabulaRasa) - Gets cold start
+            
+            # Update Corralling's model list
+            self.corralling_router.add_model(model_id)
+            
+            # Update Warmup Expert (inherits semantic transfer)
+            expert_warmup = self.corralling_router.experts[0]
+            if hasattr(expert_warmup, 'add_model'):
+                expert_warmup.add_model(model_id, prior_A, prior_b, norm_cost)
+            
+            # Update Tabula Rasa Expert (cold start)
+            expert_tr = self.corralling_router.experts[1]
+            if hasattr(expert_tr, 'add_model'):
+                expert_tr.add_model(model_id, norm_cost)
+                
+            logger.info(f"✅ {model_id} added to Corralling/Hybrid system")
 
 
     # ---------------------------------------------------------------------------
@@ -1793,32 +1781,15 @@ class BanditRouter:
         """
         Dynamically identifies the 'Flagship' model to use as a baseline reference.
         
-        This property supports the **Reference Point Normalization** logic in
-        `OptimizationProfile.from_reference()`. When users specify preferences like
-        "I want 95% of the quality for 50% of the cost," they implicitly define
-        these percentages relative to the best available model.
-        
         **Selection Criteria:**
-        The model with the **highest HLE (Human-Like Excellence) score** in the
-        current registry. This ensures the reference point adapts automatically
-        when you upgrade your model portfolio (e.g., adding GPT-5).
-        
-        **Why HLE?**
-        HLE score is the canonical quality metric in BanditGPT, representing
-        empirical win-rate against Claude 3.5 Sonnet on the LMSYS Arena dataset.
-        It directly captures "how good" a model is at satisfying users.
-        
-        **Market-Relative Interpretation:**
-        Note that `from_reference()` actually uses **market-wide normalization**
-        (RouterConfig.market_cost_ceiling = $10.00) rather than this specific
-        model's cost, which provides stability across portfolio changes.
-        This property serves as a **transparent reference** for users to understand
-        what "100% quality" means at any given time.
+        The model with the **highest initial_quality score** in the current registry.
+        This ensures the reference point adapts automatically when you upgrade your
+        model portfolio (e.g., adding GPT-5).
         
         Returns:
             Dictionary containing flagship model metadata with keys:
                 - id: Model identifier (string)
-                - hle: HLE score (float, typically 0.0-0.4 range)
+                - initial_quality: Quality score (float, typically 0.0-1.0 range)
                 - input_cost_per_m: Cost in $/million tokens (float)
                 - output_cost_per_m: Cost in $/million tokens (float)
                 - ... (other registry metadata)
@@ -1826,23 +1797,23 @@ class BanditRouter:
         Example:
             >>> router = BanditRouter.create()
             >>> ref = router.reference_model
-            >>> print(f"Current flagship: {ref['id']} (HLE: {ref['hle']:.3f})")
-            Current flagship: google/gemini-exp-1206 (HLE: 0.348)
+            >>> print(f"Current flagship: {ref['id']} (Quality: {ref.get('initial_quality', 0):.3f})")
+            Current flagship: google/gemini-exp-1206 (Quality: 0.348)
         """
         if not self.registry:
             # Fallback if registry is empty (should never happen in production)
             logger.warning("Registry is empty, using fallback reference model")
             return {
                 "id": "fallback-flagship",
-                "hle": 1.0,
+                "initial_quality": 1.0,
                 "input_cost_per_m": 10.0,
                 "output_cost_per_m": 10.0
             }
             
-        # Find the model with the maximum quality score (composite metric)
+        # Find the model with the maximum quality score
         champion_id = max(
             self.registry,
-            key=lambda m: self.registry[m].get("initial_quality") or self.registry[m].get("hle", 0.0) or 0.0
+            key=lambda m: self.registry[m].get("initial_quality", 0.0)
         )
         
         # Return a copy of the registry entry with the ID included
@@ -2025,7 +1996,112 @@ class BanditRouter:
         # 6. Refresh inverse cache to be safe (though b-update doesn't strictly require it)
         router.bandit.refresh_inverse_cache()
         
-        # 7. Load state if provided (overwrites any priors applied above)
+        # 7. Initialize Corralling Router (if enabled)
+        if router.use_corralling:
+            # ---------------------------------------------------------------
+            # KDD UPGRADE: Heterogeneous Alpha Strategy
+            # Instead of sharing the same alpha schedule, we diversify the 
+            # experts to handle both stationary (stable) and non-stationary 
+            # (shifting) regimes automatically.
+            #
+            # The Exploration-Exploitation Dilemma in Non-Stationary Worlds:
+            # - Decaying alpha assumes the world stops changing → "Brain Death"
+            # - Constant alpha stays vigilant but wastes resources in stable periods
+            # - Solution: Let Corralling meta-learner choose the right strategy
+            # ---------------------------------------------------------------
+            logger.info("🎯 Initializing Corralling Router with Heterogeneous Experts Strategy...")
+            
+            # [FIX] Capture the alpha passed to create() to propagate to experts
+            target_alpha = alpha if alpha is not None else 0.1
+            
+            # Prepare model costs for cost-aware experts
+            model_costs = {}
+            for model_id in router.bandit.models:
+                m_data = router.registry.get(model_id, {})
+                input_cost = m_data.get("input_cost_per_m", router.config.default_missing_cost_per_m)
+                output_cost = m_data.get("output_cost_per_m", router.config.default_missing_cost_per_m * 3.0)
+                # Normalize cost to [0, 1] using market anchors
+                avg_cost_per_1k = ((input_cost + output_cost) / 2.0) / 1000.0
+                norm_cost = router._calculate_absolute_penalty(avg_cost_per_1k)
+                model_costs[model_id] = {"normalized_cost": norm_cost}
+            
+            # Prepare warmup priors for Expert 1
+            warmup_priors = {
+                'A': {m: router.bandit.A[m].copy() for m in router.bandit.models},
+                'b': {m: router.bandit.b[m].copy() for m in router.bandit.models},
+                'context_dim': router.bandit.dim
+            }
+            
+            # ---------------------------------------------------------------
+            # Expert 1: The "Efficiency Engine" (Conservative/Warmup)
+            # ---------------------------------------------------------------
+            # STRATEGY: Aggressive decay to pure exploitation
+            # ASSUMPTION: The world is stable; priors are good
+            # GOAL: Minimize regret by converging to the best known model
+            # BEHAVIOR:
+            #   - Starts with moderate exploration (alpha=1.0)
+            #   - Linearly decays to near-zero (alpha=0.01)
+            #   - Result: High efficiency in stable environments
+            #   - Risk: "Brain Death" if new models appear (e.g., GPT-5.1)
+            # ---------------------------------------------------------------
+            expert_warmup = CostAwareLinUCBRouter(
+                models=router.bandit.models,
+                warmup_priors=warmup_priors,
+                model_costs=model_costs,
+                alpha_start=1.0,   # Moderate initial exploration
+                alpha_end=0.01,    # Decay to near-zero (Pure Exploitation)
+                cost_penalty=0.0
+            )
+            
+            # ---------------------------------------------------------------
+            # Expert 2: The "Discovery Engine" (Adaptive/Tabula Rasa)
+            # ---------------------------------------------------------------
+            # STRATEGY: Constant high alpha (vigilance)
+            # ASSUMPTION: The world is non-stationary; shifts happen
+            # GOAL: Remain sensitive to distribution shifts and new models
+            # BEHAVIOR:
+            #   - Starts with high exploration (alpha=2.0)
+            #   - NEVER decays (alpha_end=2.0)
+            #   - Result: Immediately detects new models (GPT-5) or concept drift
+            #   - Cost: Higher exploration overhead during stable periods
+            # META-LEARNING GUARANTEE:
+            #   - During stable times: Corralling downweights this expert (saves cost)
+            #   - During shifts: This expert wins → Corralling pivots automatically
+            # ---------------------------------------------------------------
+            expert_tabula_rasa = CostAwareTabulaRasaRouter(
+                models=router.bandit.models,
+                context_dim=router.bandit.dim,
+                model_costs=model_costs,
+                alpha_start=2.0,   # High initial exploration
+                alpha_end=2.0,     # CONSTANT: Never stop exploring
+                cost_penalty=0.0,
+                ridge_lambda=1.0
+            )
+            
+            # ---------------------------------------------------------------
+            # The Manager: Corralling Meta-Learner
+            # ---------------------------------------------------------------
+            # Automatically switches between "Efficiency" and "Discovery" 
+            # based on which expert performs better in the current regime.
+            #
+            # Stable Period → Conservative expert dominates (low regret)
+            # Distribution Shift → Adaptive expert wins (detects changes)
+            # New Model Release → Adaptive finds it first → Router pivots
+            # ---------------------------------------------------------------
+            router.corralling_router = CorrallingRouter(
+                experts=[expert_warmup, expert_tabula_rasa],
+                models=router.bandit.models,
+                learning_rate=router.corralling_learning_rate,
+                gamma=router.corralling_gamma
+            )
+            
+            logger.info("✅ Heterogeneous Experts Strategy Initialized:")
+            logger.info("   📊 Expert 1 (Conservative): Decaying Alpha 1.0→0.01 (Efficiency/Exploitation)")
+            logger.info("   🔍 Expert 2 (Adaptive):     Constant Alpha 2.0 (Vigilance/Exploration)")
+            logger.info("   🎯 Meta-Learner:            Corralling auto-switches based on performance")
+            logger.info("   💡 Benefit:                 No manual tuning for stable vs shifting regimes")
+        
+        # 8. Load state if provided (overwrites any priors applied above)
         if state_path:
             router.load_state(state_path)
                 
@@ -2034,57 +2110,6 @@ class BanditRouter:
 
 
 
-    def _load_zero_shot_priors(self, prior_n_effective: float):
-        """
-        Load pretrained weights from default_weights.json.
-        
-        Philosophy:
-        - A = λI (Identity → High Plasticity, adapts to user's data)
-        - θ = pretrained from JSON (Initial Intuition for reasoning/turbo archetypes)
-        - b = prior_n_effective * init_lambda * θ
-        """
-        logger.info(f"Loading pretrained weights (N_eff={prior_n_effective:.1f})")
-        
-        weights_path = Path(__file__).parent / "priors" / "default_weights.json"
-        
-        if not weights_path.exists():
-            # Use HLE scores directly as priors
-            for model_id in self.bandit.models:
-                raw_hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
-                neutral_ctx = np.zeros(self.bandit.dim)
-                neutral_ctx[-1] = 1.0
-                self.bandit.b[model_id] = prior_n_effective * raw_hle * neutral_ctx
-            return
-        
-        with open(weights_path) as f:
-            data = json.load(f)
-        
-        # Map model IDs to archetypes (reasoning vs turbo)
-        for model_id in self.bandit.models:
-            # Determine archetype from model metadata or heuristics
-            hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
-            is_reasoning = hle > 0.15  # High HLE = reasoning model
-            
-            archetype = "reasoning_model" if is_reasoning else "turbo_model"
-            
-            if archetype in data.get("models", {}):
-                weights_config = data["models"][archetype]["weights"]
-                
-                # KDD Simplification: Pure Decision Engine (24D)
-                # We no longer use handcrafted or anchor features.
-                # Initialize bias term with HLE-based specialist prior.
-                theta = np.zeros(self.bandit.dim)
-                raw_hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
-                theta[-1] = raw_hle  # Bias term captures global specialist probability
-                
-                # Compute b = N_eff * λ * θ (pseudocounts for θ)
-                self.bandit.b[model_id] = prior_n_effective * self.bandit.init_lambda * theta
-            else:
-                # Fallback to HLE
-                raw_hle = float(self.registry.get(model_id, {}).get("hle", 0.15))
-                neutral_ctx = np.zeros(self.bandit.dim)
-                neutral_ctx[-1] = 1.0
-                self.bandit.b[model_id] = prior_n_effective * raw_hle * neutral_ctx
 
     # ---------------------------------------------------------------------------
     # Self-Healing PCA (JIT Calibration)
@@ -2275,293 +2300,6 @@ class BanditRouter:
             normalize(ctx, "context", log=True)
         ])
 
-    def _is_pareto_dominated(self, new_model_data: Dict[str, Any]) -> bool:
-        """
-        Phase 1: Optimizer Gatekeeper (Corrected).
-        
-        Checks if the new model (with Optimistic Reward=0.95) is dominated by existing models
-        using ABSOLUTE MARKET ANCHORS.
-        
-        The baseline check must use absolute market width to prevent local entrapment.
-        Previous logic used relative stats from the current registry, which 
-        caused false rejections for models that looked "expensive" locally but were
-        actually "cheap" globally.
-        
-        [KDD REVIEW FIX - Improvement B]: Minimum Novelty Check
-        Also rejects "feature spam" - near-duplicate models that differ only in price.
-        """
-        # [KDD REVIEW FIX - Improvement B]: Minimum Novelty Check
-        # Prevent "Feature Spam" where providers release 100 variations of a model,
-        # each $0.0001 cheaper. While they aren't strictly dominated by the 0.05 margin,
-        # they shouldn't all enter the registry and dilute attention.
-        #
-        # Strategy: Compute embedding similarity. If new model is too similar to ANY
-        # existing model (cosine similarity > 0.9, i.e., distance < 0.1), reject it
-        # ONLY IF probation is at capacity. If we have room, allow the variation through
-        # so it can compete in probation (max_probation_models limit provides the throttle).
-        
-        new_model_id = new_model_data.get("openrouter_id", "unknown")
-        new_model_desc = new_model_data.get("display_name", new_model_id)
-        
-        try:
-            # [KDD OPTIMIZATION]: Use cached embedding if available
-            if '_embedding' in new_model_data:
-                new_embedding = new_model_data['_embedding']
-            else:
-                new_embedding = self.encoder.encode([new_model_desc], convert_to_numpy=True)[0]
-                # Cache for admix_theta_from_neighbors reuse
-                new_model_data['_embedding'] = new_embedding
-                
-            new_embedding_norm = new_embedding / (np.linalg.norm(new_embedding) + 1e-12)
-            
-            # Check similarity to all existing models
-            for m_id, m_data in self.registry.items():
-                m_desc = m_data.get("display_name", m_id)
-                try:
-                    # [KDD OPTIMIZATION]: Use cached embedding if available
-                    if '_embedding' in m_data:
-                        m_embedding = m_data['_embedding']
-                    else:
-                        m_embedding = self.encoder.encode([m_desc], convert_to_numpy=True)[0]
-                        # Cache for future checks
-                        self.registry[m_id]['_embedding'] = m_embedding
-                    m_embedding_norm = m_embedding / (np.linalg.norm(m_embedding) + 1e-12)
-                    
-                    # Cosine similarity
-                    similarity = float(np.dot(new_embedding_norm, m_embedding_norm))
-                    
-                    # If too similar (similarity > 0.9), this is likely a near-duplicate
-                    # [KDD REVIEW FIX - Improvement B]: Check probation capacity first
-                    if similarity > 0.9:
-                        # Check if we have room in probation to evaluate this variation
-                        try:
-                            probation_count = sum(1 for m in self.probation_models.values() 
-                                                if self.bandit.t < m.get('immune_until', 0))
-                            
-                            if probation_count < self.config.max_probation_models:
-                                # We have capacity - allow this variation to compete in probation
-                                logger.info(
-                                    f"⚠️ Near-duplicate detected: {new_model_id} similar to {m_id} "
-                                    f"(similarity={similarity:.3f}), but probation has room "
-                                    f"({probation_count}/{self.config.max_probation_models}). Allowing through."
-                                )
-                                # Don't reject - let it through to Pareto check
-                            else:
-                                # Probation is full - activate spam protection
-                                logger.info(
-                                    f"🚫 Novelty Rejection: {new_model_id} is near-duplicate of {m_id} "
-                                    f"(similarity={similarity:.3f}). Probation full ({probation_count}/"
-                                    f"{self.config.max_probation_models}). Feature spam protection active."
-                                )
-                                return True  # Reject as dominated (spam)
-                        except Exception as e:
-                            # If probation check fails, fall through to Pareto check (don't reject on errors)
-                            logger.debug(f"Probation check failed for novelty protection: {e}")
-                        
-                except Exception as e:
-                    logger.debug(f"Failed to encode {m_id} for novelty check: {e}")
-                    continue
-                    
-        except Exception as e:
-            logger.warning(f"Failed to encode new model {new_model_id} for novelty check: {e}")
-            # If encoding fails, fall through to Pareto check (don't reject on errors)
-        
-        # Proceed with standard Pareto dominance check
-        def get_absolute_utility(
-            quality_score: float, 
-            cost_per_m: float, 
-            lat_s: float, 
-            profile: Dict[str, float]
-        ) -> float:
-            """Calculate utility using absolute market normalization."""
-            # Cost Utility (Higher is Cheaper)
-            c_norm = (np.log(10.00) - np.log(max(cost_per_m/1000.0, 0.0005))) / (np.log(10.00) - np.log(0.0005))
-            c_norm = np.clip(c_norm, 0, 1)
-            
-            # Latency Utility (Higher is Faster)
-            l_norm = (np.log(5.0) - np.log(max(lat_s, 0.05))) / (np.log(5.0) - np.log(0.05))
-            l_norm = np.clip(l_norm, 0, 1)
-            
-            # Linear weighted sum
-            return profile['w_q'] * quality_score + profile['w_c'] * c_norm + profile['w_l'] * l_norm
-
-        for m_id, m_data in self.registry.items():
-            domination_count = 0
-            profiles = ["max_quality", "arbitrage", "cost_saver", "low_latency"]
-            
-            for p_name in profiles:
-                p = OptimizationProfile.get(p_name)
-                u_existing = get_absolute_utility(
-                    m_data.get('initial_quality', 0.5), # KDD FIX
-                    m_data.get('cost_per_1m_tokens', 10.0),
-                    m_data.get('median_latency_s', 2.0),
-                    p
-                )
-                # [KDD REVIEW FIX]: Relax optimism from 1.0 to 0.95 (Refined Admissions)
-                # Prevents "Spam Models" that are slightly cheaper from flooding the registry
-                # even if they likely have terrible quality.
-                u_new = get_absolute_utility(
-                    0.95, 
-                    new_model_data.get('cost_per_1m_tokens', 10.0),
-                    new_model_data.get('median_latency_s', 2.0),
-                    p
-                )
-                if u_existing > u_new + 0.05:
-                    domination_count += 1
-            
-            if domination_count == len(profiles):
-                logger.info(f"🚫 Pareto Rejection: {new_model_data.get('openrouter_id')} dominated by {m_id}")
-                return True
-                
-        return False
-
-    def _get_contextual_stats(self, model_id: str, x: np.ndarray, in_tok: int, out_tok: int) -> Dict[str, Any]:
-        """
-        Get context-aware statistics (Mean, Uncertainty, Cost) for a single model.
-        Used to build the dynamic Pareto frontier for a specific prompt.
-        """
-        # 1. Get LinUCB Predictions (Quality)
-        with self.bandit._lock: # Thread-safe read
-            # Mean (Predicted Quality)
-            theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
-            mean_quality = float(theta.dot(x))
-            
-            # Uncertainty (Std Dev) for Optimism
-            dt = self.bandit.t - self.bandit.last_update[model_id]
-            decay_factor = self.bandit.gamma ** dt
-            var = float(x.dot(self.bandit.A_inv[model_id]).dot(x))
-            var_inflated = var / max(decay_factor, 1e-12)
-            uncertainty = float(np.sqrt(max(var_inflated, 1e-12)))
-
-        # 2. Get Cost (Estimated)
-        cost_usd = self._estimate_cost(model_id, in_tok, out_tok)
-        cost_per_1k = cost_usd * 1000.0
-        
-        return {
-            "id": model_id,
-            "mean_quality": mean_quality,
-            "uncertainty": uncertainty,
-            "cost": cost_per_1k
-        }
-
-    def _filter_pareto_frontier(self, candidates: List[str], x: np.ndarray, in_tok: int, out_tok: int) -> List[str]:
-        """
-        Step A: The Pareto Filter.
-        Prunes models that are strictly dominated by others based on (Cost vs. Mean Quality).
-        
-        [KDD ARCHITECTURAL FIX]: Use ONLY mean quality for Pareto filtering, NOT UCB.
-        - Pareto filtering = hard exclusion → miscalibration causes permanent damage
-        - UCB selection = soft exploration → miscalibration self-corrects with data
-        
-        By using only mean quality (no exploration bonus), we prevent inflated UCB
-        from allowing dominated models to survive the filter.
-        """
-        stats = {
-            m: self._get_contextual_stats(m, x, in_tok, out_tok) 
-            for m in candidates
-        }
-        
-        survivors = []
-        for cand_id in candidates:
-            cand = stats[cand_id]
-            # Use ONLY mean quality, not UCB (no exploration bonus for hard filtering)
-            cand_quality = cand['mean_quality']
-            
-            is_dominated = False
-            for opp_id in candidates:
-                if cand_id == opp_id: continue
-                opp = stats[opp_id]
-                # Use ONLY mean quality for opponent too
-                opp_quality = opp['mean_quality']
-                
-                # Dominated if opponent is cheaper AND has higher mean quality
-                if (opp['cost'] <= cand['cost']) and (opp_quality > cand_quality):
-                    if (opp['cost'] < cand['cost']) or (opp_quality > cand_quality + 1e-6):
-                        is_dominated = True
-                        break
-            
-            if not is_dominated:
-                survivors.append(cand_id)
-        
-        return survivors if survivors else candidates
-
-
-    def admit_new_model(self, model_data: Dict[str, Any], dampening: float = 0.1) -> bool:
-        """
-        Validate and Initialize a new model using semantic neighbor transfer.
-        
-        [KDD REVIEW FIX - Concern B]: Consolidated with register_model pipeline.
-        Both startup and runtime paths now use the same admix_theta_from_neighbors
-        logic (fixed to transfer θ only, reset A for exploration).
-        
-        Args:
-            model_data: Model metadata dictionary with openrouter_id, cost, etc.
-            dampening: DEPRECATED (kept for API compatibility, not used)
-        
-        Returns:
-            True if admitted, False if rejected
-        """
-        model_id = model_data["openrouter_id"]
-        
-        # Phase 1: Admission Gatekeeping
-        # Check if model is Pareto dominated (with optimistic quality=0.95)
-        if self._is_pareto_dominated(model_data):
-            logger.info(f"Refusing admission to {model_id}: Pareto Dominated (even with 0.95 optimistic reward).")
-            return False
-            
-        # [KDD REVIEW FIX]: Probation Spam Guard
-        # Check how many models are currently in probation
-        probation_count = sum(1 for m in self.probation_models.values() 
-                            if self.bandit.t < m.get('immune_until', 0))
-        
-        if probation_count >= self.config.max_probation_models:
-            logger.warning(
-                f"🚫 Admission Denied for {model_id}: Too many models in probation ({probation_count}). "
-                f"Wait for existing models to graduate or increase max_probation_models."
-            )
-            return False
-            
-        # Phase 2: Initialization via Semantic Transfer
-        # [KDD REVIEW FIX - Concern B]: Use the same logic as register_model
-        # This ensures both paths use the fixed θ-only transfer (no confident transfer trap)
-        
-        # Add to registry first (needed by admix_theta_from_neighbors)
-        self.registry[model_id] = model_data
-        
-        # Use the consolidated bootstrapping logic
-        # This will:
-        # 1. Find semantically similar neighbor via embedding
-        # 2. Extract neighbor's learned preferences (θ = A_inv @ b)
-        # 3. Initialize with A = λI (fresh), b = λ × θ (preferences)
-        A_init, b_init = self.admix_theta_from_neighbors(
-            model_id=model_id,
-            registry=self.registry,
-            bandit=self.bandit,
-            encoder=self.encoder,
-            n_effective=5.0  # Balanced prior strength for neighbor bootstrapping
-        )
-        
-        # Add arm to bandit with bootstrapped parameters
-        self.bandit.models.append(model_id)
-        self.bandit.A[model_id] = A_init
-        self.bandit.b[model_id] = b_init
-        self.bandit.A_inv[model_id] = safe_inv(A_init)
-        self.bandit.last_update[model_id] = self.bandit.t
-        
-        logger.info(
-            f"✅ Admitted {model_id} via semantic transfer. "
-            f"Initialized with θ from neighbor, fresh A for exploration."
-        )
-
-        # Phase 3: Probation Tracking
-        # New models get 500-request probation period
-        self.probation_models[model_id] = {
-            "start_t": self.bandit.t,
-            "status": "PROBATION",
-            "immune_until": self.bandit.t + self.config.probation_requests
-        }
-        
-        return True
 
 
     def _get_sample_counts(self, arms: Optional[List[str]] = None) -> Dict[str, int]:
@@ -2613,45 +2351,6 @@ class BanditRouter:
         x = self.features.extract_features(prompt)
         return x, prompt_text
     
-    def _resolve_utility_weights(
-        self,
-        profile: Dict[str, float],
-        max_cost: float | None,
-        max_latency: float | None
-    ) -> Tuple[float, float, float, float]:
-        """
-        Extract and adjust weights from custom profile dict.
-
-        Weights are economic exchange rates (not normalized):
-        - w_c = 1.0  (Base: $1.00)
-        - w_q = 10.0 (10% quality gain worth $1.00)
-        - w_l = 5.0  (5s latency reduction worth $1.00)
-
-        Args:
-            profile: Custom weight dict (already validated)
-            max_cost: Hard cost constraint (optional)
-            max_latency: Hard latency constraint (optional)
-
-        Returns:
-            Tuple of (w_q, w_c, w_l, alpha_scale)
-        """
-        w_q = profile.get("w_q", 0.0)
-        w_c = profile.get("w_c", 1.0)
-        w_l = profile.get("w_l", 0.0)
-        alpha_scale = profile.get("alpha_scale", 1.0)
-
-        # If hard constraint exists, disable soft optimization for that dimension
-        if max_cost is not None:
-            w_q += w_c
-            w_c = 0.0
-        
-        if max_latency is not None:
-            w_q += w_l
-            w_l = 0.0
-
-        return w_q, w_c, w_l, alpha_scale
-    
-
     
     def _filter_by_constraints(
         self,
@@ -2710,150 +2409,6 @@ class BanditRouter:
             filtered = list(self.registry.keys())  # Ultimate fallback
             
         return filtered
-    
-    def _calculate_penalties(
-        self,
-        filtered: List[str],
-        input_tokens: int,
-        output_tokens: int
-    ) -> Tuple[Dict[str, float], Dict[str, float]]:
-        """
-        Calculate absolute cost and latency penalties for each model.
-        
-        Uses market anchors (not relative to current pool) for stable penalties:
-        - Cost: Floor=$0.0005/1k, Ceiling=$10.00/1k
-        - Latency: Floor=0.05s, Ceiling=5.0s
-        
-        Args:
-            filtered: List of candidate model IDs
-            input_tokens: Input token count
-            output_tokens: Output token count
-            
-        Returns:
-            Tuple of (cost_penalties, latency_penalties) dicts
-        """
-        # Calculate costs and latencies
-        costs = {m: self._estimate_cost(m, input_tokens, output_tokens) for m in filtered}
-        lats = {m: self._estimate_latency(m, output_tokens) for m in filtered}
-        
-        # Cost penalties (absolute, using market anchors)
-        cost_penalties = {}
-        total_tokens = max(1, input_tokens + output_tokens)
-        
-        for m in filtered:
-            # KDD FIX: Calculate Rate ($/1k) = (Total Cost / Total Tokens) * 1000
-            cost_per_1k = (costs[m] / total_tokens) * 1000
-            cost_penalties[m] = self._calculate_absolute_penalty(cost_per_1k)
-        
-        # [KDD REVIEW FIX]: Use precomputed anchors
-        latency_penalties = {}
-        for m in filtered:
-            safe_lat = max(lats[m], self._market_lat_floor)
-            log_lat = np.log(safe_lat)
-            norm_lat = (log_lat - self._market_lat_floor_log) / self._market_lat_range
-            latency_penalties[m] = max(0.0, min(1.0, norm_lat))
-        
-        return cost_penalties, latency_penalties
-    
-    def _score_candidates(
-        self,
-        filtered: List[str],
-        x: np.ndarray,
-        w_q: float,
-        w_c: float,
-        w_l: float,
-        alpha_scale: float,
-        input_tokens: int,
-        output_tokens: int
-    ) -> Tuple[str, float, float]:
-        """
-        Calculate utility scores and select best model.
-        
-        **KDD FINAL VERSION (Jan 2026)**:
-        Uses an ADDITIVE utility formula that separates deterministic trade-offs 
-        from exploration uncertainty.
-        
-        Formula:
-          Utility = Base_Utility + Exploration_Bonus
-          Base_Utility = (w_q * mean_quality) + (w_c * cost_savings) + (w_l * lat_savings)
-          Exploration_Bonus = alpha * scaling_factor * w_q * std_quality
-          
-        This ensures:
-        1. Exploration only scales with quality importance (w_q).
-        2. Cost signals are never drowned out in cost-sensitive profiles.
-        3. The trade-off between mean quality and cost is perfectly linear.
-        4. Risk-averse profiles (Max Quality) can opt-out of exploration.
-        """
-        best_model = filtered[0]
-        best_utility = -float("inf")
-        
-        sample_counts = self._get_sample_counts(filtered)
-        cost_penalties, latency_penalties = self._calculate_penalties(filtered, input_tokens, output_tokens)
-        
-        for m in filtered:
-            # 1. Calculate deterministic quality prediction (mean)
-            with self.bandit._lock:
-                theta = self.bandit.A_inv[m] @ self.bandit.b[m]
-                mean_quality = float(theta.dot(x))
-                
-                # Global Forgetting Adjustment
-                dt = self.bandit.t - self.bandit.last_update[m]
-                decay_factor = self.bandit.gamma ** dt
-                
-                # 2. Calculate exploration uncertainty (std)
-                var = float(x.dot(self.bandit.A_inv[m]).dot(x))
-                var_inflated = var / max(decay_factor, 1e-12) 
-                std = float(np.sqrt(max(var_inflated, 1e-12)))
-            
-            # 3. Calculate separate utility components
-            norm_cost = cost_penalties[m]
-            norm_lat = latency_penalties[m]
-            
-            # Use raw quality prediction with floor at 0
-            # The warmup priors were trained on [0,1] rewards, so predictions 
-            # should naturally be on the correct scale. We just clip negative values.
-            # Sigmoid was compressing differences too much (e.g., 0.9→0.71, 1.1→0.75)
-            norm_quality = max(0.0, mean_quality)
-            
-            # Base Trade-off Utility (Deterministic)
-            base_utility = (
-                w_q * norm_quality + 
-                w_c * (1.0 - norm_cost) + 
-                w_l * (1.0 - norm_lat)
-            )
-            
-            # Exploration Bonus (Scaled by Quality Weight)
-            # CRITICAL FIX: Exploration must be scaled by w_q to match base utility scale.
-            # Without w_q: MAX_QUALITY exploration is 2500x weaker than exploitation!
-            # With w_q: exploration becomes proportional to value at risk.
-            exploration_bonus = self.bandit.alpha * alpha_scale * w_q * std
-            
-            # Probation Bonus (Legacy support)
-            # [KDD REVIEW FIX - Improvement A]: Link to probation_models list
-            # Only apply bonus if model is ACTUALLY in probation, not just low sample count
-            probation_bonus = 0.0
-            if self.config.probation_bonus > 0 and m in self.probation_models:
-                count = sample_counts.get(m, 0)
-                if count < self.config.pruning_min_samples:
-                    decay = 1.0 - (count / self.config.pruning_min_samples)
-                    probation_bonus = self.config.probation_bonus * w_q * decay
-            
-            # FINAL ADDITIVE UTILITY
-            total_utility = base_utility + exploration_bonus + probation_bonus
-            
-            if self.verbose_routing:
-                logger.info(f"Scoring {m:15s} | Utility: {total_utility:8.4f}")
-                logger.info(f"  > [Base]   Q_util: {w_q*norm_quality:6.4f} (raw={mean_quality:.3f}, norm={norm_quality:.3f}) | C_util: {w_c*(1-norm_cost):6.4f} | L_util: {w_l*(1-norm_lat):6.4f}")
-                logger.info(f"  > [Bonus]  Explore: {exploration_bonus:6.4f} (std={std:.3f}) | Probation: {probation_bonus:6.4f}")
-            
-            if total_utility > best_utility:
-                best_utility = total_utility
-                best_model = m
-                
-        if self.verbose_routing:
-            logger.info(f"WINNER: {best_model} (Utility={best_utility:.4f})")
-                
-        return best_model, best_utility, (w_q + w_c + w_l)
     
     
     def _create_routing_log(
@@ -2918,32 +2473,25 @@ class BanditRouter:
         output_tokens: int = 600,
     ) -> Tuple[str, RoutingLog]:
         """
-        Route a prompt to the best model.
+        Route a prompt to the best model using Corralling (meta-learning over experts).
+        
+        **Corralling Architecture:**
+        Maintains multiple expert strategies and learns which one works best for your data:
+        - Expert 1: Warmup strategy (uses pre-trained priors from 80k battles)
+        - Expert 2: Tabula rasa (learns from scratch on your data)
+        
+        The router automatically adapts weights to the expert that performs better,
+        providing robustness against domain mismatch while leveraging priors when helpful.
         
         **Usage:**
         ```python
-        # Simple: Just use defaults (intelligent "auto" routing)
+        # Simple: Just use defaults (corralling with warmup + tabula rasa)
         model_id, log = router.route("Write a Python function")
-        
-        # Custom: Pass explicit weights for full control
-        model_id, log = router.route(
-            "Complex task",
-            profile={"w_q": 10.0, "w_c": 1.0, "w_l": 0.5}
-        )
         ```
-        
-        **Profiles:**
-        - `"auto"` (default): Pareto-optimal routing with λ=0.02
-          - Cheap models win easy tasks
-          - Expensive models win hard tasks
-        - Custom dict: `{"w_q": ..., "w_c": ..., "w_l": ...}`
-          - w_q: Quality weight (how much you value quality)
-          - w_c: Cost penalty (1.0 = base currency)
-          - w_l: Latency penalty
         
         Args:
             prompt: Input text or pre-embedded vector
-            profile: "auto" or custom weight dict
+            profile: (Ignored, kept for API compatibility)
             max_cost: Hard cost ceiling ($/1k tokens)
             max_latency: Hard latency ceiling (seconds)
             quality_floor: Minimum quality scores per model
@@ -2953,17 +2501,7 @@ class BanditRouter:
         Returns:
             Tuple of (selected_model_id, routing_log)
         """
-        # --- RESOLVE PROFILE ---
-        is_pareto_mode = (profile == "auto")
-        
-        if is_pareto_mode:
-            profile_weights = "auto"
-        else:
-            # Validate custom profile dict
-            profile_weights = OptimizationProfile.get(profile)
-        # ----------------------------------
-        
-        # Orchestrate the routing process using focused helper methods
+        # Build features and apply constraints
         x, prompt_text = self._build_routing_features(prompt)
         candidates = list(self.registry.keys())
         filtered = self._filter_by_constraints(
@@ -2973,63 +2511,20 @@ class BanditRouter:
         # Estimate tokens for scoring
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
         
-        best_model = None
-        best_utility = -float('inf')
-        total_weight = 1.0
-
-        if is_pareto_mode:
-            # --- PATH A: NEW PARETO LOGIC ---
-            
-            # Step 1: Dynamic Pareto Filter (ENABLED)
-            # Prune models that are strictly dominated for THIS specific prompt.
-            # A model is dominated if another model exists that is BOTH:
-            #   1. Cheaper (lower cost)
-            #   2. Better (higher predicted quality for this context)
-            efficient_models = self._filter_pareto_frontier(
-                filtered, 
-                x, 
-                in_tok, 
-                output_tokens
-            )
-            
-            # Fallback: If filter removes everything (edge case), use all valid candidates
-            if not efficient_models:
-                efficient_models = filtered
-            
-            # Step 2: Linear Utility Selection
-            # Score = Quality - (Lambda * Cost)
-            lambda_val = self.PARETO_PROFILES[profile_weights]
-            
-            # [KDD FIX]: Use consistent exploration (UCB) in both filter and selection
-            # Previously used optimistic UCB in filter but pessimistic mean in selection,
-            # causing uncertain models to pass filter but then lose in selection.
-            # This creates "Explore-then-Exploit Disconnect" where new models can't win.
-            exploration_alpha = self.PARETO_EXPLORATION_CONSTANT
-            
-            for m in efficient_models:
-                stats = self._get_contextual_stats(m, x, in_tok, output_tokens)
-                
-                # Use UCB (Optimistic) for final selection (consistent with filter)
-                # Exploration bonus allows uncertain models to win and gather data
-                ucb_quality = stats['mean_quality'] + (exploration_alpha * stats['uncertainty'])
-                utility = ucb_quality - (lambda_val * stats['cost'])
-                
-                if utility > best_utility:
-                    best_utility = utility
-                    best_model = m
-            
-            # For logging compatibility
-            total_weight = lambda_val 
-
+        # Use Corralling if enabled, otherwise fall back to simple LinUCB
+        if self.use_corralling and self.corralling_router is not None:
+            # [FIX] Pass a large total_steps to keep alpha high (no decay)
+            # Setting total_steps=1 ensures experts use alpha_end (which is now 2.0 after fix)
+            # For continuous high exploration, we want alpha_start=alpha_end=2.0
+            best_model = self.corralling_router.select_model(x, total_steps=1)
+            best_utility = 0.0  # Placeholder, corralling doesn't expose utility
         else:
-            # --- PATH B: CUSTOM WEIGHTS ---
-            # Multi-objective routing with user-specified weights
-            w_q, w_c, w_l, alpha_scale = self._resolve_utility_weights(profile_weights, max_cost, max_latency)
-            best_model, best_utility, total_weight = self._score_candidates(
-                filtered, x, w_q, w_c, w_l, alpha_scale, in_tok, output_tokens
-            )
-
-        # Pruning removed for V1 (fixed portfolio)
+            # Fallback: Simple LinUCB selection (UCB only, no cost penalty)
+            best_model, best_utility = self.bandit.select_arm(x, candidates=filtered)
+        
+        total_weight = 1.0
+        
+        # Create routing log
         log = self._create_routing_log(
             prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
         )
@@ -3098,10 +2593,15 @@ class BanditRouter:
         # [KDD REVIEW FIX]: Persistent monotonicity (Probation Fix)
         self.model_counts[log.selected_model] += 1
         
-        # Update bandit with boosted reward
         # Use cached context vector to avoid re-encoding
         x = log.context_vector if log.context_vector is not None else self._get_context_vector(log.prompt)
-        self.bandit.update(log.selected_model, x, boosted_reward)
+        
+        # Update corralling router if enabled
+        if self.use_corralling and self.corralling_router is not None:
+            self.corralling_router.update(x, log.selected_model, boosted_reward)
+        else:
+            # Fallback: Update bandit directly
+            self.bandit.update(log.selected_model, x, boosted_reward)
         
         # Periodic stability check (cheap O(d) operation)
         # Prevents numerical instability in low-traffic arms when update_lambda=0
@@ -3121,6 +2621,13 @@ class BanditRouter:
         """Update the bandit's internal state with a new observation."""
         x = self.features.extract_features(context)
         self.bandit.update(model_id, x, reward, weight)
+        
+        # [CRITICAL FIX] Propagate feedback to Corralling Router (and Experts)
+        # The experts need to see the reward to learn and adapt. Without this,
+        # they remain frozen at their initialization state, making the heterogeneous
+        # strategy completely non-functional.
+        if self.use_corralling and self.corralling_router:
+            self.corralling_router.update(x, model_id, reward)
         
         # Periodic stability check (cheap O(d) operation)
         # Prevents numerical instability in low-traffic arms when update_lambda=0
@@ -3273,47 +2780,6 @@ class BanditRouter:
 
 
 
-    def add_model(self, model_id: str, definition: Dict[str, Any]) -> None:
-        """
-        Add a new model to the router dynamically.
-        
-        Args:
-            model_id: Unique identifier for the model (e.g. 'provider/model-name').
-            definition: Dict containing metadata. MUST include:
-                        - 'input_cost_per_m': Cost per million input tokens (float).
-                        Optional:
-                        - 'benchmark_score': Score for the active benchmark (float).
-                        - 'description': Text description for clustering.
-                        - 'tags': List of tags for clustering.
-        """
-        # 1. Validation
-        if "input_cost_per_m" not in definition:
-            raise ValueError(f"Model definition for '{model_id}' must include 'input_cost_per_m'")
-            
-        # 2. Update Registry
-        self.registry[model_id] = definition
-        
-        # 3. Add to Bandit
-        self.bandit.add_arm(model_id)
-        
-        # 4. Initialize Prior (HLE)
-        # We reuse the logic from load_from_benchmark but for a single model
-        # This ensures the new model gets the same "Smart Prior" treatment
-        
-        # Get score (default 0.05 if missing)
-        raw_score = float(definition.get("hle") or 0.05)
-        score = transform_hle_to_prior(raw_score)
-        
-        if score > 0:
-            # Initialize with prior belief
-            # Set the bias term (last element) of b to prior_strength * score
-            # This effectively gives it a "mean reward" of 'score' for the bias feature.
-            config = RouterConfig()
-            pseudocounts = config.registration.prior_pseudocounts
-            self.bandit.b[model_id][-1] = pseudocounts * score
-            # Also increase confidence in the bias term
-            self.bandit.A[model_id][-1, -1] += pseudocounts
-            self.bandit.A_inv[model_id] = safe_inv(self.bandit.A[model_id])
 
 
     def save_state(self, path: Path | str) -> None:
@@ -3567,6 +3033,10 @@ class CorrallingRouter:
         
         # Ask that expert which model to use (pass through total_steps)
         model = self.experts[expert_idx].select_model(context, total_steps=total_steps)
+        
+        # Initialize counter if this is a new model (defensive programming for dynamic registration)
+        if model not in self.selections:
+            self.selections[model] = 0
         self.selections[model] += 1
         
         return model
@@ -3635,6 +3105,22 @@ class CorrallingRouter:
             f"expert_{i} ({type(self.experts[i]).__name__})": float(w) 
             for i, w in enumerate(self.weights)
         }
+    
+    def add_model(self, model_id: str) -> None:
+        """
+        Add model to the internal list (for dynamic model registration).
+        
+        Note: Experts must be updated separately via their own add_model() methods.
+        This only updates the Corralling manager's model list and selection counters.
+        
+        Args:
+            model_id: New model identifier
+        """
+        if model_id not in self.models:
+            self.models.append(model_id)
+            # Initialize selection counter for new model
+            self.selections[model_id] = 0
+            logger.debug(f"✅ Added {model_id} to Corralling model list")
 
 
 # ---------------------------------------------------------------------------
@@ -3953,6 +3439,29 @@ class CostAwareLinUCBRouter:
         self.A[model] += context @ context.T
         self.b[model] += reward * context.flatten()
         self.t += 1
+    
+    def add_model(self, model_id: str, A: np.ndarray, b: np.ndarray, normalized_cost: float) -> None:
+        """
+        Dynamically register a new model with specific priors (for Corralling integration).
+        
+        This enables dynamic model admission at runtime while maintaining semantic transfer.
+        Called by BanditRouter.register_model() after semantic bootstrapping.
+        
+        Args:
+            model_id: New model identifier
+            A: Initial Precision matrix (d x d) from semantic transfer
+            b: Initial Moment vector (d,) from semantic transfer  
+            normalized_cost: Cost penalty in [0, 1]
+        """
+        # Note: model_id may already be in self.models if experts share the list with main bandit
+        # Always update A/b matrices even if model_id exists in list
+        if model_id not in self.models:
+            self.models.append(model_id)
+            
+        self.A[model_id] = A.copy()
+        self.b[model_id] = b.copy()
+        self.model_costs[model_id] = {"normalized_cost": normalized_cost}
+        logger.debug(f"✅ Added {model_id} to Warmup Expert with transferred priors (||A||_F={np.linalg.norm(A):.1f})")
 
 
 class CostAwareTabulaRasaRouter:
@@ -4063,6 +3572,35 @@ class CostAwareTabulaRasaRouter:
         self.A[model] += context @ context.T
         self.b[model] += reward * context.flatten()
         self.t += 1
+    
+    def add_model(self, model_id: str, normalized_cost: float) -> None:
+        """
+        Dynamically register a new model with cold-start state (for Corralling integration).
+        
+        This enables the Tabula Rasa expert to route to newly added models.
+        Initializes with ridge regularization (Identity matrix) for maximum plasticity.
+        
+        Args:
+            model_id: New model identifier
+            normalized_cost: Cost penalty in [0, 1]
+        """
+        # Note: model_id may already be in self.models if experts share the list with main bandit
+        # Always update A/b matrices even if model_id exists in list
+        if model_id not in self.models:
+            self.models.append(model_id)
+        
+        # Initialize with Ridge Regularization (Identity) - pure online learning
+        # Infer dimension from existing matrices
+        if self.A:
+            dim = list(self.A.values())[0].shape[0]
+        else:
+            # Fallback if no models exist yet (shouldn't happen in practice)
+            dim = 33  # context_dim + 1 (typical for experiments)
+        
+        self.A[model_id] = self.ridge_lambda * np.eye(dim)
+        self.b[model_id] = np.zeros(dim)
+        self.model_costs[model_id] = {"normalized_cost": normalized_cost}
+        logger.debug(f"✅ Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")
     
     def add_model_with_semantic_transfer(self, new_model_id: str, semantic_neighbor_id: str = None):
         """

@@ -1,5 +1,5 @@
 # Production imports
-from .router import BanditRouter, OptimizationProfile, ExplorationRate, RouterConfig, sigmoid
+from .router import BanditRouter, ExplorationRate, RouterConfig
 from .feature_service import FeatureService
 
 # Note: RouterConfig is the production @dataclass from router.py
@@ -7,9 +7,9 @@ from .feature_service import FeatureService
 
 try:
     from .cluster_detector import ClusterDetector
-    __all__ = ["BanditRouter", "OptimizationProfile", "ExplorationRate", "RouterConfig", "sigmoid", "FeatureService", "ClusterDetector"]
+    __all__ = ["BanditRouter", "ExplorationRate", "RouterConfig", "FeatureService", "ClusterDetector"]
 except ImportError:
-    __all__ = ["BanditRouter", "OptimizationProfile", "ExplorationRate", "RouterConfig", "sigmoid", "FeatureService"]
+    __all__ = ["BanditRouter", "ExplorationRate", "RouterConfig", "FeatureService"]
 
 
 # DEPRECATED: Legacy BanditGPT support for backward compatibility

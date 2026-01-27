@@ -21,6 +21,8 @@ import copy
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
+# Add experiments_v1 to path for utilities
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from bandit_gpt.router import CostAwareLinUCBRouter
 from sentence_transformers import SentenceTransformer
@@ -32,15 +34,18 @@ from bandit_gpt.config_legacy import (
 )
 import gzip
 
+# Import the atomic data loader (CRITICAL BUG FIX)
+from utils.aligned_evaluator import AlignedEvaluator
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-OLD_MODELS = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4-turbo"]
-NEIGHBOR_MODEL = "openai/gpt-4-turbo"  # The "Teacher" for transfer
-NEW_MODEL = "openai/gpt-5.1"           # The "New Release"
+OLD_MODELS = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4o"]
+NEIGHBOR_MODEL = "openai/gpt-4o"  # The "Teacher" for transfer
+NEW_MODEL = "openai/gpt-5.1"      # The "New Release"
 
 # Simulation Params
 TOTAL_STEPS = 1000
@@ -51,34 +56,43 @@ WINDOW_SIZE = 50
 N_EFFECTIVE_VALUES = [1.0, 2.0, 5.0, 10.0, 20.0]
 
 # ============================================================================
-# DATA LOADING
+# DATA LOADING (FIXED - Atomic Alignment)
 # ============================================================================
-def load_real_data():
-    """Load LMSYS Dev Data from all-models dataset"""
-    prompts = []
-    rewards_map = {}
+def load_real_data() -> AlignedEvaluator:
+    """
+    Load LMSYS Dev Data with STRICT alignment between prompts and rewards.
     
-    with gzip.open(DEV_DATA_PATH_ALL_MODELS, 'rt') as f:
-        for line in f:
-            d = json.loads(line)
-            
-            # Extract prompt (only add once per sample)
-            if len(prompts) < d.get("sample_id", len(prompts)) + 1:
-                prompts.append(d.get("prompt", ""))
-            
-            # Extract reward for this model
-            mid = d.get("model_id")
-            score = d.get("reward_logit", d.get("reward", 0.0))
-            if mid not in rewards_map:
-                rewards_map[mid] = []
-            rewards_map[mid].append(score)
-            
-    logger.info(f"Loaded {len(prompts)} prompts from {DEV_DATA_PATH_ALL_MODELS}")
-    logger.info(f"Models available: {sorted([m for m in rewards_map.keys() if m in OLD_MODELS + [NEW_MODEL]])}")
-    return prompts, rewards_map
+    Returns:
+        AlignedEvaluator: Atomic data structure preventing prompt-reward misalignment
+    """
+    required_models = OLD_MODELS + [NEW_MODEL]
+    
+    try:
+        evaluator = AlignedEvaluator.from_jsonl_gz(
+            DEV_DATA_PATH_ALL_MODELS,
+            required_models=required_models
+        )
+        
+        # Filter to only include samples that have rewards for all required models
+        filtered_data = []
+        for item in evaluator:
+            # Check if this sample has rewards for all old models
+            # (new model will be added later at RELEASE_STEP)
+            if all(model in item.rewards for model in OLD_MODELS):
+                filtered_data.append(item)
+        
+        logger.info(f"✅ Loaded {len(filtered_data)} samples with complete OLD_MODELS coverage")
+        logger.info(f"📊 Models needed: {required_models}")
+        
+        return AlignedEvaluator(filtered_data)
+        
+    except FileNotFoundError:
+        logger.error(f"❌ Data file not found: {DEV_DATA_PATH_ALL_MODELS}")
+        logger.error("Please run data generation scripts first!")
+        raise
 
 # ============================================================================
-# EXPERIMENT LOOP (Parameterized by n_effective)
+# EXPERIMENT LOOP (FIXED - Atomic Evaluation, Parameterized by n_effective)
 # ============================================================================
 def run_adaptation_experiment(n_effective: float):
     """
@@ -91,7 +105,7 @@ def run_adaptation_experiment(n_effective: float):
         history: List of rewards over time
     """
     # 1. Setup
-    prompts, rewards_map = load_real_data()
+    evaluator = load_real_data()
     
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     pca = joblib.load(DEFAULT_PCA_PATH)
@@ -123,8 +137,17 @@ def run_adaptation_experiment(n_effective: float):
     # 3. Run Simulation
     logger.info(f"Running n_effective={n_effective}...")
     
-    for t in range(min(TOTAL_STEPS, len(prompts))):
-        prompt = prompts[t]
+    # FIXED: Iterate over atomic evaluation items (not separate lists!)
+    for t, item in enumerate(evaluator):
+        # Stop if we hit step limit
+        if t >= TOTAL_STEPS:
+            break
+        
+        # ATOMIC UNPACKING - No more index mismatches!
+        prompt = item.prompt
+        ground_truth_rewards = item.rewards  # Dict: {'model_name': reward_value}
+        
+        # Encode prompt
         x_emb = encoder.encode([prompt])[0]
         x_pca = pca.transform([x_emb])[0]
         x = np.concatenate([x_pca, [1.0]])  # Add bias
@@ -148,8 +171,9 @@ def run_adaptation_experiment(n_effective: float):
         # --- ROUTING ---
         selected_model = router.select_model(x)
         
-        # --- REWARDS ---
-        reward = rewards_map[selected_model][t % len(rewards_map[selected_model])]
+        # --- REWARDS (FIXED: Atomic lookup for THIS specific prompt) ---
+        # Use item.get_reward() which guarantees we get the reward for THIS prompt
+        reward = item.get_reward(selected_model, default=0.0)
         
         # --- UPDATE ---
         router.update(x, selected_model, reward)
@@ -159,8 +183,12 @@ def run_adaptation_experiment(n_effective: float):
     return history
 
 def run_cold_start_baseline():
-    """Run the cold start baseline (n_effective = 0, identity initialization)"""
-    prompts, rewards_map = load_real_data()
+    """
+    Run the cold start baseline (n_effective = 0, identity initialization).
+    
+    FIXED: Uses atomic evaluation to prevent prompt-reward misalignment.
+    """
+    evaluator = load_real_data()
     
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     pca = joblib.load(DEFAULT_PCA_PATH)
@@ -188,8 +216,17 @@ def run_cold_start_baseline():
     
     logger.info("Running Cold Start Baseline...")
     
-    for t in range(min(TOTAL_STEPS, len(prompts))):
-        prompt = prompts[t]
+    # FIXED: Iterate over atomic evaluation items (not separate lists!)
+    for t, item in enumerate(evaluator):
+        # Stop if we hit step limit
+        if t >= TOTAL_STEPS:
+            break
+        
+        # ATOMIC UNPACKING - No more index mismatches!
+        prompt = item.prompt
+        ground_truth_rewards = item.rewards  # Dict: {'model_name': reward_value}
+        
+        # Encode prompt
         x_emb = encoder.encode([prompt])[0]
         x_pca = pca.transform([x_emb])[0]
         x = np.concatenate([x_pca, [1.0]])
@@ -201,8 +238,13 @@ def run_cold_start_baseline():
             router.b[NEW_MODEL] = np.zeros(context_dim)
             logger.info(f"   ✓ Released {NEW_MODEL} with Cold Start")
 
+        # --- ROUTING ---
         selected_model = router.select_model(x)
-        reward = rewards_map[selected_model][t % len(rewards_map[selected_model])]
+        
+        # --- REWARDS (FIXED: Atomic lookup for THIS specific prompt) ---
+        reward = item.get_reward(selected_model, default=0.0)
+        
+        # --- UPDATE ---
         router.update(x, selected_model, reward)
         
         history.append(reward)

@@ -8,49 +8,74 @@ To evaluate the system's agility in a production environment where new models ar
 
 \subsubsection{Experimental Design}
 
-We compared two admission strategies for integrating the new model:
+We evaluated the system through two complementary experiments:
+
+\paragraph{Ablation Study (Figure~\ref{fig:ablation-study}).} 
+We compared three initialization strategies to isolate the contribution of each component:
 
 \begin{itemize}
-    \item \textbf{Baseline (Cold Start):} The standard LinUCB initialization ($\mathbf{A}=\lambda \mathbf{I}, \mathbf{b}=\vec{0}$), which treats the new model as a complete unknown.
+    \item \textbf{Cold Start (Red):} No warmup priors. All models initialized with $\mathbf{A}=\lambda \mathbf{I}, \mathbf{b}=\vec{0}$. Pure online learning from scratch.
     
-    \item \textbf{Proposed (Latent Semantic Transfer):} Our method, which identifies the nearest semantic neighbor (GPT-4-Turbo) via embedding similarity and bootstraps the new model's preference vector ($\theta_{\text{new}} \leftarrow \theta_{\text{neighbor}}$) while resetting its confidence ($\mathbf{A}_{\text{new}} \leftarrow \lambda \mathbf{I}$).
+    \item \textbf{Warmup Only (Orange):} Existing models (Mixtral, GPT-4-Turbo) initialized with 80k LMSys Arena battle priors. New model (GPT-5.1) added cold at $t=300$ with no transfer.
+    
+    \item \textbf{Warmup + Semantic Transfer (Green):} Existing models use warmup priors. New model inherits preference vector from semantic neighbor: $\theta_{\text{GPT-5.1}} \leftarrow \theta_{\text{GPT-4-Turbo}}$ while resetting confidence ($\mathbf{A}_{\text{new}} \leftarrow \lambda \mathbf{I}$).
+\end{itemize}
+
+\paragraph{Production Router (Figure~\ref{fig:adaptive-efficiency}).}
+We evaluate the complete production system with the \textbf{Heterogeneous Experts Strategy}. The router employs two specialized experts managed by a Corralling meta-learner:
+
+\begin{itemize}
+    \item \textbf{Conservative Expert (Blue):} Decaying exploration ($\alpha: 1.0 \to 0.01$). Optimizes for exploitation efficiency during stable periods.
+    
+    \item \textbf{Adaptive Expert (Red):} Constant exploration ($\alpha = 2.0$). Maintains vigilance for distribution shifts and new model releases.
+    
+    \item \textbf{Meta-Learner:} Corralling algorithm dynamically adjusts expert weights based on cumulative regret, automatically switching between efficiency and exploration modes.
 \end{itemize}
 
 \subsubsection{Result Analysis}
 
-Figure~\ref{fig:zero-shot-readiness} reveals a stark contrast in adaptive efficiency:
+\paragraph{Ablation Study Results (Figure~\ref{fig:ablation-study}).} 
+The three-way comparison reveals the incremental value of each component:
 
-\paragraph{The Cold Start Dip (Red Line).} 
-Upon the release of the new model at $t=300$, the baseline router suffers a catastrophic performance regression, with average reward plummeting from $3.3 \to 1.7$. Because the router has high uncertainty ($\alpha$) and zero prior knowledge, it is forced to ``explore'' the new model on tasks where it fails, effectively relearning the decision boundary from scratch. It takes approximately 500 steps to recover to pre-release performance levels.
+\textit{Cold Start (Red):} Suffers catastrophic performance regression at $t=300$, plummeting from average reward 3.3 to 1.7. The router explores the new model blindly, leading to poor task assignments. Recovery requires $\sim$500 steps.
 
-\paragraph{Zero-Shot Readiness (Green Line).} 
-The banditGPT router exhibits no performance dip. By inheriting the ``intuition'' of its semantic neighbor, it immediately utilizes the new model effectively, maintaining a high average reward of $\sim$4.5 from the first timestep after release. This represents a \textbf{$2.8\times$ performance advantage} during the critical adaptation window ($t=300$ to $t=500$).
+\textit{Warmup Only (Orange):} Warmup priors improve burn-in performance during $t=0$-$300$ (faster convergence to optimal model). However, at model release ($t=300$), performance still dips because GPT-5.1 starts cold. Recovery is faster than pure cold start ($\sim$300 steps) because existing models remain strong.
+
+\textit{Warmup + Semantic Transfer (Green):} Exhibits \textbf{zero performance dip} at model release. By inheriting preferences from GPT-4-Turbo, the router immediately exploits GPT-5.1 on relevant tasks. Maintains high reward ($\sim$4.5) from the first timestep after release. Semantic transfer provides a \textbf{$2.8\times$ performance advantage} over cold start during the critical adaptation window ($t=300$ to $t=500$).
+
+\paragraph{Production Router Results (Figure~\ref{fig:adaptive-efficiency}).} 
+The heterogeneous experts strategy demonstrates automatic regime adaptation:
+
+\textit{Stable Period ($t=0$-$300$):} Conservative expert (blue) dominates, reaching 85\% weight by $t=300$. Its decaying alpha ($\alpha \to 0.01$) efficiently exploits warmup priors. Adaptive expert (red) remains active but downweighted (15\%), providing vigilance without excessive cost.
+
+\textit{Model Release ($t=300$):} Conservative expert receives transferred knowledge from GPT-4-Turbo via semantic transfer. With $\alpha=0.01$ (pure exploitation), it immediately leverages the transfer for zero-shot GPT-5.1 usage. No performance dip observed.
+
+\textit{Expert Weight Dynamics:} Meta-learner maintains trust in conservative expert post-release (weight remains $\sim$85\%), validating that semantic transfer was successful. Adaptive expert provides exploration backup but is not needed due to effective transfer.
 
 \paragraph{Mechanism of Action.} 
-This stability validates our ``Preference-Confidence Decoupling'' strategy. By transferring the preference vector ($\theta$) but resetting the precision matrix ($\mathbf{A}$), the router starts with a strong hypothesis (``this model is likely good at Math'') but loose confidence intervals (``but I need to verify''). This allows it to exploit the new model immediately while retaining the plasticity to correct any divergences from the neighbor.
+This stability validates our \textbf{Preference-Confidence Decoupling} strategy combined with \textbf{Heterogeneous Exploration}. By transferring the preference vector ($\theta$) but resetting the precision matrix ($\mathbf{A}$), the router starts with a strong hypothesis (``GPT-5.1 likely excels at Math, like GPT-4-Turbo'') but loose confidence intervals (``but I need to verify''). The conservative expert exploits this prior immediately, while the adaptive expert provides a safety net if the transfer fails.
 
 \subsubsection{Practical Implications}
 
-This result has significant implications for production systems:
+These results have significant implications for production systems:
 
 \begin{enumerate}
-    \item \textbf{Cost Savings:} The 500-step recovery period in the Cold Start condition represents wasted API calls and degraded user experience. At scale (millions of queries per day), this translates to substantial cost and quality-of-service penalties.
+    \item \textbf{Cost Savings:} The 500-step recovery period in Cold Start represents wasted API calls and degraded user experience. At scale (millions of queries per day), this translates to substantial cost and quality-of-service penalties. Semantic transfer eliminates this adaptation tax.
     
-    \item \textbf{Continuous Deployment:} The ability to integrate new models without performance regression enables continuous model portfolio updates, allowing operators to immediately capitalize on improvements in the frontier model landscape.
+    \item \textbf{Continuous Deployment:} Zero-shot readiness enables continuous model portfolio updates. Operators can immediately capitalize on new model releases (e.g., GPT-5) without retraining or performance regression.
     
-    \item \textbf{Robustness to Model Churn:} As model providers deprecate older APIs (e.g., GPT-4 $\to$ GPT-4-Turbo $\to$ GPT-4o), the semantic transfer mechanism ensures seamless transitions without retraining.
+    \item \textbf{Automatic Regime Adaptation:} The heterogeneous experts strategy removes the need for manual hyperparameter tuning. The meta-learner automatically switches between efficiency (stable periods) and exploration (distribution shifts) based on real-time performance.
+    
+    \item \textbf{Robustness to Model Churn:} As providers deprecate APIs (e.g., GPT-4 $\to$ GPT-4-Turbo $\to$ GPT-4o), semantic transfer ensures seamless transitions. The adaptive expert provides backup vigilance if transferred knowledge degrades.
+    
+    \item \textbf{Production-Ready Safety:} Unlike homogeneous strategies (uniform alpha decay) that risk ``brain death'' in non-stationary environments, the heterogeneous approach maintains exploration capacity through the adaptive expert while optimizing efficiency through the conservative expert.
 \end{enumerate}
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\columnwidth]{experiments_v1/06_figure/results/figure6_adaptive_efficiency.png}
-    \caption{\textbf{Zero-Shot Readiness via Latent Semantic Transfer.} When a new model (GPT-5.1) is released at $t=300$, the baseline Cold Start approach (red) suffers a catastrophic performance drop from 3.3 to 1.7, requiring 500 steps to recover. In contrast, our Latent Semantic Transfer method (green) maintains high performance ($\sim$4.5) by inheriting learned preferences from the semantically similar GPT-4-Turbo. The dashed vertical line marks the model release event. This demonstrates the router's ability to adapt to new models without the exploration penalty that plagues traditional bandit algorithms.}
-    \label{fig:zero-shot-readiness}
-\end{figure}
+%% Figure moved to top of section - see figure6_caption.tex
 
-\subsubsection{Algorithm: Semantic Transfer Initialization}
+\subsubsection{Algorithm: Semantic Transfer with Heterogeneous Experts}
 
-Algorithm~\ref{alg:semantic-transfer} formalizes the new model admission procedure.
+Algorithm~\ref{alg:semantic-transfer} formalizes the new model admission procedure used by both experts in the Corralling architecture.
 
 \begin{algorithm}[t]
 \caption{Semantic Transfer for New Model Admission}
@@ -84,13 +109,15 @@ We set $N_{\text{eff}} = 5.0$, reflecting the belief that the semantic neighbor 
 
 \subsubsection{Theoretical Justification}
 
-The efficacy of semantic transfer rests on two empirical observations:
+The efficacy of our approach rests on three key principles:
 
 \begin{enumerate}
-    \item \textbf{Task-Capability Correlation:} Models with similar architectures/training exhibit correlated performance across task types. For example, GPT-4-Turbo and GPT-5.1 both excel at reasoning tasks (Math, Code) but may struggle with creative writing compared to Claude-3.5-Sonnet.
+    \item \textbf{Task-Capability Correlation:} Models with similar architectures/training exhibit correlated performance across task types. For example, GPT-4-Turbo and GPT-5.1 both excel at reasoning tasks (Math, Code) but may struggle with creative writing compared to Claude-3.5-Sonnet. This justifies semantic transfer.
     
-    \item \textbf{Semantic Embedding Validity:} The SentenceTransformer embeddings of model descriptions capture meaningful distinctions in capability profiles. Our ablation study (Appendix~\ref{app:ablation-semantic}) shows that embedding-based neighbor selection outperforms random neighbor selection by $37\%$ in post-release regret.
+    \item \textbf{Semantic Embedding Validity:} SentenceTransformer embeddings of model descriptions capture meaningful capability distinctions. Embedding-based neighbor selection outperforms random selection by $37\%$ in post-release regret.
+    
+    \item \textbf{Heterogeneous Exploration Principle:} In non-stationary environments, no single exploration schedule is universally optimal. The Corralling meta-learner (Agarwal et al., 2017) provides sublinear regret guarantees by adaptively combining expert policies. Our heterogeneous strategy instantiates this framework with complementary exploration philosophies.
 \end{enumerate}
 
-The transferred preference vector $\theta^*$ encodes the \textit{latent task affinity} learned from the neighbor, providing a warm start that is calibrated to the task distribution but remains correctable through online updates.
+The transferred preference vector $\theta^*$ encodes the \textit{latent task affinity} learned from the neighbor, providing a warm start that is calibrated to the task distribution. The conservative expert ($\alpha \to 0.01$) immediately exploits this knowledge, while the adaptive expert ($\alpha = 2.0$) provides a corrective mechanism if the transfer degrades. The meta-learner automatically reweights experts based on observed regret, ensuring robustness without manual intervention.
 
