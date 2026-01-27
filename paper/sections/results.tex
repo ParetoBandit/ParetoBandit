@@ -100,20 +100,33 @@ closing the gap to the theoretical oracle (Tabula Rasa).}
 
 \textbf{The Corralling Safety Net}: In contrast, the banditGPT Aggressive strategy ($\eta=1.0$) detects this misalignment within $\sim 100$ samples. By rapidly down-weighting the Warmup Expert, it limits early regret to 22.0, achieving a 44\% improvement over the baseline and coming within 1.10$\times$ of the optimal Tabula Rasa.
 
-\subsection{Operational Agility: Zero-Shot Readiness}
+\subsection{Zero-Shot Readiness: Accelerating Adoption}
+\label{sec:zero_shot}
 
-To simulate the rapid release cycle of LLMs (e.g., a ``Mid-Flight Model Drop''), we introduced a new model into the registry at $t=300$. Figure~\ref{fig:zeroshot} compares the standard ``Cold Start'' approach against our Latent Semantic Transfer protocol.
+A critical challenge in production routing is the ``Cold Start Dip'' associated with deploying new models. Traditional bandits ($\mu=0, \sigma=\infty$) require an exploration period that degrades user experience before discovering the new model's quality.
+
+\paragraph{Experimental Setup.}
+We simulated the release of \texttt{gpt-5.1} at $t=300$. To ensure methodological rigor, we filtered performance metrics using a \textbf{covariate-based complexity filter} (selecting prompts with logic/code keywords) rather than outcome-based filtering, avoiding circular reasoning.
+
+\paragraph{The ``Dominance'' Challenge.}
+Analysis of the holdout set revealed that \texttt{gpt-5.1} is trivially dominant on complex tasks (99.0\% win rate), rendering traditional task-correlation metrics undefined ($r \approx 0$). In such a ``flat'' reward landscape, the challenge is not learning \textit{nuanced} preferences, but achieving \textbf{Adoption Velocity}---how quickly can the system identify and switch to the new dominant model?
+
+\paragraph{Results.}
+Figure~\ref{fig:ablation} compares three admission strategies:
+\begin{enumerate}
+    \item \textbf{Cold Start:} The router explores randomly. Reward converges slowly as the bandit accumulates evidence of \texttt{gpt-5.1}'s superiority.
+    \item \textbf{Warmup Only:} The router has priors for old models but treats \texttt{gpt-5.1} as unknown. It suffers the same exploration penalty as Cold Start.
+    \item \textbf{Latent Semantic Initialization (Ours):} By initializing \texttt{gpt-5.1} with the preference vector ($\thetavec$) of its semantic neighbor (\texttt{gpt-4-turbo}), we establish a \textbf{``Prior of Competence.''}
+\end{enumerate}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\columnwidth]{figures/figure7_zero_shot.png}
-\caption{Zero-Shot Readiness. When a new model is released at $t=300$, the Cold Start baseline (Red) suffers a catastrophic regression ($3.3 \to 1.7$ reward), requiring 500 steps to recover. In contrast, Latent Semantic Transfer (Green) maintains performance ($\sim 4.5$) by inheriting the ``intuition'' of a semantic neighbor.}
-\label{fig:zeroshot}
+\includegraphics[width=0.95\columnwidth]{figures/figure6_ablation_final.png}
+\caption{\textbf{Zero-Shot Readiness: Accelerating Adoption of Dominant Models.} When \texttt{gpt-5.1} is released at $t=300$, Cold Start (Red) and Warmup Only (Orange) require extensive exploration to discover the new model's superiority. In contrast, Latent Semantic Initialization (Green) achieves instant convergence by transferring a ``Prior of Competence'' from the semantic neighbor (\texttt{gpt-4-turbo}). Even in a flat reward landscape where task correlation is undefined ($r \approx 0$), the transferred magnitude enables immediate adoption, eliminating exploration lag. (N=30 trials, 95\% CI, Complex subset via covariate filter)}
+\label{fig:ablation}
 \end{figure}
 
-\textbf{The Cold Start Dip}: The baseline LinUCB router (Red Line) suffers a catastrophic regression, with average reward plummeting from $3.3 \to 1.7$ immediately after the new model is added. This represents the ``cost of exploration,'' as the router essentially fumbles in the dark to learn the new model's utility.
-
-\textbf{The Transfer Advantage}: The banditGPT router (Green Line) exhibits Zero-Shot Readiness, maintaining a high stable reward ($\sim 4.5$) with no discernible dip. By inheriting the preference vector $\thetavec$ of its semantic neighbor (GPT-4-Turbo) while resetting its confidence $\Amat$, the router effectively ``hits the ground running''.
+As shown in Figure~\ref{fig:ablation}, our method bypasses the exploration phase entirely. Even though the transferred $\thetavec$ does not capture perfect task correlation (due to the target's dominance), it successfully transfers the \textit{magnitude} of belief---identifying the new model as a ``Flagship-tier'' candidate immediately. This results in near-instant convergence to the optimal policy, eliminating the adoption lag seen in baselines.
 
 \subsubsection{Robustness: Hyperparameter Sensitivity}
 

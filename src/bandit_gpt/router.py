@@ -2471,6 +2471,7 @@ class BanditRouter:
         quality_floor: Dict[str, float | None] = None,
         input_tokens: int | None = None,
         output_tokens: int = 600,
+        total_steps: int = 1,
     ) -> Tuple[str, RoutingLog]:
         """
         Route a prompt to the best model using Corralling (meta-learning over experts).
@@ -2497,6 +2498,7 @@ class BanditRouter:
             quality_floor: Minimum quality scores per model
             input_tokens: Input token count (auto-estimated if None)
             output_tokens: Expected output tokens (default 600)
+            total_steps: Total training steps for alpha decay (default 1 for production use)
         
         Returns:
             Tuple of (selected_model_id, routing_log)
@@ -2513,10 +2515,10 @@ class BanditRouter:
         
         # Use Corralling if enabled, otherwise fall back to simple LinUCB
         if self.use_corralling and self.corralling_router is not None:
-            # [FIX] Pass a large total_steps to keep alpha high (no decay)
-            # Setting total_steps=1 ensures experts use alpha_end (which is now 2.0 after fix)
-            # For continuous high exploration, we want alpha_start=alpha_end=2.0
-            best_model = self.corralling_router.select_model(x, total_steps=1)
+            # Pass total_steps to enable proper alpha decay in experts
+            # For experiments: Pass actual timestep for decay schedule
+            # For production: Default total_steps=1 uses alpha_end (stable exploitation)
+            best_model = self.corralling_router.select_model(x, total_steps=total_steps)
             best_utility = 0.0  # Placeholder, corralling doesn't expose utility
         else:
             # Fallback: Simple LinUCB selection (UCB only, no cost penalty)
