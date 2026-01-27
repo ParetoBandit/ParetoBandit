@@ -12,7 +12,7 @@ Note: Since we don't have reward evaluations for all 1M prompts, we focus on
 spatial clustering rather than reward gap analysis.
 
 Usage:
-    python3 experiments_v1/01_figure_1M/plot_lmsys_1M_pca.py
+    python3 experiments_v1/01_figure/plot_lmsys_1M_pca.py
 """
 
 import sys
@@ -304,7 +304,7 @@ def main():
     if not data_file.exists():
         print(f"\n❌ Data file not found: {data_file}")
         print(f"\n💡 Run download script first:")
-        print(f"   python experiments_v1/01_figure_1M/download_1M_dataset.py")
+        print(f"   python experiments_v1/01_figure/download_1M_dataset.py")
         return
     
     if not pca_file.exists():

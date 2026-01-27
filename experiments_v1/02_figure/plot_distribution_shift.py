@@ -16,7 +16,7 @@ The Proof: If the RouteLLM density is shifted toward the "Easy" cluster
 compared to the Prior data, we have visual proof of Covariate Shift.
 
 Usage:
-    python3 experiments_v1/01.5_figure/plot_distribution_shift.py
+    python3 experiments_v1/02_figure/plot_distribution_shift.py
 """
 
 import sys

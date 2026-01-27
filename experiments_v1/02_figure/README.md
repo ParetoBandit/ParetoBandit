@@ -50,7 +50,7 @@ The first principal component (PC1) captures the most variance in the semantic e
 ### Basic Usage
 
 ```bash
-python3 experiments_v1/01.5_figure/plot_distribution_shift.py
+python3 experiments_v1/02_figure/plot_distribution_shift.py
 ```
 
 ### Prerequisites

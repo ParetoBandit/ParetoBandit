@@ -9,7 +9,7 @@ The lmsys-chat-1m dataset contains real-world conversations from the Vicuna demo
 and Chatbot Arena website collected from April to August 2023.
 
 Usage:
-    python3 experiments_v1/01_figure_1M/download_1M_dataset.py
+    python3 experiments_v1/01_figure/download_1M_dataset.py
 """
 
 import sys
@@ -159,7 +159,7 @@ def download_and_process_lmsys_1M():
     
     print("\n📋 Next steps:")
     print(f"   1. Run PCA analysis:")
-    print(f"      python experiments_v1/01_figure_1M/plot_lmsys_1M_pca.py")
+    print(f"      python experiments_v1/01_figure/plot_lmsys_1M_pca.py")
     print("="*80)
 
 
