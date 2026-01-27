@@ -1,26 +1,22 @@
-% Figure 3: Corralled Architecture (Updated for Technical Fairness)
+% Figure 3: Corralled Architecture with Heterogeneous Alpha Strategy
 % Hierarchical coordinator-expert system for adaptive model routing
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\textwidth]{experiments_v1/03_figure/results/figure3_corralled_architecture.pdf}
+    \includegraphics[width=0.85\textwidth]{experiments_v1/03_figure/results/figure3_corralled_architecture_corrected.pdf}
     \caption{%
-        \textbf{Corralled Architecture: Hierarchical Coordination of Warmup and Tabula Rasa Experts.}
-        The banditGPT system implements a \textbf{coordinator-expert hierarchy} where a meta-controller dynamically allocates trust between two complementary routing strategies.
+        \textbf{Corralled Architecture with Heterogeneous $\alpha$-Schedules.}
+        The system implements a \textbf{coordinator-expert hierarchy} where a meta-controller dynamically allocates probability mass between two complementary routing experts using the mixed policy $P_t = (1-\gamma)w_t + \gamma/K$, where $\gamma=0.05$ ensures minimum exploration (preventing ``Expert Death'').
         %
-        \textbf{(Top)} The \textit{Coordinator Layer} maintains a trust distribution $\pi_t$ over experts.
-        \textbf{(Middle)} The \textit{Expert Layer} consists of a \textit{Warmup Expert} (initialized with semantic priors) and a \textit{Tabula Rasa Expert} (learning from scratch).
-        \textbf{(Bottom)} The \textit{Feedback Phase} updates the coordinator via importance-weighted losses $\ell = (1-r)/\pi_i$.
+        \textbf{(Top)} The \textit{Coordinator} samples experts according to $P_t(i)$ and updates weights via exponential weighting with learning rate $\eta=0.1$.
         %
-        This design provides \textbf{three key guarantees}:
-        (1)~\textbf{Robustness}---system remains effective even if Warmup priors are misspecified.
-        (2)~\textbf{Fast Convergence}---Warmup expert accelerates early learning.
-        (3)~\textbf{Principled Regret Minimization}---while prioritizing $O(1)$ production latency over strict theoretical compliance, the objective function drives the system toward the optimal policy, achieving low empirical regret relative to the best expert (Figure~\ref{fig:corralling}).
+        \textbf{(Middle)} The \textit{Expert Layer} employs a \textbf{heterogeneous $\alpha$-strategy}:
+        (1)~\textit{Expert 1 (Efficiency Engine)} uses warmup priors from 80k battles with decaying exploration ($\alpha: 1.0 \to 0.01$), optimized for stable environments;
+        (2)~\textit{Expert 2 (Discovery Engine)} starts tabula rasa with constant high exploration ($\alpha = 2.0$), remaining vigilant for distribution shifts and new models.
         %
-        Arrows indicate information flow: dashed lines represent recommendations (expert→coordinator), solid lines represent selections (coordinator→expert), and bold lines represent feedback (environment→both).
+        \textbf{(Bottom)} The \textit{Feedback} phase computes importance-weighted loss $\hat{\ell}_t = (1-r_t)/P_t$ for unbiased coordinator updates.
         %
-        \textit{Note on Values:} The diagram depicts an illustrative snapshot where the Warmup expert retains dominance ($\pi \approx 0.72$), typical of the ``Natural Language'' cluster (Low PC1). However, as shown in the experimental dynamics (Figure~\ref{fig:corralling}), the aggressive learning rate ($\eta=1.0$) allows the system to rapidly invert these weights if the Warmup expert's performance degrades, preventing expert starvation.
+        This design provides \textbf{automatic regime adaptation}: during stable periods, the Efficiency Engine dominates (low regret); during distribution shifts (e.g., GPT-5 release), the Discovery Engine detects changes first, and the Coordinator pivots automatically---no manual tuning required.
     }
     \label{fig:corralled_architecture}
 \end{figure}
-

@@ -122,10 +122,10 @@ class RegistrationConfig:
     # Result: n_eff=1.0 achieves +17.6% vs Cold Start (best among [1,2,5,10,20])
     # Insight: Weak priors preserve exploration; strong priors cause exploitation lock-in
     # Default: 1.0 (optimal balance between transfer and adaptation)
-    n_effective_default: float = 1.0
-    n_effective_high_similarity: float = 1.0  # sim > 0.8 (strong match, avoid over-confidence)
-    n_effective_medium_similarity: float = 1.0  # sim 0.6-0.8 (moderate match)
-    n_effective_low_similarity: float = 1.0  # sim < 0.6 (weak match)
+    n_effective_default: float = 0.1
+    n_effective_high_similarity: float = 0.1  # sim > 0.8 (strong match, avoid over-confidence)
+    n_effective_medium_similarity: float = 0.1  # sim 0.6-0.8 (moderate match)
+    n_effective_low_similarity: float = 0.1  # sim < 0.6 (weak match)
 
 @dataclass
 class RouterConfig:
@@ -1582,7 +1582,7 @@ class BanditRouter:
         bandit: 'DisjointLinUCBPolicy',
         encoder,  # SentenceTransformer or compatible encoder
         alpha: float = 0.8,  # DEPRECATED: kept for API compatibility
-        n_effective: float = 5.0,  # Tunable prior strength (pseudocount of observations)
+        n_effective: float = 0.1,  # Tunable prior strength (pseudocount of observations)
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Bootstrap a new model's (A, b) from its nearest neighbor in embedding space.
