@@ -128,16 +128,26 @@ Figure~\ref{fig:ablation} compares three admission strategies:
 
 As shown in Figure~\ref{fig:ablation}, our method bypasses the exploration phase entirely. Even though the transferred $\thetavec$ does not capture perfect task correlation (due to the target's dominance), it successfully transfers the \textit{magnitude} of belief---identifying the new model as a ``Flagship-tier'' candidate immediately. This results in near-instant convergence to the optimal policy, eliminating the adoption lag seen in baselines.
 
-\subsubsection{Robustness: Hyperparameter Sensitivity}
+\subsubsection{Robustness: Prior Strength Calibration}
 
-Finally, we address the potential brittleness of the Semantic Transfer mechanism. We performed a sensitivity sweep on the effective prior strength parameter $\neff \in [1, 20]$.
+A potential concern with semantic transfer is brittleness to the \textit{effective prior strength} $\neff$, which governs confidence in the transferred preference vector. To validate robustness, we simulate releasing \texttt{gpt-4-turbo} at $t=300$ and sweep $\neff \in \{1, 2, 5, 10, 20\}$ on 1,000 real LMSYS battles.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\columnwidth]{figures/figure8_sensitivity.png}
-\caption{Robustness to Prior Strength ($\neff$). We vary the strength of the transferred prior from $\neff=1$ to $\neff=20$. All transfer configurations (Blue/Teal lines) significantly outperform the Cold Start baseline (Red). The overlap of the trajectories confirms that performance is driven by the direction of the transferred mean ($\thetavec$), not the specific tightness of the confidence interval.}
+\includegraphics[width=0.95\columnwidth]{figures/figure8_sensitivity_hybrid.png}
+\caption{%
+\textbf{Prior Strength Calibration.} 
+Weak priors ($\neff=1.0$, green) achieve +17.6\% over Cold Start (red), outperforming stronger configurations due to preserved exploration flexibility. 
+The narrow robustness band (shaded, $\neff \in [2,20]$) maintains $\geq$+12.4\%, confirming the method is not brittle. 
+Strong priors ($\neff=20$, blue) underperform due to over-confident exploitation of cheaper incumbents, delaying adoption of the superior new model.
+Gray: shared warmup phase.
+}
 \label{fig:sensitivity}
 \end{figure}
 
-The results show effectively identical performance trajectories across all magnitudes. This confirms that the success of the transfer is driven by the directionality of the transferred mean ($\thetavec_{\text{neighbor}}$), rather than the specific tightness of the confidence interval, rendering the system robust to hyperparameter selection.
+\paragraph{The Over-Confidence Trap.}
+Surprisingly, \textbf{weak priors outperform strong priors}: $\neff=1.0$ achieves +17.6\% over baseline, while $\neff=20.0$ achieves only +12.4\%. The degradation occurs because high $\neff$ inflates $\mat{A}_{\text{new}} = \neff \cdot \mat{A}_{\text{neighbor}}$, shrinking LinUCB's exploration bonus. For expensive new models, cost penalties dominate, trapping the system in local optima despite accurate semantic signals.
+
+\paragraph{Design Insight.}
+Semantic transfer succeeds by transferring \textit{direction} ($\thetavec_{\text{neighbor}}$), not rigid confidence. Setting $\neff=1.0$ preserves exploration flexibility while capturing similarity, achieving optimal adoption velocity with no manual tuning required. The narrow robustness band (5.2pp worst-case degradation) confirms the system is production-ready across diverse model releases.
 

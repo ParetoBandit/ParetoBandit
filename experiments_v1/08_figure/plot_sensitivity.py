@@ -1,467 +1,338 @@
 """
-Figure 7: Sensitivity Analysis - Robustness of Prior Strength (n_effective)
+Figure 8: Sensitivity Analysis - Hybrid Visualization (Fixed Determinism)
+=======================================================================
+Visualizes robustness of Prior Strength (n_effective) with strict RNG control.
 
-Addresses KDD Reviewer feedback regarding "Magic Numbers".
-Demonstrates that Latent Semantic Transfer is robust across a wide range of
-prior strengths (n_effective), consistently beating the Cold Start baseline.
-
-Key Question: How sensitive is performance to the choice of n_effective?
-Answer: The method is robust - weak (n=1), balanced (n=5), and strong (n=20) 
-        priors all significantly outperform Cold Start.
+Changes:
+1. FIXED: Added `np.random.seed(seed)` to runners to reset GLOBAL state.
+   - Prevents CorrallingRouter divergence in pre-release phase.
+   - Ensures curves overlap perfectly until t=300 (Scientific Validity).
+2. VISUAL: Hybrid plot showing Optimal, Failure, and Robustness Band.
 """
 
 import sys
-import json
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import logging
-import copy
 
-# Add src to path for imports
+# Add src to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
-# Add experiments_v1 to path for utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from bandit_gpt.router import CostAwareLinUCBRouter
-from sentence_transformers import SentenceTransformer
-import joblib
+from bandit_gpt.router import BanditRouter
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER, 
     DEFAULT_PCA_PATH,
+    DEFAULT_WARMUP_PRIORS_PATH,
     DEV_DATA_PATH_ALL_MODELS
 )
-import gzip
-
-# Import the atomic data loader (CRITICAL BUG FIX)
 from utils.aligned_evaluator import AlignedEvaluator
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-OLD_MODELS = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4o"]
-NEIGHBOR_MODEL = "openai/gpt-4o"  # The "Teacher" for transfer
-NEW_MODEL = "openai/gpt-5.1"      # The "New Release"
+WARMUP_MODELS = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4-turbo"]
+NEW_MODEL = "openai/gpt-5.1"
+NEIGHBOR_MODEL = "openai/gpt-4-turbo"
 
 # Simulation Params
 TOTAL_STEPS = 1000
 RELEASE_STEP = 300
-WINDOW_SIZE = 50
+WINDOW_SIZE = 60
 
 # Sensitivity Sweep Range
 N_EFFECTIVE_VALUES = [1.0, 2.0, 5.0, 10.0, 20.0]
 
 # ============================================================================
-# DATA LOADING (FIXED - Atomic Alignment)
+# EXPERIMENT SETUP
 # ============================================================================
+def create_model_registry(models):
+    all_models = {
+        "mistralai/mixtral-8x7b-instruct": {
+            "input_cost_per_m": 0.5, "output_cost_per_m": 1.5,
+            "description": "Efficient sparse mixture-of-experts model."
+        },
+        "openai/gpt-4-turbo": {
+            "input_cost_per_m": 10.0, "output_cost_per_m": 30.0,
+            "description": "High-intelligence flagship model."
+        },
+        "openai/gpt-5.1": {
+            "input_cost_per_m": 15.0, "output_cost_per_m": 45.0,
+            "description": "Next-generation flagship model."
+        }
+    }
+    return {k: v for k, v in all_models.items() if k in models}
+
 def load_real_data() -> AlignedEvaluator:
-    """
-    Load LMSYS Dev Data with STRICT alignment between prompts and rewards.
-    
-    Returns:
-        AlignedEvaluator: Atomic data structure preventing prompt-reward misalignment
-    """
-    required_models = OLD_MODELS + [NEW_MODEL]
-    
+    required_models = WARMUP_MODELS + [NEW_MODEL]
     try:
         evaluator = AlignedEvaluator.from_jsonl_gz(
             DEV_DATA_PATH_ALL_MODELS,
             required_models=required_models
         )
-        
-        # Filter to only include samples that have rewards for all required models
-        filtered_data = []
-        for item in evaluator:
-            # Check if this sample has rewards for all old models
-            # (new model will be added later at RELEASE_STEP)
-            if all(model in item.rewards for model in OLD_MODELS):
-                filtered_data.append(item)
-        
-        logger.info(f"✅ Loaded {len(filtered_data)} samples with complete OLD_MODELS coverage")
-        logger.info(f"📊 Models needed: {required_models}")
-        
+        filtered_data = [item for item in evaluator if all(m in item.rewards for m in required_models)]
+        logger.info(f"✅ Loaded {len(filtered_data)} samples with complete coverage")
         return AlignedEvaluator(filtered_data)
-        
-    except FileNotFoundError:
-        logger.error(f"❌ Data file not found: {DEV_DATA_PATH_ALL_MODELS}")
-        logger.error("Please run data generation scripts first!")
-        raise
+    except Exception as e:
+        logger.error(f"Failed to load data: {e}")
+        return None
 
 # ============================================================================
-# EXPERIMENT LOOP (FIXED - Atomic Evaluation, Parameterized by n_effective)
+# EXPERIMENT RUNNERS (Fixed RNG)
 # ============================================================================
-def run_adaptation_experiment(n_effective: float):
-    """
-    Run the adaptive efficiency experiment with a specific n_effective value.
+def run_adaptation_experiment(n_effective: float, seed: int = 42):
+    # [FIX] Reset GLOBAL seed for CorrallingRouter determinism
+    np.random.seed(seed) 
     
-    Args:
-        n_effective: Prior strength (number of pseudo-samples worth of confidence)
-    
-    Returns:
-        history: List of rewards over time
-    """
-    # 1. Setup
     evaluator = load_real_data()
+    if not evaluator: return []
     
-    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    pca = joblib.load(DEFAULT_PCA_PATH)
+    # Local RNG for data shuffling
+    rng = np.random.RandomState(seed)
+    indices = np.arange(len(evaluator.data))
+    rng.shuffle(indices)
+    shuffled_data = [evaluator.data[i] for i in indices]
     
-    context_dim = pca.n_components_ + 1
-    
-    # Mock Costs (Normalized)
-    model_costs = {
-        m: {"normalized_cost": 0.1 if "mixtral" in m else 0.5} 
-        for m in OLD_MODELS + [NEW_MODEL]
-    }
-
-    # 2. Initialize Router (Start with OLD_MODELS only)
-    priors_dummy = {"A": {}, "b": {}, "context_dim": context_dim}
-    for m in OLD_MODELS:
-        priors_dummy["A"][m] = np.eye(context_dim)
-        priors_dummy["b"][m] = np.zeros(context_dim)
-
-    router = CostAwareLinUCBRouter(
-        models=list(OLD_MODELS),
-        warmup_priors=copy.deepcopy(priors_dummy),
-        model_costs=model_costs,
-        alpha_start=0.1, alpha_end=0.1, cost_penalty=0.0
+    router = BanditRouter.create(
+        model_registry=create_model_registry(WARMUP_MODELS),
+        context_model=DEFAULT_SENTENCE_TRANSFORMER,
+        priors=str(DEFAULT_WARMUP_PRIORS_PATH),
+        use_corralling=True,
+        corralling_learning_rate=0.1,
+        corralling_gamma=0.05,
+        alpha=2.0,
+        pca_path=DEFAULT_PCA_PATH
     )
     
-    # Metrics
+    # [VERIFICATION] Confirm Corralling is active
+    if router.corralling_router:
+        # Log only if it's the first time seeing this router instance
+        if not hasattr(router, '_logged_corralling'):
+            logger.info("   ✅ Corralling Router ACTIVE with experts: " + 
+                       str([type(e).__name__ for e in router.corralling_router.experts]))
+            router._logged_corralling = True
+    else:
+        logger.error("   ❌ Corralling Router NOT ACTIVE!")
+    
     history = []
     
-    # 3. Run Simulation
-    logger.info(f"Running n_effective={n_effective}...")
-    
-    # FIXED: Iterate over atomic evaluation items (not separate lists!)
-    for t, item in enumerate(evaluator):
-        # Stop if we hit step limit
-        if t >= TOTAL_STEPS:
-            break
+    for t, item in enumerate(shuffled_data):
+        if t >= TOTAL_STEPS: break
         
-        # ATOMIC UNPACKING - No more index mismatches!
-        prompt = item.prompt
-        ground_truth_rewards = item.rewards  # Dict: {'model_name': reward_value}
-        
-        # Encode prompt
-        x_emb = encoder.encode([prompt])[0]
-        x_pca = pca.transform([x_emb])[0]
-        x = np.concatenate([x_pca, [1.0]])  # Add bias
-        
-        # --- THE EVENT: MODEL RELEASE ---
         if t == RELEASE_STEP:
-            # Semantic Transfer with specified n_effective
-            A_neighbor = router.A[NEIGHBOR_MODEL]
-            b_neighbor = router.b[NEIGHBOR_MODEL]
-            theta_neighbor = np.linalg.inv(A_neighbor) @ b_neighbor
+            # Semantic Transfer Logic
+            A_neighbor = router.bandit.A[NEIGHBOR_MODEL].copy()
+            b_neighbor = router.bandit.b[NEIGHBOR_MODEL].copy()
+            theta_neighbor = router.bandit.A_inv[NEIGHBOR_MODEL] @ b_neighbor
             
-            router.models.append(NEW_MODEL)
-            # [KDD FIX] Scale BOTH A and b to preserve mean expectation while scaling confidence
-            # This ensures: theta_hat = (n*I)^-1 @ (n*theta) = theta (mean preserved)
-            # While variance ~ 1/n (confidence increased with n_eff)
-            router.A[NEW_MODEL] = n_effective * np.eye(context_dim)  # Scale Precision
-            router.b[NEW_MODEL] = n_effective * theta_neighbor       # Scale Moment
+            router.bandit.models.append(NEW_MODEL)
+            router.bandit.A[NEW_MODEL] = n_effective * np.eye(router.bandit.dim)
+            router.bandit.b[NEW_MODEL] = n_effective * theta_neighbor
+            router.bandit.A_inv[NEW_MODEL] = np.linalg.inv(router.bandit.A[NEW_MODEL])
+            router.bandit.last_update[NEW_MODEL] = router.bandit.t
             
-            logger.info(f"   ✓ Released {NEW_MODEL} with n_eff={n_effective}")
+            router.registry[NEW_MODEL] = create_model_registry([NEW_MODEL])[NEW_MODEL]
+            
+            if router.corralling_router:
+                router.corralling_router.add_model(NEW_MODEL)
+                for expert in router.corralling_router.experts:
+                    if hasattr(expert, 'add_model'):
+                        expert_type = type(expert).__name__
+                        if 'TabulaRasa' in expert_type:
+                            expert.add_model(NEW_MODEL, 0.5)
+                        else:
+                            transfer_A = n_effective * np.eye(router.bandit.dim)
+                            transfer_b = n_effective * theta_neighbor
+                            expert.add_model(NEW_MODEL, transfer_A, transfer_b, 0.5)
 
-        # --- ROUTING ---
-        selected_model = router.select_model(x)
-        
-        # --- REWARDS (FIXED: Atomic lookup for THIS specific prompt) ---
-        # Use item.get_reward() which guarantees we get the reward for THIS prompt
-        reward = item.get_reward(selected_model, default=0.0)
-        
-        # --- UPDATE ---
-        router.update(x, selected_model, reward)
-        
+        selected, _ = router.route(item.prompt, profile="auto", total_steps=TOTAL_STEPS)
+        reward = item.get_reward(selected, default=0.0)
+        router.update(selected, item.prompt, reward)
         history.append(reward)
         
     return history
 
-def run_cold_start_baseline():
-    """
-    Run the cold start baseline (n_effective = 0, identity initialization).
+def run_cold_start_baseline(seed: int = 42):
+    # [FIX] Reset GLOBAL seed for CorrallingRouter determinism
+    np.random.seed(seed)
     
-    FIXED: Uses atomic evaluation to prevent prompt-reward misalignment.
-    """
     evaluator = load_real_data()
+    if not evaluator: return []
     
-    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    pca = joblib.load(DEFAULT_PCA_PATH)
+    rng = np.random.RandomState(seed)
+    indices = np.arange(len(evaluator.data))
+    rng.shuffle(indices)
+    shuffled_data = [evaluator.data[i] for i in indices]
     
-    context_dim = pca.n_components_ + 1
-    
-    model_costs = {
-        m: {"normalized_cost": 0.1 if "mixtral" in m else 0.5} 
-        for m in OLD_MODELS + [NEW_MODEL]
-    }
-
-    priors_dummy = {"A": {}, "b": {}, "context_dim": context_dim}
-    for m in OLD_MODELS:
-        priors_dummy["A"][m] = np.eye(context_dim)
-        priors_dummy["b"][m] = np.zeros(context_dim)
-
-    router = CostAwareLinUCBRouter(
-        models=list(OLD_MODELS),
-        warmup_priors=copy.deepcopy(priors_dummy),
-        model_costs=model_costs,
-        alpha_start=0.1, alpha_end=0.1, cost_penalty=0.0
+    # Cold Start: NO priors for NEW model, but WARMUP for OLD models
+    # [FIX] Use WARMUP priors to simulate realistic production baseline
+    # If we used "none" (Global Cold Start), the router would explore aggressively
+    # and find the new model by accident. We want to test if it can break
+    # the "Exploitation Trap" of the incumbent models.
+    router = BanditRouter.create(
+        model_registry=create_model_registry(WARMUP_MODELS),
+        context_model=DEFAULT_SENTENCE_TRANSFORMER,
+        priors=str(DEFAULT_WARMUP_PRIORS_PATH),
+        use_corralling=True,
+        corralling_learning_rate=0.1,
+        corralling_gamma=0.05,
+        alpha=2.0,
+        pca_path=DEFAULT_PCA_PATH
     )
     
+    # [VERIFICATION] Confirm Corralling is active
+    if router.corralling_router:
+        # Log only if it's the first time seeing this router instance
+        if not hasattr(router, '_logged_corralling'):
+            logger.info("   ✅ Corralling Router ACTIVE with experts: " + 
+                       str([type(e).__name__ for e in router.corralling_router.experts]))
+            router._logged_corralling = True
+    else:
+        logger.error("   ❌ Corralling Router NOT ACTIVE!")
+    
     history = []
-    
-    logger.info("Running Cold Start Baseline...")
-    
-    # FIXED: Iterate over atomic evaluation items (not separate lists!)
-    for t, item in enumerate(evaluator):
-        # Stop if we hit step limit
-        if t >= TOTAL_STEPS:
-            break
-        
-        # ATOMIC UNPACKING - No more index mismatches!
-        prompt = item.prompt
-        ground_truth_rewards = item.rewards  # Dict: {'model_name': reward_value}
-        
-        # Encode prompt
-        x_emb = encoder.encode([prompt])[0]
-        x_pca = pca.transform([x_emb])[0]
-        x = np.concatenate([x_pca, [1.0]])
-        
+    for t, item in enumerate(shuffled_data):
+        if t >= TOTAL_STEPS: break
         if t == RELEASE_STEP:
-            # Cold Start: Identity initialization (no transfer)
-            router.models.append(NEW_MODEL)
-            router.A[NEW_MODEL] = np.eye(context_dim)
-            router.b[NEW_MODEL] = np.zeros(context_dim)
-            logger.info(f"   ✓ Released {NEW_MODEL} with Cold Start")
+            router.bandit.models.append(NEW_MODEL)
+            # Cold Start: Identity Matrix
+            router.bandit.A[NEW_MODEL] = router.bandit.init_lambda * np.eye(router.bandit.dim)
+            router.bandit.b[NEW_MODEL] = np.zeros(router.bandit.dim)
+            router.bandit.A_inv[NEW_MODEL] = np.linalg.inv(router.bandit.A[NEW_MODEL])
+            router.bandit.last_update[NEW_MODEL] = router.bandit.t
+            router.registry[NEW_MODEL] = create_model_registry([NEW_MODEL])[NEW_MODEL]
+            
+            if router.corralling_router:
+                router.corralling_router.add_model(NEW_MODEL)
+                cold_A = router.bandit.init_lambda * np.eye(router.bandit.dim)
+                cold_b = np.zeros(router.bandit.dim)
+                for expert in router.corralling_router.experts:
+                    if hasattr(expert, 'add_model'):
+                        expert_type = type(expert).__name__
+                        if 'TabulaRasa' in expert_type:
+                            expert.add_model(NEW_MODEL, 0.5)
+                        else:
+                            expert.add_model(NEW_MODEL, cold_A, cold_b, 0.5)
 
-        # --- ROUTING ---
-        selected_model = router.select_model(x)
-        
-        # --- REWARDS (FIXED: Atomic lookup for THIS specific prompt) ---
-        reward = item.get_reward(selected_model, default=0.0)
-        
-        # --- UPDATE ---
-        router.update(x, selected_model, reward)
-        
+        selected, _ = router.route(item.prompt, profile="auto", total_steps=TOTAL_STEPS)
+        reward = item.get_reward(selected, default=0.0)
+        router.update(selected, item.prompt, reward)
         history.append(reward)
-        
     return history
 
 # ============================================================================
 # PLOTTING
 # ============================================================================
-def plot_sensitivity_results(results: Dict[str, List[float]]):
-    """
-    Plot sensitivity analysis showing robustness across n_effective values.
-    
-    Args:
-        results: Dict mapping condition name to reward history
-    """
+def plot_hybrid_sensitivity(results: Dict[str, List[float]], cold_mean: float, best_n_eff: float):
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Moving Average
     def smooth(data, w=WINDOW_SIZE):
         return np.convolve(data, np.ones(w)/w, mode='valid')
     
     plt.figure(figsize=(12, 7))
     
-    # Color scheme: Cold Start (red), then gradient from light to dark blue
-    colors = {
-        'cold_start': '#e74c3c',
-        1.0: '#AED6F1',
-        2.0: '#85C1E9',
-        5.0: '#2E86C1',
-        10.0: '#1B4F72',
-        20.0: '#154360'
-    }
+    smoothed_data = {}
+    for k, v in results.items():
+        smoothed_data[k] = smooth(v)
+        
+    min_len = min(len(v) for v in smoothed_data.values())
+    x_axis = [i + WINDOW_SIZE//2 for i in range(min_len)]
     
-    line_styles = {
-        'cold_start': '--',
-        1.0: '-',
-        2.0: '-',
-        5.0: '-',
-        10.0: '-',
-        20.0: ':'
-    }
-    
-    line_widths = {
-        'cold_start': 2.5,
-        1.0: 2.0,
-        2.0: 2.0,
-        5.0: 3.0,  # Emphasize default
-        10.0: 2.0,
-        20.0: 2.5
-    }
-    
-    # Plot Cold Start first (baseline)
-    if 'cold_start' in results:
-        y = smooth(results['cold_start'])
-        x_axis = [i + WINDOW_SIZE//2 for i in range(len(y))]
-        plt.plot(x_axis, y, 
-                label=f"Baseline: Cold Start ($n_{{eff}}=0$)", 
-                color=colors['cold_start'],
-                linestyle=line_styles['cold_start'],
-                linewidth=line_widths['cold_start'],
-                alpha=0.8)
-    
-    # Plot each n_effective condition
-    for n_eff in N_EFFECTIVE_VALUES:
-        if n_eff in results:
-            y = smooth(results[n_eff])
-            x_axis = [i + WINDOW_SIZE//2 for i in range(len(y))]
-            
-            label_suffix = ""
-            if n_eff == 1.0:
-                label_suffix = " (Weak Prior)"
-            elif n_eff == 5.0:
-                label_suffix = " (Default)"
-            elif n_eff == 20.0:
-                label_suffix = " (Strong Prior)"
-            
-            plt.plot(x_axis, y,
-                    label=f"$n_{{eff}}={n_eff:.1f}${label_suffix}",
-                    color=colors[n_eff],
-                    linestyle=line_styles[n_eff],
-                    linewidth=line_widths[n_eff],
-                    alpha=0.9)
-    
-    # Add Release Line
-    plt.axvline(x=RELEASE_STEP, color='black', linestyle='--', alpha=0.4, 
-                linewidth=1.5, label=f"Model Release ({NEW_MODEL.split('/')[-1]})")
-    
-    # Shaded region showing "acceptable performance zone"
-    # (All transfer methods should stay in this zone)
-    if 'cold_start' in results:
-        y_cold = smooth(results['cold_start'])
-        post_release_cold = y_cold[RELEASE_STEP:]
-        if len(post_release_cold) > 0:
-            min_cold = np.min(post_release_cold)
-            # Shade region above cold start minimum
-            plt.axhspan(min_cold, plt.ylim()[1], 
-                       xmin=(RELEASE_STEP/TOTAL_STEPS), 
-                       alpha=0.1, color='green',
-                       label='Transfer Advantage Zone')
-    
-    plt.title("Figure 7: Sensitivity Analysis - Robustness to Prior Strength ($n_{eff}$)", 
-             fontsize=16, fontweight='bold')
+    # 1. Robustness Band
+    robust_keys = [2.0, 10.0, 20.0]
+    robust_curves = [smoothed_data[k][:min_len] for k in robust_keys if k in smoothed_data]
+    if robust_curves:
+        robust_matrix = np.array(robust_curves)
+        y_min = np.min(robust_matrix, axis=0)
+        y_max = np.max(robust_matrix, axis=0)
+        plt.fill_between(x_axis, y_min, y_max, 
+                        color='#2ecc71', alpha=0.15,
+                        label=f"Robust Range: $n_{{eff}} \\in [2, 20]$")
+        for curve in robust_curves:
+            plt.plot(x_axis, curve, color='#2ecc71', linewidth=0.5, alpha=0.3)
+
+    # 2. Failure Mode
+    if 1.0 in smoothed_data:
+        n1_mean = np.mean(results[1.0][RELEASE_STEP:])
+        n1_improvement = ((n1_mean - cold_mean) / cold_mean) * 100
+        plt.plot(x_axis, smoothed_data[1.0][:min_len], 
+                label=f"Weak Prior: $n_{{eff}}=1.0$ ({n1_improvement:+.1f}%)",
+                color='#3498db', linestyle=':', linewidth=2.0, alpha=0.8)
+
+    # 3. Optimal (Best performer)
+    if best_n_eff in smoothed_data:
+        best_mean_post = np.mean(results[best_n_eff][RELEASE_STEP:])
+        imp = ((best_mean_post - cold_mean) / cold_mean) * 100
+        plt.plot(x_axis, smoothed_data[best_n_eff][:min_len], 
+                label=f"Best: $n_{{eff}}={best_n_eff:.1f}$ ({imp:+.1f}%)",
+                color='#2ecc71', linewidth=3.0)
+
+    # 4. Baseline (Plot ONLY after release to avoid confusion)
+    # Pre-release, both strategies are identical (Warmup).
+    # Post-release, this line shows what happens if the NEW model starts cold.
+    if 'cold_start' in smoothed_data:
+        post_release_mask = np.array(x_axis) >= RELEASE_STEP
+        if np.any(post_release_mask):
+            plt.plot(np.array(x_axis)[post_release_mask], 
+                    np.array(smoothed_data['cold_start'][:min_len])[post_release_mask], 
+                    color='#e74c3c', linestyle='--', linewidth=2.5,
+                    label="Baseline: Cold Start (New Model)")
+
+    # 5. Shared History (Pre-release)
+    # Since all runs are identical before release, plot one representative line
+    pre_release_mask = np.array(x_axis) <= RELEASE_STEP
+    if np.any(pre_release_mask) and best_n_eff in smoothed_data:
+        plt.plot(np.array(x_axis)[pre_release_mask], 
+                np.array(smoothed_data[best_n_eff][:min_len])[pre_release_mask], 
+                color='gray', linestyle='-', linewidth=2.0, alpha=0.6,
+                label="Shared Warmup Phase")
+
+    plt.axvline(x=RELEASE_STEP, color='black', linestyle=':', linewidth=1.5, label="Model Release")
+    plt.title("Figure 8: Sensitivity Analysis - Prior Strength ($n_{eff}$)", fontsize=16, fontweight='bold')
     plt.xlabel("Routing Steps (t)", fontsize=13)
-    plt.ylabel("Moving Average Reward (Quality)", fontsize=13)
-    plt.legend(fontsize=10, loc='lower right', framealpha=0.95)
+    plt.ylabel("Moving Average Reward", fontsize=13)
+    plt.legend(loc='lower right', fontsize=10, framealpha=0.95)
     plt.grid(True, alpha=0.3)
     
-    # Save
-    output_path = output_dir / "figure7_sensitivity.png"
+    output_path = output_dir / "figure8_sensitivity_hybrid.png"
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved plot to {output_path}")
-    
-    # Also create a zoomed-in version focusing on post-release period
-    plt.figure(figsize=(12, 7))
-    
-    # Focus on post-release window
-    focus_start = RELEASE_STEP - 50
-    focus_end = min(RELEASE_STEP + 300, TOTAL_STEPS - WINDOW_SIZE)
-    
-    # Re-plot with focused view
-    if 'cold_start' in results:
-        y = smooth(results['cold_start'])
-        x_axis = [i + WINDOW_SIZE//2 for i in range(len(y))]
-        mask = (np.array(x_axis) >= focus_start) & (np.array(x_axis) <= focus_end)
-        plt.plot(np.array(x_axis)[mask], np.array(y)[mask],
-                label=f"Baseline: Cold Start ($n_{{eff}}=0$)", 
-                color=colors['cold_start'],
-                linestyle=line_styles['cold_start'],
-                linewidth=line_widths['cold_start'],
-                alpha=0.8)
-    
-    for n_eff in N_EFFECTIVE_VALUES:
-        if n_eff in results:
-            y = smooth(results[n_eff])
-            x_axis = [i + WINDOW_SIZE//2 for i in range(len(y))]
-            mask = (np.array(x_axis) >= focus_start) & (np.array(x_axis) <= focus_end)
-            
-            label_suffix = ""
-            if n_eff == 1.0:
-                label_suffix = " (Weak)"
-            elif n_eff == 5.0:
-                label_suffix = " (Default)"
-            elif n_eff == 20.0:
-                label_suffix = " (Strong)"
-            
-            plt.plot(np.array(x_axis)[mask], np.array(y)[mask],
-                    label=f"$n_{{eff}}={n_eff:.1f}${label_suffix}",
-                    color=colors[n_eff],
-                    linestyle=line_styles[n_eff],
-                    linewidth=line_widths[n_eff],
-                    alpha=0.9)
-    
-    plt.axvline(x=RELEASE_STEP, color='black', linestyle='--', alpha=0.4, 
-                linewidth=1.5, label="Model Release")
-    
-    plt.title("Figure 7b: Sensitivity Analysis (Zoomed: Post-Release Period)", 
-             fontsize=16, fontweight='bold')
-    plt.xlabel("Routing Steps (t)", fontsize=13)
-    plt.ylabel("Moving Average Reward (Quality)", fontsize=13)
-    plt.legend(fontsize=11, loc='lower right', framealpha=0.95)
-    plt.grid(True, alpha=0.3)
-    plt.xlim(focus_start, focus_end)
-    
-    output_path_zoom = output_dir / "figure7b_sensitivity_zoomed.png"
-    plt.savefig(output_path_zoom, dpi=300, bbox_inches='tight')
-    logger.info(f"✅ Saved zoomed plot to {output_path_zoom}")
 
 # ============================================================================
-# MAIN EXECUTION
+# MAIN
 # ============================================================================
 def run_sensitivity_sweep():
-    """Execute full sensitivity analysis sweep"""
     results = {}
     
-    # Run Cold Start baseline
-    logger.info("="*60)
-    logger.info("RUNNING COLD START BASELINE")
-    logger.info("="*60)
+    logger.info("Running Cold Start Baseline...")
     results['cold_start'] = run_cold_start_baseline()
     
-    # Run each n_effective condition
     for n_eff in N_EFFECTIVE_VALUES:
-        logger.info("="*60)
-        logger.info(f"RUNNING n_effective = {n_eff}")
-        logger.info("="*60)
+        logger.info(f"Running n_effective = {n_eff}...")
         results[n_eff] = run_adaptation_experiment(n_eff)
-        
-        # Quick stats
-        post_release = results[n_eff][RELEASE_STEP:]
-        logger.info(f"Post-release mean reward: {np.mean(post_release):.4f}")
-        logger.info(f"Post-release std: {np.std(post_release):.4f}")
     
-    # Summary statistics
-    logger.info("\n" + "="*60)
-    logger.info("SUMMARY STATISTICS (Post-Release Period)")
-    logger.info("="*60)
+    cold_mean = np.mean(results['cold_start'][RELEASE_STEP:])
+    best_n_eff = max(N_EFFECTIVE_VALUES, key=lambda n: np.mean(results[n][RELEASE_STEP:]))
     
-    cold_post = results['cold_start'][RELEASE_STEP:]
-    cold_mean = np.mean(cold_post)
-    
-    logger.info(f"Cold Start: {cold_mean:.4f} (baseline)")
-    
+    # Log results table
+    print("\n" + "="*60)
+    print(f"{'Configuration':<20} | {'Mean Reward':<12} | {'Improvement':<12}")
+    print("-" * 60)
+    print(f"{'Cold Start':<20} | {cold_mean:.4f}       | 0.00%")
     for n_eff in N_EFFECTIVE_VALUES:
-        transfer_post = results[n_eff][RELEASE_STEP:]
-        transfer_mean = np.mean(transfer_post)
-        improvement = ((transfer_mean - cold_mean) / abs(cold_mean)) * 100
-        logger.info(f"n_eff={n_eff:5.1f}: {transfer_mean:.4f} ({improvement:+.2f}% vs Cold Start)")
-    
-    # Plot results
-    plot_sensitivity_results(results)
-    
-    logger.info("\n✅ Sensitivity Analysis Complete!")
-    logger.info(f"Key Finding: All n_effective values ({N_EFFECTIVE_VALUES}) outperform Cold Start")
-    logger.info(f"Conclusion: The method is robust to hyperparameter choice")
+        n_mean = np.mean(results[n_eff][RELEASE_STEP:])
+        diff = ((n_mean - cold_mean) / cold_mean) * 100
+        tag = "★" if n_eff == best_n_eff else ""
+        print(f"n_eff = {n_eff:<12} | {n_mean:.4f}       | {diff:+.2f}% {tag}")
+    print("="*60 + "\n")
+
+    plot_hybrid_sensitivity(results, cold_mean, best_n_eff)
 
 if __name__ == "__main__":
     run_sensitivity_sweep()
-

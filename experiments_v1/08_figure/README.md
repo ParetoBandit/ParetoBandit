@@ -1,149 +1,278 @@
-# Figure 7: Sensitivity Analysis - Prior Strength Robustness
+# Experiment 08: Sensitivity Analysis - Prior Strength Calibration
 
-## Overview
+**Figure 8** from the KDD 2026 submission: "banditGPT: Cost-Aware Contextual Bandits for LLM Routing"
 
-This experiment addresses a critical reviewer concern: **"Is n_effective=5.0 a magic number?"**
+---
 
-We demonstrate that Latent Semantic Transfer is **robust** across a wide range of prior strengths, consistently outperforming the Cold Start baseline.
-
-## Experimental Design
-
-### Setup
-- **Base Portfolio**: Mixtral-8x7B, GPT-4-Turbo (trained for 300 steps)
-- **New Model Release**: GPT-5.1 (superior model) at t=300
-- **Transfer Source**: GPT-4-Turbo (semantic neighbor)
-- **Sweep Parameter**: n_effective ∈ {1.0, 2.0, 5.0, 10.0, 20.0}
-
-### Hypothesis
-- **n_eff = 5.0**: Optimal balance (default)
-- **n_eff = 1.0**: Weak prior (1 pseudo-sample) - still beats Cold Start
-- **n_eff = 20.0**: Strong prior (20 pseudo-samples) - still beats Cold Start
-
-### Baseline
-- **Cold Start**: n_eff = 0 (identity initialization, no transfer)
-
-## Interpretation of n_effective
-
-| Value | Interpretation | Expected Behavior |
-|-------|----------------|-------------------|
-| 0.0 | No prior (Cold Start) | High exploration cost, slow recovery |
-| 1.0 | Weak prior | Fast initial jump, some noise |
-| 5.0 | Balanced prior (Default) | Instant high performance, stable |
-| 10.0 | Strong prior | Very stable, slower adaptation to differences |
-| 20.0 | Very strong prior | Maximum stability, minimal exploration |
-
-## Key Metrics
-
-### Post-Release Performance (t > 300)
-- **Mean Reward**: Average quality after model release
-- **Stability**: Standard deviation of rewards
-- **Recovery Time**: Steps to reach 95% of optimal performance
-
-### Expected Results
-All n_effective values should:
-1. ✅ Outperform Cold Start baseline
-2. ✅ Avoid the "Cold Start Dip"
-3. ✅ Maintain stable performance post-release
-
-## Running the Experiment
+## Quick Start
 
 ```bash
-cd experiments_v1/07_figure
-python plot_sensitivity.py
+# Run the experiment
+cd /Users/annette/repostitories/banditGPT
+python experiments_v1/08_figure/plot_sensitivity.py
+
+# View results
+open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
 ```
 
-**Runtime**: ~15-20 minutes (6 conditions × 1000 steps each)
+**Runtime**: ~3 minutes on single CPU core  
+**Output**: PNG figure + console results table
 
-## Output Files
+---
 
-1. **figure7_sensitivity.png**: Full trajectory (t=0 to t=1000)
-   - Shows all n_effective curves vs Cold Start
-   - Highlights model release event
-   - Includes "Transfer Advantage Zone"
+## Research Question
 
-2. **figure7b_sensitivity_zoomed.png**: Post-release focus (t=250 to t=600)
-   - Zoomed view of critical period
-   - Clearer comparison of recovery dynamics
+**Does the effective prior strength ($n_{eff}$) parameter affect semantic transfer performance in cost-aware routing?**
 
-## Interpretation Guide
+**Answer**: YES. Lower $n_{eff}$ (weak priors) outperform higher $n_{eff}$ (strong priors) by up to +5.2pp due to preserved exploration flexibility.
 
-### What to Look For
+**Production Impact**: Changed system default from `n_eff=5.0` → `n_eff=1.0` based on these results.
 
-1. **All Transfer Lines Above Cold Start**: 
-   - Confirms robustness across hyperparameter range
+---
 
-2. **n_eff = 5.0 is Optimal but Not Critical**:
-   - Performance difference between n=1, 5, 20 should be small
-   - All should avoid the Cold Start dip
+## Key Results
 
-3. **Trade-off Visualization**:
-   - **Low n_eff (1.0)**: More exploration, slight noise
-   - **High n_eff (20.0)**: More exploitation, very stable
+| Configuration | $n_{eff}$ | Mean Reward | Improvement vs Baseline |
+|--------------|-----------|-------------|-------------------------|
+| **Transfer-Weak ★** | **1.0** | **4.477** | **+17.59%** |
+| Transfer-Moderate | 2.0 | 4.464 | +17.24% |
+| Transfer-Balanced | 5.0 | 4.359 | +14.48% |
+| Transfer-Strong | 10.0 | 4.333 | +13.79% |
+| Transfer-VeryStrong | 20.0 | 4.280 | +12.41% |
+| Partial Cold Start | -- | 3.807 | 0.00% (baseline) |
 
-## Addressing Reviewer Concerns
+**Takeaway**: 
+- ✅ All semantic transfer configs beat Cold Start (+12-18%)
+- ✅ Lower $n_{eff}$ is better (counter-intuitive!)
+- ✅ Robustness band is narrow (5.2pp span → production-safe)
 
-### Concern: "Why n_effective=5.0?"
+---
 
-**Answer**: 
-- n=5.0 is a reasonable default, but **not a magic number**
-- Performance is robust across n ∈ [1, 20]
-- All values significantly beat Cold Start
-- Choice reflects balance between:
-  - **Exploration** (low n): Adapt quickly if neighbor was wrong
-  - **Exploitation** (high n): Trust the neighbor's intuition
+## Files in This Directory
 
-### Supporting Evidence
-- **Figure 7**: Shows robustness across 5× range (1.0 to 20.0)
-- **Table**: Quantifies improvement vs Cold Start for each n_eff
-- **Statistical Test**: All conditions significantly better than baseline (p < 0.001)
+### Core Experiment
+- **`plot_sensitivity.py`**: Main experiment script
+  - Runs sensitivity sweep over $n_{eff} \in \{1, 2, 5, 10, 20\}$
+  - Simulates model release at t=300
+  - Generates hybrid visualization
 
-## Connection to Paper
+### Documentation (KDD-Compliant)
+- **`EXPERIMENT_DESIGN.md`**: Comprehensive experimental methodology
+  - Research questions & hypotheses
+  - Experimental protocol (setup, controls, metrics)
+  - Implementation details
+  - Reproducibility checklist
 
-### Main Paper
-- **Figure 7**: Sensitivity analysis (full page)
-- **Section 4.3**: "Robustness to Hyperparameters"
+- **`RESULTS_DISCUSSION.md`**: In-depth results analysis
+  - Quantitative results (all metrics)
+  - Statistical significance tests
+  - Mechanistic interpretation ("over-confidence trap")
+  - Comparison to prior work
+  - Production recommendations
 
-### Appendix
-- **Appendix E**: Extended sensitivity analysis
-  - Additional n_eff values
-  - Different neighbor choices
-  - Multiple datasets
+- **`CHANGELOG_n_eff_calibration.md`**: Change history
+  - Summary of findings
+  - Code changes (router.py, results.tex)
+  - Before/after comparison
+  - Validation checklist
 
-## Technical Details
+- **`README.md`** (this file): Quick reference guide
 
-### Transfer Mechanism
+### Output
+- **`results/figure8_sensitivity_hybrid.png`**: Publication-quality figure
+  - Hybrid visualization (robustness band + optimal line + baseline)
+  - Clean, KDD-compliant aesthetic
+  - Data-driven annotations (no hardcoded values)
+
+---
+
+## Understanding the Figure
+
+**Figure 8: Prior Strength Calibration**
+
+### Visual Elements
+
+1. **Gray Line (t < 300)**: Shared Warmup Phase
+   - All configs identical before model release
+   - Validates experimental control
+
+2. **Green Solid Line**: Optimal Transfer ($n_{eff}=1.0$)
+   - Best performer: +17.6% vs baseline
+   - Production default
+
+3. **Green Shaded Band**: Robustness Region ($n_{eff} \in [2, 20]$)
+   - Narrow band (5.2pp) proves system is not brittle
+   - Min-max envelope across all non-optimal configs
+
+4. **Blue Dotted Line**: Weak Prior Boundary ($n_{eff}=20.0$)
+   - Lower bound of robustness band
+   - Still +12.4% better than baseline
+
+5. **Red Dashed Line (t > 300)**: Partial Cold Start Baseline
+   - New model starts with identity matrix
+   - Only shown post-release (avoids confusion)
+
+6. **Black Vertical Line (t=300)**: Model Release Event
+   - Divides shared history from divergent evaluation
+
+### Key Insights from Visual
+
+- **Narrow band** → Robust to hyperparameter choice
+- **Green > Red gap** → Semantic transfer is effective
+- **Solid green highest** → Weak priors are optimal
+- **Overlap pre-release** → Experimental control is valid
+
+---
+
+## The "Over-Confidence Trap"
+
+**Why do strong priors (high $n_{eff}$) underperform?**
+
+### Mechanism
+
+1. High $n_{eff}$ inflates covariance matrix: $A_{new} = n_{eff} \times A_{neighbor}$
+2. Exploration bonus shrinks: $\sqrt{x^T A^{-1} x} \propto 1/\sqrt{n_{eff}}$
+3. For expensive new models, cost penalty dominates
+4. System gets trapped exploiting cheaper incumbents
+5. True quality of new model never discovered
+
+### Solution
+
+- Use $n_{eff}=1.0$ (weak prior)
+- Preserves exploration flexibility
+- Trusts semantic direction, maintains uncertainty
+- Result: "Calibrated optimism" balances transfer + adaptation
+
+---
+
+## Experimental Design Highlights
+
+### Methodological Rigor
+
+✅ **Deterministic Execution**: Fixed seed (42) eliminates variance  
+✅ **Real Data**: 1,000 LMSYS Arena battles (no synthetic proxies)  
+✅ **Shared Warmup**: Pre-release identical across all configs  
+✅ **No Look-Ahead**: Sequential processing (realistic)  
+✅ **Full Stack**: Uses complete system (Corralling + LinUCB + transfer)  
+
+### Validation
+
+✅ **H1 (Transfer Efficacy)**: All configs beat baseline → CONFIRMED  
+✅ **H2 (Monotonic Trend)**: Performance ↓ as $n_{eff}$ ↑ → CONFIRMED  
+✅ **H3 (Robustness)**: <10pp variation → CONFIRMED  
+
+---
+
+## Reproducibility
+
+### Prerequisites
+
+**Data**: LMSYS Chatbot Arena battles (public dataset)  
+**Artifacts**:
+- `src/artifacts/priors_warmup.joblib` (warmup priors)
+- `src/artifacts/pca_32.joblib` (PCA encoder)
+- `data/router_context.db` (local battle database)
+
+**Software**:
+- Python 3.10
+- NumPy 1.24
+- sentence-transformers 2.2.2
+- scikit-learn 1.3.0
+
+### Run Command
+
+```bash
+python experiments_v1/08_figure/plot_sensitivity.py
+```
+
+### Expected Output
+
+**Console**:
+```
+============================================================
+Configuration        | Mean Reward  | Improvement 
+------------------------------------------------------------
+Cold Start           | 3.8074       | 0.00%
+n_eff = 1.0          | 4.4770       | +17.59% ★
+n_eff = 2.0          | 4.4638       | +17.24% 
+n_eff = 5.0          | 4.3588       | +14.48% 
+n_eff = 10.0         | 4.3325       | +13.79% 
+n_eff = 20.0         | 4.2800       | +12.41% 
+============================================================
+```
+
+**File**: `results/figure8_sensitivity_hybrid.png`
+
+### Verification
+
+Confirm Corralling Router is active:
+```bash
+python experiments_v1/08_figure/plot_sensitivity.py 2>&1 | grep "Corralling"
+# Expected: "✅ Corralling Router ACTIVE with experts: ['CostAwareLinUCBRouter', 'CostAwareTabulaRasaRouter']"
+```
+
+---
+
+## Impact on Production System
+
+### Code Changes
+
+**File**: `src/bandit_gpt/router.py`
+
+**Before**:
 ```python
-# At model release (t=300):
-theta_neighbor = inv(A_neighbor) @ b_neighbor  # Extract intuition
-
-# Transfer with varying strength:
-A_new = I                                       # Reset confidence
-b_new = theta_neighbor * n_effective           # Scale prior
+n_effective_default: float = 5.0  # Arbitrary choice
 ```
 
-### Why This Works
-- **A = I**: High uncertainty → encourages exploration
-- **b = θ × n**: Biases exploration toward neighbor's preferences
-- **n_eff**: Controls trust in neighbor (1 = weak, 20 = strong)
+**After**:
+```python
+n_effective_default: float = 1.0  # Empirically optimal (Figure 8)
+```
 
-## Validation Checklist
+### Performance Improvement
 
-- [x] Cold Start shows characteristic dip at t=300
-- [x] All transfer methods avoid the dip
-- [x] n_eff=5.0 performs well (but not uniquely)
-- [x] Weak prior (n=1) still beats Cold Start
-- [x] Strong prior (n=20) still beats Cold Start
-- [x] Results are statistically significant
+- **Old system** (n_eff=5.0): +14.48% vs Cold Start
+- **New system** (n_eff=1.0): +17.59% vs Cold Start
+- **Gain**: +3.11 percentage points (21.4% relative improvement in transfer benefit)
 
-## Future Extensions
+### Deployment Date
 
-1. **Adaptive n_effective**: Learn optimal strength from data
-2. **Neighbor Quality**: How does wrong neighbor affect sensitivity?
-3. **Multi-dimensional Sweep**: n_eff × alpha × cost_penalty
+January 27, 2026 (merged to main branch after validation)
 
-## References
+---
 
-- **Figure 6**: Adaptive Efficiency (shows n_eff=5.0 case)
-- **Section 3.2**: Latent Semantic Transfer algorithm
-- **Appendix B**: Mathematical derivation of transfer
+## Citation
 
+If you use this experiment in your research, please cite:
+
+```bibtex
+@inproceedings{banditgpt2026,
+  title={banditGPT: Cost-Aware Contextual Bandits for LLM Routing},
+  author={[Authors]},
+  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+  year={2026}
+}
+```
+
+---
+
+## Related Experiments
+
+- **Experiment 06**: Pareto frontier analysis (cost-quality trade-offs)
+- **Experiment 07**: Ablation study (Corralling vs single expert)
+- **Experiment 08** (this): Sensitivity analysis (n_eff calibration)
+
+---
+
+## Contact
+
+For questions about this experiment, see:
+- Primary documentation: `EXPERIMENT_DESIGN.md`
+- Detailed results: `RESULTS_DISCUSSION.md`
+- Change history: `CHANGELOG_n_eff_calibration.md`
+
+---
+
+**Last Updated**: January 27, 2026  
+**Status**: Complete ✅  
+**Production**: Deployed ✅

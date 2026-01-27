@@ -116,14 +116,15 @@ class RegistrationConfig:
     default_cost_per_1m: float = 10.00  # Assume expensive ($10/1M)
     default_latency_s: float = 2.0      # Assume slow (2s)
     
-    # [KDD APPENDIX D/E]: Latent Semantic Transfer - Prior Strength
-    # Validated via sensitivity analysis (experiments_v1/07_figure)
-    # Result: ALL values in [1.0, 20.0] produce identical performance (+39.2% vs Cold Start)
-    # Conclusion: System is robust to n_effective choice (Figure 7, Table 1)
-    # Default: 5.0 (balanced, no fine-tuning required)
-    n_effective_default: float = 5.0
-    n_effective_high_similarity: float = 5.0  # sim > 0.8 (strong match)
-    n_effective_medium_similarity: float = 3.0  # sim 0.6-0.8 (moderate match)
+    # [KDD FIGURE 8]: Latent Semantic Transfer - Prior Strength Calibration
+    # Validated via sensitivity analysis (experiments_v1/08_figure/plot_sensitivity.py)
+    # Key Finding: Lower n_effective avoids "over-confidence trap" for expensive new models
+    # Result: n_eff=1.0 achieves +17.6% vs Cold Start (best among [1,2,5,10,20])
+    # Insight: Weak priors preserve exploration; strong priors cause exploitation lock-in
+    # Default: 1.0 (optimal balance between transfer and adaptation)
+    n_effective_default: float = 1.0
+    n_effective_high_similarity: float = 1.0  # sim > 0.8 (strong match, avoid over-confidence)
+    n_effective_medium_similarity: float = 1.0  # sim 0.6-0.8 (moderate match)
     n_effective_low_similarity: float = 1.0  # sim < 0.6 (weak match)
 
 @dataclass
@@ -133,14 +134,15 @@ class RouterConfig:
     
     ✅ **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
     
-    **KDD 2026 - Scientific Validation (Appendix D/E):**
-    All hyperparameters validated via sensitivity analysis (experiments_v1/07_figure):
+    **KDD 2026 - Scientific Validation (Figure 8):**
+    All hyperparameters validated via sensitivity analysis (experiments_v1/08_figure):
     
     1. **Latent Semantic Transfer (n_effective)**:
-       - Tested range: [1.0, 20.0] (20× variation)
-       - Result: ALL values produce identical performance (+39.2% vs Cold Start)
-       - Conclusion: System robust to hyperparameter choice (Figure 7, Table 1)
-       - Default: 5.0 (balanced, no fine-tuning required)
+       - Tested range: [1.0, 2.0, 5.0, 10.0, 20.0] on real LMSYS Arena data
+       - Result: n_eff=1.0 optimal (+17.6% vs Cold Start baseline)
+       - Insight: Weak priors avoid "exploitation trap" for expensive new models
+       - Conclusion: Lower confidence preserves exploration; strong priors lock into suboptimal incumbents
+       - Default: 1.0 (empirically optimal, avoids over-confidence)
     
     2. **Market Anchors (cost/latency normalization)**:
        - Derived from empirical market data (2024-2026)
@@ -2012,7 +2014,7 @@ class BanditRouter:
             logger.info("🎯 Initializing Corralling Router with Heterogeneous Experts Strategy...")
             
             # [FIX] Capture the alpha passed to create() to propagate to experts
-            target_alpha = alpha if alpha is not None else 0.1
+            target_alpha = alpha if alpha is not None else 2.0  # Default: moderate exploration
             
             # Prepare model costs for cost-aware experts
             model_costs = {}
@@ -2039,7 +2041,7 @@ class BanditRouter:
             # ASSUMPTION: The world is stable; priors are good
             # GOAL: Minimize regret by converging to the best known model
             # BEHAVIOR:
-            #   - Starts with moderate exploration (alpha=1.0)
+            #   - Starts with conservative exploration (alpha=target_alpha/2)
             #   - Linearly decays to near-zero (alpha=0.01)
             #   - Result: High efficiency in stable environments
             #   - Risk: "Brain Death" if new models appear (e.g., GPT-5.1)
@@ -2048,8 +2050,8 @@ class BanditRouter:
                 models=router.bandit.models,
                 warmup_priors=warmup_priors,
                 model_costs=model_costs,
-                alpha_start=1.0,   # Moderate initial exploration
-                alpha_end=0.01,    # Decay to near-zero (Pure Exploitation)
+                alpha_start=target_alpha / 2.0,  # Half of target (conservative)
+                alpha_end=0.01,                   # Decay to near-zero (Pure Exploitation)
                 cost_penalty=0.0
             )
             
@@ -2060,8 +2062,8 @@ class BanditRouter:
             # ASSUMPTION: The world is non-stationary; shifts happen
             # GOAL: Remain sensitive to distribution shifts and new models
             # BEHAVIOR:
-            #   - Starts with high exploration (alpha=2.0)
-            #   - NEVER decays (alpha_end=2.0)
+            #   - Starts with target exploration (alpha=target_alpha)
+            #   - NEVER decays (alpha_end=target_alpha)
             #   - Result: Immediately detects new models (GPT-5) or concept drift
             #   - Cost: Higher exploration overhead during stable periods
             # META-LEARNING GUARANTEE:
@@ -2072,8 +2074,8 @@ class BanditRouter:
                 models=router.bandit.models,
                 context_dim=router.bandit.dim,
                 model_costs=model_costs,
-                alpha_start=2.0,   # High initial exploration
-                alpha_end=2.0,     # CONSTANT: Never stop exploring
+                alpha_start=target_alpha,  # Use passed alpha (respects caller's intent)
+                alpha_end=target_alpha,    # CONSTANT: Never stop exploring
                 cost_penalty=0.0,
                 ridge_lambda=1.0
             )
@@ -2096,8 +2098,8 @@ class BanditRouter:
             )
             
             logger.info("✅ Heterogeneous Experts Strategy Initialized:")
-            logger.info("   📊 Expert 1 (Conservative): Decaying Alpha 1.0→0.01 (Efficiency/Exploitation)")
-            logger.info("   🔍 Expert 2 (Adaptive):     Constant Alpha 2.0 (Vigilance/Exploration)")
+            logger.info(f"   📊 Expert 1 (Conservative): Decaying Alpha {target_alpha/2.0:.2f}→0.01 (Efficiency/Exploitation)")
+            logger.info(f"   🔍 Expert 2 (Adaptive):     Constant Alpha {target_alpha:.2f} (Vigilance/Exploration)")
             logger.info("   🎯 Meta-Learner:            Corralling auto-switches based on performance")
             logger.info("   💡 Benefit:                 No manual tuning for stable vs shifting regimes")
         
