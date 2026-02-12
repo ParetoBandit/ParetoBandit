@@ -4,7 +4,7 @@ To evaluate banditGPT in a realistic production environment, we utilize a large-
 
 \subsection{Dataset \& Ground Truth}
 
-We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023judging}, widely considered the gold standard for human preference alignment. As detailed in Table~\ref{tab:dataset}, we implement a strict \emph{Four-Stage Research Pipeline} to ensure zero data leakage between training, tuning, and evaluation:
+We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023judging}, widely considered the gold standard for human preference alignment. As detailed in Table~\ref{tab:dataset_composition}, we implement a strict \emph{Four-Stage Research Pipeline} to ensure zero data leakage between training, tuning, and evaluation:
 
 \begin{enumerate}
     \item \textbf{Training (Warmup)}: We utilize 80,000 historical battles from the RouteLLM dataset to initialize the ``Warmup Expert'' priors.
@@ -16,22 +16,7 @@ We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023ju
     \item \textbf{Scaling (Manifold Validation)}: To validate structural robustness, we project the full Chat-1M dataset ($N=10^6$) onto our PCA space, confirming that the learned semantic features generalize to production-scale traffic.
 \end{enumerate}
 
-\begin{table}[t]
-\centering
-\caption{Dataset Composition}
-\label{tab:dataset}
-\footnotesize
-\begin{tabular}{@{}p{1.5cm}p{1.5cm}rp{2.8cm}@{}}
-\toprule
-\textbf{Stage} & \textbf{Source} & \textbf{Size} & \textbf{Purpose} \\
-\midrule
-Training & RouteLLM & 80,000 & Warmup Expert priors \\
-Validation & LMSYS Dev & 1,121 & Online learn \& tune \\
-Testing & LMSYS Holdout & 750 & Frozen eval \\
-Scaling & Chat-1M & 594,199 & Manifold valid \\
-\bottomrule
-\end{tabular}
-\end{table}
+\input{../experiments_v1/01_table/table_dataset_composition.tex}
 
 \subsection{Model Topology \& Baselines}
 
