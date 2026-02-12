@@ -28,6 +28,12 @@ python -m pytest tests/test_prior_management.py -v
 
 # Optimization profile tests
 python -m pytest tests/test_optimization_profiles.py -v
+
+# Validation methods tests
+python -m pytest tests/test_validation_methods.py -v
+
+# Figure 1 validation tests (integration)
+python -m pytest tests/test_figure1_validation.py -v
 ```
 
 ---
@@ -85,12 +91,36 @@ Tests for model cache management:
 - **Registry Compatibility**: Verify cache works with `build_registry_from_models_cache`
 - **API Requirements**: Verify proper error handling for missing API key
 
+### Validation Methods Tests (`test_validation_methods.py`) — 30+ tests
+
+Unit tests for statistical validation functions used in experiments:
+
+- **Statistical Validation**: Mann-Whitney U test, Welch's t-test, Cohen's d, confidence intervals
+- **Threshold Evaluation**: Grid search, silhouette scores, Davies-Bouldin index, cluster balance
+- **Cluster Quality**: Multi-dimensional cluster quality metrics, separation ratios
+- **High-D Analysis**: Separation analysis in original embedding spaces
+- **Data Quality**: Duplicate detection (exact and near), diversity scores
+- **Reproducibility**: Tests for deterministic results
+- **Robustness**: Edge cases (NaN, outliers, imbalance, small samples)
+
+### Figure 1 Validation Tests (`test_figure1_validation.py`) — 25+ tests
+
+Integration tests for Figure 1 validation pipeline with synthetic data:
+
+- **Threshold Validation**: Grid search optimization, sensitivity analysis, multi-metric consistency
+- **High-D Structure**: Validation across 2D, 32D, 384D spaces, predictive power tests
+- **Data Quality**: Duplicate detection, near-duplicate analysis, diversity metrics
+- **Statistical Pipeline**: End-to-end validation workflow, noise robustness
+- **Edge Cases**: Small samples, outliers, imbalanced clusters
+- **Performance**: Large dataset handling (10K+ samples)
+- **Alignment Tax Simulation**: Synthetic data mimicking the real phenomenon
+
 ---
 
 ## Current Status
 
 ```
-======================= 138 passed in ~2 min ========================
+======================= 190+ tests (estimated) ========================
 ```
 
 | Test File | Tests | Status |
@@ -100,6 +130,8 @@ Tests for model cache management:
 | `test_prior_management.py` | 26 | ✅ All passing |
 | `test_optimization_profiles.py` | 32 | ✅ All passing |
 | `test_model_manager.py` | 11 | ✅ All passing |
+| `test_validation_methods.py` | 30+ | 🆕 **New** - Statistical validation |
+| `test_figure1_validation.py` | 25+ | 🆕 **New** - Integration tests |
 
 ---
 

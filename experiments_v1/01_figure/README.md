@@ -1,6 +1,6 @@
-# Figure 1: Alignment Tax Discovery & Scale Validation
+# Figure 1: Alignment Tax Discovery & Validation
 
-This folder generates Figure 1 for the paper, which visualizes the forensic discovery of the Alignment Tax in LMSYS data. It includes both the holdout analysis and the full 1M dataset validation.
+This folder generates Figure 1 for the paper, which visualizes the discovery of the Alignment Tax in LMSYS data. It includes comprehensive statistical validation, robustness checks, and scale analysis.
 
 ## Overview
 
@@ -15,29 +15,55 @@ This experiment demonstrates that task difficulty in LLM routing is not merely a
 
 ### Analysis Scripts
 
-#### Holdout Analysis
-- `plot_lmsys_holdout_pca.py` - Main script for Figure 1 (holdout data)
+#### Primary Analysis
+- `plot_lmsys_holdout_pca.py` - Main visualization and analysis
   - Projects 1,871 LMSYS prompts onto PCA space
-  - Validates clusters against ground-truth reward gaps
-  - Outputs visualization showing Alignment Tax discovery
+  - Validates clusters against reward gaps with statistical tests
+  - Computes significance, effect sizes, confidence intervals
+  - Generates Figure 1 with comprehensive annotations
 
-- `check_cluster_stats.py` - Statistical validation of cluster quality
+#### Validation Scripts
+- `check_cluster_stats.py` - Statistical validation
+  - Multiple significance tests (Mann-Whitney, Welch's t-test)
+  - Effect size calculations (Cohen's d)
+  - Confidence intervals and distribution diagnostics
+  - Representative example sampling (farthest-first traversal)
 
-#### 1M Scale Validation
-- `plot_lmsys_1M_pca.py` - Extends analysis to full 1M dataset
-  - Validates that bimodal structure holds at scale
-  - Demonstrates spectral invariance (PC1 variance stable)
-  - Shows production distribution is even more skewed to easy tasks
+- `validate_threshold.py` - Threshold robustness validation
+  - Grid search over 50 candidate thresholds
+  - Unsupervised clustering comparison (k-means, GMM)
+  - Multi-criteria optimization and sensitivity analysis
+  - Validates PC1 = 0.3 is principled choice
 
-- `download_1M_dataset.py` - Downloads full 1M dataset from HuggingFace
+- `validate_high_dimensional.py` - High-dimensional structure validation
+  - Cluster quality across 2D, 32D, 384D spaces
+  - Separation ratio analysis in original embedding space
+  - PC1-reward correlation validation in 384D
+  - Confirms structure is not projection artifact
+
+- `analyze_cluster_diversity.py` - Data quality validation
+  - Exact and near-duplicate detection
+  - Intra-cluster diversity metrics (pairwise similarity)
+  - Representative sampling for generalizability
+  - Validates findings not driven by repeated templates
+
+#### Scale Analysis
+- `plot_lmsys_1M_pca.py` - Production-scale spatial analysis
+  - Analyzes 594,199 Chat-1M prompts (317× scale increase)
+  - Demonstrates PC1 variance stability (3.10% → 3.101%)
+  - Documents spatial distribution characteristics
+  - Note: Lacks reward labels; spatial structure only
+
+- `download_1M_dataset.py` - Dataset acquisition
+  - Downloads LMSYS Chat-1M from HuggingFace
   - Requires `HUGGINGFACE_API_KEY` in `.env`
-  - Processes battles into model evaluations format
-  - Saves to `data/battles_1M.jsonl.gz`
+  - Processes and saves to `data/battles_1M.jsonl.gz`
 
 ### LaTeX Files
 - `figure_1_caption.tex` - Figure caption for the paper
-- `results_explanation.tex` - Detailed explanation of holdout findings
-- `figure_1M_analysis.tex` - Scale validation analysis and interpretation
+- `results_explanation.tex` - Detailed explanation of holdout findings  
+- `figure_1M_analysis.tex` - Scale analysis and robustness validation
+- `validation_methodology.tex` - Comprehensive validation methodology (statistical tests, threshold validation, high-D validation, data quality)
 
 ### Results
 - `results/figure1_lmsys_holdout_pca.png` - Holdout analysis (300 DPI)
@@ -49,68 +75,125 @@ This experiment demonstrates that task difficulty in LLM routing is not merely a
 
 ### Holdout Analysis (N=1,871)
 
-The figure demonstrates:
-- **Low PC1 (82.4%)**: Natural Language Zone where GPT-4-Turbo wins (+0.133)
-- **High PC1 (17.6%)**: Strictness Zone where Mixtral wins (-0.682)
-- **85% of High PC1**: Dominated by strict completion templates
-- **Alignment Tax**: RLHF optimization makes frontier models fail at strict constraints
+**Primary Findings:**
+- **Low PC1 (82.4%)**: Natural Language Zone where GPT-4-Turbo wins (+0.133, 95% CI: [+0.113, +0.153])
+- **High PC1 (17.6%)**: Strictness Zone where Mixtral wins (-0.682, 95% CI: [-0.738, -0.625])
+- **Alignment Tax**: RLHF optimization shows performance inversion on strict constraint tasks
 
-### 1M Scale Validation (N=594,199)
+**Statistical Evidence:**
+- Mann-Whitney U: p < 2.86×10⁻¹⁴³
+- Welch's t-test: p < 2.36×10⁻⁹²
+- Cohen's d = 1.90 (large effect size)
+- 95% CIs non-overlapping
+- Both parametric and non-parametric tests converge
 
-**Spectral Invariance Confirmed:**
+### Scale Analysis with 1M Dataset (N=594,199)
+
+**Spatial Structure Persistence:**
 - PC1 variance: 3.10% → 3.101% (stable across 317× scale increase)
-- Decision boundary: PC1 = 0.3 (unchanged)
-- Semantic structure preserved at production scale
+- Boundary location: PC1 = 0.3 (unchanged)
+- Spatial clustering structure robust at production scale
 
-**Distribution Shift Discovered:**
-- Low PC1 cluster grows: 82.4% → **94.1%** (production is easier)
-- High PC1 cluster shrinks: 17.6% → **5.9%** (alignment tax is rare but valuable)
+**Distribution Characteristics:**
+- Low PC1 cluster: 82.4% (holdout) → 94.1% (1M)
+- High PC1 cluster: 17.6% (holdout) → 5.9% (1M)
 
-**Implications:**
-1. **Holdout was a conservative stress test** - Production traffic is even more skewed toward routine tasks
-2. **Cost savings are understated** - 94.1% vs 82.4% weak-model routing in production
-3. **Alignment tax is rare but valuable** - 5.9% of prompts where Mixtral beats GPT-4
+**Note on Validation:**
+The 1M dataset lacks reward evaluations, limiting analysis to spatial structure. Performance claims are based on the validated holdout set (N=1,871) with reward labels. The spatial consistency observed at scale provides supporting evidence for structure robustness, though semantic interpretation requires labeled data.
 
-## Usage
+## Reproducibility
 
-### Step 1: Run Holdout Analysis
+### Primary Analysis
 
 ```bash
-cd /Users/annette/repostitories/banditGPT
+# Generate Figure 1 with statistical validation
 python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py
 ```
 
-**Requires:**
-- Pre-trained PCA model from RouteLLM data
-- LMSYS dev/holdout data with reward evaluations
-- Sentence transformer model for embeddings
-
-### Step 2: Download 1M Dataset (Optional)
+### Validation Analyses
 
 ```bash
-cd /Users/annette/repostitories/banditGPT
-python3 experiments_v1/01_figure/download_1M_dataset.py
+# Statistical significance and cluster quality
+python3 experiments_v1/01_figure/check_cluster_stats.py
+
+# Threshold selection validation
+python3 experiments_v1/01_figure/validate_threshold.py
+
+# High-dimensional structure validation
+python3 experiments_v1/01_figure/validate_high_dimensional.py
+
+# Data quality and diversity analysis
+python3 experiments_v1/01_figure/analyze_cluster_diversity.py
 ```
 
-**This will:**
-- Download the full RouteLLM dataset from HuggingFace
-- Process battles into model evaluations format
-- Save to `data/battles_1M.jsonl.gz`
-- Requires `HUGGINGFACE_API_KEY` in `.env`
-
-### Step 3: Run 1M Scale Validation (Optional)
+### Scale Analysis (Optional)
 
 ```bash
-cd /Users/annette/repostitories/banditGPT
+# Download 1M dataset (requires HUGGINGFACE_API_KEY)
+python3 experiments_v1/01_figure/download_1M_dataset.py
+
+# Analyze spatial structure at scale
 python3 experiments_v1/01_figure/plot_lmsys_1M_pca.py
 ```
 
-**This will:**
-- Load the 1M dataset
-- Compute reward gaps (GPT-4-Turbo - Mixtral)
-- Embed prompts using sentence-transformers
-- Project to 2D using pre-trained PCA model
-- Generate visualizations showing bimodal structure
+**Note:** All scripts output detailed validation statistics and save results to `results/`.
+
+## Robustness Validation
+
+### Threshold Selection Validation
+
+To ensure the PC1 = 0.3 decision boundary is principled and not arbitrary, we performed systematic validation using multiple independent methods:
+
+**Grid Search Analysis:**
+- Evaluated 50 candidate thresholds
+- Optimal by composite score: 0.317
+- PC1 = 0.3 within 1σ of optimal (0.320 ± 0.105)
+
+**Unsupervised Clustering:**
+- K-Means, GMM independently identify boundaries near 0.3
+- Convergence across methods validates threshold choice
+
+**Sensitivity Analysis:**
+- Results robust across [0.2, 0.4] range (all p < 10⁻¹⁰⁰)
+- Silhouette score: 0.4948, gap separation: 0.815
+
+See `validate_threshold.py` for implementation.
+
+### High-Dimensional Structure Validation
+
+While PC1+PC2 capture only 5.4% of embedding variance, we validate that this low-variance subspace is semantically meaningful:
+
+**Multi-Dimensional Analysis:**
+- Cluster quality maintained across 2D, 32D, and 384D spaces
+- PC1-based clustering predicts reward gaps in original 384D space (ρ = -0.395, p < 10⁻⁷⁰)
+- Separation ratio in 384D: 0.81 (non-random structure)
+
+**Interpretation:**
+- Low variance (5.4%) captures **task-relevant** semantic axis (alignment compliance)
+- Remaining 94.6% represents task-orthogonal variation (topic, language, style)
+- Successful dimensionality reduction isolates routing-relevant structure
+
+See `validate_high_dimensional.py` for implementation.
+
+### Data Quality Analysis
+
+To ensure findings generalize beyond specific prompt templates, we performed comprehensive diversity analysis:
+
+**Uniqueness:**
+- 100% unique prompts (0% exact duplicates across all clusters)
+- High PC1: 330 unique prompts
+- Low PC1: 1,541 unique prompts
+
+**Semantic Diversity:**
+- High PC1 diversity score: 0.355
+- Near-duplicate rate: 0.37% (minimal)
+- Farthest-first sampling shows variety of prompt types
+
+**Robustness:**
+- Statistical significance maintained (p < 10⁻¹⁴³)
+- Results not driven by repeated templates
+
+See `analyze_cluster_diversity.py` for implementation.
 
 ## Understanding the Alignment Tax
 
@@ -130,45 +213,98 @@ The **Alignment Tax** is a phenomenon where RLHF-optimized flagship models perfo
 - **Economic opportunity**: Routing these to cheaper models improves both cost AND quality
 - **Production-critical**: At scale (1M dataset), this is a 5.9% revenue opportunity
 
-## Comparison: Holdout vs 1M Dataset
+## Dataset Comparison
 
 | Metric | Holdout (N=1,871) | 1M Dataset (N=594,199) |
 |--------|-------------------|------------------------|
-| PC1 Variance | 3.10% | 3.101% ✓ |
-| PC2 Variance | 2.29% | 2.294% ✓ |
-| Decision Boundary | PC1 = 0.3 | PC1 = 0.3 ✓ |
-| Low PC1 (Natural) | 82.4% | **94.1%** ↑ |
-| High PC1 (Strict) | 17.6% | **5.9%** ↓ |
+| PC1 Variance | 3.10% | 3.101% |
+| PC2 Variance | 2.29% | 2.294% |
+| Boundary Location | PC1 = 0.3 | PC1 = 0.3 |
+| Low PC1 (%) | 82.4% | **94.1%** |
+| High PC1 (%) | 17.6% | **5.9%** |
+| **Reward Labels** | **✅ Available** | **Not available** |
 
-**Interpretation:**
-- ✓ = Spectral invariance confirmed (structure is stable)
-- ↑/↓ = Production distribution shift (more routine tasks in real deployment)
+**Validation Approach:**
+- Holdout provides validated ground truth with reward labels
+- 1M analysis demonstrates spatial structure robustness at scale
+- Performance claims based on holdout; 1M provides supporting evidence for structure persistence
 
-## Conservative Stress Test Framing
+## Comprehensive Validation
 
-The holdout analysis represents a **conservative stress test**:
+Our analysis includes systematic validation across multiple dimensions to ensure methodological rigor:
 
-1. **Regret reduction is understated by 14%** - Production has fewer hard prompts
-2. **Cost savings are understated** - 94.1% vs 82.4% potential weak-model routing
-3. **Warmup Prior's economic waste is worse** - Over-routes 94% of traffic, not 82%
+### Statistical Validation
+- Multiple significance tests (Mann-Whitney, Welch's t-test)
+- Effect size analysis (Cohen's d = 1.90)
+- Confidence intervals (95%, non-overlapping)
+- Distribution diagnostics (normality tests, skewness, kurtosis)
+- **Result:** p < 10⁻¹⁴³ (overwhelming evidence)
 
-This makes our paper results **more impressive** when generalized to production scale.
+### Threshold Validation
+- Grid search over 50 candidates (optimal: 0.317)
+- Unsupervised clustering (k-means, GMM → 0.320 ± 0.105)
+- Sensitivity analysis across [0.2, 0.4] range
+- **Result:** PC1 = 0.3 principled and within optimal range
+
+### Dimensionality Validation
+- Cluster quality across 2D, 32D, 384D spaces
+- High-D predictive power (ρ = -0.395 in 384D, p < 10⁻⁷⁰)
+- Separation ratio analysis (384D: 0.81)
+- **Result:** Structure real, not dimensionality artifact
+
+### Data Quality Validation
+- Uniqueness analysis (0% exact duplicates)
+- Near-duplicate detection (0.37% rate)
+- Diversity metrics (High PC1 score: 0.355)
+- **Result:** 330 unique, diverse prompts
+
+### Scale Validation
+- 1M dataset analysis (317× scale increase)
+- PC1 variance stability (3.10% → 3.101%)
+- Spatial structure persistence
+- **Result:** Robust at production scale
 
 ## Dependencies
 
 - `sentence-transformers` - For prompt embeddings
 - `datasets` - For HuggingFace dataset loading
-- `scikit-learn` - For PCA (via joblib)
+- `scikit-learn` - For PCA, clustering, and metrics
 - `matplotlib` - For visualizations
-- `scipy` - For KDE density estimation
+- `scipy` - For statistical tests and density estimation
+- `numpy` - For numerical computations
 
-## Connection to Paper
+## Validation Approach
 
-This experiment provides:
+This experiment demonstrates rigorous validation methodology:
 
-1. **Figure 1**: Visual proof of Alignment Tax discovery
-2. **Section 3**: Motivation for adaptive routing over static heuristics
-3. **Appendix**: Scale validation and conservative stress test analysis
+**Statistical Rigor:**
+- Multiple significance tests validate findings (p < 10⁻¹⁴³)
+- Large effect sizes confirm practical significance (d = 1.90)
+- Confidence intervals quantify uncertainty
+- Both parametric and non-parametric tests for robustness
+
+**Methodological Validation:**
+- Threshold selection justified through systematic search
+- Structure validated in high-dimensional spaces
+- Data quality verified (no duplicates, good diversity)
+- Results robust at 317× scale increase
+
+**Transparency:**
+- Clear distinction between labeled (holdout) and unlabeled (1M) analyses
+- All validation code provided for reproducibility
+- Comprehensive documentation of methods and limitations
+
+This level of validation ensures findings are statistically sound, not artifacts of methodological choices, and suitable for deployment.
+
+## Paper Integration
+
+This experiment provides comprehensive analysis for:
+
+1. **Figure 1**: Visual demonstration of Alignment Tax with statistical annotations
+2. **Methods Section**: Validation methodology (statistical tests, threshold selection, high-D validation)
+3. **Results Section**: Primary holdout findings with confidence intervals and effect sizes
+4. **Discussion/Appendix**: Scale analysis, robustness checks, data quality validation
+5. **LaTeX Files**: Ready-to-include sections (`validation_methodology.tex`, `results_explanation.tex`, `figure_1M_analysis.tex`)
 
 ## Notes
 

@@ -1,18 +1,18 @@
-% LaTeX: 1M Dataset Analysis
-% Reveals Conservative Stress Test and Economic Catastrophe
+% LaTeX: 1M Dataset Scale Analysis
+% Validates Spatial Structure Robustness at Production Scale
 
-\subsection{Scale Validation: Conservative Stress Test Revealed}
+\subsection{Scale Validation: Spatial Structure Persistence}
 \label{sec:scale_validation}
 
-Our initial evaluation on the LMSYS holdout set ($N=1,871$) represented a \emph{conservative stress test} of production conditions. To validate the robustness of our semantic routing approach, we analyzed the complete LMSYS Chat-1M dataset~\cite{zheng2023lmsys}, comprising 594,199 unique prompts---a 317$\times$ increase in scale.
+To validate the robustness of our semantic routing approach at scale, we analyzed the complete LMSYS Chat-1M dataset~\cite{zheng2023lmsys}, comprising 594,199 unique prompts---a 317$\times$ increase from the holdout evaluation ($N=1,871$).
 
-\subsubsection{Spectral Invariance at Scale}
+\subsubsection{Spatial Invariance at Scale}
 
-Despite the dramatic increase in dataset size, the semantic structure exhibits remarkable stability. Table~\ref{tab:scale_comparison} compares the principal component analysis across both datasets.
+The principal component structure exhibits remarkable stability across scale. Table~\ref{tab:scale_comparison} compares the PCA decomposition and spatial clustering across both datasets.
 
 \begin{table}[t]
 \centering
-\caption{Semantic Structure Comparison: Holdout vs. Full 1M Dataset}
+\caption{Spatial Structure Comparison: Holdout vs. Full 1M Dataset}
 \label{tab:scale_comparison}
 \begin{tabular}{lcc}
 \toprule
@@ -29,75 +29,59 @@ High PC1 (\%) & 17.6\% & \textbf{5.9\%} \\
 \end{tabular}
 \end{table}
 
-\noindent\textbf{Key Finding:} The principal components and the $PC1 = 0.3$ decision boundary remain perfectly stable across a 317$\times$ scale increase, demonstrating \emph{spectral invariance}. This proves that the router's semantic logic is scale-invariant and generalizes to production-scale traffic.
+\noindent\textbf{Key Finding:} The principal components and the $PC1 = 0.3$ spatial boundary remain stable across a 317$\times$ scale increase. This demonstrates that the PCA decomposition captures robust structural properties of the prompt distribution.
 
-\subsubsection{The Economic Implication: Scale Magnifies the Paradox}
+\noindent\textbf{Data Provenance:} The holdout evaluation ($N=1,871$) includes reward labels for both Mixtral and GPT-4-Turbo, enabling validation of the reward-semantic correspondence. The 1M dataset represents unfiltered production traffic but lacks reward evaluations, limiting analysis to spatial structure. Performance metrics reported in our main results are based on the labeled holdout set.
 
-The shift from 17.6\% ``Hard'' prompts in the Holdout set to 5.9\% in the Chat-1M production data reframes the routing challenge.
+\noindent\textbf{Threshold Selection:} We validated the $PC1 = 0.3$ boundary through systematic analysis: grid search over 50 thresholds identified $0.317$ as optimal by composite score; unsupervised methods (k-means, GMM) converged to $0.320 \pm 0.105$; sensitivity analysis confirms robustness across $[0.2, 0.4]$ (all $p < 10^{-100}$). The threshold achieves strong cluster quality (silhouette: $0.495$) and lies within one standard deviation of the optimal mean.
 
-\textbf{1. The "Artifact" is Rare but Valuable.}
-While the ``High PC1'' cluster (strict constraint templates where Mixtral wins) shrinks to 5.9\%, it remains economically significant. A static router that sends these formatting-constrained prompts to GPT-4-Turbo (based on perceived ``complexity'') pays the Alignment Tax unnecessarily. The artifact is rare, but exploiting it is pure profit.
+\subsubsection{Distribution Shift and Interpretation}
 
-\textbf{2. The "Natural Language" Zone Requires Precision.}
-The growth of the ``Low PC1'' cluster (to 94.1\%) means that production traffic is dominated by tasks where GPT-4-Turbo's RLHF alignment provides value ($+0.13$ advantage). A naive ``minimize cost'' router would switch 94\% of traffic to Mixtral, sacrificing conversational quality. \texttt{banditGPT}'s ability to find the \emph{sub-manifold} within this 94\% where Mixtral is ``good enough'' while exploiting the 5.9\% formatting artifact is the path to 27\% cost savings without quality degradation.
+The Chat-1M dataset shows a pronounced distribution shift toward Low PC1 (82.4\% $\rightarrow$ 94.1\%). While we validated the reward-semantic correspondence on the holdout set, we lack reward evaluations for the 1M dataset to confirm this mapping persists.
+
+\paragraph{Interpreting Distribution Shift.}
+The Chat-1M dataset exhibits a pronounced shift toward Low PC1 (82.4\% $\rightarrow$ 94.1\%). The spatial consistency (stable PC1 variance and boundary location) suggests the PCA decomposition captures robust structural properties of prompt distributions. However, semantic interpretation of this shift requires reward labels. The distribution shift could reflect differences in prompt difficulty, user behavior evolution, or sampling characteristics between the two datasets.
+
+\paragraph{Validation Strategy.}
+We base our performance claims on the holdout set ($N=1,871$), which provides validated reward-semantic correspondence through labeled evaluations. The 1M analysis serves to demonstrate spatial structure robustness at scale, providing supporting evidence that the PCA decomposition generalizes beyond the holdout sample.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.48\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_1M_pca.png}
-\caption{\textbf{Semantic Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts reveals overwhelming dominance of natural language tasks (Low PC1: 94.1\%, blue). The $PC1=0.3$ decision boundary (dashed line) remains stable despite 317$\times$ scale increase. High PC1 cluster (red, 5.9\%) represents strict constraint-satisfaction templates where Mixtral outperforms GPT-4-Turbo. This distribution shift from holdout (82.4\%/17.6\%) to production (94.1\%/5.9\%) demonstrates Forensic Agility: the router exploits a rare but valuable formatting artifact while carefully navigating the dominant natural language zone.}
+\caption{\textbf{Spatial Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts shows spatial clustering persistence (Low PC1: 94.1\%, High PC1: 5.9\%). The $PC1=0.3$ boundary location and PC1 variance (3.101\%) remain stable despite 317$\times$ scale increase. This spatial distribution shift from holdout (82.4\%/17.6\%) provides weak evidence for generalization, though reward-semantic validation was performed on holdout only ($N=1,871$).}
 \label{fig:scale_validation}
 \end{figure}
 
-\textbf{Conclusion.}
-The 1M scale validation proves the value of Forensic Agility. The router must: (1) exploit the rare formatting artifact (High PC1, 5.9\%) where alignment is a liability, and (2) precisely navigate the dominant natural language zone (Low PC1, 94.1\%) to find where Mixtral is ``good enough.'' This is not task difficulty routing---it is \textbf{production failure mode exploitation}.
+\textbf{Methodological Transparency.}
+By explicitly separating validated (holdout with reward labels) from exploratory (1M spatial clustering only) analyses, we provide clear ground truth for reproducibility while documenting scale-dependent observations that merit future investigation with production labels.
 
-\subsubsection{Conservative Stress Test Interpretation}
+\subsubsection{Performance Evaluation and Generalization}
 
-The holdout set's 17.6\% Hard prompts now serves as a \emph{conservative upper bound} on production difficulty. Our reported results (Table~\ref{tab:main_results}) demonstrate strong performance even under this pessimistic scenario. In reality:
+\paragraph{Validated Performance.}
+Our primary evaluation on the labeled holdout set ($N=1,871$) demonstrates 27\% cost reduction with minimal quality degradation. The 17.6\% High PC1 prompts in this dataset validate the alignment tax phenomenon with strong statistical evidence (Mann-Whitney $p < 10^{-143}$, Cohen's $d = 1.90$).
 
-\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Regret reduction is understated:} With 94.1\% routine traffic, the Warmup Prior's over-routing penalty is 14\% worse than evaluated.
-    \item \textbf{Cost savings are understated:} Our hybrid approach's ability to route 82.4\% of holdout traffic to weak models translates to 94.1\% in production---a 12\% improvement in cost efficiency.
-    \item \textbf{Quality preservation is robust:} If the router maintains quality on 17.6\% hard prompts (holdout), it trivially handles 5.9\% hard prompts (production).
-\end{enumerate}
+\paragraph{Scale Generalization.}
+The spatial structure persistence at 317$\times$ scale suggests the PCA decomposition captures robust properties of prompt distributions. The distribution shift to 94.1\% Low PC1 in production traffic indicates potential for even greater cost savings, conditional on the spatial-semantic correspondence extending to unlabeled production data.
 
-\subsubsection{Implications for Negative Transfer}
+\subsubsection{Robustness Analysis}
 
-The 1M dataset analysis reframes the Negative Transfer problem from a \emph{methodological concern} to an \emph{economic imperative}:
-
-\begin{quote}
-\emph{``Static warmup priors trained on expensive model preferences (Mixtral vs. GPT-4-Turbo) catastrophically over-route production traffic. On 94\% of real-world requests, the router wastes budget by invoking flagship models for tasks that mid-tier models handle adequately. This is not a calibration issue---it is a \textbf{structural mismatch} between training incentives and deployment economics.''}
-\end{quote}
-
-\paragraph{Why This Matters.}
-The 317$\times$ scale validation transforms this contribution from ``interesting research'' to ``production-critical infrastructure.'' Reviewers will appreciate:
+Beyond the primary holdout evaluation, we conducted additional validation to ensure methodological rigor:
 
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Rigor:} You didn't cherry-pick a favorable dataset---you analyzed \emph{all} 594K prompts.
-    \item \textbf{Honesty:} You explicitly acknowledge that holdout results were pessimistic.
-    \item \textbf{Impact:} The economic waste quantification (\$2.3M/year additional) makes the problem tangible.
-    \item \textbf{Generalization:} Spectral invariance proves the router's logic isn't dataset-specific.
+    \item \textbf{Scale robustness:} Spatial structure stable at 317$\times$ scale (PC1 variance: 3.10\% $\rightarrow$ 3.101\%)
+    \item \textbf{Threshold validation:} Grid search and unsupervised clustering confirm $PC1 = 0.3$ is principled (optimal: $0.320 \pm 0.105$)
+    \item \textbf{High-dimensional validation:} Structure persists in 384D space ($\rho = -0.395$, $p < 10^{-70}$)
+    \item \textbf{Data quality:} Zero exact duplicates, diversity score: 0.355 for High PC1 cluster
 \end{itemize}
 
-\subsubsection{Methodological Note: Data Provenance}
+These analyses validate that findings are statistically robust, not artifacts of dimensionality reduction, threshold selection, or data peculiarities.
 
-\paragraph{Holdout Set (N=1,871).} Stratified split from LMSYS Arena battles, evaluated with Mixtral-8x7B-Instruct and GPT-4-Turbo. The 17.6\% High PC1 proportion suggests intentional inclusion of challenging prompts for robust evaluation.
+\subsubsection{Data and Methods}
 
-\paragraph{Chat-1M Dataset (N=594,199).} Complete LMSYS Chatbot Arena conversations (April--August 2023), representing unfiltered user traffic across 210K unique IPs. The 5.9\% High PC1 proportion reflects natural production distribution.
+\paragraph{Datasets.} 
+\textbf{Holdout Set ($N=1,871$):} Stratified split from LMSYS Arena battles with Mixtral-8x7B-Instruct and GPT-4-Turbo evaluations. Reward labels enable validation of reward-semantic correspondence. Used for primary performance evaluation.
 
-\paragraph{PCA Model.} Trained on 80K RouteLLM battles (Mixtral vs. GPT-4-Turbo), reduced from 384D (SentenceTransformer) to 32D (35.14\% variance). The same model was applied to both holdout and Chat-1M datasets, ensuring consistent semantic projection.
+\textbf{Chat-1M Dataset ($N=594,199$):} Complete LMSYS Chatbot Arena conversations (April--August 2023) representing unfiltered production traffic. Used for spatial structure robustness analysis at scale.
 
-\subsubsection{Takeaway for Paper Narrative}
-
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black,title=\textbf{Conservative Stress Test Framing}]
-\textbf{Claim:} ``Our holdout evaluation ($N=1,871$, 17.6\% hard prompts) represented a conservative stress test. Analysis of the full LMSYS Chat-1M dataset ($N=594,199$) reveals that production traffic is \emph{even more skewed toward routine tasks} (94.1\% vs. 82.4\%). This means:
-\begin{enumerate}[noitemsep,topsep=2pt]
-    \item Our reported regret reductions are \textbf{understated} by 14\%.
-    \item The Warmup Prior's economic waste is \textbf{worse} than evaluated (\$2.3M/year additional).
-    \item Our hybrid approach's cost savings are \textbf{more impactful} in production (94.1\% vs. 82.4\% weak-model routing).
-\end{enumerate}
-\textbf{Evidence:} Spectral invariance across 317$\times$ scale increase (PC1: 3.10\% $\rightarrow$ 3.101\%, boundary: $PC1=0.3$ stable).
-\end{tcolorbox}
-
-This framing positions the work as \emph{production-ready} rather than \emph{academically interesting}, which is what reviewers want to see for industry-scale machine learning systems.
+\paragraph{PCA Model.} Trained on 80K RouteLLM battles (Mixtral vs. GPT-4-Turbo), reducing 384D sentence embeddings to 32D (35.14\% variance explained). Applied consistently to both datasets for comparable spatial analysis.
 

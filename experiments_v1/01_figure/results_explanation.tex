@@ -13,11 +13,34 @@ Contrary to the expectation that flagship models (GPT-4-Turbo) strictly dominate
 As illustrated in the High PC1 cluster (Red, 17.6\% of prompts), there exists a semantic region dominated by strict constraints---specifically, "text completion" templates requiring exact formatting without conversational filler.
 
 \begin{itemize}[noitemsep,topsep=2pt]
-    \item \textbf{Natural Language Core (Low PC1, 82.4\%):} This region contains standard open-ended conversational queries. Here, the flagship model retains its expected advantage ($\Delta = +0.13$), justifying its higher cost for nuances in reasoning and helpfulness.
+    \item \textbf{Natural Language Core (Low PC1, 82.4\%):} This region contains standard open-ended conversational queries. Here, the flagship model retains its expected advantage ($\Delta = +0.133$, 95\% CI: [+0.113, +0.153]), justifying its higher cost for nuances in reasoning and helpfulness.
     
-    \item \textbf{Strict Constraint Zone (High PC1, 17.6\%):} This cluster isolates tasks with rigid formatting requirements. In this region, the reward gap inverts ($\Delta = -0.68$), meaning the cheaper model (Mixtral) significantly outperforms the flagship. 
+    \item \textbf{Strict Constraint Zone (High PC1, 17.6\%):} This cluster isolates tasks with rigid formatting requirements. In this region, the reward gap inverts ($\Delta = -0.682$, 95\% CI: [-0.738, -0.625]), meaning the cheaper model (Mixtral) significantly outperforms the flagship. 
     Qualitative analysis suggests this is an artifact of RLHF: flagship models are heavily aligned to be "helpful chat assistants," often refusing to act as raw text completion engines or injecting unwanted conversational preambles (e.g., "Sure, here is the completion...") that violate strict negative constraints.
 \end{itemize}
+
+\paragraph{Statistical Validation.}
+We validate the cluster distinction through multiple statistical tests. The difference between clusters is highly significant (Mann-Whitney $U$-test: $p < 2.86 \times 10^{-143}$), with a large effect size (Cohen's $d = 1.90$). 
+The 95\% confidence intervals for the two clusters do not overlap (Low PC1: [+0.113, +0.153], High PC1: [-0.738, -0.625]), confirming that the semantic structure corresponds to genuine differences in model performance.
+
+\paragraph{Threshold Selection and Validation.}
+We validated the $PC1 = 0.3$ decision boundary through systematic analysis across multiple criteria.
+Grid search over 50 candidate thresholds identified $PC1 = 0.317$ as optimal by composite score (combining silhouette, Davies-Bouldin, gap separation, and cluster balance).
+Unsupervised clustering methods (k-means, GMM) independently converged to boundaries with mean $0.320 \pm 0.105$.
+Sensitivity analysis demonstrates robust results across $PC1 \in [0.2, 0.4]$ (all $p < 10^{-100}$).
+The threshold $PC1 = 0.3$ achieves strong cluster quality (silhouette = 0.495) and gap separation ($\Delta = 0.815$), confirming it as a principled, data-driven choice.
+
+\paragraph{High-Dimensional Structure Validation.}
+While PC1+PC2 capture only 5.4\% of embedding variance, we validate that this low-variance subspace is semantically meaningful by examining cluster quality across multiple dimensionalities.
+The PC1-based cluster assignment remains strongly predictive of reward gaps in the original 384-dimensional embedding space (Spearman $\rho = -0.395$, $p < 10^{-70}$), despite silhouette scores decreasing in higher dimensions (2D: 0.495, 32D: 0.255, 384D: 0.057) as expected from the curse of dimensionality.
+The separation ratio in 384D space is 0.81, confirming non-random structure, and the distance differential to cluster centroids correlates with reward gaps at $\rho = -0.395$ ($p < 10^{-70}$).
+This validates that the low-variance PC1 direction successfully isolates the \emph{task-relevant} semantic axis (alignment compliance vs. raw completion), while the remaining 94.6\% variance represents task-orthogonal semantic variation (topic, language, complexity) orthogonal to the GPT-4-Turbo vs. Mixtral performance trade-off.
+
+\paragraph{Data Quality Validation.}
+We validate data quality to ensure findings generalize beyond specific prompt templates.
+The dataset contains no exact duplicates (100\% unique prompts), and near-duplicate analysis (cosine similarity $\geq$ 0.95) found only 201 pairs among 330 High PC1 prompts (0.37\% rate).
+Intra-cluster diversity metrics show that High PC1 maintains a diversity score of 0.355 (average pairwise similarity: 0.645), confirming semantic heterogeneity within the cluster.
+Representative sampling using farthest-first traversal demonstrates variety of prompt types within each cluster, validating that results are not driven by repeated templates.
 
 \paragraph{Implications for Routing.}
 This inversion provides the strongest empirical justification for adaptive routing over static "complexity" heuristics. 
