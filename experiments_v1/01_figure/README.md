@@ -207,6 +207,24 @@ The **Alignment Tax** is a phenomenon where RLHF-optimized flagship models perfo
 2. **Safety over-correction**: Refuses tasks that look template-like
 3. **Helpfulness alignment**: Tries to "improve" prompts instead of following them exactly
 
+### Concrete Examples (where Mixtral wins with Gap = -1.0)
+
+The High PC1 cluster contains these types of prompts:
+
+1. **Instruction-following templates**: "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request. ### Instruction: [...]"
+   - *Why GPT-4 fails*: Adds explanatory text before/after the completion
+
+2. **Binary classification**: "Given the document below, you have to determine if 'Yes' or 'No', the summary is factually consistent [...]"
+   - *Why GPT-4 fails*: Explains reasoning instead of just outputting "Yes" or "No"
+
+3. **Structured output constraints**: "I want you to act as an aspect-based sentiment analysis model [...] The sentiment should be either positive, negative or neutral."
+   - *Why GPT-4 fails*: Adds conversational framing around the structured output
+
+4. **Explicit negative constraints**: "Use the following pieces of context to answer the question. If you don't know the answer, just say that you don't know, don't try to make up an answer."
+   - *Why GPT-4 fails*: Still tries to be "helpful" and elaborates beyond the constraint
+
+In all cases, GPT-4-Turbo's RLHF training optimizes for helpfulness and explanation, which directly conflicts with the strict format requirements.
+
 ### Why does it matter?
 
 - **Not about difficulty**: These tasks aren't "easy" - they're structurally misaligned

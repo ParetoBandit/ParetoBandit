@@ -16,7 +16,8 @@ As illustrated in the High PC1 cluster (Red, 17.6\% of prompts), there exists a 
     \item \textbf{Natural Language Core (Low PC1, 82.4\%):} This region contains standard open-ended conversational queries. Here, the flagship model retains its expected advantage ($\Delta = +0.133$, 95\% CI: [+0.113, +0.153]), justifying its higher cost for nuances in reasoning and helpfulness.
     
     \item \textbf{Strict Constraint Zone (High PC1, 17.6\%):} This cluster isolates tasks with rigid formatting requirements. In this region, the reward gap inverts ($\Delta = -0.682$, 95\% CI: [-0.738, -0.625]), meaning the cheaper model (Mixtral) significantly outperforms the flagship. 
-    Qualitative analysis suggests this is an artifact of RLHF: flagship models are heavily aligned to be "helpful chat assistants," often refusing to act as raw text completion engines or injecting unwanted conversational preambles (e.g., "Sure, here is the completion...") that violate strict negative constraints.
+    Qualitative analysis reveals this is an artifact of RLHF: flagship models are heavily aligned to be "helpful chat assistants," often refusing to act as raw text completion engines or injecting unwanted conversational preambles (e.g., "Sure, here is the completion...") that violate strict negative constraints.
+    Representative examples include instruction-following templates (``Below is an instruction...''), binary classification tasks (``determine if `Yes' or `No'...''), structured output requirements (``sentiment should be either positive, negative or neutral''), and explicit negative constraints (``If you don't know, just say you don't know, don't make up an answer'').
 \end{itemize}
 
 \paragraph{Statistical Validation.}

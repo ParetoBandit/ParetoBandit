@@ -27,6 +27,16 @@ Contrary to the assumption that routine tasks are ``easy,'' the Low PC1 cluster 
 \paragraph{The High PC1 ``Strictness Zone'' (17.6\%).}
 The ``Hard'' cluster---visually distinct in Figure~\ref{fig:pca}---is actually defined by strict formatting constraints (forensic analysis reveals 85\% are ``text completion only, no chat'' templates). Here, the frontier model suffers from an \textbf{Alignment Tax}: its RLHF conditioning toward helpfulness causes verbosity that violates negative constraints. The open-weights model, being less aggressively aligned, adheres strictly to the format, winning by a massive margin ($-0.682$).
 
+\textit{Representative examples from this cluster include:}
+\begin{itemize}[noitemsep,topsep=2pt,leftmargin=10pt]
+    \item \textbf{Instruction-following templates:} ``Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request. \#\#\# Instruction: [...]'' (Gap: $-1.0$)
+    \item \textbf{Binary classification:} ``Given the document below, you have to determine if `Yes' or `No', the summary is factually consistent [...]'' (Gap: $-1.0$)
+    \item \textbf{Structured output constraints:} ``I want you to act as an aspect-based sentiment analysis model [...] The sentiment should be either positive, negative or neutral.'' (Gap: $-1.0$)
+    \item \textbf{Explicit negative constraints:} ``Use the following pieces of context to answer the question. If you don't know the answer, just say that you don't know, don't try to make up an answer.'' (Gap: $-1.0$)
+\end{itemize}
+
+In all cases, GPT-4-Turbo's tendency to add conversational preambles (``Sure, I'll help you with that...''), explain its reasoning, or reformulate instructions violates the strict format requirements. Mixtral, less aggressively tuned for helpfulness, follows the template literally.
+
 \paragraph{Conclusion.}
 The routing opportunity is counter-intuitive. We do not save money by routing ``easy'' tasks to cheap models; we save money by identifying the ``Strict'' tasks where the expensive model actively fails, effectively turning a quality problem (Alignment Tax) into a cost-saving solution.
 
