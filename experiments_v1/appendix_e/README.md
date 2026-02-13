@@ -67,7 +67,7 @@ This confirms:
 ### Reference in Main Text
 
 ```latex
-To address concerns about hyperparameter sensitivity, we swept 
+To validate robustness across hyperparameter choices, we swept 
 $n_{\text{eff}}$ across a 20$\times$ range. All values produce 
 identical performance (Appendix~\ref{appendix:hyperparameter_robustness}), 
 demonstrating that the framework is robust to hyperparameter selection.
@@ -75,7 +75,7 @@ demonstrating that the framework is robust to hyperparameter selection.
 
 ## Recommended Usage
 
-### For KDD Camera-Ready
+### For Submission
 - **If page limit is tight**: Use Appendix E (concise, 1 page)
 - **If space available**: Use Appendix D (comprehensive, 4 pages)
 - **If generous space**: Use both (E for quick reference, D for details)
@@ -90,7 +90,7 @@ demonstrating that the framework is robust to hyperparameter selection.
 - [x] Includes Figure 7
 - [x] Includes results table
 - [x] Clear interpretation
-- [x] KDD formatting compliant
+- [x] Conference formatting compliant
 - [x] References correct figure labels
 
 ## Related Files
@@ -98,7 +98,6 @@ demonstrating that the framework is robust to hyperparameter selection.
 - **Figure 7**: `experiments_v1/07_figure/results/figure7_sensitivity.png`
 - **Appendix D**: `experiments_v1/appendix_d/hyperparameter_sensitivity.tex`
 - **Experiment Code**: `experiments_v1/07_figure/plot_sensitivity.py`
-- **Technical Fix**: `experiments_v1/07_figure/KDD_REVIEWER_FIX.md`
 
 ## Quick Stats
 
@@ -110,7 +109,7 @@ demonstrating that the framework is robust to hyperparameter selection.
 
 ---
 
-**Status**: ✅ Complete and KDD camera-ready  
+**Status**: ✅ Complete and ready for submission  
 **Last Updated**: January 25, 2026  
 **Recommended For**: Space-constrained submissions
 

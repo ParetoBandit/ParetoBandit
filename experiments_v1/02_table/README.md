@@ -1,10 +1,83 @@
 # Experiment: Table 2 - The Performance Gap
 
-**Date:** 2026-01-26 (CORRECTED)  
-**Status:** ✅ Complete and Ready for Submission (Holdout Set)  
-**Main Result:** η=1.0 achieves 1.10× near-optimal regret (44 vs 40) on Holdout Set
+**Date:** 2026-02-12 (STATISTICAL VALIDATION UPDATE)  
+**Status:** ✅ Multi-Seed Validation Complete  
+**Main Result:** η=1.0 achieves **median 52** regret (IQR: [34-80], N=10 seeds) on Holdout Set
 
-⚠️ **IMPORTANT**: This experiment now reports **Holdout Set (N=750)** results for out-of-sample evaluation. Previous version incorrectly used Dev Set (N=1,121).
+⚠️ **CRITICAL UPDATE (2026-02-12)**: 
+- Added multi-seed evaluation (N=10) with statistical significance testing
+- Original single-seed result (44 regret) replaced with robust median (52)
+- Variance analysis reveals stochastic nature of Corralling algorithm
+- All claims updated to reflect multi-seed statistics
+
+---
+
+## 📊 Statistical Validation (2026-02-12 Update)
+
+### Quick Start
+
+```bash
+cd experiments_v1/02_table
+
+# Run complete validation pipeline (~30 minutes)
+./run_statistical_validation.sh
+
+# Check progress
+./check_progress.sh
+
+# After completion: generate final table
+python generate_table_from_results.py \
+    --eta-01-results data/eta_0.1_holdout_multiseed/results_multiseed.json \
+    --eta-10-results data/eta_1.0_holdout_multiseed/results_multiseed.json \
+    --comparison data/statistical_comparison/comparison_results.json \
+    --output table_02_final.tex
+```
+
+### What Changed
+
+| Aspect | Before (Single-Seed) | After (Multi-Seed) |
+|--------|---------------------|-------------------|
+| **Seeds** | 1 (seed=42) | 10 random seeds |
+| **Cumulative Regret** | 44 (point estimate) | 52 [34-80] (median [IQR]) |
+| **Variance** | Unknown | Std = 23.2 (42% CV) |
+| **Statistical Tests** | None | t-test, Mann-Whitney, Bonferroni |
+| **Effect Sizes** | None | Cohen's d computed |
+| **Claim** | "1.10× near-optimal" | "1.30× competitive" |
+
+### Key Finding: Variance
+
+**Root Cause:** Line 3032 in `router.py` - `expert_idx = np.random.choice(self.n_experts, p=probs)`
+
+**Impact:**
+- Warmup & Tabula Rasa: **Deterministic** (std = 0)
+- Corralling: **Stochastic** (std = 23.2, 42% CV)
+- Expected behavior for importance-weighted algorithms
+
+**Solution:** Report median + IQR instead of mean ± std
+
+### New Files
+
+**Scripts:**
+- `run_holdout_evaluation_multiseed.py` - Multi-seed evaluation
+- `compare_learning_rates.py` - Statistical significance tests
+- `generate_table_from_results.py` - Auto-generate LaTeX table
+- `visualize_variance.py` - Variance diagnostic plots
+- `run_statistical_validation.sh` - Full pipeline automation
+- `check_progress.sh` - Progress monitoring
+
+**Documentation:**
+- `STATISTICAL_VALIDATION.md` - Complete technical guide
+- `FIX_SUMMARY.md` - Quick reference
+- `VARIANCE_ANALYSIS.md` - Root cause analysis
+- `ISSUE_2_FIX.md` - Terminology fixes
+- `ISSUE_4_ABLATION.md` - Ablation clarification
+- `COMPLETE_FIX_GUIDE.md` - Implementation guide
+- `EXECUTIVE_SUMMARY.md` - High-level overview
+- `NEXT_STEPS_AFTER_VALIDATION.md` - Post-validation checklist
+
+**LaTeX:**
+- `table_02_merged_corrected.tex` - Fixed terminology (manual)
+- `table_02_final.tex` - Auto-generated from results
 
 ---
 

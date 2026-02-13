@@ -6,7 +6,7 @@ This appendix provides a comprehensive sensitivity analysis demonstrating the ro
 
 ## Files
 
-- **hyperparameter_sensitivity.tex** - Main LaTeX appendix section (KDD camera-ready)
+- **hyperparameter_sensitivity.tex** - Main LaTeX appendix section
 - **README.md** - This file
 
 ## Key Results
@@ -49,19 +49,19 @@ This ensures:
 - **Confidence increases** with higher n_eff (lower variance)
 - **No artificial reward inflation** (theoretically correct)
 
-## Addressing Reviewer Concerns
+## Hyperparameter Robustness Analysis
 
-### Concern: "Is n_eff=5.0 a magic number?"
+### Is n_eff=5.0 a critical hyperparameter?
 
-**Answer**: No. We demonstrate perfect robustness across n_eff ∈ [1, 20]. All values perform identically (+39.2% improvement), confirming that n_eff=5.0 is a reasonable default, not a critical hyperparameter requiring careful tuning.
+**No**. We demonstrate perfect robustness across n_eff ∈ [1, 20]. All values perform identically (+39.2% improvement), confirming that n_eff=5.0 is a reasonable default, not a critical hyperparameter requiring careful tuning.
 
-### Concern: "What about brittleness to tuned constants?"
+### Robustness to Extreme Values
 
-**Answer**: The method is fundamentally robust. Even extreme choices (n=1 or n=20) provide identical performance. The Bayesian formulation ensures that performance is driven by variance reduction (confidence), not arbitrary scaling factors.
+The method is fundamentally robust. Even extreme choices (n=1 or n=20) provide identical performance. The Bayesian formulation ensures that performance is driven by variance reduction (confidence), not arbitrary scaling factors.
 
-### Concern: "What happened to hard_exponent?"
+### Design Evolution
 
-**Answer**: Deprecated. The heuristic "Hard Lottery Exploration" (HLE) layer was removed in favor of the fully adaptive bandit formulation, which provides:
+The heuristic "Hard Lottery Exploration" (HLE) layer was removed in favor of the fully adaptive bandit formulation, which provides:
 - Principled Bayesian interpretation
 - Automatic exploration-exploitation balance
 - No ad-hoc exponents to tune
@@ -151,7 +151,7 @@ When the semantic neighbor is a good match (as verified by embedding similarity)
 - [x] Bayesian formulation mathematically correct
 - [x] Figures generated and verified
 - [x] LaTeX compiles without errors
-- [x] KDD formatting guidelines followed
+- [x] Conference formatting guidelines followed
 
 ## Related Documentation
 
@@ -160,9 +160,6 @@ When the semantic neighbor is a good match (as verified by embedding similarity)
   - Detailed README with methodology
   - Summary for paper integration
 
-- **KDD Reviewer Fix**: `experiments_v1/07_figure/KDD_REVIEWER_FIX.md`
-  - Technical explanation of Bayesian correction
-  - Before/after comparison
   - Mathematical justification
 
 ## Citation
@@ -170,7 +167,7 @@ When the semantic neighbor is a good match (as verified by embedding similarity)
 When referencing this appendix in the paper:
 
 ```latex
-To address concerns about hyperparameter sensitivity, we performed 
+To validate robustness across hyperparameter choices, we performed 
 a comprehensive sensitivity analysis (Appendix~\ref{appendix:hyperparameter_sensitivity}). 
 All prior strengths from $n_{\text{eff}}=1.0$ to $n_{\text{eff}}=20.0$ 
 achieve identical performance (+39.2\% vs Cold Start), demonstrating 
@@ -182,10 +179,9 @@ that our method is fundamentally robust, not reliant on careful tuning.
 For questions about this appendix:
 - **Experiment Code**: See `experiments_v1/07_figure/`
 - **LaTeX Source**: `hyperparameter_sensitivity.tex`
-- **Technical Details**: See KDD_REVIEWER_FIX.md
 
 ---
 
-**Status**: ✅ Complete and KDD camera-ready  
+**Status**: ✅ Complete and ready for submission  
 **Last Updated**: January 25, 2026  
 **Validation**: All results verified, LaTeX tested

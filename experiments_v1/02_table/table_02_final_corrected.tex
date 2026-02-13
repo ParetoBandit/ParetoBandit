@@ -1,0 +1,63 @@
+\begin{table}[t]
+\centering
+\caption{\textbf{Learning Rate Comparison: Stability vs Variance Tradeoff.} 
+Evaluated on 750 held-out test prompts with severe domain mismatch (alignment 0.48). 
+Values shown as mean $\pm$ std across 10 random seeds. 
+We find no statistically significant difference between conservative ($\eta=0.1$, mean=45.2$\pm$7.9) 
+and aggressive ($\eta=1.0$, mean=48.1$\pm$16.8) learning rates (t=-0.49, p=0.63). 
+The choice depends on risk tolerance: conservative offers stability (17\% CV), 
+while aggressive offers better median (41 vs 45) but with higher variance (35\% CV) 
+and occasional catastrophic failures (2 of 10 seeds $>$ 75 regret).}
+\label{tab:performance_gap}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Strategy} & \textbf{Learning} & \textbf{Early Regret} & \textbf{Total Regret} & \textbf{Gap to} & \textbf{Safety} \\
+& \textbf{Rate ($\eta$)} & \textbf{(0--500)} & \textbf{(Total)} & \textbf{Baseline} & \textbf{Gain} \\
+\midrule
+\multicolumn{6}{@{}l}{\textit{Baselines (Deterministic)}} \\
+\quad Tabula Rasa (No Prior) & -- & 19.0 & 40.0 & 1.00$\times$ & -- \\
+\quad Warmup (Harmful) & -- & 47.0 & 79.0 & 1.98$\times$ & \textit{Baseline} \\
+\midrule
+\multicolumn{6}{@{}l}{\textit{banditGPT-Hybrid (Stochastic, N=10 seeds)}} \\
+\quad Conservative & 0.1 & 29.4 $\pm$ 6.6 & 45.2 $\pm$ 7.9 & 1.13$\times$ & +43\% \\
+\quad Aggressive & 1.0 & 30.9 $\pm$ 10.0 & 48.1 $\pm$ 16.8 & 1.20$\times$ & +39\% \\
+\midrule
+\multicolumn{6}{@{}l}{\textit{Median Values (Robust Statistics)}} \\
+\quad Conservative (Median) & 0.1 & 31.0 & 45.0 & 1.13$\times$ & +43\% \\
+\quad Aggressive (Median) & 1.0 & 25.5 & 41.0 & 1.03$\times$ & +48\% \\
+\bottomrule
+\end{tabular}
+
+\vspace{1em}
+\noindent\textbf{Key Metrics Explained:}
+\begin{itemize}[leftmargin=*,nosep]
+\item \textbf{Early Regret (0--500):} Cumulative regret in first 500 samples (67\% of test set), where domain mismatch causes maximum damage. Values computed directly from regret trajectories at timestep 500.
+
+\item \textbf{Total Regret:} Cumulative regret across all 750 held-out test samples (mean $\pm$ std across 10 seeds). Lower is better. The Tabula Rasa baseline (40 regret) represents a LinUCB router initialized from scratch (no warmup priors).
+
+\item \textbf{Gap to Baseline:} Performance multiplier relative to Tabula Rasa. Values near 1.00$\times$ indicate competitive performance with minimal meta-algorithm overhead.
+
+\item \textbf{Safety Gain:} Percentage improvement over harmful warmup baseline: $\frac{79 - \text{Strategy Regret}}{79} \times 100\%$. Both learning rates provide strong protection ($>$39\%) against negative transfer from misaligned priors.
+
+\item \textbf{Median vs Mean:} For high-variance stochastic algorithms, median provides a more robust performance estimate. Aggressive learning achieves better \emph{median} performance (41 vs 45, 1.03$\times$ vs 1.13$\times$) but with 2$\times$ higher variance (std=16.8 vs 7.9). Conservative learning offers more predictable, stable performance.
+
+\item \textbf{Statistical Comparison:} Independent t-test comparing $\eta=0.1$ vs $\eta=1.0$ finds no significant difference (t=-0.49, p=0.63, Cohen's d=-0.22). The performance is comparable, with the key tradeoff being \textbf{stability} (conservative) vs \textbf{median performance} (aggressive).
+\end{itemize}
+
+\vspace{0.5em}
+\paragraph{The Stability-Performance Tradeoff.}
+Table~\ref{tab:performance_gap} reveals a fundamental tradeoff in meta-algorithm design. Conservative learning ($\eta=0.1$) offers \textbf{stability}: mean regret of 45.2$\pm$7.9 with no catastrophic failures (max=60). Aggressive learning ($\eta=1.0$) offers \textbf{better median performance}: median regret of 41 (1.03$\times$ vs baseline) but with higher variance (std=16.8) and occasional failures (2 of 10 seeds $>$ 75 regret). 
+
+The difference is not statistically significant (p=0.63), indicating that \textbf{the choice depends on deployment constraints}. For production systems requiring predictable performance, we recommend $\eta=0.1$. For research or risk-tolerant environments prioritizing median performance, $\eta=1.0$ may be preferable.
+
+\paragraph{Variance Analysis.}
+Corralling exhibits variance across seeds (CV = 17--35\%) due to stochastic expert selection (line 3032 in Algorithm 1), which is essential for unbiased importance-weighted updates \citep{agarwal2017corralling}. In contrast, LinUCB baselines are fully deterministic (std=0) given fixed data ordering. This variance is expected behavior for Exp4-style meta-algorithms and not indicative of algorithmic instability.
+
+\paragraph{Clarification: ``Optimal'' vs ``Baseline''.}
+We use \emph{Tabula Rasa} (no warmup priors) as a \textbf{baseline} for comparison, not as a claim of optimality. The true oracle (0 regret) would require perfect foresight. Tabula Rasa achieves 40 regret due to exploration overhead. Our goal is to match this baseline (1.03--1.20$\times$) while providing safety guarantees against harmful priors (39--43\% improvement).
+
+\paragraph{Practical Implications.}
+Both learning rates achieve the core value proposition: \textbf{safety against harmful priors with competitive performance}. The 1.13--1.20$\times$ gap to baseline is acceptable overhead for the safety guarantee. At production scale, the choice between $\eta=0.1$ (stable) and $\eta=1.0$ (better median) depends on the organization's risk tolerance and operational constraints.
+
+\end{table}

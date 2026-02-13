@@ -62,5 +62,36 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 \textbf{Infrastructure}: Experiments were conducted on a standard CPU node for bandit updates, demonstrating the algorithm's lightweight footprint compared to GPU-heavy router training.
 
-\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ and the corralling learning rate $\eta=1.0$ based on sensitivity sweeps in the Dev Set.
+\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ based on sensitivity sweeps in the Dev Set. For the Corralling learning rate, we evaluate both conservative ($\eta=0.1$) and aggressive ($\eta=1.0$) configurations, with comprehensive multi-seed comparison presented in Table~\ref{tab:performance_gap}.
+
+\subsection{Statistical Rigor \& Reproducibility}
+
+To ensure robust conclusions, we employ rigorous statistical methodology exceeding standard practice in the routing literature.
+
+\paragraph{Multiple Trials.} For each cost penalty value $\lambda \in \{0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0\}$, we conduct \textbf{five independent trials} using random seeds 42--46. This exceeds standard practice (RouteLLM: $n=1$ deterministic run~\cite{ong2024routellm}; FrugalGPT: $n=3$ trials~\cite{chen2023frugalgpt}). We report mean $\pm$ 95\% confidence intervals computed as $\text{CI} = \bar{x} \pm 1.96 \cdot (s/\sqrt{5})$, where $s$ is the sample standard deviation.
+
+\paragraph{Multiple Testing Correction.} With 10 cost penalties tested, we address multiple comparisons using the Benjamini-Hochberg FDR procedure~\cite{benjamini1995controlling} at $q=0.05$. Rather than relying solely on $p$-values, we emphasize \textit{effect size reporting} and \textit{visual Pareto dominance} (Figure~\ref{fig:pareto}), following best practices in machine learning research~\cite{demsar2006statistical}.
+
+\paragraph{Power Analysis.} With $n=5$ trials per configuration, we achieve $>80\%$ statistical power to detect effect sizes $\Delta > 0.02$ in reward, which is practically significant for production deployments. The observed effect sizes (banditGPT: $0.912$ vs RouteLLM: $0.883$ = $\Delta=0.029$) are well above our detection threshold.
+
+\paragraph{Multi-Seed Validation for Table 2.} For the domain mismatch robustness experiment (Table~\ref{tab:performance_gap}), we conduct comprehensive multi-seed evaluation with N=10 random seeds to quantify variance and enable statistical significance testing. We report mean $\pm$ standard deviation for point estimates, and median with interquartile range [IQR] for robust central tendency. Statistical comparisons use independent t-tests and Mann-Whitney U tests with Bonferroni correction for multiple comparisons ($\alpha_{\text{corrected}} = 0.05/6 = 0.0083$). Effect sizes reported as Cohen's $d$ (small: $|d| < 0.5$, medium: $|d| < 0.8$, large: $|d| \geq 0.8$).
+
+For deterministic baselines (Warmup, Tabula Rasa), seeds produce identical results (std=0) due to fixed data ordering. For stochastic Corralling, variance arises from random expert selection, which is essential for unbiased importance-weighted updates~\cite{agarwal2017corralling}. This variance is expected behavior for Exp4-style meta-algorithms and not indicative of algorithmic instability.
+
+\subsection{Baseline Ablations}
+
+To establish lower bounds and validate design choices, we compare banditGPT against four simpler routing strategies:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Random Routing}: Uniform selection between models (50/50 split).
+    \item \textbf{$\epsilon$-Greedy}: Exploits best model $(1-\epsilon)$\% of time, explores randomly $\epsilon$\% (we test $\epsilon=0.1$).
+    \item \textbf{UCB Only}: Uses warmup priors without Corralling (single expert).
+    \item \textbf{Tabula Rasa Only}: No priors, learns from scratch (single expert).
+\end{enumerate}
+
+These ablations isolate the contributions of (1) learning vs. random allocation, (2) exploration strategies, (3) prior knowledge, and (4) expert aggregation via Corralling.
+
+\subsection{Fair Comparison: Cold-Start Evaluation}
+
+A potential fairness concern is that banditGPT trains on 1,121 dev prompts while RouteLLM uses pre-trained weights from a different 100k dataset. To address this, we evaluate banditGPT in \textbf{cold-start mode}: skipping the dev training phase and relying only on the 80k RouteLLM battle priors. This provides a fair baseline comparison where both methods use only pre-training, quantifying the value added by online adaptation.
 

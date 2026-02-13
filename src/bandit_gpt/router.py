@@ -117,15 +117,18 @@ class RegistrationConfig:
     default_latency_s: float = 2.0      # Assume slow (2s)
     
     # [KDD FIGURE 8]: Latent Semantic Transfer - Prior Strength Calibration
-    # Validated via sensitivity analysis (experiments_v1/08_figure/plot_sensitivity.py)
-    # Key Finding: Lower n_effective avoids "over-confidence trap" for expensive new models
-    # Result: n_eff=1.0 achieves +17.6% vs Cold Start (best among [1,2,5,10,20])
-    # Insight: Weak priors preserve exploration; strong priors cause exploitation lock-in
-    # Default: 1.0 (optimal balance between transfer and adaptation)
-    n_effective_default: float = 0.1
-    n_effective_high_similarity: float = 0.1  # sim > 0.8 (strong match, avoid over-confidence)
-    n_effective_medium_similarity: float = 0.1  # sim 0.6-0.8 (moderate match)
-    n_effective_low_similarity: float = 0.1  # sim < 0.6 (weak match)
+    # Validated via adaptive expert selection analysis (experiments_v1/08_figure/plot_expert_selection_analysis.py)
+    # Key Finding: Corralling meta-learning adaptively chooses between semantic transfer (warmup expert)
+    #              and cold-start exploration (tabula rasa expert) based on data match with priors.
+    #              n_effective only matters when warmup expert is active (~33% of traffic patterns).
+    # Result: In warmup-dominant regimes, n_eff=1.0 outperforms n_eff=20.0 by 4.6% (preserved exploration).
+    #         In tabula rasa-dominant regimes (67%), n_eff has no effect (semantic transfer not used).
+    # Insight: System robustness comes from Corralling's adaptive switching, not n_eff optimization.
+    # Default: 5.0 (mid-range value, reasonable when warmup expert is used; Corralling handles adaptation)
+    n_effective_default: float = 5.0
+    n_effective_high_similarity: float = 5.0  # sim > 0.8 (strong match)
+    n_effective_medium_similarity: float = 5.0  # sim 0.6-0.8 (moderate match)
+    n_effective_low_similarity: float = 5.0  # sim < 0.6 (weak match, Corralling will prefer tabula rasa)
 
 @dataclass
 class RouterConfig:
