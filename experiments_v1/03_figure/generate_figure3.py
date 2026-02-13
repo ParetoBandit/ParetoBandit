@@ -1,292 +1,147 @@
 """
-Generate Figure 3: Corralled Architecture Diagram
-Shows the coordinator-expert hierarchy with information flows.
+Figure 3: Corralled Architecture (KDD 2026)
+Professional academic diagram - clean vertical flow with clear feedback path.
 """
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 import numpy as np
 
-# Set up the figure
-fig, ax = plt.subplots(figsize=(14, 10))
-ax.set_xlim(0, 14)
-ax.set_ylim(0, 10)
+# ============================================================================
+# STYLE
+# ============================================================================
+plt.rcParams['font.family'] = 'DejaVu Sans'
+plt.rcParams['font.size'] = 9
+
+# Academic color palette
+C = {
+    'blue': '#4A90A4',
+    'green': '#5B8C5A', 
+    'orange': '#C17F59',
+    'gray': '#6E6E6E',
+    'dark': '#2C3E50',
+    'light': '#F5F5F5',
+    'red': '#B85450',
+}
+
+fig, ax = plt.subplots(figsize=(10, 6.5))
+ax.set_xlim(-0.8, 10.2)
+ax.set_ylim(-0.5, 6.5)
+ax.set_aspect('equal')
 ax.axis('off')
 
-# Color scheme
-color_coordinator = '#3498db'  # Blue
-color_warmup = '#2ecc71'       # Green
-color_tabula = '#e67e22'       # Orange
-color_execution = '#95a5a6'    # Gray
-color_feedback = '#34495e'     # Dark gray
-
-# Helper function to create fancy boxes
-def create_box(ax, x, y, width, height, color, alpha=0.15, linewidth=2):
-    """Create a rounded rectangle box"""
-    box = FancyBboxPatch(
-        (x, y), width, height,
-        boxstyle="round,pad=0.1",
-        edgecolor=color,
-        facecolor=color,
-        alpha=alpha,
-        linewidth=linewidth
-    )
-    ax.add_patch(box)
-    return box
-
-# Helper function to create arrows
-def create_arrow(ax, x1, y1, x2, y2, style='solid', color='black', width=2, label='', label_pos=0.5):
-    """Create an arrow with optional label"""
-    if style == 'dashed':
-        linestyle = '--'
-    else:
-        linestyle = '-'
-    
-    arrow = FancyArrowPatch(
-        (x1, y1), (x2, y2),
-        arrowstyle='->,head_width=0.4,head_length=0.4',
-        color=color,
-        linewidth=width,
-        linestyle=linestyle,
-        mutation_scale=20
-    )
-    ax.add_patch(arrow)
-    
-    # Add label if provided
-    if label:
-        label_x = x1 + (x2 - x1) * label_pos
-        label_y = y1 + (y2 - y1) * label_pos
-        ax.text(label_x, label_y, label, fontsize=9, ha='center',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='none', alpha=0.8))
-    
-    return arrow
-
 # ============================================================================
-# COORDINATOR LAYER (Top)
-# ============================================================================
-coord_x, coord_y = 2, 8
-coord_width, coord_height = 10, 1.5
-
-create_box(ax, coord_x, coord_y, coord_width, coord_height, color_coordinator, alpha=0.2, linewidth=3)
-
-# Coordinator title
-ax.text(7, 9.2, 'Coordinator Layer', fontsize=14, weight='bold', ha='center', color=color_coordinator)
-
-# Coordinator state
-ax.text(7, 8.7, r'Trust Distribution: $\pi = [0.72, 0.28]$', fontsize=11, ha='center', family='monospace')
-ax.text(7, 8.4, r'Cumulative Losses: $L = [45.2, 89.7]$', fontsize=11, ha='center', family='monospace')
-ax.text(7, 8.1, r'Learning Rate: $\eta = 0.1$', fontsize=11, ha='center', family='monospace')
-
-# ============================================================================
-# EXPERT LAYER (Middle)
+# HELPER FUNCTIONS
 # ============================================================================
 
-# Warmup Expert (Left)
-warmup_x, warmup_y = 1.5, 4.5
-warmup_width, warmup_height = 4.5, 3
+def rounded_box(x, y, w, h, color, fill='white', lw=2):
+    rect = FancyBboxPatch((x, y), w, h, 
+                          boxstyle="round,pad=0.02,rounding_size=0.12",
+                          facecolor=fill, edgecolor=color, linewidth=lw, zorder=2)
+    ax.add_patch(rect)
 
-create_box(ax, warmup_x, warmup_y, warmup_width, warmup_height, color_warmup, alpha=0.15, linewidth=2.5)
-
-ax.text(3.75, 7.2, 'Warmup Expert', fontsize=13, weight='bold', ha='center', color=color_warmup)
-ax.text(3.75, 6.7, 'Initialization:', fontsize=10, ha='center', style='italic')
-ax.text(3.75, 6.35, r'$A_0 = \lambda I + \sum_{i=1}^{N} \phi(x_i)\phi(x_i)^T$', fontsize=9, ha='center')
-ax.text(3.75, 6.0, r'$b_0 = \sum_{i=1}^{N} r_i \phi(x_i)$', fontsize=9, ha='center')
-ax.text(3.75, 5.6, r'Prior: 80K RouteLLM battles', fontsize=9, ha='center', color='#27ae60')
-
-# Warmup state box
-state_box = FancyBboxPatch(
-    (2, 4.8), 3.5, 0.6,
-    boxstyle="round,pad=0.05",
-    edgecolor=color_warmup,
-    facecolor='white',
-    linewidth=1.5
-)
-ax.add_patch(state_box)
-ax.text(3.75, 5.25, r'Samples: $n = 720$', fontsize=10, ha='center', weight='bold')
-ax.text(3.75, 4.95, r'Recommendation: GPT-4-Turbo', fontsize=9, ha='center')
-
-# Tabula Rasa Expert (Right)
-tabula_x, tabula_y = 8, 4.5
-tabula_width, tabula_height = 4.5, 3
-
-create_box(ax, tabula_x, tabula_y, tabula_width, tabula_height, color_tabula, alpha=0.15, linewidth=2.5)
-
-ax.text(10.25, 7.2, 'Tabula Rasa Expert', fontsize=13, weight='bold', ha='center', color=color_tabula)
-ax.text(10.25, 6.7, 'Initialization:', fontsize=10, ha='center', style='italic')
-ax.text(10.25, 6.35, r'$A_0 = \lambda I$', fontsize=9, ha='center')
-ax.text(10.25, 6.0, r'$b_0 = 0$', fontsize=9, ha='center')
-ax.text(10.25, 5.6, r'No priors (pure online learning)', fontsize=9, ha='center', color='#d35400')
-
-# Tabula Rasa state box
-state_box2 = FancyBboxPatch(
-    (8.5, 4.8), 3.5, 0.6,
-    boxstyle="round,pad=0.05",
-    edgecolor=color_tabula,
-    facecolor='white',
-    linewidth=1.5
-)
-ax.add_patch(state_box2)
-ax.text(10.25, 5.25, r'Samples: $n = 280$', fontsize=10, ha='center', weight='bold')
-ax.text(10.25, 4.95, r'Recommendation: Claude', fontsize=9, ha='center')
+def simple_arrow(x1, y1, x2, y2, color=C['dark'], style='-', lw=1.5):
+    arr = FancyArrowPatch((x1, y1), (x2, y2),
+                          arrowstyle='-|>,head_width=0.1,head_length=0.1',
+                          color=color, linewidth=lw, linestyle=style,
+                          shrinkA=6, shrinkB=6, mutation_scale=10, zorder=3)
+    ax.add_patch(arr)
 
 # ============================================================================
-# EXECUTION LAYER (Middle-Bottom)
-# ============================================================================
-exec_x, exec_y = 4.5, 2.8
-exec_width, exec_height = 5, 1
-
-create_box(ax, exec_x, exec_y, exec_width, exec_height, color_execution, alpha=0.2, linewidth=2)
-
-ax.text(7, 3.5, 'Selected Action', fontsize=12, weight='bold', ha='center')
-ax.text(7, 3.15, r'Model: GPT-4-Turbo  |  Reward: $r = 0.92$', fontsize=10, ha='center', family='monospace')
-
-# ============================================================================
-# FEEDBACK LAYER (Bottom)
-# ============================================================================
-feedback_x, feedback_y = 3.5, 0.8
-feedback_width, feedback_height = 7, 1.5
-
-create_box(ax, feedback_x, feedback_y, feedback_width, feedback_height, color_feedback, alpha=0.15, linewidth=2)
-
-ax.text(7, 2.0, 'Feedback Phase', fontsize=12, weight='bold', ha='center', color=color_feedback)
-ax.text(7, 1.6, r'Loss: $\ell = \frac{1 - r}{\pi_i} = \frac{1 - 0.92}{0.72} = 0.111$', fontsize=10, ha='center')
-ax.text(7, 1.25, r'Update: $L[i] \leftarrow L[i] + \ell$,  $\pi \leftarrow \text{normalize}(\exp(-\eta L))$', fontsize=10, ha='center')
-ax.text(7, 0.95, r'Expert Update: $A \leftarrow A + \phi(x,a)\phi(x,a)^T$,  $b \leftarrow b + r\phi(x,a)$', fontsize=9, ha='center')
-
-# ============================================================================
-# ARROWS - Information Flow
+# MAIN LAYOUT
 # ============================================================================
 
-# Selection arrows (Coordinator -> Experts)
-create_arrow(ax, 4.5, 8.0, 3.75, 7.5, style='dashed', color=color_coordinator, width=2.5, 
-             label=r'$p = 0.72$', label_pos=0.4)
-create_arrow(ax, 9.5, 8.0, 10.25, 7.5, style='dashed', color=color_coordinator, width=2.5,
-             label=r'$p = 0.28$', label_pos=0.4)
+# Coordinator (top center)
+rounded_box(3.0, 5.0, 4, 0.85, C['blue'])
+ax.text(5.0, 5.42, "Coordinator", ha='center', va='center', 
+        fontsize=12, fontweight='bold', color=C['blue'])
 
-# Recommendation arrows (Experts -> Execution)
-create_arrow(ax, 3.75, 4.5, 5.5, 3.8, style='solid', color='#7f8c8d', width=2,
-             label='UCB=0.85', label_pos=0.6)
-create_arrow(ax, 10.25, 4.5, 8.5, 3.8, style='solid', color='#7f8c8d', width=2,
-             label='UCB=0.78', label_pos=0.6)
+# Expert 1 (left) - More compact box
+rounded_box(0.8, 2.7, 3.0, 1.45, C['green'])
+ax.text(2.3, 3.8, "Expert 1: Warmup", ha='center', va='center',
+        fontsize=11, fontweight='bold', color=C['green'])
+ax.text(2.3, 3.4, "LinUCB with Priors", ha='center', fontsize=10, 
+        style='italic', color=C['gray'])
+ax.text(2.3, 3.05, r"$\alpha = 2.0$", ha='center', fontsize=11, color=C['red'])
+ax.text(2.3, 2.8, "(constant exploration)", ha='center', fontsize=8, color=C['gray'])
 
-# Feedback arrow (Execution -> Feedback)
-create_arrow(ax, 7, 2.8, 7, 2.3, style='solid', color='black', width=2.5)
+# Expert 2 (right) - More compact box
+rounded_box(6.2, 2.7, 3.0, 1.45, C['orange'])
+ax.text(7.7, 3.8, "Expert 2: Tabula Rasa", ha='center', va='center',
+        fontsize=11, fontweight='bold', color=C['orange'])
+ax.text(7.7, 3.4, "LinUCB (no priors)", ha='center', fontsize=10,
+        style='italic', color=C['gray'])
+ax.text(7.7, 3.05, r"$\alpha = 2.0$", ha='center', fontsize=11, color=C['red'])
+ax.text(7.7, 2.8, "(constant exploration)", ha='center', fontsize=8, color=C['gray'])
 
-# Feedback to Coordinator (curved)
-from matplotlib.patches import ConnectionPatch
-feedback_coord = ConnectionPatch(
-    (7, 2.3), (7, 8.0),
-    "data", "data",
-    arrowstyle='->,head_width=0.4,head_length=0.4',
-    color=color_feedback,
-    linewidth=3,
-    connectionstyle="arc3,rad=0.3"
-)
-ax.add_artist(feedback_coord)
-ax.text(9.5, 5.2, 'Update\nWeights', fontsize=9, ha='center', color=color_feedback, weight='bold',
-        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor=color_feedback, linewidth=1.5))
+# Model Selection (center)
+rounded_box(3.0, 1.0, 4, 0.85, C['gray'])
+ax.text(5.0, 1.42, "Model Selection", ha='center', va='center',
+        fontsize=11, fontweight='bold', color=C['gray'])
 
-# Feedback to Warmup Expert (curved)
-feedback_warmup = ConnectionPatch(
-    (5.5, 1.5), (3.75, 4.5),
-    "data", "data",
-    arrowstyle='->,head_width=0.4,head_length=0.4',
-    color=color_feedback,
-    linewidth=2.5,
-    connectionstyle="arc3,rad=-0.2"
-)
-ax.add_artist(feedback_warmup)
-ax.text(4.5, 2.8, 'Update\nExpert', fontsize=8, ha='center', color=color_feedback,
-        bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor='none', alpha=0.8))
+# Feedback (bottom center)
+rounded_box(3.0, -0.2, 4, 0.85, C['dark'])
+ax.text(5.0, 0.22, "Feedback", ha='center', va='center',
+        fontsize=11, fontweight='bold', color=C['dark'])
 
 # ============================================================================
-# LEGEND
+# ARROWS
 # ============================================================================
-legend_x, legend_y = 11.5, 8.5
-legend_width, legend_height = 2, 1.2
 
-# Legend box
-legend_box = FancyBboxPatch(
-    (legend_x, legend_y), legend_width, legend_height,
-    boxstyle="round,pad=0.1",
-    edgecolor='black',
-    facecolor='white',
-    linewidth=1.5
-)
-ax.add_patch(legend_box)
+# Coordinator -> Expert 1
+simple_arrow(4.0, 5.0, 2.3, 4.15, C['blue'])
+ax.text(2.9, 4.7, r"$P_t(1)$", fontsize=11, color=C['blue'])
 
-ax.text(12.5, 9.5, 'Information Flow', fontsize=9, weight='bold', ha='center')
+# Coordinator -> Expert 2
+simple_arrow(6.0, 5.0, 7.7, 4.15, C['blue'])
+ax.text(6.9, 4.7, r"$P_t(2)$", fontsize=11, color=C['blue'])
 
-# Legend items
-ax.plot([11.7, 12.1], [9.2, 9.2], '--', color=color_coordinator, linewidth=2)
-ax.text(12.3, 9.2, 'Selection', fontsize=8, va='center')
+# Expert 1 -> Model Selection
+simple_arrow(2.3, 2.7, 4.0, 1.85, C['gray'], style='--')
 
-ax.plot([11.7, 12.1], [8.95, 8.95], '-', color='#7f8c8d', linewidth=2)
-ax.text(12.3, 8.95, 'Recommend', fontsize=8, va='center')
+# Expert 2 -> Model Selection  
+simple_arrow(7.7, 2.7, 6.0, 1.85, C['gray'], style='--')
 
-ax.plot([11.7, 12.1], [8.7, 8.7], '-', color=color_feedback, linewidth=3)
-ax.text(12.3, 8.7, 'Feedback', fontsize=8, va='center')
+# Model Selection -> Feedback
+simple_arrow(5.0, 1.0, 5.0, 0.65, C['dark'])
+
+# Feedback -> Coordinator (move line further left to avoid text overlap)
+feedback_x = -0.1
+ax.plot([3.0, feedback_x, feedback_x, 3.0], [0.22, 0.22, 5.42, 5.42], 
+        color=C['blue'], linestyle=':', linewidth=1.5, zorder=1)
+ax.annotate('', xy=(3.0, 5.42), xytext=(0.3, 5.42),
+            arrowprops=dict(arrowstyle='-|>,head_width=0.08,head_length=0.08',
+                           color=C['blue'], lw=1.5))
+
+# Label for feedback path (positioned to the right of the line)
+ax.text(0.05, 1.8, "Update\nWeights", fontsize=10, color=C['blue'], 
+        ha='left', va='center')
 
 # ============================================================================
 # ANNOTATIONS
 # ============================================================================
 
-# Phase labels on the left
-ax.text(0.3, 8.7, 'Phase 1:\nSelection', fontsize=9, weight='bold', ha='left', va='center',
-        color=color_coordinator)
-ax.text(0.3, 6.0, 'Phase 2:\nRecommend', fontsize=9, weight='bold', ha='left', va='center',
-        color='#7f8c8d')
-ax.text(0.3, 3.3, 'Phase 3:\nExecution', fontsize=9, weight='bold', ha='left', va='center',
-        color=color_execution)
-ax.text(0.3, 1.5, 'Phase 4:\nFeedback', fontsize=9, weight='bold', ha='left', va='center',
-        color=color_feedback)
+# Formula under Coordinator
+ax.text(5.0, 4.7, r"$P_t = (1-\gamma)\,w_t + \gamma/K$", 
+        ha='center', fontsize=12, color=C['dark'])
 
-# Title
-fig.suptitle('Figure 2: Corralled Architecture - Coordinator-Expert Hierarchy', 
-             fontsize=16, weight='bold', y=0.98)
+# Formula under Feedback
+ax.text(5.0, -0.55, r"$\hat{\ell}_t = \frac{1-r_t}{P_t}$", 
+        ha='center', fontsize=12, color=C['dark'])
 
-# Subtitle
-ax.text(7, 9.8, 
-        'Meta-learning system that dynamically balances warmup priors and online adaptation',
-        fontsize=11, ha='center', style='italic', color='#555555')
+# Parameters box (top right, compact)
+rounded_box(8.0, 5.0, 1.8, 1.15, C['gray'], fill=C['light'], lw=1)
+ax.text(8.9, 5.85, "Parameters", fontsize=9, fontweight='bold', 
+        ha='center', color=C['dark'])
+ax.text(8.9, 5.58, r"$\alpha = 2.0$", fontsize=9, ha='center', color=C['red'])
+ax.text(8.9, 5.35, r"$\eta = 1.0$", fontsize=9, ha='center', color=C['dark'])
+ax.text(8.9, 5.12, r"$\gamma = 0.05$", fontsize=9, ha='center', color=C['dark'])
 
-plt.tight_layout(rect=[0, 0, 1, 0.96])
-
-# Save the figure
-output_path = '/Users/annette/repostitories/banditGPT/experiments_v1/03_figure/results/figure3_corralled_architecture.png'
-plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
-print(f"✓ Saved figure to: {output_path}")
-
-# Also save as PDF for paper
-output_path_pdf = '/Users/annette/repostitories/banditGPT/experiments_v1/03_figure/results/figure3_corralled_architecture.pdf'
-plt.savefig(output_path_pdf, bbox_inches='tight', facecolor='white')
-print(f"✓ Saved PDF to: {output_path_pdf}")
-
-# Also save to paper figures directory
-paper_output_path = '/Users/annette/repostitories/banditGPT/paper/figures/figure3_corralled_architecture.png'
-plt.savefig(paper_output_path, dpi=300, bbox_inches='tight', facecolor='white')
-print(f"✓ Saved to paper figures: {paper_output_path}")
-
-paper_output_pdf = '/Users/annette/repostitories/banditGPT/paper/figures/figure3_corralled_architecture.pdf'
-plt.savefig(paper_output_pdf, bbox_inches='tight', facecolor='white')
-print(f"✓ Saved PDF to paper figures: {paper_output_pdf}")
-
-plt.show()
-
-print("\n" + "="*60)
-print("Figure 3 Generation Complete!")
-print("="*60)
-print("\nKey Features:")
-print("  • Three-layer hierarchy (Coordinator, Experts, Execution)")
-print("  • Color-coded components (Blue=Coordinator, Green=Warmup, Orange=Tabula Rasa)")
-print("  • Information flow arrows with labels")
-print("  • Mathematical formulas for initialization and updates")
-print("  • Realistic example values from experiments")
-print("  • Professional publication-ready quality (300 DPI)")
-print("\nOutputs:")
-print(f"  1. PNG (300 DPI): {output_path}")
-print(f"  2. PDF (vector): {output_path_pdf}")
-print(f"  3. Paper copy: {paper_output_path}")
-print("="*60)
-
+# ============================================================================
+# SAVE
+# ============================================================================
+plt.tight_layout()
+out = '/Users/annette/repostitories/banditGPT/experiments_v1/03_figure/results/figure3_corralled_architecture'
+plt.savefig(f'{out}.png', dpi=300, bbox_inches='tight', facecolor='white')
+plt.savefig(f'{out}.pdf', bbox_inches='tight', facecolor='white')
+print(f"✓ Saved to {out}.png and .pdf")

@@ -52,12 +52,12 @@ python experiments_v1/08_figure/run_figure8_analysis.py
 python experiments_v1/08_figure/run_figure8_analysis.py --force-rerun
 
 # View results
-open experiments_v1/08_figure/results/figure8_regime_stratified_CORRECTED.png
+open experiments_v1/08_figure/results/figure8_regime_stratified.png
 ```
 
 **Runtime**: ~3 minutes (cached), ~5 minutes (first run)  
 **Output**: 
-- PNG figure: `figure8_regime_stratified_CORRECTED.png`
+- PNG figure: `figure8_regime_stratified.png`
 - LaTeX table: `appendixC_neff_sensitivity.tex` (Appendix C: Sensitivity Analysis)
 - Console table with regime classification
 
@@ -139,7 +139,7 @@ open experiments_v1/08_figure/results/figure8_regime_stratified_CORRECTED.png
 - **`README.md`** (this file): Quick reference guide
 
 ### Output
-- **`results/figure8_regime_stratified_CORRECTED.png`**: ⭐ Primary figure
+- **`results/figure8_regime_stratified.png`**: ⭐ Primary figure
   - 2×2 regime-stratified visualization
   - Top row: Expert weight evolution by regime
   - Bottom row: Performance curves by regime
@@ -287,7 +287,7 @@ OVERALL (ALL SEEDS):
 ```
 
 **Files**:  
-- `results/figure8_regime_stratified_CORRECTED.png` (2×2 figure)  
+- `results/figure8_regime_stratified.png` (2×2 figure)  
 - `results/appendixC_neff_sensitivity.tex` (LaTeX table for Appendix C)
 
 ### Verification

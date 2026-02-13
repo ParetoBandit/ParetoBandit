@@ -62,7 +62,7 @@ All KDD reviewer concerns have been addressed:
 3. On simple prompts (ties), priors look overconfident
 4. Corralling correctly detects mismatch → switches to cold start
 
-**Figure**: `results/figure8_regime_stratified_CORRECTED.png` ⭐ **USE THIS**
+**Figure**: `results/figure8_regime_stratified.png` ⭐ **USE THIS**
 
 ---
 
@@ -79,7 +79,7 @@ Present both stories - mechanism AND production reality:
 - Mechanism: Over-confidence trap reduces exploration of expensive new models
 
 **Section 2: Production Robustness (Adaptive Meta-Learning)**
-- Use: `figure8_regime_stratified_CORRECTED.png`
+- Use: `figure8_regime_stratified.png`
 - Claim: "Corralling adaptively chooses between semantic transfer and cold-start exploration"
 - Evidence: Regime switching (33% warmup, 67% tabula rasa), binary expert weights
 - Result: Overall n_eff impact reduced to ~2% due to selective usage
@@ -95,7 +95,7 @@ Single unified message about Corralling's adaptive behavior:
 **Main Claim**: "Meta-learning provides robustness by detecting when semantic transfer fails"
 
 **Evidence**:
-- Use: `figure8_regime_stratified_CORRECTED.png`
+- Use: `figure8_regime_stratified.png`
 - Show: Expert weight evolution (binary switching)
 - Show: Performance stratified by regime (different effects)
 - Explain: 71.5% tie rate → priors look overconfident → Corralling abandons transfer
@@ -123,7 +123,7 @@ Report that n_eff is not a critical hyperparameter in production:
 
 ### **Primary Figure for Paper** ⭐
 
-**Use**: `figure8_regime_stratified_CORRECTED.png`
+**Use**: `figure8_regime_stratified.png`
 
 **Why**:
 - Shows the complete story (expert weights + performance)
@@ -265,7 +265,7 @@ adaptive expert selection, not n_eff insensitivity.
 ## Files Generated
 
 ### **Corrected Figures** ✅
-1. `results/figure8_regime_stratified_CORRECTED.png` ⭐ **PRIMARY**
+1. `results/figure8_regime_stratified.png` ⭐ **PRIMARY**
 2. `results/figure8_ablation_no_corralling.png` (mechanism)
 3. `results/figure8_sensitivity_multiseed_revised.png` (multi-seed)
 
@@ -346,6 +346,6 @@ The experiment is **now scientifically sound** and tells a **more interesting st
 
 **Prepared by**: Scientific Review Team  
 **Status**: ✅ Complete - Ready for Paper Revision  
-**Recommendation**: Use Option A (Two-Stage Analysis) with `figure8_regime_stratified_CORRECTED.png` as primary figure
+**Recommendation**: Use Option A (Two-Stage Analysis) with `figure8_regime_stratified.png` as primary figure
 
 **Last Updated**: February 13, 2026

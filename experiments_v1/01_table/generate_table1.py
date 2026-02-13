@@ -87,7 +87,7 @@ Holdout         & LMSYS Arena      & """ + f"{holdout_count:,}" + r""" & Final e
 """
     
     # Save to file
-    output_file = Path(__file__).parent / "table1_dataset_simplified.tex"
+    output_file = Path(__file__).parent / "table1_dataset.tex"
     with open(output_file, 'w') as f:
         f.write(latex)
     
@@ -161,7 +161,7 @@ def main():
     print(f"✅ Data verified: {stats['total']:,} total prompts")
     print(f"✅ Ready for integration into paper")
     print(f"\nNext steps:")
-    print(f"  1. Review generated table: table1_dataset_simplified.tex")
+    print(f"  1. Review generated table: table1_dataset.tex")
     print(f"  2. Update README.md to reflect simplification")
     print(f"  3. Replace old table in paper with new version")
     print(f"  4. Remove category-related code from repository")

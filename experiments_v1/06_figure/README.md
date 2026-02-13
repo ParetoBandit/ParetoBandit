@@ -203,7 +203,7 @@ A realistic production failure where a model API starts crashing or returning er
 
 ### Archived (Old Approach)
 - `archive/generate_figure5_synthetic.py`: Original phased stress test (d=10.8)
-- `archive/generate_figure5_synthetic_fixed.py`: Immediate divergence version (η=1.0)
+- `archive/generate_figure5_synthetic.py`: Immediate divergence version (η=1.0)
 
 ### Documentation
 - **`README.md`**: This file (redesigned for catastrophic failure focus)

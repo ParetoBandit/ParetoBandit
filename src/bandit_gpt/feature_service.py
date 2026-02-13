@@ -258,7 +258,7 @@ class FeatureService:
             prompt = prompt[:MAX_PROMPT_LENGTH]
         
         # 1. Semantic Embedding
-        emb_full = self.encoder.encode(prompt, normalize_embeddings=True)
+        emb_full = self.encoder.encode(prompt, normalize_embeddings=True, show_progress_bar=False)
         emb_full = l2_normalize(emb_full)
         
         # 2. PCA Compression

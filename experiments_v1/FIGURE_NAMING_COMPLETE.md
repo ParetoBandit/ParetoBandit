@@ -37,11 +37,11 @@
 ```
 Figure 1 → 01_figure/results/figure1_lmsys_holdout_pca.png
 Figure 2 → 02_figure/results/figure2_distribution_shift.png          ✅ FIXED
-Figure 3 → 03_figure/results/figure3_corralled_architecture_corrected.png
+Figure 3 → 03_figure/results/figure3_corralled_architecture.png
 Figure 4 → 04_figure/results/figure4_corralling_semantic_analysis.png ✅ FIXED
 Figure 5 → 05_figure/results/figure5_pareto_frontier.png
 Figure 6 → 07_figure/results/figure6_adaptive_efficiency.png
-Fig 7/8  → 08_figure/results/figure8_regime_stratified_CORRECTED.png
+Fig 7/8  → 08_figure/results/figure8_regime_stratified.png
 ```
 
 ### Appendix Figures (Correct) ✅
@@ -66,11 +66,11 @@ Appendix E → 06_figure/results/appendixE_semantic_transfer.png       ✅ FIXED
 $ ls 0*_figure/results/figure*.png 07_figure/results/figure*.png 08_figure/results/figure*.png
 01_figure/results/figure1_lmsys_holdout_pca.png              ✅ Matches Figure 1
 02_figure/results/figure2_distribution_shift.png             ✅ Matches Figure 2
-03_figure/results/figure3_corralled_architecture_corrected.png ✅ Matches Figure 3
+03_figure/results/figure3_corralled_architecture.png ✅ Matches Figure 3
 04_figure/results/figure4_corralling_semantic_analysis.png   ✅ Matches Figure 4
 05_figure/results/figure5_pareto_frontier.png                ✅ Matches Figure 5
 07_figure/results/figure6_adaptive_efficiency.png            ✅ Matches Figure 6
-08_figure/results/figure8_regime_stratified_CORRECTED.png    ✅ Matches Figures 7/8
+08_figure/results/figure8_regime_stratified.png    ✅ Matches Figures 7/8
 ```
 
 **Result**: All main paper figures have correct numbering! ✅
@@ -152,7 +152,7 @@ $ ls 06_figure/results/appendix*.png
 5. `06_figure/supplementary/generate_figure5_multiseed.py`
 6. `06_figure/supplementary/real_linucb_semantic_transfer_simplified.py`
 7. `06_figure/supplementary/ablation_learning_rate_catastrophic.py`
-8. `06_figure/archive/generate_figure5_synthetic_fixed.py`
+8. `06_figure/archive/generate_figure5_synthetic.py`
 9. `06_figure/archive/generate_figure5_synthetic.py`
 
 ---

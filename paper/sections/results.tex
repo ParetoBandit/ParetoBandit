@@ -118,7 +118,7 @@ As established in Section~\ref{sec:distribution_shift}, our deployment exhibits 
 
 Table~\ref{tab:performance_gap} quantifies the impact of this mismatch and the robustness of our Corralling strategy. Multi-seed evaluation (N=10 seeds) with rigorous statistical testing reveals no significant difference between learning rates (p=0.63), but a fundamental stability-performance tradeoff.
 
-\input{../experiments_v1/02_table/table2_final_corrected}
+\input{../experiments_v1/02_table/table2_final}
 
 \paragraph{Learning Rate Sensitivity and Risk Tolerance.}
 Table~\ref{tab:performance_gap} compares two learning rates across 10 random seeds. Independent t-tests reveal no statistically significant difference in mean performance ($\eta=0.1$: 45.2$\pm$7.9 vs $\eta=1.0$: 48.1$\pm$16.8, t=-0.49, p=0.63, Cohen's d=-0.22). However, the distributions differ substantially:
@@ -176,7 +176,7 @@ Figure~\ref{fig:ablation} compares four initialization strategies:
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\columnwidth]{figures/figure6_ablation_final.png}
+\includegraphics[width=0.95\columnwidth]{figures/figure6_ablation.png}
 \caption{\textbf{Short-Term Model Adoption (Conservative Learning Regime, $\eta=0.1$).} When \texttt{gpt-4o} is introduced at $t=300$, semantic transfer (Blue) provides 3.2\% immediate benefit over cold start (Red) and 2.1\% over realistic baseline (Purple). Mechanism: implicit regularization via symmetry breaking (26$\times$ more initial variance), not semantic accuracy---embedding similarity does not predict performance ($r=-0.38$, $p=0.75$). Conservative learning rate preserves short-term prior exploitation but prevents convergence: expert weights remain stable ($\sim$75\% Conservative, $\sim$25\% Adaptive) throughout episode. \textit{Note}: While heterogeneous expert configuration is designed for stable hedging, diagnostic analysis reveals individual seeds exhibit binary expert commitments (0\% or 100\%) due to severe domain mismatch (PSI=0.275). The reported ~75\% average reflects heterogeneity \emph{across seeds} (different data orderings favor different experts), not stable blending \emph{within seeds}. This binary switching pattern is consistent with Figure~\ref{fig:expert_selection}'s regime-stratified analysis. For complete adaptation, use aggressive learning ($\eta=5.0$, Figure~\ref{fig:corralling_semantic}), which achieves full prior unlearning by step 1,121. (N=30 trials, 95\% CI, full episode metrics, realistic prior baseline)}
 \label{fig:ablation}
 \label{fig:multimodel}

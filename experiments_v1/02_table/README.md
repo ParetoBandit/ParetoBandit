@@ -80,7 +80,7 @@ python generate_table_from_results.py \
 - **`REVIEWER_CONCERNS_ADDRESSED.md`** ⭐ - Comprehensive reviewer response
 
 **LaTeX:**
-- `table2_final_corrected.tex` - ✅ **USE THIS** - Corrected with proper statistics
+- `table2_final.tex` - ✅ **USE THIS** - Table with proper statistics
 
 **Data:**
 - `data/failure_mode_diagnostic.json` - Failure mode analysis results

@@ -145,9 +145,9 @@ gamma = 0.05       # Mixing parameter
 ## Files in This Directory
 
 ### Core Figure Files
-- `generate_figure3_corrected.py` - Python script to generate diagram
+- `generate_figure3.py` - Python script to generate diagram
 - `figure_3_caption.tex` - LaTeX caption for paper
-- `results/figure3_corralled_architecture_corrected.png` - Generated figure (300 DPI)
+- `results/figure3_corralled_architecture.png` - Generated figure (300 DPI)
 
 ### Experimental Validation
 - `experiment_2a_weight_evolution.py` - Weight dynamics (10 seeds)
@@ -213,7 +213,7 @@ gamma = 0.05       # Mixing parameter
 
 ### Generate Figure 3
 ```bash
-python generate_figure3_corrected.py
+python generate_figure3.py
 ```
 
 ### Run Validation Experiments

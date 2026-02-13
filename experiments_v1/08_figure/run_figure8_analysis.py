@@ -459,7 +459,7 @@ def main():
     logger.info("Generating figure...")
     fig = create_figure(results, regimes, stats)
     output_dir = Path(__file__).parent / "results"
-    output_path = output_dir / "figure8_regime_stratified_CORRECTED.png"
+    output_path = output_dir / "figure8_regime_stratified.png"
     fig.savefig(output_path, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved figure to {output_path}")
     plt.close(fig)

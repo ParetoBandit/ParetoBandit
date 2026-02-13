@@ -23,11 +23,11 @@ Updated all plotting scripts and renamed existing figures to match the correct f
 |--------|--------------|-----------|--------|
 | **01_figure** | Figure 1 | `figure1_lmsys_holdout_pca.png` | ✅ Correct |
 | **02_figure** | Figure 2 | `figure2_distribution_shift.png` | ✅ **FIXED** (was `distribution_shift_pc1.png`) |
-| **03_figure** | Figure 3 | `figure3_corralled_architecture_corrected.png` | ✅ Correct |
+| **03_figure** | Figure 3 | `figure3_corralled_architecture.png` | ✅ Correct |
 | **04_figure** | Figure 4 | `figure4_corralling_semantic_analysis.png` | ✅ **FIXED** (was `figure3_*`) |
 | **05_figure** | Figure 5 | `figure5_pareto_frontier.png` | ✅ Correct |
 | **07_figure** | Figure 6 | `figure6_adaptive_efficiency.png` | ✅ Correct |
-| **08_figure** | Figure 7/8 | `figure8_regime_stratified_CORRECTED.png` | ✅ Correct |
+| **08_figure** | Figure 7/8 | `figure8_regime_stratified.png` | ✅ Correct |
 
 ---
 
@@ -92,7 +92,7 @@ The **06_figure** folder contains supplementary material for **Appendix D** (abl
 | `supplementary/generate_figure5_multiseed.py` | `figure5_multiseed_statistics.*` | `appendixE_multiseed_statistics.*` | E |
 | `supplementary/real_linucb_semantic_transfer_simplified.py` | `figure6_real_linucb_semantic_transfer.*` | `appendixE_semantic_transfer.*` | E |
 | `supplementary/ablation_learning_rate_catastrophic.py` | `figure6_learning_rate_ablation.*` | `appendixD_learning_rate_ablation.*` | D |
-| `archive/generate_figure5_synthetic_fixed.py` | `figure5_corralling_weights.*` | `appendixE_corralling_weights.*` | E |
+| `archive/generate_figure5_synthetic.py` | `figure5_corralling_weights.*` | `appendixE_corralling_weights.*` | E |
 | `archive/generate_figure5_synthetic.py` | `figure5_corralling_weights.*` | `appendixE_corralling_weights.*` | E |
 
 ### Files Renamed (14 files)
@@ -217,11 +217,11 @@ figure6_learning_rate_ablation.png    → appendixD_learning_rate_ablation.png �
 ```
 Figure 1 → 01_figure → figure1_lmsys_holdout_pca.png
 Figure 2 → 02_figure → figure2_distribution_shift.png         ✅ FIXED
-Figure 3 → 03_figure → figure3_corralled_architecture_corrected.png
+Figure 3 → 03_figure → figure3_corralled_architecture.png
 Figure 4 → 04_figure → figure4_corralling_semantic_analysis.png  ✅ FIXED
 Figure 5 → 05_figure → figure5_pareto_frontier.png
 Figure 6 → 07_figure → figure6_adaptive_efficiency.png
-Fig 7/8  → 08_figure → figure8_regime_stratified_CORRECTED.png
+Fig 7/8  → 08_figure → figure8_regime_stratified.png
 
 Appendix → 06_figure → figure5_*/figure6_* (supplementary)
 ```

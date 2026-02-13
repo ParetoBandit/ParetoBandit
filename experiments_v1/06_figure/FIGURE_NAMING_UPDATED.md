@@ -24,7 +24,7 @@ All figures in `06_figure` have been renamed from `figure5_*` and `figure6_*` to
 | `supplementary/generate_figure5_multiseed.py` | `figure5_multiseed_statistics.*` | `appendixE_multiseed_statistics.*` | E |
 | `supplementary/real_linucb_semantic_transfer_simplified.py` | `figure6_real_linucb_semantic_transfer.*` | `appendixE_semantic_transfer.*` | E |
 | `supplementary/ablation_learning_rate_catastrophic.py` | `figure6_learning_rate_ablation.*` | `appendixD_learning_rate_ablation.*` | D |
-| `archive/generate_figure5_synthetic_fixed.py` | `figure5_corralling_weights.*` | `appendixE_corralling_weights.*` | E |
+| `archive/generate_figure5_synthetic.py` | `figure5_corralling_weights.*` | `appendixE_corralling_weights.*` | E |
 | `archive/generate_figure5_synthetic.py` | `figure5_corralling_weights.*` | `appendixE_corralling_weights.*` | E |
 
 ---
@@ -114,11 +114,11 @@ appendixE_corralling_weights.png/pdf
 ```
 Figure 1: 01_figure → figure1_lmsys_holdout_pca.png
 Figure 2: 02_figure → figure2_distribution_shift.png
-Figure 3: 03_figure → figure3_corralled_architecture_corrected.png
+Figure 3: 03_figure → figure3_corralled_architecture.png
 Figure 4: 04_figure → figure4_corralling_semantic_analysis.png
 Figure 5: 05_figure → figure5_pareto_frontier.png
 Figure 6: 07_figure → figure6_adaptive_efficiency.png
-Figures 7/8: 08_figure → figure8_regime_stratified_CORRECTED.png
+Figures 7/8: 08_figure → figure8_regime_stratified.png
 ```
 
 ### Appendix Figures (Supplementary)

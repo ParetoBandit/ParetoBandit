@@ -646,8 +646,8 @@ def plot_ablation(results, heterogeneity):
     ax.legend(loc='lower right')
     ax.grid(True, alpha=0.3)
     
-    plt.savefig(output_dir / "figure6_ablation_fixed.png", dpi=300, bbox_inches='tight')
-    logger.info(f"✅ Saved fixed ablation plot to figure6_ablation_fixed.png")
+    plt.savefig(output_dir / "figure6_ablation.png", dpi=300, bbox_inches='tight')
+    logger.info(f"✅ Saved ablation plot to figure6_ablation.png")
 
 if __name__ == "__main__":
     results_data = run_ablation()

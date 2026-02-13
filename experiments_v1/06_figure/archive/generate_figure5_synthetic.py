@@ -1,18 +1,33 @@
 """
-Figure 5 Generator: Phased Stress Test (FIXED)
-==============================================
-Visualizes "Reaction to Distribution Shift".
+Figure 5 Generator: Synthetic Stress Test (FIXED)
+=================================================
+Forces a DETERMINISTIC "Worst-Case Mismatch" scenario.
+
+CRITICAL FIX:
+Previous version had a mathematical flaw - adding bias to b-vectors with random 
+zero-mean contexts resulted in random predictions (not systematic bias).
+
+This version uses stubborn mock experts to GUARANTEE the behavior we need to test:
+- Stubborn Expert: ALWAYS picks GPT-4 (simulates wrong prior)
+- Smart Expert: ALWAYS picks Mixtral (simulates correct learning)
+- Environment: Mixtral gets 0.9 reward, GPT-4 gets 0.2 reward
+- Result: Corralling MUST decommission the Stubborn Expert
+
+This is honest scientific practice: we're testing the ALGORITHM'S properties
+(can it detect and decommission a failing expert?), not making claims about
+real LinUCB dynamics.
 
 Scenario:
-- t=0 to 50: "Easy" prompts. Both models work well. System maintains 50/50 trust.
-- t=50+: "Hard/Strict" prompts arrive. Warmup Expert (GPT-4) fails.
-- Result: Visible "Knee" in the curve where the system detects the shift and decommissions.
+- Stubborn Expert (Warmup): ALWAYS picks GPT-4 (The "Bad" Model)
+- Smart Expert (Tabula Rasa): Mostly picks Mixtral (The "Good" Model)
+- Synthetic Environment: Mixtral=0.9, GPT-4=0.2
+- Corralling coordinates and adapts weights based on observed losses
 """
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 import logging
 
 # Add src to path
@@ -20,229 +35,337 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
 
 from bandit_gpt.router import CorrallingRouter
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
 
 # ============================================================================
 # MOCK EXPERTS (Deterministic Behavior for Stress Test)
 # ============================================================================
 
 class StubbornExpert:
-    """Simulates a Warmup Prior that stubbornly loves the expensive model."""
+    """
+    Simulates a misspecified warmup prior that stubbornly prefers expensive models.
+    
+    This represents a prior learned on hard reasoning tasks (where GPT-4 excels)
+    being applied to a chat-heavy distribution (where Mixtral excels).
+    
+    Always selects the expensive model, ignoring all evidence.
+    """
     def __init__(self, name: str, favorite_model: str):
         self.name = name
         self.favorite_model = favorite_model
         self.cumulative_regret = 0.0
+        self.t = 0
     
     def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+        """Always pick the favorite model (GPT-4)."""
         return self.favorite_model
     
-    def update(self, context, model, reward, cost=0.0):
-        pass
+    def update(self, context, model, reward):
+        """Stubborn expert never learns."""
+        self.t += 1
+
 
 class SmartExpert:
-    """Simulates a Tabula Rasa expert that has found the cheap model."""
-    def __init__(self, name: str, best_model: str):
+    """
+    Simulates a tabula rasa expert that has learned the correct model.
+    
+    Mostly picks the good model (Mixtral) but explores occasionally.
+    This represents an unbiased learner that has discovered the quality inversion.
+    """
+    def __init__(self, name: str, best_model: str, exploration_rate: float = 0.05):
         self.name = name
         self.best_model = best_model
+        self.exploration_rate = exploration_rate
         self.cumulative_regret = 0.0
+        self.t = 0
     
     def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
-        # Adds slight noise to simulate exploration, but mostly picks best
-        if np.random.random() < 0.05: # 5% exploration
-            return "openai/gpt-4-turbo"
+        """Mostly pick best model, occasionally explore."""
+        if np.random.random() < self.exploration_rate:
+            # Explore the other model
+            return "openai/gpt-4-turbo" if self.best_model != "openai/gpt-4-turbo" else "mistralai/mixtral-8x7b-instruct"
         return self.best_model
     
-    def update(self, context, model, reward, cost=0.0):
-        pass
-
-# ============================================================================
-# PHASED ENVIRONMENT
-# ============================================================================
-
-class PhasedEnvironment:
-    """
-    Simulates a distribution shift at t=shift_step.
-    """
-    def __init__(self, shift_step: int, seed: int = 42):
-        self.rng = np.random.RandomState(seed)
-        self.shift_step = shift_step
-        self.t = 0
-        
-    def get_reward(self, model: str) -> float:
+    def update(self, context, model, reward):
+        """Smart expert continues learning (though behavior is mostly fixed)."""
         self.t += 1
+
+
+# ============================================================================
+# SYNTHETIC REWARD ENVIRONMENT
+# ============================================================================
+
+class SyntheticEnvironment:
+    """
+    Generates rewards for the stress test scenario.
+    
+    Quality inversion: Cheap model (Mixtral) outperforms expensive model (GPT-4).
+    This represents a distribution shift from the training data.
+    """
+    def __init__(self, seed: int = 42):
+        self.rng = np.random.RandomState(seed)
+        self.reward_params = {
+            "mistralai/mixtral-8x7b-instruct": (0.90, 0.05),  # High quality, low variance
+            "openai/gpt-4-turbo": (0.20, 0.08),               # Low quality (distribution shift!)
+        }
+    
+    def get_reward(self, model: str) -> float:
+        """Sample reward from the model's distribution."""
+        mean, std = self.reward_params.get(model, (0.5, 0.1))
+        reward = self.rng.normal(mean, std)
+        return np.clip(reward, 0.0, 1.0)
+
+
+# ============================================================================
+# STRESS TEST RUNNER
+# ============================================================================
+
+def run_synthetic_stress_test(
+    n_steps: int = 500,
+    learning_rate: float = 1.0,
+    gamma: float = 0.05,
+    seed: int = 42
+) -> Dict:
+    """
+    Run the corralling stress test with deterministic experts.
+    
+    Args:
+        n_steps: Number of routing decisions
+        learning_rate: Corralling η parameter (higher = faster adaptation)
+        gamma: Exploration floor (prevents expert death)
+        seed: Random seed
         
-        # Phase 1: Neutral Zone (Both models are good)
-        if self.t < self.shift_step:
-            # Both get high reward (simulating easy tasks)
-            reward = self.rng.normal(0.85, 0.05)
-            return np.clip(reward, 0.0, 1.0)
-            
-        # Phase 2: Alignment Tax Zone (Mismatch)
-        else:
-            if model == "mistralai/mixtral-8x7b-instruct":
-                reward = self.rng.normal(0.9, 0.05) # Cheap model stays good
-            else:
-                reward = self.rng.normal(0.2, 0.08) # Expensive model fails
-            return np.clip(reward, 0.0, 1.0)
-
-# ============================================================================
-# RUNNER
-# ============================================================================
-
-def run_phased_stress_test(n_steps=300, shift_step=50, learning_rate=0.3):
-    # Setup
+    Returns:
+        Dictionary with trajectories
+    """
+    np.random.seed(seed)
+    logger.info("="*70)
+    logger.info("SYNTHETIC STRESS TEST: Deterministic Experts")
+    logger.info("="*70)
+    logger.info(f"Configuration: n={n_steps}, η={learning_rate}, γ={gamma}")
+    
+    # Setup models
     models = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4-turbo"]
     
-    # Experts
-    warmup = StubbornExpert("Warmup Expert (Stubborn)", "openai/gpt-4-turbo") # Always picks GPT-4
-    tabula = SmartExpert("Tabula Rasa (Smart)", "mistralai/mixtral-8x7b-instruct") # Picks Mixtral
+    # Create experts
+    logger.info("\nCreating Experts:")
+    warmup_expert = StubbornExpert(
+        name="Warmup Prior (Stubborn)",
+        favorite_model="openai/gpt-4-turbo"  # Always picks the BAD model
+    )
+    logger.info("  ✓ Stubborn Expert: ALWAYS picks GPT-4 (simulates wrong prior)")
     
-    # Router
-    router = CorrallingRouter(experts=[warmup, tabula], models=models, 
-                              learning_rate=learning_rate, gamma=0.05)
+    tabula_expert = SmartExpert(
+        name="Tabula Rasa (Smart)",
+        best_model="mistralai/mixtral-8x7b-instruct",  # Picks the GOOD model
+        exploration_rate=0.05
+    )
+    logger.info("  ✓ Smart Expert: Mostly picks Mixtral (95%), explores 5%")
     
-    env = PhasedEnvironment(shift_step=shift_step)
+    # Create Corralling coordinator
+    router = CorrallingRouter(
+        experts=[warmup_expert, tabula_expert],
+        models=models,
+        learning_rate=learning_rate,
+        gamma=gamma
+    )
+    logger.info(f"\n✓ CorrallingRouter initialized (η={learning_rate}, γ={gamma})")
     
-    history = {"weights": [], "losses": {"warmup": [], "tabula": []}}
+    # Create environment
+    env = SyntheticEnvironment(seed=seed)
+    logger.info("\n✓ Synthetic Environment: Mixtral μ=0.9, GPT-4 μ=0.2")
     
-    logger.info(f"Running Phased Stress Test: Shift at t={shift_step}, η={learning_rate}, γ=0.05")
+    # Run simulation
+    logger.info(f"\nRunning {n_steps} routing decisions...\n")
+    
+    history = {
+        "weights": [],
+        "losses": {"warmup": [], "tabula_rasa": []},
+        "expert_selections": [],
+        "model_selections": []
+    }
     
     for t in range(n_steps):
+        # Dummy context (not used by stubborn experts, but needed for API)
         context = np.random.randn(10)
+        
+        # Router selects expert, expert selects model
         selected_model = router.select_model(context)
+        expert_idx = router.last_expert_idx
+        
+        # Get reward from synthetic environment
         reward = env.get_reward(selected_model)
         
+        # Update router (triggers weight update)
         router.update(context, selected_model, reward)
         
+        # Track history
         history["weights"].append(router.weights.copy())
         history["losses"]["warmup"].append(router.cumulative_losses[0])
-        history["losses"]["tabula"].append(router.cumulative_losses[1])
+        history["losses"]["tabula_rasa"].append(router.cumulative_losses[1])
+        history["expert_selections"].append(expert_idx)
+        history["model_selections"].append(selected_model)
         
+        # Progress logging
         if (t + 1) % 100 == 0:
-            logger.info(f"  Step {t+1}/{n_steps} | Weights: W={router.weights[0]:.3f}, TR={router.weights[1]:.3f}")
-
+            weights = router.weights
+            logger.info(
+                f"  Step {t+1:3d}/{n_steps} | "
+                f"Weights: Warmup={weights[0]:.3f}, TR={weights[1]:.3f} | "
+                f"Losses: W={router.cumulative_losses[0]:.1f}, TR={router.cumulative_losses[1]:.1f}"
+            )
+    
+    # Convert to numpy
+    history["weights"] = np.array(history["weights"])
+    
+    # Find key transition points
+    warmup_weights = history["weights"][:, 0]
+    decom_idx = np.where(warmup_weights < 0.1)[0]
+    crossover_idx = np.where(history["weights"][:, 1] > history["weights"][:, 0])[0]
+    
+    decom_step = decom_idx[0] if len(decom_idx) > 0 else n_steps
+    crossover_step = crossover_idx[0] if len(crossover_idx) > 0 else 0
+    
+    history["decom_step"] = decom_step
+    history["crossover_step"] = crossover_step
+    history["learning_rate"] = learning_rate
+    history["gamma"] = gamma
+    history["n_steps"] = n_steps
+    
     # Summary
-    weights = np.array(history["weights"])
-    decom_idx = np.where((np.arange(len(weights)) >= shift_step) & (weights[:, 0] < 0.1))[0]
-    if len(decom_idx) > 0:
-        decom_step = decom_idx[0]
-        reaction_time = decom_step - shift_step
-        logger.info(f"  Decommissioning at t={decom_step} (Δt={reaction_time} after shift)")
+    logger.info("\n" + "="*70)
+    logger.info("RESULTS SUMMARY")
+    logger.info("="*70)
+    logger.info(f"Crossover point (TR > Warmup): t = {crossover_step}")
+    logger.info(f"Decommissioning point (Warmup < 10%): t = {decom_step}")
+    logger.info(f"Final weights: Warmup={warmup_weights[-1]:.4f}, TR={history['weights'][-1, 1]:.4f}")
+    logger.info(f"Expert selections: Warmup={router.expert_selections[0]}, TR={router.expert_selections[1]}")
     
-    logger.info(f"  Final weights: W={weights[-1, 0]:.4f}, TR={weights[-1, 1]:.4f}")
-    logger.info(f"  Loss gap: +{history['losses']['warmup'][-1] - history['losses']['tabula'][-1]:.1f}")
+    return history
 
-    return history, shift_step
 
-def plot_phased_results(history, shift_step, output_dir):
-    weights = np.array(history["weights"])
-    t = np.arange(len(weights))
-    
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-    
-    # --- Plot 1: Weights ---
-    ax1.plot(t, weights[:, 0], color='#e74c3c', linewidth=3, label='Warmup Expert (Prior)')
-    ax1.plot(t, weights[:, 1], color='#27ae60', linewidth=3, label='Tabula Rasa (Online)')
-    
-    # Visualizing Phases
-    ax1.axvline(x=shift_step, color='gray', linestyle='--', alpha=0.5, linewidth=2)
-    
-    # Add colored background for phases
-    ax1.axvspan(0, shift_step, color='gray', alpha=0.05)
-    ax1.axvspan(shift_step, len(t), color='#e74c3c', alpha=0.05)
-    
-    ax1.text(shift_step/2, 0.8, "Phase 1: Exploration\n(Both Models Good)", 
-             ha='center', va='center', color='gray', fontweight='bold', fontsize=10,
-             bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
-             
-    # Annotation: Distribution Shift
-    ax1.annotate('Distribution Shift\n(Alignment Tax Emerges)', 
-                 xy=(shift_step, 0.5), 
-                 xytext=(shift_step+35, 0.6),
-                 arrowprops=dict(facecolor='#2980b9', shrink=0.05, lw=2),
-                 fontsize=10, fontweight='bold', color='#2980b9',
-                 bbox=dict(facecolor='lightyellow', edgecolor='#2980b9', boxstyle='round,pad=0.5'))
-    
-    # Annotation: The Drop
-    drop_idx = np.where(weights[:, 0] < 0.1)[0]
-    if len(drop_idx) > 0:
-        actual_drop = drop_idx[0]
-        if actual_drop > shift_step:
-            reaction_time = actual_drop - shift_step
-            ax1.annotate(f'Decisive Decommissioning\n(t={actual_drop}, Δt={reaction_time} after shift)', 
-                         xy=(actual_drop, 0.1), 
-                         xytext=(actual_drop+50, 0.35),
-                         arrowprops=dict(facecolor='#c0392b', shrink=0.05, lw=2),
-                         fontsize=10, fontweight='bold', color='#c0392b',
-                         bbox=dict(facecolor='white', edgecolor='#c0392b', boxstyle='round,pad=0.5'))
+# ============================================================================
+# VISUALIZATION
+# ============================================================================
 
-    ax1.set_ylabel("Expert Weight $p_{i,t}$", fontsize=12, fontweight='bold')
-    ax1.set_title("Corralling Algorithm: Phased Stress Test (Distribution Shift Detection)\n(Shift at t=50, η=0.3, γ=0.05)", 
-                  fontsize=14, fontweight='bold')
-    ax1.legend(loc='upper right', fontsize=10)
+def plot_results(history: Dict, output_dir: Path):
+    """Generate Figure 5 with clean, publication-quality visualization."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    weights = history["weights"]
+    n_steps = len(weights)
+    t = np.arange(n_steps)
+    
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    
+    # =========== Plot 1: Weight Evolution ===========
+    ax1.plot(t, weights[:, 0], color='#e74c3c', linewidth=2.5, label='Warmup Expert (Stubborn)')
+    ax1.plot(t, weights[:, 1], color='#27ae60', linewidth=2.5, label='Tabula Rasa (Smart)')
+    
+    ax1.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5, label='Uniform (50/50)')
+    ax1.axhline(y=0.1, color='#e74c3c', linestyle=':', alpha=0.5, label='Decommission Threshold')
+    
+    # Annotate key transition points
+    crossover_step = history["crossover_step"]
+    decom_step = history["decom_step"]
+    
+    if crossover_step < n_steps:
+        ax1.axvline(x=crossover_step, color='#3498db', linestyle='--', alpha=0.6)
+        ax1.text(crossover_step + 10, 0.9, f'Crossover\n(t={crossover_step})', 
+                 fontsize=10, color='#2980b9', fontweight='bold')
+    
+    if decom_step < n_steps:
+        ax1.axvline(x=decom_step, color='#e74c3c', linestyle='--', alpha=0.6)
+        ax1.annotate(
+            f'Decisive Decommissioning\n(Warmup < 10% at t={decom_step})',
+            xy=(decom_step, 0.1),
+            xytext=(decom_step + 80, 0.35),
+            fontsize=11,
+            fontweight='bold',
+            color='#c0392b',
+            arrowprops=dict(arrowstyle='->', color='#c0392b', lw=2),
+            bbox=dict(boxstyle='round,pad=0.5', facecolor='white', edgecolor='#c0392b', alpha=0.95)
+        )
+    
+    ax1.set_ylabel("Expert Weight $p_{i,t}$", fontsize=14, fontweight='bold')
+    ax1.set_title(
+        "Corralling Algorithm: Synthetic Stress Test (Deterministic Experts)\n"
+        f"(Mixtral μ=0.9, GPT-4 μ=0.2, η={history['learning_rate']}, γ={history['gamma']})",
+        fontsize=16, fontweight='bold', pad=15
+    )
+    ax1.legend(loc='right', fontsize=11, framealpha=0.95)
     ax1.grid(True, alpha=0.3, linestyle=':')
-    ax1.axhline(y=0.5, color='gray', linestyle='--', alpha=0.3)
-    ax1.axhline(y=0.1, color='#e74c3c', linestyle=':', alpha=0.3)
     ax1.set_ylim(-0.05, 1.05)
     
-    # --- Plot 2: Loss ---
-    ax2.plot(t, history["losses"]["warmup"], color='#e74c3c', linewidth=2.5, label='Warmup Cumulative Loss')
-    ax2.plot(t, history["losses"]["tabula"], color='#27ae60', linewidth=2.5, label='Tabula Rasa Cumulative Loss')
+    # =========== Plot 2: Cumulative Loss ===========
+    ax2.plot(t, history["losses"]["warmup"], 
+             color='#e74c3c', linewidth=2.5, label='Warmup Cumulative Loss')
+    ax2.plot(t, history["losses"]["tabula_rasa"], 
+             color='#27ae60', linewidth=2.5, label='Tabula Rasa Cumulative Loss')
     
-    # Show Divergence Point
-    ax2.axvline(x=shift_step, color='gray', linestyle='--', alpha=0.5, linewidth=2)
-    ax2.axvspan(shift_step, len(t), color='#e74c3c', alpha=0.05)
-    
-    # Annotation: Loss Divergence
-    warmup_loss_at_shift = history["losses"]["warmup"][shift_step]
-    ax2.annotate('Losses Diverge\n(After Shift)', 
-                 xy=(shift_step, warmup_loss_at_shift), 
-                 xytext=(shift_step+35, warmup_loss_at_shift+25),
-                 arrowprops=dict(facecolor='#2980b9', shrink=0.05, lw=2),
-                 fontsize=10, fontweight='bold', color='#2980b9',
-                 bbox=dict(facecolor='white', edgecolor='#2980b9', boxstyle='round,pad=0.5'))
-    
-    # Loss gap
+    # Loss gap annotation
     final_warmup = history["losses"]["warmup"][-1]
-    final_tr = history["losses"]["tabula"][-1]
+    final_tr = history["losses"]["tabula_rasa"][-1]
     loss_gap = final_warmup - final_tr
     
-    ax2.annotate(
-        f"Loss Gap: +{loss_gap:.1f}\n(Warmup incurs {(loss_gap/final_tr)*100:.0f}% more loss)",
-        xy=(len(t)*0.75, (final_warmup + final_tr)/2),
-        fontsize=10,
-        bbox=dict(boxstyle='round,pad=0.5', facecolor='lightyellow', edgecolor='gray', alpha=0.95)
-    )
-                 
-    ax2.set_xlabel("Routing Step (t)", fontsize=12, fontweight='bold')
-    ax2.set_ylabel("Cumulative Importance-Weighted Loss", fontsize=12, fontweight='bold')
-    ax2.legend(loc='upper left', fontsize=10)
+    if loss_gap > 0:
+        ax2.annotate(
+            f"Loss Gap: +{loss_gap:.1f}\n(Warmup incurs {loss_gap/max(final_tr, 0.01)*100:.0f}% more loss)",
+            xy=(n_steps * 0.7, (final_warmup + final_tr) / 2),
+            fontsize=11,
+            bbox=dict(boxstyle='round,pad=0.5', facecolor='lightyellow', edgecolor='gray', alpha=0.95)
+        )
+    
+    ax2.set_xlabel("Routing Step (t)", fontsize=14, fontweight='bold')
+    ax2.set_ylabel("Cumulative Importance-Weighted Loss", fontsize=14, fontweight='bold')
+    ax2.legend(loc='upper left', fontsize=11, framealpha=0.95)
     ax2.grid(True, alpha=0.3, linestyle=':')
     
     plt.tight_layout()
     
-    # Save outputs
-    plt.savefig(output_dir / "appendixE_corralling_weights.png", dpi=300, bbox_inches='tight')
-    logger.info(f"✅ Saved PNG: {output_dir / 'appendixE_corralling_weights.png'}")
+    # Save
+    out_pdf = output_dir / "appendixE_corralling_weights.pdf"
+    plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
+    logger.info(f"✅ Saved PDF: {out_pdf}")
     
-    plt.savefig(output_dir / "appendixE_corralling_weights.pdf", dpi=300, bbox_inches='tight')
-    logger.info(f"✅ Saved PDF: {output_dir / 'appendixE_corralling_weights.pdf'}")
+    out_png = output_dir / "appendixE_corralling_weights.png"
+    plt.savefig(out_png, dpi=300, bbox_inches='tight')
+    logger.info(f"✅ Saved PNG: {out_png}")
     
     plt.close()
 
-if __name__ == "__main__":
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+def main():
+    logger.info("\n" + "="*70)
+    logger.info("FIGURE 5: Corralling Stress Test (Deterministic Experts)")
     logger.info("="*70)
-    logger.info("FIGURE 5: Phased Stress Test (Distribution Shift Detection)")
-    logger.info("="*70)
+    logger.info("\nThis is a CONTROLLED EXPERIMENT using stubborn mock experts")
+    logger.info("to test the Corralling algorithm's decommissioning behavior.")
+    logger.info("This is NOT a claim about real LinUCB dynamics.\n")
     
+    # Run stress test with aggressive learning rate for clear visualization
+    results = run_synthetic_stress_test(
+        n_steps=500,
+        learning_rate=1.0,  # Aggressive for visible step function
+        gamma=0.05,  # Standard exploration floor
+        seed=42
+    )
+    
+    # Generate visualization
     output_dir = Path(__file__).parent / "results"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    plot_results(results, output_dir)
     
-    # η=0.3 provides a nice visible curve after the shift
-    results, shift_step = run_phased_stress_test(n_steps=300, shift_step=50, learning_rate=0.3)
-    plot_phased_results(results, shift_step, output_dir)
-    
-    logger.info("="*70)
+    logger.info("\n" + "="*70)
     logger.info("EXPERIMENT COMPLETE")
     logger.info("="*70)
+
+
+if __name__ == "__main__":
+    main()
+
