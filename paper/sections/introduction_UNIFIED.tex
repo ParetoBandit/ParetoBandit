@@ -37,7 +37,7 @@ We present \textbf{banditGPT}, a contextual bandit framework that addresses all 
 We demonstrate that task difficulty in LLM routing relates to \emph{model alignment failures}, not just reasoning complexity. Using principal component analysis on prompt embeddings, we discover that the first principal component (PC1, capturing $3.10\%$ variance) separates tasks by alignment strictness. This semantic structure makes routing \textbf{learnable}—but only if we can safely learn from it.
 
 \paragraph{2. Corralling Meta-Learning} 
-To provide safety against prior mismatch, we employ Corralling~\cite{agarwal2017corralling}, a meta-algorithm that adaptively combines two experts: one with warmup priors (semantic knowledge) and one starting fresh (tabula rasa). Through exponential weight updates, Corralling automatically detects when priors fail and switches to cold-start exploration. This provides \textbf{safety guarantees}: $44.3\%$ improvement when priors are harmful, while achieving near-optimal performance ($1.3\times$ vs optimal) when they succeed.
+To provide safety against prior mismatch, we employ Corralling~\cite{agarwal2017corralling}, a meta-algorithm that adaptively combines two experts: one with warmup priors (semantic knowledge) and one starting fresh (tabula rasa). Through exponential weight updates, Corralling automatically detects when priors fail and switches to cold-start exploration. This provides \textbf{safety insurance}: under moderate distribution shift, Corralling incurs only 1--4\% overhead vs tabula rasa while providing protection against catastrophic prior failure under severe mismatch.
 
 \paragraph{3. Semantic Transfer}
 To eliminate cold-start penalties for new models, we introduce \textbf{semantic transfer}: new models inherit preferences ($\theta$) from semantically similar models while resetting confidence ($A$), enabling immediate exploitation of transferred knowledge with maintained exploration flexibility. Statistical validation ($+0.62$ reward improvement on new model release, $p<10^{-7}$) confirms this eliminates cold-start costs.
@@ -65,10 +65,10 @@ Our work makes three contributions, validated through comprehensive experimentat
     First empirical demonstration that RLHF optimization creates performance \emph{inversions}---$17.6\%$ of prompts where Mixtral outperforms GPT-4 ($p<10^{-143}$, Cohen's $d=1.90$). Structure validated at $594{,}199$ prompts ($317\times$ scale).
     
     \item \textbf{Corralling for LLM Routing:}
-    Introduction of Expert Corralling~\cite{agarwal2017corralling} to the routing domain, providing $44.3\%$ improvement vs harmful warmup priors with multi-seed validation (N=$10$ seeds, $75$ ablation configurations).
+    Introduction of Expert Corralling~\cite{agarwal2017corralling} to the routing domain as safety insurance against prior mismatch. Under moderate shift, warmup priors remain beneficial ($-28\%$ regret vs tabula rasa) and Corralling adds modest overhead (1--4\%). Multi-seed validation (N=$10$ seeds) with data-order shuffling.
     
     \item \textbf{Integrated Production System:}
-    $68.5\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM) with catastrophic failure detection ($3$--$50$ steps), zero-shot model adoption ($+0.62$ reward, $p<10^{-7}$), and multi-seed statistical testing (N=$10$--$30$) exceeding field standards.
+    $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM) with catastrophic failure detection ($3$--$50$ steps, validated on synthetic scenarios), zero-shot model adoption ($+0.62$ reward, $p<10^{-7}$), and multi-seed statistical testing (N=$20$--$30$).
 \end{enumerate}
 
 The remainder is organized as follows. Section~\ref{sec:motivation} establishes the empirical motivation (semantic structure, distribution shift). Section~\ref{sec:methodology} describes the integrated system. Sections~\ref{sec:experiments}--\ref{sec:results} present experimental validation with the Pareto frontier as the primary benchmark. Section~\ref{sec:related} surveys related work; Section~\ref{sec:conclusion} discusses limitations and future directions. Extended results and sensitivity analyses appear in the appendices.

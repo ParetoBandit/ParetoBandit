@@ -59,9 +59,10 @@ class TestGammaScaling:
             expected_A = priors['A'][model] * gamma
             np.testing.assert_array_almost_equal(scaled['A'][model], expected_A)
         
-        # Check that b vectors are NOT scaled (only copied)
+        # Check that b vectors ARE ALSO scaled (to preserve theta = A^-1 @ b)
         for model in models:
-            np.testing.assert_array_almost_equal(scaled['b'][model], priors['b'][model])
+            expected_b = priors['b'][model] * gamma
+            np.testing.assert_array_almost_equal(scaled['b'][model], expected_b)
         
         # Check metadata
         assert scaled['gamma'] == gamma
@@ -88,6 +89,51 @@ class TestGammaScaling:
             eigenvalues = np.linalg.eigvals(A)
             assert np.all(eigenvalues > 0), f"Matrix not positive definite with gamma={gamma}"
     
+    def test_gamma_scaling_preserves_theta(self):
+        """Test that gamma scaling preserves theta = A^-1 @ b (critical for correctness)."""
+        context_dim = 5
+        models = ['model_a', 'model_b']
+        
+        # Create priors with non-trivial A and b
+        priors = {
+            'A': {
+                'model_a': np.eye(context_dim) * 10.0,
+                'model_b': np.array([[4, 1, 0, 0, 0],
+                                     [1, 4, 1, 0, 0],
+                                     [0, 1, 4, 1, 0],
+                                     [0, 0, 1, 4, 1],
+                                     [0, 0, 0, 1, 4]], dtype=float)
+            },
+            'b': {
+                'model_a': np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+                'model_b': np.array([0.5, 1.5, 2.5, 3.5, 4.5])
+            },
+            'models': models,
+            'context_dim': context_dim
+        }
+        
+        # Calculate original theta for each model
+        original_theta = {}
+        for model in models:
+            A_inv = np.linalg.inv(priors['A'][model])
+            original_theta[model] = A_inv @ priors['b'][model]
+        
+        # Test with various gamma values
+        for gamma in [0.01, 0.05, 0.1, 0.5, 1.0]:
+            scaled = apply_gamma_scaling(priors, gamma)
+            
+            # Calculate theta after scaling
+            for model in models:
+                A_inv_scaled = np.linalg.inv(scaled['A'][model])
+                theta_scaled = A_inv_scaled @ scaled['b'][model]
+                
+                # CRITICAL: theta must be preserved (within numerical precision)
+                np.testing.assert_array_almost_equal(
+                    theta_scaled, original_theta[model],
+                    decimal=10,
+                    err_msg=f"Theta not preserved for {model} with gamma={gamma}"
+                )
+    
     def test_gamma_scaling_edge_cases(self):
         """Test gamma scaling with edge case values."""
         context_dim = 2
@@ -101,10 +147,13 @@ class TestGammaScaling:
         # Very small gamma (high inflation)
         scaled_small = apply_gamma_scaling(priors, gamma=0.001)
         assert np.allclose(scaled_small['A']['model_a'], np.eye(context_dim) * 0.001)
+        # Also check b is scaled
+        assert np.allclose(scaled_small['b']['model_a'], np.zeros(context_dim))
         
         # Gamma = 1.0 (no scaling)
         scaled_one = apply_gamma_scaling(priors, gamma=1.0)
         np.testing.assert_array_almost_equal(scaled_one['A']['model_a'], priors['A']['model_a'])
+        np.testing.assert_array_almost_equal(scaled_one['b']['model_a'], priors['b']['model_a'])
 
 
 # =============================================================================

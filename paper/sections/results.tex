@@ -11,7 +11,7 @@ Figure~\ref{fig:pareto} illustrates the cost-quality trade-off for all tested ro
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure5_pareto_frontier.png}
-\caption{\textbf{Pareto Frontier with Statistical Rigor.} We swept 10 cost penalties for banditGPT (5 trials each, seeds 42--46) and 28 thresholds for RouteLLM. After convex hull filtering, banditGPT's frontier (blue diamonds) dominates RouteLLM's frontier (red circles) across all budget levels. \textbf{Error bars show 95\% confidence intervals} (e.g., peak: $0.912 \pm 0.006$). Faint markers show all experimental points; X's mark dominated points (standard practice in multi-objective optimization~\cite{deb2002nsga2}). Key: (1) RouteLLM peaks at \$0.0065 (0.883) with 64\% dominated points. (2) banditGPT achieves $0.912 \pm 0.006$. (3) Oracle (green star) at 0.953; banditGPT closes 68.5\% of gap.}
+\caption{\textbf{Pareto Frontier with Statistical Rigor.} We swept 10 cost penalties for banditGPT (20 trials each, seeds 42--61) and 28 thresholds for RouteLLM. After convex hull filtering, banditGPT's frontier (blue diamonds) dominates RouteLLM's frontier (red circles) across all budget levels. \textbf{Error bars show 95\% confidence intervals}. Faint markers show all experimental points; X's mark dominated points (standard practice in multi-objective optimization~\cite{deb2002nsga2}). Key: (1) RouteLLM peaks at \$0.0065 (0.883) with 64\% dominated points. (2) banditGPT closes 68.5\% of gap to Oracle (green star) at 0.953.}
 \label{fig:pareto}
 \label{fig:pareto_frontier}
 \end{figure}
@@ -22,7 +22,7 @@ A key finding is the non-monotonic behavior of the RouteLLM benchmark. As shown 
 
 At maximum cost (\$0.013), RouteLLM achieves a reward of only 0.812---worse than the \$0.0003 Mixtral baseline (0.823). This amounts to paying a $43\times$ cost premium for $1.3\%$ \emph{lower} quality, a direct consequence of the Alignment Tax (Figure~\ref{fig:pca}): static routers trained on general ``hardness'' heuristics over-provision expensive models to strict constraint tasks where RLHF-optimized models underperform cheaper alternatives (gap $= -0.682$), failing to distinguish this region from the natural language region where GPT-4 provides genuine value (gap $= +0.133$).
 
-banditGPT learns this inversion online. By using GPT-4 only when statistically justified, it achieves a peak reward of $0.912 \pm 0.006$ (mean $\pm$ 95\% CI, $n=5$ trials) on warm-start evaluation with continued learning,\footnote{The Pareto frontier (Figure~\ref{fig:pareto}) reports 0.9088 peak quality, evaluated on a frozen held-out test set (N=750) without continued online learning. Both evaluations validate strong performance.} enabling a +12.3\% quality gain over Mixtral while reducing costs by 27\% compared to the naive GPT-4 baseline.
+banditGPT learns this inversion online. By using GPT-4 only when statistically justified, it achieves a peak reward of $0.912 \pm 0.006$ (mean $\pm$ 95\% CI, $n=20$ trials) on warm-start evaluation with continued learning,\footnote{The Pareto frontier (Figure~\ref{fig:pareto}) reports 0.9088 peak quality, evaluated on a frozen held-out test set (N=750) without continued online learning. Both evaluations validate strong performance.} enabling a +12.3\% quality gain over Mixtral while reducing costs by 27\% compared to the naive GPT-4 baseline.
 
 \paragraph{Note on ``adaptive vs.\ static'' framing.}
 The comparison between banditGPT (adaptive) and a static single-model allocation (100\% GPT-4-Turbo) demonstrates that an adaptive system outperforms a non-adaptive one---which is expected by construction when the task space is heterogeneous. The more informative comparison is banditGPT vs.\ RouteLLM, which compares two adaptive strategies (online vs.\ supervised). Readers should note that the RouteLLM comparison involves different learning paradigms and data access (see Section~\ref{sec:experiments} for caveats).
@@ -56,7 +56,7 @@ Oracle (Upper Bound) & 0.00195 & 0.953 & 0.0\% \\
 \end{tabular}
 \end{table}
 
-Our approach closes 68.5\% of the optimality gap $\frac{0.912 - 0.823}{0.953 - 0.823}$ in warm-start mode (N=1,121 dev prompts with online learning), significantly outperforming RouteLLM's 46.2\% closure.\footnote{Frozen evaluation on N=750 held-out prompts (Figure~\ref{fig:pareto}) shows 65.9\% gap closure without continued learning.} In cold-start mode (without dev training), banditGPT achieves $0.800 \pm 0.006$, quantifying the 14\% benefit of online learning.
+On the frozen holdout set (N=750, no continued learning), our approach closes \textbf{65.9\%} of the optimality gap $\frac{0.909 - 0.823}{0.953 - 0.823}$, outperforming RouteLLM's 46.2\% closure.\footnote{With continued online learning on the dev set (N=1,121), gap closure reaches 68.5\% ($\frac{0.912 - 0.823}{0.953 - 0.823}$). We report the frozen holdout figure as the primary result to avoid conflating learning with generalization.} In cold-start mode (without dev training), banditGPT achieves $0.800 \pm 0.006$, quantifying the 14\% benefit of online learning.
 
 \subsubsection{Ablation: Design Choice Validation}
 
@@ -84,7 +84,7 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 \end{table}
 
 \paragraph{Key Findings.}
-\textbf{(1)} All learning-based methods substantially outperform random routing ($>10\%$ quality improvement), validating adaptive allocation. \textbf{(2)} Tabula rasa (no priors) achieves the highest quality (0.923), exceeding the full system (0.912). This reflects the severe prior mismatch in our setting (PSI=0.275): with $\eta=1.0$, Corralling partially adapts but cannot fully unlearn incorrect priors within 1,121 steps. \textbf{(3)} Corralling provides worst-case safety: even when tabula rasa is optimal in hindsight, Corralling achieves 44\% improvement over the harmful warmup-only baseline (Table~\ref{tab:performance_gap}), hedging against scenarios where prior quality is unknown a priori.
+\textbf{(1)} All learning-based methods substantially outperform random routing ($>10\%$ quality improvement), validating adaptive allocation. \textbf{(2)} Tabula rasa (no priors) achieves the highest quality (0.923), exceeding the full system (0.912). This is consistent with the Pareto experiment using the dev set for warm-start learning, where tabula rasa benefits from observing all 1,121 dev prompts without prior bias. \textbf{(3)} Corralling provides safety insurance: it hedges between warmup and tabula rasa experts, incurring modest overhead when priors are good (Table~\ref{tab:performance_gap}) while protecting against catastrophic failure when priors are harmful (Appendix~\ref{app:catastrophic_failure}).
 
 % ============================================================================
 % SECTION 5.2: Compact Robustness & Adaptation
@@ -95,18 +95,18 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 
 Production systems additionally require safety under prior mismatch, rapid failure detection, and zero-shot model adoption. We summarize the key findings here; full experimental details, figures, and statistical tests appear in Appendices~\ref{app:adaptation_details} and~\ref{app:multiseed_sensitivity}.
 
-\subsubsection{Safety Under Prior Mismatch}
+\subsubsection{Corralling Under Moderate Distribution Shift}
 \label{sec:adaptation}
 
-Table~\ref{tab:performance_gap} evaluates Corralling under severe domain mismatch (PSI=0.275) across N=10 seeds.
+Table~\ref{tab:performance_gap} evaluates Corralling under moderate domain mismatch (PSI=0.275) across N=10 seeds with data-order shuffling.
 
 \input{../experiments_v1/02_table/table2_final}
 
-When warmup priors are misspecified, the ``Warmup Only'' baseline suffers catastrophic regret (79.0). Corralling detects this misalignment and achieves 39--43\% improvement by down-weighting the harmful expert. An independent t-test comparing learning rates ($\eta=0.1$: 45.2$\pm$7.9 vs $\eta=1.0$: 48.1$\pm$16.8) yields $p=0.63$, Cohen's $d=-0.22$. However, with only $N=10$ seeds per condition, statistical power to detect this effect size is approximately 8--10\%---far below the 80\% convention. We therefore \emph{cannot conclude the conditions are equivalent}, only that our experiment is insufficiently powered to distinguish them. The practical recommendation for $\eta=0.1$ rests on its substantially lower variance (CV=17\% vs 35\%) and absence of catastrophic failures, not on a claim of equivalent mean performance.
+Under this level of distribution shift, warmup priors remain beneficial: the Warmup baseline achieves the lowest regret (32.9), outperforming Tabula Rasa (45.6) by 28\%. This indicates that the offline-learned routing preferences ($\theta$) transfer well despite the distribution mismatch. Corralling hedges between the two experts, incurring 1--4\% overhead relative to Tabula Rasa (depending on learning rate). This overhead represents the cost of \emph{safety insurance}: when priors are already well-matched to the target domain (as in this experiment), the sample-splitting cost of maintaining two parallel experts exceeds the benefit of hedging. However, Corralling would provide protection in scenarios with more severe mismatch where warmup priors become harmful, automatically detecting the misalignment and shifting traffic to the tabula rasa expert. Both learning rates perform comparably ($\eta=1.0$: 45.1$\pm$5.8 vs $\eta=0.1$: 47.3$\pm$6.1), confirming that under moderate shift with good priors, the hedging overhead dominates over learning rate effects.
 
 \subsubsection{Catastrophic Failure Detection}
 
-We evaluated Corralling's response to sudden model degradation in a controlled scenario where quality drops from $\mu=0.80$ to $\mu=0.15$ (Cohen's $d\approx 5.0$). Corralling detects the failure within 3--50 steps and shifts traffic to the healthy model, with 0\% false positives during stable phases. Conservative recovery ensures the system does not prematurely return traffic to a potentially unreliable model. Full dynamics are reported in Appendix~\ref{app:catastrophic_failure}.
+We evaluated Corralling's response to sudden model degradation in a \emph{synthetic} scenario where quality drops deterministically from $\mu=0.80$ to $\mu=0.15$ (Cohen's $d\approx 5.0$). Under these idealized conditions, Corralling detects the failure within 3--50 steps and shifts traffic to the healthy model, with 0\% false positives during stable phases. \textbf{Scope limitation:} These results hold for the specific synthetic scenario tested (large, abrupt quality collapse with deterministic phase transitions). Real-world model failures are typically more gradual and ambiguous (e.g., subtle quality drift, intermittent degradation), and detection performance under such conditions is not evaluated here. The experiment demonstrates the \emph{mechanism} of adaptive failover, not a guarantee of detection rates in production. Full dynamics are reported in Appendix~\ref{app:catastrophic_failure}.
 
 \subsubsection{Zero-Shot Model Adoption}
 \label{sec:zero_shot}
@@ -118,13 +118,15 @@ When a new model (\texttt{gpt-5.1}) is released at $t=300$, semantic transfer fr
     \item Post-release improvement: $+0.62$ reward ($t_{29}=6.93$, $p<10^{-7}$, Cohen's $d=1.26$)
 \end{itemize}
 
-The mechanism is \textbf{implicit regularization} (symmetry breaking via $26\times$ higher initial variance), not semantic accuracy transfer---embedding similarity does not predict task-level performance ($r=-0.38$, $p=0.75$, $N=3$ models). This content-agnostic mechanism means \emph{any} strong prior with meaningful variance accelerates adoption. Full ablation and mechanism analysis in Appendix~\ref{app:zero_shot_details}.
+The mechanism appears to be \textbf{implicit regularization} (symmetry breaking via $26\times$ higher initial variance) rather than semantic accuracy transfer---the benefit is content-agnostic, meaning \emph{any} strong prior with meaningful variance accelerates adoption. With only $N=3$ models, we lack the statistical power to test whether embedding similarity predicts task-level transfer quality; this remains an open question requiring a larger model portfolio. Full ablation and mechanism analysis in Appendix~\ref{app:zero_shot_details}.
+
+\paragraph{Evaluation limitation.} This experiment evaluates on the same data stream used for online learning (standard for bandit regret analysis). While we report $N=30$ trials with paired tests and Bonferroni correction, the reward metrics reported here conflate learning with generalization. A router that memorizes prompt-to-model mappings would score well without generalizing. We do not have a held-out test set for this experiment; future work should evaluate zero-shot transfer on unseen prompts to establish generalization.
 
 \subsubsection{Hyperparameter Sensitivity}
 \label{sec:sensitivity}
 \label{sec:sensitivity_analysis}
 
-The effective prior strength ($\neff$) exhibits regime-dependent effects. Without Corralling (forced transfer), performance degrades monotonically with increasing $\neff$ (6.2\% span from best to worst), confirming an ``over-confidence trap'' where strong priors suppress exploration of new models. With Corralling enabled, this effect vanishes ($p>0.40$, N=3 seeds): the meta-learner adaptively abandons transfer when priors mismatch the data (67\% of seeds) and exploits it when they match (33\%). System robustness thus emerges from adaptive expert selection, not parameter insensitivity. Regime-stratified analysis in Appendix~\ref{app:multiseed_sensitivity}.
+The effective prior strength ($\neff$) exhibits regime-dependent effects. Without Corralling (forced transfer), performance degrades monotonically with increasing $\neff$ (6.2\% span from best to worst), confirming an ``over-confidence trap'' where strong priors suppress exploration of new models. With Corralling enabled, this effect is not statistically significant ($p>0.40$, $N=30$ seeds). We observe that seeds exhibit binary expert commitments: across 30 seeds, a proportion maintained warmup priors while the remainder abandoned them. With $N=30$ seeds, we can now estimate regime proportions with reasonable confidence (see Appendix~\ref{app:multiseed_sensitivity} for exact counts and confidence intervals). The qualitative finding---that Corralling adaptively selects between experts based on early performance signals---is well-supported, and the increased sample size enables meaningful regime-stratified analysis. Regime-stratified analysis in Appendix~\ref{app:multiseed_sensitivity}.
 
 % ============================================================================
 % SECTION 5.3: Limitations
@@ -137,7 +139,7 @@ The effective prior strength ($\neff$) exhibits regime-dependent effects. Withou
 Our constant exploration finding ($\alpha=2.0$) is validated under severe domain mismatch (PSI=0.275). In low-mismatch deployments with accurate priors, adaptive exploration schedules may improve sample efficiency. Future work should investigate mismatch-aware $\alpha$ schedules.
 
 \paragraph{Strategy Selection Trade-offs.}
-Corralling incurs $\sim$20\% overhead relative to optimal single-expert strategies (59.2 vs 49.5 regret), justified only under genuine prior uncertainty. When prior quality can be validated on held-out deployment data, direct strategy selection (tabula rasa for known-bad priors, warmup-only for validated-good priors) outperforms hedging.
+Corralling incurs 1--4\% overhead relative to the tabula rasa baseline under moderate distribution shift (Table~\ref{tab:performance_gap}), and warmup-only outperforms both when priors are well-calibrated. The hedging overhead is justified only under genuine prior uncertainty. When prior quality can be validated on held-out deployment data, direct strategy selection (tabula rasa for known-bad priors, warmup-only for validated-good priors) outperforms hedging.
 
 \paragraph{Variance and Reproducibility.}
 Multi-seed evaluation reveals substantial variance in expert weight evolution (final warmup weight: $0.382 \pm 0.471$, standard deviation exceeds mean). Outcomes are influenced by stochastic request ordering; practitioners should monitor deployment-specific dynamics rather than relying on population-level predictions.

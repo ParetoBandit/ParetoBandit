@@ -1587,8 +1587,7 @@ class BanditRouter:
         registry: Dict[str, Dict],
         bandit: 'DisjointLinUCBPolicy',
         encoder,  # SentenceTransformer or compatible encoder
-        alpha: float = 0.8,  # DEPRECATED: kept for API compatibility
-        n_effective: float = 0.1,  # Tunable prior strength (pseudocount of observations)
+        n_effective: float = 5.0,  # Tunable prior strength (pseudocount of observations)
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Bootstrap a new model's (A, b) from its nearest neighbor in embedding space.
@@ -1621,10 +1620,24 @@ class BanditRouter:
         - Scaling BOTH A and b preserves mean prediction while scaling variance
         - By using n_effective * I, we control confidence without distorting preferences
         
-        **Hyperparameter Robustness (Figure 7, Appendix E):**
-        Sensitivity analysis shows ALL n_effective ∈ [1.0, 20.0] produce identical
-        performance (+39.2% vs Cold Start). System effectiveness driven by θ_neighbor
-        accuracy (semantic similarity), not n_effective tuning. No fine-tuning required.
+        **Hyperparameter Sensitivity (Figures 7-8, Appendix E):**
+        [KDD REVIEW FIX]: While Figure 7 shows robustness in balanced regimes, Figure 8
+        reveals sensitivity in WARMUP-DOMINANT scenarios (limited online data):
+        
+        - n_effective = 0.1-1.0: Weak prior → More exploration, slower convergence
+          → BEST when neighbor similarity is uncertain or data distribution shifts
+        - n_effective = 5.0-10.0: Moderate prior → Balanced exploration/exploitation
+          → RECOMMENDED for most cases (equivalent to 5-10 pseudo-observations)
+        - n_effective = 20.0+: Strong prior → Fast exploitation, less exploration
+          → ONLY use when neighbor similarity is very high (>0.9) and domain is stable
+        
+        **Trade-off:** Higher n_effective accelerates warmup BUT reduces adaptability
+        to distribution shift. In warmup-dominant regimes (few online samples), the
+        prior dominates learned behavior, making n_effective selection critical.
+        
+        **Guidance:** Start with n_effective=5.0 (default). If semantic transfer is
+        poor (similarity <0.7), reduce to 1.0. If neighbor is highly similar (>0.9)
+        and domain is stable, increase to 10.0-20.0 for faster convergence.
         
         **Concrete Example:**
         - Neighbor "GPT-4" has θ = [+0.8 (complexity), +0.3 (math), ...]
@@ -1638,11 +1651,13 @@ class BanditRouter:
             registry: Model registry with display_name metadata
             bandit: LinUCB policy with existing model parameters
             encoder: SentenceTransformer for computing similarity
-            alpha: DEPRECATED (kept for backward compatibility, not used)
-            n_effective: Tunable prior strength (default: 5.0). Simulates N samples
-                worth of confidence in the neighbor's preferences. Higher values mean
-                stronger priors (faster exploitation), lower means weaker priors
-                (more exploration).
+            n_effective: Tunable prior strength (default: 5.0). Simulates N pseudo-observations
+                worth of confidence in the neighbor's preferences.
+                - 0.1-1.0: Weak prior (use when similarity <0.7 or domain may shift)
+                - 5.0-10.0: Moderate prior (recommended for most cases)
+                - 20.0+: Strong prior (only use when similarity >0.9 and domain is stable)
+                Higher values = faster exploitation but less exploration.
+                Lower values = more exploration but slower convergence.
         
         Returns:
             Tuple of (A_new, b_new) where:
@@ -1750,6 +1765,19 @@ class BanditRouter:
             
             # Calculate transferred theta norm for verification
             theta_norm = np.linalg.norm(theta_neighbor)
+            
+            # [KDD REVIEW FIX]: Warn about potential n_effective misconfiguration
+            if best_similarity < 0.7 and n_effective > 10.0:
+                logger.warning(
+                    f"⚠️ Strong prior (n_effective={n_effective}) with weak similarity "
+                    f"({best_similarity:.3f}) for {model_id}. Consider reducing n_effective "
+                    f"to 1.0-5.0 to allow more exploration."
+                )
+            elif best_similarity > 0.9 and n_effective < 2.0:
+                logger.info(
+                    f"💡 High similarity ({best_similarity:.3f}) detected for {model_id}. "
+                    f"Consider increasing n_effective to 10.0-20.0 for faster convergence."
+                )
             
             logger.info(
                 f"✨ Bootstrapping {model_id} from neighbor {best_neighbor} "
@@ -2980,26 +3008,37 @@ class CorrallingRouter:
         experts: List,
         models: List[str],
         learning_rate: float = 0.1,
-        gamma: float = 0.05  # [FIX] Mixing parameter (5% uniform exploration)
+        gamma: float = 0.05,  # [FIX] Mixing parameter (5% uniform exploration)
+        loss_decay: float = 0.999  # [FIX] Exponential decay for non-stationary environments
     ):
         """
         Initialize Corralling with uniform expert weights and exploration floor.
+        
+        [KDD REVIEW FIX]: Added loss_decay parameter to prevent weight collapse in
+        non-stationary environments. Without decay, cumulative_losses accumulates
+        indefinitely, causing learned weights to become dominated by early history.
         
         Args:
             learning_rate: eta (η) for exponential updates
             gamma: Mixing parameter γ. Minimum prob for any expert is γ/N.
                    Prevents 'Expert Death' in non-stationary settings.
+            loss_decay: Exponential decay factor for cumulative losses (default: 0.999).
+                       - 1.0 = stationary (no decay, standard Corralling)
+                       - 0.999 = mild non-stationarity (half-life ~693 steps)
+                       - 0.99 = moderate non-stationarity (half-life ~69 steps)
+                       - 0.95 = strong non-stationarity (half-life ~14 steps)
         """
         self.experts = experts
         self.models = models
         self.learning_rate = learning_rate
         self.gamma = gamma  # The "Life Support" parameter
+        self.loss_decay = loss_decay  # Decay for non-stationary adaptation
         self.n_experts = len(experts)
         
         # Exponential weights (start uniform)
         self.weights = np.ones(self.n_experts) / self.n_experts
         
-        # Cumulative losses (for weight updates)
+        # Cumulative losses (for weight updates) - now with decay
         self.cumulative_losses = np.zeros(self.n_experts)
         
         # Diagnostics
@@ -3096,7 +3135,12 @@ class CorrallingRouter:
         # Non-chosen experts get 0 loss (we didn't observe their counterfactual outcome)
         # This is correct because we're estimating expected loss over the selection distribution
         
-        # Update cumulative losses
+        # [KDD REVIEW FIX]: Apply exponential decay before adding new losses
+        # This prevents weight collapse in non-stationary environments by giving
+        # more weight to recent observations and less weight to old history.
+        # Without decay: cumulative_losses grows indefinitely → weights fossilize
+        # With decay: cumulative_losses = decay * old + new → weights adapt
+        self.cumulative_losses *= self.loss_decay
         self.cumulative_losses += losses
         
         # Standard Exp4 Update: w_i ∝ exp(-eta * loss_i)
@@ -3260,6 +3304,15 @@ class CostAwareLinUCBRouter:
         self.b = {m: warmup_priors['b'][m].copy() for m in models}
         
         # =====================================================================
+        # PERFORMANCE FIX: CACHE A_inv TO AVOID O(d³) RECOMPUTATION
+        # =====================================================================
+        # [KDD REVIEW FIX]: Cache A_inv like DisjointLinUCBPolicy does.
+        # Without caching, select_model() recomputes np.linalg.inv(A) for EVERY
+        # model on EVERY routing decision → O(K·d³) per selection.
+        # With caching and incremental updates → O(K·d²) per selection.
+        self.A_inv = {m: safe_inv(self.A[m]) for m in models}
+        
+        # =====================================================================
         # LAYER 1.5: AUTOMATIC PRIOR CALIBRATION (Scale Explosion Fix)
         # =====================================================================
         # After loading priors, check if they predict reasonable values.
@@ -3311,9 +3364,8 @@ class CostAwareLinUCBRouter:
             dummy_x[-1] = 1.0  # Assuming bias is last dimension
             
             try:
-                # Calculate current prediction
-                A_inv = np.linalg.inv(self.A[m])
-                theta = A_inv @ self.b[m]
+                # Calculate current prediction using cached A_inv
+                theta = self.A_inv[m] @ self.b[m]
                 pred = theta @ dummy_x
                 
                 # Heuristic: If prediction is massive (> 1.5), it's definitely broken
@@ -3372,6 +3424,8 @@ class CostAwareLinUCBRouter:
                 # Scale both A and b to adjust prior strength
                 self.A[m] = warmup_priors['A'][m].copy() * scale
                 self.b[m] = warmup_priors['b'][m].copy() * scale
+                # [PERFORMANCE FIX]: Refresh A_inv cache after loading new priors
+                self.A_inv[m] = safe_inv(self.A[m])
             else:
                 logger.warning(f"Model {m} not found in warmup_priors, skipping")
         
@@ -3420,7 +3474,8 @@ class CostAwareLinUCBRouter:
         ucb_scores = {}
         
         for model in self.models:
-            A_inv = np.linalg.inv(self.A[model])
+            # [PERFORMANCE FIX]: Use cached A_inv instead of recomputing O(d³) inverse
+            A_inv = self.A_inv[model]
             theta = A_inv @ self.b[model]
             expected_reward = theta @ context
             uncertainty = np.sqrt(context @ A_inv @ context)
@@ -3433,11 +3488,16 @@ class CostAwareLinUCBRouter:
     
     def update(self, context, model, reward):
         """
-        Update model's A and b matrices with new observation.
+        Update model's A and b matrices with new observation using Sherman-Morrison.
         
-        Uses standard LinUCB update:
+        [PERFORMANCE FIX]: Now uses O(d²) Sherman-Morrison formula to incrementally
+        update A_inv instead of recomputing from scratch (O(d³)). Falls back to
+        full inversion when denominator becomes too small (numerical stability).
+        
+        Standard LinUCB update:
         - A += context · context^T
         - b += reward · context
+        - A_inv updated via Sherman-Morrison or fallback
         - t += 1
         
         Args:
@@ -3445,9 +3505,29 @@ class CostAwareLinUCBRouter:
             model: Model that was selected
             reward: Observed reward (0-1 typically)
         """
-        context = context.reshape(-1, 1)
-        self.A[model] += context @ context.T
-        self.b[model] += reward * context.flatten()
+        x = context.flatten()
+        
+        # Sherman-Morrison inverse update (O(d²))
+        # Formula: (A + xx^T)^{-1} = A^{-1} - (A^{-1}x)(x^T A^{-1}) / (1 + x^T A^{-1} x)
+        A_inv_current = self.A_inv[model]
+        A_inv_x = A_inv_current @ x
+        denominator = 1.0 + (x @ A_inv_x)
+        
+        if abs(denominator) > 1e-6:
+            # Safe to use Sherman-Morrison formula
+            self.A_inv[model] = A_inv_current - np.outer(A_inv_x, A_inv_x) / denominator
+            self.A[model] += np.outer(x, x)
+            self.b[model] += reward * x
+        else:
+            # Fallback: Denominator too small, recompute inverse with regularization
+            logger.warning(
+                f"⚠️ Sherman-Morrison near-singularity for {model}: "
+                f"|denominator|={abs(denominator):.2e} < 1e-6. Recomputing inverse."
+            )
+            self.A[model] += np.outer(x, x)
+            self.A_inv[model] = safe_inv(self.A[model])
+            self.b[model] += reward * x
+        
         self.t += 1
     
     def add_model(self, model_id: str, A: np.ndarray, b: np.ndarray, normalized_cost: float) -> None:
@@ -3470,6 +3550,8 @@ class CostAwareLinUCBRouter:
             
         self.A[model_id] = A.copy()
         self.b[model_id] = b.copy()
+        # [PERFORMANCE FIX]: Cache A_inv for new model
+        self.A_inv[model_id] = safe_inv(A)
         self.model_costs[model_id] = {"normalized_cost": normalized_cost}
         logger.debug(f"✅ Added {model_id} to Warmup Expert with transferred priors (||A||_F={np.linalg.norm(A):.1f})")
 
@@ -3529,6 +3611,9 @@ class CostAwareTabulaRasaRouter:
         # This prevents the "spiky jagged weights" from being purely random
         self.A = {m: self.ridge_lambda * np.eye(context_dim) for m in models}
         self.b = {m: np.zeros(context_dim) for m in models}
+        
+        # [PERFORMANCE FIX]: Cache A_inv to avoid O(d³) recomputation on every select_model()
+        self.A_inv = {m: safe_inv(self.A[m]) for m in models}
     
     def get_current_alpha(self, total_steps: int) -> float:
         """
@@ -3565,7 +3650,8 @@ class CostAwareTabulaRasaRouter:
         ucb_scores = {}
         
         for model in self.models:
-            A_inv = np.linalg.inv(self.A[model])
+            # [PERFORMANCE FIX]: Use cached A_inv instead of recomputing O(d³) inverse
+            A_inv = self.A_inv[model]
             theta = A_inv @ self.b[model]
             expected_reward = theta @ context
             uncertainty = np.sqrt(context @ A_inv @ context)
@@ -3577,10 +3663,34 @@ class CostAwareTabulaRasaRouter:
         return max(ucb_scores, key=ucb_scores.get)
     
     def update(self, context: np.ndarray, model: str, reward: float):
-        """Update using standard LinUCB update with timestep tracking."""
-        context = context.reshape(-1, 1)
-        self.A[model] += context @ context.T
-        self.b[model] += reward * context.flatten()
+        """
+        Update using standard LinUCB update with Sherman-Morrison inverse update.
+        
+        [PERFORMANCE FIX]: Now uses O(d²) Sherman-Morrison formula to incrementally
+        update A_inv instead of recomputing from scratch (O(d³)).
+        """
+        x = context.flatten()
+        
+        # Sherman-Morrison inverse update (O(d²))
+        A_inv_current = self.A_inv[model]
+        A_inv_x = A_inv_current @ x
+        denominator = 1.0 + (x @ A_inv_x)
+        
+        if abs(denominator) > 1e-6:
+            # Safe to use Sherman-Morrison formula
+            self.A_inv[model] = A_inv_current - np.outer(A_inv_x, A_inv_x) / denominator
+            self.A[model] += np.outer(x, x)
+            self.b[model] += reward * x
+        else:
+            # Fallback: Denominator too small, recompute inverse
+            logger.warning(
+                f"⚠️ Sherman-Morrison near-singularity for {model}: "
+                f"|denominator|={abs(denominator):.2e} < 1e-6. Recomputing inverse."
+            )
+            self.A[model] += np.outer(x, x)
+            self.A_inv[model] = safe_inv(self.A[model])
+            self.b[model] += reward * x
+        
         self.t += 1
     
     def add_model(self, model_id: str, normalized_cost: float) -> None:
@@ -3609,6 +3719,8 @@ class CostAwareTabulaRasaRouter:
         
         self.A[model_id] = self.ridge_lambda * np.eye(dim)
         self.b[model_id] = np.zeros(dim)
+        # [PERFORMANCE FIX]: Cache A_inv for new model
+        self.A_inv[model_id] = safe_inv(self.A[model_id])
         self.model_costs[model_id] = {"normalized_cost": normalized_cost}
         logger.debug(f"✅ Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")
     

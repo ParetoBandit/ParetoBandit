@@ -31,29 +31,34 @@ if TYPE_CHECKING:
 
 def apply_gamma_scaling(priors: dict, gamma: float) -> dict:
     """
-    Apply covariance inflation to warmup priors.
+    Apply proportional scaling to warmup priors.
     
     This reduces the effective sample size of the warmup prior,
     allowing calibration data to have more influence on the final policy.
+    Both A and b are scaled by the same factor to preserve the estimated
+    parameter vector θ = A⁻¹b while reducing confidence (widening CIs).
     
     Args:
         priors: Warmup priors dictionary with 'A', 'b', 'models', 'context_dim'
-        gamma: Inflation factor ∈ (0, 1]. Lower = more inflation.
+        gamma: Scaling factor ∈ (0, 1]. Lower = more reduction in confidence.
     
     Returns:
         Scaled priors dictionary with same structure.
     
     Mathematical Effect:
         A_adapted = A_warmup × γ
-        N_eff = N_warmup × γ
+        b_adapted = b_warmup × γ
+        θ_adapted = A_adapted⁻¹ b_adapted = A⁻¹b = θ_warmup (preserved)
+        N_eff = N_warmup × γ (reduced confidence)
     
     Example:
         >>> priors_scaled = apply_gamma_scaling(warmup_priors, gamma=0.01)
         >>> # Effective sample size reduced from 80,000 to 800
+        >>> # θ predictions preserved, but confidence intervals widened
     """
     return {
         'A': {m: priors['A'][m] * gamma for m in priors['models']},
-        'b': {m: priors['b'][m].copy() for m in priors['models']},
+        'b': {m: priors['b'][m] * gamma for m in priors['models']},
         'models': priors['models'],
         'context_dim': priors['context_dim'],
         'gamma': gamma,
