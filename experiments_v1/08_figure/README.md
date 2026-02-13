@@ -42,7 +42,7 @@ experiments_v1/08_figure/
 ├── run_figure8_analysis.py               # Unified analysis (experiments + figure + table)
 ├── plot_ablation_no_corralling.py        # Ablation: Corralling OFF
 ├── diagnose_corralling_weights.py        # Expert weight diagnostics
-└── check_figure7_weights.py              # Cross-validation with Figure 7
+└── check_figure8_weights.py              # Cross-validation with Figure 8
 ```
 
 ### LaTeX Files
@@ -335,7 +335,7 @@ open results/figure8_ablation_no_corralling.png
 python diagnose_corralling_weights.py
 
 # Cross-validate with Figure 7
-python check_figure7_weights.py
+python check_figure8_weights.py
 ```
 
 ---

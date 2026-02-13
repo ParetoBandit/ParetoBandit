@@ -55,7 +55,7 @@ def load_data():
     )
     return AlignedEvaluator([item for item in evaluator if all(m in item.rewards for m in required_models)])
 
-def run_figure7_config(seed: int):
+def run_figure8_config(seed: int):
     """Run Figure 7 experiment configuration with weight tracking."""
     np.random.seed(seed)
     
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     results = []
     for seed in SEEDS_TO_CHECK:
         logger.info(f"Running seed {seed}...")
-        result = run_figure7_config(seed)
+        result = run_figure8_config(seed)
         results.append(result)
     
     logger.info("\n" + "="*80)

@@ -118,7 +118,7 @@ experiments_v1/08_figure/
 ├── run_figure8_analysis.py               ✅ Unified analysis script
 ├── plot_ablation_no_corralling.py        ✅ Ablation analysis
 ├── diagnose_corralling_weights.py        ✅ Weight diagnostics
-├── check_figure7_weights.py              ✅ Cross-validation
+├── check_figure8_weights.py              ✅ Cross-validation
 │
 ├── figure8_sensitivity_compact.tex       ✅ Main figure
 ├── figure8_caption_REVISED.tex           ✅ Revised caption
