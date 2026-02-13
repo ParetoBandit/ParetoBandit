@@ -1,0 +1,248 @@
+% ============================================================================
+% Appendix: Configuration Example
+% ============================================================================
+% Purpose: Provide concrete code example for deployment
+% Based on: Comprehensive experimental validation studies
+
+\section{Configuration Example for Practitioners}
+\label{app:config}
+
+This appendix provides a concrete configuration example for deploying the validated routing architecture.
+The code demonstrates prior quality assessment and strategy selection based on our empirical validation studies.
+
+% ----------------------------------------------------------------------------
+% Prior Quality Assessment
+% ----------------------------------------------------------------------------
+\subsection{Step 1: Prior Quality Assessment}
+
+Before deployment, validate prior quality on a small held-out sample from the target distribution:
+
+\begin{lstlisting}[language=Python, caption={Prior quality validation on deployment data}]
+import numpy as np
+from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter
+
+def assess_prior_quality(warmup_priors, validation_data, 
+                         encoder, pca):
+    """
+    Assess prior quality by comparing warmup predictions 
+    to ground truth on deployment validation data.
+    
+    Args:
+        warmup_priors: Pre-trained warmup priors
+        validation_data: N=100-200 samples from deployment
+        encoder: Sentence transformer for embedding
+        pca: PCA projection for dimensionality reduction
+        
+    Returns:
+        'good', 'uncertain', or 'bad'
+    """
+    n_correct = 0
+    n_total = 0
+    
+    for sample in validation_data:
+        # Embed and project context
+        context = embed_prompt(sample['prompt'], encoder, pca)
+        
+        # Get warmup prediction
+        warmup_pred = predict_best_model(
+            context, warmup_priors
+        )
+        
+        # Get ground truth best model
+        actual_best = max(
+            sample['scores'], 
+            key=sample['scores'].get
+        )
+        
+        if warmup_pred == actual_best:
+            n_correct += 1
+        n_total += 1
+    
+    accuracy = n_correct / n_total
+    
+    # Decision thresholds validated empirically
+    if accuracy > 0.80:
+        return 'good'      # Warmup Only optimal
+    elif accuracy > 0.50:
+        return 'uncertain' # Corralling recommended
+    else:
+        return 'bad'       # Tabula Rasa optimal
+\end{lstlisting}
+
+% ----------------------------------------------------------------------------
+% Strategy Configuration
+% ----------------------------------------------------------------------------
+\subsection{Step 2: Strategy Configuration}
+
+Based on prior quality assessment, configure the appropriate routing strategy.
+All configurations use \textbf{constant $\alpha=2.0$} (validated in §4.3):
+
+\begin{lstlisting}[language=Python, caption={Strategy selection based on prior quality}]
+from bandit_gpt.router import (
+    CorrallingRouter, 
+    CostAwareLinUCBRouter, 
+    CostAwareTabulaRasaRouter
+)
+
+# Assess prior quality
+prior_quality = assess_prior_quality(
+    warmup_priors, 
+    validation_data, 
+    encoder, 
+    pca
+)
+
+# Configure based on assessment
+if prior_quality == 'good':
+    # Scenario 1: Use Warmup Only
+    # Expected: Best performance when priors accurate
+    router = CostAwareLinUCBRouter(
+        models=models,
+        warmup_priors=warmup_priors,
+        alpha_start=2.0,  # Constant exploration
+        alpha_end=2.0,    # (validated optimal)
+        cost_penalty=0.0,
+        model_costs=costs
+    )
+    print("Using: Warmup Only (priors validated)")
+    
+elif prior_quality == 'bad':
+    # Scenario 2: Use Tabula Rasa Only
+    # Validated performance: 49.5 regret (optimal)
+    router = CostAwareTabulaRasaRouter(
+        models=models,
+        context_dim=context_dim,
+        alpha_start=2.0,  # Constant exploration
+        alpha_end=2.0,    # (validated optimal)
+        cost_penalty=0.0,
+        model_costs=costs
+    )
+    print("Using: Tabula Rasa (priors known bad)")
+    
+else:  # uncertain
+    # Scenario 3: Use Corralling (Hedging)
+    # Validated performance: 59.2 regret (robust)
+    warmup_expert = CostAwareLinUCBRouter(
+        models=models,
+        warmup_priors=warmup_priors,
+        alpha_start=2.0,
+        alpha_end=2.0,
+        cost_penalty=0.0,
+        model_costs=costs
+    )
+    
+    tabula_rasa_expert = CostAwareTabulaRasaRouter(
+        models=models,
+        context_dim=context_dim,
+        alpha_start=2.0,
+        alpha_end=2.0,
+        cost_penalty=0.0,
+        model_costs=costs
+    )
+    
+    router = CorrallingRouter(
+        experts=[warmup_expert, tabula_rasa_expert],
+        models=models,
+        learning_rate=1.0,  # Empirically validated
+        gamma=0.05          # Empirically validated
+    )
+    print("Using: Corralling (prior quality uncertain)")
+\end{lstlisting}
+
+% ----------------------------------------------------------------------------
+% Monitoring
+% ----------------------------------------------------------------------------
+\subsection{Step 3: Real-Time Monitoring}
+
+Monitor expert weights to detect deployment issues.
+Our experiments show adaptation occurs in $\sim$16 requests:
+
+\begin{lstlisting}[language=Python, caption={Production monitoring and alerting}]
+import logging
+
+# Configure logging
+logger = logging.getLogger('router_monitoring')
+
+for t, request in enumerate(request_stream):
+    # Standard routing
+    context = embed_prompt(request['prompt'], encoder, pca)
+    selected_model = router.select_model(context)
+    response = invoke_model(selected_model, request['prompt'])
+    reward = evaluate_response(response)
+    router.update(context, selected_model, reward)
+    
+    # Monitoring (for Corralling only)
+    if isinstance(router, CorrallingRouter):
+        weights = router.get_expert_weights()
+        
+        # Log every request
+        logger.info(f"t={t}, warmup={weights[0]:.3f}, "
+                    f"tabula={weights[1]:.3f}")
+        
+        # Alert on significant events
+        if t == 50:  # After initial adaptation period
+            if weights[0] < 0.2:
+                logger.warning(
+                    f"ALERT: Warmup weight = {weights[0]:.3f}"
+                    f" - Priors are harmful!"
+                    f" Consider switching to Tabula Rasa."
+                )
+            elif weights[0] > 0.8:
+                logger.info(
+                    f"SUCCESS: Warmup weight = {weights[0]:.3f}"
+                    f" - Priors are accurate!"
+                    f" Consider simplifying to Warmup Only."
+                )
+            else:
+                logger.info(
+                    f"NORMAL: Balanced weights (genuine uncertainty)"
+                )
+        
+        # Check for expert death (near-zero weight)
+        if min(weights) < 0.001:
+            logger.warning(
+                f"ALERT: Expert near death "
+                f"(min weight = {min(weights):.6f}). "
+                f"Gamma-mixing preventing complete loss."
+            )
+\end{lstlisting}
+
+% ----------------------------------------------------------------------------
+% Performance Benchmarks
+% ----------------------------------------------------------------------------
+\subsection{Performance Benchmarks}
+
+Performance validated across N=750 holdout samples with 10 random seeds:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Configuration} & \textbf{Regret} & \textbf{Interpretation} \\
+\midrule
+Tabula Rasa (optimal for bad priors) & 49.5 $\pm$ 2.8 & Excellent \\
+Corralling (robust hedging) & 59.2 $\pm$ 7.1 & Good \\
+Warmup Only (in mismatched scenario) & 74.7 $\pm$ 2.2 & Acceptable* \\
+\midrule
+Adaptive decay $\alpha: 1.0 \to 0.01$ & 90.2 $\pm$ 7.8 & Poor \\
+\bottomrule
+\end{tabular}
+\caption*{*Warmup Only performs well when priors match deployment; 
+shown value is for severe mismatch scenario.}
+\end{table}
+
+% ----------------------------------------------------------------------------
+% Key Takeaways
+% ----------------------------------------------------------------------------
+\subsection{Key Takeaways for Practitioners}
+
+\begin{enumerate}
+    \item \textbf{Always validate prior quality} on deployment data before selecting strategy
+    \item \textbf{Use constant $\alpha=2.0$} for both experts (not adaptive decay)
+    \item \textbf{Monitor expert weights} in real-time; adaptation occurs in $\sim$16 requests
+    \item \textbf{Corralling is for uncertainty}, not for maximizing known-bad scenarios
+    \item \textbf{Tabula Rasa outperforms Corralling} by 16\% when priors known bad
+\end{enumerate}
+
+Complete implementation available at: \url{https://github.com/your-repo/banditGPT}

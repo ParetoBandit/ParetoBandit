@@ -1,0 +1,54 @@
+% ============================================================================
+% Table: Strategy Selection Guide
+% ============================================================================
+% Purpose: Quick reference for practitioners choosing deployment strategy
+% Based on: Convergence comparison experiments and ablation studies
+
+\begin{table}[t]
+\centering
+\caption{%
+    \textbf{Deployment Strategy Selection Guide Based on Prior Quality.}
+    Practitioners should assess prior quality on held-out deployment data 
+    before selecting a routing strategy. Regret values from holdout evaluation 
+    (N=750 prompts, severe domain mismatch: 68.6\%→13.7\% hard prompts).
+    *Performance in matched scenario expected to exceed Corralling.
+}
+\label{tab:strategy_guide}
+\begin{tabular}{@{}llccp{4.5cm}@{}}
+\toprule
+\textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret} & \textbf{vs Best} & \textbf{When to Use} \\
+\midrule
+\multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Unknown/\\Uncertain\end{tabular}} 
+    & Corralling & 59.2 $\pm$ 7.1 & +20\% & 
+    \begin{tabular}[c]{@{}p{4.5cm}@{}}
+    Cross-domain deployment, risk-averse scenarios, 
+    prior quality unvalidated
+    \end{tabular} \\
+\cmidrule(l){2-5}
+\multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Bad\end{tabular}}
+    & Tabula Rasa & \textbf{49.5 $\pm$ 2.8} & \textbf{--} & 
+    \begin{tabular}[c]{@{}p{4.5cm}@{}}
+    Cold start (no priors), severe mismatch detected, 
+    validated $<$50\% accuracy
+    \end{tabular} \\
+\cmidrule(l){2-5}
+\multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Good\end{tabular}}
+    & Warmup Only & N/A* & N/A & 
+    \begin{tabular}[c]{@{}p{4.5cm}@{}}
+    Same domain as warmup, validated $>$80\% accuracy, 
+    low mismatch confirmed
+    \end{tabular} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+\small
+\textbf{Validation method:} 
+Evaluate warmup predictions on N=100--200 deployment samples. 
+Accuracy $>$80\% = good priors; 50--80\% = uncertain; $<$50\% = bad priors.
+
+\textbf{Key findings:}
+(1) Corralling provides 18.5\% safety vs harmful warmup (59.2 vs 74.7);
+(2) Tabula Rasa achieves 16\% improvement when priors known bad (49.5 vs 59.2);
+(3) Adaptive decay degrades performance by 48\% (90.2 regret) under mismatch.
+\end{table}

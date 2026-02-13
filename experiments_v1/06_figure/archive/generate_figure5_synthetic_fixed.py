@@ -326,11 +326,11 @@ def plot_results(history: Dict, output_dir: Path):
     plt.tight_layout()
     
     # Save
-    out_pdf = output_dir / "figure5_corralling_weights.pdf"
+    out_pdf = output_dir / "appendixE_corralling_weights.pdf"
     plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved PDF: {out_pdf}")
     
-    out_png = output_dir / "figure5_corralling_weights.png"
+    out_png = output_dir / "appendixE_corralling_weights.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved PNG: {out_png}")
     

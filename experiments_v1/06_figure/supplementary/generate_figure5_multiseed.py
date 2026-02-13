@@ -281,11 +281,11 @@ def plot_multiseed_results(results: List[Dict], stats: Dict, output_dir: Path):
     plt.tight_layout()
     
     # Save
-    out_png = output_dir / "figure5_multiseed_statistics.png"
+    out_png = output_dir / "appendixE_multiseed_statistics.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     logger.info(f"\n✅ Saved PNG: {out_png}")
     
-    out_pdf = output_dir / "figure5_multiseed_statistics.pdf"
+    out_pdf = output_dir / "appendixE_multiseed_statistics.pdf"
     plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved PDF: {out_pdf}")
     

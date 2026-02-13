@@ -223,11 +223,11 @@ def plot_phased_results(history, shift_step, output_dir):
     plt.tight_layout()
     
     # Save outputs
-    plt.savefig(output_dir / "figure5_corralling_weights.png", dpi=300, bbox_inches='tight')
-    logger.info(f"✅ Saved PNG: {output_dir / 'figure5_corralling_weights.png'}")
+    plt.savefig(output_dir / "appendixE_corralling_weights.png", dpi=300, bbox_inches='tight')
+    logger.info(f"✅ Saved PNG: {output_dir / 'appendixE_corralling_weights.png'}")
     
-    plt.savefig(output_dir / "figure5_corralling_weights.pdf", dpi=300, bbox_inches='tight')
-    logger.info(f"✅ Saved PDF: {output_dir / 'figure5_corralling_weights.pdf'}")
+    plt.savefig(output_dir / "appendixE_corralling_weights.pdf", dpi=300, bbox_inches='tight')
+    logger.info(f"✅ Saved PDF: {output_dir / 'appendixE_corralling_weights.pdf'}")
     
     plt.close()
 

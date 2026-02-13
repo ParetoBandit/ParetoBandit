@@ -471,11 +471,11 @@ def plot_comparison(results_with: Dict, results_without: Dict, output_dir: Path)
                 fontsize=15, fontweight='bold', y=0.995)
     
     # Save
-    out_png = output_dir / "figure6_real_linucb_semantic_transfer.png"
+    out_png = output_dir / "appendixE_semantic_transfer.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     logger.info(f"\n✅ Saved: {out_png}")
     
-    out_pdf = output_dir / "figure6_real_linucb_semantic_transfer.pdf"
+    out_pdf = output_dir / "appendixE_semantic_transfer.pdf"
     plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved: {out_pdf}")
     

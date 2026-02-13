@@ -311,11 +311,11 @@ def plot_realistic_comparison(results, histories, output_dir: Path):
     
     plt.tight_layout()
     
-    out_png = output_dir / "figure5_realistic_scenario.png"
+    out_png = output_dir / "appendixE_realistic_scenario.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     logger.info(f"\n✅ Saved PNG: {out_png}")
     
-    out_pdf = output_dir / "figure5_realistic_scenario.pdf"
+    out_pdf = output_dir / "appendixE_realistic_scenario.pdf"
     plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved PDF: {out_pdf}")
     

@@ -588,12 +588,12 @@ def create_semantic_visualization(
     
     plt.tight_layout()
     
-    output_file = output_dir / 'figure3_corralling_semantic_analysis.png'
+    output_file = output_dir / 'figure4_corralling_semantic_analysis.png'
     plt.savefig(output_file, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"\n   ✅ Saved: {output_file}")
     
     # High-res version
-    output_file_hires = output_dir / 'figure3_corralling_semantic_analysis_hires.png'
+    output_file_hires = output_dir / 'figure4_corralling_semantic_analysis_hires.png'
     plt.savefig(output_file_hires, dpi=600, bbox_inches='tight', facecolor='white')
     print(f"   ✅ Saved high-res: {output_file_hires}")
     

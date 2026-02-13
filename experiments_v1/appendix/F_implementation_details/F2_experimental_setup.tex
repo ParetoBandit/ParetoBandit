@@ -1,0 +1,36 @@
+% ============================================================================
+% Experimental Setup - COMPACT VERSION
+% ============================================================================
+% Space-efficient version for main paper
+% Use in main experiments section; detailed version available in appendix
+% ============================================================================
+
+\section{Experimental Setup}
+\label{sec:experiments}
+
+\subsection{Evaluation Framework}
+
+\paragraph{Dataset.}
+We use 50,000 real human preference judgments from the LMSYS Chatbot Arena~\cite{zheng2023judging}, spanning 8 production LLMs. Unlike prior work~\cite{ong2024routellm} that relies on synthetic proxies, we evaluate exclusively on authentic user comparisons to ensure ecological validity. We reserve 20\% (10,000 battles) as held-out test data.
+
+\paragraph{Metrics.}
+We report (1) \textit{Average Reward}: expected user satisfaction per routing decision ($r_t \in \{0,1\}$), and (2) \textit{Cost-Normalized Reward}: quality per dollar ($\bar{R}/\bar{C}$), capturing the Pareto frontier trade-off.
+
+\paragraph{Baselines.}
+We compare against static baselines (always-Mixtral, always-GPT-4), RouteLLM-MF (SOTA dynamic router~\cite{ong2024routellm}), and ablated variants of banditGPT (no Corralling, no semantic transfer).
+
+\subsection{Sensitivity Analysis Protocol}
+\label{sec:sensitivity_protocol}
+
+To validate robustness of semantic transfer (RQ3), we conduct a controlled experiment on the prior strength hyperparameter $\neff$:
+
+\textbf{Setup}: Simulate releasing \texttt{gpt-4-turbo} at $t=300$ into a live system managing \texttt{mixtral-8x7b} and an incumbent flagship, both pre-trained on 40k offline battles. Test 5 transfer configurations ($\neff \in \{1, 2, 5, 10, 20\}$) vs a Partial Cold Start baseline (new model: $\mat{A}=\mat{I}$, old models: warmed).
+
+\textbf{Controls}: (1) Deterministic execution (\texttt{seed=42}) eliminates stochastic variation. (2) Pre-release behavior ($t<300$) is identical across conditions (plotted as gray ``Shared Warmup Phase''). (3) Evaluate on 1,000 real LMSYS battles filtered to the 3-model subset.
+
+\textbf{Hypothesis}: We hypothesize that \textbf{weak priors preserve exploration flexibility}, outperforming strong priors in cost-aware routing where over-confidence creates an exploitation trap (§\ref{sec:sensitivity_results}).
+
+\subsection{Reproducibility}
+
+Code, data, and hyperparameters available at \texttt{github.com/annette/banditGPT}. All experiments run on a single CPU core (Apple M2, 16GB RAM, $\sim$3 min per configuration). Software: Python 3.10, NumPy 1.24, sentence-transformers 2.2.2.
+

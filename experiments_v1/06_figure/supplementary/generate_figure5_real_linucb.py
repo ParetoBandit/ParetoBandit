@@ -358,11 +358,11 @@ def plot_real_linucb(history: Dict, output_dir: Path):
     
     plt.tight_layout()
     
-    out_png = output_dir / "figure5_real_linucb.png"
+    out_png = output_dir / "appendixE_real_linucb.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     logger.info(f"\n✅ Saved PNG: {out_png}")
     
-    out_pdf = output_dir / "figure5_real_linucb.pdf"
+    out_pdf = output_dir / "appendixE_real_linucb.pdf"
     plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved PDF: {out_pdf}\n")
     

@@ -353,11 +353,11 @@ def plot_catastrophic_failure(history: Dict, metrics: Dict, output_dir: Path):
     plt.tight_layout()
     
     # Save
-    out_png = output_dir / "figure5_catastrophic_failure.png"
+    out_png = output_dir / "appendixE_catastrophic_failure.png"
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     logger.info(f"\n✅ Saved: {out_png}")
     
-    out_pdf = output_dir / "figure5_catastrophic_failure.pdf"
+    out_pdf = output_dir / "appendixE_catastrophic_failure.pdf"
     plt.savefig(out_pdf, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved: {out_pdf}")
     

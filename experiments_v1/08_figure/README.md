@@ -7,16 +7,22 @@
 ## Quick Start
 
 ```bash
-# Run the experiment
+# Run the unified analysis (experiments + figure + table)
 cd /Users/annette/repostitories/banditGPT
-python experiments_v1/08_figure/plot_sensitivity.py
+python experiments_v1/08_figure/run_figure8_analysis.py
+
+# Force re-run (ignore cache)
+python experiments_v1/08_figure/run_figure8_analysis.py --force-rerun
 
 # View results
-open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
+open experiments_v1/08_figure/results/figure8_regime_stratified_CORRECTED.png
 ```
 
-**Runtime**: ~3 minutes on single CPU core  
-**Output**: PNG figure + console results table
+**Runtime**: ~3 minutes (cached), ~5 minutes (first run)  
+**Output**: 
+- PNG figure: `figure8_regime_stratified_CORRECTED.png`
+- LaTeX table: `table8_neff_sensitivity.tex`  
+- Console table with regime classification
 
 ---
 
@@ -51,10 +57,21 @@ open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
 ## Files in This Directory
 
 ### Core Experiment
-- **`plot_sensitivity.py`**: Main experiment script
-  - Runs sensitivity sweep over $n_{eff} \in \{1, 2, 5, 10, 20\}$
-  - Simulates model release at t=300
-  - Generates hybrid visualization
+- **`run_figure8_analysis.py`**: ⭐ Unified experiment script
+  - Runs experiments ONCE and caches results
+  - Generates both figure AND table
+  - Tests n_eff extremes (1.0, 20.0) across 3 seeds
+  - Classifies regimes (warmup-dominant vs tabula rasa-dominant)
+  - Outputs publication-quality figure + LaTeX table
+
+### Ablation Studies
+- **`plot_ablation_no_corralling.py`**: Corralling OFF ablation
+  - Shows pure semantic transfer (without meta-learning)
+  - Demonstrates n_eff effect when transfer is forced
+
+### Diagnostic Tools
+- **`diagnose_corralling_weights.py`**: Analyzes expert selection patterns
+- **`check_figure7_weights.py`**: Cross-validates Figure 7 regime switching
 
 ### Documentation (Comprehensive)
 - **`EXPERIMENT_DESIGN.md`**: Comprehensive experimental methodology
@@ -79,10 +96,19 @@ open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
 - **`README.md`** (this file): Quick reference guide
 
 ### Output
-- **`results/figure8_sensitivity_hybrid.png`**: Publication-quality figure
-  - Hybrid visualization (robustness band + optimal line + baseline)
-  - Clean, publication-quality aesthetic
-  - Data-driven annotations (no hardcoded values)
+- **`results/figure8_regime_stratified_CORRECTED.png`**: ⭐ Primary figure
+  - 2×2 regime-stratified visualization
+  - Top row: Expert weight evolution by regime
+  - Bottom row: Performance curves by regime
+  - Shows n_eff effect is conditional on expert selection
+  
+- **`results/table8_neff_sensitivity.tex`**: ⭐ LaTeX table
+  - Regime-stratified performance statistics
+  - Ready for direct inclusion in paper
+
+- **`results/figure8_unified_results.pkl`**: Cached experiment results
+  - Speeds up subsequent runs (3min → instant)
+  - Delete to force re-run experiments
 
 ---
 
@@ -182,33 +208,58 @@ open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
 ### Run Command
 
 ```bash
-python experiments_v1/08_figure/plot_sensitivity.py
+python experiments_v1/08_figure/run_figure8_analysis.py
 ```
 
 ### Expected Output
 
 **Console**:
 ```
-============================================================
-Configuration        | Mean Reward  | Improvement 
-------------------------------------------------------------
-Cold Start           | 3.8074       | 0.00%
-n_eff = 1.0          | 4.4770       | +17.59% ★
-n_eff = 2.0          | 4.4638       | +17.24% 
-n_eff = 5.0          | 4.3588       | +14.48% 
-n_eff = 10.0         | 4.3325       | +13.79% 
-n_eff = 20.0         | 4.2800       | +12.41% 
-============================================================
+================================================================================
+REGIME-STRATIFIED PERFORMANCE ANALYSIS
+================================================================================
+
+--- REGIME CLASSIFICATION ---
+Warmup-dominant seeds:      [42] (1/3 = 33%)
+Tabula rasa-dominant seeds: [43, 44] (2/3 = 67%)
+
+--- PERFORMANCE BY REGIME ---
+Configuration             Mean Reward     Std Dev      N Seeds   
+--------------------------------------------------------------------------------
+
+WARMUP-DOMINANT REGIME:
+  n_eff = 1.0                  4.4770          0.0000         1
+  n_eff = 20.0                 4.2800          0.0000         1
+  → Effect size: +4.60%
+
+TABULA RASA-DOMINANT REGIME:
+  n_eff = 1.0                  4.2406          0.0131         2
+  n_eff = 20.0                 4.2472          0.0197         2
+  → Effect size: -0.15%
+
+OVERALL (ALL SEEDS):
+  n_eff = 1.0                  4.3194          0.1119         3
+  n_eff = 20.0                 4.2581          0.0223         3
+  → Effect size: +1.44%
 ```
 
-**File**: `results/figure8_sensitivity_hybrid.png`
+**Files**:  
+- `results/figure8_regime_stratified_CORRECTED.png` (2×2 figure)  
+- `results/table8_neff_sensitivity.tex` (LaTeX table)
 
 ### Verification
 
-Confirm Corralling Router is active:
+Check cached results:
 ```bash
-python experiments_v1/08_figure/plot_sensitivity.py 2>&1 | grep "Corralling"
-# Expected: "✅ Corralling Router ACTIVE with experts: ['CostAwareLinUCBRouter', 'CostAwareTabulaRasaRouter']"
+ls -lh experiments_v1/08_figure/results/figure8_unified_results.pkl
+# If exists: using cache (fast)
+# If not exists: will run experiments (~5 minutes)
+```
+
+Force re-run:
+```bash
+rm experiments_v1/08_figure/results/figure8_unified_results.pkl
+python experiments_v1/08_figure/run_figure8_analysis.py
 ```
 
 ---

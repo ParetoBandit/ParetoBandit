@@ -872,12 +872,12 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     
     # Save figure
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "distribution_shift_pc1.png"
+    output_file = output_dir / "figure2_distribution_shift.png"
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"\n   ✅ Saved: {output_file}")
     
     # Also save high-res version
-    output_file_hires = output_dir / "distribution_shift_pc1_hires.png"
+    output_file_hires = output_dir / "figure2_distribution_shift_hires.png"
     plt.savefig(output_file_hires, dpi=600, bbox_inches='tight')
     print(f"   ✅ Saved high-res: {output_file_hires}")
     
@@ -1021,7 +1021,7 @@ def main():
         print(f"   {i}. PC1={sample['pc1']:.3f}, Gap={sample['reward_gap']:.3f}")
         print(f"      \"{sample['prompt']}\"")
     
-    print(f"\n   Output: {output_dir}/distribution_shift_pc1.png")
+    print(f"\n   Output: {output_dir}/figure2_distribution_shift.png")
     
     # Save summary to JSON
     summary = {
