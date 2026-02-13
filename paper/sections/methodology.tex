@@ -2,6 +2,10 @@
 
 We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. Our framework, banditGPT, introduces a hierarchical architecture that addresses two fundamental challenges in production routing: safety against non-stationary quality shifts and agility in adopting new models.
 
+\subsection{Unified Feature Space: From Discovery to Deployment}
+
+All experiments in this work operate in a unified semantic feature space to ensure consistency from problem discovery to solution validation. Prompts are embedded using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384-dimensional), reduced to 32 dimensions via PCA trained on 80,000 prompts from the RouteLLM dataset (35.14\% cumulative variance explained). The primary semantic axis (PC1, 3.10\% variance) discovered in Section~\ref{sec:distribution_shift}---which identifies the quality inversion at PC1=0.3 separating the Alignment Tax zone from the Natural Language zone---becomes the substrate for all adaptation experiments (Sections~\ref{sec:zero_shot}--\ref{sec:three_regimes}). This architectural choice ensures the router learns to exploit the \emph{exact} quality inversion discovered during empirical analysis, rather than learning on an unrelated feature space. The consistency of this feature space from discovery (Figure~\ref{fig:pca}) through baseline establishment (Table~\ref{tab:performance_gap}) to regime validation enables direct comparison and unified interpretation across all results.
+
 \subsection{Problem Formulation}
 
 Let $x_t \in \mathbb{R}^d$ denote the context vector (embedding) for a user prompt at time $t$. We maintain a dynamic registry of models (arms) $\mathcal{M}_t$. For each request, the policy $\pi$ selects an arm $a_t \in \mathcal{M}_t$, observing a scalar reward $r_t \in [0, 1]$ (quality) and incurring a deterministic cost $c_t \in \mathbb{R}^+$ (inference price).
@@ -84,13 +88,15 @@ To manage the trade-off between robust priors and online adaptability, we employ
 \label{eq:importance_weighted_loss}
 \end{equation}
 
-The expert weights $w_{t,e}$ are updated using exponential descent with learning rate $\eta=1.0$:
+The expert weights $w_{t,e}$ are updated using exponential descent with learning rate $\eta$:
 \begin{equation}
 w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
 \label{eq:corralling}
 \end{equation}
 
-\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate rather than the horizon-dependent $\eta = \sqrt{2\log K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves near-optimal performance relative to the best expert in hindsight.
+\textbf{Learning Rate Selection}: We evaluate two learning rates: conservative ($\eta=0.1$) and aggressive ($\eta=1.0$). Multi-seed evaluation (Section~\ref{sec:results}, Table~\ref{tab:performance_gap}) reveals no statistically significant difference (p=0.63) but a fundamental stability-performance tradeoff. Conservative learning offers predictable performance (CV=17\%), while aggressive learning achieves better median but with higher variance (CV=35\%). We recommend $\eta=0.1$ for production deployments requiring reliability.
+
+\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate rather than the horizon-dependent $\eta = \sqrt{2\log K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves competitive performance relative to the best expert in hindsight.
 
 \subsubsection{Technical Fairness and Computational Complexity}
 Our implementation adapts the theoretical Corralling framework~\cite{agarwal2017corralling} to the constraints of low-latency production inference.

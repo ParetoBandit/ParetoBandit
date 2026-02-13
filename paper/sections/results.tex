@@ -19,7 +19,7 @@ A critical finding is the non-monotonic behavior of the RouteLLM benchmark. As s
 
 \textbf{The Phenomenon}: Users paying \$0.013 (Maximum Cost) receive a reward of 0.812---worse than the \$0.0003 Mistral baseline (0.823). We term this the ``Over-Provisioning Penalty'': paying a $43\times$ cost premium to \emph{decrease} quality by 1.3\%.
 
-\textbf{The Cause}: Static routers interpolate based on general ``hardness.'' They fail to distinguish the Alignment Tax Cluster (High PC1)---where GPT-4's verbosity degrades performance---from the Natural Language Cluster (Low PC1) where GPT-4 is genuinely superior.
+\textbf{The Cause}: This routing-level penalty is a direct consequence of the Alignment Tax discovered in Figure~\ref{fig:pca}. Static routers, trained on general ``hardness'' heuristics, systematically over-provision expensive models to High PC1 tasks (strict constraint zone) where RLHF-optimized models underperform cheaper alternatives by $-0.682$ gap. They fail to distinguish the Alignment Tax Cluster---where GPT-4's alignment artifacts cause format compliance failures---from the Natural Language Cluster (Low PC1) where GPT-4's capabilities provide genuine value ($+0.133$ gap). This transforms a task-level quality inversion into a routing-level economic catastrophe.
 
 \textbf{The Solution}: banditGPT (Blue Line) learns this inversion online. By using GPT-4 only when statistically justified, it achieves a peak reward of $0.912 \pm 0.006$ (mean $\pm$ 95\% CI, $n=5$ trials), enabling a +12.3\% quality gain over Mixtral while reducing costs by 27\% compared to the naive GPT-4 baseline. Error bars in Figure~\ref{fig:pareto} confirm this advantage is statistically robust.
 
@@ -105,7 +105,7 @@ Table~\ref{tab:performance_gap} quantifies the impact of this mismatch and the r
 \paragraph{Learning Rate Sensitivity and Risk Tolerance.}
 Table~\ref{tab:performance_gap} compares two learning rates across 10 random seeds. Independent t-tests reveal no statistically significant difference in mean performance ($\eta=0.1$: 45.2$\pm$7.9 vs $\eta=1.0$: 48.1$\pm$16.8, t=-0.49, p=0.63, Cohen's d=-0.22). However, the distributions differ substantially:
 
-Conservative learning ($\eta=0.1$) offers \textbf{stability}: mean=45.2, median=45.0, range=[33, 60], CV=17\%. Performance is consistent across all seeds with no catastrophic failures (max=60).
+Conservative learning ($\eta=0.1$) offers \textbf{stability}: mean=45.2, median=45.0, range=[33, 60], CV=17\%. Performance is consistent across all seeds with no catastrophic failures (max=60). This corresponds to the Cold-Start Regime (Section~\ref{sec:zero_shot}), where the same learning rate provides 3.2\% short-term benefit for new model adoption but prevents long-term convergence (5.9\% below optimal after 1,121 steps, as shown in ablation results where tabula rasa achieves 0.923 vs hybrid 0.912). The regime prioritizes immediate deployment value over eventual optimality.
 
 Aggressive learning ($\eta=1.0$) offers \textbf{better median performance}: median=41.0 (1.03$\times$ vs baseline), but with 2$\times$ higher variance (std=16.8, CV=35\%) and occasional catastrophic failures---2 of 10 seeds exceeded 75 regret, approaching the harmful warmup baseline (79 regret).
 
