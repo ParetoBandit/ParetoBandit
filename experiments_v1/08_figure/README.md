@@ -21,7 +21,7 @@ open experiments_v1/08_figure/results/figure8_regime_stratified_CORRECTED.png
 **Runtime**: ~3 minutes (cached), ~5 minutes (first run)  
 **Output**: 
 - PNG figure: `figure8_regime_stratified_CORRECTED.png`
-- LaTeX table: `table8_neff_sensitivity.tex`  
+- LaTeX table: `appendixC_neff_sensitivity.tex` (Appendix C: Sensitivity Analysis)
 - Console table with regime classification
 
 ---
@@ -102,9 +102,9 @@ open experiments_v1/08_figure/results/figure8_regime_stratified_CORRECTED.png
   - Bottom row: Performance curves by regime
   - Shows n_eff effect is conditional on expert selection
   
-- **`results/table8_neff_sensitivity.tex`**: ⭐ LaTeX table
+- **`results/appendixC_neff_sensitivity.tex`**: ⭐ LaTeX table
   - Regime-stratified performance statistics
-  - Ready for direct inclusion in paper
+  - Ready for inclusion in Appendix C (Hyperparameter Sensitivity)
 
 - **`results/figure8_unified_results.pkl`**: Cached experiment results
   - Speeds up subsequent runs (3min → instant)
@@ -245,7 +245,7 @@ OVERALL (ALL SEEDS):
 
 **Files**:  
 - `results/figure8_regime_stratified_CORRECTED.png` (2×2 figure)  
-- `results/table8_neff_sensitivity.tex` (LaTeX table)
+- `results/appendixC_neff_sensitivity.tex` (LaTeX table for Appendix C)
 
 ### Verification
 

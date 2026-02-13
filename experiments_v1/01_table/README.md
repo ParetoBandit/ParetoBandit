@@ -24,7 +24,7 @@ This table provides:
 experiments_v1/01_table/
 ├── README.md                           # This file
 ├── analyze_dataset_composition.py      # Analysis script with statistical tests
-├── table_dataset_composition.tex       # LaTeX table output
+├── table1_dataset_composition.tex      # LaTeX table output
 ├── validate_categorization.py          # Human validation helper
 ├── validate_with_openrouter.py         # LLM validation tool
 ├── validation_results_100.json         # LLM validation results (κ=0.75)
@@ -161,7 +161,7 @@ This will report:
 To include the table in your paper:
 
 ```latex
-\input{experiments_v1/01_table/table_dataset_composition.tex}
+\input{experiments_v1/01_table/table1_dataset_composition.tex}
 ```
 
 Or copy the contents directly into your paper.

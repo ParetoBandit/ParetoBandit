@@ -469,7 +469,7 @@ def main():
     
     # Step 6: Generate LaTeX table
     latex_table = generate_latex_table(regimes, stats)
-    latex_path = output_dir / "table8_neff_sensitivity.tex"
+    latex_path = output_dir / "appendixC_neff_sensitivity.tex"
     with open(latex_path, 'w') as f:
         f.write(latex_table)
     logger.info(f"✅ Saved LaTeX table to {latex_path}")

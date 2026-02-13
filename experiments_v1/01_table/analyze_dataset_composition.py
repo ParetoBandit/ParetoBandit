@@ -374,7 +374,7 @@ def print_latex_table(warmup_stats: Dict, dev_stats: Dict, holdout_stats: Dict):
     print(latex)
     
     # Save to file
-    output_file = Path(__file__).parent / "table_dataset_composition.tex"
+    output_file = Path(__file__).parent / "table1_dataset_composition.tex"
     with open(output_file, 'w') as f:
         f.write(latex)
     

@@ -30,7 +30,7 @@ python generate_table_from_results.py \
     --eta-01-results data/eta_0.1_holdout_multiseed/results_multiseed.json \
     --eta-10-results data/eta_1.0_holdout_multiseed/results_multiseed.json \
     --comparison data/statistical_comparison/comparison_results.json \
-    --output table_02_final.tex
+    --output table2_final.tex
 ```
 
 ### What Changed
@@ -76,8 +76,8 @@ python generate_table_from_results.py \
 - `NEXT_STEPS_AFTER_VALIDATION.md` - Post-validation checklist
 
 **LaTeX:**
-- `table_02_merged_corrected.tex` - Fixed terminology (manual)
-- `table_02_final.tex` - Auto-generated from results
+- `table2_merged_corrected.tex` - Fixed terminology (manual)
+- `table2_final.tex` - Auto-generated from results
 
 ---
 
@@ -172,19 +172,19 @@ This demonstrates **near-optimal performance with strong safety guarantees** on 
   - `hybrid_comparison.png` - Visualization plots
 
 ### LaTeX Documents
-- **`table_02_merged.tex`** - **[RECOMMENDED - THE DEFINITIVE TABLE 2]** 
+- **`table2_merged.tex`** - **[RECOMMENDED - THE DEFINITIVE TABLE 2]** 
   - **"Super Table"** combining best metrics from both previous versions
   - Shows BOTH speed (Early Regret 0-500) AND efficiency (Gap to Optimal)
   - Proves: "We learn fast to achieve near-optimality"
   - **This is the scoreboard for your entire paper** - quantifies the 1.10× victory
   - Includes comprehensive metric explanations and practical implications
   
-- **`table_02_mismatch_robustness.tex`** - Original version focusing on:
+- **`table2_mismatch_robustness.tex`** - Original version focusing on:
   - Domain alignment and mismatch robustness
   - Early-phase regret analysis
   - Adaptive alignment mechanism
   
-- **`table_02_performance_gap.tex`** - Original version focusing on:
+- **`table2_performance_gap.tex`** - Original version focusing on:
   - Overall performance comparison
   - Learning rate sensitivity
   - Production cost analysis
@@ -230,10 +230,10 @@ KEY METRICS
 
 ### Use in Paper
 
-Copy the table from `table_02_performance_gap.tex` into your paper:
+Copy the table from `table2_performance_gap.tex` into your paper:
 
 ```latex
-\input{experiments_v1/02_table/table_02_performance_gap}
+\input{experiments_v1/02_table/table2_performance_gap}
 ```
 
 ---

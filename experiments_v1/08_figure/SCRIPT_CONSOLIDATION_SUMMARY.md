@@ -19,7 +19,7 @@
 
 **Outputs**:
 1. **Figure**: `results/figure8_regime_stratified_CORRECTED.png` (2×2 regime-stratified)
-2. **Table**: `results/table8_neff_sensitivity.tex` (LaTeX format)
+2. **Table**: `results/appendixC_neff_sensitivity.tex` (Appendix C: Sensitivity Analysis)
 3. **Console**: Regime classification + performance statistics
 4. **Cache**: `results/figure8_unified_results.pkl` (for fast re-runs)
 
@@ -124,8 +124,8 @@ python experiments_v1/08_figure/run_figure8_analysis.py
 ### Primary Outputs
 ```
 results/
-├── figure8_regime_stratified_CORRECTED.png  # Main figure (2×2 layout)
-├── table8_neff_sensitivity.tex               # LaTeX table
+├── figure8_regime_stratified_CORRECTED.png   # Main figure (2×2 layout)
+├── appendixC_neff_sensitivity.tex            # LaTeX table (Appendix C)
 └── figure8_unified_results.pkl               # Cached data (for speed)
 ```
 
