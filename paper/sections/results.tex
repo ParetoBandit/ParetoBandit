@@ -159,34 +159,42 @@ Figure~\ref{fig:ablation} compares four initialization strategies:
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure6_ablation_final.png}
-\caption{\textbf{Short-Term Model Adoption (Conservative Learning Regime, $\eta=0.1$).} When \texttt{gpt-4o} is introduced at $t=300$, semantic transfer (Blue) provides 3.2\% immediate benefit over cold start (Red) and 2.1\% over realistic baseline (Purple). Mechanism: implicit regularization via symmetry breaking (26$\times$ more initial variance), not semantic accuracy---embedding similarity does not predict performance ($r=-0.38$, $p=0.75$). Conservative learning rate preserves short-term prior exploitation but prevents convergence: expert weights remain stable ($\sim$75\% Conservative, $\sim$25\% Adaptive) throughout episode. For complete adaptation, use aggressive learning ($\eta=5.0$, Figure~\ref{fig:corralling_semantic}), which achieves full prior unlearning by step 1,121. This validates two adaptation regimes: cold-start ($\eta=0.1$, short-term benefit) vs convergence ($\eta=5.0$, long-term optimality). (N=30 trials, 95\% CI, full episode metrics, heterogeneous experts, realistic prior baseline)}
+\caption{\textbf{Short-Term Model Adoption (Conservative Learning Regime, $\eta=0.1$).} When \texttt{gpt-4o} is introduced at $t=300$, semantic transfer (Blue) provides 3.2\% immediate benefit over cold start (Red) and 2.1\% over realistic baseline (Purple). Mechanism: implicit regularization via symmetry breaking (26$\times$ more initial variance), not semantic accuracy---embedding similarity does not predict performance ($r=-0.38$, $p=0.75$). Conservative learning rate preserves short-term prior exploitation but prevents convergence: expert weights remain stable ($\sim$75\% Conservative, $\sim$25\% Adaptive) throughout episode. For complete adaptation, use aggressive learning ($\eta=5.0$, Figure~\ref{fig:corralling_semantic}), which achieves full prior unlearning by step 1,121. This validates two adaptation regimes: cold-start ($\eta=0.1$, short-term benefit) vs convergence ($\eta=5.0$, long-term optimality). Heterogeneous expert configuration (Conservative: $\alpha$ decay, Adaptive: $\alpha$ constant) prioritizes stability; for decisive regime switching, see Figure~\ref{fig:expert_selection}. (N=30 trials, 95\% CI, full episode metrics, realistic prior baseline)}
 \label{fig:ablation}
 \end{figure}
 
 As shown in Figure~\ref{fig:ablation}, semantic transfer provides measurable short-term benefit (3.2\% over cold start, 2.1\% over realistic baseline) through implicit regularization, not semantic accuracy. However, stable expert weights throughout the episode ($\sim$75\% Conservative, $\sim$25\% Adaptive) indicate that conservative learning ($\eta=0.1$) exploits priors without substantial adaptation. This contrasts sharply with aggressive learning ($\eta=5.0$, validated in extended experiments): complete prior unlearning (warmup weight $\to 1.41 \times 10^{-128}$) by step 1,121, demonstrating the system is not locked into potentially incorrect semantic priors. The timescale separation between catastrophic failure detection (3--50 steps, $\eta=0.3$--$1.0$, see Figure~\ref{fig:decommission}) and complete unlearning ($\sim$300--500 steps, $\eta=5.0$) ensures safety even when semantic transfer is directionally wrong.
 
-\subsubsection{Robustness: Prior Strength Calibration}
+\paragraph{Configuration Choice: Heterogeneous Experts for Stability.}
+This experiment uses \textbf{heterogeneous expert configuration} (Conservative: $\alpha$ decay 1.0$\to$0.01, Adaptive: $\alpha=2.0$ constant) to prioritize smooth hedging behavior appropriate for risk-averse deployments, high exploration costs, or initial rollout phases where service disruption must be minimized. The 75/25 weight distribution reflects stable blending of prior exploitation (Conservative expert gradually reduces exploration as confidence grows) and adaptive hedging (Adaptive expert maintains exploration for safety). This contrasts with homogeneous constant-$\alpha$ configuration (Figure~\ref{fig:expert_selection}), which enables decisive regime switching for faster adaptation when clear performance differences justify aggressive commitment.
 
-A potential concern with semantic transfer is brittleness to the \textit{effective prior strength} $\neff$, which governs confidence in the transferred preference vector. To validate robustness, we simulate releasing \texttt{gpt-4-turbo} at $t=300$ and sweep $\neff \in \{1, 2, 5, 10, 20\}$ on 1,000 real LMSYS battles.
+\subsubsection{Adaptive Expert Selection in Semantic Transfer}
+
+A key advantage of Corralling meta-learning is its ability to adaptively choose between semantic transfer and cold-start exploration based on deployment conditions. We investigate when each strategy is preferred by tracking expert weights across diverse data orderings (seeds 42--44) during a simulated model release at $t=300$.
+
+\paragraph{Configuration Choice: Homogeneous Experts for Regime Identification.}
+This experiment uses \textbf{homogeneous expert configuration} (both $\alpha=2.0$ constant, recommended by Figure~\ref{fig:architecture}) to enable decisive regime identification and scientific analysis of semantic transfer's conditional utility. Unlike the heterogeneous configuration (Figure~\ref{fig:ablation}), which prioritizes smooth hedging ($\sim$75/25 weights) for stability-focused deployments, the homogeneous design creates sharp regime differentiation---Corralling converges to near-binary expert selection (100\% warmup or 100\% tabula rasa) based on data match with priors. This reveals that expert choice is data-dependent rather than fixed, with semantic transfer beneficial in $\sim$33\% of data orderings.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\columnwidth]{figures/figure8_sensitivity_hybrid.png}
+\includegraphics[width=0.95\columnwidth]{figures/figure8_expert_selection_revised.png}
 \caption{%
-\textbf{Prior Strength Calibration.} 
-Weak priors ($\neff=1.0$, green) achieve +17.6\% over Cold Start (red), outperforming stronger configurations due to preserved exploration flexibility. 
-The narrow robustness band (shaded, $\neff \in [2,20]$) maintains $\geq$+12.4\%, confirming the method is not brittle. 
-Strong priors ($\neff=20$, blue) underperform due to over-confident exploitation of cheaper incumbents, delaying adoption of the superior new model.
-Gray: shared warmup phase.
+\textbf{Adaptive Expert Selection in Semantic Transfer.} 
+\textit{Top row}: Corralling's expert weight evolution across three seeds. Blue (warmup expert) uses semantic transfer; red (tabula rasa expert) uses cold start. After model release (t=300), Corralling converges to near-binary selection: 100\% warmup (seed 42) or 100\% tabula rasa (seeds 43--44). 
+\textit{Middle}: Performance stratified by regime. In warmup-dominant regimes (33\% of seeds), $\neff=1.0$ outperforms $\neff=20.0$ by 4.6\% (left panel). In tabula rasa-dominant regimes (67\%), $\neff$ has no effect as semantic transfer is not used (right panel).
+\textit{Bottom}: Key findings summary showing regime-dependent effects and meta-learning robustness.
 }
-\label{fig:sensitivity}
+\label{fig:expert_selection}
 \end{figure}
 
-\paragraph{The Over-Confidence Trap.}
-Surprisingly, \textbf{weak priors outperform strong priors}: $\neff=1.0$ achieves +17.6\% over baseline, while $\neff=20.0$ achieves only +12.4\%. The degradation occurs because high $\neff$ inflates $\mat{A}_{\text{new}} = \neff \cdot \mat{A}_{\text{neighbor}}$, shrinking LinUCB's exploration bonus. For expensive new models, cost penalties dominate, trapping the system in local optima despite accurate semantic signals.
+\paragraph{Regime-Dependent Expert Selection.}
+Figure~\ref{fig:expert_selection} (top row) reveals that Corralling's expert choice is \textbf{data-dependent}: In $\sim$33\% of data orderings, the warmup expert (which uses semantic transfer with prior strength $\neff$) dominates post-release. In the remaining $\sim$67\%, the tabula rasa expert (cold-start) dominates. This sharp regime switching (near 0\% or 100\% weights) indicates Corralling's decisive preference based on early performance signals (t$<$300).
 
-\paragraph{Design Insight.}
-Semantic transfer succeeds by transferring \textit{direction} ($\thetavec_{\text{neighbor}}$), not rigid confidence. Setting $\neff=1.0$ preserves exploration flexibility while capturing similarity, achieving optimal adoption velocity with no manual tuning required. The narrow robustness band (5.2pp worst-case degradation) confirms the system is production-ready across diverse model releases.
+\paragraph{Conditional Effects of Prior Strength.}
+The effect of prior strength ($\neff$) is regime-dependent (Figure~\ref{fig:expert_selection}, middle row). In warmup-dominant regimes, $\neff=1.0$ outperforms $\neff=20.0$ by 4.6\% post-release (4.477 vs 4.280) due to preserved exploration flexibility---the ``over-confidence trap'' where high $\neff$ inflates $\mat{A}_{\text{new}}$, shrinking the exploration bonus. However, in tabula rasa-dominant regimes, performance is identical regardless of $\neff$ (both 4.25), as semantic transfer is not used. Average performance across seeds (4.32 $\pm$ 0.03) reflects a weighted blend: $0.33 \times \text{(warmup)} + 0.67 \times \text{(tabula rasa)}$.
+
+\paragraph{Meta-Learning as Robustness Mechanism.}
+System robustness derives from Corralling's adaptive expert selection, not from parameter tuning. The production implication is that $\neff$ choice has limited impact ($\sim$1.5\% average effect $= 0.33 \times 4.6\%$), as Corralling automatically switches to cold start when semantic priors are mismatched. We retain $\neff=5.0$ as a default (mid-range, reasonable when warmup expert is active) but emphasize that monitoring expert weights in deployment is more informative than obsessing over $\neff$ optimization.
 
 \subsection{Exploration Strategy Validation}
 \label{sec:alpha_ablation}
@@ -251,7 +259,7 @@ Convergence & $\eta=2.0$--$5.0$ & 300--1,121 steps & Adapt beyond priors \\
 \end{table}
 
 \paragraph{Cold-Start Regime ($\eta=0.1$--$0.3$, Figure~\ref{fig:ablation}).}
-Conservative learning rates exploit semantic transfer for immediate benefit during new model deployment. With $\eta=0.1$, expert weights remain stable ($\sim$75\% Conservative, $\sim$25\% Adaptive) throughout the episode, indicating the system exploits transferred priors without significant adaptation. This regime prioritizes rapid deployment and short-term benefit (t=0--300), deferring convergence for immediate value. However, stable weights do NOT validate semantic transfer correctness---they indicate insufficient learning rate for adaptation.
+Conservative learning rates exploit semantic transfer for immediate benefit during new model deployment. With $\eta=0.1$ and heterogeneous expert configuration, expert weights remain stable ($\sim$75\% Conservative, $\sim$25\% Adaptive) throughout the episode, indicating the system exploits transferred priors without significant adaptation. This regime prioritizes rapid deployment and short-term benefit (t=0--300), deferring convergence for immediate value. However, stable weights do NOT validate semantic transfer correctness---they indicate insufficient learning rate for adaptation. Note: homogeneous expert configuration (Figure~\ref{fig:expert_selection}) exhibits different behavior even with $\eta=0.1$, converging to near-binary expert selection based on data match.
 
 \paragraph{Pareto Sweep Regime ($\eta=1.0$, Figure~\ref{fig:pareto}).}
 Moderate learning rates enable partial adaptation over extended timescales (1,121 steps). This configuration balances prior exploitation (cost efficiency) with adaptation capability (quality improvement). The observation that tabula rasa (0.923) outperforms hybrid (0.912) validates this regime characterization: $\eta=1.0$ is fast enough to partially adapt but too slow to completely recover from prior mismatch. Priors provide 14\% short-term benefit (0.800 $\to$ 0.912) but incorrect direction prevents reaching optimal (0.912 $\to$ 0.923). This ``partial adaptation trap'' demonstrates the regime's limitation.
