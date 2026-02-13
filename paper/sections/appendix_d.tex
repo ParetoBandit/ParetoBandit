@@ -21,7 +21,7 @@ Figure~\ref{fig:distribution_shift} provides the full visualization of the covar
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/figure2_distribution_shift.png}
 \caption{\textbf{Distribution Shift Visualization.}
-\textbf{Top:} Density comparison (PSI = 0.275) shows a structural mismatch between Offline Training priors (Blue) and Holdout evaluation data (Red) in the PC1 feature space.
+\textbf{Top:} Density comparison (PSI = 0.225) shows a structural mismatch between Offline Training priors (Blue) and Holdout evaluation data (Red) in the PC1 feature space.
 \textbf{Bottom:} Decomposition based on model preference clusters from Table~\ref{tab:cluster_inversion}. The High PC1 region (Right Peak, where Mixtral is preferred with gap $= -0.56$) is over-represented in offline data. The Low PC1 region (Left Peak, where GPT-4 is preferred with gap $= +0.12$) dominates production traffic.
 The Offline Prior over-indexes on Mixtral-preferred prompts, leading to systematic underestimation of GPT-4's utility on dominant evaluation traffic.}
 \label{fig:distribution_shift}
@@ -147,7 +147,7 @@ Diagnostic analysis reveals individual seeds exhibit binary expert commitments (
 \subsection{Exploration Strategy Validation}
 \label{sec:alpha_ablation}
 
-A critical design choice is the exploration-exploitation schedule. We validated constant exploration ($\alpha=2.0$) through systematic ablation under severe domain mismatch (PSI=0.275).
+A critical design choice is the exploration-exploitation schedule. We validated constant exploration ($\alpha=2.0$) through systematic ablation under moderate domain mismatch (PSI=0.225).
 
 \paragraph{Experimental Setup.}
 Four configurations evaluated on the 750-prompt holdout set across 20 random seeds:

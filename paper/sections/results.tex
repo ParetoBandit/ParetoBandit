@@ -98,7 +98,7 @@ Production systems additionally require safety under prior mismatch, rapid failu
 \subsubsection{Corralling Under Moderate Distribution Shift}
 \label{sec:adaptation}
 
-Table~\ref{tab:performance_gap} evaluates Corralling under moderate domain mismatch (PSI=0.275) across N=10 seeds with data-order shuffling.
+Table~\ref{tab:performance_gap} evaluates Corralling under moderate domain mismatch (PSI=0.225, Figure~\ref{fig:distribution_shift}) across N=10 seeds with data-order shuffling.
 
 \input{../experiments_v1/02_table/table2_final}
 
@@ -136,7 +136,7 @@ The effective prior strength ($\neff$) exhibits regime-dependent effects. Withou
 \label{sec:limitations}
 
 \paragraph{Prior Quality Dependency.}
-Our constant exploration finding ($\alpha=2.0$) is validated under severe domain mismatch (PSI=0.275). In low-mismatch deployments with accurate priors, adaptive exploration schedules may improve sample efficiency. Future work should investigate mismatch-aware $\alpha$ schedules.
+Our constant exploration finding ($\alpha=2.0$) is validated under moderate domain mismatch (PSI=0.225). In low-mismatch deployments with accurate priors, adaptive exploration schedules may improve sample efficiency. Future work should investigate mismatch-aware $\alpha$ schedules.
 
 \paragraph{Strategy Selection Trade-offs.}
 Corralling incurs 1--4\% overhead relative to the tabula rasa baseline under moderate distribution shift (Table~\ref{tab:performance_gap}), and warmup-only outperforms both when priors are well-calibrated. The hedging overhead is justified only under genuine prior uncertainty. When prior quality can be validated on held-out deployment data, direct strategy selection (tabula rasa for known-bad priors, warmup-only for validated-good priors) outperforms hedging.

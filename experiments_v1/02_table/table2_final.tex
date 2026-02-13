@@ -1,9 +1,9 @@
 \begin{table}[t]
 \centering
-\caption{\textbf{Corralling Under Moderate Distribution Shift (PSI=0.275).} 
+\caption{\textbf{Corralling Under Moderate Distribution Shift (PSI=0.225).} 
 Evaluated on 750 held-out test prompts with data-order shuffling across N=10 seeds. 
 Values shown as mean $\pm$ std.
-Under moderate shift, warmup priors remain beneficial---achieving 28\% lower regret than tabula rasa---and Corralling adds modest hedging overhead (1--4\%).
+Under moderate shift (Figure~\ref{fig:distribution_shift}), warmup priors remain beneficial---achieving 28\% lower regret than tabula rasa---and Corralling adds modest hedging overhead (1--4\%).
 Both learning rates perform comparably, confirming that the overhead reflects sample-splitting costs rather than learning rate sensitivity.}
 \label{tab:performance_gap}
 \small
@@ -24,7 +24,7 @@ Both learning rates perform comparably, confirming that the overhead reflects sa
 
 \vspace{1em}
 \noindent\textbf{Interpretation.}
-Under moderate distribution shift (PSI=0.275), warmup priors trained on offline RouteLLM battles remain well-calibrated for LMSYS Arena holdout prompts.
+Under moderate distribution shift (PSI=0.225; Figure~\ref{fig:distribution_shift}), warmup priors trained on offline RouteLLM battles remain well-calibrated for LMSYS Arena holdout prompts.
 The warmup baseline achieves the lowest regret (32.9), outperforming tabula rasa (45.6) by 28\%.
 Corralling hedges between the two experts, incurring 1--4\% overhead relative to tabula rasa.
 This overhead represents the \emph{cost of safety insurance}: when priors are already well-matched to the target domain (as here), the sample-splitting cost of maintaining two parallel experts exceeds the benefit of hedging. However, Corralling would provide protection in scenarios with severe prior mismatch (e.g., cross-domain deployment to medical or legal domains), where warmup-only strategies could fail catastrophically.

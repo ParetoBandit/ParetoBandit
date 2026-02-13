@@ -80,7 +80,8 @@ Significance is confirmed by three independent tests:
 (1)~$\chi^2$ test of independence on the $2 \times 3$ contingency table ($p < 0.0001$);
 (2)~Mann-Whitney $U$-test on ordinal reward gaps ($p < 0.0001$);
 (3)~permutation test on Cram\'er's $V$ ($p < 0.0001$, $n=10{,}000$ permutations, 0 skipped due to low expected counts, i.e., all 10{,}000 permutations were valid).
-Cohen's $d$ is reported as a supplementary metric for comparability with prior work, but is approximate because the underlying data takes only three discrete values $\{-1, 0, +1\}$; Cram\'er's $V$ and the odds ratio are the appropriate primary effect sizes for this data.
+Cohen's $d$ is reported as a supplementary metric for comparability with prior work, but is approximate because the underlying data takes only three discrete values $\{-1, 0, +1\}$; Cram\'er's $V$ and risk difference are the most robust primary effect sizes for this data.
+\textbf{Caveat on odds ratios:} The OR (54.3 for the router PCA) is sensitive to small cell counts in the High~PC1 cluster (${\sim}144$ prompts, of which only ${\sim}2$ are GPT-4 wins). A single additional GPT-4 win in the High~PC1 region would substantially reduce the OR. Cram\'er's $V$ and risk difference (+59.0\%) are more stable and should be preferred for interpreting the practical magnitude of the routing signal.
 
 \paragraph{Practical implications for deployment.}
 For practitioners deploying BanditGPT:

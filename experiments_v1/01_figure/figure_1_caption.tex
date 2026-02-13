@@ -10,7 +10,7 @@ Outcomes are discrete (win${=}{+}1$, tie${=}0$, loss${=}{-}1$); the running mean
 The dashed line marks the silhouette-optimal threshold, selected without reference to reward labels.
 \textbf{(B)}~Outcome proportions by PC1 region.
 The Low~PC1 region (blue) is dominated by ties ($\sim$82\%); the High~PC1 region (red) shows $\sim$62\% Mixtral wins---a qualitatively different outcome distribution.
-Cram\'er's $V$, odds ratio, and risk difference are reported as primary effect sizes (appropriate for categorical outcomes); a permutation test ($n{=}10{,}000$) provides distribution-free significance.
+Cram\'er's $V$ and risk difference (+59.0\%) are reported as primary effect sizes (appropriate for categorical outcomes); odds ratio is included for completeness but is sensitive to small cell counts (see text). A permutation test ($n{=}10{,}000$) provides distribution-free significance.
 The router PCA ($V{=}0.667$) captures $6.5{\times}$ more signal than the median of 100 independent random projections ($V_{\text{random}}$ median${=}0.103$; Table~\ref{tab:pca_conditions}), confirming that the PCA concentrates routing-relevant variance rather than finding spurious correlation in a high-dimensional projection.
 Note: these proportions are specific to this holdout sample ($\sim$5.9\% High~PC1 in the 1M dataset; see Section~\ref{sec:scale_validation}).
 ``Regions'' refer to segments of the PC1 axis, not well-separated groups in the full 384D embedding space (Section~\ref{sec:validation_methodology}).}

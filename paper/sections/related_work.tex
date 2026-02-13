@@ -23,7 +23,7 @@ Predictive routers, such as RouteLLM~\cite{ong2024routellm}, train a classifier 
 
 The use of Multi-Armed Bandits (MAB) for model selection is an emerging field. Recent works like LLM-Bandit and C2MAB apply standard LinUCB~\cite{li2010contextual} or Thompson Sampling~\cite{agrawal2013thompson} to routing.
 
-\textbf{The Limitation}: Standard bandit algorithms assume stationarity and well-specified priors. They lack safety mechanisms for ``Negative Transfer,'' where a transferred prior is actively harmful (as seen in our PSI=0.275 shift). They also struggle with ``Expert Death,'' where a bad start permanently marginalizes a potentially good model.
+\textbf{The Limitation}: Standard bandit algorithms assume stationarity and well-specified priors. They lack safety mechanisms for ``Negative Transfer,'' where a transferred prior could become harmful under severe domain mismatch. They also struggle with ``Expert Death,'' where a bad start permanently marginalizes a potentially good model.
 
 \textbf{Our Approach}: We introduce Expert Corralling~\cite{agarwal2017corralling} to the LLM routing domain. By maintaining a portfolio of experts (Warmup vs.\ Tabula Rasa) and dynamically mixing them, banditGPT provides a worst-case safety guarantee that standard LinUCB implementations lack.
 

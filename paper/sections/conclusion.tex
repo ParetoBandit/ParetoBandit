@@ -18,7 +18,7 @@ The economics of Large Language Models are shifting. As open-weights models like
 In this work, we introduced \texttt{banditGPT}, a lifelong learning framework that replaces static model allocation with adaptive resource routing.
 \begin{enumerate}
     \item \textbf{Empirically}, we demonstrated model preference heterogeneity: ${\sim}19\%$ of held-out prompts favor the cheaper model ($p < 0.0001$, $d = 1.53$), and static single-model allocation can pay $43\times$ more while degrading quality on this evaluation dataset. \texttt{banditGPT} closes 66\% of the optimality gap.
-    \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} as safety insurance against prior mismatch. Under moderate distribution shift (PSI=0.275), warmup priors remain beneficial ($-28\%$ regret vs tabula rasa), and Corralling adds modest hedging overhead (1--4\%). The mechanism provides protection against more severe mismatch scenarios where warmup priors could become harmful.
+    \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} as safety insurance against prior mismatch. Under moderate distribution shift (PSI=0.225, Figure~\ref{fig:distribution_shift}), warmup priors remain beneficial ($-28\%$ regret vs tabula rasa), and Corralling adds modest hedging overhead (1--4\%). The mechanism provides protection against more severe mismatch scenarios where warmup priors could become harmful.
     \item \textbf{Operationally}, we solved the ``Cold Start'' problem with \textbf{Latent Semantic Transfer}, proving that a router can admit new models with \textbf{Zero-Shot Readiness}.
 \end{enumerate}
 

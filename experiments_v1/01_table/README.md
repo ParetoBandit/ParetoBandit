@@ -107,7 +107,7 @@ The table provides **four essential components**:
 
 **Evaluation methodology**: Following standard bandit evaluation (Lattimore & Szepesvári, 2020), the bandit learns and acts on the holdout simultaneously — there is no separate "training" then "testing" phase. Cumulative reward across the full interaction sequence (including the early learning curve) is the standard metric. This matches production behavior, where the router serves every prompt and learns from every response. Multi-seed validation (N=30 seeds with shuffled prompt orderings) controls for sequence sensitivity.
 
-**Why not train-on-dev, evaluate-on-holdout?** A supervised approach (train on 1,121 dev prompts, freeze policy, evaluate on 750 holdout prompts) was tested and performs worse: 0.8133 frozen vs 0.8507 with online learning. The cause is distribution shift between warmup/dev and holdout (PSI = 0.275, domain alignment = 0.48; see Table 2). Freezing prevents the router from adapting to the holdout distribution. Online evaluation is not just standard bandit methodology — it is the mechanism that handles the distribution shift that exists in this data and would exist in any real deployment.
+**Why not train-on-dev, evaluate-on-holdout?** A supervised approach (train on 1,121 dev prompts, freeze policy, evaluate on 750 holdout prompts) was tested and performs worse: 0.8133 frozen vs 0.8507 with online learning. The cause is distribution shift between warmup and evaluation data (PSI = 0.225; see Figure 2 and Table 2). Freezing prevents the router from adapting to the holdout distribution. Online evaluation is not just standard bandit methodology — it is the mechanism that handles the distribution shift that exists in this data and would exist in any real deployment.
 
 ---
 
