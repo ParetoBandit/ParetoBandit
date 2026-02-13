@@ -24,15 +24,21 @@ from collections import defaultdict
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 # Import after path setup
 from sentence_transformers import SentenceTransformer
+from bandit_gpt.config_legacy import (
+    DEFAULT_PCA_PATH,
+    ROUTELLM_BATTLES_REWARDS_PATH,
+    DATA_DIR
+)
 
 # Paths
-PCA_MODEL_PATH = PROJECT_ROOT / "src" / "artifacts" / "pca_32.joblib"
-WARMUP_DATA = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset" / "routellm_battles_rewards.jsonl"
-DEV_PROMPTS = PROJECT_ROOT / "data" / "dev_prompts_for_rejudge.jsonl"
-HOLDOUT_PROMPTS = PROJECT_ROOT / "data" / "holdout_prompts_for_rejudge.jsonl"
+PCA_MODEL_PATH = DEFAULT_PCA_PATH
+WARMUP_DATA = ROUTELLM_BATTLES_REWARDS_PATH
+DEV_PROMPTS = DATA_DIR / "dev_prompts_for_rejudge.jsonl"
+HOLDOUT_PROMPTS = DATA_DIR / "holdout_prompts_for_rejudge.jsonl"
 
 
 def load_pca():

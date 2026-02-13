@@ -25,6 +25,9 @@ load_dotenv()
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from bandit_gpt.config_legacy import DATA_DIR
 
 def categorize_prompt(prompt: str) -> str:
     """Keyword-based categorization (from analyze_dataset_composition.py)"""
@@ -359,8 +362,8 @@ def main():
     print(f"✅ OpenRouter API key found")
     
     # Load data
-    DEV_PROMPTS = PROJECT_ROOT / "data" / "dev_prompts_for_rejudge.jsonl"
-    HOLDOUT_PROMPTS = PROJECT_ROOT / "data" / "holdout_prompts_for_rejudge.jsonl"
+    DEV_PROMPTS = DATA_DIR / "dev_prompts_for_rejudge.jsonl"
+    HOLDOUT_PROMPTS = DATA_DIR / "holdout_prompts_for_rejudge.jsonl"
     
     print("\n📊 Loading prompts...")
     all_prompts = []

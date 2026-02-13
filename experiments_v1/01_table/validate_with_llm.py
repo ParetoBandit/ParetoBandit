@@ -23,6 +23,9 @@ from typing import List, Tuple, Dict
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from bandit_gpt.config_legacy import DATA_DIR
 
 # Import categorization function
 SCRIPT_DIR = Path(__file__).parent
@@ -361,8 +364,8 @@ def main():
     
     # Load data
     from pathlib import Path
-    DEV_PROMPTS = PROJECT_ROOT / "data" / "dev_prompts_for_rejudge.jsonl"
-    HOLDOUT_PROMPTS = PROJECT_ROOT / "data" / "holdout_prompts_for_rejudge.jsonl"
+    DEV_PROMPTS = DATA_DIR / "dev_prompts_for_rejudge.jsonl"
+    HOLDOUT_PROMPTS = DATA_DIR / "holdout_prompts_for_rejudge.jsonl"
     
     print("📊 Loading prompts...")
     all_prompts = []

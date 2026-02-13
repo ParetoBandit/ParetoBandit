@@ -27,6 +27,9 @@ from collections import defaultdict, Counter
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from bandit_gpt.config_legacy import DATA_DIR
 
 # Import categorization function by loading it from the same directory
 SCRIPT_DIR = Path(__file__).parent
@@ -93,8 +96,8 @@ def categorize_prompt(prompt: str) -> str:
     return max(scores.items(), key=lambda x: x[1])[0]
 
 # Data paths
-DEV_PROMPTS = PROJECT_ROOT / "data" / "dev_prompts_for_rejudge.jsonl"
-HOLDOUT_PROMPTS = PROJECT_ROOT / "data" / "holdout_prompts_for_rejudge.jsonl"
+DEV_PROMPTS = DATA_DIR / "dev_prompts_for_rejudge.jsonl"
+HOLDOUT_PROMPTS = DATA_DIR / "holdout_prompts_for_rejudge.jsonl"
 
 
 def load_prompts(file_path: Path) -> list:

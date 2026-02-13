@@ -6,9 +6,10 @@ Clean methodology:
   - Routing PCA (domain-adapted feature extraction, unsupervised)
   - Holdout only (N=750, no dev contamination)
   - Unsupervised threshold (silhouette-optimal, no reward peeking)
+  - Categorical statistics appropriate for discrete reward data
 
 Panel A: PC1 vs Reward Gap scatter — directly shows the inversion
-Panel B: Violin plots of reward gap by cluster — shows distributional difference
+Panel B: Outcome proportions by cluster — grouped bar chart (win/tie/loss)
 
 Usage:
     python3 experiments_v1/01_figure/plot_figure1_revised.py
@@ -31,7 +32,7 @@ from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
-from scipy.stats import mannwhitneyu, sem
+from scipy.stats import mannwhitneyu, sem, chi2_contingency
 from scipy import stats as scipy_stats
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
@@ -161,6 +162,45 @@ def main():
     print(f"High PC1 ({len(gaps_high):,}): mean={np.mean(gaps_high):+.3f}  "
           f"CI=[{ci_high[0]:+.3f}, {ci_high[1]:+.3f}]")
     print(f"Mann-Whitney p = {p_value:.2e}   Cohen's d = {cohens_d:.2f}")
+    print(f"  (Note: Cohen's d is approximate — reward gaps are discrete)")
+
+    # ── Categorical analysis (appropriate for discrete reward data) ───────
+    unique_vals = sorted(np.unique(reward_gaps))
+    print(f"\nUnique reward gap values: {unique_vals}")
+
+    def categorize_gap(g, eps=1e-9):
+        if g > eps:
+            return 'GPT-4T wins'
+        elif g < -eps:
+            return 'Mixtral wins'
+        else:
+            return 'Tie'
+
+    cats_low = [categorize_gap(g) for g in gaps_low]
+    cats_high = [categorize_gap(g) for g in gaps_high]
+    outcome_order = ['GPT-4T wins', 'Tie', 'Mixtral wins']
+
+    counts_low = np.array([cats_low.count(c) for c in outcome_order])
+    counts_high = np.array([cats_high.count(c) for c in outcome_order])
+    props_low = counts_low / counts_low.sum() * 100
+    props_high = counts_high / counts_high.sum() * 100
+
+    contingency = np.array([counts_low, counts_high])
+    chi2, p_chi2, dof, expected = chi2_contingency(contingency)
+    cramers_v = np.sqrt(chi2 / (len(reward_gaps) * (min(contingency.shape) - 1)))
+
+    print(f"\nContingency Table (cluster x outcome):")
+    print(f"{'':>15} {'GPT-4T wins':>12} {'Tie':>8} {'Mixtral wins':>14}")
+    print(f"{'Low PC1':>15} {counts_low[0]:>12} {counts_low[1]:>8} {counts_low[2]:>14}")
+    print(f"{'High PC1':>15} {counts_high[0]:>12} {counts_high[1]:>8} {counts_high[2]:>14}")
+    print(f"\nProportions:")
+    print(f"  Low PC1:  GPT-4T wins {props_low[0]:.1f}%, "
+          f"Tie {props_low[1]:.1f}%, Mixtral wins {props_low[2]:.1f}%")
+    print(f"  High PC1: GPT-4T wins {props_high[0]:.1f}%, "
+          f"Tie {props_high[1]:.1f}%, Mixtral wins {props_high[2]:.1f}%")
+    print(f"\nChi-squared: chi2 = {chi2:.1f}, df = {dof}, "
+          f"p = {p_chi2:.2e}")
+    print(f"Cramer's V = {cramers_v:.3f}")
 
     # ── Colours & labels ──────────────────────────────────────────────────
     blue = '#4575b4'
@@ -185,13 +225,13 @@ def main():
         pc1[low_mask], reward_gaps[low_mask],
         c=blue, s=18, alpha=0.45, edgecolors='none',
         rasterized=True, zorder=2,
-        label=f'GPT-4-Turbo preferred ({pct_low:.0f}%)'
+        label=f'Low PC1 ({pct_low:.0f}%)'
     )
     ax1.scatter(
         pc1[high_mask], reward_gaps[high_mask],
         c=red, s=18, alpha=0.45, edgecolors='none',
         rasterized=True, zorder=2,
-        label=f'Mixtral preferred ({pct_high:.0f}%)'
+        label=f'High PC1 ({pct_high:.0f}%)'
     )
 
     # Running-mean trend
@@ -218,88 +258,61 @@ def main():
     ax1.set_xlim(pc1.min() - 0.03, pc1.max() + 0.03)
     ax1.set_ylim(-1.25, 1.25)
 
-    # ── Panel B: Violin + box plots ──────────────────────────────────────
-    # Pad data with a few phantom points beyond the range so the KDE
-    # tapers to natural tails instead of being cut flat at data extremes.
-    pad = 0.08
-    gaps_low_violin = np.concatenate([
-        gaps_low,
-        [gaps_low.min() - pad, gaps_low.max() + pad],
-    ])
-    gaps_high_violin = np.concatenate([
-        gaps_high,
-        [gaps_high.min() - pad, gaps_high.max() + pad],
-    ])
-    vp = ax2.violinplot(
-        [gaps_low_violin, gaps_high_violin], positions=[0, 1],
-        showmeans=False, showmedians=False, showextrema=False
+    # ── Panel B: Outcome proportions by cluster (grouped bar chart) ─────
+    bar_width = 0.32
+    x_pos = np.arange(len(outcome_order))
+
+    # Cluster bars side by side
+    bars_low = ax2.bar(
+        x_pos - bar_width / 2, props_low, bar_width,
+        label=f'Low PC1 (n={n_low})', color=blue, alpha=0.75,
+        edgecolor='black', linewidth=0.8
     )
-    for i, body in enumerate(vp['bodies']):
-        body.set_facecolor([blue, red][i])
-        body.set_edgecolor('black')
-        body.set_linewidth(0.8)
-        body.set_alpha(0.55)
-
-    # Overlay box plots (narrower)
-    bp = ax2.boxplot(
-        [gaps_low, gaps_high], positions=[0, 1],
-        widths=0.15, patch_artist=True,
-        showfliers=False, zorder=5,
-        medianprops=dict(color='white', linewidth=2),
-        whiskerprops=dict(color='black', linewidth=1.2),
-        capprops=dict(color='black', linewidth=1.2),
+    bars_high = ax2.bar(
+        x_pos + bar_width / 2, props_high, bar_width,
+        label=f'High PC1 (n={n_high})', color=red, alpha=0.75,
+        edgecolor='black', linewidth=0.8
     )
-    for i, patch in enumerate(bp['boxes']):
-        patch.set_facecolor([blue, red][i])
-        patch.set_edgecolor('black')
-        patch.set_linewidth(1.2)
-        patch.set_alpha(0.85)
 
-    # Mean markers
-    for i, (gaps, col) in enumerate([(gaps_low, blue), (gaps_high, red)]):
-        ax2.scatter([i], [np.mean(gaps)], color='white', edgecolors='black',
-                    s=60, zorder=6, linewidths=1.5, marker='D')
+    # Value labels on bars
+    for bars in [bars_low, bars_high]:
+        for bar in bars:
+            h = bar.get_height()
+            if h > 2:
+                ax2.text(bar.get_x() + bar.get_width() / 2., h + 1.2,
+                         f'{h:.0f}%', ha='center', va='bottom', fontsize=8,
+                         fontweight='bold')
 
-    ax2.axhline(y=0, color=grey, linestyle=':', linewidth=1.0, alpha=0.6)
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(
+        ['GPT-4T\nwins', 'Tie', 'Mixtral\nwins'],
+        fontsize=10, fontweight='bold'
+    )
+    ax2.set_ylabel('Proportion (%)', fontsize=12, fontweight='bold')
+    ax2.set_title('(B)  Outcome Proportions by Cluster', fontsize=13,
+                   fontweight='bold', pad=12)
+    ax2.set_ylim(0, max(props_low.max(), props_high.max()) + 15)
+    ax2.legend(loc='upper left', fontsize=8.5, framealpha=0.95,
+               edgecolor='#cccccc', fancybox=True)
+    ax2.grid(axis='y', alpha=0.15, linestyle='--', linewidth=0.5)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
 
     # Statistical annotation box
-    p_str = f'p < 0.0001' if p_value < 0.0001 else f'p = {p_value:.4f}'
+    p_str_chi2 = 'p < 0.0001' if p_chi2 < 0.0001 else f'p = {p_chi2:.4f}'
+    p_str_mw = 'p < 0.0001' if p_value < 0.0001 else f'p = {p_value:.4f}'
     stat_text = (
-        f'{p_str}\n'
-        f"Cohen's d = {cohens_d:.2f}\n"
+        f"$\\chi^2$ = {chi2:.1f}, {p_str_chi2}\n"
+        f"Cram\u00e9r's V = {cramers_v:.2f}\n"
+        f"Mann-Whitney {p_str_mw}\n"
         f'N = {len(reward_gaps)}'
     )
     ax2.text(
         0.97, 0.97, stat_text, transform=ax2.transAxes,
-        fontsize=9, verticalalignment='top', horizontalalignment='right',
+        fontsize=8.5, verticalalignment='top', horizontalalignment='right',
         bbox=dict(boxstyle='round,pad=0.4', facecolor='#f5f5f5',
                   edgecolor='#cccccc', alpha=0.95)
     )
-
-    # Mean ± CI annotations below violins — placed well below data range
-    for i, (gaps, ci, col) in enumerate([
-        (gaps_low, ci_low, blue), (gaps_high, ci_high, red)
-    ]):
-        mean_str = f'{np.mean(gaps):+.2f}'
-        ci_str = f'[{ci[0]:+.2f}, {ci[1]:+.2f}]'
-        ax2.text(i, -1.22, f'$\\mu$ = {mean_str}\n{ci_str}',
-                 ha='center', va='top', fontsize=8.5, color=col,
-                 fontweight='bold')
-
-    ax2.set_xticks([0, 1])
-    ax2.set_xticklabels(
-        [f'GPT-4-Turbo\npreferred\n(n={n_low})',
-         f'Mixtral\npreferred\n(n={n_high})'],
-        fontsize=10, fontweight='bold'
-    )
-    ax2.set_ylabel('Reward gap  (GPT-4-Turbo − Mixtral)', fontsize=12,
-                    fontweight='bold')
-    ax2.set_title('(B)  Reward Gap by Cluster', fontsize=13,
-                   fontweight='bold', pad=12)
-    ax2.set_ylim(-1.55, 1.25)
-    ax2.grid(axis='y', alpha=0.15, linestyle='--', linewidth=0.5)
-    ax2.spines['top'].set_visible(False)
-    ax2.spines['right'].set_visible(False)
 
     # ── Save ──────────────────────────────────────────────────────────────
     fig.subplots_adjust(left=0.08, right=0.97, bottom=0.14, top=0.93)
@@ -321,11 +334,20 @@ def main():
     print(f"  Data:       Holdout only (N={len(prompts)})")
     print(f"  PCA:        Routing-adapted (domain-specific feature extraction)")
     print(f"  Threshold:  {threshold:.3f} (silhouette-optimal, unsupervised)")
-    print(f"  Low  PC1:   {n_low} prompts ({pct_low:.1f}%), "
-          f"mean gap = {np.mean(gaps_low):+.3f}")
-    print(f"  High PC1:   {n_high} prompts ({pct_high:.1f}%), "
-          f"mean gap = {np.mean(gaps_high):+.3f}")
-    print(f"  {p_str},  Cohen's d = {cohens_d:.2f}")
+    print(f"  Low  PC1:   {n_low} prompts ({pct_low:.1f}%)")
+    print(f"    GPT-4T wins: {props_low[0]:.1f}%, "
+          f"Tie: {props_low[1]:.1f}%, "
+          f"Mixtral wins: {props_low[2]:.1f}%")
+    print(f"    Mean gap = {np.mean(gaps_low):+.3f}")
+    print(f"  High PC1:   {n_high} prompts ({pct_high:.1f}%)")
+    print(f"    GPT-4T wins: {props_high[0]:.1f}%, "
+          f"Tie: {props_high[1]:.1f}%, "
+          f"Mixtral wins: {props_high[2]:.1f}%")
+    print(f"    Mean gap = {np.mean(gaps_high):+.3f}")
+    print(f"  Chi-squared: chi2={chi2:.1f}, {p_str_chi2}, "
+          f"Cramer's V={cramers_v:.2f}")
+    print(f"  Mann-Whitney: {p_str_mw}")
+    print(f"  Cohen's d = {cohens_d:.2f} (approx; data is discrete)")
     print(f"  Robustness: Generic C4 PCA confirms effect "
           f"(p<0.0001, d=0.33)")
     print("=" * 80)

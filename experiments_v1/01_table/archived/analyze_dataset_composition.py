@@ -20,13 +20,19 @@ from typing import Dict, List, Tuple
 from scipy import stats
 
 # Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from bandit_gpt.config_legacy import (
+    DATA_DIR,
+    ROUTELLM_BATTLES_REWARDS_PATH
+)
 
 # Data paths
-DEV_PROMPTS = PROJECT_ROOT / "data" / "dev_prompts_for_rejudge.jsonl"
-HOLDOUT_PROMPTS = PROJECT_ROOT / "data" / "holdout_prompts_for_rejudge.jsonl"
-WARMUP_PROMPTS = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset" / "routellm_battles_rewards.jsonl"
+DEV_PROMPTS = DATA_DIR / "dev_prompts_for_rejudge.jsonl"
+HOLDOUT_PROMPTS = DATA_DIR / "holdout_prompts_for_rejudge.jsonl"
+WARMUP_PROMPTS = ROUTELLM_BATTLES_REWARDS_PATH
 
 
 def categorize_prompt(prompt: str) -> str:

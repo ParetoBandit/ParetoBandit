@@ -4,6 +4,7 @@ Data loading utilities for BanditGPT experiments.
 Provides consistent data loading across all experiments.
 """
 
+import sys
 import gzip
 import json
 import numpy as np
@@ -13,11 +14,15 @@ from typing import List, Dict, Tuple, Optional
 
 # Define paths relative to project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data"
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-# Canonical dataset paths (single source of truth)
-CANONICAL_DEV_REWARDS = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset" / "dev_rewards_complete.jsonl.gz"
-CANONICAL_HOLDOUT_REWARDS = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset" / "holdout_rewards_complete.jsonl.gz"
+from bandit_gpt.config_legacy import (
+    PROJECT_ROOT as CONFIG_ROOT,
+    BANDIT_DATA_DIR as DATA_DIR,
+    DEV_DATA_PATH_3MODELS as CANONICAL_DEV_REWARDS,
+    HOLDOUT_DATA_PATH_3MODELS as CANONICAL_HOLDOUT_REWARDS,
+    DEFAULT_MODEL_REGISTRY_PATH
+)
 
 
 def load_test_prompts(filename: str = "test_prompts.jsonl") -> List[Dict]:
@@ -187,7 +192,7 @@ def load_model_registry(path: Optional[str | Path] = None) -> Dict[str, Dict]:
     if path:
         models_file = Path(path)
     else:
-        models_file = PROJECT_ROOT / "src" / "bandit_gpt" / "config" / "models.json"
+        models_file = DEFAULT_MODEL_REGISTRY_PATH
     
     if not models_file.exists():
         raise FileNotFoundError(f"models.json not found at {models_file}")
