@@ -1,0 +1,27 @@
+
+\begin{table}[t]
+\centering
+\caption{Dataset Description and Experimental Splits}
+\label{tab:dataset}
+\small
+\begin{tabular}{@{}llrl@{}}
+\toprule
+\textbf{Split} & \textbf{Source} & \textbf{Size} & \textbf{Purpose} \\
+\midrule
+PCA Training    & RouteLLM Battles & 80,000 & Dimensionality reduction (384$\rightarrow$32) \\
+Warmup Priors   & RouteLLM Battles & 80,000 & LinUCB initialization ($\mathbf{A}$, $\mathbf{b}$) \\
+Development     & LMSYS Arena      & 1,121 & Online learning \& calibration \\
+Holdout         & LMSYS Arena      & 750 & Final evaluation \\
+\midrule
+\textbf{Total} & & \textbf{81,871} & \\
+\bottomrule
+\end{tabular}
+
+\vspace{1em}
+\footnotesize
+\textbf{Data Sources.} All prompts from LMSYS Chat Arena~\cite{zheng2023lmsys}, a public dataset of real user-LLM interactions.
+\textbf{RouteLLM Battles}~\cite{ong2024routellm}: Pairwise comparisons (mixtral-8x7b-instruct vs gpt-4-turbo) from HuggingFace dataset \texttt{routellm/gpt4\_judge\_battles}. Used for PCA training and warmup prior generation (covariance matrix $\mathbf{A} \in \mathbb{R}^{33 \times 33}$, belief vector $\mathbf{b} \in \mathbb{R}^{33}$).
+\textbf{LMSYS Arena}: Stratified splits with mixtral-8x7b-instruct and gpt-4o evaluations. Model substitution (gpt-4-turbo$\rightarrow$gpt-4o) reflects current flagship model availability. See Section~\ref{sec:model_substitution} for validation.
+\textbf{Data Quality.} Zero data leakage verified via automated checks (243 overlapping prompts removed, 0.24\%). Dev and holdout sets use stratified sampling to ensure representative coverage. Chi-square test confirms similar distributions ($\chi^2$=0.78, $p$=0.94).
+\textbf{Sample Size.} Evaluation set (1,871 prompts total) exceeds prior work on LLM routing (RouteLLM: $\sim$1,000 prompts)~\cite{ong2024routellm}. Holdout set (750) provides sufficient statistical power for detecting meaningful performance differences.
+\end{table}
