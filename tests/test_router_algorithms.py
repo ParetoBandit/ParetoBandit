@@ -28,7 +28,6 @@ from bandit_gpt.router import (
     CorrallingRouter,
     CostAwareLinUCBRouter,
     CostAwareTabulaRasaRouter,
-    OptimizationProfile,
     l2_normalize,
     estimate_tokens_rough
 )
