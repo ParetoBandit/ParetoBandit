@@ -64,20 +64,74 @@ python generate_table_from_results.py \
 - `visualize_variance.py` - Variance diagnostic plots
 - `run_statistical_validation.sh` - Full pipeline automation
 - `check_progress.sh` - Progress monitoring
+- **`analyze_failure_modes.py`** ⭐ - Catastrophic seed diagnosis
+- **`compute_power_analysis.py`** ⭐ - Statistical power calculations
+- **`compute_cost_analysis.py`** ⭐ - Production cost analysis
 
 **Documentation:**
 - `STATISTICAL_VALIDATION.md` - Complete technical guide
-- `FIX_SUMMARY.md` - Quick reference
 - `VARIANCE_ANALYSIS.md` - Root cause analysis
-- `ISSUE_2_FIX.md` - Terminology fixes
-- `ISSUE_4_ABLATION.md` - Ablation clarification
-- `COMPLETE_FIX_GUIDE.md` - Implementation guide
-- `EXECUTIVE_SUMMARY.md` - High-level overview
-- `NEXT_STEPS_AFTER_VALIDATION.md` - Post-validation checklist
+- `FINAL_RESULTS_AND_ACTIONS.md` - Complete validation summary
+- **`REVIEWER_CONCERNS_ADDRESSED.md`** ⭐ - Comprehensive reviewer response
 
 **LaTeX:**
-- `table2_merged_corrected.tex` - Fixed terminology (manual)
-- `table2_final.tex` - Auto-generated from results
+- `table2_final_corrected.tex` - ✅ **USE THIS** - Corrected with proper statistics
+
+**Data:**
+- `data/failure_mode_diagnostic.json` - Failure mode analysis results
+- `data/power_analysis.json` - Power calculations and MDE
+- `data/cost_analysis.json` - Cost breakdowns at scale
+
+**Figures:**
+- `figures/failure_mode_analysis.png` - 3-panel diagnostic visualization
+
+---
+
+## 🔍 Post-Validation Diagnostic Analyses (2026-02-13)
+
+**NEW:** Three diagnostic scripts address reviewer concerns without re-running experiments:
+
+### 1. Failure Mode Analysis
+
+```bash
+python analyze_failure_modes.py
+```
+
+**Findings:**
+- Seeds 0 and 3 failed catastrophically (80, 76 regret)
+- Root cause: Locked onto Warmup expert (88% GPT-4 usage)
+- η=0.1 has 0% failure rate (0/10 seeds)
+- η=1.0 has 20% failure rate (2/10 seeds)
+
+**Output:** `figures/failure_mode_analysis.png`, `data/failure_mode_diagnostic.json`
+
+### 2. Power Analysis
+
+```bash
+python compute_power_analysis.py
+```
+
+**Findings:**
+- Observed effect: Cohen's d = -0.221 (small)
+- Achieved power: 7.5% (severely underpowered)
+- Required N: 323 seeds for 80% power
+- **Conclusion:** Underpowered, but effect is practically negligible (d < 0.5)
+
+**Output:** `data/power_analysis.json`
+
+### 3. Cost Analysis
+
+```bash
+python compute_cost_analysis.py
+```
+
+**Findings:**
+- Corralling: 13-15% more expensive than Tabula Rasa
+- Higher GPT-4 usage (81% vs 71%)
+- At 1M queries/month: +$1,450/month "insurance premium"
+- Tradeoff: Pay more for robustness against harmful warmup
+
+**Output:** `data/cost_analysis.json`
 
 ---
 

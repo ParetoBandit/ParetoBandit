@@ -102,7 +102,7 @@ Hybrid (η=1.0) & 24.1 & 29.9 & 44.6\% \\
 
 \textbf{Key insight:} Warmup accumulates 65\% of its total regret in the first 44.6\% of samples (500/1121). This is because:
 \begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{High confidence, wrong decisions:} Warmup priors encode strong beliefs about model preferences (favor GPT-4 for technical content). These beliefs are \emph{confident} (high exploitation) but \emph{wrong} for conversational queries.
+    \item \textbf{High confidence, wrong decisions:} Warmup priors encode strong beliefs about model preferences (favor GPT-4-Turbo for technical content). These beliefs are \emph{confident} (high exploitation) but \emph{wrong} for conversational queries.
     \item \textbf{Slow adaptation:} Standard LinUCB with warmup priors requires hundreds of samples to overcome pre-trained covariance matrix ($\mathbf{A}$) and belief vector ($\mathbf{b}$). Early mistakes compound.
     \item \textbf{No detection mechanism:} Pure warmup has no way to recognize it's in a mismatched domain until substantial regret accumulates.
 \end{enumerate}
