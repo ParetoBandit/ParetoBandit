@@ -1,6 +1,6 @@
 # Experiment 08: Sensitivity Analysis - Prior Strength Calibration
 
-**Figure 8** from the KDD 2026 submission: "banditGPT: Cost-Aware Contextual Bandits for LLM Routing"
+**Figure 8**: "banditGPT: Cost-Aware Contextual Bandits for LLM Routing"
 
 ---
 
@@ -56,7 +56,7 @@ open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
   - Simulates model release at t=300
   - Generates hybrid visualization
 
-### Documentation (KDD-Compliant)
+### Documentation (Comprehensive)
 - **`EXPERIMENT_DESIGN.md`**: Comprehensive experimental methodology
   - Research questions & hypotheses
   - Experimental protocol (setup, controls, metrics)
@@ -81,7 +81,7 @@ open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
 ### Output
 - **`results/figure8_sensitivity_hybrid.png`**: Publication-quality figure
   - Hybrid visualization (robustness band + optimal line + baseline)
-  - Clean, KDD-compliant aesthetic
+  - Clean, publication-quality aesthetic
   - Data-driven annotations (no hardcoded values)
 
 ---
@@ -149,7 +149,7 @@ open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
 
 ### Methodological Rigor
 
-✅ **Deterministic Execution**: Fixed seed (42) eliminates variance  
+✅ **Controlled Execution**: Fixed seed (42) ensures reproducibility  
 ✅ **Real Data**: 1,000 LMSYS Arena battles (no synthetic proxies)  
 ✅ **Shared Warmup**: Pre-release identical across all configs  
 ✅ **No Look-Ahead**: Sequential processing (realistic)  
@@ -249,7 +249,7 @@ If you use this experiment in your research, please cite:
 @inproceedings{banditgpt2026,
   title={banditGPT: Cost-Aware Contextual Bandits for LLM Routing},
   author={[Authors]},
-  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+  booktitle={Proceedings of the Conference on Knowledge Discovery and Data Mining},
   year={2026}
 }
 ```

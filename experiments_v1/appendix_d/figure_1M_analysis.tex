@@ -112,8 +112,8 @@ The 1M dataset analysis reframes the Negative Transfer problem from a \emph{meth
 \emph{``Static warmup priors trained on expensive model preferences (Mixtral vs. GPT-4-Turbo) catastrophically over-route production traffic. On 94\% of real-world requests, the router wastes budget by invoking flagship models for tasks that mid-tier models handle adequately. This is not a calibration issue---it is a \textbf{structural mismatch} between training incentives and deployment economics.''}
 \end{quote}
 
-\paragraph{Why This Matters for KDD.}
-The 317$\times$ scale validation transforms your contribution from ``interesting research'' to ``production-critical infrastructure.'' Reviewers will appreciate:
+\paragraph{Why This Matters.}
+The 317$\times$ scale validation demonstrates that findings generalize from controlled experiments to production-scale deployments. This validation is significant because:
 
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
     \item \textbf{Rigor:} You didn't cherry-pick a favorable dataset---you analyzed \emph{all} 594K prompts.
@@ -178,5 +178,5 @@ This "project-and-route" paradigm is only valid because the manifold is invarian
 \textbf{Practical Implication:} Semantic routing is not just an optimization—it is a \textbf{production-critical infrastructure component} that prevents catastrophic over-routing in real-world deployments.
 \end{tcolorbox}
 
-This appendix positions the work as \emph{production-ready} and \emph{theoretically grounded}, addressing both the empirical rigor and practical impact criteria that KDD reviewers prioritize for industry-scale machine learning systems.
+This appendix positions the work as \emph{production-ready} and \emph{theoretically grounded}, demonstrating both empirical rigor and practical impact for industry-scale machine learning systems.
 
