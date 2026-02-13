@@ -1,8 +1,8 @@
-# Presentation Guide: Proactive Validation Approach
+# Presentation Guide: Validation Approach
 
 ## How to Present This Work
 
-This experiment demonstrates **proactive methodological rigor**, not reactive fixes. Frame the validation work as standard research practice that ensures publication-quality results.
+This experiment demonstrates **methodological rigor** as standard research practice that ensures publication-quality results.
 
 ---
 
@@ -26,7 +26,7 @@ This experiment demonstrates **proactive methodological rigor**, not reactive fi
 
 ### What to Emphasize
 
-✅ **Proactive rigor**: "We performed comprehensive validation to ensure..."  
+✅ **Methodological rigor**: "We performed comprehensive validation to ensure..."  
 ✅ **Multiple methods**: "Independent validation approaches converge..."  
 ✅ **Thoroughness**: "To address common methodological concerns in the field..."  
 ✅ **Transparency**: "We clearly distinguish validated findings from exploratory observations..."
@@ -141,7 +141,7 @@ A: "Our primary claims are based on the labeled holdout set (N=1,871). The 1M an
 
 ### External Presentation
 - Use LaTeX files for paper integration
-- Emphasize proactive approach in documentation
+- Emphasize rigorous approach in documentation
 - Make validation scripts available in supplementary materials
 
 ---
