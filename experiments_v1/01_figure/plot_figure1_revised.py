@@ -31,6 +31,7 @@ import matplotlib.patches as mpatches
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import silhouette_score
 from scipy.stats import mannwhitneyu, sem, chi2_contingency
 from scipy import stats as scipy_stats
@@ -57,7 +58,7 @@ def load_holdout_only(holdout_file: Path):
                     prompt_rewards[prompt] = {}
                 if 'mixtral' in model_id.lower():
                     prompt_rewards[prompt]['mixtral'] = raw_score
-                elif 'gpt-4-turbo' in model_id.lower() or 'gpt-4' in model_id.lower():
+                elif 'gpt-4-turbo' in model_id.lower():
                     prompt_rewards[prompt]['gpt4'] = raw_score
             except Exception:
                 continue
@@ -153,7 +154,7 @@ def threshold_stability_analysis(X_2d, reward_gaps, primary_threshold):
             continue
 
         chi2_val, p_val, _, _ = chi2_contingency(ct)
-        v = np.sqrt(chi2_val / (len(reward_gaps) * 1))
+        v = np.sqrt(chi2_val / (len(reward_gaps) * (min(ct.shape) - 1)))
 
         # Cohen's d (approximate)
         ps = np.sqrt(((len(g_low) - 1) * np.var(g_low, ddof=1)
@@ -180,6 +181,156 @@ def threshold_stability_analysis(X_2d, reward_gaps, primary_threshold):
         print(f"Thresholds with p < 0.001: {sig_count}/{len(results)}")
 
     return results
+
+
+def power_analysis_chi2(contingency, alpha=0.05, n_simulations=10_000):
+    """Monte-Carlo power analysis for chi-squared test on discrete outcomes.
+
+    Estimates the statistical power of the chi-squared test given the
+    observed contingency table proportions and sample sizes.  This is more
+    appropriate than parametric power formulae for small, discrete tables.
+
+    Parameters
+    ----------
+    contingency : ndarray, shape (2, 3)
+        Observed contingency table (clusters x outcomes).
+    alpha : float
+        Significance level.
+    n_simulations : int
+        Number of Monte-Carlo replications.
+    """
+    print("\n── Power Analysis (Monte-Carlo, chi-squared) ──")
+
+    n_per_row = contingency.sum(axis=1)  # [n_low, n_high]
+    row_props = contingency / contingency.sum(axis=1, keepdims=True)
+
+    # --- Power under the ALTERNATIVE (observed proportions) ---
+    reject_alt = 0
+    for _ in range(n_simulations):
+        # Simulate from the observed per-cluster proportions
+        sim_rows = []
+        for k in range(contingency.shape[0]):
+            sim_rows.append(np.random.multinomial(int(n_per_row[k]),
+                                                  row_props[k]))
+        sim_ct = np.array(sim_rows)
+        # Guard against zero rows/cols
+        if sim_ct.min() < 0 or sim_ct.sum() == 0:
+            continue
+        try:
+            _, p, _, exp = chi2_contingency(sim_ct)
+            if exp.min() >= 1:
+                reject_alt += int(p < alpha)
+        except Exception:
+            continue
+    power = reject_alt / n_simulations
+
+    # --- False-positive rate under the NULL (pooled proportions) ---
+    pooled_props = contingency.sum(axis=0) / contingency.sum()
+    reject_null = 0
+    for _ in range(n_simulations):
+        sim_rows = []
+        for k in range(contingency.shape[0]):
+            sim_rows.append(np.random.multinomial(int(n_per_row[k]),
+                                                  pooled_props))
+        sim_ct = np.array(sim_rows)
+        if sim_ct.min() < 0 or sim_ct.sum() == 0:
+            continue
+        try:
+            _, p, _, exp = chi2_contingency(sim_ct)
+            if exp.min() >= 1:
+                reject_null += int(p < alpha)
+        except Exception:
+            continue
+    fpr = reject_null / n_simulations
+
+    print(f"  Sample sizes:       n_low={int(n_per_row[0])}, "
+          f"n_high={int(n_per_row[1])}")
+    print(f"  Observed proportions (Low):  {row_props[0]}")
+    print(f"  Observed proportions (High): {row_props[1]}")
+    print(f"  Significance level:  alpha = {alpha}")
+    print(f"  Simulations:         {n_simulations:,}")
+    print(f"  Power (alternative): {power:.3f}  "
+          f"({reject_alt}/{n_simulations} rejections)")
+    print(f"  FPR (null):          {fpr:.3f}  "
+          f"({reject_null}/{n_simulations} rejections)")
+
+    # --- Minimum detectable effect size (Cramer's V) ---
+    # Sweep smaller and smaller effect sizes to find the threshold
+    print("\n  Detectable effect sizes at 80% power:")
+    for target_v in [0.05, 0.10, 0.15, 0.20, 0.25, 0.30]:
+        # Perturb pooled proportions by target_v to create a synthetic
+        # alternative.  For a 2x3 table, shift mass between cells.
+        n_total = int(n_per_row.sum())
+        # Use the chi2 non-centrality parameter:
+        #   V = sqrt(chi2 / (n * min(r-1,c-1)))
+        #   => chi2 = V^2 * n * min(r-1,c-1)
+        k_min = min(contingency.shape) - 1
+        ncp = target_v ** 2 * n_total * k_min
+        dof_val = (contingency.shape[0] - 1) * (contingency.shape[1] - 1)
+        crit = scipy_stats.chi2.ppf(1 - alpha, dof_val)
+        power_approx = 1 - scipy_stats.ncx2.cdf(crit, dof_val, ncp)
+        marker = " <-- ~80%" if abs(power_approx - 0.80) < 0.05 else ""
+        print(f"    V = {target_v:.2f}:  power ≈ {power_approx:.3f}{marker}")
+
+    return power, fpr
+
+
+def cluster_content_analysis(prompts_low, prompts_high, top_n=15):
+    """Systematic TF-IDF keyword analysis of cluster contents.
+
+    Computes terms that are most distinctive to each cluster relative to the
+    other, replacing anecdotal 'qualitative inspection' with reproducible
+    evidence.
+    """
+    print("\n── Cluster Content Analysis (TF-IDF) ──")
+
+    all_prompts = prompts_low + prompts_high
+    labels = [0] * len(prompts_low) + [1] * len(prompts_high)
+
+    tfidf = TfidfVectorizer(
+        max_features=5000,
+        stop_words='english',
+        ngram_range=(1, 2),
+        min_df=3,
+        max_df=0.8,
+    )
+    X = tfidf.fit_transform(all_prompts)
+    feature_names = np.array(tfidf.get_feature_names_out())
+
+    # Mean TF-IDF per cluster
+    labels_arr = np.array(labels)
+    mean_low = np.asarray(X[labels_arr == 0].mean(axis=0)).ravel()
+    mean_high = np.asarray(X[labels_arr == 1].mean(axis=0)).ravel()
+
+    # Distinctive terms: ratio of cluster mean to other cluster mean
+    eps = 1e-8
+    ratio_high = mean_high / (mean_low + eps)
+    ratio_low = mean_low / (mean_high + eps)
+
+    top_high_idx = np.argsort(ratio_high)[::-1][:top_n]
+    top_low_idx = np.argsort(ratio_low)[::-1][:top_n]
+
+    print(f"\nTop {top_n} distinctive terms — High PC1 cluster "
+          f"(n={len(prompts_high)}):")
+    for i, idx in enumerate(top_high_idx, 1):
+        print(f"  {i:2d}. {feature_names[idx]:<30s}  "
+              f"(ratio={ratio_high[idx]:.1f}, "
+              f"tf-idf_high={mean_high[idx]:.4f}, "
+              f"tf-idf_low={mean_low[idx]:.4f})")
+
+    print(f"\nTop {top_n} distinctive terms — Low PC1 cluster "
+          f"(n={len(prompts_low)}):")
+    for i, idx in enumerate(top_low_idx, 1):
+        print(f"  {i:2d}. {feature_names[idx]:<30s}  "
+              f"(ratio={ratio_low[idx]:.1f}, "
+              f"tf-idf_low={mean_low[idx]:.4f}, "
+              f"tf-idf_high={mean_high[idx]:.4f})")
+
+    # Average prompt length per cluster
+    len_low = np.mean([len(p.split()) for p in prompts_low])
+    len_high = np.mean([len(p.split()) for p in prompts_high])
+    print(f"\nMean prompt length — Low PC1: {len_low:.1f} words, "
+          f"High PC1: {len_high:.1f} words")
 
 
 def main():
@@ -277,8 +428,18 @@ def main():
           f"p = {p_chi2:.2e}")
     print(f"Cramer's V = {cramers_v:.3f}")
 
+    # ── Power analysis ────────────────────────────────────────────────────
+    power_analysis_chi2(contingency)
+
     # ── Threshold stability (effect size across thresholds) ───────────────
     threshold_stability_analysis(X_2d, reward_gaps, threshold)
+
+    # ── Systematic content analysis (TF-IDF) ─────────────────────────────
+    prompts_arr = np.array(prompts)
+    cluster_content_analysis(
+        list(prompts_arr[low_mask]),
+        list(prompts_arr[high_mask]),
+    )
 
     # ── Colours & labels ──────────────────────────────────────────────────
     blue = '#4575b4'
@@ -312,10 +473,19 @@ def main():
         label=f'High PC1 ({pct_high:.0f}%)'
     )
 
-    # Running-mean trend
+    # Running-mean trend (smooths discrete outcomes for visual clarity)
     rm_x, rm_y = running_mean(pc1, reward_gaps, window=60)
     ax1.plot(rm_x, rm_y, color='black', linewidth=2.5, zorder=4,
-             label='Running mean')
+             label='Running mean (w=60)')
+
+    # Annotate that underlying data is discrete
+    ax1.text(
+        0.98, 0.02,
+        'Note: reward gaps are discrete\n(win=+1, tie=0, loss=−1);\nrunning mean smooths proportions.',
+        transform=ax1.transAxes, fontsize=6.5, color='#666666',
+        verticalalignment='bottom', horizontalalignment='right',
+        fontstyle='italic',
+    )
 
     # Threshold & zero lines
     ax1.axvline(x=threshold, color=grey, linestyle='--', linewidth=1.8,
@@ -425,9 +595,15 @@ def main():
     print(f"  Chi-squared: chi2={chi2:.1f}, {p_str_chi2}, "
           f"Cramer's V={cramers_v:.2f}")
     print(f"  Mann-Whitney: {p_str_mw}")
-    print(f"  Cohen's d = {cohens_d:.2f} (approx; data is discrete)")
-    print(f"  Robustness: Generic C4 PCA confirms effect "
-          f"(p<0.0001, d=0.33)")
+    print(f"  Primary effect size (unbiased):  Generic C4 PCA "
+          f"Cohen's d = 0.33 (small, p<0.0001)")
+    print(f"  Amplified effect size:           Domain-adapted PCA "
+          f"Cohen's d = {cohens_d:.2f} (approx; data is discrete)")
+    print(f"  NOTE: The generic PCA result (d=0.33) is the conservative,")
+    print(f"        unbiased baseline. Domain-adapted PCA amplifies via")
+    print(f"        task-relevant feature extraction (4.6x).")
+    print(f"  Cluster proportion: {pct_high:.1f}% in holdout; "
+          f"may differ in production (cf. 1M dataset: ~5.9%)")
     print("=" * 80)
 
 

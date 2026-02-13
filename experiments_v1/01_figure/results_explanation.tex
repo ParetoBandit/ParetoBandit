@@ -18,7 +18,8 @@ Using a silhouette-optimal threshold ($\text{PC1} = 0.222$, selected without ref
     \item \textbf{Low PC1 Cluster (80.8\%, $n=606$):} Diverse conversational prompts where GPT-4-Turbo is preferred on aggregate (mean $\Delta = +0.121$).
 
     \item \textbf{High PC1 Cluster (19.2\%, $n=144$):} Prompts where Mixtral wins at a substantially higher rate and GPT-4-Turbo wins less often (mean $\Delta = -0.563$).
-    Qualitative inspection reveals this cluster contains instruction-following templates, binary classification tasks, structured output requirements, and explicit negative constraints.
+    Systematic TF-IDF analysis of distinctive terms reveals this cluster is enriched for instruction-following templates, binary classification tasks, structured output requirements, and explicit negative constraints (see Appendix for full keyword analysis).
+    Note: this cluster proportion (19.2\%) is specific to the holdout sample; the 1M dataset shows $\sim$5.9\% in the corresponding spatial region.
 \end{itemize}
 
 \paragraph{Statistical Validation.}
@@ -34,8 +35,9 @@ We validate that this finding is not an artifact of PCA provenance by repeating 
     \item \textbf{Domain-adapted PCA} (trained on 80K routing prompts): The effect is significant ($p < 0.0001$) with a larger effect size ($d = 1.53$), consistent with task-relevant feature extraction concentrating routing-relevant variance into PC1.
 \end{itemize}
 
-\noindent The $4.6\times$ difference in effect size between PCA approaches ($d = 0.33$ vs.\ $1.53$) demonstrates that the domain-adapted PCA \emph{amplifies} a modest underlying signal.
-The generic PCA result ($d = 0.33$) provides the more conservative estimate of the true effect.
+\noindent The \textbf{primary, unbiased effect size} is $d = 0.33$ (small effect, generic PCA).
+The domain-adapted PCA amplifies this $4.6\times$ to $d = 1.53$, partly because its training data (80K routing prompts) shares domain characteristics with the holdout set, concentrating routing-relevant variance into PC1.
+The generic PCA result should be considered the conservative baseline for the effect's true magnitude.
 
 \paragraph{Methodological Notes.}
 \begin{itemize}[noitemsep,topsep=2pt]
@@ -45,6 +47,8 @@ The generic PCA result ($d = 0.33$) provides the more conservative estimate of t
     \item \textbf{High-D structure:} Weak in 384D (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$, explaining $\sim$16\% of reward gap variance).
     \item \textbf{Cluster diversity:} High PC1 is homogeneous (diversity $= 0.355$), consistent with a coherent semantic category.
     \item \textbf{Causal mechanism:} Not ablated. Correlational patterns suggest RLHF alignment effects, but alternative explanations remain possible.
+    \item \textbf{Projection caveat:} The 384D silhouette score (0.057) indicates weak cluster structure in the full embedding space. The effect is primarily visible in the 2D projection (5.4\% of variance). While the generic PCA result ($d = 0.33$) argues against a pure projection artifact, this alternative explanation cannot be fully excluded.
+    \item \textbf{Generalizability:} The cluster proportion (19.2\% High PC1) is specific to this holdout sample. The 1M dataset shows $\sim$5.9\% in the corresponding spatial region, suggesting the holdout may over-represent strict-constraint prompts relative to production traffic.
 \end{itemize}
 
 \paragraph{Implications for Routing.}

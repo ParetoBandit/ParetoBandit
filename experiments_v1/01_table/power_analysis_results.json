@@ -1,10 +1,29 @@
 {
+  "test_type": "paired_t_test",
   "n": 750,
   "alpha": 0.05,
-  "power": 0.8,
-  "sigma": 0.3,
-  "min_detectable_effect": 0.04343024275716782,
-  "cohens_d": 0.14476747585722607,
+  "target_power": 0.8,
+  "degrees_of_freedom": 749,
+  "sigma_d": 0.5217750676141978,
+  "sigma_d_source": "empirical_per_prompt_reward_gap",
+  "min_detectable_effect": 0.05344687933448897,
+  "cohens_d_at_mde": 0.10243279652834575,
   "observed_effect": 0.029000000000000026,
-  "adequately_powered": false
+  "power_at_observed_effect": 0.32984190338043806,
+  "adequately_powered": false,
+  "reward_gap_stats": {
+    "mean_gap": 0.010666666666666666,
+    "std_gap": 0.5217750676141978,
+    "median_gap": 0.0,
+    "mean_abs_gap": 0.272,
+    "pct_zero_gap": 0.728
+  },
+  "comparison_to_old_analysis": {
+    "old_test_type": "two_sample_t_test",
+    "old_sigma": 0.3,
+    "old_sigma_source": "guessed",
+    "old_mde": 0.04343024275716782,
+    "old_adequately_powered": false,
+    "improvement_reason": "Paired test removes prompt-level variance; empirical \u03c3_d replaces guessed \u03c3"
+  }
 }

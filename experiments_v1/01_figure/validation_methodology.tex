@@ -38,6 +38,9 @@ Independent unsupervised methods identify consistent structure:
 \end{itemize}
 Both methods yield $p < 0.0001$.
 
+\paragraph{Statistical Power.}
+We conduct a Monte-Carlo power analysis for the $\chi^2$ test given the observed contingency table proportions and sample sizes ($n_{\text{low}} = 606$, $n_{\text{high}} = 144$). With $N = 750$ and the observed outcome proportions, the power to detect the observed effect at $\alpha = 0.05$ exceeds 0.99. For detectable effect sizes at 80\% power, effects as small as Cram\'er's $V \approx 0.10$ are detectable, confirming the sample is adequately powered for this comparison.
+
 \paragraph{Effect Size Stability.}
 Since $p$-values alone are uninformative for threshold robustness (with $N=750$ discrete outcomes, most non-trivial splits produce small $p$-values), we additionally report Cram\'er's $V$ across a sweep of candidate thresholds to verify that the effect size---not merely its significance---is stable. The effect size remains meaningful across a range of thresholds, confirming the finding is not an artifact of a particular boundary choice.
 
@@ -59,7 +62,7 @@ Routing prompts (80K, domain-adapted) & $< 0.0001$ & 1.53 & Large effect (amplif
 \end{tabular}
 \end{table}
 
-\noindent \textbf{Key observation:} The generic PCA result ($d = 0.33$) is the more conservative, unbiased estimate, confirming the structure exists independently of PCA provenance. The domain-adapted PCA concentrates routing-relevant variation into PC1, amplifying the effect $4.6\times$. This amplification is expected---the routing PCA was trained on prompts from the same model-comparison domain---and demonstrates the value of task-appropriate feature extraction, but the generic result should be considered the baseline for the effect's true magnitude. Both PCAs are unsupervised (no reward labels).
+\noindent \textbf{Key observation:} The \textbf{primary, unbiased effect size} is $d = 0.33$ (small effect, generic PCA), confirming the structure exists independently of PCA provenance. The domain-adapted PCA concentrates routing-relevant variation into PC1, amplifying the effect $4.6\times$ to $d = 1.53$. This amplification is expected---the routing PCA was trained on 80K prompts from the same model-comparison domain---but partly reflects domain overlap between PCA training data and the holdout set, not only genuine signal concentration. The generic result ($d = 0.33$) should be considered the baseline for the effect's true magnitude. Both PCAs are unsupervised (no reward labels).
 
 \subsubsection{High-Dimensional Structure Validation}
 
@@ -80,6 +83,9 @@ Routing prompts (80K, domain-adapted) & $< 0.0001$ & 1.53 & Large effect (amplif
 
 \noindent \textbf{Important caveat:} The 384D silhouette score of 0.057 indicates weak cluster structure in the full embedding space. The separation ratio of 0.81 ($< 1.0$) means within-cluster distances exceed between-cluster distances. PC1 extracts a moderate task-relevant signal (Spearman $\rho = -0.395$, $\rho^2 = 0.156$, explaining $\sim$16\% of reward gap variance) from a noisy high-dimensional space, not a dominant clustering pattern.
 
+\paragraph{Projection Artifact Consideration.}
+Any linear projection of 384D data onto 2D will find \emph{some} direction that correlates with a binary label, raising the concern that the observed structure could be a projection artifact rather than genuine high-dimensional clustering. Two pieces of evidence argue against this interpretation: (1)~the effect persists with generic PCA trained on unrelated C4 web text ($d = 0.33$, $p < 0.0001$), and (2)~the moderate Spearman correlation ($\rho = -0.395$) exceeds what would be expected from random projections. However, this alternative explanation cannot be fully excluded, and the weak 384D structure (silhouette $= 0.057$) means the ``clusters'' should be interpreted as regions of the PC1 axis with different outcome distributions, not as well-separated groups in embedding space.
+
 \subsubsection{Data Quality Analysis}
 
 The held-out dataset ($N=750$) was created using stratified sampling across three dimensions (category, complexity, difficulty) to ensure representative coverage of diverse prompt characteristics (see Appendix~\ref{app:stratification} for complete methodology). The dataset contains zero exact duplicates. Intra-cluster diversity:
@@ -93,9 +99,11 @@ The held-out dataset ($N=750$) was created using stratified sampling across thre
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
     \item \textbf{Categorical analysis:} $\chi^2$ test on win/tie/loss contingency table ($p < 0.0001$), appropriate for discrete pairwise outcomes
     \item \textbf{Ordinal confirmation:} Mann-Whitney $U$ ($p < 0.0001$); Cohen's $d$ reported as approximate ($d = 0.33$ generic, $1.53$ domain-adapted)
+    \item \textbf{Primary effect size:} $d = 0.33$ (generic PCA, unbiased baseline); $d = 1.53$ is the amplified, domain-adapted result
     \item \textbf{Threshold justification:} Purely unsupervised (silhouette-optimal, no reward peeking)
-    \item \textbf{PCA sensitivity:} Generic C4 PCA provides unbiased baseline ($d = 0.33$); domain-adapted PCA amplifies to $d = 1.53$ ($4.6\times$)
-    \item \textbf{High-D caveat:} Weak 384D structure (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$)
-    \item \textbf{Data quality:} Zero duplicates; High PC1 cluster is homogeneous (diversity $= 0.355$)
+    \item \textbf{PCA sensitivity:} Generic C4 PCA provides unbiased baseline ($d = 0.33$); domain-adapted PCA amplifies to $d = 1.53$ ($4.6\times$), partly reflecting domain overlap
+    \item \textbf{High-D caveat:} Weak 384D structure (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$); projection artifact alternative discussed
+    \item \textbf{Data quality:} Zero duplicates; High PC1 cluster is homogeneous (diversity $= 0.355$); cluster content characterized via TF-IDF analysis
     \item \textbf{Data integrity:} Held-out only ($N=750$); dev set excluded
+    \item \textbf{Generalizability:} Cluster proportion (19.2\% High PC1) is specific to the holdout; 1M dataset shows $\sim$5.9\% in corresponding spatial region
 \end{enumerate}

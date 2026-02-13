@@ -188,7 +188,11 @@ The table provides **four essential components**:
 
 **Holdout Size**: 750 prompts (final held-out evaluation)  
 **Dev Size**: 1,121 prompts (online learning, not held-out evaluation)  
-**Power**: 80% power to detect δ ≥ 0.043 in reward; observed effects (δ ≈ 0.03) are near this threshold, indicating moderate statistical power
+**Test**: Paired t-test (all strategies evaluated on same prompts)  
+**σ_d**: 0.52 (empirical, from per-prompt reward gaps between models)  
+**MDE**: δ ≥ 0.053 at 80% power (α=0.05)  
+**Power at observed effect**: δ ≈ 0.029 → 33% power (underpowered for small effects)  
+**Primary evidence**: Multi-seed validation (N=10–30 seeds) in Table 2 provides the main statistical evidence; holdout power analysis characterizes single-run sensitivity
 
 ---
 
@@ -241,7 +245,7 @@ Total Unique Prompts: 81,871
 Data Quality:
 ├─ Zero leakage:      ✅ 243 overlaps removed (0.24%)
 ├─ Stratification:    ✅ χ²=0.78, p=0.94 (dev vs holdout)
-└─ Sample size:       ✅ Exceeds prior work (~1,000)
+└─ Power (paired t):  ⚠️  MDE=0.053, 33% power at observed δ=0.029
 
 Sources:
 ├─ LMSYS Arena:       100% of data

@@ -4,7 +4,7 @@ This folder generates Figure 1 for the paper, which analyzes model preference he
 
 ## Overview
 
-This experiment demonstrates statistically significant heterogeneity in model preferences across prompts. Through careful methodological design, we identify that approximately 20% of prompts show preference reversals favoring cheaper models, with the effect's strength depending on the choice of dimensionality reduction approach.
+This experiment demonstrates statistically significant heterogeneity in model preferences across prompts. In the held-out sample (N=750), approximately 19% of prompts fall into a cluster with significantly higher rates of cheaper-model preference, though this proportion may not generalize to production traffic (the 1M dataset shows ~5.9% in the corresponding cluster). The effect's magnitude depends on the choice of dimensionality reduction: the unbiased baseline (generic C4 PCA) yields a small effect (Cohen's d = 0.33), while domain-adapted PCA amplifies it to d = 1.53.
 
 ### Two-Part Analysis
 
@@ -66,15 +66,17 @@ This experiment establishes the **foundation** for our routing approach:
 **Primary Findings (Categorical Analysis):**
 - Reward gaps are **discrete** pairwise preference outcomes (win/tie/loss), so we use categorical statistics as the primary analysis
 - Outcome proportions differ significantly between clusters (chi-squared: p < 0.0001)
-- **Generic PCA** (unbiased baseline): Effect is significant but small (Cohen's d = 0.33)
-- **Domain-Adapted PCA**: Amplifies the effect 4.6x (Cohen's d = 1.53) by concentrating routing-relevant variance
+- **Primary effect size (unbiased baseline):** Generic C4 PCA yields Cohen's d = 0.33 (small effect, p < 0.0001). This is the conservative estimate with no connection to routing data.
+- **Amplified effect size:** Domain-adapted PCA yields Cohen's d = 1.53 (4.6× amplification). This is expected since PCA was trained on prompts from the same model-comparison domain, concentrating routing-relevant variance into PC1.
 
 **Statistical Evidence:**
 - Chi-squared test on contingency table: p < 0.0001 (primary, categorical)
 - Mann-Whitney U: p < 0.0001 (supplementary, ordinal)
-- Cohen's d = 0.33 (generic PCA, unbiased) to 1.53 (domain-adapted, amplified)
+- **Primary:** Cohen's d = 0.33 (generic PCA, unbiased baseline)
+- Amplified: Cohen's d = 1.53 (domain-adapted PCA; partially reflects domain overlap, not only signal strength)
 - Cramer's V reported for categorical effect size
 - Moderate correlation with PC1 (Spearman ρ = -0.395, ρ² = 0.16)
+- Cluster content characterized via TF-IDF keyword analysis (reproducible, not anecdotal)
 
 ### Scale Analysis with 1M Dataset (N=594,199) - SPATIAL ONLY
 
@@ -187,16 +189,18 @@ Data quality validation results are documented in `validation_methodology.tex`.
 
 ### What We Observe
 
-Statistically significant heterogeneity exists in model preferences across different prompt types. Using domain-adapted PCA, approximately 20% of prompts show preference reversals where the cheaper model outperforms the flagship model.
+Statistically significant heterogeneity exists in model preferences across different prompt types. In the held-out sample (N=750), approximately 19% of prompts fall into a cluster with significantly higher rates of cheaper-model preference, though this proportion may differ in production traffic (the 1M dataset shows ~5.9% in the corresponding spatial region). The unbiased effect size is small (Cohen's d = 0.33 with generic PCA); domain-adapted PCA amplifies this to d = 1.53.
 
 ### Observed Patterns
 
-Prompts in the "high PC1" cluster tend to share certain characteristics:
+Prompts in the "high PC1" cluster are characterized via systematic TF-IDF keyword analysis (see `plot_figure1_revised.py` output). Common characteristics include:
 
 1. **Instruction-following templates**: Structured prompts with explicit format requirements
 2. **Binary classification tasks**: Tasks requiring specific output formats
 3. **Structured output constraints**: Tasks with precise formatting expectations  
 4. **Strict constraint tasks**: Prompts with explicit output format requirements
+
+*Note: These characterizations are based on TF-IDF distinctive-term analysis, not anecdotal inspection.*
 
 ### Correlation vs. Causation
 
@@ -205,8 +209,12 @@ Prompts in the "high PC1" cluster tend to share certain characteristics:
 ### Why This Matters
 
 - **Routing Opportunity**: Statistical identification of heterogeneity enables learned routing strategies
-- **Moderate Effect**: Effect size is PCA-dependent (Cohen's d = 0.33-1.53), indicating the importance of task-appropriate feature extraction
-- **Practical Value**: Approximately 20% of holdout prompts show preference for cheaper models
+- **Moderate Effect**: The unbiased effect size is small (Cohen's d = 0.33); domain-adapted feature extraction amplifies this to d = 1.53, indicating routing benefits from task-appropriate PCA
+- **Practical Value**: In the holdout sample, ~19% of prompts show preference for cheaper models; this proportion may be smaller in broader production traffic (~5.9% in 1M dataset)
+
+### Projection Artifact Consideration
+
+The 384D silhouette score (0.057) indicates weak cluster structure in the full embedding space. The clusters are primarily visible in the 2D PCA projection, which captures only 5.4% of variance. While the authors argue this represents successful extraction of a task-relevant axis, any linear projection of 384D data onto 2D will find *some* direction that correlates with a binary label. The moderate Spearman correlation (ρ = -0.395, ρ² = 0.16) and the fact that the effect persists with generic PCA (d = 0.33) provide evidence against a pure projection artifact, but this alternative explanation cannot be fully ruled out.
 
 ## Dataset Comparison
 
@@ -279,7 +287,8 @@ This experiment demonstrates rigorous validation methodology:
 - Ordinal test (Mann-Whitney U) confirms with non-parametric approach
 - Effect sizes: Cramer's V (categorical), Cohen's d (approximate, data is discrete)
 - Effect size stability analysis across threshold sweep
-- Generic PCA provides unbiased baseline (d = 0.33); domain-adapted amplifies (d = 1.53)
+- Primary effect size: Generic PCA (d = 0.33, unbiased baseline); domain-adapted amplifies (d = 1.53)
+- Cluster characterization via systematic TF-IDF analysis (not anecdotal)
 
 **Methodological Validation:**
 - Threshold selection justified through systematic search
@@ -351,9 +360,9 @@ python3 experiments_v1/01_figure/plot_figure1_revised.py
 
 ## Notes
 
-- **Primary script:** `plot_figure1_revised.py` (all analysis in one file)
-- **Unbiased baseline:** Generic PCA (`pca_32_generic.joblib`) provides conservative effect estimate (d=0.33)
-- **Amplified view:** Domain-adapted PCA (`pca_32.joblib`) concentrates routing-relevant variance (d=1.53)
+- **Primary script:** `plot_figure1_revised.py` (all analysis in one file, including TF-IDF cluster content analysis)
+- **Primary effect size (unbiased):** Generic PCA (`pca_32_generic.joblib`) yields d=0.33 (small effect; this is the conservative, unbiased estimate)
+- **Amplified effect size:** Domain-adapted PCA (`pca_32.joblib`) yields d=1.53 (partially reflects domain overlap between PCA training data and holdout)
 - Holdout analysis uses N=750 prompts (clean holdout set)
 - 1M visualization downsamples to 10k points for clarity (full analysis uses all data)
 - All statistical claims based on holdout set only
