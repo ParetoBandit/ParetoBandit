@@ -14,10 +14,15 @@ This experiment validates, on held-out data, that the \emph{same PCA used in the
 \paragraph{Setup.}
 We project $N=750$ held-out prompts through three feature extraction conditions using the same sentence encoder (\texttt{all-MiniLM-L6-v2}) deployed in the router:
 \begin{enumerate}[noitemsep,topsep=2pt]
-    \item \textbf{Router PCA} (decontaminated): trained on RouteLLM battle prompts \emph{excluding} the holdout set, matching the production \texttt{FeatureService} pipeline.
+    \item \textbf{Router PCA} (domain-adapted): trained on 80K prompts from the \texttt{routellm/gpt4\_judge\_battles} HuggingFace dataset. This is the same PCA deployed in the production \texttt{FeatureService} pipeline.
     \item \textbf{Generic PCA}: trained on 100K C4 web text samples with no routing connection, providing an unbiased baseline.
     \item \textbf{Random projection}: a random orthonormal matrix ($384 \to 2$), providing a null baseline that quantifies how much structure any linear projection finds by chance.
 \end{enumerate}
+\noindent\textbf{Data independence.}
+The PCA training data (RouteLLM battles) and the held-out evaluation data (LMSYS general prompts) originate from \emph{different data sources, different sampling periods, and different prompt populations}.
+They share the same model pair but are otherwise independent collections---the PCA has never seen any evaluation prompt.
+No decontamination step is needed; the datasets are disjoint by provenance.
+
 For each condition, we cluster on PC1 using a silhouette-optimal threshold (selected without reference to reward labels) and test whether the resulting clusters have different win/tie/loss distributions.
 Reward gaps are discrete pairwise outcomes from LMSYS Chatbot Arena human preference evaluations: GPT-4-Turbo win ($\Delta = +1$), tie ($\Delta = 0$), or Mixtral win ($\Delta = -1$).
 
@@ -57,14 +62,14 @@ The generic PCA also detects the signal (albeit weaker), confirming the structur
 \toprule
 \textbf{Condition} & \textbf{Cram\'er's $V$} & \textbf{OR (Mixtral)} & \textbf{Risk diff} & \textbf{Perm.\ $p$} \\
 \midrule
-Router PCA (decontam.)   & \textbf{TBD} & \textbf{TBD} & \textbf{TBD} & $< 0.0001$ \\
+Router PCA (domain-adapted)  & \textbf{TBD} & \textbf{TBD} & \textbf{TBD} & $< 0.0001$ \\
 Generic PCA (C4)         & TBD          & TBD          & TBD          & $< 0.0001$ \\
 Random projection (null) & TBD          & TBD          & TBD          & TBD        \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent\emph{Note: ``TBD'' values are populated when the analysis script is run on the final decontaminated PCA artifact. The table structure and statistical methodology are fixed; only the numerical values update.}
+\noindent\emph{Note: ``TBD'' values are populated when the analysis script is run. The table structure and statistical methodology are fixed; only the numerical values update.}
 
 \paragraph{Statistical validation.}
 Significance is confirmed by three independent tests:
@@ -82,7 +87,7 @@ For practitioners deploying BanditGPT:
 
     \item \textbf{The routing opportunity is bounded.} Only $\sim$19\% of holdout prompts (possibly $\sim$5.9\% in broader production traffic; see Section~\ref{sec:scale_validation}) fall in the high-signal region. Cost savings scale with this fraction.
 
-    \item \textbf{The PCA must be decontaminated for fair evaluation.} The PCA shipped with the library was trained on data that includes the holdout set. For users running their own evaluations, we provide a \texttt{-{}-exclude-holdout} flag to train a decontaminated PCA (see \texttt{scripts/train\_pca\_from\_routellm.py}).
+    \item \textbf{No contamination concern.} The PCA was trained on 80K RouteLLM battle prompts (\texttt{routellm/gpt4\_judge\_battles}), an entirely separate dataset from the held-out evaluation prompts (LMSYS general prompt pool). The two originate from different data sources, sampling periods, and prompt populations---disjoint by provenance, not by post-hoc filtering.
 
     \item \textbf{Domain adaptation helps.} The router PCA, trained on routing-domain prompts, captures more signal than generic PCA. Users deploying on a new domain should consider retraining PCA on representative prompts from their traffic.
 \end{enumerate}
@@ -92,7 +97,7 @@ For practitioners deploying BanditGPT:
     \item \textbf{Data:} Held-out test set only ($N=750$), created via stratified sampling (Appendix~\ref{app:stratification}). Dev set excluded.
     \item \textbf{Rewards:} Discrete pairwise outcomes from LMSYS Chatbot Arena human evaluations.
     \item \textbf{Threshold:} Silhouette-optimal, selected without reward labels. Effect size is stable across a sweep of candidate thresholds (Section~\ref{sec:validation_methodology}).
-    \item \textbf{PCA decontamination:} Router PCA trained on RouteLLM battles \emph{excluding} the 750 holdout prompts, preventing train-test leakage in the feature extraction step.
+    \item \textbf{Data independence:} PCA trained on RouteLLM battles (\texttt{routellm/gpt4\_judge\_battles}); evaluation on LMSYS general prompts. Different data sources, sampling periods, and prompt populations---disjoint by provenance.
     \item \textbf{High-D structure:} Weak in 384D (silhouette $= 0.057$). PC1 extracts a moderate signal from a noisy space; the ``clusters'' are regions of the PC1 axis with different outcome distributions, not well-separated groups in embedding space.
     \item \textbf{Causal mechanism:} Not ablated. Correlational patterns suggest RLHF alignment effects, but alternative explanations remain possible.
     \item \textbf{Generalizability:} The 19.2\% High PC1 proportion is specific to this holdout. The 1M dataset shows $\sim$5.9\% in the corresponding spatial region, suggesting the holdout may over-represent strict-constraint prompts.

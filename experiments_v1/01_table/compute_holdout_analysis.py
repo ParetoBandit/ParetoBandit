@@ -52,7 +52,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.calibration import SimpleLinUCBRouter, apply_gamma_scaling, embed_prompt
+from bandit_gpt.calibration import SimpleLinUCBRouter, apply_gamma_scaling
 from bandit_gpt.router import CorrallingRouter
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
@@ -124,10 +124,30 @@ class TabulaRasaRouter:
 # Single-Seed Simulation (with per-prompt tracking)
 # =====================================================================
 
+def precompute_contexts(
+    data: List[Dict], encoder, pca,
+) -> np.ndarray:
+    """
+    Batch-encode all prompts ONCE and cache the PCA-projected contexts.
+
+    This avoids calling embed_prompt() per prompt per seed per strategy,
+    reducing 67,500 encoder calls to a single batch of 750.
+    """
+    prompts = [item["prompt"] for item in data]
+    print(f"   Batch-encoding {len(prompts)} prompts...")
+    embeddings = encoder.encode(
+        prompts, convert_to_numpy=True, show_progress_bar=True, batch_size=64,
+    )
+    projected = pca.transform(embeddings)  # (N, n_components)
+    # Append bias term to each context vector
+    contexts = np.hstack([projected, np.ones((len(projected), 1))])
+    print(f"   Context shape: {contexts.shape}")
+    return contexts
+
+
 def run_simulation(
     data: List[Dict],
-    encoder,
-    pca,
+    contexts: np.ndarray,
     warmup_priors: Dict,
     models: List[str],
     context_dim: int,
@@ -137,13 +157,14 @@ def run_simulation(
 ) -> Dict:
     """
     Run routing simulation, returning PER-PROMPT decisions and rewards.
+
+    Uses pre-computed context vectors (no encoder calls inside the loop).
     """
     np.random.seed(seed)
 
     # Shuffle data order (bandit regret is order-sensitive)
     indices = list(range(len(data)))
     np.random.shuffle(indices)
-    shuffled = [data[i] for i in indices]
 
     # Initialize router
     if strategy_name == "Warmup":
@@ -171,17 +192,17 @@ def run_simulation(
 
     # Run simulation — collect per-prompt decisions
     per_prompt = []
-    for item in shuffled:
-        prompt = item["prompt"]
+    for idx in indices:
+        item = data[idx]
+        context = contexts[idx]
         scores = item["scores"]
 
-        context = embed_prompt(prompt, encoder, pca)
         selected = router.select_model(context)
         reward = scores.get(selected, 0.0)
         oracle_reward = max(scores.values()) if scores else 0.0
 
         per_prompt.append({
-            "prompt": prompt,
+            "prompt": item["prompt"],
             "selected_model": selected,
             "reward": reward,
             "oracle_reward": oracle_reward,
@@ -663,9 +684,15 @@ def main():
         print(f"   {val['margin']:<12.2f} {val['true_gap']:<12.2f} {100*val['power']:>5.1f}%       {status}")
 
     # ================================================================
-    # 4. Run multi-seed simulation
+    # 4. Pre-compute embeddings (ONCE, then reuse across all seeds)
     # ================================================================
-    print(f"\n4. Running {args.num_seeds}-seed simulation...")
+    print("\n4. Pre-computing prompt embeddings (batch)...")
+    contexts = precompute_contexts(data, encoder, pca)
+
+    # ================================================================
+    # 5. Run multi-seed simulation
+    # ================================================================
+    print(f"\n5. Running {args.num_seeds}-seed simulation...")
     strategies = ["Warmup", "Tabula Rasa", "Corralling"]
     all_results = {s: [] for s in strategies}
 
@@ -674,16 +701,16 @@ def main():
             print(f"   Seed {seed + 1}/{args.num_seeds}...")
         for strat in strategies:
             result = run_simulation(
-                data, encoder, pca, warmup_priors, models, context_dim,
+                data, contexts, warmup_priors, models, context_dim,
                 args.learning_rate, seed, strat,
             )
             all_results[strat].append(result)
 
     # ================================================================
-    # 5. Apply correct statistical tests (using seed 0 as representative)
+    # 6. Apply correct statistical tests
     # ================================================================
     print("\n" + "=" * 70)
-    print("5. RESULTS: STATISTICALLY SOUND ANALYSIS")
+    print("6. RESULTS: STATISTICALLY SOUND ANALYSIS")
     print("=" * 70)
 
     analysis_results = {}
@@ -855,10 +882,10 @@ def main():
         analysis_results[f"bootstrap_{strat}"] = seed_results
 
     # ================================================================
-    # 6. Summary
+    # 7. Summary
     # ================================================================
     print("\n" + "=" * 70)
-    print("6. SUMMARY: WHICH TESTS ARE ADEQUATELY POWERED?")
+    print("7. SUMMARY: WHICH TESTS ARE ADEQUATELY POWERED?")
     print("=" * 70)
 
     print("""
@@ -894,7 +921,7 @@ def main():
     # Also save power analysis
     power_file = Path(__file__).parent / "alternative_power_analysis.json"
     with open(power_file, "w") as f:
-        json.dump(power_results, f, indent=2)
+        json.dump(power_results, f, indent=2, default=str)
     print(f"   Power analysis saved to: {power_file}")
 
 

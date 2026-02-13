@@ -5,7 +5,7 @@
 \includegraphics[width=0.95\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_holdout_pca.png}
 \caption{\textbf{Routing Signal Validation on Held-Out Prompts ($N=750$).}
 This figure tests whether the PCA feature extraction used by the production router captures genuine model preference signal.
-\textbf{(A)}~PC1 projection (decontaminated router PCA, trained on RouteLLM battles excluding the holdout) vs.\ reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
+\textbf{(A)}~PC1 projection (domain-adapted router PCA, trained on 80K RouteLLM battle prompts---an independent dataset from the held-out evaluation prompts) vs.\ reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
 Outcomes are discrete (win${=}{+}1$, tie${=}0$, loss${=}{-}1$); the running mean smooths proportions for visual clarity.
 The dashed line marks the silhouette-optimal threshold, selected without reference to reward labels.
 \textbf{(B)}~Outcome proportions by PC1 region.

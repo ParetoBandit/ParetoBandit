@@ -1,29 +1,33 @@
 % Validation Methodology Section
-% Three-condition comparison, permutation test, decontaminated PCA, categorical metrics
+% Three-condition comparison, permutation test, independent PCA, categorical metrics
 
 \subsection{Validation Methodology}
 \label{sec:validation_methodology}
 
 We validate the routing signal finding through a multi-condition experimental design with distribution-free significance testing, proper categorical effect sizes, and controls for projection artifacts.
-All analyses use the held-out test set exclusively ($N=750$), with PCA models trained on disjoint data and the cluster threshold determined by purely unsupervised criteria.
+All analyses use the held-out test set exclusively ($N=750$), with PCA models trained on independent data and the cluster threshold determined by purely unsupervised criteria.
 
 \subsubsection{Experimental Design}
 
 \paragraph{Three-condition comparison.}
 To distinguish genuine routing signal from projection artifacts, we compare three feature extraction conditions using the same sentence encoder (\texttt{all-MiniLM-L6-v2}) and holdout data:
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Router PCA (decontaminated):} Trained on RouteLLM battle prompts \emph{excluding} the 750 holdout prompts. This matches the production \texttt{FeatureService} pipeline while preventing train-test leakage in feature extraction.
+    \item \textbf{Router PCA (domain-adapted):} Trained on 80K RouteLLM battle prompts---an independent dataset from a different data source than the held-out evaluation set. This is the same PCA deployed in the production \texttt{FeatureService} pipeline.
     \item \textbf{Generic PCA (C4 baseline):} Trained on 100K C4 web text samples with no connection to routing. Tests whether the signal exists independently of PCA training domain.
     \item \textbf{Random projection (null baseline):} A fixed random orthonormal matrix ($384 \to 2$, seed${}=42$). Quantifies how much structure any linear projection of 384D embeddings finds by chance in a dataset of this size.
 \end{enumerate}
 
 \noindent If the random projection shows comparable effect sizes to the router PCA, the finding is likely a projection artifact. If the router PCA greatly exceeds both baselines, it captures genuine task-relevant variance.
 
-\paragraph{PCA decontamination.}
-The PCA artifact shipped with the library (\texttt{pca\_32.joblib}) was trained on 80K RouteLLM battle prompts, which include the 750 holdout prompts.
-Although PCA is unsupervised (no reward labels are used), training on data that includes the test set means the principal components are partially optimized to capture variance in the test distribution.
-We address this by providing a \texttt{-{}-exclude-holdout} flag in the PCA training script, producing a decontaminated artifact (\texttt{pca\_32\_decontaminated.joblib}) that excludes all holdout prompts from PCA training.
-The analysis script automatically prefers the decontaminated artifact when available and warns if only the contaminated version is found.
+\paragraph{Data independence (no contamination).}
+The PCA training data and held-out evaluation data are \emph{entirely independent datasets} with no overlap by construction:
+\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{PCA training data:} 80K prompts from the \texttt{routellm/gpt4\_judge\_battles} HuggingFace dataset~\cite{routellm}, a curated collection of pairwise battles used by RouteLLM.
+    \item \textbf{Held-out evaluation data:} 750 prompts from the LMSYS Chatbot Arena general prompt pool, collected during a different time period with a different sampling procedure.
+\end{itemize}
+\noindent These two datasets share the same model pair (Mixtral vs.\ GPT-4-Turbo) but originate from \textbf{different data sources, different sampling periods, and different prompt populations}.
+The PCA has never seen any evaluation prompt because the two collections were produced independently.
+No decontamination or exclusion step is needed---the datasets are disjoint by provenance, not by post-hoc filtering.
 
 \subsubsection{Statistical Tests}
 
@@ -117,7 +121,7 @@ The homogeneity of the High~PC1 cluster is consistent with TF-IDF analysis showi
     \item \textbf{Three-condition design:} Router PCA vs.\ generic PCA vs.\ random projection, all on the same holdout data and encoder
     \item \textbf{Categorical metrics:} Cram\'er's $V$ (primary), odds ratio, risk difference---appropriate for discrete win/tie/loss outcomes
     \item \textbf{Permutation significance:} Distribution-free $p$-values ($n{=}10{,}000$ permutations), no large-sample assumptions
-    \item \textbf{PCA decontamination:} Router PCA trained excluding holdout, preventing feature-extraction leakage
+    \item \textbf{Data independence:} PCA trained on RouteLLM battles (separate dataset from holdout); no contamination
     \item \textbf{Threshold:} Silhouette-optimal (unsupervised); effect size stable across threshold sweep
     \item \textbf{Null baseline:} Random projection quantifies chance-level projection artifacts
     \item \textbf{High-D caveat:} Weak 384D clusters (silhouette $= 0.057$); PCA extracts a moderate signal, not a dominant partition

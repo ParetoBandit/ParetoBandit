@@ -184,15 +184,33 @@ The table provides **four essential components**:
 **Goal**: Ensure representative coverage across prompt types  
 **Implementation**: Sampling stratified by task difficulty and domain
 
-### 3. Statistical Power
+### 3. Reward Structure and Statistical Power
 
+**Reward type**: Discrete pairwise preference outcomes (win=1, tie=0, loss=0) from LMSYS Chatbot Arena human evaluations — **consistent with Figure 1's categorical analysis**  
 **Holdout Size**: 750 prompts (final held-out evaluation)  
+**Informative prompts**: 204 (27.2%) where models differ in reward — routing only matters here  
+**Ties**: 546 (72.8%) where both models get the same reward — routing irrelevant  
 **Dev Size**: 1,121 prompts (online learning, not held-out evaluation)  
-**Test**: Paired t-test (all strategies evaluated on same prompts)  
-**σ_d**: 0.52 (empirical, from per-prompt reward gaps between models)  
-**MDE**: δ ≥ 0.053 at 80% power (α=0.05)  
-**Power at observed effect**: δ ≈ 0.029 → 33% power (underpowered for small effects)  
-**Primary evidence**: Multi-seed validation (N=10–30 seeds) in Table 2 provides the main statistical evidence; holdout power analysis characterizes single-run sensitivity
+
+**Power analysis** (Monte-Carlo simulation, matching Figure 1's approach):
+
+| Test | What it tests | 80% power at | Recommended? |
+|------|--------------|-------------|--------------|
+| McNemar's exact | Pairwise strategy comparison (paired binary) | ≥58% routing accuracy | ✓ Yes (gold standard) |
+| Binomial (1-sided) | Routing accuracy > 50% on informative prompts | ≥60% routing accuracy | ✓ Yes (interpretable) |
+| Paired t-test | Mean reward difference (continuous assumption) | ±10% accuracy advantage | ✗ No (wrong data assumption) |
+
+**Primary evidence**: McNemar's test and binomial test on the 204 informative prompts, supplemented by multi-seed validation (N=10–30 seeds) in Table 2
+
+### 4. Connection to Figure 1
+
+Figure 1 and Table 1 analyze the **same N=750 holdout prompts** with the same discrete reward structure. Methodological consistency:
+
+- **Figure 1**: Chi-squared test on win/tie/loss contingency table (between-cluster comparison). Monte-Carlo power > 99%. Effect size: Cohen's d = 0.33 (generic PCA, unbiased) to 1.53 (domain-adapted).
+- **Table 1**: McNemar's / binomial test on paired routing outcomes (between-strategy comparison). Monte-Carlo power ≥ 80% at 58-60% routing accuracy.
+- **Both**: Monte-Carlo simulation from observed discrete distribution. Both correctly treat rewards as categorical, not continuous.
+
+The d = 0.33 preference heterogeneity discovered in Figure 1 provides the signal that makes routing learnable. The routing accuracy measured in Table 1's holdout analysis quantifies how well the bandit exploits this signal.
 
 ---
 
@@ -242,10 +260,15 @@ Total Unique Prompts: 81,871
 ├─ Dev:                1,121 (1.4%)
 └─ Holdout:              750 (0.9%)
 
+Reward Structure (discrete pairwise outcomes):
+├─ Ties (gap=0):      546 (72.8%) — routing irrelevant
+├─ Informative:       204 (27.2%) — routing matters
+└─ Gap values:        {-1: 98, 0: 546, +1: 106}
+
 Data Quality:
 ├─ Zero leakage:      ✅ 243 overlaps removed (0.24%)
 ├─ Stratification:    ✅ χ²=0.78, p=0.94 (dev vs holdout)
-└─ Power (paired t):  ⚠️  MDE=0.053, 33% power at observed δ=0.029
+└─ Power (MC sim):    ✅ McNemar's 80% at 58% acc, binomial 80% at 60% acc
 
 Sources:
 ├─ LMSYS Arena:       100% of data

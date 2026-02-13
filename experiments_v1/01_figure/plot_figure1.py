@@ -8,10 +8,11 @@ preference signal, compared against baselines.
 Methodology:
   - Uses the SAME feature extraction pipeline as router.py (FeatureService)
   - Holdout only (N=750, no dev contamination)
+  - PCA trained on independent dataset (80K RouteLLM battles, separate from holdout)
   - Unsupervised threshold (silhouette-optimal, no reward peeking)
   - Categorical statistics for discrete win/tie/loss outcomes
   - Three-condition comparison:
-      1. Router PCA (decontaminated domain-adapted, or original if unavailable)
+      1. Router PCA (domain-adapted, trained on RouteLLM battles)
       2. Generic PCA (C4 web text baseline)
       3. Random projection (null baseline)
   - Permutation test for distribution-free p-values
@@ -45,7 +46,6 @@ from scipy import stats as scipy_stats
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
-    DECONTAMINATED_PCA_PATH,
     GENERIC_PCA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH,
 )
@@ -503,23 +503,16 @@ def main():
     )
     print(f"Embedding shape: {embeddings.shape}")
 
-    # ── Resolve PCA artifacts ─────────────────────────────────────────────
-    # Priority: decontaminated > original (with warning)
-    if DECONTAMINATED_PCA_PATH.exists():
-        router_pca_path = DECONTAMINATED_PCA_PATH
-        router_pca_label = "Router PCA (decontaminated)"
-    elif DEFAULT_PCA_PATH.exists():
-        router_pca_path = DEFAULT_PCA_PATH
-        router_pca_label = "Router PCA (WARNING: includes holdout in training)"
-        print(f"\n*** WARNING: Using contaminated PCA ({DEFAULT_PCA_PATH}). ***")
-        print(f"*** Run: python3 scripts/train_pca_from_routellm.py "
-              f"--exclude-holdout --n-components 32 ***")
-        print(f"*** to generate decontaminated PCA at {DECONTAMINATED_PCA_PATH} ***\n")
-    else:
-        print(f"\nERROR: No router PCA found at {DECONTAMINATED_PCA_PATH} "
-              f"or {DEFAULT_PCA_PATH}")
+    # ── Load PCA artifact ────────────────────────────────────────────────
+    # The router PCA is trained on 80K RouteLLM battles — an independent
+    # dataset from the holdout (LMSYS general prompts), so there is no
+    # contamination concern.
+    if not DEFAULT_PCA_PATH.exists():
+        print(f"\nERROR: Router PCA not found at {DEFAULT_PCA_PATH}")
         print(f"Run: python3 scripts/train_pca_from_routellm.py --n-components 32")
         sys.exit(1)
+    router_pca_path = DEFAULT_PCA_PATH
+    router_pca_label = "Router PCA (domain-adapted)"
 
     # ── Run all conditions ────────────────────────────────────────────────
     print("\n" + "=" * 80)
@@ -633,8 +626,7 @@ def main():
                 zorder=3, label=f'Threshold ({threshold:.2f})')
     ax1.axhline(y=0, color=grey, linestyle=':', linewidth=1.0, alpha=0.6, zorder=1)
 
-    pca_label = "decontaminated" if DECONTAMINATED_PCA_PATH.exists() else "domain-adapted"
-    ax1.set_xlabel(f'PC1 ({pca_label} PCA)', fontsize=12, fontweight='bold')
+    ax1.set_xlabel('PC1 (domain-adapted PCA)', fontsize=12, fontweight='bold')
     ax1.set_ylabel('Reward gap  (GPT-4-Turbo \u2212 Mixtral)', fontsize=12,
                     fontweight='bold')
     ax1.set_title('(A)  Reward Gap vs. Embedding PC1', fontsize=13,

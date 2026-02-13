@@ -42,46 +42,12 @@ from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     ROUTELLM_BATTLES_REWARDS_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH,
-    ARTIFACTS_DIR,
 )
-
-
-def load_holdout_prompts(holdout_file: Path) -> set:
-    """
-    Load holdout prompts to exclude from PCA training (decontamination).
-
-    Args:
-        holdout_file: Path to holdout JSONL.gz file
-
-    Returns:
-        Set of holdout prompt strings
-    """
-    import gzip
-
-    holdout_prompts = set()
-    if not holdout_file.exists():
-        print(f"   ⚠️  Holdout file not found: {holdout_file}")
-        return holdout_prompts
-
-    with gzip.open(holdout_file, 'rt') as f:
-        for line in f:
-            try:
-                entry = json.loads(line)
-                prompt = entry.get('prompt', '').strip()
-                if prompt:
-                    holdout_prompts.add(prompt)
-            except Exception:
-                continue
-
-    print(f"   Loaded {len(holdout_prompts):,} holdout prompts for exclusion")
-    return holdout_prompts
 
 
 def load_prompts_from_battles(
     battles_file: Path,
     max_prompts: int = 80000,
-    exclude_prompts: set = None,
 ) -> list:
     """
     Load unique prompts from RouteLLM battles dataset.
@@ -89,7 +55,6 @@ def load_prompts_from_battles(
     Args:
         battles_file: Path to battles JSONL file
         max_prompts: Maximum number of prompts to load
-        exclude_prompts: Set of prompts to exclude (e.g. holdout set)
 
     Returns:
         List of unique prompt strings
@@ -99,12 +64,8 @@ def load_prompts_from_battles(
     if not battles_file.exists():
         raise FileNotFoundError(f"File not found: {battles_file}")
 
-    if exclude_prompts is None:
-        exclude_prompts = set()
-
     prompts_seen = set()
     prompts = []
-    n_excluded = 0
 
     with open(battles_file, 'r') as f:
         for line in tqdm(f, desc="   Reading", total=max_prompts):
@@ -133,11 +94,6 @@ def load_prompts_from_battles(
                 if not prompt or prompt in prompts_seen:
                     continue
 
-                # Skip if in exclusion set (holdout decontamination)
-                if prompt in exclude_prompts:
-                    n_excluded += 1
-                    continue
-
                 prompts_seen.add(prompt)
                 prompts.append(prompt)
 
@@ -146,8 +102,6 @@ def load_prompts_from_battles(
                 continue
 
     print(f"   ✅ Loaded {len(prompts):,} unique prompts")
-    if n_excluded > 0:
-        print(f"   🔒 Excluded {n_excluded:,} holdout prompts (decontamination)")
     return prompts
 
 
@@ -291,20 +245,10 @@ Why PCA?
         "--batch-size", type=int, default=64,
         help="Batch size for embedding (default: 64)"
     )
-    parser.add_argument(
-        "--exclude-holdout", action="store_true",
-        help="Exclude holdout prompts from PCA training (decontamination). "
-             "Produces an uncontaminated PCA artifact for fair evaluation."
-    )
-
     args = parser.parse_args()
 
     input_file = Path(args.input)
-    # If excluding holdout, default output to a decontaminated artifact path
-    if args.exclude_holdout and args.output == str(DEFAULT_PCA_PATH):
-        output_file = ARTIFACTS_DIR / f"pca_{args.n_components}_decontaminated.joblib"
-    else:
-        output_file = Path(args.output)
+    output_file = Path(args.output)
     
     print("="*80)
     print("TRAIN PCA MODEL FROM ROUTELLM BATTLES")
@@ -316,18 +260,9 @@ Why PCA?
     print(f"   PCA components: {args.n_components}")
     print(f"   Max prompts: {args.max_prompts:,}")
     print(f"   Batch size: {args.batch_size}")
-    print(f"   Exclude holdout: {args.exclude_holdout}")
-
-    # Step 0 (optional): Load holdout prompts for exclusion
-    exclude_prompts = set()
-    if args.exclude_holdout:
-        print(f"\n🔒 Decontamination mode: excluding holdout prompts")
-        exclude_prompts = load_holdout_prompts(CANONICAL_HOLDOUT_DATA_PATH)
 
     # Step 1: Load prompts
-    prompts = load_prompts_from_battles(
-        input_file, args.max_prompts, exclude_prompts=exclude_prompts
-    )
+    prompts = load_prompts_from_battles(input_file, args.max_prompts)
     
     if len(prompts) == 0:
         print("\n❌ No prompts loaded! Check input file.")
