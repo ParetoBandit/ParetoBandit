@@ -343,7 +343,7 @@ def plot_results(results):
         ax2.set_ylim([0, 1])
     
     plt.tight_layout()
-    out_file = output_dir / "figure6_adaptive_efficiency.png"
+    out_file = output_dir / "figure7_adaptive_efficiency.png"
     plt.savefig(out_file, dpi=300, bbox_inches='tight')
     logger.info(f"✅ Saved plot to {out_file}")
 

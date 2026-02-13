@@ -82,7 +82,7 @@ The experiment successfully demonstrated semantic transfer benefits:
 ✅ Figure 7 experiments now run successfully
 ✅ Statistical significance achieved for semantic transfer hypothesis  
 ✅ Output files generated:
-   - `figure6_ablation_fixed.png` (912 KB)
+   - `figure7_ablation_fixed.png` (912 KB)
    - `semantic_validation.json`
 
 ## Lessons Learned

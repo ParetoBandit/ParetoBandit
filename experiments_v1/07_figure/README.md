@@ -49,16 +49,16 @@ When GPT-5.1 is released at t=300:
 - `test_alpha_decay.py` - Diagnostic test verifying alpha decay mechanism
 
 ### Results
-- `results/figure6_ablation_final.png` - Ablation study figure
-- `results/figure6_adaptive_efficiency.png` - Main efficiency plot with meta-learner dynamics
+- `results/figure7_ablation_final.png` - Ablation study figure
+- `results/figure7_adaptive_efficiency.png` - Main efficiency plot with meta-learner dynamics
 
 ### Run Logs (Latest)
 - `ablation_with_alpha_decay.log` - Final ablation study run with statistical testing
 - `adaptive_efficiency_with_alpha_decay.log` - Final efficiency experiment with statistical testing
 
 ### LaTeX Files (KDD 2026 Submission)
-- `figure6_zero_shot_readiness.tex` - Complete section with methodology, results, and interpretation
-- `figure6_caption.tex` - Figure caption for paper
+- `figure7_zero_shot_readiness.tex` - Complete section with methodology, results, and interpretation
+- `figure7_caption.tex` - Figure caption for paper
 
 ## Running the Experiments
 
@@ -73,7 +73,7 @@ source .venv/bin/activate  # Activate virtual environment
 python3 experiments_v1/07_figure/plot_ablation.py
 ```
 - **Runtime**: ~28 minutes (30 trials × 800 steps)
-- **Output**: `results/figure6_ablation_final.png`
+- **Output**: `results/figure7_ablation_final.png`
 - **Statistical tests**: Printed to console
 
 ### Run Main Efficiency Experiment
@@ -81,7 +81,7 @@ python3 experiments_v1/07_figure/plot_ablation.py
 python3 experiments_v1/07_figure/plot_adaptive_effeciency.py
 ```
 - **Runtime**: ~9.5 minutes (30 trials × 800 steps)
-- **Output**: `results/figure6_adaptive_efficiency.png`
+- **Output**: `results/figure7_adaptive_efficiency.png`
 - **Statistical tests**: Printed to console
 
 ### Verify Alpha Decay (Optional)
@@ -225,12 +225,12 @@ By transferring θ (preference) but resetting A (confidence):
 
 ### Full Section
 ```latex
-\input{experiments_v1/07_figure/figure6_zero_shot_readiness.tex}
+\input{experiments_v1/07_figure/figure7_zero_shot_readiness.tex}
 ```
 
 ### Figure Only
 ```latex
-\input{experiments_v1/07_figure/figure6_caption.tex}
+\input{experiments_v1/07_figure/figure7_caption.tex}
 ```
 
 ## Theoretical Foundation
