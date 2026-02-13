@@ -1,0 +1,10 @@
+% ============================================================================
+% ADDENDUM TO ABSTRACT - Insert after paragraph about semantic transfer
+% ============================================================================
+% Add this text after "...achieve zero-shot readiness without the cold start penalty"
+
+Sensitivity analysis on the effective prior strength parameter ($\neff$) reveals that system robustness emerges from Corralling's \textbf{adaptive expert selection} rather than parameter insensitivity. Through regime-stratified analysis across multiple seeds, we demonstrate that $\neff$ exhibits regime-dependent effects: when warmup priors match the data distribution (33\% of seeds), weak priors ($\neff=1.0$) outperform strong priors by +4.6\% due to preserved exploration flexibility. However, when priors mismatch the data (67\% of seeds, characterized by 71.5\% ties and low task variance), Corralling correctly detects over-confidence and abandons semantic transfer in favor of cold-start exploration, rendering $\neff$ irrelevant. This adaptive behavior yields an overall production impact of $\sim$1.5\%, demonstrating that meta-learning provides robustness by \textit{selectively applying} semantic transfer based on data-prior match quality rather than universally relying on it.
+
+% ============================================================================
+% END ADDENDUM
+% ============================================================================

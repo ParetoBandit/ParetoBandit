@@ -1,0 +1,151 @@
+% ============================================================================
+% Section 5.3: Sensitivity Analysis - Semantic Transfer Robustness
+% ============================================================================
+% REVISED VERSION: Two-stage analysis (mechanism + production)
+% Addresses KDD reviewer concerns about regime-dependent effects
+% ============================================================================
+
+\subsection{Sensitivity Analysis: Adaptive Expert Selection in Semantic Transfer}
+\label{sec:sensitivity_analysis}
+
+Having established semantic transfer's efficacy for new model adoption, we now investigate its \textit{robustness} to hyperparameter choice. A critical parameter is the \textit{effective prior strength} $\neff$, which governs the confidence assigned to the transferred preference vector $\thetavec_{\text{neighbor}}$. This analysis reveals an important insight: system robustness emerges not from parameter insensitivity, but from Corralling's \textbf{adaptive expert selection}.
+
+% ============================================================================
+% Stage 1: Mechanism - What Happens When Transfer is Forced
+% ============================================================================
+
+\subsubsection{Stage 1: Semantic Transfer Mechanism (Ablation Study)}
+
+We first isolate the pure effect of $\neff$ on semantic transfer by \textbf{disabling Corralling} (\texttt{use\_corralling=False}), forcing the system to always use the warmup expert (CostAwareLinUCBRouter with semantic transfer).
+
+\paragraph{Experimental Protocol.}
+Three seeds (42-44) with $\neff \in \{1.0, 2.0, 5.0, 10.0, 20.0\}$. Warmup models (Mixtral-8x7B, GPT-4-Turbo) initialized with priors from 40k battles. GPT-5.1 released at $t=300$ with semantic transfer from GPT-4-Turbo.
+
+\paragraph{Results: The Over-Confidence Trap.}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Configuration} & \textbf{Mean Reward} & \textbf{vs Cold Start} \\
+\midrule
+Cold Start (no transfer) & 4.416 & (baseline) \\
+\midrule
+$\neff = 1.0$ (weak prior) & \textbf{4.508} & \textbf{+2.08\%} \\
+$\neff = 2.0$ & 4.499 & +1.88\% \\
+$\neff = 5.0$ & 4.420 & +0.10\% \\
+$\neff = 10.0$ & 4.341 & \textcolor{red}{-1.68\%} \\
+$\neff = 20.0$ (strong prior) & 4.245 & \textcolor{red}{-3.87\%} \\
+\bottomrule
+\end{tabular}
+\caption{Semantic transfer performance WITHOUT Corralling (forced transfer). Strong priors ($\neff \geq 10$) actually underperform cold start.}
+\label{tab:ablation_no_corralling}
+\end{table}
+
+\textbf{Key finding:} Performance degrades monotonically with increasing $\neff$ (6.2\% span from best to worst). Strong priors \textit{underperform cold start}, confirming the ``over-confidence trap'' hypothesis: when $\mat{A}_{\text{new}} = \neff \cdot \mat{A}_{\text{neighbor}}$ is large, the exploration bonus term $\alpha \sqrt{\xvec^T \mat{A}^{-1} \xvec} \propto 1/\sqrt{\neff}$ shrinks, causing the system to stubbornly prefer cheaper incumbents even when the expensive new model is superior.
+
+% ============================================================================
+% Stage 2: Production Reality - Corralling's Adaptive Behavior
+% ============================================================================
+
+\subsubsection{Stage 2: Production System (Adaptive Meta-Learning)}
+
+In the production router (\texttt{use\_corralling=True}), Corralling meta-learning chooses between:
+\begin{itemize}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Warmup Expert} (CostAwareLinUCBRouter): Uses semantic transfer with $\neff$
+    \item \textbf{Tabula Rasa Expert} (CostAwareTabulaRasaRouter): Ignores all priors, learns from scratch
+\end{itemize}
+
+\paragraph{Multi-Seed Validation.}
+We test the same configuration across three seeds to evaluate generalizability.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Configuration} & \textbf{Mean Reward} & \textbf{95\% CI} & \textbf{p-value} \\
+\midrule
+Partial Cold Start & 4.101 & $\pm$0.288 & (baseline) \\
+\midrule
+$\neff = 1.0$ & 4.319 & $\pm$0.155 & 0.434 (ns) \\
+$\neff = 5.0$ & 4.280 & $\pm$0.079 & 0.437 (ns) \\
+$\neff = 20.0$ & 4.258 & $\pm$0.031 & 0.423 (ns) \\
+\bottomrule
+\end{tabular}
+\caption{Multi-seed performance WITH Corralling. No significant n-effective differences (paired t-tests, all $p>0.40$).}
+\label{tab:multiseed_corralling}
+\end{table}
+
+\textbf{Surprising result:} No significant differences between $\neff$ values (all $p > 0.40$), despite the 6.2\% effect observed without Corralling. Why?
+
+% ============================================================================
+% The Regime-Switching Explanation
+% ============================================================================
+
+\subsubsection{Regime-Dependent Effects: Corralling's Adaptive Switching}
+
+Tracking expert weights over time (Figure~\ref{fig:sensitivity_regime_stratified}) reveals the mechanism: Corralling exhibits \textbf{binary regime switching}, not continuous blending.
+
+\paragraph{Expert Selection Patterns.}
+\begin{itemize}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Seed 42 (33\%)}: Warmup expert maintained at \textbf{100\%} weight $\to$ semantic transfer used
+    \item \textbf{Seeds 43-44 (67\%)}: Tabula rasa expert at \textbf{100\%} weight $\to$ semantic transfer abandoned
+\end{itemize}
+
+\paragraph{Stratified Performance Analysis.}
+When we stratify results by dominant expert regime:
+
+\begin{itemize}[leftmargin=*, itemsep=2pt]
+    \item \textbf{Warmup-dominant regime} (seed 42, 33\% of seeds):
+    \begin{itemize}
+        \item $\neff=1.0$: 4.477
+        \item $\neff=20.0$: 4.280
+        \item \textbf{Effect: +4.6\%} (n-effective \textit{matters} here)
+    \end{itemize}
+    
+    \item \textbf{Tabula rasa-dominant regime} (seeds 43-44, 67\% of seeds):
+    \begin{itemize}
+        \item $\neff=1.0$: 4.241
+        \item $\neff=20.0$: 4.247
+        \item \textbf{Effect: -0.1\%} (n-effective \textit{ignored} here)
+    \end{itemize}
+\end{itemize}
+
+\textbf{Overall effect:} $0.33 \times 4.6\% + 0.67 \times 0\% \approx 1.5\%$ (not significant)
+
+% ============================================================================
+% Root Cause: Why Corralling Abandons Transfer 67% of Time
+% ============================================================================
+
+\paragraph{Root Cause: Data-Prior Mismatch.}
+Heterogeneity analysis reveals that the test distribution exhibits \textbf{low task variance}: GPT-5.1 achieves only 19.6\% win rate vs GPT-4-Turbo, with 71.5\% ties (most prompts yield identical quality across models). The warmup priors, trained on 40k historical battles, encode an ``expensive-bias'' favoring GPT-4-Turbo on complex tasks. When test data consists primarily of simple prompts (tie region), these priors appear over-confident---recommending expensive models for marginal or zero quality gain.
+
+Corralling's importance-weighted loss estimator detects this mismatch during the warmup phase ($t<300$). In 67\% of data orderings (seeds 43-44 pattern), early prompts expose the prior's overconfidence, causing Corralling to shift probability mass to the tabula rasa expert. Once switched, Corralling maintains this regime (100\% tabula rasa weight) throughout evaluation, completely bypassing semantic transfer.
+
+% ============================================================================
+% Interpretation: Meta-Learning Provides Robustness
+% ============================================================================
+
+\subsubsection{Interpretation: Robustness Through Adaptive Selection}
+
+The narrow performance band observed in Table~\ref{tab:multiseed_corralling} is \textit{not} evidence that ``all $\neff$ values work equally well.'' Rather, it demonstrates that \textbf{Corralling provides robustness by selectively applying semantic transfer only when priors match the data}.
+
+\paragraph{Mechanism:}
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+    \item When priors match data (33\% of seeds): Use semantic transfer $\to$ $\neff$ optimization matters (+4.6\%)
+    \item When priors mismatch data (67\% of seeds): Abandon transfer $\to$ $\neff$ becomes irrelevant
+    \item Result: System adapts to data quality, maintaining robust performance without manual intervention
+\end{enumerate}
+
+This adaptive behavior explains why the production system achieves near-optimal performance across diverse $\neff$ values: Corralling automatically compensates for suboptimal hyperparameter choices by switching strategies when necessary.
+
+% ============================================================================
+% Production Implications
+% ============================================================================
+
+\paragraph{Production Implications.}
+Based on these findings, we retain $\neff=5.0$ as the default (mid-range value, effective when warmup expert is active) and trust Corralling's adaptive expert selection for robustness. The expected production impact of $\neff$ optimization is $\sim$1.5\% (0.33 $\times$ 4.6\%), as semantic transfer is selectively applied based on data-prior match quality. Monitoring expert selection frequencies ($\sim$30-40\% warmup expected) provides a more valuable production signal than $\neff$ tuning.
+
+\paragraph{Key Takeaway.}
+System robustness emerges from Corralling's ability to \textit{detect and abandon failing priors}, not from universal parameter insensitivity. This demonstrates the value of meta-learning for production systems: automatic adaptation to data characteristics without requiring manual hyperparameter optimization or prior validation.

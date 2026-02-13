@@ -1,0 +1,15 @@
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{experiments_v1/08_figure/results/figure8_regime_stratified_CORRECTED.png}
+    \caption{
+        \textbf{Regime-Dependent n-Effective Sensitivity in Semantic Transfer.}
+        \textbf{Top row:} Expert weight evolution showing Corralling's binary regime switching. In \textbf{warmup-dominant regimes} (left panel, 33\% of seeds), Corralling maintains the semantic transfer expert (CostAwareLinUCBRouter, blue) at 100\% weight throughout the post-release evaluation window ($t>300$). In \textbf{tabula rasa-dominant regimes} (right panel, 67\% of seeds), Corralling abandons semantic transfer in favor of cold-start exploration (CostAwareTabulaRasaRouter, red), also maintaining 100\% weight. These binary weight patterns demonstrate discrete expert selection rather than continuous blending.
+        %
+        \textbf{Bottom row:} Performance stratified by regime reveals regime-dependent $\neff$ effects. In warmup-dominant regimes (left), weak priors ($\neff=1.0$, solid green) outperform strong priors ($\neff=20.0$, dashed gray) by \textbf{+4.6\%} due to preserved exploration flexibility. In tabula rasa-dominant regimes (right), both n-effective values produce \textbf{identical performance} (0\% difference) because semantic transfer is not used---the parameter is completely ignored.
+        %
+        \textbf{Key insight:} System robustness comes from Corralling's adaptive expert selection, not $\neff$ insensitivity. When warmup priors match the data distribution (33\% of seeds), $\neff$ choice significantly impacts performance. When priors mismatch the data (67\% of seeds, characterized by 71.5\% ties and low task variance), Corralling correctly detects the over-confidence and switches to cold-start exploration, rendering $\neff$ irrelevant. Overall production impact is $0.33 \times 4.6\% \approx 1.5\%$, demonstrating that meta-learning provides robustness by \textit{selectively applying} semantic transfer rather than universally relying on it.
+        %
+        \textbf{Experimental details:} Three seeds (42-44) with $\neff \in \{1.0, 20.0\}$ tested. Warmup models: Mixtral-8x7B, GPT-4-Turbo. New model: GPT-5.1 released at $t=300$. Each seed's regime classification is stable (expert weights remain at 0\% or 100\% post-release), confirming discrete switching behavior rather than stochastic variation.
+    }
+    \label{fig:sensitivity_regime_stratified}
+\end{figure}

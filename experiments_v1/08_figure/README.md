@@ -24,27 +24,27 @@ open experiments_v1/08_figure/results/figure8_sensitivity_hybrid.png
 
 **Does the effective prior strength ($n_{eff}$) parameter affect semantic transfer performance in cost-aware routing?**
 
-**Answer**: YES. Lower $n_{eff}$ (weak priors) outperform higher $n_{eff}$ (strong priors) by up to +5.2pp due to preserved exploration flexibility.
+**Answer**: The effect is **regime-dependent**. Corralling adaptively switches between semantic transfer (warmup expert) and cold-start exploration (tabula rasa expert) based on data-prior match.
 
-**Production Impact**: Changed system default from `n_eff=5.0` → `n_eff=1.0` based on these results.
+**Production Impact**: Default remains `n_eff=5.0` (mid-range value). System robustness comes from Corralling's adaptive expert selection, not n_eff optimization. See `README_REVISED.md` for updated analysis.
 
 ---
 
-## Key Results
+## Key Results (⚠️ SINGLE SEED - SEE REVISED ANALYSIS)
 
-| Configuration | $n_{eff}$ | Mean Reward | Improvement vs Baseline |
+| Configuration | $n_{eff}$ | Mean Reward (Seed 42) | Improvement vs Baseline |
 |--------------|-----------|-------------|-------------------------|
-| **Transfer-Weak ★** | **1.0** | **4.477** | **+17.59%** |
+| Transfer-Weak | 1.0 | 4.477 | +17.59% |
 | Transfer-Moderate | 2.0 | 4.464 | +17.24% |
 | Transfer-Balanced | 5.0 | 4.359 | +14.48% |
 | Transfer-Strong | 10.0 | 4.333 | +13.79% |
 | Transfer-VeryStrong | 20.0 | 4.280 | +12.41% |
 | Partial Cold Start | -- | 3.807 | 0.00% (baseline) |
 
-**Takeaway**: 
-- ✅ All semantic transfer configs beat Cold Start (+12-18%)
-- ✅ Lower $n_{eff}$ is better (counter-intuitive!)
-- ✅ Robustness band is narrow (5.2pp span → production-safe)
+**⚠️ IMPORTANT**: These results are from **seed 42 only** (warmup-dominant regime). Multi-seed analysis (`README_REVISED.md`) shows:
+- **33% of seeds**: Warmup expert active → n_eff matters (+4.6% effect)
+- **67% of seeds**: Tabula rasa active → n_eff ignored (0% effect)
+- **Overall**: Effect is regime-dependent, not universal
 
 ---
 
@@ -219,25 +219,25 @@ python experiments_v1/08_figure/plot_sensitivity.py 2>&1 | grep "Corralling"
 
 **File**: `src/bandit_gpt/router.py`
 
-**Before**:
+**Current Value**:
 ```python
-n_effective_default: float = 5.0  # Arbitrary choice
+n_effective_default: float = 5.0  # Mid-range value (line 128)
 ```
 
-**After**:
-```python
-n_effective_default: float = 1.0  # Empirically optimal (Figure 8)
-```
+**Rationale**: 
+- Multi-seed analysis revealed n_eff effect is **regime-dependent**
+- Corralling adaptively switches between warmup and tabula rasa experts
+- n_eff only matters when warmup expert is active (~33% of traffic)
+- System robustness comes from meta-learning, not parameter tuning
+- Default 5.0 is reasonable when warmup expert is used
 
-### Performance Improvement
+### Performance Note
 
-- **Old system** (n_eff=5.0): +14.48% vs Cold Start
-- **New system** (n_eff=1.0): +17.59% vs Cold Start
-- **Gain**: +3.11 percentage points (21.4% relative improvement in transfer benefit)
+**Single-seed results (seed 42)** showed n_eff=1.0 outperforming n_eff=5.0, but this **does not replicate** across seeds 43-44 where Corralling switches to tabula rasa expert (n_eff has no effect).
 
-### Deployment Date
+### Status
 
-January 27, 2026 (merged to main branch after validation)
+Experiment revised to focus on **adaptive expert selection** rather than n_eff optimization. See `README_REVISED.md` for complete multi-seed analysis.
 
 ---
 

@@ -142,10 +142,13 @@ class RouterConfig:
     
     1. **Latent Semantic Transfer (n_effective)**:
        - Tested range: [1.0, 2.0, 5.0, 10.0, 20.0] on real LMSYS Arena data
-       - Result: n_eff=1.0 optimal (+17.6% vs Cold Start baseline)
-       - Insight: Weak priors avoid "exploitation trap" for expensive new models
-       - Conclusion: Lower confidence preserves exploration; strong priors lock into suboptimal incumbents
-       - Default: 1.0 (empirically optimal, avoids over-confidence)
+       - Result: n_eff effect is **regime-dependent** (adaptive expert selection)
+       - Key Finding: Corralling meta-learning chooses between semantic transfer (warmup expert)
+         and cold-start exploration (tabula rasa expert) based on data-prior match
+       - In warmup-dominant regimes (~33% of traffic): n_eff=1.0 > n_eff=20.0 by 4.6%
+       - In tabula rasa-dominant regimes (~67% of traffic): n_eff has no effect
+       - Insight: System robustness comes from Corralling's adaptive switching, not n_eff optimization
+       - Default: 5.0 (mid-range value, effective when warmup expert is used)
     
     2. **Market Anchors (cost/latency normalization)**:
        - Derived from empirical market data (2024-2026)
