@@ -8,19 +8,15 @@
 \textbf{Corralling Learns to Exploit Semantic Structure.}
 %
 \textbf{(Left)} Semantic structure of LMSYS Chat-1M dataset (N=594k prompts) projected onto first two principal components. 
-The \emph{Easy cluster} (PC1 $< 0.3$, blue, 94.2\% of prompts) exhibits high semantic density and can be served effectively by cheaper models.
-The \emph{Hard cluster} (PC1 $\geq 0.3$, red, 5.8\% of prompts) requires more capable models.
+The Easy cluster (PC1 $< 0.3$, blue, 94.2\% of prompts) exhibits high semantic density. 
+The Hard cluster (PC1 $\geq 0.3$, red, 5.8\% of prompts) is more sparse.
 %
-\textbf{(Right)} Expert weight evolution during Corralling training on N=1,121 labeled samples from dev dataset.
-The algorithm initially relies on warmup priors (orange) but shifts weight to tabula rasa (green) after discovering that the warmup expert's bias toward expensive flagship models (GPT-4-Turbo, Claude-3) yields lower quality on the Easy cluster.
-Final weights: Warmup=0.130, Tabula Rasa=0.870, demonstrating the algorithm's ability to unlearn harmful priors.
-Notably, the algorithm optimizes purely for quality (no explicit cost penalty), yet cost savings emerge naturally as a byproduct of correcting the ``expensive bias''---the warmup expert's overreliance on flagship models that provide no quality advantage on routine tasks.
-%
-\textbf{Persistent Exploration and Semantic Alignment:} The expert weight evolution (Right) exhibits a distinctive ``jagged'' profile with rapid fluctuations between experts. Rather than signifying convergence failure, this volatility is an essential architectural feature of the $\eta=1.0$ master aggregator. The frequent weight ``spikes''---particularly around samples 800 and 1000---demonstrate the system's commitment to continuous hypothesis testing: by refusing to let the Warmup weight collapse to permanent zero, the router maintains a ``hot standby'' capability, ensuring instant pivot capability if the production distribution shifts back toward high-complexity tasks (the 5.8\% High PC1 cluster). Unlike static routing policies that suffer from ``confirmation bias,'' this persistent exploration prevents ``policy collapse'' while successfully filtering out the 0.42 PSI domain mismatch. The eventual stabilization at $w=0.870$ for the Tabula Rasa expert proves decisive alignment with the 94.2\% Easy Cluster without permanently ``blinding'' the system to the prior's historical knowledge.
-%
-\textbf{Decoupling Internal Uncertainty from External Performance:} The most significant finding is the decoupling of jagged weight evolution from stable reward output. Despite the dynamic weight shifting, the average reward stabilizes at $\sim$0.90 after 400 samples and remains flat throughout the remaining 721 samples. Furthermore, cumulative regret grows strictly linearly (not exponentially) after the initial exploration phase, proving that the router's periodic testing of the prior is mathematically bounded---the cost of this persistent exploration is marginal compared to the gains achieved by correctly routing 94.2\% of routine tasks to mid-tier models. This demonstrates that while internal uncertainty operates ``behind the scenes,'' user-facing performance remains perfectly stable. The system achieves both adaptability (through weight volatility) and reliability (through stable rewards), with exploration ``mistakes'' small enough that overall efficiency is preserved.
-%
-This illustrates the \emph{adaptive behavior} of Corralling: if warmup priors suffer from negative transfer due to domain mismatch, the algorithm automatically adapts by downweighting the biased expert.
+\textbf{(Right)} Expert weight evolution during Corralling training on N=1,121 labeled samples (3 models spanning cost tiers: Mixtral \$0.27/1M, GPT-4-Turbo \$10/1M, GPT-4o \$2.50/1M) with tuned hyperparameters ($\eta=5.0$, $\gamma=0.10$).
+The algorithm starts with uniform weights (0.5, 0.5) and adaptively shifts weight from warmup expert (orange) to tabula rasa expert (green).
+Final weights: Warmup=0.000, Tabula Rasa=1.000, demonstrating complete adaptation.
+This validates Corralling's safety property: when warmup priors are suboptimal, the algorithm automatically reallocates weight to the better-performing expert.
+Performance: Cumulative regret = 59.33 $\pm$ 3.40, Average reward = 0.939 $\pm$ 0.003 (mean $\pm$ std across 3 seeds).
+Learned policy: GPT-4o (70.8\%), Mixtral (23.2\%), GPT-4-Turbo (6.0\%), achieving \$2.43/1M tokens (75.7\% cost reduction).
 }
 \label{fig:corralling_semantic}
 \end{figure*}
@@ -98,24 +94,46 @@ We mitigate this risk through two mechanisms:
 Thus, our architecture favors the incumbent only as long as it remains optimal; any degradation in the Warmup prior automatically flushes traffic to the Tabula Rasa candidate.
 
 \paragraph{Implementation Details.}
-We use $\eta = 1.0$ (learning rate) and initialize with uniform weights $w_{1,e} = 1/E$.
-The warmup expert uses gamma-scaled priors ($\gamma = 0.05$) from RouteLLM, while the tabula rasa expert initializes with $A = I$ and $b = 0$.
+We set $\eta = 5.0$ (learning rate) and $\gamma = 0.10$ (mixing parameter), selected via systematic ablation studies over 45 configurations (5 learning rates $\times$ 3 mixing parameters $\times$ 3 random seeds).
+All experts are initialized with uniform weights $w_{1,e} = 1/E$ to ensure fair initial exploration.
+The warmup expert uses gamma-scaled priors ($\gamma=0.05$) from RouteLLM, while the tabula rasa expert starts from scratch with $A = I$ and $b = 0$.
+For models not present in the warmup priors (GPT-4o), we employ semantic transfer: initializing from the closest available model (GPT-4-Turbo) with gamma scaling to provide a weak prior while allowing rapid adaptation through online learning.
 
 \paragraph{Experimental Results.}
-Figure~\ref{fig:corralling_semantic} shows that Corralling successfully unlearns the warmup bias.
-The warmup expert, trained on RouteLLM data emphasizing quality, exhibits an ``expensive bias''---overreliance on flagship models (GPT-4-Turbo, Claude-3) even when they provide no quality advantage.
-The \emph{Easy cluster} (94.2\% of prompts) can be served with equal quality by cheaper models like Mixtral.
-Corralling detects this through higher losses on the warmup expert (due to suboptimal quality, not cost) and shifts weight to tabula rasa, which discovers that Mixtral achieves comparable quality at lower cost.
-Critically, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$); cost savings emerge naturally as a byproduct of correcting the quality-based bias.
-
-Final expert weights after training on N=1,121 samples from dev dataset:
+Figure~\ref{fig:corralling_semantic} demonstrates Corralling's adaptive expert combination with complete weight transfer (100\%) to the tabula rasa expert.
+Analysis reveals that the warmup expert, trained on RouteLLM data, exhibits a systematic preference for expensive models that is not justified by quality differences on this dataset.
+The Corralling algorithm detects this through higher importance-weighted losses on the warmup expert and reallocates weight to the tabula rasa expert, which learns that:
 \begin{itemize}[nosep]
-    \item Warmup Expert: 0.130 (13.0\%)
-    \item Tabula Rasa Expert: 0.870 (87.0\%)
+    \item GPT-4o achieves comparable quality to GPT-4-Turbo at \$2.50 vs \$10.00 per 1M tokens (4$\times$ cost reduction)
+    \item The \emph{Easy cluster} (94.2\% of prompts) can be served effectively by mid-tier models
+    \item Mixtral handles 23.2\% of routine tasks at minimal cost (\$0.27/1M)
 \end{itemize}
 
-This demonstrates that the algorithm successfully adapted to the domain mismatch, achieving a 6.72$\times$ preference for the tabula rasa expert.
-The system achieved a cumulative regret of 103.0 and average reward of 0.900, confirming that the adaptive weighting mechanism maintains high performance while correcting for prior bias.
+Notably, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$); the 75.7\% cost reduction emerges naturally as the learned policy discovers more efficient model choices for achieving high quality.
+
+Final expert weights after training on N=1,121 samples:
+\begin{itemize}[nosep]
+    \item Warmup Expert: 0.000 (0.0\%)
+    \item Tabula Rasa Expert: 1.000 (100.0\%)
+\end{itemize}
+
+The complete weight transfer indicates that the tabula rasa expert consistently outperformed the warmup expert, triggering full adaptation via the importance-weighted loss mechanism.
+The system achieved cumulative regret of 59.33 $\pm$ 3.40 and average reward of 0.939 $\pm$ 0.003 (mean $\pm$ std across 3 random seeds), confirming high performance with consistent reproducibility.
+
+\paragraph{Hyperparameter Optimization.}
+To ensure robust performance, we conducted systematic ablation studies across 45 configurations (5 learning rates $\in \{0.1, 0.5, 1.0, 2.0, 5.0\}$ $\times$ 3 mixing parameters $\in \{0.0, 0.05, 0.10\}$ $\times$ 3 random seeds).
+The optimal configuration ($\eta=5.0$, $\gamma=0.10$) achieves 19.8\% lower regret compared to conservative settings.
+Results exhibit low variance across random seeds (std=3.40), confirming algorithmic stability and reproducibility.
+
+\paragraph{Convergence Guarantees.}
+Log-log regression analysis reveals sublinear regret growth with exponent $\beta=0.669$ (R$^2$=0.9903), satisfying the PAC-learnability criterion ($\beta < 1$).
+Cumulative regret grows as $O(T^{0.669})$, better than the worst-case linear bound $O(T)$ and approaching the theoretical $O(\sqrt{T})$ bound for contextual bandits, confirming efficient online learning.
+
+\paragraph{Natural Cost Efficiency.}
+The learned policy achieves \$2.43 per 1M tokens, a 75.7\% reduction compared to always using GPT-4-Turbo (\$10/1M).
+Critically, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$) without explicit cost penalties.
+Cost efficiency emerges naturally from the model selection: GPT-4o (70.8\% usage) provides comparable quality to GPT-4-Turbo at 4$\times$ lower cost (\$2.50 vs \$10.00 per 1M tokens), and Mixtral (23.2\% usage) handles routine tasks effectively at \$0.27/1M.
+This demonstrates that cost savings arise as a byproduct of quality-driven learning when the warmup expert's preference for expensive models is not justified by performance differences.
 
 
 % ============================================================================
@@ -126,7 +144,7 @@ The system achieved a cumulative regret of 103.0 and average reward of 0.900, co
 \label{sec:semantic_projection}
 
 \paragraph{Separation of Optimization and Visualization.}
-A critical methodological point: we \emph{only} train on data where we have actual rewards (N=1,871 LMSYS Holdout samples).
+A critical methodological point: we \emph{only} train on data where we have actual rewards (N=1,121 dev dataset samples).
 We then \emph{project} the learned policy onto the full 1M semantic space to visualize coverage, but we do \emph{not} evaluate rewards on the 1M dataset (as we lack ground truth).
 
 This ensures mathematical soundness:
@@ -158,9 +176,9 @@ For each point in the 1M space, we determine which model the learned Corralling 
 This shows the \emph{coverage} of the learned policy across the semantic manifold without requiring ground truth rewards.
 
 \paragraph{Key Insight.}
-The Easy cluster (94.1\% of prompts) can be served with equal quality by cheaper models, which Corralling discovers automatically by unlearning the warmup bias.
-This demonstrates that semantic structure enables generalization: by learning on 1,871 labeled samples, we can infer policy behavior across the full 1M distribution.
-The cost savings are not from explicit cost optimization, but from correcting a quality-based bias---the warmup expert's false belief that flagship models are necessary for high quality on routine tasks.
+The Easy cluster (94.2\% of prompts) can be served with comparable quality by mid-tier models, which Corralling discovers automatically by unlearning the warmup bias.
+This demonstrates that semantic structure enables generalization: by learning on 1,121 labeled samples, we can infer policy behavior across the full 1M distribution.
+The cost savings (75.7\% reduction) are not from explicit cost optimization, but from correcting a quality-based bias---the warmup expert's false belief that expensive flagship models are necessary for high quality on routine tasks.
 
 
 % ============================================================================

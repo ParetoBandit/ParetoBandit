@@ -57,7 +57,8 @@ from bandit_gpt.config_legacy import (
     OFFLINE_DATASET_DIR,
 )
 
-# Use complete dataset with all models (not just 2 models)
+# Use complete 3-model dataset (Mixtral, GPT-4-Turbo, GPT-4o)
+# This tests multi-model routing and semantic transfer
 CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
 
 
@@ -80,8 +81,13 @@ class TabulaRasaRouter:
         # Track selections
         self.selections = {m: 0 for m in models}
     
-    def select_model(self, context: np.ndarray) -> str:
-        """Select model using UCB."""
+    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+        """Select model using UCB.
+        
+        Args:
+            context: Context vector
+            total_steps: Total training steps (unused in basic LinUCB, for compatibility)
+        """
         ucb_scores = {}
         for model in self.models:
             A_inv = np.linalg.inv(self.A[model])
@@ -165,21 +171,97 @@ def compute_oracle_reward(sample: Dict, model: str) -> Tuple[float, float]:
     return scores.get(model, 0.0), oracle_reward
 
 
+def extend_priors_with_semantic_transfer(
+    warmup_priors: Dict,
+    new_models: List[str],
+    transfer_mapping: Dict[str, str],
+    gamma: float = 0.05
+) -> Dict:
+    """
+    Extend warmup priors to include new models via semantic transfer.
+    
+    Args:
+        warmup_priors: Existing priors (e.g., for Mixtral, GPT-4-Turbo)
+        new_models: Models to add (e.g., GPT-4o)
+        transfer_mapping: {new_model: source_model} (e.g., {'gpt-4o': 'gpt-4-turbo'})
+        gamma: Scaling factor for transferred priors (low = weak transfer)
+    
+    Returns:
+        Extended priors with new models
+    """
+    extended_priors = {
+        'A': warmup_priors['A'].copy(),
+        'b': warmup_priors['b'].copy(),
+        'models': warmup_priors['models'].copy(),
+        'context_dim': warmup_priors['context_dim']
+    }
+    
+    for new_model in new_models:
+        if new_model in extended_priors['models']:
+            continue  # Already exists
+        
+        source_model = transfer_mapping.get(new_model)
+        if not source_model or source_model not in warmup_priors['models']:
+            raise ValueError(f"Cannot transfer priors for {new_model}: source {source_model} not found")
+        
+        # Transfer priors with scaling (gamma acts like n_effective)
+        extended_priors['A'][new_model] = gamma * warmup_priors['A'][source_model].copy()
+        extended_priors['b'][new_model] = gamma * warmup_priors['b'][source_model].copy()
+        extended_priors['models'].append(new_model)
+        
+        print(f"   ✅ Transferred priors: {source_model} → {new_model} (γ={gamma})")
+    
+    return extended_priors
+
+
 def train_corralling_router(
     data: List[Dict],
     encoder: SentenceTransformer,
     pca,
     warmup_priors: Dict,
-    learning_rate: float = 1.0
+    learning_rate: float = 1.0,
+    enable_semantic_transfer: bool = True
 ) -> Tuple[CorrallingRouter, Dict]:
     """
     Train Corralling router on labeled data using importance-weighted loss.
     
     This is the OPTIMIZATION phase - we only use prompts where we have rewards.
     
+    Args:
+        enable_semantic_transfer: If True, extend priors to include GPT-4o via transfer from GPT-4-Turbo
+    
     Returns:
         (trained_router, training_metrics)
     """
+    # Collect all models present in the data
+    all_models_in_data = set()
+    for sample in data:
+        all_models_in_data.update(sample['scores'].keys())
+    all_models_in_data = sorted(all_models_in_data)
+    
+    print(f"\n📊 Models in training data: {all_models_in_data}")
+    print(f"   Models in warmup priors: {warmup_priors['models']}")
+    
+    # Check if we need to extend priors
+    missing_models = [m for m in all_models_in_data if m not in warmup_priors['models']]
+    
+    if missing_models and enable_semantic_transfer:
+        print(f"\n🔄 Semantic Transfer: Extending priors for {len(missing_models)} new model(s)")
+        
+        # Define transfer mapping (GPT-4o inherits from GPT-4-Turbo)
+        transfer_mapping = {
+            'openai/gpt-4o': 'openai/gpt-4-turbo'
+        }
+        
+        warmup_priors = extend_priors_with_semantic_transfer(
+            warmup_priors,
+            new_models=missing_models,
+            transfer_mapping=transfer_mapping,
+            gamma=0.05  # Weak transfer (low confidence)
+        )
+    elif missing_models:
+        raise ValueError(f"Missing warmup priors for: {missing_models}. Enable semantic_transfer or provide priors.")
+    
     models = warmup_priors['models']
     context_dim = warmup_priors['A'][models[0]].shape[0]
     

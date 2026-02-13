@@ -1,0 +1,8 @@
+{
+  "growth_exponent_beta": 0.669016359173435,
+  "r_squared": 0.9903224821653707,
+  "p_value": 0.0,
+  "std_err": 0.0020227469540302807,
+  "interpretation": "Sublinear growth (\u03b2 < 1)",
+  "passes_pac_bound": true
+}

@@ -1,0 +1,167 @@
+[
+  {
+    "learning_rate": 0.1,
+    "gamma": 0.0,
+    "n_seeds": 3,
+    "mean_regret": 94.33333333333333,
+    "std_regret": 41.6839963961657,
+    "mean_reward": 0.9078203984537615,
+    "std_reward": 0.03718465334180706,
+    "min_regret": 60.0,
+    "max_regret": 153.0
+  },
+  {
+    "learning_rate": 0.1,
+    "gamma": 0.05,
+    "n_seeds": 3,
+    "mean_regret": 64.66666666666667,
+    "std_regret": 3.858612300930075,
+    "mean_reward": 0.9342848647041332,
+    "std_reward": 0.003442116236333709,
+    "min_regret": 61.0,
+    "max_regret": 70.0
+  },
+  {
+    "learning_rate": 0.1,
+    "gamma": 0.1,
+    "n_seeds": 3,
+    "mean_regret": 68.33333333333333,
+    "std_regret": 1.699673171197595,
+    "mean_reward": 0.9310139756170086,
+    "std_reward": 0.0015162115710951039,
+    "min_regret": 66.0,
+    "max_regret": 70.0
+  },
+  {
+    "learning_rate": 0.5,
+    "gamma": 0.0,
+    "n_seeds": 3,
+    "mean_regret": 88.33333333333333,
+    "std_regret": 31.626290048347787,
+    "mean_reward": 0.9131727624145108,
+    "std_reward": 0.02821256917783033,
+    "min_regret": 64.0,
+    "max_regret": 133.0
+  },
+  {
+    "learning_rate": 0.5,
+    "gamma": 0.05,
+    "n_seeds": 3,
+    "mean_regret": 86.0,
+    "std_regret": 27.820855486487112,
+    "mean_reward": 0.9152542372881355,
+    "std_reward": 0.02481789071051486,
+    "min_regret": 62.0,
+    "max_regret": 125.0
+  },
+  {
+    "learning_rate": 0.5,
+    "gamma": 0.1,
+    "n_seeds": 3,
+    "mean_regret": 85.33333333333333,
+    "std_regret": 27.450966386551052,
+    "mean_reward": 0.9158489443948855,
+    "std_reward": 0.02448792719585286,
+    "min_regret": 63.0,
+    "max_regret": 124.0
+  },
+  {
+    "learning_rate": 1.0,
+    "gamma": 0.0,
+    "n_seeds": 3,
+    "mean_regret": 59.666666666666664,
+    "std_regret": 10.274023338281626,
+    "mean_reward": 0.9387451680047576,
+    "std_reward": 0.00916505204128605,
+    "min_regret": 48.0,
+    "max_regret": 73.0
+  },
+  {
+    "learning_rate": 1.0,
+    "gamma": 0.05,
+    "n_seeds": 3,
+    "mean_regret": 90.0,
+    "std_regret": 48.194052191807515,
+    "mean_reward": 0.9116859946476361,
+    "std_reward": 0.04299201801231713,
+    "min_regret": 52.0,
+    "max_regret": 158.0
+  },
+  {
+    "learning_rate": 1.0,
+    "gamma": 0.1,
+    "n_seeds": 3,
+    "mean_regret": 70.66666666666667,
+    "std_regret": 9.741092797468305,
+    "mean_reward": 0.9289325007433838,
+    "std_reward": 0.008689645671247371,
+    "min_regret": 61.0,
+    "max_regret": 84.0
+  },
+  {
+    "learning_rate": 2.0,
+    "gamma": 0.0,
+    "n_seeds": 3,
+    "mean_regret": 75.0,
+    "std_regret": 22.759613353482084,
+    "mean_reward": 0.9250669045495094,
+    "std_reward": 0.02030295571229449,
+    "min_regret": 56.0,
+    "max_regret": 107.0
+  },
+  {
+    "learning_rate": 2.0,
+    "gamma": 0.05,
+    "n_seeds": 3,
+    "mean_regret": 99.0,
+    "std_regret": 54.46099521676041,
+    "mean_reward": 0.903657448706512,
+    "std_reward": 0.04858251134412171,
+    "min_regret": 59.0,
+    "max_regret": 176.0
+  },
+  {
+    "learning_rate": 2.0,
+    "gamma": 0.1,
+    "n_seeds": 3,
+    "mean_regret": 86.33333333333333,
+    "std_regret": 28.802006102970598,
+    "mean_reward": 0.9149568837347606,
+    "std_reward": 0.025693136577137024,
+    "min_regret": 64.0,
+    "max_regret": 127.0
+  },
+  {
+    "learning_rate": 5.0,
+    "gamma": 0.0,
+    "n_seeds": 3,
+    "mean_regret": 94.33333333333333,
+    "std_regret": 18.696404883173543,
+    "mean_reward": 0.9078203984537615,
+    "std_reward": 0.016678327282045945,
+    "min_regret": 76.0,
+    "max_regret": 120.0
+  },
+  {
+    "learning_rate": 5.0,
+    "gamma": 0.05,
+    "n_seeds": 3,
+    "mean_regret": 61.666666666666664,
+    "std_regret": 2.0548046676563256,
+    "mean_reward": 0.936961046684508,
+    "std_reward": 0.001833010408257235,
+    "min_regret": 59.0,
+    "max_regret": 64.0
+  },
+  {
+    "learning_rate": 5.0,
+    "gamma": 0.1,
+    "n_seeds": 3,
+    "mean_regret": 59.333333333333336,
+    "std_regret": 3.39934634239519,
+    "mean_reward": 0.9390425215581327,
+    "std_reward": 0.0030324231421902078,
+    "min_regret": 56.0,
+    "max_regret": 64.0
+  }
+]

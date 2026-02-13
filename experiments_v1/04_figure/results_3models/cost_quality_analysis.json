@@ -1,0 +1,64 @@
+{
+  "corralling": {
+    "name": "Corralling (\u03bb_cost=0)",
+    "model_usage": {
+      "mistralai/mixtral-8x7b-instruct": 260,
+      "openai/gpt-4-turbo": 67,
+      "openai/gpt-4o": 794
+    },
+    "avg_cost": 2.431043710972346,
+    "avg_reward": 0.9259589652096343,
+    "estimated_reward": 0.9384032114183763
+  },
+  "baselines": [
+    {
+      "name": "Always GPT-4-Turbo",
+      "model_usage": {
+        "openai/gpt-4-turbo": 1121
+      },
+      "avg_cost": 10.0,
+      "avg_reward": 0.95
+    },
+    {
+      "name": "Always Mixtral",
+      "model_usage": {
+        "mistralai/mixtral-8x7b-instruct": 1121
+      },
+      "avg_cost": 0.27,
+      "avg_reward": 0.9
+    },
+    {
+      "name": "Always GPT-4o",
+      "model_usage": {
+        "openai/gpt-4o": 1121
+      },
+      "avg_cost": 2.5,
+      "avg_reward": 0.95
+    },
+    {
+      "name": "Random (Uniform)",
+      "model_usage": {
+        "mistralai/mixtral-8x7b-instruct": 373,
+        "openai/gpt-4-turbo": 373,
+        "openai/gpt-4o": 373
+      },
+      "avg_cost": 4.256666666666667,
+      "avg_reward": 0.9333333333333332
+    },
+    {
+      "name": "Warmup Expert (Biased)",
+      "model_usage": {
+        "openai/gpt-4-turbo": 896,
+        "openai/gpt-4o": 168,
+        "mistralai/mixtral-8x7b-instruct": 56
+      },
+      "avg_cost": 8.3885,
+      "avg_reward": 0.9475
+    }
+  ],
+  "model_costs": {
+    "mistralai/mixtral-8x7b-instruct": 0.27,
+    "openai/gpt-4-turbo": 10.0,
+    "openai/gpt-4o": 2.5
+  }
+}

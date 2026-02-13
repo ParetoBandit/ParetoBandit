@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Quick test to verify Corralling implementation works correctly.
+Test Corralling implementation with optimized hyperparameters.
 
-This script runs a minimal version of the Corralling algorithm on a small
-subset of data to verify:
+This script runs the Corralling algorithm on a small subset of data to verify:
 1. Importance-weighted loss estimation works
 2. Expert weights update correctly
 3. Algorithm can unlearn warmup bias
+4. Optimized hyperparameters (η=5.0, γ=0.10) work correctly
 
 Usage:
-    python experiments_v1/03_figure/test_corralling.py
+    python experiments_v1/04_figure/test_corralling.py
 """
 
 import sys
@@ -47,13 +47,24 @@ class TabulaRasaRouter:
         self.b = {m: np.zeros(context_dim) for m in models}
         self.selections = {m: 0 for m in models}
     
-    def select_model(self, context):
+    def select_model(self, context, total_steps=0):
+        """Select model using UCB.
+        
+        Args:
+            context: Context vector
+            total_steps: Total training steps (unused, for compatibility)
+        """
         ucb_scores = {}
         for model in self.models:
-            A_inv = np.linalg.inv(self.A[model])
+            try:
+                A_inv = np.linalg.inv(self.A[model])
+            except np.linalg.LinAlgError:
+                # Add small regularization if singular
+                A_inv = np.linalg.inv(self.A[model] + 1e-6 * np.eye(self.context_dim))
+            
             theta = A_inv @ self.b[model]
             expected = theta @ context
-            uncertainty = np.sqrt(context @ A_inv @ context)
+            uncertainty = np.sqrt(max(0, context @ A_inv @ context))  # Ensure non-negative
             ucb_scores[model] = expected + self.alpha * uncertainty
         selected = max(ucb_scores, key=ucb_scores.get)
         self.selections[selected] += 1
@@ -102,7 +113,7 @@ def test_corralling():
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     pca = joblib.load(DEFAULT_PCA_PATH)
     warmup_priors = joblib.load(DEFAULT_WARMUP_PRIORS_PATH)
-    warmup_priors_scaled = apply_gamma_scaling(warmup_priors, gamma=0.05)
+    warmup_priors_scaled = apply_gamma_scaling(warmup_priors, gamma=0.10)  # Optimized: was 0.05
     
     models = warmup_priors['models']
     context_dim = warmup_priors['A'][models[0]].shape[0]
@@ -132,7 +143,7 @@ def test_corralling():
     router = CorrallingRouter(
         experts=[warmup_expert, tabula_rasa_expert],
         models=models,
-        learning_rate=1.0
+        learning_rate=5.0  # Optimized: was 1.0
     )
     
     print(f"   ✅ Initial weights: {router.weights}")
