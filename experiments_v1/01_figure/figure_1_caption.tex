@@ -4,8 +4,8 @@
 \centering
 \includegraphics[width=0.95\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_holdout_pca.png}
 \caption{\textbf{Model Preference Heterogeneity in LMSYS Held-Out Prompts ($N=750$).}
-\textbf{(A)} PC1 projection (domain-adapted PCA, trained on 80K routing prompts, unsupervised) vs.\ reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$. The dashed line marks the silhouette-optimal threshold ($\text{PC1}=0.222$), selected without reference to reward labels. The running mean shows a smooth transition in model preference across the PC1 axis.
-\textbf{(B)} Reward gap distributions by cluster. The Low PC1 cluster (80.8\%, $n=606$, blue) favors GPT-4-Turbo ($\mu = +0.12$, 95\% CI: $[+0.09, +0.15]$); the High PC1 cluster (19.2\%, $n=144$, red) strongly favors Mixtral ($\mu = -0.56$, 95\% CI: $[-0.66, -0.46]$). The difference is highly significant (Mann-Whitney $p < 0.0001$, Cohen's $d = 1.53$). Robustness check with generic C4 PCA (100K web text, no routing connection) confirms the effect persists independently ($p < 0.0001$, $d = 0.33$).
-Reward scores are from LMSYS Chatbot Arena human preference evaluations.}
+\textbf{(A)} PC1 projection (domain-adapted PCA, trained on 80K routing prompts, unsupervised) vs.\ reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$. Reward gaps are discrete pairwise outcomes. The dashed line marks the silhouette-optimal threshold ($\text{PC1}=0.222$), selected without reference to reward labels. The running mean shows a smooth transition in model preference across the PC1 axis.
+\textbf{(B)} Outcome proportions by cluster. The Low PC1 cluster (80.8\%, $n=606$, blue) and High PC1 cluster (19.2\%, $n=144$, red) exhibit significantly different outcome distributions ($\chi^2$ test: $p < 0.0001$; Mann-Whitney $p < 0.0001$). The High PC1 cluster shows a substantially higher Mixtral win rate and lower GPT-4-Turbo win rate. Generic C4 PCA (100K web text, no routing connection) confirms a significant but smaller effect ($p < 0.0001$, Cohen's $d = 0.33$ vs.\ $1.53$ with domain-adapted PCA), indicating the domain-adapted PCA amplifies a modest underlying signal.
+Reward scores are from LMSYS Chatbot Arena human preference evaluations (discrete pairwise outcomes).}
 \label{fig:lmsys_holdout_structure}
 \end{figure}

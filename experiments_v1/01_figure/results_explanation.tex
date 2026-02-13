@@ -5,41 +5,50 @@
 \label{sec:semantic_structure}
 
 Before presenting our routing algorithm, we first establish that prompt structure correlates with differential model performance in the LMSYS held-out set.
-Figure~\ref{fig:lmsys_holdout_structure} visualizes 750 held-out prompts projected onto the first principal component of a domain-adapted PCA model (trained on 80K routing prompt embeddings, unsupervised).
-This projection reveals \textbf{model preference heterogeneity}: a minority of prompts where the cheaper model significantly outperforms the frontier.
+Figure~\ref{fig:lmsys_holdout_structure} visualizes 750 held-out prompts projected onto the first principal component of a PCA model, revealing \textbf{model preference heterogeneity}: variation in which model is preferred across different prompt types.
 
-\paragraph{Model Preference Heterogeneity.} 
-Contrary to the expectation that frontier models (GPT-4-Turbo) strictly dominate cheaper alternatives (Mixtral-8x7B), our analysis uncovers a subset of prompts where model preference inverts.
-Using a silhouette-optimal threshold ($\text{PC1} = 0.222$, selected without reference to reward labels), we identify two clusters:
+\paragraph{Discrete Reward Structure.}
+Reward gaps are derived from pairwise human preference evaluations (LMSYS Chatbot Arena), producing discrete outcomes: GPT-4-Turbo win ($\Delta > 0$), tie ($\Delta = 0$), or Mixtral win ($\Delta < 0$).
+We therefore report outcome proportions and categorical statistics ($\chi^2$ test, Cram\'er's $V$) as the primary analysis, supplemented by ordinal tests (Mann-Whitney $U$).
+
+\paragraph{Model Preference Heterogeneity.}
+Using a silhouette-optimal threshold ($\text{PC1} = 0.222$, selected without reference to reward labels), we identify two clusters with significantly different outcome distributions:
 
 \begin{itemize}[noitemsep,topsep=2pt]
-    \item \textbf{Low PC1 Cluster (80.8\%, $n=606$):} Diverse conversational prompts where the frontier model retains a moderate advantage ($\Delta = +0.121$, 95\% CI: $[+0.088, +0.153]$), consistent with its superior instruction following and world knowledge.
-    
-    \item \textbf{High PC1 Cluster (19.2\%, $n=144$):} Prompts with strict formatting constraints where the reward gap inverts ($\Delta = -0.563$, 95\% CI: $[-0.661, -0.464]$), meaning the cheaper model (Mixtral) significantly outperforms the frontier.
-    Qualitative inspection reveals this cluster is dominated by instruction-following templates, binary classification tasks, structured output requirements, and explicit negative constraints.
-    We observe that the frontier model's conversational tendencies (e.g., adding preambles, explaining reasoning) correlate with violations of strict formatting requirements, while the open-weights model adheres more closely to template structure.
+    \item \textbf{Low PC1 Cluster (80.8\%, $n=606$):} Diverse conversational prompts where GPT-4-Turbo is preferred on aggregate (mean $\Delta = +0.121$).
+
+    \item \textbf{High PC1 Cluster (19.2\%, $n=144$):} Prompts where Mixtral wins at a substantially higher rate and GPT-4-Turbo wins less often (mean $\Delta = -0.563$).
+    Qualitative inspection reveals this cluster contains instruction-following templates, binary classification tasks, structured output requirements, and explicit negative constraints.
 \end{itemize}
 
 \paragraph{Statistical Validation.}
-We validate the cluster distinction through multiple statistical tests. The difference between clusters is highly significant (Mann-Whitney $U$-test: $p < 0.0001$), with a large effect size (Cohen's $d = 1.53$). 
-The 95\% confidence intervals for the two clusters do not overlap, confirming that the semantic structure corresponds to genuine differences in model performance.
+The outcome distributions differ significantly between clusters ($\chi^2$ test: $p < 0.0001$, Cram\'er's $V$ reported in figure).
+The ordinal Mann-Whitney $U$-test, appropriate for the discrete reward gap, also confirms the difference ($p < 0.0001$).
 
-\paragraph{PCA Robustness.}
-To confirm this finding is not an artifact of domain-adapted PCA, we repeat the analysis with PCA trained on 100K generic web text samples (C4 corpus). The effect persists ($p < 0.0001$, Cohen's $d = 0.33$), confirming the structure exists independently of PCA provenance. The domain-adapted PCA concentrates routing-relevant variation more efficiently ($d = 1.53$ vs.\ $0.33$), consistent with its training on routing-relevant prompts.
+\paragraph{PCA Sensitivity.}
+We validate that this finding is not an artifact of PCA provenance by repeating the analysis with two PCA models, both unsupervised (no reward labels used during training):
+
+\begin{itemize}[noitemsep,topsep=2pt]
+    \item \textbf{Generic PCA} (trained on 100K C4 web text samples, no routing connection): The effect is significant ($p < 0.0001$) with a small effect size (Cohen's $d = 0.33$). This is the unbiased baseline estimate.
+
+    \item \textbf{Domain-adapted PCA} (trained on 80K routing prompts): The effect is significant ($p < 0.0001$) with a larger effect size ($d = 1.53$), consistent with task-relevant feature extraction concentrating routing-relevant variance into PC1.
+\end{itemize}
+
+\noindent The $4.6\times$ difference in effect size between PCA approaches ($d = 0.33$ vs.\ $1.53$) demonstrates that the domain-adapted PCA \emph{amplifies} a modest underlying signal.
+The generic PCA result ($d = 0.33$) provides the more conservative estimate of the true effect.
 
 \paragraph{Methodological Notes.}
 \begin{itemize}[noitemsep,topsep=2pt]
     \item \textbf{Data:} Held-out test set only ($N=750$), created via stratified sampling (Appendix~\ref{app:stratification}). Dev set excluded.
-    \item \textbf{PCA:} Domain-adapted, trained on 80K routing prompts (unsupervised---no reward labels).
+    \item \textbf{Rewards:} Discrete pairwise outcomes from LMSYS Chatbot Arena human preference evaluations.
     \item \textbf{Threshold:} Silhouette-optimal ($\text{PC1} = 0.222$), selected without reward labels.
-    \item \textbf{Rewards:} LMSYS Chatbot Arena human preference evaluations.
-    \item \textbf{High-D structure:} Weak in 384D (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$).
+    \item \textbf{High-D structure:} Weak in 384D (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$, explaining $\sim$16\% of reward gap variance).
     \item \textbf{Cluster diversity:} High PC1 is homogeneous (diversity $= 0.355$), consistent with a coherent semantic category.
-    \item \textbf{Causal mechanism:} Not ablated. Correlational patterns are consistent with RLHF alignment effects, but alternative explanations remain possible.
+    \item \textbf{Causal mechanism:} Not ablated. Correlational patterns suggest RLHF alignment effects, but alternative explanations remain possible.
 \end{itemize}
 
 \paragraph{Implications for Routing.}
-This preference heterogeneity provides empirical justification for adaptive routing over static ``complexity'' heuristics. 
-A static router based on ``difficulty'' might assume that strict, complex constraints require the strongest model. 
+This preference heterogeneity provides empirical justification for adaptive routing over static ``complexity'' heuristics.
+A static router based on ``difficulty'' might assume that strict, complex constraints require the strongest model.
 However, \texttt{banditGPT} learns the \emph{empirical} truth: on this subset of tasks, the cheaper model is preferred.
 By identifying this structure, the router achieves cost reduction not just by offloading easy tasks, but by routing the subset of tasks where the cheaper model empirically excels.

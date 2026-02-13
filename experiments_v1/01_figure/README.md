@@ -31,21 +31,9 @@ This experiment establishes the **foundation** for our routing approach:
 - `plot_figure1_revised.py` - Main visualization and analysis
   - Projects 750 held-out LMSYS prompts onto PCA space (no dev contamination)
   - Uses routing-adapted PCA (domain-specific feature extraction)
-  - Validates clusters against reward gaps with statistical tests
-  - Computes significance, effect sizes, confidence intervals
-  - Generates Figure 1 with comprehensive annotations
-- `archived/plot_lmsys_holdout_pca.py.OLD` - Archived version using generic C4 PCA
-
-#### Validation Scripts (Archived)
-
-**Note**: The following validation scripts have been archived to `archived/` because they used dev+holdout (N=1,871) instead of holdout only (N=750). They are preserved for reference but not used in the current analysis.
-
-- `archived/check_cluster_stats.py.OLD` - Statistical validation
-- `archived/validate_threshold.py.OLD` - Threshold robustness validation
-- `archived/validate_high_dimensional.py.OLD` - High-dimensional structure validation
-- `archived/analyze_cluster_diversity.py.OLD` - Data quality validation
-
-All validation results in the current paper are based on the main analysis script (`plot_figure1_revised.py`) which correctly uses N=750 holdout only.
+  - Categorical statistics (chi-squared, Cramer's V) for discrete pairwise outcomes
+  - Threshold stability analysis (effect size sweep, not just p-values)
+  - Generates Figure 1 with grouped bar chart of outcome proportions
 
 #### Scale Analysis
 - `plot_lmsys_1M_pca.py` - Production-scale spatial analysis
@@ -75,15 +63,17 @@ All validation results in the current paper are based on the main analysis scrip
 
 ### Holdout Analysis (N=750)
 
-**Primary Findings:**
-- **Domain-Adapted PCA**: Using routing-trained PCA, ~20% of prompts favor the cheaper model (gap: -0.56, Cohen's d = 1.53)
-- **Generic PCA Robustness**: Effect persists with generically-trained PCA but is weaker (gap: -0.07, Cohen's d = 0.33)
-- **PCA Sensitivity**: Effect size varies 4.6x depending on dimensionality reduction approach, demonstrating importance of task-appropriate feature extraction
+**Primary Findings (Categorical Analysis):**
+- Reward gaps are **discrete** pairwise preference outcomes (win/tie/loss), so we use categorical statistics as the primary analysis
+- Outcome proportions differ significantly between clusters (chi-squared: p < 0.0001)
+- **Generic PCA** (unbiased baseline): Effect is significant but small (Cohen's d = 0.33)
+- **Domain-Adapted PCA**: Amplifies the effect 4.6x (Cohen's d = 1.53) by concentrating routing-relevant variance
 
 **Statistical Evidence:**
-- Mann-Whitney U: p < 0.0001 (both PCA approaches)
-- Cohen's d = 0.33-1.53 depending on PCA choice
-- 95% CIs non-overlapping for routing PCA
+- Chi-squared test on contingency table: p < 0.0001 (primary, categorical)
+- Mann-Whitney U: p < 0.0001 (supplementary, ordinal)
+- Cohen's d = 0.33 (generic PCA, unbiased) to 1.53 (domain-adapted, amplified)
+- Cramer's V reported for categorical effect size
 - Moderate correlation with PC1 (Spearman ρ = -0.395, ρ² = 0.16)
 
 ### Scale Analysis with 1M Dataset (N=594,199) - SPATIAL ONLY
@@ -104,37 +94,27 @@ The 1M dataset has **NO reward labels**. This analysis validates spatial structu
 
 ## Reproducibility
 
-### Primary Analysis (Methodological Robustness Check)
+### Generate Figure 1
 
 ```bash
-# Step 1: Train domain-adapted PCA on routing data
-# (Already available: src/artifacts/pca_32.joblib)
+# Generate Figure 1 (all analysis in one script)
+python3 experiments_v1/01_figure/plot_figure1_revised.py
+```
 
-# Step 2: Train generic PCA on C4 corpus for robustness
+This single script performs:
+- Holdout data loading (N=750, no dev contamination)
+- Unsupervised threshold selection (silhouette-optimal)
+- Categorical analysis (contingency table, chi-squared, Cramer's V)
+- Ordinal analysis (Mann-Whitney U, Cohen's d)
+- Threshold stability sweep (effect size across thresholds)
+- Figure generation (Panel A: scatter, Panel B: grouped bar chart)
+
+### Generic PCA Robustness Check
+
+```bash
+# Train generic PCA on C4 corpus (unbiased baseline)
 python3 scripts/train_pca_generic.py
-
-# Step 3: Generate Figure 1 with both PCA approaches
-python3 experiments_v1/01_figure/plot_lmsys_holdout_both_pcas.py
-
-# Step 4: Compare approaches to validate consistency
-python3 experiments_v1/01_figure/compare_pca_models.py
 ```
-
-### Individual PCA Analyses
-
-```bash
-# Generate Figure 1 (uses routing-adapted PCA)
-python3 experiments_v1/01_figure/plot_figure1_revised.py
-```
-
-### Validation Analyses
-
-```bash
-# Generate Figure 1 (includes all validation in one script)
-python3 experiments_v1/01_figure/plot_figure1_revised.py
-```
-
-**Note**: Standalone validation scripts have been archived. All validation is now integrated into the main figure generation script.
 
 ### Scale Analysis (Optional)
 
@@ -167,7 +147,7 @@ To ensure the PC1 = 0.3 decision boundary is principled and not arbitrary, we pe
 - Results robust across [0.2, 0.4] range (all p < 10⁻¹⁰⁰)
 - Silhouette score: 0.4948, gap separation: 0.815
 
-See `archived/validate_threshold.py.OLD` for historical implementation (used N=1,871).
+Threshold validation is integrated into the main script (`plot_figure1_revised.py`).
 
 ### High-Dimensional Structure Validation
 
@@ -183,7 +163,7 @@ While PC1+PC2 capture only 5.4% of embedding variance, we validate that this low
 - Remaining 94.6% represents task-orthogonal variation (topic, language, style)
 - Successful dimensionality reduction isolates routing-relevant structure
 
-See `archived/validate_high_dimensional.py.OLD` for historical implementation (used N=1,871).
+High-dimensional validation results are documented in `validation_methodology.tex`.
 
 ### Data Quality Analysis
 
@@ -201,7 +181,7 @@ See `archived/validate_high_dimensional.py.OLD` for historical implementation (u
 - Unsupervised clustering (k-means) avoids circular threshold selection
 - Multiple PCA approaches validate finding independence
 
-See `archived/analyze_cluster_diversity.py.OLD` for historical implementation (used N=1,871).
+Data quality validation results are documented in `validation_methodology.tex`.
 
 ## Understanding Model Preference Heterogeneity
 
@@ -249,16 +229,18 @@ Prompts in the "high PC1" cluster tend to share certain characteristics:
 Our analysis includes systematic validation across multiple dimensions to ensure methodological rigor:
 
 ### Statistical Validation
-- Multiple significance tests (Mann-Whitney, Welch's t-test)
-- Effect size analysis (Cohen's d = 0.33-1.53 depending on PCA)
-- Confidence intervals (95%, non-overlapping for routing PCA)
-- Distribution diagnostics and correlation analysis
-- **Result:** p < 0.0001 across all approaches
+- Chi-squared test on win/tie/loss contingency table (primary, categorical)
+- Mann-Whitney U test (supplementary, ordinal)
+- Cramer's V for categorical effect size
+- Cohen's d reported as approximate (data is discrete, not continuous)
+- Effect size stability sweep across candidate thresholds
+- **Result:** p < 0.0001 across all approaches and test types
 
 ### Methodological Robustness
-- Unsupervised clustering (k-means, k=2) for threshold selection
+- Unsupervised clustering (silhouette-optimal, k-means) for threshold selection
 - Holdout-only analysis (N=750) to prevent data contamination
-- Multiple PCA approaches validate finding independence
+- Multiple PCA approaches: generic C4 as unbiased baseline, domain-adapted as amplified view
+- Threshold stability analysis: effect size (Cramer's V), not just p-values
 - **Result:** Effect persists across methodological variations
 
 ### Dimensionality Analysis
@@ -293,10 +275,11 @@ Our analysis includes systematic validation across multiple dimensions to ensure
 This experiment demonstrates rigorous validation methodology:
 
 **Statistical Rigor:**
-- Multiple significance tests validate findings (p < 10⁻¹⁴³)
-- Large effect sizes confirm practical significance (d = 1.90)
-- Confidence intervals quantify uncertainty
-- Both parametric and non-parametric tests for robustness
+- Categorical test (chi-squared) appropriate for discrete pairwise outcomes
+- Ordinal test (Mann-Whitney U) confirms with non-parametric approach
+- Effect sizes: Cramer's V (categorical), Cohen's d (approximate, data is discrete)
+- Effect size stability analysis across threshold sweep
+- Generic PCA provides unbiased baseline (d = 0.33); domain-adapted amplifies (d = 1.53)
 
 **Methodological Validation:**
 - Threshold selection justified through systematic search
@@ -345,36 +328,36 @@ To ensure methodological rigor, we validate findings across two PCA training app
 - Dev set reserved for training only, ensuring no data contamination
 
 **Unsupervised Clustering:**
-- Threshold selection via k-means (k=2) or silhouette optimization
+- Threshold selection via silhouette optimization or k-means (k=2)
 - No reference to reward labels during clustering
 - Avoids circular threshold selection
+- Effect size stability verified across threshold sweep (not just p-values)
 
 **Multi-PCA Validation:**
 - Effect persists across both PCA approaches (p < 0.0001 for both)
-- Effect size is PCA-dependent (d = 0.33-1.53)
-- Demonstrates importance of task-appropriate feature extraction
+- Generic C4 PCA (d = 0.33): unbiased baseline, no connection to routing
+- Domain-adapted PCA (d = 1.53): amplifies signal via task-relevant feature extraction
+- The 4.6x amplification is expected but the generic result is the conservative estimate
 
 ### Implementation
 
 ```bash
-# Train generic PCA on C4 corpus
+# Train generic PCA on C4 corpus (for robustness check)
 python3 scripts/train_pca_generic.py
 
-# Generate Figure 1 (uses routing-adapted PCA by default)
+# Generate Figure 1 (uses routing-adapted PCA)
 python3 experiments_v1/01_figure/plot_figure1_revised.py
-
-# Compare both PCA approaches
-python3 experiments_v1/01_figure/compare_pca_models.py
 ```
 
 ## Notes
 
-- **Primary Analysis:** Domain-adapted routing PCA (`pca_32.joblib`) captures routing-relevant structure efficiently
-- **Robustness Check:** Generic PCA (`pca_32_generic.joblib`) validates finding independence
+- **Primary script:** `plot_figure1_revised.py` (all analysis in one file)
+- **Unbiased baseline:** Generic PCA (`pca_32_generic.joblib`) provides conservative effect estimate (d=0.33)
+- **Amplified view:** Domain-adapted PCA (`pca_32.joblib`) concentrates routing-relevant variance (d=1.53)
 - Holdout analysis uses N=750 prompts (clean holdout set)
 - 1M visualization downsamples to 10k points for clarity (full analysis uses all data)
-- Generic PCA trained on 100K C4 samples, 32 components
 - All statistical claims based on holdout set only
+- Reward gaps are discrete pairwise outcomes; categorical statistics are primary
 
 ---
 

@@ -8,17 +8,23 @@ We perform comprehensive validation to ensure our model preference heterogeneity
 
 \subsubsection{Statistical Significance Testing}
 
-We validate the cluster distinction using multiple statistical tests:
+Since reward gaps are derived from discrete pairwise outcomes (win/tie/loss), we use categorical and non-parametric tests as the primary analysis:
 
-\paragraph{Primary Tests.}
+\paragraph{Primary Tests (Categorical).}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 0.0001$
-    \item \textbf{Effect size (Cohen's $d$):} $1.53$ (large effect, $d > 0.8$)
-    \item \textbf{Confidence intervals (95\%):} Low PC1: $[+0.088, +0.153]$, High PC1: $[-0.661, -0.464]$ (non-overlapping)
+    \item \textbf{$\chi^2$ test of independence:} $p < 0.0001$ (outcome proportions differ significantly between clusters)
+    \item \textbf{Cram\'er's $V$:} Reported in figure (categorical effect size)
+    \item \textbf{Contingency table:} Win/tie/loss counts by cluster (see figure panel B)
+\end{itemize}
+
+\paragraph{Supplementary Tests (Ordinal).}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 0.0001$ (appropriate for ordinal reward gaps)
+    \item \textbf{Cohen's $d$:} $1.53$ with domain-adapted PCA, $0.33$ with generic PCA (approximate---reward gaps are discrete, not continuous)
 \end{itemize}
 
 \paragraph{Distribution Diagnostics.}
-Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), justifying the use of non-parametric tests.
+Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), consistent with the discrete nature of pairwise preference outcomes and justifying the use of non-parametric tests.
 
 \subsubsection{Threshold Validation}
 
@@ -27,30 +33,33 @@ The cluster boundary $\text{PC1} = 0.222$ was determined using a purely unsuperv
 \paragraph{Unsupervised Clustering Convergence.}
 Independent unsupervised methods identify consistent structure:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item Silhouette-optimal: $\text{PC1} = 0.222$ (silhouette $= 0.499$, Cohen's $d = 1.53$)
-    \item $k$-means ($k=2$): boundary $\approx 0.138$ (Cohen's $d = 1.15$)
+    \item Silhouette-optimal: $\text{PC1} = 0.222$ (silhouette $= 0.499$)
+    \item $k$-means ($k=2$): boundary $\approx 0.138$
 \end{itemize}
-Both methods yield $p < 0.0001$, confirming robustness to threshold selection method.
+Both methods yield $p < 0.0001$.
+
+\paragraph{Effect Size Stability.}
+Since $p$-values alone are uninformative for threshold robustness (with $N=750$ discrete outcomes, most non-trivial splits produce small $p$-values), we additionally report Cram\'er's $V$ across a sweep of candidate thresholds to verify that the effect size---not merely its significance---is stable. The effect size remains meaningful across a range of thresholds, confirming the finding is not an artifact of a particular boundary choice.
 
 \subsubsection{PCA Provenance Sensitivity}
 
-To validate that the finding is not an artifact of domain-adapted PCA training, we repeat the analysis with PCA trained on 100K generic web text samples (C4 corpus):
+To validate that the finding is not an artifact of domain-adapted PCA training, we repeat the analysis with PCA trained on 100K generic web text samples (C4 corpus). The generic PCA provides an unbiased baseline with no connection to routing:
 
 \begin{table}[h]
 \centering
 \caption{PCA Provenance Comparison on Held-Out Data ($N=750$)}
 \label{tab:pca_provenance}
-\begin{tabular}{lccc}
+\begin{tabular}{lccl}
 \toprule
-\textbf{PCA Training Data} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Effect Size} \\
+\textbf{PCA Training Data} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Interpretation} \\
 \midrule
-Routing prompts (80K, domain-adapted) & $< 0.0001$ & 1.53 & Large \\
-C4 web text (100K, generic) & $< 0.0001$ & 0.33 & Small \\
+C4 web text (100K, generic) & $< 0.0001$ & 0.33 & Small effect (unbiased baseline) \\
+Routing prompts (80K, domain-adapted) & $< 0.0001$ & 1.53 & Large effect (amplified by task-relevant features) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent The domain-adapted PCA concentrates routing-relevant variation into PC1, yielding a 4.6$\times$ larger effect size. The generic PCA confirms the underlying structure exists independently. Both PCAs are unsupervised (no reward labels).
+\noindent \textbf{Key observation:} The generic PCA result ($d = 0.33$) is the more conservative, unbiased estimate, confirming the structure exists independently of PCA provenance. The domain-adapted PCA concentrates routing-relevant variation into PC1, amplifying the effect $4.6\times$. This amplification is expected---the routing PCA was trained on prompts from the same model-comparison domain---and demonstrates the value of task-appropriate feature extraction, but the generic result should be considered the baseline for the effect's true magnitude. Both PCAs are unsupervised (no reward labels).
 
 \subsubsection{High-Dimensional Structure Validation}
 
@@ -82,9 +91,10 @@ The held-out dataset ($N=750$) was created using stratified sampling across thre
 \subsubsection{Summary of Validation Approach}
 
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Statistical rigor:} $p < 0.0001$, large effect ($d = 1.53$), non-overlapping 95\% CIs
+    \item \textbf{Categorical analysis:} $\chi^2$ test on win/tie/loss contingency table ($p < 0.0001$), appropriate for discrete pairwise outcomes
+    \item \textbf{Ordinal confirmation:} Mann-Whitney $U$ ($p < 0.0001$); Cohen's $d$ reported as approximate ($d = 0.33$ generic, $1.53$ domain-adapted)
     \item \textbf{Threshold justification:} Purely unsupervised (silhouette-optimal, no reward peeking)
-    \item \textbf{PCA robustness:} Effect confirmed with generic C4 PCA ($d = 0.33$)
+    \item \textbf{PCA sensitivity:} Generic C4 PCA provides unbiased baseline ($d = 0.33$); domain-adapted PCA amplifies to $d = 1.53$ ($4.6\times$)
     \item \textbf{High-D caveat:} Weak 384D structure (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$)
     \item \textbf{Data quality:} Zero duplicates; High PC1 cluster is homogeneous (diversity $= 0.355$)
     \item \textbf{Data integrity:} Held-out only ($N=750$); dev set excluded

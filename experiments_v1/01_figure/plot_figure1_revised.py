@@ -107,6 +107,81 @@ def running_mean(x, y, window=50):
     return np.array(x_out), np.array(y_out)
 
 
+def threshold_stability_analysis(X_2d, reward_gaps, primary_threshold):
+    """Sweep thresholds and report effect size stability (not just p-values).
+
+    For discrete reward data, report Cramer's V across a range of thresholds
+    to show that significance is not an artifact of a particular threshold.
+    """
+    pc1 = X_2d[:, 0]
+    lo, hi = pc1.min() + 0.05, pc1.max() - 0.05
+    thresholds = np.linspace(lo, hi, 40)
+
+    print("\n── Threshold Stability Analysis ──")
+    print(f"{'Threshold':>10} {'n_high':>7} {'%high':>6} "
+          f"{'chi2':>8} {'p_chi2':>10} {'V':>6} {'d':>6}")
+    print("-" * 65)
+
+    results = []
+    for t in thresholds:
+        low_m = pc1 < t
+        high_m = pc1 >= t
+        g_low = reward_gaps[low_m]
+        g_high = reward_gaps[high_m]
+        n_h = int(high_m.sum())
+
+        # Skip degenerate splits
+        if n_h < 15 or len(g_low) < 15:
+            continue
+
+        # Categorical analysis
+        def _cat(g):
+            if g > 1e-9:
+                return 0
+            elif g < -1e-9:
+                return 2
+            return 1
+
+        cats_l = [_cat(g) for g in g_low]
+        cats_h = [_cat(g) for g in g_high]
+        ct = np.array([[cats_l.count(k) for k in range(3)],
+                       [cats_h.count(k) for k in range(3)]])
+
+        # Skip if any expected count < 1 (chi2 unreliable)
+        _, _, _, expected = chi2_contingency(ct)
+        if expected.min() < 1:
+            continue
+
+        chi2_val, p_val, _, _ = chi2_contingency(ct)
+        v = np.sqrt(chi2_val / (len(reward_gaps) * 1))
+
+        # Cohen's d (approximate)
+        ps = np.sqrt(((len(g_low) - 1) * np.var(g_low, ddof=1)
+                      + (len(g_high) - 1) * np.var(g_high, ddof=1))
+                     / (len(g_low) + len(g_high) - 2))
+        d = (np.mean(g_low) - np.mean(g_high)) / ps if ps > 0 else 0
+
+        pct_h = n_h / len(reward_gaps) * 100
+        marker = "  <-- primary" if abs(t - primary_threshold) < 0.02 else ""
+        print(f"{t:10.3f} {n_h:7d} {pct_h:5.1f}% "
+              f"{chi2_val:8.1f} {p_val:10.2e} {v:6.3f} {d:6.2f}{marker}")
+
+        results.append({'threshold': t, 'n_high': n_h, 'chi2': chi2_val,
+                        'p': p_val, 'V': v, 'd': d})
+
+    if results:
+        vs = [r['V'] for r in results]
+        ds = [r['d'] for r in results]
+        print(f"\nCramer's V range: [{min(vs):.3f}, {max(vs):.3f}]  "
+              f"(median {np.median(vs):.3f})")
+        print(f"Cohen's d range:  [{min(ds):.2f}, {max(ds):.2f}]  "
+              f"(median {np.median(ds):.2f})")
+        sig_count = sum(1 for r in results if r['p'] < 0.001)
+        print(f"Thresholds with p < 0.001: {sig_count}/{len(results)}")
+
+    return results
+
+
 def main():
     print("=" * 80)
     print("FIGURE 1 (REVISED): MODEL PREFERENCE HETEROGENEITY")
@@ -201,6 +276,9 @@ def main():
     print(f"\nChi-squared: chi2 = {chi2:.1f}, df = {dof}, "
           f"p = {p_chi2:.2e}")
     print(f"Cramer's V = {cramers_v:.3f}")
+
+    # ── Threshold stability (effect size across thresholds) ───────────────
+    threshold_stability_analysis(X_2d, reward_gaps, threshold)
 
     # ── Colours & labels ──────────────────────────────────────────────────
     blue = '#4575b4'
