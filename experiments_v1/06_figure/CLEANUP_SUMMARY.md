@@ -129,7 +129,6 @@ experiments_v1/06_figure/
 ├── generate_figure5_catastrophic_failure.py  ✅ Alternative visualization
 │
 ├── figure6_corralling_kdd.tex            ✅ Complete figure + methodology
-├── figure5_corralling_kdd.tex            ✅ Alternative framing
 │
 ├── results/                              ✅ Experimental outputs
 │   └── catastrophic_failure_*/

@@ -52,7 +52,6 @@ experiments_v1/06_figure/
 
 ```
 ├── figure6_corralling_kdd.tex            # Complete figure with methodology
-├── figure5_corralling_kdd.tex            # Alternative framing
 ```
 
 ### Results & Data
