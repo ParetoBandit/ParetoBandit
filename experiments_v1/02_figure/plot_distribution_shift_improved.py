@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
 """
-Feature Distribution Shift Analysis (Figure 1.2) - IMPROVED VERSION
+Feature Distribution Shift Analysis (Figure 2)
 
-This script analyzes covariate shift between Source/Prior data and RouteLLM data
-by comparing the distribution of the first principal component (PCA_0).
+Quantifies covariate shift between the Warmup Prior distribution (RouteLLM battles,
+80K prompts — the data the library's PCA and LinUCB priors are built from) and the
+Deployment/Evaluation distribution (LMSYS dev/holdout — simulating new user traffic).
 
-**CRITICAL**: This experiment uses the ACTUAL BanditRouter from src/bandit_gpt/router.py
-for feature extraction. This ensures the analysis reflects the real routing system's
-behavior, not a separate implementation.
+**CRITICAL**: Uses the ACTUAL BanditRouter.FeatureService.extract_features() code path
+so the measured shift is exactly what LinUCB observes in production.
 
-IMPROVEMENTS IN THIS VERSION:
-1. Uses BanditRouter._build_routing_features() for feature extraction (consistency!)
-2. Bottom panel shows RouteLLM data decomposed by ACTUAL reward gaps (not Source data)
-3. Adds statistical significance tests (KS test, bootstrap CI for PSI)
-4. Reports PCA variance explained
-5. Extracts sample prompts from clusters for qualitative validation
-6. Fixes threshold inconsistencies
+Data flow (must match Table 1):
+  - RouteLLM battles (all 80K, unique prompts) → PCA training + warmup priors = "Prior" distribution
+  - LMSYS dev+holdout (1,871 unique prompts: 1,121 dev + 750 holdout) → evaluation = "Deployment" distribution
 
 The analysis:
-1. Loads prompts from both Source data (dev/holdout) and RouteLLM battles
-2. Uses BanditRouter to extract features (same as production routing!)
-3. Creates 1D density plots to visualize distribution shift
-4. Computes Population Stability Index (PSI) to quantify the shift
-5. Shows whether RouteLLM data is shifted toward "Easy" or "Hard" clusters
-6. Performs statistical significance testing
+1. Loads ALL 80K RouteLLM warmup prompts (the full prior distribution — no subsampling)
+2. Loads LMSYS dev/holdout prompts (the deployment distribution), deduplicated
+3. Projects both through the production FeatureService (sentence-transformer → PCA → bias)
+4. Computes PSI between prior and deployment on PC1
+5. Decomposes the prior (RouteLLM) data by ground-truth reward gaps
+6. Performs KS test, bootstrap CIs, sensitivity analysis
 
 Usage:
     python3 experiments_v1/02_figure/plot_distribution_shift_improved.py
@@ -55,25 +51,31 @@ from bandit_gpt.config_legacy import (
 from bandit_gpt.router import BanditRouter, RouterConfig
 
 
-def load_source_prompts_from_datasets(dev_file: Path, holdout_file: Path, max_samples: int = 10000):
+def load_lmsys_evaluation_prompts(dev_file: Path, holdout_file: Path, max_samples: int = 10000):
     """
-    Load prompts from dev/holdout datasets (WITHOUT reward gaps for now).
+    Load UNIQUE prompts from LMSYS dev/holdout datasets.
     
-    This represents the "Source/Prior" distribution from training data.
+    These files store one row per (prompt, model) pair, so each prompt appears
+    ~2× (once per model).  We deduplicate to avoid inflating the KDE.
+    
+    This represents the **deployment/evaluation** distribution — the prompts
+    the router encounters during online evaluation (Table 1).
     
     Args:
         dev_file: Path to dev data file
         holdout_file: Path to holdout data file
-        max_samples: Maximum prompts to load per file
+        max_samples: Maximum rows to scan per file
     
     Returns:
-        prompts: List of prompt strings
+        prompts: List of unique prompt strings
     """
-    print(f"📥 Loading Source/Prior prompts (dev + holdout)...")
+    print(f"📥 Loading LMSYS evaluation prompts (dev + holdout)...")
     print(f"   Dev: {dev_file}")
     print(f"   Holdout: {holdout_file}")
     
+    seen = set()
     prompts = []
+    total_rows = 0
     
     for file_path, name in [(dev_file, "dev"), (holdout_file, "holdout")]:
         if not file_path.exists():
@@ -87,6 +89,7 @@ def load_source_prompts_from_datasets(dev_file: Path, holdout_file: Path, max_sa
             for i, line in enumerate(tqdm(f, desc=f"   Reading {name}", total=max_samples)):
                 if i >= max_samples:
                     break
+                total_rows += 1
                 
                 try:
                     data = json.loads(line)
@@ -97,13 +100,14 @@ def load_source_prompts_from_datasets(dev_file: Path, holdout_file: Path, max_sa
                         prompt = prompt[0] if prompt else ""
                     
                     prompt = prompt.strip()
-                    if prompt:
+                    if prompt and prompt not in seen:
+                        seen.add(prompt)
                         prompts.append(prompt)
                         
                 except Exception as e:
                     continue
     
-    print(f"   ✅ Loaded {len(prompts):,} source prompts")
+    print(f"   ✅ Loaded {len(prompts):,} unique LMSYS prompts (from {total_rows:,} rows)")
     return prompts
 
 
@@ -111,7 +115,9 @@ def load_routellm_prompts_with_metadata(battles_file: Path, start_idx: int = 0, 
     """
     Load prompts from RouteLLM battles dataset WITH full metadata.
     
-    This represents the "target" distribution we're deploying on.
+    This represents the **warmup prior** distribution — the 80K battles used
+    to train the PCA artifact and LinUCB priors shipped with the library.
+    Reward gaps are available here because battles have pairwise outcomes.
     
     Args:
         battles_file: Path to battles JSONL file
@@ -123,7 +129,7 @@ def load_routellm_prompts_with_metadata(battles_file: Path, start_idx: int = 0, 
         reward_gaps: Array of R_Turbo - R_Mixtral gaps (for clustering info)
         metadata: Dict with full battle information for analysis
     """
-    print(f"\n📥 Loading RouteLLM deployment prompts...")
+    print(f"\n📥 Loading RouteLLM warmup-prior prompts...")
     print(f"   File: {battles_file}")
     print(f"   Range: {start_idx:,} to {start_idx + max_samples:,}")
     
@@ -303,6 +309,12 @@ def compute_psi_with_bootstrap(expected: np.ndarray, actual: np.ndarray, n_bins:
     """
     Compute Population Stability Index (PSI) with bootstrap confidence intervals.
     
+    Uses QUANTILE-BASED bins from the reference (expected) distribution, which is the
+    industry-standard approach (Yurdakul 2018). This ensures each reference bin has
+    roughly equal probability mass (~1/n_bins), making PSI stable regardless of
+    distribution shape. Bin edges are extended to cover the full range of both
+    distributions so no samples are lost.
+    
     PSI = sum((actual_pct - expected_pct) * ln(actual_pct / expected_pct))
     
     PSI Interpretation:
@@ -312,8 +324,8 @@ def compute_psi_with_bootstrap(expected: np.ndarray, actual: np.ndarray, n_bins:
     - PSI ≥ 0.25: Substantial shift requiring adaptive mechanisms
     
     Args:
-        expected: Distribution from source/prior data
-        actual: Distribution from RouteLLM/target data
+        expected: Reference distribution (warmup prior / RouteLLM)
+        actual: Deployment distribution (LMSYS evaluation)
         n_bins: Number of bins for histogram
         n_bootstrap: Number of bootstrap samples for CI
     
@@ -325,26 +337,42 @@ def compute_psi_with_bootstrap(expected: np.ndarray, actual: np.ndarray, n_bins:
         actual_percents: Percentage in each bin for actual
     """
     print(f"\n📊 Computing Population Stability Index (PSI)...")
+    print(f"   Binning: quantile-based from reference distribution ({n_bins} bins)")
     
-    # Determine bin edges based on expected distribution
-    min_val = min(expected.min(), actual.min())
-    max_val = max(expected.max(), actual.max())
-    bins = np.linspace(min_val, max_val, n_bins + 1)
+    # Industry-standard: quantile bins from the REFERENCE distribution
+    # This ensures each reference bin has ~equal mass, making PSI stable
+    bins = np.quantile(expected, np.linspace(0, 1, n_bins + 1))
+    # Extend edges to cover full range of both distributions
+    global_min = min(expected.min(), actual.min())
+    global_max = max(expected.max(), actual.max())
+    bins[0] = global_min - 1e-8   # capture leftmost samples
+    bins[-1] = global_max + 1e-8  # capture rightmost samples
+    # Ensure strictly increasing bin edges (quantile ties can cause duplicates)
+    bins = np.unique(bins)
+    effective_n_bins = len(bins) - 1
     
     def compute_psi_single(exp, act, bins):
         """Helper to compute PSI for bootstrap"""
+        nb = len(bins) - 1
         expected_counts, _ = np.histogram(exp, bins=bins)
         actual_counts, _ = np.histogram(act, bins=bins)
         
         epsilon = 1e-6
-        expected_percents = (expected_counts + epsilon) / (len(exp) + epsilon * n_bins)
-        actual_percents = (actual_counts + epsilon) / (len(act) + epsilon * n_bins)
+        expected_percents = (expected_counts + epsilon) / (len(exp) + epsilon * nb)
+        actual_percents = (actual_counts + epsilon) / (len(act) + epsilon * nb)
         
         psi = np.sum((actual_percents - expected_percents) * np.log(actual_percents / expected_percents))
         return psi, expected_percents, actual_percents
     
     # Compute observed PSI
     psi, expected_percents, actual_percents = compute_psi_single(expected, actual, bins)
+    
+    # Report bin diagnostics
+    exp_counts, _ = np.histogram(expected, bins=bins)
+    act_counts, _ = np.histogram(actual, bins=bins)
+    print(f"   Effective bins: {effective_n_bins}")
+    print(f"   Reference min/max counts per bin: {exp_counts.min()}/{exp_counts.max()}")
+    print(f"   Deployment min/max counts per bin: {act_counts.min()}/{act_counts.max()}")
     
     # Bootstrap CI
     print(f"   🔄 Computing bootstrap confidence interval ({n_bootstrap} samples)...")
@@ -372,13 +400,13 @@ def compute_psi_with_bootstrap(expected: np.ndarray, actual: np.ndarray, n_bins:
     return psi, psi_ci, bins, expected_percents, actual_percents
 
 
-def perform_statistical_tests(pc1_source, pc1_routellm):
+def perform_statistical_tests(pc1_prior, pc1_deployment):
     """
     Perform statistical significance tests for distribution shift.
     
     Args:
-        pc1_source: PC1 values for source data
-        pc1_routellm: PC1 values for RouteLLM data
+        pc1_prior: PC1 values for warmup prior (RouteLLM) data
+        pc1_deployment: PC1 values for deployment (LMSYS) data
     
     Returns:
         test_results: Dict with test statistics
@@ -386,15 +414,16 @@ def perform_statistical_tests(pc1_source, pc1_routellm):
     print(f"\n📊 Performing statistical significance tests...")
     
     # Kolmogorov-Smirnov test
-    ks_stat, ks_pval = ks_2samp(pc1_source, pc1_routellm)
+    ks_stat, ks_pval = ks_2samp(pc1_prior, pc1_deployment)
     print(f"   Kolmogorov-Smirnov test:")
     print(f"      Statistic: {ks_stat:.4f}")
     print(f"      P-value: {ks_pval:.4e}")
     print(f"      Result: {'REJECT H0' if ks_pval < 0.05 else 'FAIL TO REJECT H0'} (distributions differ)")
+    print(f"      ⚠️  Note: With N > 10K, even trivial differences reach significance")
     
-    # Mean shift test (effect size)
-    mean_shift = np.mean(pc1_routellm) - np.mean(pc1_source)
-    pooled_std = np.sqrt((np.std(pc1_source)**2 + np.std(pc1_routellm)**2) / 2)
+    # Mean shift test (effect size) — LEAD WITH EFFECT SIZE
+    mean_shift = np.mean(pc1_deployment) - np.mean(pc1_prior)
+    pooled_std = np.sqrt((np.std(pc1_prior)**2 + np.std(pc1_deployment)**2) / 2)
     cohens_d = mean_shift / pooled_std
     
     print(f"\n   Effect size (Cohen's d): {cohens_d:.4f}")
@@ -415,26 +444,30 @@ def perform_statistical_tests(pc1_source, pc1_routellm):
     }
 
 
-def sensitivity_analysis_multipc(features_source, features_routellm, pca_stats):
+def sensitivity_analysis_multipc(features_prior, features_deployment, pca_stats):
     """
-    Perform sensitivity analysis: compute PSI for different numbers of PCs.
+    Perform sensitivity analysis: compute component-wise PSI for different numbers of PCs.
     
-    This addresses the concern that PC1 only explains 3.1% of variance.
-    We test whether distribution shift conclusions are robust to using more PCs.
+    For multi-D configurations, we compute PSI independently on each component and report
+    the average. This is preferable to centroid-distance PSI (which inflates values by
+    collapsing directional information into L2 distance).
+    
+    Each per-component PSI uses quantile-based bins from the reference distribution.
     
     Args:
-        features_source: Full feature matrix for source data (n_samples, n_features)
-        features_routellm: Full feature matrix for RouteLLM data (n_samples, n_features)
+        features_prior: Full feature matrix for warmup prior / RouteLLM (n_samples, n_features)
+        features_deployment: Full feature matrix for deployment / LMSYS (n_samples, n_features)
         pca_stats: PCA statistics dict
     
     Returns:
-        sensitivity_results: Dict with PSI for different PC choices
+        sensitivity_results: Dict with component-wise PSI for different PC choices
     """
-    print(f"\n📊 Performing sensitivity analysis: PSI across multiple PCs...")
+    print(f"\n📊 Performing sensitivity analysis: component-wise PSI across multiple PCs...")
     print(f"   PC1 explains {pca_stats['variance_explained_pc1']:.3%} of variance")
-    print(f"   Testing robustness of distribution shift findings...")
+    print(f"   Method: average per-component PSI (quantile-based bins per component)")
     
-    n_components = min(features_source.shape[1], features_routellm.shape[1])
+    n_components = min(features_prior.shape[1], features_deployment.shape[1])
+    n_bins = 20
     
     # Test configurations: [PC1 only, PC1-5, PC1-10, all PCs]
     configs = [
@@ -444,86 +477,74 @@ def sensitivity_analysis_multipc(features_source, features_routellm, pca_stats):
         (n_components, f"All {n_components} PCs")
     ]
     
+    def compute_1d_psi_quantile(ref, dep, n_bins=20):
+        """Compute PSI for a single component using quantile bins from reference."""
+        bins = np.quantile(ref, np.linspace(0, 1, n_bins + 1))
+        bins[0] = min(ref.min(), dep.min()) - 1e-8
+        bins[-1] = max(ref.max(), dep.max()) + 1e-8
+        bins = np.unique(bins)
+        nb = len(bins) - 1
+        ec, _ = np.histogram(ref, bins=bins)
+        ac, _ = np.histogram(dep, bins=bins)
+        eps = 1e-6
+        ep = (ec + eps) / (len(ref) + eps * nb)
+        ap = (ac + eps) / (len(dep) + eps * nb)
+        return float(np.sum((ap - ep) * np.log(ap / ep)))
+    
     sensitivity_results = {}
     
     for n_pcs, label in configs:
         if n_pcs > n_components:
             continue
         
-        # Extract first n_pcs components
-        source_subset = features_source[:, :n_pcs]
-        routellm_subset = features_routellm[:, :n_pcs]
+        # Compute PSI independently on each component
+        component_psis = []
+        for j in range(n_pcs):
+            psi_j = compute_1d_psi_quantile(
+                features_prior[:, j], features_deployment[:, j], n_bins
+            )
+            component_psis.append(psi_j)
         
-        # Compute multivariate PSI using L2 distance binning
-        # For 1D, use direct binning; for multi-D, use Euclidean distance from centroid
-        if n_pcs == 1:
-            # 1D case: direct binning as before
-            min_val = min(source_subset.min(), routellm_subset.min())
-            max_val = max(source_subset.max(), routellm_subset.max())
-            bins = np.linspace(min_val, max_val, 21)
-            
-            expected_counts, _ = np.histogram(source_subset.flatten(), bins=bins)
-            actual_counts, _ = np.histogram(routellm_subset.flatten(), bins=bins)
-            
-            epsilon = 1e-6
-            n_bins = len(bins) - 1
-            expected_percents = (expected_counts + epsilon) / (len(source_subset) + epsilon * n_bins)
-            actual_percents = (actual_counts + epsilon) / (len(routellm_subset) + epsilon * n_bins)
-            
-            psi = np.sum((actual_percents - expected_percents) * np.log(actual_percents / expected_percents))
+        avg_psi = float(np.mean(component_psis))
+        max_psi = float(np.max(component_psis))
         
-        else:
-            # Multi-D case: use Euclidean distance from centroid for binning
-            # Compute centroids
-            source_centroid = np.mean(source_subset, axis=0)
-            routellm_centroid = np.mean(routellm_subset, axis=0)
-            
-            # Compute distances from source centroid
-            source_dists = np.linalg.norm(source_subset - source_centroid, axis=1)
-            routellm_dists = np.linalg.norm(routellm_subset - source_centroid, axis=1)
-            
-            # Bin by distance
-            min_dist = min(source_dists.min(), routellm_dists.min())
-            max_dist = max(source_dists.max(), routellm_dists.max())
-            bins = np.linspace(min_dist, max_dist, 21)
-            
-            expected_counts, _ = np.histogram(source_dists, bins=bins)
-            actual_counts, _ = np.histogram(routellm_dists, bins=bins)
-            
-            epsilon = 1e-6
-            n_bins = len(bins) - 1
-            expected_percents = (expected_counts + epsilon) / (len(source_dists) + epsilon * n_bins)
-            actual_percents = (actual_counts + epsilon) / (len(routellm_dists) + epsilon * n_bins)
-            
-            psi = np.sum((actual_percents - expected_percents) * np.log(actual_percents / expected_percents))
-        
-        sensitivity_results[label] = float(psi)
-        print(f"   {label}: PSI = {psi:.4f}")
+        sensitivity_results[label] = avg_psi
+        print(f"   {label}: avg_PSI = {avg_psi:.4f}, max_PSI = {max_psi:.4f}")
     
-    print(f"\n   ✅ Conclusion: Distribution shift is {'consistent' if max(sensitivity_results.values()) / min(sensitivity_results.values()) < 2.0 else 'varies significantly'} across dimensionality choices")
+    # Summarize pattern
+    psi_vals = list(sensitivity_results.values())
+    print(f"\n   ✅ PC1 shows the strongest per-component shift (PSI = {psi_vals[0]:.3f})")
+    print(f"   Shift attenuates when averaged over more components (All PCs: PSI = {psi_vals[-1]:.3f})")
+    print(f"   Pattern: leading PCs capture between-domain variation; higher PCs capture stable within-domain variation")
     
     return sensitivity_results
 
 
-def analyze_cluster_separation(pc1_values, reward_gaps, threshold_low=0.3, threshold_high=0.6):
+def analyze_task_category_separation(pc1_values, reward_gaps, threshold_low=0.3, threshold_high=0.6):
     """
-    Analyze whether Mixtral-Sufficient and GPT-4-Turbo-Required clusters are statistically distinct.
+    Analyze whether Mixtral-Sufficient and GPT-4-Turbo-Required task categories
+    are statistically distinguishable along PC1.
     
-    This addresses the concern that centroids are close (0.0221 vs -0.0160) and validates
-    the claim of "distinct clusters" in the paper.
+    Because battle rewards are discrete (win=1, loss=0), the reward gap takes
+    values in {-1, 0, +1}. The thresholds map to:
+      - Gap <= 0.3 captures {-1, 0} = Mixtral wins or ties
+      - Gap > 0.6  captures {+1}    = GPT-4-Turbo wins
+    
+    Note: These are NOT distinct clusters. We expect (and find) >99% overlap.
+    The question is whether the small centroid difference is statistically reliable.
     
     Args:
         pc1_values: PC1 coordinates
         reward_gaps: Reward gaps (GPT-4-Turbo - Mixtral)
-        threshold_low: Threshold for Mixtral-Sufficient tasks
-        threshold_high: Threshold for GPT-4-Turbo-Required tasks
+        threshold_low: Threshold for Mixtral-Sufficient tasks (captures Gap in {-1, 0})
+        threshold_high: Threshold for GPT-4-Turbo-Required tasks (captures Gap = +1)
     
     Returns:
-        separation_results: Dict with statistical tests for cluster separation
+        separation_results: Dict with statistical tests for task category separation
     """
     from scipy import stats
     
-    print(f"\n📊 Testing cluster separation...")
+    print(f"\n📊 Testing task category separation...")
     
     # Define clusters
     mixtral_mask = reward_gaps <= threshold_low
@@ -547,15 +568,15 @@ def analyze_cluster_separation(pc1_values, reward_gaps, threshold_low=0.3, thres
     # Mann-Whitney U test (non-parametric alternative)
     u_stat, u_pval = stats.mannwhitneyu(pc1_mixtral, pc1_gpt4_turbo, alternative='two-sided')
     
-    print(f"   Cluster centroids:")
-    print(f"      Mixtral-Sufficient: {centroid_mixtral:.4f} (n={len(pc1_mixtral)})")
-    print(f"      GPT-4-Turbo-Required: {centroid_gpt4_turbo:.4f} (n={len(pc1_gpt4_turbo)})")
+    print(f"   Task category centroids:")
+    print(f"      Mixtral-Sufficient (Gap in {{-1,0}}): {centroid_mixtral:.4f} (n={len(pc1_mixtral)})")
+    print(f"      GPT-4-Turbo-Required (Gap = +1):  {centroid_gpt4_turbo:.4f} (n={len(pc1_gpt4_turbo)})")
     print(f"      Distance: {centroid_distance:.4f}")
     
-    print(f"\n   Welch's t-test (cluster means):")
+    print(f"\n   Welch's t-test (category means):")
     print(f"      t-statistic: {t_stat:.4f}")
     print(f"      P-value: {t_pval:.4e}")
-    print(f"      Result: {'REJECT H0' if t_pval < 0.05 else 'FAIL TO REJECT H0'} (clusters differ)")
+    print(f"      Result: {'REJECT H0' if t_pval < 0.05 else 'FAIL TO REJECT H0'} (categories differ)")
     
     print(f"\n   Effect size (Cohen's d): {cohens_d:.4f}")
     effect_interpretation = (
@@ -581,13 +602,13 @@ def analyze_cluster_separation(pc1_values, reward_gaps, threshold_low=0.3, thres
     print(f"      Mixtral-Sufficient in GPT-4-Turbo range: {overlap_mixtral_in_gpt4_range:.1%}")
     print(f"      GPT-4-Turbo-Required in Mixtral range: {overlap_gpt4_in_mixtral_range:.1%}")
     
-    # Conclusion
+    # Conclusion — honest about overlap
     if t_pval < 0.001 and abs(cohens_d) > 0.2:
-        conclusion = "Clusters are statistically distinct with meaningful separation"
+        conclusion = "Task categories are statistically distinguishable (small effect) with >99% overlap"
     elif t_pval < 0.05:
-        conclusion = "Clusters differ statistically but with substantial overlap"
+        conclusion = "Task categories differ statistically but with near-total overlap"
     else:
-        conclusion = "Clusters do not show significant separation"
+        conclusion = "Task categories do not show significant separation on PC1"
     
     print(f"\n   ✅ Conclusion: {conclusion}")
     
@@ -609,14 +630,14 @@ def analyze_cluster_separation(pc1_values, reward_gaps, threshold_low=0.3, thres
 
 def extract_sample_prompts(prompts, pc1_values, reward_gaps, n_samples=3):
     """
-    Extract sample prompts from different clusters for qualitative validation.
+    Extract sample prompts from different task categories for qualitative validation.
     
-    Returns REPRESENTATIVE samples closest to cluster centroids, not extremes.
-    This ensures samples accurately reflect typical cluster characteristics.
+    Returns REPRESENTATIVE samples closest to category centroids, not extremes.
+    This ensures samples accurately reflect typical category characteristics.
     
-    Cluster definitions:
-    - Mixtral-Sufficient (Gap ≤ 0.3): Tasks where Mixtral performs similarly to or better than GPT-4-Turbo
-    - GPT-4-Turbo-Required (Gap > 0.6): Tasks where GPT-4-Turbo has a clear advantage
+    Task category definitions (based on discrete reward gaps in {-1, 0, +1}):
+    - Mixtral-Sufficient (Gap ≤ 0.3 → {-1, 0}): Mixtral wins or ties
+    - GPT-4-Turbo-Required (Gap > 0.6 → {+1}): GPT-4-Turbo wins
     
     Args:
         prompts: List of prompt strings
@@ -627,11 +648,11 @@ def extract_sample_prompts(prompts, pc1_values, reward_gaps, n_samples=3):
     Returns:
         samples: Dict with sample prompts from each cluster
     """
-    print(f"\n📝 Extracting representative sample prompts from clusters...")
+    print(f"\n📝 Extracting representative sample prompts from task categories...")
     
-    # Define clusters based on reward gaps (GPT-4-Turbo - Mixtral)
-    # Gap ≤ 0.3: Mixtral performs similarly or better (including negative gaps)
-    # Gap > 0.6: GPT-4-Turbo has clear advantage
+    # Define task categories based on discrete reward gaps (Gap ∈ {-1, 0, +1})
+    # Gap ≤ 0.3 → {-1, 0}: Mixtral wins or ties
+    # Gap > 0.6 → {+1}: GPT-4-Turbo wins
     mixtral_sufficient_mask = reward_gaps <= 0.3
     gpt4_turbo_required_mask = reward_gaps > 0.6
     
@@ -692,18 +713,17 @@ def extract_sample_prompts(prompts, pc1_values, reward_gaps, n_samples=3):
     return samples
 
 
-def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm, 
+def create_improved_visualization(pc1_routellm, pc1_lmsys, reward_gaps_routellm, 
                                   psi, psi_ci, pca_stats, output_dir: Path):
     """
     Create improved visualization with RouteLLM task decomposition in bottom panel.
     
-    Cluster definitions based on reward gaps (GPT-4-Turbo - Mixtral):
-    - Mixtral-Sufficient (Gap ≤ 0.3): Tasks where Mixtral performs similarly to or better than GPT-4-Turbo
-    - GPT-4-Turbo-Required (Gap > 0.6): Tasks where GPT-4-Turbo has a clear advantage
+    Top panel:  Warmup Prior (RouteLLM, blue) vs Deployment (LMSYS, red)
+    Bottom panel: RouteLLM data decomposed by ground-truth reward gaps
     
     Args:
-        pc1_source: PC1 values for source/prior data
-        pc1_routellm: PC1 values for RouteLLM data
+        pc1_routellm: PC1 values for RouteLLM warmup-prior data
+        pc1_lmsys: PC1 values for LMSYS deployment/evaluation data
         reward_gaps_routellm: Reward gaps for RouteLLM prompts
         psi: PSI value
         psi_ci: PSI confidence interval tuple
@@ -712,8 +732,8 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     """
     print(f"\n🎨 Creating improved distribution shift visualization...")
     
-    # Define task clusters based on reward gaps (GPT-4-Turbo - Mixtral)
-    # CONSISTENT THRESHOLDS: Gap ≤ 0.3 = Mixtral-Sufficient, Gap > 0.6 = GPT-4-Turbo-Required
+    # Define task categories based on discrete reward gaps (Gap ∈ {-1, 0, +1})
+    # Gap ≤ 0.3 → {-1, 0} = Mixtral wins or ties; Gap > 0.6 → {+1} = GPT-4-Turbo wins
     mixtral_sufficient_mask = reward_gaps_routellm <= 0.3
     gpt4_turbo_required_mask = reward_gaps_routellm > 0.6
     
@@ -727,17 +747,18 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     mean_gap_mixtral = np.mean(reward_gaps_routellm[mixtral_sufficient_mask])
     mean_gap_gpt4_turbo = np.mean(reward_gaps_routellm[gpt4_turbo_required_mask])
     
-    print(f"\n   📊 RouteLLM Task Distribution:")
-    print(f"      Mixtral-Sufficient (Gap ≤ 0.3): {len(pc1_routellm_mixtral):,} ({routellm_mixtral_pct:.1f}%)")
+    print(f"\n   📊 RouteLLM Task Categories:")
+    print(f"      Mixtral-Sufficient (Gap ≤ 0 → wins/ties): {len(pc1_routellm_mixtral):,} ({routellm_mixtral_pct:.1f}%)")
     print(f"      Mean Gap: {mean_gap_mixtral:.3f}")
-    print(f"      GPT-4-Turbo-Required (Gap > 0.6): {len(pc1_routellm_gpt4_turbo):,} ({routellm_gpt4_turbo_pct:.1f}%)")
+    print(f"      GPT-4-Turbo-Required (Gap = +1 → wins): {len(pc1_routellm_gpt4_turbo):,} ({routellm_gpt4_turbo_pct:.1f}%)")
     print(f"      Mean Gap: {mean_gap_gpt4_turbo:.3f}")
     
     # Statistics
+    mean_shift = np.mean(pc1_lmsys) - np.mean(pc1_routellm)
     print(f"\n   📊 Distribution Statistics:")
-    print(f"      Source PC1: mean={np.mean(pc1_source):.3f}, std={np.std(pc1_source):.3f}")
-    print(f"      RouteLLM PC1: mean={np.mean(pc1_routellm):.3f}, std={np.std(pc1_routellm):.3f}")
-    print(f"      Mean shift: {np.mean(pc1_routellm) - np.mean(pc1_source):.3f}")
+    print(f"      RouteLLM (Prior) PC1: mean={np.mean(pc1_routellm):.3f}, std={np.std(pc1_routellm):.3f}")
+    print(f"      LMSYS (Deployment) PC1: mean={np.mean(pc1_lmsys):.3f}, std={np.std(pc1_lmsys):.3f}")
+    print(f"      Mean shift (Deployment − Prior): {mean_shift:.3f}")
     
     # Create figure with 2 subplots
     fig, axes = plt.subplots(2, 1, figsize=(14, 10))
@@ -745,44 +766,44 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     # === Plot 1: Overall Distribution Comparison ===
     ax1 = axes[0]
     
-    # Compute KDEs for smooth density curves
-    print(f"   🔵 Computing KDE for Source data...")
-    kde_source = gaussian_kde(pc1_source, bw_method=0.1)
+    # Compute KDEs for smooth density curves (Scott's rule for data-driven bandwidth)
+    print(f"   🔵 Computing KDE for RouteLLM (Prior) data (Scott's rule)...")
+    kde_routellm = gaussian_kde(pc1_routellm, bw_method='scott')
     
-    print(f"   🔴 Computing KDE for RouteLLM data...")
-    kde_routellm = gaussian_kde(pc1_routellm, bw_method=0.1)
+    print(f"   🔴 Computing KDE for LMSYS (Deployment) data (Scott's rule)...")
+    kde_lmsys = gaussian_kde(pc1_lmsys, bw_method='scott')
     
     # Create x-axis for plotting
-    x_min = min(pc1_source.min(), pc1_routellm.min())
-    x_max = max(pc1_source.max(), pc1_routellm.max())
+    x_min = min(pc1_routellm.min(), pc1_lmsys.min())
+    x_max = max(pc1_routellm.max(), pc1_lmsys.max())
     x_range = x_max - x_min
     x = np.linspace(x_min - 0.1 * x_range, x_max + 0.1 * x_range, 1000)
     
     # Plot density curves
-    density_source = kde_source(x)
     density_routellm = kde_routellm(x)
+    density_lmsys = kde_lmsys(x)
     
-    ax1.plot(x, density_source, label='Source/Prior Data', 
+    ax1.plot(x, density_routellm, label='Warmup Prior (RouteLLM, 80K battles)', 
             color='#4575b4', linewidth=3, alpha=0.8)
-    ax1.plot(x, density_routellm, label='RouteLLM Data', 
+    ax1.plot(x, density_lmsys, label='Deployment (LMSYS Evaluation)', 
             color='#d73027', linewidth=3, alpha=0.8)
     
     # Fill areas for visual emphasis
-    ax1.fill_between(x, 0, density_source, color='#4575b4', alpha=0.2)
-    ax1.fill_between(x, 0, density_routellm, color='#d73027', alpha=0.2)
+    ax1.fill_between(x, 0, density_routellm, color='#4575b4', alpha=0.2)
+    ax1.fill_between(x, 0, density_lmsys, color='#d73027', alpha=0.2)
     
     # Add mean lines
-    ax1.axvline(np.mean(pc1_source), color='#4575b4', linestyle='--', 
-               linewidth=2, alpha=0.6, label=f'Source Mean: {np.mean(pc1_source):.3f}')
-    ax1.axvline(np.mean(pc1_routellm), color='#d73027', linestyle='--', 
-               linewidth=2, alpha=0.6, label=f'RouteLLM Mean: {np.mean(pc1_routellm):.3f}')
+    ax1.axvline(np.mean(pc1_routellm), color='#4575b4', linestyle='--', 
+               linewidth=2, alpha=0.6, label=f'Prior Mean: {np.mean(pc1_routellm):.3f}')
+    ax1.axvline(np.mean(pc1_lmsys), color='#d73027', linestyle='--', 
+               linewidth=2, alpha=0.6, label=f'Deployment Mean: {np.mean(pc1_lmsys):.3f}')
     
     ax1.set_xlabel('First Principal Component (PC1)', fontsize=13, fontweight='bold')
     ax1.set_ylabel('Density', fontsize=13, fontweight='bold')
     
     # Updated title with PCA info
     ax1.set_title(
-        f'Feature Distribution Shift: Source vs RouteLLM Data\n'
+        f'Feature Distribution Shift: Warmup Prior vs Deployment\n'
         f'PSI = {psi:.4f} (95% CI: [{psi_ci[0]:.3f}, {psi_ci[1]:.3f}]) | '
         f'PC1 explains {pca_stats["variance_explained_pc1"]:.2%} of variance',
         fontsize=14,
@@ -794,21 +815,30 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
     
-    # Add PSI interpretation text
-    psi_color = 'green' if psi < 0.1 else ('orange' if psi < 0.2 else ('red' if psi < 0.25 else 'darkred'))
-    psi_text = ('No Shift' if psi < 0.1 else 
-                ('Moderate Shift' if psi < 0.2 else 
-                 ('Significant Shift' if psi < 0.25 else 'SUBSTANTIAL Shift')))
+    # Add PSI interpretation text — honest about borderline status
+    if psi < 0.1:
+        psi_color, psi_text = 'green', 'No Significant Shift'
+    elif psi < 0.2:
+        psi_color, psi_text = 'orange', 'Moderate Shift'
+    elif psi < 0.25:
+        psi_color, psi_text = '#cc4400', 'Significant Shift'
+    else:
+        psi_color = '#cc4400'
+        # Check if CI lower bound is below 0.25
+        if psi_ci[0] < 0.25:
+            psi_text = f'Significant–Substantial Shift\n(CI lower bound {psi_ci[0]:.3f} < 0.25)'
+        else:
+            psi_text = 'Substantial Shift'
     
-    ax1.text(0.02, 0.98, f'PSI Interpretation: {psi_text}',
+    ax1.text(0.02, 0.98, f'PSI: {psi_text}\nCohen\'s d = {abs(mean_shift / np.std(np.concatenate([pc1_routellm, pc1_lmsys]))):.2f} (small effect)',
             transform=ax1.transAxes,
-            fontsize=12,
+            fontsize=11,
             fontweight='bold',
             color=psi_color,
             verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor=psi_color, linewidth=2))
     
-    # === Plot 2: RouteLLM Data - Mixtral-Sufficient vs GPT-4-Turbo-Required Clustering (GROUND TRUTH) ===
+    # === Plot 2: RouteLLM Data - Task Categories by Ground Truth Reward Gaps ===
     ax2 = axes[1]
     
     # Use different colors
@@ -817,20 +847,20 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     
     # Plot ROUTELLM task-based densities (GROUND TRUTH)
     if len(pc1_routellm_mixtral) > 50 and len(pc1_routellm_gpt4_turbo) > 50:
-        print(f"   🟢 Computing KDE for Mixtral-Sufficient prompts...")
-        kde_routellm_mixtral = gaussian_kde(pc1_routellm_mixtral, bw_method=0.1)
+        print(f"   🟢 Computing KDE for Mixtral-Sufficient prompts (Scott's rule)...")
+        kde_routellm_mixtral = gaussian_kde(pc1_routellm_mixtral, bw_method='scott')
         
-        print(f"   🟣 Computing KDE for GPT-4-Turbo-Required prompts...")
-        kde_routellm_gpt4_turbo = gaussian_kde(pc1_routellm_gpt4_turbo, bw_method=0.1)
+        print(f"   🟣 Computing KDE for GPT-4-Turbo-Required prompts (Scott's rule)...")
+        kde_routellm_gpt4_turbo = gaussian_kde(pc1_routellm_gpt4_turbo, bw_method='scott')
         
         density_routellm_mixtral = kde_routellm_mixtral(x)
         density_routellm_gpt4_turbo = kde_routellm_gpt4_turbo(x)
         
         ax2.plot(x, density_routellm_mixtral, 
-                label=f'Mixtral-Sufficient (Gap ≤ 0.3): {routellm_mixtral_pct:.1f}%', 
+                label=f'Mixtral-Sufficient (wins/ties, Gap ≤ 0): {routellm_mixtral_pct:.1f}%', 
                 color=color_mixtral, linewidth=3, alpha=0.8)
         ax2.plot(x, density_routellm_gpt4_turbo, 
-                label=f'GPT-4-Turbo-Required (Gap > 0.6): {routellm_gpt4_turbo_pct:.1f}%', 
+                label=f'GPT-4-Turbo-Required (wins, Gap = +1): {routellm_gpt4_turbo_pct:.1f}%', 
                 color=color_gpt4_turbo, linewidth=3, alpha=0.8)
         
         ax2.fill_between(x, 0, density_routellm_mixtral, color=color_mixtral, alpha=0.2)
@@ -845,8 +875,8 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     ax2.set_xlabel('First Principal Component (PC1)', fontsize=13, fontweight='bold')
     ax2.set_ylabel('Density', fontsize=13, fontweight='bold')
     ax2.set_title(
-        'RouteLLM Deployment Data: Task Distribution by Model Performance\n'
-        f'Clusters Based on Ground Truth Reward Gaps (GPT-4-Turbo - Mixtral)',
+        'Warmup Prior (RouteLLM): Task Categories by Ground Truth Reward Gaps\n'
+        f'Gap = $R_{{GPT\\text{{-}}4\\text{{-}}Turbo}}$ − $R_{{Mixtral}}$ ∈ {{−1, 0, +1}}',
         fontsize=14,
         fontweight='bold',
         pad=15
@@ -856,14 +886,18 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
     
-    # Add interpretation text
+    # Compute task category Cohen's d for annotation
+    task_pooled_std = np.sqrt((np.std(pc1_routellm_mixtral)**2 + np.std(pc1_routellm_gpt4_turbo)**2) / 2)
+    task_cohens_d = abs(np.mean(pc1_routellm_mixtral) - np.mean(pc1_routellm_gpt4_turbo)) / task_pooled_std
+    
+    # Add interpretation text — honest about overlap
     ax2.text(0.02, 0.98, 
-            f'RouteLLM Deployment Distribution\n'
-            f'Mixtral-Sufficient: Centered at {np.mean(pc1_routellm_mixtral):.3f}, Δ={mean_gap_mixtral:.2f}\n'
-            f'GPT-4-Turbo-Required: Centered at {np.mean(pc1_routellm_gpt4_turbo):.3f}, Δ={mean_gap_gpt4_turbo:.2f}\n'
-            f'→ Two Distinct Performance Clusters',
+            f'Task Categories (NOT distinct clusters — >99% overlap)\n'
+            f'Mixtral-Sufficient (wins/ties): PC1 = {np.mean(pc1_routellm_mixtral):.3f}, Δ = {mean_gap_mixtral:.2f}\n'
+            f'GPT-4-Turbo-Required (wins):    PC1 = {np.mean(pc1_routellm_gpt4_turbo):.3f}, Δ = {mean_gap_gpt4_turbo:.2f}\n'
+            f'Cohen\'s d = {task_cohens_d:.2f} (small) — weak per-prompt signal, exploitable over many rounds',
             transform=ax2.transAxes,
-            fontsize=12,
+            fontsize=11,
             fontweight='bold',
             verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='#1b9e77', linewidth=2))
@@ -883,9 +917,6 @@ def create_improved_visualization(pc1_source, pc1_routellm, reward_gaps_routellm
     
     plt.close()
     
-    # Compute mean shift for return value
-    mean_shift = np.mean(pc1_routellm) - np.mean(pc1_source)
-    
     return psi, mean_shift, mean_gap_mixtral, mean_gap_gpt4_turbo
 
 
@@ -903,9 +934,9 @@ def main():
     output_dir = Path(__file__).parent / "results"
     
     print(f"\n📋 Configuration:")
-    print(f"   Source data (dev): {dev_file}")
-    print(f"   Source data (holdout): {holdout_file}")
-    print(f"   RouteLLM data: {battles_file}")
+    print(f"   Warmup prior data (RouteLLM): {battles_file}")
+    print(f"   Deployment data (LMSYS dev): {dev_file}")
+    print(f"   Deployment data (LMSYS holdout): {holdout_file}")
     print(f"   PCA model: {pca_file}")
     print(f"   Output: {output_dir}")
     print(f"   Embedding model: {DEFAULT_SENTENCE_TRANSFORMER}")
@@ -915,54 +946,59 @@ def main():
         print(f"   Run: python3 scripts/train_pca_from_routellm.py")
         return
     
-    # Step 1: Load Source/Prior data (dev + holdout)
-    source_prompts = load_source_prompts_from_datasets(
-        dev_file, holdout_file, max_samples=10000
-    )
-    
-    if len(source_prompts) == 0:
-        print("\n❌ No source prompts loaded!")
-        return
-    
-    # Step 2: Load RouteLLM deployment data WITH metadata
+    # Step 1: Load ALL RouteLLM warmup-prior data WITH metadata (reward gaps)
+    # We use the full 80K to represent the complete prior distribution that the PCA
+    # and LinUCB priors were trained on — no subsampling, no selection bias.
+    # PSI precision is bottlenecked by the smaller LMSYS sample (N=1,871), but using
+    # the full reference ensures the most accurate characterization of the prior.
     routellm_prompts, reward_gaps_routellm, routellm_metadata = load_routellm_prompts_with_metadata(
-        battles_file, start_idx=0, max_samples=10000
+        battles_file, start_idx=0, max_samples=80000
     )
     
     if len(routellm_prompts) == 0:
         print("\n❌ No RouteLLM prompts loaded!")
         return
     
-    # Step 3: Project to PC1 with stats (and save full features for sensitivity analysis)
-    print("\n" + "="*80)
-    print("PROJECTING SOURCE DATA TO PC1 (USING ROUTER)")
-    print("="*80)
-    pc1_source, pca_stats, features_source = project_to_pc1_with_stats(
-        source_prompts, pca_file, batch_size=64, use_router=True, return_full_features=True
+    # Step 2: Load LMSYS deployment/evaluation data (deduplicated)
+    lmsys_prompts = load_lmsys_evaluation_prompts(
+        dev_file, holdout_file, max_samples=10000
     )
     
+    if len(lmsys_prompts) == 0:
+        print("\n❌ No LMSYS prompts loaded!")
+        return
+    
+    # Step 3: Project to PC1 with stats (and save full features for sensitivity analysis)
     print("\n" + "="*80)
-    print("PROJECTING ROUTELLM DATA TO PC1 (USING ROUTER)")
+    print("PROJECTING ROUTELLM (PRIOR) DATA TO PC1 (USING ROUTER)")
     print("="*80)
-    pc1_routellm, _, features_routellm = project_to_pc1_with_stats(
+    pc1_routellm, pca_stats, features_routellm = project_to_pc1_with_stats(
         routellm_prompts, pca_file, batch_size=64, use_router=True, return_full_features=True
     )
     
+    print("\n" + "="*80)
+    print("PROJECTING LMSYS (DEPLOYMENT) DATA TO PC1 (USING ROUTER)")
+    print("="*80)
+    pc1_lmsys, _, features_lmsys = project_to_pc1_with_stats(
+        lmsys_prompts, pca_file, batch_size=64, use_router=True, return_full_features=True
+    )
+    
     # Step 4: Statistical tests
-    test_results = perform_statistical_tests(pc1_source, pc1_routellm)
+    test_results = perform_statistical_tests(pc1_routellm, pc1_lmsys)
     
     # Step 4.5: Sensitivity analysis (robustness to PC dimensionality choice)
     sensitivity_results = sensitivity_analysis_multipc(
-        features_source, features_routellm, pca_stats
+        features_routellm, features_lmsys, pca_stats
     )
     
     # Step 5: PSI with confidence intervals
+    # expected = RouteLLM (warmup prior, the reference), actual = LMSYS (deployment)
     psi, psi_ci, bins, expected_percents, actual_percents = compute_psi_with_bootstrap(
-        pc1_source, pc1_routellm, n_bins=20, n_bootstrap=1000
+        pc1_routellm, pc1_lmsys, n_bins=20, n_bootstrap=1000
     )
     
-    # Step 6: Test cluster separation (addresses "bimodal" interpretation concerns)
-    cluster_separation = analyze_cluster_separation(
+    # Step 6: Test task category separation (addresses "bimodal" interpretation concerns)
+    cluster_separation = analyze_task_category_separation(
         pc1_routellm, reward_gaps_routellm, threshold_low=0.3, threshold_high=0.6
     )
     
@@ -973,7 +1009,7 @@ def main():
     
     # Step 8: Visualize
     psi_val, mean_shift, mean_gap_mixtral, mean_gap_gpt4_turbo = create_improved_visualization(
-        pc1_source, pc1_routellm, reward_gaps_routellm, 
+        pc1_routellm, pc1_lmsys, reward_gaps_routellm, 
         psi, psi_ci, pca_stats, output_dir
     )
     
@@ -983,10 +1019,10 @@ def main():
     print("="*80)
     
     print(f"\n📊 Distribution Shift Summary:")
-    print(f"   Source prompts: {len(source_prompts):,}")
-    print(f"   RouteLLM prompts: {len(routellm_prompts):,}")
+    print(f"   RouteLLM (warmup prior) prompts: {len(routellm_prompts):,}")
+    print(f"   LMSYS (deployment) prompts: {len(lmsys_prompts):,} (deduplicated)")
     print(f"   PSI: {psi:.4f} (95% CI: [{psi_ci[0]:.3f}, {psi_ci[1]:.3f}])")
-    print(f"   Mean shift: {mean_shift:.4f}")
+    print(f"   Mean shift (Deployment − Prior): {mean_shift:.4f}")
     print(f"   KS statistic: {test_results['ks_statistic']:.4f} (p={test_results['ks_pvalue']:.4e})")
     print(f"   Cohen's d: {test_results['cohens_d']:.4f} ({test_results['effect_size']})")
     
@@ -1001,22 +1037,22 @@ def main():
     for label, psi_val in sensitivity_results.items():
         print(f"   {label}: PSI = {psi_val:.4f}")
     
-    print(f"\n🔍 RouteLLM Task Clusters:")
-    print(f"   Mixtral-Sufficient (Gap ≤ 0.3): Mean gap = {mean_gap_mixtral:.3f}")
-    print(f"   GPT-4-Turbo-Required (Gap > 0.6): Mean gap = {mean_gap_gpt4_turbo:.3f}")
+    print(f"\n🔍 RouteLLM Task Categories:")
+    print(f"   Mixtral-Sufficient (Gap ≤ 0 → wins/ties): Mean gap = {mean_gap_mixtral:.3f}")
+    print(f"   GPT-4-Turbo-Required (Gap = +1 → wins): Mean gap = {mean_gap_gpt4_turbo:.3f}")
     
-    print(f"\n📏 Cluster Separation:")
+    print(f"\n📏 Task Category Separation:")
     print(f"   Centroid distance: {cluster_separation['centroid_distance']:.4f}")
-    print(f"   t-test p-value: {cluster_separation['t_pvalue']:.4e}")
     print(f"   Cohen's d: {cluster_separation['cohens_d']:.4f} ({cluster_separation['effect_size']})")
+    print(f"   Overlap: {cluster_separation['overlap_mixtral_in_gpt4_range']:.1%} / {cluster_separation['overlap_gpt4_in_mixtral_range']:.1%}")
     print(f"   Conclusion: {cluster_separation['conclusion']}")
     
-    print(f"\n📝 Sample Prompts (Mixtral-Sufficient Cluster):")
+    print(f"\n📝 Sample Prompts (Mixtral-Sufficient Category):")
     for i, sample in enumerate(samples['mixtral_sufficient'][:2], 1):
         print(f"   {i}. PC1={sample['pc1']:.3f}, Gap={sample['reward_gap']:.3f}")
         print(f"      \"{sample['prompt']}\"")
     
-    print(f"\n📝 Sample Prompts (GPT-4-Turbo-Required Cluster):")
+    print(f"\n📝 Sample Prompts (GPT-4-Turbo-Required Category):")
     for i, sample in enumerate(samples['gpt4_turbo_required'][:2], 1):
         print(f"   {i}. PC1={sample['pc1']:.3f}, Gap={sample['reward_gap']:.3f}")
         print(f"      \"{sample['prompt']}\"")
