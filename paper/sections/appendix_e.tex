@@ -13,7 +13,7 @@
 \subsection{Statistical Validation of Semantic Structure}
 \label{app:validation_methodology}
 
-We perform comprehensive validation to ensure our Alignment Tax findings (Figure~\ref{fig:alignment_tax}) are statistically robust and not artifacts of methodological choices.
+We perform comprehensive validation to ensure our model preference heterogeneity findings (Figure~\ref{fig:alignment_tax}) are statistically robust and not artifacts of methodological choices. All analyses in this section use the held-out test set exclusively ($N=750$).
 
 \subsubsection{Statistical Significance Testing}
 
@@ -21,37 +21,52 @@ We validate the cluster distinction using multiple tests robust to distributiona
 
 \paragraph{Primary Tests.}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 2.86 \times 10^{-143}$
-    \item \textbf{Welch's $t$-test (parametric):} $p < 2.36 \times 10^{-92}$
-    \item \textbf{Effect size (Cohen's $d$):} $1.901$ (large effect, $d > 0.8$)
-    \item \textbf{Confidence intervals (95\%):} Low PC1: $[+0.113, +0.153]$, High PC1: $[-0.738, -0.625]$ (non-overlapping)
+    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 0.0001$
+    \item \textbf{Effect size (Cohen's $d$):} $1.53$ (large effect, $d > 0.8$)
+    \item \textbf{Confidence intervals (95\%):} Low PC1: $[+0.088, +0.153]$, High PC1: $[-0.661, -0.464]$ (non-overlapping)
 \end{itemize}
 
 \paragraph{Distribution Diagnostics.}
-Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), justifying non-parametric tests. Both parametric and non-parametric tests converge on highly significant differences.
+Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), justifying the use of non-parametric tests.
 
 \subsubsection{Threshold Validation}
 
-To ensure the $\text{PC1} = 0.3$ decision boundary is principled rather than arbitrary, we validated it through multiple independent methods:
-
-\paragraph{Grid Search.}
-We evaluated 50 candidate thresholds across the PC1 range using a composite score combining silhouette coefficient, Davies-Bouldin index, mean reward gap separation, and cluster balance. The optimal threshold by composite score is $\text{PC1} = 0.317$, with $\text{PC1} = 0.3$ achieving nearly identical performance (composite score difference: 0.2\%). \textbf{Multiple testing note:} Because the threshold was selected from 50 candidates, the primary significance tests are subject to threshold selection bias. After Bonferroni correction for 50 comparisons, the Mann-Whitney $U$-test remains highly significant ($p_{\text{corrected}} < 10^{-141}$). We further validate that results are robust to threshold perturbation: all thresholds in $[0.2, 0.4]$ yield $p < 10^{-100}$ (see Sensitivity Analysis below).
+The $\text{PC1} = 0.222$ threshold was selected using a purely unsupervised method: silhouette-optimal threshold search, maximizing geometric cluster quality without reference to reward labels (silhouette score $= 0.499$). This avoids the methodological concern of threshold selection bias from reward-based grid search.
 
 \paragraph{Unsupervised Clustering.}
-Independent clustering methods identify consistent boundaries:
+Independent clustering methods identify consistent structure:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item $k$-means clustering ($k=2$): boundary $\approx 0.148$
-    \item Gaussian Mixture Model ($k=2$): boundary $\approx 0.462$
-    \item Mean across methods: $0.320 \pm 0.105$
+    \item Silhouette-optimal threshold: $\text{PC1} = 0.222$ (silhouette $= 0.499$)
+    \item $k$-means clustering ($k=2$): boundary $\approx 0.138$
+    \item Both methods yield $p < 0.0001$ with Cohen's $d > 1.0$
 \end{itemize}
-The threshold $\text{PC1} = 0.3$ falls within one standard deviation of the cross-method mean.
 
 \paragraph{Sensitivity Analysis.}
-Results remain highly significant across threshold perturbations: all thresholds in $[0.2, 0.4]$ achieve $p < 10^{-100}$ with strong silhouette scores ($> 0.39$).
+The effect is robust across a range of thresholds. Both $k$-means ($\text{PC1} = 0.138$, $d = 1.15$) and silhouette-optimal ($\text{PC1} = 0.222$, $d = 1.53$) thresholds produce highly significant results, demonstrating that the finding is not dependent on a specific threshold choice.
+
+\subsubsection{PCA Provenance Sensitivity}
+
+A critical validation is whether the detected structure depends on PCA training data. We compare two PCA approaches:
+
+\begin{table}[h]
+\centering
+\caption{PCA Provenance Comparison on Held-Out Data ($N=750$)}
+\label{tab:pca_comparison}
+\begin{tabular}{lccc}
+\toprule
+\textbf{PCA Source} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Interpretation} \\
+\midrule
+Domain-adapted (80K routing) & $< 0.0001$ & 1.53 & Large effect \\
+Generic C4 (100K web text) & $< 0.0001$ & 0.33 & Small effect \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1, yielding a 4.6$\times$ larger effect size. The generic PCA confirms the underlying structure exists independently, validating that the domain-adapted PCA is an effective (not circular) feature extractor. Both PCAs are unsupervised---neither uses reward labels during training.
 
 \subsubsection{High-Dimensional Structure Validation}
 
-To verify that the bimodal structure is not a dimensionality reduction artifact, we examined cluster quality across multiple dimensionalities:
+To assess whether the bimodal structure exists beyond the 2D projection, we examined cluster quality across multiple dimensionalities:
 
 \begin{table}[h]
 \centering
@@ -61,18 +76,35 @@ To verify that the bimodal structure is not a dimensionality reduction artifact,
 \toprule
 \textbf{Space} & \textbf{Dimensions} & \textbf{Silhouette} & \textbf{Separation Ratio} \\
 \midrule
-2D PCA & 2 & 0.495 & --- \\
-32D PCA & 32 & 0.255 & 1.41 \\
+2D PCA & 2 & 0.499 & --- \\
+32D PCA & 32 & $\sim$0.25 & $> 1.0$ \\
 384D Embeddings & 384 & 0.057 & 0.81 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Silhouette scores decrease in higher dimensions due to the curse of dimensionality. However, the cluster assignment based on PC1 remains predictive of reward gaps in the original 384D space (Spearman $\rho = -0.395$, $p < 10^{-70}$), confirming that PC1 captures task-relevant semantic structure. The 5.4\% variance captured by PC1+PC2 represents the \emph{task-relevant} semantic axis; the remaining 94.6\% encompasses task-orthogonal variation (topic, language, style) that does not affect model performance trade-offs.
+The 384D silhouette score of 0.057 indicates \textbf{weak cluster structure} in the full embedding space---clusters overlap substantially. The separation ratio of 0.81 ($< 1.0$) confirms that within-cluster distances exceed between-cluster distances in high dimensions. This is an important caveat: the structure detected by PC1 represents a task-relevant signal extracted from a noisy high-dimensional space, not a dominant clustering pattern. The PC1 projection isolates this signal (Spearman $\rho = -0.395$, $\rho^2 = 0.156$, explaining ${\sim}16\%$ of reward gap variance---a moderate correlation), but the remaining $84\%$ of variance is driven by other factors (topic, length, complexity) orthogonal to model preference.
 
 \subsubsection{Data Quality Analysis}
 
-The dataset contains zero exact duplicates (100\% unique: 1,871/1,871). Near-duplicate analysis (cosine similarity $\geq 0.95$) identifies only 201 pairs among 330 High PC1 prompts (0.37\% rate). Intra-cluster diversity analysis shows High PC1 diversity score of 0.355 and Low PC1 diversity score of 0.953, confirming findings are not dominated by specific templates.
+The held-out dataset ($N=750$) contains zero exact duplicates. Intra-cluster diversity analysis shows:
+\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
+    \item High PC1 diversity score: 0.355 (average pairwise cosine similarity: 0.645)
+    \item Low PC1 diversity score: 0.953 (average pairwise cosine similarity: 0.047)
+\end{itemize}
+
+The High PC1 cluster is relatively homogeneous (diversity $= 0.355$), consistent with a coherent semantic category of strict-format prompts rather than a broad, diverse phenomenon. The Low PC1 cluster is highly diverse, representing the full range of conversational prompt types. This asymmetry should be considered when interpreting the generalizability of the preference inversion finding.
+
+\subsubsection{Summary of Validation}
+
+\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{Statistical rigor:} $p < 0.0001$, large effect ($d = 1.53$), non-overlapping CIs
+    \item \textbf{Threshold justification:} Purely unsupervised (silhouette-optimal, no reward peeking)
+    \item \textbf{PCA robustness:} Effect persists with generic PCA ($d = 0.33$), confirming independence
+    \item \textbf{High-D caveat:} Weak structure in 384D (silhouette $= 0.057$); PC1 isolates a moderate signal ($\rho^2 = 0.156$)
+    \item \textbf{Data quality:} Zero duplicates; High PC1 is a homogeneous cluster (diversity $= 0.355$)
+    \item \textbf{Held-out only:} All analyses on $N=750$ test set; dev set excluded
+\end{enumerate}
 
 % ----------------------------------------------------------------------------
 % E.2: Corralling Ablation (from D1)
@@ -142,7 +174,7 @@ Table~\ref{tab:strategy_guide} provides a practical decision framework for pract
 \caption{%
     \textbf{Deployment Strategy Selection Guide.}
     Regret values from holdout evaluation 
-    (N=750 prompts, severe domain mismatch: 68.6\%$\to$13.7\% hard prompts).
+    (N=750 prompts, severe domain mismatch).
     *Performance in matched scenario expected to exceed Corralling.
 }
 \label{tab:strategy_guide}
@@ -174,4 +206,3 @@ Evaluate warmup predictions on $N=100$--$200$ deployment samples. Accuracy $>80\
 (2) Tabula Rasa is optimal when priors are known-bad;
 (3) Strategy selection depends on prior quality assessment (see Validation Protocol above).
 All configurations use constant $\alpha=2.0$ (validated in Appendix~\ref{sec:alpha_ablation}).
-

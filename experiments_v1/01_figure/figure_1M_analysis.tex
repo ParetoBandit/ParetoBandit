@@ -1,14 +1,14 @@
-% LaTeX: 1M Dataset Scale Analysis
-% Validates Spatial Structure Robustness at Production Scale
+% LaTeX: 1M Dataset Scale Analysis (Revised)
+% Validates Spatial Structure Persistence Only (No Reward Claims)
 
 \subsection{Scale Validation: Spatial Structure Persistence}
 \label{sec:scale_validation}
 
-To validate the robustness of our semantic routing approach at scale, we analyzed the complete LMSYS Chat-1M dataset~\cite{zheng2023lmsys}, comprising 594,199 unique prompts---a 317$\times$ increase from the holdout evaluation ($N=1,871$).
+To examine whether the spatial structure detected in the held-out set persists at scale, we analyzed the complete LMSYS Chat-1M dataset~\cite{zheng2023lmsys}, comprising 594,199 unique prompts---a 317$\times$ increase from the holdout evaluation ($N=750$).
 
-\subsubsection{Spatial Invariance at Scale}
+\subsubsection{Spatial Stability at Scale}
 
-The principal component structure exhibits remarkable stability across scale. Table~\ref{tab:scale_comparison} compares the PCA decomposition and spatial clustering across both datasets.
+The principal component structure exhibits stability across scale. Table~\ref{tab:scale_comparison} compares the PCA decomposition across both datasets.
 
 \begin{table}[t]
 \centering
@@ -17,71 +17,47 @@ The principal component structure exhibits remarkable stability across scale. Ta
 \begin{tabular}{lcc}
 \toprule
 \textbf{Metric} & \textbf{Holdout} & \textbf{Chat-1M} \\
-& $(N=1,871)$ & $(N=594,199)$ \\
+& $(N=750)$ & $(N=594,199)$ \\
 \midrule
 PC1 Variance & 3.10\% & 3.101\% \\
 PC2 Variance & 2.29\% & 2.294\% \\
-Decision Boundary & $PC1 = 0.3$ & $PC1 = 0.3$ \\
 \midrule
-Low PC1 (\%) & 82.4\% & \textbf{94.1\%} \\
-High PC1 (\%) & 17.6\% & \textbf{5.9\%} \\
+Low PC1 (\%) & 80.8\% & \textbf{94.1\%} \\
+High PC1 (\%) & 19.2\% & \textbf{5.9\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent\textbf{Key Finding:} The principal components and the $PC1 = 0.3$ spatial boundary remain stable across a 317$\times$ scale increase. This demonstrates that the PCA decomposition captures robust structural properties of the prompt distribution.
+\noindent\textbf{Key Observation:} The principal components and spatial clustering persist across a 317$\times$ scale increase. This is expected---PCA is a fixed linear projection applied to embeddings from the same sentence transformer model---and demonstrates that the spatial structure is a stable property of the prompt distribution.
 
-\noindent\textbf{Data Provenance:} The holdout evaluation ($N=1,871$) includes reward labels for both Mixtral and GPT-4-Turbo, enabling validation of the reward-semantic correspondence. The 1M dataset represents unfiltered production traffic but lacks reward evaluations, limiting analysis to spatial structure. Performance metrics reported in our main results are based on the labeled holdout set.
+\noindent\textbf{Critical Limitation:} The Chat-1M dataset \textbf{lacks reward labels}. We cannot validate whether the model preference heterogeneity (the reward gap inversion observed on the holdout set) persists at scale. The spatial stability observed here should not be interpreted as evidence that performance claims generalize to unlabeled production traffic.
 
-\noindent\textbf{Threshold Selection:} We validated the $PC1 = 0.3$ boundary through systematic analysis: grid search over 50 thresholds identified $0.317$ as optimal by composite score; unsupervised methods (k-means, GMM) converged to $0.320 \pm 0.105$; sensitivity analysis confirms robustness across $[0.2, 0.4]$ (all $p < 10^{-100}$). The threshold achieves strong cluster quality (silhouette: $0.495$) and lies within one standard deviation of the optimal mean.
+\noindent\textbf{Data Provenance:} The holdout evaluation ($N=750$) includes reward labels for both Mixtral and GPT-4-Turbo from LMSYS Chatbot Arena human preference evaluations, enabling validation of the reward-semantic correspondence. The 1M dataset represents broader production traffic but lacks these evaluations. All performance metrics reported in our main results are based exclusively on the labeled holdout set.
 
-\subsubsection{Distribution Shift and Interpretation}
+\subsubsection{Distribution Shift Interpretation}
 
-The Chat-1M dataset shows a pronounced distribution shift toward Low PC1 (82.4\% $\rightarrow$ 94.1\%). While we validated the reward-semantic correspondence on the holdout set, we lack reward evaluations for the 1M dataset to confirm this mapping persists.
+The Chat-1M dataset shows a pronounced shift toward Low PC1 (80.8\% $\rightarrow$ 94.1\%). The High PC1 cluster (strict-constraint prompts) shrinks from 19.2\% to 5.9\% of production traffic. This distribution difference could reflect:
+\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
+    \item Different prompt sampling characteristics between the two datasets
+    \item User behavior differences across collection periods
+    \item The holdout set over-representing strict-constraint templates relative to production traffic
+\end{itemize}
 
-\paragraph{Interpreting Distribution Shift.}
-The Chat-1M dataset exhibits a pronounced shift toward Low PC1 (82.4\% $\rightarrow$ 94.1\%). The spatial consistency (stable PC1 variance and boundary location) suggests the PCA decomposition captures robust structural properties of prompt distributions. However, semantic interpretation of this shift requires reward labels. The distribution shift could reflect differences in prompt difficulty, user behavior evolution, or sampling characteristics between the two datasets.
-
-\paragraph{Validation Strategy.}
-We base our performance claims on the holdout set ($N=1,871$), which provides validated reward-semantic correspondence through labeled evaluations. The 1M analysis serves to demonstrate spatial structure robustness at scale, providing supporting evidence that the PCA decomposition generalizes beyond the holdout sample.
+Without reward labels for the 1M dataset, we cannot determine which interpretation is correct.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.48\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_1M_pca.png}
-\caption{\textbf{Spatial Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts shows spatial clustering persistence (Low PC1: 94.1\%, High PC1: 5.9\%). The $PC1=0.3$ boundary location and PC1 variance (3.101\%) remain stable despite 317$\times$ scale increase. This spatial distribution shift from holdout (82.4\%/17.6\%) provides weak evidence for generalization, though reward-semantic validation was performed on holdout only ($N=1,871$).}
+\caption{\textbf{Spatial Structure at Scale.} PCA projection of 594,199 LMSYS Chat-1M prompts shows spatial clustering persistence (Low PC1: 94.1\%, High PC1: 5.9\%). PC1 variance (3.101\%) remains stable despite 317$\times$ scale increase. This demonstrates spatial structure persistence only; the 1M dataset lacks reward labels, so performance claims are validated on the holdout set ($N=750$) only.}
 \label{fig:scale_validation}
 \end{figure}
 
-\textbf{Methodological Transparency.}
-By explicitly separating validated (holdout with reward labels) from exploratory (1M spatial clustering only) analyses, we provide clear ground truth for reproducibility while documenting scale-dependent observations that merit future investigation with production labels.
+\subsubsection{Summary}
 
-\subsubsection{Performance Evaluation and Generalization}
-
-\paragraph{Validated Performance.}
-Our primary evaluation on the labeled holdout set ($N=1,871$) demonstrates 27\% cost reduction with minimal quality degradation. The 17.6\% High PC1 prompts in this dataset validate the alignment tax phenomenon with strong statistical evidence (Mann-Whitney $p < 10^{-143}$, Cohen's $d = 1.90$).
-
-\paragraph{Scale Generalization.}
-The spatial structure persistence at 317$\times$ scale suggests the PCA decomposition captures robust properties of prompt distributions. The distribution shift to 94.1\% Low PC1 in production traffic indicates potential for even greater cost savings, conditional on the spatial-semantic correspondence extending to unlabeled production data.
-
-\subsubsection{Robustness Analysis}
-
-Beyond the primary holdout evaluation, we conducted additional validation to ensure methodological rigor:
-
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Scale robustness:} Spatial structure stable at 317$\times$ scale (PC1 variance: 3.10\% $\rightarrow$ 3.101\%)
-    \item \textbf{Threshold validation:} Grid search and unsupervised clustering confirm $PC1 = 0.3$ is principled (optimal: $0.320 \pm 0.105$)
-    \item \textbf{High-dimensional validation:} Structure persists in 384D space ($\rho = -0.395$, $p < 10^{-70}$)
-    \item \textbf{Data quality:} Zero exact duplicates, diversity score: 0.355 for High PC1 cluster
-\end{itemize}
-
-These analyses validate that findings are statistically robust, not artifacts of dimensionality reduction, threshold selection, or data peculiarities.
-
-\subsubsection{Data and Methods}
-
-\paragraph{Datasets.} 
-\textbf{Holdout Set ($N=1,871$):} Stratified split from LMSYS Arena battles with Mixtral-8x7B-Instruct and GPT-4-Turbo evaluations. Reward labels enable validation of reward-semantic correspondence. Used for primary performance evaluation.
-
-\textbf{Chat-1M Dataset ($N=594,199$):} Complete LMSYS Chatbot Arena conversations (April--August 2023) representing unfiltered production traffic. Used for spatial structure robustness analysis at scale.
-
-\paragraph{PCA Model.} Trained on 80K RouteLLM battles (Mixtral vs. GPT-4-Turbo), reducing 384D sentence embeddings to 32D (35.14\% variance explained). Applied consistently to both datasets for comparable spatial analysis.
-
+The 1M scale analysis demonstrates:
+\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{Spatial stability:} PCA structure and cluster proportions persist at scale (expected property of fixed linear projection)
+    \item \textbf{Distribution shift:} High PC1 cluster is rarer in production traffic (5.9\% vs 19.2\%)
+    \item \textbf{Limitation:} Cannot validate reward-preference correspondence without 1M reward labels
+    \item \textbf{Performance basis:} All claims based on labeled holdout ($N=750$) only
+\end{enumerate}

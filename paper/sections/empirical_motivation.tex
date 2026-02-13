@@ -2,40 +2,42 @@
 \label{sec:motivation}
 
 % TRANSITION from Introduction
-Our integrated approach rests on a critical empirical foundation: that semantic structure exists in the LLM task space and can be exploited for intelligent routing. In this section, we provide the empirical motivation for our system design through two key analyses:
+Current LLM routers operate under an implicit assumption: task ``difficulty'' determines which model to use---easy tasks go to cheap models, hard tasks to expensive ones. This section presents two empirical findings that overturn this assumption and directly motivate the banditGPT architecture:
 
 \begin{enumerate}
-    \item \textbf{Semantic Structure Discovery (Figure~\ref{fig:alignment_tax}):} We demonstrate that task difficulty relates to model alignment failures, not just reasoning complexity. This establishes that routing is \emph{learnable} through contextual features.
+    \item \textbf{Model Preference Heterogeneity (Figure~\ref{fig:alignment_tax}):} The expensive model is not merely unnecessary on some tasks---it is \emph{actively worse} on a specific, identifiable subset. This transforms routing from interpolation (``how much quality am I willing to trade for cost?'') into \textbf{discovery} (``which prompts actually benefit from the expensive model?'').
     
-    \item \textbf{Distribution Shift:} We quantify covariate shift between training and deployment data (PSI=0.275), establishing the need for adaptive mechanisms with safety guarantees.
+    \item \textbf{Distribution Shift (Section~\ref{sec:distribution_shift}):} The training data over-represents exactly the prompts where the expensive model fails, causing static routers to systematically misroute deployment traffic. This makes safe online learning essential, not optional.
 \end{enumerate}
 
-Together, these findings motivate our integrated approach: \textbf{semantic structure makes routing learnable, but distribution shift makes \emph{safe} learning essential.}
+Together, these findings establish: \textbf{routing is a learnable discovery problem, but the training signal is misleading---requiring adaptive mechanisms with safety guarantees.}
 
-\subsection{Cluster Analysis: The Alignment Tax}
+\subsection{Cluster Analysis: Model Preference Heterogeneity}
 
-We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. The PC1 cutoff at 0.3 was selected via grid search over 50 candidate thresholds using a composite clustering metric (Appendix~\ref{app:validation_methodology}). While the reported significance ($p < 10^{-143}$) remains overwhelming after Bonferroni correction for 50 comparisons ($p_{\text{corrected}} < 10^{-141}$), and independent clustering methods converge on a consistent boundary ($0.320 \pm 0.105$, Appendix~\ref{app:validation_methodology}), readers should note that the threshold was optimized rather than pre-specified. Checking the ground-truth reward gaps within these regions exposes a \textbf{performance inversion} that contradicts standard ``complexity'' assumptions (Table~\ref{tab:cluster_inversion}).
+We analyze model preference heterogeneity by projecting 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of a 32-component PCA model trained on sentence embeddings from 80K routing prompts. This domain-adapted PCA is \emph{unsupervised}---it never sees reward labels during training---and identifies directions of maximum variance in routing-relevant prompt space.
+
+The cluster boundary at $\text{PC1} = 0.222$ was selected using a purely unsupervised method: silhouette-optimal threshold search over PC1 values, maximizing geometric cluster quality without reference to reward labels (silhouette score = 0.499). This avoids the methodological concern of threshold selection bias from reward peeking. Examining the ground-truth reward gaps within these clusters reveals a \textbf{performance inversion} that contradicts standard ``complexity'' assumptions (Table~\ref{tab:cluster_inversion}).
 
 \begin{table}[t]
 \centering
-\caption{The Cluster Inversion: Spatial Analysis Validated Against Reward Gaps}
+\caption{Model Preference Heterogeneity: Cluster Statistics on Held-Out Data ($N=750$)}
 \label{tab:cluster_inversion}
 \begin{tabular}{@{}lllr@{}}
 \toprule
-\textbf{Cluster} & \textbf{Semantic Type} & \textbf{Mean Gap} & \textbf{Winner} \\
-& & $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$ & \\
+\textbf{Cluster} & \textbf{Mean Gap} & \textbf{95\% CI} & \textbf{Preferred} \\
+& $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$ & & \\
 \midrule
-Low PC1 ($< 0.3$) & Open-Ended Chat & $+0.133$ & GPT-4-Turbo \\
-High PC1 ($\geq 0.3$) & Strict/Constrained & $-0.682$ & Mixtral-8x7B \\
+Low PC1 ($< 0.222$, 80.8\%) & $+0.121$ & $[+0.088, +0.153]$ & GPT-4-Turbo \\
+High PC1 ($\geq 0.222$, 19.2\%) & $-0.563$ & $[-0.661, -0.464]$ & Mixtral-8x7B \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{The Low PC1 ``Nuance Zone'' (82.4\%).}
-Contrary to the assumption that routine tasks are ``easy,'' the Low PC1 cluster is dominated by open-ended conversational prompts where the frontier model's superior instruction following and world knowledge yield a significant advantage ($+0.133$). A naive router that offloads this entire cluster to Mixtral would degrade performance. banditGPT succeeds by preserving this cluster for the expensive model while routing strict-constraint tasks to cheaper alternatives.
+\paragraph{The Low PC1 Cluster (80.8\%, $n=606$).}
+The majority cluster contains diverse conversational prompts where the frontier model's superior instruction following and world knowledge yield a moderate advantage ($+0.121$, 95\% CI: $[+0.088, +0.153]$). A naive router that offloads this entire cluster to Mixtral would degrade performance. banditGPT succeeds by preserving this cluster for the expensive model while routing strict-constraint tasks to cheaper alternatives.
 
-\paragraph{The High PC1 ``Strictness Zone'' (17.6\%).}
-The ``Hard'' cluster---visually distinct in Figure~\ref{fig:pca}---is actually defined by strict formatting constraints (manual inspection reveals 85\% are ``text completion only, no chat'' templates). Here, the frontier model suffers from an \textbf{Alignment Tax}: we hypothesize that its RLHF conditioning toward helpfulness induces verbosity that violates negative constraints. The open-weights model, being less aggressively aligned, adheres strictly to the format, winning by a massive margin ($-0.682$). We note that this causal explanation---while consistent with the observed patterns and representative examples below---has not been verified through direct ablation (e.g., comparing RLHF-tuned vs.\ base model responses on strict-constraint tasks). Alternative explanations, such as differences in instruction-following fine-tuning or decoding strategies, remain possible.
+\paragraph{The High PC1 Cluster (19.2\%, $n=144$).}
+A minority cluster shows a substantial \emph{performance inversion}: the cheaper model significantly outperforms the frontier ($-0.563$, 95\% CI: $[-0.661, -0.464]$). Qualitative inspection reveals this cluster is dominated by strict formatting constraints---instruction-following templates, binary classification tasks, and structured output requirements. We observe that the frontier model's conversational tendencies (e.g., adding preambles, explaining reasoning) correlate with violations of strict formatting requirements, while the open-weights model adheres more closely to template structure.
 
 \textit{Representative examples from this cluster include:}
 \begin{itemize}[noitemsep,topsep=2pt,leftmargin=10pt]
@@ -45,41 +47,65 @@ The ``Hard'' cluster---visually distinct in Figure~\ref{fig:pca}---is actually d
     \item \textbf{Explicit negative constraints:} ``Use the following pieces of context to answer the question. If you don't know the answer, just say that you don't know, don't try to make up an answer.'' (Gap: $-1.0$)
 \end{itemize}
 
-In all cases, GPT-4-Turbo's tendency to add conversational preambles (``Sure, I'll help you with that...''), explain its reasoning, or reformulate instructions violates the strict format requirements. Mixtral, less aggressively tuned for helpfulness, follows the template literally.
+We note that while these patterns are consistent with the hypothesis that RLHF alignment toward helpfulness may conflict with strict formatting constraints, \textbf{this causal mechanism has not been verified through controlled experiments} (e.g., comparing RLHF-tuned vs.\ base model responses). Alternative explanations---such as differences in instruction-following fine-tuning, decoding strategies, or evaluator biases---remain possible.
 
-\paragraph{Conclusion.}
-The routing opportunity is counter-intuitive. We do not save money by routing ``easy'' tasks to cheap models; we save money by identifying the ``Strict'' tasks where the expensive model actively fails, effectively turning a quality problem (Alignment Tax) into a cost-saving solution.
+\paragraph{Statistical Validation.}
+The difference between clusters is highly significant (Mann-Whitney $U$: $p < 0.0001$, Cohen's $d = 1.53$, large effect). The 95\% confidence intervals do not overlap. All analyses use the held-out test set exclusively ($N=750$), with the PCA model trained on a disjoint set of 80K prompts and the cluster threshold determined by purely unsupervised geometric criteria.
+
+\paragraph{Robustness: PCA Provenance Sensitivity.}
+To validate that this finding is not an artifact of domain-adapted PCA, we repeat the analysis with PCA trained on 100K generic web text samples (C4 corpus), which has no connection to routing. The effect persists ($p < 0.0001$, Cohen's $d = 0.33$), confirming that the underlying structure exists in the embedding space independently of PCA provenance. The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1 ($d = 1.53$ vs.\ $0.33$), consistent with its training on routing-relevant prompts. This 4.6$\times$ difference in effect size demonstrates that PCA provenance significantly influences the sharpness of the detected structure, but the phenomenon is real under both feature extraction approaches. We emphasize that the domain-adapted PCA is the appropriate tool for routing analysis, analogous to training on domain-specific data for any supervised learning task; the generic PCA serves as a robustness check confirming independence from PCA training data.
+
+\paragraph{Methodological Notes.}
+\begin{itemize}[noitemsep,topsep=2pt,leftmargin=10pt]
+    \item \textbf{Data:} Held-out test set only ($N=750$). The dev set ($N=1{,}121$), used for online learning in Table~\ref{tab:performance_gap}, is excluded to maintain train/test independence.
+    \item \textbf{PCA:} Domain-adapted, trained on 80K routing prompt embeddings (unsupervised---no reward labels). Applied to disjoint held-out data.
+    \item \textbf{Threshold:} Silhouette-optimal ($\text{PC1} = 0.222$, silhouette $= 0.499$), selected without reference to reward labels.
+    \item \textbf{Reward source:} LMSYS Chatbot Arena human preference evaluations~\cite{zheng2023judging}, based on side-by-side model comparisons by crowd-workers.
+    \item \textbf{High-dimensional structure:} The 384D silhouette score is 0.057 (weak), indicating that clusters overlap substantially in the full embedding space. The PC1 projection isolates a task-relevant axis from a noisy high-dimensional space (Spearman $\rho = -0.395$, $\rho^2 = 0.156$, explaining $\sim$16\% of reward gap variance---a moderate correlation).
+    \item \textbf{Cluster diversity:} High PC1 diversity = 0.355 (average pairwise cosine similarity 0.645), indicating a relatively homogeneous cluster consistent with a coherent semantic category of strict-format prompts, rather than a broad phenomenon across diverse prompt types.
+\end{itemize}
+
+\paragraph{Why This Matters for Routing.}
+This finding has three direct consequences for router design:
+
+\begin{enumerate}[noitemsep,topsep=2pt]
+    \item \textbf{Static ``hardness'' classifiers will fail.} A router trained to predict task difficulty and send ``hard'' prompts to the expensive model will systematically over-provision GPT-4 on the strict-constraint subset where it underperforms. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, ultimately paying $43\times$ more for $1.3\%$ lower quality.
+    
+    \item \textbf{The routing opportunity is counter-intuitive.} Cost savings do not come from offloading ``easy'' tasks to cheap models. They come from \emph{discovering} the specific subset where the expensive model is actively worse---a structure that must be learned from data, not assumed from complexity heuristics.
+    
+    \item \textbf{Online learning is essential.} Because this structure is counter-intuitive and varies with deployment distribution, it cannot be reliably specified a priori. banditGPT learns this preference structure online, using GPT-4 only when statistically justified by observed rewards.
+\end{enumerate}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{figures/figure1_pca.png}
-\caption{Discovery of the Alignment Tax. PCA projection of 1,871 LMSYS prompts reveals clustering at PC1 $\approx$ 0.3. Validation against ground-truth reward gaps exposes a performance inversion: the Low PC1 region (Blue, 82.4\%) is where GPT-4-Turbo retains a clear advantage ($\Delta=+0.13$). The High PC1 region (Red, 17.6\%, 85\% strict completion templates) is where the open-weights model dominates ($\Delta=-0.68$), hypothesized to reflect the frontier model's alignment artifacts (see text for caveats).}
+\includegraphics[width=0.95\columnwidth]{figures/figure1_pca.png}
+\caption{Model preference heterogeneity in LMSYS held-out prompts ($N=750$). \textbf{(A)} PC1 projection (domain-adapted PCA, trained on 80K routing prompts) vs.\ reward gap. The dashed line marks the silhouette-optimal threshold ($\text{PC1}=0.222$), selected without reference to reward labels. Running mean shows a smooth transition in model preference. \textbf{(B)} Reward gap distributions by cluster. The Low PC1 cluster (80.8\%, blue) favors GPT-4-Turbo ($\mu = +0.12$); the High PC1 cluster (19.2\%, red) strongly favors Mixtral ($\mu = -0.56$, $p < 0.0001$, Cohen's $d = 1.53$). Robustness check with generic C4 PCA confirms effect persistence ($d = 0.33$; see text).}
 \label{fig:pca}
 \label{fig:alignment_tax}
 \end{figure}
 
 \subsection{Scale Validation}
 
-To ensure these findings were not an artifact of the smaller holdout set, we extended our analysis to the complete LMSYS Chat-1M dataset, comprising 594,199 unique prompts---a $317\times$ increase in scale.
+To examine whether the spatial structure persists at scale, we projected the complete LMSYS Chat-1M dataset (594,199 unique prompts) onto our PCA space.
 
-Remarkably, the semantic structure exhibits \emph{spectral invariance}. As shown in Table~\ref{tab:spectral}, the decision boundary remains stable at $\text{PC1}=0.3$. However, the distribution shifts significantly: production traffic is overwhelmingly natural language (Low PC1: 94.1\%), with the strict constraint artifact shrinking to just 5.9\%. This makes the artifact more valuable: it is a rare, high-confidence exploitation opportunity.
+The principal component structure exhibits stability: PC1 variance remains at $3.10\%$ and the spatial distribution shows $94.1\%$ Low PC1 vs.\ $5.9\%$ High PC1 (Table~\ref{tab:spectral}). However, \textbf{the 1M dataset lacks reward labels}, so we cannot validate whether the reward-preference correspondence persists at scale. The stability of spatial structure is expected (PCA is a fixed linear projection applied to embeddings from the same model), and should not be interpreted as evidence that the performance inversion generalizes to unlabeled production traffic.
 
 \begin{table}[t]
 \centering
-\caption{Spectral Invariance at Scale}
+\caption{Spatial Structure at Scale (PC1 Distribution Only)}
 \label{tab:spectral}
 \begin{tabular}{lcc}
 \toprule
-\textbf{Metric} & \textbf{Holdout ($N=1.8$k)} & \textbf{Chat-1M ($N=594$k)} \\
+\textbf{Metric} & \textbf{Holdout ($N=750$)} & \textbf{Chat-1M ($N=594$k)} \\
 \midrule
 PC1 Variance & 3.10\% & 3.10\% \\
-Natural Language (Low PC1) & 82.4\% & 94.1\% \\
-Strict Constraints (High PC1) & 17.6\% & 5.9\% \\
+Low PC1 (\%) & 80.8\% & 94.1\% \\
+High PC1 (\%) & 19.2\% & 5.9\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In production (Chat-1M), the Alignment Tax artifact becomes rarer (5.9\%) but more valuable: it is a high-confidence exploitation zone where Mixtral consistently wins. Meanwhile, the natural language zone (94.1\%) requires careful sub-manifold discovery to avoid quality degradation. This dual challenge---exploiting rare artifacts while preserving quality on common tasks---necessitates adaptive, context-aware routing that static classifiers cannot achieve.
+\textbf{Interpretation}: The spatial distribution shift from holdout to production traffic (19.2\% $\to$ 5.9\% High PC1) suggests the strict-constraint cluster is rarer in production. Performance claims are based exclusively on the labeled holdout set ($N=750$); the 1M analysis provides supporting evidence for spatial structure persistence only.
 
 \subsection{Distribution Shift: Motivating Adaptive Learning}
 \label{sec:distribution_shift}
@@ -89,7 +115,20 @@ A fundamental risk in routing is \textbf{Covariate Shift}: when the distribution
 \paragraph{Important caveat: dataset heterogeneity, not production drift.}
 This shift is measured between two different data collections---the LMSYS dev/holdout set and RouteLLM battle data---which were gathered under different sampling procedures, time periods, and selection criteria. We therefore characterize this as \emph{dataset heterogeneity} rather than a measured ``production drift.'' While this heterogeneity is representative of the kind of distributional mismatch that arises in real deployments (where training and serving distributions inevitably differ), we cannot claim it precisely mirrors any specific production scenario. The magnitude of the shift motivates adaptive mechanisms, but the exact PSI value is specific to these two dataset collections.
 
-Critically, the \emph{direction} of the shift compounds the danger. Offline training data over-indexes on the Alignment Tax zone (High PC1), where Mixtral dominates. The holdout distribution is predominantly natural language (Low PC1), where GPT-4 excels. A static router trained on the offline distribution therefore learns to be systematically pessimistic about GPT-4's utility on the dominant evaluation traffic---creating a ``False Negative'' policy that underestimates GPT-4 precisely where it should be deployed.
+Critically, the \emph{direction} of the shift compounds the danger. Offline training data over-indexes on High PC1 prompts, where Mixtral is preferred. The holdout distribution is predominantly Low PC1, where GPT-4 excels. A static router trained on the offline distribution therefore learns to be systematically pessimistic about GPT-4's utility on the dominant evaluation traffic---creating a ``False Negative'' policy that underestimates GPT-4 precisely where it should be deployed.
 
 This motivates the \textbf{tabula rasa} expert in our Corralling framework (Section~\ref{sec:methodology}), which learns deployment-specific preferences unburdened by this offline bias. For shifts of this magnitude (PSI$\geq$0.25), the system requires adaptive mechanisms with safety guarantees, as static priors become actively harmful. We note that the prescriptive PSI thresholds used here (PSI$<$0.1 for safe exploitation, PSI$\geq$0.25 for requiring unlearning) follow standard industry conventions from credit risk modeling but have not been independently validated for the LLM routing domain; future work should calibrate domain-specific thresholds on held-out deployment data. Full distribution shift visualization and decomposition are provided in Appendix~\ref{app:distribution_shift}.
 
+\subsection{Synthesis: From Observation to Architecture}
+
+The two findings above form a coherent argument for adaptive routing:
+
+\begin{enumerate}[noitemsep,topsep=2pt]
+    \item \textbf{Structure exists} (Section~\ref{sec:motivation}): Model preference heterogeneity is real and learnable through prompt embeddings ($p < 0.0001$, $d = 1.53$). A router equipped with the right features \emph{can} distinguish prompts that benefit from the expensive model from those that do not.
+    
+    \item \textbf{But static priors mislead} (Section~\ref{sec:distribution_shift}): The training distribution over-represents the inversion subset (High PC1), causing static routers to learn a policy that is \emph{directionally wrong} on deployment traffic. Simply learning the structure offline is insufficient---the router must adapt to the deployment distribution.
+    
+    \item \textbf{Therefore, safe online learning is necessary:} The router must (a) exploit semantic structure to make the preference discovery tractable, (b) hedge against misleading priors via meta-learning, and (c) handle non-stationarity as new models enter the portfolio. These are exactly the three mechanisms of banditGPT (Section~\ref{sec:methodology}).
+\end{enumerate}
+
+This chain---from empirical observation, through failure analysis of static methods, to architectural requirements---is the foundation for the system we present next.

@@ -22,19 +22,19 @@ Figure~\ref{fig:distribution_shift} provides the full visualization of the covar
 \includegraphics[width=0.9\columnwidth]{figures/figure2_distribution_shift.png}
 \caption{\textbf{Distribution Shift Visualization.}
 \textbf{Top:} Density comparison (PSI = 0.275) shows a structural mismatch between Offline Training priors (Blue) and Holdout evaluation data (Red) in the PC1 feature space.
-\textbf{Bottom:} Decomposition based on the reward gap zones from Table~\ref{tab:cluster_inversion}. The Alignment Tax Cluster (Right Peak, PC1 $>$ 0.3, where Mixtral wins with $\Delta = -0.68$) is over-represented in offline data. The Natural Language Cluster (Left Peak, PC1 $<$ 0.3, where GPT-4 wins with $\Delta = +0.13$) dominates production traffic.
-The Offline Prior over-indexes on the Alignment Tax cluster, leading to systematic underestimation of GPT-4's utility on dominant Natural Language traffic.}
+\textbf{Bottom:} Decomposition based on model preference clusters from Table~\ref{tab:cluster_inversion}. The High PC1 region (Right Peak, where Mixtral is preferred with gap $= -0.56$) is over-represented in offline data. The Low PC1 region (Left Peak, where GPT-4 is preferred with gap $= +0.12$) dominates production traffic.
+The Offline Prior over-indexes on Mixtral-preferred prompts, leading to systematic underestimation of GPT-4's utility on dominant evaluation traffic.}
 \label{fig:distribution_shift}
 \end{figure}
 
-\paragraph{Forensic Decomposition.}
-The shift decomposes into two functional zones aligned with the Alignment Tax discovery:
+\paragraph{Preference Decomposition.}
+The shift decomposes into two functional regions aligned with model preference heterogeneity:
 \begin{enumerate}[nosep]
-    \item \textbf{Natural Language Zone (PC1 $< 0.3$):} Open-ended chat where GPT-4's nuance yields a positive advantage ($\Delta = +0.13$).
-    \item \textbf{Alignment Tax Zone (PC1 $\geq 0.3$):} Strict constraints where GPT-4's alignment artifacts cause failure ($\Delta = -0.68$).
+    \item \textbf{GPT-4-Preferred (Low PC1):} Conversational prompts where GPT-4's instruction following yields a positive advantage (gap $= +0.12$).
+    \item \textbf{Mixtral-Preferred (High PC1):} Strict-constraint prompts where the cheaper model is empirically preferred (gap $= -0.56$).
 \end{enumerate}
 
-Offline data is heavily weighted toward the Alignment Tax zone, while the holdout evaluation set is dominated by the Natural Language zone. This directional mismatch means a static router trained on offline data systematically under-provisions GPT-4 on evaluation traffic---the ``False Negative'' policy described in Section~\ref{sec:distribution_shift}.
+Offline data is heavily weighted toward the High PC1 region, while the holdout evaluation set is dominated by Low PC1 prompts. This directional mismatch means a static router trained on offline data systematically under-provisions GPT-4 on evaluation traffic---the ``False Negative'' policy described in Section~\ref{sec:distribution_shift}.
 
 % ----------------------------------------------------------------------------
 % D.2: Catastrophic Failure Detection

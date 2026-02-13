@@ -101,26 +101,45 @@ This experiment establishes the **foundation** for our routing approach:
 - 95% CIs non-overlapping
 - Both parametric and non-parametric tests converge
 
-### Scale Analysis with 1M Dataset (N=594,199)
+### Scale Analysis with 1M Dataset (N=594,199) - SPATIAL ONLY
 
-**Spatial Structure Persistence:**
-- PC1 variance: 3.10% → 3.101% (stable across 317× scale increase)
-- Boundary location: PC1 = 0.3 (unchanged)
-- Spatial clustering structure robust at production scale
+**⚠️ IMPORTANT LIMITATION:**
+The 1M dataset has **NO reward labels**. This analysis can only validate spatial structure persistence, NOT reward gap phenomenon.
 
-**Distribution Characteristics:**
-- Low PC1 cluster: 82.4% (holdout) → 94.1% (1M)
-- High PC1 cluster: 17.6% (holdout) → 5.9% (1M)
+**Spatial Structure Observations:**
+- PC1 variance: 3.10% → 3.101% (stable - expected for fixed linear projection)
+- Boundary location: PC1 = 0.3 (unchanged in spatial terms)
+- Distribution: Low PC1 82.4% → 94.1%, High PC1 17.6% → 5.9%
 
-**Note on Validation:**
-The 1M dataset lacks reward evaluations, limiting analysis to spatial structure. Performance claims are based on the validated holdout set (N=1,871) with reward labels. The spatial consistency observed at scale provides supporting evidence for structure robustness, though semantic interpretation requires labeled data.
+**What This Actually Validates:**
+- PCA variance ratios are stable (expected linear algebra for similar distributions)
+- Spatial distribution of embeddings is similar
+- Does NOT validate reward gap structure persists at scale
+- Does NOT support economic projections ($2.3M claim is unsupported)
+
+**Note on Claims:**
+Performance and reward gap claims are based ONLY on holdout set (N=750 after removing dev contamination). Cannot extrapolate to 1M scale without reward labels. The 1M analysis provides spatial context but does not validate the "Alignment Tax" phenomenon at scale.
 
 ## Reproducibility
 
-### Primary Analysis
+### Primary Analysis (with Generic PCA - Recommended)
 
 ```bash
-# Generate Figure 1 with statistical validation
+# Step 1: Train generic PCA on C4 corpus (fixes circularity)
+python3 scripts/train_pca_generic.py
+
+# Step 2: Generate Figure 1 with generic PCA
+python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py \
+    --pca src/artifacts/pca_32_generic.joblib
+
+# Step 3: Compare with RouteLLM PCA to validate consistency
+python3 experiments_v1/01_figure/compare_pca_models.py
+```
+
+### Legacy Analysis (with RouteLLM PCA - Circular)
+
+```bash
+# Generate Figure 1 with RouteLLM PCA (for comparison only)
 python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py
 ```
 
@@ -191,23 +210,34 @@ See `validate_high_dimensional.py` for implementation.
 
 ### Data Quality Analysis
 
-To ensure findings generalize beyond specific prompt templates, we performed comprehensive diversity analysis:
+⚠️ **ISSUE #8: Low Diversity in High PC1 Cluster**
+⚠️ **ISSUE #10: Near-Duplicate Reporting Misleading**
+
+Original diversity analysis had problems:
 
 **Uniqueness:**
-- 100% unique prompts (0% exact duplicates across all clusters)
-- High PC1: 330 unique prompts
+- 100% unique prompts (0% exact duplicates) ✓
+- High PC1: 330 unique prompts (in original contaminated N=1,871 analysis)
 - Low PC1: 1,541 unique prompts
 
-**Semantic Diversity:**
-- High PC1 diversity score: 0.355
-- Near-duplicate rate: 0.37% (minimal)
-- Farthest-first sampling shows variety of prompt types
+**Semantic Diversity (PROBLEM):**
+- High PC1 diversity score: 0.355 (LOW - homogeneous cluster)
+- Low PC1 diversity score: 0.953 (HIGH - heterogeneous cluster)
+- Interpretation: High PC1 is narrow category, not broad phenomenon
+- Original framed 0.355 as "good" but it's actually 37% as diverse as Low PC1
 
-**Robustness:**
-- Statistical significance maintained (p < 10⁻¹⁴³)
-- Results not driven by repeated templates
+**Near-Duplicate Rate (MISLEADING):**
+- Reported as "0.37% rate" (pair rate: 201 pairs out of ~54K possible)
+- But 201 pairs could involve up to ~60% of the 330 prompts as participants
+- Should report: "% of prompts involved in near-duplicates" not "% of pairs"
+- Distinction matters for assessing if findings driven by templates
 
-See `analyze_cluster_diversity.py` for implementation.
+**Current Status (with clean N=750 holdout):**
+- Only 1 prompt in High PC1 cluster
+- Cannot assess diversity with 1 sample
+- Entire diversity analysis moot with clean methodology
+
+See `analyze_cluster_diversity.py` for implementation (needs update).
 
 ## Understanding the Alignment Tax
 
@@ -338,12 +368,85 @@ This experiment provides comprehensive analysis for:
 4. **Discussion/Appendix**: Scale analysis, robustness checks, data quality validation
 5. **LaTeX Files**: Ready-to-include sections (`validation_methodology.tex`, `results_explanation.tex`, `figure_1M_analysis.tex`)
 
+## Circularity Fix (IMPORTANT)
+
+### The Problem
+
+**Original Approach (Circular):**
+- PCA model (`pca_32.joblib`) was trained on 80K RouteLLM battles
+- RouteLLM battles are LMSYS Arena battles between Mixtral and GPT-4-Turbo
+- The "discovery" analysis was then run on different LMSYS Arena data (dev + holdout, N=1,871)
+- **Issue:** The PCA was designed to find routing-relevant latent directions in Mixtral-vs-GPT-4 comparisons
+- **Consequence:** Finding that PC1 separates routing-relevant clusters in similar data is at least partly tautological
+
+**Why this matters:**
+The concern is not prompt overlap (the datasets are separate). The issue is that the PCA was optimized on the same distribution of tasks (model routing comparisons), making the "discovery" less surprising than presented.
+
+### The Solution
+
+**New Approach (Non-circular):**
+- Train PCA on **generic text data** (C4 corpus - Colossal Clean Crawled Corpus)
+- C4 is a large-scale web text dataset with NO connection to LLM routing or model comparisons
+- Apply this generic PCA to LMSYS data
+- **Result:** If the Alignment Tax structure still emerges, it's a genuine discovery
+
+**Benefits:**
+1. **Eliminates circularity:** PCA not optimized on routing data
+2. **Fair discovery:** Structure emerges from neutral semantic basis
+3. **Scientifically rigorous:** No tautological findings
+4. **Stronger claim:** Proves the structure is inherent in the task space, not a PCA artifact
+
+### How to Use
+
+#### Step 1: Train Generic PCA
+
+```bash
+# Train PCA on C4 corpus (100K samples, 32 components)
+python3 scripts/train_pca_generic.py
+
+# This creates: src/artifacts/pca_32_generic.joblib
+```
+
+#### Step 2: Run Analysis with Generic PCA
+
+```bash
+# Generate Figure 1 with generic PCA (recommended)
+python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py \
+    --pca src/artifacts/pca_32_generic.joblib
+
+# This creates figures with "(PCA: Generic Text)" in the title
+```
+
+#### Step 3: Compare Both PCAs
+
+```bash
+# Validate that structure persists across PCA models
+python3 experiments_v1/01_figure/compare_pca_models.py
+
+# This generates side-by-side comparison showing:
+# - Cluster distributions
+# - Reward gaps
+# - Statistical significance
+# - Consistency analysis
+```
+
+### Expected Results
+
+If the Alignment Tax is genuine (not a PCA artifact):
+- ✅ Both PCAs should show significant cluster separation (p < 0.001)
+- ✅ Both should show same direction (Low PC1 = GPT-4 wins, High PC1 = Mixtral wins)
+- ✅ Effect sizes should be comparable (Cohen's d > 1.0)
+- ✅ Cluster proportions may differ slightly but trends should match
+
+If these hold, the discovery is validated and circularity concerns are eliminated.
+
 ## Notes
 
-- PCA model is pre-trained on RouteLLM data (32 components, 35.14% variance)
+- **Recommended:** Use generic PCA (`pca_32_generic.joblib`) for paper
+- **Legacy:** RouteLLM PCA (`pca_32.joblib`) available for comparison
 - Holdout visualization uses all 1,871 prompts
 - 1M visualization downsamples to 10k points for clarity (full analysis uses all data)
-- Both analyses use the same PCA projection for consistency
+- Generic PCA trained on 100K C4 samples, 32 components
 
 ---
 

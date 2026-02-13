@@ -1,19 +1,43 @@
 #!/usr/bin/env python3
 """
-Figure 1: Semantic PCA of LMSYS Holdout Data - Alignment Tax Discovery
+Figure 1 Analysis: LMSYS Holdout Data with Clean Methodology
 
-This script creates THE HOOK for the paper: a visualization proving that LLM routing
-discovers hidden failure modes in frontier models (the "Alignment Tax").
+⚠️ IMPORTANT: This analysis was originally intended to demonstrate an "Alignment Tax"
+but after fixing methodological issues, the finding DOES NOT REPLICATE.
 
-The visualization shows:
-- Bimodal semantic structure with distinct clusters
-- Low PC1 (82.4%): Natural language zone where GPT-4-Turbo wins (+0.13)
-- High PC1 (17.6%): Strict constraint zone where Mixtral wins (-0.68)
-- Production-realistic unseen data (gold standard for reviewers)
+RESULT WITH CLEAN METHODOLOGY: p = 0.983 (NOT significant)
+RECOMMENDATION: Remove Figure 1 from paper.
 
-Key insight: This is NOT about "easy vs hard" - it's about exploiting RLHF failure modes.
+ISSUES IDENTIFIED AND STATUS:
+==============================
+✅ FIXED:
+1. Circular PCA - Now using generic C4 corpus (not routing data)
+2. Dev contamination - Using holdout ONLY (N=750, not N=1,871)
+
+⚠️ PARTIALLY FIXED:
+3. Circular threshold - Still using PC1=0.3 (should use PC1=0 or unsupervised)
+
+❌ CANNOT FIX (Data limitations):
+4. Speculative mechanism - Causal claims lack validation experiments
+5. Weak high-D structure - Silhouette=0.057 in 384D (essentially random)
+6. Overstated correlation - ρ²=0.16 (only 16% variance, moderate not strong)
+7. Misleading scale - 1M dataset has no reward labels
+8. Low diversity - High PC1 diversity=0.355 (homogeneous cluster)
+9. Single observations - One reward per (prompt, model), no variance estimates
+10. Near-duplicate reporting - Pair rate vs prompt involvement unclear
+
+RESULT: After fixing #1-2, NO significant bimodal structure found.
+- Low PC1: 749/750 prompts (99.9%)
+- High PC1: 1/750 prompts (0.1%)
+- Mann-Whitney p = 0.983 (NOT significant)
+
+See documentation in experiments_v1/01_figure/:
+- ONE_PAGE_SUMMARY.md - Quick overview
+- ALL_ISSUES_SUMMARY.md - Complete technical analysis
+- FINAL_RECOMMENDATION.md - What to do next
 
 Usage:
+    python3 scripts/train_pca_generic.py  # If not done
     python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py
 """
 
@@ -37,61 +61,72 @@ from scipy import stats as scipy_stats
 from matplotlib.colors import TwoSlopeNorm
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
-    DEFAULT_PCA_PATH,
     CANONICAL_DEV_DATA_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH
+    CANONICAL_HOLDOUT_DATA_PATH,
+    ARTIFACTS_DIR
 )
 
+# Use generic PCA (trained on C4 corpus) to avoid circularity
+GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
 
-def load_lmsys_holdout_with_gaps(dev_file: Path, holdout_file: Path):
+
+def load_lmsys_holdout_with_gaps(holdout_file: Path):
     """
-    Load LMSYS dev/holdout prompts with reward gaps computed from THEIR OWN evaluations.
+    Load LMSYS HOLDOUT-ONLY prompts with reward gaps.
     
-    The dev/holdout files have separate rows for Mixtral and GPT-4-Turbo evaluations.
+    FIXES APPLIED:
+    - Issue #2: Use holdout ONLY (no dev contamination)
+    - Dev set excluded (reserved for training in Table 2)
+    
+    REMAINING LIMITATION (Issue #9):
+    - Each prompt has ONE raw_score per model (no repeated measurements)
+    - No variance estimates at prompt level
+    - Reward source not documented in code (assumed LMSYS Arena human preferences)
+    - Gap = single scalar difference, not distribution
+    
+    The holdout file has separate rows for Mixtral and GPT-4-Turbo evaluations.
     We group by prompt and compute: Gap = R_GPT4 - R_Mixtral
     
     Returns:
         prompts: List of prompt strings
         reward_gaps: Array of reward gaps (GPT-4-Turbo - Mixtral)
     """
-    print(f"📥 Loading LMSYS Holdout Data with reward gaps...")
-    print(f"   Dev: {dev_file}")
+    print(f"📥 Loading LMSYS Holdout Data (HOLDOUT ONLY - no dev contamination)...")
     print(f"   Holdout: {holdout_file}")
+    print(f"   ⚠️  Dev set excluded to avoid contamination (dev is used for training)")
     
     # Dictionary to collect rewards by prompt
     # {prompt: {'mixtral': score, 'gpt4': score}}
     prompt_rewards = {}
     
-    for file_path, name in [(dev_file, "dev"), (holdout_file, "holdout")]:
-        print(f"\n   Processing {name}...")
-        
-        with gzip.open(file_path, 'rt') as f:
-            for line in tqdm(f, desc=f"   Reading {name}"):
-                try:
-                    entry = json.loads(line)
-                    prompt = entry.get('prompt', '')
-                    model_id = entry.get('model_id', '')
-                    raw_score = entry.get('raw_score', None)
-                    
-                    if not prompt or not isinstance(prompt, str) or raw_score is None:
-                        continue
-                    
-                    prompt = prompt.strip()
-                    if not prompt:
-                        continue
-                    
-                    # Initialize prompt entry if needed
-                    if prompt not in prompt_rewards:
-                        prompt_rewards[prompt] = {}
-                    
-                    # Store reward by model type
-                    if 'mixtral' in model_id.lower():
-                        prompt_rewards[prompt]['mixtral'] = raw_score
-                    elif 'gpt-4-turbo' in model_id.lower() or 'gpt-4' in model_id.lower():
-                        prompt_rewards[prompt]['gpt4'] = raw_score
-                    
-                except Exception as e:
+    print(f"\n   Processing holdout...")
+    with gzip.open(holdout_file, 'rt') as f:
+        for line in tqdm(f, desc=f"   Reading holdout"):
+            try:
+                entry = json.loads(line)
+                prompt = entry.get('prompt', '')
+                model_id = entry.get('model_id', '')
+                raw_score = entry.get('raw_score', None)
+                
+                if not prompt or not isinstance(prompt, str) or raw_score is None:
                     continue
+                
+                prompt = prompt.strip()
+                if not prompt:
+                    continue
+                
+                # Initialize prompt entry if needed
+                if prompt not in prompt_rewards:
+                    prompt_rewards[prompt] = {}
+                
+                # Store reward by model type
+                if 'mixtral' in model_id.lower():
+                    prompt_rewards[prompt]['mixtral'] = raw_score
+                elif 'gpt-4-turbo' in model_id.lower() or 'gpt-4' in model_id.lower():
+                    prompt_rewards[prompt]['gpt4'] = raw_score
+                
+            except Exception:
+                continue
     
     # Compute reward gaps for prompts that have both model evaluations
     prompts = []
@@ -106,6 +141,7 @@ def load_lmsys_holdout_with_gaps(dev_file: Path, holdout_file: Path):
     
     print(f"\n   ✅ Loaded {len(prompts):,} LMSYS holdout prompts with reward gaps")
     print(f"      (from {len(prompt_rewards):,} total unique prompts)")
+    print(f"   ✅ NO dev set contamination - holdout only")
     
     return prompts, np.array(reward_gaps)
 
@@ -149,20 +185,39 @@ def embed_and_project_2d(prompts: list, pca_file: Path, batch_size: int = 64):
 
 def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
     """
-    Create THE HOOK: A compelling visualization showing the Alignment Tax discovery.
+    Create visualization of prompt distribution in PCA space.
     
-    Left panel: Semantic scatter showing Natural Language vs Strict Constraint clusters
-    Right panel: Distribution statistics proving the structure
+    WARNING: With clean methodology, this shows NO significant bimodal structure.
+    - 749/750 prompts in "Low PC1" cluster
+    - 1/750 prompts in "High PC1" cluster  
+    - Mann-Whitney p = 0.983 (NOT significant)
     
-    Key: We verify that High PC1 = Mixtral wins, Low PC1 = GPT-4-Turbo wins.
+    METHODOLOGY FIXES APPLIED:
+    - Issue #1: PCA trained on generic C4 corpus (not routing data)
+    - Issue #2: Holdout only (N=750, no dev contamination)
+    
+    REMAINING ISSUES:
+    - Issue #3: Threshold PC1=0.3 is arbitrary (should use PC1=0 or unsupervised)
+    - Issue #5: Structure weak in high-D (silhouette=0.057)
+    - Issue #6: Correlation moderate (ρ²=0.16, only 16% variance)
+    - Issue #8: High PC1 cluster homogeneous (diversity=0.355)
+    
+    RESULT: No significant structure with clean methodology.
     """
-    print(f"\n🎨 Creating Alignment Tax visualization...")
+    print(f"\n🎨 Creating visualization...")
+    print(f"   PCA source: Generic (C4 corpus)")
+    print(f"   ⚠️  WARNING: Clean methodology shows NO significant structure")
     
     # Categorize by PC1 position (spatial clustering)
+    # Issue #3: This threshold (0.3) is arbitrary and was chosen circularly
+    # Should use PC1=0 (natural midpoint) or unsupervised clustering
+    # However, result doesn't change - still no significant structure
     pc1_values = X_2d[:, 0]
     
-    low_pc1_mask = pc1_values < 0.3  # Natural Language Zone
-    high_pc1_mask = pc1_values >= 0.3  # Alignment Tax Zone (strict constraints)
+    # Using 0.3 for comparison with original analysis
+    # NOTE: This threshold was chosen circularly in original analysis
+    low_pc1_mask = pc1_values < 0.3  
+    high_pc1_mask = pc1_values >= 0.3
     
     X_low_pc1 = X_2d[low_pc1_mask]
     X_high_pc1 = X_2d[high_pc1_mask]
@@ -181,10 +236,11 @@ def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
     print(f"      Overall Median: {np.median(reward_gaps):.3f}")
     print(f"      Overall Std: {np.std(reward_gaps):.3f}")
     
-    print(f"\n   🔍 ALIGNMENT TAX VALIDATION:")
-    print(f"      Low PC1 Mean Gap: {np.mean(gaps_low_pc1):+.4f} (GPT-4-Turbo wins)")
-    print(f"      High PC1 Mean Gap: {np.mean(gaps_high_pc1):+.4f} (Mixtral wins)")
-    print(f"      ✅ Data confirms: High PC1 = Alignment Tax Zone")
+    print(f"\n   🔍 CLUSTER STATISTICS:")
+    print(f"      Low PC1 Mean Gap: {np.mean(gaps_low_pc1):+.4f}")
+    print(f"      High PC1 Mean Gap: {np.mean(gaps_high_pc1):+.4f}")
+    if len(gaps_high_pc1) < 10:
+        print(f"      ⚠️  High PC1 has only {len(gaps_high_pc1)} sample(s) - insufficient for conclusions")
     
     # Statistical Significance Testing
     print(f"\n   📊 STATISTICAL SIGNIFICANCE:")
@@ -233,15 +289,16 @@ def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
     low_pc1_mask_s = pc1_sample < 0.3
     high_pc1_mask_s = pc1_sample >= 0.3
     
-    # Plot with beautiful colors
+    # Plot with colors
+    # NOTE: Original labels were misleading - clean methodology shows no separation
     ax1.scatter(X_sample[low_pc1_mask_s, 0], X_sample[low_pc1_mask_s, 1],
                c='#4575b4', s=25, alpha=0.7, 
-               label=f'Natural Language ({len(X_low_pc1):,}, GPT-4-Turbo wins)',
+               label=f'Low PC1 ({len(X_low_pc1):,} prompts, {len(X_low_pc1)/len(X_2d)*100:.1f}%)',
                edgecolors='none', rasterized=True)
     
     ax1.scatter(X_sample[high_pc1_mask_s, 0], X_sample[high_pc1_mask_s, 1],
                c='#d73027', s=25, alpha=0.7, 
-               label=f'Alignment Tax ({len(X_high_pc1):,}, Mixtral wins)',
+               label=f'High PC1 ({len(X_high_pc1):,} prompts, {len(X_high_pc1)/len(X_2d)*100:.1f}%)',
                edgecolors='none', rasterized=True)
     
     # Add KDE contour for low PC1 cluster only
@@ -257,10 +314,11 @@ def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
         except:
             pass
     
-    # Add vertical line showing cluster separation
-    separation_threshold = 0.3  # PC1 = 0.3 separates the clusters
+    # Add vertical line at threshold
+    # Issue #3: This threshold is arbitrary and was chosen circularly
+    separation_threshold = 0.3
     ax1.axvline(x=separation_threshold, color='black', linestyle='--', linewidth=3, 
-                alpha=0.7, label='Cluster Separation', zorder=5)
+                alpha=0.7, label=f'Threshold (PC1={separation_threshold}, arbitrary)', zorder=5)
     
     # Styling
     pc1_var = pca.explained_variance_ratio_[0]
@@ -268,10 +326,12 @@ def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
     
     ax1.set_xlabel(f'PC1 ({pc1_var:.2%} variance)', fontsize=15, fontweight='bold')
     ax1.set_ylabel(f'PC2 ({pc2_var:.2%} variance)', fontsize=15, fontweight='bold')
+    
+    # Honest title reflecting clean methodology results
     ax1.set_title(
-        'Exploiting the Alignment Tax\n'
-        'Discovery of RLHF Failure Mode in Strict Constraint Tasks',
-        fontsize=17,
+        'LMSYS Holdout Prompts in PCA Space (Generic C4 PCA)\n'
+        f'N={len(X_2d)} holdout prompts, Threshold PC1=0.3 (arbitrary)',
+        fontsize=15,
         fontweight='bold',
         pad=15
     )
@@ -281,7 +341,8 @@ def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
     # Panel 2: Distribution breakdown with better visualization
     ax2 = fig.add_subplot(gs[1])
     
-    categories = ['Natural\nLanguage\n(GPT-4-Turbo)', 'Alignment\nTax\n(Mixtral)']
+    # Honest labels - no longer claiming "Natural Language" vs "Alignment Tax"
+    categories = [f'Low PC1\n(< {separation_threshold})', f'High PC1\n(≥ {separation_threshold})']
     counts = [len(X_low_pc1), len(X_high_pc1)]
     colors_bar = ['#4575b4', '#d73027']
     
@@ -292,9 +353,9 @@ def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
     ax2.set_xticklabels(categories, fontsize=14, fontweight='bold')
     ax2.set_ylabel('Number of Prompts', fontsize=15, fontweight='bold')
     ax2.set_title(
-        'Spatial Cluster Distribution\n'
-        f'N = {len(X_2d):,} Prompts',
-        fontsize=17,
+        f'Distribution by PC1 Threshold\n'
+        f'N = {len(X_2d):,} Holdout Prompts',
+        fontsize=15,
         fontweight='bold',
         pad=15
     )
@@ -352,34 +413,36 @@ def create_bimodal_visualization(X_2d, reward_gaps, pca, output_dir: Path):
 
 def main():
     print("="*80)
-    print("FIGURE 1: ALIGNMENT TAX DISCOVERY - LMSYS HOLDOUT ANALYSIS")
+    print("FIGURE 1 ANALYSIS: LMSYS HOLDOUT WITH CLEAN METHODOLOGY")
     print("="*80)
-    print("\n🎯 Goal: Discover and visualize the Alignment Tax")
-    print("   → Low PC1 (82.4%): Natural language where GPT-4-Turbo wins (+0.13)")
-    print("   → High PC1 (17.6%): Strict constraints where Mixtral wins (-0.68)")
-    print("   → Forensic Agility: Router exploits RLHF failure mode")
-    print("\n   KEY: We VERIFY that clusters match reward gaps (not circular!)")
-    print("   Using dev/holdout data with THEIR OWN reward evaluations")
-    print("   (NOT matching with RouteLLM - completely separate datasets)")
+    print("\n⚠️  WARNING: This analysis was intended to show 'Alignment Tax'")
+    print("   but the finding DOES NOT REPLICATE with proper methodology.")
+    print("\n📐 Clean Methodology Applied:")
+    print("   ✅ Issue #1 Fixed: PCA trained on generic C4 corpus (no circularity)")
+    print("   ✅ Issue #2 Fixed: Holdout ONLY (N=750, no dev contamination)")
+    print("   ⚠️  Issue #3 Remains: Threshold PC1=0.3 is arbitrary (was chosen circularly)")
+    print("\n📊 Result: NO significant structure (p = 0.983)")
+    print("   See ONE_PAGE_SUMMARY.md for complete issue analysis.")
     
     # Paths
-    dev_file = CANONICAL_DEV_DATA_PATH
     holdout_file = CANONICAL_HOLDOUT_DATA_PATH
-    pca_file = DEFAULT_PCA_PATH
+    pca_file = GENERIC_PCA_PATH
     output_dir = Path(__file__).parent / "results"
     
     print(f"\n📋 Configuration:")
-    print(f"   LMSYS Dev: {dev_file}")
-    print(f"   LMSYS Holdout: {holdout_file}")
-    print(f"   PCA model: {pca_file}")
+    print(f"   LMSYS Holdout: {holdout_file} (holdout only)")
+    print(f"   PCA model: {pca_file} (Generic C4)")
     print(f"   Output: {output_dir}")
+    print(f"   ⚠️  Dev set excluded (used for training in Table 2)")
     
     if not pca_file.exists():
         print(f"\n❌ PCA file not found: {pca_file}")
+        print(f"\n💡 Train generic PCA first:")
+        print(f"   python3 scripts/train_pca_generic.py")
         return
     
-    # Step 1: Load LMSYS holdout data with their own reward gaps
-    prompts, reward_gaps = load_lmsys_holdout_with_gaps(dev_file, holdout_file)
+    # Step 1: Load LMSYS holdout data ONLY (no dev contamination)
+    prompts, reward_gaps = load_lmsys_holdout_with_gaps(holdout_file)
     
     if len(prompts) == 0:
         print("\n❌ No data loaded!")
@@ -399,7 +462,7 @@ def main():
     
     # Summary with validation
     print("\n" + "="*80)
-    print("✅ FIGURE 1 COMPLETE - ALIGNMENT TAX VALIDATED!")
+    print("⚠️  ANALYSIS COMPLETE - NULL FINDING WITH CLEAN METHODOLOGY")
     print("="*80)
     
     # Compute final validation statistics
@@ -418,29 +481,51 @@ def main():
                           (len(gaps_low) + len(gaps_high) - 2))
     cohens_d = (gap_low - gap_high) / pooled_std
     
-    print(f"\n🔍 Key Discovery:")
-    print(f"   • Low PC1 (82.4%): Natural Language Zone")
-    print(f"     → Mean Gap: {gap_low:+.4f} (GPT-4-Turbo WINS)")
-    print(f"     → 95% CI: [{scipy_stats.t.interval(0.95, len(gaps_low)-1, loc=gap_low, scale=sem(gaps_low))[0]:+.3f}, {scipy_stats.t.interval(0.95, len(gaps_low)-1, loc=gap_low, scale=sem(gaps_low))[1]:+.3f}]")
-    print(f"     → RLHF alignment provides value here")
-    print(f"   • High PC1 (17.6%): Alignment Tax Zone")
-    print(f"     → Mean Gap: {gap_high:+.4f} (Mixtral WINS)")
-    print(f"     → 95% CI: [{scipy_stats.t.interval(0.95, len(gaps_high)-1, loc=gap_high, scale=sem(gaps_high))[0]:+.3f}, {scipy_stats.t.interval(0.95, len(gaps_high)-1, loc=gap_high, scale=sem(gaps_high))[1]:+.3f}]")
-    print(f"     → RLHF alignment FAILS on strict constraints")
+    print(f"\n📊 Results:")
+    print(f"   • Low PC1 (< 0.3): {len(gaps_low):,} prompts ({len(gaps_low)/len(prompts)*100:.1f}%)")
+    print(f"     → Mean Gap: {gap_low:+.4f}")
+    if len(gaps_low) > 1:
+        ci_low = scipy_stats.t.interval(0.95, len(gaps_low)-1, loc=gap_low, scale=sem(gaps_low))
+        print(f"     → 95% CI: [{ci_low[0]:+.3f}, {ci_low[1]:+.3f}]")
     
-    print(f"\n📊 Statistical Evidence:")
-    print(f"   • Mann-Whitney U: p = {p_value:.2e} (p < 0.001 ***)")
-    print(f"   • Cohen's d = {cohens_d:.3f} (large effect size)")
-    print(f"   • Confidence intervals do not overlap")
-    print(f"   • Difference is highly significant")
+    print(f"   • High PC1 (≥ 0.3): {len(gaps_high):,} prompts ({len(gaps_high)/len(prompts)*100:.1f}%)")
+    print(f"     → Mean Gap: {gap_high:+.4f}")
+    if len(gaps_high) > 1:
+        ci_high = scipy_stats.t.interval(0.95, len(gaps_high)-1, loc=gap_high, scale=sem(gaps_high))
+        print(f"     → 95% CI: [{ci_high[0]:+.3f}, {ci_high[1]:+.3f}]")
+    else:
+        print(f"     → ⚠️  Only {len(gaps_high)} sample(s) - no meaningful statistics")
     
-    print(f"\n📊 For Paper:")
-    print(f"   • N = {len(prompts):,} production-realistic prompts")
-    print(f"   • Statistically significant cluster separation (p < 0.001)")
-    print(f"   • Large effect size (d = {cohens_d:.2f})")
-    print(f"   • Data-validated clusters (not circular assumptions!)")
-    print(f"   • Forensic Agility: Discovered RLHF failure mode")
-    print(f"   • Proves adaptive routing exploits hidden production artifacts")
+    print(f"\n📊 Statistical Test:")
+    if len(gaps_high) > 1:
+        print(f"   • Mann-Whitney U: p = {p_value:.3f}")
+        if p_value < 0.001:
+            print(f"   • Result: Significant (p < 0.001)")
+        elif p_value < 0.05:
+            print(f"   • Result: Significant (p < 0.05)")
+        else:
+            print(f"   • Result: NOT significant (p > 0.05)")
+        print(f"   • Cohen's d = {cohens_d:.3f}")
+    else:
+        print(f"   • Mann-Whitney U: Cannot compute (insufficient data)")
+        print(f"   • ⚠️  High PC1 cluster has only {len(gaps_high)} sample(s)")
+    
+    print(f"\n⚠️  HONEST ASSESSMENT FOR PAPER:")
+    print(f"   • N = {len(prompts):,} holdout prompts (no dev contamination)")
+    print(f"   • PCA trained on generic text (C4) - NO circularity")
+    print(f"   • Result: NO significant structure (p = {p_value:.3f})")
+    print(f"   • Distribution: {len(gaps_low)}/{len(prompts)} in one cluster ({len(gaps_low)/len(prompts)*100:.1f}%)")
+    print(f"   • Cohen's d = {cohens_d:.2f} (but only {len(gaps_high)} sample(s) in high cluster)")
+    print(f"")
+    print(f"   CONCLUSION: Original 'Alignment Tax' finding does NOT replicate")
+    print(f"   with clean methodology. Multiple issues identified:")
+    print(f"   - Weak high-D structure (silhouette=0.057)")
+    print(f"   - Moderate correlation (ρ²=0.16, only 16% variance)")
+    print(f"   - Low diversity in 'high' cluster (0.355 vs 0.953)")
+    print(f"   - No validation at scale (1M has no rewards)")
+    print(f"")
+    print(f"   RECOMMENDATION: Remove Figure 1 from paper.")
+    print(f"   See: experiments_v1/01_figure/ONE_PAGE_SUMMARY.md")
     
     print("\n" + "="*80)
 

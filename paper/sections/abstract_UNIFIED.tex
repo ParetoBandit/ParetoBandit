@@ -1,23 +1,22 @@
-% UNIFIED ABSTRACT - Issue #2 Revision
-% Date: February 13, 2026
-% Focus: Single integrated contribution, not three separate stories
-% Target: ~250 words (KDD typical)
+% UNIFIED ABSTRACT - Revised with corrected Figure 1 methodology
+% Framing: Model preference heterogeneity, not "Alignment Tax discovery"
+% Statistics: Holdout-only (N=750), unsupervised threshold, corrected effect sizes
 
 \begin{abstract}
 Large language model (LLM) inference is economically critical yet technically challenging: expensive models aren't always better, training data distributions shift, and new models release monthly. We present \textbf{banditGPT}, a production-grade contextual bandit framework that addresses all three challenges through an integrated approach combining semantic structure discovery, adaptive meta-learning (Corralling), and semantic transfer.
 
-Our key insight is that effective LLM routing requires \emph{three mechanisms working together}: (1) \textbf{semantic structure} that makes routing learnable ($3.10\%$ PC1 variance, $p<10^{-143}$, discovering an ``Alignment Tax'' where GPT-4-Turbo performs worse than Mixtral on $17.6\%$ of prompts), (2) \textbf{Corralling meta-learning} that hedges against prior mismatch with modest overhead ($1$--$4\%$ vs tabula rasa under moderate shift, with protection against catastrophic failure under severe shift), and (3) \textbf{semantic transfer} that eliminates cold-start penalties ($+0.62$ reward on new model release, $p<10^{-7}$).
+Our key insight is that LLM routing is a \emph{discovery} problem, not an interpolation problem: the expensive model is not merely unnecessary on some tasks---it is \emph{actively worse} on an identifiable subset. On held-out LMSYS prompts ($N=750$), ${\sim}19\%$ favor the cheaper model ($p < 0.0001$, Cohen's $d = 1.53$; confirmed with generic PCA, $d = 0.33$). When the state-of-the-art static router (RouteLLM) cannot distinguish these prompts, it pays $43\times$ more for $1.3\%$ \emph{lower} quality.
 
-Production validation on $1{,}871$ LMSYS Arena prompts demonstrates $65.9\%$ gap closure to oracle performance on a frozen holdout set (vs $46.2\%$ for state-of-the-art RouteLLM), revealing that GPT-4 costs $43\times$ more yet delivers $1.3\%$ worse quality at maximum routing. The system handles both catastrophic failures ($100\%$ detection in $3$--$50$ steps) and zero-shot model adoption, with regime-dependent robustness ($30\%$ warmup / $70\%$ tabula rasa expert selection) requiring minimal hyperparameter tuning. 
+Effective routing therefore requires three mechanisms working together: (1) \textbf{semantic structure} that makes preference discovery learnable, (2) \textbf{Corralling meta-learning} that hedges against misleading training priors ($1$--$4\%$ overhead under moderate shift, with catastrophic failure protection), and (3) \textbf{semantic transfer} that eliminates cold-start penalties for new models ($+0.62$ reward, $p<10^{-7}$). Production validation demonstrates $65.9\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM), with regime-dependent robustness requiring minimal tuning.
 
-\textbf{Contribution}: None of these mechanisms alone solves the problem---the contribution is the \emph{integrated system} achieving safety guarantees, near-optimal performance, and production readiness. Under stylized assumptions (1M prompts/day, current pricing), the routing opportunity is on the order of \$2M/year.
+\textbf{Contribution}: None of these mechanisms alone solves the problem---the contribution is the \emph{integrated system} achieving safety guarantees, near-optimal performance, and production readiness.
 \end{abstract}
 
-% Word count: ~248 words
-% Key improvements over original:
-% 1. Clear problem statement (3 challenges)
-% 2. Unified contribution (integrated approach, not 3 separate pieces)
-% 3. Quantified results (specific numbers with statistical rigor)
-% 4. Explicit integration message ("three mechanisms working together")
-% 5. Production focus (economic impact, real scenarios)
-% 6. Appropriate length (~250 words vs 500+)
+% Word count: ~220 words
+% Key changes from original:
+% 1. Replaced "Alignment Tax" with "model preference heterogeneity"
+% 2. Updated statistics: N=750 holdout-only, d=1.53, p<0.0001
+% 3. Added robustness check (generic PCA d=0.33)
+% 4. Removed "$2.3M/year" extrapolation (Issue #7)
+% 5. Removed "17.6%" (now 19.2% with corrected threshold)
+% 6. Softened claims to correlational language

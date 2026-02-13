@@ -11,8 +11,8 @@
 This experiment provides **Table 1** for the paper, documenting the complete data provenance and experimental design that enables reproducible bandit evaluation.
 
 **Dataset Summary**:
-- **Total Prompts**: 81,871
-- **Warmup Set**: 80,000 (PCA training + LinUCB priors)
+- **Total Prompts**: 81,871 unique prompts
+- **Warmup Set**: 80,000 (used for both PCA training and LinUCB priors)
 - **Dev Set**: 1,121 (online learning & calibration)
 - **Holdout Set**: 750 (final evaluation)
 
@@ -117,7 +117,7 @@ The table provides **four essential components**:
 - Tests robustness to model evolution
 - gpt-4o is the current flagship model
 
-**Validation**: Addressed in `table1_dataset.tex` with reference to validation section. The distribution shift between warmup and eval (PSI=0.275) provides a strong test of Corralling's ability to adapt when priors don't perfectly match deployment conditions.
+**Validation**: Addressed in `table1_dataset.tex` with reference to validation section.
 
 ### Decision 2: Simplified Table (No Categories)
 
@@ -130,18 +130,18 @@ The table provides **four essential components**:
 - Simplification focuses reader on reproducibility essentials
 - Cleaner narrative: "Here's where the data came from and how we split it"
 
-### Decision 3: Distribution Shift as Feature, Not Bug
+### Decision 3: Acknowledging Data Source Differences
 
-**Observation**: Warmup distribution differs significantly from Dev/Holdout:
-- χ²=238.5, p<0.001, Cramér's V=0.05
-- PSI=0.275 (substantial shift)
+**Observation**: Warmup data (RouteLLM battles) differs from Dev/Holdout (LMSYS general prompts):
+- χ²=238.5, p<0.001 (statistically significant due to large n=81,121)
+- Cramér's V=0.05 (negligible practical effect size)
 
-**Interpretation**: This shift is **valuable for validation**, not a flaw. It demonstrates:
-- Corralling's ability to detect and adapt to distribution mismatch
-- Robustness of the system when priors are imperfect
-- Real-world scenario (training data never perfectly matches deployment)
+**Context**: This difference arose from data availability constraints:
+- Warmup data: RouteLLM battles dataset (mixtral vs. gpt-4-turbo)
+- Evaluation data: LMSYS general prompts (mixtral vs. gpt-4o)
+- Different model pairs and sampling periods
 
-**Evidence**: Table 2 shows Corralling adapts successfully (warmup-only: 79 regret, Corralling: 44 regret, near-optimal: 40 regret)
+**Transparency**: While we can measure whether Corralling adapts to this mismatch, this was not a deliberate design choice to test robustness. It reflects the practical reality of using available datasets. Future work could use matched data sources to isolate algorithmic performance from distribution shift effects.
 
 ---
 
@@ -208,8 +208,8 @@ The paper includes the table via:
 ## Key Statistics
 
 ```
-Total Prompts:        81,871
-├─ Warmup:            80,000 (97.7%)
+Total Unique Prompts: 81,871
+├─ Warmup:            80,000 (97.7%) [shared for PCA + priors]
 ├─ Dev:                1,121 (1.4%)
 └─ Holdout:              750 (0.9%)
 

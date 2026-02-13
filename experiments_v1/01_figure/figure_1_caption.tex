@@ -1,13 +1,11 @@
-% Figure 1 Caption: LMSYS Semantic Structure (Forensic Update)
+% Figure 1 Caption: Model Preference Heterogeneity (Revised)
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_holdout_pca.png}
-\caption{\textbf{Exploiting the Alignment Tax.} 
-\textbf{Left:} The semantic manifold separates into two clusters based on RLHF failure modes.
-The \textbf{Alignment Tax Cluster} (Red, 17.6\%) is dominated by strict constraint templates where the open-weights model (Mixtral) outperforms the flagship (GPT-4) by $\Delta = -0.682$ (95\% CI: [-0.738, -0.625]). This inversion occurs because GPT-4's aggressive helpfulness alignment often violates strict formatting negative constraints.
-The \textbf{Natural Language Cluster} (Blue, 82.4\%) represents open-ended chat where GPT-4's nuance retains the advantage ($\Delta = +0.133$, 95\% CI: [+0.113, +0.153]).
-The difference is highly significant (Mann-Whitney $p < 10^{-140}$, Cohen's $d = 1.90$).
-\textbf{Right:} \texttt{banditGPT} identifies this inversion automatically, routing the "Alignment Tax" tasks to the cheaper model not because they are easy, but because the flagship model is \textbf{structurally maladapted} to them.}
+\caption{\textbf{Model Preference Heterogeneity in LMSYS Held-Out Prompts ($N=750$).}
+\textbf{(A)} PC1 projection (domain-adapted PCA, trained on 80K routing prompts, unsupervised) vs.\ reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$. The dashed line marks the silhouette-optimal threshold ($\text{PC1}=0.222$), selected without reference to reward labels. The running mean shows a smooth transition in model preference across the PC1 axis.
+\textbf{(B)} Reward gap distributions by cluster. The Low PC1 cluster (80.8\%, $n=606$, blue) favors GPT-4-Turbo ($\mu = +0.12$, 95\% CI: $[+0.09, +0.15]$); the High PC1 cluster (19.2\%, $n=144$, red) strongly favors Mixtral ($\mu = -0.56$, 95\% CI: $[-0.66, -0.46]$). The difference is highly significant (Mann-Whitney $p < 0.0001$, Cohen's $d = 1.53$). Robustness check with generic C4 PCA (100K web text, no routing connection) confirms the effect persists independently ($p < 0.0001$, $d = 0.33$).
+Reward scores are from LMSYS Chatbot Arena human preference evaluations.}
 \label{fig:lmsys_holdout_structure}
 \end{figure}

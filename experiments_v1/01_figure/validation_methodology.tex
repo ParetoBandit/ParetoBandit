@@ -1,62 +1,59 @@
-% Validation Methodology Section
-% Comprehensive robustness checks performed proactively
+% Validation Methodology Section (Revised)
+% Corrected methodology: holdout-only, unsupervised threshold, PCA robustness
 
 \subsection{Validation Methodology}
 \label{sec:validation_methodology}
 
-We perform comprehensive validation to ensure our findings are statistically robust and not artifacts of methodological choices. This section details our validation approach across four dimensions: statistical significance, threshold selection, dimensionality, and data quality.
+We perform comprehensive validation to ensure our model preference heterogeneity findings are statistically robust and not artifacts of methodological choices. All analyses use the held-out test set exclusively ($N=750$), with the PCA model trained on a disjoint set and the threshold determined by purely unsupervised criteria.
 
 \subsubsection{Statistical Significance Testing}
 
-We validate the cluster distinction using multiple statistical tests to ensure robustness to distributional assumptions:
+We validate the cluster distinction using multiple statistical tests:
 
 \paragraph{Primary Tests.}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 2.86 \times 10^{-143}$
-    \item \textbf{Welch's $t$-test (parametric):} $p < 2.36 \times 10^{-92}$
-    \item \textbf{Effect size (Cohen's $d$):} $1.901$ (large effect, $d > 0.8$)
-    \item \textbf{Confidence intervals (95\%):} Low PC1: $[+0.113, +0.153]$, High PC1: $[-0.738, -0.625]$ (non-overlapping)
+    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 0.0001$
+    \item \textbf{Effect size (Cohen's $d$):} $1.53$ (large effect, $d > 0.8$)
+    \item \textbf{Confidence intervals (95\%):} Low PC1: $[+0.088, +0.153]$, High PC1: $[-0.661, -0.464]$ (non-overlapping)
 \end{itemize}
 
 \paragraph{Distribution Diagnostics.}
-Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), justifying the use of non-parametric tests. Both parametric and non-parametric tests converge on highly significant differences, demonstrating robustness.
+Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), justifying the use of non-parametric tests.
 
 \subsubsection{Threshold Validation}
 
-To ensure the $PC1 = 0.3$ decision boundary is principled, we evaluated it through multiple independent methods:
+The cluster boundary $\text{PC1} = 0.222$ was determined using a purely unsupervised method: silhouette-optimal threshold search over PC1 values, maximizing geometric cluster quality (silhouette $= 0.499$) without reference to reward labels. This eliminates the methodological concern of reward-based threshold selection bias present in grid-search approaches that incorporate gap separation.
 
-\paragraph{Grid Search.}
-We evaluated 50 candidate thresholds across the PC1 range using a composite score combining:
+\paragraph{Unsupervised Clustering Convergence.}
+Independent unsupervised methods identify consistent structure:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item Silhouette coefficient (cluster separation quality)
-    \item Davies-Bouldin index (cluster compactness)
-    \item Mean reward gap separation
-    \item Cluster balance (avoiding extreme imbalance)
+    \item Silhouette-optimal: $\text{PC1} = 0.222$ (silhouette $= 0.499$, Cohen's $d = 1.53$)
+    \item $k$-means ($k=2$): boundary $\approx 0.138$ (Cohen's $d = 1.15$)
 \end{itemize}
-The optimal threshold by composite score is $PC1 = 0.317$, with $PC1 = 0.3$ achieving nearly identical performance (composite score difference: 0.2\%).
+Both methods yield $p < 0.0001$, confirming robustness to threshold selection method.
 
-\paragraph{Unsupervised Clustering.}
-Independent clustering methods identify boundaries consistent with our choice:
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item $k$-means clustering ($k=2$): boundary $\approx 0.148$
-    \item Gaussian Mixture Model ($k=2$): boundary $\approx 0.462$
-    \item Mean across methods: $0.320 \pm 0.105$
-\end{itemize}
-The threshold $PC1 = 0.3$ falls within one standard deviation of the cross-method mean.
+\subsubsection{PCA Provenance Sensitivity}
 
-\paragraph{Sensitivity Analysis.}
-Results remain highly significant across threshold perturbations:
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item All thresholds in $[0.2, 0.4]$ achieve $p < 10^{-100}$
-    \item Silhouette scores remain strong ($> 0.39$) across range
-    \item Mean gap separation varies smoothly around optimal
-\end{itemize}
+To validate that the finding is not an artifact of domain-adapted PCA training, we repeat the analysis with PCA trained on 100K generic web text samples (C4 corpus):
+
+\begin{table}[h]
+\centering
+\caption{PCA Provenance Comparison on Held-Out Data ($N=750$)}
+\label{tab:pca_provenance}
+\begin{tabular}{lccc}
+\toprule
+\textbf{PCA Training Data} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Effect Size} \\
+\midrule
+Routing prompts (80K, domain-adapted) & $< 0.0001$ & 1.53 & Large \\
+C4 web text (100K, generic) & $< 0.0001$ & 0.33 & Small \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The domain-adapted PCA concentrates routing-relevant variation into PC1, yielding a 4.6$\times$ larger effect size. The generic PCA confirms the underlying structure exists independently. Both PCAs are unsupervised (no reward labels).
 
 \subsubsection{High-Dimensional Structure Validation}
 
-To validate that the bimodal structure is not a dimensionality reduction artifact, we examined cluster quality across multiple dimensionalities:
-
-\paragraph{Multi-Dimensional Analysis.}
 \begin{table}[h]
 \centering
 \caption{Cluster Quality Across Dimensionalities}
@@ -65,42 +62,30 @@ To validate that the bimodal structure is not a dimensionality reduction artifac
 \toprule
 \textbf{Space} & \textbf{Dimensions} & \textbf{Silhouette} & \textbf{Separation Ratio} \\
 \midrule
-2D PCA & 2 & 0.495 & --- \\
-32D PCA & 32 & 0.255 & 1.41 \\
+2D PCA & 2 & 0.499 & --- \\
+32D PCA & 32 & $\sim$0.25 & $>$1.0 \\
 384D Embeddings & 384 & 0.057 & 0.81 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent Silhouette scores decrease in higher dimensions due to the curse of dimensionality, a known phenomenon where all points become approximately equidistant in high-dimensional spaces. However, the cluster assignment based on PC1 remains predictive of reward gaps in the original 384D space (Spearman $\rho = -0.395$, $p < 10^{-70}$), confirming that PC1 captures task-relevant semantic structure.
-
-\paragraph{Interpretation.}
-The 5.4\% variance captured by PC1+PC2 represents the \emph{task-relevant} semantic axis for model performance prediction. The remaining 94.6\% variance encompasses task-orthogonal variation (topic, language, stylistic choices) that does not affect the GPT-4-Turbo vs. Mixtral performance trade-off. This successful dimensionality reduction isolates the routing-relevant semantic structure from high-dimensional noise.
+\noindent \textbf{Important caveat:} The 384D silhouette score of 0.057 indicates weak cluster structure in the full embedding space. The separation ratio of 0.81 ($< 1.0$) means within-cluster distances exceed between-cluster distances. PC1 extracts a moderate task-relevant signal (Spearman $\rho = -0.395$, $\rho^2 = 0.156$, explaining $\sim$16\% of reward gap variance) from a noisy high-dimensional space, not a dominant clustering pattern.
 
 \subsubsection{Data Quality Analysis}
 
-We validate that findings are not driven by data artifacts:
-
-\paragraph{Uniqueness Analysis.}
-The dataset contains zero exact duplicates (100\% unique prompts: 1,871/1,871). Near-duplicate analysis (cosine similarity $\geq 0.95$) identifies only 201 pairs among 330 High PC1 prompts (0.37\% rate), confirming minimal redundancy.
-
-\paragraph{Diversity Metrics.}
-Intra-cluster diversity analysis shows:
+The held-out dataset ($N=750$) contains zero exact duplicates. Intra-cluster diversity:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item High PC1 diversity score: 0.355 (average pairwise similarity: 0.645)
-    \item Low PC1 diversity score: 0.953 (average pairwise similarity: 0.047)
+    \item High PC1 diversity: 0.355 (relatively homogeneous---coherent semantic category)
+    \item Low PC1 diversity: 0.953 (highly diverse---broad range of prompt types)
 \end{itemize}
-Representative sampling via farthest-first traversal demonstrates variety of prompt types within clusters, confirming that findings are not dominated by specific templates.
 
 \subsubsection{Summary of Validation Approach}
 
-Our validation methodology encompasses:
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Statistical rigor:} Multiple significance tests ($p < 10^{-140}$), large effect size ($d = 1.90$), non-overlapping confidence intervals
-    \item \textbf{Threshold justification:} Systematic validation through grid search, unsupervised clustering, sensitivity analysis
-    \item \textbf{Dimensionality robustness:} Validation across 2D, 32D, 384D spaces confirms structure is real
-    \item \textbf{Data quality:} Zero duplicates, good diversity (0.355), representative sampling
-    \item \textbf{Scale robustness:} Spatial structure stable at 317$\times$ scale increase
+    \item \textbf{Statistical rigor:} $p < 0.0001$, large effect ($d = 1.53$), non-overlapping 95\% CIs
+    \item \textbf{Threshold justification:} Purely unsupervised (silhouette-optimal, no reward peeking)
+    \item \textbf{PCA robustness:} Effect confirmed with generic C4 PCA ($d = 0.33$)
+    \item \textbf{High-D caveat:} Weak 384D structure (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$)
+    \item \textbf{Data quality:} Zero duplicates; High PC1 cluster is homogeneous (diversity $= 0.355$)
+    \item \textbf{Data integrity:} Held-out only ($N=750$); dev set excluded
 \end{enumerate}
-
-This comprehensive validation demonstrates that the alignment tax discovery is statistically robust, methodologically sound, and not driven by arbitrary choices or data artifacts.

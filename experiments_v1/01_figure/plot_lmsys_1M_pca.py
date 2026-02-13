@@ -11,7 +11,15 @@ this analysis uses the complete 1M dataset to show the semantic structure at sca
 Note: Since we don't have reward evaluations for all 1M prompts, we focus on
 spatial clustering rather than reward gap analysis.
 
+METHODOLOGY:
+  PCA trained on generic C4 corpus (no circularity).
+  See CIRCULARITY_FIX.md for details.
+
 Usage:
+    # Train generic PCA first (if not already done)
+    python3 scripts/train_pca_generic.py
+    
+    # Generate 1M visualization
     python3 experiments_v1/01_figure/plot_lmsys_1M_pca.py
 """
 
@@ -33,8 +41,11 @@ from sentence_transformers import SentenceTransformer
 from scipy.stats import gaussian_kde
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
-    DEFAULT_PCA_PATH
+    ARTIFACTS_DIR
 )
+
+# Use generic PCA (trained on C4 corpus) to avoid circularity
+GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
 
 
 def load_lmsys_1M_prompts(data_file: Path, max_prompts: int = None):
@@ -289,15 +300,16 @@ def main():
     print("   → Validate spatial clustering holds at scale")
     print("   → Compare with original 1,871 holdout analysis")
     print("   → Demonstrate robustness of semantic structure")
+    print("\n📐 Methodology: PCA trained on generic C4 corpus (no circularity)")
     
     # Paths
     data_file = Path(__file__).parent / "data" / "lmsys_chat_1M.jsonl.gz"
-    pca_file = DEFAULT_PCA_PATH
+    pca_file = GENERIC_PCA_PATH
     output_dir = Path(__file__).parent / "results"
     
     print(f"\n📋 Configuration:")
     print(f"   Data: {data_file}")
-    print(f"   PCA model: {pca_file}")
+    print(f"   PCA model: {pca_file} (Generic C4)")
     print(f"   Output: {output_dir}")
     print(f"   Processing: ALL prompts (no limit)")
     
@@ -309,6 +321,8 @@ def main():
     
     if not pca_file.exists():
         print(f"\n❌ PCA file not found: {pca_file}")
+        print(f"\n💡 Train generic PCA first:")
+        print(f"   python3 scripts/train_pca_generic.py")
         return
     
     # Step 1: Load all prompts from 1M dataset

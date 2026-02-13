@@ -67,8 +67,7 @@ def generate_simplified_table():
 \toprule
 \textbf{Split} & \textbf{Source} & \textbf{Size} & \textbf{Purpose} \\
 \midrule
-PCA Training    & RouteLLM Battles & """ + f"{warmup_count:,}" + r""" & Dimensionality reduction (384$\rightarrow$32) \\
-Warmup Priors   & RouteLLM Battles & """ + f"{warmup_count:,}" + r""" & LinUCB initialization ($\mathbf{A}$, $\mathbf{b}$) \\
+Warmup          & RouteLLM Battles & """ + f"{warmup_count:,}" + r""" & PCA training (384$\rightarrow$32) + LinUCB priors ($\mathbf{A}$, $\mathbf{b}$) \\
 Development     & LMSYS Arena      & """ + f"{dev_count:,}" + r""" & Online learning \& calibration \\
 Holdout         & LMSYS Arena      & """ + f"{holdout_count:,}" + r""" & Final evaluation \\
 \midrule
@@ -81,8 +80,8 @@ Holdout         & LMSYS Arena      & """ + f"{holdout_count:,}" + r""" & Final e
 \textbf{Data Sources.} All prompts from LMSYS Chat Arena~\cite{zheng2023lmsys}, a public dataset of real user-LLM interactions.
 \textbf{RouteLLM Battles}~\cite{ong2024routellm}: Pairwise comparisons (mixtral-8x7b-instruct vs gpt-4-turbo) from HuggingFace dataset \texttt{routellm/gpt4\_judge\_battles}. Used for PCA training and warmup prior generation (covariance matrix $\mathbf{A} \in \mathbb{R}^{33 \times 33}$, belief vector $\mathbf{b} \in \mathbb{R}^{33}$).
 \textbf{LMSYS Arena}: Stratified splits with mixtral-8x7b-instruct and gpt-4o evaluations. Model substitution (gpt-4-turbo$\rightarrow$gpt-4o) reflects current flagship model availability. See Section~\ref{sec:model_substitution} for validation.
-\textbf{Data Quality.} Zero data leakage verified via automated checks (243 overlapping prompts removed, 0.24\%). Dev and holdout sets use stratified sampling to ensure representative coverage. Chi-square test confirms similar distributions ($\chi^2$=0.78, $p$=0.94).
-\textbf{Sample Size.} Evaluation set (""" + f"{dev_count + holdout_count:,}" + r""" prompts total) exceeds prior work on LLM routing (RouteLLM: $\sim$1,000 prompts)~\cite{ong2024routellm}. Holdout set (""" + f"{holdout_count}" + r""") provides sufficient statistical power for detecting meaningful performance differences.
+\textbf{Data Quality.} Zero data leakage verified via automated checks (243 overlapping prompts removed, 0.24\%). Dev and holdout sets created using stratified sampling by task complexity to ensure representative coverage across prompt types.
+\textbf{Sample Size.} Development set (""" + f"{dev_count:,}" + r""" prompts) enables online learning with sufficient data for bandit convergence. Holdout set (""" + f"{holdout_count:,}" + r""" prompts) provides rigorous held-out evaluation with stratified sampling and sufficient statistical power for detecting meaningful performance differences.
 \end{table}
 """
     
