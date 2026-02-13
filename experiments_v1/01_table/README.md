@@ -82,7 +82,7 @@ The table provides **four essential components**:
 
 **Source**: LMSYS Chat Arena (stratified splits)  
 **File**: `data/dev_prompts_for_rejudge.jsonl`  
-**Models**: mixtral-8x7b-instruct, gpt-4o
+**Model: gpt-4-turbo
 
 **Purpose**:
 - Online bandit learning (algorithm trains here)
@@ -95,7 +95,7 @@ The table provides **four essential components**:
 
 **Source**: LMSYS Chat Arena (stratified splits)  
 **File**: `data/holdout_prompts_for_rejudge.jsonl`  
-**Models**: mixtral-8x7b-instruct, gpt-4o
+**Model: gpt-4-turbo
 
 **Purpose**:
 - Final evaluation (held-out test set)
@@ -108,18 +108,39 @@ The table provides **four essential components**:
 
 ## Key Design Decisions
 
-### Decision 1: Model Substitution (gpt-4-turbo → gpt-4o)
+### Decision 1: Consistent Model Topology (gpt-4-turbo Throughout)
 
-**Context**: Warmup data uses gpt-4-turbo battles, but evaluation uses gpt-4o.
+**Context**: Both warmup and evaluation use the same model pair (mixtral-8x7b-instruct vs. gpt-4-turbo).
 
-**Rationale**: 
-- Reflects realistic production scenario (models get updated)
-- Tests robustness to model evolution
-- gpt-4o is the current flagship model
+**Rationale**: Using a consistent reward function across all splits ensures clean attribution of any adaptation effects to distributional changes (prompt category mix) rather than model capability differences. This matches the RouteLLM evaluation topology, enabling a controlled comparison.
 
-**Validation**: Addressed in `table1_dataset.tex` with reference to validation section.
+**Implication**: The only uncontrolled source of variation between warmup and evaluation is the prompt category distribution shift, which simplifies interpretation of Corralling's adaptation behavior.
 
-### Decision 2: Simplified Table (No Categories)
+### Decision 2: PCA Distribution Mismatch
+
+**Issue**: PCA model (384→32 dims) trained on warmup distribution, which differs from evaluation.
+
+**Implication**: Feature-space distribution shift compounds the label-space shift:
+- **Principal components** optimized for warmup distribution's variance structure
+- Features capturing important variance in evaluation data may be **underrepresented**
+- Dimensionality reduction biased toward warmup characteristics
+
+**Evidence from archived analysis**:
+- Warmup: 49.8% Conversational, 19.9% Coding
+- Evaluation: ~38% Conversational, ~39% Coding
+- Category distribution differs significantly
+
+**Problem**: PCA trained on one distribution, applied to another:
+1. Principal components capture warmup variance (not evaluation variance)
+2. Information loss during dimensionality reduction may disproportionately affect evaluation prompts
+3. No validation of PCA transfer quality (e.g., reconstruction error on holdout vs. warmup)
+
+**Missing validation**:
+- Reconstruction error comparison (warmup vs. evaluation)
+- Explained variance comparison across distributions
+- Feature importance analysis for evaluation data
+
+### Decision 3: Simplified Table (No Categories)
 
 **Original design**: Table with 5 semantic categories (Coding, Conversational, Creative, Knowledge, Math/Logic)
 
@@ -130,7 +151,7 @@ The table provides **four essential components**:
 - Simplification focuses reader on reproducibility essentials
 - Cleaner narrative: "Here's where the data came from and how we split it"
 
-### Decision 3: Acknowledging Data Source Differences
+### Decision 4: Acknowledging Data Source Differences
 
 **Observation**: Warmup data (RouteLLM battles) differs from Dev/Holdout (LMSYS general prompts):
 - χ²=238.5, p<0.001 (statistically significant due to large n=81,121)
@@ -138,8 +159,8 @@ The table provides **four essential components**:
 
 **Context**: This difference arose from data availability constraints:
 - Warmup data: RouteLLM battles dataset (mixtral vs. gpt-4-turbo)
-- Evaluation data: LMSYS general prompts (mixtral vs. gpt-4o)
-- Different model pairs and sampling periods
+- Evaluation data: LMSYS general prompts (mixtral vs. gpt-4-turbo)
+- Same model pair but different sampling periods and prompt populations
 
 **Transparency**: While we can measure whether Corralling adapts to this mismatch, this was not a deliberate design choice to test robustness. It reflects the practical reality of using available datasets. Future work could use matched data sources to isolate algorithmic performance from distribution shift effects.
 
@@ -150,20 +171,24 @@ The table provides **four essential components**:
 ### 1. Zero Data Leakage
 
 **Verification**: Automated checks removed 243 overlapping prompts (0.24%)  
-**Guarantee**: Warmup and evaluation sets are completely disjoint  
-**Importance**: Prevents inflated performance estimates
+**Method**: Exact string matching  
+**Limitation**: Semantic near-duplicates (paraphrases, translations, minor edits) may still exist  
+**Guarantee**: No exact string duplicates between warmup and evaluation  
+**Importance**: Prevents inflated performance estimates  
+
+**Note**: Standard practice uses exact string deduplication. More thorough semantic deduplication (e.g., embedding cosine similarity) would catch paraphrases but is not commonly done in similar work.
 
 ### 2. Stratified Sampling
 
-**Method**: Dev and Holdout use stratified sampling by complexity  
-**Validation**: χ²=0.78, p=0.94 (no significant difference between Dev and Holdout)  
-**Conclusion**: Splits are representative
+**Method**: Dev and Holdout use stratified sampling by task complexity  
+**Goal**: Ensure representative coverage across prompt types  
+**Implementation**: Sampling stratified by task difficulty and domain
 
 ### 3. Statistical Power
 
-**Sample Size**: 1,871 evaluation prompts (Dev + Holdout)  
-**Comparison**: Exceeds prior work (RouteLLM: ~1,000 prompts)  
-**Power**: Sufficient for detecting meaningful performance differences
+**Holdout Size**: 750 prompts (final held-out evaluation)  
+**Dev Size**: 1,121 prompts (online learning, not held-out evaluation)  
+**Power**: 80% power to detect δ ≥ 0.043 in reward; observed effects (δ ≈ 0.03) are near this threshold, indicating moderate statistical power
 
 ---
 
@@ -198,7 +223,7 @@ The paper includes the table via:
 
 ## Related Experiments
 
-- **Table 2** (`experiments_v1/02_table/`): Validates robustness to distribution shift
+- **Table 2** (`experiments_v1/02_table/`): Measures adaptation with mismatched warmup data
 - **Figure 1** (`experiments_v1/03_figure/`): Alignment Tax discovery on this data
 - **Figure 2** (`experiments_v1/04_figure/`): Distribution shift quantification
 - **Figures 3-8**: Solution validation and production analysis
@@ -233,7 +258,7 @@ This table establishes the **foundation** for all subsequent experiments:
 1. **Data Provenance** → Enables reproducibility
 2. **Split Design** → Prevents data leakage  
 3. **Quality Assurance** → Builds confidence
-4. **Distribution Shift** → Tests robustness (feature, not bug)
+4. **Data Source Transparency** → Acknowledges constraints and their implications
 
 The simplified design reflects a **proactive choice**: focus on what matters for reproducibility, remove what isn't used experimentally. This creates a clean, defensible narrative from data → experiments → results.
 
