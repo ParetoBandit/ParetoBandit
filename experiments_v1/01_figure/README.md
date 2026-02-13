@@ -1,10 +1,10 @@
 # Figure 1: Routing Signal Validation
 
-This experiment validates that the PCA feature extraction used by the production router (`FeatureService` in `router.py`) captures genuine model preference signal. It is the first experiment in the paper and establishes a necessary precondition for learned routing: that different prompts have different model preferences, and the router's features can detect this.
+This experiment validates the production router's feature extraction component — the PCA artifact (`pca_32.joblib`) loaded by `FeatureService.extract_features()` in `feature_service.py`. BanditGPT's pipeline has two components: (1) PCA-compressed sentence embeddings ("the eyes") and (2) LinUCB bandit selection ("the brain"). If the eyes see nothing useful, the brain cannot learn. This experiment tests the eyes; the routing evaluation (Table 2) tests the brain.
 
 ## Why This Experiment Exists
 
-**For a KDD reviewer:** Before claiming that a learned router outperforms static model selection, we must show that the feature space contains routing-relevant signal. This experiment provides that evidence through a controlled three-condition comparison with a null baseline, using the exact feature extraction pipeline deployed in the production router.
+**For a KDD reviewer:** Before claiming that a learned router outperforms static model selection, we must show that the feature space contains routing-relevant signal. This experiment provides that evidence through a controlled three-condition comparison with a null baseline, using the exact PCA artifact and sentence encoder deployed in the production router. This is a component-level validation of the router's feature extraction pipeline.
 
 **For a library user:** Before deploying BanditGPT, you want to know: (1) does the router's PCA actually help, or is it noise? (2) what fraction of my traffic will benefit from routing? (3) is the evaluation fair? This experiment answers all three.
 
@@ -97,9 +97,10 @@ The finding: **a minority of prompts show strong cheaper-model preference, while
 |-----------|-----------|-------------|-----------|---------|
 | Router PCA (domain-adapted) | **0.667** | **54.3** | **+59.0%** | < 0.0001 |
 | Generic PCA (C4) | 0.081 | 4.5 | +12.2% | 0.0771 |
-| Random projection | 0.095 | 5.1 | +12.6% | 0.0331 |
+| Random projection (seed=42) | 0.095 | 5.1 | +12.6% | 0.0331 |
+| Random projection (median of 100 seeds) | 0.103 | — | — | — |
 
-*Router PCA captures 7.0x more signal than chance (random projection).*
+**Null baseline robustness**: 100 independent random projections yield V_random: median=0.103, IQR=[0.082, 0.246], max=0.644. The router PCA (V=0.667) exceeds all 100. Signal ratio vs median: **6.5x**. Permutation test skip rate: 0.0% for all conditions (no bias from skipped iterations).
 
 ### Production Estimate
 
@@ -164,20 +165,29 @@ python3 experiments_v1/01_figure/plot_lmsys_1M_pca.py
 2. **Retrain PCA for your domain.** If your traffic differs from general chatbot queries, PCA trained on your prompts will capture more domain-relevant variance.
 3. **Monitor routable fraction.** Use `FeatureService.extract_features()` to project your prompts and estimate what fraction falls in the high-signal region.
 
+### Why Two Models?
+
+This experiment uses a two-model setup (Mixtral vs GPT-4-Turbo) deliberately:
+1. **Fair comparison with RouteLLM**: RouteLLM's benchmark uses this exact model pair. Matching their topology ensures any performance differences are attributable to the routing algorithm, not the model set.
+2. **Controlled foundation**: Two models isolate the core question (does the feature space contain routing signal?) without the confounding complexity of multi-model preference structures.
+3. **Multi-model evaluation comes next**: BanditGPT supports arbitrary model sets; 3+ model routing is evaluated in Figure 4.
+
 ### What This Does NOT Tell You
 
 - **Whether routing actually saves money** — that's tested in the routing evaluation (Table 2).
 - **Whether the bandit learns safely under distribution shift** — that's tested in Figure 2.
-- **What happens with 3+ models** — that's tested in Figure 4.
+- **How routing scales to 3+ models** — that's tested in Figure 4.
 
 ## Connection to Overall Contribution
 
-**This experiment establishes:** The router's feature space contains genuine model preference signal — a necessary condition for learned routing.
+**This experiment establishes:** The router's feature space contains genuine model preference signal — a necessary condition for learned routing. This validates the router's "eyes" (PCA feature extraction); subsequent experiments validate the "brain" (bandit learning and Corralling adaptation).
 
 **What's next:**
-1. **Distribution shift** (Figure 2): Does training data match deployment?
-2. **Routing evaluation** (Table 2): Does the bandit exploit this signal for practical gains?
-3. **Cold-start defense** (Figure 3): How does Corralling handle model mismatch?
+1. **Routing evaluation** (Table 2): Does the bandit exploit this signal for practical gains? (Corralling recovers from domain mismatch that causes warmup to fail catastrophically.)
+2. **Architecture validation** (Figure 3): Ablation study of Corralling design choices.
+3. **Multi-model routing** (Figure 4): Corralling auto-discovers the best model among 3+ candidates.
+4. **Production validation** (Figure 5): Pareto frontier comparison with RouteLLM.
+5. **Safety guarantees** (Figures 6-8): Catastrophic failure detection, zero-shot adoption, hyperparameter robustness — capabilities uniquely enabled by Corralling.
 
 ## Dependencies
 

@@ -99,23 +99,29 @@ The table provides **four essential components**:
 **Model: gpt-4-turbo
 
 **Purpose**:
-- Final evaluation (held-out test set)
+- Online bandit evaluation (cumulative reward/regret)
 - Pareto frontier curves
 - Cost-quality tradeoff analysis
 
-**Guarantee**: Independent from warmup by provenance (different data source). 243 incidental overlaps removed (0.24%) via automated checks.
+**Independence guarantee**: Held out from all warmup data — the PCA and warmup priors have never seen these prompts. The holdout is independent from warmup by provenance (different data source). 243 incidental overlaps removed (0.24%) via automated checks.
+
+**Evaluation methodology**: Following standard bandit evaluation (Lattimore & Szepesvári, 2020), the bandit learns and acts on the holdout simultaneously — there is no separate "training" then "testing" phase. Cumulative reward across the full interaction sequence (including the early learning curve) is the standard metric. This matches production behavior, where the router serves every prompt and learns from every response. Multi-seed validation (N=30 seeds with shuffled prompt orderings) controls for sequence sensitivity.
+
+**Why not train-on-dev, evaluate-on-holdout?** A supervised approach (train on 1,121 dev prompts, freeze policy, evaluate on 750 holdout prompts) was tested and performs worse: 0.8133 frozen vs 0.8507 with online learning. The cause is distribution shift between warmup/dev and holdout (PSI = 0.275, domain alignment = 0.48; see Table 2). Freezing prevents the router from adapting to the holdout distribution. Online evaluation is not just standard bandit methodology — it is the mechanism that handles the distribution shift that exists in this data and would exist in any real deployment.
 
 ---
 
 ## Key Design Decisions
 
-### Decision 1: Consistent Model Topology (gpt-4-turbo Throughout)
+### Decision 1: Two-Model Topology Matching RouteLLM
 
 **Context**: Both warmup and evaluation use the same model pair (mixtral-8x7b-instruct vs. gpt-4-turbo).
 
-**Rationale**: Using a consistent reward function across all splits ensures clean attribution of any adaptation effects to distributional changes (prompt category mix) rather than model capability differences. This matches the RouteLLM evaluation topology, enabling a controlled comparison.
+**Rationale**: We deliberately start with two models for two reasons:
+1. **Controlled comparison with RouteLLM**: RouteLLM's benchmark uses this exact model pair. By matching their topology, our results are directly comparable — any performance differences are attributable to the routing algorithm, not the model set. This is essential for a fair evaluation.
+2. **Clean experimental attribution**: Using a consistent reward function across all splits ensures that any adaptation effects are attributable to distributional changes (prompt category mix) rather than model capability differences. The only uncontrolled source of variation between warmup and evaluation is the prompt distribution shift.
 
-**Implication**: The only uncontrolled source of variation between warmup and evaluation is the prompt category distribution shift, which simplifies interpretation of Corralling's adaptation behavior.
+**Scaling to more models**: BanditGPT supports arbitrary model sets (the library ships with 80+ model configurations). Multi-model routing (3+ models) is evaluated in Figure 4. Starting with two models provides a controlled foundation before introducing the combinatorial complexity of larger model pools.
 
 ### Decision 2: PCA Cross-Domain Generalization (Validated)
 
@@ -125,11 +131,11 @@ The table provides **four essential components**:
 
 | Condition | Cramer's V | Signal vs Random |
 |-----------|-----------|-----------------|
-| Router PCA (domain-adapted) | **0.667** | **7.0x** |
-| Generic PCA (C4 web text) | 0.081 | 0.9x |
-| Random projection | 0.095 | 1.0x (baseline) |
+| Router PCA (domain-adapted) | **0.667** | **6.5x** (vs median of 100 random projections) |
+| Generic PCA (C4 web text) | 0.081 | 0.8x |
+| Random projection (median, N=100) | 0.103 | 1.0x (baseline) |
 
-The router PCA captures 7.0x more routing signal than chance on held-out data from a completely different source. This is strong evidence that the PCA directions generalize from the RouteLLM battle distribution to the LMSYS general prompt distribution.
+The router PCA captures 6.5x more routing signal than chance on held-out data from a completely different source (ratio computed against the median of 100 random projections; router PCA exceeds all 100, including max V_random=0.644). This is strong evidence that the PCA directions generalize from the RouteLLM battle distribution to the LMSYS general prompt distribution.
 
 **Why it works**: Both datasets involve the same model pair (Mixtral vs GPT-4-Turbo) and the same underlying task (text generation). The PCA captures variance in how prompts relate to model capabilities, which transfers across prompt populations. The generic PCA (trained on C4 web text with no routing connection) also detects some signal (V=0.081), confirming the structure exists in the embedding space independently of PCA training domain — but domain-adapted PCA concentrates it far more effectively.
 
@@ -153,7 +159,7 @@ The router PCA captures 7.0x more routing signal than chance on held-out data fr
 2. **Realistic evaluation**: In production, the router will encounter prompts from a different distribution than its training data. Evaluating on independently-sourced prompts tests this transfer directly.
 3. **Conservative estimate**: If the PCA were trained on evaluation-domain data, effect sizes might be inflated. Cross-domain evaluation provides a conservative lower bound on routing signal.
 
-**Quantified**: Figure 1 validates that the PCA generalizes across this domain gap (V=0.667, 7.0x vs random projection). The category distribution differs (Cramér's V=0.05 between warmup and evaluation prompt types), but the routing signal transfers strongly.
+**Quantified**: Figure 1 validates that the PCA generalizes across this domain gap (V=0.667, 6.5x vs median of 100 random projections; exceeds all 100). The category distribution differs (Cramér's V=0.05 between warmup and evaluation prompt types), but the routing signal transfers strongly.
 
 ---
 
@@ -195,12 +201,28 @@ The router PCA captures 7.0x more routing signal than chance on held-out data fr
 
 Figure 1 and Table 1 analyze the **same N=750 holdout prompts** with the same discrete reward structure. Methodological consistency:
 
-- **Figure 1**: Chi-squared test on win/tie/loss contingency table (between-cluster comparison). Primary effect size: **Cramer's V = 0.667** (router PCA, 7.0x vs random projection). Permutation test p < 0.0001. Monte-Carlo power > 99%.
+- **Figure 1**: Chi-squared test on win/tie/loss contingency table (between-cluster comparison). Primary effect size: **Cramer's V = 0.667** (router PCA, 6.5x vs median of 100 random projections). Permutation test p < 0.0001. Monte-Carlo power > 99%.
 - **Table 1**: McNemar's / binomial test on paired routing outcomes (between-strategy comparison). Monte-Carlo power ≥ 80% at 58-60% routing accuracy.
 - **Both**: Monte-Carlo simulation from observed discrete distribution. Both correctly treat rewards as categorical, not continuous.
 - **Both**: Use the same PCA artifact (`pca_32.joblib`), trained on independent RouteLLM battles data.
 
 The Cramer's V = 0.667 preference heterogeneity discovered in Figure 1 provides the signal that makes routing learnable. The routing accuracy measured in Table 1's holdout analysis quantifies how well the bandit exploits this signal.
+
+### 5. Corralling Performance in Context
+
+The holdout analysis shows Warmup (83.9%) > Tabula Rasa (77.0%) > Corralling (74.8%) on routing accuracy. This is **expected**: the holdout uses the same model pair as the warmup data, so the warmup priors are well-matched. In this regime, Corralling pays meta-learning overhead (maintaining two experts + weight adaptation) for an adaptation capability it does not need.
+
+**Corralling's value is demonstrated in later experiments where priors don't match deployment conditions:**
+
+| Scenario | Warmup | Tabula Rasa | Corralling | Winner |
+|----------|--------|-------------|------------|--------|
+| **Priors match** (this holdout) | **83.9%** | 77.0% | 74.8% | Warmup |
+| **Domain mismatch** (Table 2) | Catastrophic (79 regret) | 40 regret | **44 regret** (44.3% recovery) | Corralling |
+| **New model added** (Figure 4) | Locked into expensive bias | Slow discovery | **Auto-discovers best model** | Corralling |
+| **Catastrophic failure** (Figure 6) | Locked into failing model | No prior knowledge | **3-50 step detection** | Corralling |
+| **Zero-shot adoption** (Figure 7) | Performance dip | Cold-start penalty | **Zero performance dip** | Corralling |
+
+The holdout result is the cost of Corralling's insurance policy. The later experiments show what that insurance buys: robustness to the conditions that occur in production but not in a well-controlled holdout.
 
 ---
 
@@ -235,10 +257,13 @@ The paper includes the table via:
 
 ## Related Experiments
 
-- **Table 2** (`experiments_v1/02_table/`): Measures adaptation with mismatched warmup data
-- **Figure 1** (`experiments_v1/03_figure/`): Alignment Tax discovery on this data
-- **Figure 2** (`experiments_v1/04_figure/`): Distribution shift quantification
-- **Figures 3-8**: Solution validation and production analysis
+- **Table 2** (`experiments_v1/02_table/`): Domain mismatch — Corralling recovers 44.3% of warmup's catastrophic regret
+- **Figure 3** (`experiments_v1/03_figure/`): Architecture validation — ablation study of Corralling design choices
+- **Figure 4** (`experiments_v1/04_figure/`): Multi-model routing — Corralling auto-discovers best model among 3+
+- **Figure 5** (`experiments_v1/05_figure/`): Pareto frontier — Corralling achieves 65.9% gap closure vs RouteLLM's 45.9%
+- **Figure 6** (`experiments_v1/06_figure/`): Catastrophic failure — Corralling detects and recovers in 3-50 steps
+- **Figure 7** (`experiments_v1/07_figure/`): Zero-shot model adoption — Corralling eliminates cold-start penalty
+- **Figure 8** (`experiments_v1/08_figure/`): Sensitivity analysis — Corralling provides hyperparameter robustness
 
 ---
 

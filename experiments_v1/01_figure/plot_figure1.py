@@ -194,7 +194,14 @@ def permutation_test_cramers_v(
 
     Permutes reward gap labels (breaking any real association) and computes
     Cramer's V on each permuted sample. The p-value is the fraction of
-    permutations with V >= observed V.
+    *valid* permutations with V >= observed V.
+
+    Returns:
+        v_obs: Observed Cramer's V
+        p_perm: Permutation p-value (count_ge / n_valid)
+        n_permutations: Total permutations attempted
+        n_valid: Number of valid permutations (expected counts >= 1)
+        n_skipped: Number of skipped permutations
     """
     rng = np.random.RandomState(seed)
     low_mask = cluster_labels == 0
@@ -209,21 +216,26 @@ def permutation_test_cramers_v(
 
     # Permutation distribution
     count_ge = 0
+    n_valid = 0
+    n_skipped = 0
     for _ in range(n_permutations):
         perm = rng.permutation(reward_gaps)
         ct_perm = build_contingency(perm[low_mask], perm[high_mask])
         try:
             chi2_p, _, _, exp = chi2_contingency(ct_perm)
             if exp.min() < 1:
+                n_skipped += 1
                 continue
+            n_valid += 1
             v_perm = np.sqrt(chi2_p / (n * k))
             if v_perm >= v_obs:
                 count_ge += 1
         except Exception:
+            n_skipped += 1
             continue
 
-    p_perm = count_ge / n_permutations
-    return v_obs, p_perm, n_permutations
+    p_perm = count_ge / n_valid if n_valid > 0 else 1.0
+    return v_obs, p_perm, n_permutations, n_valid, n_skipped
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -287,7 +299,9 @@ def analyze_pca_condition(
 
     # Permutation test (distribution-free)
     cluster_labels = np.where(low_mask, 0, 1)
-    v_obs, p_perm, n_perm = permutation_test_cramers_v(reward_gaps, cluster_labels)
+    v_obs, p_perm, n_perm, n_valid, n_skipped = permutation_test_cramers_v(
+        reward_gaps, cluster_labels
+    )
 
     # Print results
     print(f"\n  Cluster sizes: Low={n_low} ({n_low/len(reward_gaps)*100:.1f}%), "
@@ -307,7 +321,9 @@ def analyze_pca_condition(
     mw_str = 'p < 0.0001' if mw_p < 0.0001 else f'p = {mw_p:.4f}'
     print(f"    Mann-Whitney U: {mw_str}")
     perm_str = 'p < 0.0001' if p_perm < 0.0001 else f'p = {p_perm:.4f}'
-    print(f"    Permutation test (n={n_perm:,}): {perm_str}")
+    skip_pct = 100 * n_skipped / n_perm if n_perm > 0 else 0
+    print(f"    Permutation test (n={n_perm:,}, valid={n_valid:,}, "
+          f"skipped={n_skipped:,} [{skip_pct:.1f}%]): {perm_str}")
     print(f"\n  SUPPLEMENTARY (approximate — data is discrete {-1, 0, +1}):")
     print(f"    Cohen's d = {cohens_d:.2f}")
 
@@ -320,6 +336,8 @@ def analyze_pca_condition(
         'effects': effects,
         'mw_p': mw_p, 'cohens_d': cohens_d,
         'p_perm': p_perm,
+        'perm_n_valid': n_valid,
+        'perm_n_skipped': n_skipped,
     }
 
 
@@ -538,7 +556,7 @@ def main():
         print(f"  Run: python3 scripts/train_pca_generic.py --n-components 32")
         results['generic'] = None
 
-    # Condition 3: Random projection (null baseline)
+    # Condition 3: Random projection (null baseline — single seed for figure)
     rng = np.random.RandomState(42)
     random_matrix = rng.randn(embeddings.shape[1], 2)
     random_matrix /= np.linalg.norm(random_matrix, axis=0, keepdims=True)
@@ -546,6 +564,72 @@ def main():
         embeddings, reward_gaps, random_matrix,
         "Random projection (null baseline)", is_random=True
     )
+
+    # ── Multi-seed random projection distribution ─────────────────────────
+    # Run 100 random projections to characterize V_random distribution,
+    # so the signal ratio is against a robust denominator (not a single seed).
+    N_RANDOM_SEEDS = 100
+    print(f"\n{'─' * 60}")
+    print(f"  Random Projection Distribution (N={N_RANDOM_SEEDS} seeds)")
+    print(f"{'─' * 60}")
+
+    random_vs = []
+    for seed in range(N_RANDOM_SEEDS):
+        rng_i = np.random.RandomState(seed)
+        mat_i = rng_i.randn(embeddings.shape[1], 2)
+        mat_i /= np.linalg.norm(mat_i, axis=0, keepdims=True)
+        X_2d_i = embeddings @ mat_i
+        thr_i, _ = find_silhouette_optimal_threshold(X_2d_i)
+        if thr_i is None:
+            continue
+        pc1_i = X_2d_i[:, 0]
+        low_i = pc1_i < thr_i
+        high_i = pc1_i >= thr_i
+        if low_i.sum() < 15 or high_i.sum() < 15:
+            continue
+        ct_i = build_contingency(reward_gaps[low_i], reward_gaps[high_i])
+        try:
+            chi2_i, _, _, exp_i = chi2_contingency(ct_i)
+            if exp_i.min() < 1:
+                continue
+            v_i = np.sqrt(chi2_i / (ct_i.sum() * (min(ct_i.shape) - 1)))
+            random_vs.append(v_i)
+        except Exception:
+            continue
+
+    random_vs = np.array(random_vs)
+    v_median = np.median(random_vs)
+    v_mean = np.mean(random_vs)
+    v_p25, v_p75 = np.percentile(random_vs, [25, 75])
+    v_max = np.max(random_vs)
+
+    router_v = results['router']['effects']['cramers_v']
+    ratio_median = router_v / v_median if v_median > 0 else float('inf')
+    ratio_max = router_v / v_max if v_max > 0 else float('inf')
+    # How many random projections exceed router PCA?
+    n_exceed = int(np.sum(random_vs >= router_v))
+
+    print(f"  Valid projections: {len(random_vs)}/{N_RANDOM_SEEDS}")
+    print(f"  V_random distribution:")
+    print(f"    Median: {v_median:.3f}  Mean: {v_mean:.3f}")
+    print(f"    IQR:    [{v_p25:.3f}, {v_p75:.3f}]")
+    print(f"    Max:    {v_max:.3f}")
+    print(f"  Router PCA V = {router_v:.3f}")
+    print(f"  Signal ratio (vs median): {ratio_median:.1f}x")
+    print(f"  Signal ratio (vs max):    {ratio_max:.1f}x")
+    print(f"  Random projections >= router PCA: {n_exceed}/{len(random_vs)}")
+    results['random_distribution'] = {
+        'n_seeds': N_RANDOM_SEEDS,
+        'n_valid': len(random_vs),
+        'vs': random_vs,
+        'median': float(v_median),
+        'mean': float(v_mean),
+        'iqr': (float(v_p25), float(v_p75)),
+        'max': float(v_max),
+        'ratio_vs_median': float(ratio_median),
+        'ratio_vs_max': float(ratio_max),
+        'n_exceed_router': n_exceed,
+    }
 
     # ── Comparison table ──────────────────────────────────────────────────
     print("\n" + "=" * 80)
@@ -562,6 +646,8 @@ def main():
         print(f"  {r['name']:<43} {e['cramers_v']:6.3f} "
               f"{e['odds_ratio_mixtral']:6.1f} "
               f"{e['risk_diff_mixtral']:+6.1%} {p_str:>8}")
+    print(f"  {'Random projection (median of 100 seeds)':<43} {v_median:6.3f} "
+          f"{'—':>6} {'—':>7} {'—':>8}")
 
     # ── Use router PCA condition for figure ────────────────────────────────
     primary = results['router']
@@ -733,10 +819,22 @@ def main():
     print(f"    ties, with weak GPT-4-Turbo advantage. This heterogeneity is a")
     print(f"    necessary condition for routing; whether it is sufficient for")
     print(f"    practical gains is tested in the routing evaluation (Table 2).")
-    if results.get('random') and results['random']['effects']['cramers_v'] > 0:
+    if results.get('random_distribution'):
+        rd = results['random_distribution']
+        router_v = eff['cramers_v']
+        print(f"\n  NULL BASELINE (N={rd['n_seeds']} random projections):")
+        print(f"    V_random: median={rd['median']:.3f}, "
+              f"IQR=[{rd['iqr'][0]:.3f}, {rd['iqr'][1]:.3f}], max={rd['max']:.3f}")
+        print(f"    Router PCA V = {router_v:.3f}")
+        print(f"    Signal ratio vs median: {rd['ratio_vs_median']:.1f}x")
+        print(f"    Signal ratio vs max:    {rd['ratio_vs_max']:.1f}x")
+        print(f"    Random projections >= router PCA: {rd['n_exceed_router']}/{rd['n_valid']}")
+        if rd['n_exceed_router'] == 0:
+            print(f"    Router PCA exceeds ALL {rd['n_valid']} random projections.")
+    elif results.get('random') and results['random']['effects']['cramers_v'] > 0:
         rand_v = results['random']['effects']['cramers_v']
         router_v = eff['cramers_v']
-        print(f"\n  NULL BASELINE:")
+        print(f"\n  NULL BASELINE (single seed):")
         print(f"    Random projection V = {rand_v:.3f} vs Router PCA V = {router_v:.3f}")
         if router_v > 2 * rand_v:
             print(f"    Router PCA captures {router_v/rand_v:.1f}x more signal than chance.")

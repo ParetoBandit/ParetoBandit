@@ -92,7 +92,9 @@ The Spearman rank correlation between PC1 and reward gap ($\rho = -0.395$) confi
 \paragraph{Projection artifact control.}
 The random projection baseline directly addresses the concern that any 384D-to-2D projection will find \emph{some} correlated direction.
 If the random projection achieves a comparable Cram\'er's $V$ to the router PCA, the finding is artifactual.
-The comparison table (Table~\ref{tab:pca_conditions}) quantifies the gap.
+To ensure the signal ratio is not an artifact of a single random seed, we run $N{=}100$ independent random projections ($384 \to 2$, orthonormalized) and compute Cram\'er's $V$ for each.
+The router PCA ($V = 0.667$) exceeds all 100 random projections; the signal ratio is reported against the median $V_{\text{random}}$, not a single seed.
+The comparison table (Table~\ref{tab:pca_conditions}) reports the single-seed result; the full distribution is available in the analysis script output.
 
 \subsubsection{Stratification and Generalizability}
 
