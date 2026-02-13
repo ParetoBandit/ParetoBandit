@@ -24,13 +24,14 @@ This experiment provides **Table 1** for the paper, documenting the complete dat
 
 ```
 experiments_v1/01_table/
-├── README.md                      # This file
-├── generate_table1.py             # Table generator
-├── table1_dataset.tex             # LaTeX table (used in paper)
-├── validate_categorization.py     # Legacy validation scripts
-├── validate_with_llm.py
-├── validate_with_openrouter.py
-└── archived/                      # Old versions with categories
+├── README.md                          # This file
+├── generate_table1.py                 # Table generator
+├── table1_dataset.tex                 # LaTeX table (used in paper)
+├── compute_power_analysis.py          # Monte-Carlo power analysis
+├── compute_holdout_analysis.py        # Holdout routing evaluation
+├── power_analysis_results.json        # Power analysis output
+├── holdout_analysis_results.json      # Holdout evaluation output
+└── alternative_power_analysis.json    # Alternative test power comparison
 ```
 
 ---
