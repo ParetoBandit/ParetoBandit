@@ -44,7 +44,7 @@ NEW_MODEL = "openai/gpt-5.1"
 NEIGHBOR_MODEL = "openai/gpt-4-turbo"
 TOTAL_STEPS = 1000
 RELEASE_STEP = 300
-SEEDS = [42, 43, 44]
+SEEDS = list(range(42, 72))  # 30 seeds for statistical power
 N_EFF_VALUES = [1.0, 20.0]  # Test extremes
 
 # ============================================================================

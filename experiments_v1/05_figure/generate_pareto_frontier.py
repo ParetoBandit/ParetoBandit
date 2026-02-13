@@ -751,7 +751,7 @@ def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict],
         trial_rewards = []
         trial_costs = []
         
-        for trial in range(5):
+        for trial in range(20):
             np.random.seed(42 + trial)
             # Enable debug for first trial of λ=0.0 and first trial of λ=1.0
             # to inspect both extremes of the Pareto frontier
@@ -779,7 +779,7 @@ def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict],
         
         logger.info(f"   [{i}/{len(cost_penalties)}] λ={lambda_val:.1f}: "
                    f"Reward={avg_reward:.4f}±{std_reward:.4f}, "
-                   f"Cost=${avg_cost:.6f}±${std_cost:.6f} (5 trials)")
+                   f"Cost=${avg_cost:.6f}±${std_cost:.6f} (20 trials)")
     
     results["banditGPT-Hybrid"] = hybrid_points
     logger.info(f"   ✓ Generated {len(hybrid_points)} points")
@@ -915,10 +915,10 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
                    color=colors[strategy], linewidth=3.5, 
                    label=f'{strategy} (Pareto Frontier)', alpha=0.9, marker='D', markersize=7)
             
-            # Add error bars if statistics are available (95% CI = ±1.96*std for n=5)
+            # Add error bars if statistics are available (95% CI = ±1.96*std/sqrt(n))
             if hull_cost_stds and hull_reward_stds and any(s > 0 for s in hull_reward_stds):
-                # Convert std to 95% CI (1.96 * std / sqrt(5) ≈ 0.876 * std)
-                ci_multiplier = 1.96 / np.sqrt(5)  # 5 trials
+                # Convert std to 95% CI (1.96 * std / sqrt(20) ≈ 0.438 * std)
+                ci_multiplier = 1.96 / np.sqrt(20)  # 20 trials
                 ax.errorbar(hull_costs, hull_rewards,
                            xerr=[ci_multiplier * s for s in hull_cost_stds],
                            yerr=[ci_multiplier * s for s in hull_reward_stds],

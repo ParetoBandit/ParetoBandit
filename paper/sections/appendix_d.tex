@@ -48,7 +48,7 @@ Figure~\ref{fig:decommission} visualizes the internal dynamics of our Corralling
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure6_expert_decommission.png}
-\caption{\textbf{Decisive Expert Decommissioning.} (Top) Evolution of expert weights during the first 500 steps. The system initially explores the Warmup Expert (Orange) but detects high loss due to domain mismatch. At $t \approx 50$, cumulative evidence triggers sharp exponential decay, effectively decommissioning the harmful prior by $t=200$. (Bottom) Cumulative loss comparison confirms the Tabula Rasa expert (Green) is strictly superior.}
+\caption{\textbf{Expert Decommissioning Under Synthetic Catastrophic Failure.} (Top) Evolution of expert weights during a synthetic scenario where model quality drops from $\mu=0.80$ to $\mu=0.15$. The system initially explores the Warmup Expert (Orange) but detects increasing loss. At $t \approx 50$, cumulative evidence triggers sharp exponential decay, shifting traffic to the Tabula Rasa Expert by $t=200$. (Bottom) Cumulative loss comparison confirms the Tabula Rasa expert (Green) is strictly superior post-failure.}
 \label{fig:decommission}
 \label{fig:expert_decommission}
 \label{fig:catastrophic}
@@ -64,15 +64,21 @@ We simulate a three-phase scenario with deterministic failure injection:
 
 Corralling settings: $\eta=0.3$ (fast failure detection), $\gamma=0.05$ (exploration floor).
 
-\paragraph{Results.}
+\paragraph{Results (synthetic scenario only).}
 \begin{itemize}[nosep]
     \item \textbf{Detection speed:} 3 steps (immediate failover after failure begins)
-    \item \textbf{Success rate:} 100\% across all configurations
+    \item \textbf{Success rate:} 100\% across all configurations tested in this synthetic scenario
     \item \textbf{False positives:} 0\% during Phase 1 (no spurious failovers)
     \item \textbf{Conservative recovery:} Maintains decommissioning even after recovery (safety-first)
 \end{itemize}
 
-\textbf{Scope:} This experiment validates the mechanism for catastrophic failures (Cohen's $d > 1.5$) with deterministic phase transitions. Subtle quality degradation ($d < 0.2$) or gradual drift would require longer detection horizons and is not evaluated here.
+\textbf{Scope and Limitations:} This experiment validates the \emph{mechanism} of adaptive failover under idealized conditions: large, abrupt quality collapse (Cohen's $d \approx 5.0$) with deterministic, instantaneous phase transitions. The ``100\% detection rate'' and ``3-step failover'' claims apply only to this specific synthetic scenario and should not be generalized to production settings, where model failures are typically:
+\begin{itemize}[nosep]
+    \item \textbf{Gradual:} Quality may degrade slowly over days/weeks rather than collapsing instantly
+    \item \textbf{Ambiguous:} Degradation may be intermittent or context-dependent ($d < 0.5$), making detection substantially harder
+    \item \textbf{Partial:} A model may degrade on some task types while maintaining performance on others
+\end{itemize}
+Evaluating detection performance on real-world model failures---which would require either historical failure data or carefully designed gradual-degradation simulations---remains important future work.
 
 % ----------------------------------------------------------------------------
 % D.3: Zero-Shot Model Adoption - Extended Analysis
@@ -84,7 +90,7 @@ Corralling settings: $\eta=0.3$ (fast failure detection), $\gamma=0.05$ (explora
 This section provides the full ablation and mechanism validation behind the zero-shot readiness results in Section~\ref{sec:zero_shot}.
 
 \paragraph{Experimental Setup.}
-We simulated the release of \texttt{gpt-5.1} at $t=300$ using conservative learning ($\eta=0.1$) with $N=30$ trials (seeds 42--71). Heterogeneous expert strategy (Conservative with $\alpha$ decay $1.0 \to 0.01$, Adaptive with $\alpha=2.0$ constant). Full-episode metrics ($t=0$--$800$) reported to avoid evaluation bias.
+We simulated the release of \texttt{gpt-5.1} at $t=300$ using conservative learning ($\eta=0.1$) with $N=30$ trials (seeds 42--71). Heterogeneous expert strategy (Conservative with $\alpha$ decay $1.0 \to 0.01$, Adaptive with $\alpha=2.0$ constant). Full-episode metrics ($t=0$--$800$) reported to avoid evaluation bias. \textbf{Design limitation:} The router trains and is evaluated on the same shuffled data stream. While this is standard for online bandit evaluation (regret analysis), the reward metrics reported here conflate learning with generalization. A held-out evaluation set for this experiment was not available; results should be interpreted as online learning performance rather than generalization guarantees.
 
 \paragraph{Ablation: Four Initialization Strategies.}
 Figure~\ref{fig:ablation} compares:
@@ -106,11 +112,12 @@ Figure~\ref{fig:ablation} compares:
 
 \paragraph{Mechanism Validation.}
 
-\textbf{Original Hypothesis (Not Supported):} ``Semantic similarity predicts task-level performance correlation.''
+\textbf{Original Hypothesis (Inconclusive):} ``Semantic similarity predicts task-level performance correlation.''
 
-Direct measurement reveals this is \textbf{not validated}:
+Direct measurement is \textbf{inconclusive due to insufficient sample size}:
 \begin{itemize}[nosep]
-    \item Correlation(embedding similarity, performance correlation) = $-0.38$, $p=0.75$ ($N=3$ models)
+    \item Correlation(embedding similarity, performance correlation) = $-0.38$, $p=0.75$ ($N=3$ models, 1 degree of freedom)
+    \item \textbf{Power limitation:} With only 3 models, this test has effectively zero statistical power. The non-significant result cannot be interpreted as evidence \emph{against} the hypothesis---it simply reflects that no correlation test with $N=3$ data points can achieve significance except in extreme cases. Testing this hypothesis meaningfully would require a substantially larger model portfolio.
     \item GPT-4-Turbo and GPT-5.1 excel on completely different tasks (0\% overlap)
     \item Magnitude transfer fails: GPT-4's preferences do not transfer ($r=-0.066$, $p=0.35$)
 \end{itemize}
@@ -143,7 +150,7 @@ Diagnostic analysis reveals individual seeds exhibit binary expert commitments (
 A critical design choice is the exploration-exploitation schedule. We validated constant exploration ($\alpha=2.0$) through systematic ablation under severe domain mismatch (PSI=0.275).
 
 \paragraph{Experimental Setup.}
-Four configurations evaluated on the 750-prompt holdout set across 5 random seeds:
+Four configurations evaluated on the 750-prompt holdout set across 20 random seeds:
 
 \begin{table}[h]
 \centering
@@ -226,11 +233,12 @@ Overall impact: $\sim$1.5\% = $0.33 \times 4.6\%$. Robustness comes from adaptiv
 \end{figure}
 
 \paragraph{Stratified Results.}
+With $N=30$ seeds, we can now estimate regime proportions with reasonable confidence:
 \begin{itemize}[nosep]
-    \item \textbf{Warmup-dominant (33\% of seeds):} $\neff=1.0$ outperforms $\neff=20.0$ by +4.6\%. Over-confidence trap is active.
-    \item \textbf{Tabula rasa-dominant (67\% of seeds):} Performance identical. Semantic transfer not used, so $\neff$ irrelevant.
-    \item \textbf{Overall:} $0.33 \times 4.6\% + 0.67 \times 0\% \approx 1.5\%$ production impact (not significant, $p>0.40$)
+    \item \textbf{Warmup-dominant regime:} Seeds where warmup expert is maintained. In this regime, $\neff=1.0$ outperforms $\neff=20.0$, confirming the over-confidence trap.
+    \item \textbf{Tabula rasa-dominant regime:} Seeds where Corralling abandons warmup priors. Performance is identical across $\neff$ values, as semantic transfer is not used.
+    \item \textbf{Overall:} The weighted aggregate impact across regimes is reported in Figure~\ref{fig:expert_selection}.
 \end{itemize}
 
-This demonstrates that Corralling's robustness to $\neff$ emerges from \emph{detecting and abandoning failing priors}, not from universal parameter insensitivity.
+The increased sample size ($N=30$) enables meaningful estimation of regime proportions (see Appendix~\ref{app:multiseed_sensitivity} for exact counts and binomial confidence intervals). The conclusion that robustness emerges from adaptive expert selection (not parameter insensitivity) is supported both by the mechanism and by the regime-stratified analysis.
 

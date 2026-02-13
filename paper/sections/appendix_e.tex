@@ -170,8 +170,8 @@ Known Good
 Evaluate warmup predictions on $N=100$--$200$ deployment samples. Accuracy $>80\%$ = good priors (use Warmup Only); $50$--$80\%$ = uncertain (use Corralling); $<50\%$ = bad priors (use Tabula Rasa).
 
 \paragraph{Key Findings.}
-(1) Corralling provides 18.5\% safety vs harmful warmup ($59.2$ vs $74.7$ regret);
-(2) Tabula Rasa achieves 16\% improvement when priors known bad ($49.5$ vs $59.2$);
-(3) Adaptive decay degrades performance by 48\% ($90.2$ regret) under mismatch.
+(1) Under severe mismatch (as in the original ablation), Corralling hedges between experts, incurring modest overhead when priors are transferable;
+(2) Tabula Rasa is optimal when priors are known-bad;
+(3) Strategy selection depends on prior quality assessment (see Validation Protocol above).
 All configurations use constant $\alpha=2.0$ (validated in Appendix~\ref{sec:alpha_ablation}).
 

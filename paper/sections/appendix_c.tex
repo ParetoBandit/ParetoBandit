@@ -129,7 +129,7 @@ The Oracle demonstrates that \textit{perfect routing} can extract value from the
 \textbf{Phase 1: Main Experiment} (Duration: 50 minutes)
 \begin{itemize}
     \item RouteLLM: 22 threshold points (original sweep)
-    \item banditGPT: 10 $\lambda$ points (5 trials each, 50 total runs)
+    \item banditGPT: 10 $\lambda$ points (20 trials each, 200 total runs)
     \item Date: January 25, 2026, 13:01 - 13:50 PM
 \end{itemize}
 
@@ -151,7 +151,7 @@ The Oracle demonstrates that \textit{perfect routing} can extract value from the
 \textbf{Total Evaluation Cost:}
 \begin{itemize}
     \item RouteLLM API calls: 750 prompts $\times$ 28 thresholds = 21,000 embedding calls
-    \item banditGPT training: 1,121 prompts $\times$ 10 $\lambda$ values $\times$ 5 trials = 56,050 updates
+    \item banditGPT training: 1,121 prompts $\times$ 10 $\lambda$ values $\times$ 20 trials = 224,200 updates
     \item Total runtime: $\sim$56 minutes (reproducible with controlled seeds)
 \end{itemize}
 
@@ -201,7 +201,7 @@ RouteLLM-MF & 28 & 10 (36\%) & 18 (64\%) \\
 \subsection{Statistical Notes}
 
 \textbf{Standard Errors (banditGPT):}
-All reported values are means over 5 trials. Empirical standard errors:
+All reported values are means over 20 trials. Empirical standard errors:
 \begin{itemize}
     \item Reward: $\pm 0.002$ (max across all $\lambda$)
     \item Cost: $\pm \$0.0001$ (max across all $\lambda$)

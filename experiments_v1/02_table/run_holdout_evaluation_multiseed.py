@@ -126,8 +126,14 @@ def run_single_seed_experiment(
     Returns:
         Dict with cumulative_regret, avg_reward, model_usage, regret_history, early_regret
     """
-    # Set seed for this run
+    # Set seed for this run (controls both expert selection AND data ordering)
     np.random.seed(seed)
+    
+    # Shuffle data ordering to test sensitivity to arrival order
+    # Online bandit regret depends on which prompts arrive early vs late
+    data_items = list(data.items())
+    np.random.shuffle(data_items)
+    data = dict(data_items)
     
     # Initialize routers for this seed
     if "Warmup" in name:
@@ -469,7 +475,7 @@ def main():
     parser = argparse.ArgumentParser(description='Evaluate Corralling on Holdout Set (Multi-Seed)')
     parser.add_argument('--gamma', type=float, default=0.05, help='Gamma scaling for warmup priors')
     parser.add_argument('--learning-rate', type=float, required=True, help='Corralling learning rate (0.1 or 1.0)')
-    parser.add_argument('--num-seeds', type=int, default=10, help='Number of random seeds to run')
+    parser.add_argument('--num-seeds', type=int, default=30, help='Number of random seeds to run')
     parser.add_argument('--output', type=str, required=True, help='Output directory')
     args = parser.parse_args()
     

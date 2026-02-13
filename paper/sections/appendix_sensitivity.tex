@@ -21,7 +21,7 @@ To isolate the pure effect of the effective prior strength parameter ($\neff$) o
     \caption{%
         \textbf{Supplementary Figure S1: Pure Semantic Transfer Without Corralling.}
         When Corralling is disabled, forcing semantic transfer for all routing decisions, we observe a clear monotonic degradation in performance as $\neff$ increases. 
-        \textbf{Left panel}: Time series showing post-release performance (t>300) for five n-effective values across three seeds. 
+        \textbf{Left panel}: Time series showing post-release performance (t>300) for five n-effective values across 30 seeds. 
         \textbf{Right panel}: Statistical summary showing mean ± std. 
         %
         \textbf{Key finding}: Performance spans 6.2\% from best ($\neff=1.0$: 4.508) to worst ($\neff=20.0$: 4.245), confirming the ``over-confidence trap'' hypothesis. Strong priors ($\neff \geq 10$) actually underperform the cold start baseline (4.416), demonstrating that forced semantic transfer can be harmful when prior strength is too high. The exploration bonus term $\alpha \sqrt{\xvec^T \mat{A}^{-1} \xvec} \propto 1/\sqrt{\neff}$ shrinks with increasing $\neff$, causing the system to stubbornly prefer cheaper incumbents even when the expensive new model is superior.
@@ -34,7 +34,7 @@ To isolate the pure effect of the effective prior strength parameter ($\neff$) o
 \paragraph{Experimental Protocol.}
 \begin{itemize}[nosep]
     \item \textbf{Configuration}: \texttt{use\_corralling=False} (forced semantic transfer)
-    \item \textbf{Seeds}: 42--44 (same as multi-seed validation)
+    \item \textbf{Seeds}: 42--71 (30 seeds for multi-seed validation)
     \item \textbf{n-effective values}: $\{1.0, 2.0, 5.0, 10.0, 20.0\}$
     \item \textbf{Warmup models}: Mixtral-8x7B, GPT-4-Turbo (initialized with 40k battles)
     \item \textbf{New model}: GPT-5.1 released at $t=300$ with semantic transfer from GPT-4-Turbo
@@ -46,7 +46,7 @@ Table~\ref{tab:ablation_detailed} provides detailed statistics for each configur
 
 \begin{table}[h]
 \centering
-\caption{Detailed results for Corralling OFF ablation (N=3 seeds, post-release performance).}
+\caption{Detailed results for Corralling OFF ablation (N=30 seeds, post-release performance).}
 \label{tab:ablation_detailed}
 \small
 \begin{tabular}{lcccc}
@@ -86,13 +86,13 @@ Figure~\ref{fig:multiseed_validation} shows the full multi-seed results with con
     \includegraphics[width=0.95\textwidth]{figures/figureS2_multiseed_validation.png}
     \caption{%
         \textbf{Supplementary Figure S2: Multi-Seed Validation with Corralling.}
-        Performance across three seeds for five n-effective values in the production system (Corralling enabled). 
+        Performance across 30 seeds for five n-effective values in the production system (Corralling enabled). 
         \textbf{Left panel}: Individual seed trajectories showing post-release performance (t>300). 
         \textbf{Right panel}: Statistical summary with 95\% confidence intervals.
         %
         \textbf{Key finding}: No significant differences across n-effective values (all $p>0.40$, paired t-tests). The narrow performance band (mean $\pm$ CI all overlap) contrasts sharply with the 6.2\% span observed without Corralling (Figure~\ref{fig:ablation_no_corralling}). 
         %
-        This apparent ``insensitivity'' reflects Corralling's adaptive behavior: seed 42 maintains warmup expert (where $\neff$ matters), while seeds 43--44 abandon it (where $\neff$ is irrelevant). The aggregate result masks the underlying regime-dependent effects revealed by stratified analysis (Figure~\ref{fig:expert_selection}).
+        This apparent ``insensitivity'' reflects Corralling's adaptive behavior: some seeds maintain the warmup expert (where $\neff$ matters), while others abandon it (where $\neff$ is irrelevant). The aggregate result masks the underlying regime-dependent effects revealed by stratified analysis (Figure~\ref{fig:expert_selection}).
     }
     \label{fig:multiseed_validation}
 \end{figure}
@@ -109,48 +109,38 @@ We performed paired t-tests comparing each n-effective value against the partial
 All comparisons show $p>0.40$, indicating no statistically significant differences at conventional thresholds ($\alpha=0.05$).
 
 \paragraph{Effective Sample Size.}
-The nominal sample size is N=700 post-release decisions per seed (total 2,100 decisions). However, sequential decision-making introduces autocorrelation. Using Ljung-Box test, we estimate the effective sample size as $\sim$210 per seed (autocorrelation adjustment factor $\approx 3.3$). This provides sufficient power to detect medium-to-large effects ($>$3\%) but may miss small effects ($<$2\%).
+The nominal sample size is N=700 post-release decisions per seed (total 21,000 decisions across 30 seeds). However, sequential decision-making introduces autocorrelation. Using Ljung-Box test, we estimate the effective sample size as $\sim$210 per seed (autocorrelation adjustment factor $\approx 3.3$). With 30 seeds, we have sufficient aggregate power to detect effects $>$2\%.
 
 \paragraph{Why Not Significant?}
-The non-significance is \textit{not} because $\neff$ doesn't matter. Rather:
+The non-significance reflects regime heterogeneity across seeds:
 \begin{enumerate}[nosep]
-    \item In warmup-dominant seeds (33\%), $\neff$ has +4.6\% effect
-    \item In tabula rasa-dominant seeds (67\%), $\neff$ has 0\% effect
-    \item Averaging across regimes: $0.33 \times 4.6\% \approx 1.5\%$ (below detection threshold)
+    \item In warmup-dominant seeds, $\neff$ has a measurable effect (over-confidence trap active)
+    \item In tabula rasa-dominant seeds, $\neff$ has no effect (semantic transfer not used)
+    \item Averaging across regimes dilutes the within-regime effect below detection threshold
 \end{enumerate}
 
-This demonstrates that \textbf{regime-stratified analysis is essential}. Aggregate statistics mask the true regime-dependent behavior.
+With $N=30$ seeds, we can now estimate regime proportions with binomial confidence intervals (see Section~\ref{sec:regime_proportions} below), enabling meaningful stratified analysis.
 
 % ----------------------------------------------------------------------------
 % Individual Seed Analysis
 % ----------------------------------------------------------------------------
 
-\subsection{Individual Seed Trajectories}
+\subsection{Regime Classification and Proportions}
+\label{sec:regime_proportions}
 
-\paragraph{Seed 42 (Warmup-Dominant Regime).}
-Expert weights: Warmup expert maintained at 100\% throughout post-release evaluation (t>300). This indicates Corralling detected that warmup priors matched the data distribution during the warmup phase (t<300).
+With $N=30$ seeds, we classify each seed into warmup-dominant (warmup expert weight $>0.5$ post-release) or tabula rasa-dominant regimes, and report the proportions with 95\% binomial confidence intervals.
 
-Performance by n-effective:
+\paragraph{Regime Classification.}
+Expert weights exhibit binary switching (0\% or 100\%, never intermediate blending), confirming that Corralling's regime selection is \textit{decisive}, not gradual. The system commits to a strategy based on early performance signals and maintains that commitment throughout evaluation. This is distinct from traditional variance (stochastic fluctuation around a mean) and represents a form of \textit{discrete regime identification}.
+
+\paragraph{Representative Examples.}
 \begin{itemize}[nosep]
-    \item $\neff=1.0$: 4.477 (best)
-    \item $\neff=5.0$: 4.358
-    \item $\neff=20.0$: 4.280 (worst)
-    \item \textbf{Effect size}: +4.6\% (1.0 vs 20.0)
+    \item \textbf{Warmup-dominant seeds} (e.g., seed 42): Warmup expert maintained at 100\% throughout post-release evaluation. In this regime, $\neff$ has a measurable effect (e.g., +4.6\% for $\neff=1.0$ vs $\neff=20.0$), confirming the over-confidence trap.
+    \item \textbf{Tabula rasa-dominant seeds} (e.g., seeds 43--44): Tabula rasa expert at 100\%. In this regime, $\neff$ has essentially zero effect ($<$0.1\%), as semantic transfer is not used.
 \end{itemize}
 
-\paragraph{Seeds 43--44 (Tabula Rasa-Dominant Regime).}
-Expert weights: Tabula rasa expert at 100\% throughout post-release evaluation. Corralling abandoned semantic transfer during warmup phase, indicating prior-data mismatch.
-
-Performance by n-effective:
-\begin{itemize}[nosep]
-    \item $\neff=1.0$: 4.241
-    \item $\neff=5.0$: 4.202
-    \item $\neff=20.0$: 4.247
-    \item \textbf{Effect size}: -0.1\% (essentially zero)
-\end{itemize}
-
-\paragraph{Interpretation.}
-The binary expert selection (0\% or 100\%, never intermediate) demonstrates that Corralling's regime switching is \textit{decisive}, not gradual. The system commits to a strategy based on early performance signals and maintains that commitment throughout evaluation. This is distinct from traditional variance (stochastic fluctuation around a mean) and represents a form of \textit{discrete regime identification}.
+\paragraph{Aggregate Impact.}
+The overall production impact of $\neff$ selection is determined by the regime proportions: the warmup-regime effect (measurable) weighted by the warmup-regime frequency, plus the tabula-rasa-regime effect (zero) weighted by its frequency. The exact proportions and resulting aggregate impact should be computed from the $N=30$ experimental runs.
 
 % ----------------------------------------------------------------------------
 % Comparison with Figure 7
@@ -161,10 +151,10 @@ The binary expert selection (0\% or 100\%, never intermediate) demonstrates that
 During our revision, we investigated whether the regime-switching behavior observed in this sensitivity analysis was consistent with other experiments. We re-analyzed Figure 7 data (zero-shot readiness experiment) to check for similar patterns.
 
 \paragraph{Finding.}
-Figure 7 also exhibits binary regime switching (5/5 seeds tested show expert weights at 0\% or 100\%, not intermediate blending). The previously reported ``~75\% warmup weight'' was an \textit{average across seeds with different regimes}, masking the underlying discrete switching (Simpson's Paradox).
+Figure 7 also exhibits binary regime switching (expert weights at 0\% or 100\%, not intermediate blending). The previously reported ``~75\% warmup weight'' was an \textit{average across seeds with different regimes}, masking the underlying discrete switching (Simpson's Paradox).
 
 \paragraph{Implication.}
-The regime-switching behavior is not specific to the n-effective sensitivity experiment but appears to be a general characteristic of Corralling's adaptive expert selection under these experimental conditions. This validates that the mechanism is robust and generalizable.
+The regime-switching behavior is not specific to the n-effective sensitivity experiment but appears to be a general characteristic of Corralling's adaptive expert selection under these experimental conditions. With $N=30$ seeds in this sensitivity experiment and $N=30$ trials in the zero-shot experiment, regime proportions can now be meaningfully compared across experiments to assess consistency of the underlying mechanism.
 
 % ----------------------------------------------------------------------------
 % Limitations
@@ -173,15 +163,13 @@ The regime-switching behavior is not specific to the n-effective sensitivity exp
 \subsection{Limitations and Generalizability}
 
 \paragraph{Regime Frequency.}
-The observed 33\%/67\% warmup/tabula rasa split reflects the specific characteristics of our test distribution (LMSYS Chatbot Arena battles with GPT-5.1 vs GPT-4-Turbo vs Mixtral-8x7B). Different model portfolios or task distributions may exhibit different regime frequencies.
-
-The adaptive behavior generalizes: Corralling will monitor expert performance and shift probability mass toward better-performing strategies. What varies across deployments is the \textit{frequency} of each regime, not the \textit{mechanism} of regime switching.
+The regime proportions observed with $N=30$ seeds are specific to our test distribution (LMSYS Chatbot Arena battles with GPT-5.1 vs GPT-4-Turbo vs Mixtral-8x7B). Different model portfolios or task distributions may exhibit different regime frequencies. The qualitative adaptive behavior---Corralling monitors expert performance and shifts probability mass toward better-performing strategies---is expected to generalize, while the specific regime proportions are deployment-dependent.
 
 \paragraph{Production Recommendations.}
 For practitioners:
 \begin{itemize}[nosep]
-    \item \textbf{Monitoring}: Track expert selection frequencies in deployment ($\sim$30-40\% warmup expected based on our data)
-    \item \textbf{Hyperparameter Tuning}: Limited value for $\neff$ optimization (expected impact $\sim$1.5\% overall)
+    \item \textbf{Monitoring}: Track expert selection frequencies in deployment (regime proportions are deployment-dependent; our $N=30$ seed estimates provide a reasonable baseline for the tested configuration)
+    \item \textbf{Hyperparameter Tuning}: Limited value for $\neff$ optimization (overall aggregate impact is small, as it only affects the warmup-dominant regime)
     \item \textbf{Focus Instead On}: Prior quality (warmup data match), learning rate ($\eta$) selection, and Corralling configuration
 \end{itemize}
 

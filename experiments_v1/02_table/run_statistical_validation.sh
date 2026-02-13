@@ -9,8 +9,8 @@ echo "TABLE 2 STATISTICAL VALIDATION PIPELINE"
 echo "========================================================================"
 echo ""
 echo "This script will:"
-echo "  1. Run η=0.1 with 10 random seeds"
-echo "  2. Run η=1.0 with 10 random seeds"
+echo "  1. Run η=0.1 with 30 random seeds"
+echo "  2. Run η=1.0 with 30 random seeds"
 echo "  3. Compute confidence intervals and effect sizes"
 echo "  4. Perform statistical significance tests"
 echo "  5. Generate updated visualizations"
@@ -20,7 +20,7 @@ echo "========================================================================"
 echo ""
 
 # Configuration
-NUM_SEEDS=10
+NUM_SEEDS=30
 GAMMA=0.05
 
 # Create output directories
@@ -30,7 +30,7 @@ mkdir -p data/statistical_comparison
 
 echo "Step 1/3: Running η=0.1 with ${NUM_SEEDS} seeds..."
 echo "------------------------------------------------------------------------"
-python run_holdout_evaluation_multiseed.py \
+python experiments_v1/02_table/run_holdout_evaluation_multiseed.py \
     --learning-rate 0.1 \
     --gamma ${GAMMA} \
     --num-seeds ${NUM_SEEDS} \
@@ -39,7 +39,7 @@ python run_holdout_evaluation_multiseed.py \
 echo ""
 echo "Step 2/3: Running η=1.0 with ${NUM_SEEDS} seeds..."
 echo "------------------------------------------------------------------------"
-python run_holdout_evaluation_multiseed.py \
+python experiments_v1/02_table/run_holdout_evaluation_multiseed.py \
     --learning-rate 1.0 \
     --gamma ${GAMMA} \
     --num-seeds ${NUM_SEEDS} \
@@ -48,7 +48,7 @@ python run_holdout_evaluation_multiseed.py \
 echo ""
 echo "Step 3/3: Comparing learning rates with statistical tests..."
 echo "------------------------------------------------------------------------"
-python compare_learning_rates.py \
+python experiments_v1/02_table/compare_learning_rates.py \
     --eta-01-results data/eta_0.1_holdout_multiseed/results_multiseed.json \
     --eta-10-results data/eta_1.0_holdout_multiseed/results_multiseed.json \
     --output data/statistical_comparison/comparison_results.json
