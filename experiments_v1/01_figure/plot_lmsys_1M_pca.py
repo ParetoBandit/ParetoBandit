@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Figure 1M: Semantic PCA of Full LMSYS Chat-1M Dataset
+Figure 1M: Spatial Structure of Full LMSYS Chat-1M Dataset
 
-This script creates a visualization of the FULL 1M prompt dataset from LMSYS Chat-1M,
-showing semantic structure with spatial clustering.
+Visualizes the FULL 1M prompt dataset from LMSYS Chat-1M,
+showing spatial distribution persistence at scale.
 
-Compared to the original 01_figure which uses ~1,871 prompts from dev/holdout splits,
-this analysis uses the complete 1M dataset to show the semantic structure at scale.
+Compared to the holdout analysis (N=750), this analysis uses the
+complete 1M dataset to show spatial structure persistence at scale.
 
-Note: Since we don't have reward evaluations for all 1M prompts, we focus on
-spatial clustering rather than reward gap analysis.
+IMPORTANT: The 1M dataset has NO reward labels. This script validates
+spatial structure only — it cannot validate that reward patterns persist.
 
 METHODOLOGY:
   PCA trained on generic C4 corpus (no circularity).
-  See CIRCULARITY_FIX.md for details.
+  Threshold matches holdout analysis (silhouette-optimal on holdout).
 
 Usage:
     # Train generic PCA first (if not already done)
@@ -46,6 +46,13 @@ from bandit_gpt.config_legacy import (
 
 # Use generic PCA (trained on C4 corpus) to avoid circularity
 GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
+
+# Threshold from holdout silhouette-optimal analysis (PC1 = 0.222 on
+# domain-adapted PCA).  For the generic PCA used here, we apply the same
+# boundary for comparability.  Note: the exact threshold value matters less
+# than the qualitative observation that a High-PC1 region exists and is
+# smaller at scale (~5.9%) than in the holdout (~19%).
+HOLDOUT_THRESHOLD = 0.222
 
 
 def load_lmsys_1M_prompts(data_file: Path, max_prompts: int = None):
@@ -138,19 +145,19 @@ def create_spatial_visualization(X_2d, pca, output_dir: Path):
     """
     print(f"\n🎨 Creating spatial structure visualization...")
     
-    # Categorize by PC1 position (spatial clustering)
+    # Categorize by PC1 position using holdout-derived threshold
     pc1_values = X_2d[:, 0]
     
-    low_pc1_mask = pc1_values < 0.3  # Left cluster
-    high_pc1_mask = pc1_values >= 0.3  # Right cluster
+    low_pc1_mask = pc1_values < HOLDOUT_THRESHOLD
+    high_pc1_mask = pc1_values >= HOLDOUT_THRESHOLD
     
     X_low_pc1 = X_2d[low_pc1_mask]
     X_high_pc1 = X_2d[high_pc1_mask]
     
     # Print statistics
-    print(f"\n   📊 Spatial Distribution (by PC1 position):")
-    print(f"      Low PC1 (< 0.3): {len(X_low_pc1):,} ({len(X_low_pc1)/len(X_2d)*100:.1f}%)")
-    print(f"      High PC1 (≥ 0.3): {len(X_high_pc1):,} ({len(X_high_pc1)/len(X_2d)*100:.1f}%)")
+    print(f"\n   📊 Spatial Distribution (threshold={HOLDOUT_THRESHOLD:.3f}):")
+    print(f"      Low PC1 (< {HOLDOUT_THRESHOLD}): {len(X_low_pc1):,} ({len(X_low_pc1)/len(X_2d)*100:.1f}%)")
+    print(f"      High PC1 (≥ {HOLDOUT_THRESHOLD}): {len(X_high_pc1):,} ({len(X_high_pc1)/len(X_2d)*100:.1f}%)")
     
     # Create figure with 2 panels
     fig = plt.figure(figsize=(18, 8))
@@ -169,16 +176,16 @@ def create_spatial_visualization(X_2d, pca, output_dir: Path):
     
     # Categorize sampled points by PC1 position
     pc1_sample = X_sample[:, 0]
-    low_pc1_mask_s = pc1_sample < 0.3
-    high_pc1_mask_s = pc1_sample >= 0.3
+    low_pc1_mask_s = pc1_sample < HOLDOUT_THRESHOLD
+    high_pc1_mask_s = pc1_sample >= HOLDOUT_THRESHOLD
     
     # Plot with beautiful colors
     ax1.scatter(X_sample[low_pc1_mask_s, 0], X_sample[low_pc1_mask_s, 1],
-               c='#4575b4', s=25, alpha=0.7, label=f'Low PC1 Cluster ({len(X_low_pc1):,})',
+               c='#4575b4', s=25, alpha=0.7, label=f'Low PC1 ({len(X_low_pc1):,})',
                edgecolors='none', rasterized=True)
     
     ax1.scatter(X_sample[high_pc1_mask_s, 0], X_sample[high_pc1_mask_s, 1],
-               c='#d73027', s=25, alpha=0.7, label=f'High PC1 Cluster ({len(X_high_pc1):,})',
+               c='#d73027', s=25, alpha=0.7, label=f'High PC1 ({len(X_high_pc1):,})',
                edgecolors='none', rasterized=True)
     
     # Add KDE contour for low PC1 cluster only
@@ -199,10 +206,9 @@ def create_spatial_visualization(X_2d, pca, output_dir: Path):
         except:
             pass
     
-    # Add vertical line showing cluster separation
-    separation_threshold = 0.3  # PC1 = 0.3 separates the clusters
-    ax1.axvline(x=separation_threshold, color='black', linestyle='--', linewidth=3, 
-                alpha=0.7, label='Cluster Separation', zorder=5)
+    # Add vertical line showing holdout-derived threshold
+    ax1.axvline(x=HOLDOUT_THRESHOLD, color='black', linestyle='--', linewidth=3, 
+                alpha=0.7, label=f'Threshold ({HOLDOUT_THRESHOLD:.3f})', zorder=5)
     
     # Styling
     pc1_var = pca.explained_variance_ratio_[0]
@@ -211,8 +217,8 @@ def create_spatial_visualization(X_2d, pca, output_dir: Path):
     ax1.set_xlabel(f'PC1 ({pc1_var:.2%} variance)', fontsize=15, fontweight='bold')
     ax1.set_ylabel(f'PC2 ({pc2_var:.2%} variance)', fontsize=15, fontweight='bold')
     ax1.set_title(
-        'Semantic Task Structure in LMSYS Chat-1M Dataset\n'
-        'Spatial Clustering at Scale',
+        'Spatial Structure in LMSYS Chat-1M Dataset\n'
+        'PC1 Distribution at Scale (No Reward Labels)',
         fontsize=17,
         fontweight='bold',
         pad=15
@@ -223,7 +229,7 @@ def create_spatial_visualization(X_2d, pca, output_dir: Path):
     # Panel 2: Distribution breakdown with better visualization
     ax2 = fig.add_subplot(gs[1])
     
-    categories = ['Low PC1\nCluster', 'High PC1\nCluster']
+    categories = ['Low PC1\nRegion', 'High PC1\nRegion']
     counts = [len(X_low_pc1), len(X_high_pc1)]
     colors_bar = ['#4575b4', '#d73027']
     
@@ -234,7 +240,7 @@ def create_spatial_visualization(X_2d, pca, output_dir: Path):
     ax2.set_xticklabels(categories, fontsize=14, fontweight='bold')
     ax2.set_ylabel('Number of Prompts', fontsize=15, fontweight='bold')
     ax2.set_title(
-        'Spatial Cluster Distribution\n'
+        'Spatial Distribution\n'
         f'N = {len(X_2d):,} Prompts',
         fontsize=17,
         fontweight='bold',
@@ -296,10 +302,10 @@ def main():
     print("="*80)
     print("FIGURE 1M: SEMANTIC PCA OF FULL LMSYS CHAT-1M DATASET")
     print("="*80)
-    print("\n🎯 Goal: Show semantic structure at scale with 1M prompts")
-    print("   → Validate spatial clustering holds at scale")
-    print("   → Compare with original 1,871 holdout analysis")
-    print("   → Demonstrate robustness of semantic structure")
+    print("\n🎯 Goal: Show spatial structure persistence at scale")
+    print("   → Check whether PC1 distribution persists at 1M scale")
+    print("   → Compare spatial proportions with holdout (N=750)")
+    print("   → NOTE: No reward labels — spatial structure only")
     print("\n📐 Methodology: PCA trained on generic C4 corpus (no circularity)")
     
     # Paths
@@ -351,17 +357,17 @@ def main():
     print("✅ FIGURE 1M COMPLETE!")
     print("="*80)
     
-    print(f"\n🔍 Key Message:")
-    print(f"   • LMSYS Chat-1M shows clear spatial clustering at scale")
-    print(f"   • Semantic structure persists across different dataset sizes")
-    print(f"   • Structure is robust: 100k prompts vs 1,871 holdout")
-    print(f"   • Validates semantic routing approach")
+    print(f"\n🔍 Key Observations:")
+    print(f"   • PC1 spatial distribution persists at 1M scale")
+    print(f"   • High PC1 region is rarer in 1M data (~5.9%) than holdout (~19%)")
+    print(f"   • This validates spatial structure persistence only")
+    print(f"   • ⚠️  Cannot validate reward patterns (no labels in 1M data)")
     
     print(f"\n📊 For Paper:")
-    print(f"   • N = {len(prompts):,} prompts ({len(prompts)//1871}x larger than holdout)")
-    print(f"   • Spatial clustering: PC1-based separation")
-    print(f"   • Semantic structure enables generalization")
-    print(f"   • Confirms findings from 1,871 holdout analysis")
+    print(f"   • N = {len(prompts):,} prompts ({len(prompts)//750}x larger than holdout)")
+    print(f"   • Spatial structure persists at scale (expected: fixed linear projection)")
+    print(f"   • Distribution shift: High PC1 shrinks from ~19% to ~5.9%")
+    print(f"   • All performance claims remain based on holdout (N=750) only")
     
     print("\n" + "="*80)
 

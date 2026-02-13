@@ -12,9 +12,9 @@ Since reward gaps are derived from discrete pairwise outcomes (win/tie/loss), we
 
 \paragraph{Primary Tests (Categorical).}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{$\chi^2$ test of independence:} $p < 0.0001$ (outcome proportions differ significantly between clusters)
+    \item \textbf{$\chi^2$ test of independence:} $p < 0.0001$ (outcome proportions differ significantly between PC1 regions)
     \item \textbf{Cram\'er's $V$:} Reported in figure (categorical effect size)
-    \item \textbf{Contingency table:} Win/tie/loss counts by cluster (see figure panel B)
+    \item \textbf{Contingency table:} Win/tie/loss counts by PC1 region (see figure panel B)
 \end{itemize}
 
 \paragraph{Supplementary Tests (Ordinal).}
@@ -43,6 +43,9 @@ We conduct a Monte-Carlo power analysis for the $\chi^2$ test given the observed
 
 \paragraph{Effect Size Stability.}
 Since $p$-values alone are uninformative for threshold robustness (with $N=750$ discrete outcomes, most non-trivial splits produce small $p$-values), we additionally report Cram\'er's $V$ across a sweep of candidate thresholds to verify that the effect size---not merely its significance---is stable. The effect size remains meaningful across a range of thresholds, confirming the finding is not an artifact of a particular boundary choice.
+
+\paragraph{Multiple Comparisons.}
+Our analysis involves multiple tests: 50 candidate thresholds in the silhouette search, 40 thresholds in the stability sweep, two PCA approaches, and multiple test statistics ($\chi^2$, Mann-Whitney $U$, Cram\'er's $V$, Cohen's $d$). We do not apply formal correction (e.g., Bonferroni) for the following reasons: (1)~the primary threshold is selected by an unsupervised criterion (silhouette score) with no reference to reward labels or $p$-values, so no multiplicity adjustment is needed for the primary analysis; (2)~the threshold sweep is explicitly a \emph{sensitivity analysis}, not a search for the ``best'' $p$-value---we report effect size (\emph{Cram\'er's $V$}) across all thresholds precisely because $p$-values are uninformative at this sample size; and (3)~the two PCA approaches test a specific methodological hypothesis (domain adaptation vs.\ generic baseline), not a fishing expedition. We acknowledge that the overall analysis involves researcher degrees of freedom (choice of embedding model, PCA dimensionality, clustering method), and encourage readers to evaluate the generic PCA result ($d = 0.33$) as the conservative baseline.
 
 \subsubsection{PCA Provenance Sensitivity}
 
@@ -103,7 +106,7 @@ The held-out dataset ($N=750$) was created using stratified sampling across thre
     \item \textbf{Threshold justification:} Purely unsupervised (silhouette-optimal, no reward peeking)
     \item \textbf{PCA sensitivity:} Generic C4 PCA provides unbiased baseline ($d = 0.33$); domain-adapted PCA amplifies to $d = 1.53$ ($4.6\times$), partly reflecting domain overlap
     \item \textbf{High-D caveat:} Weak 384D structure (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$); projection artifact alternative discussed
-    \item \textbf{Data quality:} Zero duplicates; High PC1 cluster is homogeneous (diversity $= 0.355$); cluster content characterized via TF-IDF analysis
+    \item \textbf{Data quality:} Zero duplicates; High PC1 region is homogeneous (diversity $= 0.355$); region content characterized via TF-IDF analysis
     \item \textbf{Data integrity:} Held-out only ($N=750$); dev set excluded
-    \item \textbf{Generalizability:} Cluster proportion (19.2\% High PC1) is specific to the holdout; 1M dataset shows $\sim$5.9\% in corresponding spatial region
+    \item \textbf{Generalizability:} Region proportion (19.2\% High PC1) is specific to the holdout; 1M dataset shows $\sim$5.9\% in corresponding spatial region
 \end{enumerate}

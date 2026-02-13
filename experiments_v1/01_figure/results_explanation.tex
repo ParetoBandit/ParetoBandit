@@ -12,7 +12,7 @@ Reward gaps are derived from pairwise human preference evaluations (LMSYS Chatbo
 We therefore report outcome proportions and categorical statistics ($\chi^2$ test, Cram\'er's $V$) as the primary analysis, supplemented by ordinal tests (Mann-Whitney $U$).
 
 \paragraph{Model Preference Heterogeneity.}
-Using a silhouette-optimal threshold ($\text{PC1} = 0.222$, selected without reference to reward labels), we identify two clusters with significantly different outcome distributions:
+Using a silhouette-optimal threshold ($\text{PC1} = 0.222$, selected without reference to reward labels), we identify two regions of the PC1 axis with significantly different outcome distributions:
 
 \begin{itemize}[noitemsep,topsep=2pt]
     \item \textbf{Low PC1 Cluster (80.8\%, $n=606$):} Diverse conversational prompts where GPT-4-Turbo is preferred on aggregate (mean $\Delta = +0.121$).
@@ -22,8 +22,13 @@ Using a silhouette-optimal threshold ($\text{PC1} = 0.222$, selected without ref
     Note: this cluster proportion (19.2\%) is specific to the holdout sample; the 1M dataset shows $\sim$5.9\% in the corresponding spatial region.
 \end{itemize}
 
+\paragraph{Outcome Distribution Context.}
+The Low PC1 region is dominated by ties ($\sim$82\%), with a modest GPT-4-Turbo advantage ($\sim$15\% GPT-4T wins vs.\ $\sim$3\% Mixtral wins).
+The heterogeneity finding is therefore best understood as: \emph{a minority of prompts ($\sim$19\% in the holdout) exhibit a strong Mixtral preference reversal, while the majority show weak or no model differentiation.}
+This has practical implications for routing: the achievable cost savings are bounded by the fraction of prompts where a genuine preference difference exists, and the majority-tie outcome suggests that for most prompts, either model would perform comparably.
+
 \paragraph{Statistical Validation.}
-The outcome distributions differ significantly between clusters ($\chi^2$ test: $p < 0.0001$, Cram\'er's $V$ reported in figure).
+The outcome distributions differ significantly between regions ($\chi^2$ test: $p < 0.0001$, Cram\'er's $V$ reported in figure).
 The ordinal Mann-Whitney $U$-test, appropriate for the discrete reward gap, also confirms the difference ($p < 0.0001$).
 
 \paragraph{PCA Sensitivity.}
@@ -52,7 +57,7 @@ The generic PCA result should be considered the conservative baseline for the ef
 \end{itemize}
 
 \paragraph{Implications for Routing.}
-This preference heterogeneity provides empirical justification for adaptive routing over static ``complexity'' heuristics.
-A static router based on ``difficulty'' might assume that strict, complex constraints require the strongest model.
-However, \texttt{banditGPT} learns the \emph{empirical} truth: on this subset of tasks, the cheaper model is preferred.
-By identifying this structure, the router achieves cost reduction not just by offloading easy tasks, but by routing the subset of tasks where the cheaper model empirically excels.
+This preference heterogeneity is a \emph{necessary condition} for adaptive routing: without any semantic signal correlating with model preference, learned routing would reduce to random assignment.
+The unbiased effect ($d = 0.33$, $\rho^2 = 0.156$) is moderate, so whether it is \emph{sufficient} for practical routing gains is an empirical question addressed in our bandit evaluation (Table~2).
+The practical impact also depends on the fraction of prompts that fall in the High PC1 region: $\sim$19\% in the holdout, but potentially as low as $\sim$5.9\% in broader production traffic (1M dataset), which proportionally limits achievable cost savings.
+Nonetheless, the finding that preference \emph{reversals} exist---a subset of prompts where the cheaper model is preferred---motivates routing strategies that go beyond simple difficulty-based heuristics.

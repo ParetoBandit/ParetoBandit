@@ -537,7 +537,7 @@ def main():
         fontsize=10, fontweight='bold'
     )
     ax2.set_ylabel('Proportion (%)', fontsize=12, fontweight='bold')
-    ax2.set_title('(B)  Outcome Proportions by Cluster', fontsize=13,
+    ax2.set_title('(B)  Outcome Proportions by PC1 Region', fontsize=13,
                    fontweight='bold', pad=12)
     ax2.set_ylim(0, max(props_low.max(), props_high.max()) + 15)
     ax2.legend(loc='upper left', fontsize=8.5, framealpha=0.95,
@@ -546,18 +546,19 @@ def main():
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
 
-    # Statistical annotation box
+    # Statistical annotation box — include both PCA effect sizes
     p_str_chi2 = 'p < 0.0001' if p_chi2 < 0.0001 else f'p = {p_chi2:.4f}'
     p_str_mw = 'p < 0.0001' if p_value < 0.0001 else f'p = {p_value:.4f}'
     stat_text = (
         f"$\\chi^2$ = {chi2:.1f}, {p_str_chi2}\n"
         f"Cram\u00e9r's V = {cramers_v:.2f}\n"
-        f"Mann-Whitney {p_str_mw}\n"
+        f"Cohen's d = 0.33 (generic PCA)\n"
+        f"Cohen's d = {cohens_d:.2f} (domain PCA)\n"
         f'N = {len(reward_gaps)}'
     )
     ax2.text(
         0.97, 0.97, stat_text, transform=ax2.transAxes,
-        fontsize=8.5, verticalalignment='top', horizontalalignment='right',
+        fontsize=7.5, verticalalignment='top', horizontalalignment='right',
         bbox=dict(boxstyle='round,pad=0.4', facecolor='#f5f5f5',
                   edgecolor='#cccccc', alpha=0.95)
     )

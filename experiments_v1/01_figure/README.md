@@ -17,11 +17,11 @@ This experiment demonstrates statistically significant heterogeneity in model pr
 
 This experiment establishes the **foundation** for our routing approach:
 
-**What it shows:** Semantic structure exists in the task space, enabling statistical identification of prompt types with different model preferences. The correlation is moderate but statistically significant.
+**What it shows:** A statistically significant, moderate correlation exists between prompt semantics (PC1) and model preference outcomes. The unbiased effect is small (d = 0.33), explaining ~16% of reward gap variance.
 
-**Why it matters:** This semantic structure makes LLM routing **learnable** through contextual bandits. Without this structure, routing would be random guessing.
+**Why it matters:** This correlation is a *necessary condition* for learned routing — without any signal, routing would be random guessing. Whether the signal is sufficient for practical routing gains is an empirical question tested in later experiments (Table 2). The practical impact also depends on the fraction of routable prompts: ~19% in the holdout, but potentially as low as ~5.9% in production traffic (1M dataset), which proportionally limits achievable cost savings.
 
-**What's next:** However, discovering structure doesn't solve the **safety problem**: What if our training data distribution doesn't match deployment? Distribution shift could make our learned routing policy catastrophically wrong. **See Figure 2 for distribution shift analysis.**
+**What's next:** However, discovering structure doesn't solve the **safety problem**: What if our training data distribution doesn't match deployment? Distribution shift could make our learned routing policy unreliable. **See Figure 2 for distribution shift analysis.**
 
 ## Files
 
@@ -134,20 +134,11 @@ python3 experiments_v1/01_figure/plot_lmsys_1M_pca.py
 
 ### Threshold Selection Validation
 
-To ensure the PC1 = 0.3 decision boundary is principled and not arbitrary, we performed systematic validation using multiple independent methods:
+The threshold is determined by a purely unsupervised method: silhouette-optimal search over PC1 values, maximizing geometric cluster quality without reference to reward labels. This yields PC1 ≈ 0.222 (silhouette = 0.499). K-means (k=2) independently identifies a nearby boundary (~0.138). Both methods yield p < 0.0001.
 
-**Grid Search Analysis:**
-- Evaluated 50 candidate thresholds
-- Optimal by composite score: 0.317
-- PC1 = 0.3 within 1σ of optimal (0.320 ± 0.105)
-
-**Unsupervised Clustering:**
-- K-Means, GMM independently identify boundaries near 0.3
-- Convergence across methods validates threshold choice
-
-**Sensitivity Analysis:**
-- Results robust across [0.2, 0.4] range (all p < 10⁻¹⁰⁰)
-- Silhouette score: 0.4948, gap separation: 0.815
+**Effect Size Stability:**
+- Cramer's V is reported across a sweep of candidate thresholds (not just p-values) to confirm that the effect size — not merely its significance — is stable across a range of boundary choices.
+- With N=750 discrete outcomes, most non-trivial splits produce small p-values, so p-value stability alone is uninformative. The stability of Cramer's V is the meaningful robustness check.
 
 Threshold validation is integrated into the main script (`plot_figure1_revised.py`).
 
@@ -206,11 +197,16 @@ Prompts in the "high PC1" cluster are characterized via systematic TF-IDF keywor
 
 **Important Note**: These findings represent **correlational relationships**, not established causal mechanisms. The observed patterns show that certain prompt characteristics correlate with preference differences, but controlled experiments would be needed to establish causative factors.
 
+### Outcome Distribution Context
+
+The Low PC1 region is dominated by ties (~82%), with a modest GPT-4-Turbo advantage (~15% GPT-4T wins vs. ~3% Mixtral wins). The heterogeneity finding is best understood as: *a minority of prompts (~19% in the holdout) exhibit a strong Mixtral preference reversal, while the majority show weak or no model differentiation.* This means the majority of prompts could be served by either model with comparable quality, and the routing opportunity is concentrated in the minority with clear preference reversals.
+
 ### Why This Matters
 
 - **Routing Opportunity**: Statistical identification of heterogeneity enables learned routing strategies
 - **Moderate Effect**: The unbiased effect size is small (Cohen's d = 0.33); domain-adapted feature extraction amplifies this to d = 1.53, indicating routing benefits from task-appropriate PCA
 - **Practical Value**: In the holdout sample, ~19% of prompts show preference for cheaper models; this proportion may be smaller in broader production traffic (~5.9% in 1M dataset)
+- **Tie-Dominated Baseline**: ~82% of Low PC1 prompts are ties, meaning the achievable routing benefit is bounded by the fraction of prompts with genuine preference differences
 
 ### Projection Artifact Consideration
 
@@ -222,10 +218,10 @@ The 384D silhouette score (0.057) indicates weak cluster structure in the full e
 |--------|-------------------|------------------------|
 | PC1 Variance | 3.10% | 3.101% |
 | PC2 Variance | 2.29% | 2.294% |
-| Boundary Location | PC1 = 0.3 | PC1 = 0.3 |
-| Low PC1 (%) | 82.4% | **94.1%** |
-| High PC1 (%) | 17.6% | **5.9%** |
-| **Reward Labels** | **✅ Available** | **Not available** |
+| Threshold | PC1 = 0.222 (silhouette-optimal) | Same (holdout-derived) |
+| Low PC1 (%) | 80.8% | **94.1%** |
+| High PC1 (%) | 19.2% | **5.9%** |
+| **Reward Labels** | **Available** | **Not available** |
 
 **Validation Approach:**
 - Holdout provides validated ground truth with reward labels
@@ -372,10 +368,10 @@ python3 experiments_v1/01_figure/plot_figure1_revised.py
 
 ## 🔗 What's Next?
 
-This experiment establishes that semantic structure makes routing learnable, but raises critical questions:
+This experiment establishes that a moderate correlation exists between prompt semantics and model preference — a necessary condition for routing. It raises critical questions:
 
 1. **Distribution Shift:** Does training data match deployment? → **See Figure 2**
 2. **Dataset Provenance:** Where does our data come from? → **See Table 1**
 3. **Learning Safety:** How do we handle mismatch? → **See Table 2 (Corralling validation)**
 
-**The story continues:** We've found the structure. Now we need to learn from it safely.
+**The story continues:** We've found a moderate signal. Now we need to learn from it safely — and verify that the signal is exploitable in practice.
