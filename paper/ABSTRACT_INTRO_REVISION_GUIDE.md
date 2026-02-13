@@ -15,7 +15,7 @@
 
 ### 2. Unified Introduction
 **File:** `paper/sections/introduction_UNIFIED.tex`  
-**Length:** ~1,800 words (reasonable for KDD)  
+**Length:** ~1,800 words (reasonable for conferences)  
 **Structure:** Motivation → Solution → Validation
 
 ---
@@ -252,7 +252,7 @@ Use parts of the new versions:
 ### From Authors
 1. **Verify metrics:** All numbers pulled from experiment READMEs—double-check accuracy
 2. **Tone:** Is "Negative Intelligence Tax" too provocative? (Current: included, but can soften)
-3. **Length:** Introduction is ~1,800 words—acceptable for KDD? (Typical: 1,500-2,500)
+3. **Length:** Introduction is ~1,800 words—acceptable for conferences? (Typical: 1,500-2,500)
 4. **Citations:** Need to add refs for RouteLLM, FrugalGPT, Corralling if not already in bib
 
 ### From Co-Authors

@@ -1,0 +1,16 @@
+PCA Transfer Quality Validation Results
+======================================================================
+
+Date: 2026-02-13
+
+Reconstruction Error:
+  Warmup MSE:     0.001529
+  Evaluation MSE: 0.001534
+  Ratio:          1.00x
+
+Explained Variance:
+  Warmup:     35.14%
+  Evaluation: 36.53%
+  Difference: -1.39%
+
+Overall: PCA transfers well

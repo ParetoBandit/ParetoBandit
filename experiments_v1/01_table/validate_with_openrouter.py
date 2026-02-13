@@ -434,7 +434,7 @@ def main():
     
     # Interpretation
     print(f"\n{'='*60}")
-    print(f"INTERPRETATION FOR KDD PAPER")
+    print(f"INTERPRETATION FOR PAPER")
     print(f"{'='*60}")
     
     if results['accuracy'] >= 0.80:
@@ -473,7 +473,7 @@ def main():
     print(f"   Time: ~{len(samples) * 2 / 60:.1f} minutes")
     
     if results['accuracy'] >= 0.75 and kappa >= 0.55:
-        print(f"\n✅ RECOMMENDATION: These results are strong enough for KDD acceptance.")
+        print(f"\n✅ RECOMMENDATION: These results are strong enough for paper acceptance.")
         print(f"   Your categorization heuristic is validated and reliable.")
     else:
         print(f"\n⚠️  RECOMMENDATION: Results are moderate. Consider:")

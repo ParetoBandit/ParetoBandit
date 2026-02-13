@@ -14,7 +14,7 @@ Strategy:
    - Always GPT-4o (mid-cost, high quality)
 3. Show Corralling achieves similar quality at lower cost
 
-KDD Reviewer Requirement: "Test cost-quality mechanism with λ_cost > 0 control"
+Conference Reviewer Requirement: "Test cost-quality mechanism with λ_cost > 0 control"
 """
 
 import json
@@ -26,7 +26,7 @@ from pathlib import Path
 MODEL_COSTS = {
     'mistralai/mixtral-8x7b-instruct': 0.27,  # Cheap
     'openai/gpt-4-turbo': 10.00,               # Expensive
-    'openai/gpt-4o': 2.50,                     # Mid-cost (4x cheaper than GPT-4-Turbo)
+    'openai/gpt-4-turbo': 2.50,                     # Mid-cost (4x cheaper than GPT-4-Turbo)
 }
 
 
@@ -78,7 +78,7 @@ def analyze_corralling_results(results_file):
     rewards_by_model = {
         'mistralai/mixtral-8x7b-instruct': 0.90,
         'openai/gpt-4-turbo': 0.95,
-        'openai/gpt-4o': 0.95,
+        'openai/gpt-4-turbo': 0.95,
     }
     
     avg_cost, estimated_reward = compute_avg_cost_and_reward(model_usage, rewards_by_model)
@@ -117,8 +117,8 @@ def create_baseline_strategies(n_requests=1121):
     # Baseline 3: Always GPT-4o (mid-cost)
     baselines.append({
         'name': 'Always GPT-4o',
-        'model_usage': {'openai/gpt-4o': n_requests},
-        'avg_cost': MODEL_COSTS['openai/gpt-4o'],
+        'model_usage': {'openai/gpt-4-turbo': n_requests},
+        'avg_cost': MODEL_COSTS['openai/gpt-4-turbo'],
         'avg_reward': 0.95,  # Assume high quality (similar to GPT-4-Turbo)
     })
     
@@ -129,7 +129,7 @@ def create_baseline_strategies(n_requests=1121):
         'model_usage': {
             'mistralai/mixtral-8x7b-instruct': n_each,
             'openai/gpt-4-turbo': n_each,
-            'openai/gpt-4o': n_each,
+            'openai/gpt-4-turbo': n_each,
         },
         'avg_cost': np.mean(list(MODEL_COSTS.values())),
         'avg_reward': (0.90 + 0.95 + 0.95) / 3,  # Average quality
@@ -141,11 +141,11 @@ def create_baseline_strategies(n_requests=1121):
         'name': 'Warmup Expert (Biased)',
         'model_usage': {
             'openai/gpt-4-turbo': int(0.80 * n_requests),
-            'openai/gpt-4o': int(0.15 * n_requests),
+            'openai/gpt-4-turbo': int(0.15 * n_requests),
             'mistralai/mixtral-8x7b-instruct': int(0.05 * n_requests),
         },
         'avg_cost': 0.80 * MODEL_COSTS['openai/gpt-4-turbo'] + 
-                   0.15 * MODEL_COSTS['openai/gpt-4o'] +
+                   0.15 * MODEL_COSTS['openai/gpt-4-turbo'] +
                    0.05 * MODEL_COSTS['mistralai/mixtral-8x7b-instruct'],
         'avg_reward': 0.80 * 0.95 + 0.15 * 0.95 + 0.05 * 0.90,
     })

@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 
 class ExperimentBurnIn:
     """
-    Facilitates the KDD-compliant burn-in process for experiments.
+    Facilitates the Conference-compliant burn-in process for experiments.
     
     This class centralizes the loading of splits, curriculum generation, 
     and router burn-in logic to ensure consistency across different evaluation runs.
@@ -190,7 +190,7 @@ class ExperimentBurnIn:
         if not self.splits_path.exists():
             raise FileNotFoundError(
                 f"❌ Critical Error: {self.splits_path} not found. "
-                "Ensure canonical KDD dev/test splits are generated."
+                "Ensure canonical conference dev/test splits are generated."
             )
             
         with open(self.splits_path) as f:

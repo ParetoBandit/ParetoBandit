@@ -1,6 +1,6 @@
 # Code Quality Fixes Summary
 
-This document summarizes the three critical code quality fixes implemented in response to the KDD review.
+This document summarizes the three critical code quality fixes implemented in response to the conference review.
 
 ## Overview
 

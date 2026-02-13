@@ -99,7 +99,7 @@ All important findings about regime-dependent robustness are properly captured i
 - `CROSS_EXPERIMENT_ANALYSIS.md` (5.0 KB) - Cross-experiment comparison
 
 #### Revision Guides
-- `PAPER_REVISION_GUIDE.md` (14.8 KB) - KDD revision instructions
+- `PAPER_REVISION_GUIDE.md` (14.8 KB) - conference revision instructions
 - `README_REVISED.md` (9.6 KB) - Revised experiment description
 - `PRACTICAL_GUIDANCE_SUMMARY.md` (9.8 KB) - Guidance summary
 - `SCRIPT_CONSOLIDATION_SUMMARY.md` (5.5 KB) - Script consolidation notes

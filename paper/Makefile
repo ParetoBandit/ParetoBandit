@@ -1,4 +1,4 @@
-# Makefile for banditGPT KDD 2026 Paper
+# Makefile for banditGPT Paper
 
 # Main file
 MAIN = main

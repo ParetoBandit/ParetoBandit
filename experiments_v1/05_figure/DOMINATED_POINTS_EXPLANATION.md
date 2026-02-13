@@ -61,7 +61,7 @@ The dominated points for banditGPT are primarily due to:
 - **Reproducibility**: Other researchers can verify our process
 
 ### Standard Practice in Multi-Objective Optimization
-From the KDD 2023 paper "Pareto Frontier Learning with Teacher-Student Curriculum":
+From the conference 2023 paper "Pareto Frontier Learning with Teacher-Student Curriculum":
 
 > "We report all experimental points (N=50) and identify the Pareto frontier 
 > via convex hull filtering. Dominated points (shown as faint markers) 
@@ -136,4 +136,4 @@ Error bars show 95% CI (n=5 trials).
 
 - Boyd & Vandenberghe (2004). *Convex Optimization*. Section 4.7: Multi-objective optimization
 - Deb et al. (2002). "A fast and elitist multiobjective genetic algorithm: NSGA-II"
-- KDD Best Practices: "Report Pareto frontiers with convex hull filtering; show dominated points as supplementary"
+- conference Best Practices: "Report Pareto frontiers with convex hull filtering; show dominated points as supplementary"

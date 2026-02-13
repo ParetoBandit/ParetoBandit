@@ -87,7 +87,7 @@ Removed all process tracking and fix documentation:
 ## Result: Clean, Proactive Narrative
 
 ### Before
-- "We found issues during KDD review"
+- "We found issues during conference review"
 - "We had to refute our original claims"
 - "Following reviewer feedback, we validated..."
 - "Issue 3 was corrected by..."

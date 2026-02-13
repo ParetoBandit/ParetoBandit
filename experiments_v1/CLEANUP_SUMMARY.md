@@ -13,11 +13,11 @@
 Updated all experiment LaTeX files to be venue-neutral and publication-agnostic.
 
 #### **Changes Made**:
-- ❌ "KDD 2026" → ✅ (removed)
-- ❌ "KDD-compliant" → ✅ "comprehensive" or "publication-quality"
-- ❌ "per KDD reviewer" → ✅ general improvement language
-- ❌ "for KDD page limits" → ✅ "for main paper"
-- ❌ "KDD reviewers prioritize" → ✅ general best practices language
+- ❌ "Conference" → ✅ (removed)
+- ❌ "Conference-compliant" → ✅ "comprehensive" or "publication-quality"
+- ❌ "per conference reviewer" → ✅ general improvement language
+- ❌ "for conference page limits" → ✅ "for main paper"
+- ❌ "Conference reviewers prioritize" → ✅ general best practices language
 
 #### **Files Updated**:
 1. `experiments_v1/08_figure/results_section_REVISED.tex`
@@ -37,9 +37,9 @@ Updated all experiment LaTeX files to be venue-neutral and publication-agnostic.
 
 #### **README Updated**:
 - `experiments_v1/08_figure/README.md`:
-  - Removed "KDD 2026 submission" reference
-  - Changed "KDD-Compliant" to "Comprehensive"
-  - Updated "KDD-compliant aesthetic" to "publication-quality aesthetic"
+  - Removed "Conference submission" reference
+  - Changed "Conference-Compliant" to "Comprehensive"
+  - Updated "Conference-compliant aesthetic" to "publication-quality aesthetic"
   - Changed "eliminates variance" to "ensures reproducibility"
 
 ---
@@ -88,7 +88,7 @@ Preserved valuable scientific and technical documentation:
 - ❌ 11 fix-related documentation files (2,958 lines)
 - ❌ Conference-specific language throughout LaTeX files
 - ❌ Reactive framing ("per reviewer request")
-- ❌ Venue-specific references (KDD 2026)
+- ❌ Venue-specific references (Conference)
 
 ### **After Cleanup**
 - ✅ Clean, focused documentation
@@ -112,10 +112,10 @@ Preserved valuable scientific and technical documentation:
 
 ### **Before**:
 ```tex
-% KDD 2026 - Figure 6: Corralling for Catastrophic Failure Detection
-% KDD-Compliant Experimental Design Documentation
-% For KDD reproducibility standards
-% Addresses KDD reviewer concerns about regime-dependent effects
+% Conference - Figure 6: Corralling for Catastrophic Failure Detection
+% Conference-Compliant Experimental Design Documentation
+% For conference reproducibility standards
+% Addresses conference reviewer concerns about regime-dependent effects
 ```
 
 ### **After**:
@@ -159,7 +159,7 @@ a81e5ce Remove revision/fix documentation and update language to be proactive
 ## Verification
 
 ### **LaTeX Files** ✅
-- [x] No "KDD" references remain in experiment files
+- [x] No "Conference" references remain in experiment files
 - [x] All framing is proactive, not reactive
 - [x] Language is venue-neutral
 - [x] Page limit references are generic

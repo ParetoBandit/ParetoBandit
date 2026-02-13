@@ -19,7 +19,7 @@ Measures:
 
 Author: BanditGPT Team
 Date: 2026-02-12
-Status: NEW (addresses KDD reviewer Issues 2B & 2C)
+Status: NEW (addresses conference reviewer Issues 2B & 2C)
 """
 
 import sys

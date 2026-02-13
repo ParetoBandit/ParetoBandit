@@ -1,7 +1,7 @@
 # Inconsistency Fixes Summary
 
 **Date**: February 13, 2026  
-**Reviewer**: AI Assistant (acting as KDD Reviewer)  
+**Reviewer**: AI Assistant (acting as conference Reviewer)  
 **Status**: ✅ All Major & Moderate Issues Fixed, Minor Issues Addressed
 
 ---
@@ -246,6 +246,6 @@ These elements showed **no inconsistencies** across experiments:
 
 ---
 
-**Prepared by**: AI Assistant (KDD Reviewer Role)  
+**Prepared by**: AI Assistant (Paper Reviewer Role)  
 **Date**: February 13, 2026  
 **Status**: Ready for author review

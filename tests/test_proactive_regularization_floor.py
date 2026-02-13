@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test: Proactive Regularization Floor (KDD Review Fix)
+Test: Proactive Regularization Floor (Paper Review Fix)
 
 Verifies that the proactive regularization floor prevents eigenvalue decay
 in forgetting bandits. This addresses the reviewer's critique that applying

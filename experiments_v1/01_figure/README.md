@@ -28,36 +28,24 @@ This experiment establishes the **foundation** for our routing approach:
 ### Analysis Scripts
 
 #### Primary Analysis
-- `plot_lmsys_holdout_pca.py` - Main visualization and analysis
-  - Projects 1,871 LMSYS prompts onto PCA space
+- `plot_figure1_revised.py` - Main visualization and analysis
+  - Projects 750 held-out LMSYS prompts onto PCA space (no dev contamination)
+  - Uses routing-adapted PCA (domain-specific feature extraction)
   - Validates clusters against reward gaps with statistical tests
   - Computes significance, effect sizes, confidence intervals
   - Generates Figure 1 with comprehensive annotations
+- `archived/plot_lmsys_holdout_pca.py.OLD` - Archived version using generic C4 PCA
 
-#### Validation Scripts
-- `check_cluster_stats.py` - Statistical validation
-  - Multiple significance tests (Mann-Whitney, Welch's t-test)
-  - Effect size calculations (Cohen's d)
-  - Confidence intervals and distribution diagnostics
-  - Representative example sampling (farthest-first traversal)
+#### Validation Scripts (Archived)
 
-- `validate_threshold.py` - Threshold robustness validation
-  - Grid search over 50 candidate thresholds
-  - Unsupervised clustering comparison (k-means, GMM)
-  - Multi-criteria optimization and sensitivity analysis
-  - Validates PC1 = 0.3 is principled choice
+**Note**: The following validation scripts have been archived to `archived/` because they used dev+holdout (N=1,871) instead of holdout only (N=750). They are preserved for reference but not used in the current analysis.
 
-- `validate_high_dimensional.py` - High-dimensional structure validation
-  - Cluster quality across 2D, 32D, 384D spaces
-  - Separation ratio analysis in original embedding space
-  - PC1-reward correlation validation in 384D
-  - Confirms structure is not projection artifact
+- `archived/check_cluster_stats.py.OLD` - Statistical validation
+- `archived/validate_threshold.py.OLD` - Threshold robustness validation
+- `archived/validate_high_dimensional.py.OLD` - High-dimensional structure validation
+- `archived/analyze_cluster_diversity.py.OLD` - Data quality validation
 
-- `analyze_cluster_diversity.py` - Data quality validation
-  - Exact and near-duplicate detection
-  - Intra-cluster diversity metrics (pairwise similarity)
-  - Representative sampling for generalizability
-  - Validates findings not driven by repeated templates
+All validation results in the current paper are based on the main analysis script (`plot_figure1_revised.py`) which correctly uses N=750 holdout only.
 
 #### Scale Analysis
 - `plot_lmsys_1M_pca.py` - Production-scale spatial analysis
@@ -135,29 +123,18 @@ python3 experiments_v1/01_figure/compare_pca_models.py
 ### Individual PCA Analyses
 
 ```bash
-# Domain-adapted PCA (routing-trained)
-python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py
-
-# Generic PCA (robustness check)
-python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py \
-    --pca src/artifacts/pca_32_generic.joblib
+# Generate Figure 1 (uses routing-adapted PCA)
+python3 experiments_v1/01_figure/plot_figure1_revised.py
 ```
 
 ### Validation Analyses
 
 ```bash
-# Statistical significance and cluster quality
-python3 experiments_v1/01_figure/check_cluster_stats.py
-
-# Threshold selection validation
-python3 experiments_v1/01_figure/validate_threshold.py
-
-# High-dimensional structure validation
-python3 experiments_v1/01_figure/validate_high_dimensional.py
-
-# Data quality and diversity analysis
-python3 experiments_v1/01_figure/analyze_cluster_diversity.py
+# Generate Figure 1 (includes all validation in one script)
+python3 experiments_v1/01_figure/plot_figure1_revised.py
 ```
+
+**Note**: Standalone validation scripts have been archived. All validation is now integrated into the main figure generation script.
 
 ### Scale Analysis (Optional)
 
@@ -190,7 +167,7 @@ To ensure the PC1 = 0.3 decision boundary is principled and not arbitrary, we pe
 - Results robust across [0.2, 0.4] range (all p < 10⁻¹⁰⁰)
 - Silhouette score: 0.4948, gap separation: 0.815
 
-See `validate_threshold.py` for implementation.
+See `archived/validate_threshold.py.OLD` for historical implementation (used N=1,871).
 
 ### High-Dimensional Structure Validation
 
@@ -206,7 +183,7 @@ While PC1+PC2 capture only 5.4% of embedding variance, we validate that this low
 - Remaining 94.6% represents task-orthogonal variation (topic, language, style)
 - Successful dimensionality reduction isolates routing-relevant structure
 
-See `validate_high_dimensional.py` for implementation.
+See `archived/validate_high_dimensional.py.OLD` for historical implementation (used N=1,871).
 
 ### Data Quality Analysis
 
@@ -224,7 +201,7 @@ See `validate_high_dimensional.py` for implementation.
 - Unsupervised clustering (k-means) avoids circular threshold selection
 - Multiple PCA approaches validate finding independence
 
-See `analyze_cluster_diversity.py` for implementation.
+See `archived/analyze_cluster_diversity.py.OLD` for historical implementation (used N=1,871).
 
 ## Understanding Model Preference Heterogeneity
 
@@ -253,7 +230,7 @@ Prompts in the "high PC1" cluster tend to share certain characteristics:
 
 ## Dataset Comparison
 
-| Metric | Holdout (N=1,871) | 1M Dataset (N=594,199) |
+| Metric | Holdout (N=750) | 1M Dataset (N=594,199) |
 |--------|-------------------|------------------------|
 | PC1 Variance | 3.10% | 3.101% |
 | PC2 Variance | 2.29% | 2.294% |
@@ -383,11 +360,10 @@ To ensure methodological rigor, we validate findings across two PCA training app
 # Train generic PCA on C4 corpus
 python3 scripts/train_pca_generic.py
 
-# Generate analysis with specific PCA
-python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py \
-    --pca src/artifacts/pca_32_generic.joblib
+# Generate Figure 1 (uses routing-adapted PCA by default)
+python3 experiments_v1/01_figure/plot_figure1_revised.py
 
-# Compare both approaches
+# Compare both PCA approaches
 python3 experiments_v1/01_figure/compare_pca_models.py
 ```
 

@@ -1,5 +1,5 @@
 """
-Figure 3: Corralled Architecture (KDD 2026)
+Figure 3: Corralled Architecture (Conference)
 Professional academic diagram - clean vertical flow with clear feedback path.
 """
 

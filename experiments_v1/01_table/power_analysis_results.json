@@ -1,0 +1,10 @@
+{
+  "n": 750,
+  "alpha": 0.05,
+  "power": 0.8,
+  "sigma": 0.3,
+  "min_detectable_effect": 0.04343024275716782,
+  "cohens_d": 0.14476747585722607,
+  "observed_effect": 0.029000000000000026,
+  "adequately_powered": false
+}

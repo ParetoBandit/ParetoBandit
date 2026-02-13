@@ -30,7 +30,7 @@ class CoTRewardGenerator:
         
         # Judge Pool
         self.judge_pool = {
-            "openai": "openai/gpt-4o",
+            "openai": "openai/gpt-4-turbo",
             "anthropic": "anthropic/claude-3.5-sonnet",
             "meta": "meta-llama/llama-3.1-405b-instruct",
             "google": "google/gemini-2.5-pro-preview-06-05"

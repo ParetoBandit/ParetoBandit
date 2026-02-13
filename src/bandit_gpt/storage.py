@@ -3,7 +3,7 @@ Context Persistence (SQLite)
 
 Production-ready storage backends for context vectors in the BanditRouter.
 
-**KDD Reviewer Critique: "The Feedback Horizon Fallacy"**
+**Conference Reviewer Critique: "The Feedback Horizon Fallacy"**
 
 Problem: deque(maxlen=10_000) at 100 QPS fills in 100 seconds.
 Human feedback (RLHF) arriving >100s later is lost.
@@ -31,7 +31,7 @@ class ContextStore(ABC):
     """
     Abstract base class for context vector storage.
     
-    **KDD Reviewer Critique: "The Feedback Horizon Fallacy"**
+    **Conference Reviewer Critique: "The Feedback Horizon Fallacy"**
     
     Problem: deque(maxlen=10_000) at 100 QPS fills in 100 seconds.
     Human feedback (RLHF) arriving >100s later is lost.
@@ -346,7 +346,7 @@ class CheckpointManager:
     - Atomic writes (temp file + rename) prevent corruption
     - Handles registry drift (new models added since last checkpoint)
     - Separates State (learned) from Config (immutable)
-    - Enables "Magic Resume" feature KDD reviewers expect
+    - Enables "Magic Resume" feature conference reviewers expect
     
     **Usage**:
     ```python

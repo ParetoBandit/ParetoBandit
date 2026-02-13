@@ -1,12 +1,12 @@
 # BanditGPT Paper Appendix
 
-**KDD-Compliant Supplementary Material**
+**Supplementary Material**
 
 ---
 
 ## Overview
 
-This directory contains the complete appendix for the banditGPT paper, organized into seven main sections (A-G) following KDD conference standards.
+This directory contains the complete appendix for the banditGPT paper, organized into seven main sections (A-G) following conference conference standards.
 
 **Total Appendix Sections**: 7  
 **Organization**: Modular, self-contained sections  
@@ -253,7 +253,7 @@ pdflatex C1_comprehensive_sensitivity.tex
 
 ---
 
-## KDD Format Compliance
+## conference Format Compliance
 
 ### Requirements Met ✅
 
@@ -356,7 +356,7 @@ For questions about appendix organization or to suggest improvements:
 
 1. Read section-specific README in each subdirectory
 2. Check `APPENDIX_ORGANIZATION_PLAN.md` for design rationale
-3. Follow KDD format guidelines for any additions
+3. Follow conference format guidelines for any additions
 4. Maintain modularity - each section should be self-contained
 
 ---

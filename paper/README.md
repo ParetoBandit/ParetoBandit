@@ -1,6 +1,6 @@
-# banditGPT: KDD 2026 Paper
+# banditGPT: Paper
 
-This directory contains the LaTeX source for the KDD 2026 submission.
+This directory contains the LaTeX source for the paper submission.
 
 ## Paper Title
 **banditGPT: Lifelong Learning for LLM Routing via Latent Semantic Transfer and Expert Corralling**
@@ -46,9 +46,9 @@ latexmk -pdf main.tex
 - **Cost reduction**: 27%
 - **Hyperparameter robustness**: Perfect stability across 20× range of n_eff
 
-## KDD 2026 Compliance
+## Formatting Compliance
 
-This paper follows the ACM SIGKDD 2026 formatting requirements:
+This paper follows the ACM conference formatting requirements:
 - Document class: `acmart` with `sigconf` option
 - Anonymous submission format
 - CCS concepts included

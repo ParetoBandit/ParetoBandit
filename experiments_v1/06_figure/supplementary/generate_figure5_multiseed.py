@@ -3,7 +3,7 @@ Figure 5 Generator: Multi-Seed Statistical Analysis
 ====================================================
 Runs the phased stress test with multiple seeds to provide statistical validation.
 
-This addresses the KDD reviewer concern: "No confidence intervals or multiple seeds"
+This addresses the conference reviewer concern: "No confidence intervals or multiple seeds"
 
 Reports:
 - Mean ± std for decommission time
@@ -300,7 +300,7 @@ def main():
     logger.info("\n" + "="*70)
     logger.info("FIGURE 5: Multi-Seed Statistical Validation")
     logger.info("="*70)
-    logger.info("\nThis addresses the KDD reviewer concern:")
+    logger.info("\nThis addresses the conference reviewer concern:")
     logger.info("'No confidence intervals or multiple seeds'\n")
     
     # Run multi-seed analysis

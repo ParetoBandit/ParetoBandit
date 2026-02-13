@@ -1,5 +1,5 @@
 """
-KDD-style plotting utilities for BanditGPT experiments.
+Conference-style plotting utilities for BanditGPT experiments.
 
 Provides consistent, publication-ready formatting across all figures.
 """
@@ -9,8 +9,8 @@ import matplotlib as mpl
 from pathlib import Path
 
 
-# KDD formatting constants
-KDD_STYLE = {
+# conference formatting constants
+Conference_STYLE = {
     "figure.figsize": (7, 3.5),  # Double-column width
     "font.size": 12,
     "font.family": "serif",
@@ -36,13 +36,13 @@ COLORS = {
 
 
 def apply_kdd_style():
-    """Apply KDD formatting to matplotlib globally."""
-    mpl.rcParams.update(KDD_STYLE)
+    """Apply conference formatting to matplotlib globally."""
+    mpl.rcParams.update(Paper_STYLE)
 
 
 def save_kdd_style_plot(fig, filename, output_dir="results"):
     """
-    Save figure with KDD formatting.
+    Save figure with conference formatting.
     
     Args:
         fig: matplotlib figure object

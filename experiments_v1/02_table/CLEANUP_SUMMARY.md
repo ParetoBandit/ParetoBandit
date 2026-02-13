@@ -1,7 +1,7 @@
 # 02_table Cleanup Summary
 
 **Date**: February 13, 2026  
-**Goal**: Transform from KDD reviewer response to proactive robustness validation narrative  
+**Goal**: Transform from conference reviewer response to proactive robustness validation narrative  
 **Status**: ✅ Complete
 
 ---
@@ -82,7 +82,7 @@ All important findings from the multi-seed validation are properly captured in t
 - Reproduction instructions
 
 **Narrative shift**:
-- **Before**: "We fixed statistical issues after KDD review"
+- **Before**: "We fixed statistical issues after conference review"
 - **After**: "We proactively validated robustness with comprehensive multi-seed analysis"
 
 **Key framing changes**:
@@ -93,7 +93,7 @@ All important findings from the multi-seed validation are properly captured in t
 
 ---
 
-### 3. ✅ Removed KDD-Related Files
+### 3. ✅ Removed Conference-Related Files
 
 **Deleted 6 files** (75 KB total):
 
@@ -152,8 +152,8 @@ experiments_v1/02_table/
 
 ## Narrative Transformation
 
-### Before (KDD-Reactive)
-"We reviewed Table 2 as a KDD reviewer and found 5 major concerns: catastrophic failures, statistical power issues, cost implications, median cherry-picking, and vague 'near-optimal' claims. We fixed all concerns using post-hoc analysis of existing data."
+### Before (Paper-Reactive)
+"We reviewed Table 2 as a conference reviewer and found 5 major concerns: catastrophic failures, statistical power issues, cost implications, median cherry-picking, and vague 'near-optimal' claims. We fixed all concerns using post-hoc analysis of existing data."
 
 ### After (Proactive-Validation)
 "Table 2 validates Corralling's robustness to distribution shift through comprehensive multi-seed analysis (N=10). We deliberately test severe domain mismatch (PSI=0.275) to validate adaptation under realistic deployment conditions. Multi-seed methodology reveals regime-dependent tradeoffs between stability (η=0.1) and performance (η=1.0), with comprehensive diagnostic analyses providing deployment guidance."
@@ -209,7 +209,7 @@ experiments_v1/02_table/
 - ✅ Regime-dependent behavior characterized (3-regime framework)
 - ✅ Statistical methodology rigorous (tests, corrections, effect sizes)
 - ✅ Distribution shift framed as validation feature
-- ✅ All KDD-reactive files removed
+- ✅ All Conference-reactive files removed
 - ✅ New proactive README created
 - ✅ Core analysis scripts preserved
 - ✅ No loss of important observations
@@ -251,7 +251,7 @@ All key findings are captured in:
 
 ## Impact
 
-**Before**: 6 markdown files documenting KDD fixes (75 KB)  
+**Before**: 6 markdown files documenting conference fixes (75 KB)  
 **After**: 1 clean README documenting proactive validation (16.6 KB)  
 **Reduction**: 77.9% reduction in documentation overhead
 

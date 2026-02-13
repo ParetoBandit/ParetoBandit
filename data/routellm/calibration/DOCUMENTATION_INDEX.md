@@ -9,11 +9,11 @@ This index provides a guide to all documentation files related to the BanditGPT 
 **New to this work?** Start here:
 1. **`RESULTS_AT_A_GLANCE.md`** - Quick reference card with key metrics and findings
 2. **`FINAL_RESULTS_SUMMARY.md`** - Comprehensive summary of all results
-3. **`KDD_NARRATIVE.md`** - Complete narrative for the paper
+3. **`Conference_NARRATIVE.md`** - Complete narrative for the paper
 
 **Ready to write the paper?** Use these:
-1. **`RESULTS_SECTION.tex`** - KDD-compliant LaTeX for the results section
-2. **`KDD_NARRATIVE.md`** - Complete story with all context and interpretations
+1. **`RESULTS_SECTION.tex`** - Conference-compliant LaTeX for the results section
+2. **`Conference_NARRATIVE.md`** - Complete story with all context and interpretations
 
 ---
 
@@ -25,8 +25,8 @@ This index provides a guide to all documentation files related to the BanditGPT 
 |------|---------|----------|
 | **`RESULTS_AT_A_GLANCE.md`** | Quick reference card with tables and key metrics | Anyone needing a fast overview |
 | **`FINAL_RESULTS_SUMMARY.md`** | Comprehensive summary of all experimental results | Team members, collaborators |
-| **`KDD_NARRATIVE.md`** | Complete narrative with full context and interpretations | Paper authors, reviewers |
-| **`RESULTS_SECTION.tex`** | KDD-compliant LaTeX for the results section | Paper integration |
+| **`Conference_NARRATIVE.md`** | Complete narrative with full context and interpretations | Paper authors, reviewers |
+| **`RESULTS_SECTION.tex`** | Conference-compliant LaTeX for the results section | Paper integration |
 
 ### 2. Technical Deep Dives
 
@@ -70,7 +70,7 @@ A one-page summary with:
 - Critical numbers (calibration effectiveness, routing performance, convergence metrics)
 - One-sentence summary
 - Critical quotes for the paper
-- What makes this KDD-worthy
+- What makes this Conference-worthy
 
 **Use this when:** You need to quickly reference key metrics or explain the work to someone new.
 
@@ -87,7 +87,7 @@ A complete summary including:
 - Adaptability Premium (+314% cost gap)
 - Gold-standard convergence metrics
 - Scientific contributions (3 major contributions)
-- Key takeaways for KDD paper
+- Key takeaways for conference paper
 - Narrative structure
 - Files generated
 - Next steps
@@ -96,7 +96,7 @@ A complete summary including:
 
 ---
 
-### KDD_NARRATIVE.md
+### Conference_NARRATIVE.md
 **Complete Story for the Paper**
 
 The full narrative arc including:
@@ -108,14 +108,14 @@ The full narrative arc including:
 - Part 5: Scientific Contributions (3 major contributions with implications)
 - Part 6: The Complete Three-Act Narrative (condensed for intro/conclusion)
 - Key quotes for the paper
-- What makes this KDD-worthy
+- What makes this Conference-worthy
 
 **Use this when:** Writing the paper, preparing the narrative, or explaining the complete story to collaborators or reviewers.
 
 ---
 
 ### RESULTS_SECTION.tex
-**KDD-Compliant LaTeX**
+**Conference-Compliant LaTeX**
 
 A complete LaTeX document for the results section including:
 - Section introduction with three-act preview
@@ -254,10 +254,10 @@ When citing specific findings in the paper, use these references:
 ## Version History
 
 - **2026-01-23:** Initial documentation set created
-  - Added RESULTS_SECTION.tex (KDD-compliant LaTeX)
+  - Added RESULTS_SECTION.tex (Paper-compliant LaTeX)
   - Added FINAL_RESULTS_SUMMARY.md (comprehensive summary)
   - Added RESULTS_AT_A_GLANCE.md (quick reference)
-  - Added KDD_NARRATIVE.md (complete narrative)
+  - Added Conference_NARRATIVE.md (complete narrative)
   - Added DOCUMENTATION_INDEX.md (this file)
 
 ---

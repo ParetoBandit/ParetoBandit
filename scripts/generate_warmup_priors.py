@@ -102,7 +102,7 @@ def load_rewards_from_file(rewards_file: Path, limit: int = 80000) -> list:
 
 def estimate_prompt_difficulty(reward_weak: float, reward_strong: float) -> float:
     """
-    Estimate prompt difficulty using the Model Performance Gap (The "KDD Way").
+    Estimate prompt difficulty using the Model Performance Gap.
     
     Difficulty = Reward_Strong - Reward_Weak
     
@@ -303,7 +303,7 @@ def check_data_leakage(train_prompts: set, eval_file: Path):
     """
     Check if any prompts in the training set appear in the evaluation set.
     
-    KDD Reviewer Requirement: Ensures warmup data is disjoint from test data.
+    Ensures warmup data is disjoint from test data.
     """
     print(f"\n🕵️ Checking for Data Leakage against {eval_file.name}...")
     

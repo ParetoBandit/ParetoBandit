@@ -12,7 +12,7 @@ def test_pareto_frontier_filtering():
     """
     Verify that the router correctly prunes dominated models based on mean quality.
     
-    [KDD ARCHITECTURAL FIX]: Filter uses ONLY mean quality, not UCB.
+    [Paper ARCHITECTURAL FIX]: Filter uses ONLY mean quality, not UCB.
     - Pareto filtering = hard exclusion → miscalibration causes permanent damage
     - UCB selection = soft exploration → miscalibration self-corrects with data
     

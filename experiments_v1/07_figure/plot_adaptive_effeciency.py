@@ -5,7 +5,7 @@ Figure 6: Adaptive Efficiency (Zero-Shot Readiness) - Production Router
 Tests the ACTUAL production BanditRouter behavior on the "Complex Subset".
 Includes FORMAL STATISTICAL HYPOTHESIS TESTING (t-test, Wilcoxon, Cohen's d).
 
-NARRATIVE PIVOT (KDD Response):
+NARRATIVE PIVOT (Paper Response):
 - We acknowledge GPT-5.1 is dominant on these tasks ($r \\approx 0$).
 - Therefore, we do not claim to learn "nuanced preferences" (Correlation).
 - We claim "Adoption Velocity": The Semantic Prior allows the router
@@ -300,7 +300,7 @@ def plot_results(results):
     ax1.axvline(x=RELEASE_STEP, color='black', alpha=0.5, linewidth=2, linestyle='--',
                 label="GPT-5.1 Release")
     
-    # [KDD PIVOT]: New Title and Annotation
+    # [Paper PIVOT]: New Title and Annotation
     ax1.set_title(f"Zero-Shot Readiness: Accelerated Model Discovery\n(N={N_TRIALS}, Complex Tasks Subset)", 
                   fontsize=16, fontweight='bold')
     ax1.set_xlabel("Routing Steps", fontsize=13)

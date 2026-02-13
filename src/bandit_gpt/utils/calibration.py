@@ -3,7 +3,7 @@ Sigmoid Normalization Logic
 
 Calibration utilities for complexity normalization in the BanditRouter.
 
-**KDD Review Response: "Feature: router.calibrate(dataset)"**
+**Conference Review Response: "Feature: router.calibrate(dataset)"**
 
 This addresses the critique: "Hardcoded clipping loses data (Normalization Cliff)."
 Instead of using hardcoded μ and σ from LMSYS (generic traffic), users can tune

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Comprehensive test suite for the Figure 4 Corralling experiment, validating all components added during the KDD revision process.
+Comprehensive test suite for the Figure 4 Corralling experiment, validating all components added during the conference revision process.
 
 ## Test Files
 
@@ -155,7 +155,7 @@ Total: 3/3 test suites passed
 - [x] Expert sampling according to weights
 - [x] Model selection from sampled expert
 
-### New Features (KDD Revision)
+### New Features (Paper Revision)
 - [x] Semantic transfer for new models
 - [x] GPT-4o initialization from GPT-4-Turbo
 - [x] Gamma scaling (0.05 factor)

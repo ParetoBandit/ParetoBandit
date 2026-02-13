@@ -4,7 +4,7 @@
 
 This experiment implements the **mathematically correct Corralled algorithm** with strict separation between optimization and visualization phases.
 
-**KDD Revision (Issue #1 Fix):** Expanded from 2 models to **3 models** to demonstrate multi-model routing:
+**Conference Revision (Issue #1 Fix):** Expanded from 2 models to **3 models** to demonstrate multi-model routing:
 - `mistralai/mixtral-8x7b-instruct` (cheap, mid-tier)
 - `openai/gpt-4-turbo` (expensive, flagship)
 - `openai/gpt-4o` (expensive, next-gen flagship)

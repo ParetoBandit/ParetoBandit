@@ -44,7 +44,7 @@ To ensure a rigorous, controlled comparison against the current state-of-the-art
     \item \textbf{Strong Model}: \texttt{openai/gpt-4-turbo} (Cost: $\approx$ \$10.00 -- \$30.00 / 1M tokens).
 \end{itemize}
 
-By adopting this exact configuration, we isolate the algorithmic contribution (Static Classification vs.\ Adaptive Corralling) from variance caused by model capability shifts. While newer models (e.g., Llama-3, GPT-4o) exist, using a different topology would confound the results.
+By adopting this exact configuration (matching the RouteLLM dataset used for warmup priors), we isolate the algorithmic contribution (Static Classification vs.\ Adaptive Corralling) from variance caused by model capability shifts. This enables clean attribution of adaptation effects to distributional changes rather than model capability differences.
 
 We compare banditGPT against four distinct baselines:
 

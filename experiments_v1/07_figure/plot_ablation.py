@@ -1,11 +1,11 @@
 """
-Figure 6: Ablation Study - Semantic Transfer for New Model Adoption (KDD Revision)
+Figure 6: Ablation Study - Semantic Transfer for New Model Adoption (Paper Revision)
 ==================================================================================
 
 Compares FOUR strategies to evaluate the value of semantic transfer.
 Includes FORMAL HYPOTHESIS TESTING (Paired t-tests, Wilcoxon, Cohen's d).
 
-FIXED (per KDD reviewer feedback):
+FIXED (per conference reviewer feedback):
 - Tests on FULL task distribution (not cherry-picked subset)
 - Reports heterogeneity analysis to validate contextual routing is meaningful
 - Measures actual performance across all task types
@@ -63,7 +63,7 @@ MODELS_3 = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4-turbo", "openai/gpt
 NEW_MODEL = "openai/gpt-5.1"
 
 # ============================================================================
-# HETEROGENEITY ANALYSIS (KDD Reviewer Fix)
+# HETEROGENEITY ANALYSIS (Paper Reviewer Fix)
 # ============================================================================
 def analyze_model_preferences(data: List) -> Dict:
     """
@@ -633,7 +633,7 @@ def plot_ablation(results, heterogeneity):
     
     # Add methodology note
     ax.text(0.02, 0.98, 
-            "Fixed per KDD Reviewer:\n"
+            "Fixed per conference Reviewer:\n"
             "• Full task distribution (no filtering)\n"
             "• Realistic baseline (Small LMSys Prior)\n"
             "• Full episode metrics", 

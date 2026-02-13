@@ -90,7 +90,7 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
     
     Example:
         >>> oracle = load_oracle_rewards()
-        >>> reward = oracle["What is 2+2?"]["openai/gpt-4o"]
+        >>> reward = oracle["What is 2+2?"]["openai/gpt-4-turbo"]
         0.95
     """
     # Try offline_dataset subdirectory first (HLE-filtered data)

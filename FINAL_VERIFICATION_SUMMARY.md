@@ -1,5 +1,5 @@
 # Final Verification Summary
-**BanditGPT KDD 2026 Submission**
+**BanditGPT Conference Submission**
 
 **Date**: February 13, 2026  
 **Status**: ✅ **READY FOR SUBMISSION**

@@ -20,7 +20,7 @@ Methodology:
 
 Author: BanditGPT Team
 Date: 2026-02-12
-Status: NEW (addresses KDD reviewer Issue 2A)
+Status: NEW (addresses conference reviewer Issue 2A)
 """
 
 import sys

@@ -157,7 +157,7 @@ models = [
 
 ---
 
-### **Strategy 3: Hybrid Approach (Best for KDD Paper)**
+### **Strategy 3: Hybrid Approach (Best for conference Paper)**
 
 Use **both** your LMSYS data and RouterEval:
 
@@ -265,7 +265,7 @@ STRONG_MODEL = "openai/gpt-4"
 
 ---
 
-## 💡 Why This Matters for Your KDD Paper
+## 💡 Why This Matters for Your conference Paper
 
 ### **Reviewer Concern #1: "Is this cherry-picked data?"**
 
@@ -330,5 +330,5 @@ STRONG_MODEL = "openai/gpt-4"
 | **Are your models included?** | No, but similar alternatives exist (Llama-2-7b ≈ gpt-oss-120b) |
 | **What should you do?** | Use RouterEval for generalization, keep LMSYS for main results |
 | **Cost to use RouterEval?** | $0 - all rewards pre-computed |
-| **Best for KDD paper?** | Hybrid approach (LMSYS + RouterEval + domain-specific) |
+| **Best for conference paper?** | Hybrid approach (LMSYS + RouterEval + domain-specific) |
 

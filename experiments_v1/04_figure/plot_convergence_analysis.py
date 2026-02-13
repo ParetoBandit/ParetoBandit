@@ -8,7 +8,7 @@ Generates plots showing:
 3. Average reward convergence over time
 4. Comparison to theoretical bounds
 
-KDD Reviewer Requirement: "Add convergence analysis showing sublinear regret growth"
+Conference Reviewer Requirement: "Add convergence analysis showing sublinear regret growth"
 """
 
 import json
@@ -238,7 +238,7 @@ def main():
         print(f"\n   ❌ FAILS PAC BOUND: Growth rate β={analysis['growth_exponent_beta']:.3f} > 1.05")
         print(f"      Regret growth is superlinear (potential problem)")
     
-    print(f"\n💡 KDD REVIEWER RESPONSE:")
+    print(f"\n💡 conference REVIEWER RESPONSE:")
     print(f"   \"Does it test the router performance? Show sublinear regret growth.\"")
     print(f"   → YES! Cumulative regret grows as O(T^{analysis['growth_exponent_beta']:.3f})")
     if analysis['growth_exponent_beta'] < 0.95:

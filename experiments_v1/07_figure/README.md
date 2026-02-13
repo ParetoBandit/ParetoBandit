@@ -56,7 +56,7 @@ When GPT-5.1 is released at t=300:
 - `ablation_with_alpha_decay.log` - Final ablation study run with statistical testing
 - `adaptive_efficiency_with_alpha_decay.log` - Final efficiency experiment with statistical testing
 
-### LaTeX Files (KDD 2026 Submission)
+### LaTeX Files (Conference Submission)
 - `figure7_zero_shot_readiness.tex` - Complete section with methodology, results, and interpretation
 - `figure7_caption.tex` - Figure caption for paper
 
@@ -278,7 +278,7 @@ By transferring θ (preference) but resetting A (confidence):
 @inproceedings{banditgpt2026,
   title={Zero-Shot Model Routing via Heterogeneous Experts and Semantic Transfer},
   author={...},
-  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+  booktitle={Proceedings of the 32nd ACM SIGConference Conference on Knowledge Discovery and Data Mining},
   year={2026}
 }
 ```

@@ -7,7 +7,7 @@ Verifies the "Unicorn Guardrail" safety mechanism that prevents premature prunin
 2. Numerical stability checks for low-traffic arms
 3. No false positives during normal operation
 
-This validates the KDD "Rich-Get-Richer" fix.
+This validates the conference "Rich-Get-Richer" fix.
 """
 
 import numpy as np

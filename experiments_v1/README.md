@@ -1,6 +1,6 @@
 # 🔬 BanditGPT Experiments: Reproduction Guide
 
-This directory contains all experimental code for the BanditGPT KDD submission.
+This directory contains all experimental code for the BanditGPT conference submission.
 
 **Organization Principle**: Each numbered folder corresponds to a specific claim/section in the paper, enabling 1:1 traceability from "Figure X" in the PDF to the exact script that generated it.
 
@@ -71,7 +71,7 @@ experiments/
 ├── README.md                     # This file
 ├── requirements.txt              # Experiment dependencies
 ├── utils/                        # Shared utilities
-│   ├── plotting.py              # KDD-style plot formatting
+│   ├── plotting.py              # Publication-style plot formatting
 │   ├── metrics.py               # Regret calculation, etc.
 │   └── data_loader.py           # Dataset loading helpers
 │
@@ -227,7 +227,7 @@ experiments/
 
 ## 🎨 Plotting Standards
 
-All plots follow KDD formatting guidelines (enforced by `utils/plotting.py`):
+All plots follow conference formatting guidelines (enforced by `utils/plotting.py`):
 - Font: 12pt serif (Times New Roman)
 - Figure size: 7" × 3.5" (double-column)
 - DPI: 300 (publication quality)
@@ -347,8 +347,8 @@ If you use these experiments, please cite:
 @inproceedings{banditgpt2024,
   title={BanditGPT: Contextual Bandit Routing for LLMs},
   author={[Your Name]},
-  booktitle={KDD},
-  year={2024}
+  booktitle={Conference},
+  year={2026}
 }
 ```
 
@@ -360,7 +360,7 @@ Before submission, ensure:
 
 - [ ] All 6 experiments run without errors
 - [ ] All 6 PDFs generated in `results/` folders
-- [ ] Plots use KDD formatting
+- [ ] Plots use conference formatting
 - [ ] README.md matches paper section numbers
 - [ ] requirements.txt is minimal and correct
 - [ ] Random seeds are fixed for reproducibility

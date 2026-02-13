@@ -2,7 +2,7 @@
 """
 Baseline Ablations: Testing Simpler Routing Strategies
 
-This addresses KDD reviewer concern about missing ablations.
+This addresses conference reviewer concern about missing ablations.
 We test:
 1. Random routing (uniform selection)
 2. ε-greedy (exploit best, explore randomly)

@@ -265,7 +265,7 @@ def get_model_display_name(openrouter_id: str, model_registry: Dict[str, Dict]) 
     Get display name for a model from the registry.
     
     Args:
-        openrouter_id: Model ID (e.g., "openai/gpt-4o")
+        openrouter_id: Model ID (e.g., "openai/gpt-4-turbo")
         model_registry: Model registry dict
     
     Returns:

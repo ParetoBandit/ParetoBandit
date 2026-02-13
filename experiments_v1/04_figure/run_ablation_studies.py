@@ -7,7 +7,7 @@ Tests robustness across different hyperparameter settings:
 2. Mixing parameter (γ): {0.0, 0.05, 0.10}
 3. Multiple random seeds for statistical significance
 
-KDD Reviewer Requirement: "Add ablation studies (vary learning rate η, compare γ=0 vs γ=0.05)"
+Conference Reviewer Requirement: "Add ablation studies (vary learning rate η, compare γ=0 vs γ=0.05)"
 """
 
 import sys
@@ -406,7 +406,7 @@ def main():
     missing_models = [m for m in all_models_in_data if m not in warmup_priors_scaled['models']]
     if missing_models:
         print(f"\n🔄 Extending priors for: {missing_models}")
-        transfer_mapping = {'openai/gpt-4o': 'openai/gpt-4-turbo'}
+        transfer_mapping = {'openai/gpt-4-turbo': 'openai/gpt-4-turbo'}
         warmup_priors_scaled = extend_priors_with_semantic_transfer(
             warmup_priors_scaled,
             new_models=missing_models,

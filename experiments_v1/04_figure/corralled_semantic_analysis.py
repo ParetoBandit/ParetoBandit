@@ -250,7 +250,7 @@ def train_corralling_router(
         
         # Define transfer mapping (GPT-4o inherits from GPT-4-Turbo)
         transfer_mapping = {
-            'openai/gpt-4o': 'openai/gpt-4-turbo'
+            'openai/gpt-4-turbo': 'openai/gpt-4-turbo'
         }
         
         warmup_priors = extend_priors_with_semantic_transfer(

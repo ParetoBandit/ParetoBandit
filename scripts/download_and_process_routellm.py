@@ -66,7 +66,7 @@ def normalize_model_name(name: str) -> str:
     if 'gpt-4-turbo' in name or 'gpt-4-1106' in name or 'gpt-4-0125' in name:
         return 'openai/gpt-4-turbo'
     elif 'gpt-4o' in name:
-        return 'openai/gpt-4o'
+        return 'openai/gpt-4-turbo'
     elif 'gpt-4' in name:
         return 'openai/gpt-4'
     

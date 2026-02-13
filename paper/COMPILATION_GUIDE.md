@@ -1,4 +1,4 @@
-# KDD 2026 Paper Compilation Guide
+# Paper Compilation Guide
 
 ## Quick Start
 
@@ -35,7 +35,7 @@ latexmk -pdf -pvc main.tex      # Watch mode (recompiles on changes)
 
 ### Required Packages
 The following packages are used in the paper:
-- `acmart` - ACM article template (KDD format)
+- `acmart` - ACM article template (Paper format)
 - `amsmath`, `amssymb`, `amsfonts` - Math symbols
 - `algorithm`, `algorithmic` - Algorithm formatting
 - `graphicx` - Figure inclusion
@@ -67,7 +67,7 @@ paper/
 
 ### ✅ Completed
 - [x] Title and abstract formatted
-- [x] KDD-compliant document structure
+- [x] ACM-compliant document structure
 - [x] Bibliography file created
 - [x] Build system (Makefile)
 - [x] Custom LaTeX commands defined
@@ -83,7 +83,7 @@ paper/
 - [ ] Complete bibliography entries
 - [ ] Appendices (hyperparameter robustness, etc.)
 
-## KDD 2026 Formatting Notes
+## ACM Conference Formatting Notes
 
 ### Anonymous Submission
 The current template is configured for **anonymous submission**:

@@ -1,4 +1,4 @@
-# Appendix Organization Plan: KDD-Compliant Structure
+# Appendix Organization Plan: Conference-Compliant Structure
 
 **Date**: February 13, 2026  
 **Purpose**: Organize all supplementary experiments and analyses into a well-structured appendix
@@ -60,7 +60,7 @@
 
 ---
 
-## KDD-Compliant Appendix Structure
+## Conference-Compliant Appendix Structure
 
 ### Recommended Organization
 
@@ -202,7 +202,7 @@ Appendix G: Additional Discussion
 
 ---
 
-## KDD-Specific Requirements
+## Conference-Specific Requirements
 
 ### Format Guidelines
 - **Font**: Times Roman, 10pt
@@ -222,7 +222,7 @@ Appendix G: Additional Discussion
 - Keep appendix modular (each section self-contained)
 
 ### Length Considerations
-- KDD typically allows unlimited appendix length (online)
+- conference typically allows unlimited appendix length (online)
 - But recommend 15-20 pages for readability
 - Prioritize most important supplementary material
 - Consider online-only supplementary materials for extensive details
@@ -235,7 +235,7 @@ Appendix G: Additional Discussion
 2. **Logical Flow**: Theory → Data → Hyperparameters → Ablations → Results → Implementation → Discussion
 3. **Easy Navigation**: Clear section labels (A-G)
 4. **Reproducibility**: All details needed to replicate experiments
-5. **Publication-Ready**: Follows KDD conventions
+5. **Publication-Ready**: Follows conference conventions
 6. **Flexible**: Can easily add/remove sections
 7. **Maintainable**: Clear file structure and mapping
 

@@ -8,7 +8,7 @@
 
 > *"Others build Maps (static benchmarks). We build a Compass (learns where YOU are)."*
 
-📄 **Paper**: *Density-Based Warm-Start for Adaptive LLM Routing* (KDD 2025) — See [`kdd_paper/`](kdd_paper/README.md)
+📄 **Paper**: *Density-Based Warm-Start for Adaptive LLM Routing* (Paper 2025) — See [`kdd_paper/`](kdd_paper/README.md)
 
 ---
 
@@ -870,7 +870,7 @@ pip install -e .
 # Full functionality (LLM-as-judge grading via OpenRouter)
 pip install banditgpt[full]
 
-# Experiments (reproduce KDD paper figures)
+# Experiments (reproduce conference paper figures)
 pip install banditgpt[experiments]
 
 # Development
@@ -938,7 +938,7 @@ banditgpt/
 │   └── priors/              # Bundled expert priors
 └── __init__.py
 
-experiments/                  # KDD paper experiments
+experiments/                  # conference paper experiments
 ├── run_rq1.py               # Warm-start advantage
 ├── run_rq2.py               # Specialist discovery
 └── run_rq3.py               # Cost-quality Pareto
@@ -953,9 +953,9 @@ tests/                        # 127 unit & integration tests
 
 ---
 
-## KDD Paper (2025)
+## conference Paper (2025)
 
-This repository accompanies our KDD 2025 paper: **"Density-Based Warm-Start for Adaptive LLM Routing"**.
+This repository accompanies our conference 2025 paper: **"Density-Based Warm-Start for Adaptive LLM Routing"**.
 
 ### Key Findings
 

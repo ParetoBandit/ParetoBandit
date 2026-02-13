@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-We successfully addressed all 5 KDD reviewer concerns by:
+We successfully addressed all 5 conference reviewer concerns by:
 1. ✅ Fixing misleading language ("synergistic intelligence" → "intelligent routing")
 2. ✅ Adding fair comparison (cold-start ablation)
 3. ✅ Adding statistical rigor (error bars, n=5 trials)
@@ -281,18 +281,18 @@ Address surprising tabula rasa finding:
 - ✅ `REVIEWER_FIXES.md` (comprehensive fix tracking)
 - ✅ `STATISTICAL_NOTES.md` (multiple testing, power analysis)
 - ✅ `DOMINATED_POINTS_EXPLANATION.md` (multi-objective optimization context)
-- ✅ `KDD_REVISION_SUMMARY.md` (submission guide)
+- ✅ `Conference_REVISION_SUMMARY.md` (submission guide)
 - ✅ `EXPERIMENTAL_RESULTS_SUMMARY.md` (this document)
 
 ---
 
 ## Next Steps for Submission
 
-1. **Update paper text** (see KDD_REVISION_SUMMARY.md)
+1. **Update paper text** (see Conference_REVISION_SUMMARY.md)
 2. **Regenerate Table 2** with ablation results
 3. **Update Figure 5 caption** with full context
 4. **Add supplementary materials** (STATISTICAL_NOTES.md, etc.)
-5. **Draft rebuttal letter** (use templates in KDD_REVISION_SUMMARY.md)
+5. **Draft rebuttal letter** (use templates in Conference_REVISION_SUMMARY.md)
 
 ---
 

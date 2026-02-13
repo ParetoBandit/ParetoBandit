@@ -54,7 +54,7 @@ WARMUP_MODELS = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4-turbo"]
 # 2. Incorrect Transfer: GPT-4o transferred from Mixtral (WRONG neighbor)
 # 3. No Transfer: GPT-4o cold start (baseline)
 
-TEST_MODEL = "openai/gpt-4o"  # Model with different strengths
+TEST_MODEL = "openai/gpt-4-turbo"  # Model with different strengths
 CORRECT_NEIGHBOR = "openai/gpt-4-turbo"
 INCORRECT_NEIGHBOR = "mistralai/mixtral-8x7b-instruct"
 

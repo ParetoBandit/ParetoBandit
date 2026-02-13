@@ -3,7 +3,7 @@
 Generate GPT-4-Turbo rewards using RouteLLM's exact judging methodology.
 
 This script:
-1. Loads prompts from KDD splits that have mixtral + gpt-4o
+1. Loads prompts from evaluation splits that have mixtral + gpt-4o
 2. Generates GPT-4-turbo responses via OpenRouter
 3. Judges using GPT-4o pairwise comparison (RouteLLM's method)
 4. Saves to data/routellm/ in BanditGPT format
@@ -43,13 +43,13 @@ if not OPENROUTER_API_KEY:
 # Configuration
 PROJECT_ROOT = Path(__file__).parent.parent  # scripts/ -> project root
 DATA_DIR = PROJECT_ROOT / "data"
-SPLITS_DIR = DATA_DIR / "splits" / "kdd_rigorous"
+SPLITS_DIR = DATA_DIR / "splits" / "evaluation"
 OUTPUT_DIR = PROJECT_ROOT / "src/bandit_gpt/data/offline_dataset"
 
 # Models
 MIXTRAL_MODEL = "mistralai/mixtral-8x7b-instruct"
 GPT4_TURBO_MODEL = "openai/gpt-4-turbo"  # OpenRouter ID
-GPT4O_MODEL = "openai/gpt-4o"  # For existing responses and judging
+GPT4O_MODEL = "openai/gpt-4-turbo"  # For existing responses and judging
 
 # Input files
 DEV_REWARDS_PATH = PROJECT_ROOT / "src/bandit_gpt/data/offline_dataset/dev_rewards_complete.jsonl.gz"

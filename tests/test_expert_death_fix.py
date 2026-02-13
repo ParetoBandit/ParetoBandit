@@ -1,5 +1,5 @@
 """
-Test for Expert Death Prevention via Mixing Parameter (KDD Reviewer Fix)
+Test for Expert Death Prevention via Mixing Parameter (Paper Reviewer Fix)
 
 This test verifies that the mixing parameter (gamma) prevents Expert Death
 in non-stationary environments where expert performance can change over time.
@@ -291,7 +291,7 @@ def test_gamma_parameter_bounds():
 if __name__ == "__main__":
     # Run tests
     print("=" * 80)
-    print("Testing Expert Death Prevention (KDD Reviewer Fix)")
+    print("Testing Expert Death Prevention (Paper Reviewer Fix)")
     print("=" * 80)
     
     test_mixing_parameter_prevents_zero_probability()

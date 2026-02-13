@@ -422,7 +422,7 @@ PART III: VALIDATION
 > tuning. Combined, these capabilities represent a production-ready solution with $\$2.3M$/year 
 > economic potential.
 
-**Length:** ~250 words (typical for KDD)  
+**Length:** ~250 words (typical for Conference)  
 **Structure:** Problem → Solution → Integration → Validation → Impact
 
 ---

@@ -89,7 +89,7 @@ class RegistrationConfig:
     These values shape the initial belief state (theta) for a new model 
     before we have observed any real traffic.
     
-    Scientific Justification (KDD 2026 - Hyperparameter Sensitivity Analysis):
+    Scientific Justification (Conference - Hyperparameter Sensitivity Analysis):
     All parameters validated via sensitivity analysis (Appendix D/E):
     - n_effective: Robust across [1.0, 20.0] range (Figure 7)
     - Bias terms: Derived from cost asymmetry (30x price differential)
@@ -104,7 +104,7 @@ class RegistrationConfig:
     fast_complexity_weight: float = -0.5
     
     # Slow Profile (e.g., Opus, GPT-4) -> Bias TOWARDS usage (believe expensive = high quality)
-    # KDD FIX: Positive bias encodes belief that expensive models have latent quality
+    # Fix: Positive bias encodes belief that expensive models have latent quality
     slow_bias: float = 0.05
     slow_complexity_weight: float = 0.5
     
@@ -116,7 +116,7 @@ class RegistrationConfig:
     default_cost_per_1m: float = 10.00  # Assume expensive ($10/1M)
     default_latency_s: float = 2.0      # Assume slow (2s)
     
-    # [KDD FIGURE 8]: Latent Semantic Transfer - Prior Strength Calibration
+    # [Paper FIGURE 8]: Latent Semantic Transfer - Prior Strength Calibration
     # Validated via adaptive expert selection analysis (experiments_v1/08_figure/plot_expert_selection_analysis.py)
     # Key Finding: Corralling meta-learning adaptively chooses between semantic transfer (warmup expert)
     #              and cold-start exploration (tabula rasa expert) based on data match with priors.
@@ -137,7 +137,7 @@ class RouterConfig:
     
     ✅ **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
     
-    **KDD 2026 - Scientific Validation (Figure 8):**
+    **Conference - Scientific Validation (Figure 8):**
     All hyperparameters validated via sensitivity analysis (experiments_v1/08_figure):
     
     1. **Latent Semantic Transfer (n_effective)**:
@@ -171,7 +171,7 @@ class RouterConfig:
     # ---------------------------------------------------------------------------
     # Production Stability: Memory Management
     # ---------------------------------------------------------------------------
-    # KDD Reviewer Fix: Prevent OOM from unbounded log growth.
+    # conference Reviewer Fix: Prevent OOM from unbounded log growth.
     # At 100 QPS with 54-dim context vectors (~500 bytes/log), 10k logs ≈ 5MB.
     # Adjust based on deployment memory constraints and feedback latency.
     max_log_size: int = 10_000         # Ring buffer size for RoutingLog entries
@@ -179,7 +179,7 @@ class RouterConfig:
     # ---------------------------------------------------------------------------
     # New Model Admission: Probation Period
     # ---------------------------------------------------------------------------
-    # [KDD APPENDIX D/E]: Probation parameters validated via sensitivity analysis
+    # [Paper APPENDIX D/E]: Probation parameters validated via sensitivity analysis
     # 
     # Scientific Justification:
     # - probation_requests: Derived from convergence analysis (500 samples ≈ 95% CI)
@@ -191,17 +191,17 @@ class RouterConfig:
     probation_requests: int = 500      # Probation period length (requests)
     pruning_min_samples: int = 30      # Min samples for probation subsidy decay
     probation_bonus: float = 0.10      # Quality boost for probationary models
-    max_probation_models: int = 10     # [KDD FIX]: Max models allowed in probation simultaneously
+    max_probation_models: int = 10     # [Paper FIX]: Max models allowed in probation simultaneously
     
     # Pruning constants removed - relying on UCB natural exploration/exploitation balance
     # No explicit model removal or probation periods required.
     
     # ---------------------------------------------------------------------------
-    # Procedural Warmup: Covariance Shaping (KDD Reviewer Fix)
+    # Procedural Warmup: Covariance Shaping (Paper Reviewer Fix)
     # ---------------------------------------------------------------------------
     # Number of synthetic samples for procedural warmup to shape covariance matrix.
     # 
-    # KDD Critique: Previously 15 samples for d≈54 dimensions was insufficient.
+    # conference Critique: Previously 15 samples for d≈54 dimensions was insufficient.
     # With only 15 rank-1 updates, cannot meaningfully override isotropic λI prior.
     # 
     # Mathematical requirement: Need at least d samples to span the space.
@@ -212,7 +212,7 @@ class RouterConfig:
     procedural_warmup_samples: int = 100  # Warmup samples (2*d for d≈50)
     
     # ---------------------------------------------------------------------------
-    # LinUCB Regularization: Initialization vs Runtime (KDD Performance Fix)
+    # LinUCB Regularization: Initialization vs Runtime (Paper Performance Fix)
     # ---------------------------------------------------------------------------
     # **The Regularization Trap**: Sherman-Morrison only works for rank-1 updates.
     #   - Data update (xx^T): Rank-1 → O(d²) ✓
@@ -269,7 +269,7 @@ class RouterConfig:
     """
     
     # Cost Normalization Anchors (Logarithmic Market Width)
-    # KDD FIX (Jan 2026): Adjusted to match ACTUAL portfolio range for consistency
+    # Fix (Jan 2026): Adjusted to match ACTUAL portfolio range for consistency
     # Portfolio range: $0.0001-$0.0375/1k (Llama 3.1-8B to o1)
     # Previous: $0.00005-$0.10/1k (too wide, caused suboptimal spread)
     # New: Tightened to improve penalty differentiation by 1.39x
@@ -283,7 +283,7 @@ class RouterConfig:
     market_latency_ceiling: float = 5.0  # seconds
     
     # ---------------------------------------------------------------------------
-    # RESILIENCE DEFAULTS: Pessimistic Fallbacks (KDD "Fail-Operational" Fix)
+    # RESILIENCE DEFAULTS: Pessimistic Fallbacks (Paper "Fail-Operational" Fix)
     # ---------------------------------------------------------------------------
     # Used when registry metadata is missing or malformed.
     # 
@@ -397,7 +397,7 @@ def estimate_tokens_rough(text: str) -> int:
 # ---------------------------------------------------------------------------
 # Core Bandit Policy (Disjoint LinUCB)
 # ---------------------------------------------------------------------------
-# **COMPLEXITY ANALYSIS (KDD Reviewer Concern - RESOLVED)**
+# **COMPLEXITY ANALYSIS (Paper Reviewer Concern - RESOLVED)**
 #
 # The update() method complexity depends on update_lambda and forgetting_factor:
 #
@@ -461,7 +461,7 @@ class DisjointLinUCBPolicy:
         self.init_lambda = float(init_lambda)
         self.update_lambda = float(update_lambda)
         
-        # Thread safety: Per-model locks (KDD Review Fix: eliminates lost update race condition)
+        # Thread safety: Per-model locks (Paper Review Fix: eliminates lost update race condition)
         # Updates to Model A don't block updates to Model B
         from collections import defaultdict
         self.model_locks = defaultdict(threading.Lock)
@@ -480,7 +480,7 @@ class DisjointLinUCBPolicy:
         self.last_update = {m: 0 for m in self.models}  # Track last update step
         self.t = 0  # Global time step
         
-        # [KDD FIX] Track effective regularization level per model
+        # [Paper FIX] Track effective regularization level per model
         # Ensures principled lower bound on eigenvalues (proactive approach)
         # Prevents singularity in low-traffic regimes with forgetting factor < 1.0
         self.regularization_floor = {m: self.init_lambda for m in self.models}
@@ -605,7 +605,7 @@ class DisjointLinUCBPolicy:
                 # A_effective = A_stored * gamma^(dt)
                 # Var_effective = x^T A_eff^-1 x = x^T (A^-1 * gamma^-dt) x = Var_stored * gamma^-dt
                 #
-                # [KDD REVIEW FIX C: Time-Delta Logic]
+                # [Paper REVIEW FIX C: Time-Delta Logic]
                 # This inflation covers the "gap" between the model's last update and 
                 # the current selection time. Since A is only decayed during update(),
                 # we must explicitly inflate the variance here to reflect increased
@@ -658,18 +658,18 @@ class DisjointLinUCBPolicy:
 
     
     # Snapshot-swap helper methods removed - replaced with simple per-model locking
-    # This eliminates the lost update race condition identified in KDD review
+    # This eliminates the lost update race condition identified in conference review
     
     def update(self, model: str, x: np.ndarray, reward: float, weight: float = 1.0) -> None:
         """
         Update the model's A and b matrices with new observation.
         
-        **KDD REVIEW FIX: Per-Model Locking**
+        **Review Fix: Per-Model Locking**
         Replaced snapshot-swap pattern with fine-grained locking to eliminate
         lost update race condition. Each model has its own lock, so updates to
         Model A don't block updates to Model B.
         
-        **KDD REVIEW FIX: Proactive Regularization Floor**
+        **Review Fix: Proactive Regularization Floor**
         Tracks effective lambda decay and proactively maintains eigenvalue floor.
         Prevents singularity in low-traffic regimes with forgetting factor < 1.0.
         Amortized O(d²) with rare O(d³) maintenance cycles.
@@ -699,7 +699,7 @@ class DisjointLinUCBPolicy:
                 # Clamp dt to prevent numerical underflow when gamma is small
                 decay_factor = self.gamma ** min(dt, 1000)
 
-            # 2. [KDD FIX] Proactive Regularization Maintenance
+            # 2. [Paper FIX] Proactive Regularization Maintenance
             # Instead of waiting for singularity (reactive), ensure A >= lambda_min I (proactive)
             current_lambda = self.regularization_floor.get(model, self.init_lambda)
             new_lambda = current_lambda * decay_factor
@@ -770,14 +770,14 @@ class DisjointLinUCBPolicy:
             v_A_inv = v @ A_inv_current
             denominator = 1.0 + (v @ A_inv_u)
             
-            # KDD REVIEW FIX: Stricter safety floor (1e-6 instead of 1e-10)
+            # Review Fix: Stricter safety floor (1e-6 instead of 1e-10)
             if abs(denominator) > 1e-6:
                 # Safe to use Sherman-Morrison formula
                 new_A_inv = A_inv_current - np.outer(A_inv_u, v_A_inv) / denominator
                 new_A = self.A[model] + x_outer
                 new_b = self.b[model] + reward_x
                 
-                # [KDD REVIEW FIX]: Atomic Pointer Swap for Consistency
+                # [Paper REVIEW FIX]: Atomic Pointer Swap for Consistency
                 with self._lock:
                     self.A[model] = new_A
                     self.b[model] = new_b
@@ -814,7 +814,7 @@ class DisjointLinUCBPolicy:
         """
         Safety check for numerical stability using trace of inverse.
         
-        **KDD REVIEW FIX v2**: Eigenvalue decomposition is O(d³) ≈ 20ms, causing
+        **Review Fix v2**: Eigenvalue decomposition is O(d³) ≈ 20ms, causing
         1-second P99 latency spikes with 50 models. Use trace instead.
         
         **Mathematical Insight**: If A decays toward singularity (λ → 0),
@@ -1104,7 +1104,7 @@ class BanditRouter:
 
 
         # ---------------------------------------------------------------------------
-        # Tiered Context Storage (KDD Review Fix: "Feedback Horizon Fallacy")
+        # Tiered Context Storage (Paper Review Fix: "Feedback Horizon Fallacy")
         # ---------------------------------------------------------------------------
         # Default: SqliteContextStore (production, zero dependencies, 7-day TTL)
         # Alternative: EphemeralContextStore (testing, RAM-only, 100s horizon)
@@ -1112,19 +1112,19 @@ class BanditRouter:
         logger.info(f"Context store: {type(self.context_store).__name__}")
 
         # ---------------------------------------------------------------------------
-        # Production Stability: Bounded Log Buffer (KDD Fix)
+        # Production Stability: Bounded Log Buffer (Paper Fix)
         # ---------------------------------------------------------------------------
         # Using deque with maxlen prevents unbounded memory growth.
         # At 100 QPS with ~500 bytes/log, 10k entries ≈ 5MB max footprint.
         # Oldest logs are automatically evicted when buffer is full.
         # IMPORTANT: process_feedback() must be called before log is evicted!
         self.logs: deque[RoutingLog] = deque(maxlen=RouterConfig.max_log_size)
-        # [KDD REVIEW FIX]: Parallel index for O(1) feedback lookups
+        # [Paper REVIEW FIX]: Parallel index for O(1) feedback lookups
         self.log_index: Dict[str, RoutingLog] = {}
         self.model_priors: Dict[str, float] = {} 
         self.cluster_boost_weight = cluster_boost_weight
         
-        # [KDD REVIEW FIX]: Persistent Tracking (Monotonic Probation)
+        # [Paper REVIEW FIX]: Persistent Tracking (Monotonic Probation)
         # Prevents "Rolling Window Fallacy" where models receive a probation bonus 
         # after their early logs are evicted from self.logs.
         self.model_counts: Dict[str, int] = defaultdict(int)
@@ -1134,7 +1134,7 @@ class BanditRouter:
         # Feature name to index mapping for Progressive Registration
         self._feature_map = self._build_feature_map()
         
-        # [KDD REVIEW FIX]: Precompute Market Anchors for Performance
+        # [Paper REVIEW FIX]: Precompute Market Anchors for Performance
         # CPU profiling showed redundant log calls and Config creation in hot loop
         self._market_cost_floor = self.config.market_cost_floor
         self._market_cost_floor_log = np.log(self.config.market_cost_floor)
@@ -1285,7 +1285,7 @@ class BanditRouter:
         
         
         # OLD: Archetype mapping to virtual anchors - REMOVED
-        # Anchors removed in KDD simplification
+        # Anchors removed in conference simplification
         
         # 4. Apply Power User Overrides (Explicit Weights)
         # If the user DOES know specifics, let them overwrite our guesses
@@ -1308,7 +1308,7 @@ class BanditRouter:
             else:
                 logger.warning(f"Unknown feature '{feature_name}' in initial_weights. Skipping.")
         
-        # 6. Add to Bandit with Latent Semantic Transfer (KDD V1: Progressive Learning)
+        # 6. Add to Bandit with Latent Semantic Transfer (Paper V1: Progressive Learning)
         # Instead of hardcoded heuristics, use semantic similarity to find neighbors
         # and dynamically adjust prior strength based on confidence in the match
         if len(self.bandit.models) > 0:
@@ -1316,7 +1316,7 @@ class BanditRouter:
             dna_str = self._get_model_dna(model_id, capabilities, speed)
             neighbor, similarity = self._find_semantic_neighbor(model_id, dna_str)
             
-            # [KDD APPENDIX D/E]: Dynamic n_effective based on similarity confidence
+            # [Paper APPENDIX D/E]: Dynamic n_effective based on similarity confidence
             # Validated via sensitivity analysis (experiments_v1/07_figure/plot_sensitivity.py)
             # 
             # Key Finding (Figure 7): ALL n_effective values [1.0, 20.0] produce 
@@ -1350,7 +1350,7 @@ class BanditRouter:
                 n_effective=n_effective  # Dynamic prior strength based on similarity
             )
             
-            # [KDD REVIEW FIX - Bug A: "First-Child" Bias Correction]
+            # [Paper REVIEW FIX - Bug A: "First-Child" Bias Correction]
             # Capture whether bootstrapping actually happened.
             # If admix_theta_from_neighbors found no suitable neighbor, it returns:
             #   A = init_lambda * I, b = zeros(dim)
@@ -1369,7 +1369,7 @@ class BanditRouter:
             is_bootstrapped = False
         
         # 7. Apply Manual Prior (T-Shirt Sizing) ONLY if Bootstrapping Failed
-        # [KDD REVIEW FIX - Bug A]: The "First-Child" Bias Correction
+        # [Paper REVIEW FIX - Bug A]: The "First-Child" Bias Correction
         #
         # CRITICAL: Apply manual prior if and only if no semantic transfer occurred.
         #
@@ -1417,7 +1417,7 @@ class BanditRouter:
             f"Latency: {latency_s:.2f}s"
         )
         
-        # 9. [KDD FIX] Propagate to Corralling Experts (Dynamic Model Admission)
+        # 9. [Paper FIX] Propagate to Corralling Experts (Dynamic Model Admission)
         # If using Corralling, experts need to know about the new model too.
         # This enables the production system to add models at runtime while maintaining
         # both warmup (with semantic transfer) and tabula rasa expert routing.
@@ -1599,7 +1599,7 @@ class BanditRouter:
         - Layer 2 (THIS METHOD): Semantic transfer → θ-only transfer for new models
         - Layer 3: T-shirt sizing injection → Applied in BanditRouter.create()
         
-        **KDD REVIEW FIX (Concern B)**: The "Prior Belief" Reset
+        **Review Fix (Concern B)**: The "Prior Belief" Reset
         
         [CRITICAL ALGORITHMIC FIX - Jan 2026]:
         Previous implementation transferred both A and b matrices, which caused the
@@ -1614,14 +1614,14 @@ class BanditRouter:
            - b_new = n_effective * θ_neighbor  (Scaled Preferences)
         4. Result: θ_hat = (n*I)^-1 @ (n*θ) = θ (mean preserved), Var ~ 1/n (confidence scaled)
         
-        **Mathematical Justification (KDD Appendix D/E):**
+        **Mathematical Justification (Paper Appendix D/E):**
         - θ encodes "what contexts this model is good for" (direction)
         - A encodes "how confident we are in θ" (magnitude)
         - Scaling BOTH A and b preserves mean prediction while scaling variance
         - By using n_effective * I, we control confidence without distorting preferences
         
         **Hyperparameter Sensitivity (Figures 7-8, Appendix E):**
-        [KDD REVIEW FIX]: While Figure 7 shows robustness in balanced regimes, Figure 8
+        [Paper REVIEW FIX]: While Figure 7 shows robustness in balanced regimes, Figure 8
         reveals sensitivity in WARMUP-DOMINANT scenarios (limited online data):
         
         - n_effective = 0.1-1.0: Weak prior → More exploration, slower convergence
@@ -1685,7 +1685,7 @@ class BanditRouter:
         model_dna = self._get_model_dna(model_id, capabilities, speed)
         
         # Compute embedding for new model (with caching using DNA key)
-        # [KDD OPTIMIZATION]: Cache embeddings to avoid recomputation
+        # [Paper OPTIMIZATION]: Cache embeddings to avoid recomputation
         try:
             # Check if DNA embedding is already cached
             if 'dna_embedding' in model_info:
@@ -1717,7 +1717,7 @@ class BanditRouter:
             neighbor_dna = self._get_model_dna(neighbor_id, neighbor_capabilities, neighbor_speed)
             
             try:
-                # [KDD OPTIMIZATION]: Use cached DNA embedding if available
+                # [Paper OPTIMIZATION]: Use cached DNA embedding if available
                 if 'dna_embedding' in neighbor_info:
                     neighbor_embedding = neighbor_info['dna_embedding']
                 else:
@@ -1739,7 +1739,7 @@ class BanditRouter:
         
         # Bootstrap from neighbor if found
         if best_neighbor and best_similarity > 0.5:  # Only use if moderately similar
-            # [KDD REVIEW FIX]: Extract θ from neighbor, reset A to identity
+            # [Paper REVIEW FIX]: Extract θ from neighbor, reset A to identity
             
             # Step 1: Extract neighbor's learned preferences (θ = A_inv @ b)
             with bandit._lock:  # Thread-safe read
@@ -1749,7 +1749,7 @@ class BanditRouter:
             theta_neighbor = A_inv_neighbor @ b_neighbor
             
             # Step 2: Initialize new model with scaled precision and moment
-            # [KDD APPENDIX D/E]: Bayesian Ridge Regression with Prior Strength Scaling
+            # [Paper APPENDIX D/E]: Bayesian Ridge Regression with Prior Strength Scaling
             # 
             # Correct Formulation (preserves mean, scales confidence):
             # A_new = n_effective * λI  (Precision scales with prior strength)
@@ -1766,7 +1766,7 @@ class BanditRouter:
             # Calculate transferred theta norm for verification
             theta_norm = np.linalg.norm(theta_neighbor)
             
-            # [KDD REVIEW FIX]: Warn about potential n_effective misconfiguration
+            # [Paper REVIEW FIX]: Warn about potential n_effective misconfiguration
             if best_similarity < 0.7 and n_effective > 10.0:
                 logger.warning(
                     f"⚠️ Strong prior (n_effective={n_effective}) with weak similarity "
@@ -2035,7 +2035,7 @@ class BanditRouter:
         # 7. Initialize Corralling Router (if enabled)
         if router.use_corralling:
             # ---------------------------------------------------------------
-            # KDD UPGRADE: Heterogeneous Alpha Strategy
+            # Upgrade: Heterogeneous Alpha Strategy
             # Instead of sharing the same alpha schedule, we diversify the 
             # experts to handle both stationary (stable) and non-stationary 
             # (shifting) regimes automatically.
@@ -2348,7 +2348,7 @@ class BanditRouter:
         Returns:
             Dictionary mapping arm ID to sample count
         """
-        # [KDD REVIEW FIX]: Use persistent counts to avoid Rolling Window fallacy
+        # [Paper REVIEW FIX]: Use persistent counts to avoid Rolling Window fallacy
         # Ephemeral log counting via Counter(self.logs) is only used for debugging or 
         # when persistent counts are not yet initialized (bulk load logic).
         arms_to_count = arms if arms is not None else self.bandit.models
@@ -2484,7 +2484,7 @@ class BanditRouter:
             context_vector=x,  # Cache for feedback loop
             total_priority_weight=total_weight
         )
-        # [KDD REVIEW FIX]: Manage parallel index eviction before deque append
+        # [Paper REVIEW FIX]: Manage parallel index eviction before deque append
         if len(self.logs) >= (self.logs.maxlen or float('inf')):
             old_log = self.logs[0]
             self.log_index.pop(old_log.request_id, None)
@@ -2584,7 +2584,7 @@ class BanditRouter:
             reward: Base reward (0-1, typically from judge)
             cluster_boost: Whether to apply cluster-aware reward boosting
         """
-        # [KDD REVIEW FIX]: O(1) lookup via parallel index instead of O(N) linear scan
+        # [Paper REVIEW FIX]: O(1) lookup via parallel index instead of O(N) linear scan
         log = self.log_index.get(request_id)
         
         # Fallback to context_store for delayed feedback (RLHF)
@@ -2628,7 +2628,7 @@ class BanditRouter:
                         f"reward: {reward:.3f} → {boosted_reward:.3f} ({boost_amount:+.3f})"
                     )
         
-        # [KDD REVIEW FIX]: Persistent monotonicity (Probation Fix)
+        # [Paper REVIEW FIX]: Persistent monotonicity (Probation Fix)
         self.model_counts[log.selected_model] += 1
         
         # Use cached context vector to avoid re-encoding
@@ -2870,7 +2870,7 @@ class BanditRouter:
             - 0.0 = At or below market floor
             - 1.0 = At or above market ceiling
         """
-        # [KDD REVIEW FIX]: Use precomputed market anchors (Performance)
+        # [Paper REVIEW FIX]: Use precomputed market anchors (Performance)
         safe_cost = max(cost_per_1k, self._market_cost_floor)
         log_cost = math.log(safe_cost)
         
@@ -2945,7 +2945,7 @@ class BanditRouter:
 
 class CorrallingRouter:
     """
-    [KDD FIXED] Corralling Bandits with Mixing Parameter to prevent 'Expert Death'.
+    [Paper FIXED] Corralling Bandits with Mixing Parameter to prevent 'Expert Death'.
     
     Implements Exp4-style updates with explicit exploration floor (gamma).
     
@@ -2959,7 +2959,7 @@ class CorrallingRouter:
     shifts weight to tabula rasa. If warmup priors are helpful, they dominate.
     This provides safety guarantees against negative transfer.
     
-    **Critical Fix (KDD Reviewer Feedback):**
+    **Critical Fix (Paper Reviewer Feedback):**
     In non-stationary environments (new models, data shifts), pure exponential weighting
     can cause "Expert Death" - once an expert's weight drops to ~10^-16, the router
     stops listening to it forever, even if conditions change. The mixing parameter (gamma)
@@ -3014,7 +3014,7 @@ class CorrallingRouter:
         """
         Initialize Corralling with uniform expert weights and exploration floor.
         
-        [KDD REVIEW FIX]: Added loss_decay parameter to prevent weight collapse in
+        [Paper REVIEW FIX]: Added loss_decay parameter to prevent weight collapse in
         non-stationary environments. Without decay, cumulative_losses accumulates
         indefinitely, causing learned weights to become dominated by early history.
         
@@ -3100,7 +3100,7 @@ class CorrallingRouter:
         - Loss is weighted by 1/p (inverse selection probability) for unbiased estimation
         - Non-chosen experts get 0 loss (we don't observe counterfactuals)
         
-        **Critical Fix (KDD Reviewer):**
+        **Critical Fix (Paper Reviewer):**
         We MUST use the MIXED probability (p_t) for the estimator denominator, not raw weights.
         If we used raw weights, the estimator would be biased. Since p_t >= gamma/K, 
         this term is bounded (max loss <= K/gamma), preventing numerical instability.
@@ -3135,7 +3135,7 @@ class CorrallingRouter:
         # Non-chosen experts get 0 loss (we didn't observe their counterfactual outcome)
         # This is correct because we're estimating expected loss over the selection distribution
         
-        # [KDD REVIEW FIX]: Apply exponential decay before adding new losses
+        # [Paper REVIEW FIX]: Apply exponential decay before adding new losses
         # This prevents weight collapse in non-stationary environments by giving
         # more weight to recent observations and less weight to old history.
         # Without decay: cumulative_losses grows indefinitely → weights fossilize
@@ -3306,7 +3306,7 @@ class CostAwareLinUCBRouter:
         # =====================================================================
         # PERFORMANCE FIX: CACHE A_inv TO AVOID O(d³) RECOMPUTATION
         # =====================================================================
-        # [KDD REVIEW FIX]: Cache A_inv like DisjointLinUCBPolicy does.
+        # [Paper REVIEW FIX]: Cache A_inv like DisjointLinUCBPolicy does.
         # Without caching, select_model() recomputes np.linalg.inv(A) for EVERY
         # model on EVERY routing decision → O(K·d³) per selection.
         # With caching and incremental updates → O(K·d²) per selection.

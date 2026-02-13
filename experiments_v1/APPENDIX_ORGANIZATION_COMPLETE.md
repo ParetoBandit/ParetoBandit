@@ -1,14 +1,14 @@
 # ✅ Appendix Organization - COMPLETE
 
 **Date**: February 13, 2026  
-**Task**: Organize experiments_v1 content into KDD-compliant appendix structure  
+**Task**: Organize experiments_v1 content into Conference-compliant appendix structure  
 **Status**: ✅ Structure complete, core content migrated, ready for review
 
 ---
 
 ## Executive Summary
 
-Successfully organized all supplementary experimental content from `experiments_v1/` into a KDD-compliant appendix structure with 7 main sections (A-G). The new structure is modular, well-documented, and ready for integration with the main paper.
+Successfully organized all supplementary experimental content from `experiments_v1/` into a Conference-compliant appendix structure with 7 main sections (A-G). The new structure is modular, well-documented, and ready for integration with the main paper.
 
 ---
 
@@ -158,7 +158,7 @@ experiments_v1/appendix/
 
 ## Key Features of New Structure
 
-### ✅ KDD Compliant
+### ✅ conference Compliant
 - Follows standard appendix organization (A, B, C...)
 - Clear section numbering and hierarchy
 - Modular, self-contained sections
@@ -373,7 +373,7 @@ pdflatex APPENDIX_MASTER.tex  # Run twice for references
 - ✅ Source attribution documented
 
 ### Compliance
-- ✅ KDD format guidelines followed
+- ✅ conference format guidelines followed
 - ✅ Modular structure
 - ✅ Self-contained sections
 - ✅ Professional presentation
@@ -444,7 +444,7 @@ pdflatex APPENDIX_MASTER.tex  # Run twice for references
 This structure is designed to be:
 - **Flexible**: Easy to add/remove content
 - **Scalable**: Can grow with additional experiments
-- **Standard**: Follows KDD conventions
+- **Standard**: Follows conference conventions
 - **Professional**: Publication-ready
 
 For questions or improvements, refer to:

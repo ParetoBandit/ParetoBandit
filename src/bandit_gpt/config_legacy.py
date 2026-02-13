@@ -17,7 +17,7 @@ DEFAULT_SENTENCE_TRANSFORMER = "sentence-transformers/all-MiniLM-L6-v2"
 # Model tier mapping for capability-equivalent substitutions
 # Used when a model is no longer available but has a capability-tier equivalent
 # e.g., gpt-4-turbo → gpt-4o (both are strong models in the same capability tier)
-STRONG_MODEL_EQUIVALENTS = ["openai/gpt-4-turbo", "openai/gpt-4o"]
+STRONG_MODEL_EQUIVALENTS = ["openai/gpt-4-turbo", "openai/gpt-4-turbo"]
 
 # ==============================================================================
 # Artifact Paths

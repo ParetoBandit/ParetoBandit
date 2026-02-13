@@ -1125,7 +1125,7 @@ class TestRouterIntegration:
 
 
 # =============================================================================
-# Performance and Robustness Fixes Tests (KDD Review)
+# Performance and Robustness Fixes Tests (Paper Review)
 # =============================================================================
 
 class TestPerformanceFixes:

@@ -204,7 +204,7 @@ grep -i "error\|warning" main.log | head -20
 
 # Verify page count
 pdfinfo main.pdf | grep Pages
-# Target: 10-12 pages for main text (KDD typical)
+# Target: 10-12 pages for main text (conference typical)
 ```
 
 **Common issues to fix:**

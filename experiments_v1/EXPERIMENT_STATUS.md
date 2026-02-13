@@ -1,7 +1,7 @@
 # Experiment Re-run Status
 
 **Date:** February 13, 2026  
-**Purpose:** Increase trial counts for statistical rigor as per KDD review feedback
+**Purpose:** Increase trial counts for statistical rigor as per conference review feedback
 
 ## Summary
 

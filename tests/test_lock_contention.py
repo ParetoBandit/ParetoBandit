@@ -14,7 +14,7 @@ from bandit_gpt.router import DisjointLinUCBPolicy, safe_inv
 
 class TestSnapshotSwapCorrectness:
     """
-    Verification tests for the KDD Review Fix: 
+    Verification tests for the conference Review Fix: 
     'Snapshot-Swap Race Condition' in bandit updates.
     """
 

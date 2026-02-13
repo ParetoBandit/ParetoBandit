@@ -2,7 +2,7 @@
 """
 Cold-Start Ablation: Fair Comparison with RouteLLM
 
-This experiment addresses KDD reviewer concern about fairness:
+This experiment addresses conference reviewer concern about fairness:
 - RouteLLM uses pre-trained weights (no access to dev set)
 - banditGPT normally trains on dev set first
 - This ablation tests banditGPT WITHOUT dev set training (cold-start)

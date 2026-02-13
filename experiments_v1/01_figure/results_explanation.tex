@@ -29,7 +29,7 @@ To confirm this finding is not an artifact of domain-adapted PCA, we repeat the 
 
 \paragraph{Methodological Notes.}
 \begin{itemize}[noitemsep,topsep=2pt]
-    \item \textbf{Data:} Held-out test set only ($N=750$). Dev set excluded.
+    \item \textbf{Data:} Held-out test set only ($N=750$), created via stratified sampling (Appendix~\ref{app:stratification}). Dev set excluded.
     \item \textbf{PCA:} Domain-adapted, trained on 80K routing prompts (unsupervised---no reward labels).
     \item \textbf{Threshold:} Silhouette-optimal ($\text{PC1} = 0.222$), selected without reward labels.
     \item \textbf{Rewards:} LMSYS Chatbot Arena human preference evaluations.

@@ -1,4 +1,4 @@
-# KDD Reviewer Issues - Fix Progress Tracker
+# conference Reviewer Issues - Fix Progress Tracker
 
 **Date Started:** February 13, 2026  
 **Current Status:** Issue #1 Complete ✅
@@ -296,4 +296,4 @@ grep -ri "figure [0-9]\|experiment [0-9]\|table [0-9]" experiments_v1/*/README.m
 
 **Last Updated:** February 13, 2026  
 **Next Review:** After Issue #2 completion  
-**Maintainer:** KDD Revision Team
+**Maintainer:** conference Revision Team

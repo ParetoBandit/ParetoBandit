@@ -102,7 +102,7 @@ src/bandit_gpt/
 
 experiments_v1/calibration/
 ├── README.md                 # Complete calibration guide
-├── FINAL_RESULTS_SUMMARY.md  # KDD paper results
+├── FINAL_RESULTS_SUMMARY.md  # Paper results
 └── results/                  # Experimental outputs
 ```
 
