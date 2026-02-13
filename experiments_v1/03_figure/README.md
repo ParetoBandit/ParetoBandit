@@ -17,6 +17,22 @@ This directory contains Figure 3, which illustrates the **Corralling-based routi
 
 ---
 
+### 🔗 Connection to Previous Experiments
+
+**Motivation from Table 2:** Table 2 demonstrated that Corralling achieves near-optimal performance (1.3× vs optimal) with safety guarantees (44.3% improvement vs harmful warmup). But **which architectural choices drive this performance?**
+
+This experiment validates every design decision through systematic ablation studies:
+- ✅ **Constant exploration (α=2.0)** vs adaptive decay → Constant wins by 48%
+- ✅ **Expert selection strategy** → Decisive commitment, not gradual blending
+- ✅ **Gamma mixing (γ=0.05)** → Prevents expert death while maintaining performance
+- ✅ **Fast adaptation** → System responds in 16±14 requests (not 100-200 as hypothesized)
+
+**Key Insight:** We don't just claim Corralling works—we prove WHY it works through 75 configurations tested.
+
+---
+
+---
+
 ## Architectural Components
 
 ### Coordinator Layer
@@ -235,6 +251,24 @@ python experiment_5_gamma_ablation.py
 - Figure 1: Distribution shift visualization
 - Figure 2: Performance comparison
 - Table 2: Robustness validation
+
+---
+
+## 🔗 What's Next?
+
+This experiment validated our architecture on **2-model routing** (Mixtral vs GPT-4). Production systems require:
+
+**Scalability Challenges:**
+1. **Multi-model portfolios:** Need to route across 3+ models spanning cost tiers
+2. **New model adoption:** GPT-4o, GPT-5 release monthly—can't retrain from scratch
+3. **Zero-shot readiness:** Need cold-start mitigation for new models
+
+**Critical Questions:**
+- Does the architecture scale to 3+ models? → **See Figure 4**
+- Can semantic transfer eliminate cold-start penalties? → **See Figure 4**
+- What are real production cost-quality tradeoffs? → **See Figure 5**
+
+**The story continues:** We've validated the 2-expert, 2-model architecture. Now let's scale to multi-model portfolios with semantic transfer for rapid model adoption.
 
 ---
 

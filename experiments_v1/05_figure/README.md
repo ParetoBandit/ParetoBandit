@@ -321,8 +321,8 @@ For questions about:
 This experiment validates production-grade performance on **static benchmarks**, but real deployments face **dynamic challenges:**
 
 **Proven:**
-- ✅ BanditGPT achieves 66.2% gap closure (vs 46.2% for RouteLLM)
-- ✅ Peak quality: 0.9088 @ $0.00954
+- ✅ BanditGPT achieves 68.5% gap closure warm-start (vs 46.2% for RouteLLM)
+- ✅ Peak quality: 0.912 @ $0.00967 (warm-start), 0.9088 @ $0.00954 (Pareto holdout)
 - ✅ "Negative Intelligence Tax" discovered (GPT-4: 43× more expensive, 1.3% worse)
 - ✅ Economic validation: $2.3M/year savings potential
 

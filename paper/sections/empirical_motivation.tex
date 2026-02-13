@@ -1,6 +1,16 @@
 \section{Empirical Motivation: The Semantic Structure of Routing}
+\label{sec:motivation}
 
-Before presenting our routing algorithm, we first establish that LLM routing is a structured problem amenable to learning, rather than a random optimization task.
+% TRANSITION from Introduction
+Our integrated approach rests on a critical empirical foundation: that semantic structure exists in the LLM task space and can be exploited for intelligent routing. In this section, we provide the empirical motivation for our system design through two key analyses:
+
+\begin{enumerate}
+    \item \textbf{Semantic Structure Discovery (Figure~\ref{fig:alignment_tax}):} We demonstrate that task difficulty relates to model alignment failures, not just reasoning complexity. This establishes that routing is \emph{learnable} through contextual features.
+    
+    \item \textbf{Distribution Shift Quantification (Figure~\ref{fig:distribution_shift}):} We quantify covariate shift between training and deployment data, establishing the need for adaptive mechanisms with safety guarantees.
+\end{enumerate}
+
+Together, these findings motivate our integrated approach: \textbf{semantic structure makes routing learnable, but distribution shift makes \emph{safe} learning essential.}
 
 \subsection{Forensic Cluster Analysis: The ``Alignment Tax''}
 
@@ -45,6 +55,7 @@ The routing opportunity is counter-intuitive. We do not save money by routing ``
 \includegraphics[width=0.9\columnwidth]{figures/figure1_pca.png}
 \caption{Forensic Discovery of the Alignment Tax. PCA projection of 1,871 LMSYS prompts reveals spatial clustering at PC1 $\approx$ 0.3. Validation against ground-truth reward gaps exposes a performance inversion: the Low PC1 ``Nuance Zone'' (Blue, 82.4\%) is where GPT-4-Turbo retains a classic advantage ($\Delta=+0.13$), refuting the notion that routine traffic is ``easy.'' The High PC1 ``Strictness Zone'' (Red, 17.6\%, 85\% strict completion templates) is where the open-weights model dominates ($\Delta=-0.68$), likely due to the frontier model's alignment artifacts.}
 \label{fig:pca}
+\label{fig:alignment_tax}
 \end{figure}
 
 \subsection{Scale Validation: The ``Economic Catastrophe''}

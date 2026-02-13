@@ -46,17 +46,8 @@
 
 \begin{document}
 
-\begin{abstract}
-Large Language Model (LLM) routing is traditionally framed as a static trade-off between cost and quality, relying on the assumption that frontier models consistently outperform cheaper alternatives. However, production environments often exhibit \emph{quality inversions}---domain-specific scenarios where smaller, open-weights models outperform significantly more expensive proprietary ones. In such settings, static routers (e.g., RouteLLM) fail to adapt, incurring a ``Negative Intelligence Tax'' by routing traffic to expensive models that degrade performance.
-
-We introduce \textbf{banditGPT}, an adaptive routing framework designed for the non-stationary realities of LLM deployment. Unlike static classifiers, banditGPT treats routing as a continuous resource allocation problem managed by a Corralling Algorithm. This architecture dynamically aggregates a portfolio of experts, utilizing a mixing parameter ($\gamma$) to prevent ``expert death'' and enable robust decommissioning of misspecified priors. Through rigorous multi-seed evaluation (N=10 seeds) with statistical significance testing, we demonstrate that Corralling achieves competitive performance (median 41-45 regret, 1.03-1.13$\times$ vs baseline) while providing strong safety guarantees (39-43\% improvement over harmful warmup priors). 
-
-We establish a \textbf{three-regime framework} that unifies all experimental outcomes through learning rate selection. Rather than contradictory results, our experiments demonstrate complementary operating regimes: (1) \emph{Cold-start regime} ($\eta=0.1$--$0.3$): exploits semantic transfer for immediate benefit (0--300 steps); (2) \emph{Pareto regime} ($\eta=1.0$): balances cost-quality trade-offs with partial adaptation (50--1,121 steps); (3) \emph{Convergence regime} ($\eta=2.0$--$5.0$): complete prior unlearning and convergence to optimal policy (300--1,121 steps); (4) \emph{Safety regime} ($\eta=0.3$--$1.0$): catastrophic failure detection (3--50 steps). Diagnostic analysis reveals semantic transfer works through \emph{implicit regularization} (26$\times$ more initial variance) rather than semantic accuracy---semantic similarity does not predict performance correlation ($r=-0.38$, $p=0.75$). This explains why priors provide short-term benefit but may be directionally wrong, requiring aggressive unlearning for long-term optimality.
-
-To address the challenge of frequent model releases, we propose \emph{Latent Semantic Transfer}, a mechanism that decouples preference ($\thetavec$) from confidence ($\Amat$), enabling the router to inherit ``intuition'' from semantic neighbors and achieve zero-shot readiness without the ``cold start'' penalty typical of bandit algorithms. Sensitivity analysis on the effective prior strength parameter ($\neff$) reveals that robustness emerges from Corralling's \textbf{adaptive expert selection} rather than parameter insensitivity. Through regime-stratified analysis (N=3 seeds), we demonstrate regime-dependent effects: when warmup priors match data (33\% of seeds), weak priors ($\neff=1.0$) outperform strong priors by +4.6\% due to preserved exploration flexibility. When priors mismatch data (67\% of seeds, characterized by 71.5\% ties and low task variance), Corralling correctly abandons semantic transfer in favor of cold-start exploration, rendering $\neff$ irrelevant. Overall production impact: $\sim$1.5\%, demonstrating that meta-learning provides robustness by \textit{selectively applying} semantic transfer based on data-prior match quality.
-
-Trained on $N=1{,}121$ prompts and evaluated on a held-out test set of $N=750$ prompts, banditGPT achieves intelligent per-prompt routing with a reward of $0.912 \pm 0.006$ (mean $\pm$ 95\% CI, $n=5$ independent trials), outperforming both the static GPT-4-Turbo baseline ($0.812$) and the RouteLLM benchmark ($0.883$). Through systematic ablations, we demonstrate that Corralling provides measurable value over simpler baselines (random: $0.812$, $\epsilon$-greedy: $0.915$, single-expert UCB: $0.912$). In cold-start mode (fair comparison with pre-trained RouteLLM), banditGPT achieves $0.800 \pm 0.006$, quantifying an $8{-}12\%$ improvement from online learning. Our approach closes $68.5\%$ of the gap to the Oracle while reducing inference costs by $27\%$ compared to the frontier baseline. Statistical rigor exceeds field standards (RouteLLM: $n=1$, FrugalGPT: $n=3$), with FDR-corrected significance testing confirming robustness.
-\end{abstract}
+% Use new unified abstract
+\input{sections/abstract_UNIFIED}
 
 % CCS Concepts
 \begin{CCSXML}
@@ -89,7 +80,7 @@ Trained on $N=1{,}121$ prompts and evaluated on a held-out test set of $N=750$ p
 \maketitle
 
 % Include sections
-\input{sections/introduction}
+\input{sections/introduction_UNIFIED}
 \input{sections/empirical_motivation}
 \input{sections/methodology}
 \input{sections/experiments}

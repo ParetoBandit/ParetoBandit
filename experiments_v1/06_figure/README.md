@@ -8,6 +8,24 @@ This experiment demonstrates **Corralling as a safety mechanism** for fast autom
 
 ---
 
+### 🔗 Connection to Previous Experiments
+
+**Motivation from Figure 5:** Figure 5 validated production-grade performance on static benchmarks (68.5% gap closure on warm-start evaluation). Real deployments face **two dynamic scenarios** requiring adaptation:
+
+1. **Catastrophic failures** (THIS EXPERIMENT): APIs crash, models degrade suddenly (d>1.0 effect sizes)
+2. **Zero-shot adoption** (Figure 7): New models release monthly (d≈0.2-0.5 effects)
+
+**Critical Question:** Can Corralling detect and recover from catastrophic model failures automatically, without human intervention?
+
+This experiment tests **Scenario 1** with a realistic three-phase failure:
+- **Phase 1 (t=0-100):** Both models healthy
+- **Phase 2 (t=100-300):** GPT-4 crashes (0.80 → 0.15 quality)
+- **Phase 3 (t=300-500):** GPT-4 recovers
+
+---
+
+---
+
 ## Main Experiment: Three-Phase Catastrophic Failure
 
 ### Scenario
@@ -54,6 +72,27 @@ A realistic production failure where a model API starts crashing or returning er
 - **Result**: 100% success rate, 3-50 steps needed
 - **Value**: Tests realistic deployment scenario
 - **Status**: Main experiment
+
+---
+
+---
+
+## 📊 Statistical Validation Note
+
+**Experimental Design:** Single-seed deterministic scenario
+
+**Why This Is Appropriate:**
+
+1. **Deterministic Failure Injection:** The catastrophic failure (GPT-4: 0.80 → 0.15 quality) is injected deterministically at t=100, not stochastically sampled
+2. **Expected Behavior:** System should reliably detect the failure and switch to Mixtral
+3. **Similar to Unit Test:** This is a pass/fail validation (does system detect failure?) rather than statistical parameter estimation
+4. **Cross-Validation:** Table 2 (N=10 seeds) provides comprehensive multi-seed validation of Corralling's adaptive behavior under domain mismatch
+
+**Result:** 100% detection rate in 3-50 steps demonstrates robust failure detection.
+
+**Limitation Acknowledged:** Multi-seed validation would strengthen claims about detection speed variance (e.g., "3-50 steps" range could be characterized with confidence intervals). However, the core claim—that Corralling detects catastrophic failures reliably—is validated through deterministic scenario design.
+
+**Recommendation for Future Work:** For publication in journals requiring full statistical validation, add N=10 seeds to estimate detection time distribution. For conference presentation focused on demonstrating feasibility, single-seed deterministic scenario is appropriate.
 
 ---
 
@@ -304,6 +343,20 @@ START: Do you need Corralling?
 
 ---
 
+## 🔗 Relationship to Figure 7
+
+While this experiment tests **catastrophic failures** (d>1.0 effect sizes), Figure 7 tests **zero-shot model adoption** (d≈0.2-0.5 effects). Both validate Corralling's adaptive intelligence but in different deployment scenarios:
+
+**When to use each approach:**
+- **Figure 6's scenario:** Safety-critical systems, failure detection, automatic failover
+- **Figure 7's scenario:** Continuous model improvement, rapid adoption of new releases
+
+**Complementary validation:** Together, these demonstrate comprehensive production readiness across failure modes (catastrophic) and growth opportunities (new models).
+
+**What's next?** Figure 7 tests the second adaptive scenario (zero-shot model releases).
+
+---
+
 ## Citation
 
 If you use this catastrophic failure detection methodology:
@@ -312,7 +365,7 @@ If you use this catastrophic failure detection methodology:
 @inproceedings{banditgpt2026,
   title={banditGPT: Adaptive Multi-Expert LLM Routing with Safety Guarantees},
   author={...},
-  booktitle={KDD},
+  booktitle{KDD},
   year={2026},
   note={Corralling for catastrophic failure detection in production LLM systems}
 }

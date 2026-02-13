@@ -11,6 +11,20 @@ This experiment demonstrates that task difficulty in LLM routing is not merely a
 1. **Holdout Analysis** (N=1,871): Initial discovery on LMSYS dev/holdout data
 2. **1M Scale Validation** (N=594,199): Confirms semantic structure holds at production scale
 
+---
+
+### 🔗 Connection to Overall Contribution
+
+This experiment establishes the **foundation** for our routing approach:
+
+**What it shows:** Semantic structure exists in the task space—PC1 captures task difficulty with statistical significance (p<10⁻¹⁴³), and the "Alignment Tax" reveals that expensive models aren't always better (17.6% of prompts favor cheaper models).
+
+**Why it matters:** This semantic structure makes LLM routing **learnable** through contextual bandits. Without this structure, routing would be random guessing.
+
+**What's next:** However, discovering structure doesn't solve the **safety problem**: What if our training data distribution doesn't match deployment? Distribution shift could make our learned routing policy catastrophically wrong. **See Figure 2 for distribution shift analysis.**
+
+**Economic impact:** $2.3M/year savings potential at production scale (1M prompts/day).
+
 ## Files
 
 ### Analysis Scripts
@@ -330,3 +344,15 @@ This experiment provides comprehensive analysis for:
 - Holdout visualization uses all 1,871 prompts
 - 1M visualization downsamples to 10k points for clarity (full analysis uses all data)
 - Both analyses use the same PCA projection for consistency
+
+---
+
+## 🔗 What's Next?
+
+This experiment establishes that semantic structure makes routing learnable, but raises critical questions:
+
+1. **Distribution Shift:** Does training data match deployment? → **See Figure 2**
+2. **Dataset Provenance:** Where does our data come from? → **See Table 1**
+3. **Learning Safety:** How do we handle mismatch? → **See Table 2 (Corralling validation)**
+
+**The story continues:** We've found the structure. Now we need to learn from it safely.

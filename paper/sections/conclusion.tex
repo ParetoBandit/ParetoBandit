@@ -1,6 +1,18 @@
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
+% TRANSITION from Related Work
+We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (8 experiments, 1,871 prompts), we demonstrated:
+
+\begin{itemize}
+    \item \textbf{Safety:} $44.3\%$ improvement vs harmful warmup priors
+    \item \textbf{Performance:} $68.5\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM)
+    \item \textbf{Adaptability:} Catastrophic failure detection + zero-shot model adoption
+    \item \textbf{Robustness:} Regime-dependent expert selection requires minimal tuning
+\end{itemize}
+
+\subsection{Summary and Context}
+
 The economics of Large Language Models are shifting. As open-weights models like Mixtral and Llama-3 close the gap with proprietary frontiers, the routing problem has evolved from simple cost-cutting (``Use the cheap model for easy stuff'') to complex \textbf{Quality Discovery} (``Find the specific tasks where the expensive model is actually better'').
 
 In this work, we introduced \texttt{banditGPT}, a lifelong learning framework that replaces static ``Intelligence Taxes'' with adaptive resource allocation.

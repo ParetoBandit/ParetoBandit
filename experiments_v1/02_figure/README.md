@@ -10,6 +10,16 @@ This experiment quantifies distribution shift between training and deployment da
 - **Training Data**: Dev/holdout datasets (3,742 prompts) used for warmup priors
 - **Deployment Data**: RouteLLM battle data (10,000 prompts) from real user interactions
 
+---
+
+### 🔗 Connection to Previous Experiments
+
+**Motivation from Figure 1:** Figure 1 discovered semantic structure that makes routing learnable. But a critical question remains: **Does training data match deployment data?** If substantial distribution shift exists, warmup priors trained on historical data could catastrophically fail on production traffic.
+
+This experiment provides the answer through rigorous statistical analysis (PSI, KS tests, bootstrap CI).
+
+---
+
 ## Research Questions
 
 1. **How large is the distribution shift?** Quantified via PSI with bootstrap confidence intervals
@@ -248,6 +258,21 @@ Reduce batch size:
 ```python
 pc1_values = project_to_pc1(prompts, pca_file, batch_size=32)
 ```
+
+---
+
+## 🔗 What's Next?
+
+This experiment confirms **substantial distribution shift** (PSI=0.275, well above 0.25 threshold). This has critical implications:
+
+**Key Finding:** Training data distributions DON'T match deployment → warmup priors may fail catastrophically
+
+**Critical Questions Raised:**
+1. **How bad can it get?** What happens when priors fail? → **See Table 2 (Performance Gap)**
+2. **Can we recover?** Do we need safety mechanisms? → **See Table 2 (Corralling validation)**
+3. **Data transparency?** Where does our data come from? → **See Table 1 (Dataset Provenance)**
+
+**The story continues:** We've found semantic structure (Fig 1) and confirmed distribution shift (Fig 2). Now we need adaptive mechanisms that provide safety guarantees when priors fail.
 
 ## Contact
 

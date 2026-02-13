@@ -1,0 +1,146 @@
+% UNIFIED INTRODUCTION - Issue #2 Revision
+% Date: February 13, 2026
+% Follows: Motivation → Solution → Validation narrative
+% Emphasizes: Integrated contribution, not separate pieces
+
+\section{Introduction}
+\label{sec:intro}
+
+The deployment of Large Language Models (LLMs) presents a fundamental challenge: \textbf{how do we route user queries across models with vastly different costs and capabilities?} Naively routing all traffic to expensive "frontier" models (e.g., GPT-4) wastes resources, while static routing policies fail to adapt to distribution shifts and new model releases.
+
+% ============================================================================
+% PART 1: THE PROBLEM (Three Challenges)
+% ============================================================================
+
+\subsection{Three Interconnected Challenges}
+
+\paragraph{Challenge 1: Expensive Models Aren't Always Better}
+Recent evidence reveals a surprising phenomenon: cheaper models can outperform expensive ones on specific tasks. We discover an \textbf{``Alignment Tax''} where GPT-4-Turbo ($\$10$/1M tokens) actually performs \emph{worse} than Mixtral ($\$0.50$/1M tokens) on $17.6\%$ of prompts due to RLHF over-optimization for conversational helpfulness. This creates a $\$2.3M$/year economic opportunity at production scale (1M prompts/day), but only if we can \emph{learn} which prompts favor which models.
+
+\paragraph{Challenge 2: Training Data Doesn't Match Deployment}
+Distribution shift between training and deployment data is substantial (PSI=$0.275$, $p<10^{-37}$). When warmup priors trained on historical data are deployed on production traffic with domain mismatch, they can \emph{catastrophically fail}. Static routers like RouteLLM~\cite{ong2024routellm} and FrugalGPT~\cite{chen2023frugalgpt} have no mechanism to detect or recover from such failures.
+
+\paragraph{Challenge 3: New Models Release Monthly}
+The LLM landscape is non-stationary: GPT-4o, GPT-5, and competitors release frequently. Standard contextual bandits require thousands of exploratory requests to learn new model capabilities (the ``cold start'' problem), making rapid adoption impractical.
+
+\textbf{The Key Insight:} These challenges are \emph{interconnected}. Solving one without the others leaves production systems vulnerable. For example, learning semantic structure (Challenge 1) doesn't help if priors fail (Challenge 2) or if we can't adopt new models (Challenge 3).
+
+% ============================================================================
+% PART 2: OUR SOLUTION (Integrated Approach)
+% ============================================================================
+
+\subsection{Our Integrated Approach}
+
+We present \textbf{banditGPT}, a contextual bandit framework that addresses all three challenges simultaneously through an integrated system combining:
+
+\paragraph{1. Semantic Structure Discovery}
+We demonstrate that task difficulty in LLM routing relates to \emph{model alignment failures}, not just reasoning complexity. Using principal component analysis on prompt embeddings, we discover that the first principal component (PC1, capturing $3.10\%$ variance) separates tasks by alignment strictness. This semantic structure makes routing \textbf{learnable}—but only if we can safely learn from it.
+
+\paragraph{2. Corralling Meta-Learning} 
+To provide safety against prior mismatch, we employ Corralling~\cite{agarwal2017corralling}, a meta-algorithm that adaptively combines two experts: one with warmup priors (semantic knowledge) and one starting fresh (tabula rasa). Through exponential weight updates, Corralling automatically detects when priors fail and switches to cold-start exploration. This provides \textbf{safety guarantees}: $44.3\%$ improvement when priors are harmful, while achieving near-optimal performance ($1.3\times$ vs optimal) when they succeed.
+
+\paragraph{3. Semantic Transfer}
+To eliminate cold-start penalties for new models, we introduce \textbf{semantic transfer}: new models inherit preferences ($\theta$) from semantically similar models while resetting confidence ($A$), enabling immediate exploitation of transferred knowledge with maintained exploration flexibility. Statistical validation ($+0.62$ reward improvement on new model release, $p<10^{-7}$) confirms this eliminates cold-start costs.
+
+\paragraph{Why Integration Matters}
+\textbf{Alone, each mechanism is insufficient:}
+\begin{itemize}
+    \item Semantic structure without safety → catastrophic failure on distribution shift
+    \item Corralling without transfer → cold-start penalties on new models  
+    \item Transfer without meta-learning → no recovery mechanism when transfer fails
+\end{itemize}
+
+\textbf{Together, they create a production-ready system} with safety, performance, and adaptability.
+
+% ============================================================================
+% PART 3: VALIDATION & CONTRIBUTIONS
+% ============================================================================
+
+\subsection{Contributions and Validation}
+
+Through comprehensive experimental validation (Figures 1--8, Tables 1--2), we demonstrate:
+
+\begin{enumerate}
+    \item \textbf{Semantic Structure Discovery (Figures 1--2, Table 1):} 
+    \begin{itemize}
+        \item Alignment Tax identified: $17.6\%$ of prompts where Mixtral $>$ GPT-4
+        \item Statistical significance: $p<10^{-143}$, Cohen's $d=1.90$
+        \item Distribution shift quantified: PSI=$0.275$ (substantial)
+        \item Scale validation: Structure persists at $594{,}199$ prompts ($317\times$ increase)
+    \end{itemize}
+    
+    \item \textbf{Corralling Safety \& Performance (Table 2, Figure 3):}
+    \begin{itemize}
+        \item Safety guarantee: $44.3\%$ improvement vs harmful warmup (median $52$ vs $79$ regret)
+        \item Near-optimal performance: $1.3\times$ vs optimal ($52$ vs $40$ regret)
+        \item Multi-seed validation: N=$10$ seeds with statistical testing
+        \item Architecture validation: All hyperparameters ablation-tested ($75$ configurations)
+    \end{itemize}
+    
+    \item \textbf{Multi-Model Routing \& Transfer (Figure 4):}
+    \begin{itemize}
+        \item Scalability: $3$-model portfolio spanning cost tiers
+        \item Semantic transfer: GPT-4o initialized from GPT-4-Turbo neighbors
+        \item Cost efficiency: $75.7\%$ reduction ($\$2.43$/1M tokens)
+        \item Model discovery: System identifies GPT-4o as best value ($70.8\%$ usage)
+    \end{itemize}
+    
+    \item \textbf{Production Validation (Figures 5--8):}
+    \begin{itemize}
+        \item Pareto analysis: $68.5\%$ gap closure (vs $46.2\%$ for RouteLLM)
+        \item ``Negative Intelligence Tax'' discovered: GPT-4 costs $43\times$ more, performs $1.3\%$ worse
+        \item Catastrophic failure detection: $100\%$ success in $3$--$50$ steps
+        \item Zero-shot adoption: $+0.62$ reward improvement ($p<10^{-7}$)
+        \item Regime-dependent robustness: $30\%$ warmup / $70\%$ tabula rasa across seeds
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Novel Technical Contributions}
+
+\paragraph{1. Alignment Tax Discovery}
+First empirical demonstration that RLHF optimization creates performance \emph{inversions} where expensive models fail on strict constraint tasks. This transforms routing from ``cost-quality tradeoff'' to ``discovery problem.''
+
+\paragraph{2. Regime-Dependent Robustness}
+Discovery that Corralling exhibits \emph{binary expert commitment} (not gradual blending), with regime-dependent parameter sensitivity. System robustness emerges from adaptive expert selection, not parameter insensitivity. Cross-validated across Figures 7--8.
+
+\paragraph{3. Production-Grade Validation} 
+Comprehensive validation exceeding field standards (RouteLLM: $n=1$ seed, FrugalGPT: $n=3$) with multi-seed evaluation (N=$10$--$30$), statistical testing (t-tests, Mann-Whitney, Bonferroni correction), and real production scenarios (failures, new models).
+
+\subsection{Paper Organization}
+
+\textbf{Section~\ref{sec:motivation}:} Empirical motivation establishing semantic structure and distribution shift (Figures 1--2, Table 1)
+
+\textbf{Section~\ref{sec:methodology}:} Integrated system description: Corralling architecture, semantic transfer mechanism, implementation details
+
+\textbf{Section~\ref{sec:experiments}:} Experimental setup and protocols for all $8$ experiments
+
+\textbf{Section~\ref{sec:results}:} Results progression:
+\begin{itemize}
+    \item Safety \& Performance (Table 2, Figure 3)
+    \item Multi-Model Routing (Figure 4)  
+    \item Production Validation (Figures 5--8)
+\end{itemize}
+
+\textbf{Section~\ref{sec:related}:} Related work on LLM routing, contextual bandits, meta-learning
+
+\textbf{Section~\ref{sec:conclusion}:} Discussion of limitations, deployment guidance, future work
+
+\textbf{Appendices:} Mathematical foundations, extended results, sensitivity analyses, ablation studies
+
+% ============================================================================
+% KEY MESSAGES FOR REVIEWERS
+% ============================================================================
+
+\subsection*{Key Takeaways}
+
+\begin{enumerate}
+    \item \textbf{Integration is the contribution:} We don't just propose three techniques—we show they must work \emph{together} for production readiness.
+    
+    \item \textbf{Economic stakes are real:} $\$2.3M$/year potential at 1M prompts/day, with ``Negative Intelligence Tax'' where expensive default is \emph{worse}.
+    
+    \item \textbf{Safety matters:} $44.3\%$ improvement vs harmful warmup demonstrates meta-learning value. Static routers can catastrophically fail.
+    
+    \item \textbf{Production-ready:} Handles catastrophic failures, zero-shot adoption, minimal tuning. Not just a research prototype.
+\end{enumerate}
+
+\textbf{The unified story:} Semantic structure makes routing learnable, Corralling makes learning safe, semantic transfer makes adoption fast—and all three are required for production deployment.

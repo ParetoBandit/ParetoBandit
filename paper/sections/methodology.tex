@@ -1,4 +1,14 @@
 \section{Methodology}
+\label{sec:methodology}
+
+% TRANSITION from Empirical Motivation
+Having established empirical motivation---semantic structure exists (Figure~\ref{fig:alignment_tax}) but distribution shift is substantial (Figure~\ref{fig:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
+
+\begin{itemize}
+    \item \textbf{Contextual embeddings} exploit semantic structure for learning
+    \item \textbf{Corralling meta-learning} provides safety against prior mismatch
+    \item \textbf{Semantic transfer} eliminates cold-start penalties for new models
+\end{itemize}
 
 We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. Our framework, banditGPT, introduces a hierarchical architecture that addresses two fundamental challenges in production routing: safety against non-stationary quality shifts and agility in adopting new models.
 

@@ -1,0 +1,145 @@
+% SECTION TRANSITIONS for Unified Narrative
+% Date: February 13, 2026
+% Purpose: Connect sections with clear motivation/implication structure
+% Usage: Insert at the START of each section to connect to previous
+
+% ============================================================================
+% TRANSITION: Introduction → Empirical Motivation
+% ============================================================================
+% INSERT at start of empirical_motivation.tex AFTER \section{...}
+
+Our integrated approach rests on a critical empirical foundation: that semantic structure exists in the LLM task space and can be exploited for intelligent routing. In this section, we provide the empirical motivation for our system design through two key analyses:
+
+\begin{enumerate}
+    \item \textbf{Semantic Structure Discovery (Figure~\ref{fig:alignment_tax}):} We demonstrate that task difficulty relates to model alignment failures, not just reasoning complexity. This establishes that routing is \emph{learnable} through contextual features.
+    
+    \item \textbf{Distribution Shift Quantification (Figure~\ref{fig:distribution_shift}):} We quantify covariate shift between training and deployment data, establishing the need for adaptive mechanisms with safety guarantees.
+\end{enumerate}
+
+Together, these findings motivate our integrated approach: semantic structure makes routing learnable, but distribution shift makes \emph{safe} learning essential.
+
+% ============================================================================
+% TRANSITION: Empirical Motivation → Methodology
+% ============================================================================
+% INSERT at start of methodology.tex AFTER \section{...}
+
+Having established empirical motivation---semantic structure exists (Figure~\ref{fig:alignment_tax}) but distribution shift is substantial (Figure~\ref{fig:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
+
+\begin{itemize}
+    \item \textbf{Contextual embeddings} exploit semantic structure for learning
+    \item \textbf{Corralling meta-learning} provides safety against prior mismatch
+    \item \textbf{Semantic transfer} eliminates cold-start penalties for new models
+\end{itemize}
+
+We present the architecture (Section~\ref{sec:architecture}), the Corralling algorithm (Section~\ref{sec:corralling}), and the semantic transfer mechanism (Section~\ref{sec:transfer}).
+
+% ============================================================================
+% TRANSITION: Methodology → Experiments
+% ============================================================================
+% INSERT at start of experiments.tex AFTER \section{...}
+
+To rigorously validate our integrated approach, we conduct eight experiments organized into three parts:
+
+\textbf{Part I: Motivation (Covered in Section~\ref{sec:motivation})}
+\begin{itemize}
+    \item Table~\ref{tab:dataset}: Dataset provenance and split design
+    \item Figures~\ref{fig:alignment_tax}--\ref{fig:distribution_shift}: Empirical foundations
+\end{itemize}
+
+\textbf{Part II: Solution Validation (Covered in this section)}
+\begin{itemize}
+    \item Table~\ref{tab:performance_gap}: Corralling safety and performance
+    \item Figure~\ref{fig:architecture}: Validated architectural design
+    \item Figure~\ref{fig:multimodel}: Multi-model routing and semantic transfer
+\end{itemize}
+
+\textbf{Part III: Production Validation (Section~\ref{sec:results})}
+\begin{itemize}
+    \item Figure~\ref{fig:pareto}: Production-grade Pareto analysis
+    \item Figures~\ref{fig:catastrophic}--\ref{fig:sensitivity}: Adaptation and robustness
+\end{itemize}
+
+This section describes the experimental setup and protocols (Section~\ref{sec:exp_setup}), followed by solution validation results (Section~\ref{sec:solution_results}).
+
+% ============================================================================
+% TRANSITION: Experiments → Results
+% ============================================================================
+% INSERT at start of results.tex AFTER \section{...}
+
+Having validated our solution approach (Table~\ref{tab:performance_gap}, Figures~\ref{fig:architecture}--\ref{fig:multimodel}), we now evaluate production readiness through three critical lenses:
+
+\begin{enumerate}
+    \item \textbf{Production Performance (Section~\ref{sec:pareto}):} Pareto frontier analysis against state-of-the-art baselines (RouteLLM), quantifying cost-quality tradeoffs on held-out test data.
+    
+    \item \textbf{Adaptation Dynamics (Section~\ref{sec:adaptation}):} Response to catastrophic failures and zero-shot model releases—two key production scenarios requiring online adaptation.
+    
+    \item \textbf{Robustness Analysis (Section~\ref{sec:sensitivity}):} Sensitivity to hyperparameters, revealing regime-dependent expert selection as the robustness mechanism.
+\end{enumerate}
+
+Each subsection demonstrates one aspect of production readiness, building toward comprehensive deployment validation.
+
+% ============================================================================
+% WITHIN RESULTS SECTION: Subsection Transitions
+% ============================================================================
+
+% TRANSITION: Pareto → Adaptation (within results.tex)
+% INSERT between subsection 5.1 (Pareto) and 5.2 (Adaptation)
+
+\paragraph{From Static to Dynamic Validation}
+The Pareto analysis (Figure~\ref{fig:pareto}) validates performance on \emph{static benchmarks}—frozen evaluation on held-out test data. Production systems face two additional dynamic scenarios requiring real-time adaptation:
+
+\begin{itemize}
+    \item \textbf{Catastrophic failures:} APIs crash, models degrade suddenly
+    \item \textbf{New model releases:} GPT-4o, GPT-5 appear monthly
+\end{itemize}
+
+The following subsections validate Corralling's adaptive capabilities in both scenarios.
+
+% TRANSITION: Adaptation → Sensitivity (within results.tex)
+% INSERT between subsection 5.2 (Adaptation) and 5.3 (Sensitivity)
+
+\paragraph{From Adaptation to Robustness}
+Figures~\ref{fig:catastrophic}--\ref{fig:zeroshot} demonstrated that Corralling successfully adapts to catastrophic failures and new model releases. A critical remaining question: \textbf{Is this performance brittle?} Does it require extensive hyperparameter tuning, or is the system robust by design?
+
+The sensitivity analysis (Figure~\ref{fig:sensitivity}) reveals that robustness emerges from Corralling's \emph{adaptive expert selection}, not parameter insensitivity. The system automatically detects when priors fail and switches to cold-start exploration, providing production-grade reliability.
+
+% ============================================================================
+% TRANSITION: Results → Related Work
+% ============================================================================
+% INSERT at start of related_work.tex AFTER \section{...}
+
+Having demonstrated comprehensive validation of our integrated approach---from empirical motivation through solution design to production validation---we now position our work within the broader landscape of LLM routing, contextual bandits, and meta-learning research.
+
+% ============================================================================
+% TRANSITION: Related Work → Conclusion
+% ============================================================================
+% INSERT at start of conclusion.tex AFTER \section{...}
+
+We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (8 experiments, 1,871 prompts), we demonstrated:
+
+\begin{itemize}
+    \item \textbf{Safety:} $44.3\%$ improvement vs harmful warmup priors
+    \item \textbf{Performance:} $68.5\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM)
+    \item \textbf{Adaptability:} Catastrophic failure detection + zero-shot model adoption
+    \item \textbf{Robustness:} Regime-dependent expert selection requires minimal tuning
+\end{itemize}
+
+In this section, we discuss limitations (Section~\ref{sec:limitations}), deployment guidance (Section~\ref{sec:deployment}), and future work (Section~\ref{sec:future}).
+
+% ============================================================================
+% USAGE NOTES
+% ============================================================================
+% 
+% How to use these transitions:
+% 
+% 1. Copy the appropriate transition block
+% 2. Insert at the START of the target section file
+% 3. Adjust figure/table references to match your numbering
+% 4. Update section references (\ref{sec:...}) as needed
+% 5. Verify logical flow after insertion
+%
+% Expected impact:
+% - Reviewers can follow narrative progression
+% - No "why am I reading this now?" confusion
+% - Clear connection between contributions
+% - Unified story comes through
