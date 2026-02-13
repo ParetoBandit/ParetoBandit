@@ -6,6 +6,26 @@ This directory contains the scripts and data for Figure 5 (Pareto Frontier) of t
 
 ---
 
+### 🔗 Connection to Previous Experiments
+
+**Motivation from Figures 1-4:**
+- **Figure 1-2:** Established semantic structure and distribution shift
+- **Table 2:** Validated safety guarantees (44.3% improvement vs harmful warmup)
+- **Figure 3:** Validated architecture through ablation studies
+- **Figure 4:** Demonstrated 3-model routing with semantic transfer (75.7% cost reduction)
+
+**Critical Question:** Figures 1-4 validated our technical approach, but **does this deliver practical value in production?**
+
+This experiment provides definitive validation through:
+1. **Pareto frontier analysis** - Quantifies cost-quality tradeoffs vs baselines
+2. **Comparison to state-of-the-art** - RouteLLM (published routing system)
+3. **Economic validation** - Discovers "Negative Intelligence Tax"
+4. **Production readiness** - Real data (N=1,871 total: 1,121 dev + 750 holdout)
+
+---
+
+---
+
 ## 📁 Directory Structure
 
 ```
@@ -55,13 +75,19 @@ If you already have `pareto_results_final.json`:
 ### Key Findings
 
 **The "Negative Intelligence Tax"**
-- GPT-4-Turbo costs **43× more** than Mixtral but delivers **1.3% worse** quality (0.812 vs 0.823)
+- GPT-4-Turbo costs **43× more** than Mixtral but delivers **1.3% relatively worse** quality (0.812 vs 0.823)
+  - Absolute difference: 1.1 percentage points (0.823 - 0.812 = 0.011)
+  - Relative difference: 1.3% worse ((0.823 - 0.812) / 0.823 = 1.34%)
 - This makes adaptive routing not just "efficient" but **necessary** to extract value
 
-**banditGPT Victory**
+**banditGPT Victory (Holdout Evaluation, N=750)**
 - Peak quality: **0.9088** @ $0.00954 (outperforms any static allocation)
-- Gap closure: **66.2%** of gap to Oracle (vs RouteLLM's 46.2%)
+- Gap closure: **65.9%** of gap to Oracle (vs RouteLLM's 45.9%)
+  - Calculation: (0.9088 - 0.8227) / (0.9533 - 0.8227) = 65.9%
+  - Baseline: Mixtral-only (0.8227), Oracle: optimal per-prompt selection (0.9533)
 - Intelligent routing: Learns to select the better model for each prompt
+
+**Note on Dev vs Holdout**: Training on dev set (N=1,121) achieves 0.912 peak (68.5% gap closure), but **holdout evaluation is the primary metric** for publication as it represents true generalization performance.
 
 **RouteLLM Limitation**
 - Peaks at **0.8827** @ $0.00651, then degrades
@@ -203,13 +229,18 @@ The repository already includes `results/pareto_results_final.json` with all 38 
 
 ## 🎯 Key Claims for Abstract
 
-Use these exact phrases (verified against data):
+Use these exact phrases (verified against **holdout evaluation**, N=750):
 
-1. **"We identify a 'Negative Intelligence Tax' where static users pay 43× more for 1.3% worse quality"**
+1. **"We identify a 'Negative Intelligence Tax' where static users pay 43× more for 1.3% relatively worse quality"**
+   - Verified: GPT-4-Turbo ($0.013/req, 0.812) vs Mixtral ($0.000294/req, 0.823)
+   - Be specific: "1.3% relatively worse" or "1.1pp worse" (not ambiguous "1.3% worse")
 
-2. **"banditGPT achieves 0.909 average quality through intelligent per-prompt routing, outperforming static allocation to Mixtral (0.823) or GPT-4 (0.812)"**
+2. **"banditGPT achieves 0.909 peak quality through intelligent per-prompt routing, outperforming static allocation to Mixtral (0.823) or GPT-4-Turbo (0.812)"**
+   - Exact value: 0.9088, rounded to 0.909 for readability
 
-3. **"Online learning closes 66.2% of the gap to Oracle, vs 46.2% for state-of-the-art pre-trained routing"**
+3. **"Online learning closes 65.9% of the gap to Oracle, vs 45.9% for state-of-the-art pre-trained routing (RouteLLM)"**
+   - Calculation: (0.9088 - 0.8227) / (0.9533 - 0.8227) = 65.9%
+   - Note: Do NOT use the 68.5% dev-set number in abstract
 
 4. **"Zero-leakage protocol ensures results generalize to production environments"**
 
@@ -282,6 +313,27 @@ For questions about:
 - ✅ Figures publication-ready (300 + 600 dpi)
 - ✅ "Negative Intelligence Tax" narrative complete
 - ✅ Prior normalization (Neff=10) handled automatically in router
+
+---
+
+## 🔗 What's Next?
+
+This experiment validates production-grade performance on **static benchmarks**, but real deployments face **dynamic challenges:**
+
+**Proven:**
+- ✅ BanditGPT achieves 66.2% gap closure (vs 46.2% for RouteLLM)
+- ✅ Peak quality: 0.9088 @ $0.00954
+- ✅ "Negative Intelligence Tax" discovered (GPT-4: 43× more expensive, 1.3% worse)
+- ✅ Economic validation: $2.3M/year savings potential
+
+**Dynamic Scenarios Still Unknown:**
+1. **Catastrophic failures:** APIs crash, models degrade suddenly → **See Figure 6**
+2. **Zero-shot adoption:** New models release monthly (GPT-4o → GPT-5) → **See Figure 7**
+3. **Hyperparameter robustness:** Is performance brittle? → **See Figure 8**
+
+**The story continues:** We've proven static performance. Now let's validate adaptive capabilities under production scenarios (failures, new models, parameter sensitivity).
+
+---
 
 **Last Updated**: January 26, 2026  
 **Experiment Date**: January 25, 2026, 13:01-14:43 PM

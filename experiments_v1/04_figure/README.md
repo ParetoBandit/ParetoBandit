@@ -11,6 +11,24 @@ This experiment implements the **mathematically correct Corralled algorithm** wi
 
 GPT-4o is initialized via **semantic transfer** from GPT-4-Turbo priors (γ=0.05), demonstrating the router's ability to adapt to new models without extensive warmup data.
 
+---
+
+### 🔗 Connection to Previous Experiments
+
+**Motivation from Figure 3:** Figure 3 validated our architecture on 2-model routing (Mixtral vs GPT-4). Production systems face two critical challenges:
+
+1. **Scalability:** Need to route across 3+ models spanning different cost/quality tiers
+2. **Adaptability:** New models (GPT-4o, GPT-5) release monthly—retraining from scratch is impractical
+
+**This experiment tests both:**
+- ✅ **3-model portfolio:** Mixtral ($0.50/1M), GPT-4-Turbo ($10/1M), GPT-4o ($2.50/1M)
+- ✅ **Semantic transfer:** GPT-4o inherits preferences from GPT-4-Turbo (similar models)
+- ✅ **Zero-shot readiness:** No cold-start penalty despite adding new model
+
+**Key Questions:** Can Corralling discover the best model? Can semantic transfer eliminate exploration costs?
+
+---
+
 ### Key Principle: No Fake Numbers
 
 The implementation follows the principle that **you cannot evaluate what you cannot measure**:
@@ -193,11 +211,15 @@ Corralling automatically:
 - Hyperparameters: η=5.0, γ=0.10 (optimized via ablation)
 
 **Key Results to Report**:
-1. **Expert Weight Evolution**: Complete unlearning (100% → tabula rasa)
+1. **Expert Weight Evolution**: Systematic complete unlearning (100% → tabula rasa)
+   - With η=5.0 (aggressive learning), system converges deterministically
+   - Contrast with η=0.1 (Exp 07/08): seed-dependent binary regime switching
 2. **Performance**: Regret=59.33±3.40, Reward=0.939±0.003
 3. **Convergence**: Sublinear growth (β=0.669, R²=0.9903)
 4. **Cost Efficiency**: $2.43/1M tokens (75.7% reduction)
 5. **Model Discovery**: GPT-4o identified as best value (70.8% usage)
+
+**Note on Learning Rate**: This experiment uses η=5.0 (50× higher than Exp 07/08), enabling systematic convergence rather than early lock-in. Both regimes demonstrate Corralling's adaptive intelligence, but through different mechanisms.
 
 ### Appendix: Ablation Studies
 
@@ -432,6 +454,27 @@ The 75.7% cost reduction is not from explicit cost optimization—it emerges nat
 - Agarwal, A., Luo, H., Neyshabur, B., & Schapire, R. E. (2017). Corralling a band of bandit algorithms. *Conference on Learning Theory (COLT)*.
 
 - The implementation follows the simplified version in `src/bandit_gpt/router.py` (CorrallingRouter class)
+
+---
+
+## 🔗 What's Next?
+
+This experiment demonstrates technical feasibility (3-model routing + semantic transfer), but critical questions remain:
+
+**Proven:**
+- ✅ Corralling discovers best model (GPT-4o: 70.8% usage)
+- ✅ Semantic transfer works (no cold-start penalty)
+- ✅ Cost efficiency achieved (75.7% reduction, $2.43/1M tokens)
+- ✅ Quality maintained (93.9% reward, 97.5% of max)
+
+**Still Unknown:**
+1. **Production validation:** Does this deliver practical value against baselines? → **See Figure 5 (Pareto)**
+2. **Adaptation dynamics:** Can system handle failures and new releases? → **See Figures 6-7**
+3. **Robustness:** Is performance brittle or robust to hyperparameters? → **See Figure 8**
+
+**The story continues:** We've shown the system works technically. Now we need production-grade validation and robustness analysis.
+
+---
 
 ## For the Paper
 
