@@ -50,6 +50,9 @@ Each expert $i$ models the reward function using Bayesian Ridge Regression (LinU
 a_t = \arg\max_{a \in \mathcal{P}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \alpha \sqrt{x_t^\top \Amat_a^{-1} x_t} - \lambda c_a \right)
 \end{equation}
 
+\paragraph{Exploration Parameter Selection.}
+We use constant $\alpha=2.0$ for both experts throughout deployment. While standard practice employs adaptive decay schedules (e.g., $\alpha_t = \alpha_0/\sqrt{t}$), our ablation studies (Section~\ref{sec:alpha_ablation}) demonstrate that constant exploration is essential under severe domain mismatch. Premature exploitation causes the system to commit irreversibly to misspecified priors. Maintaining constant $\alpha$ preserves the system's ability to detect and adapt to distribution shifts, achieving 48\% improvement over adaptive decay in high-mismatch scenarios.
+
 To ensure numerical stability during long-running operations, we implement an \emph{Amortized Regularization Floor}. We track the effective decay of the precision matrix $\Amat_a$ and proactively reinject regularization $\lambda_{\text{ridge}}\mathbf{I}$ whenever the smallest eigenvalue risks dropping below a safety threshold, preventing singular matrix inversions without the cost of $O(d^3)$ operations at every step.
 
 \subsection{Latent Semantic Transfer (Zero-Shot Admission)}

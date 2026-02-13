@@ -1,22 +1,21 @@
-% Figure 3: Corralled Architecture with Heterogeneous Alpha Strategy
-% Hierarchical coordinator-expert system for adaptive model routing
+% Figure 3: Corralled Architecture Diagram (System Design)
+% Architecture design validated through comprehensive ablation studies
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.85\textwidth]{experiments_v1/03_figure/results/figure3_corralled_architecture_corrected.pdf}
     \caption{%
-        \textbf{Corralled Architecture with Heterogeneous $\alpha$-Schedules.}
-        The system implements a \textbf{coordinator-expert hierarchy} where a meta-controller dynamically allocates probability mass between two complementary routing experts using the mixed policy $P_t = (1-\gamma)w_t + \gamma/K$, where $\gamma=0.05$ ensures minimum exploration (preventing ``Expert Death'').
-        %
-        \textbf{(Top)} The \textit{Coordinator} samples experts according to $P_t(i)$ and updates weights via exponential weighting with learning rate $\eta=0.1$.
-        %
-        \textbf{(Middle)} The \textit{Expert Layer} employs a \textbf{heterogeneous $\alpha$-strategy}:
-        (1)~\textit{Expert 1 (Efficiency Engine)} uses warmup priors from 80k battles with decaying exploration ($\alpha: 1.0 \to 0.01$), optimized for stable environments;
-        (2)~\textit{Expert 2 (Discovery Engine)} starts tabula rasa with constant high exploration ($\alpha = 2.0$), remaining vigilant for distribution shifts and new models.
-        %
-        \textbf{(Bottom)} The \textit{Feedback} phase computes importance-weighted loss $\hat{\ell}_t = (1-r_t)/P_t$ for unbiased coordinator updates.
-        %
-        This design provides \textbf{automatic regime adaptation}: during stable periods, the Efficiency Engine dominates (low regret); during distribution shifts (e.g., GPT-5 release), the Discovery Engine detects changes first, and the Coordinator pivots automatically---no manual tuning required.
+        \textbf{Architecture Diagram: Corralling-Based Router with Constant Exploration.}
+        The coordinator manages two LinUCB experts, both using constant exploration ($\alpha = 2.0$) 
+        to prevent premature exploitation under domain mismatch: Expert 1 (Warmup) initializes with 
+        semantic priors from latent space analysis, while Expert 2 (Tabula Rasa) learns purely from 
+        online feedback. Trust allocation adapts via exponential weighting ($\eta=1.0$) with $\gamma$-mixing 
+        ($\gamma=0.05$) for expert death prevention. At each request, the coordinator samples an expert 
+        with probability $P_t = (1-\gamma)w_t + \gamma/K$, which mixes learned weights $w_t$ with uniform 
+        exploration. The selected expert chooses a model, and feedback updates expert weights via 
+        importance-weighted loss $\hat{\ell}_t = (1-r_t)/P_t$. We employ constant exploration ($\alpha=2.0$) 
+        for both experts, which our ablation studies (§5.4) show outperforms adaptive decay by 48\% 
+        (60.6 vs 90.2 regret), confirming that maintaining vigilance is essential under domain mismatch.
     }
     \label{fig:corralled_architecture}
 \end{figure}

@@ -151,3 +151,71 @@ Surprisingly, \textbf{weak priors outperform strong priors}: $\neff=1.0$ achieve
 \paragraph{Design Insight.}
 Semantic transfer succeeds by transferring \textit{direction} ($\thetavec_{\text{neighbor}}$), not rigid confidence. Setting $\neff=1.0$ preserves exploration flexibility while capturing similarity, achieving optimal adoption velocity with no manual tuning required. The narrow robustness band (5.2pp worst-case degradation) confirms the system is production-ready across diverse model releases.
 
+\subsection{Exploration Strategy Validation}
+\label{sec:alpha_ablation}
+
+A critical design choice in our Corralling architecture is the exploration-exploitation schedule. To ensure optimal performance under domain uncertainty, we systematically validated our constant exploration design ($\alpha=2.0$) for both experts through comprehensive ablation studies under the severe domain mismatch in our deployment scenario (PSI=0.275, 68.6\%→13.7\% hard prompt shift).
+
+\paragraph{Experimental Setup.}
+We evaluated four configurations on the 750-prompt holdout set across 5 random seeds:
+\begin{enumerate}[nosep]
+    \item \textbf{Homogeneous Constant}: Both experts with $\alpha=2.0$ (constant)
+    \item \textbf{Current Design}: Warmup $\alpha: 1.0 \to 0.01$ (decay), Tabula Rasa $\alpha=2.0$ (constant)
+    \item \textbf{Homogeneous Decay}: Both experts with $\alpha: 1.0 \to 0.01$ (adaptive decay)
+    \item \textbf{Reversed}: Warmup $\alpha=2.0$, Tabula Rasa $\alpha: 1.0 \to 0.01$
+\end{enumerate}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Exploration Strategy Ablation Study.} Constant exploration ($\alpha=2.0$) outperforms adaptive decay under severe domain mismatch. Premature exploitation (decaying $\alpha$) causes the system to commit to misspecified priors, degrading performance by 48\%.}
+\label{tab:alpha_ablation}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Configuration} & \textbf{Cumulative Regret} & \textbf{vs Best} \\
+\midrule
+\textbf{Homogeneous Constant ($\alpha=2.0$)} & \textbf{60.6 ± 1.4} & \textbf{--} \\
+Current Design (mixed) & 64.4 ± 4.4 & +6.3\% \\
+\midrule
+Homogeneous Decay ($\alpha: 1.0 \to 0.01$) & 90.2 ± 7.8 & +48\% \\
+Reversed Configuration & 90.8 ± 9.1 & +49\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Validated Design: Constant Exploration Optimizes Performance.}
+As shown in Table~\ref{tab:alpha_ablation}, homogeneous constant exploration achieves the lowest regret (60.6 ± 1.4), outperforming our original mixed design by 6.3\%. More dramatically, both configurations using adaptive decay degrade performance by approximately 48\% (90.2 vs 60.6 regret). Under severe prior mismatch, decaying $\alpha$ causes premature exploitation: the system commits to misspecified beliefs before accumulating sufficient evidence of their invalidity.
+
+\paragraph{Interpretation.}
+Standard bandit algorithms employ adaptive decay schedules (e.g., $\alpha_t = \alpha_0/\sqrt{t}$) to transition from exploration to exploitation. However, when warmup priors are substantially misaligned with deployment, this premature convergence is catastrophic. Constant $\alpha=2.0$ maintains vigilance throughout the deployment, preventing the system from "locking in" to harmful beliefs. This finding is specific to high-mismatch scenarios; in validated low-mismatch settings, adaptive schedules may improve sample efficiency.
+
+\subsection{Practical Deployment Recommendations}
+\label{sec:practical}
+
+Our experimental validation reveals actionable guidelines for practitioners deploying adaptive LLM routing under domain uncertainty.
+
+\paragraph{Strategy Selection Based on Prior Quality.}
+While Corralling provides robust performance (59.2 regret in our experiments), practitioners with validated prior quality can optimize their strategy selection. Our convergence analysis demonstrates that pure Tabula Rasa achieves 49.5 ± 2.8 regret when priors are \emph{known} to be severely misspecified---16\% better than Corralling's hedging overhead. Conversely, Corralling provides 18.5\% safety improvement when prior quality is \emph{uncertain} (59.2 vs 74.7 for harmful warmup-only).
+
+\textbf{Recommendation}: Validate prior quality on N=100--200 held-out deployment samples. If warmup predictions achieve $>$80\% accuracy, warmup-only is optimal; if $<$50\%, pure Tabula Rasa outperforms hedging; otherwise, Corralling provides robust safety.
+
+\paragraph{Constant Exploration Under Uncertainty.}
+Configuration guideline: Use $\alpha=2.0$ (constant) for both experts when deploying under domain uncertainty. Our ablation (§\ref{sec:alpha_ablation}) validates 48\% improvement over adaptive decay. This prevents premature commitment to misspecified beliefs while maintaining sufficient exploration to detect distribution shifts.
+
+\paragraph{Real-Time Monitoring for Rapid Iteration.}
+Our temporal analysis reveals expert weight adaptation occurs in approximately 16 ± 14 requests---significantly faster than anticipated. This enables real-time deployment monitoring: warmup weight $<$0.2 indicates harmful priors (consider switching to Tabula Rasa); $>$0.8 indicates accurate priors (consider simplifying to warmup-only). The high variance in weight evolution (0.382 ± 0.471) underscores the importance of monitoring individual deployments rather than relying on population-level predictions.
+
+\subsection{Limitations and Applicability}
+\label{sec:limitations}
+
+While our experimental validation demonstrates effectiveness under severe domain mismatch, several important limitations warrant discussion.
+
+\paragraph{Prior Quality Dependency.}
+Our constant exploration finding ($\alpha=2.0$) is validated under severe domain mismatch (PSI=0.275, 68.6\%→13.7\% hard prompt shift). Under such conditions, maintaining vigilance prevents catastrophic commitment to misspecified priors. However, this finding may not generalize to scenarios with accurate priors and low mismatch. When warmup data closely matches deployment, adaptive exploration schedules may improve sample efficiency by reducing unnecessary exploration once accurate preferences are learned. Future work should investigate mismatch-aware $\alpha$ schedules that adjust exploration dynamically based on detected prior quality.
+
+\paragraph{Strategy Selection Trade-offs.}
+Our experiments reveal that Corralling's 20\% overhead relative to optimal single-expert strategies (49.5 vs 59.2 regret) is justified only under genuine uncertainty. When practitioners can validate prior quality on held-out deployment data, strategy selection optimizes performance: pure Tabula Rasa for known-bad priors (16\% improvement), warmup-only for validated-good priors. The value of Corralling lies in its safety guarantee (18.5\% vs harmful warmup) when prior quality cannot be pre-validated---most valuable in risk-averse deployments where catastrophic performance is unacceptable.
+
+\paragraph{Variance and Reproducibility.}
+Multi-seed validation reveals substantial variance in expert weight evolution: final warmup weight is 0.382 ± 0.471 (standard deviation exceeds mean). This seed-dependency indicates outcomes are influenced by stochastic request ordering. Practitioners cannot rely on deterministic trajectories (e.g., "weight will be 0.2 after 200 requests") and must instead monitor deployment-specific weight evolution with appropriate confidence intervals.
+

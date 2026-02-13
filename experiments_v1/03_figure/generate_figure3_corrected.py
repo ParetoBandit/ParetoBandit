@@ -58,21 +58,21 @@ ax.text(5.0, 5.42, "Coordinator", ha='center', va='center',
 
 # Expert 1 (left) - More compact box
 rounded_box(0.8, 2.7, 3.0, 1.45, C['green'])
-ax.text(2.3, 3.8, "Expert 1", ha='center', va='center',
+ax.text(2.3, 3.8, "Expert 1: Warmup", ha='center', va='center',
         fontsize=11, fontweight='bold', color=C['green'])
-ax.text(2.3, 3.5, "Efficiency Engine", ha='center', fontsize=10, 
+ax.text(2.3, 3.4, "LinUCB with Priors", ha='center', fontsize=10, 
         style='italic', color=C['gray'])
-ax.text(2.3, 3.15, r"$\alpha: 1.0 \to 0.01$", ha='center', fontsize=11, color=C['red'])
-ax.text(2.3, 2.85, "Warmup Priors", ha='center', fontsize=9, color=C['gray'])
+ax.text(2.3, 3.05, r"$\alpha = 2.0$", ha='center', fontsize=11, color=C['red'])
+ax.text(2.3, 2.8, "(constant exploration)", ha='center', fontsize=8, color=C['gray'])
 
 # Expert 2 (right) - More compact box
 rounded_box(6.2, 2.7, 3.0, 1.45, C['orange'])
-ax.text(7.7, 3.8, "Expert 2", ha='center', va='center',
+ax.text(7.7, 3.8, "Expert 2: Tabula Rasa", ha='center', va='center',
         fontsize=11, fontweight='bold', color=C['orange'])
-ax.text(7.7, 3.5, "Discovery Engine", ha='center', fontsize=10,
+ax.text(7.7, 3.4, "LinUCB (no priors)", ha='center', fontsize=10,
         style='italic', color=C['gray'])
-ax.text(7.7, 3.15, r"$\alpha = 2.0$", ha='center', fontsize=11, color=C['red'])
-ax.text(7.7, 2.85, "Constant Exploration", ha='center', fontsize=9, color=C['gray'])
+ax.text(7.7, 3.05, r"$\alpha = 2.0$", ha='center', fontsize=11, color=C['red'])
+ax.text(7.7, 2.8, "(constant exploration)", ha='center', fontsize=8, color=C['gray'])
 
 # Model Selection (center)
 rounded_box(3.0, 1.0, 4, 0.85, C['gray'])
@@ -130,11 +130,12 @@ ax.text(5.0, -0.55, r"$\hat{\ell}_t = \frac{1-r_t}{P_t}$",
         ha='center', fontsize=12, color=C['dark'])
 
 # Parameters box (top right, compact)
-rounded_box(8.0, 5.0, 1.8, 0.95, C['gray'], fill=C['light'], lw=1)
-ax.text(8.9, 5.7, "Parameters", fontsize=9, fontweight='bold', 
+rounded_box(8.0, 5.0, 1.8, 1.15, C['gray'], fill=C['light'], lw=1)
+ax.text(8.9, 5.85, "Parameters", fontsize=9, fontweight='bold', 
         ha='center', color=C['dark'])
-ax.text(8.9, 5.45, r"$\eta = 0.1$", fontsize=9, ha='center', color=C['dark'])
-ax.text(8.9, 5.2, r"$\gamma = 0.05$", fontsize=9, ha='center', color=C['dark'])
+ax.text(8.9, 5.58, r"$\alpha = 2.0$", fontsize=9, ha='center', color=C['red'])
+ax.text(8.9, 5.35, r"$\eta = 1.0$", fontsize=9, ha='center', color=C['dark'])
+ax.text(8.9, 5.12, r"$\gamma = 0.05$", fontsize=9, ha='center', color=C['dark'])
 
 # ============================================================================
 # SAVE
