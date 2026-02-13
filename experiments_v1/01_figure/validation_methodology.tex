@@ -1,73 +1,69 @@
-% Validation Methodology Section (Revised)
-% Corrected methodology: holdout-only, unsupervised threshold, PCA robustness
+% Validation Methodology Section
+% Three-condition comparison, permutation test, decontaminated PCA, categorical metrics
 
 \subsection{Validation Methodology}
 \label{sec:validation_methodology}
 
-We perform comprehensive validation to ensure our model preference heterogeneity findings are statistically robust and not artifacts of methodological choices. All analyses use the held-out test set exclusively ($N=750$), with the PCA model trained on a disjoint set and the threshold determined by purely unsupervised criteria.
+We validate the routing signal finding through a multi-condition experimental design with distribution-free significance testing, proper categorical effect sizes, and controls for projection artifacts.
+All analyses use the held-out test set exclusively ($N=750$), with PCA models trained on disjoint data and the cluster threshold determined by purely unsupervised criteria.
 
-\subsubsection{Statistical Significance Testing}
+\subsubsection{Experimental Design}
 
-Since reward gaps are derived from discrete pairwise outcomes (win/tie/loss), we use categorical and non-parametric tests as the primary analysis:
+\paragraph{Three-condition comparison.}
+To distinguish genuine routing signal from projection artifacts, we compare three feature extraction conditions using the same sentence encoder (\texttt{all-MiniLM-L6-v2}) and holdout data:
+\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{Router PCA (decontaminated):} Trained on RouteLLM battle prompts \emph{excluding} the 750 holdout prompts. This matches the production \texttt{FeatureService} pipeline while preventing train-test leakage in feature extraction.
+    \item \textbf{Generic PCA (C4 baseline):} Trained on 100K C4 web text samples with no connection to routing. Tests whether the signal exists independently of PCA training domain.
+    \item \textbf{Random projection (null baseline):} A fixed random orthonormal matrix ($384 \to 2$, seed${}=42$). Quantifies how much structure any linear projection of 384D embeddings finds by chance in a dataset of this size.
+\end{enumerate}
 
-\paragraph{Primary Tests (Categorical).}
+\noindent If the random projection shows comparable effect sizes to the router PCA, the finding is likely a projection artifact. If the router PCA greatly exceeds both baselines, it captures genuine task-relevant variance.
+
+\paragraph{PCA decontamination.}
+The PCA artifact shipped with the library (\texttt{pca\_32.joblib}) was trained on 80K RouteLLM battle prompts, which include the 750 holdout prompts.
+Although PCA is unsupervised (no reward labels are used), training on data that includes the test set means the principal components are partially optimized to capture variance in the test distribution.
+We address this by providing a \texttt{-{}-exclude-holdout} flag in the PCA training script, producing a decontaminated artifact (\texttt{pca\_32\_decontaminated.joblib}) that excludes all holdout prompts from PCA training.
+The analysis script automatically prefers the decontaminated artifact when available and warns if only the contaminated version is found.
+
+\subsubsection{Statistical Tests}
+
+\paragraph{Primary tests (categorical).}
+Reward gaps take exactly three values ($\{-1, 0, +1\}$), making categorical tests the natural primary analysis:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{$\chi^2$ test of independence:} $p < 0.0001$ (outcome proportions differ significantly between PC1 regions)
-    \item \textbf{Cram\'er's $V$:} Reported in figure (categorical effect size)
-    \item \textbf{Contingency table:} Win/tie/loss counts by PC1 region (see figure panel B)
+    \item \textbf{$\chi^2$ test of independence:} Tests whether the $2 \times 3$ contingency table (cluster $\times$ outcome) departs from independence ($p < 0.0001$).
+    \item \textbf{Cram\'er's $V$:} Primary effect size for the categorical association (reported in figure).
+    \item \textbf{Odds ratio} (Mixtral win, High vs.\ Low PC1): Quantifies the relative odds of cheaper-model preference in the High~PC1 region.
+    \item \textbf{Risk difference} (Mixtral win rate): Absolute difference in Mixtral win probability between regions.
 \end{itemize}
 
-\paragraph{Supplementary Tests (Ordinal).}
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 0.0001$ (appropriate for ordinal reward gaps)
-    \item \textbf{Cohen's $d$:} $1.53$ with domain-adapted PCA, $0.33$ with generic PCA (approximate---reward gaps are discrete, not continuous)
-\end{itemize}
+\paragraph{Permutation test (distribution-free significance).}
+We compute a permutation $p$-value by shuffling reward labels 10,000 times while holding cluster assignments fixed.
+For each permutation, we compute Cram\'er's $V$ on the shuffled contingency table, yielding the null distribution of $V$ under the hypothesis of no association.
+The $p$-value is the fraction of permutations where $V_{\text{perm}} \geq V_{\text{observed}}$.
+This avoids the large-sample assumptions of the $\chi^2$ test and provides a direct, interpretable significance measure.
 
-\paragraph{Distribution Diagnostics.}
-Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), consistent with the discrete nature of pairwise preference outcomes and justifying the use of non-parametric tests.
+\paragraph{Supplementary tests.}
+\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{Mann-Whitney $U$-test:} Non-parametric ordinal test ($p < 0.0001$), appropriate for the ordinal structure of the reward gap.
+    \item \textbf{Cohen's $d$:} Reported for comparability with prior work, but explicitly marked as approximate because the underlying data is discrete ($\{-1, 0, +1\}$), not continuous. Cram\'er's $V$ and the odds ratio are the appropriate primary effect sizes.
+\end{itemize}
 
 \subsubsection{Threshold Validation}
 
-The cluster boundary $\text{PC1} = 0.222$ was determined using a purely unsupervised method: silhouette-optimal threshold search over PC1 values, maximizing geometric cluster quality (silhouette $= 0.499$) without reference to reward labels. This eliminates the methodological concern of reward-based threshold selection bias present in grid-search approaches that incorporate gap separation.
+The cluster boundary is determined by silhouette-optimal threshold search over PC1 values, maximizing geometric cluster quality without reference to reward labels.
 
-\paragraph{Unsupervised Clustering Convergence.}
-Independent unsupervised methods identify consistent structure:
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item Silhouette-optimal: $\text{PC1} = 0.222$ (silhouette $= 0.499$)
-    \item $k$-means ($k=2$): boundary $\approx 0.138$
-\end{itemize}
-Both methods yield $p < 0.0001$.
+\paragraph{Effect size stability.}
+With $N=750$ discrete outcomes, most non-trivial splits produce small $p$-values, making $p$-value stability uninformative.
+We instead report Cram\'er's $V$ across a sweep of 40 candidate thresholds to verify that the \emph{effect size}---not merely its significance---is stable.
+If the effect were an artifact of a particular boundary, $V$ would peak sharply at one threshold and collapse elsewhere; a broad plateau in $V$ indicates robust structure.
 
-\paragraph{Statistical Power.}
-We conduct a Monte-Carlo power analysis for the $\chi^2$ test given the observed contingency table proportions and sample sizes ($n_{\text{low}} = 606$, $n_{\text{high}} = 144$). With $N = 750$ and the observed outcome proportions, the power to detect the observed effect at $\alpha = 0.05$ exceeds 0.99. For detectable effect sizes at 80\% power, effects as small as Cram\'er's $V \approx 0.10$ are detectable, confirming the sample is adequately powered for this comparison.
+\paragraph{Multiple comparisons.}
+The primary threshold is selected by a purely unsupervised criterion (silhouette score) with no reference to rewards, so no multiplicity correction is needed for the primary analysis.
+The threshold sweep is a sensitivity analysis (reporting $V$ at all thresholds), not a search for significance.
+The three PCA conditions test a specific experimental hypothesis (router PCA vs.\ baselines), not a fishing expedition.
+We acknowledge residual researcher degrees of freedom (embedding model, PCA dimensionality, minimum cluster size) and direct readers to the random projection baseline as the calibration point.
 
-\paragraph{Effect Size Stability.}
-Since $p$-values alone are uninformative for threshold robustness (with $N=750$ discrete outcomes, most non-trivial splits produce small $p$-values), we additionally report Cram\'er's $V$ across a sweep of candidate thresholds to verify that the effect size---not merely its significance---is stable. The effect size remains meaningful across a range of thresholds, confirming the finding is not an artifact of a particular boundary choice.
-
-\paragraph{Multiple Comparisons.}
-Our analysis involves multiple tests: 50 candidate thresholds in the silhouette search, 40 thresholds in the stability sweep, two PCA approaches, and multiple test statistics ($\chi^2$, Mann-Whitney $U$, Cram\'er's $V$, Cohen's $d$). We do not apply formal correction (e.g., Bonferroni) for the following reasons: (1)~the primary threshold is selected by an unsupervised criterion (silhouette score) with no reference to reward labels or $p$-values, so no multiplicity adjustment is needed for the primary analysis; (2)~the threshold sweep is explicitly a \emph{sensitivity analysis}, not a search for the ``best'' $p$-value---we report effect size (\emph{Cram\'er's $V$}) across all thresholds precisely because $p$-values are uninformative at this sample size; and (3)~the two PCA approaches test a specific methodological hypothesis (domain adaptation vs.\ generic baseline), not a fishing expedition. We acknowledge that the overall analysis involves researcher degrees of freedom (choice of embedding model, PCA dimensionality, clustering method), and encourage readers to evaluate the generic PCA result ($d = 0.33$) as the conservative baseline.
-
-\subsubsection{PCA Provenance Sensitivity}
-
-To validate that the finding is not an artifact of domain-adapted PCA training, we repeat the analysis with PCA trained on 100K generic web text samples (C4 corpus). The generic PCA provides an unbiased baseline with no connection to routing:
-
-\begin{table}[h]
-\centering
-\caption{PCA Provenance Comparison on Held-Out Data ($N=750$)}
-\label{tab:pca_provenance}
-\begin{tabular}{lccl}
-\toprule
-\textbf{PCA Training Data} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Interpretation} \\
-\midrule
-C4 web text (100K, generic) & $< 0.0001$ & 0.33 & Small effect (unbiased baseline) \\
-Routing prompts (80K, domain-adapted) & $< 0.0001$ & 1.53 & Large effect (amplified by task-relevant features) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\noindent \textbf{Key observation:} The \textbf{primary, unbiased effect size} is $d = 0.33$ (small effect, generic PCA), confirming the structure exists independently of PCA provenance. The domain-adapted PCA concentrates routing-relevant variation into PC1, amplifying the effect $4.6\times$ to $d = 1.53$. This amplification is expected---the routing PCA was trained on 80K prompts from the same model-comparison domain---but partly reflects domain overlap between PCA training data and the holdout set, not only genuine signal concentration. The generic result ($d = 0.33$) should be considered the baseline for the effect's true magnitude. Both PCAs are unsupervised (no reward labels).
-
-\subsubsection{High-Dimensional Structure Validation}
+\subsubsection{High-Dimensional Structure}
 
 \begin{table}[h]
 \centering
@@ -84,29 +80,46 @@ Routing prompts (80K, domain-adapted) & $< 0.0001$ & 1.53 & Large effect (amplif
 \end{tabular}
 \end{table}
 
-\noindent \textbf{Important caveat:} The 384D silhouette score of 0.057 indicates weak cluster structure in the full embedding space. The separation ratio of 0.81 ($< 1.0$) means within-cluster distances exceed between-cluster distances. PC1 extracts a moderate task-relevant signal (Spearman $\rho = -0.395$, $\rho^2 = 0.156$, explaining $\sim$16\% of reward gap variance) from a noisy high-dimensional space, not a dominant clustering pattern.
+\noindent The 384D silhouette score of 0.057 indicates weak cluster structure in the full embedding space.
+This is expected: the router does not require well-separated clusters in 384D.
+It requires only that \emph{some} linear subspace correlates with model preference, which is precisely what PCA extracts.
+The Spearman rank correlation between PC1 and reward gap ($\rho = -0.395$) confirms a moderate monotonic relationship; squaring this ($\rho^2 = 0.156$) gives an approximate measure of rank-order overlap, though---unlike $R^2$ in linear regression---it does not directly measure explained variance.
 
-\paragraph{Projection Artifact Consideration.}
-Any linear projection of 384D data onto 2D will find \emph{some} direction that correlates with a binary label, raising the concern that the observed structure could be a projection artifact rather than genuine high-dimensional clustering. Two pieces of evidence argue against this interpretation: (1)~the effect persists with generic PCA trained on unrelated C4 web text ($d = 0.33$, $p < 0.0001$), and (2)~the moderate Spearman correlation ($\rho = -0.395$) exceeds what would be expected from random projections. However, this alternative explanation cannot be fully excluded, and the weak 384D structure (silhouette $= 0.057$) means the ``clusters'' should be interpreted as regions of the PC1 axis with different outcome distributions, not as well-separated groups in embedding space.
+\paragraph{Projection artifact control.}
+The random projection baseline directly addresses the concern that any 384D-to-2D projection will find \emph{some} correlated direction.
+If the random projection achieves a comparable Cram\'er's $V$ to the router PCA, the finding is artifactual.
+The comparison table (Table~\ref{tab:pca_conditions}) quantifies the gap.
 
-\subsubsection{Data Quality Analysis}
+\subsubsection{Stratification and Generalizability}
 
-The held-out dataset ($N=750$) was created using stratified sampling across three dimensions (category, complexity, difficulty) to ensure representative coverage of diverse prompt characteristics (see Appendix~\ref{app:stratification} for complete methodology). The dataset contains zero exact duplicates. Intra-cluster diversity:
+\paragraph{Holdout construction.}
+The holdout ($N=750$) was created via stratified sampling across category, complexity, and difficulty (Appendix~\ref{app:stratification}).
+The difficulty dimension is derived from oracle reward statistics (mean and variance), which introduces an indirect dependence on the outcome variable into the sampling design.
+This may enrich the holdout for prompts with clear model preferences, contributing to the higher High~PC1 proportion (19.2\%) compared to the 1M production dataset (5.9\%).
+
+\paragraph{Production traffic estimate.}
+Users should expect the routable fraction to be closer to $\sim$5.9\% (1M dataset) than $\sim$19.2\% (holdout) in production, proportionally limiting achievable cost savings.
+The routing signal \emph{per prompt} (Cram\'er's $V$, odds ratio) is validated on the holdout; the \emph{fraction of traffic} affected is estimated from the 1M spatial analysis (Section~\ref{sec:scale_validation}).
+
+\subsubsection{Data Quality}
+
+The held-out dataset contains zero exact duplicates.
+Intra-cluster diversity (measured by mean pairwise cosine distance):
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item High PC1 diversity: 0.355 (relatively homogeneous---coherent semantic category)
-    \item Low PC1 diversity: 0.953 (highly diverse---broad range of prompt types)
+    \item High PC1: 0.355 (relatively homogeneous---coherent prompt category)
+    \item Low PC1: 0.953 (highly diverse---broad range of prompt types)
 \end{itemize}
+The homogeneity of the High~PC1 cluster is consistent with TF-IDF analysis showing enrichment for a specific prompt type (instruction-following with structured output constraints), rather than a heterogeneous collection that happens to share a PC1 value.
 
-\subsubsection{Summary of Validation Approach}
+\subsubsection{Summary}
 
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Categorical analysis:} $\chi^2$ test on win/tie/loss contingency table ($p < 0.0001$), appropriate for discrete pairwise outcomes
-    \item \textbf{Ordinal confirmation:} Mann-Whitney $U$ ($p < 0.0001$); Cohen's $d$ reported as approximate ($d = 0.33$ generic, $1.53$ domain-adapted)
-    \item \textbf{Primary effect size:} $d = 0.33$ (generic PCA, unbiased baseline); $d = 1.53$ is the amplified, domain-adapted result
-    \item \textbf{Threshold justification:} Purely unsupervised (silhouette-optimal, no reward peeking)
-    \item \textbf{PCA sensitivity:} Generic C4 PCA provides unbiased baseline ($d = 0.33$); domain-adapted PCA amplifies to $d = 1.53$ ($4.6\times$), partly reflecting domain overlap
-    \item \textbf{High-D caveat:} Weak 384D structure (silhouette $= 0.057$); PC1 captures moderate signal ($\rho^2 = 0.156$); projection artifact alternative discussed
-    \item \textbf{Data quality:} Zero duplicates; High PC1 region is homogeneous (diversity $= 0.355$); region content characterized via TF-IDF analysis
-    \item \textbf{Data integrity:} Held-out only ($N=750$); dev set excluded
-    \item \textbf{Generalizability:} Region proportion (19.2\% High PC1) is specific to the holdout; 1M dataset shows $\sim$5.9\% in corresponding spatial region
+    \item \textbf{Three-condition design:} Router PCA vs.\ generic PCA vs.\ random projection, all on the same holdout data and encoder
+    \item \textbf{Categorical metrics:} Cram\'er's $V$ (primary), odds ratio, risk difference---appropriate for discrete win/tie/loss outcomes
+    \item \textbf{Permutation significance:} Distribution-free $p$-values ($n{=}10{,}000$ permutations), no large-sample assumptions
+    \item \textbf{PCA decontamination:} Router PCA trained excluding holdout, preventing feature-extraction leakage
+    \item \textbf{Threshold:} Silhouette-optimal (unsupervised); effect size stable across threshold sweep
+    \item \textbf{Null baseline:} Random projection quantifies chance-level projection artifacts
+    \item \textbf{High-D caveat:} Weak 384D clusters (silhouette $= 0.057$); PCA extracts a moderate signal, not a dominant partition
+    \item \textbf{Generalizability:} Routable fraction is $\sim$19\% in holdout, $\sim$5.9\% in 1M production traffic
 \end{enumerate}

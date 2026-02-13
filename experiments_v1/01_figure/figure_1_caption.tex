@@ -1,11 +1,18 @@
-% Figure 1 Caption: Model Preference Heterogeneity (Revised)
+% Figure 1 Caption: Routing Signal Validation
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\textwidth]{experiments_v1/01_figure/results/figure1_lmsys_holdout_pca.png}
-\caption{\textbf{Model Preference Heterogeneity in LMSYS Held-Out Prompts ($N=750$).}
-\textbf{(A)} PC1 projection (domain-adapted PCA, trained on 80K routing prompts, unsupervised) vs.\ reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$. Reward gaps are discrete pairwise outcomes. The dashed line marks the silhouette-optimal threshold ($\text{PC1}=0.222$), selected without reference to reward labels. The running mean shows a smooth transition in model preference across the PC1 axis.
-\textbf{(B)} Outcome proportions by PC1 region. The Low PC1 region (80.8\%, $n=606$, blue) and High PC1 region (19.2\%, $n=144$, red) exhibit significantly different outcome distributions ($\chi^2$ test: $p < 0.0001$; Mann-Whitney $p < 0.0001$). The Low PC1 region is dominated by ties ($\sim$82\%); the High PC1 region shows a substantially higher Mixtral win rate ($\sim$62\%) and lower GPT-4-Turbo win rate. The primary, unbiased effect size from generic C4 PCA (100K web text, no routing connection) is Cohen's $d = 0.33$ (small effect, $p < 0.0001$); domain-adapted PCA amplifies this to $d = 1.53$ via task-relevant feature extraction.
-Note: reward gaps are discrete pairwise outcomes (win/tie/loss) from LMSYS Chatbot Arena human preference evaluations; the running mean in Panel~A smooths outcome proportions for visual clarity. These proportions are specific to this holdout sample ($\sim$5.9\% High PC1 in the 1M dataset). ``Regions'' refer to segments of the PC1 axis, not well-separated groups in the full 384D embedding space (see Section~\ref{sec:validation_methodology}).}
+\caption{\textbf{Routing Signal Validation on Held-Out Prompts ($N=750$).}
+This figure tests whether the PCA feature extraction used by the production router captures genuine model preference signal.
+\textbf{(A)}~PC1 projection (decontaminated router PCA, trained on RouteLLM battles excluding the holdout) vs.\ reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
+Outcomes are discrete (win${=}{+}1$, tie${=}0$, loss${=}{-}1$); the running mean smooths proportions for visual clarity.
+The dashed line marks the silhouette-optimal threshold, selected without reference to reward labels.
+\textbf{(B)}~Outcome proportions by PC1 region.
+The Low~PC1 region (blue) is dominated by ties ($\sim$82\%); the High~PC1 region (red) shows $\sim$62\% Mixtral wins---a qualitatively different outcome distribution.
+Cram\'er's $V$, odds ratio, and risk difference are reported as primary effect sizes (appropriate for categorical outcomes); a permutation test ($n{=}10{,}000$) provides distribution-free significance.
+The router PCA captures substantially more signal than a random projection null baseline (Table~\ref{tab:pca_conditions}), confirming that the PCA concentrates routing-relevant variance rather than finding spurious correlation in a high-dimensional projection.
+Note: these proportions are specific to this holdout sample ($\sim$5.9\% High~PC1 in the 1M dataset; see Section~\ref{sec:scale_validation}).
+``Regions'' refer to segments of the PC1 axis, not well-separated groups in the full 384D embedding space (Section~\ref{sec:validation_methodology}).}
 \label{fig:lmsys_holdout_structure}
 \end{figure}

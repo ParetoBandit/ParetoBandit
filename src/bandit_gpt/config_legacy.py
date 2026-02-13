@@ -32,6 +32,16 @@ DATA_DIR = PROJECT_ROOT / "data"
 # 32 components capture 35.14% variance vs 29.01% for 23 components (+6.14% improvement)
 DEFAULT_PCA_PATH = ARTIFACTS_DIR / "pca_32.joblib"
 
+# Decontaminated PCA: trained on RouteLLM data EXCLUDING holdout prompts.
+# Use for fair evaluation — prevents train-test leakage in feature extraction.
+# Generate with: python3 scripts/train_pca_from_routellm.py --exclude-holdout --n-components 32
+DECONTAMINATED_PCA_PATH = ARTIFACTS_DIR / "pca_32_decontaminated.joblib"
+
+# Generic PCA: trained on C4 web text (no routing connection).
+# Provides unbiased baseline for routing signal analysis.
+# Generate with: python3 scripts/train_pca_generic.py --n-components 32
+GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
+
 # Path to warmup priors trained on RouteLLM data
 DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
 
