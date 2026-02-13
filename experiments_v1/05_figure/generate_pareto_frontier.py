@@ -394,11 +394,11 @@ def debug_router_state(router, encoder, pca, models, label="Router State"):
 def banditgpt_hybrid_routing(train_data: List[Dict], eval_data: List[Dict], 
                              encoder: SentenceTransformer, pca, warmup_priors: Dict, 
                              model_costs: Dict, lambda_penalty: float, 
-                             debug: bool = False) -> Tuple[float, float]:
+                             debug: bool = False, cold_start: bool = False) -> Tuple[float, float]:
     """
     banditGPT Hybrid: Two-phase training with burn-in.
     
-    PHASE 1 (BURN-IN): Train on dev set WITH cost penalty λ
+    PHASE 1 (BURN-IN): Train on dev set WITH cost penalty λ (skipped if cold_start=True)
     PHASE 2 (EVALUATION): Test on holdout set, NO UPDATES
     
     Args:
@@ -410,6 +410,23 @@ def banditgpt_hybrid_routing(train_data: List[Dict], eval_data: List[Dict],
         model_costs: Cost metadata for models
         lambda_penalty: Cost-quality trade-off parameter (λ)
         debug: Enable debug output to inspect router state
+        cold_start: If True, skip burn-in phase (fair comparison with RouteLLM)
+    
+    Learning Rate Configuration:
+        Uses η=1.0 (moderate adaptation regime) for Corralling meta-learner.
+        
+        Position in three-regime framework:
+        - Cold-Start (η=0.1, Exp 07): Exploit priors, stable weights
+        - Safety (η=0.3, Exp 06): Fast detection, minimal adaptation
+        - MODERATE (η=1.0, THIS EXP): Balanced adaptation over 1,121 steps
+        - Convergence (η=5.0, Exp 04): Complete unlearning (~300-500 steps)
+        
+        Trade-off: Tabula rasa (0.923) outperforms hybrid (0.912), suggesting
+        η=1.0 may be too slow for complete adaptation from prior mismatch.
+        With η=5.0, hybrid would likely match or exceed tabula rasa through
+        complete prior unlearning (as validated in Exp 04).
+        
+        See CONNECTION_TO_EXPERIMENTS_04_06_07.md for detailed analysis.
     
     Returns:
         (avg_reward, avg_cost) on eval_data
@@ -434,10 +451,15 @@ def banditgpt_hybrid_routing(train_data: List[Dict], eval_data: List[Dict],
         alpha_start=2.0, alpha_end=0.1, cost_penalty=lambda_penalty
     )
     
+    # Learning Rate: η=1.0 (MODERATE ADAPTATION REGIME)
+    # - Faster than safety-focused η=0.3 (Exp 06: catastrophic detection)
+    # - Slower than convergence-focused η=5.0 (Exp 04: complete unlearning)
+    # - Appropriate for Pareto sweep: balances prior exploitation with adaptation
+    # Trade-off: May not fully recover from prior mismatch (see tabula rasa @ 0.923 vs hybrid @ 0.912)
     router = CorrallingRouter(
         experts=[warmup_expert, tabula_rasa],
         models=models,
-        learning_rate=1.0  # η=1.0 aggressively pivots weight toward the winning expert
+        learning_rate=1.0
     )
     
     # PRE-FLIGHT CHECK: Verify priors are sane AFTER auto-calibration
@@ -485,32 +507,57 @@ def banditgpt_hybrid_routing(train_data: List[Dict], eval_data: List[Dict],
         logger.info(f"      ✓ Prior Strength: Normalized to 10 effective samples")
         logger.info(f"      ✓ Exploitation Mode: total_steps={len(train_data)} locks α=0.1")
     
-    # 3. PHASE 1: BURN-IN (Dev Set, N=1,121)
+    # 3. PHASE 1: BURN-IN (Dev Set, N=1,121) - OPTIONAL FOR COLD-START
     burn_in_steps = len(train_data)
     normalized_rewards = []  # Track for verification
     
-    for p in train_data:
-        x = embed_prompt(p["prompt"], encoder, pca)
-        # total_steps ensures alpha decays from 2.0 to 0.1 over this loop
-        sel = router.select_model(x, total_steps=burn_in_steps)
+    if cold_start:
+        # COLD-START MODE: Skip burn-in for fair comparison with RouteLLM
+        if debug and lambda_penalty == 0.0:
+            logger.info(f"      ⚠️  COLD-START MODE: Skipping burn-in phase")
+            logger.info(f"      ⚠️  Router relies only on 80k RouteLLM battle priors")
+    else:
+        # WARM-START MODE: Train on dev set (standard protocol)
+        for p in train_data:
+            x = embed_prompt(p["prompt"], encoder, pca)
+            # total_steps ensures alpha decays from 2.0 to 0.1 over this loop
+            sel = router.select_model(x, total_steps=burn_in_steps)
+            
+            # NORMALIZATION GUARD: Reward MUST be in [0, 1]
+            norm_r = (p["rewards"][sel] - r_min) / r_range
+            normalized_rewards.append(norm_r)
+            router.update(x, sel, norm_r)
         
-        # NORMALIZATION GUARD: Reward MUST be in [0, 1]
-        norm_r = (p["rewards"][sel] - r_min) / r_range
-        normalized_rewards.append(norm_r)
-        router.update(x, sel, norm_r)
-    
-    # Verify normalization worked correctly
-    if debug and lambda_penalty == 0.0:
-        norm_min, norm_max = min(normalized_rewards), max(normalized_rewards)
-        norm_mean = np.mean(normalized_rewards)
-        logger.info(f"      ✓ Normalized Rewards: [{norm_min:.3f}, {norm_max:.3f}], mean={norm_mean:.3f}")
-        if norm_min < -0.01 or norm_max > 1.01:
-            logger.error(f"      ✗ NORMALIZATION FAILED! Values outside [0,1] range!")
-    
-    # DEBUG: Inspect router state after training
-    if debug:
-        debug_router_state(router, encoder, pca, models, 
-                          label=f"Router State After Burn-in (λ={lambda_penalty})")
+        # Verify normalization worked correctly
+        if debug and lambda_penalty == 0.0:
+            norm_min, norm_max = min(normalized_rewards), max(normalized_rewards)
+            norm_mean = np.mean(normalized_rewards)
+            logger.info(f"      ✓ Normalized Rewards: [{norm_min:.3f}, {norm_max:.3f}], mean={norm_mean:.3f}")
+            if norm_min < -0.01 or norm_max > 1.01:
+                logger.error(f"      ✗ NORMALIZATION FAILED! Values outside [0,1] range!")
+        
+        # DEBUG: Inspect router state after training
+        if debug:
+            debug_router_state(router, encoder, pca, models, 
+                              label=f"Router State After Burn-in (λ={lambda_penalty})")
+            
+            # Report expert weight evolution (connects to three-regime framework)
+            logger.info(f"\n📊 Expert Weight Evolution (η=1.0, λ={lambda_penalty}):")
+            logger.info(f"   Final weights: Warmup={router.weights[0]:.4f}, Tabula Rasa={router.weights[1]:.4f}")
+            
+            # Classify adaptation regime
+            final_warmup = router.weights[0]
+            if final_warmup > 0.7:
+                regime = "Conservative (like Exp 07, η=0.1) - Minimal adaptation"
+            elif final_warmup > 0.3:
+                regime = "Moderate (expected for η=1.0) - Partial adaptation"
+            elif final_warmup > 0.1:
+                regime = "Adaptive (approaching Exp 04, η=5.0) - Significant unlearning"
+            else:
+                regime = "Complete unlearning (like Exp 04, η=5.0)"
+            
+            logger.info(f"   Regime classification: {regime}")
+            logger.info(f"   Note: For complete unlearning like Exp 04, use η=5.0")
     
     # 4. PHASE 2: STEADY-STATE EVALUATION (Holdout Set, N=750)
     total_reward, total_cost = 0.0, 0.0
@@ -754,8 +801,8 @@ def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict],
 # =============================================================================
 
 def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
-                        n_prompts: int, output_dir: Path):
-    """Create publication-quality Pareto frontier plot."""
+                        n_prompts: int, output_dir: Path, stats: Dict = None):
+    """Create publication-quality Pareto frontier plot with confidence intervals."""
     output_dir.mkdir(parents=True, exist_ok=True)
     
     fig, ax = plt.subplots(figsize=(14, 9))
@@ -772,6 +819,13 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
         
         costs = [p[0] for p in points]
         rewards = [p[1] for p in points]
+        
+        # Extract standard deviations if available
+        cost_stds = None
+        reward_stds = None
+        if stats and strategy in stats:
+            cost_stds = [s.get('cost_std', 0.0) for s in stats[strategy]]
+            reward_stds = [s.get('reward_std', 0.0) for s in stats[strategy]]
         
         if strategy.startswith("Static-"):
             label = strategy.replace("Static-", "")
@@ -822,20 +876,34 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
             # Plot the Pareto Frontier (Convex Hull), not raw sweep points
             # This eliminates non-monotonic "dips" that suggest instability
             
-            # Sort by cost
-            sorted_points = sorted(points, key=lambda x: x[0])
+            # Sort by cost and track indices for error bars
+            sorted_indices = sorted(range(len(points)), key=lambda i: points[i][0])
+            sorted_points = [points[i] for i in sorted_indices]
+            
+            # Sort std arrays if available
+            if cost_stds and reward_stds:
+                sorted_cost_stds = [cost_stds[i] for i in sorted_indices]
+                sorted_reward_stds = [reward_stds[i] for i in sorted_indices]
+            else:
+                sorted_cost_stds = None
+                sorted_reward_stds = None
             
             # Convex Hull Logic: Keep point only if it improves Reward over previous max
             hull_costs = []
             hull_rewards = []
+            hull_cost_stds = []
+            hull_reward_stds = []
             dominated_costs = []
             dominated_rewards = []
             current_max_reward = -float('inf')
             
-            for c, r in sorted_points:
+            for idx, (c, r) in enumerate(sorted_points):
                 if r > current_max_reward:
                     hull_costs.append(c)
                     hull_rewards.append(r)
+                    if sorted_cost_stds and sorted_reward_stds:
+                        hull_cost_stds.append(sorted_cost_stds[idx])
+                        hull_reward_stds.append(sorted_reward_stds[idx])
                     current_max_reward = r
                 else:
                     # This point is dominated
@@ -846,6 +914,17 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
             ax.plot(hull_costs, hull_rewards, 
                    color=colors[strategy], linewidth=3.5, 
                    label=f'{strategy} (Pareto Frontier)', alpha=0.9, marker='D', markersize=7)
+            
+            # Add error bars if statistics are available (95% CI = ±1.96*std for n=5)
+            if hull_cost_stds and hull_reward_stds and any(s > 0 for s in hull_reward_stds):
+                # Convert std to 95% CI (1.96 * std / sqrt(5) ≈ 0.876 * std)
+                ci_multiplier = 1.96 / np.sqrt(5)  # 5 trials
+                ax.errorbar(hull_costs, hull_rewards,
+                           xerr=[ci_multiplier * s for s in hull_cost_stds],
+                           yerr=[ci_multiplier * s for s in hull_reward_stds],
+                           fmt='none', ecolor=colors[strategy], alpha=0.4, 
+                           capsize=4, capthick=2, zorder=6,
+                           label=f'{strategy} (95% CI)')
             
             # Plot all raw points faintly to show scientific honesty
             raw_c = [p[0] for p in points]
@@ -990,7 +1069,7 @@ def main():
     # Visualize
     output_dir = Path(__file__).parent / "results"
     logger.info("\n🎨 Creating visualizations...")
-    plot_pareto_frontier(results, stats["eval_prompts"], output_dir)
+    plot_pareto_frontier(results, stats["eval_prompts"], output_dir, stats=result_stats)
     
     # Save final results with statistics
     save_results(results, output_dir, stats["eval_prompts"], 

@@ -59,14 +59,14 @@ If you already have `pareto_results_final.json`:
 - This makes adaptive routing not just "efficient" but **necessary** to extract value
 
 **banditGPT Victory**
-- Peak quality: **0.9088** @ $0.00954 (beats BOTH individual models)
-- Gap closure: **66.2%** (vs RouteLLM's 46.2%)
-- Synergistic breakout: Generates intelligence beyond any single model
+- Peak quality: **0.9088** @ $0.00954 (outperforms any static allocation)
+- Gap closure: **66.2%** of gap to Oracle (vs RouteLLM's 46.2%)
+- Intelligent routing: Learns to select the better model for each prompt
 
 **RouteLLM Limitation**
 - Peaks at **0.8827** @ $0.00651, then degrades
-- 64% of sweep points are dominated (non-monotonic "Inverted U")
-- Cannot identify the sparse 6% "Hard" cluster
+- 64% of sweep points are dominated (threshold τ doesn't map linearly to cost/quality)
+- Pre-trained router: Cannot adapt to new prompt distribution without fine-tuning
 
 ### Complete Data Summary
 
@@ -94,9 +94,32 @@ If you already have `pareto_results_final.json`:
 ### banditGPT Configuration
 - **Architecture**: Corralling with 2 experts (Warmup + Tabula Rasa)
 - **Prior**: 80k RouteLLM battles, trace-normalized to Neff=10
+- **Learning Rate**: η = 1.0 (moderate adaptation regime - see below)
 - **Exploration**: α-decay from 2.0 to 0.1 over 1,121 steps
 - **Cost Penalties**: λ ∈ {0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0}
 - **Trials**: 5 independent runs per λ (seeds 42-46)
+- **Statistical Rigor**: 95% confidence intervals, FDR-corrected (see `STATISTICAL_NOTES.md`)
+
+#### Learning Rate Regime Framework
+
+**This experiment uses η = 1.0 (Moderate Adaptation Regime)**
+
+Position in the three-regime framework established across experiments:
+
+| Regime | η | Experiment | Use Case | Adaptation Timeline |
+|--------|---|------------|----------|---------------------|
+| Cold-Start | 0.1 | Exp 07 | Exploit priors | Stable weights, minimal adaptation |
+| Safety | 0.3 | Exp 06 | Fast detection | 12.7-step catastrophic detection |
+| **Moderate** | **1.0** | **This Exp** | **Pareto sweep** | **Partial adaptation over 1,121 steps** |
+| Convergence | 5.0 | Exp 04 | Full unlearning | Complete prior unlearning (~300-500 steps) |
+
+**Rationale for η=1.0:**
+- **Too low (η<0.5):** May not adapt away from incorrect priors → stuck at suboptimal points
+- **Too high (η>2.0):** May unlearn good priors too quickly → lose initial cost efficiency
+- **η=1.0 (chosen):** Balanced - can adapt while retaining some prior benefit
+
+**Trade-off Observed:**
+Tabula rasa baseline (0.923) outperforms hybrid (0.912), suggesting η=1.0 may be too slow for complete adaptation from prior mismatch. With η=5.0 (like Exp 04), hybrid would likely match or exceed tabula rasa through complete unlearning. See `CONNECTION_TO_EXPERIMENTS_04_06_07.md` for detailed analysis.
 
 ### RouteLLM Configuration
 - **Router**: Matrix Factorization (MF variant, pre-trained on Augment-100k dataset)
@@ -184,7 +207,7 @@ Use these exact phrases (verified against data):
 
 1. **"We identify a 'Negative Intelligence Tax' where static users pay 43× more for 1.3% worse quality"**
 
-2. **"banditGPT generates synergistic intelligence (0.909) exceeding both individual models (0.823, 0.812)"**
+2. **"banditGPT achieves 0.909 average quality through intelligent per-prompt routing, outperforming static allocation to Mixtral (0.823) or GPT-4 (0.812)"**
 
 3. **"Online learning closes 66.2% of the gap to Oracle, vs 46.2% for state-of-the-art pre-trained routing"**
 
