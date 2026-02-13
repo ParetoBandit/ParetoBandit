@@ -7,14 +7,14 @@ Our integrated approach rests on a critical empirical foundation: that semantic 
 \begin{enumerate}
     \item \textbf{Semantic Structure Discovery (Figure~\ref{fig:alignment_tax}):} We demonstrate that task difficulty relates to model alignment failures, not just reasoning complexity. This establishes that routing is \emph{learnable} through contextual features.
     
-    \item \textbf{Distribution Shift Quantification (Figure~\ref{fig:distribution_shift}):} We quantify covariate shift between training and deployment data, establishing the need for adaptive mechanisms with safety guarantees.
+    \item \textbf{Distribution Shift:} We quantify covariate shift between training and deployment data (PSI=0.275), establishing the need for adaptive mechanisms with safety guarantees.
 \end{enumerate}
 
 Together, these findings motivate our integrated approach: \textbf{semantic structure makes routing learnable, but distribution shift makes \emph{safe} learning essential.}
 
-\subsection{Forensic Cluster Analysis: The ``Alignment Tax''}
+\subsection{Cluster Analysis: The Alignment Tax}
 
-We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. A spatial analysis of the semantic manifold (PC1 cutoff at 0.3) reveals two distinct clusters. \textbf{Critically}, checking the ground-truth reward gaps within these spatial regions exposes a \textbf{Performance Inversion} that contradicts standard ``complexity'' assumptions (Table~\ref{tab:cluster_inversion}).
+We projected 1,871 prompts from the LMSYS dev and holdout sets onto the first two principal components of a 32-component PCA model trained on sentence embeddings. The PC1 cutoff at 0.3 was selected via grid search over 50 candidate thresholds using a composite clustering metric (Appendix~\ref{app:validation_methodology}). While the reported significance ($p < 10^{-143}$) remains overwhelming after Bonferroni correction for 50 comparisons ($p_{\text{corrected}} < 10^{-141}$), and independent clustering methods converge on a consistent boundary ($0.320 \pm 0.105$, Appendix~\ref{app:validation_methodology}), readers should note that the threshold was optimized rather than pre-specified. Checking the ground-truth reward gaps within these regions exposes a \textbf{performance inversion} that contradicts standard ``complexity'' assumptions (Table~\ref{tab:cluster_inversion}).
 
 \begin{table}[t]
 \centering
@@ -32,10 +32,10 @@ High PC1 ($\geq 0.3$) & Strict/Constrained & $-0.682$ & Mixtral-8x7B \\
 \end{table}
 
 \paragraph{The Low PC1 ``Nuance Zone'' (82.4\%).}
-Contrary to the assumption that routine tasks are ``easy,'' the Low PC1 cluster is dominated by open-ended conversational prompts where the frontier model's superior instruction following and world knowledge yield a significant advantage ($+0.133$). This is the ``Quality Moat.'' A naive router that offloads this entire cluster to Mixtral would degrade performance. banditGPT succeeds not by dumping this cluster, but by surgically preserving it for the expensive model.
+Contrary to the assumption that routine tasks are ``easy,'' the Low PC1 cluster is dominated by open-ended conversational prompts where the frontier model's superior instruction following and world knowledge yield a significant advantage ($+0.133$). A naive router that offloads this entire cluster to Mixtral would degrade performance. banditGPT succeeds by preserving this cluster for the expensive model while routing strict-constraint tasks to cheaper alternatives.
 
 \paragraph{The High PC1 ``Strictness Zone'' (17.6\%).}
-The ``Hard'' cluster---visually distinct in Figure~\ref{fig:pca}---is actually defined by strict formatting constraints (forensic analysis reveals 85\% are ``text completion only, no chat'' templates). Here, the frontier model suffers from an \textbf{Alignment Tax}: its RLHF conditioning toward helpfulness causes verbosity that violates negative constraints. The open-weights model, being less aggressively aligned, adheres strictly to the format, winning by a massive margin ($-0.682$).
+The ``Hard'' cluster---visually distinct in Figure~\ref{fig:pca}---is actually defined by strict formatting constraints (manual inspection reveals 85\% are ``text completion only, no chat'' templates). Here, the frontier model suffers from an \textbf{Alignment Tax}: we hypothesize that its RLHF conditioning toward helpfulness induces verbosity that violates negative constraints. The open-weights model, being less aggressively aligned, adheres strictly to the format, winning by a massive margin ($-0.682$). We note that this causal explanation---while consistent with the observed patterns and representative examples below---has not been verified through direct ablation (e.g., comparing RLHF-tuned vs.\ base model responses on strict-constraint tasks). Alternative explanations, such as differences in instruction-following fine-tuning or decoding strategies, remain possible.
 
 \textit{Representative examples from this cluster include:}
 \begin{itemize}[noitemsep,topsep=2pt,leftmargin=10pt]
@@ -53,12 +53,12 @@ The routing opportunity is counter-intuitive. We do not save money by routing ``
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figures/figure1_pca.png}
-\caption{Forensic Discovery of the Alignment Tax. PCA projection of 1,871 LMSYS prompts reveals spatial clustering at PC1 $\approx$ 0.3. Validation against ground-truth reward gaps exposes a performance inversion: the Low PC1 ``Nuance Zone'' (Blue, 82.4\%) is where GPT-4-Turbo retains a classic advantage ($\Delta=+0.13$), refuting the notion that routine traffic is ``easy.'' The High PC1 ``Strictness Zone'' (Red, 17.6\%, 85\% strict completion templates) is where the open-weights model dominates ($\Delta=-0.68$), likely due to the frontier model's alignment artifacts.}
+\caption{Discovery of the Alignment Tax. PCA projection of 1,871 LMSYS prompts reveals clustering at PC1 $\approx$ 0.3. Validation against ground-truth reward gaps exposes a performance inversion: the Low PC1 region (Blue, 82.4\%) is where GPT-4-Turbo retains a clear advantage ($\Delta=+0.13$). The High PC1 region (Red, 17.6\%, 85\% strict completion templates) is where the open-weights model dominates ($\Delta=-0.68$), hypothesized to reflect the frontier model's alignment artifacts (see text for caveats).}
 \label{fig:pca}
 \label{fig:alignment_tax}
 \end{figure}
 
-\subsection{Scale Validation: The ``Economic Catastrophe''}
+\subsection{Scale Validation}
 
 To ensure these findings were not an artifact of the smaller holdout set, we extended our analysis to the complete LMSYS Chat-1M dataset, comprising 594,199 unique prompts---a $317\times$ increase in scale.
 
@@ -81,38 +81,15 @@ Strict Constraints (High PC1) & 17.6\% & 5.9\% \\
 
 \textbf{Implication}: This reveals that our initial holdout evaluation represents a conservative stress test. In production (Chat-1M), the Alignment Tax artifact becomes rarer (5.9\%) but more valuable: it is a high-confidence exploitation zone where Mixtral consistently wins. Meanwhile, the natural language zone (94.1\%) requires careful sub-manifold discovery to avoid quality degradation. This dual challenge---exploiting rare artifacts while preserving quality on common tasks---necessitates adaptive, context-aware routing that static classifiers cannot achieve.
 
-\subsection{Distribution Shift: The ``Alignment Trap''}
+\subsection{Distribution Shift: Motivating Adaptive Learning}
 \label{sec:distribution_shift}
 
-A fundamental risk in routing is \textbf{Covariate Shift}: when the distribution of tasks in production ($Q$) differs from the offline training data ($P$), priors become toxic.
+A fundamental risk in routing is \textbf{Covariate Shift}: when the distribution of tasks at deployment differs from the offline training data, priors can become harmful. We quantified this shift using the Population Stability Index (PSI), obtaining $\text{PSI} = 0.275$ (95\% CI: $[0.243, 0.332]$), which exceeds the standard threshold for substantial shift ($>0.25$). Kolmogorov-Smirnov testing confirms the distributions are significantly different ($p < 10^{-37}$, Cohen's $d = -0.35$).
 
-\subsubsection{Forensic Decomposition of the Shift}
-To understand the nature of this shift, we decomposed the source (Offline) and target (Production) distributions not by ``difficulty,'' but by the \textbf{Ground Truth Reward Gaps} discovered in Section 2.1 (Table~\ref{tab:cluster_inversion}). As shown in Figure~\ref{fig:distribution_shift} (Bottom), the latent space separates into two functional zones:
+\paragraph{Important caveat: dataset heterogeneity, not production drift.}
+This shift is measured between two different data collections---the LMSYS dev/holdout set and RouteLLM battle data---which were gathered under different sampling procedures, time periods, and selection criteria. We therefore characterize this as \emph{dataset heterogeneity} rather than a measured ``production drift.'' While this heterogeneity is representative of the kind of distributional mismatch that arises in real deployments (where training and serving distributions inevitably differ), we cannot claim it precisely mirrors any specific production scenario. The magnitude of the shift motivates adaptive mechanisms, but the exact PSI value is specific to these two dataset collections.
 
-\begin{enumerate}
-    \item \textbf{Natural Language Zone (PC1 $< 0.3$):} The domain of open-ended chat, where GPT-4's nuance yields a positive advantage ($\Delta = +0.13$, from Table~\ref{tab:cluster_inversion}).
-    \item \textbf{Alignment Tax Zone (PC1 $\geq 0.3$):} The domain of strict constraints, where GPT-4's alignment artifacts cause it to fail against Mixtral ($\Delta = -0.68$, from Table~\ref{tab:cluster_inversion}).
-\end{enumerate}
+Critically, the \emph{direction} of the shift compounds the danger. Offline training data over-indexes on the Alignment Tax zone (High PC1), where Mixtral dominates. The holdout distribution is predominantly natural language (Low PC1), where GPT-4 excels. A static router trained on the offline distribution therefore learns to be systematically pessimistic about GPT-4's utility on the dominant evaluation traffic---creating a ``False Negative'' policy that underestimates GPT-4 precisely where it should be deployed.
 
-\subsubsection{The ``Learned Bias'' of Offline Priors}
-Calculating the Population Stability Index (PSI) yields a significant shift of \textbf{0.275}. However, the \emph{direction} of the shift reveals the specific danger (Figure~\ref{fig:distribution_shift}):
-\begin{itemize}
-    \item \textbf{Offline Data (Blue):} Heavily weighted toward the ``Alignment Tax'' zone. A static router trained here learns to be \textbf{pessimistic} about GPT-4, effectively ``learning'' that strict constraints are dangerous.
-    \item \textbf{Production Data (Red):} Heavily shifted toward the ``Natural Language'' zone. Here, GPT-4 is safe and superior.
-\end{itemize}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.9\columnwidth]{figures/figure2_distribution_shift.png}
-\caption{\textbf{The ``Alignment Trap'': Distribution Shift exposes offline blind spots.}
-\textbf{Top:} Density comparison (PSI = 0.275) shows a structural mismatch between Offline Training priors (Blue) and Production traffic (Red) in the PC1 feature space.
-\textbf{Bottom:} Decomposition based on the reward gap zones from Table~\ref{tab:cluster_inversion}. The Alignment Tax Cluster (Right Peak, PC1 > 0.3, where Mixtral wins with $\Delta = -0.68$) is over-represented in offline data. The Natural Language Cluster (Left Peak, PC1 < 0.3, where GPT-4 wins with $\Delta = +0.13$) dominates production traffic.
-\textbf{The Mismatch:} The Offline Prior over-indexes on the Alignment Tax cluster, leading to a ``Learned Helplessness'' bias where it underestimates GPT-4's utility on the dominant Natural Language traffic.}
-\label{fig:distribution_shift}
-\end{figure}
-
-\textbf{The Consequence (Negative Transfer):} Because the Offline Prior is traumatized by the Alignment Tax artifacts in the training set, it creates a \textbf{``False Negative'' Policy}---it hesitates to route routine chat tasks to GPT-4 because it overestimates the risk of refusal/verbosity errors. This necessitates the \textbf{Tabula Rasa} expert (Section~3), which, unburdened by this prior bias, correctly identifies the safety of the production manifold.
-
-\paragraph{Implications for Learning Rate Selection.}
-The substantial distribution shift (PSI=0.275) provides an actionable decision criterion for adaptation strategy selection. For shifts of this magnitude (PSI$\geq$0.25), the system requires complete prior unlearning to achieve optimal performance. Our three-regime framework (Section~\ref{sec:three_regimes}) provides solutions tailored to shift severity: for PSI$<$0.1, exploit priors confidently ($\eta=0.1$, cold-start regime); for 0.1$\leq$PSI$<$0.2, balanced adaptation ($\eta=1.0$, Pareto regime); for 0.2$\leq$PSI$<$0.25, prioritize catastrophic detection ($\eta \in [0.3, 1.0]$, safety regime); for PSI$\geq$0.25, complete unlearning is required ($\eta=5.0$, convergence regime). This transforms distribution shift from a descriptive observation into a prescriptive framework for operational deployment.
+This motivates the \textbf{tabula rasa} expert in our Corralling framework (Section~\ref{sec:methodology}), which learns deployment-specific preferences unburdened by this offline bias. For shifts of this magnitude (PSI$\geq$0.25), the system requires adaptive mechanisms with safety guarantees, as static priors become actively harmful. We note that the prescriptive PSI thresholds used here (PSI$<$0.1 for safe exploitation, PSI$\geq$0.25 for requiring unlearning) follow standard industry conventions from credit risk modeling but have not been independently validated for the LLM routing domain; future work should calibrate domain-specific thresholds on held-out deployment data. Full distribution shift visualization and decomposition are provided in Appendix~\ref{app:distribution_shift}.
 

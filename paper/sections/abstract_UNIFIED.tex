@@ -8,9 +8,9 @@ Large language model (LLM) inference is economically critical yet technically ch
 
 Our key insight is that effective LLM routing requires \emph{three mechanisms working together}: (1) \textbf{semantic structure} that makes routing learnable ($3.10\%$ PC1 variance, $p<10^{-143}$, discovering an ``Alignment Tax'' where GPT-4 performs worse than Mixtral on $17.6\%$ of prompts), (2) \textbf{Corralling meta-learning} that provides safety against prior mismatch ($44.3\%$ improvement vs harmful warmup, $1.3\times$ vs optimal performance), and (3) \textbf{semantic transfer} that eliminates cold-start penalties ($+0.62$ reward on new model release, $p<10^{-7}$).
 
-Production validation on $1{,}871$ LMSYS Arena prompts demonstrates $68.5\%$ gap closure to oracle performance (vs $46.2\%$ for state-of-the-art RouteLLM), discovering a ``Negative Intelligence Tax'' where GPT-4 costs $43\times$ more for $1.3\%$ worse quality. The system handles both catastrophic failures ($100\%$ detection in $3$--$50$ steps) and zero-shot model adoption, with regime-dependent robustness ($30\%$ warmup / $70\%$ tabula rasa expert selection) requiring minimal hyperparameter tuning. 
+Production validation on $1{,}871$ LMSYS Arena prompts demonstrates $68.5\%$ gap closure to oracle performance (vs $46.2\%$ for state-of-the-art RouteLLM), revealing that GPT-4 costs $43\times$ more yet delivers $1.3\%$ worse quality at maximum routing. The system handles both catastrophic failures ($100\%$ detection in $3$--$50$ steps) and zero-shot model adoption, with regime-dependent robustness ($30\%$ warmup / $70\%$ tabula rasa expert selection) requiring minimal hyperparameter tuning. 
 
-\textbf{Contribution}: None of these mechanisms alone solves the problem—the contribution is the \emph{integrated system} achieving safety guarantees, near-optimal performance, and production readiness with $\$2.3M$/year economic potential.
+\textbf{Contribution}: None of these mechanisms alone solves the problem---the contribution is the \emph{integrated system} achieving safety guarantees, near-optimal performance, and production readiness. Under stylized assumptions (1M prompts/day, current pricing), the routing opportunity is on the order of \$2M/year.
 \end{abstract}
 
 % Word count: ~248 words

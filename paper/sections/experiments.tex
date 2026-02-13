@@ -2,25 +2,19 @@
 \label{sec:experiments}
 
 % TRANSITION from Methodology
-To rigorously validate our integrated approach, we conduct eight experiments organized into three parts:
+To rigorously validate our integrated approach, we conduct experiments organized in two parts:
 
-\textbf{Part I: Motivation (Covered in Section~\ref{sec:motivation})}
+\textbf{Part I: Motivation (Section~\ref{sec:motivation})}
 \begin{itemize}
     \item Table~\ref{tab:dataset}: Dataset provenance and split design
-    \item Figures~\ref{fig:alignment_tax}--\ref{fig:distribution_shift}: Empirical foundations
+    \item Figure~\ref{fig:alignment_tax}: Alignment Tax discovery and semantic structure
 \end{itemize}
 
-\textbf{Part II: Solution Validation (Section~\ref{sec:results})}
+\textbf{Part II: Evaluation (Section~\ref{sec:results})}
 \begin{itemize}
-    \item Table~\ref{tab:performance_gap}: Corralling safety and performance
-    \item Figure~\ref{fig:architecture}: Validated architectural design
-    \item Figure~\ref{fig:multimodel}: Multi-model routing and semantic transfer
-\end{itemize}
-
-\textbf{Part III: Production Validation (Section~\ref{sec:results})}
-\begin{itemize}
-    \item Figure~\ref{fig:pareto}: Production-grade Pareto analysis
-    \item Figures~\ref{fig:catastrophic}--\ref{fig:sensitivity}: Adaptation and robustness
+    \item Figure~\ref{fig:pareto}: Pareto frontier analysis against baselines
+    \item Table~\ref{tab:performance_gap}: Corralling safety under prior mismatch
+    \item Supporting results: catastrophic failure, zero-shot adoption, sensitivity (Appendix~\ref{app:adaptation_details})
 \end{itemize}
 
 In this section, we describe the experimental setup and protocols. We evaluate banditGPT in a realistic production environment, utilizing a large-scale dataset of real-world prompts, ground-truth rewards, and commercial inference costs.
@@ -91,13 +85,13 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 To ensure robust conclusions, we employ rigorous statistical methodology exceeding standard practice in the routing literature.
 
-\paragraph{Multiple Trials.} For each cost penalty value $\lambda \in \{0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0\}$, we conduct \textbf{five independent trials} using random seeds 42--46. This exceeds standard practice (RouteLLM: $n=1$ deterministic run~\cite{ong2024routellm}; FrugalGPT: $n=3$ trials~\cite{chen2023frugalgpt}). We report mean $\pm$ 95\% confidence intervals computed as $\text{CI} = \bar{x} \pm 1.96 \cdot (s/\sqrt{5})$, where $s$ is the sample standard deviation.
+\paragraph{Multiple Trials.} For each cost penalty value $\lambda \in \{0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0\}$, we conduct \textbf{five independent trials} using random seeds 42--46. While this exceeds standard practice in the routing literature (RouteLLM: $n=1$ deterministic run~\cite{ong2024routellm}; FrugalGPT: $n=3$ trials~\cite{chen2023frugalgpt}), five trials remains a modest sample size: confidence intervals are relatively wide and sensitive to individual outlier seeds. We report mean $\pm$ 95\% confidence intervals computed as $\text{CI} = \bar{x} \pm 1.96 \cdot (s/\sqrt{5})$, where $s$ is the sample standard deviation. Future work with larger seed counts would tighten these estimates.
 
 \paragraph{Multiple Testing Correction.} With 10 cost penalties tested, we address multiple comparisons using the Benjamini-Hochberg FDR procedure~\cite{benjamini1995controlling} at $q=0.05$. Rather than relying solely on $p$-values, we emphasize \textit{effect size reporting} and \textit{visual Pareto dominance} (Figure~\ref{fig:pareto}), following best practices in machine learning research~\cite{demsar2006statistical}.
 
 \paragraph{Power Analysis.} With $n=5$ trials per configuration, we achieve $>80\%$ statistical power to detect effect sizes $\Delta > 0.02$ in reward, which is practically significant for production deployments. The observed effect sizes (banditGPT: $0.912$ vs RouteLLM: $0.883$ = $\Delta=0.029$) are well above our detection threshold.
 
-\paragraph{Multi-Seed Validation for Table 2.} For the domain mismatch robustness experiment (Table~\ref{tab:performance_gap}), we conduct comprehensive multi-seed evaluation with N=10 random seeds to quantify variance and enable statistical significance testing. We report mean $\pm$ standard deviation for point estimates, and median with interquartile range [IQR] for robust central tendency. Statistical comparisons use independent t-tests and Mann-Whitney U tests with Bonferroni correction for multiple comparisons ($\alpha_{\text{corrected}} = 0.05/6 = 0.0083$). Effect sizes reported as Cohen's $d$ (small: $|d| < 0.5$, medium: $|d| < 0.8$, large: $|d| \geq 0.8$).
+\paragraph{Multi-Seed Validation for Table 2.} For the domain mismatch robustness experiment (Table~\ref{tab:performance_gap}), we conduct multi-seed evaluation with N=10 random seeds to quantify variance. We report mean $\pm$ standard deviation for point estimates, and median with interquartile range [IQR] for robust central tendency. Statistical comparisons use independent t-tests and Mann-Whitney U tests with Bonferroni correction for multiple comparisons ($\alpha_{\text{corrected}} = 0.05/6 = 0.0083$). Effect sizes reported as Cohen's $d$ (small: $|d| < 0.5$, medium: $|d| < 0.8$, large: $|d| \geq 0.8$). \textbf{Power limitation:} With $N=10$ seeds, post-hoc power analysis indicates approximately 8--10\% power to detect the observed effect size ($d=0.22$), which is well below the 80\% convention. Detecting an effect of this magnitude at 80\% power would require $N\approx 160$+ seeds per condition. Consequently, non-significant comparisons in Table~\ref{tab:performance_gap} should be interpreted as ``insufficient evidence to distinguish,'' not as evidence of equivalence.
 
 For deterministic baselines (Warmup, Tabula Rasa), seeds produce identical results (std=0) due to fixed data ordering. For stochastic Corralling, variance arises from random expert selection, which is essential for unbiased importance-weighted updates~\cite{agarwal2017corralling}. This variance is expected behavior for Exp4-style meta-algorithms and not indicative of algorithmic instability.
 
@@ -117,4 +111,7 @@ These ablations isolate the contributions of (1) learning vs. random allocation,
 \subsection{Fair Comparison: Cold-Start Evaluation}
 
 A potential fairness concern is that banditGPT trains on 1,121 dev prompts while RouteLLM uses pre-trained weights from a different 100k dataset. To address this, we evaluate banditGPT in \textbf{cold-start mode}: skipping the dev training phase and relying only on the 80k RouteLLM battle priors. This provides a fair baseline comparison where both methods use only pre-training, quantifying the value added by online adaptation.
+
+\paragraph{RouteLLM Comparison Caveats.}
+We note an important asymmetry: RouteLLM is a \emph{supervised} classifier trained on a different (and potentially larger) dataset of pairwise model comparisons, while banditGPT is an \emph{online learner} that observes rewards during training. These are fundamentally different paradigms. If RouteLLM's training data includes LMSYS Arena battles overlapping with our evaluation set, it may have an information advantage. Conversely, if banditGPT's online learning phase provides it with evaluation-domain data that RouteLLM lacks, the advantage reverses. We mitigate this through the cold-start evaluation (which removes banditGPT's online learning advantage), but a fully controlled comparison would require training both methods on identical data, which is infeasible given their different learning paradigms. Readers should interpret the comparison as demonstrating the \emph{potential} of adaptive vs.\ static routing rather than a strict apples-to-apples benchmark.
 

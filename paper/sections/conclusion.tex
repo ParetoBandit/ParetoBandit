@@ -2,7 +2,7 @@
 \label{sec:conclusion}
 
 % TRANSITION from Related Work
-We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (8 experiments, 1,871 prompts), we demonstrated:
+We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation on 1,871 LMSYS Arena prompts, we demonstrated:
 
 \begin{itemize}
     \item \textbf{Safety:} $44.3\%$ improvement vs harmful warmup priors
@@ -15,9 +15,9 @@ We presented \textbf{banditGPT}, an integrated framework for production-grade LL
 
 The economics of Large Language Models are shifting. As open-weights models like Mixtral and Llama-3 close the gap with proprietary frontiers, the routing problem has evolved from simple cost-cutting (``Use the cheap model for easy stuff'') to complex \textbf{Quality Discovery} (``Find the specific tasks where the expensive model is actually better'').
 
-In this work, we introduced \texttt{banditGPT}, a lifelong learning framework that replaces static ``Intelligence Taxes'' with adaptive resource allocation.
+In this work, we introduced \texttt{banditGPT}, a lifelong learning framework that replaces static model allocation with adaptive resource routing.
 \begin{enumerate}
-    \item \textbf{Empirically}, we demonstrated that static routers suffer from an ``Over-Provisioning Penalty'' in production, paying $43\times$ more to degrade performance on 94\% of traffic. \texttt{banditGPT} eliminates this waste, closing 66\% of the optimality gap.
+    \item \textbf{Empirically}, we demonstrated that static single-model allocation can pay $43\times$ more while degrading quality on this evaluation dataset---an expected result when the task space is heterogeneous, but one whose magnitude underscores the value of adaptive routing. \texttt{banditGPT} closes 66\% of the optimality gap.
     \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} to solve the safety problem of Negative Transfer. By dynamically decommissioning misspecified priors, the system is robust to severe distribution shifts (PSI=0.275).
     \item \textbf{Operationally}, we solved the ``Cold Start'' problem with \textbf{Latent Semantic Transfer}, proving that a router can admit new models with \textbf{Zero-Shot Readiness}.
 \end{enumerate}
@@ -25,7 +25,7 @@ In this work, we introduced \texttt{banditGPT}, a lifelong learning framework th
 \subsection*{Future Work: From Routing to Orchestration}
 We view single-model routing as merely the precursor to \textbf{Agentic Orchestration}. Future work will extend the \texttt{banditGPT} architecture to manage multi-agent systems.
 \begin{itemize}
-    \item \textbf{The ``Manager'' Agent:} The Corralling mechanism is uniquely suited to govern autonomous agents. Just as it decommissioned the ``Warmup Expert'' when it failed (Figure~\ref{fig:expert_decommission}), a Corralling-based Orchestrator could detect when a specific agent (e.g., a ``Coder Agent'') has degraded due to context drift or hallucination loops, dynamically reallocating the task to a fresh instance or a more robust model.
+    \item \textbf{The ``Manager'' Agent:} The Corralling mechanism is uniquely suited to govern autonomous agents. Just as it decommissions the ``Warmup Expert'' when it fails (Section~\ref{sec:robustness_adaptation}), a Corralling-based Orchestrator could detect when a specific agent (e.g., a ``Coder Agent'') has degraded due to context drift or hallucination loops, dynamically reallocating the task to a fresh instance or a more robust model.
     \item \textbf{Task Decomposition:} Instead of routing a raw prompt, future versions could integrate a ``Reasoning Expert'' that decomposes complex queries into sub-tasks (Planning, Execution, Verification), routing each sub-task to the optimal specialist model via independent bandit heads.
 \end{itemize}
 

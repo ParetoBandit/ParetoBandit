@@ -3,8 +3,10 @@
 \caption{\textbf{Learning Rate Comparison: Stability vs Variance Tradeoff.} 
 Evaluated on 750 held-out test prompts with severe domain mismatch (alignment 0.48). 
 Values shown as mean $\pm$ std across 10 random seeds. 
-We find no statistically significant difference between conservative ($\eta=0.1$, mean=45.2$\pm$7.9) 
-and aggressive ($\eta=1.0$, mean=48.1$\pm$16.8) learning rates (t=-0.49, p=0.63). 
+An independent t-test comparing conservative ($\eta=0.1$, mean=45.2$\pm$7.9) 
+and aggressive ($\eta=1.0$, mean=48.1$\pm$16.8) learning rates yields $p=0.63$ (Cohen's $d=-0.22$),
+but with only $N=10$ seeds, statistical power to detect this effect size is $\approx$8--10\%, 
+so we cannot conclude the conditions are equivalent (see power analysis in text).
 The choice depends on risk tolerance: conservative offers stability (17\% CV), 
 while aggressive offers better median (41 vs 45) but with higher variance (35\% CV) 
 and occasional catastrophic failures (2 of 10 seeds $>$ 75 regret).}
@@ -42,7 +44,7 @@ and occasional catastrophic failures (2 of 10 seeds $>$ 75 regret).}
 
 \item \textbf{Median vs Mean:} For high-variance stochastic algorithms, median provides a more robust performance estimate. Aggressive learning achieves better \emph{median} performance (41 vs 45, 1.03$\times$ vs 1.13$\times$) but with 2$\times$ higher variance (std=16.8 vs 7.9). Conservative learning offers more predictable, stable performance.
 
-\item \textbf{Statistical Comparison:} Independent t-test comparing $\eta=0.1$ vs $\eta=1.0$ finds no significant difference (t=-0.49, p=0.63, Cohen's d=-0.22). The performance is comparable, with the key tradeoff being \textbf{stability} (conservative) vs \textbf{median performance} (aggressive).
+\item \textbf{Statistical Comparison:} Independent t-test comparing $\eta=0.1$ vs $\eta=1.0$ yields $t=-0.49$, $p=0.63$, Cohen's $d=-0.22$. \textbf{Power analysis caveat:} With $N=10$ seeds per condition and the observed effect size $d=0.22$, post-hoc power is approximately 8--10\% (well below the 80\% convention). To detect an effect of this magnitude at 80\% power would require $N\approx160$+ seeds per condition. \textbf{We therefore cannot conclude that the conditions are equivalent}---only that our sample size is insufficient to distinguish them. The non-significant $p$-value reflects low statistical power, not evidence of no difference. The practical recommendation for $\eta=0.1$ rests on its substantially lower variance (CV=17\% vs 35\%), not on a claim of equivalent mean performance.
 \end{itemize}
 
 \vspace{0.5em}

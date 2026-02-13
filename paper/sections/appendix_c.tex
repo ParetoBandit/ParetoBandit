@@ -97,7 +97,7 @@ $\tau$ & \textbf{Cost} & \textbf{Reward} & \textbf{Status} & \textbf{Notes} \\
 
 \begin{table}[h]
 \centering
-\caption{Reference Points - The ``Negative Intelligence Tax''}
+\caption{Reference Points - Static Model Performance}
 \label{tab:references}
 \footnotesize
 \begin{tabular}{@{}p{3.5cm}ccp{3cm}@{}}
@@ -111,9 +111,9 @@ Oracle & 0.00195 & 0.9533 & $6.6\times$ (+15.9\%) \\
 \end{tabular}
 \end{table}
 
-\textbf{The ``Negative Intelligence Tax'' Phenomenon:}
+\textbf{Cost-Quality Inversion on This Dataset:}
 
-This dataset exhibits a rare but scientifically significant pattern: the expensive model (GPT-4-Turbo) performs \textit{worse} on average than the cheap model (Mixtral-8x7B). This creates a ``Negative Intelligence Tax'' where users pay $43\times$ more to \textit{decrease} quality by $1.3\%$.
+On this particular dataset, the expensive model (GPT-4-Turbo) performs \textit{worse} on average than the cheap model (Mixtral-8x7B)---users pay $43\times$ more for $1.3\%$ \textit{lower} quality. This inversion is specific to our evaluation distribution (dominated by the Alignment Tax artifact) and should not be interpreted as a general claim about GPT-4-Turbo's capabilities. Rather, it demonstrates that adaptive routing can outperform static single-model allocation when the task space is heterogeneous---an expected result by construction, but one whose magnitude ($43\times$ cost for negative quality gain) underscores the economic value of routing.
 
 This inversion occurs because:
 \begin{itemize}
