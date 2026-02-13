@@ -341,6 +341,92 @@ python experiments_v1/04_figure/test_optimized_config.py     # Hyperparameter va
 
 See `TESTING.md` for detailed test documentation.
 
+## Practical Implications
+
+These findings provide actionable guidance for deploying multi-model routing in production:
+
+### When to Use Corralling
+
+**Use Case**: Deploy the two-expert architecture when facing potential **domain mismatch** between training data and production workload.
+
+**Examples**:
+- Warmup priors from general-purpose datasets (LMSYS, ShareGPT) but application serves specialized domain (legal, medical, customer support)
+- Transferring from one language to another
+- Moving from public data to proprietary/confidential workload
+
+**Benefit**: Automatic adaptation without manual retraining. The O(T^0.669) convergence rate means efficient adaptation within hundreds of samples.
+
+### Cost Savings at Scale
+
+The 75.7% cost reduction translates to substantial real-world savings:
+
+| Daily Volume | GPT-4-Turbo Only | Learned Policy | Annual Savings |
+|-------------|------------------|----------------|----------------|
+| 1M tokens   | $10.00/day      | $2.43/day      | $2,760/year   |
+| 100M tokens | $1,000/day      | $243/day       | $276,300/year |
+| 1B tokens   | $10,000/day     | $2,430/day     | $2.76M/year   |
+
+**Critical**: Achieved without explicit cost optimization (λ_cost = 0) or quality degradation (reward: 0.939 vs max 1.0).
+
+### Handling New Models
+
+**Problem**: New models release frequently (GPT-4o, Claude 3.5, Llama 3.1). Retraining from scratch wastes time.
+
+**Solution**: Use semantic transfer:
+1. Identify the most similar existing model (by cost tier, capability, or provider)
+2. Copy its priors to the new model
+3. Apply conservative gamma scaling (γ=0.05) to reflect uncertainty
+4. Let online learning discover true performance
+
+**Example**: Our results show the router discovered GPT-4o as dominant (70.8%) despite starting with GPT-4-Turbo-biased priors.
+
+### Hyperparameter Selection
+
+**Default (Recommended)**:
+- Learning rate: η = 5.0
+- Mixing parameter: γ = 0.10
+- Robust across random seeds (std=3.40)
+
+**Conservative (High-Stakes Applications)**:
+- Learning rate: η = 1.0
+- Mixing parameter: γ = 0.05
+- Slower adaptation but more cautious
+
+**Flexibility**: Ablation study shows strong performance across η ∈ [0.5, 5.0] when γ ≥ 0.05, providing room for domain-specific tuning.
+
+### Sample Efficiency
+
+**Training Data Needed**: Only N=1,121 samples achieved 93.9% quality
+- Practical for production where labeled feedback is expensive
+- Sublinear regret growth (β=0.669) means diminishing returns from more data
+- No need for massive-scale data collection
+
+**Deployment Strategy**:
+1. Start with small labeled dataset (N≈1,000)
+2. Monitor convergence (expert weights should stabilize within 200-300 samples)
+3. Collect additional data only if performance plateaus below target
+
+### Production Deployment
+
+**Model Distribution** (from learned policy):
+- GPT-4o: 70.8%
+- Mixtral: 23.2%
+- GPT-4-Turbo: 6.0%
+
+**Infrastructure Planning**:
+- **Rate Limits**: Allocate 70% of quota to GPT-4o, 25% to Mixtral, 5% to GPT-4-Turbo
+- **Caching**: Focus on Mixtral (high volume, low cost) for maximum cache hit benefit
+- **Latency**: GPT-4o and Mixtral have similar P99 latency; combined 94% coverage enables consistent SLAs
+
+**Monitoring**:
+- Track expert weight evolution: if weights stabilize quickly → convergence
+- If weights keep fluctuating → investigate distribution drift or data quality
+- Alert if warmup expert weight increases significantly (potential distribution shift)
+
+### Key Takeaway
+
+The 75.7% cost reduction is not from explicit cost optimization—it emerges naturally when the algorithm discovers that expensive models are not always necessary for high quality. This validates the core hypothesis: **semantic structure enables cost-quality tradeoffs without sacrificing performance**.
+
 ## References
 
 - Agarwal, A., Luo, H., Neyshabur, B., & Schapire, R. E. (2017). Corralling a band of bandit algorithms. *Conference on Learning Theory (COLT)*.

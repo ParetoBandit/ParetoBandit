@@ -135,6 +135,21 @@ Critically, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} =
 Cost efficiency emerges naturally from the model selection: GPT-4o (70.8\% usage) provides comparable quality to GPT-4-Turbo at 4$\times$ lower cost (\$2.50 vs \$10.00 per 1M tokens), and Mixtral (23.2\% usage) handles routine tasks effectively at \$0.27/1M.
 This demonstrates that cost savings arise as a byproduct of quality-driven learning when the warmup expert's preference for expensive models is not justified by performance differences.
 
+\paragraph{Practical Implications.}
+These findings provide actionable guidance for deploying multi-model routing systems in production:
+
+\textbf{When to Use Corralling:} Deploy the two-expert architecture when facing potential domain mismatch between training data and production workload. For example, if warmup priors come from general-purpose datasets (e.g., RouteLLM on LMSYS) but your application serves a specialized domain (e.g., legal, medical, customer support), Corralling provides automatic adaptation without manual retraining. The $O(T^{0.669})$ convergence rate means the system efficiently adapts within hundreds of samples.
+
+\textbf{Cost Savings at Scale:} The 75.7\% cost reduction translates to substantial savings for high-volume applications. At 1M tokens/day, switching from GPT-4-Turbo-only (\$10/1M) to the learned policy (\$2.43/1M) saves \$7.57/day or \$2,760/year. At 1B tokens/day (typical for enterprise applications), savings reach \$7,570/day or \$2.76M/year---achieved without explicit cost optimization or quality degradation (reward: 0.939 vs theoretical maximum 1.0).
+
+\textbf{Handling New Models:} When new models become available (e.g., GPT-4o release), use semantic transfer instead of retraining from scratch. Initialize the new model's priors from the most similar existing model (determined by cost tier, capability, or provider) with conservative gamma scaling ($\gamma=0.05$). This provides a reasonable starting point while allowing rapid online adaptation. Our results show the router discovered GPT-4o as the dominant choice (70.8\%) despite starting with GPT-4-Turbo-biased priors.
+
+\textbf{Hyperparameter Selection:} For deployment, start with $\eta=5.0$ and $\gamma=0.10$ as shown to be robust across seeds (std=3.40). If your application prioritizes safety over adaptation speed, use more conservative values ($\eta=1.0$, $\gamma=0.05$). The ablation study (Appendix~\ref{sec:appendix_corralling_ablation}) shows performance remains strong across $\eta \in [0.5, 5.0]$ when $\gamma \geq 0.05$, providing flexibility for domain-specific tuning.
+
+\textbf{Sample Efficiency:} The system achieves strong performance with only N=1,121 training samples, making it practical for production deployment where labeled feedback is expensive. The sublinear regret growth ($\beta=0.669$) means performance improves steadily but with diminishing marginal gains---reaching 93.9\% quality after 1,121 samples suggests limited benefit from massive-scale data collection.
+
+\textbf{Production Deployment:} The learned model distribution (GPT-4o: 70.8\%, Mixtral: 23.2\%, GPT-4-Turbo: 6.0\%) provides guidance for capacity planning and rate limit allocation. Most traffic concentrates on mid-tier models, enabling cost-efficient infrastructure design. Monitor expert weight evolution in production: if weights stabilize within 200-300 samples (as in Figure~\ref{fig:corralling_semantic}), the system has converged; if weights continue fluctuating, investigate potential distribution drift or data quality issues.
+
 
 % ============================================================================
 % Semantic Projection: Visualization on 1M Space
