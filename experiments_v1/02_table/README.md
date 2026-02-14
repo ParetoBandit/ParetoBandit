@@ -143,7 +143,7 @@ python generate_table_from_results.py \
 
 | Experiment | Finding | Implication |
 |-----------|---------|-------------|
-| **Figure 1** | PCA features carry routing signal (V=0.667, 6.5x vs random) | Features are useful |
+| **Figure 1** | PCA features predict model preference (ρ=-0.370, 2.6x vs random) | Features are useful |
 | **Figure 2** | Moderate distribution shift exists (PSI=0.225, CI [0.194, 0.285]) | Priors are imperfect |
 | **Table 2** (this) | Priors remain beneficial despite shift (28% regret reduction) | Ship priors + adapt online |
 

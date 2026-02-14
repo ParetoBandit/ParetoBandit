@@ -47,8 +47,13 @@ from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from scipy.stats import gaussian_kde
 
-from bandit_gpt.calibration import SimpleLinUCBRouter, apply_gamma_scaling, embed_prompt
-from bandit_gpt.router import CorrallingRouter
+import math
+from bandit_gpt.calibration import apply_gamma_scaling, embed_prompt
+from bandit_gpt.router import (
+    CorrallingRouter,
+    CostAwareLinUCBRouter,
+    CostAwareTabulaRasaRouter,
+)
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
@@ -56,6 +61,39 @@ from bandit_gpt.config_legacy import (
     DEFAULT_MODEL_REGISTRY_PATH,
     OFFLINE_DATASET_DIR,
 )
+
+# ============================================================================
+# Model cost infrastructure (matches production BanditRouter normalization)
+# ============================================================================
+
+MARKET_COST_FLOOR = 0.0001   # $/1k tokens
+MARKET_COST_CEILING = 0.04   # $/1k tokens
+
+MODEL_COSTS_RAW = {
+    'mistralai/mixtral-8x7b-instruct': {'input_cost_per_m': 0.54, 'output_cost_per_m': 0.60},
+    'openai/gpt-4-turbo':              {'input_cost_per_m': 10.0, 'output_cost_per_m': 30.0},
+    'openai/gpt-4o':                   {'input_cost_per_m': 2.5,  'output_cost_per_m': 10.0},
+}
+
+
+def compute_normalized_cost(input_cost_per_m: float, output_cost_per_m: float) -> float:
+    """Normalize cost to [0, 1] using log-scale market anchors (matches production)."""
+    avg_cost_per_1k = ((input_cost_per_m + output_cost_per_m) / 2.0) / 1000.0
+    safe_cost = max(avg_cost_per_1k, MARKET_COST_FLOOR)
+    log_cost = math.log(safe_cost)
+    log_floor = math.log(MARKET_COST_FLOOR)
+    log_range = math.log(MARKET_COST_CEILING) - log_floor
+    return max(0.0, min(1.0, (log_cost - log_floor) / log_range))
+
+
+def build_model_costs(model_ids: list) -> dict:
+    """Build model_costs dict in the format CostAwareLinUCBRouter expects."""
+    model_costs = {}
+    for m in model_ids:
+        raw = MODEL_COSTS_RAW.get(m, {'input_cost_per_m': 10.0, 'output_cost_per_m': 30.0})
+        norm = compute_normalized_cost(raw['input_cost_per_m'], raw['output_cost_per_m'])
+        model_costs[m] = {'normalized_cost': norm}
+    return model_costs
 
 # Use complete 3-model dataset (Mixtral, GPT-4-Turbo, GPT-4o)
 # This tests multi-model routing and semantic transfer
@@ -67,7 +105,11 @@ CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
 # ============================================================================
 
 class TabulaRasaRouter:
-    """LinUCB router initialized from scratch (A=I, b=0)."""
+    """LinUCB router initialized from scratch (A=I, b=0).
+    
+    DEPRECATED: Use CostAwareTabulaRasaRouter from bandit_gpt.router instead.
+    Kept for backward compatibility with run_ablation_studies.py.
+    """
     
     def __init__(self, models: List[str], context_dim: int, alpha: float = 1.0):
         self.models = models
@@ -190,16 +232,20 @@ def extend_priors_with_semantic_transfer(
     warmup_priors: Dict,
     new_models: List[str],
     transfer_mapping: Dict[str, str],
-    gamma: float = 0.05
 ) -> Dict:
     """
     Extend warmup priors to include new models via semantic transfer.
+    
+    Copies the source model's A and b matrices directly. The subsequent
+    apply_gamma_scaling() call will downweight all models uniformly,
+    giving the transferred model the same effective sample size as the
+    source. This avoids double-gamma scaling that would create an
+    artificial exploration advantage for the new model.
     
     Args:
         warmup_priors: Existing priors (e.g., for Mixtral, GPT-4-Turbo)
         new_models: Models to add (e.g., GPT-4o)
         transfer_mapping: {new_model: source_model} (e.g., {'gpt-4o': 'gpt-4-turbo'})
-        gamma: Scaling factor for transferred priors (low = weak transfer)
     
     Returns:
         Extended priors with new models
@@ -219,16 +265,15 @@ def extend_priors_with_semantic_transfer(
         if not source_model or source_model not in warmup_priors['models']:
             raise ValueError(f"Cannot transfer priors for {new_model}: source {source_model} not found")
         
-        # Transfer priors with scaling (gamma acts like n_effective)
-        # Use interpolation A_new = I + gamma*(A_source - I) to preserve
-        # positive-definiteness (avoids near-singular A when gamma is small).
-        d = warmup_priors['context_dim']
-        I_d = np.eye(d)
-        extended_priors['A'][new_model] = I_d + gamma * (warmup_priors['A'][source_model].copy() - I_d)
-        extended_priors['b'][new_model] = gamma * warmup_priors['b'][source_model].copy()
+        # Copy source model's priors directly (no per-transfer scaling).
+        # The downstream apply_gamma_scaling() handles confidence reduction
+        # uniformly across all models, so the transferred model starts with
+        # the same N_eff as its source — discovery comes from reward learning.
+        extended_priors['A'][new_model] = warmup_priors['A'][source_model].copy()
+        extended_priors['b'][new_model] = warmup_priors['b'][source_model].copy()
         extended_priors['models'].append(new_model)
         
-        print(f"   ✅ Transferred priors: {source_model} → {new_model} (γ={gamma})")
+        print(f"   ✅ Transferred priors: {source_model} → {new_model}")
     
     return extended_priors
 
@@ -284,7 +329,6 @@ def train_corralling_router(
             warmup_priors,
             new_models=missing_models,
             transfer_mapping=transfer_mapping,
-            gamma=0.05  # Weak transfer (low confidence relative to source)
         )
     elif missing_models:
         raise ValueError(f"Missing warmup priors for: {missing_models}. Enable semantic_transfer or provide priors.")
@@ -301,27 +345,42 @@ def train_corralling_router(
     print(f"   Context Dim: {context_dim}")
     print(f"   Training Samples: {len(data)}")
     
-    # Initialize experts
-    warmup_expert = SimpleLinUCBRouter(
+    # Initialize experts (production CostAware* classes)
+    # NOTE: cost_penalty=0 on experts — cost is handled via composite reward
+    # in CorrallingRouter (cost_weight) to avoid double-counting.
+    model_costs = build_model_costs(models)
+    cost_weight = 0.3  # Moderate cost-quality tradeoff (composite reward λ)
+
+    warmup_expert = CostAwareLinUCBRouter(
         models=models,
         warmup_priors=warmup_priors,
-        alpha=1.0
+        model_costs=model_costs,
+        alpha_start=2.0,
+        alpha_end=0.1,
+        cost_penalty=0.0,
     )
     
-    tabula_rasa_expert = TabulaRasaRouter(
+    tabula_rasa_expert = CostAwareTabulaRasaRouter(
         models=models,
         context_dim=context_dim,
-        alpha=1.0
+        model_costs=model_costs,
+        alpha_start=1.0,
+        alpha_end=0.01,
+        cost_penalty=0.0,
+        ridge_lambda=1.0,
     )
     
-    # Initialize Corralling
+    # Initialize Corralling with composite reward
     router = CorrallingRouter(
         experts=[warmup_expert, tabula_rasa_expert],
         models=models,
-        learning_rate=learning_rate
+        learning_rate=learning_rate,
+        model_costs=model_costs,
+        cost_weight=cost_weight,
     )
     
     # Training loop
+    total_steps = len(data)
     cumulative_regret = 0.0
     total_reward = 0.0
     regret_history = []
@@ -336,7 +395,8 @@ def train_corralling_router(
         
         # Select model (using importance sampling)
         # CorrallingRouter.select_model returns (model_id, selection_token)
-        selected_model, selection_token = router.select_model(context)
+        selected_model, selection_token = router.select_model(
+            context, total_steps=total_steps)
         
         # Get reward (ONLY available for labeled data)
         model_reward, oracle_reward = compute_oracle_reward(sample, selected_model)

@@ -127,17 +127,16 @@ The table provides **four essential components**:
 
 **Design**: PCA (384→32 dims) trained on RouteLLM battles, applied to LMSYS general prompts for evaluation. The two datasets have different prompt populations and category distributions.
 
-**Validation (Figure 1)**: The three-condition comparison in Figure 1 directly validates that the PCA generalizes across this domain gap:
+**Validation (Figure 1)**: Figure 1 directly validates that the PCA generalizes across this domain gap by computing the Spearman rank correlation between PC1 and reward gap on N=750 held-out prompts:
 
-| Condition | Cramer's V | Signal vs Random |
-|-----------|-----------|-----------------|
-| Router PCA (domain-adapted) | **0.667** | **6.5x** (vs median of 100 random projections) |
-| Generic PCA (C4 web text) | 0.081 | 0.8x |
-| Random projection (median, N=100) | 0.103 | 1.0x (baseline) |
+| Condition | |Spearman ρ| | Interpretation |
+|-----------|-------------|----------------|
+| Router PCA (domain-adapted) | **0.370** | Significant correlation (p < 0.0001) |
+| Random projections (median, N=100) | 0.145 | Chance-level |
 
-The router PCA captures 6.5x more routing signal than chance on held-out data from a completely different source (ratio computed against the median of 100 random projections; router PCA exceeds all 100, including max V_random=0.644). This is strong evidence that the PCA directions generalize from the RouteLLM battle distribution to the LMSYS general prompt distribution.
+The Router PCA captures 2.6x more predictive signal than random projections and exceeds all 100 random orthonormal projections. This confirms the PCA directions generalize from the RouteLLM battle distribution to the LMSYS general prompt distribution.
 
-**Why it works**: Both datasets involve the same model pair (Mixtral vs GPT-4-Turbo) and the same underlying task (text generation). The PCA captures variance in how prompts relate to model capabilities, which transfers across prompt populations. The generic PCA (trained on C4 web text with no routing connection) also detects some signal (V=0.081), confirming the structure exists in the embedding space independently of PCA training domain — but domain-adapted PCA concentrates it far more effectively.
+**Why it works**: Both datasets involve the same model pair (Mixtral vs GPT-4-Turbo) and the same underlying task (text generation). The PCA captures variance in how prompts relate to model capabilities, which transfers across prompt populations.
 
 ### Decision 3: Simplified Table (No Categories)
 
@@ -159,7 +158,7 @@ The router PCA captures 6.5x more routing signal than chance on held-out data fr
 2. **Realistic evaluation**: In production, the router will encounter prompts from a different distribution than its training data. Evaluating on independently-sourced prompts tests this transfer directly.
 3. **Conservative estimate**: If the PCA were trained on evaluation-domain data, effect sizes might be inflated. Cross-domain evaluation provides a conservative lower bound on routing signal.
 
-**Quantified**: Figure 1 validates that the PCA generalizes across this domain gap (V=0.667, 6.5x vs median of 100 random projections; exceeds all 100). The category distribution differs (Cramér's V=0.05 between warmup and evaluation prompt types), but the routing signal transfers strongly.
+**Quantified**: Figure 1 validates that the PCA generalizes across this domain gap (Spearman ρ = -0.370, 2.6x vs median of 100 random projections; exceeds all 100). The category distribution differs between warmup and evaluation prompt types, but the routing signal transfers strongly.
 
 ---
 
@@ -201,12 +200,12 @@ The router PCA captures 6.5x more routing signal than chance on held-out data fr
 
 Figure 1 and Table 1 analyze the **same N=750 holdout prompts** with the same discrete reward structure. Methodological consistency:
 
-- **Figure 1**: Chi-squared test on win/tie/loss contingency table (between-cluster comparison). Primary effect size: **Cramer's V = 0.667** (router PCA, 6.5x vs median of 100 random projections). Permutation test p < 0.0001. Monte-Carlo power > 99%.
+- **Figure 1**: Spearman rank correlation between PC1 and reward gap. Primary metric: **ρ = -0.370** (p < 0.0001), exceeding all 100 random projections (2.6x vs median).
 - **Table 1**: McNemar's / binomial test on paired routing outcomes (between-strategy comparison). Monte-Carlo power ≥ 80% at 58-60% routing accuracy.
-- **Both**: Monte-Carlo simulation from observed discrete distribution. Both correctly treat rewards as categorical, not continuous.
+- **Both**: Correctly treat rewards as discrete (win/tie/loss).
 - **Both**: Use the same PCA artifact (`pca_32.joblib`), trained on independent RouteLLM battles data.
 
-The Cramer's V = 0.667 preference heterogeneity discovered in Figure 1 provides the signal that makes routing learnable. The routing accuracy measured in Table 1's holdout analysis quantifies how well the bandit exploits this signal.
+The Spearman ρ = -0.370 preference heterogeneity established in Figure 1 confirms the signal that makes routing learnable. The routing accuracy measured in Table 1's holdout analysis quantifies how well the bandit exploits this signal.
 
 ### 5. Corralling Performance in Context
 

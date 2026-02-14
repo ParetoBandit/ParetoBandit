@@ -1,31 +1,33 @@
-% Figure 4: Corralling Semantic Analysis
+% Figure 4: Cost-Aware Model Discovery with Composite Reward
 % This file contains the figure caption and mathematical framework for Figure 4
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{experiments_v1/04_figure/results/figure3_corralling_semantic_analysis.png}
+\includegraphics[width=0.95\textwidth]{experiments_v1/04_figure/results/figure4_model_discovery.png}
 \caption{%
-\textbf{Long-Term Adaptation: Corralling Unlearns Suboptimal Semantic Transfer.}
+\textbf{Cost-Aware Routing: GPT-4o Introduced Mid-Stream.}
 %
-\textbf{(Left)} Semantic structure of LMSYS Chat-1M dataset (N=594k prompts) projected onto first two principal components. 
-The low-PC1 region (PC1 $< 0.3$, blue, 94.2\% of prompts) exhibits high semantic density. 
-The high-PC1 region (PC1 $\geq 0.3$, red, 5.8\% of prompts) is more sparse.
+Each panel shows rolling model selection frequency (window=50) across a single timeline where GPT-4o is added at the midpoint (dashed line).
+Phase~1 (samples 1--560): 2-model portfolio (Mixtral + GPT-4-Turbo).
+Phase~2 (samples 561--1121): GPT-4o added via semantic transfer from GPT-4-Turbo.
 %
-\textbf{(Right)} Expert weight evolution during Corralling training on N=1,121 labeled samples (3 models spanning cost tiers: Mixtral \$0.27/1M, GPT-4-Turbo \$10/1M, GPT-4o \$2.50/1M) with \textbf{aggressive} learning rate ($\eta=5.0$, $\gamma=0.10$).
-GPT-4o is initialized via \textbf{semantic transfer} from GPT-4-Turbo ($\gamma=0.05$), providing an informative prior.
-The algorithm starts with uniform expert weights (0.5, 0.5) and rapidly shifts weight from warmup expert (orange) to tabula rasa expert (green).
-Final weights: Warmup=$1.41 \times 10^{-128}$ (essentially 0), Tabula Rasa=1.000, demonstrating \textbf{complete unlearning} of warmup priors including semantic transfer.
-This validates Corralling's long-term safety: semantic transfer provides short-term benefit (breaking symmetry), but with sufficient data and aggressive learning, the system adapts beyond initial priors to discover the optimal policy.
-Performance: Cumulative regret = 59.33 $\pm$ 3.40, Average reward = 0.939 $\pm$ 0.003 (mean $\pm$ std across 3 seeds).
-Learned policy: GPT-4o (70.8\%), Mixtral (23.2\%), GPT-4-Turbo (6.0\%), achieving \$2.43/1M tokens (75.7\% cost reduction).
-\textbf{Connection to Figure~\ref{fig:accelerated-adoption}:} This experiment uses 50$\times$ higher learning rate than Figure~\ref{fig:accelerated-adoption}, demonstrating that semantic transfer benefits are transient with aggressive learning. The unlearning validates system robustness: the router is not locked into potentially incorrect semantic priors.
+The composite reward $r = \text{quality} - \lambda \cdot \text{cost}$ directly encodes the cost-quality tradeoff into the learning signal, so that \emph{both} the meta-learner and expert bandits optimize for cost-adjusted value.
+%
+\textbf{(Top-left, $\lambda=0.0$)} Quality only: GPT-4o dominates (64.6\%, quality=95.5\%, \$11.07/M).
+\textbf{(Top-right, $\lambda=0.1$)} Mild cost awareness: GPT-4o still dominant (74.1\%, quality=96.0\%, \$9.74/M).
+\textbf{(Bottom-left, $\lambda=0.3$)} Moderate: GPT-4o dominant (74.7\%, quality=95.6\%, \$9.25/M).
+\textbf{(Bottom-right, $\lambda=0.5$)} Aggressive cost preference: Mixtral rises to 28.6\%, GPT-4o drops to 56.5\% (quality=91.7\%, \$6.67/M).
+%
+All values are 5-seed averages (seeds 42--46).
+Critically, cost monotonically decreases with $\lambda$ (\$11.07 $\to$ \$6.67/M) while quality degrades gracefully (95.5\% $\to$ 91.7\%), validating the composite reward as an effective lever for the cost-quality tradeoff.
+The high variance at $\lambda=0.5$ ($\pm$20.4\% Mixtral usage) reflects that aggressive cost preference amplifies exploration dynamics with limited Phase~2 data (N=561).
 }
 \label{fig:corralling_semantic}
 \end{figure*}
 
 
 % ============================================================================
-% Mathematical Framework: Corralling Algorithm
+% Mathematical Framework: Corralling Algorithm with Composite Reward
 % ============================================================================
 
 \subsection{Corralling: Adaptive Expert Combination}
@@ -41,9 +43,31 @@ At each round $t$:
 \begin{enumerate}[nosep]
     \item The meta-algorithm samples an expert $e_t \sim p_t$, where $p_t$ is a probability distribution over experts
     \item Expert $e_t$ selects a model $a_t$ based on context $x_t$
-    \item We observe reward $r_t \in [0,1]$ for the selected model
-    \item The meta-algorithm updates expert weights based on observed losses
+    \item We observe quality reward $q_t \in [0,1]$ for the selected model
+    \item The reward is adjusted to a \emph{composite reward} $r_t = q_t - \lambda \cdot \bar{c}(a_t)$ (Section~\ref{sec:composite_reward})
+    \item The meta-algorithm updates expert weights based on observed losses using $r_t$
 \end{enumerate}
+
+\paragraph{Composite Reward: Embedding Cost in the Learning Signal.}
+\label{sec:composite_reward}
+A naive approach to cost-aware routing is to penalize cost only in the UCB selection score (i.e., $\text{UCB} = x^\top \hat{\theta}_a + \alpha\sigma_a - \lambda c_a$).
+However, this is fundamentally flawed: the learned parameters $\hat{\theta}_a$ converge to $\mathbb{E}[q | x]$ (pure quality), and the quality advantage of expensive models eventually overwhelms the selection-time cost penalty.
+
+We resolve this by computing a \emph{composite reward} \emph{before} it enters the learning stack:
+\begin{equation}
+r_t = q_t - \lambda \cdot \bar{c}(a_t)
+\label{eq:composite_reward}
+\end{equation}
+where $\bar{c}(a_t) \in [0,1]$ is the log-normalized cost of model $a_t$ (Section~\ref{sec:cost_normalization}).
+This composite reward is fed to \emph{both} the meta-learner (Level~1) and all expert bandits (Level~2), ensuring:
+\begin{itemize}[nosep]
+    \item Expert parameters $\hat{\theta}_a$ learn $\mathbb{E}[q - \lambda c | x]$, so cheap-but-sufficient models get higher predicted value.
+    \item The meta-learner evaluates experts on composite value, not penalizing cost-aware experts for selecting cheaper models.
+\end{itemize}
+
+When $\lambda = 0$, the system reduces to pure quality maximization (backward-compatible).
+As $\lambda$ increases, the reward signal increasingly favors cost-efficient models:
+a cheap model that succeeds ($q=1$, $\bar{c}=0.29$) receives higher effective reward ($1.0 - \lambda \cdot 0.29$) than an expensive model that also succeeds ($1.0 - \lambda \cdot 0.69$).
 
 \paragraph{Importance-Weighted Loss Estimation.}
 The key challenge is that we only observe the outcome for the \emph{selected} expert, not for all experts (no counterfactuals).
@@ -55,7 +79,8 @@ To obtain unbiased loss estimates, we use importance weighting:
 \end{cases}
 \label{eq:importance_weighted_loss}
 \end{equation}
-where $\rho_{t,e} = p_t(e)$ is the probability of selecting expert $e$ at round $t$.
+where $\rho_{t,e} = p_t(e)$ is the probability of selecting expert $e$ at round $t$, and $r_t$ is the composite reward (Eq.~\ref{eq:composite_reward}).
+Note that with composite reward, the loss $1 - r_t = 1 - q_t + \lambda \bar{c}(a_t)$ can exceed 1.0 when the model fails; this is handled naturally by the exponential weights algorithm.
 
 This estimator is unbiased:
 \begin{equation}

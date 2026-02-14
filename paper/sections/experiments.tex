@@ -7,7 +7,7 @@ To rigorously validate our integrated approach, we conduct experiments organized
 \textbf{Part I: Motivation (Section~\ref{sec:motivation})}
 \begin{itemize}
     \item Table~\ref{tab:dataset}: Dataset provenance and split design
-    \item Figure~\ref{fig:alignment_tax}: Model preference heterogeneity analysis
+    \item Figure~\ref{fig:lmsys_holdout_structure}: Model preference heterogeneity analysis
 \end{itemize}
 
 \textbf{Part II: Evaluation (Section~\ref{sec:results})}
@@ -75,7 +75,7 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 \subsection{Implementation Details}
 
-\textbf{Embeddings}: We use \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} (384-d), reduced to 32 dimensions via domain-adapted PCA trained on 80K routing prompts (unsupervised---no reward labels used). For model preference heterogeneity analysis (Figure~\ref{fig:alignment_tax}), we project onto PC1 and apply unsupervised silhouette-optimal threshold selection. Robustness is validated with generic C4 PCA (100K samples, no routing connection).
+\textbf{Embeddings}: We use \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} (384-d), reduced to 32 dimensions via domain-adapted PCA trained on 80K routing prompts (unsupervised---no reward labels used). Signal validation (Figure~\ref{fig:lmsys_holdout_structure}) confirms that PC1 significantly correlates with model preference ($\rho = -0.370$, $p < 0.0001$), exceeding all 100 random projections.
 
 \textbf{Infrastructure}: Experiments were conducted on a standard CPU node for bandit updates, demonstrating the algorithm's lightweight footprint compared to GPU-heavy router training. All matrix inverse updates use the Sherman-Morrison formula for $O(d^2)$ incremental updates, with automatic fallback to full $O(d^3)$ inversion when the denominator becomes numerically unstable ($|1 + w \cdot x^\top A^{-1} x| < 10^{-6}$).
 

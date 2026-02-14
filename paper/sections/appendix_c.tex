@@ -115,7 +115,7 @@ Oracle & 0.00195 & 0.9533 & $6.6\times$ (+15.9\%) \\
 
 On this particular dataset, the expensive model (GPT-4-Turbo) performs \textit{worse} on average than the cheap model (Mixtral-8x7B)---users pay $43\times$ more for $1.3\%$ \textit{lower} quality. This inversion is specific to our evaluation distribution and should not be interpreted as a general claim about GPT-4-Turbo's capabilities. Rather, it demonstrates that adaptive routing can outperform static single-model allocation when the task space is heterogeneous---an expected result by construction, but one whose magnitude ($43\times$ cost for negative quality gain) underscores the economic value of routing.
 
-This inversion reflects model preference heterogeneity: ${\sim}19\%$ of held-out prompts favor Mixtral (Section~\ref{sec:motivation}), and the evaluation distribution's composition amplifies this effect at the aggregate level.
+This inversion reflects model preference heterogeneity: ${\sim}14\%$ of held-out prompts explicitly favor Mixtral (Section~\ref{sec:motivation}), and the evaluation distribution's composition amplifies this effect at the aggregate level.
 
 The Oracle demonstrates that \textit{perfect routing} can extract value from the expensive model (achieving 0.953 at only $6.6\times$ cost), but this requires identifying the exact prompts where GPT-4-Turbo outperforms---a task that static routers fail at catastrophically.
 

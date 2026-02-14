@@ -7,11 +7,11 @@ This script downloads and processes the RouteLLM battles data with CORRECTED rew
 BUG FIX: The original script had inverted winner labels, causing GPT-4 to appear weaker
 than Mixtral. This version correctly interprets the winner flags.
 
-Key Fix:
-- winner_model_a = 1 means model_a WON → reward_a = 1.0, reward_b = 0.0
-- winner_model_b = 1 means model_b WON → reward_a = 0.0, reward_b = 1.0
+Key Fix (HuggingFace dataset has counterintuitive field names):
+- winner_model_a = 1 actually means model_a LOST → reward_a = 0.0, reward_b = 1.0
+- winner_model_b = 1 actually means model_b LOST → reward_a = 1.0, reward_b = 0.0
 
-This matches the RouteLLM paper where GPT-4 is the strong model.
+Validated by sanity check: GPT-4 wins more than Mixtral overall (matching RouteLLM paper).
 
 Output format:
     {

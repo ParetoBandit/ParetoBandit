@@ -1140,6 +1140,7 @@ class BanditRouter:
         use_corralling: bool = True,  # Enable corralling by default
         corralling_learning_rate: float = 0.1,
         corralling_gamma: float = 0.05,
+        corralling_cost_weight: float = 0.0,  # λ for composite reward in Corralling
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -1170,12 +1171,21 @@ class BanditRouter:
             use_corralling: Enable Corralling meta-learner (default: True)
             corralling_learning_rate: Meta-learning rate for expert weight updates (default: 0.1)
             corralling_gamma: Mixing parameter (default: 0.05, empirically validated optimal)
+            corralling_cost_weight: λ for composite reward in Corralling meta-learner.
+                       When > 0, the reward signal is adjusted to r = quality - λ·cost
+                       BEFORE it reaches both the meta-learner and expert bandits.
+                       This ensures the entire learning stack optimizes for cost-quality
+                       value. Set cost_penalty=0 on experts to avoid double-counting.
+                       - 0.0 = quality-only (default, backward-compatible)
+                       - 0.1-0.3 = moderate cost awareness
+                       - 0.5+ = aggressive cost preference
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
         self.use_corralling = use_corralling
         self.corralling_learning_rate = corralling_learning_rate
         self.corralling_gamma = corralling_gamma
+        self.corralling_cost_weight = corralling_cost_weight
         if model_registry is None:
             # Load default models.json from config/
             base_dir = Path(__file__).parent
@@ -1323,6 +1333,7 @@ class BanditRouter:
         result.use_corralling = self.use_corralling
         result.corralling_learning_rate = self.corralling_learning_rate
         result.corralling_gamma = self.corralling_gamma
+        result.corralling_cost_weight = self.corralling_cost_weight
         result.corralling_router = copy.deepcopy(self.corralling_router, memo) if self.corralling_router else None
         
         # --- Logs and Counters (deepcopy: mutable collections) ---
@@ -2350,7 +2361,9 @@ class BanditRouter:
                 experts=[expert_warmup, expert_tabula_rasa],
                 models=router.bandit.models,
                 learning_rate=router.corralling_learning_rate,
-                gamma=router.corralling_gamma
+                gamma=router.corralling_gamma,
+                model_costs=model_costs,
+                cost_weight=router.corralling_cost_weight,
             )
             
             logger.info("✅ Reversed Heterogeneous Experts Strategy Initialized:")
@@ -3410,7 +3423,9 @@ class CorrallingRouter:
         gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments_v1/03_figure/results/gamma_ablation/)
         loss_decay: float = 0.999,  # [FIX] Meta-level adaptation decay
         meta_lr_halflife: float = 60.0,  # Staleness half-life in seconds for delayed feedback
-        initial_weights: Optional[np.ndarray] = None  # Prior-trust bias
+        initial_weights: Optional[np.ndarray] = None,  # Prior-trust bias
+        model_costs: Optional[Dict] = None,  # {model_id: {"normalized_cost": float}}
+        cost_weight: float = 0.0,  # λ for composite reward: r = quality - λ·cost
     ):
         """
         Initialize Corralling with configurable expert weights and exploration floor.
@@ -3465,6 +3480,25 @@ class CorrallingRouter:
                        likely correct.  This reduces overhead when priors are
                        good but increases recovery time when they are bad.
                        See experiments_v1/03_figure for the full trade-off.
+            model_costs: Optional dict mapping model_id to {"normalized_cost": float}.
+                       Required when cost_weight > 0. Costs should be in [0, 1],
+                       normalized using log-scale market anchors (see RouterConfig).
+            cost_weight: λ for composite reward: r_effective = quality - λ·cost.
+                       When > 0, the reward signal fed to BOTH the meta-learner
+                       and expert bandits is adjusted to encode the cost-quality
+                       tradeoff directly. This ensures:
+                       (a) Expert theta learns E[quality - λ·cost | context], so
+                           cheap-but-sufficient models get higher predicted value.
+                       (b) The meta-learner evaluates experts on composite value,
+                           not penalizing cost-aware experts for picking cheaper models.
+                       
+                       NOTE: When using cost_weight > 0, set cost_penalty=0 on
+                       the expert classes to avoid double-counting cost. The
+                       composite reward subsumes the UCB cost penalty.
+                       
+                       - 0.0 = quality-only (default, backward-compatible)
+                       - 0.1-0.3 = moderate cost awareness
+                       - 0.5+ = aggressive cost preference
         """
         self.experts = experts
         self.models = models
@@ -3472,6 +3506,8 @@ class CorrallingRouter:
         self.gamma = gamma  # The "Life Support" parameter
         self.loss_decay = loss_decay  # Meta-level adaptation decay
         self.meta_lr_halflife = meta_lr_halflife  # Staleness half-life (τ)
+        self.model_costs = model_costs or {}
+        self.cost_weight = cost_weight
         self.n_experts = len(experts)
         # [BUG FIX H1]: Thread safety — CorrallingRouter mutates shared state
         # (weights, cumulative_losses) in update() and reads it in select_model().
@@ -3624,6 +3660,25 @@ class CorrallingRouter:
                 If None, only base experts are updated (no meta-weight change).
             weight: Observation importance weight (passed to expert updates).
         """
+        # ===================================================================
+        # COMPOSITE REWARD: Encode cost-quality tradeoff in reward signal
+        # ===================================================================
+        # When cost_weight > 0, adjust the reward BEFORE it reaches both the
+        # meta-learner (Level 1) and expert bandits (Level 2). This ensures
+        # the entire learning stack optimizes for cost-quality value, not
+        # pure quality.
+        #
+        # r_effective = quality - λ · normalized_cost(model)
+        #
+        # Effect: A cheap model that succeeds (Mixtral: 1.0 - λ·0.29) gets
+        # a HIGHER reward than an expensive model that also succeeds
+        # (GPT-4o: 1.0 - λ·0.69). This trains theta to prefer cheap models
+        # when quality is comparable, and expensive models only when they
+        # provide strictly better outcomes.
+        if self.cost_weight > 0 and model in self.model_costs:
+            cost_adj = self.cost_weight * self.model_costs[model].get('normalized_cost', 0.0)
+            reward = reward - cost_adj
+        
         # ===================================================================
         # LEVEL 1: Meta-Weight Update (which expert to trust)
         # ===================================================================

@@ -1,23 +1,23 @@
 % Validation Methodology Section
-% Three-condition comparison, permutation test, independent PCA, categorical metrics
+% Correlation-based design, null baseline, data independence
 
 \subsection{Validation Methodology}
 \label{sec:validation_methodology}
 
-We validate the routing signal finding through a multi-condition experimental design with distribution-free significance testing, proper categorical effect sizes, and controls for projection artifacts.
-All analyses use the held-out test set exclusively ($N=750$), with PCA models trained on independent data and the cluster threshold determined by purely unsupervised criteria.
+We validate the routing signal finding through a direct correlation test with a distribution-free null baseline.
+All analyses use the held-out test set exclusively ($N=750$), with PCA trained on independent data.
 
 \subsubsection{Experimental Design}
 
-\paragraph{Three-condition comparison.}
-To distinguish genuine routing signal from projection artifacts, we compare three feature extraction conditions using the same sentence encoder (\texttt{all-MiniLM-L6-v2}) and holdout data:
-\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Router PCA (domain-adapted):} Trained on 80K RouteLLM battle prompts---an independent dataset from a different data source than the held-out evaluation set. This is the same PCA deployed in the production \texttt{FeatureService} pipeline.
-    \item \textbf{Generic PCA (C4 baseline):} Trained on 100K C4 web text samples with no connection to routing. Tests whether the signal exists independently of PCA training domain.
-    \item \textbf{Random projection (null baseline):} A fixed random orthonormal matrix ($384 \to 2$, seed${}=42$). Quantifies how much structure any linear projection of 384D embeddings finds by chance in a dataset of this size.
-\end{enumerate}
+\paragraph{Analysis pipeline matches the router.}
+BanditGPT's \texttt{FeatureService} encodes prompts with a sentence transformer (\texttt{all-MiniLM-L6-v2}) and compresses the 384D embeddings to 33 dimensions via PCA.
+LinUCB then regresses these features against per-model rewards to predict which model will perform best.
+Our validation directly tests the input to this regression: we compute the Spearman rank correlation between the PCA's first principal component (PC1) and the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
+This is a lower bound on the full feature vector's predictive power, since the router uses all 33 components.
 
-\noindent If the random projection shows comparable effect sizes to the router PCA, the finding is likely a projection artifact. If the router PCA greatly exceeds both baselines, it captures genuine task-relevant variance.
+\paragraph{Null baseline.}
+To rule out projection artifacts---any 384D-to-2D linear projection may find \emph{some} correlated direction---we compute $|\rho|$ for $N{=}100$ independent random orthonormal projections (QR-decomposed, $384 \to 2$) and compare the Router PCA $|\rho|$ to this null distribution.
+If the Router PCA correlation falls within the random distribution, the signal is artifactual; if it greatly exceeds it, the PCA concentrates genuine task-relevant variance.
 
 \paragraph{Data independence (no contamination).}
 The PCA training data and held-out evaluation data are \emph{entirely independent datasets} with no overlap by construction:
@@ -31,101 +31,52 @@ No decontamination or exclusion step is needed---the datasets are disjoint by pr
 
 \subsubsection{Statistical Tests}
 
-\paragraph{Primary tests (categorical).}
-Reward gaps take exactly three values ($\{-1, 0, +1\}$), making categorical tests the natural primary analysis:
+\paragraph{Primary metric: Spearman rank correlation.}
+Reward gaps take exactly three values ($\{-1, 0, +1\}$), making the Spearman $\rho$ well suited: it tests monotonic association, makes no distributional assumptions, and handles ties naturally.
+Critically, this metric directly tests the question the bandit needs answered: \emph{do the features predict the direction of model preference?}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{$\chi^2$ test of independence:} Tests whether the $2 \times 3$ contingency table (cluster $\times$ outcome) departs from independence ($p < 0.0001$).
-    \item \textbf{Cram\'er's $V$:} Primary effect size for the categorical association (reported in figure).
-    \item \textbf{Odds ratio} (Mixtral win, High vs.\ Low PC1): Quantifies the relative odds of cheaper-model preference in the High~PC1 region.
-    \item \textbf{Risk difference} (Mixtral win rate): Absolute difference in Mixtral win probability between regions.
+    \item \textbf{Spearman $\rho$} (PC1 vs.\ reward gap): Primary metric with exact $p$-value.
+    \item \textbf{Null distribution of $|\rho|$:} Computed over 100 random projections, providing a distribution-free baseline.
 \end{itemize}
-
-\paragraph{Permutation test (distribution-free significance).}
-We compute a permutation $p$-value by shuffling reward labels 10,000 times while holding cluster assignments fixed.
-For each permutation, we compute Cram\'er's $V$ on the shuffled contingency table, yielding the null distribution of $V$ under the hypothesis of no association.
-The $p$-value is the fraction of permutations where $V_{\text{perm}} \geq V_{\text{observed}}$.
-This avoids the large-sample assumptions of the $\chi^2$ test and provides a direct, interpretable significance measure.
 
 \paragraph{Supplementary tests.}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Mann-Whitney $U$-test:} Non-parametric ordinal test ($p < 0.0001$), appropriate for the ordinal structure of the reward gap.
-    \item \textbf{Cohen's $d$:} Reported for comparability with prior work, but explicitly marked as approximate because the underlying data is discrete ($\{-1, 0, +1\}$), not continuous. Cram\'er's $V$ and the odds ratio are the appropriate primary effect sizes.
+    \item \textbf{Mann-Whitney $U$-test:} Non-parametric ordinal test on a median split, confirming the Spearman result through a group comparison.
+    \item \textbf{Outcome distribution:} Win/tie/loss proportions documenting preference heterogeneity.
 \end{itemize}
 
-\subsubsection{Threshold Validation}
+\subsubsection{Design Rationale}
 
-The cluster boundary is determined by silhouette-optimal threshold search over PC1 values, maximizing geometric cluster quality without reference to reward labels.
+\paragraph{Why Spearman instead of clustering.}
+The bandit performs regression on continuous features, not clustering.
+A clustering-based analysis (threshold $\to$ contingency table $\to$ Cram\'er's $V$) introduces unnecessary researcher degrees of freedom: the threshold criterion, minimum cluster size, and clustering dimensionality.
+Spearman $\rho$ tests the same hypothesis---features predict preference---without any of these choices.
 
-\paragraph{Effect size stability.}
-With $N=750$ discrete outcomes, most non-trivial splits produce small $p$-values, making $p$-value stability uninformative.
-We instead report Cram\'er's $V$ across a sweep of 40 candidate thresholds to verify that the \emph{effect size}---not merely its significance---is stable.
-If the effect were an artifact of a particular boundary, $V$ would peak sharply at one threshold and collapse elsewhere; a broad plateau in $V$ indicates robust structure.
+\paragraph{Why PC1 only.}
+The router uses all 33 PCA components, but PC1 captures the most variance by construction.
+Testing PC1 alone provides a \emph{conservative} lower bound on the full feature vector's predictive power.
+If the bandit gains routing value from higher components, that strengthens the case.
 
 \paragraph{Multiple comparisons.}
-The primary threshold is selected by a purely unsupervised criterion (silhouette score) with no reference to rewards, so no multiplicity correction is needed for the primary analysis.
-The threshold sweep is a sensitivity analysis (reporting $V$ at all thresholds), not a search for significance.
-The three PCA conditions test a specific experimental hypothesis (router PCA vs.\ baselines), not a fishing expedition.
-We acknowledge residual researcher degrees of freedom (embedding model, PCA dimensionality, minimum cluster size) and direct readers to the random projection baseline as the calibration point.
-
-\subsubsection{High-Dimensional Structure}
-
-\begin{table}[h]
-\centering
-\caption{Cluster Quality Across Dimensionalities}
-\label{tab:multidim_validation}
-\begin{tabular}{lccc}
-\toprule
-\textbf{Space} & \textbf{Dimensions} & \textbf{Silhouette} & \textbf{Separation Ratio} \\
-\midrule
-2D PCA & 2 & 0.499 & --- \\
-32D PCA & 32 & $\sim$0.25 & $>$1.0 \\
-384D Embeddings & 384 & 0.057 & 0.81 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\noindent The 384D silhouette score of 0.057 indicates weak cluster structure in the full embedding space.
-This is expected: the router does not require well-separated clusters in 384D.
-It requires only that \emph{some} linear subspace correlates with model preference, which is precisely what PCA extracts.
-The Spearman rank correlation between PC1 and reward gap ($\rho = -0.395$) confirms a moderate monotonic relationship; squaring this ($\rho^2 = 0.156$) gives an approximate measure of rank-order overlap, though---unlike $R^2$ in linear regression---it does not directly measure explained variance.
-
-\paragraph{Projection artifact control.}
-The random projection baseline directly addresses the concern that any 384D-to-2D projection will find \emph{some} correlated direction.
-If the random projection achieves a comparable Cram\'er's $V$ to the router PCA, the finding is artifactual.
-To ensure the signal ratio is not an artifact of a single random seed, we run $N{=}100$ independent random projections ($384 \to 2$, orthonormalized) and compute Cram\'er's $V$ for each.
-The router PCA ($V = 0.667$) exceeds all 100 random projections; the signal ratio is reported against the median $V_{\text{random}}$, not a single seed.
-The comparison table (Table~\ref{tab:pca_conditions}) reports the single-seed result; the full distribution is available in the analysis script output.
+The primary analysis computes a single correlation ($\rho$ for PC1 vs.\ reward gap) and compares it against a single null distribution (100 random projections).
+No multiplicity correction is needed for this one-hypothesis design.
+The supplementary Mann-Whitney test and outcome analysis are confirmatory, not hypothesis-generating.
 
 \subsubsection{Stratification and Generalizability}
 
 \paragraph{Holdout construction.}
 The holdout ($N=750$) was created via stratified sampling across category, complexity, and difficulty (Appendix~\ref{app:stratification}).
 The difficulty dimension is derived from oracle reward statistics (mean and variance), which introduces an indirect dependence on the outcome variable into the sampling design.
-This may enrich the holdout for prompts with clear model preferences, contributing to the higher High~PC1 proportion (19.2\%) compared to the 1M production dataset (5.9\%).
-
-\paragraph{Production traffic estimate.}
-Users should expect the routable fraction to be closer to $\sim$5.9\% (1M dataset) than $\sim$19.2\% (holdout) in production, proportionally limiting achievable cost savings.
-The routing signal \emph{per prompt} (Cram\'er's $V$, odds ratio) is validated on the holdout; the \emph{fraction of traffic} affected is estimated from the 1M spatial analysis (Section~\ref{sec:scale_validation}).
-
-\subsubsection{Data Quality}
-
-The held-out dataset contains zero exact duplicates.
-Intra-cluster diversity (measured by mean pairwise cosine distance):
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item High PC1: 0.355 (relatively homogeneous---coherent prompt category)
-    \item Low PC1: 0.953 (highly diverse---broad range of prompt types)
-\end{itemize}
-The homogeneity of the High~PC1 cluster is consistent with TF-IDF analysis showing enrichment for a specific prompt type (instruction-following with structured output constraints), rather than a heterogeneous collection that happens to share a PC1 value.
+This enriches the holdout for prompts with clear model preferences.
+The \emph{existence} of the correlation is robust (Router PCA exceeds all 100 random projections on the same holdout); the \emph{magnitude} of $\rho$ in deployment will depend on the user's prompt distribution.
 
 \subsubsection{Summary}
 
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Three-condition design:} Router PCA vs.\ generic PCA vs.\ random projection, all on the same holdout data and encoder
-    \item \textbf{Categorical metrics:} Cram\'er's $V$ (primary), odds ratio, risk difference---appropriate for discrete win/tie/loss outcomes
-    \item \textbf{Permutation significance:} Distribution-free $p$-values ($n{=}10{,}000$ permutations), no large-sample assumptions
+    \item \textbf{Correlation-based design:} Spearman $\rho$ directly tests whether features predict model preference---matching how the bandit uses features
+    \item \textbf{Null baseline:} 100 random orthonormal projections provide the null distribution of $|\rho|$
     \item \textbf{Data independence:} PCA trained on RouteLLM battles (separate dataset from holdout); no contamination
-    \item \textbf{Threshold:} Silhouette-optimal (unsupervised); effect size stable across threshold sweep
-    \item \textbf{Null baseline:} Random projection quantifies chance-level projection artifacts
-    \item \textbf{High-D caveat:} Weak 384D clusters (silhouette $= 0.057$); PCA extracts a moderate signal, not a dominant partition
-    \item \textbf{Generalizability:} Routable fraction is $\sim$19\% in holdout, $\sim$5.9\% in 1M production traffic
+    \item \textbf{Conservative:} PC1 only; the router uses all 33 components, so the full signal is at least as strong
+    \item \textbf{One hypothesis:} No multiplicity correction needed
+    \item \textbf{Generalizability:} Stratified holdout enriches for signal; production magnitude is deployment-dependent
 \end{enumerate}

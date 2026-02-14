@@ -2,7 +2,7 @@
 \label{sec:methodology}
 
 % TRANSITION from Empirical Motivation
-Having established empirical motivation---model preference heterogeneity exists (Figure~\ref{fig:alignment_tax}) but distribution shift is significant (PSI=0.225, Section~\ref{sec:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
+Having established empirical motivation---model preference heterogeneity exists (Figure~\ref{fig:lmsys_holdout_structure}) but distribution shift is significant (PSI=0.225, Section~\ref{sec:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
 
 \begin{itemize}
     \item \textbf{Contextual embeddings} exploit semantic structure for learning
@@ -14,7 +14,7 @@ We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. Our f
 
 \subsection{Unified Feature Space: From Discovery to Deployment}
 
-All experiments in this work operate in a unified semantic feature space to ensure consistency from analysis to deployment. Prompts are embedded using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384-dimensional), reduced to 32 dimensions via domain-adapted PCA trained on 80,000 routing prompts from the RouteLLM dataset (35.14\% cumulative variance explained). This PCA is \emph{unsupervised}---it identifies directions of maximum variance in routing-relevant prompt embeddings without seeing reward labels. The primary semantic axis (PC1, 3.10\% variance) identified in Section~\ref{sec:motivation}---which correlates with model preference heterogeneity at $\text{PC1}=0.222$ (Figure~\ref{fig:pca})---becomes the substrate for all adaptation experiments (Section~\ref{sec:robustness_adaptation}). Robustness analysis with generic PCA (C4 corpus, 100K samples) confirms the underlying structure exists independently of PCA provenance ($d = 0.33$), though the domain-adapted PCA captures it more efficiently ($d = 1.53$). The consistency of this feature space from analysis (Figure~\ref{fig:pca}) through baseline establishment (Table~\ref{tab:performance_gap}) to regime validation enables direct comparison and unified interpretation across all results.
+All experiments in this work operate in a unified semantic feature space to ensure consistency from analysis to deployment. Prompts are embedded using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384-dimensional), reduced to 32 dimensions via domain-adapted PCA trained on 80,000 routing prompts from the RouteLLM dataset (35.14\% cumulative variance explained). This PCA is \emph{unsupervised}---it identifies directions of maximum variance in routing-relevant prompt embeddings without seeing reward labels. The primary semantic axis (PC1, 3.10\% variance) identified in Section~\ref{sec:motivation} shows significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$; Figure~\ref{fig:lmsys_holdout_structure}), confirming that the features capture routing-relevant signal. This feature space becomes the substrate for all adaptation experiments (Section~\ref{sec:robustness_adaptation}). The consistency of the feature space from signal validation (Figure~\ref{fig:lmsys_holdout_structure}) through baseline establishment (Table~\ref{tab:performance_gap}) to regime validation enables direct comparison and unified interpretation across all results.
 
 \subsection{Problem Formulation}
 

@@ -13,7 +13,7 @@
 \subsection{Statistical Validation of Semantic Structure}
 \label{app:validation_methodology}
 
-We perform comprehensive validation to ensure our model preference heterogeneity findings (Figure~\ref{fig:alignment_tax}) are statistically robust and not artifacts of methodological choices. All analyses in this section use the held-out test set exclusively ($N=750$).
+We perform comprehensive validation to ensure our model preference heterogeneity findings (Figure~\ref{fig:lmsys_holdout_structure}) are statistically robust and not artifacts of methodological choices. The primary analysis uses Spearman rank correlation (Section~\ref{sec:semantic_structure}); this appendix provides supplementary clustering-based analyses for additional context. All analyses use the held-out test set exclusively ($N=750$).
 
 \subsubsection{Statistical Significance Testing}
 
@@ -62,7 +62,7 @@ Generic C4 (100K web text) & $< 0.0001$ & 0.33 & Small effect \\
 \end{tabular}
 \end{table}
 
-The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1, yielding a 4.6$\times$ larger effect size. The generic PCA confirms the underlying structure exists independently, validating that the domain-adapted PCA is an effective (not circular) feature extractor. Both PCAs are unsupervised---neither uses reward labels during training.
+The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1. The generic PCA shows a numerically positive but smaller effect; however, in the primary correlation-based analysis (Section~\ref{sec:semantic_structure}), we validate signal through comparison with 100 random projections rather than a generic PCA condition. Both PCAs are unsupervised---neither uses reward labels during training.
 
 \subsubsection{High-Dimensional Structure Validation}
 
@@ -98,11 +98,11 @@ The High PC1 cluster is relatively homogeneous (diversity $= 0.355$), consistent
 \subsubsection{Summary of Validation}
 
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Statistical rigor:} $p < 0.0001$, large effect ($d = 1.53$), non-overlapping CIs
-    \item \textbf{Threshold justification:} Purely unsupervised (silhouette-optimal, no reward peeking)
-    \item \textbf{PCA robustness:} Effect persists with generic PCA ($d = 0.33$), confirming independence
-    \item \textbf{High-D caveat:} Weak structure in 384D (silhouette $= 0.057$); PC1 isolates a moderate signal ($\rho^2 = 0.156$)
-    \item \textbf{Data quality:} Zero duplicates; High PC1 is a homogeneous cluster (diversity $= 0.355$)
+    \item \textbf{Primary metric:} Spearman $\rho = -0.370$, $p < 0.0001$ (features predict model preference)
+    \item \textbf{Null baseline:} Router PCA $|\rho|$ exceeds all 100 random projections (2.6$\times$ vs.\ median)
+    \item \textbf{Supplementary clustering:} Threshold-based analyses (silhouette-optimal, $k$-means) confirm directional finding
+    \item \textbf{High-D caveat:} Weak structure in 384D (silhouette $= 0.057$); PC1 isolates a moderate signal ($\rho^2 \approx 0.14$)
+    \item \textbf{Data quality:} Zero duplicates; High PC1 region is a homogeneous cluster (diversity $= 0.355$)
     \item \textbf{Held-out only:} All analyses on $N=750$ test set; dev set excluded
 \end{enumerate}
 

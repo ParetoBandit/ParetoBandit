@@ -3,7 +3,7 @@
 \section{Theoretical Motivation and Empirical Validation}
 \label{appendix:spectral_separation}
 
-To provide theoretical context for our router's design, we discuss the relationship between the semantic structure in Figure~\ref{fig:pca} and the expected convergence behavior of the meta-algorithm.
+To provide theoretical context for our router's design, we discuss the relationship between the semantic structure in Figure~\ref{fig:lmsys_holdout_structure} and the expected convergence behavior of the meta-algorithm.
 
 In contextual bandit theory, the probability of a routing error (selecting a sub-optimal model) is inversely proportional to the margin of separation in the feature space. Even with only $3.10\%$ variance in PC1, the cluster structure creates a natural separation that aids the decision engine.
 
@@ -23,4 +23,4 @@ R(T) \le \sum_{a \in \mathcal{A}} \frac{8 \ln(T)}{\Delta_{\text{gap}}} + \left(1
 \end{equation}
 where $\mathcal{A}$ is the set of available models and $\Delta_a$ is the sub-optimality gap for model $a$.
 
-Since $\Delta_{\text{gap}}$ is substantial due to the cluster separation shown in Figure~\ref{fig:pca} ($d = 1.53$), the ``search space'' for the optimal policy is effectively reduced to a binary classification problem rather than a continuous 384-dimensional regression. While our implementation includes practical modifications (fixed learning rates, selective expert updates), the empirical results in Section~\ref{sec:results} demonstrate that the system achieves near-optimal performance consistent with this theoretical intuition.
+Since PC1 shows significant rank correlation with model preference ($\rho = -0.370$, Figure~\ref{fig:lmsys_holdout_structure}), the feature space provides meaningful signal for the bandit to exploit. While our implementation includes practical modifications (fixed learning rates, selective expert updates), the empirical results in Section~\ref{sec:results} demonstrate that the system achieves near-optimal performance consistent with this theoretical intuition.

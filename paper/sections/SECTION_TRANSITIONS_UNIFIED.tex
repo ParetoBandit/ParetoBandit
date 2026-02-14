@@ -11,7 +11,7 @@
 Our integrated approach rests on a critical empirical foundation: that semantic structure exists in the LLM task space and can be exploited for intelligent routing. In this section, we provide the empirical motivation for our system design through two key analyses:
 
 \begin{enumerate}
-    \item \textbf{Semantic Structure Discovery (Figure~\ref{fig:alignment_tax}):} We demonstrate that task difficulty relates to model alignment failures, not just reasoning complexity. This establishes that routing is \emph{learnable} through contextual features.
+    \item \textbf{Model Preference Heterogeneity (Figure~\ref{fig:lmsys_holdout_structure}):} We demonstrate that model preference varies by prompt and the router's features predict this variation. This establishes that routing is \emph{learnable} through contextual features.
     
     \item \textbf{Distribution Shift Quantification (Figure~\ref{fig:distribution_shift}):} We quantify covariate shift between training and deployment data, establishing the need for adaptive mechanisms with safety guarantees.
 \end{enumerate}
@@ -23,7 +23,7 @@ Together, these findings motivate our integrated approach: semantic structure ma
 % ============================================================================
 % INSERT at start of methodology.tex AFTER \section{...}
 
-Having established empirical motivation---semantic structure exists (Figure~\ref{fig:alignment_tax}) but distribution shift is substantial (Figure~\ref{fig:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
+Having established empirical motivation---model preference heterogeneity exists (Figure~\ref{fig:lmsys_holdout_structure}) but distribution shift is substantial (Figure~\ref{fig:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
 
 \begin{itemize}
     \item \textbf{Contextual embeddings} exploit semantic structure for learning
@@ -43,7 +43,7 @@ To rigorously validate our integrated approach, we conduct eight experiments org
 \textbf{Part I: Motivation (Covered in Section~\ref{sec:motivation})}
 \begin{itemize}
     \item Table~\ref{tab:dataset}: Dataset provenance and split design
-    \item Figures~\ref{fig:alignment_tax}--\ref{fig:distribution_shift}: Empirical foundations
+    \item Figures~\ref{fig:lmsys_holdout_structure}--\ref{fig:distribution_shift}: Empirical foundations
 \end{itemize}
 
 \textbf{Part II: Solution Validation (Covered in this section)}
