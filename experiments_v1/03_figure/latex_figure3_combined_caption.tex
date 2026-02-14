@@ -1,0 +1,93 @@
+% ============================================================================
+% Figure 3: Combined Meta-Learning Cost Characterisation (2-panel)
+% ============================================================================
+% Unified story: meta-learning overhead when priors are strong,
+% with weight evolution explaining the mechanism.
+% Updated 2026-02-14 with corrected results (N=20, η=0.030).
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{experiments_v1/03_figure/results/figure3_combined.pdf}
+    \caption{%
+        \textbf{The Cost of Adaptive Safety.}
+        %
+        \textbf{(A) Strategy Comparison:}
+        When warmup priors are strong, direct prior usage (warmup-only)
+        achieves 30.0~$\pm$~2.0 cumulative regret---substantially lower
+        than Corralling meta-learning (48.2~$\pm$~5.1, +60\% overhead).
+        Tabula rasa (49.2~$\pm$~3.4) provides the prior-free baseline.
+        That Corralling~$\approx$~tabula rasa confirms the meta-learning
+        overhead roughly equals the prior advantage on this benchmark.
+        Error bars: $\pm$1 std across $N{=}20$ seeds.
+        %
+        \textbf{(B) Weight Evolution Explains the Gap:}
+        Corralling correctly learns to allocate 70.6\%~$\pm$~11.0\%
+        weight to the warmup expert over 750 queries, validating that
+        meta-learning identifies the superior strategy.
+        However, the gradual convergence from 50\% to 71\% warmup weight
+        accumulates the 18-regret overhead observed in~(A), as the
+        meta-learner cannot fully exploit its growing confidence within
+        the Exp4 worst-case framework.
+        Individual seed trajectories (thin lines) and mean trajectory
+        (bold) with confidence bands show smooth, reproducible
+        convergence with low cross-seed variance.
+        %
+        \textbf{Key insight:}
+        Meta-learning is not free.  The 60\% overhead is the insurance
+        premium paid for adaptive safety in a benign environment.
+        Sections~\ref{sec:catastrophic} and~\ref{sec:zero_shot}
+        demonstrate when this premium pays off: under model failure and
+        zero-shot adoption, Corralling detects and adapts within
+        3--50 steps---capability that warmup-only lacks entirely.
+        %
+        Setup: 750-prompt LMSYS holdout, $N{=}20$ seeds, sampling
+        without replacement.
+        All configurations use $\eta{=}\sqrt{\ln 2/750}{\approx}0.030$,
+        $\gamma{=}0.05$, $\alpha{=}2.0$
+        (see Appendix~\ref{app:ablations} for ablation studies).
+    }
+    \label{fig:metalearning_cost}
+\end{figure}
+
+% ============================================================================
+% Alternative: Separate figures if page budget allows
+% ============================================================================
+\iffalse
+% Figure 3A: Convergence Comparison Only
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.65\columnwidth]{experiments_v1/03_figure/results/convergence/figure_convergence_dynamics.pdf}
+    \caption{%
+        \textbf{The Cost of Adaptive Safety.}
+        Corralling incurs 60\% higher cumulative regret
+        (48.2~$\pm$~5.1) compared to directly using warmup priors
+        (30.0~$\pm$~2.0).
+        Tabula rasa (49.2~$\pm$~3.4) performs comparably to Corralling,
+        confirming the meta-learning overhead roughly equals the prior
+        advantage.
+        This 60\% premium is the cost of hedging against prior failure
+        in a benign environment---an insurance policy that pays off
+        under model degradation (\S\ref{sec:catastrophic}).
+    }
+    \label{fig:convergence_comparison}
+\end{figure}
+
+% Figure 3B: Weight Evolution Only
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\columnwidth]{experiments_v1/03_figure/results/weight_evolution/figure_weight_evolution.pdf}
+    \caption{%
+        \textbf{Weight Evolution Explains Meta-Learning Overhead.}
+        \textbf{(A)} Individual seed trajectories show Corralling
+        learning to trust the warmup expert over 750 queries.
+        \textbf{(B)} Mean trajectory converges to 70.6\% warmup weight
+        (grey dashed line shows initial 50\% equal weighting).
+        The learning period from 50\% to 71\% allocation accumulates the
+        18 regret overhead.
+        The 11\% standard deviation in final weights indicates stable
+        convergence across data orderings, confirming the theoretically
+        optimal $\eta$ produces reproducible behaviour.
+    }
+    \label{fig:weight_evolution}
+\end{figure}
+\fi

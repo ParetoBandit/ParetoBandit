@@ -1,0 +1,151 @@
+% ============================================================================
+% Section: Characterizing the Cost of Adaptive Safety
+% ============================================================================
+% Purpose: Honestly characterize the meta-learning overhead on a static
+% benchmark, establishing the insurance-premium framing that connects
+% forward to Figures 6--7 where Corralling's value manifests.
+
+\subsection{The Cost of Adaptive Safety}
+\label{sec:metalearning_cost}
+
+Having established that semantic priors enable strong routing performance
+(\S\ref{sec:results}), we now ask a sharper question: \textbf{what does it
+cost to hedge against the possibility that those priors are wrong?}
+
+The answer---measured on a static benchmark where priors happen to be
+good---establishes the insurance premium that practitioners pay for
+adaptive safety.  Sections~\ref{sec:catastrophic} and
+\ref{sec:zero_shot} then show when that premium pays off.
+
+% ----------------------------------------------------------------------------
+% Experimental Setup
+% ----------------------------------------------------------------------------
+\paragraph{Experimental Setup.}
+We evaluate three routing strategies on the 750-prompt LMSYS holdout set
+(2 models, moderate distribution shift):
+
+\begin{enumerate}[nosep]
+    \item \textbf{Warmup-only}: LinUCB with semantic priors ($\alpha{=}2.0$,
+          no meta-learning)
+    \item \textbf{Corralling}: Exp4-style meta-learner coordinating a
+          warmup expert and a tabula rasa expert
+          ($\eta{=}\sqrt{\ln 2/750}{\approx}0.030$, $\gamma{=}0.05$)
+    \item \textbf{Tabula Rasa}: LinUCB learning from scratch
+          ($\alpha{=}2.0$, zero initialisation)
+\end{enumerate}
+
+All experiments use $N{=}20$ independent random seeds with sampling
+without replacement.  The learning rate $\eta$ is set to the
+theoretically optimal value for Exp4 with $K{=}2$ experts over
+$T{=}750$ rounds~\cite{agarwal2017corralling}.
+
+% ----------------------------------------------------------------------------
+% Main Results
+% ----------------------------------------------------------------------------
+\paragraph{Meta-Learning Incurs 60\% Overhead.}
+Figure~\ref{fig:metalearning_cost} presents the core finding:
+\emph{when priors are strong, meta-learning substantially
+underperforms direct prior usage.}
+
+\begin{itemize}[nosep]
+    \item \textbf{Warmup-only:} 30.0 $\pm$ 2.0 cumulative regret
+    \item \textbf{Corralling:} 48.2 $\pm$ 5.1 regret (+60\% vs warmup-only)
+    \item \textbf{Tabula Rasa:} 49.2 $\pm$ 3.4 regret (+64\% vs warmup-only)
+\end{itemize}
+
+The 18-regret gap ($48.2 - 30.0$) is the cost of \emph{learning to trust
+the warmup expert} rather than trusting it directly.
+This is not an implementation failure---it is an inherent property of
+hedging algorithms, analogous to the premium paid for an insurance policy
+that is never claimed.
+
+% ----------------------------------------------------------------------------
+% Why the overhead exists
+% ----------------------------------------------------------------------------
+\paragraph{Why the Overhead Exists: Sparse Signal.}
+The meta-learner's Exp4 update uses importance-weighted loss:
+$\hat\ell_i = (1-r)/p_i$.  This loss is zero whenever the selected model
+succeeds ($r{=}1$).  On our holdout data, 73\% of prompts produce
+$r{=}1$ regardless of which model is chosen (both models succeed),
+providing \emph{zero differential signal} to the meta-learner.
+
+Of the remaining 27\% of prompts where models differ, the meta-learner
+only receives signal when the selected expert picks the wrong model.
+This means the effective learning rate is far lower than the nominal
+$\eta$: the meta-learner is nearly blind on the majority of rounds.
+
+With the theoretically optimal $\eta{\approx}0.030$, convergence is
+smooth but slow---exactly as theory predicts for a horizon of 750 rounds.
+The meta-learner never fully exploits its growing confidence in the warmup
+expert, because the Exp4 framework is designed for worst-case
+(adversarial) regret, not average-case performance.
+
+% ----------------------------------------------------------------------------
+% Weight Evolution
+% ----------------------------------------------------------------------------
+\paragraph{Smooth Convergence Validates Correct Learning.}
+Despite the overhead, Corralling correctly identifies the superior expert.
+Figure~\ref{fig:metalearning_cost}B shows weight trajectories over 750
+queries:
+
+\begin{itemize}[nosep]
+    \item Initial weights: 50\%\,/\,50\% (equal starting trust)
+    \item Final weights: 70.6\% $\pm$ 11.0\% warmup, 29.4\% $\pm$ 11.0\% tabula rasa
+    \item Convergence: gradual shift throughout all 750 rounds, with
+          low cross-seed variance
+\end{itemize}
+
+The 11\% standard deviation in final weights (down from 21\% in an
+earlier configuration with a miscalibrated learning rate) confirms that
+the theoretically optimal $\eta$ produces stable, reproducible
+convergence.  No seed exhibits weight collapse or chaotic oscillation.
+
+% ----------------------------------------------------------------------------
+% Corralling ≈ Tabula Rasa: what it means
+% ----------------------------------------------------------------------------
+\paragraph{Corralling $\approx$ Tabula Rasa: A Diagnostic, Not a Failure.}
+That Corralling (48.2) performs comparably to tabula rasa (49.2) is
+informative: the meta-learner's exploration overhead roughly equals the
+benefit of having priors at all, \emph{on this benchmark}.
+This occurs because:
+
+\begin{enumerate}[nosep]
+    \item The warmup expert achieves 96\% success rate (30 errors in 750
+          rounds), leaving minimal room for a second expert to contribute.
+    \item The meta-learner allocates ${\sim}30\%$ of queries to the tabula
+          rasa expert throughout training, diluting the warmup expert's
+          advantage.
+    \item On the 73\% of uninformative prompts, the meta-learner cannot
+          distinguish expert quality, slowing convergence.
+\end{enumerate}
+
+This is precisely the regime where meta-learning is least useful:
+priors are strong, the environment is static, and the horizon is short.
+The value of Corralling lies elsewhere.
+
+% ----------------------------------------------------------------------------
+% Forward connection
+% ----------------------------------------------------------------------------
+\paragraph{When the Premium Pays Off.}
+The 60\% overhead measured here is the premium for \emph{adaptive safety}
+in a benign environment.
+Sections~\ref{sec:catastrophic} and \ref{sec:zero_shot} demonstrate the
+scenarios where this insurance is collected:
+
+\begin{itemize}[nosep]
+    \item \textbf{Catastrophic model failure} (\S\ref{sec:catastrophic}):
+          When a model degrades suddenly, warmup-only cannot detect the
+          change.  Corralling detects and recovers within 3--50 steps.
+    \item \textbf{Zero-shot model adoption} (\S\ref{sec:zero_shot}):
+          When a new model appears without training data, warmup-only
+          cannot incorporate it.  Corralling's tabula rasa expert
+          provides the exploration necessary for adoption.
+\end{itemize}
+
+\textbf{The library's design reflects this trade-off.}
+Practitioners are not locked into a single strategy: banditGPT exposes
+warmup-only, Corralling, and tabula rasa as first-class deployment
+options.  Real-time weight monitoring (via the \texttt{selection\_token}
+API) enables an \emph{adaptive deployment pattern}: start with Corralling
+for safety, and if warmup weight exceeds 80\% after 200--400 queries,
+switch to warmup-only to eliminate the ongoing overhead.

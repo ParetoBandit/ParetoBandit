@@ -1,21 +1,31 @@
 % Figure 3: Corralled Architecture Diagram (System Design)
-% Architecture design validated through comprehensive ablation studies
+% Architecture design validated through ablation studies (Appendix D)
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.85\textwidth]{experiments_v1/03_figure/results/figure3_corralled_architecture.pdf}
     \caption{%
-        \textbf{Architecture Diagram: Corralling-Based Router with Constant Exploration.}
-        The coordinator manages two LinUCB experts, both using constant exploration ($\alpha = 2.0$) 
-        to prevent premature exploitation under domain mismatch: Expert 1 (Warmup) initializes with 
-        semantic priors from latent space analysis, while Expert 2 (Tabula Rasa) learns purely from 
-        online feedback. Trust allocation adapts via exponential weighting ($\eta=1.0$) with $\gamma$-mixing 
-        ($\gamma=0.05$) for expert death prevention. At each request, the coordinator samples an expert 
-        with probability $P_t = (1-\gamma)w_t + \gamma/K$, which mixes learned weights $w_t$ with uniform 
-        exploration. The selected expert chooses a model, and feedback updates expert weights via 
-        importance-weighted loss $\hat{\ell}_t = (1-r_t)/P_t$. We employ constant exploration ($\alpha=2.0$) 
-        for both experts, which our ablation studies (§5.4) show outperforms adaptive decay by 48\% 
-        (60.6 vs 90.2 regret), confirming that maintaining vigilance is essential under domain mismatch.
+        \textbf{Architecture Diagram: Corralling-Based Adaptive Router.}
+        The coordinator manages two LinUCB experts via Exp4-style
+        meta-learning: Expert~1 (Warmup) initialises with semantic
+        priors from latent space analysis; Expert~2 (Tabula Rasa)
+        learns purely from online feedback.
+        Trust allocation adapts via exponential weighting
+        ($\eta{=}\sqrt{\ln K/T}{\approx}0.030$) with $\gamma$-mixing
+        ($\gamma{=}0.05$) for expert death prevention.
+        At each request, the coordinator samples an expert with
+        probability $P_t = (1{-}\gamma)\,w_t + \gamma/K$, mixing
+        learned weights $w_t$ with uniform exploration.
+        The selected expert chooses a model, and feedback updates expert
+        weights via importance-weighted loss
+        $\hat{\ell}_t = (1{-}r_t)/P_t$.
+        On a static benchmark, this meta-learning incurs a 60\%
+        overhead vs direct prior usage (48.2 vs 30.0 regret;
+        \S\ref{sec:metalearning_cost}), but provides adaptive safety
+        against prior failure (\S\ref{sec:catastrophic}).
+        Exploration strategy ($\alpha$) and mixing floor ($\gamma$) are
+        configurable; see Appendix~\ref{app:ablations} for ablation
+        studies.
     }
     \label{fig:corralled_architecture}
 \end{figure}
