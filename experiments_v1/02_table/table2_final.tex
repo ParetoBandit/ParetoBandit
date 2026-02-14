@@ -27,7 +27,7 @@ Corralling adds modest hedging overhead (1--4\% vs tabula rasa) as insurance aga
 Under moderate distribution shift (PSI=0.225; Figure~\ref{fig:distribution_shift}), warmup priors trained on offline RouteLLM battles remain well-calibrated for LMSYS Arena holdout prompts.
 The warmup baseline achieves the lowest regret (32.9), outperforming tabula rasa (45.6) by 28\%.
 Corralling hedges between the two experts, incurring 1--4\% overhead relative to tabula rasa.
-This overhead represents the \emph{cost of safety insurance}: when priors are already well-matched to the target domain (as here), the sample-splitting cost of maintaining two parallel experts exceeds the benefit of hedging. However, Corralling would provide protection in scenarios with severe prior mismatch (e.g., cross-domain deployment to medical or legal domains), where warmup-only strategies could fail catastrophically.
+This overhead represents the \emph{cost of safety insurance}: when priors are already well-matched to the target domain (as here), the sample-splitting cost of maintaining two parallel experts exceeds the benefit of hedging. That insurance pays off under more severe conditions evaluated later in this paper: when a model catastrophically fails ($d \approx 5.0$), Corralling detects and recovers within 3 steps with 100\% success rate and 0\% false positives (Figure~\ref{fig:corralling}); when a new model is released, semantic transfer via Corralling eliminates the cold-start penalty entirely, yielding +39\% improvement over na\"ive adoption (Figure~\ref{fig:zero-shot-readiness}).
 
 \paragraph{Data-Order Sensitivity.}
 All strategies exhibit variance across seeds due to data-order shuffling (N=10 seeds), 
