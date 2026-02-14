@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 """
-Figure 4: Corralled Bandit Algorithm with Semantic Projection
+Figure 4: Corralled Bandit Algorithm — Model Discovery via Semantic Transfer
 
-This script implements the mathematically correct Corralled algorithm:
+This script implements the Corralled algorithm for multi-model routing:
 1. **Optimization Phase**: Learn on labeled data (1,121 dev prompts with real rewards)
    - Use importance-weighted loss: ℓ̂_{t,e} = 𝟙_{e=e*}(1 - r_t) / ρ_{t,e}
    - Update expert weights using exponential weights algorithm
-   - NO fake numbers - only use actual rewards where available
+   - NO fake numbers — only use actual rewards where available
 
 2. **Visualization Phase**: Project learned parameters onto 1M semantic space
    - Show how the learned policy would perform across the semantic manifold
-   - Use cluster density to estimate coverage
-   - Demonstrate that "Easy" cluster (94.1%) is exploitable
+   - Visualize which models the learned policy selects in each region
 
 **Key Insight:**
-The warmup expert is biased toward flagships (GPT-4-Turbo, Claude-3), but the Mixtral
-model has high utility in the "Easy" cluster. Corralling allows the algorithm to
-unlearn the warmup bias and shift weight to the tabula rasa expert that discovers
-Mixtral's value.
+The warmup expert starts with priors for Mixtral and GPT-4-Turbo (from RouteLLM data).
+When GPT-4o is added via semantic transfer from GPT-4-Turbo, the warmup expert
+quickly discovers GPT-4o is the dominant model (~96% usage). Semantic transfer
+eliminates the cold-start problem: the algorithm adapts to the new model without
+extensive exploration, as the transferred priors provide a useful starting point.
 
 **Paper Strategy:**
-- Main Results: Report regret/AUPR on dev dataset (N=1,121) with actual rewards
+- Main Results: Report regret/reward on dev dataset (N=1,121) with actual rewards
 - Figure 1 & Appendix D: Use 1M dataset to show semantic manifold and cluster coverage
-- Figure 4 (this script): Show Corralling learns to exploit the Easy cluster
+- Figure 4 (this script): Show Corralling discovers GPT-4o as best model via semantic transfer
 
 Usage:
-    python experiments_v1/03_figure/corralled_semantic_analysis.py --learning-rate 1.0
+    python experiments_v1/04_figure/corralled_semantic_analysis.py --learning-rate 1.0
 """
 
 import sys
@@ -81,15 +81,18 @@ class TabulaRasaRouter:
         # Track selections
         self.selections = {m: 0 for m in models}
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0,
+                     candidates: List[str] = None) -> str:
         """Select model using UCB.
         
         Args:
             context: Context vector
             total_steps: Total training steps (unused in basic LinUCB, for compatibility)
+            candidates: Optional list of eligible models (if None, use all models)
         """
+        eligible = candidates if candidates is not None else self.models
         ucb_scores = {}
-        for model in self.models:
+        for model in eligible:
             A_inv = np.linalg.inv(self.A[model])
             theta = A_inv @ self.b[model]
             
@@ -101,11 +104,11 @@ class TabulaRasaRouter:
         self.selections[selected] += 1
         return selected
     
-    def update(self, context: np.ndarray, model: str, reward: float):
+    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
         """Update matrices after observing reward."""
         context = context.reshape(-1, 1)  # Column vector
-        self.A[model] += context @ context.T
-        self.b[model] += reward * context.flatten()
+        self.A[model] += weight * (context @ context.T)
+        self.b[model] += (weight * reward) * context.flatten()
     
     def get_theta(self, model: str) -> np.ndarray:
         """Get learned parameter vector for a model."""
@@ -157,6 +160,10 @@ def compute_oracle_reward(sample: Dict, model: str) -> Tuple[float, float]:
     
     Returns:
         Tuple of (model_reward, oracle_reward)
+    
+    Raises:
+        ValueError: If the selected model has no score for this prompt.
+            This prevents silent penalization from missing labels.
     """
     scores = sample.get('scores', {})
     
@@ -167,8 +174,16 @@ def compute_oracle_reward(sample: Dict, model: str) -> Tuple[float, float]:
     oracle_model = max(scores, key=scores.get)
     oracle_reward = scores[oracle_model]
     
-    # Return the selected model's reward and oracle reward
-    return scores.get(model, 0.0), oracle_reward
+    # Fail loudly if the selected model has no score — using 0.0 as default
+    # would silently inflate regret and bias the evaluation.
+    if model not in scores:
+        raise ValueError(
+            f"Selected model '{model}' has no score for this prompt. "
+            f"Available models: {list(scores.keys())}. "
+            f"Restrict candidates to models with labels for each prompt."
+        )
+    
+    return scores[model], oracle_reward
 
 
 def extend_priors_with_semantic_transfer(
@@ -205,7 +220,11 @@ def extend_priors_with_semantic_transfer(
             raise ValueError(f"Cannot transfer priors for {new_model}: source {source_model} not found")
         
         # Transfer priors with scaling (gamma acts like n_effective)
-        extended_priors['A'][new_model] = gamma * warmup_priors['A'][source_model].copy()
+        # Use interpolation A_new = I + gamma*(A_source - I) to preserve
+        # positive-definiteness (avoids near-singular A when gamma is small).
+        d = warmup_priors['context_dim']
+        I_d = np.eye(d)
+        extended_priors['A'][new_model] = I_d + gamma * (warmup_priors['A'][source_model].copy() - I_d)
         extended_priors['b'][new_model] = gamma * warmup_priors['b'][source_model].copy()
         extended_priors['models'].append(new_model)
         
@@ -220,7 +239,8 @@ def train_corralling_router(
     pca,
     warmup_priors: Dict,
     learning_rate: float = 1.0,
-    enable_semantic_transfer: bool = True
+    enable_semantic_transfer: bool = True,
+    gamma_scaling: float = 0.05
 ) -> Tuple[CorrallingRouter, Dict]:
     """
     Train Corralling router on labeled data using importance-weighted loss.
@@ -228,7 +248,12 @@ def train_corralling_router(
     This is the OPTIMIZATION phase - we only use prompts where we have rewards.
     
     Args:
+        warmup_priors: UNSCALED warmup priors. This function handles both
+            semantic transfer (extending to new models) and gamma scaling
+            in the correct order to avoid double-scaling.
         enable_semantic_transfer: If True, extend priors to include GPT-4o via transfer from GPT-4-Turbo
+        gamma_scaling: Prior confidence scaling factor applied uniformly to ALL models
+            after semantic transfer. Lower = wider confidence intervals.
     
     Returns:
         (trained_router, training_metrics)
@@ -242,7 +267,9 @@ def train_corralling_router(
     print(f"\n📊 Models in training data: {all_models_in_data}")
     print(f"   Models in warmup priors: {warmup_priors['models']}")
     
-    # Check if we need to extend priors
+    # Step 1: Extend priors for new models BEFORE scaling
+    # This ensures the transferred model's A-matrix is derived from the
+    # full-confidence source, not an already-downscaled version.
     missing_models = [m for m in all_models_in_data if m not in warmup_priors['models']]
     
     if missing_models and enable_semantic_transfer:
@@ -250,17 +277,21 @@ def train_corralling_router(
         
         # Define transfer mapping (GPT-4o inherits from GPT-4-Turbo)
         transfer_mapping = {
-            'openai/gpt-4-turbo': 'openai/gpt-4-turbo'
+            'openai/gpt-4o': 'openai/gpt-4-turbo'
         }
         
         warmup_priors = extend_priors_with_semantic_transfer(
             warmup_priors,
             new_models=missing_models,
             transfer_mapping=transfer_mapping,
-            gamma=0.05  # Weak transfer (low confidence)
+            gamma=0.05  # Weak transfer (low confidence relative to source)
         )
     elif missing_models:
         raise ValueError(f"Missing warmup priors for: {missing_models}. Enable semantic_transfer or provide priors.")
+    
+    # Step 2: Apply gamma scaling uniformly to ALL models (including transferred ones)
+    warmup_priors = apply_gamma_scaling(warmup_priors, gamma=gamma_scaling)
+    print(f"   Applied gamma_scaling={gamma_scaling} to all {len(warmup_priors['models'])} models")
     
     models = warmup_priors['models']
     context_dim = warmup_priors['A'][models[0]].shape[0]
@@ -304,7 +335,8 @@ def train_corralling_router(
         context = embed_prompt(prompt, encoder, pca)
         
         # Select model (using importance sampling)
-        selected_model = router.select_model(context)
+        # CorrallingRouter.select_model returns (model_id, selection_token)
+        selected_model, selection_token = router.select_model(context)
         
         # Get reward (ONLY available for labeled data)
         model_reward, oracle_reward = compute_oracle_reward(sample, selected_model)
@@ -321,7 +353,8 @@ def train_corralling_router(
         # Update router with importance-weighted loss
         # The CorrallingRouter.update() method already implements:
         # ℓ̂_{t,e} = 𝟙_{e=e*}(1 - r_t) / ρ_{t,e}
-        router.update(context, selected_model, model_reward)
+        # Pass selection_token so the meta-weight update is applied
+        router.update(context, selected_model, model_reward, selection_token=selection_token)
     
     metrics = {
         'cumulative_regret': cumulative_regret,
@@ -440,8 +473,10 @@ def project_learned_policy(
         # Use the router's embedding logic (handles PCA + bias term correctly)
         context = embed_prompt(prompt, encoder, pca)
         
-        # Sample from expert distribution (using learned weights)
-        expert_idx = np.random.choice(router.n_experts, p=router.weights)
+        # Sample from the MIXED distribution (includes gamma exploration floor),
+        # matching the actual deployed policy from CorrallingRouter.select_model().
+        probs = router._get_mixed_distribution()
+        expert_idx = np.random.choice(router.n_experts, p=probs)
         
         # Get that expert's selection
         model = router.experts[expert_idx].select_model(context)
@@ -511,14 +546,14 @@ def create_semantic_visualization(
     high_mask_s = pc1_sample >= 0.3
     
     ax1.scatter(X_sample[low_mask_s, 0], X_sample[low_mask_s, 1],
-               c='#4575b4', s=25, alpha=0.7, label=f'Easy Cluster ({len(X_low):,}, {len(X_low)/len(X_2d)*100:.1f}%)',
+               c='#4575b4', s=25, alpha=0.7, label=f'Low PC1 ({len(X_low):,}, {len(X_low)/len(X_2d)*100:.1f}%)',
                edgecolors='none', rasterized=True)
     
     ax1.scatter(X_sample[high_mask_s, 0], X_sample[high_mask_s, 1],
-               c='#d73027', s=25, alpha=0.7, label=f'Hard Cluster ({len(X_high):,}, {len(X_high)/len(X_2d)*100:.1f}%)',
+               c='#d73027', s=25, alpha=0.7, label=f'High PC1 ({len(X_high):,}, {len(X_high)/len(X_2d)*100:.1f}%)',
                edgecolors='none', rasterized=True)
     
-    # Add KDE contour for easy cluster
+    # Add KDE contour for low-PC1 region
     if len(X_low) > 100:
         try:
             kde_sample_size = min(5000, len(X_low))
@@ -544,8 +579,8 @@ def create_semantic_visualization(
     ax1.set_xlabel(f'PC1 ({pc1_var:.2%} variance)', fontsize=15, fontweight='bold')
     ax1.set_ylabel(f'PC2 ({pc2_var:.2%} variance)', fontsize=15, fontweight='bold')
     ax1.set_title(
-        'Semantic Task Structure: Corralling Exploits Easy Cluster\n'
-        f'Learned Policy Projected onto 1M Prompts',
+        'Semantic Task Structure: Learned Policy Projection\n'
+        f'Model Selection Across 1M Prompts',
         fontsize=17,
         fontweight='bold',
         pad=15
@@ -564,8 +599,8 @@ def create_semantic_visualization(
     ax2.set_xlabel('Training Samples', fontsize=15, fontweight='bold')
     ax2.set_ylabel('Expert Weight', fontsize=15, fontweight='bold')
     ax2.set_title(
-        'Corralling: Adaptive Expert Weighting\n'
-        'Algorithm Learns to Downweight Biased Warmup',
+        'Corralling: Expert Weight Evolution\n'
+        'Adaptation During Model Discovery',
         fontsize=17,
         fontweight='bold',
         pad=15
@@ -643,12 +678,24 @@ def print_summary(training_metrics: Dict, policy_projection: Dict, X_2d: np.ndar
     print(f"      Warmup Expert: {training_metrics['final_expert_weights'][0]:.4f}")
     print(f"      Tabula Rasa Expert: {training_metrics['final_expert_weights'][1]:.4f}")
     
-    if training_metrics['final_expert_weights'][1] > training_metrics['final_expert_weights'][0]:
-        ratio = training_metrics['final_expert_weights'][1] / training_metrics['final_expert_weights'][0]
-        print(f"\n   ✅ Tabula Rasa WON: {ratio:.2f}x more weight than Warmup")
-        print(f"      → Algorithm successfully unlearned warmup bias!")
+    warmup_w = training_metrics['final_expert_weights'][0]
+    tabula_w = training_metrics['final_expert_weights'][1]
+    
+    if warmup_w > tabula_w:
+        print(f"\n   ✅ Warmup expert dominates ({warmup_w:.1%} weight)")
+        print(f"      → Semantic transfer worked: warmup priors (with transferred GPT-4o)")
+        print(f"        outperformed learning from scratch.")
     else:
-        print(f"\n   ⚠️  Warmup still dominates")
+        ratio = tabula_w / max(warmup_w, 1e-8)
+        print(f"\n   ✅ Tabula Rasa expert dominates ({tabula_w:.1%} weight, {ratio:.1f}x)")
+        print(f"      → Algorithm found warmup priors unhelpful; learned from scratch.")
+    
+    # Identify dominant model
+    model_usage = training_metrics.get('model_usage', {})
+    if model_usage:
+        top_model = max(model_usage, key=model_usage.get)
+        top_pct = 100.0 * model_usage[top_model] / sum(model_usage.values())
+        print(f"\n   🎯 Dominant model: {top_model} ({top_pct:.1f}% of selections)")
     
     print("\n🌍 SEMANTIC PROJECTION (on 1M Space):")
     pc1_values = X_2d[:, 0]
@@ -656,8 +703,8 @@ def print_summary(training_metrics: Dict, policy_projection: Dict, X_2d: np.ndar
     easy_cluster_pct = 100.0 * easy_cluster_size / len(X_2d)
     
     print(f"   Total Prompts: {len(X_2d):,}")
-    print(f"   Easy Cluster (PC1 < 0.3): {easy_cluster_size:,} ({easy_cluster_pct:.1f}%)")
-    print(f"   Hard Cluster (PC1 ≥ 0.3): {len(X_2d) - easy_cluster_size:,} ({100-easy_cluster_pct:.1f}%)")
+    print(f"   Low-PC1 Region (PC1 < 0.3): {easy_cluster_size:,} ({easy_cluster_pct:.1f}%)")
+    print(f"   High-PC1 Region (PC1 >= 0.3): {len(X_2d) - easy_cluster_size:,} ({100-easy_cluster_pct:.1f}%)")
     
     print("\n📈 MODEL USAGE (Projected Policy):")
     for model, count in sorted(policy_projection['selection_counts'].items(), 
@@ -666,14 +713,14 @@ def print_summary(training_metrics: Dict, policy_projection: Dict, X_2d: np.ndar
         print(f"   {model:<40} {count:>7,} ({pct:>5.1f}%)")
     
     print("\n💡 KEY INSIGHT:")
-    print(f"   The Easy cluster ({easy_cluster_pct:.1f}% of prompts) is exploitable!")
-    print(f"   Corralling learns to use cheaper models (e.g., Mixtral) in this region,")
-    print(f"   unlearning the warmup prior's bias toward expensive flagships.")
+    print(f"   Corralling discovers GPT-4o as the dominant model via semantic transfer.")
+    print(f"   Despite starting with priors only for Mixtral and GPT-4-Turbo,")
+    print(f"   the algorithm quickly adapts to the new model without cold-start penalty.")
     
     print("\n📝 FOR THE PAPER:")
-    print(f"   • Main Results: Report regret/AUPR on LMSYS Holdout (labeled data)")
-    print(f"   • Figure 1 & Appendix D: Show 1M semantic manifold proves Easy cluster exists")
-    print(f"   • Figure 4 (this): Show Corralling exploits the Easy cluster")
+    print(f"   • Main Results: Report regret/reward on dev dataset (labeled data)")
+    print(f"   • Figure 4 (this): Show Corralling discovers GPT-4o via semantic transfer")
+    print(f"   • Expert weights show which expert was more useful (warmup vs tabula rasa)")
     print(f"   • No fake numbers: Optimization uses only labeled data with real rewards")
 
 
@@ -765,21 +812,23 @@ def main():
     pca = joblib.load(DEFAULT_PCA_PATH)
     warmup_priors = joblib.load(DEFAULT_WARMUP_PRIORS_PATH)
     
-    # Scale priors
-    warmup_priors_scaled = apply_gamma_scaling(warmup_priors, gamma=args.gamma)
-    
     # Load labeled data (with rewards)
     print("\n📊 Loading labeled data...")
     labeled_data = load_labeled_data(Path(CANONICAL_DEV_DATA_PATH), sample_size=args.train_size)
     print(f"   ✅ Loaded {len(labeled_data)} labeled samples")
     
     # Train Corralling router
+    # NOTE: Pass UNSCALED priors here. train_corralling_router will:
+    #   1. Extend priors for new models (semantic transfer) on UNSCALED priors
+    #   2. Then apply gamma_scaling uniformly to ALL models (including transferred ones)
+    # This avoids double-scaling the transferred model's priors.
     router, training_metrics = train_corralling_router(
         data=labeled_data,
         encoder=encoder,
         pca=pca,
-        warmup_priors=warmup_priors_scaled,
-        learning_rate=args.learning_rate
+        warmup_priors=warmup_priors,
+        learning_rate=args.learning_rate,
+        gamma_scaling=args.gamma
     )
     
     # ========================================================================
@@ -815,7 +864,7 @@ def main():
         prompts=prompts_1M,
         encoder=encoder,
         pca=pca,
-        models=warmup_priors_scaled['models']
+        models=router.models
     )
     
     # Create visualizations

@@ -1,193 +1,156 @@
 % ============================================================================
 % Section 5.3: Practical Deployment Recommendations
 % ============================================================================
-% Purpose: Translate experimental findings into actionable deployment guidance
-% Updated 2026-02-14 with corrected experimental results (N=20 seeds,
-% η=0.0304, loss_decay=1.0, random tie-breaking)
+% Updated to reflect honest three-regime framing from crossover experiment.
 
 \subsection{Practical Deployment Recommendations}
 \label{sec:practical}
 
-Our experiments reveal a clear risk-return spectrum for LLM routing
-strategies.  This section translates those results into actionable
-deployment guidance.
+The prior degradation sweep (\S\ref{sec:metalearning_cost}) establishes
+a crossover between strategies as prior quality varies.
+This section translates those findings into deployment guidance,
+including the \texttt{initial\_weights} parameter that lets
+practitioners tune the trade-off between best-case and worst-case
+performance.
 
 % ----------------------------------------------------------------------------
 % Recommendation 1: Strategy Selection
 % ----------------------------------------------------------------------------
-\paragraph{Strategy Selection: A Risk-Return Spectrum.}
-The three routing strategies form a risk-return trade-off
-(Figure~\ref{fig:metalearning_cost}):
-
-\begin{itemize}[nosep]
-    \item \textbf{Warmup-only:} 30.0 $\pm$ 2.0 cumulative regret
-          (lowest regret \emph{and} lowest variance when priors are strong)
-    \item \textbf{Corralling:} 48.2 $\pm$ 5.1 regret
-          (+60\% overhead; adaptive safety against prior failure)
-    \item \textbf{Tabula Rasa:} 49.2 $\pm$ 3.4 regret
-          (+64\%; no dependence on prior quality)
-\end{itemize}
-
-The 60\% overhead is the insurance premium for adaptive safety
-(\S\ref{sec:metalearning_cost}).  Corralling correctly identifies and
-up-weights the warmup expert (final weight: 70.6\% $\pm$ 11.0\%), but
-the learning process itself consumes regret budget.
-
-\textbf{Decision Framework for Practitioners:}
+\paragraph{Strategy Selection.}
+Figure~\ref{fig:prior_degradation}A provides the primary decision tool.
+No single strategy dominates everywhere---each is optimal in a distinct
+regime:
 
 \begin{enumerate}[nosep]
-    \item \textbf{Use Warmup-Only if:}
+    \item \textbf{Use Warmup-Only if priors are validated:}
     \begin{itemize}[nosep]
-        \item Prior quality is validated on deployment data
-              (accuracy ${>}$80\% on $N{=}100$--$200$ samples)
+        \item Prior accuracy ${>}80\%$ on $N{=}100$--$200$ deployment
+              samples
         \item Deployment distribution closely matches training data
-              (PSI $<$0.20, low drift)
-        \item Performance optimization is critical (cost-sensitive production)
-        \item \emph{Expected gain: 60\% lower regret than Corralling,
-              60\% lower variance}
+              (PSI $<$0.20)
+        \item \emph{Gain: up to 47\% lower regret than Corralling
+              (30.0 vs 44.1 at $\alpha{=}0$)}
     \end{itemize}
 
-    \item \textbf{Use Corralling if:}
+    \item \textbf{Use Corralling if prior quality is unknown:}
     \begin{itemize}[nosep]
-        \item Prior quality is uncertain or unvalidated
+        \item No validation data available yet
         \item Deployment involves cross-domain or evolving distributions
-        \item Model reliability may degrade over time
-              (\S\ref{sec:catastrophic})
-        \item \emph{Expected cost: 60\% overhead vs warmup-only in
-              benign environments; value manifests under model failure or
-              zero-shot adoption (\S\ref{sec:zero_shot})}
+        \item Model reliability may degrade (\S\ref{sec:catastrophic})
+        \item Set initial warmup weight $w_0{=}0.7$ to reduce
+              overhead by 11\% when priors are correct
+              (Appendix~\ref{app:initial_weight})
+        \item \emph{Gain: bounded worst-case regret (40--67 range vs
+              warmup-only's 27--99)}
     \end{itemize}
 
-    \item \textbf{Use Tabula Rasa if:}
+    \item \textbf{Use Tabula Rasa if priors are known to be bad:}
     \begin{itemize}[nosep]
-        \item No priors available (true cold start)
-        \item Priors validated as \emph{harmful} (accuracy ${<}$50\%)
-        \item Deployment distribution is orthogonal to training data
-        \item \emph{Expected performance: 64\% higher regret than
-              warmup-only, but immune to prior poisoning}
+        \item Prior accuracy validated as ${<}50\%$ (adversarial)
+        \item True cold start (no priors available at all)
+        \item Severe domain mismatch confirmed
+        \item \emph{Gain: 27\% lower regret than Corralling when
+              warmup expert is harmful (49.2 vs 67.3 at $\alpha{=}1$)}
     \end{itemize}
 \end{enumerate}
+
+% ----------------------------------------------------------------------------
+% Tuning the Trade-Off: Initial Weight Bias
+% ----------------------------------------------------------------------------
+\paragraph{Tuning the Trade-Off: \texttt{initial\_weights}.}
+Corralling's overhead at $\alpha{=}0$ is not fixed---practitioners
+can control it via the \texttt{initial\_weights} parameter.
+This sets the meta-learner's starting allocation between the warmup
+and tabula rasa experts, encoding \emph{prior trust}:
+
+\begin{itemize}[nosep]
+    \item $w_0{=}0.5$ (uniform): Maximum safety, no prior trust.
+          Best-case regret 50; worst-case 60.
+    \item $w_0{=}0.7$ (recommended): Moderate prior trust.
+          Best-case regret 44 ($-$11\%); worst-case 67 ($+$9\%).
+    \item $w_0{=}0.9$ (aggressive): Strong prior trust.
+          Best-case regret 37 ($-$26\%); worst-case 89 ($+$49\%).
+\end{itemize}
+
+\noindent
+The trade-off is \emph{asymmetric}: beyond $w_0{=}0.7$, the
+worst-case cost grows superlinearly while the best-case improvement
+saturates (Figure~\ref{fig:initial_weight_sweep} in
+Appendix~\ref{app:initial_weight}).
+We recommend $w_0{=}0.7$ as the default; increase to 0.8--0.9 only
+with high confidence in prior quality.
+
+\begin{verbatim}
+router = CorrallingRouter(
+    experts=[warmup, tabula_rasa],
+    initial_weights=np.array([0.7, 0.3]),  # prior trust
+)
+\end{verbatim}
+
+% ----------------------------------------------------------------------------
+% Why not always use Tabula Rasa?
+% ----------------------------------------------------------------------------
+\paragraph{Why Not Always Use Tabula Rasa?}
+A natural question: if tabula rasa is prior-independent, why not always
+use it?  Because validated priors are worth 39\% lower regret
+(warmup-only's 30.0 vs tabula rasa's 49.2).
+Tabula rasa sacrifices the \emph{upside} of good priors for
+\emph{immunity} to bad ones.  It is the correct choice only when the
+practitioner has positive evidence that priors are harmful.
 
 % ----------------------------------------------------------------------------
 % Adaptive deployment pattern
 % ----------------------------------------------------------------------------
 \paragraph{Adaptive Deployment Pattern.}
-The library's API supports real-time strategy switching based on weight
-monitoring via the \texttt{selection\_token} mechanism:
+The library's \texttt{selection\_token} API supports real-time
+strategy switching based on weight monitoring:
 
 \begin{itemize}[nosep]
     \item Warmup weight ${>}0.8$ after 200--400 queries
-          $\Rightarrow$ priors are strong; switch to warmup-only to
-          eliminate ongoing overhead
+          $\Rightarrow$ priors are strong; switch to warmup-only
     \item Balanced weights ($0.3$--$0.7$) $\Rightarrow$ genuine
           uncertainty; Corralling is appropriate
-    \item Warmup weight ${<}0.2$ $\Rightarrow$ priors are harmful;
+    \item Warmup weight ${<}0.3$ $\Rightarrow$ priors are harmful;
           switch to tabula rasa
     \item Weights frozen (variance ${<}0.01$) $\Rightarrow$
           implementation bug (missing \texttt{selection\_token})
 \end{itemize}
 
 This enables a \emph{start safe, optimise later} workflow: deploy with
-Corralling for initial safety, then transition to warmup-only once
-weight convergence confirms prior quality.
+Corralling, then transition to warmup-only or tabula rasa once weight
+convergence reveals prior quality.
 
 \textbf{Critical Implementation Note:}
-Production deployments must capture the \texttt{selection\_token}
-returned by \texttt{select\_model()} and pass it to \texttt{update()}.
-Omitting the token causes complete failure of meta-learning (weights
-remain frozen at 50\%).
+The \texttt{selection\_token} returned by \texttt{select\_model()} must
+be passed to \texttt{update()}.  Omitting it causes complete failure of
+meta-learning (weights remain frozen at 50\%).
 
 % ----------------------------------------------------------------------------
 % Recommendation 2: Exploration Strategy (Alpha)
 % ----------------------------------------------------------------------------
-\paragraph{Exploration Strategy: Decay Improves Static Performance.}
-Our ablation study (Appendix~\ref{sec:alpha_ablation}) reveals that
-$\alpha$-decay \emph{improves} Corralling performance on static
-benchmarks:
+\paragraph{Exploration Strategy.}
+Our alpha ablation (Appendix~\ref{sec:alpha_ablation}) shows that
+$\alpha$-decay improves Corralling on \emph{static} benchmarks by
+16\% (40.6 vs 48.2, $p{<}0.001$, Wilcoxon signed-rank).
+However, decay prevents detection of model degradation in
+non-stationary environments (\S\ref{sec:catastrophic}).
 
-\begin{itemize}[nosep]
-    \item Constant ($\alpha{=}2.0$ both): 48.2 $\pm$ 5.1 regret
-    \item Decay (both $2.0 \to 0.1$): \textbf{40.6 $\pm$ 4.4} regret
-          ($-$16\%)
-    \item Mixed (warmup constant, tabula decays): 41.9 $\pm$ 4.4
-    \item Reversed (warmup decays, tabula constant): 46.8 $\pm$ 4.6
-\end{itemize}
-
-When the environment is static and priors are strong, decaying
-exploration allows experts to commit to learned preferences sooner,
-reducing regret.  However, this finding is \emph{specific to static
-benchmarks}.  In non-stationary environments
-(\S\ref{sec:catastrophic}), premature exploitation prevents detection
-of model degradation.
-
-\textbf{Configuration guideline:}
-\begin{itemize}[nosep]
-    \item \textbf{Static/validated deployment:} Use decay
-          ($\alpha: 2.0 \to 0.1$) for both experts.
-    \item \textbf{Unknown/shifting deployment:} Use constant
-          $\alpha{=}2.0$ to maintain detection capability.
-    \item \textbf{Asymmetric:} Decay tabula rasa only
-          (41.9 regret) provides a moderate compromise.
-\end{itemize}
+\textbf{Guideline:}
+Use constant $\alpha{=}2.0$ as the safe default.
+Switch to decay ($\alpha: 2.0 \to 0.1$) only after confirming a stable
+deployment environment.
 
 % ----------------------------------------------------------------------------
-% Recommendation 3: Gamma Mixing Parameter
+% Recommendation 3: Gamma
 % ----------------------------------------------------------------------------
-\paragraph{Gamma Mixing: Safety Default, Minimal Impact.}
-The mixing parameter $\gamma$ provides a floor on expert selection
-probability ($P_t(\text{expert}) \geq \gamma/K$), preventing ``expert
-death.''  Our ablation (Appendix~\ref{app:gamma_ablation}) shows that
-with a correctly calibrated learning rate
-($\eta{=}\sqrt{\ln K/T}{\approx}0.030$), $\gamma$ has minimal impact
-on performance:
-
-\begin{itemize}[nosep]
-    \item $\gamma{=}0.00$: 47.9 $\pm$ 4.8 regret
-    \item $\gamma{=}0.05$: 48.2 $\pm$ 5.1 regret
-    \item $\gamma{=}0.10$: 48.5 $\pm$ 4.9 regret
-    \item $\gamma{=}0.20$: 48.6 $\pm$ 4.9 regret
-\end{itemize}
-
-The entire range spans only 0.7 regret---well within one standard
-deviation.  This is expected: at $\eta{\approx}0.030$, expert weights
-never approach zero, so the mixing floor is rarely activated.
-We nonetheless recommend $\gamma{=}0.05$ as a zero-cost safety default:
-it guarantees recovery from transient weight imbalances in longer
-deployments without measurable performance cost.
-
-\textbf{Configuration guideline:}
-Use $\gamma{=}0.05$ for all deployments.  The theoretical insurance
-against expert death costs ${<}1\%$ performance and requires no tuning.
-Deviate only with many experts ($K{>}5$, consider $\gamma{=}0.01$) or
-highly non-stationary environments ($\gamma{=}0.10$).
-
-% ----------------------------------------------------------------------------
-% Recommendation 4: Monitoring
-% ----------------------------------------------------------------------------
-\paragraph{Real-Time Monitoring Enables Rapid Iteration.}
-Weight evolution provides the primary diagnostic signal for deployment
-health.  On our holdout evaluation, the meta-learner converges to
-70.6\% $\pm$ 11.0\% warmup weight over 750 queries, with the 11\%
-standard deviation reflecting natural variation across data orderings
-(not instability).
-
-\textbf{Monitoring guideline:}
-Log expert weights at every request.  Key indicators:
-\begin{enumerate}[nosep]
-    \item Warmup weight ${>}0.8$ $\Rightarrow$ priors validated;
-          consider switching to warmup-only
-    \item Balanced weights ($0.3$--$0.7$) $\Rightarrow$ genuine
-          uncertainty or transition period
-    \item Warmup weight ${<}0.2$ $\Rightarrow$ priors are harmful;
-          consider tabula rasa
-    \item Weights frozen (variance ${<}0.01$) $\Rightarrow$ likely
-          missing \texttt{selection\_token}
-\end{enumerate}
+\paragraph{Gamma Mixing: Zero-Cost Safety Default.}
+With a correctly calibrated $\eta$, the mixing parameter $\gamma$ has
+negligible impact (total range: 0.7 regret across
+$\gamma \in \{0, 0.05, 0.1, 0.2\}$; all $p{>}0.5$).
+We recommend $\gamma{=}0.05$ as a zero-cost safety default; no tuning
+is required.
 
 % ----------------------------------------------------------------------------
 % Summary Table Reference
 % ----------------------------------------------------------------------------
 Table~\ref{tab:strategy_guide} summarises our deployment recommendations.
-These guidelines enable practitioners to select the optimal routing
-strategy for their specific deployment context, balancing performance,
-safety, and implementation complexity.

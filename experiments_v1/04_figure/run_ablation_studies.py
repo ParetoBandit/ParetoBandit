@@ -99,7 +99,8 @@ def run_single_experiment(
         prompt = sample['prompt']
         context = embed_prompt(prompt, encoder, pca)
         
-        selected_model = router.select_model(context)
+        # CorrallingRouter.select_model returns (model_id, selection_token)
+        selected_model, selection_token = router.select_model(context)
         model_reward, oracle_reward = compute_oracle_reward(sample, selected_model)
         
         regret = oracle_reward - model_reward
@@ -110,7 +111,8 @@ def run_single_experiment(
         reward_history.append(total_reward / (i + 1))
         expert_weights_history.append(router.weights.copy())
         
-        router.update(context, selected_model, model_reward)
+        # Pass selection_token so the meta-weight update is applied
+        router.update(context, selected_model, model_reward, selection_token=selection_token)
     
     return {
         'learning_rate': learning_rate,
@@ -390,29 +392,31 @@ def main():
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     pca = joblib.load(DEFAULT_PCA_PATH)
     warmup_priors = joblib.load(DEFAULT_WARMUP_PRIORS_PATH)
-    warmup_priors_scaled = apply_gamma_scaling(warmup_priors, gamma=0.05)
     
     # Load data
     print("\n📊 Loading labeled data...")
     labeled_data = load_labeled_data(Path(CANONICAL_DEV_DATA_PATH), sample_size=1121)
     print(f"   ✅ Loaded {len(labeled_data)} samples")
     
-    # Extend priors for GPT-4o
+    # Step 1: Extend priors for GPT-4o BEFORE scaling (avoids double-scaling)
     all_models_in_data = set()
     for sample in labeled_data:
         all_models_in_data.update(sample['scores'].keys())
     all_models_in_data = sorted(all_models_in_data)
     
-    missing_models = [m for m in all_models_in_data if m not in warmup_priors_scaled['models']]
+    missing_models = [m for m in all_models_in_data if m not in warmup_priors['models']]
     if missing_models:
         print(f"\n🔄 Extending priors for: {missing_models}")
-        transfer_mapping = {'openai/gpt-4-turbo': 'openai/gpt-4-turbo'}
-        warmup_priors_scaled = extend_priors_with_semantic_transfer(
-            warmup_priors_scaled,
+        transfer_mapping = {'openai/gpt-4o': 'openai/gpt-4-turbo'}
+        warmup_priors = extend_priors_with_semantic_transfer(
+            warmup_priors,
             new_models=missing_models,
             transfer_mapping=transfer_mapping,
             gamma=0.05
         )
+    
+    # Step 2: Apply gamma scaling uniformly to ALL models (including transferred)
+    warmup_priors_scaled = apply_gamma_scaling(warmup_priors, gamma=0.05)
     
     # Run ablation experiments
     results = run_ablation_experiments(

@@ -1,26 +1,27 @@
 % ============================================================================
 % Table: Strategy Selection Guide
 % ============================================================================
-% Purpose: Quick reference for practitioners choosing deployment strategy
-% Updated 2026-02-14 with corrected experimental results (N=20 seeds,
-% η=0.0304, loss_decay=1.0, random tie-breaking)
+% Updated for w₀=0.7 Corralling results.
 
 \begin{table}[t]
 \centering
 \caption{%
     \textbf{Deployment Strategy Selection Guide.}
-    Regret values from 750-prompt holdout evaluation (moderate domain
-    shift, PSI=0.225, N=20 seeds).
-    \textbf{Key trade-off:} Meta-learning provides adaptive safety at
-    a 60\% performance cost when priors are strong.
+    Regret at $\alpha{=}0$ (correct priors) and range across the full
+    corruption spectrum from the 750-prompt holdout evaluation
+    ($N{=}20$ seeds, Corralling with $w_0{=}0.7$).
+    \textbf{Key insight:} the crossover at
+    $\alpha{\approx}$\CrossoverWC{} determines when Corralling
+    overtakes warmup-only
+    (Figure~\ref{fig:prior_degradation}A).
 }
 \label{tab:strategy_guide}
 \begin{tabular}{@{}llccp{4.5cm}@{}}
 \toprule
-\textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret} & \textbf{vs Best} & \textbf{When to Use} \\
+\textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret} & \textbf{Range} & \textbf{When to Use} \\
 \midrule
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Good\end{tabular}}
-    & Warmup Only & \textbf{30.0 $\pm$ 2.0} & \textbf{--} &
+    & Warmup Only & \textbf{30.0 $\pm$ 2.0} & 27--99 &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
     \textbf{[OPTIMAL]} Validated $>$80\% acc.,
     low drift (PSI $<$0.20),
@@ -28,39 +29,37 @@
     \end{tabular} \\
 \cmidrule(l){2-5}
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Unknown/\\Uncertain\end{tabular}}
-    & Corralling & 48.2 $\pm$ 5.1 & +60\% &
+    & Corralling & 44.1 $\pm$ 4.7 & \textbf{40--67} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
-    Cross-domain deployment,
-    unvalidated priors,
-    risk of model degradation,
-    \textbf{insurance strategy}
+    \textbf{[SAFEST]} No validation data,
+    cross-domain deployment,
+    bounded worst-case guarantee
     \end{tabular} \\
 \cmidrule(l){2-5}
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Bad\end{tabular}}
-    & Tabula Rasa & 49.2 $\pm$ 3.4 & +64\% &
+    & Tabula Rasa & 49.2 $\pm$ 3.4 & \textbf{49.2} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
-    Cold start (no priors),
-    severe mismatch,
-    validated $<$50\% accuracy
+    \textbf{[OPTIMAL]} Cold start (no priors),
+    validated $<$50\% accuracy,
+    severe domain mismatch
     \end{tabular} \\
 \bottomrule
 \end{tabular}
 
 \vspace{0.5em}
 \small
+\textbf{Regret} column: at $\alpha{=}0$ (best case for warmup-only).
+\textbf{Range} column: min--max regret across the full corruption
+spectrum $\alpha \in [0, 1]$.
+Corralling's range (27.2) vs warmup-only's (71.4)
+is its distinguishing property under uncertainty.
+
 \textbf{Validation method:}
 Evaluate warmup predictions on $N{=}100$--$200$ deployment samples.
 Accuracy $>$80\% = good priors; 50--80\% = uncertain; $<$50\% = bad priors.
-Monitor weight evolution: warmup weight $>$0.8 $\Rightarrow$ switch to
-warmup-only; $<$0.2 $\Rightarrow$ switch to tabula rasa.
 
-\textbf{Key findings:}
-(1)~Meta-learning costs 60\% when priors are strong (48.2 vs 30.0);
-(2)~meta-learning correctly identifies the superior expert
-    (converges to 70.6\% $\pm$ 11.0\% warmup weight);
-(3)~Corralling $\approx$ tabula rasa on this benchmark (48.2 vs 49.2),
-    confirming overhead equals prior advantage;
-(4)~insurance value manifests under model failure
-    (\S\ref{sec:catastrophic}) and zero-shot adoption
-    (\S\ref{sec:zero_shot}).
+\textbf{Adaptive workflow:}
+Start with Corralling ($w_0{=}0.7$) and monitor weight convergence.
+Warmup weight $>$0.8 $\Rightarrow$ switch to warmup-only;
+weight $<$0.3 $\Rightarrow$ switch to tabula rasa.
 \end{table}

@@ -3409,10 +3409,11 @@ class CorrallingRouter:
         learning_rate: float = 0.1,
         gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments_v1/03_figure/results/gamma_ablation/)
         loss_decay: float = 0.999,  # [FIX] Meta-level adaptation decay
-        meta_lr_halflife: float = 60.0  # Staleness half-life in seconds for delayed feedback
+        meta_lr_halflife: float = 60.0,  # Staleness half-life in seconds for delayed feedback
+        initial_weights: Optional[np.ndarray] = None  # Prior-trust bias
     ):
         """
-        Initialize Corralling with uniform expert weights and exploration floor.
+        Initialize Corralling with configurable expert weights and exploration floor.
         
         [Paper REVIEW FIX]: Added loss_decay parameter to prevent weight collapse
         when the meta-learner's environment shifts.  Without decay,
@@ -3456,6 +3457,14 @@ class CorrallingRouter:
                        - float('inf') = disable staleness decay (trust all tokens)
                        - 10.0 = aggressive decay for real-time systems
                        Expert internal updates are always at full strength.
+            initial_weights: Optional array of initial expert weights.
+                       Must sum to 1 and have length == len(experts).
+                       Default: uniform (1/K each).
+                       Biasing toward the warmup expert (e.g., [0.7, 0.3])
+                       encodes "prior trust" — the belief that priors are
+                       likely correct.  This reduces overhead when priors are
+                       good but increases recovery time when they are bad.
+                       See experiments_v1/03_figure for the full trade-off.
         """
         self.experts = experts
         self.models = models
@@ -3470,11 +3479,22 @@ class CorrallingRouter:
         # un-normalized weights or double-decay cumulative_losses.
         self._lock = threading.Lock()
         
-        # Exponential weights (start uniform)
-        self.weights = np.ones(self.n_experts) / self.n_experts
+        # Expert weights — uniform by default, or biased via initial_weights
+        if initial_weights is not None:
+            w = np.array(initial_weights, dtype=np.float64)
+            assert len(w) == self.n_experts, (
+                f"initial_weights length {len(w)} != n_experts {self.n_experts}")
+            assert np.isclose(w.sum(), 1.0), (
+                f"initial_weights must sum to 1, got {w.sum()}")
+            self.weights = w.copy()
+        else:
+            self.weights = np.ones(self.n_experts) / self.n_experts
         
-        # Cumulative losses (for weight updates) - now with decay
-        self.cumulative_losses = np.zeros(self.n_experts)
+        # Set initial cumulative losses consistent with initial weights.
+        # Exp4 update: w_i ∝ exp(-η * L_i), so L_i = -ln(w_i) / η.
+        # This ensures the first update step continues smoothly from
+        # the initial weights rather than "snapping" to uniform.
+        self.cumulative_losses = -np.log(self.weights) / self.learning_rate
         
         # Diagnostics
         self.expert_selections = [0] * self.n_experts

@@ -308,10 +308,18 @@ class SimpleLinUCBRouter:
         self.A = {m: warmup_priors['A'][m].copy() for m in models}
         self.b = {m: warmup_priors['b'][m].copy() for m in models}
     
-    def select_model(self, context: np.ndarray, total_steps: int = None) -> str:
-        """Select model using UCB (takes pre-computed context vector)."""
+    def select_model(self, context: np.ndarray, total_steps: int = None,
+                     candidates=None) -> str:
+        """Select model using UCB (takes pre-computed context vector).
+        
+        Args:
+            context: Pre-computed context vector
+            total_steps: Total training steps (unused, for API compatibility)
+            candidates: Optional list of eligible models (if None, use all models)
+        """
+        eligible = candidates if candidates is not None else self.models
         ucb_scores = {}
-        for model in self.models:
+        for model in eligible:
             A_inv = np.linalg.inv(self.A[model])
             theta = A_inv @ self.b[model]
             
@@ -322,11 +330,18 @@ class SimpleLinUCBRouter:
         
         return max(ucb_scores, key=ucb_scores.get)
     
-    def update(self, context: np.ndarray, model: str, reward: float):
-        """Update matrices after observing reward."""
+    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
+        """Update matrices after observing reward.
+        
+        Args:
+            context: Context vector
+            model: Model that was selected
+            reward: Observed reward
+            weight: Observation importance weight (default 1.0)
+        """
         context = context.reshape(-1, 1)  # Column vector
-        self.A[model] += context @ context.T
-        self.b[model] += (reward * context).flatten()
+        self.A[model] += weight * (context @ context.T)
+        self.b[model] += (weight * reward * context).flatten()
     
     def get_model_usage(self) -> Dict[str, float]:
         """Get cumulative model selection probabilities (approximation via trace)."""

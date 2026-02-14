@@ -8,8 +8,8 @@
 \textbf{Long-Term Adaptation: Corralling Unlearns Suboptimal Semantic Transfer.}
 %
 \textbf{(Left)} Semantic structure of LMSYS Chat-1M dataset (N=594k prompts) projected onto first two principal components. 
-The Easy cluster (PC1 $< 0.3$, blue, 94.2\% of prompts) exhibits high semantic density. 
-The Hard cluster (PC1 $\geq 0.3$, red, 5.8\% of prompts) is more sparse.
+The low-PC1 region (PC1 $< 0.3$, blue, 94.2\% of prompts) exhibits high semantic density. 
+The high-PC1 region (PC1 $\geq 0.3$, red, 5.8\% of prompts) is more sparse.
 %
 \textbf{(Right)} Expert weight evolution during Corralling training on N=1,121 labeled samples (3 models spanning cost tiers: Mixtral \$0.27/1M, GPT-4-Turbo \$10/1M, GPT-4o \$2.50/1M) with \textbf{aggressive} learning rate ($\eta=5.0$, $\gamma=0.10$).
 GPT-4o is initialized via \textbf{semantic transfer} from GPT-4-Turbo ($\gamma=0.05$), providing an informative prior.
@@ -114,7 +114,7 @@ Analysis reveals three key findings:
 \textbf{(3) Optimal Policy Differs from Priors:} The tabula rasa expert learns that:
 \begin{itemize}[nosep]
     \item GPT-4o achieves comparable quality to GPT-4-Turbo at \$2.50 vs \$10.00 per 1M tokens (4$\times$ cost reduction)
-    \item The \emph{Easy cluster} (94.2\% of prompts) can be served effectively by mid-tier models
+    \item The low-PC1 region (94.2\% of prompts) contains the majority of prompts
     \item Mixtral handles 23.2\% of routine tasks at minimal cost (\$0.27/1M)
 \end{itemize}
 
@@ -194,12 +194,11 @@ This ensures mathematical soundness:
 We embed all 1M prompts using Sentence-BERT~\cite{reimers2019sentence} and project onto the first two principal components.
 We identify two clusters based on projection analysis (N=50,000 sample):
 \begin{itemize}[nosep]
-    \item \textbf{Easy Cluster} (PC1 $< 0.3$): 47,085 prompts (94.2\%)
-    \item \textbf{Hard Cluster} (PC1 $\geq 0.3$): 2,915 prompts (5.8\%)
+    \item \textbf{Low-PC1 region} (PC1 $< 0.3$): 47,085 prompts (94.2\%)
+    \item \textbf{High-PC1 region} (PC1 $\geq 0.3$): 2,915 prompts (5.8\%)
 \end{itemize}
 
-The Easy cluster exhibits high semantic density (visible in KDE contours, Figure~\ref{fig:corralling_semantic} left) and contains prompts that can be served effectively by cheaper models.
-This validates our hypothesis that the semantic structure enables cost-quality optimization.
+The low-PC1 region exhibits high semantic density (visible in KDE contours, Figure~\ref{fig:corralling_semantic} left), representing the majority of the prompt distribution.
 The cluster distribution remains stable across different sample sizes, confirming the robustness of the semantic manifold structure.
 
 \paragraph{Policy Projection.}
@@ -213,9 +212,8 @@ For each point in the 1M space, we determine which model the learned Corralling 
 This shows the \emph{coverage} of the learned policy across the semantic manifold without requiring ground truth rewards.
 
 \paragraph{Key Insight.}
-The Easy cluster (94.2\% of prompts) can be served with comparable quality by mid-tier models, which Corralling discovers automatically by unlearning the warmup bias.
-This demonstrates that semantic structure enables generalization: by learning on 1,121 labeled samples, we can infer policy behavior across the full 1M distribution.
-The cost savings (75.7\% reduction) are not from explicit cost optimization, but from correcting a quality-based bias---the warmup expert's false belief that expensive flagship models are necessary for high quality on routine tasks.
+The low-PC1 region (94.2\% of prompts) represents the dominant mode of the prompt distribution.
+Corralling discovers the optimal model for this region through online learning, demonstrating that semantic structure enables generalization: by learning on 1,121 labeled samples, we can infer policy behavior across the full 1M distribution.
 
 
 % ============================================================================

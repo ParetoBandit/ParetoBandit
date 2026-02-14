@@ -1,310 +1,183 @@
 % ============================================================================
 % Appendix D: Hyperparameter Ablation Studies
 % ============================================================================
-% Purpose: Validate design choices for exploration rate (alpha) and
-% mixing (gamma).  Updated 2026-02-14 with corrected experimental
-% results (N=20 seeds, η=sqrt(ln2/750)≈0.030, loss_decay=1.0,
-% random tie-breaking).
+% Simplified to focus on significant findings only.
 
 \section{Hyperparameter Ablation Studies}
 \label{app:ablations}
 
-The main results (\S\ref{sec:metalearning_cost}) use the following
-hyperparameter defaults: constant exploration ($\alpha{=}2.0$), mixing
-parameter ($\gamma{=}0.05$), and learning rate
-($\eta{=}\sqrt{\ln K/T}{\approx}0.030$).
-This appendix validates these choices through systematic ablation and
-provides guidance for practitioners requiring non-standard
-configurations.
+The main results (\S\ref{sec:metalearning_cost}) use constant
+exploration ($\alpha{=}2.0$), mixing parameter ($\gamma{=}0.05$), and
+learning rate ($\eta{=}\sqrt{\ln K/T}{\approx}0.030$).
+This appendix validates these choices.
 
 % ============================================================================
 % D.1: Exploration Strategy (Alpha) Ablation
 % ============================================================================
 
-\subsection{Exploration Strategy Ablation}
+\subsection{Exploration Strategy}
 \label{sec:alpha_ablation}
 
-The LinUCB exploration parameter $\alpha$ controls the width of
-confidence bounds, governing the exploration-exploitation trade-off.
-Standard practice employs adaptive decay schedules
-(e.g., $\alpha_t = \alpha_0 \cdot \max(\alpha_{\min}, 1/\sqrt{t+1})$)
-to transition from exploration to exploitation~\cite{auer2002ucb}.
-
-% ----------------------------------------------------------------------------
-% Experimental Setup
-% ----------------------------------------------------------------------------
-\paragraph{Experimental Setup.}
-We evaluate four configurations on the 750-prompt holdout set
-(PSI=0.225) across $N{=}20$ independent random seeds.
-All configurations use Corralling with $\eta{=}0.030$,
-$\gamma{=}0.05$, and loss decay $1.0$ (no decay).
-Decay schedules use
-$\alpha_t = \alpha_0 \cdot \max(0.1,\; 1/\sqrt{t+1})$.
+We evaluate four $\alpha$-configurations on the 750-prompt holdout set
+($N{=}20$ seeds, Corralling with $\eta{=}0.030$, $\gamma{=}0.05$).
 
 \begin{table}[h]
 \centering
 \caption{%
     \textbf{Exploration Strategy Ablation.}
-    Decay improves Corralling performance on a static benchmark by
-    allowing experts to commit to learned preferences sooner.
+    Two statistically distinguishable groups emerge:
+    decay-based (${\sim}41$) and constant-based (${\sim}48$).
 }
 \label{tab:alpha_ablation}
 \small
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-\textbf{Configuration} & \textbf{Warmup Expert} & \textbf{Tabula Rasa Expert} & \textbf{Cumulative Regret} \\
+\textbf{Configuration} & \textbf{Warmup} & \textbf{Tabula Rasa} & \textbf{Regret} & \textbf{$p$ vs constant} \\
 \midrule
-\textbf{Homogeneous Decay} & decay: $2.0 \to 0.1$ & decay: $2.0 \to 0.1$ & \textbf{40.6 $\pm$ 4.4} \\
-Mixed & $\alpha=2.0$ & decay: $2.0 \to 0.1$ & 41.9 $\pm$ 4.4 \\
+\textbf{Homogeneous Decay} & decay & decay & \textbf{40.6 $\pm$ 4.4} & $<$0.001 \\
+Mixed & constant & decay & 41.9 $\pm$ 4.4 & $<$0.001 \\
 \midrule
-Reversed Mixed & decay: $2.0 \to 0.1$ & $\alpha=2.0$ & 46.8 $\pm$ 4.6 \\
-Homogeneous Constant & $\alpha=2.0$ & $\alpha=2.0$ & 48.2 $\pm$ 5.1 \\
+Reversed Mixed & decay & constant & 46.8 $\pm$ 4.6 & ns \\
+Homogeneous Constant & constant & constant & 48.2 $\pm$ 5.1 & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-% ----------------------------------------------------------------------------
-% Results and Analysis
-% ----------------------------------------------------------------------------
-\paragraph{Results.}
-Decay-based exploration achieves the lowest regret on this static
-benchmark, with homogeneous decay (40.6) outperforming constant
-exploration (48.2) by 16\%:
+\paragraph{Finding.}
+Decay-based configurations (40.6--41.9) significantly outperform
+constant exploration (46.8--48.2) on this static benchmark ($p{<}0.001$,
+Wilcoxon signed-rank, Cohen's $d{\approx}1.6$).
+Within each group, differences are not significant ($p{>}0.35$).
 
-\begin{itemize}[nosep]
-    \item \textbf{Homogeneous Decay:} 40.6 $\pm$ 4.4
-          (best; both experts commit to learned preferences)
-    \item \textbf{Mixed:} 41.9 $\pm$ 4.4
-          ($+$3\%; tabula rasa decay alone captures most of the benefit)
-    \item \textbf{Reversed Mixed:} 46.8 $\pm$ 4.6
-          ($+$15\%; warmup decay alone provides limited improvement)
-    \item \textbf{Homogeneous Constant:} 48.2 $\pm$ 5.1
-          (worst; continued exploration wastes regret budget)
-\end{itemize}
+\paragraph{Mechanism.}
+On a fixed dataset, decaying $\alpha$ allows experts to commit to
+learned preferences once sufficient evidence accumulates.
+The benefit is concentrated in the tabula rasa expert: decaying its
+$\alpha$ captures most of the improvement (41.9 vs 48.2), because it
+starts from zero and benefits most from transitioning to exploitation.
 
-Figure~\ref{fig:alpha_ablation} shows detailed per-seed results.
-Notably, decay also reduces variance (4.4 vs 5.1), indicating that
-committed experts provide more predictable outcomes.
+\paragraph{Important Caveat.}
+This finding is specific to \emph{static} benchmarks.  In
+non-stationary environments (\S\ref{sec:catastrophic}), premature
+exploitation prevents detection of model degradation.
+We therefore recommend constant $\alpha{=}2.0$ as the safe default,
+accepting a 16\% regret premium as the cost of change detection.
 
-% ----------------------------------------------------------------------------
-% Mechanism and Interpretation
-% ----------------------------------------------------------------------------
-\paragraph{Mechanism: Exploitation Benefits in Static Environments.}
-On a fixed holdout set, the optimal decision boundary does not change
-over time.  Decaying $\alpha$ allows experts to narrow their confidence
-bounds and commit to learned preferences once sufficient evidence
-accumulates.  This is beneficial because:
-
-\begin{enumerate}[nosep]
-    \item \textbf{Warmup expert with decay:} Commits to semantic priors
-          once online evidence confirms them, reducing unnecessary
-          exploration of contexts where priors are correct.
-    \item \textbf{Tabula rasa with decay:} Commits to learned
-          preferences sooner, providing clearer signal to the
-          meta-learner about its quality.
-    \item \textbf{Meta-learner:} Benefits from experts that express
-          confident, stable preferences---confident experts produce
-          lower-variance loss estimates.
-\end{enumerate}
-
-The asymmetry in the Mixed vs Reversed configurations reveals that
-tabula rasa decay ($-$6.3 regret) is more impactful than warmup decay
-($-$1.4 regret).  This makes sense: the warmup expert already has
-strong priors that constrain its behavior, so $\alpha$-decay provides
-marginal additional commitment.  The tabula rasa expert, starting from
-zero, benefits substantially from transitioning to exploitation after
-its initial learning phase.
-
-% ----------------------------------------------------------------------------
-% Important Caveat
-% ----------------------------------------------------------------------------
-\paragraph{Important Caveat: Static vs Dynamic Environments.}
-This finding is \emph{specific to static benchmarks} where the
-data-generating process does not change.  In non-stationary environments
-(\S\ref{sec:catastrophic}), premature exploitation prevents detection
-of model degradation or distribution shift.  Constant $\alpha$ maintains
-``vigilance''---the continued ability to detect changes---at the cost
-of higher regret in stable conditions.
-
-\textbf{Configuration guideline:}
-\begin{itemize}[nosep]
-    \item \textbf{Static/validated deployment} (known-good priors,
-          stable distribution): Use decay ($\alpha: 2.0 \to 0.1$) for
-          both experts to maximise performance.
-    \item \textbf{Unknown/shifting deployment} (unvalidated priors,
-          potential drift): Use constant $\alpha{=}2.0$ to maintain
-          detection capability.  Accept the 16\% regret premium as the
-          cost of environmental awareness.
-    \item \textbf{Asymmetric compromise:} Decay tabula rasa only
-          (41.9 regret) captures most decay benefit while preserving
-          warmup vigilance.
-\end{itemize}
-
-% ============================================================================
-% D.2: Mixing Parameter (Gamma) Ablation
-% ============================================================================
-
-\subsection{Mixing Parameter Ablation}
-\label{app:gamma_ablation}
-
-The mixing parameter $\gamma$ controls the minimum expert selection
-probability: $P_t(\text{expert}) \geq \gamma/K$.
-This prevents ``expert death,'' where an expert's weight drops to zero
-and cannot recover from subsequent distribution shifts.
-
-% ----------------------------------------------------------------------------
-% Experimental Setup
-% ----------------------------------------------------------------------------
-\paragraph{Experimental Setup.}
-We evaluate $\gamma \in \{0.00, 0.05, 0.10, 0.20\}$ on the
-750-prompt holdout set across $N{=}20$ independent seeds.
-All configurations use constant exploration ($\alpha{=}2.0$) and the
-theoretically optimal learning rate ($\eta{=}0.030$).
-$\gamma{=}0.00$ represents pure exponential weighting (Hedge/EXP3)
-without mixing.
-
-% ----------------------------------------------------------------------------
-% Results
-% ----------------------------------------------------------------------------
-\paragraph{Results: Gamma Has Minimal Impact.}
-With a correctly calibrated learning rate, $\gamma$ has negligible
-effect on performance (Table~\ref{tab:gamma_ablation}):
-
-\begin{table}[h]
-\centering
-\caption{%
-    \textbf{Mixing Parameter Ablation.}
-    With $\eta{=}0.030$, all $\gamma$ values achieve similar regret.
-    The total range (0.7 regret) is well within one standard deviation.
-}
-\label{tab:gamma_ablation}
-\small
-\begin{tabular}{@{}lcc@{}}
-\toprule
-$\gamma$ & \textbf{Cumulative Regret} & \textbf{vs $\gamma{=}0.00$} \\
-\midrule
-0.00 & 47.9 $\pm$ 4.8 & --- \\
-\textbf{0.05 (default)} & \textbf{48.2 $\pm$ 5.1} & $+$0.6\% \\
-0.10 & 48.5 $\pm$ 4.9 & $+$1.3\% \\
-0.20 & 48.6 $\pm$ 4.9 & $+$1.5\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The entire range spans only 0.7 cumulative regret (47.9 to 48.6)
-across all $\gamma$ values.  Variance is similarly stable (4.8--5.1).
-There is no statistically significant difference between any pair of
-configurations.
-
-% ----------------------------------------------------------------------------
-% Why gamma doesn't matter here
-% ----------------------------------------------------------------------------
-\paragraph{Why Gamma Has Minimal Impact.}
-With the theoretically optimal $\eta{\approx}0.030$, weight updates are
-small and gradual.  Expert weights evolve from 50/50 to approximately
-71/29 over 750 rounds---they never approach the extreme values where the
-$\gamma$-mixing floor would activate.  Specifically:
-
-\begin{itemize}[nosep]
-    \item At $\gamma{=}0.05$ with $K{=}2$, the mixing floor guarantees
-          $P(\text{expert}) \geq 0.025$.  Since the minimum expert
-          probability remains well above this threshold throughout
-          training, the floor is never binding.
-    \item At $\gamma{=}0.00$, the absence of a floor has no consequence
-          because $\eta$ is too small to drive weights to zero within
-          750 rounds.
-\end{itemize}
-
-This contrasts with an earlier configuration using $\eta{=}1.0$, where
-$\gamma$ had a larger effect because the aggressive learning rate could
-drive expert weights to near-zero within a few rounds, making the mixing
-floor essential for stability.
-
-% ----------------------------------------------------------------------------
-% Why we still recommend gamma=0.05
-% ----------------------------------------------------------------------------
-\paragraph{Why We Still Recommend $\gamma{=}0.05$.}
-Despite the minimal impact observed here, we recommend $\gamma{=}0.05$
-as the default for three reasons:
-
-\begin{enumerate}[nosep]
-    \item \textbf{Zero cost:} The performance difference ($<$1\%) is
-          negligible, so there is no reason \emph{not} to include it.
-    \item \textbf{Longer horizons:} Over thousands of queries (typical
-          production deployments), weights may reach more extreme values
-          where the floor provides genuine protection.
-    \item \textbf{Robustness to misconfiguration:} If a practitioner
-          uses a sub-optimal $\eta$ (too large), $\gamma$ provides a
-          safety net against expert death.  The parameter costs nothing
-          when it is not needed and provides insurance when it is.
-\end{enumerate}
-
-\textbf{Configuration guideline:}
-Use $\gamma{=}0.05$ for all deployments.  No tuning is required.
-Deviate only with many experts ($K{>}5$, consider $\gamma{=}0.01$ to
-reduce forced exploration overhead) or highly non-stationary
-environments ($\gamma{=}0.10$ for faster recovery).
-
-% ============================================================================
-% Figure: Alpha Ablation
-% ============================================================================
-
-\begin{figure}[t]
+\begin{figure}[h]
     \centering
     \includegraphics[width=0.9\textwidth]{experiments_v1/03_figure/results/ablation/figure_alpha_ablation.pdf}
     \caption{%
         \textbf{Exploration Strategy Ablation ($N{=}20$ seeds).}
-        %
-        \textbf{(A)} Mean cumulative regret with $\pm$1 std error bars.
-        Decay ($\alpha: 2.0 \to 0.1$) for both experts achieves lowest
-        regret (40.6) on this static benchmark.  Constant exploration
-        ($\alpha{=}2.0$) produces the highest regret (48.2), as
-        continued exploration wastes regret budget when the environment
-        is stationary.
-        %
-        \textbf{(B)} Per-seed scatter reveals tight clustering for decay
-        configurations (lower variance) and wider spread for constant
-        exploration.
-        %
-        \textbf{Caveat:} Decay is optimal only in static settings.
-        Non-stationary environments (\S\ref{sec:catastrophic}) require
-        constant exploration for change detection.
-        %
-        Setup: 750-prompt LMSYS holdout, Corralling with
-        $\eta{=}0.030$, $\gamma{=}0.05$.
+        \textbf{(A)} Mean regret with $\pm$1~std.
+        Decay configurations cluster around 41; constant around 48.
+        \textbf{(B)} Per-seed scatter confirms tight clustering within
+        each group and separation between groups.
     }
     \label{fig:alpha_ablation}
 \end{figure}
 
 % ============================================================================
-% Figure: Gamma Ablation
+% D.2: Mixing Parameter (Gamma) — Null Result
 % ============================================================================
 
-\begin{figure}[t]
+\subsection{Mixing Parameter}
+\label{app:gamma_ablation}
+
+The mixing parameter $\gamma$ guarantees minimum expert selection
+probability $P(\text{expert}) \geq \gamma/K$, preventing expert death.
+With the theoretically optimal $\eta{\approx}0.030$, $\gamma$ has
+\textbf{negligible impact}: across
+$\gamma \in \{0.00, 0.05, 0.10, 0.20\}$, cumulative regret ranges
+from 47.9 to 48.6 (total span: 0.7 regret, well within one standard
+deviation; all pairwise $p{>}0.5$, Wilcoxon signed-rank).
+
+This null result is expected: at $\eta{\approx}0.030$, expert weights
+evolve gradually from 50/50 to ${\sim}$71/29 over 750~rounds, never
+approaching zero.  The $\gamma$-mixing floor is never activated.
+We recommend $\gamma{=}0.05$ as a zero-cost safety default for longer
+production deployments where weights might reach more extreme values.
+
+% ============================================================================
+% D.3: Prior-Trust Bias (Initial Weight) Sweep
+% ============================================================================
+
+\subsection{Prior-Trust Bias}
+\label{app:initial_weight}
+
+Section~\ref{sec:metalearning_cost} shows that Corralling incurs 60\%
+overhead at $\alpha{=}0$ because the meta-learner starts with uniform
+weights (50/50) and takes the full 750-round horizon to converge.
+A natural question: can we reduce this overhead by \emph{biasing the
+initial weights toward the warmup expert}?
+
+We sweep the initial warmup weight $w_0 \in \{0.5, 0.6, 0.7, 0.8, 0.9\}$
+across 7~corruption levels ($N{=}20$ seeds, $\eta{=}0.030$,
+$\gamma{=}0.05$).  This encodes \emph{prior trust}: higher $w_0$
+means the practitioner believes their priors are likely correct.
+
+\begin{table}[h]
+\centering
+\caption{%
+    \textbf{Prior-Trust Bias Trade-Off.}
+    Higher initial warmup weight reduces regret when priors are correct
+    ($\alpha{=}0$) but increases regret when priors are adversarial
+    ($\alpha{=}1$).  $w_0{=}0.7$ provides a symmetric trade-off.
+}
+\label{tab:initial_weight}
+\small
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+\textbf{$w_0$} & \textbf{Regret $\alpha{=}0$} & \textbf{Regret $\alpha{=}1$} &
+\textbf{$\Delta$ $\alpha{=}0$} & \textbf{$p$ ($\alpha{=}1$)} \\
+\midrule
+0.5 (default) & 49.7 $\pm$ 5.1 & 59.9 $\pm$ 3.7 & --- & --- \\
+\textbf{0.6} & \textbf{46.8 $\pm$ 4.8} & 60.5 $\pm$ 3.3 & $-$6\% & 0.49 (ns) \\
+0.7 & 44.0 $\pm$ 4.7 & 65.6 $\pm$ 5.9 & $-$11\% & 0.014* \\
+0.8 & 40.8 $\pm$ 3.8 & 75.6 $\pm$ 7.2 & $-$18\% & $<$0.001*** \\
+0.9 & 36.6 $\pm$ 3.3 & 89.1 $\pm$ 7.0 & $-$26\% & $<$0.001*** \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Finding.}
+$w_0{=}0.6$ is essentially a \textbf{free lunch}: 6\% lower regret at
+$\alpha{=}0$ ($p{=}0.028$) with no significant cost at $\alpha{=}1$
+($p{=}0.49$).  At $w_0{=}0.7$, the trade-off becomes approximately
+symmetric: 11\% improvement at $\alpha{=}0$, 9\% cost at $\alpha{=}1$.
+Beyond $w_0{=}0.8$, the cost grows superlinearly---the meta-learner
+cannot recover fast enough from a biased starting point when the
+warmup expert is actively harmful.
+
+\paragraph{Mechanism.}
+Setting $w_0{=}0.7$ gives the meta-learner a head start equivalent to
+${\sim}28$ rounds of evidence that the warmup expert is better
+(via the relationship $w_0/w_1 = e^{-\eta \Delta L}$).
+When priors are correct, this skips most of the convergence cost.
+When priors are wrong, the meta-learner must overcome this bias
+\emph{plus} the original convergence, producing asymmetric degradation
+at high bias values.
+
+\paragraph{Recommendation.}
+We recommend $w_0{=}0.7$ as the default for practitioners who have
+\emph{any} prior information (the common case).
+Use $w_0{=}0.5$ (uniform) only when prior quality is completely unknown
+or when the maximum-safety guarantee is required.
+
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{experiments_v1/03_figure/results/gamma_ablation/figure_gamma_ablation.pdf}
+    \includegraphics[width=0.95\textwidth]{experiments_v1/03_figure/results/initial_weight_sweep/figure_initial_weight_sweep.pdf}
     \caption{%
-        \textbf{Mixing Parameter Ablation ($N{=}20$ seeds).}
-        %
-        \textbf{(A) Performance:} Cumulative regret vs $\gamma$.
-        All values fall within 47.9--48.6 (range ${<}$0.7), well within
-        one standard deviation.  $\gamma$ has negligible impact with a
-        correctly calibrated $\eta$.
-        %
-        \textbf{(B) Variance:} Standard deviations are comparable across
-        all $\gamma$ values (4.8--5.1), showing no reliability benefit
-        from mixing at this learning rate.
-        %
-        \textbf{(C) Per-seed scatter:} No outliers or expert-death
-        events at any $\gamma$ value, confirming that
-        $\eta{\approx}0.030$ is too conservative to cause weight
-        collapse within 750 rounds.
-        %
-        \textbf{(D) Summary:} $\gamma{=}0.05$ is recommended as a
-        zero-cost safety default for longer deployments.
-        %
-        Setup: 750-prompt LMSYS holdout, constant $\alpha{=}2.0$,
-        $\eta{=}0.030$.
+        \textbf{Prior-Trust Bias Trade-Off ($N{=}20$ seeds).}
+        \textbf{(A)} Regret vs corruption at each initial warmup weight.
+        Higher $w_0$ shifts Corralling's curve down at low corruption
+        (closer to warmup-only) and up at high corruption (further from
+        tabula rasa).  The curves fan out above $\alpha{=}0.5$.
+        \textbf{(B)} Pareto frontier: each $w_0$ defines a point in
+        (best-case regret, worst-case regret) space.
+        Warmup-only (top-left) has the best best-case but worst
+        worst-case; tabula rasa (bottom-right) is the opposite.
+        Corralling traces a frontier between them, with $w_0$
+        controlling the operating point.
     }
-    \label{fig:gamma_ablation}
+    \label{fig:initial_weight_sweep}
 \end{figure}

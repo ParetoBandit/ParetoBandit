@@ -1,14 +1,34 @@
 {
-  "corralling": {
-    "name": "Corralling (\u03bb_cost=0)",
-    "model_usage": {
-      "mistralai/mixtral-8x7b-instruct": 260,
-      "openai/gpt-4-turbo": 67,
-      "openai/gpt-4o": 794
+  "real_rewards": {
+    "per_model": {
+      "mistralai/mixtral-8x7b-instruct": {
+        "mean": 0.8108831400535237,
+        "std": 0.3916014213846283,
+        "n": 1121
+      },
+      "openai/gpt-4o": {
+        "mean": 0.9705619982158786,
+        "std": 0.16903078369066207,
+        "n": 1121
+      },
+      "openai/gpt-4-turbo": {
+        "mean": 0.800178412132025,
+        "std": 0.3998661287104675,
+        "n": 1121
+      }
     },
-    "avg_cost": 2.431043710972346,
-    "avg_reward": 0.9259589652096343,
-    "estimated_reward": 0.9384032114183763
+    "oracle_reward": 0.991971454058876,
+    "n_prompts": 1121
+  },
+  "corralling": {
+    "name": "Corralling",
+    "model_usage": {
+      "mistralai/mixtral-8x7b-instruct": 34,
+      "openai/gpt-4-turbo": 11,
+      "openai/gpt-4o": 1076
+    },
+    "avg_cost": 2.505958965209634,
+    "avg_reward": 0.9616413916146298
   },
   "baselines": [
     {
@@ -17,7 +37,7 @@
         "openai/gpt-4-turbo": 1121
       },
       "avg_cost": 10.0,
-      "avg_reward": 0.95
+      "avg_reward": 0.800178412132025
     },
     {
       "name": "Always Mixtral",
@@ -25,15 +45,15 @@
         "mistralai/mixtral-8x7b-instruct": 1121
       },
       "avg_cost": 0.27,
-      "avg_reward": 0.9
+      "avg_reward": 0.8108831400535237
     },
     {
-      "name": "Always GPT-4o",
+      "name": "Always GPT-4o (oracle)",
       "model_usage": {
         "openai/gpt-4o": 1121
       },
       "avg_cost": 2.5,
-      "avg_reward": 0.95
+      "avg_reward": 0.9705619982158786
     },
     {
       "name": "Random (Uniform)",
@@ -43,17 +63,12 @@
         "openai/gpt-4o": 373
       },
       "avg_cost": 4.256666666666667,
-      "avg_reward": 0.9333333333333332
+      "avg_reward": 0.8605411834671424
     },
     {
-      "name": "Warmup Expert (Biased)",
-      "model_usage": {
-        "openai/gpt-4-turbo": 896,
-        "openai/gpt-4o": 168,
-        "mistralai/mixtral-8x7b-instruct": 56
-      },
-      "avg_cost": 8.3885,
-      "avg_reward": 0.9475
+      "name": "Per-Prompt Oracle",
+      "avg_cost": NaN,
+      "avg_reward": 0.991971454058876
     }
   ],
   "model_costs": {
