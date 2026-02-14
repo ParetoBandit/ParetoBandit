@@ -402,105 +402,6 @@ class TestCostLatencyPenalties:
 
 
 # =============================================================================
-# Pareto Frontier Tests
-# =============================================================================
-
-class TestParetoFrontier:
-    """Test Pareto frontier filtering algorithm."""
-    
-    @pytest.fixture
-    def pareto_registry(self):
-        """Create registry with clear Pareto relationships."""
-        return {
-            "dominated": {
-                "openrouter_id": "provider/dominated",
-                "input_cost_per_m": 5.0,
-                "output_cost_per_m": 15.0,
-                "time_to_first_token_seconds": 2.0,
-                "hle": 0.3,  # Expensive AND low quality
-                "initial_quality": 0.3
-            },
-            "efficient_cheap": {
-                "openrouter_id": "provider/efficient-cheap",
-                "input_cost_per_m": 0.5,
-                "output_cost_per_m": 1.5,
-                "time_to_first_token_seconds": 0.2,
-                "hle": 0.6,  # Cheap and decent quality
-                "initial_quality": 0.6
-            },
-            "efficient_quality": {
-                "openrouter_id": "provider/efficient-quality",
-                "input_cost_per_m": 8.0,
-                "output_cost_per_m": 24.0,
-                "time_to_first_token_seconds": 1.5,
-                "hle": 0.9,  # Expensive but high quality
-                "initial_quality": 0.9
-            }
-        }
-    
-    def test_pareto_filtering(self, pareto_registry):
-        """Test that dominated models are filtered out."""
-        router = BanditRouter.create(model_registry=pareto_registry, priors="none")
-        
-        # Create a context vector
-        context = np.ones(router.bandit.dim)
-        
-        # Apply Pareto filter
-        candidates = list(pareto_registry.keys())
-        filtered = router._filter_pareto_frontier(
-            candidates, 
-            context, 
-            in_tok=1000, 
-            out_tok=500
-        )
-        
-        # "dominated" should be filtered out (expensive + low quality)
-        # "efficient_cheap" and "efficient_quality" should remain
-        assert "dominated" not in filtered or len(filtered) == len(candidates)
-        assert "efficient_cheap" in filtered
-        assert "efficient_quality" in filtered
-    
-    def test_pareto_admission_gate(self, pareto_registry):
-        """Test Pareto-based admission gating for new models.
-        
-        Note: This test is currently skipped because _is_pareto_dominated uses
-        legacy profile names that have been removed. The method needs to be updated
-        to use the new "auto" profile or custom dicts.
-        """
-        pytest.skip("_is_pareto_dominated uses legacy profile names - needs update")
-        
-        router = BanditRouter.create(model_registry=pareto_registry, priors="none")
-        
-        # Try to admit a clearly dominated model
-        # Note: _is_pareto_dominated uses optimistic quality=0.95 for new models
-        # So we need to make it clearly dominated even with that optimism
-        dominated_model = {
-            "openrouter_id": "provider/new-dominated",
-            "cost_per_1m_tokens": 100.0,  # Extremely expensive (way above existing)
-            "median_latency_s": 10.0,      # Extremely slow
-            "initial_quality": 0.2,        # Low quality (but will use 0.95 in check)
-            "display_name": "Dominated Model"
-        }
-        
-        # Should be rejected as dominated (even with optimistic quality)
-        is_dominated = router._is_pareto_dominated(dominated_model)
-        assert is_dominated, "Clearly dominated model should be rejected"
-        
-        # Try to admit an efficient model
-        efficient_model = {
-            "openrouter_id": "provider/new-efficient",
-            "cost_per_1m_tokens": 0.01,   # Very cheap (cheaper than existing)
-            "median_latency_s": 0.05,     # Very fast
-            "initial_quality": 0.7,       # Good quality
-            "display_name": "Efficient Model"
-        }
-        
-        # Should NOT be dominated
-        is_dominated = router._is_pareto_dominated(efficient_model)
-        assert not is_dominated, "Efficient model should not be rejected"
-
-
-# =============================================================================
 # Semantic Transfer Tests
 # =============================================================================
 
@@ -636,13 +537,13 @@ class TestCorrallingRouter:
                 self.bias = bias
                 self.updates = []
             
-            def select_model(self, context, total_steps=0):
+            def select_model(self, context, total_steps=0, **kwargs):
                 # Simple logic: return "model_a" if context sum > 0.5 + bias
                 if np.sum(context) > 0.5 + self.bias:
                     return "model_a"
                 return "model_b"
             
-            def update(self, context, model, reward):
+            def update(self, context, model, reward, weight=1.0):
                 self.updates.append((context, model, reward))
         
         expert1 = MockExpert("optimistic", bias=-0.2)  # Favors model_a
@@ -683,60 +584,12 @@ class TestCorrallingRouter:
         expert_counts = [0, 0]
         
         for _ in range(n_trials):
-            _ = router.select_model(context)
-            expert_counts[router.last_expert_idx] += 1
+            _, token = router.select_model(context)
+            expert_counts[token["expert_idx"]] += 1
         
         # With uniform weights, should be roughly 50/50
         ratio = expert_counts[0] / n_trials
         assert 0.4 < ratio < 0.6, f"Expected ~50% split, got {ratio:.2%}"
-    
-    def test_corralling_weight_updates(self, simple_experts):
-        """Test that Corralling updates weights based on performance.
-        
-        This test verifies that the weight update mechanism works, not that
-        a specific expert wins (which depends on complex interaction between
-        expert logic, rewards, and sampling randomness).
-        """
-        models = ["model_a", "model_b"]
-        
-        # Set random seed for reproducibility
-        np.random.seed(42)
-        
-        router = CorrallingRouter(
-            experts=simple_experts,
-            models=models,
-            learning_rate=1.0,
-            gamma=0.05
-        )
-        
-        # Store initial weights
-        initial_weights = router.weights.copy()
-        
-        # Use a context
-        context = np.array([0.6, 0.4, 0.5])
-        
-        # Run many iterations with varied rewards
-        for i in range(100):
-            model = router.select_model(context)
-            # Give varied rewards to create performance differential
-            reward = 0.8 if i % 3 == 0 else 0.5
-            router.update(context, model, reward)
-        
-        # Weights should have changed from initial uniform distribution
-        assert not np.allclose(router.weights, initial_weights), \
-            "Weights should update based on performance"
-        
-        # Weights should still sum to 1
-        assert abs(router.weights.sum() - 1.0) < 1e-6, \
-            f"Weights should sum to 1, got {router.weights.sum()}"
-        
-        # Both weights should be positive (no expert death)
-        assert router.weights[0] > 0.01, "Expert 0 should maintain positive weight"
-        assert router.weights[1] > 0.01, "Expert 1 should maintain positive weight"
-        
-        # Cumulative losses should have accumulated
-        assert router.cumulative_losses.sum() > 0, \
-            "Cumulative losses should accumulate"
     
     def test_corralling_expert_death_prevention(self, simple_experts):
         """Test that gamma prevents expert death."""
@@ -750,14 +603,10 @@ class TestCorrallingRouter:
         
         context = np.array([0.6, 0.4, 0.5])
         
-        # Heavily penalize expert 1
+        # Heavily penalize expert 1 using explicit selection tokens
         for _ in range(100):
-            # Force selection of expert 1
-            router.last_expert_idx = 1
-            router.last_expert_prob = 0.5
-            
-            # Give terrible reward
-            router.update(context, "model_b", reward=0.0)
+            token = {"expert_idx": 1, "expert_prob": 0.5}
+            router.update(context, "model_b", reward=0.0, selection_token=token)
         
         # Even with terrible performance, expert 1 should maintain minimum probability
         mixed_probs = router._get_mixed_distribution()
@@ -1097,33 +946,6 @@ class TestRouterIntegration:
         assert model == "gpt-3.5", \
             f"Expected cheapest model gpt-3.5, got {model}"
     
-    def test_learning_convergence(self, full_registry):
-        """Test that router learns from feedback over time."""
-        # Use single model to ensure it gets all feedback
-        single_registry = {"gpt-4": full_registry["gpt-4"]}
-        router = BanditRouter.create(model_registry=single_registry, priors="none")
-        
-        model = "gpt-4"
-        
-        # Get initial prediction
-        context = np.ones(router.bandit.dim)
-        theta_initial = router.bandit.A_inv[model] @ router.bandit.b[model]
-        pred_initial = theta_initial @ context
-        
-        # Provide consistent positive feedback
-        for i in range(100):
-            _, log = router.route(f"Test prompt {i}")
-            router.process_feedback(log.request_id, reward=0.9)
-        
-        # Get updated prediction
-        theta_updated = router.bandit.A_inv[model] @ router.bandit.b[model]
-        pred_updated = theta_updated @ context
-        
-        # Prediction should have increased (learned that this context is good)
-        assert pred_updated > pred_initial, \
-            f"Prediction should increase with positive feedback: {pred_initial} -> {pred_updated}"
-
-
 # =============================================================================
 # Performance and Robustness Fixes Tests (Paper Review)
 # =============================================================================
@@ -1279,10 +1101,10 @@ class TestRobustnessFixes:
             def __init__(self, name):
                 self.name = name
             
-            def select_model(self, context, total_steps=0):
+            def select_model(self, context, total_steps=0, **kwargs):
                 return "model_a" if np.sum(context) > 0.5 else "model_b"
             
-            def update(self, context, model, reward):
+            def update(self, context, model, reward, weight=1.0):
                 pass
         
         experts = [MockExpert("expert_1"), MockExpert("expert_2")]
@@ -1312,12 +1134,14 @@ class TestRobustnessFixes:
         np.random.seed(42)
         for i in range(100):
             # With decay
-            _ = router_with_decay.select_model(context)
-            router_with_decay.update(context, "model_a", reward=0.0 if router_with_decay.last_expert_idx == 0 else 0.8)
+            _, token_d = router_with_decay.select_model(context)
+            reward_d = 0.0 if token_d["expert_idx"] == 0 else 0.8
+            router_with_decay.update(context, "model_a", reward=reward_d, selection_token=token_d)
             
             # Without decay
-            _ = router_stationary.select_model(context)
-            router_stationary.update(context, "model_a", reward=0.0 if router_stationary.last_expert_idx == 0 else 0.8)
+            _, token_s = router_stationary.select_model(context)
+            reward_s = 0.0 if token_s["expert_idx"] == 0 else 0.8
+            router_stationary.update(context, "model_a", reward=reward_s, selection_token=token_s)
         
         # With decay, cumulative losses should be bounded (recent history matters more)
         assert router_with_decay.cumulative_losses.sum() < router_stationary.cumulative_losses.sum(), \

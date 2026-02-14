@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import math
 import time
+import uuid
 import logging
 import os
 import threading
@@ -534,26 +535,51 @@ class DisjointLinUCBPolicy:
         # Create fresh global lock for the clone
         result._lock = threading.Lock()
         
+        # [BUG FIX C3]: Copy regularization_floor so the clone's decay path
+        # (which accesses self.regularization_floor[model]) doesn't crash
+        # with AttributeError on the first update when gamma < 1.0.
+        result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
+        
         return result
 
     def add_arm(self, model_name: str) -> None:
-        """Add a new arm (model) to the bandit dynamically."""
+        """Add a new arm (model) to the bandit dynamically.
+        
+        [BUG FIX M4]: Prepare all state outside the lock, then publish atomically.
+        Previously, a concurrent select_arm() could see the model in self.A
+        before self.A_inv was assigned, causing a KeyError.
+        """
         if model_name in self.models: return
         
-        self.models.append(model_name)
-        self.A[model_name] = np.eye(self.dim) * self.init_lambda
-        self.b[model_name] = np.zeros(self.dim, dtype=np.float64)
-        self.A_inv[model_name] = safe_inv(self.A[model_name])
-        self.last_update[model_name] = self.t
+        # Prepare outside lock
+        new_A = np.eye(self.dim) * self.init_lambda
+        new_b = np.zeros(self.dim, dtype=np.float64)
+        new_A_inv = safe_inv(new_A)
+        
+        # Publish atomically under global lock
+        with self._lock:
+            self.A[model_name] = new_A
+            self.b[model_name] = new_b
+            self.A_inv[model_name] = new_A_inv
+            self.last_update[model_name] = self.t
+            self.regularization_floor[model_name] = self.init_lambda
+            self.models.append(model_name)  # Last: select_arm sees it only after state is ready
 
     def delete_arm(self, model_name: str) -> None:
-        """Remove an arm from the bandit."""
-        if model_name in self.models:
-            self.models.remove(model_name)
-        if model_name in self.A: del self.A[model_name]
-        if model_name in self.b: del self.b[model_name]
-        if model_name in self.A_inv: del self.A_inv[model_name]
-        if model_name in self.last_update: del self.last_update[model_name]
+        """Remove an arm from the bandit.
+        
+        [BUG FIX M4]: Wrap in lock and clean up regularization_floor and
+        model_locks to prevent unbounded memory growth under model churn.
+        """
+        with self._lock:
+            if model_name in self.models:
+                self.models.remove(model_name)
+            if model_name in self.A: del self.A[model_name]
+            if model_name in self.b: del self.b[model_name]
+            if model_name in self.A_inv: del self.A_inv[model_name]
+            if model_name in self.last_update: del self.last_update[model_name]
+            if model_name in self.regularization_floor: del self.regularization_floor[model_name]
+            if model_name in self.model_locks: del self.model_locks[model_name]
 
     def refresh_inverse_cache(self) -> None:
         """
@@ -626,24 +652,58 @@ class DisjointLinUCBPolicy:
         
         return best_model, float(best_ucb)
     
-    def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000) -> Dict[str, float]:
-        """Calculate the probability of each model being the best via posterior sampling."""
+    def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000,
+                          noise_variance: float = 0.25) -> Dict[str, float]:
+        """
+        Calculate the probability of each model being the best via posterior sampling.
+        
+        The Bayesian posterior for ridge regression is:
+            θ | D ~ N(A⁻¹b,  σ² · A⁻¹)
+        
+        Args:
+            x: Context vector
+            models: List of model IDs to compare
+            n_samples: Number of Monte Carlo samples (default: 1000)
+            noise_variance: σ² for the posterior covariance.  Default 0.25 is the
+                           variance of a Bernoulli(0.5) reward, appropriate for
+                           binary win/loss feedback.  Override for non-binary rewards.
+        
+        Returns:
+            Dictionary mapping model_id -> probability of being the best
+        
+        [BUG FIX]: Previously sampled from N(θ_hat, A_inv) which implicitly
+        assumed σ²=1.  With binary rewards, σ²≈0.25, so the old code
+        overestimated posterior variance by ~4×, producing artificially
+        uniform probability estimates.
+        """
         model_samples = {}
         valid_models = [m for m in models if m in self.A]
         
         snapshots = {}
         with self._lock:
             for m in valid_models:
-                A_inv_m = self.A_inv[m]
+                A_inv_m = self.A_inv[m].copy()
                 theta_hat = A_inv_m @ self.b[m]
-                snapshots[m] = (A_inv_m, theta_hat)
+                # [BUG FIX M1]: Capture staleness info so we can inflate the
+                # posterior covariance for models that haven't been updated recently.
+                # Without this, get_probabilities() is artificially tight for stale
+                # models, disagreeing with select_arm() which correctly inflates.
+                dt = self.t - self.last_update.get(m, 0)
+                snapshots[m] = (A_inv_m, theta_hat, dt)
         
         if not snapshots: return {m: 0.0 for m in models}
         
-        for m, (A_inv_m, theta_hat) in snapshots.items():
-            # Sample weights from the posterior N(theta_hat, A_inv)
-            # Computation is outside global lock to maintain latency
-            samples = np.random.multivariate_normal(theta_hat, A_inv_m, n_samples)
+        for m, (A_inv_m, theta_hat, dt) in snapshots.items():
+            # Sample weights from the posterior N(theta_hat, σ² · A_inv_eff)
+            # When gamma < 1.0, A_effective = A_stored * gamma^dt, so
+            # A_inv_effective = A_inv_stored / gamma^dt.  This inflates the
+            # posterior for stale models, matching select_arm() behavior.
+            if self.gamma < 1.0 and dt > 0:
+                decay_factor = self.gamma ** min(dt, 1000)
+                cov = noise_variance * A_inv_m / max(decay_factor, 1e-12)
+            else:
+                cov = noise_variance * A_inv_m
+            samples = np.random.multivariate_normal(theta_hat, cov, n_samples)
             model_samples[m] = samples @ x
             
         # Determine how many times each model was the winner across samples
@@ -749,10 +809,19 @@ class DisjointLinUCBPolicy:
                     self.regularization_floor[model] = new_lambda  # Update tracker
                     new_A = self.A[model] * decay_factor
                     new_b = self.b[model] * decay_factor
+                    # [BUG FIX]: Update A_inv to match decayed A.
+                    # Since A_new = A_old * gamma^dt, the correct inverse is:
+                    #   A_inv_new = A_inv_old / gamma^dt
+                    # Without this, Sherman-Morrison below applies its rank-1
+                    # correction to a stale pre-decay inverse, causing the cached
+                    # A_inv to drift arbitrarily far from the true inv(A) over
+                    # successive updates.  O(d²) scalar division — no perf hit.
+                    new_A_inv = self.A_inv[model] / decay_factor
                     
                     with self._lock:
                         self.A[model] = new_A
                         self.b[model] = new_b
+                        self.A_inv[model] = new_A_inv
                         self.last_update[model] = self.t
             
             # 3. Standard Sherman-Morrison Update (Data Integration)
@@ -845,9 +914,16 @@ class DisjointLinUCBPolicy:
                 f"Triggering regularization reset."
             )
             
-            # Reset matrix with fresh regularization
-            self.A[model] += config.init_lambda * np.eye(self.dim)
-            self.A_inv[model] = safe_inv(self.A[model])
+            # [BUG FIX C2]: Acquire per-model lock, then global lock, before
+            # mutating A and A_inv.  Without locking, a concurrent select_arm()
+            # could read A_inv between the += and the safe_inv(), observing an
+            # inconsistent (A, A_inv) pair.  NumPy releases the GIL during
+            # matrix operations, making this a real race even in CPython.
+            with self.model_locks[model]:
+                self.A[model] += config.init_lambda * np.eye(self.dim)
+                new_A_inv = safe_inv(self.A[model])
+                with self._lock:
+                    self.A_inv[model] = new_A_inv
             
             # Verify fix
             new_trace = np.trace(self.A_inv[model])
@@ -952,6 +1028,7 @@ class RoutingLog:
     cluster_similarity: float | None = None  # Similarity to cluster centroid
     context_vector: np.ndarray | None = None # Cached embedding for updates
     total_priority_weight: float = 1.0       # Sum of w_q, w_c, w_l for normalization
+    corralling_token: Dict | None = None     # Selection token for Corralling meta-weight attribution
 
 class BanditRouter:
     """
@@ -1118,7 +1195,9 @@ class BanditRouter:
         # At 100 QPS with ~500 bytes/log, 10k entries ≈ 5MB max footprint.
         # Oldest logs are automatically evicted when buffer is full.
         # IMPORTANT: process_feedback() must be called before log is evicted!
-        self.logs: deque[RoutingLog] = deque(maxlen=RouterConfig.max_log_size)
+        # [BUG FIX]: Use instance config, not class default, so custom
+        # RouterConfig(max_log_size=...) is respected.
+        self.logs: deque[RoutingLog] = deque(maxlen=self.config.max_log_size)
         # [Paper REVIEW FIX]: Parallel index for O(1) feedback lookups
         self.log_index: Dict[str, RoutingLog] = {}
         self.model_priors: Dict[str, float] = {} 
@@ -1149,36 +1228,60 @@ class BanditRouter:
         """
         Custom deepcopy for BanditRouter to handle unpicklable components.
         
-        1. Shared Encoder: The SentenceTransformer is stateless and contains 
-           locks. We share it across clones rather than copying.
-        2. Bandit Policy: Uses its own custom __deepcopy__ for its internal lock.
-        3. Context Store: Re-initialized or shared depending on type.
+        [BUG FIX]: Previous version referenced non-existent attributes
+        (anchor_vectors, complexity_vector, cluster_detector) and omitted
+        many attributes that exist in __init__, producing a broken clone.
+        
+        Strategy:
+        1. SHARE stateless / lock-containing objects (encoder, features, context_store)
+        2. DEEPCOPY all mutable state (bandit, corralling, logs, counters, config)
+        3. COPY scalar / immutable values directly
         """
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
         
-        # Copy configuration and registry
+        # --- Configuration (deepcopy to isolate) ---
         result.config = copy.deepcopy(self.config, memo)
         result.registry = copy.deepcopy(self.registry, memo)
         
-        # SHARE the encoder (stateless, contains locks)
+        # --- Feature Service (SHARE: stateless, contains locks & GPU state) ---
+        result.features = self.features
         result.encoder = self.encoder
+        result.pca = self.pca  # PCA model is read-only after init
         
-        # Deepcopy the bandit policy (calls its custom __deepcopy__)
+        # --- Bandit Policy (deepcopy: has its own __deepcopy__ for locks) ---
         result.bandit = copy.deepcopy(self.bandit, memo)
         
-        # Re-copy other stateful/cached components
-        result.pca = copy.deepcopy(self.pca, memo)
-        result.anchor_vectors = copy.deepcopy(self.anchor_vectors, memo)
-        result.complexity_vector = copy.deepcopy(self.complexity_vector, memo)
-        result.cluster_detector = copy.deepcopy(self.cluster_detector, memo)
-        result.logs = copy.deepcopy(self.logs, memo)
-        result.model_priors = copy.deepcopy(self.model_priors, memo)
-        result.probation_models = copy.deepcopy(self.probation_models, memo)
-        result._feature_map = copy.deepcopy(self._feature_map, memo)
+        # --- Corralling (deepcopy: independent mutable state) ---
+        result.use_corralling = self.use_corralling
+        result.corralling_learning_rate = self.corralling_learning_rate
+        result.corralling_gamma = self.corralling_gamma
+        result.corralling_router = copy.deepcopy(self.corralling_router, memo) if self.corralling_router else None
         
-        # Handle Context Store: Share the connection
+        # --- Logs and Counters (deepcopy: mutable collections) ---
+        result.logs = copy.deepcopy(self.logs, memo)
+        result.log_index = copy.deepcopy(self.log_index, memo)
+        result.model_priors = copy.deepcopy(self.model_priors, memo)
+        result.model_counts = copy.deepcopy(self.model_counts, memo)
+        result.probation_models = copy.deepcopy(self.probation_models, memo)
+        
+        # --- Scalar / Immutable Settings (direct copy) ---
+        result.verbose_routing = self.verbose_routing
+        result.cluster_boost_weight = self.cluster_boost_weight
+        result._feature_map = copy.deepcopy(self._feature_map, memo)
+        result._toxicity_scanner = None  # Lazy-init; don't share
+        
+        # --- Precomputed Market Anchors (scalars) ---
+        result._market_cost_floor = self._market_cost_floor
+        result._market_cost_floor_log = self._market_cost_floor_log
+        result._market_cost_range = self._market_cost_range
+        result._market_lat_floor = self._market_lat_floor
+        result._market_lat_floor_log = self._market_lat_floor_log
+        result._market_lat_range = self._market_lat_range
+        
+        # --- Context Store (SHARE: DB connection, thread-safe) ---
+        result.context_store = self.context_store
         
         return result
 
@@ -1341,12 +1444,13 @@ class BanditRouter:
             )
             
             # Use neighbor bootstrapping with dynamic prior strength
+            # [BUG FIX]: Removed phantom `alpha=0.8` keyword that does not exist
+            # in admix_theta_from_neighbors() signature, causing TypeError at runtime.
             A_init, b_init = self.admix_theta_from_neighbors(
                 model_id=model_id,
                 registry=self.registry,
                 bandit=self.bandit,
                 encoder=self.encoder,
-                alpha=0.8,  # DEPRECATED: kept for API compatibility
                 n_effective=n_effective  # Dynamic prior strength based on similarity
             )
             
@@ -2480,7 +2584,9 @@ class BanditRouter:
             RoutingLog object
         """
         log = RoutingLog(
-            request_id=str(time.time_ns()),
+            # [BUG FIX L1]: Use uuid4 instead of time.time_ns() to avoid
+            # request_id collisions at high QPS (clock resolution varies by OS).
+            request_id=str(uuid.uuid4()),
             timestamp_s=time.time(),
             prompt=prompt_text,
             selected_model=model,
@@ -2558,11 +2664,17 @@ class BanditRouter:
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
         
         # Use Corralling if enabled, otherwise fall back to simple LinUCB
+        corralling_token = None
         if self.use_corralling and self.corralling_router is not None:
             # Pass total_steps to enable proper alpha decay in experts
             # For experiments: Pass actual timestep for decay schedule
             # For production: Default total_steps=1 uses alpha_end (stable exploitation)
-            best_model = self.corralling_router.select_model(x, total_steps=total_steps)
+            # [BUG FIX]: Pass filtered candidates so cost/latency/quality constraints
+            # are enforced.  Previously, corralling selected from ALL models,
+            # silently ignoring max_cost, max_latency, and quality_floor.
+            best_model, corralling_token = self.corralling_router.select_model(
+                x, total_steps=total_steps, candidates=filtered
+            )
             best_utility = 0.0  # Placeholder, corralling doesn't expose utility
         else:
             # Fallback: Simple LinUCB selection (UCB only, no cost penalty)
@@ -2574,6 +2686,11 @@ class BanditRouter:
         log = self._create_routing_log(
             prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
         )
+        # [BUG FIX C1]: Store corralling selection token in the log so that
+        # process_feedback() can pass the correct (expert_idx, expert_prob)
+        # back to CorrallingRouter.update().  This ties the importance-weighted
+        # estimator to the exact probability that produced this selection.
+        log.corralling_token = corralling_token
         
         return best_model, log
     
@@ -2644,7 +2761,12 @@ class BanditRouter:
         
         # Update corralling router if enabled
         if self.use_corralling and self.corralling_router is not None:
-            self.corralling_router.update(x, log.selected_model, boosted_reward)
+            # [BUG FIX C1]: Pass the selection token so the importance-weighted
+            # meta-weight update uses the correct expert_idx and probability.
+            self.corralling_router.update(
+                x, log.selected_model, boosted_reward,
+                selection_token=getattr(log, 'corralling_token', None)
+            )
         else:
             # Fallback: Update bandit directly
             self.bandit.update(log.selected_model, x, boosted_reward)
@@ -2664,16 +2786,27 @@ class BanditRouter:
         return self.bandit.get_probabilities(x, models)
 
     def update(self, model_id: str, context: str | np.ndarray, reward: float, weight: float = 1.0) -> None:
-        """Update the bandit's internal state with a new observation."""
-        x = self.features.extract_features(context)
-        self.bandit.update(model_id, x, reward, weight)
+        """
+        Update the router with a new observation.
         
-        # [CRITICAL FIX] Propagate feedback to Corralling Router (and Experts)
-        # The experts need to see the reward to learn and adapt. Without this,
-        # they remain frozen at their initialization state, making the heterogeneous
-        # strategy completely non-functional.
+        [BUG FIX]: Previously updated BOTH self.bandit AND self.corralling_router
+        when corralling was enabled.  Now mirrors the exclusive-OR pattern used
+        by process_feedback(): update corralling if enabled, otherwise update
+        the base bandit.
+        
+        Note: When called externally (without a preceding select_model()), no
+        selection_token is available, so only the base experts learn — the
+        meta-weights are not updated.  This is correct: the importance-weighted
+        estimator requires the probability from the specific selection call.
+        """
+        x = self.features.extract_features(context)
+        
         if self.use_corralling and self.corralling_router:
-            self.corralling_router.update(x, model_id, reward)
+            # [BUG FIX M3]: Propagate weight so difficulty-based weighting
+            # isn't silently dropped under Corralling.
+            self.corralling_router.update(x, model_id, reward, weight=weight)
+        else:
+            self.bandit.update(model_id, x, reward, weight)
         
         # Periodic stability check (cheap O(d) operation)
         # Prevents numerical instability in low-traffic arms when update_lambda=0
@@ -3052,8 +3185,6 @@ class CorrallingRouter:
         # Diagnostics
         self.expert_selections = [0] * self.n_experts
         self.selections = {m: 0 for m in models}
-        self.last_expert_idx = None
-        self.last_expert_prob = None  # Track actual prob used for selection
     
     def _get_mixed_distribution(self) -> np.ndarray:
         """
@@ -3066,7 +3197,8 @@ class CorrallingRouter:
         uniform_dist = np.ones(self.n_experts) / self.n_experts
         return (1 - self.gamma) * self.weights + self.gamma * uniform_dist
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0,
+                     candidates: List[str] | None = None) -> Tuple[str, Dict]:
         """
         Select model using the MIXED distribution (prevents Expert Death).
         
@@ -3075,91 +3207,132 @@ class CorrallingRouter:
         Args:
             context: Context vector for selection
             total_steps: Total training steps (passed to experts for alpha decay)
+            candidates: Optional list of eligible model IDs after constraint filtering.
+                       If provided, experts will only score these models.
+                       If None, experts score all models (backward-compatible default).
         
         Returns:
-            Selected model ID
+            Tuple of (selected_model_id, selection_token).
+            The selection_token must be passed back to update() for correct
+            importance-weighted meta-weight attribution.  Without it, the
+            meta-weight update is skipped (only base experts learn).
         """
         # [FIX] Use mixed distribution instead of raw weights
         probs = self._get_mixed_distribution()
         
         expert_idx = np.random.choice(self.n_experts, p=probs)
         
-        self.last_expert_idx = expert_idx
-        self.last_expert_prob = probs[expert_idx]  # Save for unbiased update
         self.expert_selections[expert_idx] += 1
         
-        # Ask that expert which model to use (pass through total_steps)
-        model = self.experts[expert_idx].select_model(context, total_steps=total_steps)
+        # Ask that expert which model to use (pass through total_steps and candidates)
+        model = self.experts[expert_idx].select_model(
+            context, total_steps=total_steps, candidates=candidates
+        )
         
         # Initialize counter if this is a new model (defensive programming for dynamic registration)
         if model not in self.selections:
             self.selections[model] = 0
         self.selections[model] += 1
         
-        return model
+        # [BUG FIX C1]: Return a selection token instead of storing state on self.
+        # Previously, last_expert_idx/last_expert_prob were instance-level scalars
+        # that could be overwritten by concurrent select_model() calls or be stale
+        # when update() is called via the external BanditRouter.update() path.
+        # The token ties the probability to the specific selection, ensuring the
+        # importance-weighted estimator in update() uses the correct denominator.
+        selection_token = {
+            "expert_idx": int(expert_idx),
+            "expert_prob": float(probs[expert_idx]),
+        }
+        
+        return model, selection_token
     
-    def update(self, context: np.ndarray, model: str, reward: float):
+    def update(self, context: np.ndarray, model: str, reward: float,
+               selection_token: Dict | None = None, weight: float = 1.0):
         """
-        Update weights using Importance-Weighted Loss with Mixed Probability.
+        Two-level update: meta-weights (which expert to trust) + base-level
+        (each expert's internal LinUCB learning).
         
-        **Importance-Weighted Loss Estimation (Corralling Algorithm):**
-        Based on Agarwal et al. (2017), we use unbiased loss estimation:
-        - Only the CHOSEN expert gets updated based on the actual outcome
-        - Loss is weighted by 1/p (inverse selection probability) for unbiased estimation
-        - Non-chosen experts get 0 loss (we don't observe counterfactuals)
+        **Level 1 — Meta-Weight Update (Importance-Weighted Loss):**
+        Only performed when a valid `selection_token` is provided (returned by
+        `select_model()`).  The chosen expert is penalised with loss scaled by
+        1/p_chosen for an unbiased estimator (Exp4-style).  Non-chosen experts
+        receive 0 meta-loss because we didn't test their recommendation.
         
-        **Critical Fix (Paper Reviewer):**
-        We MUST use the MIXED probability (p_t) for the estimator denominator, not raw weights.
-        If we used raw weights, the estimator would be biased. Since p_t >= gamma/K, 
-        this term is bounded (max loss <= K/gamma), preventing numerical instability.
+        When `selection_token` is None (e.g. external `BanditRouter.update()`
+        calls without a preceding `select_model()`), the meta-weight update is
+        skipped entirely.  This prevents using stale or mismatched probabilities
+        which would yield a biased importance-weighted estimator.
         
-        This ensures that:
-        1. Experts are only penalized for decisions they actually made
-        2. The weight update is unbiased (no artificial volatility)
-        3. Bad experts naturally get downweighted over time
-        4. No expert can be permanently "killed" (Expert Death prevention)
+        **Level 2 — Base Algorithm Update (All Experts Learn):**
+        ALL experts' internal bandits observe (context, model_played, reward).
+        This is critical for Corralling correctness:
         
-        **Overhead:** O(1) - just update the chosen expert's loss.
+        [BUG FIX] Previously only the chosen expert's bandit was updated.
+        This caused a starvation death spiral:
+          1. Warmup expert starts stronger → gets more meta-weight
+          2. More weight → more selections → more updates → learns faster
+          3. Tabula rasa starved of data → can never catch up
+          4. Tabula rasa becomes useless as a safety net against prior mismatch
+        
+        In Exp4/Corralling, base algorithms must see all feedback to maintain
+        valid internal policies.  The meta-learner decides which expert to
+        *trust*, but every expert should *learn* from every observation.
+        
+        **Overhead:** K expert updates instead of 1 (K=2 typically → 2× update cost,
+        negligible compared to LLM inference latency).
         
         Args:
             context: Context vector used for selection
             model: Model that was selected
             reward: Observed reward (0-1 typically)
+            selection_token: Token returned by select_model() containing the
+                expert index and probability used for this selection.  Required
+                for correct importance-weighted meta-weight attribution.
+                If None, only base experts are updated (no meta-weight change).
         """
-        # Convert reward to loss
-        observed_loss = 1.0 - reward
+        # ===================================================================
+        # LEVEL 1: Meta-Weight Update (which expert to trust)
+        # ===================================================================
+        # [BUG FIX C1]: Only update meta-weights when we have a valid token
+        # from the select_model() call that produced this observation.
+        # Previously, last_expert_idx/prob were instance-level scalars that
+        # could be stale or overwritten by concurrent calls, yielding a
+        # biased importance-weighted estimator.
+        if selection_token is not None:
+            expert_idx = selection_token["expert_idx"]
+            p_chosen = selection_token["expert_prob"]
+            
+            # Convert reward to loss
+            observed_loss = 1.0 - reward
+            
+            # Initialize loss vector
+            losses = np.zeros(self.n_experts)
+            
+            # Importance-Weighted Estimator: l_hat = l_obs / p_chosen
+            # Since p_t >= gamma/K, the estimator is bounded (max loss <= K/gamma).
+            # Only the chosen expert is penalised — we didn't test others' advice.
+            losses[expert_idx] = observed_loss / p_chosen
+            
+            # Apply exponential decay before adding new losses (non-stationarity)
+            self.cumulative_losses *= self.loss_decay
+            self.cumulative_losses += losses
+            
+            # Exp4 Update: w_i ∝ exp(-eta * cumulative_loss_i)
+            log_weights = -self.learning_rate * self.cumulative_losses
+            log_weights -= log_weights.max()  # Numerical stability
+            self.weights = np.exp(log_weights)
+            self.weights /= self.weights.sum()
         
-        # Initialize loss vector
-        losses = np.zeros(self.n_experts)
-        
-        # [FIX] Use the MIXED probability (p_t) for the estimator denominator
-        # If we used raw weights, the estimator would be biased.
-        # Since p_t >= gamma/K, this term is bounded (max loss <= K/gamma).
-        p_chosen = self.last_expert_prob
-        
-        # Importance-Weighted Estimator: l_hat = l_obs / p_chosen
-        losses[self.last_expert_idx] = observed_loss / p_chosen
-        
-        # Non-chosen experts get 0 loss (we didn't observe their counterfactual outcome)
-        # This is correct because we're estimating expected loss over the selection distribution
-        
-        # [Paper REVIEW FIX]: Apply exponential decay before adding new losses
-        # This prevents weight collapse in non-stationary environments by giving
-        # more weight to recent observations and less weight to old history.
-        # Without decay: cumulative_losses grows indefinitely → weights fossilize
-        # With decay: cumulative_losses = decay * old + new → weights adapt
-        self.cumulative_losses *= self.loss_decay
-        self.cumulative_losses += losses
-        
-        # Standard Exp4 Update: w_i ∝ exp(-eta * loss_i)
-        # This exponentially downweights bad experts
-        log_weights = -self.learning_rate * self.cumulative_losses
-        log_weights -= log_weights.max()  # Numerical stability
-        self.weights = np.exp(log_weights)
-        self.weights /= self.weights.sum()  # Normalize to probability distribution
-        
-        # Update the expert that was actually used
-        self.experts[self.last_expert_idx].update(context, model, reward)
+        # ===================================================================
+        # LEVEL 2: Base Algorithm Update (all experts learn)
+        # ===================================================================
+        # Every expert's internal bandit observes (context, model_played, reward).
+        # This prevents starvation and lets the tabula rasa expert build an
+        # informed policy even when it's not the one being selected.
+        # [BUG FIX M3]: Pass through the weight for importance/difficulty weighting.
+        for expert in self.experts:
+            expert.update(context, model, reward, weight)
     
     def get_expert_weights(self) -> Dict[str, float]:
         """Get current expert weights for diagnostics."""
@@ -3383,11 +3556,18 @@ class CostAwareLinUCBRouter:
                     scale_factor = target_max_pred / abs(pred)
                     logger.warning(
                         f"🔧 Auto-calibrating prior for {m}: "
-                        f"Raw prediction {pred:.2f} -> Rescaling b-vector by {scale_factor:.4e} "
-                        f"to target prediction {target_max_pred}"
+                        f"Raw prediction {pred:.2f} -> Rescaling bias component of b "
+                        f"by {scale_factor:.4e} to target prediction {target_max_pred}"
                     )
-                    # Apply fix: Scale b only (preserves confidence/A, fixes magnitude/θ)
-                    self.b[m] *= scale_factor
+                    # [BUG FIX M2]: Only rescale the bias component of b, not
+                    # the entire vector.  The probe only tests the bias dimension
+                    # (dummy_x = [0,...,0,1]), so the explosion is in theta[-1].
+                    # Globally scaling b would destroy learned contextual/semantic
+                    # preferences in dimensions 0..d-2 by the same factor (e.g.
+                    # if theta[-1]=800 and scale=0.001, all semantic weights get
+                    # shrunk 1000×, effectively erasing 80k battles of signal).
+                    bias_idx = self.context_dim - 1
+                    self.b[m][bias_idx] *= scale_factor
                     
             except Exception as e:
                 logger.warning(f"Failed to calibrate prior for {m}: {e}")
@@ -3458,7 +3638,8 @@ class CostAwareLinUCBRouter:
         fraction = min(self.t / total_steps, 1.0)
         return self.alpha_start + fraction * (self.alpha_end - self.alpha_start)
     
-    def select_model(self, context, total_steps: int = 0):
+    def select_model(self, context, total_steps: int = 0,
+                     candidates: List[str] | None = None):
         """
         Select best model using cost-aware LinUCB with dynamic alpha-decay.
         
@@ -3474,6 +3655,8 @@ class CostAwareLinUCBRouter:
         Args:
             context: Context vector (numpy array)
             total_steps: Total training steps (0 during evaluation for fixed α_end)
+            candidates: Optional list of eligible model IDs (constraint-filtered).
+                       If None, all models are scored.
         
         Returns:
             Selected model identifier (string)
@@ -3481,7 +3664,8 @@ class CostAwareLinUCBRouter:
         alpha = self.get_current_alpha(total_steps)
         ucb_scores = {}
         
-        for model in self.models:
+        eligible = candidates if candidates is not None else self.models
+        for model in eligible:
             # [PERFORMANCE FIX]: Use cached A_inv instead of recomputing O(d³) inverse
             A_inv = self.A_inv[model]
             theta = A_inv @ self.b[model]
@@ -3494,7 +3678,7 @@ class CostAwareLinUCBRouter:
         
         return max(ucb_scores, key=ucb_scores.get)
     
-    def update(self, context, model, reward):
+    def update(self, context, model, reward, weight: float = 1.0):
         """
         Update model's A and b matrices with new observation using Sherman-Morrison.
         
@@ -3503,8 +3687,8 @@ class CostAwareLinUCBRouter:
         full inversion when denominator becomes too small (numerical stability).
         
         Standard LinUCB update:
-        - A += context · context^T
-        - b += reward · context
+        - A += weight · context · context^T
+        - b += weight · reward · context
         - A_inv updated via Sherman-Morrison or fallback
         - t += 1
         
@@ -3512,29 +3696,32 @@ class CostAwareLinUCBRouter:
             context: Context vector used for selection
             model: Model that was selected
             reward: Observed reward (0-1 typically)
+            weight: Importance/difficulty weight (default 1.0)
         """
         x = context.flatten()
         
-        # Sherman-Morrison inverse update (O(d²))
-        # Formula: (A + xx^T)^{-1} = A^{-1} - (A^{-1}x)(x^T A^{-1}) / (1 + x^T A^{-1} x)
+        # [BUG FIX M3]: Apply weight to the outer product for importance weighting.
+        # When weight != 1.0, the update is A += w*xx^T, b += w*r*x.
+        # Sherman-Morrison for rank-1 update A + w*xx^T:
+        #   (A + w*xx^T)^{-1} = A^{-1} - w*(A^{-1}x)(x^T A^{-1}) / (1 + w*x^T A^{-1} x)
         A_inv_current = self.A_inv[model]
         A_inv_x = A_inv_current @ x
-        denominator = 1.0 + (x @ A_inv_x)
+        denominator = 1.0 + weight * (x @ A_inv_x)
         
         if abs(denominator) > 1e-6:
             # Safe to use Sherman-Morrison formula
-            self.A_inv[model] = A_inv_current - np.outer(A_inv_x, A_inv_x) / denominator
-            self.A[model] += np.outer(x, x)
-            self.b[model] += reward * x
+            self.A_inv[model] = A_inv_current - weight * np.outer(A_inv_x, A_inv_x) / denominator
+            self.A[model] += weight * np.outer(x, x)
+            self.b[model] += weight * reward * x
         else:
             # Fallback: Denominator too small, recompute inverse with regularization
             logger.warning(
                 f"⚠️ Sherman-Morrison near-singularity for {model}: "
                 f"|denominator|={abs(denominator):.2e} < 1e-6. Recomputing inverse."
             )
-            self.A[model] += np.outer(x, x)
+            self.A[model] += weight * np.outer(x, x)
             self.A_inv[model] = safe_inv(self.A[model])
-            self.b[model] += reward * x
+            self.b[model] += weight * reward * x
         
         self.t += 1
     
@@ -3641,7 +3828,8 @@ class CostAwareTabulaRasaRouter:
         fraction = min(self.t / total_steps, 1.0)
         return self.alpha_start + fraction * (self.alpha_end - self.alpha_start)
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0,
+                     candidates: List[str] | None = None) -> str:
         """
         Select model using cost-aware UCB with dynamic α (tabula rasa, no priors).
         
@@ -3650,6 +3838,8 @@ class CostAwareTabulaRasaRouter:
         Args:
             context: PCA-transformed prompt embedding
             total_steps: Total training steps (0 during evaluation for fixed α_end)
+            candidates: Optional list of eligible model IDs (constraint-filtered).
+                       If None, all models are scored.
         
         Returns:
             Selected model ID
@@ -3657,7 +3847,8 @@ class CostAwareTabulaRasaRouter:
         alpha = self.get_current_alpha(total_steps)
         ucb_scores = {}
         
-        for model in self.models:
+        eligible = candidates if candidates is not None else self.models
+        for model in eligible:
             # [PERFORMANCE FIX]: Use cached A_inv instead of recomputing O(d³) inverse
             A_inv = self.A_inv[model]
             theta = A_inv @ self.b[model]
@@ -3670,34 +3861,40 @@ class CostAwareTabulaRasaRouter:
         
         return max(ucb_scores, key=ucb_scores.get)
     
-    def update(self, context: np.ndarray, model: str, reward: float):
+    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
         """
         Update using standard LinUCB update with Sherman-Morrison inverse update.
         
         [PERFORMANCE FIX]: Now uses O(d²) Sherman-Morrison formula to incrementally
         update A_inv instead of recomputing from scratch (O(d³)).
+        
+        Args:
+            context: Context vector
+            model: Model that was selected
+            reward: Observed reward
+            weight: Importance/difficulty weight (default 1.0)
         """
         x = context.flatten()
         
-        # Sherman-Morrison inverse update (O(d²))
+        # Sherman-Morrison inverse update for weighted rank-1: A + w*xx^T
         A_inv_current = self.A_inv[model]
         A_inv_x = A_inv_current @ x
-        denominator = 1.0 + (x @ A_inv_x)
+        denominator = 1.0 + weight * (x @ A_inv_x)
         
         if abs(denominator) > 1e-6:
             # Safe to use Sherman-Morrison formula
-            self.A_inv[model] = A_inv_current - np.outer(A_inv_x, A_inv_x) / denominator
-            self.A[model] += np.outer(x, x)
-            self.b[model] += reward * x
+            self.A_inv[model] = A_inv_current - weight * np.outer(A_inv_x, A_inv_x) / denominator
+            self.A[model] += weight * np.outer(x, x)
+            self.b[model] += weight * reward * x
         else:
             # Fallback: Denominator too small, recompute inverse
             logger.warning(
                 f"⚠️ Sherman-Morrison near-singularity for {model}: "
                 f"|denominator|={abs(denominator):.2e} < 1e-6. Recomputing inverse."
             )
-            self.A[model] += np.outer(x, x)
+            self.A[model] += weight * np.outer(x, x)
             self.A_inv[model] = safe_inv(self.A[model])
-            self.b[model] += reward * x
+            self.b[model] += weight * reward * x
         
         self.t += 1
     

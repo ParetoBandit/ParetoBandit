@@ -28,10 +28,10 @@ class DeterministicExpert:
         self.favorite_model = favorite_model
         self.update_count = 0
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0, **kwargs) -> str:
         return self.favorite_model
     
-    def update(self, context, model, reward, cost=0.0):
+    def update(self, context, model, reward, weight=1.0, cost=0.0):
         self.update_count += 1
 
 
@@ -44,13 +44,13 @@ class AdaptiveExpert:
         self.threshold = threshold
         self.update_count = 0
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0, **kwargs) -> str:
         # Select based on context sum
         if np.sum(context) > self.threshold:
             return self.models[0]
         return self.models[1]
     
-    def update(self, context, model, reward, cost=0.0):
+    def update(self, context, model, reward, weight=1.0, cost=0.0):
         self.update_count += 1
 
 
@@ -64,12 +64,12 @@ class SmartExpert:
         self.explore_rate = explore_rate
         self.update_count = 0
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0, **kwargs) -> str:
         if np.random.random() < self.explore_rate:
             return np.random.choice([m for m in self.models if m != self.best_model])
         return self.best_model
     
-    def update(self, context, model, reward, cost=0.0):
+    def update(self, context, model, reward, weight=1.0, cost=0.0):
         self.update_count += 1
 
 
@@ -164,7 +164,7 @@ class TestCorrallingSelection:
         
         # Run multiple selections
         for _ in range(100):
-            selected = router.select_model(context)
+            selected, _token = router.select_model(context)
             assert selected in models, f"Selected model {selected} not in {models}"
     
     def test_expert_sampling_distribution(self):
@@ -187,8 +187,8 @@ class TestCorrallingSelection:
         # Sample many times
         np.random.seed(42)
         for _ in range(n_trials):
-            router.select_model(context)
-            expert_selections.append(router.last_expert_idx)
+            _, token = router.select_model(context)
+            expert_selections.append(token["expert_idx"])
         
         # With uniform weights, should be roughly 50/50
         count_0 = sum(1 for e in expert_selections if e == 0)
@@ -245,8 +245,8 @@ class TestCorrallingUpdate:
         initial_weights = router.weights.copy()
         
         # Select and update
-        selected_model = router.select_model(context)
-        router.update(context, selected_model, reward=0.8)
+        selected_model, token = router.select_model(context)
+        router.update(context, selected_model, reward=0.8, selection_token=token)
         
         # Weights should have changed
         assert not np.allclose(router.weights, initial_weights), \
@@ -268,9 +268,9 @@ class TestCorrallingUpdate:
         
         # Run many updates
         for i in range(100):
-            selected = router.select_model(context)
+            selected, token = router.select_model(context)
             reward = 0.5 + 0.4 * np.sin(i)  # Varying rewards
-            router.update(context, selected, reward)
+            router.update(context, selected, reward, selection_token=token)
             
             # Check weight sum
             weight_sum = router.weights.sum()
@@ -294,8 +294,8 @@ class TestCorrallingUpdate:
         
         # Run updates with imperfect rewards
         for _ in range(50):
-            selected = router.select_model(context)
-            router.update(context, selected, reward=0.6)  # < 1.0, so there's loss
+            selected, token = router.select_model(context)
+            router.update(context, selected, reward=0.6, selection_token=token)  # < 1.0, so there's loss
         
         # Cumulative losses should have increased
         assert router.cumulative_losses.sum() > initial_losses.sum(), \
@@ -318,12 +318,16 @@ class TestCorrallingUpdate:
         
         # Run updates
         for _ in range(20):
-            selected = router.select_model(context)
-            router.update(context, selected, reward=0.8)
+            selected, token = router.select_model(context)
+            router.update(context, selected, reward=0.8, selection_token=token)
         
-        # Both experts should have received some updates
+        # All experts observe every update (Corralling fix: base algorithms
+        # must see all feedback).  With 2 experts and 20 rounds, each expert
+        # gets 20 updates → 40 total.
         total_updates = expert1.update_count + expert2.update_count
-        assert total_updates == 20, f"Expected 20 updates total, got {total_updates}"
+        assert total_updates == 40, f"Expected 40 updates total (2 experts × 20 rounds), got {total_updates}"
+        assert expert1.update_count == 20, f"Expert 1 should have 20 updates, got {expert1.update_count}"
+        assert expert2.update_count == 20, f"Expert 2 should have 20 updates, got {expert2.update_count}"
 
 
 # =============================================================================
@@ -354,7 +358,7 @@ class TestCorrallingLearning:
         
         # Simulate environment where model_a is always better
         for _ in range(100):
-            selected = router.select_model(context)
+            selected, token = router.select_model(context)
             
             # Reward based on which model was selected
             if selected == "model_a":
@@ -362,7 +366,7 @@ class TestCorrallingLearning:
             else:
                 reward = 0.3
             
-            router.update(context, selected, reward)
+            router.update(context, selected, reward, selection_token=token)
         
         # Good expert should have more weight
         assert router.weights[0] > router.weights[1], \
@@ -386,17 +390,17 @@ class TestCorrallingLearning:
         
         # Phase 1: model_a is better
         for _ in range(50):
-            selected = router.select_model(context)
+            selected, token = router.select_model(context)
             reward = 0.9 if selected == "model_a" else 0.3
-            router.update(context, selected, reward)
+            router.update(context, selected, reward, selection_token=token)
         
         weights_phase1 = router.weights.copy()
         
         # Phase 2: model_b becomes better (distribution shift)
         for _ in range(100):
-            selected = router.select_model(context)
+            selected, token = router.select_model(context)
             reward = 0.3 if selected == "model_a" else 0.9  # Reversed!
-            router.update(context, selected, reward)
+            router.update(context, selected, reward, selection_token=token)
         
         weights_phase2 = router.weights.copy()
         
@@ -434,15 +438,15 @@ class TestCorrallingLearning:
         np.random.seed(42)
         for _ in range(50):
             # Slow router
-            selected_slow = router_slow.select_model(context)
+            selected_slow, token_slow = router_slow.select_model(context)
             reward = 0.9 if selected_slow == "model_a" else 0.3
-            router_slow.update(context, selected_slow, reward)
+            router_slow.update(context, selected_slow, reward, selection_token=token_slow)
             
             # Fast router (same feedback)
             np.random.seed(42 + _)
-            selected_fast = router_fast.select_model(context)
+            selected_fast, token_fast = router_fast.select_model(context)
             reward = 0.9 if selected_fast == "model_a" else 0.3
-            router_fast.update(context, selected_fast, reward)
+            router_fast.update(context, selected_fast, reward, selection_token=token_fast)
         
         # Fast router should have more diverged weights
         slow_divergence = abs(router_slow.weights[0] - 0.5)
@@ -480,11 +484,11 @@ class TestCorrallingRealisticScenarios:
         context = np.ones(10)  # Context sum > 0.5, so tabula_rasa picks model_a
         
         for _ in range(100):
-            selected = router.select_model(context)
+            selected, token = router.select_model(context)
             
             # model_b is actually better (contradicting warmup)
             reward = 0.3 if selected == "model_a" else 0.9
-            router.update(context, selected, reward)
+            router.update(context, selected, reward, selection_token=token)
         
         # After learning, tabula_rasa should have more weight
         # (though this depends on sampling randomness and may not always hold)
@@ -512,7 +516,7 @@ class TestCorrallingRealisticScenarios:
         # Give many samples with clear performance difference
         n_samples = 1000
         for _ in range(n_samples):
-            selected = router.select_model(context)
+            selected, token = router.select_model(context)
             
             # model_b is clearly better
             if selected == "model_b":
@@ -521,7 +525,7 @@ class TestCorrallingRealisticScenarios:
                 reward = np.random.normal(0.60, 0.05)
             
             reward = np.clip(reward, 0.0, 1.0)
-            router.update(context, selected, reward)
+            router.update(context, selected, reward, selection_token=token)
         
         # With enough samples, good expert should be strongly preferred
         assert router.weights[0] > 0.6, \
@@ -551,8 +555,8 @@ class TestCorrallingRobustness:
         
         # Give all zero rewards
         for _ in range(50):
-            selected = router.select_model(context)
-            router.update(context, selected, reward=0.0)
+            selected, token = router.select_model(context)
+            router.update(context, selected, reward=0.0, selection_token=token)
         
         # Should not crash or produce NaN
         assert not np.any(np.isnan(router.weights))
@@ -575,8 +579,8 @@ class TestCorrallingRobustness:
         
         # Give all perfect rewards
         for _ in range(50):
-            selected = router.select_model(context)
-            router.update(context, selected, reward=1.0)
+            selected, token = router.select_model(context)
+            router.update(context, selected, reward=1.0, selection_token=token)
         
         # Should not crash or produce NaN
         assert not np.any(np.isnan(router.weights))
@@ -599,9 +603,9 @@ class TestCorrallingRobustness:
         
         # Run many updates
         for i in range(10000):
-            selected = router.select_model(context)
+            selected, token = router.select_model(context)
             reward = 0.5 + 0.3 * np.sin(i * 0.1)
-            router.update(context, selected, reward)
+            router.update(context, selected, reward, selection_token=token)
             
             # Check for numerical issues every 1000 steps
             if i % 1000 == 0:

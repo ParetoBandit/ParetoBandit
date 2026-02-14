@@ -19,12 +19,12 @@ class MockExpert:
         self.models = models
         self.selections = 0
         
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0, **kwargs) -> str:
         """Always return the same model."""
         self.selections += 1
         return self.model_id
     
-    def update(self, context: np.ndarray, model: str, reward: float):
+    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
         """No-op update for mock."""
         pass
 
@@ -58,7 +58,7 @@ def test_mixing_parameter_prevents_zero_probability():
     np.random.seed(42)
     
     for _ in range(1000):
-        model = router.select_model(context)
+        model, token = router.select_model(context)
         
         # Expert 0 gets high reward, Expert 1 gets low reward
         if model == "model_a":
@@ -66,7 +66,7 @@ def test_mixing_parameter_prevents_zero_probability():
         else:
             reward = 0.1
         
-        router.update(context, model, reward)
+        router.update(context, model, reward, selection_token=token)
     
     # Check that Expert 1's probability is at least gamma/K
     min_prob = gamma / router.n_experts
@@ -115,7 +115,7 @@ def test_recovery_in_nonstationary_environment():
     phase_2_weights = []
     
     for step in range(1000):
-        model = router.select_model(context)
+        model, token = router.select_model(context)
         
         # Phase transition at step 500
         if step < 500:
@@ -127,7 +127,7 @@ def test_recovery_in_nonstationary_environment():
             reward = 0.2 if model == "model_a" else 0.8
             phase_2_weights.append(router.weights.copy())
         
-        router.update(context, model, reward)
+        router.update(context, model, reward, selection_token=token)
     
     # Check that weights adapted to the phase change
     avg_weight_expert_1_phase_1 = np.mean([w[1] for w in phase_1_weights[-100:]])
@@ -180,14 +180,14 @@ def test_gamma_zero_causes_expert_death():
         np.random.seed(42 + i)
         
         # No mixing
-        model = router_no_mix.select_model(context)
+        model, token = router_no_mix.select_model(context)
         reward = 0.9 if model == "model_a" else 0.1
-        router_no_mix.update(context, model, reward)
+        router_no_mix.update(context, model, reward, selection_token=token)
         
         # With mixing
-        model = router_mix.select_model(context)
+        model, token = router_mix.select_model(context)
         reward = 0.9 if model == "model_a" else 0.1
-        router_mix.update(context, model, reward)
+        router_mix.update(context, model, reward, selection_token=token)
     
     # Get final probabilities
     prob_no_mix = router_no_mix._get_mixed_distribution()[1]
@@ -237,28 +237,29 @@ def test_importance_weighting_uses_mixed_probability():
     
     # Force selection of Expert 0
     np.random.seed(0)
-    model = router.select_model(context)
+    model, token = router.select_model(context)
     
-    # Store the probability used for selection
-    selected_prob = router.last_expert_prob
+    # Store the probability from the selection token
+    selected_prob = token["expert_prob"]
+    expert_idx = token["expert_idx"]
     
     # Compute what the mixed probability should be
     mixed_probs = router._get_mixed_distribution()
-    expected_prob = mixed_probs[router.last_expert_idx]
+    expected_prob = mixed_probs[expert_idx]
     
-    print(f"\nRaw weight: {router.weights[router.last_expert_idx]:.4f}")
-    print(f"Mixed probability: {selected_prob:.4f}")
+    print(f"\nRaw weight: {router.weights[expert_idx]:.4f}")
+    print(f"Token probability: {selected_prob:.4f}")
     print(f"Expected mixed probability: {expected_prob:.4f}")
     
-    # Verify that the stored probability matches the mixed distribution
+    # Verify that the token probability matches the mixed distribution
     assert abs(selected_prob - expected_prob) < 1e-10, \
-        "Importance weighting is not using the mixed probability!"
+        "Selection token probability doesn't match the mixed distribution!"
     
     # Verify that mixed probability is higher than raw weight (due to mixing)
-    assert selected_prob >= router.weights[router.last_expert_idx] - 1e-10, \
+    assert selected_prob >= router.weights[expert_idx] - 1e-10, \
         "Mixed probability should be >= raw weight"
     
-    print("✅ Importance weighting correctly uses mixed probability")
+    print("✅ Selection token correctly carries mixed probability")
 
 
 def test_gamma_parameter_bounds():
