@@ -56,4 +56,4 @@ This satisfies the PAC-learnability criterion ($\beta < 1$) and empirically vali
 \paragraph{Cold-Start Initialization via Semantic Transfer.}
 Our evaluation includes 3 models spanning cost tiers: Mixtral (\$0.27/1M), GPT-4-Turbo (\$10/1M), and GPT-4o (\$2.50/1M).
 Since warmup priors trained on RouteLLM data cover only Mixtral and GPT-4-Turbo, we initialize GPT-4o via \emph{semantic transfer}: copying GPT-4-Turbo's priors with conservative scaling ($\gamma=0.05$) to reflect uncertainty.
-This weak initialization allows the bandit algorithm to rapidly learn GPT-4o's true performance through exploration, discovering it as the dominant choice (70.8\% usage) while the warmup expert's strong GPT-4-Turbo bias (79.9\% in isolation) is correctly identified as suboptimal.
+This weak initialization allows the bandit algorithm to rapidly learn GPT-4o's true performance through exploration, discovering it as the dominant choice (64.6\% usage at $\lambda=0$, 74.3\% at $\lambda=0.1$; 5-seed averages) while the warmup expert's strong GPT-4-Turbo bias is correctly identified as suboptimal.

@@ -14,13 +14,13 @@ Phase~2 (samples 561--1121): GPT-4o added via semantic transfer from GPT-4-Turbo
 The composite reward $r = \text{quality} - \lambda \cdot \text{cost}$ directly encodes the cost-quality tradeoff into the learning signal, so that \emph{both} the meta-learner and expert bandits optimize for cost-adjusted value.
 %
 \textbf{(Top-left, $\lambda=0.0$)} Quality only: GPT-4o dominates (64.6\%, quality=95.5\%, \$11.07/M).
-\textbf{(Top-right, $\lambda=0.1$)} Mild cost awareness: GPT-4o still dominant (74.1\%, quality=96.0\%, \$9.74/M).
-\textbf{(Bottom-left, $\lambda=0.3$)} Moderate: GPT-4o dominant (74.7\%, quality=95.6\%, \$9.25/M).
-\textbf{(Bottom-right, $\lambda=0.5$)} Aggressive cost preference: Mixtral rises to 28.6\%, GPT-4o drops to 56.5\% (quality=91.7\%, \$6.67/M).
+\textbf{(Top-right, $\lambda=0.1$)} Mild cost awareness: GPT-4o still dominant (74.3\%, quality=96.1\%, \$9.71/M).
+\textbf{(Bottom-left, $\lambda=0.3$)} Moderate: GPT-4o dominant (74.7\%, quality=95.5\%, \$9.42/M).
+\textbf{(Bottom-right, $\lambda=0.5$)} Aggressive cost preference: Mixtral rises to 30.0\%, GPT-4o drops to 55.3\% (quality=91.4\%, \$6.57/M).
 %
 All values are 5-seed averages (seeds 42--46).
-Critically, cost monotonically decreases with $\lambda$ (\$11.07 $\to$ \$6.67/M) while quality degrades gracefully (95.5\% $\to$ 91.7\%), validating the composite reward as an effective lever for the cost-quality tradeoff.
-The high variance at $\lambda=0.5$ ($\pm$20.4\% Mixtral usage) reflects that aggressive cost preference amplifies exploration dynamics with limited Phase~2 data (N=561).
+Critically, cost monotonically decreases with $\lambda$ (\$11.07 $\to$ \$6.57/M) while quality degrades gracefully (95.5\% $\to$ 91.4\%), validating the composite reward as an effective lever for the cost-quality tradeoff.
+The high variance at $\lambda=0.5$ ($\pm$21.5\% Mixtral usage) reflects that aggressive cost preference amplifies exploration dynamics with limited Phase~2 data (N=561).
 }
 \label{fig:corralling_semantic}
 \end{figure*}
@@ -121,7 +121,7 @@ We mitigate this risk through two mechanisms:
 Thus, our architecture favors the incumbent only as long as it remains optimal; any degradation in the Warmup prior automatically flushes traffic to the Tabula Rasa candidate.
 
 \paragraph{Implementation Details.}
-We set $\eta = 5.0$ (learning rate) and $\gamma = 0.10$ (mixing parameter), selected via systematic ablation studies over 45 configurations (5 learning rates $\times$ 3 mixing parameters $\times$ 3 random seeds).
+We set $\eta = 5.0$ (learning rate) and $\gamma = 0.10$ (mixing parameter), selected via systematic ablation studies over 45 configurations (5 learning rates $\times$ 3 mixing parameters $\times$ 3 seeds per configuration).
 All experts are initialized with uniform weights $w_{1,e} = 1/E$ to ensure fair initial exploration.
 The warmup expert uses gamma-scaled priors ($\gamma=0.05$) from RouteLLM, while the tabula rasa expert starts from scratch with $A = I$ and $b = 0$.
 For models not present in the warmup priors (GPT-4o), we employ semantic transfer: initializing from the closest available model (GPT-4-Turbo) with gamma scaling to provide a weak prior while allowing rapid adaptation through online learning.
@@ -140,10 +140,11 @@ Analysis reveals three key findings:
 \begin{itemize}[nosep]
     \item GPT-4o achieves comparable quality to GPT-4-Turbo at \$2.50 vs \$10.00 per 1M tokens (4$\times$ cost reduction)
     \item The low-PC1 region (94.2\% of prompts) contains the majority of prompts
-    \item Mixtral handles 23.2\% of routine tasks at minimal cost (\$0.27/1M)
+    \item At $\lambda=0$ (quality only), GPT-4o dominates with 64.6\% usage, while GPT-4-Turbo retains 35.2\%
 \end{itemize}
 
-Notably, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$); the 75.7\% cost reduction emerges naturally as the learned policy discovers more efficient model choices.
+At $\lambda=0$, the algorithm optimizes purely for quality; the resulting average cost of \$11.07/M reflects that GPT-4-Turbo (35.2\% usage) still captures a significant share.
+As $\lambda$ increases, cost-efficiency improves: at $\lambda=0.5$, average cost drops to \$6.57/M with Mixtral rising to 30.0\% usage.
 
 Final expert weights after training on N=1,121 samples:
 \begin{itemize}[nosep]
@@ -157,45 +158,47 @@ Final expert weights after training on N=1,121 samples:
     \item \textbf{Mechanism Clarification:} Semantic transfer benefits come from \emph{implicit regularization} (breaking symmetry, providing initial variance) rather than accurate performance prediction. With sufficient data, the system converges to the optimal policy regardless of prior quality.
 \end{enumerate}
 
-The system achieved cumulative regret of 59.33 $\pm$ 3.40 and average reward of 0.939 $\pm$ 0.003 (mean $\pm$ std across 3 random seeds), confirming high performance with consistent reproducibility despite unlearning the initial priors.
+At $\lambda=0$ (quality only), the system achieved an average reward of 0.955 $\pm$ 0.002 (mean $\pm$ std across 5 random seeds, seeds 42--46), confirming high performance with consistent reproducibility despite unlearning the initial priors.
 
 \paragraph{Hyperparameter Optimization.}
-To ensure robust performance, we conducted systematic ablation studies across 45 configurations (5 learning rates $\in \{0.1, 0.5, 1.0, 2.0, 5.0\}$ $\times$ 3 mixing parameters $\in \{0.0, 0.05, 0.10\}$ $\times$ 3 random seeds).
-The optimal configuration ($\eta=5.0$, $\gamma=0.10$) achieves 19.8\% lower regret compared to conservative settings.
-Results exhibit low variance across random seeds (std=3.40), confirming algorithmic stability and reproducibility.
+To ensure robust performance, we conducted systematic ablation studies across 45 configurations (5 learning rates $\in \{0.1, 0.5, 1.0, 2.0, 5.0\}$ $\times$ 3 mixing parameters $\in \{0.0, 0.05, 0.10\}$ $\times$ 3 random seeds per configuration).
+The optimal configuration ($\eta=5.0$, $\gamma=0.10$) achieves lower regret compared to conservative settings.
+Results exhibit low variance across 5 random seeds (quality std $\leq$ 0.8\% for $\lambda \leq 0.3$), confirming algorithmic stability and reproducibility.
 
 \paragraph{Convergence Guarantees.}
 Log-log regression analysis reveals sublinear regret growth with exponent $\beta=0.669$ (R$^2$=0.9903), satisfying the PAC-learnability criterion ($\beta < 1$).
 Cumulative regret grows as $O(T^{0.669})$, better than the worst-case linear bound $O(T)$ and approaching the theoretical $O(\sqrt{T})$ bound for contextual bandits, confirming efficient online learning.
 
-\paragraph{Natural Cost Efficiency.}
-The learned policy achieves \$2.43 per 1M tokens, a 75.7\% reduction compared to always using GPT-4-Turbo (\$10/1M).
-Critically, the algorithm optimizes purely for quality ($\lambda_{\text{cost}} = 0$) without explicit cost penalties.
-Cost efficiency emerges naturally from the model selection: GPT-4o (70.8\% usage) provides comparable quality to GPT-4-Turbo at 4$\times$ lower cost (\$2.50 vs \$10.00 per 1M tokens), and Mixtral (23.2\% usage) handles routine tasks effectively at \$0.27/1M.
-This demonstrates that cost savings arise as a byproduct of quality-driven learning when the warmup expert's preference for expensive models is not justified by performance differences.
+\paragraph{Cost-Quality Tradeoff via $\lambda$.}
+At $\lambda=0$ (quality only), the learned policy averages \$11.07/M, with GPT-4-Turbo retaining 35.2\% usage alongside GPT-4o (64.6\%).
+Increasing $\lambda$ steers routing toward cheaper models: at $\lambda=0.1$, cost drops to \$9.71/M with GPT-4o rising to 74.3\%; at $\lambda=0.3$, cost is \$9.42/M; and at $\lambda=0.5$, Mixtral rises to 30.0\% usage, reducing cost to \$6.57/M while quality degrades gracefully from 95.5\% to 91.4\%.
+This demonstrates that the composite reward provides an effective lever for the cost-quality tradeoff, and that cost efficiency emerges naturally as $\lambda$ increases.
 
 \paragraph{Practical Implications.}
 These findings provide actionable guidance for deploying multi-model routing systems in production:
 
 \textbf{When to Use Corralling:} Deploy the two-expert architecture when facing potential domain mismatch between training data and production workload. For example, if warmup priors come from general-purpose datasets (e.g., RouteLLM on LMSYS) but your application serves a specialized domain (e.g., legal, medical, customer support), Corralling provides automatic adaptation without manual retraining. The $O(T^{0.669})$ convergence rate means the system efficiently adapts within hundreds of samples.
 
-\textbf{Cost Savings at Scale:} The 75.7\% cost reduction observed in this experiment illustrates the potential magnitude of routing savings. For example, at 1M tokens/day, switching from GPT-4-Turbo-only (\$10/1M) to the learned policy (\$2.43/1M) would save \$7.57/day. However, actual savings depend on the task mix, model pricing (which changes frequently), and the degree to which the deployment distribution matches the evaluation conditions. These projections should be treated as illustrative, not guaranteed.
+\textbf{Cost-Quality Tradeoff at Scale:} At $\lambda=0.5$, average cost drops to \$6.57/M---a 34\% reduction compared to the $\lambda=0$ policy (\$11.07/M), with quality degrading gracefully from 95.5\% to 91.4\%.
+For example, at 1M tokens/day, switching from the quality-only policy to $\lambda=0.5$ would save \$4.50/day. However, actual savings depend on the task mix, model pricing (which changes frequently), and the degree to which the deployment distribution matches the evaluation conditions. These projections should be treated as illustrative, not guaranteed.
 
 \textbf{Handling New Models:} When new models become available (e.g., GPT-4o release), semantic transfer provides practical cold-start mitigation despite eventually being unlearned. Initialize the new model's priors from the most similar existing model (determined by cost tier, capability, or provider) with conservative gamma scaling ($\gamma=0.05$). This provides a reasonable starting point while allowing rapid online adaptation.
 
 \textbf{Two Adaptation Regimes:}
 \begin{itemize}[nosep]
     \item \textbf{Short-term (first $\sim$100--300 steps):} Semantic transfer provides immediate benefit via implicit regularization (breaking symmetry). This accelerates adoption compared to cold start, as demonstrated in Figure~\ref{fig:accelerated-adoption} with conservative learning ($\eta=0.1$).
-    \item \textbf{Long-term ($>$500 steps with aggressive learning):} With sufficient data and higher learning rate ($\eta=5.0$), the system unlearns suboptimal priors and converges to the true optimal policy. Our results show the router discovered GPT-4o as the dominant choice (70.8\%) by adapting beyond the initial GPT-4-Turbo-biased semantic transfer.
+    \item \textbf{Long-term ($>$500 steps with aggressive learning):} With sufficient data and higher learning rate ($\eta=5.0$), the system unlearns suboptimal priors and converges to the true optimal policy. Our results show the router discovered GPT-4o as the dominant choice (64.6\% at $\lambda=0$, 74.3\% at $\lambda=0.1$) by adapting beyond the initial GPT-4-Turbo-biased semantic transfer.
 \end{itemize}
 
 \textbf{Design Implication:} The unlearning behavior is a \emph{feature, not a bug}. It ensures the system is not locked into potentially incorrect semantic priors while still benefiting from transfer during the critical cold-start phase. For production deployment, use conservative learning ($\eta \sim 0.1$--1.0) initially to exploit semantic priors, then increase learning rate ($\eta \sim 2.0$--5.0) after collecting sufficient data to enable adaptation.
 
 \textbf{Hyperparameter Selection:} For deployment, start with $\eta=5.0$ and $\gamma=0.10$ as shown to be robust across seeds (std=3.40). If your application prioritizes safety over adaptation speed, use more conservative values ($\eta=1.0$, $\gamma=0.05$). The ablation study (Appendix~\ref{sec:appendix_corralling_ablation}) shows performance remains strong across $\eta \in [0.5, 5.0]$ when $\gamma \geq 0.05$, providing flexibility for domain-specific tuning.
 
-\textbf{Sample Efficiency:} The system achieves strong performance with only N=1,121 training samples, making it practical for production deployment where labeled feedback is expensive. The sublinear regret growth ($\beta=0.669$) means performance improves steadily but with diminishing marginal gains---reaching 93.9\% quality after 1,121 samples suggests limited benefit from massive-scale data collection.
+\textbf{Sample Efficiency:} The system achieves strong performance with only N=1,121 training samples, making it practical for production deployment where labeled feedback is expensive---reaching 95.5\% quality at $\lambda=0$ after 1,121 samples suggests limited benefit from massive-scale data collection.
 
-\textbf{Production Deployment:} The learned model distribution (GPT-4o: 70.8\%, Mixtral: 23.2\%, GPT-4-Turbo: 6.0\%) provides guidance for capacity planning and rate limit allocation. Most traffic concentrates on mid-tier models, enabling cost-efficient infrastructure design. Monitor expert weight evolution in production: if weights stabilize within 200-300 samples (as in Figure~\ref{fig:corralling_semantic}), the system has converged; if weights continue fluctuating, investigate potential distribution drift or data quality issues.
+\textbf{Production Deployment:} At $\lambda=0$ (quality only), the learned model distribution is GPT-4o: 64.6\%, GPT-4-Turbo: 35.2\%, Mixtral: 0.3\%.
+At $\lambda=0.5$ (aggressive cost preference), it shifts to GPT-4o: 55.3\%, Mixtral: 30.0\%, GPT-4-Turbo: 14.7\%.
+These distributions provide guidance for capacity planning and rate limit allocation. Monitor expert weight evolution in production: if weights stabilize within 200-300 samples (as in Figure~\ref{fig:corralling_semantic}), the system has converged; if weights continue fluctuating, investigate potential distribution drift or data quality issues.
 
 
 % ============================================================================
