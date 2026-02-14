@@ -78,6 +78,26 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def _argmax_random_tiebreak(scores: Dict[str, float]) -> str:
+    """
+    Return the key with the maximum value, breaking ties uniformly at random.
+
+    Standard ``max(scores, key=scores.get)`` is deterministic when values are
+    tied (returns the first key in insertion order).  For bandit algorithms this
+    introduces a silent bias: e.g. the tabula-rasa expert always picks the
+    first model in the list before any learning has occurred.
+
+    This helper collects all keys sharing the maximum value and returns one
+    uniformly at random, eliminating initialization-order bias.
+    """
+    max_val = max(scores.values())
+    # Collect all keys that achieve the maximum (within float tolerance)
+    tied = [k for k, v in scores.items() if abs(v - max_val) < 1e-12]
+    if len(tied) == 1:
+        return tied[0]
+    return tied[np.random.randint(len(tied))]
+
 # ---------------------------------------------------------------------------
 # Router Configuration (Magic Numbers Documented)
 # ---------------------------------------------------------------------------
@@ -608,15 +628,19 @@ class DisjointLinUCBPolicy:
         Returns:
             Tuple of (best_model_id, best_ucb_score)
         """
-        candidates = candidates or self.models
-        candidates = [m for m in candidates if m in self.A]
-        if not candidates: raise ValueError("No candidates available")
-
-        best_model = candidates[0]
+        # [BUG FIX H2]: Candidate filtering MUST happen inside the lock.
+        # Otherwise, a model could be removed from self.A between the filter
+        # and the locked read, causing a KeyError on A_inv[m].
+        best_model = None
         best_ucb = -float("inf")
 
         # Thread safety: Acquire lock for reading shared state
         with self._lock:
+            candidates = candidates or self.models
+            candidates = [m for m in candidates if m in self.A]
+            if not candidates:
+                raise ValueError("No candidates available")
+            best_model = candidates[0]
             for m in candidates:
                 # UCB = mean + alpha * std
                 theta = self.A_inv[m] @ self.b[m]
@@ -764,6 +788,12 @@ class DisjointLinUCBPolicy:
         # permanently corrupting the model's A_inv with NaN values.
         if weight < 0:
             logger.warning(f"Negative weight={weight:.4f} for {model}; clamping to 0 (skipping update)")
+            return
+        
+        # [BUG FIX L3]: weight=0 contributes zero information (x_outer=0, reward_x=0)
+        # but advancing self.t inflates dt for ALL other models' staleness
+        # computations, artificially increasing their exploration bonuses.
+        if weight == 0:
             return
         
         # Hold model-specific lock for entire update (eliminates race condition)
@@ -939,8 +969,14 @@ class DisjointLinUCBPolicy:
             # could read A_inv between the += and the safe_inv(), observing an
             # inconsistent (A, A_inv) pair.  NumPy releases the GIL during
             # matrix operations, making this a real race even in CPython.
+            # [BUG FIX M3]: Use self.init_lambda (the bandit's own regularization
+            # parameter) instead of config.init_lambda.  config may carry a different
+            # value (e.g., from a stale or mis-matched RouterConfig), while
+            # self.init_lambda is the authoritative regularization strength that was
+            # used to initialize this bandit's A matrices.
+            reg_lambda = self.init_lambda
             with self.model_locks[model]:
-                self.A[model] += config.init_lambda * np.eye(self.dim)
+                self.A[model] += reg_lambda * np.eye(self.dim)
                 new_A_inv = safe_inv(self.A[model])
                 with self._lock:
                     self.A_inv[model] = new_A_inv
@@ -949,7 +985,7 @@ class DisjointLinUCBPolicy:
                     # code under-estimates how much lambda has been added.
                     self.regularization_floor[model] = self.regularization_floor.get(
                         model, self.init_lambda
-                    ) + config.init_lambda
+                    ) + reg_lambda
             
             # Verify fix
             new_trace = np.trace(self.A_inv[model])
@@ -1802,8 +1838,9 @@ class BanditRouter:
         
         Returns:
             Tuple of (A_new, b_new) where:
-            - A_new = init_lambda * I (fresh identity, maximum uncertainty)
-            - b_new = init_lambda * θ_neighbor * n_effective (scaled prior strength)
+            - A_new = n_effective * init_lambda * I  (Precision scales with prior strength)
+            - b_new = n_effective * init_lambda * θ_neighbor  (Moment scales proportionally)
+            Result: θ_hat = A^{-1} b = θ_neighbor (mean preserved), Var ∝ 1/n_effective
             
         Example:
             >>> # Adding a new coding model with balanced prior
@@ -2883,13 +2920,21 @@ class BanditRouter:
             expert = self.corralling_router.experts[0]
             n_samples = 1000
             model_samples = {}
-            valid_models = [m for m in models if m in expert.A_inv]
-            if not valid_models:
-                n = len(models) or 1
-                return {m: 1.0 / n for m in models}
+            # [BUG FIX M5]: Read expert state under its lock to prevent
+            # observing a half-updated (A_inv, b) pair from concurrent update().
+            with expert._lock:
+                valid_models = [m for m in models if m in expert.A_inv]
+                if not valid_models:
+                    n = len(models) or 1
+                    return {m: 1.0 / n for m in models}
+                # Snapshot the matrices we need (copy under lock, sample outside)
+                snapshots = {
+                    m: (expert.A_inv[m].copy(), expert.b[m].copy())
+                    for m in valid_models
+                }
             for m in valid_models:
-                A_inv_m = expert.A_inv[m]
-                theta_hat = A_inv_m @ expert.b[m]
+                A_inv_m, b_m = snapshots[m]
+                theta_hat = A_inv_m @ b_m
                 cov = 0.25 * A_inv_m  # noise_variance default
                 try:
                     samples = np.random.multivariate_normal(theta_hat, cov, n_samples)
@@ -2992,15 +3037,18 @@ class BanditRouter:
         # [BUG FIX]: Under Corralling, self.bandit is frozen at warmup priors
         # (never updated online).  Delegate to the warmup expert (experts[0])
         # which receives all observations, mirroring get_probabilities().
+        # [BUG FIX M5]: Snapshot A_inv/b under lock for thread safety.
         if self.use_corralling and self.corralling_router:
             expert = self.corralling_router.experts[0]
-            if model_id not in expert.A_inv:
-                raise ValueError(f"Model {model_id} not found in active expert")
-            theta = expert.A_inv[model_id] @ expert.b[model_id]
+            with expert._lock:
+                if model_id not in expert.A_inv:
+                    raise ValueError(f"Model {model_id} not found in active expert")
+                theta = expert.A_inv[model_id] @ expert.b[model_id]
         else:
-            if model_id not in self.bandit.A_inv:
-                raise ValueError(f"Model {model_id} not found in bandit registry")
-            theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
+            with self.bandit._lock:
+                if model_id not in self.bandit.A_inv:
+                    raise ValueError(f"Model {model_id} not found in bandit registry")
+                theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
         
         # 2. Element-wise multiplication shows contribution of each feature
         contributions = theta * context_vector
@@ -3071,33 +3119,54 @@ class BanditRouter:
         
         # [BUG FIX]: Under Corralling, use the warmup expert's current state
         # (mirrors get_probabilities() and explain_decision() delegation).
+        # [BUG FIX M5]: Snapshot state under lock to prevent reading mid-update.
         if self.use_corralling and self.corralling_router:
             expert = self.corralling_router.experts[0]
+            source_lock = expert._lock
             source_A_inv = expert.A_inv
             source_b = expert.b
             source_models = self.bandit.models
         else:
+            source_lock = self.bandit._lock
             source_A_inv = self.bandit.A_inv
             source_b = self.bandit.b
             source_models = self.bandit.models
         
-        # Get scores for all models
+        # [BUG FIX]: Snapshot ALL theta vectors under a single lock acquisition
+        # so scoring and explanations are from the same consistent state.
+        # Previously used separate lock acquisitions for scoring vs. explanation,
+        # creating a TOCTOU gap where a concurrent update could cause the
+        # per-model explanations to disagree with the top-k ranking.
         model_scores = []
-        for model_id in source_models:
-            if model_id not in source_A_inv:
-                continue
-            theta = source_A_inv[model_id] @ source_b[model_id]
-            score = float(np.dot(theta, x))
-            model_scores.append((model_id, score))
+        theta_cache = {}  # {model_id: theta} for explanation reuse
+        with source_lock:
+            for model_id in source_models:
+                if model_id not in source_A_inv:
+                    continue
+                theta = source_A_inv[model_id] @ source_b[model_id]
+                theta_cache[model_id] = theta
+                score = float(np.dot(theta, x))
+                model_scores.append((model_id, score))
         
         # Sort by score (highest first) and take top-k
         model_scores.sort(key=lambda x: x[1], reverse=True)
         top_models = [m[0] for m in model_scores[:top_k]]
         
-        # Generate explanations for top-k models
+        # Generate explanations for top-k models using cached theta
+        # (no second lock acquisition needed — uses the same snapshot)
+        pca_dims = len(x) - 1  # All except last dimension (bias)
         explanations = {}
         for model_id in top_models:
-            explanations[model_id] = self.explain_decision(model_id, x, threshold)
+            contributions = theta_cache[model_id] * x
+            explanation = {}
+            for idx in range(pca_dims):
+                score = float(contributions[idx])
+                if abs(score) > threshold:
+                    explanation[f"PCA_{idx}"] = score
+            bias_score = float(contributions[-1])
+            if abs(bias_score) > threshold:
+                explanation["bias"] = bias_score
+            explanations[model_id] = explanation
         
         return explanations
 
@@ -3395,6 +3464,11 @@ class CorrallingRouter:
         self.loss_decay = loss_decay  # Meta-level adaptation decay
         self.meta_lr_halflife = meta_lr_halflife  # Staleness half-life (τ)
         self.n_experts = len(experts)
+        # [BUG FIX H1]: Thread safety — CorrallingRouter mutates shared state
+        # (weights, cumulative_losses) in update() and reads it in select_model().
+        # NumPy releases the GIL during array ops, so concurrent calls can observe
+        # un-normalized weights or double-decay cumulative_losses.
+        self._lock = threading.Lock()
         
         # Exponential weights (start uniform)
         self.weights = np.ones(self.n_experts) / self.n_experts
@@ -3437,22 +3511,25 @@ class CorrallingRouter:
             importance-weighted meta-weight attribution.  Without it, the
             meta-weight update is skipped (only base experts learn).
         """
-        # [FIX] Use mixed distribution instead of raw weights
-        probs = self._get_mixed_distribution()
+        # [BUG FIX H1]: Acquire lock for reading weights (select) to prevent
+        # observing un-normalized weights from a concurrent update().
+        with self._lock:
+            probs = self._get_mixed_distribution()
         
         expert_idx = np.random.choice(self.n_experts, p=probs)
-        
-        self.expert_selections[expert_idx] += 1
         
         # Ask that expert which model to use (pass through total_steps and candidates)
         model = self.experts[expert_idx].select_model(
             context, total_steps=total_steps, candidates=candidates
         )
         
-        # Initialize counter if this is a new model (defensive programming for dynamic registration)
-        if model not in self.selections:
-            self.selections[model] = 0
-        self.selections[model] += 1
+        # [BUG FIX]: Protect diagnostic counters under lock to prevent
+        # lost increments from concurrent select_model() calls.
+        with self._lock:
+            self.expert_selections[expert_idx] += 1
+            if model not in self.selections:
+                self.selections[model] = 0
+            self.selections[model] += 1
         
         # [BUG FIX C1]: Return a selection token instead of storing state on self.
         # Previously, last_expert_idx/last_expert_prob were instance-level scalars
@@ -3576,16 +3653,21 @@ class CorrallingRouter:
             # Only the chosen expert is penalised — we didn't test others' advice.
             losses[expert_idx] = observed_loss / p_chosen
             
-            # Apply exponential decay before adding new losses (meta-level adaptation)
-            self.cumulative_losses *= self.loss_decay
-            # Scale loss contribution by staleness factor for delayed feedback
-            self.cumulative_losses += staleness_factor * losses
-            
-            # Exp4 Update: w_i ∝ exp(-eta * cumulative_loss_i)
-            log_weights = -self.learning_rate * self.cumulative_losses
-            log_weights -= log_weights.max()  # Numerical stability
-            self.weights = np.exp(log_weights)
-            self.weights /= self.weights.sum()
+            # [BUG FIX H1]: Acquire lock for the compound read-modify-write
+            # on cumulative_losses and weights.  Without this, concurrent update()
+            # calls can double-decay or lose loss contributions, and concurrent
+            # select_model() can read un-normalized weights.
+            with self._lock:
+                # Apply exponential decay before adding new losses (meta-level adaptation)
+                self.cumulative_losses *= self.loss_decay
+                # Scale loss contribution by staleness factor for delayed feedback
+                self.cumulative_losses += staleness_factor * losses
+                
+                # Exp4 Update: w_i ∝ exp(-eta * cumulative_loss_i)
+                log_weights = -self.learning_rate * self.cumulative_losses
+                log_weights -= log_weights.max()  # Numerical stability
+                self.weights = np.exp(log_weights)
+                self.weights /= self.weights.sum()
         
         # ===================================================================
         # LEVEL 2: Base Algorithm Update (all experts learn)
@@ -3644,11 +3726,26 @@ class CorrallingRouter:
         Args:
             model_id: New model identifier
         """
-        if model_id not in self.models:
-            self.models.append(model_id)
-            # Initialize selection counter for new model
-            self.selections[model_id] = 0
-            logger.debug(f"✅ Added {model_id} to Corralling model list")
+        # [BUG FIX]: Lock the check-then-append to prevent TOCTOU race where
+        # concurrent calls both see the model as absent and double-append.
+        with self._lock:
+            if model_id not in self.models:
+                self.models.append(model_id)
+                # Initialize selection counter for new model
+                self.selections[model_id] = 0
+        logger.debug(f"✅ Added {model_id} to Corralling model list")
+
+    def __deepcopy__(self, memo):
+        """Custom deepcopy to handle unpicklable threading.Lock."""
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == '_lock':
+                setattr(result, k, threading.Lock())
+            else:
+                setattr(result, k, copy.deepcopy(v, memo))
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -3712,7 +3809,9 @@ class PredictionMonitor:
                 "ucb_score": {"min": float("inf"), "max": float("-inf"),
                               "sum": 0.0, "sum_sq": 0.0, "count": 0},
             }
-            self._alert_counter[model_id] = 0
+            # [BUG FIX L1]: Start counter at cooldown so the very first
+            # violation fires immediately instead of being silently swallowed.
+            self._alert_counter[model_id] = self.alert_cooldown
     
     def record(self, model_id: str, expected_reward: float, ucb_score: float):
         """
@@ -3735,7 +3834,11 @@ class PredictionMonitor:
             s["count"] += 1
         
         # Alert check (on expected_reward, the most interpretable signal)
-        self._alert_counter[model_id] += 1
+        # [BUG FIX L1/L2]: Check for violation FIRST, then manage cooldown.
+        # Previously, incrementing before checking meant the very first violation
+        # was silenced (counter=1 < cooldown=100).  Now the first violation
+        # always fires, and cooldown prevents repeated alerts for the SAME drift.
+        # _alert_counter tracks observations-since-last-alert (not total violations).
         if abs(expected_reward) > self.alert_threshold:
             if self._alert_counter[model_id] >= self.alert_cooldown:
                 count = self._stats[model_id]["expected_reward"]["count"]
@@ -3745,6 +3848,11 @@ class PredictionMonitor:
                     f"±{self.alert_threshold} (observation #{count})"
                 )
                 self._alert_counter[model_id] = 0
+            else:
+                self._alert_counter[model_id] += 1
+        else:
+            # Non-violating observations still advance the cooldown counter
+            self._alert_counter[model_id] += 1
     
     def get_health_report(self) -> Dict[str, Dict]:
         """
@@ -3968,6 +4076,12 @@ class CostAwareLinUCBRouter:
         self.prediction_monitor = PredictionMonitor(
             alert_threshold=2.0, alert_cooldown=100
         )
+        
+        # [BUG FIX L5]: Per-model Sherman-Morrison update counter for periodic
+        # A_inv refresh.  Using a global counter (self.t) biases refreshes toward
+        # frequently-updated models; per-model counters ensure every model gets
+        # refreshed after exactly 1000 of its own updates.
+        self._sm_update_count: Dict[str, int] = {m: 0 for m in models}
     
     def _calibrate_priors(
         self,
@@ -4148,20 +4262,25 @@ class CostAwareLinUCBRouter:
             >>> held_out = [feature_pipeline(p) for p in sample_prompts[:10]]
             >>> router.load_priors(new_priors, calibration_contexts=held_out)
         """
-        for m in self.models:
-            if m in warmup_priors['A'] and m in warmup_priors['b']:
-                # Scale both A and b to adjust prior strength
-                self.A[m] = warmup_priors['A'][m].copy() * scale
-                self.b[m] = warmup_priors['b'][m].copy() * scale
-                # [PERFORMANCE FIX]: Refresh A_inv cache after loading new priors
-                self.A_inv[m] = safe_inv(self.A[m])
-            else:
-                logger.warning(f"Model {m} not found in warmup_priors, skipping")
-        
-        # Auto-calibrate after loading to prevent scale explosion
-        self._calibrate_priors(
-            target_max_pred=0.9, calibration_contexts=calibration_contexts
-        )
+        # [BUG FIX M2]: Acquire lock for the entire load+calibrate sequence.
+        # A concurrent select_model() could read partially-loaded priors (some
+        # models updated, others still cold-start) or read A/b before A_inv is
+        # refreshed, producing nonsensical scores.
+        with self._lock:
+            for m in self.models:
+                if m in warmup_priors['A'] and m in warmup_priors['b']:
+                    # Scale both A and b to adjust prior strength
+                    self.A[m] = warmup_priors['A'][m].copy() * scale
+                    self.b[m] = warmup_priors['b'][m].copy() * scale
+                    # [PERFORMANCE FIX]: Refresh A_inv cache after loading new priors
+                    self.A_inv[m] = safe_inv(self.A[m])
+                else:
+                    logger.warning(f"Model {m} not found in warmup_priors, skipping")
+            
+            # Auto-calibrate after loading to prevent scale explosion
+            self._calibrate_priors(
+                target_max_pred=0.9, calibration_contexts=calibration_contexts
+            )
     
     def get_current_alpha(self, total_steps: int) -> float:
         """
@@ -4223,17 +4342,25 @@ class CostAwareLinUCBRouter:
                 score = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
                 ucb_scores[model] = score
                 expected_rewards[model] = float(expected_reward)
-        
-        # Runtime prediction monitoring (outside lock — recording is O(1))
-        for model, score in ucb_scores.items():
-            self.prediction_monitor.record(
-                model, expected_reward=expected_rewards[model], ucb_score=float(score)
-            )
+            
+            # [BUG FIX]: Record inside lock so PredictionMonitor stats are
+            # consistent with the scores computed in this critical section.
+            for model, score in ucb_scores.items():
+                self.prediction_monitor.record(
+                    model, expected_reward=expected_rewards[model], ucb_score=float(score)
+                )
         
         if not ucb_scores:
-            return self.models[0] if self.models else None
+            # [BUG FIX M1]: Fallback must respect candidate constraints.
+            # Previously returned self.models[0] which may violate cost/latency
+            # constraints that produced the candidates list.
+            fallback = candidates if candidates is not None else self.models
+            return fallback[0] if fallback else None
         
-        return max(ucb_scores, key=ucb_scores.get)
+        # [BUG FIX]: Random tie-breaking prevents initialization-order bias.
+        # Previously, deterministic max() always picked the first model when
+        # UCB scores were tied (e.g., at startup with identical priors).
+        return _argmax_random_tiebreak(ucb_scores)
     
     def update(self, context, model, reward, weight: float = 1.0):
         """
@@ -4262,6 +4389,10 @@ class CostAwareLinUCBRouter:
         # making it non-PD and corrupting subsequent A_inv updates.
         if weight < 0:
             return
+        # [BUG FIX L3]: weight=0 contributes zero information; skip to avoid
+        # inflating self.t (affects staleness calculations for other models).
+        if weight == 0:
+            return
         
         x = context.flatten()
         
@@ -4284,6 +4415,14 @@ class CostAwareLinUCBRouter:
                 self.b[model] += weight * reward * x
             
             self.t += 1
+            
+            # [BUG FIX L5]: Periodic full refresh to correct Sherman-Morrison
+            # floating-point drift.  Per-model counter ensures every model gets
+            # refreshed after exactly 1000 of its own updates.  O(d³) amortized
+            # cost is negligible vs. the O(d²) per-step cost.
+            self._sm_update_count[model] = self._sm_update_count.get(model, 0) + 1
+            if self._sm_update_count[model] % 1000 == 0:
+                self.A_inv[model] = safe_inv(self.A[model])
     
     def add_model(self, model_id: str, A: np.ndarray, b: np.ndarray, normalized_cost: float) -> None:
         """
@@ -4298,16 +4437,19 @@ class CostAwareLinUCBRouter:
             b: Initial Moment vector (d,) from semantic transfer  
             normalized_cost: Cost penalty in [0, 1]
         """
-        # Note: model_id may already be in self.models if experts share the list with main bandit
-        # Always update A/b matrices even if model_id exists in list
-        if model_id not in self.models:
-            self.models.append(model_id)
-            
-        self.A[model_id] = A.copy()
-        self.b[model_id] = b.copy()
-        # [PERFORMANCE FIX]: Cache A_inv for new model
-        self.A_inv[model_id] = safe_inv(A)
-        self.model_costs[model_id] = {"normalized_cost": normalized_cost}
+        # [BUG FIX M2]: Lock the entire add sequence so concurrent select_model()
+        # never sees the model in self.models but with missing A_inv.
+        with self._lock:
+            # Note: model_id may already be in self.models if experts share the list with main bandit
+            # Always update A/b matrices even if model_id exists in list
+            if model_id not in self.models:
+                self.models.append(model_id)
+                
+            self.A[model_id] = A.copy()
+            self.b[model_id] = b.copy()
+            # [PERFORMANCE FIX]: Cache A_inv for new model
+            self.A_inv[model_id] = safe_inv(A)
+            self.model_costs[model_id] = {"normalized_cost": normalized_cost}
         logger.debug(f"✅ Added {model_id} to Warmup Expert with transferred priors (||A||_F={np.linalg.norm(A):.1f})")
 
     def __deepcopy__(self, memo):
@@ -4391,6 +4533,9 @@ class CostAwareTabulaRasaRouter:
         self.prediction_monitor = PredictionMonitor(
             alert_threshold=2.0, alert_cooldown=100
         )
+        
+        # [BUG FIX L5]: Per-model Sherman-Morrison update counter for periodic refresh.
+        self._sm_update_count: Dict[str, int] = {m: 0 for m in models}
     
     def get_current_alpha(self, total_steps: int) -> float:
         """
@@ -4444,17 +4589,24 @@ class CostAwareTabulaRasaRouter:
                 score = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
                 ucb_scores[model] = score
                 expected_rewards[model] = float(expected_reward)
-        
-        # Runtime prediction monitoring (outside lock — recording is O(1))
-        for model, score in ucb_scores.items():
-            self.prediction_monitor.record(
-                model, expected_reward=expected_rewards[model], ucb_score=float(score)
-            )
+            
+            # [BUG FIX]: Record inside lock so PredictionMonitor stats are
+            # consistent with the scores computed in this critical section.
+            for model, score in ucb_scores.items():
+                self.prediction_monitor.record(
+                    model, expected_reward=expected_rewards[model], ucb_score=float(score)
+                )
         
         if not ucb_scores:
-            return self.models[0] if self.models else None
+            # [BUG FIX M1]: Fallback must respect candidate constraints.
+            fallback = candidates if candidates is not None else self.models
+            return fallback[0] if fallback else None
         
-        return max(ucb_scores, key=ucb_scores.get)
+        # [BUG FIX]: Random tie-breaking prevents initialization-order bias.
+        # Critical for tabula rasa: with A=λI and b=0, all models have identical
+        # UCB scores at startup. Deterministic max() always picked the first
+        # model in dict order, biasing early exploration.
+        return _argmax_random_tiebreak(ucb_scores)
     
     def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
         """
@@ -4475,6 +4627,10 @@ class CostAwareTabulaRasaRouter:
         # DisjointLinUCBPolicy).  Negative weight subtracts from A, potentially
         # making it non-PD and corrupting subsequent A_inv updates.
         if weight < 0:
+            return
+        # [BUG FIX L3]: weight=0 contributes zero information; skip to avoid
+        # inflating self.t.
+        if weight == 0:
             return
         
         x = context.flatten()
@@ -4498,6 +4654,12 @@ class CostAwareTabulaRasaRouter:
                 self.b[model] += weight * reward * x
             
             self.t += 1
+            
+            # [BUG FIX L5]: Periodic full refresh to correct Sherman-Morrison
+            # floating-point drift.  Per-model counter ensures fair refresh.
+            self._sm_update_count[model] = self._sm_update_count.get(model, 0) + 1
+            if self._sm_update_count[model] % 1000 == 0:
+                self.A_inv[model] = safe_inv(self.A[model])
     
     def add_model(self, model_id: str, normalized_cost: float) -> None:
         """
@@ -4510,20 +4672,23 @@ class CostAwareTabulaRasaRouter:
             model_id: New model identifier
             normalized_cost: Cost penalty in [0, 1]
         """
-        # Note: model_id may already be in self.models if experts share the list with main bandit
-        # Always update A/b matrices even if model_id exists in list
-        if model_id not in self.models:
-            self.models.append(model_id)
-        
-        # Initialize with Ridge Regularization (Identity) - pure online learning
-        # [BUG FIX]: Use stored context_dim instead of hardcoded 33.
-        dim = self.context_dim
-        
-        self.A[model_id] = self.ridge_lambda * np.eye(dim)
-        self.b[model_id] = np.zeros(dim)
-        # [PERFORMANCE FIX]: Cache A_inv for new model
-        self.A_inv[model_id] = safe_inv(self.A[model_id])
-        self.model_costs[model_id] = {"normalized_cost": normalized_cost}
+        # [BUG FIX M2]: Lock the entire add sequence so concurrent select_model()
+        # never sees the model in self.models but with missing A_inv.
+        with self._lock:
+            # Note: model_id may already be in self.models if experts share the list with main bandit
+            # Always update A/b matrices even if model_id exists in list
+            if model_id not in self.models:
+                self.models.append(model_id)
+            
+            # Initialize with Ridge Regularization (Identity) - pure online learning
+            # [BUG FIX]: Use stored context_dim instead of hardcoded 33.
+            dim = self.context_dim
+            
+            self.A[model_id] = self.ridge_lambda * np.eye(dim)
+            self.b[model_id] = np.zeros(dim)
+            # [PERFORMANCE FIX]: Cache A_inv for new model
+            self.A_inv[model_id] = safe_inv(self.A[model_id])
+            self.model_costs[model_id] = {"normalized_cost": normalized_cost}
         logger.debug(f"✅ Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")
     
     def add_model_with_semantic_transfer(self, new_model_id: str, semantic_neighbor_id: str = None):
