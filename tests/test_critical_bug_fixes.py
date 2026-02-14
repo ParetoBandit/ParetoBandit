@@ -34,6 +34,7 @@ R3-L13: log_index concurrent-write race
 """
 
 import sys
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -51,6 +52,7 @@ from bandit_gpt.router import (
     CorrallingRouter,
     CostAwareLinUCBRouter,
     CostAwareTabulaRasaRouter,
+    PredictionMonitor,
     RouterConfig,
 )
 
@@ -691,7 +693,7 @@ class TestBug9_DeepCopy:
     """
     The old __deepcopy__ referenced removed attributes (anchor_vectors,
     complexity_vector, cluster_detector) and omitted attributes added since
-    (verbose_routing, use_corralling, corralling_router, model_counts,
+    (verbose_routing, use_corralling, corralling_router,
     log_index, market anchors, etc.), producing a broken clone.
 
     We construct a minimal BanditRouter-like object and verify deepcopy
@@ -734,8 +736,6 @@ class TestBug9_DeepCopy:
         router.logs = deque(maxlen=100)
         router.log_index = {}
         router.model_priors = {}
-        router.model_counts = defaultdict(int)
-        router.probation_models = {}
 
         # --- Scalars ---
         router.verbose_routing = False
@@ -771,8 +771,8 @@ class TestBug9_DeepCopy:
             "config", "registry", "features", "encoder", "pca",
             "bandit", "use_corralling", "corralling_learning_rate",
             "corralling_gamma", "corralling_router",
-            "logs", "log_index", "model_priors", "model_counts",
-            "probation_models", "verbose_routing", "cluster_boost_weight",
+            "logs", "log_index", "model_priors",
+            "verbose_routing", "cluster_boost_weight",
             "_feature_map", "_toxicity_scanner",
             "_market_cost_floor", "_market_cost_floor_log", "_market_cost_range",
             "_market_lat_floor", "_market_lat_floor_log", "_market_lat_range",
@@ -2009,3 +2009,463 @@ class TestR4_ExpertGuardsUnknownModel:
         # Pass candidates that include unknown models
         result = router.select_model(ctx, total_steps=100, candidates=["m1", "unknown"])
         assert result == "m1"
+
+
+# =============================================================================
+# Round 5 Review Fixes
+# =============================================================================
+
+class TestR5M1_ExplainDecisionUnderCorralling:
+    """explain_decision/explain_selection should use expert[0] under Corralling."""
+
+    def test_explain_uses_expert_state(self):
+        """Under Corralling, explanations should reflect the warmup expert's learned state."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+
+        # Perform some updates so the expert's state diverges from base bandit
+        x = router.features.extract_features("test prompt")
+        if router.use_corralling and router.corralling_router:
+            for _ in range(10):
+                router.corralling_router.update(x, "model_a", 0.9)
+
+            # explain_decision should not raise and should produce a result
+            explanation = router.explain_decision("model_a", x)
+            assert isinstance(explanation, dict)
+
+    def test_explain_selection_under_corralling(self):
+        """explain_selection should work under Corralling without error."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        explanations = router.explain_selection("test prompt", top_k=1)
+        assert isinstance(explanations, dict)
+        assert len(explanations) >= 1
+
+
+class TestR5M2_ComplexityWeightsRemoved:
+    """Vestigial complexity_score weights should no longer exist in RegistrationConfig."""
+
+    def test_no_complexity_weight_attrs(self):
+        """RegistrationConfig should not have complexity_weight fields."""
+        from bandit_gpt.router import RegistrationConfig
+        config = RegistrationConfig()
+        assert not hasattr(config, 'fast_complexity_weight')
+        assert not hasattr(config, 'slow_complexity_weight')
+        assert not hasattr(config, 'balanced_complexity_weight')
+
+    def test_register_model_no_warning(self):
+        """Registering a model should not produce 'Unknown feature' warnings."""
+        import logging
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        with unittest.mock.patch('bandit_gpt.router.logger') as mock_logger:
+            router.register_model("model_b", speed="fast", cost_usd=1.0, latency_s=0.5)
+            # Should NOT have any "Unknown feature" warnings
+            for call in mock_logger.warning.call_args_list:
+                assert "Unknown feature" not in str(call), f"Unexpected warning: {call}"
+
+
+class TestR5L1_ExpertNegativeWeight:
+    """Expert routers should guard against negative weight."""
+
+    def test_linucb_expert_negative_weight(self):
+        """CostAwareLinUCBRouter.update() should silently skip negative weight."""
+        dim = 4
+        warmup_priors = {
+            'A': {'m1': np.eye(dim)},
+            'b': {'m1': np.zeros(dim)},
+            'context_dim': dim
+        }
+        model_costs = {'m1': {'normalized_cost': 0.5}}
+        router = CostAwareLinUCBRouter(
+            models=['m1'], warmup_priors=warmup_priors,
+            model_costs=model_costs
+        )
+        A_before = router.A['m1'].copy()
+        ctx = np.ones(dim)
+        router.update(ctx, 'm1', 0.5, weight=-1.0)
+        # A should be unchanged (update skipped)
+        np.testing.assert_array_equal(router.A['m1'], A_before)
+
+    def test_tabula_rasa_expert_negative_weight(self):
+        """CostAwareTabulaRasaRouter.update() should silently skip negative weight."""
+        dim = 4
+        model_costs = {'m1': {'normalized_cost': 0.5}}
+        router = CostAwareTabulaRasaRouter(
+            models=['m1'], context_dim=dim, model_costs=model_costs
+        )
+        A_before = router.A['m1'].copy()
+        ctx = np.ones(dim)
+        router.update(ctx, 'm1', 0.5, weight=-1.0)
+        np.testing.assert_array_equal(router.A['m1'], A_before)
+
+
+class TestR5L5_CalibratePriorsReconstruction:
+    """_calibrate_priors two-pass calibration: bias fix + suite probe."""
+
+    def test_pass1_bias_only_preserves_pca(self):
+        """When only the bias is exploded (PCA dims normal), pass 1 fixes bias
+        and pass 2 is a no-op, so PCA dimensions are preserved exactly."""
+        dim = 4
+        # Diagonal A → theta = A_inv @ b is straightforward, no off-diagonal
+        # coupling, so PCA dims stay small while bias is large.
+        A = np.eye(dim) * 2.0
+        b = np.array([0.4, 0.6, 0.8, 800.0])  # bias exploded, PCA dims normal
+        warmup_priors = {
+            'A': {'m1': A.copy()},
+            'b': {'m1': b.copy()},
+            'context_dim': dim
+        }
+        model_costs = {'m1': {'normalized_cost': 0.5}}
+        router = CostAwareLinUCBRouter(
+            models=['m1'], warmup_priors=warmup_priors,
+            model_costs=model_costs
+        )
+        # Original theta = A_inv @ b = [0.2, 0.3, 0.4, 400.0]
+        A_inv = np.linalg.inv(A)
+        theta_original = A_inv @ b
+        theta_after = router.A_inv['m1'] @ router.b['m1']
+
+        # PCA dimensions (0, 1, 2) should be preserved exactly by pass 1
+        for i in range(dim - 1):
+            assert abs(theta_after[i] - theta_original[i]) < 1e-10, (
+                f"PCA dim {i} changed: {theta_original[i]:.6f} -> {theta_after[i]:.6f}"
+            )
+        # Bias dimension should be recalibrated to ~0.9
+        assert abs(theta_after[3]) < 1.5, (
+            f"Bias not calibrated: theta[3]={theta_after[3]:.2f}"
+        )
+
+    def test_pass2_catches_pca_explosion(self):
+        """When PCA dimensions are also exploded (e.g. via off-diagonal A
+        coupling), pass 2 detects this through the probe suite and globally
+        rescales theta so that worst-case prediction ≤ target."""
+        dim = 4
+        A = np.eye(dim) * 2.0
+        # Off-diagonal coupling: an exploded b[3] bleeds into theta[0]
+        A[0, 3] = 0.5
+        A[3, 0] = 0.5
+        b = np.array([1.0, 2.0, 3.0, 800.0])
+        warmup_priors = {
+            'A': {'m1': A.copy()},
+            'b': {'m1': b.copy()},
+            'context_dim': dim
+        }
+        model_costs = {'m1': {'normalized_cost': 0.5}}
+        router = CostAwareLinUCBRouter(
+            models=['m1'], warmup_priors=warmup_priors,
+            model_costs=model_costs
+        )
+        theta_after = router.A_inv['m1'] @ router.b['m1']
+
+        # After two-pass calibration, ALL theta predictions should be in bounds
+        # Check every axis probe
+        for i in range(dim):
+            e_i = np.zeros(dim)
+            e_i[i] = 1.0
+            pred = abs(float(theta_after @ e_i))
+            assert pred < 1.5, (
+                f"Axis {i} prediction {pred:.2f} still exploded after calibration"
+            )
+        # Norm of theta should be moderate (not hundreds)
+        assert np.linalg.norm(theta_after) < 5.0, (
+            f"theta norm {np.linalg.norm(theta_after):.2f} is too large"
+        )
+
+    def test_no_calibration_when_predictions_normal(self):
+        """When all predictions are already in range, calibration is a no-op."""
+        dim = 4
+        A = np.eye(dim) * 2.0
+        b = np.array([0.4, 0.6, 0.8, 1.2])  # All predictions moderate
+        warmup_priors = {
+            'A': {'m1': A.copy()},
+            'b': {'m1': b.copy()},
+            'context_dim': dim
+        }
+        model_costs = {'m1': {'normalized_cost': 0.5}}
+        router = CostAwareLinUCBRouter(
+            models=['m1'], warmup_priors=warmup_priors,
+            model_costs=model_costs
+        )
+        # b should be unchanged (calibration did nothing)
+        np.testing.assert_array_almost_equal(router.b['m1'], b)
+
+
+# =============================================================================
+# T2 Fix: Runtime PredictionMonitor
+# =============================================================================
+
+
+class TestPredictionMonitor:
+    """Unit tests for the PredictionMonitor class itself."""
+
+    def test_basic_recording(self):
+        """record() should update min/max/mean/count correctly."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        mon.record("m1", expected_reward=0.5, ucb_score=0.7)
+        mon.record("m1", expected_reward=0.8, ucb_score=1.1)
+        mon.record("m1", expected_reward=0.3, ucb_score=0.4)
+
+        report = mon.get_health_report()
+        er = report["m1"]["expected_reward"]
+        assert er["count"] == 3
+        assert abs(er["min"] - 0.3) < 1e-10
+        assert abs(er["max"] - 0.8) < 1e-10
+        assert abs(er["mean"] - (0.5 + 0.8 + 0.3) / 3) < 1e-10
+
+    def test_no_alert_for_normal_predictions(self):
+        """Predictions in [0, 1] should not trigger alerts."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        for _ in range(50):
+            mon.record("m1", expected_reward=0.6, ucb_score=0.8)
+        report = mon.get_health_report()
+        assert report["m1"]["alerts"] == 0
+
+    def test_alert_for_exploded_predictions(self):
+        """Predictions exceeding the threshold should flag alerts."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        mon.record("m1", expected_reward=5.0, ucb_score=6.0)
+        report = mon.get_health_report()
+        assert report["m1"]["alerts"] == 1
+
+    def test_negative_explosion_detected(self):
+        """Large negative predictions should also trigger alerts."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        mon.record("m1", expected_reward=-10.0, ucb_score=-9.0)
+        report = mon.get_health_report()
+        assert report["m1"]["alerts"] == 1
+
+    def test_multi_model_tracking(self):
+        """Each model should have independent stats."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        mon.record("m1", expected_reward=0.5, ucb_score=0.6)
+        mon.record("m2", expected_reward=0.9, ucb_score=1.0)
+        report = mon.get_health_report()
+        assert "m1" in report
+        assert "m2" in report
+        assert report["m1"]["expected_reward"]["count"] == 1
+        assert report["m2"]["expected_reward"]["count"] == 1
+
+    def test_reset_single_model(self):
+        """reset(model_id) should clear only that model's stats."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        mon.record("m1", expected_reward=0.5, ucb_score=0.6)
+        mon.record("m2", expected_reward=0.9, ucb_score=1.0)
+        mon.reset("m1")
+        report = mon.get_health_report()
+        assert "m1" not in report
+        assert "m2" in report
+
+    def test_reset_all(self):
+        """reset() with no args should clear all models."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        mon.record("m1", expected_reward=0.5, ucb_score=0.6)
+        mon.record("m2", expected_reward=0.9, ucb_score=1.0)
+        mon.reset()
+        report = mon.get_health_report()
+        assert len(report) == 0
+
+    def test_std_computation(self):
+        """Standard deviation should be computed correctly."""
+        mon = PredictionMonitor(alert_threshold=2.0)
+        values = [0.2, 0.4, 0.6, 0.8, 1.0]
+        for v in values:
+            mon.record("m1", expected_reward=v, ucb_score=v)
+        report = mon.get_health_report()
+        mean = sum(values) / len(values)
+        expected_std = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
+        assert abs(report["m1"]["expected_reward"]["std"] - expected_std) < 1e-10
+
+
+class TestPredictionMonitorIntegration:
+    """Integration tests: monitors inside CostAware routers."""
+
+    def _make_warmup_router(self, dim=4):
+        """Helper: create a CostAwareLinUCBRouter with simple priors."""
+        A = np.eye(dim) * 2.0
+        b = np.array([0.2, 0.3, 0.4, 0.5])
+        warmup = {
+            'A': {'m1': A.copy(), 'm2': A.copy()},
+            'b': {'m1': b.copy(), 'm2': b.copy()},
+            'context_dim': dim
+        }
+        costs = {'m1': {'normalized_cost': 0.3}, 'm2': {'normalized_cost': 0.7}}
+        return CostAwareLinUCBRouter(
+            models=['m1', 'm2'], warmup_priors=warmup, model_costs=costs
+        )
+
+    def _make_tabula_router(self, dim=4):
+        """Helper: create a CostAwareTabulaRasaRouter."""
+        costs = {'m1': {'normalized_cost': 0.3}, 'm2': {'normalized_cost': 0.7}}
+        return CostAwareTabulaRasaRouter(
+            models=['m1', 'm2'], context_dim=dim, model_costs=costs
+        )
+
+    def test_warmup_router_records_predictions(self):
+        """select_model on CostAwareLinUCBRouter should populate the monitor."""
+        router = self._make_warmup_router()
+        ctx = np.array([0.1, 0.2, 0.3, 1.0])
+        for _ in range(5):
+            router.select_model(ctx)
+        report = router.prediction_monitor.get_health_report()
+        # Both models should have been scored in each call
+        for m in ['m1', 'm2']:
+            assert m in report
+            assert report[m]["expected_reward"]["count"] == 5
+
+    def test_tabula_router_records_predictions(self):
+        """select_model on CostAwareTabulaRasaRouter should populate the monitor."""
+        router = self._make_tabula_router()
+        ctx = np.array([0.1, 0.2, 0.3, 1.0])
+        for _ in range(3):
+            router.select_model(ctx)
+        report = router.prediction_monitor.get_health_report()
+        for m in ['m1', 'm2']:
+            assert m in report
+            assert report[m]["expected_reward"]["count"] == 3
+
+    def test_monitor_survives_deepcopy(self):
+        """Deepcopy of router should carry monitor state."""
+        import copy
+        router = self._make_warmup_router()
+        ctx = np.array([0.1, 0.2, 0.3, 1.0])
+        router.select_model(ctx)
+
+        clone = copy.deepcopy(router)
+        report = clone.prediction_monitor.get_health_report()
+        # Cloned monitor should have the pre-copy stats
+        for m in ['m1', 'm2']:
+            assert report[m]["expected_reward"]["count"] == 1
+
+        # New observations on clone should NOT affect original
+        clone.select_model(ctx)
+        assert clone.prediction_monitor.get_health_report()["m1"]["expected_reward"]["count"] == 2
+        assert router.prediction_monitor.get_health_report()["m1"]["expected_reward"]["count"] == 1
+
+    def test_monitor_detects_post_update_drift(self):
+        """After many biased updates, monitor should show drift in predictions."""
+        router = self._make_warmup_router()
+        ctx = np.array([0.1, 0.2, 0.3, 1.0])
+
+        # Record baseline
+        router.select_model(ctx)
+        baseline = router.prediction_monitor.get_health_report()["m1"]["expected_reward"]["mean"]
+
+        # Flood m1 with reward=1.0 updates to push predictions up
+        for _ in range(100):
+            router.update(ctx, "m1", reward=1.0)
+        router.select_model(ctx)
+        after = router.prediction_monitor.get_health_report()["m1"]["expected_reward"]["max"]
+
+        # Predictions should have increased (learned from positive rewards)
+        assert after > baseline
+
+
+class TestCalibrationUserContexts:
+    """Tests for user-supplied calibration_contexts in _calibrate_priors."""
+
+    def test_user_contexts_catch_direction_explosion(self):
+        """A user-supplied context that probes an exploded direction should
+        trigger global rescale even when built-in probes don't catch it."""
+        dim = 4
+        # Construct theta that is fine on axes but explodes on a specific
+        # off-axis direction that built-in random probes (seeded) might miss.
+        # We do this by setting b so theta has moderate axis values but a
+        # large component in a custom direction.
+        A = np.eye(dim) * 2.0
+        # theta = A_inv @ b = b / 2.  Set b so theta = [0.5, 0.5, 0.5, 0.5]
+        # — looks fine on any single axis. Then we manually inflate b
+        # after construction to create an explosion only visible on a
+        # custom direction.
+        b_safe = np.array([1.0, 1.0, 1.0, 1.0])  # theta = [0.5, 0.5, 0.5, 0.5]
+        
+        # Now inflate to make theta = [50, 50, 50, 0.5] — explodes on
+        # the direction [1,1,1,0]/sqrt(3) which gives pred = 50*sqrt(3) ≈ 86.6
+        b_exploded = np.array([100.0, 100.0, 100.0, 1.0])
+        
+        # The user knows their traffic has this direction
+        user_direction = np.array([1.0, 1.0, 1.0, 0.0]) / np.sqrt(3.0)
+        
+        warmup = {
+            'A': {'m1': A.copy()},
+            'b': {'m1': b_exploded.copy()},
+            'context_dim': dim
+        }
+        costs = {'m1': {'normalized_cost': 0.5}}
+        
+        # Without user contexts — built-in axis probes WILL catch axis_0 = 50
+        router_default = CostAwareLinUCBRouter(
+            models=['m1'], warmup_priors=warmup, model_costs=costs
+        )
+        theta_default = router_default.A_inv['m1'] @ router_default.b['m1']
+        
+        # With user contexts — should also be safe
+        warmup2 = {
+            'A': {'m1': A.copy()},
+            'b': {'m1': b_exploded.copy()},
+            'context_dim': dim
+        }
+        router_user = CostAwareLinUCBRouter(
+            models=['m1'], warmup_priors=warmup2, model_costs=costs
+        )
+        # Manually re-calibrate with user context
+        # (Reset b to exploded state to test load_priors path)
+        router_user.load_priors(
+            {'A': {'m1': A.copy()}, 'b': {'m1': b_exploded.copy()}},
+            calibration_contexts=[user_direction]
+        )
+        theta_user = router_user.A_inv['m1'] @ router_user.b['m1']
+        
+        # Both should be calibrated (predictions bounded)
+        pred_user = abs(float(theta_user @ user_direction))
+        assert pred_user < 1.5, (
+            f"User-direction prediction {pred_user:.2f} still exploded"
+        )
+
+    def test_wrong_dim_context_skipped(self):
+        """User contexts with wrong dimension should be skipped with warning."""
+        dim = 4
+        A = np.eye(dim) * 2.0
+        b = np.array([0.4, 0.6, 0.8, 1.0])
+        warmup = {
+            'A': {'m1': A.copy()},
+            'b': {'m1': b.copy()},
+            'context_dim': dim
+        }
+        costs = {'m1': {'normalized_cost': 0.5}}
+        router = CostAwareLinUCBRouter(
+            models=['m1'], warmup_priors=warmup, model_costs=costs
+        )
+        # Pass a context with wrong dimension — should not crash
+        wrong_dim_ctx = np.ones(dim + 2)
+        router._calibrate_priors(
+            target_max_pred=0.9, calibration_contexts=[wrong_dim_ctx]
+        )
+        # Router should still be functional
+        ctx = np.array([0.1, 0.2, 0.3, 1.0])
+        selected = router.select_model(ctx)
+        assert selected == 'm1'

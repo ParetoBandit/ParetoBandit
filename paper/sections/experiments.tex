@@ -77,9 +77,11 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 \textbf{Embeddings}: We use \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} (384-d), reduced to 32 dimensions via domain-adapted PCA trained on 80K routing prompts (unsupervised---no reward labels used). For model preference heterogeneity analysis (Figure~\ref{fig:alignment_tax}), we project onto PC1 and apply unsupervised silhouette-optimal threshold selection. Robustness is validated with generic C4 PCA (100K samples, no routing connection).
 
-\textbf{Infrastructure}: Experiments were conducted on a standard CPU node for bandit updates, demonstrating the algorithm's lightweight footprint compared to GPU-heavy router training.
+\textbf{Infrastructure}: Experiments were conducted on a standard CPU node for bandit updates, demonstrating the algorithm's lightweight footprint compared to GPU-heavy router training. All matrix inverse updates use the Sherman-Morrison formula for $O(d^2)$ incremental updates, with automatic fallback to full $O(d^3)$ inversion when the denominator becomes numerically unstable ($|1 + w \cdot x^\top A^{-1} x| < 10^{-6}$).
 
-\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ based on sensitivity sweeps in the Dev Set. For the Corralling learning rate, we evaluate both conservative ($\eta=0.1$) and aggressive ($\eta=1.0$) configurations, with comprehensive multi-seed comparison presented in Table~\ref{tab:performance_gap}.
+\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ based on sensitivity sweeps in the Dev Set. For the Corralling learning rate, we evaluate both conservative ($\eta=0.1$) and aggressive ($\eta=1.0$) configurations, with comprehensive multi-seed comparison presented in Table~\ref{tab:performance_gap}. The staleness half-life is set to $\tau=60$s (default).
+
+\textbf{Prior Calibration}: All warmup experts undergo automatic two-pass prior calibration at initialization (bias probe + suite probe) to detect and correct scale explosion from legacy or misconfigured priors. Runtime prediction monitoring tracks per-model score distributions throughout deployment.
 
 \subsection{Statistical Rigor \& Reproducibility}
 

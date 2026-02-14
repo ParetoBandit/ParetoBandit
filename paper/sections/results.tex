@@ -141,6 +141,15 @@ Our constant exploration finding ($\alpha=2.0$) is validated under moderate doma
 \paragraph{Strategy Selection Trade-offs.}
 Corralling incurs 1--4\% overhead relative to the tabula rasa baseline under moderate distribution shift (Table~\ref{tab:performance_gap}), and warmup-only outperforms both when priors are well-calibrated. The hedging overhead is justified only under genuine prior uncertainty. When prior quality can be validated on held-out deployment data, direct strategy selection (tabula rasa for known-bad priors, warmup-only for validated-good priors) outperforms hedging.
 
+\paragraph{Non-Stationarity Scope.}
+Our corralling meta-learner incorporates loss decay to adapt expert weights under non-stationary conditions, but each expert bandit is itself trained under a stationary-reward assumption (monotone accumulation without forgetting). Thus, our treatment of non-stationarity operates at the meta level only: if a model's reward distribution drifts gradually within an expert's arm, the expert cannot adapt except via meta-level reweighting or replacement. Extending expert-level updates with explicit forgetting (e.g., sliding windows, discounted UCB) or change-point detection mechanisms is an interesting direction for future work.
+
+\paragraph{Corralling Learning Rate.}
+In principle, the corralling learning rate admits an optimal schedule $\eta^* \propto \sqrt{\ln K / T}$ for a given horizon, but our implementation uses a fixed $\eta$ (0.1 or 1.0) tuned for the typical horizon in our application. The staleness-aware loss decay mechanism (Section~\ref{sec:methodology}) handles non-stationarity via forgetting of stale feedback; it partially masks horizon mis-specification but is not a substitute for an optimal corralling learning-rate schedule. Adaptive or horizon-aware $\eta_t$ schedules are left for future work.
+
+\paragraph{Isotropic Prior in PCA Space.}
+We apply PCA for dimensionality reduction and initialize the precision matrix as $\Amat_0 = \lambda \mathbf{I}$, which corresponds to an isotropic regularizer in the PCA space. This does not distinguish between high- and low-variance principal components and may over-regularize the latter. Designing anisotropic or variance-matched regularization in the PCA basis (e.g., diagonal $\Amat_0$ scaled by component variance, or full whitening prior to the bandit layer) is a natural extension.
+
 \paragraph{Variance and Reproducibility.}
 Multi-seed evaluation reveals substantial variance in expert weight evolution (final warmup weight: $0.382 \pm 0.471$, standard deviation exceeds mean). Outcomes are influenced by stochastic request ordering; practitioners should monitor deployment-specific dynamics rather than relying on population-level predictions.
 

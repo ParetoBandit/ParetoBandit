@@ -48,7 +48,7 @@ This \emph{Dynamic Pareto Filtering} ensures the bandit policy never explores st
 
 \subsubsection{Layer 2: Expert Corralling for Robustness}
 
-Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms. We mitigate this via a meta-learning strategy \emph{inspired by} Expert Corralling~\cite{agarwal2017corralling}, which manages a portfolio of expert policies (e.g., a ``Warmup Expert'' with static priors and a ``Tabula Rasa Expert'' with high plasticity).
+Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms. We mitigate this \emph{at the meta level} via a strategy inspired by Expert Corralling~\cite{agarwal2017corralling}, which manages a portfolio of expert policies (e.g., a ``Warmup Expert'' with static priors and a ``Tabula Rasa Expert'' with high plasticity). Importantly, each expert bandit is itself trained under a \emph{stationary-reward assumption} (monotone information accumulation without explicit forgetting); non-stationarity is handled solely through the meta-learner's ability to reweight or decommission experts whose performance has degraded.
 
 The master algorithm updates the probability distribution over experts $w_{i,t}$ using an exponential weight update based on importance-weighted loss estimates $\hat{\ell}_{i,t}$. Crucially, to prevent ``Expert Death'' (where a temporarily poor expert's weight vanishes, rendering it unrecoverable), we implement a mixing parameter $\gamma$:
 \begin{equation}
@@ -68,6 +68,9 @@ a_t = \arg\max_{a \in \mathcal{P}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \al
 We use constant $\alpha=2.0$ for both experts throughout deployment. While standard practice employs adaptive decay schedules (e.g., $\alpha_t = \alpha_0/\sqrt{t}$), our ablation studies (Section~\ref{sec:alpha_ablation}) demonstrate that constant exploration is essential under severe domain mismatch. Premature exploitation causes the system to commit irreversibly to misspecified priors. Maintaining constant $\alpha$ preserves the system's ability to detect and adapt to distribution shifts, achieving 48\% improvement over adaptive decay in high-mismatch scenarios.
 
 To ensure numerical stability during long-running operations, we implement an \emph{Amortized Regularization Floor}. We track the effective decay of the precision matrix $\Amat_a$ and proactively reinject regularization $\lambda_{\text{ridge}}\mathbf{I}$ whenever the smallest eigenvalue risks dropping below a safety threshold, preventing singular matrix inversions without the cost of $O(d^3)$ operations at every step.
+
+\paragraph{Regularization in PCA Space.}
+We initialize the precision matrix as $\Amat_0 = \lambda \mathbf{I}$, which corresponds to an isotropic prior in the PCA-transformed feature space. This does not distinguish between high- and low-variance principal components and may over-regularize the latter. We adopt this deliberately simple baseline for stability; designing anisotropic or variance-matched regularization (e.g., diagonal $\Amat_0$ scaled by component variance, or full whitening before the bandit layer) is a natural extension that we leave for future work.
 
 \subsection{Latent Semantic Transfer (Zero-Shot Admission)}
 
@@ -106,7 +109,13 @@ w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
 
 \textbf{Learning Rate Selection}: We evaluate two learning rates: conservative ($\eta=0.1$) and aggressive ($\eta=1.0$). Multi-seed evaluation (Section~\ref{sec:results}, Table~\ref{tab:performance_gap}) reveals a stability-performance tradeoff. While an independent t-test yields $p=0.63$ (Cohen's $d=-0.22$), the experiment has limited power to detect this small effect ($N=30$, power $\approx 23\%$), so we cannot conclude the conditions are equivalent. Conservative learning offers predictable performance (CV=17\%), while aggressive learning achieves better median but with higher variance (CV=35\%). We recommend $\eta=0.1$ for production deployments requiring reliability, based on its substantially lower variance rather than on a claim of equivalent mean performance.
 
-\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate rather than the horizon-dependent $\eta = \sqrt{2\log K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves competitive performance relative to the best expert in hindsight.
+\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate ($\eta=0.1$ or $\eta=1.0$) tuned for the typical horizon in our application, rather than the theoretically optimal $\eta^* \propto \sqrt{\ln K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves competitive performance relative to the best expert in hindsight.
+
+\textbf{Staleness-Aware Meta-Learning Rate}: In production, feedback arrives with variable delay (network latency, human evaluation). Stale feedback is less informative about the \emph{current} expert quality. We attenuate the meta-learner's loss contribution by a staleness factor:
+\begin{equation}
+\hat{\ell}_{t,e}^{\text{staleness}} = \frac{1}{1 + \delta_t / \tau} \cdot \hat{\ell}_{t,e}
+\end{equation}
+where $\delta_t$ is the delay (seconds) between selection and feedback, and $\tau$ is a half-life parameter (default 60s). This prevents stale feedback from causing abrupt, unjustified weight shifts in the meta-learner, while preserving the standard importance-weighted loss estimator (Eq.~\ref{eq:importance_weighted_loss}) for timely feedback.
 
 \subsubsection{Technical Fairness and Computational Complexity}
 Our implementation adapts the theoretical Corralling framework~\cite{agarwal2017corralling} to the constraints of low-latency production inference.
@@ -127,6 +136,17 @@ We counteract the lack of counterfactual updates through \textbf{Uniform Initial
 \caption{Corralling Learns to Exploit Semantic Structure. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps. The algorithm initially relies on the Warmup Expert (Orange) but detects mismatch. It rapidly shifts authority to the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility is a feature, not a bug---it represents persistent exploration that maintains a ``hot standby'' capability for distribution shifts. Note: This figure illustrates Corralling on dev-set data (1,121 prompts). Under the moderate shift in our holdout evaluation (PSI=0.225), warmup priors remain beneficial; see Table~\ref{tab:performance_gap}.}
 \label{fig:corralling}
 \end{figure}
+
+\subsection{Prior Calibration and Runtime Monitoring}
+
+Loading pre-trained priors from offline data can introduce \emph{Scale Explosion}---predictions of 800.0 instead of 0.8---due to mismatched reward scales or accumulation magnitudes. We address this with a two-pass calibration at initialization and continuous runtime monitoring during deployment.
+
+\paragraph{Two-Pass Calibration.}
+\textbf{Pass~1 (bias probe)}: We probe each model with a bias-only context $[0,\ldots,0,1]$. If the predicted reward exceeds a threshold (1.5), we clamp the bias weight via \emph{theta-reconstruction}: we modify $\thetavec$ directly and set $\bvec = \Amat \thetavec_{\text{new}}$, which preserves all PCA-dimension preferences exactly while correcting only the bias component.
+\textbf{Pass~2 (suite probe)}: We probe each model with a suite of basis-independent feature vectors---axis-aligned unit vectors, random unit-norm vectors, and a uniform ``all features active'' vector---to detect PCA-dimension explosions that a single-coordinate probe would miss. If the worst-case prediction exceeds the threshold, $\thetavec$ is globally rescaled. Because banditGPT is a domain-agnostic library, the probe suite uses synthetic geometry rather than domain-specific prompts; users may optionally supply their own representative contexts for deployment-specific calibration.
+
+\paragraph{Runtime Prediction Monitoring.}
+Static calibration at initialization cannot detect problems that emerge post-deployment (gradual drift, bad priors on newly registered models, feature distribution shift). We augment each expert with a lightweight $O(1)$-per-observation monitor that tracks per-model rolling statistics (min, max, mean, variance) of both expected reward ($\thetavec^\top x$) and full UCB score. When predictions exceed a configurable alert threshold, the system logs a warning. The health report is queryable for CI and canary deployment checks.
 
 \subsection{Semantic Projection \& Scalability}
 

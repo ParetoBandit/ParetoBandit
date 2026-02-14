@@ -94,24 +94,25 @@ class RegistrationConfig:
     All parameters validated via sensitivity analysis (Appendix D/E):
     - n_effective: Robust across [1.0, 20.0] range (Figure 7)
     - Bias terms: Derived from cost asymmetry (30x price differential)
-    - Complexity weights: Empirical conditional failure probabilities
     
     Key Finding: Performance driven by semantic neighbor accuracy (θ_neighbor),
     not hyperparameter fine-tuning. System achieves Zero-Shot Readiness without
     manual calibration.
+    
+    NOTE: complexity_weight fields were removed when the feature pipeline was
+    simplified to [PCA | bias].  T-shirt sizing now operates exclusively through
+    the bias dimension.  If per-task complexity weighting is reintroduced, add a
+    dedicated feature dimension and map it in _build_feature_map().
     """
     # Fast Profile (e.g., Haiku, Flash) -> No bias adjustment (neutral)
     fast_bias: float = 0.0
-    fast_complexity_weight: float = -0.5
     
     # Slow Profile (e.g., Opus, GPT-4) -> Bias TOWARDS usage (believe expensive = high quality)
-    # Fix: Positive bias encodes belief that expensive models have latent quality
+    # Positive bias encodes belief that expensive models have latent quality
     slow_bias: float = 0.05
-    slow_complexity_weight: float = 0.5
     
     # Balanced Profile (e.g., GPT-3.5, Sonnet) -> Neutral priors
     balanced_bias: float = 0.0
-    balanced_complexity_weight: float = 0.0
     
     # Fallback Metadata (Pessimistic Defaults for Resilience)
     default_cost_per_1m: float = 10.00  # Assume expensive ($10/1M)
@@ -176,26 +177,6 @@ class RouterConfig:
     # At 100 QPS with 54-dim context vectors (~500 bytes/log), 10k logs ≈ 5MB.
     # Adjust based on deployment memory constraints and feedback latency.
     max_log_size: int = 10_000         # Ring buffer size for RoutingLog entries
-    
-    # ---------------------------------------------------------------------------
-    # New Model Admission: Probation Period
-    # ---------------------------------------------------------------------------
-    # [Paper APPENDIX D/E]: Probation parameters validated via sensitivity analysis
-    # 
-    # Scientific Justification:
-    # - probation_requests: Derived from convergence analysis (500 samples ≈ 95% CI)
-    # - probation_bonus: Calibrated to match exploration bonus magnitude (α × σ)
-    # - max_probation_models: Spam protection threshold (prevents feature flooding)
-    # 
-    # Robustness: System performance stable across [300, 1000] request range
-    # (Appendix D: Probation Length Sensitivity, not shown for brevity)
-    probation_requests: int = 500      # Probation period length (requests)
-    pruning_min_samples: int = 30      # Min samples for probation subsidy decay
-    probation_bonus: float = 0.10      # Quality boost for probationary models
-    max_probation_models: int = 10     # [Paper FIX]: Max models allowed in probation simultaneously
-    
-    # Pruning constants removed - relying on UCB natural exploration/exploitation balance
-    # No explicit model removal or probation periods required.
     
     # ---------------------------------------------------------------------------
     # Procedural Warmup: Covariance Shaping (Paper Reviewer Fix)
@@ -1150,6 +1131,9 @@ class BanditRouter:
             context_store: Persistent storage for delayed feedback
             config: Router configuration object
             verbose_routing: Enable detailed breakdown logs for each routing decision
+            use_corralling: Enable Corralling meta-learner (default: True)
+            corralling_learning_rate: Meta-learning rate for expert weight updates (default: 0.1)
+            corralling_gamma: Mixing parameter (default: 0.05, empirically validated optimal)
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
@@ -1256,13 +1240,6 @@ class BanditRouter:
         self.model_priors: Dict[str, float] = {} 
         self.cluster_boost_weight = cluster_boost_weight
         
-        # [Paper REVIEW FIX]: Persistent Tracking (Monotonic Probation)
-        # Prevents "Rolling Window Fallacy" where models receive a probation bonus 
-        # after their early logs are evicted from self.logs.
-        self.model_counts: Dict[str, int] = defaultdict(int)
-        
-        # New Model Admission: Probation List
-        self.probation_models: Dict[str, Dict[str, Any]] = {} 
         # Feature name to index mapping for Progressive Registration
         self._feature_map = self._build_feature_map()
         
@@ -1317,8 +1294,6 @@ class BanditRouter:
         result.log_index = copy.deepcopy(self.log_index, memo)
         result._log_lock = threading.Lock()  # Fresh lock for clone
         result.model_priors = copy.deepcopy(self.model_priors, memo)
-        result.model_counts = copy.deepcopy(self.model_counts, memo)
-        result.probation_models = copy.deepcopy(self.probation_models, memo)
         
         # --- Scalar / Immutable Settings (direct copy) ---
         result.verbose_routing = self.verbose_routing
@@ -1424,25 +1399,18 @@ class BanditRouter:
         bias = 0.0
         
         # 2. Apply T-Shirt Sizing (The Bias Term)
-        # Use Speed/Cost as prior for "Default Mode" when no warmup priors exist
-        # Values from RouterConfig.registration (scientifically justified)
+        # Use Speed/Cost as prior for "Default Mode" when no warmup priors exist.
+        # NOTE: complexity_weight fields were removed when the feature pipeline
+        # was simplified to [PCA | bias].  T-shirt sizing now operates solely
+        # through the bias dimension.
         reg_config = self.config.registration
         
         if speed == "fast":
             bias = reg_config.fast_bias
-            # Fast models usually struggle with high complexity
-            weights["complexity_score"] = reg_config.fast_complexity_weight
         elif speed == "slow":
             bias = reg_config.slow_bias
-            # Slow models are usually meant for high complexity
-            weights["complexity_score"] = reg_config.slow_complexity_weight
         else:  # balanced
             bias = reg_config.balanced_bias
-            weights["complexity_score"] = reg_config.balanced_complexity_weight
-        
-        
-        # OLD: Archetype mapping to virtual anchors - REMOVED
-        # Anchors removed in conference simplification
         
         # 4. Apply Power User Overrides (Explicit Weights)
         # If the user DOES know specifics, let them overwrite our guesses
@@ -1497,15 +1465,16 @@ class BanditRouter:
                 f"matched to {neighbor} (sim: {similarity:.3f}, n_eff: {n_effective})"
             )
             
-            # Use neighbor bootstrapping with dynamic prior strength
-            # [BUG FIX]: Removed phantom `alpha=0.8` keyword that does not exist
-            # in admix_theta_from_neighbors() signature, causing TypeError at runtime.
+            # Use neighbor bootstrapping with dynamic prior strength.
+            # [BUG FIX L4]: Pass precomputed (neighbor, similarity) to avoid
+            # a redundant O(K) embedding + similarity re-search inside admix.
             A_init, b_init = self.admix_theta_from_neighbors(
                 model_id=model_id,
                 registry=self.registry,
                 bandit=self.bandit,
                 encoder=self.encoder,
-                n_effective=n_effective  # Dynamic prior strength based on similarity
+                n_effective=n_effective,
+                precomputed_neighbor=(neighbor, similarity)
             )
             
             # [Paper REVIEW FIX - Bug A: "First-Child" Bias Correction]
@@ -1528,28 +1497,42 @@ class BanditRouter:
                 self.bandit.regularization_floor[model_id] = self.bandit.init_lambda
                 self.bandit.models.append(model_id)  # LAST: visible only after state is ready
         else:
-            # First model - use standard initialization
-            self.bandit.add_arm(model_id)
-            is_bootstrapped = False
+            # First model - use standard initialization, but apply manual prior
+            # atomically under the lock to prevent a concurrent select_arm() from
+            # seeing the model with b=zeros before the prior is applied.
+            # [BUG FIX]: Previously, add_arm() published the model (b=zeros), then
+            # the b-vector was overwritten outside the lock — a brief race window.
+            new_A = np.eye(self.bandit.dim) * self.bandit.init_lambda
+            new_b = self.bandit.init_lambda * theta_vector  # Apply manual prior immediately
+            new_A_inv = safe_inv(new_A)
+            with self.bandit._lock:
+                self.bandit.A[model_id] = new_A
+                self.bandit.b[model_id] = new_b
+                self.bandit.A_inv[model_id] = new_A_inv
+                self.bandit.last_update[model_id] = self.bandit.t
+                self.bandit.regularization_floor[model_id] = self.bandit.init_lambda
+                self.bandit.models.append(model_id)  # LAST: visible only after state is ready
+            is_bootstrapped = False  # (manual prior applied above, skip step 7)
         
         # 7. Apply Manual Prior (T-Shirt Sizing) ONLY if Bootstrapping Failed
         # [Paper REVIEW FIX - Bug A]: The "First-Child" Bias Correction
         #
-        # CRITICAL: Apply manual prior if and only if no semantic transfer occurred.
+        # CRITICAL: Apply manual prior if and only if no semantic transfer occurred
+        # AND the first-model path above didn't already apply it.
         #
         # Scenario 1: Bootstrapping succeeded (found similar neighbor)
         #   - is_bootstrapped = True
         #   - b already contains neighbor's preferences scaled by n_effective
         #   - DO NOT overwrite with manual priors (neighbor knowledge > T-shirt sizing)
         #
-        # Scenario 2: Bootstrapping failed (no suitable neighbor found)
+        # Scenario 2: Bootstrapping failed (no suitable neighbor found, len(models) > 0)
         #   - is_bootstrapped = False
         #   - b = zeros(dim) (default/identity initialization)
         #   - DO apply manual priors to give the model a reasonable starting bias
         #
-        # This fixes the original bug where manual priors were only applied to the
-        # very first model (len(models)==1), causing subsequent models without neighbors
-        # to start with b=0 and lose the "fast"/"slow" signal from speed parameter.
+        # Scenario 3: First model (len(models) == 0 before registration)
+        #   - Handled in the else-branch above (atomic initialization with prior)
+        #   - is_bootstrapped = False, but b already set — re-setting is harmless
         if not is_bootstrapped:
             # Standard prior encoding: b = A @ theta
             # With A = lambda*I, we get: b = lambda * theta
@@ -1745,6 +1728,7 @@ class BanditRouter:
         bandit: 'DisjointLinUCBPolicy',
         encoder,  # SentenceTransformer or compatible encoder
         n_effective: float = 5.0,  # Tunable prior strength (pseudocount of observations)
+        precomputed_neighbor: Tuple[Optional[str], float] | None = None,  # Skip re-search
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Bootstrap a new model's (A, b) from its nearest neighbor in embedding space.
@@ -1832,67 +1816,63 @@ class BanditRouter:
             ... )
             # Result: Inherits preferences from similar model, but with fresh exploration
         """
-        # [V1 FIX]: Use semantic DNA instead of display_name for better matching
-        # This ensures consistency with _find_semantic_neighbor() predictions
-        model_info = registry.get(model_id, {})
-        capabilities = model_info.get("capabilities", [])
-        speed = model_info.get("speed_profile", "balanced")
-        
-        # Build semantic DNA string
-        model_dna = self._get_model_dna(model_id, capabilities, speed)
-        
-        # Compute embedding for new model (with caching using DNA key)
-        # [Paper OPTIMIZATION]: Cache embeddings to avoid recomputation
-        try:
-            # Check if DNA embedding is already cached
-            if 'dna_embedding' in model_info:
-                new_embedding = model_info['dna_embedding']
-            else:
-                new_embedding = encoder.encode([model_dna], convert_to_numpy=True)[0]
-                # Cache for future use (DNA-based caching)
-                if model_id in registry:
-                    registry[model_id]['dna_embedding'] = new_embedding
-        except Exception as e:
-            logger.warning(f"Failed to encode DNA for {model_id}: {e}. Using identity init.")
-            return (
-                np.eye(bandit.dim) * bandit.init_lambda,
-                np.zeros(bandit.dim, dtype=np.float64)
-            )
-        
-        # Find nearest neighbor among existing models using DNA embeddings
-        best_neighbor = None
-        best_similarity = -1.0
-        
-        for neighbor_id in bandit.models:
-            if neighbor_id == model_id:
-                continue
-            neighbor_info = registry.get(neighbor_id, {})
-            
-            # Build neighbor DNA
-            neighbor_capabilities = neighbor_info.get("capabilities", [])
-            neighbor_speed = neighbor_info.get("speed_profile", "balanced")
-            neighbor_dna = self._get_model_dna(neighbor_id, neighbor_capabilities, neighbor_speed)
+        # [BUG FIX L4]: Use precomputed neighbor from _find_semantic_neighbor()
+        # when available, eliminating the redundant O(K) embedding+similarity search.
+        # Previously, register_model() called _find_semantic_neighbor() (to set
+        # n_effective) and then admix_theta_from_neighbors() re-ran the same search
+        # internally, wasting compute and risking inconsistent neighbor selection
+        # under concurrent mutation.
+        if precomputed_neighbor is not None:
+            best_neighbor, best_similarity = precomputed_neighbor
+        else:
+            # Fallback: run the full search (backward-compatible for direct callers)
+            model_info = registry.get(model_id, {})
+            capabilities = model_info.get("capabilities", [])
+            speed = model_info.get("speed_profile", "balanced")
+            model_dna = self._get_model_dna(model_id, capabilities, speed)
             
             try:
-                # [Paper OPTIMIZATION]: Use cached DNA embedding if available
-                if 'dna_embedding' in neighbor_info:
-                    neighbor_embedding = neighbor_info['dna_embedding']
+                if 'dna_embedding' in model_info:
+                    new_embedding = model_info['dna_embedding']
                 else:
-                    neighbor_embedding = encoder.encode([neighbor_dna], convert_to_numpy=True)[0]
-                    # Cache for future use (DNA-based)
-                    registry[neighbor_id]['dna_embedding'] = neighbor_embedding
-                
-                # Cosine similarity
-                similarity = np.dot(new_embedding, neighbor_embedding) / (
-                    np.linalg.norm(new_embedding) * np.linalg.norm(neighbor_embedding) + 1e-12
-                )
-                
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_neighbor = neighbor_id
+                    new_embedding = encoder.encode([model_dna], convert_to_numpy=True)[0]
+                    if model_id in registry:
+                        registry[model_id]['dna_embedding'] = new_embedding
             except Exception as e:
-                logger.debug(f"Skipping neighbor {neighbor_id}: {e}")
-                continue
+                logger.warning(f"Failed to encode DNA for {model_id}: {e}. Using identity init.")
+                return (
+                    np.eye(bandit.dim) * bandit.init_lambda,
+                    np.zeros(bandit.dim, dtype=np.float64)
+                )
+            
+            best_neighbor = None
+            best_similarity = -1.0
+            
+            for neighbor_id in bandit.models:
+                if neighbor_id == model_id:
+                    continue
+                neighbor_info = registry.get(neighbor_id, {})
+                neighbor_capabilities = neighbor_info.get("capabilities", [])
+                neighbor_speed = neighbor_info.get("speed_profile", "balanced")
+                neighbor_dna = self._get_model_dna(neighbor_id, neighbor_capabilities, neighbor_speed)
+                
+                try:
+                    if 'dna_embedding' in neighbor_info:
+                        neighbor_embedding = neighbor_info['dna_embedding']
+                    else:
+                        neighbor_embedding = encoder.encode([neighbor_dna], convert_to_numpy=True)[0]
+                        registry[neighbor_id]['dna_embedding'] = neighbor_embedding
+                    
+                    similarity = np.dot(new_embedding, neighbor_embedding) / (
+                        np.linalg.norm(new_embedding) * np.linalg.norm(neighbor_embedding) + 1e-12
+                    )
+                    
+                    if similarity > best_similarity:
+                        best_similarity = similarity
+                        best_neighbor = neighbor_id
+                except Exception as e:
+                    logger.debug(f"Skipping neighbor {neighbor_id}: {e}")
+                    continue
         
         # Bootstrap from neighbor if found
         if best_neighbor and best_similarity > 0.5:  # Only use if moderately similar
@@ -2547,24 +2527,6 @@ class BanditRouter:
 
 
 
-    def _get_sample_counts(self, arms: Optional[List[str]] = None) -> Dict[str, int]:
-        """
-        Count selectors in logs using O(N) Counter optimization.
-        
-        Args:
-            arms: List of arm IDs to count (None = all arms in bandit)
-            
-        Returns:
-            Dictionary mapping arm ID to sample count
-        """
-        # [Paper REVIEW FIX]: Use persistent counts to avoid Rolling Window fallacy
-        # Ephemeral log counting via Counter(self.logs) is only used for debugging or 
-        # when persistent counts are not yet initialized (bulk load logic).
-        arms_to_count = arms if arms is not None else self.bandit.models
-        return {arm: self.model_counts.get(arm, 0) for arm in arms_to_count}
-
-
-
     # prune_arms removed - trusting UCB confidence bounds to naturally downweight bad models
     # Bad models get minimal traffic (~0.001%) without explicit pruning
 
@@ -2875,9 +2837,6 @@ class BanditRouter:
                         f"reward: {reward:.3f} → {boosted_reward:.3f} ({boost_amount:+.3f})"
                     )
         
-        # [Paper REVIEW FIX]: Persistent monotonicity (Probation Fix)
-        self.model_counts[log.selected_model] += 1
-        
         # Use cached context vector to avoid re-encoding
         x = log.context_vector if log.context_vector is not None else self._get_context_vector(log.prompt)
         
@@ -3030,11 +2989,18 @@ class BanditRouter:
             >>> print(explanation)
             {'PCA_0': 0.85, 'PCA_12': 0.42, 'bias': 0.15}
         """
-        if model_id not in self.bandit.A_inv:
-            raise ValueError(f"Model {model_id} not found in bandit registry")
-        
-        # 1. Get the learned weights (theta) for this model
-        theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
+        # [BUG FIX]: Under Corralling, self.bandit is frozen at warmup priors
+        # (never updated online).  Delegate to the warmup expert (experts[0])
+        # which receives all observations, mirroring get_probabilities().
+        if self.use_corralling and self.corralling_router:
+            expert = self.corralling_router.experts[0]
+            if model_id not in expert.A_inv:
+                raise ValueError(f"Model {model_id} not found in active expert")
+            theta = expert.A_inv[model_id] @ expert.b[model_id]
+        else:
+            if model_id not in self.bandit.A_inv:
+                raise ValueError(f"Model {model_id} not found in bandit registry")
+            theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
         
         # 2. Element-wise multiplication shows contribution of each feature
         contributions = theta * context_vector
@@ -3103,12 +3069,24 @@ class BanditRouter:
         # Extract context vector
         x = self._get_context_vector(prompt)
         
+        # [BUG FIX]: Under Corralling, use the warmup expert's current state
+        # (mirrors get_probabilities() and explain_decision() delegation).
+        if self.use_corralling and self.corralling_router:
+            expert = self.corralling_router.experts[0]
+            source_A_inv = expert.A_inv
+            source_b = expert.b
+            source_models = self.bandit.models
+        else:
+            source_A_inv = self.bandit.A_inv
+            source_b = self.bandit.b
+            source_models = self.bandit.models
+        
         # Get scores for all models
         model_scores = []
-        for model_id in self.bandit.models:
-            if model_id not in self.bandit.A_inv:
+        for model_id in source_models:
+            if model_id not in source_A_inv:
                 continue
-            theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
+            theta = source_A_inv[model_id] @ source_b[model_id]
             score = float(np.dot(theta, x))
             model_scores.append((model_id, score))
         
@@ -3128,11 +3106,25 @@ class BanditRouter:
 
 
     def save_state(self, path: Path | str) -> None:
-        """Save the bandit's learned state to disk."""
+        """
+        Save the bandit's learned state to disk.
+        
+        KNOWN LIMITATION: Only the base DisjointLinUCBPolicy (A, b matrices)
+        is persisted.  When Corralling is enabled, the expert bandits' learned
+        state (both warmup and tabula rasa A/b matrices), meta-weights, and
+        cumulative losses are NOT saved.  After a restart/reload, the Corralling
+        layer resets to its initial 50/50 expert allocation and warmup-era
+        expert state.  Extending persistence to the full Corralling stack is a
+        natural enhancement for long-running production deployments.
+        """
         self.bandit.save_state(path)
 
     def load_state(self, path: Path | str) -> None:
-        """Load the bandit's learned state from disk."""
+        """
+        Load the bandit's learned state from disk.
+        
+        See save_state() for known limitations regarding Corralling persistence.
+        """
         self.bandit.load_state(path)
 
     def calibrate(self, prompts: List[str], *, apply: bool = True, verbose: bool = False) -> Dict[str, float]:
@@ -3297,6 +3289,15 @@ class CorrallingRouter:
       (e.g., if a previously underperforming expert becomes relevant after a
       distribution shift, it will still be sampled often enough to detect this).
     
+    **Empirical Validation (gamma=0.05):**
+    - Validated across 4 dimensions using 18,750 trials (5 values × 5 seeds × 750 prompts)
+    - Performance: 43.8 ± 5.4 regret (near-optimal, <1% cost vs. gamma=0.0)
+    - Safety: 80% variance reduction vs. gamma=0.0 (prevents stochastic expert death)
+    - Decisiveness: Achieves lowest minimum weights (~10^-4), indicating strong adaptation
+      (allocates 80-90%+ weight to the higher-reward expert based on empirical performance)
+    - Predictability: 45% lower outcome variance vs. gamma=0.0
+    - See: experiments_v1/03_figure/results/gamma_ablation/ for full analysis
+    
     **Computational Overhead:**
     - Memory: 2x (store two sets of A/b matrices)
     - Inference: O(1) extra (just pick between two pre-computed decisions)
@@ -3316,7 +3317,8 @@ class CorrallingRouter:
         learning_rate: How quickly to adapt weights (default: 0.1)
         gamma: Mixing parameter γ. Minimum prob for any expert is γ/N.
                Prevents 'Expert Death' when the meta-learner's environment
-               shifts. (default: 0.05)
+               shifts. (default: 0.05, empirically validated as optimal across
+               performance, safety, decisiveness, and predictability)
         
     Example:
         >>> # Create two experts
@@ -3336,7 +3338,7 @@ class CorrallingRouter:
         experts: List,
         models: List[str],
         learning_rate: float = 0.1,
-        gamma: float = 0.05,  # [FIX] Mixing parameter (5% uniform exploration)
+        gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments_v1/03_figure/results/gamma_ablation/)
         loss_decay: float = 0.999,  # [FIX] Meta-level adaptation decay
         meta_lr_halflife: float = 60.0  # Staleness half-life in seconds for delayed feedback
     ):
@@ -3650,6 +3652,156 @@ class CorrallingRouter:
 
 
 # ---------------------------------------------------------------------------
+# Prediction Monitor: Runtime score-range tracking for deployed routers
+# ---------------------------------------------------------------------------
+
+class PredictionMonitor:
+    """
+    Lightweight runtime monitor that tracks per-model prediction statistics
+    to detect score-range anomalies (scale explosion, drift, collapsed arms)
+    in deployed routers.
+    
+    **Why this exists:**
+    Static `_calibrate_priors()` catches scale issues at initialization, but
+    cannot detect problems that emerge after deployment:
+    - Gradual drift as A/b accumulate biased updates
+    - New models registered with bad priors after startup
+    - Feature distribution shift (new prompt patterns activating high-PCA dims)
+    
+    **Design principles (production best practice):**
+    1. O(1) per observation — no storage of individual predictions
+    2. Per-model rolling statistics (min, max, mean, variance, count)
+    3. Configurable alert threshold and cooldown to avoid log spam
+    4. Thread-safe (shares the caller's lock context)
+    5. Queryable health report for CI/canary checks
+    
+    **What it tracks per model:**
+    - `expected_reward`: θ^T · x (the mean prediction, before UCB bonus)
+    - `ucb_score`: full score including exploration bonus and cost penalty
+    
+    Usage:
+        >>> monitor = PredictionMonitor(alert_threshold=2.0)
+        >>> monitor.record("gpt-4", expected_reward=0.72, ucb_score=0.85)
+        >>> health = monitor.get_health_report()
+        >>> assert health["gpt-4"]["alerts"] == 0
+    """
+    
+    def __init__(self, alert_threshold: float = 2.0, alert_cooldown: int = 100):
+        """
+        Args:
+            alert_threshold: Absolute prediction value above which to log a warning.
+                           Binary rewards should produce predictions in [0, 1]; values
+                           above this threshold indicate possible scale explosion.
+            alert_cooldown: Minimum observations between repeated alerts for the
+                          same model (prevents log spam under sustained drift).
+        """
+        self.alert_threshold = alert_threshold
+        self.alert_cooldown = alert_cooldown
+        
+        # Per-model statistics: {model_id: {metric: {min, max, sum, sum_sq, count}}}
+        self._stats: Dict[str, Dict[str, Dict[str, float]]] = {}
+        # Per-model alert suppression counters
+        self._alert_counter: Dict[str, int] = {}
+    
+    def _ensure_model(self, model_id: str):
+        """Lazily initialize stats for a model on first observation."""
+        if model_id not in self._stats:
+            self._stats[model_id] = {
+                "expected_reward": {"min": float("inf"), "max": float("-inf"),
+                                    "sum": 0.0, "sum_sq": 0.0, "count": 0},
+                "ucb_score": {"min": float("inf"), "max": float("-inf"),
+                              "sum": 0.0, "sum_sq": 0.0, "count": 0},
+            }
+            self._alert_counter[model_id] = 0
+    
+    def record(self, model_id: str, expected_reward: float, ucb_score: float):
+        """
+        Record one prediction observation. O(1), no allocation.
+        
+        Args:
+            model_id: Which model produced this prediction
+            expected_reward: θ^T · x (mean prediction before UCB bonus)
+            ucb_score: Full utility score (reward + exploration - cost)
+        """
+        self._ensure_model(model_id)
+        
+        for metric_name, value in [("expected_reward", expected_reward),
+                                    ("ucb_score", ucb_score)]:
+            s = self._stats[model_id][metric_name]
+            s["min"] = min(s["min"], value)
+            s["max"] = max(s["max"], value)
+            s["sum"] += value
+            s["sum_sq"] += value * value
+            s["count"] += 1
+        
+        # Alert check (on expected_reward, the most interpretable signal)
+        self._alert_counter[model_id] += 1
+        if abs(expected_reward) > self.alert_threshold:
+            if self._alert_counter[model_id] >= self.alert_cooldown:
+                count = self._stats[model_id]["expected_reward"]["count"]
+                logger.warning(
+                    f"⚠️ PredictionMonitor: {model_id} expected_reward="
+                    f"{expected_reward:.4f} exceeds threshold "
+                    f"±{self.alert_threshold} (observation #{count})"
+                )
+                self._alert_counter[model_id] = 0
+    
+    def get_health_report(self) -> Dict[str, Dict]:
+        """
+        Return a per-model health report suitable for CI checks or dashboards.
+        
+        Returns:
+            Dict mapping model_id -> {
+                "expected_reward": {min, max, mean, std, count},
+                "ucb_score": {min, max, mean, std, count},
+                "alerts": int  (number of threshold violations)
+            }
+        """
+        report = {}
+        for model_id, metrics in self._stats.items():
+            model_report = {}
+            alert_count = 0
+            for metric_name, s in metrics.items():
+                n = s["count"]
+                if n == 0:
+                    model_report[metric_name] = {
+                        "min": None, "max": None, "mean": None,
+                        "std": None, "count": 0
+                    }
+                    continue
+                mean = s["sum"] / n
+                variance = max(0.0, s["sum_sq"] / n - mean * mean)
+                model_report[metric_name] = {
+                    "min": s["min"],
+                    "max": s["max"],
+                    "mean": mean,
+                    "std": variance ** 0.5,
+                    "count": n,
+                }
+                # Count alerts: how many times max exceeded threshold
+                if metric_name == "expected_reward":
+                    if abs(s["max"]) > self.alert_threshold or abs(s["min"]) > self.alert_threshold:
+                        alert_count += 1
+            model_report["alerts"] = alert_count
+            report[model_id] = model_report
+        return report
+    
+    def reset(self, model_id: str | None = None):
+        """
+        Reset monitoring stats (e.g., after a planned recalibration).
+        
+        Args:
+            model_id: Reset a specific model, or None to reset all.
+        """
+        if model_id is not None:
+            self._stats.pop(model_id, None)
+            self._alert_counter.pop(model_id, None)
+        else:
+            self._stats.clear()
+            self._alert_counter.clear()
+
+
+# ---------------------------------------------------------------------------
 # Cost-Aware LinUCB Router: Optimized for Figure 4 Pareto Sweeps
 # ---------------------------------------------------------------------------
 
@@ -3805,81 +3957,159 @@ class CostAwareLinUCBRouter:
         # If predictions are massive (e.g., 800.0), rescale b-vectors to [0, 1].
         # This prevents "Scale Explosion" from misconfigured or legacy priors.
         self._calibrate_priors(target_max_pred=0.9)
+        
+        # =====================================================================
+        # RUNTIME PREDICTION MONITOR (Complements static _calibrate_priors)
+        # =====================================================================
+        # Tracks per-model prediction statistics on live traffic to detect
+        # drift, scale explosion, or collapsed arms post-deployment.
+        # Threshold of 2.0: predictions for binary rewards should be in [0,1];
+        # >2.0 indicates likely scale issue even accounting for noise.
+        self.prediction_monitor = PredictionMonitor(
+            alert_threshold=2.0, alert_cooldown=100
+        )
     
-    def _calibrate_priors(self, target_max_pred: float = 0.9):
+    def _calibrate_priors(
+        self,
+        target_max_pred: float = 0.9,
+        calibration_contexts: List[np.ndarray] | None = None,
+    ):
         """
-        Auto-calibrates loaded priors to ensure predictions are in a safe range [0, 1].
+        Auto-calibrates loaded priors so predictions stay in a safe range.
         
-        **The "Scale Explosion" Bug:**
-        When loading priors from different training runs or legacy formats, the b-vectors
-        might be scaled incorrectly, leading to predictions like 800.0 instead of 0.8.
-        This happens when:
-        1. Priors trained with N=100k samples are loaded without scaling
-        2. Legacy priors use different reward scales (e.g., 0-100 instead of 0-1)
-        3. Transfer learning from different domains with different magnitudes
+        Two-pass calibration:
         
-        **The Fix:**
-        We probe each model's "base belief" using a dummy context (all zeros except bias=1).
-        If the prediction is unreasonably large (>1.5), we rescale the b-vector to bring
-        predictions back to the target range (default 0.9).
+        **Pass 1 — Bias probe** (fast, catches the most common failure):
+        Probes each model with [0,...,0,1] (bias-only context).  If the bias
+        prediction exceeds the threshold, the bias component of theta is clamped
+        via theta-reconstruction (b = A @ theta_new).
         
-        **Why Scale b, Not A?**
-        - θ = A^(-1) @ b (prediction weights)
-        - Scaling b scales θ directly (changes prediction magnitude)
-        - Scaling A changes confidence intervals (affects exploration/exploitation)
-        - We want to fix magnitude without affecting confidence structure
+        **Pass 2 — Suite probe** (comprehensive, catches PCA-dimension explosions):
+        Probes each model with a built-in suite of basis-independent feature
+        vectors (axis-aligned, random unit-norm, uniform).  If the caller
+        supplies ``calibration_contexts``, those are appended to the suite so
+        that domain-specific directions are also checked.  If any prediction
+        exceeds the threshold, theta is globally rescaled so the worst-case
+        prediction equals ``target_max_pred``.
         
-        **Mathematical Justification:**
-        If pred = θ^T @ x and we want pred' = target, we scale:
-        - b' = b * (target / pred)
-        - θ' = A^(-1) @ b' = (target / pred) * θ
-        - pred' = θ'^T @ x = (target / pred) * pred = target ✓
+        **Why the built-in probes are domain-agnostic:**
+        As a general-purpose library, banditGPT cannot ship with domain-specific
+        "golden prompts."  The synthetic geometry probes (axis-aligned + random +
+        uniform) span the feature space in a basis-independent way, which is the
+        correct approach for a scale check that must work regardless of the
+        application domain.  Users who need domain-specific calibration can pass
+        their own representative feature vectors via ``calibration_contexts``.
         
         Args:
-            target_max_pred: Target maximum prediction for "base belief" (default: 0.9)
-                           Should be < 1.0 to leave room for uncertainty bonus
-        
-        Example:
-            >>> # Automatic calibration in __init__
-            >>> router = CostAwareLinUCBRouter(models, warmup_priors, model_costs)
-            >>> # Detects pred=800.0, rescales to pred=0.9 automatically
+            target_max_pred: Target maximum absolute prediction over the probe
+                           suite (default: 0.9).  Should be < 1.0 to leave room
+                           for the UCB exploration bonus.
+            calibration_contexts: Optional list of domain-specific context vectors
+                           (numpy arrays of shape ``(context_dim,)``) to include
+                           in the probe suite.  Use this to check calibration
+                           against representative traffic from your deployment.
+                           These are appended to — not a replacement for — the
+                           built-in geometry probes.
         """
-        for m in self.models:
-            # Probe the 'base belief' using a dummy context (bias=1, rest=0)
-            dummy_x = np.zeros(self.context_dim)
-            dummy_x[-1] = 1.0  # Assuming bias is last dimension
-            
-            try:
-                # Calculate current prediction using cached A_inv
-                theta = self.A_inv[m] @ self.b[m]
-                pred = theta @ dummy_x
-                
-                # Heuristic: If prediction is massive (> 1.5), it's definitely broken
-                # Normal predictions should be in [0, 1] range for binary rewards
-                # We use 1.5 as threshold to avoid false positives from slight overshoot
-                if abs(pred) > 1.5:
-                    scale_factor = target_max_pred / abs(pred)
+        # -----------------------------------------------------------------
+        # Build probe suite once (shared across all models)
+        # -----------------------------------------------------------------
+        d = self.context_dim
+        probes = []
+        
+        # 1. Bias-only probe (catches the most common failure)
+        bias_probe = np.zeros(d)
+        bias_probe[-1] = 1.0
+        probes.append(("bias", bias_probe))
+        
+        # 2. Axis-aligned probes for each PCA dimension (unit vectors)
+        #    For high-d, sample a subset to keep calibration fast
+        pca_dims = list(range(d - 1))  # All except bias
+        if len(pca_dims) > 8:
+            # Sample 8 evenly-spaced PCA axes
+            step = max(1, len(pca_dims) // 8)
+            pca_dims = pca_dims[::step][:8]
+        for i in pca_dims:
+            e_i = np.zeros(d)
+            e_i[i] = 1.0
+            probes.append((f"axis_{i}", e_i))
+        
+        # 3. Random unit-norm probes (covers off-axis directions)
+        rng = np.random.RandomState(42)  # Deterministic for reproducibility
+        for k in range(4):
+            v = rng.randn(d)
+            v /= (np.linalg.norm(v) + 1e-12)
+            probes.append((f"random_{k}", v))
+        
+        # 4. Uniform probe (all features equally active, normalized)
+        uniform = np.ones(d) / np.sqrt(d)
+        probes.append(("uniform", uniform))
+        
+        # 5. User-supplied domain-specific contexts (optional)
+        if calibration_contexts is not None:
+            for i, ctx in enumerate(calibration_contexts):
+                ctx = np.asarray(ctx, dtype=float).flatten()
+                if ctx.shape[0] != d:
                     logger.warning(
-                        f"🔧 Auto-calibrating prior for {m}: "
-                        f"Raw prediction {pred:.2f} -> Rescaling bias component of b "
-                        f"by {scale_factor:.4e} to target prediction {target_max_pred}"
+                        f"Skipping calibration_context[{i}]: shape {ctx.shape} "
+                        f"!= context_dim {d}"
                     )
-                    # [BUG FIX M2]: Only rescale the bias component of b, not
-                    # the entire vector.  The probe only tests the bias dimension
-                    # (dummy_x = [0,...,0,1]), so the explosion is in theta[-1].
-                    # Globally scaling b would destroy learned contextual/semantic
-                    # preferences in dimensions 0..d-2 by the same factor (e.g.
-                    # if theta[-1]=800 and scale=0.001, all semantic weights get
-                    # shrunk 1000×, effectively erasing 80k battles of signal).
-                    bias_idx = self.context_dim - 1
-                    self.b[m][bias_idx] *= scale_factor
+                    continue
+                probes.append((f"user_{i}", ctx))
+        
+        # -----------------------------------------------------------------
+        # Calibrate each model
+        # -----------------------------------------------------------------
+        for m in self.models:
+            try:
+                theta = self.A_inv[m] @ self.b[m]
+                
+                # --- Pass 1: Bias-only probe (targeted fix) ---
+                bias_pred = float(theta @ bias_probe)
+                if abs(bias_pred) > 1.5:
+                    # Theta-reconstruction: clamp bias weight, preserve PCA weights
+                    theta_new = theta.copy()
+                    theta_new[-1] = target_max_pred * (1.0 if bias_pred > 0 else -1.0)
+                    logger.warning(
+                        f"🔧 Calibration pass 1 ({m}): bias prediction "
+                        f"{bias_pred:.2f} -> {theta_new[-1]:.2f} (theta-reconstruction)"
+                    )
+                    self.b[m] = self.A[m] @ theta_new
+                    # Re-derive theta after b changed
+                    theta = self.A_inv[m] @ self.b[m]
+                
+                # --- Pass 2: Suite probe (global rescale if needed) ---
+                max_abs_pred = 0.0
+                worst_probe = "none"
+                for name, x in probes:
+                    pred = abs(float(theta @ x))
+                    if pred > max_abs_pred:
+                        max_abs_pred = pred
+                        worst_probe = name
+                
+                if max_abs_pred > 1.5:
+                    # Global rescale: theta_new = theta * (target / max_pred)
+                    # This uniformly shrinks all dimensions so the worst-case
+                    # prediction equals target_max_pred.
+                    scale = target_max_pred / max_abs_pred
+                    theta_new = theta * scale
+                    logger.warning(
+                        f"🔧 Calibration pass 2 ({m}): worst-case prediction "
+                        f"{max_abs_pred:.2f} on probe '{worst_probe}' "
+                        f"-> global theta scale {scale:.4f}"
+                    )
+                    self.b[m] = self.A[m] @ theta_new
                     
             except Exception as e:
                 logger.warning(f"Failed to calibrate prior for {m}: {e}")
-                # On failure, leave priors as-is (better than crashing)
                 continue
     
-    def load_priors(self, warmup_priors: Dict, scale: float = 1.0):
+    def load_priors(
+        self,
+        warmup_priors: Dict,
+        scale: float = 1.0,
+        calibration_contexts: List[np.ndarray] | None = None,
+    ):
         """
         Load or update warmup priors with optional scaling.
         
@@ -3904,6 +4134,8 @@ class CostAwareLinUCBRouter:
         Args:
             warmup_priors: Dict with 'A' and 'b' matrices from prior training
             scale: Strength multiplier for priors (default: 1.0)
+            calibration_contexts: Optional domain-specific context vectors to include
+                           in the calibration probe suite (see ``_calibrate_priors``).
         
         Example:
             >>> # Reduce prior strength for faster adaptation
@@ -3911,6 +4143,10 @@ class CostAwareLinUCBRouter:
             
             >>> # Transfer priors from related domain (e.g., coding → math)
             >>> router.load_priors(coding_priors, scale=0.3)  # Weak transfer
+            
+            >>> # Load with domain-specific calibration check
+            >>> held_out = [feature_pipeline(p) for p in sample_prompts[:10]]
+            >>> router.load_priors(new_priors, calibration_contexts=held_out)
         """
         for m in self.models:
             if m in warmup_priors['A'] and m in warmup_priors['b']:
@@ -3923,7 +4159,9 @@ class CostAwareLinUCBRouter:
                 logger.warning(f"Model {m} not found in warmup_priors, skipping")
         
         # Auto-calibrate after loading to prevent scale explosion
-        self._calibrate_priors(target_max_pred=0.9)
+        self._calibrate_priors(
+            target_max_pred=0.9, calibration_contexts=calibration_contexts
+        )
     
     def get_current_alpha(self, total_steps: int) -> float:
         """
@@ -3968,6 +4206,7 @@ class CostAwareLinUCBRouter:
         """
         alpha = self.get_current_alpha(total_steps)
         ucb_scores = {}
+        expected_rewards = {}  # For runtime monitoring
         
         with self._lock:
             eligible = candidates if candidates is not None else self.models
@@ -3981,7 +4220,15 @@ class CostAwareLinUCBRouter:
                 var = float(context @ A_inv @ context)
                 uncertainty = np.sqrt(max(var, 1e-12))
                 normalized_cost = self.model_costs.get(model, {}).get("normalized_cost", 1.0)
-                ucb_scores[model] = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
+                score = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
+                ucb_scores[model] = score
+                expected_rewards[model] = float(expected_reward)
+        
+        # Runtime prediction monitoring (outside lock — recording is O(1))
+        for model, score in ucb_scores.items():
+            self.prediction_monitor.record(
+                model, expected_reward=expected_rewards[model], ucb_score=float(score)
+            )
         
         if not ucb_scores:
             return self.models[0] if self.models else None
@@ -4009,6 +4256,11 @@ class CostAwareLinUCBRouter:
             weight: Importance/difficulty weight (default 1.0)
         """
         if model not in self.A:
+            return
+        # [BUG FIX]: Guard against negative weight (defense-in-depth, mirrors
+        # DisjointLinUCBPolicy).  Negative weight subtracts from A, potentially
+        # making it non-PD and corrupting subsequent A_inv updates.
+        if weight < 0:
             return
         
         x = context.flatten()
@@ -4134,6 +4386,11 @@ class CostAwareTabulaRasaRouter:
         
         # [PERFORMANCE FIX]: Cache A_inv to avoid O(d³) recomputation on every select_model()
         self.A_inv = {m: safe_inv(self.A[m]) for m in models}
+        
+        # Runtime prediction monitor (matches CostAwareLinUCBRouter)
+        self.prediction_monitor = PredictionMonitor(
+            alert_threshold=2.0, alert_cooldown=100
+        )
     
     def get_current_alpha(self, total_steps: int) -> float:
         """
@@ -4171,6 +4428,7 @@ class CostAwareTabulaRasaRouter:
         """
         alpha = self.get_current_alpha(total_steps)
         ucb_scores = {}
+        expected_rewards = {}  # For runtime monitoring
         
         with self._lock:
             eligible = candidates if candidates is not None else self.models
@@ -4183,7 +4441,15 @@ class CostAwareTabulaRasaRouter:
                 var = float(context @ A_inv @ context)
                 uncertainty = np.sqrt(max(var, 1e-12))
                 normalized_cost = self.model_costs.get(model, {}).get("normalized_cost", 1.0)
-                ucb_scores[model] = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
+                score = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
+                ucb_scores[model] = score
+                expected_rewards[model] = float(expected_reward)
+        
+        # Runtime prediction monitoring (outside lock — recording is O(1))
+        for model, score in ucb_scores.items():
+            self.prediction_monitor.record(
+                model, expected_reward=expected_rewards[model], ucb_score=float(score)
+            )
         
         if not ucb_scores:
             return self.models[0] if self.models else None
@@ -4204,6 +4470,11 @@ class CostAwareTabulaRasaRouter:
             weight: Importance/difficulty weight (default 1.0)
         """
         if model not in self.A:
+            return
+        # [BUG FIX]: Guard against negative weight (defense-in-depth, mirrors
+        # DisjointLinUCBPolicy).  Negative weight subtracts from A, potentially
+        # making it non-PD and corrupting subsequent A_inv updates.
+        if weight < 0:
             return
         
         x = context.flatten()

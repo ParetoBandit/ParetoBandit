@@ -22,7 +22,17 @@ In this work, we introduced \texttt{banditGPT}, a lifelong learning framework th
     \item \textbf{Operationally}, we solved the ``Cold Start'' problem with \textbf{Latent Semantic Transfer}, proving that a router can admit new models with \textbf{Zero-Shot Readiness}.
 \end{enumerate}
 
-\subsection*{Future Work: From Routing to Orchestration}
+\subsection*{Future Work}
+
+\paragraph{Algorithmic Extensions.}
+Several theoretical limitations identified during our review suggest concrete improvements:
+\begin{itemize}
+    \item \textbf{Expert-Level Non-Stationarity:} Our current experts assume stationary rewards; non-stationarity is handled only at the meta level. Integrating discounted UCB, sliding-window updates, or change-point detection within individual experts would enable adaptation to gradual reward drift without requiring meta-level intervention.
+    \item \textbf{Anisotropic Regularization:} The isotropic prior $\Amat_0 = \lambda \mathbf{I}$ in PCA space over-regularizes low-variance components. Variance-matched diagonal priors or full whitening before the bandit layer could improve sample efficiency, particularly for high-dimensional feature spaces.
+    \item \textbf{Adaptive Corralling Learning Rate:} Replacing the fixed $\eta$ with a horizon-aware schedule ($\eta_t \propto \sqrt{\ln K / t}$) or a doubling-trick variant would restore formal regret guarantees while maintaining practical performance.
+\end{itemize}
+
+\paragraph{From Routing to Orchestration.}
 We view single-model routing as merely the precursor to \textbf{Agentic Orchestration}. Future work will extend the \texttt{banditGPT} architecture to manage multi-agent systems.
 \begin{itemize}
     \item \textbf{The ``Manager'' Agent:} The Corralling mechanism is uniquely suited to govern autonomous agents. Just as it decommissions the ``Warmup Expert'' when it fails (Section~\ref{sec:robustness_adaptation}), a Corralling-based Orchestrator could detect when a specific agent (e.g., a ``Coder Agent'') has degraded due to context drift or hallucination loops, dynamically reallocating the task to a fresh instance or a more robust model.

@@ -25,9 +25,11 @@ This experiment validates every design decision through systematic ablation stud
 - ✅ **Constant exploration (α=2.0)** vs adaptive decay → Constant wins by 48%
 - ✅ **Expert selection strategy** → Decisive commitment, not gradual blending
 - ✅ **Gamma mixing (γ=0.05)** → Prevents expert death while maintaining performance
-- ✅ **Fast adaptation** → System responds in 16±14 requests (not 100-200 as hypothesized)
+- ✅ **Meta-learning mechanism** → Correctly adapts to prior quality (CRITICAL BUG FIX 2026-02-14)
 
 **Key Insight:** We don't just claim Corralling works—we prove WHY it works through 75 configurations tested.
+
+**⚠️ CRITICAL IMPLEMENTATION NOTE:** All experiments using CorrallingRouter must capture and pass the `selection_token` from `select_model()` to `update()`. Omitting this token causes complete failure of meta-learning. See `CRITICAL_BUG_FIX_2026-02-14.md` for details.
 
 ---
 
@@ -90,13 +92,15 @@ Through comprehensive ablation studies, we validated:
 ---
 
 ### ✅ Fast Adaptation Enables Monitoring
-**Validated by:** Temporal weight tracking (10 seeds)
+**Validated by:** Temporal weight tracking (10 seeds)  
+**⚠️ CORRECTED (2026-02-14):** Critical bug fix applied - selection_token now properly captured
 
-- Adaptation occurs in **16 ± 14 requests** (not 100-200 as initially hypothesized)
-- Final weights: Warmup 0.382 ± 0.471, Tabula Rasa 0.618 ± 0.471
-- High variance indicates seed-dependent outcomes
+- Adaptation occurs within **100-200 requests** on LMSYS holdout data
+- **Final weights (CORRECTED):** Warmup 0.879 ± 0.183, Tabula Rasa 0.121 ± 0.183
+- Moderate variance indicates consistent convergence behavior
+- **Average regret improved by 21%** after bug fix (50.2 → 39.5)
 
-**Key Insight:** Ultra-fast adaptation enables real-time deployment monitoring. System detects bad priors immediately due to severity of mismatch (68.6%→13.7% hard prompts).
+**Key Insight (REVISED):** The system correctly identifies that warmup priors **generalize well** to LMSYS holdout data, increasing trust from 0.46 → 0.88. This contradicts the "severe domain mismatch" hypothesis and validates that Corralling adapts in the correct direction based on actual performance.
 
 **Files:** `experiment_2a_weight_evolution.py`, `results/weight_evolution/`
 
