@@ -739,7 +739,6 @@ class TestBug9_DeepCopy:
 
         # --- Scalars ---
         router.verbose_routing = False
-        router.cluster_boost_weight = 0.0
         router._feature_map = {"pca_0": 0, "bias": 1}
         router._toxicity_scanner = None
 
@@ -772,7 +771,7 @@ class TestBug9_DeepCopy:
             "bandit", "use_corralling", "corralling_learning_rate",
             "corralling_gamma", "corralling_router",
             "logs", "log_index", "model_priors",
-            "verbose_routing", "cluster_boost_weight",
+            "verbose_routing",
             "_feature_map", "_toxicity_scanner",
             "_market_cost_floor", "_market_cost_floor_log", "_market_cost_range",
             "_market_lat_floor", "_market_lat_floor_log", "_market_lat_range",

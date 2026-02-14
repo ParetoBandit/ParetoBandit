@@ -70,11 +70,11 @@ SpeedProfile = Literal["fast", "balanced", "slow"]
 # ---------------------------------------------------------------------------
 try:
     from bandit_gpt.storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from bandit_gpt.utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv, get_heuristic_prior
+    from bandit_gpt.utils import sigmoid, procedural_warmup, safe_inv, get_heuristic_prior
 except ImportError:
     # Fallback for direct file import (not installed as package)
     from .storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from .utils import sigmoid, calibrate_complexity, procedural_warmup, safe_inv, get_heuristic_prior
+    from .utils import sigmoid, procedural_warmup, safe_inv, get_heuristic_prior
 
 logger = logging.getLogger(__name__)
 
@@ -185,8 +185,6 @@ class RouterConfig:
     not hyperparameter fine-tuning. System achieves Zero-Shot Readiness without
     manual calibration.
     
-    **NOTE**: A legacy `LegacyRouterConfig` (Pydantic) exists in config.py for the deprecated
-    virtual anchors architecture. That config is for `core.py` (BanditGPT), not this router.
     This dataclass is the single source of truth for the current production router.
     """
     
@@ -1086,8 +1084,6 @@ class RoutingLog:
     predicted_utility: float
     cost_usd: float
     latency_s: float
-    cluster_id: int | None = None  # Detected semantic cluster
-    cluster_similarity: float | None = None  # Similarity to cluster centroid
     context_vector: np.ndarray | None = None # Cached embedding for updates
     total_priority_weight: float = 1.0       # Sum of w_q, w_c, w_l for normalization
     corralling_token: Dict | None = None     # Selection token for Corralling meta-weight attribution
@@ -1131,9 +1127,6 @@ class BanditRouter:
         init_lambda: float = 1.0,
         update_lambda: float = 0.0,
         forgetting_factor: float = 1.0,
-        cluster_boost_weight:float = 0.0,
-        complexity_path: Path | str | None = None,
-        anchors: Dict[str, str | None] = None,
         context_store: ContextStore | None = None,
         config: RouterConfig | None = None,
         verbose_routing: bool = False,
@@ -1162,9 +1155,6 @@ class BanditRouter:
             init_lambda: Regularization parameter
             update_lambda: Update-time regularization
             forgetting_factor: Temporal decay (1.0 = stationary)
-            cluster_boost_weight: Diversity boost weight
-            complexity_path: (Deprecated) Path to complexity vectors
-            anchors: (Deprecated) Custom virtual anchor definitions
             context_store: Persistent storage for delayed feedback
             config: Router configuration object
             verbose_routing: Enable detailed breakdown logs for each routing decision
@@ -1284,7 +1274,6 @@ class BanditRouter:
         # [BUG FIX]: Lock to protect the logs/log_index pair from concurrent writes
         self._log_lock = threading.Lock()
         self.model_priors: Dict[str, float] = {} 
-        self.cluster_boost_weight = cluster_boost_weight
         
         # Feature name to index mapping for Progressive Registration
         self._feature_map = self._build_feature_map()
@@ -1344,7 +1333,6 @@ class BanditRouter:
         
         # --- Scalar / Immutable Settings (direct copy) ---
         result.verbose_routing = self.verbose_routing
-        result.cluster_boost_weight = self.cluster_boost_weight
         result._feature_map = copy.deepcopy(self._feature_map, memo)
         result._toxicity_scanner = None  # Lazy-init; don't share
         
@@ -1984,10 +1972,7 @@ class BanditRouter:
     
     def _get_context_vector(self, prompt: str | np.ndarray) -> np.ndarray:
         """
-        Proxy method to extract features via the FeatureService.
-        
-        This method is maintained for backward compatibility with 
-        experiment scripts and internal feedback loops.
+        Extract features via the FeatureService.
         
         Args:
             prompt: Input text or pre-encoded vector
@@ -2710,8 +2695,6 @@ class BanditRouter:
             predicted_utility=float(utility),
             cost_usd=self._estimate_cost(model, input_tokens, output_tokens),
             latency_s=self._estimate_latency(model, output_tokens),
-            cluster_id=None,  # Legacy: replaced by Virtual Anchors
-            cluster_similarity=None,
             context_vector=x,  # Cache for feedback loop
             total_priority_weight=total_weight
         )
@@ -2823,16 +2806,13 @@ class BanditRouter:
         self,
         request_id: str,
         reward: float,
-        *,
-        cluster_boost: bool = True
     ) -> None:
         """
-        Process feedback for a routing decision with optional cluster-aware boost.
+        Process feedback for a routing decision.
         
         Args:
             request_id: ID from RoutingLog
             reward: Base reward (0-1, typically from judge)
-            cluster_boost: Whether to apply cluster-aware reward boosting
         """
         # [Paper REVIEW FIX]: O(1) lookup via parallel index instead of O(N) linear scan
         log = self.log_index.get(request_id)
@@ -2848,7 +2828,7 @@ class BanditRouter:
                 request_id=request_id, timestamp_s=time.time(),
                 prompt="[Delayed Feedback]", selected_model=model_id,
                 predicted_utility=0.0, cost_usd=0.0, latency_s=0.0,
-                cluster_id=None, cluster_similarity=None, context_vector=context
+                context_vector=context
             )
         
         # [BUG FIX]: Clamp reward to [0, 1] at the feedback entry point.
@@ -2858,35 +2838,6 @@ class BanditRouter:
         # reward < 0 would spike the importance-weighted loss, destabilizing meta-weights.
         reward = float(np.clip(reward, 0.0, 1.0))
         
-        # Apply cluster boost if enabled and cluster was detected
-        boosted_reward = reward
-        boost_amount = 0.0
-        
-        if cluster_boost and log.cluster_id is not None:
-            # Look up model's z-score for this cluster
-            model_data = self.registry.get(log.selected_model, {})
-            z_scores = model_data.get('cluster_z_scores')
-            
-            if z_scores and len(z_scores) > log.cluster_id:
-                z_score = z_scores[log.cluster_id]
-                
-                # Boost formula: reward *= (1 + z_score * boost_weight)
-                # Positive z-score → model excels at this cluster → get bonus
-                # Negative z-score → model weak at this cluster → get penalty
-                boost_factor = 1.0 + (z_score * self.cluster_boost_weight)
-                # [BUG FIX]: Clamp to [0, 1] to preserve the bounded-reward
-                # assumption required by LinUCB's regret bound.
-                boosted_reward = float(np.clip(reward * boost_factor, 0.0, 1.0))
-                boost_amount = boosted_reward - reward
-                
-                # Log significant boosts
-                if abs(boost_amount) > 0.01:
-                    logger.info(
-                        f"Cluster boost: model={log.selected_model}, "
-                        f"cluster={log.cluster_id}, z={z_score:.2f}, "
-                        f"reward: {reward:.3f} → {boosted_reward:.3f} ({boost_amount:+.3f})"
-                    )
-        
         # Use cached context vector to avoid re-encoding
         x = log.context_vector if log.context_vector is not None else self._get_context_vector(log.prompt)
         
@@ -2895,12 +2846,12 @@ class BanditRouter:
             # [BUG FIX C1]: Pass the selection token so the importance-weighted
             # meta-weight update uses the correct expert_idx and probability.
             self.corralling_router.update(
-                x, log.selected_model, boosted_reward,
+                x, log.selected_model, reward,
                 selection_token=getattr(log, 'corralling_token', None)
             )
         else:
             # Fallback: Update bandit directly
-            self.bandit.update(log.selected_model, x, boosted_reward)
+            self.bandit.update(log.selected_model, x, reward)
         
         # Periodic stability check (cheap O(d) operation)
         # Prevents numerical instability in low-traffic arms when update_lambda=0
@@ -3208,38 +3159,6 @@ class BanditRouter:
         See save_state() for known limitations regarding Corralling persistence.
         """
         self.bandit.load_state(path)
-
-    def calibrate(self, prompts: List[str], *, apply: bool = True, verbose: bool = False) -> Dict[str, float]:
-        """
-        Auto-calibrate complexity normalization parameters from user's dataset.
-        
-        .. deprecated::
-            This method references ``complexity_vector`` which was removed when
-            the feature pipeline was simplified to [PCA | bias].  Calling it will
-            raise ``AttributeError``.  Retained for API backward-compatibility;
-            will be reimplemented if complexity calibration is reintroduced.
-        
-        Args:
-            prompts: List of representative prompts from your production traffic.
-            apply: If True, update the router's normalization parameters.
-            verbose: If True, print detailed statistics and recommendations.
-        
-        Returns:
-            Dict with calibration statistics
-        
-        Raises:
-            AttributeError: complexity_vector no longer exists on BanditRouter
-            ValueError: If prompts list is empty or too small (<10 samples)
-        """
-        # [BUG FIX]: Emit a clear error instead of a cryptic AttributeError deep
-        # inside utils/calibration.py when it accesses router.complexity_vector.
-        if not hasattr(self, 'complexity_vector'):
-            raise NotImplementedError(
-                "calibrate() requires complexity_vector, which was removed when "
-                "the feature pipeline was simplified to [PCA | bias].  "
-                "Use FeatureService.extract_features() directly for custom calibration."
-            )
-        return calibrate_complexity(self, prompts, apply=apply, verbose=verbose)
 
     def _calculate_absolute_penalty(self, cost_per_1k: float) -> float:
         """
