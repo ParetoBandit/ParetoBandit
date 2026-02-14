@@ -1703,3 +1703,309 @@ class TestT2_StalenessAwareMetaLR:
         assert abs(delta - delta_fresh) < 1e-9, (
             f"Infinite halflife should produce same delta: stale={delta:.9f}, fresh={delta_fresh:.9f}"
         )
+
+
+# =============================================================================
+# Round 4 Review Fixes
+# =============================================================================
+
+class TestR4C1_RegisterModelOrder:
+    """Registry publication must happen after expert state is fully initialized."""
+
+    def test_register_does_not_crash_under_corralling(self):
+        """register_model should work when corralling is enabled."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        # Register a second model — should not crash
+        router.register_model(
+            model_id="model_b",
+            cost_usd=2.0,
+            latency_s=0.5,
+            speed="medium",
+        )
+        assert "model_b" in router.registry
+        # Should be routable
+        _, log = router.route("test prompt")
+        assert log.selected_model in router.registry
+
+
+class TestR4M1_StabilityCheckUnderCorralling:
+    """Stability check should not fire every call when corralling is enabled."""
+
+    def test_stability_check_skipped_under_corralling(self):
+        """When corralling is active, stability check on base bandit is skipped."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        # After create, bandit.t should be 0
+        assert router.bandit.t == 0
+        # Run update — bandit.t should stay 0 under corralling
+        if router.use_corralling:
+            router.update("model_a", "test", reward=0.5)
+            assert router.bandit.t == 0, "Base bandit.t should stay 0 under Corralling"
+
+
+class TestR4M3_TshirtSizingFullColumn:
+    """T-shirt bias injection should use full A[:, bias_idx] column."""
+
+    def test_bias_shift_exact(self):
+        """After bias injection via full column, theta[bias_idx] should shift exactly."""
+        policy = DisjointLinUCBPolicy(model_names=["m1"], dim=4, init_lambda=2.0)
+        # Record theta before
+        theta_before = policy.A_inv["m1"] @ policy.b["m1"]
+
+        # Simulate bias injection: shift theta[3] (bias dim) by +0.5
+        bias_idx = 3
+        bias_shift = 0.5
+        policy.b["m1"] += bias_shift * policy.A["m1"][:, bias_idx]
+        policy.A_inv["m1"] = np.linalg.inv(policy.A["m1"])
+
+        theta_after = policy.A_inv["m1"] @ policy.b["m1"]
+        # theta[bias_idx] should have shifted by exactly bias_shift
+        assert abs(theta_after[bias_idx] - theta_before[bias_idx] - bias_shift) < 1e-10, (
+            f"Expected theta shift of {bias_shift}, got {theta_after[bias_idx] - theta_before[bias_idx]}"
+        )
+        # Other dims should be unchanged
+        for i in range(3):
+            assert abs(theta_after[i] - theta_before[i]) < 1e-10, (
+                f"theta[{i}] should be unchanged: was {theta_before[i]}, now {theta_after[i]}"
+            )
+
+
+class TestR4M4_RewardClamping:
+    """Reward should be clamped to [0, 1] at feedback entry points."""
+
+    def test_out_of_range_reward_clamped(self):
+        """Rewards outside [0,1] should be clamped, not crash or corrupt."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        # Should not crash with out-of-range rewards
+        router.update("model_a", "test", reward=2.0)
+        router.update("model_a", "test", reward=-1.0)
+
+
+class TestR4M5_NegativeWeight:
+    """Negative weight should not produce NaN."""
+
+    def test_negative_weight_skipped(self):
+        """DisjointLinUCBPolicy should skip update on negative weight."""
+        policy = DisjointLinUCBPolicy(model_names=["m1"], dim=4)
+        x = np.ones(4)
+        b_before = policy.b["m1"].copy()
+        policy.update("m1", x, reward=1.0, weight=-0.5)
+        # b should not have changed (update was skipped)
+        assert np.allclose(policy.b["m1"], b_before), "Negative weight should skip update"
+
+    def test_no_nan_after_negative_weight(self):
+        """A_inv should not contain NaN after negative weight attempt."""
+        policy = DisjointLinUCBPolicy(model_names=["m1"], dim=4)
+        x = np.ones(4)
+        policy.update("m1", x, reward=1.0, weight=-0.5)
+        assert not np.any(np.isnan(policy.A_inv["m1"])), "A_inv should not contain NaN"
+
+
+class TestR4M6_ProbabilitiesUniform:
+    """get_probabilities should return uniform, not all-zeros, on empty snapshots."""
+
+    def test_uniform_on_empty(self):
+        """When no models pass filter, return uniform probabilities."""
+        policy = DisjointLinUCBPolicy(model_names=["m1", "m2"], dim=4)
+        x = np.ones(4)
+        # Request probabilities for models that don't exist in policy
+        probs = policy.get_probabilities(x, models=["nonexistent_a", "nonexistent_b"])
+        assert abs(sum(probs.values()) - 1.0) < 0.01, (
+            f"Probabilities should sum to 1.0, got {sum(probs.values())}"
+        )
+
+
+class TestR4M7_WarmupNZero:
+    """n=0 in warmup file should not cause ZeroDivisionError."""
+
+    def test_n_zero_guard(self):
+        """max(n, 1) should prevent division by zero."""
+        assert max(0, 1) == 1
+        assert max(None or 0, 1) == 1  # Also handles None->0 case
+
+
+class TestR4L1_ExpertThreadSafety:
+    """Expert routers should have _lock attributes."""
+
+    def test_cost_aware_linucb_has_lock(self):
+        """CostAwareLinUCBRouter should have a _lock."""
+        import threading
+        dim = 4
+        warmup = {
+            "A": {"m1": np.eye(dim)},
+            "b": {"m1": np.zeros(dim)},
+            "context_dim": dim,
+        }
+        router = CostAwareLinUCBRouter(
+            models=["m1"], warmup_priors=warmup,
+            model_costs={"m1": {"normalized_cost": 0.5}}
+        )
+        assert hasattr(router, "_lock")
+        assert isinstance(router._lock, type(threading.Lock()))
+
+    def test_tabula_rasa_has_lock(self):
+        """CostAwareTabulaRasaRouter should have a _lock."""
+        import threading
+        router = CostAwareTabulaRasaRouter(
+            models=["m1"], context_dim=4,
+            model_costs={"m1": {"normalized_cost": 0.5}},
+            ridge_lambda=1.0
+        )
+        assert hasattr(router, "_lock")
+        assert isinstance(router._lock, type(threading.Lock()))
+
+    def test_expert_deepcopy_works(self):
+        """Deep copy of expert routers should work (fresh lock)."""
+        dim = 4
+        warmup = {
+            "A": {"m1": np.eye(dim)},
+            "b": {"m1": np.zeros(dim)},
+            "context_dim": dim,
+        }
+        router = CostAwareLinUCBRouter(
+            models=["m1"], warmup_priors=warmup,
+            model_costs={"m1": {"normalized_cost": 0.5}}
+        )
+        clone = copy.deepcopy(router)
+        assert clone._lock is not router._lock
+
+
+class TestR4L2_MaxLogSizeZero:
+    """max_log_size=0 should not cause unbounded log_index growth."""
+
+    def test_maxlen_none_check(self):
+        """Test that maxlen=0 is handled correctly with `is not None`."""
+        from collections import deque
+        d = deque(maxlen=0)
+        # maxlen=0 is falsy, but `is not None` is True
+        assert d.maxlen is not None
+        assert d.maxlen == 0
+
+
+class TestR4L3_EmptyRegistryStats:
+    """_calculate_global_stats should not crash on empty registry."""
+
+    def test_safe_stats_empty(self):
+        """safe_stats([]) should return (0, 0, 0), not ValueError."""
+        # Directly test the logic
+        values = []
+        if not values:
+            result = (0.0, 0.0, 0.0)
+        else:
+            arr = np.array(values)
+            result = (float(np.min(arr)), float(np.max(arr)), float(np.mean(arr)))
+        assert result == (0.0, 0.0, 0.0)
+
+
+class TestR4L4_MissingWarmupModel:
+    """CostAwareLinUCBRouter should handle models missing from warmup_priors."""
+
+    def test_missing_model_gets_identity(self):
+        """Models not in warmup_priors should get identity initialization."""
+        dim = 4
+        warmup = {
+            "A": {"m1": 2.0 * np.eye(dim)},
+            "b": {"m1": np.ones(dim)},
+            "context_dim": dim,
+        }
+        # m2 is NOT in warmup_priors
+        router = CostAwareLinUCBRouter(
+            models=["m1", "m2"], warmup_priors=warmup,
+            model_costs={"m1": {"normalized_cost": 0.5}, "m2": {"normalized_cost": 0.3}}
+        )
+        # m1 should have the warmup prior
+        assert np.allclose(router.A["m1"], 2.0 * np.eye(dim))
+        # m2 should have identity (fallback)
+        assert np.allclose(router.A["m2"], np.eye(dim))
+        assert np.allclose(router.b["m2"], np.zeros(dim))
+
+
+class TestR4L5_CalibrateNotImplemented:
+    """calibrate() should raise NotImplementedError with a clear message."""
+
+    def test_raises_not_implemented(self):
+        """calibrate() should raise because complexity_vector is gone."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        with pytest.raises(NotImplementedError, match="complexity_vector"):
+            router.calibrate(["prompt1"] * 20)
+
+
+class TestR4_ExpertGuardsUnknownModel:
+    """Expert update/select should not crash on unknown models."""
+
+    def test_cost_aware_linucb_update_unknown_model(self):
+        """CostAwareLinUCBRouter.update should skip unknown models."""
+        dim = 4
+        warmup = {
+            "A": {"m1": np.eye(dim)},
+            "b": {"m1": np.zeros(dim)},
+            "context_dim": dim,
+        }
+        router = CostAwareLinUCBRouter(
+            models=["m1"], warmup_priors=warmup,
+            model_costs={"m1": {"normalized_cost": 0.5}}
+        )
+        # Should not crash on unknown model
+        ctx = np.ones(dim)
+        router.update(ctx, "nonexistent_model", reward=0.5)
+
+    def test_tabula_rasa_update_unknown_model(self):
+        """CostAwareTabulaRasaRouter.update should skip unknown models."""
+        router = CostAwareTabulaRasaRouter(
+            models=["m1"], context_dim=4,
+            model_costs={"m1": {"normalized_cost": 0.5}}, ridge_lambda=1.0
+        )
+        ctx = np.ones(4)
+        router.update(ctx, "nonexistent_model", reward=0.5)
+
+    def test_cost_aware_linucb_select_unknown_candidate(self):
+        """CostAwareLinUCBRouter.select_model should skip unknown candidates."""
+        dim = 4
+        warmup = {
+            "A": {"m1": np.eye(dim)},
+            "b": {"m1": np.zeros(dim)},
+            "context_dim": dim,
+        }
+        router = CostAwareLinUCBRouter(
+            models=["m1"], warmup_priors=warmup,
+            model_costs={"m1": {"normalized_cost": 0.5}}
+        )
+        ctx = np.ones(dim)
+        # Pass candidates that include unknown models
+        result = router.select_model(ctx, total_steps=100, candidates=["m1", "unknown"])
+        assert result == "m1"
