@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.append(str(PROJECT_ROOT))
 sys.path.append(str(PROJECT_ROOT / "scripts"))
 
-from generate_warmup import (
+from generate_warmup_priors import (
     simulate_irt_reward,
     perturb_prompt,
 )

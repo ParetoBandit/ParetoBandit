@@ -28,7 +28,7 @@ from plot_distribution_shift_improved import (
     perform_statistical_tests,
     extract_sample_prompts,
     sensitivity_analysis_multipc,
-    analyze_cluster_separation
+    analyze_task_category_separation
 )
 
 
@@ -576,7 +576,7 @@ class TestClusterSeparation:
             np.random.uniform(0.6, 1.0, 500)     # GPT-4-Turbo-Required
         ])
         
-        results = analyze_cluster_separation(pc1_values, reward_gaps)
+        results = analyze_task_category_separation(pc1_values, reward_gaps)
         
         # Check structure
         assert 'centroid_mixtral' in results
@@ -605,7 +605,7 @@ class TestClusterSeparation:
         pc1_values = np.random.normal(0, 0.17, 1000)
         reward_gaps = np.random.uniform(0.0, 1.0, 1000)
         
-        results = analyze_cluster_separation(pc1_values, reward_gaps)
+        results = analyze_task_category_separation(pc1_values, reward_gaps)
         
         # Should still compute all metrics
         assert isinstance(results['cohens_d'], (float, np.floating))
@@ -625,7 +625,7 @@ class TestClusterSeparation:
         ])
         
         # Custom thresholds
-        results = analyze_cluster_separation(
+        results = analyze_task_category_separation(
             pc1_values, reward_gaps, 
             threshold_low=0.3, 
             threshold_high=0.6
@@ -650,7 +650,7 @@ class TestClusterSeparation:
             np.random.uniform(0.6, 1.0, 500)
         ])
         
-        results_small = analyze_cluster_separation(pc1_small, gaps_small)
+        results_small = analyze_task_category_separation(pc1_small, gaps_small)
         assert results_small['effect_size'] in ['negligible', 'small', 'medium']
         
         # Large effect
@@ -663,7 +663,7 @@ class TestClusterSeparation:
             np.random.uniform(0.6, 1.0, 500)
         ])
         
-        results_large = analyze_cluster_separation(pc1_large, gaps_large)
+        results_large = analyze_task_category_separation(pc1_large, gaps_large)
         assert results_large['effect_size'] in ['large', 'very large']
         assert abs(results_large['cohens_d']) > 1.0
 

@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from pathlib import Path
-from bandit_gpt.router import BanditRouter, OptimizationProfile, ExplorationRate
+from bandit_gpt.router import BanditRouter, ExplorationRate
 
 
 class TestRouterConfigurationUpdates(unittest.TestCase):
@@ -31,11 +31,11 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
             }
         }
 
+    @unittest.skip("OptimizationProfile removed - profiles are now ignored for API compatibility")
     def test_auto_profile(self):
         """Test that 'auto' profile returns Pareto mode marker."""
-        weights = OptimizationProfile.get("auto")
-        self.assertIn("_pareto_mode", weights)
-        self.assertTrue(weights["_pareto_mode"])
+        # OptimizationProfile.get() no longer exists
+        pass
 
     def test_default_alpha_via_exploration_safe(self):
         """Test that exploration='safe' maps to alpha=0.05."""
@@ -122,19 +122,11 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
         self.assertEqual(captured_profile, "arbitrage",
                         "route() should default to 'arbitrage' profile")
 
+    @unittest.skip("OptimizationProfile removed - profiles are now ignored for API compatibility")
     def test_all_other_profiles_unchanged(self):
         """Ensure other profiles remain unchanged."""
-        max_quality = OptimizationProfile.MAX_QUALITY
-        self.assertEqual(max_quality["w_q"], 0.99)
-        self.assertEqual(max_quality["w_c"], 0.01)
-        
-        best_value = OptimizationProfile.BEST_VALUE
-        self.assertEqual(best_value["w_q"], 0.70)
-        self.assertEqual(best_value["w_c"], 0.30)
-        
-        cost_saver = OptimizationProfile.COST_SAVER
-        self.assertEqual(cost_saver["w_q"], 0.40)
-        self.assertEqual(cost_saver["w_c"], 0.60)
+        # OptimizationProfile constants no longer exist
+        pass
 
 
 if __name__ == "__main__":
