@@ -95,10 +95,10 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 
 Production systems additionally require safety under prior mismatch, rapid failure detection, and zero-shot model adoption. We summarize the key findings here; full experimental details, figures, and statistical tests appear in Appendices~\ref{app:adaptation_details} and~\ref{app:multiseed_sensitivity}.
 
-\subsubsection{Corralling Under Moderate Distribution Shift}
+\subsubsection{Prior Generalization Under Distribution Shift}
 \label{sec:adaptation}
 
-Table~\ref{tab:performance_gap} evaluates Corralling under moderate domain mismatch (PSI=0.225, Figure~\ref{fig:distribution_shift}) across N=10 seeds with data-order shuffling.
+Table~\ref{tab:performance_gap} evaluates routing strategies under the moderate domain mismatch documented in Figure~\ref{fig:distribution_shift} (PSI=0.225), across N=10 seeds with data-order shuffling.
 
 \input{../experiments_v1/02_table/table2_final}
 

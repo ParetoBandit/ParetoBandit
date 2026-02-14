@@ -10,7 +10,7 @@ Before presenting our routing algorithm, we establish empirically that the route
 BanditGPT's routing pipeline has two components: (1)~\texttt{FeatureService}, which encodes prompts via a sentence transformer and compresses the 384D embeddings to 33 dimensions using PCA (the router's ``eyes''), and (2)~LinUCB, which uses these features to select models (the router's ``brain'').
 If the PCA features contain no signal about which model will perform better on a given prompt, the bandit reduces to random assignment regardless of how much data it collects.
 This experiment directly validates component~(1)---the production PCA artifact (\texttt{pca\_32.joblib}) loaded by \texttt{FeatureService.extract\_features()}---on held-out data, and compares it against a null baseline to rule out projection artifacts.
-Whether the bandit successfully \emph{exploits} this signal is tested in the routing evaluation (Table~\ref{tab:routing_results}).
+Whether the bandit successfully \emph{exploits} this signal is tested in the routing evaluation (Table~\ref{tab:results}).
 
 \paragraph{Setup.}
 We evaluate on a two-model topology (Mixtral-8x7b-instruct vs.\ GPT-4-Turbo) that matches the RouteLLM benchmark~\cite{ong2024routellm}, enabling direct comparison: any performance differences are attributable to the routing algorithm, not the model set.
@@ -110,4 +110,4 @@ For practitioners deploying BanditGPT:
 
 \paragraph{Connection to routing evaluation.}
 This experiment establishes a \emph{necessary condition}: the router's feature space contains model preference signal.
-Whether this signal is \emph{sufficient} for practical routing gains---and whether the bandit can exploit it safely under distribution shift---is the empirical question addressed in the routing evaluation (Table~\ref{tab:routing_results}).
+Whether this signal is \emph{sufficient} for practical routing gains---and whether the bandit can exploit it safely under distribution shift---is the empirical question addressed in the routing evaluation (Table~\ref{tab:results}).
