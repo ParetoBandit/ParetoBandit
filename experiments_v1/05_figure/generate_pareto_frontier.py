@@ -33,7 +33,7 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
 from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
-from bandit_gpt.calibration import SimpleLinUCBRouter, embed_prompt, apply_gamma_scaling
+from bandit_gpt.calibration import embed_prompt, apply_gamma_scaling
 import copy
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,

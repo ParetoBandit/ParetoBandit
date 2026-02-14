@@ -27,8 +27,8 @@ from typing import Dict, List, Tuple
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 
-from bandit_gpt.calibration import SimpleLinUCBRouter, apply_gamma_scaling, embed_prompt
-from bandit_gpt.router import CorrallingRouter
+from bandit_gpt.calibration import apply_gamma_scaling, embed_prompt
+from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
@@ -36,43 +36,6 @@ from bandit_gpt.config_legacy import (
     CANONICAL_HOLDOUT_DATA_PATH,  # Use HOLDOUT, not DEV
     DEFAULT_MODEL_REGISTRY_PATH,
 )
-
-
-class TabulaRasaRouter:
-    """LinUCB router initialized from scratch (A=I, b=0)."""
-    
-    def __init__(self, models: List[str], context_dim: int, alpha: float = 1.0):
-        self.models = models
-        self.alpha = alpha
-        self.context_dim = context_dim
-        
-        # Initialize with identity (no prior knowledge)
-        self.A = {m: np.eye(context_dim) for m in models}
-        self.b = {m: np.zeros(context_dim) for m in models}
-        
-        # Track selections
-        self.selections = {m: 0 for m in models}
-    
-    def select_model(self, context: np.ndarray, total_steps: int = None) -> str:
-        """Select model using UCB."""
-        ucb_scores = {}
-        for model in self.models:
-            A_inv = np.linalg.inv(self.A[model])
-            theta = A_inv @ self.b[model]
-            
-            expected = theta @ context
-            uncertainty = np.sqrt(context @ A_inv @ context)
-            ucb_scores[model] = expected + self.alpha * uncertainty
-        
-        selected = max(ucb_scores, key=ucb_scores.get)
-        self.selections[selected] += 1
-        return selected
-    
-    def update(self, context: np.ndarray, model: str, reward: float):
-        """Update matrices after observing reward."""
-        context = context.reshape(-1, 1)  # Column vector
-        self.A[model] += context @ context.T
-        self.b[model] += reward * context.flatten()
 
 
 def load_data(data_path: Path, sample_size: int = None) -> Dict[str, Dict]:
@@ -330,31 +293,35 @@ def main():
     # Initialize routers
     print("\n🚀 Initializing routers...")
     
-    # 1. Warmup Router
-    warmup_router = SimpleLinUCBRouter(
+    # 1. Warmup Router (production CostAwareLinUCBRouter with no cost penalty)
+    warmup_router = CostAwareLinUCBRouter(
         models=models,
         warmup_priors=priors_scaled,
-        alpha=1.0
+        model_costs={},
+        alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
     )
     
-    # 2. Tabula Rasa Router
-    tabula_rasa_router = TabulaRasaRouter(
+    # 2. Tabula Rasa Router (production CostAwareTabulaRasaRouter)
+    tabula_rasa_router = CostAwareTabulaRasaRouter(
         models=models,
         context_dim=context_dim,
-        alpha=1.0
+        model_costs={},
+        alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
     )
     
-    # 3. Hybrid Router (Corralling)
-    warmup_expert = SimpleLinUCBRouter(
+    # 3. Hybrid Router (Corralling with production experts)
+    warmup_expert = CostAwareLinUCBRouter(
         models=models,
         warmup_priors=priors_scaled,
-        alpha=1.0
+        model_costs={},
+        alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
     )
     
-    tabula_rasa_expert = TabulaRasaRouter(
+    tabula_rasa_expert = CostAwareTabulaRasaRouter(
         models=models,
         context_dim=context_dim,
-        alpha=1.0
+        model_costs={},
+        alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
     )
     
     hybrid_router = CorrallingRouter(

@@ -52,8 +52,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.calibration import SimpleLinUCBRouter, apply_gamma_scaling
-from bandit_gpt.router import CorrallingRouter
+from bandit_gpt.calibration import apply_gamma_scaling
+from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
@@ -88,36 +88,6 @@ def load_holdout_data(data_path: Path) -> List[Dict]:
             prompt_data[prompt]["scores"][model_id] = score
 
     return list(prompt_data.values())
-
-
-# =====================================================================
-# Tabula Rasa Router (same as in multi-seed experiment)
-# =====================================================================
-
-class TabulaRasaRouter:
-    """LinUCB router initialized from scratch (A=I, b=0)."""
-
-    def __init__(self, models: List[str], context_dim: int, alpha: float = 1.0):
-        self.models = models
-        self.alpha = alpha
-        self.context_dim = context_dim
-        self.A = {m: np.eye(context_dim) for m in models}
-        self.b = {m: np.zeros(context_dim) for m in models}
-
-    def select_model(self, context: np.ndarray, total_steps: int = None) -> str:
-        ucb_scores = {}
-        for model in self.models:
-            A_inv = np.linalg.inv(self.A[model])
-            theta = A_inv @ self.b[model]
-            expected = theta @ context
-            uncertainty = np.sqrt(context @ A_inv @ context)
-            ucb_scores[model] = expected + self.alpha * uncertainty
-        return max(ucb_scores, key=ucb_scores.get)
-
-    def update(self, context: np.ndarray, model: str, reward: float):
-        context = context.reshape(-1, 1)
-        self.A[model] += context @ context.T
-        self.b[model] += reward * context.flatten()
 
 
 # =====================================================================
@@ -166,21 +136,25 @@ def run_simulation(
     indices = list(range(len(data)))
     np.random.shuffle(indices)
 
-    # Initialize router
+    # Initialize router (using production classes from bandit_gpt.router)
     if strategy_name == "Warmup":
-        router = SimpleLinUCBRouter(
-            models=models, warmup_priors=warmup_priors, alpha=1.0
+        router = CostAwareLinUCBRouter(
+            models=models, warmup_priors=warmup_priors, model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
     elif strategy_name == "Tabula Rasa":
-        router = TabulaRasaRouter(
-            models=models, context_dim=context_dim, alpha=1.0
+        router = CostAwareTabulaRasaRouter(
+            models=models, context_dim=context_dim, model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
     elif strategy_name == "Corralling":
-        warmup_expert = SimpleLinUCBRouter(
-            models=models, warmup_priors=warmup_priors, alpha=1.0
+        warmup_expert = CostAwareLinUCBRouter(
+            models=models, warmup_priors=warmup_priors, model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
-        tabula_rasa_expert = TabulaRasaRouter(
-            models=models, context_dim=context_dim, alpha=1.0
+        tabula_rasa_expert = CostAwareTabulaRasaRouter(
+            models=models, context_dim=context_dim, model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
         router = CorrallingRouter(
             experts=[warmup_expert, tabula_rasa_expert],

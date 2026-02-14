@@ -104,60 +104,6 @@ CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
 # PART 1: OPTIMIZATION (ON LABELED DATA)
 # ============================================================================
 
-class TabulaRasaRouter:
-    """LinUCB router initialized from scratch (A=I, b=0).
-    
-    DEPRECATED: Use CostAwareTabulaRasaRouter from bandit_gpt.router instead.
-    Kept for backward compatibility with run_ablation_studies.py.
-    """
-    
-    def __init__(self, models: List[str], context_dim: int, alpha: float = 1.0):
-        self.models = models
-        self.alpha = alpha
-        self.context_dim = context_dim
-        
-        # Initialize with identity (no prior knowledge)
-        self.A = {m: np.eye(context_dim) for m in models}
-        self.b = {m: np.zeros(context_dim) for m in models}
-        
-        # Track selections
-        self.selections = {m: 0 for m in models}
-    
-    def select_model(self, context: np.ndarray, total_steps: int = 0,
-                     candidates: List[str] = None) -> str:
-        """Select model using UCB.
-        
-        Args:
-            context: Context vector
-            total_steps: Total training steps (unused in basic LinUCB, for compatibility)
-            candidates: Optional list of eligible models (if None, use all models)
-        """
-        eligible = candidates if candidates is not None else self.models
-        ucb_scores = {}
-        for model in eligible:
-            A_inv = np.linalg.inv(self.A[model])
-            theta = A_inv @ self.b[model]
-            
-            expected = theta @ context
-            uncertainty = np.sqrt(context @ A_inv @ context)
-            ucb_scores[model] = expected + self.alpha * uncertainty
-        
-        selected = max(ucb_scores, key=ucb_scores.get)
-        self.selections[selected] += 1
-        return selected
-    
-    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
-        """Update matrices after observing reward."""
-        context = context.reshape(-1, 1)  # Column vector
-        self.A[model] += weight * (context @ context.T)
-        self.b[model] += (weight * reward) * context.flatten()
-    
-    def get_theta(self, model: str) -> np.ndarray:
-        """Get learned parameter vector for a model."""
-        A_inv = np.linalg.inv(self.A[model])
-        return A_inv @ self.b[model]
-
-
 def load_labeled_data(data_path: Path, sample_size: int = None) -> List[Dict]:
     """
     Load evaluation data with rewards (labeled data only).

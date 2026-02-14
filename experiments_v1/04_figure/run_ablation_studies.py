@@ -26,8 +26,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from bandit_gpt.calibration import SimpleLinUCBRouter, apply_gamma_scaling, embed_prompt
-from bandit_gpt.router import CorrallingRouter
+from bandit_gpt.calibration import apply_gamma_scaling, embed_prompt
+from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
@@ -38,7 +38,6 @@ from bandit_gpt.config_legacy import (
 # Import helper functions
 sys.path.insert(0, str(Path(__file__).parent))
 from corralled_semantic_analysis import (
-    TabulaRasaRouter,
     load_labeled_data,
     compute_oracle_reward,
     extend_priors_with_semantic_transfer
@@ -67,17 +66,19 @@ def run_single_experiment(
     models = warmup_priors['models']
     context_dim = warmup_priors['A'][models[0]].shape[0]
     
-    # Initialize experts
-    warmup_expert = SimpleLinUCBRouter(
+    # Initialize experts (using production router classes)
+    warmup_expert = CostAwareLinUCBRouter(
         models=models,
         warmup_priors=warmup_priors,
-        alpha=1.0
+        model_costs={},
+        alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
     )
     
-    tabula_rasa_expert = TabulaRasaRouter(
+    tabula_rasa_expert = CostAwareTabulaRasaRouter(
         models=models,
         context_dim=context_dim,
-        alpha=1.0
+        model_costs={},
+        alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
     )
     
     # Initialize Corralling with custom hyperparameters

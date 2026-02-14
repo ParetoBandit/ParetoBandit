@@ -31,8 +31,8 @@ from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from scipy import stats
 
-from bandit_gpt.calibration import SimpleLinUCBRouter, apply_gamma_scaling, embed_prompt
-from bandit_gpt.router import CorrallingRouter
+from bandit_gpt.calibration import apply_gamma_scaling, embed_prompt
+from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
@@ -42,41 +42,6 @@ from bandit_gpt.config_legacy import (
 )
 
 
-class TabulaRasaRouter:
-    """LinUCB router initialized from scratch (A=I, b=0)."""
-    
-    def __init__(self, models: List[str], context_dim: int, alpha: float = 1.0):
-        self.models = models
-        self.alpha = alpha
-        self.context_dim = context_dim
-        
-        # Initialize with identity (no prior knowledge)
-        self.A = {m: np.eye(context_dim) for m in models}
-        self.b = {m: np.zeros(context_dim) for m in models}
-        
-        # Track selections
-        self.selections = {m: 0 for m in models}
-    
-    def select_model(self, context: np.ndarray, total_steps: int = None) -> str:
-        """Select model using UCB."""
-        ucb_scores = {}
-        for model in self.models:
-            A_inv = np.linalg.inv(self.A[model])
-            theta = A_inv @ self.b[model]
-            
-            expected = theta @ context
-            uncertainty = np.sqrt(context @ A_inv @ context)
-            ucb_scores[model] = expected + self.alpha * uncertainty
-        
-        selected = max(ucb_scores, key=ucb_scores.get)
-        self.selections[selected] += 1
-        return selected
-    
-    def update(self, context: np.ndarray, model: str, reward: float):
-        """Update matrices after observing reward."""
-        context = context.reshape(-1, 1)  # Column vector
-        self.A[model] += context @ context.T
-        self.b[model] += reward * context.flatten()
 
 
 def load_data(data_path: Path) -> Dict[str, Dict]:
@@ -135,30 +100,34 @@ def run_single_seed_experiment(
     np.random.shuffle(data_items)
     data = dict(data_items)
     
-    # Initialize routers for this seed
+    # Initialize routers for this seed (using production classes)
     if "Warmup" in name:
-        router = SimpleLinUCBRouter(
+        router = CostAwareLinUCBRouter(
             models=models,
             warmup_priors=warmup_priors,
-            alpha=1.0
+            model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
     elif "Tabula Rasa" in name:
-        router = TabulaRasaRouter(
+        router = CostAwareTabulaRasaRouter(
             models=models,
             context_dim=context_dim,
-            alpha=1.0
+            model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
     elif "Hybrid" in name or "Corralling" in name:
-        warmup_expert = SimpleLinUCBRouter(
+        warmup_expert = CostAwareLinUCBRouter(
             models=models,
             warmup_priors=warmup_priors,
-            alpha=1.0
+            model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
         
-        tabula_rasa_expert = TabulaRasaRouter(
+        tabula_rasa_expert = CostAwareTabulaRasaRouter(
             models=models,
             context_dim=context_dim,
-            alpha=1.0
+            model_costs={},
+            alpha_start=1.0, alpha_end=1.0, cost_penalty=0.0,
         )
         
         router = CorrallingRouter(
