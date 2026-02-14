@@ -165,14 +165,15 @@ def run_single_trial(data: List[Dict], encoder, pca, warmup_priors,
     
     # Shuffle data
     indices = rng.permutation(len(data))
+    total_steps = len(data)  # Total training steps for alpha decay
     
     for idx in indices:
         sample = data[idx]
         prompt = sample['prompt']
         context = embed_prompt(prompt, encoder, pca)
         
-        # Select model
-        selected_model = router.select_model(context)
+        # Select model (CRITICAL: pass total_steps to enable alpha decay!)
+        selected_model = router.select_model(context, total_steps=total_steps)
         
         # Get reward
         scores = sample.get('scores', {})
