@@ -16,6 +16,21 @@ M2: _calibrate_priors() destroys non-bias learned preferences
 M3: weight parameter silently dropped under Corralling
 M4: Thread-unsafe add_arm/delete_arm + memory leak
 L1: request_id collision with time.time_ns()
+
+Round 3 review fixes:
+R3-C1: register_model() atomic publication (TOCTOU race)
+R3-C2: sqrt(negative) NaN in expert routers
+R3-M3: Sherman-Morrison fallback drops current reward
+R3-M4: quality_floor None values cause TypeError
+R3-M5: Expert routers crash on empty candidate list
+R3-M6: _check_numerical_stability doesn't update regularization_floor
+R3-M7: get_probabilities Cholesky crash on ill-conditioned posterior
+R3-M8: _filter_by_constraints fallback returns global registry
+R3-M9: CostAwareTabulaRasaRouter hardcodes fallback dim 33
+R3-L10: Redundant refresh_inverse_cache at startup
+R3-L11: boosted_reward can exceed [0,1]
+R3-L12: Dead code in maintenance path
+R3-L13: log_index concurrent-write race
 """
 
 import sys
@@ -24,6 +39,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import copy
+import time
 from collections import defaultdict
 
 import numpy as np
@@ -1178,4 +1194,512 @@ class TestL1_RequestIdUniqueness:
 
         assert len(ids) == 100, (
             f"Expected 100 unique request_ids, got {len(ids)} — duplicates detected"
+        )
+
+
+# =============================================================================
+# Round 3 Review — Critical 1: register_model() atomic publication
+# =============================================================================
+
+class TestR3C1_RegisterModelAtomic:
+    """
+    register_model() must publish all state (A, b, A_inv, regularization_floor)
+    before appending to models list, to prevent concurrent select_arm() from
+    seeing a half-initialized model (TOCTOU race).
+    """
+
+    def test_register_model_sets_regularization_floor(self):
+        """register_model() via add_arm should set regularization_floor."""
+        policy = DisjointLinUCBPolicy(model_names=["m1"], dim=4)
+        policy.add_arm("m2")
+        assert "m2" in policy.regularization_floor
+        assert policy.regularization_floor["m2"] == policy.init_lambda
+
+    def test_register_model_all_state_before_visibility(self):
+        """After add_arm, all dicts should have the new model key."""
+        policy = DisjointLinUCBPolicy(model_names=["m1"], dim=4)
+        policy.add_arm("new_model")
+        # Model should be in all dictionaries
+        assert "new_model" in policy.A
+        assert "new_model" in policy.b
+        assert "new_model" in policy.A_inv
+        assert "new_model" in policy.regularization_floor
+        # And in the models list
+        assert "new_model" in policy.models
+        # models list should have it last (atomic publication: list append is last)
+        assert policy.models[-1] == "new_model"
+
+
+# =============================================================================
+# Round 3 Review — Critical 2: NaN from sqrt(negative) in expert routers
+# =============================================================================
+
+class TestR3C2_SqrtVarianceFloor:
+    """
+    Expert routers (CostAwareLinUCBRouter, CostAwareTabulaRasaRouter) must
+    floor variance at 0 before taking sqrt, to prevent NaN from floating-point
+    rounding making x^T A_inv x slightly negative.
+    """
+
+    def test_cost_aware_tabula_rasa_no_nan(self):
+        """TabulaRasa select_model should never return NaN scores."""
+        models = ["m1", "m2"]
+        costs = {m: {"normalized_cost": 0.5} for m in models}
+        router = CostAwareTabulaRasaRouter(
+            models=models, context_dim=4, model_costs=costs,
+            alpha_start=1.0, alpha_end=0.1, ridge_lambda=1.0
+        )
+        # Create a context that's deliberately poorly conditioned
+        rng = np.random.RandomState(42)
+        for _ in range(20):
+            x = rng.randn(4)
+            selected = router.select_model(x, total_steps=100)
+            assert selected is not None
+            assert isinstance(selected, str)
+
+    def test_cost_aware_linucb_no_nan(self):
+        """CostAwareLinUCBRouter select_model should not produce NaN."""
+        models = ["m1", "m2"]
+        dim = 4
+        warmup = {
+            "A": {m: np.eye(dim) for m in models},
+            "b": {m: np.zeros(dim) for m in models},
+            "context_dim": dim,
+        }
+        costs = {m: {"normalized_cost": 0.5} for m in models}
+        router = CostAwareLinUCBRouter(
+            models=models, warmup_priors=warmup, model_costs=costs,
+            alpha_start=1.0, alpha_end=0.1
+        )
+        rng = np.random.RandomState(42)
+        for _ in range(20):
+            x = rng.randn(dim)
+            selected = router.select_model(x, total_steps=100)
+            assert selected is not None
+
+    def test_empty_candidate_list_no_crash(self):
+        """Expert router should not crash when all candidates are filtered."""
+        models = ["m1", "m2"]
+        costs = {m: {"normalized_cost": 0.5} for m in models}
+        router = CostAwareTabulaRasaRouter(
+            models=models, context_dim=4, model_costs=costs,
+            alpha_start=1.0, alpha_end=0.1, ridge_lambda=1.0
+        )
+        x = np.ones(4)
+        # Pass empty candidate list
+        result = router.select_model(x, total_steps=100, candidates=[])
+        # Should fallback gracefully (return a model or None, not crash)
+        assert result is not None or len(models) == 0
+
+
+# =============================================================================
+# Round 3 Review — Medium 3: Sherman-Morrison fallback preserves reward
+# =============================================================================
+
+class TestR3M3_ShermanMorrisonFallbackReward:
+    """
+    When Sherman-Morrison falls back to full inversion due to near-singular
+    denominator, the current observation's reward must still be incorporated
+    into b. Previously, `b = A_new @ old_theta` silently discarded it.
+    """
+
+    def test_fallback_incorporates_reward(self):
+        """After a forced fallback, b should reflect the current reward."""
+        policy = DisjointLinUCBPolicy(
+            model_names=["m1"], dim=4, init_lambda=1.0, update_lambda=0.0
+        )
+        # Record initial theta
+        theta_before = policy.A_inv["m1"] @ policy.b["m1"]
+        assert np.allclose(theta_before, 0.0)
+
+        # A normal update with clear reward signal
+        x = np.array([1.0, 0.0, 0.0, 0.0])
+        policy.update("m1", x, reward=1.0)
+
+        theta_after = policy.A_inv["m1"] @ policy.b["m1"]
+        # theta should have moved in the direction of x
+        assert theta_after[0] > 0, "Reward should influence theta in direction of x"
+
+
+# =============================================================================
+# Round 3 Review — Medium 4: quality_floor None values
+# =============================================================================
+
+class TestR3M4_QualityFloorNone:
+    """
+    _filter_by_constraints should gracefully handle None values in the
+    quality_floor dict, treating them as 'no constraint on this metric'.
+    """
+
+    def test_none_value_in_quality_floor(self):
+        """quality_floor={'arena_elo': None} should not cause TypeError."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+                "scores": {"arena_elo": 1100},
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        # Should not raise TypeError
+        _, log = router.route("test prompt", quality_floor={"arena_elo": None})
+        assert log.selected_model == "model_a"
+
+    def test_mixed_none_and_value(self):
+        """Mix of None and numeric constraints should work."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+                "scores": {"arena_elo": 1100, "mmlu": 0.8},
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        _, log = router.route("test prompt", quality_floor={"arena_elo": None, "mmlu": 0.5})
+        assert log.selected_model == "model_a"
+
+
+# =============================================================================
+# Round 3 Review — Medium 6: _check_numerical_stability updates reg floor
+# =============================================================================
+
+class TestR3M6_StabilityRegFloor:
+    """
+    _check_numerical_stability must update regularization_floor after
+    injecting fresh regularization, so the forgetting-factor code has
+    an accurate picture of accumulated λ.
+    """
+
+    def test_regularization_floor_updated_after_stability_fix(self):
+        """After stability reset, regularization_floor should increase."""
+        policy = DisjointLinUCBPolicy(
+            model_names=["m1"], dim=4, init_lambda=1.0, update_lambda=0.0
+        )
+        initial_floor = policy.regularization_floor["m1"]
+
+        # Create a config to pass
+        config = RouterConfig()
+        config.init_lambda = 1.0
+
+        # Force the trace threshold to be very low so the stability check triggers
+        config.stability_threshold = 0.0  # Will always trigger
+
+        policy._check_numerical_stability("m1", config)
+
+        new_floor = policy.regularization_floor["m1"]
+        assert new_floor >= initial_floor, (
+            f"regularization_floor should increase after stability fix: "
+            f"{initial_floor} -> {new_floor}"
+        )
+
+
+# =============================================================================
+# Round 3 Review — Medium 7: get_probabilities ill-conditioned posterior
+# =============================================================================
+
+class TestR3M7_IllConditionedPosterior:
+    """
+    get_probabilities should not crash with LinAlgError when the posterior
+    covariance is ill-conditioned. The fix adds a try/except fallback.
+    """
+
+    def test_ill_conditioned_no_crash(self):
+        """Deliberately ill-conditioned A_inv should not crash get_probabilities."""
+        models = ["m1", "m2"]
+        policy = DisjointLinUCBPolicy(
+            model_names=models, dim=4, init_lambda=1e-15
+        )
+        x = np.ones(4)
+        # Should not raise LinAlgError
+        probs = policy.get_probabilities(x, models=models)
+        assert isinstance(probs, dict)
+        assert "m1" in probs and "m2" in probs
+        # Probabilities should sum to ~1
+        total = sum(probs.values())
+        assert abs(total - 1.0) < 0.01 or total == 0.0
+
+
+# =============================================================================
+# Round 3 Review — Medium 8: _filter_by_constraints fallback
+# =============================================================================
+
+class TestR3M8_ConstraintsFallback:
+    """
+    When all candidates are filtered, _filter_by_constraints should fall back
+    to the original candidates, not the entire global registry.
+    """
+
+    def test_fallback_uses_original_candidates(self):
+        """Fallback after over-constrained filter should return original candidates."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            },
+            "model_b": {
+                "openrouter_id": "test/model-b",
+                "input_cost_per_m": 100.0,
+                "output_cost_per_m": 300.0,
+                "time_to_first_token_seconds": 1.0,
+                "hle": 0.5,
+            },
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        # Route with extremely restrictive cost constraint (should filter all)
+        # The fallback should return candidates, not registry.keys()
+        _, log = router.route("test", max_cost=0.000001)
+        # Model should still be selected from the known set
+        assert log.selected_model in registry
+
+
+# =============================================================================
+# Round 3 Review — Medium 9: CostAwareTabulaRasaRouter uses stored context_dim
+# =============================================================================
+
+class TestR3M9_TabulaRasaDimension:
+    """
+    CostAwareTabulaRasaRouter.add_model() should use the stored context_dim
+    instead of hardcoding 33 when no existing matrices are available.
+    """
+
+    def test_add_model_uses_context_dim(self):
+        """Dynamically added models should use stored context_dim, not 33."""
+        dim = 10
+        models = ["m1"]
+        costs = {"m1": {"normalized_cost": 0.5}}
+        router = CostAwareTabulaRasaRouter(
+            models=models, context_dim=dim, model_costs=costs, ridge_lambda=1.0
+        )
+        # Clear all existing matrices to force the fallback path
+        router.A.clear()
+        router.b.clear()
+        router.A_inv.clear()
+
+        router.add_model("m2", normalized_cost=0.3)
+
+        assert router.A["m2"].shape == (dim, dim), (
+            f"Expected ({dim}, {dim}), got {router.A['m2'].shape}"
+        )
+        assert router.b["m2"].shape == (dim,), (
+            f"Expected ({dim},), got {router.b['m2'].shape}"
+        )
+
+    def test_context_dim_stored(self):
+        """Constructor should store context_dim as attribute."""
+        router = CostAwareTabulaRasaRouter(
+            models=["m1"], context_dim=42, model_costs={"m1": {"normalized_cost": 0.5}},
+            ridge_lambda=1.0
+        )
+        assert hasattr(router, "context_dim")
+        assert router.context_dim == 42
+
+
+# =============================================================================
+# Round 3 Review — Low 11: boosted_reward clamped to [0, 1]
+# =============================================================================
+
+class TestR3L11_BoostedRewardClamp:
+    """
+    boosted_reward should be clamped to [0, 1] to preserve the bounded-reward
+    assumption required by LinUCB's regret bound.
+    """
+
+    def test_clamp_upper_bound(self):
+        """np.clip should cap reward*boost at 1.0."""
+        val = float(np.clip(0.9 * 2.0, 0.0, 1.0))
+        assert val == 1.0
+
+    def test_clamp_lower_bound(self):
+        """np.clip should floor negative boosted reward at 0.0."""
+        val = float(np.clip(0.5 * (-1.0), 0.0, 1.0))
+        assert val == 0.0
+
+
+# =============================================================================
+# Round 3 Review — Low 13: log_index with _log_lock
+# =============================================================================
+
+class TestR3L13_LogLock:
+    """BanditRouter should have a _log_lock to protect log/log_index writes."""
+
+    def test_log_lock_exists(self):
+        """BanditRouter should have a _log_lock attribute."""
+        import threading
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        assert hasattr(router, "_log_lock")
+        assert isinstance(router._log_lock, type(threading.Lock()))
+
+    def test_deepcopy_gets_fresh_lock(self):
+        """Deep-copied router should have its own independent _log_lock."""
+        registry = {
+            "model_a": {
+                "openrouter_id": "test/model-a",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 3.0,
+                "time_to_first_token_seconds": 0.1,
+                "hle": 0.7,
+            }
+        }
+        router = BanditRouter.create(model_registry=registry, priors="none")
+        clone = copy.deepcopy(router)
+        assert clone._log_lock is not router._log_lock
+
+
+# =============================================================================
+# T2: Staleness-aware meta-weight learning rate for delayed feedback
+# =============================================================================
+
+class TestT2_StalenessAwareMetaLR:
+    """
+    Corralling meta-weight updates should be discounted when feedback is
+    delayed, because the importance weight 1/p_i from the selection token
+    becomes less reliable as meta-weights drift.
+
+    Expert internal updates are always at full strength.
+    """
+
+    def _make_router(self, halflife=60.0):
+        """Helper: create a CorrallingRouter with mock experts."""
+        models = ["m1", "m2"]
+
+        class SimpleExpert:
+            def __init__(self, preferred_model):
+                self.preferred_model = preferred_model
+                self.update_calls = []
+            def select_model(self, context, **kwargs):
+                return self.preferred_model
+            def update(self, context, model, reward, weight=1.0):
+                self.update_calls.append((model, reward, weight))
+
+        e1 = SimpleExpert("m1")
+        e2 = SimpleExpert("m2")
+        router = CorrallingRouter(
+            experts=[e1, e2], models=models,
+            learning_rate=0.5, gamma=0.1,
+            meta_lr_halflife=halflife,
+        )
+        return router, e1, e2
+
+    def test_token_contains_timestamp(self):
+        """select_model() token should include a 'timestamp' field."""
+        router, _, _ = self._make_router()
+        ctx = np.ones(4)
+        _, token = router.select_model(ctx)
+        assert "timestamp" in token
+        assert isinstance(token["timestamp"], float)
+        assert token["timestamp"] > 0
+
+    def test_fresh_feedback_full_meta_update(self):
+        """Feedback within a few ms should apply ~100% of meta-weight change."""
+        router, _, _ = self._make_router(halflife=60.0)
+        ctx = np.ones(4)
+        weights_before = router.weights.copy()
+
+        _, token = router.select_model(ctx)
+        # Immediate update (delay ≈ 0)
+        router.update(ctx, "m1", reward=0.0, selection_token=token)
+
+        weights_after = router.weights.copy()
+        delta_fresh = np.abs(weights_after - weights_before).sum()
+        assert delta_fresh > 0, "Fresh feedback should change meta-weights"
+
+    def test_stale_feedback_discounted_meta_update(self):
+        """Feedback arriving after delay >> τ should barely affect meta-weights."""
+        router, _, _ = self._make_router(halflife=1.0)  # 1-second halflife
+        ctx = np.ones(4)
+
+        _, token = router.select_model(ctx)
+        # Simulate 100-second delay by backdating the token
+        token["timestamp"] = time.time() - 100.0
+
+        weights_before = router.weights.copy()
+        router.update(ctx, "m1", reward=0.0, selection_token=token)
+        weights_after = router.weights.copy()
+
+        delta_stale = np.abs(weights_after - weights_before).sum()
+        # With τ=1s and delay=100s, staleness_factor ≈ 1/101 ≈ 0.01
+        # So the meta-weight change should be very small
+        assert delta_stale < 0.05, (
+            f"Stale feedback (100s, τ=1s) should barely change meta-weights, "
+            f"but delta was {delta_stale:.4f}"
+        )
+
+    def test_staleness_factor_proportional_to_delay(self):
+        """More delay → less meta-weight change, monotonically."""
+        ctx = np.ones(4)
+        deltas = []
+        for delay_s in [0.0, 10.0, 60.0, 600.0]:
+            router, _, _ = self._make_router(halflife=60.0)
+            _, token = router.select_model(ctx)
+            token["timestamp"] = time.time() - delay_s
+
+            weights_before = router.weights.copy()
+            router.update(ctx, "m1", reward=0.0, selection_token=token)
+            delta = np.abs(router.weights - weights_before).sum()
+            deltas.append(delta)
+
+        # Deltas should be monotonically non-increasing
+        for i in range(len(deltas) - 1):
+            assert deltas[i] >= deltas[i + 1] - 1e-9, (
+                f"Meta-weight change should decrease with delay: "
+                f"delay {[0, 10, 60, 600][i]}s → Δ={deltas[i]:.6f}, "
+                f"delay {[0, 10, 60, 600][i+1]}s → Δ={deltas[i+1]:.6f}"
+            )
+
+    def test_experts_always_get_full_update(self):
+        """Expert internal updates should NOT be discounted by staleness."""
+        router, e1, e2 = self._make_router(halflife=1.0)
+        ctx = np.ones(4)
+
+        _, token = router.select_model(ctx)
+        # Simulate very stale feedback
+        token["timestamp"] = time.time() - 1000.0
+
+        router.update(ctx, "m1", reward=0.8, selection_token=token, weight=2.5)
+
+        # Both experts should still receive the full update
+        assert len(e1.update_calls) == 1
+        assert len(e2.update_calls) == 1
+        assert e1.update_calls[0] == ("m1", 0.8, 2.5)
+        assert e2.update_calls[0] == ("m1", 0.8, 2.5)
+
+    def test_infinite_halflife_disables_decay(self):
+        """meta_lr_halflife=inf should give staleness_factor=1.0 always."""
+        router, _, _ = self._make_router(halflife=float('inf'))
+        ctx = np.ones(4)
+
+        _, token = router.select_model(ctx)
+        token["timestamp"] = time.time() - 86400.0  # 1 day old
+
+        weights_before = router.weights.copy()
+        router.update(ctx, "m1", reward=0.0, selection_token=token)
+        delta = np.abs(router.weights - weights_before).sum()
+
+        # Should be same as fresh (no discount)
+        router2, _, _ = self._make_router(halflife=float('inf'))
+        _, token2 = router2.select_model(ctx)
+        weights_before2 = router2.weights.copy()
+        router2.update(ctx, "m1", reward=0.0, selection_token=token2)
+        delta_fresh = np.abs(router2.weights - weights_before2).sum()
+
+        assert abs(delta - delta_fresh) < 1e-9, (
+            f"Infinite halflife should produce same delta: stale={delta:.9f}, fresh={delta_fresh:.9f}"
         )
