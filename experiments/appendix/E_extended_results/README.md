@@ -1,135 +1,42 @@
 # Appendix E: Extended Experimental Results
 
 ## Overview
-Additional experimental results, extended analyses, and supplementary evaluations that complement the main paper findings.
+Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's safety benefit on a 5-model portfolio with production router components.
 
 ## Contents
 
 ### E.1: Catastrophic Failure Detection
-**Files**: 
-- `E1_catastrophic_failure.tex` (source: `06_figure/figure5_corralling_kdd.tex`)
-- `E1_catastrophic_failure_extended.tex` (source: `06_figure/figure6_corralling_kdd.tex`)
+**Canonical source**: `../E_catastrophic_failure_experiment/figure6_corralling_kdd.tex`
 
 **Content**:
-- Three-phase catastrophic failure scenario
-- Corralling as safety mechanism for fast automatic failover
-- Detection of large, sudden quality drops (d > 1.0)
+- 5-model portfolio (Mixtral, GPT-4-Turbo, GPT-3.5, Haiku, GPT-4o)
+- Three-phase scenario: healthy -> catastrophic failure -> recovery
+- Production router with semantic transfer for all 5 models
+- Comparison: banditGPT vs EMA Tracker vs Static vs Oracle
 
-**Scenario Design**:
-- **Phase 1 (t=0-100)**: Both models healthy (Mixtral & GPT-4: μ=0.80, σ=0.08)
-- **Phase 2 (t=100-200)**: GPT-4 catastrophic failure (μ drops to 0.20)
-- **Phase 3 (t=200-300)**: GPT-4 recovery (μ returns to 0.80)
+**Key Results** (K=5, N=20 Seeds):
+- Detection rate: 95% (19/20 seeds)
+- Reaction time: Median 34 steps
+- Gap vs EMA narrows with portfolio size: -0.286 (K=2) -> -0.090 (K=5)
 
-**Key Insights**:
-- Use Corralling for safety-critical failure detection (d > 1.0)
-- NOT for subtle quality optimization (d < 0.2) - offline A/B testing better
-- Fast weight rebalancing enables automatic failover
-- System maintains performance during model degradation
-
-**Supplementary Materials**:
-- Additional catastrophic failure experiments in `06_figure/supplementary/`
-- Learning rate ablation under catastrophic failure
-- Realistic failure scenario testing
-- Multi-seed validation
+**Key Insight**: Use Corralling for safety-critical failure detection (effect size d > 1.0), NOT for subtle quality optimization (d < 0.2).
 
 ---
 
-### E.2: Three-Model Routing Results
-**Source**: `04_figure/results_3models/`
+## Removed Content
 
-**Content**:
-- Extended evaluation with 3 models (Mixtral, GPT-4-Turbo, GPT-4o)
-- Demonstrates multi-model routing capabilities
-- Semantic transfer initialization for GPT-4o
-
-**Key Results**:
-- GPT-4o emerges as dominant choice (70.8% usage)
-- System correctly learns model preferences from data
-- Semantic transfer enables zero-shot adoption
-
----
-
-### E.3: Alternative Cost Profiles
-**Content**:
-- Extended cost-quality trade-off analysis
-- Multiple cost budget scenarios
-- Pareto frontier variations
-
-**Profiles Evaluated**:
-- Max Quality: High-cost, high-quality routing
-- Arbitrage: Balanced cost-quality
-- Best Value: Cost-minimizing strategies
-
----
-
-### E.4: Distribution Shift Robustness
-**Source**: `02_figure/` and `02_table/` extended analyses
-
-**Content**:
-- Mismatch robustness analysis
-- Performance under distribution shift
-- Covariate shift between training and deployment
-
-**Key Metrics**:
-- Population Stability Index (PSI)
-- Kolmogorov-Smirnov test results
-- Bootstrap confidence intervals
-- Task difficulty clustering on reward gaps
-
----
-
-## Figures
-
-### Catastrophic Failure Figures
-- Three-phase failure scenario visualization
-- Weight evolution during failure and recovery
-- Performance comparison: with/without Corralling
-
-### Multi-Model Results
-- Usage distribution across 3 models
-- Cumulative regret comparison
-- Learning curves for each model
-
-### Cost Profile Analysis
-- Extended Pareto frontier plots
-- Cost vs. quality scatter plots
-- Budget constraint analysis
-
----
-
-## Key Takeaways
-
-### When to Use Corralling
-✅ **DO USE** for:
-- Catastrophic failure detection (effect size d > 1.0)
-- Fast automatic failover requirements
-- Safety-critical applications
-- Sudden quality drops or model crashes
-
-❌ **DON'T USE** for:
-- Subtle quality optimization (d < 0.2)
-- Stable model performance
-- Offline A/B testing scenarios
-- When deployment latency is not critical
-
-### Multi-Model Routing
-- System scales beyond 2 models effectively
-- Semantic transfer enables rapid new model adoption
-- Corralling meta-algorithm handles heterogeneous expert ensembles
-- No performance degradation with increased model count
-
-### Economic Validation
-- Intelligent routing delivers GPT-4 quality at 50% cost
-- Pareto frontier demonstrates clear value proposition
-- Multiple cost profiles accommodate different business needs
+| Item | Reason |
+|------|--------|
+| ~~E2: Three-Model Routing~~ | Experiment removed from scope |
+| ~~E3: Alternative Cost Profiles~~ | Never created; Figure 4 Pareto sweep covers cost-quality tradeoffs |
+| ~~E4: Distribution Shift Robustness~~ | Never created; B.2 covers cross-domain transfer |
 
 ---
 
 ## Related Sections
-- **Main Paper Figure 5**: Pareto frontier core results
-- **Main Paper Figure 4**: Multi-model routing with semantic transfer
-- **Appendix D**: Extended analysis and operating regimes
-- **Appendix F**: Implementation details for production deployment
+- **Appendix D.2**: Learning rate ablation under catastrophic failure (justifies $\eta=0.3$)
+- **Main Paper Figure 3**: Corralling insurance mechanism — Figure 6 extends this to catastrophic scenario
+- **Main Paper Figure 4**: Pareto frontier — static benchmarks; Figure 6 tests dynamic challenge
 
 ---
 
@@ -137,14 +44,12 @@ Additional experimental results, extended analyses, and supplementary evaluation
 ```
 E_extended_results/
 ├── README.md                              (this file)
-├── E1_catastrophic_failure.tex           (failure detection)
-├── E1_catastrophic_failure_extended.tex  (extended analysis)
-├── E2_three_model_routing.tex            (to be created)
-├── E3_cost_profiles.tex                  (to be created)
-├── E4_distribution_shift.tex             (to be created)
-└── figures/
-    ├── (catastrophic failure figures)
-    ├── (multi-model routing figures)
-    ├── (cost profile figures)
-    └── (distribution shift figures)
+├── E1_catastrophic_failure.tex            (included in APPENDIX_MASTER)
+└── E1_catastrophic_failure_extended.tex   (optional extended analysis)
 ```
+
+The canonical experiment code and figures live in `../E_catastrophic_failure_experiment/`.
+
+---
+
+**Last Updated**: February 15, 2026

@@ -20,7 +20,7 @@ This directory contains all experimental code for the banditGPT paper.
 
 | Paper Object | Content | Experiment Folder | Key Output |
 |---|---|---|---|
-| **Figure 6** | Catastrophic Failure Detection (K=5 Portfolio) | [`appendix/06_figure/`](appendix/06_figure/) | `figure6_5model.png` |
+| **Figure 6** | Catastrophic Failure Detection (K=5 Portfolio) | [`appendix/E_catastrophic_failure_experiment/`](appendix/E_catastrophic_failure_experiment/) | `figure6_5model.png` |
 
 Additional appendix content is organized in [`appendix/`](appendix/).
 
@@ -36,7 +36,7 @@ experiments/
 ├── 03_figure/                    # Figure 3: Corralling Insurance Analysis
 ├── 04_figure/                    # Figure 4: Pareto Frontier
 ├── appendix/                     # Appendix experiments and extended results
-│   └── 06_figure/               # Figure 6: Catastrophic Failure Detection
+│   └── E_catastrophic_failure_experiment/  # Figure 6: Catastrophic Failure Detection
 └── utils/                        # Shared utilities
 ```
 

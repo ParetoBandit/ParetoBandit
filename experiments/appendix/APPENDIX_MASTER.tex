@@ -4,6 +4,15 @@
 %
 % Usage: \input{experiments/appendix/APPENDIX_MASTER.tex}
 %        OR compile standalone for appendix-only PDF
+%
+% Structure (trimmed to support Figures 1, 3, 4, 6, and Table 2):
+%   A: Mathematical Foundations (proofs for Fig 1, Fig 3)
+%   B: Dataset Details (validation for Fig 1, Table 2)
+%   C: Hyperparameter Sensitivity (robustness for Fig 4)
+%   D: Ablation Studies (component validation for Fig 3, Fig 4, Fig 6)
+%   E: Extended Results (catastrophic failure — Fig 6)
+%   F: Implementation Details (reproducibility)
+%   G: Limitations and Future Work
 
 \documentclass[10pt,letterpaper]{article}
 
@@ -70,22 +79,19 @@ This appendix provides mathematical proofs, theoretical bounds, and formal deriv
 \input{A_mathematical_foundations/A1_spectral_separation_proof}
 
 % ============================================================================
-% APPENDIX B: DATASET DETAILS AND SCALE VALIDATION
+% APPENDIX B: DATASET DETAILS
 % ============================================================================
 
-\section{Dataset Details and Scale Validation}
+\section{Dataset Details}
 \label{appendix:dataset_details}
 
-This appendix provides comprehensive dataset documentation, statistical validation methodology, and large-scale validation experiments.
+This appendix documents the statistical validation methodology and cross-domain generalization evidence supporting Table~2 and Figure~1.
 
-% B.1: Dataset Composition (to be created - extended from Table 1)
-% \input{B_dataset_details/B1_dataset_composition}
+% B.1: Validation Methodology (supports Figure 1 Spearman test)
+\input{B_dataset_details/B1_validation_methodology}
 
-% B.2: Validation Methodology
-\input{B_dataset_details/B2_validation_methodology}
-
-% B.3: Distribution Shift Extended Analysis (removed — see inline text in main body)
-% \input{B_dataset_details/B4_distribution_shift_details}
+% B.2: Distribution Shift Details (supports Figure 1 cross-domain claim)
+\input{B_dataset_details/B2_distribution_shift_details}
 
 % ============================================================================
 % APPENDIX C: HYPERPARAMETER SENSITIVITY ANALYSIS
@@ -94,13 +100,13 @@ This appendix provides comprehensive dataset documentation, statistical validati
 \section{Hyperparameter Sensitivity Analysis}
 \label{appendix:hyperparameter_sensitivity}
 
-This appendix demonstrates the robustness of the system to hyperparameter choices through comprehensive sensitivity analysis.
+This appendix demonstrates robustness across a 20$\times$ hyperparameter range, defending Figure~4's Pareto frontier results.
 
 % C.1: Comprehensive Sensitivity Analysis
 \input{C_hyperparameter_sensitivity/C1_comprehensive_sensitivity}
 
-% C.5: Concise Summary (optional - use for space-constrained appendix)
-% \input{C_hyperparameter_sensitivity/C5_robustness_summary}
+% C.2: Concise Summary (optional — use for space-constrained appendix)
+% \input{C_hyperparameter_sensitivity/C2_robustness_summary}
 
 % ============================================================================
 % APPENDIX D: ABLATION STUDIES
@@ -109,10 +115,15 @@ This appendix demonstrates the robustness of the system to hyperparameter choice
 \section{Ablation Studies}
 \label{appendix:ablation_studies}
 
-This appendix presents systematic ablation studies validating the contribution of each component and hyperparameter choice.
+This appendix validates component contributions through controlled experiments, covering the corralling mechanism (Figure~3), Pareto configuration (Figure~4), and safety regime (Figure~6).
 
-% D.1: Corralling Algorithm Ablation
+% D.1: Corralling Algorithm Ablation (45 experiments)
 \input{D_ablation_studies/D1_corralling_ablation}
+
+% D.2: Learning rate ablation under catastrophic failure is shown in
+% figures/figure6_learning_rate_ablation.pdf and supports Figure 6's eta=0.3
+
+% D.3: Alpha and gamma ablation figures in figures/ subdirectory
 
 % ============================================================================
 % APPENDIX E: EXTENDED EXPERIMENTAL RESULTS
@@ -121,18 +132,10 @@ This appendix presents systematic ablation studies validating the contribution o
 \section{Extended Experimental Results}
 \label{appendix:extended_results}
 
-This appendix provides additional experimental results and extended analyses that complement the main paper findings.
+This appendix presents the catastrophic failure detection experiment (Figure~6), demonstrating Corralling's safety benefit on a 5-model portfolio.
 
-% E.1: Catastrophic Failure Detection
+% E.1: Catastrophic Failure Detection (K=5 portfolio, production router)
 \input{E_extended_results/E1_catastrophic_failure}
-
-% E.1 Extended (optional)
-% \input{E_extended_results/E1_catastrophic_failure_extended}
-
-% E.2-E.4: Additional results (to be created)
-% \input{E_extended_results/E2_three_model_routing}
-% \input{E_extended_results/E3_cost_profiles}
-% \input{E_extended_results/E4_distribution_shift}
 
 % ============================================================================
 % APPENDIX F: IMPLEMENTATION DETAILS
@@ -141,7 +144,7 @@ This appendix provides additional experimental results and extended analyses tha
 \section{Implementation Details}
 \label{appendix:implementation_details}
 
-This appendix provides comprehensive implementation details, configuration parameters, and practical deployment guidelines.
+This appendix provides configuration parameters and experimental setup for reproducibility.
 
 % F.1: Configuration Details
 \input{F_implementation_details/F1_configuration_details}
@@ -149,30 +152,18 @@ This appendix provides comprehensive implementation details, configuration param
 % F.2: Experimental Setup
 \input{F_implementation_details/F2_experimental_setup}
 
-% F.3: Strategy Selection Guide
-\input{F_implementation_details/F3_strategy_selection_guide}
-
 % ============================================================================
-% APPENDIX G: ADDITIONAL DISCUSSION
+% APPENDIX G: LIMITATIONS AND FUTURE WORK
 % ============================================================================
 
-\section{Additional Discussion}
-\label{appendix:additional_discussion}
+\section{Limitations and Future Work}
+\label{appendix:limitations}
 
-This appendix provides extended discussion covering practical recommendations, limitations, ethical considerations, and future work.
+% G.1: Limitations
+\input{G_additional_discussion/G1_limitations}
 
-% G.1: Practical Deployment Recommendations
-\input{G_additional_discussion/G1_practical_recommendations}
-
-% G.2: Limitations and Future Work
-\input{G_additional_discussion/G2_limitations}
-
-% G.2 Addendum (optional - consolidate if needed)
-% \input{G_additional_discussion/G2_limitations_addendum}
-
-% G.3-G.4: Additional discussion (to be created)
-% \input{G_additional_discussion/G3_broader_impact}
-% \input{G_additional_discussion/G4_corralling_vs_offline}
+% G.1 Addendum (merge into G1_limitations.tex for camera-ready)
+\input{G_additional_discussion/G1_limitations_addendum}
 
 % ============================================================================
 % END OF APPENDIX
