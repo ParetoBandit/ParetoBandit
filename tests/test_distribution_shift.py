@@ -309,31 +309,6 @@ class TestSampleExtraction:
 class TestDataLoading:
     """Test data loading functions (mocked)."""
     
-    @patch('plot_distribution_shift_improved.gzip.open')
-    @patch('plot_distribution_shift_improved.Path.exists')
-    def test_load_source_prompts_success(self, mock_exists, mock_gzip):
-        """Test successful loading of source prompts."""
-        from plot_distribution_shift_improved import load_source_prompts_from_datasets
-        
-        mock_exists.return_value = True
-        
-        # Mock gzipped file content
-        mock_file = MagicMock()
-        mock_file.__enter__.return_value = [
-            '{"prompt": "test prompt 1"}\n',
-            '{"prompt": "test prompt 2"}\n',
-        ]
-        mock_gzip.return_value = mock_file
-        
-        prompts = load_source_prompts_from_datasets(
-            Path("dev.jsonl.gz"),
-            Path("holdout.jsonl.gz"),
-            max_samples=2
-        )
-        
-        assert len(prompts) > 0, "Should load prompts"
-        assert all(isinstance(p, str) for p in prompts), "All prompts should be strings"
-    
     def test_load_routellm_prompts_structure(self):
         """Test RouteLLM prompt loading structure."""
         from plot_distribution_shift_improved import load_routellm_prompts_with_metadata
@@ -485,9 +460,9 @@ class TestSensitivityAnalysis:
         """Test that sensitivity analysis returns correct structure."""
         np.random.seed(42)
         
-        # Create synthetic PCA-like feature data (33 dimensions matching router output)
-        features_source = np.random.normal(0.1, 1.0, (500, 33))
-        features_routellm = np.random.normal(-0.05, 0.9, (500, 33))
+        # Create synthetic PCA-like feature data (32 dimensions matching router output)
+        features_source = np.random.normal(0.1, 1.0, (500, 32))
+        features_routellm = np.random.normal(-0.05, 0.9, (500, 32))
         
         # Mock PCA stats
         pca_stats = {

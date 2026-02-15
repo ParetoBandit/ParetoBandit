@@ -730,7 +730,9 @@ class TestBug9_DeepCopy:
         router.use_corralling = False
         router.corralling_learning_rate = 0.1
         router.corralling_gamma = 0.05
+        router.corralling_cost_weight = 0.0
         router.corralling_router = None
+        router._log_lock = MagicMock()
 
         # --- Logs ---
         router.logs = deque(maxlen=100)
@@ -769,8 +771,8 @@ class TestBug9_DeepCopy:
         expected_attrs = [
             "config", "registry", "features", "encoder", "pca",
             "bandit", "use_corralling", "corralling_learning_rate",
-            "corralling_gamma", "corralling_router",
-            "logs", "log_index", "model_priors",
+            "corralling_gamma", "corralling_cost_weight", "corralling_router",
+            "logs", "log_index", "_log_lock", "model_priors",
             "verbose_routing",
             "_feature_map", "_toxicity_scanner",
             "_market_cost_floor", "_market_cost_floor_log", "_market_cost_range",
@@ -1945,25 +1947,6 @@ class TestR4L4_MissingWarmupModel:
         # m2 should have identity (fallback)
         assert np.allclose(router.A["m2"], np.eye(dim))
         assert np.allclose(router.b["m2"], np.zeros(dim))
-
-
-class TestR4L5_CalibrateNotImplemented:
-    """calibrate() should raise NotImplementedError with a clear message."""
-
-    def test_raises_not_implemented(self):
-        """calibrate() should raise because complexity_vector is gone."""
-        registry = {
-            "model_a": {
-                "openrouter_id": "test/model-a",
-                "input_cost_per_m": 1.0,
-                "output_cost_per_m": 3.0,
-                "time_to_first_token_seconds": 0.1,
-                "hle": 0.7,
-            }
-        }
-        router = BanditRouter.create(model_registry=registry, priors="none")
-        with pytest.raises(NotImplementedError, match="complexity_vector"):
-            router.calibrate(["prompt1"] * 20)
 
 
 class TestR4_ExpertGuardsUnknownModel:

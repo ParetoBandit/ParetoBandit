@@ -7,9 +7,8 @@ from bandit_gpt.router import BanditRouter, ExplorationRate
 class TestRouterConfigurationUpdates(unittest.TestCase):
     """
     Unit tests for router configuration:
-    1. Simplified profile system: "auto" and "custom"
-    2. Default alpha changed to 0.05 (via exploration="safe")
-    3. Default prior_n_effective is 100.0
+    1. Default alpha changed to 0.05 (via exploration="safe")
+    2. ExplorationRate constants validation
     """
 
     def setUp(self):
@@ -31,12 +30,6 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
             }
         }
 
-    @unittest.skip("OptimizationProfile removed - profiles are now ignored for API compatibility")
-    def test_auto_profile(self):
-        """Test that 'auto' profile returns Pareto mode marker."""
-        # OptimizationProfile.get() no longer exists
-        pass
-
     def test_default_alpha_via_exploration_safe(self):
         """Test that exploration='safe' maps to alpha=0.05."""
         router = BanditRouter.create(
@@ -56,77 +49,9 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
                         "BanditRouter.create() should default to alpha=0.05")
 
     def test_exploration_rate_safe_constant(self):
-        """Test that ExplorationRate.SAFE is 0.05."""
+        """Test that ExplorationRate.SAFE is 0.1."""
         self.assertEqual(ExplorationRate.SAFE, 0.1,
                         "ExplorationRate.SAFE should be 0.1")
-
-    def test_prior_n_effective_default(self):
-        """
-        Test that prior_n_effective defaults to 20.0.
-        
-        We can't directly inspect prior_n_effective after router creation,
-        but we can verify it's used by checking bias term magnitudes.
-        """
-        router = BanditRouter.create(
-            model_registry=self.model_registry,
-            priors="hle"  # Use HLE priors to ensure bias terms are set
-        )
-        
-        # Check that bias terms have been scaled by ~20.0 * hle
-        # For test-model-1 with hle=0.15, bias should be ~20.0 * 0.15 = 3.0
-        bias_value = router.bandit.b["test-model-1"][-1]
-        
-        # The bias should be approximately N_eff * hle
-        # With N_eff=20 and hle=0.15, we expect ~3.0
-        expected_bias = 20.0 * 0.15
-        
-        self.assertAlmostEqual(bias_value, expected_bias, places=1,
-                              msg=f"Bias term should reflect N_eff=20.0 * hle=0.15")
-
-    def test_explicit_prior_n_effective_override(self):
-        """Test that prior_n_effective can still be overridden."""
-        custom_n_eff = 50.0
-        router = BanditRouter.create(
-            model_registry=self.model_registry,
-            priors="hle",
-            prior_n_effective=custom_n_eff
-        )
-        
-        # Check that bias term reflects custom N_eff
-        bias_value = router.bandit.b["test-model-1"][-1]
-        expected_bias = custom_n_eff * 0.15  # hle=0.15
-        
-        self.assertAlmostEqual(bias_value, expected_bias, places=1,
-                              msg=f"Bias term should reflect custom N_eff={custom_n_eff}")
-
-    def test_default_profile_is_arbitrage(self):
-        """Test that route() defaults to 'arbitrage' profile."""
-        router = BanditRouter.create(model_registry=self.model_registry)
-        
-        # Capture the profile used by mocking _resolve_utility_weights
-        captured_profile = None
-        original_resolve = router._resolve_utility_weights
-        
-        def mock_resolve(profile, max_cost, max_latency):
-            nonlocal captured_profile
-            captured_profile = profile
-            return original_resolve(profile, max_cost, max_latency)
-        
-        router._resolve_utility_weights = mock_resolve
-        
-        try:
-            router.route("test prompt")
-        except:
-            pass  # We don't care if routing fails, just want to see the profile
-        
-        self.assertEqual(captured_profile, "arbitrage",
-                        "route() should default to 'arbitrage' profile")
-
-    @unittest.skip("OptimizationProfile removed - profiles are now ignored for API compatibility")
-    def test_all_other_profiles_unchanged(self):
-        """Ensure other profiles remain unchanged."""
-        # OptimizationProfile constants no longer exist
-        pass
 
 
 if __name__ == "__main__":

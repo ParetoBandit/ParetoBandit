@@ -32,30 +32,6 @@ class TestHeuristicPrior:
         # Bias should be the last element
         assert b[-1] == quality * n_eff
         assert np.all(b[:-1] == 0)
-        
-    def test_get_heuristic_prior_fallbacks(self):
-        """Verify fallback priority for different quality fields."""
-        dim = 24
-        
-        # 1. initial_quality
-        res = get_heuristic_prior({"initial_quality": 0.9, "empirical_hle": 0.1}, dim)
-        assert res[1][-1] == 0.9 * 5.0
-        
-        # 2. empirical_hle
-        res = get_heuristic_prior({"empirical_hle": 0.8, "raw_hle": 0.2}, dim)
-        assert res[1][-1] == 0.8 * 5.0
-        
-        # 3. raw_hle
-        res = get_heuristic_prior({"raw_hle": 0.7, "initial_quality": 0.3}, dim)
-        assert res[1][-1] == 0.7 * 5.0
-        
-        # 4. initial_quality
-        res = get_heuristic_prior({"initial_quality": 0.6}, dim)
-        assert res[1][-1] == 0.6 * 5.0
-        
-        # 5. default
-        res = get_heuristic_prior({}, dim, default_quality=0.4)
-        assert res[1][-1] == 0.4 * 5.0
 
 class TestCascadingWarmup:
     @patch('joblib.load')

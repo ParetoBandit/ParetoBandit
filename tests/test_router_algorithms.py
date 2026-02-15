@@ -565,8 +565,10 @@ class TestCorrallingRouter:
         assert len(router.weights) == 2
         np.testing.assert_array_almost_equal(router.weights, np.array([0.5, 0.5]))
         
-        # Cumulative losses should be zero
-        np.testing.assert_array_almost_equal(router.cumulative_losses, np.zeros(2))
+        # Cumulative losses initialized from weights: L_i = -ln(w_i) / η
+        # With uniform weights [0.5, 0.5] and η=0.1: L_i = -ln(0.5) / 0.1 ≈ 6.93147
+        expected_losses = -np.log(np.array([0.5, 0.5])) / 0.1
+        np.testing.assert_array_almost_equal(router.cumulative_losses, expected_losses)
     
     def test_corralling_expert_selection(self, simple_experts):
         """Test that Corralling samples experts according to weights."""

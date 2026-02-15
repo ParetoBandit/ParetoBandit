@@ -101,8 +101,10 @@ class TestCorrallingInitialization:
         # Weights should be uniform
         np.testing.assert_array_almost_equal(router.weights, np.array([0.5, 0.5]))
         
-        # Cumulative losses should be zero
-        np.testing.assert_array_almost_equal(router.cumulative_losses, np.zeros(2))
+        # Cumulative losses initialized from weights: L_i = -ln(w_i) / η
+        # With uniform weights [0.5, 0.5] and η=1.0: L_i = -ln(0.5) / 1.0 ≈ 0.693147
+        expected_losses = -np.log(np.array([0.5, 0.5])) / 1.0
+        np.testing.assert_array_almost_equal(router.cumulative_losses, expected_losses)
     
     def test_initialization_with_custom_learning_rate(self):
         """Test initialization with custom learning rate."""

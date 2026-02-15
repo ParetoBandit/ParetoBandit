@@ -36,7 +36,7 @@ class TestSelfHealingPCA:
         
         # Should have auto-trained PCA
         assert router.pca is not None, "PCA should be auto-trained when missing"
-        assert router.pca.n_components == 23
+        assert router.pca.n_components == 32, "PCA should have 32 components"
         
         # Should have explained variance
         explained_var = np.sum(router.pca.explained_variance_ratio_)
@@ -66,7 +66,7 @@ class TestSelfHealingPCA:
             )
             
             assert router2.pca is not None, "PCA should load from disk"
-            assert router2.pca.n_components == 23
+            assert router2.pca.n_components == 32, "PCA should have 32 components"
     
     def test_synthetic_data_generation(self):
         """Test synthetic prompt generation for PCA training."""

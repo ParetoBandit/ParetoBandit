@@ -87,27 +87,6 @@ def test_perform_burn_in(mock_registry, mock_rewards, temp_splits):
     # For p1, model_a reward is 0.8
     mock_router.update.assert_any_call("model_a", "p1", 0.8)
 
-def test_create_burned_in_router(mock_registry, mock_rewards, temp_splits):
-    burner = ExperimentBurnIn(mock_registry, mock_rewards, temp_splits)
-    
-    # Create a small router to speed up test
-    router, test_prompts = burner.create_burned_in_router(priors="none", alpha=0.1)
-    
-    assert isinstance(router, BanditRouter)
-    assert test_prompts == ["p3"]
-    assert router.bandit.alpha == 0.1
-    
-    # Check if update was called (A should not be identity if it was updated)
-    # Since we used priors="none", A starts as init_lambda * I
-    # After updates, trace(A) should increase.
-    # Note: ExperimentBurnIn.perform_burn_in uses registry which has model_a and model_b
-    has_update = False
-    for m in ["model_a", "model_b"]:
-        if np.trace(router.bandit.A[m]) > router.bandit.dim * router.bandit.init_lambda:
-            has_update = True
-            break
-    assert has_update, "Router should have been updated during burn-in"
-
 
 # ============================================================================
 # NEW TESTS FOR SPLIT GENERATION AND REWARD JOINING

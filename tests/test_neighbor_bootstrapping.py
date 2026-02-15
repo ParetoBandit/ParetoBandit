@@ -81,7 +81,7 @@ def test_neighbor_bootstrapping_mechanism():
         registry=router.registry,
         bandit=router.bandit,
         encoder=router.encoder,
-        alpha=0.8
+        n_effective=5.0
     )
     
     # Add to bandit manually
@@ -156,7 +156,7 @@ def test_cold_start_vs_bootstrap_warmup():
         registry=router.registry,
         bandit=router.bandit,
         encoder=router.encoder,
-        alpha=0.8
+        n_effective=5.0
     )
     
     b_norm_bootstrap = np.linalg.norm(b_b)
