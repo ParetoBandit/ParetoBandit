@@ -86,7 +86,7 @@ This experiment validates the router's **"eyes"** (PCA features). Subsequent exp
 | **Figure 1** (this) | Features predict preference → routing is possible |
 | **Figure 3** | Corralling design → safety under distribution shift |
 | **Figure 4** | Pareto frontier → production cost-quality tradeoffs |
-| **Figure 6** | Catastrophic failure detection |
+| **Figure 6** | Catastrophic failure detection (appendix) |
 
 ## Dependencies
 

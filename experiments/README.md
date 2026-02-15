@@ -14,11 +14,13 @@ This directory contains all experimental code for the banditGPT paper.
 | **Table 2** | Dataset Description and Experimental Splits | [`02_table/`](02_table/) | `table1_dataset.tex` |
 | **Figure 3** | Corralling as Insurance (Prior Quality Degradation) | [`03_figure/`](03_figure/) | `figure3_prior_degradation.png` |
 | **Figure 4** | Pareto Frontier (banditGPT vs RouteLLM) | [`04_figure/`](04_figure/) | `figure5_pareto_frontier.png` |
-| **Figure 6** | Catastrophic Failure Detection (K=5 Portfolio) | [`06_figure/`](06_figure/) | `figure6_5model.png` |
-
-**Note:** Figure 2 (architecture diagram) and Figure 5 (sensitivity zoomed, appendix) do not have dedicated experiment directories — they are static diagrams or produced from appendix-level analysis.
+**Note:** Figure 2 (architecture diagram) and Figure 5 (sensitivity zoomed, appendix) do not have dedicated experiment directories — they are a static diagram and appendix-level analysis respectively.
 
 ### Appendix Experiments
+
+| Paper Object | Content | Experiment Folder | Key Output |
+|---|---|---|---|
+| **Figure 6** | Catastrophic Failure Detection (K=5 Portfolio) | [`appendix/06_figure/`](appendix/06_figure/) | `figure6_5model.png` |
 
 Additional appendix content is organized in [`appendix/`](appendix/).
 
@@ -33,8 +35,8 @@ experiments/
 ├── 02_table/                     # Table 2: Dataset Description
 ├── 03_figure/                    # Figure 3: Corralling Insurance Analysis
 ├── 04_figure/                    # Figure 4: Pareto Frontier
-├── 06_figure/                    # Figure 6: Catastrophic Failure Detection
 ├── appendix/                     # Appendix experiments and extended results
+│   └── 06_figure/               # Figure 6: Catastrophic Failure Detection
 └── utils/                        # Shared utilities
 ```
 

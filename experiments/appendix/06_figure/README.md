@@ -21,7 +21,7 @@ This experiment evaluates **Corralling's response to catastrophic model failure*
 ## Core Files
 
 ```
-experiments/06_figure/
+experiments/appendix/06_figure/
 ├── generate_figure6_5model.py               # Main experiment (K=5, production router)
 ├── figure6_corralling_kdd.tex               # Standalone LaTeX figure + methodology
 ├── README.md                                # This file
@@ -76,7 +76,7 @@ Gap narrows 69% from K=2 to K=5. EMA degrades (exploration budget thins); Corral
 ## Reproduction
 
 ```bash
-cd experiments/06_figure
+cd experiments/appendix/06_figure
 python generate_figure6_5model.py
 # Output: results/figure6_5model.png
 # Runtime: ~7 seconds

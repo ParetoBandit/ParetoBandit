@@ -79,7 +79,7 @@ Removed test files that were testing experiment scripts rather than core router 
 - ✅ `test_corralling.py` (283 lines) - Now covered by `test_corralling_comprehensive.py`
 - ✅ `test_semantic_transfer.py` (429 lines) - Semantic transfer function was experiment-specific
 
-#### From `experiments/06_figure/supplementary/`:
+#### From `experiments/appendix/06_figure/supplementary/`:
 - ✅ `test_realistic_10k_samples.py` (165 lines) - Now covered by `test_corralling_comprehensive.py`
 
 #### From `experiments/04_figure/.archive/`:

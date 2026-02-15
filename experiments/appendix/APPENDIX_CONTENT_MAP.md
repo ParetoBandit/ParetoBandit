@@ -132,7 +132,7 @@
 | Corralling ablation | `04_figure/appendix_ablation_study.tex` | `D/D1_corralling_ablation.tex` | ✅ Copied |
 | Ablation results table | ↑ Same file | ↑ Same file | ✅ Included |
 | Ablation study figure | `04_figure/results_ablation/ablation_study.png` | `D/figures/` | ✅ Copied |
-| Learning rate ablation fig | `06_figure/results/figure6_learning_rate_ablation.pdf` | `D/figures/` | ✅ Copied |
+| Learning rate ablation fig | `appendix/06_figure/results/figure6_learning_rate_ablation.pdf` | `D/figures/` | ✅ Copied |
 | Alpha ablation | `03_figure/results/ablation/figure_alpha_ablation.png` | `D/figures/` | ✅ Copied |
 | Gamma ablation | `03_figure/results/gamma_ablation/figure_gamma_ablation.png` | `D/figures/` | ✅ Copied |
 
@@ -152,8 +152,8 @@
 
 | Content | Original Location | New Location | Status |
 |---------|------------------|--------------|--------|
-| Catastrophic failure | `06_figure/figure5_corralling_kdd.tex` | `E/E1_catastrophic_failure.tex` | ✅ Copied |
-| Failure extended | `06_figure/figure6_corralling_kdd.tex` | `E/E1_catastrophic_failure_extended.tex` | ✅ Copied |
+| Catastrophic failure | `appendix/06_figure/figure5_corralling_kdd.tex` | `E/E1_catastrophic_failure.tex` | ✅ Copied |
+| Failure extended | `appendix/06_figure/figure6_corralling_kdd.tex` | `E/E1_catastrophic_failure_extended.tex` | ✅ Copied |
 | 3-model results | _(removed: multi-model experiment deleted)_ | `E/E2_*` | ❌ Removed |
 | Cost profile analysis | `04_figure/` extended | `E/E3_*` | 📝 To document |
 | Distribution shift | `02_figure/` and `02_table/` | `E/E4_*` | 📝 To document |

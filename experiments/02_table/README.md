@@ -176,7 +176,7 @@ The paper includes the table via:
 - **Figure 1** (`experiments/01_figure/`): PCA validation — cross-domain generalization
 - **Figure 3** (`experiments/03_figure/`): Corralling insurance — prior quality degradation
 - **Figure 4** (`experiments/04_figure/`): Pareto frontier — cost-quality tradeoffs
-- **Figure 6** (`experiments/06_figure/`): Catastrophic failure detection
+- **Figure 6** (`experiments/appendix/06_figure/`): Catastrophic failure detection
 
 ---
 

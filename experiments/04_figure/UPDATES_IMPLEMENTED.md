@@ -187,7 +187,7 @@ Experiment 05: Integrated within three-regime framework
 ### **Related Documentation:**
 1. `CONNECTION_TO_EXPERIMENTS_04_06_07.md` - Comprehensive analysis (created earlier)
 2. `experiments/UNIFIED_SEMANTIC_TRANSFER_STORY.md` - Overall framework
-3. `experiments/06_figure/EXPERIMENTAL_ADDITIONS_RESULTS.md` - Learning rate ablation results
+3. `experiments/appendix/06_figure/EXPERIMENTAL_ADDITIONS_RESULTS.md` - Learning rate ablation results
 
 ### **Cross-Experiment Validation:**
 
