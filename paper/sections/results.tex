@@ -30,6 +30,7 @@ An honest reading of Figure~\ref{fig:pareto}a reveals that \emph{neither method 
 \noindent\textbf{Note on model portfolio size.}
 This comparison uses only two models (Mixtral and GPT-4-Turbo) to match RouteLLM's primary evaluation topology and enable a controlled comparison. This is a disadvantage for banditGPT: its contextual bandit formulation is designed for multi-model portfolios where per-model uncertainty guides exploration. With only two models, the exploration bonus is symmetric and contributes minimally to routing decisions.
 In practice, production deployments typically involve three or more models spanning different cost-quality tiers. The contextual bandit formulation naturally extends to larger portfolios, where per-model uncertainty guides exploration across heterogeneous cost-quality tiers.
+Unlike traditional A/B/$n$ testing---which requires dedicated traffic splits per model pair and scales as $O(K^2)$ comparisons---the contextual bandit evaluates all $K$ candidates within a single traffic stream, reducing experimentation cost proportionally.
 
 At \textbf{low-to-moderate budgets} (\$0.0003--\$0.005 per request), RouteLLM's pre-trained threshold classifier is competitive or superior. Its supervised training on 100k pairs provides reliable moderate-quality routing without any deployment overhead.
 
@@ -57,6 +58,7 @@ These results suggest clear deployment guidelines:
         \item \emph{The prompt distribution shifts} over time (new users, new tasks, seasonal changes)---banditGPT adapts continuously while RouteLLM is frozen at training time.
         \item \emph{New models enter the portfolio}---banditGPT's semantic transfer mechanism (Section~\ref{sec:methodology}) integrates new models online via learned priors from semantic neighbors, while RouteLLM requires retraining.
         \item \emph{Maximum quality is the priority}---after a short burn-in (${\sim}400$ prompts), banditGPT's adaptive policy surpasses what supervised pre-training can achieve with $250\times$ more data.
+        \item \emph{Bounded exploration overhead}---even during the burn-in period, banditGPT routes the majority of traffic to high-performing candidates (quality starts at 0.795 with priors alone and improves monotonically), so the system provides value from the first request while continuously improving.
     \end{itemize}
 \end{enumerate}
 
@@ -104,6 +106,7 @@ Oracle (Upper Bound) & 0.00195 & 0.953 & 0.0\% \\
 \end{table}
 
 On the frozen holdout set ($N{=}750$), banditGPT closes \textbf{70.8\%} of the optimality gap ($\frac{0.915 - 0.823}{0.953 - 0.823}$), outperforming RouteLLM's 46.2\% closure. In cold-start mode (priors only, no online learning), banditGPT achieves $0.795 \pm 0.004$---below static Mixtral---quantifying the essential role of online adaptation. The 400-prompt crossover (Figure~\ref{fig:pareto}b) shows that this adaptation happens rapidly: a few hundred in-distribution observations are worth more than $250\times$ as many out-of-distribution supervised pairs.
+Operationally, banditGPT incurs inference cost for only the selected model per request; it requires no parallel evaluation of all candidates, unlike offline data collection for supervised routers, which must query every model on every prompt to obtain training labels.
 
 \subsubsection{Ablation: Design Choice Validation}
 
@@ -146,7 +149,9 @@ Production systems additionally require safety under prior mismatch and rapid fa
 
 We evaluated Corralling's response to sudden model degradation on a \textbf{5-model portfolio} ($K{=}5$, $N{=}20$ seeds) where GPT-4-Turbo quality drops from $\mu{=}0.82$ to $\mu{=}0.15$ (Cohen's $d{\approx}5.0$) while four alternatives remain healthy. Corralling detects the failure in 95\% of seeds (median 34 steps) and partially recovers---but a simple EMA tracker reacts faster (reward $0.735$ vs.\ $0.646$ during failure, $\Delta{=}{-}0.090$). Notably, this gap \textbf{narrows monotonically with portfolio size}: $\Delta{=}{-}0.286$ at $K{=}2$, ${-}0.154$ at $K{=}3$, ${-}0.090$ at $K{=}5$. EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) spreads thinner, while Corralling's contextual routing becomes more valuable when post-failure routing is a multi-model decision.
 
-\emph{Practical distinction:} The two methods differ not only in speed but in \emph{how} they redistribute traffic after failure. EMA concentrates 63\% of failure-phase traffic on a single fallback model, creating a new single point of failure. Corralling distributes traffic roughly uniformly (${\sim}20\%$ each) across the four healthy models based on per-prompt context, providing both load balancing and context-dependent quality. This suggests a complementary deployment architecture: lightweight EMA or CUSUM detectors for rapid model-level alerting, with Corralling handling the actual contextual traffic redistribution. Full dynamics and practical deployment recommendations in Appendix~\ref{app:catastrophic_failure}.
+\emph{Practical distinction:} The two methods differ not only in speed but in \emph{how} they redistribute traffic after failure. EMA concentrates 63\% of failure-phase traffic on a single fallback model, creating a new single point of failure. Corralling distributes traffic roughly uniformly (${\sim}20\%$ each) across the four healthy models based on per-prompt context, providing both load balancing and context-dependent quality. This suggests a complementary deployment architecture: lightweight EMA or CUSUM detectors for rapid model-level alerting, with Corralling handling the actual contextual traffic redistribution.
+A further operational benefit is that Corralling's continuous exploration provides model regression detection as an intrinsic byproduct of the learning process: if a previously strong model degrades after a vendor update, the exploration budget detects the change without requiring a separate canary or monitoring pipeline.
+Full dynamics and practical deployment recommendations in Appendix~\ref{app:catastrophic_failure}.
 
 % ============================================================================
 % SECTION 5.3: Limitations

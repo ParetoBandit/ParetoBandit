@@ -7,7 +7,7 @@ We presented \textbf{banditGPT}, an integrated framework for production-grade LL
 \begin{itemize}
     \item \textbf{Safety:} Corralling provides safety insurance against prior mismatch, with secondary catastrophic failure detection (95\% at $K{=}5$; gap vs.\ EMA narrows monotonically with portfolio size). Critically, Corralling redistributes post-failure traffic contextually across the remaining portfolio (${\sim}20\%$ per model), avoiding the traffic concentration risk inherent in simpler trackers that herd $60{+}\%$ of requests onto a single fallback
     \item \textbf{Performance:} $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM)
-    \item \textbf{Adaptability:} Zero-shot model adoption via semantic transfer ($+0.62$ reward, $p<10^{-7}$), complemented by secondary catastrophic failure detection that naturally improves as production portfolios grow (Appendix~\ref{app:catastrophic_failure})
+    \item \textbf{Adaptability:} Zero-shot model adoption via semantic transfer ($+0.62$ reward, $p<10^{-7}$); in practice, new models ramp to productive routing within 20--50 requests via transferred priors, compared to the thousands of labeled samples required by supervised retraining. This is complemented by secondary catastrophic failure detection that naturally improves as production portfolios grow (Appendix~\ref{app:catastrophic_failure})
 \end{itemize}
 
 \subsection{Summary and Context}

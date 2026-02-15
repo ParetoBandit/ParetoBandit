@@ -1,0 +1,178 @@
+% A0: Algorithm Pseudocode for banditGPT Routing
+% Provides formal algorithmic specification for the two-level routing system.
+% Cross-references: A1 (regret decomposition), A2 (safety guarantee), D1 (configuration)
+
+\subsection{Algorithm Specification}
+\label{appendix:algorithm}
+
+This subsection provides pseudocode for the banditGPT routing system.
+Algorithm~\ref{alg:routing} describes the top-level routing and feedback loop.
+Algorithm~\ref{alg:corralling} details the Corralling meta-learner that
+coordinates multiple expert strategies.
+Algorithm~\ref{alg:linucb} specifies the Disjoint LinUCB expert used by both
+the warmup and tabula rasa strategies.
+
+% ============================================================================
+% ALGORITHM 1: Top-level routing loop
+% ============================================================================
+
+\begin{algorithm}[h]
+\caption{banditGPT Online Routing}
+\label{alg:routing}
+\begin{algorithmic}[1]
+
+\REQUIRE Prompt stream $\{q_t\}_{t=1}^T$, model portfolio $\mathcal{M} = \{m_1, \ldots, m_K\}$
+\REQUIRE PCA matrix $W \in \mathbb{R}^{32 \times 384}$ (trained offline on warmup data)
+\REQUIRE Sentence encoder $\phi: \text{string} \to \mathbb{R}^{384}$
+\REQUIRE Warmup expert $E_1$ (initialized from offline priors), Tabula rasa expert $E_2$ (cold start)
+\REQUIRE Corralling meta-learner $\mathcal{C}$ with experts $(E_1, E_2)$
+
+\medskip
+\STATE \textbf{Initialize:} Expert weights $\mathbf{w}^{(0)} = [w_1^{(0)}, w_2^{(0)}]$ (e.g., uniform or prior-biased)
+
+\medskip
+\FOR{$t = 1, 2, \ldots, T$}
+    \STATE \textbf{// Feature extraction}
+    \STATE $e_t \leftarrow \phi(q_t)$ \hfill $\triangleright$ Encode prompt to 384-D embedding
+    \STATE $z_t \leftarrow W \cdot e_t$ \hfill $\triangleright$ PCA compress to 32-D
+    \STATE $x_t \leftarrow [z_t;\, 1] \in \mathbb{R}^{33}$ \hfill $\triangleright$ Append bias term
+    
+    \medskip
+    \STATE \textbf{// Constraint filtering}
+    \STATE $\mathcal{F}_t \leftarrow \{m \in \mathcal{M} : \text{cost}(m) \leq c_{\max},\; \text{latency}(m) \leq l_{\max}\}$
+    
+    \medskip
+    \STATE \textbf{// Model selection via Corralling (Algorithm~\ref{alg:corralling})}
+    \STATE $(a_t, i_t, p_{i_t}) \leftarrow \textsc{CorrallingSelect}(\mathcal{C}, x_t, \mathcal{F}_t, t)$
+    \hfill $\triangleright$ $a_t$: model, $i_t$: expert index, $p_{i_t}$: selection probability
+    
+    \medskip
+    \STATE \textbf{// Serve request and observe reward}
+    \STATE $r_t \leftarrow \text{reward}(q_t, a_t)$ \hfill $\triangleright$ Binary win/loss from judge
+    \STATE $r_t \leftarrow \text{clip}(r_t, 0, 1)$
+    
+    \medskip
+    \STATE \textbf{// Two-level update (Algorithm~\ref{alg:corralling}, lines 12--20)}
+    \STATE \textsc{CorrallingUpdate}$(\mathcal{C}, x_t, a_t, r_t, i_t, p_{i_t})$
+\ENDFOR
+
+\end{algorithmic}
+\end{algorithm}
+
+% ============================================================================
+% ALGORITHM 2: Corralling meta-learner
+% ============================================================================
+
+\begin{algorithm}[h]
+\caption{Corralling Meta-Learner (Exp4-Style)}
+\label{alg:corralling}
+\begin{algorithmic}[1]
+
+\REQUIRE $N$ experts $\{E_1, \ldots, E_N\}$, learning rate $\eta$, mixing floor $\gamma$, loss decay $\delta$
+
+\medskip
+\STATE \textbf{Initialize:} $L_i \leftarrow 0$ for all $i \in [N]$ \hfill $\triangleright$ Cumulative losses
+\STATE \textbf{Initialize:} $w_i \leftarrow 1/N$ for all $i \in [N]$ \hfill $\triangleright$ Normalized weights
+
+\medskip
+\FUNCTION{CorrallingSelect($\mathcal{C}, x_t, \mathcal{F}_t, t$)}
+    \STATE $p_i^{(t)} \leftarrow (1 - \gamma) \cdot w_i + \gamma / N$ for all $i$ \hfill $\triangleright$ Mix with uniform (Eq.~\ref{eq:exp4_update})
+    \STATE Sample expert $i_t \sim \text{Categorical}(p_1^{(t)}, \ldots, p_N^{(t)})$
+    \STATE $a_t \leftarrow E_{i_t}.\text{SelectArm}(x_t, \mathcal{F}_t, t)$ \hfill $\triangleright$ Ask chosen expert (Alg.~\ref{alg:linucb})
+    \RETURN $(a_t, i_t, p_{i_t}^{(t)})$
+\ENDFUNCTION
+
+\medskip
+\FUNCTION{CorrallingUpdate($\mathcal{C}, x_t, a_t, r_t, i_t, p_{i_t}$)}
+    \STATE \textbf{// Level 1: Meta-weight update (importance-weighted loss)}
+    \STATE $\ell_t \leftarrow 1 - r_t$ \hfill $\triangleright$ Convert reward to loss
+    \STATE $\hat{\ell}_{i_t} \leftarrow \ell_t / p_{i_t}$ \hfill $\triangleright$ Importance-weighted estimator (bounded by $N/\gamma$)
+    \STATE $L_i \leftarrow \delta \cdot L_i$ for all $i \in [N]$ \hfill $\triangleright$ Decay stale losses ($\delta = 1$ in experiments)
+    \STATE $L_{i_t} \leftarrow L_{i_t} + \hat{\ell}_{i_t}$ \hfill $\triangleright$ Accumulate loss for chosen expert only
+    \STATE $w_i \leftarrow \exp(-\eta \cdot L_i) \,/\, \sum_j \exp(-\eta \cdot L_j)$ for all $i$ \hfill $\triangleright$ Exp4 weight update
+    
+    \medskip
+    \STATE \textbf{// Level 2: All experts learn from observation}
+    \FOR{$j = 1, \ldots, N$}
+        \STATE $E_j.\text{Update}(x_t, a_t, r_t)$ \hfill $\triangleright$ LinUCB update (Alg.~\ref{alg:linucb})
+    \ENDFOR
+\ENDFUNCTION
+
+\end{algorithmic}
+\end{algorithm}
+
+% ============================================================================
+% ALGORITHM 3: Disjoint LinUCB expert
+% ============================================================================
+
+\begin{algorithm}[h]
+\caption{Cost-Aware Disjoint LinUCB Expert}
+\label{alg:linucb}
+\begin{algorithmic}[1]
+
+\REQUIRE Arms (models) $\mathcal{M}$, dimension $d$, exploration coefficient schedule $\alpha_t$, \\
+\hspace{2.5em} cost penalty $\lambda_c$, regularization $\lambda$, optional warmup priors $\{(\theta_a^{(0)}, \neff_a)\}_{a \in \mathcal{M}}$
+
+\medskip
+\STATE \textbf{Initialize} for each arm $a \in \mathcal{M}$:
+\IF{warmup priors available}
+    \STATE $A_a \leftarrow \neff_a \cdot \lambda \cdot I_d$;\quad $b_a \leftarrow \neff_a \cdot \lambda \cdot \theta_a^{(0)}$ \hfill $\triangleright$ Bayesian prior injection
+\ELSE
+    \STATE $A_a \leftarrow \lambda \cdot I_d$;\quad $b_a \leftarrow \mathbf{0}$ \hfill $\triangleright$ Tabula rasa
+\ENDIF
+\STATE $A_a^{-1} \leftarrow A_a^{-1}$ \hfill $\triangleright$ Cache inverse for $O(d^2)$ updates
+
+\medskip
+\FUNCTION{SelectArm($x_t, \mathcal{F}_t, t$)}
+    \STATE $\alpha \leftarrow \alpha_{\text{start}} + (\alpha_{\text{end}} - \alpha_{\text{start}}) \cdot t / T$ \hfill $\triangleright$ Linear decay schedule
+    \FOR{each $a \in \mathcal{F}_t$}
+        \STATE $\hat{\theta}_a \leftarrow A_a^{-1} b_a$ \hfill $\triangleright$ Ridge regression estimate
+        \STATE $\hat{r}_a \leftarrow \hat{\theta}_a^\top x_t$ \hfill $\triangleright$ Predicted reward
+        \STATE $\sigma_a \leftarrow \sqrt{x_t^\top A_a^{-1} x_t}$ \hfill $\triangleright$ Prediction uncertainty
+        \STATE $\text{UCB}_a \leftarrow \hat{r}_a + \alpha \cdot \sigma_a - \lambda_c \cdot \tilde{c}_a$ \hfill $\triangleright$ Cost-penalized UCB score
+    \ENDFOR
+    \RETURN $\arg\max_{a \in \mathcal{F}_t} \text{UCB}_a$ \hfill $\triangleright$ Random tie-breaking
+\ENDFUNCTION
+
+\medskip
+\FUNCTION{Update($x_t, a_t, r_t$)}
+    \STATE \textbf{// Sherman--Morrison rank-1 update:} $O(d^2)$ instead of $O(d^3)$
+    \STATE $v \leftarrow A_{a_t}^{-1} x_t$
+    \STATE $A_{a_t}^{-1} \leftarrow A_{a_t}^{-1} - \frac{v \, v^\top}{1 + x_t^\top v}$ \hfill $\triangleright$ Incremental inverse update
+    \STATE $A_{a_t} \leftarrow A_{a_t} + x_t \, x_t^\top$ \hfill $\triangleright$ Precision matrix
+    \STATE $b_{a_t} \leftarrow b_{a_t} + r_t \cdot x_t$ \hfill $\triangleright$ Moment vector
+\ENDFUNCTION
+
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Notation summary.}
+$x_t \in \mathbb{R}^{33}$ is the PCA-compressed context vector (32 components + bias);
+$a_t \in \mathcal{M}$ is the selected model;
+$r_t \in [0, 1]$ is the observed reward;
+$i_t \in [N]$ is the expert chosen by the meta-learner;
+$p_{i_t}$ is the probability with which expert $i_t$ was selected;
+$\hat{\ell}$ denotes the importance-weighted loss estimator;
+$\tilde{c}_a$ is the normalized cost for model $a$.
+
+\paragraph{Key design decisions.}
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item \textbf{All experts learn} (Algorithm~\ref{alg:corralling}, lines~18--20):
+    Every expert observes every $(x_t, a_t, r_t)$ tuple, regardless of which expert
+    was selected.  This prevents data starvation of the non-selected expert and
+    ensures the tabula rasa expert can serve as a viable fallback under prior mismatch.
+    
+    \item \textbf{Constraint filtering before selection} (Algorithm~\ref{alg:routing},
+    line~9): Hard constraints (cost, latency) are enforced before the bandit scores
+    arms, guaranteeing per-request constraint satisfaction.
+    
+    \item \textbf{$\gamma$-mixing prevents expert death}
+    (Algorithm~\ref{alg:corralling}, line~4): Each expert retains probability
+    $\geq \gamma/N$ at every round, ensuring bounded recovery time after
+    distribution shifts (Theorem~\ref{thm:recovery}).
+    
+    \item \textbf{Reward clamping} (Algorithm~\ref{alg:routing}, line~15):
+    Rewards are clipped to $[0, 1]$ before the importance-weighted loss computation,
+    bounding $\hat{\ell}_{i_t} \leq N/\gamma$
+    (Corollary~\ref{cor:bounded_iw}).
+\end{enumerate}
