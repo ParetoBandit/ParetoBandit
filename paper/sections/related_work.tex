@@ -15,7 +15,7 @@ Cascading systems, exemplified by FrugalGPT~\cite{chen2023frugalgpt}, optimize c
 
 Predictive routers, such as RouteLLM~\cite{ong2024routellm}, train a classifier (e.g., Matrix Factorization or BERT) to predict model performance based on offline datasets like LMSYS Chatbot Arena~\cite{zheng2023judging}.
 
-\textbf{The Limitation}: These policies are static. As demonstrated in Section~5.1, they suffer from \emph{Prior Rigidity}: when the production distribution exhibits ``Quality Inversion'' (where cheap models outperform expensive ones on specific tasks), static routers fail to adapt, incurring an ``Over-Provisioning Penalty.'' Furthermore, they suffer from the Cold Start problem: adding a new model requires collecting thousands of new samples and retraining the router.
+\textbf{The Limitation}: These policies are static. As demonstrated in Section~\ref{sec:pareto}, they suffer from \emph{Prior Rigidity}: when the production distribution exhibits ``Quality Inversion'' (where cheap models outperform expensive ones on specific tasks), static routers fail to adapt, incurring an ``Over-Provisioning Penalty.'' Furthermore, they suffer from the Cold Start problem: adding a new model requires collecting thousands of new samples and retraining the router.
 
 \textbf{Our Approach}: banditGPT is an \emph{Online Learner}. Through continuous feedback, it updates its beliefs in real-time. Our Latent Semantic Transfer mechanism (Section~\ref{sec:methodology}) enables admission of new models by bootstrapping from learned priors of semantic neighbors, avoiding the retraining bottleneck.
 

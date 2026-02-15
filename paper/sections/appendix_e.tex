@@ -13,7 +13,7 @@
 \subsection{Statistical Validation of Semantic Structure}
 \label{app:validation_methodology}
 
-We perform comprehensive validation to ensure our model preference heterogeneity findings (Figure~\ref{fig:lmsys_holdout_structure}) are statistically robust and not artifacts of methodological choices. The primary analysis uses Spearman rank correlation (Section~\ref{sec:semantic_structure}); this appendix provides supplementary clustering-based analyses for additional context. All analyses use the held-out test set exclusively ($N=750$).
+We perform comprehensive validation to ensure our model preference heterogeneity findings (Figure~\ref{fig:lmsys_holdout_structure}) are statistically robust and not artifacts of methodological choices. The primary analysis uses Spearman rank correlation (Section~\ref{sec:motivation}); this appendix provides supplementary clustering-based analyses for additional context. All analyses use the held-out test set exclusively ($N=750$).
 
 \subsubsection{Statistical Significance Testing}
 
@@ -62,7 +62,7 @@ Generic C4 (100K web text) & $< 0.0001$ & 0.33 & Small effect \\
 \end{tabular}
 \end{table}
 
-The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1. The generic PCA shows a numerically positive but smaller effect; however, in the primary correlation-based analysis (Section~\ref{sec:semantic_structure}), we validate signal through comparison with 100 random projections rather than a generic PCA condition. Both PCAs are unsupervised---neither uses reward labels during training.
+The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1. The generic PCA shows a numerically positive but smaller effect; however, in the primary correlation-based analysis (Section~\ref{sec:motivation}), we validate signal through comparison with 100 random projections rather than a generic PCA condition. Both PCAs are unsupervised---neither uses reward labels during training.
 
 \subsubsection{High-Dimensional Structure Validation}
 

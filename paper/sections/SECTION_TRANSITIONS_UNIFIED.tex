@@ -30,7 +30,7 @@ We present the architecture (Section~\ref{sec:architecture}), the Corralling alg
 % ============================================================================
 % INSERT at start of experiments.tex AFTER \section{...}
 
-To rigorously validate our integrated approach, we conduct seven experiments organized into three parts:
+To rigorously validate our integrated approach, we conduct experiments organized into three parts:
 
 \textbf{Part I: Motivation (Covered in Section~\ref{sec:motivation})}
 \begin{itemize}
@@ -41,7 +41,6 @@ To rigorously validate our integrated approach, we conduct seven experiments org
 \textbf{Part II: Solution Validation (Covered in this section)}
 \begin{itemize}
     \item Figure~\ref{fig:architecture}: Validated architectural design
-    \item Figure~\ref{fig:multimodel}: Multi-model routing and semantic transfer
 \end{itemize}
 
 \textbf{Part III: Production Validation (Section~\ref{sec:results})}
@@ -57,7 +56,7 @@ This section describes the experimental setup and protocols (Section~\ref{sec:ex
 % ============================================================================
 % INSERT at start of results.tex AFTER \section{...}
 
-Having validated our solution approach (Figures~\ref{fig:architecture}--\ref{fig:multimodel}), we now evaluate production readiness through three critical lenses:
+Having validated our solution approach (Figure~\ref{fig:architecture}), we now evaluate production readiness through two critical lenses:
 
 \begin{enumerate}
     \item \textbf{Production Performance (Section~\ref{sec:pareto}):} Pareto frontier analysis against state-of-the-art baselines (RouteLLM), quantifying cost-quality tradeoffs on held-out test data.
@@ -98,7 +97,7 @@ Having demonstrated comprehensive validation of our integrated approach---from e
 % ============================================================================
 % INSERT at start of conclusion.tex AFTER \section{...}
 
-We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (7 experiments, 1,871 prompts), we demonstrated:
+We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (1,871 prompts across multiple experiments), we demonstrated:
 
 \begin{itemize}
     \item \textbf{Safety:} $44.3\%$ improvement vs harmful warmup priors
