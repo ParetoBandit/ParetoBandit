@@ -7,7 +7,7 @@
 ## Overview
 
 **Total Appendix Sections**: 5 (A-E)  
-**Active LaTeX Files**: 9 (+ APPENDIX\_MASTER.tex)  
+**Active LaTeX Files**: 10 (+ APPENDIX\_MASTER.tex)  
 **Master File**: `APPENDIX_MASTER.tex`
 
 ---
@@ -20,7 +20,7 @@
 | **B** | Dataset Details | Fig 1, Table 2 | Spearman validation, cross-domain transfer, feature pipeline (384D → 33D) |
 | **C** | Extended Results | Fig 6 | Catastrophic failure detection (K=5 portfolio, 20 seeds) |
 | **D** | Implementation Details | All | Configuration parameters, experimental setup |
-| **E** | Limitations & Future Work | All | System constraints, honest limitations, future directions |
+| **E** | Limitations & Future Work | All | System constraints, honest limitations, bandit router positioning (PILOT/BaRP taxonomy) |
 
 ---
 
@@ -55,7 +55,8 @@ appendix/
 │
 ├── E_limitations_and_future_work/
 │   ├── README.md
-│   └── E1_limitations.tex              # Limitations and applicability
+│   ├── E1_limitations.tex              # Limitations and applicability
+│   └── E2_positioning.tex             # Bandit router taxonomy + differentiators
 │
 └── E_catastrophic_failure_experiment/  # Canonical experiment code for Fig 6
     ├── README.md

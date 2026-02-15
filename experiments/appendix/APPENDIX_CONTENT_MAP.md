@@ -60,8 +60,9 @@ Every appendix item must trace to a specific claim in the main paper. If it does
 | File | Supports | Content |
 |------|----------|---------|
 | `E1_limitations.tex` | All | Prior quality dependency, strategy trade-offs, ablation mechanism validation, variance/reproducibility, regime-dependent behavior, computational overhead, generalizability |
+| `E2_positioning.tex` | Section 2 | Bandit router taxonomy (4 families), 5 key differentiators vs. PILOT/BaRP/LLM Bandit, honest acknowledgment of concurrent work advantages |
 
-**Scope**: Honest discussion of system constraints. Addendum content (regime-dependent effects) merged into E1; broken cross-refs and fictional model removed.
+**Scope**: E.1 covers honest system constraints. E.2 provides detailed architectural positioning against concurrent bandit-based LLM routers, supporting the brief comparison in the main paper's Related Work section.
 
 ---
 
@@ -89,6 +90,7 @@ The original `C1_corralling_ablation.tex` and `C1_comprehensive_sensitivity.tex`
 | Monitoring / deployment code | **None** | Removed from appendix (belongs in GitHub README) |
 | Hyperparameter values (tables) | **D.1** | Other sections reference D.1 for values |
 | Hardware/software/protocol | **D.2** | Not repeated elsewhere |
+| PILOT/BaRP/LLM Bandit comparison | **E.2** | Section 2 has brief summary; E.2 has full taxonomy + differentiators |
 
 ---
 
@@ -101,6 +103,7 @@ The original `C1_corralling_ablation.tex` and `C1_comprehensive_sensitivity.tex`
 | **Figure 3** (corralling insurance) | A.1 (regret bounds), A.2 (safety + ablation) |
 | **Figure 4** (Pareto frontier) | A.3 ($n_{\text{eff}}$ theory), A.2 ($\eta$ validation), D.1/D.2 (reproducibility) |
 | **Figure 6** (catastrophic failure) | C.1 (K=5 experiment), A.2 (safety guarantee) |
+| **Section 2** (Related Work) | E.2 (bandit router positioning, taxonomy) |
 | **All** | D.1/D.2 (reproducibility), E.1 (limitations) |
 
 ---
@@ -110,7 +113,7 @@ The original `C1_corralling_ablation.tex` and `C1_comprehensive_sensitivity.tex`
 | Metric | Count |
 |--------|-------|
 | Appendix sections | 5 (A-E) |
-| Active LaTeX files | 9 |
+| Active LaTeX files | 10 |
 | Experiment scripts | 1 (`generate_figure6_5model.py`) |
 
 ---

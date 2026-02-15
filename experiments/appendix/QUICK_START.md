@@ -13,7 +13,7 @@
 | **Data details** | [Appendix B](B_dataset_details/) - Validation methodology, feature pipeline |
 | **Extra experiments** | [Appendix C](C_extended_results/) - Catastrophic failure, K=5 portfolio |
 | **How to implement** | [Appendix D](D_implementation_details/) - Config, experimental setup |
-| **Limitations & future** | [Appendix E](E_limitations_and_future_work/) - Practical advice, limitations |
+| **Limitations & future** | [Appendix E](E_limitations_and_future_work/) - Limitations, bandit router positioning (PILOT/BaRP) |
 
 ---
 

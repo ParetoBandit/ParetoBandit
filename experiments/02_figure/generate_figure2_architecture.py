@@ -34,7 +34,7 @@ PAL = dict(
 
 
 def create_figure():
-    fig, ax = plt.subplots(figsize=(7.2, 9.0))
+    fig, ax = plt.subplots(figsize=(7.2, 10.0))
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
     ax.axis("off")
@@ -90,8 +90,8 @@ def create_figure():
     y_coord   = 53
     y_exp     = 40       # expert row
     y_ucb     = 27
-    y_model   = 17
-    y_reward  = 7
+    y_model   = 11
+    y_reward  = 1
 
     # ═════════════════════════════════════════════════════════
     #  MAIN PIPELINE (top → bottom)
@@ -238,8 +238,60 @@ def create_figure():
          "GPT-4o / Claude / Mixtral / Llama / \u2026",
          fc="#d4e6f1", ec=PAL["blue"], tc=PAL["blue"], lw=1.8)
 
-    arrow(cx, y_ucb, cx, y_model + bh, c=PAL["dk"], lw=1.6)
-    txt(cx + 3, (y_ucb + y_model + bh)/2 + 0.3,
+    # ─── Arm Nodes (bandit arms between UCB and selected LLM) ───
+    y_arms = 21
+    aw, ah = 9, 3.0
+    agap = 1.8
+    arms_data = [
+        # (label,    colour,        status,   selected?)
+        ("Llama",    PAL["teal"],   "active",  False),
+        ("Claude",   PAL["sky"],    "active",  False),
+        ("GPT-4o",   PAL["blue"],   "active",  True),   # ← selected
+        ("Mixtral",  PAL["orange"], "active",  False),
+        ("Gemini",   PAL["gray"],   "pruned",  False),  # ← Pareto-pruned
+    ]
+    n_arms = len(arms_data)
+    total_aw = n_arms * aw + (n_arms - 1) * agap
+    arms_x0 = cx - total_aw / 2
+
+    for i, (name, col, status, selected) in enumerate(arms_data):
+        bx = arms_x0 + i * (aw + agap)
+        by = y_arms - ah / 2
+        if status == "pruned":
+            fc_, ec_, lw_ = "#f5f5f5", "#ccc", 0.8
+            tc_ = "#bbb"
+        elif selected:
+            fc_, ec_, lw_ = "#d4e6f1", PAL["blue"], 2.2
+            tc_ = PAL["blue"]
+        else:
+            fc_, ec_, lw_ = "white", col, 1.2
+            tc_ = col
+        ax.add_patch(FancyBboxPatch(
+            (bx, by), aw, ah, boxstyle="round,pad=0.3",
+            fc=fc_, ec=ec_, lw=lw_, zorder=3))
+        txt(bx + aw/2, by + ah/2, name,
+            fs=6, fw="bold" if selected else "normal", c=tc_)
+        # Strikethrough on pruned arm
+        if status == "pruned":
+            ax.plot([bx + 1.0, bx + aw - 1.0],
+                    [by + ah/2, by + ah/2],
+                    color="#bbb", lw=1.2, zorder=6)
+
+    # "pruned" annotation under the Pareto-filtered arm
+    pruned_cx = arms_x0 + 4 * (aw + agap) + aw / 2
+    txt(pruned_cx, y_arms - ah/2 - 1.3,
+        "pruned", fs=5, c="#aaa", sty="italic")
+
+    # Side label
+    txt(arms_x0 + total_aw + 1.5, y_arms,
+        "bandit arms", fs=6, c=PAL["lt"], sty="italic", ha="left")
+
+    # Arrow:  UCB → arm row
+    arrow(cx, y_ucb, cx, y_arms + ah/2 + 0.8, c=PAL["dk"], lw=1.4)
+    # Arrow:  selected arm → model box
+    arrow(cx, y_arms - ah/2 - 0.5, cx, y_model + bh,
+          c=PAL["blue"], lw=1.6)
+    txt(cx + 3, (y_arms - ah/2 + y_model + bh) / 2,
         "$a_t$", fs=9, c=PAL["md"], fw="bold", ha="left", fam="serif")
 
     # 9. Reward

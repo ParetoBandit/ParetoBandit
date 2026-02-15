@@ -36,14 +36,17 @@ We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023ju
 
 \subsection{Model Topology \& Baselines}
 
-To ensure a rigorous, controlled comparison against the current state-of-the-art static router, RouteLLM, we deliberately mirrored their primary evaluation topology.
+We select RouteLLM~\cite{ong2024routellm} as our primary baseline because it is, to our knowledge, the only LLM router that is both \emph{open-source} and \emph{peer-reviewed} (ICLR 2025).
+Concurrent bandit-based routing work---PILOT~\cite{panda2025pilot} (EMNLP 2025 Findings), BaRP~\cite{wang2025barp}, and LLM Bandit~\cite{li2025llmbandit}---does not provide public implementations, precluding reproducible head-to-head comparison.
+We deliberately mirror RouteLLM's primary evaluation topology:
 
 \begin{itemize}
     \item \textbf{Weak Model}: \texttt{mistralai/mixtral-8x7b-instruct} (Cost: $\approx$ \$0.30 / 1M tokens).
     \item \textbf{Strong Model}: \texttt{openai/gpt-4-turbo} (Cost: $\approx$ \$10.00 -- \$30.00 / 1M tokens).
 \end{itemize}
 
-By adopting this exact configuration (matching the RouteLLM dataset used for warmup priors), we isolate the algorithmic contribution (Static Classification vs.\ Adaptive Corralling) from variance caused by model capability shifts. This enables clean attribution of adaptation effects to distributional changes rather than model capability differences.
+This choice is further motivated by data availability: RouteLLM's published battle dataset (80k LMSYS pairs for this model pair) provides the warmup priors that initialize our Warmup Expert, directly coupling the model topology to the prior machinery.
+By adopting this exact configuration, we isolate the algorithmic contribution (Static Classification vs.\ Adaptive Corralling) from variance caused by model capability shifts, and create a deliberately challenging comparison---banditGPT's warmup priors derive from the same data RouteLLM was trained on, giving RouteLLM its best-case scenario.
 
 We compare banditGPT against four distinct baselines:
 
