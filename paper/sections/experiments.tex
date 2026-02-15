@@ -13,7 +13,6 @@ To rigorously validate our integrated approach, we conduct experiments organized
 \textbf{Part II: Evaluation (Section~\ref{sec:results})}
 \begin{itemize}
     \item Figure~\ref{fig:pareto}: Pareto frontier analysis against baselines
-    \item Table~\ref{tab:performance_gap}: Corralling safety under prior mismatch
     \item Supporting results: catastrophic failure, zero-shot adoption, sensitivity (Appendix~\ref{app:adaptation_details})
 \end{itemize}
 
@@ -79,7 +78,7 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 \textbf{Infrastructure}: Experiments were conducted on a standard CPU node for bandit updates, demonstrating the algorithm's lightweight footprint compared to GPU-heavy router training. All matrix inverse updates use the Sherman-Morrison formula for $O(d^2)$ incremental updates, with automatic fallback to full $O(d^3)$ inversion when the denominator becomes numerically unstable ($|1 + w \cdot x^\top A^{-1} x| < 10^{-6}$).
 
-\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ based on sensitivity sweeps in the Dev Set. For the Corralling learning rate, we evaluate both conservative ($\eta=0.1$) and aggressive ($\eta=1.0$) configurations, with comprehensive multi-seed comparison presented in Table~\ref{tab:performance_gap}. The staleness half-life is set to $\tau=60$s (default).
+\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ based on sensitivity sweeps in the Dev Set. For the Corralling learning rate, we evaluate both conservative ($\eta=0.1$) and aggressive ($\eta=1.0$) configurations. The staleness half-life is set to $\tau=60$s (default).
 
 \textbf{Prior Calibration}: All warmup experts undergo automatic two-pass prior calibration at initialization (bias probe + suite probe) to detect and correct scale explosion from legacy or misconfigured priors. Runtime prediction monitoring tracks per-model score distributions throughout deployment.
 
@@ -92,8 +91,6 @@ To ensure robust conclusions, we employ rigorous statistical methodology exceedi
 \paragraph{Multiple Testing Correction.} With 10 cost penalties tested, we address multiple comparisons using the Benjamini-Hochberg FDR procedure~\cite{benjamini1995controlling} at $q=0.05$. Rather than relying solely on $p$-values, we emphasize \textit{effect size reporting} and \textit{visual Pareto dominance} (Figure~\ref{fig:pareto}), following best practices in machine learning research~\cite{demsar2006statistical}.
 
 \paragraph{Power Analysis.} With $n=20$ trials per configuration, we achieve $>80\%$ statistical power to detect effect sizes $\Delta > 0.01$ in reward, which is practically significant for production deployments. The observed effect sizes (banditGPT: $0.912$ vs RouteLLM: $0.883$ = $\Delta=0.029$) are well above our detection threshold.
-
-\paragraph{Multi-Seed Validation for Table 2.} For the domain mismatch robustness experiment (Table~\ref{tab:performance_gap}), we conduct multi-seed evaluation with N=10 random seeds to quantify variance. We report mean $\pm$ standard deviation for point estimates, and median with interquartile range [IQR] for robust central tendency. Statistical comparisons use independent t-tests and Mann-Whitney U tests. When comparing multiple conditions, we apply Bonferroni correction (e.g., $\alpha_{\text{corrected}} = 0.05/k$ for $k$ comparisons). Effect sizes reported as Cohen's $d$ (small: $|d| < 0.5$, medium: $|d| < 0.8$, large: $|d| \geq 0.8$).
 
 Each seed controls two sources of randomness: (1) data arrival order (prompts are shuffled per seed) and (2) stochastic expert selection in Corralling, which is essential for unbiased importance-weighted updates~\cite{agarwal2017corralling}. For deterministic baselines (Warmup, Tabula Rasa), variance arises solely from data ordering; for Corralling, both sources contribute. This design captures the sensitivity of online bandit regret to prompt arrival order, a critical factor in production deployments.
 

@@ -84,7 +84,7 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 \end{table}
 
 \paragraph{Key Findings.}
-\textbf{(1)} All learning-based methods substantially outperform random routing ($>10\%$ quality improvement), validating adaptive allocation. \textbf{(2)} Tabula rasa (no priors) achieves the highest quality (0.923), exceeding the full system (0.912). This is consistent with the Pareto experiment using the dev set for warm-start learning, where tabula rasa benefits from observing all 1,121 dev prompts without prior bias. \textbf{(3)} Corralling provides safety insurance: it hedges between warmup and tabula rasa experts, incurring modest overhead when priors are good (Table~\ref{tab:performance_gap}) while protecting against catastrophic failure when priors are harmful (Appendix~\ref{app:catastrophic_failure}).
+\textbf{(1)} All learning-based methods substantially outperform random routing ($>10\%$ quality improvement), validating adaptive allocation. \textbf{(2)} Tabula rasa (no priors) achieves the highest quality (0.923), exceeding the full system (0.912). This is consistent with the Pareto experiment using the dev set for warm-start learning, where tabula rasa benefits from observing all 1,121 dev prompts without prior bias. \textbf{(3)} Corralling provides safety insurance: it hedges between warmup and tabula rasa experts, incurring modest overhead when priors are good while protecting against catastrophic failure when priors are harmful (Appendix~\ref{app:catastrophic_failure}).
 
 % ============================================================================
 % SECTION 5.2: Compact Robustness & Adaptation
@@ -94,15 +94,6 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 \label{sec:robustness_adaptation}
 
 Production systems additionally require safety under prior mismatch, rapid failure detection, and zero-shot model adoption. We summarize the key findings here; full experimental details, figures, and statistical tests appear in Appendices~\ref{app:adaptation_details} and~\ref{app:multiseed_sensitivity}.
-
-\subsubsection{Prior Generalization Under Distribution Shift}
-\label{sec:adaptation}
-
-Table~\ref{tab:performance_gap} evaluates routing strategies under the moderate domain mismatch documented in Figure~\ref{fig:distribution_shift} (PSI=0.225), across N=10 seeds with data-order shuffling.
-
-\input{../experiments_v1/02_table/table2_final}
-
-Under this level of distribution shift, warmup priors remain beneficial: the Warmup baseline achieves the lowest regret (32.9), outperforming Tabula Rasa (45.6) by 28\%. This indicates that the offline-learned routing preferences ($\theta$) transfer well despite the distribution mismatch. Corralling hedges between the two experts, incurring 1--4\% overhead relative to Tabula Rasa (depending on learning rate). This overhead represents the cost of \emph{safety insurance}: when priors are already well-matched to the target domain (as in this experiment), the sample-splitting cost of maintaining two parallel experts exceeds the benefit of hedging. That insurance pays off under more severe conditions: when a model catastrophically fails ($d \approx 5.0$), Corralling detects and recovers within 3 steps with 100\% success rate (Section~\ref{sec:corralling}); when a new model is released, semantic transfer eliminates the cold-start penalty, yielding +39\% improvement over cold start (Section~\ref{sec:zero_shot}). Both learning rates perform comparably ($\eta=1.0$: 45.1$\pm$5.8 vs $\eta=0.1$: 47.3$\pm$6.1), confirming that under moderate shift with good priors, the hedging overhead dominates over learning rate effects.
 
 \subsubsection{Catastrophic Failure Detection}
 
@@ -136,10 +127,10 @@ The effective prior strength ($\neff$) exhibits regime-dependent effects. Withou
 \label{sec:limitations}
 
 \paragraph{Prior Quality Dependency.}
-Our constant exploration finding ($\alpha=2.0$) is validated under moderate domain mismatch (PSI=0.225). In low-mismatch deployments with accurate priors, adaptive exploration schedules may improve sample efficiency. Future work should investigate mismatch-aware $\alpha$ schedules.
+Our constant exploration finding ($\alpha=2.0$) is validated under domain mismatch between offline training and holdout evaluation data. In low-mismatch deployments with accurate priors, adaptive exploration schedules may improve sample efficiency. Future work should investigate mismatch-aware $\alpha$ schedules.
 
 \paragraph{Strategy Selection Trade-offs.}
-Corralling incurs 1--4\% overhead relative to the tabula rasa baseline under moderate distribution shift (Table~\ref{tab:performance_gap}), and warmup-only outperforms both when priors are well-calibrated. The hedging overhead is justified only under genuine prior uncertainty. When prior quality can be validated on held-out deployment data, direct strategy selection (tabula rasa for known-bad priors, warmup-only for validated-good priors) outperforms hedging.
+Corralling incurs modest overhead relative to the tabula rasa baseline under moderate distribution shift, and warmup-only outperforms both when priors are well-calibrated. The hedging overhead is justified only under genuine prior uncertainty. When prior quality can be validated on held-out deployment data, direct strategy selection (tabula rasa for known-bad priors, warmup-only for validated-good priors) outperforms hedging.
 
 \paragraph{Non-Stationarity Scope.}
 Our corralling meta-learner incorporates loss decay to adapt expert weights under non-stationary conditions, but each expert bandit is itself trained under a stationary-reward assumption (monotone accumulation without forgetting). Thus, our treatment of non-stationarity operates at the meta level only: if a model's reward distribution drifts gradually within an expert's arm, the expert cannot adapt except via meta-level reweighting or replacement. Extending expert-level updates with explicit forgetting (e.g., sliding windows, discounted UCB) or change-point detection mechanisms is an interesting direction for future work.

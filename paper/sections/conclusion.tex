@@ -5,7 +5,7 @@
 We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure analysis, Corralling meta-learning, and semantic transfer. Through comprehensive validation on LMSYS Arena prompts ($N=750$ held-out), we demonstrated:
 
 \begin{itemize}
-    \item \textbf{Safety:} Corralling provides safety insurance against prior mismatch (1--4\% overhead under moderate shift, with protection against catastrophic failure under severe shift)
+    \item \textbf{Safety:} Corralling provides safety insurance against prior mismatch, with protection against catastrophic failure under severe shift
     \item \textbf{Performance:} $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM)
     \item \textbf{Adaptability:} Catastrophic failure detection (validated on synthetic scenarios) + zero-shot model adoption
     \item \textbf{Robustness:} Regime-dependent expert selection requires minimal tuning
@@ -18,7 +18,7 @@ The economics of Large Language Models are shifting. As open-weights models like
 In this work, we introduced \texttt{banditGPT}, a lifelong learning framework that replaces static model allocation with adaptive resource routing.
 \begin{enumerate}
     \item \textbf{Empirically}, we demonstrated model preference heterogeneity: the router's features significantly predict model preference ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections), and static single-model allocation can pay $43\times$ more while degrading quality on this evaluation dataset. \texttt{banditGPT} closes 66\% of the optimality gap.
-    \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} as safety insurance against prior mismatch. Under moderate distribution shift (PSI=0.225, Figure~\ref{fig:distribution_shift}), warmup priors remain beneficial ($-28\%$ regret vs tabula rasa), and Corralling adds modest hedging overhead (1--4\%). The mechanism provides protection against more severe mismatch scenarios where warmup priors could become harmful.
+    \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} as safety insurance against prior mismatch. Corralling adaptively hedges between experts, adding only modest overhead when priors are well-calibrated while providing protection against more severe mismatch scenarios where warmup priors could become harmful.
     \item \textbf{Operationally}, we solved the ``Cold Start'' problem with \textbf{Latent Semantic Transfer}, proving that a router can admit new models with \textbf{Zero-Shot Readiness}.
 \end{enumerate}
 

@@ -8,22 +8,14 @@
 % ============================================================================
 % INSERT at start of empirical_motivation.tex AFTER \section{...}
 
-Our integrated approach rests on a critical empirical foundation: that semantic structure exists in the LLM task space and can be exploited for intelligent routing. In this section, we provide the empirical motivation for our system design through two key analyses:
-
-\begin{enumerate}
-    \item \textbf{Model Preference Heterogeneity (Figure~\ref{fig:lmsys_holdout_structure}):} We demonstrate that model preference varies by prompt and the router's features predict this variation. This establishes that routing is \emph{learnable} through contextual features.
-    
-    \item \textbf{Distribution Shift Quantification (Figure~\ref{fig:distribution_shift}):} We quantify covariate shift between training and deployment data, establishing the need for adaptive mechanisms with safety guarantees.
-\end{enumerate}
-
-Together, these findings motivate our integrated approach: semantic structure makes routing learnable, but distribution shift makes \emph{safe} learning essential.
+Our integrated approach rests on a critical empirical foundation: that semantic structure exists in the LLM task space and can be exploited for intelligent routing. In this section, we demonstrate that model preference varies by prompt and the router's features predict this variation (Figure~\ref{fig:lmsys_holdout_structure}), establishing that routing is \emph{learnable} through contextual features---but the counter-intuitive nature of the preference structure makes safe online learning essential.
 
 % ============================================================================
 % TRANSITION: Empirical Motivation → Methodology
 % ============================================================================
 % INSERT at start of methodology.tex AFTER \section{...}
 
-Having established empirical motivation---model preference heterogeneity exists (Figure~\ref{fig:lmsys_holdout_structure}) but distribution shift is substantial (Figure~\ref{fig:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
+Having established that model preference heterogeneity exists and is predictable (Figure~\ref{fig:lmsys_holdout_structure})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
 
 \begin{itemize}
     \item \textbf{Contextual embeddings} exploit semantic structure for learning
@@ -43,12 +35,11 @@ To rigorously validate our integrated approach, we conduct eight experiments org
 \textbf{Part I: Motivation (Covered in Section~\ref{sec:motivation})}
 \begin{itemize}
     \item Table~\ref{tab:dataset}: Dataset provenance and split design
-    \item Figures~\ref{fig:lmsys_holdout_structure}--\ref{fig:distribution_shift}: Empirical foundations
+    \item Figure~\ref{fig:lmsys_holdout_structure}: Empirical foundations
 \end{itemize}
 
 \textbf{Part II: Solution Validation (Covered in this section)}
 \begin{itemize}
-    \item Table~\ref{tab:performance_gap}: Corralling safety and performance
     \item Figure~\ref{fig:architecture}: Validated architectural design
     \item Figure~\ref{fig:multimodel}: Multi-model routing and semantic transfer
 \end{itemize}
@@ -66,12 +57,12 @@ This section describes the experimental setup and protocols (Section~\ref{sec:ex
 % ============================================================================
 % INSERT at start of results.tex AFTER \section{...}
 
-Having validated our solution approach (Table~\ref{tab:performance_gap}, Figures~\ref{fig:architecture}--\ref{fig:multimodel}), we now evaluate production readiness through three critical lenses:
+Having validated our solution approach (Figures~\ref{fig:architecture}--\ref{fig:multimodel}), we now evaluate production readiness through three critical lenses:
 
 \begin{enumerate}
     \item \textbf{Production Performance (Section~\ref{sec:pareto}):} Pareto frontier analysis against state-of-the-art baselines (RouteLLM), quantifying cost-quality tradeoffs on held-out test data.
     
-    \item \textbf{Adaptation Dynamics (Section~\ref{sec:adaptation}):} Response to catastrophic failures and zero-shot model releases—two key production scenarios requiring online adaptation.
+    \item \textbf{Adaptation Dynamics (Section~\ref{sec:robustness_adaptation}):} Response to catastrophic failures and zero-shot model releases—two key production scenarios requiring online adaptation.
     
     \item \textbf{Robustness Analysis (Section~\ref{sec:sensitivity}):} Sensitivity to hyperparameters, revealing regime-dependent expert selection as the robustness mechanism.
 \end{enumerate}

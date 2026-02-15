@@ -2,7 +2,7 @@
 \label{sec:methodology}
 
 % TRANSITION from Empirical Motivation
-Having established empirical motivation---model preference heterogeneity exists (Figure~\ref{fig:lmsys_holdout_structure}) but distribution shift is significant (PSI=0.225, Section~\ref{sec:distribution_shift})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
+Having established that model preference heterogeneity exists and is predictable through prompt embeddings (Figure~\ref{fig:lmsys_holdout_structure})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
 
 \begin{itemize}
     \item \textbf{Contextual embeddings} exploit semantic structure for learning
@@ -14,7 +14,7 @@ We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. Our f
 
 \subsection{Unified Feature Space: From Discovery to Deployment}
 
-All experiments in this work operate in a unified semantic feature space to ensure consistency from analysis to deployment. Prompts are embedded using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384-dimensional), reduced to 32 dimensions via domain-adapted PCA trained on 80,000 routing prompts from the RouteLLM dataset (35.14\% cumulative variance explained). This PCA is \emph{unsupervised}---it identifies directions of maximum variance in routing-relevant prompt embeddings without seeing reward labels. The primary semantic axis (PC1, 3.10\% variance) identified in Section~\ref{sec:motivation} shows significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$; Figure~\ref{fig:lmsys_holdout_structure}), confirming that the features capture routing-relevant signal. This feature space becomes the substrate for all adaptation experiments (Section~\ref{sec:robustness_adaptation}). The consistency of the feature space from signal validation (Figure~\ref{fig:lmsys_holdout_structure}) through baseline establishment (Table~\ref{tab:performance_gap}) to regime validation enables direct comparison and unified interpretation across all results.
+All experiments in this work operate in a unified semantic feature space to ensure consistency from analysis to deployment. Prompts are embedded using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384-dimensional), reduced to 32 dimensions via domain-adapted PCA trained on 80,000 routing prompts from the RouteLLM dataset (35.14\% cumulative variance explained). This PCA is \emph{unsupervised}---it identifies directions of maximum variance in routing-relevant prompt embeddings without seeing reward labels. The primary semantic axis (PC1, 3.10\% variance) identified in Section~\ref{sec:motivation} shows significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$; Figure~\ref{fig:lmsys_holdout_structure}), confirming that the features capture routing-relevant signal. This feature space becomes the substrate for all adaptation experiments (Section~\ref{sec:robustness_adaptation}). The consistency of the feature space from signal validation (Figure~\ref{fig:lmsys_holdout_structure}) through deployment enables direct comparison and unified interpretation across all results.
 
 \subsection{Problem Formulation}
 
@@ -107,7 +107,7 @@ w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
 \label{eq:corralling}
 \end{equation}
 
-\textbf{Learning Rate Selection}: We evaluate two learning rates: conservative ($\eta=0.1$) and aggressive ($\eta=1.0$). Multi-seed evaluation (Section~\ref{sec:results}, Table~\ref{tab:performance_gap}) reveals a stability-performance tradeoff. While an independent t-test yields $p=0.63$ (Cohen's $d=-0.22$), the experiment has limited power to detect this small effect ($N=30$, power $\approx 23\%$), so we cannot conclude the conditions are equivalent. Conservative learning offers predictable performance (CV=17\%), while aggressive learning achieves better median but with higher variance (CV=35\%). We recommend $\eta=0.1$ for production deployments requiring reliability, based on its substantially lower variance rather than on a claim of equivalent mean performance.
+\textbf{Learning Rate Selection}: We evaluate two learning rates: conservative ($\eta=0.1$) and aggressive ($\eta=1.0$). Conservative learning offers predictable performance, while aggressive learning achieves better median but with higher variance. We recommend $\eta=0.1$ for production deployments requiring reliability, based on its substantially lower variance.
 
 \textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate ($\eta=0.1$ or $\eta=1.0$) tuned for the typical horizon in our application, rather than the theoretically optimal $\eta^* \propto \sqrt{\ln K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves competitive performance relative to the best expert in hindsight.
 
@@ -133,7 +133,7 @@ We counteract the lack of counterfactual updates through \textbf{Uniform Initial
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure4_corralling_weights.png}
-\caption{Corralling Learns to Exploit Semantic Structure. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps. The algorithm initially relies on the Warmup Expert (Orange) but detects mismatch. It rapidly shifts authority to the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility is a feature, not a bug---it represents persistent exploration that maintains a ``hot standby'' capability for distribution shifts. Note: This figure illustrates Corralling on dev-set data (1,121 prompts). Under the moderate shift in our holdout evaluation (PSI=0.225), warmup priors remain beneficial; see Table~\ref{tab:performance_gap}.}
+\caption{Corralling Learns to Exploit Semantic Structure. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps. The algorithm initially relies on the Warmup Expert (Orange) but detects mismatch. It rapidly shifts authority to the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility is a feature, not a bug---it represents persistent exploration that maintains a ``hot standby'' capability for distribution shifts. Note: This figure illustrates Corralling on dev-set data (1,121 prompts). Under moderate distribution shift (PSI=0.225), warmup priors remain beneficial on the held-out evaluation set.}
 \label{fig:corralling}
 \end{figure}
 

@@ -9,44 +9,7 @@
 This appendix provides full experimental details, figures, and extended analysis for the adaptation and robustness results summarized in Section~\ref{sec:robustness_adaptation}.
 
 % ----------------------------------------------------------------------------
-% D.1: Distribution Shift Visualization
-% ----------------------------------------------------------------------------
-
-\subsection{Distribution Shift Analysis}
-\label{app:distribution_shift}
-
-Figure~\ref{fig:distribution_shift} provides the full visualization of the covariate shift between offline training and holdout evaluation distributions, summarized quantitatively in Section~\ref{sec:distribution_shift}. As noted in the main text, this shift reflects heterogeneity between two different data collections (RouteLLM battles vs.\ LMSYS dev/holdout) rather than a measured production drift.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.9\columnwidth]{figures/figure2_distribution_shift.png}
-\caption{\textbf{Distribution Shift Visualization.}
-\textbf{Top:} Density comparison (PSI = 0.225) shows a structural mismatch between Offline Training priors (Blue) and Holdout evaluation data (Red) in the PC1 feature space.
-\textbf{Bottom:} Decomposition based on model preference clusters from Table~\ref{tab:cluster_inversion}. The High PC1 region (Right Peak, where Mixtral is preferred with gap $= -0.56$) is over-represented in offline data. The Low PC1 region (Left Peak, where GPT-4 is preferred with gap $= +0.12$) dominates production traffic.
-The Offline Prior over-indexes on Mixtral-preferred prompts, leading to systematic underestimation of GPT-4's utility on dominant evaluation traffic.}
-\label{fig:distribution_shift}
-\end{figure}
-
-\paragraph{Preference Decomposition.}
-The shift decomposes into two functional regions aligned with model preference heterogeneity:
-\begin{enumerate}[nosep]
-    \item \textbf{GPT-4-Preferred (Low PC1):} Conversational prompts where GPT-4's instruction following yields a positive advantage (gap $= +0.12$).
-    \item \textbf{Mixtral-Preferred (High PC1):} Strict-constraint prompts where the cheaper model is empirically preferred (gap $= -0.56$).
-\end{enumerate}
-
-Offline data is heavily weighted toward the High PC1 region, while the holdout evaluation set is dominated by Low PC1 prompts. This directional mismatch means a static router trained on offline data systematically under-provisions GPT-4 on evaluation traffic---the ``False Negative'' policy described in Section~\ref{sec:distribution_shift}.
-
-\paragraph{Robustness Across PC Dimensions.}
-To address the concern that PC1 explains only 3.1\% of total variance, we compute average per-component PSI across different dimensionality choices: PC1 alone (PSI $= 0.225$), PC1--5 (avg $= 0.197$), PC1--10 (avg $= 0.133$), all 33 features (avg $= 0.089$). The attenuation pattern is expected: leading PCs capture between-domain variation (where shift is concentrated), while higher PCs capture within-domain variation that is stable across sources.
-
-\paragraph{Why the Production PCA?}
-Because the production router projects every incoming prompt through this PCA, the measured shift is exactly the covariate shift that LinUCB experiences in deployment. Using a generic PCA would measure shift in a feature space the router never sees. Figure~\ref{fig:lmsys_holdout_structure} separately validates that this PCA generalizes across data sources (Spearman $\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections).
-
-\paragraph{Comparison to Related Work.}
-Prior LLM routing work~\cite{ong2024routellm,chen2024frugalgpt} assumes the deployment distribution matches training---an assumption our analysis shows is violated even within LLM evaluation domains. RouteLLM provides no mechanism to detect or adapt to shift; FrugalGPT uses fixed cascading policies. BanditGPT diagnoses shift (PSI analysis), adapts continuously (LinUCB), and provides safety guarantees (Corralling).
-
-% ----------------------------------------------------------------------------
-% D.2: Catastrophic Failure Detection
+% D.1: Catastrophic Failure Detection
 % ----------------------------------------------------------------------------
 
 \subsection{Catastrophic Failure Detection}
@@ -232,7 +195,7 @@ Diagnostic analysis reveals individual seeds exhibit binary expert commitments (
 \subsection{Exploration Strategy Validation}
 \label{sec:alpha_ablation}
 
-A critical design choice is the exploration-exploitation schedule. We validated constant exploration ($\alpha=2.0$) through systematic ablation under moderate domain mismatch (PSI=0.225).
+A critical design choice is the exploration-exploitation schedule. We validated constant exploration ($\alpha=2.0$) through systematic ablation under domain mismatch between offline training and holdout evaluation data.
 
 \paragraph{Experimental Setup.}
 Four configurations evaluated on the 750-prompt holdout set across 20 random seeds:

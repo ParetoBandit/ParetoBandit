@@ -2,15 +2,11 @@
 \label{sec:motivation}
 
 % TRANSITION from Introduction
-Current LLM routers operate under an implicit assumption: task ``difficulty'' determines which model to use---easy tasks go to cheap models, hard tasks to expensive ones. This section presents two empirical findings that overturn this assumption and directly motivate the banditGPT architecture:
+Current LLM routers operate under an implicit assumption: task ``difficulty'' determines which model to use---easy tasks go to cheap models, hard tasks to expensive ones. This section presents an empirical finding that overturns this assumption and directly motivates the banditGPT architecture:
 
-\begin{enumerate}
-    \item \textbf{Model Preference Heterogeneity (Figure~\ref{fig:lmsys_holdout_structure}):} The expensive model is not merely unnecessary on some tasks---it is \emph{actively worse} on a specific, identifiable subset. This transforms routing from interpolation (``how much quality am I willing to trade for cost?'') into \textbf{discovery} (``which prompts actually benefit from the expensive model?'').
-    
-    \item \textbf{Distribution Shift (Section~\ref{sec:distribution_shift}):} The training data over-represents exactly the prompts where the expensive model fails, causing static routers to systematically misroute deployment traffic. This makes safe online learning essential, not optional.
-\end{enumerate}
+\textbf{Model Preference Heterogeneity (Figure~\ref{fig:lmsys_holdout_structure}):} The expensive model is not merely unnecessary on some tasks---it is \emph{actively worse} on a specific, identifiable subset. This transforms routing from interpolation (``how much quality am I willing to trade for cost?'') into \textbf{discovery} (``which prompts actually benefit from the expensive model?'').
 
-Together, these findings establish: \textbf{routing is a learnable discovery problem, but the training signal is misleading---requiring adaptive mechanisms with safety guarantees.}
+This finding establishes: \textbf{routing is a learnable discovery problem requiring adaptive mechanisms with safety guarantees.}
 
 \subsection{Model Preference Heterogeneity}
 
@@ -61,7 +57,7 @@ A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the dire
 
 \paragraph{Methodological Notes.}
 \begin{itemize}[noitemsep,topsep=2pt,leftmargin=10pt]
-    \item \textbf{Data:} Held-out test set only ($N=750$). The dev set ($N=1{,}121$), used for online learning in Table~\ref{tab:performance_gap}, is excluded to maintain train/test independence.
+    \item \textbf{Data:} Held-out test set only ($N=750$). The dev set ($N=1{,}121$), used for online learning, is excluded to maintain train/test independence.
     \item \textbf{PCA:} Domain-adapted, trained on 80K routing prompt embeddings (unsupervised---no reward labels). Applied to disjoint held-out data.
     \item \textbf{Metric:} Spearman rank correlation, appropriate for ordinal/discrete data ($\{-1, 0, +1\}$) with no distributional assumptions.
     \item \textbf{Reward source:} LMSYS Chatbot Arena human preference evaluations~\cite{zheng2023judging}, based on side-by-side model comparisons by crowd-workers.
@@ -79,26 +75,14 @@ This finding has three direct consequences for router design:
     \item \textbf{Online learning is essential.} Because the preference structure varies with deployment distribution and is counter-intuitive (the expensive model is \emph{worse} on some prompts), it cannot be reliably specified a priori. banditGPT learns this preference structure online, using GPT-4 only when statistically justified by observed rewards.
 \end{enumerate}
 
-\subsection{Distribution Shift: Motivating Adaptive Learning}
-\label{sec:distribution_shift}
+\subsection{From Observation to Architecture}
 
-A fundamental risk in routing is \textbf{Covariate Shift}: when the distribution of tasks at deployment differs from the offline training data, priors can become harmful. We quantified this shift using the Population Stability Index (PSI), obtaining $\text{PSI} = 0.225$ (95\% CI: $[0.194, 0.285]$), placing it in the ``significant'' range ($\geq 0.2$). Kolmogorov-Smirnov testing confirms the distributions are significantly different ($p < 10^{-22}$, Cohen's $d = 0.33$, small effect).
-
-\paragraph{Important caveat: dataset heterogeneity, not production drift.}
-This shift is measured between two different data collections---the LMSYS dev/holdout set and RouteLLM battle data---which were gathered under different sampling procedures, time periods, and selection criteria. We therefore characterize this as \emph{dataset heterogeneity} rather than a measured ``production drift.'' While this heterogeneity is representative of the kind of distributional mismatch that arises in real deployments (where training and serving distributions inevitably differ), we cannot claim it precisely mirrors any specific production scenario. The magnitude of the shift motivates adaptive mechanisms, but the exact PSI value is specific to these two dataset collections.
-
-Critically, the \emph{direction} of the shift compounds the danger. Offline training data over-indexes on High PC1 prompts, where Mixtral is preferred. The holdout distribution is predominantly Low PC1, where GPT-4 excels. A static router trained on the offline distribution therefore learns to be systematically pessimistic about GPT-4's utility on the dominant evaluation traffic---creating a ``False Negative'' policy that underestimates GPT-4 precisely where it should be deployed.
-
-This motivates the \textbf{tabula rasa} expert in our Corralling framework (Section~\ref{sec:methodology}), which learns deployment-specific preferences unburdened by this offline bias. For shifts of this magnitude (PSI$\geq$0.25), the system requires adaptive mechanisms with safety guarantees, as static priors become actively harmful. We note that the prescriptive PSI thresholds used here (PSI$<$0.1 for safe exploitation, PSI$\geq$0.25 for requiring unlearning) follow standard industry conventions from credit risk modeling but have not been independently validated for the LLM routing domain; future work should calibrate domain-specific thresholds on held-out deployment data. Full distribution shift visualization and decomposition are provided in Appendix~\ref{app:distribution_shift}.
-
-\subsection{Synthesis: From Observation to Architecture}
-
-The two findings above form a coherent argument for adaptive routing:
+The analysis above motivates adaptive routing through a direct argument:
 
 \begin{enumerate}[noitemsep,topsep=2pt]
-    \item \textbf{Structure exists} (Section~\ref{sec:motivation}): Model preference heterogeneity is real and predictable through prompt embeddings ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections). A router equipped with the right features \emph{can} distinguish prompts that benefit from the expensive model from those that do not.
+    \item \textbf{Structure exists:} Model preference heterogeneity is real and predictable through prompt embeddings ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections). A router equipped with the right features \emph{can} distinguish prompts that benefit from the expensive model from those that do not.
     
-    \item \textbf{But static priors mislead} (Section~\ref{sec:distribution_shift}): The training distribution over-represents the inversion subset (High PC1), causing static routers to learn a policy that is \emph{directionally wrong} on deployment traffic. Simply learning the structure offline is insufficient---the router must adapt to the deployment distribution.
+    \item \textbf{But static policies cannot exploit it:} Because the preference structure is counter-intuitive (the expensive model is \emph{worse} on some prompts) and varies with deployment distribution, it cannot be reliably specified a priori. A static router trained on offline data risks learning systematically wrong preferences. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, paying $43\times$ more for $1.3\%$ lower quality.
     
     \item \textbf{Therefore, safe online learning is necessary:} The router must (a) exploit semantic structure to make the preference discovery tractable, (b) hedge against misleading priors via meta-learning, and (c) handle non-stationarity as new models enter the portfolio. These are exactly the three mechanisms of banditGPT (Section~\ref{sec:methodology}).
 \end{enumerate}
