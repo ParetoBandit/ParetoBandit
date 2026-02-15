@@ -30,6 +30,7 @@
 \usepackage{subcaption}
 \usepackage{multirow}
 \usepackage{xcolor}
+\usepackage{listings}
 
 % Configure hyperref
 \hypersetup{
@@ -37,6 +38,22 @@
     linkcolor=blue,
     citecolor=blue,
     urlcolor=blue
+}
+
+% Configure listings for Python code
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    xleftmargin=2em,
+    framexleftmargin=1.5em
 }
 
 % Theorem environments
@@ -48,6 +65,8 @@
 
 % Custom commands
 \newcommand{\TODO}[1]{\textcolor{red}{\textbf{TODO: #1}}}
+\newcommand{\neff}{n_{\text{eff}}}
+\newcommand{\mat}[1]{\mathbf{#1}}
 
 % Title (for standalone compilation)
 \title{Appendix: banditGPT - Cost-Aware Contextual Bandits for LLM Routing}
@@ -85,13 +104,10 @@ This appendix provides mathematical proofs, theoretical bounds, and formal deriv
 \section{Dataset Details}
 \label{appendix:dataset_details}
 
-This appendix documents the statistical validation methodology and cross-domain generalization evidence supporting Table~2 and Figure~1.
+This appendix documents the statistical validation methodology supporting Table~2 and Figure~1.
 
 % B.1: Validation Methodology (supports Figure 1 Spearman test)
 \input{B_dataset_details/B1_validation_methodology}
-
-% B.2: Distribution Shift Details (supports Figure 1 cross-domain claim)
-\input{B_dataset_details/B2_distribution_shift_details}
 
 % ============================================================================
 % APPENDIX C: HYPERPARAMETER SENSITIVITY ANALYSIS
@@ -105,9 +121,6 @@ This appendix demonstrates robustness across a 20$\times$ hyperparameter range, 
 % C.1: Comprehensive Sensitivity Analysis
 \input{C_hyperparameter_sensitivity/C1_comprehensive_sensitivity}
 
-% C.2: Concise Summary (optional — use for space-constrained appendix)
-% \input{C_hyperparameter_sensitivity/C2_robustness_summary}
-
 % ============================================================================
 % APPENDIX D: ABLATION STUDIES
 % ============================================================================
@@ -120,11 +133,6 @@ This appendix validates component contributions through controlled experiments, 
 % D.1: Corralling Algorithm Ablation (45 experiments)
 \input{D_ablation_studies/D1_corralling_ablation}
 
-% D.2: Learning rate ablation under catastrophic failure is shown in
-% figures/figure6_learning_rate_ablation.pdf and supports Figure 6's eta=0.3
-
-% D.3: Alpha and gamma ablation figures in figures/ subdirectory
-
 % ============================================================================
 % APPENDIX E: EXTENDED EXPERIMENTAL RESULTS
 % ============================================================================
@@ -132,7 +140,7 @@ This appendix validates component contributions through controlled experiments, 
 \section{Extended Experimental Results}
 \label{appendix:extended_results}
 
-This appendix presents the catastrophic failure detection experiment (Figure~6), demonstrating Corralling's safety benefit on a 5-model portfolio.
+This appendix presents the catastrophic failure detection experiment (Figure~6), demonstrating Corralling's safety benefit on a 5-model portfolio with production router components.
 
 % E.1: Catastrophic Failure Detection (K=5 portfolio, production router)
 \input{E_extended_results/E1_catastrophic_failure}

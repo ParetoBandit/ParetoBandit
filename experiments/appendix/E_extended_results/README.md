@@ -6,7 +6,8 @@ Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's
 ## Contents
 
 ### E.1: Catastrophic Failure Detection
-**Canonical source**: `../E_catastrophic_failure_experiment/figure6_corralling_kdd.tex`
+**File**: `E1_catastrophic_failure.tex`  
+**Source**: K=5 production router experiment (`../E_catastrophic_failure_experiment/generate_figure6_5model.py`)
 
 **Content**:
 - 5-model portfolio (Mixtral, GPT-4-Turbo, GPT-3.5, Haiku, GPT-4o)
@@ -23,18 +24,8 @@ Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's
 
 ---
 
-## Removed Content
-
-| Item | Reason |
-|------|--------|
-| ~~E2: Three-Model Routing~~ | Experiment removed from scope |
-| ~~E3: Alternative Cost Profiles~~ | Never created; Figure 4 Pareto sweep covers cost-quality tradeoffs |
-| ~~E4: Distribution Shift Robustness~~ | Never created; B.2 covers cross-domain transfer |
-
----
-
 ## Related Sections
-- **Appendix D.2**: Learning rate ablation under catastrophic failure (justifies $\eta=0.3$)
+- **Appendix D.1**: Corralling ablation validates hyperparameter choices
 - **Main Paper Figure 3**: Corralling insurance mechanism — Figure 6 extends this to catastrophic scenario
 - **Main Paper Figure 4**: Pareto frontier — static benchmarks; Figure 6 tests dynamic challenge
 
@@ -43,12 +34,11 @@ Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's
 ## Files
 ```
 E_extended_results/
-├── README.md                              (this file)
-├── E1_catastrophic_failure.tex            (included in APPENDIX_MASTER)
-└── E1_catastrophic_failure_extended.tex   (optional extended analysis)
+├── README.md                         (this file)
+└── E1_catastrophic_failure.tex       (included in APPENDIX_MASTER)
 ```
 
-The canonical experiment code and figures live in `../E_catastrophic_failure_experiment/`.
+The experiment code lives in `../E_catastrophic_failure_experiment/`.
 
 ---
 

@@ -1,134 +1,112 @@
-# Appendix Content Map (Trimmed)
+# Appendix Content Map (Final)
 
 **Date**: February 15, 2026  
-**Purpose**: Definitive map of what stays, what's cut, and why — aligned to Figures 1, 3, 4, 6, and Table 2.
+**Purpose**: Definitive map of appendix contents — aligned to Figures 1, 3, 4, 6, and Table 2.
 
 ---
 
 ## Design Principle
 
-Every appendix item must trace to a specific claim in the main paper. If it doesn't support Figures 1, 3, 4, 6, or Table 2, it's cut.
+Every appendix item must trace to a specific claim in the main paper. If it doesn't support Figures 1, 3, 4, 6, or Table 2, it's cut. No content should appear in two appendix sections.
 
 ---
 
 ## Section-by-Section Map
 
-### Appendix A: Mathematical Foundations — KEEP (unchanged)
+### Appendix A: Mathematical Foundations
 
-| File | Supports | Status |
-|------|----------|--------|
-| `A1_spectral_separation_proof.tex` | Fig 1 (spectral separation), Fig 3 (regret bounds) | KEEP |
-
----
-
-### Appendix B: Dataset Details — KEEP (trimmed)
-
-| File | Supports | Status |
-|------|----------|--------|
-| `B1_validation_methodology.tex` | Fig 1 Spearman test methodology | KEEP |
-| `B2_distribution_shift_details.tex` | Fig 1 cross-domain PCA generalization | KEEP |
-| ~~`B1_dataset_composition.tex`~~ | Table 2 already covers this | CUT (never created) |
-| ~~`B3_1M_scale_analysis.tex`~~ | No main figure relies on 1M scale | CUT |
+| File | Supports | Content |
+|------|----------|---------|
+| `A1_spectral_separation_proof.tex` | Fig 1, Fig 3 | Spectral separation proof, regret bounds |
 
 ---
 
-### Appendix C: Hyperparameter Sensitivity — KEEP (trimmed)
+### Appendix B: Dataset Details
 
-| File | Supports | Status |
-|------|----------|--------|
-| `C1_comprehensive_sensitivity.tex` | Fig 4 robustness (20x range) | KEEP |
-| `C2_robustness_summary.tex` | Space-constrained alternative to C1 | KEEP (optional) |
-| ~~C2: Learning Rate~~ | Covered within C1 | CUT (stub only) |
-| ~~C3: Mixing Parameter~~ | Covered within C1 | CUT (stub only) |
-| ~~C4: Imperfect Neighbors~~ | Covered within C1 | CUT (stub only) |
+| File | Supports | Content |
+|------|----------|---------|
+| `B1_validation_methodology.tex` | Fig 1, Table 2 | Statistical significance tests, threshold validation, dimensionality robustness, data quality |
 
 ---
 
-### Appendix D: Ablation Studies — KEEP (expanded)
+### Appendix C: Hyperparameter Sensitivity (Semantic Transfer)
 
-| File | Supports | Status |
-|------|----------|--------|
-| `D1_corralling_ablation.tex` | Fig 3 config, Fig 4 eta=1.0 | KEEP |
-| `figures/figure6_learning_rate_ablation.pdf` | Figure 6 eta=0.3 choice | KEEP (new addition) |
-| `figures/figure_alpha_ablation.png` | Fig 3 alpha=2.0 choice | KEEP |
-| `figures/figure_gamma_ablation.png` | Fig 3 gamma=0.05 choice | KEEP |
-| ~~D.2: Feature Engineering Ablation~~ | Never created | CUT |
-| ~~D.4: Multi-Seed Statistical Validation~~ | Covered in D1 and STATISTICAL_NOTES.md | CUT |
+| File | Supports | Content |
+|------|----------|---------|
+| `C1_comprehensive_sensitivity.tex` | Fig 4 | $n_{\text{eff}}$ sensitivity: Bayesian formulation, 20x robustness, imperfect neighbors |
+
+**Scope**: Validates the semantic transfer prior strength ($n_{\text{eff}}$). Does NOT cover Corralling parameters ($\eta$, $\gamma$) — those are in Appendix D.
 
 ---
 
-### Appendix E: Extended Results — KEEP (slimmed to E1 only)
+### Appendix D: Ablation Studies (Corralling)
 
-| File | Supports | Status |
-|------|----------|--------|
-| `E1_catastrophic_failure.tex` | Figure 6 (K=5 catastrophic failure) | KEEP |
-| `E1_catastrophic_failure_extended.tex` | Optional deeper analysis | KEEP (optional) |
-| ~~E2: Three-Model Routing~~ | Experiment removed | CUT |
-| ~~E3: Alternative Cost Profiles~~ | Never created; Fig 4 covers this | CUT |
-| ~~E4: Distribution Shift~~ | Never created; B.2 covers this | CUT |
+| File | Supports | Content |
+|------|----------|---------|
+| `D1_corralling_ablation.tex` | Fig 3, Fig 4, Fig 6 | 45-experiment grid search over $\eta$ and $\gamma$, sublinear regret validation ($\beta$=0.669) |
 
-**Note**: Canonical experiment code lives in `E_catastrophic_failure_experiment/`. E1 tex files are the LaTeX write-up included in APPENDIX_MASTER.
+**Scope**: Validates Corralling meta-learner parameters ($\eta$, $\gamma$). Cross-references Appendix C for $n_{\text{eff}}$ validation.
 
 ---
 
-### Appendix F: Implementation Details — KEEP (trimmed)
+### Appendix E: Extended Results
 
-| File | Supports | Status |
-|------|----------|--------|
-| `F1_configuration_details.tex` | Reproducibility (all experiments) | KEEP |
-| `F2_experimental_setup.tex` | Reproducibility (hardware/software) | KEEP |
-| ~~`F3_strategy_selection_guide.tex`~~ | Duplicates Fig 3 findings; better as GitHub README | CUT |
-| ~~F4: Hyperparameter Guide~~ | Never created; Appendix C covers this | CUT |
+| File | Supports | Content |
+|------|----------|---------|
+| `E1_catastrophic_failure.tex` | Fig 6 | K=5 portfolio, production router, 20 seeds, portfolio scaling |
+
+**Experiment code**: `E_catastrophic_failure_experiment/generate_figure6_5model.py`
 
 ---
 
-### Appendix G: Limitations and Future Work — KEEP (trimmed)
+### Appendix F: Implementation Details
 
-| File | Supports | Status |
-|------|----------|--------|
-| `G1_limitations.tex` | Required for venue submission | KEEP |
-| `G1_limitations_addendum.tex` | Merge into G1 for camera-ready | KEEP |
-| ~~`G1_practical_recommendations.tex`~~ | Duplicates Fig 3 + F3 content | CUT |
-| ~~G3: Broader Impact~~ | Never created; add only if venue requires | CUT |
-| ~~G4: Corralling vs Offline~~ | Never created; not required | CUT |
+| File | Supports | Content |
+|------|----------|---------|
+| `F1_configuration_details.tex` | All | Part 1: Library router parameters (all classes in `router.py`); Part 2: Experiment configs; Implementation notes (init\_lambda, two-level cost, loss\_decay) |
+| `F2_experimental_setup.tex` | All | Hardware specs, software versions, runtimes, evaluation protocol, zero-leakage design |
+
+**Scope**: F1 is the authoritative bridge between `router.py` and the paper. Library defaults alongside experiment values. No analysis, no recommendations, no code examples.
+
+---
+
+### Appendix G: Limitations and Future Work
+
+| File | Supports | Content |
+|------|----------|---------|
+| `G1_limitations.tex` | All | Prior quality dependency, strategy trade-offs, variance, computational overhead, generalizability |
+| `G1_limitations_addendum.tex` | All | Regime-dependent effects, generalizability of regime frequencies |
+
+**Scope**: Honest discussion of system constraints. Merge addendum into G1 for camera-ready.
+
+---
+
+## Deduplication Boundaries
+
+To prevent content overlap, each section has a clear ownership boundary:
+
+| Topic | Owner | Others must NOT cover |
+|-------|-------|-----------------------|
+| $n_{\text{eff}}$ sensitivity | **C1** | D1 references C1, F1 lists values only |
+| $\eta$, $\gamma$ ablation | **D1** | F1 lists values only, G1 discusses limitations |
+| Strategy selection guidance | **G1** | Removed from F1 (was duplicated) |
+| Monitoring / deployment code | **None** | Removed from appendix (belongs in GitHub README) |
+| Regret numbers (49.5, 59.2, 74.7) | **G1** | F1 does not include performance tables |
+| Hyperparameter values (tables) | **F1** | Other sections reference F1 for values |
+| Hardware/software/protocol | **F2** | Not repeated elsewhere |
 
 ---
 
 ## Traceability Matrix
 
-Every kept appendix item maps to a main paper element:
-
 | Main Paper Element | Appendix Support |
 |-------------------|-----------------|
-| **Figure 1** (PCA validation) | A1 (spectral proof), B1 (methodology), B2 (distribution shift) |
+| **Figure 1** (PCA validation) | A1 (spectral proof), B1 (methodology) |
 | **Table 2** (data provenance) | B1 (validation methodology) |
-| **Figure 3** (corralling insurance) | A1 (regret bounds), D1 (ablation), D.3 (alpha/gamma plots) |
-| **Figure 4** (Pareto frontier) | C1 (sensitivity), D1 (eta=1.0 validation), F1/F2 (reproducibility) |
-| **Figure 6** (catastrophic failure) | D.2 (eta ablation), E1 (full experiment), A1 (meta-algorithm bounds) |
-| **All** | G2 (limitations) |
-
----
-
-## Files to Delete (candidates)
-
-These files are kept on disk but excluded from APPENDIX_MASTER.tex compilation:
-
-| File | Reason Excluded |
-|------|----------------|
-| `F3_strategy_selection_guide.tex` | Practitioner guide, not scientific appendix |
-| `G1_practical_recommendations.tex` | Redundant with Fig 3 + F3 |
-
-These were never created and their stubs are removed from READMEs:
-
-| Planned Item | Never Created Because |
-|-------------|----------------------|
-| B1_dataset_composition.tex | Table 2 sufficient |
-| B3_1M_scale_analysis.tex | Tangential to main figures |
-| C2-C4 sensitivity subsections | C1 is comprehensive |
-| E2-E4 extended results | Experiments removed or never run |
-| F4_hyperparameter_guide.tex | Appendix C covers this |
-| G3_broader_impact.tex | Not required by current venues |
-| G4_corralling_vs_offline.tex | Not required |
+| **Figure 3** (corralling insurance) | A1 (regret bounds), D1 (ablation) |
+| **Figure 4** (Pareto frontier) | C1 ($n_{\text{eff}}$ sensitivity), D1 ($\eta$ validation), F1/F2 (reproducibility) |
+| **Figure 6** (catastrophic failure) | E1 (K=5 experiment), A1 (meta-algorithm bounds) |
+| **All** | F1/F2 (reproducibility), G1 (limitations) |
 
 ---
 
@@ -137,12 +115,23 @@ These were never created and their stubs are removed from READMEs:
 | Metric | Count |
 |--------|-------|
 | Appendix sections | 7 (A-G) |
-| Active LaTeX files | 10 |
-| Active figures | 4+ |
-| Excluded but on-disk | 2 |
-| Never created (stubs removed) | 7+ |
+| Active LaTeX files | 8 |
+| Experiment scripts | 1 (`generate_figure6_5model.py`) |
 
 ---
 
-**Status**: Trimmed and aligned to main paper figures  
+## Figures Pending Generation
+
+| Figure | Script | Output Path |
+|--------|--------|-------------|
+| Figure 1 | `experiments/01_figure/plot_figure1.py` | `01_figure/results/` |
+| Figure 3 | `experiments/03_figure/run_all_experiments.py` | `03_figure/results/` |
+| Figure 4 | `experiments/04_figure/generate_pareto_frontier.py` | `04_figure/results/` |
+| Figure 6 | `appendix/E_catastrophic_failure_experiment/generate_figure6_5model.py` | `E_catastrophic_failure_experiment/results/` |
+
+**Note**: The E1 `\includegraphics` is currently commented out pending figure generation.
+
+---
+
+**Status**: Clean — F1 aligned to router.py, outdated references (Figure 8, 08\_figure) removed, C1 formula corrected, D1 loss\_decay documented  
 **Last Updated**: February 15, 2026

@@ -17,7 +17,7 @@ System limitations, assumptions, and future research directions. Required for an
 
 ### G.1 Addendum
 **File**: `G1_limitations_addendum.tex`  
-**Source**: `08_figure/limitations_addendum.tex`
+**Source**: Originally from extended experiments analysis
 
 **Content**:
 - Additional limitations discovered during extended experiments

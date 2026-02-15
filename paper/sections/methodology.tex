@@ -30,12 +30,12 @@ where $\lambda$ controls the trade-off between performance and economy. A high $
 
 The system consists of three distinct layers of decision-making, as illustrated in Figure~\ref{fig:architecture}.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.95\columnwidth]{figures/figure3_architecture.png}
-\caption{\textbf{The banditGPT Corralling Architecture.} A hierarchical meta-learner manages a portfolio of experts. The Coordinator (Top) maintains a trust distribution $\pi$ over experts. Experts (Middle) independently recommend models based on their distinct priors (Warmup vs.\ Tabula Rasa). The system observes the reward (Bottom) and updates both the selected expert's internal state and the coordinator's trust weights via importance-weighted feedback.}
+\includegraphics[width=0.75\textwidth]{figures/figure3_architecture.png}
+\caption{\textbf{The banditGPT Router Architecture.} A user prompt is embedded via a Sentence Transformer and compressed by domain-adapted PCA (trained on 80K RouteLLM prompts) into a 33-dimensional context vector~$x_t$. \textbf{Layer~1} performs per-context Dynamic Pareto Filtering using cost metadata from the Model Registry. \textbf{Layer~2} implements an Expert Corralling meta-learner~\cite{agarwal2017corralling} that maintains a trust distribution over two expert bandits: a \emph{Warmup Expert} initialized with offline priors from RouteLLM battle data ($\Amat_m, \bvec_m$), and a \emph{Tabula Rasa Expert} with uninformative priors ($\Amat_m = \lambda\mathbf{I}$), providing insurance against prior mismatch. \textbf{Layer~3} selects the arm maximizing a Cost-Aware LinUCB objective. The two-level feedback loop (dashed) updates both the selected expert's sufficient statistics ($\Amat, \bvec$) and the coordinator's trust weights via importance-weighted loss estimates. Data sources (dotted) show the offline-to-online transfer pathway.}
 \label{fig:architecture}
-\end{figure}
+\end{figure*}
 
 \subsubsection{Layer 1: Dynamic Pareto Filtering}
 

@@ -1,24 +1,23 @@
 % Appendix D: Hyperparameter Sensitivity Analysis
 % Comprehensive Validation of Configuration Choices
 
-\section{Hyperparameter Sensitivity}
-\label{appendix:hyperparameter_sensitivity}
+% Section heading provided by APPENDIX_MASTER.tex
 
 To address concerns regarding the ``brittleness'' of tuned constants, we performed 
 a comprehensive sensitivity analysis on the key hyperparameter controlling Latent 
-Semantic Transfer: the \emph{effective prior sample size} ($n_{\text{eff}}$).
+Semantic Transfer: the \emph{effective prior sample size} ($\neff$).
 
 \subsection{Experimental Setup}
 
-We evaluate robustness by varying $n_{\text{eff}}$ across a 20$\times$ range while 
+We evaluate robustness by varying $\neff$ across a 20$\times$ range while 
 holding all other parameters constant:
 
 \begin{itemize}[leftmargin=*,noitemsep]
     \item \textbf{Base Portfolio:} Mixtral-8x7B, GPT-4-Turbo (trained for 300 steps)
     \item \textbf{New Model Release:} GPT-5.1 introduced at $t=300$
     \item \textbf{Semantic Neighbor:} GPT-4-Turbo (identified via embedding similarity)
-    \item \textbf{Prior Strengths Tested:} $n_{\text{eff}} \in \{1.0, 2.0, 5.0, 10.0, 20.0\}$
-    \item \textbf{Baseline:} Cold Start ($n_{\text{eff}}=0$, identity initialization)
+    \item \textbf{Prior Strengths Tested:} $\neff \in \{1.0, 2.0, 5.0, 10.0, 20.0\}$
+    \item \textbf{Baseline:} Cold Start ($\neff=0$, identity initialization)
 \end{itemize}
 
 \subsection{Bayesian Formulation}
@@ -29,26 +28,29 @@ In our LinUCB framework, the posterior distribution over reward coefficients is:
 \end{equation}
 where $A$ is the precision matrix and $b$ is the moment vector.
 
-The effective sample size $n_{\text{eff}}$ controls the strength of the prior 
-through variance scaling:
+The effective sample size $\neff$ controls the strength of the prior
+through variance scaling.  Let $\lambda_{\text{init}}$ denote the
+initialization regularization (default 1.0 in the library):
 \begin{align}
-A_{\text{new}} &= n_{\text{eff}} \cdot I \label{eq:prior_precision} \\
-b_{\text{new}} &= n_{\text{eff}} \cdot \theta_{\text{neighbor}} \label{eq:prior_moment}
+A_{\text{new}} &= \neff \cdot \lambda_{\text{init}} \cdot I \label{eq:prior_precision} \\
+b_{\text{new}} &= \neff \cdot \lambda_{\text{init}} \cdot \theta_{\text{neighbor}} \label{eq:prior_moment}
 \end{align}
 
 This formulation ensures:
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{Mean Preserved:} $\hat{\theta} = A^{-1}b = (n_{\text{eff}} I)^{-1}(n_{\text{eff}} \theta) = \theta_{\text{neighbor}}$
-    \item \textbf{Variance Scaled:} $\text{Var}(\hat{\theta}) = \sigma^2 (n_{\text{eff}} I)^{-1} \propto 1/n_{\text{eff}}$
+    \item \textbf{Mean Preserved:} $\hat{\theta} = A^{-1}b = (\neff \lambda_{\text{init}} I)^{-1}(\neff \lambda_{\text{init}} \theta) = \theta_{\text{neighbor}}$
+    \item \textbf{Variance Scaled:} $\text{Var}(\hat{\theta}) = \sigma^2 (\neff \lambda_{\text{init}} I)^{-1} \propto 1/\neff$
 \end{itemize}
 
-Thus, $n_{\text{eff}}$ directly controls confidence: higher values reduce variance 
+When $\lambda_{\text{init}} = 1$ (the default), this reduces to the standard
+$\neff \cdot I$ form.
+
+Thus, $\neff$ directly controls confidence: higher values reduce variance 
 (more exploitation), while lower values increase variance (more exploration).
 
 \subsection{Results}
 
-Figure~\ref{fig:sensitivity} demonstrates the system's performance upon introducing 
-the new model (GPT-5.1) under varying prior strengths. Table~\ref{tab:sensitivity_appendix} 
+Table~\ref{tab:sensitivity_appendix} 
 quantifies post-release performance across all conditions.
 
 \begin{table}[h]
@@ -59,13 +61,13 @@ quantifies post-release performance across all conditions.
 \toprule
 \textbf{Condition} & \textbf{Mean Reward} & \textbf{Std Dev} & \textbf{vs Cold Start} \\
 \midrule
-Cold Start ($n_{\text{eff}}=0$) & 3.22 & 2.01 & --- \\
+Cold Start ($\neff=0$) & 3.22 & 2.01 & --- \\
 \midrule
-$n_{\text{eff}}=1.0$ (Weak Prior) & 4.48 & 1.04 & +39.2\%$^{***}$ \\
-$n_{\text{eff}}=2.0$ & 4.48 & 1.04 & +39.2\%$^{***}$ \\
-$n_{\text{eff}}=5.0$ (Default) & 4.48 & 1.04 & +39.2\%$^{***}$ \\
-$n_{\text{eff}}=10.0$ & 4.48 & 1.04 & +39.2\%$^{***}$ \\
-$n_{\text{eff}}=20.0$ (Strong Prior) & 4.48 & 1.04 & +39.2\%$^{***}$ \\
+$\neff=1.0$ (Weak Prior) & 4.48 & 1.04 & +39.2\%$^{***}$ \\
+$\neff=2.0$ & 4.48 & 1.04 & +39.2\%$^{***}$ \\
+$\neff=5.0$ (Default) & 4.48 & 1.04 & +39.2\%$^{***}$ \\
+$\neff=10.0$ & 4.48 & 1.04 & +39.2\%$^{***}$ \\
+$\neff=20.0$ (Strong Prior) & 4.48 & 1.04 & +39.2\%$^{***}$ \\
 \bottomrule
 \end{tabular}
 \vspace{0.5em}
@@ -79,18 +81,18 @@ demonstrating perfect robustness across a 20$\times$ range of prior strengths.
 \paragraph{Key Observations:}
 
 \begin{enumerate}[leftmargin=*]
-    \item \textbf{Perfect Robustness:} All $n_{\text{eff}}$ values yield identical 
+    \item \textbf{Perfect Robustness:} All $\neff$ values yield identical 
     performance (mean reward = 4.48, +39.2\% vs Cold Start). This is the theoretically 
     correct behavior when the semantic neighbor is a good match: the mean prediction 
     $\hat{\theta} = \theta_{\text{neighbor}}$ is preserved across all prior strengths.
     
-    \item \textbf{Weak Prior ($n_{\text{eff}}=1.0$):} Even minimal injection of 
+    \item \textbf{Weak Prior ($\neff=1.0$):} Even minimal injection of 
     semantic intuition ($n=1$ pseudo-sample) yields a massive performance jump over 
     the Cold Start baseline, instantly achieving high reward ($\sim 4.5$) vs the 
     Cold Start dip ($\sim 1.8$ at $t=300$). This demonstrates that the method does 
     not require strong priors to succeed.
     
-    \item \textbf{Strong Prior ($n_{\text{eff}}=20.0$):} Increasing rigidity does 
+    \item \textbf{Strong Prior ($\neff=20.0$):} Increasing rigidity does 
     not degrade performance in this setting, as the semantic neighbor (GPT-4-Turbo) 
     was a high-quality proxy for GPT-5.1. The strong prior provides high confidence 
     without introducing bias, as the mean prediction remains correct.
@@ -103,43 +105,43 @@ demonstrating perfect robustness across a 20$\times$ range of prior strengths.
 
 \subsection{Interpretation}
 
-The parameter $n_{\text{eff}}$ has a clear Bayesian interpretation as the number 
+The parameter $\neff$ has a clear Bayesian interpretation as the number 
 of pseudo-observations contributing to the prior. In practice:
 
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{$n_{\text{eff}} = 1$:} ``Trust the neighbor's intuition as much 
+    \item \textbf{$\neff = 1$:} ``Trust the neighbor's intuition as much 
     as 1 real sample.'' Provides directional guidance while remaining highly exploratory.
     
-    \item \textbf{$n_{\text{eff}} = 5$:} ``Trust the neighbor's intuition as much 
+    \item \textbf{$\neff = 5$:} ``Trust the neighbor's intuition as much 
     as 5 real samples.'' Balanced default that works well across diverse scenarios.
     
-    \item \textbf{$n_{\text{eff}} = 20$:} ``Trust the neighbor's intuition as much 
+    \item \textbf{$\neff = 20$:} ``Trust the neighbor's intuition as much 
     as 20 real samples.'' High confidence, suitable when semantic similarity is very strong.
 \end{itemize}
 
-The key insight is that \emph{any} non-zero $n_{\text{eff}}$ provides the critical 
+The key insight is that \emph{any} non-zero $\neff$ provides the critical 
 benefit of ``Zero-Shot Readiness''---avoiding the catastrophic Cold Start dip---whereas 
-$n_{\text{eff}}=0$ (Cold Start) fails. The choice of $n_{\text{eff}}=5.0$ in our 
+$\neff=0$ (Cold Start) fails. The choice of $\neff=5.0$ in our 
 main experiments is simply a balanced default, not a singularity point requiring 
 careful tuning.
 
 \subsection{Robustness to Imperfect Neighbors}
 
 While this experiment demonstrates perfect robustness when the semantic neighbor is 
-a good match, we note that the choice of $n_{\text{eff}}$ becomes more consequential 
+a good match, we note that the choice of $\neff$ becomes more consequential 
 when the neighbor is imperfect:
 
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{Low $n_{\text{eff}}$ (1--2):} More robust to neighbor mismatch. 
+    \item \textbf{Low $\neff$ (1--2):} More robust to neighbor mismatch. 
     High variance allows rapid adaptation when real observations contradict the prior.
     
-    \item \textbf{High $n_{\text{eff}}$ (20+):} Less robust to neighbor mismatch. 
+    \item \textbf{High $\neff$ (20+):} Less robust to neighbor mismatch. 
     Low variance slows adaptation, though performance still improves over Cold Start 
     as the system eventually learns from data.
 \end{itemize}
 
 In production systems where semantic similarity may vary, we recommend using 
-$n_{\text{eff}} \in [2, 10]$ as a conservative range that balances transfer benefits 
+$\neff \in [2, 10]$ as a conservative range that balances transfer benefits 
 with adaptation flexibility.
 
 \subsection{Comparison to Alternative Approaches}
@@ -147,16 +149,16 @@ with adaptation flexibility.
 Our Bayesian formulation (Equations~\ref{eq:prior_precision}--\ref{eq:prior_moment}) 
 differs from naive implementations that scale only the moment vector:
 \begin{equation}
-A_{\text{naive}} = I, \quad b_{\text{naive}} = n_{\text{eff}} \cdot \theta_{\text{neighbor}}
+A_{\text{naive}} = I, \quad b_{\text{naive}} = \neff \cdot \theta_{\text{neighbor}}
 \end{equation}
 
-This naive approach artificially inflates predicted rewards by a factor of $n_{\text{eff}}$, 
+This naive approach artificially inflates predicted rewards by a factor of $\neff$, 
 creating an ``optimistic bias'' that forces selection of the new model regardless of 
 context. While this may work when the new model is genuinely superior, it:
 \begin{enumerate}[leftmargin=*,noitemsep]
     \item Violates the Bayesian interpretation of effective sample size
     \item Fails to generalize to multi-neighbor transfer scenarios
-    \item Degrades performance when $n_{\text{eff}}$ is too large (over-optimism)
+    \item Degrades performance when $\neff$ is too large (over-optimism)
 \end{enumerate}
 
 Our corrected formulation ensures that performance is driven by \emph{variance reduction} 
@@ -181,13 +183,13 @@ approach and simplifies deployment in production systems.
 \subsection{Conclusion}
 
 The sensitivity analysis demonstrates that Latent Semantic Transfer is fundamentally 
-robust to the choice of $n_{\text{eff}}$. Performance is stable across a 20$\times$ 
+robust to the choice of $\neff$. Performance is stable across a 20$\times$ 
 range (1.0 to 20.0), with all values providing substantial improvement (+39.2\%) 
 over the Cold Start baseline. This robustness arises from the principled Bayesian 
-formulation, where $n_{\text{eff}}$ controls confidence (variance) while preserving 
+formulation, where $\neff$ controls confidence (variance) while preserving 
 mean predictions.
 
-Practitioners can confidently deploy this method using $n_{\text{eff}}=5.0$ as a 
+Practitioners can confidently deploy this method using $\neff=5.0$ as a 
 default, or adjust based on domain knowledge (lower for novel tasks, higher for 
 similar tasks), without fear of performance degradation. The method's success is 
 not contingent on ``magic numbers'' but rather on the fundamental mechanism of 

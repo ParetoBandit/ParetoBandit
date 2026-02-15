@@ -1,11 +1,11 @@
 % Appendix: Corralling Ablation Study
 % This section provides detailed hyperparameter analysis for Figure 4
 
-\subsection{Hyperparameter Sensitivity Analysis}
+\subsection{Corralling Ablation Study}
 \label{sec:appendix_corralling_ablation}
 
-To characterize the algorithm's sensitivity to hyperparameter choices and identify optimal configurations, we conducted a systematic grid search over 15 configurations spanning 5 learning rates ($\eta \in \{0.1, 0.5, 1.0, 2.0, 5.0\}$) and 3 mixing parameters ($\gamma \in \{0.0, 0.05, 0.10\}$), with 3 independent random seeds per configuration (45 total experiments).
-This comprehensive evaluation enables us to quantify both performance sensitivity and statistical reproducibility.
+To validate the Corralling meta-learner's hyperparameter choices used in Figures~3, 4, and~6, we conducted a systematic grid search over 15 configurations spanning 5 learning rates ($\eta \in \{0.1, 0.5, 1.0, 2.0, 5.0\}$) and 3 mixing parameters ($\gamma \in \{0.0, 0.05, 0.10\}$), with 3 independent random seeds per configuration (45 total experiments).
+This evaluation quantifies both performance sensitivity and statistical reproducibility for the Corralling-specific parameters ($\eta$, $\gamma$), complementing the semantic transfer sensitivity analysis in Appendix~\ref{appendix:hyperparameter_sensitivity} which validates $\neff$.
 
 \paragraph{Results Summary.}
 Table~\ref{tab:corralling_ablation} presents performance across all configurations, ranked by cumulative regret.
@@ -52,6 +52,26 @@ $\eta$ & $\gamma$ & Seeds & Regret (mean $\pm$ std) & Reward (mean $\pm$ std) & 
 \paragraph{Theoretical Validation.}
 Log-log regression analysis (excluding the first 50 burn-in samples) yields a growth exponent $\beta=0.669 \pm 0.002$ with R$^2$=0.9903, confirming sublinear regret growth $O(T^{0.669})$.
 This satisfies the PAC-learnability criterion ($\beta < 1$) and empirically validates the theoretical guarantees of the Corralling framework.
+
+\paragraph{Note on Production Library Extensions.}
+The experiments in this paper use the standard Exp4 update rule (\texttt{loss\_decay}$=1.0$).
+The production library (\texttt{router.py}) additionally supports two meta-level
+extensions not exercised in these experiments:
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item \textbf{Loss Decay} (\texttt{loss\_decay}, default 0.999): Exponentially discounts
+    cumulative losses before each update, preventing weight collapse under distribution
+    shift. With decay factor $\delta$, the update becomes
+    $L_i^{(t)} \leftarrow \delta \cdot L_i^{(t-1)} + \ell_i^{(t)}$.
+    This modification means the standard $O(\sqrt{T \ln K})$ regret bound holds only approximately;
+    however, it provides practical robustness in non-stationary deployments.
+    \item \textbf{Staleness-Aware Meta-Learning Rate} (\texttt{meta\_lr\_halflife}, default 60\,s):
+    Scales the effective meta-learning rate by $\eta_{\text{eff}} = \eta / (1 + \text{delay}/\tau)$
+    when feedback arrives with latency (e.g., RLHF ratings). This preserves the importance-weighting
+    semantics of Exp4 while discounting stale meta-weight updates.
+\end{enumerate}
+Both extensions are disabled by default in the experimental configurations
+(\texttt{loss\_decay}$=1.0$, synchronous feedback) to preserve alignment with
+the theoretical analysis in Appendix~\ref{appendix:mathematical_foundations}.
 
 \paragraph{Cold-Start Initialization via Semantic Transfer.}
 Our evaluation includes 3 models spanning cost tiers: Mixtral (\$0.27/1M), GPT-4-Turbo (\$10/1M), and GPT-4o (\$2.50/1M).

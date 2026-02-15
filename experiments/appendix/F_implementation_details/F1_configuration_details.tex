@@ -1,248 +1,265 @@
 % ============================================================================
-% Appendix: Configuration Example
+% Appendix F.1: Configuration Details
 % ============================================================================
-% Purpose: Provide concrete code example for deployment
-% Based on: Comprehensive experimental validation studies
+% Purpose: Complete parameter reference for the banditGPT library router
+%          and the experimental configurations used in this paper.
+% Source of truth: src/bandit_gpt/router.py
 
-\section{Configuration Example for Practitioners}
+\subsection{Configuration Details}
 \label{app:config}
 
-This appendix provides a concrete configuration example for deploying the validated routing architecture.
-The code demonstrates prior quality assessment and strategy selection based on our empirical validation studies.
+This section documents all configurable parameters of the banditGPT library router
+(\texttt{src/bandit\_gpt/router.py}) and the specific values used in each experiment.
+Library defaults are listed alongside experiment values to enable both reproduction
+of paper results and deployment with the production library.
 
-% ----------------------------------------------------------------------------
-% Prior Quality Assessment
-% ----------------------------------------------------------------------------
-\subsection{Step 1: Prior Quality Assessment}
+% ============================================================================
+% PART 1: LIBRARY ROUTER PARAMETERS
+% ============================================================================
 
-Before deployment, validate prior quality on a small held-out sample from the target distribution:
+\subsubsection{Library Router Parameters}
 
-\begin{lstlisting}[language=Python, caption={Prior quality validation on deployment data}]
-import numpy as np
-from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter
+Tables~\ref{tab:linucb_library}--\ref{tab:registration_library} document every
+user-configurable parameter exposed by the four core classes in \texttt{router.py}.
 
-def assess_prior_quality(warmup_priors, validation_data, 
-                         encoder, pca):
-    """
-    Assess prior quality by comparing warmup predictions 
-    to ground truth on deployment validation data.
-    
-    Args:
-        warmup_priors: Pre-trained warmup priors
-        validation_data: N=100-200 samples from deployment
-        encoder: Sentence transformer for embedding
-        pca: PCA projection for dimensionality reduction
-        
-    Returns:
-        'good', 'uncertain', or 'bad'
-    """
-    n_correct = 0
-    n_total = 0
-    
-    for sample in validation_data:
-        # Embed and project context
-        context = embed_prompt(sample['prompt'], encoder, pca)
-        
-        # Get warmup prediction
-        warmup_pred = predict_best_model(
-            context, warmup_priors
-        )
-        
-        # Get ground truth best model
-        actual_best = max(
-            sample['scores'], 
-            key=sample['scores'].get
-        )
-        
-        if warmup_pred == actual_best:
-            n_correct += 1
-        n_total += 1
-    
-    accuracy = n_correct / n_total
-    
-    # Decision thresholds validated empirically
-    if accuracy > 0.80:
-        return 'good'      # Warmup Only optimal
-    elif accuracy > 0.50:
-        return 'uncertain' # Corralling recommended
-    else:
-        return 'bad'       # Tabula Rasa optimal
-\end{lstlisting}
-
-% ----------------------------------------------------------------------------
-% Strategy Configuration
-% ----------------------------------------------------------------------------
-\subsection{Step 2: Strategy Configuration}
-
-Based on prior quality assessment, configure the appropriate routing strategy.
-All configurations use \textbf{constant $\alpha=2.0$} (validated in §4.3):
-
-\begin{lstlisting}[language=Python, caption={Strategy selection based on prior quality}]
-from bandit_gpt.router import (
-    CorrallingRouter, 
-    CostAwareLinUCBRouter, 
-    CostAwareTabulaRasaRouter
-)
-
-# Assess prior quality
-prior_quality = assess_prior_quality(
-    warmup_priors, 
-    validation_data, 
-    encoder, 
-    pca
-)
-
-# Configure based on assessment
-if prior_quality == 'good':
-    # Scenario 1: Use Warmup Only
-    # Expected: Best performance when priors accurate
-    router = CostAwareLinUCBRouter(
-        models=models,
-        warmup_priors=warmup_priors,
-        alpha_start=2.0,  # Constant exploration
-        alpha_end=2.0,    # (validated optimal)
-        cost_penalty=0.0,
-        model_costs=costs
-    )
-    print("Using: Warmup Only (priors validated)")
-    
-elif prior_quality == 'bad':
-    # Scenario 2: Use Tabula Rasa Only
-    # Validated performance: 49.5 regret (optimal)
-    router = CostAwareTabulaRasaRouter(
-        models=models,
-        context_dim=context_dim,
-        alpha_start=2.0,  # Constant exploration
-        alpha_end=2.0,    # (validated optimal)
-        cost_penalty=0.0,
-        model_costs=costs
-    )
-    print("Using: Tabula Rasa (priors known bad)")
-    
-else:  # uncertain
-    # Scenario 3: Use Corralling (Hedging)
-    # Validated performance: 59.2 regret (robust)
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models,
-        warmup_priors=warmup_priors,
-        alpha_start=2.0,
-        alpha_end=2.0,
-        cost_penalty=0.0,
-        model_costs=costs
-    )
-    
-    tabula_rasa_expert = CostAwareTabulaRasaRouter(
-        models=models,
-        context_dim=context_dim,
-        alpha_start=2.0,
-        alpha_end=2.0,
-        cost_penalty=0.0,
-        model_costs=costs
-    )
-    
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa_expert],
-        models=models,
-        learning_rate=1.0,  # Empirically validated
-        gamma=0.05          # Empirically validated
-    )
-    print("Using: Corralling (prior quality uncertain)")
-\end{lstlisting}
-
-% ----------------------------------------------------------------------------
-% Monitoring
-% ----------------------------------------------------------------------------
-\subsection{Step 3: Real-Time Monitoring}
-
-Monitor expert weights to detect deployment issues.
-Our experiments show adaptation occurs in $\sim$16 requests:
-
-\begin{lstlisting}[language=Python, caption={Production monitoring and alerting}]
-import logging
-
-# Configure logging
-logger = logging.getLogger('router_monitoring')
-
-for t, request in enumerate(request_stream):
-    # Standard routing
-    context = embed_prompt(request['prompt'], encoder, pca)
-    selected_model = router.select_model(context)
-    response = invoke_model(selected_model, request['prompt'])
-    reward = evaluate_response(response)
-    router.update(context, selected_model, reward)
-    
-    # Monitoring (for Corralling only)
-    if isinstance(router, CorrallingRouter):
-        weights = router.get_expert_weights()
-        
-        # Log every request
-        logger.info(f"t={t}, warmup={weights[0]:.3f}, "
-                    f"tabula={weights[1]:.3f}")
-        
-        # Alert on significant events
-        if t == 50:  # After initial adaptation period
-            if weights[0] < 0.2:
-                logger.warning(
-                    f"ALERT: Warmup weight = {weights[0]:.3f}"
-                    f" - Priors are harmful!"
-                    f" Consider switching to Tabula Rasa."
-                )
-            elif weights[0] > 0.8:
-                logger.info(
-                    f"SUCCESS: Warmup weight = {weights[0]:.3f}"
-                    f" - Priors are accurate!"
-                    f" Consider simplifying to Warmup Only."
-                )
-            else:
-                logger.info(
-                    f"NORMAL: Balanced weights (genuine uncertainty)"
-                )
-        
-        # Check for expert death (near-zero weight)
-        if min(weights) < 0.001:
-            logger.warning(
-                f"ALERT: Expert near death "
-                f"(min weight = {min(weights):.6f}). "
-                f"Gamma-mixing preventing complete loss."
-            )
-\end{lstlisting}
-
-% ----------------------------------------------------------------------------
-% Performance Benchmarks
-% ----------------------------------------------------------------------------
-\subsection{Performance Benchmarks}
-
-Performance validated across N=750 holdout samples with 10 random seeds:
+% --- DisjointLinUCBPolicy ---
 
 \begin{table}[h]
 \centering
+\caption{\texttt{DisjointLinUCBPolicy} --- the core bandit policy (one ridge regression per arm).}
+\label{tab:linucb_library}
 \small
-\begin{tabular}{@{}lcc@{}}
+\begin{tabular}{@{}llp{6.8cm}@{}}
 \toprule
-\textbf{Configuration} & \textbf{Regret} & \textbf{Interpretation} \\
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
 \midrule
-Tabula Rasa (optimal for bad priors) & 49.5 $\pm$ 2.8 & Excellent \\
-Corralling (robust hedging) & 59.2 $\pm$ 7.1 & Good \\
-Warmup Only (in mismatched scenario) & 74.7 $\pm$ 2.2 & Acceptable* \\
-\midrule
-Adaptive decay $\alpha: 1.0 \to 0.01$ & 90.2 $\pm$ 7.8 & Poor \\
+\texttt{dim} & 384 & Context vector dimension (384 raw; 33 after PCA + bias) \\
+\texttt{alpha} & 0.1 & UCB exploration coefficient \\
+\texttt{init\_lambda} & 1.0 & Initialization regularization: $A_0 = \lambda I$. Provides cold-start stability. \\
+\texttt{update\_lambda} & 0.0 & Runtime ridge regularization added at each update. Default 0.0 enables $O(d^2)$ Sherman--Morrison updates instead of $O(d^3)$ re-inversion. \\
+\texttt{forgetting\_factor} & 1.0 & Exponential decay on $A$: set $<1$ for non-stationary environments. Default 1.0 = stationary (no decay). \\
 \bottomrule
 \end{tabular}
-\caption*{*Warmup Only performs well when priors match deployment; 
-shown value is for severe mismatch scenario.}
 \end{table}
 
-% ----------------------------------------------------------------------------
-% Key Takeaways
-% ----------------------------------------------------------------------------
-\subsection{Key Takeaways for Practitioners}
+% --- CorrallingRouter ---
 
-\begin{enumerate}
-    \item \textbf{Always validate prior quality} on deployment data before selecting strategy
-    \item \textbf{Use constant $\alpha=2.0$} for both experts (not adaptive decay)
-    \item \textbf{Monitor expert weights} in real-time; adaptation occurs in $\sim$16 requests
-    \item \textbf{Corralling is for uncertainty}, not for maximizing known-bad scenarios
-    \item \textbf{Tabula Rasa outperforms Corralling} by 16\% when priors known bad
+\begin{table}[h]
+\centering
+\caption{\texttt{CorrallingRouter} --- meta-learner coordinating multiple expert strategies.}
+\label{tab:corralling_library}
+\small
+\begin{tabular}{@{}llp{6.8cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\midrule
+\texttt{learning\_rate} ($\eta$) & 0.1 & Exp4 meta-learner step size. Higher = faster adaptation, more regret variance. \\
+\texttt{gamma} ($\gamma$) & 0.05 & Exploration floor: every expert retains $\geq \gamma/K$ selection probability, preventing expert death. \\
+\texttt{loss\_decay} & 0.999 & Exponential decay on cumulative losses. Prevents weight collapse under distribution shift by discounting stale history. 1.0 = standard Exp4 (no decay). \\
+\texttt{meta\_lr\_halflife} & 60.0\,s & Staleness half-life for delayed feedback. Meta-learning rate scales as $\eta_{\text{eff}} = \eta / (1 + \text{delay}/\tau)$. \\
+\texttt{initial\_weights} & uniform & Optional prior-trust bias over experts. \\
+\texttt{cost\_weight} ($\lambda_c$) & 0.0 & Composite reward: $r = \text{quality} - \lambda_c \cdot \text{cost}$, applied before both meta-learner and experts. Distinct from LinUCB's \texttt{cost\_penalty}. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- CostAwareLinUCBRouter (warmup expert) ---
+
+\begin{table}[h]
+\centering
+\caption{\texttt{CostAwareLinUCBRouter} --- warmup expert initialized from offline priors.}
+\label{tab:warmup_library}
+\small
+\begin{tabular}{@{}llp{6.8cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\midrule
+\texttt{alpha\_start} & 1.0 & Initial UCB exploration coefficient (high during burn-in). \\
+\texttt{alpha\_end} & 0.1 & Final UCB exploration coefficient (low after convergence). Linear decay over training steps. \\
+\texttt{cost\_penalty} ($\lambda$) & 0.0 & Per-arm cost penalty in UCB score: $\text{Score} = \hat{r} + \alpha\sigma - \lambda c$. \\
+\texttt{warmup\_priors} & required & Pre-trained $(A, b)$ matrices from offline data (e.g., 80K RouteLLM battles). Includes automatic scale-explosion calibration. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- CostAwareTabulaRasaRouter (cold-start expert) ---
+
+\begin{table}[h]
+\centering
+\caption{\texttt{CostAwareTabulaRasaRouter} --- cold-start expert learning from scratch.}
+\label{tab:tabula_library}
+\small
+\begin{tabular}{@{}llp{6.8cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\midrule
+\texttt{alpha\_start} & 1.0 & Initial UCB exploration coefficient. \\
+\texttt{alpha\_end} & 0.1 & Final UCB exploration coefficient. \\
+\texttt{cost\_penalty} ($\lambda$) & 0.0 & Per-arm cost penalty in UCB score. \\
+\texttt{ridge\_lambda} & auto & Ridge regularization $A_0 = \lambda I$. If \texttt{None}, auto-calculated from \texttt{reward\_std} as $\max(1.0,\; 10 \cdot \sigma_r)$. \\
+\texttt{context\_dim} & required & Dimension of PCA-projected context vectors. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- Semantic Transfer (RegistrationConfig) ---
+
+\begin{table}[h]
+\centering
+\caption{\texttt{RegistrationConfig} --- Bayesian priors for new model admission via semantic transfer.}
+\label{tab:registration_library}
+\small
+\begin{tabular}{@{}llp{6.5cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\midrule
+\texttt{n\_effective\_default} & 5.0 & Prior strength (pseudo-observations) for semantic transfer. Controls confidence in $\theta_{\text{neighbor}}$: $A_{\text{new}} = \neff \cdot \lambda_{\text{init}} \cdot I$,\; $b_{\text{new}} = \neff \cdot \lambda_{\text{init}} \cdot \theta_{\text{neighbor}}$. \\
+\texttt{n\_effective\_high\_sim} & 5.0 & $\neff$ when neighbor similarity $> 0.8$. \\
+\texttt{n\_effective\_med\_sim} & 5.0 & $\neff$ when neighbor similarity $\in [0.6, 0.8]$. \\
+\texttt{n\_effective\_low\_sim} & 5.0 & $\neff$ when neighbor similarity $< 0.6$. \\
+\texttt{slow\_bias} & 0.05 & T-shirt sizing bias for expensive models (first-child fallback when no semantic neighbor exists). \\
+\texttt{fast\_bias} & 0.0 & T-shirt sizing bias for cheap models. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Implementation Notes.}
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item \textbf{Initialization-Only Regularization:} The default
+    \texttt{init\_lambda}$=1.0$, \texttt{update\_lambda}$=0.0$ pattern provides
+    cold-start stability via $A_0 = I$ while allowing $O(d^2)$ Sherman--Morrison
+    updates at runtime (4$\times$ faster than $O(d^3)$ with runtime regularization).
+
+    \item \textbf{Two-Level Cost Mechanism:} The library supports cost awareness at
+    two levels: (a) \texttt{cost\_penalty} in each LinUCB expert penalizes arm costs
+    within the UCB score; (b) \texttt{cost\_weight} in CorrallingRouter transforms
+    the reward signal before it reaches both the meta-learner and experts.
+    These should not be used simultaneously to avoid double-counting.
+
+    \item \textbf{Loss Decay (Non-Standard Corralling):} The \texttt{loss\_decay}
+    parameter modifies the standard Exp4 algorithm by exponentially discounting
+    past cumulative losses at the meta level. This prevents weight collapse under
+    distribution shift but means the standard $O(\sqrt{T \ln K})$ regret bound
+    applies only approximately. The theoretical analysis in Appendix~\ref{appendix:mathematical_foundations}
+    assumes standard Exp4 ($\texttt{loss\_decay}=1.0$); the experiments in this paper
+    also use $\texttt{loss\_decay}=1.0$.
 \end{enumerate}
 
-Complete implementation available at: \url{https://github.com/your-repo/banditGPT}
+% ============================================================================
+% PART 2: EXPERIMENT-SPECIFIC CONFIGURATIONS
+% ============================================================================
+
+\subsubsection{Experiment Configurations}
+
+Tables~\ref{tab:corralling_expt}--\ref{tab:seeds} document the specific parameter
+values used in each paper experiment.
+
+\begin{table}[h]
+\centering
+\caption{Corralling parameters by experiment.}
+\label{tab:corralling_expt}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~6} & \textbf{Library Default} \\
+\midrule
+$\eta$ (learning rate) & 0.030 & 1.0 & 0.3 & 0.1 \\
+$\gamma$ (mixing floor) & 0.05 & 0.05 & 0.05 & 0.05 \\
+\texttt{loss\_decay} & 1.0 & 1.0 & 1.0 & 0.999 \\
+\texttt{meta\_lr\_halflife} & N/A & N/A & N/A & 60.0\,s \\
+Initial warmup weight & 0.70 & 0.50 & 0.50 & uniform \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{LinUCB expert parameters by experiment.}
+\label{tab:linucb_expt}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~6} & \textbf{Library Default} \\
+\midrule
+$\alpha$ (start) & 2.0 & 2.0 & 1.0 & 1.0 \\
+$\alpha$ (end) & 2.0 & 0.1 & 0.1 & 0.1 \\
+$\alpha$ decay steps & --- & 1,121 & 500 & linear over $T$ \\
+$\neff$ & 0.05$^*$ & 10.0 & 10.0 & 5.0 \\
+$\lambda$ (cost penalty) & 0.0 & swept & 0.0 & 0.0 \\
+\texttt{init\_lambda} & 1.0 & 1.0 & 1.0 & 1.0 \\
+\texttt{forgetting\_factor} & 1.0 & 1.0 & 1.0 & 1.0 \\
+Context dimension & 33 & 33 & 33 & 384 (raw) \\
+\bottomrule
+\end{tabular}
+\vspace{0.3em}
+
+\footnotesize
+$^*$Fig~3 uses prior scaling (0.05$\times$ offline strength) rather than $\neff$ trace normalization.
+\end{table}
+
+\subsubsection{Cost Penalty Sweep (Figure~4)}
+
+The Pareto frontier sweeps 10 cost penalty values:
+\begin{equation*}
+\lambda \in \{0.0,\; 0.01,\; 0.02,\; 0.05,\; 0.1,\; 0.2,\; 0.5,\; 1.0,\; 2.0,\; 5.0\}
+\end{equation*}
+with 20 independent seeds per $\lambda$ value (200 total runs).
+The RouteLLM baseline uses 28 threshold values $\tau \in [0.0, 1.0]$.
+
+\subsubsection{Model Portfolio}
+
+\begin{table}[h]
+\centering
+\caption{Model portfolio across experiments.}
+\label{tab:model_costs}
+\small
+\begin{tabular}{@{}llccl@{}}
+\toprule
+\textbf{Model} & \textbf{Cost (/1M tokens)} & \textbf{Fig~3,4} & \textbf{Fig~6} & \textbf{Prior Source} \\
+\midrule
+Mixtral-8x7B-Instruct & \$0.27 & \checkmark & \checkmark & RouteLLM battles \\
+GPT-4-Turbo & \$10.00 & \checkmark & \checkmark & RouteLLM battles \\
+GPT-4o & \$2.50 & \checkmark & --- & Semantic transfer \\
+GPT-3.5-Turbo & \$0.50 & --- & \checkmark & Semantic transfer \\
+Claude-3-Haiku & \$0.25 & --- & \checkmark & Semantic transfer \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Dataset Configuration}
+
+\begin{table}[h]
+\centering
+\caption{Dataset splits used across experiments.}
+\label{tab:dataset_splits}
+\small
+\begin{tabular}{@{}lccl@{}}
+\toprule
+\textbf{Split} & \textbf{$N$} & \textbf{Source} & \textbf{Usage} \\
+\midrule
+Warmup & 80,000 & RouteLLM battles & PCA training, prior initialization \\
+Development & 1,121 & LMSYS Arena & Online learning (Fig~4) \\
+Holdout & 750 & LMSYS Arena & Evaluation (Figs~1, 3, 4) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Statistical Replication}
+
+\begin{table}[h]
+\centering
+\caption{Number of independent random seeds per experiment.}
+\label{tab:seeds}
+\small
+\begin{tabular}{@{}lccl@{}}
+\toprule
+\textbf{Experiment} & \textbf{Seeds} & \textbf{Total Runs} & \textbf{Notes} \\
+\midrule
+Figure~1 & --- & 1 & Deterministic (PCA + correlation) \\
+Figure~3 & 20 & 20 & Per degradation level \\
+Figure~4 & 20 & 200 & 20 seeds $\times$ 10 $\lambda$ values \\
+Figure~6 & 20 & 20 & K=5 portfolio \\
+Ablation (Appendix~D) & 3 & 45 & 15 configs $\times$ 3 seeds \\
+\bottomrule
+\end{tabular}
+\end{table}

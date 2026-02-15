@@ -7,24 +7,25 @@ Configuration parameters and experimental setup for reproducibility. Covers all 
 
 ### F.1: Configuration Details
 **File**: `F1_configuration_details.tex`  
-**Source**: `03_figure/latex_appendix_config.tex`
+**Source**: Derived from `src/bandit_gpt/router.py` (authoritative reference)
 
 **Content**:
-- System architecture configuration
-- Hyperparameter settings and rationale
-- Default values and ranges
+- Part 1: Library router parameters (all configurable knobs in `router.py`)
+- Part 2: Experiment-specific configurations (values used in Figures 3, 4, 6)
+- Implementation notes (init_lambda/update_lambda pattern, two-level cost mechanism, loss_decay)
 
-**Key Parameters**:
-- `prior_n_effective`: Effective prior sample size (default: 5.0)
-- `eta`: Meta-algorithm learning rate (default: 1.0)
-- `gamma`: Exploration floor / mixing parameter (default: 0.05-0.10)
-- `alpha`: UCB exploration bonus (default: adaptive)
+**Key Classes Documented**:
+- `DisjointLinUCBPolicy` (dim, alpha, init_lambda, update_lambda, forgetting_factor)
+- `CorrallingRouter` (learning_rate, gamma, loss_decay, meta_lr_halflife, cost_weight)
+- `CostAwareLinUCBRouter` (alpha_start/end, cost_penalty, warmup_priors)
+- `CostAwareTabulaRasaRouter` (alpha_start/end, cost_penalty, ridge_lambda)
+- `RegistrationConfig` (n_effective tiers, slow_bias, fast_bias)
 
 ---
 
 ### F.2: Experimental Setup
 **File**: `F2_experimental_setup.tex`  
-**Source**: `08_figure/experiments_setup_compact.tex`
+**Source**: Rewritten to document hardware, software, and evaluation protocol
 
 **Content**:
 - Hardware specifications

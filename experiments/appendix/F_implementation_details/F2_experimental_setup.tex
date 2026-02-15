@@ -1,36 +1,98 @@
 % ============================================================================
-% Experimental Setup - COMPACT VERSION
+% Appendix F.2: Experimental Setup
 % ============================================================================
-% Space-efficient version for main paper
-% Use in main experiments section; detailed version available in appendix
-% ============================================================================
+% Purpose: Hardware, software, and evaluation protocol for reproducibility
 
-\section{Experimental Setup}
-\label{sec:experiments}
+\subsection{Experimental Setup}
+\label{app:experimental_setup}
 
-\subsection{Evaluation Framework}
+% ----------------------------------------------------------------------------
+% Hardware
+% ----------------------------------------------------------------------------
+\subsubsection{Hardware}
 
-\paragraph{Dataset.}
-We use 50,000 real human preference judgments from the LMSYS Chatbot Arena~\cite{zheng2023judging}, spanning 8 production LLMs. Unlike prior work~\cite{ong2024routellm} that relies on synthetic proxies, we evaluate exclusively on authentic user comparisons to ensure ecological validity. We reserve 20\% (10,000 battles) as held-out test data.
+All experiments were conducted on a single machine:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{CPU:} Apple M2 (single core used)
+    \item \textbf{RAM:} 16 GB
+    \item \textbf{GPU:} None required (all computation is CPU-based)
+    \item \textbf{Storage:} $\sim$5 GB for full dataset and embeddings
+\end{itemize}
+
+\paragraph{Runtime.}
+Individual experiment runtimes are modest:
+
+\begin{table}[h]
+\centering
+\caption{Approximate wall-clock runtime per experiment.}
+\label{tab:runtimes}
+\small
+\begin{tabular}{@{}lcl@{}}
+\toprule
+\textbf{Experiment} & \textbf{Runtime} & \textbf{Notes} \\
+\midrule
+Figure~1 (PCA validation) & $\sim$30 seconds & Embedding + correlation \\
+Figure~3 (degradation sweep) & $\sim$3 minutes & 20 seeds $\times$ degradation levels \\
+Figure~4 (Pareto frontier) & $\sim$60 minutes & 200 runs (20 seeds $\times$ 10 $\lambda$) \\
+Figure~6 (catastrophic failure) & $\sim$7 seconds & 20 seeds, 500 steps \\
+Ablation study (Appendix~D) & $\sim$10 minutes & 45 configurations \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ----------------------------------------------------------------------------
+% Software
+% ----------------------------------------------------------------------------
+\subsubsection{Software Dependencies}
+
+\begin{table}[h]
+\centering
+\caption{Software versions used for all experiments.}
+\label{tab:software}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Package} & \textbf{Version} & \textbf{Purpose} \\
+\midrule
+Python & 3.10 & Runtime \\
+NumPy & $\geq$1.24 & Linear algebra, bandit updates \\
+sentence-transformers & $\geq$2.2.2 & Embedding generation \\
+scikit-learn & $\geq$1.2 & PCA, preprocessing \\
+PyTorch & $\geq$2.0.0 & Embedding model backend \\
+SciPy & $\geq$1.10.0 & Statistical tests \\
+pandas & $\geq$2.0.0 & Data handling \\
+matplotlib & $\geq$3.7.0 & Figure generation \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ----------------------------------------------------------------------------
+% Evaluation Protocol
+% ----------------------------------------------------------------------------
+\subsubsection{Evaluation Protocol}
+
+\paragraph{Zero-Leakage Design.}
+All experiments enforce strict separation between training and evaluation:
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item \textbf{PCA and priors} are trained exclusively on warmup data (80K RouteLLM battles).
+    \item \textbf{Online learning} (Figure~4) uses the development split (1,121 prompts).
+    \item \textbf{Evaluation} uses the holdout split (750 prompts), never seen during training.
+    \item \textbf{Normalization statistics} (mean, std for cost penalties) are computed on the training set and frozen during evaluation.
+    \item \textbf{Deduplication}: 243 incidental overlaps between warmup and evaluation data were removed (0.24\% of warmup set).
+\end{enumerate}
 
 \paragraph{Metrics.}
-We report (1) \textit{Average Reward}: expected user satisfaction per routing decision ($r_t \in \{0,1\}$), and (2) \textit{Cost-Normalized Reward}: quality per dollar ($\bar{R}/\bar{C}$), capturing the Pareto frontier trade-off.
+We report two primary metrics:
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{Average Reward:} Mean win rate across holdout prompts, $\bar{R} = \frac{1}{T}\sum_{t=1}^{T} r_t$ where $r_t \in \{0, 1\}$ indicates whether the selected model won the pairwise comparison.
+    \item \textbf{Average Cost:} Mean per-request API cost, $\bar{C} = \frac{1}{T}\sum_{t=1}^{T} c_{a_t}$ where $c_{a_t}$ is the cost of the model selected at step $t$.
+\end{itemize}
 
-\paragraph{Baselines.}
-We compare against static baselines (always-Mixtral, always-GPT-4), RouteLLM-MF (SOTA dynamic router~\cite{ong2024routellm}), and ablated variants of banditGPT (no Corralling, no semantic transfer).
+\paragraph{Statistical Reporting.}
+All multi-seed results report mean $\pm$ standard deviation.
+Significance tests use Wilcoxon signed-rank (paired, non-parametric) with Benjamini-Hochberg FDR correction where multiple comparisons are made.
 
-\subsection{Sensitivity Analysis Protocol}
-\label{sec:sensitivity_protocol}
-
-To validate robustness of semantic transfer (RQ3), we conduct a controlled experiment on the prior strength hyperparameter $\neff$:
-
-\textbf{Setup}: Simulate releasing \texttt{gpt-4-turbo} at $t=300$ into a live system managing \texttt{mixtral-8x7b} and an incumbent flagship, both pre-trained on 40k offline battles. Test 5 transfer configurations ($\neff \in \{1, 2, 5, 10, 20\}$) vs a Partial Cold Start baseline (new model: $\mat{A}=\mat{I}$, old models: warmed).
-
-\textbf{Controls}: (1) Deterministic execution (\texttt{seed=42}) eliminates stochastic variation. (2) Pre-release behavior ($t<300$) is identical across conditions (plotted as gray ``Shared Warmup Phase''). (3) Evaluate on 1,000 real LMSYS battles filtered to the 3-model subset.
-
-\textbf{Hypothesis}: We hypothesize that \textbf{weak priors preserve exploration flexibility}, outperforming strong priors in cost-aware routing where over-confidence creates an exploitation trap (§\ref{sec:sensitivity_results}).
-
-\subsection{Reproducibility}
-
-Code, data, and hyperparameters available at \texttt{github.com/annette/banditGPT}. All experiments run on a single CPU core (Apple M2, 16GB RAM, $\sim$3 min per configuration). Software: Python 3.10, NumPy 1.24, sentence-transformers 2.2.2.
-
+\paragraph{Reproducibility.}
+All experiment scripts accept a \texttt{--seed} argument for deterministic replication.
+Code, data, and pre-computed PCA/prior artifacts are available at: \url{https://github.com/annette/banditGPT}.

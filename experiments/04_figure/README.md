@@ -328,7 +328,7 @@ This experiment validates production-grade performance on **static benchmarks**,
 **Dynamic Scenarios Still Unknown:**
 1. **Catastrophic failures:** APIs crash, models degrade suddenly → **See Figure 6**
 2. **New model integration:** New models enter the portfolio (e.g., GPT-4o via semantic transfer from GPT-4-Turbo) → **See Figure 4**
-3. **Hyperparameter robustness:** Is performance brittle? → **See Figure 8**
+3. **Hyperparameter robustness:** Is performance brittle? → **See Appendix C (sensitivity) and Appendix D (ablation)**
 
 **The story continues:** We've proven static performance. Now let's validate adaptive capabilities under production scenarios (failures, new models, parameter sensitivity).
 
