@@ -37,7 +37,7 @@ class StubbornExpert:
         self.name = name
         self.favorite_model = favorite_model
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0, candidates=None) -> str:
         return self.favorite_model
     
     def update(self, context, model, reward, cost=0.0):
@@ -50,7 +50,7 @@ class SmartExpert:
         self.name = name
         self.best_model = best_model
     
-    def select_model(self, context: np.ndarray, total_steps: int = 0) -> str:
+    def select_model(self, context: np.ndarray, total_steps: int = 0, candidates=None) -> str:
         if np.random.random() < 0.05:
             return "openai/gpt-4-turbo"
         return self.best_model
@@ -130,9 +130,9 @@ def run_single_trial(learning_rate: float, seed: int, n_steps: int = 500) -> Dic
     
     for t in range(n_steps):
         context = np.random.randn(10)
-        selected_model = router.select_model(context)
+        selected_model, token = router.select_model(context)
         reward = env.get_reward(selected_model)
-        router.update(context, selected_model, reward)
+        router.update(context, selected_model, reward, selection_token=token)
         
         history["weights"].append(router.weights.copy())
         history["losses"]["warmup"].append(router.cumulative_losses[0])

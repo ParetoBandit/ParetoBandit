@@ -1,0 +1,155 @@
+% C5: Hyperparameter Sensitivity Analysis
+% Shows that main routing performance is robust to hyperparameter choices.
+% Cross-references: Figure 4, A0 (pseudocode), D1 (configuration)
+
+\subsection{Hyperparameter Sensitivity}
+\label{appendix:hp_sensitivity}
+
+We verify that the Figure~4 results are not an artifact of hyperparameter
+tuning by sweeping the two most impactful hyperparameters: the Corralling
+meta-learner learning rate~$\eta$ and the UCB exploration coefficient
+starting value~$\alpha_{\text{start}}$.  All runs use the same protocol as
+Figure~4 ($\lambda{=}0$, 20 seeds, dev-set burn-in, holdout evaluation).
+
+\subsubsection{Corralling Learning Rate ($\eta$)}
+
+We fix $\alpha_{\text{start}}{=}2.0$ and sweep
+$\eta \in \{0.1, 0.3, 0.5, 1.0, 2.0, 5.0\}$.
+
+\begin{table}[h]
+\centering
+\caption{Sensitivity to Corralling learning rate $\eta$ ($\lambda{=}0$,
+$\alpha_{\text{start}}{=}2.0$, 20 seeds).}
+\label{tab:eta_sensitivity}
+\small
+\begin{tabular}{@{}ccc@{}}
+\toprule
+$\eta$ & \textbf{Reward} & \textbf{95\% CI} \\
+\midrule
+0.1 & 0.9158 & $\pm$0.0015 \\
+0.3 & 0.9162 & $\pm$0.0020 \\
+0.5 & 0.9151 & $\pm$0.0024 \\
+1.0 (default) & 0.9156 & $\pm$0.0024 \\
+2.0 & 0.9132 & $\pm$0.0044 \\
+5.0 & 0.9135 & $\pm$0.0040 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Finding.}
+Performance is remarkably stable across a 50$\times$ range of $\eta$ (0.1 to
+5.0), with all rewards falling within 0.9132--0.9162 (a 0.3\% spread).  The
+default $\eta{=}1.0$ achieves 0.9156, indistinguishable from the best (0.9162
+at $\eta{=}0.3$).  Higher $\eta$ values produce slightly wider confidence
+intervals, consistent with more volatile meta-weight switching, but the mean
+reward difference is negligible.
+
+\subsubsection{UCB Exploration Coefficient ($\alpha_{\text{start}}$)}
+
+We fix $\eta{=}1.0$ and sweep
+$\alpha_{\text{start}} \in \{0.5, 1.0, 2.0, 4.0\}$, with linear decay to
+$\alpha_{\text{end}}{=}0.1$.
+
+\begin{table}[h]
+\centering
+\caption{Sensitivity to UCB exploration coefficient $\alpha_{\text{start}}$
+($\lambda{=}0$, $\eta{=}1.0$, 20 seeds).}
+\label{tab:alpha_sensitivity}
+\small
+\begin{tabular}{@{}ccc@{}}
+\toprule
+$\alpha_{\text{start}}$ & \textbf{Reward} & \textbf{95\% CI} \\
+\midrule
+0.5  & 0.9138 & $\pm$0.0047 \\
+1.0  & 0.9161 & $\pm$0.0034 \\
+2.0 (default)  & 0.9164 & $\pm$0.0025 \\
+4.0  & 0.9145 & $\pm$0.0035 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Finding.}
+Similarly robust: all $\alpha_{\text{start}}$ values in $[0.5, 4.0]$ yield
+rewards in 0.9138--0.9164 (0.3\% spread).  The default $\alpha_{\text{start}}
+{=}2.0$ is near-optimal.  Under-exploration ($\alpha_{\text{start}}{=}0.5$)
+produces slightly wider CIs, suggesting more variance due to insufficient
+early exploration.
+
+\subsubsection{Implications}
+
+Both $\eta$ and $\alpha_{\text{start}}$ exhibit a broad plateau:
+performance degrades by $<0.3\%$ across order-of-magnitude hyperparameter
+changes.  This robustness is a practical strength: practitioners can adopt
+the default hyperparameters without task-specific tuning.  The stability
+arises from two factors.  First, the Corralling safety mechanism
+($\gamma$-mixing ensures all experts receive samples regardless of $\eta$).
+Second, LinUCB's ridge regression is inherently regularized, dampening
+sensitivity to the exploration schedule.  No hyperparameter tuning was
+performed on the holdout set.
+
+\subsubsection{Recommended Defaults}
+
+Based on the sensitivity analysis, we recommend the following defaults for
+new deployments:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item $\eta{=}1.0$ for \textbf{standard routing} (quality/cost optimization).
+          Performance is insensitive to $\eta$ in the $[0.1, 5.0]$ range,
+          so this value requires no task-specific tuning.
+    \item $\eta{=}0.3$ for \textbf{safety-critical deployments} where
+          catastrophic failure detection is needed with low false-positive
+          rates (${\leq}10\%$).
+    \item $\alpha_{\text{start}}{=}2.0$ with linear decay to $0.1$.
+          Sufficient exploration for burn-in sets of $500{+}$ prompts.
+          For smaller burn-in sets ($< 200$), consider $\alpha_{\text{start}}
+          {=}4.0$ to increase early exploration.
+    \item All hyperparameters can be used as-is without holdout tuning.
+\end{itemize}
+
+\subsubsection{Catastrophic Failure Detection ($\eta$ Ablation)}
+\label{appendix:hp_catastrophic_eta}
+
+For the catastrophic failure experiment (Appendix~\ref{appendix:catastrophic_failure}),
+where $\eta$ controls the speed of expert decommissioning, the trade-off is
+more nuanced.  We sweep $\eta \in \{0.1, 0.3, 0.5, 1.0, 2.0, 5.0\}$ over
+20 seeds on the three-phase catastrophic failure environment (500 steps each).
+
+\begin{table}[h]
+\centering
+\caption{Learning rate sensitivity for catastrophic failure detection (20
+seeds, 500 steps).  Detection = steps after failure onset to decommission;
+FP = premature decommissioning in healthy Phase~1.}
+\label{tab:eta_catastrophic}
+\small
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+$\eta$ & \textbf{Detection (steps)} & \textbf{FP Rate} & \textbf{Recovery Rate} & \textbf{Recovery (steps)} \\
+\midrule
+0.1  & $41.0 \pm 19.3$ & 0\%   & 0\%  & --- \\
+0.3  & $14.3 \pm 11.4$ & 10\%  & 0\%  & --- \\
+0.5  & $6.9 \pm 7.4$   & 40\%  & 10\% & $27.5 \pm 7.5$ \\
+1.0  & $11.9 \pm 18.9$ & 40\%  & 10\% & $12.0 \pm 2.0$ \\
+2.0  & $5.8 \pm 9.5$   & 75\%  & 15\% & $53.3 \pm 60.5$ \\
+5.0  & $6.1 \pm 11.3$  & 100\% & 10\% & $92.0 \pm 84.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Trade-off.}
+In the catastrophic failure setting, $\eta$ has a more pronounced effect,
+enabling the system to quickly detect and decommission failing models.
+$\eta{=}0.3$ (used in the main paper) achieves $3\times$ faster detection
+than $\eta{=}0.1$ (14.3 vs.\ 41.0 steps) while keeping the false-positive
+rate at only 10\%.  At higher values ($\eta \geq 0.5$), detection accelerates
+further but at the cost of $\geq 40\%$ false positives --- prematurely
+decommissioning healthy experts.  The user can select $\eta$ based on their
+deployment priority: $\eta{=}0.1$--$0.3$ for safety-critical applications
+where false alarms are costly, or $\eta{=}0.5$--$1.0$ for latency-critical
+applications where rapid failure detection takes priority.
+
+\subsubsection{Reproducibility}
+
+\begin{itemize}[noitemsep]
+    \item Routing task: \texttt{experiments/04\_figure/run\_hyperparameter\_sensitivity.py}
+    \item Catastrophic failure: \texttt{experiments/appendix/E\_catastrophic\_failure\_experiment/supplementary/ablation\_learning\_rate\_catastrophic.py}
+\end{itemize}

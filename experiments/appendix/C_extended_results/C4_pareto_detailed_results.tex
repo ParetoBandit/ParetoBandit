@@ -1,0 +1,81 @@
+% C4: Detailed Per-λ Results for Figure 4 (Pareto Frontier)
+% Full numerical results with confidence intervals for every operating point.
+% Cross-references: Figure 4 (main paper), D1 (configuration details)
+
+\subsection{Detailed Pareto Frontier Results}
+\label{appendix:pareto_detailed}
+
+Table~\ref{tab:pareto_banditgpt} reports the complete per-$\lambda$ results
+for banditGPT-Hybrid (20 seeds per configuration), and
+Table~\ref{tab:pareto_baselines} reports the fixed baselines.  These tables
+provide the numerical data underlying Figure~4.
+
+\begin{table}[h]
+\centering
+\caption{banditGPT-Hybrid: per-$\lambda$ results on the 750-prompt holdout
+set (20 seeds).  95\% CI = $1.96 \times \text{std} / \sqrt{20}$.}
+\label{tab:pareto_banditgpt}
+\small
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+$\lambda$ & \textbf{Reward} & \textbf{Reward 95\% CI} & \textbf{Cost (\$)} & \textbf{Cost 95\% CI} \\
+\midrule
+0.00 & 0.9153 & $\pm$0.0027 & 0.00985 & $\pm$0.00019 \\
+0.01 & 0.9130 & $\pm$0.0032 & 0.00973 & $\pm$0.00025 \\
+0.02 & 0.9149 & $\pm$0.0022 & 0.00970 & $\pm$0.00017 \\
+0.05 & 0.9091 & $\pm$0.0037 & 0.00888 & $\pm$0.00025 \\
+0.10 & 0.8955 & $\pm$0.0057 & 0.00772 & $\pm$0.00034 \\
+0.20 & 0.8644 & $\pm$0.0062 & 0.00450 & $\pm$0.00041 \\
+0.50 & 0.8227 & $\pm$0.0001 & 0.00029 & $\pm$0.00000 \\
+1.00 & 0.8227 & $\pm$0.0000 & 0.00029 & $\pm$0.00000 \\
+2.00 & 0.8227 & $\pm$0.0000 & 0.00029 & $\pm$0.00000 \\
+5.00 & 0.8227 & $\pm$0.0000 & 0.00029 & $\pm$0.00000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Fixed baselines and RouteLLM-MF Pareto-optimal points on the
+750-prompt holdout set.  Oracle and static baselines are deterministic;
+RouteLLM-MF points are selected from a 28-threshold sweep (deterministic
+model, no trial variance).}
+\label{tab:pareto_baselines}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Method} & \textbf{Reward} & \textbf{Cost (\$)} \\
+\midrule
+Oracle & 0.9533 & 0.00195 \\
+Static GPT-4-Turbo & 0.8120 & 0.01300 \\
+Static Mixtral-8x7B & 0.8227 & 0.00029 \\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{RouteLLM-MF (Pareto-optimal points only):}} \\
+\midrule
+RouteLLM ($\tau{=}0.0$) & 0.8120 & 0.01300 \\
+RouteLLM ($\tau{\approx}0.08$) & 0.8827 & 0.00688 \\
+RouteLLM ($\tau{\approx}0.12$) & 0.8827 & 0.00651 \\
+RouteLLM ($\tau{\approx}0.20$) & 0.8773 & 0.00483 \\
+RouteLLM ($\tau{\approx}0.32$) & 0.8720 & 0.00758 \\
+RouteLLM ($\tau{\approx}0.44$) & 0.8587 & 0.00277 \\
+RouteLLM ($\tau{\approx}0.56$) & 0.8427 & 0.00143 \\
+RouteLLM ($\tau{\approx}0.68$) & 0.8360 & 0.00073 \\
+RouteLLM ($\tau{\approx}0.80$) & 0.8293 & 0.00045 \\
+RouteLLM ($\tau{\approx}0.88$) & 0.8280 & 0.00041 \\
+RouteLLM ($\tau \geq 0.92$) & 0.8227 & 0.00029 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Key metrics.}
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{banditGPT peak quality:} 0.9153 at cost \$0.00985
+          ($\lambda{=}0$, 20 seeds, 95\% CI $\pm$0.0027).
+    \item \textbf{RouteLLM-MF peak quality:} 0.8827 at cost \$0.00651
+          (deterministic).
+    \item \textbf{Oracle:} 0.9533 at cost \$0.00195 (perfect per-prompt routing).
+    \item \textbf{Gap closure:} banditGPT closes
+          $\frac{0.9153 - 0.8227}{0.9533 - 0.8227} = 70.9\%$ of the
+          Oracle--Mixtral gap, vs.\ RouteLLM-MF's
+          $\frac{0.8827 - 0.8227}{0.9533 - 0.8227} = 45.9\%$.
+\end{itemize}
