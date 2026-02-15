@@ -28,8 +28,8 @@ PAL = dict(
     teal="#009E73",       # warmup expert
     orange="#E69F00",     # tabula rasa expert
     rpur="#CC79A7",       # feedback loop
-    gray="#666666",       # model registry
-    dk="#1a1a1a", md="#444444", lt="#777777",
+    gray="#505050",       # model registry
+    dk="#1a1a1a", md="#333333", lt="#555555",
 )
 
 
@@ -286,7 +286,7 @@ def create_figure():
     dy2 = y_pareto + (bh+1)/2 - dh/2
     ax.add_patch(FancyBboxPatch(
         (dx2, dy2), dw, dh, boxstyle="round,pad=0.3",
-        fc="#f0f0f0", ec=PAL["gray"], lw=1.0, zorder=3, linestyle="--"))
+        fc="#e4e4e4", ec=PAL["gray"], lw=1.0, zorder=3, linestyle="--"))
     txt(dx2 + dw/2, dy2 + dh*0.62,
         "Model Registry", fs=6, fw="bold", c=PAL["dk"])
     txt(dx2 + dw/2, dy2 + dh*0.25,
@@ -302,7 +302,7 @@ def create_figure():
     kx, ky, kw_, kh_ = 71, 90, 28, 9
     ax.add_patch(FancyBboxPatch(
         (kx, ky), kw_, kh_, boxstyle="round,pad=0.3",
-        fc="#fafafa", ec=PAL["lt"], lw=0.8, zorder=3))
+        fc="#f0f0f0", ec=PAL["lt"], lw=0.8, zorder=3))
     txt(kx + kw_/2, ky + kh_ - 1.2,
         "Key Parameters", fs=7, fw="bold", c=PAL["dk"])
 
@@ -323,7 +323,7 @@ def create_figure():
     lx, ly, llw, llh = 69, 1, 30, 6.5
     ax.add_patch(FancyBboxPatch(
         (lx, ly), llw, llh, boxstyle="round,pad=0.3",
-        fc="#fafafa", ec="#ccc", lw=0.6, zorder=3))
+        fc="#f0f0f0", ec="#999", lw=0.8, zorder=3))
     txt(lx + llw/2, ly + llh - 1,
         "Legend", fs=6.5, fw="bold", c=PAL["dk"])
 
