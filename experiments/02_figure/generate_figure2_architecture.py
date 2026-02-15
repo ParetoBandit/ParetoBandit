@@ -121,6 +121,33 @@ def create_figure():
         "Trained on 80K\nRouteLLM prompts\n(unsupervised)",
         fs=6, c=PAL["lt"], ha="right", sty="italic")
 
+    # ═════════════════════════════════════════════════════════
+    #  CONTEXT VECTOR ANNOTATION (right side)
+    # ═════════════════════════════════════════════════════════
+
+    ctx_x, ctx_y, ctx_w, ctx_h = 70, 74, 28, 10
+    ax.add_patch(FancyBboxPatch(
+        (ctx_x, ctx_y), ctx_w, ctx_h, boxstyle="round,pad=0.3",
+        fc="#eaf4fb", ec=PAL["sky"], lw=0.8, zorder=3, linestyle="--"))
+    txt(ctx_x + ctx_w/2, ctx_y + ctx_h - 1.3,
+        "Context Vector $x_t \\in \\mathbb{R}^{33}$",
+        fs=6.5, fw="bold", c=PAL["sky"])
+    txt(ctx_x + ctx_w/2, ctx_y + ctx_h - 3.0,
+        "[PCA$_0$, \u2026, PCA$_{31}$, bias]",
+        fs=6, c=PAL["md"], fam="serif")
+
+    for i, feat in enumerate([
+        "\u2022  task type (math, code, creative, \u2026)",
+        "\u2022  query complexity & difficulty",
+        "\u2022  semantic style & specificity",
+    ]):
+        txt(ctx_x + 1.5, ctx_y + ctx_h - 5.0 - i*1.7,
+            feat, fs=5.5, c=PAL["md"], ha="left")
+
+    # Dashed connector from x_t label area to annotation box
+    line(cx + bw/2 + 1, y_pca + bh/2, ctx_x - 0.5, ctx_y + ctx_h/2,
+         c=PAL["sky"], lw=0.8, ls="--")
+
     # 4. Dynamic Pareto Filter (L1)
     pw = 40
     box2(cx-pw/2, y_pareto, pw, bh + 1,
@@ -272,14 +299,14 @@ def create_figure():
     dy1 = y_exp + eh*0.25 - dh/2
     ax.add_patch(FancyBboxPatch(
         (dx1, dy1), dw, dh, boxstyle="round,pad=0.3",
-        fc="#fde8d0", ec=PAL["vermillion"], lw=1.0, zorder=3, linestyle="--"))
+        fc="#e4e4e4", ec=PAL["gray"], lw=1.0, zorder=3, linestyle="--"))
     txt(dx1 + dw/2, dy1 + dh*0.62,
         "RouteLLM Battles", fs=6, fw="bold", c=PAL["dk"])
     txt(dx1 + dw/2, dy1 + dh*0.25,
         "80K offline pairs", fs=5.5, c=PAL["md"], sty="italic")
 
     arrow(dx1 + dw, dy1 + dh/2, e1x - 0.5, y_exp + eh*0.35,
-          c=PAL["vermillion"], lw=0.9, ls="-.")
+          c=PAL["gray"], lw=0.9, ls="-.")
 
     # Model Registry → Pareto Filter
     dx2 = 1
@@ -307,9 +334,9 @@ def create_figure():
         "Key Parameters", fs=7, fw="bold", c=PAL["dk"])
 
     for i, (sym, desc) in enumerate([
-        ("$\\alpha = 2.0$",     "exploration"),
+        ("$\\alpha \\geq 0$",   "exploration"),
         ("$\\eta \\in \\{0.1, 1.0\\}$", "meta-learning rate"),
-        ("$\\gamma = 0.05$",    "mixing floor"),
+        ("$\\gamma \\in (0,1)$", "mixing floor"),
         ("$\\lambda \\geq 0$",  "cost sensitivity"),
     ]):
         py = ky + kh_ - 3.2 - i*1.6
@@ -330,7 +357,7 @@ def create_figure():
     for i, (col, ls, desc) in enumerate([
         (PAL["dk"],         "-",  "Forward pass (routing)"),
         (PAL["rpur"],       "--", "Feedback (online learning)"),
-        (PAL["vermillion"], "-.", "Data source (offline)"),
+        (PAL["gray"],       "-.", "Data source (offline)"),
     ]):
         yy = ly + llh - 2.8 - i*1.5
         ax.plot([lx+2, lx+7], [yy, yy], color=col, lw=1.5, ls=ls, zorder=5)
