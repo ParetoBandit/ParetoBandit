@@ -73,7 +73,7 @@ class FeatureService:
     Feature extraction service for BanditRouter.
     
     **Responsibility**: Convert prompts to feature vectors
-    **Output**: [PCA_0...PCA_22, bias] = 24-dimensional vector
+    **Output**: [PCA_0...PCA_31, bias] = 33-dimensional vector (with default pca_32.joblib)
     
     **Design Philosophy:**
     - Isolated from router logic (no LinUCB dependencies)
@@ -83,8 +83,8 @@ class FeatureService:
     Example:
         >>> features = FeatureService()
         >>> vector = features.extract_features("Solve x^2 + 2x + 1 = 0")
-        >>> vector.shape
-        (24,)
+        >>> vector.shape  # depends on PCA artifact; 33 with default pca_32.joblib
+        (33,)
     """
     
     def __init__(
@@ -210,14 +210,17 @@ class FeatureService:
         """
         Convert prompt to feature vector.
         
-        **Feature Structure:**
-        [PCA_0, PCA_1, ..., PCA_22, bias] = 24 dimensions
+        **Feature Structure (with default pca_32.joblib):**
+        [PCA_0, PCA_1, ..., PCA_31, bias] = 33 dimensions
+        
+        The actual dimension is determined by the PCA artifact loaded at init.
+        Default production artifact: pca_32.joblib (32 PCA + 1 bias = 33D).
         
         Args:
             prompt: Input text or pre-computed vector
         
         Returns:
-            24-dimensional feature vector (23 PCA + 1 bias)
+            Feature vector of dimension (pca_components + 1 bias)
             
         Raises:
             ValueError: If prompt is empty or feature extraction fails
@@ -226,8 +229,8 @@ class FeatureService:
         Example:
             >>> features = FeatureService()
             >>> vector = features.extract_features("Explain quantum computing")
-            >>> vector.shape
-            (24,)
+            >>> vector.shape  # 33 with default pca_32.joblib
+            (33,)
             >>> vector[-1]  # Bias term
             1.0
         """
@@ -531,7 +534,7 @@ class FeatureService:
         
         Args:
             n: Number of synthetic prompts to generate (default: 1000)
-               For robust PCA, need ~10x the target dimensionality (23 dims → ~230 samples)
+               For robust PCA, need ~10x the target dimensionality (32 dims → ~320 samples)
                
         Returns:
             List of synthetic prompt strings

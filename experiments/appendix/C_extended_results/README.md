@@ -1,12 +1,12 @@
-# Appendix E: Extended Experimental Results
+# Appendix C: Extended Experimental Results
 
 ## Overview
 Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's safety benefit on a 5-model portfolio with production router components.
 
 ## Contents
 
-### E.1: Catastrophic Failure Detection
-**File**: `E1_catastrophic_failure.tex`  
+### C.1: Catastrophic Failure Detection
+**File**: `C1_catastrophic_failure.tex`  
 **Source**: K=5 production router experiment (`../E_catastrophic_failure_experiment/generate_figure6_5model.py`)
 
 **Content**:
@@ -25,7 +25,7 @@ Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's
 ---
 
 ## Related Sections
-- **Appendix D.1**: Corralling ablation validates hyperparameter choices
+- **Appendix A.2**: Ablation table validates hyperparameter choices (45 experiments)
 - **Main Paper Figure 3**: Corralling insurance mechanism — Figure 6 extends this to catastrophic scenario
 - **Main Paper Figure 4**: Pareto frontier — static benchmarks; Figure 6 tests dynamic challenge
 
@@ -33,9 +33,9 @@ Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's
 
 ## Files
 ```
-E_extended_results/
+C_extended_results/
 ├── README.md                         (this file)
-└── E1_catastrophic_failure.tex       (included in APPENDIX_MASTER)
+└── C1_catastrophic_failure.tex       (included in APPENDIX_MASTER)
 ```
 
 The experiment code lives in `../E_catastrophic_failure_experiment/`.

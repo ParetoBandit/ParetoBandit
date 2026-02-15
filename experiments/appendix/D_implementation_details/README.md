@@ -1,12 +1,12 @@
-# Appendix F: Implementation Details
+# Appendix D: Implementation Details
 
 ## Overview
 Configuration parameters and experimental setup for reproducibility. Covers all settings needed to replicate Figures 1, 3, 4, and 6.
 
 ## Contents
 
-### F.1: Configuration Details
-**File**: `F1_configuration_details.tex`  
+### D.1: Configuration Details
+**File**: `D1_configuration_details.tex`  
 **Source**: Derived from `src/bandit_gpt/router.py` (authoritative reference)
 
 **Content**:
@@ -23,8 +23,8 @@ Configuration parameters and experimental setup for reproducibility. Covers all 
 
 ---
 
-### F.2: Experimental Setup
-**File**: `F2_experimental_setup.tex`  
+### D.2: Experimental Setup
+**File**: `D2_experimental_setup.tex`  
 **Source**: Rewritten to document hardware, software, and evaluation protocol
 
 **Content**:
@@ -46,23 +46,23 @@ Configuration parameters and experimental setup for reproducibility. Covers all 
 
 | Item | Reason |
 |------|--------|
-| ~~F3: Strategy Selection Guide~~ | Duplicates Figure 3 findings in a different format; better suited for GitHub README than scientific appendix |
-| ~~F4: Hyperparameter Selection Guide~~ | Never created; Appendix C covers sensitivity comprehensively |
+| ~~D3: Strategy Selection Guide~~ | Duplicates Figure 3 findings in a different format; better suited for GitHub README than scientific appendix |
+| ~~D4: Hyperparameter Selection Guide~~ | Never created; Appendix A.3 covers n_eff sensitivity, Appendix A.2 covers Corralling ablation |
 
 ---
 
 ## Related Sections
-- **Appendix C**: Hyperparameter sensitivity validates parameter choices listed here
-- **Appendix D**: Ablation studies justify configuration decisions
+- **Appendix A.3**: Prior transfer theory validates n_eff parameter choices
+- **Appendix A.2**: Ablation table justifies Corralling configuration decisions (45 experiments)
 
 ---
 
 ## Files
 ```
-F_implementation_details/
+D_implementation_details/
 ├── README.md                          (this file)
-├── F1_configuration_details.tex       (config parameters)
-└── F2_experimental_setup.tex          (setup procedures)
+├── D1_configuration_details.tex       (config parameters)
+└── D2_experimental_setup.tex          (setup procedures)
 ```
 
 ---

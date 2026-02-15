@@ -72,7 +72,7 @@ PRIOR_SCALING = 0.05      # Prior confidence reduction (0.05 = keep 5% of prior 
 
 # Initial warmup expert weight for Corralling (prior-trust bias).
 # 0.5 = uniform (no trust), 0.7 = moderate trust (recommended default).
-# See Appendix D.3 for the full trade-off analysis.
+# See Appendix A.2 for the full trade-off analysis.
 INITIAL_WARMUP_WEIGHT = 0.7
 
 BASE_OUTPUT_DIR = Path(__file__).parent / "results"

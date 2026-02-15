@@ -1,4 +1,4 @@
-# Appendix Content Map (Final)
+# Appendix Content Map
 
 **Date**: February 15, 2026  
 **Purpose**: Definitive map of appendix contents — aligned to Figures 1, 3, 4, 6, and Table 2.
@@ -17,7 +17,11 @@ Every appendix item must trace to a specific claim in the main paper. If it does
 
 | File | Supports | Content |
 |------|----------|---------|
-| `A1_spectral_separation_proof.tex` | Fig 1, Fig 3 | Spectral separation proof, regret bounds |
+| `A1_regret_decomposition.tex` | Fig 3, Fig 4 | LinUCB + Corralling regret bounds, composite decomposition |
+| `A2_safety_guarantee.tex` | Fig 3, Fig 4, Fig 6 | γ-mixing safety proof, recovery bound, ablation table (45 experiments over η/γ, sublinear regret validation β=0.669) |
+| `A3_warmup_transfer.tex` | Fig 4 | Prior transfer theory, n_eff analysis, naive-vs-correct injection, practical recommendation, limitations |
+
+**Note**: A.2 now contains the ablation table formerly in Appendix C (Ablation Studies). A.3 contains the prior transfer sensitivity content formerly in Appendix C (Hyperparameter Sensitivity).
 
 ---
 
@@ -25,75 +29,66 @@ Every appendix item must trace to a specific claim in the main paper. If it does
 
 | File | Supports | Content |
 |------|----------|---------|
-| `B1_validation_methodology.tex` | Fig 1, Table 2 | Statistical significance tests, threshold validation, dimensionality robustness, data quality |
+| `B1_validation_methodology.tex` | Fig 1, Table 2 | Spearman correlation design, null baseline, statistical tests |
+| `B2_cross_domain_transfer.tex` | Fig 1, Table 2 | Data provenance, feature pipeline (384D → 33D), PCA explained variance |
 
 ---
 
-### Appendix C: Hyperparameter Sensitivity (Semantic Transfer)
+### Appendix C: Extended Results
 
 | File | Supports | Content |
 |------|----------|---------|
-| `C1_comprehensive_sensitivity.tex` | Fig 4 | $n_{\text{eff}}$ sensitivity: Bayesian formulation, 20x robustness, imperfect neighbors |
-
-**Scope**: Validates the semantic transfer prior strength ($n_{\text{eff}}$). Does NOT cover Corralling parameters ($\eta$, $\gamma$) — those are in Appendix D.
-
----
-
-### Appendix D: Ablation Studies (Corralling)
-
-| File | Supports | Content |
-|------|----------|---------|
-| `D1_corralling_ablation.tex` | Fig 3, Fig 4, Fig 6 | 45-experiment grid search over $\eta$ and $\gamma$, sublinear regret validation ($\beta$=0.669) |
-
-**Scope**: Validates Corralling meta-learner parameters ($\eta$, $\gamma$). Cross-references Appendix C for $n_{\text{eff}}$ validation.
-
----
-
-### Appendix E: Extended Results
-
-| File | Supports | Content |
-|------|----------|---------|
-| `E1_catastrophic_failure.tex` | Fig 6 | K=5 portfolio, production router, 20 seeds, portfolio scaling |
+| `C1_catastrophic_failure.tex` | Fig 6 | K=5 portfolio, production router, 20 seeds, portfolio scaling |
 
 **Experiment code**: `E_catastrophic_failure_experiment/generate_figure6_5model.py`
 
 ---
 
-### Appendix F: Implementation Details
+### Appendix D: Implementation Details
 
 | File | Supports | Content |
 |------|----------|---------|
-| `F1_configuration_details.tex` | All | Part 1: Library router parameters (all classes in `router.py`); Part 2: Experiment configs; Implementation notes (init\_lambda, two-level cost, loss\_decay) |
-| `F2_experimental_setup.tex` | All | Hardware specs, software versions, runtimes, evaluation protocol, zero-leakage design |
+| `D1_configuration_details.tex` | All | Part 1: Library router parameters (all classes in `router.py`); Part 2: Experiment configs; Implementation notes (init\_lambda, two-level cost, loss\_decay) |
+| `D2_experimental_setup.tex` | All | Hardware specs, software versions, runtimes, evaluation protocol, zero-leakage design |
 
-**Scope**: F1 is the authoritative bridge between `router.py` and the paper. Library defaults alongside experiment values. No analysis, no recommendations, no code examples.
+**Scope**: D.1 is the authoritative bridge between `router.py` and the paper.
 
 ---
 
-### Appendix G: Limitations and Future Work
+### Appendix E: Limitations and Future Work
 
 | File | Supports | Content |
 |------|----------|---------|
-| `G1_limitations.tex` | All | Prior quality dependency, strategy trade-offs, variance, computational overhead, generalizability |
-| `G1_limitations_addendum.tex` | All | Regime-dependent effects, generalizability of regime frequencies |
+| `E1_limitations.tex` | All | Prior quality dependency, strategy trade-offs, ablation mechanism validation, variance/reproducibility, regime-dependent behavior, computational overhead, generalizability |
 
-**Scope**: Honest discussion of system constraints. Merge addendum into G1 for camera-ready.
+**Scope**: Honest discussion of system constraints. Addendum content (regime-dependent effects) merged into E1; broken cross-refs and fictional model removed.
+
+---
+
+## Consolidated Content
+
+Former **Appendix C (Ablation Studies)** was removed as a standalone section.
+Its useful content was folded into:
+- **A.2**: Ablation table (45 experiments over η/γ), sublinear regret validation, exploration floor analysis
+
+Former **Appendix C (Hyperparameter Sensitivity)** was previously removed as a standalone section.
+Its useful content was folded into:
+- **A.3**: Naive vs. correct prior injection comparison, practical n_eff recommendation [2, 10]
+
+The original `C1_corralling_ablation.tex` and `C1_comprehensive_sensitivity.tex` are retained in git history.
 
 ---
 
 ## Deduplication Boundaries
 
-To prevent content overlap, each section has a clear ownership boundary:
-
 | Topic | Owner | Others must NOT cover |
 |-------|-------|-----------------------|
-| $n_{\text{eff}}$ sensitivity | **C1** | D1 references C1, F1 lists values only |
-| $\eta$, $\gamma$ ablation | **D1** | F1 lists values only, G1 discusses limitations |
-| Strategy selection guidance | **G1** | Removed from F1 (was duplicated) |
+| $n_{\text{eff}}$ theory + sensitivity | **A.3** | A.2 references A.3, D.1 lists values only |
+| $\eta$, $\gamma$ ablation | **A.2** | D.1 lists values only, E.1 discusses limitations |
+| Strategy selection guidance | **E.1** | Removed from D.1 (was duplicated) |
 | Monitoring / deployment code | **None** | Removed from appendix (belongs in GitHub README) |
-| Regret numbers (49.5, 59.2, 74.7) | **G1** | F1 does not include performance tables |
-| Hyperparameter values (tables) | **F1** | Other sections reference F1 for values |
-| Hardware/software/protocol | **F2** | Not repeated elsewhere |
+| Hyperparameter values (tables) | **D.1** | Other sections reference D.1 for values |
+| Hardware/software/protocol | **D.2** | Not repeated elsewhere |
 
 ---
 
@@ -101,12 +96,12 @@ To prevent content overlap, each section has a clear ownership boundary:
 
 | Main Paper Element | Appendix Support |
 |-------------------|-----------------|
-| **Figure 1** (PCA validation) | A1 (spectral proof), B1 (methodology) |
-| **Table 2** (data provenance) | B1 (validation methodology) |
-| **Figure 3** (corralling insurance) | A1 (regret bounds), D1 (ablation) |
-| **Figure 4** (Pareto frontier) | C1 ($n_{\text{eff}}$ sensitivity), D1 ($\eta$ validation), F1/F2 (reproducibility) |
-| **Figure 6** (catastrophic failure) | E1 (K=5 experiment), A1 (meta-algorithm bounds) |
-| **All** | F1/F2 (reproducibility), G1 (limitations) |
+| **Figure 1** (PCA validation) | A.1 (regret bounds), B.1 (methodology), B.2 (feature pipeline) |
+| **Table 2** (data provenance) | B.1 (validation methodology), B.2 (cross-domain transfer) |
+| **Figure 3** (corralling insurance) | A.1 (regret bounds), A.2 (safety + ablation) |
+| **Figure 4** (Pareto frontier) | A.3 ($n_{\text{eff}}$ theory), A.2 ($\eta$ validation), D.1/D.2 (reproducibility) |
+| **Figure 6** (catastrophic failure) | C.1 (K=5 experiment), A.2 (safety guarantee) |
+| **All** | D.1/D.2 (reproducibility), E.1 (limitations) |
 
 ---
 
@@ -114,8 +109,8 @@ To prevent content overlap, each section has a clear ownership boundary:
 
 | Metric | Count |
 |--------|-------|
-| Appendix sections | 7 (A-G) |
-| Active LaTeX files | 8 |
+| Appendix sections | 5 (A-E) |
+| Active LaTeX files | 9 |
 | Experiment scripts | 1 (`generate_figure6_5model.py`) |
 
 ---
@@ -129,9 +124,7 @@ To prevent content overlap, each section has a clear ownership boundary:
 | Figure 4 | `experiments/04_figure/generate_pareto_frontier.py` | `04_figure/results/` |
 | Figure 6 | `appendix/E_catastrophic_failure_experiment/generate_figure6_5model.py` | `E_catastrophic_failure_experiment/results/` |
 
-**Note**: The E1 `\includegraphics` is currently commented out pending figure generation.
-
 ---
 
-**Status**: Clean — F1 aligned to router.py, outdated references (Figure 8, 08\_figure) removed, C1 formula corrected, D1 loss\_decay documented  
+**Status**: Clean — former Appendix C (Ablation Studies) consolidated into A.2, sections re-lettered D→C, E→D, F→E  
 **Last Updated**: February 15, 2026

@@ -6,13 +6,15 @@
 %        OR compile standalone for appendix-only PDF
 %
 % Structure (trimmed to support Figures 1, 3, 4, 6, and Table 2):
-%   A: Mathematical Foundations (proofs for Fig 1, Fig 3)
+%   A: Mathematical Foundations (regret bounds, safety + ablation evidence, prior transfer)
 %   B: Dataset Details (validation for Fig 1, Table 2)
-%   C: Hyperparameter Sensitivity (robustness for Fig 4)
-%   D: Ablation Studies (component validation for Fig 3, Fig 4, Fig 6)
-%   E: Extended Results (catastrophic failure — Fig 6)
-%   F: Implementation Details (reproducibility)
-%   G: Limitations and Future Work
+%   C: Extended Results (catastrophic failure — Fig 6)
+%   D: Implementation Details (reproducibility)
+%   E: Limitations and Future Work
+%
+% Consolidation history (see git):
+%   - Former "Appendix C" (Hyperparameter Sensitivity) → A.3
+%   - Former "Appendix C" (Ablation Studies) → A.2 (table + analysis)
 
 \documentclass[10pt,letterpaper]{article}
 
@@ -92,10 +94,17 @@
 \section{Mathematical Foundations}
 \label{appendix:mathematical_foundations}
 
-This appendix provides mathematical proofs, theoretical bounds, and formal derivations supporting the main paper.
+This appendix provides regret analysis, safety guarantees, and formal derivations
+for the two-level LinUCB + Corralling architecture used in banditGPT.
 
-% A.1: Spectral Separation Proof
-\input{A_mathematical_foundations/A1_spectral_separation_proof}
+% A.1: Composite Regret Bound (LinUCB + Corralling)
+\input{A_mathematical_foundations/A1_regret_decomposition}
+
+% A.2: Safety Guarantee (gamma-mixing prevents expert death)
+\input{A_mathematical_foundations/A2_safety_guarantee}
+
+% A.3: Warmup Prior Transfer (acceleration, risk, limitations)
+\input{A_mathematical_foundations/A3_warmup_transfer}
 
 % ============================================================================
 % APPENDIX B: DATASET DETAILS
@@ -109,32 +118,11 @@ This appendix documents the statistical validation methodology supporting Table~
 % B.1: Validation Methodology (supports Figure 1 Spearman test)
 \input{B_dataset_details/B1_validation_methodology}
 
-% ============================================================================
-% APPENDIX C: HYPERPARAMETER SENSITIVITY ANALYSIS
-% ============================================================================
-
-\section{Hyperparameter Sensitivity Analysis}
-\label{appendix:hyperparameter_sensitivity}
-
-This appendix demonstrates robustness across a 20$\times$ hyperparameter range, defending Figure~4's Pareto frontier results.
-
-% C.1: Comprehensive Sensitivity Analysis
-\input{C_hyperparameter_sensitivity/C1_comprehensive_sensitivity}
+% B.2: Cross-Domain Transfer and Feature Pipeline
+\input{B_dataset_details/B2_cross_domain_transfer}
 
 % ============================================================================
-% APPENDIX D: ABLATION STUDIES
-% ============================================================================
-
-\section{Ablation Studies}
-\label{appendix:ablation_studies}
-
-This appendix validates component contributions through controlled experiments, covering the corralling mechanism (Figure~3), Pareto configuration (Figure~4), and safety regime (Figure~6).
-
-% D.1: Corralling Algorithm Ablation (45 experiments)
-\input{D_ablation_studies/D1_corralling_ablation}
-
-% ============================================================================
-% APPENDIX E: EXTENDED EXPERIMENTAL RESULTS
+% APPENDIX C: EXTENDED EXPERIMENTAL RESULTS
 % ============================================================================
 
 \section{Extended Experimental Results}
@@ -142,11 +130,11 @@ This appendix validates component contributions through controlled experiments, 
 
 This appendix presents the catastrophic failure detection experiment (Figure~6), demonstrating Corralling's safety benefit on a 5-model portfolio with production router components.
 
-% E.1: Catastrophic Failure Detection (K=5 portfolio, production router)
-\input{E_extended_results/E1_catastrophic_failure}
+% C.1: Catastrophic Failure Detection (K=5 portfolio, production router)
+\input{C_extended_results/C1_catastrophic_failure}
 
 % ============================================================================
-% APPENDIX F: IMPLEMENTATION DETAILS
+% APPENDIX D: IMPLEMENTATION DETAILS
 % ============================================================================
 
 \section{Implementation Details}
@@ -154,24 +142,21 @@ This appendix presents the catastrophic failure detection experiment (Figure~6),
 
 This appendix provides configuration parameters and experimental setup for reproducibility.
 
-% F.1: Configuration Details
-\input{F_implementation_details/F1_configuration_details}
+% D.1: Configuration Details
+\input{D_implementation_details/D1_configuration_details}
 
-% F.2: Experimental Setup
-\input{F_implementation_details/F2_experimental_setup}
+% D.2: Experimental Setup
+\input{D_implementation_details/D2_experimental_setup}
 
 % ============================================================================
-% APPENDIX G: LIMITATIONS AND FUTURE WORK
+% APPENDIX E: LIMITATIONS AND FUTURE WORK
 % ============================================================================
 
 \section{Limitations and Future Work}
 \label{appendix:limitations}
 
-% G.1: Limitations
-\input{G_additional_discussion/G1_limitations}
-
-% G.1 Addendum (merge into G1_limitations.tex for camera-ready)
-\input{G_additional_discussion/G1_limitations_addendum}
+% E.1: Limitations
+\input{E_limitations_and_future_work/E1_limitations}
 
 % ============================================================================
 % END OF APPENDIX

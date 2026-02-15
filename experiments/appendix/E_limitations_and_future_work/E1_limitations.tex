@@ -1,0 +1,158 @@
+% ============================================================================
+% Appendix E.1: Limitations and Applicability
+% ============================================================================
+% Purpose: Clarify scope, generalizability, and when findings apply
+
+\subsection{Limitations and Applicability}
+\label{sec:limitations}
+
+To establish the scope and generalizability of our approach, we systematically
+evaluated our architecture under varying conditions. Several important
+considerations emerged from this analysis.
+
+% ----------------------------------------------------------------------------
+% Limitation 1: Domain Mismatch Severity
+% ----------------------------------------------------------------------------
+\paragraph{Prior Quality Dependency.}
+Our evaluation focuses on a challenging deployment scenario: severe domain
+mismatch where 68.6\% of warmup training prompts are classified as ``hard,''
+but only 13.7\% of holdout prompts fall into this category.
+This represents a substantial distribution shift where warmup priors are
+systematically misspecified.
+Under these conditions (Figure~3), constant exploration ($\alpha=2.0$) prevents
+premature commitment to incorrect beliefs, achieving 48\% improvement over
+adaptive decay (60.6 vs 90.2 regret).
+
+However, this finding may not generalize to scenarios with \emph{accurate}
+priors and \emph{low} domain mismatch.
+When warmup data closely matches the deployment distribution, adaptive
+exploration schedules (e.g., $\alpha_t = \alpha_0/\sqrt{t}$) may improve
+sample efficiency by reducing unnecessary exploration once the system has
+learned accurate model preferences.
+Our results suggest that the optimal exploration schedule depends critically
+on prior quality---a dimension not traditionally considered in bandit algorithm
+design.
+
+% ----------------------------------------------------------------------------
+% Limitation 2: Strategy Overhead
+% ----------------------------------------------------------------------------
+\paragraph{Strategy Selection Trade-offs.}
+While Corralling provides robust performance across diverse scenarios
+(59.2 regret), our experiments reveal that practitioners with \emph{validated}
+prior quality can achieve superior performance using simpler single-expert
+strategies.
+Specifically, pure Tabula Rasa achieves 49.5 regret when priors are known to
+be severely misspecified---16\% better than Corralling's hedging overhead.
+
+This finding challenges the assumption that meta-learning approaches are
+universally optimal.
+The 20\% overhead of hedging is justified only under \emph{genuine} uncertainty
+about prior quality.
+In production deployments where prior quality can be validated on held-out
+deployment data (N=100--200 samples), practitioners should consider strategy
+selection based on validation results rather than defaulting to Corralling.
+
+The value of Corralling lies in its \emph{safety guarantee}: 18.5\%
+improvement over harmful warmup-only deployment (59.2 vs 74.7 regret).
+This safety property is most valuable in risk-averse deployments where prior
+quality is truly uncertain and the cost of poor performance is high.
+
+% ----------------------------------------------------------------------------
+% Limitation 3: Heterogeneous Alpha Hypothesis
+% ----------------------------------------------------------------------------
+\paragraph{Mechanism Validation Through Ablation.}
+Our ablation study (Appendix~\ref{appendix:mathematical_foundations},
+Table~\ref{tab:corralling_ablation}) validated that the system's robustness
+in the Figure~3 mismatch scenario stems from \emph{constant} exploration
+($\alpha=2.0$ for both experts) rather than \emph{heterogeneous} exploration
+schedules.
+Empirical validation revealed that homogeneous constant exploration
+outperforms mixed schedules by 6.3\%.
+This demonstrates that the system's effectiveness derives from hedging between
+\emph{different initialization sources} (semantic priors vs.\ online learning)
+while maintaining consistent vigilance, rather than from diversified
+exploration strategies.
+
+The ablation study establishes that the simpler homogeneous design provides
+superior performance while reducing system complexity.  Note, however, that the
+ablation grid covers 15 configurations with 3 seeds each
+(Remark~\ref{remark:ablation_scope}); broader grids may reveal additional
+interactions.
+
+% ----------------------------------------------------------------------------
+% Limitation 4: Variance and Seed Dependency
+% ----------------------------------------------------------------------------
+\paragraph{Outcome Variance and Reproducibility.}
+Our multi-seed validation reveals substantial variance in expert weight
+evolution: final warmup weight is 0.382 $\pm$ 0.471 (standard deviation
+exceeds mean).
+This high variance indicates that outcomes are seed-dependent and influenced
+by the stochastic ordering of requests.
+Practitioners cannot rely on deterministic predictions (e.g., ``weight will be
+0.2 after 200 requests'') and must instead monitor their specific deployment's
+weight trajectory.
+
+This variance also has implications for experimental methodology: single-seed
+evaluations are insufficient for characterizing bandit algorithm performance.
+Our main experiments use 20 seeds per configuration; the ablation grid
+(Table~\ref{tab:corralling_ablation}) uses 3 seeds per cell.
+While the ablation provides directional evidence, variance-sensitive
+conclusions (e.g., precise configuration rankings) would benefit from larger
+sample sizes.
+
+% ----------------------------------------------------------------------------
+% Limitation 5: Regime-Dependent Hyperparameter Effects
+% ----------------------------------------------------------------------------
+\paragraph{Regime-Dependent Behavior.}
+Multi-seed validation reveals two distinct operating regimes: a
+warmup-dominant regime (approximately 33\% of data orderings) where Corralling
+maintains the semantic transfer expert, and a tabula rasa-dominant regime
+(approximately 67\%) where it abandons semantic transfer in favor of cold-start
+exploration.
+This regime dependence is a feature of Corralling's adaptive capacity: when
+warmup priors match the deployment distribution, hyperparameter choice
+($\neff$) significantly affects performance; when priors mismatch, Corralling
+correctly detects over-confidence and switches strategies, rendering
+$\neff$ choice less consequential.
+The specific regime frequencies observed here reflect our LMSYS Arena test
+distribution and may differ for other model portfolios or task distributions.
+
+% ----------------------------------------------------------------------------
+% Limitation 6: Computational Considerations
+% ----------------------------------------------------------------------------
+\paragraph{Computational Overhead.}
+While our coordinator adds negligible latency ($<$1ms) and modest memory
+overhead (2$\times$ for maintaining dual experts), practitioners deploying at
+scale should consider:
+(1)~Expert weight logging incurs storage costs;
+(2)~Multi-expert inference requires maintaining separate confidence bounds;
+(3)~Importance-weighted loss computation requires tracking selection
+probabilities.
+For extremely latency-sensitive applications, these overheads may be
+non-negligible.
+
+% ----------------------------------------------------------------------------
+% Generalizability
+% ----------------------------------------------------------------------------
+\paragraph{Generalizability.}
+Our evaluation uses a single dataset (LMSYS Arena) with two models
+(Mixtral-8x7B, GPT-4-Turbo) under a specific mismatch pattern (chatbot arena
+$\to$ holdout distribution).
+While this scenario is representative of real-world LLM deployment challenges,
+additional validation on diverse datasets, model pairs, and mismatch patterns
+would strengthen generalizability claims.
+The rapid adaptation observed in our experiments (16 requests) may vary with
+mismatch severity: mild mismatch might require more samples for detection,
+while catastrophic mismatch might be even faster.
+
+% ----------------------------------------------------------------------------
+% Summary
+% ----------------------------------------------------------------------------
+Despite these limitations, our core contributions remain robust:
+(1)~Constant exploration prevents premature exploitation under mismatch;
+(2)~Corralling provides safety when prior quality is uncertain;
+(3)~Strategy selection based on validated prior quality optimizes performance;
+(4)~Rigorous ablation studies are essential for validating architectural
+hypotheses.
+These insights provide actionable guidance for practitioners deploying
+adaptive LLM routing systems in uncertain environments.

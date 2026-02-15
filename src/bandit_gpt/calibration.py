@@ -77,15 +77,16 @@ def embed_prompt(prompt: str, encoder: 'SentenceTransformer', pca_model) -> np.n
         pca_model: Fitted PCA model (joblib-loaded)
     
     Returns:
-        Context vector: [23 PCA components, 1 bias term] ∈ ℝ^24
+        Context vector: [PCA components, 1 bias term] ∈ ℝ^(n_components+1)
+        With default pca_32.joblib: [32 PCA, 1 bias] ∈ ℝ^33
     
     Example:
         >>> from sentence_transformers import SentenceTransformer
         >>> from bandit_gpt.config_legacy import DEFAULT_SENTENCE_TRANSFORMER
         >>> encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-        >>> pca_model = joblib.load("pca_23.joblib")
+        >>> pca_model = joblib.load("pca_32.joblib")
         >>> context = embed_prompt("Hello world", encoder, pca_model)
-        >>> context.shape  # (24,)
+        >>> context.shape  # (33,) with 32-component PCA
     """
     embedding = encoder.encode(prompt, convert_to_numpy=True, show_progress_bar=False)
     embedding = pca_model.transform(embedding.reshape(1, -1)).flatten()
@@ -103,7 +104,7 @@ class CalibratedRouter:
         models: List of model IDs (e.g., ["mixtral-8x7b", "gpt-4-turbo"])
         alpha: Exploration parameter (UCB bonus multiplier)
         lambda_cost: Cost penalty for expensive models
-        context_dim: Dimension of context vectors (typically 24 = 23 PCA + 1 bias)
+        context_dim: Dimension of context vectors (typically 33 = 32 PCA + 1 bias)
         A: Dict of precision matrices (d×d) per model
         b: Dict of reward accumulators (d,) per model
         metadata: Calibration metadata (warmup size, gamma, samples)

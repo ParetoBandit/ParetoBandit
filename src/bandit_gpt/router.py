@@ -110,9 +110,9 @@ class RegistrationConfig:
     These values shape the initial belief state (theta) for a new model 
     before we have observed any real traffic.
     
-    Scientific Justification (Hyperparameter Sensitivity Analysis):
+    Scientific Justification (Prior Transfer Analysis):
     All parameters validated via sensitivity analysis:
-    - n_effective: Robust across [1.0, 20.0] range (Appendix C)
+    - n_effective: Robust across [1.0, 20.0] range (Appendix A.3)
     - Bias terms: Derived from cost asymmetry (30x price differential)
     
     Key Finding: Performance driven by semantic neighbor accuracy (θ_neighbor),
@@ -139,7 +139,7 @@ class RegistrationConfig:
     default_latency_s: float = 2.0      # Assume slow (2s)
     
     # Latent Semantic Transfer - Prior Strength Calibration
-    # Validated via sensitivity analysis (Appendix C):
+    # Validated via prior transfer analysis (Appendix A.3):
     # - n_effective robust across [1.0, 20.0] range
     # - Corralling meta-learning adaptively chooses between warmup and tabula rasa experts
     # - System robustness comes from Corralling's adaptive switching, not n_eff tuning
@@ -156,10 +156,10 @@ class RouterConfig:
     
     ✅ **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
     
-    **Scientific Validation (Appendix C & D):**
-    Key hyperparameters validated via sensitivity and ablation analysis:
+    **Scientific Validation (Appendix A):**
+    Key hyperparameters validated via prior transfer theory and ablation:
     
-    1. **Latent Semantic Transfer (n_effective)** (Appendix C):
+    1. **Latent Semantic Transfer (n_effective)** (Appendix A.3):
        - Tested range: [1.0, 2.0, 5.0, 10.0, 20.0] on real LMSYS Arena data
        - Robust across full range; performance driven by neighbor accuracy
        - Default: 5.0 (mid-range value, effective when warmup expert is used)
@@ -759,7 +759,7 @@ class DisjointLinUCBPolicy:
         Amortized O(d²) with rare O(d³) maintenance cycles.
         
         **Performance:**
-        Sherman-Morrison update is O(d²) ≈ 0.5ms for d=24, negligible compared
+        Sherman-Morrison update is O(d²) ≈ 0.5ms for d=33, negligible compared
         to network latency. Holding lock during update is acceptable.
         
         Args:
@@ -1209,7 +1209,7 @@ class BanditRouter:
         self.pca = self.features.pca
         
         # Calculate dimension dynamically from feature service
-        # Default is 24 (23 PCA + 1 bias)
+        # Default is 33 (32 PCA + 1 bias) with pca_32.joblib
         embedding_dim = self.features.dimension
         
         logger.debug(f"Feature dimensions: "
@@ -1469,7 +1469,7 @@ class BanditRouter:
             neighbor, similarity = self._find_semantic_neighbor(model_id, dna_str)
             
             # Dynamic n_effective based on similarity confidence
-            # Validated via sensitivity analysis (Appendix C)
+            # Validated via prior transfer analysis (Appendix A.3)
             # Robustness comes from Corralling's adaptive expert selection.
             # 
             # Strategy: Use similarity as proxy for θ_neighbor quality, not n_effective tuning
@@ -1776,12 +1776,12 @@ class BanditRouter:
            - b_new = n_effective * init_lambda * θ_neighbor  (Scaled Preferences)
         4. Result: θ_hat = (n*λI)^-1 @ (n*λθ) = θ (mean preserved), Var ~ 1/n (confidence scaled)
         
-        **Mathematical Justification (Appendix C):**
+        **Mathematical Justification (Appendix A.3):**
         - θ encodes "what contexts this model is good for" (direction)
         - A encodes "how confident we are in θ" (magnitude)
         - Scaling BOTH A and b by n_effective * init_lambda preserves mean while scaling variance
         
-        **Hyperparameter Sensitivity (Appendix C):**
+        **Hyperparameter Sensitivity (Appendix A.3):**
         n_effective robust across [1.0, 20.0] range. Guidance:
         - n_effective = 1.0: Weak prior → More exploration, slower convergence
         - n_effective = 5.0 (default): Balanced exploration/exploitation
@@ -1895,7 +1895,7 @@ class BanditRouter:
             theta_neighbor = A_inv_neighbor @ b_neighbor
             
             # Step 2: Initialize new model with scaled precision and moment
-            # Bayesian Ridge Regression with Prior Strength Scaling (Appendix C)
+            # Bayesian Ridge Regression with Prior Strength Scaling (Appendix A.3)
             # 
             # Formulation (preserves mean, scales confidence):
             # A_new = n_effective * λ_init * I  (Precision scales with prior strength)
@@ -2990,7 +2990,7 @@ class BanditRouter:
         # 3. Map back to feature names
         explanation = {}
         
-        # Based on the 24-D structure: [PCA (23) | Bias (1)]
+        # Structure: [PCA (d-1) | Bias (1)], e.g. 33-D with 32 PCA + 1 bias
         pca_dims = len(context_vector) - 1  # All except last dimension
         
         for idx in range(pca_dims):

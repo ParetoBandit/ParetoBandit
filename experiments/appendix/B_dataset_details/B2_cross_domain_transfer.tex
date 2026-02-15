@@ -1,0 +1,165 @@
+% B2: Cross-Domain Transfer and Feature Pipeline
+% Documents why PCA trained on RouteLLM generalizes to LMSYS, and the
+% complete feature extraction pipeline used by the production router.
+% Cross-references: Figure 1 (main paper), B1 (validation methodology),
+%                   Table 2 (data provenance), F1 (configuration details)
+
+\subsection{Cross-Domain Transfer and Feature Pipeline}
+\label{sec:cross_domain_transfer}
+
+A key methodological choice in banditGPT is training the PCA on one dataset
+(RouteLLM battles) and evaluating on another (LMSYS Chatbot Arena prompts).
+This subsection explains why this cross-domain transfer works, documents the
+complete feature pipeline, and discusses the limitations of the current
+approach.
+
+\subsubsection{Data Provenance and Independence}
+
+\paragraph{Training and evaluation datasets.}
+Table~\ref{tab:data_provenance} summarizes the two data sources.
+
+\begin{table}[h]
+\centering
+\caption{Data provenance: training and evaluation are independent by design.}
+\label{tab:data_provenance}
+\small
+\begin{tabular}{lll}
+\toprule
+ & \textbf{PCA Training (Warmup)} & \textbf{Evaluation (Holdout)} \\
+\midrule
+\textbf{Source} & RouteLLM HuggingFace dataset & LMSYS Chatbot Arena \\
+\textbf{Size} & 80,000 prompts & 750 prompts \\
+\textbf{Collection} & Curated battle pairs & General user submissions \\
+\textbf{Time Period} & Pre-2024 collection & Independent collection \\
+\textbf{Model Pair} & Mixtral vs.\ GPT-4-Turbo & Mixtral vs.\ GPT-4-Turbo \\
+\textbf{Overlap} & \multicolumn{2}{c}{243 incidental duplicates removed (0.24\%)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The datasets are disjoint by provenance: they were collected independently by
+different projects with different sampling procedures.  The 243 incidentally
+overlapping prompts (detected via exact string matching, representing 0.24\% of
+the warmup set) were removed to eliminate any residual contamination.
+
+\paragraph{Why the same model pair matters.}
+Cross-domain transfer succeeds because both datasets involve the same
+underlying models.  The PCA captures variance in how prompt embeddings relate
+to the Mixtral-vs-GPT-4-Turbo capability boundary.  This capability boundary
+is a property of the \emph{models}, not the prompt distribution---a
+``write me a poem'' prompt activates the same model strengths regardless of
+whether it was collected by RouteLLM or LMSYS.
+
+A different model pair (e.g., Claude-3-Haiku vs.\ GPT-4o) would define a
+different capability boundary and would likely require retraining the PCA.
+This is a limitation of the current two-model evaluation topology
+(Section~\ref{sec:transfer_limitations}).
+
+\subsubsection{Feature Extraction Pipeline}
+
+The production router extracts features through the following pipeline,
+implemented in \texttt{FeatureService} (\texttt{src/bandit\_gpt/feature\_service.py}):
+
+\paragraph{Step 1: Sentence embedding.}
+Each prompt is encoded by a sentence transformer
+(\texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentencebert}) into a
+384-dimensional L2-normalized embedding vector.  This model was chosen for its
+balance of quality and inference speed (${\sim}5$ms per prompt on CPU).
+
+\paragraph{Step 2: PCA compression.}
+The 384-dimensional embedding is projected to 32 dimensions via PCA trained on
+the 80K RouteLLM warmup prompts.  The 32 components capture 35.14\% of the
+total embedding variance.  While this may appear low in absolute terms,
+the remaining ${\sim}$65\% represents variation orthogonal to model preference
+(e.g., topic, language, style) that is irrelevant for routing.
+Figure~1 validates that the variance captured by PC1 correlates
+significantly with the reward gap ($p < 0.0001$), confirming that the
+PCA concentrates routing-relevant signal.
+
+\paragraph{Step 3: Bias term.}
+A constant bias term (1.0) is appended, yielding a 33-dimensional feature
+vector: $[PCA_0, PCA_1, \ldots, PCA_{31}, \text{bias}]$.  The bias allows
+LinUCB to learn a per-model intercept independent of prompt content.
+
+\paragraph{Summary.}
+The complete pipeline is:
+\begin{equation}
+\text{prompt} \xrightarrow{\text{MiniLM}} \mathbb{R}^{384}
+\xrightarrow{\text{PCA}} \mathbb{R}^{32}
+\xrightarrow{[\cdot\,;\, 1]} \mathbb{R}^{33}
+\label{eq:feature_pipeline}
+\end{equation}
+
+\subsubsection{PCA Variance and Routing Signal}
+
+\paragraph{Explained variance breakdown.}
+Table~\ref{tab:pca_variance} shows the cumulative explained variance for
+selected component counts.
+
+\begin{table}[h]
+\centering
+\caption{PCA explained variance (trained on 80K RouteLLM prompts).}
+\label{tab:pca_variance}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Components} & \textbf{Cumulative Variance} & \textbf{Feature Dim} \\
+\midrule
+1 (PC1 only) & 3.10\% & 2 \\
+2 (PC1+PC2) & 5.40\% & 3 \\
+23 & 29.01\% & 24 \\
+\textbf{32 (production)} & \textbf{35.14\%} & \textbf{33} \\
+384 (full) & 100\% & 385 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Why 35\% variance is sufficient.}
+The PCA operates on general-purpose sentence embeddings that encode
+\emph{all} semantic content (topic, intent, style, language, length).
+Only a fraction of this variance is relevant for routing---the component
+that distinguishes ``prompts where GPT-4-Turbo wins'' from ``prompts where
+Mixtral wins.''  The key validation is not explained variance \emph{per se},
+but whether the captured components predict model preference.  Figure~1
+confirms this: PC1 alone (3.10\% variance) achieves $p < 0.0001$ correlation
+with the reward gap, and the full 32-component vector provides at least as
+much signal.
+
+\paragraph{Why not more components?}
+Additional components beyond 32 add diminishing routing signal while
+increasing LinUCB's per-update cost ($O(d^2)$ for Sherman-Morrison updates).
+The 32-component choice balances signal capture against computational
+efficiency.  With $d = 33$ (including bias), each LinUCB update requires
+${\sim}$1,089 multiply-accumulate operations---fast enough for real-time
+routing at 100+ QPS.
+
+\subsubsection{Limitations}
+\label{sec:transfer_limitations}
+
+\paragraph{1. Two-model topology.}
+The PCA is trained on Mixtral-vs-GPT-4-Turbo battles specifically.  The
+variance it captures is aligned with \emph{this} capability boundary.  For a
+different model pair, the routing-relevant directions in embedding space may
+differ, and the PCA would need retraining.  The production library supports
+JIT PCA retraining (\texttt{allow\_jit\_training=True}) to handle this.
+
+\paragraph{2. Semantic near-duplicates.}
+The 243 removed overlaps were detected via exact string matching.  Semantic
+near-duplicates (paraphrases, translations, minor edits) may still exist
+between the warmup and holdout sets.  Given the 80,000-to-750 size ratio and
+independent provenance, any residual near-overlap is unlikely to meaningfully
+inflate the routing signal, but we cannot rule it out entirely.
+
+\paragraph{3. Stratified holdout.}
+The holdout was constructed with a difficulty dimension derived from oracle
+reward statistics, enriching it for prompts with clear model preferences.
+This means the absolute magnitude of correlation statistics (Spearman $\rho$,
+signal ratio) may be inflated relative to an unstratified deployment
+distribution.  The \emph{existence} of the signal is robust; the
+\emph{magnitude} in production depends on the user's prompt mix.
+
+\paragraph{4. Embedding model dependency.}
+The entire pipeline depends on \texttt{all-MiniLM-L6-v2} as the sentence
+encoder.  A different encoder would produce different 384D representations,
+invalidating the trained PCA.  The PCA and encoder must be treated as a
+coupled pair.

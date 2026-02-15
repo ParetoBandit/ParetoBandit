@@ -26,7 +26,7 @@ E_catastrophic_failure_experiment/
 └── README.md                      # This file
 ```
 
-**LaTeX write-up**: `../E_extended_results/E1_catastrophic_failure.tex` (included in APPENDIX_MASTER)
+**LaTeX write-up**: `../C_extended_results/C1_catastrophic_failure.tex` (included in APPENDIX_MASTER)
 
 ---
 

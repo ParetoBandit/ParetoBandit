@@ -136,7 +136,7 @@ We extract the neighbor's learned preference vector, which encapsulates the mode
 \label{eq:preference_extraction}
 \end{equation}
 
-This vector $\boldsymbol{\theta}_{\text{neighbor}} \in \mathbb{R}^d$ represents the neighbor's learned utility function over the $d$-dimensional semantic space (typically $d=24$ after PCA compression).
+This vector $\boldsymbol{\theta}_{\text{neighbor}} \in \mathbb{R}^d$ represents the neighbor's learned utility function over the $d$-dimensional semantic space (typically $d=33$ after PCA compression: 32 PCA components + 1 bias).
 
 \subsubsection{A-Matrix Reset}
 
@@ -482,7 +482,7 @@ R(T) = O\left( d\sqrt{T \log T} \right)
 
 \paragraph{Computational Overhead:} Semantic DNA matching requires one forward pass through a sentence transformer (≈10ms). This is negligible compared to LLM inference latency (≈1000ms).
 
-\paragraph{Memory Footprint:} Each model requires $O(d^2)$ memory for $\mathbf{A}_m$ (d=24 → 2.3 KB per model). For 100 models, total overhead is 230 KB.
+\paragraph{Memory Footprint:} Each model requires $O(d^2)$ memory for $\mathbf{A}_m$ (d=33 → 8.7 KB per model). For 100 models, total overhead is 870 KB.
 
 \paragraph{Scalability:} The three-layer architecture scales linearly with the number of models. Warm-start loading is one-time (initialization), semantic transfer is on-demand (new model registration), and T-shirt sizing is $O(K)$ where $K$ is the model count.
 

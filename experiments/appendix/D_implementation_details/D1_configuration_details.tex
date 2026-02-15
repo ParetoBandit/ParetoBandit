@@ -1,5 +1,5 @@
 % ============================================================================
-% Appendix F.1: Configuration Details
+% Appendix D.1: Configuration Details
 % ============================================================================
 % Purpose: Complete parameter reference for the banditGPT library router
 %          and the experimental configurations used in this paper.
@@ -181,7 +181,7 @@ Initial warmup weight & 0.70 & 0.50 & 0.50 & uniform \\
 \toprule
 \textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~6} & \textbf{Library Default} \\
 \midrule
-$\alpha$ (start) & 2.0 & 2.0 & 1.0 & 1.0 \\
+$\alpha$ (start) & 2.0 & 1.0 & 1.0 & 1.0 \\
 $\alpha$ (end) & 2.0 & 0.1 & 0.1 & 0.1 \\
 $\alpha$ decay steps & --- & 1,121 & 500 & linear over $T$ \\
 $\neff$ & 0.05$^*$ & 10.0 & 10.0 & 5.0 \\
@@ -259,7 +259,7 @@ Figure~1 & --- & 1 & Deterministic (PCA + correlation) \\
 Figure~3 & 20 & 20 & Per degradation level \\
 Figure~4 & 20 & 200 & 20 seeds $\times$ 10 $\lambda$ values \\
 Figure~6 & 20 & 20 & K=5 portfolio \\
-Ablation (Appendix~D) & 3 & 45 & 15 configs $\times$ 3 seeds \\
+Ablation (Appendix~A, Table~\ref{tab:corralling_ablation}) & 3 & 45 & 15 configs $\times$ 3 seeds \\
 \bottomrule
 \end{tabular}
 \end{table}

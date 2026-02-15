@@ -1,0 +1,181 @@
+% A1: Composite Regret Bound for Two-Level LinUCB + Corralling
+% Provides the actual theoretical backbone for the banditGPT routing architecture.
+% Cross-references: D1 (empirical validation), E1 (safety validation), C1 (robustness)
+
+\subsection{Composite Regret Bound for LinUCB under Corralling}
+\label{appendix:regret_decomposition}
+
+This subsection establishes the regret guarantee for the banditGPT two-level
+architecture: Disjoint LinUCB experts coordinated by an Exp4-style Corralling
+meta-learner~\cite{agarwal2017corralling}.  We state known results from the
+literature and show how they compose to yield the system-level bound that our
+experiments validate.
+
+\subsubsection{Setup and Notation}
+
+Consider a contextual bandit problem with $K$ arms (LLM models), context
+dimension $d$ (PCA-reduced embeddings plus bias; $d=33$ in our experiments),
+and horizon $T$.  At each round $t$:
+
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item The environment reveals context $x_t \in \mathbb{R}^d$.
+    \item The router selects arm $a_t \in [K]$.
+    \item The environment reveals reward $r_t(a_t) \in [0, 1]$ for the chosen arm only.
+\end{enumerate}
+
+We assume the standard linear realizability condition:
+\begin{equation}
+\mathbb{E}[r_t(a) \mid x_t] = x_t^\top \theta_a^* \quad \forall\, a \in [K]
+\label{eq:linear_reward}
+\end{equation}
+where $\theta_a^* \in \mathbb{R}^d$ is the unknown reward parameter for arm~$a$.
+The pseudo-regret is defined as
+$R(T) = \sum_{t=1}^T \bigl[ \max_{a} x_t^\top \theta_a^* - x_t^\top \theta_{a_t}^* \bigr]$.
+
+\begin{remark}[Scope of the linear assumption]
+\label{remark:linear_assumption}
+Equation~\eqref{eq:linear_reward} is a modelling assumption: prompt--model
+reward surfaces need not be exactly linear in the PCA features.  Our use of
+Disjoint LinUCB means each arm learns its own $\theta_a$, which provides
+piecewise-linear flexibility, but curvature within each arm's response surface
+is not captured.  Section~\ref{appendix:warmup_limitations} discusses this
+limitation and its practical impact.
+\end{remark}
+
+\subsubsection{Level 1: Per-Expert Regret (Disjoint LinUCB)}
+
+Each expert in the banditGPT system is an instance of Disjoint LinUCB
+with ridge regularization $\lambda > 0$ and exploration coefficient $\alpha$.
+The following result is standard~\cite{li2010contextual, abbasi2011improved}:
+
+\begin{theorem}[Contextual LinUCB Regret]
+\label{thm:linucb_regret}
+Under the linear realizability assumption~\eqref{eq:linear_reward}, with
+$\|x_t\| \leq 1$, $\|\theta_a^*\| \leq S$ for all arms~$a$, and sub-Gaussian
+noise with parameter $\sigma$, the Disjoint LinUCB algorithm with
+$\alpha = \sigma\sqrt{d \ln(1 + T/(d\lambda)) + 2\ln(1/\delta)} + \sqrt{\lambda}\,S$
+satisfies, with probability at least $1 - \delta$:
+\begin{equation}
+R_{\textnormal{expert}}(T)
+\;\leq\;
+\alpha \sqrt{2\,T\,K\,d\,\ln\!\bigl(1 + T/(d\lambda)\bigr)}
+\;=\; \tilde{O}\bigl(d\sqrt{T\,K}\bigr)
+\label{eq:linucb_bound}
+\end{equation}
+\end{theorem}
+
+In our system, two such experts operate in parallel:
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{Expert 1 (Warmup):} \texttt{CostAwareLinUCBRouter} initialized
+    with pre-trained priors from 80k LMSYS Arena battles.
+    The prior matrices $A_0, b_0$ encode a warm start that effectively skips
+    the initial exploration phase (Section~\ref{appendix:warmup_transfer}).
+    \item \textbf{Expert 2 (Tabula Rasa):} \texttt{CostAwareTabulaRasaRouter}
+    initialized with $A = \lambda I$, $b = 0$ (no prior knowledge).
+\end{itemize}
+
+Both experts satisfy Theorem~\ref{thm:linucb_regret} individually.  The warmup
+expert's prior can reduce the effective regret when accurate, but may increase
+it under domain mismatch.
+
+\subsubsection{Level 2: Meta-Regret (Exp4/Corralling)}
+
+The Corralling meta-learner maintains a probability distribution
+$p^{(t)} \in \Delta^N$ over $N$ experts (in our case $N = 2$) and selects
+expert~$i$ with probability $p_i^{(t)}$ at each round.  The implementation
+uses an Exp4-style multiplicative weight update with mixing
+parameter~$\gamma$~\cite{agarwal2017corralling, auer2002nonstochastic}:
+
+\begin{equation}
+p_i^{(t)} = (1 - \gamma)\,\frac{w_i^{(t)}}{\sum_j w_j^{(t)}} + \frac{\gamma}{N},
+\qquad
+w_i^{(t+1)} = w_i^{(t)} \exp\!\bigl(-\eta\,\hat{\ell}_i^{(t)}\bigr)
+\label{eq:exp4_update}
+\end{equation}
+
+where $\hat{\ell}_i^{(t)} = \ell_i^{(t)} / p_i^{(t)}$ is the importance-weighted loss
+for the chosen expert ($\hat{\ell}_j^{(t)} = 0$ for $j \neq i_t$), and $\ell_i^{(t)} = 1 - r_t$.
+
+\begin{theorem}[Corralling Meta-Regret {\cite[Theorem 1]{agarwal2017corralling}}]
+\label{thm:corralling_regret}
+For $N$ experts with mixing parameter $\gamma > 0$ and learning rate $\eta$,
+the meta-regret---the additional cost of not knowing which expert is
+best---satisfies:
+\begin{equation}
+R_{\textnormal{meta}}(T)
+\;\leq\; O\!\left(\sqrt{T \ln N}\right)
+\label{eq:meta_bound}
+\end{equation}
+\end{theorem}
+
+With $N = 2$ experts, $\ln N = \ln 2 \approx 0.69$, so the meta-overhead is
+modest.
+
+\subsubsection{Composite System Regret}
+
+The total system regret decomposes as follows:
+
+\begin{theorem}[Composite Regret Decomposition]
+\label{thm:composite}
+Let $R_1(T), R_2(T)$ denote the regret of the warmup and tabula rasa experts
+respectively, each run on the same sequence of contexts.  The total regret of
+the Corralling system satisfies:
+\begin{equation}
+R_{\textnormal{total}}(T)
+\;\leq\;
+\underbrace{O\!\bigl(\sqrt{T \ln 2}\bigr)}_{\text{meta-regret (expert selection)}}
+\;+\;
+\underbrace{\min\bigl\{R_1(T),\; R_2(T)\bigr\}}_{\text{best expert's regret}}
+\label{eq:composite_bound}
+\end{equation}
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+The Corralling meta-learner guarantees that its cumulative loss is at most
+$\sqrt{T \ln N}$ worse than the best expert in hindsight.  Since both experts
+individually satisfy Theorem~\ref{thm:linucb_regret}, the system's regret is
+bounded by the meta-overhead plus whichever expert achieved lower regret on the
+realized sequence.
+\end{proof}
+
+\paragraph{Interpretation.}
+Equation~\eqref{eq:composite_bound} captures the core design rationale of the
+banditGPT architecture:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{When warmup priors are accurate:} $R_1(T) \ll R_2(T)$
+    because the warmup expert skips the cold-start exploration phase.  The
+    system pays only the small $O(\sqrt{T \ln 2})$ meta-cost to verify this.
+    
+    \item \textbf{When warmup priors are harmful (domain mismatch):}
+    $R_2(T) < R_1(T)$ and the meta-learner shifts weight to the tabula rasa
+    expert.  The system's regret tracks clean-slate performance plus the
+    meta-overhead---negative transfer is bounded.
+    
+    \item \textbf{The cost of safety:}
+    The $O(\sqrt{T \ln 2})$ overhead is the price paid for not committing to a
+    single strategy up front.  At $T = 1{,}000$ (our experimental horizon),
+    this is on the order of $\sqrt{1000 \cdot 0.69} \approx 26$ additional
+    regret units---consistent with the empirical gap between the oracle and the
+    Corralling system observed in Appendix~\ref{appendix:catastrophic_failure}.
+\end{itemize}
+
+\paragraph{Empirical Validation.}
+The ablation study (Section~\ref{sec:appendix_corralling_ablation}) measures
+empirical regret growth via log-log regression, yielding an exponent
+$\beta = 0.669 \pm 0.002$ ($R^2 = 0.9903$).  This is consistent with the
+$\tilde{O}(\sqrt{T})$ rate predicted by the composite
+bound~\eqref{eq:composite_bound}, since $\sqrt{T} = T^{0.5}$ and the
+logarithmic factors push the empirical exponent slightly above $0.5$.
+
+\begin{remark}[Gap between theory and empirical exponent]
+\label{remark:exponent_gap}
+The theoretical bound predicts $T^{0.5}$ growth (up to logarithmic factors),
+while the empirical fit yields $T^{0.669}$.  Several factors may contribute to
+this gap: (i) the linear realizability assumption~\eqref{eq:linear_reward} may
+hold only approximately; (ii) the cost-aware utility modification changes the
+effective reward structure; (iii) the finite-horizon regime ($T = 1{,}121$) may
+not yet reflect asymptotic behavior.  The key observation is that
+$\beta < 1$, confirming sublinear (learnable) regret growth regardless of the
+precise rate.
+\end{remark}

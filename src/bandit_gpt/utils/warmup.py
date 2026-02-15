@@ -104,7 +104,7 @@ def procedural_warmup(router: BanditRouter, n_samples: int = 50):
       [Embedding | Handcrafted(15) | Anchors(5) | Complexity(1) | Bias(1)]
     
     But FeatureService now outputs:
-      [PCA(23) | Bias(1)] = 24 dimensions
+      [PCA(32) | Bias(1)] = 33 dimensions (with default pca_32.joblib)
     
     The old warmup code calculated indices like:
       - handcrafted_start = 2
@@ -130,7 +130,7 @@ def procedural_warmup(router: BanditRouter, n_samples: int = 50):
     logger.warning(
         "⚠️  Procedural warmup is DISABLED due to feature dimension mismatch.\n"
         "   The warmup was designed for an old feature structure with handcrafted features.\n"
-        "   Current FeatureService outputs [PCA(23)|Bias(1)] only.\n"
+        "   Current FeatureService outputs [PCA(32)|Bias(1)] = 33D.\n"
         "   \n"
         "   Impact: Router will use identity matrix + quality priors (standard LinUCB).\n"
         "   Cold start may take ~20-50 requests to converge.\n"

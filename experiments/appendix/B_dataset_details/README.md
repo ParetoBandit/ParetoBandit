@@ -1,50 +1,53 @@
 # Appendix B: Dataset Details
 
 ## Overview
-Dataset documentation and statistical validation supporting Table 2 (data provenance) and Figure 1 (cross-domain PCA generalization).
+Validation methodology and cross-domain transfer analysis supporting Figure 1
+(routing signal validation) and Table 2 (data provenance).
 
 ## Contents
 
 ### B.1: Validation Methodology
-**File**: `B1_validation_methodology.tex`  
-**Source**: `01_figure/validation_methodology.tex`
+**File**: `B1_validation_methodology.tex`
 
 **Content**:
-- Statistical testing procedures (Spearman rank correlation)
-- Confidence interval calculations
-- LLM validation approach
-- Cross-validation methodology
+- Spearman rank correlation design (PC1 vs reward gap, N=750)
+- Null baseline: 100 random orthonormal projections (QR-decomposed)
+- Data independence argument (RouteLLM vs LMSYS provenance)
+- Statistical tests: Spearman rho, Mann-Whitney U
+- Design rationale: why Spearman instead of clustering
+- Stratification sensitivity: existence vs magnitude of signal
 
-**Supports**: Figure 1's Spearman ρ significance claim (p < 0.0001)
+**Supports**: Figure 1's core claim (p < 0.0001, 2.6x null median)
+
+### B.2: Cross-Domain Transfer and Feature Pipeline
+**File**: `B2_cross_domain_transfer.tex`
+
+**Content**:
+- Data provenance table (RouteLLM 80K vs LMSYS 750)
+- Why same model pair enables cross-domain transfer
+- Complete feature pipeline: 384D -> 32 PCA + 1 bias = 33D
+- PCA variance analysis (35.14% at 32 components)
+- Why 35% variance is sufficient for routing
+- Limitations: two-model topology, near-duplicates, stratification, encoder dependency
+
+**Supports**: Figure 1's cross-domain generalization claim, Table 2 provenance
 
 ---
 
-### B.2: Distribution Shift Details
-**File**: `B2_distribution_shift_details.tex`  
-**Source**: Distribution shift analysis
+## Superseded Content
 
-**Content**:
-- Cross-domain generalization evidence (RouteLLM → LMSYS)
-- Why PCA trained on 80K RouteLLM battles transfers to 750 LMSYS holdout prompts
-- Same model pair (Mixtral vs GPT-4-Turbo) ensures capability-space alignment
-
-**Supports**: Figure 1's core claim that PCA features predict preference on unseen data
-
----
-
-## Removed Content
-
-| Item | Reason |
-|------|--------|
-| ~~B1: Dataset Composition~~ | Table 2 in main paper already covers this; never created |
-| ~~B3: 1M Scale Analysis~~ | Impressive but tangential — no main figure relies on 1M-scale validation |
+The previous `B1_validation_methodology.tex` contained a clustering-based
+analysis (PC1 threshold at 0.3, k-means, GMM, silhouette scores) that did not
+match Figure 1's Spearman correlation methodology. The old version validated a
+decision boundary the router never uses. It is retained in git history.
 
 ---
 
 ## Related Sections
+- **Main Paper Figure 1**: PCA validation (Spearman correlation)
 - **Main Paper Table 2**: Dataset composition and splits
-- **Main Paper Figure 1**: Uses holdout set for PCA validation
-- **Appendix A**: Theoretical justification for spectral stability
+- **Appendix A**: Regret bounds reference d=33 feature dimension
+- **Appendix D**: Implementation details (production configuration)
 
 ---
 
@@ -52,10 +55,7 @@ Dataset documentation and statistical validation supporting Table 2 (data proven
 ```
 B_dataset_details/
 ├── README.md                          (this file)
-├── B1_validation_methodology.tex      (statistical methods)
-└── B2_distribution_shift_details.tex  (cross-domain transfer evidence)
+├── B1_validation_methodology.tex      (Spearman-based validation)
+├── B2_cross_domain_transfer.tex       (transfer analysis + feature pipeline)
+└── figures/                           (future: pipeline diagrams)
 ```
-
----
-
-**Last Updated**: February 15, 2026

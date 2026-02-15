@@ -6,8 +6,8 @@
 
 ## Overview
 
-**Total Appendix Sections**: 7 (A-G)  
-**Active LaTeX Files**: 10  
+**Total Appendix Sections**: 5 (A-E)  
+**Active LaTeX Files**: 9 (+ APPENDIX\_MASTER.tex)  
 **Master File**: `APPENDIX_MASTER.tex`
 
 ---
@@ -16,13 +16,11 @@
 
 | Section | Topic | Supports | Key Content |
 |---------|-------|----------|-------------|
-| **A** | Mathematical Foundations | Fig 1, Fig 3 | Spectral separation proof, regret bounds |
-| **B** | Dataset Details | Fig 1, Table 2 | Validation methodology, distribution shift |
-| **C** | Hyperparameter Sensitivity | Fig 4 | 20x robustness range ($n_{\text{eff}}$) |
-| **D** | Ablation Studies | Fig 3, Fig 4, Fig 6 | 45-experiment grid, η/α/γ ablations |
-| **E** | Extended Results | Fig 6 | Catastrophic failure detection (K=5) |
-| **F** | Implementation Details | All | Configuration, experimental setup |
-| **G** | Limitations | All | System constraints, future work |
+| **A** | Mathematical Foundations | Fig 1, 3, 4, 6 | Regret bounds (LinUCB + Corralling), safety guarantee (γ-mixing) + ablation table (45 experiments), prior transfer (n_eff) |
+| **B** | Dataset Details | Fig 1, Table 2 | Spearman validation, cross-domain transfer, feature pipeline (384D → 33D) |
+| **C** | Extended Results | Fig 6 | Catastrophic failure detection (K=5 portfolio, 20 seeds) |
+| **D** | Implementation Details | All | Configuration parameters, experimental setup |
+| **E** | Limitations & Future Work | All | System constraints, honest limitations, future directions |
 
 ---
 
@@ -32,50 +30,36 @@
 appendix/
 ├── README.md                           # This file
 ├── APPENDIX_MASTER.tex                 # Master LaTeX file
-├── APPENDIX_CONTENT_MAP.md             # Detailed keep/cut rationale
+├── APPENDIX_CONTENT_MAP.md             # Detailed content mapping
+├── QUICK_START.md                      # Quick navigation guide
 │
 ├── A_mathematical_foundations/
 │   ├── README.md
-│   └── A1_spectral_separation_proof.tex
+│   ├── A1_regret_decomposition.tex     # Composite regret bound
+│   ├── A2_safety_guarantee.tex         # γ-mixing safety proof + ablation table
+│   └── A3_warmup_transfer.tex          # Prior transfer + n_eff + limitations
 │
 ├── B_dataset_details/
 │   ├── README.md
-│   ├── B1_validation_methodology.tex
-│   └── B2_distribution_shift_details.tex
+│   ├── B1_validation_methodology.tex   # Spearman correlation design
+│   └── B2_cross_domain_transfer.tex    # Data provenance + feature pipeline
 │
-├── C_hyperparameter_sensitivity/
+├── C_extended_results/
 │   ├── README.md
-│   ├── C1_comprehensive_sensitivity.tex
-│   ├── C2_robustness_summary.tex        (optional)
-│   └── figures/
+│   └── C1_catastrophic_failure.tex     # K=5 portfolio experiment
 │
-├── D_ablation_studies/
+├── D_implementation_details/
 │   ├── README.md
-│   ├── D1_corralling_ablation.tex
-│   └── figures/
-│       ├── figure6_learning_rate_ablation.pdf
-│       ├── figure_alpha_ablation.png
-│       └── figure_gamma_ablation.png
+│   ├── D1_configuration_details.tex    # Router parameters + experiment configs
+│   └── D2_experimental_setup.tex       # Hardware, software, protocol
 │
-├── E_extended_results/
+├── E_limitations_and_future_work/
 │   ├── README.md
-│   ├── E1_catastrophic_failure.tex
-│   └── E1_catastrophic_failure_extended.tex  (optional)
+│   └── E1_limitations.tex              # Limitations and applicability
 │
-├── F_implementation_details/
-│   ├── README.md
-│   ├── F1_configuration_details.tex
-│   └── F2_experimental_setup.tex
-│
-├── G_additional_discussion/
-│   ├── README.md
-│   ├── G1_limitations.tex
-│   └── G1_limitations_addendum.tex
-│
-└── E_catastrophic_failure_experiment/    # Canonical experiment code for Fig 6
+└── E_catastrophic_failure_experiment/  # Canonical experiment code for Fig 6
     ├── README.md
     ├── generate_figure6_5model.py
-    ├── figure6_corralling_kdd.tex
     └── results/
 ```
 
@@ -105,20 +89,14 @@ pdflatex APPENDIX_MASTER.tex  # Run twice for references
 
 | Cut Item | Reason |
 |----------|--------|
-| B1: Dataset composition table | Table 2 in main paper is sufficient |
-| B3: 1M scale analysis | No main figure depends on it |
-| C2-C4: Individual parameter sweeps | C1 covers all comprehensively |
-| E2: Three-model routing | Experiment removed from scope |
-| E3: Cost profiles | Never created; Fig 4 Pareto sweep covers this |
-| E4: Distribution shift | Never created; B.2 covers cross-domain transfer |
-| F3: Strategy selection guide | Practitioner content; belongs in GitHub README |
-| G1: Practical recommendations | Redundant with Fig 3 + F3 |
-| G3: Broader impact | Not required by target venue |
-| G4: Corralling vs offline | Not required by main figures |
+| Former Appendix C (Ablation Studies) | 45-experiment ablation table consolidated into A.2 (safety guarantee) |
+| Former Appendix C (Hyperparameter Sensitivity) | n_eff analysis consolidated into A.3; Corralling params now in A.2 |
+| Old A1 (Spectral separation proof) | Thompson Sampling theory mismatched LinUCB + Corralling implementation |
+| Old B1 (Clustering-based validation) | Replaced with correct Spearman methodology matching Figure 1 |
 
 See `APPENDIX_CONTENT_MAP.md` for the full traceability matrix.
 
 ---
 
 **Last Updated**: February 15, 2026  
-**Status**: Trimmed, aligned to main paper figures
+**Status**: Trimmed, aligned to main paper figures, folder names match appendix letters

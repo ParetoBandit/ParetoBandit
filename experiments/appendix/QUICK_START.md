@@ -9,13 +9,11 @@
 
 | Need... | Go to... |
 |---------|----------|
-| **Proofs and theory** | [Appendix A](A_mathematical_foundations/) - Spectral separation, regret bounds |
-| **Data details** | [Appendix B](B_dataset_details/) - 1M scale analysis, validation |
-| **Parameter robustness** | [Appendix C](C_hyperparameter_sensitivity/) - 20× range sensitivity |
-| **Component validation** | [Appendix D](D_ablation_studies/) - 45 ablation experiments |
-| **Extra experiments** | [Appendix E](E_extended_results/) - Catastrophic failure, 3-model routing |
-| **How to implement** | [Appendix F](F_implementation_details/) - Config, deployment guide |
-| **Limitations & future** | [Appendix G](G_additional_discussion/) - Practical advice, ethics |
+| **Proofs and theory** | [Appendix A](A_mathematical_foundations/) - Regret bounds, safety, prior transfer (incl. n_eff), ablation table |
+| **Data details** | [Appendix B](B_dataset_details/) - Validation methodology, feature pipeline |
+| **Extra experiments** | [Appendix C](C_extended_results/) - Catastrophic failure, K=5 portfolio |
+| **How to implement** | [Appendix D](D_implementation_details/) - Config, experimental setup |
+| **Limitations & future** | [Appendix E](E_limitations_and_future_work/) - Practical advice, limitations |
 
 ---
 
@@ -28,13 +26,13 @@
 
 ### For Detailed Review (1-2 hours)
 1. Compile `APPENDIX_MASTER.tex` for full PDF
-2. Read each section in order (A → G)
+2. Read each section in order (A → E)
 3. Check cross-references with main paper
 
 ### For Reproduction (Implementation)
-1. Read [Appendix F](F_implementation_details/) - Implementation details
-2. Check [Appendix C](C_hyperparameter_sensitivity/) - Parameter settings
-3. Review [Appendix D](D_ablation_studies/) - Validation procedures
+1. Read [Appendix D](D_implementation_details/) - Implementation details
+2. Check [Appendix A.3](A_mathematical_foundations/) - Prior transfer & n_eff guidance
+3. Review [Appendix A.2](A_mathematical_foundations/) - Ablation validation (45 experiments)
 
 ---
 
@@ -59,7 +57,7 @@ Add to your main paper `.tex` file:
 
 ## 📊 Key Statistics
 
-- **7 Sections** (A-G)
+- **5 Sections** (A-E)
 - **15 LaTeX Files**
 - **8 README Files**
 - **45+ Experiments** documented
@@ -76,13 +74,11 @@ appendix/
 ├── 📄 APPENDIX_MASTER.tex          ← Compile this
 ├── 📘 README.md                    ← Read this first
 │
-├── A_mathematical_foundations/     ← Theory & proofs
+├── A_mathematical_foundations/     ← Theory, proofs, prior transfer (incl. n_eff), ablation table
 ├── B_dataset_details/              ← Data & validation
-├── C_hyperparameter_sensitivity/   ← Robustness
-├── D_ablation_studies/             ← Components
-├── E_extended_results/             ← Extra experiments
-├── F_implementation_details/       ← How-to guide
-└── G_additional_discussion/        ← Context & future
+├── C_extended_results/             ← Appendix C: Extra experiments
+├── D_implementation_details/       ← Appendix D: Config & setup
+└── E_limitations_and_future_work/  ← Appendix E: Limitations & future
 ```
 
 ---
@@ -97,13 +93,11 @@ appendix/
 - → Keep concise, ~9 pages
 
 ### Appendix ✅
-- Detailed proofs (A)
+- Detailed proofs & prior transfer theory (A)
 - Extended data analysis (B)
-- Sensitivity analysis (C)
-- Full ablation results (D)
-- Supplementary experiments (E)
-- Implementation details (F)
-- Limitations & discussion (G)
+- Supplementary experiments (C)
+- Implementation details (D)
+- Limitations & discussion (E)
 - → Can be longer, ~20-25 pages
 
 ---
@@ -116,7 +110,7 @@ appendix/
 - Figures organized by section in `*/figures/`
 
 ### Adding Content
-1. Pick section (A-G) using content categories
+1. Pick section (A-E) using content categories
 2. Create file: `X#_descriptive_name.tex`
 3. Update section README
 4. Add `\input{}` to APPENDIX_MASTER.tex
@@ -124,8 +118,8 @@ appendix/
 ### Citation
 Reference appendix sections in main paper:
 ```latex
-See Appendix~\ref{appendix:hyperparameter_sensitivity} 
-for detailed sensitivity analysis.
+See Appendix~\ref{appendix:warmup_transfer} 
+for prior transfer analysis and n_eff guidance.
 ```
 
 ---
@@ -139,7 +133,7 @@ README.md (comprehensive overview)
     ↓
 APPENDIX_CONTENT_MAP.md (detailed mapping)
     ↓
-Section READMEs (A-G specifics)
+Section READMEs (A-E specifics)
 ```
 
 ---
