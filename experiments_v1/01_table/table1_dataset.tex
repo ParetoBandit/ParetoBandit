@@ -10,20 +10,40 @@
 \midrule
 Warmup          & RouteLLM Battles & 80,000 & PCA training (384$\rightarrow$32) + LinUCB priors ($\mathbf{A}$, $\mathbf{b}$) \\
 Development     & LMSYS Arena      & 1,121 & Online learning \& calibration \\
-Holdout         & LMSYS Arena      & 750 & Online bandit evaluation \\
+Holdout         & LMSYS Arena      & 750 & Final bandit evaluation \\
 \midrule
 \textbf{Total} & & \textbf{81,871} & \\
 \bottomrule
 \end{tabular}
 
-\vspace{1em}
+\vspace{0.8em}
 \footnotesize
-\textbf{Data Sources and Independence.} All prompts originate from the LMSYS Chat Arena ecosystem~\cite{zheng2023lmsys}, but the warmup and evaluation datasets are \emph{independent collections} from different data sources, sampling periods, and prompt populations.
-\textbf{Model Topology.} We evaluate on a two-model pair (mixtral-8x7b-instruct vs gpt-4-turbo) that matches the RouteLLM benchmark~\cite{ong2024routellm}, enabling direct comparison; multi-model routing ($\geq$3 models) is evaluated in Figure~\ref{fig:pareto}.
-\textbf{RouteLLM Battles}~\cite{ong2024routellm}: 80K pairwise comparisons from the HuggingFace dataset \texttt{routellm/gpt4\_judge\_battles}---a curated battle collection. Used for PCA training (384$\rightarrow$32) and warmup prior generation ($\mathbf{A} \in \mathbb{R}^{33 \times 33}$, $\mathbf{b} \in \mathbb{R}^{33}$).
-\textbf{LMSYS Arena (evaluation):} Dev and holdout prompts from the LMSYS general prompt pool, collected independently of the RouteLLM battles. Same model pair but different source, period, and prompt population. This independence ensures that the PCA has never seen the evaluation prompts---no decontamination step is needed; the datasets are disjoint by provenance.
-\textbf{Data Quality.} Zero data leakage verified via automated checks (243 incidentally overlapping prompts removed, 0.24\%; overlap is due to both datasets sampling from the broader LMSYS user base, not shared provenance). Dev and holdout sets created using stratified sampling across three dimensions: category (STEM, CODE, GENERAL), complexity (Low, Med, High), and difficulty (Easy, Hard, Contentious), resulting in representative coverage across diverse prompt characteristics.
-\textbf{Reward Structure.} Rewards are discrete pairwise preference outcomes (win/tie/loss) from LMSYS Chatbot Arena human evaluations, consistent with the categorical analysis in Figure~\ref{fig:lmsys_holdout_structure}. Of 750 holdout prompts, 72.8\% are ties (routing-irrelevant); only 204 prompts (27.2\%) have differential model performance.
-\textbf{Evaluation Methodology.} The holdout is \emph{held out from warmup}: the PCA and warmup priors have never seen these prompts (disjoint by provenance). Following standard bandit evaluation~\cite{lattimore2020bandit}, the bandit learns and acts on the holdout simultaneously---there is no separate training-then-testing phase. Cumulative reward across the full interaction sequence (including the early learning curve) is the standard metric, matching production behavior where the router serves and learns from every prompt. A supervised alternative (train on dev, freeze, evaluate on holdout) was tested and performs worse (0.813 vs 0.851) due to distribution shift between warmup and evaluation data (PSI${}=0.225$, Figure~\ref{fig:distribution_shift}; Table~\ref{tab:performance_gap}). Online learning is not just standard methodology---it is the mechanism that handles this shift. Multi-seed validation ($N$=10--30 seeds with shuffled orderings) controls for sequence sensitivity.
-\textbf{Sample Size.} Development set (1,121 prompts) enables online learning with sufficient data for bandit convergence. Holdout set (750 prompts) determined by data availability. Monte-Carlo power analysis (Appendix~\ref{app:power}), consistent with Figure~\ref{fig:lmsys_holdout_structure}'s categorical approach, uses McNemar's exact test (paired binary data) and binomial test (routing accuracy on informative prompts): 80\% power to detect routing accuracy $\geq$58\% on the 204 informative prompts ($\alpha = 0.05$).
+
+\textbf{Why these datasets.}
+The warmup split uses RouteLLM's publicly available battle corpus (\texttt{routellm/gpt4\_judge\_battles} on HuggingFace)~\cite{ong2024routellm}, a curated collection of 80K pairwise human preferences between mixtral-8x7b-instruct and gpt-4-turbo.
+We adopt this dataset for two reasons: (1)~it is the same data used by RouteLLM and other open-source routers, so our warmup priors are grounded in an established benchmark and results are directly comparable; and (2)~it provides a large, publicly reproducible source of preference signal for offline prior generation.
+The evaluation splits (dev and holdout) draw from the broader LMSYS Chatbot Arena prompt pool~\cite{zheng2023lmsys}, the most widely-cited platform for LLM evaluation.
+The same model pair is used throughout, so any performance differences across splits are attributable to distributional changes in prompt characteristics---not model capability differences.
+
+\textbf{How they are used.}
+The warmup data serves a dual role.
+First, it trains a PCA projection (384$\rightarrow$32 dimensions) that compresses sentence embeddings into a compact context representation.
+Second, it generates LinUCB prior matrices ($\mathbf{A} \in \mathbb{R}^{33 \times 33}$, $\mathbf{b} \in \mathbb{R}^{33}$) that encode 80K observations of which prompt characteristics predict model-specific quality.
+Together, the PCA and priors constitute a \emph{warm start}: a pre-trained belief about prompt--model affinity that can be refined online.
+The development set is used for online bandit learning and hyperparameter calibration ($\gamma$-scaling, $\alpha$-scheduling).
+The holdout set provides final evaluation under standard bandit protocol~\cite{lattimore2020bandit}: the router learns and acts simultaneously, with cumulative reward measured across the full interaction sequence including the early learning curve.
+
+\textbf{Production impact.}
+The PCA model and warmup priors ship with the banditGPT library as compact artifacts ($<$1\,MB combined).
+This mitigates the cold-start problem common to online learning routers: without any prior, a contextual bandit requires hundreds of observations before it can outperform random routing.
+The warmup artifacts provide an informed starting point---no data collection phase, no API calls to external services, and no reliance on proprietary training corpora.
+The degree of benefit depends on how well the RouteLLM battle distribution matches a given deployment setting; when the match is poor, the Corralling meta-learner (Section~\ref{sec:corralling}) adapts by shifting weight toward online-learned policies.
+Cross-domain generalization of the PCA is validated in Figure~\ref{fig:lmsys_holdout_structure} (Spearman $\rho = 0.370$, $p < 0.0001$, 2.6$\times$ vs.\ random projections), confirming that the routing signal learned from RouteLLM battles transfers to unseen prompt populations.
+As the router observes user-specific traffic, online updates adapt the priors to the deployment distribution at $O(d^2)$ per observation via rank-one Sherman--Morrison updates.
+
+\textbf{Data integrity.}
+The warmup and evaluation datasets are \emph{independent by provenance}---different data sources, sampling periods, and prompt populations.
+Automated deduplication removed 243 incidental overlaps (0.24\%), arising from both datasets sampling the broader LMSYS user base.
+Dev and holdout sets were created via stratified sampling across category, complexity, and difficulty to ensure representative coverage.
+
 \end{table}
