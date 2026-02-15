@@ -133,7 +133,7 @@ We counteract the lack of counterfactual updates through \textbf{Uniform Initial
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure4_corralling_weights.png}
-\caption{Corralling Learns to Exploit Semantic Structure. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps. The algorithm initially relies on the Warmup Expert (Orange) but detects mismatch. It rapidly shifts authority to the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility is a feature, not a bug---it represents persistent exploration that maintains a ``hot standby'' capability for distribution shifts. Note: This figure illustrates Corralling on dev-set data (1,121 prompts). Under moderate distribution shift (PSI=0.225), warmup priors remain beneficial on the held-out evaluation set.}
+\caption{Corralling Learns to Exploit Semantic Structure. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps. The algorithm initially relies on the Warmup Expert (Orange) but detects mismatch. It rapidly shifts authority to the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility is a feature, not a bug---it represents persistent exploration that maintains a ``hot standby'' capability for distribution shifts. Note: This figure illustrates Corralling on dev-set data (1,121 prompts).}
 \label{fig:corralling}
 \end{figure}
 
