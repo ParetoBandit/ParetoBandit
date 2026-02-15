@@ -7,7 +7,7 @@
 Before presenting our routing algorithm, we establish the empirical motivation for contextual routing: model preference varies by prompt, and the router's features predict this variation.
 
 \paragraph{Why this experiment matters.}
-BanditGPT routes prompts to models using contextual features extracted by \texttt{FeatureService}: sentence embeddings compressed to 33 dimensions via PCA.
+BanditGPT routes prompts to models using contextual features extracted by \texttt{FeatureService}: sentence embeddings compressed to 32 dimensions via PCA, plus a bias term (33 dimensions total).
 LinUCB then uses these features to predict per-model reward and select the best model for each prompt.
 If the PCA features contain no signal about model preference, the bandit reduces to random assignment---contextual routing would be unnecessary, and a static policy (always pick one model) would suffice.
 This experiment tests whether the features predict model preference on held-out data, and whether this prediction exceeds what a random projection achieves.
@@ -49,7 +49,7 @@ If preference were uniform, a static policy would be optimal; the heterogeneity 
 
     \item \textbf{Most prompts are ties.} The majority of prompts show no strong model preference, meaning the cheaper model can serve them with comparable quality. This is the primary source of cost savings.
 
-    \item \textbf{The signal is a lower bound.} PC1 is one dimension; the router uses all 33 PCA components. The full feature vector likely captures more predictive signal than PC1 alone.
+    \item \textbf{The signal is a lower bound.} PC1 is one dimension; the router uses all 32 PCA components. The full feature vector likely captures more predictive signal than PC1 alone.
 
     \item \textbf{No contamination.} The PCA was trained on RouteLLM battles, an entirely separate dataset from the held-out evaluation prompts.
 

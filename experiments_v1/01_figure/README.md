@@ -43,7 +43,7 @@ This directly tests the question the bandit needs answered — it matches how Ba
 
 3. **Most prompts are ties.** The majority of prompts show no strong model preference — the cheaper model can serve them with comparable quality. This is the primary source of cost savings.
 
-4. **PC1 is a lower bound.** The router uses all 33 PCA components. The full feature vector captures at least as much predictive signal as PC1 alone.
+4. **PC1 is a lower bound.** The router uses all 32 PCA components. The full feature vector captures at least as much predictive signal as PC1 alone.
 
 ## Figure Structure
 

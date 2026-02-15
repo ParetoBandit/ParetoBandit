@@ -10,10 +10,10 @@ All analyses use the held-out test set exclusively ($N=750$), with PCA trained o
 \subsubsection{Experimental Design}
 
 \paragraph{Analysis pipeline matches the router.}
-BanditGPT's \texttt{FeatureService} encodes prompts with a sentence transformer (\texttt{all-MiniLM-L6-v2}) and compresses the 384D embeddings to 33 dimensions via PCA.
+BanditGPT's \texttt{FeatureService} encodes prompts with a sentence transformer (\texttt{all-MiniLM-L6-v2}), compresses the 384D embeddings to 32 dimensions via PCA, and appends a bias term for a 33-dimensional feature vector.
 LinUCB then regresses these features against per-model rewards to predict which model will perform best.
 Our validation directly tests the input to this regression: we compute the Spearman rank correlation between the PCA's first principal component (PC1) and the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
-This is a lower bound on the full feature vector's predictive power, since the router uses all 33 components.
+This is a lower bound on the full feature vector's predictive power, since the router uses all 32 components.
 
 \paragraph{Null baseline.}
 To rule out projection artifacts---any 384D-to-2D linear projection may find \emph{some} correlated direction---we compute $|\rho|$ for $N{=}100$ independent random orthonormal projections (QR-decomposed, $384 \to 2$) and compare the Router PCA $|\rho|$ to this null distribution.
@@ -53,7 +53,7 @@ A clustering-based analysis (threshold $\to$ contingency table $\to$ Cram\'er's 
 Spearman $\rho$ tests the same hypothesis---features predict preference---without any of these choices.
 
 \paragraph{Why PC1 only.}
-The router uses all 33 PCA components, but PC1 captures the most variance by construction.
+The router uses all 32 PCA components, but PC1 captures the most variance by construction.
 Testing PC1 alone provides a \emph{conservative} lower bound on the full feature vector's predictive power.
 If the bandit gains routing value from higher components, that strengthens the case.
 
@@ -68,7 +68,11 @@ The supplementary Mann-Whitney test and outcome analysis are confirmatory, not h
 The holdout ($N=750$) was created via stratified sampling across category, complexity, and difficulty (Appendix~\ref{app:stratification}).
 The difficulty dimension is derived from oracle reward statistics (mean and variance), which introduces an indirect dependence on the outcome variable into the sampling design.
 This enriches the holdout for prompts with clear model preferences.
-The \emph{existence} of the correlation is robust (Router PCA exceeds all 100 random projections on the same holdout); the \emph{magnitude} of $\rho$ in deployment will depend on the user's prompt distribution.
+
+\paragraph{Stratification sensitivity.}
+The \emph{relative} comparison between Router PCA and random projections is unaffected by stratification: both conditions are evaluated on the identical holdout, so any enrichment affects both equally.
+The \emph{absolute} magnitude of $\rho$ may be inflated relative to an unstratified sample, since enriching for ``Contentious'' prompts increases the proportion with non-zero reward gaps.
+The \emph{existence} of the signal is robust (Router PCA exceeds all 100 random projections); the \emph{magnitude} of $\rho$ in deployment will depend on the user's prompt distribution.
 
 \subsubsection{Summary}
 
@@ -76,7 +80,7 @@ The \emph{existence} of the correlation is robust (Router PCA exceeds all 100 ra
     \item \textbf{Correlation-based design:} Spearman $\rho$ directly tests whether features predict model preference---matching how the bandit uses features
     \item \textbf{Null baseline:} 100 random orthonormal projections provide the null distribution of $|\rho|$
     \item \textbf{Data independence:} PCA trained on RouteLLM battles (separate dataset from holdout); no contamination
-    \item \textbf{Conservative:} PC1 only; the router uses all 33 components, so the full signal is at least as strong
+    \item \textbf{Conservative:} PC1 only; the router uses all 32 components, so the full signal is at least as strong
     \item \textbf{One hypothesis:} No multiplicity correction needed
     \item \textbf{Generalizability:} Stratified holdout enriches for signal; production magnitude is deployment-dependent
 \end{enumerate}

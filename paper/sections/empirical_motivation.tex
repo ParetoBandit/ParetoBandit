@@ -55,7 +55,7 @@ Qualitative inspection of prompts at the high end of the PC1 axis---where Mixtra
 We note that while these patterns are consistent with the hypothesis that RLHF alignment toward helpfulness may conflict with strict formatting constraints, \textbf{this causal mechanism has not been verified through controlled experiments} (e.g., comparing RLHF-tuned vs.\ base model responses). Alternative explanations---such as differences in instruction-following fine-tuning, decoding strategies, or evaluator biases---remain possible.
 
 \paragraph{Statistical Validation.}
-The Spearman correlation ($\rho = -0.370$, $p < 0.0001$) is the primary metric, chosen because it directly tests the question the bandit needs answered: do the features predict model preference? This matches how BanditGPT uses features (LinUCB regression), without introducing artificial clustering or thresholds. PC1 is a conservative lower bound on the full feature vector's predictive power, since the router uses all 33 PCA components.
+The Spearman correlation ($\rho = -0.370$, $p < 0.0001$) is the primary metric, chosen because it directly tests the question the bandit needs answered: do the features predict model preference? This matches how BanditGPT uses features (LinUCB regression), without introducing artificial clustering or thresholds. PC1 is a conservative lower bound on the full feature vector's predictive power, since the router uses all 32 PCA components.
 
 A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the directional finding ($p < 0.0001$). All analyses use the held-out test set exclusively ($N=750$), with the PCA model trained on a disjoint set of 80K prompts.
 

@@ -40,8 +40,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import silhouette_score
-from scipy.stats import spearmanr, mannwhitneyu, chi2_contingency
+from scipy.stats import spearmanr, mannwhitneyu
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
@@ -99,6 +98,37 @@ def compute_spearman(pc1, reward_gaps):
     """
     rho, p = spearmanr(pc1, reward_gaps)
     return rho, p
+
+
+def bootstrap_spearman_ci(pc1, reward_gaps, n_bootstrap=10000, ci=0.95, seed=42):
+    """Compute bootstrap confidence interval for Spearman rho.
+
+    Uses case resampling (resample paired observations with replacement)
+    to estimate the sampling distribution of Spearman rho.
+
+    Args:
+        pc1: array of PC1 values
+        reward_gaps: array of reward gaps
+        n_bootstrap: number of bootstrap resamples
+        ci: confidence level (default 0.95 for 95% CI)
+        seed: random seed for reproducibility
+
+    Returns:
+        ci_low: lower bound of CI
+        ci_high: upper bound of CI
+        boot_rhos: array of bootstrap rho estimates
+    """
+    rng = np.random.RandomState(seed)
+    n = len(pc1)
+    boot_rhos = np.empty(n_bootstrap)
+    for i in range(n_bootstrap):
+        idx = rng.randint(0, n, size=n)
+        boot_rhos[i], _ = spearmanr(pc1[idx], reward_gaps[idx])
+
+    alpha = 1 - ci
+    ci_low = np.percentile(boot_rhos, 100 * alpha / 2)
+    ci_high = np.percentile(boot_rhos, 100 * (1 - alpha / 2))
+    return ci_low, ci_high, boot_rhos
 
 
 def random_projection_distribution(embeddings, reward_gaps, n_seeds=100):
@@ -269,9 +299,14 @@ def main():
     rho, p_rho = compute_spearman(pc1, reward_gaps)
     rho_abs = abs(rho)
 
+    # Bootstrap 95% CI
+    ci_low, ci_high, boot_rhos = bootstrap_spearman_ci(pc1, reward_gaps)
+    ci_str = f"95% CI [{ci_low:.3f}, {ci_high:.3f}]"
+
     p_str = f"p < 0.0001" if p_rho < 0.0001 else f"p = {p_rho:.4f}"
     print(f"\n  Router PCA (PC1 vs reward gap):")
     print(f"    Spearman rho = {rho:.3f}  ({p_str})")
+    print(f"    {ci_str}")
     print(f"    |rho|         = {rho_abs:.3f}")
     print(f"    N             = {len(reward_gaps)}")
 
@@ -321,15 +356,13 @@ def main():
     print("=" * 80)
 
     blue, red, grey = '#4575b4', '#d73027', '#888888'
-    green = '#2ca02c'
 
     fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(14, 6.2),
-        gridspec_kw={'width_ratios': [1.6, 1], 'wspace': 0.32}
+        1, 2, figsize=(14, 6),
+        gridspec_kw={'width_ratios': [1.5, 1], 'wspace': 0.30}
     )
 
     # ── Panel A: PC1 vs Reward Gap ───────────────────────────────────────
-    # Color by outcome for visual clarity
     outcomes = np.array([categorize_gap(g) for g in reward_gaps])
     for outcome, color, marker_label in [
         ('Tie', grey, 'Tie'),
@@ -339,7 +372,7 @@ def main():
         mask = outcomes == outcome
         ax1.scatter(
             pc1[mask], reward_gaps[mask],
-            c=color, s=18, alpha=0.5, edgecolors='none',
+            c=color, s=16, alpha=0.45, edgecolors='none',
             rasterized=True, zorder=2,
             label=f'{marker_label} ({int(mask.sum())})'
         )
@@ -347,87 +380,124 @@ def main():
     # Running mean trend line
     rm_x, rm_y = running_mean(pc1, reward_gaps, window=60)
     ax1.plot(rm_x, rm_y, color='black', linewidth=2.5, zorder=4,
-             label='Running mean')
+             label='Running mean (w=60)')
 
     ax1.axhline(y=0, color=grey, linestyle=':', linewidth=1.0,
                 alpha=0.6, zorder=1)
 
-    # Annotation: Spearman rho
+    # Annotation: Spearman rho — positioned in lower-left, above y=-1 band
     rho_label = (
         f"Spearman $\\rho$ = {rho:.3f}\n"
-        f"{p_str}\n"
-        f"N = {len(reward_gaps)}"
+        f"95% CI [{ci_low:.3f}, {ci_high:.3f}]\n"
+        f"{p_str},  N = {len(reward_gaps)}\n"
+        f"Exceeds {len(random_rhos)}/{len(random_rhos)} random proj."
     )
     ax1.text(
-        0.97, 0.97, rho_label, transform=ax1.transAxes,
-        fontsize=9, verticalalignment='top', horizontalalignment='right',
+        0.03, 0.15, rho_label, transform=ax1.transAxes,
+        fontsize=8.5, verticalalignment='bottom', horizontalalignment='left',
         bbox=dict(boxstyle='round,pad=0.4', facecolor='#f5f5f5',
                   edgecolor='#cccccc', alpha=0.95),
         fontweight='bold'
     )
 
-    ax1.text(
-        0.98, 0.02,
-        'Outcomes are discrete (win=+1, tie=0, loss=\u22121);\n'
-        'running mean smooths proportions.',
-        transform=ax1.transAxes, fontsize=6.5, color='#666666',
-        verticalalignment='bottom', horizontalalignment='right',
-        fontstyle='italic',
-    )
-
     ax1.set_xlabel('PC1 (router PCA, trained on RouteLLM battles)',
-                    fontsize=11, fontweight='bold')
+                    fontsize=10, fontweight='bold')
     ax1.set_ylabel('Reward gap  (GPT-4-Turbo \u2212 Mixtral)',
-                    fontsize=11, fontweight='bold')
+                    fontsize=10, fontweight='bold')
     ax1.set_title('(A)  Features Predict Model Preference',
-                   fontsize=13, fontweight='bold', pad=10)
-    ax1.legend(loc='upper left', fontsize=7.5, framealpha=0.97,
-               edgecolor='#cccccc', fancybox=True, borderpad=0.5,
-               bbox_to_anchor=(0.0, 0.78))
+                   fontsize=12, fontweight='bold', pad=8)
+    ax1.legend(loc='upper right', fontsize=7, framealpha=0.95,
+               edgecolor='#cccccc', fancybox=True, borderpad=0.4,
+               handletextpad=0.4, labelspacing=0.3)
     ax1.grid(alpha=0.15, linestyle='--', linewidth=0.5)
     ax1.set_xlim(pc1.min() - 0.03, pc1.max() + 0.03)
-    ax1.set_ylim(-1.25, 1.25)
+    ax1.set_ylim(-1.35, 1.35)
 
-    # ── Panel B: Router PCA rho vs Random Projection Distribution ────────
-    ax2.hist(random_rhos, bins=20, color=grey, alpha=0.7,
-             edgecolor='white', linewidth=0.8,
-             label=f'Random projections (N={N_RANDOM})')
+    # ── Panel B: Conditional Win Rates by PC1 Quintile ─────────────────
+    n_bins = 5
+    bin_edges = np.percentile(pc1, np.linspace(0, 100, n_bins + 1))
+    bin_edges[0] -= 1e-6
+    bin_edges[-1] += 1e-6
 
-    ax2.axvline(x=rho_abs, color=red, linewidth=3, linestyle='-',
-                label=f'Router PCA |$\\rho$| = {rho_abs:.3f}', zorder=5)
+    gpt4_fracs, tie_fracs, mixtral_fracs, bin_ns = [], [], [], []
 
-    # Mark the median of random
-    ax2.axvline(x=rho_median, color=grey, linewidth=1.5, linestyle='--',
-                label=f'Random median = {rho_median:.3f}', zorder=4)
+    for i in range(n_bins):
+        mask = (pc1 >= bin_edges[i]) & (pc1 < bin_edges[i + 1])
+        gaps_bin = reward_gaps[mask]
+        n_bin = len(gaps_bin)
+        bin_ns.append(n_bin)
+        cats = [categorize_gap(g) for g in gaps_bin]
+        gpt4_fracs.append(cats.count('GPT-4T wins') / n_bin * 100)
+        tie_fracs.append(cats.count('Tie') / n_bin * 100)
+        mixtral_fracs.append(cats.count('Mixtral wins') / n_bin * 100)
 
-    ax2.set_xlabel('|Spearman $\\rho$|  (PC1 vs reward gap)',
-                    fontsize=11, fontweight='bold')
-    ax2.set_ylabel('Count', fontsize=11, fontweight='bold')
-    ax2.set_title('(B)  Signal vs. Null Baseline',
-                   fontsize=13, fontweight='bold', pad=12)
+    gpt4_arr = np.array(gpt4_fracs)
+    tie_arr = np.array(tie_fracs)
+    mixtral_arr = np.array(mixtral_fracs)
 
-    # Annotation: signal ratio
-    n_exceeds_label = len(random_rhos) if n_exceed == 0 else len(random_rhos) - n_exceed
-    ratio_text = (
-        f"Signal: {signal_ratio:.1f}x median\n"
-        f"Exceeds {n_exceeds_label}/{len(random_rhos)} random"
+    x_pos = np.arange(n_bins)
+    bar_width = 0.6
+
+    # Stacked bars
+    ax2.bar(x_pos, gpt4_arr, bar_width, color=blue, alpha=0.85,
+            label='GPT-4T wins', edgecolor='white', linewidth=0.5)
+    ax2.bar(x_pos, tie_arr, bar_width, bottom=gpt4_arr,
+            color='#d0d0d0', alpha=0.85,
+            label='Tie', edgecolor='white', linewidth=0.5)
+    ax2.bar(x_pos, mixtral_arr, bar_width,
+            bottom=gpt4_arr + tie_arr, color=red, alpha=0.85,
+            label='Mixtral wins', edgecolor='white', linewidth=0.5)
+
+    # Percentage labels (only if segment is tall enough: >= 8%)
+    for i in range(n_bins):
+        if gpt4_arr[i] >= 8:
+            ax2.text(x_pos[i], gpt4_arr[i] / 2,
+                     f'{gpt4_arr[i]:.0f}%', ha='center', va='center',
+                     fontsize=7, fontweight='bold', color='white')
+        tie_y = gpt4_arr[i] + tie_arr[i] / 2
+        if tie_arr[i] >= 15:
+            ax2.text(x_pos[i], tie_y,
+                     f'{tie_arr[i]:.0f}%', ha='center', va='center',
+                     fontsize=7, fontweight='bold', color='#444444')
+        if mixtral_arr[i] >= 8:
+            mix_y = gpt4_arr[i] + tie_arr[i] + mixtral_arr[i] / 2
+            ax2.text(x_pos[i], mix_y,
+                     f'{mixtral_arr[i]:.0f}%', ha='center', va='center',
+                     fontsize=7, fontweight='bold', color='white')
+
+    # Clean single-line x-tick labels: "Q1 (n=150)"
+    x_labels = [f'Q{i+1} (n={bin_ns[i]})' for i in range(n_bins)]
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(x_labels, fontsize=8.5)
+
+    # Directional annotation below x-axis
+    ax2.annotate(
+        '', xy=(n_bins - 0.7, -8), xytext=(-0.3, -8),
+        arrowprops=dict(arrowstyle='->', color='#555555', lw=1.2),
+        annotation_clip=False
     )
     ax2.text(
-        0.03, 0.97, ratio_text, transform=ax2.transAxes,
-        fontsize=9, verticalalignment='top', horizontalalignment='left',
-        bbox=dict(boxstyle='round,pad=0.4', facecolor='#fff0f0',
-                  edgecolor=red, alpha=0.95),
-        fontweight='bold'
+        (n_bins - 1) / 2, -13,
+        'PC1 increasing  \u2192  Mixtral preference grows',
+        ha='center', va='top', fontsize=7.5, color='#555555',
+        fontstyle='italic', clip_on=False
     )
 
-    ax2.legend(loc='upper right', fontsize=7.5, framealpha=0.95,
-               edgecolor='#cccccc', fancybox=True)
-    ax2.grid(axis='y', alpha=0.15, linestyle='--', linewidth=0.5)
+    ax2.set_xlabel('')  # Arrow + text serve as x-axis label
+    ax2.set_ylabel('Outcome proportion (%)',
+                    fontsize=10, fontweight='bold')
+    ax2.set_title('(B)  Routing Opportunity by Feature Region',
+                   fontsize=12, fontweight='bold', pad=8)
+    ax2.set_ylim(0, 105)
+    ax2.legend(loc='upper left', fontsize=7, framealpha=0.95,
+               edgecolor='#cccccc', fancybox=True, borderpad=0.4,
+               handletextpad=0.4, labelspacing=0.3)
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
+    ax2.grid(axis='y', alpha=0.15, linestyle='--', linewidth=0.5)
 
     # ── Save ──────────────────────────────────────────────────────────────
-    fig.subplots_adjust(left=0.08, right=0.97, bottom=0.14, top=0.93)
+    fig.subplots_adjust(left=0.07, right=0.97, bottom=0.15, top=0.93)
     out_300 = output_dir / "figure1_lmsys_holdout_pca.png"
     fig.savefig(out_300, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"\nSaved: {out_300}")
@@ -445,6 +515,7 @@ def main():
           f"trained on 80K RouteLLM battles)")
     print(f"\n  CLAIM 1: Features predict model preference")
     print(f"    Spearman rho (PC1 vs reward gap) = {rho:.3f}, {p_str}")
+    print(f"    Bootstrap {ci_str}")
     print(f"\n  CLAIM 2: Signal exceeds null baseline")
     print(f"    Router PCA |rho| = {rho_abs:.3f}")
     print(f"    Random projection |rho|: median = {rho_median:.3f}, "

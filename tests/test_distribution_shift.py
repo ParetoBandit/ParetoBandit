@@ -460,9 +460,9 @@ class TestSensitivityAnalysis:
         """Test that sensitivity analysis returns correct structure."""
         np.random.seed(42)
         
-        # Create synthetic PCA-like feature data (32 dimensions matching router output)
-        features_source = np.random.normal(0.1, 1.0, (500, 32))
-        features_routellm = np.random.normal(-0.05, 0.9, (500, 32))
+        # Create synthetic PCA-like feature data (33 dimensions matching router output: 32 PCA + 1 bias)
+        features_source = np.random.normal(0.1, 1.0, (500, 33))
+        features_routellm = np.random.normal(-0.05, 0.9, (500, 33))
         
         # Mock PCA stats
         pca_stats = {
