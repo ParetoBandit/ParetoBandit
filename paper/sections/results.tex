@@ -55,7 +55,7 @@ These results suggest clear deployment guidelines:
     \begin{itemize}[nosep]
         \item \emph{No labeled routing data exists} for the target domain---banditGPT requires zero labels, learning from its own routing outcomes.
         \item \emph{The prompt distribution shifts} over time (new users, new tasks, seasonal changes)---banditGPT adapts continuously while RouteLLM is frozen at training time.
-        \item \emph{New models enter the portfolio}---banditGPT's zero-shot adoption mechanism (Section~\ref{sec:zero_shot}) integrates new models online, while RouteLLM requires retraining.
+        \item \emph{New models enter the portfolio}---banditGPT's semantic transfer mechanism (Section~\ref{sec:methodology}) integrates new models online via learned priors from semantic neighbors, while RouteLLM requires retraining.
         \item \emph{Maximum quality is the priority}---after a short burn-in (${\sim}400$ prompts), banditGPT's adaptive policy surpasses what supervised pre-training can achieve with $250\times$ more data.
     \end{itemize}
 \end{enumerate}
@@ -140,27 +140,13 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 \subsection{Robustness and Adaptation}
 \label{sec:robustness_adaptation}
 
-Production systems additionally require safety under prior mismatch, rapid failure detection, and zero-shot model adoption. We summarize the key findings here; full experimental details, figures, and statistical tests appear in Appendices~\ref{app:adaptation_details} and~\ref{app:multiseed_sensitivity}.
+Production systems additionally require safety under prior mismatch and rapid failure detection. We summarize the key findings here; full experimental details, figures, and statistical tests appear in Appendices~\ref{app:adaptation_details} and~\ref{app:multiseed_sensitivity}.
 
 \subsubsection{Catastrophic Failure Detection}
 
 We evaluated Corralling's response to sudden model degradation on a \textbf{5-model portfolio} ($K{=}5$, $N{=}20$ seeds) where GPT-4-Turbo quality drops from $\mu{=}0.82$ to $\mu{=}0.15$ (Cohen's $d{\approx}5.0$) while four alternatives remain healthy. Corralling detects the failure in 95\% of seeds (median 34 steps) and partially recovers---but a simple EMA tracker reacts faster (reward $0.735$ vs.\ $0.646$ during failure, $\Delta{=}{-}0.090$). Notably, this gap \textbf{narrows monotonically with portfolio size}: $\Delta{=}{-}0.286$ at $K{=}2$, ${-}0.154$ at $K{=}3$, ${-}0.090$ at $K{=}5$. EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) spreads thinner, while Corralling's contextual routing becomes more valuable when post-failure routing is a multi-model decision.
 
 \emph{Practical distinction:} The two methods differ not only in speed but in \emph{how} they redistribute traffic after failure. EMA concentrates 63\% of failure-phase traffic on a single fallback model, creating a new single point of failure. Corralling distributes traffic roughly uniformly (${\sim}20\%$ each) across the four healthy models based on per-prompt context, providing both load balancing and context-dependent quality. This suggests a complementary deployment architecture: lightweight EMA or CUSUM detectors for rapid model-level alerting, with Corralling handling the actual contextual traffic redistribution. Full dynamics and practical deployment recommendations in Appendix~\ref{app:catastrophic_failure}.
-
-\subsubsection{Zero-Shot Model Adoption}
-\label{sec:zero_shot}
-
-When a new model (\texttt{gpt-5.1}) is released at $t=300$, semantic transfer from its nearest neighbor (GPT-4-Turbo) provides measurable short-term benefit. Across $N=30$ trials with paired statistical testing:
-
-\begin{itemize}[nosep]
-    \item Transfer vs cold start: $\Delta=+3.2\%$, $t_{29}=4.20$, $p=0.0002$, Cohen's $d=0.77$
-    \item Post-release improvement: $+0.62$ reward ($t_{29}=6.93$, $p<10^{-7}$, Cohen's $d=1.26$)
-\end{itemize}
-
-The mechanism appears to be \textbf{implicit regularization} (symmetry breaking via $26\times$ higher initial variance) rather than semantic accuracy transfer---the benefit is content-agnostic, meaning \emph{any} strong prior with meaningful variance accelerates adoption. With only $N=3$ models, we lack the statistical power to test whether embedding similarity predicts task-level transfer quality; this remains an open question requiring a larger model portfolio. Full ablation and mechanism analysis in Appendix~\ref{app:zero_shot_details}.
-
-\paragraph{Evaluation limitation.} This experiment evaluates on the same data stream used for online learning (standard for bandit regret analysis). While we report $N=30$ trials with paired tests and Bonferroni correction, the reward metrics reported here conflate learning with generalization. A router that memorizes prompt-to-model mappings would score well without generalizing. We do not have a held-out test set for this experiment; future work should evaluate zero-shot transfer on unseen prompts to establish generalization.
 
 \subsubsection{Hyperparameter Sensitivity}
 \label{sec:sensitivity}

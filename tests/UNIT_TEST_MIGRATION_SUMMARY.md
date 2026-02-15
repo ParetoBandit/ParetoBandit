@@ -1,7 +1,7 @@
 # Unit Test Migration Summary
 
 ## Overview
-Migrated experiment-specific tests from `experiments_v1/` to proper unit tests in `tests/` that test the core `router.py` functionality.
+Migrated experiment-specific tests from `experiments/` to proper unit tests in `tests/` that test the core `router.py` functionality.
 
 ## What Was Done
 
@@ -74,15 +74,15 @@ Comprehensive tests for CorrallingRouter meta-learning algorithm:
 
 Removed test files that were testing experiment scripts rather than core router functionality:
 
-#### From `experiments_v1/04_figure/`:
+#### From `experiments/04_figure/`:
 - ✅ `test_optimized_config.py` (425 lines) - Now covered by `test_calibration.py`
 - ✅ `test_corralling.py` (283 lines) - Now covered by `test_corralling_comprehensive.py`
 - ✅ `test_semantic_transfer.py` (429 lines) - Semantic transfer function was experiment-specific
 
-#### From `experiments_v1/06_figure/supplementary/`:
+#### From `experiments/06_figure/supplementary/`:
 - ✅ `test_realistic_10k_samples.py` (165 lines) - Now covered by `test_corralling_comprehensive.py`
 
-#### From `experiments_v1/05_figure/.archive/`:
+#### From `experiments/05_figure/.archive/`:
 - ✅ `test_bandit_only.py` (248 lines)
 - ✅ `test_bandit_best_params.py` (227 lines)
 - ✅ `test_pareto_frontier.py` (188 lines)
@@ -136,7 +136,6 @@ tests/test_router_algorithms.py ................ 30+ passed
 
 ## Notes
 
-- The file `experiments_v1/07_figure/plot_negative_transfer_test.py` was kept as it's a plotting script, not a unit test
 - Some existing tests in `test_router_algorithms.py` have pre-existing failures unrelated to this migration
 - All new tests follow pytest conventions with clear test names and docstrings
 - Mock experts are used to isolate CorrallingRouter behavior from actual expert implementations

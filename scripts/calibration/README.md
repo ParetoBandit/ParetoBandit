@@ -86,8 +86,8 @@ router.save("my_router_updated.joblib")
 ## Documentation
 
 - **Library API**: See `src/bandit_gpt/calibration.py` for detailed docstrings
-- **Research artifacts**: See `experiments_v1/calibration/` for paper documentation
-- **Complete guide**: See `experiments_v1/calibration/README.md` for detailed workflow
+- **Research artifacts**: See `experiments/calibration/` for paper documentation
+- **Complete guide**: See `experiments/calibration/README.md` for detailed workflow
 
 ## File Structure
 
@@ -100,7 +100,7 @@ scripts/calibration/
 src/bandit_gpt/
 └── calibration.py            # Library: CalibratedRouter, helpers
 
-experiments_v1/calibration/
+experiments/calibration/
 ├── README.md                 # Complete calibration guide
 ├── FINAL_RESULTS_SUMMARY.md  # Paper results
 └── results/                  # Experimental outputs
@@ -146,7 +146,7 @@ python3 calibrate_router.py \
 ## Support
 
 For issues or questions:
-1. Check the complete guide: `experiments_v1/calibration/README.md`
+1. Check the complete guide: `experiments/calibration/README.md`
 2. Review library docstrings: `src/bandit_gpt/calibration.py`
 3. Open an issue on GitHub
 

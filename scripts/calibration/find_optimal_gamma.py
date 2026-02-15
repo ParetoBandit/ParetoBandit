@@ -794,7 +794,7 @@ Next Steps:
     with open(caption_file, 'w') as f:
         f.write(f"""\\begin{{figure}}[t]
 \\centering
-\\includegraphics[width=\\textwidth]{{experiments_v1/03_figure/results/optimal_gamma_analysis.pdf}}
+\\includegraphics[width=\\textwidth]{{experiments/03_figure/results/optimal_gamma_analysis.pdf}}
 \\caption{{%
 \\textbf{{Optimal Gamma Calibration Analysis.}}
 We systematically evaluate {len(args.gamma_values)} gamma values to determine the optimal covariance inflation factor for domain adaptation.
@@ -966,7 +966,7 @@ With optimal gamma, {len(calibration_data):,} calibration samples ({(len(calibra
 ## Reproducing Results
 
 ```bash
-cd experiments_v1/03_figure
+cd experiments/03_figure
 
 # Basic usage (uses defaults from config_legacy.py)
 python find_optimal_gamma.py --output results/
@@ -1023,7 +1023,7 @@ This figure supports:
     print(f"   1. Review plots in: {output_dir}/optimal_gamma_analysis.pdf")
     print(f"   2. Read analysis in: {readme_file}")
     print(f"   3. Use with calibrate_router.py --gamma {recommended_gamma:.3f}")
-    print(f"   4. Include in paper using: \\input{{experiments_v1/03_figure/results/figure_caption.tex}}")
+    print(f"   4. Include in paper using: \\input{{experiments/03_figure/results/figure_caption.tex}}")
     print("="*80)
 
 

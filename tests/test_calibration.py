@@ -2,7 +2,7 @@
 Unit tests for calibration module functions.
 
 Tests gamma scaling, embedding, and SimpleLinUCBRouter used in experiments.
-Based on experiments from experiments_v1/04_figure/ but testing core functions.
+Based on experiments from experiments/04_figure/ but testing core functions.
 """
 
 import sys

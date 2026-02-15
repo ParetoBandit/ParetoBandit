@@ -112,7 +112,7 @@ class RegistrationConfig:
     
     Scientific Justification (Conference - Hyperparameter Sensitivity Analysis):
     All parameters validated via sensitivity analysis (Appendix D/E):
-    - n_effective: Robust across [1.0, 20.0] range (Figure 7)
+    - n_effective: Robust across [1.0, 20.0] range (Appendix C/Figure 8)
     - Bias terms: Derived from cost asymmetry (30x price differential)
     
     Key Finding: Performance driven by semantic neighbor accuracy (θ_neighbor),
@@ -139,7 +139,7 @@ class RegistrationConfig:
     default_latency_s: float = 2.0      # Assume slow (2s)
     
     # [Paper FIGURE 8]: Latent Semantic Transfer - Prior Strength Calibration
-    # Validated via adaptive expert selection analysis (experiments_v1/08_figure/plot_expert_selection_analysis.py)
+    # Validated via adaptive expert selection analysis (experiments/08_figure/plot_expert_selection_analysis.py)
     # Key Finding: Corralling meta-learning adaptively chooses between semantic transfer (warmup expert)
     #              and cold-start exploration (tabula rasa expert) based on data match with priors.
     #              n_effective only matters when warmup expert is active (~33% of traffic patterns).
@@ -160,7 +160,7 @@ class RouterConfig:
     ✅ **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
     
     **Conference - Scientific Validation (Figure 8):**
-    All hyperparameters validated via sensitivity analysis (experiments_v1/08_figure):
+    All hyperparameters validated via sensitivity analysis (experiments/08_figure):
     
     1. **Latent Semantic Transfer (n_effective)**:
        - Tested range: [1.0, 2.0, 5.0, 10.0, 20.0] on real LMSYS Arena data
@@ -1477,14 +1477,11 @@ class BanditRouter:
             neighbor, similarity = self._find_semantic_neighbor(model_id, dna_str)
             
             # [Paper APPENDIX D/E]: Dynamic n_effective based on similarity confidence
-            # Validated via sensitivity analysis (experiments_v1/07_figure/plot_sensitivity.py)
+            # Validated via sensitivity analysis (experiments/08_figure/)
             # 
-            # Key Finding (Figure 7): ALL n_effective values [1.0, 20.0] produce 
-            # IDENTICAL performance (+39.2% vs Cold Start, p<0.001)
-            # 
-            # Interpretation: Performance driven by θ_neighbor accuracy (semantic match),
-            # not n_effective magnitude. The variance reduction (confidence scaling) is
-            # sufficient regardless of prior strength.
+            # Key Finding: n_effective exhibits regime-dependent effects.
+            # Robustness comes from Corralling's adaptive expert selection,
+            # not parameter insensitivity.
             # 
             # Strategy: Use similarity as proxy for θ_neighbor quality, not n_effective tuning
             reg_config = self.config.registration
@@ -1796,9 +1793,9 @@ class BanditRouter:
         - Scaling BOTH A and b preserves mean prediction while scaling variance
         - By using n_effective * I, we control confidence without distorting preferences
         
-        **Hyperparameter Sensitivity (Figures 7-8, Appendix E):**
-        [Paper REVIEW FIX]: While Figure 7 shows robustness in balanced regimes, Figure 8
-        reveals sensitivity in WARMUP-DOMINANT scenarios (limited online data):
+        **Hyperparameter Sensitivity (Figure 8, Appendix E):**
+        [Paper REVIEW FIX]: Figure 8 reveals regime-dependent sensitivity—n_eff matters
+        in WARMUP-DOMINANT scenarios (limited online data) but is irrelevant in tabula rasa:
         
         - n_effective = 0.1-1.0: Weak prior → More exploration, slower convergence
           → BEST when neighbor similarity is uncertain or data distribution shifts
@@ -1930,8 +1927,8 @@ class BanditRouter:
             # Result: θ_hat = A^-1 @ b = (n*λI)^-1 @ (n*λθ) = θ (mean preserved!)
             #         Var(θ_hat) ∝ 1/n_effective (confidence increases with n)
             # 
-            # Sensitivity Analysis (Figure 7): ALL n_effective ∈ [1.0, 20.0] identical
-            # Conclusion: Robustness validates theoretical correctness
+            # Sensitivity Analysis (Figure 8): n_effective exhibits regime-dependent effects
+            # Conclusion: Robustness comes from adaptive expert selection
             
             A_new = n_effective * bandit.init_lambda * np.eye(bandit.dim)  # Scale Precision
             b_new = n_effective * bandit.init_lambda * theta_neighbor  # Scale Moment
@@ -3297,7 +3294,7 @@ class CorrallingRouter:
     - Decisiveness: Achieves lowest minimum weights (~10^-4), indicating strong adaptation
       (allocates 80-90%+ weight to the higher-reward expert based on empirical performance)
     - Predictability: 45% lower outcome variance vs. gamma=0.0
-    - See: experiments_v1/03_figure/results/gamma_ablation/ for full analysis
+    - See: experiments/03_figure/results/gamma_ablation/ for full analysis
     
     **Computational Overhead:**
     - Memory: 2x (store two sets of A/b matrices)
@@ -3339,7 +3336,7 @@ class CorrallingRouter:
         experts: List,
         models: List[str],
         learning_rate: float = 0.1,
-        gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments_v1/03_figure/results/gamma_ablation/)
+        gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments/03_figure/results/gamma_ablation/)
         loss_decay: float = 0.999,  # [FIX] Meta-level adaptation decay
         meta_lr_halflife: float = 60.0,  # Staleness half-life in seconds for delayed feedback
         initial_weights: Optional[np.ndarray] = None,  # Prior-trust bias
@@ -3398,7 +3395,7 @@ class CorrallingRouter:
                        encodes "prior trust" — the belief that priors are
                        likely correct.  This reduces overhead when priors are
                        good but increases recovery time when they are bad.
-                       See experiments_v1/03_figure for the full trade-off.
+                       See experiments/03_figure for the full trade-off.
             model_costs: Optional dict mapping model_id to {"normalized_cost": float}.
                        Required when cost_weight > 0. Costs should be in [0, 1],
                        normalized using log-scale market anchors (see RouterConfig).

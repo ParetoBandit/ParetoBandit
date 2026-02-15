@@ -348,7 +348,7 @@ for m in models:
 # ──────────────────────────────────────────────────────────────────────
 section("5. VERIFY STORED EXPERIMENT RESULTS")
 
-results_dir = Path(__file__).parent.parent / "experiments_v1/02_table/data"
+results_dir = Path(__file__).parent.parent / "experiments/02_table/data"
 
 for eta_label in ["eta_0.1_holdout_multiseed_FIXED", "eta_1.0_holdout_multiseed_FIXED"]:
     rpath = results_dir / eta_label / "results_multiseed.json"

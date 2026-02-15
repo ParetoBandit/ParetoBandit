@@ -67,7 +67,7 @@ Our work makes three contributions, validated through comprehensive experimentat
     Introduction of Expert Corralling~\cite{agarwal2017corralling} to the routing domain as safety insurance against prior mismatch. Corralling adaptively hedges between warmup and tabula rasa experts, providing bounded-cost protection against catastrophic prior failure while adding only modest overhead when priors are well-calibrated.
     
     \item \textbf{Integrated Production System:}
-    $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM) with catastrophic failure detection as a secondary safety benefit (95\% detection at $K{=}5$, gap vs.\ EMA narrows monotonically with portfolio size), zero-shot model adoption ($+0.62$ reward, $p<10^{-7}$), and multi-seed statistical testing ($N{=}20$--$30$).
+    $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM) with catastrophic failure detection as a secondary safety benefit (95\% detection at $K{=}5$, gap vs.\ EMA narrows monotonically with portfolio size), semantic transfer for new model integration (Figure~\ref{fig:corralling_semantic}), and multi-seed statistical testing ($N{=}20$--$30$).
 \end{enumerate}
 
 The remainder is organized as follows. Section~\ref{sec:motivation} establishes the empirical motivation (semantic structure and model preference heterogeneity). Section~\ref{sec:methodology} describes the integrated system. Sections~\ref{sec:experiments}--\ref{sec:results} present experimental validation with the Pareto frontier as the primary benchmark. Section~\ref{sec:related} surveys related work; Section~\ref{sec:conclusion} discusses limitations and future directions. Extended results and sensitivity analyses appear in the appendices.

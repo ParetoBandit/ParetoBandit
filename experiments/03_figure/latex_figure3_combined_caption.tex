@@ -1,0 +1,56 @@
+% ============================================================================
+% Figure 3: Prior Quality Degradation and Adaptive Weights (2-panel)
+% ============================================================================
+% THE main figure for Section 5.  All Corralling results use w₀=0.7.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{experiments/03_figure/results/figure3_prior_degradation.pdf}
+    \caption{%
+        \textbf{Strategy Crossover: When Does Adaptive Safety Pay Off?}
+        %
+        \textbf{(A)~Strategy Crossover.}
+        Cumulative regret vs prior corruption level~$\alpha$ for three
+        routing strategies ($N{=}20$ seeds per point, $\pm$1~std bands).
+        At $\alpha{=}0$ (correct priors), warmup-only achieves
+        30.0~$\pm$~2.0 regret---47\% lower than Corralling
+        (44.1~$\pm$~4.7).
+        As priors degrade toward adversarial ($\alpha{=}1$), warmup-only
+        regret increases sharply to 98+ while Corralling plateaus at
+        ${\sim}67$.
+        The curves cross near $\alpha{\approx}$\CrossoverWC{}.
+        Tabula rasa (flat line at ${\sim}49$) is prior-independent by
+        construction and dominates both strategies at high corruption.
+        %
+        \textbf{(B)~Adaptive Weight Evolution.}
+        Corralling's warmup expert weight over 750~queries at three
+        prior quality levels (starting from $w_0{=}0.7$).
+        With strong priors ($\alpha{=}0$, green), the meta-learner
+        correctly increases the warmup weight to ${\sim}90\%$.
+        With uninformative priors ($\alpha{=}0.5$, blue), weights
+        stabilise near ${\sim}75\%$.
+        With adversarial priors ($\alpha{=}1.0$, red), the meta-learner
+        reduces the warmup weight toward ${\sim}55\%$, partially
+        correcting for prior damage.
+        %
+        \textbf{Key insight:}
+        Corralling's regret range across the full corruption spectrum
+        (40--67) is 62\% narrower than warmup-only's (27--99), making
+        it the variance-minimising choice under genuine uncertainty.
+        Practitioners can validate prior quality on $N{=}100$--$200$
+        deployment samples and select the optimal strategy accordingly
+        (Table~\ref{tab:strategy_guide}).
+        %
+        Setup: 750-prompt LMSYS holdout, $\eta{=}\sqrt{\ln 2/750}{\approx}0.030$,
+        $\gamma{=}0.05$, $w_0{=}0.7$, $\alpha_{\text{UCB}}{=}2.0$.
+        Prior corruption interpolates between correct ($\alpha{=}0$) and
+        model-swapped ($\alpha{=}1$) priors.
+    }
+    \label{fig:prior_degradation}
+\end{figure}
+
+% Crossover value from prior degradation experiment (N=20 seeds, w₀=0.7).
+% At α=0.5 warmup and corralling are statistically tied (p=0.76).
+% At α=0.6 corralling significantly dominates (p<0.001).
+\providecommand{\CrossoverWC}{0.5}   % warmup → corralling crossover
+\providecommand{\CrossoverCT}{0.50}  % corralling → tabula rasa crossover (now ≈ same)

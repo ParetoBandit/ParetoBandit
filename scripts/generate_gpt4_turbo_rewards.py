@@ -476,7 +476,7 @@ def main(auto_confirm: bool = False):
     print(f"  - Holdout: {OUTPUT_HOLDOUT}")
     print(f"\nNext steps:")
     print(f"  1. Verify rewards: python -c 'import json; [print(json.loads(l)) for l in open(\"{OUTPUT_DEV}\")][:5]'")
-    print(f"  2. Run comparison: cd experiments_v1/11_routellm_comparison && python run_comparison.py")
+    print(f"  2. Run comparison: cd experiments/11_routellm_comparison && python run_comparison.py")
 
 
 if __name__ == "__main__":

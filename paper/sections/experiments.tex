@@ -13,7 +13,7 @@ To rigorously validate our integrated approach, we conduct experiments organized
 \textbf{Part II: Evaluation (Section~\ref{sec:results})}
 \begin{itemize}
     \item Figure~\ref{fig:pareto}: Pareto frontier analysis against baselines
-    \item Supporting results: catastrophic failure, zero-shot adoption, sensitivity (Appendix~\ref{app:adaptation_details})
+    \item Supporting results: catastrophic failure detection, sensitivity analysis (Appendix~\ref{app:adaptation_details})
 \end{itemize}
 
 In this section, we describe the experimental setup and protocols. We evaluate banditGPT in a realistic production environment, utilizing a large-scale dataset of real-world prompts, ground-truth rewards, and commercial inference costs.
@@ -32,7 +32,7 @@ We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023ju
     \item \textbf{Scaling (Spatial Validation)}: To examine structural persistence, we project the full Chat-1M dataset ($N=10^6$) onto our PCA space, confirming that spatial structure persists at scale (though this dataset lacks reward labels, limiting analysis to spatial properties only).
 \end{enumerate}
 
-\input{../experiments_v1/01_table/table1_dataset.tex}
+\input{../experiments/01_table/table1_dataset.tex}
 
 \subsection{Model Topology \& Baselines}
 

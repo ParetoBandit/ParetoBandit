@@ -417,11 +417,11 @@ Why Generic PCA?
     
     print(f"\n🚀 Next Steps:")
     print(f"\n   1. Re-run Figure 1 analysis with generic PCA:")
-    print(f"      python3 experiments_v1/01_figure/plot_lmsys_holdout_pca.py \\")
+    print(f"      python3 experiments/01_figure/plot_lmsys_holdout_pca.py \\")
     print(f"          --pca {output_file}")
     
     print(f"\n   2. Compare old vs new PCA results:")
-    print(f"      python3 experiments_v1/01_figure/compare_pca_models.py")
+    print(f"      python3 experiments/01_figure/compare_pca_models.py")
     
     print(f"\n   3. Update paper to cite generic PCA:")
     print(f"      - Mention circularity fix in Methods")

@@ -17,7 +17,7 @@ Predictive routers, such as RouteLLM~\cite{ong2024routellm}, train a classifier 
 
 \textbf{The Limitation}: These policies are static. As demonstrated in Section~5.1, they suffer from \emph{Prior Rigidity}: when the production distribution exhibits ``Quality Inversion'' (where cheap models outperform expensive ones on specific tasks), static routers fail to adapt, incurring an ``Over-Provisioning Penalty.'' Furthermore, they suffer from the Cold Start problem: adding a new model requires collecting thousands of new samples and retraining the router.
 
-\textbf{Our Approach}: banditGPT is an \emph{Online Learner}. Through continuous feedback, it updates its beliefs in real-time. Crucially, our Latent Semantic Transfer mechanism (Section~5.3) enables zero-shot admission of new models without the retraining bottleneck.
+\textbf{Our Approach}: banditGPT is an \emph{Online Learner}. Through continuous feedback, it updates its beliefs in real-time. Our Latent Semantic Transfer mechanism (Section~\ref{sec:methodology}) enables admission of new models by bootstrapping from learned priors of semantic neighbors, avoiding the retraining bottleneck.
 
 \subsection{Contextual Bandits in NLP}
 

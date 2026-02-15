@@ -88,85 +88,23 @@ Beyond the algorithmic comparison, this experiment reveals deployment-relevant d
 This experiment uses synthetic context-dependent rewards with abrupt phase transitions (Cohen's $d \approx 5.0$). Real-world model failures are typically gradual, ambiguous ($d < 0.5$), or partial (degradation on some task types only). The portfolio size scaling ($K{=}2,3,5$) uses different environment configurations, so the $\Delta$ trend should be interpreted as directional evidence rather than a precise scaling law.
 
 % ----------------------------------------------------------------------------
-% D.2: Zero-Shot Model Adoption - Extended Analysis
+% D.2: Two Operating Regimes
 % ----------------------------------------------------------------------------
 
-\subsection{Zero-Shot Model Adoption: Extended Analysis}
-\label{app:zero_shot_details}
-
-This section provides the full ablation and mechanism validation behind the zero-shot readiness results in Section~\ref{sec:zero_shot}.
-
-\paragraph{Experimental Setup.}
-We simulated the release of \texttt{gpt-5.1} at $t=300$ using conservative learning ($\eta=0.1$) with $N=30$ trials (seeds 42--71). Heterogeneous expert strategy (Conservative with $\alpha$ decay $1.0 \to 0.01$, Adaptive with $\alpha=2.0$ constant). Full-episode metrics ($t=0$--$800$) reported to avoid evaluation bias. \textbf{Design limitation:} The router trains and is evaluated on the same shuffled data stream. While this is standard for online bandit evaluation (regret analysis), the reward metrics reported here conflate learning with generalization. A held-out evaluation set for this experiment was not available; results should be interpreted as online learning performance rather than generalization guarantees.
-
-\paragraph{Ablation: Four Initialization Strategies.}
-Figure~\ref{fig:ablation} compares:
-\begin{enumerate}[nosep]
-    \item \textbf{Cold Start:} Pure exploration, slow convergence
-    \item \textbf{Warmup Only:} Priors for old models, cold start for new model
-    \item \textbf{Small LMSys Prior:} Realistic baseline with $N_{\text{eff}}=20$ preliminary benchmarks
-    \item \textbf{Semantic Transfer (Ours):} Inherits regularization from semantic neighbor
-\end{enumerate}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.95\columnwidth]{figures/figure6_ablation.png}
-\caption{\textbf{Zero-Shot Model Adoption Ablation ($\eta=0.1$).} When \texttt{gpt-4o} is introduced at $t=300$, semantic transfer (Blue) provides 3.2\% immediate benefit over cold start (Red) and 2.1\% over realistic baseline (Purple). Mechanism: implicit regularization via symmetry breaking ($26\times$ more initial variance), not semantic accuracy. Expert weights remain stable ($\sim$75\% Conservative, $\sim$25\% Adaptive as average across seeds), with individual seeds showing binary expert commitments (0\% or 100\%). ($N=30$ trials, 95\% CI, full episode metrics.)}
-\label{fig:ablation}
-\label{fig:multimodel}
-\label{fig:corralling_semantic}
-\end{figure}
-
-\paragraph{Mechanism Validation.}
-
-\textbf{Original Hypothesis (Inconclusive):} ``Semantic similarity predicts task-level performance correlation.''
-
-Direct measurement is \textbf{inconclusive due to insufficient sample size}:
-\begin{itemize}[nosep]
-    \item Correlation(embedding similarity, performance correlation) = $-0.38$, $p=0.75$ ($N=3$ models, 1 degree of freedom)
-    \item \textbf{Power limitation:} With only 3 models, this test has effectively zero statistical power. The non-significant result cannot be interpreted as evidence \emph{against} the hypothesis---it simply reflects that no correlation test with $N=3$ data points can achieve significance except in extreme cases. Testing this hypothesis meaningfully would require a substantially larger model portfolio.
-    \item GPT-4-Turbo and GPT-5.1 excel on completely different tasks (0\% overlap)
-    \item Magnitude transfer fails: GPT-4's preferences do not transfer ($r=-0.066$, $p=0.35$)
-\end{itemize}
-
-\textbf{Actual Mechanism (Validated):} \textbf{Implicit Regularization}
-\begin{itemize}[nosep]
-    \item \textbf{Symmetry Breaking:} Semantic prior provides $26\times$ more initial variance than cold start ($\sigma^2=0.1141$ vs $0.0000$)
-    \item \textbf{Exploration Acceleration:} Non-zero prior breaks symmetry in LinUCB's confidence ellipsoid
-    \item \textbf{Content-Agnostic:} Benefit does not require semantic prior to be \emph{correct}---any strong prior with meaningful variance helps
-\end{itemize}
-
-\paragraph{Statistical Results.}
-Paired t-tests with Bonferroni correction ($\alpha=0.05/4 = 0.0125$):
-\begin{itemize}[nosep]
-    \item Warmup+Transfer vs Cold Start: $\Delta=+3.2\%$, $t_{29}=4.20$, $p=0.0002$, Cohen's $d=0.77$
-    \item Warmup+Transfer vs Warmup Only: $\Delta=+0.29$, $t_{29}=4.20$, $p=0.0002$, Cohen's $d=0.77$
-    \item Post-release improvement: $+0.62$ reward units ($t_{29}=6.93$, $p<10^{-7}$, Cohen's $d=1.26$)
-\end{itemize}
-
-\paragraph{Expert Weight Dynamics.}
-Diagnostic analysis reveals individual seeds exhibit binary expert commitments (0\% or 100\%) rather than stable blending. The reported $\sim$75\%/$\sim$25\% Conservative/Adaptive split reflects heterogeneity \emph{across seeds}, not stable blending \emph{within seeds}. This binary switching is consistent with the regime-dependent behavior in Appendix~\ref{app:multiseed_sensitivity}.
-
-% ----------------------------------------------------------------------------
-% D.4: Three Operating Regimes
-% ----------------------------------------------------------------------------
-
-\subsection{Unified Framework: Three Operating Regimes}
+\subsection{Unified Framework: Two Operating Regimes}
 \label{sec:three_regimes}
 
-Our experimental program reveals that the Corralling learning rate ($\eta$) determines the adaptation regime, enabling different operational objectives. Rather than contradictory results, the experiments across Sections~\ref{sec:pareto}--\ref{sec:robustness_adaptation} demonstrate \textbf{complementary operating regimes}.
+Our experimental program reveals that the Corralling learning rate ($\eta$) determines the adaptation regime, enabling different operational objectives. The experiments across Sections~\ref{sec:pareto}--\ref{sec:robustness_adaptation} demonstrate \textbf{complementary operating regimes}.
 
 \begin{table}[h]
 \centering
-\caption{\textbf{Three Operating Regimes for Corralling-Based Routing}}
+\caption{\textbf{Two Operating Regimes for Corralling-Based Routing}}
 \label{tab:three_regimes}
 \small
 \begin{tabular}{@{}lccl@{}}
 \toprule
 \textbf{Regime} & \textbf{Learning Rate} & \textbf{Timescale} & \textbf{Use Case} \\
 \midrule
-Cold-Start & $\eta=0.1$--$0.3$ & 0--300 steps & Exploit semantic transfer \\
-Pareto Sweep & $\eta=1.0$ & 50--1,121 steps & Balance cost-quality \\
 Safety & $\eta=0.3$--$1.0$ & median $\sim$34 steps ($K{=}5$) & Catastrophic failure detection \\
 Convergence & $\eta=2.0$--$5.0$ & 300--1,121 steps & Adapt beyond priors \\
 \bottomrule

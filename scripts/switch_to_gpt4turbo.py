@@ -55,10 +55,10 @@ def main():
         (r'gpt4turbo_', 'gpt4turbo_'),
     ]
     
-    # Find all Python files in experiments_v1
+    # Find all Python files in experiments
     files_to_check = []
     for pattern in ["**/*.py", "**/*.tex", "**/*.md"]:
-        files_to_check.extend((PROJECT_ROOT / "experiments_v1").glob(pattern))
+        files_to_check.extend((PROJECT_ROOT / "experiments").glob(pattern))
     
     # Also check src and scripts
     for pattern in ["**/*.py"]:

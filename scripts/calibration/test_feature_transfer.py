@@ -113,7 +113,7 @@ def run_experiment(
 
 def main():
     parser = argparse.ArgumentParser(description="Feature-Only Transfer Experiment")
-    parser.add_argument("--output", type=str, default="experiments_v1/03_figure/feature_transfer_results")
+    parser.add_argument("--output", type=str, default="experiments/03_figure/feature_transfer_results")
     args = parser.parse_args()
     
     output_dir = Path(args.output)

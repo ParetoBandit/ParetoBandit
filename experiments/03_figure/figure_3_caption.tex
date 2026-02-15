@@ -1,0 +1,22 @@
+% Figure 3: Corralled Architecture Diagram (System Design)
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\textwidth]{experiments/03_figure/results/figure3_corralled_architecture.pdf}
+    \caption{%
+        \textbf{Architecture: Corralling-Based Adaptive Router.}
+        The coordinator manages two LinUCB experts via Exp4 meta-learning
+        ($\eta{=}\sqrt{\ln K/T}$, $\gamma{=}0.05$).
+        Expert~1 (Warmup) initialises with semantic priors; Expert~2
+        (Tabula Rasa) learns from scratch.
+        At each request, the coordinator samples an expert with
+        probability $P_t = (1{-}\gamma)\,w_t + \gamma/K$ and updates
+        weights via importance-weighted loss
+        $\hat{\ell}_t = (1{-}r_t)/P_t$.
+        Figure~\ref{fig:prior_degradation} shows that this architecture
+        correctly adapts to prior quality across the full spectrum---from
+        47\% overhead with strong priors to bounded worst-case regret
+        when priors degrade.
+    }
+    \label{fig:corralled_architecture}
+\end{figure}
