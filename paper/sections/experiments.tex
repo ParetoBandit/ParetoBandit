@@ -86,7 +86,7 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 To ensure robust conclusions, we employ rigorous statistical methodology exceeding standard practice in the routing literature.
 
-\paragraph{Multiple Trials.} For each cost penalty value $\lambda \in \{0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0\}$, we conduct \textbf{twenty independent trials} using random seeds 42--61. This substantially exceeds standard practice in the routing literature (RouteLLM: $n=1$ deterministic run~\cite{ong2024routellm}; FrugalGPT: $n=3$ trials~\cite{chen2023frugalgpt}). We report mean $\pm$ 95\% confidence intervals computed as $\text{CI} = \bar{x} \pm 1.96 \cdot (s/\sqrt{20})$, where $s$ is the sample standard deviation.
+\paragraph{Multiple Trials.} For each cost penalty value $\lambda \in \{0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 1.0, 2.0, 5.0\}$ (15 values for dense frontier coverage), we conduct \textbf{twenty independent trials} using random seeds 42--61. This substantially exceeds standard practice in the routing literature (RouteLLM: $n=1$ deterministic run~\cite{ong2024routellm}; FrugalGPT: $n=3$ trials~\cite{chen2023frugalgpt}). We report mean $\pm$ 95\% confidence intervals using the $t_{19}$ distribution.
 
 \paragraph{Multiple Testing Correction.} With 10 cost penalties tested, we address multiple comparisons using the Benjamini-Hochberg FDR procedure~\cite{benjamini1995controlling} at $q=0.05$. Rather than relying solely on $p$-values, we emphasize \textit{effect size reporting} and \textit{visual Pareto dominance} (Figure~\ref{fig:pareto}), following best practices in machine learning research~\cite{demsar2006statistical}.
 

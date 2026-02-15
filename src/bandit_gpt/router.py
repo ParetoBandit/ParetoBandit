@@ -3946,7 +3946,7 @@ class CostAwareLinUCBRouter:
                       - b: Dict[str, np.ndarray] - Reward-weighted context sums (d,)
                       - context_dim: int - Feature dimension
         model_costs: Dict mapping model_id -> {"normalized_cost": float}
-        alpha_start: Initial exploration coefficient (default: 2.0)
+        alpha_start: Initial exploration coefficient (default: 1.0)
         alpha_end: Final exploration coefficient after burn-in (default: 0.1)
         cost_penalty: Weight for cost penalty (default: 0.0)
     
@@ -3957,7 +3957,7 @@ class CostAwareLinUCBRouter:
         ...     warmup_priors={"A": {...}, "b": {...}, "context_dim": 24},
         ...     model_costs={"gpt-4": {"normalized_cost": 1.0}, 
         ...                  "gpt-3.5": {"normalized_cost": 0.1}},
-        ...     alpha_start=2.0,
+        ...     alpha_start=1.0,
         ...     alpha_end=0.1,
         ...     cost_penalty=0.5
         ... )
@@ -3968,7 +3968,7 @@ class CostAwareLinUCBRouter:
         >>> router.load_priors(new_priors, scale=0.5)  # Reduce prior strength
     """
     
-    def __init__(self, models, warmup_priors, model_costs, alpha_start=2.0, alpha_end=0.1, cost_penalty=0.0):
+    def __init__(self, models, warmup_priors, model_costs, alpha_start=1.0, alpha_end=0.1, cost_penalty=0.0):
         """
         Initialize router with Expert Parameter Warm-Start.
         
@@ -3996,7 +3996,7 @@ class CostAwareLinUCBRouter:
             cost_penalty: Budget constraint weight (λ parameter)
         """
         self.models = models
-        self.alpha_start = alpha_start  # Initial exploration (e.g., 2.0)
+        self.alpha_start = alpha_start  # Initial exploration (e.g., 1.0)
         self.alpha_end = alpha_end      # Final exploitation (e.g., 0.1)
         self.cost_penalty = cost_penalty
         self.model_costs = model_costs
@@ -4473,7 +4473,7 @@ class CostAwareTabulaRasaRouter:
     robustness against domain mismatch.
     """
     def __init__(self, models: List[str], context_dim: int, model_costs: Dict,
-                 alpha_start: float = 2.0, alpha_end: float = 0.1, cost_penalty: float = 0.0, 
+                 alpha_start: float = 1.0, alpha_end: float = 0.1, cost_penalty: float = 0.0, 
                  ridge_lambda: float = None, reward_std: float = None):
         """
         Initialize tabula rasa router with automatic or manual ridge regularization.
@@ -4482,14 +4482,14 @@ class CostAwareTabulaRasaRouter:
             models: List of model identifiers
             context_dim: Dimension of context vectors
             model_costs: Dict mapping model_id -> {"normalized_cost": float}
-            alpha_start: Initial exploration coefficient (default: 2.0)
+            alpha_start: Initial exploration coefficient (default: 1.0)
             alpha_end: Final exploration coefficient (default: 0.1)
             cost_penalty: Weight for cost penalty (default: 0.0)
             ridge_lambda: Ridge regularization parameter (default: None, auto-calculated)
             reward_std: Standard deviation of rewards for auto-calculation (optional)
         """
         self.models = models
-        self.alpha_start = alpha_start  # Initial exploration (e.g., 2.0)
+        self.alpha_start = alpha_start  # Initial exploration (e.g., 1.0)
         self.alpha_end = alpha_end      # Final exploitation (e.g., 0.1)
         self.cost_penalty = cost_penalty
         self.model_costs = model_costs
