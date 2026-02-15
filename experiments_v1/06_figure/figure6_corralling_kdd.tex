@@ -1,340 +1,100 @@
-% Figure 6: Corralling for Catastrophic Failure Detection
-% Adaptive Safety Mechanism in Multi-Expert LLM Routing
+% Figure 6: Catastrophic Failure Detection (K=5 Portfolio)
+% Uses production router with semantic transfer for all 5 models
+% Updated: February 2026
 
 \section{Experiment: Corralling as Safety Mechanism}
 \label{sec:corralling}
 
-\subsection{Motivation: Fast Automatic Failover}
+\subsection{Motivation: Automatic Failover as a Secondary Benefit}
 
-Production LLM systems face a critical challenge: \textbf{models can catastrophically fail with minimal warning}. API endpoints crash, providers silently update models with quality regressions, or traffic shifts to domains where warmup priors perform poorly. Manual detection and failover can take hours to days, during which users experience degraded service.
+Production LLM systems face a critical challenge: \textbf{models can catastrophically fail with minimal warning}. API endpoints crash, providers silently update models with quality regressions, or traffic shifts to domains where warmup priors perform poorly.
 
-\textbf{The Question}: Can Corralling provide automatic, fast failover when a model catastrophically fails (e.g., API crashes, quality drops by 50\%+), without requiring human intervention?
+\textbf{The Question}: Does Corralling---designed primarily for safe expert hedging and contextual routing---provide useful automatic failover when a model catastrophically fails? And how does this scale with portfolio size?
 
-\textbf{Connection to Prior Work}: This experiment complements our analysis of long-term adaptation (Figure~\ref{fig:corralling_semantic}) and short-term semantic transfer (Figure~\ref{fig:accelerated-adoption}). While those experiments focus on adaptation timescales of 500--1,121 steps, this experiment tests \textbf{emergency response} in 3--50 steps. The warmup expert may contain semantic transfer priors (as in Figures~\ref{fig:corralling_semantic} and \ref{fig:accelerated-adoption}), and this experiment validates that catastrophic failure detection works even when such priors are incorrect.
+\subsection{Experimental Setup: 5-Model Portfolio}
 
-\subsection{The Corralling Algorithm: Exponential Reweighting with Safety}
+\subsubsection{Why $K=5$?}
 
-Corralling~\cite{agarwal2017corralling} maintains a probability distribution over multiple expert policies and adaptively shifts weight based on observed losses. Unlike standard multi-armed bandits, it provides worst-case guarantees even when one expert is completely wrong.
+With $K=2$ models, catastrophic failure detection is a trivial binary tracking problem: a simple EMA tracker just needs to learn ``model A bad, model B good'' from per-model averages. With $K=5$, post-failure routing becomes \emph{contextual}: the optimal policy must redistribute traffic across 4 remaining models based on prompt features. Each non-failing model excels in a different region of context space, so per-model averages cannot distinguish which alternative is best for a given prompt.
 
-\subsubsection{Exponential Weight Update with Exploration Floor}
+\subsubsection{Production Router Components}
 
-\begin{equation}
-p_{i,t+1} = (1-\gamma) \times \frac{p_{i,t} \cdot \exp(-\eta \cdot \hat{\ell}_{i,t})}{\sum_{j=1}^{K} p_{j,t} \cdot \exp(-\eta \cdot \hat{\ell}_{j,t})} + \frac{\gamma}{K}
-\label{eq:corralling_mixed}
-\end{equation}
-
-where:
 \begin{itemize}
-    \item $p_{i,t}$: Probability of selecting expert $i$ at time $t$
-    \item $\eta$: Learning rate (0.3 for fast catastrophic failure detection)
-    \item $\hat{\ell}_{i,t}$: Importance-weighted loss estimate
-    \item $\gamma$: Exploration floor (0.05, prevents expert death)
-    \item $K$: Number of experts (2)
+    \item \textbf{CostAwareLinUCBRouter} (warmup expert): Initialized with real RouteLLM priors for Mixtral and GPT-4-Turbo; semantic transfer (First-Child Bias Correction) for GPT-3.5-Turbo, Claude-3-Haiku, and GPT-4o
+    \item \textbf{CostAwareTabulaRasaRouter} (tabula rasa expert): Cold-start LinUCB with ridge regularization for all 5 models
+    \item \textbf{CorrallingRouter}: Coordinates experts with importance-weighted meta-learning via selection tokens
 \end{itemize}
 
-\textbf{Key modification}: The exploration floor $\gamma$ ensures every expert maintains $\geq \gamma/K$ probability, allowing recovery if environment changes.
-
-\subsubsection{Importance-Weighted Loss Estimation}
-
-\begin{equation}
-\hat{\ell}_{i,t} = \begin{cases}
-\frac{\ell_t}{p_{i,t}} & \text{if expert } i \text{ was selected} \\
-0 & \text{otherwise}
-\end{cases}
-\label{eq:importance_weight}
-\end{equation}
-
-This estimator is unbiased: $\mathbb{E}[\hat{\ell}_{i,t}] = \ell_{i,t}$, enabling learning from bandit feedback.
-
-\subsection{Experimental Setup: Three-Phase Catastrophic Failure}
-
-\subsubsection{Design Rationale}
-
-We test Corralling in its \textbf{correct operating regime}: catastrophic failures with large effect sizes (Cohen's $d > 1.5$), not subtle quality optimization ($d < 0.2$).
-
-\textbf{Why this scenario?}
-\begin{itemize}
-    \item \textbf{Realistic}: Models crash, APIs timeout, providers update without notice
-    \item \textbf{Urgent}: Requires fast detection (minutes/hours, not weeks)
-    \item \textbf{Automatic}: Human-in-the-loop too slow for production
-    \item \textbf{Right tool}: Corralling excels at large effects; offline A/B testing better for small effects
-\end{itemize}
+All 5 models have informed warmup priors. Both experts explore freely across all models.
 
 \subsubsection{Three-Phase Scenario}
 
-We simulate a realistic production failure sequence:
+Context-dependent reward environment (orthogonal context directions per model, noise $\sigma=0.08$):
 
-\textbf{Phase 1 ($t=0-100$): Both Models Healthy}
 \begin{itemize}
-    \item Mixtral-8x7B: $\mu = 0.80$, $\sigma = 0.08$ (normal operation)
-    \item GPT-4-Turbo: $\mu = 0.80$, $\sigma = 0.08$ (normal operation)
-    \item Cohen's $d \approx 0$ (no difference)
-    \item Expected: System maintains balanced weights
+    \item \textbf{Phase 1 ($t=0$--$100$):} All 5 models healthy
+    \item \textbf{Phase 2 ($t=100$--$300$):} GPT-4-Turbo catastrophically fails ($\mu=0.15$, Cohen's $d\approx 5.0$)
+    \item \textbf{Phase 3 ($t=300$--$500$):} GPT-4-Turbo recovers
 \end{itemize}
 
-\textbf{Phase 2 ($t=100-300$): GPT-4 Catastrophically Fails}
-\begin{itemize}
-    \item Mixtral-8x7B: $\mu = 0.80$, $\sigma = 0.08$ (still healthy)
-    \item GPT-4-Turbo: $\mu = 0.15$, $\sigma = 0.15$ (crashes, timeouts, errors)
-    \item Cohen's $d \approx 5.0$ (catastrophic drop)
-    \item Represents: API failures, severe quality regression
-    \item Expected: Rapid decommissioning (3-50 steps)
-\end{itemize}
+Corralling settings: $\eta=0.3$, $\gamma=0.05$. Baselines: Oracle, Static GPT-4-Turbo, EMA Tracker ($\alpha=0.15$, $\epsilon=0.1$).
 
-\textbf{Phase 3 ($t=300-500$): GPT-4 Recovers}
-\begin{itemize}
-    \item Both models: $\mu = 0.80$, $\sigma = 0.08$ (provider fixed issue)
-    \item Cohen's $d \approx 0$ (both healthy again)
-    \item Tests: Can system detect recovery?
-\end{itemize}
-
-\subsubsection{Expert Policies}
-
-\textbf{Warmup Expert (Stubborn):} Always selects GPT-4-Turbo (simulates rigid prior)
-
-\textbf{Tabula Rasa Expert (Adaptive):} 95\% selects Mixtral-8x7B, 5\% explores (simulates online learner)
-
-\textbf{Note}: We use deterministic mock experts for pedagogical clarity. Real LinUCB experts show more oscillations due to exploration (Supplementary Material).
-
-\subsection{Results: Fast Catastrophic Failure Detection}
-
-\subsubsection{Observed Dynamics (Figure~\ref{fig:corralling})}
-
-Figure~\ref{fig:corralling} shows expert weight evolution over 500 routing decisions in the three-phase catastrophic failure scenario.
+\subsection{Results ($N=20$ Seeds)}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\linewidth]{results/figure5_catastrophic_failure.pdf}
-\caption{\textbf{Corralling for Catastrophic Failure Detection (Safety Regime).} 
-\textbf{Phase 1 (t=0-100):} Both models healthy. System maintains balanced weights (40-60\%), demonstrating stability when evidence is ambiguous.
-\textbf{Phase 2 (t=100-103):} GPT-4 catastrophically fails ($\mu: 0.80 \to 0.15$, Cohen's $d \approx 5.0$). System detects failure and decommissions warmup expert within 3 steps using moderate learning rate ($\eta=0.3$), achieving automatic failover without human intervention.
-\textbf{Phase 3 (t=300-500):} GPT-4 recovers. System maintains conservative decommissioning with $\eta=0.3$. Recovery detection requires higher learning rates ($\eta=1.0$--$5.0$, as in Figure~\ref{fig:corralling_semantic}) or manual override.
-\textbf{Three Operating Regimes}: This experiment demonstrates the \emph{safety regime} (3--50 steps, $\eta=0.3$), complementing the \emph{cold-start regime} (0--300 steps, $\eta=0.1$, Figure~\ref{fig:accelerated-adoption}) and \emph{convergence regime} (300--1,121 steps, $\eta=5.0$, Figure~\ref{fig:corralling_semantic}).
-\textbf{Robustness Validation}: Catastrophic failure detection ($t=3$--50) occurs $10\times$ faster than complete prior unlearning ($t \sim 300$--500, Figure~\ref{fig:corralling_semantic}), proving the system works \emph{even when warmup priors (including semantic transfer) are incorrect}.
-\textbf{Key Result}: With large effect sizes ($d > 1.5$), Corralling achieves 100\% success with 3-50 step detection time, making it suitable for safety-critical production failover.}
+\includegraphics[width=0.95\linewidth]{results/figure6_5model.pdf}
+\caption{\textbf{Catastrophic Failure Detection: 5-Model Portfolio} ($K=5$, $N=20$ seeds).
+\textbf{(Top)} Running-average reward. EMA reacts faster ($\sim 0.74$) than banditGPT ($\sim 0.65$) but concentrates 63\% of traffic on Mixtral alone, missing context-dependent alternatives.
+\textbf{(Middle)} Expert weight evolution: 95\% detection rate with clear tabula rasa dominance during failure.
+\textbf{(Bottom)} Model selection fractions reveal EMA's $\epsilon/K = 2\%$ per-model exploration limit at $K=5$.}
 \label{fig:corralling}
 \end{figure}
 
-\textbf{Phase 1 (t=0-100): Stability Under Normal Conditions}
-- Both experts start at 50\% (uniform prior)
-- Weights fluctuate 40-60\% due to sampling noise
-- No premature decommissioning when both models work
-- Validates: System doesn't collapse without evidence
-
-\textbf{Phase 2 (t=100-103): Rapid Failure Detection}
-- At $t=100$, GPT-4 quality drops catastrophically ($\mu: 0.80 \to 0.15$)
-- Warmup expert immediately accumulates massive losses
-- Exponential weight update with $\eta=0.3$ causes rapid decay
-- \textbf{Decommissioning at $t=103$ (3 steps after failure)}
-- Warmup weight drops below 10\% threshold
-- Validates: Fast automatic failover (minutes in production)
-
-\textbf{Phase 3 (t=300-500): Conservative Recovery (Learning Rate Dependent)}
-- GPT-4 quality recovers ($\mu: 0.15 \to 0.80$)
-- System maintains decommissioning (warmup weight $\approx 0\%$) with $\eta=0.3$
-- \textbf{Recovery detection depends on learning rate regime:}
-  \begin{itemize}
-    \item $\eta=0.1$ (very conservative, Figure~\ref{fig:accelerated-adoption}): No recovery detection, $>$800 steps needed
-    \item $\eta=0.3$ (balanced, this experiment): Slow recovery, $>$500 steps
-    \item $\eta=1.0$--$5.0$ (aggressive, Figure~\ref{fig:corralling_semantic}): Fast recovery detection, 50--200 steps
-  \end{itemize}
-- \textbf{Design trade-off}: Conservative $\eta=0.3$ prevents flapping (rapid on/off cycles) in safety-critical systems but requires manual override for recovery. For high-availability systems tolerant of transient failures, higher $\eta$ enables automatic recovery detection.
-- Production recommendation: Use adaptive $\eta$—start at 0.3 for stability, increase to 1.0--2.0 after sustained failure to test recovery
-
-\subsubsection{Performance Summary}
-
-\textbf{Main Results (Catastrophic Scenario, $d \approx 5$):}
-\begin{itemize}
-    \item \textbf{Failure Detection}: 3 steps after catastrophic failure begins
-    \item \textbf{Success Rate}: 100\% (across all tested seeds)
-    \item \textbf{Sample Efficiency}: Only 500 total samples needed
-    \item \textbf{Production Feasibility}: Hours to days (vs weeks for $d < 0.2$)
-\end{itemize}
-
-\subsection{Operating Regime Characterization}
-
-To understand when Corralling provides value, we tested across multiple effect sizes (Supplementary Material):
-
 \begin{table}[h]
 \centering
-\caption{Corralling Performance Across Effect Sizes}
-\label{tab:corralling_regimes}
+\caption{Mean reward by phase ($K=5$, $N=20$ seeds)}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Scenario} & \textbf{Cohen's d} & \textbf{Detection Time} & \textbf{Use Case} \\
+\textbf{Method} & \textbf{Healthy} & \textbf{Failure} & \textbf{Recovery} \\
 \midrule
-Catastrophic failure & $> 1.5$ & 3-50 steps & ✅ API crashes \\
-Severe degradation & $0.8-1.5$ & 100-300 steps & ✅ Version regression \\
-Moderate mismatch & $0.3-0.8$ & 500-1000 steps & ⚠️ Domain shift \\
-Subtle quality & $< 0.3$ & 2000+ steps & ❌ Use offline A/B \\
+Oracle & 0.824 & 0.800 & 0.822 \\
+\textbf{banditGPT} & \textbf{0.763} & \textbf{0.646} & \textbf{0.762} \\
+EMA Tracker & 0.736 & 0.735 & 0.783 \\
+Static GPT-4-Turbo & 0.812 & 0.153 & 0.820 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Key Insight}: Corralling's value proposition is \textbf{fast automatic failover for large effects}, not subtle quality optimization.
-
-\subsection{Comparison to Alternatives}
+\subsection{Portfolio Size Scaling}
 
 \begin{table}[h]
 \centering
-\caption{Corralling vs Alternatives for Different Effect Sizes}
-\label{tab:comparison}
-\begin{tabular}{lccc}
+\caption{Gap narrows monotonically with portfolio size}
+\begin{tabular}{lcccc}
 \toprule
-\textbf{Method} & \textbf{d > 1.5} & \textbf{d = 0.3-0.8} & \textbf{d < 0.3} \\
+$K$ & banditGPT & EMA & $\Delta$ & Detection \\
 \midrule
-\textbf{Corralling} & ✅ Hours & ⚠️ Days & ❌ Weeks \\
-Offline A/B Test & ⚠️ 1 day & ✅ 3-7 days & ✅ 7-14 days \\
-SPRT & ✅ Hours & ✅ 2-5 days & ⚠️ 10-20 days \\
-\midrule
-\textbf{Recommended} & Corralling/SPRT & Offline A/B & Offline A/B \\
+2 & 0.478 & 0.764 & $-0.286$ & 65\% \\
+3 & 0.596 & 0.750 & $-0.154$ & 85\% \\
+\textbf{5} & \textbf{0.646} & \textbf{0.735} & $\mathbf{-0.090}$ & \textbf{95\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Deployment Guideline}: Use Corralling when (a) catastrophic failures possible ($d > 1$), (b) high traffic (10k+ requests/day), or (c) cannot afford downtime for offline testing. Otherwise, use offline A/B testing.
+The gap reduces by 69\% from $K=2$ to $K=5$. EMA degrades as $K$ grows (exploration budget $\epsilon/K$ thins across more models); Corralling's contextual experts become more valuable as the routing decision becomes higher-dimensional.
 
-\subsection{Supplementary Analysis}
+\subsection{Interpretation}
 
-\subsubsection{Realistic LMSYS Scenario (d = 0.12)}
-
-To understand Corralling's limitations, we tested with realistic LMSYS reward distributions:
-\begin{itemize}
-    \item Mixtral: $\mu=0.823$, $\sigma=0.09$ (real data)
-    \item GPT-4: $\mu=0.812$, $\sigma=0.10$ (real data)
-    \item Cohen's $d \approx 0.12$ (tiny effect)
-\end{itemize}
-
-\textbf{Results (20 trials, 1,000 samples):}
-\begin{itemize}
-    \item Success rate: 25\% (5/20 trials)
-    \item Mean detection: 526 $\pm$ 193 steps (when successful)
-    \item Problem: Signal ($\Delta \mu = 0.011$) smaller than noise ($\sigma \approx 0.10$)
-\end{itemize}
-
-\textbf{With 10,000 samples}: Success rate increases to 100\%, mean detection 2,016 $\pm$ 1,992 steps.
-
-\textbf{Conclusion}: Small effect sizes require 10x more samples (weeks/months in production), making offline A/B testing superior.
-
-\subsubsection{Signal-to-Noise Analysis}
-
-The realistic scenario fails due to four compounding factors:
-\begin{enumerate}
-    \item \textbf{Tiny effect}: $d = 0.12$ (100x smaller than catastrophic)
-    \item \textbf{High overlap}: 46.7\% probability wrong ordering by chance
-    \item \textbf{Insufficient samples}: Need 1,174 per expert, have only 500
-    \item \textbf{Noise amplification}: Importance weighting amplifies noise by $\sqrt{1/p}$
-\end{enumerate}
-
-See Supplementary Material for detailed diagnostic analysis.
-
-\subsection{Production Deployment Considerations}
-
-\subsubsection{When to Use Corralling}
-
-\textbf{Use when:}
-\begin{itemize}
-    \item High traffic (10,000+ requests/day) for fast convergence
-    \item Large effect sizes ($d > 1.0$) such as API failures, crashes
-    \item Safety-critical: need automatic failover without human intervention
-    \item Stationary environment: task distribution relatively stable
-\end{itemize}
-
-\textbf{Don't use when:}
-\begin{itemize}
-    \item Low traffic (<1,000 requests/day) AND small effects ($d < 0.2$)
-    \item Quality optimization: offline A/B testing faster and cheaper
-    \item Non-stationary: frequent model updates or distribution shifts
-    \item Can afford offline testing time (1-2 weeks)
-\end{itemize}
-
-\subsubsection{Deployment Constraints}
-
-Five production constraints limit sample accumulation:
-\begin{enumerate}
-    \item \textbf{Time to convergence}: 10-100 days for low-traffic apps
-    \item \textbf{Opportunity cost}: Lost quality during learning phase
-    \item \textbf{Non-stationarity}: World changes over weeks/months
-    \item \textbf{Context drift}: New topics, language evolution
-    \item \textbf{Sample efficiency}: Offline testing often more efficient
-\end{enumerate}
-
-\textbf{Recommended approach}: Offline A/B test first ($d > 0.5$), then deploy with Corralling as safety net for catastrophic failures.
-
-\subsection{Connection to Semantic Transfer and Learning Rate Regimes}
-
-\subsubsection{Three Operating Regimes Across Experiments}
-
-Our experimental program (Figures~\ref{fig:corralling_semantic}, this figure, and \ref{fig:accelerated-adoption}) reveals three complementary operating regimes for Corralling with different learning rates:
-
-\begin{table}[h]
-\centering
-\caption{Three Operating Regimes for Corralling-Based Systems}
-\label{tab:three_regimes}
-\begin{tabular}{lccl}
-\toprule
-\textbf{Regime} & \textbf{Learning Rate} & \textbf{Timescale} & \textbf{Use Case} \\
-\midrule
-Safety (This Figure) & $\eta=0.3$--$1.0$ & 3--50 steps & Catastrophic failure detection \\
-Cold Start (Figure~\ref{fig:accelerated-adoption}) & $\eta=0.1$--$0.3$ & 0--300 steps & Exploit semantic transfer \\
-Convergence (Figure~\ref{fig:corralling_semantic}) & $\eta=2.0$--$5.0$ & 300--1,121 steps & Adapt beyond priors \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{Unified Understanding:}
-\begin{itemize}
-    \item \textbf{Catastrophic failures (this experiment)} operate in the fastest regime. Detection time (3--50 steps) is much shorter than complete prior unlearning time ($\sim$300--500 steps, Figure~\ref{fig:corralling_semantic}). This validates robustness: \emph{even if warmup priors include incorrect semantic transfer}, catastrophic failures are detected before significant damage occurs.
-    
-    \item \textbf{Short-term semantic transfer (Figure~\ref{fig:accelerated-adoption})} uses conservative learning ($\eta=0.1$) to exploit priors without rapid unlearning. Stable expert weights in that experiment do NOT validate semantic transfer correctness—they indicate the learning rate is too low to adapt. With $\eta=0.3$ (this experiment), some adaptation begins; with $\eta=5.0$ (Figure~\ref{fig:corralling_semantic}), complete unlearning occurs.
-    
-    \item \textbf{Long-term adaptation (Figure~\ref{fig:corralling_semantic})} with aggressive learning ($\eta=5.0$) completely unlearns suboptimal priors, including semantic transfer. This demonstrates that catastrophic failure detection (fast, robust) and long-term convergence (slow, optimal) operate in different timescale regimes.
-\end{itemize}
-
-\subsubsection{Robustness to Incorrect Semantic Priors}
-
-The warmup expert in this experiment may contain \textbf{semantic transfer} from related models (e.g., GPT-4o initialized from GPT-4-Turbo, as in Figure~\ref{fig:corralling_semantic}). Analysis in Figure~\ref{fig:accelerated-adoption} reveals that semantic similarity does \emph{not} predict performance correlation ($r=-0.38$, $p=0.75$). The mechanism is \textbf{implicit regularization} (breaking symmetry via initial variance), not semantic accuracy.
-
-\textbf{Critical Validation}: For catastrophic failures (Cohen's $d > 1.5$):
-\begin{itemize}
-    \item Detection time: 3--50 steps (this experiment)
-    \item Complete prior unlearning: $\sim$300--500 steps (Figure~\ref{fig:corralling_semantic})
-    \item \textbf{Safety guarantee}: Failures detected $10\times$ faster than unlearning timeline
-\end{itemize}
-
-This demonstrates Corralling's robustness: catastrophic failure detection works \emph{even when warmup priors (including semantic transfer) are fundamentally incorrect}. The fast detection (3--50 steps) occurs well before the system would fully unlearn the prior ($\sim$300--500 steps with higher learning rates).
-
-\subsection{Summary}
-
-Corralling provides fast automatic failover for catastrophic model failures in production LLM systems. With large effect sizes ($d > 1.5$), it achieves 100\% success with 3-50 step detection time, making it suitable for safety-critical applications. However, for subtle quality differences ($d < 0.2$), offline A/B testing is superior due to sample efficiency and time-to-conclusion.
-
-\textbf{Key Contributions}: 
-\begin{enumerate}
-    \item We characterize Corralling's operating regime, showing when online learning provides value (catastrophic failures) vs when offline testing is better (subtle quality optimization).
-    \item We connect catastrophic failure detection (this figure, 3--50 steps) to the broader learning rate regime framework, including short-term semantic transfer exploitation (Figure~\ref{fig:accelerated-adoption}, $\eta=0.1$) and long-term convergence (Figure~\ref{fig:corralling_semantic}, $\eta=5.0$).
-    \item We validate robustness: catastrophic failure detection works even when warmup priors (including potentially incorrect semantic transfer) are suboptimal, as detection occurs $10\times$ faster than the complete prior unlearning timeline.
-\end{enumerate}
-
-This deployment guidance is essential for practitioners choosing between online adaptation and offline testing strategies.
+Catastrophic failure detection is a \textbf{secondary safety benefit} of the Corralling mechanism, not its primary design objective. For pure model-level failure detection, dedicated monitoring (e.g., EMA tracking, CUSUM) should complement Corralling. However, the monotonic gap closure with portfolio size suggests that at production-scale portfolios ($K \geq 8$), Corralling's contextual advantage may fully compensate for its detection latency.
 
 \subsection{Reproducibility}
 
-Code available at: \texttt{experiments\_v1/06\_figure/}
-
-\textbf{Main experiment}: \texttt{generate\_figure6\_main.py}
+Code: \texttt{experiments\_v1/06\_figure/generate\_figure6\_5model.py}
 \begin{itemize}
-    \item Configuration: $\eta=0.3$, $\gamma=0.05$, $N=500$ steps
-    \item Three phases: Healthy (t=0-100) → Failure (t=100-300) → Recovery (t=300-500)
-    \item Runtime: $\sim$3 seconds on MacBook Pro (M1)
-\end{itemize}
-
-\textbf{Supplementary experiments}:
-\begin{itemize}
-    \item Multi-seed validation: \texttt{supplementary/generate\_figure5\_multiseed.py}
-    \item Realistic LMSYS: \texttt{supplementary/generate\_figure5\_realistic.py}
-    \item Real LinUCB: \texttt{supplementary/generate\_figure5\_real\_linucb.py}
-    \item Statistical power: \texttt{supplementary/test\_realistic\_10k\_samples.py}
-    \item Diagnostic analysis: \texttt{supplementary/diagnostic\_realistic\_failure.py}
+    \item Uses production router with semantic transfer for all 5 models
+    \item Configuration: $\eta=0.3$, $\gamma=0.05$, $N_{\text{eff}}=10$, 500 steps, 20 seeds
+    \item Runtime: $\sim$7 seconds
 \end{itemize}
 
 \bibliographystyle{ACM-Reference-Format}

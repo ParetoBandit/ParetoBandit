@@ -5,9 +5,9 @@
 We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure analysis, Corralling meta-learning, and semantic transfer. Through comprehensive validation on LMSYS Arena prompts ($N=750$ held-out), we demonstrated:
 
 \begin{itemize}
-    \item \textbf{Safety:} Corralling provides safety insurance against prior mismatch, with protection against catastrophic failure under severe shift
+    \item \textbf{Safety:} Corralling provides safety insurance against prior mismatch, with secondary catastrophic failure detection (95\% at $K{=}5$; gap vs.\ EMA narrows monotonically with portfolio size). Critically, Corralling redistributes post-failure traffic contextually across the remaining portfolio (${\sim}20\%$ per model), avoiding the traffic concentration risk inherent in simpler trackers that herd $60{+}\%$ of requests onto a single fallback
     \item \textbf{Performance:} $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM)
-    \item \textbf{Adaptability:} Catastrophic failure detection (validated on synthetic scenarios) + zero-shot model adoption
+    \item \textbf{Adaptability:} Zero-shot model adoption via semantic transfer ($+0.62$ reward, $p<10^{-7}$), complemented by secondary catastrophic failure detection that naturally improves as production portfolios grow (Appendix~\ref{app:catastrophic_failure})
     \item \textbf{Robustness:} Regime-dependent expert selection requires minimal tuning
 \end{itemize}
 
