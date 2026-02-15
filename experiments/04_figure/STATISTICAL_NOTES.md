@@ -1,4 +1,4 @@
-# Statistical Notes for Figure 5
+# Statistical Notes for Figure 4
 
 ## Multiple Testing Correction
 
@@ -39,7 +39,7 @@ With n=5 trials per configuration:
 ### Reporting Guidelines
 
 #### Main Paper
-- Show error bars on Figure 5 ✅
+- Show error bars on Figure 4 ✅
 - Report: "Error bars show 95% confidence intervals from 5 independent runs"
 - Do NOT claim statistical significance without multiple testing correction
 
@@ -58,14 +58,14 @@ to Benjamini-Hochberg FDR correction at q=0.05.
 banditGPT achieved peak quality of 0.909 ± 0.004 (mean ± 95% CI, n=5) 
 at cost $0.00954 ± $0.00023, outperforming RouteLLM's peak of 0.883 
 at $0.00651. The performance advantage persists across all budget 
-levels (see Figure 5 error bars).
+levels (see Figure 4 error bars).
 ```
 
 ### Why This Is Scientifically Sound
 
 1. **Pre-specified analysis plan**: λ sweep is standard for cost-aware algorithms
 2. **Multiple seeds per point**: Accounts for stochastic variability
-3. **Visual inspection**: Pareto dominance is clear from Figure 5
+3. **Visual inspection**: Pareto dominance is clear from Figure 4
 4. **Effect size reporting**: We show raw performance, not just p-values
 5. **Replication on holdout**: All results on unseen 750-prompt test set
 
@@ -77,7 +77,7 @@ levels (see Figure 5 error bars).
 
 ### Recommendations for Camera-Ready
 
-- [x] Add error bars to Figure 5
+- [x] Add error bars to Figure 4
 - [x] Report confidence intervals in text
 - [ ] Add Methods paragraph explaining multiple testing approach
 - [ ] Consider increasing to n=10 trials if reviewers request (2× compute cost)

@@ -73,7 +73,7 @@ python3 experiments/01_figure/plot_figure1.py
 
 1. **Stratified holdout.** The holdout was constructed with a difficulty dimension derived from oracle rewards, enriching for prompts with clear preferences. Signal *existence* is robust; *magnitude* in deployment depends on the prompt distribution.
 
-2. **Two-model topology.** This tests Mixtral vs GPT-4-Turbo specifically. A different model pair may show different signal. Multi-model routing is evaluated in Figure 4.
+2. **Two-model topology.** This tests Mixtral vs GPT-4-Turbo specifically. A different model pair may show different signal.
 
 3. **Prompt-type mechanism.** The correlation reflects prompt-type variation that correlates with model preference (e.g., instruction-following templates). The PCA captures *prompt type → model preference*, not an abstract routing feature.
 
@@ -84,9 +84,9 @@ This experiment validates the router's **"eyes"** (PCA features). Subsequent exp
 | Experiment | What it tests |
 |-----------|---------------|
 | **Figure 1** (this) | Features predict preference → routing is possible |
-| **Table 2** | Bandit exploits features → routing works in practice |
 | **Figure 3** | Corralling design → safety under distribution shift |
-| **Figure 4** | Multi-model → Corralling discovers the best model |
+| **Figure 4** | Pareto frontier → production cost-quality tradeoffs |
+| **Figure 6** | Catastrophic failure detection |
 
 ## Dependencies
 

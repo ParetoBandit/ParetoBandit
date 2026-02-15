@@ -1,4 +1,4 @@
-# Table 1: Dataset Description and Experimental Splits
+# Table 2: Dataset Description and Experimental Splits
 
 **Experiment Goal**: Document complete data provenance and experimental split design for reproducibility
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-This experiment provides **Table 1** for the paper, documenting the complete data provenance and experimental design that enables reproducible bandit evaluation.
+This experiment provides **Table 2** for the paper, documenting the complete data provenance and experimental design that enables reproducible bandit evaluation.
 
 **Dataset Summary**:
 - **Total Prompts**: 81,871 unique prompts
@@ -19,7 +19,7 @@ This experiment provides **Table 1** for the paper, documenting the complete dat
 ## Core Files
 
 ```
-experiments/01_table/
+experiments/02_table/
 ├── README.md                          # This file
 ├── generate_table1.py                 # Table generator
 └── table1_dataset.tex                 # LaTeX table (used in paper)
@@ -147,7 +147,7 @@ The table provides **four essential components**:
 ### Generate The Table
 
 ```bash
-cd experiments/01_table
+cd experiments/02_table
 python generate_table1.py
 ```
 
@@ -158,7 +158,7 @@ python generate_table1.py
 The paper includes the table via:
 
 ```latex
-\input{../experiments/01_table/table1_dataset.tex}
+\input{../experiments/02_table/table1_dataset.tex}
 ```
 
 ---
@@ -174,9 +174,9 @@ The paper includes the table via:
 ## Related Experiments
 
 - **Figure 1** (`experiments/01_figure/`): PCA validation — cross-domain generalization
-- **Table 2** (`experiments/02_table/`): Domain mismatch — Corralling under distribution shift
-- **Figure 4** (`experiments/04_figure/`): Multi-model routing — 3+ model discovery
-- **Figure 5** (`experiments/05_figure/`): Pareto frontier — cost-quality tradeoffs
+- **Figure 3** (`experiments/03_figure/`): Corralling insurance — prior quality degradation
+- **Figure 4** (`experiments/04_figure/`): Pareto frontier — cost-quality tradeoffs
+- **Figure 6** (`experiments/06_figure/`): Catastrophic failure detection
 
 ---
 

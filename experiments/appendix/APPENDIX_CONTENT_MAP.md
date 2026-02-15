@@ -86,7 +86,7 @@
 
 | Content | Original Location | New Location | Status |
 |---------|------------------|--------------|--------|
-| Dataset composition table | `01_table/table_dataset_composition.tex` | `B/B1_*` | 📝 To extend |
+| Dataset composition table | `02_table/table_dataset_composition.tex` | `B/B1_*` | 📝 To extend |
 | Validation methodology | `01_figure/validation_methodology.tex` | `B/B2_validation_methodology.tex` | ✅ Copied |
 | 1M scale analysis | `appendix_d/figure_1M_analysis.tex` | `B/B3_1M_scale_analysis.tex` | ✅ Copied |
 | Spectral invariance results | ↑ Same file | ↑ Same file | ✅ Included |
@@ -154,8 +154,8 @@
 |---------|------------------|--------------|--------|
 | Catastrophic failure | `06_figure/figure5_corralling_kdd.tex` | `E/E1_catastrophic_failure.tex` | ✅ Copied |
 | Failure extended | `06_figure/figure6_corralling_kdd.tex` | `E/E1_catastrophic_failure_extended.tex` | ✅ Copied |
-| 3-model results | `04_figure/results_3models/` | `E/E2_*` | 📝 To document |
-| Cost profile analysis | `05_figure/` extended | `E/E3_*` | 📝 To document |
+| 3-model results | _(removed: multi-model experiment deleted)_ | `E/E2_*` | ❌ Removed |
+| Cost profile analysis | `04_figure/` extended | `E/E3_*` | 📝 To document |
 | Distribution shift | `02_figure/` and `02_table/` | `E/E4_*` | 📝 To document |
 
 **What belongs here**:
@@ -278,8 +278,8 @@
 ## To-Do Items
 
 ### High Priority
-1. **Create B1**: Extended dataset composition table (extend from 01_table)
-2. **Document E2**: Three-model routing results from `04_figure/results_3models/`
+1. **Create B1**: Extended dataset composition table (extend from 02_table)
+2. ~~**Document E2**: Three-model routing results~~ _(removed: multi-model experiment deleted)_
 3. **Test compile**: Run `pdflatex APPENDIX_MASTER.tex` to verify structure
 4. **Copy missing figures**: Any remaining figures from experiment folders
 
@@ -287,7 +287,7 @@
 5. **Create G3**: Broader impact section
 6. **Create G4**: Corralling vs. offline optimization discussion
 7. **Consolidate C2-C4**: Learning rate and mixing parameter sensitivity from various sources
-8. **Create E3**: Cost profile analysis from `05_figure/` extended data
+8. **Create E3**: Cost profile analysis from `04_figure/` extended data
 9. **Create E4**: Distribution shift analysis from `02_figure/` and `02_table/`
 
 ### Low Priority

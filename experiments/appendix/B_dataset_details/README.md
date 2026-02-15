@@ -6,7 +6,7 @@ This section provides comprehensive dataset documentation, statistical validatio
 ## Contents
 
 ### B.1: Dataset Composition and Provenance
-**Source**: Extended from `01_table/table_dataset_composition.tex`
+**Source**: Extended from `02_table/table_dataset_composition.tex`
 
 **Content**:
 - Complete data provenance (LMSYS Chat Arena)

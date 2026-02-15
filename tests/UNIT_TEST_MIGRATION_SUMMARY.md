@@ -82,7 +82,7 @@ Removed test files that were testing experiment scripts rather than core router 
 #### From `experiments/06_figure/supplementary/`:
 - ✅ `test_realistic_10k_samples.py` (165 lines) - Now covered by `test_corralling_comprehensive.py`
 
-#### From `experiments/05_figure/.archive/`:
+#### From `experiments/04_figure/.archive/`:
 - ✅ `test_bandit_only.py` (248 lines)
 - ✅ `test_bandit_best_params.py` (227 lines)
 - ✅ `test_pareto_frontier.py` (188 lines)
