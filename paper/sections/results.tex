@@ -1,7 +1,7 @@
 \section{Results \& Discussion}
 \label{sec:results}
 
-We evaluate banditGPT on three dimensions: economic efficiency (Pareto optimality), safety under prior mismatch, and operational agility (adaptation to failures and new models). Section~\ref{sec:pareto} presents the primary benchmark; Section~\ref{sec:robustness_adaptation} summarizes safety and adaptation capabilities, with full figures and extended analysis in Appendices~\ref{app:adaptation_details}--\ref{app:multiseed_sensitivity}.
+We evaluate banditGPT on three dimensions: economic efficiency (Pareto optimality), safety under prior mismatch, and operational agility (adaptation to failures and new models). Section~\ref{sec:pareto} presents the primary benchmark; Section~\ref{sec:robustness_adaptation} summarizes safety and adaptation capabilities, with full figures and extended analysis in Appendix~\ref{app:adaptation_details}.
 
 \subsection{Cost--Quality Trade-off}
 \label{sec:pareto}
@@ -140,19 +140,13 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 \subsection{Robustness and Adaptation}
 \label{sec:robustness_adaptation}
 
-Production systems additionally require safety under prior mismatch and rapid failure detection. We summarize the key findings here; full experimental details, figures, and statistical tests appear in Appendices~\ref{app:adaptation_details} and~\ref{app:multiseed_sensitivity}.
+Production systems additionally require safety under prior mismatch and rapid failure detection. We summarize the key findings here; full experimental details, figures, and statistical tests appear in Appendix~\ref{app:adaptation_details}.
 
 \subsubsection{Catastrophic Failure Detection}
 
 We evaluated Corralling's response to sudden model degradation on a \textbf{5-model portfolio} ($K{=}5$, $N{=}20$ seeds) where GPT-4-Turbo quality drops from $\mu{=}0.82$ to $\mu{=}0.15$ (Cohen's $d{\approx}5.0$) while four alternatives remain healthy. Corralling detects the failure in 95\% of seeds (median 34 steps) and partially recovers---but a simple EMA tracker reacts faster (reward $0.735$ vs.\ $0.646$ during failure, $\Delta{=}{-}0.090$). Notably, this gap \textbf{narrows monotonically with portfolio size}: $\Delta{=}{-}0.286$ at $K{=}2$, ${-}0.154$ at $K{=}3$, ${-}0.090$ at $K{=}5$. EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) spreads thinner, while Corralling's contextual routing becomes more valuable when post-failure routing is a multi-model decision.
 
 \emph{Practical distinction:} The two methods differ not only in speed but in \emph{how} they redistribute traffic after failure. EMA concentrates 63\% of failure-phase traffic on a single fallback model, creating a new single point of failure. Corralling distributes traffic roughly uniformly (${\sim}20\%$ each) across the four healthy models based on per-prompt context, providing both load balancing and context-dependent quality. This suggests a complementary deployment architecture: lightweight EMA or CUSUM detectors for rapid model-level alerting, with Corralling handling the actual contextual traffic redistribution. Full dynamics and practical deployment recommendations in Appendix~\ref{app:catastrophic_failure}.
-
-\subsubsection{Hyperparameter Sensitivity}
-\label{sec:sensitivity}
-\label{sec:sensitivity_analysis}
-
-The effective prior strength ($\neff$) exhibits regime-dependent effects. Without Corralling (forced transfer), performance degrades monotonically with increasing $\neff$ (6.2\% span from best to worst), confirming an ``over-confidence trap'' where strong priors suppress exploration of new models. With Corralling enabled, this effect is not statistically significant ($p>0.40$, $N=30$ seeds). We observe that seeds exhibit binary expert commitments: across 30 seeds, a proportion maintained warmup priors while the remainder abandoned them. With $N=30$ seeds, we can now estimate regime proportions with reasonable confidence (see Appendix~\ref{app:multiseed_sensitivity} for exact counts and confidence intervals). The qualitative finding---that Corralling adaptively selects between experts based on early performance signals---is well-supported, and the increased sample size enables meaningful regime-stratified analysis. Regime-stratified analysis in Appendix~\ref{app:multiseed_sensitivity}.
 
 % ============================================================================
 % SECTION 5.3: Limitations

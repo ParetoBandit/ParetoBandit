@@ -104,7 +104,7 @@ Stratified sampling ensures that rare prompt types (e.g., STEM tasks at 10-15\% 
 Single-dimension stratification (e.g., complexity only) could produce splits balanced on complexity but imbalanced on category. Multi-dimensional stratification provides better coverage across the joint distribution of prompt characteristics.
 
 \paragraph{Does This Affect Results?}
-The stratification does not affect the routing evaluation (Table~\ref{tab:results}) or the bandit learning experiments (Figures~2--8), which are evaluated uniformly across all prompts regardless of their stratification key.
+The stratification does not affect the routing evaluation (Table~\ref{tab:results}) or the bandit learning experiments (Figures~2--7), which are evaluated uniformly across all prompts regardless of their stratification key.
 
 However, the difficulty dimension introduces an indirect dependence on the outcome variable into the holdout composition: by stratifying on oracle reward variance, the holdout is enriched for ``Contentious'' prompts where models disagree.
 This affects the signal validation experiment (Figure~\ref{fig:lmsys_holdout_structure}), where the reported correlation magnitude and outcome proportions should be interpreted as influenced by stratification. The signal's \emph{existence} is robust (Router PCA exceeds all 100 random projections); the \emph{magnitude} in deployment depends on the prompt distribution.

@@ -123,35 +123,5 @@ Practitioners should select $\eta$ based on operational objectives:
     \item \textbf{Safety-critical:} $\eta=0.3$ (secondary failure detection; complement with dedicated monitoring for rapid model-level response)
 \end{itemize}
 
-% ============================================================================
-% D.6: Regime-Stratified Sensitivity (Figure 8)
-% ============================================================================
-
-\subsection{Regime-Stratified Sensitivity Analysis}
-\label{app:regime_stratified}
-
-Figure~\ref{fig:expert_selection} provides the regime-stratified view of $\neff$ sensitivity referenced in Section~\ref{sec:sensitivity}.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.95\columnwidth]{figures/figure8_regime_stratified.png}
-\caption{%
-\textbf{Regime-Dependent $\neff$ Sensitivity.}
-\textit{Top}: Expert weights show binary switching (100\% warmup left, 100\% tabula rasa right). 
-\textit{Bottom}: Performance stratified by regime reveals $\neff$ effects only when semantic transfer is used (+4.6\% warmup regime, 0\% tabula rasa). 
-Overall impact: $\sim$1.5\% = $0.33 \times 4.6\%$. Robustness comes from adaptive selection, not parameter insensitivity.
-}
-\label{fig:expert_selection}
-\label{fig:sensitivity}
-\end{figure}
-
-\paragraph{Stratified Results.}
-With $N=30$ seeds, we can now estimate regime proportions with reasonable confidence:
-\begin{itemize}[nosep]
-    \item \textbf{Warmup-dominant regime:} Seeds where warmup expert is maintained. In this regime, $\neff=1.0$ outperforms $\neff=20.0$, confirming the over-confidence trap.
-    \item \textbf{Tabula rasa-dominant regime:} Seeds where Corralling abandons warmup priors. Performance is identical across $\neff$ values, as semantic transfer is not used.
-    \item \textbf{Overall:} The weighted aggregate impact across regimes is reported in Figure~\ref{fig:expert_selection}.
-\end{itemize}
-
-The increased sample size ($N=30$) enables meaningful estimation of regime proportions (see Appendix~\ref{app:multiseed_sensitivity} for exact counts and binomial confidence intervals). The conclusion that robustness emerges from adaptive expert selection (not parameter insensitivity) is supported both by the mechanism and by the regime-stratified analysis.
+% [Section removed: Regime-Stratified Sensitivity Analysis (formerly Figure 8)]
 

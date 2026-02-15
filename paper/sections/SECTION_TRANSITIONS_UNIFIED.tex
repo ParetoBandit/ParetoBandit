@@ -30,7 +30,7 @@ We present the architecture (Section~\ref{sec:architecture}), the Corralling alg
 % ============================================================================
 % INSERT at start of experiments.tex AFTER \section{...}
 
-To rigorously validate our integrated approach, we conduct eight experiments organized into three parts:
+To rigorously validate our integrated approach, we conduct seven experiments organized into three parts:
 
 \textbf{Part I: Motivation (Covered in Section~\ref{sec:motivation})}
 \begin{itemize}
@@ -47,7 +47,7 @@ To rigorously validate our integrated approach, we conduct eight experiments org
 \textbf{Part III: Production Validation (Section~\ref{sec:results})}
 \begin{itemize}
     \item Figure~\ref{fig:pareto}: Production-grade Pareto analysis
-    \item Figures~\ref{fig:catastrophic}--\ref{fig:sensitivity}: Adaptation and robustness
+    \item Figure~\ref{fig:catastrophic}: Adaptation under catastrophic failure
 \end{itemize}
 
 This section describes the experimental setup and protocols (Section~\ref{sec:exp_setup}), followed by solution validation results (Section~\ref{sec:solution_results}).
@@ -63,8 +63,6 @@ Having validated our solution approach (Figures~\ref{fig:architecture}--\ref{fig
     \item \textbf{Production Performance (Section~\ref{sec:pareto}):} Pareto frontier analysis against state-of-the-art baselines (RouteLLM), quantifying cost-quality tradeoffs on held-out test data.
     
     \item \textbf{Adaptation Dynamics (Section~\ref{sec:robustness_adaptation}):} Response to catastrophic failures---a key production scenario requiring online adaptation.
-    
-    \item \textbf{Robustness Analysis (Section~\ref{sec:sensitivity}):} Sensitivity to hyperparameters, revealing regime-dependent expert selection as the robustness mechanism.
 \end{enumerate}
 
 Each subsection demonstrates one aspect of production readiness, building toward comprehensive deployment validation.
@@ -86,13 +84,7 @@ The Pareto analysis (Figure~\ref{fig:pareto}) validates performance on \emph{sta
 
 The following subsections validate Corralling's adaptive capabilities in both scenarios.
 
-% TRANSITION: Adaptation → Sensitivity (within results.tex)
-% INSERT between subsection 5.2 (Adaptation) and 5.3 (Sensitivity)
-
-\paragraph{From Adaptation to Robustness}
-Figures~\ref{fig:catastrophic}--\ref{fig:zeroshot} demonstrated that Corralling provides secondary safety benefits under catastrophic failures and adapts to new model releases. A critical remaining question: \textbf{Is this performance brittle?} Does it require extensive hyperparameter tuning, or is the system robust by design?
-
-The sensitivity analysis (Figure~\ref{fig:sensitivity}) reveals that robustness emerges from Corralling's \emph{adaptive expert selection}, not parameter insensitivity. The system automatically detects when priors fail and switches to cold-start exploration, providing production-grade reliability.
+% [Removed: Transition to sensitivity analysis (formerly Figure 8)]
 
 % ============================================================================
 % TRANSITION: Results → Related Work
@@ -106,13 +98,12 @@ Having demonstrated comprehensive validation of our integrated approach---from e
 % ============================================================================
 % INSERT at start of conclusion.tex AFTER \section{...}
 
-We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (8 experiments, 1,871 prompts), we demonstrated:
+We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (7 experiments, 1,871 prompts), we demonstrated:
 
 \begin{itemize}
     \item \textbf{Safety:} $44.3\%$ improvement vs harmful warmup priors
     \item \textbf{Performance:} $70.8\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM); surpasses 100k-pair supervised router after only 400 in-distribution prompts
     \item \textbf{Adaptability:} Zero-shot model adoption + secondary catastrophic failure detection
-    \item \textbf{Robustness:} Regime-dependent expert selection requires minimal tuning
 \end{itemize}
 
 In this section, we discuss limitations (Section~\ref{sec:limitations}), deployment guidance (Section~\ref{sec:deployment}), and future work (Section~\ref{sec:future}).
