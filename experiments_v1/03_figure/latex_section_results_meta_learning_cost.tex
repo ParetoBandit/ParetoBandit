@@ -38,8 +38,7 @@ are adversarial (systematically wrong).
 
 All experiments use $N{=}20$ independent seeds, learning rate
 $\eta{=}\sqrt{\ln 2/750}{\approx}0.030$, $\gamma{=}0.05$, and
-initial warmup weight $w_0{=}0.7$
-(Appendix~\ref{app:initial_weight}).
+initial warmup weight $w_0{=}0.7$.
 
 % ----------------------------------------------------------------------------
 % Main Result: Strategy Crossover
@@ -96,10 +95,9 @@ cost of higher regret under adversarial priors (67 vs 58).
 Practitioners who are more confident in their priors can increase
 $w_0$ toward 0.9 to further close the gap with warmup-only, while
 those seeking maximum safety can keep $w_0{=}0.5$.
-Appendix~\ref{app:initial_weight} presents the full Pareto frontier
-across $w_0 \in \{0.5, 0.6, 0.7, 0.8, 0.9\}$, showing that
-$w_0{=}0.6$ provides a 6\% improvement at zero statistical cost
-($p{=}0.49$ at $\alpha{=}1$), while $w_0 \geq 0.8$ incurs
+Sensitivity analysis across $w_0 \in \{0.5, 0.6, 0.7, 0.8, 0.9\}$
+shows that $w_0{=}0.6$ provides a 6\% improvement at zero statistical
+cost ($p{=}0.49$ at $\alpha{=}1$), while $w_0 \geq 0.8$ incurs
 superlinear worst-case penalties.
 
 % ----------------------------------------------------------------------------

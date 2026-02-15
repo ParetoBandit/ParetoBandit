@@ -1301,175 +1301,13 @@ def plot_main_figure(degradation_stats, degradation_results, weight_histories, o
     plt.close()
 
 
-def plot_alpha_ablation(config_results, output_dir):
-    """Plot alpha ablation study (Experiment 3). Appendix figure."""
-    mpl.rcParams.update(PLOT_STYLE)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-
-    configs = list(config_results.keys())
-    config_labels = {
-        'constant_constant': 'Homogeneous\nConstant',
-        'mixed': 'Mixed\n(Tabula Decay)',
-        'decay_decay': 'Homogeneous\nDecay',
-        'reversed_mixed': 'Reversed\nMixed',
-    }
-
-    means = [config_results[c]['regret_mean'] for c in configs]
-    stds = [config_results[c]['regret_std'] for c in configs]
-
-    colors_list = [COLORS['green'], COLORS['blue'], COLORS['orange'], COLORS['red']]
-    bar_colors = colors_list[:len(configs)]
-
-    # Panel A: Bar chart with error bars
-    bars = ax1.bar(range(len(configs)), means, yerr=stds, capsize=5,
-                   color=bar_colors, alpha=0.7, edgecolor='black', linewidth=1.5)
-
-    ax1.set_xticks(range(len(configs)))
-    ax1.set_xticklabels([config_labels.get(c, c) for c in configs])
-    ax1.set_ylabel('Cumulative Regret')
-    ax1.set_title('(A) Alpha Strategy Comparison')
-    ax1.grid(True, alpha=0.2, axis='y')
-    ax1.axhline(y=50, color='gray', linestyle='--', linewidth=1, alpha=0.3)
-
-    for i, (bar, mean, std) in enumerate(zip(bars, means, stds)):
-        height = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2., height + std + 1,
-                f'{mean:.1f}±{std:.1f}',
-                ha='center', va='bottom', fontsize=9)
-
-    # Panel B: Per-seed scatter
-    for i, config in enumerate(configs):
-        y_values = config_results[config]['per_seed_regrets']
-        x_values = [i] * len(y_values)
-        ax2.scatter(x_values, y_values, alpha=0.6, s=80,
-                   color=bar_colors[i], edgecolors='black', linewidth=0.5)
-
-    ax2.set_xticks(range(len(configs)))
-    ax2.set_xticklabels([config_labels.get(c, c) for c in configs])
-    ax2.set_ylabel('Cumulative Regret (per seed)')
-    ax2.set_title('(B) Per-Seed Results')
-    ax2.grid(True, alpha=0.2, axis='y')
-
-    plt.tight_layout()
-    for ext in ['pdf', 'png']:
-        fig.savefig(output_dir / f"figure_alpha_ablation.{ext}", dpi=150, bbox_inches='tight')
-    logger.info(f"💾 Saved: {output_dir / 'figure_alpha_ablation.pdf'}")
-    plt.close()
-
-
-def plot_initial_weight_sweep(sweep_stats, output_dir):
-    """
-    Plot the initial weight bias trade-off.
-
-    Panel A: Regret vs corruption for Corralling at each initial weight,
-             with warmup-only and tabula rasa as baselines.
-    Panel B: Regret at α=0 vs regret at α=1 for each bias (Pareto frontier).
-    """
-    mpl.rcParams.update(PLOT_STYLE)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-
-    corruption_levels = sweep_stats['corruption_levels']
-    weight_biases = sweep_stats['weight_biases']
-
-    # --- Panel A: Regret vs corruption ---
-    # Baselines
-    warmup_means = [sweep_stats['baselines']['warmup_only'][str(c)]['regret_mean']
-                    for c in corruption_levels]
-    tabula_means = [sweep_stats['baselines']['tabula_rasa'][str(c)]['regret_mean']
-                    for c in corruption_levels]
-
-    ax1.plot(corruption_levels, warmup_means, '-s', color=COLORS['green'],
-             linewidth=2.5, markersize=7, label='Warmup-Only', zorder=4)
-    ax1.plot(corruption_levels, tabula_means, '-^', color='gray',
-             linewidth=2.5, markersize=7, label='Tabula Rasa', zorder=4)
-
-    # Corralling at each bias
-    bias_cmap = plt.cm.YlOrRd(np.linspace(0.2, 0.9, len(weight_biases)))
-    for i, bias in enumerate(weight_biases):
-        bias_key = f"w0_{bias}"
-        means = [sweep_stats['corralling_by_bias'][bias_key][str(c)]['regret_mean']
-                 for c in corruption_levels]
-        stds = [sweep_stats['corralling_by_bias'][bias_key][str(c)]['regret_std']
-                for c in corruption_levels]
-        means = np.array(means)
-        stds = np.array(stds)
-
-        lw = 3.0 if bias == 0.5 else 1.8
-        ls = '-' if bias == 0.5 else '--'
-        ax1.plot(corruption_levels, means, ls + 'o', color=bias_cmap[i],
-                linewidth=lw, markersize=5,
-                label=f'Corralling w₀={bias:.1f}', zorder=3)
-        ax1.fill_between(corruption_levels, means - stds, means + stds,
-                        color=bias_cmap[i], alpha=0.08, zorder=1)
-
-    ax1.set_xlabel('Prior Corruption Level (α)', fontsize=11)
-    ax1.set_ylabel('Cumulative Regret', fontsize=11)
-    ax1.set_title('(A) Prior-Trust Bias: Shifting the Trade-Off',
-                  fontsize=12, fontweight='bold')
-    ax1.legend(loc='upper left', fontsize=8, framealpha=0.9, ncol=1)
-    ax1.grid(True, alpha=0.2)
-    ax1.set_xlim(-0.02, 1.02)
-
-    # --- Panel B: Pareto frontier (α=0 regret vs α=1 regret) ---
-    for i, bias in enumerate(weight_biases):
-        bias_key = f"w0_{bias}"
-        regret_0 = sweep_stats['corralling_by_bias'][bias_key]['0.0']['regret_mean']
-        regret_1 = sweep_stats['corralling_by_bias'][bias_key]['1.0']['regret_mean']
-        std_0 = sweep_stats['corralling_by_bias'][bias_key]['0.0']['regret_std']
-        std_1 = sweep_stats['corralling_by_bias'][bias_key]['1.0']['regret_std']
-
-        ax2.errorbar(regret_0, regret_1, xerr=std_0, yerr=std_1,
-                    fmt='o', color=bias_cmap[i], markersize=10,
-                    capsize=4, capthick=1.5, linewidth=1.5, zorder=3)
-        ax2.annotate(f'w₀={bias:.1f}',
-                    xy=(regret_0, regret_1),
-                    xytext=(5, 5), textcoords='offset points',
-                    fontsize=9, fontweight='bold', color=bias_cmap[i])
-
-    # Add baselines as reference points
-    w_0 = sweep_stats['baselines']['warmup_only']['0.0']['regret_mean']
-    w_1 = sweep_stats['baselines']['warmup_only']['1.0']['regret_mean']
-    t_0 = sweep_stats['baselines']['tabula_rasa']['0.0']['regret_mean']
-    t_1 = sweep_stats['baselines']['tabula_rasa']['1.0']['regret_mean']
-
-    ax2.plot(w_0, w_1, 's', color=COLORS['green'], markersize=12, zorder=4)
-    ax2.annotate('Warmup', xy=(w_0, w_1), xytext=(-8, 8),
-                textcoords='offset points', fontsize=9, color=COLORS['green'],
-                fontweight='bold')
-    ax2.plot(t_0, t_1, '^', color='gray', markersize=12, zorder=4)
-    ax2.annotate('Tabula\nRasa', xy=(t_0, t_1), xytext=(8, -5),
-                textcoords='offset points', fontsize=9, color='gray',
-                fontweight='bold')
-
-    ax2.set_xlabel('Regret at α=0 (correct priors)', fontsize=11)
-    ax2.set_ylabel('Regret at α=1 (adversarial priors)', fontsize=11)
-    ax2.set_title('(B) Prior-Trust Pareto Frontier',
-                  fontsize=12, fontweight='bold')
-    ax2.grid(True, alpha=0.2)
-
-    # Draw ideal corner arrow
-    ax2.annotate('← Better', xy=(0.02, 0.5), xycoords='axes fraction',
-                fontsize=8, color='gray', fontstyle='italic')
-    ax2.annotate('↓ Better', xy=(0.5, 0.02), xycoords='axes fraction',
-                fontsize=8, color='gray', fontstyle='italic')
-
-    plt.tight_layout()
-    out_dir = output_dir / "initial_weight_sweep"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for ext in ['pdf', 'png']:
-        fig.savefig(out_dir / f"figure_initial_weight_sweep.{ext}",
-                   dpi=300, bbox_inches='tight')
-    logger.info(f"✅ Weight sweep figure saved: {out_dir / 'figure_initial_weight_sweep.pdf'}")
-    plt.close()
-
-
 # ============================================================================
 # MAIN RUNNER
 # ============================================================================
 def main():
     parser = argparse.ArgumentParser(description='Run all Figure 3 experiments')
-    parser.add_argument('--experiments', type=str, default='2a,2bc,3,prior',
-                       help='Comma-separated experiments to run (default: 2a,2bc,3,prior). '
+    parser.add_argument('--experiments', type=str, default='prior',
+                       help='Comma-separated experiments to run (default: prior). '
                             'Options: 2a, 2bc, 3, prior, 5(gamma), iw(initial weight sweep)')
     parser.add_argument('--seeds', type=int, default=20,
                        help='Number of seeds for experiments 2a, 2bc, and prior (default: 20)')
@@ -1519,13 +1357,6 @@ def main():
         stats_3 = run_experiment_3(
             emb, warmup_priors_scaled, models, context_dim, data, args.seeds_ablation)
         all_stats['3_alpha_ablation'] = stats_3
-        if not args.no_plots:
-            logger.info("\n📊 Generating alpha ablation figure...")
-            try:
-                plot_alpha_ablation(stats_3['configs'], BASE_OUTPUT_DIR / "ablation")
-            except Exception as e:
-                logger.error(f"⚠️ Failed to generate figure: {e}")
-                import traceback; traceback.print_exc()
 
     if 'prior' in experiments_to_run:
         logger.info("\n" + "="*80)
@@ -1556,13 +1387,6 @@ def main():
             emb, warmup_priors_unscaled, warmup_priors_scaled,
             models, context_dim, data, args.seeds)
         all_stats['initial_weight_sweep'] = stats_iw
-        if not args.no_plots:
-            logger.info("\n📊 Generating initial weight sweep figure...")
-            try:
-                plot_initial_weight_sweep(stats_iw, BASE_OUTPUT_DIR)
-            except Exception as e:
-                logger.error(f"⚠️ Failed to generate figure: {e}")
-                import traceback; traceback.print_exc()
 
     # Save combined results
     elapsed = time.time() - start_time

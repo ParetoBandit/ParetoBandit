@@ -6,7 +6,7 @@ Having established that model preference heterogeneity exists and is predictable
 
 \begin{itemize}
     \item \textbf{Contextual embeddings} exploit semantic structure for learning
-    \item \textbf{Corralling meta-learning} provides safety against prior mismatch
+    \item \textbf{Corralling meta-learning} hedges against prior mismatch, trading peak performance for bounded worst-case regret
     \item \textbf{Semantic transfer} eliminates cold-start penalties for new models
 \end{itemize}
 
@@ -46,9 +46,9 @@ To strictly enforce efficiency, we implement a per-request dominance check befor
 
 This \emph{Dynamic Pareto Filtering} ensures the bandit policy never explores strictly dominated actions, accelerating convergence by pruning the search space.
 
-\subsubsection{Layer 2: Expert Corralling for Robustness}
+\subsubsection{Layer 2: Expert Corralling as Insurance}
 
-Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms. We mitigate this \emph{at the meta level} via a strategy inspired by Expert Corralling~\cite{agarwal2017corralling}, which manages a portfolio of expert policies (e.g., a ``Warmup Expert'' with static priors and a ``Tabula Rasa Expert'' with high plasticity). Importantly, each expert bandit is itself trained under a \emph{stationary-reward assumption} (monotone information accumulation without explicit forgetting); non-stationarity is handled solely through the meta-learner's ability to reweight or decommission experts whose performance has degraded.
+Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms relying on fixed priors. We address this \emph{at the meta level} via a strategy inspired by Expert Corralling~\cite{agarwal2017corralling}, which manages a portfolio of expert policies (e.g., a ``Warmup Expert'' with static priors and a ``Tabula Rasa Expert'' with high plasticity). Corralling functions as an \emph{insurance mechanism}: it trades peak performance under correct priors for bounded worst-case regret when prior quality is unknown or degrades over time (Section~\ref{sec:metalearning_cost}). Importantly, each expert bandit is itself trained under a \emph{stationary-reward assumption} (monotone information accumulation without explicit forgetting); non-stationarity is handled solely through the meta-learner's ability to reweight experts whose performance has degraded.
 
 The master algorithm updates the probability distribution over experts $w_{i,t}$ using an exponential weight update based on importance-weighted loss estimates $\hat{\ell}_{i,t}$. Crucially, to prevent ``Expert Death'' (where a temporarily poor expert's weight vanishes, rendering it unrecoverable), we implement a mixing parameter $\gamma$:
 \begin{equation}
@@ -65,7 +65,7 @@ a_t = \arg\max_{a \in \mathcal{P}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \al
 \end{equation}
 
 \paragraph{Exploration Parameter Selection.}
-We use constant $\alpha=2.0$ for both experts throughout deployment. While standard practice employs adaptive decay schedules (e.g., $\alpha_t = \alpha_0/\sqrt{t}$), our ablation studies (Section~\ref{sec:alpha_ablation}) demonstrate that constant exploration is essential under severe domain mismatch. Premature exploitation causes the system to commit irreversibly to misspecified priors. Maintaining constant $\alpha$ preserves the system's ability to detect and adapt to distribution shifts, achieving 48\% improvement over adaptive decay in high-mismatch scenarios.
+We use constant $\alpha=2.0$ for both experts throughout deployment. While adaptive decay schedules (e.g., $\alpha_t = \alpha_0/\sqrt{t}$) can improve performance on static benchmarks, constant exploration preserves the system's ability to detect distribution shifts and model degradation in non-stationary production environments. We accept a modest regret premium on static evaluations as the cost of change-detection capability.
 
 To ensure numerical stability during long-running operations, we implement an \emph{Amortized Regularization Floor}. We track the effective decay of the precision matrix $\Amat_a$ and proactively reinject regularization $\lambda_{\text{ridge}}\mathbf{I}$ whenever the smallest eigenvalue risks dropping below a safety threshold, preventing singular matrix inversions without the cost of $O(d^3)$ operations at every step.
 
@@ -83,9 +83,9 @@ When a new model $m_{\text{new}}$ is registered, we identify its nearest semanti
 
 This decouples the expectation (mean) from the certainty (variance). The router effectively starts with a hypothesis---``This model behaves like GPT-4-Turbo''---but maintains high variance (controlled by $\neff$), allowing it to aggressively exploit the model where the hypothesis holds while rapidly correcting where it diverges.
 
-\subsection{Corralling: Adaptive Expert Combination}
+\subsection{Corralling: Hedging Against Prior Uncertainty}
 
-To manage the trade-off between robust priors and online adaptability, we employ a simplified variant of the Corralling algorithm~\cite{agarwal2017corralling}. This meta-learning framework aggregates two distinct experts:
+In practice, a deployer rarely knows the quality of their priors in advance. To avoid having to choose between warmup-only (optimal when priors are correct, catastrophic when they are wrong) and tabula rasa (safe but slow), we employ a simplified variant of the Corralling algorithm~\cite{agarwal2017corralling} as an \emph{adaptive hedge}. This meta-learning framework aggregates two distinct experts:
 
 \begin{itemize}
     \item \textbf{Warmup Expert}: Initialized with priors $\thetavec_{\text{warm}}$ derived from offline RouteLLM data.
@@ -109,7 +109,7 @@ w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
 
 \textbf{Learning Rate Selection}: We evaluate two learning rates: conservative ($\eta=0.1$) and aggressive ($\eta=1.0$). Conservative learning offers predictable performance, while aggressive learning achieves better median but with higher variance. We recommend $\eta=0.1$ for production deployments requiring reliability, based on its substantially lower variance.
 
-\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate ($\eta=0.1$ or $\eta=1.0$) tuned for the typical horizon in our application, rather than the theoretically optimal $\eta^* \propto \sqrt{\ln K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that the system achieves competitive performance relative to the best expert in hindsight.
+\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate ($\eta=0.1$ or $\eta=1.0$) tuned for the typical horizon in our application, rather than the theoretically optimal $\eta^* \propto \sqrt{\ln K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:metalearning_cost}) demonstrates that Corralling provides bounded regret across the full spectrum of prior quality: it never matches the best single-expert baseline at any given operating point, but its worst-case regret (67 at adversarial priors) is 32\% lower than warmup-only's worst case (99), making it the appropriate default when prior quality cannot be validated in advance.
 
 \textbf{Staleness-Aware Meta-Learning Rate}: In production, feedback arrives with variable delay (network latency, human evaluation). Stale feedback is less informative about the \emph{current} expert quality. We attenuate the meta-learner's loss contribution by a staleness factor:
 \begin{equation}
@@ -128,12 +128,12 @@ The theoretical algorithm requires updating the state of all $K$ experts at ever
 \end{itemize}
 
 \paragraph{Mitigating Starvation.}
-We counteract the lack of counterfactual updates through \textbf{Uniform Initialization} ($\pi_0 = [0.5, 0.5]$) and the \textbf{Incumbent Failure Logic}. As demonstrated in Figure~\ref{fig:corralling}, even without $O(K)$ updates, the system successfully identifies and decommissions the suboptimal expert within 200 steps.
+We counteract the lack of counterfactual updates through \textbf{Uniform Initialization} ($\pi_0 = [0.5, 0.5]$) and the \textbf{Incumbent Failure Logic}. As demonstrated in Figure~\ref{fig:corralling}, even without $O(K)$ updates, the system detects and partially down-weights the suboptimal expert, though it retains nonzero weight to preserve the insurance property.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure4_corralling_weights.png}
-\caption{Corralling Learns to Exploit Semantic Structure. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps. The algorithm initially relies on the Warmup Expert (Orange) but detects mismatch. It rapidly shifts authority to the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility is a feature, not a bug---it represents persistent exploration that maintains a ``hot standby'' capability for distribution shifts. Note: This figure illustrates Corralling on dev-set data (1,121 prompts).}
+\caption{Corralling as Adaptive Insurance. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps on dev-set data. The meta-learner detects mismatch and gradually shifts weight toward the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility reflects persistent exploration that maintains a ``hot standby'' capability. This adaptation is partial---Corralling does not fully converge to the better expert, incurring an insurance premium in exchange for bounded worst-case regret (Section~\ref{sec:metalearning_cost}).}
 \label{fig:corralling}
 \end{figure}
 

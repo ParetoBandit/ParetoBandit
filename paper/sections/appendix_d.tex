@@ -53,83 +53,7 @@ Corralling settings: $\eta=0.3$ (fast failure detection), $\gamma=0.05$ (explora
 Evaluating detection performance on real-world model failures---which would require either historical failure data or carefully designed gradual-degradation simulations---remains important future work.
 
 % ----------------------------------------------------------------------------
-% D.3: Gamma Mixing Parameter Ablation
-% ----------------------------------------------------------------------------
-
-\subsection{Gamma Mixing Parameter Ablation: Multi-Dimensional Validation}
-\label{app:gamma_ablation}
-
-The mixing parameter $\gamma$ provides a floor on expert selection probability, preventing "expert death" where an expert's weight drops to zero and cannot recover. We validate $\gamma=0.05$ as optimal across four dimensions using N=750 holdout prompts with 5 seeds per configuration (25 runs total, 18,750 model selections).
-
-\subsubsection{The Four-Dimensional Validation Framework}
-
-Figure~\ref{fig:gamma_ablation} tells a unified story about why $\gamma=0.05$ is not arbitrary but the empirically validated optimum.
-
-\paragraph{(A) Performance Dimension: Minimal Cost for Enhanced Reliability.}
-Panel (A) shows cumulative regret for $\gamma \in \{0.00, 0.01, 0.05, 0.10, 0.20\}$. The configuration $\gamma=0.05$ achieves near-optimal regret (60.6 $\pm$ 1.4) comparable to pure exponential weighting ($\gamma=0.00$: 59.0 $\pm$ 5.0), but with \textbf{3$\times$ lower variance}. This demonstrates minimal performance cost for substantially enhanced reliability. Higher values degrade performance: $\gamma=0.10$ yields 69.2 $\pm$ 12.4 (+15\% regret), and $\gamma=0.20$ yields 77.0 $\pm$ 15.0 (+28\% regret), as the system wastes exploration on inferior experts.
-
-\paragraph{(B) Safety Dimension: Stochastic Expert Death as Evidence.}
-Panel (B) reveals why low $\gamma$ is problematic. The \emph{large error bars} at $\gamma=0.00$ (spanning 5 orders of magnitude: $10^{-7}$ to $10^{-2}$) provide \textbf{evidence} of stochastic expert death. Different random seeds cause different experts to be suppressed unpredictably---in some runs, Warmup drops to $10^{-7}$; in others, Tabula Rasa drops to $10^{-8}$; occasionally both remain near $10^{-2}$. This variance proves expert death is real and non-deterministic. In contrast, $\gamma=0.05$ reduces variance by 80\%, maintaining consistent minimum weights near the theoretical floor ($\gamma/K = 0.025$ for $K=2$ experts).
-
-\paragraph{(C) Decisiveness Dimension: Lower Minimum Indicates Adaptation.}
-Panel (C) shows temporal evolution of minimum expert weight. Counterintuitively, $\gamma=0.05$ achieves the \emph{lowest} minimum weights ($\sim 10^{-4}$), which indicates \emph{strong adaptation}, not failure. The meta-learner confidently allocates 80--90\% weight to the empirically higher-reward expert (based on observed losses), minimizing allocation to the lower-reward expert while staying safely above the death threshold ($10^{-8}$, red dashed line). Meanwhile, $\gamma=0.001$ maintains high minimum weights ($\sim 0.1$) due to \emph{indecision}---both experts remain near parity despite performance differences, wasting 30--40\% of queries on suboptimal routing. The $\gamma=0.2$ configuration is forced to maintain $\geq 10\%$ weight per expert, preventing decisive commitment.
-
-\paragraph{(D) Predictability Dimension: Outcome Consistency.}
-Panel (D) quantifies variance in final expert weights across seeds. $\gamma=0.05$ achieves 45\% lower variance than $\gamma=0.00$ (0.06 vs. 0.11), ensuring consistent deployment behavior. Extremely low variance at $\gamma=0.10$ (0.04) reflects forced exploration rather than adaptation, resulting in poor performance (panel A).
-
-\subsubsection{The Goldilocks Optimum}
-
-The four panels converge on $\gamma=0.05$ as the optimal balance:
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-\textbf{Dimension} & $\gamma=0.00$ & $\gamma=0.05$ & \textbf{Improvement} \\
-\midrule
-Regret (A) & 59.0 $\pm$ 5.0 & 60.6 $\pm$ 1.4 & $-72\%$ variance \\
-Min Weight (B) & 0.05 $\pm$ 0.08 & 0.06 $\pm$ 0.02 & $-75\%$ variance \\
-Adaptation (C) & Indecisive & Decisive ($10^{-4}$) & Strong commit \\
-Stability (D) & 0.11 & 0.06 & $-45\%$ variance \\
-\bottomrule
-\end{tabular}
-\caption{Multi-dimensional validation of $\gamma=0.05$. Net result: same performance as $\gamma=0.00$ but dramatically more reliable.}
-\label{tab:gamma_validation}
-\end{table}
-
-\subsubsection{Theoretical Interpretation}
-
-With Corralling, expert selection probabilities are:
-\begin{equation}
-P_t(\text{expert}_i) = (1 - \gamma) \cdot \text{softmax}(-\eta \cdot L_{t,i}) + \frac{\gamma}{K}
-\end{equation}
-where $L_{t,i}$ is cumulative loss and $K$ is the number of experts. This guarantees $P_t(\text{expert}_i) \geq \gamma/K$ for all $t$ and all $i$, providing a safety floor. At $\gamma=0.05$ with $K=2$:
-\begin{itemize}[nosep]
-    \item Minimum probability: 2.5\% per expert
-    \item Expected regret: $(1-\gamma) \cdot R_{\text{optimal}} + \gamma \cdot R_{\text{uniform}} \approx 2$--$5\%$ overhead
-    \item Empirical penalty: $\approx 0\%$ (60.6 vs. 59.0)---near-optimal with full safety!
-\end{itemize}
-
-\subsubsection{Production Recommendation}
-
-For 99\% of deployments, use the validated default:
-\begin{lstlisting}[language=Python]
-router = CorrallingRouter(
-    experts=[warmup, tabula_rasa],
-    gamma=0.05,  # Empirically optimal (validated)
-    learning_rate=1.0
-)
-\end{lstlisting}
-
-Deviate only if:
-\begin{itemize}[nosep]
-    \item \textbf{Lower $\gamma$ (0.01):} $>5$ experts requiring aggressive competition (WARNING: higher variance, risk of expert death)
-    \item \textbf{Higher $\gamma$ (0.10):} Highly non-stationary environments where expert quality changes frequently (WARNING: 15\% performance penalty)
-\end{itemize}
-
-% ----------------------------------------------------------------------------
-% D.4: Zero-Shot Model Adoption - Extended Analysis
+% D.2: Zero-Shot Model Adoption - Extended Analysis
 % ----------------------------------------------------------------------------
 
 \subsection{Zero-Shot Model Adoption: Extended Analysis}
@@ -189,39 +113,7 @@ Paired t-tests with Bonferroni correction ($\alpha=0.05/4 = 0.0125$):
 Diagnostic analysis reveals individual seeds exhibit binary expert commitments (0\% or 100\%) rather than stable blending. The reported $\sim$75\%/$\sim$25\% Conservative/Adaptive split reflects heterogeneity \emph{across seeds}, not stable blending \emph{within seeds}. This binary switching is consistent with the regime-dependent behavior in Appendix~\ref{app:multiseed_sensitivity}.
 
 % ----------------------------------------------------------------------------
-% D.4: Exploration Strategy Validation
-% ----------------------------------------------------------------------------
-
-\subsection{Exploration Strategy Validation}
-\label{sec:alpha_ablation}
-
-A critical design choice is the exploration-exploitation schedule. We validated constant exploration ($\alpha=2.0$) through systematic ablation under domain mismatch between offline training and holdout evaluation data.
-
-\paragraph{Experimental Setup.}
-Four configurations evaluated on the 750-prompt holdout set across 20 random seeds:
-
-\begin{table}[h]
-\centering
-\caption{\textbf{Exploration Strategy Ablation.} Constant exploration ($\alpha=2.0$) outperforms adaptive decay under severe domain mismatch by 48\%.}
-\label{tab:alpha_ablation}
-\small
-\begin{tabular}{@{}lcc@{}}
-\toprule
-\textbf{Configuration} & \textbf{Cumulative Regret} & \textbf{vs Best} \\
-\midrule
-\textbf{Homogeneous Constant ($\alpha=2.0$)} & \textbf{60.6 $\pm$ 1.4} & \textbf{--} \\
-Current Design (mixed) & 64.4 $\pm$ 4.4 & +6.3\% \\
-\midrule
-Homogeneous Decay ($\alpha: 1.0 \to 0.01$) & 90.2 $\pm$ 7.8 & +48\% \\
-Reversed Configuration & 90.8 $\pm$ 9.1 & +49\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Under severe prior mismatch, decaying $\alpha$ causes premature exploitation: the system commits to misspecified beliefs before accumulating sufficient evidence of their invalidity. Constant $\alpha=2.0$ maintains vigilance throughout deployment. This finding is specific to high-mismatch scenarios; in validated low-mismatch settings, adaptive schedules may improve sample efficiency.
-
-% ----------------------------------------------------------------------------
-% D.5: Three Operating Regimes
+% D.4: Three Operating Regimes
 % ----------------------------------------------------------------------------
 
 \subsection{Unified Framework: Three Operating Regimes}

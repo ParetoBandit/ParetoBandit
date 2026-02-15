@@ -39,7 +39,6 @@ regime:
         \item Model reliability may degrade (\S\ref{sec:catastrophic})
         \item Set initial warmup weight $w_0{=}0.7$ to reduce
               overhead by 11\% when priors are correct
-              (Appendix~\ref{app:initial_weight})
         \item \emph{Gain: bounded worst-case regret (40--67 range vs
               warmup-only's 27--99)}
     \end{itemize}
@@ -75,8 +74,7 @@ and tabula rasa experts, encoding \emph{prior trust}:
 \noindent
 The trade-off is \emph{asymmetric}: beyond $w_0{=}0.7$, the
 worst-case cost grows superlinearly while the best-case improvement
-saturates (Figure~\ref{fig:initial_weight_sweep} in
-Appendix~\ref{app:initial_weight}).
+saturates.
 We recommend $w_0{=}0.7$ as the default; increase to 0.8--0.9 only
 with high confidence in prior quality.
 
@@ -126,29 +124,15 @@ be passed to \texttt{update()}.  Omitting it causes complete failure of
 meta-learning (weights remain frozen at 50\%).
 
 % ----------------------------------------------------------------------------
-% Recommendation 2: Exploration Strategy (Alpha)
+% Recommendation 2: Exploration and Gamma
 % ----------------------------------------------------------------------------
-\paragraph{Exploration Strategy.}
-Our alpha ablation (Appendix~\ref{sec:alpha_ablation}) shows that
-$\alpha$-decay improves Corralling on \emph{static} benchmarks by
-16\% (40.6 vs 48.2, $p{<}0.001$, Wilcoxon signed-rank).
-However, decay prevents detection of model degradation in
-non-stationary environments (\S\ref{sec:catastrophic}).
-
-\textbf{Guideline:}
-Use constant $\alpha{=}2.0$ as the safe default.
-Switch to decay ($\alpha: 2.0 \to 0.1$) only after confirming a stable
-deployment environment.
-
-% ----------------------------------------------------------------------------
-% Recommendation 3: Gamma
-% ----------------------------------------------------------------------------
-\paragraph{Gamma Mixing: Zero-Cost Safety Default.}
-With a correctly calibrated $\eta$, the mixing parameter $\gamma$ has
-negligible impact (total range: 0.7 regret across
-$\gamma \in \{0, 0.05, 0.1, 0.2\}$; all $p{>}0.5$).
-We recommend $\gamma{=}0.05$ as a zero-cost safety default; no tuning
-is required.
+\paragraph{Exploration and Mixing Defaults.}
+We use constant $\alpha{=}2.0$ and $\gamma{=}0.05$ throughout.
+Constant exploration preserves change-detection capability in
+non-stationary environments, accepting a modest static-benchmark
+premium.
+The mixing parameter $\gamma$ has negligible impact on regret
+(total range ${<}1.0$ across tested values) and requires no tuning.
 
 % ----------------------------------------------------------------------------
 % Summary Table Reference
