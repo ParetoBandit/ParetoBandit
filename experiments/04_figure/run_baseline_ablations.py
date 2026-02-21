@@ -29,6 +29,7 @@ import numpy as np
 import logging
 import time
 from typing import Dict, List, Tuple
+from scipy import stats as sp_stats
 import copy
 
 # Add project root to path
@@ -43,9 +44,9 @@ from generate_pareto_frontier import (
     banditgpt_hybrid_routing,
 )
 from bandit_gpt.router import (
-    CorrallingRouter,
     CostAwareLinUCBRouter,
     CostAwareTabulaRasaRouter,
+    infer_model_family,
 )
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config_legacy import (
@@ -55,6 +56,10 @@ from bandit_gpt.config_legacy import (
 )
 from sentence_transformers import SentenceTransformer
 import joblib
+
+# Factory for creating production BanditRouter instances in experiments
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -196,6 +201,7 @@ def epsilon_greedy_routing(
         - neff=10 for priors (same normalization)
     """
     models = list(train_data[0]["rewards"].keys())
+    family_map = {m: infer_model_family(m) for m in models}
     dim = len(train_embeddings[0])
 
     if warmup_priors is not None:
@@ -207,6 +213,7 @@ def epsilon_greedy_routing(
             alpha_start=ALPHA_START,
             alpha_end=ALPHA_END,
             cost_penalty=lambda_penalty,
+            family_map=family_map,
         )
     else:
         router = CostAwareTabulaRasaRouter(
@@ -216,6 +223,7 @@ def epsilon_greedy_routing(
             alpha_start=ALPHA_START,
             alpha_end=ALPHA_END,
             cost_penalty=lambda_penalty,
+            family_map=family_map,
         )
 
     # Normalization bounds (train data only)
@@ -275,6 +283,7 @@ def linucb_only_routing(
         - Same zero-leakage normalization bounds
     """
     models = list(train_data[0]["rewards"].keys())
+    family_map = {m: infer_model_family(m) for m in models}
     dim = len(train_embeddings[0])
 
     if warmup_priors is not None:
@@ -286,6 +295,7 @@ def linucb_only_routing(
             alpha_start=ALPHA_START,
             alpha_end=ALPHA_END,
             cost_penalty=lambda_penalty,
+            family_map=family_map,
         )
     else:
         router = CostAwareTabulaRasaRouter(
@@ -295,6 +305,7 @@ def linucb_only_routing(
             alpha_start=ALPHA_START,
             alpha_end=ALPHA_END,
             cost_penalty=lambda_penalty,
+            family_map=family_map,
         )
 
     # Normalization bounds (train data only)
@@ -324,7 +335,7 @@ def linucb_only_routing(
 
 
 # ============================================================================
-# BASELINE 7: banditGPT-Hybrid (Corralling) — with pre-computed embeddings
+# BASELINE 7: banditGPT-Hybrid (Corralling) — PRODUCTION ROUTER
 # ============================================================================
 
 def banditgpt_hybrid_routing_cached(
@@ -332,39 +343,24 @@ def banditgpt_hybrid_routing_cached(
     eval_data: List[Dict],
     train_embeddings: List[np.ndarray],
     eval_embeddings: List[np.ndarray],
-    warmup_priors: Dict,
     model_costs: Dict,
+    warmup_path: str,
     lambda_penalty: float = 0.0,
 ) -> Tuple[float, float]:
     """
-    banditGPT-Hybrid with pre-computed embeddings.
-    Identical logic to generate_pareto_frontier.banditgpt_hybrid_routing()
-    but avoids re-encoding prompts on every trial.
-    """
-    scaled_priors = normalize_prior_strength(warmup_priors, TARGET_SAMPLE_SIZE)
-    models = list(train_data[0]["rewards"].keys())
-    dim = scaled_priors["context_dim"]
+    banditGPT-Hybrid using the **production BanditRouter**.
 
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models,
-        warmup_priors=scaled_priors,
-        model_costs=model_costs,
-        alpha_start=ALPHA_START,
-        alpha_end=ALPHA_END,
+    Exercises the full ``BanditRouter.create()`` → ``route()`` →
+    ``process_feedback()`` code path with pre-computed embeddings.
+    """
+    dim = len(train_embeddings[0])
+    router = create_experiment_router(
+        model_registry=None,
+        feature_dim=dim,
+        prior_n_effective=TARGET_SAMPLE_SIZE,
+        alpha=ALPHA_START,
+        warmup_path=warmup_path,
         cost_penalty=lambda_penalty,
-    )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=models,
-        context_dim=dim,
-        model_costs=model_costs,
-        alpha_start=ALPHA_START,
-        alpha_end=ALPHA_END,
-        cost_penalty=lambda_penalty,
-    )
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa],
-        models=models,
-        learning_rate=1.0,
     )
 
     # Normalization bounds (train data only — zero leakage)
@@ -375,19 +371,17 @@ def banditgpt_hybrid_routing_cached(
 
     # Phase 1: Burn-in on dev set
     for i, p in enumerate(train_data):
-        x = train_embeddings[i]
-        sel, token = router.select_model(x, total_steps=burn_in_steps)
-        norm_r = (p["rewards"][sel] - r_min) / r_range
-        router.update(x, sel, norm_r, selection_token=token)
+        model, log = router.route(train_embeddings[i], total_steps=burn_in_steps)
+        norm_r = (p["rewards"][model] - r_min) / r_range
+        router.process_feedback(log.request_id, norm_r)
 
-    # Phase 2: Evaluation on holdout
+    # Phase 2: Evaluation on holdout (no updates)
     total_reward = 0.0
     total_cost = 0.0
     for i, p in enumerate(eval_data):
-        x = eval_embeddings[i]
-        sel, _token = router.select_model(x, total_steps=burn_in_steps)
-        total_reward += p["rewards"][sel]
-        total_cost += model_costs[sel]["cost"]
+        model, _log = router.route(eval_embeddings[i], total_steps=burn_in_steps)
+        total_reward += p["rewards"][model]
+        total_cost += model_costs[model]["cost"]
 
     return total_reward / len(eval_data), total_cost / len(eval_data)
 
@@ -419,8 +413,9 @@ def run_method(
         avg_c = np.mean(trial_costs)
         std_r = np.std(trial_rewards, ddof=1) if n_trials > 1 else 0.0
         std_c = np.std(trial_costs, ddof=1) if n_trials > 1 else 0.0
-        ci95_r = 1.96 * std_r / np.sqrt(n_trials)
-        ci95_c = 1.96 * std_c / np.sqrt(n_trials)
+        t_crit = sp_stats.t.ppf(0.975, n_trials - 1) if n_trials > 1 else 1.96
+        ci95_r = t_crit * std_r / np.sqrt(n_trials)
+        ci95_c = t_crit * std_c / np.sqrt(n_trials)
 
         results.append({
             "lambda": lambda_val,
@@ -470,9 +465,10 @@ def main():
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     pca = joblib.load(DEFAULT_PCA_PATH)
 
-    # Use sanitized priors (same logic as generate_pareto_frontier.py)
+    # Resolve warmup priors path (prefer sanitized version)
     sanitized_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
-    warmup_priors = joblib.load(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
+    warmup_priors = joblib.load(warmup_path)
 
     # Normalize costs (same as generate_pareto_frontier.py)
     models = list(eval_data[0]["rewards"].keys())
@@ -573,13 +569,14 @@ def main():
         N_TRIALS,
     )
 
-    # 7. banditGPT-Hybrid (Corralling) — uses cached embeddings
-    logger.info("\n[7/7] banditGPT-Hybrid (Corralling, η=1.0)")
+    # 7. banditGPT-Hybrid (Corralling) — PRODUCTION BanditRouter
+    logger.info("\n[7/7] banditGPT-Hybrid (Production BanditRouter)")
     all_results["banditGPT-Hybrid"] = run_method(
         "banditGPT-Hybrid",
         lambda lam: banditgpt_hybrid_routing_cached(
             train_data, eval_data, train_emb, eval_emb,
-            warmup_priors, normalized_costs, lambda_penalty=lam,
+            model_costs=normalized_costs, warmup_path=warmup_path,
+            lambda_penalty=lam,
         ),
         COST_PENALTIES,
         N_TRIALS,

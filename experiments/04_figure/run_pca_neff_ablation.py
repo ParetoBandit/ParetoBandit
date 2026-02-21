@@ -16,6 +16,7 @@ import json
 import numpy as np
 import logging
 import time
+from scipy import stats as sp_stats
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -24,12 +25,6 @@ sys.path.insert(0, str(project_root / "src"))
 from generate_pareto_frontier import (
     load_model_costs,
     load_dataset_with_split,
-    normalize_prior_strength,
-)
-from bandit_gpt.router import (
-    CorrallingRouter,
-    CostAwareLinUCBRouter,
-    CostAwareTabulaRasaRouter,
 )
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
@@ -39,6 +34,10 @@ from bandit_gpt.config_legacy import (
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 import joblib
+import tempfile
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -62,24 +61,17 @@ def embed_with_pca(prompt_text, encoder, pca_model):
 
 def run_banditgpt(
     train_data, eval_data, train_emb, eval_emb,
-    warmup_priors, model_costs, neff=10.0,
+    warmup_path, neff=10.0,
 ):
-    """Run banditGPT-Hybrid with given priors and pre-computed embeddings."""
-    scaled_priors = normalize_prior_strength(warmup_priors, neff)
-    models = list(train_data[0]["rewards"].keys())
-    dim = scaled_priors["context_dim"]
-
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models, warmup_priors=scaled_priors, model_costs=model_costs,
-        alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-    )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=models, context_dim=dim, model_costs=model_costs,
-        alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-    )
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa],
-        models=models, learning_rate=1.0,
+    """Run banditGPT-Hybrid (production BanditRouter) with given priors and embeddings."""
+    dim = len(train_emb[0])
+    router = create_experiment_router(
+        model_registry=None,
+        feature_dim=dim,
+        prior_n_effective=neff,
+        alpha=ALPHA_START,
+        warmup_path=warmup_path,
+        cost_penalty=LAMBDA,
     )
 
     all_raw = [s for p in train_data for s in p["rewards"].values()]
@@ -87,16 +79,14 @@ def run_banditgpt(
     r_range = r_max - r_min if (r_max - r_min) > 1e-6 else 1.0
 
     for i, p in enumerate(train_data):
-        x = train_emb[i]
-        sel, token = router.select_model(x, total_steps=len(train_data))
-        norm_r = (p["rewards"][sel] - r_min) / r_range
-        router.update(x, sel, norm_r, selection_token=token)
+        model, log = router.route(train_emb[i], total_steps=len(train_data))
+        norm_r = (p["rewards"][model] - r_min) / r_range
+        router.process_feedback(log.request_id, norm_r)
 
     total_reward = 0.0
     for i, p in enumerate(eval_data):
-        x = eval_emb[i]
-        sel, _ = router.select_model(x, total_steps=len(train_data))
-        total_reward += p["rewards"][sel]
+        model, _log = router.route(eval_emb[i], total_steps=len(train_data))
+        total_reward += p["rewards"][model]
 
     return total_reward / len(eval_data)
 
@@ -167,7 +157,8 @@ def sweep(name, values, run_fn):
 
         avg = np.mean(rewards)
         std = np.std(rewards, ddof=1) if N_TRIALS > 1 else 0.0
-        ci95 = 1.96 * std / np.sqrt(N_TRIALS)
+        t_crit = sp_stats.t.ppf(0.975, N_TRIALS - 1) if N_TRIALS > 1 else 1.96
+        ci95 = t_crit * std / np.sqrt(N_TRIALS)
         results[val] = {"mean": avg, "std": std, "ci95": ci95}
         marker = " <-- default" if (name == "PCA_dim" and val == 32) or (name == "neff" and val == 10) else ""
         logger.info(f"  {name}={val:<5}  Reward={avg:.4f} ± {ci95:.4f}{marker}")
@@ -185,9 +176,8 @@ def main():
     default_pca = joblib.load(DEFAULT_PCA_PATH)
 
     sanitized_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
-    warmup_priors = joblib.load(
-        sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH
-    )
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
+    warmup_priors = joblib.load(warmup_path)
 
     models = list(eval_data[0]["rewards"].keys())
     max_cost = max(model_costs[m]["cost"] for m in models)
@@ -228,21 +218,25 @@ def main():
         train_emb = [np.append(pca_model.transform(raw_train[i:i+1])[0], 1.0) for i in range(len(raw_train))]
         eval_emb = [np.append(pca_model.transform(raw_eval[i:i+1])[0], 1.0) for i in range(len(raw_eval))]
 
-        # Adapt priors to new dim
+        # Adapt priors to new dim and save to temp file for BanditRouter.create()
         adapted_priors = retrain_priors_for_dim(warmup_priors, n_comp)
+        tmp_prior = tempfile.NamedTemporaryFile(suffix=".joblib", delete=False)
+        joblib.dump(adapted_priors, tmp_prior.name)
 
         rewards = []
         for trial in range(N_TRIALS):
             np.random.seed(SEED_OFFSET + trial)
             r = run_banditgpt(
                 train_data, eval_data, train_emb, eval_emb,
-                adapted_priors, normalized_costs, neff=10.0,
+                tmp_prior.name, neff=10.0,
             )
             rewards.append(r)
+        Path(tmp_prior.name).unlink(missing_ok=True)
 
         avg = np.mean(rewards)
         std = np.std(rewards, ddof=1)
-        ci95 = 1.96 * std / np.sqrt(N_TRIALS)
+        t_crit = sp_stats.t.ppf(0.975, N_TRIALS - 1) if N_TRIALS > 1 else 1.96
+        ci95 = t_crit * std / np.sqrt(N_TRIALS)
         pca_results[n_comp] = {"mean": avg, "std": std, "ci95": ci95}
         marker = " <-- default" if n_comp == 32 else ""
         logger.info(f"  PCA_dim={n_comp:<5}  Reward={avg:.4f} ± {ci95:.4f}{marker}")
@@ -261,7 +255,7 @@ def main():
         NEFF_VALUES,
         lambda neff: run_banditgpt(
             train_data, eval_data, train_emb_default, eval_emb_default,
-            warmup_priors, normalized_costs, neff=neff,
+            warmup_path, neff=neff,
         ),
     )
 

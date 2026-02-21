@@ -35,6 +35,7 @@ import numpy as np
 import logging
 import time
 from typing import Dict, List, Tuple
+from scipy import stats as sp_stats
 import copy
 
 # Add project root to path
@@ -389,8 +390,9 @@ def main():
         avg_c = np.mean(trial_costs)
         std_r = np.std(trial_rewards, ddof=1) if N_TRIALS > 1 else 0.0
         std_c = np.std(trial_costs, ddof=1) if N_TRIALS > 1 else 0.0
-        ci95_r = 1.96 * std_r / np.sqrt(N_TRIALS)
-        ci95_c = 1.96 * std_c / np.sqrt(N_TRIALS)
+        t_crit = sp_stats.t.ppf(0.975, N_TRIALS - 1) if N_TRIALS > 1 else 1.96
+        ci95_r = t_crit * std_r / np.sqrt(N_TRIALS)
+        ci95_c = t_crit * std_c / np.sqrt(N_TRIALS)
 
         threshold_results.append({
             "threshold": float(thresh),

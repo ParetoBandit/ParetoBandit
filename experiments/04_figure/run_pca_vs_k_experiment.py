@@ -35,6 +35,7 @@ import json
 import numpy as np
 import logging
 import time
+from scipy import stats as sp_stats
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -228,7 +229,8 @@ def main():
 
             avg = np.mean(rewards)
             std = np.std(rewards, ddof=1)
-            ci95 = 1.96 * std / np.sqrt(N_TRIALS)
+            t_crit = sp_stats.t.ppf(0.975, N_TRIALS - 1) if N_TRIALS > 1 else 1.96
+            ci95 = t_crit * std / np.sqrt(N_TRIALS)
             k_results["pca_sweep"][d] = {
                 "mean": float(avg),
                 "std": float(std),

@@ -42,16 +42,20 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
+from bandit_gpt.router import CostAwareLinUCBRouter, CostAwareTabulaRasaRouter, infer_model_family
 from bandit_gpt.calibration import embed_prompt, apply_gamma_scaling
 from sentence_transformers import SentenceTransformer
 import joblib
+import tempfile
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
     DEFAULT_PCA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH
 )
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -122,6 +126,60 @@ COLORS = {
 # ============================================================================
 # SHARED HELPERS
 # ============================================================================
+
+_PRIORS_CACHE: Dict[str, str] = {}
+
+
+def _save_priors_to_temp(priors: Dict, key: str = "default") -> str:
+    """Save priors to a temp .joblib file, caching by key."""
+    if key not in _PRIORS_CACHE:
+        tmp = tempfile.NamedTemporaryFile(suffix=".joblib", delete=False)
+        to_save = dict(priors)
+        to_save.setdefault("n", priors.get("n_prompts", max(len(priors.get("A", {})), 1)))
+        joblib.dump(to_save, tmp.name)
+        _PRIORS_CACHE[key] = tmp.name
+    return _PRIORS_CACHE[key]
+
+
+def _make_fig3_router(
+    models, context_dim, warmup_priors,
+    *,
+    alpha: float = 2.0,
+    corralling_learning_rate: float | None = None,
+    corralling_gamma: float = CORRALLING_GAMMA,
+    initial_warmup_weight: float = INITIAL_WARMUP_WEIGHT,
+) -> "BanditRouter":
+    """Create a production BanditRouter for Figure 3 experiments.
+
+    After creation, overrides initial_weights and loss_decay on the
+    Corralling sub-router to match Figure 3 protocol.
+
+    The priors passed here are assumed to be **already scaled** (via
+    ``apply_gamma_scaling``).  We set ``prior_n_effective`` equal to the
+    stored ``n`` so that ``create()``'s ``scale = n_eff / n`` is 1.0,
+    preserving the pre-scaled matrices exactly.
+    """
+    lr = corralling_learning_rate if corralling_learning_rate is not None else LEARNING_RATE
+    warmup_path = _save_priors_to_temp(warmup_priors, key=f"fig3_{id(warmup_priors)}")
+    n_stored = max(warmup_priors.get("n_prompts", 1), warmup_priors.get("n", 1), 1)
+    registry = {m: {"openrouter_id": m, "display_name": m.split("/")[-1],
+                     "input_cost_per_m": 1.0, "output_cost_per_m": 3.0} for m in models}
+    router = create_experiment_router(
+        model_registry=registry,
+        feature_dim=context_dim,
+        prior_n_effective=float(n_stored),
+        alpha=alpha,
+        warmup_path=warmup_path,
+        corralling_learning_rate=lr,
+        corralling_gamma=corralling_gamma,
+    )
+    if router.corralling_router is not None:
+        router.corralling_router.weights = np.array(
+            [initial_warmup_weight, 1.0 - initial_warmup_weight]
+        )
+        router.corralling_router.loss_decay = 1.0
+    return router
+
 
 def load_resources():
     """Load shared resources once."""
@@ -289,27 +347,13 @@ def run_experiment_2a(embeddings, warmup_priors, models, context_dim, data, n_se
 
     output_dir = BASE_OUTPUT_DIR / "weight_evolution"
     output_dir.mkdir(parents=True, exist_ok=True)
+    family_map = {m: infer_model_family(m) for m in models}
 
     def run_single_trial(seed):
         np.random.seed(seed)
         rng = np.random.RandomState(seed)
 
-        warmup_expert = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup_priors,
-            alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-            model_costs={m: {"normalized_cost": 0.0} for m in models}
-        )
-        tabula_rasa_expert = CostAwareTabulaRasaRouter(
-            models=models, context_dim=context_dim,
-            alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-            model_costs={m: {"normalized_cost": 0.0} for m in models}
-        )
-        router = CorrallingRouter(
-            experts=[warmup_expert, tabula_rasa_expert],
-            models=models, learning_rate=LEARNING_RATE, gamma=CORRALLING_GAMMA,
-            loss_decay=1.0,
-            initial_weights=np.array([INITIAL_WARMUP_WEIGHT, 1 - INITIAL_WARMUP_WEIGHT]),
-        )
+        router = _make_fig3_router(models, context_dim, warmup_priors, alpha=2.0)
 
         weights_history = []
         cumulative_regret = 0.0
@@ -320,7 +364,7 @@ def run_experiment_2a(embeddings, warmup_priors, models, context_dim, data, n_se
             sample = data[idx]
             context = embeddings[sample['prompt']]
 
-            selected_model, selection_token = router.select_model(context, total_steps=total_steps)
+            selected_model, log = router.route(context, total_steps=total_steps)
 
             scores = sample.get('scores', {})
             if not scores:
@@ -333,20 +377,20 @@ def run_experiment_2a(embeddings, warmup_priors, models, context_dim, data, n_se
             regret = oracle_reward - model_reward
             cumulative_regret += regret
 
-            router.update(context, selected_model, model_reward, selection_token)
+            router.process_feedback(log.request_id, model_reward)
 
             weights_history.append({
                 'step': i + 1,
-                'warmup': float(router.weights[0]),
-                'tabula_rasa': float(router.weights[1]),
+                'warmup': float(router.corralling_router.weights[0]),
+                'tabula_rasa': float(router.corralling_router.weights[1]),
                 'regret': cumulative_regret
             })
 
         return {
             'weights_history': weights_history,
             'final_regret': cumulative_regret,
-            'final_warmup_weight': float(router.weights[0]),
-            'final_tabula_weight': float(router.weights[1])
+            'final_warmup_weight': float(router.corralling_router.weights[0]),
+            'final_tabula_weight': float(router.corralling_router.weights[1])
         }
 
     logger.info(f"\n🔬 Running {n_seeds} trials...")
@@ -408,39 +452,29 @@ def run_experiment_2bc(embeddings, warmup_priors, models, context_dim, data, n_s
 
     output_dir = BASE_OUTPUT_DIR / "convergence"
     output_dir.mkdir(parents=True, exist_ok=True)
+    family_map = {m: infer_model_family(m) for m in models}
 
     def run_single_strategy(strategy_name, seed):
         np.random.seed(seed)
         rng = np.random.RandomState(seed)
 
+        use_bandit_router = False
         if strategy_name == "corralling":
-            warmup_expert = CostAwareLinUCBRouter(
-                models=models, warmup_priors=warmup_priors,
-                alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
-            )
-            tabula_rasa_expert = CostAwareTabulaRasaRouter(
-                models=models, context_dim=context_dim,
-                alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
-            )
-            router = CorrallingRouter(
-                experts=[warmup_expert, tabula_rasa_expert],
-                models=models, learning_rate=LEARNING_RATE, gamma=CORRALLING_GAMMA,
-                loss_decay=1.0,
-                initial_weights=np.array([INITIAL_WARMUP_WEIGHT, 1 - INITIAL_WARMUP_WEIGHT]),
-            )
+            bandit_router = _make_fig3_router(models, context_dim, warmup_priors, alpha=2.0)
+            use_bandit_router = True
         elif strategy_name == "warmup_only":
             router = CostAwareLinUCBRouter(
                 models=models, warmup_priors=warmup_priors,
                 alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
+                model_costs={m: {"normalized_cost": 0.0} for m in models},
+                family_map=family_map,
             )
         else:  # tabula_rasa
             router = CostAwareTabulaRasaRouter(
                 models=models, context_dim=context_dim,
                 alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
+                model_costs={m: {"normalized_cost": 0.0} for m in models},
+                family_map=family_map,
             )
 
         regret_history = []
@@ -452,32 +486,28 @@ def run_experiment_2bc(embeddings, warmup_priors, models, context_dim, data, n_s
             sample = data[idx]
             context = embeddings[sample['prompt']]
 
-            if strategy_name == "corralling":
-                selected_model, selection_token = router.select_model(context, total_steps=total_steps)
-            else:
-                result = router.select_model(context, total_steps=total_steps)
-                if isinstance(result, tuple):
-                    selected_model, selection_token = result
-                else:
-                    selected_model = result
-                    selection_token = None
-
             scores = sample.get('scores', {})
             if not scores:
                 continue
+
+            if use_bandit_router:
+                selected_model, log = bandit_router.route(context, total_steps=total_steps)
+            else:
+                result = router.select_model(context, total_steps=total_steps)
+                if isinstance(result, tuple):
+                    selected_model, _ = result
+                else:
+                    selected_model = result
 
             oracle_model = max(scores, key=scores.get)
             model_reward = scores.get(selected_model, 0.0)
             regret = scores[oracle_model] - model_reward
             cumulative_regret += regret
 
-            if strategy_name == "corralling":
-                router.update(context, selected_model, model_reward, selection_token)
+            if use_bandit_router:
+                bandit_router.process_feedback(log.request_id, model_reward)
             else:
-                if selection_token:
-                    router.update(context, selected_model, model_reward, selection_token)
-                else:
-                    router.update(context, selected_model, model_reward)
+                router.update(context, selected_model, model_reward)
 
             regret_history.append(cumulative_regret)
 
@@ -551,6 +581,7 @@ def run_experiment_3(embeddings, warmup_priors, models, context_dim, data, n_see
 
     output_dir = BASE_OUTPUT_DIR / "ablation"
     output_dir.mkdir(parents=True, exist_ok=True)
+    family_map = {m: infer_model_family(m) for m in models}
 
     configs = [
         ("constant_constant", 2.0, 2.0, 2.0, 2.0),
@@ -569,22 +600,12 @@ def run_experiment_3(embeddings, warmup_priors, models, context_dim, data, n_see
             np.random.seed(seed)
             rng = np.random.RandomState(seed)
 
-            warmup_expert = CostAwareLinUCBRouter(
-                models=models, warmup_priors=warmup_priors,
-                alpha_start=w_start, alpha_end=w_end, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
-            )
-            tabula_expert = CostAwareTabulaRasaRouter(
-                models=models, context_dim=context_dim,
-                alpha_start=t_start, alpha_end=t_end, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
-            )
-            router = CorrallingRouter(
-                experts=[warmup_expert, tabula_expert],
-                models=models, learning_rate=LEARNING_RATE, gamma=CORRALLING_GAMMA,
-                loss_decay=1.0,
-                initial_weights=np.array([INITIAL_WARMUP_WEIGHT, 1 - INITIAL_WARMUP_WEIGHT]),
-            )
+            br = _make_fig3_router(models, context_dim, warmup_priors, alpha=w_start)
+            # Override alpha schedules to test this specific ablation config
+            br.corralling_router.experts[0].alpha_start = w_start
+            br.corralling_router.experts[0].alpha_end = w_end
+            br.corralling_router.experts[1].alpha_start = t_start
+            br.corralling_router.experts[1].alpha_end = t_end
 
             cumulative_regret = 0.0
             indices = rng.permutation(len(data))
@@ -594,7 +615,7 @@ def run_experiment_3(embeddings, warmup_priors, models, context_dim, data, n_see
                 sample = data[idx]
                 context = embeddings[sample['prompt']]
 
-                selected_model, selection_token = router.select_model(context, total_steps=total_steps)
+                selected_model, log = br.route(context, total_steps=total_steps)
 
                 scores = sample.get('scores', {})
                 if not scores:
@@ -604,7 +625,7 @@ def run_experiment_3(embeddings, warmup_priors, models, context_dim, data, n_see
                 oracle_reward = max(scores.values())
                 cumulative_regret += (oracle_reward - model_reward)
 
-                router.update(context, selected_model, model_reward, selection_token)
+                br.process_feedback(log.request_id, model_reward)
 
             config_results.append(cumulative_regret)
 
@@ -661,6 +682,7 @@ def run_experiment_5(embeddings, warmup_priors, models, context_dim, data, n_see
 
     output_dir = BASE_OUTPUT_DIR / "gamma_ablation"
     output_dir.mkdir(parents=True, exist_ok=True)
+    family_map = {m: infer_model_family(m) for m in models}
 
     gamma_values = [0.0, 0.05, 0.10, 0.20]
     results = {}
@@ -674,21 +696,9 @@ def run_experiment_5(embeddings, warmup_priors, models, context_dim, data, n_see
             np.random.seed(seed)
             rng = np.random.RandomState(seed)
 
-            warmup_expert = CostAwareLinUCBRouter(
-                models=models, warmup_priors=warmup_priors,
-                alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
-            )
-            tabula_expert = CostAwareTabulaRasaRouter(
-                models=models, context_dim=context_dim,
-                alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                model_costs={m: {"normalized_cost": 0.0} for m in models}
-            )
-            router = CorrallingRouter(
-                experts=[warmup_expert, tabula_expert],
-                models=models, learning_rate=LEARNING_RATE, gamma=gamma_val,
-                loss_decay=1.0,
-                initial_weights=np.array([INITIAL_WARMUP_WEIGHT, 1 - INITIAL_WARMUP_WEIGHT]),
+            br = _make_fig3_router(
+                models, context_dim, warmup_priors,
+                alpha=2.0, corralling_gamma=gamma_val,
             )
 
             cumulative_regret = 0.0
@@ -699,7 +709,7 @@ def run_experiment_5(embeddings, warmup_priors, models, context_dim, data, n_see
                 sample = data[idx]
                 context = embeddings[sample['prompt']]
 
-                selected_model, selection_token = router.select_model(context, total_steps=total_steps)
+                selected_model, log = br.route(context, total_steps=total_steps)
 
                 scores = sample.get('scores', {})
                 if not scores:
@@ -709,7 +719,7 @@ def run_experiment_5(embeddings, warmup_priors, models, context_dim, data, n_see
                 oracle_reward = max(scores.values())
                 cumulative_regret += (oracle_reward - model_reward)
 
-                router.update(context, selected_model, model_reward, selection_token)
+                br.process_feedback(log.request_id, model_reward)
 
             gamma_results.append(cumulative_regret)
 
@@ -756,6 +766,7 @@ def run_experiment_prior_degradation(embeddings, warmup_priors_unscaled, warmup_
 
     corruption_levels = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     strategies = ["warmup_only", "corralling", "tabula_rasa"]
+    family_map = {m: infer_model_family(m) for m in models}
 
     all_results = {s: {str(c): [] for c in corruption_levels} for s in strategies}
     # Track weight histories at 3 representative levels for Panel B
@@ -767,7 +778,6 @@ def run_experiment_prior_degradation(embeddings, warmup_priors_unscaled, warmup_
                 f"{len(strategies)} strategies × {n_seeds} seeds = {total_runs} trials")
 
     for corruption in corruption_levels:
-        # Create corrupted priors for this level
         corrupted_priors = corrupt_priors(warmup_priors_scaled, corruption)
 
         for strategy in strategies:
@@ -776,35 +786,23 @@ def run_experiment_prior_degradation(embeddings, warmup_priors_unscaled, warmup_
                 rng = np.random.RandomState(seed)
 
                 track_weights = (strategy == "corralling" and corruption in weight_tracking_levels)
+                use_bandit_router = (strategy == "corralling")
 
                 if strategy == "corralling":
-                    warmup_expert = CostAwareLinUCBRouter(
-                        models=models, warmup_priors=corrupted_priors,
-                        alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                        model_costs={m: {"normalized_cost": 0.0} for m in models}
-                    )
-                    tabula_rasa_expert = CostAwareTabulaRasaRouter(
-                        models=models, context_dim=context_dim,
-                        alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                        model_costs={m: {"normalized_cost": 0.0} for m in models}
-                    )
-                    router = CorrallingRouter(
-                        experts=[warmup_expert, tabula_rasa_expert],
-                        models=models, learning_rate=LEARNING_RATE, gamma=CORRALLING_GAMMA,
-                        loss_decay=1.0,
-                        initial_weights=np.array([INITIAL_WARMUP_WEIGHT, 1 - INITIAL_WARMUP_WEIGHT]),
-                    )
+                    br = _make_fig3_router(models, context_dim, corrupted_priors, alpha=2.0)
                 elif strategy == "warmup_only":
                     router = CostAwareLinUCBRouter(
                         models=models, warmup_priors=corrupted_priors,
                         alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                        model_costs={m: {"normalized_cost": 0.0} for m in models}
+                        model_costs={m: {"normalized_cost": 0.0} for m in models},
+                        family_map=family_map,
                     )
                 else:  # tabula_rasa
                     router = CostAwareTabulaRasaRouter(
                         models=models, context_dim=context_dim,
                         alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                        model_costs={m: {"normalized_cost": 0.0} for m in models}
+                        model_costs={m: {"normalized_cost": 0.0} for m in models},
+                        family_map=family_map,
                     )
 
                 seed_weights = [] if track_weights else None
@@ -816,35 +814,27 @@ def run_experiment_prior_degradation(embeddings, warmup_priors_unscaled, warmup_
                     sample = data[idx]
                     context = embeddings[sample['prompt']]
 
-                    if strategy == "corralling":
-                        selected_model, selection_token = router.select_model(
-                            context, total_steps=total_steps)
-                    else:
-                        result = router.select_model(context, total_steps=total_steps)
-                        if isinstance(result, tuple):
-                            selected_model, selection_token = result
-                        else:
-                            selected_model = result
-                            selection_token = None
-
                     scores = sample.get('scores', {})
                     if not scores:
                         continue
+
+                    if use_bandit_router:
+                        selected_model, log = br.route(context, total_steps=total_steps)
+                    else:
+                        result = router.select_model(context, total_steps=total_steps)
+                        selected_model = result[0] if isinstance(result, tuple) else result
 
                     model_reward = scores.get(selected_model, 0.0)
                     oracle_reward = max(scores.values())
                     cumulative_regret += (oracle_reward - model_reward)
 
-                    if strategy == "corralling":
-                        router.update(context, selected_model, model_reward, selection_token)
+                    if use_bandit_router:
+                        br.process_feedback(log.request_id, model_reward)
                     else:
-                        if selection_token:
-                            router.update(context, selected_model, model_reward, selection_token)
-                        else:
-                            router.update(context, selected_model, model_reward)
+                        router.update(context, selected_model, model_reward)
 
                     if track_weights:
-                        seed_weights.append(float(router.weights[0]))
+                        seed_weights.append(float(br.corralling_router.weights[0]))
 
                 all_results[strategy][str(corruption)].append(cumulative_regret)
                 if track_weights:
@@ -965,6 +955,7 @@ def run_experiment_initial_weight_sweep(
     """
     output_dir = BASE_OUTPUT_DIR / "initial_weight_sweep"
     output_dir.mkdir(parents=True, exist_ok=True)
+    family_map = {m: infer_model_family(m) for m in models}
 
     corruption_levels = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]  # coarser grid (speed)
     weight_biases = [0.5, 0.6, 0.7, 0.8, 0.9]
@@ -995,13 +986,15 @@ def run_experiment_initial_weight_sweep(
                     router = CostAwareLinUCBRouter(
                         models=models, warmup_priors=corrupted_priors,
                         alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                        model_costs={m: {"normalized_cost": 0.0} for m in models}
+                        model_costs={m: {"normalized_cost": 0.0} for m in models},
+                        family_map=family_map,
                     )
                 else:
                     router = CostAwareTabulaRasaRouter(
                         models=models, context_dim=context_dim,
                         alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                        model_costs={m: {"normalized_cost": 0.0} for m in models}
+                        model_costs={m: {"normalized_cost": 0.0} for m in models},
+                        family_map=family_map,
                     )
 
                 cumulative_regret = 0.0
@@ -1043,37 +1036,23 @@ def run_experiment_initial_weight_sweep(
                 rng = np.random.RandomState(seed)
                 indices = rng.permutation(len(data))
 
-                warmup_expert = CostAwareLinUCBRouter(
-                    models=models, warmup_priors=corrupted_priors,
-                    alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                    model_costs={m: {"normalized_cost": 0.0} for m in models}
-                )
-                tabula_rasa_expert = CostAwareTabulaRasaRouter(
-                    models=models, context_dim=context_dim,
-                    alpha_start=2.0, alpha_end=2.0, cost_penalty=0.0,
-                    model_costs={m: {"normalized_cost": 0.0} for m in models}
-                )
-                initial_w = np.array([bias, 1.0 - bias])
-                router = CorrallingRouter(
-                    experts=[warmup_expert, tabula_rasa_expert],
-                    models=models, learning_rate=LEARNING_RATE,
-                    gamma=CORRALLING_GAMMA, loss_decay=1.0,
-                    initial_weights=initial_w,
+                br = _make_fig3_router(
+                    models, context_dim, corrupted_priors,
+                    alpha=2.0, initial_warmup_weight=bias,
                 )
 
                 cumulative_regret = 0.0
                 for idx in indices:
                     sample = data[idx]
                     context = embeddings[sample['prompt']]
-                    selected_model, selection_token = router.select_model(
-                        context, total_steps=len(data))
+                    selected_model, log = br.route(context, total_steps=len(data))
                     scores = sample.get('scores', {})
                     if not scores:
                         continue
                     reward = scores.get(selected_model, 0.0)
                     oracle = max(scores.values())
                     cumulative_regret += (oracle - reward)
-                    router.update(context, selected_model, reward, selection_token)
+                    br.process_feedback(log.request_id, reward)
 
                 corralling_results[bias_key][str(corruption)].append(cumulative_regret)
 

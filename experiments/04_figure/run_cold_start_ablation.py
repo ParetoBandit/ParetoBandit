@@ -22,6 +22,7 @@ import numpy as np
 import logging
 import time
 from typing import Dict, List, Tuple
+from scipy import stats as sp_stats
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -30,12 +31,6 @@ sys.path.insert(0, str(project_root / "src"))
 from generate_pareto_frontier import (
     load_model_costs,
     load_dataset_with_split,
-    normalize_prior_strength,
-)
-from bandit_gpt.router import (
-    CorrallingRouter,
-    CostAwareLinUCBRouter,
-    CostAwareTabulaRasaRouter,
 )
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config_legacy import (
@@ -45,6 +40,9 @@ from bandit_gpt.config_legacy import (
 )
 from sentence_transformers import SentenceTransformer
 import joblib
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -63,23 +61,17 @@ def precompute_embeddings(data, encoder, pca):
 
 def banditgpt_run(
     train_data, eval_data, train_emb, eval_emb,
-    warmup_priors, model_costs, lambda_penalty, cold_start=False,
+    model_costs, warmup_path, lambda_penalty, cold_start=False,
 ):
-    """Run banditGPT-Hybrid with or without dev-set training."""
-    scaled_priors = normalize_prior_strength(warmup_priors, TARGET_SAMPLE_SIZE)
-    models = list(train_data[0]["rewards"].keys())
-    dim = scaled_priors["context_dim"]
-
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models, warmup_priors=scaled_priors, model_costs=model_costs,
-        alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=lambda_penalty,
-    )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=models, context_dim=dim, model_costs=model_costs,
-        alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=lambda_penalty,
-    )
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa], models=models, learning_rate=1.0,
+    """Run banditGPT-Hybrid (production BanditRouter) with or without dev-set training."""
+    dim = len(train_emb[0])
+    router = create_experiment_router(
+        model_registry=None,
+        feature_dim=dim,
+        prior_n_effective=TARGET_SAMPLE_SIZE,
+        alpha=ALPHA_START,
+        warmup_path=warmup_path,
+        cost_penalty=lambda_penalty,
     )
 
     all_raw = [s for p in train_data for s in p["rewards"].values()]
@@ -90,18 +82,16 @@ def banditgpt_run(
     # Phase 1: Burn-in (skipped for cold-start)
     if not cold_start:
         for i, p in enumerate(train_data):
-            x = train_emb[i]
-            sel, token = router.select_model(x, total_steps=burn_in_steps)
-            norm_r = (p["rewards"][sel] - r_min) / r_range
-            router.update(x, sel, norm_r, selection_token=token)
+            model, log = router.route(train_emb[i], total_steps=burn_in_steps)
+            norm_r = (p["rewards"][model] - r_min) / r_range
+            router.process_feedback(log.request_id, norm_r)
 
-    # Phase 2: Evaluation
+    # Phase 2: Evaluation (no updates)
     total_reward, total_cost = 0.0, 0.0
     for i, p in enumerate(eval_data):
-        x = eval_emb[i]
-        sel, _ = router.select_model(x, total_steps=burn_in_steps)
-        total_reward += p["rewards"][sel]
-        total_cost += model_costs[sel]["cost"]
+        model, _log = router.route(eval_emb[i], total_steps=burn_in_steps)
+        total_reward += p["rewards"][model]
+        total_cost += model_costs[model]["cost"]
 
     return total_reward / len(eval_data), total_cost / len(eval_data)
 
@@ -120,8 +110,9 @@ def run_sweep(func, label):
         avg_r, avg_c = np.mean(rewards), np.mean(costs)
         std_r = np.std(rewards, ddof=1) if N_TRIALS > 1 else 0.0
         std_c = np.std(costs, ddof=1) if N_TRIALS > 1 else 0.0
-        ci95_r = 1.96 * std_r / np.sqrt(N_TRIALS)
-        ci95_c = 1.96 * std_c / np.sqrt(N_TRIALS)
+        t_crit = sp_stats.t.ppf(0.975, N_TRIALS - 1) if N_TRIALS > 1 else 1.96
+        ci95_r = t_crit * std_r / np.sqrt(N_TRIALS)
+        ci95_c = t_crit * std_c / np.sqrt(N_TRIALS)
 
         results.append({
             "lambda": lam, "reward": avg_r, "cost": avg_c,
@@ -157,7 +148,7 @@ def main():
     pca = joblib.load(DEFAULT_PCA_PATH)
 
     sanitized_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
-    warmup_priors = joblib.load(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
 
     models = list(eval_data[0]["rewards"].keys())
     max_cost = max(model_costs[m]["cost"] for m in models)
@@ -183,7 +174,7 @@ def main():
     warm_results = run_sweep(
         lambda lam: banditgpt_run(
             train_data, eval_data, train_emb, eval_emb,
-            warmup_priors, normalized_costs, lam, cold_start=False,
+            normalized_costs, warmup_path, lam, cold_start=False,
         ),
         "warm-start",
     )
@@ -193,7 +184,7 @@ def main():
     cold_results = run_sweep(
         lambda lam: banditgpt_run(
             train_data, eval_data, train_emb, eval_emb,
-            warmup_priors, normalized_costs, lam, cold_start=True,
+            normalized_costs, warmup_path, lam, cold_start=True,
         ),
         "cold-start",
     )

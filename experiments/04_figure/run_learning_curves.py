@@ -18,6 +18,7 @@ import json
 import numpy as np
 import logging
 import time
+from scipy import stats as sp_stats
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -26,12 +27,6 @@ sys.path.insert(0, str(project_root / "src"))
 from generate_pareto_frontier import (
     load_model_costs,
     load_dataset_with_split,
-    normalize_prior_strength,
-)
-from bandit_gpt.router import (
-    CorrallingRouter,
-    CostAwareLinUCBRouter,
-    CostAwareTabulaRasaRouter,
 )
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config_legacy import (
@@ -41,6 +36,9 @@ from bandit_gpt.config_legacy import (
 )
 from sentence_transformers import SentenceTransformer
 import joblib
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -61,34 +59,26 @@ def evaluate_holdout(router, eval_data, eval_emb, burn_in_steps):
     """Evaluate current router on full holdout (exploitation only)."""
     total = 0.0
     for i, p in enumerate(eval_data):
-        x = eval_emb[i]
-        sel, _ = router.select_model(x, total_steps=burn_in_steps)
-        total += p["rewards"][sel]
+        model, _log = router.route(eval_emb[i], total_steps=burn_in_steps)
+        total += p["rewards"][model]
     return total / len(eval_data)
 
 
 def run_single_trial(
     train_data, eval_data, train_emb, eval_emb,
-    warmup_priors, model_costs, seed,
+    warmup_path, seed,
     eval_checkpoints,
 ):
-    """Run one trial, recording per-step metrics and holdout reward at checkpoints."""
+    """Run one trial using the production BanditRouter, recording per-step metrics."""
     np.random.seed(seed)
-    scaled_priors = normalize_prior_strength(warmup_priors, TARGET_NEFF)
-    models = list(train_data[0]["rewards"].keys())
-    dim = scaled_priors["context_dim"]
-
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models, warmup_priors=scaled_priors, model_costs=model_costs,
-        alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-    )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=models, context_dim=dim, model_costs=model_costs,
-        alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-    )
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa],
-        models=models, learning_rate=1.0,
+    dim = len(train_emb[0])
+    router = create_experiment_router(
+        model_registry=None,
+        feature_dim=dim,
+        prior_n_effective=TARGET_NEFF,
+        alpha=ALPHA_START,
+        warmup_path=warmup_path,
+        cost_penalty=LAMBDA,
     )
 
     all_raw = [s for p in train_data for s in p["rewards"].values()]
@@ -96,7 +86,6 @@ def run_single_trial(
     r_range = r_max - r_min if (r_max - r_min) > 1e-6 else 1.0
     burn_in_steps = len(train_data)
 
-    # Track per-step metrics
     per_step_rewards = []
     expert_weights = []
     holdout_at_checkpoints = {}
@@ -109,14 +98,13 @@ def run_single_trial(
 
     # Phase 1: Burn-in with tracking
     for i, p in enumerate(train_data):
-        x = train_emb[i]
-        sel, token = router.select_model(x, total_steps=burn_in_steps)
-        raw_r = p["rewards"][sel]
+        model, log = router.route(train_emb[i], total_steps=burn_in_steps)
+        raw_r = p["rewards"][model]
         norm_r = (raw_r - r_min) / r_range
-        router.update(x, sel, norm_r, selection_token=token)
+        router.process_feedback(log.request_id, norm_r)
 
         per_step_rewards.append(raw_r)
-        expert_weights.append(router.weights.copy())
+        expert_weights.append(router.corralling_router.weights.copy())
 
         step = i + 1
         if step in eval_checkpoints:
@@ -152,9 +140,7 @@ def main():
     sanitized_path = (
         Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
     )
-    warmup_priors = joblib.load(
-        sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH
-    )
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
 
     models = list(eval_data[0]["rewards"].keys())
     max_cost = max(model_costs[m]["cost"] for m in models)
@@ -193,7 +179,7 @@ def main():
         seed = SEED_OFFSET + trial
         result = run_single_trial(
             train_data, eval_data, train_emb, eval_emb,
-            warmup_priors, normalized_costs, seed,
+            warmup_path, seed,
             eval_checkpoints,
         )
         all_trials.append(result)
@@ -229,7 +215,8 @@ def main():
         vals = [t["holdout_at_checkpoints"][cp] for t in all_trials]
         avg = np.mean(vals)
         std = np.std(vals, ddof=1) if len(vals) > 1 else 0.0
-        ci95 = 1.96 * std / np.sqrt(len(vals))
+        t_crit = sp_stats.t.ppf(0.975, len(vals) - 1) if len(vals) > 1 else 1.96
+        ci95 = t_crit * std / np.sqrt(len(vals))
         holdout_agg[cp] = {
             "mean": avg, "std": std, "ci95": ci95, "n": len(vals),
         }

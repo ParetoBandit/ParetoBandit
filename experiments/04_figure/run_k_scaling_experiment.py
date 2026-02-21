@@ -52,6 +52,7 @@ import logging
 import time
 from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
+from scipy import stats as sp_stats
 import copy
 
 # Add project root to path
@@ -60,9 +61,9 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
 from bandit_gpt.router import (
-    CorrallingRouter,
     CostAwareLinUCBRouter,
     CostAwareTabulaRasaRouter,
+    infer_model_family,
 )
 from bandit_gpt.baselines import (
     CostAwareLinTSRouter,
@@ -77,6 +78,10 @@ from bandit_gpt.config_legacy import (
 )
 from sentence_transformers import SentenceTransformer
 import joblib
+import tempfile
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -472,6 +477,7 @@ def run_k_experiment(
 
     # Normalized priors for this portfolio
     priors_k = normalize_prior_strength(warmup_priors, TARGET_SAMPLE_SIZE)
+    family_map = {m: infer_model_family(m) for m in models}
 
     # Methods to test
     methods = {
@@ -480,15 +486,18 @@ def run_k_experiment(
             CostAwareTabulaRasaRouter(
                 models=models, context_dim=dim, model_costs=model_costs_norm,
                 alpha_start=ALPHA_START, alpha_end=ALPHA_END,
+                family_map=family_map,
             ), epsilon=0.1, models=models,
         ),
         "LinUCB (no priors)": lambda: CostAwareTabulaRasaRouter(
             models=models, context_dim=dim, model_costs=model_costs_norm,
             alpha_start=ALPHA_START, alpha_end=ALPHA_END,
+            family_map=family_map,
         ),
         "LinUCB (w/ priors)": lambda: CostAwareLinUCBRouter(
             models=models, warmup_priors=priors_k, model_costs=model_costs_norm,
             alpha_start=ALPHA_START, alpha_end=ALPHA_END,
+            family_map=family_map,
         ),
         "LinTS (no priors)": lambda: CostAwareLinTSRouter(
             models=models, context_dim=dim, model_costs=model_costs_norm,
@@ -498,21 +507,7 @@ def run_k_experiment(
             models=models, context_dim=dim, model_costs=model_costs_norm,
             noise_variance=0.25, warmup_priors=priors_k,
         ),
-        "banditGPT-Hybrid": lambda: CorrallingRouter(
-            experts=[
-                CostAwareLinUCBRouter(
-                    models=models, warmup_priors=normalize_prior_strength(warmup_priors, TARGET_SAMPLE_SIZE),
-                    model_costs=model_costs_norm,
-                    alpha_start=ALPHA_START, alpha_end=ALPHA_END,
-                ),
-                CostAwareTabulaRasaRouter(
-                    models=models, context_dim=dim, model_costs=model_costs_norm,
-                    alpha_start=ALPHA_START, alpha_end=ALPHA_END,
-                ),
-            ],
-            models=models,
-            learning_rate=1.0,
-        ),
+        "banditGPT-Hybrid": lambda: _make_banditgpt_hybrid(models, dim, warmup_priors),
     }
 
     for method_name, factory in methods.items():
@@ -536,7 +531,8 @@ def run_k_experiment(
         if trial_rewards:
             avg_r = np.mean(trial_rewards)
             std_r = np.std(trial_rewards, ddof=1) if len(trial_rewards) > 1 else 0.0
-            ci95_r = 1.96 * std_r / np.sqrt(len(trial_rewards))
+            t_crit = sp_stats.t.ppf(0.975, len(trial_rewards) - 1) if len(trial_rewards) > 1 else 1.96
+            ci95_r = t_crit * std_r / np.sqrt(len(trial_rewards))
             avg_c = np.mean(trial_costs)
             results[method_name] = {
                 "reward": avg_r,
@@ -619,6 +615,59 @@ class _EpsGreedyWrapper:
 
     def update(self, context, model, reward, **kwargs):
         self.inner.update(context, model, reward)
+
+
+class _BanditRouterAdapter:
+    """Adapt BanditRouter's route/process_feedback API to select_model/update."""
+
+    def __init__(self, router):
+        self._router = router
+        self._pending_log = None
+        self.models = list(router.registry.keys())
+
+    def select_model(self, context, total_steps=0):
+        model, log = self._router.route(context, total_steps=total_steps)
+        self._pending_log = log
+        return model, None
+
+    def update(self, context, model, reward, **kwargs):
+        if self._pending_log:
+            self._router.process_feedback(self._pending_log.request_id, reward)
+            self._pending_log = None
+
+
+def _make_banditgpt_hybrid(models, dim, warmup_priors, warmup_path_cache={}):
+    """Create a production BanditRouter wrapped in the select_model/update adapter.
+
+    Saves priors to a temp file (cached per session) and builds a minimal
+    model registry so ``BanditRouter.create()`` can load them.
+    """
+    cache_key = tuple(sorted(warmup_priors.get("models", [])))
+    if cache_key not in warmup_path_cache:
+        tmp = tempfile.NamedTemporaryFile(suffix=".joblib", delete=False)
+        priors_to_save = dict(warmup_priors)
+        priors_to_save["n"] = warmup_priors.get("n_prompts", max(len(warmup_priors.get("A", {})), 1))
+        joblib.dump(priors_to_save, tmp.name)
+        warmup_path_cache[cache_key] = tmp.name
+
+    registry = {}
+    for m in models:
+        costs = MODEL_COSTS_PER_M.get(m, {"input": 1.0, "output": 3.0})
+        registry[m] = {
+            "openrouter_id": m,
+            "display_name": m.split("/")[-1],
+            "input_cost_per_m": costs["input"],
+            "output_cost_per_m": costs["output"],
+        }
+
+    router = create_experiment_router(
+        model_registry=registry,
+        feature_dim=dim,
+        prior_n_effective=TARGET_SAMPLE_SIZE,
+        alpha=ALPHA_START,
+        warmup_path=warmup_path_cache[cache_key],
+    )
+    return _BanditRouterAdapter(router)
 
 
 # =============================================================================

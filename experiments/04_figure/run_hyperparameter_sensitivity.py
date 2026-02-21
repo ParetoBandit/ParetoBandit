@@ -22,6 +22,7 @@ import json
 import numpy as np
 import logging
 import time
+from scipy import stats as sp_stats
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -30,12 +31,6 @@ sys.path.insert(0, str(project_root / "src"))
 from generate_pareto_frontier import (
     load_model_costs,
     load_dataset_with_split,
-    normalize_prior_strength,
-)
-from bandit_gpt.router import (
-    CorrallingRouter,
-    CostAwareLinUCBRouter,
-    CostAwareTabulaRasaRouter,
 )
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config_legacy import (
@@ -45,6 +40,9 @@ from bandit_gpt.config_legacy import (
 )
 from sentence_transformers import SentenceTransformer
 import joblib
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -65,29 +63,20 @@ def precompute_embeddings(data, encoder, pca):
 
 def run_banditgpt(
     train_data, eval_data, train_emb, eval_emb,
-    warmup_priors, model_costs,
-    eta=1.0, alpha_start=2.0,
+    warmup_path, eta=1.0, alpha_start=2.0,
 ):
-    """Run banditGPT-Hybrid with specified hyperparameters."""
-    scaled_priors = normalize_prior_strength(warmup_priors, TARGET_NEFF)
-    models = list(train_data[0]["rewards"].keys())
-    dim = scaled_priors["context_dim"]
-
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models, warmup_priors=scaled_priors, model_costs=model_costs,
-        alpha_start=alpha_start, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-    )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=models, context_dim=dim, model_costs=model_costs,
-        alpha_start=alpha_start, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-    )
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa],
-        models=models,
-        learning_rate=eta,
+    """Run banditGPT-Hybrid (production BanditRouter) with specified hyperparameters."""
+    dim = len(train_emb[0])
+    router = create_experiment_router(
+        model_registry=None,
+        feature_dim=dim,
+        prior_n_effective=TARGET_NEFF,
+        alpha=alpha_start,
+        warmup_path=warmup_path,
+        corralling_learning_rate=eta,
+        cost_penalty=LAMBDA,
     )
 
-    # Reward normalization
     all_raw = [s for p in train_data for s in p["rewards"].values()]
     r_min, r_max = min(all_raw), max(all_raw)
     r_range = r_max - r_min if (r_max - r_min) > 1e-6 else 1.0
@@ -95,17 +84,15 @@ def run_banditgpt(
 
     # Phase 1: Burn-in
     for i, p in enumerate(train_data):
-        x = train_emb[i]
-        sel, token = router.select_model(x, total_steps=burn_in_steps)
-        norm_r = (p["rewards"][sel] - r_min) / r_range
-        router.update(x, sel, norm_r, selection_token=token)
+        model, log = router.route(train_emb[i], total_steps=burn_in_steps)
+        norm_r = (p["rewards"][model] - r_min) / r_range
+        router.process_feedback(log.request_id, norm_r)
 
     # Phase 2: Evaluation (exploitation only)
     total_reward = 0.0
     for i, p in enumerate(eval_data):
-        x = eval_emb[i]
-        sel, _ = router.select_model(x, total_steps=burn_in_steps)
-        total_reward += p["rewards"][sel]
+        model, _log = router.route(eval_emb[i], total_steps=burn_in_steps)
+        total_reward += p["rewards"][model]
 
     return total_reward / len(eval_data)
 
@@ -122,7 +109,8 @@ def sweep(name, param_values, run_fn):
 
         avg = np.mean(rewards)
         std = np.std(rewards, ddof=1) if N_TRIALS > 1 else 0.0
-        ci95 = 1.96 * std / np.sqrt(N_TRIALS)
+        t_crit = sp_stats.t.ppf(0.975, N_TRIALS - 1) if N_TRIALS > 1 else 1.96
+        ci95 = t_crit * std / np.sqrt(N_TRIALS)
         results[val] = {
             "mean": avg, "std": std, "ci95": ci95,
             "n_trials": N_TRIALS,
@@ -148,9 +136,7 @@ def main():
     pca = joblib.load(DEFAULT_PCA_PATH)
 
     sanitized_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
-    warmup_priors = joblib.load(
-        sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH
-    )
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
 
     models = list(eval_data[0]["rewards"].keys())
     max_cost = max(model_costs[m]["cost"] for m in models)
@@ -182,8 +168,7 @@ def main():
         ETA_VALUES,
         lambda eta: run_banditgpt(
             train_data, eval_data, train_emb, eval_emb,
-            warmup_priors, normalized_costs,
-            eta=eta, alpha_start=2.0,
+            warmup_path, eta=eta, alpha_start=2.0,
         ),
     )
 
@@ -194,8 +179,7 @@ def main():
         ALPHA_START_VALUES,
         lambda a: run_banditgpt(
             train_data, eval_data, train_emb, eval_emb,
-            warmup_priors, normalized_costs,
-            eta=1.0, alpha_start=a,
+            warmup_path, eta=1.0, alpha_start=a,
         ),
     )
 

@@ -672,25 +672,27 @@ Wrap in lock and clean up regularization_floor and
     def select_arm(
         self, 
         x: np.ndarray, 
-        candidates: List[str | None] = None
+        candidates: List[str | None] = None,
+        cost_penalties: Dict[str, float] | None = None,
     ) -> Tuple[str, float]:
         """
         Select the best arm (model) using Upper Confidence Bound (UCB).
         
+        Implements paper Eq. 4:
+          a_t = argmax (x^T θ_hat + α √(x^T A^{-1} x) - cost_penalty)
+        
         Args:
             x: Context vector
             candidates: List of candidate model IDs (None = all models)
+            cost_penalties: Optional per-model cost penalty {model_id: λ * norm_cost}.
+                          Subtracted from UCB score at selection time.
             
         Returns:
-            Tuple of (best_model_id, best_ucb_score)
+            Tuple of (best_model_id, best_score)
         """
-        # Candidate filtering MUST happen inside the lock.
-        # Otherwise, a model could be removed from self.A between the filter
-        # and the locked read, causing a KeyError on A_inv[m].
         best_model = None
         best_ucb = -float("inf")
 
-        # Thread safety: Acquire lock for reading shared state
         with self._lock:
             candidates = candidates or self.models
             candidates = [m for m in candidates if m in self.A]
@@ -698,27 +700,20 @@ Wrap in lock and clean up regularization_floor and
                 raise ValueError("No candidates available")
             best_model = candidates[0]
             for m in candidates:
-                # UCB = mean + alpha * std
                 theta = self.A_inv[m] @ self.b[m]
                 mean = float(theta.dot(x))
                 
-                # Global Forgetting: Inflate variance based on staleness
-                # A_effective = A_stored * gamma^(dt)
-                # Var_effective = x^T A_eff^-1 x = x^T (A^-1 * gamma^-dt) x = Var_stored * gamma^-dt
-                #
-                # Time-delta variance inflation: covers the gap between the model's
-                # last update and the current selection time. Since A is only decayed
-                # during update(), we must explicitly inflate the variance here to
-                # reflect increased uncertainty as time passes without new observations.
                 dt = self.t - self.last_update[m]
                 decay_factor = self.gamma ** dt
                 
                 var = float(x.dot(self.A_inv[m]).dot(x))
-                # Inflate variance for staleness
                 var_inflated = var / max(decay_factor, 1e-12) 
                 
                 std = float(np.sqrt(max(var_inflated, 1e-12)))
                 ucb = mean + self.alpha * std
+                
+                if cost_penalties and m in cost_penalties:
+                    ucb -= cost_penalties[m]
                 
                 if ucb > best_ucb:
                     best_ucb = ucb
@@ -1313,19 +1308,16 @@ class HybridLinUCBPolicy:
     # ------------------------------------------------------------------
 
     def select_arm(
-        self, x: np.ndarray, candidates: List[str | None] = None
+        self,
+        x: np.ndarray,
+        candidates: List[str | None] = None,
+        cost_penalties: Dict[str, float] | None = None,
     ) -> Tuple[str, float]:
         """
-        Select the best arm using hybrid UCB.
+        Select the best arm using hybrid UCB with optional cost penalty.
 
-        For multi-member families the UCB combines shared and arm-specific:
-            mean = x^T beta_F + x^T theta_a
-            var  = x^T A0_inv_F x  +  x^T B_inv_a x
-
-        For singleton families the arm-specific component learns residuals
-        that converge to near-zero, so the shared component dominates
-        the prediction.  The arm-specific variance still contributes to
-        exploration of per-arm deviations.
+        Implements paper Eq. 4 with hybrid decomposition:
+          score = x^T β_F + x^T θ_a + α √(var_shared + var_arm) - cost_penalty
         """
         best_model = None
         best_ucb = -float("inf")
@@ -1340,7 +1332,6 @@ class HybridLinUCBPolicy:
             for m in candidates:
                 F = self.family_map.get(m, m)
 
-                # Shared estimate (family-level)
                 if F in self.A0_inv:
                     beta_hat = self.A0_inv[F] @ self.b0[F]
                     var_shared = float(x.dot(self.A0_inv[F]).dot(x))
@@ -1348,11 +1339,9 @@ class HybridLinUCBPolicy:
                     beta_hat = np.zeros(self.dim)
                     var_shared = 0.0
 
-                # Arm-specific estimate
                 theta_hat = self.A_inv[m] @ self.b[m]
                 mean = float(x.dot(beta_hat) + x.dot(theta_hat))
 
-                # Staleness-inflated arm-specific variance
                 dt = self.t - self.last_update[m]
                 decay_factor = self.gamma ** dt
                 var_specific = float(x.dot(self.A_inv[m]).dot(x))
@@ -1362,6 +1351,10 @@ class HybridLinUCBPolicy:
                 std = float(np.sqrt(max(var_total, 1e-12)))
 
                 ucb = mean + self.alpha * std
+
+                if cost_penalties and m in cost_penalties:
+                    ucb -= cost_penalties[m]
+
                 if ucb > best_ucb:
                     best_ucb = ucb
                     best_model = m
@@ -1695,9 +1688,9 @@ class BanditRouter:
         use_corralling: bool = True,  # Enable corralling by default
         corralling_learning_rate: float = 0.1,
         corralling_gamma: float = 0.05,
-        corralling_cost_weight: float = 0.0,  # λ for composite reward in Corralling
+        cost_penalty: float = 0.3,  # λ for UCB cost penalty (paper Eq. 4)
         # Policy selection
-        policy: Literal["disjoint", "hybrid"] = "disjoint",
+        policy: Literal["disjoint", "hybrid"] = "hybrid",
         family_map: Dict[str, str] | None = None,
     ):
         """
@@ -1726,17 +1719,17 @@ class BanditRouter:
             use_corralling: Enable Corralling meta-learner (default: True)
             corralling_learning_rate: Meta-learning rate for expert weight updates (default: 0.1)
             corralling_gamma: Mixing parameter (default: 0.05, empirically validated optimal)
-            corralling_cost_weight: λ for composite reward in Corralling meta-learner.
-                       When > 0, the reward signal is adjusted to r = quality - λ·cost
-                       BEFORE it reaches both the meta-learner and expert bandits.
-                       This ensures the entire learning stack optimizes for cost-quality
-                       value. Set cost_penalty=0 on experts to avoid double-counting.
-                       - 0.0 = quality-only (default, backward-compatible)
-                       - 0.1-0.3 = moderate cost awareness
+            cost_penalty: λ for UCB cost penalty (paper Eq. 4). At selection
+                       time, each arm's score is UCB - λ·normalized_cost(model).
+                       Applied consistently in both Corralling experts and the
+                       singleton fallback path. Does NOT affect learned quality
+                       estimates — only biases selection toward cheaper models.
+                       - 0.0 = quality-only
+                       - 0.3 = moderate cost awareness (default)
                        - 0.5+ = aggressive cost preference
             policy: Bandit policy type.
-                       - "disjoint": Independent parameters per arm (default, standard LinUCB)
-                       - "hybrid": Family-shared + arm-specific parameters (HybridLinUCB).
+                       - "disjoint": Independent parameters per arm (standard LinUCB)
+                       - "hybrid": Family-shared + arm-specific parameters (default, HybridLinUCB).
                          Arms within the same family share a common beta, enabling
                          continuous transfer learning for new models in existing families.
             family_map: Explicit arm-to-family mapping for hybrid policy.  Keys are
@@ -1749,7 +1742,7 @@ class BanditRouter:
         self.use_corralling = use_corralling
         self.corralling_learning_rate = corralling_learning_rate
         self.corralling_gamma = corralling_gamma
-        self.corralling_cost_weight = corralling_cost_weight
+        self.cost_penalty = cost_penalty
         self.policy_type = policy
         self._family_map_override = family_map
         if model_registry is None:
@@ -1787,10 +1780,16 @@ class BanditRouter:
             )
             logger.info(f"Created default FeatureService with encoder={context_model}")
         
-        # For backward compatibility, expose encoder and pca as properties
-        # These are now properties of the FeatureService itself
-        self.encoder = self.features.encoder
-        self.pca = self.features.pca
+        # For backward compatibility, expose encoder and pca.
+        # Only trigger lazy loading when using the default (legacy) feature service.
+        # Injected services (e.g. FeatureService.for_precomputed) may not have
+        # an encoder/PCA and loading them would be a ~2 GB unnecessary download.
+        if feature_service is not None:
+            self.encoder = None
+            self.pca = None
+        else:
+            self.encoder = self.features.encoder
+            self.pca = self.features.pca
         
         # Calculate dimension dynamically from feature service
         # Default is 33 (32 PCA + 1 bias) with pca_32.joblib
@@ -1914,7 +1913,7 @@ Previous version referenced non-existent attributes
         result.use_corralling = self.use_corralling
         result.corralling_learning_rate = self.corralling_learning_rate
         result.corralling_gamma = self.corralling_gamma
-        result.corralling_cost_weight = self.corralling_cost_weight
+        result.cost_penalty = self.cost_penalty
         result.policy_type = self.policy_type
         result._family_map_override = copy.deepcopy(self._family_map_override, memo) if self._family_map_override else None
         result.corralling_router = copy.deepcopy(self.corralling_router, memo) if self.corralling_router else None
@@ -1981,8 +1980,10 @@ Previous version referenced non-existent attributes
         # Calculate base dimensions
         if self.pca:
             embedding_dim = self.pca.n_components
-        else:
+        elif self.encoder is not None:
             embedding_dim = self.encoder.get_sentence_embedding_dimension()
+        else:
+            embedding_dim = self.features.dimension - 1
         
         # PCA components  
         for i in range(embedding_dim):
@@ -2902,6 +2903,30 @@ Previous version referenced non-existent attributes
             }
             
             # ---------------------------------------------------------------
+            # Hybrid family_map for Corralling experts
+            # ---------------------------------------------------------------
+            # When K > 2 and at least two models share a family, enable
+            # family-shared parameter learning inside each expert.  This lets
+            # the Corralling meta-learner benefit from intra-family transfer.
+            # K <= 2 or all-singleton registries fall back to disjoint experts
+            # (no families to share between).
+            expert_family_map = None
+            if router.policy_type == "hybrid":
+                _candidate_map = router._resolve_family_map(router.bandit.models)
+                _families = set(_candidate_map.values())
+                if len(router.bandit.models) > 2 and len(_families) < len(router.bandit.models):
+                    expert_family_map = _candidate_map
+                    logger.info(
+                        f"   🔗 Hybrid sharing: {len(_families)} families across "
+                        f"{len(router.bandit.models)} arms → family_map enabled in experts"
+                    )
+                else:
+                    logger.info(
+                        f"   🔗 Hybrid sharing: K={len(router.bandit.models)}, "
+                        f"families={len(_families)} → singleton mode (no sharing)"
+                    )
+            
+            # ---------------------------------------------------------------
             # Expert 1: The "Informed Explorer" (Warmup with Constant α)
             # ---------------------------------------------------------------
             # STRATEGY: Constant exploration with informed priors
@@ -2924,7 +2949,8 @@ Previous version referenced non-existent attributes
                 model_costs=model_costs,
                 alpha_start=target_alpha,    # CONSTANT: Sustained exploration
                 alpha_end=target_alpha,      # CONSTANT: Never decay
-                cost_penalty=0.0
+                cost_penalty=router.cost_penalty,
+                family_map=expert_family_map,
             )
             
             # ---------------------------------------------------------------
@@ -2950,8 +2976,9 @@ Previous version referenced non-existent attributes
                 model_costs=model_costs,
                 alpha_start=target_alpha / 2.0,  # Conservative start
                 alpha_end=0.01,                   # DECAY: Converge to exploitation
-                cost_penalty=0.0,
-                ridge_lambda=1.0
+                cost_penalty=router.cost_penalty,
+                ridge_lambda=1.0,
+                family_map=expert_family_map,
             )
             
             # ---------------------------------------------------------------
@@ -2970,7 +2997,6 @@ Previous version referenced non-existent attributes
                 learning_rate=router.corralling_learning_rate,
                 gamma=router.corralling_gamma,
                 model_costs=model_costs,
-                cost_weight=router.corralling_cost_weight,
             )
             
             logger.info("✅ Reversed Heterogeneous Experts Strategy Initialized:")
@@ -3407,8 +3433,13 @@ Previous version referenced non-existent attributes
             )
             best_utility = 0.0  # Placeholder, corralling doesn't expose utility
         else:
-            # Fallback: Simple LinUCB selection (UCB only, no cost penalty)
-            best_model, best_utility = self.bandit.select_arm(x, candidates=filtered)
+            # Fallback: LinUCB selection with optional cost penalty (paper Eq. 4)
+            cp = None
+            if self.cost_penalty > 0:
+                cp = {m: self.cost_penalty * self._get_normalized_cost(m) for m in filtered}
+            best_model, best_utility = self.bandit.select_arm(
+                x, candidates=filtered, cost_penalties=cp
+            )
         
         total_weight = 1.0
         
@@ -3812,6 +3843,18 @@ Previously updated BOTH self.bandit AND self.corralling_router
         # Clip to [0, 1]
         return max(0.0, min(1.0, penalty))
 
+    def _get_normalized_cost(self, model_id: str) -> float:
+        """Compute normalized [0, 1] cost for a model from registry metadata."""
+        m_data = self.registry.get(model_id, {})
+        default_cost = self.config.default_missing_cost_per_m
+        input_cost = m_data.get("input_cost_per_m")
+        output_cost = m_data.get("output_cost_per_m")
+        if not isinstance(input_cost, (int, float)):
+            input_cost = default_cost
+        if not isinstance(output_cost, (int, float)):
+            output_cost = default_cost * 3.0
+        avg_cost_per_1k = ((input_cost + output_cost) / 2.0) / 1000.0
+        return self._calculate_absolute_penalty(avg_cost_per_1k)
 
     def _estimate_cost(self, model: str, in_tok: int, out_tok: int) -> float:
         """
@@ -3966,7 +4009,6 @@ class CorrallingRouter:
         meta_lr_halflife: float = 60.0,  # Staleness half-life in seconds for delayed feedback
         initial_weights: Optional[np.ndarray] = None,  # Prior-trust bias
         model_costs: Optional[Dict] = None,  # {model_id: {"normalized_cost": float}}
-        cost_weight: float = 0.0,  # λ for composite reward: r = quality - λ·cost
     ):
         """
         Initialize Corralling with configurable expert weights and exploration floor.
@@ -4021,24 +4063,9 @@ class CorrallingRouter:
                        good but increases recovery time when they are bad.
                        See experiments/03_figure for the full trade-off.
             model_costs: Optional dict mapping model_id to {"normalized_cost": float}.
-                       Required when cost_weight > 0. Costs should be in [0, 1],
-                       normalized using log-scale market anchors (see RouterConfig).
-            cost_weight: λ for composite reward: r_effective = quality - λ·cost.
-                       When > 0, the reward signal fed to BOTH the meta-learner
-                       and expert bandits is adjusted to encode the cost-quality
-                       tradeoff directly. This ensures:
-                       (a) Expert theta learns E[quality - λ·cost | context], so
-                           cheap-but-sufficient models get higher predicted value.
-                       (b) The meta-learner evaluates experts on composite value,
-                           not penalizing cost-aware experts for picking cheaper models.
-                       
-                       NOTE: When using cost_weight > 0, set cost_penalty=0 on
-                       the expert classes to avoid double-counting cost. The
-                       composite reward subsumes the UCB cost penalty.
-                       
-                       - 0.0 = quality-only (default, backward-compatible)
-                       - 0.1-0.3 = moderate cost awareness
-                       - 0.5+ = aggressive cost preference
+                       Stored for reference but not used for reward shaping.
+                       Cost-quality trade-offs are handled at selection time via
+                       each expert's ``cost_penalty`` parameter (paper Eq. 4).
         """
         self.experts = experts
         self.models = models
@@ -4047,7 +4074,6 @@ class CorrallingRouter:
         self.loss_decay = loss_decay  # Meta-level adaptation decay
         self.meta_lr_halflife = meta_lr_halflife  # Staleness half-life (τ)
         self.model_costs = model_costs or {}
-        self.cost_weight = cost_weight
         self.n_experts = len(experts)
         # Thread safety — CorrallingRouter mutates shared state
         # (weights, cumulative_losses) in update() and reads it in select_model().
@@ -4200,25 +4226,6 @@ class CorrallingRouter:
                 If None, only base experts are updated (no meta-weight change).
             weight: Observation importance weight (passed to expert updates).
         """
-        # ===================================================================
-        # COMPOSITE REWARD: Encode cost-quality tradeoff in reward signal
-        # ===================================================================
-        # When cost_weight > 0, adjust the reward BEFORE it reaches both the
-        # meta-learner (Level 1) and expert bandits (Level 2). This ensures
-        # the entire learning stack optimizes for cost-quality value, not
-        # pure quality.
-        #
-        # r_effective = quality - λ · normalized_cost(model)
-        #
-        # Effect: A cheap model that succeeds (Mixtral: 1.0 - λ·0.29) gets
-        # a HIGHER reward than an expensive model that also succeeds
-        # (GPT-4o: 1.0 - λ·0.69). This trains theta to prefer cheap models
-        # when quality is comparable, and expensive models only when they
-        # provide strictly better outcomes.
-        if self.cost_weight > 0 and model in self.model_costs:
-            cost_adj = self.cost_weight * self.model_costs[model].get('normalized_cost', 0.0)
-            reward = reward - cost_adj
-        
         # ===================================================================
         # LEVEL 1: Meta-Weight Update (which expert to trust)
         # ===================================================================
@@ -4589,7 +4596,8 @@ class CostAwareLinUCBRouter:
         >>> router.load_priors(new_priors, scale=0.5)  # Reduce prior strength
     """
     
-    def __init__(self, models, warmup_priors, model_costs, alpha_start=1.0, alpha_end=0.1, cost_penalty=0.0):
+    def __init__(self, models, warmup_priors, model_costs, alpha_start=1.0, alpha_end=0.1, cost_penalty=0.0,
+                 family_map: Dict[str, str] | None = None):
         """
         Initialize router with Expert Parameter Warm-Start.
         
@@ -4615,6 +4623,10 @@ class CostAwareLinUCBRouter:
             alpha_start: Initial exploration (high during burn-in)
             alpha_end: Final exploitation (low after burn-in)
             cost_penalty: Budget constraint weight (λ parameter)
+            family_map: Optional mapping model_id → family_id for hybrid
+                parameter sharing.  When provided, the router maintains
+                family-shared A0/b0 matrices and uses residual learning
+                for the arm-specific component.
         """
         self.models = models
         self.alpha_start = alpha_start  # Initial exploration (e.g., 1.0)
@@ -4694,6 +4706,22 @@ class CostAwareLinUCBRouter:
         # frequently-updated models; per-model counters ensure every model gets
         # refreshed after exactly 1000 of its own updates.
         self._sm_update_count: Dict[str, int] = {m: 0 for m in models}
+
+        # ----- Hybrid (family-shared) state -----
+        self.family_map = family_map
+        if family_map is not None:
+            self.families: Dict[str, List[str]] = defaultdict(list)
+            for m in models:
+                self.families[family_map.get(m, m)].append(m)
+
+            _dim = self.context_dim
+            self.A0: Dict[str, np.ndarray] = {}
+            self.b0: Dict[str, np.ndarray] = {}
+            self.A0_inv: Dict[str, np.ndarray] = {}
+            for fam in self.families:
+                self.A0[fam] = np.eye(_dim)
+                self.b0[fam] = np.zeros(_dim)
+                self.A0_inv[fam] = np.eye(_dim)
     
     def _calibrate_priors(
         self,
@@ -4942,51 +4970,46 @@ class CostAwareLinUCBRouter:
         with self._lock:
             eligible = candidates if candidates is not None else self.models
             for model in eligible:
-                # Skip models not yet initialized (race with register_model)
                 if model not in self.A_inv:
                     continue
+
                 A_inv = self.A_inv[model]
                 theta = A_inv @ self.b[model]
-                expected_reward = theta @ context
-                var = float(context @ A_inv @ context)
-                uncertainty = np.sqrt(max(var, 1e-12))
+
+                if self.family_map is not None:
+                    F = self.family_map.get(model, model)
+                    beta = self.A0_inv[F] @ self.b0[F] if F in self.A0_inv else np.zeros(self.context_dim)
+                    expected_reward = float(context @ (beta + theta))
+                    var_shared = float(context @ self.A0_inv[F] @ context) if F in self.A0_inv else 0.0
+                    var_arm = float(context @ A_inv @ context)
+                    uncertainty = np.sqrt(max(var_shared + var_arm, 1e-12))
+                else:
+                    expected_reward = float(theta @ context)
+                    var = float(context @ A_inv @ context)
+                    uncertainty = np.sqrt(max(var, 1e-12))
+
                 normalized_cost = self.model_costs.get(model, {}).get("normalized_cost", 1.0)
                 score = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
                 ucb_scores[model] = score
                 expected_rewards[model] = float(expected_reward)
             
-            # Record inside lock so PredictionMonitor stats are
-            # consistent with the scores computed in this critical section.
             for model, score in ucb_scores.items():
                 self.prediction_monitor.record(
                     model, expected_reward=expected_rewards[model], ucb_score=float(score)
                 )
         
         if not ucb_scores:
-            # Fallback must respect candidate constraints.
-            # Previously returned self.models[0] which may violate cost/latency
-            # constraints that produced the candidates list.
             fallback = candidates if candidates is not None else self.models
             return fallback[0] if fallback else None
         
-        # Random tie-breaking prevents initialization-order bias.
-        # Previously, deterministic max() always picked the first model when
-        # UCB scores were tied (e.g., at startup with identical priors).
         return _argmax_random_tiebreak(ucb_scores)
     
     def update(self, context, model, reward, weight: float = 1.0):
         """
         Update model's A and b matrices with new observation using Sherman-Morrison.
         
-        [PERFORMANCE FIX]: Now uses O(d²) Sherman-Morrison formula to incrementally
-        update A_inv instead of recomputing from scratch (O(d³)). Falls back to
-        full inversion when denominator becomes too small (numerical stability).
-        
-        Standard LinUCB update:
-        - A += weight · context · context^T
-        - b += weight · reward · context
-        - A_inv updated via Sherman-Morrison or fallback
-        - t += 1
+        When ``family_map`` is set, also updates family-shared A0/b0 with
+        the full reward, while the arm-specific component learns residuals.
         
         Args:
             context: Context vector used for selection
@@ -4996,17 +5019,30 @@ class CostAwareLinUCBRouter:
         """
         if model not in self.A:
             return
-        # Guard against negative weight (defense-in-depth, mirrors
-        # DisjointLinUCBPolicy).  Negative weight subtracts from A, potentially
-        # making it non-PD and corrupting subsequent A_inv updates.
         if weight < 0:
             return
-        # weight=0 contributes zero information; skip to avoid
-        # inflating self.t (affects staleness calculations for other models).
         if weight == 0:
             return
         
         x = context.flatten()
+        x_outer = weight * np.outer(x, x)
+
+        # Hybrid: update family-shared component first, compute residual
+        arm_reward = reward
+        if self.family_map is not None:
+            F = self.family_map.get(model, model)
+            if F in self.A0_inv:
+                beta_hat = self.A0_inv[F] @ self.b0[F]
+                arm_reward = reward - float(x @ beta_hat)
+
+                A0_inv_x = self.A0_inv[F] @ x
+                denom0 = 1.0 + weight * float(x @ A0_inv_x)
+                if abs(denom0) > 1e-6:
+                    self.A0_inv[F] = self.A0_inv[F] - weight * np.outer(A0_inv_x, A0_inv_x) / denom0
+                else:
+                    self.A0_inv[F] = safe_inv(self.A0[F] + x_outer)
+                self.A0[F] = self.A0[F] + x_outer
+                self.b0[F] = self.b0[F] + weight * reward * x
         
         with self._lock:
             A_inv_current = self.A_inv[model]
@@ -5015,23 +5051,19 @@ class CostAwareLinUCBRouter:
             
             if abs(denominator) > 1e-6:
                 self.A_inv[model] = A_inv_current - weight * np.outer(A_inv_x, A_inv_x) / denominator
-                self.A[model] += weight * np.outer(x, x)
-                self.b[model] += weight * reward * x
+                self.A[model] += x_outer
+                self.b[model] += weight * arm_reward * x
             else:
                 logger.warning(
-                    f"⚠️ Sherman-Morrison near-singularity for {model}: "
+                    f"Sherman-Morrison near-singularity for {model}: "
                     f"|denominator|={abs(denominator):.2e} < 1e-6. Recomputing inverse."
                 )
-                self.A[model] += weight * np.outer(x, x)
+                self.A[model] += x_outer
                 self.A_inv[model] = safe_inv(self.A[model])
-                self.b[model] += weight * reward * x
+                self.b[model] += weight * arm_reward * x
             
             self.t += 1
             
-            # Periodic full refresh to correct Sherman-Morrison
-            # floating-point drift.  Per-model counter ensures every model gets
-            # refreshed after exactly 1000 of its own updates.  O(d³) amortized
-            # cost is negligible vs. the O(d²) per-step cost.
             self._sm_update_count[model] = self._sm_update_count.get(model, 0) + 1
             if self._sm_update_count[model] % 1000 == 0:
                 self.A_inv[model] = safe_inv(self.A[model])
@@ -5092,7 +5124,8 @@ class CostAwareTabulaRasaRouter:
     """
     def __init__(self, models: List[str], context_dim: int, model_costs: Dict,
                  alpha_start: float = 1.0, alpha_end: float = 0.1, cost_penalty: float = 0.0, 
-                 ridge_lambda: float = None, reward_std: float = None):
+                 ridge_lambda: float = None, reward_std: float = None,
+                 family_map: Dict[str, str] | None = None):
         """
         Initialize tabula rasa router with automatic or manual ridge regularization.
         
@@ -5105,6 +5138,8 @@ class CostAwareTabulaRasaRouter:
             cost_penalty: Weight for cost penalty (default: 0.0)
             ridge_lambda: Ridge regularization parameter (default: None, auto-calculated)
             reward_std: Standard deviation of rewards for auto-calculation (optional)
+            family_map: Optional mapping model_id → family_id for hybrid
+                parameter sharing (see CostAwareLinUCBRouter for details)
         """
         self.models = models
         self.alpha_start = alpha_start  # Initial exploration (e.g., 1.0)
@@ -5147,21 +5182,32 @@ class CostAwareTabulaRasaRouter:
         
         # Per-model Sherman-Morrison update counter for periodic refresh.
         self._sm_update_count: Dict[str, int] = {m: 0 for m in models}
+
+        # ----- Hybrid (family-shared) state -----
+        self.family_map = family_map
+        if family_map is not None:
+            self.families: Dict[str, List[str]] = defaultdict(list)
+            for m in models:
+                self.families[family_map.get(m, m)].append(m)
+
+            self.A0: Dict[str, np.ndarray] = {}
+            self.b0: Dict[str, np.ndarray] = {}
+            self.A0_inv: Dict[str, np.ndarray] = {}
+            for fam in self.families:
+                A0 = self.ridge_lambda * np.eye(context_dim)
+                b0 = np.zeros(context_dim)
+                self.A0[fam] = A0
+                self.b0[fam] = b0
+                self.A0_inv[fam] = safe_inv(A0)
     
     def get_current_alpha(self, total_steps: int) -> float:
         """
         Linear decay schedule: Transition from exploration to exploitation.
         
         α_t = α_start + (t / T) × (α_end - α_start)
-        
-        Args:
-            total_steps: Total training steps (N=1,121 for dev set)
-        
-        Returns:
-            Current α value (linearly decayed from α_start to α_end)
         """
         if total_steps == 0:
-            return self.alpha_end  # Evaluation mode: use final α
+            return self.alpha_end
         
         fraction = min(self.t / total_steps, 1.0)
         return self.alpha_start + fraction * (self.alpha_end - self.alpha_start)
@@ -5172,19 +5218,10 @@ class CostAwareTabulaRasaRouter:
         Select model using cost-aware UCB with dynamic α (tabula rasa, no priors).
         
         Score = (Predicted Reward + α_t × Uncertainty) - λ × Normalized Cost
-        
-        Args:
-            context: PCA-transformed prompt embedding
-            total_steps: Total training steps (0 during evaluation for fixed α_end)
-            candidates: Optional list of eligible model IDs (constraint-filtered).
-                       If None, all models are scored.
-        
-        Returns:
-            Selected model ID
         """
         alpha = self.get_current_alpha(total_steps)
         ucb_scores = {}
-        expected_rewards = {}  # For runtime monitoring
+        expected_rewards = {}
         
         with self._lock:
             eligible = candidates if candidates is not None else self.models
@@ -5193,58 +5230,64 @@ class CostAwareTabulaRasaRouter:
                     continue
                 A_inv = self.A_inv[model]
                 theta = A_inv @ self.b[model]
-                expected_reward = theta @ context
-                var = float(context @ A_inv @ context)
-                uncertainty = np.sqrt(max(var, 1e-12))
+
+                if self.family_map is not None:
+                    F = self.family_map.get(model, model)
+                    beta = self.A0_inv[F] @ self.b0[F] if F in self.A0_inv else np.zeros(self.context_dim)
+                    expected_reward = float(context @ (beta + theta))
+                    var_shared = float(context @ self.A0_inv[F] @ context) if F in self.A0_inv else 0.0
+                    var_arm = float(context @ A_inv @ context)
+                    uncertainty = np.sqrt(max(var_shared + var_arm, 1e-12))
+                else:
+                    expected_reward = float(theta @ context)
+                    var = float(context @ A_inv @ context)
+                    uncertainty = np.sqrt(max(var, 1e-12))
+
                 normalized_cost = self.model_costs.get(model, {}).get("normalized_cost", 1.0)
                 score = (expected_reward + alpha * uncertainty) - (self.cost_penalty * normalized_cost)
                 ucb_scores[model] = score
                 expected_rewards[model] = float(expected_reward)
             
-            # Record inside lock so PredictionMonitor stats are
-            # consistent with the scores computed in this critical section.
             for model, score in ucb_scores.items():
                 self.prediction_monitor.record(
                     model, expected_reward=expected_rewards[model], ucb_score=float(score)
                 )
         
         if not ucb_scores:
-            # Fallback must respect candidate constraints.
             fallback = candidates if candidates is not None else self.models
             return fallback[0] if fallback else None
         
-        # Random tie-breaking prevents initialization-order bias.
-        # Critical for tabula rasa: with A=λI and b=0, all models have identical
-        # UCB scores at startup. Deterministic max() always picked the first
-        # model in dict order, biasing early exploration.
         return _argmax_random_tiebreak(ucb_scores)
     
     def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
         """
-        Update using standard LinUCB update with Sherman-Morrison inverse update.
-        
-        [PERFORMANCE FIX]: Now uses O(d²) Sherman-Morrison formula to incrementally
-        update A_inv instead of recomputing from scratch (O(d³)).
-        
-        Args:
-            context: Context vector
-            model: Model that was selected
-            reward: Observed reward
-            weight: Importance/difficulty weight (default 1.0)
+        Update arm-specific (and optionally family-shared) matrices via Sherman-Morrison.
         """
         if model not in self.A:
             return
-        # Guard against negative weight (defense-in-depth, mirrors
-        # DisjointLinUCBPolicy).  Negative weight subtracts from A, potentially
-        # making it non-PD and corrupting subsequent A_inv updates.
         if weight < 0:
             return
-        # weight=0 contributes zero information; skip to avoid
-        # inflating self.t.
         if weight == 0:
             return
         
         x = context.flatten()
+        x_outer = weight * np.outer(x, x)
+
+        arm_reward = reward
+        if self.family_map is not None:
+            F = self.family_map.get(model, model)
+            if F in self.A0_inv:
+                beta_hat = self.A0_inv[F] @ self.b0[F]
+                arm_reward = reward - float(x @ beta_hat)
+
+                A0_inv_x = self.A0_inv[F] @ x
+                denom0 = 1.0 + weight * float(x @ A0_inv_x)
+                if abs(denom0) > 1e-6:
+                    self.A0_inv[F] = self.A0_inv[F] - weight * np.outer(A0_inv_x, A0_inv_x) / denom0
+                else:
+                    self.A0_inv[F] = safe_inv(self.A0[F] + x_outer)
+                self.A0[F] = self.A0[F] + x_outer
+                self.b0[F] = self.b0[F] + weight * reward * x
         
         with self._lock:
             A_inv_current = self.A_inv[model]
@@ -5253,21 +5296,19 @@ class CostAwareTabulaRasaRouter:
             
             if abs(denominator) > 1e-6:
                 self.A_inv[model] = A_inv_current - weight * np.outer(A_inv_x, A_inv_x) / denominator
-                self.A[model] += weight * np.outer(x, x)
-                self.b[model] += weight * reward * x
+                self.A[model] += x_outer
+                self.b[model] += weight * arm_reward * x
             else:
                 logger.warning(
                     f"⚠️ Sherman-Morrison near-singularity for {model}: "
                     f"|denominator|={abs(denominator):.2e} < 1e-6. Recomputing inverse."
                 )
-                self.A[model] += weight * np.outer(x, x)
+                self.A[model] += x_outer
                 self.A_inv[model] = safe_inv(self.A[model])
-                self.b[model] += weight * reward * x
+                self.b[model] += weight * arm_reward * x
             
             self.t += 1
             
-            # Periodic full refresh to correct Sherman-Morrison
-            # floating-point drift.  Per-model counter ensures fair refresh.
             self._sm_update_count[model] = self._sm_update_count.get(model, 0) + 1
             if self._sm_update_count[model] % 1000 == 0:
                 self.A_inv[model] = safe_inv(self.A[model])

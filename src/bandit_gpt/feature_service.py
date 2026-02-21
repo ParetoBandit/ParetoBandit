@@ -129,6 +129,30 @@ class FeatureService:
         self._pca = None
         self._dimension = None
     
+    @classmethod
+    def for_precomputed(cls, dimension: int) -> "FeatureService":
+        """Create a lightweight service for pre-computed embedding vectors.
+
+        No sentence-transformer model or PCA artifact is loaded.  The
+        resulting instance only validates vector dimension when
+        ``extract_features`` receives an ``np.ndarray``.  Passing a
+        string prompt will raise because there is no encoder.
+
+        Args:
+            dimension: Total feature-vector length (PCA components + bias).
+        """
+        instance = cls.__new__(cls)
+        instance.pca_components = dimension - 1
+        instance._encoder = None
+        instance._pca = None
+        instance._dimension = dimension
+        instance.encoder_model = "precomputed"
+        instance.pca_path = None
+        instance.target_variance = 0.0
+        instance.allow_jit_training = False
+        instance.calibration_file = None
+        return instance
+
     @property
     def encoder(self):
         """Lazy load encoder on first use."""

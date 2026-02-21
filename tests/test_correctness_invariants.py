@@ -730,7 +730,7 @@ class TestBug9_DeepCopy:
         router.use_corralling = False
         router.corralling_learning_rate = 0.1
         router.corralling_gamma = 0.05
-        router.corralling_cost_weight = 0.0
+        router.cost_penalty = 0.3
         router.policy_type = "disjoint"
         router._family_map_override = None
         router.corralling_router = None
@@ -773,7 +773,8 @@ class TestBug9_DeepCopy:
         expected_attrs = [
             "config", "registry", "features", "encoder", "pca",
             "bandit", "use_corralling", "corralling_learning_rate",
-            "corralling_gamma", "corralling_cost_weight", "corralling_router",
+            "corralling_gamma", "cost_penalty",
+            "corralling_router",
             "logs", "log_index", "_log_lock", "model_priors",
             "verbose_routing",
             "_feature_map", "_toxicity_scanner",

@@ -30,12 +30,6 @@ sys.path.insert(0, str(project_root / "src"))
 from generate_pareto_frontier import (
     load_model_costs,
     load_dataset_with_split,
-    normalize_prior_strength,
-)
-from bandit_gpt.router import (
-    CorrallingRouter,
-    CostAwareLinUCBRouter,
-    CostAwareTabulaRasaRouter,
 )
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config_legacy import (
@@ -45,6 +39,9 @@ from bandit_gpt.config_legacy import (
 )
 from sentence_transformers import SentenceTransformer
 import joblib
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -66,32 +63,23 @@ def precompute_embeddings(data, encoder, pca):
 
 
 def run_banditgpt_trials(
-    train_data, eval_data, train_emb, eval_emb,
-    warmup_priors, model_costs,
+    train_data, eval_data, train_emb, eval_emb, warmup_path,
 ):
-    """Run 20 seeds, return per-trial mean rewards and per-prompt selections."""
-    models = list(train_data[0]["rewards"].keys())
-    n_eval = len(eval_data)
+    """Run 20 seeds using the production BanditRouter, return per-trial mean rewards."""
+    dim = len(train_emb[0])
 
     trial_means = []
-    all_per_prompt = []  # (n_trials, n_eval)
+    all_per_prompt = []
 
     for trial in range(N_TRIALS):
         np.random.seed(SEED_OFFSET + trial)
-        scaled_priors = normalize_prior_strength(warmup_priors, TARGET_NEFF)
-        dim = scaled_priors["context_dim"]
-
-        warmup_expert = CostAwareLinUCBRouter(
-            models=models, warmup_priors=scaled_priors, model_costs=model_costs,
-            alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-        )
-        tabula_rasa = CostAwareTabulaRasaRouter(
-            models=models, context_dim=dim, model_costs=model_costs,
-            alpha_start=ALPHA_START, alpha_end=ALPHA_END, cost_penalty=LAMBDA,
-        )
-        router = CorrallingRouter(
-            experts=[warmup_expert, tabula_rasa],
-            models=models, learning_rate=1.0,
+        router = create_experiment_router(
+            model_registry=None,
+            feature_dim=dim,
+            prior_n_effective=TARGET_NEFF,
+            alpha=ALPHA_START,
+            warmup_path=warmup_path,
+            cost_penalty=LAMBDA,
         )
 
         all_raw = [s for p in train_data for s in p["rewards"].values()]
@@ -99,16 +87,14 @@ def run_banditgpt_trials(
         r_range = r_max - r_min if (r_max - r_min) > 1e-6 else 1.0
 
         for i, p in enumerate(train_data):
-            x = train_emb[i]
-            sel, token = router.select_model(x, total_steps=len(train_data))
-            norm_r = (p["rewards"][sel] - r_min) / r_range
-            router.update(x, sel, norm_r, selection_token=token)
+            model, log = router.route(train_emb[i], total_steps=len(train_data))
+            norm_r = (p["rewards"][model] - r_min) / r_range
+            router.process_feedback(log.request_id, norm_r)
 
         per_prompt = []
         for i, p in enumerate(eval_data):
-            x = eval_emb[i]
-            sel, _ = router.select_model(x, total_steps=len(train_data))
-            per_prompt.append(p["rewards"][sel])
+            model, _log = router.route(eval_emb[i], total_steps=len(train_data))
+            per_prompt.append(p["rewards"][model])
 
         trial_means.append(np.mean(per_prompt))
         all_per_prompt.append(per_prompt)
@@ -136,9 +122,7 @@ def main():
     pca = joblib.load(DEFAULT_PCA_PATH)
 
     sanitized_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
-    warmup_priors = joblib.load(
-        sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH
-    )
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
 
     models = list(eval_data[0]["rewards"].keys())
     max_cost = max(model_costs[m]["cost"] for m in models)
@@ -165,7 +149,7 @@ def main():
     logger.info("\n--- Running banditGPT (20 seeds) ---")
     trial_means, per_prompt = run_banditgpt_trials(
         train_data, eval_data, train_emb, eval_emb,
-        warmup_priors, normalized_costs,
+        warmup_path,
     )
     logger.info(f"  Trial means: {trial_means.mean():.4f} ± {trial_means.std(ddof=1):.4f}")
 
@@ -194,7 +178,8 @@ def main():
     boot_lo, boot_hi = bootstrap_ci(trial_means)
     cohens_d = (trial_means.mean() - ROUTELLM_BEST_REWARD) / trial_means.std(ddof=1)
 
-    logger.info(f"\n  banditGPT mean:     {trial_means.mean():.4f} ± {1.96*trial_means.std(ddof=1)/np.sqrt(N_TRIALS):.4f}")
+    t_crit = sp_stats.t.ppf(0.975, N_TRIALS - 1)
+    logger.info(f"\n  banditGPT mean:     {trial_means.mean():.4f} ± {t_crit*trial_means.std(ddof=1)/np.sqrt(N_TRIALS):.4f}")
     logger.info(f"  RouteLLM-MF best:   {ROUTELLM_BEST_REWARD:.4f}")
     logger.info(f"  Difference:         {trial_means.mean() - ROUTELLM_BEST_REWARD:+.4f}")
     logger.info(f"  t-statistic:        {t_stat:.4f}")
@@ -211,7 +196,7 @@ def main():
     results["vs_routellm"] = {
         "bandit_mean": float(trial_means.mean()),
         "bandit_std": float(trial_means.std(ddof=1)),
-        "bandit_ci95": float(1.96 * trial_means.std(ddof=1) / np.sqrt(N_TRIALS)),
+        "bandit_ci95": float(t_crit * trial_means.std(ddof=1) / np.sqrt(N_TRIALS)),
         "routellm_best": ROUTELLM_BEST_REWARD,
         "difference": float(trial_means.mean() - ROUTELLM_BEST_REWARD),
         "ttest": {"t": float(t_stat), "p": float(p_val)},

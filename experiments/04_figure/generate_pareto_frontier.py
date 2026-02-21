@@ -25,6 +25,7 @@ import logging
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
+from scipy import stats as sp_stats
 import time
 
 # Add project root to path
@@ -32,7 +33,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
+from bandit_gpt.router import infer_model_family
 from bandit_gpt.calibration import embed_prompt, apply_gamma_scaling
 import copy
 from bandit_gpt.config_legacy import (
@@ -46,6 +47,9 @@ from bandit_gpt.config_legacy import (
 from sentence_transformers import SentenceTransformer
 from routellm.controller import Controller
 import joblib
+
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -396,191 +400,55 @@ def banditgpt_hybrid_routing(train_data: List[Dict], eval_data: List[Dict],
                              model_costs: Dict, lambda_penalty: float, 
                              debug: bool = False, cold_start: bool = False) -> Tuple[float, float]:
     """
-    banditGPT Hybrid: Two-phase training with burn-in.
-    
+    banditGPT Hybrid using the **production BanditRouter**.
+
+    Exercises the full ``BanditRouter.create()`` → ``route()`` →
+    ``process_feedback()`` code path.
+
     PHASE 1 (BURN-IN): Train on dev set WITH cost penalty λ (skipped if cold_start=True)
     PHASE 2 (EVALUATION): Test on holdout set, NO UPDATES
-    
-    Args:
-        train_data: Training prompts (dev set, N=1,121)
-        eval_data: Evaluation prompts (holdout set, N=750)
-        encoder: Sentence transformer for embeddings
-        pca: PCA for dimensionality reduction
-        warmup_priors: Pre-trained priors from 80k battles
-        model_costs: Cost metadata for models
-        lambda_penalty: Cost-quality trade-off parameter (λ)
-        debug: Enable debug output to inspect router state
-        cold_start: If True, skip burn-in phase (fair comparison with RouteLLM)
-    
-    Learning Rate Configuration:
-        Uses η=1.0 (moderate adaptation regime) for Corralling meta-learner.
-        
-        Position in three-regime framework:
-        - Cold-Start (η=0.1, Exp 07): Exploit priors, stable weights
-        - Safety (η=0.3, Exp 06): Fast detection, minimal adaptation
-        - MODERATE (η=1.0, THIS EXP): Balanced adaptation over 1,121 steps
-        - Convergence (η=5.0, Exp 04): Complete unlearning (~300-500 steps)
-        
-        Trade-off: Tabula rasa (0.923) outperforms hybrid (0.912), suggesting
-        η=1.0 may be too slow for complete adaptation from prior mismatch.
-        With η=5.0, hybrid would likely match or exceed tabula rasa through
-        complete prior unlearning (as validated in Exp 04).
-        
-        See CONNECTION_TO_EXPERIMENTS_04_06_07.md for detailed analysis.
-    
+
     Returns:
         (avg_reward, avg_cost) on eval_data
     """
-    # 1. NORMALIZE PRIOR STRENGTH (Fix "Arrogant Prior" problem)
-    # The sanitized priors have correct SCALE (theta[bias] = 0.8)
-    # but still have massive CONFIDENCE (Trace A ~80,000 samples)
-    # We need to reduce confidence to ~10 samples so the router can learn
-    scaled_priors = normalize_prior_strength(warmup_priors, target_sample_size=10.0)
-    models = list(train_data[0]["rewards"].keys())
-    dim = scaled_priors['context_dim']
-    
-    # Initialize experts with Expert Parameter Warm-Start
-    # NOTE: CostAwareLinUCBRouter.__init__ now includes automatic prior calibration
-    # If predictions exceed 1.5, b-vectors are automatically rescaled to [0, 1] range
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models, warmup_priors=scaled_priors, model_costs=model_costs,
-        alpha_start=2.0, alpha_end=0.1, cost_penalty=lambda_penalty
+    # Resolve warmup path
+    sanitized_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
+
+    # Embed all prompts with provided encoder+PCA
+    train_emb = [embed_prompt(p["prompt"], encoder, pca) for p in train_data]
+    eval_emb = [embed_prompt(p["prompt"], encoder, pca) for p in eval_data]
+    dim = len(train_emb[0])
+
+    router = create_experiment_router(
+        model_registry=None,
+        feature_dim=dim,
+        prior_n_effective=10.0,
+        alpha=2.0,
+        warmup_path=warmup_path,
+        cost_penalty=lambda_penalty,
     )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=models, context_dim=dim, model_costs=model_costs,
-        alpha_start=2.0, alpha_end=0.1, cost_penalty=lambda_penalty
-    )
-    
-    # Learning Rate: η=1.0 (MODERATE ADAPTATION REGIME)
-    # - Faster than safety-focused η=0.3 (Exp 06: catastrophic detection)
-    # - Slower than convergence-focused η=5.0 (Exp 04: complete unlearning)
-    # - Appropriate for Pareto sweep: balances prior exploitation with adaptation
-    # Trade-off: May not fully recover from prior mismatch (see tabula rasa @ 0.923 vs hybrid @ 0.912)
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa],
-        models=models,
-        learning_rate=1.0
-    )
-    
-    # PRE-FLIGHT CHECK: Verify priors are sane AFTER auto-calibration
-    # NOTE: CostAwareLinUCBRouter now has built-in auto-calibration that runs in __init__
-    # This check verifies the auto-calibration worked correctly
-    if debug and lambda_penalty == 0.0:
-        logger.info("\n" + "="*70)
-        logger.info("PRE-FLIGHT CHECK: Prior State After Auto-Calibration")
-        logger.info("="*70)
-        logger.info("ℹ️  CostAwareLinUCBRouter auto-calibration has already run")
-        logger.info("   This check verifies predictions are in [0, 1] range")
-        
-        for m in models:
-            # Check what the router THINKS the reward is before seeing any data
-            A_inv = np.linalg.inv(warmup_expert.A[m])
-            theta = A_inv @ warmup_expert.b[m]
-            
-            # Create a dummy "average" context (bias=1, others=0)
-            x_dummy = np.zeros(dim)
-            x_dummy[-1] = 1.0
-            pred = theta @ x_dummy
-            
-            logger.info(f"\nModel: {m}")
-            logger.info(f"  Theta[bias]: {theta[-1]:.4f}")
-            logger.info(f"  Initial Prediction: {pred:.4f}")
-            
-            if pred > 1.2 or pred < -0.2:
-                logger.error(f"  🚨 UNEXPECTED: Auto-calibration should have fixed this!")
-                logger.error(f"  🚨 Expected pred in [0,1], got {pred:.4f}")
-                logger.error(f"  🚨 This indicates a bug in _calibrate_priors()")
-            else:
-                logger.info(f"  ✅ PASS: Prior is properly calibrated")
-        
-        logger.info("="*70 + "\n")
-    
-    # 2. ZERO-LEAKAGE NORMALIZATION BOUNDS
-    # CRITICAL: Use TRAIN DATA ONLY to prevent information leakage from holdout set
-    # Production systems cannot know the reward distribution of future test prompts
+
+    # Zero-leakage normalization bounds (train data only)
     all_raw = [s for p in train_data for s in p["rewards"].values()]
     r_min, r_max = min(all_raw), max(all_raw)
     r_range = r_max - r_min if (r_max - r_min) > 1e-6 else 1.0
-    
-    if debug and lambda_penalty == 0.0:
-        logger.info(f"      ✓ Zero-Leakage Normalization: [{r_min:.3f}, {r_max:.3f}] → [0.0, 1.0] (train only)")
-        logger.info(f"      ✓ Prior Strength: Normalized to 10 effective samples")
-        logger.info(f"      ✓ Exploitation Mode: total_steps={len(train_data)} locks α=0.1")
-    
-    # 3. PHASE 1: BURN-IN (Dev Set, N=1,121) - OPTIONAL FOR COLD-START
     burn_in_steps = len(train_data)
-    normalized_rewards = []  # Track for verification
-    
-    if cold_start:
-        # COLD-START MODE: Skip burn-in for fair comparison with RouteLLM
-        if debug and lambda_penalty == 0.0:
-            logger.info(f"      ⚠️  COLD-START MODE: Skipping burn-in phase")
-            logger.info(f"      ⚠️  Router relies only on 80k RouteLLM battle priors")
-    else:
-        # WARM-START MODE: Train on dev set (standard protocol)
-        for p in train_data:
-            x = embed_prompt(p["prompt"], encoder, pca)
-            # total_steps ensures alpha decays from 2.0 to 0.1 over this loop
-            sel, token = router.select_model(x, total_steps=burn_in_steps)
-            
-            # NORMALIZATION GUARD: Reward MUST be in [0, 1]
-            norm_r = (p["rewards"][sel] - r_min) / r_range
-            normalized_rewards.append(norm_r)
-            router.update(x, sel, norm_r, selection_token=token)
-        
-        # Verify normalization worked correctly
-        if debug and lambda_penalty == 0.0:
-            norm_min, norm_max = min(normalized_rewards), max(normalized_rewards)
-            norm_mean = np.mean(normalized_rewards)
-            logger.info(f"      ✓ Normalized Rewards: [{norm_min:.3f}, {norm_max:.3f}], mean={norm_mean:.3f}")
-            if norm_min < -0.01 or norm_max > 1.01:
-                logger.error(f"      ✗ NORMALIZATION FAILED! Values outside [0,1] range!")
-        
-        # DEBUG: Inspect router state after training
-        if debug:
-            debug_router_state(router, encoder, pca, models, 
-                              label=f"Router State After Burn-in (λ={lambda_penalty})")
-            
-            # Report expert weight evolution (connects to three-regime framework)
-            logger.info(f"\n📊 Expert Weight Evolution (η=1.0, λ={lambda_penalty}):")
-            logger.info(f"   Final weights: Warmup={router.weights[0]:.4f}, Tabula Rasa={router.weights[1]:.4f}")
-            
-            # Classify adaptation regime
-            final_warmup = router.weights[0]
-            if final_warmup > 0.7:
-                regime = "Conservative (like Exp 07, η=0.1) - Minimal adaptation"
-            elif final_warmup > 0.3:
-                regime = "Moderate (expected for η=1.0) - Partial adaptation"
-            elif final_warmup > 0.1:
-                regime = "Adaptive (approaching Exp 04, η=5.0) - Significant unlearning"
-            else:
-                regime = "Complete unlearning (like Exp 04, η=5.0)"
-            
-            logger.info(f"   Regime classification: {regime}")
-            logger.info(f"   Note: For complete unlearning like Exp 04, use η=5.0")
-    
-    # 4. PHASE 2: STEADY-STATE EVALUATION (Holdout Set, N=750)
+
+    # Phase 1: Burn-in (skipped for cold-start)
+    if not cold_start:
+        for i, p in enumerate(train_data):
+            model, log = router.route(train_emb[i], total_steps=burn_in_steps)
+            norm_r = (p["rewards"][model] - r_min) / r_range
+            router.process_feedback(log.request_id, norm_r)
+
+    # Phase 2: Evaluation (no updates)
     total_reward, total_cost = 0.0, 0.0
-    model_selections = {m: 0 for m in models}  # Track selection counts
-    
-    for p in eval_data:
-        x = embed_prompt(p["prompt"], encoder, pca)
-        # total_steps=burn_in_steps ensures the router stays in Exploitation Mode (alpha=0.1)
-        # Previously, setting this to 0 triggered a division error or reset alpha to 2.0
-        sel, _token = router.select_model(x, total_steps=burn_in_steps)
-        
-        model_selections[sel] += 1
-        total_reward += p["rewards"][sel]
-        total_cost += model_costs[sel]["cost"]
-    
-    # Verify exploitation mode is working (should strongly prefer one model at high λ)
-    if debug and lambda_penalty >= 1.0:
-        logger.info("\n      Model Selection Distribution:")
-        for m in models:
-            pct = 100 * model_selections[m] / len(eval_data)
-            model_name = m.split('/')[-1]  # Extract short name
-            logger.info(f"        {model_name}: {model_selections[m]:4d} ({pct:5.1f}%)")
-    
+    for i, p in enumerate(eval_data):
+        model, _log = router.route(eval_emb[i], total_steps=burn_in_steps)
+        total_reward += p["rewards"][model]
+        total_cost += model_costs[model]["cost"]
+
     return total_reward / len(eval_data), total_cost / len(eval_data)
 
 
@@ -915,10 +783,10 @@ def plot_pareto_frontier(results: Dict[str, List[Tuple[float, float]]],
                    color=colors[strategy], linewidth=3.5, 
                    label=f'{strategy} (Pareto Frontier)', alpha=0.9, marker='D', markersize=7)
             
-            # Add error bars if statistics are available (95% CI = ±1.96*std/sqrt(n))
             if hull_cost_stds and hull_reward_stds and any(s > 0 for s in hull_reward_stds):
-                # Convert std to 95% CI (1.96 * std / sqrt(20) ≈ 0.438 * std)
-                ci_multiplier = 1.96 / np.sqrt(20)  # 20 trials
+                n_trials_plot = 20
+                t_crit = sp_stats.t.ppf(0.975, n_trials_plot - 1)
+                ci_multiplier = t_crit / np.sqrt(n_trials_plot)
                 ax.errorbar(hull_costs, hull_rewards,
                            xerr=[ci_multiplier * s for s in hull_cost_stds],
                            yerr=[ci_multiplier * s for s in hull_reward_stds],

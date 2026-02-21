@@ -44,6 +44,7 @@ from bandit_gpt.router import (
     CorrallingRouter,
     CostAwareLinUCBRouter,
     CostAwareTabulaRasaRouter,
+    infer_model_family,
 )
 from bandit_gpt.config_legacy import DEFAULT_WARMUP_PRIORS_PATH
 
@@ -317,6 +318,7 @@ def run_single_trial(seed: int, warmup_priors: Dict) -> TrialResult:
     env_oracle = FiveModelEnvironment(seed=seed)
 
     np.random.seed(seed)
+    family_map = {m: infer_model_family(m) for m in MODELS}
     warmup_expert = CostAwareLinUCBRouter(
         models=MODELS,
         warmup_priors=copy.deepcopy(warmup_priors),
@@ -324,6 +326,7 @@ def run_single_trial(seed: int, warmup_priors: Dict) -> TrialResult:
         alpha_start=1.0,
         alpha_end=0.1,
         cost_penalty=0.0,
+        family_map=family_map,
     )
     tabula_rasa = CostAwareTabulaRasaRouter(
         models=MODELS,
@@ -332,6 +335,7 @@ def run_single_trial(seed: int, warmup_priors: Dict) -> TrialResult:
         alpha_start=1.0,
         alpha_end=0.1,
         cost_penalty=0.0,
+        family_map=family_map,
     )
     corralling = CorrallingRouter(
         experts=[warmup_expert, tabula_rasa],
