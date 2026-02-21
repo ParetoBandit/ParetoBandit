@@ -1,46 +1,49 @@
 % ============================================================================
 % Table: Strategy Selection Guide
 % ============================================================================
-% Updated for w₀=0.7 Corralling results.
+% Updated for 100-seed corrected results (Feb 2026).
+% Corralling dominates at good priors; tabula rasa safest at adversarial.
+
+\providecommand{\CrossoverWC}{0.55}
 
 \begin{table}[t]
 \centering
 \caption{%
     \textbf{Deployment Strategy Selection Guide.}
-    Regret at $\alpha{=}0$ (correct priors) and range across the full
+    Regret at $\alpha{=}0$ (correct priors) and typical ranges across the
     corruption spectrum from the 750-prompt holdout evaluation
-    ($N{=}20$ seeds, Corralling with $w_0{=}0.7$).
+    ($N{=}100$ seeds, Corralling with $w_0{=}0.7$, hybrid LinUCB).
     \textbf{Key insight:} the crossover at
-    $\alpha{\approx}$\CrossoverWC{} determines when Corralling
-    overtakes warmup-only
-    (Figure~\ref{fig:prior_degradation}A).
+    $\alpha{\approx}$\CrossoverWC{} determines when Corralling's
+    variance exceeds its benefit
+    (Figure~\ref{fig:prior_degradation}).
 }
 \label{tab:strategy_guide}
 \begin{tabular}{@{}llccp{4.5cm}@{}}
 \toprule
-\textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret} & \textbf{Range} & \textbf{When to Use} \\
+\textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret ($\alpha{=}0$)} & \textbf{Range} & \textbf{When to Use} \\
 \midrule
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Good\end{tabular}}
-    & Warmup Only & \textbf{30.0 $\pm$ 2.0} & 27--99 &
+    & Corralling & \textbf{37.3 $\pm$ 4.3} & \textbf{32--38} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
-    \textbf{[OPTIMAL]} Validated $>$80\% acc.,
-    low drift (PSI $<$0.20),
-    same domain as training
+    \textbf{[OPTIMAL]} Library default.
+    Dominates warmup-only and tabula rasa
+    for $\alpha \leq 0.5$ (30--40\% lower regret)
     \end{tabular} \\
 \cmidrule(l){2-5}
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Unknown/\\Uncertain\end{tabular}}
-    & Corralling & 44.1 $\pm$ 4.7 & \textbf{40--67} &
+    & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
-    \textbf{[SAFEST]} No validation data,
-    cross-domain deployment,
-    bounded worst-case guarantee
+    \textbf{[SAFEST]} Prior-independent.
+    No validation data, high-stakes domains,
+    or confirmed adversarial priors
     \end{tabular} \\
 \cmidrule(l){2-5}
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Bad\end{tabular}}
-    & Tabula Rasa & 49.2 $\pm$ 3.4 & \textbf{49.2} &
+    & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
     \textbf{[OPTIMAL]} Cold start (no priors),
-    validated $<$50\% accuracy,
+    validated adversarial priors,
     severe domain mismatch
     \end{tabular} \\
 \bottomrule
@@ -48,18 +51,19 @@
 
 \vspace{0.5em}
 \small
-\textbf{Regret} column: at $\alpha{=}0$ (best case for warmup-only).
-\textbf{Range} column: min--max regret across the full corruption
-spectrum $\alpha \in [0, 1]$.
-Corralling's range (27.2) vs warmup-only's (71.4)
-is its distinguishing property under uncertainty.
+\textbf{Regret} column: at $\alpha{=}0$ (best case for prior-dependent strategies).
+\textbf{Range} column: regret across the good-to-moderate corruption
+spectrum ($\alpha \in [0, 0.5]$) for Corralling, or full spectrum for
+tabula rasa.
+\textbf{Note:} Warmup-only (52--67) is omitted as it is never optimal at
+any corruption level.
 
-\textbf{Validation method:}
-Evaluate warmup predictions on $N{=}100$--$200$ deployment samples.
-Accuracy $>$80\% = good priors; 50--80\% = uncertain; $<$50\% = bad priors.
+\textbf{Breakeven rule:}
+Corralling has better expected regret than tabula rasa if you believe
+there is $\geq 57\%$ probability that priors are useful ($\alpha \leq 0.4$).
 
 \textbf{Adaptive workflow:}
-Start with Corralling ($w_0{=}0.7$) and monitor weight convergence.
-Warmup weight $>$0.8 $\Rightarrow$ switch to warmup-only;
-weight $<$0.3 $\Rightarrow$ switch to tabula rasa.
+Start with Corralling (library default) and monitor the first 50--100
+prompts.  If warmup expert accuracy falls below random chance, switch to
+tabula rasa to cap downside risk.
 \end{table}

@@ -61,7 +61,7 @@ The paper introduces banditGPT, an open-source cost-aware contextual bandit fram
 
 1. **Model Preference Heterogeneity**: Expensive models aren't always better; prompt structure predicts preference
 2. **Cost-Aware Online Learning**: Warmup priors + online adaptation surpasses RouteLLM in 400 prompts
-3. **Corralling Meta-Learning**: Safety insurance against prior mismatch with catastrophic failure detection
+3. **Corralling Meta-Learning**: Complementary alpha schedules achieve 30-40% lower regret; catastrophic failure detection
 4. **Honest Null Result**: Semantic transfer for cold-start provides no significant improvement (reported transparently)
 
 ## Contact

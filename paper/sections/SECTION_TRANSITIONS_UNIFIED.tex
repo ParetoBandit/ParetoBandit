@@ -100,7 +100,7 @@ We presented \textbf{banditGPT}, an open-source, cost-aware contextual bandit fr
 
 \begin{itemize}
     \item \textbf{Performance:} $70.8\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM); surpasses 100k-pair supervised router after only 400 in-distribution label-free prompts
-    \item \textbf{Safety:} Corralling provides bounded-cost insurance against prior mismatch, with catastrophic failure detection as a secondary benefit
+    \item \textbf{Adaptive meta-learning:} Corralling exploits complementary alpha schedules to dominate both alternatives when priors are useful, with catastrophic failure detection as a secondary benefit
     \item \textbf{Honest boundary:} Semantic transfer for cold-start models provides no significant improvement over tabula rasa, establishing an open problem for future work
 \end{itemize}
 

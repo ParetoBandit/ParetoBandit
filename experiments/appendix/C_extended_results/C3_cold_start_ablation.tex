@@ -70,18 +70,19 @@ Cold-start reward (0.795 at $\lambda{=}0$) is below random routing (0.814),
 indicating that the warmup priors from 80K RouteLLM battles are
 cross-domain misspecified for the LMSYS holdout distribution.  This is
 consistent with Figure~3's prior degradation sweep, which shows
-warmup-only regret rising from 30 at $\alpha{=}0$ (correct priors) to
-$85{+}$ at $\alpha{\geq}0.6$ (adversarial priors).  Cold-start performance
+warmup-only regret rising from 52 at $\alpha{=}0$ (correct priors) to
+$67$ at $\alpha{=}1.0$ (adversarial priors), and is never the best
+strategy at any corruption level.  Cold-start performance
 below random places the real cross-domain mismatch at approximately
 $\alpha \approx 0.5$--$0.6$: sufficiently misspecified to be unhelpful
 without correction, but not so adversarial that online adaptation cannot
 recover.
 
 Importantly, the same warmup priors \emph{do} help in Figure~3's online
-learning protocol, where they reduce cumulative regret by 39\% (30 vs.\ 49
-at $\alpha{=}0$).  The difference is that Figure~3 measures online regret
-from step~1, where priors improve the critical first 50--100 routing
-decisions.  This cold-start ablation evaluates on the holdout \emph{without
+learning protocol, where Corralling with warmup priors achieves 30--40\%
+lower regret than tabula rasa (37 vs.\ 52 at $\alpha{=}0$).  The
+difference is that Figure~3 measures online regret from step~1, where
+priors improve the critical first 50--100 routing decisions.  This cold-start ablation evaluates on the holdout \emph{without
 any} online adaptation, testing priors in a regime where they must stand
 alone --- a harder condition than online deployment.
 

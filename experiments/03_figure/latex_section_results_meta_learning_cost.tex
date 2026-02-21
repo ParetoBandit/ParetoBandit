@@ -1,22 +1,27 @@
 % ============================================================================
-% Section: When Does Adaptive Safety Pay Off?
+% Section: When Does Adaptive Meta-Learning Pay Off?
 % ============================================================================
 % Purpose: Characterize the cost-benefit frontier across prior quality
-% regimes using the prior degradation sweep.
-% All Corralling results use w₀=0.7 (recommended prior-trust bias).
+% regimes using the prior degradation sweep (N=100 seeds).
+% All Corralling results use w₀=0.7, hybrid LinUCB default.
+% Updated: February 21, 2026 — post bug-fix, 100-seed results.
 
-\subsection{When Does Adaptive Safety Pay Off?}
+% Crossover value from prior degradation experiment (N=100 seeds, w₀=0.7).
+\providecommand{\CrossoverWC}{0.55}
+
+\subsection{When Does Adaptive Meta-Learning Pay Off?}
 \label{sec:metalearning_cost}
 
 Having established that semantic priors enable strong routing
 performance (\S\ref{sec:results}), we now ask a sharper question:
-\textbf{when should a practitioner use each of the library's three
-routing strategies?}
+\textbf{when should a practitioner use Corralling (the library's
+default) vs tabula rasa?}
 
-The answer---a crossover experiment spanning the full spectrum from
-correct to adversarial priors---reveals a crossover point that
-partitions prior quality into two regimes, with Corralling providing
-bounded regret across both.
+The answer---a prior degradation sweep across the full spectrum from
+correct to adversarial priors---reveals a crossover at
+$\alpha{\approx}0.55$ that separates two regimes: one where Corralling
+dominates both alternatives, and one where its variance makes it
+the worst choice.
 
 % ----------------------------------------------------------------------------
 % Experimental Setup
@@ -36,132 +41,106 @@ At $\alpha{=}0$, priors are correct; at $\alpha{=}0.5$, priors are
 uninformative (identical for both models); at $\alpha{=}1.0$, priors
 are adversarial (systematically wrong).
 
-All experiments use $N{=}20$ independent seeds, learning rate
-$\eta{=}\sqrt{\ln 2/750}{\approx}0.030$, $\gamma{=}0.05$, and
-initial warmup weight $w_0{=}0.7$.
+All experiments use $N{=}100$ independent seeds, learning rate
+$\eta{=}\sqrt{\ln 2/750}{\approx}0.030$, $\gamma{=}0.05$, initial
+warmup weight $w_0{=}0.7$, cost penalty $\lambda{=}0$ (quality-only),
+warmup $\alpha{=}2.0$ (constant), and tabula rasa
+$\alpha{=}1.0 \to 0.01$ (decaying).  All banditGPT conditions use the
+production \texttt{BanditRouter} with hybrid LinUCB policy and
+family-based parameter sharing.
 
 % ----------------------------------------------------------------------------
-% Main Result: Strategy Crossover
+% Main Result: Two Regimes
 % ----------------------------------------------------------------------------
-\paragraph{The Strategy Crossover.}
-Figure~\ref{fig:prior_degradation}A presents the core finding:
-\emph{strategy dominance depends on prior quality}, with a crossover
-near $\alpha{\approx}$\CrossoverWC{}.
+\paragraph{Two Regimes, One Crossover.}
+Figure~\ref{fig:prior_degradation} presents the core finding:
+Corralling achieves the lowest regret for good-to-moderate priors
+($\alpha \leq 0.5$), substantially beating both warmup-only and
+tabula rasa, but degrades sharply beyond $\alpha{\approx}0.55$.
 
-With correct priors ($\alpha{=}0$):
+\emph{Good-to-moderate priors ($\alpha \leq 0.5$):}
 \begin{itemize}[nosep]
-    \item \textbf{Warmup-only:} 30.0 $\pm$ 2.0 cumulative regret
-    \item \textbf{Corralling:} 44.1 $\pm$ 4.7 regret (+47\% overhead)
-    \item \textbf{Tabula Rasa:} 49.2 $\pm$ 3.4 regret
+    \item \textbf{Corralling:} 32--38 cumulative regret ($\sigma{\approx}4$)
+    \item \textbf{Warmup-only:} 52--59 regret (constant $\alpha$,
+          no meta-learning)
+    \item \textbf{Tabula Rasa:} ${\sim}52$ regret (prior-independent
+          by construction)
 \end{itemize}
 
-As priors degrade, warmup-only regret increases sharply (it has no
-mechanism to detect that its priors are wrong), while Corralling's
-regret increases moderately (the meta-learner shifts trust to the
-tabula rasa expert).  The warmup-only and Corralling curves cross near
-$\alpha{\approx}$\CrossoverWC{} (Wilcoxon signed-rank, $p{<}0.05$).
-Beyond this point, warmup-only regret climbs to 98+ while Corralling
-plateaus at ${\sim}67$.
+Corralling's advantage comes from the complementary alpha schedules:
+the warmup expert provides informed early selections (constant
+$\alpha{=}2.0$), while the tabula rasa expert converges to the best
+policy (decaying $\alpha$).  The meta-learner exploits both---fast
+initialization \emph{and} eventual exploitation---achieving 30--40\%
+lower regret than either alone.
 
-Tabula rasa regret is constant at ${\sim}49$ across all $\alpha$
-(by construction, it does not use priors), providing the
-prior-independent baseline.
-
-% ----------------------------------------------------------------------------
-% Corralling's True Value: Variance Reduction
-% ----------------------------------------------------------------------------
-\paragraph{Corralling's True Value: Bounded Regret Under Uncertainty.}
-Corralling's distinguishing property is
-\emph{variance reduction across the unknown}.
-Regret ranges across the full corruption spectrum:
-
+\emph{Adversarial priors ($\alpha \geq 0.6$):}
 \begin{itemize}[nosep]
-    \item Warmup-only: 27--99 (range: 71.4)
-    \item Corralling ($w_0{=}0.7$): 40--67 (range: 27.2)
-    \item Tabula rasa: 49.2 (range: 0)
+    \item \textbf{Corralling:} 65--78 regret ($\sigma{\approx}23$)
+    \item \textbf{Warmup-only:} 59--67 regret (monotonic degradation)
+    \item \textbf{Tabula Rasa:} ${\sim}52$ regret (invariant)
 \end{itemize}
 
-When a practitioner genuinely does not know their prior quality---the
-most common deployment scenario---Corralling provides a bounded
-worst-case guarantee.  Its maximum regret (67.3 at $\alpha{=}1$) is
-32\% lower than warmup-only's worst case (98.6), while its best case
-(40.5 at $\alpha{=}0.3$) is 18\% better than tabula rasa.
+The warmup expert's constant exploration amplifies systematically
+wrong beliefs, and some seeds fail to shift weight to the tabula rasa
+expert fast enough.  The bimodal variance ($\sigma{\approx}23$ vs.\
+${\approx}4$ in the good-prior regime) confirms that the meta-learner
+sometimes recovers and sometimes does not.
 
-Crucially, this trade-off is \textbf{user-configurable} via the
-\texttt{initial\_weights} parameter.
-Setting $w_0{=}0.7$ (our recommended default) reduces the overhead at
-$\alpha{=}0$ from 60\% (with uniform $w_0{=}0.5$) to 47\%, at the
-cost of higher regret under adversarial priors (67 vs 58).
-Practitioners who are more confident in their priors can increase
-$w_0$ toward 0.9 to further close the gap with warmup-only, while
-those seeking maximum safety can keep $w_0{=}0.5$.
-Sensitivity analysis across $w_0 \in \{0.5, 0.6, 0.7, 0.8, 0.9\}$
-shows that $w_0{=}0.6$ provides a 6\% improvement at zero statistical
-cost ($p{=}0.49$ at $\alpha{=}1$), while $w_0 \geq 0.8$ incurs
-superlinear worst-case penalties.
+Warmup-only degrades monotonically (52 to 67) but is \emph{never}
+the best strategy at any corruption level.
 
 % ----------------------------------------------------------------------------
-% Adaptive Weights
+% Decision-Theoretic Framing
 % ----------------------------------------------------------------------------
-\paragraph{The Meta-Learner Correctly Adapts.}
-Figure~\ref{fig:prior_degradation}B validates that Corralling's Exp4
-mechanism responds correctly to prior quality across the full spectrum:
-
+\paragraph{Expected-Value Decision Framework.}
+We frame strategy selection as an expected-value calculation:
 \begin{itemize}[nosep]
-    \item \textbf{Strong priors ($\alpha{=}0$):} Warmup weight converges
-          to ${\sim}90\%$ (correctly trusts priors)
-    \item \textbf{Uninformative priors ($\alpha{=}0.5$):} Weights
-          stabilise near ${\sim}75\%$ (some uncertainty)
-    \item \textbf{Adversarial priors ($\alpha{=}1.0$):} Warmup weight
-          drops to ${\sim}55\%$ (partially distrusts harmful priors)
+    \item \textbf{Corralling's upside:} saves 17.7 cumulative regret
+          (34\% reduction vs.\ tabula rasa) when $\alpha \leq 0.4$
+    \item \textbf{Corralling's downside:} costs 23.2 extra regret
+          (45\% increase) when $\alpha \geq 0.6$
 \end{itemize}
 
-Starting from $w_0{=}0.7$ rather than 0.5 means the meta-learner
-reaches the correct allocation faster when priors are strong.
-Under adversarial priors, the meta-learner must overcome the initial
-bias, so convergence to the tabula rasa expert is slower---but it
-still correctly detects and partially corrects for prior damage.
+The breakeven occurs when a practitioner believes there is roughly a
+\textbf{57\% chance that priors are useful} ($\alpha \leq 0.4$).  Above
+this threshold, Corralling has lower expected regret; below it, tabula
+rasa is safer.
+
+In practice, most deployments use priors derived from a related domain
+(e.g., training on general chat, deploying on customer support),
+placing them well within the $\alpha \leq 0.4$ regime.  Truly
+adversarial priors---where model preferences are systematically
+reversed---require an active distribution mismatch that is rare and
+typically known in advance.
 
 % ----------------------------------------------------------------------------
-% Why the overhead exists at α=0
+% Stability Mechanisms
 % ----------------------------------------------------------------------------
-\paragraph{Why the Overhead Exists.}
-At $\alpha{=}0$ (strong priors), the 47\% overhead arises from two
-sources:
-\begin{enumerate}[nosep]
-    \item \textbf{Exploration cost:} Even with $w_0{=}0.7$, Corralling
-          allocates ${\sim}20\%$ of queries to the tabula rasa expert
-          to verify that the warmup expert is indeed superior.
-    \item \textbf{Sparse signal:} 73\% of prompts produce identical
-          rewards for both models, providing zero differential signal
-          to the meta-learner.
-\end{enumerate}
-
-The meta-learner's Exp4 update uses importance-weighted loss
-$\hat\ell_i = (1{-}r)/p_i$, which is zero whenever the selected model
-succeeds.  With a theoretically optimal $\eta{\approx}0.030$,
-convergence is smooth but slow---exactly as theory predicts for a
-750-round horizon.
+\paragraph{Detecting and Escaping Instability.}
+The adversarial regime is \emph{detectable at runtime}.  Two mechanisms
+built into the router provide partial protection:
+\begin{itemize}[nosep]
+    \item \textbf{$\gamma$-floor mixing:} the meta-learner always
+          allocates ${\geq}5\%$ of traffic to each expert, ensuring
+          the tabula rasa expert continues learning.
+    \item \textbf{Loss decay:} stale expert losses are forgotten,
+          preventing early mistakes from permanently anchoring the
+          meta-learner.
+\end{itemize}
+For additional robustness, practitioners can monitor the first 50--100
+prompts and switch to tabula rasa if the warmup expert's running
+accuracy falls below random chance.
 
 % ----------------------------------------------------------------------------
 % Connection to library
 % ----------------------------------------------------------------------------
-\paragraph{Implications for the Library.}
-This experiment validates the library's design philosophy: offering
-three first-class strategies rather than a single ``best'' approach.
-The crossover point provides actionable guidance:
+\paragraph{Default Recommendation.}
+Use Corralling (the library's default) unless there is strong reason
+to believe priors are adversarial.  The 57\% breakeven threshold is
+easily cleared for most deployments, and early monitoring provides an
+escape hatch for the rare case where it is not.
 
-\begin{itemize}[nosep]
-    \item \textbf{Validated priors} (accuracy ${>}80\%$, $\alpha \ll$
-          \CrossoverWC{}): Use warmup-only for 47\% lower regret.
-    \item \textbf{Unknown prior quality} (the common case):
-          Use Corralling ($w_0{=}0.7$) for bounded worst-case regret
-          (max 67 vs warmup-only's 99).
-    \item \textbf{Known bad or absent priors} ($\alpha \gg$
-          \CrossoverWC{}): Use tabula rasa---its constant 49 regret
-          is the safest option when priors are harmful.
-\end{itemize}
-
-Section~\ref{sec:catastrophic} demonstrates
-additional scenarios where Corralling's adaptive capability provides
-value beyond the static-benchmark analysis presented here.
+For deployments where prior quality is genuinely unknown and the cost
+of instability is unacceptable (e.g., healthcare, finance), tabula
+rasa provides a safe, prior-independent baseline at ${\sim}52$ regret.

@@ -35,7 +35,7 @@ BaRP~\cite{wang2025barp} trains a preference-conditioned contextual bandit under
 LLM Bandit~\cite{li2025llmbandit} formulates model selection as a preference-conditioned MAB with generalization to unseen models.
 
 These methods advance cost-aware routing but differ from banditGPT in three structural ways.
-First, none employs a meta-ensemble: each uses a single contextual bandit, whereas banditGPT runs \emph{bandits over bandits} via Corralling, providing safety insurance against prior mismatch (Section~\ref{sec:methodology}).
+First, none employs a meta-ensemble: each uses a single contextual bandit, whereas banditGPT runs \emph{bandits over bandits} via Corralling, exploiting complementary exploration schedules to achieve 30--40\% lower regret than either expert alone when priors are useful (Section~\ref{sec:methodology}).
 Second, banditGPT invests in rich prior machinery---80k-battle warmup priors and progressive model registration---rather than learning an embedding space from scratch.
 Third, banditGPT enforces hard cost and latency constraints via Dynamic Pareto Filtering before the bandit selects, whereas PILOT and BaRP fold cost into the reward or a separate knapsack/scalarization policy.
 None of these concurrent systems provides an open-source implementation as of this writing; a detailed architectural comparison is provided in Appendix~\ref{appendix:positioning}.

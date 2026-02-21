@@ -26,7 +26,7 @@ Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's
 
 ## Related Sections
 - **Appendix A.2**: Ablation table validates hyperparameter choices (45 experiments)
-- **Main Paper Figure 3**: Corralling insurance mechanism — Figure 6 extends this to catastrophic scenario
+- **Main Paper Figure 3**: Corralling prior degradation sweep — Figure 6 extends to catastrophic failure scenario
 - **Main Paper Figure 4**: Pareto frontier — static benchmarks; Figure 6 tests dynamic challenge
 
 ---
