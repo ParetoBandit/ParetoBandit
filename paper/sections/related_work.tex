@@ -25,7 +25,7 @@ The use of Multi-Armed Bandits (MAB) for model selection is an emerging field. R
 
 \textbf{The Limitation}: Standard bandit algorithms assume stationarity and well-specified priors. They lack safety mechanisms for ``Negative Transfer,'' where a transferred prior could become harmful under severe domain mismatch. They also struggle with ``Expert Death,'' where a bad start permanently marginalizes a potentially good model.
 
-\textbf{Our Approach}: We introduce Expert Corralling~\cite{agarwal2017corralling} to the LLM routing domain. By maintaining a portfolio of experts (Warmup vs.\ Tabula Rasa) and dynamically mixing them, banditGPT provides a worst-case safety guarantee that standard LinUCB implementations lack.
+\textbf{Our Approach}: We introduce Expert Corralling~\cite{agarwal2017corralling} to the LLM routing domain. By maintaining a portfolio of experts (Warmup vs.\ Tabula Rasa) and dynamically mixing them, banditGPT provides a worst-case safety guarantee that standard LinUCB implementations lack. Subsequent model-selection frameworks~\cite{pacchiano2020model, cutkosky2021dynamic} improve on Corralling's variance guarantees through regret balancing, though none have been applied to LLM routing.
 
 \subsection{Preference-Conditioned and Cost-Aware Bandit Routers}
 

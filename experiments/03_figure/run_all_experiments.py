@@ -131,7 +131,12 @@ _PRIORS_CACHE: Dict[str, str] = {}
 
 
 def _save_priors_to_temp(priors: Dict, key: str = "default") -> str:
-    """Save priors to a temp .joblib file, caching by key."""
+    """Save priors to a temp .joblib file, caching by key.
+
+    IMPORTANT: always use a stable, content-derived key (e.g. corruption
+    level) rather than ``id(priors)`` — Python reuses memory addresses for
+    short-lived objects, which causes stale cache hits.
+    """
     if key not in _PRIORS_CACHE:
         tmp = tempfile.NamedTemporaryFile(suffix=".joblib", delete=False)
         to_save = dict(priors)
@@ -148,6 +153,7 @@ def _make_fig3_router(
     corralling_learning_rate: float | None = None,
     corralling_gamma: float = CORRALLING_GAMMA,
     initial_warmup_weight: float = INITIAL_WARMUP_WEIGHT,
+    cache_key: str = "default",
 ) -> "BanditRouter":
     """Create a production BanditRouter for Figure 3 experiments.
 
@@ -160,7 +166,7 @@ def _make_fig3_router(
     preserving the pre-scaled matrices exactly.
     """
     lr = corralling_learning_rate if corralling_learning_rate is not None else LEARNING_RATE
-    warmup_path = _save_priors_to_temp(warmup_priors, key=f"fig3_{id(warmup_priors)}")
+    warmup_path = _save_priors_to_temp(warmup_priors, key=f"fig3_{cache_key}")
     n_stored = max(warmup_priors.get("n_prompts", 1), warmup_priors.get("n", 1), 1)
     registry = {m: {"openrouter_id": m, "display_name": m.split("/")[-1],
                      "input_cost_per_m": 1.0, "output_cost_per_m": 3.0} for m in models}
@@ -172,6 +178,7 @@ def _make_fig3_router(
         warmup_path=warmup_path,
         corralling_learning_rate=lr,
         corralling_gamma=corralling_gamma,
+        cost_penalty=0.0,
     )
     if router.corralling_router is not None:
         router.corralling_router.weights = np.array(
@@ -789,7 +796,10 @@ def run_experiment_prior_degradation(embeddings, warmup_priors_unscaled, warmup_
                 use_bandit_router = (strategy == "corralling")
 
                 if strategy == "corralling":
-                    br = _make_fig3_router(models, context_dim, corrupted_priors, alpha=2.0)
+                    br = _make_fig3_router(
+                        models, context_dim, corrupted_priors, alpha=2.0,
+                        cache_key=f"corruption_{corruption}",
+                    )
                 elif strategy == "warmup_only":
                     router = CostAwareLinUCBRouter(
                         models=models, warmup_priors=corrupted_priors,
@@ -1039,6 +1049,7 @@ def run_experiment_initial_weight_sweep(
                 br = _make_fig3_router(
                     models, context_dim, corrupted_priors,
                     alpha=2.0, initial_warmup_weight=bias,
+                    cache_key=f"iw_corruption_{corruption}",
                 )
 
                 cumulative_regret = 0.0
@@ -1122,13 +1133,10 @@ def run_experiment_initial_weight_sweep(
 
 def plot_main_figure(degradation_stats, degradation_results, weight_histories, output_dir):
     """
-    Create the main 2-panel figure for the paper.
-
-    Panel A: Strategy Crossover — regret vs prior quality for all 3 strategies
-    Panel B: Adaptive Weights — weight evolution at 3 prior quality levels
+    Create the main figure for the paper: regret vs prior corruption for all 3 strategies.
     """
     mpl.rcParams.update(PLOT_STYLE)
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig, ax1 = plt.subplots(1, 1, figsize=(7, 5))
 
     corruption_levels = degradation_stats['corruption_levels']
     strategies = ['warmup_only', 'corralling', 'tabula_rasa']
@@ -1163,113 +1171,13 @@ def plot_main_figure(degradation_stats, degradation_results, weight_histories, o
         ax1.fill_between(corruption_levels, means - stds, means + stds,
                         color=color, alpha=0.15, zorder=1)
 
-    # ---- Find both crossover points from the data ----
-    # Crossover 1: warmup_only ↔ corralling (warmup becomes worse)
-    warmup_means = [degradation_stats['strategies']['warmup_only'][str(c)]['regret_mean']
-                    for c in corruption_levels]
-    corr_means = [degradation_stats['strategies']['corralling'][str(c)]['regret_mean']
-                  for c in corruption_levels]
-    tab_means = [degradation_stats['strategies']['tabula_rasa'][str(c)]['regret_mean']
-                 for c in corruption_levels]
-
-    crossover_wc = None  # warmup → corralling
-    crossover_ct = None  # corralling → tabula rasa
-    for i in range(len(corruption_levels) - 1):
-        diff_wc = warmup_means[i] - corr_means[i]
-        diff_wc_next = warmup_means[i+1] - corr_means[i+1]
-        if diff_wc < 0 and diff_wc_next >= 0 and crossover_wc is None:
-            frac = -diff_wc / (diff_wc_next - diff_wc) if (diff_wc_next - diff_wc) != 0 else 0.5
-            crossover_wc = corruption_levels[i] + frac * (corruption_levels[i+1] - corruption_levels[i])
-
-        diff_ct = corr_means[i] - tab_means[i]
-        diff_ct_next = corr_means[i+1] - tab_means[i+1]
-        if diff_ct < 0 and diff_ct_next >= 0 and crossover_ct is None:
-            frac = -diff_ct / (diff_ct_next - diff_ct) if (diff_ct_next - diff_ct) != 0 else 0.5
-            crossover_ct = corruption_levels[i] + frac * (corruption_levels[i+1] - corruption_levels[i])
-
-    # Fallback crossover values
-    if crossover_wc is None:
-        crossover_wc = degradation_stats.get('crossover_point',
-                       degradation_stats.get('crossover_point_interpolated', 0.5))
-    if crossover_ct is None:
-        crossover_ct = 0.55  # approximate from data inspection
-
-    logger.info(f"   📍 Crossover warmup↔corralling: α≈{crossover_wc:.2f}")
-    logger.info(f"   📍 Crossover corralling↔tabula:  α≈{crossover_ct:.2f}")
-
-    # ---- Three-regime shading ----
-    ax1.axvspan(0.0, crossover_wc, alpha=0.05, color='green', zorder=0)
-    ax1.axvspan(crossover_wc, crossover_ct, alpha=0.05, color='orange', zorder=0)
-    ax1.axvspan(crossover_ct, 1.0, alpha=0.05, color='gray', zorder=0)
-
-    # ---- Crossover lines ----
-    # Interpolate regret values at crossover points for annotation placement
-    wc_regret = np.interp(crossover_wc, corruption_levels, warmup_means)
-    ct_regret = np.interp(crossover_ct, corruption_levels, corr_means)
-
-    ax1.axvline(x=crossover_wc, color='red', linestyle=':', linewidth=1.8,
-               alpha=0.6, zorder=2)
-    ax1.axvline(x=crossover_ct, color='purple', linestyle=':', linewidth=1.8,
-               alpha=0.6, zorder=2)
-
-    # Annotate crossover region (combined since the two points are so close)
-    mid_crossover = (crossover_wc + crossover_ct) / 2
-    mid_regret = np.interp(mid_crossover, corruption_levels, warmup_means)
-    ax1.annotate(f'Crossovers\nα≈{crossover_wc:.2f}–{crossover_ct:.2f}',
-                xy=(mid_crossover, mid_regret),
-                xytext=(mid_crossover + 0.18, mid_regret + 18),
-                fontsize=8, ha='center', color='red',
-                arrowprops=dict(arrowstyle='->', color='red', lw=1.2),
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                         edgecolor='red', alpha=0.9))
-
-    # ---- Region labels ----
-    ax1.text(0.15, 0.03, 'Warmup-Only optimal',
-             transform=ax1.transAxes, fontsize=7.5, color=COLORS['green'],
-             fontstyle='italic', va='bottom', ha='center')
-    ax1.text(0.80, 0.03, 'Tabula Rasa optimal',
-             transform=ax1.transAxes, fontsize=7.5, color='dimgray',
-             fontstyle='italic', va='bottom', ha='center')
-
     ax1.set_xlabel('Prior Corruption Level (α)', fontsize=11)
     ax1.set_ylabel('Cumulative Regret', fontsize=11)
-    ax1.set_title('(A) Three Regimes of Prior Quality',
+    ax1.set_title('Prior Degradation Sweep',
                   fontsize=12, fontweight='bold')
     ax1.legend(loc='upper left', fontsize=10, framealpha=0.9)
     ax1.grid(True, alpha=0.2)
     ax1.set_xlim(-0.02, 1.02)
-
-    # =================================================================
-    # PANEL B: WEIGHT EVOLUTION AT 3 QUALITY LEVELS
-    # =================================================================
-    quality_labels = {
-        '0.0': ('Strong (α=0.0)', COLORS['green']),
-        '0.5': ('Uninformative (α=0.5)', COLORS['blue']),
-        '1.0': ('Adversarial (α=1.0)', COLORS['red']),
-    }
-
-    for c_str, (label, color) in quality_labels.items():
-        if c_str in degradation_stats.get('weight_histories', {}):
-            wh = degradation_stats['weight_histories'][c_str]
-            mean_weights = np.array(wh['mean'])
-            std_weights = np.array(wh['std'])
-            timesteps = np.arange(1, len(mean_weights) + 1)
-
-            ax2.plot(timesteps, mean_weights, color=color, linewidth=2.5,
-                    label=label, zorder=3)
-            ax2.fill_between(timesteps, mean_weights - std_weights,
-                           mean_weights + std_weights,
-                           color=color, alpha=0.15, zorder=1)
-
-    ax2.axhline(y=0.5, color='gray', linestyle='--', linewidth=1,
-               alpha=0.5, label='Initial (50%)')
-    ax2.set_xlabel('Query Number', fontsize=11)
-    ax2.set_ylabel('Warmup Expert Weight', fontsize=11)
-    ax2.set_title('(B) Meta-Learner Correctly Adapts to Prior Quality',
-                  fontsize=12, fontweight='bold')
-    ax2.legend(loc='best', fontsize=9, framealpha=0.9)
-    ax2.grid(True, alpha=0.2)
-    ax2.set_ylim(-0.02, 1.02)
 
     plt.tight_layout()
     fig_path = output_dir / "figure3_prior_degradation.pdf"
