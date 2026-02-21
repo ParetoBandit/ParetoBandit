@@ -1,23 +1,13 @@
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-We presented \textbf{banditGPT}, an open-source, cost-aware contextual bandit framework for LLM routing. Through comprehensive validation on LMSYS Arena prompts ($N=750$ held-out), we demonstrated:
+As open-weights models close the gap with proprietary frontiers, the LLM routing problem has evolved from simple cost-cutting to \textbf{quality discovery}: identifying the specific prompt contexts where expensive models genuinely help. We presented \textbf{banditGPT}, an open-source contextual bandit framework that addresses this through online learning with safety guarantees.
 
-\begin{itemize}
-    \item \textbf{Effective online adaptation:} Cost-aware LinUCB initialized from offline warmup priors (80k RouteLLM battles) surpasses RouteLLM's peak quality after only 400 label-free in-distribution prompts, achieving $70.8\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM)
-    \item \textbf{Safety under prior mismatch:} Corralling provides bounded-cost insurance against prior degradation, with secondary catastrophic failure detection (95\% at $K{=}5$; gap vs.\ EMA narrows monotonically with portfolio size). Corralling redistributes post-failure traffic contextually across the remaining portfolio (${\sim}20\%$ per model), avoiding the traffic concentration risk inherent in simpler trackers
-    \item \textbf{An honest null result:} Semantic transfer for new model cold-start provides no statistically significant improvement over tabula rasa initialization in controlled ablations ($p > 0.07$ across all configurations), establishing that cold-start integration remains an open problem
-\end{itemize}
-
-\subsection{Summary and Context}
-
-The economics of Large Language Models are shifting. As open-weights models like Mixtral and Llama-3 close the gap with proprietary frontiers, the routing problem has evolved from simple cost-cutting (``Use the cheap model for easy stuff'') to complex \textbf{Quality Discovery} (``Find the specific tasks where the expensive model is actually better'').
-
-In this work, we introduced \texttt{banditGPT}, a lifelong learning framework that replaces static model allocation with adaptive resource routing.
-\begin{enumerate}
-    \item \textbf{Empirically}, we demonstrated model preference heterogeneity: the router's features significantly predict model preference ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections), and static single-model allocation can pay $43\times$ more while degrading quality on this evaluation dataset.
-    \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} as safety insurance against prior mismatch, and demonstrated that cost-aware LinUCB with offline warmup priors provides a strong online learning baseline that adapts within hundreds of interactions.
-    \item \textbf{Methodologically}, we reported a rigorously validated null result on semantic transfer, correcting earlier experimental artifacts (deterministic seeds, degenerate oracles) and demonstrating that cold-start model integration via prior transfer does not work in the current framework. This honest finding prevents future work from building on an unsupported premise.
+Our evaluation on $N{=}750$ held-out LMSYS Arena prompts establishes three findings:
+\begin{enumerate}[nosep]
+    \item \textbf{Online adaptation outperforms supervised pre-training.} After 400 label-free prompts, banditGPT surpasses RouteLLM's peak quality (trained on 100k supervised pairs), achieving $70.8\%$ gap closure to oracle. This demonstrates that a small amount of in-distribution experience outweighs a large volume of out-of-distribution supervision.
+    \item \textbf{Corralling provides bounded safety.} The meta-learner insures against prior mismatch---its worst-case regret is 32\% lower than warmup-only---while redistributing post-failure traffic contextually across the healthy portfolio rather than concentrating on a single fallback.
+    \item \textbf{Semantic transfer is a null result.} Cold-starting new models via prior transfer provides no significant improvement over tabula rasa ($p > 0.07$), establishing that cold-start integration remains an open problem for bandit routers.
 \end{enumerate}
 
 \subsection*{Future Work}

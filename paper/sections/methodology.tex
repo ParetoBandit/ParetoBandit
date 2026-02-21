@@ -138,22 +138,7 @@ We counteract the lack of counterfactual updates through \textbf{Uniform Initial
 \label{fig:corralling}
 \end{figure}
 
-\subsection{Prior Calibration and Runtime Monitoring}
+\subsection{Prior Calibration}
 
-Loading pre-trained priors from offline data can introduce \emph{Scale Explosion}---predictions of 800.0 instead of 0.8---due to mismatched reward scales or accumulation magnitudes. We address this with a two-pass calibration at initialization and continuous runtime monitoring during deployment.
-
-\paragraph{Two-Pass Calibration.}
-\textbf{Pass~1 (bias probe)}: We probe each model with a bias-only context $[0,\ldots,0,1]$. If the predicted reward exceeds a threshold (1.5), we clamp the bias weight via \emph{theta-reconstruction}: we modify $\thetavec$ directly and set $\bvec = \Amat \thetavec_{\text{new}}$, which preserves all PCA-dimension preferences exactly while correcting only the bias component.
-\textbf{Pass~2 (suite probe)}: We probe each model with a suite of basis-independent feature vectors---axis-aligned unit vectors, random unit-norm vectors, and a uniform ``all features active'' vector---to detect PCA-dimension explosions that a single-coordinate probe would miss. If the worst-case prediction exceeds the threshold, $\thetavec$ is globally rescaled. Because banditGPT is a domain-agnostic library, the probe suite uses synthetic geometry rather than domain-specific prompts; users may optionally supply their own representative contexts for deployment-specific calibration.
-
-\paragraph{Runtime Prediction Monitoring.}
-Static calibration at initialization cannot detect problems that emerge post-deployment (gradual drift, bad priors on newly registered models, feature distribution shift). We augment each expert with a lightweight $O(1)$-per-observation monitor that tracks per-model rolling statistics (min, max, mean, variance) of both expected reward ($\thetavec^\top x$) and full UCB score. When predictions exceed a configurable alert threshold, the system logs a warning. The health report is queryable for CI and canary deployment checks.
-
-\subsection{Semantic Projection \& Scalability}
-
-To validate the router's generalization capability, we projected the learned policy onto the full LMSYS Chat-1M dataset ($N=594$k). As shown in Figure~\ref{fig:corralling} (Left), the ``Easy Cluster'' ($\text{PC1} < 0.3$) accounts for $94.2\%$ of traffic.
-
-\textbf{Implication}: By identifying this structure, the router effectively unlocks a $94\%$ opportunity for cost reduction that static ``hard'' classifiers miss.
-
-\textbf{Separation of Optimization and Visualization}: Crucially, we train only on the labeled Dev set ($N=1{,}121$) and project the policy onto the unlabeled 1M set. This ensures the cluster analysis is a valid test of semantic generalization, not just memorization.
+Loading pre-trained priors from offline data can introduce \emph{Scale Explosion}---predictions of 800.0 instead of 0.8---due to mismatched reward scales. We address this with automatic two-pass calibration at initialization: (1)~a bias probe that detects and clamps inflated bias weights via theta-reconstruction, and (2)~a suite probe using basis-independent feature vectors that catches PCA-dimension explosions. Each expert additionally maintains a lightweight $O(1)$-per-observation prediction monitor for runtime anomaly detection. Implementation details are provided in Appendix~\ref{app:implementation}.
 

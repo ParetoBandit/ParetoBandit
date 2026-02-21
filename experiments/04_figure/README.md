@@ -6,7 +6,7 @@ This directory contains the scripts and data for Figure 4 (Pareto Frontier) of t
 
 ---
 
-### 🔗 Connection to Previous Experiments
+### Connection to Previous Experiments
 
 **Motivation from Figures 1-3:**
 - **Figure 1:** Established semantic structure and model preference heterogeneity
@@ -25,7 +25,7 @@ This experiment provides definitive validation through:
 
 ---
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 04_figure/
@@ -42,7 +42,7 @@ This experiment provides definitive validation through:
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Run the Full Experiment
 
@@ -69,7 +69,7 @@ If you already have `pareto_results_final.json`:
 
 ---
 
-## 📊 Experimental Results
+## Experimental Results
 
 ### Key Findings
 
@@ -103,7 +103,7 @@ If you already have `pareto_results_final.json`:
 
 ---
 
-## 🔬 Experiment Details
+## Experiment Details
 
 ### Dataset
 - **Total**: 1,871 prompts (real production traffic)
@@ -153,14 +153,14 @@ Tabula rasa baseline (0.923) outperforms hybrid (0.912), suggesting η=1.0 may b
 - **Processing**: Sequential (rate-limit compliant)
 
 ### Zero-Leakage Protocol
-✅ Normalization computed from training set only  
-✅ Frozen evaluation on holdout (no updates)  
-✅ Convex hull filtering applied to both methods  
-✅ Identical holdout set for fair comparison
+- Normalization computed from training set only
+- Frozen evaluation on holdout (no updates during evaluation)
+- Convex hull filtering applied to both methods
+- Identical holdout set for fair comparison
 
 ---
 
-## 🛠️ Scripts Overview
+## Scripts Overview
 
 ### `generate_pareto_frontier.py`
 **Main experiment script** - Generates complete Pareto frontier
@@ -199,7 +199,7 @@ python check_calibration.py
 
 ---
 
-## 📈 Reproducing the Results
+## Reproducing the Results
 
 ### Full Reproduction
 
@@ -226,26 +226,21 @@ The repository already includes `results/pareto_results_final.json` with all 38 
 
 ---
 
-## 🎯 Key Claims for Abstract
+## Key Claims
 
-Use these exact phrases (verified against **holdout evaluation**, N=750):
+These numbers are from this experiment (5 trials, seeds 42-46). The paper uses 20 trials (seeds 42-61), yielding slightly different values (0.915 peak, 70.8% gap closure). The paper numbers are authoritative.
 
-1. **"We identify a 'Negative Intelligence Tax' where static users pay 43× more for 1.3% relatively worse quality"**
-   - Verified: GPT-4-Turbo ($0.013/req, 0.812) vs Mixtral ($0.000294/req, 0.823)
-   - Be specific: "1.3% relatively worse" or "1.1pp worse" (not ambiguous "1.3% worse")
+**From this experiment (holdout, N=750):**
 
-2. **"banditGPT achieves 0.909 peak quality through intelligent per-prompt routing, outperforming static allocation to Mixtral (0.823) or GPT-4-Turbo (0.812)"**
-   - Exact value: 0.9088, rounded to 0.909 for readability
-
-3. **"Online learning closes 65.9% of the gap to Oracle, vs 45.9% for state-of-the-art pre-trained routing (RouteLLM)"**
-   - Calculation: (0.9088 - 0.8227) / (0.9533 - 0.8227) = 65.9%
-   - Note: Do NOT use the 68.5% dev-set number in abstract
-
-4. **"Zero-leakage protocol ensures results generalize to production environments"**
+| Claim | Value | Calculation |
+|-------|-------|-------------|
+| Negative Intelligence Tax | 43× cost, 1.3% relatively worse quality | GPT-4-Turbo ($0.013, 0.812) vs Mixtral ($0.000294, 0.823) |
+| Peak quality | 0.9088 | Holdout evaluation, 5 trials |
+| Gap closure | 65.9% (vs RouteLLM 45.9%) | (0.9088 - 0.8227) / (0.9533 - 0.8227) |
 
 ---
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Rate Limits (OpenAI Embeddings)
 RouteLLM uses OpenAI's embedding API. If you hit rate limits:
@@ -265,7 +260,7 @@ RouteLLM uses OpenAI's embedding API. If you hit rate limits:
 
 ---
 
-## 📚 Related Files
+## Related Files
 
 ### Priors Location
 - **Original**: `src/artifacts/priors_warmup.joblib` (from 80k battles)
@@ -279,7 +274,7 @@ RouteLLM uses OpenAI's embedding API. If you hit rate limits:
 
 ---
 
-## 🎓 Citation
+## Citation
 
 If you use this experimental setup or data, please cite:
 
@@ -294,46 +289,17 @@ If you use this experimental setup or data, please cite:
 
 ---
 
-## 📞 Support
+## Related Experiments
 
-For questions about:
-- **Experiment execution**: Check `generate_pareto_frontier.py` docstrings
-- **Calibration verification**: See `check_calibration.py`
-- **Data format**: See `results/pareto_results_final.json`
+This experiment validates static benchmark performance. Dynamic scenarios are covered by:
 
----
-
-## ✅ Status
-
-**All files verified and ready for publication**
-
-- ✅ Scripts tested and reproducible
-- ✅ Data verified (38 points, zero leakage)
-- ✅ Figures publication-ready (300 + 600 dpi)
-- ✅ "Negative Intelligence Tax" narrative complete
-- ✅ Prior normalization (Neff=10) handled automatically in router
+| Scenario | Experiment |
+|----------|-----------|
+| Catastrophic model failure | [Figure 6](../appendix/E_catastrophic_failure_experiment/) |
+| Corralling insurance under prior mismatch | [Figure 3](../03_figure/) |
+| Hyperparameter sensitivity | Appendix A.2 (ablation), A.3 (n_eff) |
 
 ---
 
-## 🔗 What's Next?
-
-This experiment validates production-grade performance on **static benchmarks**, but real deployments face **dynamic challenges:**
-
-**Proven:**
-- ✅ BanditGPT achieves 68.5% gap closure warm-start (vs 46.2% for RouteLLM)
-- ✅ Peak quality: 0.912 @ $0.00967 (warm-start), 0.9088 @ $0.00954 (Pareto holdout)
-- ✅ "Negative Intelligence Tax" discovered (GPT-4: 43× more expensive, 1.3% worse)
-- ✅ Economic validation: $2.3M/year savings potential
-
-**Dynamic Scenarios Still Unknown:**
-1. **Catastrophic failures:** APIs crash, models degrade suddenly → **See Figure 6**
-2. **New model integration:** New models enter the portfolio (e.g., GPT-4o via semantic transfer from GPT-4-Turbo) → **See Figure 4**
-3. **Hyperparameter robustness:** Is performance brittle? → **See Appendix A.3 (n_eff theory) and Appendix A.2 (Corralling ablation)**
-
-**The story continues:** We've proven static performance. Now let's validate adaptive capabilities under production scenarios (failures, new models, parameter sensitivity).
-
----
-
-**Last Updated**: January 26, 2026  
-**Experiment Date**: January 25, 2026, 13:01-14:43 PM
+**Last Updated**: February 2026
 

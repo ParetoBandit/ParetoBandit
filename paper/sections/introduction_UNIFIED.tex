@@ -38,26 +38,23 @@ To provide safety against prior mismatch, we employ Corralling~\cite{agarwal2017
 \paragraph{3. Multi-Model Routing ($K \geq 3$)}
 Unlike threshold-based routers restricted to binary model selection ($K{=}2$), banditGPT's contextual bandit formulation natively extends to arbitrary portfolio sizes. Dynamic Pareto Filtering prunes dominated models per-request, and the exploration bonus guides discovery across heterogeneous cost-quality tiers.
 
-\paragraph{An Honest Null Result}
-We also investigate \textbf{semantic transfer}---bootstrapping new models from semantically similar existing models---and report a null result. In controlled ablations with 10 shuffled seeds at $K{=}5$ and $K{=}10$, transferred priors provide no statistically significant advantage over tabula rasa initialization (all $p > 0.07$). The new model is selected for $<1\%$ of prompts in most configurations, making its initialization irrelevant to overall routing quality. We report this to establish an honest boundary on what contextual bandit routing can and cannot achieve for cold-start model integration.
-
 % ============================================================================
 % PART 3: VALIDATION & CONTRIBUTIONS
 % ============================================================================
 
 \subsection{Contributions}
 
-Our work makes three contributions, validated through comprehensive experimentation:
+Our work makes the following contributions, validated through comprehensive experimentation:
 
 \begin{enumerate}
-    \item \textbf{Model Preference Heterogeneity Analysis:}
-    Empirical demonstration that prompt structure predicts model preference: the router's PCA features show significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$, $N = 750$), exceeding all 100 random projections. This establishes that routing is learnable through contextual features.
+    \item \textbf{Model Preference Heterogeneity Analysis.}
+    We demonstrate empirically that prompt structure predicts model preference: the router's PCA features show significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$, $N = 750$), exceeding all 100 random projections. This establishes that routing is learnable through contextual features.
     
-    \item \textbf{Cost-Aware Online Learning with Safety:}
-    A contextual bandit router combining offline warmup priors with online adaptation, achieving $70.8\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM) after 400 label-free prompts. Corralling meta-learning provides bounded-cost safety insurance against prior mismatch, with catastrophic failure detection as a secondary benefit (95\% detection at $K{=}5$).
+    \item \textbf{Cost-Aware Online Learning with Safety.}
+    A contextual bandit router combining offline warmup priors with online adaptation achieves $70.8\%$ gap closure to oracle on frozen holdout (vs.\ $46.2\%$ for RouteLLM) after 400 label-free prompts. Corralling meta-learning provides bounded-cost safety insurance against prior mismatch, with catastrophic failure detection as a secondary benefit (95\% detection at $K{=}5$).
     
-    \item \textbf{Open-Source Multi-Model Production System:}
-    A modular, open-source framework supporting arbitrary portfolio sizes with continuous cost-quality Pareto optimization, Dynamic Pareto Filtering, prior calibration, and runtime monitoring. We include a rigorous null result on semantic transfer, establishing that cold-start model integration remains an open problem for bandit routers.
+    \item \textbf{Open-Source Multi-Model Framework.}
+    A modular, open-source system supporting arbitrary portfolio sizes with continuous cost-quality Pareto optimization, Dynamic Pareto Filtering, and prior calibration. We additionally report a rigorously validated \emph{null result} on semantic transfer for cold-starting new models (Section~\ref{sec:transfer_null}), establishing that this remains an open problem for bandit routers.
 \end{enumerate}
 
 The remainder is organized as follows. Section~\ref{sec:motivation} establishes the empirical motivation (semantic structure and model preference heterogeneity). Section~\ref{sec:methodology} describes the system architecture. Sections~\ref{sec:experiments}--\ref{sec:results} present experimental validation with the Pareto frontier as the primary benchmark. Section~\ref{sec:related} surveys related work; Section~\ref{sec:conclusion} discusses limitations and future directions. Extended results and sensitivity analyses appear in the appendices.

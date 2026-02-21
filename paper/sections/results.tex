@@ -18,23 +18,20 @@ Figure~\ref{fig:pareto} presents a two-panel analysis of the cost--quality trade
 \label{fig:pareto_frontier}
 \end{figure*}
 
-\subsubsection{Honest Comparison: Two Regimes}
+\subsubsection{Comparison Across Cost Regimes}
 
-An honest reading of Figure~\ref{fig:pareto}a reveals that \emph{neither method dominates everywhere}. The comparison is between two fundamentally different paradigms with complementary data advantages:
+Figure~\ref{fig:pareto}a reveals two distinct regimes, reflecting the complementary strengths of supervised pre-training and online adaptation:
 
 \begin{itemize}[nosep]
-    \item \textbf{RouteLLM} is pre-trained on 100k out-of-distribution (OOD) supervised preference pairs from the LMSYS Chatbot Arena, giving it strong out-of-the-box performance at moderate cost levels---no deployment data required.
-    \item \textbf{banditGPT} combines 80k OOD battle priors with 1,121 in-distribution online learning steps, where it observes its own routing outcomes and adapts---no labels required.
+    \item \textbf{RouteLLM} is pre-trained on 100k out-of-distribution (OOD) supervised preference pairs, giving it strong out-of-the-box performance---no deployment data required.
+    \item \textbf{banditGPT} combines 80k OOD battle priors with 1,121 in-distribution online learning steps, adapting from its own routing outcomes---no labels required.
 \end{itemize}
 
-\noindent\textbf{Note on model portfolio size.}
-This comparison uses only two models (Mixtral and GPT-4-Turbo) to match RouteLLM's primary evaluation topology and enable a controlled comparison. This is a disadvantage for banditGPT: its contextual bandit formulation is designed for multi-model portfolios where per-model uncertainty guides exploration. With only two models, the exploration bonus is symmetric and contributes minimally to routing decisions.
-In practice, production deployments typically involve three or more models spanning different cost-quality tiers. The contextual bandit formulation naturally extends to larger portfolios, where per-model uncertainty guides exploration across heterogeneous cost-quality tiers.
-Unlike traditional A/B/$n$ testing---which requires dedicated traffic splits per model pair and scales as $O(K^2)$ comparisons---the contextual bandit evaluates all $K$ candidates within a single traffic stream, reducing experimentation cost proportionally.
+At \textbf{low-to-moderate budgets} (\$0.0003--\$0.005 per request), RouteLLM's pre-trained classifier is competitive or superior. Its supervised training provides reliable routing without deployment overhead.
 
-At \textbf{low-to-moderate budgets} (\$0.0003--\$0.005 per request), RouteLLM's pre-trained threshold classifier is competitive or superior. Its supervised training on 100k pairs provides reliable moderate-quality routing without any deployment overhead.
+At \textbf{higher budgets} (\$0.005+), banditGPT surpasses RouteLLM. Online learning discovers which prompts genuinely benefit from the expensive model, achieving a peak quality of $0.915 \pm 0.004$ (95\% CI, $n{=}20$)---a $+3.7\%$ improvement over RouteLLM's peak of 0.883. The Oracle upper bound (0.953) routes only 13\% of prompts to GPT-4-Turbo with perfect per-prompt knowledge, representing the theoretical ceiling for this model pair.
 
-At \textbf{higher budgets} (\$0.005+), banditGPT surpasses RouteLLM. Online learning discovers which prompts genuinely benefit from the expensive model, achieving a peak quality of $0.915 \pm 0.004$ (95\% CI, $n{=}20$)---a +3.7\% improvement over RouteLLM's peak of 0.883. The Oracle upper bound (0.953) is achieved by a clairvoyant router with perfect per-prompt knowledge; it routes only 13\% of prompts to GPT-4-Turbo at a cost of \$0.002, representing the theoretical ceiling for this model pair.
+This evaluation uses two models to match RouteLLM's topology and enable a controlled comparison; the contextual bandit formulation naturally extends to larger portfolios ($K \geq 3$), where per-model uncertainty diverges and exploration becomes more informative. Factors affecting the crossover point across deployments are discussed in Section~\ref{sec:limitations}.
 
 \subsubsection{The Value of Online Adaptation}
 
@@ -62,19 +59,7 @@ These results suggest clear deployment guidelines:
     \end{itemize}
 \end{enumerate}
 
-The 400-prompt crossover is particularly striking: it means a new deployment can surpass a state-of-the-art pre-trained router within minutes of production traffic, with no human annotation effort.
-
-\paragraph{Generalizability caveat.}
-The two-regime pattern in Figure~\ref{fig:pareto}a---RouteLLM ahead at low budgets, banditGPT ahead at high budgets---should \emph{not} be assumed to hold universally across model pairs.
-The crossover point depends on at least three factors:
-\textbf{(1)~Training data coverage.}
-RouteLLM-MF learns latent factors per model from LMSYS Arena data. For model pairs well-represented in its training set \emph{and} a deployment distribution close to LMSYS Arena, RouteLLM's advantage persists longer and the crossover may require thousands of prompts rather than hundreds.
-For model pairs absent from RouteLLM's training data---or entirely new models---it has no signal and requires retraining, while banditGPT begins learning immediately.
-\textbf{(2)~Preference complexity.}
-When model preference follows a simple ``difficulty'' threshold, a supervised classifier captures it efficiently and online learning adds little. When preferences are context-dependent and counter-intuitive (as we observe here---Section~\ref{sec:motivation}), per-prompt adaptive learning has a structural advantage.
-\textbf{(3)~Portfolio size.}
-Our evaluation uses only two models to match RouteLLM's setup, where the UCB exploration bonus is symmetric at initialization and contributes minimally to model selection. With larger portfolios ($K \geq 3$), model uncertainties diverge, exploration becomes genuinely informative, and the contextual bandit formulation should provide a larger advantage over threshold-based routing.
-The claim we can support from this experiment is specific: \emph{on this model pair and prompt distribution, 400 in-distribution prompts of label-free online learning surpass 100k out-of-distribution supervised pairs.} The structural advantages of banditGPT---no labels required, continuous adaptation, automatic new-model integration---are general, but the quantitative crossover point is deployment-dependent.
+The 400-prompt crossover means a new deployment can surpass a state-of-the-art pre-trained router within minutes of production traffic, with no human annotation effort. The structural advantages---no labels required, continuous adaptation, native multi-model support---are general, though the quantitative crossover point is deployment-dependent (see Section~\ref{sec:limitations} for factors affecting generalizability).
 
 \subsubsection{Gap Closure Analysis}
 
@@ -134,7 +119,11 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & Lower bound (no learning) \\
 \end{table}
 
 \paragraph{Key Findings.}
-\textbf{(1)} All learning-based methods substantially outperform random routing ($>10\%$ quality improvement), validating adaptive allocation. \textbf{(2)} Tabula rasa (no priors) achieves the highest quality (0.923), exceeding the full system (0.912). This is consistent with the Pareto experiment using the dev set for warm-start learning, where tabula rasa benefits from observing all 1,121 dev prompts without prior bias. \textbf{(3)} Corralling provides safety insurance: it hedges between warmup and tabula rasa experts, incurring modest overhead when priors are good while protecting against prior mismatch. In catastrophic failure scenarios, Corralling detects degradation and shifts expert weights, though dedicated monitoring (e.g., EMA tracking) is faster for pure model-level failures (Appendix~\ref{app:catastrophic_failure}).
+\textbf{(1)~Learning matters.} All learning-based methods substantially outperform random routing ($>10\%$ quality improvement), confirming that adaptive allocation provides real value over static policies.
+
+\textbf{(2)~Tabula rasa achieves the highest peak quality} (0.923 vs.\ 0.912 for the full system). This result is expected, not paradoxical: in this ablation, all 1,121 dev prompts flow through a single expert with zero prior bias. The warmup priors---trained on out-of-distribution RouteLLM data---introduce a small bias that online learning must overcome. In production settings where prior quality is unknown or deployment distribution differs from training, this bias risk is exactly what Corralling is designed to hedge against.
+
+\textbf{(3)~Corralling provides safety insurance.} It hedges between warmup and tabula rasa experts, incurring modest overhead ($-1.2\%$ quality) when priors are good in exchange for bounded worst-case regret when they are not. The value of Corralling is not in peak-case performance but in the \emph{width of the regret envelope}: its worst case is 32\% lower than warmup-only's worst case (Section~\ref{sec:robustness_adaptation}). This makes it the appropriate default when prior quality cannot be validated in advance.
 
 % ============================================================================
 % SECTION 5.2: Compact Robustness & Adaptation
@@ -156,13 +145,11 @@ Full dynamics and practical deployment recommendations in Appendix~\ref{app:cata
 \subsubsection{Semantic Transfer: A Null Result}
 \label{sec:transfer_null}
 
-We conducted a rigorous evaluation of semantic transfer for cold-starting new models in a leave-one-out design: for each of $K$ models, we held it out as ``new,'' transferred priors from its nearest DNA-embedding neighbor, and compared against tabula rasa initialization. We fixed critical methodological issues in prior versions of this experiment (deterministic seeds producing zero variance, degenerate oracle baselines) and ran the corrected version with shuffled burn-in data across 10 seeds at $K{=}5$ and $K{=}10$.
+We evaluated semantic transfer for cold-starting new models (Section~\ref{sec:transfer}) in a leave-one-out design with 10 shuffled seeds at $K{=}5$ and $K{=}10$.
 
-\paragraph{Result.} Semantic transfer provides \textbf{no statistically significant advantage} over tabula rasa. Paired $t$-tests across all horizons ($N{=}10$ to $500$) yield $p > 0.07$ for DNA transfer vs.\ tabula rasa at both portfolio sizes. The largest observed delta is $+0.0005$ ($K{=}10$, $N{=}200$, $p{=}0.07$). An additional ``direction-only'' ablation (transferring $\thetavec$ while preserving full exploration, $\Amat{=}\mathbf{I}$) similarly shows no significant effect.
+\paragraph{Result.} Semantic transfer provides \textbf{no statistically significant advantage} over tabula rasa. Paired $t$-tests across all horizons ($N{=}10$ to $500$) yield $p > 0.07$ at both portfolio sizes. A ``direction-only'' ablation (transferring $\thetavec$ while preserving full exploration, $\Amat{=}\mathbf{I}$) similarly shows no significant effect.
 
-\paragraph{Diagnosis.} The new model is selected for $<1\%$ of evaluation prompts in most configurations, because the $K{-}1$ existing models with established priors dominate all routing decisions. In portfolio growth experiments, transfer is \emph{harmful} in adversarial conditions (cross-family models), degrading reward by 0.6--0.9\% with 2--3$\times$ higher variance, while providing negligible benefit in realistic (same-family) growth scenarios.
-
-\paragraph{Implication.} Cold-start integration of new models remains an open problem for contextual bandit routers. The online learning mechanism handles it adequately---all initialization strategies converge within a few hundred interactions---but there is no shortcut via prior transfer. We report this null result to prevent future work from building on an unsupported claim and to establish an honest boundary on current bandit routing capabilities.
+\paragraph{Diagnosis.} The new model is selected for $<1\%$ of prompts in most configurations, because established models dominate routing decisions. In adversarial conditions (cross-family transfer), the mechanism is \emph{harmful}, degrading reward by 0.6--0.9\% with higher variance. All initialization strategies converge within a few hundred interactions regardless, making cold-start integration an open problem where no shortcut via prior transfer currently exists.
 
 % ============================================================================
 % SECTION 5.3: Limitations
@@ -172,7 +159,7 @@ We conducted a rigorous evaluation of semantic transfer for cold-starting new mo
 \label{sec:limitations}
 
 \paragraph{Two-Model Evaluation Scope.}
-All Pareto and learning curve experiments use a single model pair (Mixtral / GPT-4-Turbo), chosen to match RouteLLM's primary evaluation topology rather than to showcase banditGPT's strengths. With only two models, the LinUCB exploration bonus is symmetric at initialization---both models have identical uncertainty---making the exploration parameter $\alpha$ largely irrelevant for model selection (it scales both scores equally). This limits our ability to evaluate UCB exploration, which is designed for settings where model uncertainties diverge ($K \geq 3$). The crossover dynamics, regime boundaries, and optimal hyperparameters reported here are specific to this model pair and prompt distribution; practitioners should expect different quantitative results---likely more favorable to banditGPT---with larger portfolios.
+All Pareto and learning curve experiments use a single model pair (Mixtral / GPT-4-Turbo), chosen to match RouteLLM's evaluation topology for controlled comparison. With only two models, the UCB exploration bonus is symmetric at initialization, making $\alpha$ largely irrelevant for model selection. The crossover dynamics reported in Section~\ref{sec:pareto} are specific to this model pair and prompt distribution. The crossover point depends on: (1)~training data coverage---for model pairs well-represented in RouteLLM's training set, its advantage persists longer; (2)~preference complexity---when preferences follow a simple difficulty threshold, supervised classification captures them efficiently; and (3)~portfolio size---with $K \geq 3$, model uncertainties diverge and contextual exploration becomes genuinely informative. Practitioners should expect different quantitative results with larger portfolios.
 
 \paragraph{Prior Quality Dependency.}
 Our exploration parameter ($\alpha_0{=}1.0$, decaying to $\alpha_{\text{end}}{=}0.1$) is validated under domain mismatch between offline training and holdout evaluation data. In low-mismatch deployments with accurate priors, adaptive exploration schedules may improve sample efficiency. Future work should investigate mismatch-aware $\alpha$ schedules.
