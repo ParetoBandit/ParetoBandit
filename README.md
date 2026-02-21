@@ -8,7 +8,7 @@
 
 > *"Others build Maps (static benchmarks). We build a Compass (learns where YOU are)."*
 
-📄 **Paper**: *Density-Based Warm-Start for Adaptive LLM Routing* (Paper 2025) — See [`kdd_paper/`](kdd_paper/README.md)
+📄 **Paper**: *Density-Based Warm-Start for Adaptive LLM Routing* (2025) — See [`paper/`](paper/README.md)
 
 ---
 
@@ -30,9 +30,10 @@ We propose a **Density-Based Warm-Start Framework** that compresses the latent p
 | File Size | N/A | <1 MB |
 
 **Key Results:**
-- ✅ **Zero-Shot routing performance on Day 1**
+- ✅ **Surpasses RouteLLM after ~400 label-free prompts**
 - ✅ **Plasticity to adapt to local distribution shifts**
 - ✅ **97% cost reduction** vs always using GPT-4o
+- ✅ **Safety insurance** via Corralling meta-learning against prior mismatch
 
 ---
 
@@ -943,9 +944,9 @@ experiments/                  # conference paper experiments
 ├── run_rq2.py               # Specialist discovery
 └── run_rq3.py               # Cost-quality Pareto
 
-kdd_paper/                    # Camera-ready figures & tables
+paper/                           # Paper source & camera-ready artifacts
+├── sections/                # LaTeX sections
 ├── figures/                 # PDF/PNG plots
-├── tables/                  # Markdown tables with LaTeX
 └── README.md                # Paper artifact guide
 
 tests/                        # 127 unit & integration tests
@@ -973,7 +974,7 @@ python experiments/run_rq2.py  # Figure 3: Specialist landscape
 python experiments/run_rq3.py  # Figure 4: Pareto frontier
 ```
 
-See [`kdd_paper/README.md`](kdd_paper/README.md) for complete artifact guide.
+See [`paper/README.md`](paper/README.md) for complete artifact guide.
 
 ---
 

@@ -73,8 +73,8 @@ external/
 # Evaluation results (large JSONL files)
 results/
 
-# KDD paper data (large training datasets)
-kdd_paper/data/
+# Paper data (large training datasets)
+paper/data/
 
 # Trained model files
 models/*.json
@@ -89,9 +89,9 @@ blog/prev/
 *.zip
 
 # Large training/intermediate data files (keep only production models)
-KDD/data/archive/
-KDD/data/instance_level_training_data/
-KDD/data/intermediate_data/
+data/archive/
+data/instance_level_training_data/
+data/intermediate_data/
 **/livecodebench_prompts.csv
 **/instance_level_training_data.json
 **/instance_level_training_data.csv

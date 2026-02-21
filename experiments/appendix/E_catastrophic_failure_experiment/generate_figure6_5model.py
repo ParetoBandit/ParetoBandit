@@ -65,6 +65,7 @@ N_STEPS = 500
 N_SEEDS = 20
 PHASE_BOUNDARIES = (100, 300)
 CONTEXT_DIM = 33
+CONTEXT_NORM = 1.15  # Match production PCA embedding norm (32 PCA components + 1 bias)
 LEARNING_RATE = 0.3
 GAMMA = 0.05
 PRIOR_SCALE = 10.0
@@ -345,6 +346,12 @@ def run_single_trial(seed: int, warmup_priors: Dict) -> TrialResult:
 
     for t in range(N_STEPS):
         context = rng.randn(CONTEXT_DIM)
+        # Normalize to match production PCA embedding norms (~1.15).
+        # Raw randn(33) has ||x|| ≈ 5.7, causing θᵀx predictions to overshoot
+        # [0,1] and triggering PredictionMonitor warnings. The environment's
+        # get_reward() already unit-normalizes context internally for the context
+        # bonus, so this rescaling only affects the routers' feature space.
+        context = context / np.linalg.norm(context) * CONTEXT_NORM
 
         # Oracle
         oracle_r = env_oracle.get_oracle_reward(context)

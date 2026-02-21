@@ -1,7 +1,7 @@
 """
-Test quality scaling fix: verify normalization works correctly.
+Test: Quality Scaling Normalization
 
-This test verifies that the quality normalization fix:
+Verifies that quality normalization:
 1. Clips θ^T x predictions to [0, 1] range
 2. Ensures consistent weight interpretation across prediction ranges
 3. Allows probation bonus to work correctly

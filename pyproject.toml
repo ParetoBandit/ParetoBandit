@@ -50,7 +50,7 @@ full = [
 ]
 # Priors/data helpers (keeps core deps slim; may add fetch tooling later)
 data = []
-# Experiments (KDD paper reproduction)
+# Experiments (paper reproduction)
 experiments = [
     "matplotlib>=3.7.0",
     "python-dotenv>=1.0.0",

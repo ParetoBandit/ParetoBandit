@@ -1,4 +1,4 @@
-# Experiment-specific dependencies for BanditGPT KDD submission
+# Experiment-specific dependencies for BanditGPT paper
 # These are NOT required for the core library, only for running experiments
 
 # Core scientific stack

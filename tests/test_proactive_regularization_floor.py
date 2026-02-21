@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Test: Proactive Regularization Floor (Paper Review Fix)
+Test: Proactive Regularization Floor
 
 Verifies that the proactive regularization floor prevents eigenvalue decay
-in forgetting bandits. This addresses the reviewer's critique that applying
-decay to the entire matrix A (including λI) causes the prior to vanish.
+in forgetting bandits, ensuring that applying decay to the entire matrix A
+(including λI) does not cause the prior to vanish.
 
 Key Differences from Reactive Approach:
 1. Tracks effective lambda decay explicitly (self.regularization_floor)

@@ -1,6 +1,6 @@
 # Appendix Quick Start Guide
 
-**For**: Paper authors and reviewers  
+**For**: Paper authors and readers  
 **Purpose**: Quickly navigate and use the appendix
 
 ---

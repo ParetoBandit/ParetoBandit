@@ -1,13 +1,12 @@
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-% TRANSITION from Related Work
-We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure analysis, Corralling meta-learning, and semantic transfer. Through comprehensive validation on LMSYS Arena prompts ($N=750$ held-out), we demonstrated:
+We presented \textbf{banditGPT}, an open-source, cost-aware contextual bandit framework for LLM routing. Through comprehensive validation on LMSYS Arena prompts ($N=750$ held-out), we demonstrated:
 
 \begin{itemize}
-    \item \textbf{Safety:} Corralling provides safety insurance against prior mismatch, with secondary catastrophic failure detection (95\% at $K{=}5$; gap vs.\ EMA narrows monotonically with portfolio size). Critically, Corralling redistributes post-failure traffic contextually across the remaining portfolio (${\sim}20\%$ per model), avoiding the traffic concentration risk inherent in simpler trackers that herd $60{+}\%$ of requests onto a single fallback
-    \item \textbf{Performance:} $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM)
-    \item \textbf{Adaptability:} Zero-shot model adoption via semantic transfer ($+0.62$ reward, $p<10^{-7}$); in practice, new models ramp to productive routing within 20--50 requests via transferred priors, compared to the thousands of labeled samples required by supervised retraining. This is complemented by secondary catastrophic failure detection that naturally improves as production portfolios grow (Appendix~\ref{app:catastrophic_failure})
+    \item \textbf{Effective online adaptation:} Cost-aware LinUCB initialized from offline warmup priors (80k RouteLLM battles) surpasses RouteLLM's peak quality after only 400 label-free in-distribution prompts, achieving $70.8\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM)
+    \item \textbf{Safety under prior mismatch:} Corralling provides bounded-cost insurance against prior degradation, with secondary catastrophic failure detection (95\% at $K{=}5$; gap vs.\ EMA narrows monotonically with portfolio size). Corralling redistributes post-failure traffic contextually across the remaining portfolio (${\sim}20\%$ per model), avoiding the traffic concentration risk inherent in simpler trackers
+    \item \textbf{An honest null result:} Semantic transfer for new model cold-start provides no statistically significant improvement over tabula rasa initialization in controlled ablations ($p > 0.07$ across all configurations), establishing that cold-start integration remains an open problem
 \end{itemize}
 
 \subsection{Summary and Context}
@@ -16,29 +15,26 @@ The economics of Large Language Models are shifting. As open-weights models like
 
 In this work, we introduced \texttt{banditGPT}, a lifelong learning framework that replaces static model allocation with adaptive resource routing.
 \begin{enumerate}
-    \item \textbf{Empirically}, we demonstrated model preference heterogeneity: the router's features significantly predict model preference ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections), and static single-model allocation can pay $43\times$ more while degrading quality on this evaluation dataset. \texttt{banditGPT} closes 66\% of the optimality gap.
-    \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} as safety insurance against prior mismatch. Corralling adaptively hedges between experts, adding only modest overhead when priors are well-calibrated while providing protection against more severe mismatch scenarios where warmup priors could become harmful.
-    \item \textbf{Operationally}, we solved the ``Cold Start'' problem with \textbf{Latent Semantic Transfer}, proving that a router can admit new models with \textbf{Zero-Shot Readiness}.
+    \item \textbf{Empirically}, we demonstrated model preference heterogeneity: the router's features significantly predict model preference ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections), and static single-model allocation can pay $43\times$ more while degrading quality on this evaluation dataset.
+    \item \textbf{Algorithmically}, we proposed \textbf{Expert Corralling} as safety insurance against prior mismatch, and demonstrated that cost-aware LinUCB with offline warmup priors provides a strong online learning baseline that adapts within hundreds of interactions.
+    \item \textbf{Methodologically}, we reported a rigorously validated null result on semantic transfer, correcting earlier experimental artifacts (deterministic seeds, degenerate oracles) and demonstrating that cold-start model integration via prior transfer does not work in the current framework. This honest finding prevents future work from building on an unsupported premise.
 \end{enumerate}
 
 \subsection*{Future Work}
 
+\paragraph{Cold-Start Model Integration.}
+Our null result on semantic transfer identifies this as an open problem. Future approaches might explore Thompson Sampling (which provides natural stochastic exploration of new models), active exploration bonuses specifically for under-sampled models, or meta-learning across model registration events. The structural challenge is that in a $K$-model portfolio, a new model's initialization affects only ${\sim}1/K$ of routing decisions, making per-model transfer inherently low-signal.
+
 \paragraph{Algorithmic Extensions.}
-Several theoretical limitations identified during our review suggest concrete improvements:
 \begin{itemize}
     \item \textbf{Expert-Level Non-Stationarity:} Our current experts assume stationary rewards; non-stationarity is handled only at the meta level. Integrating discounted UCB, sliding-window updates, or change-point detection within individual experts would enable adaptation to gradual reward drift without requiring meta-level intervention.
-    \item \textbf{Anisotropic Regularization:} The isotropic prior $\Amat_0 = \lambda \mathbf{I}$ in PCA space over-regularizes low-variance components. Variance-matched diagonal priors or full whitening before the bandit layer could improve sample efficiency, particularly for high-dimensional feature spaces.
+    \item \textbf{Anisotropic Regularization:} The isotropic prior $\Amat_0 = \lambda \mathbf{I}$ in PCA space over-regularizes low-variance components. Variance-matched diagonal priors or full whitening before the bandit layer could improve sample efficiency.
     \item \textbf{Adaptive Corralling Learning Rate:} Replacing the fixed $\eta$ with a horizon-aware schedule ($\eta_t \propto \sqrt{\ln K / t}$) or a doubling-trick variant would restore formal regret guarantees while maintaining practical performance.
+    \item \textbf{Larger Portfolio Evaluation:} Our Pareto comparison uses $K{=}2$ to match RouteLLM's topology. Evaluation at $K{=}5$--$20$ would better characterize the contextual bandit's advantage over threshold-based routing.
 \end{itemize}
 
 \paragraph{From Routing to Orchestration.}
-We view single-model routing as merely the precursor to \textbf{Agentic Orchestration}. Future work will extend the \texttt{banditGPT} architecture to manage multi-agent systems.
-\begin{itemize}
-    \item \textbf{The ``Manager'' Agent:} The Corralling mechanism is uniquely suited to govern autonomous agents. Just as it decommissions the ``Warmup Expert'' when it fails (Section~\ref{sec:robustness_adaptation}), a Corralling-based Orchestrator could detect when a specific agent (e.g., a ``Coder Agent'') has degraded due to context drift or hallucination loops, dynamically reallocating the task to a fresh instance or a more robust model.
-    \item \textbf{Task Decomposition:} Instead of routing a raw prompt, future versions could integrate a ``Reasoning Expert'' that decomposes complex queries into sub-tasks (Planning, Execution, Verification), routing each sub-task to the optimal specialist model via independent bandit heads.
-\end{itemize}
-
-As the cadence of model releases accelerates, the static ``train-deploy-retrain'' cycle is becoming obsolete. \texttt{banditGPT} offers a sustainable alternative: a router that grows smarter, safer, and more efficient with every query it processes.
+We view single-model routing as a precursor to \textbf{Agentic Orchestration}. The Corralling mechanism is naturally suited to govern autonomous agent portfolios: detecting when a specialist agent has degraded and dynamically reallocating tasks, just as it decommissions a failing expert in the routing setting.
 
 \subsection*{Reproducibility}
 To facilitate further research, we release our full codebase, the sanitized ``Warmup Priors,'' and the complete experimental logs at: \texttt{https://github.com/YourOrg/banditGPT} \textit{(Anonymized for review)}.

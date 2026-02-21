@@ -57,12 +57,12 @@ This paper follows the ACM conference formatting requirements:
 
 ## Abstract Summary
 
-The paper introduces banditGPT, an adaptive LLM routing framework that addresses:
+The paper introduces banditGPT, an open-source cost-aware contextual bandit framework for LLM routing:
 
-1. **Quality Inversions**: Scenarios where smaller models outperform expensive ones
-2. **Expert Death Prevention**: Using Corralling with mixing parameter γ
-3. **Zero-Shot Readiness**: Latent Semantic Transfer for new model integration
-4. **Hyperparameter Robustness**: Validated across 20× parameter range
+1. **Model Preference Heterogeneity**: Expensive models aren't always better; prompt structure predicts preference
+2. **Cost-Aware Online Learning**: Warmup priors + online adaptation surpasses RouteLLM in 400 prompts
+3. **Corralling Meta-Learning**: Safety insurance against prior mismatch with catastrophic failure detection
+4. **Honest Null Result**: Semantic transfer for cold-start provides no significant improvement (reported transparently)
 
 ## Contact
 

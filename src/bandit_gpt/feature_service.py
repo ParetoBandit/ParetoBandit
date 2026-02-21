@@ -395,14 +395,14 @@ class FeatureService:
         
         # Phase 2: JIT Calibration (if needed)
         if not pca_loaded:
-            # Review Fix v2: Gate JIT training for strict production mode
+            # Gate JIT training for strict production mode
             if not self.allow_jit_training:
                 raise RuntimeError(
                     "PCA artifact not found and JIT training is disabled (allow_jit_training=False). "
                     "Deploy correct PCA artifact or enable JIT training for development."
                 )
             
-            # Review Fix: Log CRITICAL warning for configuration drift
+            # Log CRITICAL warning for configuration drift
             logger.critical(
                 "🚨 JIT PCA TRAINING TRIGGERED! 🚨\n"
                 "This indicates configuration drift:\n"
@@ -439,13 +439,13 @@ class FeatureService:
             if self.pca_components is None:
                 self.pca_components = new_pca.n_components_
             
-            # Review Fix (Critique C): Strict PCA Variance Validation
+            # Strict PCA variance validation:
             # Low variance capture indicates manifold collapse or insufficient components
             explained_var = np.sum(new_pca.explained_variance_ratio_)
             logger.info(f"  JIT PCA Explained Variance: {explained_var:.1%}")
             
             if explained_var < self.target_variance:
-                # Review Fix: Safe Fallback to Raw Embeddings
+                # Safe fallback to raw embeddings
                 # 
                 # CRITICAL: Proceeding with low-variance PCA means >40% of semantic
                 # signal is lost, effectively routing on noise rather than meaning.

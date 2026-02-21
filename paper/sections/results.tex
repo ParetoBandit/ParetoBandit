@@ -56,7 +56,7 @@ These results suggest clear deployment guidelines:
     \begin{itemize}[nosep]
         \item \emph{No labeled routing data exists} for the target domain---banditGPT requires zero labels, learning from its own routing outcomes.
         \item \emph{The prompt distribution shifts} over time (new users, new tasks, seasonal changes)---banditGPT adapts continuously while RouteLLM is frozen at training time.
-        \item \emph{New models enter the portfolio}---banditGPT's semantic transfer mechanism (Section~\ref{sec:methodology}) integrates new models online via learned priors from semantic neighbors, while RouteLLM requires retraining.
+        \item \emph{Multiple models ($K \geq 3$)} span different cost-quality tiers---banditGPT's contextual bandit formulation natively handles multi-model portfolios, while threshold-based routers require $O(K^2)$ pairwise comparisons.
         \item \emph{Maximum quality is the priority}---after a short burn-in (${\sim}400$ prompts), banditGPT's adaptive policy surpasses what supervised pre-training can achieve with $250\times$ more data.
         \item \emph{Bounded exploration overhead}---even during the burn-in period, banditGPT routes the majority of traffic to high-performing candidates (quality starts at 0.795 with priors alone and improves monotonically), so the system provides value from the first request while continuously improving.
     \end{itemize}
@@ -152,6 +152,17 @@ We evaluated Corralling's response to sudden model degradation on a \textbf{5-mo
 \emph{Practical distinction:} The two methods differ not only in speed but in \emph{how} they redistribute traffic after failure. EMA concentrates 63\% of failure-phase traffic on a single fallback model, creating a new single point of failure. Corralling distributes traffic roughly uniformly (${\sim}20\%$ each) across the four healthy models based on per-prompt context, providing both load balancing and context-dependent quality. This suggests a complementary deployment architecture: lightweight EMA or CUSUM detectors for rapid model-level alerting, with Corralling handling the actual contextual traffic redistribution.
 A further operational benefit is that Corralling's continuous exploration provides model regression detection as an intrinsic byproduct of the learning process: if a previously strong model degrades after a vendor update, the exploration budget detects the change without requiring a separate canary or monitoring pipeline.
 Full dynamics and practical deployment recommendations in Appendix~\ref{app:catastrophic_failure}.
+
+\subsubsection{Semantic Transfer: A Null Result}
+\label{sec:transfer_null}
+
+We conducted a rigorous evaluation of semantic transfer for cold-starting new models in a leave-one-out design: for each of $K$ models, we held it out as ``new,'' transferred priors from its nearest DNA-embedding neighbor, and compared against tabula rasa initialization. We fixed critical methodological issues in prior versions of this experiment (deterministic seeds producing zero variance, degenerate oracle baselines) and ran the corrected version with shuffled burn-in data across 10 seeds at $K{=}5$ and $K{=}10$.
+
+\paragraph{Result.} Semantic transfer provides \textbf{no statistically significant advantage} over tabula rasa. Paired $t$-tests across all horizons ($N{=}10$ to $500$) yield $p > 0.07$ for DNA transfer vs.\ tabula rasa at both portfolio sizes. The largest observed delta is $+0.0005$ ($K{=}10$, $N{=}200$, $p{=}0.07$). An additional ``direction-only'' ablation (transferring $\thetavec$ while preserving full exploration, $\Amat{=}\mathbf{I}$) similarly shows no significant effect.
+
+\paragraph{Diagnosis.} The new model is selected for $<1\%$ of evaluation prompts in most configurations, because the $K{-}1$ existing models with established priors dominate all routing decisions. In portfolio growth experiments, transfer is \emph{harmful} in adversarial conditions (cross-family models), degrading reward by 0.6--0.9\% with 2--3$\times$ higher variance, while providing negligible benefit in realistic (same-family) growth scenarios.
+
+\paragraph{Implication.} Cold-start integration of new models remains an open problem for contextual bandit routers. The online learning mechanism handles it adequately---all initialization strategies converge within a few hundred interactions---but there is no shortcut via prior transfer. We report this null result to prevent future work from building on an unsupported claim and to establish an honest boundary on current bandit routing capabilities.
 
 % ============================================================================
 % SECTION 5.3: Limitations

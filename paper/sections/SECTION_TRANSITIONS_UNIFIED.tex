@@ -15,15 +15,14 @@ Our integrated approach rests on a critical empirical foundation: that semantic 
 % ============================================================================
 % INSERT at start of methodology.tex AFTER \section{...}
 
-Having established that model preference heterogeneity exists and is predictable (Figure~\ref{fig:lmsys_holdout_structure})---we now present our integrated system design. Our approach combines three mechanisms, each addressing one of the challenges identified in Section~\ref{sec:intro}:
+Having established that model preference heterogeneity exists and is predictable (Figure~\ref{fig:lmsys_holdout_structure})---we now present the system design. Our approach combines two verified mechanisms:
 
 \begin{itemize}
-    \item \textbf{Contextual embeddings} exploit semantic structure for learning
-    \item \textbf{Corralling meta-learning} provides safety against prior mismatch
-    \item \textbf{Semantic transfer} eliminates cold-start penalties for new models
+    \item \textbf{Cost-aware contextual bandits} initialized from offline warmup priors, exploiting semantic structure for online learning
+    \item \textbf{Corralling meta-learning} that provides safety against prior mismatch
 \end{itemize}
 
-We present the architecture (Section~\ref{sec:architecture}), the Corralling algorithm (Section~\ref{sec:corralling}), and the semantic transfer mechanism (Section~\ref{sec:transfer}).
+We present the architecture (Section~\ref{sec:architecture}) and the Corralling algorithm (Section~\ref{sec:corralling}).
 
 % ============================================================================
 % TRANSITION: Methodology → Experiments
@@ -97,15 +96,15 @@ Having demonstrated comprehensive validation of our integrated approach---from e
 % ============================================================================
 % INSERT at start of conclusion.tex AFTER \section{...}
 
-We presented \textbf{banditGPT}, an integrated framework for production-grade LLM routing combining semantic structure discovery, Corralling meta-learning, and semantic transfer. Through comprehensive validation (1,871 prompts across multiple experiments), we demonstrated:
+We presented \textbf{banditGPT}, an open-source, cost-aware contextual bandit framework for LLM routing combining online adaptation with Corralling meta-learning. Through comprehensive validation ($N{=}750$ held-out prompts), we demonstrated:
 
 \begin{itemize}
-    \item \textbf{Safety:} $44.3\%$ improvement vs harmful warmup priors
-    \item \textbf{Performance:} $70.8\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM); surpasses 100k-pair supervised router after only 400 in-distribution prompts
-    \item \textbf{Adaptability:} Zero-shot model adoption + secondary catastrophic failure detection
+    \item \textbf{Performance:} $70.8\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM); surpasses 100k-pair supervised router after only 400 in-distribution label-free prompts
+    \item \textbf{Safety:} Corralling provides bounded-cost insurance against prior mismatch, with catastrophic failure detection as a secondary benefit
+    \item \textbf{Honest boundary:} Semantic transfer for cold-start models provides no significant improvement over tabula rasa, establishing an open problem for future work
 \end{itemize}
 
-In this section, we discuss limitations (Section~\ref{sec:limitations}), deployment guidance (Section~\ref{sec:deployment}), and future work (Section~\ref{sec:future}).
+In this section, we discuss limitations and future work.
 
 % ============================================================================
 % USAGE NOTES
@@ -120,7 +119,7 @@ In this section, we discuss limitations (Section~\ref{sec:limitations}), deploym
 % 5. Verify logical flow after insertion
 %
 % Expected impact:
-% - Reviewers can follow narrative progression
+% - Readers can follow narrative progression
 % - No "why am I reading this now?" confusion
 % - Clear connection between contributions
 % - Unified story comes through

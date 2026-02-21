@@ -22,7 +22,7 @@ python-dotenv>=1.0.0
 
 # Optional: Experiments & Visualization
 # -------------------------------------
-# Required for running KDD paper experiments (plots)
+# Required for running paper experiments (plots)
 matplotlib>=3.7.0
 
 # Optional: OOD Evaluation Datasets

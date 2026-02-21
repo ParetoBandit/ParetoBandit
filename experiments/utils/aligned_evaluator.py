@@ -9,7 +9,6 @@ Key Principle:
     Instead, iterate over atomic EvaluationItem objects that bundle
     prompt + ground-truth rewards together.
 
-Author: conference Reviewer Response (Critical Bug Fix)
 Date: 2026-01-26
 """
 

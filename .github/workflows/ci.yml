@@ -94,7 +94,7 @@ jobs:
             if size_mb > 40:
               sys.exit(f"{pkg.name} exceeds size limit: {size_mb:.1f} MB")
 
-          banned_prefixes = ("experiments/", "kdd_paper/", "docs/", ".github/")
+          banned_prefixes = ("experiments/", "paper/", "docs/", ".github/")
 
           def check_zip(path: Path):
             with zipfile.ZipFile(path) as zf:

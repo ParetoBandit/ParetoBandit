@@ -1,5 +1,5 @@
-% UNIFIED INTRODUCTION - Revised with corrected Figure 1 methodology
-% Framing: Model preference heterogeneity, corrected statistics, no causal claims
+% UNIFIED INTRODUCTION - Revised to reflect experimentally verified contributions
+% Framing: Online adaptation + cost-quality Pareto + honest null result on transfer
 % Follows: Motivation → Solution → Validation narrative
 
 \section{Introduction}
@@ -8,48 +8,38 @@
 The deployment of Large Language Models (LLMs) presents a fundamental challenge: \textbf{how do we route user queries across models with vastly different costs and capabilities?} Naively routing all traffic to expensive "frontier" models (e.g., GPT-4) wastes resources, while static routing policies fail to adapt to distribution shifts and new model releases.
 
 % ============================================================================
-% PART 1: THE PROBLEM (Three Challenges)
+% PART 1: THE PROBLEM (Two Core Challenges)
 % ============================================================================
 
-\subsection{Three Interconnected Challenges}
+\subsection{Two Core Challenges}
 
 \paragraph{Challenge 1: Expensive Models Aren't Always Better}
 The assumption underlying most routing systems---that ``harder'' tasks require ``stronger'' models---is empirically wrong. We observe \textbf{model preference heterogeneity}: on held-out LMSYS prompts ($N=750$), model preference varies by prompt and the router's PCA features predict this variation (Spearman $\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections). About 14\% of prompts explicitly favor the cheaper model (Mixtral, \$0.50/1M tokens) over GPT-4-Turbo (\$10/1M tokens), correlating with strict formatting constraints where the frontier model's conversational tendencies become a liability (Section~\ref{sec:motivation}). The practical consequence is severe: when the state-of-the-art static router (RouteLLM) is given maximum budget, it pays $43\times$ more for $1.3\%$ \emph{lower} quality---because it cannot distinguish prompts where spending more money helps from those where it hurts.
 
 \paragraph{Challenge 2: Training Data Doesn't Match Deployment}
-In production, the distribution of user prompts inevitably differs from the offline training data---a fundamental concern in any deployed ML system~\cite{shimodaira2000improving}. When training and deployment distributions diverge, warmup priors can degrade or invert in quality. Static routers like RouteLLM~\cite{ong2024routellm} and FrugalGPT~\cite{chen2023frugalgpt} have no mechanism to detect or adapt to such shifts.
+In production, the distribution of user prompts inevitably differs from the offline training data---a fundamental concern in any deployed ML system~\cite{shimodaira2000improving}. When training and deployment distributions diverge, warmup priors can degrade or invert in quality. Static routers like RouteLLM~\cite{ong2024routellm} and FrugalGPT~\cite{chen2023frugalgpt} have no mechanism to detect or adapt to such shifts. Meanwhile, new models (GPT-4o, GPT-5, and competitors) release frequently, requiring routers to incorporate them without costly retraining.
 
-\paragraph{Challenge 3: New Models Release Monthly}
-The LLM landscape is non-stationary: GPT-4o, GPT-5, and competitors release frequently. Standard contextual bandits require thousands of exploratory requests to learn new model capabilities (the ``cold start'' problem), making rapid adoption impractical.
-
-\textbf{The Key Insight:} These challenges are \emph{interconnected}. Solving one without the others leaves production systems vulnerable. For example, learning semantic structure (Challenge 1) doesn't help if priors fail (Challenge 2) or if we can't adopt new models (Challenge 3).
+\textbf{The Key Insight:} These challenges are \emph{interconnected}. Learning semantic structure (Challenge 1) doesn't help if priors fail under distribution shift (Challenge 2), and static routers cannot incorporate new models without retraining.
 
 % ============================================================================
-% PART 2: OUR SOLUTION (Integrated Approach)
+% PART 2: OUR SOLUTION
 % ============================================================================
 
-\subsection{Our Integrated Approach}
+\subsection{Our Approach}
 
-We present \textbf{banditGPT}, a contextual bandit framework that addresses all three challenges simultaneously through an integrated system combining:
+We present \textbf{banditGPT}, a cost-aware contextual bandit framework that addresses both challenges through:
 
-\paragraph{1. Semantic Structure Discovery}
-We demonstrate that differential model performance correlates with prompt structure in the embedding space. Using domain-adapted principal component analysis on prompt embeddings, we find that the first principal component (PC1) separates prompts by model preference. This semantic structure makes routing \textbf{learnable}—but only if we can safely learn from it.
+\paragraph{1. Cost-Aware Online Learning from Warmup Priors}
+We initialize LinUCB bandits with offline priors from 80k RouteLLM battle outcomes, then adapt online using only the router's own reward observations---no labels required. The cost-aware UCB objective balances quality and cost through a user-defined penalty $\lambda$, enabling continuous Pareto optimization across the full cost-quality spectrum. After only 400 in-distribution prompts, banditGPT surpasses RouteLLM's peak quality (trained on 100k supervised pairs), demonstrating that a small amount of in-distribution experience outweighs a large volume of out-of-distribution supervision.
 
-\paragraph{2. Corralling Meta-Learning} 
-To provide safety against prior mismatch, we employ Corralling~\cite{agarwal2017corralling}, a meta-algorithm that adaptively combines two experts: one with warmup priors (semantic knowledge) and one starting fresh (tabula rasa). Through exponential weight updates, Corralling automatically detects when priors fail and switches to cold-start exploration. This provides \textbf{safety insurance}: when priors are well-matched, Corralling incurs only modest overhead vs tabula rasa, while providing protection against catastrophic prior failure under severe mismatch.
+\paragraph{2. Corralling Meta-Learning for Safety}
+To provide safety against prior mismatch, we employ Corralling~\cite{agarwal2017corralling}, a meta-algorithm that adaptively combines two experts: one with warmup priors and one starting fresh (tabula rasa). Through exponential weight updates, Corralling automatically detects when priors degrade and shifts weight to cold-start exploration. This provides \textbf{safety insurance}: when priors are well-matched, Corralling incurs only modest overhead, while providing bounded protection against catastrophic prior failure.
 
-\paragraph{3. Semantic Transfer}
-To eliminate cold-start penalties for new models, we introduce \textbf{semantic transfer}: new models inherit preferences ($\theta$) from semantically similar models while resetting confidence ($A$), enabling immediate exploitation of transferred knowledge with maintained exploration flexibility. Statistical validation ($+0.62$ reward improvement on new model release, $p<10^{-7}$) confirms this eliminates cold-start costs.
+\paragraph{3. Multi-Model Routing ($K \geq 3$)}
+Unlike threshold-based routers restricted to binary model selection ($K{=}2$), banditGPT's contextual bandit formulation natively extends to arbitrary portfolio sizes. Dynamic Pareto Filtering prunes dominated models per-request, and the exploration bonus guides discovery across heterogeneous cost-quality tiers.
 
-\paragraph{Why Integration Matters}
-\textbf{Alone, each mechanism is insufficient:}
-\begin{itemize}
-    \item Semantic structure without safety → catastrophic failure on distribution shift
-    \item Corralling without transfer → cold-start penalties on new models  
-    \item Transfer without meta-learning → no recovery mechanism when transfer fails
-\end{itemize}
-
-\textbf{Together, they create a production-ready system} with safety, performance, and adaptability.
+\paragraph{An Honest Null Result}
+We also investigate \textbf{semantic transfer}---bootstrapping new models from semantically similar existing models---and report a null result. In controlled ablations with 10 shuffled seeds at $K{=}5$ and $K{=}10$, transferred priors provide no statistically significant advantage over tabula rasa initialization (all $p > 0.07$). The new model is selected for $<1\%$ of prompts in most configurations, making its initialization irrelevant to overall routing quality. We report this to establish an honest boundary on what contextual bandit routing can and cannot achieve for cold-start model integration.
 
 % ============================================================================
 % PART 3: VALIDATION & CONTRIBUTIONS
@@ -63,11 +53,11 @@ Our work makes three contributions, validated through comprehensive experimentat
     \item \textbf{Model Preference Heterogeneity Analysis:}
     Empirical demonstration that prompt structure predicts model preference: the router's PCA features show significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$, $N = 750$), exceeding all 100 random projections. This establishes that routing is learnable through contextual features.
     
-    \item \textbf{Corralling for LLM Routing:}
-    Introduction of Expert Corralling~\cite{agarwal2017corralling} to the routing domain as safety insurance against prior mismatch. Corralling adaptively hedges between warmup and tabula rasa experts, providing bounded-cost protection against catastrophic prior failure while adding only modest overhead when priors are well-calibrated.
+    \item \textbf{Cost-Aware Online Learning with Safety:}
+    A contextual bandit router combining offline warmup priors with online adaptation, achieving $70.8\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM) after 400 label-free prompts. Corralling meta-learning provides bounded-cost safety insurance against prior mismatch, with catastrophic failure detection as a secondary benefit (95\% detection at $K{=}5$).
     
-    \item \textbf{Integrated Production System:}
-    $65.9\%$ gap closure to oracle on frozen holdout (vs $46.2\%$ for RouteLLM) with catastrophic failure detection as a secondary safety benefit (95\% detection at $K{=}5$, gap vs.\ EMA narrows monotonically with portfolio size), semantic transfer for new model integration, and multi-seed statistical testing ($N{=}20$--$30$).
+    \item \textbf{Open-Source Multi-Model Production System:}
+    A modular, open-source framework supporting arbitrary portfolio sizes with continuous cost-quality Pareto optimization, Dynamic Pareto Filtering, prior calibration, and runtime monitoring. We include a rigorous null result on semantic transfer, establishing that cold-start model integration remains an open problem for bandit routers.
 \end{enumerate}
 
-The remainder is organized as follows. Section~\ref{sec:motivation} establishes the empirical motivation (semantic structure and model preference heterogeneity). Section~\ref{sec:methodology} describes the integrated system. Sections~\ref{sec:experiments}--\ref{sec:results} present experimental validation with the Pareto frontier as the primary benchmark. Section~\ref{sec:related} surveys related work; Section~\ref{sec:conclusion} discusses limitations and future directions. Extended results and sensitivity analyses appear in the appendices.
+The remainder is organized as follows. Section~\ref{sec:motivation} establishes the empirical motivation (semantic structure and model preference heterogeneity). Section~\ref{sec:methodology} describes the system architecture. Sections~\ref{sec:experiments}--\ref{sec:results} present experimental validation with the Pareto frontier as the primary benchmark. Section~\ref{sec:related} surveys related work; Section~\ref{sec:conclusion} discusses limitations and future directions. Extended results and sensitivity analyses appear in the appendices.

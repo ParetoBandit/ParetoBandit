@@ -2,7 +2,7 @@
 """
 Figure 2: The banditGPT Router Architecture
 
-Publication-quality architecture diagram for KDD. Clean, minimal design
+Publication-quality architecture diagram. Clean, minimal design
 with no overlapping elements. Shows the three-layer routing pipeline,
 data sources, and two-level feedback loop.
 

@@ -565,7 +565,7 @@ def banditgpt_hybrid_routing(train_data: List[Dict], eval_data: List[Dict],
     
     for p in eval_data:
         x = embed_prompt(p["prompt"], encoder, pca)
-        # FIX: total_steps=burn_in_steps ensures the router stays in Exploitation Mode (alpha=0.1)
+        # total_steps=burn_in_steps ensures the router stays in Exploitation Mode (alpha=0.1)
         # Previously, setting this to 0 triggered a division error or reset alpha to 2.0
         sel, _token = router.select_model(x, total_steps=burn_in_steps)
         

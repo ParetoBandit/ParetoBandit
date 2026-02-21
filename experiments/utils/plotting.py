@@ -35,12 +35,12 @@ COLORS = {
 }
 
 
-def apply_kdd_style():
+def apply_conference_style():
     """Apply conference formatting to matplotlib globally."""
-    mpl.rcParams.update(Paper_STYLE)
+    mpl.rcParams.update(Conference_STYLE)
 
 
-def save_kdd_style_plot(fig, filename, output_dir="results"):
+def save_conference_style_plot(fig, filename, output_dir="results"):
     """
     Save figure with conference formatting.
     
@@ -107,7 +107,7 @@ def create_regret_plot(data, output_file="fig1_regret.pdf"):
               each containing {'timesteps': [...], 'regret': [...], 'ci': [...]}
         output_file: output filename
     """
-    apply_kdd_style()
+    apply_conference_style()
     fig, ax = plt.subplots(figsize=(7, 3.5))
     
     # TODO: Implement actual plotting logic
@@ -117,7 +117,7 @@ def create_regret_plot(data, output_file="fig1_regret.pdf"):
     ax.set_title("Cumulative Regret Comparison")
     ax.legend()
     
-    save_kdd_style_plot(fig, output_file)
+    save_conference_style_plot(fig, output_file)
     plt.close()
 
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     # Test the plotting utilities
     import numpy as np
     
-    apply_kdd_style()
+    apply_conference_style()
     fig, ax = plt.subplots()
     
     x = np.linspace(0, 100, 50)
@@ -137,5 +137,5 @@ if __name__ == "__main__":
     ax.set_ylabel("Regret")
     ax.legend()
     
-    save_kdd_style_plot(fig, "test_plot.pdf", output_dir=".")
+    save_conference_style_plot(fig, "test_plot.pdf", output_dir=".")
     print("✓ Plot utilities working correctly!")

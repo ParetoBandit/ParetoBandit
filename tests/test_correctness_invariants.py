@@ -1,13 +1,13 @@
 """
-Unit tests for bug fixes identified during KDD review.
+Unit tests for critical correctness invariants.
 
-Bug 1: Stale A_inv after decay in DisjointLinUCBPolicy.update()
-Bug 2: Constraint filtering silently ignored under Corralling
-Bug 3: TypeError from phantom `alpha` keyword in admix_theta_from_neighbors()
-Bug 4: deque maxlen uses class default instead of instance config
-Bug 5: Posterior sampling assumes sigma^2 = 1
-Bug 6: Double update in BanditRouter.update() when corralling enabled
-Bug 9: Broken __deepcopy__ on BanditRouter
+1: Stale A_inv after decay in DisjointLinUCBPolicy.update()
+2: Constraint filtering silently ignored under Corralling
+3: TypeError from phantom `alpha` keyword in admix_theta_from_neighbors()
+4: deque maxlen uses class default instead of instance config
+5: Posterior sampling assumes sigma^2 = 1
+6: Double update in BanditRouter.update() when corralling enabled
+9: Broken __deepcopy__ on BanditRouter
 C1: Corralling meta-weight race / stale last_expert_idx
 C2: _check_numerical_stability() unlocked mutation
 C3: __deepcopy__ missing regularization_floor
@@ -1289,9 +1289,8 @@ class TestR3C2_SqrtVarianceFloor:
         x = np.ones(4)
         # Pass empty candidate list — no models satisfy constraints
         result = router.select_model(x, total_steps=100, candidates=[])
-        # [BUG FIX M1]: When caller passes empty candidates, returning None is
-        # correct — there are no models that satisfy the constraint filter.
-        # Previously fell back to self.models[0] which violated constraints.
+        # When caller passes empty candidates, returning None is correct —
+        # there are no models that satisfy the constraint filter.
         assert result is None
 
 
@@ -1709,7 +1708,7 @@ class TestT2_StalenessAwareMetaLR:
 
 
 # =============================================================================
-# Round 4 Review Fixes
+# Concurrency and Initialization Order Tests
 # =============================================================================
 
 class TestR4C1_RegisterModelOrder:
@@ -1996,7 +1995,7 @@ class TestR4_ExpertGuardsUnknownModel:
 
 
 # =============================================================================
-# Round 5 Review Fixes
+# Corralling Delegation and State Consistency Tests
 # =============================================================================
 
 class TestR5M1_ExplainDecisionUnderCorralling:

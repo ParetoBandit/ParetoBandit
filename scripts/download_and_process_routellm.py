@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-Download RouteLLM Battle Data and Create Rewards Dataset (FIXED VERSION)
+Download RouteLLM Battle Data and Create Rewards Dataset
 
-This script downloads and processes the RouteLLM battles data with CORRECTED reward mapping.
+This script downloads and processes the RouteLLM battles data with correct reward mapping.
 
-BUG FIX: The original script had inverted winner labels, causing GPT-4 to appear weaker
-than Mixtral. This version correctly interprets the winner flags.
-
-Key Fix (HuggingFace dataset has counterintuitive field names):
+Note: HuggingFace dataset has counterintuitive field names:
 - winner_model_a = 1 actually means model_a LOST → reward_a = 0.0, reward_b = 1.0
 - winner_model_b = 1 actually means model_b LOST → reward_a = 1.0, reward_b = 0.0
 
@@ -182,10 +179,9 @@ def download_and_process(args):
     """Main pipeline: download, extract, filter, save."""
     
     print("="*80)
-    print("DOWNLOAD ROUTELLM BATTLE DATA (FIXED VERSION)")
+    print("DOWNLOAD ROUTELLM BATTLE DATA")
     print("="*80)
-    print("\n🔧 BUG FIX: Corrected winner label interpretation")
-    print("   ⚠️  HuggingFace dataset has INVERTED labels!")
+    print("\n⚠️  HuggingFace dataset has INVERTED labels!")
     print("   - winner_model_a = 1 → model_a LOST (reward_a=0.0, reward_b=1.0)")
     print("   - winner_model_b = 1 → model_b LOST (reward_a=1.0, reward_b=0.0)")
     
@@ -350,7 +346,7 @@ def download_and_process(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Download and process RouteLLM battles data (FIXED VERSION)",
+        description="Download and process RouteLLM battles data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

@@ -948,7 +948,7 @@ class TestRouterIntegration:
             f"Expected cheapest model gpt-3.5, got {model}"
     
 # =============================================================================
-# Performance and Robustness Fixes Tests (Paper Review)
+# Performance and Robustness Tests
 # =============================================================================
 
 class TestPerformanceFixes:

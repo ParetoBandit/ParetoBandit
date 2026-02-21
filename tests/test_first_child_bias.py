@@ -1,17 +1,17 @@
 """
-Test to verify the First-Child Bias fix in router.py
+Test: First-Child Bias Correction
 
-This test validates that late-arriving models receive manual priors when
+Validates that late-arriving models receive manual priors when
 no suitable neighbor exists for bootstrapping.
 
-Bug Scenario (Pre-Fix):
+Failure scenario:
 1. Register model A with speed="balanced"
 2. Register model B with speed="fast" (unrelated description)
    - Since no neighbor found, b_init = zeros
-   - Bug: Manual prior (positive bias for "fast") was NOT applied
+   - Manual prior (positive bias for "fast") was NOT applied
    - Result: Model started with no positive bias signal
 
-Expected Behavior (Post-Fix):
+Expected behavior:
 1. Register model A with speed="balanced"
 2. Register model B with speed="fast" (unrelated description)
    - No neighbor found, b_init = zeros

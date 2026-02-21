@@ -1,19 +1,13 @@
-% UNIFIED ABSTRACT - Revised with corrected Figure 1 methodology
-% Framing: Model preference heterogeneity, not "Alignment Tax discovery"
-% Statistics: Holdout-only (N=750), unsupervised threshold, corrected effect sizes
+% UNIFIED ABSTRACT - Revised to reflect experimentally verified contributions
+% Framing: Online adaptation + cost-quality Pareto + multi-model routing
+% Removed: semantic transfer claims (null result in controlled ablation)
 
 \begin{abstract}
-Large language model (LLM) inference is economically critical yet technically challenging: expensive models aren't always better, training data distributions shift, and new models release monthly. We present \textbf{banditGPT}, a production-grade contextual bandit framework that addresses all three challenges through an integrated approach combining semantic structure discovery, adaptive meta-learning (Corralling), and semantic transfer.
+Large language model (LLM) inference is economically critical yet technically challenging: expensive models aren't always better, and training data distributions shift over time. We present \textbf{banditGPT}, an open-source, cost-aware contextual bandit framework for LLM routing that combines semantic structure discovery with adaptive online learning.
 
 Our key insight is that LLM routing is a \emph{discovery} problem, not an interpolation problem: the expensive model is not merely unnecessary on some tasks---it is \emph{actively worse} on an identifiable subset. On held-out LMSYS prompts ($N=750$), model preference varies by prompt and the router's features predict this variation (Spearman $\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections). When the state-of-the-art static router (RouteLLM) cannot distinguish these prompts, it pays $43\times$ more for $1.3\%$ \emph{lower} quality.
 
-Effective routing therefore requires three mechanisms working together: (1) \textbf{semantic structure} that makes preference discovery learnable, (2) \textbf{Corralling meta-learning} that hedges against misleading training priors ($1$--$4\%$ overhead under moderate shift, with catastrophic failure protection), and (3) \textbf{semantic transfer} that eliminates cold-start penalties for new models ($+0.62$ reward, $p<10^{-7}$). Production validation demonstrates $65.9\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM).
+banditGPT addresses this through two verified mechanisms: (1) \textbf{cost-aware contextual bandits} initialized from offline warmup priors (80k RouteLLM battles) that surpass RouteLLM's peak quality after only 400 label-free in-distribution prompts, and (2) \textbf{Corralling meta-learning} that hedges against misleading training priors ($1$--$4\%$ overhead under moderate shift, with catastrophic failure protection). The framework natively supports multi-model portfolios ($K \geq 3$) with continuous cost-quality Pareto optimization---unlike threshold-based routers restricted to $K{=}2$. Production validation demonstrates $70.8\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM).
 
-\textbf{Contribution}: None of these mechanisms alone solves the problem---the contribution is the \emph{integrated system} achieving safety guarantees, near-optimal performance, and production readiness.
+We also investigate semantic transfer for cold-starting new models and report a \emph{null result}: in controlled ablations with proper statistical power, transferred priors provide no significant advantage over tabula rasa initialization, establishing an honest boundary on current bandit routing capabilities.
 \end{abstract}
-
-% Word count: ~220 words
-% Key changes:
-% 1. Primary metric: Spearman rho (correlation-based, not clustering-based)
-% 2. Removed Generic PCA reference (non-significant)
-% 3. Signal validated against 100 random projections

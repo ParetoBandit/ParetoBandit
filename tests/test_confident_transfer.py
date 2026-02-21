@@ -1,16 +1,16 @@
 """
-Test to verify the Confident Transfer Trap fix
+Test: Confident Transfer Trap Prevention
 
-This test validates that bootstrapping transfers only θ (preferences) from neighbors,
+Validates that bootstrapping transfers only θ (preferences) from neighbors,
 not A (confidence), preventing the "fossilization" of new models.
 
-Bug Scenario (Pre-Fix):
+Failure scenario:
 1. "GPT-4" has 1M samples → A has large eigenvalues (high confidence)
 2. Register "GPT-4-Turbo" (similar name)
-3. Bug: Bootstrap transfers 80% of A → new model thinks it has 800k samples
+3. Bootstrap transfers 80% of A → new model thinks it has 800k samples
 4. Result: Tiny confidence intervals → no exploration → fossilized behavior
 
-Expected Behavior (Post-Fix):
+Expected behavior:
 1. "GPT-4" has 1M samples → A has large eigenvalues
 2. Register "GPT-4-Turbo"
 3. Extract θ_neighbor = A_inv @ b_neighbor

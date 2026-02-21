@@ -80,7 +80,7 @@ levels (see Figure 4 error bars).
 - [x] Add error bars to Figure 4
 - [x] Report confidence intervals in text
 - [ ] Add Methods paragraph explaining multiple testing approach
-- [ ] Consider increasing to n=10 trials if reviewers request (2× compute cost)
+- [ ] Consider increasing to n=10 trials for stronger statistical power (2× compute cost)
 
 ---
 
@@ -92,13 +92,13 @@ levels (see Figure 4 error bars).
 - Balances statistical rigor with computational feasibility
 - Sufficient for detecting effect sizes relevant to practitioners (Δ > 0.02)
 
-### If Reviewers Request n=10:
+### With n=10:
 - Would increase confidence interval precision by ~√2
 - Would detect smaller effects (Δ > 0.01)
 - **Cost:** ~3 hours additional compute time
 - **Benefit:** Stronger statistical claims
 
-### If Reviewers Request n=20:
+### With n=20:
 - Gold standard for A/B testing
 - Would detect very small effects (Δ > 0.005)
 - **Cost:** ~6 hours additional compute time

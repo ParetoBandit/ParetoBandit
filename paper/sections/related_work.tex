@@ -17,7 +17,7 @@ Predictive routers, such as RouteLLM~\cite{ong2024routellm}, train a classifier 
 
 \textbf{The Limitation}: These policies are static. As demonstrated in Section~\ref{sec:pareto}, they suffer from \emph{Prior Rigidity}: when the production distribution exhibits ``Quality Inversion'' (where cheap models outperform expensive ones on specific tasks), static routers fail to adapt, incurring an ``Over-Provisioning Penalty.'' Furthermore, they suffer from the Cold Start problem: adding a new model requires collecting thousands of new samples and retraining the router.
 
-\textbf{Our Approach}: banditGPT is an \emph{Online Learner}. Through continuous feedback, it updates its beliefs in real-time. Our Latent Semantic Transfer mechanism (Section~\ref{sec:methodology}) enables admission of new models by bootstrapping from learned priors of semantic neighbors, avoiding the retraining bottleneck.
+\textbf{Our Approach}: banditGPT is an \emph{Online Learner}. Through continuous feedback, it updates its beliefs in real-time. New models are admitted with tabula rasa initialization and converge to their appropriate role within a few hundred interactions of online learning, without requiring retraining of the full router.
 
 \subsection{Contextual Bandits in NLP}
 
@@ -36,7 +36,7 @@ LLM Bandit~\cite{li2025llmbandit} formulates model selection as a preference-con
 
 These methods advance cost-aware routing but differ from banditGPT in three structural ways.
 First, none employs a meta-ensemble: each uses a single contextual bandit, whereas banditGPT runs \emph{bandits over bandits} via Corralling, providing safety insurance against prior mismatch (Section~\ref{sec:methodology}).
-Second, banditGPT invests in rich prior machinery---80k-battle warmup priors, semantic neighbor transfer for cold-start models, and progressive registration---rather than learning an embedding space from scratch.
+Second, banditGPT invests in rich prior machinery---80k-battle warmup priors and progressive model registration---rather than learning an embedding space from scratch.
 Third, banditGPT enforces hard cost and latency constraints via Dynamic Pareto Filtering before the bandit selects, whereas PILOT and BaRP fold cost into the reward or a separate knapsack/scalarization policy.
 None of these concurrent systems provides an open-source implementation as of this writing; a detailed architectural comparison is provided in Appendix~\ref{appendix:positioning}.
 
@@ -61,7 +61,7 @@ Cost Handling & Cascade & None & Knapsack & Scalarized & Hard \\
  & (sequential) & & Policy & Reward & Constraints \\
 \midrule
 Prior Machinery & None & Supervised & Preference- & Bandit & 80k-battle \\
- & & Offline & informed & Feedback & + Transfer \\
+ & & Offline & informed & Feedback & Warmup \\
 \midrule
 Algorithm & Threshold & Classifier & LinUCB & Contextual & LinUCB + \\
  & Chain & (MF/BERT) & & Bandit & Corralling \\

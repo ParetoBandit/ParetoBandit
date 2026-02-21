@@ -1,7 +1,9 @@
 \section{Extended Hyperparameter Robustness}
 \label{appendix:hyperparameter_sensitivity}
 
-To address concerns regarding the ``brittleness'' of tuned constants, we performed a comprehensive sensitivity analysis on the key hyperparameter controlling Latent Semantic Transfer: the \emph{effective prior sample size} ($n_{\text{eff}}$).
+\textbf{Important caveat:} The results in this appendix are from a \emph{synthetic simulation} (a single model pair with a simulated new model release at $t{=}300$). Controlled ablation experiments on real multi-model data (Section~\ref{sec:transfer_null}) show that semantic transfer provides no statistically significant improvement over tabula rasa initialization. The discrepancy likely arises because the synthetic setup features high reward dispersion and a perfectly matched semantic neighbor---conditions that may not hold in real multi-model portfolios where the new model accounts for $<1/K$ of routing decisions.
+
+We include this appendix for completeness as a sensitivity analysis on the key hyperparameter controlling Latent Semantic Transfer: the \emph{effective prior sample size} ($n_{\text{eff}}$).
 
 \subsection{Experimental Setup}
 
@@ -117,7 +119,5 @@ Our corrected formulation ensures that performance is driven by \emph{variance r
 
 \subsection{Conclusion}
 
-The sensitivity analysis demonstrates that Latent Semantic Transfer is fundamentally robust to the choice of $n_{\text{eff}}$. Performance is stable across a $20\times$ range (1.0 to 20.0), with all values providing substantial improvement (+39.2\%) over the Cold Start baseline. This robustness arises from the principled Bayesian formulation, where $n_{\text{eff}}$ controls confidence (variance) while preserving mean predictions.
-
-Practitioners can confidently deploy this method using $n_{\text{eff}}=5.0$ as a default, or adjust based on domain knowledge (lower for novel tasks, higher for similar tasks), without fear of performance degradation. The method's success is not contingent on ``magic numbers'' but rather on the fundamental mechanism of semantic knowledge transfer.
+In this synthetic setting, performance is stable across a $20\times$ range of $n_{\text{eff}}$ (1.0 to 20.0). However, as noted in Section~\ref{sec:transfer_null}, controlled ablation on real multi-model data shows that this improvement does not transfer to production-like conditions. The synthetic setup represents a best-case scenario (perfectly matched neighbor, high reward dispersion, $K{=}2$) that does not hold at larger portfolio sizes. We retain this appendix as a theoretical analysis of the $n_{\text{eff}}$ parameter's Bayesian properties, not as evidence for the practical effectiveness of semantic transfer.
 

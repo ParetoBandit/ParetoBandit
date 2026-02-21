@@ -36,7 +36,7 @@ recursive-exclude benchmarks *
 
 # Exclude test and development files from wheel
 prune tests
-prune kdd_paper
+prune paper
 prune frontend
 prune docs
 prune .github

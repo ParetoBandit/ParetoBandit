@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test: Neighbor-Based Theta Bootstrapping (Paper Review Fix - Critique C)
+Test: Neighbor-Based Theta Bootstrapping
 
 Verifies that new models can bootstrap from similar models using embedding-based
 similarity, reducing warmup time from ~240 samples to ~50 samples.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test: Numerical Stability with JIT Regularization (Paper Review Fix - Critique B)
+Test: Numerical Stability with JIT Regularization
 
 Verifies that the JIT regularization injection prevents numerical instability
 in low-traffic regimes where decay can cause matrix singularity.

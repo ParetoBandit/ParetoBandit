@@ -157,8 +157,8 @@ $\eta$ & $\gamma$ & Seeds & Regret (mean $\pm$ std) & Reward (mean $\pm$ std) & 
 \paragraph{Convergence Validation.}
 Log-log regression (excluding 50-sample burn-in) yields growth exponent $\beta=0.669 \pm 0.002$ with $R^2=0.9903$, confirming sublinear regret growth $O(T^{0.669})$ and satisfying the PAC-learnability criterion ($\beta < 1$).
 
-\paragraph{Semantic Transfer for Cold-Start Models.}
-Since warmup priors cover only Mixtral and GPT-4-Turbo, GPT-4o is initialized via semantic transfer from GPT-4-Turbo with conservative scaling ($\gamma=0.05$). At $\lambda=0$ (quality only), the bandit rapidly discovers GPT-4o as the dominant choice (64.6\% usage, 5-seed average), correctly identifying the warmup expert's GPT-4-Turbo bias as suboptimal. At $\lambda=0.1$, GPT-4o usage rises to 74.3\% as cost awareness further penalizes GPT-4-Turbo.
+\paragraph{Cold-Start Model Integration.}
+Since warmup priors cover only Mixtral and GPT-4-Turbo, GPT-4o is initialized from GPT-4-Turbo's learned preferences with conservative scaling ($\gamma=0.05$). At $\lambda=0$ (quality only), the bandit rapidly discovers GPT-4o as the dominant choice (64.6\% usage, 5-seed average), correctly identifying the warmup expert's GPT-4-Turbo bias as suboptimal. At $\lambda=0.1$, GPT-4o usage rises to 74.3\% as cost awareness further penalizes GPT-4-Turbo. Note that this rapid convergence is driven by the online learning mechanism rather than the transferred prior itself (see Section~\ref{sec:transfer_null}).
 
 % ----------------------------------------------------------------------------
 % E.3: Deployment Strategy Guide (from F3)
