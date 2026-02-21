@@ -28,6 +28,8 @@ from bandit_gpt.router import (
     RouterConfig,
     HybridLinUCBPolicy,
     DisjointLinUCBPolicy,
+    CostAwareLinUCBRouter,
+    CostAwareTabulaRasaRouter,
     infer_model_family,
 )
 
@@ -423,13 +425,28 @@ class TestRouterIntegration:
         router = _make_hybrid_router(reg, family_map={"model-a": "override-fam"})
         assert router.bandit.family_map["model-a"] == "override-fam"
 
-    def test_disjoint_is_default(self):
+    def test_hybrid_is_default_policy(self):
+        """Default policy is 'hybrid', so even without specifying policy=
+        the bandit should be HybridLinUCBPolicy."""
         reg = {"m": {**WELL_FORMED, "openrouter_id": "m"}}
         router = BanditRouter.create(
             model_registry=reg,
             priors="none",
             feature_service=_mock_feature_service(),
             use_corralling=False,
+        )
+        assert isinstance(router.bandit, HybridLinUCBPolicy)
+        assert router.policy_type == "hybrid"
+
+    def test_disjoint_when_explicitly_requested(self):
+        """policy='disjoint' should still produce DisjointLinUCBPolicy."""
+        reg = {"m": {**WELL_FORMED, "openrouter_id": "m"}}
+        router = BanditRouter.create(
+            model_registry=reg,
+            priors="none",
+            feature_service=_mock_feature_service(),
+            use_corralling=False,
+            policy="disjoint",
         )
         assert isinstance(router.bandit, DisjointLinUCBPolicy)
 
@@ -469,3 +486,147 @@ class TestPersistence:
         for f in ["f1", "f2"]:
             np.testing.assert_allclose(pol.A0[f], pol2.A0[f], atol=1e-10)
             np.testing.assert_allclose(pol.b0[f], pol2.b0[f], atol=1e-10)
+
+
+# ===========================================================================
+# 11. Family-based hybrid activation in Corralling experts
+# ===========================================================================
+
+def _make_corralling_router(registry: dict, **kwargs) -> BanditRouter:
+    """Create a BanditRouter with Corralling enabled and hybrid policy."""
+    defaults = dict(
+        model_registry=registry,
+        priors="none",
+        feature_service=_mock_feature_service(),
+        use_corralling=True,
+        policy="hybrid",
+    )
+    defaults.update(kwargs)
+    return BanditRouter.create(**defaults)
+
+
+class TestCorrallingFamilyActivation:
+    """Verify that family-based hybrid sharing in Corralling experts is
+    activated based on family structure, NOT model count."""
+
+    def _expert_family_maps(self, router: BanditRouter):
+        """Return (warmup_family_map, tabula_rasa_family_map) from Corralling experts."""
+        assert router.corralling_router is not None
+        warmup = router.corralling_router.experts[0]
+        tabula = router.corralling_router.experts[1]
+        assert isinstance(warmup, CostAwareLinUCBRouter)
+        assert isinstance(tabula, CostAwareTabulaRasaRouter)
+        return warmup.family_map, tabula.family_map
+
+    def test_k2_same_family_enables_hybrid(self):
+        """Two models in the same family (e.g. gpt-4o, gpt-4o-mini) should
+        activate family sharing in Corralling experts."""
+        reg = {
+            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+        }
+        router = _make_corralling_router(reg)
+        wu_map, tr_map = self._expert_family_maps(router)
+
+        assert wu_map is not None, "K=2 same family should enable hybrid in warmup expert"
+        assert tr_map is not None, "K=2 same family should enable hybrid in tabula rasa"
+        assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
+
+    def test_k2_different_families_stays_disjoint(self):
+        """Two models in unrelated families should NOT activate sharing."""
+        reg = {
+            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
+        }
+        router = _make_corralling_router(reg)
+        wu_map, tr_map = self._expert_family_maps(router)
+
+        assert wu_map is None, "K=2 different families should not enable hybrid"
+        assert tr_map is None
+
+    def test_k3_with_shared_family_enables_hybrid(self):
+        """Three models where two share a family should activate sharing."""
+        reg = {
+            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
+        }
+        router = _make_corralling_router(reg)
+        wu_map, tr_map = self._expert_family_maps(router)
+
+        assert wu_map is not None, "K=3 with shared family should enable hybrid"
+        assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
+        assert wu_map["anthropic/claude-3-haiku"] != wu_map["openai/gpt-4o"]
+
+    def test_k5_all_different_families_stays_disjoint(self):
+        """Five models from five unrelated families should NOT activate sharing."""
+        reg = {
+            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
+            "google/gemini-2": {**WELL_FORMED, "openrouter_id": "google/gemini-2"},
+            "mistralai/mistral-large": {**WELL_FORMED, "openrouter_id": "mistralai/mistral-large"},
+            "meta-llama/llama-3": {**WELL_FORMED, "openrouter_id": "meta-llama/llama-3"},
+        }
+        router = _make_corralling_router(reg)
+        wu_map, tr_map = self._expert_family_maps(router)
+
+        assert wu_map is None, "All-singleton families should not enable hybrid"
+        assert tr_map is None
+
+    def test_k5_with_mixed_families_enables_hybrid(self):
+        """Five models with some families shared should activate sharing."""
+        reg = {
+            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
+            "anthropic/claude-3.5-sonnet": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3.5-sonnet"},
+            "google/gemini-2": {**WELL_FORMED, "openrouter_id": "google/gemini-2"},
+        }
+        router = _make_corralling_router(reg)
+        wu_map, tr_map = self._expert_family_maps(router)
+
+        assert wu_map is not None, "Mixed families should enable hybrid"
+        assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
+        assert wu_map["anthropic/claude-3-haiku"] == wu_map["anthropic/claude-3.5-sonnet"]
+
+    def test_explicit_family_map_overrides_inference(self):
+        """An explicit family_map should be respected in Corralling experts."""
+        reg = {
+            "model-a": {**WELL_FORMED, "openrouter_id": "vendor/model-a"},
+            "model-b": {**WELL_FORMED, "openrouter_id": "vendor/model-b"},
+        }
+        router = _make_corralling_router(
+            reg, family_map={"model-a": "shared", "model-b": "shared"}
+        )
+        wu_map, tr_map = self._expert_family_maps(router)
+
+        assert wu_map is not None
+        assert wu_map["model-a"] == "shared"
+        assert wu_map["model-b"] == "shared"
+
+    def test_cost_penalty_flows_to_experts(self):
+        """BanditRouter.cost_penalty should propagate to both Corralling experts."""
+        reg = {
+            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+        }
+        router = _make_corralling_router(reg, cost_penalty=0.42)
+
+        warmup = router.corralling_router.experts[0]
+        tabula = router.corralling_router.experts[1]
+        assert warmup.cost_penalty == 0.42
+        assert tabula.cost_penalty == 0.42
+
+    def test_disjoint_policy_skips_family_sharing(self):
+        """When policy='disjoint', Corralling experts should never get family_map
+        even if models share families."""
+        reg = {
+            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+        }
+        router = _make_corralling_router(reg, policy="disjoint")
+        wu_map = router.corralling_router.experts[0].family_map
+        tr_map = router.corralling_router.experts[1].family_map
+
+        assert wu_map is None, "Disjoint policy should never activate family sharing"
+        assert tr_map is None

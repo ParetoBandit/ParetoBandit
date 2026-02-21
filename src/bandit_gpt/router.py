@@ -2905,16 +2905,15 @@ Previous version referenced non-existent attributes
             # ---------------------------------------------------------------
             # Hybrid family_map for Corralling experts
             # ---------------------------------------------------------------
-            # When K > 2 and at least two models share a family, enable
-            # family-shared parameter learning inside each expert.  This lets
-            # the Corralling meta-learner benefit from intra-family transfer.
-            # K <= 2 or all-singleton registries fall back to disjoint experts
-            # (no families to share between).
+            # Enable family-shared parameter learning when at least two
+            # models belong to the same family (regardless of K).  Two
+            # models from the same family (e.g. gpt-4o and gpt-4o-mini)
+            # benefit from shared β just as much as larger registries.
             expert_family_map = None
             if router.policy_type == "hybrid":
                 _candidate_map = router._resolve_family_map(router.bandit.models)
                 _families = set(_candidate_map.values())
-                if len(router.bandit.models) > 2 and len(_families) < len(router.bandit.models):
+                if len(_families) < len(router.bandit.models):
                     expert_family_map = _candidate_map
                     logger.info(
                         f"   🔗 Hybrid sharing: {len(_families)} families across "
@@ -2923,7 +2922,7 @@ Previous version referenced non-existent attributes
                 else:
                     logger.info(
                         f"   🔗 Hybrid sharing: K={len(router.bandit.models)}, "
-                        f"families={len(_families)} → singleton mode (no sharing)"
+                        f"families={len(_families)} → disjoint (no shared families)"
                     )
             
             # ---------------------------------------------------------------
