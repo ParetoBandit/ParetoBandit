@@ -1,14 +1,6 @@
 # BanditGPT Paper Appendix
 
-**Supplementary Material** — trimmed to directly support Figures 1, 3, 4, Table 2, and Figure 6.
-
----
-
-## Overview
-
-**Total Appendix Sections**: 5 (A-E)  
-**Active LaTeX Files**: 10 (+ APPENDIX\_MASTER.tex)  
-**Master File**: `APPENDIX_MASTER.tex`
+Supplementary material supporting Figures 1, 3, 4, Table 2, and Figure 6.
 
 ---
 
@@ -21,6 +13,8 @@
 | **C** | Extended Results | Fig 6 | Catastrophic failure detection (K=5 portfolio, 20 seeds) |
 | **D** | Implementation Details | All | Configuration parameters, experimental setup |
 | **E** | Limitations & Future Work | All | System constraints, honest limitations, bandit router positioning (PILOT/BaRP taxonomy) |
+
+**Master File**: `APPENDIX_MASTER.tex`
 
 ---
 
@@ -58,7 +52,7 @@ appendix/
 │   ├── E1_limitations.tex              # Limitations and applicability
 │   └── E2_positioning.tex             # Bandit router taxonomy + differentiators
 │
-└── E_catastrophic_failure_experiment/  # Canonical experiment code for Fig 6
+└── E_catastrophic_failure_experiment/  # Experiment code for Figure 6
     ├── README.md
     ├── generate_figure6_5model.py
     └── results/
@@ -83,21 +77,3 @@ pdflatex APPENDIX_MASTER.tex  # Run twice for references
 \appendix
 \input{experiments/appendix/APPENDIX_MASTER.tex}
 ```
-
----
-
-## What Was Cut (and Why)
-
-| Cut Item | Reason |
-|----------|--------|
-| Former Appendix C (Ablation Studies) | 45-experiment ablation table consolidated into A.2 (safety guarantee) |
-| Former Appendix C (Hyperparameter Sensitivity) | n_eff analysis consolidated into A.3; Corralling params now in A.2 |
-| Old A1 (Spectral separation proof) | Thompson Sampling theory mismatched LinUCB + Corralling implementation |
-| Old B1 (Clustering-based validation) | Replaced with correct Spearman methodology matching Figure 1 |
-
-See `APPENDIX_CONTENT_MAP.md` for the full traceability matrix.
-
----
-
-**Last Updated**: February 15, 2026  
-**Status**: Trimmed, aligned to main paper figures, folder names match appendix letters

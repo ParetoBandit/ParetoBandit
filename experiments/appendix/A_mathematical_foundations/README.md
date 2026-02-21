@@ -51,25 +51,10 @@ reference the *actual* algorithm implemented in `src/bandit_gpt/router.py`.
 
 ---
 
-## Superseded Content
-
-### [Removed] A1_spectral_separation_proof.tex
-The previous version contained a Thompson Sampling regret bound applied to a
-system that uses LinUCB + Exp4/Corralling, creating an algorithm mismatch.
-It also claimed a "proof" based on PC1 separation that did not reflect the
-router's actual 33-dimensional (32 PCA + 1 bias) feature space.  The file is
-retained in git history but no longer included in `APPENDIX_MASTER.tex`.
-
----
-
 ## Related Sections
 - **Appendix C**: Extended results (validates safety guarantee via catastrophic failure detection)
 - **Appendix D**: Implementation details (production configuration)
 - **Appendix E**: Limitations and future work (extends A.3 limitations)
-
-*Note*: Former Appendix C (Hyperparameter Sensitivity) was consolidated into A.3.
-The n_eff sensitivity analysis, naive-vs-correct prior comparison, and practical
-recommendation are now in Section A.3 ("Correct vs. Naive Prior Injection").
 
 ---
 
@@ -77,8 +62,8 @@ recommendation are now in Section A.3 ("Correct vs. Naive Prior Injection").
 ```
 A_mathematical_foundations/
 ├── README.md                           (this file)
+├── A0_algorithm_pseudocode.tex         (complete routing system pseudocode)
 ├── A1_regret_decomposition.tex         (composite regret bound)
 ├── A2_safety_guarantee.tex             (γ-mixing safety proof + ablation table)
-├── A3_warmup_transfer.tex              (prior transfer analysis + limitations)
-└── A1_spectral_separation_proof.tex    (superseded, retained in git history)
+└── A3_warmup_transfer.tex              (prior transfer analysis + limitations)
 ```
