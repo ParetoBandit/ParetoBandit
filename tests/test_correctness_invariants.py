@@ -731,6 +731,8 @@ class TestBug9_DeepCopy:
         router.corralling_learning_rate = 0.1
         router.corralling_gamma = 0.05
         router.corralling_cost_weight = 0.0
+        router.policy_type = "disjoint"
+        router._family_map_override = None
         router.corralling_router = None
         router._log_lock = MagicMock()
 

@@ -379,6 +379,80 @@ def estimate_tokens_rough(text: str) -> int:
 # instead of encoding rigid prior transformations
 
 # ---------------------------------------------------------------------------
+# Model Family Inference (for Hybrid LinUCB parameter sharing)
+# ---------------------------------------------------------------------------
+
+def infer_model_family(openrouter_id: str) -> str:
+    """
+    Infer model family from an openrouter_id by stripping variant suffixes.
+
+    Models within the same family are expected to have similar reward
+    functions, enabling parameter sharing in HybridLinUCBPolicy.
+
+    Strips size qualifiers (-mini, -large), instruction tuning (-instruct),
+    quality tiers (-turbo, -pro), date stamps (-2024-04-09), parameter
+    counts (-70b), and trailing minor versions (.1, .2).
+
+    Override the inference by setting an explicit ``family`` field in the
+    model registry entry.
+
+    Examples:
+        "openai/gpt-4-turbo"                -> "openai/gpt-4"
+        "openai/gpt-4o-mini"                -> "openai/gpt-4o"
+        "openai/gpt-5.1"                    -> "openai/gpt-5"
+        "openai/o1-mini"                    -> "openai/o1"
+        "anthropic/claude-3.5-sonnet"       -> "anthropic/claude-3"
+        "anthropic/claude-3-haiku"          -> "anthropic/claude-3"
+        "mistralai/mixtral-8x7b-instruct"   -> "mistralai/mixtral-8x7b"
+        "meta-llama/llama-3.1-70b-instruct" -> "meta-llama/llama-3"
+        "google/gemini-2.0-flash"           -> "google/gemini-2"
+    """
+    if "/" not in openrouter_id:
+        return openrouter_id
+
+    provider, model = openrouter_id.split("/", 1)
+
+    _SUFFIXES = (
+        "-turbo", "-mini", "-small", "-medium", "-large", "-xl", "-xxl",
+        "-instruct", "-chat", "-preview", "-latest", "-pro", "-flash",
+        "-lite", "-haiku", "-sonnet", "-opus", "-nano", "-micro",
+        "-thinking", "-online", "-free", "-nightly", "-exp",
+    )
+
+    # Iteratively strip date stamps, parameter counts, and known suffixes
+    # until no further changes occur.  Interleaving is necessary because a
+    # date stamp or param count may be followed by a suffix (or vice-versa).
+    changed = True
+    while changed:
+        changed = False
+
+        # Date stamps: -2024-04-09, -20240409
+        stripped = re.sub(r"-\d{4}-?\d{2}-?\d{2}$", "", model)
+        if stripped != model:
+            model = stripped
+            changed = True
+
+        # Known qualifiers
+        for suffix in _SUFFIXES:
+            if model.endswith(suffix):
+                model = model[: -len(suffix)]
+                changed = True
+
+        # Simple parameter counts: -8b, -70b, -405b.  The regex does NOT
+        # match mixture-of-experts specs like -8x7b because the 'x'
+        # character breaks the \d+ run before '-'.
+        stripped = re.sub(r"-\d+b$", "", model)
+        if stripped != model:
+            model = stripped
+            changed = True
+
+    # Strip trailing minor version: gpt-5.1 -> gpt-5, claude-3.5 -> claude-3
+    model = re.sub(r"(\d+)\.\d+$", r"\1", model)
+
+    return f"{provider}/{model}"
+
+
+# ---------------------------------------------------------------------------
 # Core Bandit Policy (Disjoint LinUCB)
 # ---------------------------------------------------------------------------
 # **COMPLEXITY ANALYSIS**
@@ -1056,6 +1130,511 @@ Previously sampled from N(θ_hat, A_inv) which implicitly
 
 
 # ---------------------------------------------------------------------------
+# Hybrid LinUCB Policy (Family-Shared + Arm-Specific Parameters)
+# ---------------------------------------------------------------------------
+# Extends DisjointLinUCB by decomposing the reward into a family-shared
+# component (beta) and an arm-specific residual component (theta):
+#
+#   E[r | x, a] = x^T beta_F(a) + x^T theta_a
+#
+# The shared component is updated with every observation from any family
+# member, providing *continuous* transfer learning rather than the one-shot
+# initialization of admix_theta_from_neighbors().
+#
+# Cold-start benefit: when GPT-5.2 joins a family where GPT-5.1 already
+# has N observations, GPT-5.2 immediately benefits from the family beta
+# learned from those N observations.
+#
+# Degeneracy: when every family has exactly one member, the arm-specific
+# component is never updated with residuals (stays at zero), so the policy
+# reduces to a single theta per arm, functionally equivalent to Disjoint.
+# ---------------------------------------------------------------------------
+
+class HybridLinUCBPolicy:
+    """
+    Hybrid LinUCB: family-shared + arm-specific ridge regression.
+
+    For arm *a* belonging to family *F*:
+        E[r | x, a] = x^T beta_F  +  x^T theta_a
+
+    * ``beta_F`` is updated from ALL observations in family *F*.
+    * ``theta_a`` always learns per-arm residual corrections
+      (``reward - x^T beta_F``).  For singleton families the residual
+      converges to near-zero so the arm-specific component contributes
+      negligible signal, letting the policy degenerate gracefully to
+      family-only predictions.  When a second member later joins the
+      family, the shared ``beta_F`` is already trained.
+
+    Backward-compatible: ``self.A``, ``self.b``, ``self.A_inv`` expose the
+    arm-specific matrices so existing ``BanditRouter`` code (warmup loading,
+    register_model direct writes) works without changes.
+    """
+
+    def __init__(
+        self,
+        model_names: List[str],
+        dim: int = 384,
+        alpha: float = 0.1,
+        init_lambda: float = 1.0,
+        update_lambda: float = 0.0,
+        forgetting_factor: float = 1.0,
+        family_map: Dict[str, str] | None = None,
+    ):
+        self.models = list(model_names)
+        self.dim = int(dim)
+        self.alpha = float(alpha)
+        self.gamma = float(forgetting_factor)
+        self.init_lambda = float(init_lambda)
+        self.update_lambda = float(update_lambda)
+
+        # ----- Family structure -----
+        if family_map is None:
+            family_map = {m: infer_model_family(m) for m in self.models}
+        self.family_map: Dict[str, str] = dict(family_map)
+        self.families: Dict[str, List[str]] = defaultdict(list)
+        for arm in self.models:
+            fam = self.family_map.get(arm, arm)
+            self.families[fam].append(arm)
+
+        # ----- Thread safety -----
+        self.model_locks = defaultdict(threading.Lock)
+        self.family_locks = defaultdict(threading.Lock)
+        self._lock = threading.Lock()
+
+        # ----- Arm-specific state (aliased as A/b/A_inv for compat) -----
+        self.A: Dict[str, np.ndarray] = {
+            m: np.eye(self.dim) * self.init_lambda for m in self.models
+        }
+        self.b: Dict[str, np.ndarray] = {
+            m: np.zeros(self.dim, dtype=np.float64) for m in self.models
+        }
+        self.A_inv: Dict[str, np.ndarray] = {
+            m: safe_inv(self.A[m]) for m in self.models
+        }
+
+        # ----- Family-shared state -----
+        self.A0: Dict[str, np.ndarray] = {
+            F: np.eye(self.dim) * self.init_lambda for F in self.families
+        }
+        self.b0: Dict[str, np.ndarray] = {
+            F: np.zeros(self.dim, dtype=np.float64) for F in self.families
+        }
+        self.A0_inv: Dict[str, np.ndarray] = {
+            F: safe_inv(self.A0[F]) for F in self.families
+        }
+
+        # ----- Time tracking -----
+        self.last_update: Dict[str, int] = {m: 0 for m in self.models}
+        self.t: int = 0
+
+        # ----- Regularization floor (arm-specific only) -----
+        self.regularization_floor: Dict[str, float] = {
+            m: self.init_lambda for m in self.models
+        }
+
+    # ------------------------------------------------------------------
+    # Arm management
+    # ------------------------------------------------------------------
+
+    def add_arm(self, model_name: str, family: str | None = None) -> None:
+        """Add a new arm with an optional explicit family assignment."""
+        if model_name in self.models:
+            return
+
+        if family is None:
+            family = infer_model_family(model_name)
+        self.family_map[model_name] = family
+
+        new_A = np.eye(self.dim) * self.init_lambda
+        new_b = np.zeros(self.dim, dtype=np.float64)
+        new_A_inv = safe_inv(new_A)
+
+        is_new_family = family not in self.A0
+
+        with self._lock:
+            self.A[model_name] = new_A
+            self.b[model_name] = new_b
+            self.A_inv[model_name] = new_A_inv
+            self.last_update[model_name] = self.t
+            self.regularization_floor[model_name] = self.init_lambda
+            if is_new_family:
+                self.A0[family] = np.eye(self.dim) * self.init_lambda
+                self.b0[family] = np.zeros(self.dim, dtype=np.float64)
+                self.A0_inv[family] = safe_inv(self.A0[family])
+            self.families[family].append(model_name)
+            self.models.append(model_name)
+
+    def delete_arm(self, model_name: str) -> None:
+        """Remove an arm and clean up family state if the family becomes empty."""
+        with self._lock:
+            if model_name in self.models:
+                self.models.remove(model_name)
+            family = self.family_map.pop(model_name, None)
+            if family and model_name in self.families.get(family, []):
+                self.families[family].remove(model_name)
+                if not self.families[family]:
+                    del self.families[family]
+                    self.A0.pop(family, None)
+                    self.b0.pop(family, None)
+                    self.A0_inv.pop(family, None)
+                    self.family_locks.pop(family, None)
+            self.A.pop(model_name, None)
+            self.b.pop(model_name, None)
+            self.A_inv.pop(model_name, None)
+            self.last_update.pop(model_name, None)
+            self.regularization_floor.pop(model_name, None)
+            self.model_locks.pop(model_name, None)
+
+    def bandit_is_stable(self, model_id: str) -> bool:
+        """O(d) stability check via trace of the arm-specific precision matrix."""
+        if model_id not in self.A:
+            return True
+        trace = np.trace(self.A[model_id])
+        return trace > (self.dim * self.init_lambda * 0.1)
+
+    # ------------------------------------------------------------------
+    # Inverse cache
+    # ------------------------------------------------------------------
+
+    def refresh_inverse_cache(self) -> None:
+        """Recompute all cached inverses after a bulk load."""
+        with self._lock:
+            self.A_inv = {}
+            for m in self.models:
+                if m in self.A:
+                    self.A_inv[m] = safe_inv(self.A[m])
+            self.A0_inv = {}
+            for F in self.families:
+                if F in self.A0:
+                    self.A0_inv[F] = safe_inv(self.A0[F])
+
+    # ------------------------------------------------------------------
+    # Selection
+    # ------------------------------------------------------------------
+
+    def select_arm(
+        self, x: np.ndarray, candidates: List[str | None] = None
+    ) -> Tuple[str, float]:
+        """
+        Select the best arm using hybrid UCB.
+
+        For multi-member families the UCB combines shared and arm-specific:
+            mean = x^T beta_F + x^T theta_a
+            var  = x^T A0_inv_F x  +  x^T B_inv_a x
+
+        For singleton families the arm-specific component learns residuals
+        that converge to near-zero, so the shared component dominates
+        the prediction.  The arm-specific variance still contributes to
+        exploration of per-arm deviations.
+        """
+        best_model = None
+        best_ucb = -float("inf")
+
+        with self._lock:
+            candidates = candidates or self.models
+            candidates = [m for m in candidates if m in self.A]
+            if not candidates:
+                raise ValueError("No candidates available")
+
+            best_model = candidates[0]
+            for m in candidates:
+                F = self.family_map.get(m, m)
+
+                # Shared estimate (family-level)
+                if F in self.A0_inv:
+                    beta_hat = self.A0_inv[F] @ self.b0[F]
+                    var_shared = float(x.dot(self.A0_inv[F]).dot(x))
+                else:
+                    beta_hat = np.zeros(self.dim)
+                    var_shared = 0.0
+
+                # Arm-specific estimate
+                theta_hat = self.A_inv[m] @ self.b[m]
+                mean = float(x.dot(beta_hat) + x.dot(theta_hat))
+
+                # Staleness-inflated arm-specific variance
+                dt = self.t - self.last_update[m]
+                decay_factor = self.gamma ** dt
+                var_specific = float(x.dot(self.A_inv[m]).dot(x))
+                var_specific_inflated = var_specific / max(decay_factor, 1e-12)
+
+                var_total = var_shared + var_specific_inflated
+                std = float(np.sqrt(max(var_total, 1e-12)))
+
+                ucb = mean + self.alpha * std
+                if ucb > best_ucb:
+                    best_ucb = ucb
+                    best_model = m
+
+        return best_model, best_ucb
+
+    # ------------------------------------------------------------------
+    # Posterior probabilities
+    # ------------------------------------------------------------------
+
+    def get_probabilities(
+        self,
+        x: np.ndarray,
+        models: List[str],
+        n_samples: int = 1000,
+        noise_variance: float = 0.25,
+    ) -> Dict[str, float]:
+        """Posterior sampling with hybrid covariance."""
+        model_samples: Dict[str, np.ndarray] = {}
+        valid_models = [m for m in models if m in self.A]
+
+        snapshots: Dict[str, Tuple] = {}
+        with self._lock:
+            for m in valid_models:
+                F = self.family_map.get(m, m)
+                A0_inv_F = self.A0_inv.get(F, np.eye(self.dim) / self.init_lambda)
+                beta_hat = A0_inv_F @ self.b0.get(F, np.zeros(self.dim))
+                theta_hat = self.A_inv[m] @ self.b[m]
+                combined_theta = beta_hat + theta_hat
+                combined_cov = A0_inv_F + self.A_inv[m].copy()
+                dt = self.t - self.last_update.get(m, 0)
+                snapshots[m] = (combined_theta, combined_cov, dt)
+
+        if not snapshots:
+            n = len(models) or 1
+            return {m: 1.0 / n for m in models}
+
+        for m, (combined_theta, combined_cov, dt) in snapshots.items():
+            if self.gamma < 1.0 and dt > 0:
+                decay_factor = self.gamma ** min(dt, 1000)
+                cov = noise_variance * combined_cov / max(decay_factor, 1e-12)
+            else:
+                cov = noise_variance * combined_cov
+            try:
+                samples = np.random.multivariate_normal(combined_theta, cov, n_samples)
+            except np.linalg.LinAlgError:
+                avg_var = max(np.trace(cov) / self.dim, 1e-12)
+                samples = np.random.normal(
+                    loc=combined_theta, scale=np.sqrt(avg_var),
+                    size=(n_samples, self.dim),
+                )
+            model_samples[m] = samples @ x
+
+        stacked = np.stack([model_samples[m] for m in valid_models])
+        winners = np.argmax(stacked, axis=0)
+        counts = Counter(winners)
+        probs = {m: 0.0 for m in models}
+        for i, m in enumerate(valid_models):
+            probs[m] = counts[i] / n_samples
+        return probs
+
+    # ------------------------------------------------------------------
+    # Update
+    # ------------------------------------------------------------------
+
+    def update(
+        self, model: str, x: np.ndarray, reward: float, weight: float = 1.0
+    ) -> None:
+        """
+        Update both family-shared and arm-specific matrices.
+
+        1. Compute residual using *current* (pre-update) shared beta.
+        2. Update shared A0/b0 with the full reward (family-level learning).
+        3. Update arm-specific A/b with the residual.  For singletons the
+           residual converges to near-zero, so the arm-specific component
+           contributes negligible predictions and the policy degenerates
+           gracefully to family-only (≈ disjoint) behaviour.
+        """
+        if model not in self.A:
+            return
+        if weight <= 0:
+            return
+
+        F = self.family_map.get(model, model)
+        x_outer = weight * np.outer(x, x)
+
+        # ---- 1. Residual from pre-update shared estimate ----
+        with self._lock:
+            beta_hat = self.A0_inv[F] @ self.b0[F] if F in self.A0_inv else np.zeros(self.dim)
+        residual = reward - float(x.dot(beta_hat))
+
+        # ---- 2. Shared update (family-level) ----
+        with self.family_locks[F]:
+            A0_inv_cur = self.A0_inv[F]
+            u = x * np.sqrt(weight)
+            A0_inv_u = A0_inv_cur @ u
+            denom = 1.0 + float(u @ A0_inv_u)
+
+            if abs(denom) > 1e-6:
+                new_A0_inv = A0_inv_cur - np.outer(A0_inv_u, u @ A0_inv_cur) / denom
+                with self._lock:
+                    self.A0[F] = self.A0[F] + x_outer
+                    self.b0[F] = self.b0[F] + weight * reward * x
+                    self.A0_inv[F] = new_A0_inv
+            else:
+                with self._lock:
+                    self.A0[F] = self.A0[F] + x_outer + self.init_lambda * np.eye(self.dim)
+                    self.b0[F] = self.b0[F] + weight * reward * x
+                    self.A0_inv[F] = safe_inv(self.A0[F])
+
+        # ---- 3. Arm-specific update ----
+        with self.model_locks[model]:
+            # Apply forgetting factor to arm-specific matrices
+            if self.gamma < 1.0:
+                dt = self.t - self.last_update[model]
+                decay_factor = self.gamma ** min(dt, 1000)
+                current_lambda = self.regularization_floor.get(model, self.init_lambda)
+                new_lambda = current_lambda * decay_factor
+                lambda_threshold = self.init_lambda * 0.1
+
+                if new_lambda < lambda_threshold:
+                    old_theta = self.A_inv[model] @ self.b[model]
+                    missing_lambda = self.init_lambda - new_lambda
+                    new_A = self.A[model] * decay_factor + missing_lambda * np.eye(self.dim)
+                    new_b = new_A @ old_theta
+                    new_A_inv = safe_inv(new_A)
+                    self.regularization_floor[model] = self.init_lambda
+                    with self._lock:
+                        self.A[model] = new_A
+                        self.b[model] = new_b
+                        self.A_inv[model] = new_A_inv
+                        self.last_update[model] = self.t
+                else:
+                    self.regularization_floor[model] = new_lambda
+                    with self._lock:
+                        self.A[model] = self.A[model] * decay_factor
+                        self.b[model] = self.b[model] * decay_factor
+                        self.A_inv[model] = self.A_inv[model] / decay_factor
+                        self.last_update[model] = self.t
+
+            arm_reward_signal = residual
+
+            reward_x = weight * arm_reward_signal * x
+
+            A_inv_cur = self.A_inv[model]
+            u = x * np.sqrt(weight)
+            A_inv_u = A_inv_cur @ u
+            denom = 1.0 + float(u @ A_inv_u)
+
+            if abs(denom) > 1e-6:
+                new_A_inv = A_inv_cur - np.outer(A_inv_u, u @ A_inv_cur) / denom
+                with self._lock:
+                    self.A[model] = self.A[model] + x_outer
+                    self.b[model] = self.b[model] + reward_x
+                    self.A_inv[model] = new_A_inv
+                    self.t += 1
+            else:
+                self.regularization_floor[model] = self.init_lambda
+                with self._lock:
+                    self.A[model] = self.A[model] + x_outer + self.init_lambda * np.eye(self.dim)
+                    self.b[model] = self.b[model] + reward_x
+                    self.A_inv[model] = safe_inv(self.A[model])
+                    self.t += 1
+
+    # ------------------------------------------------------------------
+    # Numerical stability
+    # ------------------------------------------------------------------
+
+    def _check_numerical_stability(self, model: str, config: "RouterConfig" = None) -> None:
+        """Safety check using trace of inverse (O(d), rare O(d^3) reset)."""
+        if config is None or model not in self.A_inv:
+            return
+        trace = np.trace(self.A_inv[model])
+        threshold = getattr(config, "stability_threshold", 1000 * self.dim)
+        if trace > threshold:
+            logger.warning(
+                f"Numerical instability for {model}: trace(A_inv)={trace:.2e}. Resetting."
+            )
+            reg_lambda = self.init_lambda
+            with self.model_locks[model]:
+                self.A[model] += reg_lambda * np.eye(self.dim)
+                new_A_inv = safe_inv(self.A[model])
+                with self._lock:
+                    self.A_inv[model] = new_A_inv
+                    self.regularization_floor[model] = (
+                        self.regularization_floor.get(model, self.init_lambda) + reg_lambda
+                    )
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def save_state(self, path: Path | str) -> None:
+        """Save arm-specific and family-shared matrices to NPZ."""
+        data: Dict[str, Any] = {
+            "_metadata_dim": self.dim,
+            "_metadata_models": list(self.models),
+            "_metadata_family_map": json.dumps(self.family_map),
+        }
+        for m in self.models:
+            data[f"{m}_A"] = self.A[m]
+            data[f"{m}_b"] = self.b[m]
+        for F in self.families:
+            safe_key = F.replace("/", "__")
+            data[f"_family_{safe_key}_A0"] = self.A0[F]
+            data[f"_family_{safe_key}_b0"] = self.b0[F]
+        np.savez_compressed(path, **data)
+
+    def load_state(self, path: Path | str) -> None:
+        """Load arm-specific and family-shared matrices from NPZ."""
+        data = np.load(path, allow_pickle=True)
+
+        if "_metadata_dim" in data:
+            saved_dim = int(data["_metadata_dim"])
+            if saved_dim != self.dim:
+                raise ValueError(
+                    f"Dimension mismatch: saved={saved_dim}, current={self.dim}"
+                )
+
+        for m in self.models:
+            a_key, b_key = f"{m}_A", f"{m}_b"
+            if a_key in data and b_key in data:
+                self.A[m] = data[a_key]
+                self.b[m] = data[b_key]
+                self.A_inv[m] = safe_inv(self.A[m])
+
+        for F in self.families:
+            safe_key = F.replace("/", "__")
+            a0_key = f"_family_{safe_key}_A0"
+            b0_key = f"_family_{safe_key}_b0"
+            if a0_key in data and b0_key in data:
+                self.A0[F] = data[a0_key]
+                self.b0[F] = data[b0_key]
+                self.A0_inv[F] = safe_inv(self.A0[F])
+
+    # ------------------------------------------------------------------
+    # Deep copy
+    # ------------------------------------------------------------------
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+
+        result.models = copy.deepcopy(self.models, memo)
+        result.dim = self.dim
+        result.alpha = self.alpha
+        result.gamma = self.gamma
+        result.init_lambda = self.init_lambda
+        result.update_lambda = self.update_lambda
+        result.t = self.t
+        result.last_update = copy.deepcopy(self.last_update, memo)
+
+        result.family_map = copy.deepcopy(self.family_map, memo)
+        result.families = copy.deepcopy(self.families, memo)
+
+        result.A = copy.deepcopy(self.A, memo)
+        result.b = copy.deepcopy(self.b, memo)
+        result.A_inv = copy.deepcopy(self.A_inv, memo)
+
+        result.A0 = copy.deepcopy(self.A0, memo)
+        result.b0 = copy.deepcopy(self.b0, memo)
+        result.A0_inv = copy.deepcopy(self.A0_inv, memo)
+
+        result.model_locks = defaultdict(threading.Lock)
+        result.family_locks = defaultdict(threading.Lock)
+        result._lock = threading.Lock()
+
+        result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
+        return result
+
+
+# ---------------------------------------------------------------------------
 # Main Router Class
 # ---------------------------------------------------------------------------
 @dataclass
@@ -1117,6 +1696,9 @@ class BanditRouter:
         corralling_learning_rate: float = 0.1,
         corralling_gamma: float = 0.05,
         corralling_cost_weight: float = 0.0,  # λ for composite reward in Corralling
+        # Policy selection
+        policy: Literal["disjoint", "hybrid"] = "disjoint",
+        family_map: Dict[str, str] | None = None,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -1152,6 +1734,15 @@ class BanditRouter:
                        - 0.0 = quality-only (default, backward-compatible)
                        - 0.1-0.3 = moderate cost awareness
                        - 0.5+ = aggressive cost preference
+            policy: Bandit policy type.
+                       - "disjoint": Independent parameters per arm (default, standard LinUCB)
+                       - "hybrid": Family-shared + arm-specific parameters (HybridLinUCB).
+                         Arms within the same family share a common beta, enabling
+                         continuous transfer learning for new models in existing families.
+            family_map: Explicit arm-to-family mapping for hybrid policy.  Keys are
+                       model IDs, values are family identifiers.  When None, families
+                       are inferred from openrouter_id via ``infer_model_family()`` or
+                       from the ``family`` field in model registry entries.
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
@@ -1159,6 +1750,8 @@ class BanditRouter:
         self.corralling_learning_rate = corralling_learning_rate
         self.corralling_gamma = corralling_gamma
         self.corralling_cost_weight = corralling_cost_weight
+        self.policy_type = policy
+        self._family_map_override = family_map
         if model_registry is None:
             # Load default models.json from config/
             base_dir = Path(__file__).parent
@@ -1214,14 +1807,31 @@ class BanditRouter:
         # space; this choice does not distinguish between high- and low-variance
         # components and may over-regularize the latter.  See the
         # DisjointLinUCBPolicy docstring for further discussion.
-        self.bandit = DisjointLinUCBPolicy(
-            list(self.registry.keys()), 
-            dim=embedding_dim,  # Already includes bias
-            alpha=alpha,
-            init_lambda=init_lambda,  # Use parameter, not config
-            update_lambda=update_lambda,  # Use parameter, not config
-            forgetting_factor=forgetting_factor
-        )
+        model_ids = list(self.registry.keys())
+        if self.policy_type == "hybrid":
+            resolved_family_map = self._resolve_family_map(model_ids)
+            self.bandit = HybridLinUCBPolicy(
+                model_ids,
+                dim=embedding_dim,
+                alpha=alpha,
+                init_lambda=init_lambda,
+                update_lambda=update_lambda,
+                forgetting_factor=forgetting_factor,
+                family_map=resolved_family_map,
+            )
+            logger.info(
+                f"Initialized HybridLinUCBPolicy with {len(self.bandit.families)} families "
+                f"across {len(model_ids)} arms"
+            )
+        else:
+            self.bandit = DisjointLinUCBPolicy(
+                model_ids,
+                dim=embedding_dim,
+                alpha=alpha,
+                init_lambda=init_lambda,
+                update_lambda=update_lambda,
+                forgetting_factor=forgetting_factor,
+            )
         
         # Initialize Security Scanner (Lazy)
         self._toxicity_scanner = None
@@ -1305,6 +1915,8 @@ Previous version referenced non-existent attributes
         result.corralling_learning_rate = self.corralling_learning_rate
         result.corralling_gamma = self.corralling_gamma
         result.corralling_cost_weight = self.corralling_cost_weight
+        result.policy_type = self.policy_type
+        result._family_map_override = copy.deepcopy(self._family_map_override, memo) if self._family_map_override else None
         result.corralling_router = copy.deepcopy(self.corralling_router, memo) if self.corralling_router else None
         
         # --- Logs and Counters (deepcopy: mutable collections) ---
@@ -1331,6 +1943,27 @@ Previous version referenced non-existent attributes
         
         return result
 
+
+    def _resolve_family_map(self, model_ids: List[str]) -> Dict[str, str]:
+        """Build arm-to-family mapping for HybridLinUCBPolicy.
+
+        Resolution order per model:
+        1. Explicit override from ``self._family_map_override``
+        2. ``family`` field in the model's registry entry
+        3. Automatic inference via ``infer_model_family()``
+        """
+        resolved: Dict[str, str] = {}
+        for mid in model_ids:
+            resolved[mid] = self._resolve_family_for_model(mid)
+        return resolved
+
+    def _resolve_family_for_model(self, model_id: str) -> str:
+        """Resolve the family for a single model (used by register_model)."""
+        if self._family_map_override and model_id in self._family_map_override:
+            return self._family_map_override[model_id]
+        if "family" in self.registry.get(model_id, {}):
+            return self.registry[model_id]["family"]
+        return infer_model_family(model_id)
 
     def _build_feature_map(self) -> Dict[str, int]:
         """
@@ -1499,6 +2132,15 @@ Previous version referenced non-existent attributes
             # so concurrent select_arm() never sees an incomplete model entry.
             A_inv_init = safe_inv(A_init)
             with self.bandit._lock:
+                # For hybrid policy, register family mapping before adding arm state
+                if isinstance(self.bandit, HybridLinUCBPolicy):
+                    family = self._resolve_family_for_model(model_id)
+                    self.bandit.family_map[model_id] = family
+                    if family not in self.bandit.A0:
+                        self.bandit.A0[family] = np.eye(self.bandit.dim) * self.bandit.init_lambda
+                        self.bandit.b0[family] = np.zeros(self.bandit.dim, dtype=np.float64)
+                        self.bandit.A0_inv[family] = safe_inv(self.bandit.A0[family])
+                    self.bandit.families[family].append(model_id)
                 self.bandit.A[model_id] = A_init
                 self.bandit.b[model_id] = b_init
                 self.bandit.A_inv[model_id] = A_inv_init
@@ -1513,6 +2155,14 @@ Previous version referenced non-existent attributes
             new_b = self.bandit.init_lambda * theta_vector  # Apply manual prior immediately
             new_A_inv = safe_inv(new_A)
             with self.bandit._lock:
+                if isinstance(self.bandit, HybridLinUCBPolicy):
+                    family = self._resolve_family_for_model(model_id)
+                    self.bandit.family_map[model_id] = family
+                    if family not in self.bandit.A0:
+                        self.bandit.A0[family] = np.eye(self.bandit.dim) * self.bandit.init_lambda
+                        self.bandit.b0[family] = np.zeros(self.bandit.dim, dtype=np.float64)
+                        self.bandit.A0_inv[family] = safe_inv(self.bandit.A0[family])
+                    self.bandit.families[family].append(model_id)
                 self.bandit.A[model_id] = new_A
                 self.bandit.b[model_id] = new_b
                 self.bandit.A_inv[model_id] = new_A_inv
@@ -2120,6 +2770,25 @@ Previous version referenced non-existent attributes
                 for model_id in router.bandit.models:
                     router.bandit.A[model_id] += np.eye(router.bandit.dim) * router.bandit.init_lambda
                 
+                # HYBRID POLICY: Seed family-shared state from arm-specific warmup data.
+                # The arm-specific matrices now contain the warmup priors; aggregate
+                # them into the family-shared A0/b0 so that the shared beta is
+                # immediately informed by prior data.  Each arm's contribution is
+                # added once; when a new arm joins the family later it benefits from
+                # this pre-seeded shared estimate.
+                if isinstance(router.bandit, HybridLinUCBPolicy):
+                    for family, members in router.bandit.families.items():
+                        for mid in members:
+                            if mid in router.bandit.A and mid in router.bandit.b:
+                                router.bandit.A0[family] = (
+                                    router.bandit.A0[family] + router.bandit.A[mid]
+                                    - np.eye(router.bandit.dim) * router.bandit.init_lambda
+                                )
+                                router.bandit.b0[family] = router.bandit.b0[family] + router.bandit.b[mid]
+                    logger.info(
+                        f"✅ Seeded {len(router.bandit.families)} family shared states from warmup priors"
+                    )
+
                 # Single refresh_inverse_cache() after all A matrices are
                 # finalized.  Previously there were two calls — one before and one
                 # after the regularization loop — wasting O(K·d³) at startup.
