@@ -43,13 +43,9 @@ except ImportError as e:
 
 
 try:
-    from banditgpt.cluster_detector import ClusterDetector
+    from bandit_gpt.cluster_detector import ClusterDetector
 except ImportError:
-    try:
-        # Fallback for direct file import (not package)
-        from cluster_detector import ClusterDetector
-    except ImportError:
-        ClusterDetector = None  # Optional feature
+    ClusterDetector = None  # Optional feature
 
 
 try:

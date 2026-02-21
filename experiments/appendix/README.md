@@ -24,8 +24,6 @@ Supplementary material supporting Figures 1, 3, 4, Table 2, and Figure 6.
 appendix/
 ├── README.md                           # This file
 ├── APPENDIX_MASTER.tex                 # Master LaTeX file
-├── APPENDIX_CONTENT_MAP.md             # Detailed content mapping
-├── QUICK_START.md                      # Quick navigation guide
 │
 ├── A_mathematical_foundations/
 │   ├── README.md

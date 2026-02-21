@@ -42,15 +42,6 @@ Configuration parameters and experimental setup for reproducibility. Covers all 
 
 ---
 
-## Removed Content
-
-| Item | Reason |
-|------|--------|
-| ~~D3: Strategy Selection Guide~~ | Duplicates Figure 3 findings in a different format; better suited for GitHub README than scientific appendix |
-| ~~D4: Hyperparameter Selection Guide~~ | Never created; Appendix A.3 covers n_eff sensitivity, Appendix A.2 covers Corralling ablation |
-
----
-
 ## Related Sections
 - **Appendix A.3**: Prior transfer theory validates n_eff parameter choices
 - **Appendix A.2**: Ablation table justifies Corralling configuration decisions (45 experiments)

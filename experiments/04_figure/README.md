@@ -123,7 +123,7 @@ If you already have `pareto_results_final.json`:
 - **Exploration**: α-decay from 2.0 to 0.1 over 1,121 steps
 - **Cost Penalties**: λ ∈ {0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0}
 - **Trials**: 5 independent runs per λ (seeds 42-46)
-- **Statistical Rigor**: 95% confidence intervals, FDR-corrected (see `STATISTICAL_NOTES.md`)
+- **Statistical Rigor**: 95% confidence intervals, FDR-corrected
 
 #### Learning Rate Regime Framework
 

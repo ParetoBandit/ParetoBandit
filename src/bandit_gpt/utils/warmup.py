@@ -27,7 +27,7 @@ import logging
 import numpy as np
 
 if TYPE_CHECKING:
-    from banditgpt.router import BanditRouter
+    from bandit_gpt.router import BanditRouter
 
 logger = logging.getLogger(__name__)
 

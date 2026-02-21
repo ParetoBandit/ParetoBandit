@@ -24,7 +24,7 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -75,11 +75,11 @@ Repository = "https://github.com/atabernermiller/banditgpt.git"
 Issues = "https://github.com/atabernermiller/banditgpt/issues"
 
 [project.scripts]
-banditgpt = "banditgpt.cli:main"
+banditgpt = "bandit_gpt.cli:main"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/banditgpt",
+    "/src/bandit_gpt",
     "/LICENSE",
     "/README.md",
     "/CHANGELOG.md",
@@ -87,11 +87,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["banditgpt"]
-
-# Include data files in the wheel (they are inside the package now)
-[tool.hatch.build.targets.wheel.force-include]
-"banditgpt/data" = "banditgpt/data"
+packages = ["src/bandit_gpt"]
 
 # --- Testing ---
 [tool.pytest.ini_options]
@@ -124,7 +120,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["banditgpt"]
+known-first-party = ["bandit_gpt"]
 
 [tool.mypy]
 python_version = "3.10"

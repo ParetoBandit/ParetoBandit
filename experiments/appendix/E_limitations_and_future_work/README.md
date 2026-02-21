@@ -28,16 +28,6 @@ System limitations, assumptions, future research directions, and detailed positi
 
 ---
 
-## Consolidation History
-
-| Item | Disposition |
-|------|-------------|
-| ~~E1 Addendum (regime-dependent effects)~~ | Best content merged into E1 "Regime-Dependent Behavior" paragraph; addendum removed (broken cross-refs, fictional model, draft quality) |
-| ~~E2: Practical Deployment Recommendations~~ | Superseded by E2 positioning section |
-| ~~E3: Broader Impact~~ | Never created; only required if venue mandates it (e.g., NeurIPS) |
-
----
-
 ## Related Sections
 - **Appendix A.2**: Ablation table addresses the "specific configuration" limitation (15 configs x 3 seeds)
 - **Appendix A.3**: Prior transfer analysis addresses the "brittle parameters" limitation (n_eff robustness)

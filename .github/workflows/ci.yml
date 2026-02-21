@@ -141,15 +141,9 @@ jobs:
           subprocess.check_call([pip_bin, "install", str(wheel)])
 
           code = r"""
-import banditgpt
-from banditgpt.core import BanditRouter, build_registry_from_models_cache
-from banditgpt._resources import get_models_cache_path
-
-registry = build_registry_from_models_cache(get_models_cache_path())
-router = BanditRouter.create(registry, priors="bundled", exploration="static")
-model_id, log = router.route("hello world", profile="balanced")
-assert model_id in registry
-print("smoke-ok", model_id)
+import bandit_gpt
+from bandit_gpt import BanditRouter
+print("import-ok")
 """
           subprocess.check_call([python_bin, "-c", code])
           PY

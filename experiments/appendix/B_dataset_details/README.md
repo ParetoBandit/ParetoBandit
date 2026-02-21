@@ -34,15 +34,6 @@ Validation methodology and cross-domain transfer analysis supporting Figure 1
 
 ---
 
-## Superseded Content
-
-The previous `B1_validation_methodology.tex` contained a clustering-based
-analysis (PC1 threshold at 0.3, k-means, GMM, silhouette scores) that did not
-match Figure 1's Spearman correlation methodology. The old version validated a
-decision boundary the router never uses. It is retained in git history.
-
----
-
 ## Related Sections
 - **Main Paper Figure 1**: PCA validation (Spearman correlation)
 - **Main Paper Table 2**: Dataset composition and splits
@@ -57,5 +48,6 @@ B_dataset_details/
 ├── README.md                          (this file)
 ├── B1_validation_methodology.tex      (Spearman-based validation)
 ├── B2_cross_domain_transfer.tex       (transfer analysis + feature pipeline)
-└── figures/                           (future: pipeline diagrams)
+├── B3_reward_signal.tex               (reward signal and judge model provenance)
+└── figures/
 ```
