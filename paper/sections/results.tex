@@ -29,7 +29,7 @@ Figure~\ref{fig:pareto}a reveals two distinct regimes, reflecting the complement
 
 At \textbf{low-to-moderate budgets} (\$0.0003--\$0.005 per request), RouteLLM's pre-trained classifier is competitive or superior. Its supervised training provides reliable routing without deployment overhead.
 
-At \textbf{higher budgets} (\$0.005+), banditGPT surpasses RouteLLM. Online learning discovers the correct aggregate model ordering for this deployment distribution, achieving a peak quality of $0.914 \pm 0.006$ (95\% CI, $n{=}20$)---a $+3.5\%$ improvement over RouteLLM's peak of 0.883. The Oracle upper bound (0.953) routes only 13\% of prompts to GPT-4-Turbo with perfect per-prompt knowledge, representing the theoretical ceiling for this model pair.
+At \textbf{higher budgets} (\$0.005+), banditGPT surpasses RouteLLM. Online learning discovers the correct aggregate model ordering for this deployment distribution, achieving a peak quality of $0.914 \pm 0.003$ (95\% CI, $n{=}20$)---a $+3.5\%$ improvement over RouteLLM's peak of 0.883. The Oracle upper bound (0.953) routes only 13\% of prompts to GPT-4-Turbo with perfect per-prompt knowledge, representing the theoretical ceiling for this model pair.
 
 \paragraph{Why RouteLLM wins at low budgets.} At tight budgets, both routers route the vast majority of traffic to Mixtral and allocate only a handful of prompts to GPT-4. Quality depends on selecting the \emph{right} prompts for the expensive model. RouteLLM's MF classifier, pre-trained on 100k preference pairs, encodes fine-grained prompt-level discrimination that banditGPT's 1,121 online examples cannot match at this granularity. In contrast, at higher budgets where 30--70\% of prompts are routed, \emph{aggregate model calibration} dominates per-prompt selection, and banditGPT's online learning---which discovers that Mixtral outperforms GPT-4 on this distribution---provides the larger advantage.
 
@@ -39,7 +39,7 @@ This evaluation uses two models to match RouteLLM's topology and enable a contro
 
 Figure~\ref{fig:pareto}b reveals why this matters in practice. banditGPT starts below RouteLLM (cold-start quality: $0.839 \pm 0.004$ with priors only) but crosses RouteLLM's peak after approximately \textbf{200 in-distribution prompts}. By step 400, the crossover is robust (95\% CI lower bound $>0.898$, well above RouteLLM's 0.883). This crossover demonstrates a fundamental asymmetry: a small amount of in-distribution experience outweighs a large volume of out-of-distribution supervision.
 
-The learning curve also reveals non-monotonic dynamics: quality temporarily dips around step 300 ($0.888 \pm 0.006$) before resuming improvement, reflecting the stochastic expert selection of the Corralling meta-learner as it re-weights the warmup and tabula rasa experts. By step 700, the variance across trials contracts sharply (CI width $< 0.01$), indicating that the router has converged to a stable, high-quality policy.
+The learning curve shows smooth, monotonic improvement from cold-start ($0.839$) through convergence ($0.911$ by step 750). Unlike earlier implementations, the production router exhibits no non-monotonic dips---the Corralling meta-learner decisively shifts $94\%$ of routing weight to the tabula rasa expert, producing consistent convergence across all 20 seeds. By step 500, the variance across trials contracts sharply (CI width $< 0.008$), indicating that the router has converged to a stable, high-quality policy.
 
 \subsubsection{Non-Monotonicity of Static Routing}
 \label{sec:nonmonotone}
@@ -109,7 +109,7 @@ Static-GPT-4-Turbo & 0.01300 & 0.812 & 108.5\% (Regr.) \\
 \midrule
 \multicolumn{4}{l}{\textit{Dynamic Routers}} \\
 RouteLLM-MF (SOTA) & 0.00690 & 0.883 & 53.8\% \\
-\textbf{banditGPT} & \textbf{0.00986} & \textbf{0.914 $\pm$ 0.006} & \textbf{30.0\%} \\
+\textbf{banditGPT} & \textbf{0.00986} & \textbf{0.914 $\pm$ 0.003} & \textbf{30.0\%} \\
 banditGPT (step 0) & 0.00986 & 0.839 $\pm$ 0.004 & 87.7\% \\
 \midrule
 Oracle (Upper Bound) & 0.00195 & 0.953 & 0.0\% \\
@@ -135,13 +135,13 @@ Table~\ref{tab:ablations} isolates the contribution of each architectural compon
 \textbf{Method} & \textbf{Quality} & \textbf{Cost} & \textbf{What is removed} \\
 & \textbf{($\pm$ std)} & \textbf{(\$/req)} & \\
 \midrule
-\textbf{banditGPT} & \textbf{0.912 $\pm$ 0.006} & \textbf{0.00967} & \textbf{Nothing (full system)} \\
+\textbf{banditGPT} & \textbf{0.914 $\pm$ 0.003} & \textbf{0.00986} & \textbf{Nothing (full system)} \\
 \midrule
 \multicolumn{4}{l}{\textit{Ablated Variants}} \\
-Tabula Rasa Only & 0.923 $\pm$ 0.000 & 0.00983 & Meta-learner + priors \\
-$\epsilon$-Greedy & 0.915 $\pm$ 0.007 & 0.00953 & UCB + meta-learner \\
-UCB Only (w/ priors) & 0.912 $\pm$ 0.000 & 0.00966 & Meta-learner \\
-Random & 0.812 $\pm$ 0.008 & 0.00672 & All learning \\
+Tabula Rasa Only & 0.923 $\pm$ 0.000 & 0.00998 & Meta-learner + priors \\
+$\epsilon$-Greedy & 0.916 $\pm$ 0.002 & 0.00995 & UCB + meta-learner \\
+UCB Only (w/ priors) & 0.923 $\pm$ 0.000 & 0.00998 & Meta-learner \\
+Random & 0.814 $\pm$ 0.003 & 0.00667 & All learning \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -149,7 +149,7 @@ Random & 0.812 $\pm$ 0.008 & 0.00672 & All learning \\
 \paragraph{Key Findings.}
 \textbf{(1)~Learning matters.} All learning-based methods substantially outperform random routing ($>10\%$ quality improvement), confirming that adaptive allocation provides real value over static policies.
 
-\textbf{(2)~Tabula rasa achieves the highest peak quality} (0.923 vs.\ 0.912 for the full system). This result is expected, not paradoxical: in this ablation, all 1,121 dev prompts flow through a single expert with zero prior bias. The warmup priors---trained on out-of-distribution RouteLLM data---introduce a small bias that online learning must overcome. In production settings where prior quality is unknown or deployment distribution differs from training, this bias risk is exactly what Corralling is designed to hedge against.
+\textbf{(2)~Single-expert LinUCB achieves the highest peak quality} (0.923 vs.\ 0.914 for the full system). This result is expected, not paradoxical: in this ablation, all 1,121 dev prompts flow through a single expert, avoiding the meta-learning overhead of maintaining two experts. Warmup priors are neutral after full burn-in ($0.923$ with or without priors), confirming that 1,121 online samples overwhelm the prior signal. In production, the $-0.009$ gap is the cost of Corralling's adaptive insurance, which pays off at moderate cost penalties (0.886 vs.\ 0.861 at $\lambda{=}0.2$, Appendix~\ref{appendix:architectural_ablation}) and under prior uncertainty (Section~\ref{sec:prior_degradation}).
 
 \textbf{(3)~Corralling excels when priors are reasonable.} The prior degradation sweep (Section~\ref{sec:prior_degradation}) shows that Corralling achieves 30--40\% lower regret than both alternatives when priors range from correct to moderately corrupted ($\alpha \leq 0.5$). However, under adversarial priors ($\alpha \geq 0.6$), Corralling's regret exceeds both warmup-only and tabula rasa, with high variance ($\sigma{\approx}23$). The value of Corralling is therefore not worst-case insurance across \emph{all} prior qualities, but superior performance in the operating regime that covers most practical deployments---moderate distribution shift from offline training data.
 

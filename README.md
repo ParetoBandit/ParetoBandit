@@ -18,7 +18,7 @@ BanditGPT is an open-source contextual bandit framework for LLM routing. Instead
 
 | Metric | Value |
 |--------|-------|
-| Peak quality | 0.914 ± 0.006 (vs. RouteLLM: 0.883) |
+| Peak quality | 0.914 ± 0.003 (vs. RouteLLM: 0.883) |
 | Gap closure to oracle | 70.0% (vs. RouteLLM: 46.2%) |
 | Prompts to surpass RouteLLM | ~200, label-free (at moderate-to-high budgets) |
 | Warm-start prior size | < 1 MB |

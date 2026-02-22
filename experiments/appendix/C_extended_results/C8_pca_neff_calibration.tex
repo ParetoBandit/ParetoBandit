@@ -7,8 +7,10 @@
 \subsubsection{PCA Dimensionality}
 
 We sweep the number of PCA components in $\{4, 8, 16, 32, 64, 128\}$, retraining
-PCA on the dev-set embeddings at each dimensionality.  Warmup priors are
-truncated/padded to match.  All other hyperparameters are fixed at defaults
+PCA on the dev-set embeddings at each dimensionality.  Warmup priors are used
+only at $d{=}32$ (the default); for other dimensions, the router starts
+without priors since the warmup file stores 33-dimensional matrices.
+All other hyperparameters are fixed at defaults
 ($\lambda{=}0$, $\eta{=}1.0$, $\alpha{=}2.0{\to}0.1$, $\neff{=}10$).
 
 \begin{table}[h]
@@ -20,22 +22,23 @@ truncated/padded to match.  All other hyperparameters are fixed at defaults
 \toprule
 \textbf{PCA Dim} & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-4                 & 0.9239 & $\pm$0.0005 \\
-8                 & 0.9228 & $\pm$0.0008 \\
-16                & 0.9206 & $\pm$0.0009 \\
-32 (default)      & 0.9165 & $\pm$0.0021 \\
-64                & 0.9223 & $\pm$0.0013 \\
-128               & 0.9181 & $\pm$0.0022 \\
+4                 & 0.9045 & $\pm$0.0108 \\
+8                 & 0.9144 & $\pm$0.0061 \\
+16                & 0.9134 & $\pm$0.0031 \\
+32 (default)      & 0.9148 & $\pm$0.0032 \\
+64                & 0.9161 & $\pm$0.0024 \\
+128               & 0.9115 & $\pm$0.0035 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
-Performance is flat across a 32$\times$ range of dimensionality (4--128),
-with all rewards in $[0.916, 0.924]$ (0.8\% spread).  Lower dimensions
-perform slightly better, because the two-model routing problem is low-rank
-and additional PCA components add estimation noise to LinUCB's ridge
-regression.
+Performance is stable across a broad range of dimensionality (8--128),
+with rewards in $[0.911, 0.916]$ (0.5\% spread).  The very lowest
+dimension ($d{=}4$) shows a noticeable drop to 0.905 with wider CI
+($\pm 0.011$), indicating that 4 PCA components are insufficient to
+capture the relevant contextual signal even for a two-model problem.
+The default $d{=}32$ is within CI of the peak ($d{=}64$: 0.916).
 
 \paragraph{Validation: optimal PCA dimension scales with $K$.}
 To confirm that $d{=}32$ is the right default for larger portfolios,
@@ -95,28 +98,28 @@ PCA dimensionality ($d{=}32$).  This controls how strongly the warmup priors
 \toprule
 $\neff$ & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-1                 & 0.9167 & $\pm$0.0016 \\
-3                 & 0.9181 & $\pm$0.0013 \\
-5                 & 0.9171 & $\pm$0.0021 \\
-10 (default)      & 0.9163 & $\pm$0.0024 \\
-20                & 0.9143 & $\pm$0.0031 \\
-50                & 0.9138 & $\pm$0.0026 \\
-100               & 0.9135 & $\pm$0.0024 \\
+1                 & 0.9121 & $\pm$0.0034 \\
+3                 & 0.9125 & $\pm$0.0032 \\
+5                 & 0.9123 & $\pm$0.0046 \\
+10 (default)      & 0.9140 & $\pm$0.0030 \\
+20                & 0.9119 & $\pm$0.0032 \\
+50                & 0.9106 & $\pm$0.0042 \\
+100               & 0.9147 & $\pm$0.0024 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
 The system is remarkably robust to prior strength: all $\neff$ values from
-1 to 100 yield rewards within 0.3\% of each other (0.914--0.918).  This
+1 to 100 yield rewards within 0.4\% of each other (0.911--0.915).  This
 robustness is a desirable property --- practitioners do not need to
 carefully tune $\neff$ to achieve good performance.
 
 The flatness arises because the 1,121-step burn-in provides
 ${\sim}100\times$ more data than even the strongest prior ($\neff{=}100$).
 The learning curve analysis (Appendix~\ref{appendix:learning_curves}) shows
-that after just 50 online samples, holdout reward jumps from 0.795
-(prior-only) to 0.888, indicating that online adaptation rapidly dominates
+that after just 50 online samples, holdout reward jumps from 0.839
+(prior-only) to 0.878, indicating that online adaptation rapidly dominates
 the prior signal.  In deployments with ample burn-in data, $\neff$ has
 minimal impact on final performance.
 

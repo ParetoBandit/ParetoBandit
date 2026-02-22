@@ -26,23 +26,23 @@ $\alpha_{\text{start}}{=}2.0$, 20 seeds).}
 \toprule
 $\eta$ & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-0.1 & 0.9158 & $\pm$0.0015 \\
-0.3 & 0.9162 & $\pm$0.0020 \\
-0.5 & 0.9151 & $\pm$0.0024 \\
-1.0 (default) & 0.9156 & $\pm$0.0024 \\
-2.0 & 0.9132 & $\pm$0.0044 \\
-5.0 & 0.9135 & $\pm$0.0040 \\
+0.1 & 0.9140 & $\pm$0.0030 \\
+0.3 & 0.9161 & $\pm$0.0017 \\
+0.5 & 0.9138 & $\pm$0.0040 \\
+1.0 (default) & 0.9110 & $\pm$0.0057 \\
+2.0 & 0.9135 & $\pm$0.0056 \\
+5.0 & 0.9137 & $\pm$0.0053 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
 Performance is remarkably stable across a 50$\times$ range of $\eta$ (0.1 to
-5.0), with all rewards falling within 0.9132--0.9162 (a 0.3\% spread).  The
-default $\eta{=}1.0$ achieves 0.9156, indistinguishable from the best (0.9162
-at $\eta{=}0.3$).  Higher $\eta$ values produce slightly wider confidence
-intervals, consistent with more volatile meta-weight switching, but the mean
-reward difference is negligible.
+5.0), with all rewards falling within 0.9110--0.9161 (a 0.5\% spread).  The
+default $\eta{=}1.0$ achieves 0.9110, within CI of the best (0.9161 at
+$\eta{=}0.3$).  Higher $\eta$ values produce wider confidence intervals,
+consistent with more volatile meta-weight switching, but the mean reward
+difference is negligible.
 
 \subsubsection{UCB Exploration Coefficient ($\alpha_{\text{start}}$)}
 
@@ -60,25 +60,25 @@ $\alpha_{\text{end}}{=}0.1$.
 \toprule
 $\alpha_{\text{start}}$ & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-0.5  & 0.9138 & $\pm$0.0047 \\
-1.0  & 0.9161 & $\pm$0.0034 \\
-2.0 (default)  & 0.9164 & $\pm$0.0025 \\
-4.0  & 0.9145 & $\pm$0.0035 \\
+0.5  & 0.9129 & $\pm$0.0049 \\
+1.0  & 0.9110 & $\pm$0.0074 \\
+2.0 (default)  & 0.9121 & $\pm$0.0095 \\
+4.0  & 0.9129 & $\pm$0.0028 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
 Similarly robust: all $\alpha_{\text{start}}$ values in $[0.5, 4.0]$ yield
-rewards in 0.9138--0.9164 (0.3\% spread).  The default $\alpha_{\text{start}}
-{=}2.0$ is near-optimal.  Under-exploration ($\alpha_{\text{start}}{=}0.5$)
-produces slightly wider CIs, suggesting more variance due to insufficient
-early exploration.
+rewards in 0.9110--0.9129 (0.2\% spread).  All values are within each
+other's confidence intervals, confirming that the system is insensitive
+to the exploration schedule.  The default $\alpha_{\text{start}}{=}2.0$
+is within the plateau.
 
 \subsubsection{Implications}
 
 Both $\eta$ and $\alpha_{\text{start}}$ exhibit a broad plateau:
-performance degrades by $<0.3\%$ across order-of-magnitude hyperparameter
+performance degrades by $<0.5\%$ across order-of-magnitude hyperparameter
 changes.  This robustness is a practical strength: practitioners can adopt
 the default hyperparameters without task-specific tuning.  The stability
 arises from two factors.  First, the Corralling safety mechanism

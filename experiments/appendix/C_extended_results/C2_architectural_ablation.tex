@@ -56,11 +56,11 @@ $\dagger$Zero variance: see text.}
 \midrule
 Random & (baseline) & $0.814 \pm 0.003$ & --- & \$0.00667 \\
 EMA Tracker$^\dagger$ & + learning & $0.812 \pm 0.000$ & $-0.002$ & \$0.01300 \\
-$\varepsilon$-greedy (no priors) & + context & $0.916 \pm 0.002$ & $+0.104$ & \$0.00964 \\
-$\varepsilon$-greedy (w/ priors) & + warmup priors & $0.906 \pm 0.002$ & $-0.010$ & \$0.00929 \\
-LinUCB (no priors) & + UCB exploration & $0.917 \pm 0.002$ & $+0.011$ & \$0.01027 \\
-LinUCB (w/ priors)$^\dagger$ & + UCB + priors & $0.912 \pm 0.000$ & $-0.005$ & \$0.00966 \\
-\textbf{banditGPT-Hybrid} & \textbf{+ Corralling} & $\mathbf{0.915 \pm 0.003}$ & $+0.003$ & \$0.00979 \\
+$\varepsilon$-greedy (no priors) & + context & $0.916 \pm 0.002$ & $+0.104$ & \$0.00995 \\
+$\varepsilon$-greedy (w/ priors) & + warmup priors & $0.916 \pm 0.002$ & $+0.000$ & \$0.00995 \\
+LinUCB (no priors)$^\dagger$ & + UCB exploration & $0.923 \pm 0.000$ & $+0.007$ & \$0.00998 \\
+LinUCB (w/ priors)$^\dagger$ & + UCB + priors & $0.923 \pm 0.000$ & $+0.000$ & \$0.00998 \\
+\textbf{banditGPT-Hybrid} & \textbf{+ Corralling} & $\mathbf{0.914 \pm 0.003}$ & $-0.009$ & \$0.00986 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -75,68 +75,62 @@ pipeline (Section~\ref{sec:cross_domain_transfer}): prompt embeddings contain
 strong routing signal that non-contextual methods cannot exploit.
 
 \paragraph{2.\ UCB exploration outperforms $\varepsilon$-greedy.}
-LinUCB (no priors) achieves 0.917 vs.\ $\varepsilon$-greedy (no priors) at
-0.916 --- a small but consistent advantage.  UCB's optimism-based exploration
+LinUCB (no priors) achieves 0.923 vs.\ $\varepsilon$-greedy (no priors) at
+0.916 --- a meaningful advantage ($+0.7$\%).  UCB's optimism-based exploration
 targets regions of high uncertainty rather than exploring uniformly,
 improving sample efficiency during burn-in.
 
-\paragraph{3.\ banditGPT-Hybrid matches or exceeds all baselines.}
-The full system (0.914) performs within CIs of LinUCB (no priors) (0.917) at
-$\lambda{=}0$.  While the difference in peak quality is not statistically
-significant, banditGPT-Hybrid provides an additional property that simpler
-methods lack: \emph{dominant performance when priors are useful}.  Figure~3
-demonstrates this directly: with good-to-moderate priors ($\alpha \leq 0.5$),
-Corralling achieves 30--40\% lower regret than both warmup-only and tabula
-rasa (regret 32--38 vs.\ 52+), by exploiting complementary alpha schedules
-across its two experts.  Under adversarial priors ($\alpha \geq 0.6$),
-Corralling's variance increases and tabula rasa becomes safest---but this
-regime is rare in practice and detectable at runtime.
-In this ablation, Corralling correctly detects that priors are
-mildly misspecified and allocates most weight to the tabula rasa expert
-(final weights: $0.755 \pm 0.389$ tabula rasa;
-Appendix~\ref{appendix:learning_curves}), automatically recovering the
-performance of the best single expert.  Notably, banditGPT-Hybrid
-($\pm 0.003$ CI) restores seed-dependent variability that LinUCB (w/ priors)
-alone lacks ($\pm 0.000$): the $\gamma$-mixing floor and stochastic expert
-sampling ensure that exploration is not suppressed by over-confident priors.
+\paragraph{3.\ banditGPT-Hybrid trades marginal peak quality for robustness.}
+The full system (0.914) is slightly below LinUCB (no priors) at 0.923
+($\Delta{=}-0.009$) at $\lambda{=}0$.  This gap is the cost of maintaining
+two experts plus meta-learning overhead.  However, banditGPT-Hybrid provides
+a property that simpler methods lack: \emph{dominant performance when priors
+are useful and adaptive cost--quality control}.  Figure~3 demonstrates
+this directly: with good-to-moderate priors ($\alpha \leq 0.5$), Corralling
+achieves 30--40\% lower regret than both warmup-only and tabula rasa
+(regret 32--38 vs.\ 52+), by exploiting complementary alpha schedules
+across its two experts.  At higher $\lambda$ values
+(Table~\ref{tab:ablation_lambda_sweep}), banditGPT-Hybrid maintains
+higher quality than LinUCB --- e.g., 0.886 vs.\ 0.861 at $\lambda{=}0.2$
+--- because Corralling's adaptive expert weighting navigates the
+cost--quality trade-off more smoothly.
+
+The Corralling mechanism decisively identifies the tabula rasa expert
+as superior for this cross-domain dataset, allocating $0.944 \pm 0.067$
+weight to it (Appendix~\ref{appendix:learning_curves}).  The low variance
+($\pm 0.067$) across seeds confirms consistent convergence.
 
 \paragraph{4.\ Non-contextual learning adds no value over random.}
 The EMA tracker (0.812) performs comparably to random routing (0.814), and
 in fact defaults to a single model (GPT-4-Turbo at $\lambda{=}0$, Mixtral at
 $\lambda{\geq}0.5$). With only two models whose global win rates are similar,
 non-contextual tracking cannot distinguish them without prompt-level features.
-Both EMA Tracker and LinUCB (w/ priors) exhibit zero variance across 20
-seeds ($\dagger$ in Table~\ref{tab:architectural_ablation}).  EMA Tracker is
-deterministic because with $K{=}2$ and $\varepsilon{=}0.1$, the EMA
-converges to the same single-model policy regardless of seed.  LinUCB
-(w/ priors) is deterministic because the well-conditioned prior $A$ matrix
-($\neff{=}10$) makes the UCB bonus small from step~1, suppressing
-exploration --- every seed follows the same prior-dictated trajectory.
-This prior-induced rigidity is the mechanism behind the negative $\Delta$
-for warmup priors (Finding~5).
+EMA Tracker, LinUCB (no priors), and LinUCB (w/ priors) all exhibit zero
+variance across 20 seeds ($\dagger$ in Table~\ref{tab:architectural_ablation}).
+EMA Tracker is deterministic because with $K{=}2$ and $\varepsilon{=}0.1$,
+the EMA converges to the same single-model policy regardless of seed.
+LinUCB variants are deterministic because, after 1,121 burn-in steps, the
+well-conditioned $A$ matrices make the UCB bonus negligibly small,
+producing identical greedy policies regardless of seed or prior state.
 
-\paragraph{5.\ Warmup priors: regime-dependent benefit.}
-Adding warmup priors to $\varepsilon$-greedy slightly reduces reward
-(0.906 vs.\ 0.916, $\Delta{=}{-}0.010$) and to LinUCB slightly reduces
-reward (0.912 vs.\ 0.917, $\Delta{=}{-}0.005$).  This reflects the
-cross-domain mismatch between the RouteLLM training distribution and the
-LMSYS holdout.  However, this result is specific to the
-\emph{train/eval protocol} used here, where 1,121 burn-in samples
-($100\times$ the prior's $\neff{=}10$ effective samples) overwhelm the
-prior by evaluation time.  In Figure~3's \emph{online learning protocol}
---- where every routing decision counts from step~1 and there is no
-separate burn-in --- Corralling with warmup priors achieves 30--40\%
-lower regret than tabula rasa (37 vs.\ 52 at $\alpha{=}0$).
+\paragraph{5.\ Warmup priors are neutral after full burn-in.}
+Adding warmup priors has no measurable effect after 1,121 burn-in steps:
+$\varepsilon$-greedy achieves 0.916 with or without priors, and LinUCB
+achieves 0.923 with or without priors ($\Delta{=}0.000$ in both cases).
+This confirms that 1,121 burn-in samples ($100\times$ the prior's
+$\neff{=}10$ effective samples) completely overwhelm the prior
+contribution.
 
-The $\neff$ ablation (Appendix~\ref{appendix:pca_neff}) confirms this
-interpretation: $\neff{=}1$ through $\neff{=}100$ all yield ${\sim}0.916$,
+The $\neff$ ablation (Appendix~\ref{appendix:pca_neff}) corroborates this:
+$\neff{=}1$ through $\neff{=}100$ all yield ${\sim}0.912$--$0.915$,
 because the burn-in data dominates regardless of prior strength.  Warmup
 priors therefore provide the most value in \textbf{low-data online
-deployment} (routing live traffic from step~1), and become irrelevant
-after sufficient online observation.  When priors are misspecified, the
-Corralling meta-learner detects this and shifts weight to the tabula rasa
-expert, preventing the priors from degrading performance
-(Appendix~\ref{appendix:cold_start}).
+deployment} (routing live traffic from step~1): Figure~3 shows Corralling
+with warmup priors achieves 30--40\% lower regret than tabula rasa
+(37 vs.\ 52 at $\alpha{=}0$).  The cold-start ablation
+(Appendix~\ref{appendix:cold_start}) further demonstrates that priors
+alone yield 0.839 quality --- above static baselines --- providing a
+useful starting point before online learning takes over.
 
 \subsubsection{Practical Guidance}
 
@@ -154,7 +148,7 @@ These findings translate into clear guidance for deploying the library:
           rasa for most practical deployments (Figure~3).
     \item \textbf{Use LinUCB (no priors) when priors are unavailable.}
           If no warmup data is available, LinUCB without priors achieves
-          0.917 --- the highest single-expert reward --- and is the simplest
+          0.923 --- the highest single-expert reward --- and is the simplest
           contextual option.  Corralling over two tabula rasa experts
           provides no additional benefit in this case.
     \item \textbf{Warmup priors matter most in low-data regimes.}
@@ -168,9 +162,13 @@ These findings translate into clear guidance for deploying the library:
 
 Table~\ref{tab:ablation_lambda_sweep} shows representative operating points
 across the full $\lambda$ sweep.  All methods converge to Mixtral-only
-routing (reward ${\approx}0.823$, cost ${\approx}\$0.0003$) at high $\lambda$,
-confirming that the cost penalty mechanism works consistently across
-architectures.
+routing (reward ${\approx}0.823$, cost ${\approx}\$0.0003$) at high $\lambda$.
+At moderate cost penalties ($\lambda{=}0.2$--$0.5$), banditGPT-Hybrid
+\emph{outperforms} all baselines: 0.886 vs.\ 0.861 (LinUCB) at
+$\lambda{=}0.2$, and 0.860 vs.\ 0.823 at $\lambda{=}0.5$.  This advantage
+arises because Corralling's adaptive expert weighting navigates the
+cost--quality trade-off more smoothly than single-expert strategies,
+mirroring the Pareto frontier analysis in Figure~4.
 
 \begin{table}[h]
 \centering
@@ -183,11 +181,11 @@ architectures.
 \midrule
 Random & 0.814 & 0.814 & 0.814 & 0.814 & 0.814 & 0.814 \\
 EMA Tracker & 0.812 & 0.813 & 0.814 & 0.816 & 0.823 & 0.823 \\
-$\varepsilon$-greedy (no priors) & 0.916 & 0.908 & 0.895 & 0.858 & 0.823 & 0.823 \\
-$\varepsilon$-greedy (w/ priors) & 0.906 & 0.893 & 0.878 & 0.851 & 0.823 & 0.823 \\
-LinUCB (no priors) & 0.917 & 0.908 & 0.905 & 0.863 & 0.823 & 0.823 \\
-LinUCB (w/ priors) & 0.912 & 0.900 & 0.884 & 0.852 & 0.823 & 0.823 \\
-\textbf{banditGPT-Hybrid} & \textbf{0.915} & \textbf{0.909} & \textbf{0.896} & \textbf{0.863} & \textbf{0.823} & \textbf{0.823} \\
+$\varepsilon$-greedy (no priors) & 0.916 & 0.909 & 0.899 & 0.864 & 0.823 & 0.823 \\
+$\varepsilon$-greedy (w/ priors) & 0.916 & 0.909 & 0.899 & 0.864 & 0.823 & 0.823 \\
+LinUCB (no priors) & 0.923 & 0.911 & 0.908 & 0.861 & 0.823 & 0.823 \\
+LinUCB (w/ priors) & 0.923 & 0.911 & 0.908 & 0.861 & 0.823 & 0.823 \\
+\textbf{banditGPT-Hybrid} & \textbf{0.914} & \textbf{0.906} & \textbf{0.898} & \textbf{0.886} & \textbf{0.860} & \textbf{0.823} \\
 \bottomrule
 \end{tabular}
 \end{table}
