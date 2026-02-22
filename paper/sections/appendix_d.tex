@@ -125,3 +125,44 @@ Practitioners should select $\eta$ based on operational objectives:
 
 % Sensitivity analysis covered in appendix folder: C1 (n_eff) and D1 (Corralling ablation).
 
+% ----------------------------------------------------------------------------
+% D.3: Dynamic Model Onboarding
+% ----------------------------------------------------------------------------
+
+\subsection{Dynamic Model Onboarding: Controlled Family Sharing}
+\label{app:model_onboarding_figure}
+
+Section~\ref{sec:transfer_null} reports a null result for \emph{per-model} semantic transfer in a leave-one-out setting. Here we evaluate whether the Hybrid LinUCB's \emph{family-level} shared $\betavec$ provides additional value during dynamic model onboarding via \texttt{register\_model()}.
+
+\paragraph{Controlled Design.}
+To isolate the family sharing effect, we use the \textbf{same newcomer model} (\texttt{openai/gpt-4.1}) in both conditions, varying \emph{only} the family assignment:
+\begin{itemize}[nosep]
+    \item \textbf{Shared family:} \texttt{gpt-4.1} auto-joins the \texttt{openai/gpt-4} family, sharing $\betavec$ with \texttt{gpt-4-turbo}.
+    \item \textbf{Isolated family:} \texttt{gpt-4.1} is forced into a singleton family via override---no family sharing.
+\end{itemize}
+Both conditions receive identical semantic bootstrapping (\texttt{gpt-4.1} $\to$ \texttt{gpt-4-turbo}, similarity $0.849$, $N_{\text{eff}}{=}5$), same seeds, same data, and same embeddings. A 2-model base fleet runs for 500~steps before introduction; routing continues through step~1,121. Holdout: $N{=}750$, 20~seeds, 95\% CIs ($t_{19}$).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/model_onboarding.png}
+\caption{\textbf{Dynamic Model Onboarding: Shared vs.\ Isolated Family (Same Model).}
+\textbf{(a)}~Reward trajectory (50-step moving average). Both conditions are identical pre-introduction and converge to the same post-introduction quality. Oracle and always-newcomer baselines shown for reference.
+\textbf{(b)}~Newcomer traffic share (50-step window). The isolated condition explores the newcomer slightly more aggressively (higher UCB bonus from singleton family uncertainty).
+\textbf{(c)}~Prediction error (MAE) for prompts routed to the newcomer. The shared condition starts at substantially lower error (0.09 vs.\ 0.17) thanks to the inherited $\betavec$, but both converge to the same final MAE (${\sim}0.045$).}
+\label{fig:model_onboarding}
+\end{figure}
+
+\paragraph{Holdout Quality: A Null Result.}
+Both conditions achieve identical holdout reward: $0.965 \pm 0.005$ (shared) vs.\ $0.965 \pm 0.003$ (isolated). A paired $t$-test confirms no significant difference ($t(19){=}0.05$, $p{=}0.958$). Both substantially exceed the 2-model baseline ($0.911$, Table~\ref{tab:learning_curve}).
+
+\paragraph{Calibration Speed: An Early Advantage.}
+While final quality is indistinguishable, the shared condition starts with 46\% lower prediction error (MAE: 0.090 vs.\ 0.165 in the first 50 newcomer selections). The inherited family $\betavec$ provides a better initial reward estimate, reducing prediction uncertainty during the critical early routing decisions. Both conditions converge to the same final MAE (${\sim}0.045$), explaining the null result on holdout quality.
+
+\paragraph{Interpretation: Semantic Bootstrapping Dominates.}
+The null result does not mean family sharing is useless---it means that \emph{semantic bootstrapping already provides sufficient signal} in this setting. The \texttt{register\_model()} API transfers the neighbor's learned $\thetavec$ with confidence reset ($\Amat{=}\mathbf{I}$), giving the newcomer an informed starting point while preserving exploration. The additional family $\betavec$ accelerates early calibration but does not improve the converged policy.
+
+\paragraph{Practical guidance.}
+For practitioners, the operational message is simple: \textbf{calling \texttt{register\_model()} is sufficient for effective model onboarding.}  The API automatically discovers the nearest semantic neighbor, bootstraps the newcomer's reward estimates, and resets confidence to ensure exploration---no manual family configuration required.  Adding a third model to a 2-model fleet improved holdout quality from $0.911$ to $0.965$ (+5.4~pp), and this improvement was identical regardless of whether family sharing was active.  The newcomer reaches full calibration within ${\sim}600$ routing decisions; at typical production throughput ($>$100~req/hr), this completes within a few hours.
+
+Family sharing provides faster early calibration (46\% lower initial prediction error for the first ${\sim}50$ decisions) and becomes more relevant when: (a)~no strong semantic neighbor exists, (b)~the family has extensive routing history, or (c)~the portfolio is large enough that per-model learning is slow.  For the common case of onboarding a new variant from a known provider (e.g., a new GPT-4 release), semantic bootstrapping alone handles the transition seamlessly.  Numerical details in Appendix~\ref{appendix:model_onboarding}.
+

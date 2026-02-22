@@ -506,8 +506,9 @@ def _make_corralling_router(registry: dict, **kwargs) -> BanditRouter:
 
 
 class TestCorrallingFamilyActivation:
-    """Verify that family-based hybrid sharing in Corralling experts is
-    activated based on family structure, NOT model count."""
+    """Verify that Corralling experts always receive family_map when using
+    hybrid policy, regardless of whether families are currently shared or
+    singleton.  This ensures register_model() can activate sharing later."""
 
     def _expert_family_maps(self, router: BanditRouter):
         """Return (warmup_family_map, tabula_rasa_family_map) from Corralling experts."""
@@ -532,8 +533,10 @@ class TestCorrallingFamilyActivation:
         assert tr_map is not None, "K=2 same family should enable hybrid in tabula rasa"
         assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
 
-    def test_k2_different_families_stays_disjoint(self):
-        """Two models in unrelated families should NOT activate sharing."""
+    def test_k2_different_families_still_gets_family_map(self):
+        """Two models in unrelated families should still receive family_map
+        so that hybrid sharing activates immediately when a same-family
+        model is later added via register_model()."""
         reg = {
             "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
             "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
@@ -541,8 +544,9 @@ class TestCorrallingFamilyActivation:
         router = _make_corralling_router(reg)
         wu_map, tr_map = self._expert_family_maps(router)
 
-        assert wu_map is None, "K=2 different families should not enable hybrid"
-        assert tr_map is None
+        assert wu_map is not None, "Hybrid policy should always pass family_map to experts"
+        assert tr_map is not None
+        assert wu_map["openai/gpt-4o"] != wu_map["anthropic/claude-3-haiku"]
 
     def test_k3_with_shared_family_enables_hybrid(self):
         """Three models where two share a family should activate sharing."""
@@ -558,8 +562,9 @@ class TestCorrallingFamilyActivation:
         assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
         assert wu_map["anthropic/claude-3-haiku"] != wu_map["openai/gpt-4o"]
 
-    def test_k5_all_different_families_stays_disjoint(self):
-        """Five models from five unrelated families should NOT activate sharing."""
+    def test_k5_all_different_families_still_gets_family_map(self):
+        """Five models from five unrelated families should still receive
+        family_map so that register_model() can activate sharing later."""
         reg = {
             "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
             "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
@@ -570,8 +575,10 @@ class TestCorrallingFamilyActivation:
         router = _make_corralling_router(reg)
         wu_map, tr_map = self._expert_family_maps(router)
 
-        assert wu_map is None, "All-singleton families should not enable hybrid"
-        assert tr_map is None
+        assert wu_map is not None, "Hybrid policy should always pass family_map to experts"
+        assert tr_map is not None
+        families = set(wu_map.values())
+        assert len(families) == 5, "All families should be singletons"
 
     def test_k5_with_mixed_families_enables_hybrid(self):
         """Five models with some families shared should activate sharing."""

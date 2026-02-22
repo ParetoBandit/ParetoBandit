@@ -2232,15 +2232,16 @@ Previous version referenced non-existent attributes
                 prior_b = self.bandit.b[model_id]
             
             # C. Update Experts (before registry publication)
+            family = self._resolve_family_for_model(model_id)
             self.corralling_router.add_model(model_id)
             
             expert_warmup = self.corralling_router.experts[0]
             if hasattr(expert_warmup, 'add_model'):
-                expert_warmup.add_model(model_id, prior_A, prior_b, norm_cost)
+                expert_warmup.add_model(model_id, prior_A, prior_b, norm_cost, family=family)
             
             expert_tr = self.corralling_router.experts[1]
             if hasattr(expert_tr, 'add_model'):
-                expert_tr.add_model(model_id, norm_cost)
+                expert_tr.add_model(model_id, norm_cost, family=family)
                 
             logger.info(f"✅ {model_id} added to Corralling/Hybrid system")
         
@@ -2905,25 +2906,19 @@ Previous version referenced non-existent attributes
             # ---------------------------------------------------------------
             # Hybrid family_map for Corralling experts
             # ---------------------------------------------------------------
-            # Enable family-shared parameter learning when at least two
-            # models belong to the same family (regardless of K).  Two
-            # models from the same family (e.g. gpt-4o and gpt-4o-mini)
-            # benefit from shared β just as much as larger registries.
+            # Always pass family_map to experts when using hybrid policy.
+            # Even if every family is currently a singleton, the shared
+            # beta infrastructure must be in place so that dynamically
+            # registered models can join an existing family and immediately
+            # benefit from the accumulated shared parameters.
             expert_family_map = None
             if router.policy_type == "hybrid":
-                _candidate_map = router._resolve_family_map(router.bandit.models)
-                _families = set(_candidate_map.values())
-                if len(_families) < len(router.bandit.models):
-                    expert_family_map = _candidate_map
-                    logger.info(
-                        f"   🔗 Hybrid sharing: {len(_families)} families across "
-                        f"{len(router.bandit.models)} arms → family_map enabled in experts"
-                    )
-                else:
-                    logger.info(
-                        f"   🔗 Hybrid sharing: K={len(router.bandit.models)}, "
-                        f"families={len(_families)} → disjoint (no shared families)"
-                    )
+                expert_family_map = router._resolve_family_map(router.bandit.models)
+                _families = set(expert_family_map.values())
+                logger.info(
+                    f"   🔗 Hybrid sharing: {len(_families)} families across "
+                    f"{len(router.bandit.models)} arms → family_map enabled in experts"
+                )
             
             # ---------------------------------------------------------------
             # Expert 1: The "Informed Explorer" (Warmup with Constant α)
@@ -5067,7 +5062,8 @@ class CostAwareLinUCBRouter:
             if self._sm_update_count[model] % 1000 == 0:
                 self.A_inv[model] = safe_inv(self.A[model])
     
-    def add_model(self, model_id: str, A: np.ndarray, b: np.ndarray, normalized_cost: float) -> None:
+    def add_model(self, model_id: str, A: np.ndarray, b: np.ndarray,
+                  normalized_cost: float, family: str | None = None) -> None:
         """
         Dynamically register a new model with specific priors (for Corralling integration).
         
@@ -5079,20 +5075,25 @@ class CostAwareLinUCBRouter:
             A: Initial Precision matrix (d x d) from semantic transfer
             b: Initial Moment vector (d,) from semantic transfer  
             normalized_cost: Cost penalty in [0, 1]
+            family: Family identifier for hybrid sharing (inferred if None)
         """
-        # Lock the entire add sequence so concurrent select_model()
-        # never sees the model in self.models but with missing A_inv.
         with self._lock:
-            # Note: model_id may already be in self.models if experts share the list with main bandit
-            # Always update A/b matrices even if model_id exists in list
             if model_id not in self.models:
                 self.models.append(model_id)
                 
             self.A[model_id] = A.copy()
             self.b[model_id] = b.copy()
-            # [PERFORMANCE FIX]: Cache A_inv for new model
             self.A_inv[model_id] = safe_inv(A)
             self.model_costs[model_id] = {"normalized_cost": normalized_cost}
+
+            if self.family_map is not None and family is not None:
+                self.family_map[model_id] = family
+                if family not in self.A0:
+                    self.A0[family] = np.eye(self.context_dim)
+                    self.b0[family] = np.zeros(self.context_dim)
+                    self.A0_inv[family] = np.eye(self.context_dim)
+                self.families[family].append(model_id)
+
         logger.debug(f"✅ Added {model_id} to Warmup Expert with transferred priors (||A||_F={np.linalg.norm(A):.1f})")
 
     def __deepcopy__(self, memo):
@@ -5312,7 +5313,8 @@ class CostAwareTabulaRasaRouter:
             if self._sm_update_count[model] % 1000 == 0:
                 self.A_inv[model] = safe_inv(self.A[model])
     
-    def add_model(self, model_id: str, normalized_cost: float) -> None:
+    def add_model(self, model_id: str, normalized_cost: float,
+                  family: str | None = None) -> None:
         """
         Dynamically register a new model with cold-start state (for Corralling integration).
         
@@ -5322,24 +5324,27 @@ class CostAwareTabulaRasaRouter:
         Args:
             model_id: New model identifier
             normalized_cost: Cost penalty in [0, 1]
+            family: Family identifier for hybrid sharing (inferred if None)
         """
-        # Lock the entire add sequence so concurrent select_model()
-        # never sees the model in self.models but with missing A_inv.
         with self._lock:
-            # Note: model_id may already be in self.models if experts share the list with main bandit
-            # Always update A/b matrices even if model_id exists in list
             if model_id not in self.models:
                 self.models.append(model_id)
             
-            # Initialize with Ridge Regularization (Identity) - pure online learning
-            # Use stored context_dim instead of hardcoded 33.
             dim = self.context_dim
             
             self.A[model_id] = self.ridge_lambda * np.eye(dim)
             self.b[model_id] = np.zeros(dim)
-            # [PERFORMANCE FIX]: Cache A_inv for new model
             self.A_inv[model_id] = safe_inv(self.A[model_id])
             self.model_costs[model_id] = {"normalized_cost": normalized_cost}
+
+            if self.family_map is not None and family is not None:
+                self.family_map[model_id] = family
+                if family not in self.A0:
+                    self.A0[family] = np.eye(dim) * self.ridge_lambda
+                    self.b0[family] = np.zeros(dim)
+                    self.A0_inv[family] = safe_inv(self.A0[family])
+                self.families[family].append(model_id)
+
         logger.debug(f"✅ Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")
     
     def add_model_with_semantic_transfer(self, new_model_id: str, semantic_neighbor_id: str = None):
