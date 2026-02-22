@@ -49,8 +49,8 @@ The 95\% bootstrap CI for banditGPT's mean reward is $[0.913, 0.918]$,
 which entirely excludes RouteLLM-MF's best point ($0.883$).
 
 \paragraph{Oracle gap closure.}
-banditGPT closes $\frac{0.915 - 0.823}{0.953 - 0.823} = 70.9\%$ of the
-Oracle--Mixtral gap, vs.\ RouteLLM-MF's 45.9\%.
+banditGPT closes $\frac{0.914 - 0.823}{0.953 - 0.823} = 70.0\%$ of the
+Oracle--Mixtral gap, vs.\ RouteLLM-MF's 46.2\%.
 
 \subsubsection{Interpretation}
 
@@ -79,6 +79,15 @@ We therefore emphasize the bootstrap CI as the most conservative measure:
 even the lower bound (0.913) exceeds the RouteLLM-MF reference by 3.0
 percentage points, confirming significance under any reasonable
 uncertainty in the baseline.
+
+\paragraph{4.\ Scope: quality-focused regime only.}
+These tests compare methods at $\lambda{=}0$ (pure quality optimization).
+The Pareto frontier analysis (Figure~4; Appendix~\ref{appendix:pareto_detailed})
+reveals a more nuanced picture across the full cost--quality plane: at low
+budgets (cost $< \$0.005$), RouteLLM-MF's prompt-level discrimination
+makes it competitive with banditGPT, while the large, significant advantage
+reported here applies to the moderate-to-high budget regime where banditGPT's
+online aggregate calibration dominates.
 
 \subsubsection{Reproducibility}
 

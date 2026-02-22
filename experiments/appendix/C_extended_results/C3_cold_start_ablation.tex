@@ -49,7 +49,7 @@ $\geq 1.0$ & $0.823$ & $0.823$ & $0.000$ & $0.0\%$ \\
 \subsubsection{Key Findings}
 
 \paragraph{1.\ Online adaptation is highly effective.}
-Warm-start banditGPT (0.915) outperforms cold-start (0.795) by 12 percentage
+Warm-start banditGPT (0.914) outperforms cold-start (0.795) by 12 percentage
 points at $\lambda{=}0$.  This demonstrates that the online learning
 machinery --- contextual LinUCB with UCB exploration, Corralling
 meta-learning, and bandit feedback --- extracts substantial routing signal
@@ -87,7 +87,7 @@ any} online adaptation, testing priors in a regime where they must stand
 alone --- a harder condition than online deployment.
 
 \paragraph{4.\ The system recovers through online learning.}
-Despite the cross-domain mismatch, warm-start banditGPT reaches 0.915 ---
+Despite the cross-domain mismatch, warm-start banditGPT reaches 0.914 ---
 well above RouteLLM-MF's best (0.883) and even above oracle-optimal
 RouteLLM routing.  This demonstrates that the combination of online
 adaptation and Corralling meta-learning can overcome misspecified priors:
@@ -98,8 +98,13 @@ bias within ${\sim}500$ steps (Appendix~\ref{appendix:learning_curves}).
 \paragraph{5.\ Fair comparison with RouteLLM.}
 RouteLLM-MF achieves peak reward of 0.883 on the holdout set (from the
 Figure~4 Pareto sweep).  banditGPT cold-start (0.795) is substantially below
-this, confirming that banditGPT's advantage in Figure~4 stems from online
-adaptation on the dev set, not from unfair access to additional data.
+this, confirming that banditGPT's advantage at moderate-to-high budgets
+in Figure~4 stems from online adaptation on the dev set, not from unfair
+access to additional data.  At low budgets, RouteLLM-MF's prompt-level
+discrimination from 100K pre-trained pairs makes it competitive even against
+the fully trained banditGPT (Section~\ref{sec:nonmonotone}); the cold-start
+gap reinforces this: without online learning, banditGPT cannot match
+RouteLLM's fine-grained routing at any budget.
 
 \subsubsection{Deployment Guidance}
 
@@ -110,7 +115,7 @@ data availability conditions:
     \item \textbf{With burn-in data ($\geq 500$ labeled prompts):}
           Use the standard warm-start protocol.  The system reaches
           ${\sim}0.908$ at 750 steps (Appendix~\ref{appendix:learning_curves})
-          and ${\sim}0.915$ at 1,121 steps, significantly outperforming
+          and ${\sim}0.914$ at 1,121 steps, significantly outperforming
           all baselines.  Cross-domain priors provide negligible additional
           benefit and can be omitted.
     \item \textbf{With limited data ($50$--$500$ prompts):}
@@ -126,7 +131,7 @@ data availability conditions:
           online routing, or use a static routing baseline while
           accumulating data.
     \item \textbf{Fairness vs.\ baselines:}
-          banditGPT's advantage over RouteLLM-MF (0.915 vs.\ 0.883) stems
+          banditGPT's advantage over RouteLLM-MF (0.914 vs.\ 0.883) stems
           entirely from online adaptation.  When comparing to pre-trained
           baselines, report both warm-start and cold-start conditions to
           separate the algorithm's contribution from the data advantage.

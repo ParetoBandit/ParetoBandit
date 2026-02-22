@@ -504,7 +504,7 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
 
 def main():
     logger.info("=" * 70)
-    logger.info("FIGURE 5 (REVISED): HONEST PARETO + LEARNING CURVE")
+    logger.info("FIGURE 4: PARETO FRONTIER + LEARNING CURVE")
     logger.info("=" * 70)
     logger.info("\nTwo-panel figure:")
     logger.info("  (a) Pareto frontier (α₀=1.0) with regime annotations")

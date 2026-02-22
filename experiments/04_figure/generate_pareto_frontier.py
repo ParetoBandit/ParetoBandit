@@ -681,7 +681,7 @@ def save_results(results: Dict, output_dir: Path, n_prompts: int, prefix: str = 
 
 def main():
     logger.info("="*70)
-    logger.info("FIGURE 5: PARETO FRONTIER ANALYSIS")
+    logger.info("FIGURE 4: PARETO FRONTIER ANALYSIS")
     logger.info("="*70)
     logger.info("\n⚠️  REAL DATA ONLY - NO SYNTHETIC FALLBACKS")
     logger.info("📊 Proper Train/Test Split:")

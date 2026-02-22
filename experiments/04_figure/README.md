@@ -2,7 +2,7 @@
 
 **Cost–quality trade-off analysis: banditGPT-Hybrid vs. RouteLLM-MF**
 
-This directory contains the scripts and data for the primary competitive evaluation (Figure 4 / Figure 5) of the banditGPT paper.
+This directory contains the scripts and data for the primary competitive evaluation (Figure 4) of the banditGPT paper.
 
 ---
 
@@ -26,7 +26,7 @@ This experiment answers that question via:
 
 ```
 04_figure/
-├── generate_pareto_frontier.py   # Main Pareto experiment (Figure 5)
+├── generate_pareto_frontier.py   # Main Pareto experiment (Figure 4 data)
 ├── generate_figure4.py           # Two-panel figure (Pareto + Learning Curve)
 ├── run_learning_curves.py        # Learning curve analysis (panel B)
 ├── run_statistical_tests.py      # Statistical validation

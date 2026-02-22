@@ -69,13 +69,27 @@ RouteLLM ($\tau \geq 0.92$) & 0.8227 & 0.00029 \\
 
 \paragraph{Key metrics.}
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{banditGPT peak quality:} 0.9153 at cost \$0.00985
-          ($\lambda{=}0$, 20 seeds, 95\% CI $\pm$0.0027).
-    \item \textbf{RouteLLM-MF peak quality:} 0.8827 at cost \$0.00651
+    \item \textbf{banditGPT peak quality:} 0.914 at cost \$0.00985
+          ($\lambda{=}0$, 20 seeds, 95\% CI $\pm$0.003;
+          the raw 4-decimal mean in Table~\ref{tab:pareto_banditgpt} is
+          0.9153, consistent with learning-curve convergence at 0.9139 in
+          Appendix~\ref{appendix:learning_curves}).
+    \item \textbf{RouteLLM-MF peak quality:} 0.883 at cost \$0.00651
           (deterministic).
-    \item \textbf{Oracle:} 0.9533 at cost \$0.00195 (perfect per-prompt routing).
+    \item \textbf{Oracle:} 0.953 at cost \$0.00195 (perfect per-prompt routing).
     \item \textbf{Gap closure:} banditGPT closes
-          $\frac{0.9153 - 0.8227}{0.9533 - 0.8227} = 70.9\%$ of the
+          $\frac{0.914 - 0.823}{0.953 - 0.823} = 70.0\%$ of the
           Oracle--Mixtral gap, vs.\ RouteLLM-MF's
-          $\frac{0.8827 - 0.8227}{0.9533 - 0.8227} = 45.9\%$.
+          $\frac{0.883 - 0.823}{0.953 - 0.823} = 46.2\%$.
+    \item \textbf{Two-regime structure:}
+          RouteLLM-MF's dense threshold sweep
+          (Table~\ref{tab:pareto_baselines}) reveals non-monotonic
+          quality---peak reward 0.883 occurs at $\tau{\approx}0.08$--$0.12$,
+          then \emph{declines} at higher thresholds---because GPT-4-Turbo
+          underperforms Mixtral on a subset of prompts in this benchmark.
+          At low budgets (cost $< \$0.005$), RouteLLM-MF's prompt-level
+          discrimination from 100K pre-trained pairs makes it competitive
+          with or superior to banditGPT; at moderate-to-high budgets,
+          banditGPT's online aggregate calibration dominates
+          (Section~\ref{sec:nonmonotone}).
 \end{itemize}
