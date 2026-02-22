@@ -32,7 +32,7 @@ The system consists of three distinct layers of decision-making, as illustrated 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.75\textwidth]{figures/figure3_architecture.png}
-\caption{\textbf{The banditGPT Router Architecture.} A user prompt is embedded via a Sentence Transformer and compressed by domain-adapted PCA (trained on 80K RouteLLM prompts) into a 33-dimensional context vector~$x_t$. \textbf{Layer~1} performs per-context Dynamic Pareto Filtering using cost metadata from the Model Registry. \textbf{Layer~2} implements an Expert Corralling meta-learner~\cite{agarwal2017corralling} that maintains a trust distribution over two expert bandits: a \emph{Warmup Expert} initialized with offline priors from RouteLLM battle data ($\Amat_m, \bvec_m$), and a \emph{Tabula Rasa Expert} with uninformative priors ($\Amat_m = \lambda\mathbf{I}$). The complementary alpha schedules (constant vs.\ decaying) enable the meta-learner to exploit both fast prior-informed initialization and eventual exploitation convergence. \textbf{Layer~3} selects the arm maximizing a Cost-Aware LinUCB objective. The two-level feedback loop (dashed) updates both the selected expert's sufficient statistics ($\Amat, \bvec$) and the coordinator's trust weights via importance-weighted loss estimates. Data sources (dotted) show the offline-to-online transfer pathway.}
+\caption{\textbf{The banditGPT Router Architecture.} A user prompt is embedded via a Sentence Transformer and compressed by domain-adapted PCA (trained on 80K RouteLLM prompts) into a 33-dimensional context vector~$x_t$. \textbf{Layer~1} performs per-context Dynamic Pareto Filtering using cost metadata from the Model Registry. \textbf{Layer~2} implements an Expert Corralling meta-learner~\cite{agarwal2017corralling} that maintains a trust distribution over two expert bandits: a \emph{Warmup Expert} initialized with offline priors from RouteLLM battle data ($\Amat_m, \bvec_m$), and a \emph{Tabula Rasa Expert} with uninformative priors ($\Amat_m = \lambda\mathbf{I}$). The complementary alpha schedules (constant vs.\ decaying) enable the meta-learner to exploit both fast prior-informed initialization and eventual exploitation convergence. \textbf{Layer~3} selects the arm maximizing a Cost-Aware LinUCB objective; when models share a provider family, a Hybrid LinUCB formulation decomposes rewards into shared family ($\betavec_f$) and per-model ($\thetavec_m$) components. The two-level feedback loop (dashed) updates both the selected expert's sufficient statistics ($\Amat, \bvec$) and the coordinator's trust weights via importance-weighted loss estimates. Data sources (dotted) show the offline-to-online transfer pathway. New models can be added dynamically via \texttt{register\_model()}, which bootstraps from a semantic neighbor and propagates to both experts.}
 \label{fig:architecture}
 \end{figure*}
 
@@ -63,6 +63,13 @@ Each expert $i$ models the reward function using Bayesian Ridge Regression (LinU
 a_t = \arg\max_{a \in \mathcal{P}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \alpha \sqrt{x_t^\top \Amat_a^{-1} x_t} - \lambda c_a \right)
 \end{equation}
 
+\paragraph{Hybrid LinUCB: Family-Level Parameter Sharing.}
+When the model portfolio contains models from the same provider family (e.g., multiple GPT-4 variants), we extend LinUCB with a \emph{Hybrid} formulation~\cite{li2010contextual} that decomposes the reward coefficient into a shared family component $\betavec_f$ and a per-model residual $\thetavec_m$:
+\begin{equation}
+\mathbb{E}[r | x, m] = x^\top (\betavec_{f(m)} + \thetavec_m)
+\end{equation}
+where $f(m)$ maps model $m$ to its family. The shared $\betavec_f$ is updated by \emph{every} observation from any family member, while $\thetavec_m$ captures model-specific deviations. Family assignment is automatic via \texttt{infer\_model\_family()}, which parses provider prefixes from model identifiers (e.g., \texttt{openai/gpt-4.1} $\to$ family \texttt{openai/gpt-4}). When all families are singletons, the hybrid formulation reduces to disjoint LinUCB with independent per-model parameters. The family structure becomes operationally relevant during model onboarding (Section~\ref{sec:transfer}): when a new model joins an existing family, it inherits the family's accumulated $\betavec$, providing a better initial reward estimate (Section~\ref{sec:transfer_null}).
+
 \paragraph{Exploration Parameter Selection.}
 The warmup expert uses constant $\alpha{=}2.0$ (no decay) to preserve distribution-shift detection; the tabula rasa expert decays from $\alpha{=}1.0$ to $0.01$, converging to exploitation. This asymmetry is deliberate: the warmup expert maintains perpetual exploration so the meta-learner can detect when priors become stale, while the tabula rasa expert converges to the best learned policy. The Corralling meta-learner (Section~\ref{sec:corralling}) amortizes the exploration overhead by shifting weight toward whichever expert currently performs better, recovering exploitation efficiency without sacrificing robustness (see Section~\ref{sec:ablations} for empirical validation).
 
@@ -73,17 +80,25 @@ To ensure numerical stability during long-running operations, we implement an \e
 \paragraph{Regularization in PCA Space.}
 We initialize the precision matrix as $\Amat_0 = \lambda \mathbf{I}$, which corresponds to an isotropic prior in the PCA-transformed feature space. This does not distinguish between high- and low-variance principal components and may over-regularize the latter. We adopt this deliberately simple baseline for stability; designing anisotropic or variance-matched regularization (e.g., diagonal $\Amat_0$ scaled by component variance, or full whitening before the bandit layer) is a natural extension that we leave for future work.
 
-\subsection{New Model Admission}
+\subsection{Dynamic Model Onboarding}
 \label{sec:transfer}
 
-When a new model $m_{\text{new}}$ is registered, standard bandits must explore it from scratch to learn its utility (the ``cold start'' problem). We investigated \emph{Latent Semantic Transfer} as a potential solution: identifying a nearest semantic neighbor $m_{\text{near}}$ (via embedding similarity between model descriptions) and initializing the new model's parameters by transferring the neighbor's learned preference vector while resetting confidence:
+Production LLM portfolios evolve as providers release new models. The \texttt{register\_model()} API integrates a newcomer into a running router through a three-step procedure:
+
+\begin{enumerate}[nosep]
+\item \textbf{Semantic bootstrapping.} The nearest existing model $m_{\text{near}}$ is identified by embedding similarity between model identifiers. The newcomer's reward parameters are initialized by transferring the neighbor's learned preference vector while resetting confidence to ensure exploration:
 \begin{equation}
 \thetavec_{\text{new}} \leftarrow \thetavec_{\text{near}}, \quad \Amat_{\text{new}} \leftarrow \neff\mathbf{I}
 \end{equation}
+This decouples the expectation (mean) from the certainty (variance), providing an informed starting point while preserving the UCB exploration bonus.
 
-This decouples the expectation (mean) from the certainty (variance). However, controlled ablation experiments (Section~\ref{sec:results}) reveal that this mechanism provides \textbf{no statistically significant improvement} over tabula rasa initialization in practice. The transferred prior is too weak relative to the UCB exploration bonus to affect routing decisions, and the new model is selected for $<1\%$ of prompts in most configurations, making its initialization irrelevant.
+\item \textbf{Family assignment.} The newcomer's family is inferred automatically via \texttt{infer\_model\_family()} (or set explicitly). If the newcomer joins an existing family, the Hybrid LinUCB's shared $\betavec_f$ is immediately available, providing a richer initial reward estimate pooled from all family members.
 
-In practice, the online learning mechanism handles cold start adequately: new models converge to their appropriate role within a few hundred interactions regardless of initialization strategy. We retain the transfer mechanism in the codebase as an optional feature but do not claim it as a contribution.
+\item \textbf{Expert propagation.} The new model is propagated to both Corralling experts (warmup and tabula rasa), each receiving the appropriate initialization (transferred priors for warmup, identity for tabula rasa) and family mapping.
+\end{enumerate}
+
+\paragraph{Semantic transfer vs.\ semantic bootstrapping.}
+In a leave-one-out ablation where the newcomer is a permanent member of the original pool, per-model semantic transfer provides \textbf{no statistically significant improvement} over tabula rasa (Section~\ref{sec:transfer_null}): established models' accumulated precision matrices dominate UCB scores, starving the newcomer of traffic. However, when used within \texttt{register\_model()}---which combines $\thetavec$ transfer with confidence reset ($\Amat{=}\neff\mathbf{I}$)---semantic bootstrapping provides effective initialization. The confidence reset gives the newcomer a comparable UCB bonus to established models, allowing the router to learn its quality within ${\sim}600$ routing decisions (Section~\ref{sec:transfer_null}).
 
 \subsection{Corralling: Hedging Against Prior Uncertainty}
 \label{sec:corralling}
@@ -144,5 +159,5 @@ We counteract the lack of counterfactual updates through \textbf{Uniform Initial
 
 \subsection{Prior Calibration}
 
-Loading pre-trained priors from offline data can introduce \emph{Scale Explosion}---predictions of 800.0 instead of 0.8---due to mismatched reward scales. We address this with automatic two-pass calibration at initialization: (1)~a bias probe that detects and clamps inflated bias weights via theta-reconstruction, and (2)~a suite probe using basis-independent feature vectors that catches PCA-dimension explosions. Each expert additionally maintains a lightweight $O(1)$-per-observation prediction monitor for runtime anomaly detection. Implementation details are provided in Appendix~\ref{app:implementation}.
+Loading pre-trained priors from offline data can introduce \emph{Scale Explosion}---predictions of 800.0 instead of 0.8---due to mismatched reward scales. We address this with automatic two-pass calibration at initialization: (1)~a bias probe that detects and clamps inflated bias weights via theta-reconstruction, and (2)~a suite probe using basis-independent feature vectors that catches PCA-dimension explosions. Each expert additionally maintains a lightweight $O(1)$-per-observation prediction monitor for runtime anomaly detection.
 

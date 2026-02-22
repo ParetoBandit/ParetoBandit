@@ -11,7 +11,7 @@ reference the *actual* algorithm implemented in `src/bandit_gpt/router.py`.
 **File**: `A1_regret_decomposition.tex`
 
 **Content**:
-- Per-expert regret bound for Disjoint LinUCB (Theorem 1, citing Li et al. 2010; Abbasi-Yadkani et al. 2011)
+- Per-expert regret bound for Hybrid LinUCB via combined parameter φ_a = β_F(a) + θ_a (Theorem 1, citing Li et al. 2010; Abbasi-Yadkani et al. 2011)
 - Meta-regret bound for Exp4/Corralling (Theorem 2, citing Agarwal et al. 2017)
 - Composite decomposition: R_total ≤ O(√(T ln 2)) + min{R_warmup, R_tabula_rasa}
 - Discussion of gap between theoretical O(√T) and empirical O(T^0.669)
@@ -34,7 +34,7 @@ reference the *actual* algorithm implemented in `src/bandit_gpt/router.py`.
 **File**: `A3_warmup_transfer.tex`
 
 **Content**:
-- Prior initialization via semantic neighbor transfer (n_eff formulation)
+- Prior initialization via semantic neighbor transfer (n_eff formulation for arm-specific, identity for family-shared)
 - Acceleration bound under accurate priors
 - Risk analysis under misspecified priors
 - How Corralling bounds negative transfer to O(√T) overhead

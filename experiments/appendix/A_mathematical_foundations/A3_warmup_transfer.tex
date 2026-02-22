@@ -13,6 +13,10 @@ also discuss known limitations of the current formulation.
 
 \subsubsection{Prior Initialization and Effective Sample Size}
 
+Under the default Hybrid LinUCB policy (Algorithm~\ref{alg:linucb}),
+initialization involves both arm-specific and family-shared state.
+
+\paragraph{Arm-specific initialization.}
 For a new or existing model~$a$, the warmup expert initializes:
 \begin{align}
 A_a^{(0)} &= \neff \cdot \lambda \cdot I_d \label{eq:warmup_A} \\
@@ -28,6 +32,22 @@ This yields the initial estimate $\hat{\theta}_a = (A_a^{(0)})^{-1} b_a^{(0)} =
 The Bayesian interpretation is straightforward: the system behaves as if it has
 already observed $\neff$ samples from the new model, all consistent with the
 neighbor's learned behavior.
+
+\paragraph{Family-shared initialization.}
+For each family $g \in \mathcal{G}$, the family-shared matrices start from an
+uninformative prior:
+\begin{align}
+A_g^{(0)} &= \lambda \cdot I_d \label{eq:warmup_A0} \\
+b_g^{(0)} &= \mathbf{0} \label{eq:warmup_b0}
+\end{align}
+The family-shared component $\beta_g$ is learned entirely online: as any arm
+$a$ with $F(a) = g$ receives observations, both $A_g^{(0)}$ and $b_g^{(0)}$
+are updated with the \emph{full} reward signal, while the arm-specific
+$A_a, b_a$ learn only the residual $r_t - x_t^\top \hat{\beta}_g$.  When a
+new model joins an existing family via \texttt{register\_model()}, the
+already-trained $\beta_g$ provides immediate calibration---the model
+onboarding experiment (Section~\ref{sec:results}) shows 46\% lower initial
+prediction error compared to isolated-family assignment.
 
 \subsubsection{Acceleration Under Accurate Priors}
 
@@ -135,8 +155,12 @@ acceleration when priors are accurate.}
 
 Our Bayesian formulation
 (Equations~\eqref{eq:warmup_A}--\eqref{eq:warmup_b}) scales \emph{both} the
-precision matrix and the moment vector by $\neff$, preserving the mean
-prediction $\hat{\theta} = \theta_{\text{neighbor}}$ regardless of $\neff$.
+arm-specific precision matrix and moment vector by $\neff$, preserving the
+mean prediction $\hat{\theta}_a = \theta_{\text{neighbor}}$ regardless of
+$\neff$.  The family-shared matrices
+(Equations~\eqref{eq:warmup_A0}--\eqref{eq:warmup_b0}) are deliberately
+\emph{not} warm-started: $\beta_g$ is learned purely online, so the warmup
+prior affects only the arm-specific residual channel.
 A naive implementation that scales only the moment vector:
 \begin{equation}
 A_{\text{naive}} = \lambda I, \quad b_{\text{naive}} = \neff \cdot \lambda \cdot \theta_{\text{neighbor}}
@@ -195,11 +219,12 @@ regression is a direction for future work.
 The regret guarantees in Section~\ref{appendix:regret_decomposition} assume
 linear reward structure (Equation~\ref{eq:linear_reward}).  Prompt--model
 reward surfaces may exhibit non-linear interactions (e.g., a model that excels
-at short creative prompts but struggles with long creative prompts).  Disjoint
-LinUCB provides per-arm linear fits, which offer piecewise flexibility across
-models, but cannot capture within-arm non-linearity.  Kernel or neural
-extensions~\cite{zhou2020neural} could address this at the cost of
-computational overhead.
+at short creative prompts but struggles with long creative prompts).  Hybrid
+LinUCB provides per-arm linear fits (via the combined
+$\beta_g + \theta_a$ prediction), which offer piecewise flexibility across
+models and within-family transfer, but cannot capture within-arm
+non-linearity.  Kernel or neural extensions~\cite{zhou2020neural} could
+address this at the cost of computational overhead.
 
 \paragraph{5. Semantic neighbor selection.}
 The quality of warmup transfer depends critically on the semantic neighbor

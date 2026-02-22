@@ -9,8 +9,11 @@ This subsection provides pseudocode for the banditGPT routing system.
 Algorithm~\ref{alg:routing} describes the top-level routing and feedback loop.
 Algorithm~\ref{alg:corralling} details the Corralling meta-learner that
 coordinates multiple expert strategies.
-Algorithm~\ref{alg:linucb} specifies the Disjoint LinUCB expert used by both
-the warmup and tabula rasa strategies.
+Algorithm~\ref{alg:linucb} specifies the Hybrid LinUCB expert used by both
+the warmup and tabula rasa strategies.  Each expert decomposes the reward into
+a family-shared component $\beta_F$ and an arm-specific residual $\theta_a$;
+when every family is a singleton, the algorithm reduces to standard Disjoint
+LinUCB.
 
 % ============================================================================
 % ALGORITHM 1: Top-level routing loop
@@ -102,19 +105,24 @@ the warmup and tabula rasa strategies.
 \end{algorithm}
 
 % ============================================================================
-% ALGORITHM 3: Disjoint LinUCB expert
+% ALGORITHM 3: Hybrid LinUCB expert (family-shared + arm-specific)
 % ============================================================================
 
 \begin{algorithm}[h]
-\caption{Cost-Aware Disjoint LinUCB Expert}
+\caption{Cost-Aware Hybrid LinUCB Expert}
 \label{alg:linucb}
 \begin{algorithmic}[1]
 
-\REQUIRE Arms (models) $\mathcal{M}$, dimension $d$, exploration coefficient schedule $\alpha_t$, \\
-\hspace{2.5em} cost penalty $\lambda_c$, regularization $\lambda$, optional warmup priors $\{(\theta_a^{(0)}, \neff_a)\}_{a \in \mathcal{M}}$
+\REQUIRE Arms (models) $\mathcal{M}$, family mapping $F: \mathcal{M} \to \mathcal{G}$, dimension $d$, \\
+\hspace{2.5em} exploration coefficient schedule $\alpha_t$, cost penalty $\lambda_c$, regularization $\lambda$, \\
+\hspace{2.5em} optional warmup priors $\{(\theta_a^{(0)}, \neff_a)\}_{a \in \mathcal{M}}$
 
 \medskip
-\STATE \textbf{Initialize} for each arm $a \in \mathcal{M}$:
+\STATE \textbf{Initialize} family-shared state for each family $g \in \mathcal{G}$:
+\STATE $A_g^{(0)} \leftarrow \lambda \cdot I_d$;\quad $b_g^{(0)} \leftarrow \mathbf{0}$;\quad $(A_g^{(0)})^{-1} \leftarrow (\lambda \cdot I_d)^{-1}$
+
+\medskip
+\STATE \textbf{Initialize} arm-specific state for each arm $a \in \mathcal{M}$:
 \IF{warmup priors available}
     \STATE $A_a \leftarrow \neff_a \cdot \lambda \cdot I_d$;\quad $b_a \leftarrow \neff_a \cdot \lambda \cdot \theta_a^{(0)}$ \hfill $\triangleright$ Bayesian prior injection
 \ELSE
@@ -126,21 +134,36 @@ the warmup and tabula rasa strategies.
 \FUNCTION{SelectArm($x_t, \mathcal{F}_t, t$)}
     \STATE $\alpha \leftarrow \alpha_{\text{start}} + (\alpha_{\text{end}} - \alpha_{\text{start}}) \cdot t / T$ \hfill $\triangleright$ Linear decay schedule
     \FOR{each $a \in \mathcal{F}_t$}
-        \STATE $\hat{\theta}_a \leftarrow A_a^{-1} b_a$ \hfill $\triangleright$ Ridge regression estimate
-        \STATE $\hat{r}_a \leftarrow \hat{\theta}_a^\top x_t$ \hfill $\triangleright$ Predicted reward
-        \STATE $\sigma_a \leftarrow \sqrt{x_t^\top A_a^{-1} x_t}$ \hfill $\triangleright$ Prediction uncertainty
-        \STATE $\text{UCB}_a \leftarrow \hat{r}_a + \alpha \cdot \sigma_a - \lambda_c \cdot \tilde{c}_a$ \hfill $\triangleright$ Cost-penalized UCB score
+        \STATE $g \leftarrow F(a)$ \hfill $\triangleright$ Look up family for arm $a$
+        \STATE $\hat{\beta}_g \leftarrow (A_g^{(0)})^{-1} b_g^{(0)}$ \hfill $\triangleright$ Family-shared estimate
+        \STATE $\hat{\theta}_a \leftarrow A_a^{-1} b_a$ \hfill $\triangleright$ Arm-specific residual estimate
+        \STATE $\hat{r}_a \leftarrow x_t^\top \hat{\beta}_g + x_t^\top \hat{\theta}_a$ \hfill $\triangleright$ Hybrid predicted reward
+        \STATE $\sigma_a^2 \leftarrow \underbrace{x_t^\top (A_g^{(0)})^{-1} x_t}_{\text{shared variance}} + \underbrace{x_t^\top A_a^{-1} x_t}_{\text{arm variance}}$ \hfill $\triangleright$ Combined uncertainty
+        \STATE $\text{UCB}_a \leftarrow \hat{r}_a + \alpha \cdot \sqrt{\sigma_a^2} - \lambda_c \cdot \tilde{c}_a$ \hfill $\triangleright$ Cost-penalized UCB score
     \ENDFOR
     \RETURN $\arg\max_{a \in \mathcal{F}_t} \text{UCB}_a$ \hfill $\triangleright$ Random tie-breaking
 \ENDFUNCTION
 
 \medskip
 \FUNCTION{Update($x_t, a_t, r_t$)}
-    \STATE \textbf{// Sherman--Morrison rank-1 update:} $O(d^2)$ instead of $O(d^3)$
-    \STATE $v \leftarrow A_{a_t}^{-1} x_t$
-    \STATE $A_{a_t}^{-1} \leftarrow A_{a_t}^{-1} - \frac{v \, v^\top}{1 + x_t^\top v}$ \hfill $\triangleright$ Incremental inverse update
-    \STATE $A_{a_t} \leftarrow A_{a_t} + x_t \, x_t^\top$ \hfill $\triangleright$ Precision matrix
-    \STATE $b_{a_t} \leftarrow b_{a_t} + r_t \cdot x_t$ \hfill $\triangleright$ Moment vector
+    \STATE $g \leftarrow F(a_t)$ \hfill $\triangleright$ Family of chosen arm
+    \STATE \textbf{// Step 1: Compute residual from current shared estimate}
+    \STATE $\hat{\beta}_g \leftarrow (A_g^{(0)})^{-1} b_g^{(0)}$
+    \STATE $\tilde{r}_t \leftarrow r_t - x_t^\top \hat{\beta}_g$ \hfill $\triangleright$ Residual reward
+    
+    \medskip
+    \STATE \textbf{// Step 2: Update family-shared matrices (full reward)}
+    \STATE $v_g \leftarrow (A_g^{(0)})^{-1} x_t$
+    \STATE $(A_g^{(0)})^{-1} \leftarrow (A_g^{(0)})^{-1} - \frac{v_g \, v_g^\top}{1 + x_t^\top v_g}$ \hfill $\triangleright$ Sherman--Morrison
+    \STATE $A_g^{(0)} \leftarrow A_g^{(0)} + x_t \, x_t^\top$
+    \STATE $b_g^{(0)} \leftarrow b_g^{(0)} + r_t \cdot x_t$
+    
+    \medskip
+    \STATE \textbf{// Step 3: Update arm-specific matrices (residual reward)}
+    \STATE $v_a \leftarrow A_{a_t}^{-1} x_t$
+    \STATE $A_{a_t}^{-1} \leftarrow A_{a_t}^{-1} - \frac{v_a \, v_a^\top}{1 + x_t^\top v_a}$ \hfill $\triangleright$ Sherman--Morrison
+    \STATE $A_{a_t} \leftarrow A_{a_t} + x_t \, x_t^\top$
+    \STATE $b_{a_t} \leftarrow b_{a_t} + \tilde{r}_t \cdot x_t$ \hfill $\triangleright$ Learn residual, not raw reward
 \ENDFUNCTION
 
 \end{algorithmic}
@@ -153,7 +176,14 @@ $r_t \in [0, 1]$ is the observed reward;
 $i_t \in [N]$ is the expert chosen by the meta-learner;
 $p_{i_t}$ is the probability with which expert $i_t$ was selected;
 $\hat{\ell}$ denotes the importance-weighted loss estimator;
-$\tilde{c}_a$ is the normalized cost for model $a$.
+$\tilde{c}_a$ is the normalized cost for model $a$;
+$F: \mathcal{M} \to \mathcal{G}$ maps each arm to its family (inferred from model
+provider, e.g., GPT-4-Turbo and GPT-4o share family ``openai/gpt-4'');
+$\hat{\beta}_g$ is the family-shared reward parameter for family $g$;
+$\hat{\theta}_a$ is the arm-specific residual parameter;
+$A_g^{(0)}, b_g^{(0)}$ are the family-shared precision matrix and moment vector;
+$\tilde{r}_t = r_t - x_t^\top \hat{\beta}_g$ is the residual reward used for
+arm-specific updates.
 
 \paragraph{Key design decisions.}
 \begin{enumerate}[leftmargin=*,noitemsep]
@@ -175,4 +205,14 @@ $\tilde{c}_a$ is the normalized cost for model $a$.
     Rewards are clipped to $[0, 1]$ before the importance-weighted loss computation,
     bounding $\hat{\ell}_{i_t} \leq N/\gamma$
     (Corollary~\ref{cor:bounded_iw}).
+    
+    \item \textbf{Hybrid family decomposition}
+    (Algorithm~\ref{alg:linucb}): The reward model
+    $\mathbb{E}[r \mid x, a] = x^\top \beta_{F(a)} + x^\top \theta_a$
+    separates a family-shared component $\beta_g$ (updated from \emph{all}
+    observations within the family) from an arm-specific residual $\theta_a$.
+    When a new model joins an existing family, the shared $\beta_g$ is
+    already trained, providing immediate transfer.  For singleton families
+    the residual converges to near-zero and the policy degenerates gracefully
+    to family-only (effectively Disjoint) behaviour.
 \end{enumerate}

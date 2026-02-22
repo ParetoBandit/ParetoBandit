@@ -6,10 +6,12 @@
 \label{appendix:regret_decomposition}
 
 This subsection establishes the regret guarantee for the banditGPT two-level
-architecture: Disjoint LinUCB experts coordinated by an Exp4-style Corralling
-meta-learner~\cite{agarwal2017corralling}.  We state known results from the
-literature and show how they compose to yield the system-level bound that our
-experiments validate.
+architecture: Hybrid LinUCB experts coordinated by an Exp4-style Corralling
+meta-learner~\cite{agarwal2017corralling}.  Each expert decomposes the reward
+into a family-shared component and an arm-specific residual
+(Algorithm~\ref{alg:linucb}); we state known results from the literature and
+show how they compose to yield the system-level bound that our experiments
+validate.
 
 \subsubsection{Setup and Notation}
 
@@ -23,36 +25,50 @@ and horizon $T$.  At each round $t$:
     \item The environment reveals reward $r_t(a_t) \in [0, 1]$ for the chosen arm only.
 \end{enumerate}
 
-We assume the standard linear realizability condition:
+We assume a linear realizability condition.  Under the default Hybrid LinUCB
+policy, the reward for arm $a$ in family $g = F(a)$ decomposes as:
 \begin{equation}
-\mathbb{E}[r_t(a) \mid x_t] = x_t^\top \theta_a^* \quad \forall\, a \in [K]
+\mathbb{E}[r_t(a) \mid x_t] = x_t^\top \beta_g^* + x_t^\top \theta_a^*
+\quad \forall\, a \in [K]
+\label{eq:hybrid_reward}
+\end{equation}
+where $\beta_g^* \in \mathbb{R}^d$ is the family-shared reward parameter and
+$\theta_a^* \in \mathbb{R}^d$ is the arm-specific residual.  Defining
+$\phi_a^* \triangleq \beta_{F(a)}^* + \theta_a^*$, this is equivalent to the
+standard per-arm linear model:
+\begin{equation}
+\mathbb{E}[r_t(a) \mid x_t] = x_t^\top \phi_a^* \quad \forall\, a \in [K]
 \label{eq:linear_reward}
 \end{equation}
-where $\theta_a^* \in \mathbb{R}^d$ is the unknown reward parameter for arm~$a$.
 The pseudo-regret is defined as
-$R(T) = \sum_{t=1}^T \bigl[ \max_{a} x_t^\top \theta_a^* - x_t^\top \theta_{a_t}^* \bigr]$.
+$R(T) = \sum_{t=1}^T \bigl[ \max_{a} x_t^\top \phi_a^* - x_t^\top \phi_{a_t}^* \bigr]$.
 
 \begin{remark}[Scope of the linear assumption]
 \label{remark:linear_assumption}
 Equation~\eqref{eq:linear_reward} is a modelling assumption: prompt--model
-reward surfaces need not be exactly linear in the PCA features.  Our use of
-Disjoint LinUCB means each arm learns its own $\theta_a$, which provides
-piecewise-linear flexibility, but curvature within each arm's response surface
-is not captured.  Section~\ref{appendix:warmup_limitations} discusses this
-limitation and its practical impact.
+reward surfaces need not be exactly linear in the PCA features.  The Hybrid
+LinUCB policy learns both a family-shared $\beta_g$ and a per-arm residual
+$\theta_a$, which provides piecewise-linear flexibility across models and
+enables within-family transfer, but curvature within each arm's response
+surface is not captured.  Section~\ref{appendix:warmup_limitations} discusses
+this limitation and its practical impact.
 \end{remark}
 
-\subsubsection{Level 1: Per-Expert Regret (Disjoint LinUCB)}
+\subsubsection{Level 1: Per-Expert Regret (Hybrid LinUCB)}
 
-Each expert in the banditGPT system is an instance of Disjoint LinUCB
-with ridge regularization $\lambda > 0$ and exploration coefficient $\alpha$.
-The following result is standard~\cite{li2010contextual, abbasi2011improved}:
+Each expert in the banditGPT system is an instance of Hybrid LinUCB
+(Algorithm~\ref{alg:linucb}) with ridge regularization $\lambda > 0$ and
+exploration coefficient $\alpha$.  Because the hybrid decomposition
+$\phi_a^* = \beta_{F(a)}^* + \theta_a^*$ yields per-arm effective parameters
+$\phi_a^*$, the standard Disjoint LinUCB regret bound applies to the combined
+predictions.  The following result is
+standard~\cite{li2010contextual, abbasi2011improved}:
 
 \begin{theorem}[Contextual LinUCB Regret]
 \label{thm:linucb_regret}
 Under the linear realizability assumption~\eqref{eq:linear_reward}, with
-$\|x_t\| \leq 1$, $\|\theta_a^*\| \leq S$ for all arms~$a$, and sub-Gaussian
-noise with parameter $\sigma$, the Disjoint LinUCB algorithm with
+$\|x_t\| \leq 1$, $\|\phi_a^*\| \leq S$ for all arms~$a$, and sub-Gaussian
+noise with parameter $\sigma$, the LinUCB algorithm with
 $\alpha = \sigma\sqrt{d \ln(1 + T/(d\lambda)) + 2\ln(1/\delta)} + \sqrt{\lambda}\,S$
 satisfies, with probability at least $1 - \delta$:
 \begin{equation}
@@ -64,17 +80,26 @@ R_{\textnormal{expert}}(T)
 \end{equation}
 \end{theorem}
 
-In our system, two such experts operate in parallel:
+In our system, two such experts operate in parallel.  Both use the Hybrid
+LinUCB architecture: a family-shared $\beta_g$ (pooling data across arms in
+the same model family) and an arm-specific residual $\theta_a$.  When a
+\texttt{family\_map} is provided, models from the same provider (e.g.,
+GPT-4-Turbo and GPT-4o) share a common $\beta_g$, enabling transfer when new
+models join an existing family.
 \begin{itemize}[leftmargin=*,noitemsep]
     \item \textbf{Expert 1 (Warmup):} \texttt{CostAwareLinUCBRouter} initialized
-    with pre-trained priors from 80k LMSYS Arena battles.
-    The prior matrices $A_0, b_0$ encode a warm start that effectively skips
-    the initial exploration phase (Section~\ref{appendix:warmup_transfer}).
+    with pre-trained arm-specific priors from 80k LMSYS Arena battles.
+    The prior matrices $A_a, b_a$ encode a warm start that effectively skips
+    the initial exploration phase; the family-shared matrices $A_g^{(0)},
+    b_g^{(0)}$ start from identity and accumulate during online learning
+    (Section~\ref{appendix:warmup_transfer}).
     \item \textbf{Expert 2 (Tabula Rasa):} \texttt{CostAwareTabulaRasaRouter}
-    initialized with $A = \lambda I$, $b = 0$ (no prior knowledge).
+    initialized with $A_a = \lambda I$, $b_a = 0$ and
+    $A_g^{(0)} = \lambda I$, $b_g^{(0)} = 0$ (no prior knowledge).
 \end{itemize}
 
-Both experts satisfy Theorem~\ref{thm:linucb_regret} individually.  The warmup
+Both experts satisfy Theorem~\ref{thm:linucb_regret} individually via the
+combined parameter $\phi_a^* = \beta_{F(a)}^* + \theta_a^*$.  The warmup
 expert's prior can reduce the effective regret when accurate, but may increase
 it under domain mismatch.
 

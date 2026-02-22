@@ -117,7 +117,7 @@ Oracle (Upper Bound) & 0.00195 & 0.953 & 0.0\% \\
 \end{tabular}
 \end{table}
 
-On the frozen holdout set ($N{=}750$), banditGPT closes \textbf{70.0\%} of the optimality gap ($\frac{0.914 - 0.823}{0.953 - 0.823}$), outperforming RouteLLM's 46.2\% closure. At step 0 (priors only, before online learning), banditGPT achieves $0.839 \pm 0.004$---above static Mixtral but below RouteLLM's peak---quantifying both the value of warmup priors and the essential role of online adaptation. The ${\sim}200$-prompt crossover (Figure~\ref{fig:pareto}b) shows that this adaptation happens rapidly: a few hundred in-distribution observations are worth more than $500\times$ as many out-of-distribution supervised pairs.
+On the frozen holdout set ($N{=}750$), banditGPT closes \textbf{70.0\%} of the optimality gap ($\frac{0.914 - 0.823}{0.953 - 0.823}$), outperforming RouteLLM's 46.2\% closure. The advantage is highly significant: a one-sample $t$-test yields $t(19){=}22.0$, $p < 10^{-14}$, Cohen's $d{=}4.93$, with all 20 trial means exceeding RouteLLM's best threshold reward (0.883). The 95\% bootstrap CI $[0.911, 0.917]$ entirely excludes the RouteLLM reference (Appendix~\ref{appendix:statistical_tests}). At step 0 (priors only, before online learning), banditGPT achieves $0.839 \pm 0.004$---above static Mixtral but below RouteLLM's peak---quantifying both the value of warmup priors and the essential role of online adaptation. The ${\sim}200$-prompt crossover (Figure~\ref{fig:pareto}b) shows that this adaptation happens rapidly: a few hundred in-distribution observations are worth more than $500\times$ as many out-of-distribution supervised pairs.
 Operationally, banditGPT incurs inference cost for only the selected model per request; it requires no parallel evaluation of all candidates, unlike offline data collection for supervised routers, which must query every model on every prompt to obtain training labels.
 
 \subsubsection{Ablation: Design Choice Validation}
@@ -155,6 +155,9 @@ Random & 0.814 $\pm$ 0.003 & 0.00667 & All learning \\
 
 \textbf{(4)~Why Corralling outperforms warmup-only even with perfect priors.}
 The ``UCB Only (w/ priors)'' ablation isolates the warmup expert---which uses constant exploration ($\alpha{=}2.0$, no decay) to preserve distribution-shift detection. This perpetual exploration incurs regret even after the optimal policy is well-characterized: the warmup expert keeps second-guessing its own correct beliefs. The tabula rasa expert, by contrast, decays its exploration ($\alpha: 1.0 \to 0.01$) and eventually \emph{commits} to the best policy it has learned. Corralling exploits this complementarity: it relies on the warmup expert's informed early selections, then shifts meta-weight toward the converging tabula rasa expert, capturing the benefits of both fast initialization \emph{and} eventual exploitation. The warmup-only ablation pays the full cost of perpetual exploration, which is why Corralling dominates it across the entire corruption spectrum (Section~\ref{sec:prior_degradation}).
+
+\textbf{(5)~Default hyperparameters require no task-specific tuning.}
+Sensitivity analysis (Appendix~\ref{appendix:hp_sensitivity}) shows ${<}0.5\%$ quality degradation across a $50\times$ range of the Corralling learning rate ($\eta \in [0.1, 5.0]$) and an $8\times$ range of the UCB exploration coefficient ($\alpha_{\text{start}} \in [0.5, 4.0]$). PCA dimensionality (Appendix~\ref{appendix:pca_neff}) is similarly robust: $d \in [8, 128]$ yields ${<}0.5\%$ spread, and prior strength $N_{\text{eff}} \in [1, 100]$ varies by ${<}0.4\%$. All defaults can be adopted without holdout tuning.
 
 % ============================================================================
 % SECTION 5.2: Compact Robustness & Adaptation

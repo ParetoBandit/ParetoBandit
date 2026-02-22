@@ -5,7 +5,9 @@ For transparency and reproducibility, we provide the complete numerical results 
 
 \subsection{banditGPT-Hybrid: Complete Sweep Results}
 
-All results are \textbf{means over 5 independent trials} (random seeds 42-46) on the holdout set ($N=750$ prompts). Each row corresponds to one Lagrangian cost penalty $\lambda$ value.
+\textbf{Note:} The tables below reflect an early experimental run with 5~seeds and 10~$\lambda$ values. The main paper (Figure~\ref{fig:pareto}, Table~\ref{tab:performance}) reports updated results from 20~seeds (42--61) across 15~$\lambda$ values. The qualitative findings and Pareto structure are consistent; see \texttt{experiments/04\_figure/results/pareto\_results.json} for the canonical 20-seed data.
+
+All results below are means over 5 independent trials (random seeds 42--46) on the holdout set ($N{=}750$ prompts). Each row corresponds to one Lagrangian cost penalty $\lambda$ value.
 
 \begin{table}[h]
 \centering
@@ -182,7 +184,8 @@ RouteLLM-MF & 28 & 10 (36\%) & 18 (64\%) \\
 
 \textbf{Seeds Used:}
 \begin{itemize}
-    \item banditGPT trials: 42, 43, 44, 45, 46
+    \item banditGPT trials (this appendix): 42--46 (5 seeds, early run)
+    \item banditGPT trials (main paper): 42--61 (20 seeds, canonical)
     \item NumPy/PyTorch: Set before each trial for full reproducibility
 \end{itemize}
 

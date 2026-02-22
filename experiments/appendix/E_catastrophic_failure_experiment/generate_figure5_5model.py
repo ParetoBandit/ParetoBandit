@@ -624,7 +624,7 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
     fig.align_ylabels([ax_top, ax_mid, ax_bot])
 
     for fmt in ("png", "pdf"):
-        out = output_dir / f"figure6_5model.{fmt}"
+        out = output_dir / f"figure5_5model.{fmt}"
         plt.savefig(out, dpi=300, bbox_inches="tight")
         logger.info(f"  Saved: {out}")
     plt.close()
