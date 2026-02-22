@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 5 (Revised): Honest Pareto Comparison with Learning Curve
+Figure 4: Honest Pareto Comparison with Learning Curve
 
 Two-panel figure addressing fairness concerns in the RouteLLM comparison:
 
@@ -8,7 +8,6 @@ Panel A — Pareto Frontier (Honest)
   - banditGPT with filled λ sweep (15 values) for dense frontier coverage
   - RouteLLM-MF (28 thresholds, pre-trained on 100k OOD pairs)
   - Regime annotations showing where each method excels
-  - No "dominates everywhere" claim
 
 Panel B — Learning Curve (New)
   - banditGPT holdout quality vs. number of online learning steps
@@ -20,14 +19,17 @@ Data asymmetry (both sides have advantages):
   - RouteLLM:   100k OOD supervised pairs → strong out-of-box, zero adaptation
   - banditGPT:  80k OOD priors + 1,121 in-distribution online learning → higher ceiling
 
+All banditGPT conditions use the production BanditRouter via
+create_experiment_router() with default alpha schedules (warmup: constant
+α=2.0, tabula rasa: decaying α=1.0→0.01) and corralling η=0.1.
+
 Usage:
-    python generate_figure5_revised.py
+    python generate_figure4.py
 """
 
 import sys
 from pathlib import Path
 import json
-import copy
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -36,29 +38,25 @@ from typing import Dict, List, Tuple
 import logging
 import time
 
-# Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
-from bandit_gpt.router import CorrallingRouter, CostAwareLinUCBRouter, CostAwareTabulaRasaRouter
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     DEFAULT_WARMUP_PRIORS_PATH,
-    DEFAULT_MODEL_REGISTRY_PATH,
-    CANONICAL_DEV_DATA_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH
 )
 from sentence_transformers import SentenceTransformer
 import joblib
 
-# Reuse data loading and prior normalization from main experiment
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.router_factory import create_experiment_router
+
 from generate_pareto_frontier import (
     load_model_costs,
     load_dataset_with_split,
-    normalize_prior_strength
 )
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -91,11 +89,9 @@ def evaluate_frozen(router, eval_data: List[Dict], eval_embeddings: List[np.ndar
     """
     Evaluate router on holdout WITHOUT modifying learned state.
 
-    Key guarantees:
-    - self.t on all experts: unchanged (only update() increments it)
-    - A, b matrices: unchanged (only update() modifies them)
-    - Corralling weights: unchanged (only update() modifies them)
-    - numpy random state: saved and restored so training trajectory is unaffected
+    Calls route() but never process_feedback(), so bandit parameters
+    (A, b matrices) and Corralling weights remain unchanged.
+    Numpy random state is saved/restored so training trajectory is unaffected.
     """
     rng_state = np.random.get_state()
 
@@ -103,43 +99,13 @@ def evaluate_frozen(router, eval_data: List[Dict], eval_embeddings: List[np.ndar
     total_cost = 0.0
 
     for p, x in zip(eval_data, eval_embeddings):
-        sel, _token = router.select_model(x, total_steps=burn_in_steps)
-        total_reward += p["rewards"][sel]
-        total_cost += model_costs[sel]["cost"]
+        model, _log = router.route(x, total_steps=burn_in_steps)
+        total_reward += p["rewards"][model]
+        total_cost += model_costs[model]["cost"]
 
-    # Restore random state so subsequent training draws are unaffected
     np.random.set_state(rng_state)
 
     return total_reward / len(eval_data), total_cost / len(eval_data)
-
-
-# =============================================================================
-# INITIALIZE ROUTER — shared helper for consistent configuration
-# =============================================================================
-
-def make_router(models, dim, warmup_priors, model_costs, lambda_penalty,
-                alpha_start=1.0, alpha_end=0.1):
-    """Create a fresh banditGPT-Hybrid (Corralling) router."""
-    # Suppress noisy prior normalization logs during batch runs
-    prev_level = logging.getLogger().level
-    logging.getLogger().setLevel(logging.WARNING)
-    scaled_priors = normalize_prior_strength(warmup_priors, target_sample_size=10.0)
-    logging.getLogger().setLevel(prev_level)
-
-    warmup_expert = CostAwareLinUCBRouter(
-        models=models, warmup_priors=scaled_priors, model_costs=model_costs,
-        alpha_start=alpha_start, alpha_end=alpha_end, cost_penalty=lambda_penalty
-    )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=models, context_dim=dim, model_costs=model_costs,
-        alpha_start=alpha_start, alpha_end=alpha_end, cost_penalty=lambda_penalty
-    )
-    router = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa],
-        models=models,
-        learning_rate=1.0
-    )
-    return router
 
 
 # =============================================================================
@@ -147,19 +113,14 @@ def make_router(models, dim, warmup_priors, model_costs, lambda_penalty,
 # =============================================================================
 
 def run_learning_curve(train_data, eval_data, train_embeddings, eval_embeddings,
-                       warmup_priors, model_costs, lambda_penalty=0.0,
-                       n_trials=20, checkpoint_steps=None,
-                       alpha_start=2.0, alpha_end=0.1):
+                       warmup_path, model_costs, lambda_penalty=0.0,
+                       n_trials=20, checkpoint_steps=None):
     """
     Train banditGPT with periodic frozen holdout evaluation to produce
     a learning curve (quality vs. number of online learning steps).
 
-    Args:
-        lambda_penalty: Cost penalty (0.0 = peak quality mode)
-        n_trials: Independent trials (different random seeds)
-        checkpoint_steps: Training steps at which to snapshot and evaluate
-        alpha_start: Initial exploration parameter for LinUCB
-        alpha_end: Final exploration parameter for LinUCB
+    Uses the production BanditRouter via create_experiment_router() with
+    default alpha schedules (warmup: constant α=2.0, tabula rasa: decaying).
 
     Returns:
         List of dicts: [{step, mean_reward, std_reward, mean_cost, std_cost, n_trials}]
@@ -170,11 +131,9 @@ def run_learning_curve(train_data, eval_data, train_embeddings, eval_embeddings,
     checkpoint_set = set(checkpoint_steps)
     results_by_step = {step: {"rewards": [], "costs": []} for step in checkpoint_steps}
 
-    models = list(train_data[0]["rewards"].keys())
     dim = train_embeddings[0].shape[0]
     burn_in_steps = len(train_data)
 
-    # Normalization bounds from train data only (zero leakage)
     all_raw = [s for p in train_data for s in p["rewards"].values()]
     r_min, r_max = min(all_raw), max(all_raw)
     r_range = r_max - r_min if (r_max - r_min) > 1e-6 else 1.0
@@ -183,21 +142,25 @@ def run_learning_curve(train_data, eval_data, train_embeddings, eval_embeddings,
 
     for trial in range(n_trials):
         np.random.seed(42 + trial)
-        router = make_router(models, dim, warmup_priors, model_costs, lambda_penalty,
-                             alpha_start=alpha_start, alpha_end=alpha_end)
+        router = create_experiment_router(
+            model_registry=None,
+            feature_dim=dim,
+            prior_n_effective=10.0,
+            alpha=2.0,
+            warmup_path=warmup_path,
+            cost_penalty=lambda_penalty,
+        )
 
-        # Step 0 (cold start — priors only, no online data)
         if 0 in checkpoint_set:
             r, c = evaluate_frozen(router, eval_data, eval_embeddings,
                                    model_costs, burn_in_steps)
             results_by_step[0]["rewards"].append(r)
             results_by_step[0]["costs"].append(c)
 
-        # Train step by step, evaluating at checkpoints
         for step_idx, (p, x) in enumerate(zip(train_data, train_embeddings)):
-            sel, token = router.select_model(x, total_steps=burn_in_steps)
-            norm_r = (p["rewards"][sel] - r_min) / r_range
-            router.update(x, sel, norm_r, selection_token=token)
+            model, log = router.route(x, total_steps=burn_in_steps)
+            norm_r = (p["rewards"][model] - r_min) / r_range
+            router.process_feedback(log.request_id, norm_r)
 
             current_step = step_idx + 1
             if current_step in checkpoint_set:
@@ -234,13 +197,12 @@ def run_learning_curve(train_data, eval_data, train_embeddings, eval_embeddings,
 # =============================================================================
 
 def run_lambda_sweep(train_data, eval_data, train_embeddings, eval_embeddings,
-                     warmup_priors, model_costs, lambda_values, n_trials=20,
-                     alpha_start=2.0, alpha_end=0.1):
+                     warmup_path, model_costs, lambda_values, n_trials=20):
     """
     Run banditGPT for additional lambda values using pre-computed embeddings.
     Same protocol as the main experiment (train on dev, freeze, eval on holdout).
+    Uses the production BanditRouter via create_experiment_router().
     """
-    models = list(train_data[0]["rewards"].keys())
     dim = train_embeddings[0].shape[0]
     burn_in_steps = len(train_data)
 
@@ -256,16 +218,20 @@ def run_lambda_sweep(train_data, eval_data, train_embeddings, eval_embeddings,
 
         for trial in range(n_trials):
             np.random.seed(42 + trial)
-            router = make_router(models, dim, warmup_priors, model_costs, lambda_val,
-                                 alpha_start=alpha_start, alpha_end=alpha_end)
+            router = create_experiment_router(
+                model_registry=None,
+                feature_dim=dim,
+                prior_n_effective=10.0,
+                alpha=2.0,
+                warmup_path=warmup_path,
+                cost_penalty=lambda_val,
+            )
 
-            # Train on dev set
             for p, x in zip(train_data, train_embeddings):
-                sel, token = router.select_model(x, total_steps=burn_in_steps)
-                norm_r = (p["rewards"][sel] - r_min) / r_range
-                router.update(x, sel, norm_r, selection_token=token)
+                model, log = router.route(x, total_steps=burn_in_steps)
+                norm_r = (p["rewards"][model] - r_min) / r_range
+                router.process_feedback(log.request_id, norm_r)
 
-            # Frozen holdout evaluation
             r, c = evaluate_frozen(router, eval_data, eval_embeddings,
                                    model_costs, burn_in_steps)
             trial_rewards.append(r)
@@ -521,11 +487,11 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
     ax2.tick_params(labelsize=9)
 
     # Save
-    path_300 = output_dir / 'figure5_revised.png'
+    path_300 = output_dir / 'figure4.png'
     plt.savefig(path_300, dpi=300, bbox_inches='tight', facecolor='white')
     logger.info(f"\n✅ Saved: {path_300}")
 
-    path_600 = output_dir / 'figure5_revised_hires.png'
+    path_600 = output_dir / 'figure4_hires.png'
     plt.savefig(path_600, dpi=600, bbox_inches='tight', facecolor='white')
     logger.info(f"✅ Saved: {path_600}")
 
@@ -558,27 +524,10 @@ def main():
     pca = joblib.load(DEFAULT_PCA_PATH)
 
     sanitized_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
-    if sanitized_path.exists():
-        warmup_priors = joblib.load(sanitized_path)
-        logger.info(f"  ✓ Sanitized priors: {sanitized_path}")
-    else:
-        warmup_priors = joblib.load(DEFAULT_WARMUP_PRIORS_PATH)
-        logger.info(f"  ⚠ Using original priors")
+    warmup_path = str(sanitized_path if sanitized_path.exists() else DEFAULT_WARMUP_PRIORS_PATH)
+    logger.info(f"  ✓ Warmup priors: {warmup_path}")
 
-    # Normalize costs (same protocol as main experiment)
     models = list(eval_data[0]["rewards"].keys())
-    max_cost = max(model_costs_raw[m]["cost"] for m in models)
-    min_cost = min(model_costs_raw[m]["cost"] for m in models)
-    cost_range = max_cost - min_cost
-
-    normalized_costs = {}
-    for model_id in models:
-        raw = model_costs_raw[model_id]["cost"]
-        normalized_costs[model_id] = {
-            "cost": raw,
-            "normalized_cost": (raw - min_cost) / cost_range if cost_range > 0 else 0.0
-        }
-
     logger.info(f"  Models: {models}")
     logger.info(f"  Train: {len(train_data)}, Eval: {len(eval_data)}")
 
@@ -630,21 +579,20 @@ def main():
     logger.info(f"  Oracle:           {oracle_point[1]:.4f}")
 
     # =================================================================
-    # 4. PARETO FRONTIER — full λ sweep with α₀=1.0
+    # 4. PARETO FRONTIER — full λ sweep, production BanditRouter
     # =================================================================
-    logger.info("\n[4/6] Running full λ sweep (α₀=1.0, 20 trials per λ)...")
+    logger.info("\n[4/6] Running full λ sweep (production defaults, 20 trials per λ)...")
 
     all_lambdas = sorted(set(
-        [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0]  # original
-        + [0.25, 0.3, 0.35, 0.4, 0.45]  # gap-filling
+        [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
+        + [0.25, 0.3, 0.35, 0.4, 0.45]
     ))
     logger.info(f"  λ values: {all_lambdas}")
 
     lambda_results = run_lambda_sweep(
         train_data, eval_data, train_embeddings, eval_embeddings,
-        warmup_priors, normalized_costs,
+        warmup_path, model_costs_raw,
         lambda_values=all_lambdas, n_trials=20,
-        alpha_start=1.0, alpha_end=0.1
     )
 
     all_bandit_points = [(res["mean_cost"], res["mean_reward"]) for res in lambda_results]
@@ -654,16 +602,15 @@ def main():
     logger.info(f"  Total banditGPT points: {len(all_bandit_points)}")
 
     # =================================================================
-    # 5. LEARNING CURVE — α₀=1.0, λ=0.0
+    # 5. LEARNING CURVE — production defaults, λ=0.0
     # =================================================================
-    logger.info("\n[5/6] Running learning curve (α₀=1.0, λ=0.0, 20 trials, 11 checkpoints)...")
+    logger.info("\n[5/6] Running learning curve (production defaults, λ=0.0, 20 trials, 11 checkpoints)...")
 
     learning_curve = run_learning_curve(
         train_data, eval_data, train_embeddings, eval_embeddings,
-        warmup_priors, normalized_costs,
+        warmup_path, model_costs_raw,
         lambda_penalty=0.0, n_trials=20,
         checkpoint_steps=[0, 25, 50, 100, 200, 300, 400, 500, 700, 900, 1121],
-        alpha_start=1.0, alpha_end=0.1
     )
 
     from scipy import stats as sp_stats
@@ -698,12 +645,13 @@ def main():
     # =================================================================
     results_out = {
         "metadata": {
-            "description": "Figure 5 Revised: Honest Pareto + Learning Curve",
+            "description": "Figure 4: Honest Pareto + Learning Curve (production BanditRouter)",
             "n_eval": data_stats["eval_prompts"],
             "n_train": data_stats["train_prompts"],
             "n_trials": 20,
-            "alpha_start": 1.0,
-            "alpha_end": 0.1,
+            "router": "BanditRouter via create_experiment_router(alpha=2.0)",
+            "alpha_schedule": "warmup: constant 2.0, tabula_rasa: 1.0→0.01",
+            "corralling_lr": 0.1,
             "lambda_values": all_lambdas,
             "data_asymmetry": {
                 "RouteLLM":  "100k OOD supervised pairs (Augment-100k), zero in-distribution",
@@ -728,7 +676,7 @@ def main():
         "learning_curve": learning_curve
     }
 
-    out_path = output_dir / "figure5_revised_results.json"
+    out_path = output_dir / "figure4_results.json"
     with open(out_path, 'w') as f:
         json.dump(results_out, f, indent=2)
     logger.info(f"\n✅ Results saved: {out_path}")
@@ -749,7 +697,7 @@ def main():
     cold_start_r = learning_curve[0]["mean_reward"]
     final_r = learning_curve[-1]["mean_reward"]
 
-    logger.info(f"\n  α₀ = 1.0 (default)")
+    logger.info(f"\n  Production BanditRouter (α=2.0, η=0.1)")
     logger.info(f"  RouteLLM peak quality:     {rl_peak_reward:.4f}  (100k OOD pre-trained pairs)")
     logger.info(f"  banditGPT cold-start:      {cold_start_r:.4f}  (priors only, 0 in-distribution)")
     logger.info(f"  banditGPT final (1,121):   {final_r:.4f}  (after online learning)")
@@ -761,8 +709,8 @@ def main():
         logger.info(f"\n  banditGPT did not surpass RouteLLM's peak within 1,121 steps")
 
     logger.info(f"\n  Outputs:")
-    logger.info(f"    {output_dir / 'figure5_revised.png'}")
-    logger.info(f"    {output_dir / 'figure5_revised_hires.png'}")
+    logger.info(f"    {output_dir / 'figure4.png'}")
+    logger.info(f"    {output_dir / 'figure4_hires.png'}")
     logger.info(f"    {out_path}")
     logger.info("=" * 70)
 

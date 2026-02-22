@@ -18,9 +18,9 @@ BanditGPT is an open-source contextual bandit framework for LLM routing. Instead
 
 | Metric | Value |
 |--------|-------|
-| Peak quality | 0.915 ± 0.004 (vs. RouteLLM: 0.883) |
-| Gap closure to oracle | 70.8% (vs. RouteLLM: 46.2%) |
-| Prompts to surpass RouteLLM | ~400, label-free |
+| Peak quality | 0.914 ± 0.006 (vs. RouteLLM: 0.883) |
+| Gap closure to oracle | 70.0% (vs. RouteLLM: 46.2%) |
+| Prompts to surpass RouteLLM | ~200, label-free (at moderate-to-high budgets) |
 | Warm-start prior size | < 1 MB |
 | Supports | Arbitrary model portfolios (K ≥ 2) |
 
@@ -373,7 +373,7 @@ This repository accompanies *"Density-Based Warm-Start for Adaptive LLM Routing"
 | Research Question | Result |
 |-------------------|--------|
 | Does prompt structure predict model preference? | Yes — ρ = −0.370, p < 0.0001, exceeding all 100 random projections |
-| Does online learning surpass static routing? | Yes — 70.8% gap closure to oracle (vs. 46.2% for RouteLLM) after 400 label-free prompts |
+| Does online learning surpass static routing? | Yes at moderate-to-high budgets — 70.0% gap closure to oracle (vs. 46.2% for RouteLLM) after ~200 label-free prompts. At low budgets, RouteLLM's pre-trained discrimination is competitive. |
 | Does Corralling provide safety under prior mismatch? | Yes — bounded worst-case regret (32% lower than warmup-only), 95% catastrophic failure detection at K=5 |
 | Does semantic transfer help cold-start new models? | No — null result across all configurations (p > 0.07). Reported transparently. |
 

@@ -41,9 +41,10 @@ latexmk -pdf main.tex
 
 ## Key Results
 
-- **Peak quality**: 0.915 ± 0.004 (vs. GPT-4-Turbo: 0.812, RouteLLM: 0.883)
-- **Oracle gap closure**: 70.8% (vs. 46.2% for RouteLLM)
-- **Crossover**: Surpasses RouteLLM after ~400 label-free prompts
+- **Peak quality**: 0.914 ± 0.006 (vs. GPT-4-Turbo: 0.812, RouteLLM: 0.883)
+- **Oracle gap closure**: 70.0% (vs. 46.2% for RouteLLM)
+- **Crossover**: Surpasses RouteLLM after ~200 label-free prompts (at moderate-to-high budgets)
+- **Two-regime finding**: RouteLLM competitive at low budgets; banditGPT dominates at higher budgets
 - **Evaluation**: 750 held-out prompts, 20 independent trials per configuration
 
 ## Formatting Compliance

@@ -7,6 +7,14 @@ across the entire dev set (not just a single "Simple greeting" prompt).
 
 This helps detect systematic bias where the router consistently
 under- or over-estimates a model's performance.
+
+NOTE: This diagnostic tool intentionally uses CostAwareLinUCBRouter
+directly (not BanditRouter) because it needs to:
+  1. Train on ALL models per prompt (not just the selected one)
+  2. Access internal θ parameters (A, b matrices) for prediction comparison
+These operations are not supported by the production BanditRouter API,
+which only trains the model it selects. This script is not used for any
+claims in the paper — it is purely a development diagnostic.
 """
 
 import sys
