@@ -11,7 +11,7 @@ This directory contains the scripts and data for Figure 4 (Pareto Frontier) of t
 **Motivation from Figures 1-3:**
 - **Figure 1:** Established semantic structure and model preference heterogeneity
 - **Figure 2:** Architecture diagram
-- **Figure 3:** Validated corralling insurance mechanism
+- **Figure 3:** Validated corralling prior degradation sweep
 
 **Critical Question:** Figures 1-3 validated our technical approach, but **does this deliver practical value in production?**
 
@@ -30,12 +30,12 @@ This experiment provides definitive validation through:
 ```
 04_figure/
 ├── generate_pareto_frontier.py          # Main experiment script
+├── generate_figure4.py                  # Two-panel figure generation
+├── run_learning_curves.py               # Learning curve analysis (panel B)
+├── run_statistical_tests.py             # Statistical validation
 ├── check_calibration.py                 # Calibration verification tool
-├── README.md                             # This file
-└── results/
-    ├── pareto_results_final.json        # Complete experimental data
-    ├── figure5_pareto_with_dominated.png      # Main figure (300 dpi)
-    └── figure5_pareto_with_dominated_hires.png # High-res (600 dpi)
+├── README.md                            # This file
+└── results/                             # Output directory
 ```
 
 **Note:** Prior normalization (Neff=10) is now handled automatically in the router code, so no separate script is needed.
@@ -296,7 +296,7 @@ This experiment validates static benchmark performance. Dynamic scenarios are co
 | Scenario | Experiment |
 |----------|-----------|
 | Catastrophic model failure | [Figure 6](../appendix/E_catastrophic_failure_experiment/) |
-| Corralling insurance under prior mismatch | [Figure 3](../03_figure/) |
+| Corralling prior degradation sweep | [Figure 3](../03_figure/) |
 | Hyperparameter sensitivity | Appendix A.2 (ablation), A.3 (n_eff) |
 
 ---
