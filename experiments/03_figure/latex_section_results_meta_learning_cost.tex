@@ -8,6 +8,7 @@
 
 % Crossover value from prior degradation experiment (N=100 seeds, w₀=0.7).
 \providecommand{\CrossoverWC}{0.55}
+% Corralling upside: 18.1 regret saved (34%), downside: 20.0 extra (38%), breakeven: 53%
 
 \subsection{When Does Adaptive Meta-Learning Pay Off?}
 \label{sec:metalearning_cost}
@@ -71,14 +72,14 @@ Corralling's advantage comes from the complementary alpha schedules:
 the warmup expert provides informed early selections (constant
 $\alpha{=}2.0$), while the tabula rasa expert converges to the best
 policy (decaying $\alpha$).  The meta-learner exploits both---fast
-initialization \emph{and} eventual exploitation---achieving 30--40\%
+initialization \emph{and} eventual exploitation---achieving 29--39\%
 lower regret than either alone.
 
 \emph{Adversarial priors ($\alpha \geq 0.6$):}
 \begin{itemize}[nosep]
-    \item \textbf{Corralling:} 65--78 regret ($\sigma{\approx}23$)
-    \item \textbf{Warmup-only:} 59--67 regret (monotonic degradation)
-    \item \textbf{Tabula Rasa:} ${\sim}52$ regret (invariant)
+    \item \textbf{Corralling:} 64--75 regret ($\sigma{\approx}19{-}23$)
+    \item \textbf{Warmup-only:} 59--66 regret (monotonic degradation)
+    \item \textbf{Tabula Rasa:} ${\sim}52.5$ regret (invariant)
 \end{itemize}
 
 The warmup expert's constant exploration amplifies systematically
@@ -87,7 +88,7 @@ expert fast enough.  The bimodal variance ($\sigma{\approx}23$ vs.\
 ${\approx}4$ in the good-prior regime) confirms that the meta-learner
 sometimes recovers and sometimes does not.
 
-Warmup-only degrades monotonically (52 to 67) but is \emph{never}
+Warmup-only degrades monotonically (52 to 66) but is \emph{never}
 the best strategy at any corruption level.
 
 % ----------------------------------------------------------------------------
@@ -96,14 +97,14 @@ the best strategy at any corruption level.
 \paragraph{Expected-Value Decision Framework.}
 We frame strategy selection as an expected-value calculation:
 \begin{itemize}[nosep]
-    \item \textbf{Corralling's upside:} saves 17.7 cumulative regret
+    \item \textbf{Corralling's upside:} saves 18.1 cumulative regret
           (34\% reduction vs.\ tabula rasa) when $\alpha \leq 0.4$
-    \item \textbf{Corralling's downside:} costs 23.2 extra regret
-          (45\% increase) when $\alpha \geq 0.6$
+    \item \textbf{Corralling's downside:} costs 20.0 extra regret
+          (38\% increase) when $\alpha \geq 0.6$
 \end{itemize}
 
 The breakeven occurs when a practitioner believes there is roughly a
-\textbf{57\% chance that priors are useful} ($\alpha \leq 0.4$).  Above
+\textbf{53\% chance that priors are useful} ($\alpha \leq 0.4$).  Above
 this threshold, Corralling has lower expected regret; below it, tabula
 rasa is safer.
 
@@ -137,10 +138,10 @@ accuracy falls below random chance.
 % ----------------------------------------------------------------------------
 \paragraph{Default Recommendation.}
 Use Corralling (the library's default) unless there is strong reason
-to believe priors are adversarial.  The 57\% breakeven threshold is
+to believe priors are adversarial.  The 53\% breakeven threshold is
 easily cleared for most deployments, and early monitoring provides an
 escape hatch for the rare case where it is not.
 
 For deployments where prior quality is genuinely unknown and the cost
 of instability is unacceptable (e.g., healthcare, finance), tabula
-rasa provides a safe, prior-independent baseline at ${\sim}52$ regret.
+rasa provides a safe, prior-independent baseline at ${\sim}52.5$ regret.

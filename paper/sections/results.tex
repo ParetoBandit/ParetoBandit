@@ -39,7 +39,7 @@ This evaluation uses two models to match RouteLLM's topology and enable a contro
 
 Figure~\ref{fig:pareto}b reveals why this matters in practice. banditGPT starts below RouteLLM (cold-start quality: $0.839 \pm 0.004$ with priors only) but crosses RouteLLM's peak after approximately \textbf{200 in-distribution prompts}. By step 400, the crossover is robust (95\% CI lower bound $>0.898$, well above RouteLLM's 0.883). This crossover demonstrates a fundamental asymmetry: a small amount of in-distribution experience outweighs a large volume of out-of-distribution supervision.
 
-The learning curve shows smooth, monotonic improvement from cold-start ($0.839$) through convergence ($0.911$ by step 750). Unlike earlier implementations, the production router exhibits no non-monotonic dips---the Corralling meta-learner decisively shifts $94\%$ of routing weight to the tabula rasa expert, producing consistent convergence across all 20 seeds. By step 500, the variance across trials contracts sharply (CI width $< 0.008$), indicating that the router has converged to a stable, high-quality policy.
+The learning curve shows generally increasing improvement from cold-start ($0.839$) through convergence ($0.911$ by step 750), with minor fluctuations at intermediate checkpoints that remain within the 95\% confidence bands. The Corralling meta-learner decisively shifts $94\%$ of routing weight to the tabula rasa expert, producing consistent convergence across all 20 seeds. By step 750, the variance across trials contracts sharply (CI width $< 0.005$), indicating that the router has converged to a stable, high-quality policy.
 
 \subsubsection{Non-Monotonicity of Static Routing}
 \label{sec:nonmonotone}
@@ -151,7 +151,7 @@ Random & 0.814 $\pm$ 0.003 & 0.00667 & All learning \\
 
 \textbf{(2)~Single-expert LinUCB achieves the highest peak quality} (0.923 vs.\ 0.914 for the full system). This result is expected, not paradoxical: in this ablation, all 1,121 dev prompts flow through a single expert, avoiding the meta-learning overhead of maintaining two experts. Warmup priors are neutral after full burn-in ($0.923$ with or without priors), confirming that 1,121 online samples overwhelm the prior signal. In production, the $-0.009$ gap is the cost of Corralling's adaptive insurance, which pays off at moderate cost penalties (0.886 vs.\ 0.861 at $\lambda{=}0.2$, Appendix~\ref{appendix:architectural_ablation}) and under prior uncertainty (Section~\ref{sec:prior_degradation}).
 
-\textbf{(3)~Corralling excels when priors are reasonable.} The prior degradation sweep (Section~\ref{sec:prior_degradation}) shows that Corralling achieves 30--40\% lower regret than both alternatives when priors range from correct to moderately corrupted ($\alpha \leq 0.5$). However, under adversarial priors ($\alpha \geq 0.6$), Corralling's regret exceeds both warmup-only and tabula rasa, with high variance ($\sigma{\approx}23$). The value of Corralling is therefore not worst-case insurance across \emph{all} prior qualities, but superior performance in the operating regime that covers most practical deployments---moderate distribution shift from offline training data.
+\textbf{(3)~Corralling excels when priors are reasonable.} The prior degradation sweep (Section~\ref{sec:prior_degradation}) shows that Corralling achieves 29--39\% lower regret than both alternatives when priors range from correct to moderately corrupted ($\alpha \leq 0.5$). However, under adversarial priors ($\alpha \geq 0.6$), Corralling's regret exceeds both warmup-only and tabula rasa, with high variance ($\sigma{\approx}19{-}23$). The value of Corralling is therefore not worst-case insurance across \emph{all} prior qualities, but superior performance in the operating regime that covers most practical deployments---moderate distribution shift from offline training data.
 
 \textbf{(4)~Why Corralling outperforms warmup-only even with perfect priors.}
 The ``UCB Only (w/ priors)'' ablation isolates the warmup expert---which uses constant exploration ($\alpha{=}2.0$, no decay) to preserve distribution-shift detection. This perpetual exploration incurs regret even after the optimal policy is well-characterized: the warmup expert keeps second-guessing its own correct beliefs. The tabula rasa expert, by contrast, decays its exploration ($\alpha: 1.0 \to 0.01$) and eventually \emph{commits} to the best policy it has learned. Corralling exploits this complementarity: it relies on the warmup expert's informed early selections, then shifts meta-weight toward the converging tabula rasa expert, capturing the benefits of both fast initialization \emph{and} eventual exploitation. The warmup-only ablation pays the full cost of perpetual exploration, which is why Corralling dominates it across the entire corruption spectrum (Section~\ref{sec:prior_degradation}).
@@ -202,8 +202,8 @@ To understand when Corralling helps and when it hurts, we sweep prior quality fr
 The sweep reveals two distinct operating regimes separated by a crossover near $\alpha{\approx}0.55$:
 
 \begin{enumerate}[noitemsep]
-\item \textbf{Good-to-moderate priors ($\alpha \leq 0.5$):} Corralling achieves the lowest regret (32--38), substantially beating both warmup-only (52--58) and tabula rasa (52). The meta-learner exploits the complementary alpha schedules (Section~\ref{sec:ablations}): it leverages the warmup expert's informed early selections, then shifts weight toward the converging tabula rasa expert.
-\item \textbf{Adversarial priors ($\alpha \geq 0.6$):} Corralling's regret rises sharply (65--78) with high variance ($\sigma{\approx}23$), exceeding both baselines. The warmup expert's constant exploration ($\alpha{=}2.0$) amplifies systematically wrong prior beliefs, and some seeds fail to shift weight to the tabula rasa expert quickly enough. Tabula rasa, which ignores priors entirely, maintains flat regret (${\approx}52$) regardless of corruption.
+\item \textbf{Good-to-moderate priors ($\alpha \leq 0.5$):} Corralling achieves the lowest regret (32--38), substantially beating both warmup-only (52--59) and tabula rasa (52.5). The meta-learner exploits the complementary alpha schedules (Section~\ref{sec:ablations}): it leverages the warmup expert's informed early selections, then shifts weight toward the converging tabula rasa expert.
+\item \textbf{Adversarial priors ($\alpha \geq 0.6$):} Corralling's regret rises sharply (64--75) with high variance ($\sigma{\approx}19{-}23$), exceeding both baselines. The warmup expert's constant exploration ($\alpha{=}2.0$) amplifies systematically wrong prior beliefs, and some seeds fail to shift weight to the tabula rasa expert quickly enough. Tabula rasa, which ignores priors entirely, maintains flat regret (${\approx}52.5$) regardless of corruption.
 \end{enumerate}
 
 Warmup-only degrades monotonically with corruption (52 to 67) but is \emph{never} the best strategy at any corruption level---Corralling dominates it across the entire spectrum, and tabula rasa matches or beats it for $\alpha \geq 0.0$.
@@ -219,9 +219,9 @@ The corruption level $\alpha$ measures how much the deployment distribution has 
 
 \paragraph{Is the instability worth the improvement?}
 We frame this as an expected-value decision.
-At good-to-moderate priors ($\alpha \leq 0.4$), Corralling saves 17.7 cumulative regret (34\% reduction vs.\ tabula rasa), with low variance ($\sigma{\approx}4$).
-At adversarial priors ($\alpha \geq 0.6$), Corralling costs 23.2 extra regret (45\% increase), with high variance ($\sigma{\approx}22$).
-The breakeven occurs when a practitioner believes there is roughly a 57\% chance that priors are useful ($\alpha \leq 0.4$).
+At good-to-moderate priors ($\alpha \leq 0.4$), Corralling saves 18.1 cumulative regret (34\% reduction vs.\ tabula rasa), with low variance ($\sigma{\approx}4$).
+At adversarial priors ($\alpha \geq 0.6$), Corralling costs 20.0 extra regret (38\% increase), with high variance ($\sigma{\approx}19{-}23$).
+The breakeven occurs when a practitioner believes there is roughly a 53\% chance that priors are useful ($\alpha \leq 0.4$).
 Above this threshold, Corralling's expected regret is lower; below it, tabula rasa is safer.
 Table~\ref{tab:expected_regret} shows the expected regret under several representative beliefs:
 
@@ -234,11 +234,11 @@ Table~\ref{tab:expected_regret} shows the expected regret under several represen
 \toprule
 \textbf{Belief about priors} & \textbf{Corralling} & \textbf{Tabula Rasa} & \textbf{Winner} \\
 \midrule
-Certainly good ($P(\alpha{\leq}0.4){=}100\%$) & 34.2 & 51.9 & Corralling ($-34\%$) \\
-Likely good (80/20) & 41.2 & 51.9 & Corralling ($-21\%$) \\
-Uncertain (60/40) & 48.1 & 51.9 & Corralling ($-7\%$) \\
-Coin flip (50/50) & 51.6 & 51.9 & Tie \\
-Likely bad (20/80) & 62.0 & 51.9 & Tab.\ Rasa ($-16\%$) \\
+Certainly good ($P(\alpha{\leq}0.4){=}100\%$) & 34.4 & 52.5 & Corralling ($-34\%$) \\
+Likely good (80/20) & 42.0 & 52.5 & Corralling ($-20\%$) \\
+Uncertain (60/40) & 49.6 & 52.5 & Corralling ($-6\%$) \\
+Coin flip (50/50) & 53.5 & 52.5 & $\approx$Tie \\
+Likely bad (20/80) & 64.9 & 52.5 & Tab.\ Rasa ($-19\%$) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -255,13 +255,13 @@ Crucially, the adversarial regime is \emph{detectable at runtime}. Two mechanism
 \noindent For additional robustness, practitioners can monitor the first 50--100 prompts and compare the warmup expert's predictions against observed rewards.  If the warmup expert's running accuracy falls below random chance, switching to tabula rasa eliminates the downside while sacrificing only the modest burn-in already invested.  Automating this check---freezing warmup-expert weight when its running reward drops below the tabula rasa expert's---is a natural extension that would cap worst-case regret near the tabula rasa baseline (Section~\ref{sec:limitations}).
 
 \paragraph{Default recommendation.}
-Use Corralling unless you have strong reason to believe your offline priors are adversarial.  The 57\% breakeven threshold is easily cleared for most deployments, and early monitoring provides an escape hatch for the rare case where it is not.
+Use Corralling unless you have strong reason to believe your offline priors are adversarial.  The 53\% breakeven threshold is easily cleared for most deployments, and early monitoring provides an escape hatch for the rare case where it is not.
 
 \subsubsection{Catastrophic Failure Detection}
 
-We evaluated Corralling's response to sudden model degradation on a \textbf{5-model portfolio} ($K{=}5$, $N{=}20$ seeds) where GPT-4-Turbo quality drops from $\mu{=}0.82$ to $\mu{=}0.15$ (Cohen's $d{\approx}5.0$) while four alternatives remain healthy. Corralling detects the failure in 95\% of seeds (median 34 steps) and partially recovers---but a simple EMA tracker reacts faster (reward $0.735$ vs.\ $0.646$ during failure, $\Delta{=}{-}0.090$). Notably, this gap \textbf{narrows monotonically with portfolio size}: $\Delta{=}{-}0.286$ at $K{=}2$, ${-}0.154$ at $K{=}3$, ${-}0.090$ at $K{=}5$. EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) spreads thinner, while Corralling's contextual routing becomes more valuable when post-failure routing is a multi-model decision.
+We evaluated Corralling's response to sudden model degradation on a \textbf{5-model portfolio} ($K{=}5$, $N{=}20$ seeds) where GPT-4.1 quality drops from $\mu{=}0.98$ to $\mu{=}0.15$ (Cohen's $d{\approx}5.0$) while four alternatives remain healthy. During the failure phase, a simple EMA tracker achieves higher reward than banditGPT ($0.859$ vs.\ $0.753$, $\Delta{=}{-}0.106$), because EMA's per-model averages react quickly to large reward shifts. However, this gap \textbf{closes with portfolio size}: at $K{=}10$, banditGPT matches EMA ($\Delta{=}{+}0.003$). EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) spreads thinner, while Corralling's contextual routing becomes more valuable when post-failure routing is a multi-model decision.
 
-\emph{Practical distinction:} The two methods differ not only in speed but in \emph{how} they redistribute traffic after failure. EMA concentrates 63\% of failure-phase traffic on a single fallback model, creating a new single point of failure. Corralling distributes traffic roughly uniformly (${\sim}20\%$ each) across the four healthy models based on per-prompt context, providing both load balancing and context-dependent quality. This suggests a complementary deployment architecture: lightweight EMA or CUSUM detectors for rapid model-level alerting, with Corralling handling the actual contextual traffic redistribution.
+\emph{Practical distinction:} The two methods differ not only in speed but in \emph{how} they redistribute traffic after failure. EMA concentrates failure-phase traffic on fewer fallback models, creating concentration risk. Corralling distributes traffic roughly uniformly (${\sim}20\%$ each) across the four healthy models based on per-prompt context, providing both load balancing and context-dependent quality. This suggests a complementary deployment architecture: lightweight EMA or CUSUM detectors for rapid model-level alerting, with Corralling handling the actual contextual traffic redistribution.
 A further operational benefit is that Corralling's continuous exploration provides model regression detection as an intrinsic byproduct of the learning process: if a previously strong model degrades after a vendor update, the exploration budget detects the change without requiring a separate canary or monitoring pipeline.
 Full dynamics and practical deployment recommendations in Appendix~\ref{app:catastrophic_failure}.
 

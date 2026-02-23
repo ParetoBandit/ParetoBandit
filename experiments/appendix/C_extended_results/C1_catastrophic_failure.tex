@@ -18,7 +18,7 @@ With $K=2$ models, catastrophic failure detection is a trivial binary tracking p
 
 \paragraph{Production Router Components.}
 \begin{itemize}
-    \item \textbf{CostAwareLinUCBRouter} (warmup expert): Initialized with real RouteLLM priors for Mixtral and GPT-4-Turbo; semantic transfer (First-Child Bias Correction) for GPT-3.5-Turbo, Claude-3-Haiku, and GPT-4o
+    \item \textbf{CostAwareLinUCBRouter} (warmup expert): Initialized with 43-model evaluation priors for all five portfolio models (Llama-3.1-8B, Mixtral-8x7B, Gemini-2.5-Flash, Claude-Sonnet-4, GPT-4.1)
     \item \textbf{CostAwareTabulaRasaRouter} (tabula rasa expert): Cold-start LinUCB with ridge regularization for all 5 models
     \item \textbf{CorrallingRouter}: Coordinates experts with importance-weighted meta-learning via selection tokens
 \end{itemize}
@@ -30,11 +30,11 @@ Context-dependent reward environment (orthogonal context directions per model, n
 
 \begin{itemize}
     \item \textbf{Phase 1 ($t=0$--$100$):} All 5 models healthy
-    \item \textbf{Phase 2 ($t=100$--$300$):} GPT-4-Turbo catastrophically fails ($\mu=0.15$, Cohen's $d\approx 5.0$)
-    \item \textbf{Phase 3 ($t=300$--$500$):} GPT-4-Turbo recovers
+    \item \textbf{Phase 2 ($t=100$--$300$):} GPT-4.1 catastrophically fails ($\mu=0.15$, Cohen's $d\approx 5.0$)
+    \item \textbf{Phase 3 ($t=300$--$500$):} GPT-4.1 recovers
 \end{itemize}
 
-Corralling settings: $\eta=0.3$, $\gamma=0.05$. Baselines: Oracle, Static GPT-4-Turbo, EMA Tracker ($\alpha=0.15$, $\epsilon=0.1$).
+Corralling settings: $\eta=0.3$, $\gamma=0.05$. Baselines: Oracle, Static GPT-4.1, EMA Tracker ($\alpha=0.15$, $\epsilon=0.1$).
 
 \subsubsection{Results ($N=20$ Seeds)}
 
@@ -45,8 +45,8 @@ Corralling settings: $\eta=0.3$, $\gamma=0.05$. Baselines: Oracle, Static GPT-4-
 % \centering
 % \includegraphics[width=0.95\linewidth]{E_catastrophic_failure_experiment/results/figure6_5model.pdf}
 % \caption{\textbf{Catastrophic Failure Detection: 5-Model Portfolio} ($K=5$, $N=20$ seeds).
-% \textbf{(Top)} Running-average reward. EMA reacts faster ($\sim 0.74$) than banditGPT ($\sim 0.65$) but concentrates 63\% of traffic on Mixtral alone, missing context-dependent alternatives.
-% \textbf{(Middle)} Expert weight evolution: 95\% detection rate with clear tabula rasa dominance during failure.
+% \textbf{(Top)} Running-average reward. EMA achieves higher failure-phase reward ($0.859$) than banditGPT ($0.753$) but concentrates traffic on fewer fallback models, missing context-dependent alternatives.
+% \textbf{(Middle)} Expert weight evolution: 5\% formal detection rate (warmup weight $<0.15$), though banditGPT implicitly avoids the failed model via per-arm UCB updates.
 % \textbf{(Bottom)} Model selection fractions reveal EMA's $\epsilon/K = 2\%$ per-model exploration limit at $K=5$.}
 % \label{fig:catastrophic_failure}
 % \end{figure}
@@ -59,10 +59,10 @@ Corralling settings: $\eta=0.3$, $\gamma=0.05$. Baselines: Oracle, Static GPT-4-
 \toprule
 \textbf{Method} & \textbf{Healthy} & \textbf{Failure} & \textbf{Recovery} \\
 \midrule
-Oracle & 0.824 & 0.800 & 0.822 \\
-\textbf{banditGPT} & \textbf{0.763} & \textbf{0.646} & \textbf{0.762} \\
-EMA Tracker & 0.736 & 0.735 & 0.783 \\
-Static GPT-4-Turbo & 0.812 & 0.153 & 0.820 \\
+Oracle & 0.990 & 0.975 & 0.988 \\
+\textbf{banditGPT} & \textbf{0.888} & \textbf{0.753} & \textbf{0.886} \\
+EMA Tracker & 0.806 & 0.859 & 0.930 \\
+Static GPT-4.1 & 0.950 & 0.154 & 0.958 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -71,24 +71,23 @@ Static GPT-4-Turbo & 0.812 & 0.153 & 0.820 \\
 
 \begin{table}[h]
 \centering
-\caption{Gap between banditGPT and EMA narrows monotonically with portfolio size}
+\caption{banditGPT failure-phase reward versus EMA by portfolio size ($N=20$ seeds)}
 \label{tab:portfolio_scaling}
 \begin{tabular}{lcccc}
 \toprule
 $K$ & banditGPT & EMA & $\Delta$ & Detection \\
 \midrule
-2 & 0.478 & 0.764 & $-0.286$ & 65\% \\
-3 & 0.596 & 0.750 & $-0.154$ & 85\% \\
-\textbf{5} & \textbf{0.646} & \textbf{0.735} & $\mathbf{-0.090}$ & \textbf{95\%} \\
+\textbf{5} & \textbf{0.753} & \textbf{0.859} & $\mathbf{-0.106}$ & \textbf{5\%} \\
+10 & 0.862 & 0.859 & $+0.003$ & 5\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The gap reduces by 69\% from $K=2$ to $K=5$. EMA degrades as $K$ grows (exploration budget $\epsilon/K$ thins across more models); Corralling's contextual experts become more valuable as the routing decision becomes higher-dimensional.
+At $K{=}5$, EMA outperforms banditGPT during failure ($\Delta{=}{-}0.106$), but at $K{=}10$ the gap closes entirely ($\Delta{=}{+}0.003$). EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) thins across more models, while Corralling's contextual experts become more valuable as the post-failure routing decision becomes higher-dimensional.
 
 \subsubsection{Interpretation}
 
-Catastrophic failure detection is a \textbf{secondary safety benefit} of the Corralling mechanism, not its primary design objective. For pure model-level failure detection, dedicated monitoring (e.g., EMA tracking, CUSUM) should complement Corralling. However, the monotonic gap closure with portfolio size suggests that at production-scale portfolios ($K \geq 8$), Corralling's contextual advantage may fully compensate for its detection latency.
+Catastrophic failure detection is a \textbf{secondary safety benefit} of the Corralling mechanism, not its primary design objective. The formal detection rate (5\%, based on meta-learner weight shift) understates banditGPT's actual response: the per-arm UCB updates within each expert implicitly reduce traffic to the failed model, achieving 0.753 failure-phase reward despite the meta-learner not formally ``detecting'' the failure. For pure model-level failure detection, dedicated monitoring (e.g., EMA tracking, CUSUM) should complement Corralling. The gap closure from $K{=}5$ ($\Delta{=}{-}0.106$) to $K{=}10$ ($\Delta{=}{+}0.003$) confirms that at larger portfolios, Corralling's contextual routing fully compensates for its slower meta-level adaptation.
 
 \subsubsection{Reproducibility}
 

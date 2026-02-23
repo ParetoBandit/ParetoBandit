@@ -93,7 +93,7 @@ At $K{=}10$, the envelope is flatter: quality degrades only 2\% ($0.940 \to 0.92
 In both cases, a practitioner adjusts a \emph{single scalar parameter} ($\lambda$) rather than manually selecting among $K$ models or tuning $K{-}1$ routing thresholds.
 
 \paragraph{(2)~Warmup priors eliminate cold-start at all portfolio sizes.}
-At step~0---before any online learning---banditGPT achieves holdout quality of 0.938 ($K{=}5$) and 0.945 ($K{=}10$), already within 5\% of the Oracle.
+At step~0---before any online learning---banditGPT achieves holdout quality of 0.938 ($K{=}5$) and 0.945 ($K{=}10$), already within 6\% of the Oracle.
 This is a direct consequence of the 43-model warmup priors (Section~\ref{sec:warmup_prior_construction}), which encode per-model quality estimates from 355 training prompts into the $\Amat$ and $\mathbf{b}$ matrices.
 The cold-start quality is \emph{higher} at $K{=}10$ than at $K{=}5$ because the larger portfolio provides more routing options---even with imperfect prior estimates, the probability that at least one model is well-calibrated for any given prompt increases with $K$.
 For practitioners, this means that a newly deployed multi-model router delivers production-quality routing from its first request.
@@ -135,7 +135,7 @@ For a deployment handling 100k requests/day at the $\lambda{=}1.0$ operating poi
 
 \paragraph{Resilience through portfolio diversity.}
 A practical benefit of multi-model routing, distinct from the cost--quality Pareto analysis, is resilience to provider outages and model deprecations.
-When traffic distributes across 6 providers (as in the $K{=}10$ allocation), a single provider outage affects at most 16\% of traffic.
+When traffic distributes across 6 providers (as in the $K{=}10$ allocation), a single-model outage affects at most 16\% of traffic (no model exceeds 15.6\%), though a full provider outage could affect up to 28\% (Anthropic: Claude-Sonnet-4 at 14\% + Claude-Haiku-4.5 at 13\%).
 The router's online learning automatically redistributes affected traffic to the remaining models within tens of interactions.
 This contrasts with single-model deployments where a provider outage is a full service failure, or with rule-based failover where fallback ordering must be manually maintained.
 

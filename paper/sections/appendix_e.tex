@@ -190,7 +190,7 @@ Known Good
     & Corralling & \textbf{37.3 $\pm$ 4.3} & \textbf{32--38} &
     \textbf{[OPTIMAL]} Library default.
     Dominates warmup-only and tabula rasa
-    for $\alpha \leq 0.5$ (30--40\% lower regret) \\
+    for $\alpha \leq 0.5$ (29--39\% lower regret) \\
 \midrule
 Unknown / Uncertain
     & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
@@ -217,7 +217,7 @@ any corruption level---Corralling dominates it across the entire spectrum.
 
 \textbf{Breakeven rule:}
 Corralling has better expected regret than tabula rasa if you believe
-there is $\geq 57\%$ probability that priors are useful ($\alpha \leq 0.4$).
+there is $\geq 53\%$ probability that priors are useful ($\alpha \leq 0.4$).
 \end{table}
 
 \paragraph{Validation Protocol.}
@@ -228,10 +228,10 @@ tabula rasa to cap downside risk.
 
 \paragraph{Key Findings.}
 (1)~Corralling dominates both warmup-only and tabula rasa for
-good-to-moderate priors ($\alpha \leq 0.5$), achieving 30--40\% lower
+good-to-moderate priors ($\alpha \leq 0.5$), achieving 29--39\% lower
 regret;
 (2)~Tabula Rasa is optimal when priors are known-bad or truly uncertain;
 (3)~Warmup-only is \emph{never} optimal at any corruption level and should
 be migrated to Corralling in all cases;
-(4)~The 57\% breakeven threshold provides a principled decision rule.
+(4)~The 53\% breakeven threshold provides a principled decision rule.
 All configurations use constant $\alpha=2.0$.

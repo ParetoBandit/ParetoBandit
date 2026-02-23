@@ -22,15 +22,15 @@ recommended starting point for all deployments because:
 
 \begin{enumerate}[nosep]
     \item \textbf{Dominant when priors are useful:}
-    Corralling achieves 30--40\% lower regret than both warmup-only and
+    Corralling achieves 29--39\% lower regret than both warmup-only and
     tabula rasa when $\alpha \leq 0.5$ (regret 32--38 vs.\ 52+).
     \item \textbf{Complementary alpha schedules:}
     The warmup expert (constant $\alpha{=}2.0$) provides informed early
     selections; the tabula rasa expert (decaying $\alpha{=}1.0 \to 0.01$)
     converges to the best policy.  The meta-learner exploits both.
-    \item \textbf{57\% breakeven threshold:}
+    \item \textbf{53\% breakeven threshold:}
     Corralling has better expected regret than tabula rasa if there is
-    $\geq 57\%$ probability that priors are useful.  Most deployments
+    $\geq 53\%$ probability that priors are useful.  Most deployments
     easily clear this bar.
 \end{enumerate}
 

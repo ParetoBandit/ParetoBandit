@@ -54,7 +54,7 @@ Instead, banditGPT makes three structural contributions that complement rather t
 All prior bandit routers use a single contextual bandit policy.
 banditGPT is the first LLM router to employ a meta-learning layer: a Corralling~\cite{agarwal2017corralling} coordinator that maintains trust weights over two expert bandits with complementary exploration schedules---one initialized from warmup priors (constant $\alpha$) and one starting from scratch (decaying $\alpha$).
 This ``bandits-over-bandits'' structure provides bounded worst-case regret under prior mismatch (Appendix~\ref{appendix:mathematical_foundations}), a formal safety property absent from other bandit routers.
-In practice, Corralling achieves 30--40\% lower regret than either expert alone when priors are useful ($\alpha \leq 0.5$, Section~\ref{sec:prior_degradation}).
+In practice, Corralling achieves 29--39\% lower regret than either expert alone when priors are useful ($\alpha \leq 0.5$, Section~\ref{sec:prior_degradation}).
 Subsequent model-selection frameworks~\cite{pacchiano2020model, cutkosky2021dynamic} improve on Corralling's variance guarantees through regret balancing, though none have been applied to LLM routing.
 
 \paragraph{2.\ Offline-to-online prior transfer.}
