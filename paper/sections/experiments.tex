@@ -1,13 +1,12 @@
-\section{Experimental Setup}
+\subsection{Experimental Setup}
 \label{sec:experiments}
 
-% TRANSITION from Methodology
 We evaluate banditGPT using a held-out LMSYS Chatbot Arena dataset~\cite{zheng2023judging} with fixed train/dev/test splits, and commercial per-request costs for each model. Additional evaluations (multi-model scaling, alternative bandit baselines, regret curves, and robustness stress tests) are reported in the appendix (supplementary material).
 
-\subsection{Dataset \& Ground Truth}
+\subsubsection{Dataset \& Ground Truth}
 We use three disjoint prompt sets to avoid leakage: (i)~offline data for warmup priors (80k RouteLLM battles for the Mixtral/GPT-4-Turbo pair), (ii)~a dev stream of 1,121 prompts for online bandit updates, and (iii)~a frozen holdout of 750 prompts for evaluation of cost--quality trade-offs. Full dataset provenance and split details are provided in the appendix (supplementary material).
 
-\subsection{Model Topology \& Baselines}
+\subsubsection{Model Topology \& Baselines}
 
 We mirror RouteLLM's primary $K{=}2$ evaluation topology~\cite{ong2024routellm}:
 
@@ -18,7 +17,7 @@ We mirror RouteLLM's primary $K{=}2$ evaluation topology~\cite{ong2024routellm}:
 
 We compare against static single-model baselines, random routing, RouteLLM-MF~\cite{ong2024routellm}, and an oracle upper bound that selects the better model per prompt.
 
-\subsection{Evaluation Metrics}
+\subsubsection{Evaluation Metrics}
 
 We evaluate performance using three key metrics standard in cost-aware routing literature:
 
@@ -33,7 +32,7 @@ We evaluate performance using three key metrics standard in cost-aware routing l
     \end{equation}
 \end{itemize}
 
-\subsection{Implementation Details}
+\subsubsection{Implementation Details}
 
 \textbf{Embeddings:} \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} with 32D PCA trained on 80k routing prompts.
 \textbf{Trials:} Unless noted otherwise, we report mean and 95\% confidence intervals over 20 seeds for each cost penalty $\lambda$ in the sweep. Additional statistical details and robustness checks are in the appendix (supplementary material).

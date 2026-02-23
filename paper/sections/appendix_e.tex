@@ -252,3 +252,24 @@ tabula rasa to cap downside risk.
 be migrated to Corralling in all cases;
 (4)~The crossover at $\alpha \approx 0.3$ provides a principled decision rule.
 All configurations use constant $\alpha=2.0$.
+
+% ============================================================================
+% E.4: Detailed Future Directions (moved from main paper conclusion)
+% ============================================================================
+
+\subsection{Detailed Future Directions}
+\label{sec:future_work_detailed}
+
+\paragraph{Cold-Start Model Integration.}
+Our null result on semantic transfer identifies this as an open problem. Future approaches might explore Thompson Sampling (which provides natural stochastic exploration of new models), active exploration bonuses specifically for under-sampled models, or meta-learning across model registration events. The structural challenge is that in a $K$-model portfolio, a new model's initialization affects only ${\sim}1/K$ of routing decisions, making per-model transfer inherently low-signal.
+
+\paragraph{Algorithmic Extensions.}
+\begin{itemize}
+    \item \textbf{Expert-Level Non-Stationarity:} Our current experts assume stationary rewards; non-stationarity is handled only at the meta level. Integrating discounted UCB, sliding-window updates, or change-point detection within individual experts would enable adaptation to gradual reward drift without requiring meta-level intervention.
+    \item \textbf{Anisotropic Regularization:} The isotropic prior $\Amat_0 = \lambda \mathbf{I}$ in PCA space over-regularizes low-variance components. Variance-matched diagonal priors or full whitening before the bandit layer could improve sample efficiency.
+    \item \textbf{Adaptive Corralling Learning Rate:} Replacing the fixed $\eta$ with a horizon-aware schedule ($\eta_t \propto \sqrt{\ln K / t}$) or a doubling-trick variant would restore formal regret guarantees while maintaining practical performance.
+    \item \textbf{Adaptive Exploration Schedules:} Our multi-model evaluation ($K{=}5$--$20$) reveals that the constant exploration coefficient ($\alpha{=}2.0$) imposes a quality tax in stationary regimes where one model dominates (0.954 vs.\ 0.983 best static at $K{=}5$). Adaptive schedules that modulate $\alpha$ based on estimated stationarity---reducing exploration when the reward landscape appears stable, increasing it when drift is detected---could narrow this gap while preserving distribution-shift detection.
+\end{itemize}
+
+\paragraph{From Routing to Orchestration.}
+We view single-model routing as a precursor to \textbf{Agentic Orchestration}. The Corralling mechanism is naturally suited to govern autonomous agent portfolios: detecting when a specialist agent has degraded and dynamically reallocating tasks, just as it decommissions a failing expert in the routing setting.

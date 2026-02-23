@@ -1,7 +1,9 @@
-\section{Results \& Discussion}
+\section{Experiments}
 \label{sec:results}
 
 We evaluate banditGPT along five dimensions: economic efficiency (Pareto optimality), online learning dynamics, multi-model scaling, comparisons to alternative bandit baselines, and operational robustness. Section~\ref{sec:pareto} presents a controlled two-model benchmark against RouteLLM and a learning-curve analysis. Additional evaluations are reported in the supplementary material.
+
+\input{sections/experiments}
 
 \subsection{Cost--Quality Trade-off}
 \label{sec:pareto}
@@ -57,21 +59,14 @@ Operationally, banditGPT incurs inference cost for only the selected model per r
 
 Design ablations and hyperparameter sensitivity sweeps are reported in the supplementary material.
 
-% Additional evaluations (multi-model scaling, alternative baselines, regret curves)
-% are reported in the supplementary material to keep the core paper focused.
-
-% ============================================================================
-% SECTION 5.5: Compact Robustness & Adaptation
-% ============================================================================
-
-\subsection{Additional evaluations (appendix)}
+\subsection{Additional Evaluations and Limitations}
 \label{sec:robustness_adaptation}
 \label{sec:prior_degradation}
 \label{sec:transfer_null}
 \label{sec:limitations}
 
-We report additional analyses in the appendix (supplementary material), including robustness under prior mismatch, synthetic catastrophic-failure stress tests, multi-model scaling, comparisons to alternative bandit baselines, cumulative regret curves, and cold-start transfer experiments. These results are omitted from the core paper for space, but are included to support practical deployment and reproducibility.
+We report additional analyses in the appendix (supplementary material), including robustness under prior mismatch, synthetic catastrophic-failure stress tests, multi-model scaling, comparisons to alternative bandit baselines, cumulative regret curves, and cold-start transfer experiments.
 
-\subsection{Limitations (brief)}
+\paragraph{Limitations.}
 Our controlled RouteLLM comparison uses a single model pair and a single prompt distribution; deployments with different portfolios and traffic will shift the quantitative cost crossover points. Our robustness experiments are stress tests rather than guarantees, and our current treatment of non-stationarity primarily operates through meta-level mixing rather than explicit forgetting within each expert.
 
