@@ -2,18 +2,22 @@
 \label{sec:motivation}
 
 % TRANSITION from Introduction
-Current LLM routers operate under an implicit assumption: task ``difficulty'' determines which model to use---easy tasks go to cheap models, hard tasks to expensive ones. This section presents an empirical finding that overturns this assumption and directly motivates the banditGPT architecture:
+The LLM routing literature divides into two paradigms.
+\emph{Static routers} (including the most widely deployed systems) learn a mapping from prompt to model offline and deploy it frozen; any monotonicity assumption baked into training data persists silently at inference time.
+\emph{Adaptive routers} (contextual bandits~\cite{panda2025pilot, wang2025barp, li2025llmbandit}) update online and can in principle correct such errors, but their correction rate depends critically on whether the feature representation encodes the right variation.
+This section presents an empirical finding that neither paradigm fully accounts for: prompt embeddings predict model preference strongly enough to be exploited, but the preference structure is counter-intuitive; the expensive model is actively worse on an identifiable, semantically coherent subset of prompts.
+This motivates the banditGPT architecture directly:
 
-\textbf{Model Preference Heterogeneity (Figure~\ref{fig:lmsys_holdout_structure}):} The expensive model is not merely unnecessary on some tasks---it is \emph{actively worse} on a specific, identifiable subset. This transforms routing from interpolation (``how much quality am I willing to trade for cost?'') into \textbf{discovery} (``which prompts actually benefit from the expensive model?'').
+\textbf{Model Preference Heterogeneity (Figure~\ref{fig:lmsys_holdout_structure}):} The expensive model is not merely unnecessary on some tasks; it is \emph{actively worse} on a specific, identifiable subset. This transforms routing from interpolation (``how much quality am I willing to trade for cost?'') into \textbf{discovery} (``which prompts actually benefit from the expensive model?'').
 
 This finding establishes: \textbf{routing is a learnable discovery problem requiring adaptive mechanisms with safety guarantees.}
 
 \subsection{Model Preference Heterogeneity}
 
-We analyze model preference heterogeneity by projecting 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of a 32-component PCA model trained on sentence embeddings from 80K routing prompts. This domain-adapted PCA is \emph{unsupervised}---it never sees reward labels during training---and identifies directions of maximum variance in routing-relevant prompt space.
+We analyze model preference heterogeneity by projecting 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of a 32-component PCA model trained on sentence embeddings from 80K routing prompts. This domain-adapted PCA is \emph{unsupervised} (it never sees reward labels during training) and identifies directions of maximum variance in routing-relevant prompt space.
 
 \paragraph{Features predict model preference.}
-The router's PC1 shows a significant Spearman rank correlation with the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$: $\rho = -0.370$, $p < 0.0001$, $N = 750$ (Figure~\ref{fig:lmsys_holdout_structure}A). The negative correlation means higher PC1 values correspond to prompts where the cheaper model (Mixtral) outperforms GPT-4-Turbo---exactly the signal a contextual bandit needs to learn routing.
+The router's PC1 shows a significant Spearman rank correlation with the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$: $\rho = -0.370$, $p < 0.0001$, $N = 750$ (Figure~\ref{fig:lmsys_holdout_structure}A). The negative correlation means higher PC1 values correspond to prompts where the cheaper model (Mixtral) outperforms GPT-4-Turbo; this is exactly the signal a contextual bandit needs to learn routing.
 
 To confirm this is genuine signal rather than a projection artifact, we compare the Router PCA's $|\rho| = 0.370$ against 100 independent random orthonormal projections ($384 \to 2$, QR-decomposed). The Router PCA exceeds all 100 random projections (Figure~\ref{fig:lmsys_holdout_structure}B), with a 2.6$\times$ signal ratio versus the random median ($|\rho|_{\text{random}} = 0.145$).
 
@@ -50,7 +54,7 @@ We use the held-out test set only ($N=750$); PCA is trained without reward label
 This finding has three direct consequences for router design:
 
 \begin{enumerate}[noitemsep,topsep=2pt]
-    \item \textbf{Static ``hardness'' classifiers will fail.} A router trained to predict task difficulty and send ``hard'' prompts to the expensive model will systematically over-provision GPT-4 on the strict-constraint subset where it underperforms. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, ultimately paying ${\sim}44\times$ more per request than static Mixtral for $1.3\%$ lower quality.
+    \item \textbf{Static routing policies will over-provision.} Any frozen policy that embeds a monotonicity prior (that routing more budget toward the expensive model should not hurt) will systematically over-provision GPT-4 on the strict-constraint subset where it underperforms. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, ultimately paying ${\sim}44\times$ more per request than static Mixtral for $1.3\%$ lower quality.
     
     \item \textbf{Cost savings come from ties.} The majority of prompts (72.8\%) show no strong model preference, meaning the cheaper model can serve them with comparable quality. The router's value is correctly identifying the minority where the expensive model genuinely matters.
     
@@ -69,4 +73,4 @@ The analysis above motivates adaptive routing through a direct argument:
     \item \textbf{Therefore, safe online learning is necessary:} The router must (a) exploit semantic structure to make the preference discovery tractable, (b) hedge against misleading priors via meta-learning, and (c) handle non-stationarity as new models enter the portfolio. These are exactly the three mechanisms of banditGPT (Section~\ref{sec:methodology}).
 \end{enumerate}
 
-This chain---from empirical observation, through failure analysis of static methods, to architectural requirements---is the foundation for the system we present next.
+This chain (from empirical observation, through failure analysis of static methods, to architectural requirements) is the foundation for the system we present next.
