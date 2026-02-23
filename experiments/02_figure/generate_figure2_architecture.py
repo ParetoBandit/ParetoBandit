@@ -2,12 +2,8 @@
 """
 Figure 2: The banditGPT Router Architecture
 
-Publication-quality architecture diagram. Clean, minimal design
-with no overlapping elements. Shows the three-layer routing pipeline,
-data sources, and two-level feedback loop.
-
-Usage:
-    python3 experiments/02_figure/generate_figure2_architecture.py
+Clean vertical pipeline diagram for KDD.
+Wong (2011) colorblind-safe palette throughout.
 """
 
 import matplotlib
@@ -15,424 +11,288 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 from pathlib import Path
-
-# ═══════════════════════════════════════════════════════════════════
-#  COLORS — Wong (2011) colorblind-safe palette (Nature Methods)
-#  Verified for protanopia, deuteranopia, and tritanopia.
-# ═══════════════════════════════════════════════════════════════════
+import numpy as np
 
 PAL = dict(
-    blue="#0072B2",       # input / output boxes
-    sky="#56B4E9",        # feature extraction pipeline
-    vermillion="#D55E00", # coordinator (key innovation)
-    teal="#009E73",       # warmup expert
-    orange="#E69F00",     # tabula rasa expert
-    rpur="#CC79A7",       # feedback loop
-    gray="#505050",       # model registry
+    blue="#0072B2",
+    sky="#2171B5",        # darkened from #56B4E9 for text contrast on white
+    sky_fill="#d0e4f5",   # light fill for sky-themed boxes
+    vermillion="#D55E00",
+    teal="#006D5B",       # darkened from #009E73 for text contrast on white
+    teal_fill="#c8ead3",  # light fill
+    orange="#C67A00",     # darkened from #E69F00 for text contrast on white
+    orange_fill="#fdf2d0",
+    rpur="#9B4577",       # darkened from #CC79A7 for text contrast on white
+    rpur_fill="#f2dcea",
+    gray="#555555",       # darkened from #888888
     dk="#1a1a1a", md="#333333", lt="#555555",
 )
 
 
 def create_figure():
-    fig, ax = plt.subplots(figsize=(7.2, 10.0))
+    fig, ax = plt.subplots(figsize=(10, 11.5))
     ax.set_xlim(0, 100)
-    ax.set_ylim(0, 100)
+    ax.set_ylim(0, 120)
     ax.axis("off")
 
-    # ─── Helpers ──────────────────────────────────────────────
+    # ─── Drawing Primitives ──────────────────────────────────
 
-    def box(x, y, w, h, label, fc="white", ec="#333", tc="#1a1a1a",
-            lw=1.4, fs=9, fw="bold", z=3):
-        """Simple rounded box with ONE centered label."""
+    def rbox(cx, cy, w, h, title, subtitle=None, fc="white", ec="#333",
+             tc=None, lw=1.6, fs=11.5, fs2=9.5, z=3, ls="-"):
+        tc = tc or PAL["dk"]
         ax.add_patch(FancyBboxPatch(
-            (x, y), w, h, boxstyle="round,pad=0.4",
-            fc=fc, ec=ec, lw=lw, zorder=z))
-        ax.text(x + w/2, y + h/2, label, ha="center", va="center",
-                fontsize=fs, fontweight=fw, color=tc, zorder=z+1)
+            (cx - w/2, cy - h/2), w, h,
+            boxstyle="round,pad=0.4", fc=fc, ec=ec,
+            lw=lw, zorder=z, linestyle=ls))
+        if subtitle:
+            ax.text(cx, cy + h*0.15, title, ha="center", va="center",
+                    fontsize=fs, fontweight="bold", color=tc, zorder=z+1)
+            ax.text(cx, cy - h*0.22, subtitle, ha="center", va="center",
+                    fontsize=fs2, color=PAL["md"], fontstyle="italic",
+                    zorder=z+1)
+        else:
+            ax.text(cx, cy, title, ha="center", va="center",
+                    fontsize=fs, fontweight="bold", color=tc, zorder=z+1)
 
-    def box2(x, y, w, h, line1, line2, fc="white", ec="#333",
-             tc="#1a1a1a", tc2=None, lw=1.4, fs=9, fs2=7, fw="bold", z=3):
-        """Rounded box with title + subtitle."""
-        ax.add_patch(FancyBboxPatch(
-            (x, y), w, h, boxstyle="round,pad=0.4",
-            fc=fc, ec=ec, lw=lw, zorder=z))
-        ax.text(x + w/2, y + h*0.62, line1, ha="center", va="center",
-                fontsize=fs, fontweight=fw, color=tc, zorder=z+1)
-        ax.text(x + w/2, y + h*0.28, line2, ha="center", va="center",
-                fontsize=fs2, color=tc2 or PAL["md"], zorder=z+1,
-                fontstyle="italic")
-
-    def arrow(x1, y1, x2, y2, c="#333", lw=1.4, ls="-", rad=0):
+    def arr(x1, y1, x2, y2, c="#333", lw=1.6, ls="-", rad=0.0, ms=14):
         con = f"arc3,rad={rad}" if rad else "arc3,rad=0"
         ax.add_patch(FancyArrowPatch(
             (x1, y1), (x2, y2), arrowstyle="-|>",
             connectionstyle=con, color=c, lw=lw,
-            mutation_scale=11, zorder=2, linestyle=ls))
+            mutation_scale=ms, zorder=10, linestyle=ls))
 
-    def line(x1, y1, x2, y2, c="#333", lw=1.2, ls="--"):
-        ax.plot([x1, x2], [y1, y2], color=c, lw=lw, ls=ls, zorder=2)
+    def seg(x1, y1, x2, y2, c="#333", lw=1.6, ls="-"):
+        ax.plot([x1, x2], [y1, y2], color=c, lw=lw, ls=ls,
+                zorder=10, solid_capstyle="round")
 
-    def txt(x, y, s, fs=7, c=None, fw="normal", ha="center", va="center",
-            fam=None, sty="normal"):
-        ax.text(x, y, s, fontsize=fs, color=c or PAL["md"],
-                fontweight=fw, ha=ha, va=va, fontfamily=fam or "sans-serif",
-                fontstyle=sty, zorder=5)
+    def label(x, y, s, fs=10, c=None, fw="normal", ha="center",
+              va="center", fam=None, sty="normal", bg=False):
+        kw = dict(fontsize=fs, color=c or PAL["md"], fontweight=fw,
+                  ha=ha, va=va, fontfamily=fam or "sans-serif",
+                  fontstyle=sty, zorder=12)
+        if bg:
+            kw["bbox"] = dict(boxstyle="round,pad=0.2", fc="white",
+                              ec="none", alpha=0.92)
+        ax.text(x, y, s, **kw)
 
-    # ─── Layout coordinates ───────────────────────────────────
-    cx = 50              # pipeline center
-    bw, bh = 32, 5.0    # standard box size
+    # ─── Layout Constants ────────────────────────────────────
+    cx = 50                # pipeline center x
+    pw = 42                # pipeline box width
+    bh = 7                 # standard box height
+    fb_x = 92              # feedback spine x
 
-    # Y positions (top to bottom, well-spaced)
-    y_prompt  = 93
-    y_embed   = 84
-    y_pca     = 75
-    y_pareto  = 64
-    y_coord   = 53
-    y_exp     = 40       # expert row
-    y_ucb     = 27
-    y_model   = 11
-    y_reward  = 1
-
-    # ═════════════════════════════════════════════════════════
-    #  MAIN PIPELINE (top → bottom)
-    # ═════════════════════════════════════════════════════════
-
-    # 1. User Prompt
-    box2(cx-bw/2, y_prompt, bw, bh,
-         "User Prompt", "natural language query",
-         fc="#d4e6f1", ec=PAL["blue"], tc=PAL["blue"], lw=1.8)
-
-    # 2. Sentence Transformer
-    box2(cx-bw/2, y_embed, bw, bh,
-         "Sentence Transformer", "all-MiniLM-L6-v2  \u2192  384-D",
-         ec=PAL["sky"], tc=PAL["sky"])
-
-    arrow(cx, y_prompt, cx, y_embed + bh, c=PAL["dk"])
-
-    # 3. PCA
-    box2(cx-bw/2, y_pca, bw, bh,
-         "Domain-Adapted PCA", "384-D  \u2192  33-D context vector $x_t$",
-         ec=PAL["sky"], tc=PAL["sky"])
-
-    arrow(cx, y_embed, cx, y_pca + bh, c=PAL["dk"])
-
-    # PCA note (to the left, out of the way)
-    txt(cx - bw/2 - 2, y_pca + bh/2,
-        "Trained on 80K\nRouteLLM prompts\n(unsupervised)",
-        fs=6, c=PAL["lt"], ha="right", sty="italic")
+    # Y positions (top to bottom)
+    y_prompt = 113
+    y_feat   = 101
+    y_filter = 89
+    y_coord  = 76
+    y_exp    = 60          # experts row (taller boxes)
+    y_ucb    = 44
+    y_llms   = 30          # LLM portfolio row
+    y_reward = 14
 
     # ═════════════════════════════════════════════════════════
-    #  CONTEXT VECTOR ANNOTATION (right side)
+    #  1. USER PROMPT
     # ═════════════════════════════════════════════════════════
+    rbox(cx, y_prompt, 30, bh, "User Prompt",
+         r"Query $q_t$  +  constraints",
+         fc=PAL["sky_fill"], ec=PAL["sky"], tc=PAL["sky"])
 
-    ctx_x, ctx_y, ctx_w, ctx_h = 70, 74, 28, 10
+    arr(cx, y_prompt - bh/2, cx, y_feat + bh/2, c=PAL["dk"])
+
+    # ═════════════════════════════════════════════════════════
+    #  2. FEATURE EXTRACTION
+    # ═════════════════════════════════════════════════════════
+    rbox(cx, y_feat, pw, bh, "Feature Extraction",
+         r"Sentence-BERT  +  PCA  $\rightarrow\;  x_t \in \mathbb{R}^{33}$",
+         fc=PAL["sky_fill"], ec=PAL["sky"], tc=PAL["sky"])
+
+    arr(cx, y_feat - bh/2, cx, y_filter + bh/2, c=PAL["dk"])
+
+    # ═════════════════════════════════════════════════════════
+    #  3. CONSTRAINT & PARETO FILTER
+    # ═════════════════════════════════════════════════════════
+    rbox(cx, y_filter, pw, bh, "Constraint & Pareto Filter",
+         r"Cost, latency, quality  $\rightarrow$  candidate set $\mathcal{A}_t$",
+         ec=PAL["dk"], tc=PAL["dk"])
+
+    # Model Registry (small, to the right)
+    mr_x = cx + pw/2 + 12
+    rbox(mr_x, y_filter, 14, 5, "Model\nRegistry",
+         fc="#e8e8e8", ec=PAL["gray"], tc=PAL["gray"],
+         lw=1.0, fs=9, ls="--")
+    arr(mr_x - 7, y_filter, cx + pw/2, y_filter, c=PAL["gray"], lw=1.0, ls="-.")
+
+    arr(cx, y_filter - bh/2, cx, y_coord + bh/2, c=PAL["dk"])
+
+    # ═════════════════════════════════════════════════════════
+    #  4. CORRALLING COORDINATOR
+    # ═════════════════════════════════════════════════════════
+    rbox(cx, y_coord, pw, bh, "Corralling Coordinator",
+         "Exp4 meta-learner over expert portfolio",
+         fc="#fde8d0", ec=PAL["vermillion"], tc=PAL["vermillion"], lw=2.2)
+
+    # Mixing equation (left side, y-centered with the coordinator box)
+    label(cx - pw/2 - 3, y_coord,
+          r"$p_{i,t} = (1{-}\gamma)\,\frac{w_{i,t}}{\sum_j w_j} + \frac{\gamma}{K}$",
+          fs=12, c=PAL["vermillion"], fam="serif", ha="right", bg=True)
+
+    # Coordinator → Experts (fan out)
+    e1_x, e2_x = 33, 67
+    ew, e_h = 28, 10
+
+    arr(cx - 6, y_coord - bh/2, e1_x + 3, y_exp + e_h/2,
+        c=PAL["teal"], lw=1.5, rad=-0.08)
+    arr(cx + 6, y_coord - bh/2, e2_x - 3, y_exp + e_h/2,
+        c=PAL["orange"], lw=1.5, rad=0.08)
+
+    # Probability labels
+    label(e1_x + 8, y_exp + e_h/2 + 2.5, "$p_t(1)$",
+          fs=11, c=PAL["teal"], fw="bold", bg=True)
+    label(e2_x - 8, y_exp + e_h/2 + 2.5, "$p_t(2)$",
+          fs=11, c=PAL["orange"], fw="bold", bg=True)
+
+    # ═════════════════════════════════════════════════════════
+    #  5. EXPERTS  (side by side)
+    # ═════════════════════════════════════════════════════════
+    rbox(e1_x, y_exp, ew, e_h, "Expert 1: Warmup",
+         "Hybrid LinUCB\nwith offline priors",
+         fc=PAL["teal_fill"], ec=PAL["teal"], tc=PAL["teal"])
+
+    rbox(e2_x, y_exp, ew, e_h, "Expert 2: Tabula Rasa",
+         r"Hybrid LinUCB" + "\n" + r"$A_m\!=\!\lambda I,\; b_m\!=\!0$",
+         fc=PAL["orange_fill"], ec=PAL["orange"], tc=PAL["orange"])
+
+    ucb_w = 56
+    ucb_h = 10
+
+    # Experts → UCB scoring (fan in)
+    arr(e1_x + 3, y_exp - e_h/2, cx - 8, y_ucb + ucb_h/2,
+        c=PAL["teal"], lw=1.5, rad=0.08)
+    arr(e2_x - 3, y_exp - e_h/2, cx + 8, y_ucb + ucb_h/2,
+        c=PAL["orange"], lw=1.5, rad=-0.08)
+
+    # ═════════════════════════════════════════════════════════
+    #  6. COST-AWARE HYBRID LinUCB
+    # ═════════════════════════════════════════════════════════
     ax.add_patch(FancyBboxPatch(
-        (ctx_x, ctx_y), ctx_w, ctx_h, boxstyle="round,pad=0.3",
-        fc="#eaf4fb", ec=PAL["sky"], lw=0.8, zorder=3, linestyle="--"))
-    txt(ctx_x + ctx_w/2, ctx_y + ctx_h - 1.3,
-        "Context Vector $x_t \\in \\mathbb{R}^{33}$",
-        fs=6.5, fw="bold", c=PAL["sky"])
-    txt(ctx_x + ctx_w/2, ctx_y + ctx_h - 3.0,
-        "[PCA$_0$, \u2026, PCA$_{31}$, bias]",
-        fs=6, c=PAL["md"], fam="serif")
+        (cx - ucb_w/2, y_ucb - ucb_h/2), ucb_w, ucb_h,
+        boxstyle="round,pad=0.4", fc="white", ec=PAL["dk"],
+        lw=1.6, zorder=3))
+    ax.text(cx, y_ucb + ucb_h*0.26, "Cost-Aware Hybrid LinUCB",
+            ha="center", va="center", fontsize=13, fontweight="bold",
+            color=PAL["dk"], zorder=4)
+    ax.text(cx, y_ucb - ucb_h*0.18,
+            r"$a_t = \arg\max_{a \in \mathcal{A}_t}"
+            r"\!\left[\, x_t^\top\!(\hat{\beta}_F \!+\! \hat{\theta}_a)"
+            r" + \alpha\!\sqrt{x_t^\top\! A_a^{-1} x_t}"
+            r" - \lambda c_a \,\right]$",
+            ha="center", va="center", fontsize=11,
+            color=PAL["md"], fontstyle="italic", zorder=4)
 
-    for i, feat in enumerate([
-        "\u2022  task type (math, code, creative, \u2026)",
-        "\u2022  query complexity & difficulty",
-        "\u2022  semantic style & specificity",
-    ]):
-        txt(ctx_x + 1.5, ctx_y + ctx_h - 5.0 - i*1.7,
-            feat, fs=5.5, c=PAL["md"], ha="left")
+    arr(cx, y_ucb - ucb_h/2, cx, y_llms + 3.5, c=PAL["dk"])
 
-    # Dashed connector from x_t label area to annotation box
-    line(cx + bw/2 + 1, y_pca + bh/2, ctx_x - 0.5, ctx_y + ctx_h/2,
-         c=PAL["sky"], lw=0.8, ls="--")
-
-    # 4. Dynamic Pareto Filter (L1)
-    pw = 40
-    box2(cx-pw/2, y_pareto, pw, bh + 1,
-         "Layer 1:  Dynamic Pareto Filter",
-         "prune dominated models per-context",
-         ec=PAL["dk"], tc=PAL["dk"], fs=8.5)
-
-    arrow(cx, y_pca, cx, y_pareto + bh + 1, c=PAL["dk"])
-    txt(cx + 3, (y_pca + y_pareto + bh + 1)/2 + 0.3,
-        "$x_t$", fs=9, c=PAL["md"], ha="left", fam="serif")
-
-    # 5. Corralling Coordinator (L2)
-    cw = 40
-    box2(cx-cw/2, y_coord, cw, bh + 1.5,
-         "Layer 2:  Corralling Coordinator",
-         "meta-learner over expert portfolio",
-         fc="#fde8d0", ec=PAL["vermillion"], tc=PAL["vermillion"],
-         lw=2.0, fs=8.5)
-
-    arrow(cx, y_pareto, cx, y_coord + bh + 1.5, c=PAL["dk"])
-    txt(cx + 3, (y_pareto + y_coord + bh + 1.5)/2 + 0.3,
-        "$\\mathcal{P}_{x_t}$", fs=8, c=PAL["lt"], ha="left", fam="serif")
-
-    # Mixing equation to the left of coordinator
-    txt(cx - cw/2 - 1.5, y_coord + (bh+1.5)*0.35,
-        r"$p_{i,t} = (1{-}\gamma)\frac{w_{i,t}}{\Sigma_j w_j} + \frac{\gamma}{K}$",
-        fs=8, c=PAL["vermillion"], fam="serif", ha="right")
-
-    # 6. Expert Bandits (two side-by-side)
-    ew, eh = 26, 7.5
-    egap = 5
-    e1x = cx - ew - egap/2
-    e2x = cx + egap/2
-
-    # Expert 1: Warmup
-    ax.add_patch(FancyBboxPatch(
-        (e1x, y_exp), ew, eh, boxstyle="round,pad=0.4",
-        fc="#d5f0db", ec=PAL["teal"], lw=1.6, zorder=3))
-    txt(e1x + ew/2, y_exp + eh*0.78,
-        "Expert 1: Warmup", fs=8.5, fw="bold", c=PAL["teal"])
-    txt(e1x + ew/2, y_exp + eh*0.52,
-        "Hybrid LinUCB with offline priors", fs=6.5, c=PAL["md"], sty="italic")
-    txt(e1x + ew/2, y_exp + eh*0.25,
-        "$A_m, b_m$ from RouteLLM + $\\lambda I$",
-        fs=6, c=PAL["md"], fam="serif")
-
-    # Expert 2: Tabula Rasa
-    ax.add_patch(FancyBboxPatch(
-        (e2x, y_exp), ew, eh, boxstyle="round,pad=0.4",
-        fc="#fdf2d0", ec=PAL["orange"], lw=1.6, zorder=3))
-    txt(e2x + ew/2, y_exp + eh*0.78,
-        "Expert 2: Tabula Rasa", fs=8.5, fw="bold", c="#b07d00")
-    txt(e2x + ew/2, y_exp + eh*0.52,
-        "Hybrid LinUCB, no priors", fs=6.5, c=PAL["md"], sty="italic")
-    txt(e2x + ew/2, y_exp + eh*0.25,
-        "$A_m = \\lambda I$,  $b_m = 0$",
-        fs=6, c=PAL["md"], fam="serif")
-
-    # Arrows: Coordinator → Experts
-    arrow(cx - 5, y_coord, e1x + ew/2, y_exp + eh,
-          c=PAL["teal"], lw=1.2, rad=0.12)
-    arrow(cx + 5, y_coord, e2x + ew/2, y_exp + eh,
-          c=PAL["orange"], lw=1.2, rad=-0.12)
-
-    # Probability labels above experts
-    txt(e1x + ew/2 - 1, y_exp + eh + 1.8,
-        "$p_t(1)$", fs=8, c=PAL["teal"], fw="bold", fam="serif")
-    txt(e2x + ew/2 + 1, y_exp + eh + 1.8,
-        "$p_t(2)$", fs=8, c="#b07d00", fw="bold", fam="serif")
-
-    # 7. UCB Selection (L3) — Hybrid LinUCB with family-shared β_F
-    uw = 50
-    box2(cx-uw/2, y_ucb, uw, bh + 1.5,
-         "Layer 3:  Cost-Aware Hybrid LinUCB",
-         r"$a_t = \arg\max_a\; x_t^\top\!(\hat{\beta}_F"
-         r" + \hat{\theta}_a) + \alpha\sqrt{x_t^\top A_a^{-1} x_t}"
-         r" - \lambda c_a$",
-         ec=PAL["dk"], tc=PAL["dk"], fs=8.5, fs2=6)
-
-    # Family-sharing annotation (left of UCB box)
-    txt(cx - uw/2 - 1.5, y_ucb + (bh+1.5)*0.5,
-        "$\\hat{\\beta}_F$: family-shared\nparams (transfer across\nrelated models)",
-        fs=5.5, c=PAL["lt"], ha="right", sty="italic")
-
-    arrow(e1x + ew/2, y_exp, cx - 5, y_ucb + bh + 1.5,
-          c=PAL["dk"], lw=1.1, rad=0.08)
-    arrow(e2x + ew/2, y_exp, cx + 5, y_ucb + bh + 1.5,
-          c=PAL["dk"], lw=1.1, rad=-0.08)
-
-    # 8. Selected Model
-    mw = 34
-    box2(cx-mw/2, y_model, mw, bh,
-         "Selected LLM  \u2192  Response",
-         "GPT-4o / Claude / Mixtral / Llama / \u2026",
-         fc="#d4e6f1", ec=PAL["blue"], tc=PAL["blue"], lw=1.8)
-
-    # ─── Arm Nodes (bandit arms between UCB and selected LLM) ───
-    y_arms = 21
-    aw, ah = 9, 3.0
-    agap = 1.8
-    arms_data = [
-        # (label,    colour,        status,   selected?)
-        ("Llama",    PAL["teal"],   "active",  False),
-        ("Claude",   PAL["sky"],    "active",  False),
-        ("GPT-4o",   PAL["blue"],   "active",  True),   # ← selected
-        ("Mixtral",  PAL["orange"], "active",  False),
-        ("Gemini",   PAL["gray"],   "pruned",  False),  # ← Pareto-pruned
+    # ═════════════════════════════════════════════════════════
+    #  7. LLM PORTFOLIO  (row of model cards)
+    # ═════════════════════════════════════════════════════════
+    models = [
+        ("Llama-3",  PAL["teal"],   False),
+        ("Claude-3", PAL["sky"],    False),
+        ("GPT-4o",   PAL["blue"],   True),
+        ("Mixtral",  PAL["orange"], False),
+        ("Gemini-3", PAL["gray"],   False),
     ]
-    n_arms = len(arms_data)
-    total_aw = n_arms * aw + (n_arms - 1) * agap
-    arms_x0 = cx - total_aw / 2
+    card_w, card_h = 14.5, 5.5
+    gap = 2.0
+    n = len(models)
+    total_w = n * card_w + (n - 1) * gap
+    x0 = cx - total_w / 2
 
-    for i, (name, col, status, selected) in enumerate(arms_data):
-        bx = arms_x0 + i * (aw + agap)
-        by = y_arms - ah / 2
-        if status == "pruned":
-            fc_, ec_, lw_ = "#f5f5f5", "#ccc", 0.8
-            tc_ = "#bbb"
-        elif selected:
-            fc_, ec_, lw_ = "#d4e6f1", PAL["blue"], 2.2
-            tc_ = PAL["blue"]
+    # "LLM Portfolio" label (left-aligned, off the center arrow)
+    label(x0 - 1, y_llms, "LLM Portfolio\n(example)",
+          fs=9.5, c=PAL["lt"], sty="italic", ha="right")
+
+    for i, (name, col, selected) in enumerate(models):
+        card_cx = x0 + card_w/2 + i * (card_w + gap)
+        card_cy = y_llms
+
+        if selected:
+            fc_, ec_, lw_, tc_ = "#d4e6f1", PAL["blue"], 2.5, PAL["blue"]
+            fs_ = 10
         else:
-            fc_, ec_, lw_ = "white", col, 1.2
-            tc_ = col
+            fc_, ec_, lw_, tc_ = "white", col, 1.2, col
+            fs_ = 9.5
+
         ax.add_patch(FancyBboxPatch(
-            (bx, by), aw, ah, boxstyle="round,pad=0.3",
-            fc=fc_, ec=ec_, lw=lw_, zorder=3))
-        txt(bx + aw/2, by + ah/2, name,
-            fs=6, fw="bold" if selected else "normal", c=tc_)
-        # Strikethrough on pruned arm
-        if status == "pruned":
-            ax.plot([bx + 1.0, bx + aw - 1.0],
-                    [by + ah/2, by + ah/2],
-                    color="#bbb", lw=1.2, zorder=6)
+            (card_cx - card_w/2, card_cy - card_h/2), card_w, card_h,
+            boxstyle="round,pad=0.3", fc=fc_, ec=ec_, lw=lw_, zorder=3))
+        ax.text(card_cx, card_cy, name, ha="center", va="center",
+                fontsize=fs_, fontweight="bold" if selected else "normal",
+                color=tc_, zorder=4)
 
-    # "pruned" annotation under the Pareto-filtered arm
-    pruned_cx = arms_x0 + 4 * (aw + agap) + aw / 2
-    txt(pruned_cx, y_arms - ah/2 - 1.3,
-        "pruned", fs=5, c="#aaa", sty="italic")
+        if selected:
+            pass  # bold border + fill already marks the selected card
 
-    # Side label
-    txt(arms_x0 + total_aw + 1.5, y_arms,
-        "bandit arms", fs=6, c=PAL["lt"], sty="italic", ha="left")
-
-    # Arrow:  UCB → arm row
-    arrow(cx, y_ucb, cx, y_arms + ah/2 + 0.8, c=PAL["dk"], lw=1.4)
-    # Arrow:  selected arm → model box
-    arrow(cx, y_arms - ah/2 - 0.5, cx, y_model + bh,
-          c=PAL["blue"], lw=1.6)
-    txt(cx + 3, (y_arms - ah/2 + y_model + bh) / 2,
-        "$a_t$", fs=9, c=PAL["md"], fw="bold", ha="left", fam="serif")
-
-    # 9. Reward
-    rw = 30
-    box2(cx-rw/2, y_reward, rw, bh,
-         "Reward Observation",
-         "$r_t \\in [0,1]$  (quality score)",
-         fc="#f2e2ef", ec=PAL["rpur"], tc=PAL["rpur"], lw=1.6)
-
-    arrow(cx, y_model, cx, y_reward + bh, c=PAL["dk"], lw=1.4)
+    # Arrow from selected card to reward (offset right to avoid card center)
+    arr(cx, y_llms - card_h/2 - 2.5, cx, y_reward + bh/2,
+        c=PAL["blue"], lw=2.0)
+    label(cx + 3.5, (y_llms - card_h/2 - 2.5 + y_reward + bh/2)/2,
+          "$a_t$", fs=12, c=PAL["blue"], fw="bold", fam="serif")
 
     # ═════════════════════════════════════════════════════════
-    #  FEEDBACK LOOP (right side, going up)
+    #  8. REWARD
     # ═════════════════════════════════════════════════════════
-
-    fx = 88  # vertical feedback line
-
-    # Horizontal from reward box → right
-    line(cx + rw/2 + 0.5, y_reward + bh/2, fx, y_reward + bh/2,
-         c=PAL["rpur"])
-
-    # Vertical up to coordinator
-    line(fx, y_reward + bh/2, fx, y_coord + (bh+1.5)/2,
-         c=PAL["rpur"])
-
-    # → Expert 2 (expert update)
-    arrow(fx, y_exp + eh*0.5, e2x + ew + 0.5, y_exp + eh*0.5,
-          c=PAL["rpur"], lw=1.1, ls="--")
-
-    # → Coordinator (meta-weight update)
-    arrow(fx, y_coord + (bh+1.5)*0.4,
-          cx + cw/2 + 0.5, y_coord + (bh+1.5)*0.4,
-          c=PAL["rpur"], lw=1.1, ls="--")
-
-    # Annotation: meta-weight update
-    txt(fx + 1, y_coord + (bh+1.5)*0.4 + 2,
-        "Meta-Weight", fs=6.5, c=PAL["rpur"], fw="bold", ha="left")
-    txt(fx + 1, y_coord + (bh+1.5)*0.4 - 1.5,
-        "$\\hat{\\ell}_t = (1{-}r_t)/p_t$",
-        fs=7, c=PAL["rpur"], fam="serif", ha="left")
-
-    # Annotation: expert update
-    txt(fx + 1, y_exp + eh*0.5 + 2,
-        "Expert Update", fs=6.5, c=PAL["rpur"], fw="bold", ha="left")
-    txt(fx + 1, y_exp + eh*0.5 - 1.5,
-        "$A \\!\\leftarrow\\! A + xx^\\top$",
-        fs=7, c=PAL["rpur"], fam="serif", ha="left")
+    rbox(cx, y_reward, 30, bh, "Reward Signal",
+         r"Quality score $r_t \in [0,1]$",
+         fc=PAL["rpur_fill"], ec=PAL["rpur"], tc=PAL["rpur"])
 
     # ═════════════════════════════════════════════════════════
-    #  DATA SOURCES (left side, well-separated)
+    #  FEEDBACK LOOP  (single clean path up the right side)
     # ═════════════════════════════════════════════════════════
 
-    dw, dh = 15, 4.5
+    # Reward → spine (horizontal)
+    arr(cx + 15, y_reward, fb_x, y_reward, c=PAL["rpur"], lw=2.0, ls="--")
 
-    # RouteLLM Battles → Expert 1  (positioned at expert midpoint, shifted down)
-    dx1 = 1
-    dy1 = y_exp + eh*0.25 - dh/2
+    # Spine up (vertical to coordinator level)
+    seg(fb_x, y_reward, fb_x, y_coord, c=PAL["rpur"], lw=2.0, ls="--")
+
+    # → Coordinator (single arrow into right edge)
+    arr(fb_x, y_coord, cx + pw/2, y_coord,
+        c=PAL["rpur"], lw=1.8, ls="--")
+
+    # Label the feedback loop clearly (spaced apart)
+    label(fb_x + 1.5, (y_reward + y_coord) / 2 + 6,
+          "Online\nFeedback\n$r_t$", fs=10, c=PAL["rpur"],
+          fw="bold", ha="left")
+    label(fb_x + 1.5, (y_reward + y_coord) / 2 - 6,
+          "Updates coordinator\nweights & expert\nparameters", fs=8.5,
+          c=PAL["rpur"], ha="left", sty="italic")
+
+    # (Context x_t flows through the pipeline implicitly —
+    #  no separate side-channel needed.)
+
+    # ═════════════════════════════════════════════════════════
+    #  LEGEND  (bottom-left)
+    # ═════════════════════════════════════════════════════════
+    lx, ly = 3, 3
     ax.add_patch(FancyBboxPatch(
-        (dx1, dy1), dw, dh, boxstyle="round,pad=0.3",
-        fc="#e4e4e4", ec=PAL["gray"], lw=1.0, zorder=3, linestyle="--"))
-    txt(dx1 + dw/2, dy1 + dh*0.62,
-        "RouteLLM Battles", fs=6, fw="bold", c=PAL["dk"])
-    txt(dx1 + dw/2, dy1 + dh*0.25,
-        "80K offline pairs", fs=5.5, c=PAL["md"], sty="italic")
+        (lx, ly), 28, 7, boxstyle="round,pad=0.3",
+        fc="white", ec="#ccc", lw=0.8, zorder=3))
+    label(lx + 14, ly + 5.8, "Legend", fs=9.5, fw="bold", c=PAL["dk"])
 
-    arrow(dx1 + dw, dy1 + dh/2, e1x - 0.5, y_exp + eh*0.35,
-          c=PAL["gray"], lw=0.9, ls="-.")
-
-    # Model Registry → Pareto Filter
-    dx2 = 1
-    dy2 = y_pareto + (bh+1)/2 - dh/2
-    ax.add_patch(FancyBboxPatch(
-        (dx2, dy2), dw, dh, boxstyle="round,pad=0.3",
-        fc="#e4e4e4", ec=PAL["gray"], lw=1.0, zorder=3, linestyle="--"))
-    txt(dx2 + dw/2, dy2 + dh*0.62,
-        "Model Registry", fs=6, fw="bold", c=PAL["dk"])
-    txt(dx2 + dw/2, dy2 + dh*0.25,
-        "costs & metadata", fs=5.5, c=PAL["md"], sty="italic")
-
-    arrow(dx2 + dw, dy2 + dh/2, cx - pw/2 - 0.5, y_pareto + (bh+1)/2,
-          c=PAL["gray"], lw=0.9, ls="-.")
-
-    # ═════════════════════════════════════════════════════════
-    #  KEY PARAMETERS (top-right, compact)
-    # ═════════════════════════════════════════════════════════
-
-    kx, ky, kw_, kh_ = 71, 90, 28, 9
-    ax.add_patch(FancyBboxPatch(
-        (kx, ky), kw_, kh_, boxstyle="round,pad=0.3",
-        fc="#f0f0f0", ec=PAL["lt"], lw=0.8, zorder=3))
-    txt(kx + kw_/2, ky + kh_ - 1.2,
-        "Key Parameters", fs=7, fw="bold", c=PAL["dk"])
-
-    for i, (sym, desc) in enumerate([
-        ("$\\alpha \\geq 0$",   "exploration"),
-        ("$\\eta \\in \\{0.1, 1.0\\}$", "meta-learning rate"),
-        ("$\\gamma \\in (0,1)$", "mixing floor"),
-        ("$\\lambda \\geq 0$",  "cost sensitivity"),
+    for i, (col, ls_, desc) in enumerate([
+        (PAL["dk"],   "-",  "Forward pass"),
+        (PAL["rpur"], "--", "Online feedback"),
     ]):
-        py = ky + kh_ - 3.2 - i*1.6
-        txt(kx + 1.5, py, sym, fs=6, c=PAL["dk"], ha="left", fam="serif")
-        txt(kx + 12, py, desc, fs=5.5, c=PAL["lt"], ha="left")
-
-    # ═════════════════════════════════════════════════════════
-    #  LEGEND (bottom-right)
-    # ═════════════════════════════════════════════════════════
-
-    lx, ly, llw, llh = 69, 1, 30, 6.5
-    ax.add_patch(FancyBboxPatch(
-        (lx, ly), llw, llh, boxstyle="round,pad=0.3",
-        fc="#f0f0f0", ec="#999", lw=0.8, zorder=3))
-    txt(lx + llw/2, ly + llh - 1,
-        "Legend", fs=6.5, fw="bold", c=PAL["dk"])
-
-    for i, (col, ls, desc) in enumerate([
-        (PAL["dk"],         "-",  "Forward pass (routing)"),
-        (PAL["rpur"],       "--", "Feedback (online learning)"),
-        (PAL["gray"],       "-.", "Data source (offline)"),
-    ]):
-        yy = ly + llh - 2.8 - i*1.5
-        ax.plot([lx+2, lx+7], [yy, yy], color=col, lw=1.5, ls=ls, zorder=5)
-        txt(lx + 8.5, yy, desc, fs=5.5, c=PAL["dk"], ha="left")
+        yy = ly + 3.8 - i * 2.0
+        ax.plot([lx + 1.5, lx + 5.5], [yy, yy], color=col,
+                lw=1.8, ls=ls_, zorder=5, solid_capstyle="round")
+        label(lx + 6.5, yy, desc, fs=9, c=PAL["dk"], ha="left")
 
     return fig
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  SAVE
-# ═══════════════════════════════════════════════════════════════════
-
 def main():
-    print("=" * 60)
-    print("FIGURE 2: banditGPT ROUTER ARCHITECTURE")
-    print("=" * 60)
-
     out = Path(__file__).parent / "results"
     out.mkdir(parents=True, exist_ok=True)
     fig = create_figure()
@@ -441,11 +301,11 @@ def main():
                       ("figure2_architecture_hires.png", 600)]:
         p = out / name
         fig.savefig(p, dpi=dpi, bbox_inches="tight", facecolor="white",
-                    pad_inches=0.08)
+                    pad_inches=0.05)
         print(f"Saved: {p}")
 
     p = out / "figure2_architecture.pdf"
-    fig.savefig(p, bbox_inches="tight", facecolor="white", pad_inches=0.08)
+    fig.savefig(p, bbox_inches="tight", facecolor="white", pad_inches=0.05)
     print(f"Saved: {p}")
 
     paper_dir = Path(__file__).parent.parent.parent / "paper" / "figures"
@@ -458,10 +318,10 @@ def main():
              paper_dir / "figure2_architecture.pdf"),
         ]:
             shutil.copy2(src, dst)
-            print(f"Copied to: {dst}")
+            print(f"  -> {dst}")
 
     plt.close()
-    print("\nDone.")
+    print("Done.")
 
 
 if __name__ == "__main__":

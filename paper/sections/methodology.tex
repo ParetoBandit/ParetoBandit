@@ -32,8 +32,8 @@ The system consists of three distinct layers of decision-making, as illustrated 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/figure3_architecture.png}
-\caption{\textbf{banditGPT architecture (overview).} Prompts are embedded and reduced with PCA to context $x_t$. The router (1) enforces hard budget constraints (cost ceiling and quality floors) to filter eligible models, (2) mixes two experts (warmup vs.\ tabula rasa) via Corralling-style meta-learning, and (3) selects a model using a cost-aware LinUCB objective (with optional family sharing).}
-\Description{A three-layer routing diagram: prompt embedding and PCA produce context features; a Pareto filter prunes models; a meta-learner mixes two expert bandits; a LinUCB layer selects a model and updates parameters from observed rewards.}
+\caption{\textbf{banditGPT architecture (overview).} A user prompt is encoded via Sentence-BERT and PCA into context $x_t \in \mathbb{R}^{33}$. The constraint and Pareto filter prunes models by cost, latency, and quality floors to yield candidate set $\mathcal{A}_t$. A Corralling coordinator (Exp4 meta-learner) stochastically mixes two Hybrid LinUCB experts---one warm-started from offline priors, one tabula rasa---then the cost-aware UCB objective selects model $a_t$. Online reward $r_t$ feeds back to update both coordinator weights and expert parameters. LLM portfolio shown is illustrative.}
+\Description{A vertical pipeline routing diagram: prompt embedding and PCA produce context features; a constraint filter prunes models using a model registry; a Corralling coordinator mixes two Hybrid LinUCB expert bandits with probabilities $p_t(1)$ and $p_t(2)$; a cost-aware Hybrid LinUCB layer scores and selects a model from the LLM portfolio; observed reward feeds back to update coordinator weights and expert parameters.}
 \label{fig:architecture}
 \end{figure}
 
