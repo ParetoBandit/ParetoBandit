@@ -83,7 +83,7 @@ To assess whether the bimodal structure exists beyond the 2D projection, we exam
 \end{tabular}
 \end{table}
 
-The 384D silhouette score of 0.057 indicates \textbf{weak cluster structure} in the full embedding space---clusters overlap substantially. The separation ratio of 0.81 ($< 1.0$) confirms that within-cluster distances exceed between-cluster distances in high dimensions. This is an important caveat: the structure detected by PC1 represents a task-relevant signal extracted from a noisy high-dimensional space, not a dominant clustering pattern. The PC1 projection isolates this signal (Spearman $\rho = -0.395$, $\rho^2 = 0.156$, explaining ${\sim}16\%$ of reward gap variance---a moderate correlation), but the remaining $84\%$ of variance is driven by other factors (topic, length, complexity) orthogonal to model preference.
+The 384D silhouette score of 0.057 indicates \textbf{weak cluster structure} in the full embedding space---clusters overlap substantially. The separation ratio of 0.81 ($< 1.0$) confirms that within-cluster distances exceed between-cluster distances in high dimensions. This is an important caveat: the structure detected by PC1 represents a task-relevant signal extracted from a noisy high-dimensional space, not a dominant clustering pattern. The PC1 projection isolates this signal (Spearman $\rho = -0.370$, $\rho^2 = 0.137$, explaining ${\sim}14\%$ of reward gap variance---a moderate correlation), but the remaining ${\sim}86\%$ of variance is driven by other factors (topic, length, complexity) orthogonal to model preference.
 
 \subsubsection{Data Quality Analysis}
 
