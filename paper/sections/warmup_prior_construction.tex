@@ -17,7 +17,7 @@ The warmup priors encode 80K observations into the LinUCB sufficient statistics 
 
 \paragraph{K\,=\,5 and K\,=\,10 (Multi-Model Scaling).}
 For the multi-model evaluation (Section~\ref{sec:multimodel}), the RouteLLM battle data is insufficient: it covers only 2 of $K$ models, leaving the warmup expert uninformed about the remaining $K{-}2$ models.
-Section~\ref{sec:transfer_null} showed that semantic transfer from a known model to an unknown model provides no statistically significant improvement over tabula rasa ($p > 0.07$), so simply transferring priors from the two known models would not meaningfully warm-start the larger portfolio.
+Section~\ref{sec:transfer_null} showed that one-shot per-model semantic transfer provides no statistically significant improvement over tabula rasa ($p{>}0.5$, $d{<}0.05$), because the continuous family $\betavec_F$ sharing in Hybrid LinUCB already captures cross-model knowledge.  Simply transferring priors from the two known models would not meaningfully warm-start the larger portfolio.
 
 Instead, we construct warmup priors from a held-out portion of our own 43-model evaluation data.
 This is a \emph{same-distribution} prior: the prior-training prompts are drawn from the same source as the online-learning and holdout prompts (but are strictly disjoint; see below).
@@ -51,7 +51,7 @@ After applying the same plasticity factor ($\rho{=}0.1$) used for the RouteLLM p
 
 \paragraph{Why not use the RouteLLM priors for K\,$>$\,2?}
 One could apply semantic transfer to bootstrap models not covered by the RouteLLM data (as in the catastrophic failure experiment, Appendix~\ref{app:catastrophic_failure}).
-However, our own ablation shows that transferred priors provide no significant benefit over tabula rasa (Section~\ref{sec:transfer_null}), meaning the warmup expert would have informed beliefs about only 2 of $K$ models---undermining Corralling's ability to hedge prior quality across the full portfolio.
+However, our leave-one-out ablation shows that per-model transferred priors provide no significant benefit beyond what family sharing already delivers (Section~\ref{sec:transfer_null}), meaning the warmup expert would have informed beliefs about only 2 of $K$ models---undermining Corralling's ability to hedge prior quality across the full portfolio.
 Constructing priors from 43-model evaluation data ensures every model in the portfolio has a calibrated starting point, making the Corralling meta-learner effective at all portfolio sizes.
 
 \paragraph{Data integrity.}

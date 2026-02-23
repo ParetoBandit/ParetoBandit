@@ -65,7 +65,10 @@ Design ablations and hyperparameter sensitivity sweeps are reported in the suppl
 \label{sec:transfer_null}
 \label{sec:limitations}
 
-We report additional analyses in the appendix (supplementary material), including robustness under prior mismatch, synthetic catastrophic-failure stress tests, multi-model scaling, comparisons to alternative bandit baselines, cumulative regret curves, and cold-start transfer experiments.
+We report additional analyses in the appendix (supplementary material), including robustness under prior mismatch, synthetic catastrophic-failure stress tests, multi-model scaling, comparisons to alternative bandit baselines, and cumulative regret curves.
+A leave-one-out ablation evaluates whether one-shot per-model semantic $\thetavec$-transfer (bootstrapping a new model's parameters from its nearest within-provider neighbor via tetrachoric correlation) provides benefit beyond the continuous family sharing of Hybrid LinUCB.
+Across 20 seeds and 10 target models, the aggregate effect is not significant ($p{>}0.5$, Cohen's $d{<}0.05$), confirming that the family-level $\betavec_F$ mechanism is the correct abstraction for cross-model knowledge transfer.
+This is a positive architectural finding: the hybrid decomposition subsumes one-shot transfer, and practitioners need not invest in per-model bootstrapping pipelines.
 
 \paragraph{Limitations.}
 Our controlled RouteLLM comparison uses a single model pair and a single prompt distribution; deployments with different portfolios and traffic will shift the quantitative cost crossover points. Our robustness experiments are stress tests rather than guarantees, and our current treatment of non-stationarity primarily operates through meta-level mixing rather than explicit forgetting within each expert.

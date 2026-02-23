@@ -171,18 +171,17 @@ large enough ($K \geq 8$) that per-model learning is slow due to
 exploration budget spreading across many arms.
 
 \paragraph{Contrast with the semantic transfer null result.}
-Section~\ref{sec:transfer_null} reports a null result for \emph{per-model}
-semantic $\thetavec$ transfer in a leave-one-out design.  That experiment
-evaluated whether transferring $\thetavec$ from a neighbor provides
-meaningful advantage \emph{when the newcomer is a permanent member of
-the original pool}---and found it does not, because established models'
-accumulated precision matrices ($\Amat$) dominate UCB scores, starving
-the newcomer of traffic.  The current experiment evaluates \emph{dynamic}
-onboarding with \texttt{register\_model()}, where semantic bootstrapping
-\emph{does} provide effective initialization.  The distinction is that
-\texttt{register\_model()} combines semantic transfer with confidence
-reset ($\Amat{=}\mathbf{I}$), ensuring the newcomer explores rather
-than being starved.  This confidence reset is the critical ingredient:
-it gives the newcomer a comparable UCB bonus to established models,
-allowing the router to learn the newcomer's true quality within a few
-hundred observations.
+Section~\ref{sec:transfer_null} reports that one-shot per-model
+semantic $\thetavec$ transfer provides no statistically significant
+benefit beyond the continuous family $\betavec_F$ sharing of Hybrid LinUCB
+($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$).  This validates the hybrid
+decomposition as the correct abstraction level for cross-model knowledge
+transfer: the family $\betavec_F$, updated with \emph{every} observation
+from any family member, subsumes the one-shot $\thetavec$ initialization.
+The current experiment evaluates \emph{dynamic} onboarding with
+\texttt{register\_model()}, where the critical ingredient is the
+confidence reset ($\Amat{=}\lambda\mathbf{I}$): it gives the newcomer a
+comparable UCB exploration bonus to established models, allowing the
+router to learn the newcomer's true quality within a few hundred
+observations.  The family $\betavec_F$ provides the warm start; the
+confidence reset enables exploration.

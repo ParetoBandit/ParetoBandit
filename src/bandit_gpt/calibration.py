@@ -230,3 +230,13 @@ def generate_warmup_priors(
         logger.info("Warmup priors saved to %s", output_path)
 
     return state
+
+
+def embed_prompt(prompt: str, encoder: 'SentenceTransformer', pca_model) -> np.ndarray:
+    """Embed prompt with PCA projection (must match warmup pipeline).
+
+    Returns context vector: [PCA components, 1 bias term].
+    """
+    embedding = encoder.encode(prompt, convert_to_numpy=True, show_progress_bar=False)
+    embedding = pca_model.transform(embedding.reshape(1, -1)).flatten()
+    return np.append(embedding, 1.0)

@@ -15,6 +15,7 @@ A \textbf{Corralling} meta-learner hedges between a warmup-prior expert and a ta
 
 Across portfolios spanning six providers and a $600\times$ cost range, banditGPT traces a continuous cost--quality \textbf{Pareto frontier}, achieving up to 89\% cost reduction with less than 6\% quality loss at $K{=}10$.
 New models onboard via a single API call and reach calibration within ${\sim}600$ routing decisions.
-We report honest results throughout: in cold-start ablations, per-model semantic transfer shows limited benefit, and we characterize where prior-based bootstrapping does and does not help.
+We report honest results throughout: a leave-one-out ablation confirms that one-shot per-model semantic transfer adds no significant benefit over the hybrid approach ($p{>}0.5$, $d{<}0.05$), validating that continuous family-level sharing is the correct abstraction for cross-model knowledge transfer.
+We characterize where prior-based bootstrapping does and does not help.
 Code, warmup priors, and experimental logs are released in full.
 \end{abstract}

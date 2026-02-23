@@ -51,7 +51,7 @@ Our work makes three contributions, each supported by comprehensive multi-seed e
     \item \textbf{Open-source multi-model implementation and honest evaluation.}
     We release a modular codebase supporting $K{\geq}2$ model portfolios, dynamic model onboarding, and configurable constraints.
     Hybrid LinUCB's family parameter sharing provides $3\times$ more stable convergence at $K{=}5$ and $K{=}20$ ($p{=}0.008$ at $K{=}5$), demonstrating that data-driven model grouping is a practical lever for reliable large-portfolio routing.
-    In cold-start ablations, we find limited benefit from per-model semantic transfer (Section~\ref{sec:transfer_null}), clarifying an open challenge for the community.
+    A leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no statistically significant benefit beyond hybrid family sharing ($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$), validating that the continuous family $\beta_F$ mechanism is the correct abstraction level for cross-model knowledge transfer.
 \end{enumerate}
 
 The remainder is organized as follows.

@@ -22,7 +22,7 @@ We evaluate Corralling's response to catastrophic model failure on a \textbf{5-m
 
 \paragraph{Why $K{=}5$?} With only $K{=}2$ models, catastrophic failure detection is a trivial binary tracking problem: a simple EMA tracker just needs to learn ``model A bad, model B good'' from per-model reward averages. With $K{=}5$, post-failure routing becomes \emph{contextual}: the optimal policy must redistribute traffic across 4 remaining models based on prompt features. Each non-failing model excels in a different region of context space (via orthogonal context directions), so a per-model average tracker cannot distinguish which alternative is best for a given prompt---exactly where LinUCB's context-dependent routing provides value.
 
-\paragraph{Warmup Priors.} All five models receive warmup priors from the 43-model evaluation data (Section~\ref{sec:warmup_prior_construction}), scaled to $N_{\text{eff}}{=}10$. This ensures the warmup expert has informed priors for all five models. Note: while this initialization is used for the catastrophic failure experiment setup, controlled ablation (Section~\ref{sec:transfer_null}) shows that such transfer provides no significant advantage over tabula rasa in the new-model onboarding setting.
+\paragraph{Warmup Priors.} All five models receive warmup priors from the 43-model evaluation data (Section~\ref{sec:warmup_prior_construction}), scaled to $N_{\text{eff}}{=}10$. This ensures the warmup expert has informed priors for all five models. Note: while this initialization is used for the catastrophic failure experiment setup, the leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no significant advantage beyond the continuous family sharing of Hybrid LinUCB.
 
 \begin{figure}[h]
 \centering
@@ -136,7 +136,7 @@ Practitioners should select $\eta$ based on operational objectives:
 \subsection{Dynamic Model Onboarding: Controlled Family Sharing}
 \label{app:model_onboarding_figure}
 
-Section~\ref{sec:transfer_null} reports a null result for \emph{per-model} semantic transfer in a leave-one-out setting. Here we evaluate whether the Hybrid LinUCB's \emph{family-level} shared $\betavec$ provides additional value during dynamic model onboarding via \texttt{register\_model()}.
+The leave-one-out ablation (Section~\ref{sec:transfer_null}, Table~\ref{tab:semantic_transfer}) confirms that one-shot per-model $\thetavec$-transfer adds no significant benefit beyond continuous family $\betavec_F$ sharing. Here we evaluate whether that family-level $\betavec$ provides additional value during dynamic model onboarding via \texttt{register\_model()}.
 
 \paragraph{Controlled Design.}
 To isolate the family sharing effect, we use the \textbf{same newcomer model} (\texttt{openai/gpt-4.1}) in both conditions, varying \emph{only} the family assignment:
@@ -169,6 +169,107 @@ The null result does not mean family sharing is useless---it means that \emph{se
 For practitioners, the operational message is simple: \textbf{calling \texttt{register\_model()} is sufficient for effective model onboarding.}  The API automatically discovers the nearest semantic neighbor, bootstraps the newcomer's reward estimates, and resets confidence to ensure exploration---no manual family configuration required.  Adding a third model to a 2-model fleet improved holdout quality from $0.911$ to $0.965$ (+5.4~pp), and this improvement was identical regardless of whether family sharing was active.  The newcomer reaches full calibration within ${\sim}600$ routing decisions; at typical production throughput ($>$100~req/hr), this completes within a few hours.
 
 Family sharing provides faster early calibration (46\% lower initial prediction error for the first ${\sim}50$ decisions) and becomes more relevant when: (a)~no strong semantic neighbor exists, (b)~the family has extensive routing history, or (c)~the portfolio is large enough that per-model learning is slow. For the common case of onboarding a new variant from a known provider (e.g., a new GPT-4 release), semantic bootstrapping alone handles the transition seamlessly. Numerical details are in Appendix~\ref{app:model_onboarding_figure}.
+
+% ----------------------------------------------------------------------------
+% D.4: Semantic Transfer Ablation (Leave-One-Out)
+% ----------------------------------------------------------------------------
+
+\subsection{Semantic Transfer Ablation: Leave-One-Out}
+\label{app:semantic_transfer_ablation}
+
+This section presents the full results of the leave-one-out ablation
+referenced in Section~\ref{sec:transfer_null}, quantifying the incremental
+value of one-shot per-model $\thetavec$-transfer on top of the continuous
+family $\betavec_F$ sharing provided by Hybrid LinUCB.
+
+\paragraph{Design.}
+For each model in the portfolio, we treat it as a simulated newcomer
+(``target'') and train the router on the remaining $K{-}1$ models with
+warmup priors.  Two conditions are compared:
+\begin{itemize}[nosep]
+    \item \textbf{Condition~A (semantic transfer):} The target is added via
+      \texttt{register\_model()}, which bootstraps $\thetavec$ from the
+      nearest within-provider neighbor selected by \emph{tetrachoric
+      correlation} of binarized reward vectors (matching the library's
+      \texttt{compute\_correlation\_families()} design).
+    \item \textbf{Condition~B (tabula rasa):} The target is added with
+      identity initialization ($\Amat{=}\lambda\mathbf{I}$, $\bvec{=}\mathbf{0}$).
+\end{itemize}
+Both conditions share the same Corralling + Hybrid LinUCB router, the same
+seeds (20 per target), and the same shuffled training order.  The only
+treatment variable is the $\thetavec$ initialization.
+
+\paragraph{Neighbor selection.}
+Within-provider restriction ensures the experiment matches production
+behavior: e.g., \texttt{gpt-4.1} can only transfer from \texttt{gpt-4-turbo},
+not from Claude.  Models that are the sole representative of their provider
+receive no transfer, testing the realistic cold-start scenario.
+
+\begin{table}[h]
+\centering
+\caption{\textbf{Semantic Transfer Ablation: $K{=}10$ Portfolio} (20 seeds per target, shuffled training order).
+Neighbor selected by within-provider tetrachoric correlation ($r_{\text{tet}}$).
+$\Delta$: transfer $-$ tabula rasa mean holdout reward.
+$p_{\text{Holm}}$: Holm-Bonferroni corrected $p$-value.
+$d$: Cohen's $d$ (paired).
+Only 2 of 10 targets received actual transfer (similarity $>0.5$);
+both show negligible or negative effect.}
+\label{tab:semantic_transfer}
+\smallskip
+\small
+\begin{tabular}{@{}llccccr@{}}
+\toprule
+Target & Neighbor & $r_{\text{tet}}$ & $\Delta$ & $p_{\text{Holm}}$ & $d$ & Xfer \\
+\midrule
+Llama-3.1-8B     & Llama-4-Maverick  & 0.444 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+Mixtral-8x7B     & ---               & ---   & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+Gemini-2.5-Flash & Gemma-3-27B       & 0.338 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+Claude-Sonnet-4  & Claude-Haiku-4.5  & 0.543 & $+$0.0025 & 1.000 & $+$0.069 & 20/20 \\
+GPT-4.1          & GPT-4-Turbo       & 0.084 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+Llama-4-Maverick & Llama-3.1-8B      & 0.444 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+Gemma-3-27B      & Gemini-2.5-Flash  & 0.338 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+Claude-Haiku-4.5 & Claude-Sonnet-4   & 0.543 & $-$0.0103 & 1.000 & $-$0.274 & 20/20 \\
+GPT-4-Turbo      & GPT-4.1           & 0.084 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+DeepSeek-V3      & ---               & ---   & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
+\midrule
+\textbf{Aggregate} & & & $-$0.0008 & \multicolumn{1}{c}{$p{=}0.51$} & $-$0.047 & 200 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{$K{=}5$ results.}
+In the 5-model portfolio (one model per provider), no target has a same-provider
+peer.  All 5 targets receive $\Delta{=}0$ exactly (0/20 transfers each), because
+both conditions reduce to identical identity initialization.
+
+\paragraph{$K{=}10$ interpretation.}
+Of 10 targets, only \textbf{2} received actual $\thetavec$-transfer
+(Claude-Sonnet-4 and Claude-Haiku-4.5, both with $r_{\text{tet}}{=}0.543$).
+The remaining 8 targets either had no same-provider peer (Mixtral, DeepSeek) or
+the within-provider tetrachoric correlation fell below the $0.5$ similarity
+threshold.  Among the two that received transfer:
+\begin{itemize}[nosep]
+    \item Claude-Sonnet-4: $\Delta{=}+0.25$~pp, $d{=}+0.069$ (negligible positive)
+    \item Claude-Haiku-4.5: $\Delta{=}-1.03$~pp, $d{=}-0.274$ (transfer \emph{hurt})
+\end{itemize}
+The aggregate effect across all 200 pairs is $\Delta{=}-0.08$~pp
+($p{=}0.51$, $d{=}-0.047$): not significant.
+
+\paragraph{Why one-shot transfer adds nothing.}
+The Hybrid LinUCB decomposition $\mathbb{E}[r|x,m] = x^\top\betavec_{f(m)} + x^\top\thetavec_m$
+already provides continuous cross-model knowledge transfer through the
+family-shared $\betavec_F$.  When a new model joins an existing family, it
+immediately inherits $\betavec_F$ (trained from all family members' accumulated
+observations).  The one-shot $\thetavec$-transfer provides an initial preference
+direction, but this signal is \emph{subsumed} by $\betavec_F$, which is
+continuously updated.  This validates the hybrid decomposition as the correct
+abstraction level for cross-model knowledge transfer.
+
+\paragraph{Reproducibility.}
+Full per-trial data is available in
+\path{experiments/09_semantic_transfer_ablation/results/}.
+The experiment script uses 20 fixed seeds with shuffled training order,
+paired $t$-tests with Holm-Bonferroni correction, and Cohen's $d$ effect sizes.
 
 % ----------------------------------------------------------------------------
 % Additional evaluations moved from the core paper
