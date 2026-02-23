@@ -682,9 +682,8 @@ class DisjointLinUCBPolicy:
         self.last_update = {m: 0 for m in self.models}  # Track last update step
         self.t = 0  # Global time step
         
-        # [Paper FIX] Track effective regularization level per model
-        # Ensures principled lower bound on eigenvalues (proactive approach)
-        # Prevents singularity in low-traffic regimes with forgetting factor < 1.0
+        # Track per-model regularization floor to keep A well-conditioned under
+        # forgetting/decay in low-traffic regimes.
         self.regularization_floor = {m: self.init_lambda for m in self.models}
 
     def bandit_is_stable(self, model_id: str) -> bool:
@@ -986,8 +985,8 @@ Previously sampled from N(θ_hat, A_inv) which implicitly
                 # Clamp dt to prevent numerical underflow when gamma is small
                 decay_factor = self.gamma ** min(dt, 1000)
 
-            # 2. [Paper FIX] Proactive Regularization Maintenance
-            # Instead of waiting for singularity (reactive), ensure A >= lambda_min I (proactive)
+            # 2. Proactive regularization maintenance
+            # Ensure A remains well-conditioned under decay (A >= lambda_min I).
             current_lambda = self.regularization_floor.get(model, self.init_lambda)
             new_lambda = current_lambda * decay_factor
             
@@ -1167,7 +1166,7 @@ Previously sampled from N(θ_hat, A_inv) which implicitly
                         model, self.init_lambda
                     ) + reg_lambda
             
-            # Verify fix
+            # Sanity check
             new_trace = np.trace(self.A_inv[model])
             logger.info(
                 f"✅ Regularization reset complete for {model}. "
@@ -4942,7 +4941,7 @@ class CostAwareLinUCBRouter:
             try:
                 theta = self.A_inv[m] @ self.b[m]
                 
-                # --- Pass 1: Bias-only probe (targeted fix) ---
+                # --- Pass 1: Bias-only probe (clamp extreme bias dimension) ---
                 bias_pred = float(theta @ bias_probe)
                 if abs(bias_pred) > 1.5:
                     # Theta-reconstruction: clamp bias weight, preserve PCA weights
@@ -5036,7 +5035,7 @@ class CostAwareLinUCBRouter:
                     # Scale both A and b to adjust prior strength
                     self.A[m] = warmup_priors['A'][m].copy() * scale
                     self.b[m] = warmup_priors['b'][m].copy() * scale
-                    # [PERFORMANCE FIX]: Refresh A_inv cache after loading new priors
+                    # Refresh A_inv cache after loading new priors
                     self.A_inv[m] = safe_inv(self.A[m])
                 else:
                     logger.warning(f"Model {m} not found in warmup_priors, skipping")
@@ -5302,7 +5301,7 @@ class CostAwareTabulaRasaRouter:
         self.A = {m: self.ridge_lambda * np.eye(context_dim) for m in models}
         self.b = {m: np.zeros(context_dim) for m in models}
         
-        # [PERFORMANCE FIX]: Cache A_inv to avoid O(d³) recomputation on every select_model()
+        # Cache A_inv to avoid O(d³) recomputation on every select_model()
         self.A_inv = {m: safe_inv(self.A[m]) for m in models}
         
         # Runtime prediction monitor (matches CostAwareLinUCBRouter)

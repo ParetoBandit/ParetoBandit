@@ -160,7 +160,7 @@ if __name__ == "__main__":
     assert abs(new_ucb - 1.25) < 0.001, f"New UCB: {new_ucb}"
     assert new_ucb > established_ucb, "New model should have higher UCB"
     
-    # Calculate utilities (after fix)
+    # Calculate utilities (with exploration)
     established_utility = established_ucb - (lambda_val * established["cost"])
     new_utility = new_ucb - (lambda_val * new_model["cost"])
     

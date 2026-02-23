@@ -1018,7 +1018,7 @@ class TestC3_DeepCopyRegularizationFloor:
         clone = copy.deepcopy(policy)
         # Advance time on clone so dt > 0 triggers the decay path
         clone.t += 5
-        # This would crash with AttributeError before the fix
+        # This previously crashed with AttributeError
         clone.update("m1", x, reward=0.6)
         # Sanity: A_inv should still be a valid matrix
         assert np.isfinite(clone.A_inv["m1"]).all()

@@ -29,6 +29,11 @@
 \usepackage{hyperref}
 \usepackage{algorithm}
 \usepackage{algorithmic}
+
+% algorithmic does not define \FUNCTION/\ENDFUNCTION (those are from
+% algpseudocode).  Define them here for the pseudocode in A0.
+\newcommand{\FUNCTION}[1]{\item[\textbf{function} #1]}
+\newcommand{\ENDFUNCTION}{\item[\textbf{end function}]}
 \usepackage{subcaption}
 \usepackage{multirow}
 \usepackage{xcolor}

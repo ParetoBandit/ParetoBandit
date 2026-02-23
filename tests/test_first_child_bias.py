@@ -77,10 +77,10 @@ def test_late_model_receives_manual_priors():
     print(f"   Expected bias: {expected_bias:.4f}")
     print(f"   Actual bias:   {bias_term:.4f}")
     
-    # Verify the fix
+    # Verification
     if abs(bias_term - expected_bias) < 0.01:
         print(f"\n✅ TEST PASSED: Late-arriving model received manual prior!")
-        print(f"   The 'First-Child' bias bug has been fixed.")
+        print(f"   The 'First-Child' bias issue is resolved.")
         return True
     else:
         print(f"\n❌ TEST FAILED: Manual prior was not applied correctly")

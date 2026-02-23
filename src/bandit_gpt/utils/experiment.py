@@ -633,8 +633,9 @@ class ExperimentBurnIn:
             else:
                 easy_train.append(p)
                 
-        # FIXED: Oversample hard prompts WITH REPLACEMENT to avoid exact duplicates
-        # Strategy: Create 3x samples from hard pool (can include repeats), 
+        # Oversample hard prompts with replacement to emphasize contention while
+        # avoiding degenerate duplication patterns.
+        # Strategy: Create 3x samples from hard pool (can include repeats),
         # then balance with easy prompts for 50/50 split
         burn_in_list = []
         

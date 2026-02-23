@@ -115,7 +115,7 @@ LinUCB.
 
 \REQUIRE Arms (models) $\mathcal{M}$, family mapping $F: \mathcal{M} \to \mathcal{G}$, dimension $d$, \\
 \hspace{2.5em} exploration coefficient schedule $\alpha_t$, cost penalty $\lambda_c$, regularization $\lambda$, \\
-\hspace{2.5em} optional warmup priors $\{(\theta_a^{(0)}, \neff_a)\}_{a \in \mathcal{M}}$
+\hspace{2.5em} optional warmup priors $\{(\theta_a^{(0)},\, n_{\text{eff},a})\}_{a \in \mathcal{M}}$
 
 \medskip
 \STATE \textbf{Initialize} family-shared state for each family $g \in \mathcal{G}$:
@@ -124,7 +124,7 @@ LinUCB.
 \medskip
 \STATE \textbf{Initialize} arm-specific state for each arm $a \in \mathcal{M}$:
 \IF{warmup priors available}
-    \STATE $A_a \leftarrow \neff_a \cdot \lambda \cdot I_d$;\quad $b_a \leftarrow \neff_a \cdot \lambda \cdot \theta_a^{(0)}$ \hfill $\triangleright$ Bayesian prior injection
+    \STATE $A_a \leftarrow n_{\text{eff},a} \cdot \lambda \cdot I_d$;\quad $b_a \leftarrow n_{\text{eff},a} \cdot \lambda \cdot \theta_a^{(0)}$ \hfill $\triangleright$ Bayesian prior injection
 \ELSE
     \STATE $A_a \leftarrow \lambda \cdot I_d$;\quad $b_a \leftarrow \mathbf{0}$ \hfill $\triangleright$ Tabula rasa
 \ENDIF

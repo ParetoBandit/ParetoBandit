@@ -350,7 +350,7 @@ class FeatureService:
         if self.pca is not None:
             embeddings = self.pca.transform(embeddings)
             
-            # Validate and fix numerical issues
+            # Validate and handle numerical issues
             if np.any(np.isnan(embeddings)):
                 logger.warning(f"PCA transform produced NaN values for {np.sum(np.any(np.isnan(embeddings), axis=1))} prompts. Replacing with zeros.")
                 embeddings = np.nan_to_num(embeddings, nan=0.0)

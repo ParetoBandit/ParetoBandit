@@ -323,8 +323,8 @@ class TestCorrallingUpdate:
             selected, token = router.select_model(context)
             router.update(context, selected, reward=0.8, selection_token=token)
         
-        # All experts observe every update (Corralling fix: base algorithms
-        # must see all feedback).  With 2 experts and 20 rounds, each expert
+        # All experts observe every update (base algorithms must see all
+        # feedback).  With 2 experts and 20 rounds, each expert
         # gets 20 updates → 40 total.
         total_updates = expert1.update_count + expert2.update_count
         assert total_updates == 40, f"Expected 40 updates total (2 experts × 20 rounds), got {total_updates}"

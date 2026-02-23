@@ -144,8 +144,8 @@ def extract_battle_outcome(row: dict) -> dict:
     if len(prompt) < 10 or len(prompt) > 10000:
         return None
     
-    # CORRECTED: Binary rewards from pairwise comparison
-    # CRITICAL FIX: The HuggingFace dataset has INVERTED labels!
+    # Binary rewards from pairwise comparison
+    # Important: the HuggingFace dataset uses inverted winner flags.
     # winner_model_a = 1 actually means model_a LOST (or was judged and lost)
     # winner_model_b = 1 actually means model_b LOST (or was judged and lost)
     # This is counterintuitive but confirmed by data analysis.

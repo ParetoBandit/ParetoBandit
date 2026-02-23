@@ -24,7 +24,7 @@ def test_exploration_bonus_ordering():
         'COST_SAVER': 0.5
     }
     
-    # Calculate exploration bonus (after fix: no w_q multiplier)
+    # Calculate exploration bonus (no w_q multiplier)
     bonuses = {name: alpha * scale * std for name, scale in profiles.items()}
     
     print(f"\nExploration bonuses (α={alpha}, std={std}):")
@@ -62,7 +62,7 @@ def test_exploration_independence_from_quality_weight():
     expected_bonus = alpha * alpha_scale * std  # 0.4
     
     for w_q in w_q_values:
-        # New formula (after fix): no w_q
+        # Formula: independent of w_q
         bonus = alpha * alpha_scale * std
         assert bonus == expected_bonus, \
             f"Exploration should be {expected_bonus} regardless of w_q, got {bonus} for w_q={w_q}"

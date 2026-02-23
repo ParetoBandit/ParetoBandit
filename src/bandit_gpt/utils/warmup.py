@@ -4,10 +4,11 @@ Procedural Warmup Logic
 Shape the covariance matrix A using synthetic archetypal prompts to encode
 structural relationships without shipping a 200MB file.
 
-**Conference Critique:** "Identity matrix provides no structural confidence.
-The bandit might thrash exploring impossible states like 'Math without LaTeX'."
+**Motivation:** An identity covariance provides no structural confidence; the
+bandit may waste exploration on feature combinations that rarely occur in
+practice (e.g., "math without LaTeX").
 
-**Solution:** Generate synthetic archetypes that capture feature correlations:
+**Approach:** Generate synthetic archetypes that capture feature correlations:
 - Math prompts: high math_anchor + has_latex + latex_density_log
 - Coding prompts: high coding_anchor + has_code_block + code_block_count_log
 - Chat prompts: high humor_anchor + has_question + low complexity
@@ -75,8 +76,8 @@ def get_heuristic_prior(
     b = np.zeros(dim)
     
     # 3. Apply the "Prior Belief"
-    # [Paper FIX]: Use ONLY initial_quality (composite metric) for consistency
-    # Matches fix in router.py - no cascading through semantically different metrics
+    # Use only initial_quality (composite metric) for consistency with the router
+    # initialization path.
     quality = model_data.get("initial_quality")
     
     if quality is None:

@@ -287,7 +287,7 @@ def routellm_routing_sequential(prompts_data: List[Dict], controller: Controller
 
 
 # =============================================================================
-# FIXED PARETO GENERATION LOGIC (PRODUCTION VERSION)
+# PARETO GENERATION LOGIC
 # =============================================================================
 
 def normalize_prior_strength(priors: Dict, target_sample_size: float = 10.0) -> Dict:
@@ -463,9 +463,8 @@ def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict],
         except Exception as e:
             logger.warning(f"   ⚠️  Failed to load existing results: {e}")
     
-    # Dense coverage in the low-threshold / high-cost region (0.0–0.15) so the
-    # comparison with banditGPT is clear for reviewers, plus coarser coverage
-    # across the rest of the range.
+    # Dense coverage in the low-threshold / high-cost region (0.0–0.15), plus
+    # coarser coverage across the rest of the range.
     target_thresholds = sorted(set(
         list(np.arange(0.0, 0.16, 0.01))          # 16 pts in [0.00, 0.15]
         + list(np.arange(0.20, 1.01, 1/12))        # ~10 pts in [0.20, 1.0]
@@ -566,7 +565,7 @@ def generate_pareto_frontier(train_data: List[Dict], eval_data: List[Dict],
     hybrid_stats = []  # Track standard deviations
     
     # Sweep cost penalties (normalized)
-    # CRITICAL FIX: λ must be commensurate with reward range [0,1]
+    # Note: λ should be commensurate with the reward range [0, 1]
     # λ=0.0: Pure quality (ignore cost)
     # λ=0.1-0.5: Balanced trade-off
     # λ=1.0+: Cost-conscious (heavily penalize expensive models)

@@ -20,7 +20,7 @@ Our null result on semantic transfer identifies this as an open problem. Future 
     \item \textbf{Expert-Level Non-Stationarity:} Our current experts assume stationary rewards; non-stationarity is handled only at the meta level. Integrating discounted UCB, sliding-window updates, or change-point detection within individual experts would enable adaptation to gradual reward drift without requiring meta-level intervention.
     \item \textbf{Anisotropic Regularization:} The isotropic prior $\Amat_0 = \lambda \mathbf{I}$ in PCA space over-regularizes low-variance components. Variance-matched diagonal priors or full whitening before the bandit layer could improve sample efficiency.
     \item \textbf{Adaptive Corralling Learning Rate:} Replacing the fixed $\eta$ with a horizon-aware schedule ($\eta_t \propto \sqrt{\ln K / t}$) or a doubling-trick variant would restore formal regret guarantees while maintaining practical performance.
-    \item \textbf{Larger Portfolio Evaluation:} Our Pareto comparison uses $K{=}2$ to match RouteLLM's topology. Evaluation at $K{=}5$--$20$ would better characterize the contextual bandit's advantage over threshold-based routing.
+    \item \textbf{Adaptive Exploration Schedules:} Our multi-model evaluation ($K{=}5$--$20$) reveals that the constant exploration coefficient ($\alpha{=}2.0$) imposes a quality tax in stationary regimes where one model dominates (0.954 vs.\ 0.983 best static at $K{=}5$). Adaptive schedules that modulate $\alpha$ based on estimated stationarity---reducing exploration when the reward landscape appears stable, increasing it when drift is detected---could narrow this gap while preserving distribution-shift detection.
 \end{itemize}
 
 \paragraph{From Routing to Orchestration.}

@@ -113,7 +113,7 @@ def main():
     results = {"eta_sweep": {}, "alpha_sweep": {}}
     t_start = time.time()
 
-    # Sweep η (fix α=2.0)
+    # Sweep η (hold α_start=2.0)
     logger.info("\n--- η sweep (α_start=2.0) ---")
     for eta in ETA_VALUES:
         rewards = run_sweep(train_data, eval_data, train_emb, eval_emb,
@@ -127,7 +127,7 @@ def main():
         }
         logger.info(f"  η={eta:<4}: {rewards.mean():.4f} ± {ci:.4f}")
 
-    # Sweep α_start (fix η=1.0)
+    # Sweep α_start (hold η=1.0)
     logger.info("\n--- α_start sweep (η=1.0) ---")
     for alpha in ALPHA_VALUES:
         rewards = run_sweep(train_data, eval_data, train_emb, eval_emb,

@@ -112,7 +112,7 @@ def test_theta_only_transfer():
     print(f"   ||b_new||: {b_new_norm:.4f}")
     print(f"   Expected: > 0 (inherited preferences)")
     
-    # Verify the fix
+    # Verification
     is_A_fresh = abs(max_eigenvalue_new - router.bandit.init_lambda) < 0.1
     has_preferences = b_new_norm > 0.01
     
@@ -121,7 +121,7 @@ def test_theta_only_transfer():
     print(f"   θ transferred: {has_preferences}")
     
     if is_A_fresh and has_preferences:
-        print(f"\n✅ TEST PASSED: Confident transfer trap is fixed!")
+        print(f"\n✅ TEST PASSED: Confident transfer trap is resolved!")
         print(f"   - A was reset to identity (maximum uncertainty)")
         print(f"   - θ ws transferred from neighbor (preferences)")
         print(f"   - New model will explore healthily instead of being fossilized")

@@ -121,7 +121,7 @@ def main():
     results = {"pca_sweep": {}, "neff_sweep": {}}
     t_start = time.time()
 
-    # --- PCA dimensionality sweep (fix neff=10) ---
+    # --- PCA dimensionality sweep (hold neff=10) ---
     logger.info("\n--- PCA dimensionality sweep (neff=10) ---")
     for d in PCA_DIMS:
         pca = PCA(n_components=d)
@@ -145,7 +145,7 @@ def main():
         }
         logger.info(f"  d={d:<4}: {rewards.mean():.4f} ± {ci:.4f}")
 
-    # --- neff sweep (fix PCA=32, the default) ---
+    # --- neff sweep (hold d=32, the default) ---
     logger.info("\n--- neff sweep (d=32) ---")
     default_pca = joblib.load(DEFAULT_PCA_PATH)
     train_emb_default = [embed_prompt(p["prompt"], encoder, default_pca) for p in train_data]

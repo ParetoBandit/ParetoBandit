@@ -3,8 +3,7 @@
 Multi-Model Pareto Frontier: K=5 and K=10
 ==========================================
 
-Primary experiment demonstrating banditGPT at K>>2 — the evaluation a KDD
-reviewer expects to see for a multi-model routing architecture.
+Primary experiment demonstrating banditGPT with multi-model portfolios (K > 2).
 
 Protocol (mirrors 04_figure for direct comparison):
   1. Load three-way split (prior-train already consumed by warmup priors)
