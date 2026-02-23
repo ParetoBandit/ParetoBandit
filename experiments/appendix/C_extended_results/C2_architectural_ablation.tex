@@ -86,9 +86,10 @@ The full system (0.914) is slightly below LinUCB (no priors) at 0.923
 two experts plus meta-learning overhead.  However, banditGPT-Hybrid provides
 a property that simpler methods lack: \emph{dominant performance when priors
 are useful and adaptive cost--quality control}.  Figure~3 demonstrates
-this directly: with good-to-moderate priors ($\alpha \leq 0.5$), Corralling
-achieves 29--39\% lower regret than both warmup-only and tabula rasa
-(regret 32--38 vs.\ 52+), by exploiting complementary alpha schedules
+this directly: with good priors ($\alpha \leq 0.2$), Corralling
+achieves ${\sim}$6\% lower regret than tabula rasa and 7--13\% lower
+regret than warmup-only (regret 48--51 vs.\ ${\sim}51.3$ and 52--58,
+respectively), by exploiting complementary alpha schedules
 across its two experts.  At higher $\lambda$ values
 (Table~\ref{tab:ablation_lambda_sweep}), banditGPT-Hybrid maintains
 higher quality than LinUCB --- e.g., 0.886 vs.\ 0.861 at $\lambda{=}0.2$
@@ -126,8 +127,8 @@ $\neff{=}1$ through $\neff{=}100$ all yield ${\sim}0.912$--$0.915$,
 because the burn-in data dominates regardless of prior strength.  Warmup
 priors therefore provide the most value in \textbf{low-data online
 deployment} (routing live traffic from step~1): Figure~3 shows Corralling
-with warmup priors achieves 29--39\% lower regret than tabula rasa
-(37 vs.\ 52 at $\alpha{=}0$).  The cold-start ablation
+with warmup priors achieves ${\sim}$6\% lower regret than tabula rasa
+(48 vs.\ 51.3 at $\alpha{=}0$).  The cold-start ablation
 (Appendix~\ref{appendix:cold_start}) further demonstrates that priors
 alone yield 0.839 quality --- above static baselines --- providing a
 useful starting point before online learning takes over.
@@ -142,10 +143,10 @@ These findings translate into clear guidance for deploying the library:
           components combined.  Non-contextual methods (EMA, static routing)
           cannot distinguish models whose global win rates are similar.
     \item \textbf{Use the full banditGPT-Hybrid (the library default).}
-          Corralling dominates both warmup-only and tabula rasa for
-          good-to-moderate priors (29--39\% lower regret), and the 53\%
-          breakeven threshold means it has better expected regret than tabula
-          rasa for most practical deployments (Figure~3).
+          Corralling outperforms warmup-only across corruption levels
+          (7--13\% lower regret) and tabula rasa at low corruption
+          ($\alpha \leq 0.2$, ${\sim}$6\% lower regret), with a
+          crossover at $\alpha \approx 0.3$ (Figure~3).
     \item \textbf{Use LinUCB (no priors) when priors are unavailable.}
           If no warmup data is available, LinUCB without priors achieves
           0.923 --- the highest single-expert reward --- and is the simplest
@@ -153,7 +154,7 @@ These findings translate into clear guidance for deploying the library:
           provides no additional benefit in this case.
     \item \textbf{Warmup priors matter most in low-data regimes.}
           If deploying live without burn-in data (Figure~3's scenario),
-          warmup priors reduce early regret by 39\%.  If burn-in data is
+          warmup priors reduce early regret by ${\sim}$6\% relative to tabula rasa.  If burn-in data is
           plentiful ($\geq 500$ prompts; Appendix~\ref{appendix:learning_curves}),
           priors are washed out and can be safely omitted.
 \end{itemize}

@@ -8,12 +8,12 @@
     \centering
     \includegraphics[width=0.75\columnwidth]{experiments/03_figure/results/figure3_prior_degradation.pdf}
     \caption{%
-        \textbf{Prior Degradation Sweep} ($N{=}100$ seeds, $\pm 1\sigma$ bands).
+        \textbf{Prior Degradation Sweep} ($N{=}20$ seeds, $\pm 1\sigma$ bands).
         %
-        Corralling achieves the lowest regret for good-to-moderate priors
-        ($\alpha \leq 0.5$, regret 32--38), substantially beating both
-        warmup-only (52--59) and tabula rasa (52).
-        Beyond the crossover at $\alpha{\approx}0.55$, Corralling's regret
+        Corralling achieves the lowest regret for good priors
+        ($\alpha \leq 0.2$, regret 48--51), outperforming both
+        warmup-only (52--58) and tabula rasa (${\sim}51.3$).
+        Beyond the crossover at $\alpha{\approx}0.3$, Corralling's regret
         rises sharply (65--75) with high variance ($\sigma{\approx}23$),
         while tabula rasa maintains flat regret regardless of corruption.
         Warmup-only degrades monotonically (52 to 67) but is never the

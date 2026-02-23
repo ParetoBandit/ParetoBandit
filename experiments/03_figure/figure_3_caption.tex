@@ -18,9 +18,9 @@
         probability $P_t = (1{-}\gamma)\,w_t + \gamma/K$ and
         \texttt{process\_feedback()} updates weights via importance-weighted
         loss $\hat{\ell}_t = (1{-}r_t)/P_t$.
-        Figure~\ref{fig:prior_degradation} shows that Corralling dominates
-        at good-to-moderate prior quality and provides a decision-theoretic
-        breakeven at 53\% confidence in prior quality.
+        Figure~\ref{fig:prior_degradation} shows that Corralling outperforms
+        tabula rasa at good prior quality ($\alpha \leq 0.2$), with a
+        crossover at $\alpha \approx 0.3$.
     }
     \label{fig:corralled_architecture}
 \end{figure}

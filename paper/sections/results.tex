@@ -11,7 +11,7 @@ Figure~\ref{fig:pareto} presents a two-panel analysis of the cost--quality trade
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/figure4.png}
-\caption{\textbf{Cost--quality trade-off.} (a) Pareto frontiers for banditGPT and RouteLLM-MF on a 750-prompt holdout. (b) banditGPT learning curve; banditGPT exceeds RouteLLM's peak after $\sim$200 in-distribution prompts in this setting.}
+\caption{\textbf{Cost--quality trade-off.} (a) Pareto frontiers for banditGPT and RouteLLM-MF on a 750-prompt holdout. (b) banditGPT learning curve; banditGPT exceeds RouteLLM's peak after $\sim$300--400 in-distribution prompts in this setting.}
 \Description{Two-panel plot: left shows quality versus cost Pareto frontiers for banditGPT and RouteLLM; right shows banditGPT quality improving with online learning steps and crossing RouteLLM's best point.}
 \label{fig:pareto}
 \label{fig:pareto_frontier}
@@ -36,9 +36,9 @@ This evaluation uses two models to match RouteLLM's topology and enable a contro
 
 \subsubsection{The Value of Online Adaptation}
 
-Figure~\ref{fig:pareto}b reveals why this matters in practice. banditGPT starts below RouteLLM (cold-start quality: $0.839 \pm 0.004$ with priors only) but crosses RouteLLM's peak after approximately \textbf{200 in-distribution prompts}. By step 400, the crossover is robust (95\% CI lower bound $>0.898$, well above RouteLLM's 0.883). This crossover demonstrates a fundamental asymmetry: a small amount of in-distribution experience outweighs a large volume of out-of-distribution supervision.
+Figure~\ref{fig:pareto}b reveals why this matters in practice. banditGPT starts below RouteLLM (cold-start quality: $0.839 \pm 0.004$ with priors only) and crosses RouteLLM's peak between approximately \textbf{300--400 in-distribution prompts} (mean reward $0.893 \pm 0.014$ at step~400, vs.\ RouteLLM's 0.883). This crossover demonstrates a fundamental asymmetry: a modest amount of in-distribution experience outweighs a large volume of out-of-distribution supervision.
 
-The learning curve shows generally increasing improvement from cold-start ($0.839$) through convergence ($0.911$ by step 750), with minor fluctuations at intermediate checkpoints that remain within the 95\% confidence bands. The Corralling meta-learner decisively shifts $94\%$ of routing weight to the tabula rasa expert, producing consistent convergence across all 20 seeds. By step 750, the variance across trials contracts sharply (CI width $< 0.005$), indicating that the router has converged to a stable, high-quality policy.
+The learning curve shows generally increasing improvement from cold-start ($0.839$) through convergence (${\sim}0.904$ by step~900), with minor fluctuations at intermediate checkpoints that remain within the 95\% confidence bands. Variance across trials contracts as training progresses (std from $0.040$ at step~100 to $0.009$ at step~900), indicating that the router converges to a stable, high-quality policy.
 
 \subsubsection{Non-Monotonicity of Static Routing}
 \label{sec:nonmonotone}

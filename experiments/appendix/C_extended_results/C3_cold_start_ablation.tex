@@ -56,8 +56,8 @@ learning machinery --- contextual LinUCB with UCB exploration, Corralling
 meta-learning, and bandit feedback --- extracts substantial routing signal
 from only 1,121 dev prompts.  The learning curve analysis
 (Appendix~\ref{appendix:learning_curves}) shows that this improvement
-occurs rapidly and smoothly: by 200 online samples, holdout reward reaches
-0.893 and surpasses RouteLLM-MF's peak (0.883).
+occurs rapidly and smoothly: by 300--400 online samples, holdout reward
+reaches ${\sim}0.893$ and surpasses RouteLLM-MF's peak (0.883).
 
 \paragraph{2.\ The gap narrows monotonically with $\lambda$.}
 As the cost penalty increases and routing shifts toward the cheap model
@@ -78,8 +78,8 @@ produce a useful starting configuration.
 The priors are nonetheless imperfect: cold-start (0.839) falls well below
 RouteLLM-MF's peak (0.883), which uses 100K prompt-specific pairs.
 This is consistent with Figure~3's prior degradation sweep, where
-Corralling with priors achieves 29--39\% lower regret than tabula rasa
-at low corruption but regret rises as priors become adversarial.
+Corralling with priors achieves ${\sim}$6\% lower regret than tabula rasa
+at low corruption ($\alpha \leq 0.2$) but regret rises as priors become adversarial.
 The practical implication is that \textbf{deploying the library with
 warmup priors and no online data already beats naive baselines} ---
 a critical property for real-world adoption where collecting labeled
@@ -110,10 +110,10 @@ This ablation clarifies when and how to deploy banditGPT under different
 data availability conditions:
 
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{With burn-in data ($\geq 200$ labeled prompts):}
-          Use the standard warm-start protocol.  By 200 prompts the system
-          surpasses RouteLLM-MF's peak (0.893 vs.\ 0.883), and by 750
-          steps reaches $0.911$ with tight CI ($\pm 0.003$).
+    \item \textbf{With burn-in data ($\geq 300$ labeled prompts):}
+          Use the standard warm-start protocol.  By 300--400 prompts the
+          system surpasses RouteLLM-MF's peak (${\sim}0.893$ vs.\ 0.883),
+          and by 900 steps reaches ${\sim}0.904$ with tightening CI.
     \item \textbf{With limited data ($50$--$200$ prompts):}
           Use warm-start with warmup priors ($\neff{=}10$).  Priors
           accelerate early learning (Figure~3) and the cold-start floor

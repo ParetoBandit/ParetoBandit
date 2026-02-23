@@ -1,10 +1,10 @@
 % ============================================================================
 % Table: Strategy Selection Guide
 % ============================================================================
-% Updated for 100-seed corrected results (Feb 2026).
+% Updated to match experimental data (Feb 2026).
 % Corralling dominates at good priors; tabula rasa safest at adversarial.
 
-\providecommand{\CrossoverWC}{0.55}
+\providecommand{\CrossoverWC}{0.3}
 
 \begin{table}[t]
 \centering
@@ -12,7 +12,7 @@
     \textbf{Deployment Strategy Selection Guide.}
     Regret at $\alpha{=}0$ (correct priors) and typical ranges across the
     corruption spectrum from the 750-prompt holdout evaluation
-    ($N{=}100$ seeds, Corralling with $w_0{=}0.7$, hybrid LinUCB).
+    ($N{=}20$ seeds, Corralling with $w_0{=}0.7$, hybrid LinUCB).
     \textbf{Key insight:} the crossover at
     $\alpha{\approx}$\CrossoverWC{} determines when Corralling's
     variance exceeds its benefit
@@ -24,15 +24,15 @@
 \textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret ($\alpha{=}0$)} & \textbf{Range} & \textbf{When to Use} \\
 \midrule
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Good\end{tabular}}
-    & Corralling & \textbf{37.3 $\pm$ 4.3} & \textbf{32--38} &
+    & Corralling & \textbf{48.0 $\pm$ 3.7} & \textbf{48--51} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
     \textbf{[OPTIMAL]} Library default.
-    Dominates warmup-only and tabula rasa
-    for $\alpha \leq 0.5$ (29--39\% lower regret)
+    Outperforms warmup-only (7--13\% lower regret)
+    and tabula rasa for $\alpha \leq 0.2$ (${\sim}$6\% lower regret)
     \end{tabular} \\
 \cmidrule(l){2-5}
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Unknown/\\Uncertain\end{tabular}}
-    & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
+    & Tabula Rasa & 51.3 $\pm$ 5.5 & \textbf{51.3} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
     \textbf{[SAFEST]} Prior-independent.
     No validation data, high-stakes domains,
@@ -40,7 +40,7 @@
     \end{tabular} \\
 \cmidrule(l){2-5}
 \multirow{2}{*}{\begin{tabular}[c]{@{}l@{}}Known\\Bad\end{tabular}}
-    & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
+    & Tabula Rasa & 51.3 $\pm$ 5.5 & \textbf{51.3} &
     \begin{tabular}[c]{@{}p{4.5cm}@{}}
     \textbf{[OPTIMAL]} Cold start (no priors),
     validated adversarial priors,
@@ -58,9 +58,10 @@ tabula rasa.
 \textbf{Note:} Warmup-only (52--67) is omitted as it is never optimal at
 any corruption level.
 
-\textbf{Breakeven rule:}
-Corralling has better expected regret than tabula rasa if you believe
-there is $\geq 53\%$ probability that priors are useful ($\alpha \leq 0.4$).
+\textbf{Crossover rule:}
+Corralling has better expected regret than tabula rasa when
+priors are good ($\alpha \leq 0.3$); beyond this crossover,
+tabula rasa is preferable.
 
 \textbf{Adaptive workflow:}
 Start with Corralling (library default) and monitor the first 50--100

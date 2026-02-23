@@ -93,14 +93,15 @@ length in production:
           A user can deploy the library out-of-box with warmup priors and
           begin collecting online data while serving useful routing from
           the first request.
-    \item \textbf{Minimum viable burn-in: 200 prompts.}  Achieves 0.893
-          ($\pm$0.007), surpassing RouteLLM-MF's peak (0.883) and closing
-          most of the gap to convergence.
-    \item \textbf{Recommended burn-in: 500--750 prompts.}  Achieves
-          0.905--0.911 with tight CI ($\pm$0.003--0.007).  Captures
-          $>99\%$ of the maximum improvement.
+    \item \textbf{Minimum viable burn-in: 300--400 prompts.}  By step
+          400, mean holdout reward reaches ${\sim}0.893$
+          ($\pm$0.014~std), surpassing RouteLLM-MF's peak (0.883).
+    \item \textbf{Recommended burn-in: 500--900 prompts.}  Achieves
+          0.894--0.904 with tightening variance (std from 0.021 at
+          step~500 to 0.009 at step~900).  Captures most of the
+          improvement over cold-start.
     \item \textbf{Diminishing returns beyond 500.}  The final 621 steps
-          (500 $\to$ 1,121) add only 0.007 (0.8\%).  Allocating
+          (500 $\to$ 1,121) add only ${\sim}0.007$.  Allocating
           additional burn-in data yields negligible benefit.
     \item \textbf{Monitor the CI, not just the mean.}  When the CI
           contracts below $\pm$0.005, the router has converged and can

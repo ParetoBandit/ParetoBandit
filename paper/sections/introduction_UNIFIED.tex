@@ -30,7 +30,7 @@ In production, the distribution of user prompts inevitably differs from the offl
 We present \textbf{banditGPT}, a cost-aware contextual bandit framework that addresses these challenges through:
 
 \paragraph{1. Cost-Aware Online Learning from Warmup Priors}
-We initialize LinUCB with offline priors from 80k RouteLLM battles, then adapt online from the router's own reward observations via bandit feedback. A Lagrangian penalty $\lambda$ balances quality and cost, tracing a cost--quality Pareto frontier. In our two-model benchmark, banditGPT exceeds RouteLLM's peak quality after $\sim$200 in-distribution prompts; at low budgets, RouteLLM's supervised discriminator remains competitive (Section~\ref{sec:pareto}).
+We initialize LinUCB with offline priors from 80k RouteLLM battles, then adapt online from the router's own reward observations via bandit feedback. A Lagrangian penalty $\lambda$ balances quality and cost, tracing a cost--quality Pareto frontier. In our two-model benchmark, banditGPT exceeds RouteLLM's peak quality after $\sim$300--400 in-distribution prompts; at low budgets, RouteLLM's supervised discriminator remains competitive (Section~\ref{sec:pareto}).
 
 \paragraph{2. Corralling Meta-Learning for Adaptive Complementarity}
 We use Corralling~\cite{agarwal2017corralling} to combine two experts with complementary exploration schedules: a warmup expert informed by priors (constant $\alpha$) and a tabula rasa expert that decays exploration. The meta-learner shifts weight over time, which improves regret when priors are moderately reliable and provides a simple fallback when they appear misleading (Section~\ref{sec:prior_degradation}).
@@ -51,7 +51,7 @@ Our work makes the following contributions, validated through comprehensive expe
     We show that prompt embeddings contain signal for routing decisions: PCA features correlate with model preference on held-out prompts ($\rho=-0.370$, $p<0.0001$, $N=750$), exceeding 100 random projections.
     
     \item \textbf{Cost-Aware Online Learning with Safety.}
-    A cost-aware contextual bandit initialized from offline priors improves with online feedback and reaches 70.0\% gap closure to oracle on frozen holdout (vs.\ 46.2\% for RouteLLM). We find a consistent pattern across cost regimes: RouteLLM is strong at low budgets, while online adaptation improves quality at moderate-to-high budgets (Section~\ref{sec:pareto}). We further evaluate Corralling as a hedge against prior mismatch (Section~\ref{sec:prior_degradation}).
+    A cost-aware contextual bandit initialized from offline priors improves with online feedback and reaches 70.0\% gap closure to oracle on frozen holdout (vs.\ 46.2\% for RouteLLM) after $\sim$300--400 prompts. We find a consistent pattern across cost regimes: RouteLLM is strong at low budgets, while online adaptation improves quality at moderate-to-high budgets (Section~\ref{sec:pareto}). We further evaluate Corralling as a hedge against prior mismatch (Section~\ref{sec:prior_degradation}).
     
     \item \textbf{Open-Source Multi-Model Framework.}
     We release a modular implementation that supports multi-model portfolios, budget constraint filtering, and prior calibration. In cold-start ablations, we find limited benefit from per-model semantic transfer (Section~\ref{sec:transfer_null}), clarifying an open challenge for routing with limited traffic to new models.

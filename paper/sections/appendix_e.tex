@@ -180,7 +180,7 @@ The table below provides a practical decision framework for practitioners select
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{../experiments/03_figure/results/figure3_prior_degradation.pdf}
-\caption{Prior degradation sweep ($N{=}100$ seeds). Corralling performs best for good-to-moderate priors ($\alpha \leq 0.5$) but degrades under strongly misleading priors ($\alpha \geq 0.6$). Tabula rasa is invariant to prior quality.}
+\caption{Prior degradation sweep ($N{=}20$ seeds). Corralling performs best for good priors ($\alpha \leq 0.2$) but degrades under misleading priors ($\alpha \geq 0.3$). Tabula rasa is invariant to prior quality.}
 \Description{Line plot of cumulative regret versus prior corruption level alpha for Corralling, warmup-only, and tabula rasa, showing a crossover where Corralling degrades for adversarial priors.}
 \end{figure}
 
@@ -190,8 +190,8 @@ The table below provides a practical decision framework for practitioners select
     \textbf{Deployment Strategy Selection Guide.}
     Regret at $\alpha{=}0$ (correct priors) and typical ranges across the
     corruption spectrum from the 750-prompt holdout evaluation
-    ($N{=}100$ seeds, Corralling with $w_0{=}0.7$, hybrid LinUCB).
-    \textbf{Key insight:} the crossover at $\alpha{\approx}0.55$
+    ($N{=}20$ seeds, Corralling with $w_0{=}0.7$, hybrid LinUCB).
+    \textbf{Key insight:} the crossover at $\alpha{\approx}0.3$
     determines when Corralling's variance exceeds its benefit
     (see the prior degradation sweep plot above).
 }
@@ -202,19 +202,19 @@ The table below provides a practical decision framework for practitioners select
 \textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret ($\alpha{=}0$)} & \textbf{Range} & \textbf{When to Use} \\
 \midrule
 Known Good
-    & Corralling & \textbf{37.3 $\pm$ 4.3} & \textbf{32--38} &
+    & Corralling & \textbf{48.0 $\pm$ 3.7} & \textbf{48--51} &
     \textbf{[OPTIMAL]} Library default.
-    Dominates warmup-only and tabula rasa
-    for $\alpha \leq 0.5$ (30--40\% lower regret) \\
+    Outperforms warmup-only (7--13\% lower regret)
+    and tabula rasa for $\alpha \leq 0.2$ (${\sim}$6\% lower regret) \\
 \midrule
 Unknown / Uncertain
-    & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
+    & Tabula Rasa & 51.3 $\pm$ 5.5 & \textbf{51.3} &
     \textbf{[SAFEST]} Prior-independent.
     No validation data, high-stakes domains,
     or confirmed adversarial priors \\
 \midrule
 Known Bad
-    & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
+    & Tabula Rasa & 51.3 $\pm$ 5.5 & \textbf{51.3} &
     \textbf{[OPTIMAL]} Cold start (no priors),
     validated adversarial priors,
     severe domain mismatch \\
@@ -231,9 +231,10 @@ tabula rasa.
 \textbf{Note:} Warmup-only (52--67) is omitted as it is never optimal at
 any corruption level---Corralling dominates it across the entire spectrum.
 
-\textbf{Breakeven rule:}
-Corralling has better expected regret than tabula rasa if you believe
-there is $\geq 53\%$ probability that priors are useful ($\alpha \leq 0.4$).
+\textbf{Crossover rule:}
+Corralling has better expected regret than tabula rasa when
+priors are good ($\alpha \leq 0.3$); beyond this crossover,
+tabula rasa is preferable.
 \end{table}
 
 \paragraph{Validation Protocol.}
@@ -243,11 +244,11 @@ prompts.  If warmup expert accuracy falls below random chance, switch to
 tabula rasa to cap downside risk.
 
 \paragraph{Key Findings.}
-(1)~Corralling dominates both warmup-only and tabula rasa for
-good-to-moderate priors ($\alpha \leq 0.5$), achieving 30--40\% lower
-regret;
+(1)~Corralling outperforms warmup-only across corruption levels
+(7--13\% lower regret) and tabula rasa for good priors
+($\alpha \leq 0.2$, ${\sim}$6\% lower regret);
 (2)~Tabula Rasa is optimal when priors are known-bad or truly uncertain;
 (3)~Warmup-only is \emph{never} optimal at any corruption level and should
 be migrated to Corralling in all cases;
-(4)~The 53\% breakeven threshold provides a principled decision rule.
+(4)~The crossover at $\alpha \approx 0.3$ provides a principled decision rule.
 All configurations use constant $\alpha=2.0$.

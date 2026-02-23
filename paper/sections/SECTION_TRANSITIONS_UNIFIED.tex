@@ -99,7 +99,7 @@ Having demonstrated comprehensive validation of our integrated approach---from e
 We presented \textbf{banditGPT}, an open-source, cost-aware contextual bandit framework for LLM routing combining online adaptation with Corralling meta-learning. Through comprehensive validation ($N{=}750$ held-out prompts), we demonstrated:
 
 \begin{itemize}
-    \item \textbf{Performance:} $70.0\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM); surpasses 100k-pair supervised router after ${\sim}200$ in-distribution label-free prompts at moderate-to-high budgets
+    \item \textbf{Performance:} $70.0\%$ gap closure to oracle (vs $46.2\%$ for RouteLLM); surpasses 100k-pair supervised router after ${\sim}300$--$400$ in-distribution label-free prompts at moderate-to-high budgets
     \item \textbf{Adaptive meta-learning:} Corralling exploits complementary alpha schedules to dominate both alternatives when priors are useful, with catastrophic failure detection as a secondary benefit
     \item \textbf{Honest boundary:} Semantic transfer for cold-start models provides no significant improvement over tabula rasa, establishing an open problem for future work
 \end{itemize}
