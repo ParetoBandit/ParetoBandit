@@ -182,9 +182,10 @@ values used in each paper experiment.
 \caption{Corralling parameters by experiment.}
 \label{tab:corralling_expt}
 \small
-\begin{tabular}{@{}lcccccccc@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccccccc@{}}
 \toprule
-\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~8} & \textbf{Fig~9} & \textbf{Library Default} \\
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~8} & \textbf{Fig~9} & \textbf{Lib.\ Default} \\
 \midrule
 $\eta$ (learning rate) & 0.030 & 0.1 & --- & 0.1 & 0.1 & 0.1 & 0.1 \\
 $\gamma$ (mixing floor) & 0.05 & 0.05 & --- & 0.05 & 0.05 & 0.05 & 0.05 \\
@@ -192,7 +193,8 @@ $\gamma$ (mixing floor) & 0.05 & 0.05 & --- & 0.05 & 0.05 & 0.05 & 0.05 \\
 \texttt{meta\_lr\_halflife} & N/A & N/A & --- & N/A & N/A & N/A & 60.0\,s \\
 Initial warmup weight & 0.70 & 0.50 & --- & 0.50 & 0.50 & 0.50 & uniform \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \vspace{0.3em}
 
 \footnotesize
@@ -205,9 +207,10 @@ Figs~8 and 9 share the $K{>}2$ protocol (same portfolios and priors as Fig~6).
 \caption{LinUCB expert parameters by experiment.}
 \label{tab:linucb_expt}
 \small
-\begin{tabular}{@{}lcccccccc@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccccccc@{}}
 \toprule
-\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~8} & \textbf{Fig~9} & \textbf{Library Default} \\
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~8} & \textbf{Fig~9} & \textbf{Lib.\ Default} \\
 \midrule
 $\alpha$ (start) & 2.0 & 2.0$^\dagger$ & 1.0 & 2.0$^\dagger$ & 2.0$^\dagger$ & 2.0$^\dagger$ & 1.0 \\
 $\alpha$ (end) & 2.0 & 0.01$^\dagger$ & 0.01 & 0.01$^\dagger$ & 0.01$^\dagger$ & 0.01$^\dagger$ & 0.1 \\
@@ -216,9 +219,10 @@ $\neff$ & 0.05$^*$ & 10.0 & --- & 10.0 & 10.0 & 10.0 & 10.0 \\
 $\lambda$ (cost penalty) & 0.0 & swept & 0.0 & swept & swept & 0.0 & 0.0 \\
 \texttt{init\_lambda} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
 \texttt{forgetting\_factor} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
-Context dimension & 33 & 33 & 33 & 33 & 33 & 33 & 33 (32 PCA + bias) \\
+Context dim & 33 & 33 & 33 & 33 & 33 & 33 & 33 (32+1) \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \vspace{0.3em}
 
 \footnotesize

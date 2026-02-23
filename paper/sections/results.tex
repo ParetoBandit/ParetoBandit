@@ -43,7 +43,7 @@ The learning curve shows generally increasing improvement from cold-start ($0.83
 \subsubsection{Non-Monotonicity of Static Routing}
 \label{sec:nonmonotone}
 
-A striking secondary finding is the non-monotonic behavior of RouteLLM at high cost. Dense threshold coverage (26 points, including 16 in the $[0.0, 0.15]$ range) reveals that when the threshold is lowered to admit more GPT-4 traffic ($\tau < 0.10$), RouteLLM's quality \emph{degrades}: reward drops from the peak of 0.883 (at $\tau{\approx}0.12$, cost \$0.007) to 0.812 at $\tau{=}0$ (cost \$0.013). At maximum cost, RouteLLM pays $43\times$ more than static Mixtral for $1.3\%$ lower quality on this distribution, consistent with model preference heterogeneity.
+A striking secondary finding is the non-monotonic behavior of RouteLLM at high cost. Dense threshold coverage (26 points, including 16 in the $[0.0, 0.15]$ range) reveals that when the threshold is lowered to admit more GPT-4 traffic ($\tau < 0.10$), RouteLLM's quality \emph{degrades}: reward drops from the peak of 0.883 (at $\tau{\approx}0.12$, cost \$0.007) to 0.812 at $\tau{=}0$ (cost \$0.013). At maximum cost, RouteLLM pays ${\sim}44\times$ more than static Mixtral for $1.3\%$ lower quality on this distribution, consistent with model preference heterogeneity.
 
 This non-monotonicity is not a pathology of RouteLLM's MF model specifically; it is inherent to any pre-trained router deployed on a distribution where the assumed ``strong'' model is not uniformly superior. In specialized domains (legal, code review, structured data extraction), smaller fine-tuned models frequently outperform general-purpose frontier models, making this scenario practically common.
 

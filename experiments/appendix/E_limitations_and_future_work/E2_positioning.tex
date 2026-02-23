@@ -18,13 +18,13 @@ concurrent bandit routers, and banditGPT.
 % Taxonomy Table
 % --------------------------------------------------------------------------
 
-\begin{table}[h]
+\begin{table*}[t]
 \centering
 \caption{Taxonomy of LLM routing approaches. \checkmark~= open-source code available.
 $\dagger$~= code not publicly available.}
 \label{tab:bandit_taxonomy}
 \small
-\begin{tabular}{@{}lp{2.0cm}p{2.2cm}p{2.2cm}p{2.8cm}@{}}
+\begin{tabular}{@{}lp{3.0cm}p{2.8cm}p{3.8cm}p{4.0cm}@{}}
 \toprule
 \textbf{Aspect} & \textbf{Static Routers} & \textbf{Plain LinUCB} &
   \textbf{PILOT$^\dagger$ / BaRP$^\dagger$ / LLM Bandit} & \textbf{banditGPT (Ours)} \\
@@ -45,7 +45,7 @@ Cost awareness &
   Threshold (RouteLLM); edge weights (GraphRouter) &
   Ad-hoc penalties &
   Knapsack policy (PILOT); scalarized reward (BaRP); preference conditioning (LLM Bandit) &
-  Hard constraints + Dynamic Pareto Filtering \\
+  Hard constraints + cost-penalized LinUCB \\
 \midrule
 Prior machinery &
   Supervised offline training (100k+ labeled pairs) &
@@ -79,7 +79,7 @@ Open source &
   \checkmark~(production-grade) \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 % --------------------------------------------------------------------------
 % Key Differentiators

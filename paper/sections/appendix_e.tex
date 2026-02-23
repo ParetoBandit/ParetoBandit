@@ -120,6 +120,7 @@ To characterize sensitivity to hyperparameter choices, we conducted a systematic
 \caption{Corralling hyperparameter ablation. Mean $\pm$ std across 3 seeds, ranked by cumulative regret.}
 \label{tab:corralling_ablation}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{cccccc}
 \toprule
 $\eta$ & $\gamma$ & Seeds & Regret (mean $\pm$ std) & Reward (mean $\pm$ std) & Rank \\
@@ -140,7 +141,8 @@ $\eta$ & $\gamma$ & Seeds & Regret (mean $\pm$ std) & Reward (mean $\pm$ std) & 
 5.0 & 0.00 & 3 & 94.33 $\pm$ 18.70 & 0.9078 $\pm$ 0.0167 & 14th \\
 2.0 & 0.05 & 3 & 99.00 $\pm$ 54.46 & 0.9037 $\pm$ 0.0486 & 15th \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \paragraph{Key Findings.}
@@ -188,7 +190,8 @@ The table below provides a practical decision framework for practitioners select
     (see the prior degradation sweep plot above).
 }
 \small
-\begin{tabular}{@{}llccp{4.0cm}@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llccp{3.5cm}@{}}
 \toprule
 \textbf{Prior Quality} & \textbf{Strategy} & \textbf{Regret ($\alpha{=}0$)} & \textbf{Range} & \textbf{When to Use} \\
 \midrule
@@ -196,7 +199,7 @@ Known Good
     & Corralling & \textbf{37.3 $\pm$ 4.3} & \textbf{32--38} &
     \textbf{[OPTIMAL]} Library default.
     Dominates warmup-only and tabula rasa
-    for $\alpha \leq 0.5$ (29--39\% lower regret) \\
+    for $\alpha \leq 0.5$ (30--40\% lower regret) \\
 \midrule
 Unknown / Uncertain
     & Tabula Rasa & 52.0 $\pm$ 4.6 & \textbf{52.0} &
@@ -210,7 +213,8 @@ Known Bad
     validated adversarial priors,
     severe domain mismatch \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 
 \vspace{0.5em}
 \small
@@ -234,7 +238,7 @@ tabula rasa to cap downside risk.
 
 \paragraph{Key Findings.}
 (1)~Corralling dominates both warmup-only and tabula rasa for
-good-to-moderate priors ($\alpha \leq 0.5$), achieving 29--39\% lower
+good-to-moderate priors ($\alpha \leq 0.5$), achieving 30--40\% lower
 regret;
 (2)~Tabula Rasa is optimal when priors are known-bad or truly uncertain;
 (3)~Warmup-only is \emph{never} optimal at any corruption level and should

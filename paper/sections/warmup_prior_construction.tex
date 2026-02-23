@@ -80,7 +80,7 @@ Section~\ref{sec:prior_degradation} shows that Corralling automatically hedges a
 
 \item \textbf{Deploy with Corralling.}
 The Corralling meta-learner hedges between the warmup expert (initialized with the generated priors) and a tabula rasa expert (no priors).
-If the warmup priors are well-calibrated, Corralling exploits them for 29--39\% lower regret during burn-in (Section~\ref{sec:prior_degradation}).
+If the warmup priors are well-calibrated, Corralling exploits them for 30--40\% lower regret during burn-in (Section~\ref{sec:prior_degradation}).
 If the priors are miscalibrated due to domain shift, Corralling detects the mismatch and shifts weight to the tabula rasa expert within ${\sim}50$ routing decisions.
 \end{enumerate}
 

@@ -179,7 +179,8 @@ experimental setups.
 \caption{Extended data provenance covering two-model and multi-model experiments.}
 \label{tab:data_provenance_extended}
 \small
-\begin{tabular}{llll}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llll@{}}
 \toprule
  & \textbf{PCA Training} & \textbf{$K{=}2$ Eval} & \textbf{$K{>}2$ Eval} \\
 \midrule
@@ -189,7 +190,8 @@ experimental setups.
 \textbf{Judge} & GPT-4 & GPT-4o & GPT-4o \\
 \textbf{Split} & Independent dataset & Dev/holdout & Prior-train / online / holdout \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsubsection{Limitations}

@@ -175,6 +175,7 @@ mirroring the Pareto frontier analysis in Figure~4.
 \caption{Reward at selected $\lambda$ values (mean, 20 seeds).}
 \label{tab:ablation_lambda_sweep}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
 \textbf{Method} & $\lambda{=}0$ & $\lambda{=}0.05$ & $\lambda{=}0.1$ & $\lambda{=}0.2$ & $\lambda{=}0.5$ & $\lambda{=}5.0$ \\
@@ -187,7 +188,8 @@ LinUCB (no priors) & 0.923 & 0.911 & 0.908 & 0.861 & 0.823 & 0.823 \\
 LinUCB (w/ priors) & 0.923 & 0.911 & 0.908 & 0.861 & 0.823 & 0.823 \\
 \textbf{banditGPT-Hybrid} & \textbf{0.914} & \textbf{0.906} & \textbf{0.898} & \textbf{0.886} & \textbf{0.860} & \textbf{0.823} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsubsection{Reproducibility}

@@ -50,7 +50,7 @@ We use the held-out test set only ($N=750$); PCA is trained without reward label
 This finding has three direct consequences for router design:
 
 \begin{enumerate}[noitemsep,topsep=2pt]
-    \item \textbf{Static ``hardness'' classifiers will fail.} A router trained to predict task difficulty and send ``hard'' prompts to the expensive model will systematically over-provision GPT-4 on the strict-constraint subset where it underperforms. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, ultimately paying $43\times$ more for $1.3\%$ lower quality.
+    \item \textbf{Static ``hardness'' classifiers will fail.} A router trained to predict task difficulty and send ``hard'' prompts to the expensive model will systematically over-provision GPT-4 on the strict-constraint subset where it underperforms. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, ultimately paying ${\sim}44\times$ more per request than static Mixtral for $1.3\%$ lower quality.
     
     \item \textbf{Cost savings come from ties.} The majority of prompts (72.8\%) show no strong model preference, meaning the cheaper model can serve them with comparable quality. The router's value is correctly identifying the minority where the expensive model genuinely matters.
     
@@ -64,7 +64,7 @@ The analysis above motivates adaptive routing through a direct argument:
 \begin{enumerate}[noitemsep,topsep=2pt]
     \item \textbf{Structure exists:} Model preference heterogeneity is real and predictable through prompt embeddings ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections). A router equipped with the right features \emph{can} distinguish prompts that benefit from the expensive model from those that do not.
     
-    \item \textbf{But static policies cannot exploit it:} Because the preference structure is counter-intuitive (the expensive model is \emph{worse} on some prompts) and varies with deployment distribution, it cannot be reliably specified a priori. A static router trained on offline data risks learning systematically wrong preferences. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, paying $43\times$ more for $1.3\%$ lower quality.
+    \item \textbf{But static policies cannot exploit it:} Because the preference structure is counter-intuitive (the expensive model is \emph{worse} on some prompts) and varies with deployment distribution, it cannot be reliably specified a priori. A static router trained on offline data risks learning systematically wrong preferences. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, paying ${\sim}44\times$ more per request than static Mixtral for $1.3\%$ lower quality.
     
     \item \textbf{Therefore, safe online learning is necessary:} The router must (a) exploit semantic structure to make the preference discovery tractable, (b) hedge against misleading priors via meta-learning, and (c) handle non-stationarity as new models enter the portfolio. These are exactly the three mechanisms of banditGPT (Section~\ref{sec:methodology}).
 \end{enumerate}

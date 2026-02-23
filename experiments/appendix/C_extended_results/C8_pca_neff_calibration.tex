@@ -58,6 +58,7 @@ Mean holdout reward, 20 seeds.  Bold = peak at each $K$.
 Oracle = best-model-per-prompt upper bound.}
 \label{tab:pca_vs_k}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}cccccccc@{}}
 \toprule
 $K$ & Oracle & $d{=}2$ & $d{=}4$ & $d{=}8$ & $d{=}16$ & $d{=}32$ & $d{=}64$ \\
@@ -66,7 +67,8 @@ $K$ & Oracle & $d{=}2$ & $d{=}4$ & $d{=}8$ & $d{=}16$ & $d{=}32$ & $d{=}64$ \\
 5 & 0.617 & 0.567 & 0.595 & \textbf{0.603} & 0.602 & 0.601 & 0.599 \\
 8 & 0.647 & 0.567 & 0.595 & \textbf{0.624} & 0.622 & 0.621 & 0.618 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 At $K{=}2$, all dimensions from $d{=}2$ to $d{=}64$ yield identical

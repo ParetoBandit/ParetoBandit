@@ -77,7 +77,7 @@ These suggest natural extensions for future work.
 
 Table~\ref{tab:comparison} contrasts banditGPT with both open-source and concurrent routing frameworks.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{Feature comparison of LLM routing frameworks.  $\dagger$~Code not publicly available.}
 \label{tab:comparison}
@@ -87,24 +87,13 @@ Table~\ref{tab:comparison} contrasts banditGPT with both open-source and concurr
 \textbf{Feature} & \textbf{RouteLLM} & \textbf{GraphRouter} & \textbf{PILOT} & \textbf{BaRP}$^\dagger$ & \textbf{LLM Bandit} & \textbf{banditGPT} \\
  & \scriptsize{ICLR '25} & \scriptsize{ICLR '25} & \scriptsize{EMNLP '25} & \scriptsize{arXiv '25} & \scriptsize{arXiv '25} & \scriptsize{Ours} \\
 \midrule
-Paradigm & Supervised & Supervised & Bandit & Bandit & Bandit & Bandit \\
-\midrule
-Online & \texttimes & \texttimes & \checkmark & \checkmark & \checkmark & \checkmark \\
-Adaptation & & & & & & \\
-\midrule
-Cost & Threshold & Edge & Knapsack & Scalarized & Preference & Hard \\
-Handling & (implicit) & weights & policy & reward & conditioning & constraints \\
-\midrule
-Prior / & Supervised & Graph & Pref.-informed & Bandit & Model ID & 80k-battle \\
-Warmup & offline & inductive & embedding & feedback & vectors & warmup \\
-\midrule
-Safety / & None & None & None & None & None & Corralling \\
-Meta-Learning & & & & & & meta-learner \\
-\midrule
-Multi-model & $K{=}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ \\
-($K$) & & & & & & \\
-\midrule
-Open source & \checkmark & \checkmark & \texttimes & \texttimes & \checkmark & \checkmark \\
+Paradigm        & Supervised & Supervised & Bandit   & Bandit     & Bandit       & Bandit \\
+Online adapt.   & \texttimes & \texttimes & \checkmark & \checkmark & \checkmark & \checkmark \\
+Cost handling   & Threshold (implicit) & Edge weights & Knapsack policy & Scalarized reward & Pref.\ conditioning & Hard constraints \\
+Prior / warmup  & Supervised offline & Graph inductive & Pref.-informed emb. & Bandit feedback & Model ID vectors & 80k-battle warmup \\
+Safety / meta   & None & None & None & None & None & Corralling meta-learner \\
+Multi-model ($K$) & $K{=}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ \\
+Open source     & \checkmark & \checkmark & \texttimes & \texttimes & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}

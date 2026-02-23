@@ -32,19 +32,18 @@ The system consists of three distinct layers of decision-making, as illustrated 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/figure3_architecture.png}
-\caption{\textbf{banditGPT architecture (overview).} Prompts are embedded and reduced with PCA to context $x_t$. The router (1) prunes dominated models via Dynamic Pareto Filtering, (2) mixes two experts (warmup vs.\ tabula rasa) via Corralling-style meta-learning, and (3) selects a model using a cost-aware LinUCB objective (with optional family sharing).}
+\caption{\textbf{banditGPT architecture (overview).} Prompts are embedded and reduced with PCA to context $x_t$. The router (1) enforces hard budget constraints (cost, latency, quality floors) to filter eligible models, (2) mixes two experts (warmup vs.\ tabula rasa) via Corralling-style meta-learning, and (3) selects a model using a cost-aware LinUCB objective (with optional family sharing).}
 \Description{A three-layer routing diagram: prompt embedding and PCA produce context features; a Pareto filter prunes models; a meta-learner mixes two expert bandits; a LinUCB layer selects a model and updates parameters from observed rewards.}
 \label{fig:architecture}
 \end{figure}
 
-\subsubsection{Layer 1: Dynamic Pareto Filtering}
+\subsubsection{Layer 1: Budget Constraint Filtering}
 
-To strictly enforce efficiency, we implement a per-request dominance check before the bandit layer. For a given context $x_t$, we estimate the expected quality $\hat{r}_m(x_t)$ for all $m \in \mathcal{M}_t$. We construct a local Pareto frontier $\mathcal{P}_{x_t} \subseteq \mathcal{M}_t$ such that a model $m$ is excluded if there exists another model $m'$ where:
+To enforce operational constraints, we implement a per-request eligibility check before the bandit layer. For each candidate model $m \in \mathcal{M}_t$, the router applies hard filters:
 \begin{equation}
-\hat{r}_{m'}(x_t) \ge \hat{r}_m(x_t) \quad \text{and} \quad c_{m'} < c_m
+\mathcal{E}_{x_t} = \{m \in \mathcal{M}_t \mid c_m \leq c_{\max},\; \ell_m \leq \ell_{\max},\; q_m \geq q_{\min}\}
 \end{equation}
-
-This \emph{Dynamic Pareto Filtering} ensures the bandit policy never explores strictly dominated actions, accelerating convergence by pruning the search space.
+where $c_{\max}$, $\ell_{\max}$, and $q_{\min}$ are user-specified cost, latency, and quality-floor constraints respectively. Models failing any constraint are excluded before the bandit selects, guaranteeing per-request constraint satisfaction. Cost--quality trade-offs among eligible models are then handled by the cost-penalized LinUCB objective (Layer 3).
 
 \subsubsection{Layer 2: Expert Corralling for Adaptive Meta-Learning}
 
@@ -61,7 +60,7 @@ We set $\gamma=0.05$, imposing a uniform exploration floor that enables asymptot
 
 Each expert $i$ models the reward function using Bayesian Ridge Regression (LinUCB~\cite{li2010contextual}). We approximate the reward surface of model $m$ as a linear function of the context: $\mathbb{E}[r | x] = x^\top \theta^*_m$. The policy selects the arm maximizing the Upper Confidence Bound (UCB) of the composite utility:
 \begin{equation}
-a_t = \arg\max_{a \in \mathcal{P}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \alpha \sqrt{x_t^\top \Amat_a^{-1} x_t} - \lambda c_a \right)
+a_t = \arg\max_{a \in \mathcal{E}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \alpha \sqrt{x_t^\top \Amat_a^{-1} x_t} - \lambda c_a \right)
 \end{equation}
 
 \paragraph{Hybrid LinUCB: Family-Level Parameter Sharing.}
