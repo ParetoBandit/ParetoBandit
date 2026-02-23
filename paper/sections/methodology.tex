@@ -32,7 +32,7 @@ The system consists of three distinct layers of decision-making, as illustrated 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.75\textwidth]{figures/figure3_architecture.png}
-\caption{\textbf{The banditGPT Router Architecture.} A user prompt is embedded via a Sentence Transformer and compressed by domain-adapted PCA (trained on 80K RouteLLM prompts) into a 33-dimensional context vector~$x_t$. \textbf{Layer~1} performs per-context Dynamic Pareto Filtering using cost metadata from the Model Registry. \textbf{Layer~2} implements an Expert Corralling meta-learner~\cite{agarwal2017corralling} that maintains a trust distribution over two expert bandits: a \emph{Warmup Expert} initialized with offline priors from RouteLLM battle data ($\Amat_m, \bvec_m$), and a \emph{Tabula Rasa Expert} with uninformative priors ($\Amat_m = \lambda\mathbf{I}$). The complementary alpha schedules (constant vs.\ decaying) enable the meta-learner to exploit both fast prior-informed initialization and eventual exploitation convergence. \textbf{Layer~3} selects the arm maximizing a Cost-Aware LinUCB objective; when models share a provider family, a Hybrid LinUCB formulation decomposes rewards into shared family ($\betavec_f$) and per-model ($\thetavec_m$) components. The two-level feedback loop (dashed) updates both the selected expert's sufficient statistics ($\Amat, \bvec$) and the coordinator's trust weights via importance-weighted loss estimates. Data sources (dotted) show the offline-to-online transfer pathway. New models can be added dynamically via \texttt{register\_model()}, which bootstraps from a semantic neighbor and propagates to both experts.}
+\caption{\textbf{The banditGPT Router Architecture.} A user prompt is embedded via a Sentence Transformer and compressed by domain-adapted PCA (trained on 80K RouteLLM prompts) into a 33-dimensional context vector~$x_t$. \textbf{Layer~1} performs per-context Dynamic Pareto Filtering using cost metadata from the Model Registry. \textbf{Layer~2} implements an Expert Corralling meta-learner~\cite{agarwal2017corralling} that maintains a trust distribution over two expert bandits: a \emph{Warmup Expert} initialized with offline priors from RouteLLM battle data ($\Amat_m, \bvec_m$), and a \emph{Tabula Rasa Expert} with uninformative priors ($\Amat_m = \lambda\mathbf{I}$). The complementary alpha schedules (constant vs.\ decaying) enable the meta-learner to exploit both fast prior-informed initialization and eventual exploitation convergence. \textbf{Layer~3} selects the arm maximizing a Cost-Aware LinUCB objective; when models share a provider family, a Hybrid LinUCB formulation decomposes rewards into shared family ($\betavec_f$) and per-model ($\thetavec_m$) components. The two-level feedback loop (dashed) updates \emph{all} experts' sufficient statistics ($\Amat, \bvec$) via full feedback and the coordinator's trust weights via importance-weighted loss estimates. Data sources (dotted) show the offline-to-online transfer pathway. New models can be added dynamically via \texttt{register\_model()}, which bootstraps from a semantic neighbor and propagates to both experts.}
 \label{fig:architecture}
 \end{figure*}
 
@@ -119,15 +119,16 @@ In practice, a deployer rarely knows the quality of their priors in advance. To 
 \label{eq:importance_weighted_loss}
 \end{equation}
 
-The expert weights $w_{t,e}$ are updated using exponential descent with learning rate $\eta$:
+The expert weights $w_{t,e}$ are updated using exponential descent with learning rate $\eta$ over \emph{decayed} cumulative losses. To adapt to non-stationary expert quality (e.g., new models entering the pool or traffic distribution shifts), cumulative losses are multiplicatively decayed by a factor $\rho \in (0,1]$ before each new observation:
 \begin{equation}
-w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
+L_{t,e} = \rho \cdot L_{t-1,e} + \hat{\ell}_{t,e}, \qquad w_{t+1,e} \propto \exp\left(-\eta \, L_{t,e}\right)
 \label{eq:corralling}
 \end{equation}
+We set $\rho = 0.999$, which yields an effective half-life of ${\sim}693$ rounds. This ensures that recent expert performance dominates the weight allocation while retaining enough history for stable estimates.
 
 \textbf{Learning Rate Selection}: We evaluate two learning rates: conservative ($\eta=0.1$) and aggressive ($\eta=1.0$). Conservative learning offers predictable performance, while aggressive learning achieves better median but with higher variance. We recommend $\eta=0.1$ for production deployments requiring reliability, based on its substantially lower variance.
 
-\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in key aspects for production efficiency: (1) only the selected expert updates its internal state (rather than all experts observing full feedback), and (2) we use a fixed learning rate ($\eta=0.1$ or $\eta=1.0$) tuned for the typical horizon in our application, rather than the theoretically optimal $\eta^* \propto \sqrt{\ln K / T}$. While these simplifications sacrifice the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that Corralling \emph{dominates} both alternatives for good-to-moderate priors ($\alpha \leq 0.5$), achieving 30--40\% lower regret than either warmup-only or tabula rasa alone. Under adversarial priors ($\alpha \geq 0.6$), Corralling's variance increases and tabula rasa becomes safest---but this regime is rare in practice and detectable at runtime. The expected-value breakeven occurs at 57\% confidence in prior quality, making Corralling the appropriate default for most deployments.
+\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in one key aspect: we use a fixed learning rate ($\eta=0.1$ or $\eta=1.0$) tuned for the typical horizon in our application, rather than the theoretically optimal $\eta^* \propto \sqrt{\ln K / T}$. Following the theoretical algorithm, all $K$ experts observe full feedback at every step (Section~\ref{sec:expert_updates}). While the fixed learning rate sacrifices the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that Corralling \emph{dominates} both alternatives for good-to-moderate priors ($\alpha \leq 0.5$), achieving 30--40\% lower regret than either warmup-only or tabula rasa alone. Under adversarial priors ($\alpha \geq 0.6$), Corralling's variance increases and tabula rasa becomes safest---but this regime is rare in practice and detectable at runtime. The expected-value breakeven occurs at 57\% confidence in prior quality, making Corralling the appropriate default for most deployments.
 
 \textbf{Variance Cost of Adaptivity}: The meta-learning layer comes at a known variance cost: Corralling-style meta-learners incur regret scaling as $O(\sqrt{K \cdot T \log K})$ compared to $O(\sqrt{T})$ for a single bandit~\cite{agarwal2017corralling}. Recent work on regret balancing~\cite{pacchiano2020model} and dynamic balancing~\cite{cutkosky2021dynamic} proposes alternative model-selection frameworks that reduce this variance by explicitly equalizing cumulative regret across base algorithms, at the cost of requiring knowledge of the optimal base regret bound. We adopt Corralling for its simplicity and parameter-free operation, mitigating variance through the $\gamma$-floor and conservative learning rate ($\eta=0.1$).
 
@@ -137,18 +138,17 @@ w_{t+1,e} \propto \exp\left(-\eta \sum_{s=1}^t \hat{\ell}_{s,e}\right)
 \end{equation}
 where $\delta_t$ is the delay (seconds) between selection and feedback, and $\tau$ is a half-life parameter (default 60s). This prevents stale feedback from causing abrupt, unjustified weight shifts in the meta-learner, while preserving the standard importance-weighted loss estimator (Eq.~\ref{eq:importance_weighted_loss}) for timely feedback.
 
-\subsubsection{Technical Fairness and Computational Complexity}
-Our implementation adapts the theoretical Corralling framework~\cite{agarwal2017corralling} to the constraints of low-latency production inference.
+\subsubsection{Full-Feedback Expert Updates and Computational Complexity}
+\label{sec:expert_updates}
 
-\paragraph{The Efficiency Trade-off ($O(K) \to O(1)$).}
-The theoretical algorithm requires updating the state of all $K$ experts at every step (using counterfactual loss estimators). While theoretically optimal, this incurs linear computational scaling. To maintain strict latency SLAs (< 20ms overhead), we employ a \textbf{Selected-Update Approximation}: we update only the expert chosen by the coordinator ($e_t$).
-\begin{itemize}[nosep]
-    \item \textbf{Benefit:} This reduces the update complexity from $O(K)$ to $O(1)$, allowing the expert registry to scale to hundreds of models without increasing router latency.
-    \item \textbf{Limitation:} Unselected experts effectively ``freeze,'' leading to potential starvation.
-\end{itemize}
+\paragraph{Full-Feedback Updates ($O(K)$).}
+At each round, \emph{all} $K$ experts observe the feedback tuple $(x_t, a_t, r_t)$ and update their internal sufficient statistics ($\Amat, \bvec$), regardless of which expert was selected by the coordinator. This follows the theoretical Corralling prescription and prevents a \textbf{starvation death spiral}: without full feedback, the initially stronger expert (warmup) receives more meta-weight, and therefore more selections, more data, and faster learning---permanently starving the tabula rasa expert of observations and eliminating its usefulness as a safety net against prior mismatch.
 
-\paragraph{Mitigating Starvation.}
-We counteract the lack of counterfactual updates through \textbf{Uniform Initialization} ($\pi_0 = [0.5, 0.5]$) and the \textbf{Incumbent Failure Logic}. As demonstrated in Figure~\ref{fig:corralling}, even without $O(K)$ updates, the system detects and partially down-weights the suboptimal expert, though it retains nonzero weight to preserve recoverability.
+\paragraph{Computational Overhead.}
+Full-feedback updates incur $O(K)$ expert updates per round instead of $O(1)$. With $K{=}2$ experts, this doubles the update cost. In practice the overhead is negligible (${\sim}0.1$ms for two LinUCB updates) compared to LLM inference latency (${\sim}100$ms), and the experts update independently so could be parallelized if $K$ grows.
+
+\paragraph{Two-Level Separation.}
+The meta-weight update (Eq.~\ref{eq:corralling}) and the base-level updates serve distinct roles. The meta-learner decides which expert to \emph{trust} using importance-weighted losses; the base-level updates ensure every expert maintains a valid internal policy from which the meta-learner can draw. As shown in Figure~\ref{fig:corralling}, this design allows the meta-learner to shift weight toward the better-performing expert while the other expert remains informed and recoverable.
 
 \begin{figure}[t]
 \centering
