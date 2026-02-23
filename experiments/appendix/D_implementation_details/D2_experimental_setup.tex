@@ -36,8 +36,10 @@ Figure~1 (PCA validation) & $\sim$30 seconds & Embedding + correlation \\
 Figure~3 (degradation sweep) & $\sim$3 minutes & 20 seeds $\times$ degradation levels \\
 Figure~4 (Pareto frontier) & $\sim$90 minutes & 300 runs (20 seeds $\times$ 15 $\lambda$) \\
 Figure~5 (K-scaling) & $\sim$15 minutes & 120 runs (3 $K$ $\times$ 2 policies $\times$ 20 seeds) \\
-Figure~6 (catastrophic failure) & $\sim$7 seconds & 20 seeds, 500 steps \\
+Appendix~C.1 (catastrophic failure) & $\sim$7 seconds & 20 seeds, 500 steps \\
 Figure~6 (multi-model Pareto) & $\sim$45 minutes & 440 runs (2 $K$ $\times$ 11 $\lambda$ $\times$ 20 seeds) \\
+Figure~8 (LinTS comparison) & $\sim$90 minutes & 1,320 runs (3 methods $\times$ 2 $K$ $\times$ 11 $\lambda$ $\times$ 20 seeds) \\
+Figure~9 (cumulative regret) & $\sim$30 minutes & 200 runs (5 methods $\times$ 2 $K$ $\times$ 20 seeds) \\
 Ablation study (Appendix~A, Table~\ref{tab:corralling_ablation}) & $\sim$10 minutes & 45 configurations \\
 \bottomrule
 \end{tabular}
@@ -65,6 +67,7 @@ PyTorch & $\geq$2.0.0 & Embedding model backend \\
 SciPy & $\geq$1.10.0 & Statistical tests \\
 pandas & $\geq$2.0.0 & Data handling \\
 matplotlib & $\geq$3.7.0 & Figure generation \\
+joblib & $\geq$1.2.0 & Prior artifact serialization \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -78,7 +81,7 @@ matplotlib & $\geq$3.7.0 & Figure generation \\
 All experiments enforce strict separation between training and evaluation:
 \begin{enumerate}[leftmargin=*,noitemsep]
     \item \textbf{PCA and priors} are trained exclusively on warmup data (80K RouteLLM battles for $K{=}2$; prior-training split for $K{>}2$).
-    \item \textbf{Online learning} (Figure~4) uses the development split (1,121 prompts); Figures~5 and 7 use the online-learning portion of the three-way split (${\sim}$533 prompts).
+    \item \textbf{Online learning} (Figure~4) uses the development split (1,121 prompts); Figures~5, 6, 8, and 9 use the online-learning portion of the three-way split (${\sim}$533 prompts).
     \item \textbf{Evaluation} uses the holdout split (750 prompts), never seen during training or prior construction.
     \item \textbf{Three-way split integrity} ($K{>}2$): Pairwise disjointness of prior-training, online-learning, and holdout sets is verified programmatically before each experiment.
     \item \textbf{Normalization statistics} (mean, std for cost penalties) are computed on the training set and frozen during evaluation.

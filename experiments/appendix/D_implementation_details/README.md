@@ -1,7 +1,7 @@
 # Appendix D: Implementation Details
 
 ## Overview
-Configuration parameters and experimental setup for reproducibility. Covers all settings needed to replicate Figures 1, 3, 4, 5, and 6.
+Configuration parameters and experimental setup for reproducibility. Covers all settings needed to replicate Figures 1, 3, 4, 5, 6, 8, and 9.
 
 ## Contents
 
@@ -11,15 +11,18 @@ Configuration parameters and experimental setup for reproducibility. Covers all 
 
 **Content**:
 - Part 1: Library router parameters (all configurable knobs in `router.py`)
-- Part 2: Experiment-specific configurations (values used in Figures 3, 4, 5, 6)
+- Part 2: Experiment-specific configurations (values used in Figures 3, 4, 5, 6, 8, 9)
+- LinTS baseline parameters (Figures 8, 9)
 - Implementation notes (init_lambda/update_lambda pattern, two-level cost mechanism, loss_decay)
 
 **Key Classes Documented**:
 - `DisjointLinUCBPolicy` (dim, alpha, init_lambda, update_lambda, forgetting_factor)
-- `CorrallingRouter` (learning_rate, gamma, loss_decay, meta_lr_halflife, cost_weight)
-- `CostAwareLinUCBRouter` (alpha_start/end, cost_penalty, warmup_priors)
-- `CostAwareTabulaRasaRouter` (alpha_start/end, cost_penalty, ridge_lambda)
+- `HybridLinUCBPolicy` (extends Disjoint with family_map for family-shared parameter sharing)
+- `CorrallingRouter` (learning_rate, gamma, loss_decay, meta_lr_halflife)
+- `CostAwareLinUCBRouter` (alpha_start/end, cost_penalty, warmup_priors, family_map)
+- `CostAwareTabulaRasaRouter` (alpha_start/end, cost_penalty, ridge_lambda, family_map)
 - `RegistrationConfig` (n_effective tiers, slow_bias, fast_bias)
+- `CostAwareLinTSRouter` (noise_variance, ridge_lambda, cost_penalty, warmup_priors)
 
 ---
 

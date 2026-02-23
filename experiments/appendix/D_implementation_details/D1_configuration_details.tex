@@ -20,7 +20,7 @@ of paper results and deployment with the production library.
 \subsubsection{Library Router Parameters}
 
 Tables~\ref{tab:linucb_library}--\ref{tab:registration_library} document every
-user-configurable parameter exposed by the four core classes in \texttt{router.py}.
+user-configurable parameter exposed by the five core classes in \texttt{router.py}.
 
 % --- DisjointLinUCBPolicy ---
 
@@ -42,6 +42,27 @@ user-configurable parameter exposed by the four core classes in \texttt{router.p
 \end{tabular}
 \end{table}
 
+% --- HybridLinUCBPolicy ---
+
+\begin{table}[h]
+\centering
+\caption{\texttt{HybridLinUCBPolicy} --- family-shared + arm-specific ridge regression (used in $K{>}2$ experiments).}
+\label{tab:hybrid_library}
+\small
+\begin{tabular}{@{}llp{6.8cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\midrule
+\texttt{dim} & 33 & Context vector dimension (same as DisjointLinUCBPolicy) \\
+\texttt{alpha} & 0.1 & UCB exploration coefficient \\
+\texttt{init\_lambda} & 1.0 & Initialization regularization: $A_0 = \lambda I$ \\
+\texttt{update\_lambda} & 0.0 & Runtime ridge regularization \\
+\texttt{forgetting\_factor} & 1.0 & Exponential decay on $A$ \\
+\texttt{family\_map} & auto & Mapping of model IDs to family IDs. If \texttt{None}, inferred from model name prefixes. Family members share $\beta_F$ (family-level coefficients); arm-specific $\theta_a$ learns residual corrections. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 % --- CorrallingRouter ---
 
 \begin{table}[h]
@@ -58,7 +79,6 @@ user-configurable parameter exposed by the four core classes in \texttt{router.p
 \texttt{loss\_decay} & 0.999 & Exponential decay on cumulative losses. Prevents weight collapse under distribution shift by discounting stale history. 1.0 = standard Exp4 (no decay). \\
 \texttt{meta\_lr\_halflife} & 60.0\,s & Staleness half-life for delayed feedback. Meta-learning rate scales as $\eta_{\text{eff}} = \eta / (1 + \text{delay}/\tau)$. \\
 \texttt{initial\_weights} & uniform & Optional prior-trust bias over experts. \\
-\texttt{cost\_weight} ($\lambda_c$) & 0.0 & Composite reward: $r = \text{quality} - \lambda_c \cdot \text{cost}$, applied before both meta-learner and experts. Distinct from LinUCB's \texttt{cost\_penalty}. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -78,6 +98,7 @@ user-configurable parameter exposed by the four core classes in \texttt{router.p
 \texttt{alpha\_end} & 0.1 & Final UCB exploration coefficient (low after convergence). Linear decay over training steps. \\
 \texttt{cost\_penalty} ($\lambda$) & 0.0 & Per-arm cost penalty in UCB score: $\text{Score} = \hat{r} + \alpha\sigma - \lambda c$. \\
 \texttt{warmup\_priors} & required & Pre-trained $(A, b)$ matrices from offline data (e.g., 80K RouteLLM battles). Includes automatic scale-explosion calibration. \\
+\texttt{family\_map} & \texttt{None} & Optional mapping model ID $\to$ family ID for hybrid parameter sharing. When provided, maintains family-shared $A_0$/$b_0$ matrices with residual arm-specific learning (see \texttt{HybridLinUCBPolicy}). \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -98,6 +119,7 @@ user-configurable parameter exposed by the four core classes in \texttt{router.p
 \texttt{cost\_penalty} ($\lambda$) & 0.0 & Per-arm cost penalty in UCB score. \\
 \texttt{ridge\_lambda} & auto & Ridge regularization $A_0 = \lambda I$. If \texttt{None}, auto-calculated from \texttt{reward\_std} as $\max(1.0,\; 10 \cdot \sigma_r)$. \\
 \texttt{context\_dim} & required & Dimension of PCA-projected context vectors. \\
+\texttt{family\_map} & \texttt{None} & Optional mapping model ID $\to$ family ID for hybrid parameter sharing (same semantics as \texttt{CostAwareLinUCBRouter}). \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -130,11 +152,12 @@ user-configurable parameter exposed by the four core classes in \texttt{router.p
     cold-start stability via $A_0 = I$ while allowing $O(d^2)$ Sherman--Morrison
     updates at runtime (4$\times$ faster than $O(d^3)$ with runtime regularization).
 
-    \item \textbf{Two-Level Cost Mechanism:} The library supports cost awareness at
-    two levels: (a) \texttt{cost\_penalty} in each LinUCB expert penalizes arm costs
-    within the UCB score; (b) \texttt{cost\_weight} in CorrallingRouter transforms
-    the reward signal before it reaches both the meta-learner and experts.
-    These should not be used simultaneously to avoid double-counting.
+    \item \textbf{Cost Mechanism:} Cost awareness is implemented at the expert level
+    via \texttt{cost\_penalty} in each LinUCB expert, which penalizes arm costs within
+    the UCB score: $\text{Score} = \hat{r} + \alpha\sigma - \lambda c$.
+    The CorrallingRouter's \texttt{model\_costs} field stores cost metadata for
+    reference but does not perform reward shaping; cost--quality trade-offs are
+    controlled entirely through the expert-level $\lambda$.
 
     \item \textbf{Loss Decay (Non-Standard Corralling):} The \texttt{loss\_decay}
     parameter modifies the standard Exp4 algorithm by exponentially discounting
@@ -159,21 +182,22 @@ values used in each paper experiment.
 \caption{Corralling parameters by experiment.}
 \label{tab:corralling_expt}
 \small
-\begin{tabular}{@{}lccccc@{}}
+\begin{tabular}{@{}lcccccccc@{}}
 \toprule
-\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Library Default} \\
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~8} & \textbf{Fig~9} & \textbf{Library Default} \\
 \midrule
-$\eta$ (learning rate) & 0.030 & 0.1 & --- & 0.1 & 0.1 \\
-$\gamma$ (mixing floor) & 0.05 & 0.05 & --- & 0.05 & 0.05 \\
-\texttt{loss\_decay} & 1.0 & 1.0 & --- & 1.0 & 0.999 \\
-\texttt{meta\_lr\_halflife} & N/A & N/A & --- & N/A & 60.0\,s \\
-Initial warmup weight & 0.70 & 0.50 & --- & 0.50 & uniform \\
+$\eta$ (learning rate) & 0.030 & 0.1 & --- & 0.1 & 0.1 & 0.1 & 0.1 \\
+$\gamma$ (mixing floor) & 0.05 & 0.05 & --- & 0.05 & 0.05 & 0.05 & 0.05 \\
+\texttt{loss\_decay} & 1.0 & 1.0 & --- & 1.0 & 1.0 & 1.0 & 0.999 \\
+\texttt{meta\_lr\_halflife} & N/A & N/A & --- & N/A & N/A & N/A & 60.0\,s \\
+Initial warmup weight & 0.70 & 0.50 & --- & 0.50 & 0.50 & 0.50 & uniform \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
 
 \footnotesize
 Fig~5 uses tabula rasa only (no Corralling; Hybrid vs.\ Disjoint comparison).
+Figs~8 and 9 share the $K{>}2$ protocol (same portfolios and priors as Fig~6).
 \end{table}
 
 \begin{table}[h]
@@ -181,18 +205,18 @@ Fig~5 uses tabula rasa only (no Corralling; Hybrid vs.\ Disjoint comparison).
 \caption{LinUCB expert parameters by experiment.}
 \label{tab:linucb_expt}
 \small
-\begin{tabular}{@{}lccccc@{}}
+\begin{tabular}{@{}lcccccccc@{}}
 \toprule
-\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Library Default} \\
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~8} & \textbf{Fig~9} & \textbf{Library Default} \\
 \midrule
-$\alpha$ (start) & 2.0 & 2.0$^\dagger$ & 1.0 & 2.0$^\dagger$ & 1.0 \\
-$\alpha$ (end) & 2.0 & 0.01$^\dagger$ & 0.01 & 0.01$^\dagger$ & 0.1 \\
-$\alpha$ decay steps & --- & 1,121 & 888 & 533 & linear over $T$ \\
-$\neff$ & 0.05$^*$ & 10.0 & --- & 10.0 & 10.0 \\
-$\lambda$ (cost penalty) & 0.0 & swept & 0.0 & swept & 0.0 \\
-\texttt{init\_lambda} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
-\texttt{forgetting\_factor} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
-Context dimension & 33 & 33 & 33 & 33 & 33 (32 PCA + bias) \\
+$\alpha$ (start) & 2.0 & 2.0$^\dagger$ & 1.0 & 2.0$^\dagger$ & 2.0$^\dagger$ & 2.0$^\dagger$ & 1.0 \\
+$\alpha$ (end) & 2.0 & 0.01$^\dagger$ & 0.01 & 0.01$^\dagger$ & 0.01$^\dagger$ & 0.01$^\dagger$ & 0.1 \\
+$\alpha$ decay steps & --- & 1,121 & 888 & 533 & 533 & 533 & linear over $T$ \\
+$\neff$ & 0.05$^*$ & 10.0 & --- & 10.0 & 10.0 & 10.0 & 10.0 \\
+$\lambda$ (cost penalty) & 0.0 & swept & 0.0 & swept & swept & 0.0 & 0.0 \\
+\texttt{init\_lambda} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
+\texttt{forgetting\_factor} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
+Context dimension & 33 & 33 & 33 & 33 & 33 & 33 & 33 (32 PCA + bias) \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
@@ -201,10 +225,12 @@ Context dimension & 33 & 33 & 33 & 33 & 33 (32 PCA + bias) \\
 $^*$Fig~3 uses prior scaling (0.05$\times$ offline strength) rather than $\neff$ trace normalization.
 $^\dagger$Warmup expert uses constant $\alpha{=}2.0$; tabula rasa expert decays from $\alpha/2$ to 0.01.
 Fig~5 starts tabula rasa (no warmup priors) to isolate the Hybrid vs.\ Disjoint sharing effect.
+Figs~8 and 9 reuse the $K{>}2$ protocol; Fig~8 also sweeps LinTS baselines across the same $\lambda$ grid.
 \end{table}
 
-\subsubsection{Cost Penalty Sweep (Figure~4)}
+\subsubsection{Cost Penalty Sweeps}
 
+\paragraph{Figure~4 ($K{=}2$).}
 The Pareto frontier sweeps 15 cost penalty values:
 \begin{equation*}
 \lambda \in \{0.0,\; 0.01,\; 0.02,\; 0.05,\; 0.1,\; 0.2,\; 0.25,\; 0.3,\; 0.35,\; 0.4,\; 0.45,\; 0.5,\; 1.0,\; 2.0,\; 5.0\}
@@ -212,26 +238,59 @@ The Pareto frontier sweeps 15 cost penalty values:
 with 20 independent seeds per $\lambda$ value (300 total runs).
 The RouteLLM baseline uses 28 threshold values $\tau \in [0.0, 1.0]$.
 
+\paragraph{Figures~6 and 8 ($K{>}2$).}
+Both sweep 11 cost penalty values over the $K{=}5$ and $K{=}10$ portfolios:
+\begin{equation*}
+\lambda \in \{0.0,\; 0.005,\; 0.01,\; 0.02,\; 0.05,\; 0.1,\; 0.2,\; 0.5,\; 1.0,\; 2.0,\; 5.0\}
+\end{equation*}
+with 20 independent seeds per $(\lambda, K)$ pair.
+Figure~8 additionally sweeps three methods (banditGPT, LinTS with warmup priors,
+LinTS tabula rasa) across the same grid, yielding $11 \times 20 \times 2 \times 3 = 1{,}320$ total runs.
+
+\subsubsection{LinTS Baseline Parameters (Figures~8 and 9)}
+
+\begin{table}[h]
+\centering
+\caption{\texttt{CostAwareLinTSRouter} --- Linear Thompson Sampling baseline.}
+\label{tab:lints_params}
+\small
+\begin{tabular}{@{}llp{6.5cm}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Description} \\
+\midrule
+\texttt{noise\_variance} ($v^2$) & 0.25 & Posterior sampling scale.  Calibrated for binary rewards ($\text{Var}[\text{Bernoulli}(0.5)] = 0.25$). \\
+\texttt{ridge\_lambda} & 1.0 & Ridge regularization $A_0 = \lambda I$. \\
+\texttt{cost\_penalty} ($\lambda$) & swept (Fig~8); 0.0 (Fig~9) & Same $\lambda$ grid as banditGPT for fair comparison. \\
+\texttt{warmup\_priors} & 43-model priors / \texttt{None} & LinTS (warmup) uses identical priors to banditGPT; LinTS (tabula rasa) uses \texttt{None}. \\
+\texttt{context\_dim} & 33 & Matches LinUCB feature dimension. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsubsection{Model Portfolio}
 
 \begin{table}[h]
 \centering
-\caption{Model portfolio across experiments.  Figures~5 and 6 draw from the
-43-model evaluation pool; representative models shown for the $K{=}5$ and
-$K{=}10$ portfolios (see Section~\ref{sec:multimodel_data}).}
+\caption{Model portfolio across experiments.  Figures~5, 6, 8, and 9 draw from the
+43-model evaluation pool; full portfolios listed for $K{=}5$ and $K{=}10$
+(see Section~\ref{sec:multimodel_data}).}
 \label{tab:model_costs}
 \small
-\begin{tabular}{@{}llccl@{}}
+\begin{tabular}{@{}llcccl@{}}
 \toprule
-\textbf{Model} & \textbf{Cost (/1M)} & \textbf{Fig~3,4} & \textbf{Fig~5,6} & \textbf{Prior Source} \\
+\textbf{Model} & \textbf{Cost (/1M)} & \textbf{Fig~3,4} & \textbf{Fig~5,6} & \textbf{Fig~8,9} & \textbf{Prior Source} \\
 \midrule
-Llama-3.1-8B-Instruct & \$0.05 & --- & $K{\geq}5$ & 43-model priors \\
-Mixtral-8x7B-Instruct & \$0.57 & \checkmark & $K{\geq}5$ & RouteLLM battles \\
-Gemini-2.5-Flash & \$0.15 & --- & $K{\geq}5$ & 43-model priors \\
-Claude-Sonnet-4 & \$3.00 & --- & $K{\geq}5$ & 43-model priors \\
-GPT-4.1 & \$2.00 & --- & $K{\geq}5$ & 43-model priors \\
-GPT-4-Turbo & \$10.00 & \checkmark & $K{=}10$ & RouteLLM battles \\
-GPT-4o & \$2.50 & \checkmark & --- & Semantic transfer \\
+Llama-3.1-8B-Instruct & \$0.05 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
+Mixtral-8x7B-Instruct & \$0.57 & \checkmark & $K{\geq}5$ & $K{\geq}5$ & RouteLLM battles \\
+Gemini-2.5-Flash & \$0.15 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
+Claude-Sonnet-4 & \$3.00 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
+GPT-4.1 & \$2.00 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
+Llama-4-Maverick & \$0.20 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
+Gemma-3-27B & \$0.10 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
+Claude-Haiku-4.5 & \$0.80 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
+GPT-4-Turbo & \$10.00 & \checkmark & $K{=}10$ & $K{=}10$ & RouteLLM battles \\
+DeepSeek-V3 & \$0.27 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
+GPT-4o & \$2.50 & \checkmark & --- & --- & Semantic transfer \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -249,11 +308,11 @@ GPT-4o & \$2.50 & \checkmark & --- & Semantic transfer \\
 \midrule
 Warmup & 80,000 & RouteLLM battles & PCA training, $K{=}2$ prior init \\
 Development & 1,121 & LMSYS Arena & Online learning (Fig~4) \\
-Holdout & 750 & LMSYS Arena & Evaluation (Figs~1, 3, 4, 5, 6) \\
+Holdout & 750 & LMSYS Arena & Evaluation (Figs~1, 3, 4, 5, 6, 8, 9) \\
 \midrule
-\multicolumn{4}{@{}l}{\emph{Three-way split for $K{>}2$ experiments (Figs~5, 6):}} \\
+\multicolumn{4}{@{}l}{\emph{Three-way split for $K{>}2$ experiments (Figs~5, 6, 8, 9):}} \\
 Prior-training & ${\sim}355$ & LMSYS Arena (dev) & 43-model warmup prior construction \\
-Online-learning & ${\sim}533$ & LMSYS Arena (dev) & Bandit training (Figs~5, 6) \\
+Online-learning & ${\sim}533$ & LMSYS Arena (dev) & Bandit training (Figs~5, 6, 8, 9) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -274,6 +333,8 @@ Figure~3 & 20 & 20 & Per degradation level \\
 Figure~4 & 20 & 300 & 20 seeds $\times$ 15 $\lambda$ values \\
 Figure~5 & 20 & 120 & 20 seeds $\times$ 3 $K$ values $\times$ 2 policies \\
 Figure~6 & 20 & 440 & 20 seeds $\times$ (11 $\lambda$ $\times$ 2 $K$ portfolios) \\
+Figure~8 & 20 & 1,320 & 20 seeds $\times$ 11 $\lambda$ $\times$ 2 $K$ $\times$ 3 methods \\
+Figure~9 & 20 & 200 & 20 seeds $\times$ 2 $K$ $\times$ 5 methods \\
 Ablation (Appendix~A, Table~\ref{tab:corralling_ablation}) & 3 & 45 & 15 configs $\times$ 3 seeds \\
 \bottomrule
 \end{tabular}
