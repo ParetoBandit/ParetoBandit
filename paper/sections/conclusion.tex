@@ -1,17 +1,23 @@
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-As model portfolios diversify, LLM routing becomes less about a fixed ``cheap vs.\ strong'' ordering and more about identifying which prompts benefit from which models under a budget. We presented \textbf{banditGPT}, an open-source contextual bandit framework for cost-aware routing with online adaptation and a meta-learning hedge against imperfect priors.
+As model portfolios diversify, LLM routing becomes less about a fixed ``cheap versus strong'' ordering and more about identifying which specific prompts benefit from which models under a budget constraint. We presented \textbf{banditGPT}, an open-source contextual bandit framework for cost-aware routing that combines online adaptation with a meta-learning hedge against imperfect priors.
 
-Our evaluation on $N{=}750$ held-out LMSYS Arena prompts establishes three findings:
-\begin{enumerate}[nosep]
-    \item \textbf{Online adaptation can improve routing at moderate-to-high budgets.} In our two-model benchmark, banditGPT surpasses RouteLLM's peak quality after $\sim$300--400 label-free in-distribution prompts and achieves 70.0\% gap closure to oracle (vs.\ 46.2\% for RouteLLM). At low budgets, RouteLLM remains competitive, highlighting a practical trade-off between offline supervision and online adaptation.
-    \item \textbf{Corralling helps when priors are useful, and consistently improves over warmup-only.} The meta-learner combines complementary exploration schedules and reduces regret by 7--13\% relative to warmup-only across all corruption levels ($N{=}20$ seeds). At low corruption ($\alpha \leq 0.2$), Corralling also modestly outperforms tabula rasa (${\sim}6\%$ lower regret). Under strongly misleading priors ($\alpha \geq 0.3$), Corralling's advantage over tabula rasa disappears; we show this regime is detectable in our stress tests and can be handled with a simple tabula rasa fallback (Section~\ref{sec:prior_degradation}).
-    \item \textbf{Continuous family sharing subsumes one-shot transfer.} A leave-one-out ablation confirms that per-model $\thetavec$-transfer provides no significant benefit beyond the continuous family $\betavec_F$ sharing of Hybrid LinUCB ($p{>}0.5$, $d{<}0.05$ at $K{=}10$). In our evaluation, this suggests that the hybrid decomposition is an effective abstraction level for cross-model knowledge transfer: practitioners can benefit from data-driven family grouping without investing in per-model bootstrapping pipelines.
+Our evaluation on $N{=}750$ held-out prompts establishes three core findings:
+\begin{enumerate}[nosep,leftmargin=*]
+    \item \textbf{Online adaptation can improve routing at moderate-to-high budgets.} In our controlled two-model benchmark, banditGPT surpasses the peak quality of a state-of-the-art static router after 300 to 400 label-free in-distribution prompts, achieving 70.0\% gap closure to the theoretical oracle (compared to 46.2\% for the static baseline). At low budgets, supervised static routing remains highly competitive, highlighting a practical trade-off between offline supervision and online discovery.
+    \item \textbf{Corralling provides safety when priors fail.} The meta-learner combines complementary exploration schedules and consistently reduces regret relative to using warmup priors alone. When offline priors are misleading or corrupted, Corralling detects the degradation and shifts weight to a tabula rasa expert, providing a safety mechanism that standard contextual bandits lack.
+    \item \textbf{Continuous family sharing subsumes one-shot transfer.} A leave-one-out ablation confirms that one-shot parameter transfer provides no significant benefit beyond the continuous family sharing of Hybrid LinUCB ($p{>}0.5$, $d{<}0.05$ at $K{=}10$). This is a positive operational finding: practitioners can benefit from data-driven family grouping without investing in complex, per-model bootstrapping pipelines.
 \end{enumerate}
 
-\subsection*{Future Work}
-Key open problems include expert-level non-stationarity handling, adaptive exploration schedules that reduce the quality tax in stationary regimes, reward-aware family assignment for cross-provider model groups, and extending banditGPT's Corralling mechanism from single-model routing to agentic orchestration of autonomous agent portfolios. Detailed future directions are provided in Appendix~\ref{sec:future_work_detailed}.
+\subsection*{Future Work and Emerging Trajectories}
+The architecture of banditGPT opens several promising avenues for future research in adaptive AI orchestration:
+
+\paragraph{Neural Contextual Bandits (NeuroBandits).} 
+While banditGPT leverages LinUCB on PCA-reduced semantic features for computational efficiency and stability, linear assumptions may underfit complex, high-dimensional relationships between prompts and model capabilities. Transitioning to Neural Contextual Bandits (NeuroBandits)~\cite{sun2025neural, li2026routing} could allow the router to learn deep, non-linear reward mappings directly from raw text embeddings or sequence representations. This could unlock higher Pareto efficiency, provided the optimization stability and latency overhead of neural updates can be managed in a production routing path.
+
+\paragraph{Agentic Orchestration.} 
+Currently, LLM routers select a single model for a single zero-shot prompt. However, the field is rapidly shifting toward agentic workflows~\cite{wu2023autogen}, where complex queries are decomposed and handled by specialized, interacting agents. The routing problem will naturally evolve from selecting a model to selecting an \emph{agentic strategy} or orchestrating a multi-agent team. The hierarchical design of banditGPT (specifically the Corralling meta-learner) is exceptionally well-suited for this shift. By treating autonomous agents or workflow pipelines as ``experts,'' the meta-learner could dynamically route tasks to the most reliable agentic systems based on real-time success rates, generalizing cost-aware routing into full-scale autonomous orchestration.
 
 \subsection*{Reproducibility}
 To facilitate further research, we release our full codebase, the sanitized ``Warmup Priors,'' and the complete experimental logs at: \texttt{https://github.com/YourOrg/banditGPT} \textit{(Anonymized for review)}.

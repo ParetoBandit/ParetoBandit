@@ -2,18 +2,18 @@
 \label{sec:methodology}
 
 % TRANSITION from Empirical Motivation
-We now present the system design. Our approach combines two mechanisms:
+Guided by the three architectural requirements established in Section~\ref{sec:motivation}, we present the design of banditGPT. To exploit semantic structure without falling victim to rigid static priors, we reformulate LLM routing as a \emph{Cost-Aware Contextual Bandit} problem initialized from offline data. To ensure safe online learning, we introduce a meta-learning layer that hedges against prior mismatch. Our approach combines two core mechanisms:
 
-\begin{itemize}
-    \item \textbf{Cost-aware contextual bandits} initialized from offline warmup priors, exploiting semantic structure for online learning
-    \item \textbf{Corralling meta-learning} that hedges against prior mismatch via complementary exploration schedules
+\begin{itemize}[nosep,leftmargin=*]
+    \item \textbf{Cost-aware contextual bandits} initialized from offline warmup priors, exploiting semantic structure for continuous online learning.
+    \item \textbf{Corralling meta-learning} that hedges against prior mismatch via complementary exploration schedules, providing the necessary safety mechanism.
 \end{itemize}
 
-We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. While several concurrent systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}, banditGPT's distinguishing contribution is a hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits, addressing two practical challenges in production routing: safety against non-stationary quality shifts and agility in adopting new models.
+While several concurrent systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}, banditGPT's distinguishing contribution is this hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits. This directly addresses the practical challenges of production routing: maintaining safety against misspecified priors while remaining agile enough to adopt new models.
 
 \subsection{Unified Feature Space}
 
-We embed prompts using \path{sentence-transformers/all-MiniLM-L6-v2} (384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM. In supplementary analyses, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), suggesting they capture routing-relevant signal.
+Building upon the empirical motivation, we embed prompts using \path{sentence-transformers/all-MiniLM-L6-v2} (384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM. As demonstrated in Section~\ref{sec:motivation}, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), confirming they capture routing-relevant signals suitable for online adaptation.
 
 \subsection{Problem Formulation}
 
@@ -43,11 +43,11 @@ To enforce operational constraints, we implement a per-request eligibility check
 \begin{equation}
 \mathcal{E}_{x_t} = \{m \in \mathcal{M}_t \mid c_m \leq c_{\max},\; \ell_m \leq \ell_{\max},\; q_m \geq q_{\min}\}
 \end{equation}
-where $c_{\max}$ and $q_{\min}$ are user-specified cost-ceiling and quality-floor constraints respectively. Models failing any constraint are excluded before the bandit selects, guaranteeing per-request constraint satisfaction. Latency filtering is supported in the implementation but not evaluated in this paper. Cost--quality trade-offs among eligible models are then handled by the cost-penalized LinUCB objective (Layer 3).
+where $c_{\max}$ and $q_{\min}$ are user-specified cost ceiling and quality floor constraints respectively. Models failing any constraint are excluded before the bandit selects, guaranteeing per-request constraint satisfaction. Latency filtering is supported in the implementation but not evaluated in this paper. Cost and quality trade-offs among eligible models are then handled by the cost-penalized LinUCB objective (Layer 3).
 
 \subsubsection{Layer 2: Expert Corralling for Adaptive Meta-Learning}
 
-Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) poses a fatal risk to standard bandit algorithms relying on fixed priors. We address this \emph{at the meta level} via a strategy inspired by Expert Corralling~\cite{agarwal2017corralling}, which manages a portfolio of expert policies: a ``Warmup Expert'' initialized with static priors (constant $\alpha{=}2.0$) and a ``Tabula Rasa Expert'' with high plasticity (decaying $\alpha{=}1.0 \to 0.01$). Corralling exploits the \emph{complementarity} of these schedules: the warmup expert provides informed early selections, while the tabula rasa expert converges to the best policy. The meta-learner dynamically shifts weight between them, achieving 7--13\% lower regret than warmup-only and ${\sim}$6\% lower than tabula rasa at low corruption ($\alpha \leq 0.2$) and providing detectable degradation signals when priors are adversarial (Section~\ref{sec:results}). Importantly, each expert bandit is itself trained under a \emph{stationary-reward assumption} (monotone information accumulation without explicit forgetting); non-stationarity is handled solely through the meta-learner's ability to reweight experts whose performance has degraded.
+Non-stationarity (e.g., a ``good'' model becoming ``bad'' due to drift) and misspecified offline priors pose a fatal risk to standard bandit algorithms relying on fixed initializations. We address this \emph{at the meta level} via a strategy inspired by Expert Corralling~\cite{agarwal2017corralling}, which manages a portfolio of expert policies: a ``Warmup Expert'' initialized with static priors (constant $\alpha{=}2.0$) and a ``Tabula Rasa Expert'' with high plasticity (decaying $\alpha{=}1.0$ to $0.01$). Corralling exploits the \emph{complementarity} of these schedules: the warmup expert provides informed early selections, while the tabula rasa expert converges to the best policy over time. The meta-learner dynamically shifts weight between them, achieving 7 to 13\% lower regret than warmup-only and approximately 6\% lower than tabula rasa at low corruption ($\alpha \leq 0.2$), while providing detectable degradation signals when priors are adversarial (Section~\ref{sec:results}). Importantly, each expert bandit is itself trained under a \emph{stationary-reward assumption} (monotone information accumulation without explicit forgetting); prior mismatch is handled solely through the meta-learner's ability to reweight experts whose performance has degraded.
 
 The master algorithm updates the probability distribution over experts $w_{i,t}$ using an exponential weight update based on importance-weighted loss estimates $\hat{\ell}_{i,t}$. Crucially, to prevent ``Expert Death'' (where a temporarily poor expert's weight vanishes, rendering it unrecoverable), we implement a mixing parameter $\gamma$:
 \begin{equation}
@@ -64,11 +64,11 @@ a_t = \arg\max_{a \in \mathcal{E}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \al
 \end{equation}
 
 \paragraph{Hybrid LinUCB: Family-Level Parameter Sharing.}
-When the model portfolio contains models from the same provider family (e.g., multiple GPT-4 variants), we extend LinUCB with a \emph{Hybrid} formulation~\cite{li2010contextual} that decomposes the reward coefficient into a shared family component $\betavec_f$ and a per-model residual $\thetavec_m$:
+When the model portfolio contains models from the same provider family (e.g., multiple iterations of the same foundation model), we extend LinUCB with a \emph{Hybrid} formulation~\cite{li2010contextual} that decomposes the reward coefficient into a shared family component $\betavec_f$ and a per-model residual $\thetavec_m$:
 \begin{equation}
 \mathbb{E}[r | x, m] = x^\top (\betavec_{f(m)} + \thetavec_m)
 \end{equation}
-where $f(m)$ maps model $m$ to its family. The shared $\betavec_f$ is updated by \emph{every} observation from any family member, while $\thetavec_m$ captures model-specific deviations. Family assignment is automatic via \texttt{infer\_model\_family()}, which parses provider prefixes from model identifiers (e.g., \texttt{openai/gpt-4.1} $\to$ family \texttt{openai/gpt-4}). When all families are singletons, the hybrid formulation reduces to disjoint LinUCB with independent per-model parameters. The family structure is operationally relevant during model onboarding (Section~\ref{sec:transfer}): when a new model joins an existing family, it immediately inherits the family's accumulated $\betavec$, providing a continuously updated reward estimate.  A leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that this continuous family sharing subsumes one-shot per-model $\thetavec$ transfer, suggesting that the hybrid decomposition is an effective abstraction level for cross-model knowledge transfer in our evaluation.
+where $f(m)$ maps model $m$ to its family. The shared $\betavec_f$ is updated by \emph{every} observation from any family member, while $\thetavec_m$ captures model-specific deviations. Family assignment is automatic via \texttt{infer\_model\_family()}, which parses provider prefixes from model identifiers. When all families are singletons, the hybrid formulation reduces to disjoint LinUCB with independent per-model parameters. The family structure is operationally relevant during model onboarding (Section~\ref{sec:transfer}): when a new model joins an existing family, it immediately inherits the family's accumulated $\betavec$, providing a continuously updated reward estimate. A leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that this continuous family sharing subsumes one-shot per-model $\thetavec$ transfer, suggesting that the hybrid decomposition is an effective abstraction level for cross-model knowledge transfer in our evaluation.
 
 \paragraph{Exploration Parameter Selection.}
 The warmup expert uses constant $\alpha{=}2.0$ (no decay) to preserve distribution-shift detection; the tabula rasa expert decays from $\alpha{=}1.0$ to $0.01$, converging to exploitation. This asymmetry is deliberate: the warmup expert maintains exploration so the meta-learner can detect when priors become stale, while the tabula rasa expert converges to the best learned policy.
@@ -88,5 +88,5 @@ In settings where prior quality is uncertain and model portfolios evolve, bandit
 
 \subsection{Prior Calibration}
 
-Loading pre-trained priors from offline data can introduce \emph{Scale Explosion}---predictions of 800.0 instead of 0.8---due to mismatched reward scales. We address this with automatic two-pass calibration at initialization: (1)~a bias probe that detects and clamps inflated bias weights via theta-reconstruction, and (2)~a suite probe using basis-independent feature vectors that catches PCA-dimension explosions. Each expert additionally maintains a lightweight $O(1)$-per-observation prediction monitor for runtime anomaly detection.
+Loading pre-trained priors from offline data can introduce \emph{Scale Explosion} (predictions of 800.0 instead of 0.8) due to mismatched reward scales. We address this with automatic two-pass calibration at initialization: (1)~a bias probe that detects and clamps inflated bias weights via theta-reconstruction, and (2)~a suite probe using basis-independent feature vectors that catches PCA-dimension explosions. Each expert additionally maintains a lightweight $O(1)$-per-observation prediction monitor for runtime anomaly detection.
 

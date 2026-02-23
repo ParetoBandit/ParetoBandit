@@ -1,19 +1,19 @@
-% UNIFIED ABSTRACT - Story-first: problem tension → gap → system → results → limits
-% Framing: why static routers fail → why single bandits aren't enough → banditGPT closes the gap
+% UNIFIED ABSTRACT - Story-first: problem tension -> gap -> system -> results -> limits
+% Framing: why static routers fail -> why single bandits aren't enough -> banditGPT closes the gap
 
 \begin{abstract}
 The LLM landscape is neither static nor uniform.
 Frontier model releases have accelerated from approximately 12 major releases per year in 2023 to over 21 in 2025; deployment distributions drift silently from offline training data; and prompt-to-model preferences are heterogeneous.
-In our evaluation, 14.1\% of prompts favor the cheaper model over GPT-4-Turbo, meaning a na\"{i}ve ``spend more'' policy can backfire.
+In our evaluation, 14.1\% of prompts favor a cheaper model over a more expensive frontier model, meaning a na\"{i}ve ``spend more'' policy can backfire.
 Static routers, whose policies are frozen at deployment, degrade silently when these conditions shift.
-Bandit-based alternatives can, but existing approaches lack a safety mechanism when priors are wrong: a single misspecified bandit can silently degrade routing quality with no recovery.
+Bandit-based alternatives can adapt, but existing approaches lack a safety mechanism when priors are wrong: a single misspecified bandit can silently degrade routing quality with no recovery.
 
 We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework that closes this gap through three interlocking mechanisms.
-Cost-aware LinUCB, initialized from 80k offline preference battles and refined via bandit feedback at deployment, closes \textbf{70.0\%} of the gap to an oracle router after only 300--400 online interactions, with no supervised labels required.
-A \textbf{Corralling} meta-learner hedges between a warmup-prior expert and a tabula rasa expert, dynamically weighting whichever performs better: under good-to-moderate priors it reduces cumulative regret by \textbf{30--40\%} over either expert alone; under adversarial priors it falls back gracefully rather than silently degrading.
+Cost-aware LinUCB, initialized from 80k offline preference battles and refined via bandit feedback at deployment, closes \textbf{70.0\%} of the gap to an oracle router after only 300 to 400 online interactions, with no supervised labels required.
+A \textbf{Corralling} meta-learner hedges between a warmup-prior expert and a tabula rasa expert, dynamically weighting whichever performs better: under good-to-moderate priors it reduces cumulative regret by \textbf{30 to 40\%} over either expert alone; under adversarial priors it falls back gracefully rather than silently degrading.
 \textbf{Hybrid LinUCB} pools observations across data-driven model families (within-provider tetrachoric correlation), yielding a statistically significant $+2.9$~pp quality improvement at $K{=}5$ ($p{=}0.008$) with $3\times$ narrower confidence intervals, making large-portfolio routing substantially more predictable in practice.
 
-Across portfolios spanning six providers and a $600\times$ cost range, banditGPT traces a continuous cost--quality \textbf{Pareto frontier}, achieving up to 89\% cost reduction with less than 6\% quality loss at $K{=}10$.
+Across portfolios spanning six providers and a $600\times$ cost range, banditGPT traces a continuous cost-quality \textbf{Pareto frontier}, achieving up to 89\% cost reduction with less than 6\% quality loss at $K{=}10$.
 New models onboard via a single API call and reach calibration within ${\sim}600$ routing decisions.
 We report honest results throughout: a leave-one-out ablation confirms that one-shot per-model semantic transfer adds no significant benefit over the hybrid approach ($p{>}0.5$, $d{<}0.05$), suggesting that continuous family-level sharing is an effective abstraction for cross-model knowledge transfer in our setting.
 We characterize where prior-based bootstrapping does and does not help.

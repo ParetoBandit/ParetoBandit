@@ -1,33 +1,28 @@
-% UNIFIED INTRODUCTION - KDD style: problem → gap → system → results → contributions
-% No em-dashes in prose; no RouteLLM mentions; focus on banditGPT strengths
+% UNIFIED INTRODUCTION - KDD style: problem -> gap -> system -> results -> contributions
+% No em-dashes in prose; focus on banditGPT strengths
 
 \section{Introduction}
 \label{sec:intro}
 
-Large language model (LLM) inference now accounts for a significant and growing share of cloud compute budgets, yet the best model for a given prompt depends on the task, the domain, and the current model landscape.
-A user asking for a poem may be best served by a cheap open-weights model, while a complex reasoning query may warrant a frontier API; these preferences shift as models are updated, deprecated, or replaced.
-\textbf{LLM routing}, the problem of dynamically selecting which model to serve each request, has emerged as a practical lever for managing this cost--quality trade-off~\cite{ong2024routellm, chen2023frugalgpt, panda2025pilot}.
+Large language model (LLM) inference now accounts for a significant and growing share of cloud compute budgets. However, the best model for a given prompt depends entirely on the task, the domain, and the rapidly shifting model landscape. A user asking for a poem may be best served by a fast, open-weights model, while a complex reasoning query warrants a frontier API. These preferences shift constantly as models are updated, deprecated, or replaced. \textbf{LLM routing}, the problem of dynamically selecting which model to serve each request, has emerged as a critical lever for managing this cost and quality trade-off~\cite{ong2024routellm, chen2023frugalgpt, panda2025pilot}.
 
-The dominant approach trains a static classifier on offline preference data and applies it at inference time~\cite{ong2024routellm, chen2024routerdc, feng2025graphrouter}.
-This works well when training data matches deployment traffic, but production environments violate this assumption in three ways.
-First, \textbf{model preference is heterogeneous}: in our evaluation on 750 held-out LMSYS Arena prompts, 14.1\% of prompts favor the cheaper model (Mixtral) over GPT-4-Turbo, and the router's PCA features predict this variation with Spearman $\rho=-0.370$ ($p<0.0001$), exceeding all 100 random-projection baselines.
-Consequently, a na\"ive ``spend more'' policy can backfire, producing lower average quality at higher cost.
-Second, \textbf{deployment distributions drift} from offline training data, silently degrading static routing policies, a fundamental concern in deployed ML systems~\cite{shimodaira2000improving}.
-Third, \textbf{model portfolios are non-stationary}: the pace of frontier model releases has accelerated sharply, from approximately 12 major releases in 2023 to over 21 in 2025 alone (nearly two per month from major providers)~\cite{thompson2026timeline}, with existing models regularly deprecated or superseded, requiring the router to adapt without costly retraining.
+The dominant approach trains a static classifier on offline preference data and applies it at inference time~\cite{ong2024routellm, chen2024routerdc, feng2025graphrouter}. This works well when training data perfectly matches deployment traffic, but production environments regularly violate this assumption in three ways. First, \textbf{model preference is heterogeneous}: in our evaluation on 750 held-out LMSYS Arena prompts, 14.1\% of prompts favor a cheaper open-weights model over a more expensive frontier model. The router's PCA features predict this variation with Spearman $\rho=-0.370$ ($p<0.0001$), exceeding all 100 random-projection baselines. Consequently, a na\"ive ``spend more'' policy can actually backfire, producing lower average quality at higher cost. Second, \textbf{deployment distributions drift} from offline training data, which silently degrades static routing policies. This is a fundamental concern in deployed ML systems~\cite{shimodaira2000improving}. Third, \textbf{model portfolios are non-stationary}: the pace of frontier model releases has accelerated sharply, from approximately 12 major releases in 2023 to over 21 in 2025 alone~\cite{thompson2026timeline}. Existing models are regularly deprecated or superseded, requiring the router to adapt without costly retraining.
 
-Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address distribution shift through online adaptation, but to our knowledge none explicitly hedges against misspecified priors: a single poorly initialized bandit can silently degrade routing quality with no built-in recovery mechanism.
+Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address distribution shift through online adaptation. However, to our knowledge, none explicitly hedges against misspecified priors. If a single bandit is poorly initialized, it can silently degrade routing quality with no built-in recovery mechanism.
+
+Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address distribution shift through online adaptation. However, to our knowledge, none explicitly hedges against misspecified priors. If a single bandit is poorly initialized, it can silently degrade routing quality with no built-in recovery mechanism.
 
 We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework for LLM routing that closes this gap through three mechanisms:
 
 \begin{enumerate}[nosep,leftmargin=*]
     \item \textbf{Cost-aware LinUCB with offline-to-online transfer.}
     We initialize LinUCB sufficient statistics from 80k offline preference battles and refine them via label-free bandit feedback at deployment.
-    A cost penalty $\lambda$ traces a continuous cost--quality Pareto frontier.
-    On a frozen 750-prompt holdout, banditGPT achieves a peak reward of $0.914 \pm 0.003$ (20 seeds), closing \textbf{70.0\%} of the gap to an oracle router after only ${\sim}$300--400 in-distribution prompts and without requiring any supervised labels during the online phase.
+    A cost penalty $\lambda$ traces a continuous cost and quality Pareto frontier.
+    On a frozen 750-prompt holdout, banditGPT achieves a peak reward of $0.914 \pm 0.003$ (20 seeds), closing \textbf{70.0\%} of the gap to an oracle router after only 300 to 400 in-distribution prompts and without requiring any supervised labels during the online phase.
 
     \item \textbf{Corralling meta-learning for prior safety.}
     A Corralling~\cite{agarwal2017corralling} meta-learner maintains two expert bandits, one initialized from warmup priors and one starting from scratch, and dynamically shifts weight toward whichever performs better.
-    Under good-to-moderate priors, Corralling achieves 30--40\% lower cumulative regret than either expert alone; under adversarial priors, it falls back gracefully to the tabula rasa expert (Section~\ref{sec:prior_degradation}).
+    Under good-to-moderate priors, Corralling achieves 30 to 40\% lower cumulative regret than either expert alone; under adversarial priors, it falls back gracefully to the tabula rasa expert (Section~\ref{sec:prior_degradation}).
 
     \item \textbf{Multi-model portfolio routing with family parameter sharing ($K \geq 3$).}
     banditGPT supports portfolios of arbitrary size; we evaluate at $K{=}5$ and $K{=}10$ models spanning six providers and a $600\times$ cost range.
@@ -42,14 +37,14 @@ Our work makes three contributions, each supported by comprehensive multi-seed e
 
 \begin{enumerate}[nosep,leftmargin=*]
     \item \textbf{Empirical analysis of model preference heterogeneity.}
-    We demonstrate that prompt embeddings predict per-prompt model preference ($\rho{=}{-}0.370$, $p{<}0.0001$, $N{=}750$) and that this heterogeneity causes non-monotonic cost--quality behavior in static routers.
+    We demonstrate that prompt embeddings predict per-prompt model preference ($\rho{=}{-}0.370$, $p{<}0.0001$, $N{=}750$) and that this heterogeneity causes non-monotonic cost and quality behavior in static routers.
 
     \item \textbf{A cost-aware online routing framework with meta-learning safety.}
     banditGPT combines offline priors, online adaptation, and Corralling to achieve 70.0\% gap closure to oracle at moderate-to-high budgets (Section~\ref{sec:pareto}).
     We stress-test Corralling under prior corruption and catastrophic model failure, reporting both strengths and limitations.
 
     \item \textbf{Open-source multi-model implementation and honest evaluation.}
-    We release a modular codebase supporting $K{\geq}2$ model portfolios, dynamic model onboarding, and configurable constraints.
+    We release a modular codebase supporting portfolios of two or more models, dynamic model onboarding, and configurable constraints.
     Hybrid LinUCB's family parameter sharing provides $3\times$ more stable convergence at $K{=}5$ and $K{=}20$ ($p{=}0.008$ at $K{=}5$), demonstrating that data-driven model grouping is a practical lever for reliable large-portfolio routing.
     A leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no statistically significant benefit beyond hybrid family sharing ($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$), suggesting that the continuous family $\beta_F$ mechanism is an effective abstraction level for cross-model knowledge transfer in our evaluation setting.
 \end{enumerate}

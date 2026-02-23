@@ -6,14 +6,14 @@ The LLM routing literature broadly divides into two paradigms.
 \emph{Static routers} (including the most widely deployed systems) learn a mapping from prompt to model offline and deploy it frozen. This approach inherently relies on a monotonicity assumption: that routing more budget to a more capable, expensive model will consistently yield higher or equal quality.
 \emph{Adaptive routers} (using contextual bandits~\cite{panda2025pilot, wang2025barp, li2025llmbandit}) update online and can, in principle, adapt to performance variations, provided their feature representations capture the right signals.
 
-In this section, we present an empirical finding that challenges this assumption and motivates our architectural design: prompt embeddings predict model preference, but the structure of that preference is surprising. On 14.1\% of held-out prompts, human judges preferred the cheaper model (Mixtral) over GPT-4-Turbo, and this preference correlates significantly with prompt semantics ($\rho = -0.370$, $p < 0.0001$). The expensive model is not merely unnecessary on some tasks; it is \emph{actively worse} on a measurable fraction of prompts, and the direction of preference is predictable from the router's feature space. This transforms routing from a cost-quality interpolation (``how much quality am I willing to trade for cost?'') into a \textbf{discovery} problem: the router must learn which prompts genuinely benefit from the expensive model, rather than assuming more spending yields better results.
+In this section, we present an empirical finding that challenges this assumption and motivates our architectural design: prompt embeddings predict model preference, but the structure of that preference is surprising. On 14.1\% of held-out prompts, human judges preferred the cheaper open-weights model over the more expensive frontier model, and this preference correlates significantly with prompt semantics ($\rho = -0.370$, $p < 0.0001$). The expensive model is not merely unnecessary on some tasks; it is \emph{actively worse} on a measurable fraction of prompts, and the direction of preference is predictable from the router's feature space. This transforms routing from a cost-quality interpolation (``how much quality am I willing to trade for cost?'') into a \textbf{discovery} problem: the router must learn which prompts genuinely benefit from the expensive model, rather than assuming more spending yields better results.
 
 \subsection{Predicting Model Preference Heterogeneity}
 
 To analyze model preference, we project 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of a 32-component PCA model. To prevent data leakage, this PCA is \emph{unsupervised} (trained without reward labels) and fit on a disjoint set of 80K routing prompts to identify directions of maximum variance in the semantic space. Rewards are derived from LMSYS Arena pairwise comparisons~\cite{zheng2023judging}.
 
 \paragraph{Feature spaces capture model preference.}
-We observe a significant Spearman rank correlation between the prompt's PC1 projection and the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$: $\rho = -0.370$, $p < 0.0001$, $N = 750$ (Figure~\ref{fig:lmsys_holdout_structure}A). This negative correlation indicates that higher PC1 values correspond to prompts where the cheaper model (Mixtral) outperforms GPT-4-Turbo. Qualitatively, prompts at the high end of PC1 tend to involve stricter output constraints, though we treat this as a descriptive observation rather than a causal claim. A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the directional finding ($p < 0.0001$). 
+We observe a significant Spearman rank correlation between the prompt's PC1 projection and the reward gap between the expensive frontier model and the cheaper open-weights model ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$, $N = 750$ (Figure~\ref{fig:lmsys_holdout_structure}A). This negative correlation indicates that higher PC1 values correspond to prompts where the cheaper model outperforms the expensive model. Qualitatively, prompts at the high end of PC1 tend to involve stricter output constraints, though we treat this as a descriptive observation rather than a causal claim. A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the directional finding ($p < 0.0001$). 
 
 To ensure this is a genuine signal rather than a projection artifact, we compare the Router PCA's $|\rho| = 0.370$ against 100 independent random orthonormal projections ($384 \to 2$, QR-decomposed). The Router PCA exceeds all 100 random projections (Figure~\ref{fig:lmsys_holdout_structure}B), demonstrating a 2.6$\times$ signal ratio versus the random median ($|\rho|_{\text{random}} = 0.145$).
 
@@ -25,9 +25,9 @@ To ensure this is a genuine signal rather than a projection artifact, we compare
 \toprule
 \textbf{Outcome} & \textbf{Count} & \textbf{Proportion} \\
 \midrule
-GPT-4-Turbo wins & 98 & 13.1\% \\
+Frontier model wins & 98 & 13.1\% \\
 Tie & 546 & 72.8\% \\
-Mixtral wins & 106 & 14.1\% \\
+Cheaper model wins & 106 & 14.1\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -44,9 +44,9 @@ These empirical findings establish three direct architectural requirements for e
 \begin{enumerate}[noitemsep,topsep=2pt]
     \item \textbf{Exploiting Semantic Structure:} Because model preference heterogeneity is predictable from prompt embeddings, a router equipped with appropriate features can distinguish prompts that require the expensive model from those that do not.
     
-    \item \textbf{Avoiding Static Monotonicity Priors:} A frozen policy with a monotonicity prior will systematically over-provision the expensive model on subsets where it underperforms. We observe this empirically in our Pareto analysis (Section~\ref{sec:pareto}): static methods can \emph{degrade} in overall quality as they route more traffic to GPT-4, ultimately paying significantly more for worse performance.
+    \item \textbf{Avoiding Static Monotonicity Priors:} A frozen policy with a monotonicity prior will systematically over-provision the expensive model on subsets where it underperforms. We observe this empirically in our Pareto analysis (Section~\ref{sec:pareto}): static methods can \emph{degrade} in overall quality as they route more traffic to the expensive model, ultimately paying significantly more for worse performance.
     
     \item \textbf{Safe Online Learning:} Since the preference structure is counter-intuitive and shifts with deployment distributions, it cannot be reliably specified offline. A router must adapt online to discover these preferences, utilizing meta-learning to hedge against misleading priors, and handling non-stationarity as new models are deployed.
 \end{enumerate}
 
-This chain of reasoning---from empirical observation of preference heterogeneity to the failure modes of static methods---forms the foundation for the architecture we present next (Section~\ref{sec:methodology}).
+This chain of reasoning from empirical observation of preference heterogeneity to the failure modes of static methods forms the foundation for the architecture we present next (Section~\ref{sec:methodology}).

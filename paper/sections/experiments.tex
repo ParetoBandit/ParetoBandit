@@ -4,15 +4,15 @@
 We evaluate banditGPT using a held-out LMSYS Chatbot Arena dataset~\cite{zheng2023judging} with fixed train/dev/test splits, and commercial per-request costs for each model. Additional evaluations (multi-model scaling, alternative bandit baselines, regret curves, and robustness stress tests) are reported in the appendix (supplementary material).
 
 \subsubsection{Dataset \& Ground Truth}
-We use three disjoint prompt sets to avoid leakage: (i)~offline data for warmup priors (80k RouteLLM battles for the Mixtral/GPT-4-Turbo pair), (ii)~a dev stream of 1,121 prompts for online bandit updates, and (iii)~a frozen holdout of 750 prompts for evaluation of cost--quality trade-offs. Full dataset provenance and split details are provided in the appendix (supplementary material).
+We use three disjoint prompt sets to avoid leakage: (i) offline data for warmup priors (80k RouteLLM battles for the evaluated model pair), (ii) a dev stream of 1,121 prompts for online bandit updates, and (iii) a frozen holdout of 750 prompts for evaluation of cost and quality trade-offs. Full dataset provenance and split details are provided in the appendix (supplementary material).
 
 \subsubsection{Model Topology \& Baselines}
 
-We mirror RouteLLM's primary $K{=}2$ evaluation topology~\cite{ong2024routellm}:
+We mirror standard $K{=}2$ evaluation topologies~\cite{ong2024routellm}:
 
-\begin{itemize}
-    \item \textbf{Weak Model}: \texttt{mistralai/mixtral-8x7b-instruct} (Cost: $\approx$ \$0.30 / 1M tokens).
-    \item \textbf{Strong Model}: \texttt{openai/gpt-4-turbo} (Cost: $\approx$ \$10.00 -- \$30.00 / 1M tokens).
+\begin{itemize}[nosep,leftmargin=*]
+    \item \textbf{Cheaper Open-Weights Model} (Cost: $\approx$ \$0.30 per 1M tokens).
+    \item \textbf{Expensive Frontier Model} (Cost: $\approx$ \$10.00 to \$30.00 per 1M tokens).
 \end{itemize}
 
 We compare against static single-model baselines, random routing, RouteLLM-MF~\cite{ong2024routellm}, and an oracle upper bound that selects the better model per prompt.
@@ -21,14 +21,14 @@ We compare against static single-model baselines, random routing, RouteLLM-MF~\c
 
 We evaluate performance using three key metrics standard in cost-aware routing literature:
 
-\begin{itemize}
+\begin{itemize}[nosep,leftmargin=*]
     \item \textbf{Average Reward ($\bar{r}$)}: The mean quality score of the selected responses.
     
-    \item \textbf{Normalized Cost ($\bar{c}$)}: The average inference cost, normalized such that GPT-4-Turbo $\approx 1.0$.
+    \item \textbf{Normalized Cost ($\bar{c}$)}: The average inference cost, normalized such that the expensive frontier model $\approx 1.0$.
     
-    \item \textbf{Gap Closure (\%)}: The percentage of the performance gap between the Weak Model and the Oracle that the router recovers, defined as:
+    \item \textbf{Gap Closure (\%)}: The percentage of the performance gap between the cheaper model and the Oracle that the router recovers, defined as:
     \begin{equation}
-    \text{Gap Closure} = \frac{R_{\text{router}} - R_{\text{weak}}}{R_{\text{oracle}} - R_{\text{weak}}} \times 100\%
+    \text{Gap Closure} = \frac{R_{\text{router}} - R_{\text{cheaper}}}{R_{\text{oracle}} - R_{\text{cheaper}}} \times 100\%
     \end{equation}
 \end{itemize}
 
