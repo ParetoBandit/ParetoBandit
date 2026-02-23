@@ -130,14 +130,14 @@ The Oracle demonstrates that \textit{perfect routing} can extract value from the
     \item Date: January 25, 2026, 13:01 - 13:50 PM
 \end{itemize}
 
-\textbf{Phase 2: Gap Fill - Mid Cost} (Duration: 3 minutes)
+\textbf{Phase 2: Gap Fill - Mid Cost (RouteLLM)} (Duration: 3 minutes)
 \begin{itemize}
     \item Thresholds: 0.15, 0.18, 0.21
     \item Added points: 3 (costs: \$0.0027, \$0.0035, \$0.0048)
     \item Date: January 25, 2026, 14:33 PM
 \end{itemize}
 
-\textbf{Phase 3: Gap Fill - High Cost} (Duration: 3 minutes)
+\textbf{Phase 3: Gap Fill - High Cost (RouteLLM)} (Duration: 3 minutes)
 \begin{itemize}
     \item Thresholds: 0.08, 0.10, 0.12
     \item Added points: 3 (costs: \$0.0069, \$0.0085, \$0.0105)
@@ -145,11 +145,18 @@ The Oracle demonstrates that \textit{perfect routing} can extract value from the
     \item \textbf{Purpose:} Verify RouteLLM's non-monotonicity in \$0.008-\$0.012 range
 \end{itemize}
 
+\textbf{Phase 4: Dense Frontier Fill (banditGPT)} (Duration: $\sim$30 minutes)
+\begin{itemize}
+    \item $\lambda$ values: 0.25, 0.30, 0.35, 0.40, 0.45
+    \item Added points: 5 (20 trials each, 100 total runs)
+    \item \textbf{Purpose:} Fill the gap between $\lambda{=}0.2$ and $\lambda{=}0.5$ for denser Pareto frontier coverage
+\end{itemize}
+
 \textbf{Total Evaluation Cost:}
 \begin{itemize}
     \item RouteLLM API calls: 750 prompts $\times$ 28 thresholds = 21,000 embedding calls
-    \item banditGPT training: 1,121 prompts $\times$ 10 $\lambda$ values $\times$ 20 trials = 224,200 updates
-    \item Total runtime: $\sim$56 minutes (reproducible with controlled seeds)
+    \item banditGPT training: 1,121 prompts $\times$ 15 $\lambda$ values $\times$ 20 trials = 336,300 updates
+    \item Total runtime: $\sim$90 minutes (reproducible with controlled seeds)
 \end{itemize}
 
 \subsection{Convex Hull Statistics}
@@ -165,7 +172,7 @@ After applying Pareto filtering:
 \toprule
 \textbf{Method} & \textbf{Total Points} & \textbf{Pareto} & \textbf{Dominated} \\
 \midrule
-banditGPT-Hybrid & 10 & 6 (60\%) & 4 (40\%) \\
+banditGPT-Hybrid & 15 & 11 (73\%) & 4 (27\%) \\
 RouteLLM-MF & 28 & 10 (36\%) & 18 (64\%) \\
 \bottomrule
 \end{tabular}

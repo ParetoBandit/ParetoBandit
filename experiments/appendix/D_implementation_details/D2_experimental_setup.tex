@@ -34,8 +34,10 @@ Individual experiment runtimes are modest:
 \midrule
 Figure~1 (PCA validation) & $\sim$30 seconds & Embedding + correlation \\
 Figure~3 (degradation sweep) & $\sim$3 minutes & 20 seeds $\times$ degradation levels \\
-Figure~4 (Pareto frontier) & $\sim$60 minutes & 200 runs (20 seeds $\times$ 10 $\lambda$) \\
+Figure~4 (Pareto frontier) & $\sim$90 minutes & 300 runs (20 seeds $\times$ 15 $\lambda$) \\
+Figure~5 (K-scaling) & $\sim$15 minutes & 120 runs (3 $K$ $\times$ 2 policies $\times$ 20 seeds) \\
 Figure~6 (catastrophic failure) & $\sim$7 seconds & 20 seeds, 500 steps \\
+Figure~7 (multi-model Pareto) & $\sim$45 minutes & 440 runs (2 $K$ $\times$ 11 $\lambda$ $\times$ 20 seeds) \\
 Ablation study (Appendix~A, Table~\ref{tab:corralling_ablation}) & $\sim$10 minutes & 45 configurations \\
 \bottomrule
 \end{tabular}
@@ -75,9 +77,10 @@ matplotlib & $\geq$3.7.0 & Figure generation \\
 \paragraph{Zero-Leakage Design.}
 All experiments enforce strict separation between training and evaluation:
 \begin{enumerate}[leftmargin=*,noitemsep]
-    \item \textbf{PCA and priors} are trained exclusively on warmup data (80K RouteLLM battles).
-    \item \textbf{Online learning} (Figure~4) uses the development split (1,121 prompts).
-    \item \textbf{Evaluation} uses the holdout split (750 prompts), never seen during training.
+    \item \textbf{PCA and priors} are trained exclusively on warmup data (80K RouteLLM battles for $K{=}2$; prior-training split for $K{>}2$).
+    \item \textbf{Online learning} (Figure~4) uses the development split (1,121 prompts); Figures~5 and 7 use the online-learning portion of the three-way split (${\sim}$533 prompts).
+    \item \textbf{Evaluation} uses the holdout split (750 prompts), never seen during training or prior construction.
+    \item \textbf{Three-way split integrity} ($K{>}2$): Pairwise disjointness of prior-training, online-learning, and holdout sets is verified programmatically before each experiment.
     \item \textbf{Normalization statistics} (mean, std for cost penalties) are computed on the training set and frozen during evaluation.
     \item \textbf{Deduplication}: 243 incidental overlaps between warmup and evaluation data were removed (0.24\% of warmup set).
 \end{enumerate}
@@ -85,7 +88,7 @@ All experiments enforce strict separation between training and evaluation:
 \paragraph{Metrics.}
 We report two primary metrics:
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{Average Reward:} Mean win rate across holdout prompts, $\bar{R} = \frac{1}{T}\sum_{t=1}^{T} r_t$ where $r_t \in \{0, 1\}$ indicates whether the selected model won the pairwise comparison.
+    \item \textbf{Average Reward:} Mean win rate across holdout prompts, $\bar{R} = \frac{1}{T}\sum_{t=1}^{T} r_t$ where $r_t \in \{0,\, 0.5,\, 1\}$ encodes a loss, tie, or win in the pairwise comparison (see Appendix~\ref{appendix:reward_signal}).
     \item \textbf{Average Cost:} Mean per-request API cost, $\bar{C} = \frac{1}{T}\sum_{t=1}^{T} c_{a_t}$ where $c_{a_t}$ is the cost of the model selected at step $t$.
 \end{itemize}
 
@@ -95,4 +98,4 @@ Significance tests use Wilcoxon signed-rank (paired, non-parametric) with Benjam
 
 \paragraph{Reproducibility.}
 All experiment scripts accept a \texttt{--seed} argument for deterministic replication.
-Code, data, and pre-computed PCA/prior artifacts are available at: \url{https://github.com/annette/banditGPT}.
+Code, data, and pre-computed PCA/prior artifacts are available at: \url{https://github.com/atabernermiller/banditGPT}.

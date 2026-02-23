@@ -1,7 +1,7 @@
 # Appendix D: Implementation Details
 
 ## Overview
-Configuration parameters and experimental setup for reproducibility. Covers all settings needed to replicate Figures 1, 3, 4, and 6.
+Configuration parameters and experimental setup for reproducibility. Covers all settings needed to replicate Figures 1, 3, 4, 5, 6, and 7.
 
 ## Contents
 
@@ -11,7 +11,7 @@ Configuration parameters and experimental setup for reproducibility. Covers all 
 
 **Content**:
 - Part 1: Library router parameters (all configurable knobs in `router.py`)
-- Part 2: Experiment-specific configurations (values used in Figures 3, 4, 6)
+- Part 2: Experiment-specific configurations (values used in Figures 3, 4, 5, 6, 7)
 - Implementation notes (init_lambda/update_lambda pattern, two-level cost mechanism, loss_decay)
 
 **Key Classes Documented**:
@@ -58,4 +58,4 @@ D_implementation_details/
 
 ---
 
-**Last Updated**: February 15, 2026
+**Last Updated**: February 22, 2026
