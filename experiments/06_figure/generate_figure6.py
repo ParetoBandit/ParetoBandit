@@ -49,25 +49,42 @@ def load_results():
         return json.load(f)
 
 
+def _static_pareto_ids(data):
+    """Return set of model IDs on the static cost-reward Pareto frontier."""
+    items = [(m_id, s["cost"], s["reward"]) for m_id, s in data["static"].items()]
+    items.sort(key=lambda x: x[1])  # sort by cost ascending
+    frontier = []
+    best_reward = -1
+    for m_id, cost, reward in items:
+        if reward > best_reward:
+            frontier.append(m_id)
+            best_reward = reward
+    return set(frontier)
+
+
 def plot_pareto_panel(ax, data, title):
     """Plot a single Pareto frontier panel (cost vs quality)."""
-    # Static baselines as individual points
-    from matplotlib.offsetbox import AnnotationBbox, TextArea
+    pareto_ids = _static_pareto_ids(data)
     static_items = list(data["static"].items())
     for m_id, s in static_items:
         cat = next(mc for mc in data["models"] if mc["id"] == m_id)
+        on_frontier = m_id in pareto_ids
         ax.scatter(
             s["cost"] * 1000, s["reward"],
-            marker="^", s=50, color=STATIC_COLOR, zorder=5,
+            marker="^",
+            s=50 if on_frontier else 22,
+            color=STATIC_COLOR,
+            alpha=1.0 if on_frontier else 0.35,
+            zorder=5,
             edgecolors="white", linewidth=0.5,
         )
-        # Offset labels to avoid overlap
-        offset = (5, -8) if s["reward"] > 0.96 else (5, 4)
-        ax.annotate(
-            cat["display"], (s["cost"] * 1000, s["reward"]),
-            textcoords="offset points", xytext=offset,
-            fontsize=5.5, color=STATIC_COLOR, alpha=0.8,
-        )
+        if on_frontier:
+            offset = (5, -8) if s["reward"] > 0.96 else (5, 4)
+            ax.annotate(
+                cat["display"], (s["cost"] * 1000, s["reward"]),
+                textcoords="offset points", xytext=offset,
+                fontsize=5.5, color=STATIC_COLOR, alpha=0.8,
+            )
 
     # Oracle
     ax.axhline(data["oracle"]["reward"], color=ORACLE_COLOR, ls="--",
@@ -119,6 +136,7 @@ def plot_pareto_panel(ax, data, title):
                 fontsize=5.5, color=BANDIT_COLOR, alpha=0.7,
             )
 
+    ax.set_xscale("log")
     ax.set_xlabel("Cost per request ($×10⁻³)")
     ax.set_ylabel("Mean Reward (Holdout)")
     ax.set_title(title, fontweight="bold")

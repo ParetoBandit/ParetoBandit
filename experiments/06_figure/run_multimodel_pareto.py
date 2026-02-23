@@ -164,6 +164,20 @@ LEARNING_CURVE_CHECKPOINTS = [0, 10, 25, 50, 100, 150, 200, 300, 400, 533]
 # DATA LOADING
 # ============================================================================
 
+def _entry_reward(entry: Dict) -> float:
+    """Extract reward from a data entry using mean judge agreement.
+
+    Uses the average of individual judge votes rather than the binarised
+    majority vote (``raw_score``).  This preserves evaluative signal from
+    the multi-judge panel — e.g. a 2-out-of-3 pass (0.667) is
+    distinguished from a unanimous pass (1.0).
+    """
+    judges = entry.get("judge_details")
+    if judges:
+        return float(np.mean([j["vote"] for j in judges]))
+    return float(entry["raw_score"])
+
+
 def load_rewards(data_path: Path, prompts: List[str], models: List[str],
                  ) -> List[Dict]:
     """Load rewards for specific prompts and models from gzipped JSONL."""
@@ -179,7 +193,7 @@ def load_rewards(data_path: Path, prompts: List[str], models: List[str],
             p = entry["prompt"]
             m = entry["model_id"]
             if p in prompt_set and m in model_set:
-                rewards[p][m] = entry["raw_score"]
+                rewards[p][m] = _entry_reward(entry)
 
     data = []
     for p in prompts:
@@ -212,21 +226,35 @@ def static_route(eval_data: List[Dict], model: str,
 
 
 def random_route(eval_data: List[Dict], models: List[str],
-                 costs: Dict[str, float], seed: int = 42) -> Tuple[float, float]:
-    rng = np.random.RandomState(seed)
-    r_total = c_total = 0.0
-    for p in eval_data:
-        m = models[rng.randint(len(models))]
-        r_total += p["rewards"][m]
-        c_total += costs[m]
-    n = len(eval_data)
-    return r_total / n, c_total / n
+                 costs: Dict[str, float],
+                 n_trials: int = 20, seed_offset: int = SEED_OFFSET,
+                 ) -> Dict[str, float]:
+    """Random routing averaged over *n_trials* seeds."""
+    trial_r, trial_c = [], []
+    for trial in range(n_trials):
+        rng = np.random.RandomState(seed_offset + trial)
+        r_total = c_total = 0.0
+        for p in eval_data:
+            m = models[rng.randint(len(models))]
+            r_total += p["rewards"][m]
+            c_total += costs[m]
+        n = len(eval_data)
+        trial_r.append(r_total / n)
+        trial_c.append(c_total / n)
+    return {
+        "reward": float(np.mean(trial_r)),
+        "std_reward": float(np.std(trial_r, ddof=1)),
+        "cost": float(np.mean(trial_c)),
+        "std_cost": float(np.std(trial_c, ddof=1)),
+        "n_trials": n_trials,
+    }
 
 
 def epsilon_greedy_route(train_data, eval_data, models, costs,
-                         epsilon=0.1, seed=42):
-    """ε-greedy: estimate mean reward per model from training, exploit."""
-    rng = np.random.RandomState(seed)
+                         epsilon=0.1,
+                         n_trials: int = 20, seed_offset: int = SEED_OFFSET,
+                         ) -> Dict[str, float]:
+    """ε-greedy averaged over *n_trials* seeds."""
     model_rewards = {m: [] for m in models}
     for p in train_data:
         for m in models:
@@ -234,16 +262,27 @@ def epsilon_greedy_route(train_data, eval_data, models, costs,
     model_means = {m: np.mean(v) for m, v in model_rewards.items()}
     best_model = max(model_means, key=model_means.get)
 
-    r_total = c_total = 0.0
-    for p in eval_data:
-        if rng.random() < epsilon:
-            m = models[rng.randint(len(models))]
-        else:
-            m = best_model
-        r_total += p["rewards"][m]
-        c_total += costs[m]
-    n = len(eval_data)
-    return r_total / n, c_total / n
+    trial_r, trial_c = [], []
+    for trial in range(n_trials):
+        rng = np.random.RandomState(seed_offset + trial)
+        r_total = c_total = 0.0
+        for p in eval_data:
+            if rng.random() < epsilon:
+                m = models[rng.randint(len(models))]
+            else:
+                m = best_model
+            r_total += p["rewards"][m]
+            c_total += costs[m]
+        n = len(eval_data)
+        trial_r.append(r_total / n)
+        trial_c.append(c_total / n)
+    return {
+        "reward": float(np.mean(trial_r)),
+        "std_reward": float(np.std(trial_r, ddof=1)),
+        "cost": float(np.mean(trial_c)),
+        "std_cost": float(np.std(trial_c, ddof=1)),
+        "n_trials": n_trials,
+    }
 
 
 # ============================================================================
@@ -491,7 +530,7 @@ def main():
             for line in f:
                 entry = json.loads(line)
                 if entry.get("ok") and entry["model_id"] in model_set:
-                    holdout_rewards[entry["prompt"]][entry["model_id"]] = entry["raw_score"]
+                    holdout_rewards[entry["prompt"]][entry["model_id"]] = _entry_reward(entry)
         eval_data = [
             {"prompt": p, "rewards": r}
             for p, r in holdout_rewards.items()
@@ -522,11 +561,11 @@ def main():
             logger.info(f"    Static {MODEL_CATALOG[m]['display']:<20}: "
                         f"R={sr:.4f}  C=${sc:.6f}")
 
-        rand_r, rand_c = random_route(eval_data, models, costs)
-        logger.info(f"    Random:  R={rand_r:.4f}  C=${rand_c:.6f}")
+        rand = random_route(eval_data, models, costs, n_trials=N_TRIALS)
+        logger.info(f"    Random ({N_TRIALS} seeds):  R={rand['reward']:.4f}±{rand['std_reward']:.4f}  C=${rand['cost']:.6f}")
 
-        eg_r, eg_c = epsilon_greedy_route(train_data, eval_data, models, costs)
-        logger.info(f"    ε-Greedy (ε=0.1):  R={eg_r:.4f}  C=${eg_c:.6f}")
+        eg = epsilon_greedy_route(train_data, eval_data, models, costs, n_trials=N_TRIALS)
+        logger.info(f"    ε-Greedy ({N_TRIALS} seeds):  R={eg['reward']:.4f}±{eg['std_reward']:.4f}  C=${eg['cost']:.6f}")
 
         # --- banditGPT (Corralling + priors) --------------------------------
         logger.info(f"\n  banditGPT Pareto sweep ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
@@ -572,8 +611,8 @@ def main():
             "K": K,
             "models": [{"id": m, **MODEL_CATALOG[m]} for m in models],
             "oracle": {"reward": oracle_r, "cost": oracle_c},
-            "random": {"reward": rand_r, "cost": rand_c},
-            "epsilon_greedy": {"reward": eg_r, "cost": eg_c},
+            "random": rand,
+            "epsilon_greedy": eg,
             "static": static_results,
             "best_static": {
                 "model": best_static_m,
@@ -597,8 +636,8 @@ def main():
                      f"± {peak_bandit['std_reward']:.4f}")
         logger.info(f"    Best static:      {static_results[best_static_m]['reward']:.4f} "
                      f"({MODEL_CATALOG[best_static_m]['display']})")
-        logger.info(f"    ε-Greedy:         {eg_r:.4f}")
-        logger.info(f"    Random:           {rand_r:.4f}")
+        logger.info(f"    ε-Greedy:         {eg['reward']:.4f} ± {eg['std_reward']:.4f}")
+        logger.info(f"    Random:           {rand['reward']:.4f} ± {rand['std_reward']:.4f}")
         logger.info(f"    Gap closure:      {gap_closure:.1f}%")
 
     # --- Save results ------------------------------------------------------

@@ -49,141 +49,147 @@
       }
     ],
     "oracle": {
-      "reward": 1.0,
-      "cost": 0.0001264026666666657
+      "reward": 0.9856666666666662,
+      "cost": 0.0005893146666666678
     },
     "random": {
-      "reward": 0.8893333333333333,
-      "cost": 0.0021364373333333277
+      "reward": 0.8441499999999997,
+      "std_reward": 0.008328636103062198,
+      "cost": 0.0020348233333333274,
+      "std_cost": 9.268931114009635e-05,
+      "n_trials": 20
     },
     "epsilon_greedy": {
-      "reward": 0.9746666666666667,
-      "cost": 0.003247500000000029
+      "reward": 0.9372444444444442,
+      "std_reward": 0.003461211782677835,
+      "cost": 0.0032604083333333616,
+      "std_cost": 3.1105020778605685e-05,
+      "n_trials": 20
     },
     "static": {
       "meta-llama/llama-3.1-8b-instruct": {
-        "reward": 0.7453333333333333,
+        "reward": 0.6886666666666666,
         "cost": 2.4999999999999998e-05
       },
       "mistralai/mixtral-8x7b-instruct": {
-        "reward": 0.8226666666666667,
+        "reward": 0.7676666666666667,
         "cost": 0.000294
       },
       "google/gemini-2.5-flash-preview-09-2025": {
-        "reward": 0.9533333333333334,
+        "reward": 0.9057777777777778,
         "cost": 0.000255
       },
       "anthropic/claude-sonnet-4": {
-        "reward": 0.9746666666666667,
+        "reward": 0.9208888888888889,
         "cost": 0.006299999999999999
       },
       "openai/gpt-4.1": {
-        "reward": 0.9826666666666667,
+        "reward": 0.9486666666666667,
         "cost": 0.0034
       }
     },
     "best_static": {
       "model": "openai/gpt-4.1",
-      "reward": 0.9826666666666667,
+      "reward": 0.9486666666666667,
       "cost": 0.0034
     },
     "pareto_banditgpt": [
       {
         "lambda": 0.0,
-        "mean_reward": 0.9539333333333333,
-        "std_reward": 0.015333943542396505,
-        "mean_cost": 0.002842074933333328,
-        "std_cost": 0.0004699426909945581,
+        "mean_reward": 0.9077555555555546,
+        "std_reward": 0.017997639004785838,
+        "mean_cost": 0.0030839131333333268,
+        "std_cost": 0.0007348330151230083,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.005,
-        "mean_reward": 0.9419333333333334,
-        "std_reward": 0.02214032863457053,
-        "mean_cost": 0.0028300494666666553,
-        "std_cost": 0.0004333094488789187,
+        "mean_reward": 0.9075777777777772,
+        "std_reward": 0.014900780796860085,
+        "mean_cost": 0.0028870232666666556,
+        "std_cost": 0.0005602192493864458,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.01,
-        "mean_reward": 0.9470000000000001,
-        "std_reward": 0.024104548113708373,
-        "mean_cost": 0.0027148245333333265,
-        "std_cost": 0.00041676875193354226,
+        "mean_reward": 0.9047388888888882,
+        "std_reward": 0.01624696802823403,
+        "mean_cost": 0.0029869389333333244,
+        "std_cost": 0.0005965179302061504,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.02,
-        "mean_reward": 0.942,
-        "std_reward": 0.020775604226932892,
-        "mean_cost": 0.0026543895999999916,
-        "std_cost": 0.00039117284110023624,
+        "mean_reward": 0.9110833333333328,
+        "std_reward": 0.02174409242887715,
+        "mean_cost": 0.002791766599999991,
+        "std_cost": 0.0005202068367341835,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.05,
-        "mean_reward": 0.9352000000000003,
-        "std_reward": 0.028156288963340576,
-        "mean_cost": 0.0024864835333333227,
-        "std_cost": 0.0004339181849377844,
+        "mean_reward": 0.9085611111111106,
+        "std_reward": 0.018617083793302857,
+        "mean_cost": 0.0026553766666666586,
+        "std_cost": 0.0004889491337684002,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.1,
-        "mean_reward": 0.9242000000000001,
-        "std_reward": 0.024889087300796427,
-        "mean_cost": 0.0018735391333333234,
-        "std_cost": 0.00036277677775315256,
+        "mean_reward": 0.9036944444444439,
+        "std_reward": 0.01917444540854165,
+        "mean_cost": 0.002298841733333322,
+        "std_cost": 0.00046120672657350804,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.2,
-        "mean_reward": 0.9218666666666667,
-        "std_reward": 0.020779657168653765,
-        "mean_cost": 0.0016768445999999948,
-        "std_cost": 0.00045093574475860273,
+        "mean_reward": 0.8899222222222217,
+        "std_reward": 0.01796571350095611,
+        "mean_cost": 0.0013868933999999964,
+        "std_cost": 0.00029073423551949086,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.5,
-        "mean_reward": 0.8952666666666668,
-        "std_reward": 0.026720909743941347,
-        "mean_cost": 0.0009656841333333364,
-        "std_cost": 0.0003928013632650791,
+        "mean_reward": 0.8658611111111106,
+        "std_reward": 0.019092908337859857,
+        "mean_cost": 0.0009985479333333356,
+        "std_cost": 0.00042321693301302607,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 1.0,
-        "mean_reward": 0.8573999999999999,
-        "std_reward": 0.021128290947508586,
-        "mean_cost": 0.0006047018000000021,
-        "std_cost": 0.000187153038748133,
+        "mean_reward": 0.8306777777777775,
+        "std_reward": 0.018829210851401695,
+        "mean_cost": 0.0007912239333333369,
+        "std_cost": 0.0002439595472912862,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 2.0,
-        "mean_reward": 0.8151333333333334,
-        "std_reward": 0.017858573710427164,
-        "mean_cost": 0.00023151586666666607,
-        "std_cost": 8.194347849416698e-05,
+        "mean_reward": 0.7795388888888891,
+        "std_reward": 0.027237250297500223,
+        "mean_cost": 0.0002807989333333329,
+        "std_cost": 0.00012732179140532922,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 5.0,
-        "mean_reward": 0.7558666666666667,
-        "std_reward": 0.006326774073367763,
-        "mean_cost": 3.867346666666706e-05,
-        "std_cost": 5.81684176924385e-06,
+        "mean_reward": 0.7081111111111117,
+        "std_reward": 0.005143174283980654,
+        "mean_cost": 4.5100600000000196e-05,
+        "std_cost": 5.793464088726639e-06,
         "n_trials": 20,
         "label": "banditGPT"
       }
@@ -191,99 +197,99 @@
     "pareto_tabula_rasa": [
       {
         "lambda": 0.0,
-        "mean_reward": 0.9559999999999998,
+        "mean_reward": 0.8876666666666658,
         "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.00256093466666666,
+        "mean_cost": 0.003417587999999991,
         "std_cost": 0.0,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.005,
-        "mean_reward": 0.9280000000000002,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0020569586666666457,
+        "mean_reward": 0.8447777777777775,
+        "std_reward": 0.0,
+        "mean_cost": 0.0020587653333333216,
         "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.01,
-        "mean_reward": 0.8800000000000001,
+        "mean_reward": 0.8896666666666662,
         "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0017696479999999928,
-        "std_cost": 2.2247359165076434e-19,
+        "mean_cost": 0.0019935999999999895,
+        "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.02,
-        "mean_reward": 0.9453333333333335,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0025024839999999906,
+        "mean_reward": 0.9221111111111107,
+        "std_reward": 0.0,
+        "mean_cost": 0.00268858133333333,
         "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.05,
-        "mean_reward": 0.9146666666666665,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0023106666666666545,
-        "std_cost": 0.0,
+        "mean_reward": 0.9024444444444437,
+        "std_reward": 0.0,
+        "mean_cost": 0.002486562666666644,
+        "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.1,
-        "mean_reward": 0.8960000000000001,
+        "mean_reward": 0.9069999999999995,
         "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.001910986666666657,
-        "std_cost": 0.0,
+        "mean_cost": 0.0025629213333333276,
+        "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.2,
-        "mean_reward": 0.9186666666666665,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.002645735999999987,
+        "mean_reward": 0.8897777777777769,
+        "std_reward": 0.0,
+        "mean_cost": 0.002205503999999989,
         "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.5,
-        "mean_reward": 0.8773333333333332,
+        "mean_reward": 0.8726666666666661,
         "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.001637127999999996,
-        "std_cost": 2.2247359165076434e-19,
+        "mean_cost": 0.0022974359999999834,
+        "std_cost": 8.898943666030574e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 1.0,
-        "mean_reward": 0.8613333333333333,
+        "mean_reward": 0.8277777777777778,
         "std_reward": 0.0,
-        "mean_cost": 0.0007085346666666685,
+        "mean_cost": 0.0007049346666666691,
         "std_cost": 1.1123679582538217e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 2.0,
-        "mean_reward": 0.8186666666666668,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.00046092799999999993,
-        "std_cost": 1.6685519373807327e-19,
+        "mean_reward": 0.7925555555555555,
+        "std_reward": 0.0,
+        "mean_cost": 0.0004914520000000003,
+        "std_cost": 1.1123679582538217e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 5.0,
-        "mean_reward": 0.744,
-        "std_reward": 0.0,
-        "mean_cost": 3.446533333333375e-05,
+        "mean_reward": 0.7122222222222229,
+        "std_reward": 1.1390647892519134e-16,
+        "mean_cost": 4.370666666666697e-05,
         "std_cost": 6.952299739086386e-21,
         "n_trials": 20,
         "label": "tabula_rasa"
@@ -292,104 +298,104 @@
     "learning_curve": [
       {
         "step": 0,
-        "mean_reward": 0.9384,
-        "std_reward": 0.008350228487261508,
+        "mean_reward": 0.8977611111111108,
+        "std_reward": 0.006519254732038604,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 10,
-        "mean_reward": 0.9711333333333332,
-        "std_reward": 0.01678358986894309,
+        "mean_reward": 0.9242833333333322,
+        "std_reward": 0.012268147370163218,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 25,
-        "mean_reward": 0.9134,
-        "std_reward": 0.05585691829699726,
+        "mean_reward": 0.8794111111111105,
+        "std_reward": 0.04276858107262284,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 50,
-        "mean_reward": 0.9319999999999998,
-        "std_reward": 0.03667081316267333,
+        "mean_reward": 0.8663944444444439,
+        "std_reward": 0.04237523022299951,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 100,
-        "mean_reward": 0.9317333333333334,
-        "std_reward": 0.025707668321462294,
+        "mean_reward": 0.8874777777777771,
+        "std_reward": 0.023563556513852894,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 150,
-        "mean_reward": 0.9305333333333333,
-        "std_reward": 0.02954595983700748,
+        "mean_reward": 0.8856333333333326,
+        "std_reward": 0.02227354016076115,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 200,
-        "mean_reward": 0.8930666666666669,
-        "std_reward": 0.05572799437199535,
+        "mean_reward": 0.8792611111111107,
+        "std_reward": 0.02702967529084986,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 300,
-        "mean_reward": 0.9295333333333332,
-        "std_reward": 0.029048940353694742,
+        "mean_reward": 0.8962999999999995,
+        "std_reward": 0.023694999924931192,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 400,
-        "mean_reward": 0.9381999999999999,
-        "std_reward": 0.026960746861780925,
+        "mean_reward": 0.8999499999999994,
+        "std_reward": 0.02340719234917369,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 533,
-        "mean_reward": 0.9539333333333333,
-        "std_reward": 0.015333943542396505,
+        "mean_reward": 0.9077555555555546,
+        "std_reward": 0.017997639004785838,
         "n_trials": 20,
         "label": "banditGPT"
       }
     ],
     "traffic_allocation": {
       "meta-llama/llama-3.1-8b-instruct": {
-        "mean_frac": 0.05906666666666667,
-        "std_frac": 0.026175815810272913,
+        "mean_frac": 0.06140000000000001,
+        "std_frac": 0.04810816516513133,
         "display": "Llama-3.1-8B"
       },
       "mistralai/mixtral-8x7b-instruct": {
-        "mean_frac": 0.0624,
-        "std_frac": 0.04795293989365454,
+        "mean_frac": 0.04586666666666667,
+        "std_frac": 0.027267889133150328,
         "display": "Mixtral-8x7B"
       },
       "google/gemini-2.5-flash-preview-09-2025": {
-        "mean_frac": 0.2732,
-        "std_frac": 0.09670840478239498,
+        "mean_frac": 0.2826666666666666,
+        "std_frac": 0.12832181766515346,
         "display": "Gemini-2.5-Flash"
       },
       "anthropic/claude-sonnet-4": {
-        "mean_frac": 0.23946666666666666,
-        "std_frac": 0.06689879587024633,
+        "mean_frac": 0.3181333333333333,
+        "std_frac": 0.13276840320230143,
         "display": "Claude-Sonnet-4"
       },
       "openai/gpt-4.1": {
-        "mean_frac": 0.3658666666666667,
-        "std_frac": 0.1080628623636364,
+        "mean_frac": 0.2919333333333333,
+        "std_frac": 0.12561703706106112,
         "display": "GPT-4.1"
       }
     },
-    "gap_closure_pct": 81.9109947643979,
-    "peak_bandit_reward": 0.9539333333333333,
+    "gap_closure_pct": 74.88776655443314,
+    "peak_bandit_reward": 0.9110833333333328,
     "n_train": 533,
     "n_eval": 750,
     "n_trials": 20
@@ -489,161 +495,167 @@
       }
     ],
     "oracle": {
-      "reward": 1.0,
-      "cost": 0.0001264026666666657
+      "reward": 0.9911111111111108,
+      "cost": 0.000642718666666668
     },
     "random": {
-      "reward": 0.92,
-      "cost": 0.0024324279999999917
+      "reward": 0.8566499999999999,
+      "std_reward": 0.007003691127449058,
+      "cost": 0.0025715536666666558,
+      "std_cost": 0.0001447227502884875,
+      "n_trials": 20
     },
     "epsilon_greedy": {
-      "reward": 0.9773333333333334,
-      "cost": 0.0034242626666666945
+      "reward": 0.9395166666666661,
+      "std_reward": 0.003780232260776917,
+      "cost": 0.0033186205333333614,
+      "std_cost": 4.196084656859566e-05,
+      "n_trials": 20
     },
     "static": {
       "meta-llama/llama-3.1-8b-instruct": {
-        "reward": 0.7453333333333333,
+        "reward": 0.6886666666666666,
         "cost": 2.4999999999999998e-05
       },
       "mistralai/mixtral-8x7b-instruct": {
-        "reward": 0.8226666666666667,
+        "reward": 0.7676666666666667,
         "cost": 0.000294
       },
       "google/gemini-2.5-flash-preview-09-2025": {
-        "reward": 0.9533333333333334,
+        "reward": 0.9057777777777778,
         "cost": 0.000255
       },
       "anthropic/claude-sonnet-4": {
-        "reward": 0.9746666666666667,
+        "reward": 0.9208888888888889,
         "cost": 0.006299999999999999
       },
       "openai/gpt-4.1": {
-        "reward": 0.9826666666666667,
+        "reward": 0.9486666666666667,
         "cost": 0.0034
       },
       "meta-llama/llama-4-maverick": {
-        "reward": 0.9293333333333333,
+        "reward": 0.848,
         "cost": 0.00026
       },
       "google/gemma-3-27b-it": {
-        "reward": 0.9506666666666667,
+        "reward": 0.9026666666666666,
         "cost": 4.9999999999999996e-05
       },
       "anthropic/claude-haiku-4.5": {
-        "reward": 0.9506666666666667,
+        "reward": 0.8962222222222221,
         "cost": 0.00168
       },
       "openai/gpt-4-turbo": {
-        "reward": 0.812,
+        "reward": 0.7875555555555555,
         "cost": 0.013
       },
       "deepseek/deepseek-chat-v3-0324": {
-        "reward": 0.9733333333333334,
+        "reward": 0.9142222222222222,
         "cost": 0.0004670000000000001
       }
     },
     "best_static": {
       "model": "openai/gpt-4.1",
-      "reward": 0.9826666666666667,
+      "reward": 0.9486666666666667,
       "cost": 0.0034
     },
     "pareto_banditgpt": [
       {
         "lambda": 0.0,
-        "mean_reward": 0.9328666666666667,
-        "std_reward": 0.027154399339863362,
-        "mean_cost": 0.0023571275999999925,
-        "std_cost": 0.0004726513495410606,
+        "mean_reward": 0.8965277777777771,
+        "std_reward": 0.01295982069963172,
+        "mean_cost": 0.002174798933333323,
+        "std_cost": 0.0006017376107030829,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.005,
-        "mean_reward": 0.925,
-        "std_reward": 0.029536378600273826,
-        "mean_cost": 0.0023757217333333245,
-        "std_cost": 0.0006697532029656327,
+        "mean_reward": 0.8920277777777773,
+        "std_reward": 0.020605325396553423,
+        "mean_cost": 0.0022317492666666583,
+        "std_cost": 0.0006295006870919612,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.01,
-        "mean_reward": 0.9394666666666666,
-        "std_reward": 0.019915141613784125,
-        "mean_cost": 0.002151332799999993,
-        "std_cost": 0.0005738209852628458,
+        "mean_reward": 0.8936444444444438,
+        "std_reward": 0.012926623528263462,
+        "mean_cost": 0.002205222199999992,
+        "std_cost": 0.0005414158222637824,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.02,
-        "mean_reward": 0.9363333333333334,
-        "std_reward": 0.02016945754213186,
-        "mean_cost": 0.0021113805333333284,
-        "std_cost": 0.0006478352667516834,
+        "mean_reward": 0.8982055555555553,
+        "std_reward": 0.022991403738657178,
+        "mean_cost": 0.0023364394666666594,
+        "std_cost": 0.0003922030215445885,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.05,
-        "mean_reward": 0.9348666666666668,
-        "std_reward": 0.020106267388655057,
-        "mean_cost": 0.0019351635999999954,
-        "std_cost": 0.0007208213983554575,
+        "mean_reward": 0.8945999999999994,
+        "std_reward": 0.015497401739929114,
+        "mean_cost": 0.001995542866666661,
+        "std_cost": 0.0005687858483370026,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.1,
-        "mean_reward": 0.9401999999999999,
-        "std_reward": 0.015948894991879174,
-        "mean_cost": 0.001650756999999998,
-        "std_cost": 0.0004643508262811121,
+        "mean_reward": 0.8898611111111107,
+        "std_reward": 0.01590284321598418,
+        "mean_cost": 0.001607838533333331,
+        "std_cost": 0.0005159958645747316,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.2,
-        "mean_reward": 0.9346,
-        "std_reward": 0.02116811018699799,
-        "mean_cost": 0.0011470211333333327,
-        "std_cost": 0.0005056480279239651,
+        "mean_reward": 0.8871499999999994,
+        "std_reward": 0.02521044048190646,
+        "mean_cost": 0.0011287279333333327,
+        "std_cost": 0.0004365228643954621,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 0.5,
-        "mean_reward": 0.9282,
-        "std_reward": 0.023785690326906323,
-        "mean_cost": 0.0007888547333333327,
-        "std_cost": 0.0003324553889169583,
+        "mean_reward": 0.8934944444444437,
+        "std_reward": 0.013588373417659252,
+        "mean_cost": 0.0006818479999999981,
+        "std_cost": 0.00025043730232885564,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 1.0,
-        "mean_reward": 0.9304,
-        "std_reward": 0.016594792391076293,
-        "mean_cost": 0.00038283379999999785,
-        "std_cost": 0.00017841273229223716,
+        "mean_reward": 0.8906777777777771,
+        "std_reward": 0.009856929761720049,
+        "mean_cost": 0.00031921639999999763,
+        "std_cost": 0.00013802469911630753,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 2.0,
-        "mean_reward": 0.9227333333333334,
-        "std_reward": 0.0190903055523444,
-        "mean_cost": 0.0001581043999999991,
-        "std_cost": 0.00010060550435975416,
+        "mean_reward": 0.8842666666666661,
+        "std_reward": 0.0152117990523592,
+        "mean_cost": 0.00011330846666666634,
+        "std_cost": 4.8493906274248326e-05,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "lambda": 5.0,
-        "mean_reward": 0.9200666666666667,
-        "std_reward": 0.01958385777573247,
-        "mean_cost": 5.523206666666727e-05,
-        "std_cost": 9.668833958858435e-06,
+        "mean_reward": 0.8875444444444438,
+        "std_reward": 0.008610622510190164,
+        "mean_cost": 5.300966666666733e-05,
+        "std_cost": 5.4659130310642415e-06,
         "n_trials": 20,
         "label": "banditGPT"
       }
@@ -651,100 +663,100 @@
     "pareto_tabula_rasa": [
       {
         "lambda": 0.0,
-        "mean_reward": 0.9413333333333332,
+        "mean_reward": 0.8735555555555552,
         "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0016331773333333314,
+        "mean_cost": 0.001663655999999995,
         "std_cost": 2.2247359165076434e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.005,
-        "mean_reward": 0.9453333333333335,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0029803946666666506,
-        "std_cost": 0.0,
+        "mean_reward": 0.8904444444444437,
+        "std_reward": 2.278129578503827e-16,
+        "mean_cost": 0.0018851693333333266,
+        "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.01,
-        "mean_reward": 0.9573333333333336,
-        "std_reward": 2.278129578503827e-16,
-        "mean_cost": 0.0023960573333333323,
+        "mean_reward": 0.8977777777777771,
+        "std_reward": 0.0,
+        "mean_cost": 0.0021545813333333236,
         "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.02,
-        "mean_reward": 0.9559999999999998,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.00142128,
-        "std_cost": 0.0,
+        "mean_reward": 0.8544444444444437,
+        "std_reward": 2.278129578503827e-16,
+        "mean_cost": 0.0027783266666666514,
+        "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.05,
-        "mean_reward": 0.9306666666666666,
-        "std_reward": 0.0,
-        "mean_cost": 0.001441681333333333,
-        "std_cost": 2.2247359165076434e-19,
+        "mean_reward": 0.8879999999999992,
+        "std_reward": 1.1390647892519134e-16,
+        "mean_cost": 0.0020227560000000006,
+        "std_cost": 0.0,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.1,
-        "mean_reward": 0.8640000000000001,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0017203573333333297,
-        "std_cost": 2.2247359165076434e-19,
+        "mean_reward": 0.885666666666666,
+        "std_reward": 0.0,
+        "mean_cost": 0.002140482666666657,
+        "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.2,
-        "mean_reward": 0.9586666666666666,
-        "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0013336800000000029,
-        "std_cost": 2.2247359165076434e-19,
+        "mean_reward": 0.9075555555555551,
+        "std_reward": 2.278129578503827e-16,
+        "mean_cost": 0.0020962079999999965,
+        "std_cost": 4.449471833015287e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 0.5,
-        "mean_reward": 0.9293333333333333,
+        "mean_reward": 0.8393333333333329,
         "std_reward": 0.0,
-        "mean_cost": 0.0008708733333333366,
+        "mean_cost": 0.0012531773333333386,
         "std_cost": 2.2247359165076434e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 1.0,
-        "mean_reward": 0.9280000000000002,
+        "mean_reward": 0.8565555555555552,
         "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.0005282399999999993,
-        "std_cost": 0.0,
+        "mean_cost": 0.0006745999999999998,
+        "std_cost": 1.1123679582538217e-19,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 2.0,
-        "mean_reward": 0.9186666666666665,
+        "mean_reward": 0.864888888888888,
         "std_reward": 1.1390647892519134e-16,
-        "mean_cost": 0.00021867199999999888,
-        "std_cost": 2.780919895634554e-20,
+        "mean_cost": 0.00022656799999999817,
+        "std_cost": 0.0,
         "n_trials": 20,
         "label": "tabula_rasa"
       },
       {
         "lambda": 5.0,
-        "mean_reward": 0.8613333333333333,
+        "mean_reward": 0.8746666666666665,
         "std_reward": 0.0,
-        "mean_cost": 4.9552000000000416e-05,
-        "std_cost": 6.952299739086386e-21,
+        "mean_cost": 8.114533333333375e-05,
+        "std_cost": 1.390459947817277e-20,
         "n_trials": 20,
         "label": "tabula_rasa"
       }
@@ -752,129 +764,129 @@
     "learning_curve": [
       {
         "step": 0,
-        "mean_reward": 0.9454,
-        "std_reward": 0.007887809826539237,
+        "mean_reward": 0.9028666666666665,
+        "std_reward": 0.0062508323032561715,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 10,
-        "mean_reward": 0.9456000000000001,
-        "std_reward": 0.03648048424835054,
+        "mean_reward": 0.902066666666666,
+        "std_reward": 0.02965244638049715,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 25,
-        "mean_reward": 0.9602,
-        "std_reward": 0.016867006445506226,
+        "mean_reward": 0.9056222222222216,
+        "std_reward": 0.008404754370972765,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 50,
-        "mean_reward": 0.9014666666666669,
-        "std_reward": 0.02754314000624309,
+        "mean_reward": 0.8140055555555558,
+        "std_reward": 0.0493232758701211,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 100,
-        "mean_reward": 0.9381999999999999,
-        "std_reward": 0.019635389937857003,
+        "mean_reward": 0.8846388888888883,
+        "std_reward": 0.021944074317701564,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 150,
-        "mean_reward": 0.9446,
-        "std_reward": 0.02003260500179382,
+        "mean_reward": 0.8892333333333328,
+        "std_reward": 0.01721567126870061,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 200,
-        "mean_reward": 0.9362666666666668,
-        "std_reward": 0.023561689590822405,
+        "mean_reward": 0.8804888888888887,
+        "std_reward": 0.020150486477084145,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 300,
-        "mean_reward": 0.9383333333333332,
-        "std_reward": 0.02740341891846806,
+        "mean_reward": 0.8798222222222216,
+        "std_reward": 0.015040443636054472,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 400,
-        "mean_reward": 0.9176666666666667,
-        "std_reward": 0.0322094751959367,
+        "mean_reward": 0.8820722222222217,
+        "std_reward": 0.01924933945686614,
         "n_trials": 20,
         "label": "banditGPT"
       },
       {
         "step": 533,
-        "mean_reward": 0.9328666666666667,
-        "std_reward": 0.027154399339863362,
+        "mean_reward": 0.8965277777777771,
+        "std_reward": 0.01295982069963172,
         "n_trials": 20,
         "label": "banditGPT"
       }
     ],
     "traffic_allocation": {
       "meta-llama/llama-3.1-8b-instruct": {
-        "mean_frac": 0.06486666666666666,
-        "std_frac": 0.05938540785973156,
+        "mean_frac": 0.034600000000000006,
+        "std_frac": 0.033929272841538405,
         "display": "Llama-3.1-8B"
       },
       "mistralai/mixtral-8x7b-instruct": {
-        "mean_frac": 0.045866666666666674,
-        "std_frac": 0.03126488978604169,
+        "mean_frac": 0.028266666666666662,
+        "std_frac": 0.02891704610702061,
         "display": "Mixtral-8x7B"
       },
       "google/gemini-2.5-flash-preview-09-2025": {
-        "mean_frac": 0.1091333333333333,
-        "std_frac": 0.036670969444507456,
+        "mean_frac": 0.15346666666666664,
+        "std_frac": 0.0665824801780969,
         "display": "Gemini-2.5-Flash"
       },
       "anthropic/claude-sonnet-4": {
-        "mean_frac": 0.14346666666666663,
-        "std_frac": 0.07085434198253328,
+        "mean_frac": 0.1728,
+        "std_frac": 0.0930188989160566,
         "display": "Claude-Sonnet-4"
       },
       "openai/gpt-4.1": {
-        "mean_frac": 0.12053333333333334,
-        "std_frac": 0.06906151846964657,
+        "mean_frac": 0.09873333333333333,
+        "std_frac": 0.052041820789737084,
         "display": "GPT-4.1"
       },
       "meta-llama/llama-4-maverick": {
-        "mean_frac": 0.03933333333333334,
-        "std_frac": 0.019629909152447274,
+        "mean_frac": 0.07260000000000001,
+        "std_frac": 0.0437599004670816,
         "display": "Llama-4-Maverick"
       },
       "google/gemma-3-27b-it": {
-        "mean_frac": 0.15560000000000002,
-        "std_frac": 0.06508811122026988,
+        "mean_frac": 0.13826666666666668,
+        "std_frac": 0.08070148009106703,
         "display": "Gemma-3-27B"
       },
       "anthropic/claude-haiku-4.5": {
-        "mean_frac": 0.13253333333333334,
-        "std_frac": 0.0475654403018737,
+        "mean_frac": 0.13646666666666668,
+        "std_frac": 0.08451826889955671,
         "display": "Claude-Haiku-4.5"
       },
       "openai/gpt-4-turbo": {
-        "mean_frac": 0.0536,
-        "std_frac": 0.03516210080944159,
+        "mean_frac": 0.029533333333333335,
+        "std_frac": 0.023721626326109167,
         "display": "GPT-4-Turbo"
       },
       "deepseek/deepseek-chat-v3-0324": {
-        "mean_frac": 0.13506666666666664,
-        "std_frac": 0.055973168175077914,
+        "mean_frac": 0.13526666666666667,
+        "std_frac": 0.0941860805946281,
         "display": "DeepSeek-V3"
       }
     },
-    "gap_closure_pct": 76.51832460732982,
-    "peak_bandit_reward": 0.9401999999999999,
+    "gap_closure_pct": 69.28177810433502,
+    "peak_bandit_reward": 0.8982055555555553,
     "n_train": 533,
     "n_eval": 750,
     "n_trials": 20
