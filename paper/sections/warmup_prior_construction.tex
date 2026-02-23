@@ -1,5 +1,5 @@
 \subsection{Warmup Prior Construction}
-\label{sec:warmup_construction}
+\label{sec:warmup_prior_construction}
 
 A core architectural feature of banditGPT is its modular warmup prior pipeline: the system accepts \emph{any} collection of (prompt, model, reward) triples as input and produces LinUCB prior matrices ($\Amat, \bvec$) for each model in the portfolio.
 Because warmup priors are inherently model-specific---they encode per-model reward surfaces over the prompt embedding space---the prior source must cover the models in the target portfolio.

@@ -29,7 +29,7 @@ They also require retraining when new models are added.
 \subsection{Bandit-Based Adaptive Routers}
 
 A growing body of work applies contextual bandits to LLM routing, enabling online adaptation without full supervision.
-Table~\ref{tab:comparison} provides a structured comparison.
+We summarize representative systems below; a compact feature comparison table is provided in the supplementary material.
 
 \paragraph{PILOT}~\cite{panda2025pilot} (EMNLP 2025 Findings) learns a shared query--LLM embedding space from offline human preference data and refines it online via LinUCB.
 It pairs this with a multi-choice knapsack cost policy for budget-constrained routing over a horizon, optimizing cumulative cost rather than per-request cost.
@@ -52,9 +52,9 @@ Instead, banditGPT makes three structural contributions that complement rather t
 
 \paragraph{1.\ Meta-ensemble via Corralling.}
 All prior bandit routers use a single contextual bandit policy.
-banditGPT is the first LLM router to employ a meta-learning layer: a Corralling~\cite{agarwal2017corralling} coordinator that maintains trust weights over two expert bandits with complementary exploration schedules---one initialized from warmup priors (constant $\alpha$) and one starting from scratch (decaying $\alpha$).
-This ``bandits-over-bandits'' structure provides bounded worst-case regret under prior mismatch (Appendix~\ref{appendix:mathematical_foundations}), a formal safety property absent from other bandit routers.
-In practice, Corralling achieves 29--39\% lower regret than either expert alone when priors are useful ($\alpha \leq 0.5$, Section~\ref{sec:prior_degradation}).
+To our knowledge, banditGPT is the first LLM routing system to explicitly layer a Corralling~\cite{agarwal2017corralling} coordinator over two expert contextual bandits with complementary exploration schedules---one initialized from warmup priors and one starting from scratch.
+Corralling is motivated by worst-case regret guarantees in its theoretical setting; our implementation uses a simplified, production-oriented variant and we therefore emphasize empirical stress tests under prior mismatch (Section~\ref{sec:prior_degradation}).
+In our evaluation, Corralling reduces regret by 29--39\% relative to either expert alone when priors are useful ($\alpha \leq 0.5$).
 Subsequent model-selection frameworks~\cite{pacchiano2020model, cutkosky2021dynamic} improve on Corralling's variance guarantees through regret balancing, though none have been applied to LLM routing.
 
 \paragraph{2.\ Offline-to-online prior transfer.}
@@ -73,39 +73,6 @@ We note areas where PILOT and BaRP advance beyond banditGPT's current design:
 (c)~PILOT's knapsack formulation is better suited for deployments with strict aggregate budget caps.
 These suggest natural extensions for future work.
 
-\subsection{Feature Comparison}
-
-Table~\ref{tab:comparison} contrasts banditGPT with both open-source and concurrent routing frameworks.
-
-\begin{table}[t]
-\centering
-\caption{Feature comparison of LLM routing frameworks.  $\dagger$~Code not publicly available.}
-\label{tab:comparison}
-\small
-\begin{tabular}{@{}lcccccc@{}}
-\toprule
-\textbf{Feature} & \textbf{RouteLLM} & \textbf{GraphRouter} & \textbf{PILOT} & \textbf{BaRP}$^\dagger$ & \textbf{LLM Bandit} & \textbf{banditGPT} \\
- & \scriptsize{ICLR '25} & \scriptsize{ICLR '25} & \scriptsize{EMNLP '25} & \scriptsize{arXiv '25} & \scriptsize{arXiv '25} & \scriptsize{Ours} \\
-\midrule
-Paradigm & Supervised & Supervised & Bandit & Bandit & Bandit & Bandit \\
-\midrule
-Online & \texttimes & \texttimes & \checkmark & \checkmark & \checkmark & \checkmark \\
-Adaptation & & & & & & \\
-\midrule
-Cost & Threshold & Edge & Knapsack & Scalarized & Preference & Hard \\
-Handling & (implicit) & weights & policy & reward & conditioning & constraints \\
-\midrule
-Prior / & Supervised & Graph & Pref.-informed & Bandit & Model ID & 80k-battle \\
-Warmup & offline & inductive & embedding & feedback & vectors & warmup \\
-\midrule
-Safety / & None & None & None & None & None & Corralling \\
-Meta-Learning & & & & & & meta-learner \\
-\midrule
-Multi-model & $K{=}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ \\
-($K$) & & & & & & \\
-\midrule
-Open source & \checkmark & \checkmark & \texttimes & \texttimes & \checkmark & \checkmark \\
-\bottomrule
-\end{tabular}
-\end{table}
+\subsection{Feature Comparison (supplementary)}
+For a compact feature-by-feature comparison table across routing frameworks, see the supplementary material.
 

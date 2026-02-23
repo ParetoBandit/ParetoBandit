@@ -2,7 +2,7 @@
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{../experiments/01_figure/results/figure1_lmsys_holdout_pca.png}
+\includegraphics[width=\columnwidth]{../experiments/01_figure/results/figure1_lmsys_holdout_pca.png}
 \caption{\textbf{Model Preference is Heterogeneous and Predictable ($N=750$).}
 This figure establishes the empirical motivation for contextual routing: model preference varies by prompt, and the router's features predict this variation.
 \textbf{(A)}~Spearman rank correlation between the router PCA's first principal component (trained on 80K RouteLLM battle prompts---an independent dataset) and reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
@@ -12,6 +12,7 @@ Points are colored by outcome: ties (grey) dominate, confirming that most prompt
 \textbf{(B)}~The router PCA's $|\rho|$ (red line) compared against 100 independent random orthonormal projections ($384 \to 2$, QR-decomposed).
 The router PCA exceeds all random projections, confirming that the PCA concentrates genuine model preference signal rather than finding spurious correlation in a high-dimensional projection.
 PC1 is one of 32 PCA components the router uses (33 dimensions total, including a bias term); the full feature vector captures at least as much predictive signal.
-Effect magnitudes are holdout-specific due to stratified sampling (Appendix~\ref{app:stratification}); the signal's \emph{existence} is robust, but deployment magnitude depends on the prompt distribution.}
+Effect magnitudes are holdout-specific due to stratified sampling; the signal's \emph{existence} is robust, but deployment magnitude depends on the prompt distribution.}
+\Description{Two-panel figure: (A) scatter of held-out prompts along the first PCA component versus reward gap between GPT-4-Turbo and Mixtral, showing negative rank correlation; (B) distribution of absolute correlation for 100 random projections, with the PCA projection exceeding them.}
 \label{fig:lmsys_holdout_structure}
 \end{figure}

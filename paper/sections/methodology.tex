@@ -2,7 +2,7 @@
 \label{sec:methodology}
 
 % TRANSITION from Empirical Motivation
-Having established that model preference heterogeneity exists and is predictable through prompt embeddings (Figure~\ref{fig:lmsys_holdout_structure})---we now present the system design. Our approach combines two verified mechanisms:
+We now present the system design. Our approach combines two mechanisms:
 
 \begin{itemize}
     \item \textbf{Cost-aware contextual bandits} initialized from offline warmup priors, exploiting semantic structure for online learning
@@ -11,9 +11,9 @@ Having established that model preference heterogeneity exists and is predictable
 
 We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. While several concurrent systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}, banditGPT's distinguishing contribution is a hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits, addressing two fundamental challenges in production routing: safety against non-stationary quality shifts and agility in adopting new models.
 
-\subsection{Unified Feature Space: From Discovery to Deployment}
+\subsection{Unified Feature Space}
 
-All experiments in this work operate in a unified semantic feature space to ensure consistency from analysis to deployment. Prompts are embedded using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384-dimensional), reduced to 32 dimensions via domain-adapted PCA trained on 80,000 routing prompts from the RouteLLM dataset (35.14\% cumulative variance explained). This PCA is \emph{unsupervised}---it identifies directions of maximum variance in routing-relevant prompt embeddings without seeing reward labels. The primary semantic axis (PC1, 3.10\% variance) identified in Section~\ref{sec:motivation} shows significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$; Figure~\ref{fig:lmsys_holdout_structure}), confirming that the features capture routing-relevant signal. This feature space becomes the substrate for all adaptation experiments (Section~\ref{sec:robustness_adaptation}). The consistency of the feature space from signal validation (Figure~\ref{fig:lmsys_holdout_structure}) through deployment enables direct comparison and unified interpretation across all results.
+We embed prompts using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM. In supplementary analyses, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), suggesting they capture routing-relevant signal.
 
 \subsection{Problem Formulation}
 
@@ -29,12 +29,13 @@ where $\lambda$ controls the trade-off between performance and economy. A high $
 
 The system consists of three distinct layers of decision-making, as illustrated in Figure~\ref{fig:architecture}.
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.75\textwidth]{figures/figure3_architecture.png}
-\caption{\textbf{The banditGPT Router Architecture.} A user prompt is embedded via a Sentence Transformer and compressed by domain-adapted PCA (trained on 80K RouteLLM prompts) into a 33-dimensional context vector~$x_t$. \textbf{Layer~1} performs per-context Dynamic Pareto Filtering using cost metadata from the Model Registry. \textbf{Layer~2} implements an Expert Corralling meta-learner~\cite{agarwal2017corralling} that maintains a trust distribution over two expert bandits: a \emph{Warmup Expert} initialized with offline priors from RouteLLM battle data ($\Amat_m, \bvec_m$), and a \emph{Tabula Rasa Expert} with uninformative priors ($\Amat_m = \lambda\mathbf{I}$). The complementary alpha schedules (constant vs.\ decaying) enable the meta-learner to exploit both fast prior-informed initialization and eventual exploitation convergence. \textbf{Layer~3} selects the arm maximizing a Cost-Aware LinUCB objective; when models share a provider family, a Hybrid LinUCB formulation decomposes rewards into shared family ($\betavec_f$) and per-model ($\thetavec_m$) components. The two-level feedback loop (dashed) updates \emph{all} experts' sufficient statistics ($\Amat, \bvec$) via full feedback and the coordinator's trust weights via importance-weighted loss estimates. Data sources (dotted) show the offline-to-online transfer pathway. New models can be added dynamically via \texttt{register\_model()}, which bootstraps from a semantic neighbor and propagates to both experts.}
+\includegraphics[width=\columnwidth]{figures/figure3_architecture.png}
+\caption{\textbf{banditGPT architecture (overview).} Prompts are embedded and reduced with PCA to context $x_t$. The router (1) prunes dominated models via Dynamic Pareto Filtering, (2) mixes two experts (warmup vs.\ tabula rasa) via Corralling-style meta-learning, and (3) selects a model using a cost-aware LinUCB objective (with optional family sharing).}
+\Description{A three-layer routing diagram: prompt embedding and PCA produce context features; a Pareto filter prunes models; a meta-learner mixes two expert bandits; a LinUCB layer selects a model and updates parameters from observed rewards.}
 \label{fig:architecture}
-\end{figure*}
+\end{figure}
 
 \subsubsection{Layer 1: Dynamic Pareto Filtering}
 
@@ -71,91 +72,20 @@ When the model portfolio contains models from the same provider family (e.g., mu
 where $f(m)$ maps model $m$ to its family. The shared $\betavec_f$ is updated by \emph{every} observation from any family member, while $\thetavec_m$ captures model-specific deviations. Family assignment is automatic via \texttt{infer\_model\_family()}, which parses provider prefixes from model identifiers (e.g., \texttt{openai/gpt-4.1} $\to$ family \texttt{openai/gpt-4}). When all families are singletons, the hybrid formulation reduces to disjoint LinUCB with independent per-model parameters. The family structure becomes operationally relevant during model onboarding (Section~\ref{sec:transfer}): when a new model joins an existing family, it inherits the family's accumulated $\betavec$, providing a better initial reward estimate (Section~\ref{sec:transfer_null}).
 
 \paragraph{Exploration Parameter Selection.}
-The warmup expert uses constant $\alpha{=}2.0$ (no decay) to preserve distribution-shift detection; the tabula rasa expert decays from $\alpha{=}1.0$ to $0.01$, converging to exploitation. This asymmetry is deliberate: the warmup expert maintains perpetual exploration so the meta-learner can detect when priors become stale, while the tabula rasa expert converges to the best learned policy. The Corralling meta-learner (Section~\ref{sec:corralling}) amortizes the exploration overhead by shifting weight toward whichever expert currently performs better, recovering exploitation efficiency without sacrificing robustness (see Section~\ref{sec:ablations} for empirical validation).
+The warmup expert uses constant $\alpha{=}2.0$ (no decay) to preserve distribution-shift detection; the tabula rasa expert decays from $\alpha{=}1.0$ to $0.01$, converging to exploitation. This asymmetry is deliberate: the warmup expert maintains exploration so the meta-learner can detect when priors become stale, while the tabula rasa expert converges to the best learned policy.
 
-The specific value $\alpha{=}2.0$ is supported by three lines of evidence. First, it lies within the theoretically motivated LinUCB range: for confidence level $\delta$, the recommended $\alpha \approx 1 + \sqrt{\ln(2/\delta)/2}$ yields $\alpha \approx 2.4$ at $\delta{=}0.05$~\cite{li2010contextual}. Because the warmup expert starts with informative priors (populated precision matrices from ${\sim}80\text{k}$ battles), the confidence widths $\sqrt{x^\top A^{-1} x}$ are already smaller than for a cold-start bandit, so $\alpha{=}2.0$ produces moderate effective exploration. Second, a hyperparameter sensitivity sweep (Appendix~\ref{appendix:hp_sensitivity}) over $\alpha_{\text{start}} \in \{0.5, 1.0, 2.0, 4.0\}$ shows a broad performance plateau ($<0.3\%$ reward spread), with $\alpha{=}2.0$ near-optimal. Third, an alpha-schedule ablation (Section~\ref{sec:ablations}) confirms that constant-$\alpha$ for the warmup expert outperforms all decaying alternatives by 14\% in cumulative regret. We note that the sensitivity sweep varies both experts' schedules jointly through the \texttt{create()} interface; a crossed ablation isolating the warmup-expert $\alpha$ independently is a natural extension.
+We select $\alpha{=}2.0$ as a practical default: it falls within common LinUCB confidence choices~\cite{li2010contextual} and we find performance is relatively insensitive to $\alpha$ across a broad range in supplementary sweeps.
 
 To ensure numerical stability during long-running operations, we implement an \emph{Amortized Regularization Floor}. We track the effective decay of the precision matrix $\Amat_a$ and proactively reinject regularization $\lambda_{\text{ridge}}\mathbf{I}$ whenever the smallest eigenvalue risks dropping below a safety threshold, preventing singular matrix inversions without the cost of $O(d^3)$ operations at every step.
 
 \paragraph{Regularization in PCA Space.}
 We initialize the precision matrix as $\Amat_0 = \lambda \mathbf{I}$, which corresponds to an isotropic prior in the PCA-transformed feature space. This does not distinguish between high- and low-variance principal components and may over-regularize the latter. We adopt this deliberately simple baseline for stability; designing anisotropic or variance-matched regularization (e.g., diagonal $\Amat_0$ scaled by component variance, or full whitening before the bandit layer) is a natural extension that we leave for future work.
 
-\subsection{Dynamic Model Onboarding}
+\subsection{Meta-learning and dynamic portfolios (summary)}
 \label{sec:transfer}
-
-Production LLM portfolios evolve as providers release new models. The \texttt{register\_model()} API integrates a newcomer into a running router through a three-step procedure:
-
-\begin{enumerate}[nosep]
-\item \textbf{Semantic bootstrapping.} The nearest existing model $m_{\text{near}}$ is identified by embedding similarity between model identifiers. The newcomer's reward parameters are initialized by transferring the neighbor's learned preference vector while resetting confidence to ensure exploration:
-\begin{equation}
-\thetavec_{\text{new}} \leftarrow \thetavec_{\text{near}}, \quad \Amat_{\text{new}} \leftarrow \neff\mathbf{I}
-\end{equation}
-This decouples the expectation (mean) from the certainty (variance), providing an informed starting point while preserving the UCB exploration bonus.
-
-\item \textbf{Family assignment.} The newcomer's family is inferred automatically via \texttt{infer\_model\_family()} (or set explicitly). If the newcomer joins an existing family, the Hybrid LinUCB's shared $\betavec_f$ is immediately available, providing a richer initial reward estimate pooled from all family members.
-
-\item \textbf{Expert propagation.} The new model is propagated to both Corralling experts (warmup and tabula rasa), each receiving the appropriate initialization (transferred priors for warmup, identity for tabula rasa) and family mapping.
-\end{enumerate}
-
-\paragraph{Semantic transfer vs.\ semantic bootstrapping.}
-In a leave-one-out ablation where the newcomer is a permanent member of the original pool, per-model semantic transfer provides \textbf{no statistically significant improvement} over tabula rasa (Section~\ref{sec:transfer_null}): established models' accumulated precision matrices dominate UCB scores, starving the newcomer of traffic. However, when used within \texttt{register\_model()}---which combines $\thetavec$ transfer with confidence reset ($\Amat{=}\neff\mathbf{I}$)---semantic bootstrapping provides effective initialization. The confidence reset gives the newcomer a comparable UCB bonus to established models, allowing the router to learn its quality within ${\sim}600$ routing decisions (Section~\ref{sec:transfer_null}).
-
-\subsection{Corralling: Hedging Against Prior Uncertainty}
 \label{sec:corralling}
 
-In practice, a deployer rarely knows the quality of their priors in advance. To avoid having to choose between warmup-only (optimal when priors are correct, catastrophic when they are wrong) and tabula rasa (safe but slow), we employ a simplified variant of the Corralling algorithm~\cite{agarwal2017corralling} as an \emph{adaptive hedge}. This meta-learning framework aggregates two distinct experts:
-
-\begin{itemize}
-    \item \textbf{Warmup Expert}: Initialized with priors $\thetavec_{\text{warm}}$ derived from offline RouteLLM data.
-    \item \textbf{Tabula Rasa Expert}: Initialized with uninformative priors ($\Amat=\mathbf{I}$, $\bvec=\mathbf{0}$).
-\end{itemize}
-
-\textbf{The Algorithm}: At each round $t$, the coordinator samples an expert $e_t \sim p_t$ and observes the reward $r_t$. Since we only observe the reward for the chosen expert, we compute an importance-weighted loss estimate:
-\begin{equation}
-\hat{\ell}_{t,e} = \begin{cases}
-\frac{1 - r_t}{p_t(e)} & \text{if } e = e_t \\
-0 & \text{otherwise}
-\end{cases}
-\label{eq:importance_weighted_loss}
-\end{equation}
-
-The expert weights $w_{t,e}$ are updated using exponential descent with learning rate $\eta$ over \emph{decayed} cumulative losses. To adapt to non-stationary expert quality (e.g., new models entering the pool or traffic distribution shifts), cumulative losses are multiplicatively decayed by a factor $\rho \in (0,1]$ before each new observation:
-\begin{equation}
-L_{t,e} = \rho \cdot L_{t-1,e} + \hat{\ell}_{t,e}, \qquad w_{t+1,e} \propto \exp\left(-\eta \, L_{t,e}\right)
-\label{eq:corralling}
-\end{equation}
-We set $\rho = 0.999$, which yields an effective half-life of ${\sim}693$ rounds. This ensures that recent expert performance dominates the weight allocation while retaining enough history for stable estimates.
-
-\textbf{Learning Rate Selection}: We evaluate two learning rates: conservative ($\eta=0.1$) and aggressive ($\eta=1.0$). Conservative learning offers predictable performance, while aggressive learning achieves better median but with higher variance. We recommend $\eta=0.1$ for production deployments requiring reliability, based on its substantially lower variance.
-
-\textbf{Relationship to Theory}: Our implementation is inspired by the theoretical Corralling framework but differs in one key aspect: we use a fixed learning rate ($\eta=0.1$ or $\eta=1.0$) tuned for the typical horizon in our application, rather than the theoretically optimal $\eta^* \propto \sqrt{\ln K / T}$. Following the theoretical algorithm, all $K$ experts observe full feedback at every step (Section~\ref{sec:expert_updates}). While the fixed learning rate sacrifices the formal $O(\sqrt{T})$ regret guarantee, empirical validation (Section~\ref{sec:results}) demonstrates that Corralling \emph{dominates} both alternatives for good-to-moderate priors ($\alpha \leq 0.5$), achieving 29--39\% lower regret than either warmup-only or tabula rasa alone. Under adversarial priors ($\alpha \geq 0.6$), Corralling's variance increases and tabula rasa becomes safest---but this regime is rare in practice and detectable at runtime. The expected-value breakeven occurs at 53\% confidence in prior quality, making Corralling the appropriate default for most deployments.
-
-\textbf{Variance Cost of Adaptivity}: The meta-learning layer comes at a known variance cost: Corralling-style meta-learners incur regret scaling as $O(\sqrt{K \cdot T \log K})$ compared to $O(\sqrt{T})$ for a single bandit~\cite{agarwal2017corralling}. Recent work on regret balancing~\cite{pacchiano2020model} and dynamic balancing~\cite{cutkosky2021dynamic} proposes alternative model-selection frameworks that reduce this variance by explicitly equalizing cumulative regret across base algorithms, at the cost of requiring knowledge of the optimal base regret bound. We adopt Corralling for its simplicity and parameter-free operation, mitigating variance through the $\gamma$-floor and conservative learning rate ($\eta=0.1$).
-
-\textbf{Staleness-Aware Meta-Learning Rate}: In production, feedback arrives with variable delay (network latency, human evaluation). Stale feedback is less informative about the \emph{current} expert quality. We attenuate the meta-learner's loss contribution by a staleness factor:
-\begin{equation}
-\hat{\ell}_{t,e}^{\text{staleness}} = \frac{1}{1 + \delta_t / \tau} \cdot \hat{\ell}_{t,e}
-\end{equation}
-where $\delta_t$ is the delay (seconds) between selection and feedback, and $\tau$ is a half-life parameter (default 60s). This prevents stale feedback from causing abrupt, unjustified weight shifts in the meta-learner, while preserving the standard importance-weighted loss estimator (Eq.~\ref{eq:importance_weighted_loss}) for timely feedback.
-
-\subsubsection{Full-Feedback Expert Updates and Computational Complexity}
-\label{sec:expert_updates}
-
-\paragraph{Full-Feedback Updates ($O(K)$).}
-At each round, \emph{all} $K$ experts observe the feedback tuple $(x_t, a_t, r_t)$ and update their internal sufficient statistics ($\Amat, \bvec$), regardless of which expert was selected by the coordinator. This follows the theoretical Corralling prescription and prevents a \textbf{starvation death spiral}: without full feedback, the initially stronger expert (warmup) receives more meta-weight, and therefore more selections, more data, and faster learning---permanently starving the tabula rasa expert of observations and eliminating its usefulness as a safety net against prior mismatch.
-
-\paragraph{Computational Overhead.}
-Full-feedback updates incur $O(K)$ expert updates per round instead of $O(1)$. With $K{=}2$ experts, this doubles the update cost. In practice the overhead is negligible (${\sim}0.1$ms for two LinUCB updates) compared to LLM inference latency (${\sim}100$ms), and the experts update independently so could be parallelized if $K$ grows.
-
-\paragraph{Two-Level Separation.}
-The meta-weight update (Eq.~\ref{eq:corralling}) and the base-level updates serve distinct roles. The meta-learner decides which expert to \emph{trust} using importance-weighted losses; the base-level updates ensure every expert maintains a valid internal policy from which the meta-learner can draw. As shown in Figure~\ref{fig:corralling}, this design allows the meta-learner to shift weight toward the better-performing expert while the other expert remains informed and recoverable.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.95\columnwidth]{figures/figure4_corralling_weights.png}
-\caption{Corralling as Adaptive Meta-Learning. (Left) The production manifold is dominated by the ``Easy Cluster'' (94.2\%), where cheaper models suffice. (Right) Expert weight evolution during the first 1,121 steps on dev-set data. The meta-learner detects mismatch and gradually shifts weight toward the Tabula Rasa Expert (Green), stabilizing at $w \approx 0.87$. The ``jagged'' volatility reflects persistent exploration that maintains recoverability. This adaptation exploits the complementary alpha schedules: the warmup expert provides informed early selections (constant $\alpha{=}2.0$) while the tabula rasa expert converges to the best policy (decaying $\alpha$). Section~\ref{sec:results} shows this complementarity yields 29--39\% lower regret than either expert alone when priors are useful.}
-\label{fig:corralling}
-\end{figure}
+In settings where prior quality is uncertain and model portfolios evolve, banditGPT uses a Corralling-style coordinator~\cite{agarwal2017corralling} to mix two experts: a warmup expert initialized from offline priors (constant exploration) and a tabula rasa expert that decays exploration. The coordinator maintains non-zero probability on each expert to avoid starvation and updates expert weights based on observed rewards. We defer full update rules and onboarding details to the supplementary material.
 
 \subsection{Prior Calibration}
 

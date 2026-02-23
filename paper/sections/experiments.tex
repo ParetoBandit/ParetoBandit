@@ -2,67 +2,21 @@
 \label{sec:experiments}
 
 % TRANSITION from Methodology
-To rigorously validate our integrated approach, we conduct experiments organized in two parts:
-
-\textbf{Part I: Motivation (Section~\ref{sec:motivation})}
-\begin{itemize}
-    \item Table~\ref{tab:dataset}: Dataset provenance and split design
-    \item Figure~\ref{fig:lmsys_holdout_structure}: Model preference heterogeneity analysis
-\end{itemize}
-
-\textbf{Part II: Evaluation (Section~\ref{sec:results})}
-\begin{itemize}
-    \item Figure~\ref{fig:pareto}: Two-model Pareto frontier analysis against RouteLLM
-    \item Figure~\ref{fig:multimodel_pareto}: Multi-model routing at $K{=}5$ and $K{=}10$
-    \item Supporting results: catastrophic failure detection, sensitivity analysis (Appendix~\ref{app:adaptation_details})
-\end{itemize}
-
-In this section, we describe the experimental setup and protocols. We evaluate banditGPT in a realistic production environment, utilizing a large-scale dataset of real-world prompts, ground-truth rewards, and commercial inference costs.
+We evaluate banditGPT using a held-out LMSYS Chatbot Arena dataset~\cite{zheng2023judging} with fixed train/dev/test splits, and commercial per-request costs for each model. Additional evaluations (multi-model scaling, alternative bandit baselines, regret curves, and robustness stress tests) are reported in the appendix (supplementary material).
 
 \subsection{Dataset \& Ground Truth}
-
-We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023judging}, widely considered the gold standard for human preference alignment. As detailed in Table~\ref{tab:dataset}, we implement a strict \emph{Four-Stage Research Pipeline} to ensure zero data leakage between training, tuning, and evaluation:
-
-\begin{enumerate}
-    \item \textbf{Training (Warmup)}: We utilize 80,000 historical battles from the RouteLLM dataset to initialize the ``Warmup Expert'' priors.
-    
-    \item \textbf{Validation (Online Learning)}: A disjoint set of 1,121 prompts (Dev Set) is used for online bandit updates and hyperparameter tuning.
-    
-    \item \textbf{Testing (Frozen Evaluation)}: A final held-out set of 750 prompts is reserved exclusively for the frozen evaluation of the Pareto Frontier (Table~\ref{tab:results}), measuring generalization to unseen future prompts.
-    
-    \item \textbf{Scaling (Spatial Validation)}: To examine structural persistence, we project the full Chat-1M dataset ($N=10^6$) onto our PCA space, confirming that spatial structure persists at scale (though this dataset lacks reward labels, limiting analysis to spatial properties only).
-\end{enumerate}
-
-\input{../experiments/02_table/table1_dataset.tex}
-
-\input{sections/warmup_prior_construction}
+We use three disjoint prompt sets to avoid leakage: (i)~offline data for warmup priors (80k RouteLLM battles for the Mixtral/GPT-4-Turbo pair), (ii)~a dev stream of 1,121 prompts for online bandit updates, and (iii)~a frozen holdout of 750 prompts for evaluation of cost--quality trade-offs. Full dataset provenance and split details are provided in the appendix (supplementary material).
 
 \subsection{Model Topology \& Baselines}
 
-We select RouteLLM~\cite{ong2024routellm} as our primary baseline because it is the most widely adopted open-source LLM router (ICLR 2025, 4.6k GitHub stars) and provides the supervised-static paradigm against which online adaptation can be most directly compared.
-Other open-source peer-reviewed routers exist---GraphRouter~\cite{feng2025graphrouter} (ICLR 2025) and RouterDC~\cite{chen2024routerdc} (NeurIPS 2024)---but both are supervised static systems; we compare against RouteLLM as the strongest representative of this class.
-Concurrent bandit-based routing work---PILOT~\cite{panda2025pilot} (EMNLP 2025 Findings), BaRP~\cite{wang2025barp}, and LLM Bandit~\cite{li2025llmbandit}---either lacks public implementations or provides only minimal code, precluding reproducible head-to-head comparison at the time of writing.
-We deliberately mirror RouteLLM's primary evaluation topology:
+We mirror RouteLLM's primary $K{=}2$ evaluation topology~\cite{ong2024routellm}:
 
 \begin{itemize}
     \item \textbf{Weak Model}: \texttt{mistralai/mixtral-8x7b-instruct} (Cost: $\approx$ \$0.30 / 1M tokens).
     \item \textbf{Strong Model}: \texttt{openai/gpt-4-turbo} (Cost: $\approx$ \$10.00 -- \$30.00 / 1M tokens).
 \end{itemize}
 
-This choice is further motivated by data availability: RouteLLM's published battle dataset (80k LMSYS pairs for this model pair) provides the warmup priors that initialize our Warmup Expert, directly coupling the model topology to the prior machinery.
-By adopting this exact configuration, we isolate the algorithmic contribution (Static Classification vs.\ Adaptive Corralling) from variance caused by model capability shifts, and create a deliberately challenging comparison---banditGPT's warmup priors derive from the same data RouteLLM was trained on, giving RouteLLM its best-case scenario.
-
-We compare banditGPT against four distinct baselines:
-
-\begin{enumerate}
-    \item \textbf{Single Model (Static)}: Routing 100\% of traffic to either Mixtral (Low Cost, High Risk) or GPT-4-Turbo (High Cost, Low Risk).
-    
-    \item \textbf{Random Policy}: Uniform random selection (Baseline for ``zero intelligence'').
-    
-    \item \textbf{RouteLLM (SOTA Static)}~\cite{ong2024routellm}: A Matrix Factorization router trained on the LMSYS data. This represents the current industry standard for efficiency.
-    
-    \item \textbf{Oracle (Theoretical Bound)}: A clairvoyant router that always selects the model with the highest reward for every prompt (regardless of cost).
-\end{enumerate}
+We compare against static single-model baselines, random routing, RouteLLM-MF~\cite{ong2024routellm}, and an oracle upper bound that selects the better model per prompt.
 
 \subsection{Evaluation Metrics}
 
@@ -81,43 +35,6 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 \subsection{Implementation Details}
 
-\textbf{Embeddings}: We use \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} (384-d), reduced to 32 dimensions via domain-adapted PCA trained on 80K routing prompts (unsupervised---no reward labels used). Signal validation (Figure~\ref{fig:lmsys_holdout_structure}) confirms that PC1 significantly correlates with model preference ($\rho = -0.370$, $p < 0.0001$), exceeding all 100 random projections.
-
-\textbf{Infrastructure}: Experiments were conducted on a standard CPU node for bandit updates, demonstrating the algorithm's lightweight footprint compared to GPU-heavy router training. All matrix inverse updates use the Sherman-Morrison formula for $O(d^2)$ incremental updates, with automatic fallback to full $O(d^3)$ inversion when the denominator becomes numerically unstable ($|1 + w \cdot x^\top A^{-1} x| < 10^{-6}$).
-
-\textbf{Hyperparameters}: We set the mixing parameter $\gamma=0.05$ based on sensitivity sweeps in the Dev Set. For the Corralling learning rate, we evaluate both conservative ($\eta=0.1$) and aggressive ($\eta=1.0$) configurations. The staleness half-life is set to $\tau=60$s (default).
-
-\textbf{Prior Calibration}: All warmup experts undergo automatic two-pass prior calibration at initialization (bias probe + suite probe) to detect and correct scale explosion from legacy or misconfigured priors. Runtime prediction monitoring tracks per-model score distributions throughout deployment.
-
-\subsection{Statistical Rigor \& Reproducibility}
-
-To ensure robust conclusions, we employ rigorous statistical methodology exceeding standard practice in the routing literature.
-
-\paragraph{Multiple Trials.} For each cost penalty value $\lambda \in \{0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 1.0, 2.0, 5.0\}$ (15 values for dense frontier coverage), we conduct \textbf{twenty independent trials} using random seeds 42--61. This substantially exceeds standard practice in the routing literature (RouteLLM: $n=1$ deterministic run~\cite{ong2024routellm}; FrugalGPT: $n=3$ trials~\cite{chen2023frugalgpt}). We report mean $\pm$ 95\% confidence intervals using the $t_{19}$ distribution.
-
-\paragraph{Multiple Testing Correction.} With 10 cost penalties tested, we address multiple comparisons using the Benjamini-Hochberg FDR procedure~\cite{benjamini1995controlling} at $q=0.05$. Rather than relying solely on $p$-values, we emphasize \textit{effect size reporting} and \textit{visual Pareto dominance} (Figure~\ref{fig:pareto}), following best practices in machine learning research~\cite{demsar2006statistical}.
-
-\paragraph{Power Analysis.} With $n=20$ trials per configuration, we achieve $>80\%$ statistical power to detect effect sizes $\Delta > 0.01$ in reward, which is practically significant for production deployments. The observed effect sizes (banditGPT: $0.912$ vs RouteLLM: $0.883$ = $\Delta=0.029$) are well above our detection threshold.
-
-Each seed controls two sources of randomness: (1) data arrival order (prompts are shuffled per seed) and (2) stochastic expert selection in Corralling, which is essential for unbiased importance-weighted updates~\cite{agarwal2017corralling}. For deterministic baselines (Warmup, Tabula Rasa), variance arises solely from data ordering; for Corralling, both sources contribute. This design captures the sensitivity of online bandit regret to prompt arrival order, a critical factor in production deployments.
-
-\subsection{Baseline Ablations}
-
-To establish lower bounds and validate design choices, we compare banditGPT against four simpler routing strategies:
-
-\begin{enumerate}[nosep]
-    \item \textbf{Random Routing}: Uniform selection between models (50/50 split).
-    \item \textbf{$\epsilon$-Greedy}: Exploits best model $(1-\epsilon)$\% of time, explores randomly $\epsilon$\% (we test $\epsilon=0.1$).
-    \item \textbf{UCB Only}: Uses warmup priors without Corralling (single expert).
-    \item \textbf{Tabula Rasa Only}: No priors, learns from scratch (single expert).
-\end{enumerate}
-
-These ablations isolate the contributions of (1) learning vs. random allocation, (2) exploration strategies, (3) prior knowledge, and (4) expert aggregation via Corralling.
-
-\subsection{Fair Comparison: Cold-Start Evaluation}
-
-A potential fairness concern is that banditGPT trains on 1,121 dev prompts while RouteLLM uses pre-trained weights from a different 100k dataset. To address this, we evaluate banditGPT in \textbf{cold-start mode}: skipping the dev training phase and relying only on the 80k RouteLLM battle priors. This provides a fair baseline comparison where both methods use only pre-training, quantifying the value added by online adaptation.
-
-\paragraph{RouteLLM Comparison Caveats.}
-We note an important asymmetry: RouteLLM is a \emph{supervised} classifier trained on a different (and potentially larger) dataset of pairwise model comparisons, while banditGPT is an \emph{online learner} that observes rewards during training. These are fundamentally different paradigms. If RouteLLM's training data includes LMSYS Arena battles overlapping with our evaluation set, it may have an information advantage. Conversely, if banditGPT's online learning phase provides it with evaluation-domain data that RouteLLM lacks, the advantage reverses. We mitigate this through the cold-start evaluation (which removes banditGPT's online learning advantage), but a fully controlled comparison would require training both methods on identical data, which is infeasible given their different learning paradigms. Readers should interpret the comparison as demonstrating the \emph{potential} of adaptive vs.\ static routing rather than a strict apples-to-apples benchmark.
+\textbf{Embeddings:} \texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence} with 32D PCA trained on 80k routing prompts.
+\textbf{Trials:} Unless noted otherwise, we report mean and 95\% confidence intervals over 20 seeds for each cost penalty $\lambda$ in the sweep. Additional statistical details and robustness checks are in the appendix (supplementary material).
 

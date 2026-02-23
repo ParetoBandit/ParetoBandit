@@ -167,7 +167,14 @@ Since warmup priors cover only Mixtral and GPT-4-Turbo, GPT-4o is initialized fr
 \subsection{Deployment Strategy Selection Guide}
 \label{app:strategy_guide}
 
-Table~\ref{tab:strategy_guide} provides a practical decision framework for practitioners selecting a routing strategy based on prior quality assessment.
+The table below provides a practical decision framework for practitioners selecting a routing strategy based on prior quality assessment.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{../experiments/03_figure/results/figure3_prior_degradation.pdf}
+\caption{Prior degradation sweep ($N{=}100$ seeds). Corralling performs best for good-to-moderate priors ($\alpha \leq 0.5$) but degrades under strongly misleading priors ($\alpha \geq 0.6$). Tabula rasa is invariant to prior quality.}
+\Description{Line plot of cumulative regret versus prior corruption level alpha for Corralling, warmup-only, and tabula rasa, showing a crossover where Corralling degrades for adversarial priors.}
+\end{figure}
 
 \begin{table}[h]
 \centering
@@ -178,9 +185,8 @@ Table~\ref{tab:strategy_guide} provides a practical decision framework for pract
     ($N{=}100$ seeds, Corralling with $w_0{=}0.7$, hybrid LinUCB).
     \textbf{Key insight:} the crossover at $\alpha{\approx}0.55$
     determines when Corralling's variance exceeds its benefit
-    (Figure~\ref{fig:prior_degradation}).
+    (see the prior degradation sweep plot above).
 }
-\label{tab:strategy_guide}
 \small
 \begin{tabular}{@{}llccp{4.0cm}@{}}
 \toprule

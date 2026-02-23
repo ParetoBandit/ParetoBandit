@@ -37,32 +37,14 @@ Mixtral wins & 106 & 14.1\% \\
 
 \input{../experiments/01_figure/figure_1_caption}
 
-\paragraph{What the PCA captures.}
-Qualitative inspection of prompts at the high end of the PC1 axis---where Mixtral preference is strongest---reveals enrichment for strict formatting constraints. These prompts share a common structure: explicit instructions with constrained output format.
-
-\textit{Representative examples:}
-\begin{itemize}[noitemsep,topsep=2pt,leftmargin=10pt]
-    \item \textbf{Instruction-following templates:} ``Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request. \#\#\# Instruction: [...]'' (Gap: $-1.0$)
-    \item \textbf{Binary classification:} ``Given the document below, you have to determine if `Yes' or `No', the summary is factually consistent [...]'' (Gap: $-1.0$)
-    \item \textbf{Structured output constraints:} ``I want you to act as an aspect-based sentiment analysis model [...] The sentiment should be either positive, negative or neutral.'' (Gap: $-1.0$)
-    \item \textbf{Explicit negative constraints:} ``Use the following pieces of context to answer the question. If you don't know the answer, just say that you don't know, don't try to make up an answer.'' (Gap: $-1.0$)
-\end{itemize}
-
-We note that while these patterns are consistent with the hypothesis that RLHF alignment toward helpfulness may conflict with strict formatting constraints, \textbf{this causal mechanism has not been verified through controlled experiments} (e.g., comparing RLHF-tuned vs.\ base model responses). Alternative explanations---such as differences in instruction-following fine-tuning, decoding strategies, or evaluator biases---remain possible.
+Briefly, prompts at the high end of PC1 tend to involve stricter output constraints; we treat this as a descriptive observation rather than a causal claim.
 
 \paragraph{Statistical Validation.}
 The Spearman correlation ($\rho = -0.370$, $p < 0.0001$) is the primary metric, chosen because it directly tests the question the bandit needs answered: do the features predict model preference? This matches how BanditGPT uses features (LinUCB regression), without introducing artificial clustering or thresholds. PC1 is a conservative lower bound on the full feature vector's predictive power, since the router uses all 32 PCA components.
 
 A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the directional finding ($p < 0.0001$). All analyses use the held-out test set exclusively ($N=750$), with the PCA model trained on a disjoint set of 80K prompts.
 
-\paragraph{Methodological Notes.}
-\begin{itemize}[noitemsep,topsep=2pt,leftmargin=10pt]
-    \item \textbf{Data:} Held-out test set only ($N=750$). The dev set ($N=1{,}121$), used for online learning, is excluded to maintain train/test independence.
-    \item \textbf{PCA:} Domain-adapted, trained on 80K routing prompt embeddings (unsupervised---no reward labels). Applied to disjoint held-out data.
-    \item \textbf{Metric:} Spearman rank correlation, appropriate for ordinal/discrete data ($\{-1, 0, +1\}$) with no distributional assumptions.
-    \item \textbf{Reward source:} LMSYS Chatbot Arena human preference evaluations~\cite{zheng2023judging}, based on side-by-side model comparisons by crowd-workers.
-    \item \textbf{Stratification caveat:} The holdout was constructed via stratified sampling including a difficulty dimension derived from oracle reward statistics (Appendix~\ref{app:stratification}). This enriches for prompts with clear model preferences. The correlation's \emph{existence} is robust (exceeds all 100 random projections); its \emph{magnitude} in deployment will depend on the user's prompt distribution.
-\end{itemize}
+We use the held-out test set only ($N=750$); PCA is trained without reward labels on disjoint routing prompts; and rewards come from LMSYS Arena comparisons~\cite{zheng2023judging}. Additional sampling and stratification details are provided in the supplementary material.
 
 \paragraph{Why This Matters for Routing.}
 This finding has three direct consequences for router design:

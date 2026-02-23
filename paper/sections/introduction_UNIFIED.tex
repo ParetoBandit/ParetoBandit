@@ -5,7 +5,7 @@
 \section{Introduction}
 \label{sec:intro}
 
-The deployment of Large Language Models (LLMs) presents a fundamental challenge: \textbf{how do we route user queries across models with vastly different costs and capabilities?} Naively routing all traffic to expensive "frontier" models (e.g., GPT-4) wastes resources, while static routing policies fail to adapt to distribution shifts and new model releases.
+Deploying Large Language Models (LLMs) raises a practical question: \textbf{how should a system route user prompts across models with different costs and capabilities?} Always using an expensive model wastes budget, but purely static routing can be brittle when prompt distributions shift and new models are introduced.
 
 % ============================================================================
 % PART 1: THE PROBLEM (Two Core Challenges)
@@ -14,12 +14,12 @@ The deployment of Large Language Models (LLMs) presents a fundamental challenge:
 \subsection{Two Core Challenges}
 
 \paragraph{Challenge 1: Expensive Models Aren't Always Better}
-The assumption underlying most routing systems---that ``harder'' tasks require ``stronger'' models---is empirically wrong. We observe \textbf{model preference heterogeneity}: on held-out LMSYS prompts ($N=750$), model preference varies by prompt and the router's PCA features predict this variation (Spearman $\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections). About 14\% of prompts explicitly favor the cheaper model (Mixtral, \$0.50/1M tokens) over GPT-4-Turbo (\$10/1M tokens), correlating with strict formatting constraints where the frontier model's conversational tendencies become a liability (Section~\ref{sec:motivation}). The practical consequence is severe: when the state-of-the-art static router (RouteLLM) is given maximum budget, it pays $43\times$ more for $1.3\%$ \emph{lower} quality---because it cannot distinguish prompts where spending more money helps from those where it hurts.
+Many routing approaches implicitly assume a monotone relationship between ``difficulty'' and ``model strength.'' In our evaluation, this assumption does not always hold. We observe \textbf{model preference heterogeneity}: on held-out LMSYS prompts ($N=750$), model preference varies by prompt and the router's PCA features predict this variation (Spearman $\rho=-0.370$, $p<0.0001$, exceeding 100 random projections). Roughly 14\% of prompts favor the cheaper model over GPT-4-Turbo; qualitative inspection suggests these often involve stricter output constraints (see supplementary material for details). As a result, spending more can reduce average quality on this distribution: at its highest-cost operating point, RouteLLM pays about $43\times$ more for 1.3\% lower quality.
 
 \paragraph{Challenge 2: Training Data Doesn't Match Deployment}
 In production, the distribution of user prompts inevitably differs from the offline training data---a fundamental concern in any deployed ML system~\cite{shimodaira2000improving}. When training and deployment distributions diverge, warmup priors can degrade or invert in quality. Static routers like RouteLLM~\cite{ong2024routellm} and FrugalGPT~\cite{chen2023frugalgpt} have no mechanism to detect or adapt to such shifts. Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address this through online adaptation, but none provides formal safety guarantees against prior mismatch---a single misspecified bandit can silently degrade. Meanwhile, new models release frequently, requiring routers to incorporate them without costly retraining.
 
-\textbf{The Key Insight:} These challenges are \emph{interconnected}. Learning semantic structure (Challenge 1) doesn't help if priors fail under distribution shift (Challenge 2), and standard bandit approaches lack mechanisms to detect and recover from prior mismatch.
+\textbf{Implication.} A practical router should (i) learn prompt-dependent preferences and (ii) adapt online while being robust to imperfect priors.
 
 % ============================================================================
 % PART 2: OUR SOLUTION
@@ -27,16 +27,16 @@ In production, the distribution of user prompts inevitably differs from the offl
 
 \subsection{Our Approach}
 
-We present \textbf{banditGPT}, a cost-aware contextual bandit framework that addresses both challenges through:
+We present \textbf{banditGPT}, a cost-aware contextual bandit framework that addresses these challenges through:
 
 \paragraph{1. Cost-Aware Online Learning from Warmup Priors}
-We initialize LinUCB bandits with offline priors from 80k RouteLLM battle outcomes, then adapt online using only the router's own reward observations---no labels required. The cost-aware UCB objective balances quality and cost through a user-defined penalty $\lambda$, enabling continuous Pareto optimization across the full cost-quality spectrum. After approximately 200 in-distribution prompts, banditGPT surpasses RouteLLM's peak quality (trained on 100k supervised pairs), demonstrating that a small amount of in-distribution experience outweighs a large volume of out-of-distribution supervision. At low budgets, RouteLLM's pre-trained prompt-level discrimination remains competitive, reflecting a natural trade-off between supervision scale and deployment adaptation (Section~\ref{sec:pareto}).
+We initialize LinUCB with offline priors from 80k RouteLLM battles, then adapt online from the router's own reward observations (no additional labels). A Lagrangian penalty $\lambda$ balances quality and cost, tracing a cost--quality Pareto frontier. In our two-model benchmark, banditGPT exceeds RouteLLM's peak quality after $\sim$200 in-distribution prompts; at low budgets, RouteLLM's supervised discriminator remains competitive (Section~\ref{sec:pareto}).
 
 \paragraph{2. Corralling Meta-Learning for Adaptive Complementarity}
-We employ Corralling~\cite{agarwal2017corralling}, a meta-algorithm that adaptively combines two experts with complementary exploration schedules: a warmup expert (constant $\alpha{=}2.0$, informed by priors) and a tabula rasa expert (decaying $\alpha$, converging to exploitation). Through exponential weight updates, the meta-learner dynamically shifts weight between them, capturing the benefits of both fast prior-informed initialization \emph{and} eventual exploitation convergence. When priors are useful ($\alpha \leq 0.5$), Corralling achieves 29--39\% lower regret than either expert alone; when priors degrade, the meta-learner's runtime signals enable detection and fallback to tabula rasa.
+We use Corralling~\cite{agarwal2017corralling} to combine two experts with complementary exploration schedules: a warmup expert informed by priors (constant $\alpha$) and a tabula rasa expert that decays exploration. The meta-learner shifts weight over time, which improves regret when priors are moderately reliable and provides a simple fallback when they appear misleading (Section~\ref{sec:prior_degradation}).
 
 \paragraph{3. Multi-Model Routing ($K \geq 3$)}
-While several recent routers support multi-model selection~\cite{feng2025graphrouter, chen2024routerdc, panda2025pilot}, banditGPT is the first to combine multi-model support with online adaptation and meta-learning safety. Dynamic Pareto Filtering prunes dominated models per-request, and the exploration bonus guides discovery across heterogeneous cost-quality tiers.
+We support multi-model routing ($K\geq 3$) by pruning dominated models per prompt (Dynamic Pareto Filtering) and using contextual exploration to discover useful choices across cost tiers.
 
 % ============================================================================
 % PART 3: VALIDATION & CONTRIBUTIONS
@@ -48,13 +48,13 @@ Our work makes the following contributions, validated through comprehensive expe
 
 \begin{enumerate}
     \item \textbf{Model Preference Heterogeneity Analysis.}
-    We demonstrate empirically that prompt structure predicts model preference: the router's PCA features show significant rank correlation with model preference ($\rho = -0.370$, $p < 0.0001$, $N = 750$), exceeding all 100 random projections. This establishes that routing is learnable through contextual features.
+    We show that prompt embeddings contain signal for routing decisions: PCA features correlate with model preference on held-out prompts ($\rho=-0.370$, $p<0.0001$, $N=750$), exceeding 100 random projections.
     
     \item \textbf{Cost-Aware Online Learning with Safety.}
-    A contextual bandit router combining offline warmup priors with online adaptation achieves $70.0\%$ gap closure to oracle on frozen holdout (vs.\ $46.2\%$ for RouteLLM) after ${\sim}200$ label-free prompts. At moderate-to-high budgets, banditGPT Pareto-dominates RouteLLM; at low budgets, RouteLLM's pre-trained discrimination is competitive, providing an honest delineation of when online adaptation adds value. Corralling meta-learning with complementary alpha schedules achieves 29--39\% lower regret than either expert alone when priors are useful, with catastrophic failure response as a secondary benefit (banditGPT matches EMA at $K{=}10$).
+    A cost-aware contextual bandit initialized from offline priors improves with online feedback and reaches 70.0\% gap closure to oracle on frozen holdout (vs.\ 46.2\% for RouteLLM). We find a consistent pattern across cost regimes: RouteLLM is strong at low budgets, while online adaptation improves quality at moderate-to-high budgets (Section~\ref{sec:pareto}). We further evaluate Corralling as a hedge against prior mismatch (Section~\ref{sec:prior_degradation}).
     
     \item \textbf{Open-Source Multi-Model Framework.}
-    A modular, open-source system supporting arbitrary portfolio sizes with continuous cost-quality Pareto optimization, Dynamic Pareto Filtering, and prior calibration. We additionally report a rigorously validated \emph{null result} on semantic transfer for cold-starting new models (Section~\ref{sec:transfer_null}), establishing that this remains an open problem for bandit routers.
+    We release a modular implementation that supports multi-model portfolios, Dynamic Pareto Filtering, and prior calibration. We also report a null result for per-model semantic transfer in our cold-start setting (Section~\ref{sec:transfer_null}), clarifying an open challenge for routing with limited traffic to new models.
 \end{enumerate}
 
-The remainder is organized as follows. Section~\ref{sec:motivation} establishes the empirical motivation (semantic structure and model preference heterogeneity). Section~\ref{sec:methodology} describes the system architecture. Sections~\ref{sec:experiments}--\ref{sec:results} present experimental validation with the Pareto frontier as the primary benchmark. Section~\ref{sec:related} surveys related work; Section~\ref{sec:conclusion} discusses limitations and future directions. Extended results and sensitivity analyses appear in the appendices.
+The remainder is organized as follows. Section~\ref{sec:methodology} describes the system architecture. Sections~\ref{sec:experiments}--\ref{sec:results} present experimental validation with the Pareto frontier as the primary benchmark. Section~\ref{sec:related} surveys related work; Section~\ref{sec:conclusion} discusses limitations and future directions. Additional empirical motivation and extended results appear in the supplementary material.
