@@ -1,75 +1,110 @@
 \section{Related Work}
 \label{sec:related}
 
-Current approaches to LLM efficiency generally fall into four categories: Cascades, Static Routers, Generic Bandits, and recent Cost-Aware Bandit Routers. We contrast banditGPT against each, highlighting the specific limitations our architecture addresses.
+LLM routing has matured rapidly: from early cascading heuristics, through supervised classifiers, to the current wave of bandit-based adaptive routers.
+We survey the landscape along two axes---\emph{static vs.\ adaptive} and \emph{cost handling}---and position banditGPT's specific contributions within it.
 
-\subsection{Cascading Architectures}
+\subsection{Cascading and Sequential Architectures}
 
-Cascading systems, exemplified by FrugalGPT~\cite{chen2023frugalgpt}, optimize cost by sequentially querying models from cheapest to most expensive. The router evaluates the response of a smaller model using a scoring function; if the score is insufficient, the query is escalated.
+FrugalGPT~\cite{chen2023frugalgpt} pioneered cost-aware routing via cascading: a query is sent to progressively more expensive models until a quality threshold is met.
+This reduces average cost but introduces non-deterministic latency (the sum of all attempted inferences) and requires a per-model scoring function.
+banditGPT is a single-shot router: it selects one model before inference, guaranteeing deterministic latency.
 
-\textbf{The Limitation}: Cascades introduce non-deterministic latency. A difficult query incurs the sum of all failed inference times plus the final success. For real-time applications requiring strict SLA compliance (e.g., $<500$ms TTFT), the ``latency spikes'' of cascading chains are prohibitive.
+\subsection{Supervised Static Routers}
 
-\textbf{Our Approach}: banditGPT is a \emph{Single-Shot Router}. It predicts the optimal model before inference, guaranteeing deterministic latency and strictly one inference cost per request.
+A family of recent systems trains classifiers offline to predict the best model per query:
 
-\subsection{Static Preference Predictors}
+\begin{itemize}[nosep]
+    \item \textbf{RouteLLM}~\cite{ong2024routellm} (ICLR 2025) trains Matrix Factorization or BERT classifiers on LMSYS Chatbot Arena preference data, supporting $K{=}2$ (strong/weak) routing via a threshold parameter. It is open-source (4.6k GitHub stars) and serves as our primary baseline.
+    \item \textbf{GraphRouter}~\cite{feng2025graphrouter} (ICLR 2025) constructs a heterogeneous graph over tasks, queries, and LLMs, using edge prediction for routing. Its inductive formulation generalizes to new LLMs without retraining.
+    \item \textbf{RouterDC}~\cite{chen2024routerdc} (NeurIPS 2024) uses dual contrastive learning on query--LLM embeddings, achieving strong out-of-distribution generalization.
+    \item The \textbf{LLMRouter} library~\cite{feng2025llmrouter} unifies 16+ routing strategies (including RouteLLM, GraphRouter, and RouterDC) with a common evaluation harness.
+\end{itemize}
 
-Predictive routers, such as RouteLLM~\cite{ong2024routellm}, train a classifier (e.g., Matrix Factorization or BERT) to predict model performance based on offline datasets like LMSYS Chatbot Arena~\cite{zheng2023judging}.
+These systems provide strong out-of-the-box routing when sufficient labeled data covers the deployment distribution.
+Their shared limitation is \emph{static deployment}: once trained, the routing policy is frozen.
+As demonstrated in Section~\ref{sec:pareto}, when the deployment distribution diverges from training data---e.g., the ``strong'' model is not uniformly superior---static routers can exhibit non-monotonic cost--quality behavior, paying more for worse quality.
+They also require retraining when new models are added.
 
-\textbf{The Limitation}: These policies are static. As demonstrated in Section~\ref{sec:pareto}, they suffer from \emph{Prior Rigidity}: when the production distribution exhibits ``Quality Inversion'' (where cheap models outperform expensive ones on specific tasks), static routers fail to adapt, incurring an ``Over-Provisioning Penalty.'' Furthermore, they suffer from the Cold Start problem: adding a new model requires collecting thousands of new samples and retraining the router.
+\subsection{Bandit-Based Adaptive Routers}
 
-\textbf{Our Approach}: banditGPT is an \emph{Online Learner}. Through continuous feedback, it updates its beliefs in real-time. New models are admitted with tabula rasa initialization and converge to their appropriate role within a few hundred interactions of online learning, without requiring retraining of the full router.
+A growing body of work applies contextual bandits to LLM routing, enabling online adaptation without full supervision.
+Table~\ref{tab:comparison} provides a structured comparison.
 
-\subsection{Contextual Bandits in NLP}
+\paragraph{PILOT}~\cite{panda2025pilot} (EMNLP 2025 Findings) learns a shared query--LLM embedding space from offline human preference data and refines it online via LinUCB.
+It pairs this with a multi-choice knapsack cost policy for budget-constrained routing over a horizon, optimizing cumulative cost rather than per-request cost.
 
-The use of Multi-Armed Bandits (MAB) for model selection is an emerging field. Recent works like LLM-Bandit and C2MAB apply standard LinUCB~\cite{li2010contextual} or Thompson Sampling~\cite{agrawal2013thompson} to routing.
+\paragraph{BaRP}~\cite{wang2025barp} trains a preference-conditioned contextual bandit under partial (bandit) feedback, matching realistic deployment conditions where only the selected model's reward is observed.
+Operators can adjust a performance--cost preference vector at inference time without retraining.
 
-\textbf{The Limitation}: Standard bandit algorithms assume stationarity and well-specified priors. They lack safety mechanisms for ``Negative Transfer,'' where a transferred prior could become harmful under severe domain mismatch. They also struggle with ``Expert Death,'' where a bad start permanently marginalizes a potentially good model.
+\paragraph{LLM Bandit}~\cite{li2025llmbandit} formulates model selection as a preference-conditioned MAB with model identity vectors, enabling generalization to unseen LLMs.
+Code is available at \texttt{spotify-research/llm-bandit}.
 
-\textbf{Our Approach}: We introduce Expert Corralling~\cite{agarwal2017corralling} to the LLM routing domain. By maintaining a portfolio of experts (Warmup vs.\ Tabula Rasa) and dynamically mixing them, banditGPT provides a worst-case safety guarantee that standard LinUCB implementations lack. Subsequent model-selection frameworks~\cite{pacchiano2020model, cutkosky2021dynamic} improve on Corralling's variance guarantees through regret balancing, though none have been applied to LLM routing.
+\paragraph{C2MAB-V}~\cite{dai2024c2mab} extends combinatorial multi-armed bandits to the multi-LLM setting, selecting model subsets for collaborative tasks via integer programming relaxation with online updates.
 
-\subsection{Preference-Conditioned and Cost-Aware Bandit Routers}
+\paragraph{xRouter}~\cite{zhang2025xrouter} takes a reinforcement learning approach, training a router agent (e.g., Qwen2.5-7B) with an explicit cost-aware reward function to learn end-to-end orchestration strategies.
 
-A recent wave of work specifically addresses cost-aware LLM routing via contextual bandits.
-PILOT~\cite{panda2025pilot} learns a shared query--LLM embedding space from offline human preferences and refines it online via LinUCB, pairing this with a multi-choice knapsack cost policy for budget-constrained routing.
-BaRP~\cite{wang2025barp} trains a preference-conditioned contextual bandit under partial (bandit) feedback, enabling operators to adjust the performance--cost trade-off at inference time without retraining.
-LLM Bandit~\cite{li2025llmbandit} formulates model selection as a preference-conditioned MAB with generalization to unseen models.
+\subsection{Positioning banditGPT}
 
-These methods advance cost-aware routing but differ from banditGPT in three structural ways.
-First, none employs a meta-ensemble: each uses a single contextual bandit, whereas banditGPT runs \emph{bandits over bandits} via Corralling, exploiting complementary exploration schedules to achieve 30--40\% lower regret than either expert alone when priors are useful (Section~\ref{sec:methodology}).
-Second, banditGPT invests in rich prior machinery---80k-battle warmup priors and progressive model registration---rather than learning an embedding space from scratch.
-Third, banditGPT enforces hard cost and latency constraints via Dynamic Pareto Filtering before the bandit selects, whereas PILOT and BaRP fold cost into the reward or a separate knapsack/scalarization policy.
-None of these concurrent systems provides an open-source implementation as of this writing; a detailed architectural comparison is provided in Appendix~\ref{appendix:positioning}.
+banditGPT occupies a specific niche within this landscape.
+It is \emph{not} the first bandit-based LLM router---PILOT, BaRP, and LLM Bandit all formulate routing as a contextual bandit problem.
+Instead, banditGPT makes three structural contributions that complement rather than supersede this concurrent work:
 
-\subsection{Feature Comparison Matrix}
+\paragraph{1.\ Meta-ensemble via Corralling.}
+All prior bandit routers use a single contextual bandit policy.
+banditGPT is the first LLM router to employ a meta-learning layer: a Corralling~\cite{agarwal2017corralling} coordinator that maintains trust weights over two expert bandits with complementary exploration schedules---one initialized from warmup priors (constant $\alpha$) and one starting from scratch (decaying $\alpha$).
+This ``bandits-over-bandits'' structure provides bounded worst-case regret under prior mismatch (Appendix~\ref{appendix:mathematical_foundations}), a formal safety property absent from other bandit routers.
+In practice, Corralling achieves 30--40\% lower regret than either expert alone when priors are useful ($\alpha \leq 0.5$, Section~\ref{sec:prior_degradation}).
+Subsequent model-selection frameworks~\cite{pacchiano2020model, cutkosky2021dynamic} improve on Corralling's variance guarantees through regret balancing, though none have been applied to LLM routing.
 
-Table~\ref{tab:comparison} contrasts banditGPT with both open-source frameworks and concurrent bandit-based routers.
+\paragraph{2.\ Offline-to-online prior transfer.}
+PILOT learns a shared embedding space from scratch; BaRP trains under bandit feedback.
+banditGPT instead initializes LinUCB sufficient statistics ($\Amat, \bvec$) from 80k RouteLLM battle outcomes (or smaller domain-specific evaluation batches for $K{>}2$), then adapts online.
+This enables production-quality routing from the first request while the Corralling meta-learner hedges against prior mismatch---a combination that no prior system provides.
+
+\paragraph{3.\ Hard constraints via Dynamic Pareto Filtering.}
+PILOT folds cost into a knapsack policy that optimizes over a horizon; BaRP scalarizes cost into the reward.
+banditGPT enforces per-request hard constraints (\texttt{max\_cost}, \texttt{max\_latency}, \texttt{quality\_floor}) by pruning dominated models \emph{before} the bandit selects, guaranteeing constraint satisfaction per-request rather than in expectation.
+
+\paragraph{Advantages of concurrent work.}
+We note areas where PILOT and BaRP advance beyond banditGPT's current design:
+(a)~PILOT's jointly optimized query--LLM embeddings may capture non-linear structure that our fixed PCA pipeline cannot;
+(b)~BaRP's per-request preference vector provides finer-grained control than banditGPT's episode-level $\lambda$;
+(c)~PILOT's knapsack formulation is better suited for deployments with strict aggregate budget caps.
+These suggest natural extensions for future work.
+
+\subsection{Feature Comparison}
+
+Table~\ref{tab:comparison} contrasts banditGPT with both open-source and concurrent routing frameworks.
 
 \begin{table}[t]
 \centering
-\caption{Feature Comparison of Routing Frameworks.  $\dagger$~No open-source implementation available.}
+\caption{Feature comparison of LLM routing frameworks.  $\dagger$~Code not publicly available.}
 \label{tab:comparison}
 \small
-\begin{tabular}{@{}lccccc@{}}
+\begin{tabular}{@{}lcccccc@{}}
 \toprule
-\textbf{Feature} & \textbf{FrugalGPT} & \textbf{RouteLLM} & \textbf{PILOT}$^\dagger$ & \textbf{BaRP}$^\dagger$ & \textbf{banditGPT} \\
- & (Cascade) & (Static) & (Bandit) & (Bandit) & (Ours) \\
+\textbf{Feature} & \textbf{RouteLLM} & \textbf{GraphRouter} & \textbf{PILOT} & \textbf{BaRP}$^\dagger$ & \textbf{LLM Bandit} & \textbf{banditGPT} \\
+ & \scriptsize{ICLR '25} & \scriptsize{ICLR '25} & \scriptsize{EMNLP '25} & \scriptsize{arXiv '25} & \scriptsize{arXiv '25} & \scriptsize{Ours} \\
 \midrule
-Context Use & Output & Dense & Shared & Prompt + & PCA \\
- & Scoring & Embedding & Embed.\ Space & Pref.\ Vec. & Semantic \\
+Paradigm & Supervised & Supervised & Bandit & Bandit & Bandit & Bandit \\
 \midrule
-Cost Handling & Cascade & None & Knapsack & Scalarized & Hard \\
- & (sequential) & & Policy & Reward & Constraints \\
+Online & \texttimes & \texttimes & \checkmark & \checkmark & \checkmark & \checkmark \\
+Adaptation & & & & & & \\
 \midrule
-Prior Machinery & None & Supervised & Preference- & Bandit & 80k-battle \\
- & & Offline & informed & Feedback & Warmup \\
+Cost & Threshold & Edge & Knapsack & Scalarized & Preference & Hard \\
+Handling & (implicit) & weights & policy & reward & conditioning & constraints \\
 \midrule
-Algorithm & Threshold & Classifier & LinUCB & Contextual & LinUCB + \\
- & Chain & (MF/BERT) & & Bandit & Corralling \\
+Prior / & Supervised & Graph & Pref.-informed & Bandit & Model ID & 80k-battle \\
+Warmup & offline & inductive & embedding & feedback & vectors & warmup \\
 \midrule
-Safety / & Score & None & None & None & Expert \\
-Meta-Learning & Thresholds & & & & Corralling \\
+Safety / & None & None & None & None & None & Corralling \\
+Meta-Learning & & & & & & meta-learner \\
 \midrule
-Open Source & Yes & Yes & No & No & Yes \\
+Multi-model & $K{=}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ \\
+($K$) & & & & & & \\
+\midrule
+Open source & \checkmark & \checkmark & \texttimes & \texttimes & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -2,15 +2,17 @@
 % Appendix E.2: Positioning Among Bandit-Type LLM Routers
 % ============================================================================
 % Purpose: Detailed comparison with PILOT, BaRP, LLM Bandit, and simpler
-%          bandit families. Supports Section 2 (Related Work) with expanded
+%          bandit families. Supports Section 6 (Related Work) with expanded
 %          taxonomy and key architectural differentiators.
 
 \subsection{Positioning Among Bandit-Type LLM Routers}
 \label{appendix:positioning}
 
-The LLM routing landscape increasingly includes bandit-based approaches.
-Table~\ref{tab:bandit_taxonomy} provides a structured comparison across four
-families, from simple MABs to banditGPT's integrated architecture.
+The LLM routing landscape now includes multiple bandit-based approaches alongside
+established supervised routers.
+Table~\ref{tab:bandit_taxonomy} provides a structured comparison across five
+families: simple MABs, plain contextual bandits, supervised static routers,
+concurrent bandit routers, and banditGPT.
 
 % --------------------------------------------------------------------------
 % Taxonomy Table
@@ -18,64 +20,63 @@ families, from simple MABs to banditGPT's integrated architecture.
 
 \begin{table}[h]
 \centering
-\caption{Taxonomy of bandit-type LLM routers.  $\dagger$~No open-source
-implementation available as of this writing.}
+\caption{Taxonomy of LLM routing approaches. \checkmark~= open-source code available.
+$\dagger$~= code not publicly available.}
 \label{tab:bandit_taxonomy}
 \small
-\begin{tabular}{@{}lp{2.4cm}p{2.4cm}p{3.0cm}p{3.0cm}@{}}
+\begin{tabular}{@{}lp{2.0cm}p{2.2cm}p{2.2cm}p{2.8cm}@{}}
 \toprule
-\textbf{Aspect} & \textbf{Simple MAB} & \textbf{Plain LinUCB} &
-  \textbf{PILOT$^\dagger$ / BaRP$^\dagger$} & \textbf{banditGPT (Ours)} \\
+\textbf{Aspect} & \textbf{Static Routers} & \textbf{Plain LinUCB} &
+  \textbf{PILOT$^\dagger$ / BaRP$^\dagger$ / LLM Bandit} & \textbf{banditGPT (Ours)} \\
 \midrule
 Context use &
-  None or minimal &
+  Dense embedding (RouteLLM); graph (GraphRouter); contrastive (RouterDC) &
   Linear over prompt features &
-  Shared query--LLM embeddings (PILOT); prompt + preference vector (BaRP) &
+  Shared query--LLM embeddings (PILOT); prompt + preference vector (BaRP); model ID vectors (LLM Bandit) &
   PCA-compressed prompt embeddings + bias via \texttt{FeatureService} \\
 \midrule
+Online adaptation &
+  None (frozen at training time) &
+  Yes (LinUCB updates) &
+  Yes (all three adapt online from bandit feedback) &
+  Yes (LinUCB updates + meta-learner reweighting) \\
+\midrule
 Cost awareness &
-  Often ignored &
+  Threshold (RouteLLM); edge weights (GraphRouter) &
   Ad-hoc penalties &
-  Knapsack policy (PILOT); scalarized reward (BaRP) &
-  Hard constraints + cost/latency normalization in \texttt{RouterConfig} \\
+  Knapsack policy (PILOT); scalarized reward (BaRP); preference conditioning (LLM Bandit) &
+  Hard constraints + Dynamic Pareto Filtering \\
 \midrule
 Prior machinery &
-  Flat / empirical means &
+  Supervised offline training (100k+ labeled pairs) &
   Isotropic $\lambda I$, no warmup &
   Preference-informed from human data (PILOT); bandit-feedback trained (BaRP) &
-  80k-battle warmup, heuristic priors, semantic neighbor transfer, T-shirt sizing \\
+  80k-battle warmup priors, heuristic priors, semantic neighbor transfer \\
 \midrule
-Algorithm &
-  $\epsilon$-greedy / UCB1 / Thompson &
-  LinUCB or linear Thompson &
-  Custom contextual bandit + policy gradient / knapsack &
-  Disjoint LinUCB with time decay + Corralling meta-learner \\
-\midrule
-Multi-expert / meta-learning &
-  Rare &
-  Rare &
-  Not the focus &
+Safety / meta-learning &
+  None &
+  None &
+  None &
   Exp4-style Corralling between warmup and tabula rasa experts \\
 \midrule
 Constraint handling &
-  None &
+  Implicit (threshold or classifier) &
   None or soft &
   Knapsack (PILOT); preference scalarization (BaRP) &
-  Dynamic Pareto Filtering with hard \texttt{max\_cost}, \texttt{max\_latency},
+  Per-request hard \texttt{max\_cost}, \texttt{max\_latency},
   \texttt{quality\_floor} \\
 \midrule
-Production engineering &
-  Minimal &
-  Moderate &
-  Research-grade &
-  Thread safety, Sherman--Morrison updates, numerical stability pipeline,
-  state save/load, registration API \\
+Multi-model ($K$) &
+  $K{=}2$ (RouteLLM); $K{\geq}2$ (GraphRouter, RouterDC) &
+  $K{\geq}2$ &
+  $K{\geq}2$ (all three) &
+  $K{\geq}2$ (evaluated at $K{=}2, 5, 10$) \\
 \midrule
 Open source &
+  RouteLLM \checkmark, GraphRouter \checkmark, RouterDC \checkmark &
   Varies &
-  Varies &
-  No &
-  Yes \\
+  LLM Bandit \checkmark~(minimal); PILOT $\dagger$; BaRP $\dagger$ &
+  \checkmark~(production-grade) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -84,86 +85,77 @@ Open source &
 % Key Differentiators
 % --------------------------------------------------------------------------
 
-\paragraph{1.\ Rich Prior and Registration Machinery.}
-banditGPT maintains three prior layers: (a)~warmup priors from 80k RouteLLM
-battles, (b)~heuristic priors for models absent from the warmup data, and
-(c)~T-shirt sizing with speed-based bias injection (\texttt{fast}/
-\texttt{balanced}/\texttt{slow}).
-New models are admitted via \texttt{admix\_theta\_from\_neighbors}, which
-copies $\theta$ from the nearest neighbor in a ``model DNA'' embedding space
-while resetting $A$ to $\neff \cdot I$, inheriting preferences without
-inheriting over-confidence.
-Progressive registration (Tier~A/B/C) is more elaborate than typical bandit
-routers, which usually add a zero-initialized arm with $\lambda I$.
-By contrast, PILOT learns a shared embedding space from scratch, and BaRP
-trains under bandit feedback---both effective strategies but without
-the warm-start advantage that 80k pre-existing battles provide.
+\paragraph{1.\ Corralling Meta-Learner (Bandits over Bandits).}
+PILOT, BaRP, LLM Bandit, and C2MAB-V~\cite{dai2024c2mab} each use a single
+contextual bandit or policy gradient to make routing decisions.
+banditGPT adds a meta-learning layer: a Corralling~\cite{agarwal2017corralling}
+coordinator that maintains trust weights over two expert bandits with
+complementary exploration schedules.
+The ``bandits over bandits'' structure provides a formal safety guarantee
+(Appendix~\ref{appendix:mathematical_foundations}): even under severe prior
+mismatch, total regret is bounded by tabula-rasa performance plus
+$O(\sqrt{T})$ meta-overhead (Corollary~\ref{cor:neg_transfer}).
+No concurrent bandit-based router provides an analogous meta-ensemble or
+formal safety bound against prior mismatch.
+Subsequent model-selection frameworks~\cite{pacchiano2020model, cutkosky2021dynamic}
+improve on Corralling's variance guarantees through regret balancing, though
+none have been applied to LLM routing.
 
-\paragraph{2.\ Production Engineering Around LinUCB.}
+\paragraph{2.\ Rich Prior and Registration Machinery.}
+banditGPT maintains three prior layers: (a)~warmup priors from 80k RouteLLM
+battles (or smaller domain-specific evaluation batches for $K{>}2$),
+(b)~heuristic priors for models absent from the warmup data, and
+(c)~semantic neighbor transfer with confidence reset for model onboarding.
+New models are admitted via \texttt{register\_model()}, which copies $\theta$
+from the nearest neighbor while resetting $A$ to $\neff \cdot I$, inheriting
+preferences without inheriting over-confidence.
+PILOT learns a shared embedding space from scratch;
+BaRP trains under bandit feedback;
+LLM Bandit uses model identity vectors.
+All are effective strategies but without the warm-start advantage that
+pre-existing battle data provides.
+
+\paragraph{3.\ Production Engineering Around LinUCB.}
 The \texttt{DisjointLinUCBPolicy} in \texttt{router.py} includes per-model
 locks, a global lock, Sherman--Morrison $O(d^2)$ updates with automatic
 $O(d^3)$ fallback when the denominator is small, forgetting factors,
-staleness-aware variance inflation, and a full numerical-stability pipeline
+staleness-aware variance inflation, and a numerical-stability pipeline
 (trace-based checks, regularization resets, proactive regularization floor).
 State save/load includes dimension validation and matrix-shape checks.
 Thread-safe cloning uses \texttt{deepcopy} with atomic arm add/remove.
-These engineering safeguards are absent from typical research-grade
-implementations and are essential for production deployments where numerical
-instability or race conditions would degrade routing quality silently.
+These engineering safeguards are essential for production deployments where
+numerical instability or race conditions would degrade routing quality
+silently.
 
-\paragraph{3.\ Corralling Meta-Learner (Bandits over Bandits).}
-Unlike PILOT, BaRP, and LLM Bandit---each of which uses a single contextual
-bandit---banditGPT runs an Exp4-style Corralling
-layer~\cite{agarwal2017corralling} that maintains trust weights over two
-expert bandits: one initialized from warmup priors and one starting from
-scratch.
-The meta-learner receives an optional cost weight $\lambda$ so it operates on
-$\text{quality} - \lambda \cdot \text{cost}$ rewards, enabling global
-cost--quality trade-offs on top of per-expert learning.
-This ``bandits over bandits'' structure provides the safety guarantee
-formalized in Appendix~\ref{appendix:mathematical_foundations}: even under
-severe prior mismatch, total regret is bounded by tabula-rasa performance
-plus $O(\sqrt{T})$ meta-overhead (Corollary~\ref{cor:neg_transfer}).
-No concurrent bandit-based router provides an analogous meta-ensemble or
-formal safety bound.
-
-\paragraph{4.\ Explicit Constraint Handling and Market Anchoring.}
+\paragraph{4.\ Explicit Constraint Handling.}
 \texttt{RouterConfig} carries \texttt{market\_cost\_floor/ceiling} and
 \texttt{latency\_floor/ceiling}, plus pessimistic defaults when registry
 metadata is missing (unknown models are treated as expensive and slow rather
-than blowing up the budget).
+than violating the budget).
 Hard constraints (\texttt{max\_cost}, \texttt{max\_latency},
 \texttt{quality\_floor}) are enforced via Dynamic Pareto Filtering
 \emph{before} the bandit selects, so the bandit operates only over the
 feasible set.
 PILOT handles budget via a knapsack policy that selects a cost tier per
-query; BaRP scalarizes cost into the reward.
+query; BaRP scalarizes cost into the reward; LLM Bandit uses preference
+conditioning.
 banditGPT's approach guarantees constraint satisfaction per-request rather
 than in expectation over a horizon.
 
-\paragraph{5.\ Feature Architecture and Observability.}
-banditGPT separates concerns into a pluggable \texttt{FeatureService}
-(``Eyes''), the bandit policy (``Brain''), and a \texttt{ContextStore}
-(``Memory''), a more modular architecture than most academic routers which
-bake feature extraction into the model.
-Two observability features are uncommon in simpler routers:
-\texttt{explain\_decision} decomposes $\theta^\top x$ into per-feature
-contributions, and \texttt{get\_probabilities} approximates the probability
-each model is optimal via posterior sampling---useful for monitoring,
-debugging, and A/B testing in production.
-
 % --------------------------------------------------------------------------
-% What PILOT/BaRP Do Better
+% What Concurrent Work Does Better
 % --------------------------------------------------------------------------
 
 \paragraph{Advantages of Concurrent Work.}
-We note areas where PILOT and BaRP advance the state of the art beyond
+We note areas where concurrent systems advance the state of the art beyond
 banditGPT's current design:
 \begin{itemize}[nosep]
   \item \textbf{Learned embedding spaces.}
     PILOT jointly optimizes query and LLM embeddings aligned by affinity,
     potentially capturing non-linear structure that our fixed
     SentenceTransformer + PCA pipeline cannot.
+    GraphRouter~\cite{feng2025graphrouter} similarly learns graph-based
+    representations that capture task--query--LLM interactions.
     Integrating a learned embedding layer is a natural extension.
   \item \textbf{Preference-conditioned inference.}
     BaRP allows operators to specify a performance--cost preference vector at
@@ -176,6 +168,15 @@ banditGPT's current design:
     For deployments with strict aggregate budgets (e.g., monthly spend caps),
     a horizon-aware cost policy could complement banditGPT's per-request
     filtering.
+  \item \textbf{Generalization to unseen LLMs.}
+    LLM Bandit's model identity vectors and GraphRouter's inductive graph
+    formulation both enable generalization to new LLMs without retraining.
+    banditGPT's \texttt{register\_model()} API provides a mechanism for
+    onboarding new models but requires online exploration rather than
+    zero-shot generalization.
+  \item \textbf{Combinatorial selection.}
+    C2MAB-V~\cite{dai2024c2mab} selects \emph{subsets} of models for
+    collaborative tasks, whereas banditGPT selects a single model per request.
 \end{itemize}
 
 These complementary strengths suggest fruitful directions for future

@@ -39,8 +39,9 @@ We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023ju
 
 \subsection{Model Topology \& Baselines}
 
-We select RouteLLM~\cite{ong2024routellm} as our primary baseline because it is, to our knowledge, the only LLM router that is both \emph{open-source} and \emph{peer-reviewed} (ICLR 2025).
-Concurrent bandit-based routing work---PILOT~\cite{panda2025pilot} (EMNLP 2025 Findings), BaRP~\cite{wang2025barp}, and LLM Bandit~\cite{li2025llmbandit}---does not provide public implementations, precluding reproducible head-to-head comparison.
+We select RouteLLM~\cite{ong2024routellm} as our primary baseline because it is the most widely adopted open-source LLM router (ICLR 2025, 4.6k GitHub stars) and provides the supervised-static paradigm against which online adaptation can be most directly compared.
+Other open-source peer-reviewed routers exist---GraphRouter~\cite{feng2025graphrouter} (ICLR 2025) and RouterDC~\cite{chen2024routerdc} (NeurIPS 2024)---but both are supervised static systems; we compare against RouteLLM as the strongest representative of this class.
+Concurrent bandit-based routing work---PILOT~\cite{panda2025pilot} (EMNLP 2025 Findings), BaRP~\cite{wang2025barp}, and LLM Bandit~\cite{li2025llmbandit}---either lacks public implementations or provides only minimal code, precluding reproducible head-to-head comparison at the time of writing.
 We deliberately mirror RouteLLM's primary evaluation topology:
 
 \begin{itemize}

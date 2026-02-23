@@ -9,7 +9,7 @@ Having established that model preference heterogeneity exists and is predictable
     \item \textbf{Corralling meta-learning} that hedges against prior mismatch via complementary exploration schedules
 \end{itemize}
 
-We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. Our framework, banditGPT, introduces a hierarchical architecture that addresses two fundamental challenges in production routing: safety against non-stationary quality shifts and agility in adopting new models.
+We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. While several concurrent systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}, banditGPT's distinguishing contribution is a hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits, addressing two fundamental challenges in production routing: safety against non-stationary quality shifts and agility in adopting new models.
 
 \subsection{Unified Feature Space: From Discovery to Deployment}
 
