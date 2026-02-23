@@ -52,6 +52,8 @@ A critical validation is whether the detected structure depends on PCA training 
 \centering
 \caption{PCA Provenance Comparison on Held-Out Data ($N=750$)}
 \label{tab:pca_comparison}
+\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{PCA Source} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Interpretation} \\
@@ -60,6 +62,7 @@ Domain-adapted (80K routing) & $< 0.0001$ & 1.53 & Large effect \\
 Generic C4 (100K web text) & $< 0.0001$ & 0.33 & Small effect \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1. The generic PCA shows a numerically positive but smaller effect; however, in the primary correlation-based analysis (Section~\ref{sec:motivation}), we validate signal through comparison with 100 random projections rather than a generic PCA condition. Both PCAs are unsupervised---neither uses reward labels during training.
@@ -72,6 +75,8 @@ To assess whether the bimodal structure exists beyond the 2D projection, we exam
 \centering
 \caption{Cluster Quality Across Dimensionalities}
 \label{tab:multidim_validation}
+\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 \textbf{Space} & \textbf{Dimensions} & \textbf{Silhouette} & \textbf{Separation Ratio} \\
@@ -81,6 +86,7 @@ To assess whether the bimodal structure exists beyond the 2D projection, we exam
 384D Embeddings & 384 & 0.057 & 0.81 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 The 384D silhouette score of 0.057 indicates \textbf{weak cluster structure} in the full embedding space---clusters overlap substantially. The separation ratio of 0.81 ($< 1.0$) confirms that within-cluster distances exceed between-cluster distances in high dimensions. This is an important caveat: the structure detected by PC1 represents a task-relevant signal extracted from a noisy high-dimensional space, not a dominant clustering pattern. The PC1 projection isolates this signal (Spearman $\rho = -0.370$, $\rho^2 = 0.137$, explaining ${\sim}14\%$ of reward gap variance---a moderate correlation), but the remaining ${\sim}86\%$ of variance is driven by other factors (topic, length, complexity) orthogonal to model preference.

@@ -13,7 +13,7 @@ We formalize LLM routing as a \emph{Cost-Aware Contextual Bandit} problem. While
 
 \subsection{Unified Feature Space}
 
-We embed prompts using \texttt{sentence-transformers/all-MiniLM-L6-v2} (384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM. In supplementary analyses, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), suggesting they capture routing-relevant signal.
+We embed prompts using \path{sentence-transformers/all-MiniLM-L6-v2} (384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM. In supplementary analyses, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), suggesting they capture routing-relevant signal.
 
 \subsection{Problem Formulation}
 

@@ -33,6 +33,7 @@ To support warmup prior construction without leaking information into the evalua
 \caption{Three-way data split for multi-model experiments.}
 \label{tab:three_way_split}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}llrl@{}}
 \toprule
 \textbf{Split} & \textbf{Source} & \textbf{Prompts} & \textbf{Purpose} \\
@@ -42,6 +43,7 @@ Online Learning & Dev (43-model) & 533 & Bandit online learning \\
 Holdout & Holdout (43-model) & 750 & Frozen evaluation (untouched) \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
 The prior-training set produces $355 \times 43 = 15{,}265$ (prompt, model, reward) observations---approximately 355 per model with a context dimension of 33, yielding ${\sim}10\times$ oversampling relative to the minimum needed for well-conditioned precision matrices.
@@ -69,7 +71,7 @@ Rewards can come from any source: human ratings, LLM-as-judge scores~\cite{zheng
 With $K$ models and $d{=}33$ context dimensions, 200 prompts yield ${\sim}6\times$ oversampling per model, sufficient for moderate-confidence priors.
 
 \item \textbf{Generate priors.}
-Run the prior generation script (\texttt{generate\_multimodel\_warmup\_priors.py}), which encodes each prompt via the shared PCA projection and performs LinUCB updates for every (prompt, model, reward) triple.
+Run the prior generation script (\path{generate_multimodel_warmup_priors.py}), which encodes each prompt via the shared PCA projection and performs LinUCB updates for every (prompt, model, reward) triple.
 The output is a single joblib artifact containing $\Amat_m$ and $\bvec_m$ for all $K$ models.
 
 \item \textbf{Set plasticity.}

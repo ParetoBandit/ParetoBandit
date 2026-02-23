@@ -46,7 +46,9 @@ Warmup priors are generated from 43-model evaluation data using a \textbf{three-
     \item \textbf{Online learning:} 533 prompts (disjoint from prior training) for bandit updates.
     \item \textbf{Holdout:} 750 prompts (identical to Section~\ref{sec:pareto}) for frozen evaluation.
 \end{itemize}
-For each portfolio, we sweep the cost penalty $\lambda \in \{0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0\}$ over 20 seeds.
+For each portfolio, we sweep the cost penalty $\lambda$ over 11 values from
+0 to 5 (0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0) across
+20 seeds.
 Baselines include the Oracle (per-prompt best model), best static single model, random routing, and $\epsilon$-greedy ($\epsilon{=}0.1$).
 A no-Corralling ablation isolates the meta-learner's contribution.
 
