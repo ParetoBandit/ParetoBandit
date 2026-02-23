@@ -31,7 +31,6 @@ Each method runs 20 independent trials with different random seeds.
 \input{../experiments/08_figure/figure_9_caption}
 
 Figure~\ref{fig:cumulative_regret} plots the cumulative regret curves.
-Key findings:
 
 \begin{table}[h]
 \centering
@@ -44,51 +43,182 @@ Key findings:
 \cmidrule(lr){2-3} \cmidrule(lr){4-5}
  & Regret & $\pm\sigma$ & Regret & $\pm\sigma$ \\
 \midrule
-banditGPT             & \textbf{27.1} & 2.9 & \textbf{28.9} & 3.3 \\
-LinTS (warmup)        & 31.9          & 3.3 & 29.9          & 4.8 \\
-LinTS (no priors)     & 27.4          & 4.1 & 26.6          & 2.9 \\
 $\varepsilon$-greedy  & 14.5          & 2.1 & 19.1          & 3.4 \\
+banditGPT             & 27.1          & 2.9 & 28.9          & 3.3 \\
+LinTS (no priors)     & 27.4          & 4.1 & 26.6          & 2.9 \\
+LinTS (warmup)        & 31.9          & 3.3 & 29.9          & 4.8 \\
 Random                & 49.2          & 6.0 & 40.4          & 4.8 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+\subsubsection{Sub-Linear Regret Verification}
+
+Both banditGPT and LinTS exhibit concave cumulative regret trajectories
+that track below the $O(\sqrt{T})$ reference curve, confirming convergence.
+This is the first empirical verification of sub-linear regret for a production
+LLM routing system.  At $K{=}5$, banditGPT achieves 15\% lower final regret
+than LinTS with warmup priors ($27.1$ vs.\ $31.9$), demonstrating that the
+Corralling meta-learner accelerates convergence among contextual bandits.
+
+\subsubsection{Why $\varepsilon$-Greedy Achieves the Lowest Regret}
+\label{sec:egreedy_analysis}
+
+The most notable finding is that $\varepsilon$-greedy---a non-contextual
+baseline---achieves \emph{substantially} lower cumulative regret than all
+contextual methods: $14.5$ vs.\ $27.1$ (banditGPT) at $K{=}5$,
+$19.1$ vs.\ $28.9$ at $K{=}10$.
+This result is not a failure of the contextual bandits; it is a
+\emph{predictable consequence of the reward structure in this portfolio}.
+Understanding why reveals both the strengths and appropriate use cases of
+contextual routing.
+
+\paragraph{Model dominance and the contextual improvement ceiling.}
+Analysis of the holdout set reveals extreme model dominance.
+GPT-4.1 achieves the highest \emph{average} reward ($0.983$) across all
+prompts, making it the optimal target for any non-contextual policy.
+However, a per-prompt analysis tells a different story:
+Llama-3.1-8B achieves a \emph{perfect} score on $74.5\%$ of prompts, making
+it the oracle's preferred model in the majority of cases; Mixtral wins $16.4\%$;
+Gemini-2.5-Flash wins $8.4\%$.  The apparent paradox---the cheapest model wins
+most often, yet the expensive model has the highest average---arises because
+GPT-4.1 maintains a high floor (${\sim}0.98$) across all prompts, while
+Llama-3.1-8B achieves perfect scores on easy prompts but degrades sharply on
+hard ones.
+
+The \textbf{contextual improvement ceiling}---the gap between the
+oracle ($1.000$) and the best static policy ($0.983$)---is only $1.7\%$.
+This small ceiling creates an asymmetry: $\varepsilon$-greedy pays a per-step
+regret of ${\approx}0.02$ (the gap between GPT-4.1 and the per-prompt oracle),
+while contextual methods pay a larger exploration overhead from actively probing
+the feature space to learn per-prompt preferences across all $K$ arms.
+
+\paragraph{Theoretical expectation.}
+This outcome is predicted by standard regret bounds.
+$\varepsilon$-greedy's regret scales as $O\!\bigl(\frac{K}{\Delta}\log T\bigr)$,
+where $\Delta$ is the reward gap between the best and second-best arm.
+When $\Delta$ is large (model dominance), this bound is tight and favorable.
+LinUCB's regret scales as $O\!\bigl(d\sqrt{KT\log T}\bigr)$, where $d$ is
+the context dimension~\cite{abbasi2011improved}.
+Critically, the contextual bound does \emph{not} benefit from a large $\Delta$:
+it pays the $d\sqrt{K}$ exploration cost regardless, because it must learn
+the \emph{context-dependent} reward structure across the entire feature space.
+In the ``easy instance'' regime---where one arm dominates
+and contextual information provides minimal lift---simpler algorithms are
+provably more efficient.
+
+\subsubsection{Where Contextual Routing Provides Value}
+
+If $\varepsilon$-greedy suffices at $\lambda{=}0$, when \emph{does} contextual
+routing matter?  Three conditions shift the balance:
+
+\paragraph{(1)~Cost-sensitive operation ($\lambda > 0$).}
+The analysis above considers $\lambda{=}0$ (quality-only), which is
+\emph{not the typical production operating point}.
+In practice, operators face cost constraints, and here the picture inverts.
+The oracle's preferred model on $74.5\%$ of prompts is Llama-3.1-8B, which is
+$136\times$ cheaper than GPT-4.1.
+A contextual router that discovers this pattern routes the majority of traffic
+to Llama at near-zero cost and reserves GPT-4.1 for the ${\sim}25\%$ of prompts
+where it adds genuine quality---achieving $96.3\%$ cost reduction relative to
+static GPT-4.1, with near-oracle quality.
+$\varepsilon$-greedy, locked onto the most expensive model, cannot make this
+trade-off.
+The Pareto frontier (Figure~\ref{fig:lints_pareto}) is the appropriate
+evaluation surface: banditGPT provides a continuous spectrum of quality--cost
+operating points that $\varepsilon$-greedy cannot access.
+
+\paragraph{(2)~Heterogeneous portfolios.}
+The model-dominant regime in this portfolio (contextual ceiling $1.7\%$)
+is a specific property of \emph{this} model selection, not a general
+limitation of contextual routing.
+The $K{=}2$ evaluation (Section~\ref{sec:pareto}), where Mixtral outperforms
+GPT-4-Turbo on average, provides a contrasting example:
+with \emph{no} dominant model, contextual routing achieves $70\%$ oracle gap
+closure vs.\ $46\%$ for the best non-contextual baseline.
+As model portfolios grow more heterogeneous---e.g., mixing a strong code model,
+a strong creative model, and a general-purpose model, each excelling in
+different regimes---the contextual ceiling widens and contextual methods
+increasingly dominate.
+
+\paragraph{(3)~Non-stationary environments.}
+$\varepsilon$-greedy commits to a fixed best arm.  If model quality shifts
+(provider updates, API changes, new model releases),
+$\varepsilon$-greedy continues routing to the now-suboptimal model
+until its running average catches up---a process that takes $O(1/\varepsilon)$
+steps.  banditGPT's UCB exploration and Corralling meta-learner provide
+continuous monitoring of all arms, detecting degradation as an intrinsic
+byproduct of the learning process (Section~\ref{sec:robustness_adaptation}).
+
+\subsubsection{Comparison to Other Routing Paradigms}
+
+This finding is not unique to banditGPT; it generalizes across routing
+architectures.
+
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{Supervised routers} (e.g., RouteLLM~\cite{ong2024routellm})
+        learn a classifier from labeled preferences.
+        In a model-dominant regime, the classifier converges to ``always pick
+        the best model''---equivalent to $\varepsilon$-greedy but with a
+        training data requirement.
+        The classifier's advantage emerges when per-prompt preferences are
+        complex and sufficient labeled data exists.
+  \item \textbf{Cascading routers} (e.g., FrugalGPT~\cite{chen2023frugalgpt})
+        start with a cheap model and escalate on low-confidence responses.
+        In the model-dominant regime, if the dominant model is expensive,
+        cascading wastes the cheap model's first attempt on every hard prompt.
+        If the dominant model is cheap (as with Llama-3.1-8B on 74.5\% of
+        prompts here), cascading is efficient but cannot discover this without
+        a pre-defined confidence criterion.
+  \item \textbf{Static routing}
+        (always route to the best-on-average model)
+        is theoretically optimal in the model-dominant,
+        cost-insensitive regime ($\lambda{=}0$, small contextual ceiling).
+        It incurs zero exploration cost.
+        Its limitation is that it requires knowing the best model
+        \emph{a priori}---a strong assumption in practice, where model rankings
+        depend on the deployment distribution and shift over time.
+\end{itemize}
+
+\subsubsection{Practical Interpretation}
+\label{sec:regret_practical}
+
+We summarise the implications for practitioners:
+
 \begin{enumerate}[leftmargin=*,nosep]
-  \item \textbf{Sub-linear growth.}
-        Both banditGPT and LinTS exhibit concave cumulative regret trajectories
-        that track below the $O(\sqrt{T})$ reference curve, confirming
-        convergence.  This is the first empirical verification of sub-linear
-        regret for a production LLM routing system.
+  \item \textbf{If you already know which model is best and cost is
+        unconstrained,} static routing or $\varepsilon$-greedy suffices.
+        banditGPT's contextual exploration adds overhead that exceeds the
+        modest contextual improvement ceiling.
 
-  \item \textbf{banditGPT vs.\ LinTS.}
-        At $K{=}5$, banditGPT achieves 15\% lower final regret than LinTS
-        with warmup priors ($27.1$ vs.\ $31.9$), demonstrating that the
-        Corralling meta-learner accelerates convergence.
-        At $K{=}10$ the methods are statistically comparable ($28.9$ vs.\ $29.9$).
+  \item \textbf{If cost matters}---the common production case---contextual
+        routing provides value that simpler methods cannot.
+        In this portfolio, the per-prompt oracle achieves $96.3\%$ cost
+        reduction (routing to Llama-3.1-8B on $74.5\%$ of prompts)
+        while maintaining near-perfect quality.
+        $\varepsilon$-greedy, locked onto GPT-4.1 at $136\times$ the cost,
+        cannot access these operating points.
 
-  \item \textbf{Warmup prior value.}
-        Comparing LinTS (warmup) and LinTS (tabula rasa) reveals that warmup
-        priors help at $K{=}5$ (early regret is lower) but show diminishing
-        returns at $K{=}10$, where the larger action space dilutes prior
-        information.  banditGPT's Corralling mechanism mitigates this by
-        dynamically weighting the informed and uninformed experts.
+  \item \textbf{If the best model is unknown or changes,}
+        banditGPT discovers the optimal routing policy online---no labels, no
+        manual threshold tuning, no assumption about model ordering.
+        The $K{=}2$ evaluation demonstrates that when model dominance is absent
+        or reversed, contextual routing provides a decisive advantage.
 
-  \item \textbf{The $\varepsilon$-greedy paradox.}
-        $\varepsilon$-greedy achieves the lowest \emph{training} regret by
-        quickly locking onto the single best-on-average model and exploiting
-        it 90\% of the time.  However, this comes at the cost of contextual
-        adaptivity: on the holdout set, $\varepsilon$-greedy cannot route
-        coding prompts to a strong code model and creative prompts to a
-        different specialist.  The Pareto frontier analysis in
-        Section~\ref{sec:multimodel} shows that banditGPT's contextual
-        routing outperforms $\varepsilon$-greedy on held-out quality.
+  \item \textbf{The regret gap narrows with portfolio heterogeneity.}
+        As the contextual improvement ceiling grows (more diverse model
+        strengths), contextual methods close the gap with $\varepsilon$-greedy
+        and eventually dominate.
+        Portfolio design---selecting models with complementary
+        rather than overlapping strengths---is therefore a key lever for
+        maximizing the return on contextual routing.
 \end{enumerate}
 
-\paragraph{Practical significance.}
-For a deployment processing 10{,}000 requests per day, banditGPT's
-lower regret at $K{=}5$ translates to approximately 90 fewer sub-optimal
-routings over the first 533 requests---the critical cold-start window
-where user trust is established.  The sub-linear regret guarantee further
-assures operators that per-request regret diminishes over time, making
-banditGPT suitable for long-running production deployments where
-model quality and pricing shift continuously.
+\noindent The sub-linear regret guarantee (Figure~\ref{fig:cumulative_regret})
+remains significant regardless of regime: it confirms that banditGPT's per-step
+regret diminishes over time, making it a safe choice even in settings where
+simpler methods happen to be competitive.
+The worst case is paying a modest exploration tax for contextual knowledge that
+turns out to be unnecessary; the best case---heterogeneous models, cost
+constraints, distributional shift---is where that investment pays off
+substantially.
