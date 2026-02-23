@@ -189,7 +189,7 @@ def create_figure():
     txt(e1x + ew/2, y_exp + eh*0.78,
         "Expert 1: Warmup", fs=8.5, fw="bold", c=PAL["teal"])
     txt(e1x + ew/2, y_exp + eh*0.52,
-        "LinUCB with offline priors", fs=6.5, c=PAL["md"], sty="italic")
+        "Hybrid LinUCB with offline priors", fs=6.5, c=PAL["md"], sty="italic")
     txt(e1x + ew/2, y_exp + eh*0.25,
         "$A_m, b_m$ from RouteLLM + $\\lambda I$",
         fs=6, c=PAL["md"], fam="serif")
@@ -201,7 +201,7 @@ def create_figure():
     txt(e2x + ew/2, y_exp + eh*0.78,
         "Expert 2: Tabula Rasa", fs=8.5, fw="bold", c="#b07d00")
     txt(e2x + ew/2, y_exp + eh*0.52,
-        "LinUCB, no priors", fs=6.5, c=PAL["md"], sty="italic")
+        "Hybrid LinUCB, no priors", fs=6.5, c=PAL["md"], sty="italic")
     txt(e2x + ew/2, y_exp + eh*0.25,
         "$A_m = \\lambda I$,  $b_m = 0$",
         fs=6, c=PAL["md"], fam="serif")
@@ -218,13 +218,19 @@ def create_figure():
     txt(e2x + ew/2 + 1, y_exp + eh + 1.8,
         "$p_t(2)$", fs=8, c="#b07d00", fw="bold", fam="serif")
 
-    # 7. UCB Selection (L3)
+    # 7. UCB Selection (L3) — Hybrid LinUCB with family-shared β_F
     uw = 50
     box2(cx-uw/2, y_ucb, uw, bh + 1.5,
-         "Layer 3:  Cost-Aware LinUCB Selection",
-         r"$a_t = \arg\max_a\; \hat{\theta}_a^\top x_t"
-         r" + \alpha\sqrt{x_t^\top A_a^{-1} x_t} - \lambda c_a$",
-         ec=PAL["dk"], tc=PAL["dk"], fs=8.5, fs2=6.5)
+         "Layer 3:  Cost-Aware Hybrid LinUCB",
+         r"$a_t = \arg\max_a\; x_t^\top\!(\hat{\beta}_F"
+         r" + \hat{\theta}_a) + \alpha\sqrt{x_t^\top A_a^{-1} x_t}"
+         r" - \lambda c_a$",
+         ec=PAL["dk"], tc=PAL["dk"], fs=8.5, fs2=6)
+
+    # Family-sharing annotation (left of UCB box)
+    txt(cx - uw/2 - 1.5, y_ucb + (bh+1.5)*0.5,
+        "$\\hat{\\beta}_F$: family-shared\nparams (transfer across\nrelated models)",
+        fs=5.5, c=PAL["lt"], ha="right", sty="italic")
 
     arrow(e1x + ew/2, y_exp, cx - 5, y_ucb + bh + 1.5,
           c=PAL["dk"], lw=1.1, rad=0.08)
