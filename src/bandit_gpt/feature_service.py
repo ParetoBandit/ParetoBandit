@@ -7,6 +7,7 @@ without risking breaking the router core.
 """
 
 import logging
+import sys
 from pathlib import Path
 from typing import Optional, List, Union
 import numpy as np
@@ -111,7 +112,19 @@ class FeatureService:
                              to train domain-specific PCA projections.
         """
         self.encoder_model = encoder_model
-        
+
+        # Guard: non-default encoder requires an explicit PCA artifact
+        _using_custom_encoder = encoder_model != DEFAULT_CONTEXT_MODEL
+        if _using_custom_encoder and pca_path is None:
+            raise ValueError(
+                f"Custom encoder '{encoder_model}' requires a PCA artifact "
+                f"trained with the same model.  Generate one with:\n\n"
+                f"    from bandit_gpt.calibration import train_pca\n"
+                f"    pca = train_pca(prompts, encoder_model='{encoder_model}', "
+                f"output_path='my_pca.joblib')\n\n"
+                f"Then pass pca_path='my_pca.joblib' to FeatureService."
+            )
+
         # If no PCA path provided, use the default from config_legacy
         if pca_path is None:
             from .config_legacy import DEFAULT_PCA_PATH
@@ -121,7 +134,12 @@ class FeatureService:
             
         self.pca_components = pca_components  # Will be set from loaded PCA if None
         self.target_variance = target_variance
-        self.allow_jit_training = allow_jit_training
+        # Disable JIT retraining for custom encoders -- synthetic prompts are
+        # calibrated for the default model and would produce a misleading PCA.
+        if _using_custom_encoder:
+            self.allow_jit_training = False
+        else:
+            self.allow_jit_training = allow_jit_training
         self.calibration_file = Path(calibration_file) if calibration_file else None
         
         # Lazy initialization
@@ -159,6 +177,11 @@ class FeatureService:
         if self._encoder is None:
             try:
                 from sentence_transformers import SentenceTransformer
+                
+                # Feedback for first-time download
+                if sys.stdout.isatty():
+                    print(f"Loading embedding model '{self.encoder_model}'...", file=sys.stderr)
+                
                 self._encoder = SentenceTransformer(self.encoder_model)
                 logger.info(f"Loaded encoder: {self.encoder_model}")
             except ImportError as e:

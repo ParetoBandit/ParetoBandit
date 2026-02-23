@@ -2802,6 +2802,22 @@ Previous version referenced non-existent attributes
         elif alpha is None:
             alpha = 0.05  # Default to safe exploration
 
+        # 2a. Guard: custom encoder requires explicit warmup priors
+        _using_custom_encoder = context_model != DEFAULT_CONTEXT_MODEL
+        _wants_warmup = priors == "warmup"
+        if _using_custom_encoder and _wants_warmup and warmup_path is None:
+            raise ValueError(
+                f"Custom encoder '{context_model}' requires warmup priors "
+                f"trained with the same model.  Generate them with:\n\n"
+                f"    from bandit_gpt.calibration import generate_warmup_priors\n"
+                f"    priors = generate_warmup_priors(\n"
+                f"        rewards_data, encoder_model='{context_model}',\n"
+                f"        pca=pca, output_path='my_priors.joblib'\n"
+                f"    )\n\n"
+                f"Then pass warmup_path='my_priors.joblib' to BanditRouter.create().\n"
+                f"Alternatively, pass priors='none' to start with cold-start learning."
+            )
+
         # 2. Filter kwargs to only include those accepted by __init__
         import inspect
         sig = inspect.signature(cls.__init__)

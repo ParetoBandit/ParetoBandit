@@ -9,11 +9,26 @@ def main():
     parser.add_argument("prompt", nargs="?", help="Prompt to route")
     parser.add_argument("--max-cost", type=float, help="Maximum cost constraint")
     parser.add_argument("--profile", default="best_value", help="Optimization profile")
+    parser.add_argument("--download-models", action="store_true", help="Download required models (for Docker/CI pre-warming)")
     
     args = parser.parse_args()
     
     if args.version:
         print("BanditGPT v0.1.0")
+        return
+
+    if args.download_models:
+        print("Initializing BanditGPT models...")
+        try:
+            from .feature_service import FeatureService
+            print("Downloading sentence transformer model (this may take a while)...")
+            fs = FeatureService()
+            # Trigger lazy load
+            _ = fs.encoder
+            print("✓ Model downloaded and ready.")
+        except Exception as e:
+            print(f"Error downloading models: {e}")
+            sys.exit(1)
         return
         
     if not args.prompt:
