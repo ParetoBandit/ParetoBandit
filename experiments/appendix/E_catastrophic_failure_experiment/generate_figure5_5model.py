@@ -1,52 +1,46 @@
 """
-Figure 6 (5-Model): Catastrophic Failure Detection — Large Portfolio
-====================================================================
+Catastrophic Failure Detection — K=5 and K=10 Portfolios
+=========================================================
 
-Tests whether Corralling's contextual advantage over EMA continues to
-grow with K=5 models, where post-failure routing across 4 remaining
-models is a genuinely contextual problem.
+Evaluates Corralling's automatic failover under catastrophic model failure
+using the **production hybrid router** (BanditRouter with Corralling,
+Hybrid LinUCB family sharing, and 43-model warmup priors).
 
 Setup:
-  - 5 models with different context-dependent strengths
-  - GPT-4-Turbo fails catastrophically in Phase 2
-  - After failure, 4 healthy models remain, each excelling in different
-    context regions → optimal routing is highly contextual
-  - EMA tracks 5 averages and explores ε/K = 0.1/5 = 2% per model
-  - LinUCB learns context→model mapping and explores via UCB
+  - GPT-4.1 (the best model) catastrophically fails in Phase 2
+  - After failure, K-1 remaining models have context-dependent strengths
+  - EMA tracks K averages and explores ε/K per model
+  - banditGPT uses the full production routing stack
 
-Models:
-  1. Mixtral-8x7B    (base 0.73) — direct priors from RouteLLM battles
-  2. GPT-3.5-Turbo   (base 0.70) — semantic transfer from GPT-4-Turbo
-  3. Claude-3-Haiku  (base 0.76) — semantic transfer from Mixtral
-  4. GPT-4-Turbo     (base 0.82) — direct priors from RouteLLM battles, FAILS
-  5. GPT-4o          (base 0.80) — semantic transfer from GPT-4-Turbo
+Portfolios (matching Section 5.2):
+  K=5:  Llama-3.1-8B, Mixtral-8x7B, Gemini-2.5-Flash, Claude-Sonnet-4, GPT-4.1
+  K=10: K5 + Llama-4-Maverick, Gemma-3-27B, Claude-Haiku-4.5, GPT-4-Turbo, DeepSeek-V3
 
-Warmup priors: All 5 models get informed priors via the production system's
-  semantic transfer mechanism (Section 3.3).  Models with direct RouteLLM
-  priors (Mixtral, GPT-4-Turbo) are scaled; the rest inherit θ from their
-  nearest known neighbor with A reset to n_eff·I (First-Child Bias Correction).
+Base rewards derived from holdout evaluation (Section 5.2, Table 3).
 """
 
 import sys
+import json
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import joblib
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 import logging
+import time
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
-from bandit_gpt.router import (
-    CorrallingRouter,
-    CostAwareLinUCBRouter,
-    CostAwareTabulaRasaRouter,
-    infer_model_family,
+from utils.router_factory import create_experiment_router
+from utils.multimodel import (
+    MODEL_CATALOG, PORTFOLIO_K5, PORTFOLIO_K10,
+    TARGET_NEFF, ALPHA_START, CORRALLING_LR, CORRALLING_GAMMA,
+    build_model_registry, load_warmup_priors, MULTIMODEL_WARMUP_PRIORS_PATH,
 )
-from bandit_gpt.config_legacy import DEFAULT_WARMUP_PRIORS_PATH
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -54,102 +48,104 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-MODELS = [
-    "mistralai/mixtral-8x7b-instruct",
-    "openai/gpt-3.5-turbo",
-    "anthropic/claude-3-haiku",
-    "openai/gpt-4-turbo",
-    "openai/gpt-4o",
-]
-MODEL_COSTS = {m: {"normalized_cost": 0.0} for m in MODELS}
 N_STEPS = 500
 N_SEEDS = 20
 PHASE_BOUNDARIES = (100, 300)
 CONTEXT_DIM = 33
-CONTEXT_NORM = 1.15  # Match production PCA embedding norm (32 PCA components + 1 bias)
-LEARNING_RATE = 0.3
-GAMMA = 0.05
-PRIOR_SCALE = 10.0
+CONTEXT_NORM = 1.15
 
-MODEL_SHORT = {
-    "mistralai/mixtral-8x7b-instruct": "Mixtral",
-    "openai/gpt-3.5-turbo": "GPT-3.5",
-    "anthropic/claude-3-haiku": "Haiku",
-    "openai/gpt-4-turbo": "GPT-4-Turbo",
-    "openai/gpt-4o": "GPT-4o",
+FAILING_MODEL = "openai/gpt-4.1"
+FAILURE_REWARD = 0.15
+
+HOLDOUT_REWARDS = {
+    "meta-llama/llama-3.1-8b-instruct": 0.745,
+    "mistralai/mixtral-8x7b-instruct": 0.823,
+    "google/gemini-2.5-flash-preview-09-2025": 0.953,
+    "anthropic/claude-sonnet-4": 0.975,
+    "openai/gpt-4.1": 0.983,
+    "meta-llama/llama-4-maverick": 0.929,
+    "google/gemma-3-27b-it": 0.951,
+    "anthropic/claude-haiku-4.5": 0.951,
+    "openai/gpt-4-turbo": 0.812,
+    "deepseek/deepseek-chat-v3-0324": 0.973,
 }
 
-FAILING_MODEL = "openai/gpt-4-turbo"
+
+def short_name(model_id: str) -> str:
+    return MODEL_CATALOG[model_id]["display"]
+
+
+def validate_warmup_priors(models: List[str]) -> Dict:
+    """Load and validate that warmup priors exist for every portfolio model.
+
+    Returns the K-specific subset of the 43-model priors (only the models
+    in ``models`` are included).  Raises if any model is missing.
+    """
+    priors = load_warmup_priors(models)
+    covered = set(priors["A"].keys())
+    missing = [m for m in models if m not in covered]
+    if missing:
+        raise RuntimeError(
+            f"Warmup priors missing for {len(missing)} models: "
+            + ", ".join(missing)
+        )
+    logger.info(f"  Warmup priors: {len(covered)}/{len(models)} models covered "
+                f"(dim={priors['context_dim']})")
+    for m in models:
+        trace_a = np.trace(priors["A"][m])
+        norm_b = np.linalg.norm(priors["b"][m])
+        logger.info(f"    {short_name(m):<22} tr(A)={trace_a:7.1f}  ||b||={norm_b:.3f}")
+    return priors
 
 
 # ============================================================================
 # ENVIRONMENT
 # ============================================================================
 
-class FiveModelEnvironment:
+class CatastrophicFailureEnvironment:
     """
-    Context-dependent reward environment with 5 models and three phases.
+    Context-dependent reward environment with K models and three phases.
 
-    Each non-failing model excels in a different region of context space,
-    defined by orthogonal context directions.  This means post-failure
-    routing is a 4-way contextual decision — EMA's per-model averages
-    can't distinguish which of the 4 remaining models is best for a
-    given prompt, while LinUCB can learn the context→model mapping.
+    Each non-failing model excels in a different region of context space
+    (orthogonal directions via Gram-Schmidt). Post-failure routing across
+    K-1 remaining models is a genuinely contextual decision.
 
-    Base rewards are chosen so GPT-4-Turbo is the clear pre-failure
-    favourite on average (0.82), making Static a strong Phase-1 baseline
-    and the failure maximally disruptive.
+    Base rewards match real holdout evaluation values (Section 5.2).
     """
 
-    def __init__(self, seed: int = 42, context_dim: int = CONTEXT_DIM):
+    def __init__(self, models: List[str], failing_model: str,
+                 seed: int = 42, context_dim: int = CONTEXT_DIM):
+        self.models = models
+        self.failing_model = failing_model
         self.rng = np.random.RandomState(seed)
         self.context_dim = context_dim
         self.t = 0
 
-        # Create 4 orthogonal-ish context directions for non-failing models.
-        # We use random directions and Gram-Schmidt to make them orthogonal,
-        # ensuring each model excels in a distinct context region.
-        raw_dirs = self.rng.randn(4, context_dim)
-        # Simple Gram-Schmidt
+        non_failing = [m for m in models if m != failing_model]
+        n_healthy = len(non_failing)
+
+        raw_dirs = self.rng.randn(n_healthy, context_dim)
         ortho_dirs = np.zeros_like(raw_dirs)
-        for i in range(4):
+        for i in range(n_healthy):
             v = raw_dirs[i].copy()
             for j in range(i):
                 v -= np.dot(v, ortho_dirs[j]) * ortho_dirs[j]
             ortho_dirs[i] = v / (np.linalg.norm(v) + 1e-8)
 
-        # Scale: each direction contributes up to ±0.06 reward via tanh
         scale = 0.06
-        non_failing = [m for m in MODELS if m != FAILING_MODEL]
         self.context_weights = {}
         for i, model in enumerate(non_failing):
             self.context_weights[model] = ortho_dirs[i] * scale
+        self.context_weights[failing_model] = self.rng.randn(context_dim) * 0.02
 
-        # Failing model has weak random context sensitivity
-        self.context_weights[FAILING_MODEL] = self.rng.randn(context_dim) * 0.02
+        base_healthy = {m: HOLDOUT_REWARDS[m] for m in models}
+        base_failure = dict(base_healthy)
+        base_failure[failing_model] = FAILURE_REWARD
 
         self.phase_base = {
-            "healthy": {
-                MODELS[0]: 0.73,  # Mixtral
-                MODELS[1]: 0.70,  # GPT-3.5
-                MODELS[2]: 0.76,  # Haiku
-                MODELS[3]: 0.82,  # GPT-4-Turbo (best pre-failure)
-                MODELS[4]: 0.80,  # GPT-4o
-            },
-            "failure": {
-                MODELS[0]: 0.73,
-                MODELS[1]: 0.70,
-                MODELS[2]: 0.76,
-                MODELS[3]: 0.15,  # GPT-4-Turbo CRASHES
-                MODELS[4]: 0.80,
-            },
-            "recovery": {
-                MODELS[0]: 0.73,
-                MODELS[1]: 0.70,
-                MODELS[2]: 0.76,
-                MODELS[3]: 0.82,
-                MODELS[4]: 0.80,
-            },
+            "healthy": base_healthy,
+            "failure": base_failure,
+            "recovery": dict(base_healthy),
         }
 
     def _get_phase(self) -> str:
@@ -171,24 +167,12 @@ class FiveModelEnvironment:
     def get_oracle_reward(self, context: np.ndarray) -> float:
         phase = self._get_phase()
         rewards = []
-        for model in MODELS:
+        for model in self.models:
             base = self.phase_base[phase][model]
             ctx_norm = context / (np.linalg.norm(context) + 1e-8)
             ctx_bonus = np.tanh(self.context_weights[model] @ ctx_norm)
             rewards.append(base + ctx_bonus)
         return max(rewards)
-
-    def get_best_model(self, context: np.ndarray) -> str:
-        phase = self._get_phase()
-        best_r, best_m = -1, MODELS[0]
-        for model in MODELS:
-            base = self.phase_base[phase][model]
-            ctx_norm = context / (np.linalg.norm(context) + 1e-8)
-            ctx_bonus = np.tanh(self.context_weights[model] @ ctx_norm)
-            r = base + ctx_bonus
-            if r > best_r:
-                best_r, best_m = r, model
-        return best_m
 
 
 # ============================================================================
@@ -196,7 +180,6 @@ class FiveModelEnvironment:
 # ============================================================================
 
 class StaticRouter:
-    """Always picks the specified model."""
     def __init__(self, model: str):
         self.model = model
     def select(self, context: np.ndarray) -> str:
@@ -204,8 +187,8 @@ class StaticRouter:
 
 
 class EMATracker:
-    def __init__(self, models: List[str], alpha: float = 0.1, epsilon: float = 0.1,
-                 seed: int = 42):
+    def __init__(self, models: List[str], alpha: float = 0.1,
+                 epsilon: float = 0.1, seed: int = 42):
         self.models = models
         self.alpha = alpha
         self.epsilon = epsilon
@@ -219,75 +202,6 @@ class EMATracker:
 
     def update(self, model: str, reward: float):
         self.ema[model] = (1 - self.alpha) * self.ema[model] + self.alpha * reward
-
-
-# ============================================================================
-# PRIOR LOADING — with semantic transfer for unknown models
-# ============================================================================
-
-# Semantic transfer map: new_model → neighbor to transfer from.
-# This matches what the production system does via register_model():
-# new models inherit θ (preferences) from their closest known model,
-# with A reset to n_eff·I (fresh exploration).
-SEMANTIC_NEIGHBORS = {
-    "openai/gpt-4o":          "openai/gpt-4-turbo",      # same family
-    "openai/gpt-3.5-turbo":   "openai/gpt-4-turbo",      # same provider
-    "anthropic/claude-3-haiku": "mistralai/mixtral-8x7b-instruct",  # similar tier
-}
-
-
-def load_and_scale_priors(target_mass: float = PRIOR_SCALE) -> Dict:
-    """
-    Load production warmup priors and create priors for all 5 models.
-
-    For models with real priors (Mixtral, GPT-4-Turbo): scale to target_mass.
-    For models without priors (GPT-3.5, Haiku, GPT-4o): apply semantic transfer
-    from the nearest known model — exactly the "First-Child Bias Correction"
-    from the production system (Section 3.3 of the paper):
-        θ_new = A_neighbor^{-1} @ b_neighbor   (transfer preferences)
-        A_new = n_eff · I                       (reset confidence → explore)
-        b_new = n_eff · θ_new                   (encode preferences at low confidence)
-
-    This is critical for a fair K=5 evaluation: without it, the warmup expert
-    has no informed opinion about 60% of the portfolio, handicapping Corralling.
-    """
-    norm_path = Path(DEFAULT_WARMUP_PRIORS_PATH).parent / "priors_warmup_normalized.joblib"
-    if norm_path.exists():
-        priors = joblib.load(norm_path)
-        logger.info(f"  Loaded normalized priors from {norm_path.name}")
-    else:
-        priors = joblib.load(DEFAULT_WARMUP_PRIORS_PATH)
-        logger.info(f"  Loaded raw priors")
-
-    scaled = copy.deepcopy(priors)
-    dim = priors["context_dim"]
-
-    # Step 1: Scale existing priors to target mass
-    for m in priors["A"]:
-        current_mass = np.trace(priors["A"][m]) / dim
-        if current_mass > 1e-6:
-            scale = target_mass / current_mass
-            scaled["A"][m] = priors["A"][m] * scale
-            scaled["b"][m] = priors["b"][m] * scale
-            logger.info(f"  {MODEL_SHORT.get(m, m)}: direct priors, mass {current_mass:.0f} → {target_mass:.0f}")
-
-    # Step 2: Semantic transfer for models without priors
-    # (mirrors CostAwareLinUCBRouter.add_model_with_semantic_transfer)
-    for new_model, neighbor in SEMANTIC_NEIGHBORS.items():
-        if new_model not in scaled["A"] and neighbor in scaled["A"]:
-            A_neighbor = scaled["A"][neighbor]
-            b_neighbor = scaled["b"][neighbor]
-            # Extract learned preferences from neighbor
-            A_inv = np.linalg.inv(A_neighbor + 1e-6 * np.eye(dim))
-            theta_neighbor = A_inv @ b_neighbor
-            # First-Child Bias Correction: transfer θ, reset A
-            scaled["A"][new_model] = target_mass * np.eye(dim)
-            scaled["b"][new_model] = target_mass * theta_neighbor
-            logger.info(f"  {MODEL_SHORT.get(new_model, new_model)}: semantic transfer from "
-                        f"{MODEL_SHORT.get(neighbor, neighbor)} "
-                        f"(||θ||={np.linalg.norm(theta_neighbor):.3f})")
-
-    return scaled
 
 
 # ============================================================================
@@ -308,81 +222,57 @@ class TrialResult:
     recovery_detection_step: Optional[int] = None
 
 
-def run_single_trial(seed: int, warmup_priors: Dict) -> TrialResult:
+def run_single_trial(seed: int, models: List[str]) -> TrialResult:
     rng = np.random.RandomState(seed)
     result = TrialResult(seed=seed)
+    K = len(models)
 
-    env_corralling = FiveModelEnvironment(seed=seed)
-    env_static = FiveModelEnvironment(seed=seed)
-    env_ema = FiveModelEnvironment(seed=seed)
-    env_oracle = FiveModelEnvironment(seed=seed)
+    env_corr = CatastrophicFailureEnvironment(models, FAILING_MODEL, seed=seed)
+    env_static = CatastrophicFailureEnvironment(models, FAILING_MODEL, seed=seed)
+    env_ema = CatastrophicFailureEnvironment(models, FAILING_MODEL, seed=seed)
+    env_oracle = CatastrophicFailureEnvironment(models, FAILING_MODEL, seed=seed)
 
     np.random.seed(seed)
-    family_map = {m: infer_model_family(m) for m in MODELS}
-    warmup_expert = CostAwareLinUCBRouter(
-        models=MODELS,
-        warmup_priors=copy.deepcopy(warmup_priors),
-        model_costs=MODEL_COSTS,
-        alpha_start=1.0,
-        alpha_end=0.1,
+    router = create_experiment_router(
+        model_registry=build_model_registry(models),
+        feature_dim=CONTEXT_DIM,
+        prior_n_effective=TARGET_NEFF,
+        alpha=ALPHA_START,
+        warmup_path=str(MULTIMODEL_WARMUP_PRIORS_PATH),
+        use_corralling=True,
+        corralling_learning_rate=CORRALLING_LR,
+        corralling_gamma=CORRALLING_GAMMA,
         cost_penalty=0.0,
-        family_map=family_map,
-    )
-    tabula_rasa = CostAwareTabulaRasaRouter(
-        models=MODELS,
-        context_dim=CONTEXT_DIM,
-        model_costs=MODEL_COSTS,
-        alpha_start=1.0,
-        alpha_end=0.1,
-        cost_penalty=0.0,
-        family_map=family_map,
-    )
-    corralling = CorrallingRouter(
-        experts=[warmup_expert, tabula_rasa],
-        models=MODELS,
-        learning_rate=LEARNING_RATE,
-        gamma=GAMMA,
-        loss_decay=1.0,
     )
 
     static_router = StaticRouter(FAILING_MODEL)
-    ema_router = EMATracker(MODELS, alpha=0.15, epsilon=0.1, seed=seed)
+    ema_router = EMATracker(models, alpha=0.15, epsilon=0.1, seed=seed)
 
     for t in range(N_STEPS):
         context = rng.randn(CONTEXT_DIM)
-        # Normalize to match production PCA embedding norms (~1.15).
-        # Raw randn(33) has ||x|| ≈ 5.7, causing θᵀx predictions to overshoot
-        # [0,1] and triggering PredictionMonitor warnings. The environment's
-        # get_reward() already unit-normalizes context internally for the context
-        # bonus, so this rescaling only affects the routers' feature space.
         context = context / np.linalg.norm(context) * CONTEXT_NORM
 
-        # Oracle
         oracle_r = env_oracle.get_oracle_reward(context)
-        _ = env_oracle.get_reward(MODELS[0], context)
+        _ = env_oracle.get_reward(models[0], context)
         result.oracle_rewards.append(oracle_r)
 
-        # Corralling
-        model_c, token = corralling.select_model(context, total_steps=N_STEPS)
-        reward_c = env_corralling.get_reward(model_c, context)
-        corralling.update(context, model_c, reward_c, selection_token=token)
+        model_c, log = router.route(context, total_steps=N_STEPS)
+        reward_c = env_corr.get_reward(model_c, context)
+        router.process_feedback(log.request_id, reward_c)
         result.rewards_corralling.append(reward_c)
-        result.expert_weights.append(corralling.weights.copy())
+        result.expert_weights.append(router.corralling_router.weights.copy())
         result.model_chosen_corralling.append(model_c)
 
-        # Static
         model_s = static_router.select(context)
         reward_s = env_static.get_reward(model_s, context)
         result.rewards_static.append(reward_s)
 
-        # EMA
         model_e = ema_router.select(context)
         reward_e = env_ema.get_reward(model_e, context)
         ema_router.update(model_e, reward_e)
         result.rewards_ema.append(reward_e)
         result.model_chosen_ema.append(model_e)
 
-    # Detection metrics
     weights = np.array(result.expert_weights)
     for t in range(PHASE_BOUNDARIES[0], min(PHASE_BOUNDARIES[1], N_STEPS)):
         if weights[t, 0] < 0.15:
@@ -400,10 +290,10 @@ def run_single_trial(seed: int, warmup_priors: Dict) -> TrialResult:
 # MULTI-SEED
 # ============================================================================
 
-def run_all_seeds(warmup_priors: Dict) -> List[TrialResult]:
+def run_all_seeds(models: List[str]) -> List[TrialResult]:
     results = []
     for seed in range(N_SEEDS):
-        result = run_single_trial(seed, warmup_priors)
+        result = run_single_trial(seed, models)
         results.append(result)
         if (seed + 1) % 5 == 0:
             det = result.failure_detection_step
@@ -416,19 +306,22 @@ def run_all_seeds(warmup_priors: Dict) -> List[TrialResult]:
 # STATISTICS
 # ============================================================================
 
-def compute_statistics(results: List[TrialResult]) -> Dict:
-    detection_steps = [r.failure_detection_step for r in results if r.failure_detection_step is not None]
+def compute_statistics(results: List[TrialResult], models: List[str]) -> Dict:
+    detection_steps = [r.failure_detection_step for r in results
+                       if r.failure_detection_step is not None]
     reaction_times = [d - PHASE_BOUNDARIES[0] for d in detection_steps]
-    recovery_steps = [r.recovery_detection_step for r in results if r.recovery_detection_step is not None]
+    recovery_steps = [r.recovery_detection_step for r in results
+                      if r.recovery_detection_step is not None]
 
     stats = {
         "n_seeds": len(results),
+        "K": len(models),
         "detection_rate": len(detection_steps) / len(results),
-        "reaction_mean": np.mean(reaction_times) if reaction_times else None,
-        "reaction_std": np.std(reaction_times) if reaction_times else None,
-        "reaction_median": np.median(reaction_times) if reaction_times else None,
-        "reaction_min": np.min(reaction_times) if reaction_times else None,
-        "reaction_max": np.max(reaction_times) if reaction_times else None,
+        "reaction_mean": float(np.mean(reaction_times)) if reaction_times else None,
+        "reaction_std": float(np.std(reaction_times)) if reaction_times else None,
+        "reaction_median": float(np.median(reaction_times)) if reaction_times else None,
+        "reaction_min": float(np.min(reaction_times)) if reaction_times else None,
+        "reaction_max": float(np.max(reaction_times)) if reaction_times else None,
         "recovery_rate": len(recovery_steps) / len(results),
     }
 
@@ -436,22 +329,23 @@ def compute_statistics(results: List[TrialResult]) -> Dict:
                                ("static", "rewards_static"),
                                ("ema", "rewards_ema"),
                                ("oracle", "oracle_rewards")]:
-        for phase_name, (start, end) in [("healthy", (0, PHASE_BOUNDARIES[0])),
-                                          ("failure", (PHASE_BOUNDARIES[0], PHASE_BOUNDARIES[1])),
-                                          ("recovery", (PHASE_BOUNDARIES[1], N_STEPS))]:
+        for phase_name, (start, end) in [
+            ("healthy", (0, PHASE_BOUNDARIES[0])),
+            ("failure", (PHASE_BOUNDARIES[0], PHASE_BOUNDARIES[1])),
+            ("recovery", (PHASE_BOUNDARIES[1], N_STEPS)),
+        ]:
             vals = [np.mean(getattr(r, attr)[start:end]) for r in results]
-            stats[f"{method_name}_{phase_name}_mean"] = np.mean(vals)
-            stats[f"{method_name}_{phase_name}_std"] = np.std(vals)
+            stats[f"{method_name}_{phase_name}_mean"] = float(np.mean(vals))
+            stats[f"{method_name}_{phase_name}_std"] = float(np.std(vals))
 
-    # Model selection during failure
     for method_name, attr in [("corralling", "model_chosen_corralling"),
                                ("ema", "model_chosen_ema")]:
-        for model in MODELS:
+        for model in models:
             fracs = []
             for r in results:
                 choices = getattr(r, attr)[PHASE_BOUNDARIES[0]:PHASE_BOUNDARIES[1]]
                 fracs.append(sum(1 for c in choices if c == model) / len(choices))
-            stats[f"{method_name}_failure_{MODEL_SHORT[model]}_frac"] = np.mean(fracs)
+            stats[f"{method_name}_failure_{short_name(model)}_frac"] = float(np.mean(fracs))
 
     return stats
 
@@ -460,16 +354,21 @@ def compute_statistics(results: List[TrialResult]) -> Dict:
 # VISUALIZATION
 # ============================================================================
 
-def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
+MODEL_COLORS = [
+    "#3498db", "#2ecc71", "#f39c12", "#e74c3c", "#9b59b6",
+    "#1abc9c", "#e67e22", "#34495e", "#d35400", "#7f8c8d",
+]
+
+
+def plot_figure(results: List[TrialResult], stats: Dict, models: List[str],
+                portfolio_label: str, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
+    K = len(models)
 
     fig = plt.figure(figsize=(12, 9.5))
     gs = fig.add_gridspec(
-        4, 1,
-        height_ratios=[0.04, 1, 1, 1],
-        hspace=0.08,
-        top=0.94,        # pull panels closer to the suptitle
-        bottom=0.06,
+        4, 1, height_ratios=[0.04, 1, 1, 1],
+        hspace=0.08, top=0.94, bottom=0.06,
     )
     ax_phase = fig.add_subplot(gs[0, 0])
     ax_top = fig.add_subplot(gs[1, 0])
@@ -491,7 +390,6 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
         return np.mean(mean_per_seed, axis=0), np.std(mean_per_seed, axis=0)
 
     t_smooth = t[window - 1:]
-
     corr_mu, corr_std = running_mean(all_corr, window)
     stat_mu, stat_std = running_mean(all_stat, window)
     ema_mu, ema_std = running_mean(all_ema, window)
@@ -505,10 +403,10 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
     ax_phase.axvspan(PHASE_BOUNDARIES[1], N_STEPS, color="#3498db", alpha=0.25)
     ax_phase.text(50, 0.5, "All Healthy", ha="center", va="center",
                   fontsize=9, fontweight="bold", color="#1a7a3a")
-    ax_phase.text(200, 0.5, "GPT-4-Turbo Fails", ha="center", va="center",
-                  fontsize=9, fontweight="bold", color="#a8201a")
-    ax_phase.text(400, 0.5, "GPT-4-Turbo Recovers", ha="center", va="center",
-                  fontsize=9, fontweight="bold", color="#1a5276")
+    ax_phase.text(200, 0.5, f"{short_name(FAILING_MODEL)} Fails", ha="center",
+                  va="center", fontsize=9, fontweight="bold", color="#a8201a")
+    ax_phase.text(400, 0.5, f"{short_name(FAILING_MODEL)} Recovers", ha="center",
+                  va="center", fontsize=9, fontweight="bold", color="#1a5276")
     ax_phase.set_axis_off()
 
     for ax in (ax_top, ax_mid, ax_bot):
@@ -531,7 +429,7 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
     ax_top.fill_between(t_smooth, ema_mu - ema_std, ema_mu + ema_std,
                         color="#e67e22", alpha=0.10)
     ax_top.plot(t_smooth, stat_mu, color="#e74c3c", lw=1.8, ls="--",
-                label="Static (GPT-4-Turbo Only)", zorder=3)
+                label=f"Static ({short_name(FAILING_MODEL)} Only)", zorder=3)
     ax_top.fill_between(t_smooth, stat_mu - stat_std, stat_mu + stat_std,
                         color="#e74c3c", alpha=0.10)
 
@@ -543,11 +441,10 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
                   fontsize=8.5, framealpha=0.75, edgecolor="gray", handlelength=2.0)
 
     fig.suptitle(
-        "Catastrophic Failure Detection: 5-Model Portfolio (K=5)",
+        f"Catastrophic Failure Detection: {K}-Model Portfolio (K={K})",
         fontsize=13, fontweight="bold", y=0.97,
     )
 
-    # Summary box
     fail_corr = stats["corralling_failure_mean"]
     fail_ema = stats["ema_failure_mean"]
     fail_orac = stats["oracle_failure_mean"]
@@ -569,11 +466,11 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
     w_tabula_std = all_weights[:, :, 1].std(axis=0)
 
     ax_mid.plot(t, w_warmup_mu, color="#e74c3c", lw=2,
-                label="Warmup Expert (LinUCB + priors)")
+                label="Warmup Expert (Hybrid LinUCB + priors)")
     ax_mid.fill_between(t, w_warmup_mu - w_warmup_std, w_warmup_mu + w_warmup_std,
                         color="#e74c3c", alpha=0.15)
     ax_mid.plot(t, w_tabula_mu, color="#27ae60", lw=2,
-                label="Tabula Rasa Expert (LinUCB)")
+                label="Tabula Rasa Expert (Hybrid LinUCB)")
     ax_mid.fill_between(t, w_tabula_mu - w_tabula_std, w_tabula_mu + w_tabula_std,
                         color="#27ae60", alpha=0.15)
     ax_mid.axhline(0.5, color="gray", ls=":", alpha=0.3)
@@ -583,48 +480,44 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
     plt.setp(ax_mid.get_xticklabels(), visible=False)
     ax_mid.legend(loc="upper left", fontsize=8.5, framealpha=0.75)
 
-    # Panel C: Model selection during failure
-    model_colors = {
-        MODELS[0]: "#3498db",   # Mixtral: blue
-        MODELS[1]: "#2ecc71",   # GPT-3.5: green
-        MODELS[2]: "#f39c12",   # Haiku: gold
-        MODELS[3]: "#e74c3c",   # GPT-4-Turbo: red
-        MODELS[4]: "#9b59b6",   # GPT-4o: purple
-    }
+    # Panel C: Model selection fractions
+    model_colors = {m: MODEL_COLORS[i % len(MODEL_COLORS)] for i, m in enumerate(models)}
 
-    for model in MODELS:
+    for model in models:
         fracs_per_seed = []
         for r in results:
-            chosen = np.array([1.0 if c == model else 0.0 for c in r.model_chosen_corralling])
+            chosen = np.array([1.0 if c == model else 0.0
+                               for c in r.model_chosen_corralling])
             smoothed = np.convolve(chosen, np.ones(window) / window, mode="valid")
             fracs_per_seed.append(smoothed)
         mu = np.array(fracs_per_seed).mean(axis=0)
         ax_bot.plot(t_smooth, mu, color=model_colors[model], lw=2,
-                    label=f"Corralling → {MODEL_SHORT[model]}")
+                    label=f"Corr → {short_name(model)}")
 
-    for model in MODELS:
+    for model in models:
         fracs_per_seed = []
         for r in results:
-            chosen = np.array([1.0 if c == model else 0.0 for c in r.model_chosen_ema])
+            chosen = np.array([1.0 if c == model else 0.0
+                               for c in r.model_chosen_ema])
             smoothed = np.convolve(chosen, np.ones(window) / window, mode="valid")
             fracs_per_seed.append(smoothed)
         mu = np.array(fracs_per_seed).mean(axis=0)
         ax_bot.plot(t_smooth, mu, color=model_colors[model], lw=1.5, ls="--",
-                    label=f"EMA → {MODEL_SHORT[model]}")
+                    label=f"EMA → {short_name(model)}")
 
     ax_bot.set_ylabel("Model Selection Fraction", fontsize=11)
     ax_bot.set_xlabel("Routing Step (t)", fontsize=11)
     ax_bot.set_ylim(-0.05, 1.05)
     ax_bot.grid(True, alpha=0.2, ls=":")
 
-    # Legend: 2 columns, placed in the upper-right where the data is sparse
-    ax_bot.legend(loc="upper right", fontsize=7, framealpha=0.75,
-                  edgecolor="gray", ncol=2, columnspacing=1.0, handlelength=2.0)
+    ncol = 2 if K <= 5 else 3
+    ax_bot.legend(loc="upper right", fontsize=6, framealpha=0.75,
+                  edgecolor="gray", ncol=ncol, columnspacing=1.0, handlelength=2.0)
 
     fig.align_ylabels([ax_top, ax_mid, ax_bot])
 
     for fmt in ("png", "pdf"):
-        out = output_dir / f"figure5_5model.{fmt}"
+        out = output_dir / f"catastrophic_{portfolio_label}.{fmt}"
         plt.savefig(out, dpi=300, bbox_inches="tight")
         logger.info(f"  Saved: {out}")
     plt.close()
@@ -634,9 +527,10 @@ def plot_figure(results: List[TrialResult], stats: Dict, output_dir: Path):
 # REPORTING
 # ============================================================================
 
-def print_report(stats: Dict):
+def print_report(stats: Dict, models: List[str]):
+    K = stats["K"]
     logger.info("\n" + "=" * 70)
-    logger.info("FIGURE 6 (5-MODEL) — CATASTROPHIC FAILURE DETECTION")
+    logger.info(f"CATASTROPHIC FAILURE DETECTION — K={K}")
     logger.info("=" * 70)
 
     logger.info(f"\n  Seeds: {stats['n_seeds']}")
@@ -650,24 +544,25 @@ def print_report(stats: Dict):
 
     logger.info(f"  Recovery rate:  {stats['recovery_rate'] * 100:.0f}%")
 
-    logger.info(f"\n  {'Method':<22} {'Healthy':>10} {'Failure':>10} {'Recovery':>10}")
-    logger.info("  " + "-" * 54)
+    logger.info(f"\n  {'Method':<30} {'Healthy':>10} {'Failure':>10} {'Recovery':>10}")
+    logger.info("  " + "-" * 62)
     for method in ("oracle", "corralling", "ema", "static"):
-        label = {"oracle": "Oracle", "corralling": "banditGPT", "ema": "EMA Tracker",
-                 "static": "Static GPT-4-Turbo"}[method]
+        label = {"oracle": "Oracle", "corralling": "banditGPT",
+                 "ema": "EMA Tracker",
+                 "static": f"Static {short_name(FAILING_MODEL)}"}[method]
         h = f"{stats[f'{method}_healthy_mean']:.3f}±{stats[f'{method}_healthy_std']:.3f}"
         f = f"{stats[f'{method}_failure_mean']:.3f}±{stats[f'{method}_failure_std']:.3f}"
         r = f"{stats[f'{method}_recovery_mean']:.3f}±{stats[f'{method}_recovery_std']:.3f}"
-        logger.info(f"  {label:<22} {h:>10} {f:>10} {r:>10}")
+        logger.info(f"  {label:<30} {h:>10} {f:>10} {r:>10}")
 
     logger.info(f"\n  Model selection during failure phase:")
-    logger.info(f"  {'Model':<20} {'Corralling':>12} {'EMA':>12}")
-    logger.info("  " + "-" * 46)
-    for model in MODELS:
-        short = MODEL_SHORT[model]
-        c = stats[f"corralling_failure_{short}_frac"]
-        e = stats[f"ema_failure_{short}_frac"]
-        logger.info(f"  {short:<20} {c:>11.1%} {e:>11.1%}")
+    logger.info(f"  {'Model':<24} {'Corralling':>12} {'EMA':>12}")
+    logger.info("  " + "-" * 50)
+    for model in models:
+        sn = short_name(model)
+        c = stats[f"corralling_failure_{sn}_frac"]
+        e = stats[f"ema_failure_{sn}_frac"]
+        logger.info(f"  {sn:<24} {c:>11.1%} {e:>11.1%}")
 
     fail_corr = stats["corralling_failure_mean"]
     fail_ema = stats["ema_failure_mean"]
@@ -676,8 +571,7 @@ def print_report(stats: Dict):
     logger.info(f"    banditGPT: {fail_corr:.3f}")
     logger.info(f"    EMA:       {fail_ema:.3f}")
     logger.info(f"    Δ:         {delta:+.3f}  {'banditGPT WINS' if delta > 0 else 'EMA wins'}")
-
-    logger.info("\n" + "=" * 70)
+    logger.info("=" * 70)
 
 
 # ============================================================================
@@ -686,24 +580,59 @@ def print_report(stats: Dict):
 
 def main():
     logger.info("\n" + "=" * 70)
-    logger.info("FIGURE 6 (5-MODEL): Catastrophic Failure with Large Portfolio")
-    logger.info("  5 models • Production router • Orthogonal context strengths")
+    logger.info("CATASTROPHIC FAILURE DETECTION — K=5 and K=10")
+    logger.info("  Production hybrid router • 43-model warmup priors")
+    logger.info("  Failing model: " + short_name(FAILING_MODEL))
     logger.info("=" * 70)
 
-    logger.info("\n1. Loading warmup priors...")
-    warmup_priors = load_and_scale_priors(target_mass=PRIOR_SCALE)
-
-    logger.info(f"\n2. Running {N_SEEDS}-seed experiment ({N_STEPS} steps each)...")
-    results = run_all_seeds(warmup_priors)
-
-    logger.info("\n3. Computing statistics...")
-    stats = compute_statistics(results)
-
-    print_report(stats)
-
-    logger.info("\n4. Generating figure...")
     output_dir = Path(__file__).parent / "results"
-    plot_figure(results, stats, output_dir)
+    all_stats = {}
+
+    for portfolio_label, models in [("K5", PORTFOLIO_K5), ("K10", PORTFOLIO_K10)]:
+        K = len(models)
+        logger.info(f"\n{'='*70}")
+        logger.info(f"PORTFOLIO: {portfolio_label} ({K} models)")
+        logger.info(f"  Models: {', '.join(short_name(m) for m in models)}")
+        logger.info("=" * 70)
+
+        logger.info(f"\n  Validating K={K} warmup priors ...")
+        validate_warmup_priors(models)
+
+        t0 = time.time()
+        logger.info(f"\n  Running {N_SEEDS}-seed experiment ({N_STEPS} steps each)...")
+        results = run_all_seeds(models)
+        elapsed = time.time() - t0
+        logger.info(f"  Completed in {elapsed:.1f}s")
+
+        logger.info("\n  Computing statistics...")
+        stats = compute_statistics(results, models)
+        all_stats[portfolio_label] = stats
+
+        print_report(stats, models)
+
+        logger.info("\n  Generating figure...")
+        plot_figure(results, stats, models, portfolio_label, output_dir)
+
+    # Summary comparison table
+    logger.info("\n" + "=" * 70)
+    logger.info("PORTFOLIO SIZE SCALING — SUMMARY")
+    logger.info("=" * 70)
+    logger.info(f"\n  {'K':>4} {'banditGPT':>12} {'EMA':>12} {'Δ':>10} {'Detection':>12}")
+    logger.info("  " + "-" * 52)
+    for label in ["K5", "K10"]:
+        s = all_stats[label]
+        fc = s["corralling_failure_mean"]
+        fe = s["ema_failure_mean"]
+        delta = fc - fe
+        det = s["detection_rate"]
+        logger.info(f"  {s['K']:>4} {fc:>12.3f} {fe:>12.3f} {delta:>+10.3f} {det:>11.0%}")
+    logger.info("=" * 70)
+
+    # Save JSON results
+    json_path = output_dir / "catastrophic_failure_results.json"
+    with open(json_path, "w") as f:
+        json.dump(all_stats, f, indent=2)
+    logger.info(f"\nResults saved to {json_path}")
 
     logger.info("\nDone.")
 
