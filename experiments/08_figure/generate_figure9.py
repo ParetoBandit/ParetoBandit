@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate Figure 9: Cumulative Regret Curves for K=5 and K=10.
+Generate Figure 8: Cumulative Regret Curves for K=5 and K=10.
 
 Two-panel figure (side by side): one panel per portfolio.
 Each panel plots cumulative regret over online learning steps for:
@@ -69,14 +69,14 @@ def main():
     fig.legend(handles, labels, loc="lower center", ncol=6, fontsize=9,
                bbox_to_anchor=(0.5, -0.04), frameon=True, fancybox=True)
 
-    fig.suptitle("Figure 9: Cumulative Regret — Online Learning Phase",
+    fig.suptitle("Figure 8: Cumulative Regret — Online Learning Phase",
                  fontsize=13, fontweight="bold", y=1.02)
 
     plt.tight_layout()
     fig.subplots_adjust(bottom=0.18)
 
     for fmt in ("pdf", "png"):
-        out = RESULTS_DIR / f"figure9_cumulative_regret.{fmt}"
+        out = RESULTS_DIR / f"figure8_cumulative_regret.{fmt}"
         fig.savefig(out, dpi=300, bbox_inches="tight")
         print(f"Saved {out}")
 

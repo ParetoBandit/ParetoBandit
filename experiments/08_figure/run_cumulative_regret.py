@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 9: Cumulative Regret at K=5 and K=10
+Figure 8: Cumulative Regret at K=5 and K=10
 =============================================
 
 Tracks per-step regret during online learning for five methods:
@@ -159,7 +159,7 @@ def subsample_regret(all_cum, every=REPORT_EVERY):
 
 def main():
     logger.info("=" * 70)
-    logger.info("Figure 9: Cumulative Regret (K=5, K=10)")
+    logger.info("Figure 8: Cumulative Regret (K=5, K=10)")
     logger.info("=" * 70)
 
     results_all = {}

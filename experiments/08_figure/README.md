@@ -1,4 +1,4 @@
-# Figure 9: Cumulative Regret Curves
+# Figure 8: Cumulative Regret Curves
 
 Tracks per-step cumulative regret during online learning for banditGPT, LinTS, ε-greedy, and Random at K=5 and K=10.
 

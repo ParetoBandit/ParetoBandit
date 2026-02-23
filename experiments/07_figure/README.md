@@ -1,4 +1,4 @@
-# Figure 8: LinTS Baseline Comparison
+# Figure 7: LinTS Baseline Comparison
 
 Compares banditGPT (LinUCB + Corralling) against Linear Thompson Sampling (LinTS) at K=5 and K=10.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate Figure 8: LinTS baseline comparison Pareto frontiers for K=5 and K=10.
+Generate Figure 7: LinTS baseline comparison Pareto frontiers for K=5 and K=10.
 
 Two-panel figure (side by side): one panel per portfolio.
 Each panel shows:
@@ -103,14 +103,14 @@ def main():
     fig.legend(handles, labels, loc="lower center", ncol=4, fontsize=9,
                bbox_to_anchor=(0.5, -0.04), frameon=True, fancybox=True)
 
-    fig.suptitle("Figure 8: banditGPT vs. Linear Thompson Sampling — Pareto Frontiers",
+    fig.suptitle("Figure 7: banditGPT vs. Linear Thompson Sampling — Pareto Frontiers",
                  fontsize=13, fontweight="bold", y=1.02)
 
     plt.tight_layout()
     fig.subplots_adjust(bottom=0.18)
 
     for fmt in ("pdf", "png"):
-        out = RESULTS_DIR / f"figure8_lints_comparison.{fmt}"
+        out = RESULTS_DIR / f"figure7_lints_comparison.{fmt}"
         fig.savefig(out, dpi=300, bbox_inches="tight")
         print(f"Saved {out}")
 

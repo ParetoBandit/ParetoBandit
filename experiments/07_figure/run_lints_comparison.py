@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 8: LinTS Baseline Comparison at K=5 and K=10
+Figure 7: LinTS Baseline Comparison at K=5 and K=10
 ====================================================
 
 Compares banditGPT (LinUCB + Corralling) against Linear Thompson Sampling
@@ -153,7 +153,7 @@ def run_lints_sweep(models, train_data, eval_data, train_emb, eval_emb,
 
 def main():
     logger.info("=" * 70)
-    logger.info("Figure 8: LinTS Baseline Comparison (K=5, K=10)")
+    logger.info("Figure 7: LinTS Baseline Comparison (K=5, K=10)")
     logger.info("=" * 70)
 
     results_all = {}
