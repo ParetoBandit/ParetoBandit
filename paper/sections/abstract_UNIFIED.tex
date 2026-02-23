@@ -3,19 +3,15 @@
 
 \begin{abstract}
 The large language model landscape evolves rapidly and unevenly, with the number of major LLM and multimodal releases per year increasing substantially between 2023 and 2025~\cite{thompson2026timeline}.
-Deployment distributions drift silently from offline training data, and prompt-to-model preferences are heterogeneous.
-In our evaluation, 14.1\% of prompts favor a cheaper model over a more expensive frontier model, meaning a na\"{i}ve ``spend more'' policy can backfire.
-Static routers, whose policies are frozen at deployment, degrade silently when these conditions shift.
-Bandit-based alternatives can adapt, but algorithms such as LinUCB rely on linear reward assumptions that may not hold for complex prompt-to-model quality relationships; under such misspecification, these algorithms may never converge to the correct policy, causing the router to lock onto suboptimal model selections with no mechanism for self-correction.
+Deployment distributions drift from offline training data, prompt-to-model preferences are heterogeneous, and in our evaluation 14.1\% of prompts favor a cheaper model over the frontier option.
+Static routers degrade silently as these conditions shift; bandit-based alternatives can adapt but rely on linear reward assumptions that may not hold, risking convergence to suboptimal policies with no mechanism for self-correction.
 
-We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework that closes this gap through three interlocking mechanisms.
-Cost-aware LinUCB, initialized from 80k offline preference battles and refined via bandit feedback at deployment, closes \textbf{70.0\%} of the gap to an oracle router after only 300 to 400 online interactions, with no supervised labels required.
-A \textbf{Corralling} meta-learner hedges between a warmup-prior expert and a tabula rasa expert, dynamically weighting whichever performs better: under good-to-moderate priors it reduces cumulative regret by \textbf{30 to 40\%} over either expert alone; under adversarial priors it falls back gracefully rather than silently degrading.
-\textbf{Hybrid LinUCB} pools observations across data-driven model families (within-provider tetrachoric correlation), yielding a statistically significant $+2.9$~pp quality improvement at $K{=}5$ ($p{=}0.008$) with $3\times$ narrower confidence intervals, making large-portfolio routing substantially more predictable in practice.
+We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework with three interlocking mechanisms:
+(1)~Cost-aware LinUCB, initialized from offline preference battles, closes \textbf{70\%} of the gap to an oracle router within 300--400 online interactions;
+(2)~a \textbf{Corralling} meta-learner that hedges between warmup-prior and tabula-rasa experts, reducing cumulative regret by \textbf{30--40\%} and falling back gracefully under adversarial priors; and
+(3)~\textbf{Hybrid LinUCB}, which pools observations across model families to yield a $+2.9$~pp quality gain at $K{=}5$ ($p{=}0.008$) with $3\times$ narrower confidence intervals.
 
-Across portfolios spanning six providers and a $600\times$ cost range, banditGPT traces a continuous cost-quality \textbf{Pareto frontier}, achieving up to 89\% cost reduction with less than 6\% quality loss at $K{=}10$.
-New models onboard via a single API call and reach calibration within ${\sim}600$ routing decisions.
-We report honest results throughout: a leave-one-out ablation confirms that one-shot per-model semantic transfer adds no significant benefit over the hybrid approach ($p{>}0.5$, $d{<}0.05$), suggesting that continuous family-level sharing is an effective abstraction for cross-model knowledge transfer in our setting.
-We characterize where prior-based bootstrapping does and does not help.
+Across six providers and a $600\times$ cost range, banditGPT traces a cost-quality \textbf{Pareto frontier}, achieving up to 89\% cost reduction with less than 6\% quality loss.
+We report honest results throughout, including a null finding: one-shot semantic transfer adds no significant benefit over family-level sharing ($p{>}0.5$).
 Code, warmup priors, and experimental logs are released in full.
 \end{abstract}
