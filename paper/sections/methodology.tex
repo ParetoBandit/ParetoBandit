@@ -32,7 +32,7 @@ The system consists of three distinct layers of decision-making, as illustrated 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/figure3_architecture.png}
-\caption{\textbf{banditGPT architecture (overview).} Prompts are embedded and reduced with PCA to context $x_t$. The router (1) enforces hard budget constraints (cost, latency, quality floors) to filter eligible models, (2) mixes two experts (warmup vs.\ tabula rasa) via Corralling-style meta-learning, and (3) selects a model using a cost-aware LinUCB objective (with optional family sharing).}
+\caption{\textbf{banditGPT architecture (overview).} Prompts are embedded and reduced with PCA to context $x_t$. The router (1) enforces hard budget constraints (cost ceiling and quality floors) to filter eligible models, (2) mixes two experts (warmup vs.\ tabula rasa) via Corralling-style meta-learning, and (3) selects a model using a cost-aware LinUCB objective (with optional family sharing).}
 \Description{A three-layer routing diagram: prompt embedding and PCA produce context features; a Pareto filter prunes models; a meta-learner mixes two expert bandits; a LinUCB layer selects a model and updates parameters from observed rewards.}
 \label{fig:architecture}
 \end{figure}
@@ -43,7 +43,7 @@ To enforce operational constraints, we implement a per-request eligibility check
 \begin{equation}
 \mathcal{E}_{x_t} = \{m \in \mathcal{M}_t \mid c_m \leq c_{\max},\; \ell_m \leq \ell_{\max},\; q_m \geq q_{\min}\}
 \end{equation}
-where $c_{\max}$, $\ell_{\max}$, and $q_{\min}$ are user-specified cost, latency, and quality-floor constraints respectively. Models failing any constraint are excluded before the bandit selects, guaranteeing per-request constraint satisfaction. Cost--quality trade-offs among eligible models are then handled by the cost-penalized LinUCB objective (Layer 3).
+where $c_{\max}$ and $q_{\min}$ are user-specified cost-ceiling and quality-floor constraints respectively. Models failing any constraint are excluded before the bandit selects, guaranteeing per-request constraint satisfaction. Latency filtering is supported in the implementation but not evaluated in this paper. Cost--quality trade-offs among eligible models are then handled by the cost-penalized LinUCB objective (Layer 3).
 
 \subsubsection{Layer 2: Expert Corralling for Adaptive Meta-Learning}
 
