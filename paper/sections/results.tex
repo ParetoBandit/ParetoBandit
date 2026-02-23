@@ -1,7 +1,7 @@
 \section{Results \& Discussion}
 \label{sec:results}
 
-We evaluate banditGPT on four dimensions: economic efficiency (Pareto optimality), multi-model scaling, safety under prior mismatch, and operational agility (adaptation to failures and new models). Section~\ref{sec:pareto} presents the two-model benchmark against RouteLLM; Section~\ref{sec:multimodel} extends to $K{=}5$ and $K{=}10$ portfolios with dedicated warmup priors; Section~\ref{sec:robustness_adaptation} summarizes safety and adaptation capabilities, with full figures and extended analysis in Appendix~\ref{app:adaptation_details}.
+We evaluate banditGPT on five dimensions: economic efficiency (Pareto optimality), multi-model scaling, algorithmic baselines, online learning convergence, and operational robustness. Section~\ref{sec:pareto} presents the two-model benchmark against RouteLLM; Section~\ref{sec:multimodel} extends to $K{=}5$ and $K{=}10$ portfolios with dedicated warmup priors; Section~\ref{sec:lints_comparison} compares against the primary contextual bandit alternative (Linear Thompson Sampling); Section~\ref{sec:cumulative_regret} verifies sub-linear regret growth; Section~\ref{sec:robustness_adaptation} summarizes safety and adaptation capabilities, with full figures and extended analysis in Appendix~\ref{app:adaptation_details}.
 
 \subsection{Cost--Quality Trade-off}
 \label{sec:pareto}
@@ -166,7 +166,19 @@ Sensitivity analysis (Appendix~\ref{appendix:hp_sensitivity}) shows ${<}0.5\%$ q
 \input{../experiments/06_figure/section_multimodel_results}
 
 % ============================================================================
-% SECTION 5.3: Compact Robustness & Adaptation
+% SECTION 5.3: LinTS Baseline Comparison
+% ============================================================================
+
+\input{../experiments/07_figure/section_lints_comparison}
+
+% ============================================================================
+% SECTION 5.4: Cumulative Regret Analysis
+% ============================================================================
+
+\input{../experiments/08_figure/section_cumulative_regret}
+
+% ============================================================================
+% SECTION 5.5: Compact Robustness & Adaptation
 % ============================================================================
 
 \subsection{Robustness and Adaptation}
