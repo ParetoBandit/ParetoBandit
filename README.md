@@ -222,6 +222,62 @@ These let you independently tune "how confident are we in feature correlations?"
 
 ---
 
+## Custom Encoders
+
+BanditGPT ships with artifacts (PCA projection and warmup priors) trained on the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). If you want to use a different sentence transformer, you must generate matching artifacts first. The library will raise a clear error if you try to use a custom encoder without them.
+
+### Step 1: Train a PCA projection
+
+```python
+from bandit_gpt import train_pca
+
+prompts = [...]  # Your representative corpus (200+ recommended)
+
+pca = train_pca(
+    prompts,
+    encoder_model="your-org/your-encoder",
+    n_components=32,
+    output_path="my_pca.joblib",
+)
+```
+
+### Step 2: Generate warmup priors
+
+```python
+from bandit_gpt import generate_warmup_priors
+
+# Each entry: {"prompt": str, "rewards": {"model_id": float, ...}}
+rewards_data = [...]
+
+priors = generate_warmup_priors(
+    rewards_data,
+    encoder_model="your-org/your-encoder",
+    pca="my_pca.joblib",
+    output_path="my_priors.joblib",
+)
+```
+
+### Step 3: Create the router
+
+```python
+from bandit_gpt import BanditRouter, FeatureService
+
+fs = FeatureService(
+    encoder_model="your-org/your-encoder",
+    pca_path="my_pca.joblib",
+)
+
+router = BanditRouter.create(
+    context_model="your-org/your-encoder",
+    feature_service=fs,
+    warmup_path="my_priors.joblib",
+)
+```
+
+If you don't have labelled data for warmup priors, you can skip them entirely with `priors="none"` and let the router learn from scratch.
+
+---
+
 ## Production Features
 
 BanditGPT includes several mechanisms for production reliability:
@@ -318,6 +374,12 @@ We report these limitations honestly to help practitioners make informed decisio
 
 ```bash
 pip install banditgpt
+```
+
+On first use, BanditGPT downloads the sentence transformer model weights (~80 MB) from Hugging Face. To pre-download them (recommended for Docker images and CI pipelines):
+
+```bash
+banditgpt --download-models
 ```
 
 From source:
@@ -434,11 +496,12 @@ banditgpt/
 │   ├── router.py            # BanditRouter, LinUCB, Corralling (~4700 lines)
 │   ├── storage.py           # SQLite context persistence
 │   ├── feature_service.py   # Prompt embedding + PCA
+│   ├── calibration.py       # train_pca(), generate_warmup_priors() for custom encoders
 │   ├── baselines.py         # Baseline comparison implementations
-│   └── utils/               # Calibration, warmup, heuristics
+│   └── utils/               # Warmup, heuristics
 ├── paper/                   # LaTeX source and figures
 ├── experiments/             # Reproducible experiments (1:1 with paper figures)
-├── tests/                   # 135 tests across 36 files
+├── tests/                   # 440+ tests across 40+ files
 ├── scripts/                 # Data processing and prior generation
 └── data/                    # Experimental datasets
 ```
