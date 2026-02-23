@@ -180,7 +180,7 @@ class RouterConfig:
     # Production Stability: Memory Management
     # ---------------------------------------------------------------------------
     # Prevent OOM from unbounded log growth.
-    # At 100 QPS with 54-dim context vectors (~500 bytes/log), 10k logs ≈ 5MB.
+    # At 100 QPS with 33-dim context vectors (~300 bytes/log), 10k logs ≈ 3MB.
     # Adjust based on deployment memory constraints and feedback latency.
     max_log_size: int = 10_000         # Ring buffer size for RoutingLog entries
     
@@ -192,8 +192,8 @@ class RouterConfig:
     # Recommendation: 2d for robust covariance estimation.
     # 
     # With 5 archetypes, samples_per_archetype = procedural_warmup_samples // 5
-    # Default 100 → 20 samples per archetype → sufficient to shape 54D covariance
-    procedural_warmup_samples: int = 100  # Warmup samples (2*d for d≈50)
+    # Default 100 → 20 samples per archetype → sufficient to shape 33D covariance
+    procedural_warmup_samples: int = 100  # Warmup samples (~3*d for d=33)
     
     # ---------------------------------------------------------------------------
     # LinUCB Regularization: Initialization vs Runtime
@@ -2785,7 +2785,7 @@ Previous version referenced non-existent attributes
         """
         # 1. Extract factory-specific arguments (not passed to __init__)
         state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 100.0)
+        prior_n_effective = kwargs.pop("prior_n_effective", 10.0)
         warmup_path = kwargs.pop("warmup_path", None)
         
         # Legacy support: map old 'exploration' parameter to 'alpha'
@@ -4113,7 +4113,7 @@ class CorrallingRouter:
     Example:
         >>> # Create two experts
         >>> warmup = SimpleLinUCBRouter(models, warmup_priors, alpha=1.0)
-        >>> tabula_rasa = TabulaRasaRouter(models, context_dim=24, alpha=1.0)
+        >>> tabula_rasa = TabulaRasaRouter(models, context_dim=33, alpha=1.0)
         >>> 
         >>> # Wrap them in Corralling
         >>> hybrid = CorrallingRouter(experts=[warmup, tabula_rasa], models=models, gamma=0.05)
@@ -4706,7 +4706,7 @@ class CostAwareLinUCBRouter:
         >>> # Standard usage with warmup priors
         >>> router = CostAwareLinUCBRouter(
         ...     models=["gpt-4", "gpt-3.5"],
-        ...     warmup_priors={"A": {...}, "b": {...}, "context_dim": 24},
+        ...     warmup_priors={"A": {...}, "b": {...}, "context_dim": 33},
         ...     model_costs={"gpt-4": {"normalized_cost": 1.0}, 
         ...                  "gpt-3.5": {"normalized_cost": 0.1}},
         ...     alpha_start=1.0,

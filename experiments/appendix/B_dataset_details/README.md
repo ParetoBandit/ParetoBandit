@@ -28,9 +28,12 @@ Validation methodology and cross-domain transfer analysis supporting Figure 1
 - Complete feature pipeline: 384D -> 32 PCA + 1 bias = 33D
 - PCA variance analysis (35.14% at 32 components)
 - Why 35% variance is sufficient for routing
+- **Multi-model evaluation data (K>2)**: 43-model dataset, three-way split
+  (prior-train ~40% / online-learn ~60% / holdout), extended provenance table
 - Limitations: two-model topology, near-duplicates, stratification, encoder dependency
 
-**Supports**: Figure 1's cross-domain generalization claim, Table 2 provenance
+**Supports**: Figure 1's cross-domain generalization claim, Table 2 provenance,
+Figure 7 multi-model data provenance
 
 ---
 

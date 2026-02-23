@@ -59,8 +59,9 @@ logic.}):
 Using GPT-4o (evaluation) vs.\ GPT-4 (warmup) introduces a minor judge
 mismatch.  However, the warmup data is used only for prior initialization
 (Bayesian injection into LinUCB), and the prior strength is
-normalized to $\neff{=}10$ effective samples
-(Appendix~\ref{appendix:hp_sensitivity}).  The Corralling meta-learner
+normalized to $\neff{=}10$ effective samples in the experiments
+(production library default: $\neff{=}5$;
+see Appendix~\ref{appendix:hp_sensitivity} for the ablation).  The Corralling meta-learner
 further attenuates prior mismatch by down-weighting the warmup expert if
 priors are miscalibrated (Appendix~\ref{appendix:cold_start}).  We do not
 claim that the two judges are identical; rather, the system is designed to be

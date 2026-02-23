@@ -133,6 +133,65 @@ efficiency.  With $d = 33$ (including bias), each LinUCB update requires
 ${\sim}$1,089 multiply-accumulate operations---fast enough for real-time
 routing at 100+ QPS.
 
+\subsubsection{Multi-Model Evaluation Data ($K{>}2$)}
+\label{sec:multimodel_data}
+
+The two-model experiments (Figures~1--5) use PCA trained on 80K RouteLLM
+battles.  For the multi-model experiments (Figure~7, $K{=}5$ and $K{=}10$),
+we extend the data pipeline as follows.
+
+\paragraph{43-model evaluation dataset.}
+Rewards for 43 models are collected on the same LMSYS prompt pool using
+GPT-4o as pairwise judge (Section~\ref{appendix:reward_signal}).  Only
+prompts with full 43-model coverage are retained.
+
+\paragraph{Three-way split.}
+To avoid data leakage, the dev prompts with 43-model coverage are split into
+two disjoint subsets via stratified sampling (seed~42):
+\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
+    \item \textbf{Prior-training set} (${\sim}40\%$): Used to build LinUCB
+          warmup priors for all 43 models.  Each (prompt, model) pair
+          contributes a rank-1 update ($A_m \mathrel{+}= x x^\top$,
+          $b_m \mathrel{+}= r \cdot x$), then matrices are scaled by a
+          plasticity factor of~0.1.
+    \item \textbf{Online-learning set} (${\sim}60\%$, 533 prompts): Fed to the
+          bandit during evaluation as streaming interactions.
+\end{itemize}
+The holdout set (750~prompts) is never touched during prior construction or
+online learning.  Pairwise disjointness of all three splits is verified
+programmatically before each experiment.
+
+\paragraph{Artifact pipeline.}
+The prior-generation script
+(\texttt{scripts/generate\_multimodel\_warmup\_priors.py}) uses the same
+feature pipeline (Section~\ref{sec:cross_domain_transfer}): MiniLM embedding
+$\to$ PCA-32 $\to$ bias append $=$ 33D context vectors.  The resulting
+priors are stored in \texttt{priors\_warmup\_43model.joblib}; the split
+definition is stored in \texttt{splits\_three\_way.json} for reproducibility.
+
+\paragraph{Data provenance summary.}
+Table~\ref{tab:data_provenance_extended} extends
+Table~\ref{tab:data_provenance} to cover both the two-model and multi-model
+experimental setups.
+
+\begin{table}[h]
+\centering
+\caption{Extended data provenance covering two-model and multi-model experiments.}
+\label{tab:data_provenance_extended}
+\small
+\begin{tabular}{llll}
+\toprule
+ & \textbf{PCA Training} & \textbf{$K{=}2$ Eval} & \textbf{$K{>}2$ Eval} \\
+\midrule
+\textbf{Source} & RouteLLM HuggingFace & LMSYS Chatbot Arena & LMSYS Chatbot Arena \\
+\textbf{Models} & 2 (Mixtral, GPT-4-T) & 2 (same pair) & 43 models \\
+\textbf{Size} & 80,000 prompts & 750 holdout & ${\sim}$533 online + 750 holdout \\
+\textbf{Judge} & GPT-4 & GPT-4o & GPT-4o \\
+\textbf{Split} & Independent dataset & Dev/holdout & Prior-train / online / holdout \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsubsection{Limitations}
 \label{sec:transfer_limitations}
 

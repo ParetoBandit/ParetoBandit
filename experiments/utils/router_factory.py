@@ -35,7 +35,7 @@ def create_experiment_router(
     model_registry: Dict[str, Any],
     feature_dim: int = 33,
     *,
-    prior_n_effective: float = 100.0,
+    prior_n_effective: float = 10.0,
     alpha: float = 2.0,
     warmup_path: Optional[str] = None,
     use_corralling: bool = True,
