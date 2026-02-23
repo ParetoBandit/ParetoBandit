@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 7: Multi-Model Cost-Quality Pareto Frontier (K=5 and K=10)
+Figure 6: Multi-Model Cost-Quality Pareto Frontier (K=5 and K=10)
 =================================================================
 
 Four-panel publication figure:
@@ -10,7 +10,7 @@ Four-panel publication figure:
   (d) Traffic allocation heatmap (model × K)
 
 Reads: results/multimodel_pareto_results.json
-Saves: results/figure7_multimodel_pareto.pdf and .png
+Saves: results/figure6_multimodel_pareto.pdf and .png
 """
 
 import json
@@ -212,12 +212,12 @@ def main():
     plot_traffic_heatmap(ax_d, data)
 
     fig.suptitle(
-        "Figure 7: Multi-Model Routing — banditGPT at K=5 and K=10",
+        "Figure 6: Multi-Model Routing — banditGPT at K=5 and K=10",
         fontsize=13, fontweight="bold", y=0.98,
     )
 
     for ext in ("pdf", "png"):
-        path = RESULTS_DIR / f"figure7_multimodel_pareto.{ext}"
+        path = RESULTS_DIR / f"figure6_multimodel_pareto.{ext}"
         fig.savefig(path, dpi=300, bbox_inches="tight")
         print(f"Saved: {path}")
 

@@ -159,15 +159,15 @@ values used in each paper experiment.
 \caption{Corralling parameters by experiment.}
 \label{tab:corralling_expt}
 \small
-\begin{tabular}{@{}lcccccc@{}}
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~7} & \textbf{Library Default} \\
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Library Default} \\
 \midrule
-$\eta$ (learning rate) & 0.030 & 0.1 & --- & 0.3 & 0.1 & 0.1 \\
-$\gamma$ (mixing floor) & 0.05 & 0.05 & --- & 0.05 & 0.05 & 0.05 \\
-\texttt{loss\_decay} & 1.0 & 1.0 & --- & 1.0 & 1.0 & 0.999 \\
-\texttt{meta\_lr\_halflife} & N/A & N/A & --- & N/A & N/A & 60.0\,s \\
-Initial warmup weight & 0.70 & 0.50 & --- & 0.50 & 0.50 & uniform \\
+$\eta$ (learning rate) & 0.030 & 0.1 & --- & 0.1 & 0.1 \\
+$\gamma$ (mixing floor) & 0.05 & 0.05 & --- & 0.05 & 0.05 \\
+\texttt{loss\_decay} & 1.0 & 1.0 & --- & 1.0 & 0.999 \\
+\texttt{meta\_lr\_halflife} & N/A & N/A & --- & N/A & 60.0\,s \\
+Initial warmup weight & 0.70 & 0.50 & --- & 0.50 & uniform \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
@@ -181,18 +181,18 @@ Fig~5 uses tabula rasa only (no Corralling; Hybrid vs.\ Disjoint comparison).
 \caption{LinUCB expert parameters by experiment.}
 \label{tab:linucb_expt}
 \small
-\begin{tabular}{@{}lcccccc@{}}
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Fig~7} & \textbf{Library Default} \\
+\textbf{Parameter} & \textbf{Fig~3} & \textbf{Fig~4} & \textbf{Fig~5} & \textbf{Fig~6} & \textbf{Library Default} \\
 \midrule
-$\alpha$ (start) & 2.0 & 2.0$^\dagger$ & 1.0 & 1.0 & 2.0$^\dagger$ & 1.0 \\
-$\alpha$ (end) & 2.0 & 0.01$^\dagger$ & 0.01 & 0.1 & 0.01$^\dagger$ & 0.1 \\
-$\alpha$ decay steps & --- & 1,121 & 888 & 500 & 533 & linear over $T$ \\
-$\neff$ & 0.05$^*$ & 10.0 & --- & 10.0 & 10.0 & 10.0 \\
-$\lambda$ (cost penalty) & 0.0 & swept & 0.0 & 0.0 & swept & 0.0 \\
-\texttt{init\_lambda} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
-\texttt{forgetting\_factor} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
-Context dimension & 33 & 33 & 33 & 33 & 33 & 33 (32 PCA + bias) \\
+$\alpha$ (start) & 2.0 & 2.0$^\dagger$ & 1.0 & 2.0$^\dagger$ & 1.0 \\
+$\alpha$ (end) & 2.0 & 0.01$^\dagger$ & 0.01 & 0.01$^\dagger$ & 0.1 \\
+$\alpha$ decay steps & --- & 1,121 & 888 & 533 & linear over $T$ \\
+$\neff$ & 0.05$^*$ & 10.0 & --- & 10.0 & 10.0 \\
+$\lambda$ (cost penalty) & 0.0 & swept & 0.0 & swept & 0.0 \\
+\texttt{init\_lambda} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
+\texttt{forgetting\_factor} & 1.0 & 1.0 & 1.0 & 1.0 & 1.0 \\
+Context dimension & 33 & 33 & 33 & 33 & 33 (32 PCA + bias) \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
@@ -216,24 +216,22 @@ The RouteLLM baseline uses 28 threshold values $\tau \in [0.0, 1.0]$.
 
 \begin{table}[h]
 \centering
-\caption{Model portfolio across experiments.  Figures~5 and 7 draw from the
+\caption{Model portfolio across experiments.  Figures~5 and 6 draw from the
 43-model evaluation pool; representative models shown for the $K{=}5$ and
 $K{=}10$ portfolios (see Section~\ref{sec:multimodel_data}).}
 \label{tab:model_costs}
 \small
-\begin{tabular}{@{}llcccl@{}}
+\begin{tabular}{@{}llccl@{}}
 \toprule
-\textbf{Model} & \textbf{Cost (/1M)} & \textbf{Fig~3,4} & \textbf{Fig~5,7} & \textbf{Fig~6} & \textbf{Prior Source} \\
+\textbf{Model} & \textbf{Cost (/1M)} & \textbf{Fig~3,4} & \textbf{Fig~5,6} & \textbf{Prior Source} \\
 \midrule
-Llama-3.1-8B-Instruct & \$0.05 & --- & $K{\geq}5$ & --- & 43-model priors \\
-Mixtral-8x7B-Instruct & \$0.57 & \checkmark & $K{\geq}5$ & \checkmark & RouteLLM battles \\
-Gemini-2.5-Flash & \$0.15 & --- & $K{\geq}5$ & --- & 43-model priors \\
-Claude-Sonnet-4 & \$3.00 & --- & $K{\geq}5$ & --- & 43-model priors \\
-GPT-4.1 & \$2.00 & --- & $K{\geq}5$ & --- & 43-model priors \\
-GPT-4-Turbo & \$10.00 & \checkmark & $K{=}10$ & \checkmark & RouteLLM battles \\
-GPT-4o & \$2.50 & \checkmark & --- & --- & Semantic transfer \\
-GPT-3.5-Turbo & \$0.50 & --- & --- & \checkmark & Semantic transfer \\
-Claude-3-Haiku & \$0.25 & --- & --- & \checkmark & Semantic transfer \\
+Llama-3.1-8B-Instruct & \$0.05 & --- & $K{\geq}5$ & 43-model priors \\
+Mixtral-8x7B-Instruct & \$0.57 & \checkmark & $K{\geq}5$ & RouteLLM battles \\
+Gemini-2.5-Flash & \$0.15 & --- & $K{\geq}5$ & 43-model priors \\
+Claude-Sonnet-4 & \$3.00 & --- & $K{\geq}5$ & 43-model priors \\
+GPT-4.1 & \$2.00 & --- & $K{\geq}5$ & 43-model priors \\
+GPT-4-Turbo & \$10.00 & \checkmark & $K{=}10$ & RouteLLM battles \\
+GPT-4o & \$2.50 & \checkmark & --- & Semantic transfer \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -251,11 +249,11 @@ Claude-3-Haiku & \$0.25 & --- & --- & \checkmark & Semantic transfer \\
 \midrule
 Warmup & 80,000 & RouteLLM battles & PCA training, $K{=}2$ prior init \\
 Development & 1,121 & LMSYS Arena & Online learning (Fig~4) \\
-Holdout & 750 & LMSYS Arena & Evaluation (Figs~1, 3, 4, 5, 7) \\
+Holdout & 750 & LMSYS Arena & Evaluation (Figs~1, 3, 4, 5, 6) \\
 \midrule
-\multicolumn{4}{@{}l}{\emph{Three-way split for $K{>}2$ experiments (Figs~5, 7):}} \\
+\multicolumn{4}{@{}l}{\emph{Three-way split for $K{>}2$ experiments (Figs~5, 6):}} \\
 Prior-training & ${\sim}355$ & LMSYS Arena (dev) & 43-model warmup prior construction \\
-Online-learning & ${\sim}533$ & LMSYS Arena (dev) & Bandit training (Figs~5, 7) \\
+Online-learning & ${\sim}533$ & LMSYS Arena (dev) & Bandit training (Figs~5, 6) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -275,8 +273,7 @@ Figure~1 & --- & 1 & Deterministic (PCA + correlation) \\
 Figure~3 & 20 & 20 & Per degradation level \\
 Figure~4 & 20 & 300 & 20 seeds $\times$ 15 $\lambda$ values \\
 Figure~5 & 20 & 120 & 20 seeds $\times$ 3 $K$ values $\times$ 2 policies \\
-Figure~6 & 20 & 20 & K=5 portfolio \\
-Figure~7 & 20 & 440 & 20 seeds $\times$ (11 $\lambda$ $\times$ 2 $K$ portfolios) \\
+Figure~6 & 20 & 440 & 20 seeds $\times$ (11 $\lambda$ $\times$ 2 $K$ portfolios) \\
 Ablation (Appendix~A, Table~\ref{tab:corralling_ablation}) & 3 & 45 & 15 configs $\times$ 3 seeds \\
 \bottomrule
 \end{tabular}

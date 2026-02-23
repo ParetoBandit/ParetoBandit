@@ -1,4 +1,4 @@
-# Figure 7: Multi-Model Pareto Frontier (K=5, K=10)
+# Figure 6: Multi-Model Pareto Frontier (K=5, K=10)
 
 **Experiment Goal**: Demonstrate banditGPT's multi-model routing capabilities at K>>2, exercising the full architectural stack (Dynamic Pareto Filtering, Hybrid LinUCB family sharing, Corralling meta-learning) with real warmup priors for all models.
 

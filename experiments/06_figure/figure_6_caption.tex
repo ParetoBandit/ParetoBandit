@@ -1,9 +1,9 @@
-% Figure 7: Multi-Model Pareto Frontier — K=5 and K=10
-% Include from the main paper via \input{../experiments/06_figure/figure_7_caption}
+% Figure 6: Multi-Model Pareto Frontier — K=5 and K=10
+% Include from the main paper via \input{../experiments/06_figure/figure_6_caption}
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{../experiments/06_figure/results/figure7_multimodel_pareto.png}
+\includegraphics[width=0.95\textwidth]{../experiments/06_figure/results/figure6_multimodel_pareto.png}
 \caption{\textbf{Multi-model routing at $K{=}5$ and $K{=}10$: cost--quality Pareto frontiers, convergence, and traffic allocation.}
 \textbf{(a,b)}~Pareto frontiers sweeping cost penalty $\lambda \in [0, 5]$ ($n{=}20$ seeds per point). Green triangles mark static single-model baselines; the blue curve traces banditGPT's operating envelope. At $\lambda{=}0$ (quality-maximising), banditGPT achieves 0.954 (K{=}5) and 0.940 (K{=}10). At $\lambda{=}5$ (cost-minimising), it routes nearly all traffic to the cheapest model while maintaining 0.756 (K{=}5) and 0.920 (K{=}10) quality. The orange dashed line (no Corralling) shows the ablated system without the meta-learner.
 \textbf{(c)}~Convergence from warmup priors: both portfolios start at ${\sim}0.94$ reward (step~0, no online learning), demonstrating that the 43-model warmup priors provide effective cold-start quality across portfolio sizes. K{=}5 improves to 0.954 by step 533; K{=}10 remains stable at ${\sim}0.93{-}0.94$.

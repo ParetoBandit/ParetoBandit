@@ -33,7 +33,7 @@ Validation methodology and cross-domain transfer analysis supporting Figure 1
 - Limitations: two-model topology, near-duplicates, stratification, encoder dependency
 
 **Supports**: Figure 1's cross-domain generalization claim, Table 2 provenance,
-Figure 7 multi-model data provenance
+Figure 6 multi-model data provenance
 
 ---
 
