@@ -2,24 +2,12 @@
   \centering
   \includegraphics[width=\textwidth]{../experiments/07_figure/results/figure7_lints_comparison.pdf}
   \caption{
-    \textbf{banditGPT vs.\ Linear Thompson Sampling: Pareto Frontiers at $K{=}5$ and $K{=}10$.}
-    Each curve traces the quality--cost Pareto frontier obtained by sweeping
-    $\lambda \in \{0, 0.005, \ldots, 5\}$ across 20 independent trials.
-    \emph{Left:} $K{=}5$; \emph{Right:} $K{=}10$.
-    banditGPT (LinUCB + Corralling, solid blue) Pareto-dominates both
-    LinTS with warmup priors (dashed orange) and LinTS without priors
-    (dotted orange) across the full cost spectrum.
-    At $K{=}5$, the peak reward gap is 2.4~pp ($0.954$ vs.\ $0.930$, $p{<}0.05$);
-    at $K{=}10$ it narrows to 0.8~pp ($0.940$ vs.\ $0.932$).
-    Horizontal references show the per-prompt oracle (upper bound), best
-    single-model static policy (GPT-4.1, $0.983$), $\varepsilon$-greedy
-    ($0.975$), and random.
-    The best static model outperforms all contextual methods at $\lambda{=}0$,
-    reflecting a small contextual improvement ceiling ($1.7\%$);
-    contextual routing's value emerges at nonzero $\lambda$ where it
-    discovers cost-efficient per-prompt routing
-    (Section~\ref{sec:egreedy_analysis}).
-    Shaded bands: $\pm 1\sigma$.
+    \textbf{banditGPT vs.\ Linear Thompson Sampling (LinTS): Pareto Frontiers at $K{=}5$ and $K{=}10$.}
+    Curves show quality--cost frontiers across $\lambda \in [0, 5]$ ($n{=}20$ trials, shaded bands: $\pm 1\sigma$).
+    banditGPT (LinUCB + Corralling, solid blue) Pareto-dominates LinTS both with warmup priors (dashed orange) and without priors (dotted orange) across the cost spectrum.
+    At $K{=}5$, the peak reward gap is 2.4~pp ($0.954$ vs.\ $0.930$, $p{<}0.05$); at $K{=}10$ it narrows to 0.8~pp ($0.940$ vs.\ $0.932$).
+    Horizontal references show the per-prompt oracle, best single model (GPT-4.1, $0.983$), $\varepsilon$-greedy ($0.975$), and random routing.
+    While the best static model leads at $\lambda{=}0$ (due to a small 1.7\% contextual ceiling), contextual routing finds cost-efficient allocations at nonzero $\lambda$ (Section~\ref{sec:egreedy_analysis}).
   }
   \label{fig:lints_pareto}
 \end{figure*}

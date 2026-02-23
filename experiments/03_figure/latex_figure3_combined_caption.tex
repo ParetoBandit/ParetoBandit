@@ -9,20 +9,10 @@
     \includegraphics[width=0.75\columnwidth]{experiments/03_figure/results/figure3_prior_degradation.pdf}
     \caption{%
         \textbf{Prior Degradation Sweep} ($N{=}20$ seeds, $\pm 1\sigma$ bands).
-        %
-        Corralling achieves the lowest regret for good priors
-        ($\alpha \leq 0.2$, regret 48--51), outperforming both
-        warmup-only (52--58) and tabula rasa (${\sim}51.3$).
-        Beyond the crossover at $\alpha{\approx}0.3$, Corralling's regret
-        rises sharply (65--75) with high variance ($\sigma{\approx}23$),
-        while tabula rasa maintains flat regret regardless of corruption.
-        Warmup-only degrades monotonically (52 to 67) but is never the
-        best strategy at any corruption level.
-        %
-        Setup: 750-prompt LMSYS holdout, 2~models (Mixtral / GPT-4-Turbo),
-        $\eta{=}\sqrt{\ln 2/750}{\approx}0.030$, $\gamma{=}0.05$,
-        $w_0{=}0.7$, warmup $\alpha{=}2.0$ (constant),
-        tabula rasa $\alpha{=}1.0 \to 0.01$ (decaying), $\lambda{=}0$.
+        Corralling achieves the lowest regret for good priors ($\alpha \leq 0.2$, regret 48--51), beating warmup-only (52--58) and tabula rasa (${\sim}51.3$).
+        Beyond the crossover ($\alpha{\approx}0.3$), Corralling's regret rises sharply (65--75, $\sigma{\approx}23$), while tabula rasa remains flat regardless of corruption.
+        Warmup-only degrades monotonically (52 to 67) and is never optimal.
+        Setup: 750 LMSYS prompts, 2 models, $\eta{\approx}0.030$, $\gamma{=}0.05$, $w_0{=}0.7$, warmup $\alpha{=}2.0$, tabula rasa $\alpha{=}1.0 \to 0.01$, $\lambda{=}0$.
     }
     \label{fig:prior_degradation}
 \end{figure}

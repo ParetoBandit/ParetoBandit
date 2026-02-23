@@ -4,12 +4,12 @@
 \centering
 \includegraphics[width=0.95\textwidth]{experiments/05_figure/results/k_scaling_figure.png}
 \caption{\textbf{Family parameter sharing improves routing stability as portfolio size grows.}
-\textbf{Top row:} Rolling online reward (window${}=50$) during training on 888 real prompts.
-\textbf{Bottom row:} Greedy holdout reward (750 prompts) evaluated at 25-step intervals.
-Each column shows a portfolio of $K{=}5$, $10$, or $20$ models; shaded bands are 95\% CIs ($n{=}20$ seeds).
-Family assignments are data-driven: within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$) with connected-components clustering.
-At $K{=}5$, Hybrid achieves significantly higher holdout quality ($0.966$ vs.\ $0.937$, $p{=}0.008$) with $3.2\times$ narrower confidence intervals.
-At $K{=}20$ (44 observations/model), Hybrid again shows $3.1\times$ tighter CIs ($\pm 0.007$ vs.\ $\pm 0.022$), demonstrating that family sharing stabilises learning when per-model data is scarce.
-Neither method reaches the Oracle (1.000) within 888 steps, confirming that larger portfolios require more data---but Hybrid converges more reliably.}
+\textbf{Top row:} Rolling online reward (window${=}50$) during training on 888 prompts.
+\textbf{Bottom row:} Greedy holdout reward (750 prompts) at 25-step intervals.
+Columns show portfolios of $K \in \{5, 10, 20\}$ models; bands are 95\% CIs ($n{=}20$ seeds).
+Family assignments use within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$).
+At $K{=}5$, Hybrid yields higher holdout quality ($0.966$ vs.\ $0.937$, $p{=}0.008$) with $3.2\times$ narrower CIs.
+At $K{=}20$ (44 obs/model), Hybrid maintains $3.1\times$ tighter CIs ($\pm 0.007$ vs.\ $\pm 0.022$), showing family sharing stabilises learning under data scarcity.
+Neither method reaches the Oracle ($1.000$) within 888 steps, though Hybrid converges more reliably.}
 \label{fig:k_scaling}
 \end{figure*}
