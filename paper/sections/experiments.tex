@@ -12,7 +12,8 @@ To rigorously validate our integrated approach, we conduct experiments organized
 
 \textbf{Part II: Evaluation (Section~\ref{sec:results})}
 \begin{itemize}
-    \item Figure~\ref{fig:pareto}: Pareto frontier analysis against baselines
+    \item Figure~\ref{fig:pareto}: Two-model Pareto frontier analysis against RouteLLM
+    \item Figure~\ref{fig:multimodel_pareto}: Multi-model routing at $K{=}5$ and $K{=}10$
     \item Supporting results: catastrophic failure detection, sensitivity analysis (Appendix~\ref{app:adaptation_details})
 \end{itemize}
 
@@ -33,6 +34,8 @@ We source our data from the LMSYS Chatbot Arena public dataset~\cite{zheng2023ju
 \end{enumerate}
 
 \input{../experiments/02_table/table1_dataset.tex}
+
+\input{sections/warmup_prior_construction}
 
 \subsection{Model Topology \& Baselines}
 

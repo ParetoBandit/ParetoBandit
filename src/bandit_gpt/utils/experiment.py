@@ -155,6 +155,105 @@ class ExperimentBurnIn:
         
         return dev_pool, holdout_pool
 
+    @staticmethod
+    def create_three_way_splits(
+        oracle_rewards: Dict[str, Dict[str, float]],
+        splits_path: Path,
+        prior_ratio: float = 0.40,
+        random_state: int = 42,
+        min_models: int = 43,
+    ) -> Tuple[List[str], List[str], List[str]]:
+        """
+        Generate stratified three-way split: prior-training / online-learning / holdout.
+
+        The prior-training set is used to build warmup priors for K-model
+        experiments.  The online-learning set feeds the bandit during
+        evaluation.  The holdout set (from the existing canonical split)
+        remains untouched.
+
+        This method splits only the *dev* prompts that have full model
+        coverage (>= min_models).  Holdout prompts are loaded from the
+        existing canonical split and verified disjoint.
+
+        Args:
+            oracle_rewards: {prompt: {model: reward}} for dev prompts.
+            splits_path:    Where to save the three-way split JSON.
+            prior_ratio:    Fraction of dev prompts allocated to prior
+                            training (default 0.40).
+            random_state:   Reproducibility seed.
+            min_models:     Minimum model coverage required per prompt.
+
+        Returns:
+            (prior_train_prompts, online_learn_prompts, holdout_prompts)
+        """
+        # Filter to full-coverage prompts
+        full_cov = {
+            p: rewards
+            for p, rewards in oracle_rewards.items()
+            if len(rewards) >= min_models
+        }
+        all_prompts = list(full_cov.keys())
+        print(f"  {len(all_prompts)} prompts with >= {min_models} model coverage")
+
+        # Stratify using the same axes as create_canonical_splits.
+        # Merge any class with < 2 members into the largest existing
+        # stratum so that sklearn's stratified split can proceed.
+        strata = [
+            ExperimentBurnIn._get_stratification_key(p, full_cov[p])
+            for p in all_prompts
+        ]
+        final_strata = list(strata)
+        counts = Counter(final_strata)
+        largest = counts.most_common(1)[0][0]
+        for i, s in enumerate(final_strata):
+            if counts[s] < 2:
+                final_strata[i] = largest
+
+        prior_train, online_learn = train_test_split(
+            all_prompts,
+            test_size=1.0 - prior_ratio,
+            random_state=random_state,
+            stratify=final_strata,
+        )
+
+        # Pairwise disjointness
+        sets = {
+            "prior_train": set(prior_train),
+            "online_learn": set(online_learn),
+        }
+        for a_name, a_set in sets.items():
+            for b_name, b_set in sets.items():
+                if a_name >= b_name:
+                    continue
+                overlap = a_set & b_set
+                if overlap:
+                    raise ValueError(
+                        f"DATA LEAKAGE: {len(overlap)} prompts overlap "
+                        f"between {a_name} and {b_name}"
+                    )
+
+        splits_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(splits_path, "w") as f:
+            json.dump(
+                {
+                    "prior_train_pool": prior_train,
+                    "online_learn_pool": online_learn,
+                    "min_models": min_models,
+                    "prior_ratio": prior_ratio,
+                    "random_state": random_state,
+                },
+                f,
+                indent=2,
+            )
+
+        print(f"  Created three-way split (seed={random_state}):")
+        print(f"    Prior training : {len(prior_train)} prompts")
+        print(f"    Online learning: {len(online_learn)} prompts")
+        print(f"    Strata count   : {len(set(final_strata))}")
+        print(f"    Saved to       : {splits_path}")
+
+        return prior_train, online_learn
+
     def get_splits(
         self, 
         load_rewards: bool = False,

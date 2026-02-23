@@ -1,0 +1,88 @@
+\subsection{Warmup Prior Construction}
+\label{sec:warmup_construction}
+
+A core architectural feature of banditGPT is its modular warmup prior pipeline: the system accepts \emph{any} collection of (prompt, model, reward) triples as input and produces LinUCB prior matrices ($\Amat, \bvec$) for each model in the portfolio.
+Because warmup priors are inherently model-specific---they encode per-model reward surfaces over the prompt embedding space---the prior source must cover the models in the target portfolio.
+This section describes the two prior sources used in our evaluation and the data split that supports them.
+
+\subsubsection{Two Prior Sources for Two Evaluation Regimes}
+
+Our evaluation operates at two scales that require different prior sources, reflecting a natural constraint: available offline data rarely covers every model in a deployment portfolio.
+
+\paragraph{K\,=\,2 (RouteLLM Comparison).}
+For the controlled comparison against RouteLLM (Section~\ref{sec:pareto}), we use 80,000 pairwise battles from the RouteLLM dataset~\cite{ong2024routellm} to build warmup priors for the same two models that RouteLLM was trained on (Mixtral-8x7B and GPT-4-Turbo).
+This is a \emph{cross-distribution} prior: the battles were collected from a different user population and time period than our evaluation prompts.
+The distribution mismatch is deliberate---it creates the realistic scenario where offline training data does not perfectly match deployment traffic, and it matches RouteLLM's own training condition for a controlled comparison.
+The warmup priors encode 80K observations into the LinUCB sufficient statistics via online updates: $\Amat_m \mathrel{+}= \xvec\xvec^\top$, $\bvec_m \mathrel{+}= r\xvec$, with a plasticity factor ($\rho{=}0.1$) that scales the final matrices so that online observations can overwrite the prior within a practical number of steps.
+
+\paragraph{K\,=\,5 and K\,=\,10 (Multi-Model Scaling).}
+For the multi-model evaluation (Section~\ref{sec:multimodel}), the RouteLLM battle data is insufficient: it covers only 2 of $K$ models, leaving the warmup expert uninformed about the remaining $K{-}2$ models.
+Section~\ref{sec:transfer_null} showed that semantic transfer from a known model to an unknown model provides no statistically significant improvement over tabula rasa ($p > 0.07$), so simply transferring priors from the two known models would not meaningfully warm-start the larger portfolio.
+
+Instead, we construct warmup priors from a held-out portion of our own 43-model evaluation data.
+This is a \emph{same-distribution} prior: the prior-training prompts are drawn from the same source as the online-learning and holdout prompts (but are strictly disjoint; see below).
+This reflects the realistic deployment scenario where a practitioner seeds the router with a small batch of historical evaluations from their own traffic---the most common prior source in production, and one that is well-calibrated by construction.
+
+\subsubsection{Three-Way Data Split for K\,$>$\,2}
+\label{sec:three_way_split}
+
+To support warmup prior construction without leaking information into the evaluation, we partition the 888 development prompts that have full 43-model reward coverage into two disjoint subsets via stratified sampling (same category/complexity/difficulty axes as the canonical dev/holdout split, seed 42):
+
+\begin{table}[h]
+\centering
+\caption{Three-way data split for multi-model experiments.}
+\label{tab:three_way_split}
+\small
+\begin{tabular}{@{}llrl@{}}
+\toprule
+\textbf{Split} & \textbf{Source} & \textbf{Prompts} & \textbf{Purpose} \\
+\midrule
+Prior Training & Dev (43-model) & 355 & Warmup priors for all 43 models \\
+Online Learning & Dev (43-model) & 533 & Bandit online learning \\
+Holdout & Holdout (43-model) & 750 & Frozen evaluation (untouched) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The prior-training set produces $355 \times 43 = 15{,}265$ (prompt, model, reward) observations---approximately 355 per model with a context dimension of 33, yielding ${\sim}10\times$ oversampling relative to the minimum needed for well-conditioned precision matrices.
+After applying the same plasticity factor ($\rho{=}0.1$) used for the RouteLLM priors, the effective information content is comparable to the 2-model priors despite the smaller prompt count: both yield moderately confident starting beliefs that online learning can override within a few hundred steps.
+
+\paragraph{Why not use the RouteLLM priors for K\,$>$\,2?}
+One could apply semantic transfer to bootstrap models not covered by the RouteLLM data (as in the catastrophic failure experiment, Appendix~\ref{app:catastrophic_failure}).
+However, our own ablation shows that transferred priors provide no significant benefit over tabula rasa (Section~\ref{sec:transfer_null}), meaning the warmup expert would have informed beliefs about only 2 of $K$ models---undermining Corralling's ability to hedge prior quality across the full portfolio.
+Constructing priors from 43-model evaluation data ensures every model in the portfolio has a calibrated starting point, making the Corralling meta-learner effective at all portfolio sizes.
+
+\paragraph{Data integrity.}
+All three splits are verified prompt-disjoint by automated leakage checks at split creation time and again at experiment runtime.
+The holdout set is identical to the one used in the $K{=}2$ evaluation (the same 750 prompts); only the model columns read differ across experiments, ensuring that performance comparisons between $K{=}2$ and $K{>}2$ are grounded in the same prompt population.
+
+\subsubsection{Practical Guidance: Constructing Warmup Priors}
+\label{sec:prior_guidance}
+
+The warmup prior pipeline is intentionally generic: it requires only a set of (prompt, model, reward) triples in any format.
+For practitioners deploying banditGPT with a new model portfolio, we recommend the following workflow:
+
+\begin{enumerate}[nosep]
+\item \textbf{Collect a seed batch.}
+Evaluate 200--500 representative prompts from the target domain across all $K$ models in the portfolio.
+Rewards can come from any source: human ratings, LLM-as-judge scores~\cite{zheng2023judging}, or automated quality metrics.
+With $K$ models and $d{=}33$ context dimensions, 200 prompts yield ${\sim}6\times$ oversampling per model, sufficient for moderate-confidence priors.
+
+\item \textbf{Generate priors.}
+Run the prior generation script (\texttt{generate\_multimodel\_warmup\_priors.py}), which encodes each prompt via the shared PCA projection and performs LinUCB updates for every (prompt, model, reward) triple.
+The output is a single joblib artifact containing $\Amat_m$ and $\bvec_m$ for all $K$ models.
+
+\item \textbf{Set plasticity.}
+The plasticity factor $\rho$ (default 0.1) controls how quickly online observations can overwrite the prior.
+Lower values ($\rho{=}0.01$) make the prior more persistent---appropriate when the seed batch closely matches deployment traffic.
+Higher values ($\rho{=}1.0$) make the prior weaker---appropriate when the seed batch is from a different domain.
+Section~\ref{sec:prior_degradation} shows that Corralling automatically hedges against prior quality, so practitioners need not precisely tune $\rho$.
+
+\item \textbf{Deploy with Corralling.}
+The Corralling meta-learner hedges between the warmup expert (initialized with the generated priors) and a tabula rasa expert (no priors).
+If the warmup priors are well-calibrated, Corralling exploits them for 30--40\% lower regret during burn-in (Section~\ref{sec:prior_degradation}).
+If the priors are miscalibrated due to domain shift, Corralling detects the mismatch and shifts weight to the tabula rasa expert within ${\sim}50$ routing decisions.
+\end{enumerate}
+
+\noindent This workflow decouples the warmup prior from the router architecture: changing the model portfolio requires only regenerating the prior artifact, with no changes to the router code, hyperparameters, or deployment configuration.
+The two prior sources used in this paper---80K cross-distribution RouteLLM battles ($K{=}2$) and 355 same-distribution evaluation prompts ($K{=}5, 10$)---demonstrate that the pipeline is agnostic to both the prior source and the portfolio size.

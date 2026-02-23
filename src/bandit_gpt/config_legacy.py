@@ -38,8 +38,14 @@ DEFAULT_PCA_PATH = ARTIFACTS_DIR / "pca_32.joblib"
 # Generate with: python3 scripts/train_pca_generic.py --n-components 32
 GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
 
-# Path to warmup priors trained on RouteLLM data
+# Path to warmup priors trained on RouteLLM data (K=2: Mixtral + GPT-4-Turbo)
 DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
+
+# Path to warmup priors trained on 43-model evaluation data (K>2 experiments)
+MULTIMODEL_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup_43model.joblib"
+
+# Three-way split definition for K>2 experiments (prior-train / online-learn / holdout)
+THREE_WAY_SPLITS_PATH = ARTIFACTS_DIR / "splits_three_way.json"
 
 # Canonical offline dataset paths
 OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset"

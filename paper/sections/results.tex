@@ -1,7 +1,7 @@
 \section{Results \& Discussion}
 \label{sec:results}
 
-We evaluate banditGPT on three dimensions: economic efficiency (Pareto optimality), safety under prior mismatch, and operational agility (adaptation to failures and new models). Section~\ref{sec:pareto} presents the primary benchmark; Section~\ref{sec:robustness_adaptation} summarizes safety and adaptation capabilities, with full figures and extended analysis in Appendix~\ref{app:adaptation_details}.
+We evaluate banditGPT on four dimensions: economic efficiency (Pareto optimality), multi-model scaling, safety under prior mismatch, and operational agility (adaptation to failures and new models). Section~\ref{sec:pareto} presents the two-model benchmark against RouteLLM; Section~\ref{sec:multimodel} extends to $K{=}5$ and $K{=}10$ portfolios with dedicated warmup priors; Section~\ref{sec:robustness_adaptation} summarizes safety and adaptation capabilities, with full figures and extended analysis in Appendix~\ref{app:adaptation_details}.
 
 \subsection{Cost--Quality Trade-off}
 \label{sec:pareto}
@@ -33,7 +33,7 @@ At \textbf{higher budgets} (\$0.005+), banditGPT surpasses RouteLLM. Online lear
 
 \paragraph{Why RouteLLM wins at low budgets.} At tight budgets, both routers route the vast majority of traffic to Mixtral and allocate only a handful of prompts to GPT-4. Quality depends on selecting the \emph{right} prompts for the expensive model. RouteLLM's MF classifier, pre-trained on 100k preference pairs, encodes fine-grained prompt-level discrimination that banditGPT's 1,121 online examples cannot match at this granularity. In contrast, at higher budgets where 30--70\% of prompts are routed, \emph{aggregate model calibration} dominates per-prompt selection, and banditGPT's online learning---which discovers that Mixtral outperforms GPT-4 on this distribution---provides the larger advantage.
 
-This evaluation uses two models to match RouteLLM's topology and enable a controlled comparison; the contextual bandit formulation naturally extends to larger portfolios ($K \geq 3$), where per-model uncertainty diverges and exploration becomes more informative. Factors affecting the crossover point across deployments are discussed in Section~\ref{sec:limitations}.
+This evaluation uses two models to match RouteLLM's topology and enable a controlled comparison; Section~\ref{sec:multimodel} extends to $K{=}5$ and $K{=}10$ portfolios with dedicated multi-model warmup priors, confirming that the architecture composes at scale. Factors affecting the crossover point across deployments are discussed in Section~\ref{sec:limitations}.
 
 \subsubsection{The Value of Online Adaptation}
 
@@ -58,7 +58,7 @@ These results suggest clear deployment guidelines:
     \begin{itemize}[nosep]
         \item \emph{No labeled routing data exists} for the target domain---banditGPT requires zero labels, learning from its own routing outcomes.
         \item \emph{The prompt distribution shifts} over time (new users, new tasks, seasonal changes)---banditGPT adapts continuously while static routers are frozen at training time.
-        \item \emph{Multiple models ($K \geq 3$)} span different cost-quality tiers---banditGPT's contextual bandit formulation natively handles multi-model portfolios, while threshold-based routers require $O(K^2)$ pairwise comparisons.
+        \item \emph{Multiple models ($K \geq 3$)} span different cost-quality tiers---banditGPT's contextual bandit formulation natively handles multi-model portfolios (Section~\ref{sec:multimodel}: 76--82\% gap closure at $K{=}5{-}10$), while threshold-based routers require $O(K^2)$ pairwise comparisons.
         \item \emph{Maximum quality is the priority}---after a short burn-in (${\sim}200$ prompts), banditGPT's adaptive policy surpasses what supervised pre-training can achieve with $500\times$ more data.
         \item \emph{The model quality ordering is uncertain}---when the ``expensive'' model is not reliably better (a common scenario in domain-specific deployments), pre-trained routers can exhibit non-monotonic cost--quality behavior (Section~\ref{sec:nonmonotone}), while banditGPT discovers the correct ordering online.
     \end{itemize}
@@ -160,7 +160,13 @@ The ``UCB Only (w/ priors)'' ablation isolates the warmup expert---which uses co
 Sensitivity analysis (Appendix~\ref{appendix:hp_sensitivity}) shows ${<}0.5\%$ quality degradation across a $50\times$ range of the Corralling learning rate ($\eta \in [0.1, 5.0]$) and an $8\times$ range of the UCB exploration coefficient ($\alpha_{\text{start}} \in [0.5, 4.0]$). PCA dimensionality (Appendix~\ref{appendix:pca_neff}) is similarly robust: $d \in [8, 128]$ yields ${<}0.5\%$ spread, and prior strength $N_{\text{eff}} \in [1, 100]$ varies by ${<}0.4\%$. All defaults can be adopted without holdout tuning.
 
 % ============================================================================
-% SECTION 5.2: Compact Robustness & Adaptation
+% SECTION 5.2: Multi-Model Evaluation (K=5, K=10)
+% ============================================================================
+
+\input{../experiments/06_figure/section_multimodel_results}
+
+% ============================================================================
+% SECTION 5.3: Compact Robustness & Adaptation
 % ============================================================================
 
 \subsection{Robustness and Adaptation}
@@ -268,8 +274,13 @@ For practitioners, the onboarding experiment yields a simple operational message
 \subsection{Limitations}
 \label{sec:limitations}
 
-\paragraph{Two-Model Evaluation Scope.}
-All Pareto and learning curve experiments use a single model pair (Mixtral / GPT-4-Turbo), chosen to match RouteLLM's evaluation topology for controlled comparison. With only two models, the UCB exploration bonus is symmetric at initialization, making $\alpha$ largely irrelevant for model selection. The crossover dynamics reported in Section~\ref{sec:pareto} are specific to this model pair and prompt distribution. Both the learning-curve crossover (${\sim}200$ steps) and the cost-regime crossover (${\sim}$\$0.005/req) depend on: (1)~training data coverage---for model pairs well-represented in RouteLLM's training set, its low-budget advantage persists across a wider cost range; (2)~preference complexity---when preferences follow a simple difficulty threshold, supervised classification captures them efficiently, extending the regime where pre-training suffices; (3)~model quality ordering---on distributions where GPT-4 consistently outperforms the cheaper model, RouteLLM's non-monotonicity disappears and its high-budget behavior improves; and (4)~portfolio size---with $K \geq 3$, model uncertainties diverge and contextual exploration becomes genuinely informative. Practitioners should expect different quantitative boundaries with other model pairs and prompt distributions.
+\paragraph{Evaluation Scope.}
+The RouteLLM comparison (Section~\ref{sec:pareto}) uses a single model pair (Mixtral / GPT-4-Turbo) to match RouteLLM's evaluation topology for controlled comparison.
+The multi-model evaluation (Section~\ref{sec:multimodel}) extends to $K{=}5$ and $K{=}10$ with dedicated warmup priors, confirming that the architecture composes at scale, but uses offline reward data from a single evaluation distribution (LMSYS Chatbot Arena prompts scored by GPT-4o-mini judge).
+The crossover dynamics reported in Section~\ref{sec:pareto} are specific to this model pair and prompt distribution. Both the learning-curve crossover (${\sim}200$ steps) and the cost-regime crossover (${\sim}$\$0.005/req) depend on: (1)~training data coverage---for model pairs well-represented in RouteLLM's training set, its low-budget advantage persists across a wider cost range; (2)~preference complexity---when preferences follow a simple difficulty threshold, supervised classification captures them efficiently, extending the regime where pre-training suffices; (3)~model quality ordering---on distributions where GPT-4 consistently outperforms the cheaper model, RouteLLM's non-monotonicity disappears and its high-budget behavior improves; and (4)~portfolio size---with $K \geq 3$, model uncertainties diverge and contextual exploration becomes genuinely informative.
+At $K{=}5$ and $K{=}10$, the bandit's peak quality (0.954, 0.940) falls below the best static model (0.983), reflecting the exploration cost inherent in maintaining calibrated estimates across all arms.
+This gap would narrow with longer burn-in or lower $\alpha$; we use $\alpha{=}2.0$ to match the $K{=}2$ configuration and to preserve distribution-shift detection capability.
+Practitioners should expect different quantitative boundaries with other model pairs, portfolio sizes, and prompt distributions.
 
 \paragraph{Prior Quality Dependency and Automatic Fallback.}
 The prior degradation sweep (Section~\ref{sec:prior_degradation}) reveals a sharp phase transition at $\alpha \approx 0.55$: Corralling's advantage collapses and its variance increases $5\times$ ($\sigma{\approx}23$ vs.\ ${\approx}4$). The bimodal variance indicates that some seeds successfully shift weight to the tabula rasa expert while others remain trapped on the misleading warmup expert. The $\gamma$-floor and loss decay provide partial mitigation, but are insufficient to guarantee recovery in all seeds. An \emph{automatic warmup-expert freeze}---monitoring the warmup expert's running reward and clamping its meta-weight to zero when it falls below the tabula rasa expert's running average---would cap worst-case regret near the tabula rasa baseline while preserving the 34\% upside when priors are useful. Implementing and validating this mechanism is a priority for future work.
