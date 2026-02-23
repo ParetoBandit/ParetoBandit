@@ -5,12 +5,15 @@ MAIN = main
 TEX = pdflatex
 BIB = bibtex
 
+# Auto-track all .tex sources so changes to \input files trigger a rebuild
+SOURCES = $(wildcard sections/*.tex) body_full.tex body_core.tex preamble.tex
+
 # Targets
 .PHONY: all clean distclean view
 
 all: $(MAIN).pdf
 
-$(MAIN).pdf: $(MAIN).tex references.bib
+$(MAIN).pdf: $(MAIN).tex references.bib $(SOURCES)
 	$(TEX) $(MAIN)
 	$(BIB) $(MAIN)
 	$(TEX) $(MAIN)

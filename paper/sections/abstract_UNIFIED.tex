@@ -2,11 +2,11 @@
 % Framing: why static routers fail -> why single bandits aren't enough -> banditGPT closes the gap
 
 \begin{abstract}
-The LLM landscape is neither static nor uniform.
-Frontier model releases have accelerated from approximately 12 major releases per year in 2023 to over 21 in 2025; deployment distributions drift silently from offline training data; and prompt-to-model preferences are heterogeneous.
+The large language model landscape evolves rapidly and unevenly, with the number of major LLM and multimodal releases per year increasing substantially between 2023 and 2025~\cite{thompson2026timeline}.
+Deployment distributions drift silently from offline training data, and prompt-to-model preferences are heterogeneous.
 In our evaluation, 14.1\% of prompts favor a cheaper model over a more expensive frontier model, meaning a na\"{i}ve ``spend more'' policy can backfire.
 Static routers, whose policies are frozen at deployment, degrade silently when these conditions shift.
-Bandit-based alternatives can adapt, but existing approaches lack a safety mechanism when priors are wrong: a single misspecified bandit can silently degrade routing quality with no recovery.
+Bandit-based alternatives can adapt, but algorithms such as LinUCB rely on linear reward assumptions that may not hold for complex prompt-to-model quality relationships; under such misspecification, these algorithms may never converge to the correct policy, causing the router to lock onto suboptimal model selections with no mechanism for self-correction.
 
 We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework that closes this gap through three interlocking mechanisms.
 Cost-aware LinUCB, initialized from 80k offline preference battles and refined via bandit feedback at deployment, closes \textbf{70.0\%} of the gap to an oracle router after only 300 to 400 online interactions, with no supervised labels required.
