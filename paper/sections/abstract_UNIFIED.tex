@@ -5,7 +5,7 @@
 The LLM landscape is neither static nor uniform.
 Frontier model releases have accelerated from approximately 12 major releases per year in 2023 to over 21 in 2025; deployment distributions drift silently from offline training data; and prompt-to-model preferences are heterogeneous.
 In our evaluation, 14.1\% of prompts favor the cheaper model over GPT-4-Turbo, meaning a na\"{i}ve ``spend more'' policy can backfire.
-Static routers cannot adapt to this reality.
+Static routers, whose policies are frozen at deployment, degrade silently when these conditions shift.
 Bandit-based alternatives can, but existing approaches lack a safety mechanism when priors are wrong: a single misspecified bandit can silently degrade routing quality with no recovery.
 
 We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework that closes this gap through three interlocking mechanisms.
@@ -15,7 +15,7 @@ A \textbf{Corralling} meta-learner hedges between a warmup-prior expert and a ta
 
 Across portfolios spanning six providers and a $600\times$ cost range, banditGPT traces a continuous cost--quality \textbf{Pareto frontier}, achieving up to 89\% cost reduction with less than 6\% quality loss at $K{=}10$.
 New models onboard via a single API call and reach calibration within ${\sim}600$ routing decisions.
-We report honest results throughout: a leave-one-out ablation confirms that one-shot per-model semantic transfer adds no significant benefit over the hybrid approach ($p{>}0.5$, $d{<}0.05$), validating that continuous family-level sharing is the correct abstraction for cross-model knowledge transfer.
+We report honest results throughout: a leave-one-out ablation confirms that one-shot per-model semantic transfer adds no significant benefit over the hybrid approach ($p{>}0.5$, $d{<}0.05$), suggesting that continuous family-level sharing is an effective abstraction for cross-model knowledge transfer in our setting.
 We characterize where prior-based bootstrapping does and does not help.
 Code, warmup priors, and experimental logs are released in full.
 \end{abstract}

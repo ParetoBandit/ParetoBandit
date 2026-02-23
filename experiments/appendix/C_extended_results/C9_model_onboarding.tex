@@ -174,8 +174,8 @@ exploration budget spreading across many arms.
 Section~\ref{sec:transfer_null} reports that one-shot per-model
 semantic $\thetavec$ transfer provides no statistically significant
 benefit beyond the continuous family $\betavec_F$ sharing of Hybrid LinUCB
-($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$).  This validates the hybrid
-decomposition as the correct abstraction level for cross-model knowledge
+($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$).  In our evaluation, this suggests the hybrid
+decomposition is an effective abstraction level for cross-model knowledge
 transfer: the family $\betavec_F$, updated with \emph{every} observation
 from any family member, subsumes the one-shot $\thetavec$ initialization.
 The current experiment evaluates \emph{dynamic} onboarding with

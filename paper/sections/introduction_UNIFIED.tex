@@ -15,7 +15,7 @@ Consequently, a na\"ive ``spend more'' policy can backfire, producing lower aver
 Second, \textbf{deployment distributions drift} from offline training data, silently degrading static routing policies, a fundamental concern in deployed ML systems~\cite{shimodaira2000improving}.
 Third, \textbf{model portfolios are non-stationary}: the pace of frontier model releases has accelerated sharply, from approximately 12 major releases in 2023 to over 21 in 2025 alone (nearly two per month from major providers)~\cite{thompson2026timeline}, with existing models regularly deprecated or superseded, requiring the router to adapt without costly retraining.
 
-Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address distribution shift through online adaptation, but none hedges against misspecified priors: a single poorly initialized bandit can silently degrade routing quality with no recovery mechanism.
+Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address distribution shift through online adaptation, but to our knowledge none explicitly hedges against misspecified priors: a single poorly initialized bandit can silently degrade routing quality with no built-in recovery mechanism.
 
 We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework for LLM routing that closes this gap through three mechanisms:
 
@@ -51,7 +51,7 @@ Our work makes three contributions, each supported by comprehensive multi-seed e
     \item \textbf{Open-source multi-model implementation and honest evaluation.}
     We release a modular codebase supporting $K{\geq}2$ model portfolios, dynamic model onboarding, and configurable constraints.
     Hybrid LinUCB's family parameter sharing provides $3\times$ more stable convergence at $K{=}5$ and $K{=}20$ ($p{=}0.008$ at $K{=}5$), demonstrating that data-driven model grouping is a practical lever for reliable large-portfolio routing.
-    A leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no statistically significant benefit beyond hybrid family sharing ($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$), validating that the continuous family $\beta_F$ mechanism is the correct abstraction level for cross-model knowledge transfer.
+    A leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no statistically significant benefit beyond hybrid family sharing ($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$), suggesting that the continuous family $\beta_F$ mechanism is an effective abstraction level for cross-model knowledge transfer in our evaluation setting.
 \end{enumerate}
 
 The remainder is organized as follows.

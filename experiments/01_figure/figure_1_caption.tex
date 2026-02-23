@@ -11,7 +11,7 @@ The negative correlation shows that higher PC1 values correspond to prompts wher
 Points are colored by outcome: ties (grey) dominate, confirming that most prompts show no strong model preference, enabling cost savings with comparable quality.
 \textbf{(B)}~The router PCA's $|\rho|$ (red line) compared against 100 independent random orthonormal projections ($384 \to 2$, QR-decomposed).
 The router PCA exceeds all random projections, confirming that the PCA concentrates genuine model preference signal rather than finding spurious correlation in a high-dimensional projection.
-PC1 is one of 32 PCA components the router uses (33 dimensions total, including a bias term); the full feature vector captures at least as much predictive signal.
+PC1 is one of 32 PCA components the router uses (33 dimensions total, including a bias term); the full feature vector is expected to capture additional predictive signal, though this is not formally verified.
 Effect magnitudes are holdout-specific due to stratified sampling; the signal's \emph{existence} is robust, but deployment magnitude depends on the prompt distribution.}
 \Description{Two-panel figure: (A) scatter of held-out prompts along the first PCA component versus reward gap between GPT-4-Turbo and Mixtral, showing negative rank correlation; (B) distribution of absolute correlation for 100 random projections, with the PCA projection exceeding them.}
 \label{fig:lmsys_holdout_structure}

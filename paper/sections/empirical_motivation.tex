@@ -2,27 +2,20 @@
 \label{sec:motivation}
 
 % TRANSITION from Introduction
-The LLM routing literature divides into two paradigms.
-\emph{Static routers} (including the most widely deployed systems) learn a mapping from prompt to model offline and deploy it frozen; any monotonicity assumption baked into training data persists silently at inference time.
-\emph{Adaptive routers} (contextual bandits~\cite{panda2025pilot, wang2025barp, li2025llmbandit}) update online and can in principle correct such errors, but their correction rate depends critically on whether the feature representation encodes the right variation.
-This section presents an empirical finding that neither paradigm fully accounts for: prompt embeddings predict model preference strongly enough to be exploited, but the preference structure is counter-intuitive; the expensive model is actively worse on an identifiable, semantically coherent subset of prompts.
-This motivates the banditGPT architecture directly:
+The LLM routing literature broadly divides into two paradigms.
+\emph{Static routers} (including the most widely deployed systems) learn a mapping from prompt to model offline and deploy it frozen. This approach inherently relies on a monotonicity assumption: that routing more budget to a more capable, expensive model will consistently yield higher or equal quality.
+\emph{Adaptive routers} (using contextual bandits~\cite{panda2025pilot, wang2025barp, li2025llmbandit}) update online and can, in principle, adapt to performance variations, provided their feature representations capture the right signals.
 
-\textbf{Model Preference Heterogeneity (Figure~\ref{fig:lmsys_holdout_structure}):} The expensive model is not merely unnecessary on some tasks; it is \emph{actively worse} on a specific, identifiable subset. This transforms routing from interpolation (``how much quality am I willing to trade for cost?'') into \textbf{discovery} (``which prompts actually benefit from the expensive model?'').
+In this section, we present an empirical finding that challenges this assumption and motivates our architectural design: prompt embeddings predict model preference, but the structure of that preference is surprising. On 14.1\% of held-out prompts, human judges preferred the cheaper model (Mixtral) over GPT-4-Turbo, and this preference correlates significantly with prompt semantics ($\rho = -0.370$, $p < 0.0001$). The expensive model is not merely unnecessary on some tasks; it is \emph{actively worse} on a measurable fraction of prompts, and the direction of preference is predictable from the router's feature space. This transforms routing from a cost-quality interpolation (``how much quality am I willing to trade for cost?'') into a \textbf{discovery} problem: the router must learn which prompts genuinely benefit from the expensive model, rather than assuming more spending yields better results.
 
-This finding establishes: \textbf{routing is a learnable discovery problem requiring adaptive mechanisms with safety guarantees.}
+\subsection{Predicting Model Preference Heterogeneity}
 
-\subsection{Model Preference Heterogeneity}
+To analyze model preference, we project 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of a 32-component PCA model. To prevent data leakage, this PCA is \emph{unsupervised} (trained without reward labels) and fit on a disjoint set of 80K routing prompts to identify directions of maximum variance in the semantic space. Rewards are derived from LMSYS Arena pairwise comparisons~\cite{zheng2023judging}.
 
-We analyze model preference heterogeneity by projecting 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of a 32-component PCA model trained on sentence embeddings from 80K routing prompts. This domain-adapted PCA is \emph{unsupervised} (it never sees reward labels during training) and identifies directions of maximum variance in routing-relevant prompt space.
+\paragraph{Feature spaces capture model preference.}
+We observe a significant Spearman rank correlation between the prompt's PC1 projection and the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$: $\rho = -0.370$, $p < 0.0001$, $N = 750$ (Figure~\ref{fig:lmsys_holdout_structure}A). This negative correlation indicates that higher PC1 values correspond to prompts where the cheaper model (Mixtral) outperforms GPT-4-Turbo. Qualitatively, prompts at the high end of PC1 tend to involve stricter output constraints, though we treat this as a descriptive observation rather than a causal claim. A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the directional finding ($p < 0.0001$). 
 
-\paragraph{Features predict model preference.}
-The router's PC1 shows a significant Spearman rank correlation with the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$: $\rho = -0.370$, $p < 0.0001$, $N = 750$ (Figure~\ref{fig:lmsys_holdout_structure}A). The negative correlation means higher PC1 values correspond to prompts where the cheaper model (Mixtral) outperforms GPT-4-Turbo; this is exactly the signal a contextual bandit needs to learn routing.
-
-To confirm this is genuine signal rather than a projection artifact, we compare the Router PCA's $|\rho| = 0.370$ against 100 independent random orthonormal projections ($384 \to 2$, QR-decomposed). The Router PCA exceeds all 100 random projections (Figure~\ref{fig:lmsys_holdout_structure}B), with a 2.6$\times$ signal ratio versus the random median ($|\rho|_{\text{random}} = 0.145$).
-
-\paragraph{Model preference is heterogeneous.}
-The outcome distribution reveals that model preference is not uniform (Table~\ref{tab:outcome_distribution}). The majority of prompts are ties where both models perform comparably. This heterogeneity is what makes contextual routing valuable: a static policy cannot be optimal when preferences vary by prompt.
+To ensure this is a genuine signal rather than a projection artifact, we compare the Router PCA's $|\rho| = 0.370$ against 100 independent random orthonormal projections ($384 \to 2$, QR-decomposed). The Router PCA exceeds all 100 random projections (Figure~\ref{fig:lmsys_holdout_structure}B), demonstrating a 2.6$\times$ signal ratio versus the random median ($|\rho|_{\text{random}} = 0.145$).
 
 \begin{table}[t]
 \centering
@@ -41,36 +34,19 @@ Mixtral wins & 106 & 14.1\% \\
 
 \input{../experiments/01_figure/figure_1_caption}
 
-Briefly, prompts at the high end of PC1 tend to involve stricter output constraints; we treat this as a descriptive observation rather than a causal claim.
+\paragraph{Cost savings emerge from heterogeneous preferences.}
+The outcome distribution further reveals that model preference is far from uniform (Table~\ref{tab:outcome_distribution}). For the vast majority of prompts (72.8\%), both models perform comparably (a tie), meaning the cheaper model can serve them without quality degradation. The router's true value lies in correctly identifying the minority of cases where the expensive model provides a tangible benefit, while avoiding it when it degrades performance.
 
-\paragraph{Statistical Validation.}
-The Spearman correlation ($\rho = -0.370$, $p < 0.0001$) is the primary metric, chosen because it directly tests the question the bandit needs answered: do the features predict model preference? This matches how BanditGPT uses features (LinUCB regression), without introducing artificial clustering or thresholds. PC1 is a conservative lower bound on the full feature vector's predictive power, since the router uses all 32 PCA components.
+\subsection{Implications for Router Architecture}
 
-A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the directional finding ($p < 0.0001$). All analyses use the held-out test set exclusively ($N=750$), with the PCA model trained on a disjoint set of 80K prompts.
-
-We use the held-out test set only ($N=750$); PCA is trained without reward labels on disjoint routing prompts; and rewards come from LMSYS Arena comparisons~\cite{zheng2023judging}. Additional sampling and stratification details are provided in the supplementary material.
-
-\paragraph{Why This Matters for Routing.}
-This finding has three direct consequences for router design:
+These empirical findings establish three direct architectural requirements for effective routing, forming the foundation of banditGPT:
 
 \begin{enumerate}[noitemsep,topsep=2pt]
-    \item \textbf{Static routing policies will over-provision.} Any frozen policy that embeds a monotonicity prior (that routing more budget toward the expensive model should not hurt) will systematically over-provision GPT-4 on the strict-constraint subset where it underperforms. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, ultimately paying ${\sim}44\times$ more per request than static Mixtral for $1.3\%$ lower quality.
+    \item \textbf{Exploiting Semantic Structure:} Because model preference heterogeneity is predictable from prompt embeddings, a router equipped with appropriate features can distinguish prompts that require the expensive model from those that do not.
     
-    \item \textbf{Cost savings come from ties.} The majority of prompts (72.8\%) show no strong model preference, meaning the cheaper model can serve them with comparable quality. The router's value is correctly identifying the minority where the expensive model genuinely matters.
+    \item \textbf{Avoiding Static Monotonicity Priors:} A frozen policy with a monotonicity prior will systematically over-provision the expensive model on subsets where it underperforms. We observe this empirically in our Pareto analysis (Section~\ref{sec:pareto}): static methods can \emph{degrade} in overall quality as they route more traffic to GPT-4, ultimately paying significantly more for worse performance.
     
-    \item \textbf{Online learning is essential.} Because the preference structure varies with deployment distribution and is counter-intuitive (the expensive model is \emph{worse} on some prompts), it cannot be reliably specified a priori. banditGPT learns this preference structure online, using GPT-4 only when statistically justified by observed rewards.
+    \item \textbf{Safe Online Learning:} Since the preference structure is counter-intuitive and shifts with deployment distributions, it cannot be reliably specified offline. A router must adapt online to discover these preferences, utilizing meta-learning to hedge against misleading priors, and handling non-stationarity as new models are deployed.
 \end{enumerate}
 
-\subsection{From Observation to Architecture}
-
-The analysis above motivates adaptive routing through a direct argument:
-
-\begin{enumerate}[noitemsep,topsep=2pt]
-    \item \textbf{Structure exists:} Model preference heterogeneity is real and predictable through prompt embeddings ($\rho = -0.370$, $p < 0.0001$, exceeding all 100 random projections). A router equipped with the right features \emph{can} distinguish prompts that benefit from the expensive model from those that do not.
-    
-    \item \textbf{But static policies cannot exploit it:} Because the preference structure is counter-intuitive (the expensive model is \emph{worse} on some prompts) and varies with deployment distribution, it cannot be reliably specified a priori. A static router trained on offline data risks learning systematically wrong preferences. This is precisely what we observe in the Pareto analysis (Section~\ref{sec:pareto}): RouteLLM's performance \emph{degrades} as it routes more traffic to GPT-4, paying ${\sim}44\times$ more per request than static Mixtral for $1.3\%$ lower quality.
-    
-    \item \textbf{Therefore, safe online learning is necessary:} The router must (a) exploit semantic structure to make the preference discovery tractable, (b) hedge against misleading priors via meta-learning, and (c) handle non-stationarity as new models enter the portfolio. These are exactly the three mechanisms of banditGPT (Section~\ref{sec:methodology}).
-\end{enumerate}
-
-This chain (from empirical observation, through failure analysis of static methods, to architectural requirements) is the foundation for the system we present next.
+This chain of reasoning---from empirical observation of preference heterogeneity to the failure modes of static methods---forms the foundation for the architecture we present next (Section~\ref{sec:methodology}).
