@@ -1,2 +1,2 @@
-"""Tests for BanditGPT."""
+"""Tests for BanditGPT, including shared stress helpers."""
 

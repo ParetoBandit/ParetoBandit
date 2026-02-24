@@ -1,0 +1,116 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import tarfile
+import venv
+from pathlib import Path
+
+import pytest
+
+
+def _run(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> None:
+    result = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise AssertionError(
+            f"Command failed ({result.returncode}): {' '.join(cmd)}\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+
+@pytest.mark.slow
+@pytest.mark.stress
+def test_wheel_and_sdist_include_runtime_data(tmp_path: Path):
+    """
+    Validate pip-install reality:
+    - wheel/sdist build succeeds
+    - config/data assets are physically present in built artifacts
+    - installed package can read required files at runtime
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    src_pkg_root = repo_root / "src" / "bandit_gpt"
+    pytest.importorskip("build")
+
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build fresh wheel + sdist into tmp output dir.
+    _run(
+        [sys.executable, "-m", "build", "--wheel", "--sdist", "--outdir", str(dist_dir)],
+        cwd=repo_root,
+    )
+
+    wheels = sorted(dist_dir.glob("*.whl"))
+    sdists = sorted(dist_dir.glob("*.tar.gz"))
+    assert wheels, "Expected a built wheel artifact."
+    assert sdists, "Expected a built sdist artifact."
+
+    # Source-of-truth files that must be available post-install.
+    required_relpaths = [
+        "config/models.json",
+        "config/models_all.json",
+    ]
+
+    # Also enforce parity for any joblib artifacts present in source tree.
+    source_joblibs = [
+        p.relative_to(src_pkg_root).as_posix() for p in sorted(src_pkg_root.rglob("*.joblib"))
+    ]
+
+    # Check sdist content includes required files.
+    with tarfile.open(sdists[0], "r:gz") as tf:
+        sdist_names = tf.getnames()
+    for rel in required_relpaths:
+        assert any(name.endswith(f"src/bandit_gpt/{rel}") for name in sdist_names), rel
+
+    # Install wheel into isolated venv and assert runtime availability.
+    venv_dir = tmp_path / "venv"
+    venv.EnvBuilder(with_pip=True).create(venv_dir)
+    python_bin = venv_dir / "bin" / "python"
+    pip_bin = venv_dir / "bin" / "pip"
+    _run([str(pip_bin), "install", str(wheels[0])], cwd=repo_root)
+
+    check_script = r"""
+import json
+from pathlib import Path
+import bandit_gpt
+
+pkg_root = Path(bandit_gpt.__file__).resolve().parent
+required = json.loads(Path.cwd().joinpath("_required_files.json").read_text(encoding="utf-8"))
+source_joblibs = json.loads(Path.cwd().joinpath("_source_joblibs.json").read_text(encoding="utf-8"))
+
+for rel in required:
+    path = pkg_root / rel
+    if not path.exists():
+        raise AssertionError(f"Missing required packaged file: {rel}")
+
+offline = pkg_root / "data" / "offline_dataset"
+offline_files = sorted(p.name for p in offline.glob("*.jsonl*"))
+if not offline_files:
+    raise AssertionError("Expected at least one offline_dataset *.jsonl* file in package.")
+
+# Verify file readability (plain jsonl or gzipped jsonl).
+sample = offline / offline_files[0]
+if sample.suffix == ".gz":
+    import gzip
+    with gzip.open(sample, "rt", encoding="utf-8") as f:
+        line = f.readline()
+else:
+    with sample.open("r", encoding="utf-8") as f:
+        line = f.readline()
+if line is None:
+    raise AssertionError("offline_dataset sample file is unreadable.")
+
+for rel in source_joblibs:
+    path = pkg_root / rel
+    if not path.exists():
+        raise AssertionError(f"Source joblib artifact missing in wheel: {rel}")
+"""
+
+    (tmp_path / "_required_files.json").write_text(
+        json.dumps(required_relpaths), encoding="utf-8"
+    )
+    (tmp_path / "_source_joblibs.json").write_text(
+        json.dumps(source_joblibs), encoding="utf-8"
+    )
+    _run([str(python_bin), "-c", check_script], cwd=tmp_path)
