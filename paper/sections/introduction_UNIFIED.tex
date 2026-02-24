@@ -26,7 +26,7 @@ We present \textbf{banditGPT}, an open-source cost-aware contextual bandit frame
     banditGPT supports portfolios of arbitrary size; we evaluate at $K{=}5$ and $K{=}10$ models spanning six providers and a $600\times$ cost range.
     Hard budget constraints (cost ceiling and quality floors) filter ineligible models per request, while cost-penalized LinUCB discovers useful choices across cost tiers.
     Hybrid LinUCB further pools observations across semantically related models via data-driven family assignments (within-provider tetrachoric correlation), improving both quality and convergence reliability.
-    At $K{=}5$, family sharing yields a statistically significant $+2.9$~pp holdout quality advantage over independent per-model learning ($p{=}0.008$) with $3.2\times$ narrower confidence intervals; at $K{=}20$, it provides $3.1\times$ more stable convergence even when per-model data is scarce.
+    At $K{=}5$, family sharing yields a statistically significant $+3.6$~pp holdout quality advantage over independent per-model learning ($p{=}0.028$) with $4.6\times$ narrower confidence intervals; this benefit diminishes at $K{=}10$ and $K{=}20$ as per-model data becomes relatively more abundant.
     The system achieves 0.954 peak reward at $K{=}5$ and up to 89\% cost reduction with less than 6\% quality loss at $K{=}10$.
 \end{enumerate}
 
@@ -43,7 +43,7 @@ Our work makes three contributions, each supported by comprehensive multi-seed e
 
     \item \textbf{Open-source multi-model implementation and honest evaluation.}
     We release a modular codebase supporting portfolios of two or more models, dynamic model onboarding, and configurable constraints.
-    Hybrid LinUCB's family parameter sharing provides $3\times$ more stable convergence at $K{=}5$ and $K{=}20$ ($p{=}0.008$ at $K{=}5$), demonstrating that data-driven model grouping is a practical lever for reliable large-portfolio routing.
+    Hybrid LinUCB's family parameter sharing provides $4.6\times$ narrower confidence intervals and a $+3.6$~pp quality improvement at $K{=}5$ ($p{=}0.028$), demonstrating that data-driven model grouping is a practical lever for routing reliability, particularly under data scarcity.
     A leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no statistically significant benefit beyond hybrid family sharing ($p{>}0.5$, Cohen's $d{<}0.05$ at $K{=}10$), suggesting that the continuous family $\beta_F$ mechanism is an effective abstraction level for cross-model knowledge transfer in our evaluation setting.
 \end{enumerate}
 
