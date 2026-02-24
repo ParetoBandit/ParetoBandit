@@ -1,37 +1,23 @@
 \subsection{Experimental Setup}
 \label{sec:experiments}
 
-We evaluate banditGPT on the data and splits described in Section~\ref{sec:data}, using commercial per-request costs for each model. The remainder of this section validates the system across six dimensions: cost-quality Pareto optimality for $K{=}2$ (Section~\ref{sec:pareto}), multi-model scaling to larger portfolios (Section~\ref{sec:multimodel}), the benefits of family parameter sharing (Section~\ref{sec:k_scaling}), robustness to distribution shift (Section~\ref{sec:distribution_shift}), comparisons to standard Thompson Sampling baselines (Section~\ref{sec:lints_comparison}), and cumulative regret over time (Section~\ref{sec:cumulative_regret}). Additional robustness stress tests are reported in the supplementary material.
+The remainder of this section validates the system across six dimensions: cost-quality Pareto optimality for $K{=}2$ (Section~\ref{sec:pareto}), multi-model scaling to larger portfolios (Section~\ref{sec:multimodel}), the benefits of family parameter sharing (Section~\ref{sec:k_scaling}), robustness to distribution shift (Section~\ref{sec:distribution_shift}), comparisons to standard Thompson Sampling baselines (Section~\ref{sec:lints_comparison}), and cumulative regret over time (Section~\ref{sec:cumulative_regret}). Additional robustness stress tests are reported in the supplementary material.
 
-\subsubsection{Model Topology \& Baselines}
+\subsubsection{Data, Reward Signal, and Feature Pipeline}
+\label{sec:data}
+We draw prompts from LMSYS Chatbot Arena~\cite{zheng2023judging} (1,871 prompts across dev and holdout splits) and the RouteLLM battle corpus~\cite{ong2024routellm} (80,000 pairwise battles). Each prompt is encoded by Sentence-BERT (\texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence}, 384D) and projected to 32 dimensions via unsupervised PCA trained once on the 80K RouteLLM battles.
 
-We mirror standard $K{=}2$ evaluation topologies~\cite{ong2024routellm}:
+At routing time, the system observes only the reward of the selected model. For $K{=}2$, 1,871 LMSYS prompts are judged deterministically by GPT-4o, yielding $r \in \{0, 0.5, 1\}$. For $K{>}2$, 10 models are evaluated on LMSYS prompts by a cross-provider panel of 3--4 LLM judges using a structured chain-of-thought protocol, yielding a continuous reward $r \in [0, 1]$.
 
+\subsubsection{Evaluation Regimes and Data Splits}
+Our evaluation operates at two portfolio scales requiring different warmup prior sources:
 \begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{Cheaper Open-Weights Model} (Cost: $\approx$ \$0.30 per 1M tokens).
-    \item \textbf{Expensive Frontier Model} (Cost: $\approx$ \$10.00 to \$30.00 per 1M tokens).
+    \item \textbf{$K{=}2$ (RouteLLM comparison):} We initialize warmup priors for Mixtral-8x7B and GPT-4-Turbo from the 80K RouteLLM battles. This creates a realistic \emph{cross-distribution} setup, matching RouteLLM's training condition against a 750-prompt LMSYS Arena holdout.
+    \item \textbf{$K{=}5$ and $K{=}10$ (Multi-model scaling):} Since RouteLLM data covers only 2 models, we construct \emph{same-distribution} priors from a 355-prompt LMSYS prior training split, evaluating on the shared 750-prompt holdout.
 \end{itemize}
 
-We compare against static single-model baselines, random routing, RouteLLM-MF~\cite{ong2024routellm}, and an oracle upper bound that selects the better model per prompt.
+\subsubsection{Evaluation Metrics \& Implementation Details}
 
-\subsubsection{Evaluation Metrics}
+We compare against static single-model baselines, random routing, RouteLLM-MF~\cite{ong2024routellm}, and an oracle upper bound. Performance is evaluated via Average Reward ($\bar{r}$), Normalized Cost ($\bar{c}$), and Gap Closure (\%) (the fraction of the oracle-cheaper performance gap recovered by the router).
 
-We evaluate performance using three key metrics standard in cost-aware routing literature:
-
-\begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{Average Reward ($\bar{r}$)}: The mean quality score of the selected responses.
-    
-    \item \textbf{Normalized Cost ($\bar{c}$)}: The average inference cost, normalized such that the expensive frontier model $\approx 1.0$.
-    
-    \item \textbf{Gap Closure (\%)}: The percentage of the performance gap between the cheaper model and the Oracle that the router recovers, defined as:
-    \begin{equation}
-    \text{Gap Closure} = \frac{R_{\text{router}} - R_{\text{cheaper}}}{R_{\text{oracle}} - R_{\text{cheaper}}} \times 100\%
-    \end{equation}
-\end{itemize}
-
-\subsubsection{Implementation Details}
-
-\textbf{Trials:} Unless noted otherwise, we report mean and 95\% confidence intervals over 20 seeds for each cost penalty $\lambda$ in the sweep. Additional statistical details and robustness checks are in the appendix (supplementary material).
-
-\textbf{Family assignment:} For the $K{=}2$ main evaluation and $K{=}3$ Corralling experiments, each model belongs to a different provider, so syntactic inference produces singleton families (equivalent to disjoint LinUCB). For the $K{\geq}5$ multi-model scaling experiments (Appendix), where multiple models share a provider, families are assigned via data-driven tetrachoric correlation on held-out rewards (threshold $r_{\text{tet}} \geq 0.6$; see Section~\ref{sec:methodology}).
-
+Unless noted otherwise, we report mean and 95\% confidence intervals over 20 random seeds for each cost penalty $\lambda$. For family assignment (Section~\ref{sec:methodology}), we use syntactic inference for $K{\leq}3$ and data-driven tetrachoric correlation (threshold $r_{\text{tet}} \geq 0.6$) for $K{\geq}5$.

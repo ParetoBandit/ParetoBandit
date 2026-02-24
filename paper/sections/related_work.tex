@@ -1,99 +1,38 @@
 \section{Related Work}
 \label{sec:related}
 
-LLM routing has matured rapidly: from early cascading heuristics, through supervised classifiers, to the current wave of bandit-based adaptive routers.
-We survey the landscape along two axes: \emph{static vs.\ adaptive} and \emph{cost handling}, and position banditGPT's specific contributions within it.
+LLM routing has matured from cascading heuristics to supervised classifiers, and recently to bandit-based adaptive routers. We position banditGPT within this landscape, summarized in Table~\ref{tab:comparison}.
 
-\subsection{Cascading and Sequential Architectures}
-
-FrugalGPT~\cite{chen2023frugalgpt} pioneered cost-aware routing via cascading: a query is sent to progressively more expensive models until a quality threshold is met.
-This reduces average cost but introduces non-deterministic latency (the sum of all attempted inferences) and requires a per-model scoring function.
-banditGPT is a single-shot router: it selects one model before inference, guaranteeing deterministic latency.
-
-\subsection{Supervised Static Routers}
-
-A family of recent systems trains classifiers offline to predict the best model per query:
-
-\begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{RouteLLM}~\cite{ong2024routellm} (ICLR 2025) trains Matrix Factorization or BERT classifiers on LMSYS Chatbot Arena preference data, supporting $K{=}2$ routing via a threshold parameter. It is open-source and serves as our primary baseline.
-    \item \textbf{GraphRouter}~\cite{feng2025graphrouter} (ICLR 2025) constructs a heterogeneous graph over tasks, queries, and LLMs, using edge prediction for routing. Its inductive formulation generalizes to new LLMs without retraining.
-    \item \textbf{RouterDC}~\cite{chen2024routerdc} (NeurIPS 2024) uses dual contrastive learning on query-LLM embeddings, achieving strong out-of-distribution generalization.
-    \item The \textbf{LLMRouter} library~\cite{feng2025llmrouter} unifies 16+ routing strategies (including RouteLLM, GraphRouter, and RouterDC) with a common evaluation harness.
-\end{itemize}
-
-These systems provide strong out-of-the-box routing when sufficient labeled data covers the deployment distribution.
-Their shared limitation is \emph{static deployment}: once trained, the routing policy is frozen.
-As demonstrated in Section~\ref{sec:pareto}, when the deployment distribution diverges from training data (e.g., the assumed ``strong'' model is not uniformly superior), static routers can exhibit non-monotonic cost and quality behavior, paying more for worse quality.
-They also require retraining when new models are added.
+\subsection{Static and Supervised Routers}
+Early cost-aware routing utilized cascading (e.g., FrugalGPT~\cite{chen2023frugalgpt}), escalating queries to more expensive models until a quality threshold was met. This reduces average cost but introduces non-deterministic latency. More recently, supervised static routers like RouteLLM~\cite{ong2024routellm} (our primary baseline), GraphRouter~\cite{feng2025graphrouter}, and RouterDC~\cite{chen2024routerdc} train offline classifiers to predict the best model per query. While these systems offer strong out-of-the-box routing when deployment traffic matches the training distribution, their frozen policies struggle with non-stationary deployments and exhibit non-monotonic behavior when distribution shift occurs (Section~\ref{sec:pareto}).
 
 \subsection{Bandit-Based Adaptive Routers}
-
-A growing body of work applies contextual bandits to LLM routing, enabling online adaptation without full supervision.
-Table~\ref{tab:comparison} provides a structured comparison.
-
-\paragraph{PILOT}~\cite{panda2025pilot} (EMNLP 2025 Findings) learns a shared query-LLM embedding space from offline human preference data and refines it online via LinUCB.
-It pairs this with a multi-choice knapsack cost policy for budget-constrained routing over a horizon, optimizing cumulative cost rather than per-request cost.
-
-\paragraph{BaRP}~\cite{wang2025barp} trains a preference-conditioned contextual bandit under partial (bandit) feedback, matching realistic deployment conditions where only the selected model's reward is observed.
-Operators can adjust a performance and cost preference vector at inference time without retraining.
-
-\paragraph{LLM Bandit}~\cite{li2025llmbandit} formulates model selection as a preference-conditioned MAB with model identity vectors, enabling generalization to unseen LLMs.
-Code is available at \path{spotify-research/llm-bandit}.
-
-\paragraph{C2MAB-V}~\cite{dai2024c2mab} extends combinatorial multi-armed bandits to the multi-LLM setting, selecting model subsets for collaborative tasks via integer programming relaxation with online updates.
-
-\paragraph{xRouter}~\cite{zhang2025xrouter} takes a reinforcement learning approach, training a router agent (e.g., Qwen2.5-7B) with an explicit cost-aware reward function to learn end-to-end orchestration strategies.
+To enable online adaptation, concurrent works formulate routing as a contextual bandit problem. PILOT~\cite{panda2025pilot} refines a shared embedding space online and optimizes cumulative cost over a horizon via a knapsack policy. BaRP~\cite{wang2025barp} and LLM Bandit~\cite{li2025llmbandit} train contextual bandits under partial feedback, matching deployment constraints where only the selected model's reward is observed. Other approaches leverage combinatorial multi-armed bandits (C2MAB-V~\cite{dai2024c2mab}) or RL agents (xRouter~\cite{zhang2025xrouter}).
 
 \subsection{Positioning banditGPT}
+banditGPT complements concurrent bandit-based routers by introducing three structural advances designed specifically for production reliability:
+\begin{enumerate}[leftmargin=*,nosep]
+    \item \textbf{Meta-ensemble via Corralling:} Unlike prior systems using a single policy, banditGPT introduces a meta-learning layer (Corralling~\cite{agarwal2017corralling}) over two expert bandits. This provides a regret-hedging safety mechanism against prior misspecification that standard bandits lack.
+    \item \textbf{Offline-to-online prior transfer:} Instead of learning entirely from scratch or pure online feedback, banditGPT converts offline battles into LinUCB sufficient statistics, eliminating the cold-start penalty.
+    \item \textbf{Hard constraints via budget filtering:} Rather than scalarizing cost into the reward or optimizing over a horizon, banditGPT strictly enforces per-request hard constraints (cost ceiling, quality floor) by pruning ineligible models before the bandit selects.
+\end{enumerate}
 
-banditGPT occupies a specific niche within this landscape.
-It is \emph{not} the first bandit-based LLM router; PILOT, BaRP, and LLM Bandit all formulate routing as a contextual bandit problem.
-Instead, banditGPT makes three structural contributions that complement rather than supersede this concurrent work:
-
-\paragraph{1.\ Meta-ensemble via Corralling.}
-All prior bandit routers use a single contextual bandit policy.
-banditGPT is the first LLM router to employ a meta-learning layer: a Corralling~\cite{agarwal2017corralling} coordinator that maintains trust weights over two expert bandits with complementary exploration schedules (one initialized from warmup priors with constant $\alpha$, and one starting from scratch with decaying $\alpha$).
-This ``bandits-over-bandits'' structure provides a regret-hedging mechanism absent from other bandit routers, with theoretical motivation from Corralling's worst-case regret bounds~\cite{agarwal2017corralling} (see Appendix~\ref{appendix:spectral_separation} for discussion).
-In practice, Corralling achieves 7 to 13\% lower regret than warmup-only across corruption levels, and approximately 6\% lower than tabula rasa at low corruption ($\alpha \leq 0.2$, Section~\ref{sec:prior_degradation}).
-Subsequent model-selection frameworks~\cite{pacchiano2020model, cutkosky2021dynamic} improve on Corralling's variance guarantees through regret balancing, though none have been applied to LLM routing.
-
-\paragraph{2.\ Offline-to-online prior transfer.}
-PILOT learns a shared embedding space from scratch; BaRP trains under bandit feedback.
-banditGPT instead initializes LinUCB sufficient statistics ($\Amat, \bvec$) from offline battle outcomes, then adapts online.
-This enables production-quality routing from the first request while the Corralling meta-learner hedges against prior mismatch, a combination that no prior system provides.
-
-\paragraph{3.\ Hard constraints via budget filtering.}
-PILOT folds cost into a knapsack policy that optimizes over a horizon; BaRP scalarizes cost into the reward.
-banditGPT enforces per-request hard constraints (\texttt{max\_cost}, \texttt{max\_latency}, \texttt{quality\_floor}) by pruning ineligible models \emph{before} the bandit selects, guaranteeing constraint satisfaction per-request rather than in expectation.
-
-\paragraph{Advantages of concurrent work.}
-We note areas where PILOT and BaRP advance beyond banditGPT's current design:
-(a) PILOT's jointly optimized query-LLM embeddings may capture non-linear structure that our fixed PCA pipeline cannot;
-(b) BaRP's per-request preference vector provides finer-grained control than banditGPT's episode-level $\lambda$;
-(c) PILOT's knapsack formulation is better suited for deployments with strict aggregate budget caps.
-These suggest natural extensions for future work.
-
-\subsection{Feature Comparison}
-
-Table~\ref{tab:comparison} contrasts banditGPT with both open-source and concurrent routing frameworks.
-
-\begin{table*}[t]
+\begin{table}[h]
 \centering
 \caption{Feature comparison of LLM routing frameworks.  $\dagger$~Code not publicly available.}
 \label{tab:comparison}
 \small
-\begin{tabular}{@{}lcccccc@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-\textbf{Feature} & \textbf{RouteLLM} & \textbf{GraphRouter} & \textbf{PILOT} & \textbf{BaRP}$^\dagger$ & \textbf{LLM Bandit} & \textbf{banditGPT} \\
- & \scriptsize{ICLR '25} & \scriptsize{ICLR '25} & \scriptsize{EMNLP '25} & \scriptsize{arXiv '25} & \scriptsize{arXiv '25} & \scriptsize{Ours} \\
+\textbf{Feature} & \textbf{RouteLLM}~\cite{ong2024routellm} & \textbf{GraphRouter}~\cite{feng2025graphrouter} & \textbf{PILOT}~\cite{panda2025pilot} & \textbf{BaRP}$^\dagger$~\cite{wang2025barp} & \textbf{banditGPT} \\
 \midrule
-Paradigm        & Supervised & Supervised & Bandit   & Bandit     & Bandit       & Bandit \\
-Online adapt.   & \texttimes & \texttimes & \checkmark & \checkmark & \checkmark & \checkmark \\
-Cost handling   & Threshold (implicit) & Edge weights & Knapsack policy & Scalarized reward & Pref.\ conditioning & Hard constraints \\
-Prior / warmup  & Supervised offline & Graph inductive & Pref.-informed emb. & Bandit feedback & Model ID vectors & Offline warmup \\
-Safety / meta   & None & None & None & None & None & Corralling meta-learner \\
-Multi-model ($K$) & $K{=}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ & $K{\geq}2$ \\
-Open source     & \checkmark & \checkmark & \texttimes & \texttimes & \checkmark & \checkmark \\
+Paradigm        & Supervised & Supervised & Bandit   & Bandit       & Bandit \\
+Online adapt.   & \texttimes & \texttimes & \checkmark & \checkmark & \checkmark \\
+Cost handling   & Threshold & Edge weights & Knapsack policy & Scalarized reward & Hard constraints \\
+Prior / warmup  & Supervised & Graph inductive & Pref.-informed emb. & Bandit feedback & Offline warmup \\
+Safety / meta   & None & None & None & None & Corralling \\
 \bottomrule
-\end{tabular}
-\end{table*}
+\end{tabular}%
+}
+\end{table}

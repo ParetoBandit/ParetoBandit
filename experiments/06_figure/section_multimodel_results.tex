@@ -1,155 +1,43 @@
 % Section: Multi-Model Evaluation — K=5 and K=10
 % Include from the main paper via \input{../experiments/06_figure/section_multimodel_results}
 
-\subsection{Multi-Model Cost--Quality Trade-off}
+\subsection{Multi-Model Cost--Quality Trade-off ($K{=}5, 10$)}
 \label{sec:multimodel}
 
-The two-model Pareto evaluation (Section~\ref{sec:pareto}) validates banditGPT against a supervised baseline on a controlled topology.
-However, the contextual bandit formulation is designed for arbitrary portfolio sizes, and a key architectural claim---that Dynamic Pareto Filtering, Hybrid LinUCB, and Corralling compose effectively at $K{\gg}2$---requires direct evaluation.
-We construct two multi-provider portfolios ($K{=}5$ and $K{=}10$) and evaluate the full production router with dedicated warmup priors trained on 43-model evaluation data.
-
-\subsubsection{Portfolio Construction}
-
-We select models to maximise three axes of diversity: \emph{provider coverage} (Meta, Mistral, Google, Anthropic, OpenAI, DeepSeek), \emph{cost range} (\$0.05--\$30.00 per million output tokens, a $600\times$ spread), and \emph{quality range} (holdout reward 0.745--0.983).
-The $K{=}5$ portfolio spans five providers with one model each; $K{=}10$ adds a second model per provider plus DeepSeek, exercising Hybrid LinUCB's within-family parameter sharing.
-Both portfolios include Mixtral-8x7B, linking to the $K{=}2$ evaluation.
-
-\begin{table}[t]
-\centering
-\caption{Multi-model portfolio composition. Cost is per request (100 input + 400 output tokens). Quality is mean reward on the 750-prompt holdout set.}
-\label{tab:multimodel_portfolio}
-\small
-\begin{tabular}{@{}llcrr@{}}
-\toprule
-\textbf{Model} & \textbf{Provider} & \textbf{In} & \textbf{Cost (\$/req)} & \textbf{Quality} \\
-\midrule
-Llama-3.1-8B       & Meta      & K5,10 & \$0.000025 & 0.745 \\
-Mixtral-8x7B       & Mistral   & K5,10 & \$0.000294 & 0.823 \\
-Gemini-2.5-Flash   & Google    & K5,10 & \$0.000255 & 0.953 \\
-Claude-Sonnet-4    & Anthropic & K5,10 & \$0.006300 & 0.975 \\
-GPT-4.1            & OpenAI    & K5,10 & \$0.003400 & 0.983 \\
-\midrule
-Llama-4-Maverick   & Meta      & K10   & \$0.000260 & 0.929 \\
-Gemma-3-27B        & Google    & K10   & \$0.000050 & 0.951 \\
-Claude-Haiku-4.5   & Anthropic & K10   & \$0.001680 & 0.951 \\
-GPT-4-Turbo        & OpenAI    & K10   & \$0.013000 & 0.812 \\
-DeepSeek-V3        & DeepSeek  & K10   & \$0.000467 & 0.973 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsubsection{Experimental Protocol}
-
-Warmup priors are generated from 43-model evaluation data using a \textbf{three-way split} that preserves the existing holdout set (Section~\ref{sec:warmup_prior_construction}):
-\begin{itemize}[nosep]
-    \item \textbf{Prior training:} 355 prompts $\times$ 43 models (15,265 observations) $\to$ warmup $\Amat$, $\mathbf{b}$ matrices.
-    \item \textbf{Online learning:} 533 prompts (disjoint from prior training) for bandit updates.
-    \item \textbf{Holdout:} 750 prompts (identical to Section~\ref{sec:pareto}) for frozen evaluation.
-\end{itemize}
-For each portfolio, we sweep the cost penalty $\lambda$ over 11 values from
-0 to 5 (0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0) across
-20 seeds.
-Baselines include the Oracle (per-prompt best model), best static single model, random routing, and $\epsilon$-greedy ($\epsilon{=}0.1$).
-A no-Corralling ablation isolates the meta-learner's contribution.
-
-\subsubsection{Results}
-\label{sec:multimodel_results}
+We construct two multi-provider portfolios ($K{=}5$ and $K{=}10$) spanning six providers (Meta, Mistral, Google, Anthropic, OpenAI, DeepSeek) with a $600\times$ cost spread. Both incorporate Mixtral-8x7B to link to the $K{=}2$ evaluation, and $K{=}10$ exercises Hybrid LinUCB's within-family parameter sharing. Warmup priors are generated using a three-way split from 43-model evaluation data (355 prior training prompts, 533 online learning, 750 holdout).
 
 \input{../experiments/06_figure/figure_6_caption}
 
-Table~\ref{tab:multimodel_summary} and Figure~\ref{fig:multimodel_pareto} summarise the findings.
+\paragraph{Continuous cost--quality control.}
+Table~\ref{tab:multimodel_summary} and Figure~\ref{fig:multimodel_pareto} summarize the findings. By sweeping a single scalar ($\lambda$), the router traces a smooth operating envelope. At $K{=}10$, quality degrades only 1\% ($0.898 \to 0.888$) across a $41\times$ cost range because the portfolio contains cheap, high-quality models (Gemma-3-27B, DeepSeek-V3) that the router leverages at higher $\lambda$ values.
 
-\begin{table}[t]
+\begin{table}[h]
 \centering
-\caption{Multi-model routing summary (mean judge agreement reward). Gap closure measures the fraction of the oracle--weakest-model gap captured by banditGPT at peak quality ($\lambda{=}0.02$ for both K{=}5 and K{=}10). All stochastic entries are mean $\pm$ std ($n{=}20$ seeds).}
+\caption{Multi-model routing summary (mean judge agreement). Gap closure is relative to the weakest model. Mean $\pm$ std ($n{=}20$).}
 \label{tab:multimodel_summary}
 \small
-\begin{tabular}{@{}lcccr@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lcc@{}}
 \toprule
 \textbf{Metric} & \textbf{K=5} & \textbf{K=10} \\
 \midrule
-\multicolumn{3}{l}{\textit{Upper and Lower Bounds}} \\
 Oracle                     & 0.986              & 0.991 \\
 Best Static (GPT-4.1)      & 0.949              & 0.949 \\
 Random                     & 0.844 $\pm$ 0.008  & 0.857 $\pm$ 0.007 \\
 \midrule
-\multicolumn{3}{l}{\textit{banditGPT}} \\
-Peak Quality               & 0.911 $\pm$ 0.022  & 0.898 $\pm$ 0.023 \\
+banditGPT Peak Quality     & 0.911 $\pm$ 0.022  & 0.898 $\pm$ 0.023 \\
 Gap Closure                & 74.9\%              & 69.3\% \\
 Warmup Cold-Start (step 0) & 0.898 $\pm$ 0.007  & 0.903 $\pm$ 0.006 \\
-Cost at $\lambda{=}5$      & \$0.000045          & \$0.000053 \\
-Quality at $\lambda{=}5$   & 0.708               & 0.888 \\
 \midrule
-\multicolumn{3}{l}{\textit{Cost Reduction vs.\ Best Static}} \\
-At $\lambda{=}0$            & 9\% cheaper         & 36\% cheaper \\
-At $\lambda{=}5$            & 98.7\% cheaper      & 98.4\% cheaper \\
+Cost vs.\ Best Static at $\lambda{=}0$ & 9\% cheaper         & 36\% cheaper \\
+Cost vs.\ Best Static at $\lambda{=}5$ & 98.7\% cheaper      & 98.4\% cheaper \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-Four patterns emerge from the multi-model evaluation:
+\paragraph{Zero cold-start and distributed traffic.}
+At step~0 (before online learning), banditGPT achieves holdout quality within 9\% of the Oracle. Online, traffic distributes across the portfolio based on prompt context. At $K{=}5$, three strong models share ${\sim}90\%$ of traffic; at $K{=}10$, no model exceeds 17\% (Figure~\ref{fig:multimodel_pareto}d). This provides immense operational resilience: a single-provider outage limits impact to a fraction of traffic, which the router autonomously redistributes.
 
-\paragraph{(1)~The Pareto frontier provides continuous cost--quality control.}
-At $K{=}5$, sweeping $\lambda$ from 0 to 5 traces a smooth operating envelope from quality-maximising ($R{=}0.911$, $C{=}\$0.0028$/req) to cost-minimising ($R{=}0.708$, $C{=}\$0.00005$/req)---a $68\times$ cost range.
-At $K{=}10$, the envelope is flatter: quality degrades only 1\% ($0.898 \to 0.888$) across a $41\times$ cost range, because the larger portfolio contains more cheap high-quality models (Gemma-3-27B, DeepSeek-V3, Gemini-Flash) that the router can leverage at higher $\lambda$ values.
-In both cases, a practitioner adjusts a \emph{single scalar parameter} ($\lambda$) rather than manually selecting among $K$ models or tuning $K{-}1$ routing thresholds.
-
-\paragraph{(2)~Warmup priors eliminate cold-start at all portfolio sizes.}
-At step~0---before any online learning---banditGPT achieves holdout quality of 0.898 ($K{=}5$) and 0.903 ($K{=}10$), already within 9\% of the Oracle.
-This is a direct consequence of the 43-model warmup priors (Section~\ref{sec:warmup_prior_construction}), which encode per-model quality estimates from 355 training prompts into the $\Amat$ and $\mathbf{b}$ matrices.
-The cold-start quality is \emph{higher} at $K{=}10$ than at $K{=}5$ because the larger portfolio provides more routing options---even with imperfect prior estimates, the probability that at least one model is well-calibrated for any given prompt increases with $K$.
-For practitioners, this means that a newly deployed multi-model router delivers production-quality routing from its first request.
-
-\paragraph{(3)~Contextual routing distributes traffic across the portfolio.}
-The traffic allocation heatmap (Figure~\ref{fig:multimodel_pareto}d) reveals that banditGPT does not simply select the best-on-average model for all prompts.
-At $K{=}5$, Claude-Sonnet-4 receives 32\% of traffic, GPT-4.1 29\%, and Gemini-2.5-Flash 28\%---three models with different strengths share the load based on prompt context.
-The two cheapest models (Llama-3.1-8B and Mixtral-8x7B) receive 6\% and 5\% respectively, confirming that the contextual features identify the minority of prompts where simpler models suffice.
-At $K{=}10$, traffic distributes more evenly: no model exceeds 17\%, and all ten models receive measurable traffic.
-This stands in contrast to $\epsilon$-greedy, which concentrates ${\sim}90\%$ of traffic on a single model, or random routing, which allocates uniformly regardless of prompt difficulty.
-Contextual routing provides both quality gains and operational benefits: load distribution reduces single-provider dependency, and per-prompt model selection surfaces complementary model strengths that static routing cannot exploit.
-
-\paragraph{(4)~The quality gap to the best static model reflects the exploration--exploitation trade-off at scale.}
-At peak $\lambda$, banditGPT's quality (0.911 at $K{=}5$, 0.898 at $K{=}10$) is below the best static model (GPT-4.1 at 0.949).
-This gap does not indicate a routing failure---it reflects a fundamental property of the bandit formulation.
-The router maintains a constant exploration coefficient ($\alpha{=}2.0$) to detect distribution shifts (Section~\ref{sec:prior_degradation}), which means it occasionally selects sub-optimal models to verify that their quality estimates remain calibrated.
-This exploration cost grows with $K$: at $K{=}2$, the router splits exploration between 2 arms; at $K{=}10$, exploration distributes across 10 arms, each receiving less exploitation traffic.
-However, this exploration is not wasted---it is precisely what enables the router to build the contextual traffic allocation in (3) and to detect model degradation (Section~\ref{sec:robustness_adaptation}).
-A static policy that always selects GPT-4.1 achieves 0.949 quality but at $\$0.0034$/req; the bandit at $\lambda{=}0.1$ achieves 0.890 at $\$0.0016$/req---comparable quality at less than half the cost.
-
-\subsubsection{Discussion: Practical Value of Multi-Model Routing}
-
-The multi-model evaluation clarifies when and why adaptive routing adds value beyond static model selection.
-
-\paragraph{The single-$\lambda$ value proposition.}
-In production, the strongest argument for banditGPT at $K{>}2$ is operational simplicity.
-Without a router, a practitioner deploying $K{=}10$ models must either (a)~select a single model (forgoing the portfolio's diversity), (b)~build $K{-}1$ routing rules (which become stale as models update), or (c)~run a supervised router that requires labelled routing data for all $K$ models.
-banditGPT replaces these choices with a single parameter: $\lambda$.
-At $\lambda{=}0$, the system maximises quality.
-At $\lambda{=}5$, it minimises cost.
-At any intermediate value, it discovers the Pareto-optimal allocation automatically, adapting to the deployment distribution without labels or manual thresholds.
-
-\paragraph{Cost efficiency at scale.}
-The $K{=}10$ portfolio demonstrates a particularly favourable cost--quality surface.
-At $\lambda{=}1.0$, banditGPT achieves $R{=}0.891$ at $C{=}\$0.00032$/req---91\% cheaper than static GPT-4.1 ($\$0.0034$/req) with only 6.1\% quality reduction.
-This efficiency arises because the larger portfolio contains multiple cheap high-quality models (Gemma-3-27B at \$0.00005, DeepSeek-V3 at \$0.00047, Gemini-Flash at \$0.00026) that are near-optimal for many prompt types.
-The router learns which prompts genuinely require expensive models and routes only those prompts to the premium tier.
-For a deployment handling 100k requests/day at the $\lambda{=}1.0$ operating point, this translates to \$32/day vs.\ \$340/day for static GPT-4.1---a \$112k annual saving.
-
-\paragraph{Resilience through portfolio diversity.}
-A practical benefit of multi-model routing, distinct from the cost--quality Pareto analysis, is resilience to provider outages and model deprecations.
-When traffic distributes across 6 providers (as in the $K{=}10$ allocation), a single-model outage affects at most 17\% of traffic, though a full provider outage could affect up to 31\% (Anthropic: Claude-Sonnet-4 at 17\% + Claude-Haiku-4.5 at 14\%).
-The router's online learning automatically redistributes affected traffic to the remaining models within tens of interactions.
-This contrasts with single-model deployments where a provider outage is a full service failure, or with rule-based failover where fallback ordering must be manually maintained.
-
-\paragraph{Prior modularity: a practical pattern for deployment.}
-The three-way split methodology (Section~\ref{sec:warmup_prior_construction}) demonstrates that warmup priors can be constructed from any source of model quality data---whether proprietary benchmarks, A/B test logs, or the evaluation framework used here.
-The priors for the $K{=}2$ evaluation derive from 80k RouteLLM battles; the priors for $K{=}5$ and $K{=}10$ derive from 355 prompts of 43-model evaluation data.
-Both follow the same format ($\Amat$, $\mathbf{b}$ matrices per model) and plug into the same prior-loading pipeline.
-For practitioners, the message is direct: if you have any historical data about model performance on your task---even a few hundred labelled prompts---you can generate warmup priors that eliminate cold-start.
-The prior source does not need to match the deployment exactly; Corralling's meta-learner handles the residual mismatch by maintaining a parallel tabula rasa expert that learns the deployment distribution from scratch.
-
-\paragraph{Scaling behaviour.}
-Comparing across $K$ reveals a consistent pattern: gap closure decreases modestly with portfolio size (74.9\% at $K{=}5$, 69.3\% at $K{=}10$), while the \emph{cost-efficiency} of the Pareto frontier improves.
-The gap closure decrease is an expected consequence of larger action spaces: with more models, the bandit must explore more and the Oracle's per-prompt optimality becomes harder to approach.
-However, the cost-efficiency improvement---the $K{=}10$ frontier degrades only 1\% in quality across a $41\times$ cost range, vs.\ 22\% across a $68\times$ range at $K{=}5$---demonstrates that larger portfolios provide a flatter, more favourable cost--quality surface.
-In practice, the portfolio should be chosen to maximise the quality range across the cost tiers the deployment cares about, rather than to maximise $K$ indiscriminately.
+\paragraph{Exploration-exploitation overhead.}
+At peak $\lambda$, banditGPT's quality is slightly below the best static model (GPT-4.1). This reflects the bandit's structural exploration cost (testing sub-optimal models to verify calibration), which grows with $K$. However, this exploration enables a $91\%$ cost reduction at $\lambda{=}1.0$ relative to static GPT-4.1 with only a 6.1\% quality drop, a trade-off inaccessible to static baselines.

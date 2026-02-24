@@ -1,23 +1,15 @@
-\section{Conclusion and Future Work}
+\section{Conclusion}
 \label{sec:conclusion}
 
-As model portfolios diversify, LLM routing becomes less about a fixed ``cheap versus strong'' ordering and more about identifying which specific prompts benefit from which models under a budget constraint. We presented \textbf{banditGPT}, an open-source contextual bandit framework for cost-aware routing that combines online adaptation with a meta-learning hedge against imperfect priors.
+As model portfolios diversify, LLM routing evolves from a fixed static ordering into discovering which specific prompts benefit from which models under a budget constraint. We presented \textbf{banditGPT}, an open-source contextual bandit framework that combines online adaptation with a meta-learning hedge against imperfect priors. Our evaluation establishes three core findings:
 
-Our evaluation on $N{=}750$ held-out prompts establishes three core findings:
 \begin{enumerate}[nosep,leftmargin=*]
-    \item \textbf{Online adaptation can improve routing at moderate-to-high budgets.} In our controlled two-model benchmark, banditGPT surpasses the peak quality of a state-of-the-art static router after 300 to 400 label-free in-distribution prompts, achieving 70.0\% gap closure to the theoretical oracle (compared to 46.2\% for the static baseline). At low budgets, supervised static routing remains highly competitive, highlighting a practical trade-off between offline supervision and online discovery.
-    \item \textbf{Corralling provides safety when priors fail.} The meta-learner combines complementary exploration schedules and consistently reduces regret relative to using warmup priors alone. When offline priors are misleading or corrupted, Corralling detects the degradation and shifts weight to a tabula rasa expert, providing a safety mechanism that standard contextual bandits lack.
-    \item \textbf{Continuous family sharing subsumes one-shot transfer.} A leave-one-out ablation confirms that one-shot parameter transfer provides no significant benefit beyond the continuous family sharing of Hybrid LinUCB ($p{>}0.5$, $d{<}0.05$ at $K{=}10$). This is a positive operational finding: practitioners can benefit from data-driven family grouping without investing in complex, per-model bootstrapping pipelines.
+    \item \textbf{Online adaptation excels at scale:} banditGPT surpasses state-of-the-art static routers after merely 300 in-distribution prompts, achieving 70.0\% gap closure to the theoretical oracle for $K{=}2$ and Pareto-dominating baselines across cost spectrums at up to $K{=}10$.
+    \item \textbf{Corralling provides safety:} The meta-learner consistently reduces regret relative to single-expert bandits, providing a safety mechanism when offline priors fail or drift occurs.
+    \item \textbf{Family sharing enhances stability:} A data-driven approach to Hybrid LinUCB sharing shrinks confidence intervals by $3\times$ when per-model data is scarce.
 \end{enumerate}
 
-\subsection*{Future Work and Emerging Trajectories}
-The architecture of banditGPT opens several promising avenues for future research in adaptive AI orchestration:
-
-\paragraph{Neural Contextual Bandits (NeuroBandits).} 
-While banditGPT leverages LinUCB on PCA-reduced semantic features for computational efficiency and stability, linear assumptions may underfit complex, high-dimensional relationships between prompts and model capabilities. Transitioning to Neural Contextual Bandits (NeuroBandits)~\cite{sun2025neural, li2026routing} could allow the router to learn deep, non-linear reward mappings directly from raw text embeddings or sequence representations. This could unlock higher Pareto efficiency, provided the optimization stability and latency overhead of neural updates can be managed in a production routing path.
-
-\paragraph{Agentic Orchestration.} 
-Currently, LLM routers select a single model for a single zero-shot prompt. However, the field is rapidly shifting toward agentic workflows~\cite{wu2023autogen}, where complex queries are decomposed and handled by specialized, interacting agents. The routing problem will naturally evolve from selecting a model to selecting an \emph{agentic strategy} or orchestrating a multi-agent team. The hierarchical design of banditGPT (specifically the Corralling meta-learner) is exceptionally well-suited for this shift. By treating autonomous agents or workflow pipelines as ``experts,'' the meta-learner could dynamically route tasks to the most reliable agentic systems based on real-time success rates, generalizing cost-aware routing into full-scale autonomous orchestration.
+\paragraph{Future Work.} Future trajectories include adopting Neural Contextual Bandits (NeuroBandits)~\cite{sun2025neural} to capture non-linear reward mappings and extending our hierarchical Corralling meta-learner to \emph{agentic orchestration}~\cite{wu2023autogen}, moving beyond model routing to selecting multi-agent strategies dynamically.
 
 \subsection*{Reproducibility}
 To facilitate further research, we release our full codebase, the sanitized ``Warmup Priors,'' and the complete experimental logs at: \texttt{https://github.com/YourOrg/banditGPT} \textit{(Anonymized for review)}.

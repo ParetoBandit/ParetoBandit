@@ -3,8 +3,9 @@
 % Include from paper/sections/results.tex
 % ============================================================================
 
-\subsection{Baseline Comparison: Linear Thompson Sampling}
+\subsection{Baseline Comparison and Learning Efficiency}
 \label{sec:lints_comparison}
+\label{sec:cumulative_regret}
 
 A rigorous evaluation of any contextual bandit system requires comparison
 against the primary algorithmic alternative.  Linear Thompson Sampling
@@ -79,35 +80,5 @@ The advantage is attributable to two architectural components that LinTS lacks:
         samples to converge at higher $K$.
 \end{enumerate}
 
-\paragraph{The best static model and $\varepsilon$-greedy.}
-Table~\ref{tab:lints_peak} also reports the best single-model policy
-(GPT-4.1, reward $0.983$), which outperforms all contextual methods at
-$\lambda{=}0$.
-This gap reflects the small \textbf{contextual improvement ceiling}
-in this portfolio: GPT-4.1's average reward is within $1.7\%$ of the
-per-prompt oracle, leaving little room for context-dependent routing to
-improve upon a static policy before exploration overhead erodes the gain.
-$\varepsilon$-greedy, which locks onto GPT-4.1, similarly outperforms
-contextual methods at $\lambda{=}0$.
-Section~\ref{sec:egreedy_analysis} provides a detailed analysis of this
-phenomenon, its theoretical basis, and the conditions under which contextual
-routing recovers its advantage---most notably at nonzero cost penalties,
-where the oracle routes $74.5\%$ of traffic to Llama-3.1-8B
-($136\times$ cheaper) with near-perfect quality.
-
 \paragraph{Practical implications.}
-The Pareto frontier is the appropriate evaluation surface for multi-model
-routing, since production deployments almost always face cost constraints.
-Across the full cost spectrum, banditGPT Pareto-dominates LinTS:
-at any given cost budget, banditGPT achieves higher quality (or equivalently,
-the same quality at lower cost).
-At $K{=}5$, an operator at the $\lambda{=}0.01$ operating point gets
-2--3\% higher reward than LinTS---equivalent to routing roughly
-25 additional prompts per 1{,}000 to the optimal model.
-At $K{=}10$, the advantage is smaller but consistent, and the Corralling
-mechanism provides an additional safety net against prior drift as model
-providers update their APIs.
-For cost-insensitive deployments where a single model dominates, simpler
-baselines suffice (Section~\ref{sec:egreedy_analysis});
-banditGPT's value emerges in the more common scenario where cost matters,
-model quality is uncertain, or the deployment distribution shifts.
+The Pareto frontier is the appropriate evaluation surface for multi-model routing under cost constraints. Across the full cost spectrum, banditGPT Pareto-dominates LinTS: at any given budget, banditGPT achieves higher quality. The Corralling mechanism provides an additional safety net against prior drift, making banditGPT robust in common scenarios where cost matters, model quality is uncertain, or the deployment distribution shifts.
