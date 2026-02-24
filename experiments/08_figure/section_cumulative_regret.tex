@@ -64,7 +64,7 @@ Corralling meta-learner accelerates convergence among contextual bandits.
 
 Surprisingly, $\varepsilon$-greedy---a non-contextual baseline---achieves substantially lower cumulative regret than all contextual methods at $\lambda{=}0$ ($14.5$ vs.\ $27.1$ for banditGPT at $K{=}5$). This is a predictable consequence of extreme model dominance in this specific portfolio: GPT-4.1's average reward ($0.983$) is so high that the \emph{contextual improvement ceiling} (the gap to the $1.000$ per-prompt oracle) is only $1.7\%$. 
 
-Standard regret bounds predict this: $\varepsilon$-greedy's regret scales as $O\!\bigl(\frac{K}{\Delta}\log T\bigr)$, benefiting when the gap $\Delta$ to the second-best arm is large. LinUCB's regret scales as $O\!\bigl(d\sqrt{KT\log T}\bigr)$, paying a mandatory feature-space exploration tax regardless of $\Delta$. In this "easy instance" regime, simpler algorithms are provably more efficient.
+Standard regret theory predicts this: with fixed $\varepsilon{=}0.1$, the per-step exploration cost is $\varepsilon \bar{\Delta}$, where $\bar{\Delta}$ is the average sub-optimality gap across arms. When one arm dominates ($\bar{\Delta}$ small), cumulative regret grows slowly despite the linear $O(\varepsilon T)$ worst-case rate. By contrast, LinUCB's regret scales as $O\!\bigl(d\sqrt{KT\log T}\bigr)$~\cite{abbasi2011improved}, paying a mandatory feature-space exploration tax regardless of $\bar{\Delta}$. In this ``easy instance'' regime, simpler algorithms are more efficient.
 
 However, contextual routing's value emerges under production constraints:
 \begin{enumerate}[leftmargin=*,nosep]
