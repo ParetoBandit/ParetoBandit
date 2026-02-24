@@ -33,3 +33,5 @@ We evaluate performance using three key metrics standard in cost-aware routing l
 
 \textbf{Trials:} Unless noted otherwise, we report mean and 95\% confidence intervals over 20 seeds for each cost penalty $\lambda$ in the sweep. Additional statistical details and robustness checks are in the appendix (supplementary material).
 
+\textbf{Family assignment:} For the $K{=}2$ main evaluation and $K{=}3$ Corralling experiments, each model belongs to a different provider, so syntactic inference produces singleton families (equivalent to disjoint LinUCB). For the $K{\geq}5$ multi-model scaling experiments (Appendix), where multiple models share a provider, families are assigned via data-driven tetrachoric correlation on held-out rewards (threshold $r_{\text{tet}} \geq 0.6$; see Section~\ref{sec:methodology}).
+
