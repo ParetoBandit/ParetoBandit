@@ -1,0 +1,81 @@
+\section{Evaluation Data and Reward Signal}
+\label{sec:data}
+
+All experiments in this paper share a common evaluation framework: prompt sources, a reward signal, and a feature pipeline.
+This section defines these foundations; subsequent sections build on them without repeating the details.
+
+\subsection{Prompt Sources}
+
+We draw prompts from two public sources selected for complementary strengths:
+
+\begin{itemize}[nosep,leftmargin=*]
+    \item \textbf{LMSYS Chatbot Arena}~\cite{zheng2023judging}: real user prompts submitted to a public LLM comparison platform. These provide ecologically valid, diverse queries spanning creative writing, reasoning, coding, and structured extraction. All evaluation and online-learning data (1,871 prompts across dev and holdout splits) come from this source.
+    \item \textbf{RouteLLM battle corpus}~\cite{ong2024routellm}: 80,000 curated pairwise battles between Mixtral-8x7B and GPT-4-Turbo, released as part of the RouteLLM benchmark. We use this corpus primarily to construct cross-distribution warmup priors for the $K{=}2$ evaluation, matching RouteLLM's own training condition for a controlled comparison against its published baseline. The corpus also serves as the training set for the unsupervised PCA feature projection (Section~\ref{sec:feature_pipeline}).
+\end{itemize}
+
+\subsection{Reward Signal}
+\label{sec:reward_signal}
+
+At routing time, the system observes \emph{bandit feedback}: only the reward of the selected model is revealed.
+Two distinct judging protocols produce these rewards, one per evaluation regime:
+
+\paragraph{$K{=}2$ rewards (pairwise, ternary).}
+All 1,871 LMSYS evaluation prompts are judged by GPT-4o at temperature~0 (deterministic) using RouteLLM's MT-Bench-style pairwise template, yielding $r \in \{0, 0.5, 1\}$ (loss/tie/win).
+The 80K RouteLLM warmup battles ship with pre-existing pairwise outcome labels from the \texttt{routellm/gpt4\_judge\_battles} dataset; we use these labels directly as warmup rewards.
+Any mismatch between the warmup and evaluation reward signals is attenuated by the plasticity factor ($\rho{=}0.1$) that down-scales warmup priors and by the Corralling meta-learner, which down-weights the warmup expert when its predictions diverge from observed rewards.
+
+\paragraph{$K{>}2$ rewards (cross-provider panel).}
+The 10 models evaluated in this paper (Table~\ref{tab:data_splits}) are judged on LMSYS Arena prompts by a panel of 3--4 LLMs drawn from four providers: GPT-4o (OpenAI), Claude-3.5-Sonnet (Anthropic), Llama-3.1-405B (Meta), and Gemini-2.5-Pro (Google).
+To prevent self-evaluation bias, a judge never evaluates models from its own provider family; each model is therefore scored by the 3 remaining judges.
+Judges follow a structured chain-of-thought protocol: each produces an explicit reasoning trace before casting a binary pass/fail vote with a confidence score, reducing snap-judgment bias.
+The per-prompt reward is the mean vote across the panel, yielding a continuous signal in $[0,1]$ that preserves evaluative granularity (e.g., a 2-of-3 pass maps to $0.67$ rather than being binarised to $1.0$).
+Full reward specification, the CoT prompt template, and known limitations are detailed in Appendix~\ref{app:reward_signal}.
+
+\subsection{Data Splits: Two Evaluation Regimes}
+\label{sec:data_splits}
+
+Our evaluation operates at two portfolio scales that require different warmup prior sources, reflecting a natural constraint: available offline data rarely covers every model in a deployment portfolio.
+Table~\ref{tab:data_splits} summarises both regimes.
+
+\begin{table}[t]
+\centering
+\caption{Data splits for two evaluation regimes. The holdout set (750 prompts) is identical across regimes; only the model columns read differ.}
+\label{tab:data_splits}
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llrll@{}}
+\toprule
+\textbf{Regime} & \textbf{Split} & \textbf{Prompts} & \textbf{Source} & \textbf{Purpose} \\
+\midrule
+\multirow{3}{*}{$K{=}2$}
+    & Warmup priors  & 80,000 & RouteLLM battles  & LinUCB priors (+ PCA training, shared) \\
+    & Online learning & 1,121 & LMSYS Arena (dev)  & Bandit updates \\
+    & Holdout         & 750   & LMSYS Arena        & Frozen evaluation \\
+\midrule
+\multirow{3}{*}{$K{=}5, 10$}
+    & Prior training  & 355   & LMSYS Arena (dev) & Warmup priors for all $K$ models \\
+    & Online learning & 533   & LMSYS Arena (dev) & Bandit updates \\
+    & Holdout         & 750   & LMSYS Arena       & Frozen evaluation \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\paragraph{$K{=}2$ (RouteLLM comparison).}
+We initialise warmup priors from the 80K RouteLLM battles for Mixtral-8x7B and GPT-4-Turbo.
+This is a deliberate \emph{cross-distribution} setup: the battles come from a different user population and time period than the evaluation prompts, matching RouteLLM's own training condition and creating the realistic scenario where offline data does not perfectly match deployment traffic.
+
+\paragraph{$K{=}5$ and $K{=}10$ (multi-model scaling).}
+The RouteLLM data covers only 2 models, leaving the remaining $K{-}2$ models without priors.
+Instead, we construct warmup priors from a held-out portion of our own LMSYS evaluation data, which covers all 10 portfolio models---a \emph{same-distribution} prior reflecting the practitioner workflow of seeding a router with a small batch of historical evaluations.
+The 888 development prompts with full model coverage are split via stratified sampling into 355 prior-training and 533 online-learning prompts; the holdout set (750 prompts) is shared with the $K{=}2$ evaluation to ground cross-regime comparisons.
+Full construction details and data-integrity checks are in Appendix~\ref{sec:warmup_prior_construction}.
+
+\subsection{Feature Pipeline}
+\label{sec:feature_pipeline}
+
+Each prompt is encoded by Sentence-BERT (\texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence}, 384D) and projected to 32 dimensions via unsupervised PCA trained on the 80K RouteLLM battle prompts.
+A bias term is appended, yielding a 33-dimensional context vector.
+This projection is applied to prompts from both sources: RouteLLM battles for $K{=}2$ warmup priors, and LMSYS Arena prompts for $K{>}2$ warmup priors and all online learning and evaluation.
+The PCA is trained once and reused across all portfolio sizes ($K{=}2, 5, 10$), decoupling feature extraction from warmup-prior construction.
+Variance analysis and provenance details are in the supplementary material.

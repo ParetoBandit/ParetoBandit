@@ -10,7 +10,7 @@ In this section, we present an empirical finding that challenges this assumption
 
 \subsection{Predicting Model Preference Heterogeneity}
 
-To analyze model preference, we project 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of a 32-component PCA model. To prevent data leakage, this PCA is \emph{unsupervised} (trained without reward labels) and fit on a disjoint set of 80K routing prompts to identify directions of maximum variance in the semantic space. Rewards are derived from LMSYS Arena pairwise comparisons~\cite{zheng2023judging}.
+To analyze model preference, we project 750 held-out prompts from the LMSYS Arena onto the first principal component (PC1) of the 32-component PCA model described in Section~\ref{sec:feature_pipeline}. This PCA is unsupervised (no reward labels) and fit on a disjoint prompt set, preventing data leakage. Rewards follow the ternary pairwise signal defined in Section~\ref{sec:reward_signal}.
 
 \paragraph{Feature spaces capture model preference.}
 We observe a significant Spearman rank correlation between the prompt's PC1 projection and the reward gap between the expensive frontier model and the cheaper open-weights model ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$, $N = 750$ (Figure~\ref{fig:lmsys_holdout_structure}A). This negative correlation indicates that higher PC1 values correspond to prompts where the cheaper model outperforms the expensive model. Qualitatively, prompts at the high end of PC1 tend to involve stricter output constraints, though we treat this as a descriptive observation rather than a causal claim. A supplementary Mann-Whitney $U$ test on a median split of PC1 confirms the directional finding ($p < 0.0001$). 

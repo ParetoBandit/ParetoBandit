@@ -7,7 +7,86 @@
 \label{app:validation_ablation}
 
 % ----------------------------------------------------------------------------
-% E.1: Statistical Validation (from B2)
+% E.1: Reward Signal Specification
+% ----------------------------------------------------------------------------
+
+\subsection{Reward Signal Specification}
+\label{app:reward_signal}
+
+This subsection provides the full reward signal details referenced in Section~\ref{sec:reward_signal}.
+
+\subsubsection{$K{=}2$ Rewards (Pairwise, Ternary)}
+
+All 1,871 LMSYS evaluation prompts are judged by GPT-4o (\texttt{openai/gpt-4o}, accessed via OpenRouter) at temperature~0 (deterministic).
+The judge receives both model responses in a pairwise comparison using RouteLLM's MT-Bench-style template, which evaluates helpfulness, relevance, accuracy, depth, creativity, and level of detail.
+Output is \texttt{[[A]]}, \texttt{[[B]]}, or \texttt{[[C]]} (tie), mapped to $r \in \{0, 0.5, 1\}$.
+
+The 80K RouteLLM warmup battles ship with pre-existing pairwise labels from the \texttt{routellm/gpt4\_judge\_battles} HuggingFace dataset.
+The winner labels in the dataset encode the \emph{losing} model (an inversion noted and corrected in \texttt{scripts/download\_and\_process\_routellm.py}).
+
+\subsubsection{$K{>}2$ Rewards (Cross-Provider LLM Panel)}
+\label{app:cot_panel}
+
+The 10 models used in the $K{=}5$ and $K{=}10$ experiments are judged by a panel of LLMs drawn from four providers:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item \textbf{GPT-4o} (\texttt{openai/gpt-4o})
+    \item \textbf{Claude-3.5-Sonnet} (\texttt{anthropic/claude-3.5-sonnet})
+    \item \textbf{Llama-3.1-405B} (\texttt{meta-llama/llama-3.1-405b-instruct})
+    \item \textbf{Gemini-2.5-Pro} (\texttt{google/gemini-2.5-pro-preview-06-05})
+\end{itemize}
+
+\paragraph{Cross-provider constraint.}
+To prevent self-evaluation bias, a judge never evaluates models from its own provider family.
+For example, when judging \texttt{openai/gpt-4.1}, the OpenAI judge (GPT-4o) is excluded and the model is scored by the remaining 3 judges (Claude-3.5-Sonnet, Llama-3.1-405B, Gemini-2.5-Pro).
+Provider families are determined by prefix matching: all \texttt{openai/*} models map to ``openai'', \texttt{anthropic/*} to ``anthropic'', etc.
+
+\paragraph{Chain-of-thought prompt template.}
+Each judge receives the following system prompt at temperature~0:
+
+\begin{quote}
+\small\ttfamily
+You are an impartial judge evaluating the quality of an LLM response.\\
+Please follow this Chain-of-Thought process:\\
+1. Provide a concise reasoning explanation.\\
+2. Cast a VOTE: 1 (Pass/Good) or 0 (Fail/Bad).\\
+3. Assign a CONFIDENCE score (0-100\%) reflecting your certainty.\\[0.5em]
+Format your response exactly as follows:\\[0.5em]
+\#\# Reasoning\\
+<reasoning text>\\[0.3em]
+\#\# Vote\\
+<0 or 1>\\[0.3em]
+\#\# Confidence\\
+<0-100>
+\end{quote}
+
+The user message contains the original prompt and the model's response in the format: \texttt{PROMPT: <prompt> \textbackslash n\textbackslash n RESPONSE: <response>}.
+
+\paragraph{Reward aggregation.}
+Each judge casts a binary vote ($v \in \{0, 1\}$) with an explicit confidence score ($c \in [0, 1]$).
+The per-prompt reward is the mean vote across the panel:
+\begin{equation}
+r(q, m) = \frac{1}{|J_m|} \sum_{j \in J_m} v_j
+\end{equation}
+where $J_m$ is the set of judges eligible to evaluate model~$m$ (i.e., judges not from $m$'s provider family).
+This yields a continuous signal in $[0, 1]$ that preserves evaluative granularity---for example, a 2-of-3 pass maps to $0.67$ rather than being binarised to $1.0$.
+
+\subsubsection{Known Limitations}
+
+\begin{enumerate}[leftmargin=*,noitemsep]
+    \item \textbf{LLM-as-judge bias:} Judge biases (e.g., verbosity preference, position bias) propagate into the reward signal.
+          \emph{Mitigation:} The banditGPT framework is reward-agnostic; the judge can be replaced with human feedback or task-specific metrics.
+    \item \textbf{No human validation:} We do not validate judge labels against human preferences on this specific dataset.
+          \emph{Mitigation:} The router's learned predictions align closely with observed rewards (bias $< 0.05$), as verified by calibration analysis in the repository artifacts.
+    \item \textbf{Deterministic judging:} Temperature~0 eliminates within-prompt reward noise but may mask borderline cases.
+          \emph{Mitigation:} The 20-seed protocol captures across-trial variance.
+    \item \textbf{Cross-regime reward scale:} $K{=}2$ uses ternary rewards $\{0, 0.5, 1\}$ while $K{>}2$ uses continuous $[0, 1]$. Both are valid inputs to LinUCB but are not directly comparable in magnitude.
+\end{enumerate}
+
+The full evaluation script is available at \texttt{scripts/rejudge\_cot.py} in the open-sourced repository.
+
+% ----------------------------------------------------------------------------
+% E.2: Statistical Validation (from B2)
 % ----------------------------------------------------------------------------
 
 \subsection{Statistical Validation of Semantic Structure}
@@ -113,7 +192,7 @@ The High PC1 cluster is relatively homogeneous (diversity $= 0.355$), consistent
 \end{enumerate}
 
 % ----------------------------------------------------------------------------
-% E.2: Corralling Ablation (from D1)
+% E.3: Corralling Ablation (from D1)
 % ----------------------------------------------------------------------------
 
 \subsection{Corralling Hyperparameter Ablation}
@@ -169,7 +248,7 @@ Log-log regression (excluding 50-sample burn-in) yields growth exponent $\beta=0
 Since warmup priors cover only Mixtral and GPT-4-Turbo, GPT-4o is initialized from GPT-4-Turbo's learned preferences with conservative scaling ($\gamma=0.05$). At $\lambda=0$ (quality only), the bandit rapidly discovers GPT-4o as the dominant choice (64.6\% usage, 5-seed average), correctly identifying the warmup expert's GPT-4-Turbo bias as suboptimal. At $\lambda=0.1$, GPT-4o usage rises to 74.3\% as cost awareness further penalizes GPT-4-Turbo. Note that this rapid convergence is driven by the online learning mechanism and family-level $\betavec$ sharing rather than the one-shot $\thetavec$ transfer (see Section~\ref{sec:transfer_null}).
 
 % ----------------------------------------------------------------------------
-% E.3: Deployment Strategy Guide (from F3)
+% E.4: Deployment Strategy Guide (from F3)
 % ----------------------------------------------------------------------------
 
 \subsection{Deployment Strategy Selection Guide}
@@ -254,7 +333,7 @@ be migrated to Corralling in all cases;
 All configurations use constant $\alpha=2.0$.
 
 % ============================================================================
-% E.4: Detailed Future Directions (moved from main paper conclusion)
+% E.5: Detailed Future Directions (moved from main paper conclusion)
 % ============================================================================
 
 \subsection{Detailed Future Directions}
