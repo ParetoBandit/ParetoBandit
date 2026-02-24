@@ -9,7 +9,7 @@ Guided by the three architectural requirements established in Section~\ref{sec:m
     \item \textbf{Corralling meta-learning} that hedges against prior mismatch via complementary exploration schedules, providing the necessary safety mechanism.
 \end{itemize}
 
-While several concurrent systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}, banditGPT's distinguishing contribution is this hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits. This directly addresses the practical challenges of production routing: maintaining safety against misspecified priors while remaining agile enough to adopt new models.
+While several concurrent \emph{LLM routing} systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}---distinct from the classical bandit-theory literature on Corralling~\cite{agarwal2017corralling}---banditGPT's distinguishing contribution is this hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits. This directly addresses the practical challenges of production routing: maintaining safety against misspecified priors while remaining agile enough to adopt new models.
 
 \subsection{Unified Feature Space}
 
