@@ -13,6 +13,7 @@ Our evaluation operates at two scales that require different prior sources, refl
 For the controlled comparison against RouteLLM (Section~\ref{sec:pareto}), we use 80,000 pairwise battles from the RouteLLM dataset~\cite{ong2024routellm} to build warmup priors for the same two models that RouteLLM was trained on (Mixtral-8x7B and GPT-4-Turbo).
 This is a \emph{cross-distribution} prior: the battles were collected from a different user population and time period than our evaluation prompts.
 The distribution mismatch is deliberate---it creates the realistic scenario where offline training data does not perfectly match deployment traffic, and it matches RouteLLM's own training condition for a controlled comparison.
+Appendix~\ref{app:distribution_shift} quantifies this mismatch (PSI\,$=$\,0.763) and demonstrates via a full factorial that prior source has no significant effect on adaptive performance ($p{=}0.18$), while Corralling provides a significant $+1.3$\,pp advantage over a single-expert bandit ($p < 0.0001$).
 The warmup priors encode 80K observations into the LinUCB sufficient statistics via online updates: $\Amat_m \mathrel{+}= \xvec\xvec^\top$, $\bvec_m \mathrel{+}= r\xvec$, with a plasticity factor ($\rho{=}0.1$) that scales the final matrices so that online observations can overwrite the prior within a practical number of steps.
 
 \paragraph{K\,=\,5 and K\,=\,10 (Multi-Model Scaling).}

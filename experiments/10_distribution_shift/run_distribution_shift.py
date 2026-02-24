@@ -1,48 +1,33 @@
 #!/usr/bin/env python3
 """
-Distribution Shift Analysis (Experiment 10)
-============================================
+Distribution Shift Analysis (Experiment 10) — Full Factorial
+=============================================================
 
-Measures covariate shift between the offline training distribution (RouteLLM
-battles, used to build warmup priors) and the deployment distribution (LMSYS
-Arena dev/holdout prompts used in all routing experiments).
+Separates three effects: DISTRIBUTION SHIFT, ONLINE LEARNING, and CORRALLING.
 
-This experiment supports the claim in the paper that "deployment distributions
-drift from offline training data, which silently degrades static routing
-policies."  It does NOT simulate temporal drift; it measures the static gap
-between the two datasets that already exist.
+                         Frozen         Online (no Corral)   Online (Corralling)
+  Cross-dist priors      (A)            (E) NEW              (B)
+  Same-dist priors       (C)            (F) NEW              (D)
 
-Uses the K=5 portfolio (Llama-3.1-8B, Mixtral-8x7B, Gemini-2.5-Flash,
-Claude-Sonnet-4, GPT-4.1) to match the primary multi-model experiments in
-the paper (Section 4, Figure 5/6), making the drift results directly
-comparable.
+Plus learning curves at λ=0 for all 4 adaptive conditions (B, D, E, F)
+evaluated at checkpoints [50, 100, 200, 400, 766] to show convergence speed.
 
-Analyses performed
-------------------
-1. Feature distribution shift (PC1)
-   - KDE density plots for both distributions
-   - Population Stability Index (PSI) with bootstrap 95% CI
-   - Kolmogorov–Smirnov test (D-statistic, p-value)
+K=2 topology (Mixtral-8x7B vs GPT-4-Turbo).
 
-2. Prior miscalibration due to shift (K=5)
-   - Compare offline prior reward estimates vs. observed deployment rewards
-   - Quantify systematic over/under-estimation per model across the portfolio
+Data splits:
+  - Prior pool:    355 dev prompts  → builds same-dist priors
+  - Online pool:   766 dev prompts  → online learning
+  - Holdout:       750 prompts      → evaluation (all conditions)
 
-3. Adaptive router recovery
-   - Static router (frozen prior, no online updates): evaluated on deployment
-     holdout. Measures quality gap vs. oracle.
-   - Hybrid banditGPT router (K=5, policy="hybrid"): trains online on
-     deployment dev-set, evaluated on holdout at checkpoints.
-   - Demonstrates that online adaptation recovers the gap caused by
-     prior miscalibration at deployment time.
+Key comparisons:
+  (A vs C)  → distribution shift effect (frozen)
+  (E vs B)  → Corralling benefit under cross-dist priors
+  (F vs D)  → Corralling benefit under same-dist priors
+  (E vs F)  → distribution shift effect (online, no Corralling)
+  (B vs D)  → distribution shift effect (online, with Corralling)
+  Learning curves → convergence speed: does Corralling recover faster?
 
-Output
-------
-  results/distribution_shift_results.json
-  results/figure_distribution_shift.png
-
-Usage
------
+Usage:
     python3 experiments/10_distribution_shift/run_distribution_shift.py
 """
 
@@ -50,6 +35,7 @@ import sys
 import json
 import gzip
 import logging
+import tempfile
 import numpy as np
 import joblib
 import matplotlib
@@ -57,7 +43,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List
 from scipy.stats import ks_2samp, gaussian_kde
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -68,11 +54,10 @@ from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
+    DEFAULT_WARMUP_PRIORS_PATH,
     ROUTELLM_BATTLES_REWARDS_PATH,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
-    THREE_WAY_SPLITS_PATH,
-    DEV_DATA_PATH_ALL_MODELS,
-    HOLDOUT_DATA_PATH_ALL_MODELS,
+    CANONICAL_DEV_DATA_PATH,
+    CANONICAL_HOLDOUT_DATA_PATH,
 )
 from utils.router_factory import create_experiment_router
 from sentence_transformers import SentenceTransformer
@@ -81,75 +66,52 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration — K=5 portfolio (mirrors experiment 06_figure)
+# Configuration
 # ---------------------------------------------------------------------------
 
-def _req_cost(inp, out):
-    return (100 * inp + 400 * out) / 1_000_000
-
-PORTFOLIO_K5 = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mixtral-8x7b-instruct",
-    "google/gemini-2.5-flash-preview-09-2025",
-    "anthropic/claude-sonnet-4",
-    "openai/gpt-4.1",
-]
+MODEL_A = "mistralai/mixtral-8x7b-instruct"
+MODEL_B = "openai/gpt-4-turbo"
 
 MODEL_REGISTRY = {
-    "meta-llama/llama-3.1-8b-instruct": {
-        "display_name": "Llama-3.1-8B",
-        "input_cost_per_million_tokens": 0.05,
-        "output_cost_per_million_tokens": 0.05,
-        "provider": "meta",
-    },
-    "mistralai/mixtral-8x7b-instruct": {
+    MODEL_A: {
         "display_name": "Mixtral-8x7B",
-        "input_cost_per_million_tokens": 0.54,
-        "output_cost_per_million_tokens": 0.60,
+        "input_cost_per_m": 0.54,
+        "output_cost_per_m": 0.60,
         "provider": "mistral",
     },
-    "google/gemini-2.5-flash-preview-09-2025": {
-        "display_name": "Gemini-2.5-Flash",
-        "input_cost_per_million_tokens": 0.15,
-        "output_cost_per_million_tokens": 0.60,
-        "provider": "google",
-    },
-    "anthropic/claude-sonnet-4": {
-        "display_name": "Claude-Sonnet-4",
-        "input_cost_per_million_tokens": 3.00,
-        "output_cost_per_million_tokens": 15.00,
-        "provider": "anthropic",
-    },
-    "openai/gpt-4.1": {
-        "display_name": "GPT-4.1",
-        "input_cost_per_million_tokens": 2.00,
-        "output_cost_per_million_tokens": 8.00,
+    MODEL_B: {
+        "display_name": "GPT-4-Turbo",
+        "input_cost_per_m": 10.00,
+        "output_cost_per_m": 30.00,
         "provider": "openai",
     },
 }
 
-COSTS = {m: _req_cost(
-    MODEL_REGISTRY[m]["input_cost_per_million_tokens"],
-    MODEL_REGISTRY[m]["output_cost_per_million_tokens"],
-) for m in PORTFOLIO_K5}
+def _req_cost(inp, out):
+    return (100 * inp + 400 * out) / 1_000_000
 
-MAX_SOURCE_PROMPTS = 8000   # RouteLLM battles (offline/prior distribution)
-N_BOOTSTRAP = 1000          # for PSI confidence interval
+COSTS = {m: _req_cost(v["input_cost_per_m"], v["output_cost_per_m"])
+         for m, v in MODEL_REGISTRY.items()}
+
+MODELS = [MODEL_A, MODEL_B]
+
+PRIOR_POOL_SIZE = 355
+MAX_SOURCE_PROMPTS = 8000
+N_BOOTSTRAP = 1000
 N_PSI_BINS = 10
-N_TRIALS = 20               # multi-seed router evaluation
+N_TRIALS = 20
 SEED = 42
+PLASTICITY = 0.1
 
-# Lambda sweep mirrors experiment 06_figure for direct comparability
 LAMBDA_VALUES = [0.0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
+LEARNING_CURVE_CHECKPOINTS = [50, 100, 200, 400, 766]
 
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
 
 def load_routellm_prompts(path: Path, max_samples: int) -> List[str]:
-    """Load unique prompts from RouteLLM battles JSONL (offline / prior dist)."""
-    prompts = []
-    seen = set()
+    prompts, seen = [], set()
     with open(path, "r") as f:
         for line in f:
             entry = json.loads(line)
@@ -162,41 +124,59 @@ def load_routellm_prompts(path: Path, max_samples: int) -> List[str]:
     return prompts
 
 
-def load_deployment_data(path: Path, models: List[str],
-                         prompt_allowlist: Optional[List[str]] = None) -> List[Dict]:
-    """Load prompt+rewards from gzipped JSONL deployment data.
-
-    Parameters
-    ----------
-    path:
-        Path to a ``.jsonl.gz`` reward file.
-    models:
-        Only keep entries whose model_id is in this list.
-    prompt_allowlist:
-        If provided, only keep prompts in this set (used to honour the
-        three-way split so dev and holdout sets stay disjoint).
-    """
-    model_set = set(models)
-    allow_set = set(prompt_allowlist) if prompt_allowlist is not None else None
-    rewards: Dict[str, Dict[str, float]] = defaultdict(dict)
+def load_k2_deployment_data(path: Path) -> List[Dict]:
+    prompt_rewards: Dict[str, Dict[str, float]] = defaultdict(dict)
     with gzip.open(path, "rt") as f:
         for line in f:
             entry = json.loads(line)
-            if not entry.get("ok"):
-                continue
-            p, m = entry["prompt"], entry["model_id"]
-            if m not in model_set:
-                continue
-            if allow_set is not None and p not in allow_set:
-                continue
-            judges = entry.get("judge_details")
-            r = float(np.mean([j["vote"] for j in judges])) if judges else float(entry["raw_score"])
-            rewards[p][m] = r
+            if entry.get("ok"):
+                prompt_rewards[entry["prompt"]][entry["model_id"]] = float(entry["raw_score"])
     return [
         {"prompt": p, "rewards": r}
-        for p, r in rewards.items()
-        if len(r) == len(models)
+        for p, r in prompt_rewards.items()
+        if len(r) == 2
     ]
+
+# ---------------------------------------------------------------------------
+# Same-distribution prior builder
+# ---------------------------------------------------------------------------
+
+def build_same_dist_priors(data: List[Dict], embeddings: List[np.ndarray],
+                           models: List[str], plasticity: float) -> str:
+    dim = embeddings[0].shape[0]
+    A = {m: np.eye(dim) for m in models}
+    b = {m: np.zeros(dim) for m in models}
+
+    for d, x in zip(data, embeddings):
+        x_col = x.reshape(-1, 1)
+        for m in models:
+            r = d["rewards"].get(m)
+            if r is not None:
+                A[m] += x_col @ x_col.T
+                b[m] += r * x
+
+    for m in models:
+        A[m] *= plasticity
+        b[m] *= plasticity
+
+    state = {
+        "A": A, "b": b,
+        "models": models,
+        "n_prompts": len(data),
+        "n_total": len(data),
+        "n_skipped": 0,
+        "plasticity": plasticity,
+        "context_dim": dim,
+        "pca_applied": True,
+        "pca_components": dim - 1,
+        "reward_source": "lmsys_same_distribution",
+        "seed": SEED,
+    }
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".joblib", delete=False)
+    joblib.dump(state, tmp.name)
+    logger.info(f"   Same-dist priors: {len(data)} prompts, dim={dim}, ρ={plasticity}")
+    return tmp.name
 
 # ---------------------------------------------------------------------------
 # PSI
@@ -204,169 +184,86 @@ def load_deployment_data(path: Path, models: List[str],
 
 def compute_psi(source: np.ndarray, deploy: np.ndarray,
                 n_bins: int = N_PSI_BINS) -> float:
-    """Population Stability Index between source and deploy distributions."""
     eps = 1e-8
     combined = np.concatenate([source, deploy])
     bin_edges = np.percentile(combined, np.linspace(0, 100, n_bins + 1))
     bin_edges[0] -= 1e-6
     bin_edges[-1] += 1e-6
-
-    src_counts = np.histogram(source, bins=bin_edges)[0].astype(float)
-    dep_counts = np.histogram(deploy, bins=bin_edges)[0].astype(float)
-
-    src_pct = src_counts / src_counts.sum() + eps
-    dep_pct = dep_counts / dep_counts.sum() + eps
-
+    src_pct = np.histogram(source, bins=bin_edges)[0].astype(float)
+    dep_pct = np.histogram(deploy, bins=bin_edges)[0].astype(float)
+    src_pct = src_pct / src_pct.sum() + eps
+    dep_pct = dep_pct / dep_pct.sum() + eps
     return float(np.sum((dep_pct - src_pct) * np.log(dep_pct / src_pct)))
 
 
-def bootstrap_psi_ci(source: np.ndarray, deploy: np.ndarray,
-                     n_bootstrap: int = N_BOOTSTRAP,
-                     rng: Optional[np.random.RandomState] = None,
-                     ) -> Tuple[float, float]:
-    """95% bootstrap confidence interval for PSI."""
+def bootstrap_psi_ci(source, deploy, n_bootstrap=N_BOOTSTRAP, rng=None):
     if rng is None:
         rng = np.random.RandomState(SEED)
-    psi_values = []
+    vals = []
     for _ in range(n_bootstrap):
         s = rng.choice(source, size=len(source), replace=True)
         d = rng.choice(deploy, size=len(deploy), replace=True)
-        psi_values.append(compute_psi(s, d))
-    return float(np.percentile(psi_values, 2.5)), float(np.percentile(psi_values, 97.5))
+        vals.append(compute_psi(s, d))
+    return float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
 
 # ---------------------------------------------------------------------------
 # Prior miscalibration
 # ---------------------------------------------------------------------------
 
-def compute_prior_miscalibration(
-    warmup_path: Path, deploy_data: List[Dict], models: List[str]
-) -> Dict[str, Dict]:
-    """Compare offline prior estimates vs. observed deployment rewards.
-
-    Loads the full 43-model warmup priors file but extracts only the K=5
-    portfolio models (``models``).  For each model, the prior estimate is
-    theta[-1] — the bias/intercept term from A^{-1}b — which represents the
-    router's expected reward for a neutral prompt before seeing any deployment
-    data.  This is compared against the actual mean reward observed in the
-    deployment dataset to quantify miscalibration caused by distribution shift.
-
-    Warmup priors file structure:
-        {"A": {model_id: ndarray(33,33)},
-         "b": {model_id: ndarray(33,)},
-         "models": [...43 ids...]}
-    """
+def compute_prior_miscalibration(warmup_path, deploy_data, models):
     priors = joblib.load(warmup_path)
-    # Only pull the K=5 entries — ignore the other 38 models entirely
-    A_dict = {m: priors["A"][m] for m in models if m in priors.get("A", {})}
-    b_dict = {m: priors["b"][m] for m in models if m in priors.get("b", {})}
-
+    A_dict, b_dict = priors.get("A", {}), priors.get("b", {})
     observed = {m: float(np.mean([d["rewards"][m] for d in deploy_data])) for m in models}
-
     results = {}
     for m in models:
-        A = A_dict.get(m)
-        b = b_dict.get(m)
+        A, b = A_dict.get(m), b_dict.get(m)
+        prior_mean = None
         if A is not None and b is not None:
             try:
                 theta = np.linalg.solve(A, b)
-                # theta[-1] is the bias/intercept (constant feature = 1).
-                # It represents the prior's expected reward for an average prompt.
                 prior_mean = float(theta[-1])
             except np.linalg.LinAlgError:
-                prior_mean = None
-        else:
-            prior_mean = None
-
+                pass
         obs = observed[m]
-        abs_err = float(prior_mean - obs) if prior_mean is not None else None
-        rel_err = float((prior_mean - obs) / obs * 100) if prior_mean is not None else None
         results[m] = {
             "display_name": MODEL_REGISTRY[m]["display_name"],
             "prior_mean_estimate": prior_mean,
             "observed_deployment_mean": obs,
-            "absolute_error": abs_err,
-            "relative_error_pct": rel_err,
-            "in_priors": A is not None,
+            "absolute_error": float(prior_mean - obs) if prior_mean is not None else None,
+            "relative_error_pct": float((prior_mean - obs) / obs * 100) if prior_mean is not None else None,
         }
     return results
 
 # ---------------------------------------------------------------------------
-# Router evaluation — Pareto sweep (mirrors experiment 06_figure)
+# Pareto sweep
 # ---------------------------------------------------------------------------
 
-def build_model_registry_for_router(models: List[str]) -> Dict:
-    """Convert display-name registry to the format expected by BanditRouter.
-
-    BanditRouter._get_normalized_cost() reads ``input_cost_per_m`` and
-    ``output_cost_per_m`` (per-million-token pricing), not the verbose
-    ``input_cost_per_million_tokens`` key used in our config dict.
-    """
-    return {
-        m: {
-            "display_name": MODEL_REGISTRY[m]["display_name"],
-            "input_cost_per_m": MODEL_REGISTRY[m]["input_cost_per_million_tokens"],
-            "output_cost_per_m": MODEL_REGISTRY[m]["output_cost_per_million_tokens"],
-            "provider": MODEL_REGISTRY[m]["provider"],
-        }
-        for m in models
-    }
-
-
-def _reward_normalisers(data: List[Dict], models: List[str]) -> Tuple[float, float]:
-    """Compute global min/max reward for normalisation — same as experiment 06."""
+def _reward_normalisers(data, models):
     all_r = [d["rewards"][m] for d in data for m in models]
-    r_min, r_max = min(all_r), max(all_r)
-    return r_min, max(r_max - r_min, 1e-6)
+    return min(all_r), max(max(all_r) - min(all_r), 1e-6)
 
 
-def run_pareto_point(
-    train_data: List[Dict], train_emb: List[np.ndarray],
-    holdout_data: List[Dict], holdout_emb: List[np.ndarray],
-    models: List[str], warmup_path: Path,
-    cost_penalty: float,
-    *,
-    use_corralling: bool,
-    freeze_after_training: bool = False,
-    n_trials: int = N_TRIALS,
-) -> Dict:
-    """Run one (cost_penalty, policy) combination and return mean reward & cost.
-
-    Parameters
-    ----------
-    freeze_after_training:
-        If True, the router is trained on train_data but the HOLDOUT evaluation
-        uses a fresh router with the SAME priors and NO feedback — representing
-        the "static frozen prior at this lambda" baseline.  This ensures the
-        static baseline and the adaptive baseline use identical cost penalties
-        and reward normalisation; the only difference is whether online learning
-        happened before holdout evaluation.
-    """
+def run_pareto_point(train_data, train_emb, holdout_data, holdout_emb,
+                     models, warmup_path, cost_penalty,
+                     *, use_corralling, enable_feedback=True):
     dim = train_emb[0].shape[0]
     n_train = len(train_data)
     r_min, r_range = _reward_normalisers(train_data, models)
-    registry = build_model_registry_for_router(models)
+    registry = {m: MODEL_REGISTRY[m] for m in models}
 
     trial_rewards, trial_costs = [], []
-
-    for trial in range(n_trials):
+    for trial in range(N_TRIALS):
         np.random.seed(SEED + trial)
-
-        # --- Training phase -------------------------------------------------
         router = create_experiment_router(
-            model_registry=registry,
-            feature_dim=dim,
-            prior_n_effective=10.0,
-            alpha=2.0,
+            model_registry=registry, feature_dim=dim,
+            prior_n_effective=10.0, alpha=2.0,
             warmup_path=str(warmup_path),
             use_corralling=use_corralling,
-            corralling_learning_rate=0.1,
-            corralling_gamma=0.05,
-            cost_penalty=cost_penalty,
-            policy="hybrid",
+            corralling_learning_rate=0.1, corralling_gamma=0.05,
+            cost_penalty=cost_penalty, policy="hybrid",
         )
 
-        if not freeze_after_training:
-            # Adaptive: train on dev set with online feedback
+        if enable_feedback:
             indices = list(range(n_train))
             np.random.RandomState(SEED + trial).shuffle(indices)
             for idx in indices:
@@ -374,30 +271,15 @@ def run_pareto_point(
                 m, log = router.route(x, total_steps=n_train)
                 norm_r = (d["rewards"][m] - r_min) / r_range
                 router.process_feedback(log.request_id, norm_r)
-            eval_router = router
-        else:
-            # Static frozen prior: create a fresh router (same priors, same lambda)
-            # with NO training, so holdout sees the raw prior at this cost penalty.
-            eval_router = create_experiment_router(
-                model_registry=registry,
-                feature_dim=dim,
-                prior_n_effective=10.0,
-                alpha=2.0,
-                warmup_path=str(warmup_path),
-                use_corralling=False,   # no Corralling exploration overhead
-                cost_penalty=cost_penalty,
-                policy="hybrid",
-            )
 
-        # --- Holdout evaluation (no feedback in either case) ----------------
-        rewards, costs = [], []
+        rewards, costs_list = [], []
         for d, x in zip(holdout_data, holdout_emb):
-            m, _ = eval_router.route(x, total_steps=n_train)
+            m, _ = router.route(x, total_steps=n_train)
             rewards.append(d["rewards"][m])
-            costs.append(COSTS[m])
+            costs_list.append(COSTS[m])
 
         trial_rewards.append(float(np.mean(rewards)))
-        trial_costs.append(float(np.mean(costs)))
+        trial_costs.append(float(np.mean(costs_list)))
 
     return {
         "cost_penalty": cost_penalty,
@@ -405,87 +287,182 @@ def run_pareto_point(
         "std_reward": float(np.std(trial_rewards, ddof=1)),
         "mean_cost": float(np.mean(trial_costs)),
         "std_cost": float(np.std(trial_costs, ddof=1)),
-        "n_trials": n_trials,
+        "n_trials": N_TRIALS,
     }
 
 
-def run_pareto_sweep(
-    train_data, train_emb, holdout_data, holdout_emb,
-    models, warmup_path, lambda_values,
-    use_corralling: bool, freeze_after_training: bool,
-    label: str,
-) -> List[Dict]:
-    """Sweep lambda values and return the Pareto-optimal frontier."""
+def run_pareto_sweep(train_data, train_emb, holdout_data, holdout_emb,
+                     models, warmup_path, lambda_values,
+                     use_corralling, enable_feedback, label):
     points = []
     for lam in lambda_values:
         logger.info(f"     λ={lam:.3f} ...")
         pt = run_pareto_point(
             train_data, train_emb, holdout_data, holdout_emb,
             models, warmup_path, lam,
-            use_corralling=use_corralling,
-            freeze_after_training=freeze_after_training,
+            use_corralling=use_corralling, enable_feedback=enable_feedback,
         )
         pt["label"] = label
         points.append(pt)
     return points
 
 # ---------------------------------------------------------------------------
-# Plotting
+# Learning curves
 # ---------------------------------------------------------------------------
 
-def plot_results(
-    source_pc1: np.ndarray,
-    deploy_pc1: np.ndarray,
-    psi: float,
-    psi_ci: Tuple[float, float],
-    ks_stat: float, ks_p: float,
-    pareto_static: List[Dict],
-    pareto_adaptive: List[Dict],
-    oracle_reward: float,
-    oracle_cost: float,
-    out_path: Path,
-) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+def run_learning_curve(train_data, train_emb, holdout_data, holdout_emb,
+                       models, warmup_path, cost_penalty,
+                       *, use_corralling, checkpoints):
+    """Train incrementally and evaluate at each checkpoint."""
+    dim = train_emb[0].shape[0]
+    n_train = len(train_data)
+    r_min, r_range = _reward_normalisers(train_data, models)
+    registry = {m: MODEL_REGISTRY[m] for m in models}
 
-    # --- Panel A: Feature distribution shift --------------------------------
+    curve = {cp: {"rewards": [], "costs": []} for cp in checkpoints}
+
+    for trial in range(N_TRIALS):
+        np.random.seed(SEED + trial)
+        router = create_experiment_router(
+            model_registry=registry, feature_dim=dim,
+            prior_n_effective=10.0, alpha=2.0,
+            warmup_path=str(warmup_path),
+            use_corralling=use_corralling,
+            corralling_learning_rate=0.1, corralling_gamma=0.05,
+            cost_penalty=cost_penalty, policy="hybrid",
+        )
+
+        indices = list(range(n_train))
+        np.random.RandomState(SEED + trial).shuffle(indices)
+
+        steps_done = 0
+        cp_idx = 0
+        for idx in indices:
+            d, x = train_data[idx], train_emb[idx]
+            m, log = router.route(x, total_steps=n_train)
+            norm_r = (d["rewards"][m] - r_min) / r_range
+            router.process_feedback(log.request_id, norm_r)
+            steps_done += 1
+
+            if cp_idx < len(checkpoints) and steps_done == checkpoints[cp_idx]:
+                rewards, costs_list = [], []
+                for hd, hx in zip(holdout_data, holdout_emb):
+                    hm, _ = router.route(hx, total_steps=n_train)
+                    rewards.append(hd["rewards"][hm])
+                    costs_list.append(COSTS[hm])
+                curve[checkpoints[cp_idx]]["rewards"].append(float(np.mean(rewards)))
+                curve[checkpoints[cp_idx]]["costs"].append(float(np.mean(costs_list)))
+                cp_idx += 1
+
+    results = []
+    for cp in checkpoints:
+        r_arr = np.array(curve[cp]["rewards"])
+        results.append({
+            "steps": cp,
+            "mean_reward": float(r_arr.mean()),
+            "std_reward": float(r_arr.std(ddof=1)),
+            "n_trials": N_TRIALS,
+        })
+    return results
+
+# ---------------------------------------------------------------------------
+# Plotting — 3-panel figure
+# ---------------------------------------------------------------------------
+
+def plot_results(source_pc1, deploy_pc1, psi, psi_ci, ks_stat, ks_p,
+                 all_pareto, learning_curves,
+                 oracle_reward, oracle_cost, out_path):
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 4.8))
+
+    # --- Panel A: Feature distribution shift ---
     ax = axes[0]
     x_grid = np.linspace(
         min(source_pc1.min(), deploy_pc1.min()) - 0.5,
-        max(source_pc1.max(), deploy_pc1.max()) + 0.5,
-        300,
-    )
+        max(source_pc1.max(), deploy_pc1.max()) + 0.5, 300)
     kde_src = gaussian_kde(source_pc1)
     kde_dep = gaussian_kde(deploy_pc1)
     ax.fill_between(x_grid, kde_src(x_grid), alpha=0.4, color="#4C72B0",
-                    label=f"Offline / Prior (N={len(source_pc1):,})")
+                    label=f"RouteLLM battles (N={len(source_pc1):,})")
     ax.fill_between(x_grid, kde_dep(x_grid), alpha=0.4, color="#DD8452",
-                    label=f"Deployment / LMSYS (N={len(deploy_pc1):,})")
+                    label=f"LMSYS Arena (N={len(deploy_pc1):,})")
     ax.set_xlabel("PC1 projection")
     ax.set_ylabel("Density")
-    ax.set_title(
-        f"Feature Distribution Shift\n"
-        f"PSI={psi:.3f} [{psi_ci[0]:.3f}, {psi_ci[1]:.3f}]  "
-        f"KS D={ks_stat:.3f} (p={ks_p:.3e})"
-    )
-    ax.legend(fontsize=8)
+    ax.set_title(f"(a) Feature Distribution Shift\n"
+                 f"PSI={psi:.3f} [{psi_ci[0]:.3f}, {psi_ci[1]:.3f}]  "
+                 f"KS D={ks_stat:.3f}")
+    ax.legend(fontsize=7.5)
 
-    # --- Panel B: Pareto frontiers (static prior vs adaptive Hybrid) --------
+    # --- Panel B: 6-condition Pareto ---
     ax = axes[1]
-    s_costs = [pt["mean_cost"] for pt in pareto_static]
-    s_rwds  = [pt["mean_reward"] for pt in pareto_static]
-    a_costs = [pt["mean_cost"] for pt in pareto_adaptive]
-    a_rwds  = [pt["mean_reward"] for pt in pareto_adaptive]
 
-    ax.plot(s_costs, s_rwds, "s--", color="#4C72B0", label="Static frozen prior")
-    ax.plot(a_costs, a_rwds, "o-",  color="#DD8452", label="Hybrid banditGPT (online)")
+    def _extract(pts):
+        c = np.array([p["mean_cost"] for p in pts])
+        r = np.array([p["mean_reward"] for p in pts])
+        s = np.array([p["std_reward"] for p in pts])
+        return c, r, s
+
+    n_t = N_TRIALS
+    ci_z = 1.96 / np.sqrt(n_t)
+
+    COL_CROSS = "#C44E52"
+    COL_SAME  = "#4C72B0"
+    COL_CROSS_NOCORRAL = "#E8A0A0"
+    COL_SAME_NOCORRAL  = "#8FB8DE"
+
+    styles = [
+        ("cross_frozen",        COL_CROSS,          "s--", "Cross-dist (frozen)"),
+        ("cross_nocorral",      COL_CROSS_NOCORRAL, "s:",  "Cross-dist (online, no Corral)"),
+        ("cross_adaptive",      COL_CROSS,          "s-",  "Cross-dist (online, Corralling)"),
+        ("same_frozen",         COL_SAME,           "o--", "Same-dist (frozen)"),
+        ("same_nocorral",       COL_SAME_NOCORRAL,  "o:",  "Same-dist (online, no Corral)"),
+        ("same_adaptive",       COL_SAME,           "o-",  "Same-dist (online, Corralling)"),
+    ]
+
+    for key, col, fmt, label in styles:
+        c, r, s = _extract(all_pareto[key])
+        ax.plot(c, r, fmt, color=col, zorder=3, label=label, linewidth=1.5)
+        if s.max() > 0:
+            ax.fill_between(c, r - ci_z * s, r + ci_z * s, alpha=0.10, color=col)
+
     ax.scatter([oracle_cost], [oracle_reward], marker="*", s=200, color="green",
                zorder=5, label=f"Oracle ({oracle_reward:.3f})")
 
     ax.set_xlabel("Mean cost per request ($)")
-    ax.set_ylabel("Holdout reward (mean judge agreement)")
-    ax.set_title("Cost–Quality Pareto: Static Prior vs. Adaptive Hybrid\n"
-                 "(K=5, deployment distribution, same λ sweep)")
-    ax.legend(fontsize=8)
+    ax.set_ylabel("Holdout reward (binary)")
+    ax.set_title(f"(b) Pareto Frontiers: Prior × Adaptation × Architecture\n"
+                 f"(K=2, {n_t} trials, 95% CI)")
+    ax.legend(fontsize=6.5, loc="upper right")
+
+    # --- Panel C: Learning curves at λ=0 ---
+    ax = axes[2]
+
+    lc_styles = [
+        ("cross_nocorral", COL_CROSS_NOCORRAL, "s:",  "Cross-dist, no Corralling"),
+        ("cross_corral",   COL_CROSS,          "s-",  "Cross-dist, Corralling"),
+        ("same_nocorral",  COL_SAME_NOCORRAL,  "o:",  "Same-dist, no Corralling"),
+        ("same_corral",    COL_SAME,           "o-",  "Same-dist, Corralling"),
+    ]
+
+    for key, col, fmt, label in lc_styles:
+        lc = learning_curves[key]
+        steps = [p["steps"] for p in lc]
+        means = [p["mean_reward"] for p in lc]
+        stds  = [p["std_reward"] for p in lc]
+        means, stds = np.array(means), np.array(stds)
+        ax.plot(steps, means, fmt, color=col, label=label, linewidth=1.5, markersize=5)
+        ax.fill_between(steps, means - ci_z * stds, means + ci_z * stds,
+                        alpha=0.12, color=col)
+
+    ax.axhline(oracle_reward, color="green", linestyle="--", alpha=0.5, linewidth=0.8)
+    ax.text(max(LEARNING_CURVE_CHECKPOINTS) * 0.98, oracle_reward + 0.002,
+            "Oracle", ha="right", fontsize=7, color="green")
+
+    ax.set_xlabel("Online training steps")
+    ax.set_ylabel("Holdout reward (binary)")
+    ax.set_title(f"(c) Convergence Speed (λ=0)\n"
+                 f"({n_t} trials, 95% CI)")
+    ax.legend(fontsize=6.5, loc="lower right")
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -498,173 +475,203 @@ def plot_results(
 
 def main():
     logger.info("=" * 70)
-    logger.info("Experiment 10: Distribution Shift Analysis (K=5)")
+    logger.info("Experiment 10: Distribution Shift — Full Factorial + Learning Curves")
     logger.info("=" * 70)
-
-    models = PORTFOLIO_K5
-    logger.info(f"   Portfolio: {[MODEL_REGISTRY[m]['display_name'] for m in models]}")
 
     # 1. Load encoder / PCA
     logger.info("\n1. Loading encoder and PCA ...")
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    logger.info(f"   PCA: {pca.n_components_} components")
 
-    # 2. Load offline (source/prior) prompts — RouteLLM battles
+    # 2. Load RouteLLM battle prompts
     logger.info("\n2. Loading offline RouteLLM battle prompts ...")
     source_prompts = load_routellm_prompts(ROUTELLM_BATTLES_REWARDS_PATH, MAX_SOURCE_PROMPTS)
     logger.info(f"   Loaded {len(source_prompts)} offline prompts")
 
-    # 3. Load deployment data — use three-way split to honour dev/holdout separation
-    logger.info("\n3. Loading deployment data (K=5 portfolio, three-way split) ...")
-    with open(THREE_WAY_SPLITS_PATH) as f:
-        splits = json.load(f)
-    online_prompts = splits["online_learn_pool"]
-    # Load all-models reward file, filtering to K=5 portfolio and split prompts
-    dev_data = load_deployment_data(DEV_DATA_PATH_ALL_MODELS, models,
-                                    prompt_allowlist=online_prompts)
-    # Holdout: all prompts NOT in the online split
-    online_set = set(online_prompts)
-    holdout_data_raw = load_deployment_data(HOLDOUT_DATA_PATH_ALL_MODELS, models)
-    holdout_data = [d for d in holdout_data_raw if d["prompt"] not in online_set]
+    # 3. Load K=2 deployment data
+    logger.info("\n3. Loading K=2 deployment data ...")
+    dev_data = load_k2_deployment_data(CANONICAL_DEV_DATA_PATH)
+    holdout_data = load_k2_deployment_data(CANONICAL_HOLDOUT_DATA_PATH)
+    logger.info(f"   Dev: {len(dev_data)}  Holdout: {len(holdout_data)}")
 
-    deploy_prompts = [d["prompt"] for d in dev_data + holdout_data]
-    logger.info(f"   Dev (online train): {len(dev_data)} prompts")
-    logger.info(f"   Holdout (eval):     {len(holdout_data)} prompts")
+    # 4. Split dev into prior_pool and online_pool
+    rng = np.random.RandomState(SEED)
+    indices = rng.permutation(len(dev_data))
+    prior_idx = indices[:PRIOR_POOL_SIZE]
+    online_idx = indices[PRIOR_POOL_SIZE:]
 
-    # 4. Embed all prompts
-    logger.info("\n4. Embedding prompts ...")
-    logger.info(f"   Embedding {len(source_prompts)} offline (source) prompts ...")
+    prior_pool = [dev_data[i] for i in prior_idx]
+    online_pool = [dev_data[i] for i in online_idx]
+    logger.info(f"\n4. Data split: prior_pool={len(prior_pool)}, "
+                f"online_pool={len(online_pool)}, holdout={len(holdout_data)}")
+
+    # 5. Embed all prompts
+    logger.info("\n5. Embedding prompts ...")
     source_emb = np.array([embed_prompt(p, encoder, pca) for p in source_prompts])
-    logger.info(f"   Embedding {len(deploy_prompts)} deployment prompts ...")
+    deploy_prompts = [d["prompt"] for d in dev_data + holdout_data]
     deploy_emb_all = np.array([embed_prompt(p, encoder, pca) for p in deploy_prompts])
-    dev_emb = [embed_prompt(d["prompt"], encoder, pca) for d in dev_data]
+
+    prior_emb = [embed_prompt(d["prompt"], encoder, pca) for d in prior_pool]
+    online_emb = [embed_prompt(d["prompt"], encoder, pca) for d in online_pool]
     holdout_emb = [embed_prompt(d["prompt"], encoder, pca) for d in holdout_data]
     logger.info(f"   Embedding dim: {source_emb.shape[1]}")
 
-    # PC1 projections
     source_pc1 = source_emb[:, 0]
     deploy_pc1 = deploy_emb_all[:, 0]
 
-    # 5. PSI and KS test
-    logger.info("\n5. Computing distribution shift metrics ...")
+    # 6. PSI and KS test
+    logger.info("\n6. Distribution shift metrics ...")
     psi = compute_psi(source_pc1, deploy_pc1)
-    rng = np.random.RandomState(SEED)
-    psi_lo, psi_hi = bootstrap_psi_ci(source_pc1, deploy_pc1, rng=rng)
+    psi_lo, psi_hi = bootstrap_psi_ci(source_pc1, deploy_pc1,
+                                       rng=np.random.RandomState(SEED))
     ks_stat, ks_p = ks_2samp(source_pc1, deploy_pc1)
-    logger.info(f"   PSI = {psi:.4f}  95% CI [{psi_lo:.4f}, {psi_hi:.4f}]")
+    psi_severity = "Negligible" if psi < 0.1 else ("Moderate" if psi < 0.25 else "Substantial")
+    logger.info(f"   PSI = {psi:.4f}  95% CI [{psi_lo:.4f}, {psi_hi:.4f}]  ({psi_severity})")
     logger.info(f"   KS  D = {ks_stat:.4f}, p = {ks_p:.3e}")
 
-    psi_severity = "Negligible" if psi < 0.1 else ("Moderate" if psi < 0.25 else "Substantial")
-    logger.info(f"   Severity: {psi_severity} (threshold: 0.25)")
+    # 7. Prior miscalibration
+    logger.info("\n7. Prior miscalibration ...")
+    cross_miscal = compute_prior_miscalibration(
+        DEFAULT_WARMUP_PRIORS_PATH, dev_data + holdout_data, MODELS)
+    for m, v in cross_miscal.items():
+        pr = f"{v['prior_mean_estimate']:.3f}" if v["prior_mean_estimate"] is not None else "N/A"
+        err = (f"{v['relative_error_pct']:+.1f}%" if v["relative_error_pct"] is not None else "N/A")
+        logger.info(f"   Cross-dist {v['display_name']}: prior≈{pr}  obs={v['observed_deployment_mean']:.3f}  err={err}")
 
-    # 6. Prior miscalibration
-    logger.info("\n6. Computing prior miscalibration ...")
-    prior_miscal = compute_prior_miscalibration(
-        MULTIMODEL_WARMUP_PRIORS_PATH, dev_data + holdout_data, models
-    )
-    for m, v in prior_miscal.items():
-        prior_str = f"{v['prior_mean_estimate']:.3f}" if v["prior_mean_estimate"] is not None else "N/A"
-        err_str = (f"{v['absolute_error']:+.3f} ({v['relative_error_pct']:+.1f}%)"
-                   if v["absolute_error"] is not None else "N/A")
-        logger.info(f"   {v['display_name']}: prior≈{prior_str}  "
-                    f"observed={v['observed_deployment_mean']:.3f}  error={err_str}")
+    # 8. Build same-distribution priors
+    logger.info("\n8. Building same-distribution priors ...")
+    same_dist_path = build_same_dist_priors(prior_pool, prior_emb, MODELS, PLASTICITY)
 
-    # 7. Oracle reward & cost on K=5 holdout
-    oracle_reward = float(np.mean([
-        max(d["rewards"][m] for m in models) for d in holdout_data
-    ]))
+    same_miscal = compute_prior_miscalibration(same_dist_path, holdout_data, MODELS)
+    for m, v in same_miscal.items():
+        pr = f"{v['prior_mean_estimate']:.3f}" if v["prior_mean_estimate"] is not None else "N/A"
+        err = (f"{v['relative_error_pct']:+.1f}%" if v["relative_error_pct"] is not None else "N/A")
+        logger.info(f"   Same-dist {v['display_name']}: prior≈{pr}  obs={v['observed_deployment_mean']:.3f}  err={err}")
+
+    # 9. Oracle
+    oracle_reward = float(np.mean([max(d["rewards"][m] for m in MODELS) for d in holdout_data]))
     oracle_cost = float(np.mean([
-        COSTS[max(models, key=lambda m: d["rewards"][m])] for d in holdout_data
-    ]))
-    logger.info(f"\n7. Oracle: reward={oracle_reward:.4f}  cost=${oracle_cost:.6f}")
+        COSTS[max(MODELS, key=lambda m: d["rewards"][m])] for d in holdout_data]))
+    logger.info(f"\n9. Oracle: R={oracle_reward:.4f}  C=${oracle_cost:.6f}")
 
-    # 8. Pareto sweep — static frozen prior (same λ, no online learning)
-    logger.info(f"\n8. Static frozen-prior Pareto sweep "
-                f"({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
-    pareto_static = run_pareto_sweep(
-        dev_data, dev_emb, holdout_data, holdout_emb,
-        models, MULTIMODEL_WARMUP_PRIORS_PATH, LAMBDA_VALUES,
-        use_corralling=False, freeze_after_training=True,
-        label="static_frozen_prior",
-    )
-    for pt in pareto_static:
-        logger.info(f"   λ={pt['cost_penalty']:.3f}  "
-                    f"R={pt['mean_reward']:.4f}±{pt['std_reward']:.4f}  "
-                    f"C=${pt['mean_cost']:.6f}")
+    # 10-15. Six Pareto sweeps
+    # (key, label, warmup_path, use_corralling, enable_feedback)
+    sweep_cfg = [
+        ("cross_frozen",    "Cross-dist frozen (Corralling, no feedback)",
+         DEFAULT_WARMUP_PRIORS_PATH, True,  False),
+        ("cross_nocorral",  "Cross-dist online (no Corralling)",
+         DEFAULT_WARMUP_PRIORS_PATH, False, True),
+        ("cross_adaptive",  "Cross-dist online (Corralling)",
+         DEFAULT_WARMUP_PRIORS_PATH, True,  True),
+        ("same_frozen",     "Same-dist frozen (Corralling, no feedback)",
+         same_dist_path,             True,  False),
+        ("same_nocorral",   "Same-dist online (no Corralling)",
+         same_dist_path,             False, True),
+        ("same_adaptive",   "Same-dist online (Corralling)",
+         same_dist_path,             True,  True),
+    ]
 
-    # 9. Pareto sweep — Hybrid banditGPT with online learning (Corralling + hybrid)
-    logger.info(f"\n9. Adaptive Hybrid banditGPT Pareto sweep "
-                f"({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
-    pareto_adaptive = run_pareto_sweep(
-        dev_data, dev_emb, holdout_data, holdout_emb,
-        models, MULTIMODEL_WARMUP_PRIORS_PATH, LAMBDA_VALUES,
-        use_corralling=True, freeze_after_training=False,
-        label="hybrid_banditgpt",
-    )
-    for pt in pareto_adaptive:
-        logger.info(f"   λ={pt['cost_penalty']:.3f}  "
-                    f"R={pt['mean_reward']:.4f}±{pt['std_reward']:.4f}  "
-                    f"C=${pt['mean_cost']:.6f}")
+    all_pareto = {}
+    step_num = 10
+    for key, name, wp, corral, feedback in sweep_cfg:
+        logger.info(f"\n{step_num}. {name} ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
+        pts = run_pareto_sweep(
+            online_pool, online_emb, holdout_data, holdout_emb,
+            MODELS, wp, LAMBDA_VALUES,
+            use_corralling=corral, enable_feedback=feedback, label=key)
+        all_pareto[key] = pts
+        for pt in pts:
+            logger.info(f"   λ={pt['cost_penalty']:.3f}  R={pt['mean_reward']:.4f}±{pt['std_reward']:.4f}  C=${pt['mean_cost']:.6f}")
+        step_num += 1
 
-    # 10. Summary metrics: best quality and max cost saving
-    best_static  = max(pareto_static,  key=lambda x: x["mean_reward"])
-    best_adaptive = max(pareto_adaptive, key=lambda x: x["mean_reward"])
-    # Find adaptive point with similar quality to best static — measure cost difference
-    quality_target = best_static["mean_reward"]
-    comparable = [p for p in pareto_adaptive if p["mean_reward"] >= quality_target - 0.005]
-    cheapest_comparable = min(comparable, key=lambda x: x["mean_cost"]) if comparable else None
+    # 16. Learning curves at λ=0
+    logger.info(f"\n{step_num}. Learning curves at λ=0 ...")
+    lc_cfg = [
+        ("cross_nocorral", DEFAULT_WARMUP_PRIORS_PATH, False),
+        ("cross_corral",   DEFAULT_WARMUP_PRIORS_PATH, True),
+        ("same_nocorral",  same_dist_path,             False),
+        ("same_corral",    same_dist_path,             True),
+    ]
 
-    # 11. Plot
+    learning_curves = {}
+    for key, wp, corral in lc_cfg:
+        logger.info(f"   {key} ...")
+        lc = run_learning_curve(
+            online_pool, online_emb, holdout_data, holdout_emb,
+            MODELS, wp, cost_penalty=0.0,
+            use_corralling=corral, checkpoints=LEARNING_CURVE_CHECKPOINTS)
+        learning_curves[key] = lc
+        for pt in lc:
+            logger.info(f"     step={pt['steps']:4d}  R={pt['mean_reward']:.4f}±{pt['std_reward']:.4f}")
+
+    # 17. Plot
     out_fig = Path(__file__).parent / "results" / "figure_distribution_shift.png"
     plot_results(
         source_pc1, deploy_pc1, psi, (psi_lo, psi_hi), ks_stat, ks_p,
-        pareto_static, pareto_adaptive, oracle_reward, oracle_cost, out_fig,
-    )
+        all_pareto, learning_curves,
+        oracle_reward, oracle_cost, out_fig)
 
-    # 12. Save JSON results
+    # 18. Save JSON
+    bests = {k: max(v, key=lambda x: x["mean_reward"]) for k, v in all_pareto.items()}
     results = {
         "distribution_shift": {
-            "psi": psi,
-            "psi_ci_95": [psi_lo, psi_hi],
-            "psi_severity": psi_severity,
-            "ks_stat": ks_stat,
-            "ks_p_value": ks_p,
-            "n_source": len(source_pc1),
-            "n_deploy": len(deploy_pc1),
+            "psi": psi, "psi_ci_95": [psi_lo, psi_hi], "psi_severity": psi_severity,
+            "ks_stat": ks_stat, "ks_p_value": ks_p,
+            "n_source": len(source_pc1), "n_deploy": len(deploy_pc1),
         },
-        "prior_miscalibration": prior_miscal,
-        "oracle_reward": oracle_reward,
-        "oracle_cost": oracle_cost,
-        "pareto_static": pareto_static,
-        "pareto_adaptive": pareto_adaptive,
-        "best_static": best_static,
-        "best_adaptive": best_adaptive,
-        "cheapest_comparable_adaptive": cheapest_comparable,
-        "models": {m: MODEL_REGISTRY[m]["display_name"] for m in models},
+        "prior_miscalibration_cross": cross_miscal,
+        "prior_miscalibration_same": same_miscal,
+        "oracle_reward": oracle_reward, "oracle_cost": oracle_cost,
+        "data_split": {
+            "prior_pool": len(prior_pool),
+            "online_pool": len(online_pool),
+            "holdout": len(holdout_data),
+        },
+        **{f"pareto_{k}": v for k, v in all_pareto.items()},
+        **{f"best_{k}": v for k, v in bests.items()},
+        "learning_curves": learning_curves,
+        "models": {m: MODEL_REGISTRY[m]["display_name"] for m in MODELS},
         "lambda_values": LAMBDA_VALUES,
+        "learning_curve_checkpoints": LEARNING_CURVE_CHECKPOINTS,
     }
     out_json = Path(__file__).parent / "results" / "distribution_shift_results.json"
     with open(out_json, "w") as f:
         json.dump(results, f, indent=2)
-    logger.info(f"\n  Results saved: {out_json}")
 
     # Summary
     logger.info("\n" + "=" * 70)
-    logger.info("SUMMARY")
+    logger.info("SUMMARY — Full Factorial")
     logger.info("=" * 70)
     logger.info(f"  PSI = {psi:.3f} [{psi_lo:.3f}, {psi_hi:.3f}]  ({psi_severity})")
-    logger.info(f"  KS D = {ks_stat:.3f}, p = {ks_p:.3e}")
-    logger.info(f"  Prior miscalibration range: "
-                f"{min(v['relative_error_pct'] for v in prior_miscal.values() if v['relative_error_pct']):+.1f}% "
-                f"to "
-                f"{max(v['relative_error_pct'] for v in prior_miscal.values() if v['relative_error_pct']):+.1f}%")
-    logger.info(f"  Oracle:               R={oracle_reward:.4f}  C=${oracle_cost:.6f}")
-    logger.info(f"  Best static:          R={best_static['mean_reward']:.4f}  C=${best_static['mean_cost']:.6f}")
-    logger.info(f"  Best adaptive:        R={best_adaptive['mean_reward']:.4f}  C=${best_adaptive['mean_cost']:.6f}")
-    if cheapest_comparable:
-        cost_saving = (best_static["mean_cost"] - cheapest_comparable["mean_cost"]) / best_static["mean_cost"] * 100
-        logger.info(f"  Cost saving at comparable quality: {cost_saving:.1f}%")
+    logger.info(f"  Oracle:              R={oracle_reward:.4f}  C=${oracle_cost:.6f}")
+    for k, b in bests.items():
+        logger.info(f"  {k:22s} R={b['mean_reward']:.4f}±{b['std_reward']:.4f}  C=${b['mean_cost']:.6f}")
+
+    # Effect decomposition
+    cf = bests["cross_frozen"]["mean_reward"]
+    ca = bests["cross_adaptive"]["mean_reward"]
+    cn = bests["cross_nocorral"]["mean_reward"]
+    sf = bests["same_frozen"]["mean_reward"]
+    sa = bests["same_adaptive"]["mean_reward"]
+    sn = bests["same_nocorral"]["mean_reward"]
+
+    logger.info(f"\n  === Effect Decomposition ===")
+    logger.info(f"  Distribution shift (frozen):             {sf - cf:+.4f}  (same - cross)")
+    logger.info(f"  Distribution shift (online, no Corral):  {sn - cn:+.4f}  (same - cross)")
+    logger.info(f"  Distribution shift (online, Corralling): {sa - ca:+.4f}  (same - cross)")
+    logger.info(f"  Corralling benefit (cross-dist):         {ca - cn:+.4f}  (Corral - no Corral)")
+    logger.info(f"  Corralling benefit (same-dist):          {sa - sn:+.4f}  (Corral - no Corral)")
+    logger.info(f"  Online learning (cross, no Corral):      {cn - cf:+.4f}  (online - frozen)")
+    logger.info(f"  Online learning (cross, Corralling):     {ca - cf:+.4f}  (online - frozen)")
+    logger.info(f"  Online learning (same, no Corral):       {sn - sf:+.4f}  (online - frozen)")
+    logger.info(f"  Online learning (same, Corralling):      {sa - sf:+.4f}  (online - frozen)")
+
+    # Learning curve summary
+    logger.info(f"\n  === Learning Curves (λ=0) ===")
+    for key, lc in learning_curves.items():
+        first = lc[0]["mean_reward"]
+        last = lc[-1]["mean_reward"]
+        logger.info(f"  {key:22s}  step 50: {first:.4f}  step 766: {last:.4f}  gain: {last-first:+.4f}")
 
 
 if __name__ == "__main__":

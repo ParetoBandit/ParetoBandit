@@ -1,0 +1,175 @@
+% ============================================================================
+% Experiment 10: Distribution Shift — Full Factorial + Corralling Ablation
+% Included from appendix_d.tex via \input{../experiments/10_distribution_shift/section_distribution_shift}
+% ============================================================================
+
+\subsection{Distribution Shift, Online Learning, and Corralling}
+\label{app:distribution_shift}
+
+The $K{=}2$ evaluation (Section~\ref{sec:pareto}) uses warmup priors constructed from 80,000 RouteLLM battle prompts---a deliberately \emph{cross-distribution} source (Section~\ref{sec:warmup_prior_construction}).
+A natural question is: how much does this distribution mismatch hurt, and does it matter once the system adapts online?
+More pointedly: does banditGPT's Corralling architecture provide value beyond what any standard bandit router would achieve?
+
+We answer these questions with a \textbf{full factorial design} that crosses three factors---prior source, online adaptation, and the Corralling meta-learner---to cleanly decompose their individual contributions.
+
+\subsubsection{Measuring Feature Distribution Shift}
+
+We embed 8,000 unique RouteLLM battle prompts and 1,871 LMSYS Arena deployment prompts (dev + holdout) using the same PCA projection as the router and measure distributional divergence on the first principal component.
+
+\begin{itemize}[nosep]
+    \item \textbf{Population Stability Index:} PSI $= 0.763$ [0.688, 0.860] (bootstrap 95\% CI, $B{=}1{,}000$). Under standard industry thresholds (PSI $> 0.25$: ``substantial shift''), this confirms a large distributional gap.
+    \item \textbf{Kolmogorov--Smirnov test:} $D = 0.310$, $p < 10^{-129}$, rejecting the null hypothesis of identical distributions.
+\end{itemize}
+
+\noindent We verified \textbf{zero prompt overlap} between the two sources, confirming that the distributional gap is not an artifact of duplicate prompts with different labels.
+
+\subsubsection{Experimental Design}
+
+\paragraph{Data splits.}
+The 1,121 LMSYS dev prompts are split: 355 prompts form a \emph{prior pool} from which same-distribution priors are built (matching the paper's three-way split), and 766 prompts form the \emph{online pool} used for training.
+The 750 holdout prompts are shared across all conditions and are never used for prior construction or training.
+
+\paragraph{Prior sources.}
+\emph{Cross-distribution} priors are the standard RouteLLM 80K battle priors (Section~\ref{sec:warmup_prior_construction}), which exhibit $-75\%$ miscalibration on Mixtral.
+\emph{Same-distribution} priors are built from the 355-prompt LMSYS prior pool using the same LinUCB accumulation pipeline and plasticity ($\rho{=}0.1$), yielding correctly calibrated but information-sparse priors (${\sim}35$ effective observations per arm).
+
+\paragraph{Six conditions.}
+We evaluate a $2 \times 3$ factorial: two prior sources crossed with three adaptation modes.
+\begin{center}
+\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& \textbf{Frozen} & \textbf{Online (no Corral)} & \textbf{Online (Corralling)} \\
+\midrule
+\textbf{Cross-dist} & (A) & (E) & (B) \\
+\textbf{Same-dist}  & (C) & (F) & (D) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+Frozen conditions use Corralling's two-expert architecture but disable \texttt{process\_feedback()}, so neither LinUCB parameters nor expert weights ever update.
+``Online (no Corral)'' conditions use a single Hybrid LinUCB expert with online learning---this represents what any standard contextual bandit router would achieve.
+``Online (Corralling)'' conditions use the full banditGPT production architecture.
+All conditions sweep the same $\lambda$ values (11 points, 20 trials each, 95\% CIs).
+
+\paragraph{Learning curves.}
+For all four adaptive conditions (B, D, E, F), we additionally track holdout reward at intermediate checkpoints (50, 100, 200, 400, 766 training steps) at $\lambda{=}0$ to measure convergence speed.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{../experiments/10_distribution_shift/results/figure_distribution_shift.png}
+\caption{\textbf{Full factorial: distribution shift, online learning, and Corralling.}
+\textbf{(a)}~Feature distribution shift (PSI$\,{=}\,0.763$).
+\textbf{(b)}~Pareto frontiers for all six conditions. Frozen priors (dashed) collapse regardless of source. Both ``no Corralling'' online conditions (dotted) recover smooth frontiers, but Corralling conditions (solid) consistently dominate by $+1.3$\,pp.
+\textbf{(c)}~Convergence speed at $\lambda{=}0$: Corralling leads at every checkpoint from step 50 onward.}
+\Description{Three-panel figure. Left: KDE of distribution shift. Center: Six-condition Pareto frontiers showing frozen collapse, online recovery, and Corralling's additional gain. Right: Learning curves showing Corralling converges to higher reward at every training checkpoint.}
+\label{fig:distribution_shift}
+\end{figure}
+
+\subsubsection{Results: Effect Decomposition}
+
+Table~\ref{tab:dist_shift_effects} decomposes the three effects, and Table~\ref{tab:dist_shift_summary} reports per-condition operating points.
+
+\begin{table}[h]
+\centering
+\caption{\textbf{Effect decomposition.} Best holdout reward per condition (20 trials per $\lambda$). Each effect is the difference between matched conditions.}
+\label{tab:dist_shift_effects}
+\small
+\begin{tabular}{@{}llc@{}}
+\toprule
+\textbf{Effect} & \textbf{Comparison} & \textbf{$\Delta$ Reward} \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Distribution shift (prior source)}} \\
+\quad Frozen conditions & Same $-$ Cross & $+0.004$ \\
+\quad Online, no Corralling & Same $-$ Cross & $+0.003$ \\
+\quad Online, Corralling & Same $-$ Cross & $+0.005$ \\
+\addlinespace
+\multicolumn{3}{@{}l}{\textit{Online learning (any bandit)}} \\
+\quad Cross-dist, no Corralling & Online $-$ Frozen & $+0.070$ \\
+\quad Same-dist, no Corralling & Online $-$ Frozen & $+0.069$ \\
+\addlinespace
+\multicolumn{3}{@{}l}{\textit{Corralling meta-learning}} \\
+\quad Cross-dist & Corralling $-$ no Corral & $+0.013$ \\
+\quad Same-dist & Corralling $-$ no Corral & $+0.014$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{\textbf{Summary of best operating points.} All six conditions plus Oracle.}
+\label{tab:dist_shift_summary}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Condition} & \textbf{Best Reward} & \textbf{Cost at best} \\
+\midrule
+Cross-dist, frozen                 & $0.823 \pm 0.000$ & \$0.000 \\
+Same-dist, frozen                  & $0.827 \pm 0.008$ & \$0.005 \\
+\addlinespace
+Cross-dist, online (no Corralling) & $0.892 \pm 0.007$ & \$0.007 \\
+Same-dist, online (no Corralling)  & $0.896 \pm 0.009$ & \$0.008 \\
+\addlinespace
+Cross-dist, online (Corralling)    & $0.905 \pm 0.010$ & \$0.009 \\
+Same-dist, online (Corralling)     & $0.910 \pm 0.007$ & \$0.009 \\
+\addlinespace
+Oracle & 0.953 & \$0.002 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Statistical Significance (Paired Analysis)}
+
+Because each trial uses the same random seed across conditions, the comparisons are naturally paired.  We increase to 50 trials per condition and apply paired tests at $\lambda{=}0$ (quality-maximising point).  Table~\ref{tab:dist_shift_paired} reports the results.
+
+\begin{table}[h]
+\centering
+\caption{\textbf{Paired statistical tests} (50 trials, $\lambda{=}0$). Corralling vs.\ single-expert online learning, and same- vs.\ cross-distribution priors.}
+\label{tab:dist_shift_paired}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Comparison} & \textbf{$\Delta$ (mean)} & \textbf{95\% CI} & \textbf{$t$} & \textbf{$p$} & \textbf{Cohen's $d$} \\
+\midrule
+Corralling (cross-dist) & $+1.44$\,pp & $[{+}1.06, {+}1.83]$ & 7.55 & ${<}0.0001$ & 1.07 (large) \\
+Corralling (same-dist)  & $+1.09$\,pp & $[{+}0.75, {+}1.43]$ & 6.38 & ${<}0.0001$ & 0.90 (large) \\
+Corralling (pooled)     & $+1.27$\,pp & $[{+}1.01, {+}1.52]$ & 9.83 & ${<}0.0001$ & 0.98 (large) \\
+\addlinespace
+Dist shift (no Corral)  & $+0.25$\,pp & $[{-}0.12, {+}0.61]$ & 1.36 & 0.18 & 0.19 (negl.) \\
+Dist shift (Corralling) & $-0.11$\,pp & $[{-}0.43, {+}0.21]$ & $-$0.67 & 0.51 & $-$0.10 (negl.) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The Corralling benefit is \textbf{highly significant}: $p < 0.0001$ under both prior sources and when pooled, with a large effect size (Cohen's $d \approx 1.0$).
+Corralling wins in 83 of 96 non-tied trial pairs (86\%).
+In contrast, the distribution shift effect is \textbf{not significant}: the 95\% confidence interval includes zero in both comparisons, with negligible effect size ($|d| < 0.2$).
+These results were confirmed by Wilcoxon signed-rank tests ($p < 0.0001$ for Corralling; $p > 0.18$ for distribution shift).
+
+\subsubsection{Interpretation}
+
+\paragraph{Online learning is the dominant effect ($+7.0$\,pp).}
+Switching from a frozen prior to any online bandit---even a single expert without Corralling---yields a $+7.0$\,pp improvement, consistent across both prior sources.
+Any bandit-based router would capture the bulk of this improvement; online adaptation, not matched priors, is the primary mechanism for handling distribution shift.
+
+\paragraph{Corralling provides a significant additional gain ($+1.3$\,pp, $p < 0.0001$).}
+Layering Corralling on top of online learning adds $+1.3$\,pp (pooled across prior sources), with a large paired effect size (Cohen's $d = 0.98$).
+The learning curves (Figure~\ref{fig:distribution_shift}c) show that Corralling leads at \emph{every} checkpoint from step~50 onward: it does not merely converge faster, but converges to a \emph{higher} steady-state reward.
+This separates banditGPT from a standard contextual bandit: the two-expert architecture with adaptive meta-learning consistently outperforms a single-expert bandit regardless of prior quality.
+
+\paragraph{Distribution shift has no significant practical impact ($p > 0.18$).}
+Despite PSI$\,{=}\,0.763$ (``substantial'' by industry standards) and $-75\%$ prior miscalibration on Mixtral, the practical performance difference between cross- and same-distribution priors is not statistically significant once online learning is enabled.
+The 95\% CI includes zero in both comparisons.
+Online learning rapidly overwrites the prior: within 766 interactions, the initial prior is a negligible fraction of the total evidence.
+
+\paragraph{Practical implications.}
+These results establish a clear hierarchy of priorities for deployed LLM routing:
+\begin{enumerate}[nosep]
+    \item \textbf{Enable online learning} ($+7.0$\,pp). This is the single most impactful decision, available to any bandit-based router.
+    \item \textbf{Use Corralling} ($+1.3$\,pp, $p < 0.0001$). The meta-learning architecture provides a statistically significant steady-state advantage over a single-expert bandit. This is banditGPT's primary architectural contribution.
+    \item \textbf{Prior source is irrelevant} ($+0.3$\,pp, $p = 0.18$). Practitioners can safely initialise with any available offline data---including cross-distribution sources---without measurable penalty once online learning is enabled.
+\end{enumerate}
+
+\noindent The case for Corralling is not that it solves distribution shift per se---any online bandit handles distribution shift naturally.
+Rather, Corralling provides \emph{architectural robustness with a significant steady-state quality advantage}: the two-expert meta-learner converges to a higher reward plateau ($+1.3$\,pp, $d \approx 1.0$) than a single-expert bandit, by adaptively blending informed and uninformed experts throughout the learning trajectory.

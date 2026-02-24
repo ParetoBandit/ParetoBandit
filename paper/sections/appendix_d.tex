@@ -90,7 +90,13 @@ Beyond the algorithmic comparison, this experiment reveals deployment-relevant d
 This experiment uses synthetic context-dependent rewards with abrupt phase transitions (Cohen's $d \approx 5.0$). Real-world model failures are typically gradual, ambiguous ($d < 0.5$), or partial (degradation on some task types only). The portfolio size scaling ($K{=}2,3,5$) uses different environment configurations, so the $\Delta$ trend should be interpreted as directional evidence rather than a precise scaling law.
 
 % ----------------------------------------------------------------------------
-% D.2: Two Operating Regimes
+% D.2: Distribution Shift Analysis
+% ----------------------------------------------------------------------------
+
+\input{../experiments/10_distribution_shift/section_distribution_shift}
+
+% ----------------------------------------------------------------------------
+% D.3: Two Operating Regimes
 % ----------------------------------------------------------------------------
 
 \subsection{Unified Framework: Two Operating Regimes}
@@ -130,7 +136,7 @@ Practitioners should select $\eta$ based on operational objectives:
 % Sensitivity analysis covered in appendix folder: C1 (n_eff) and D1 (Corralling ablation).
 
 % ----------------------------------------------------------------------------
-% D.3: Dynamic Model Onboarding
+% D.4: Dynamic Model Onboarding
 % ----------------------------------------------------------------------------
 
 \subsection{Dynamic Model Onboarding: Controlled Family Sharing}
@@ -171,7 +177,7 @@ For practitioners, the operational message is simple: \textbf{calling \texttt{re
 Family sharing provides faster early calibration (46\% lower initial prediction error for the first ${\sim}50$ decisions) and becomes more relevant when: (a)~no strong semantic neighbor exists, (b)~the family has extensive routing history, or (c)~the portfolio is large enough that per-model learning is slow. For the common case of onboarding a new variant from a known provider (e.g., a new GPT-4 release), semantic bootstrapping alone handles the transition seamlessly. Numerical details are in Appendix~\ref{app:model_onboarding_figure}.
 
 % ----------------------------------------------------------------------------
-% D.4: Semantic Transfer Ablation (Leave-One-Out)
+% D.5: Semantic Transfer Ablation (Leave-One-Out)
 % ----------------------------------------------------------------------------
 
 \subsection{Semantic Transfer Ablation: Leave-One-Out}
