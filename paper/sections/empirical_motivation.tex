@@ -35,7 +35,7 @@ Cheaper model wins & 106 & 14.1\% \\
 \input{../experiments/01_figure/figure_1_caption}
 
 \paragraph{Cost savings emerge from heterogeneous preferences.}
-The outcome distribution further reveals that model preference is far from uniform (Table~\ref{tab:outcome_distribution}). For the vast majority of prompts (72.8\%), both models perform comparably (a tie), meaning the cheaper model can serve them without quality degradation. The router's true value lies in correctly identifying the minority of cases where the expensive model provides a tangible benefit, while avoiding it when it degrades performance.
+The outcome distribution further reveals that model preference is far from uniform (Table~\ref{tab:outcome_distribution}). For the vast majority of prompts (72.8\%), both models perform comparably (a tie), meaning the cheaper model can serve them without quality degradation. The router's true value lies in routing the majority of traffic (86.9\%) to the cheaper model without quality loss, reserving the expensive model only for the 13.1\% of prompts where it provides a genuine advantage.
 
 \subsection{Implications for Router Architecture}
 
