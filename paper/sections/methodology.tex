@@ -9,11 +9,11 @@ Guided by the three architectural requirements established in Section~\ref{sec:m
     \item \textbf{Corralling meta-learning} that hedges against prior mismatch via complementary exploration schedules, providing the necessary safety mechanism.
 \end{itemize}
 
-While several concurrent \emph{LLM routing} systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}, distinct from the classical bandit-theory literature on Corralling~\cite{agarwal2017corralling}. banditGPT's distinguishing contribution is this hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits. This directly addresses the practical challenges of production routing: maintaining safety against misspecified priors while remaining agile enough to adopt new models.
+Several concurrent \emph{LLM routing} systems also adopt a bandit formulation~\cite{panda2025pilot, wang2025barp, li2025llmbandit}, but none incorporate the Corralling framework~\cite{agarwal2017corralling} from the bandit-theory literature. banditGPT's distinguishing contribution is this hierarchical architecture that layers a Corralling meta-learner over cost-aware contextual bandits, directly addressing the practical challenges of production routing: maintaining safety against misspecified priors while remaining agile enough to adopt new models.
 
 \subsection{Unified Feature Space}
 
-Building upon the empirical motivation, we embed prompts using \path{sentence-transformers/all-MiniLM-L6-v2} (384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM. As demonstrated in Section~\ref{sec:motivation}, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), confirming they capture routing-relevant signals suitable for online adaptation.
+Building upon the empirical motivation, we embed prompts using Sentence-BERT~\cite{reimers2019sentence} (\path{all-MiniLM-L6-v2}, 384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM~\cite{ong2024routellm}. As demonstrated in Section~\ref{sec:motivation}, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), confirming they capture routing-relevant signals suitable for online adaptation.
 
 \subsection{Problem Formulation}
 
@@ -58,7 +58,7 @@ We set $\gamma=0.05$, imposing a uniform exploration floor that enables asymptot
 
 \subsubsection{Layer 3: Cost-Aware LinUCB}
 
-Each expert $i$ models the reward function using Bayesian Ridge Regression (LinUCB~\cite{li2010contextual}). We approximate the reward surface of model $m$ as a linear function of the context: $\mathbb{E}[r | x] = x^\top \theta^*_m$. The policy selects the arm maximizing the Upper Confidence Bound (UCB) of the composite utility:
+Each expert $i$ models the reward function using LinUCB~\cite{li2010contextual}, which maintains a regularized least-squares estimate of $\theta_m$ and an associated confidence set. We approximate the reward surface of model $m$ as a linear function of the context: $\mathbb{E}[r | x] = x^\top \theta^*_m$. The policy selects the arm maximizing the Upper Confidence Bound (UCB) of the composite utility:
 \begin{equation}
 a_t = \arg\max_{a \in \mathcal{E}_{x_t}} \left( x_t^\top \hat{\thetavec}_a + \alpha \sqrt{x_t^\top \Amat_a^{-1} x_t} - \lambda c_a \right)
 \end{equation}
