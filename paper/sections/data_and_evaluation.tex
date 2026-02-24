@@ -67,7 +67,7 @@ This is a deliberate \emph{cross-distribution} setup: the battles come from a di
 
 \paragraph{$K{=}5$ and $K{=}10$ (multi-model scaling).}
 The RouteLLM data covers only 2 models, leaving the remaining $K{-}2$ models without priors.
-Instead, we construct warmup priors from a held-out portion of our own LMSYS evaluation data, which covers all 10 portfolio models---a \emph{same-distribution} prior reflecting the practitioner workflow of seeding a router with a small batch of historical evaluations.
+Instead, we construct warmup priors from a held-out portion of our own LMSYS evaluation data, which covers all 10 portfolio models, providing a \emph{same-distribution} prior reflecting the practitioner workflow of seeding a router with a small batch of historical evaluations.
 The 888 development prompts with full model coverage are split via stratified sampling into 355 prior-training and 533 online-learning prompts; the holdout set (750 prompts) is shared with the $K{=}2$ evaluation to ground cross-regime comparisons.
 Full construction details and data-integrity checks are in Appendix~\ref{sec:warmup_prior_construction}.
 
