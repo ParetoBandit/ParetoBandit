@@ -1,7 +1,7 @@
 % Section: K-Scaling — Hybrid vs. Disjoint LinUCB
-% Include from the main paper via \input{experiments/05_figure/section_k_scaling_results}
+% Include from the main paper via \input{../experiments/05_figure/section_k_scaling_results}
 
-\subsubsection{Sample Efficiency of Family Parameter Sharing}
+\subsection{Sample Efficiency of Family Parameter Sharing}
 \label{sec:k_scaling}
 
 The two-model Pareto evaluation (Section~\ref{sec:pareto}) does not exercise Hybrid LinUCB's family sharing mechanism, because both models belong to different providers.
@@ -42,6 +42,8 @@ For example, gpt-5.1 vs.\ o3 has $\phi{=}0.517$ but $r_{\text{tet}}{=}0.887$; gp
 \bottomrule
 \end{tabular}
 \end{table}
+
+\input{../experiments/05_figure/figure_5_caption}
 
 \paragraph{Results.}
 Table~\ref{tab:k_scaling} and Figure~\ref{fig:k_scaling} summarize the findings.

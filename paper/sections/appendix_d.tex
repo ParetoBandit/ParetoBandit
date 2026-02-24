@@ -6,7 +6,7 @@
 \section{Extended Experimental Results}
 \label{app:adaptation_details}
 
-This appendix provides full experimental details, figures, and extended analysis for the adaptation and robustness results summarized in Section~\ref{sec:robustness_adaptation}.
+This appendix provides additional experimental details and extended analysis for the adaptation and robustness results.  Multi-model scaling (Section~\ref{sec:multimodel}), family parameter sharing (Section~\ref{sec:k_scaling}), distribution shift analysis (Section~\ref{app:distribution_shift}), LinTS baseline comparison (Section~\ref{sec:lints_comparison}), and cumulative regret analysis (Section~\ref{sec:cumulative_regret}) appear in the main paper.
 
 % Warmup prior construction details (referenced by multi-model sections)
 \input{sections/warmup_prior_construction}
@@ -90,10 +90,8 @@ Beyond the algorithmic comparison, this experiment reveals deployment-relevant d
 This experiment uses synthetic context-dependent rewards with abrupt phase transitions (Cohen's $d \approx 5.0$). Real-world model failures are typically gradual, ambiguous ($d < 0.5$), or partial (degradation on some task types only). The portfolio size scaling ($K{=}2,3,5$) uses different environment configurations, so the $\Delta$ trend should be interpreted as directional evidence rather than a precise scaling law.
 
 % ----------------------------------------------------------------------------
-% D.2: Distribution Shift Analysis
+% D.2: Distribution Shift Analysis — promoted to Section~\ref{app:distribution_shift}
 % ----------------------------------------------------------------------------
-
-\input{../experiments/10_distribution_shift/section_distribution_shift}
 
 % ----------------------------------------------------------------------------
 % D.3: Two Operating Regimes
@@ -284,8 +282,6 @@ paired $t$-tests with Holm-Bonferroni correction, and Cohen's $d$ effect sizes.
 % ----------------------------------------------------------------------------
 
 % Multi-model scaling (K=5, K=10), LinTS baseline comparison, and cumulative
-% regret curves are included here to keep the 8-page core paper focused.
-\input{../experiments/06_figure/section_multimodel_results}
-\input{../experiments/07_figure/section_lints_comparison}
-\input{../experiments/08_figure/section_cumulative_regret}
+% regret curves have been promoted to the main paper (Sections~\ref{sec:multimodel},
+% \ref{sec:lints_comparison}, and~\ref{sec:cumulative_regret}).
 
