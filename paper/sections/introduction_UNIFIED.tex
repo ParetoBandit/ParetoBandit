@@ -10,8 +10,6 @@ The dominant approach trains a static classifier on offline preference data and 
 
 Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address distribution shift through online adaptation. However, to our knowledge, none explicitly hedges against misspecified priors. If a single bandit is poorly initialized, it can silently degrade routing quality with no built-in recovery mechanism.
 
-Recent bandit-based routers~\cite{panda2025pilot, wang2025barp, li2025llmbandit} address distribution shift through online adaptation. However, to our knowledge, none explicitly hedges against misspecified priors. If a single bandit is poorly initialized, it can silently degrade routing quality with no built-in recovery mechanism.
-
 We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework for LLM routing that closes this gap through three mechanisms:
 
 \begin{enumerate}[nosep,leftmargin=*]
