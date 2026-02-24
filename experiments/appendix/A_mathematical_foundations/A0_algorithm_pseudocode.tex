@@ -42,7 +42,7 @@ LinUCB.
     
     \medskip
     \STATE \textbf{// Constraint filtering}
-    \STATE $\mathcal{F}_t \leftarrow \{m \in \mathcal{M} : \text{cost}(m) \leq c_{\max},\; \text{latency}(m) \leq l_{\max}\}$
+    \STATE $\mathcal{F}_t \leftarrow \{m \in \mathcal{M} : \text{cost}(m) \leq c_{\max},\; \text{latency}(m) \leq l_{\max},\; q_m \geq q_{\min}\}$
     
     \medskip
     \STATE \textbf{// Model selection via Corralling (Algorithm~\ref{alg:corralling})}
