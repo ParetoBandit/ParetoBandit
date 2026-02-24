@@ -1,17 +1,3 @@
-% UNIFIED ABSTRACT - Story-first: problem tension -> gap -> system -> results -> limits
-% Framing: why static routers fail -> why single bandits aren't enough -> banditGPT closes the gap
-
 \begin{abstract}
-The large language model landscape evolves rapidly and unevenly, with the number of major LLM and multimodal releases per year increasing substantially between 2023 and 2025~\cite{thompson2026timeline}.
-Deployment distributions drift from offline training data, prompt-to-model preferences are heterogeneous, and in our evaluation 14.1\% of prompts favor a cheaper model over the frontier option.
-Static routers degrade silently as these conditions shift; bandit-based alternatives can adapt but rely on linear reward assumptions that may not hold, risking convergence to suboptimal policies with no mechanism for self-correction.
-
-We present \textbf{banditGPT}, an open-source cost-aware contextual bandit framework with three interlocking mechanisms:
-(1)~Cost-aware LinUCB, initialized from offline preference battles, closes \textbf{70\%} of the gap to an oracle router within 300--400 online interactions;
-(2)~a \textbf{Corralling} meta-learner that hedges between warmup-prior and tabula-rasa experts, reducing cumulative regret by \textbf{30--40\%} and falling back gracefully under adversarial priors; and
-(3)~\textbf{Hybrid LinUCB}, which pools observations across model families to yield a $+2.9$~pp quality gain at $K{=}5$ ($p{=}0.008$) with $3\times$ narrower confidence intervals.
-
-Across six providers and a $600\times$ cost range, banditGPT traces a cost-quality \textbf{Pareto frontier}, achieving up to 89\% cost reduction with less than 6\% quality loss.
-We report honest results throughout, including a null finding: one-shot semantic transfer adds no significant benefit over family-level sharing ($p{>}0.5$).
-Code, warmup priors, and experimental logs are released in full.
+The rapid proliferation of large language models (LLMs) complicates deployment decisions, as performance varies significantly across models, prompts, and cost regimes. Static LLM routers trained on offline preference data often degrade when deployment distributions drift or prompt-specific model preferences differ from training assumptions. In our evaluation, 14.1\% of prompts favor a cheaper model over a more expensive frontier model, causing static threshold-based routers to behave non-monotonically and overspend. To address this, we introduce banditGPT, a cost-aware contextual bandit framework for dynamic LLM routing. banditGPT employs online learning to adapt to deployment distributions without requiring supervised labels. By integrating a Corralling meta-learner to balance offline warmup priors with tabula rasa exploration, and a Hybrid LinUCB mechanism to pool observations across data-driven model families, the system rapidly calibrates to new distributions. Experimental results demonstrate that banditGPT closes 70.0\% of the optimality gap to an oracle router within 400 online interactions. Across portfolios spanning six providers and a 600$\times$ cost range, banditGPT achieves up to an 89\% cost reduction with less than 6\% quality degradation. Ablation studies indicate that continuous family-level sharing provides an effective abstraction for cross-model knowledge transfer, while one-shot semantic transfer adds no significant benefit. Code, warmup priors, and experimental logs are open-sourced to facilitate further research in adaptive LLM routing.
 \end{abstract}
