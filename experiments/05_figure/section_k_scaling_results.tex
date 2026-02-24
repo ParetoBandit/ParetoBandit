@@ -4,8 +4,8 @@
 \subsection{Sample Efficiency of Family Parameter Sharing}
 \label{sec:k_scaling}
 
-The two-model Pareto evaluation (Section~\ref{sec:pareto}) does not exercise Hybrid LinUCB's family sharing mechanism, because both models belong to different providers.
-To isolate and measure this mechanism, we compare Hybrid LinUCB (with data-driven family assignments) against Disjoint LinUCB (each model independent) at three portfolio sizes: $K{=}5$, $10$, and $20$.
+The preceding multi-model evaluation (Section~\ref{sec:multimodel}) demonstrates the system's effectiveness at scale, but it does not isolate the contribution of Hybrid LinUCB's family sharing mechanism.
+To measure this, we compare Hybrid LinUCB (with data-driven family assignments) against Disjoint LinUCB (each model independent) at three portfolio sizes: $K{=}5$, $10$, and $20$.
 
 \paragraph{Experimental design.}
 Both policies start tabula rasa (no warmup priors) to isolate the sharing effect.

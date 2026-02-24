@@ -6,8 +6,7 @@
 \subsection{Cumulative Regret Analysis}
 \label{sec:cumulative_regret}
 
-Cumulative regret is the standard theoretical measure for online learning
-algorithms.  For a contextual bandit operating over $T$ rounds, the
+While the preceding sections demonstrate banditGPT's practical utility across various deployment scenarios, cumulative regret provides the standard theoretical measure for its learning efficiency. For a contextual bandit operating over $T$ rounds, the
 cumulative regret is
 \[
   R_T = \sum_{t=1}^{T} \bigl[\max_{a \in \mathcal{A}} \mu_a(x_t) - \mu_{a_t}(x_t)\bigr],

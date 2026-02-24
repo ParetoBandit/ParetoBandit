@@ -79,3 +79,5 @@ A bias term is appended, yielding a 33-dimensional context vector.
 This projection is applied to prompts from both sources: RouteLLM battles for $K{=}2$ warmup priors, and LMSYS Arena prompts for $K{>}2$ warmup priors and all online learning and evaluation.
 The PCA is trained once and reused across all portfolio sizes ($K{=}2, 5, 10$), decoupling feature extraction from warmup-prior construction.
 Variance analysis and provenance details are in the supplementary material.
+
+With this evaluation framework and feature pipeline established, we now turn to the empirical properties of LLM routing that motivate our system architecture.

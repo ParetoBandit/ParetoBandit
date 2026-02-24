@@ -99,3 +99,5 @@ In settings where prior quality is uncertain and model portfolios evolve, bandit
 
 Loading pre-trained priors from offline data can introduce \emph{Scale Explosion} (predictions of 800.0 instead of 0.8) due to mismatched reward scales. We address this with automatic two-pass calibration at initialization: (1)~a bias probe that detects and clamps inflated bias weights via theta-reconstruction, and (2)~a suite probe using basis-independent feature vectors that catches PCA-dimension explosions. Each expert additionally maintains a lightweight $O(1)$-per-observation prediction monitor for runtime anomaly detection.
 
+With the \textit{banditGPT} architecture defined, we now evaluate its empirical performance, scaling properties, and learning efficiency across diverse LLM portfolios.
+

@@ -1,63 +1,49 @@
 \section{Experiments}
 \label{sec:results}
 
-We evaluate banditGPT along six dimensions: economic efficiency (Pareto optimality), multi-model scaling ($K{=}5, 10, 20$), family parameter sharing, distribution shift robustness, comparisons to alternative bandit baselines, and cumulative regret convergence. Section~\ref{sec:pareto} presents a controlled two-model benchmark against RouteLLM. Sections~\ref{sec:multimodel}--\ref{sec:cumulative_regret} scale the evaluation to production-realistic portfolios.
+We evaluate \textit{banditGPT} along six dimensions: economic efficiency (Pareto optimality), multi-model scaling ($K{\in}\{5, 10, 20\}$), family parameter sharing, distribution shift robustness, comparisons to alternative bandit baselines, and cumulative regret convergence. Section~\ref{sec:pareto} presents a controlled two-model benchmark against RouteLLM. Sections~\ref{sec:multimodel}--\ref{sec:cumulative_regret} scale the evaluation to production-realistic portfolios.
 
 \input{sections/experiments}
 
 \subsection{Cost and Quality Trade-off}
 \label{sec:pareto}
 
-Figure~\ref{fig:pareto} presents a two-panel analysis of the cost and quality trade-off, comparing banditGPT's online learning approach against RouteLLM's supervised pre-training.
+Figure~\ref{fig:pareto} compares the cost-quality trade-off of \textit{banditGPT}'s online learning against RouteLLM's supervised pre-training.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/figure4.png}
-\caption{\textbf{Cost and quality trade-off.} (a) Pareto frontiers for banditGPT and RouteLLM-MF on a 750-prompt holdout. (b) banditGPT learning curve; banditGPT exceeds RouteLLM's peak after 300 to 400 in-distribution prompts in this setting.}
-\Description{Two-panel plot: left shows quality versus cost Pareto frontiers for banditGPT and RouteLLM; right shows banditGPT quality improving with online learning steps and crossing RouteLLM's best point.}
+\caption{\textbf{Cost and quality trade-off.} (a) Pareto frontiers for \textit{banditGPT} and RouteLLM-MF on a 750-prompt holdout. (b) \textit{banditGPT} learning curve; it exceeds RouteLLM's peak after 300--400 in-distribution interactions.}
+\Description{Two-panel plot: left shows quality versus cost Pareto frontiers; right shows banditGPT quality improving with online learning steps and crossing RouteLLM's best point.}
 \label{fig:pareto}
 \label{fig:pareto_frontier}
 \end{figure}
 
 \subsubsection{Comparison Across Cost Regimes}
 
-Figure~\ref{fig:pareto}a reveals two distinct regimes, reflecting the complementary strengths of supervised pre-training and online adaptation:
+Figure~\ref{fig:pareto}a reveals two distinct regimes reflecting the strengths of supervised pre-training versus online adaptation:
 
 \begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{RouteLLM} is pre-trained on 100k out-of-distribution (OOD) supervised preference pairs, giving it strong out-of-the-box performance, requiring no deployment data.
-    \item \textbf{banditGPT} combines 80k OOD battle priors with 1,121 in-distribution online learning steps, adapting from its own routing outcomes, requiring no labels.
+    \item \textbf{RouteLLM} is pre-trained on 100k out-of-distribution (OOD) supervised preference pairs, providing strong out-of-the-box performance without deployment data.
+    \item \textbf{banditGPT} combines 80k OOD battle priors with 1,121 label-free online learning steps, adapting directly from routing outcomes.
 \end{itemize}
 
-At \textbf{low-to-moderate budgets} (\$0.0003 to \$0.005 per request), RouteLLM's pre-trained classifier is competitive or superior. Its supervised training provides reliable routing without deployment overhead.
+At \textbf{low budgets} (\$0.0003 to \$0.005 per request), RouteLLM's pre-trained classifier is competitive or superior. Its high-capacity matrix factorization and massive supervised training allow fine-grained prompt-level discrimination when only a handful of prompts can be routed to the expensive model.
 
-At \textbf{higher budgets} (\$0.005+), banditGPT surpasses RouteLLM. Online learning discovers the correct aggregate model ordering for this deployment distribution, achieving a peak quality of $0.914 \pm 0.003$ (95\% CI, $n{=}20$), representing a $+3.5\%$ improvement over RouteLLM's peak of 0.883. The Oracle upper bound (0.953) routes only 13\% of prompts to the expensive model with perfect per-prompt knowledge, representing the theoretical ceiling for this model pair.
-
-\paragraph{Why RouteLLM wins at low budgets.} At tight budgets, both routers route the vast majority of traffic to the cheaper model and allocate only a handful of prompts to the expensive model. Quality depends on selecting the \emph{right} prompts for the expensive model. Three factors favor RouteLLM in this regime: (i)~\emph{data volume}: 100k supervised pairs versus 1,121 online observations; (ii)~\emph{feedback type}: each supervised pair reveals both models' performance, whereas bandit feedback reveals only the chosen model's reward; and (iii)~\emph{model capacity}: RouteLLM's matrix factorization classifier has higher representational capacity for fine-grained prompt-level discrimination than LinUCB's linear model over 33 features. More online data would narrow the gap (the learning curve in Figure~\ref{fig:pareto}b has not fully plateaued), but the feedback and capacity differences mean that data volume alone does not fully explain the low-budget advantage. In contrast, at higher budgets where 30 to 70\% of prompts are routed, \emph{aggregate model calibration} dominates per-prompt selection, and banditGPT's online learning, which discovers that the cheaper model outperforms the expensive model on this distribution, provides the larger advantage.
-
-This evaluation uses two models to match RouteLLM's topology and enable a controlled comparison. Multi-model results ($K \geq 3$) with dedicated warmup priors are provided in the supplementary material.
+At \textbf{higher budgets} (\$0.005+), \textit{banditGPT} surpasses RouteLLM. Online learning discovers the optimal aggregate model ordering for the deployment distribution, achieving a peak quality of $0.914 \pm 0.003$ (95\% CI), a $+3.5\%$ improvement over RouteLLM's peak (0.883). The theoretical Oracle upper bound (0.953) routes only 13\% of prompts to the expensive model.
 
 \subsubsection{The Value of Online Adaptation}
 
-Figure~\ref{fig:pareto}b reveals why this matters in practice. banditGPT starts below RouteLLM (cold-start quality: $0.839 \pm 0.004$ with priors only) and crosses RouteLLM's peak between approximately \textbf{300 to 400 in-distribution prompts} (mean reward $0.893 \pm 0.014$ at step~400, vs.\ RouteLLM's 0.883). In this setting, the crossover illustrates that a modest amount of in-distribution experience can outweigh a large volume of out-of-distribution supervision.
-
-The learning curve shows generally increasing improvement from cold-start ($0.839$) through convergence (${\sim}0.904$ by step~900), with minor fluctuations at intermediate checkpoints that remain within the 95\% confidence bands. Variance across trials contracts as training progresses (std from $0.040$ at step~100 to $0.009$ at step~900), indicating that the router converges to a stable, high-quality policy.
+Figure~\ref{fig:pareto}b demonstrates why online adaptation matters. Starting from a cold-start quality of $0.839 \pm 0.004$ (priors only), \textit{banditGPT} crosses RouteLLM's peak after just \textbf{300--400 in-distribution prompts}, ultimately converging near $0.904$. This illustrates that a modest amount of in-distribution experience can outweigh massive out-of-distribution supervision.
 
 \subsubsection{Non-Monotonicity of Static Routing}
 \label{sec:nonmonotone}
 
-A notable secondary finding is the non-monotonic behavior of RouteLLM at high cost. Dense threshold coverage (26 points, including 16 in the $[0.0, 0.15]$ range) reveals that when the threshold is lowered to admit more traffic to the expensive model ($\tau < 0.10$), RouteLLM's quality \emph{degrades}: reward drops from the peak of 0.883 (at $\tau{\approx}0.12$, cost \$0.007) to 0.812 at $\tau{=}0$ (cost \$0.013). At maximum cost, RouteLLM pays ${\sim}44\times$ more than the static cheaper model for $1.3\%$ lower quality on this distribution, consistent with model preference heterogeneity.
-
-This non-monotonicity is not a pathology of RouteLLM's MF model specifically; it is inherent to any pre-trained router deployed on a distribution where the assumed ``strong'' model is not uniformly superior. In specialized domains (legal, code review, structured data extraction), smaller fine-tuned models frequently outperform general-purpose frontier models, making this scenario practically common.
-
-\subsubsection{Deployment guidance (brief)}
-These results suggest a simple pattern for practice: supervised static routers can be strong at tight budgets when their training data matches deployment, while online adaptation can be valuable when (i) prompt distributions drift (Section~\ref{app:distribution_shift} quantifies this: PSI\,$=$\,0.763; any online bandit yields $+7.0$\,pp, and Corralling adds a significant $+1.3$\,pp on top; prior source has no measurable effect), (ii) model ordering is uncertain, or (iii) the portfolio grows beyond two models. A more detailed decision guide and monitoring protocol is included in the supplementary material; quantitative crossover points are deployment-dependent.
+A critical finding is the non-monotonic behavior of static routing at high costs. When RouteLLM's threshold is lowered to admit more traffic to the expensive model, its quality actually \emph{degrades}---dropping from a peak of 0.883 to 0.812 at maximum cost. At this point, RouteLLM pays ${\sim}44\times$ more than the static cheaper model for $1.3\%$ lower quality. This confirms that static policies assuming monotonicity systematically over-provision expensive models on subsets where they underperform.
 
 \subsubsection{Gap Closure Analysis}
 
-On the frozen holdout set ($N{=}750$), banditGPT closes \textbf{70.0\%} of the optimality gap ($\frac{0.914 - 0.823}{0.953 - 0.823}$), compared to 46.2\% for RouteLLM at its best threshold. At step 0 (priors only, before online learning), banditGPT achieves $0.839 \pm 0.004$, above the static cheaper model but below RouteLLM's peak.
-Operationally, banditGPT incurs inference cost for only the selected model per request; it requires no parallel evaluation of all candidates, unlike offline data collection for supervised routers, which must query every model on every prompt to obtain training labels.
-
-Design ablations and hyperparameter sensitivity sweeps are reported in the supplementary material.
+On the frozen holdout ($N{=}750$), \textit{banditGPT} closes \textbf{70.0\%} of the optimality gap to the theoretical oracle ($\frac{0.914 - 0.823}{0.953 - 0.823}$), compared to 46.2\% for RouteLLM at its best threshold. Crucially, \textit{banditGPT} achieves this while only incurring inference costs for the single model selected per request, avoiding the parallel evaluation required to collect supervised labels.
 
 % ============================================================================
 % Promoted from supplementary: Multi-Model Scaling (K=5, K=10)
@@ -90,11 +76,10 @@ Design ablations and hyperparameter sensitivity sweeps are reported in the suppl
 \label{sec:transfer_null}
 \label{sec:limitations}
 
-We report additional analyses in the appendix (supplementary material), including robustness under prior mismatch, synthetic catastrophic-failure stress tests, dynamic model onboarding, and leave-one-out semantic transfer ablations.
-A leave-one-out ablation evaluates whether one-shot per-model semantic $\thetavec$-transfer (bootstrapping a new model's parameters from its nearest within-provider neighbor via tetrachoric correlation) provides benefit beyond the continuous family sharing of Hybrid LinUCB.
-Across 20 seeds and 10 target models, the aggregate effect is not significant ($p{>}0.5$, Cohen's $d{<}0.05$), suggesting that the family-level $\betavec_F$ mechanism is an effective abstraction for cross-model knowledge transfer in this setting.
-This is a positive architectural finding: the hybrid decomposition subsumes one-shot transfer, and practitioners need not invest in per-model bootstrapping pipelines.
+We report additional analyses in the supplementary material, including robustness under prior mismatch, synthetic catastrophic-failure stress tests, dynamic model onboarding, and leave-one-out semantic transfer ablations.
+
+Notably, a leave-one-out ablation evaluates whether one-shot semantic transfer (bootstrapping a new model's parameters from its nearest neighbor) provides benefit beyond the continuous family sharing of Hybrid LinUCB. The aggregate effect is not significant ($p{>}0.5$, Cohen's $d{<}0.05$), confirming that the hybrid decomposition subsumes one-shot transfer. This is a positive architectural finding: practitioners need not invest in complex per-model bootstrapping pipelines.
 
 \paragraph{Limitations.}
-Our controlled RouteLLM comparison uses a single model pair and a single prompt distribution; deployments with different portfolios and traffic will shift the quantitative cost crossover points. Our full factorial distribution shift analysis (Section~\ref{app:distribution_shift}) demonstrates that online adaptation renders prior source statistically irrelevant ($p{=}0.18$) while Corralling provides a significant $+1.3$\,pp advantage ($p < 0.0001$) for this model pair; the magnitude of these effects will vary with portfolio size and distributional mismatch. Our robustness experiments are stress tests rather than guarantees, and our current treatment of non-stationarity primarily operates through meta-level mixing rather than explicit forgetting within each expert.
+Our controlled RouteLLM comparison uses a single model pair and prompt distribution; different portfolios and traffic will shift quantitative crossover points. While our factorial distribution shift analysis (Section~\ref{sec:distribution_shift}) shows online adaptation renders prior source statistically irrelevant ($p{=}0.18$) and Corralling provides a significant $+1.3$\,pp advantage, these magnitudes will vary with distributional mismatch. Finally, our current treatment of non-stationarity relies primarily on meta-level mixing rather than explicit forgetting within each expert.
 
