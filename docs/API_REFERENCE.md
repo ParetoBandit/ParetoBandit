@@ -4,7 +4,7 @@ Complete reference for the BanditGPT public API.
 
 ```python
 import bandit_gpt
-print(bandit_gpt.__version__)
+print(bandit_gpt.__version__)  # "0.1.0"
 ```
 
 ---
@@ -51,7 +51,33 @@ def create(
 ```python
 from bandit_gpt import BanditRouter
 
-router = BanditRouter.create(model_registry, priors="warmup")
+# Define your model portfolio
+registry = {
+    "openai/gpt-4o": {
+        "openrouter_id": "openai/gpt-4o",
+        "input_cost_per_m": 2.50,
+        "output_cost_per_m": 10.00,
+        "time_to_first_token_seconds": 0.5,
+    },
+    "mistralai/mixtral-8x7b": {
+        "openrouter_id": "mistralai/mixtral-8x7b",
+        "input_cost_per_m": 0.24,
+        "output_cost_per_m": 0.24,
+        "time_to_first_token_seconds": 0.3,
+    },
+    "anthropic/claude-3.5-sonnet": {
+        "openrouter_id": "anthropic/claude-3.5-sonnet",
+        "input_cost_per_m": 3.00,
+        "output_cost_per_m": 15.00,
+        "time_to_first_token_seconds": 0.8,
+    },
+}
+
+# Create router with warm-start priors (downloads ~80 MB model on first use)
+router = BanditRouter.create(registry, priors="warmup")
+
+# Or start from scratch (no priors, no model download needed)
+router = BanditRouter.create(registry, priors="none")
 ```
 
 ---
@@ -94,11 +120,24 @@ def route(
 - `ValueError` — Empty or whitespace-only prompt.
 - `TypeError` — Prompt is neither `str` nor `np.ndarray`.
 
-**Example**
+**Example: Basic routing**
 
 ```python
 model_id, log = router.route("Write a Python function to parse JSON")
-print(f"Selected: {model_id}, Cost: ${log.cost_usd:.6f}")
+
+print(f"Selected: {model_id}")          # e.g. "mistralai/mixtral-8x7b"
+print(f"Request ID: {log.request_id}")  # UUID for feedback
+print(f"Cost: ${log.cost_usd:.6f}")     # Estimated cost
+```
+
+**Example: Route with constraints**
+
+```python
+model_id, log = router.route(
+    "Explain the Riemann hypothesis",
+    max_cost=5.0,         # Filter out models costing > $5/1k tokens
+    output_tokens=200,    # Expected response length
+)
 ```
 
 ---
@@ -127,12 +166,34 @@ def process_feedback(self, request_id: str, reward: float) -> None
 
 **Raises**: None. Designed to never crash the router.
 
-**Example**
+**Example: Standard route-feedback loop**
 
 ```python
+# Route a prompt
 model_id, log = router.route("Explain quantum entanglement")
-# ... call the LLM, evaluate quality ...
-router.process_feedback(log.request_id, reward=0.92)
+
+# Call the selected LLM (your code)
+response = call_llm(model_id, "Explain quantum entanglement")
+
+# Evaluate quality (LLM-as-judge, user rating, task metric, etc.)
+reward = evaluate_quality(response)  # returns 0.0–1.0
+
+# Feed the reward back — the router learns from this
+router.process_feedback(log.request_id, reward=reward)
+```
+
+**Example: Online learning loop**
+
+```python
+prompts = ["Write a haiku about AI", "Solve x^2 - 4 = 0", "Debug this Python code"]
+
+for prompt in prompts:
+    model_id, log = router.route(prompt)
+    response = call_llm(model_id, prompt)
+    reward = evaluate_quality(response)
+    router.process_feedback(log.request_id, reward=reward)
+
+# After enough iterations, the router learns which model excels at what
 ```
 
 ---
@@ -166,6 +227,20 @@ Use this for batch/offline learning where you already have `(model, context, rew
 - `ValueError` — Feature vector has wrong dimension.
 - `KeyError` — `model_id` is not registered.
 
+**Example: Ingest historical data**
+
+```python
+# Historical routing outcomes from your logs
+historical_data = [
+    ("openai/gpt-4o", "Write a Python quicksort", 0.95),
+    ("mistralai/mixtral-8x7b", "Tell me a joke", 0.72),
+    ("anthropic/claude-3.5-sonnet", "Explain relativity", 0.88),
+]
+
+for model, prompt, reward in historical_data:
+    router.update(model, prompt, reward)
+```
+
 ---
 
 ### `BanditRouter.get_probabilities()`
@@ -188,6 +263,19 @@ def get_probabilities(
 | `model_ids` | `list[str] \| None` | `None` | Subset of models to evaluate. `None` means all registered models. |
 
 **Returns**: Dictionary mapping model IDs to selection probabilities (sum to 1.0).
+
+**Example**
+
+```python
+probs = router.get_probabilities("Write a SQL query to find active users")
+
+for model, prob in sorted(probs.items(), key=lambda x: -x[1]):
+    print(f"  {model}: {prob:.1%}")
+# e.g.:
+#   mistralai/mixtral-8x7b: 65.2%
+#   openai/gpt-4o: 20.1%
+#   anthropic/claude-3.5-sonnet: 14.7%
+```
 
 ---
 
@@ -217,9 +305,18 @@ def explain_decision(
 **Example**
 
 ```python
-_, log = router.route("Write SQL to get active users")
-explanation = router.explain_decision("gpt-4o", log.context_vector)
-# {"PCA_0": +0.8, "PCA_5": +0.3, "bias": +0.2, ...}
+model_id, log = router.route("Write SQL to get active users")
+
+# Explain why this model was chosen
+explanation = router.explain_decision(model_id, log.context_vector)
+
+print(f"Why {model_id} was selected:")
+for feature, contribution in sorted(explanation.items(), key=lambda x: abs(x[1]), reverse=True):
+    print(f"  {feature}: {contribution:+.4f}")
+# e.g.:
+#   bias: +0.2393
+#   PCA_26: -0.0375
+#   PCA_15: +0.0217
 ```
 
 ---
@@ -256,6 +353,23 @@ def register_model(
 2. **T-shirt sizing** — `speed="fast"` sets appropriate bias.
 3. **Agnostic** — Just `model_id`; initialises with neutral priors and high variance.
 
+**Example**
+
+```python
+# Tier A: You know what the model is good at
+router.register_model(
+    "google/gemini-2.0-flash",
+    speed="fast",
+    capabilities=["coding", "reasoning"],
+)
+
+# Tier B: You only know cost/speed characteristics
+router.register_model("local/llama-3-8b", speed="fast")
+
+# Tier C: You know nothing — the router will learn from scratch
+router.register_model("mystery/new-model")
+```
+
 ---
 
 ### `BanditRouter.save_state()` / `BanditRouter.load_state()`
@@ -268,6 +382,16 @@ def load_state(self, path: Path | str) -> None
 ```
 
 **Known limitation**: Only the base `DisjointLinUCBPolicy` matrices (A, b) are persisted. Corralling meta-weights and expert state are not saved; they reset to initial allocation on reload.
+
+**Example**
+
+```python
+# Save learned state before shutdown
+router.save_state("checkpoints/router_state.npz")
+
+# Restore on next startup
+router.load_state("checkpoints/router_state.npz")
+```
 
 ---
 
@@ -286,6 +410,19 @@ Dataclass returned by `route()` containing decision metadata.
 | `latency_s` | `float` | Estimated latency in seconds. |
 | `context_vector` | `np.ndarray \| None` | Cached feature vector (used internally by `process_feedback()`). |
 | `total_priority_weight` | `float` | Sum of quality/cost/latency weights. |
+
+**Example: Inspecting the routing log**
+
+```python
+model_id, log = router.route("Solve x^2 + 2x + 1 = 0")
+
+print(f"Model: {log.selected_model}")
+print(f"Request ID: {log.request_id}")
+print(f"Utility: {log.predicted_utility:.4f}")
+print(f"Cost: ${log.cost_usd:.8f}")
+print(f"Latency: {log.latency_s:.3f}s")
+print(f"Context vector shape: {log.context_vector.shape}")  # (33,)
+```
 
 ---
 
@@ -318,6 +455,19 @@ FeatureService(
 **Raises**:
 - `ValueError` — Custom encoder without explicit `pca_path`.
 
+**Example: Default usage**
+
+```python
+from bandit_gpt import FeatureService
+
+# Uses default MiniLM encoder and bundled PCA
+fs = FeatureService()
+
+vector = fs.extract_features("Explain the Pythagorean theorem")
+print(f"Shape: {vector.shape}")    # (33,) — 32 PCA + 1 bias
+print(f"Bias term: {vector[-1]}")  # 1.0
+```
+
 ### `FeatureService.for_precomputed()`
 
 Create a lightweight service for pre-computed embedding vectors (no model loading).
@@ -325,6 +475,20 @@ Create a lightweight service for pre-computed embedding vectors (no model loadin
 ```python
 @classmethod
 def for_precomputed(cls, dimension: int) -> FeatureService
+```
+
+**Example: Testing without model downloads**
+
+```python
+import numpy as np
+from bandit_gpt import FeatureService
+
+# No sentence transformer download — accepts raw numpy vectors
+fs = FeatureService.for_precomputed(dimension=33)
+
+vector = np.random.randn(33)
+vector[-1] = 1.0  # bias term
+result = fs.extract_features(vector)  # passes through directly
 ```
 
 ### `FeatureService.extract_features()`
@@ -355,6 +519,18 @@ def extract_features_batch(self, prompts: list[str]) -> np.ndarray
 - `ValueError` — Empty prompt in the list.
 - `TypeError` — Non-string in the list.
 
+**Example**
+
+```python
+prompts = [
+    "Write a Python quicksort",
+    "Explain the Riemann hypothesis",
+    "Tell me a joke about programmers",
+]
+vectors = fs.extract_features_batch(prompts)
+print(f"Batch shape: {vectors.shape}")  # (3, 33)
+```
+
 ### `FeatureService.get_feature_names()`
 
 Human-readable feature names for interpretability.
@@ -364,6 +540,15 @@ def get_feature_names(self) -> list[str]
 ```
 
 **Returns**: List like `["PCA_0", "PCA_1", ..., "PCA_31", "bias"]`.
+
+**Example**
+
+```python
+names = fs.get_feature_names()
+print(names[:3])   # ['PCA_0', 'PCA_1', 'PCA_2']
+print(names[-1])   # 'bias'
+print(len(names))  # 33
+```
 
 ### Properties
 
@@ -391,6 +576,20 @@ Dataclass for all router hyperparameters. Pass to `BanditRouter.__init__()` or l
 | `default_missing_cost_per_m` | `float` | `10.00` | Pessimistic cost fallback for missing metadata. |
 | `default_missing_latency` | `float` | `2.0` | Pessimistic latency fallback. |
 
+**Example**
+
+```python
+from bandit_gpt import RouterConfig
+
+config = RouterConfig(
+    max_log_size=5_000,           # Smaller memory footprint
+    init_lambda=2.0,              # Stronger regularisation
+    stability_check_interval=500, # More frequent checks
+)
+
+router = BanditRouter(model_registry=registry, config=config)
+```
+
 ---
 
 ## `ExplorationRate`
@@ -403,6 +602,15 @@ Named presets for the exploration parameter (alpha).
 | `ExplorationRate.SAFE` | `0.1` | Default. Minimal exploration. |
 | `ExplorationRate.BALANCED` | `1.0` | Standard bandit behaviour. |
 | `ExplorationRate.AGGRESSIVE` | `2.0` | Day-1 calibration or shadow mode. |
+
+**Example**
+
+```python
+from bandit_gpt import ExplorationRate
+
+# Use as alpha value directly
+router = BanditRouter.create(registry, alpha=ExplorationRate.SAFE)
+```
 
 ---
 
@@ -447,6 +655,28 @@ def train_pca(
 **Raises**:
 - `ValueError` — Empty prompts or fewer prompts than `n_components`.
 
+**Example**
+
+```python
+from bandit_gpt import train_pca
+
+# Collect representative prompts from your domain
+prompts = [
+    "Write a Python function to parse CSV files",
+    "Explain the theory of relativity in simple terms",
+    "Debug this SQL query that returns duplicate rows",
+    # ... 100+ prompts recommended
+]
+
+pca = train_pca(
+    prompts,
+    encoder_model="sentence-transformers/all-MiniLM-L6-v2",
+    n_components=32,
+    output_path="my_pca.joblib",
+)
+print(f"Explained variance: {sum(pca.explained_variance_ratio_):.1%}")
+```
+
 ---
 
 ### `generate_warmup_priors()`
@@ -478,6 +708,33 @@ def generate_warmup_priors(
 
 **Raises**:
 - `ValueError` — Empty or malformed `rewards_data`.
+
+**Example**
+
+```python
+from bandit_gpt import generate_warmup_priors
+
+rewards_data = [
+    {
+        "prompt": "Write a Python quicksort",
+        "rewards": {"openai/gpt-4o": 0.95, "mistralai/mixtral-8x7b": 0.70},
+    },
+    {
+        "prompt": "Tell me a joke",
+        "rewards": {"openai/gpt-4o": 0.80, "mistralai/mixtral-8x7b": 0.85},
+    },
+    # ... more labelled data
+]
+
+priors = generate_warmup_priors(
+    rewards_data,
+    encoder_model="sentence-transformers/all-MiniLM-L6-v2",
+    pca="my_pca.joblib",
+    plasticity=0.1,
+    output_path="my_priors.joblib",
+)
+print(f"Built priors for {len(priors['models'])} models from {priors['n_prompts']} prompts")
+```
 
 ---
 
@@ -519,13 +776,53 @@ SqliteContextStore(
 
 **Lazy initialisation**: The database file is not created until the first `save_context()` or `get_context()` call.
 
+**Example: Custom context store**
+
+```python
+from bandit_gpt import BanditRouter
+from bandit_gpt.storage import SqliteContextStore
+
+# 30-day retention for long RLHF feedback cycles
+store = SqliteContextStore(
+    db_path="/var/app/bandit_router.db",
+    ttl_seconds=86400 * 30,
+)
+router = BanditRouter.create(registry, context_store=store)
+
+# Monitor storage usage
+stats = store.stats()
+print(f"Contexts: {stats['total_contexts']}, Size: {stats['db_size_mb']} MB")
+
+# Prune expired entries (run daily via cron)
+pruned = store.prune()
+print(f"Pruned {pruned} expired entries")
+```
+
+**Example: Ephemeral store for testing**
+
+```python
+from bandit_gpt.storage import EphemeralContextStore
+
+store = EphemeralContextStore(max_size=100)
+router = BanditRouter.create(registry, context_store=store)
+```
+
 ---
 
 ## Utility Functions
 
 ### `infer_model_family(model_id: str) -> str`
 
-Infer model family from an ID string (e.g., `"openai/gpt-4o"` → `"gpt-4"`). Used for family-shared learning in `HybridLinUCBPolicy`.
+Infer model family from an ID string. Used for family-shared learning in `HybridLinUCBPolicy`.
+
+**Example**
+
+```python
+from bandit_gpt import infer_model_family
+
+print(infer_model_family("openai/gpt-4o"))              # "openai/gpt-4o"
+print(infer_model_family("anthropic/claude-3.5-sonnet")) # "anthropic/claude-3"
+```
 
 ### `tetrachoric_corr(p_both: float, p_a: float, p_b: float) -> float`
 
