@@ -1,20 +1,16 @@
-# Figure 6: Catastrophic Failure Detection (K=5 Portfolio)
+# Catastrophic Failure Detection (K=5 and K=10 Portfolios)
 
-**Experiment Goal**: Evaluate Corralling's secondary safety benefit -- automatic failover under catastrophic model failure -- on a 5-model portfolio using production router components with semantic transfer.
+**Experiment Goal**: Evaluate Corralling's secondary safety benefit — automatic failover under catastrophic model failure — using production router components with semantic transfer.
 
-**Key Result**: Corralling detects failure in 95% of seeds (median 34 steps), and the gap vs. EMA narrows monotonically with portfolio size: Delta = -0.286 (K=2), -0.154 (K=3), **-0.090 (K=5)**.
+**Key Result**: The Corralling router maintains high quality during failure phases and recovers gracefully, while the static baseline collapses to near-zero reward when its preferred model fails.
 
 ---
 
 ## Overview
 
-This experiment evaluates **Corralling's response to catastrophic model failure** on a **5-model portfolio** using the production router: `CostAwareLinUCBRouter` (warmup expert), `CostAwareTabulaRasaRouter` (cold-start expert), and `CorrallingRouter` with importance-weighted meta-learning.
+This experiment evaluates **Corralling's response to catastrophic model failure** on **K=5** and **K=10** portfolios using the production router: `CostAwareLinUCBRouter` (warmup expert), `CostAwareTabulaRasaRouter` (cold-start expert), and `CorrallingRouter` with importance-weighted meta-learning.
 
-**Why K=5?** With K=2, failure detection is a trivial binary tracking problem where EMA dominates. With K=5, post-failure routing across 4 remaining models is a *contextual* decision -- each model excels in a different context region. EMA's epsilon/K = 2% per-model exploration budget is insufficient to evaluate all alternatives, causing it to over-concentrate on a single model.
-
-**Warmup priors**: All 5 models have informed priors:
-- Mixtral, GPT-4-Turbo: direct RouteLLM battle priors (scaled to N_eff=10)
-- GPT-3.5, Haiku, GPT-4o: semantic transfer from nearest known neighbor (First-Child Bias Correction)
+**Warmup priors**: All models have informed priors from either direct RouteLLM battle data or semantic transfer from the nearest known neighbor.
 
 ---
 
@@ -22,34 +18,44 @@ This experiment evaluates **Corralling's response to catastrophic model failure*
 
 ```
 E_catastrophic_failure_experiment/
-├── generate_figure9_5model.py     # Main experiment (K=5, production router)
-└── README.md                      # This file
+├── generate_figure9_5model.py     # Main experiment (K=5 and K=10)
+├── supplementary/
+│   └── ablation_learning_rate_catastrophic.py
+├── results/
+│   ├── catastrophic_failure_results.json
+│   ├── figure9_5model.{pdf,png}
+│   ├── catastrophic_K5.{pdf,png}
+│   └── catastrophic_K10.{pdf,png}
+└── README.md
 ```
 
-**LaTeX write-up**: `../C_extended_results/C1_catastrophic_failure.tex` (included in APPENDIX_MASTER)
+**LaTeX write-up**: `../C_extended_results/C1_catastrophic_failure.tex`
 
 ---
 
-## Key Results (K=5, N=20 Seeds)
+## Key Results (N=20 Seeds)
 
-### Phase-by-Phase Performance
+### K=5 Phase-by-Phase Performance
 
 | Method | Healthy | Failure | Recovery |
 |--------|---------|---------|----------|
-| Oracle | 0.824 | 0.800 | 0.822 |
-| **banditGPT** | **0.763** | **0.646** | **0.762** |
-| EMA Tracker | 0.736 | 0.735 | 0.783 |
-| Static GPT-4-Turbo | 0.812 | 0.153 | 0.820 |
+| Oracle | 0.990 | 0.975 | 0.988 |
+| **banditGPT** | **0.888** | **0.753** | **0.886** |
+| EMA Tracker | 0.806 | 0.859 | 0.930 |
+| Static Best | 0.950 | 0.154 | 0.958 |
 
-### Portfolio Size Scaling
+### K=10 Phase-by-Phase Performance
 
-| K | banditGPT | EMA | Delta | Detection |
-|---|-----------|-----|-------|-----------|
-| 2 | 0.478 | 0.764 | -0.286 | 65% |
-| 3 | 0.596 | 0.750 | -0.154 | 85% |
-| **5** | **0.646** | **0.735** | **-0.090** | **95%** |
+| Method | Healthy | Failure | Recovery |
+|--------|---------|---------|----------|
+| Oracle | 0.992 | 0.980 | 0.990 |
+| **banditGPT** | **0.894** | **0.862** | **0.905** |
+| EMA Tracker | 0.810 | 0.859 | 0.925 |
+| Static Best | 0.948 | 0.155 | 0.957 |
 
-Gap narrows 69% from K=2 to K=5.
+**Static collapse**: When the best static model fails, quality drops to ~15% — a catastrophic outage. banditGPT maintains 75–86% quality during the failure phase by redistributing traffic across remaining models.
+
+**EMA advantage during failure**: The EMA tracker shows higher failure-phase quality (0.859) because its simpler epsilon-greedy exploration recovers faster in the binary "avoid the failed model" regime. However, banditGPT outperforms EMA in the healthy phase where contextual routing matters.
 
 ---
 
@@ -58,10 +64,10 @@ Gap narrows 69% from K=2 to K=5.
 ```bash
 cd experiments/appendix/E_catastrophic_failure_experiment
 python generate_figure9_5model.py
-# Output: results/figure9_5model.png
+# Output: results/figure9_5model.png, results/catastrophic_failure_results.json
 # Runtime: ~7 seconds
 ```
 
 ---
 
-**Last Updated**: February 15, 2026
+**Last Updated**: February 2026

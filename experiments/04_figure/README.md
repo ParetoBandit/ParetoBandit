@@ -10,14 +10,14 @@ This experiment produces the primary K>>2 evaluation — a cost-quality Pareto f
 
 ### Portfolios
 
-**K=5** (5 providers, quality range 0.745–0.983):
+**K=5** (5 providers, quality range 0.689–0.949):
 | Model | Provider | Holdout Reward | Approx. Cost/req |
 |-------|----------|---------------|-----------------|
-| Llama-3.1-8B | Meta | 0.745 | $0.00003 |
-| Mixtral-8x7B | Mistral | 0.823 | $0.00029 |
-| Gemini-2.5-Flash | Google | 0.953 | $0.00026 |
-| Claude-Sonnet-4 | Anthropic | 0.975 | $0.00630 |
-| GPT-4.1 | OpenAI | 0.983 | $0.00520 |
+| Llama-3.1-8B | Meta | 0.689 | $0.000025 |
+| Mixtral-8x7B | Mistral | 0.768 | $0.00029 |
+| Gemini-2.5-Flash | Google | 0.906 | $0.00026 |
+| Claude-Sonnet-4 | Anthropic | 0.921 | $0.00630 |
+| GPT-4.1 | OpenAI | 0.949 | $0.00340 |
 
 **K=10**: K=5 + Llama-4-Maverick, Gemma-3-27B, Claude-Haiku-4.5, GPT-4-Turbo, DeepSeek-V3
 

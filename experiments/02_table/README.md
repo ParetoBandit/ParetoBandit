@@ -1,4 +1,4 @@
-# Table 2: Dataset Description and Experimental Splits
+# Table 1: Dataset Description and Experimental Splits
 
 **Experiment Goal**: Document complete data provenance and experimental split design for reproducibility
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-This experiment provides **Table 2** for the paper, documenting the complete data provenance and experimental design that enables reproducible bandit evaluation.
+This experiment provides **Table 1** for the paper, documenting the complete data provenance and experimental design that enables reproducible bandit evaluation.
 
 **Dataset Summary**:
 - **Total Prompts**: 81,871 unique prompts
@@ -83,7 +83,7 @@ The table provides **four essential components**:
 - Pareto frontier curves
 - Cost-quality tradeoff analysis
 
-**Independence guarantee**: Held out from all warmup data — the PCA and warmup priors have never seen these prompts. The holdout is independent from warmup by provenance (different data source). 243 incidental overlaps removed (0.24%) via automated checks.
+**Independence guarantee**: Held out from all warmup data — the PCA and warmup priors have never seen these prompts. The holdout is independent from warmup by provenance (different data source). 243 incidental overlaps removed (0.30%) via automated checks.
 
 ---
 
@@ -103,7 +103,7 @@ The table provides **four essential components**:
 
 **Design**: PCA (384→32 dims) trained on RouteLLM battles, applied to LMSYS general prompts for evaluation. The two datasets have different prompt populations and category distributions.
 
-**Validation (Figure 1)**: Figure 1 directly validates that the PCA generalizes across this domain gap by computing the Spearman rank correlation between PC1 and reward gap on N=750 held-out prompts (ρ = -0.370, p < 0.0001, 2.6x vs median of 100 random projections).
+**Validation (Figure 1)**: Figure 1 directly validates that the PCA generalizes across this domain gap by computing the Spearman rank correlation between PC1 and reward gap on N=750 held-out prompts (|ρ| = 0.370, p < 0.0001, 2.6× vs median of 100 random projections).
 
 **Why it works**: Both datasets involve the same model pair (Mixtral vs GPT-4-Turbo) and the same underlying task (text generation). The PCA captures variance in how prompts relate to model capabilities, which transfers across prompt populations.
 
@@ -123,7 +123,7 @@ The table provides **four essential components**:
 ### 1. Data Independence (No Leakage)
 
 **By design**: Warmup (`routellm/gpt4_judge_battles`) and evaluation (LMSYS general prompts) are independent datasets from different sources, sampling periods, and prompt populations — disjoint by provenance.  
-**Verification**: Automated checks found 243 incidentally overlapping prompts (0.24%), removed. Overlap is due to both datasets sampling from the broader LMSYS user base, not shared provenance.  
+**Verification**: Automated checks found 243 incidentally overlapping prompts (0.30%), removed. Overlap is due to both datasets sampling from the broader LMSYS user base, not shared provenance.  
 **Method**: Exact string matching  
 **Limitation**: Semantic near-duplicates (paraphrases, translations, minor edits) may still exist  
 **Guarantee**: No exact string duplicates between warmup and evaluation
@@ -174,8 +174,8 @@ The paper includes the table via:
 ## Related Experiments
 
 - **Figure 1** (`experiments/01_figure/`): PCA validation — cross-domain generalization
-- **Figure 3** (`experiments/03_figure/`): Pareto frontier — cost-quality tradeoffs
-- **Figure 4** (`experiments/04_figure/`): Multi-model Pareto frontier
+- **Figure 4** (`experiments/03_figure/`): Pareto frontier — cost-quality tradeoffs
+- **Figure 5** (`experiments/04_figure/`): Multi-model Pareto frontier
 - **Figure 6** (`experiments/appendix/E_catastrophic_failure_experiment/`): Catastrophic failure detection
 
 ---

@@ -55,18 +55,23 @@ The primary advantage of Hybrid LinUCB is **convergence stability**, not peak qu
 
 | K | Hybrid CI | Disjoint CI | CI Width Ratio |
 |---|-----------|-------------|----------------|
-| 5 | ±0.006 | ±0.020 | **3.2×** narrower |
-| 10 | ±0.013 | ±0.016 | 1.2× narrower |
-| 20 | ±0.007 | ±0.022 | **3.1×** narrower |
+| 5 | ±0.006 | ±0.028 | **4.7×** narrower |
+| 10 | ±0.013 | ±0.020 | 1.6× narrower |
+| 20 | ±0.009 | ±0.008 | comparable |
 
-At K=5, the mean difference is also significant (0.966 vs. 0.937, p=0.008). At K=10 and K=20, means are statistically indistinguishable (p>0.3), but the CI compression means Hybrid is far less likely to produce a poor-quality deployment.
+At K=5, the mean difference is also significant (0.963 vs. 0.927, p=0.028). At K=10 and K=20, means are statistically indistinguishable (p>0.15), but the CI compression at K=5 means Hybrid is far less likely to produce a poor-quality deployment.
 
 ### 2. Worst-Case Floor Improvement
 
 At K=20 (44 observations per model):
-- **Hybrid worst-case** (lower CI bound): 0.952
-- **Disjoint worst-case** (lower CI bound): 0.924
-- **Floor improvement**: +2.8 pp
+- **Hybrid worst-case** (lower CI bound): 0.954
+- **Disjoint worst-case** (lower CI bound): 0.950
+- **Floor improvement**: +0.4 pp
+
+At K=5, the gap is much larger:
+- **Hybrid worst-case**: 0.957
+- **Disjoint worst-case**: 0.899
+- **Floor improvement**: +5.8 pp
 
 For a service routing thousands of requests/day, this worst-case gap translates directly to predictable user experience.
 

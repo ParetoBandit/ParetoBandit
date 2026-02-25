@@ -48,7 +48,7 @@ This directly tests the question the bandit needs answered — it matches how Ba
 ## Figure Structure
 
 - **Panel A**: PC1 vs Reward Gap scatter — shows features predict model preference
-- **Panel B**: Router PCA |ρ| vs 100 random projections — shows signal is real
+- **Panel B**: Outcome proportions by PC1 quintile — Mixtral win rate rises from ~12% (Q1) to ~35% (Q5)
 
 ## Files
 

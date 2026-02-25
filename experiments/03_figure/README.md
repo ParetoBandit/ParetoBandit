@@ -1,8 +1,8 @@
-# Figure 3: Pareto Frontier & Learning Curve
+# Figure 4: Pareto Frontier & Learning Curve
 
 **Cost–quality trade-off analysis: banditGPT-Hybrid vs. RouteLLM-MF**
 
-This directory contains the scripts and data for the primary competitive evaluation (Figure 3) of the banditGPT paper.
+This directory contains the scripts and data for the primary competitive evaluation (Figure 4) of the banditGPT paper.
 
 ---
 
@@ -13,6 +13,8 @@ This directory contains the scripts and data for the primary competitive evaluat
 - **Appendix E:** Validated Corralling prior degradation sweep
 
 **Critical Question:** Figures 1–3 validated our technical approach, but **does this deliver practical value in production?**
+
+> **Note:** This directory is named `03_figure/` for ordering, but produces **Figure 4** in the paper.
 
 This experiment answers that question via:
 1. **Pareto frontier analysis** — Quantifies cost–quality trade-offs vs. baselines
@@ -26,13 +28,18 @@ This experiment answers that question via:
 
 ```
 03_figure/
-├── generate_pareto_frontier.py   # Main Pareto experiment (Figure 3 data)
-├── generate_figure3.py           # Two-panel figure (Pareto + Learning Curve)
-├── run_learning_curves.py        # Learning curve analysis (panel B)
-├── run_statistical_tests.py      # Statistical validation
-├── check_calibration.py          # Calibration diagnostic (internal use only)
-├── README.md                     # This file
-└── results/                      # Output directory
+├── generate_pareto_frontier.py       # Pareto frontier sweep (sparse λ, 20 trials)
+├── generate_figure4.py               # Dense λ sweep + learning curve (50 trials)
+├── run_learning_curves.py            # Learning curve analysis
+├── run_statistical_tests.py          # Statistical validation
+├── run_baseline_ablations.py         # Baseline ablation experiments
+├── run_cold_start_ablation.py        # Cold-start ablation
+├── run_hyperparameter_sensitivity.py # Hyperparameter sensitivity sweep
+├── run_pca_neff_ablation.py          # PCA/n_eff calibration ablation
+├── run_model_onboarding.py           # Model onboarding experiment
+├── check_calibration.py              # Calibration diagnostic (internal use only)
+├── README.md                         # This file
+└── results/                          # Output directory
 ```
 
 ---
@@ -45,8 +52,8 @@ cd experiments/03_figure/
 # Step 1: Run the Pareto frontier sweep (~2.5 hours)
 python generate_pareto_frontier.py
 
-# Step 2: Generate the two-panel figure (~2 min, requires Step 1 results)
-python generate_figure3.py
+# Step 2: Generate the two-panel figure (~10 min, requires Step 1 results)
+python generate_figure4.py
 ```
 
 ---
@@ -79,31 +86,31 @@ This non-monotonicity is a predictable consequence of model preference heterogen
 
 ### Online Adaptation Value (Learning Curve)
 
-Panel (b) of Figure 3 shows banditGPT's holdout quality as a function of online learning steps:
+Panel (b) of Figure 4 shows banditGPT's holdout quality as a function of online learning steps (50 trials):
 
 | Step | Reward (±95% CI) | vs. RouteLLM Peak (0.883) |
 |------|-------------------|---------------------------|
-| 0 | 0.839 ± 0.004 | −4.4% (priors only) |
-| 50 | 0.882 ± 0.015 | −0.1% (approaching) |
-| 200 | 0.890 ± 0.006 | **+0.7% (surpasses)** |
-| 400 | 0.902 ± 0.004 | +1.9% (reliably above) |
-| 1,121 | 0.914 ± 0.003 | +3.1% (final) |
+| 0 | 0.838 ± 0.003 | −4.5% (priors only) |
+| 50 | 0.876 ± 0.008 | −0.7% (approaching) |
+| 200 | 0.880 ± 0.006 | −0.3% (approaching) |
+| 400 | 0.891 ± 0.006 | **+0.8% (surpasses)** |
+| 1,121 | 0.902 ± 0.003 | +1.9% (final) |
 
-**~200 in-distribution prompts surpass 100k OOD pre-trained pairs.**
+**~400 in-distribution prompts surpass 100k OOD pre-trained pairs.**
 
 ### What This Means for Practitioners
 
 1. **Don't assume "expensive = better."** On this dataset, GPT-4-Turbo (43× costlier) is *worse* than Mixtral on average. Lowering RouteLLM's threshold to spend more money actually *degrades* quality past the optimal point. This is common whenever a smaller model is fine-tuned or specialized for your domain.
 
-2. **The cost crossover is deployment-specific.** On our data, RouteLLM wins below ~$0.005/request (it selects the right few prompts for GPT-4 from 100k pre-trained pairs), and banditGPT wins above that (it learns the correct overall model ranking). In your deployment: if you already know which model is best, a static router suffices. If you don't — or if the answer might change — banditGPT discovers it within ~200 prompts.
+2. **The cost crossover is deployment-specific.** On our data, RouteLLM wins below ~$0.005/request (it selects the right few prompts for GPT-4 from 100k pre-trained pairs), and banditGPT wins above that (it learns the correct overall model ranking). In your deployment: if you already know which model is best, a static router suffices. If you don't — or if the answer might change — banditGPT discovers it within ~400 prompts.
 
-3. **The burn-in cost is bounded.** During the first ~200 prompts, banditGPT routes using warmup priors (quality 0.839 — above static Mixtral, below RouteLLM's peak). At typical production throughput (>100 req/hour), this completes within 2 hours. After the crossover, the quality gain is permanent and self-maintaining — no retraining, no label collection, no manual threshold tuning.
+3. **The burn-in cost is bounded.** During the first ~400 prompts, banditGPT routes using warmup priors (quality 0.838 — above static Mixtral, below RouteLLM's peak). At typical production throughput (>100 req/hour), this completes within 4 hours. After the crossover, the quality gain is permanent and self-maintaining — no retraining, no label collection, no manual threshold tuning.
 
 ### Quantitative Summary
 
 | Method | Peak Quality (±95% CI) | Cost at Peak | Gap Closure |
 |--------|----------------------|-------------|-------------|
-| **banditGPT-Hybrid** | **0.914 ± 0.006** | $0.0099 | **70.0%** |
+| **banditGPT-Hybrid** | **0.903 ± 0.004** | $0.0087 | **61.5%** |
 | RouteLLM-MF | 0.883 | $0.0069 | 46.2% |
 | Oracle | 0.953 | $0.0020 | 100% |
 | Static Mixtral | 0.823 | $0.0003 | 0% (baseline) |
@@ -134,8 +141,8 @@ Gap Closure = (R_router − R_Mixtral) / (R_Oracle − R_Mixtral) × 100%
 - **Tabula Rasa Expert**: decaying α = 1.0 → 0.01 (converging exploitation)
 - **Corralling Learning Rate**: η = 0.1 (conservative, production default)
 - **Prior**: 80k RouteLLM battles, trace-normalized
-- **Cost Penalties**: 10 λ values (Pareto sweep), 15 λ values (dense Figure 3 sweep)
-- **Trials**: 20 independent runs per λ (seeds 42–61)
+- **Cost Penalties**: 10 λ values (Pareto sweep), 15 λ values (dense Figure 4 sweep)
+- **Trials**: 50 independent runs per λ (dense sweep); 20 per λ (sparse Pareto sweep)
 - **API**: `router.route()` / `router.process_feedback()`
 
 ### RouteLLM Configuration
@@ -162,14 +169,14 @@ Main experiment script — generates complete Pareto frontier with all baselines
 
 **Runtime:** ~2.5 hours (26 RouteLLM thresholds + 10 banditGPT λ × 20 trials)
 
-### `generate_figure3.py`
-Two-panel figure generation — denser λ sweep + learning curve.
+### `generate_figure4.py`
+Two-panel figure generation — denser 15-λ sweep + learning curve (50 trials).
 
 **Outputs:**
-- `results/figure3.png` — Two-panel figure (Pareto + Learning Curve)
-- `results/figure3_results.json` — Detailed results with statistics
+- `results/figure4.png` — Two-panel figure (Pareto + Learning Curve)
+- `results/figure4_results.json` — Detailed results with statistics
 
-**Runtime:** ~2 minutes (uses existing RouteLLM data from Pareto results)
+**Runtime:** ~10 minutes (50 trials × 15 λ values + learning curve)
 
 ### `check_calibration.py`
 Development diagnostic — verifies router prediction calibration. Intentionally uses `CostAwareLinUCBRouter` directly (not `BanditRouter`) because it requires access to internal `A`/`b` matrices for diagnostic purposes.
@@ -181,10 +188,10 @@ Development diagnostic — verifies router prediction calibration. Intentionally
 ```bash
 # Full reproduction
 python generate_pareto_frontier.py  # ~2.5 hours
-python generate_figure3.py          # ~2 minutes (after step 1)
+python generate_figure4.py          # ~10 minutes (after step 1)
 
 # Quick verification (with existing pareto_results.json)
-python generate_figure3.py          # Re-generates figure from cached data
+python generate_figure4.py          # Re-generates figure from cached data
 ```
 
 ---

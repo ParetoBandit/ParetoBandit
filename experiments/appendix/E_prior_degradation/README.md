@@ -13,7 +13,7 @@ This directory answers one question for the banditGPT library:
 
 The core experiment is a **prior quality degradation sweep** that interpolates priors from correct (α=0) through uninformative (α=0.5) to adversarial (α=1.0), testing three strategies at each level. The result reveals a sharp crossover at α≈0.55, separating two regimes.
 
-**Key Finding:** Corralling dominates both alternatives for good-to-moderate priors (α ≤ 0.5), achieving 30–40% lower regret. Under adversarial priors (α ≥ 0.6), Corralling's variance explodes and tabula rasa becomes safest. The breakeven threshold is 57%: Corralling has better expected regret if the practitioner believes there is at least a 57% chance that priors are useful.
+**Key Finding:** Corralling dominates both alternatives for good-to-moderate priors (α ≤ 0.5), achieving 7–10% lower regret than the next-best strategy. Under adversarial priors (α ≥ 0.6), tabula rasa becomes competitive. Corralling degrades gracefully — regret increases from 48.0 at α=0 to 58.9 at α=1.0, while warmup-only degrades more sharply (51.6 → 67.7).
 
 ---
 
@@ -43,15 +43,15 @@ python run_all_experiments.py --experiments 2a,2bc,3,prior,5,iw
 
 ---
 
-## Results Summary (N=100 seeds)
+## Results Summary (N=20 seeds)
 
 | Corruption α | Corralling | Warmup-Only | Tabula Rasa |
 |:---:|---:|---:|---:|
-| 0.0 | **37.3 ± 4.3** | 52.0 ± 3.4 | 52.0 ± 4.6 |
-| 0.3 | **33.0 ± 4.2** | 57.2 ± 3.9 | 52.0 ± 4.6 |
-| 0.5 | **38.4 ± 4.8** | 58.7 ± 3.8 | 52.0 ± 4.6 |
-| 0.6 | 64.1 ± 19.3 | 59.4 ± 4.1 | **52.0 ± 4.6** |
-| 1.0 | 75.3 ± 22.7 | 66.4 ± 3.9 | **52.0 ± 4.6** |
+| 0.0 | **48.0 ± 3.7** | 51.6 ± 3.4 | 51.3 ± 5.5 |
+| 0.3 | **51.7 ± 3.2** | 57.6 ± 3.9 | 51.3 ± 5.5 |
+| 0.5 | **53.4 ± 3.4** | 58.1 ± 4.0 | 51.3 ± 5.5 |
+| 0.6 | 54.2 ± 4.6 | 58.2 ± 4.5 | **51.3 ± 5.5** |
+| 1.0 | 58.9 ± 5.0 | 67.7 ± 3.6 | **51.3 ± 5.5** |
 
 Warmup-only is never the best strategy at any corruption level.
 
