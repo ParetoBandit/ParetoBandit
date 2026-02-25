@@ -7,8 +7,9 @@
 \textbf{(A)}~Spearman rank correlation between the router PCA's first principal component (trained on 80K RouteLLM prompts) and reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
 Outcomes are discrete (win${=}{+}1$, tie${=}0$, loss${=}{-}1$); a running mean (window${=}60$) visualizes the trend.
 Higher PC1 values correlate with prompts where the cheaper Mixtral outperforms GPT-4-Turbo. Ties (grey) dominate, enabling cost savings via comparable quality.
-\textbf{(B)}~The PCA's $|\rho|$ (red line) exceeds 100 independent random orthonormal projections ($384 \to 2$), confirming it concentrates genuine preference signals.
+\textbf{(B)}~Outcome proportions by PC1 quintile: Mixtral win rate rises from ${\sim}12\%$ (Q1) to ${\sim}35\%$ (Q5), confirming that the PCA axis separates feature regions with distinct model preferences.
+The Router PCA $|\rho|$ exceeds all 100 independent random orthonormal projections ($384 \to 2$; reported in Panel~A annotation), confirming it concentrates genuine preference signals.
 PC1 is one of 32 components used by the router. While effect magnitudes depend on the prompt distribution, the predictive signal's existence remains robust.}
-\Description{Two-panel figure: (A) scatter of held-out prompts along the first PCA component versus reward gap between GPT-4-Turbo and Mixtral, showing negative rank correlation; (B) distribution of absolute correlation for 100 random projections, with the PCA projection exceeding them.}
+\Description{Two-panel figure: (A) scatter of held-out prompts along the first PCA component versus reward gap between GPT-4-Turbo and Mixtral, showing negative rank correlation; (B) stacked bar chart of win/tie/loss proportions by PC1 quintile, showing Mixtral preference growing with PC1.}
 \label{fig:lmsys_holdout_structure}
 \end{figure}

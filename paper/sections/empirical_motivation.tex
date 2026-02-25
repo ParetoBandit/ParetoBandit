@@ -1,9 +1,9 @@
 \section{Empirical Motivation}
 \label{sec:motivation}
 
-LLM routing literature often assumes \emph{monotonicity}: that allocating more budget to an expensive frontier model consistently yields equal or higher quality. We present an empirical finding challenging this assumption, motivating our bandit-based architecture.
+LLM routing literature often assumes \emph{monotonicity}: that allocating more budget to an expensive frontier model consistently yields equal or higher quality~\cite{ong2024routellm, chen2023frugalgpt}. We present an empirical finding challenging this assumption, motivating our bandit-based architecture.
 
-On 14.1\% of 750 held-out prompts, human judges actually preferred a cheaper open-weights model over a frontier model (Table~\ref{tab:outcome_distribution}). Crucially, this preference heterogeneity correlates significantly with the prompt's semantic embedding. When prompts are projected onto the first principal component (PC1) of our unsupervised PCA feature space, we observe a significant Spearman correlation with the reward gap ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$ (Figure~\ref{fig:lmsys_holdout_structure}A). The Router PCA exceeds 100 random orthonormal projections (Figure~\ref{fig:lmsys_holdout_structure}B). 
+On 14.1\% of 750 held-out prompts, human judges actually preferred a cheaper open-weights model over a frontier model (Table~\ref{tab:outcome_distribution}). Crucially, this preference heterogeneity correlates significantly with the prompt's semantic embedding. When prompts are projected onto the first principal component (PC1) of our unsupervised PCA feature space, we observe a significant Spearman correlation with the reward gap ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$ (Figure~\ref{fig:lmsys_holdout_structure}A). This signal exceeds all 100 random orthonormal projections (Figure~\ref{fig:lmsys_holdout_structure}A annotation), and the routing opportunity grows monotonically across PC1 quintiles (Figure~\ref{fig:lmsys_holdout_structure}B).
 
 \begin{table}[h]
 \centering
