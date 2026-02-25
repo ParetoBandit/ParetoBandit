@@ -30,7 +30,7 @@ Figure~\ref{fig:pareto}a reveals two distinct regimes reflecting the strengths o
 
 At \textbf{low budgets} (\$0.0003 to \$0.005 per request), RouteLLM's pre-trained classifier is competitive or superior. Its high-capacity matrix factorization and massive supervised training allow fine-grained prompt-level discrimination when only a handful of prompts can be routed to the expensive model.
 
-At \textbf{higher budgets} (\$0.005+), \textit{banditGPT} surpasses RouteLLM. Online learning discovers the optimal aggregate model ordering for the deployment distribution, achieving a peak quality of $0.914 \pm 0.003$ (95\% CI), a $+3.5\%$ improvement over RouteLLM's peak (0.883). The theoretical Oracle upper bound (0.953) routes only 13\% of prompts to the expensive model.
+At \textbf{higher budgets} (\$0.005+), \textit{banditGPT} surpasses RouteLLM. Online learning discovers the optimal aggregate model ordering for the deployment distribution, achieving a peak quality of $0.905 \pm 0.007$ (95\% CI), a $+2.5\%$ improvement over RouteLLM's peak (0.883). The theoretical Oracle upper bound (0.953) routes only 13\% of prompts to the expensive model.
 
 \subsubsection{The Value of Online Adaptation}
 
@@ -43,7 +43,7 @@ A critical finding is the non-monotonic behavior of static routing at high costs
 
 \subsubsection{Gap Closure Analysis}
 
-On the frozen holdout ($N{=}750$), \textit{banditGPT} closes \textbf{70.0\%} of the optimality gap to the theoretical oracle ($\frac{0.914 - 0.823}{0.953 - 0.823}$), compared to 46.2\% for RouteLLM at its best threshold. Crucially, \textit{banditGPT} achieves this while only incurring inference costs for the single model selected per request, avoiding the parallel evaluation required to collect supervised labels.
+On the frozen holdout ($N{=}750$), \textit{banditGPT} closes \textbf{63.1\%} of the optimality gap to the theoretical oracle ($\frac{0.905 - 0.823}{0.953 - 0.823}$), compared to 45.9\% for RouteLLM at its best threshold. Crucially, \textit{banditGPT} achieves this while only incurring inference costs for the single model selected per request, avoiding the parallel evaluation required to collect supervised labels.
 
 % ============================================================================
 % Promoted from supplementary: Multi-Model Scaling (K=5, K=10)

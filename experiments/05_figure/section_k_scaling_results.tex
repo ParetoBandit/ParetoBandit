@@ -17,16 +17,16 @@ We isolate the contribution of Hybrid LinUCB's family sharing by comparing it ag
 \textbf{K} & \textbf{Policy} & \textbf{Families} & \textbf{Holdout Reward} & \textbf{$p$-value} & \textbf{CI ratio} \\
 \midrule
 \multirow{2}{*}{5}
-& Hybrid  & 4 & 0.966 $\pm$ 0.006 & \multirow{2}{*}{0.008**} & \multirow{2}{*}{3.2$\times$} \\
-& Disjoint & --- & 0.937 $\pm$ 0.020 & & \\
+& Hybrid  & 4 & 0.963 $\pm$ 0.006 & \multirow{2}{*}{0.028*} & \multirow{2}{*}{4.7$\times$} \\
+& Disjoint & --- & 0.927 $\pm$ 0.028 & & \\
 \midrule
 \multirow{2}{*}{10}
-& Hybrid  & 6 & 0.958 $\pm$ 0.013 & \multirow{2}{*}{0.568} & \multirow{2}{*}{1.2$\times$} \\
-& Disjoint & --- & 0.964 $\pm$ 0.016 & & \\
+& Hybrid  & 6 & 0.964 $\pm$ 0.013 & \multirow{2}{*}{0.166} & \multirow{2}{*}{1.6$\times$} \\
+& Disjoint & --- & 0.945 $\pm$ 0.020 & & \\
 \midrule
 \multirow{2}{*}{20}
-& Hybrid  & 11 & 0.959 $\pm$ 0.007 & \multirow{2}{*}{0.320} & \multirow{2}{*}{3.1$\times$} \\
-& Disjoint & --- & 0.946 $\pm$ 0.022 & & \\
+& Hybrid  & 11 & 0.963 $\pm$ 0.009 & \multirow{2}{*}{0.480} & \multirow{2}{*}{1.0$\times$} \\
+& Disjoint & --- & 0.958 $\pm$ 0.008 & & \\
 \bottomrule
 \end{tabular}%
 }
@@ -35,6 +35,6 @@ We isolate the contribution of Hybrid LinUCB's family sharing by comparing it ag
 \input{../experiments/05_figure/figure_5_caption}
 
 \paragraph{Results \& Implications.}
-Table~\ref{tab:k_scaling} and Figure~\ref{fig:k_scaling} show Hybrid LinUCB produces significantly more stable convergence. At $K{=}5$ and $K{=}20$, Hybrid's 95\% CI is $3\times$ narrower. This stability advantage arises because shared $\betavec_F$ parameters pool observations, providing a well-estimated baseline when per-model data is scarce ($44$~obs/model at $K{=}20$). 
+Table~\ref{tab:k_scaling} and Figure~\ref{fig:k_scaling} show Hybrid LinUCB produces more stable convergence when per-model data is scarce. At $K{=}5$, Hybrid's 95\% CI is ${\sim}5\times$ narrower with a significant reward advantage ($p{=}0.028$). At larger $K$ the stability gap attenuates ($1.6\times$ at $K{=}10$; comparable at $K{=}20$), as $44$~obs/model suffice for Disjoint LinUCB to converge. 
 
 For practitioners, this stability gain matters more than the mean gain: compressing the failure tail ensures predictable user experience. Furthermore, data-driven family assignment correctly groups models by empirical reward similarity rather than flawed syntactic naming conventions.
