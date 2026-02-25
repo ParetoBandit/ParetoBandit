@@ -468,66 +468,43 @@ def run_experiment():
 # ── Figure generation ─────────────────────────────────────────────────
 
 def generate_figure(results, out_dir):
-    """2-row x 3-col: rolling online reward (top) + holdout (bottom)."""
+    """1-row x 3-col: holdout reward convergence for K=5, 10, 20."""
     k_keys = sorted(k for k in results if k != "_meta")
-    fig, axes = plt.subplots(2, len(k_keys), figsize=(5 * len(k_keys), 8))
+    fig, axes = plt.subplots(1, len(k_keys), figsize=(5 * len(k_keys), 3.5))
     if len(k_keys) == 1:
-        axes = axes.reshape(2, 1)
+        axes = [axes]
 
     for col, K in enumerate(k_keys):
         r = results[K]
         n_shared = r["n_shared_families"]
         n_fam = r["n_families"]
 
-        # Top: rolling online reward
-        ax_top = axes[0, col]
-        rs = np.array(r["rolling_steps"])
-        h_rm = np.array(r["hybrid_rolling_mean"])
-        h_rc = np.array(r["hybrid_rolling_ci95"])
-        d_rm = np.array(r["disjoint_rolling_mean"])
-        d_rc = np.array(r["disjoint_rolling_ci95"])
-
-        ax_top.fill_between(rs, h_rm - h_rc, h_rm + h_rc, alpha=0.15, color="C0")
-        ax_top.fill_between(rs, d_rm - d_rc, d_rm + d_rc, alpha=0.15, color="C1")
-        ax_top.plot(rs, h_rm, "C0-", lw=1.5, label=f"Hybrid ({n_shared} shared fam.)")
-        ax_top.plot(rs, d_rm, "C1--", lw=1.5, label=f"Disjoint ({K} indep. arms)")
-
-        p_cum = r["cum_p_value"]
-        sig = "***" if p_cum < 0.001 else "**" if p_cum < 0.01 else "*" if p_cum < 0.05 else "ns"
-        cum_gap = r["hybrid_cum_mean"] - r["disjoint_cum_mean"]
-        ax_top.set_title(
-            f"K={K}  ({n_fam} fam, {n_shared} shared)\n"
-            f"Cum. reward gap: {cum_gap:+.1f} ({sig}, d={r['cum_cohens_d']:.2f})",
-            fontsize=10)
-        if col == 0:
-            ax_top.set_ylabel(f"Rolling online reward\n(window={ROLLING_WINDOW})")
-        ax_top.legend(fontsize=7, loc="lower right")
-        ax_top.grid(True, alpha=0.3)
-
-        # Bottom: holdout reward
-        ax_bot = axes[1, col]
+        ax = axes[col]
         steps = np.array(r["eval_steps"])
         h_hm = np.array(r["hybrid_holdout_mean"])
         h_hc = np.array(r["hybrid_holdout_ci95"])
         d_hm = np.array(r["disjoint_holdout_mean"])
         d_hc = np.array(r["disjoint_holdout_ci95"])
 
-        ax_bot.fill_between(steps, h_hm - h_hc, h_hm + h_hc, alpha=0.15, color="C0")
-        ax_bot.fill_between(steps, d_hm - d_hc, d_hm + d_hc, alpha=0.15, color="C1")
-        ax_bot.plot(steps, h_hm, "C0-", lw=1.5, label=f"Hybrid ({n_shared} shared fam.)")
-        ax_bot.plot(steps, d_hm, "C1--", lw=1.5, label=f"Disjoint ({K} indep. arms)")
-        ax_bot.axhline(r["oracle"], color="gray", ls=":", lw=1,
-                       label=f"Oracle ({r['oracle']:.3f})")
+        ax.fill_between(steps, h_hm - h_hc, h_hm + h_hc, alpha=0.15, color="C0")
+        ax.fill_between(steps, d_hm - d_hc, d_hm + d_hc, alpha=0.15, color="C1")
+        ax.plot(steps, h_hm, "C0-", lw=1.5, label=f"Hybrid ({n_shared} shared fam.)")
+        ax.plot(steps, d_hm, "C1--", lw=1.5, label=f"Disjoint ({K} indep. arms)")
+        ax.axhline(r["oracle"], color="gray", ls=":", lw=1,
+                   label=f"Oracle ({r['oracle']:.3f})")
 
         p_f = r["final_p_value"]
         sig_f = "***" if p_f < 0.001 else "**" if p_f < 0.01 else "*" if p_f < 0.05 else "ns"
         gap_f = r["hybrid_final"] - r["disjoint_final"]
-        ax_bot.set_title(f"Final holdout gap: {gap_f:+.4f} ({sig_f})", fontsize=9)
-        ax_bot.set_xlabel("Training steps")
+        ax.set_title(
+            f"K={K}  ({n_fam} fam, {n_shared} shared)\n"
+            f"Holdout gap: {gap_f:+.4f} ({sig_f})",
+            fontsize=10)
+        ax.set_xlabel("Training steps")
         if col == 0:
-            ax_bot.set_ylabel("Holdout reward (greedy)")
-        ax_bot.legend(fontsize=7, loc="lower right")
-        ax_bot.grid(True, alpha=0.3)
+            ax.set_ylabel("Holdout reward (greedy)")
+        ax.legend(fontsize=7, loc="lower right")
+        ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     fig_path = out_dir / "k_scaling_figure.png"

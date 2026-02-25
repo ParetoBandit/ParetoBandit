@@ -11,7 +11,7 @@ We construct a $2 \times 3$ factorial design to measure how online learning and 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\columnwidth]{../experiments/10_distribution_shift/results/figure_distribution_shift.png}
-\caption{\textbf{Distribution shift factorial.} \textbf{(a)}~Feature distribution shift. \textbf{(b)}~Pareto frontiers: Corralling (solid) dominates others. \textbf{(c)}~Convergence: Corralling leads consistently.}
+\caption{\textbf{Distribution shift factorial.} \textbf{(a)}~Feature distribution shift between RouteLLM battles and LMSYS Arena (PSI${=}0.763$). \textbf{(b)}~Pareto frontiers for a $2{\times}3$ factorial ($n{=}20$ trials, 95\% CI): Corralling (solid lines) dominates all other conditions regardless of prior source.}
 \label{fig:distribution_shift}
 \end{figure}
 
@@ -21,7 +21,7 @@ We construct a $2 \times 3$ factorial design to measure how online learning and 
 Switching from a frozen prior to any online bandit---even a single expert without Corralling---yields a $+7.0$\,pp improvement, consistent across both prior sources. Any bandit-based router captures this; online adaptation is the primary mechanism for handling distribution shift.
 
 \paragraph{Corralling provides a significant steady-state gain ($+1.3$\,pp).}
-Layering Corralling adds a highly significant $+1.3$\,pp ($p < 0.0001$, Cohen's $d = 0.98$). The learning curves (Figure~\ref{fig:distribution_shift}c) show Corralling leads at \emph{every} checkpoint from step~50 onward. This separates banditGPT from a standard contextual bandit: the two-expert architecture adaptively blends informed and uninformed experts, converging to a higher reward plateau than a single-expert bandit regardless of prior quality.
+Layering Corralling adds a highly significant $+1.3$\,pp ($p < 0.0001$, Cohen's $d = 0.98$). Learning curve analysis confirms Corralling leads at \emph{every} checkpoint from step~50 onward, converging to a higher reward plateau than a single-expert bandit regardless of prior quality. This separates banditGPT from a standard contextual bandit: the two-expert architecture adaptively blends informed and uninformed experts.
 
 \paragraph{Distribution shift has no significant practical impact.}
 Despite PSI$\,{=}\,0.763$ and severe prior miscalibration, the practical performance difference between cross- and same-distribution priors is not statistically significant once online learning is enabled ($p > 0.18$). Online learning rapidly overwrites the prior.

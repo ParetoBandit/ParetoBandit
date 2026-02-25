@@ -373,7 +373,7 @@ def plot_results(source_pc1, deploy_pc1, psi, psi_ci, ks_stat, ks_p,
                  all_pareto, learning_curves,
                  oracle_reward, oracle_cost, out_path):
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 4.8))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.2))
 
     # --- Panel A: Feature distribution shift ---
     ax = axes[0]
@@ -391,7 +391,7 @@ def plot_results(source_pc1, deploy_pc1, psi, psi_ci, ks_stat, ks_p,
     ax.set_title(f"(a) Feature Distribution Shift\n"
                  f"PSI={psi:.3f} [{psi_ci[0]:.3f}, {psi_ci[1]:.3f}]  "
                  f"KS D={ks_stat:.3f}")
-    ax.legend(fontsize=7.5)
+    ax.legend(fontsize=8.5)
 
     # --- Panel B: 6-condition Pareto ---
     ax = axes[1]
@@ -432,37 +432,7 @@ def plot_results(source_pc1, deploy_pc1, psi, psi_ci, ks_stat, ks_p,
     ax.set_ylabel("Holdout reward (binary)")
     ax.set_title(f"(b) Pareto Frontiers: Prior × Adaptation × Architecture\n"
                  f"(K=2, {n_t} trials, 95% CI)")
-    ax.legend(fontsize=6.5, loc="upper right")
-
-    # --- Panel C: Learning curves at λ=0 ---
-    ax = axes[2]
-
-    lc_styles = [
-        ("cross_nocorral", COL_CROSS_NOCORRAL, "s:",  "Cross-dist, no Corralling"),
-        ("cross_corral",   COL_CROSS,          "s-",  "Cross-dist, Corralling"),
-        ("same_nocorral",  COL_SAME_NOCORRAL,  "o:",  "Same-dist, no Corralling"),
-        ("same_corral",    COL_SAME,           "o-",  "Same-dist, Corralling"),
-    ]
-
-    for key, col, fmt, label in lc_styles:
-        lc = learning_curves[key]
-        steps = [p["steps"] for p in lc]
-        means = [p["mean_reward"] for p in lc]
-        stds  = [p["std_reward"] for p in lc]
-        means, stds = np.array(means), np.array(stds)
-        ax.plot(steps, means, fmt, color=col, label=label, linewidth=1.5, markersize=5)
-        ax.fill_between(steps, means - ci_z * stds, means + ci_z * stds,
-                        alpha=0.12, color=col)
-
-    ax.axhline(oracle_reward, color="green", linestyle="--", alpha=0.5, linewidth=0.8)
-    ax.text(max(LEARNING_CURVE_CHECKPOINTS) * 0.98, oracle_reward + 0.002,
-            "Oracle", ha="right", fontsize=7, color="green")
-
-    ax.set_xlabel("Online training steps")
-    ax.set_ylabel("Holdout reward (binary)")
-    ax.set_title(f"(c) Convergence Speed (λ=0)\n"
-                 f"({n_t} trials, 95% CI)")
-    ax.legend(fontsize=6.5, loc="lower right")
+    ax.legend(fontsize=7.5, loc="upper right")
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=150, bbox_inches="tight")

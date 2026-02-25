@@ -66,9 +66,18 @@ def plot_pareto_panel(ax, data, title):
     """Plot a single Pareto frontier panel (cost vs quality)."""
     pareto_ids = _static_pareto_ids(data)
     static_items = list(data["static"].items())
+    frontier_plotted = False
+    dominated_plotted = False
     for m_id, s in static_items:
         cat = next(mc for mc in data["models"] if mc["id"] == m_id)
         on_frontier = m_id in pareto_ids
+        label = None
+        if on_frontier and not frontier_plotted:
+            label = "Static Pareto frontier"
+            frontier_plotted = True
+        elif not on_frontier and not dominated_plotted:
+            label = "Static dominated"
+            dominated_plotted = True
         ax.scatter(
             s["cost"] * 1000, s["reward"],
             marker="^",
@@ -77,6 +86,7 @@ def plot_pareto_panel(ax, data, title):
             alpha=1.0 if on_frontier else 0.35,
             zorder=5,
             edgecolors="white", linewidth=0.5,
+            label=label,
         )
         if on_frontier:
             offset = (5, -8) if s["reward"] > 0.96 else (5, 4)
@@ -84,6 +94,7 @@ def plot_pareto_panel(ax, data, title):
                 cat["display"], (s["cost"] * 1000, s["reward"]),
                 textcoords="offset points", xytext=offset,
                 fontsize=5.5, color=STATIC_COLOR, alpha=0.8,
+                fontweight="bold",
             )
 
     # Oracle
