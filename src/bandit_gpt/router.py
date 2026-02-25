@@ -4101,7 +4101,7 @@ class CorrallingRouter:
     - Decisiveness: Achieves lowest minimum weights (~10^-4), indicating strong adaptation
       (allocates 80-90%+ weight to the higher-reward expert based on empirical performance)
     - Predictability: 45% lower outcome variance vs. gamma=0.0
-    - See: experiments/03_figure/results/gamma_ablation/ for full analysis
+    - See: experiments/appendix/E_prior_degradation/results/gamma_ablation/ for full analysis
     
     **Computational Overhead:**
     - Memory: 2x (store two sets of A/b matrices)
@@ -4143,7 +4143,7 @@ class CorrallingRouter:
         experts: List,
         models: List[str],
         learning_rate: float = 0.1,
-        gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments/03_figure/results/gamma_ablation/)
+        gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments/appendix/E_prior_degradation/results/gamma_ablation/)
         loss_decay: float = 0.999,  # Meta-level adaptation decay
         meta_lr_halflife: float = 60.0,  # Staleness half-life in seconds for delayed feedback
         initial_weights: Optional[np.ndarray] = None,  # Prior-trust bias
@@ -4200,7 +4200,7 @@ class CorrallingRouter:
                        encodes "prior trust" — the belief that priors are
                        likely correct.  This reduces overhead when priors are
                        good but increases recovery time when they are bad.
-                       See experiments/03_figure for the full trade-off.
+                       See experiments/appendix/E_prior_degradation for the full trade-off.
             model_costs: Optional dict mapping model_id to {"normalized_cost": float}.
                        Stored for reference but not used for reward shaping.
                        Cost-quality trade-offs are handled at selection time via

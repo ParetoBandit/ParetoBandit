@@ -12,7 +12,7 @@ Tracks per-step cumulative regret during online learning for banditGPT, LinTS, Î
 
 ```bash
 python experiments/08_figure/run_cumulative_regret.py
-python experiments/08_figure/generate_figure9.py
+python experiments/08_figure/generate_figure8.py
 ```
 
 ## Output

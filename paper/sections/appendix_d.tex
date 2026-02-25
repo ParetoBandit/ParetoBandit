@@ -26,7 +26,7 @@ We evaluate Corralling's response to catastrophic model failure on a \textbf{5-m
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\columnwidth]{figures/figure6_5model.png}
+\includegraphics[width=0.95\columnwidth]{figures/figure9_5model.png}
 \caption{\textbf{Catastrophic Failure Detection: 5-Model Portfolio} ($K{=}5$, $N{=}20$ seeds, mean $\pm$ 1 std).
 \textbf{(Top)}~Running-average reward. When GPT-4.1 fails at $t{=}100$, the Static baseline collapses to ${\sim}0.15$. banditGPT implicitly avoids the failed model via per-arm UCB updates (${\sim}0.75$), while the EMA Tracker achieves higher failure-phase reward (${\sim}0.86$) by directly tracking per-model averages. However, EMA concentrates traffic on fewer fallback models, missing context-dependent alternatives. The Oracle (${\sim}0.98$) achieves substantially more by routing contextually across all 4 healthy models.
 \textbf{(Middle)}~Expert weight evolution. Only 5\% of seeds show formal meta-level detection (warmup weight $< 0.15$), but the per-arm UCB updates within each expert implicitly reduce traffic to the failed model.
@@ -273,7 +273,7 @@ abstraction level for cross-model knowledge transfer.
 
 \paragraph{Reproducibility.}
 Full per-trial data is available in
-\path{experiments/09_semantic_transfer_ablation/results/}.
+\path{experiments/appendix/D_semantic_transfer_ablation/results/}.
 The experiment script uses 20 fixed seeds with shuffled training order,
 paired $t$-tests with Holm-Bonferroni correction, and Cohen's $d$ effect sizes.
 

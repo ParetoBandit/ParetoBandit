@@ -52,7 +52,7 @@ appendix/
 │
 └── E_catastrophic_failure_experiment/  # Experiment code for Figure 6
     ├── README.md
-    ├── generate_figure6_5model.py
+    ├── generate_figure9_5model.py
     └── results/
 ```
 

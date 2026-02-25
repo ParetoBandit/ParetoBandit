@@ -7,7 +7,7 @@ Catastrophic failure detection experiment (Figure 6), demonstrating Corralling's
 
 ### C.1: Catastrophic Failure Detection
 **File**: `C1_catastrophic_failure.tex`  
-**Source**: K=5 production router experiment (`../E_catastrophic_failure_experiment/generate_figure6_5model.py`)
+**Source**: K=5 production router experiment (`../E_catastrophic_failure_experiment/generate_figure9_5model.py`)
 
 **Content**:
 - 5-model portfolio (Mixtral, GPT-4-Turbo, GPT-3.5, Haiku, GPT-4o)

@@ -141,10 +141,10 @@ python run_k_scaling_experiment.py
 
 | Scenario | Experiment |
 |----------|-----------|
-| 2-model Pareto frontier | [Figure 4](../04_figure/) |
-| Prior degradation sweep | [Figure 3](../03_figure/) |
+| 2-model Pareto frontier | [Figure 3](../03_figure/) |
+| Prior degradation sweep | [Appendix E](../appendix/E_prior_degradation/) |
 | Model onboarding (register_model) | [Appendix C9](../appendix/C9_model_onboarding/) |
-| Hyperparameter sensitivity | [Appendix C](../04_figure/) |
+| Hyperparameter sensitivity | [Appendix C](../03_figure/) |
 
 ---
 

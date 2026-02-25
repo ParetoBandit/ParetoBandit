@@ -313,7 +313,7 @@ def main():
         import shutil
         for src, dst in [
             (out / "figure2_architecture.png",
-             paper_dir / "figure3_architecture.png"),
+             paper_dir / "figure2_architecture.png"),
             (out / "figure2_architecture.pdf",
              paper_dir / "figure2_architecture.pdf"),
         ]:

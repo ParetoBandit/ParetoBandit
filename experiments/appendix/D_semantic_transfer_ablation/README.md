@@ -33,7 +33,7 @@ For each model in the K=5 and K=10 portfolios:
 ## Run
 
 ```bash
-cd experiments/09_semantic_transfer_ablation
+cd experiments/appendix/D_semantic_transfer_ablation
 python run_semantic_transfer_experiment.py
 ```
 

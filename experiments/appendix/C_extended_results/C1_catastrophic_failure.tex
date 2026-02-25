@@ -38,12 +38,12 @@ Corralling settings: $\eta=0.3$, $\gamma=0.05$. Baselines: Oracle, Static GPT-4.
 
 \subsubsection{Results ($N=20$ Seeds)}
 
-% NOTE: Figure requires running generate_figure6_5model.py to produce results/figure6_5model.pdf
+% NOTE: Figure requires running generate_figure9_5model.py to produce results/figure9_5model.pdf
 % Uncomment the figure environment below once the figure is generated.
 %
 % \begin{figure}[t]
 % \centering
-% \includegraphics[width=0.95\linewidth]{E_catastrophic_failure_experiment/results/figure6_5model.pdf}
+% \includegraphics[width=0.95\linewidth]{E_catastrophic_failure_experiment/results/figure9_5model.pdf}
 % \caption{\textbf{Catastrophic Failure Detection: 5-Model Portfolio} ($K=5$, $N=20$ seeds).
 % \textbf{(Top)} Running-average reward. EMA achieves higher failure-phase reward ($0.859$) than banditGPT ($0.753$) but concentrates traffic on fewer fallback models, missing context-dependent alternatives.
 % \textbf{(Middle)} Expert weight evolution: 5\% formal detection rate (warmup weight $<0.15$), though banditGPT implicitly avoids the failed model via per-arm UCB updates.

@@ -28,7 +28,7 @@ Key comparisons:
   Learning curves → convergence speed: does Corralling recover faster?
 
 Usage:
-    python3 experiments/10_distribution_shift/run_distribution_shift.py
+    python3 experiments/06_distribution_shift/run_distribution_shift.py
 """
 
 import sys

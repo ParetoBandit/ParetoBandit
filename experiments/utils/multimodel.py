@@ -3,7 +3,7 @@ Shared utilities for multi-model experiments (K=5/10).
 
 Provides model catalog, portfolio definitions, data loading, embedding,
 cost normalization, and baseline implementations shared across
-06_figure, 07_figure, and 08_figure.
+04_figure, 07_figure, and 08_figure.
 """
 
 import sys

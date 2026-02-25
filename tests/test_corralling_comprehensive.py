@@ -1,7 +1,7 @@
 """
 Comprehensive unit tests for CorrallingRouter.
 
-Tests based on experiments from experiments/04_figure/ and experiments/appendix/06_figure/
+Tests based on experiments from experiments/03_figure/ and experiments/appendix/04_figure/
 but focusing on testing the core router.py CorrallingRouter functionality.
 """
 

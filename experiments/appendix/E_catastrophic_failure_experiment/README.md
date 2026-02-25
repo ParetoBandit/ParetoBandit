@@ -22,7 +22,7 @@ This experiment evaluates **Corralling's response to catastrophic model failure*
 
 ```
 E_catastrophic_failure_experiment/
-├── generate_figure6_5model.py     # Main experiment (K=5, production router)
+├── generate_figure9_5model.py     # Main experiment (K=5, production router)
 └── README.md                      # This file
 ```
 
@@ -57,8 +57,8 @@ Gap narrows 69% from K=2 to K=5.
 
 ```bash
 cd experiments/appendix/E_catastrophic_failure_experiment
-python generate_figure6_5model.py
-# Output: results/figure6_5model.png
+python generate_figure9_5model.py
+# Output: results/figure9_5model.png
 # Runtime: ~7 seconds
 ```
 

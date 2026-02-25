@@ -1,12 +1,12 @@
 % Section: Multi-Model Evaluation — K=5 and K=10
-% Include from the main paper via \input{../experiments/06_figure/section_multimodel_results}
+% Include from the main paper via \input{../experiments/04_figure/section_multimodel_results}
 
 \subsection{Multi-Model Cost--Quality Trade-off ($K{=}5, 10$)}
 \label{sec:multimodel}
 
 We construct two multi-provider portfolios ($K{=}5$ and $K{=}10$) spanning six providers (Meta, Mistral, Google, Anthropic, OpenAI, DeepSeek) with a $600\times$ cost spread. Both incorporate Mixtral-8x7B to link to the $K{=}2$ evaluation, and $K{=}10$ exercises Hybrid LinUCB's within-family parameter sharing. Warmup priors are generated using a three-way split from 43-model evaluation data (355 prior training prompts, 533 online learning, 750 holdout).
 
-\input{../experiments/06_figure/figure_6_caption}
+\input{../experiments/04_figure/figure_6_caption}
 
 \paragraph{Continuous cost--quality control.}
 Table~\ref{tab:multimodel_summary} and Figure~\ref{fig:multimodel_pareto} summarize the findings. By sweeping a single scalar ($\lambda$), the router traces a smooth operating envelope. At $K{=}10$, quality degrades only 1\% ($0.898 \to 0.888$) across a $41\times$ cost range because the portfolio contains cheap, high-quality models (Gemma-3-27B, DeepSeek-V3) that the router leverages at higher $\lambda$ values.

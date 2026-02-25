@@ -5,7 +5,7 @@ Multi-Model Pareto Frontier: K=5 and K=10
 
 Primary experiment demonstrating banditGPT with multi-model portfolios (K > 2).
 
-Protocol (mirrors 04_figure for direct comparison):
+Protocol (mirrors 03_figure for direct comparison):
   1. Load three-way split (prior-train already consumed by warmup priors)
   2. Pre-compute embeddings for online-learn and holdout prompts
   3. For each (K, λ) configuration × N_TRIALS seeds:

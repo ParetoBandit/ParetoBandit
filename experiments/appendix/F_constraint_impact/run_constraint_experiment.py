@@ -10,7 +10,7 @@ Validates banditGPT's Layer 1 hard per-request constraint filtering—the
 mechanism claimed as contribution (3) in the abstract.
 
 Protocol:
-  1. Load the K=10 portfolio (same models as 06_figure) with cost + latency metadata
+  1. Load the K=10 portfolio (same models as 04_figure) with cost + latency metadata
   2. For each constraint regime × N_TRIALS seeds:
        a. Instantiate router with warmup priors
        b. Train on online-learn set (533 prompts) WITH constraints active
@@ -142,7 +142,7 @@ MODEL_CATALOG = {
 
 PORTFOLIO_K10 = list(MODEL_CATALOG.keys())
 
-# Standard request size for cost estimation (matches 06_figure convention)
+# Standard request size for cost estimation (matches 04_figure convention)
 INPUT_TOKENS = 100
 OUTPUT_TOKENS = 400
 
@@ -187,7 +187,7 @@ CORRALLING_LR = 0.1
 CORRALLING_GAMMA = 0.05
 
 # ============================================================================
-# DATA LOADING (shared with 06_figure)
+# DATA LOADING (shared with 04_figure)
 # ============================================================================
 
 def _entry_reward(entry: Dict) -> float:

@@ -447,9 +447,9 @@ Each experiment directory maps 1:1 to a figure or table in the paper:
 |-------------|-----------|--------|
 | Figure 1: Model Preference Heterogeneity | [`experiments/01_figure/`](experiments/01_figure/) | `plot_figure1.py` |
 | Table 2: Dataset Description | [`experiments/02_table/`](experiments/02_table/) | `generate_table1.py` |
-| Figure 3: Corralling as Insurance | [`experiments/03_figure/`](experiments/03_figure/) | `run_all_experiments.py` |
-| Figure 4: Pareto Frontier | [`experiments/04_figure/`](experiments/04_figure/) | `generate_pareto_frontier.py` |
-| Figure 6: Catastrophic Failure | [`experiments/appendix/E_catastrophic_failure_experiment/`](experiments/appendix/E_catastrophic_failure_experiment/) | `generate_figure6_5model.py` |
+| Figure 3: Pareto Frontier | [`experiments/03_figure/`](experiments/03_figure/) | `generate_pareto_frontier.py` |
+| Figure 4: Multi-Model Pareto | [`experiments/04_figure/`](experiments/04_figure/) | `run_multimodel_pareto.py` |
+| Figure 9: Catastrophic Failure | [`experiments/appendix/E_catastrophic_failure_experiment/`](experiments/appendix/E_catastrophic_failure_experiment/) | `generate_figure9_5model.py` |
 
 See [`paper/README.md`](paper/README.md) for the complete artifact guide and [`experiments/README.md`](experiments/README.md) for reproduction instructions.
 

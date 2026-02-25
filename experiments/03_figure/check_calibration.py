@@ -163,7 +163,7 @@ def main():
     
     if not priors_path.exists():
         logger.error(f"❌ Sanitized priors not found: {priors_path}")
-        logger.error(f"   Run: python experiments/04_figure/sanitize_priors.py")
+        logger.error(f"   Run: python experiments/03_figure/sanitize_priors.py")
         return 1
     
     check_calibration(priors_path, target_sample_size=10.0)

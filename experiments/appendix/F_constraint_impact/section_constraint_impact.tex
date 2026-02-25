@@ -60,15 +60,7 @@ This demonstrates that hard constraints and soft penalties serve complementary r
 
 \begin{figure}[t]
 \centering
-\IfFileExists{../experiments/appendix/F_constraint_impact/results/figure_constraint_impact.pdf}{%
-  \includegraphics[width=\textwidth]{../experiments/appendix/F_constraint_impact/results/figure_constraint_impact.pdf}%
-}{%
-  \IfFileExists{../experiments/appendix/F_constraint_impact/results/figure_constraint_impact.png}{%
-    \includegraphics[width=\textwidth]{../experiments/appendix/F_constraint_impact/results/figure_constraint_impact.png}%
-  }{%
-    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}\textit{Figure placeholder --- run the experiment and figure generator to produce.}\vspace{2cm}}}%
-  }%
-}
+\includegraphics[width=\textwidth]{figures/figure12_constraint_impact.pdf}
 \caption{\textbf{Impact of hard per-request constraints on routing reward ($K{=}10$, $n{=}50$ seeds).}
 \textbf{(a)}~Mean reward degrades gracefully as the cost ceiling tightens; $K'$ denotes the number of models surviving Layer~1 filtering. Dashed line and shaded band: unconstrained mean $\pm$ 95\% CI.
 \textbf{(b)}~Latency constraints (TTFT ceiling) produce a similar trade-off; at 1.0\,s ($K'{=}9$) reward slightly exceeds the unconstrained baseline because the excluded model has below-median quality.

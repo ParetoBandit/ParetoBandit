@@ -12,7 +12,7 @@ Figure~\ref{fig:pareto} compares the cost-quality trade-off of \textit{banditGPT
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{figures/figure4.png}
+\includegraphics[width=\columnwidth]{figures/figure3_pareto.png}
 \caption{\textbf{Cost and quality trade-off.} (a) Pareto frontiers for \textit{banditGPT} and RouteLLM-MF on a 750-prompt holdout ($n{=}50$ trials). (b) \textit{banditGPT} learning curve; the 95\% CI lower bound exceeds RouteLLM's peak after ${\sim}400$ in-distribution interactions.}
 \Description{Two-panel plot: left shows quality versus cost Pareto frontiers; right shows banditGPT quality improving with online learning steps and crossing RouteLLM's best point.}
 \label{fig:pareto}
@@ -48,7 +48,7 @@ On the frozen holdout ($N{=}750$), \textit{banditGPT} closes \textbf{61.5\%} of 
 % ============================================================================
 % Promoted from supplementary: Multi-Model Scaling (K=5, K=10)
 % ============================================================================
-\input{../experiments/06_figure/section_multimodel_results}
+\input{../experiments/04_figure/section_multimodel_results}
 
 % ============================================================================
 % Promoted from supplementary: Family Parameter Sharing / K-Scaling
@@ -58,7 +58,7 @@ On the frozen holdout ($N{=}750$), \textit{banditGPT} closes \textbf{61.5\%} of 
 % ============================================================================
 % Promoted from supplementary: Distribution Shift Factorial
 % ============================================================================
-\input{../experiments/10_distribution_shift/section_distribution_shift}
+\input{../experiments/06_distribution_shift/section_distribution_shift}
 
 % ============================================================================
 % Promoted from supplementary: LinTS Baseline Comparison

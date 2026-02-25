@@ -13,7 +13,7 @@ Compares banditGPT (LinUCB + Corralling) against Linear Thompson Sampling (LinTS
 
 ```bash
 python experiments/07_figure/run_lints_comparison.py
-python experiments/07_figure/generate_figure8.py
+python experiments/07_figure/generate_figure7.py
 ```
 
 ## Output
