@@ -365,7 +365,7 @@ def plot_figure(results: List[TrialResult], stats: Dict, models: List[str],
     output_dir.mkdir(parents=True, exist_ok=True)
     K = len(models)
 
-    fig = plt.figure(figsize=(12, 9.5))
+    fig = plt.figure(figsize=(13, 10.5))
     gs = fig.add_gridspec(
         4, 1, height_ratios=[0.04, 1, 1, 1],
         hspace=0.08, top=0.94, bottom=0.06,
@@ -402,11 +402,11 @@ def plot_figure(results: List[TrialResult], stats: Dict, models: List[str],
     ax_phase.axvspan(PHASE_BOUNDARIES[0], PHASE_BOUNDARIES[1], color="#e74c3c", alpha=0.25)
     ax_phase.axvspan(PHASE_BOUNDARIES[1], N_STEPS, color="#3498db", alpha=0.25)
     ax_phase.text(50, 0.5, "All Healthy", ha="center", va="center",
-                  fontsize=9, fontweight="bold", color="#1a7a3a")
+                  fontsize=13, fontweight="bold", color="#1a7a3a")
     ax_phase.text(200, 0.5, f"{short_name(FAILING_MODEL)} Fails", ha="center",
-                  va="center", fontsize=9, fontweight="bold", color="#a8201a")
+                  va="center", fontsize=13, fontweight="bold", color="#a8201a")
     ax_phase.text(400, 0.5, f"{short_name(FAILING_MODEL)} Recovers", ha="center",
-                  va="center", fontsize=9, fontweight="bold", color="#1a5276")
+                  va="center", fontsize=13, fontweight="bold", color="#1a5276")
     ax_phase.set_axis_off()
 
     for ax in (ax_top, ax_mid, ax_bot):
@@ -433,16 +433,17 @@ def plot_figure(results: List[TrialResult], stats: Dict, models: List[str],
     ax_top.fill_between(t_smooth, stat_mu - stat_std, stat_mu + stat_std,
                         color="#e74c3c", alpha=0.10)
 
-    ax_top.set_ylabel(f"Reward ({window}-step running avg)", fontsize=11)
+    ax_top.set_ylabel(f"Reward ({window}-step running avg)", fontsize=16)
     ax_top.set_ylim(0.0, 1.05)
     ax_top.grid(True, alpha=0.2, ls=":")
+    ax_top.tick_params(labelsize=13)
     plt.setp(ax_top.get_xticklabels(), visible=False)
     ax_top.legend(loc="center left", bbox_to_anchor=(0.01, 0.30),
-                  fontsize=8.5, framealpha=0.75, edgecolor="gray", handlelength=2.0)
+                  fontsize=12, framealpha=0.75, edgecolor="gray", handlelength=2.0)
 
     fig.suptitle(
         f"Catastrophic Failure Detection: {K}-Model Portfolio (K={K})",
-        fontsize=13, fontweight="bold", y=0.97,
+        fontsize=20, fontweight="bold", y=0.97,
     )
 
     fail_corr = stats["corralling_failure_mean"]
@@ -455,7 +456,7 @@ def plot_figure(results: List[TrialResult], stats: Dict, models: List[str],
         f'  Δ(banditGPT − EMA) = {delta:+.3f}'
     )
     ax_top.text(0.98, 0.03, summary, transform=ax_top.transAxes,
-                fontsize=8, fontfamily="monospace", va="bottom", ha="right",
+                fontsize=11, fontfamily="monospace", va="bottom", ha="right",
                 bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="gray", alpha=0.95))
 
     # Panel B: Expert weights
@@ -474,11 +475,12 @@ def plot_figure(results: List[TrialResult], stats: Dict, models: List[str],
     ax_mid.fill_between(t, w_tabula_mu - w_tabula_std, w_tabula_mu + w_tabula_std,
                         color="#27ae60", alpha=0.15)
     ax_mid.axhline(0.5, color="gray", ls=":", alpha=0.3)
-    ax_mid.set_ylabel("Expert Weight $p_{i,t}$", fontsize=11)
+    ax_mid.set_ylabel("Expert Weight $p_{i,t}$", fontsize=16)
     ax_mid.set_ylim(-0.05, 1.05)
     ax_mid.grid(True, alpha=0.2, ls=":")
+    ax_mid.tick_params(labelsize=13)
     plt.setp(ax_mid.get_xticklabels(), visible=False)
-    ax_mid.legend(loc="upper left", fontsize=8.5, framealpha=0.75)
+    ax_mid.legend(loc="upper left", fontsize=12, framealpha=0.75)
 
     # Panel C: Model selection fractions
     model_colors = {m: MODEL_COLORS[i % len(MODEL_COLORS)] for i, m in enumerate(models)}
@@ -505,13 +507,14 @@ def plot_figure(results: List[TrialResult], stats: Dict, models: List[str],
         ax_bot.plot(t_smooth, mu, color=model_colors[model], lw=1.5, ls="--",
                     label=f"EMA → {short_name(model)}")
 
-    ax_bot.set_ylabel("Model Selection Fraction", fontsize=11)
-    ax_bot.set_xlabel("Routing Step (t)", fontsize=11)
+    ax_bot.set_ylabel("Model Selection Fraction", fontsize=16)
+    ax_bot.set_xlabel("Routing Step (t)", fontsize=16)
     ax_bot.set_ylim(-0.05, 1.05)
     ax_bot.grid(True, alpha=0.2, ls=":")
+    ax_bot.tick_params(labelsize=13)
 
     ncol = 2 if K <= 5 else 3
-    ax_bot.legend(loc="upper right", fontsize=6, framealpha=0.75,
+    ax_bot.legend(loc="upper right", fontsize=9, framealpha=0.75,
                   edgecolor="gray", ncol=ncol, columnspacing=1.0, handlelength=2.0)
 
     fig.align_ylabels([ax_top, ax_mid, ax_bot])

@@ -22,12 +22,13 @@ OUTPUT_DIR = Path(__file__).parent / "results"
 
 plt.rcParams.update({
     "font.family": "serif",
-    "font.size": 9,
-    "axes.labelsize": 10,
-    "axes.titlesize": 10,
-    "legend.fontsize": 7.5,
-    "xtick.labelsize": 8,
-    "ytick.labelsize": 8,
+    "font.size": 14,
+    "axes.labelsize": 17,
+    "axes.titlesize": 20,
+    "axes.titleweight": "bold",
+    "legend.fontsize": 13,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
     "figure.dpi": 300,
 })
 
@@ -65,11 +66,11 @@ def panel_cost_sweep(ax, data):
                     ys[-1] - errs[-1], ys[-1] + errs[-1],
                     color=COLORS["unconstrained"], alpha=0.08)
     ax.text(xs[-2]*1.5, ys[-1] + 0.002, f"Unconstrained (K={ks[-1]})",
-            fontsize=7, color=COLORS["unconstrained"], ha="right")
+            fontsize=12, color=COLORS["unconstrained"], ha="right")
 
     for i, (x, y, k) in enumerate(zip(xs[:-1], ys[:-1], ks[:-1])):
         ax.annotate(f"K'={k}", (x, y), textcoords="offset points",
-                    xytext=(0, 10), ha="center", fontsize=6.5,
+                    xytext=(0, 12), ha="center", fontsize=11,
                     color=COLORS["cost"], fontweight="bold")
 
     ax.set_xscale("log")
@@ -131,7 +132,7 @@ def panel_constrained_pareto(ax, data):
 
     ax.set_xscale("log")
     ax.set_xlabel("Realized cost ($/request)")
-    ax.set_title("(c) Constrained Pareto frontiers")
+    ax.set_title("(b) Constrained Pareto frontiers")
     ax.legend(loc="lower right", framealpha=0.9)
 
 
@@ -144,19 +145,18 @@ def main():
     data = load_results()
     print_scenario_table(data)
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4), sharey=True)
-    fig.subplots_adjust(wspace=0.08, left=0.06, right=0.97, top=0.90, bottom=0.15)
+    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5))
+    fig.subplots_adjust(wspace=0.22, left=0.08, right=0.97, top=0.84, bottom=0.14)
 
     panel_cost_sweep(axes[0], data)
-    panel_latency_sweep(axes[1], data)
-    panel_constrained_pareto(axes[2], data)
+    panel_constrained_pareto(axes[1], data)
 
     axes[0].set_ylim(*YLIM)
     axes[0].set_ylabel("Reward")
 
     fig.suptitle(
         "Impact of Hard Per-Request Constraints on Routing Quality (K=10)",
-        fontsize=11, fontweight="bold", y=0.98,
+        fontsize=22, fontweight="bold", y=0.97,
     )
 
     out_png = OUTPUT_DIR / "figure_constraint_impact.png"

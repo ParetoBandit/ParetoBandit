@@ -30,6 +30,18 @@ We evaluate along five dimensions: (A)~cost ceiling sweep, (B)~latency ceiling s
 \subsubsection{Results}
 % ============================================================================
 
+% Figure placed early so figure* floats near the discussing text
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.75\textwidth]{figures/figure12_constraint_impact.pdf}
+\caption{\textbf{Impact of hard per-request constraints on routing reward ($K{=}10$, $n{=}50$ seeds).}
+\textbf{(a)}~Mean reward degrades gracefully as the cost ceiling tightens; $K'$ denotes the number of models surviving Layer~1 filtering. Dashed line and shaded band: unconstrained mean $\pm$ 95\% CI. Latency constraints (TTFT ceiling) produce a similar trade-off; at 1.0\,s ($K'{=}9$) reward slightly exceeds the unconstrained baseline because the excluded model has below-median quality.
+\textbf{(b)}~Hard constraints shift the Pareto frontier by restricting the feasible model set, while the soft cost penalty $\lambda$ traces each frontier from quality-maximizing ($\lambda{=}0$) to cost-minimizing ($\lambda{=}5$).
+Zero constraint violations are observed across all $1{,}650{,}000$ routing decisions.}
+\Description{Two-panel figure showing the impact of hard constraints: (a) reward vs cost ceiling with eligible model count annotations, (b) overlaid Pareto frontiers under tight, moderate, and unconstrained regimes.}
+\label{fig:constraint_impact}
+\end{figure*}
+
 \paragraph{Constraint enforcement.}
 By construction, Layer~1 filtering removes ineligible models before the bandit selects, so constraint satisfaction is guaranteed for any threshold that admits at least one model.
 We verify this empirically: across all conditions ($1{,}650{,}000$ routing decisions), the violation counter is exactly zero, confirming the implementation matches the specification.
@@ -47,28 +59,12 @@ Relaxing the ceiling to 1.0\,s ($K'{=}9$) recovers $\bar{r}{=}0.899$, which exce
 This inversion occurs because the 1.0\,s ceiling excludes only DeepSeek-V3 (TTFT~1.10\,s), which has below-median quality; removing it slightly improves the average eligible model quality.
 
 \paragraph{Hard constraints shift the Pareto frontier; $\lambda$ traces it.}
-Figure~\ref{fig:constraint_impact}c overlays Pareto frontiers under three constraint regimes.
+Figure~\ref{fig:constraint_impact}b overlays Pareto frontiers under three constraint regimes.
 Hard constraints determine the \emph{feasible region} by excluding expensive models; the soft cost penalty $\lambda$ then traces the cost--quality trade-off within that region.
 Under tight constraints ($K'{=}6$), the frontier is compressed leftward---realized cost ranges from \$0.00005 to \$0.00026---but the bandit still achieves $\bar{r}{=}0.889$ at $\lambda{=}0$.
 Under moderate constraints ($K'{=}8$), the frontier extends to higher costs (\$0.00097 at $\lambda{=}0$) and peak reward rises to $\bar{r}{=}0.896$.
 At high $\lambda$ ($\geq 5.0$), all three regimes converge to the cheapest model, yielding $\bar{r} \approx 0.886$ at \$0.00005/request.
 This demonstrates that hard constraints and soft penalties serve complementary roles: constraints enforce SLA compliance while $\lambda$ provides fine-grained economic control within the feasible set.
-
-% ============================================================================
-% Figure
-% ============================================================================
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\textwidth]{figures/figure12_constraint_impact.pdf}
-\caption{\textbf{Impact of hard per-request constraints on routing reward ($K{=}10$, $n{=}50$ seeds).}
-\textbf{(a)}~Mean reward degrades gracefully as the cost ceiling tightens; $K'$ denotes the number of models surviving Layer~1 filtering. Dashed line and shaded band: unconstrained mean $\pm$ 95\% CI.
-\textbf{(b)}~Latency constraints (TTFT ceiling) produce a similar trade-off; at 1.0\,s ($K'{=}9$) reward slightly exceeds the unconstrained baseline because the excluded model has below-median quality.
-\textbf{(c)}~Hard constraints shift the Pareto frontier by restricting the feasible model set, while the soft cost penalty $\lambda$ traces each frontier from quality-maximizing ($\lambda{=}0$) to cost-minimizing ($\lambda{=}5$).
-Zero constraint violations are observed across all $1{,}650{,}000$ routing decisions.}
-\Description{Three-panel figure showing the impact of hard constraints: (a) reward vs cost ceiling with eligible model count annotations, (b) reward vs latency ceiling, (c) overlaid Pareto frontiers under tight, moderate, and unconstrained regimes.}
-\label{fig:constraint_impact}
-\end{figure}
 
 % ============================================================================
 % Production Scenarios Table
@@ -133,7 +129,7 @@ Three findings are particularly relevant for deployment:
   \item \textbf{Complementary hard and soft controls.}
   Hard constraints and the $\lambda$ cost penalty are not redundant.
   Constraints enforce \emph{compliance} (no request exceeds a dollar or latency budget), while $\lambda$ provides continuous \emph{economic tuning} within the compliant set.
-  Figure~\ref{fig:constraint_impact}c shows that at high $\lambda$, all constraint regimes converge, but at low $\lambda$ they diverge---confirming the two mechanisms control different aspects of routing behaviour.
+  Figure~\ref{fig:constraint_impact}b shows that at high $\lambda$, all constraint regimes converge, but at low $\lambda$ they diverge---confirming the two mechanisms control different aspects of routing behaviour.
 
   \item \textbf{No exploration penalty from constraints.}
   The ablation (always-on vs.\ eval-only, $p{=}0.553$) demonstrates that restricting exploration to the feasible set does not impair learning.

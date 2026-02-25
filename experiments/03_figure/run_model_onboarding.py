@@ -300,8 +300,8 @@ def paired_test(shared_trials, isolated_trials):
 
 
 def plot_figure(agg_shared, agg_isolated, baselines, n_steps, output_path):
-    """Generate 3-panel figure."""
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
+    """Generate 2-panel figure: (a) reward trajectory, (b) calibration speed."""
+    fig, axes = plt.subplots(1, 2, figsize=(13, 6))
 
     # --- Panel A: Reward trajectory ---
     ax = axes[0]
@@ -314,37 +314,21 @@ def plot_figure(agg_shared, agg_isolated, baselines, n_steps, output_path):
     ]:
         m = np.array(agg["reward_smoothed_mean"])
         c = np.array(agg["reward_smoothed_ci"])
-        ax.plot(x, m, label=label, color=color, linewidth=1.5)
+        ax.plot(x, m, label=label, color=color, linewidth=2)
         ax.fill_between(x, m - c, m + c, alpha=0.15, color=color)
 
-    ax.axvline(INTRODUCTION_STEP, color="gray", ls="--", lw=1, label="gpt-4.1 introduced")
-    ax.axhline(baselines["oracle_3model"], color="#4CAF50", ls=":", lw=1, label=f"Oracle ({baselines['oracle_3model']:.3f})")
-    ax.axhline(baselines["always_newcomer"], color="#9E9E9E", ls=":", lw=1, label=f"Always gpt-4.1 ({baselines['always_newcomer']:.3f})")
-    ax.set_xlabel("Step")
-    ax.set_ylabel("Reward (smoothed)")
-    ax.set_title("(a) Reward Trajectory")
-    ax.legend(fontsize=7, loc="lower right")
+    ax.axvline(INTRODUCTION_STEP, color="gray", ls="--", lw=1.2, label="gpt-4.1 introduced")
+    ax.axhline(baselines["oracle_3model"], color="#4CAF50", ls=":", lw=1.2, label=f"Oracle ({baselines['oracle_3model']:.3f})")
+    ax.axhline(baselines["always_newcomer"], color="#9E9E9E", ls=":", lw=1.2, label=f"Always gpt-4.1 ({baselines['always_newcomer']:.3f})")
+    ax.set_xlabel("Step", fontsize=17)
+    ax.set_ylabel("Reward (smoothed)", fontsize=17)
+    ax.set_title("(a) Reward Trajectory", fontsize=20, fontweight="bold", pad=12)
+    ax.legend(fontsize=12, loc="lower right")
+    ax.tick_params(labelsize=14)
     ax.grid(True, alpha=0.3)
 
-    # --- Panel B: Newcomer traffic share ---
+    # --- Panel B: Prediction error (was panel C) ---
     ax = axes[1]
-    x_share = np.arange(len(agg_shared["newcomer_share_mean"]))
-    for agg, label, color in [
-        (agg_shared, "Shared family", "#2196F3"),
-        (agg_isolated, "Isolated family", "#FF5722"),
-    ]:
-        m = np.array(agg["newcomer_share_mean"])
-        c = np.array(agg["newcomer_share_ci"])
-        ax.plot(x_share, m, label=label, color=color, linewidth=1.5)
-        ax.fill_between(x_share, m - c, m + c, alpha=0.15, color=color)
-    ax.set_xlabel("Steps After Introduction")
-    ax.set_ylabel("Newcomer Traffic Share")
-    ax.set_title("(b) Newcomer Adoption Rate")
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-
-    # --- Panel C: Prediction error ---
-    ax = axes[2]
     for agg, label, color in [
         (agg_shared, "Shared family", "#2196F3"),
         (agg_isolated, "Isolated family", "#FF5722"),
@@ -354,12 +338,13 @@ def plot_figure(agg_shared, agg_isolated, baselines, n_steps, output_path):
         xp = np.arange(nb) * bs + bs / 2
         m = np.array(agg["pred_err_binned_mean"])
         c = np.array(agg["pred_err_binned_ci"])
-        ax.plot(xp, m, label=label, color=color, linewidth=1.5)
+        ax.plot(xp, m, label=label, color=color, linewidth=2)
         ax.fill_between(xp, m - c, m + c, alpha=0.15, color=color)
-    ax.set_xlabel("Prompts Routed to Newcomer")
-    ax.set_ylabel("Prediction Error (MAE)")
-    ax.set_title("(c) Newcomer Calibration Speed")
-    ax.legend(fontsize=8)
+    ax.set_xlabel("Prompts Routed to Newcomer", fontsize=17)
+    ax.set_ylabel("Prediction Error (MAE)", fontsize=17)
+    ax.set_title("(b) Newcomer Calibration Speed", fontsize=20, fontweight="bold", pad=12)
+    ax.legend(fontsize=12)
+    ax.tick_params(labelsize=14)
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -483,5 +468,25 @@ def main():
     logger.info(f"  Always-newcomer: {baselines['always_newcomer']:.4f}")
 
 
+def replot_from_cache():
+    """Regenerate figure from cached results JSON without re-running trials."""
+    output_dir = Path(__file__).parent / "results"
+    results_file = output_dir / "model_onboarding.json"
+    with open(results_file) as f:
+        saved = json.load(f)
+
+    fig_path = output_dir / "model_onboarding.png"
+    plot_figure(
+        saved["results"]["shared"]["aggregated"],
+        saved["results"]["isolated"]["aggregated"],
+        saved["baselines"],
+        saved["metadata"]["n_dev"],
+        fig_path,
+    )
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--plot-only":
+        replot_from_cache()
+    else:
+        main()

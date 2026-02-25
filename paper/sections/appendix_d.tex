@@ -150,15 +150,14 @@ To isolate the family sharing effect, we use the \textbf{same newcomer model} (\
 \end{itemize}
 Both conditions receive identical semantic bootstrapping (\texttt{gpt-4.1} $\to$ \texttt{gpt-4-turbo}, similarity $0.849$, $N_{\text{eff}}{=}5$), same seeds, same data, and same embeddings. A 2-model base fleet runs for 500~steps before introduction; routing continues through step~1,121. Holdout: $N{=}750$, 20~seeds, 95\% CIs ($t_{19}$).
 
-\begin{figure}[h]
+\begin{figure*}[h]
 \centering
-\includegraphics[width=0.95\columnwidth]{figures/model_onboarding.png}
+\includegraphics[width=0.75\textwidth]{figures/model_onboarding.png}
 \caption{\textbf{Dynamic Model Onboarding: Shared vs.\ Isolated Family (Same Model).}
 \textbf{(a)}~Reward trajectory (50-step moving average). Both conditions are identical pre-introduction and converge to the same post-introduction quality. Oracle and always-newcomer baselines shown for reference.
-\textbf{(b)}~Newcomer traffic share (50-step window). The isolated condition explores the newcomer slightly more aggressively (higher UCB bonus from singleton family uncertainty).
-\textbf{(c)}~Prediction error (MAE) for prompts routed to the newcomer. The shared condition starts at substantially lower error (0.09 vs.\ 0.17) thanks to the inherited $\betavec$, but both converge to the same final MAE (${\sim}0.045$).}
+\textbf{(b)}~Prediction error (MAE) for prompts routed to the newcomer. The shared condition starts at substantially lower error (0.09 vs.\ 0.17) thanks to the inherited $\betavec$, but both converge to the same final MAE (${\sim}0.045$). The isolated condition explores the newcomer slightly more aggressively (higher UCB bonus from singleton family uncertainty), but this does not translate into a quality difference.}
 \label{fig:model_onboarding}
-\end{figure}
+\end{figure*}
 
 \paragraph{Holdout Quality: A Null Result.}
 Both conditions achieve comparable holdout reward: $0.970 \pm 0.002$ (shared) vs.\ $0.971 \pm 0.003$ (isolated). A paired $t$-test confirms no significant difference ($t(19){=}{-}0.87$, $p{=}0.394$). Both substantially exceed the 2-model baseline reported in the main paper (Figure~\ref{fig:pareto}b).

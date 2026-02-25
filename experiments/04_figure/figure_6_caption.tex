@@ -3,7 +3,7 @@
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/figure4_multimodel_pareto.png}
+\includegraphics[width=0.75\textwidth]{figures/figure4_multimodel_pareto.png}
 \caption{\textbf{Multi-model routing at $K{=}5$ and $K{=}10$: cost--quality Pareto frontiers, convergence, and traffic allocation.}
 Reward is mean judge agreement (continuous in $[0,1]$).
 \textbf{(a,b)}~Pareto frontiers for cost penalty $\lambda \in [0, 5]$ ($n{=}20$ seeds; log-scaled cost). Green triangles show individual model performance when routing all traffic statically; bold-labelled triangles form the \emph{static Pareto frontier} (non-dominated), while faded triangles are dominated by cheaper, higher-quality alternatives. banditGPT (blue curve) peaks at 0.911 ($K{=}5, \lambda{=}0.02$) and 0.898 ($K{=}10, \lambda{=}0.02$). At $\lambda{=}5$ (cost-minimising), it shifts traffic to the cheapest model, maintaining quality of 0.708 ($K{=}5$) and 0.888 ($K{=}10$). Dashed orange lines show ablation without Corralling.
