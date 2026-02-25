@@ -488,6 +488,14 @@ Priors are loaded with `allow_pickle=False` and use fixed-width arrays for secur
 
 ---
 
+## Documentation
+
+- **[API Reference](docs/API_REFERENCE.md)** — Complete reference for all public classes, methods, parameters, return types, and exceptions.
+- **[Contributing Guide](CONTRIBUTING.md)** — Development setup, code style, and pull request workflow.
+- **[Changelog](CHANGELOG.md)** — Version history and release notes.
+
+---
+
 ## Project Structure
 
 ```
@@ -499,6 +507,7 @@ banditgpt/
 │   ├── calibration.py       # train_pca(), generate_warmup_priors() for custom encoders
 │   ├── baselines.py         # Baseline comparison implementations
 │   └── utils/               # Warmup, heuristics
+├── docs/                    # API reference and documentation
 ├── paper/                   # LaTeX source and figures
 ├── experiments/             # Reproducible experiments (1:1 with paper figures)
 ├── tests/                   # 440+ tests across 40+ files

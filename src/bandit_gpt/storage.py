@@ -14,6 +14,7 @@ Solution: Pluggable storage backend with production-ready defaults:
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import pickle
 import time
@@ -23,6 +24,8 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class ContextStore(ABC):
@@ -188,21 +191,12 @@ class SqliteContextStore(ContextStore):
         )
         
         if is_dev_mode:
-            # Development mode: Use repo's data/ directory
             resolved = package_dir / relative_path
-            import logging
-            logging.getLogger(__name__).info(
-                f"Dev mode detected: Using repo database at {resolved}"
-            )
+            logger.info("Dev mode detected: Using repo database at %s", resolved)
         else:
-            # Library install mode: Use user directory
-            # Extract just the filename to avoid creating nested dirs
             db_filename = relative_path.name if relative_path.name else "router_context.db"
             resolved = Path.home() / ".bandit_gpt" / db_filename
-            import logging
-            logging.getLogger(__name__).info(
-                f"Library mode detected: Using user database at {resolved}"
-            )
+            logger.info("Library mode detected: Using user database at %s", resolved)
         
         return resolved
     
@@ -235,13 +229,9 @@ class SqliteContextStore(ContextStore):
                 )
                 conn.commit()
         except sqlite3.OperationalError as e:
-            # Database locked - log but don't crash router
-            import logging
-            logging.error(f"Failed to persist context {request_id}: {e}")
+            logger.error("Failed to persist context %s: %s", request_id, e)
         except Exception as e:
-            # Never crash the router for a storage error
-            import logging
-            logging.error(f"Unexpected error persisting context {request_id}: {e}")
+            logger.error("Unexpected error persisting context %s: %s", request_id, e)
     
     def get_context(self, request_id: str) -> Tuple[np.ndarray | None, str | None]:
         """Retrieve context with timeout and error handling."""
@@ -258,13 +248,10 @@ class SqliteContextStore(ContextStore):
                     return context, row[1]
             return None, None
         except sqlite3.OperationalError:
-            # Database locked - return None (feedback will be dropped)
-            import logging
-            logging.warning(f"Database locked when retrieving context {request_id}")
+            logger.warning("Database locked when retrieving context %s", request_id)
             return None, None
         except Exception as e:
-            import logging
-            logging.error(f"Error retrieving context {request_id}: {e}")
+            logger.error("Error retrieving context %s: %s", request_id, e)
             return None, None
     
     def prune(self, force: bool = False) -> int:
@@ -284,13 +271,11 @@ class SqliteContextStore(ContextStore):
                 conn.commit()
                 
                 if deleted > 0:
-                    import logging
-                    logging.info(f"Pruned {deleted} old contexts from store")
+                    logger.info("Pruned %d old contexts from store", deleted)
                 
                 return deleted
         except Exception as e:
-            import logging
-            logging.error(f"Error pruning contexts: {e}")
+            logger.error("Error pruning contexts: %s", e)
             return 0
     
     def stats(self) -> dict:
@@ -321,8 +306,7 @@ class SqliteContextStore(ContextStore):
                     "ttl_days": self.ttl / 86400
                 }
         except Exception as e:
-            import logging
-            logging.error(f"Error getting stats: {e}")
+            logger.error("Error getting stats: %s", e)
             return {}
 
 
@@ -412,8 +396,7 @@ class CheckpointManager:
         # Atomic rename (crashes before this = old file intact, crashes after = new file intact)
         temp_path.replace(self.filepath)
         
-        age_minutes = 0  # Fresh save
-        print(f"💾 Checkpoint saved to {self.filepath}")
+        logger.info("Checkpoint saved to %s", self.filepath)
     
     def load(self, router_instance) -> bool:
         """
@@ -455,7 +438,7 @@ class CheckpointManager:
                 router_instance.bandit.A = state["A"]
                 router_instance.bandit.A_inv = state["A_inv"]
                 router_instance.bandit.b = state["b"]
-                print(f"✅ Checkpoint loaded ({age_str} old, {len(saved_models)} models)")
+                logger.info("Checkpoint loaded (%s old, %d models)", age_str, len(saved_models))
             else:
                 # Registry drift - merge intelligently
                 added_models = current_models - saved_models
@@ -475,17 +458,20 @@ class CheckpointManager:
                 if removed_models:
                     drift_msg.append(f"-{len(removed_models)} removed")
                 
-                print(f"⚠️ Registry drift detected ({', '.join(drift_msg)})")
-                print(f"✅ Checkpoint loaded ({age_str} old)")
-                print(f"   Kept: {len(current_models & saved_models)} models")
+                logger.warning("Registry drift detected (%s)", ", ".join(drift_msg))
+                logger.info(
+                    "Checkpoint loaded (%s old). Kept: %d models",
+                    age_str, len(current_models & saved_models),
+                )
                 if added_models:
-                    print(f"   New (cold): {', '.join(list(added_models)[:3])}{'...' if len(added_models) > 3 else ''}")
+                    sample = ", ".join(list(added_models)[:3])
+                    suffix = "..." if len(added_models) > 3 else ""
+                    logger.info("New (cold-start): %s%s", sample, suffix)
             
             return True
             
         except Exception as e:
-            print(f"❌ Failed to load checkpoint: {e}")
-            print(f"   Starting fresh with procedural warmup")
+            logger.error("Failed to load checkpoint: %s. Starting fresh.", e)
             return False
     
     def _format_age(self, seconds: float) -> str:
@@ -508,6 +494,6 @@ class CheckpointManager:
         """
         if self.filepath.exists():
             self.filepath.unlink()
-            print(f"🗑️ Checkpoint deleted: {self.filepath}")
+            logger.info("Checkpoint deleted: %s", self.filepath)
             return True
         return False

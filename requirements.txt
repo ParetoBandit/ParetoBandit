@@ -1,31 +1,23 @@
 # BanditGPT Dependencies
 # ======================
-# Install with: pip install -r requirements.txt
+#
+# For pip-installable usage, prefer:  pip install banditgpt
+# Optional extras:                    pip install banditgpt[full]
+#
+# This file lists ALL dependencies (core + optional) for development
+# convenience.  Core dependencies match pyproject.toml [project.dependencies].
 
-# Core Dependencies (required)
-# ----------------------------
+# Core (installed automatically by `pip install banditgpt`)
 numpy>=1.24.0
 torch>=2.0.0
 sentence-transformers>=2.2.0
 transformers>=4.30.0
 pandas>=2.0.0
 
-# Optional: API Integration
-# -------------------------
-# Required for OpenRouterTeacherVerifier (LLM-as-judge grading)
+# Optional: API integration (`pip install banditgpt[full]`)
 openai>=1.0.0
-
-# Optional: Environment Variables
-# -------------------------------
-# Required for loading API keys from .env files
 python-dotenv>=1.0.0
 
-# Optional: Experiments & Visualization
-# -------------------------------------
-# Required for running paper experiments (plots)
+# Optional: Experiment reproduction (`pip install banditgpt[experiments]`)
 matplotlib>=3.7.0
-
-# Optional: OOD Evaluation Datasets
-# ---------------------------------
-# Required for loading GSM8K, HumanEval, MMLU datasets
 datasets>=2.14.0

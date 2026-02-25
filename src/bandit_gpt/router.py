@@ -3600,11 +3600,32 @@ Previous version referenced non-existent attributes
         reward: float,
     ) -> None:
         """
-        Process feedback for a routing decision.
-        
+        Process feedback for a previous routing decision.
+
+        Looks up the stored context vector for *request_id*, clamps the reward
+        to [0, 1], and performs an importance-weighted update through the
+        Corralling meta-learner (or a direct LinUCB update when Corralling is
+        disabled).
+
+        **Reward clamping**: Values outside [0, 1] are clipped silently.
+        The Exp4 importance-weighted loss estimator ``ℓ = (1 - r) / p``
+        requires bounded rewards for valid regret guarantees.
+
+        **Delayed feedback (RLHF)**: If the in-memory log has been evicted,
+        the method falls back to the ``SqliteContextStore``.  Feedback can
+        arrive hours or days after routing as long as the context has not
+        expired (default TTL: 7 days).
+
         Args:
-            request_id: ID from RoutingLog
-            reward: Base reward (0-1, typically from judge)
+            request_id: The ``RoutingLog.request_id`` returned by ``route()``.
+            reward: Observed quality signal in [0, 1].  Values outside this
+                range are clamped.  Typical sources: LLM-as-judge score,
+                user thumbs-up/down (0 or 1), or normalised task metric.
+
+        Raises:
+            No exceptions are raised.  If *request_id* is unknown (evicted
+            from both in-memory log and persistent store), a warning is
+            logged and the call is a no-op.
         """
         # O(1) lookup via parallel index instead of O(N) linear scan
         log = self.log_index.get(request_id)
@@ -3660,11 +3681,22 @@ Previous version referenced non-existent attributes
 
     def get_probabilities(self, context: str | np.ndarray, model_ids: List[str] | None = None) -> Dict[str, float]:
         """
-        Get the probability of each model being the specialist for a given context.
-        
-When Corralling is enabled, self.bandit is never updated
-        online (frozen at warmup priors).  We delegate to the warmup expert
-        (expert 0) which receives all observations and has current state.
+        Estimate the probability each model is the best choice for *context*.
+
+        Uses Thompson Sampling (posterior draws) to convert LinUCB point
+        estimates into a probability distribution over models.  When
+        Corralling is enabled, delegates to the warmup expert (expert 0)
+        which receives all online observations.
+
+        Args:
+            context: Prompt string or pre-computed feature vector.
+            model_ids: Subset of models to evaluate.  ``None`` means all
+                registered models.
+
+        Returns:
+            Dictionary mapping model IDs to selection probabilities that
+            sum to 1.0.  A uniform distribution is returned when no valid
+            models remain after filtering.
         """
         x = self.features.extract_features(context)
         models = model_ids if model_ids else self.bandit.models
@@ -3711,17 +3743,25 @@ When Corralling is enabled, self.bandit is never updated
 
     def update(self, model_id: str, context: str | np.ndarray, reward: float, weight: float = 1.0) -> None:
         """
-        Update the router with a new observation.
-        
-Previously updated BOTH self.bandit AND self.corralling_router
-        when corralling was enabled.  Now mirrors the exclusive-OR pattern used
-        by process_feedback(): update corralling if enabled, otherwise update
-        the base bandit.
-        
-        Note: When called externally (without a preceding select_model()), no
-        selection_token is available, so only the base experts learn — the
-        meta-weights are not updated.  This is correct: the importance-weighted
-        estimator requires the probability from the specific selection call.
+        Perform a direct bandit update (bypass ``process_feedback`` flow).
+
+        Use this for batch/offline learning where you already have
+        ``(model, context, reward)`` triples.  For the standard online
+        workflow, prefer ``route()`` → ``process_feedback()``.
+
+        Rewards are clamped to [0, 1].  When Corralling is enabled, the
+        update is forwarded to the expert bandits but *not* the meta-weights
+        (no selection token is available without a preceding ``route()``).
+
+        Args:
+            model_id: Model that was selected.
+            context: Prompt string or pre-computed feature vector.
+            reward: Observed quality signal in [0, 1] (clamped).
+            weight: Importance weight for this observation (default 1.0).
+
+        Raises:
+            ValueError: If *context* is an ``np.ndarray`` with wrong dimension.
+            KeyError: If *model_id* is not registered.
         """
         # Clamp reward to [0, 1] (same as process_feedback)
         reward = float(np.clip(reward, 0.0, 1.0))

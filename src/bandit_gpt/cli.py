@@ -1,7 +1,16 @@
 import sys
 import argparse
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from pathlib import Path
 from .router import BanditRouter
+
+
+def _get_version() -> str:
+    try:
+        return _pkg_version("banditgpt")
+    except PackageNotFoundError:
+        return "0.1.0"
+
 
 def main():
     parser = argparse.ArgumentParser(description="BanditGPT: Adaptive LLM Router CLI")
@@ -14,7 +23,7 @@ def main():
     args = parser.parse_args()
     
     if args.version:
-        print("BanditGPT v0.1.0")
+        print(f"BanditGPT v{_get_version()}")
         return
 
     if args.download_models:

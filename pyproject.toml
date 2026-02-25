@@ -9,7 +9,7 @@ description = "A local-first, adaptive router for intelligent LLM model selectio
 readme = "README.md"
 license = "Apache-2.0"
 authors = [
-    { name = "Annette Taberner-Miller", email = "annette@example.com" }
+    { name = "Annette Taberner-Miller" }
 ]
 keywords = [
     "llm",
