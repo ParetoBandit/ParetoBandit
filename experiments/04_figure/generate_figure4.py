@@ -34,6 +34,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from typing import Dict, List, Tuple
 import logging
 import time
@@ -334,8 +335,8 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
     ax1.scatter([c for c, _ in routellm_points], [r for _, r in routellm_points],
                 color=RED, alpha=0.12, s=18, zorder=1)
     if rl_dom_c:
-        ax1.scatter(rl_dom_c, rl_dom_r, color=RED, marker='x', s=60,
-                    linewidths=1.5, alpha=0.4, zorder=3)
+        ax1.scatter(rl_dom_c, rl_dom_r, color=RED, marker='x', s=80,
+                    linewidths=2.3, alpha=0.85, zorder=3)
 
     # banditGPT frontier
     ax1.plot(bg_hull_c, bg_hull_r, color=BLUE, linewidth=2.5, alpha=0.9,
@@ -344,8 +345,8 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
     ax1.scatter([c for c, _ in bandit_points], [r for _, r in bandit_points],
                 color=BLUE, alpha=0.15, s=18, zorder=1)
     if bg_dom_c:
-        ax1.scatter(bg_dom_c, bg_dom_r, color=BLUE, marker='x', s=60,
-                    linewidths=1.5, alpha=0.4, zorder=3)
+        ax1.scatter(bg_dom_c, bg_dom_r, color=BLUE, marker='x', s=80,
+                    linewidths=2.3, alpha=0.85, zorder=3)
 
     # Error bars on banditGPT hull (95% CI with t₁₉)
     if bg_hull_s and any(s.get("reward_std", 0) > 0 for s in bg_hull_s):
@@ -402,14 +403,27 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
         mid_rl = (shade_left + crossover_cost) / 2
         mid_bg = (crossover_cost + 0.010) / 2
         ax1.text(mid_rl, 0.935, 'RouteLLM\nadvantage', ha='center',
-                 fontsize=7.5, color=RED, alpha=0.6, style='italic')
+                 fontsize=11.5, color=RED, alpha=0.8, style='italic',
+                 fontweight='bold')
         ax1.text(mid_bg, 0.935, 'banditGPT\nadvantage', ha='center',
-                 fontsize=7.5, color=BLUE, alpha=0.6, style='italic')
+                 fontsize=11.5, color=BLUE, alpha=0.8, style='italic',
+                 fontweight='bold')
 
     ax1.set_xlabel('Average Cost per Request ($)', fontsize=11, fontweight='bold')
     ax1.set_ylabel('Average Reward (Quality)', fontsize=11, fontweight='bold')
     ax1.set_title('(a) Pareto Frontier', fontsize=13, fontweight='bold', pad=10)
-    ax1.legend(loc='lower right', fontsize=8, framealpha=0.92)
+    handles, labels = ax1.get_legend_handles_labels()
+    handles.append(
+        Line2D([0], [0], marker='x', color=RED, linestyle='None',
+               markersize=8, markeredgewidth=2.2)
+    )
+    labels.append('RouteLLM dominated points')
+    handles.append(
+        Line2D([0], [0], marker='x', color=BLUE, linestyle='None',
+               markersize=8, markeredgewidth=2.2)
+    )
+    labels.append('banditGPT dominated points')
+    ax1.legend(handles, labels, loc='lower right', fontsize=8, framealpha=0.92)
     ax1.grid(True, alpha=0.15, linestyle='--')
     ax1.set_xlim(left=-0.0003)
     ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'${x:.4f}'))
@@ -468,15 +482,6 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
             arrowprops=dict(arrowstyle='->', color=ORANGE, lw=1.5),
             zorder=10
         )
-
-    # Data access annotation
-    ax2.text(0.03, 0.04, (
-        'RouteLLM: pre-trained on 100k OOD supervised pairs\n'
-        'banditGPT: online learning on in-distribution prompts'
-    ), transform=ax2.transAxes, fontsize=7.5, color='#555555', style='italic',
-        verticalalignment='bottom',
-        bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
-                  edgecolor='#cccccc', alpha=0.92))
 
     ax2.set_xlabel('Online Learning Steps (dev prompts seen)', fontsize=11, fontweight='bold')
     ax2.set_ylabel(f'Holdout Quality (frozen eval, N={n_eval})', fontsize=11, fontweight='bold')
