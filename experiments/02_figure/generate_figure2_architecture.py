@@ -2,7 +2,7 @@
 """
 Figure 2: The banditGPT Router Architecture
 
-Clean vertical pipeline diagram for KDD.
+Clean vertical pipeline diagram.
 Wong (2011) colorblind-safe palette throughout.
 """
 

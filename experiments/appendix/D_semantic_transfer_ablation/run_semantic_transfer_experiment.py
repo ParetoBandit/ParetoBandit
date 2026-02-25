@@ -6,7 +6,7 @@ Semantic Transfer Ablation: Leave-One-Out Evaluation
 Quantifies the value of per-model semantic transfer when bootstrapping a
 "new" model from its nearest neighbor in the bandit router.
 
-Design (KDD reviewer-facing):
+Design:
   - Leave-one-out: For each model in the portfolio, treat it as the target
     (simulated newcomer). The other K-1 models receive warmup priors from
     the canonical K=5 / K=10 prior files.

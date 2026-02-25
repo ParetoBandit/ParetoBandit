@@ -1,7 +1,7 @@
 """
 Test Pareto exploration consistency: verify UCB is used in both filter and selection.
 
-This test verifies that the fix ensures uncertain models can win in Pareto mode.
+Uncertain models must be able to win in Pareto mode via exploration bonus.
 """
 
 import pytest
@@ -259,7 +259,7 @@ def test_low_uncertainty_no_bonus():
     """
     Verify that models with low uncertainty don't get much exploration bonus.
     
-    This ensures established models aren't penalized by the fix.
+    Established models with low uncertainty should not receive a large exploration bonus.
     """
     exploration_alpha = 2.0
     

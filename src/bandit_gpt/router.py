@@ -253,10 +253,8 @@ class RouterConfig:
     """
     
     # Cost Normalization Anchors (Logarithmic Market Width)
-    # Fix (Jan 2026): Adjusted to match ACTUAL portfolio range for consistency
-    # Portfolio range: $0.0001-$0.0375/1k (Llama 3.1-8B to o1)
-    # Previous: $0.00005-$0.10/1k (too wide, caused suboptimal spread)
-    # New: Tightened to improve penalty differentiation by 1.39x
+    # Tightened to actual portfolio range ($0.0001-$0.0375/1k) for better
+    # penalty differentiation (1.39x improvement over a wider default range).
     market_cost_floor: float = 0.0001  # $/1k tokens (captures cheapest model)
     market_cost_ceiling: float = 0.04  # $/1k tokens (slightly above most expensive)
     
@@ -267,7 +265,7 @@ class RouterConfig:
     market_latency_ceiling: float = 5.0  # seconds
     
     # ---------------------------------------------------------------------------
-    # RESILIENCE DEFAULTS: Pessimistic Fallbacks (Paper "Fail-Operational" Fix)
+    # RESILIENCE DEFAULTS: Pessimistic Fallbacks (Fail-Operational Design)
     # ---------------------------------------------------------------------------
     # Used when registry metadata is missing or malformed.
     # 
@@ -1898,8 +1896,7 @@ class BanditRouter:
             logger.info("Using injected FeatureService")
         else:
             # Create default service from legacy parameters
-            # --- Simplified Feature & Performance Layer (Jan 2026) ---
-            # Feature extraction is now delegated to FeatureService (The Eyes)
+            # Feature extraction is delegated to FeatureService
             # Dimension is auto-detected from PCA file (PCA components + 1 bias)
             from .feature_service import FeatureService as FS
             self.features = FS(
@@ -2213,7 +2210,7 @@ Previous version referenced non-existent attributes
             else:
                 logger.warning(f"Unknown feature '{feature_name}' in initial_weights. Skipping.")
         
-        # 6. Add to Bandit with Latent Semantic Transfer (Paper V1: Progressive Learning)
+        # 6. Add to Bandit with Latent Semantic Transfer
         # Instead of hardcoded heuristics, use semantic similarity to find neighbors
         # and dynamically adjust prior strength based on confidence in the match
         if len(self.bandit.models) > 0:
@@ -2529,12 +2526,11 @@ Previous version referenced non-existent attributes
         
         **The "Prior Belief" Reset**
         
-        [CRITICAL ALGORITHMIC FIX - Jan 2026]:
-        Previous implementation transferred both A and b matrices, which caused the
-        "Confident Transfer Trap": new models inherited the CONFIDENCE of mature
-        neighbors (e.g., A with 1M samples → tiny confidence intervals → no exploration).
+        Transferring both A and b matrices causes the "Confident Transfer Trap":
+        new models inherit the CONFIDENCE of mature neighbors (e.g., A with 1M
+        samples → tiny confidence intervals → no exploration).
         
-        **New Strategy: Transfer θ (Preferences), Reset A (Confidence)**:
+        **Strategy: Transfer θ (Preferences), Reset A (Confidence)**:
         1. Find nearest neighbor by embedding similarity
         2. Extract neighbor's learned preferences: θ_neighbor = A_inv @ b_neighbor  
         3. Initialize new model with:
@@ -2558,8 +2554,8 @@ Previous version referenced non-existent attributes
         - Neighbor "GPT-4" has θ = [+0.8 (complexity), +0.3 (math), ...]
         - After 1M samples, its A has large eigenvalues → tight confidence
         - New model "GPT-4-Turbo" bootstraps:
-          - OLD (buggy): Inherits 80% of A → thinks it has 800k samples → fossilized
-          - NEW (fixed): Gets θ as prior, but A = λI → thinks it has 0 samples → explores
+          - Naïve transfer: Inherits 80% of A → thinks it has 800k samples → fossilized
+          - θ-only transfer: Gets θ as prior, but A = λI → thinks it has 0 samples → explores
         
         Args:
             model_id: The new model to initialize
@@ -4099,7 +4095,7 @@ Previous version referenced non-existent attributes
 
 class CorrallingRouter:
     """
-    [Paper FIXED] Corralling Bandits with Mixing Parameter to prevent 'Expert Death'.
+    Corralling Bandits with Mixing Parameter to prevent 'Expert Death'.
     
     Implements Exp4-style updates with explicit exploration floor (gamma).
     
@@ -4727,7 +4723,7 @@ class CostAwareLinUCBRouter:
     2. **Bayesian Grounding**: Starting with 80k RouteLLM battles (A, b matrices)
        provides high-confidence priors instead of empty identity matrices
     3. **Semantic Transfer**: New models inherit preferences (θ) from similar models
-       while resetting confidence (A) for fresh exploration ("First-Child" Bias fix)
+       while resetting confidence (A) for fresh exploration ("First-Child" Bias)
     
     **Why Warm-Start at Expert Level?**
     - Warmup Expert: Initialized with high-confidence priors (large A values)
@@ -4862,7 +4858,7 @@ class CostAwareLinUCBRouter:
         self.A_inv = {m: safe_inv(self.A[m]) for m in models}
         
         # =====================================================================
-        # LAYER 1.5: AUTOMATIC PRIOR CALIBRATION (Scale Explosion Fix)
+        # LAYER 1.5: AUTOMATIC PRIOR CALIBRATION (Scale Explosion Guard)
         # =====================================================================
         # After loading priors, check if they predict reasonable values.
         # If predictions are massive (e.g., 800.0), rescale b-vectors to [0, 1].

@@ -147,7 +147,7 @@ def test_gamma_zero_causes_expert_death():
     """
     Test that gamma=0 (no mixing) leads to much lower weights than gamma>0.
     
-    This is a negative test to confirm the problem exists without the fix.
+    Negative test: without gamma mixing, expert weights collapse.
     """
     models = ["model_a", "model_b"]
     

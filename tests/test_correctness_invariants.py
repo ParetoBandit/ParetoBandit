@@ -17,20 +17,18 @@ M3: weight parameter silently dropped under Corralling
 M4: Thread-unsafe add_arm/delete_arm + memory leak
 L1: request_id collision with time.time_ns()
 
-Round 3 review fixes:
-R3-C1: register_model() atomic publication (TOCTOU race)
-R3-C2: sqrt(negative) NaN in expert routers
-R3-M3: Sherman-Morrison fallback drops current reward
-R3-M4: quality_floor None values cause TypeError
-R3-M5: Expert routers crash on empty candidate list
-R3-M6: _check_numerical_stability doesn't update regularization_floor
-R3-M7: get_probabilities Cholesky crash on ill-conditioned posterior
-R3-M8: _filter_by_constraints fallback returns global registry
-R3-M9: CostAwareTabulaRasaRouter hardcodes fallback dim 33
-R3-L10: Redundant refresh_inverse_cache at startup
-R3-L11: boosted_reward can exceed [0,1]
-R3-L12: Dead code in maintenance path
-R3-L13: log_index concurrent-write race
+Invariants:
+- register_model() atomic publication (TOCTOU race)
+- sqrt(negative) NaN guard in expert routers
+- Sherman-Morrison fallback preserves current reward
+- quality_floor None values do not cause TypeError
+- Expert routers handle empty candidate list
+- _check_numerical_stability updates regularization_floor
+- get_probabilities handles ill-conditioned posterior
+- _filter_by_constraints does not return global registry
+- CostAwareTabulaRasaRouter infers dimension from context
+- boosted_reward stays in [0,1]
+- log_index concurrent-write safety
 """
 
 import sys
@@ -68,7 +66,7 @@ class TestBug1_StaleAinvAfterDecay:
     A and b so that the subsequent Sherman-Morrison correction starts from the
     correct base inverse.
 
-    Without the fix, A_inv drifts from inv(A) after every decayed update,
+    Without this, A_inv drifts from inv(A) after every decayed update,
     producing wrong theta estimates and UCB scores.
     """
 
@@ -557,8 +555,8 @@ class TestBug5_PosteriorNoiseVariance:
     assuming σ²=1.  With binary rewards the true variance is ~0.25, so the
     old code overestimated posterior uncertainty by 4×.
 
-    The fix adds a `noise_variance` parameter (default 0.25) and scales the
-    covariance as σ²·A_inv.
+    The `noise_variance` parameter (default 0.25) scales the covariance as
+    σ²·A_inv, matching binary reward variance.
     """
 
     @pytest.fixture
@@ -635,7 +633,7 @@ class TestBug6_DoubleUpdateRemoved:
     is unused for routing under corralling, so updating it was wasteful
     and created state inconsistency.
 
-    The fix makes the update exclusive: corralling if enabled, else bandit.
+    The update is exclusive: corralling if enabled, else bandit.
     We test using mock objects to verify exactly one path is taken.
     """
 
@@ -807,7 +805,7 @@ class TestBug9_DeepCopy:
 
 
 # =============================================================================
-# Corralling Fix: All experts must learn from every observation
+# Corralling: All experts must learn from every observation
 # =============================================================================
 
 
@@ -833,7 +831,7 @@ class TestCorrallingAllExpertsLearn:
     so they can maintain valid internal policies.  Previously only the chosen
     expert was updated, starving the non-selected expert of data.
 
-    The fix updates every expert's internal bandit on every observation.
+    Every expert's internal bandit is updated on every observation.
     The meta-weight update (importance-weighted loss) still only penalises
     the chosen expert — that part is unchanged.
     """
@@ -1202,7 +1200,7 @@ class TestL1_RequestIdUniqueness:
 
 
 # =============================================================================
-# Round 3 Review — Critical 1: register_model() atomic publication
+# register_model() atomic publication
 # =============================================================================
 
 class TestR3C1_RegisterModelAtomic:
@@ -1235,7 +1233,7 @@ class TestR3C1_RegisterModelAtomic:
 
 
 # =============================================================================
-# Round 3 Review — Critical 2: NaN from sqrt(negative) in expert routers
+# NaN from sqrt(negative) in expert routers
 # =============================================================================
 
 class TestR3C2_SqrtVarianceFloor:
@@ -1298,7 +1296,7 @@ class TestR3C2_SqrtVarianceFloor:
 
 
 # =============================================================================
-# Round 3 Review — Medium 3: Sherman-Morrison fallback preserves reward
+# Sherman-Morrison fallback preserves reward
 # =============================================================================
 
 class TestR3M3_ShermanMorrisonFallbackReward:
@@ -1327,7 +1325,7 @@ class TestR3M3_ShermanMorrisonFallbackReward:
 
 
 # =============================================================================
-# Round 3 Review — Medium 4: quality_floor None values
+# quality_floor None values
 # =============================================================================
 
 class TestR3M4_QualityFloorNone:
@@ -1371,7 +1369,7 @@ class TestR3M4_QualityFloorNone:
 
 
 # =============================================================================
-# Round 3 Review — Medium 6: _check_numerical_stability updates reg floor
+# _check_numerical_stability updates regularization floor
 # =============================================================================
 
 class TestR3M6_StabilityRegFloor:
@@ -1399,19 +1397,19 @@ class TestR3M6_StabilityRegFloor:
 
         new_floor = policy.regularization_floor["m1"]
         assert new_floor >= initial_floor, (
-            f"regularization_floor should increase after stability fix: "
+            f"regularization_floor should increase after stability check: "
             f"{initial_floor} -> {new_floor}"
         )
 
 
 # =============================================================================
-# Round 3 Review — Medium 7: get_probabilities ill-conditioned posterior
+# get_probabilities ill-conditioned posterior
 # =============================================================================
 
 class TestR3M7_IllConditionedPosterior:
     """
     get_probabilities should not crash with LinAlgError when the posterior
-    covariance is ill-conditioned. The fix adds a try/except fallback.
+    covariance is ill-conditioned. A try/except fallback handles this case.
     """
 
     def test_ill_conditioned_no_crash(self):
@@ -1431,7 +1429,7 @@ class TestR3M7_IllConditionedPosterior:
 
 
 # =============================================================================
-# Round 3 Review — Medium 8: _filter_by_constraints fallback
+# _filter_by_constraints fallback
 # =============================================================================
 
 class TestR3M8_ConstraintsFallback:
@@ -1467,7 +1465,7 @@ class TestR3M8_ConstraintsFallback:
 
 
 # =============================================================================
-# Round 3 Review — Medium 9: CostAwareTabulaRasaRouter uses stored context_dim
+# CostAwareTabulaRasaRouter uses stored context_dim
 # =============================================================================
 
 class TestR3M9_TabulaRasaDimension:
@@ -1509,7 +1507,7 @@ class TestR3M9_TabulaRasaDimension:
 
 
 # =============================================================================
-# Round 3 Review — Low 11: boosted_reward clamped to [0, 1]
+# boosted_reward clamped to [0, 1]
 # =============================================================================
 
 class TestR3L11_BoostedRewardClamp:
@@ -1530,7 +1528,7 @@ class TestR3L11_BoostedRewardClamp:
 
 
 # =============================================================================
-# Round 3 Review — Low 13: log_index with _log_lock
+# log_index with _log_lock
 # =============================================================================
 
 class TestR3L13_LogLock:
@@ -2111,10 +2109,10 @@ class TestR5L1_ExpertNegativeWeight:
 
 
 class TestR5L5_CalibratePriorsReconstruction:
-    """_calibrate_priors two-pass calibration: bias fix + suite probe."""
+    """_calibrate_priors two-pass calibration: bias correction + suite probe."""
 
     def test_pass1_bias_only_preserves_pca(self):
-        """When only the bias is exploded (PCA dims normal), pass 1 fixes bias
+        """When only the bias is exploded (PCA dims normal), pass 1 corrects bias
         and pass 2 is a no-op, so PCA dimensions are preserved exactly."""
         dim = 4
         # Diagonal A → theta = A_inv @ b is straightforward, no off-diagonal
@@ -2202,7 +2200,7 @@ class TestR5L5_CalibratePriorsReconstruction:
 
 
 # =============================================================================
-# T2 Fix: Runtime PredictionMonitor
+# Runtime PredictionMonitor
 # =============================================================================
 
 
@@ -2458,11 +2456,11 @@ class TestCalibrationUserContexts:
 
 
 # =============================================================================
-# Review Round 7: Thread safety, diagnostic, and robustness fixes
+# Thread safety, diagnostic, and robustness invariants
 # =============================================================================
 
 class TestR7_CorrallingRouterLock:
-    """Tests for CorrallingRouter threading.Lock and related fixes."""
+    """Tests for CorrallingRouter threading.Lock and related thread safety."""
 
     def _make_corralling(self, dim=4, n_models=2):
         """Helper: build a CorrallingRouter with two experts."""
@@ -2487,7 +2485,7 @@ class TestR7_CorrallingRouterLock:
         )
 
     def test_corralling_has_lock(self):
-        """CorrallingRouter must have a threading.Lock after H1 fix."""
+        """CorrallingRouter must have a threading.Lock."""
         cr = self._make_corralling()
         assert hasattr(cr, '_lock')
         import threading
@@ -2766,7 +2764,7 @@ class TestR7_PredictionMonitorAlertTiming:
 
 
 class TestR7_ExplainSelectionConsistency:
-    """Tests for explain_selection TOCTOU fix."""
+    """Tests for explain_selection TOCTOU safety."""
 
     def _make_router_with_corralling(self, dim=4):
         """Helper: make a BanditRouter with corralling enabled."""
