@@ -359,7 +359,7 @@ def main():
 
     fig, (ax1, ax2) = plt.subplots(
         1, 2, figsize=(14, 6),
-        gridspec_kw={'width_ratios': [1.5, 1], 'wspace': 0.30}
+        gridspec_kw={'width_ratios': [1.2, 1.3], 'wspace': 0.30}
     )
 
     # ── Panel A: PC1 vs Reward Gap ───────────────────────────────────────
@@ -385,30 +385,25 @@ def main():
     ax1.axhline(y=0, color=grey, linestyle=':', linewidth=1.0,
                 alpha=0.6, zorder=1)
 
-    # Annotation: Spearman rho — positioned in lower-left, above y=-1 band
-    rho_label = (
-        f"Spearman $\\rho$ = {rho:.3f}\n"
-        f"95% CI [{ci_low:.3f}, {ci_high:.3f}]\n"
-        f"{p_str},  N = {len(reward_gaps)}\n"
-        f"Exceeds {len(random_rhos)}/{len(random_rhos)} random proj."
-    )
-    ax1.text(
-        0.03, 0.15, rho_label, transform=ax1.transAxes,
-        fontsize=8.5, verticalalignment='bottom', horizontalalignment='left',
-        bbox=dict(boxstyle='round,pad=0.4', facecolor='#f5f5f5',
-                  edgecolor='#cccccc', alpha=0.95),
-        fontweight='bold'
-    )
-
     ax1.set_xlabel('PC1 (router PCA, trained on RouteLLM battles)',
-                    fontsize=10, fontweight='bold')
+                    fontsize=12, fontweight='bold')
     ax1.set_ylabel('Reward gap  (GPT-4-Turbo \u2212 Mixtral)',
-                    fontsize=10, fontweight='bold')
+                    fontsize=12, fontweight='bold')
     ax1.set_title('(A)  Features Predict Model Preference',
-                   fontsize=12, fontweight='bold', pad=8)
-    ax1.legend(loc='upper right', fontsize=7, framealpha=0.95,
-               edgecolor='#cccccc', fancybox=True, borderpad=0.4,
-               handletextpad=0.4, labelspacing=0.3)
+                   fontsize=14, fontweight='bold', pad=8)
+    ax1.legend(
+        loc='upper center',
+        bbox_to_anchor=(0.5, -0.26),
+        ncol=4,
+        fontsize=10,
+        framealpha=0.95,
+        edgecolor='#cccccc',
+        fancybox=True,
+        borderpad=0.4,
+        handletextpad=0.5,
+        labelspacing=0.3,
+        columnspacing=0.8
+    )
     ax1.grid(alpha=0.15, linestyle='--', linewidth=0.5)
     ax1.set_xlim(pc1.min() - 0.03, pc1.max() + 0.03)
     ax1.set_ylim(-1.35, 1.35)
@@ -453,22 +448,22 @@ def main():
         if gpt4_arr[i] >= 8:
             ax2.text(x_pos[i], gpt4_arr[i] / 2,
                      f'{gpt4_arr[i]:.0f}%', ha='center', va='center',
-                     fontsize=7, fontweight='bold', color='white')
+                     fontsize=9, fontweight='bold', color='white')
         tie_y = gpt4_arr[i] + tie_arr[i] / 2
         if tie_arr[i] >= 15:
             ax2.text(x_pos[i], tie_y,
                      f'{tie_arr[i]:.0f}%', ha='center', va='center',
-                     fontsize=7, fontweight='bold', color='#444444')
+                     fontsize=9, fontweight='bold', color='#444444')
         if mixtral_arr[i] >= 8:
             mix_y = gpt4_arr[i] + tie_arr[i] + mixtral_arr[i] / 2
             ax2.text(x_pos[i], mix_y,
                      f'{mixtral_arr[i]:.0f}%', ha='center', va='center',
-                     fontsize=7, fontweight='bold', color='white')
+                     fontsize=9, fontweight='bold', color='white')
 
     # Clean single-line x-tick labels: "Q1 (n=150)"
     x_labels = [f'Q{i+1} (n={bin_ns[i]})' for i in range(n_bins)]
     ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(x_labels, fontsize=8.5)
+    ax2.set_xticklabels(x_labels, fontsize=10.5)
 
     # Directional annotation below x-axis
     ax2.annotate(
@@ -479,25 +474,35 @@ def main():
     ax2.text(
         (n_bins - 1) / 2, -13,
         'PC1 increasing  \u2192  Mixtral preference grows',
-        ha='center', va='top', fontsize=7.5, color='#555555',
-        fontstyle='italic', clip_on=False
+        ha='center', va='top', fontsize=14, color='#555555',
+        fontstyle='italic', fontweight='bold', clip_on=False
     )
 
     ax2.set_xlabel('')  # Arrow + text serve as x-axis label
     ax2.set_ylabel('Outcome proportion (%)',
-                    fontsize=10, fontweight='bold')
+                    fontsize=12, fontweight='bold')
     ax2.set_title('(B)  Routing Opportunity by Feature Region',
-                   fontsize=12, fontweight='bold', pad=8)
+                   fontsize=14, fontweight='bold', pad=8)
     ax2.set_ylim(0, 105)
-    ax2.legend(loc='upper left', fontsize=7, framealpha=0.95,
-               edgecolor='#cccccc', fancybox=True, borderpad=0.4,
-               handletextpad=0.4, labelspacing=0.3)
+    ax2.legend(
+        loc='upper center',
+        bbox_to_anchor=(0.5, -0.26),
+        ncol=3,
+        fontsize=10,
+        framealpha=0.95,
+        edgecolor='#cccccc',
+        fancybox=True,
+        borderpad=0.4,
+        handletextpad=0.5,
+        labelspacing=0.3,
+        columnspacing=0.8
+    )
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
     ax2.grid(axis='y', alpha=0.15, linestyle='--', linewidth=0.5)
 
     # ── Save ──────────────────────────────────────────────────────────────
-    fig.subplots_adjust(left=0.07, right=0.97, bottom=0.15, top=0.93)
+    fig.subplots_adjust(left=0.07, right=0.97, bottom=0.30, top=0.93)
     out_300 = output_dir / "figure1_lmsys_holdout_pca.png"
     fig.savefig(out_300, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"\nSaved: {out_300}")
