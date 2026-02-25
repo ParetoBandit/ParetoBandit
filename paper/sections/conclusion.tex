@@ -4,9 +4,9 @@
 As model portfolios diversify, LLM routing evolves from a fixed static ordering into discovering which specific prompts benefit from which models under a budget constraint. We presented \textbf{banditGPT}, an open-source contextual bandit framework that combines online adaptation with a meta-learning hedge against imperfect priors. Our evaluation establishes three core findings:
 
 \begin{enumerate}[nosep,leftmargin=*]
-    \item \textbf{Online adaptation excels at scale:} banditGPT surpasses state-of-the-art static routers after merely 300 in-distribution prompts, achieving 70.0\% gap closure to the theoretical oracle for $K{=}2$ and Pareto-dominating baselines across cost spectrums at up to $K{=}10$.
+    \item \textbf{Online adaptation excels at scale:} banditGPT surpasses state-of-the-art static routers after merely 300 in-distribution prompts, achieving 63.1\% gap closure to the theoretical oracle for $K{=}2$ and Pareto-dominating baselines across cost spectrums at up to $K{=}10$.
     \item \textbf{Corralling provides safety:} The meta-learner consistently reduces regret relative to single-expert bandits, providing a safety mechanism when offline priors fail or drift occurs.
-    \item \textbf{Family sharing enhances stability:} A data-driven approach to Hybrid LinUCB sharing shrinks confidence intervals by $3\times$ when per-model data is scarce.
+    \item \textbf{Family sharing enhances stability:} A data-driven approach to Hybrid LinUCB sharing shrinks confidence intervals by ${\sim}5\times$ at $K{=}5$ ($p{=}0.028$) when per-model data is scarce, though the advantage attenuates at larger portfolios as per-model observations suffice for independent convergence.
 \end{enumerate}
 
 \paragraph{Future Work.} Future trajectories include adopting neural contextual bandits~\cite{atalar2025neural} to capture non-linear reward mappings and extending our hierarchical Corralling meta-learner to \emph{agentic orchestration}~\cite{wu2023autogen}, moving beyond model routing to selecting multi-agent strategies dynamically.
