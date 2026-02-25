@@ -14,8 +14,8 @@
 *.snm
 *.vrb
 
-# Generated PDFs (comment out if you want to track PDFs)
-# *.pdf
+# Generated PDFs
+*.pdf
 
 # Backup files
 *~
