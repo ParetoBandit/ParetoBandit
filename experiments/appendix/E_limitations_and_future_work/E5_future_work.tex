@@ -7,7 +7,7 @@
 \label{sec:future_work_detailed}
 
 \paragraph{Cold-Start Model Integration.}
-Our null result on semantic transfer identifies this as an open problem. Future approaches might explore Thompson Sampling (which provides natural stochastic exploration of new models), active exploration bonuses specifically for under-sampled models, or meta-learning across model registration events. The structural challenge is that in a $K$-model portfolio, a new model's initialization affects only ${\sim}1/K$ of routing decisions, making per-model transfer inherently low-signal.
+Our null result on semantic transfer identifies this as an open problem. Future approaches might explore Thompson Sampling~\cite{agrawal2013thompson} (which provides natural stochastic exploration of new models), active exploration bonuses specifically for under-sampled models, or meta-learning across model registration events. The structural challenge is that in a $K$-model portfolio, a new model's initialization affects only ${\sim}1/K$ of routing decisions, making per-model transfer inherently low-signal.
 
 \paragraph{Algorithmic Extensions.}
 \begin{itemize}
@@ -18,4 +18,4 @@ Our null result on semantic transfer identifies this as an open problem. Future 
 \end{itemize}
 
 \paragraph{From Routing to Orchestration.}
-We view single-model routing as a precursor to \textbf{Agentic Orchestration}. The Corralling mechanism is naturally suited to govern autonomous agent portfolios: detecting when a specialist agent has degraded and dynamically reallocating tasks, just as it decommissions a failing expert in the routing setting.
+We view single-model routing as a precursor to \textbf{Agentic Orchestration}~\cite{wu2023autogen}. The Corralling mechanism is naturally suited to govern autonomous agent portfolios: detecting when a specialist agent has degraded and dynamically reallocating tasks, just as it decommissions a failing expert in the routing setting.

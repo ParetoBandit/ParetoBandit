@@ -17,11 +17,11 @@ This subsection provides the full reward signal details referenced in Section~\r
 
 \subsubsection{$K{=}2$ Rewards (Pairwise, Ternary)}
 
-All 1,871 LMSYS evaluation prompts are judged by GPT-4o (\texttt{openai/gpt-4o}, accessed via OpenRouter) at temperature~0 (deterministic).
-The judge receives both model responses in a pairwise comparison using RouteLLM's MT-Bench-style template, which evaluates helpfulness, relevance, accuracy, depth, creativity, and level of detail.
+All 1,871 LMSYS evaluation prompts~\cite{zheng2023judging} are judged by GPT-4o (\texttt{openai/gpt-4o}, accessed via OpenRouter) at temperature~0 (deterministic).
+The judge receives both model responses in a pairwise comparison using RouteLLM's~\cite{ong2024routellm} MT-Bench-style template, which evaluates helpfulness, relevance, accuracy, depth, creativity, and level of detail.
 Output is \texttt{[[A]]}, \texttt{[[B]]}, or \texttt{[[C]]} (tie), mapped to $r \in \{0, 0.5, 1\}$.
 
-The 80K RouteLLM warmup battles ship with pre-existing pairwise labels from the \texttt{routellm/gpt4\_judge\_battles} HuggingFace dataset.
+The 80K RouteLLM warmup battles~\cite{ong2024routellm} ship with pre-existing pairwise labels from the \texttt{routellm/gpt4\_judge\_battles} HuggingFace dataset.
 The winner labels in the dataset encode the \emph{losing} model (an inversion noted and corrected in \texttt{scripts/download\_and\_process\_routellm.py}).
 
 \subsubsection{$K{>}2$ Rewards (Cross-Provider LLM Panel)}
@@ -340,7 +340,7 @@ All configurations use constant $\alpha=2.0$.
 \label{sec:future_work_detailed}
 
 \paragraph{Cold-Start Model Integration.}
-Our null result on semantic transfer identifies this as an open problem. Future approaches might explore Thompson Sampling (which provides natural stochastic exploration of new models), active exploration bonuses specifically for under-sampled models, or meta-learning across model registration events. The structural challenge is that in a $K$-model portfolio, a new model's initialization affects only ${\sim}1/K$ of routing decisions, making per-model transfer inherently low-signal.
+Our null result on semantic transfer identifies this as an open problem. Future approaches might explore Thompson Sampling~\cite{agrawal2013thompson} (which provides natural stochastic exploration of new models), active exploration bonuses specifically for under-sampled models, or meta-learning across model registration events. The structural challenge is that in a $K$-model portfolio, a new model's initialization affects only ${\sim}1/K$ of routing decisions, making per-model transfer inherently low-signal.
 
 \paragraph{Algorithmic Extensions.}
 \begin{itemize}
@@ -351,4 +351,4 @@ Our null result on semantic transfer identifies this as an open problem. Future 
 \end{itemize}
 
 \paragraph{From Routing to Orchestration.}
-We view single-model routing as a precursor to \textbf{Agentic Orchestration}. The Corralling mechanism is naturally suited to govern autonomous agent portfolios: detecting when a specialist agent has degraded and dynamically reallocating tasks, just as it decommissions a failing expert in the routing setting.
+We view single-model routing as a precursor to \textbf{Agentic Orchestration}~\cite{wu2023autogen}. The Corralling mechanism is naturally suited to govern autonomous agent portfolios: detecting when a specialist agent has degraded and dynamically reallocating tasks, just as it decommissions a failing expert in the routing setting.
