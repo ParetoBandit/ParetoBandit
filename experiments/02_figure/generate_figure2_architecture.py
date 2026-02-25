@@ -135,7 +135,7 @@ def create_figure():
     # Mixing equation (left side, y-centered with the coordinator box)
     label(cx - pw/2 - 3, y_coord,
           r"$p_{i,t} = (1{-}\gamma)\,\frac{w_{i,t}}{\sum_j w_j} + \frac{\gamma}{K}$",
-          fs=12, c=PAL["vermillion"], fam="serif", ha="right", bg=True)
+          fs=14, c=PAL["vermillion"], fam="serif", ha="right", bg=True)
 
     # Coordinator → Experts (fan out)
     e1_x, e2_x = 33, 67
@@ -265,7 +265,7 @@ def create_figure():
           "Online\nFeedback\n$r_t$", fs=10, c=PAL["rpur"],
           fw="bold", ha="left")
     label(fb_x + 1.5, (y_reward + y_coord) / 2 - 6,
-          "Updates coordinator\nweights & expert\nparameters", fs=8.5,
+          "Updates coordinator\nweights & expert\nparameters", fs=10.5,
           c=PAL["rpur"], ha="left", sty="italic")
 
     # (Context x_t flows through the pipeline implicitly —
