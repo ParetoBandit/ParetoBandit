@@ -174,7 +174,7 @@ weight trajectory.
 
 This variance also has implications for experimental methodology: single-seed
 evaluations are insufficient for characterizing bandit algorithm performance.
-Our main experiments use 20 seeds per configuration.
+Our main experiments use 20 seeds per configuration (50 seeds for Figure~4).
 The ablation grid (Table~\ref{tab:corralling_ablation}) uses 3 seeds per cell;
 while it provides directional evidence, variance-sensitive conclusions
 (e.g., precise configuration rankings) would benefit from larger sample sizes.
@@ -279,8 +279,8 @@ Learning curve analysis
 priors alone achieve 0.839 holdout reward (above random at 0.814 and static
 Mixtral at 0.823), confirming out-of-box deployability.
 However, reaching competitive quality requires online adaptation:
-approximately 300--400 prompts to surpass RouteLLM-MF's peak of 0.883,
-and 500--900 prompts for convergence ($0.894$--$0.904$), with diminishing
+approximately 400 prompts for the 95\% CI lower bound to surpass RouteLLM-MF's peak of 0.883,
+and 500--900 prompts for convergence ($0.897$--$0.905$), with diminishing
 returns beyond 500 steps.
 For newly registered models, semantic bootstrapping plus confidence reset
 achieves full calibration within approximately 600 routing decisions

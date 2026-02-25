@@ -52,9 +52,9 @@ Table~\ref{tab:power_analysis} shows the statistical power for detecting differe
 
 \paragraph{Practical Significance Threshold.} Based on prior work in LLM routing (RouteLLM~\cite{ong2024routellm}, FrugalGPT~\cite{chen2023frugalgpt}), reward improvements of $\delta \geq 0.02$ are considered practically significant for production systems, corresponding to approximately 2\% quality improvement. Our experimental design provides moderate power (60\%) to detect effects at this threshold.
 
-\paragraph{Observed Effects.} The primary comparison (banditGPT $0.912$ vs.\ RouteLLM $0.883$, $\delta = 0.029$) falls near our detection threshold ($\delta = 0.043$ for 80\% power). While this indicates moderate rather than high statistical power, the effect remains statistically significant ($p < 0.01$ across $n=20$ repeated trials, see main text) and practically meaningful ($\delta > 0.02$).
+\paragraph{Observed Effects.} The primary comparison (banditGPT $0.912$ vs.\ RouteLLM $0.883$, $\delta = 0.029$) falls near our detection threshold ($\delta = 0.043$ for 80\% power). While this indicates moderate rather than high statistical power, the effect remains statistically significant ($p < 0.01$ across $n=50$ repeated trials, see main text) and practically meaningful ($\delta > 0.02$).
 
-\paragraph{Multi-Trial Design Compensates.} The moderate per-prompt power is partially compensated by the multi-trial experimental design: Each configuration is evaluated across $n=20$ independent trials with different random seeds. As shown in the main text (Section~\ref{sec:experiments}), this multi-trial design achieves $>80\%$ power to detect differences $\Delta > 0.01$ in aggregate performance metrics.
+\paragraph{Multi-Trial Design Compensates.} The moderate per-prompt power is partially compensated by the multi-trial experimental design: Each configuration is evaluated across $n=50$ independent trials with different random seeds (for Figure~4; other experiments use $n=20$). As shown in the main text (Section~\ref{sec:experiments}), this multi-trial design achieves $>80\%$ power to detect differences $\Delta > 0.01$ in aggregate performance metrics.
 
 \subsection{Limitations}
 

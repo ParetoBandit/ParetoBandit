@@ -6,29 +6,29 @@
 \label{appendix:pareto_detailed}
 
 Table~\ref{tab:pareto_banditgpt} reports the complete per-$\lambda$ results
-for banditGPT-Hybrid (20 seeds per configuration), and
+for banditGPT-Hybrid (50 seeds per configuration), and
 Table~\ref{tab:pareto_baselines} reports the fixed baselines.  These tables
 provide the numerical data underlying Figure~4.
 
 \begin{table}[h]
 \centering
 \caption{banditGPT-Hybrid: per-$\lambda$ results on the 750-prompt holdout
-set (20 seeds).  95\% CI = $1.96 \times \text{std} / \sqrt{20}$.}
+set (50 seeds).  95\% CI uses $t_{49}$ critical value: $2.010 \times \text{std} / \sqrt{50}$.}
 \label{tab:pareto_banditgpt}
 \small
 \begin{tabular}{@{}ccccc@{}}
 \toprule
 $\lambda$ & \textbf{Reward} & \textbf{Reward 95\% CI} & \textbf{Cost (\$)} & \textbf{Cost 95\% CI} \\
 \midrule
-0.00 & 0.9015 & $\pm$0.0050 & 0.00864 & $\pm$0.00034 \\
-0.01 & 0.9045 & $\pm$0.0056 & 0.00880 & $\pm$0.00035 \\
-0.02 & 0.9051 & $\pm$0.0072 & 0.00883 & $\pm$0.00029 \\
-0.05 & 0.9017 & $\pm$0.0050 & 0.00843 & $\pm$0.00030 \\
-0.10 & 0.8923 & $\pm$0.0070 & 0.00794 & $\pm$0.00029 \\
-0.20 & 0.8883 & $\pm$0.0051 & 0.00708 & $\pm$0.00028 \\
-0.50 & 0.8559 & $\pm$0.0052 & 0.00386 & $\pm$0.00037 \\
-1.00 & 0.8403 & $\pm$0.0027 & 0.00213 & $\pm$0.00022 \\
-2.00 & 0.8271 & $\pm$0.0012 & 0.00082 & $\pm$0.00014 \\
+0.00 & 0.9021 & $\pm$0.0032 & 0.00870 & $\pm$0.00021 \\
+0.01 & 0.9032 & $\pm$0.0036 & 0.00881 & $\pm$0.00019 \\
+0.02 & 0.9033 & $\pm$0.0039 & 0.00874 & $\pm$0.00016 \\
+0.05 & 0.8997 & $\pm$0.0034 & 0.00835 & $\pm$0.00017 \\
+0.10 & 0.8937 & $\pm$0.0042 & 0.00789 & $\pm$0.00020 \\
+0.20 & 0.8865 & $\pm$0.0034 & 0.00691 & $\pm$0.00017 \\
+0.50 & 0.8573 & $\pm$0.0030 & 0.00392 & $\pm$0.00022 \\
+1.00 & 0.8406 & $\pm$0.0017 & 0.00210 & $\pm$0.00014 \\
+2.00 & 0.8269 & $\pm$0.0009 & 0.00076 & $\pm$0.00008 \\
 5.00 & 0.8227 & $\pm$0.0000 & 0.00029 & $\pm$0.00000 \\
 \bottomrule
 \end{tabular}
@@ -68,15 +68,15 @@ RouteLLM ($\tau \geq 0.70$) & 0.8227 & 0.00029 \\
 
 \paragraph{Key metrics.}
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{banditGPT peak quality:} 0.905 at cost \$0.00883
-          ($\lambda{=}0.02$, 20 seeds, 95\% CI $\pm$0.007;
-          consistent with learning-curve convergence at ${\sim}0.904$ by
+    \item \textbf{banditGPT peak quality:} 0.903 at cost \$0.00874
+          ($\lambda{=}0.02$, 50 seeds, 95\% CI $\pm$0.004;
+          consistent with learning-curve convergence at ${\sim}0.905$ by
           step~900 in Appendix~\ref{appendix:learning_curves}).
     \item \textbf{RouteLLM-MF peak quality:} 0.883 at cost \$0.00688
           (deterministic, at $\tau{\approx}0.12$).
     \item \textbf{Oracle:} 0.953 at cost \$0.00195 (perfect per-prompt routing).
     \item \textbf{Gap closure:} banditGPT closes
-          $\frac{0.905 - 0.823}{0.953 - 0.823} = 63.1\%$ of the
+          $\frac{0.903 - 0.823}{0.953 - 0.823} = 61.5\%$ of the
           Oracle--Mixtral gap, vs.\ RouteLLM-MF's
           $\frac{0.883 - 0.823}{0.953 - 0.823} = 45.9\%$.
     \item \textbf{Two-regime structure:}

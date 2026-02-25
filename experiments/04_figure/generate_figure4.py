@@ -115,7 +115,7 @@ def evaluate_frozen(router, eval_data: List[Dict], eval_embeddings: List[np.ndar
 
 def run_learning_curve(train_data, eval_data, train_embeddings, eval_embeddings,
                        warmup_path, model_costs, lambda_penalty=0.0,
-                       n_trials=20, checkpoint_steps=None):
+                       n_trials=50, checkpoint_steps=None):
     """
     Train banditGPT with periodic frozen holdout evaluation to produce
     a learning curve (quality vs. number of online learning steps).
@@ -198,7 +198,7 @@ def run_learning_curve(train_data, eval_data, train_embeddings, eval_embeddings,
 # =============================================================================
 
 def run_lambda_sweep(train_data, eval_data, train_embeddings, eval_embeddings,
-                     warmup_path, model_costs, lambda_values, n_trials=20):
+                     warmup_path, model_costs, lambda_values, n_trials=50):
     """
     Run banditGPT for additional lambda values using pre-computed embeddings.
     Same protocol as the main experiment (train on dev, freeze, eval on holdout).
@@ -299,7 +299,7 @@ def compute_pareto_hull(points, stats=None):
 
 def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
                    learning_curve, routellm_peak_reward, n_eval,
-                   output_dir, bandit_stats=None):
+                   output_dir, bandit_stats=None, n_trials=50):
     """
     Two-panel publication figure.
 
@@ -348,10 +348,9 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
         ax1.scatter(bg_dom_c, bg_dom_r, color=BLUE, marker='x', s=80,
                     linewidths=2.3, alpha=0.85, zorder=3)
 
-    # Error bars on banditGPT hull (95% CI with t₁₉)
     if bg_hull_s and any(s.get("reward_std", 0) > 0 for s in bg_hull_s):
-        t_crit = sp_stats.t.ppf(0.975, df=19)
-        ci_r = [t_crit * s.get("reward_std", 0) / np.sqrt(20) for s in bg_hull_s]
+        t_crit = sp_stats.t.ppf(0.975, df=n_trials - 1)
+        ci_r = [t_crit * s.get("reward_std", 0) / np.sqrt(n_trials) for s in bg_hull_s]
         ax1.errorbar(bg_hull_c, bg_hull_r, yerr=ci_r,
                      fmt='none', ecolor=BLUE, alpha=0.3, capsize=3, capthick=1.5,
                      zorder=6)
@@ -459,11 +458,11 @@ def plot_two_panel(bandit_points, routellm_points, oracle_point, static_points,
 
     # Oracle omitted from plot — reported in text as theoretical upper bound (0.953)
 
-    # Find and annotate crossover point
+    # Find crossover: first step where 95% CI lower bound exceeds RouteLLM peak
     crossover_step = None
     crossover_reward = None
     for i in range(len(steps)):
-        if rewards[i] >= routellm_peak_reward:
+        if ci_lower[i] >= routellm_peak_reward:
             crossover_step = steps[i]
             crossover_reward = rewards[i]
             break
@@ -586,7 +585,7 @@ def main():
     # =================================================================
     # 4. PARETO FRONTIER — full λ sweep, production BanditRouter
     # =================================================================
-    logger.info("\n[4/6] Running full λ sweep (production defaults, 20 trials per λ)...")
+    logger.info("\n[4/6] Running full λ sweep (production defaults, 50 trials per λ)...")
 
     all_lambdas = sorted(set(
         [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
@@ -597,7 +596,7 @@ def main():
     lambda_results = run_lambda_sweep(
         train_data, eval_data, train_embeddings, eval_embeddings,
         warmup_path, model_costs_raw,
-        lambda_values=all_lambdas, n_trials=20,
+        lambda_values=all_lambdas, n_trials=50,
     )
 
     all_bandit_points = [(res["mean_cost"], res["mean_reward"]) for res in lambda_results]
@@ -609,13 +608,13 @@ def main():
     # =================================================================
     # 5. LEARNING CURVE — production defaults, λ=0.0
     # =================================================================
-    logger.info("\n[5/6] Running learning curve (production defaults, λ=0.0, 20 trials, 11 checkpoints)...")
+    logger.info("\n[5/6] Running learning curve (production defaults, λ=0.0, 50 trials, 13 checkpoints)...")
 
     learning_curve = run_learning_curve(
         train_data, eval_data, train_embeddings, eval_embeddings,
         warmup_path, model_costs_raw,
-        lambda_penalty=0.0, n_trials=20,
-        checkpoint_steps=[0, 25, 50, 100, 200, 300, 400, 500, 700, 900, 1121],
+        lambda_penalty=0.0, n_trials=50,
+        checkpoint_steps=[0, 25, 50, 100, 200, 300, 350, 400, 450, 500, 700, 900, 1121],
     )
 
     from scipy import stats as sp_stats
@@ -642,7 +641,8 @@ def main():
         routellm_peak_reward=rl_peak_reward,
         n_eval=data_stats["eval_prompts"],
         output_dir=output_dir,
-        bandit_stats=all_bandit_stats
+        bandit_stats=all_bandit_stats,
+        n_trials=50,
     )
 
     # =================================================================
@@ -653,7 +653,7 @@ def main():
             "description": "Figure 4: Honest Pareto + Learning Curve (production BanditRouter)",
             "n_eval": data_stats["eval_prompts"],
             "n_train": data_stats["train_prompts"],
-            "n_trials": 20,
+            "n_trials": 50,
             "router": "BanditRouter via create_experiment_router(alpha=2.0)",
             "alpha_schedule": "warmup: constant 2.0, tabula_rasa: 1.0→0.01",
             "corralling_lr": 0.1,
@@ -695,7 +695,9 @@ def main():
 
     crossover = None
     for d in learning_curve:
-        if d["mean_reward"] >= rl_peak_reward:
+        t_c = sp_stats.t.ppf(0.975, df=d["n_trials"] - 1)
+        ci_low = d["mean_reward"] - t_c * d["std_reward"] / np.sqrt(d["n_trials"])
+        if ci_low >= rl_peak_reward:
             crossover = d["step"]
             break
 

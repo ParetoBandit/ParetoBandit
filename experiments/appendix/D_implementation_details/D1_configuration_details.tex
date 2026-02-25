@@ -239,7 +239,7 @@ The Pareto frontier sweeps 15 cost penalty values:
 \begin{equation*}
 \lambda \in \{0.0,\; 0.01,\; 0.02,\; 0.05,\; 0.1,\; 0.2,\; 0.25,\; 0.3,\; 0.35,\; 0.4,\; 0.45,\; 0.5,\; 1.0,\; 2.0,\; 5.0\}
 \end{equation*}
-with 20 independent seeds per $\lambda$ value (300 total runs).
+with 50 independent seeds per $\lambda$ value (750 total runs).
 The RouteLLM baseline uses 28 threshold values $\tau \in [0.0, 1.0]$.
 
 \paragraph{Figures~6 and 8 ($K{>}2$).}
@@ -334,7 +334,7 @@ Online-learning & ${\sim}533$ & LMSYS Arena (dev) & Bandit training (Figs~5, 6, 
 \midrule
 Figure~1 & --- & 1 & Deterministic (PCA + correlation) \\
 Figure~3 & 20 & 20 & Per degradation level \\
-Figure~4 & 20 & 300 & 20 seeds $\times$ 15 $\lambda$ values \\
+Figure~4 & 50 & 750 & 50 seeds $\times$ 15 $\lambda$ values \\
 Figure~5 & 20 & 120 & 20 seeds $\times$ 3 $K$ values $\times$ 2 policies \\
 Figure~6 & 20 & 440 & 20 seeds $\times$ (11 $\lambda$ $\times$ 2 $K$ portfolios) \\
 Figure~8 & 20 & 1,320 & 20 seeds $\times$ 11 $\lambda$ $\times$ 2 $K$ $\times$ 3 methods \\
