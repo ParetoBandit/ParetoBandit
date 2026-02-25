@@ -71,16 +71,16 @@ semantic bootstrapping is strong.}
 \textbf{Condition} & \textbf{Holdout Reward} & \textbf{95\% CI}
   & \textbf{Newcomer Routed} \\
 \midrule
-Shared family   & 0.965 & $\pm$0.005 & 448 $\pm$ 33 \\
-Isolated family & 0.965 & $\pm$0.003 & 483 $\pm$ 19 \\
+Shared family   & 0.970 & $\pm$0.002 & 430 $\pm$ 29 \\
+Isolated family & 0.971 & $\pm$0.003 & 478 $\pm$ 18 \\
 \midrule
-\textbf{Difference} & +0.000 & & $-$35 \\
+\textbf{Difference} & $-$0.001 & & $-$48 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \noindent A paired $t$-test on per-trial holdout rewards confirms no
-significant difference: $t(19){=}0.05$, $p{=}0.958$, with 12 of 20
+significant difference: $t(19){=}{-}0.87$, $p{=}0.394$, with 8 of 20
 seeds favoring the shared condition and 8 favoring isolated.
 
 \subsubsection{Prediction Error Convergence}
@@ -119,7 +119,7 @@ result on holdout quality.
     \item \textbf{Family sharing does not improve final quality.}
           When semantic bootstrapping is strong (similarity $0.849$),
           the additional family $\betavec$ provides no statistically
-          significant holdout quality advantage ($p{=}0.958$).
+          significant holdout quality advantage ($p{=}0.394$).
           The per-model $\thetavec$ initialized from the semantic
           neighbor captures sufficient signal.
     \item \textbf{Family sharing accelerates early calibration.}
@@ -133,8 +133,8 @@ result on holdout quality.
           $N_{\text{eff}}{=}5$).  This is sufficient for the router to
           quickly calibrate the newcomer, regardless of family assignment.
     \item \textbf{Both conditions succeed comprehensively.}
-          Holdout reward ($0.965$) substantially exceeds the 2-model
-          baseline ($0.911$, Table~\ref{tab:learning_curve}) and
+          Holdout reward ($0.970$) substantially exceeds the 2-model
+          baseline ($0.903$, Table~\ref{tab:learning_curve}) and
           approaches the always-newcomer ceiling ($0.983$),
           confirming that \texttt{register\_model()} successfully
           integrates a new model regardless of family configuration.
@@ -149,8 +149,8 @@ The API automatically discovers the nearest semantic neighbor, bootstraps
 the newcomer's reward estimates, and resets confidence to ensure
 exploration---no manual family configuration required.
 Adding a third model to a 2-model fleet improved holdout quality from
-$0.911$ to $0.965$ (+5.4~pp), and this improvement was identical
-regardless of whether family sharing was active ($p{=}0.958$).
+$0.903$ to $0.970$ (+6.7~pp), and this improvement was identical
+regardless of whether family sharing was active ($p{=}0.394$).
 The newcomer reaches full calibration within ${\sim}600$ routing
 decisions; at typical production throughput ($>$100~req/hr), this
 completes within a few hours.

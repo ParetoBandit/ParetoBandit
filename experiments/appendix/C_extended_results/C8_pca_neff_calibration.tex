@@ -22,23 +22,22 @@ All other hyperparameters are fixed at defaults
 \toprule
 \textbf{PCA Dim} & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-4                 & 0.9045 & $\pm$0.0108 \\
-8                 & 0.9144 & $\pm$0.0061 \\
-16                & 0.9134 & $\pm$0.0031 \\
-32 (default)      & 0.9148 & $\pm$0.0032 \\
-64                & 0.9161 & $\pm$0.0024 \\
-128               & 0.9115 & $\pm$0.0035 \\
+4                 & 0.9045 & $\pm$0.0074 \\
+8                 & 0.9051 & $\pm$0.0066 \\
+16                & 0.9047 & $\pm$0.0058 \\
+32 (default)      & 0.9104 & $\pm$0.0027 \\
+64                & 0.9097 & $\pm$0.0042 \\
+128               & 0.9038 & $\pm$0.0038 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
 Performance is stable across a broad range of dimensionality (8--128),
-with rewards in $[0.911, 0.916]$ (0.5\% spread).  The very lowest
-dimension ($d{=}4$) shows a noticeable drop to 0.905 with wider CI
-($\pm 0.011$), indicating that 4 PCA components are insufficient to
-capture the relevant contextual signal even for a two-model problem.
-The default $d{=}32$ is within CI of the peak ($d{=}64$: 0.916).
+with rewards in $[0.904, 0.910]$ (0.6\% spread).  The very lowest
+dimension ($d{=}4$) shows similar performance to $d{=}8$ at this $K{=}2$ scale.
+The default $d{=}32$ achieves the highest mean (0.910) with the
+narrowest CI ($\pm 0.003$).
 
 \paragraph{Validation: optimal PCA dimension scales with $K$.}
 To confirm that $d{=}32$ is the right default for larger portfolios,
@@ -100,20 +99,20 @@ PCA dimensionality ($d{=}32$).  This controls how strongly the warmup priors
 \toprule
 $\neff$ & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-1                 & 0.9121 & $\pm$0.0034 \\
-3                 & 0.9125 & $\pm$0.0032 \\
-5                 & 0.9123 & $\pm$0.0046 \\
-10 (default)      & 0.9140 & $\pm$0.0030 \\
-20                & 0.9119 & $\pm$0.0032 \\
-50                & 0.9106 & $\pm$0.0042 \\
-100               & 0.9147 & $\pm$0.0024 \\
+1                 & 0.9007 & $\pm$0.0060 \\
+3                 & 0.9015 & $\pm$0.0069 \\
+5                 & 0.8979 & $\pm$0.0084 \\
+10 (default)      & 0.9015 & $\pm$0.0054 \\
+20                & 0.9018 & $\pm$0.0071 \\
+50                & 0.9047 & $\pm$0.0036 \\
+100               & 0.9027 & $\pm$0.0060 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
 The system is remarkably robust to prior strength: all $\neff$ values from
-1 to 100 yield rewards within 0.4\% of each other (0.911--0.915).  This
+1 to 100 yield rewards within 0.7\% of each other (0.898--0.905).  This
 robustness is a desirable property --- practitioners do not need to
 carefully tune $\neff$ to achieve good performance.
 
@@ -121,7 +120,7 @@ The flatness arises because the 1,121-step burn-in provides
 ${\sim}100\times$ more data than even the strongest prior ($\neff{=}100$).
 The learning curve analysis (Appendix~\ref{appendix:learning_curves}) shows
 that after just 50 online samples, holdout reward jumps from 0.839
-(prior-only) to 0.878, indicating that online adaptation rapidly dominates
+(prior-only) to 0.893, indicating that online adaptation rapidly dominates
 the prior signal.  In deployments with ample burn-in data, $\neff$ has
 minimal impact on final performance.
 

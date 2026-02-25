@@ -60,7 +60,7 @@ $\varepsilon$-greedy (no priors) & + context & $0.916 \pm 0.002$ & $+0.104$ & \$
 $\varepsilon$-greedy (w/ priors) & + warmup priors & $0.916 \pm 0.002$ & $+0.000$ & \$0.00995 \\
 LinUCB (no priors)$^\dagger$ & + UCB exploration & $0.923 \pm 0.000$ & $+0.007$ & \$0.00998 \\
 LinUCB (w/ priors)$^\dagger$ & + UCB + priors & $0.923 \pm 0.000$ & $+0.000$ & \$0.00998 \\
-\textbf{banditGPT-Hybrid} & \textbf{+ Corralling} & $\mathbf{0.914 \pm 0.003}$ & $-0.009$ & \$0.00986 \\
+\textbf{banditGPT-Hybrid} & \textbf{+ Corralling} & $\mathbf{0.901 \pm 0.005}$ & $-0.022$ & \$0.00864 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -81,8 +81,8 @@ targets regions of high uncertainty rather than exploring uniformly,
 improving sample efficiency during burn-in.
 
 \paragraph{3.\ banditGPT-Hybrid trades marginal peak quality for robustness.}
-The full system (0.914) is slightly below LinUCB (no priors) at 0.923
-($\Delta{=}-0.009$) at $\lambda{=}0$.  This gap is the cost of maintaining
+The full system (0.901) is below LinUCB (no priors) at 0.923
+($\Delta{=}-0.022$) at $\lambda{=}0$.  This gap is the cost of maintaining
 two experts plus meta-learning overhead.  However, banditGPT-Hybrid provides
 a property that simpler methods lack: \emph{dominant performance when priors
 are useful and adaptive cost--quality control}.  Figure~3 demonstrates
@@ -92,14 +92,14 @@ regret than warmup-only (regret 48--51 vs.\ ${\sim}51.3$ and 52--58,
 respectively), by exploiting complementary alpha schedules
 across its two experts.  At higher $\lambda$ values
 (Table~\ref{tab:ablation_lambda_sweep}), banditGPT-Hybrid maintains
-higher quality than LinUCB --- e.g., 0.886 vs.\ 0.861 at $\lambda{=}0.2$
+higher quality than LinUCB --- e.g., 0.888 vs.\ 0.861 at $\lambda{=}0.2$
 --- because Corralling's adaptive expert weighting navigates the
 cost--quality trade-off more smoothly.
 
 The Corralling mechanism decisively identifies the tabula rasa expert
-as superior for this cross-domain dataset, allocating $0.944 \pm 0.069$
-weight to it (Appendix~\ref{appendix:learning_curves}).  The low variance
-($\pm 0.069$) across seeds confirms consistent convergence.
+as superior for this cross-domain dataset, allocating $0.891 \pm 0.163$
+weight to it (Appendix~\ref{appendix:learning_curves}).  The moderate variance
+($\pm 0.163$) across seeds reflects stochastic expert selection dynamics.
 
 \paragraph{4.\ Non-contextual learning adds no value over random.}
 The EMA tracker (0.812) performs comparably to random routing (0.814), and
@@ -187,7 +187,7 @@ $\varepsilon$-greedy (no priors) & 0.916 & 0.909 & 0.899 & 0.864 & 0.823 & 0.823
 $\varepsilon$-greedy (w/ priors) & 0.916 & 0.909 & 0.899 & 0.864 & 0.823 & 0.823 \\
 LinUCB (no priors) & 0.923 & 0.911 & 0.908 & 0.861 & 0.823 & 0.823 \\
 LinUCB (w/ priors) & 0.923 & 0.911 & 0.908 & 0.861 & 0.823 & 0.823 \\
-\textbf{banditGPT-Hybrid} & \textbf{0.914} & \textbf{0.906} & \textbf{0.898} & \textbf{0.886} & \textbf{0.860} & \textbf{0.823} \\
+\textbf{banditGPT-Hybrid} & \textbf{0.901} & \textbf{0.902} & \textbf{0.892} & \textbf{0.888} & \textbf{0.856} & \textbf{0.823} \\
 \bottomrule
 \end{tabular}%
 }

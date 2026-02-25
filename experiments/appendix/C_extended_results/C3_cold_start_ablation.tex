@@ -34,14 +34,14 @@ Mean $\pm$ 95\% CI across 20 seeds.  $\Delta$ = warm-start minus cold-start.}
 \toprule
 $\lambda$ & \textbf{Warm-Start} & \textbf{Cold-Start} & \textbf{$\Delta$ Reward} & \textbf{$\Delta$\%} \\
 \midrule
-0.00 & $0.914 \pm 0.003$ & $0.839 \pm 0.004$ & $+0.075$ & $+8.9\%$ \\
-0.01 & $0.911 \pm 0.003$ & $0.836 \pm 0.001$ & $+0.075$ & $+9.0\%$ \\
-0.02 & $0.910 \pm 0.004$ & $0.830 \pm 0.001$ & $+0.080$ & $+9.6\%$ \\
-0.05 & $0.906 \pm 0.005$ & $0.823 \pm 0.001$ & $+0.083$ & $+10.1\%$ \\
-0.10 & $0.898 \pm 0.004$ & $0.823 \pm 0.000$ & $+0.076$ & $+9.2\%$ \\
-0.20 & $0.886 \pm 0.004$ & $0.823 \pm 0.000$ & $+0.063$ & $+7.7\%$ \\
-0.50 & $0.860 \pm 0.004$ & $0.823 \pm 0.000$ & $+0.037$ & $+4.5\%$ \\
-1.00 & $0.837 \pm 0.002$ & $0.823 \pm 0.000$ & $+0.015$ & $+1.8\%$ \\
+0.00 & $0.901 \pm 0.005$ & $0.839 \pm 0.004$ & $+0.062$ & $+7.4\%$ \\
+0.01 & $0.905 \pm 0.006$ & $0.836 \pm 0.001$ & $+0.069$ & $+8.2\%$ \\
+0.02 & $0.905 \pm 0.008$ & $0.830 \pm 0.001$ & $+0.075$ & $+9.0\%$ \\
+0.05 & $0.902 \pm 0.005$ & $0.823 \pm 0.001$ & $+0.079$ & $+9.6\%$ \\
+0.10 & $0.892 \pm 0.007$ & $0.823 \pm 0.000$ & $+0.070$ & $+8.5\%$ \\
+0.20 & $0.888 \pm 0.005$ & $0.823 \pm 0.000$ & $+0.066$ & $+8.0\%$ \\
+0.50 & $0.856 \pm 0.006$ & $0.823 \pm 0.000$ & $+0.033$ & $+4.0\%$ \\
+1.00 & $0.840 \pm 0.003$ & $0.823 \pm 0.000$ & $+0.018$ & $+2.1\%$ \\
 $\geq 2.0$ & $0.823$ & $0.823$ & $0.000$ & $0.0\%$ \\
 \bottomrule
 \end{tabular}
@@ -50,14 +50,14 @@ $\geq 2.0$ & $0.823$ & $0.823$ & $0.000$ & $0.0\%$ \\
 \subsubsection{Key Findings}
 
 \paragraph{1.\ Online adaptation adds substantial value.}
-Warm-start banditGPT (0.914) outperforms cold-start (0.839) by 7.5
+Warm-start banditGPT (0.901) outperforms cold-start (0.839) by 6.2
 percentage points at $\lambda{=}0$.  This demonstrates that the online
 learning machinery --- contextual LinUCB with UCB exploration, Corralling
 meta-learning, and bandit feedback --- extracts substantial routing signal
 from only 1,121 dev prompts.  The learning curve analysis
 (Appendix~\ref{appendix:learning_curves}) shows that this improvement
-occurs rapidly and smoothly: by 300--400 online samples, holdout reward
-reaches ${\sim}0.893$ and surpasses RouteLLM-MF's peak (0.883).
+occurs rapidly and smoothly: by ${\sim}300$ online samples, holdout reward
+reaches ${\sim}0.884$ and surpasses RouteLLM-MF's peak (0.883).
 
 \paragraph{2.\ The gap narrows monotonically with $\lambda$.}
 As the cost penalty increases and routing shifts toward the cheap model
@@ -86,7 +86,7 @@ a critical property for real-world adoption where collecting labeled
 data before deployment may not be feasible.
 
 \paragraph{4.\ Online learning closes the gap to optimality.}
-Warm-start banditGPT reaches 0.914 --- closing 70\% of the gap between
+Warm-start banditGPT reaches 0.901 --- closing 63\% of the gap between
 random (0.814) and oracle (0.953).  The Corralling mechanism detects that
 online data outperforms the cross-domain priors and shifts $94.4\%$ of
 routing weight to the tabula rasa expert
@@ -112,13 +112,13 @@ data availability conditions:
 \begin{itemize}[leftmargin=*,noitemsep]
     \item \textbf{With burn-in data ($\geq 300$ labeled prompts):}
           Use the standard warm-start protocol.  By 300--400 prompts the
-          system surpasses RouteLLM-MF's peak (${\sim}0.893$ vs.\ 0.883),
-          and by 900 steps reaches ${\sim}0.904$ with tightening CI.
+          system surpasses RouteLLM-MF's peak (${\sim}0.884$ vs.\ 0.883),
+          and by 750 steps reaches ${\sim}0.905$ with tightening CI.
     \item \textbf{With limited data ($50$--$200$ prompts):}
           Use warm-start with warmup priors ($\neff{=}10$).  Priors
           accelerate early learning (Figure~3) and the cold-start floor
           (0.839) already exceeds static baselines.  Expect holdout
-          reward in the $0.858$--$0.893$ range depending on data quantity.
+          reward in the $0.858$--$0.884$ range depending on data quantity.
     \item \textbf{Without any deployment data (true cold start):}
           Cross-domain priors alone yield 0.839 --- above random (0.814)
           and static Mixtral (0.823).  The library is \emph{deployable
@@ -127,7 +127,7 @@ data availability conditions:
           background.  Quality will improve automatically as online
           learning kicks in.
     \item \textbf{Fairness vs.\ baselines:}
-          banditGPT's advantage over RouteLLM-MF (0.914 vs.\ 0.883) stems
+          banditGPT's advantage over RouteLLM-MF (0.901 vs.\ 0.883) stems
           from online adaptation.  When comparing to pre-trained baselines,
           report both warm-start and cold-start conditions to separate
           the algorithm's contribution from the data advantage.

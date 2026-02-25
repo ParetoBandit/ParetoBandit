@@ -38,27 +38,27 @@ Mixtral's known per-prompt reward.
 \toprule
 \textbf{Comparison} & \textbf{$\Delta$ Reward} & \textbf{$t$-stat} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Wilcoxon $p$} \\
 \midrule
-banditGPT vs.\ RouteLLM-MF & $+0.031$ & 22.04 & $5.4 \times 10^{-15}$ & 4.93 & $8.7 \times 10^{-5}$ \\
-banditGPT vs.\ Static Mixtral & $+0.091$ & 7.01 & $5.2 \times 10^{-12}$ & 0.28 & $1.2 \times 10^{-10}$ \\
+banditGPT vs.\ RouteLLM-MF & $+0.019$ & 7.34 & $6.0 \times 10^{-7}$ & 1.64 & $2.2 \times 10^{-4}$ \\
+banditGPT vs.\ Static Mixtral & $+0.079$ & 6.52 & $1.3 \times 10^{-10}$ & 0.24 & $4.0 \times 10^{-9}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Bootstrap CI.}
-The 95\% bootstrap CI for banditGPT's mean reward is $[0.911, 0.917]$,
+The 95\% bootstrap CI for banditGPT's mean reward is $[0.896, 0.906]$,
 which entirely excludes RouteLLM-MF's best point ($0.883$).
 
 \paragraph{Oracle gap closure.}
-banditGPT closes $\frac{0.914 - 0.823}{0.953 - 0.823} = 70.0\%$ of the
-Oracle--Mixtral gap, vs.\ RouteLLM-MF's 46.2\%.
+banditGPT closes $\frac{0.902 - 0.823}{0.953 - 0.823} = 60.3\%$ of the
+Oracle--Mixtral gap, vs.\ RouteLLM-MF's 45.9\%.
 
 \subsubsection{Interpretation}
 
 \paragraph{1.\ Large, consistent advantage over RouteLLM-MF.}
-Cohen's $d = 4.93$ is far above the ``large'' threshold ($d \geq 0.8$),
-and every one of banditGPT's 20 trial means (range: 0.899--0.923) exceeds
+Cohen's $d = 1.64$ is well above the ``large'' threshold ($d \geq 0.8$),
+and 19 of banditGPT's 20 trial means (range: 0.865--0.913) exceed
 RouteLLM-MF's best threshold reward (0.883).  The 95\% bootstrap CI
-$[0.911, 0.917]$ entirely excludes the RouteLLM-MF reference, providing
+$[0.896, 0.906]$ entirely excludes the RouteLLM-MF reference, providing
 strong evidence that banditGPT's advantage is not due to favorable
 seed selection.
 
@@ -76,7 +76,7 @@ exact.  In reality, RouteLLM's aggregate reward has some uncertainty from
 the threshold-selection procedure (which threshold is ``best'' depends on
 the holdout set), which inflates the $t$-statistic and Cohen's $d$.
 We therefore emphasize the bootstrap CI as the most conservative measure:
-even the lower bound (0.911) exceeds the RouteLLM-MF reference by 2.8
+even the lower bound (0.896) exceeds the RouteLLM-MF reference by 1.3
 percentage points, confirming significance under any reasonable
 uncertainty in the baseline.
 

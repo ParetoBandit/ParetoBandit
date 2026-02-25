@@ -26,21 +26,21 @@ $\alpha_{\text{start}}{=}2.0$, 20 seeds).}
 \toprule
 $\eta$ & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-0.1 & 0.9140 & $\pm$0.0030 \\
-0.3 & 0.9161 & $\pm$0.0017 \\
-0.5 & 0.9138 & $\pm$0.0040 \\
-1.0 (default) & 0.9110 & $\pm$0.0057 \\
-2.0 & 0.9135 & $\pm$0.0056 \\
-5.0 & 0.9137 & $\pm$0.0053 \\
+0.1 & 0.9015 & $\pm$0.0054 \\
+0.3 & 0.9063 & $\pm$0.0055 \\
+0.5 & 0.9091 & $\pm$0.0032 \\
+1.0 (default) & 0.8973 & $\pm$0.0152 \\
+2.0 & 0.8997 & $\pm$0.0108 \\
+5.0 & 0.8979 & $\pm$0.0125 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
-Performance is remarkably stable across a 50$\times$ range of $\eta$ (0.1 to
-5.0), with all rewards falling within 0.9110--0.9161 (a 0.5\% spread).  The
-default $\eta{=}1.0$ achieves 0.9110, within CI of the best (0.9161 at
-$\eta{=}0.3$).  Higher $\eta$ values produce wider confidence intervals,
+Performance is stable across a 50$\times$ range of $\eta$ (0.1 to
+5.0), with all rewards falling within 0.897--0.909 (a 1.2\% spread).  The
+default $\eta{=}1.0$ achieves 0.897, within CI of the best (0.909 at
+$\eta{=}0.5$).  Higher $\eta$ values produce wider confidence intervals,
 consistent with more volatile meta-weight switching, but the mean reward
 difference is negligible.
 
@@ -60,17 +60,17 @@ $\alpha_{\text{end}}{=}0.1$.
 \toprule
 $\alpha_{\text{start}}$ & \textbf{Reward} & \textbf{95\% CI} \\
 \midrule
-0.5  & 0.9129 & $\pm$0.0049 \\
-1.0  & 0.9110 & $\pm$0.0074 \\
-2.0 (default)  & 0.9121 & $\pm$0.0095 \\
-4.0  & 0.9129 & $\pm$0.0028 \\
+0.5  & 0.9110 & $\pm$0.0034 \\
+1.0  & 0.9065 & $\pm$0.0060 \\
+2.0 (default)  & 0.9040 & $\pm$0.0071 \\
+4.0  & 0.9029 & $\pm$0.0031 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Finding.}
 Similarly robust: all $\alpha_{\text{start}}$ values in $[0.5, 4.0]$ yield
-rewards in 0.9110--0.9129 (0.2\% spread).  All values are within each
+rewards in 0.903--0.911 (0.8\% spread).  All values are within each
 other's confidence intervals, confirming that the system is insensitive
 to the exploration schedule.  The default $\alpha_{\text{start}}{=}2.0$
 is within the plateau.
@@ -78,7 +78,7 @@ is within the plateau.
 \subsubsection{Implications}
 
 Both $\eta$ and $\alpha_{\text{start}}$ exhibit a broad plateau:
-performance degrades by $<0.5\%$ across order-of-magnitude hyperparameter
+performance degrades by $<1.2\%$ across order-of-magnitude hyperparameter
 changes.  This robustness is a practical strength: practitioners can adopt
 the default hyperparameters without task-specific tuning.  The stability
 arises from two factors.  First, the Corralling safety mechanism

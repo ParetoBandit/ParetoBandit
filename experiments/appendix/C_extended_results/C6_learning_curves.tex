@@ -23,16 +23,16 @@ intermediate checkpoints during training.
 \textbf{Burn-In Steps} & \textbf{Holdout Reward} & \textbf{95\% CI} \\
 \midrule
 0          & 0.8393 & $\pm$0.0038 \\
-10         & 0.8663 & $\pm$0.0131 \\
-25         & 0.8568 & $\pm$0.0136 \\
-50         & 0.8776 & $\pm$0.0144 \\
-100        & 0.8721 & $\pm$0.0130 \\
-200        & 0.8929 & $\pm$0.0074 \\
-300        & 0.8915 & $\pm$0.0065 \\
-500        & 0.9045 & $\pm$0.0072 \\
-750        & 0.9109 & $\pm$0.0025 \\
-1,000      & 0.9097 & $\pm$0.0025 \\
-1,121 (full) & 0.9111 & $\pm$0.0027 \\
+10         & 0.8453 & $\pm$0.0080 \\
+25         & 0.8731 & $\pm$0.0092 \\
+50         & 0.8934 & $\pm$0.0105 \\
+100        & 0.8747 & $\pm$0.0136 \\
+200        & 0.8911 & $\pm$0.0052 \\
+300        & 0.8842 & $\pm$0.0132 \\
+500        & 0.8957 & $\pm$0.0118 \\
+750        & 0.9045 & $\pm$0.0047 \\
+1,000      & 0.9058 & $\pm$0.0032 \\
+1,121 (full) & 0.9026 & $\pm$0.0050 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -42,7 +42,7 @@ intermediate checkpoints during training.
 \paragraph{1.\ Rapid initial improvement.}
 The online learning machinery is remarkably data-efficient: the first 50
 steps account for the majority of the cold-start gap, lifting holdout reward
-from $0.839$ to $0.878$ ($+3.9$ percentage points).  Notably, the
+from $0.839$ to $0.893$ ($+5.4$ percentage points).  Notably, the
 production router's cold-start quality ($0.839$) already exceeds both random
 routing ($0.814$) and static Mixtral ($0.823$), confirming that the
 cross-domain warmup priors provide genuine value before any online
@@ -50,8 +50,8 @@ observation.  A small number of online samples then rapidly close the
 remaining gap toward convergence.
 
 \paragraph{2.\ Convergence after ${\sim}750$ steps.}
-By step~750 (67\% of the full burn-in), reward reaches 0.911 with tight CI
-($\pm$0.003).  The final 371 steps add negligible improvement ($<0.001$).
+By step~750 (67\% of the full burn-in), reward reaches 0.905 with CI
+($\pm$0.005).  The final 371 steps add negligible improvement.
 This suggests the burn-in could be shortened to ${\sim}750$ steps with no
 measurable performance loss, reducing cold-start latency in production
 deployments.
@@ -59,26 +59,22 @@ deployments.
 \paragraph{3.\ Decisive expert weighting.}
 The Corralling meta-learner decisively identifies the tabula rasa expert
 as superior for this cross-domain setting.  After full burn-in, the mean
-expert weights are: tabula rasa $= 0.944 \pm 0.069$,
-warmup $= 0.056 \pm 0.069$.  This near-total delegation to the
+expert weights are: tabula rasa $= 0.891 \pm 0.163$,
+warmup $= 0.109 \pm 0.163$.  This strong delegation to the
 learning-from-scratch expert demonstrates that Corralling correctly detects
 cross-domain prior misspecification and resolves the exploration-exploitation
-dilemma quickly.  The low variance across seeds ($\pm 0.067$ vs.\
-$\pm 0.389$ in earlier implementations) indicates consistent convergence:
-all 20 seeds reach the same conclusion about which expert to trust.
+dilemma.  The moderate variance across seeds ($\pm 0.163$) reflects
+stochastic expert selection dynamics, though the majority weight
+consistently favors the tabula rasa expert.
 
 \paragraph{4.\ Smooth convergence with modest intermediate variance.}
-Between steps 50--500, holdout reward increases monotonically from $0.878$
-to $0.905$, with confidence intervals of $\pm 0.007$--$0.014$.  This is
-substantially smoother than earlier implementations, where non-monotonic
-dips and CIs up to $\pm 0.023$ were common.  The improvement reflects the
-production router's decisive expert weighting (Finding~3): because
-Corralling converges to the tabula rasa expert consistently and quickly,
-the bimodal weight distribution that previously inflated cross-seed variance
-is largely eliminated.
+Between steps 50--500, holdout reward generally improves from $0.893$
+to $0.896$, with confidence intervals of $\pm 0.005$--$0.014$.  A modest
+dip at step~100 ($0.875 \pm 0.014$) reflects stochastic exploration
+effects that resolve with more data.
 
-By step~750, the CI contracts to $\pm 0.003$, and the final three
-checkpoints (750, 1{,}000, 1{,}121) all fall within $0.910$--$0.911$,
+By step~750, the CI contracts to $\pm 0.005$, and the final three
+checkpoints (750, 1{,}000, 1{,}121) all fall within $0.903$--$0.906$,
 confirming stable convergence.  The system is not sensitive to the exact
 burn-in length beyond ${\sim}500$ steps.
 
@@ -93,12 +89,11 @@ length in production:
           A user can deploy the library out-of-box with warmup priors and
           begin collecting online data while serving useful routing from
           the first request.
-    \item \textbf{Minimum viable burn-in: 300--400 prompts.}  By step
-          400, mean holdout reward reaches ${\sim}0.893$
-          ($\pm$0.014~std), surpassing RouteLLM-MF's peak (0.883).
-    \item \textbf{Recommended burn-in: 500--900 prompts.}  Achieves
-          0.894--0.904 with tightening variance (std from 0.021 at
-          step~500 to 0.009 at step~900).  Captures most of the
+    \item \textbf{Minimum viable burn-in: ${\sim}300$ prompts.}  By step
+          300, mean holdout reward reaches ${\sim}0.884$
+          ($\pm$0.013), surpassing RouteLLM-MF's peak (0.883).
+    \item \textbf{Recommended burn-in: 500--750 prompts.}  Achieves
+          0.896--0.905 with tightening variance.  Captures most of the
           improvement over cold-start.
     \item \textbf{Diminishing returns beyond 500.}  The final 621 steps
           (500 $\to$ 1,121) add only ${\sim}0.007$.  Allocating

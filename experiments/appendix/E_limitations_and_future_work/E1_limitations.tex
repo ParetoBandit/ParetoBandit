@@ -118,9 +118,9 @@ stationary, model-dominant regimes.
 The architectural ablation
 (Appendix~\ref{appendix:extended_results}, Table~\ref{tab:arch_ablation})
 confirms this trade-off: plain LinUCB achieves 0.923 at $\lambda{=}0$ while
-banditGPT-Hybrid achieves 0.914---but at moderate cost penalties
+banditGPT-Hybrid achieves 0.901---but at moderate cost penalties
 ($\lambda{=}0.2$), banditGPT-Hybrid \emph{outperforms} LinUCB
-(0.886 vs.\ 0.861), validating the Corralling overhead where cost-quality
+(0.888 vs.\ 0.861), validating the Corralling overhead where cost-quality
 trade-offs matter.
 
 % ----------------------------------------------------------------------------
@@ -299,8 +299,8 @@ from $K{=}2$ (Mixtral-8x7B, GPT-4-Turbo) through $K{=}5$
 (Llama-3.1-8B, Mixtral-8x7B, Gemini-2.5-Flash, Claude-Sonnet-4, GPT-4.1) to
 $K{=}10$ and $K{=}20$ model portfolios, providing substantial breadth across
 portfolio configurations.
-Statistical significance is strong: Cohen's $d{=}4.93$ vs.\ RouteLLM-MF
-with bootstrap 95\% CI [0.911, 0.917] entirely excluding the baseline.
+Statistical significance is strong: Cohen's $d{=}1.64$ vs.\ RouteLLM-MF
+with bootstrap 95\% CI [0.896, 0.906] entirely excluding the baseline.
 
 However, the evaluation operates on a single domain (chatbot arena
 conversations) with one mismatch pattern (warmup $\to$ holdout distribution
