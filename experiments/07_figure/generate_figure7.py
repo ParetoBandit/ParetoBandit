@@ -80,18 +80,18 @@ def plot_panel(ax, data, title):
     ax.axhline(eg_r, color="#8C564B", linestyle="-.", linewidth=1, alpha=0.6, label="ε-greedy")
     ax.axhline(rand_r, color="#7F7F7F", linestyle=":", linewidth=1, alpha=0.4, label="Random")
 
-    ax.set_title(title, fontsize=12, fontweight="bold", pad=8)
-    ax.set_xlabel("Mean Cost per Request ($)", fontsize=10)
-    ax.set_ylabel("Mean Reward", fontsize=10)
+    ax.set_title(title, fontsize=20, fontweight="bold", pad=12)
+    ax.set_xlabel("Mean Cost per Request ($)", fontsize=17)
+    ax.set_ylabel("Mean Reward", fontsize=17)
     ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=9)
+    ax.tick_params(labelsize=14)
 
 
 def main():
     with open(RESULTS_FILE) as f:
         results = json.load(f)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5))
 
     for ax, (portfolio, title) in zip(axes, [
         ("K5", "K=5 Portfolio"),
@@ -100,14 +100,14 @@ def main():
         plot_panel(ax, results[portfolio], title)
 
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=4, fontsize=9,
-               bbox_to_anchor=(0.5, -0.04), frameon=True, fancybox=True)
+    fig.legend(handles, labels, loc="lower center", ncol=4, fontsize=14,
+               bbox_to_anchor=(0.5, -0.08), frameon=True, fancybox=True)
 
     fig.suptitle("Figure 7: banditGPT vs. Linear Thompson Sampling — Pareto Frontiers",
-                 fontsize=13, fontweight="bold", y=1.02)
+                 fontsize=22, fontweight="bold", y=1.02)
 
     plt.tight_layout()
-    fig.subplots_adjust(bottom=0.18)
+    fig.subplots_adjust(bottom=0.22)
 
     for fmt in ("pdf", "png"):
         out = RESULTS_DIR / f"figure7_lints_comparison.{fmt}"

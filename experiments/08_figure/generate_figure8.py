@@ -46,18 +46,18 @@ def plot_panel(ax, data, title):
     ax.plot(x_sqrt, scale * np.sqrt(x_sqrt), color="#AAAAAA",
             linestyle="--", linewidth=1, alpha=0.5, label=r"$O(\sqrt{T})$ reference")
 
-    ax.set_title(title, fontsize=12, fontweight="bold", pad=8)
-    ax.set_xlabel("Online Learning Step", fontsize=10)
-    ax.set_ylabel("Cumulative Regret", fontsize=10)
+    ax.set_title(title, fontsize=20, fontweight="bold", pad=12)
+    ax.set_xlabel("Online Learning Step", fontsize=17)
+    ax.set_ylabel("Cumulative Regret", fontsize=17)
     ax.grid(True, alpha=0.2, linewidth=0.5)
-    ax.tick_params(labelsize=9)
+    ax.tick_params(labelsize=14)
 
 
 def main():
     with open(RESULTS_FILE) as f:
         results = json.load(f)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5))
 
     for ax, (portfolio, title) in zip(axes, [
         ("K5", "K=5 Portfolio"),
@@ -66,14 +66,14 @@ def main():
         plot_panel(ax, results[portfolio], title)
 
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=6, fontsize=9,
-               bbox_to_anchor=(0.5, -0.04), frameon=True, fancybox=True)
+    fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=14,
+               bbox_to_anchor=(0.5, -0.10), frameon=True, fancybox=True)
 
     fig.suptitle("Figure 8: Cumulative Regret — Online Learning Phase",
-                 fontsize=13, fontweight="bold", y=1.02)
+                 fontsize=22, fontweight="bold", y=1.02)
 
     plt.tight_layout()
-    fig.subplots_adjust(bottom=0.18)
+    fig.subplots_adjust(bottom=0.24)
 
     for fmt in ("pdf", "png"):
         out = RESULTS_DIR / f"figure8_cumulative_regret.{fmt}"
