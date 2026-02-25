@@ -1,7 +1,7 @@
 {
     "models": [
       {
-        "openrouter_id": "openai/gpt-5.1",
+        "model_id": "openai/gpt-5.1",
         "display_name": "GPT-5.1 (high)",
         "hle": 0.265,
         "input_cost_per_m": 1.25,
@@ -41,7 +41,7 @@
         "display_name": "Mixtral 8x7B Instruct",
         "input_cost_per_m": 0.54,
         "output_cost_per_m": 0.6,
-        "openrouter_id": "mistralai/mixtral-8x7b-instruct",
+        "model_id": "mistralai/mixtral-8x7b-instruct",
         "math_500": 0.299,
         "humaneval_score": 40.2,
         "livecodebench": 0.066,
@@ -78,7 +78,7 @@
         "input_cost_per_m": 2.5,
         "output_cost_per_m": 10,
         "measured_ttft_seconds": 0.4636,
-        "openrouter_id": "openai/gpt-4o",
+        "model_id": "openai/gpt-4o",
         "ttft_mean": 0.646,
         "ttft_std": 0.1292,
         "ttft_ci_95_lower": 0.5814,

@@ -27,21 +27,21 @@ def test_neighbor_bootstrapping_mechanism():
     # Create registry with semantically similar models
     registry = {
         "python_specialist": {
-            "openrouter_id": "provider/python-coder",
+            "model_id": "provider/python-coder",
             "display_name": "Python coding specialist expert",
             "hle": 0.75,
             "input_cost_per_m": 2.0,
             "output_cost_per_m": 6.0
         },
         "javascript_specialist": {
-            "openrouter_id": "provider/js-coder",
+            "model_id": "provider/js-coder",
             "display_name": "JavaScript coding specialist expert",
             "hle": 0.70,
             "input_cost_per_m": 1.5,
             "output_cost_per_m": 4.5
         },
         "math_specialist": {
-            "openrouter_id": "provider/math-expert",
+            "model_id": "provider/math-expert",
             "display_name": "Mathematics calculus algebra expert",
             "hle": 0.80,
             "input_cost_per_m": 3.0,
@@ -65,7 +65,7 @@ def test_neighbor_bootstrapping_mechanism():
     # Now test bootstrapping by directly calling admix_theta_from_neighbors
     # Add ruby_specialist to registry first (so it can be looked up)
     router.registry["ruby_specialist"] = {
-        "openrouter_id": "provider/ruby-coder",
+        "model_id": "provider/ruby-coder",
         "display_name": "Ruby coding programming specialist expert",
         "hle": 0.65,
         "input_cost_per_m": 1.2,
@@ -118,7 +118,7 @@ def test_cold_start_vs_bootstrap_warmup():
     # Test 1: Create first model with cold-start
     registry = {
         "model_a": {
-            "openrouter_id": "provider/model-a",
+            "model_id": "provider/model-a",
             "display_name": "Coding specialist Python expert",
             "hle": 0.75,
             "input_cost_per_m": 2.0,
@@ -143,7 +143,7 @@ def test_cold_start_vs_bootstrap_warmup():
     
     # Now test bootstrapping by adding a similar model
     router.registry["model_b"] = {
-        "openrouter_id": "provider/model-b",
+        "model_id": "provider/model-b",
         "display_name": "Coding specialist JavaScript expert",
         "hle": 0.70,
         "input_cost_per_m": 1.5,

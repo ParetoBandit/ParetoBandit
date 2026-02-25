@@ -76,7 +76,7 @@ def _ctx(seed: int = 0) -> np.ndarray:
 
 # A well-formed model entry with all the fields the router uses
 WELL_FORMED_MODEL = {
-    "openrouter_id": "vendor/model-full",
+    "model_id": "vendor/model-full",
     "display_name": "Fully Specified Model",
     "input_cost_per_m": 2.50,
     "output_cost_per_m": 7.50,
@@ -95,9 +95,9 @@ class TestRegistryConstruction:
     def test_all_models_in_bandit(self):
         """Every model in the registry dict should appear in the bandit's arm list."""
         registry = {
-            "model-a": {**WELL_FORMED_MODEL, "openrouter_id": "model-a"},
-            "model-b": {**WELL_FORMED_MODEL, "openrouter_id": "model-b"},
-            "model-c": {**WELL_FORMED_MODEL, "openrouter_id": "model-c"},
+            "model-a": {**WELL_FORMED_MODEL, "model_id": "model-a"},
+            "model-b": {**WELL_FORMED_MODEL, "model_id": "model-b"},
+            "model-c": {**WELL_FORMED_MODEL, "model_id": "model-c"},
         }
         router = _make_router(registry)
 
@@ -327,7 +327,7 @@ class TestMissingMetadata:
         """Models without input_cost_per_m get the pessimistic fallback cost."""
         config = RouterConfig()
         registry = {
-            "no-cost": {"openrouter_id": "no-cost", "time_to_first_token_seconds": 0.5},
+            "no-cost": {"model_id": "no-cost", "time_to_first_token_seconds": 0.5},
         }
         router = _make_router(registry)
 
@@ -342,7 +342,7 @@ class TestMissingMetadata:
         """Models without time_to_first_token_seconds get the pessimistic fallback latency."""
         config = RouterConfig()
         registry = {
-            "no-latency": {"openrouter_id": "no-latency", "input_cost_per_m": 1.0, "output_cost_per_m": 3.0},
+            "no-latency": {"model_id": "no-latency", "input_cost_per_m": 1.0, "output_cost_per_m": 3.0},
         }
         router = _make_router(registry)
 

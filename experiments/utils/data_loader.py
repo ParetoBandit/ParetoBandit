@@ -180,7 +180,7 @@ def load_model_registry(path: Optional[str | Path] = None) -> Dict[str, Dict]:
     Load model registry from models.json or a custom path.
     
     Returns:
-        dict mapping openrouter_id -> model config
+        dict mapping model_id -> model config
     """
     if path:
         models_file = Path(path)
@@ -201,8 +201,8 @@ def load_model_registry(path: Optional[str | Path] = None) -> Dict[str, Dict]:
     else:
         raise ValueError(f"Unexpected models.json format: {type(data)}")
     
-    # Convert to dict keyed by openrouter_id
-    registry = {m["openrouter_id"]: m for m in models_list}
+    # Convert to dict keyed by model_id
+    registry = {m["model_id"]: m for m in models_list}
     
     return registry
 

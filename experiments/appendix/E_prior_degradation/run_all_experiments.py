@@ -168,7 +168,7 @@ def _make_fig3_router(
     lr = corralling_learning_rate if corralling_learning_rate is not None else LEARNING_RATE
     warmup_path = _save_priors_to_temp(warmup_priors, key=f"fig3_{cache_key}")
     n_stored = max(warmup_priors.get("n_prompts", 1), warmup_priors.get("n", 1), 1)
-    registry = {m: {"openrouter_id": m, "display_name": m.split("/")[-1],
+    registry = {m: {"model_id": m, "display_name": m.split("/")[-1],
                      "input_cost_per_m": 1.0, "output_cost_per_m": 3.0} for m in models}
     router = create_experiment_router(
         model_registry=registry,

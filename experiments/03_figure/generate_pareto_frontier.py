@@ -68,7 +68,7 @@ def load_model_costs() -> Dict:
     # NO FALLBACKS - strict validation
     costs = {}
     for model in data["models"]:
-        model_id = model["openrouter_id"]
+        model_id = model["model_id"]
         
         # Require pricing data (no defaults)
         if "price_1m_input" not in model:

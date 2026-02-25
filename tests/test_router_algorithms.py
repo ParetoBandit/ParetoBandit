@@ -340,21 +340,21 @@ class TestCostLatencyPenalties:
         """Create sample registry with cost/latency data."""
         return {
             "cheap_fast": {
-                "openrouter_id": "provider/cheap-fast",
+                "model_id": "provider/cheap-fast",
                 "input_cost_per_m": 0.1,
                 "output_cost_per_m": 0.3,
                 "time_to_first_token_seconds": 0.1,
                 "hle": 0.5
             },
             "expensive_slow": {
-                "openrouter_id": "provider/expensive-slow",
+                "model_id": "provider/expensive-slow",
                 "input_cost_per_m": 10.0,
                 "output_cost_per_m": 30.0,
                 "time_to_first_token_seconds": 3.0,
                 "hle": 0.9
             },
             "balanced": {
-                "openrouter_id": "provider/balanced",
+                "model_id": "provider/balanced",
                 "input_cost_per_m": 2.0,
                 "output_cost_per_m": 6.0,
                 "time_to_first_token_seconds": 0.5,
@@ -413,7 +413,7 @@ class TestSemanticTransfer:
         """Create registry with semantically similar models."""
         return {
             "gpt-4": {
-                "openrouter_id": "openai/gpt-4",
+                "model_id": "openai/gpt-4",
                 "display_name": "GPT-4",
                 "input_cost_per_m": 5.0,
                 "output_cost_per_m": 15.0,
@@ -422,7 +422,7 @@ class TestSemanticTransfer:
                 "speed_profile": "slow"
             },
             "claude-opus": {
-                "openrouter_id": "anthropic/claude-opus",
+                "model_id": "anthropic/claude-opus",
                 "display_name": "Claude Opus",
                 "input_cost_per_m": 6.0,
                 "output_cost_per_m": 18.0,
@@ -473,7 +473,7 @@ class TestSemanticTransfer:
         
         # Add metadata to registry for semantic matching
         router.registry["gpt-4-turbo"] = {
-            "openrouter_id": "openai/gpt-4-turbo",
+            "model_id": "openai/gpt-4-turbo",
             "display_name": "GPT-4 Turbo",
             "capabilities": ["reasoning", "coding"],  # Same as gpt-4
             "speed_profile": "fast",  # Different speed
@@ -855,7 +855,7 @@ class TestRouterIntegration:
         """Create comprehensive registry for integration testing."""
         return {
             "gpt-4": {
-                "openrouter_id": "openai/gpt-4",
+                "model_id": "openai/gpt-4",
                 "display_name": "GPT-4",
                 "input_cost_per_m": 5.0,
                 "output_cost_per_m": 15.0,
@@ -866,7 +866,7 @@ class TestRouterIntegration:
                 "speed_profile": "slow"
             },
             "gpt-3.5": {
-                "openrouter_id": "openai/gpt-3.5-turbo",
+                "model_id": "openai/gpt-3.5-turbo",
                 "display_name": "GPT-3.5 Turbo",
                 "input_cost_per_m": 0.5,
                 "output_cost_per_m": 1.5,
@@ -877,7 +877,7 @@ class TestRouterIntegration:
                 "speed_profile": "fast"
             },
             "claude-opus": {
-                "openrouter_id": "anthropic/claude-opus",
+                "model_id": "anthropic/claude-opus",
                 "display_name": "Claude Opus",
                 "input_cost_per_m": 6.0,
                 "output_cost_per_m": 18.0,
@@ -1176,7 +1176,7 @@ class TestRobustnessFixes:
         # Create a minimal router
         registry = {
             "gpt-4": {
-                "openrouter_id": "openai/gpt-4",
+                "model_id": "openai/gpt-4",
                 "display_name": "GPT-4",
                 "input_cost_per_m": 5.0,
                 "output_cost_per_m": 15.0,
@@ -1185,7 +1185,7 @@ class TestRobustnessFixes:
                 "speed_profile": "slow"
             },
             "gpt-3.5": {
-                "openrouter_id": "openai/gpt-3.5-turbo",
+                "model_id": "openai/gpt-3.5-turbo",
                 "display_name": "GPT-3.5 Turbo",
                 "input_cost_per_m": 0.5,
                 "output_cost_per_m": 1.5,
@@ -1204,7 +1204,7 @@ class TestRobustnessFixes:
         
         # Add metadata for new model (low similarity to gpt-4)
         router.registry["claude-opus"] = {
-            "openrouter_id": "anthropic/claude-opus",
+            "model_id": "anthropic/claude-opus",
             "display_name": "Claude Opus",
             "capabilities": ["creative", "writing"],  # Different from gpt-4
             "speed_profile": "slow",
@@ -1237,7 +1237,7 @@ class TestRobustnessFixes:
         """Test that n_effective has a sensible default value."""
         registry = {
             "gpt-4": {
-                "openrouter_id": "openai/gpt-4",
+                "model_id": "openai/gpt-4",
                 "display_name": "GPT-4",
                 "input_cost_per_m": 5.0,
                 "output_cost_per_m": 15.0,
@@ -1255,7 +1255,7 @@ class TestRobustnessFixes:
             router.bandit.update("gpt-4", context, reward=0.7)
         
         router.registry["gpt-4-turbo"] = {
-            "openrouter_id": "openai/gpt-4-turbo",
+            "model_id": "openai/gpt-4-turbo",
             "display_name": "GPT-4 Turbo",
             "capabilities": ["reasoning"],
             "speed_profile": "fast",

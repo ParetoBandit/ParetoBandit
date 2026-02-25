@@ -380,9 +380,9 @@ def estimate_tokens_rough(text: str) -> int:
 # Model Family Inference (for Hybrid LinUCB parameter sharing)
 # ---------------------------------------------------------------------------
 
-def infer_model_family(openrouter_id: str) -> str:
+def infer_model_family(model_id: str) -> str:
     """
-    Infer model family from an openrouter_id by stripping variant suffixes.
+    Infer model family from a model_id by stripping variant suffixes.
 
     Models within the same family are expected to have similar reward
     functions, enabling parameter sharing in HybridLinUCBPolicy.
@@ -405,10 +405,10 @@ def infer_model_family(openrouter_id: str) -> str:
         "meta-llama/llama-3.1-70b-instruct" -> "meta-llama/llama-3"
         "google/gemini-2.0-flash"           -> "google/gemini-2"
     """
-    if "/" not in openrouter_id:
-        return openrouter_id
+    if "/" not in model_id:
+        return model_id
 
-    provider, model = openrouter_id.split("/", 1)
+    provider, model = model_id.split("/", 1)
 
     _SUFFIXES = (
         "-turbo", "-mini", "-small", "-medium", "-large", "-xl", "-xxl",
@@ -1861,7 +1861,7 @@ class BanditRouter:
                          continuous transfer learning for new models in existing families.
             family_map: Explicit arm-to-family mapping for hybrid policy.  Keys are
                        model IDs, values are family identifiers.  When None, families
-                       are inferred from openrouter_id via ``infer_model_family()`` or
+                       are inferred from model_id via ``infer_model_family()`` or
                        from the ``family`` field in model registry entries.
         """
         self.config = config or RouterConfig()
@@ -1883,7 +1883,7 @@ class BanditRouter:
                 import json
                 with open(models_path) as f:
                     data = json.load(f)
-                model_registry = {m["openrouter_id"]: m for m in data["models"]}
+                model_registry = {m["model_id"]: m for m in data["models"]}
 
         self.registry = dict(model_registry)
         
@@ -3589,7 +3589,47 @@ Previous version referenced non-existent attributes
         log.corralling_token = corralling_token
         
         return best_model, log
-    
+
+    def route_and_call(
+        self,
+        prompt: str | np.ndarray,
+        client: "LLMClient",
+        *,
+        messages: list[dict] | None = None,
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        **route_kwargs,
+    ) -> Tuple[str, str, "RoutingLog"]:
+        """Route a prompt and call the selected model in one step.
+
+        Parameters:
+            prompt: The prompt text (also used for routing features).
+            client: Any object satisfying the ``LLMClient`` protocol
+                    (see ``bandit_gpt.providers``).
+            messages: Chat messages to send.  Defaults to a single user
+                      message containing *prompt* (when *prompt* is a string).
+            max_tokens: Passed to ``client.complete()``.
+            temperature: Passed to ``client.complete()``.
+            **route_kwargs: Forwarded to ``route()`` (e.g. *max_cost*,
+                            *max_latency*, *profile*).
+
+        Returns:
+            ``(model_id, response_text, routing_log)``
+        """
+        model_id, log = self.route(prompt, **route_kwargs)
+        if messages is None:
+            if isinstance(prompt, str):
+                messages = [{"role": "user", "content": prompt}]
+            else:
+                raise ValueError(
+                    "When prompt is a pre-computed feature vector, "
+                    "you must pass explicit messages."
+                )
+        response = client.complete(
+            model_id, messages, max_tokens=max_tokens, temperature=temperature
+        )
+        return model_id, response, log
+
     def process_feedback(
         self,
         request_id: str,

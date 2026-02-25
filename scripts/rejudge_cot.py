@@ -287,7 +287,7 @@ class CoTRewardGenerator:
         # 3. Load Models
         with open(models_file) as f:
             registry = json.load(f)
-        models = [m["openrouter_id"] for m in registry["models"]]
+        models = [m["model_id"] for m in registry["models"]]
         
         print(f"Processing {len(prompts)} prompts x {len(models)} models = {len(prompts)*len(models)} tasks")
         

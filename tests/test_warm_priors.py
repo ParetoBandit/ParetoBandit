@@ -55,13 +55,13 @@ def _mock_feature_service(dim: int = DIM) -> MagicMock:
 def two_model_registry():
     return {
         "fast/model-a": {
-            "openrouter_id": "fast/model-a",
+            "model_id": "fast/model-a",
             "input_cost_per_m": 0.1,
             "output_cost_per_m": 0.1,
             "initial_quality": 0.6,
         },
         "premium/model-b": {
-            "openrouter_id": "premium/model-b",
+            "model_id": "premium/model-b",
             "input_cost_per_m": 10.0,
             "output_cost_per_m": 15.0,
             "initial_quality": 0.9,

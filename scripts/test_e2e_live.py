@@ -3,20 +3,19 @@
 End-to-end live test for bandit_gpt.
 
 Demonstrates the full feedback loop with real LLM APIs:
-    route prompt → call model via OpenRouter → judge response → update router
+    route prompt → call model → judge response → update router
+
+Supports multiple providers via --provider flag:
+    openrouter (default), openai, anthropic, gemini, ollama
 
 Requires:
-    pip install banditgpt[full]          # or: pip install -e ".[full]"
-
-API key (any ONE of these methods):
-    1. --api-key flag:   python scripts/test_e2e_live.py --api-key sk-or-...
-    2. .env file:        echo 'OPENROUTER_API_KEY=sk-or-...' >> .env
-    3. Environment var:  export OPENROUTER_API_KEY=sk-or-...
+    pip install banditgpt[full]          # or a single provider extra
 
 Usage:
-    python scripts/test_e2e_live.py --api-key sk-or-...
-    python scripts/test_e2e_live.py --rounds 10      # more learning signal
-    python scripts/test_e2e_live.py --judge gpt-4o   # custom judge model
+    python scripts/test_e2e_live.py --provider openrouter --api-key sk-or-...
+    python scripts/test_e2e_live.py --provider openai --api-key sk-...
+    python scripts/test_e2e_live.py --provider ollama  # no key needed
+    python scripts/test_e2e_live.py --rounds 10        # more learning signal
 """
 
 from __future__ import annotations
@@ -98,15 +97,21 @@ JUDGE_TEMPLATE = textwrap.dedent("""\
 """)
 
 
-def resolve_api_key(cli_key: str | None) -> str:
-    """
-    Resolve the OpenRouter API key from (in priority order):
-      1. --api-key CLI argument
-      2. .env file (via python-dotenv)
-      3. OPENROUTER_API_KEY environment variable
-    """
+_ENV_KEY_MAP = {
+    "openrouter": "OPENROUTER_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "ollama": None,
+}
+
+
+def resolve_api_key(cli_key: str | None, provider: str) -> str | None:
+    """Resolve the API key for *provider* from CLI arg, .env, or env var."""
     if cli_key:
         return cli_key
+    if provider == "ollama":
+        return None
 
     try:
         from dotenv import load_dotenv
@@ -114,41 +119,49 @@ def resolve_api_key(cli_key: str | None) -> str:
     except ImportError:
         pass
 
-    key = os.environ.get("OPENROUTER_API_KEY", "")
+    env_var = _ENV_KEY_MAP.get(provider, f"{provider.upper()}_API_KEY")
+    key = os.environ.get(env_var, "") if env_var else ""
     if not key:
-        print("Error: No OpenRouter API key found.\n")
+        print(f"Error: No API key found for provider '{provider}'.\n")
         print("Provide it any of these ways:")
-        print("  1. python scripts/test_e2e_live.py --api-key sk-or-...")
-        print("  2. echo 'OPENROUTER_API_KEY=sk-or-...' >> .env")
-        print("  3. export OPENROUTER_API_KEY=sk-or-...")
+        print(f"  1. --api-key <key>")
+        print(f"  2. echo '{env_var}=<key>' >> .env")
+        print(f"  3. export {env_var}=<key>")
         sys.exit(1)
     return key
 
 
-def build_openai_client(api_key: str):
-    try:
-        from openai import OpenAI
-    except ImportError:
-        print("Error: openai package not installed.\n")
-        print("  pip install banditgpt[full]")
-        sys.exit(1)
-
-    return OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key,
+def build_client(provider: str, api_key: str | None):
+    """Instantiate the appropriate LLMClient adapter for *provider*."""
+    from bandit_gpt.providers import (
+        OpenRouterClient, OpenAIClient, AnthropicClient,
+        GeminiClient, OllamaClient,
     )
+
+    builders = {
+        "openrouter": lambda: OpenRouterClient(api_key=api_key),
+        "openai": lambda: OpenAIClient(api_key=api_key),
+        "anthropic": lambda: AnthropicClient(api_key=api_key),
+        "gemini": lambda: GeminiClient(api_key=api_key),
+        "ollama": lambda: OllamaClient(),
+    }
+    factory = builders.get(provider)
+    if factory is None:
+        print(f"Error: Unknown provider '{provider}'.")
+        print(f"  Supported: {', '.join(builders)}")
+        sys.exit(1)
+    return factory()
 
 
 def call_model(client, model_id: str, prompt: str, max_tokens: int = 600) -> str | None:
-    """Call a model via OpenRouter and return the response text."""
+    """Call a model via the provider client and return the response text."""
     try:
-        resp = client.chat.completions.create(
-            model=model_id,
-            messages=[{"role": "user", "content": prompt}],
+        return client.complete(
+            model_id,
+            [{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             temperature=0.7,
         )
-        return resp.choices[0].message.content
     except Exception as e:
         print(f"    API error ({model_id}): {e}")
         return None
@@ -158,14 +171,13 @@ def judge_response(client, judge_model: str, prompt: str, response: str) -> tupl
     """Use an LLM judge to score a response. Returns (score, reason)."""
     judge_prompt = JUDGE_TEMPLATE.format(prompt=prompt, response=response)
     try:
-        resp = client.chat.completions.create(
-            model=judge_model,
-            messages=[{"role": "user", "content": judge_prompt}],
+        raw = client.complete(
+            judge_model,
+            [{"role": "user", "content": judge_prompt}],
             max_tokens=120,
             temperature=0.0,
         )
-        raw = resp.choices[0].message.content.strip()
-        # Strip markdown fences if present
+        raw = raw.strip()
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         parsed = json.loads(raw)
@@ -183,23 +195,26 @@ def judge_response(client, judge_model: str, prompt: str, response: str) -> tupl
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="bandit_gpt live E2E test")
+    parser.add_argument("--provider", type=str, default="openrouter",
+                        choices=list(_ENV_KEY_MAP),
+                        help="LLM provider (default: openrouter)")
     parser.add_argument("--api-key", type=str, default=None,
-                        help="OpenRouter API key (overrides .env and env var)")
+                        help="API key (overrides .env and env var)")
     parser.add_argument("--rounds", type=int, default=3,
                         help="Number of learning rounds (each round uses all prompts)")
     parser.add_argument("--judge", type=str, default="openai/gpt-4o",
-                        help="OpenRouter model ID for judging responses")
+                        help="Model ID for judging responses")
     args = parser.parse_args()
 
-    api_key = resolve_api_key(args.api_key)
-    client = build_openai_client(api_key)
+    api_key = resolve_api_key(args.api_key, args.provider)
+    client = build_client(args.provider, api_key)
 
     # Load the real model registry shipped with the package
     from bandit_gpt import BanditRouter
     config_path = Path(__file__).resolve().parent.parent / "src" / "bandit_gpt" / "config" / "models_all.json"
     with open(config_path) as f:
         models_data = json.load(f)
-    registry = {m["openrouter_id"]: m for m in models_data["models"]}
+    registry = {m["model_id"]: m for m in models_data["models"]}
     model_names = sorted(registry.keys())
 
     print("=" * 70)

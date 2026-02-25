@@ -49,6 +49,49 @@ router.process_feedback(log.request_id, reward=0.95)
 
 No labels, no retraining, no external API calls. The router runs locally and learns from its own routing outcomes.
 
+### Bring Your Own Provider
+
+BanditGPT is provider-agnostic. For a single provider, pass any adapter directly:
+
+```python
+from bandit_gpt import BanditRouter, OpenAIClient
+
+router = BanditRouter.create(model_registry, priors="warmup")
+client = OpenAIClient(api_key="sk-...")
+
+model_id, response, log = router.route_and_call("Write a Python function to parse JSON", client)
+router.process_feedback(log.request_id, reward=0.95)
+```
+
+For **mixed-provider portfolios**, use `MultiProviderClient` — it maps each model's provider prefix to the right client automatically:
+
+```python
+from bandit_gpt import (
+    BanditRouter, MultiProviderClient,
+    OpenAIClient, AnthropicClient, OllamaClient,
+)
+
+router = BanditRouter.create(model_registry, priors="warmup")
+client = MultiProviderClient({
+    "openai":     OpenAIClient(api_key="sk-..."),
+    "anthropic":  AnthropicClient(api_key="sk-ant-..."),
+    "meta-llama": OllamaClient(),
+})
+
+model_id, response, log = router.route_and_call("Parse this JSON", client)
+```
+
+| Provider | Adapter | Install |
+|----------|---------|---------|
+| OpenRouter | `OpenRouterClient` | `pip install banditgpt[openrouter]` |
+| OpenAI | `OpenAIClient` | `pip install banditgpt[openai]` |
+| Anthropic | `AnthropicClient` | `pip install banditgpt[anthropic]` |
+| Google Gemini | `GeminiClient` | `pip install banditgpt[gemini]` |
+| Ollama (local) | `OllamaClient` | `pip install banditgpt[ollama]` |
+| DeepSeek, Grok, Together, etc. | `OpenAIClient(base_url=...)` | `pip install banditgpt[openai]` |
+
+See the [API Reference](docs/API_REFERENCE.md#providers) for the full multi-provider workflow.
+
 ---
 
 ## When Should You Use BanditGPT?
@@ -393,7 +436,12 @@ pip install -e .
 Optional extras:
 
 ```bash
-pip install banditgpt[full]          # LLM-as-judge grading via OpenRouter
+pip install banditgpt[openrouter]    # OpenRouter adapter
+pip install banditgpt[openai]        # Direct OpenAI (also works for DeepSeek, Grok, etc.)
+pip install banditgpt[anthropic]     # Anthropic adapter
+pip install banditgpt[gemini]        # Google Gemini adapter
+pip install banditgpt[ollama]        # Local Ollama adapter
+pip install banditgpt[full]          # All providers + utilities
 pip install banditgpt[experiments]   # Reproduce paper figures
 pip install banditgpt[dev]           # Development tools
 ```
@@ -402,7 +450,7 @@ pip install banditgpt[dev]           # Development tools
 
 **Core** (installed automatically): Python 3.10+, numpy, torch, pandas, sentence-transformers, transformers
 
-**Optional**: `openai` (LLM-as-judge grading), `python-dotenv` (API key management), `matplotlib` (experiment visualization)
+**Optional**: `openai`, `anthropic`, `google-genai`, `ollama` (provider adapters), `python-dotenv` (API key management), `matplotlib` (experiment visualization)
 
 ### Troubleshooting
 
@@ -410,7 +458,7 @@ pip install banditgpt[dev]           # Development tools
 |-------|----------|
 | Missing or corrupted priors | Run `banditgpt verify-priors` or reinstall |
 | Missing sentence-transformers | `pip install sentence-transformers transformers` |
-| OpenRouter grading fails | Set `OPENROUTER_API_KEY` environment variable |
+| Provider auth fails | Set the appropriate env var (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, etc.) |
 | Debug logging | Set `PYTHONLOGGING=DEBUG` for init/prior resolution details |
 
 ---
@@ -502,6 +550,7 @@ Priors are loaded with `allow_pickle=False` and use fixed-width arrays for secur
 banditgpt/
 ├── src/bandit_gpt/          # Core library
 │   ├── router.py            # BanditRouter, LinUCB, Corralling (~4700 lines)
+│   ├── providers/           # LLMClient protocol + provider adapters
 │   ├── storage.py           # SQLite context persistence
 │   ├── feature_service.py   # Prompt embedding + PCA
 │   ├── calibration.py       # train_pca(), generate_warmup_priors() for custom encoders

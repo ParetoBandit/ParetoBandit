@@ -17,28 +17,28 @@ from bandit_gpt import BanditRouter, FeatureService
 def synthetic_registry() -> dict[str, dict[str, Any]]:
     return {
         "cheap-fast/model-a": {
-            "openrouter_id": "cheap-fast/model-a",
+            "model_id": "cheap-fast/model-a",
             "input_cost_per_m": 0.08,
             "output_cost_per_m": 0.18,
             "time_to_first_token_seconds": 0.15,
             "hle": 0.42,
         },
         "cheap-fast/model-b": {
-            "openrouter_id": "cheap-fast/model-b",
+            "model_id": "cheap-fast/model-b",
             "input_cost_per_m": 0.12,
             "output_cost_per_m": 0.25,
             "time_to_first_token_seconds": 0.20,
             "hle": 0.51,
         },
         "mid/model-c": {
-            "openrouter_id": "mid/model-c",
+            "model_id": "mid/model-c",
             "input_cost_per_m": 1.50,
             "output_cost_per_m": 3.00,
             "time_to_first_token_seconds": 0.45,
             "hle": 0.67,
         },
         "premium/model-d": {
-            "openrouter_id": "premium/model-d",
+            "model_id": "premium/model-d",
             "input_cost_per_m": 7.00,
             "output_cost_per_m": 14.00,
             "time_to_first_token_seconds": 0.90,

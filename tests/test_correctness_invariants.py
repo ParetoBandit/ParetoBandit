@@ -1180,7 +1180,7 @@ class TestL1_RequestIdUniqueness:
         """100 rapid route() calls should produce 100 distinct request_ids."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -1338,7 +1338,7 @@ class TestR3M4_QualityFloorNone:
         """quality_floor={'arena_elo': None} should not cause TypeError."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -1355,7 +1355,7 @@ class TestR3M4_QualityFloorNone:
         """Mix of None and numeric constraints should work."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -1442,14 +1442,14 @@ class TestR3M8_ConstraintsFallback:
         """Fallback after over-constrained filter should return original candidates."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
                 "hle": 0.7,
             },
             "model_b": {
-                "openrouter_id": "test/model-b",
+                "model_id": "test/model-b",
                 "input_cost_per_m": 100.0,
                 "output_cost_per_m": 300.0,
                 "time_to_first_token_seconds": 1.0,
@@ -1539,7 +1539,7 @@ class TestR3L13_LogLock:
         import threading
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -1554,7 +1554,7 @@ class TestR3L13_LogLock:
         """Deep-copied router should have its own independent _log_lock."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -1719,7 +1719,7 @@ class TestR4C1_RegisterModelOrder:
         """register_model should work when corralling is enabled."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -1747,7 +1747,7 @@ class TestR4M1_StabilityCheckUnderCorralling:
         """When corralling is active, stability check on base bandit is skipped."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -1797,7 +1797,7 @@ class TestR4M4_RewardClamping:
         """Rewards outside [0,1] should be clamped, not crash or corrupt."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -2006,7 +2006,7 @@ class TestR5M1_ExplainDecisionUnderCorralling:
         """Under Corralling, explanations should reflect the warmup expert's learned state."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -2029,7 +2029,7 @@ class TestR5M1_ExplainDecisionUnderCorralling:
         """explain_selection should work under Corralling without error."""
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,
@@ -2058,7 +2058,7 @@ class TestR5M2_ComplexityWeightsRemoved:
         import logging
         registry = {
             "model_a": {
-                "openrouter_id": "test/model-a",
+                "model_id": "test/model-a",
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 3.0,
                 "time_to_first_token_seconds": 0.1,

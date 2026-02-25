@@ -60,7 +60,7 @@ def synthetic_registry() -> dict:
     for name, cost, tps, ttft, quality in tiers:
         registry[name] = {
             "name": name,
-            "openrouter_id": name,
+            "model_id": name,
             "input_cost_per_m": cost,
             "output_cost_per_m": cost * 1.5,
             "output_tokens_per_second": tps,

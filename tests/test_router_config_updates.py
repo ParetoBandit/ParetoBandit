@@ -15,14 +15,14 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
         """Set up minimal test registry."""
         self.model_registry = {
             "test-model-1": {
-                "openrouter_id": "test-model-1",
+                "model_id": "test-model-1",
                 "hle": 0.15,
                 "input_cost_per_m": 1.0,
                 "output_cost_per_m": 1.0,
                 "time_to_first_token_seconds": 0.5
             },
             "test-model-2": {
-                "openrouter_id": "test-model-2",
+                "model_id": "test-model-2",
                 "hle": 0.25,
                 "input_cost_per_m": 5.0,
                 "output_cost_per_m": 5.0,

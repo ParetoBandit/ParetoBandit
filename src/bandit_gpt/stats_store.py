@@ -16,17 +16,15 @@ class StatsStore:
             
         # Initialize in-memory stats (In prod, use Redis)
         # Structure: { model_id: { 'successes': 0, 'failures': 0 } }
-        # Support both 'id' and 'openrouter_id'
         self.live_stats = {}
         for m in self.models_config:
-            m_id = m.get('id') or m.get('openrouter_id')
+            m_id = m.get('id') or m.get('model_id')
             if m_id:
                 self.live_stats[m_id] = {'successes': 0, 'failures': 0}
 
     def get_model_stats(self, model_id: str) -> Dict:
         """Returns the static config merged with dynamic stats."""
-        # Find model by id or openrouter_id
-        static = next((m for m in self.models_config if m.get('id') == model_id or m.get('openrouter_id') == model_id), None)
+        static = next((m for m in self.models_config if m.get('id') == model_id or m.get('model_id') == model_id), None)
         stats = self.live_stats.get(model_id)
         
         if not static:

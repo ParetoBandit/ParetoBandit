@@ -83,7 +83,7 @@ def _make_hybrid_router(registry: dict, family_map=None, **kwargs) -> BanditRout
 
 
 WELL_FORMED = {
-    "openrouter_id": "vendor/model",
+    "model_id": "vendor/model",
     "display_name": "Model",
     "input_cost_per_m": 2.50,
     "output_cost_per_m": 7.50,
@@ -382,8 +382,8 @@ class TestRouterIntegration:
 
     def test_hybrid_router_creates_hybrid_policy(self):
         reg = {
-            "openai/gpt-5.1": {**WELL_FORMED, "openrouter_id": "openai/gpt-5.1"},
-            "openai/gpt-5.2": {**WELL_FORMED, "openrouter_id": "openai/gpt-5.2"},
+            "openai/gpt-5.1": {**WELL_FORMED, "model_id": "openai/gpt-5.1"},
+            "openai/gpt-5.2": {**WELL_FORMED, "model_id": "openai/gpt-5.2"},
         }
         router = _make_hybrid_router(reg)
         assert isinstance(router.bandit, HybridLinUCBPolicy)
@@ -391,9 +391,9 @@ class TestRouterIntegration:
 
     def test_hybrid_router_routes_successfully(self):
         reg = {
-            "openai/gpt-5.1": {**WELL_FORMED, "openrouter_id": "openai/gpt-5.1"},
-            "openai/gpt-5.2": {**WELL_FORMED, "openrouter_id": "openai/gpt-5.2"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
+            "openai/gpt-5.1": {**WELL_FORMED, "model_id": "openai/gpt-5.1"},
+            "openai/gpt-5.2": {**WELL_FORMED, "model_id": "openai/gpt-5.2"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
         }
         router = _make_hybrid_router(reg)
         model_id, log = router.route(_ctx())
@@ -401,8 +401,8 @@ class TestRouterIntegration:
 
     def test_family_inferred_from_registry(self):
         reg = {
-            "openai/gpt-5.1": {**WELL_FORMED, "openrouter_id": "openai/gpt-5.1"},
-            "openai/gpt-5.2": {**WELL_FORMED, "openrouter_id": "openai/gpt-5.2"},
+            "openai/gpt-5.1": {**WELL_FORMED, "model_id": "openai/gpt-5.1"},
+            "openai/gpt-5.2": {**WELL_FORMED, "model_id": "openai/gpt-5.2"},
         }
         router = _make_hybrid_router(reg)
         assert router.bandit.family_map["openai/gpt-5.1"] == "openai/gpt-5"
@@ -411,8 +411,8 @@ class TestRouterIntegration:
 
     def test_explicit_family_field_in_registry(self):
         reg = {
-            "model-a": {**WELL_FORMED, "openrouter_id": "model-a", "family": "custom-fam"},
-            "model-b": {**WELL_FORMED, "openrouter_id": "model-b", "family": "custom-fam"},
+            "model-a": {**WELL_FORMED, "model_id": "model-a", "family": "custom-fam"},
+            "model-b": {**WELL_FORMED, "model_id": "model-b", "family": "custom-fam"},
         }
         router = _make_hybrid_router(reg)
         assert router.bandit.family_map["model-a"] == "custom-fam"
@@ -420,7 +420,7 @@ class TestRouterIntegration:
 
     def test_explicit_family_map_overrides_registry(self):
         reg = {
-            "model-a": {**WELL_FORMED, "openrouter_id": "model-a", "family": "reg-fam"},
+            "model-a": {**WELL_FORMED, "model_id": "model-a", "family": "reg-fam"},
         }
         router = _make_hybrid_router(reg, family_map={"model-a": "override-fam"})
         assert router.bandit.family_map["model-a"] == "override-fam"
@@ -428,7 +428,7 @@ class TestRouterIntegration:
     def test_hybrid_is_default_policy(self):
         """Default policy is 'hybrid', so even without specifying policy=
         the bandit should be HybridLinUCBPolicy."""
-        reg = {"m": {**WELL_FORMED, "openrouter_id": "m"}}
+        reg = {"m": {**WELL_FORMED, "model_id": "m"}}
         router = BanditRouter.create(
             model_registry=reg,
             priors="none",
@@ -440,7 +440,7 @@ class TestRouterIntegration:
 
     def test_disjoint_when_explicitly_requested(self):
         """policy='disjoint' should still produce DisjointLinUCBPolicy."""
-        reg = {"m": {**WELL_FORMED, "openrouter_id": "m"}}
+        reg = {"m": {**WELL_FORMED, "model_id": "m"}}
         router = BanditRouter.create(
             model_registry=reg,
             priors="none",
@@ -451,7 +451,7 @@ class TestRouterIntegration:
         assert isinstance(router.bandit, DisjointLinUCBPolicy)
 
     def test_register_model_with_hybrid(self):
-        reg = {"openai/gpt-5.1": {**WELL_FORMED, "openrouter_id": "openai/gpt-5.1"}}
+        reg = {"openai/gpt-5.1": {**WELL_FORMED, "model_id": "openai/gpt-5.1"}}
         router = _make_hybrid_router(reg)
 
         router.register_model("openai/gpt-5.2", speed="balanced", cost_usd=2.0, latency_s=0.5)
@@ -523,8 +523,8 @@ class TestCorrallingFamilyActivation:
         """Two models in the same family (e.g. gpt-4o, gpt-4o-mini) should
         activate family sharing in Corralling experts."""
         reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
         }
         router = _make_corralling_router(reg)
         wu_map, tr_map = self._expert_family_maps(router)
@@ -538,8 +538,8 @@ class TestCorrallingFamilyActivation:
         so that hybrid sharing activates immediately when a same-family
         model is later added via register_model()."""
         reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
+            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
         }
         router = _make_corralling_router(reg)
         wu_map, tr_map = self._expert_family_maps(router)
@@ -551,9 +551,9 @@ class TestCorrallingFamilyActivation:
     def test_k3_with_shared_family_enables_hybrid(self):
         """Three models where two share a family should activate sharing."""
         reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
+            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
         }
         router = _make_corralling_router(reg)
         wu_map, tr_map = self._expert_family_maps(router)
@@ -566,11 +566,11 @@ class TestCorrallingFamilyActivation:
         """Five models from five unrelated families should still receive
         family_map so that register_model() can activate sharing later."""
         reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
-            "google/gemini-2": {**WELL_FORMED, "openrouter_id": "google/gemini-2"},
-            "mistralai/mistral-large": {**WELL_FORMED, "openrouter_id": "mistralai/mistral-large"},
-            "meta-llama/llama-3": {**WELL_FORMED, "openrouter_id": "meta-llama/llama-3"},
+            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
+            "google/gemini-2": {**WELL_FORMED, "model_id": "google/gemini-2"},
+            "mistralai/mistral-large": {**WELL_FORMED, "model_id": "mistralai/mistral-large"},
+            "meta-llama/llama-3": {**WELL_FORMED, "model_id": "meta-llama/llama-3"},
         }
         router = _make_corralling_router(reg)
         wu_map, tr_map = self._expert_family_maps(router)
@@ -583,11 +583,11 @@ class TestCorrallingFamilyActivation:
     def test_k5_with_mixed_families_enables_hybrid(self):
         """Five models with some families shared should activate sharing."""
         reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3-haiku"},
-            "anthropic/claude-3.5-sonnet": {**WELL_FORMED, "openrouter_id": "anthropic/claude-3.5-sonnet"},
-            "google/gemini-2": {**WELL_FORMED, "openrouter_id": "google/gemini-2"},
+            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
+            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
+            "anthropic/claude-3.5-sonnet": {**WELL_FORMED, "model_id": "anthropic/claude-3.5-sonnet"},
+            "google/gemini-2": {**WELL_FORMED, "model_id": "google/gemini-2"},
         }
         router = _make_corralling_router(reg)
         wu_map, tr_map = self._expert_family_maps(router)
@@ -599,8 +599,8 @@ class TestCorrallingFamilyActivation:
     def test_explicit_family_map_overrides_inference(self):
         """An explicit family_map should be respected in Corralling experts."""
         reg = {
-            "model-a": {**WELL_FORMED, "openrouter_id": "vendor/model-a"},
-            "model-b": {**WELL_FORMED, "openrouter_id": "vendor/model-b"},
+            "model-a": {**WELL_FORMED, "model_id": "vendor/model-a"},
+            "model-b": {**WELL_FORMED, "model_id": "vendor/model-b"},
         }
         router = _make_corralling_router(
             reg, family_map={"model-a": "shared", "model-b": "shared"}
@@ -614,8 +614,8 @@ class TestCorrallingFamilyActivation:
     def test_cost_penalty_flows_to_experts(self):
         """BanditRouter.cost_penalty should propagate to both Corralling experts."""
         reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
         }
         router = _make_corralling_router(reg, cost_penalty=0.42)
 
@@ -628,8 +628,8 @@ class TestCorrallingFamilyActivation:
         """When policy='disjoint', Corralling experts should never get family_map
         even if models share families."""
         reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "openrouter_id": "openai/gpt-4o-mini"},
+            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
+            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
         }
         router = _make_corralling_router(reg, policy="disjoint")
         wu_map = router.corralling_router.experts[0].family_map

@@ -13,7 +13,7 @@ from bandit_gpt import BanditRouter, ExplorationRate, RouterConfig
 def sample_registry():
     return {
         "openai/gpt-4o": {
-            "openrouter_id": "openai/gpt-4o",
+            "model_id": "openai/gpt-4o",
             "display_name": "GPT-4o",
             "scores": {"hle": 0.85},
             "hallucination_rate": 1.5,
@@ -21,7 +21,7 @@ def sample_registry():
             "output_cost_per_m": 15.0
         },
         "google/gemma-3-2b-it": {
-            "openrouter_id": "google/gemma-3-2b-it",
+            "model_id": "google/gemma-3-2b-it",
             "display_name": "Gemma 3 2B",
             "scores": {"hle": 0.45},
             "hallucination_rate": 8.0,
@@ -97,7 +97,7 @@ def _test_no_zombie_models():
     for i in range(10):
         hle_score = 0.10 + (i * 0.075)  # 0.10 to 0.775
         registry[f"model{i}"] = {
-            "openrouter_id": f"provider/model-{i}",
+            "model_id": f"provider/model-{i}",
             "display_name": f"Model {i}",
             "hle": hle_score,
             "input_cost_per_m": 0.5 + (i * 0.5),
@@ -147,20 +147,20 @@ def test_estimate_cost_pessimistic_defaults():
     # Registry with missing cost metadata
     registry_missing_costs = {
         "model_a": {
-            "openrouter_id": "provider/model-a",
+            "model_id": "provider/model-a",
             "display_name": "Model A",
             "hle": 0.50,
             # Missing: input_cost_per_m, output_cost_per_m
         },
         "model_b": {
-            "openrouter_id": "provider/model-b",
+            "model_id": "provider/model-b",
             "display_name": "Model B",
             "hle": 0.60,
             "input_cost_per_m": 2.0,
             # Missing: output_cost_per_m only
         },
         "model_c": {
-            "openrouter_id": "provider/model-c",
+            "model_id": "provider/model-c",
             "display_name": "Model C",
             "hle": 0.70,
             "input_cost_per_m": 5.0,
@@ -197,7 +197,7 @@ def test_estimate_latency_pessimistic_defaults():
     """
     registry_missing_latency = {
         "model_a": {
-            "openrouter_id": "provider/model-a",
+            "model_id": "provider/model-a",
             "display_name": "Model A",
             "hle": 0.50,
             "input_cost_per_m": 1.0,
@@ -205,7 +205,7 @@ def test_estimate_latency_pessimistic_defaults():
             # Missing: time_to_first_token_seconds
         },
         "model_b": {
-            "openrouter_id": "provider/model-b",
+            "model_id": "provider/model-b",
             "display_name": "Model B",
             "hle": 0.60,
             "input_cost_per_m": 2.0,
@@ -213,7 +213,7 @@ def test_estimate_latency_pessimistic_defaults():
             "time_to_first_token_seconds": 0.0  # Invalid: zero latency
         },
         "model_c": {
-            "openrouter_id": "provider/model-c",
+            "model_id": "provider/model-c",
             "display_name": "Model C",
             "hle": 0.70,
             "input_cost_per_m": 5.0,

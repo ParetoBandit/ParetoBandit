@@ -31,7 +31,7 @@ def test_theta_only_transfer():
     registry = {
         "gpt-4-base": {
             "display_name": "GPT-4 Base Model for Complex Reasoning",
-            "openrouter_id": "gpt-4-base",
+            "model_id": "gpt-4-base",
             "cost_per_1m_tokens": 10000.0,
             "median_latency_s": 2.0,
             "initial_quality": 0.85
@@ -82,13 +82,13 @@ def test_theta_only_transfer():
     # Now register a similar model (should bootstrap from GPT-4)
     new_model = {
         "display_name": "GPT-4 Turbo - Enhanced Reasoning Model",  # Very similar
-        "openrouter_id": "gpt-4-turbo",
+        "model_id": "gpt-4-turbo",
         "cost_per_1m_tokens": 8000.0,
         "median_latency_s": 1.5,
         "initial_quality": 0.87
     }
     
-    print(f"\n📝 Registering similar model: {new_model['openrouter_id']}")
+    print(f"\n📝 Registering similar model: {new_model['model_id']}")
     print(f"   Should bootstrap from: {model_id}")
     
     # Test the bootstrapping directly

@@ -61,7 +61,7 @@ def synthetic_registry() -> dict[str, dict]:
     registry: dict[str, dict] = {}
     for tier in DEFAULT_TIERS:
         registry[tier.model_id] = {
-            "openrouter_id": tier.model_id,
+            "model_id": tier.model_id,
             "display_name": tier.model_id.split("/")[-1],
             "scores": {"hle": tier.hle},
             "hle": tier.hle,

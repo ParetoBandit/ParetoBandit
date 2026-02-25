@@ -14,9 +14,12 @@ sentence-transformers>=2.2.0
 transformers>=4.30.0
 pandas>=2.0.0
 
-# Optional: API integration (`pip install banditgpt[full]`)
-openai>=1.0.0
-python-dotenv>=1.0.0
+# Optional: LLM provider adapters (`pip install banditgpt[full]`)
+openai>=1.0.0              # OpenAI, OpenRouter, DeepSeek, Grok, Together, etc.
+anthropic>=0.20.0          # Anthropic (Claude)
+google-genai>=1.0.0        # Google Gemini
+ollama>=0.1.0              # Local Ollama
+python-dotenv>=1.0.0       # .env file loading
 
 # Optional: Experiment reproduction (`pip install banditgpt[experiments]`)
 matplotlib>=3.7.0

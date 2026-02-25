@@ -54,19 +54,19 @@ from bandit_gpt import BanditRouter
 # Define your model portfolio
 registry = {
     "openai/gpt-4o": {
-        "openrouter_id": "openai/gpt-4o",
+        "model_id": "openai/gpt-4o",
         "input_cost_per_m": 2.50,
         "output_cost_per_m": 10.00,
         "time_to_first_token_seconds": 0.5,
     },
     "mistralai/mixtral-8x7b": {
-        "openrouter_id": "mistralai/mixtral-8x7b",
+        "model_id": "mistralai/mixtral-8x7b",
         "input_cost_per_m": 0.24,
         "output_cost_per_m": 0.24,
         "time_to_first_token_seconds": 0.3,
     },
     "anthropic/claude-3.5-sonnet": {
-        "openrouter_id": "anthropic/claude-3.5-sonnet",
+        "model_id": "anthropic/claude-3.5-sonnet",
         "input_cost_per_m": 3.00,
         "output_cost_per_m": 15.00,
         "time_to_first_token_seconds": 0.8,
@@ -138,6 +138,55 @@ model_id, log = router.route(
     max_cost=5.0,         # Filter out models costing > $5/1k tokens
     output_tokens=200,    # Expected response length
 )
+```
+
+---
+
+### `BanditRouter.route_and_call()`
+
+Route a prompt **and** call the selected model in a single step.
+
+```python
+def route_and_call(
+    self,
+    prompt: str | np.ndarray,
+    client: LLMClient,
+    *,
+    messages: list[dict] | None = None,
+    max_tokens: int = 512,
+    temperature: float = 0.7,
+    **route_kwargs,
+) -> tuple[str, str, RoutingLog]
+```
+
+**Parameters**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | `str \| np.ndarray` | — | Input text (used for routing features and, by default, as the user message). |
+| `client` | `LLMClient` | — | Any object satisfying the `LLMClient` protocol (see [Providers](#providers)). |
+| `messages` | `list[dict] \| None` | `None` | Chat messages to send.  When `None` and `prompt` is a string, a single `{"role": "user", "content": prompt}` message is used. |
+| `max_tokens` | `int` | `512` | Passed to `client.complete()`. |
+| `temperature` | `float` | `0.7` | Passed to `client.complete()`. |
+| `**route_kwargs` | | | Forwarded to `route()` (e.g. `max_cost`, `max_latency`, `profile`). |
+
+**Returns**: `(model_id, response_text, routing_log)`
+
+**Example**
+
+```python
+from bandit_gpt import BanditRouter, OpenRouterClient
+
+router = BanditRouter.create(registry, priors="warmup")
+client = OpenRouterClient(api_key="sk-or-...")
+
+model_id, response, log = router.route_and_call(
+    "Explain quantum entanglement simply",
+    client,
+    max_cost=5.0,
+)
+print(f"{model_id}: {response[:80]}...")
+router.process_feedback(log.request_id, reward=0.9)
 ```
 
 ---
@@ -806,6 +855,139 @@ from bandit_gpt.storage import EphemeralContextStore
 store = EphemeralContextStore(max_size=100)
 router = BanditRouter.create(registry, context_store=store)
 ```
+
+---
+
+## Providers
+
+BanditGPT ships with a `LLMClient` protocol and thin adapters for popular LLM providers. The router itself never calls an LLM — it only selects a model ID. The providers module bridges the gap, letting you route **and** call in one step via `route_and_call()`.
+
+### `LLMClient` (Protocol)
+
+```python
+from bandit_gpt import LLMClient
+
+class LLMClient(Protocol):
+    def complete(
+        self,
+        model_id: str,
+        messages: list[dict],
+        *,
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        **kwargs,
+    ) -> str: ...
+```
+
+Any object with a matching `complete` method satisfies this protocol — no subclassing required.
+
+### Built-in Adapters
+
+| Adapter | Provider | Install Extra | API Key Env Var |
+|---------|----------|---------------|-----------------|
+| `OpenRouterClient` | [OpenRouter](https://openrouter.ai) | `pip install banditgpt[openrouter]` | `OPENROUTER_API_KEY` |
+| `OpenAIClient` | OpenAI (and any compatible endpoint) | `pip install banditgpt[openai]` | `OPENAI_API_KEY` |
+| `AnthropicClient` | Anthropic | `pip install banditgpt[anthropic]` | `ANTHROPIC_API_KEY` |
+| `GeminiClient` | Google Gemini | `pip install banditgpt[gemini]` | `GEMINI_API_KEY` |
+| `OllamaClient` | Local Ollama | `pip install banditgpt[ollama]` | *(none)* |
+
+**OpenAI-compatible providers** (DeepSeek, Grok, Together, etc.) work via `OpenAIClient` with a custom `base_url`:
+
+```python
+from bandit_gpt import OpenAIClient
+
+client = OpenAIClient(api_key="sk-...", base_url="https://api.deepseek.com")
+```
+
+### Single-Provider Example
+
+When all your models are reachable through one provider, pass a single client:
+
+```python
+from bandit_gpt import BanditRouter, OpenRouterClient
+
+router = BanditRouter.create(registry, priors="warmup")
+client = OpenRouterClient(api_key="sk-or-...")
+
+model_id, response, log = router.route_and_call("Solve x^2 = 4", client)
+router.process_feedback(log.request_id, reward=0.9)
+```
+
+### Multi-Provider Example
+
+When your model portfolio spans multiple providers, use `MultiProviderClient` to wire each provider prefix to the right client:
+
+```python
+from bandit_gpt import (
+    BanditRouter, MultiProviderClient,
+    OpenAIClient, AnthropicClient, OllamaClient,
+)
+
+# 1. Define your model portfolio
+registry = {
+    "openai/gpt-4o": {
+        "model_id": "openai/gpt-4o",
+        "input_cost_per_m": 2.50,
+        "output_cost_per_m": 10.00,
+    },
+    "anthropic/claude-3.5-sonnet": {
+        "model_id": "anthropic/claude-3.5-sonnet",
+        "input_cost_per_m": 3.00,
+        "output_cost_per_m": 15.00,
+    },
+    "meta-llama/llama-3-8b": {
+        "model_id": "meta-llama/llama-3-8b",
+        "input_cost_per_m": 0.0,
+        "output_cost_per_m": 0.0,
+    },
+}
+
+# 2. Create the router
+router = BanditRouter.create(registry, priors="none")
+
+# 3. Map provider prefixes to clients
+client = MultiProviderClient({
+    "openai":     OpenAIClient(api_key="sk-..."),
+    "anthropic":  AnthropicClient(api_key="sk-ant-..."),
+    "meta-llama": OllamaClient(),  # served locally
+})
+
+# 4. Route and call — the dispatcher picks the right client automatically
+model_id, response, log = router.route_and_call("Solve x^2 = 4", client)
+router.process_feedback(log.request_id, reward=0.9)
+```
+
+You can also add providers at runtime:
+
+```python
+from bandit_gpt import GeminiClient
+
+client.register("google", GeminiClient(api_key="..."))
+router.register_model("google/gemini-2.0-flash", speed="fast", capabilities=["reasoning"])
+```
+
+### `MultiProviderClient`
+
+```python
+class MultiProviderClient:
+    def __init__(
+        self,
+        providers: dict[str, LLMClient],
+        *,
+        default: LLMClient | None = None,
+    ): ...
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `providers` | `dict[str, LLMClient]` | — | Maps provider prefix (the part before `/` in a model ID) to a client instance. |
+| `default` | `LLMClient \| None` | `None` | Fallback client for model IDs whose prefix isn't in `providers`. If `None`, raises `KeyError`. |
+
+`MultiProviderClient` satisfies `LLMClient`, so it works anywhere a single client does — including `route_and_call()`.
+
+### Model ID Translation
+
+The canonical model registry uses `provider/model-name` IDs (e.g. `openai/gpt-4o`). Each adapter automatically strips the `provider/` prefix when calling the native API, so you don't need to maintain separate ID mappings.
 
 ---
 
