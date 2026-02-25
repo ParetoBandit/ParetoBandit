@@ -62,9 +62,6 @@ def save_conference_style_plot(fig, filename, output_dir="results"):
     png_path = filepath.with_suffix(".png")
     fig.savefig(png_path, dpi=150, bbox_inches="tight", format="png")
     
-    print(f"✓ Saved: {filepath}")
-    print(f"✓ Preview: {png_path}")
-    
     return filepath
 
 

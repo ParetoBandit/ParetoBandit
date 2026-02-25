@@ -50,7 +50,6 @@ def load_test_prompts(filename: str = "test_prompts.jsonl") -> List[Dict]:
         for line in f:
             prompts.append(json.loads(line))
     
-    print(f"✓ Loaded {len(prompts)} test prompts")
     return prompts
 
 
@@ -74,7 +73,6 @@ def load_train_prompts(filename: str = "train_prompts.jsonl") -> List[Dict]:
         for line in f:
             prompts.append(json.loads(line))
     
-    print(f"✓ Loaded {len(prompts)} train prompts")
     return prompts
 
 
@@ -135,11 +133,6 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
                 if prompt not in oracle_rewards:
                     oracle_rewards[prompt] = {}
                 oracle_rewards[prompt][model_id] = reward
-    
-    # Summary stats
-    n_prompts = len(oracle_rewards)
-    n_models = len(set(m for rewards in oracle_rewards.values() for m in rewards))
-    print(f"✓ Loaded oracle rewards: {n_prompts} prompts × {n_models} models")
     
     return oracle_rewards
 
@@ -211,7 +204,6 @@ def load_model_registry(path: Optional[str | Path] = None) -> Dict[str, Dict]:
     # Convert to dict keyed by openrouter_id
     registry = {m["openrouter_id"]: m for m in models_list}
     
-    print(f"✓ Loaded {len(registry)} models from registry")
     return registry
 
 
@@ -242,7 +234,6 @@ def create_train_test_split(
     train = [prompts[i] for i in train_indices]
     test = [prompts[i] for i in test_indices]
     
-    print(f"✓ Split: {len(train)} train, {len(test)} test")
     return train, test
 
 
@@ -271,7 +262,6 @@ def filter_prompts_by_complexity(
             continue
         filtered.append(prompt)
     
-    print(f"✓ Filtered: {len(filtered)}/{len(prompts)} prompts")
     return filtered
 
 

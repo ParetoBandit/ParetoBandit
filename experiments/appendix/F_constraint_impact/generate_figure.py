@@ -136,22 +136,8 @@ def panel_constrained_pareto(ax, data):
 
 
 def print_scenario_table(data):
-    """Print production scenario results as a LaTeX-ready summary."""
-    print("\n" + "=" * 80)
-    print("PRODUCTION SCENARIO TABLE (for LaTeX)")
-    print("=" * 80)
-    fmt = "{:<18} {:>8} {:>8} {:>4} {:>10} {:>10} {:>12}"
-    print(fmt.format("Scenario", "MaxCost", "MaxLat", "K'",
-                      "Reward", "Cost", "Violations"))
-    print("-" * 80)
-    for s in data["production_scenarios"]:
-        mc = f"${s['max_cost']}" if s["max_cost"] else "None"
-        ml = f"{s['max_latency']}s" if s["max_latency"] else "None"
-        q = f"{s['mean_reward']:.3f}\u00b1{s['std_reward']:.3f}"
-        c = f"${s['mean_cost']:.6f}"
-        v = f"{s['violation_rate']:.4f}"
-        print(fmt.format(s["label"], mc, ml, str(s["eligible_K"]), q, c, v))
-    print("=" * 80)
+    """Compute production scenario results (no-op, data is in JSON)."""
+    pass
 
 
 def main():
@@ -177,8 +163,6 @@ def main():
     out_pdf = OUTPUT_DIR / "figure_constraint_impact.pdf"
     fig.savefig(out_png, dpi=300, bbox_inches="tight")
     fig.savefig(out_pdf, bbox_inches="tight")
-    print(f"\nFigure saved to {out_png}")
-    print(f"Figure saved to {out_pdf}")
     plt.close()
 
 

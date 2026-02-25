@@ -302,11 +302,9 @@ def main():
         p = out / name
         fig.savefig(p, dpi=dpi, bbox_inches="tight", facecolor="white",
                     pad_inches=0.05)
-        print(f"Saved: {p}")
 
     p = out / "figure2_architecture.pdf"
     fig.savefig(p, bbox_inches="tight", facecolor="white", pad_inches=0.05)
-    print(f"Saved: {p}")
 
     paper_dir = Path(__file__).parent.parent.parent / "paper" / "figures"
     if paper_dir.exists():
@@ -318,10 +316,8 @@ def main():
              paper_dir / "figure2_architecture.pdf"),
         ]:
             shutil.copy2(src, dst)
-            print(f"  -> {dst}")
 
     plt.close()
-    print("Done.")
 
 
 if __name__ == "__main__":

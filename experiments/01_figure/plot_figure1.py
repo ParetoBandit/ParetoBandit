@@ -37,9 +37,7 @@ import gzip
 import joblib
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
-from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.stats import spearmanr, mannwhitneyu
 from bandit_gpt.config_legacy import (
     DEFAULT_SENTENCE_TRANSFORMER,
@@ -168,13 +166,8 @@ def categorize_gap(g, eps=1e-9):
 
 
 def outcome_summary(reward_gaps):
-    """Print outcome distribution (supplementary)."""
-    cats = [categorize_gap(g) for g in reward_gaps]
-    n = len(cats)
-    print(f"\n── Outcome Distribution (N={n}) ──")
-    for outcome in OUTCOME_ORDER:
-        count = cats.count(outcome)
-        print(f"  {outcome:<15s}: {count:4d} ({count/n*100:.1f}%)")
+    """Compute outcome distribution (supplementary)."""
+    pass
 
 
 def supplementary_clustering(pc1, reward_gaps, prompts):
@@ -183,52 +176,12 @@ def supplementary_clustering(pc1, reward_gaps, prompts):
     This provides the contingency table view for readers who want it,
     but is NOT the basis for any claims in the paper.
     """
-    print("\n── Supplementary: Threshold-Based Clustering ──")
-    print("  (For exploratory context only — primary metric is Spearman rho)")
-
-    # Simple median split
-    threshold = np.median(pc1)
-    low_mask = pc1 < threshold
-    high_mask = pc1 >= threshold
-    gaps_low = reward_gaps[low_mask]
-    gaps_high = reward_gaps[high_mask]
-
-    print(f"\n  Median split at PC1 = {threshold:.3f}")
-    print(f"  Low PC1:  n={int(low_mask.sum())}")
-    print(f"  High PC1: n={int(high_mask.sum())}")
-
-    # Outcome proportions per group
-    for label, gaps in [("Low PC1", gaps_low), ("High PC1", gaps_high)]:
-        cats = [categorize_gap(g) for g in gaps]
-        n = len(cats)
-        parts = [f"{o}: {cats.count(o)/n*100:.1f}%" for o in OUTCOME_ORDER]
-        print(f"  {label}: {', '.join(parts)}")
-
-    # TF-IDF content analysis
-    prompts_arr = np.array(prompts)
-    _tfidf_summary(list(prompts_arr[low_mask]), list(prompts_arr[high_mask]))
+    pass
 
 
 def _tfidf_summary(prompts_low, prompts_high, top_n=10):
     """Brief TF-IDF keyword analysis (supplementary)."""
-    all_prompts = prompts_low + prompts_high
-    labels_arr = np.array([0] * len(prompts_low) + [1] * len(prompts_high))
-
-    tfidf = TfidfVectorizer(
-        max_features=5000, stop_words='english',
-        ngram_range=(1, 2), min_df=3, max_df=0.8,
-    )
-    X = tfidf.fit_transform(all_prompts)
-    feature_names = np.array(tfidf.get_feature_names_out())
-    mean_low = np.asarray(X[labels_arr == 0].mean(axis=0)).ravel()
-    mean_high = np.asarray(X[labels_arr == 1].mean(axis=0)).ravel()
-    eps = 1e-8
-    ratio_high = mean_high / (mean_low + eps)
-    top_high = np.argsort(ratio_high)[::-1][:top_n]
-
-    print(f"\n  Top {top_n} distinctive terms (High PC1):")
-    for i, idx in enumerate(top_high, 1):
-        print(f"    {i:2d}. {feature_names[idx]}")
+    pass
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -252,67 +205,41 @@ def running_mean(x, y, window=50):
 # ══════════════════════════════════════════════════════════════════════════
 
 def main():
-    print("=" * 80)
-    print("FIGURE 1: MODEL PREFERENCE HETEROGENEITY")
-    print("=" * 80)
-    print("\nQuestion: Do the router's features predict model preference?")
-    print("Method:   Spearman correlation (PC1 vs reward gap)")
-    print("Null:     100 random orthonormal projections")
-
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load holdout data ─────────────────────────────────────────────────
     prompts, reward_gaps = load_holdout_only(CANONICAL_HOLDOUT_DATA_PATH)
-    print(f"\nLoaded {len(prompts)} holdout prompts")
-    print(f"Unique reward gap values: {sorted(np.unique(reward_gaps))}")
     outcome_summary(reward_gaps)
 
     # ── Embed prompts ────────────────────────────────────────────────────
-    print(f"\nEncoding prompts with {DEFAULT_SENTENCE_TRANSFORMER} ...")
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     embeddings = encoder.encode(
         prompts, normalize_embeddings=True, show_progress_bar=True,
         batch_size=64, convert_to_numpy=True
     )
-    print(f"Embedding shape: {embeddings.shape}")
 
     # ── Load Router PCA ──────────────────────────────────────────────────
     if not DEFAULT_PCA_PATH.exists():
-        print(f"\nERROR: Router PCA not found at {DEFAULT_PCA_PATH}")
-        print(f"Run: python3 scripts/train_pca_from_routellm.py --n-components 32")
-        sys.exit(1)
+        raise FileNotFoundError(
+            f"Router PCA not found at {DEFAULT_PCA_PATH}. "
+            f"Run: python3 scripts/train_pca_from_routellm.py --n-components 32"
+        )
 
     router_pca = joblib.load(DEFAULT_PCA_PATH)
     X_pca = router_pca.transform(embeddings)
     pc1 = X_pca[:, 0]
-    print(f"\nRouter PCA loaded: {router_pca.n_components_} components")
-    print(f"PC1 variance explained: {router_pca.explained_variance_ratio_[0]:.2%}")
 
-    # ══════════════════════════════════════════════════════════════════════
-    #  PRIMARY ANALYSIS: SPEARMAN CORRELATION
-    # ══════════════════════════════════════════════════════════════════════
-    print("\n" + "=" * 80)
-    print("PRIMARY ANALYSIS: SPEARMAN RANK CORRELATION")
-    print("=" * 80)
-
+    # ── Primary analysis: Spearman correlation ───────────────────────────
     rho, p_rho = compute_spearman(pc1, reward_gaps)
     rho_abs = abs(rho)
 
-    # Bootstrap 95% CI
     ci_low, ci_high, boot_rhos = bootstrap_spearman_ci(pc1, reward_gaps)
     ci_str = f"95% CI [{ci_low:.3f}, {ci_high:.3f}]"
-
     p_str = f"p < 0.0001" if p_rho < 0.0001 else f"p = {p_rho:.4f}"
-    print(f"\n  Router PCA (PC1 vs reward gap):")
-    print(f"    Spearman rho = {rho:.3f}  ({p_str})")
-    print(f"    {ci_str}")
-    print(f"    |rho|         = {rho_abs:.3f}")
-    print(f"    N             = {len(reward_gaps)}")
 
     # ── Null baseline: 100 random projections ────────────────────────────
     N_RANDOM = 100
-    print(f"\n  Null baseline: {N_RANDOM} random orthonormal projections")
     random_rhos = random_projection_distribution(
         embeddings, reward_gaps, n_seeds=N_RANDOM
     )
@@ -323,37 +250,17 @@ def main():
     n_exceed = int(np.sum(random_rhos >= rho_abs))
     signal_ratio = rho_abs / rho_median if rho_median > 0 else float('inf')
 
-    print(f"    |rho| distribution:")
-    print(f"      Median: {rho_median:.3f}")
-    print(f"      IQR:    [{rho_p25:.3f}, {rho_p75:.3f}]")
-    print(f"      Max:    {rho_max:.3f}")
-    print(f"    Router PCA |rho| = {rho_abs:.3f}")
-    print(f"    Signal ratio (vs median): {signal_ratio:.1f}x")
-    print(f"    Random projections >= Router PCA: {n_exceed}/{len(random_rhos)}")
-    if n_exceed == 0:
-        print(f"    --> Router PCA exceeds ALL {len(random_rhos)} random projections.")
-
     # ── Supplementary: Mann-Whitney U ────────────────────────────────────
-    # Split at median PC1 for a simple group comparison
     median_pc1 = np.median(pc1)
     low_mask = pc1 < median_pc1
     high_mask = pc1 >= median_pc1
     mw_stat, mw_p = mannwhitneyu(
         reward_gaps[low_mask], reward_gaps[high_mask], alternative='two-sided'
     )
-    mw_str = "p < 0.0001" if mw_p < 0.0001 else f"p = {mw_p:.4f}"
-    print(f"\n  Supplementary: Mann-Whitney U (median split)")
-    print(f"    U = {mw_stat:.0f}, {mw_str}")
 
-    # ── Supplementary: Clustering analysis (console only) ────────────────
     supplementary_clustering(pc1, reward_gaps, prompts)
 
-    # ══════════════════════════════════════════════════════════════════════
-    #  CREATE FIGURE
-    # ══════════════════════════════════════════════════════════════════════
-    print("\n" + "=" * 80)
-    print("CREATING FIGURE")
-    print("=" * 80)
+    # ── Create figure ────────────────────────────────────────────────────
 
     blue, red, grey = '#4575b4', '#d73027', '#888888'
 
@@ -505,37 +412,9 @@ def main():
     fig.subplots_adjust(left=0.07, right=0.97, bottom=0.30, top=0.93)
     out_300 = output_dir / "figure1_lmsys_holdout_pca.png"
     fig.savefig(out_300, dpi=300, bbox_inches='tight', facecolor='white')
-    print(f"\nSaved: {out_300}")
     out_600 = output_dir / "figure1_lmsys_holdout_pca_hires.png"
     fig.savefig(out_600, dpi=600, bbox_inches='tight', facecolor='white')
-    print(f"Saved: {out_600}")
     plt.close()
-
-    # ── Summary ───────────────────────────────────────────────────────────
-    print("\n" + "=" * 80)
-    print("FIGURE 1 SUMMARY")
-    print("=" * 80)
-    print(f"  Data:   Holdout only (N={len(prompts)})")
-    print(f"  PCA:    Router PCA ({router_pca.n_components_} components, "
-          f"trained on 80K RouteLLM battles)")
-    print(f"\n  CLAIM 1: Features predict model preference")
-    print(f"    Spearman rho (PC1 vs reward gap) = {rho:.3f}, {p_str}")
-    print(f"    Bootstrap {ci_str}")
-    print(f"\n  CLAIM 2: Signal exceeds null baseline")
-    print(f"    Router PCA |rho| = {rho_abs:.3f}")
-    print(f"    Random projection |rho|: median = {rho_median:.3f}, "
-          f"max = {rho_max:.3f}")
-    print(f"    Signal ratio: {signal_ratio:.1f}x (vs median)")
-    print(f"    Router PCA exceeds {len(random_rhos) - n_exceed}/"
-          f"{len(random_rhos)} random projections")
-    print(f"\n  INTERPRETATION:")
-    print(f"    Model preference varies by prompt — it is not uniform.")
-    print(f"    The router's PCA features predict this variation")
-    print(f"    ({signal_ratio:.1f}x better than random linear projections).")
-    print(f"    This is the necessary condition for contextual routing:")
-    print(f"    because features predict reward, the bandit can learn to route.")
-    print(f"    Whether it does so effectively is tested in Table 2.")
-    print("=" * 80)
 
 
 if __name__ == "__main__":

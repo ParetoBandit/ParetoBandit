@@ -30,7 +30,6 @@ WARMUP_PROMPTS = ROUTELLM_BATTLES_REWARDS_PATH
 def count_prompts(file_path: Path) -> int:
     """Count prompts in a JSONL file."""
     if not file_path.exists():
-        print(f"  Warning: File not found: {file_path}")
         return 0
 
     count = 0
@@ -98,31 +97,14 @@ Dev and holdout sets were created via stratified sampling across category, compl
 
 
 def main():
-    print("=" * 60)
-    print("GENERATING TABLE 1: DATASET DOCUMENTATION")
-    print("=" * 60)
-
-    # Count prompts in each split
-    print("\nCounting prompts...")
     warmup_count = count_prompts(WARMUP_PROMPTS)
     dev_count = count_prompts(DEV_PROMPTS)
     holdout_count = count_prompts(HOLDOUT_PROMPTS)
-    total_count = warmup_count + dev_count + holdout_count
 
-    print(f"  Warmup (PCA + Priors): {warmup_count:,}")
-    print(f"  Development:           {dev_count:,}")
-    print(f"  Holdout:               {holdout_count:,}")
-    print(f"  Total:                 {total_count:,}")
-
-    # Generate and save LaTeX
     latex = generate_table(warmup_count, dev_count, holdout_count)
     output_file = Path(__file__).parent / "table1_dataset.tex"
     with open(output_file, 'w') as f:
         f.write(latex)
-
-    print(f"\nLaTeX table saved to: {output_file}")
-    print("\nPreview:")
-    print(latex)
 
 
 if __name__ == "__main__":

@@ -112,7 +112,6 @@ def main():
     for fmt in ("pdf", "png"):
         out = RESULTS_DIR / f"figure7_lints_comparison.{fmt}"
         fig.savefig(out, dpi=300, bbox_inches="tight")
-        print(f"Saved {out}")
 
     plt.close()
 

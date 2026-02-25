@@ -248,18 +248,6 @@ def main():
     for ext in ("pdf", "png"):
         path = RESULTS_DIR / f"figure4_multimodel_pareto.{ext}"
         fig.savefig(path, dpi=300, bbox_inches="tight")
-        print(f"Saved: {path}")
-
-    # Print summary statistics
-    for k_name in ["K5", "K10"]:
-        d = data[k_name]
-        print(f"\n{k_name} Summary:")
-        print(f"  Oracle:         {d['oracle']['reward']:.4f}")
-        print(f"  banditGPT peak: {d['peak_bandit_reward']:.4f}")
-        print(f"  Best static:    {d['best_static']['reward']:.4f} "
-              f"({d['best_static']['model'].split('/')[-1]})")
-        print(f"  Gap closure:    {d['gap_closure_pct']:.1f}%")
-        print(f"  Warmup (step=0):{d['learning_curve'][0]['mean_reward']:.4f}")
 
 
 if __name__ == "__main__":
