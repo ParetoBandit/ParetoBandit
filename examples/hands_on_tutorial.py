@@ -263,11 +263,11 @@ def generate_synthetic_dataset(n_prompts: int, seed: int = 42):
 # ► TRY IT YOURSELF — Adjust these parameters and re-run.
 # ═══════════════════════════════════════════════════════════════════════
 
-N_PROMPTS    = 500         # Total prompts (more = clearer learning signal)
+N_PROMPTS    = 1000        # Total prompts (more = clearer learning signal)
 SEED         = 42          # Random seed for reproducibility
-EXPLORATION  = "safe"      # Try: "static", "safe", "balanced", "aggressive"
+EXPLORATION  = "aggressive"  # Try: "static", "safe", "balanced", "aggressive"
 COST_PENALTY = 0.3         # Try: 0.0 (quality-only), 0.3 (default), 0.8 (cost-aggressive)
-PRIORS       = "warmup"    # Try: "none" (cold start), "warmup" (offline priors)
+PRIORS       = "none"      # Try: "none" (cold start), "warmup" (offline priors — K=2 only)
 USE_CORRALLING = True      # Try: True (meta-learning hedge), False (single expert)
 
 print("Generating synthetic dataset...")
@@ -479,66 +479,87 @@ fig.suptitle(
 
 # ── Plot 1: Learning curve (rolling avg reward) ─────────────────────
 ax = axes[0, 0]
-window = max(20, N_PROMPTS // 15)
+window = max(40, N_PROMPTS // 12)
 rewards_arr = np.array([h["reward"] for h in history])
 rolling_reward = np.convolve(rewards_arr, np.ones(window) / window, mode="valid")
-ax.plot(range(window, window + len(rolling_reward)), rolling_reward,
-        color="steelblue", linewidth=2, label="BanditGPT (rolling avg)")
+x_vals = np.arange(window, window + len(rolling_reward))
+ax.plot(x_vals, rolling_reward, color="steelblue", linewidth=2.2,
+        label="BanditGPT (rolling avg)")
 
-# Baselines as horizontal lines
 cheap_baseline = baselines["Always cheapest (Llama 8B)"]["reward"]
 exp_baseline = baselines["Always expensive (Sonnet 4)"]["reward"]
 oracle_baseline = baselines["Oracle (cheapest success)"]["reward"]
-ax.axhline(cheap_baseline, color="gray", linestyle="--", alpha=0.6, label=f"Always Llama 8B ({cheap_baseline:.2f})")
-ax.axhline(exp_baseline, color="salmon", linestyle="--", alpha=0.6, label=f"Always Sonnet 4 ({exp_baseline:.2f})")
-ax.axhline(oracle_baseline, color="gold", linestyle="--", alpha=0.6, label=f"Oracle ({oracle_baseline:.2f})")
+ax.axhline(cheap_baseline, color="gray", linestyle="--", alpha=0.6,
+           label=f"Always Llama 8B ({cheap_baseline:.2f})")
+ax.axhline(exp_baseline, color="salmon", linestyle="--", alpha=0.6,
+           label=f"Always Sonnet 4 ({exp_baseline:.2f})")
+ax.axhline(oracle_baseline, color="gold", linestyle="--", alpha=0.6,
+           label=f"Oracle ({oracle_baseline:.2f})")
 
+ax.axvspan(0, min(N_PROMPTS // 4, len(history)),
+           alpha=0.06, color="blue", label="Exploration phase")
 ax.set_xlabel("Prompts Routed")
 ax.set_ylabel(f"Reward (rolling avg, w={window})")
 ax.set_title("Learning Curve — Router Converges Toward Oracle")
-ax.set_ylim(0.5, 1.02)
-ax.legend(fontsize=8, loc="lower right")
+ax.set_ylim(0.45, 1.02)
+ax.legend(fontsize=7, loc="lower right")
 ax.grid(True, alpha=0.3)
 
 # ── Plot 2: Model selection frequency over time ─────────────────────
 ax = axes[0, 1]
-sel_window = max(20, N_PROMPTS // 10)
+sel_window = max(40, N_PROMPTS // 8)
 for mname in model_names:
     selections = np.array([1.0 if h["display_name"] == mname else 0.0 for h in history])
     rolling = np.convolve(selections, np.ones(sel_window) / sel_window, mode="valid")
     ax.plot(range(sel_window, sel_window + len(rolling)), rolling,
             label=mname, color=color_map[mname], linewidth=2)
 
+ax.axhline(1.0 / len(MODEL_IDS), color="black", linestyle=":",
+           alpha=0.3, label=f"Uniform (1/{len(MODEL_IDS)})")
+ax.axvspan(0, min(N_PROMPTS // 4, len(history)),
+           alpha=0.06, color="blue")
 ax.set_xlabel("Prompts Routed")
 ax.set_ylabel("Selection Frequency (rolling)")
 ax.set_title(f"Exploration → Exploitation (window={sel_window})")
-ax.legend(fontsize=8, loc="upper right")
-ax.set_ylim(-0.05, 1.05)
+ax.legend(fontsize=7, loc="upper right")
+ax.set_ylim(-0.05, 0.75)
 ax.grid(True, alpha=0.3)
 
-# ── Plot 3: Per-category model preference ───────────────────────────
+# ── Plot 3: Per-category model preference (stacked %) ────────────────
 ax = axes[1, 0]
 categories = sorted(PROMPT_POOL.keys())
+
+# Only count from the second half of the run (after exploration) for
+# a clearer picture of the router's learned preferences.
+half = len(history) // 2
+converged = history[half:]
 cat_model_counts = {cat: Counter() for cat in categories}
-for h in history:
+for h in converged:
     cat_model_counts[h["category"]][h["display_name"]] += 1
 
 x_pos = np.arange(len(categories))
-bar_width = 0.8 / max(len(model_names), 1)
-for i, mname in enumerate(model_names):
-    counts = [cat_model_counts[cat].get(mname, 0) for cat in categories]
-    ax.bar(x_pos + i * bar_width, counts, bar_width,
+bottoms = np.zeros(len(categories))
+for mname in model_names:
+    fracs = []
+    for cat in categories:
+        total = sum(cat_model_counts[cat].values()) or 1
+        fracs.append(cat_model_counts[cat].get(mname, 0) / total)
+    fracs = np.array(fracs)
+    ax.bar(x_pos, fracs, 0.6, bottom=bottoms,
            label=mname, color=color_map[mname])
+    bottoms += fracs
 
-ax.set_xticks(x_pos + bar_width * (len(model_names) - 1) / 2)
-ax.set_xticklabels(categories, fontsize=9)
-ax.set_ylabel("Times Selected")
+ax.set_xticks(x_pos)
+ax.set_xticklabels([c.title() for c in categories], fontsize=10)
+ax.set_ylabel("Selection Share (converged half)")
 ax.set_title("Context-Dependent Routing — Different Tasks → Different Models")
 ax.legend(fontsize=7, loc="upper right")
+ax.set_ylim(0, 1.05)
 ax.grid(True, alpha=0.3, axis="y")
 
 # ── Plot 4: Per-model reward vs cost ────────────────────────────────
 ax = axes[1, 1]
+scatter_pts = []
 for mname in model_names:
     mhist = [h for h in history if h["display_name"] == mname]
     if not mhist:
@@ -548,15 +569,22 @@ for mname in model_names:
     avg_cost = (info["input_cost_per_m"] + info["output_cost_per_m"]) / 2
     avg_reward = np.mean([h["reward"] for h in mhist])
     count = len(mhist)
-    ax.scatter(avg_cost, avg_reward, s=max(count * 2, 40),
-               color=color_map[mname], edgecolors="white", linewidth=0.8, zorder=3)
+    size = np.clip(count / N_PROMPTS * 600, 60, 400)
+    ax.scatter(avg_cost, avg_reward, s=size,
+               color=color_map[mname], edgecolors="white", linewidth=1, zorder=3)
     ax.annotate(f"{mname}\n({count}×, r={avg_reward:.2f})",
                 (avg_cost, avg_reward), fontsize=7,
-                textcoords="offset points", xytext=(8, -5))
+                textcoords="offset points", xytext=(10, -5))
+    scatter_pts.append((avg_cost, avg_reward))
+
+if scatter_pts:
+    pts = sorted(scatter_pts)
+    ax.plot([p[0] for p in pts], [p[1] for p in pts],
+            color="gray", linestyle="-", alpha=0.25, linewidth=1, zorder=1)
 
 ax.set_xlabel("Avg Cost per M Tokens ($)")
 ax.set_ylabel("Avg Reward When Selected")
-ax.set_title("Cost–Quality: Expensive Models Are Not Always Better")
+ax.set_title("Cost–Quality: Expensive ≠ Always Better")
 ax.set_xscale("log")
 ax.grid(True, alpha=0.3)
 
@@ -648,19 +676,211 @@ for cat in categories:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Section 9 — Suggested Experiments
+# Section 9 — Adding a New Model to a Running Router
 # ──────────────────────────────────────────────────────────────────────
+#
+# In production, models change constantly — a new GPT drops, a cheaper
+# Llama variant appears, or you fine-tune a specialist.  BanditGPT
+# handles this without retraining: register_model() adds the newcomer
+# to a *running* router and bootstraps it from existing knowledge.
+#
+# Under the hood, two mechanisms accelerate onboarding:
+#
+#   1. Latent Semantic Transfer — The router matches the new model to
+#      its closest existing neighbor (via embedding similarity) and
+#      copies learned preferences (θ) while resetting confidence (A).
+#      This gives the newcomer an informed starting point without
+#      inheriting stale certainty.
+#
+#   2. Hybrid Family Sharing — If the newcomer belongs to the same
+#      model family (e.g. openai/gpt-4o and openai/gpt-4o-mini share
+#      the "openai/gpt" family), it immediately benefits from the
+#      family-level reward model (β_F) learned from all family members.
+#      See Appendix C.9 in the paper for the controlled experiment.
+#
+# We'll simulate this: after the 5-model router has learned for 1000
+# steps, we register "google/gemini-2.0-flash" — a new budget model
+# with strong coding skills — and watch the router adapt.
 
 print("\n" + "=" * 70)
+print("  SECTION 9: ADDING A NEW MODEL TO A RUNNING ROUTER")
+print("=" * 70)
+
+# --- Snapshot performance BEFORE adding the new model ---
+pre_add_reward = cumulative_reward / N_PROMPTS
+pre_add_models = list(router.bandit.models)
+print(f"\n  Router state before onboarding:")
+print(f"    Active models:  {len(pre_add_models)} ({', '.join(MODEL_PORTFOLIO[m]['display_name'] for m in pre_add_models)})")
+print(f"    Avg reward:     {pre_add_reward:.3f}")
+print(f"    Prompts seen:   {N_PROMPTS}")
+
+# --- Register the newcomer ---
+#
+# Three tiers of knowledge you can provide:
+#
+#   Tier A — "I know what it's good at":
+#       router.register_model("google/gemini-2.0-flash",
+#                             speed="fast", capabilities=["coding", "reasoning"])
+#
+#   Tier B — "I only know it's cheap/fast":
+#       router.register_model("google/gemini-2.0-flash", speed="fast")
+#
+#   Tier C — "I know nothing":
+#       router.register_model("google/gemini-2.0-flash")
+#
+# We'll use Tier A — the most informative — so the router can start
+# routing to Gemini immediately rather than needing a long exploration.
+
+NEW_MODEL_ID = "google/gemini-2.0-flash"
+NEW_MODEL_DISPLAY = "Gemini 2.0 Flash"
+NEW_MODEL_COST = {"input_cost_per_m": 0.10, "output_cost_per_m": 0.40}
+
+print(f"\n  Registering: {NEW_MODEL_ID}")
+print(f"    Cost: ~${(NEW_MODEL_COST['input_cost_per_m'] + NEW_MODEL_COST['output_cost_per_m'])/2:.2f}/M tokens")
+print(f"    Speed tier: fast")
+print(f"    Capabilities: coding, reasoning")
+
+router.register_model(
+    NEW_MODEL_ID,
+    speed="fast",
+    capabilities=["coding", "reasoning"],
+    cost_usd=(NEW_MODEL_COST["input_cost_per_m"] + NEW_MODEL_COST["output_cost_per_m"]) / 2,
+)
+
+# Update our bookkeeping so the rest of the script can track it.
+MODEL_PORTFOLIO[NEW_MODEL_ID] = {
+    "model_id": NEW_MODEL_ID,
+    "display_name": NEW_MODEL_DISPLAY,
+    **NEW_MODEL_COST,
+}
+
+post_add_models = list(router.bandit.models)
+print(f"\n  Router state after onboarding:")
+print(f"    Active models:  {len(post_add_models)} (K={len(post_add_models)})")
+for mid in post_add_models:
+    tag = " ← NEW" if mid == NEW_MODEL_ID else ""
+    name = MODEL_PORTFOLIO.get(mid, {}).get("display_name", mid)
+    print(f"      {name}{tag}")
+
+# --- Generate post-onboarding traffic ---
+#
+# Simulate 300 more prompts.  Gemini Flash is a strong budget model:
+# it excels at coding/reasoning (where it matches GPT-4o at 1/25th the
+# cost) but is weaker on nuanced chat and knowledge tasks.
+
+NEWCOMER_SUCCESS_PROBS = np.array([
+    #  trivial  easy  medium  hard  vhard  adversarial
+    0.97,     0.90,   0.80,  0.70,  0.40,  0.60,
+])
+
+N_ONBOARDING = 300
+onboarding_dataset = generate_synthetic_dataset(N_ONBOARDING, seed=SEED + 100)
+
+# Add rewards for the newcomer to each datapoint
+onboarding_rng = np.random.default_rng(SEED + 200)
+for d in onboarding_dataset:
+    prob = NEWCOMER_SUCCESS_PROBS[d["difficulty"]]
+    d["rewards"][NEW_MODEL_ID] = int(onboarding_rng.random() < prob)
+
+onboarding_history = []
+onboarding_cum_reward = 0.0
+
+print(f"\n  Routing {N_ONBOARDING} post-onboarding prompts...\n")
+print(f"  {'Step':>5}  {'Category':>11}  {'Selected Model':>20}  {'R':>2}  Prompt")
+print("  " + "-" * 75)
+
+onboarding_order = np.random.default_rng(SEED + 300).permutation(len(onboarding_dataset))
+
+for step_idx, data_idx in enumerate(onboarding_order):
+    step = step_idx + 1
+    d = onboarding_dataset[data_idx]
+
+    model_id, log = router.route(d["prompt"], total_steps=N_PROMPTS + N_ONBOARDING)
+    reward = float(d["rewards"].get(model_id, 0))
+    router.process_feedback(log.request_id, reward=reward)
+
+    onboarding_cum_reward += reward
+    display = MODEL_PORTFOLIO.get(model_id, {}).get("display_name", model_id)
+
+    onboarding_history.append({
+        "step": N_PROMPTS + step,
+        "category": d["category"],
+        "model_id": model_id,
+        "display_name": display,
+        "reward": reward,
+    })
+
+    if step <= 10 or step % 50 == 0 or step == N_ONBOARDING:
+        marker = "✓" if reward == 1 else "✗"
+        truncated = d["prompt"][:40] + ("..." if len(d["prompt"]) > 40 else "")
+        print(f"  {step:5d}  {d['category']:>11s}  {display:>20s}  {marker}  {truncated}")
+
+# --- Onboarding results ---
+post_reward = onboarding_cum_reward / N_ONBOARDING
+newcomer_selections = sum(1 for h in onboarding_history if h["model_id"] == NEW_MODEL_ID)
+newcomer_hist = [h for h in onboarding_history if h["model_id"] == NEW_MODEL_ID]
+newcomer_reward = (
+    np.mean([h["reward"] for h in newcomer_hist]) if newcomer_hist else 0
+)
+
+print(f"\n  {'─' * 64}")
+print(f"  ONBOARDING RESULTS ({N_ONBOARDING} prompts)")
+print(f"  {'─' * 64}")
+print(f"  Avg reward (before onboarding):  {pre_add_reward:.3f}")
+print(f"  Avg reward (after onboarding):   {post_reward:.3f}")
+print(f"\n  {NEW_MODEL_DISPLAY} usage:")
+print(f"    Selected: {newcomer_selections}/{N_ONBOARDING} ({100*newcomer_selections/N_ONBOARDING:.1f}%)")
+if newcomer_hist:
+    print(f"    Avg reward when selected: {newcomer_reward:.3f}")
+print(f"\n  All models (post-onboarding):")
+post_counts = Counter(h["model_id"] for h in onboarding_history)
+for mid in post_add_models:
+    name = MODEL_PORTFOLIO.get(mid, {}).get("display_name", mid)
+    count = post_counts.get(mid, 0)
+    tag = " ← NEW" if mid == NEW_MODEL_ID else ""
+    print(f"    {name:20s}  {count:4d} ({100*count/N_ONBOARDING:5.1f}%){tag}")
+
+# --- Per-category newcomer adoption ---
+print(f"\n  Per-category newcomer adoption:")
+print(f"  {'Category':>11s}  {NEW_MODEL_DISPLAY + ' share':>20s}  {'Avg reward':>10s}")
+print(f"  {'-'*48}")
+for cat in sorted(PROMPT_POOL.keys()):
+    cat_h = [h for h in onboarding_history if h["category"] == cat]
+    if not cat_h:
+        continue
+    new_count = sum(1 for h in cat_h if h["model_id"] == NEW_MODEL_ID)
+    avg_r = np.mean([h["reward"] for h in cat_h])
+    print(f"  {cat:>11s}  {new_count}/{len(cat_h):>3d} ({100*new_count/len(cat_h):5.1f}%)  {avg_r:>10.3f}")
+
+print(textwrap.dedent(f"""
+  Key takeaway: The router started selecting {NEW_MODEL_DISPLAY}
+  immediately — no retraining needed.  Semantic transfer bootstrapped
+  it from the most similar existing model, and family sharing provides
+  continuous knowledge transfer as the newcomer accumulates observations.
+
+  In a real deployment, this is a one-liner:
+      router.register_model("{NEW_MODEL_ID}", speed="fast",
+                            capabilities=["coding", "reasoning"])
+"""))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Section 10 — Suggested Experiments
+# ──────────────────────────────────────────────────────────────────────
+
+print("=" * 70)
 print("  EXPERIMENTS TO TRY")
 print("=" * 70)
 print("""
   Change the parameters in Section 2 and re-run to observe different
   routing behaviour.  Each run takes under a minute with no API cost.
 
-  A) Cold start vs. warmup priors:
+  A) Cold start vs. warmup priors (for the 2-model case):
      PRIORS = "none"  vs.  PRIORS = "warmup"
-     → How many prompts until the router surpasses always-expensive?
+     → "warmup" loads dense priors from offline battles, but those
+       priors only cover 2 models (Mixtral + GPT-4-turbo).  For custom
+       K>2 portfolios, use "none" and let the bandit learn from scratch.
+       Compare learning speed: how many prompts to surpass always-expensive?
 
   B) Cost sensitivity:
      COST_PENALTY = 0.0  vs.  COST_PENALTY = 0.8
@@ -685,4 +905,12 @@ print("""
   F) Difficulty distribution:
      Edit CATEGORY_DIFFICULTY to make coding even harder or chat even
      easier, then watch how the per-category routing preferences shift.
+
+  G) Model onboarding tiers (Section 9):
+     Try different knowledge tiers when registering the newcomer:
+       Tier A: capabilities=["coding", "reasoning"], speed="fast"
+       Tier B: speed="fast" (no capabilities)
+       Tier C: just the model ID (no hints at all)
+     → How many prompts until the newcomer reaches the same selection
+       share?  Tier A should converge fastest.
 """)
