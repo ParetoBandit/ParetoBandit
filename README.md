@@ -209,8 +209,8 @@ model, log, mode = router.route(
 For readers interested in the algorithmic details:
 
 ```
-1. EMBED:  prompt → x  (384-dim via Sentence Transformer)
-2. REDUCE: x → x̃      (32-dim via domain-adapted PCA)
+1. EMBED:  prompt → x  (via Sentence Transformer, custom encoder, or pre-computed vector)
+2. REDUCE: x → x̃      (optional PCA compression, e.g. 384D → 32D)
 3. SCORE:  û = θ·x̃ + α√(x̃ᵀA⁻¹x̃) − λ·cost
               ↑ quality    ↑ exploration    ↑ cost penalty
               estimate     bonus
@@ -414,6 +414,108 @@ If the PCA artifact is missing at runtime (e.g., deleted or moved), the `Feature
 
 ---
 
+## Bring Your Own Embeddings
+
+BanditGPT does **not** require the default sentence-transformer pipeline. You can supply your own embedding function — OpenAI embeddings, Cohere, a local ONNX model, or any other source — and the library handles the rest (PCA, bias term, LinUCB math). This also means you can install just `pip install banditgpt` (no PyTorch, no Hugging Face).
+
+There are three embedding paths, from simplest to most flexible:
+
+| Path | When to use | Requires `sentence-transformers`? |
+|------|-------------|-----------------------------------|
+| **Default** — `FeatureService()` | Quick start, general-purpose traffic | Yes (`pip install banditgpt[embeddings]`) |
+| **Custom encoder** — `FeatureService(custom_encoder=fn)` | You want to use OpenAI, Cohere, ONNX, etc. while the library handles PCA and bias | No |
+| **Pre-computed vectors** — `FeatureService.for_precomputed(dim)` | You manage the full embedding pipeline externally and pass numpy arrays directly | No |
+
+### Path 1: Custom encoder callable
+
+Pass any function that maps `str → np.ndarray` (a 1-D float vector). You must also specify the vector dimensionality via `embedding_dim`.
+
+```python
+import numpy as np
+from bandit_gpt import BanditRouter, FeatureService
+
+# Example: OpenAI embeddings
+from openai import OpenAI
+openai_client = OpenAI()
+
+def openai_embed(prompt: str) -> np.ndarray:
+    resp = openai_client.embeddings.create(
+        model="text-embedding-3-small", input=prompt
+    )
+    return np.array(resp.data[0].embedding)
+
+fs = FeatureService(
+    custom_encoder=openai_embed,
+    embedding_dim=1536,  # must match what your encoder produces
+)
+
+router = BanditRouter.create(model_registry=registry, feature_service=fs, priors="none")
+model_id, log = router.route("Solve x^2 + 2x + 1 = 0")
+```
+
+**What you need to ensure:**
+
+1. **`embedding_dim` must match.** The integer you pass must exactly equal the length of the vector your callable returns. A mismatch will raise at runtime.
+2. **Return a 1-D numpy array.** Shape `(dim,)`, not `(1, dim)`. The library validates this and raises a clear error if the shape is wrong.
+3. **Consistency.** Your encoder must produce vectors in the same space across the lifetime of the router. Switching encoder models mid-session invalidates learned bandit parameters.
+4. **No PCA is applied by default.** When you pass a `custom_encoder` without a `pca_path`, the library uses your raw embeddings directly (+ a bias term). This means the feature dimension equals `embedding_dim + 1`. For high-dimensional embeddings (e.g., 1536 or 3072), the LinUCB covariance matrices will be larger — this is fine for correctness but uses more memory and takes O(d²) per update instead of O(32²).
+5. **Optional PCA for dimensionality reduction.** If you want to compress high-dimensional custom embeddings, train a PCA on your encoder's output and pass both:
+
+```python
+# Train PCA from your custom embeddings (one-time)
+from sklearn.decomposition import PCA
+import joblib
+
+embeddings = np.array([openai_embed(p) for p in representative_prompts])
+pca = PCA(n_components=32).fit(embeddings)
+joblib.dump(pca, "my_openai_pca.joblib")
+
+# Use custom encoder + PCA
+fs = FeatureService(
+    custom_encoder=openai_embed,
+    embedding_dim=1536,
+    pca_path="my_openai_pca.joblib",
+)
+```
+
+### Path 2: Pre-computed vectors
+
+If you manage the full embedding pipeline externally, pass numpy arrays directly to `route()`:
+
+```python
+from bandit_gpt import BanditRouter, FeatureService
+import numpy as np
+
+dim = 65  # 64 features + 1 bias
+fs = FeatureService.for_precomputed(dimension=dim)
+
+router = BanditRouter.create(model_registry=registry, feature_service=fs, priors="none")
+
+# At routing time, pass your own vector (last element must be 1.0 for the bias term)
+vector = np.random.randn(dim)
+vector[-1] = 1.0
+model_id, log = router.route(vector)
+```
+
+**What you need to ensure:**
+
+1. **The last element must be 1.0** (the bias term). The LinUCB intercept depends on this.
+2. **All vectors must have the same dimension** over the router's lifetime.
+3. **Passing a string prompt will raise** — there is no encoder loaded.
+
+### Checklist: custom embedding mode
+
+Before deploying with custom embeddings, verify:
+
+- [ ] Your encoder callable returns a 1-D `np.ndarray` of consistent length
+- [ ] `embedding_dim` matches the actual output length of your encoder
+- [ ] If using PCA, the PCA artifact was trained on embeddings from the **same** encoder
+- [ ] Vectors are numerically stable (no NaN, no Inf, no extreme values)
+- [ ] You are not switching encoder models between router `save_state` / `load_state` — learned parameters are tied to the embedding space
+- [ ] For pre-computed vectors, the last element is `1.0` (bias term)
+
+---
+
 ## Production Features
 
 BanditGPT includes several mechanisms for production reliability:
@@ -509,12 +611,13 @@ We report these limitations honestly to help practitioners make informed decisio
 ## Installation
 
 ```bash
-pip install banditgpt
+pip install banditgpt                # Core library (lightweight: numpy, pandas, scikit-learn)
+pip install banditgpt[embeddings]    # + default sentence-transformer embedding pipeline
 ```
 
-The install includes a pre-trained PCA artifact (`pca_32.joblib`, 51 KB) for prompt feature compression — no extra downloads needed for the routing pipeline itself. See [PCA Projection](#pca-projection) for provenance and customization.
+The **core** install is lightweight — no PyTorch, no Hugging Face downloads.  It's all you need if you [bring your own embeddings](#bring-your-own-embeddings).
 
-On first use, BanditGPT downloads the sentence transformer model weights (~80 MB) from Hugging Face. To pre-download them (recommended for Docker images and CI pipelines):
+The **`[embeddings]`** extra adds `torch`, `sentence-transformers`, and `transformers`, giving you the default embedding pipeline that works out of the box. On first use this downloads the sentence transformer model weights (~80 MB) from Hugging Face. To pre-download them (recommended for Docker images and CI pipelines):
 
 ```bash
 banditgpt --download-models
@@ -525,34 +628,39 @@ From source:
 ```bash
 git clone https://github.com/atabernermiller/banditgpt.git
 cd banditgpt
-pip install -e .
+pip install -e ".[embeddings]"
 ```
 
 Optional extras:
 
 ```bash
+pip install banditgpt[embeddings]    # Default sentence-transformer embedding pipeline
 pip install banditgpt[openrouter]    # OpenRouter adapter
 pip install banditgpt[openai]        # Direct OpenAI (also works for DeepSeek, Grok, etc.)
 pip install banditgpt[anthropic]     # Anthropic adapter
 pip install banditgpt[gemini]        # Google Gemini adapter
 pip install banditgpt[ollama]        # Local Ollama adapter
-pip install banditgpt[full]          # All providers + utilities
+pip install banditgpt[full]          # All providers + embeddings + utilities
 pip install banditgpt[experiments]   # Reproduce paper figures
 pip install banditgpt[dev]           # Development tools
 ```
 
 ### Requirements
 
-**Core** (installed automatically): Python 3.10+, numpy, torch, pandas, sentence-transformers, transformers
+**Core** (installed automatically): Python 3.10+, numpy, pandas, joblib, scikit-learn
 
-**Optional**: `openai`, `anthropic`, `google-genai`, `ollama` (provider adapters), `python-dotenv` (API key management), `matplotlib` (experiment visualization)
+**Embeddings** (optional, via `[embeddings]`): torch, sentence-transformers, transformers
+
+**Providers** (optional): `openai`, `anthropic`, `google-genai`, `ollama`
+
+**Utilities** (optional): `python-dotenv` (API key management), `matplotlib` (experiment visualization)
 
 ### Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | Missing or corrupted priors | Run `banditgpt verify-priors` or reinstall |
-| Missing sentence-transformers | `pip install sentence-transformers transformers` |
+| `ImportError: sentence-transformers` | `pip install banditgpt[embeddings]`, or use a custom encoder / pre-computed vectors |
 | Provider auth fails | Set the appropriate env var (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, etc.) |
 | Debug logging | Set `PYTHONLOGGING=DEBUG` for init/prior resolution details |
 

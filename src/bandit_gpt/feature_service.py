@@ -4,12 +4,28 @@ Feature Service: The Eyes of the BanditRouter.
 Handles all feature extraction logic independently from the LinUCB math.
 This separation allows iterating on feature engineering (regex, PCA, encoders)
 without risking breaking the router core.
+
+Three embedding paths are supported (in order of priority):
+
+1. **Pre-computed vectors** — ``FeatureService.for_precomputed(dim)``
+   No encoder or PCA loaded; pass ``np.ndarray`` directly.
+
+2. **Custom encoder callable** — ``FeatureService(custom_encoder=fn)``
+   Any ``Callable[[str], np.ndarray]`` that maps text → 1-D float array.
+   Paired with an optional PCA artifact for dimensionality reduction.
+   Does *not* require ``sentence-transformers``.
+
+3. **SentenceTransformer encoder** (default) — ``FeatureService()``
+   Requires the ``sentence-transformers`` package
+   (``pip install banditgpt[embeddings]``).
 """
+
+from __future__ import annotations
 
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, List, Union
+from typing import Callable, Optional, List, Union
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -19,6 +35,10 @@ from .config import DEFAULT_SENTENCE_TRANSFORMER
 
 # Default context model
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
+
+# Sentinels for lazy initialization
+_ENCODER_NOT_LOADED = object()
+_PCA_NOT_LOADED = object()
 
 
 # Maximum prompt length to prevent OOM on very long inputs
@@ -92,30 +112,72 @@ class FeatureService:
         self,
         encoder_model: str = DEFAULT_CONTEXT_MODEL,
         pca_path: Optional[Path | str] = None,
-        pca_components: int = None,  # Auto-detect from PCA file if not specified
+        pca_components: int | None = None,
         target_variance: float = 0.60,
         allow_jit_training: bool = True,
         calibration_file: Optional[Path | str] = None,
+        custom_encoder: Optional[Callable[[str], np.ndarray]] = None,
+        embedding_dim: int | None = None,
     ):
         """
         Initialize FeatureService with sentence encoder and optional PCA.
-        
+
+        Three paths are available (see module docstring for details):
+
+        1. **Default SentenceTransformer** — leave *custom_encoder* as ``None``.
+           Requires ``pip install banditgpt[embeddings]``.
+        2. **Custom encoder callable** — pass any function that maps
+           ``str → np.ndarray`` (1-D float vector).  The library handles PCA
+           and bias-term appending.  ``embedding_dim`` is required so the
+           service can validate PCA compatibility without calling the encoder.
+        3. **Pre-computed vectors** — use ``FeatureService.for_precomputed(dim)``
+           instead of this constructor.
+
         Args:
-            encoder_model: SentenceTransformer model name
-            pca_components: Number of PCA components (auto-detected from PCA file if None)
-            pca_path: Path to pre-trained PCA model (optional, defaults to DEFAULT_PCA_PATH)
-            target_variance: Minimum explained variance for PCA (default 0.60)
-            allow_jit_training: Allow JIT PCA training if artifact missing (default: True)
-                              Set to False in strict production to crash-fast instead of hanging
-            calibration_file: Path to real prompts for PCA calibration (optional)
-                             Line-delimited text file. Used instead of synthetic data
-                             to train domain-specific PCA projections.
+            encoder_model: SentenceTransformer model name (ignored when
+                *custom_encoder* is provided).
+            pca_path: Path to a pre-trained PCA model (``.joblib``).
+                When ``None`` and using the default encoder, the shipped
+                ``pca_32.joblib`` is loaded.  When ``None`` and a
+                *custom_encoder* is given, **no PCA** is applied and raw
+                embeddings (+ bias) are used directly.
+            pca_components: Number of PCA components (auto-detected from PCA
+                file if ``None``).
+            target_variance: Minimum explained variance for PCA (default 0.60).
+            allow_jit_training: Allow JIT PCA training when the PCA artifact
+                is missing (default ``True``).  Set to ``False`` in strict
+                production to crash-fast instead of hanging.
+            calibration_file: Path to a line-delimited text file of real
+                prompts for PCA calibration.
+            custom_encoder: A callable ``(str) -> np.ndarray`` that produces
+                a 1-D embedding vector for a given prompt.  When provided,
+                ``sentence-transformers`` is **not** required.
+            embedding_dim: Dimensionality of vectors produced by
+                *custom_encoder*.  **Required** when *custom_encoder* is
+                provided; ignored otherwise.
         """
+        self._custom_encoder = custom_encoder
         self.encoder_model = encoder_model
 
-        # Guard: non-default encoder requires an explicit PCA artifact
-        _using_custom_encoder = encoder_model != DEFAULT_CONTEXT_MODEL
-        if _using_custom_encoder and pca_path is None:
+        if custom_encoder is not None:
+            if embedding_dim is None:
+                raise ValueError(
+                    "embedding_dim is required when using a custom_encoder so "
+                    "the service can validate PCA compatibility and set the "
+                    "feature-vector dimension without calling the encoder."
+                )
+            self._custom_embedding_dim = embedding_dim
+            self.encoder_model = "custom"
+            # Custom encoders skip JIT training (synthetic prompts are tuned
+            # for the default SentenceTransformer and would be misleading).
+            allow_jit_training = False
+        else:
+            self._custom_embedding_dim = None
+
+        _using_nondefault_encoder = (
+            custom_encoder is None and encoder_model != DEFAULT_CONTEXT_MODEL
+        )
+        if _using_nondefault_encoder and pca_path is None:
             raise ValueError(
                 f"Custom encoder '{encoder_model}' requires a PCA artifact "
                 f"trained with the same model.  Generate one with:\n\n"
@@ -125,27 +187,41 @@ class FeatureService:
                 f"Then pass pca_path='my_pca.joblib' to FeatureService."
             )
 
-        # If no PCA path provided, use the default from config
-        if pca_path is None:
+        if pca_path is None and custom_encoder is None:
             from .config import DEFAULT_PCA_PATH
             self.pca_path = DEFAULT_PCA_PATH
-        else:
+        elif pca_path is not None:
             self.pca_path = Path(pca_path)
-            
-        self.pca_components = pca_components  # Will be set from loaded PCA if None
+        else:
+            # custom_encoder with no PCA → raw embeddings
+            self.pca_path = None
+
+        self.pca_components = pca_components
         self.target_variance = target_variance
-        # Disable JIT retraining for custom encoders -- synthetic prompts are
-        # calibrated for the default model and would produce a misleading PCA.
-        if _using_custom_encoder:
+
+        if _using_nondefault_encoder or custom_encoder is not None:
             self.allow_jit_training = False
         else:
             self.allow_jit_training = allow_jit_training
         self.calibration_file = Path(calibration_file) if calibration_file else None
-        
+
         # Lazy initialization
-        self._encoder = None
-        self._pca = None
+        self._encoder = _ENCODER_NOT_LOADED
+        self._pca = _PCA_NOT_LOADED
         self._dimension = None
+
+        # When custom_encoder is given without a PCA, eagerly set dimension
+        # so callers can query .dimension before the first encode call.
+        if custom_encoder is not None and self.pca_path is None:
+            if pca_components is not None:
+                raise ValueError(
+                    "pca_components was set but no pca_path was provided for "
+                    "the custom encoder.  Either supply a PCA artifact or "
+                    "omit pca_components to use raw embeddings."
+                )
+            self.pca_components = embedding_dim
+            self._dimension = embedding_dim + 1  # embeddings + bias
+            self._pca = None  # intentionally no PCA
     
     @classmethod
     def for_precomputed(cls, dimension: int) -> "FeatureService":
@@ -161,8 +237,10 @@ class FeatureService:
         """
         instance = cls.__new__(cls)
         instance.pca_components = dimension - 1
-        instance._encoder = None
-        instance._pca = None
+        instance._encoder = _ENCODER_NOT_LOADED
+        instance._custom_encoder = None
+        instance._custom_embedding_dim = None
+        instance._pca = None  # intentionally no PCA
         instance._dimension = dimension
         instance.encoder_model = "precomputed"
         instance.pca_path = None
@@ -173,28 +251,102 @@ class FeatureService:
 
     @property
     def encoder(self):
-        """Lazy load encoder on first use."""
-        if self._encoder is None:
+        """Lazy-load the SentenceTransformer encoder on first use.
+
+        When a *custom_encoder* callable was supplied at init time, accessing
+        this property raises ``RuntimeError`` — use ``encode_prompt`` instead.
+        """
+        if self._custom_encoder is not None:
+            raise RuntimeError(
+                "A custom_encoder callable is configured; the SentenceTransformer "
+                "encoder is not available.  Use encode_prompt() for text encoding."
+            )
+        if self._encoder is _ENCODER_NOT_LOADED:
             try:
                 from sentence_transformers import SentenceTransformer
-                
-                # Feedback for first-time download
-                if sys.stdout.isatty():
-                    print(f"Loading embedding model '{self.encoder_model}'...", file=sys.stderr)
-                
-                self._encoder = SentenceTransformer(self.encoder_model)
-                logger.info(f"Loaded encoder: {self.encoder_model}")
-            except ImportError as e:
+            except ImportError as exc:
                 raise ImportError(
-                    "Missing dependency: sentence-transformers. "
-                    "Install with: pip install sentence-transformers"
-                ) from e
+                    "sentence-transformers is required for the default embedding "
+                    "pipeline but is not installed.  Install it with:\n\n"
+                    "    pip install banditgpt[embeddings]\n\n"
+                    "Alternatively, pass a custom_encoder callable or use "
+                    "FeatureService.for_precomputed() to avoid this dependency."
+                ) from exc
+
+            if sys.stdout.isatty():
+                print(f"Loading embedding model '{self.encoder_model}'...", file=sys.stderr)
+
+            self._encoder = SentenceTransformer(self.encoder_model)
+            logger.info(f"Loaded encoder: {self.encoder_model}")
         return self._encoder
+
+    @property
+    def has_encoder(self) -> bool:
+        """Whether this service can encode string prompts (custom or ST)."""
+        if self._custom_encoder is not None:
+            return True
+        if self.encoder_model == "precomputed":
+            return False
+        return True
+
+    def encode_prompt(self, prompt: str) -> np.ndarray:
+        """Encode a single prompt to a 1-D embedding vector.
+
+        Dispatches to the custom encoder callable when available, otherwise
+        falls through to the SentenceTransformer encoder.
+
+        Args:
+            prompt: Input text.
+
+        Returns:
+            1-D ``np.ndarray`` of floats (L2-normalized).
+        """
+        if self._custom_encoder is not None:
+            vec = np.asarray(self._custom_encoder(prompt), dtype=np.float64)
+            if vec.ndim != 1:
+                raise ValueError(
+                    f"custom_encoder must return a 1-D array, got shape {vec.shape}"
+                )
+            return l2_normalize(vec)
+        return l2_normalize(
+            self.encoder.encode(prompt, normalize_embeddings=True, show_progress_bar=False)
+        )
+
+    def encode_prompts_batch(self, prompts: List[str]) -> np.ndarray:
+        """Encode multiple prompts to a 2-D embedding matrix.
+
+        Args:
+            prompts: List of input texts.
+
+        Returns:
+            2-D ``np.ndarray`` of shape ``(len(prompts), embedding_dim)``.
+        """
+        if self._custom_encoder is not None:
+            vecs = np.array(
+                [np.asarray(self._custom_encoder(p), dtype=np.float64) for p in prompts]
+            )
+            norms = np.linalg.norm(vecs, axis=1, keepdims=True)
+            norms = np.maximum(norms, 1e-12)
+            return vecs / norms
+        return self.encoder.encode(
+            prompts, normalize_embeddings=True,
+            show_progress_bar=len(prompts) > 100,
+        )
+
+    def get_sentence_embedding_dimension(self) -> int:
+        """Return the raw embedding dimension (before PCA).
+
+        Works for custom encoders (via *embedding_dim*) and for
+        SentenceTransformer encoders (queried from the model).
+        """
+        if self._custom_embedding_dim is not None:
+            return self._custom_embedding_dim
+        return self.encoder.get_sentence_embedding_dimension()
     
     @property
     def pca(self):
         """Lazy load PCA on first use with self-healing."""
-        if self._pca is None:
+        if self._pca is _PCA_NOT_LOADED:
             self._ensure_pca_ready()
         return self._pca
 
@@ -213,10 +365,8 @@ class FeatureService:
     @property
     def using_pca(self) -> bool:
         """Check if PCA compression is active (vs raw embeddings)."""
-        # Trigger PCA loading if not done yet
-        if self._pca is None:
-            _ = self.pca
-        # Check if we fell back to raw embeddings
+        if self._pca is _PCA_NOT_LOADED:
+            _ = self.pca  # trigger lazy load
         return self._pca is not None
     
     def get_dimension(self) -> int:
@@ -309,9 +459,8 @@ class FeatureService:
             )
             prompt = prompt[:MAX_PROMPT_LENGTH]
         
-        # 1. Semantic Embedding
-        emb_full = self.encoder.encode(prompt, normalize_embeddings=True, show_progress_bar=False)
-        emb_full = l2_normalize(emb_full)
+        # 1. Semantic Embedding (delegates to custom_encoder or SentenceTransformer)
+        emb_full = self.encode_prompt(prompt)
         
         # 2. PCA Compression
         if self.pca:
@@ -361,15 +510,8 @@ class FeatureService:
                 p = p[:MAX_PROMPT_LENGTH]
             valid_prompts.append(p)
         
-        # Batch encode
-        embeddings = self.encoder.encode(
-            valid_prompts,
-            normalize_embeddings=True,  # Already normalized by encoder
-            show_progress_bar=len(valid_prompts) > 100
-        )
-        
-        # Note: Embeddings already normalized by encoder, no need for double normalization
-        # embeddings = np.array([l2_normalize(e) for e in embeddings])  # Redundant
+        # Batch encode (dispatches to custom_encoder or SentenceTransformer)
+        embeddings = self.encode_prompts_batch(valid_prompts)
         
         # PCA transform
         if self.pca is not None:
@@ -399,6 +541,11 @@ class FeatureService:
         - Dimension mismatches (encoder upgrades)
         - Manifold collapse (low variance capture)
         """
+        # No PCA path → intentionally skip PCA (custom encoder w/o PCA, etc.)
+        if self.pca_path is None:
+            self._pca = None
+            return
+
         pca_loaded = False
         
         # Check if joblib is available
@@ -406,6 +553,7 @@ class FeatureService:
             import joblib as jl
         except ImportError:
             logger.warning("joblib not available - cannot use PCA compression")
+            self._pca = None
             return
         
         # Phase 1: Try loading existing PCA
@@ -416,7 +564,7 @@ class FeatureService:
                     candidate_pca = jl.load(self.pca_path)
                     
                     # Validation: Dimension check
-                    expected_dim = self.encoder.get_sentence_embedding_dimension()
+                    expected_dim = self.get_sentence_embedding_dimension()
                     actual_dim = candidate_pca.n_features_in_
                     
                     if actual_dim == expected_dim:
@@ -470,11 +618,7 @@ class FeatureService:
             
             # Encode to get embeddings
             logger.info("  Encoding prompts...")
-            embeddings = self.encoder.encode(
-                synthetic_prompts,
-                show_progress_bar=False,
-                normalize_embeddings=True
-            )
+            embeddings = self.encode_prompts_batch(synthetic_prompts)
             logger.info(f"  Embeddings shape: {embeddings.shape}")
             
             # Fit PCA
@@ -505,17 +649,17 @@ class FeatureService:
                 # 
                 # This prevents silent performance degradation. Users will see critical
                 # log and know to retrain PCA with more data or higher n_components.
+                raw_dim = self.get_sentence_embedding_dimension()
                 logger.critical(
                     f"🛑 PCA VARIANCE TOO LOW: {explained_var:.2%} < {self.target_variance:.2%}\n"
-                    f"   ⚠️  FALLBACK TO RAW EMBEDDINGS ({self.encoder.get_sentence_embedding_dimension()}D) FOR SAFETY\n"
-                    f"   📊 Impact: Slower updates (O({self.encoder.get_sentence_embedding_dimension()}²) vs O({self.pca_components}²)) but CORRECT semantic routing\n"
+                    f"   ⚠️  FALLBACK TO RAW EMBEDDINGS ({raw_dim}D) FOR SAFETY\n"
+                    f"   📊 Impact: Slower updates (O({raw_dim}²) vs O({self.pca_components}²)) but CORRECT semantic routing\n"
                     f"   🔧 Fix: Retrain PCA with more data or increase n_components in config\n"
                     f"   📍 PCA path: {self.pca_path}"
                 )
                 # Disable PCA - use raw embeddings
                 self._pca = None
                 # Update dimension to raw embedding size + bias term
-                raw_dim = self.encoder.get_sentence_embedding_dimension()
                 self._dimension = raw_dim + 1  # 384 + 1 = 385
                 logger.info(f"   ✅ Using raw {raw_dim}D embeddings (+ 1 bias) = {self._dimension}D features")
                 return  # Skip setting self._pca, will use raw in extract_features()

@@ -33,7 +33,8 @@ def create(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry may include `input_cost_per_m`, `output_cost_per_m`, `time_to_first_token_seconds`, and capability metadata. |
-| `context_model` | `str` | `"sentence-transformers/all-MiniLM-L6-v2"` | SentenceTransformer model for prompt embedding. Custom models require matching PCA and warmup artifacts. |
+| `context_model` | `str` | `"sentence-transformers/all-MiniLM-L6-v2"` | SentenceTransformer model for prompt embedding. Ignored when `feature_service` is provided. Custom ST models require matching PCA and warmup artifacts. |
+| `feature_service` | `FeatureService \| None` | `None` | Injected feature service for custom embedding pipelines. When provided, `context_model` is ignored. Use this for custom encoders, pre-computed vectors, or domain-specific PCA. See [`FeatureService`](#featureservice). |
 | `priors` | `str` | `"none"` | Prior initialisation strategy: `"none"` (cold start, the default) or a path to a `.joblib` file generated via `generate_warmup_priors()`. |
 | `exploration` | `str` | `"safe"` | Named exploration preset: `"static"` (0.0), `"safe"` (0.05), `"balanced"` (0.5), `"aggressive"` (1.0). |
 | `alpha` | `float` | `0.05` | Explicit exploration rate (overrides `exploration`). |
@@ -43,12 +44,11 @@ def create(
 
 **Returns**: Fully initialised `BanditRouter` instance.
 
-**Example**
+**Example: Default usage**
 
 ```python
 from bandit_gpt import BanditRouter
 
-# Define your model portfolio
 registry = {
     "openai/gpt-4o": {
         "model_id": "openai/gpt-4o",
@@ -62,12 +62,6 @@ registry = {
         "output_cost_per_m": 0.24,
         "time_to_first_token_seconds": 0.3,
     },
-    "anthropic/claude-3.5-sonnet": {
-        "model_id": "anthropic/claude-3.5-sonnet",
-        "input_cost_per_m": 3.00,
-        "output_cost_per_m": 15.00,
-        "time_to_first_token_seconds": 0.8,
-    },
 }
 
 # Create router (cold start — learns from its own routing outcomes)
@@ -75,6 +69,31 @@ router = BanditRouter.create(registry)
 
 # Or load custom priors generated from your own reward data
 router = BanditRouter.create(registry, priors="path/to/my_priors.joblib")
+```
+
+**Example: Custom encoder (no sentence-transformers needed)**
+
+```python
+from bandit_gpt import BanditRouter, FeatureService
+
+fs = FeatureService(
+    custom_encoder=my_encoder_fn,   # Callable[[str], np.ndarray]
+    embedding_dim=768,              # must match your encoder's output
+)
+
+router = BanditRouter.create(registry, feature_service=fs, priors="none")
+```
+
+**Example: Pre-computed vectors**
+
+```python
+from bandit_gpt import BanditRouter, FeatureService
+
+fs = FeatureService.for_precomputed(dimension=33)
+router = BanditRouter.create(registry, feature_service=fs, priors="none")
+
+# Pass numpy arrays instead of strings to route()
+model_id, log = router.route(my_precomputed_vector)
 ```
 
 ---
@@ -474,11 +493,15 @@ print(f"Context vector shape: {log.context_vector.shape}")  # (33,)
 
 ## `FeatureService`
 
-Handles prompt embedding and PCA compression independently from bandit math.
+Handles prompt embedding and PCA compression independently from bandit math. Supports three embedding paths:
+
+1. **Default SentenceTransformer** — `FeatureService()` (requires `pip install banditgpt[embeddings]`)
+2. **Custom encoder callable** — `FeatureService(custom_encoder=fn, embedding_dim=N)` (no extra dependencies)
+3. **Pre-computed vectors** — `FeatureService.for_precomputed(dim)` (no extra dependencies)
 
 ### Bundled PCA Artifact
 
-A pre-trained PCA artifact (`pca_32.joblib`, 51 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided. It was trained on 80,000 RouteLLM battle prompts (independent of BanditGPT's dev/holdout splits) using the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). The 32 components compress 384-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
+A pre-trained PCA artifact (`pca_32.joblib`, 51 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on 80,000 RouteLLM battle prompts (independent of BanditGPT's dev/holdout splits) using the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). The 32 components compress 384-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
 
 To replace it with a domain-specific PCA, pass `pca_path` to the constructor or use `train_pca()` to generate one from your own prompts (see [Calibration API](#calibration-api)).
 
@@ -492,27 +515,34 @@ FeatureService(
     target_variance: float = 0.60,
     allow_jit_training: bool = True,
     calibration_file: Path | str | None = None,
+    custom_encoder: Callable[[str], np.ndarray] | None = None,
+    embedding_dim: int | None = None,
 )
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `encoder_model` | `str` | Default MiniLM | SentenceTransformer model name. Custom models require explicit `pca_path`. |
-| `pca_path` | `Path \| str \| None` | `None` | Path to a PCA artifact (`.joblib`). When `None`, loads the bundled `pca_32.joblib` that ships with the package. |
+| `encoder_model` | `str` | Default MiniLM | SentenceTransformer model name. Ignored when `custom_encoder` is provided. Custom ST models require explicit `pca_path`. |
+| `pca_path` | `Path \| str \| None` | `None` | Path to a PCA artifact (`.joblib`). When `None` and using the default encoder, loads the bundled `pca_32.joblib`. When `None` and `custom_encoder` is set, **no PCA** is applied — raw embeddings are used directly. |
 | `pca_components` | `int \| None` | `None` | Auto-detected from PCA file if not specified. |
 | `target_variance` | `float` | `0.60` | Minimum explained variance threshold for PCA. If JIT-trained PCA falls below this, falls back to raw embeddings. |
-| `allow_jit_training` | `bool` | `True` | Allow JIT PCA retraining if the artifact is missing or corrupted. Set `False` in strict production to crash-fast instead of falling back to synthetic-data PCA. |
+| `allow_jit_training` | `bool` | `True` | Allow JIT PCA retraining if the artifact is missing or corrupted. Set `False` in strict production to crash-fast instead of falling back to synthetic-data PCA. Automatically `False` when `custom_encoder` is provided. |
 | `calibration_file` | `Path \| str \| None` | `None` | Line-delimited text file of real prompts for domain-specific JIT PCA training. Only used if the artifact is missing and `allow_jit_training=True`. |
+| `custom_encoder` | `Callable[[str], np.ndarray] \| None` | `None` | A callable that maps a prompt string to a 1-D numpy embedding vector. When provided, `sentence-transformers` is **not** required. |
+| `embedding_dim` | `int \| None` | `None` | Dimensionality of vectors returned by `custom_encoder`. **Required** when `custom_encoder` is provided; ignored otherwise. |
 
 **Raises**:
-- `ValueError` — Custom encoder without explicit `pca_path`.
+- `ValueError` — Custom SentenceTransformer encoder without explicit `pca_path`.
+- `ValueError` — `custom_encoder` provided without `embedding_dim`.
+- `ValueError` — `pca_components` set without `pca_path` when using `custom_encoder`.
 
 **Example: Default usage (bundled PCA)**
 
 ```python
 from bandit_gpt import FeatureService
 
-# Uses default MiniLM encoder and the bundled pca_32.joblib — no extra setup
+# Uses default MiniLM encoder and the bundled pca_32.joblib
+# Requires: pip install banditgpt[embeddings]
 fs = FeatureService()
 
 vector = fs.extract_features("Explain the Pythagorean theorem")
@@ -529,14 +559,62 @@ from bandit_gpt import FeatureService
 fs = FeatureService(pca_path="my_domain_pca.joblib")
 ```
 
+**Example: Custom encoder (e.g., OpenAI embeddings) — no PCA**
+
+```python
+import numpy as np
+from openai import OpenAI
+from bandit_gpt import FeatureService, BanditRouter
+
+client = OpenAI()
+
+def openai_embed(prompt: str) -> np.ndarray:
+    resp = client.embeddings.create(model="text-embedding-3-small", input=prompt)
+    return np.array(resp.data[0].embedding)
+
+# No sentence-transformers required, no PCA applied
+fs = FeatureService(custom_encoder=openai_embed, embedding_dim=1536)
+
+router = BanditRouter.create(model_registry=registry, feature_service=fs, priors="none")
+model_id, log = router.route("Explain quantum computing")
+```
+
+The resulting feature vector has shape `(1537,)` — 1536 raw embedding dimensions plus the bias term. See the [README's Bring Your Own Embeddings section](../README.md#bring-your-own-embeddings) for guidance on when to add PCA compression for high-dimensional embeddings.
+
+**Example: Custom encoder with PCA compression**
+
+```python
+import joblib
+from sklearn.decomposition import PCA
+from bandit_gpt import FeatureService
+
+# One-time: train PCA on representative prompts from your encoder
+embeddings = np.array([openai_embed(p) for p in representative_prompts])
+pca = PCA(n_components=32).fit(embeddings)
+joblib.dump(pca, "openai_pca_32.joblib")
+
+# Use at runtime: 1536D embeddings → 32 PCA + 1 bias = 33D features
+fs = FeatureService(
+    custom_encoder=openai_embed,
+    embedding_dim=1536,
+    pca_path="openai_pca_32.joblib",
+)
+```
+
 ### `FeatureService.for_precomputed()`
 
-Create a lightweight service for pre-computed embedding vectors (no model loading).
+Create a lightweight service for pre-computed embedding vectors (no model loading, no PCA).
 
 ```python
 @classmethod
 def for_precomputed(cls, dimension: int) -> FeatureService
 ```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dimension` | `int` | Total feature-vector length (your embedding dimensions + 1 bias term). |
+
+Passing a string prompt to a pre-computed service raises `RuntimeError`. Only `np.ndarray` inputs are accepted.
 
 **Example: Testing without model downloads**
 
@@ -552,6 +630,20 @@ vector[-1] = 1.0  # bias term
 result = fs.extract_features(vector)  # passes through directly
 ```
 
+**Example: High-dimensional pre-computed embeddings**
+
+```python
+# Using 768-dimensional embeddings from your own pipeline
+dim = 769  # 768 features + 1 bias
+fs = FeatureService.for_precomputed(dimension=dim)
+
+router = BanditRouter.create(model_registry=registry, feature_service=fs, priors="none")
+
+vec = your_embedding_pipeline("Explain relativity")
+vec = np.append(vec, 1.0)  # append bias term
+model_id, log = router.route(vec)
+```
+
 ### `FeatureService.extract_features()`
 
 Convert a prompt to a feature vector.
@@ -560,7 +652,7 @@ Convert a prompt to a feature vector.
 def extract_features(self, prompt: str | np.ndarray) -> np.ndarray
 ```
 
-**Returns**: Feature vector of shape `(pca_components + 1,)`. The last element is a bias term (always 1.0). Default: 33 dimensions (32 PCA + 1 bias).
+**Returns**: Feature vector of shape `(dimension,)`. The last element is a bias term (always 1.0). Default with bundled PCA: 33 dimensions (32 PCA + 1 bias). With a custom encoder and no PCA: `embedding_dim + 1`.
 
 **Raises**:
 - `ValueError` — Empty prompt or dimension mismatch for pre-computed vectors.
@@ -589,8 +681,28 @@ prompts = [
     "Tell me a joke about programmers",
 ]
 vectors = fs.extract_features_batch(prompts)
-print(f"Batch shape: {vectors.shape}")  # (3, 33)
+print(f"Batch shape: {vectors.shape}")  # (3, 33) with default PCA; (3, 1537) with 1536D custom encoder
 ```
+
+### `FeatureService.encode_prompt()`
+
+Encode a single prompt to a raw embedding vector (before PCA).
+
+```python
+def encode_prompt(self, prompt: str) -> np.ndarray
+```
+
+Dispatches to the custom encoder when available, otherwise uses SentenceTransformer. Returns an L2-normalized 1-D array.
+
+### `FeatureService.encode_prompts_batch()`
+
+Encode multiple prompts to a 2-D embedding matrix (before PCA).
+
+```python
+def encode_prompts_batch(self, prompts: list[str]) -> np.ndarray
+```
+
+**Returns**: `np.ndarray` of shape `(len(prompts), embedding_dim)`.
 
 ### `FeatureService.get_feature_names()`
 
@@ -615,9 +727,10 @@ print(len(names))  # 33
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `dimension` | `int` | Total feature dimension (PCA components + 1 bias). |
+| `dimension` | `int` | Total feature dimension (embedding or PCA components + 1 bias). |
 | `bias_index` | `int` | Index of the bias term (always -1). |
 | `using_pca` | `bool` | Whether PCA compression is active. |
+| `has_encoder` | `bool` | Whether this service can encode string prompts (custom or SentenceTransformer). `False` for `for_precomputed()` services. |
 
 ---
 

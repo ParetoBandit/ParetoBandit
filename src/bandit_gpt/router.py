@@ -32,14 +32,15 @@ import copy
 
 import numpy as np
 
-# Set environment variable to avoid hangs in multi-threaded/multi-process environments
-# This is a common issue with SentenceTransformers on Mac/Linux.
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# Prevent tokenizers parallelism hangs (common with SentenceTransformers).
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+# SentenceTransformer is optional; only needed when the default embedding
+# pipeline is used (i.e. no custom_encoder or pre-computed vectors).
 try:
     from sentence_transformers import SentenceTransformer
-except ImportError as e:
-    raise ImportError("Missing dependency: sentence-transformers") from e
+except ImportError:
+    SentenceTransformer = None  # type: ignore[misc,assignment]
 
 
 try:
@@ -1903,24 +1904,18 @@ class BanditRouter:
             )
             logger.info(f"Created default FeatureService with encoder={context_model}")
         
-        # For backward compatibility, expose encoder and pca.
-        # Only trigger lazy loading when using the default (legacy) feature service.
-        # Injected services (e.g. FeatureService.for_precomputed) may not have
-        # an encoder/PCA and loading them would be a ~2 GB unnecessary download.
-        if feature_service is not None:
-            self.encoder = None
-            self.pca = None
-        else:
-            self.encoder = self.features.encoder
-            self.pca = self.features.pca
+        # Backward-compatible aliases.  We avoid eagerly touching
+        # features.encoder / features.pca here — that would force a
+        # multi-GB download even for users who injected a lightweight
+        # FeatureService or use pre-computed vectors.
+        self._encoder_resolved = False
+        self._pca_resolved = False
         
         # Calculate dimension dynamically from feature service
         # Default is 33 (32 PCA + 1 bias) with pca_32.joblib
         embedding_dim = self.features.dimension
         
-        logger.debug(f"Feature dimensions: "
-                    f"pca={self.pca.n_components if self.pca else 'none'}, "
-                    f"total={embedding_dim} (including bias)")
+        logger.debug(f"Feature dimensions: total={embedding_dim} (including bias)")
         
         # Initialize bandit with calculated dimension.
         # NOTE: Features are [PCA_0, ..., PCA_{d-2}, bias].  We apply PCA for
@@ -2026,8 +2021,8 @@ Previous version referenced non-existent attributes
         
         # --- Feature Service (SHARE: stateless, contains locks & GPU state) ---
         result.features = self.features
-        result.encoder = self.encoder
-        result.pca = self.pca  # PCA model is read-only after init
+        result._encoder_resolved = self._encoder_resolved
+        result._pca_resolved = self._pca_resolved
         
         # --- Bandit Policy (deepcopy: has its own __deepcopy__ for locks) ---
         result.bandit = copy.deepcopy(self.bandit, memo)
@@ -2100,13 +2095,7 @@ Previous version referenced non-existent attributes
         """
         feature_map = {}
         
-        # Calculate base dimensions
-        if self.pca:
-            embedding_dim = self.pca.n_components
-        elif self.encoder is not None:
-            embedding_dim = self.encoder.get_sentence_embedding_dimension()
-        else:
-            embedding_dim = self.features.dimension - 1
+        embedding_dim = self.features.dimension - 1  # exclude bias
         
         # PCA components  
         for i in range(embedding_dim):
@@ -2240,7 +2229,7 @@ Previous version referenced non-existent attributes
                 model_id=model_id,
                 registry=self.registry,
                 bandit=self.bandit,
-                encoder=self.encoder,
+                encoder=None,  # uses self.features internally
                 n_effective=n_effective,
                 precomputed_neighbor=(neighbor, similarity)
             )
@@ -2455,10 +2444,17 @@ Previous version referenced non-existent attributes
         """
         if not self.registry or len(self.bandit.models) < 1:
             return None, 0.0
-        
+
+        if not self.features.has_encoder:
+            logger.info(
+                "Semantic neighbor search skipped: no encoder available "
+                "(pre-computed vectors mode)."
+            )
+            return None, 0.0
+
         # 1. Embed the new model's DNA
         try:
-            new_vec = self.encoder.encode([dna_str], convert_to_numpy=True)[0]
+            new_vec = self.features.encode_prompt(dna_str)
         except Exception as e:
             logger.warning(f"Failed to encode DNA for {model_id}: {e}")
             return None, 0.0
@@ -2475,13 +2471,12 @@ Previous version referenced non-existent attributes
             
             # Use cached embedding or generate it
             if "dna_embedding" not in m_data:
-                # Generate DNA for existing model
                 m_capabilities = m_data.get("capabilities", [])
                 m_speed = m_data.get("speed_profile", "balanced")
                 m_dna = self._get_model_dna(m_id, m_capabilities, m_speed)
                 
                 try:
-                    m_data["dna_embedding"] = self.encoder.encode([m_dna], convert_to_numpy=True)[0]
+                    m_data["dna_embedding"] = self.features.encode_prompt(m_dna)
                 except Exception as e:
                     logger.debug(f"Failed to encode DNA for {m_id}: {e}")
                     continue
@@ -2602,10 +2597,16 @@ Previous version referenced non-existent attributes
             try:
                 if 'dna_embedding' in model_info:
                     new_embedding = model_info['dna_embedding']
-                else:
-                    new_embedding = encoder.encode([model_dna], convert_to_numpy=True)[0]
+                elif self.features.has_encoder:
+                    new_embedding = self.features.encode_prompt(model_dna)
                     if model_id in registry:
                         registry[model_id]['dna_embedding'] = new_embedding
+                else:
+                    logger.info(f"No encoder available for semantic neighbor search of {model_id}.")
+                    return (
+                        np.eye(bandit.dim) * bandit.init_lambda,
+                        np.zeros(bandit.dim, dtype=np.float64)
+                    )
             except Exception as e:
                 logger.warning(f"Failed to encode DNA for {model_id}: {e}. Using identity init.")
                 return (
@@ -2628,7 +2629,7 @@ Previous version referenced non-existent attributes
                     if 'dna_embedding' in neighbor_info:
                         neighbor_embedding = neighbor_info['dna_embedding']
                     else:
-                        neighbor_embedding = encoder.encode([neighbor_dna], convert_to_numpy=True)[0]
+                        neighbor_embedding = self.features.encode_prompt(neighbor_dna)
                         registry[neighbor_id]['dna_embedding'] = neighbor_embedding
                     
                     similarity = np.dot(new_embedding, neighbor_embedding) / (
