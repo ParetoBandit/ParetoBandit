@@ -43,7 +43,7 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config_legacy import ROUTELLM_BATTLES_REWARDS_PATH
+from bandit_gpt.config import ROUTELLM_BATTLES_REWARDS_PATH
 
 # Load HuggingFace token
 load_dotenv()

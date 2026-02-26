@@ -58,7 +58,7 @@ from bandit_gpt.router import (
     compute_correlation_families,
 )
 from bandit_gpt.calibration import embed_prompt
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     DEV_DATA_PATH_ALL_MODELS,

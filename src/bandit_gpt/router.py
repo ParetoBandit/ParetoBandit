@@ -326,7 +326,7 @@ class RouterConfig:
         return np.log(self.market_latency_ceiling) - np.log(self.market_latency_floor)
 
 
-from .config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+from .config import DEFAULT_SENTENCE_TRANSFORMER
 
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
 

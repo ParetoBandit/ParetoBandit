@@ -308,17 +308,63 @@ These let you independently tune "how confident are we in feature correlations?"
 
 ---
 
-## Custom Encoders
+## PCA Projection
 
-BanditGPT uses a PCA projection trained on the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). If you want to use a different sentence transformer, you must generate a matching PCA projection first.
+BanditGPT compresses prompt embeddings from 384 dimensions down to 32 via PCA before feeding them to the bandit. A pre-trained PCA artifact ships inside the wheel so the router works immediately after `pip install` — no extra downloads, no JIT retraining on first request.
 
-### Step 1: Train a PCA projection
+### What ships and how it was trained
+
+The bundled `pca_32.joblib` (51 KB) was trained on **80,000 RouteLLM battle prompts** using the default sentence encoder (`sentence-transformers/all-MiniLM-L6-v2`). This dataset is independent of BanditGPT's dev/holdout evaluation splits, so there is no data contamination. The 32 components capture ~35% of the embedding variance, which is sufficient for the routing signal (see the paper's PCA ablation in `experiments/03_figure/run_pca_neff_ablation.py`).
+
+### When the default PCA is enough
+
+For most deployments the bundled PCA works out of the box. It was trained on a broad mix of English prompts (coding, math, reasoning, creative writing, general chat) from real human-LLM conversations, so it covers the principal axes of variation in typical production traffic.
+
+### When to train your own
+
+You should replace the bundled PCA when:
+
+- **You use a different sentence encoder.** The PCA must match the encoder's embedding space. Passing a custom `encoder_model` without a matching `pca_path` raises a `ValueError`.
+- **Your domain is far from general English chat.** If your traffic is dominated by a narrow domain (e.g., Japanese legal contracts, biomedical literature), the bundled projection may filter out critical semantic variance. Training a domain-specific PCA on a representative sample of your prompts will capture the axes that matter most for your routing decisions.
+- **You want more (or fewer) components.** 32 is the default, but you can increase it for richer signal (at the cost of slower O(d^2) bandit updates) or decrease it for faster updates with slightly coarser embeddings.
+
+### Training a custom PCA
 
 ```python
 from bandit_gpt import train_pca
 
-prompts = [...]  # Your representative corpus (200+ recommended)
+# Collect 200+ representative prompts from your actual traffic
+prompts = [...]
 
+pca = train_pca(
+    prompts,
+    encoder_model="sentence-transformers/all-MiniLM-L6-v2",  # or your custom encoder
+    n_components=32,
+    output_path="my_pca.joblib",
+)
+print(f"Explained variance: {sum(pca.explained_variance_ratio_):.1%}")
+```
+
+Then pass the custom artifact when creating the router:
+
+```python
+from bandit_gpt import BanditRouter, FeatureService
+
+fs = FeatureService(
+    encoder_model="sentence-transformers/all-MiniLM-L6-v2",
+    pca_path="my_pca.joblib",
+)
+
+router = BanditRouter.create(feature_service=fs)
+```
+
+### Using a custom encoder end-to-end
+
+If you want to swap out the sentence transformer entirely, you need matching PCA and (optionally) warmup priors:
+
+**Step 1: Train PCA on your encoder**
+
+```python
 pca = train_pca(
     prompts,
     encoder_model="your-org/your-encoder",
@@ -327,7 +373,7 @@ pca = train_pca(
 )
 ```
 
-### Step 2: Generate warmup priors
+**Step 2: Generate warmup priors (optional)**
 
 ```python
 from bandit_gpt import generate_warmup_priors
@@ -343,7 +389,7 @@ priors = generate_warmup_priors(
 )
 ```
 
-### Step 3: Create the router
+**Step 3: Create the router**
 
 ```python
 from bandit_gpt import BanditRouter, FeatureService
@@ -360,7 +406,11 @@ router = BanditRouter.create(
 )
 ```
 
-If you don't have labelled data for warmup priors, you can skip them entirely with `priors="none"` and let the router learn from scratch.
+If you don't have labelled data for warmup priors, skip them with `priors="none"` and let the router learn from scratch.
+
+### Self-healing fallback
+
+If the PCA artifact is missing at runtime (e.g., deleted or moved), the `FeatureService` can JIT-train a replacement from synthetic prompts. This keeps the router available but produces a CRITICAL log warning — the synthetic distribution may not match your production traffic. In strict production deployments, set `allow_jit_training=False` to crash-fast instead of falling back silently.
 
 ---
 
@@ -372,7 +422,7 @@ BanditGPT includes several mechanisms for production reliability:
 |---------|------------------|-----------|
 | **Snapshot-Swap Updates** | Matrix inversions (O(d³), ~50ms) blocked all routing during updates | Three-phase: snapshot state → compute without lock → atomic swap. Lock time: ~50ms → ~0.2ms |
 | **Durable Context Store** | Feedback arriving hours/days after routing was lost on restart | SQLite-backed persistence (WAL mode). Contexts survive restarts; 7-day TTL auto-cleanup |
-| **Self-Healing PCA** | Missing or mismatched PCA artifacts caused crashes | JIT validation and retraining on startup (~2s). Zero-downtime recovery from artifact corruption |
+| **Self-Healing PCA** | Missing or mismatched PCA artifacts caused crashes | Pre-trained PCA ships in the wheel; JIT validation and fallback retraining on startup (~2s) if artifact is absent or corrupted |
 | **Tiered Safety** | ML toxicity scanners add 100-300ms per request | Fast regex heuristic in hot path (<1ms) + async ML audit in background. 20,000-60,000× faster |
 | **Adaptive Priors** | Overly stiff warm-start priors ignored new evidence ("zombie mode") | Natural weighting (1:100 prior-to-real ratio) preserves stability while maintaining plasticity |
 
@@ -461,6 +511,8 @@ We report these limitations honestly to help practitioners make informed decisio
 ```bash
 pip install banditgpt
 ```
+
+The install includes a pre-trained PCA artifact (`pca_32.joblib`, 51 KB) for prompt feature compression — no extra downloads needed for the routing pipeline itself. See [PCA Projection](#pca-projection) for provenance and customization.
 
 On first use, BanditGPT downloads the sentence transformer model weights (~80 MB) from Hugging Face. To pre-download them (recommended for Docker images and CI pipelines):
 

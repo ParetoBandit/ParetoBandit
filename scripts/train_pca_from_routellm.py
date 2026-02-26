@@ -38,7 +38,7 @@ import numpy as np
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     ROUTELLM_BATTLES_REWARDS_PATH,

@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DATA_DIR,
     ROUTELLM_BATTLES_REWARDS_PATH
 )

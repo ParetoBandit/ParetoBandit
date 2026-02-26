@@ -709,7 +709,7 @@ class ExperimentBurnIn:
         
         # Use existing PCA artifact (don't recreate)
         from pathlib import Path as P
-        from bandit_gpt.config_legacy import DEFAULT_PCA_PATH
+        from bandit_gpt.config import DEFAULT_PCA_PATH
         pca_path = DEFAULT_PCA_PATH
         
         router = BanditRouter.create(

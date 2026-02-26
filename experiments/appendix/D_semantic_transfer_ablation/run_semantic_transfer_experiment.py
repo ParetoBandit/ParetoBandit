@@ -80,7 +80,7 @@ from experiments.utils.multimodel import (
     build_model_registry,
     load_multimodel_data,
 )
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     MULTIMODEL_WARMUP_PRIORS_PATH,
 )

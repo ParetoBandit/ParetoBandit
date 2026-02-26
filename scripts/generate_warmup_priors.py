@@ -26,7 +26,7 @@ ROUTELLM_DATA_DIR = PROJECT_ROOT / "data" / "routellm" / "data"
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from sentence_transformers import SentenceTransformer
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
     ROUTELLM_BATTLES_REWARDS_PATH
@@ -413,7 +413,7 @@ def main():
     
     # Load encoder
     print(f"\n🔤 Loading sentence encoder...")
-    # NOTE: Using default sentence transformer from config_legacy
+    # NOTE: Using default sentence transformer from config
     # This ensures consistency with the live router embeddings.
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     print(f"   ✅ Loaded (embedding dim: 384)")

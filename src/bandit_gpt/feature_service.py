@@ -15,7 +15,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Import from centralized config
-from .config_legacy import DEFAULT_SENTENCE_TRANSFORMER
+from .config import DEFAULT_SENTENCE_TRANSFORMER
 
 # Default context model
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
@@ -125,9 +125,9 @@ class FeatureService:
                 f"Then pass pca_path='my_pca.joblib' to FeatureService."
             )
 
-        # If no PCA path provided, use the default from config_legacy
+        # If no PCA path provided, use the default from config
         if pca_path is None:
-            from .config_legacy import DEFAULT_PCA_PATH
+            from .config import DEFAULT_PCA_PATH
             self.pca_path = DEFAULT_PCA_PATH
         else:
             self.pca_path = Path(pca_path)
@@ -201,6 +201,8 @@ class FeatureService:
     @property
     def dimension(self) -> int:
         """Total feature dimension (PCA + bias)."""
+        if self.pca_components is None:
+            _ = self.pca  # trigger lazy load which sets pca_components
         return self.pca_components + 1
     
     @property

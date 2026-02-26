@@ -21,7 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from bandit_gpt.calibration import embed_prompt
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     MULTIMODEL_WARMUP_PRIORS_PATH,

@@ -39,7 +39,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sentence_transformers import SentenceTransformer
 from scipy.stats import spearmanr, mannwhitneyu
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH,

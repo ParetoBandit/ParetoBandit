@@ -476,6 +476,12 @@ print(f"Context vector shape: {log.context_vector.shape}")  # (33,)
 
 Handles prompt embedding and PCA compression independently from bandit math.
 
+### Bundled PCA Artifact
+
+A pre-trained PCA artifact (`pca_32.joblib`, 51 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided. It was trained on 80,000 RouteLLM battle prompts (independent of BanditGPT's dev/holdout splits) using the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). The 32 components compress 384-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
+
+To replace it with a domain-specific PCA, pass `pca_path` to the constructor or use `train_pca()` to generate one from your own prompts (see [Calibration API](#calibration-api)).
+
 ### Constructor
 
 ```python
@@ -492,26 +498,35 @@ FeatureService(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `encoder_model` | `str` | Default MiniLM | SentenceTransformer model name. Custom models require explicit `pca_path`. |
-| `pca_path` | `Path \| str \| None` | `None` | Path to pre-trained PCA artifact (`.joblib`). |
+| `pca_path` | `Path \| str \| None` | `None` | Path to a PCA artifact (`.joblib`). When `None`, loads the bundled `pca_32.joblib` that ships with the package. |
 | `pca_components` | `int \| None` | `None` | Auto-detected from PCA file if not specified. |
-| `target_variance` | `float` | `0.60` | Minimum explained variance threshold for PCA. |
-| `allow_jit_training` | `bool` | `True` | Allow JIT PCA retraining if artifact is missing. Set `False` in strict production. |
-| `calibration_file` | `Path \| str \| None` | `None` | Line-delimited text file of real prompts for domain-specific PCA training. |
+| `target_variance` | `float` | `0.60` | Minimum explained variance threshold for PCA. If JIT-trained PCA falls below this, falls back to raw embeddings. |
+| `allow_jit_training` | `bool` | `True` | Allow JIT PCA retraining if the artifact is missing or corrupted. Set `False` in strict production to crash-fast instead of falling back to synthetic-data PCA. |
+| `calibration_file` | `Path \| str \| None` | `None` | Line-delimited text file of real prompts for domain-specific JIT PCA training. Only used if the artifact is missing and `allow_jit_training=True`. |
 
 **Raises**:
 - `ValueError` — Custom encoder without explicit `pca_path`.
 
-**Example: Default usage**
+**Example: Default usage (bundled PCA)**
 
 ```python
 from bandit_gpt import FeatureService
 
-# Uses default MiniLM encoder and bundled PCA
+# Uses default MiniLM encoder and the bundled pca_32.joblib — no extra setup
 fs = FeatureService()
 
 vector = fs.extract_features("Explain the Pythagorean theorem")
 print(f"Shape: {vector.shape}")    # (33,) — 32 PCA + 1 bias
 print(f"Bias term: {vector[-1]}")  # 1.0
+```
+
+**Example: Custom PCA for your domain**
+
+```python
+from bandit_gpt import FeatureService
+
+# Use a PCA trained on your own prompt distribution
+fs = FeatureService(pca_path="my_domain_pca.joblib")
 ```
 
 ### `FeatureService.for_precomputed()`
@@ -672,9 +687,13 @@ This is an advanced internal class. Most users interact with it through `BanditR
 
 ## Calibration API
 
+BanditGPT ships with a pre-trained PCA artifact for the default encoder. The functions below let you **replace** it with a domain-specific projection or build one for a custom sentence transformer.
+
 ### `train_pca()`
 
-Train a PCA artifact for a custom sentence transformer.
+Train a PCA artifact to replace the bundled default or to match a custom sentence transformer.
+
+The bundled `pca_32.joblib` was trained on 80,000 RouteLLM battle prompts (broad English: coding, math, reasoning, creative, chat). If your production traffic differs substantially from this distribution, training a domain-specific PCA on your own prompts will better capture the axes of variation that matter for your routing decisions.
 
 ```python
 def train_pca(
@@ -690,9 +709,9 @@ def train_pca(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `prompts` | `list[str]` | — | Representative corpus (100+ recommended). |
-| `encoder_model` | `str` | — | HuggingFace SentenceTransformer model name. |
-| `n_components` | `int` | `32` | Number of PCA components to retain. |
+| `prompts` | `list[str]` | — | Representative corpus from your domain (200+ recommended for stable components). |
+| `encoder_model` | `str` | — | HuggingFace SentenceTransformer model name. Must match the encoder used at routing time. |
+| `n_components` | `int` | `32` | Number of PCA components to retain. Higher = richer signal but slower O(d^2) bandit updates. |
 | `output_path` | `Path \| str \| None` | `None` | Persist the PCA via joblib. |
 | `batch_size` | `int` | `64` | Encoder batch size. |
 
@@ -701,19 +720,20 @@ def train_pca(
 **Raises**:
 - `ValueError` — Empty prompts or fewer prompts than `n_components`.
 
-**Example**
+**Example: Replace the bundled PCA with a domain-specific one**
 
 ```python
-from bandit_gpt import train_pca
+from bandit_gpt import train_pca, FeatureService, BanditRouter
 
-# Collect representative prompts from your domain
+# 1. Collect representative prompts from your actual traffic
 prompts = [
     "Write a Python function to parse CSV files",
     "Explain the theory of relativity in simple terms",
     "Debug this SQL query that returns duplicate rows",
-    # ... 100+ prompts recommended
+    # ... 200+ prompts recommended
 ]
 
+# 2. Train PCA on your domain (uses the default encoder)
 pca = train_pca(
     prompts,
     encoder_model="sentence-transformers/all-MiniLM-L6-v2",
@@ -721,6 +741,10 @@ pca = train_pca(
     output_path="my_pca.joblib",
 )
 print(f"Explained variance: {sum(pca.explained_variance_ratio_):.1%}")
+
+# 3. Use it in the router
+fs = FeatureService(pca_path="my_pca.joblib")
+router = BanditRouter.create(feature_service=fs)
 ```
 
 ---

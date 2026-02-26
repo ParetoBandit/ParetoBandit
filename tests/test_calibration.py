@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from bandit_gpt.calibration import train_pca, generate_warmup_priors
 from bandit_gpt.feature_service import FeatureService, DEFAULT_CONTEXT_MODEL
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     ROUTELLM_BATTLES_REWARDS_PATH,

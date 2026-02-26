@@ -23,7 +23,7 @@ sys.path.insert(0, str(project_root / "src"))
 
 from generate_pareto_frontier import load_model_costs, load_dataset_with_split
 from bandit_gpt.calibration import embed_prompt
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     DEFAULT_WARMUP_PRIORS_PATH,

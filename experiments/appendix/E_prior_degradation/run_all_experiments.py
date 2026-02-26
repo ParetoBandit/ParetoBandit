@@ -47,7 +47,7 @@ from bandit_gpt.calibration import embed_prompt, apply_gamma_scaling
 from sentence_transformers import SentenceTransformer
 import joblib
 import tempfile
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
     DEFAULT_PCA_PATH,

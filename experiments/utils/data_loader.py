@@ -16,7 +16,7 @@ from typing import List, Dict, Tuple, Optional
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config_legacy import (
+from bandit_gpt.config import (
     PROJECT_ROOT as CONFIG_ROOT,
     BANDIT_DATA_DIR as DATA_DIR,
     DEV_DATA_PATH_3MODELS as CANONICAL_DEV_REWARDS,

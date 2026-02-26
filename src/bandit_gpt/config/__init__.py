@@ -1,9 +1,84 @@
 """
-Configuration Data
+Configuration Constants for BanditGPT
 
-This directory contains immutable configuration files that ship with the package.
-These define the production model registry and default settings.
+This package contains all configuration constants, parameters, and immutable data
+files (model registries) used across the project. Centralized constant management
+for better maintainability.
+
+Data files:
+    models.json       — Production model registry (default 2-model portfolio)
+    models_all.json   — Extended model registry (43+ models for experiments)
 """
 
-# models.json is the source of truth for available models
-# DO NOT modify this in deployed environments - change via code/git only
+from pathlib import Path
+
+# ==============================================================================
+# Model Configuration
+# ==============================================================================
+
+# Sentence Transformer model used for semantic embeddings throughout the project
+DEFAULT_SENTENCE_TRANSFORMER = "sentence-transformers/all-MiniLM-L6-v2"
+
+# Model tier mapping for capability-equivalent substitutions
+# Used when a model is no longer available but has a capability-tier equivalent
+# e.g., gpt-4-turbo → gpt-4o (both are strong models in the same capability tier)
+STRONG_MODEL_EQUIVALENTS = ["openai/gpt-4-turbo", "openai/gpt-4-turbo"]
+
+# ==============================================================================
+# Artifact Paths
+# ==============================================================================
+
+# Package-internal paths (resolve correctly both in dev and after pip install)
+_PACKAGE_DIR = Path(__file__).parent.parent
+_PACKAGE_DATA_DIR = _PACKAGE_DIR / "data"
+_PACKAGE_ARTIFACTS_DIR = _PACKAGE_DATA_DIR / "artifacts"
+
+# Source-tree paths (used only by experiment scripts outside the package)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+ARTIFACTS_DIR = PROJECT_ROOT / "src" / "artifacts"
+DATA_DIR = PROJECT_ROOT / "data"
+
+# PCA model (32 components) trained on RouteLLM battle data.
+# 32 components capture 35.14% variance vs 29.01% for 23 components (+6.14% improvement).
+# Trained on 80K RouteLLM battles (independent dataset from dev/holdout — no contamination).
+# Shipped inside the wheel so first-time users skip JIT retraining.
+DEFAULT_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_32.joblib"
+
+# Generic PCA: trained on C4 web text (no routing connection).
+# Provides unbiased baseline for routing signal analysis.
+# Generate with: python3 scripts/train_pca_generic.py --n-components 32
+GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
+
+# Path to warmup priors trained on RouteLLM data (K=2: Mixtral + GPT-4-Turbo)
+DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
+
+# Path to warmup priors trained on 43-model evaluation data (K>2 experiments)
+MULTIMODEL_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup_43model.joblib"
+
+# Three-way split definition for K>2 experiments (prior-train / online-learn / holdout)
+THREE_WAY_SPLITS_PATH = ARTIFACTS_DIR / "splits_three_way.json"
+
+# Canonical offline dataset paths
+OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset"
+
+# 2-model datasets (Mixtral + GPT-4-Turbo only - the models the router chooses between)
+CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_2models.jsonl.gz"
+CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_2models.jsonl.gz"
+
+# 3-model datasets (includes GPT-4o for reference/analysis - NOT for routing)
+DEV_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
+HOLDOUT_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
+
+# All models datasets (includes all available models from LMSys Arena)
+DEV_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete_all_models.jsonl.gz"
+HOLDOUT_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete_all_models.jsonl.gz"
+
+# RouteLLM battles rewards dataset (corrected winner labels)
+ROUTELLM_BATTLES_REWARDS_PATH = OFFLINE_DATASET_DIR / "routellm_battles_rewards.jsonl"
+
+# Calibrated router path
+BANDIT_DATA_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data"
+CANONICAL_CALIBRATED_ROUTER_PATH = BANDIT_DATA_DIR / "artifacts" / "canonical_router_calibrated.joblib"
+
+# Model registry path
+DEFAULT_MODEL_REGISTRY_PATH = Path(__file__).parent / "models.json"
