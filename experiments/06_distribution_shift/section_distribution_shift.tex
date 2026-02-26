@@ -5,13 +5,15 @@
 
 \subsection{Distribution Shift, Online Learning, and Corralling}
 \label{sec:distribution_shift}
+\label{app:distribution_shift}
 
 We construct a $2 \times 3$ factorial design to measure how online learning and the Corralling meta-learner isolate prior distribution shift (PSI$\,{=}\,0.763$). The conditions are prior source (cross-distribution 80K battle priors vs. same-distribution 355-prompt priors) crossed with adaptation mode (Frozen vs. Online single expert vs. Online Corralling).
 
-\begin{figure}[h]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=\columnwidth]{figures/figure6_distribution_shift.png}
 \caption{\textbf{Distribution shift factorial.} \textbf{(a)}~Feature distribution shift between RouteLLM battles and LMSYS Arena (PSI${=}0.763$). \textbf{(b)}~Pareto frontiers for a $2{\times}3$ factorial ($n{=}20$ trials, 95\% CI): Corralling (solid lines) dominates all other conditions regardless of prior source.}
+\Description{Two-panel figure: (a) histogram of feature distributions showing shift between RouteLLM battles and LMSYS Arena prompts with PSI=0.763; (b) Pareto frontiers for a 2x3 factorial of prior source and adaptation mode.}
 \label{fig:distribution_shift}
 \end{figure}
 

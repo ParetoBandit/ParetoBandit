@@ -8,11 +8,12 @@
 
 This appendix presents three worked deployment scenarios that exercise distinct combinations of banditGPT's mechanisms.  Each scenario specifies a realistic operating environment, the router configuration, the key features exercised, and the expected (or observed) learning dynamics.  Reproducible code for all scenarios is available in \texttt{examples/scenario\_*.py}.
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{Summary of deployment scenarios and the banditGPT mechanisms each exercises.}
 \label{tab:scenario_summary}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}p{3.8cm}ccccc@{}}
 \toprule
 \textbf{Scenario} & \textbf{Hard} & \textbf{Cost} & \textbf{Corralling} & \textbf{Hot} & \textbf{Dist.} \\
@@ -22,7 +23,8 @@ This appendix presents three worked deployment scenarios that exercise distinct 
 2. Latency-Sensitive App       & \texttt{max\_latency} & $\lambda{=}0.3$ & \checkmark &            & \checkmark \\
 3. Quality-Critical Enterprise &                       & $\lambda{=}0.0$ & \checkmark & \checkmark &            \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 % ────────────────────────────────────────────────────────────────────────────
@@ -37,25 +39,23 @@ A B2B SaaS company routes customer-support queries through an LLM.  The business
 
 \paragraph{Configuration.}
 
-\begin{verbatim}
+{\small\begin{verbatim}
 router = BanditRouter.create(
-    model_registry = {  # K=5
-        "meta-llama/llama-3.1-8b-instruct":  $0.07/M avg,
-        "mistralai/mixtral-8x7b-instruct":   $0.24/M avg,
-        "meta-llama/llama-3.1-70b-instruct": $0.64/M avg,
-        "openai/gpt-4o":                     $6.25/M avg,
-        "anthropic/claude-sonnet-4":         $9.00/M avg,
-    },
-    cost_penalty = 0.7,      # aggressive cost preference
-    exploration  = "balanced",
-    use_corralling = True,
+  model_registry={  # K=5
+    "llama-3.1-8b-instruct":  $0.07/M,
+    "mixtral-8x7b-instruct":  $0.24/M,
+    "llama-3.1-70b-instruct": $0.64/M,
+    "openai/gpt-4o":          $6.25/M,
+    "claude-sonnet-4":        $9.00/M,
+  },
+  cost_penalty=0.7,  # aggressive
+  exploration="balanced",
+  use_corralling=True,
 )
-
 model_id, log = router.route(
-    prompt,
-    max_cost = 3.0,  # hard per-request ceiling ($/M tokens)
+  prompt, max_cost=3.0  # $/M ceiling
 )
-\end{verbatim}
+\end{verbatim}}
 
 \paragraph{Mechanisms exercised.}
 
@@ -99,25 +99,23 @@ A coding-assistant IDE plugin must respond within a 0.6-second TTFT SLA.  The pr
 
 \paragraph{Configuration.}
 
-\begin{verbatim}
+{\small\begin{verbatim}
 router = BanditRouter.create(
-    model_registry = {  # K=5, with TTFT metadata
-        "meta-llama/llama-3.1-8b-instruct":  TTFT=0.15s,
-        "google/gemini-2.0-flash":           TTFT=0.20s,
-        "openai/gpt-4o-mini":               TTFT=0.35s,
-        "openai/gpt-4o":                    TTFT=0.50s,
-        "anthropic/claude-sonnet-4":         TTFT=0.80s,
-    },
-    cost_penalty = 0.3,
-    exploration  = "aggressive",
-    use_corralling = True,
+  model_registry={  # K=5, with TTFT
+    "llama-3.1-8b-instruct":  TTFT=0.15s,
+    "gemini-2.0-flash":       TTFT=0.20s,
+    "openai/gpt-4o-mini":     TTFT=0.35s,
+    "openai/gpt-4o":          TTFT=0.50s,
+    "claude-sonnet-4":        TTFT=0.80s,
+  },
+  cost_penalty=0.3,
+  exploration="aggressive",
+  use_corralling=True,
 )
-
 model_id, log = router.route(
-    prompt,
-    max_latency = 0.6,  # hard TTFT ceiling (seconds)
+  prompt, max_latency=0.6  # TTFT ceil
 )
-\end{verbatim}
+\end{verbatim}}
 
 \paragraph{Mechanisms exercised.}
 
@@ -152,27 +150,26 @@ A legal-tech company routes contract-review and compliance queries through an LL
 
 \paragraph{Configuration.}
 
-\begin{verbatim}
+{\small\begin{verbatim}
 router = BanditRouter.create(
-    model_registry = {  # K=4
-        "mistralai/mixtral-8x7b-instruct":   $0.24/M avg,
-        "meta-llama/llama-3.1-70b-instruct": $0.64/M avg,
-        "openai/gpt-4o":                     $6.25/M avg,
-        "anthropic/claude-sonnet-4":         $9.00/M avg,
-    },
-    cost_penalty = 0.0,      # quality-only routing
-    exploration  = "aggressive",
-    use_corralling = True,
+  model_registry={  # K=4
+    "mixtral-8x7b-instruct":  $0.24/M,
+    "llama-3.1-70b-instruct": $0.64/M,
+    "openai/gpt-4o":          $6.25/M,
+    "claude-sonnet-4":        $9.00/M,
+  },
+  cost_penalty=0.0,  # quality-only
+  exploration="aggressive",
+  use_corralling=True,
 )
-
-# After 500 prompts, onboard the specialist:
+# After 500 prompts, onboard specialist:
 router.register_model(
-    "legalai/contract-llm-v2",
-    speed       = "balanced",
-    capabilities = ["reasoning"],
-    cost_usd    = 3.00,       # $3.00/M avg
+  "legalai/contract-llm-v2",
+  speed="balanced",
+  capabilities=["reasoning"],
+  cost_usd=3.00,  # $3.00/M avg
 )
-\end{verbatim}
+\end{verbatim}}
 
 \paragraph{Mechanisms exercised.}
 
@@ -211,11 +208,12 @@ Hot model onboarding via \texttt{register\_model()} requires no retraining, no d
 
 Table~\ref{tab:practitioner_config} summarises recommended configurations for common deployment archetypes.
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{Recommended banditGPT configurations by deployment archetype.}
 \label{tab:practitioner_config}
 \small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}p{2.8cm}p{1.5cm}p{1.8cm}p{1.5cm}p{1.5cm}p{2.5cm}@{}}
 \toprule
 \textbf{Archetype} & $\boldsymbol{\lambda}$ & \textbf{Constraints} & \textbf{Exploration} & \textbf{Corralling} & \textbf{Notes} \\
@@ -226,7 +224,8 @@ Quality-first (regulated)  & 0.0      & ---                   & aggressive & on 
 Mixed (general)            & 0.3      & ---                   & safe       & on  & Good default for exploration \\
 Shadow / evaluation mode   & 0.0      & ---                   & aggressive & off & Log-only, no production traffic \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \paragraph{General recommendations.}

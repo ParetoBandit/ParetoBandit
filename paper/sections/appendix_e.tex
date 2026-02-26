@@ -13,7 +13,7 @@
 \subsection{Reward Signal Specification}
 \label{app:reward_signal}
 
-This subsection provides the full reward signal details referenced in Section~\ref{sec:reward_signal}.
+This subsection provides the full reward signal details referenced in Section~\ref{sec:data}.
 
 \subsubsection{$K{=}2$ Rewards (Pairwise, Ternary)}
 
@@ -83,7 +83,7 @@ This yields a continuous signal in $[0, 1]$ that preserves evaluative granularit
     \item \textbf{Cross-regime reward scale:} $K{=}2$ uses ternary rewards $\{0, 0.5, 1\}$ while $K{>}2$ uses continuous $[0, 1]$. Both are valid inputs to LinUCB but are not directly comparable in magnitude.
 \end{enumerate}
 
-The full evaluation script is available at \texttt{scripts/rejudge\_cot.py} in the open-sourced repository.
+The full evaluation script is available at \path{scripts/rejudge_cot.py} in the open-sourced repository.
 
 % ----------------------------------------------------------------------------
 % E.2: Statistical Validation (from B2)
@@ -127,7 +127,7 @@ The effect is robust across a range of thresholds. Both $k$-means ($\text{PC1} =
 
 A critical validation is whether the detected structure depends on PCA training data. We compare two PCA approaches:
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{PCA Provenance Comparison on Held-Out Data ($N=750$)}
 \label{tab:pca_comparison}
@@ -150,7 +150,7 @@ The domain-adapted PCA concentrates routing-relevant variation more efficiently 
 
 To assess whether the bimodal structure exists beyond the 2D projection, we examined cluster quality across multiple dimensionalities:
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{Cluster Quality Across Dimensionalities}
 \label{tab:multidim_validation}
@@ -200,7 +200,7 @@ The High PC1 cluster is relatively homogeneous (diversity $= 0.355$), consistent
 
 To characterize sensitivity to hyperparameter choices, we conducted a systematic grid search over 15 configurations spanning 5 learning rates ($\eta \in \{0.1, 0.5, 1.0, 2.0, 5.0\}$) and 3 mixing parameters ($\gamma \in \{0.0, 0.05, 0.10\}$), with 3 independent seeds per configuration (45 total experiments). All experiments use $N=1{,}121$ labeled samples and 3 models (Mixtral, GPT-4-Turbo, GPT-4o).
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{Corralling hyperparameter ablation. Mean $\pm$ std across 3 seeds, ranked by cumulative regret.}
 \label{tab:corralling_ablation}
@@ -263,7 +263,7 @@ The table below provides a practical decision framework for practitioners select
 \Description{Line plot of cumulative regret versus prior corruption level alpha for Corralling, warmup-only, and tabula rasa, showing a crossover where Corralling degrades for adversarial priors.}
 \end{figure}
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{%
     \textbf{Deployment Strategy Selection Guide.}

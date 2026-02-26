@@ -24,13 +24,14 @@ We evaluate Corralling's response to catastrophic model failure on a \textbf{5-m
 
 \paragraph{Warmup Priors.} All five models receive warmup priors from the 43-model evaluation data (Section~\ref{sec:warmup_prior_construction}), scaled to $N_{\text{eff}}{=}10$. This ensures the warmup expert has informed priors for all five models. Note: while this initialization is used for the catastrophic failure experiment setup, the leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no significant advantage beyond the continuous family sharing of Hybrid LinUCB.
 
-\begin{figure}[h]
+\begin{figure}[htbp]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure9_5model.png}
 \caption{\textbf{Catastrophic Failure Detection: 5-Model Portfolio} ($K{=}5$, $N{=}20$ seeds, mean $\pm$ 1 std).
 \textbf{(Top)}~Running-average reward. When GPT-4.1 fails at $t{=}100$, the Static baseline collapses to ${\sim}0.15$. banditGPT implicitly avoids the failed model via per-arm UCB updates (${\sim}0.75$), while the EMA Tracker achieves higher failure-phase reward (${\sim}0.86$) by directly tracking per-model averages. However, EMA concentrates traffic on fewer fallback models, missing context-dependent alternatives. The Oracle (${\sim}0.98$) achieves substantially more by routing contextually across all 4 healthy models.
 \textbf{(Middle)}~Expert weight evolution. Only 5\% of seeds show formal meta-level detection (warmup weight $< 0.15$), but the per-arm UCB updates within each expert implicitly reduce traffic to the failed model.
 \textbf{(Bottom)}~Model selection fractions reveal EMA's fundamental limitation at $K{=}5$: its $\epsilon/K{=}2\%$ per-model exploration budget is insufficient to evaluate all alternatives, causing it to over-concentrate on whichever model first accumulates a high EMA.}
+\Description{Three-panel figure for 5-model catastrophic failure: (top) running-average reward showing banditGPT implicit avoidance of failed model; (middle) expert weight evolution over time; (bottom) model selection fractions comparing banditGPT, EMA tracker, and static baselines.}
 \label{fig:decommission}
 \label{fig:expert_decommission}
 \label{fig:catastrophic}
@@ -49,7 +50,7 @@ Corralling settings: $\eta{=}0.3$, $\gamma{=}0.05$. Baselines: Oracle, Static GP
 
 \paragraph{Results ($N{=}20$ seeds).}
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \small
 \begin{tabular}{@{}lccc@{}}
@@ -102,7 +103,7 @@ This experiment uses synthetic context-dependent rewards with abrupt phase trans
 
 Our experimental program reveals that the Corralling learning rate ($\eta$) determines the adaptation regime, enabling different operational objectives. The experiments across Sections~\ref{sec:pareto}--\ref{sec:robustness_adaptation} demonstrate \textbf{complementary operating regimes}.
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{\textbf{Two Operating Regimes for Corralling-Based Routing}}
 \label{tab:three_regimes}
@@ -150,12 +151,13 @@ To isolate the family sharing effect, we use the \textbf{same newcomer model} (\
 \end{itemize}
 Both conditions receive identical semantic bootstrapping (\texttt{gpt-4.1} $\to$ \texttt{gpt-4-turbo}, similarity $0.849$, $N_{\text{eff}}{=}5$), same seeds, same data, and same embeddings. A 2-model base fleet runs for 500~steps before introduction; routing continues through step~1,121. Holdout: $N{=}750$, 20~seeds, 95\% CIs ($t_{19}$).
 
-\begin{figure*}[h]
+\begin{figure*}[htbp]
 \centering
 \includegraphics[width=0.75\textwidth]{figures/model_onboarding.png}
 \caption{\textbf{Dynamic Model Onboarding: Shared vs.\ Isolated Family (Same Model).}
 \textbf{(a)}~Reward trajectory (50-step moving average). Both conditions are identical pre-introduction and converge to the same post-introduction quality. Oracle and always-newcomer baselines shown for reference.
 \textbf{(b)}~Prediction error (MAE) for prompts routed to the newcomer. The shared condition starts at substantially lower error (0.09 vs.\ 0.17) thanks to the inherited $\betavec$, but both converge to the same final MAE (${\sim}0.045$). The isolated condition explores the newcomer slightly more aggressively (higher UCB bonus from singleton family uncertainty), but this does not translate into a quality difference.}
+\Description{Two-panel figure: (a) reward trajectory showing shared and isolated family conditions converging to identical post-onboarding quality; (b) prediction error for newcomer prompts showing the shared condition starts with lower error but both converge.}
 \label{fig:model_onboarding}
 \end{figure*}
 
@@ -208,7 +210,7 @@ behavior: e.g., \texttt{gpt-4.1} can only transfer from \texttt{gpt-4-turbo},
 not from Claude.  Models that are the sole representative of their provider
 receive no transfer, testing the realistic cold-start scenario.
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{\textbf{Semantic Transfer Ablation: $K{=}10$ Portfolio} (20 seeds per target, shuffled training order).
 Neighbor selected by within-provider tetrachoric correlation ($r_{\text{tet}}$).

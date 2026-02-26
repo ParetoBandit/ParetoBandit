@@ -6,7 +6,7 @@
 
 We isolate the contribution of Hybrid LinUCB's family sharing by comparing it against Disjoint LinUCB (independent models) at $K{\in}\{5, 10, 20\}$. Both policies start tabula rasa, training on 888 prompts. We use data-driven family assignments via within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$) to correct for binary reward base-rate attenuation, avoiding naive syntactic groupings (e.g., separating uncorrelated \texttt{gpt-4-turbo} and \texttt{gpt-4.1}).
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \caption{K-Scaling: Hybrid vs.\ Disjoint LinUCB. Holdout mean $\pm$ 95\% CI ($n{=}20$).}
 \label{tab:k_scaling}

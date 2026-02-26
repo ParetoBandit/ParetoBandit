@@ -10,5 +10,6 @@ Reward is mean judge agreement (continuous in $[0,1]$).
 \textbf{(c)}~Convergence: warmup priors yield effective cold-start quality (${\sim}0.90$ reward). $K{=}5$ improves to 0.911 by step 533; $K{=}10$ remains at ${\sim}0.88{-}0.90$.
 \textbf{(d)}~Traffic allocation ($\lambda{=}0$). At $K{=}5$, the router favours Claude-Sonnet (32\%), GPT-4.1 (29\%), and Gemini-Flash (28\%). At $K{=}10$, traffic spreads across all models (3--17\%), highlighting per-prompt contextual routing.
 Evaluation uses 533 online-learning and 750 holdout prompts.}
+\Description{Four-panel figure: (a,b) Pareto frontiers for K=5 and K=10 showing banditGPT quality--cost curves with static model markers; (c) convergence plot of holdout reward over online learning steps; (d) stacked bar charts of traffic allocation across models at lambda=0.}
 \label{fig:multimodel_pareto}
 \end{figure*}

@@ -18,6 +18,7 @@ $(MAIN).pdf: $(MAIN).tex references.bib $(SOURCES)
 	$(BIB) $(MAIN)
 	$(TEX) $(MAIN)
 	$(TEX) $(MAIN)
+	$(TEX) $(MAIN)
 
 clean:
 	rm -f *.aux *.log *.out *.bbl *.blg *.toc *.lof *.lot *.fls *.fdb_latexmk *.synctex.gz

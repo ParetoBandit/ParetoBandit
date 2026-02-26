@@ -5,7 +5,7 @@ LLM routing literature often assumes \emph{monotonicity}: that allocating more b
 
 On 14.1\% of 750 held-out prompts, human judges actually preferred a cheaper open-weights model over a frontier model (Table~\ref{tab:outcome_distribution}). Crucially, this preference heterogeneity correlates significantly with the prompt's semantic embedding. When prompts are projected onto the first principal component (PC1) of our unsupervised PCA feature space, we observe a significant Spearman correlation with the reward gap ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$ (Figure~\ref{fig:lmsys_holdout_structure}A). This signal exceeds all 100 random orthonormal projections (Figure~\ref{fig:lmsys_holdout_structure}A annotation), and the routing opportunity grows monotonically across PC1 quintiles (Figure~\ref{fig:lmsys_holdout_structure}B).
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
 \small
 \caption{Outcome Distribution on Held-Out Data ($N=750$)}
