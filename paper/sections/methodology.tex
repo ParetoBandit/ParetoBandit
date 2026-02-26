@@ -1,11 +1,12 @@
 \section{Methodology}
 \label{sec:methodology}
 
-The production challenges identified in Section~\ref{sec:intro}---preference heterogeneity, distribution drift, model non-stationarity, and the absence of hedging in existing bandit routers---motivate a routing architecture that can exploit prompt-level context while adapting safely online. We reformulate LLM routing as a \emph{Cost-Aware Contextual Bandit} problem initialized from offline data, with a meta-learning layer that hedges against prior mismatch. Our approach combines two core mechanisms:
+The production challenges identified in Section~\ref{sec:intro}---preference heterogeneity, distribution drift, model non-stationarity, and the absence of hedging in existing bandit routers---motivate a routing architecture that can exploit prompt-level context while adapting safely online. We reformulate LLM routing as a \emph{Cost-Aware Contextual Bandit} problem initialized from offline data, combining three core mechanisms:
 
 \begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{Cost-aware contextual bandits} initialized from offline warmup priors, exploiting semantic structure for continuous online learning.
-    \item \textbf{Corralling meta-learning} that hedges against prior mismatch via complementary exploration schedules, providing the necessary safety mechanism.
+    \item \textbf{Cost-aware contextual bandits} initialized from offline warmup priors, using per-prompt embeddings for continuous online learning.
+    \item \textbf{Corralling meta-learning} that hedges against prior mismatch via complementary exploration schedules, providing a safety mechanism absent from existing bandit routers.
+    \item \textbf{Family-level parameter sharing} via Hybrid LinUCB, which pools observations across models within the same provider family to improve sample efficiency in larger portfolios.
 \end{itemize}
 
 Several concurrent \emph{LLM routing} systems also adopt a bandit formulation---PILOT~\cite{panda2025pilot} extends LinUCB with a knapsack cost policy, BaRP~\cite{wang2025barp} uses entropy-regularized policy gradients, and LLM Bandit~\cite{li2025llmbandit} employs a standard multi-armed bandit---but all rely on a single policy layer without a meta-learning safety mechanism (Table~\ref{tab:comparison}). banditGPT's distinguishing contribution is a hierarchical architecture that layers a Corralling meta-learner~\cite{agarwal2017corralling} over cost-aware contextual bandits, directly addressing the practical challenges of production routing: maintaining safety against misspecified priors while remaining agile enough to adopt new models.
