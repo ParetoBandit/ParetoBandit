@@ -87,44 +87,36 @@ def _test_no_zombie_models():
     """
     Integration test: Verify that models don't get stuck in "zombie mode".
     
-    With HLE priors, models have different initial UCBs, creating natural
-    exploration across the quality-cost spectrum.
+    Models have different initial UCBs based on cost/quality priors, creating
+    natural exploration across the quality-cost spectrum.
     
     NOTE: Temporarily disabled due to interaction with dynamic Pareto filtering.
     """
-    # Create a registry with 10 models spanning wide HLE range
     registry = {}
     for i in range(10):
-        hle_score = 0.10 + (i * 0.075)  # 0.10 to 0.775
+        quality_score = 0.10 + (i * 0.075)  # 0.10 to 0.775
         registry[f"model{i}"] = {
             "model_id": f"provider/model-{i}",
             "display_name": f"Model {i}",
-            "hle": hle_score,
             "input_cost_per_m": 0.5 + (i * 0.5),
             "output_cost_per_m": 1.5 + (i * 1.5)
         }
     
-    # Create router with HLE priors for realistic initialization
-    router = BanditRouter.create(model_registry=registry, priors="hle")
+    router = BanditRouter.create(model_registry=registry, priors="none")
     router.config.probation_bonus = 0.10
     router.config.pruning_min_samples = 30
     
-    # Route 500 prompts using custom profile (not "auto" to bypass Pareto filtering)
-    # This test is about exploration/exploitation balance, not Pareto efficiency
     N = 500
-    custom_profile = {"w_q": 1.0, "w_c": 0.02, "w_l": 0.0}  # Similar to "auto" but bypasses Pareto filter
+    custom_profile = {"w_q": 1.0, "w_c": 0.02, "w_l": 0.0}
     for i in range(N):
         model, log = router.route(f"Test prompt {i}", profile=custom_profile)
-        # Provide feedback proportional to HLE
-        hle = registry[model]["hle"]
-        reward = min(1.0, hle + np.random.normal(0, 0.1))
+        quality = 0.10 + (int(model.replace("model", "")) * 0.075)
+        reward = min(1.0, quality + np.random.normal(0, 0.1))
         router.process_feedback(log.request_id, reward=max(0, reward))
     
-    # Check sample counts for all models
     sample_counts = router._get_sample_counts(router.bandit.models)
     
-    # With HLE priors, bandit will naturally favor high-HLE models
-    # but probation subsidy ensures some exploration of lower models
+    # Probation subsidy ensures some exploration of lower models
     models_with_traffic = sum(1 for count in sample_counts.values() if count > 0)
     
     # At least 3 models should receive traffic (out of 10)
@@ -168,7 +160,7 @@ def test_estimate_cost_pessimistic_defaults():
         }
     }
     
-    router = BanditRouter.create(model_registry=registry_missing_costs, priors="hle")
+    router = BanditRouter.create(model_registry=registry_missing_costs, priors="none")
     
     # Test model_a: Both costs missing
     cost_a = router._estimate_cost("model_a", in_tok=1000, out_tok=500)
@@ -222,7 +214,7 @@ def test_estimate_latency_pessimistic_defaults():
         }
     }
     
-    router = BanditRouter.create(model_registry=registry_missing_latency, priors="hle")
+    router = BanditRouter.create(model_registry=registry_missing_latency, priors="none")
     
     # Test model_a: Latency missing
     latency_a = router._estimate_latency("model_a", out_tok=500)

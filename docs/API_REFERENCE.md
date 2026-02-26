@@ -34,7 +34,7 @@ def create(
 |-----------|------|---------|-------------|
 | `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry may include `input_cost_per_m`, `output_cost_per_m`, `time_to_first_token_seconds`, and capability metadata. |
 | `context_model` | `str` | `"sentence-transformers/all-MiniLM-L6-v2"` | SentenceTransformer model for prompt embedding. Custom models require matching PCA and warmup artifacts. |
-| `priors` | `str` | `"warmup"` | Prior initialisation strategy: `"warmup"` (dense covariance from 80k battles), `"hle"` (benchmark-guided bias only), `"none"` (cold start), or a path to a `.joblib` file. |
+| `priors` | `str` | `"warmup"` | Prior initialisation strategy: `"warmup"` (dense covariance from 80k battles), `"none"` (cold start), or a path to a `.joblib` file. |
 | `exploration` | `str` | `"safe"` | Named exploration preset: `"static"` (0.0), `"safe"` (0.05), `"balanced"` (0.5), `"aggressive"` (1.0). |
 | `alpha` | `float` | `0.05` | Explicit exploration rate (overrides `exploration`). |
 | `prior_n_effective` | `float` | `10.0` | Controls how quickly online data overrides warm-start priors. Lower = softer priors. |

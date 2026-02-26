@@ -236,20 +236,18 @@ BanditGPT supports three initialization strategies, each with different trade-of
 | Mode | What It Provides | File Required | Best For |
 |------|-----------------|---------------|----------|
 | `none` | No prior knowledge (A=λI, b=0) | None | Research baselines, tabula rasa |
-| `hle` | Benchmark-guided bias, no feature correlations | None | Production (lightweight, fast) |
-| `warmup` | Dense covariance with learned feature correlations | 0.85 MB | Maximum Day-0 quality |
+| `warmup` | Dense covariance with learned feature correlations | 0.85 MB | Production & maximum Day-0 quality |
 
 **Decision guide**:
-- Start with `hle` for most production deployments — it's lightweight and requires no files.
-- Use `warmup` if you want the router to understand feature correlations from Day 1 (e.g., "models good at code tend to be good at math").
+- Start with `warmup` for most production deployments — it encodes feature correlations from Day 1 (e.g., "models good at code tend to be good at math").
 - Use `none` only for research baselines or when you want unbiased exploration.
 
 ```python
 # Recommended for production
-router = BanditRouter.create(registry, priors="hle")
-
-# Maximum Day-0 quality
 router = BanditRouter.create(registry, priors="warmup")
+
+# Cold start (research baselines)
+router = BanditRouter.create(registry, priors="none")
 ```
 
 #### Tuning Prior Strength
@@ -593,8 +591,6 @@ This reduces lock hold time from ~50ms to ~0.2ms (250× improvement), allowing r
 See [`tests/test_lock_contention.py`](tests/test_lock_contention.py) for concurrency validation.
 
 ### Prior Initialization: Mathematical Details
-
-**HLE mode** injects benchmark scores as a bias term while keeping the covariance matrix as pure identity (A = λI). This avoids the rank deficiency problem: with d≈53 dimensions, estimating a full covariance matrix requires ~530 samples for stability. Small-sample covariances hallucinate spurious correlations.
 
 **Warmup mode** uses a dense covariance matrix from 20,000 simulated interactions (740,000 Bayesian updates). The covariance encodes learned correlations (code ↔ math, reasoning ↔ complexity). Scaling via `prior_n_effective` controls plasticity:
 

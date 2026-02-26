@@ -694,7 +694,7 @@ class ExperimentBurnIn:
         Full workflow: Load splits, generate curriculum, and create a hot router.
         
         Args:
-            priors: Prior initialization strategy ("none", "hle", "warmup").
+            priors: Prior initialization strategy ("none", "warmup").
             prior_n_effective: Effective sample size for priors.
             alpha: Exploration parameter for the bandit.
             

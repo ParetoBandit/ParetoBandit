@@ -373,9 +373,6 @@ def estimate_tokens_rough(text: str) -> int:
     if not text: return 0
     return int(max(0, round(len(str(text).split()) * 1.3)))
 
-# transform_hle_to_prior removed - trusting LinUCB to learn from data
-# instead of encoding rigid prior transformations
-
 # ---------------------------------------------------------------------------
 # Model Family Inference (for Hybrid LinUCB parameter sharing)
 # ---------------------------------------------------------------------------
