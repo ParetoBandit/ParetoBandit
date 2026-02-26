@@ -2760,7 +2760,7 @@ Previous version referenced non-existent attributes
         cls,
         model_registry: Dict[str, Any] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        priors: str = "warmup",  # Default to loading priors
+        priors: str = "none",
         **kwargs
     ) -> "BanditRouter":
         """
@@ -2769,7 +2769,10 @@ Previous version referenced non-existent attributes
         Args:
             model_registry: Dictionary of model configurations
             context_model: Model to use for embedding generation
-            priors: Prior initialization strategy ("warmup" or path to .joblib file)
+            priors: Prior initialization strategy. ``"none"`` (default) starts
+                with standard LinUCB cold-start (identity covariance + quality-based
+                bias).  Pass a path to a ``.joblib`` file to load custom priors
+                generated via :func:`generate_warmup_priors`.
             **kwargs: Additional arguments passed to __init__ or prior loading
         
         Returns:
@@ -2795,20 +2798,18 @@ Previous version referenced non-existent attributes
         elif alpha is None:
             alpha = 0.05  # Default to safe exploration
 
-        # 2a. Guard: custom encoder requires explicit warmup priors
+        # 2a. Guard: custom encoder with explicit warmup priors path
+        #     must have matching priors (encoder embedding space must match)
         _using_custom_encoder = context_model != DEFAULT_CONTEXT_MODEL
-        _wants_warmup = priors == "warmup"
-        if _using_custom_encoder and _wants_warmup and warmup_path is None:
-            raise ValueError(
-                f"Custom encoder '{context_model}' requires warmup priors "
-                f"trained with the same model.  Generate them with:\n\n"
-                f"    from bandit_gpt.calibration import generate_warmup_priors\n"
-                f"    priors = generate_warmup_priors(\n"
-                f"        rewards_data, encoder_model='{context_model}',\n"
-                f"        pca=pca, output_path='my_priors.joblib'\n"
-                f"    )\n\n"
-                f"Then pass warmup_path='my_priors.joblib' to BanditRouter.create().\n"
-                f"Alternatively, pass priors='none' to start with cold-start learning."
+        _wants_file_priors = (
+            isinstance(priors, str)
+            and priors not in ("none",)
+            and (priors.endswith(".joblib") or "/" in priors)
+        )
+        if _using_custom_encoder and _wants_file_priors and warmup_path is None:
+            logger.info(
+                f"Loading priors for custom encoder '{context_model}'. "
+                f"Ensure the priors were generated with the same encoder."
             )
 
         # 2. Filter kwargs to only include those accepted by __init__
@@ -2825,23 +2826,14 @@ Previous version referenced non-existent attributes
             **init_kwargs
         )
         
-        # 4. Load Priors (The Data Truth)
-        # This loads the dense matrices from disk (A_inv, b, etc.)
-        if priors == "warmup" or (isinstance(priors, str) and (priors.endswith(".joblib") or "/" in priors)):
-            # Determine priors path
-            priors_path = warmup_path or (priors if priors != "warmup" else None)
-            
-            if priors_path:
-                priors_path = Path(priors_path)
-            else:
-                # Default location (versioned artifacts or package assets)
-                base_dir = Path(__file__).resolve().parent
-                priors_path = base_dir.parent.parent / "artifacts" / "priors_warmup.joblib"
-                
-                # Check for alternative location in package assets if artifacts missing
-                if not priors_path.exists():
-                    priors_path = base_dir / "assets" / "priors_warmup.joblib"
-                
+        # 4. Load Priors from explicit path
+        # Users generate their own priors via generate_warmup_priors() and
+        # pass the .joblib path here.  No default artifact is shipped.
+        _priors_path_str = warmup_path or (priors if priors != "none" else None)
+        if isinstance(_priors_path_str, str) and (
+            _priors_path_str.endswith(".joblib") or "/" in _priors_path_str
+        ):
+            priors_path = Path(_priors_path_str)
             if priors_path and priors_path.exists():
                 import joblib
                 warmup_data = joblib.load(priors_path)
@@ -2935,13 +2927,13 @@ Previous version referenced non-existent attributes
                 router.bandit.refresh_inverse_cache()
                 logger.info(f"✅ Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
             else:
-                logger.warning(f"⚠️ Warmup priors not found at {priors_path}. Using cold start.")
+                logger.warning(f"⚠️ Priors file not found at {priors_path}. Using cold start.")
         
         # =====================================================================
         # LAYER 3: T-SHIRT SIZING INJECTION (Business Logic)
         # =====================================================================
-        # Three-Layer Warm-Start Architecture:
-        # - Layer 1: Core warmup priors (80k battles) → Already loaded above
+        # Warm-Start Architecture:
+        # - Layer 1: User-supplied priors (if provided) → Already loaded above
         # - Layer 2: Semantic transfer → Handled in register_model()
         # - Layer 3 (HERE): T-shirt sizing → Business logic on top of data
         #

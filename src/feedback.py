@@ -15,7 +15,6 @@ STATE_PATH = STATE_DIR / "bandit_state.npz"
 router = BanditRouter.create(
     model_registry=None,
     state_path=STATE_PATH if STATE_PATH.exists() else None,
-    priors="warmup",
 )
 
 # --- Provider setup ---

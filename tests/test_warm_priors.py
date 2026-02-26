@@ -77,7 +77,6 @@ def _create_router(registry, priors_path, n_effective=100.0, **kwargs):
     return BanditRouter.create(
         model_registry=registry,
         priors=str(priors_path),
-        warmup_path=str(priors_path),
         prior_n_effective=n_effective,
         feature_service=_mock_feature_service(),
         use_corralling=False,
@@ -271,8 +270,7 @@ class TestPriorEdgeCases:
         """A path that doesn't exist should silently fall back to cold start."""
         router = BanditRouter.create(
             model_registry=two_model_registry,
-            priors="warmup",
-            warmup_path="/nonexistent/priors.joblib",
+            priors="/nonexistent/priors.joblib",
             feature_service=_mock_feature_service(),
             use_corralling=False,
         )

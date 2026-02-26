@@ -52,10 +52,9 @@ def test_wheel_and_sdist_include_runtime_data(tmp_path: Path):
         "config/models_all.json",
     ]
 
-    # Also enforce parity for any joblib artifacts present in source tree.
-    source_joblibs = [
-        p.relative_to(src_pkg_root).as_posix() for p in sorted(src_pkg_root.rglob("*.joblib"))
-    ]
+    # Warmup priors (.joblib) are intentionally NOT shipped in the wheel.
+    # Users generate their own via generate_warmup_priors().
+    source_joblibs: list[str] = []
 
     # Check sdist content includes required files.
     with tarfile.open(sdists[0], "r:gz") as tf:

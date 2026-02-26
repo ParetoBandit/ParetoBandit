@@ -37,8 +37,8 @@ pip install banditgpt
 ```python
 from bandit_gpt import BanditRouter
 
-# Create router with pre-trained priors (< 1 MB)
-router = BanditRouter.create(model_registry, priors="warmup")
+# Create router — learns from scratch, no external data needed
+router = BanditRouter.create(model_registry)
 
 # Route a prompt — the router selects the best model for this context
 model_id, log = router.route("Write a Python function to parse JSON")
@@ -56,7 +56,7 @@ BanditGPT is provider-agnostic. For a single provider, pass any adapter directly
 ```python
 from bandit_gpt import BanditRouter, OpenAIClient
 
-router = BanditRouter.create(model_registry, priors="warmup")
+router = BanditRouter.create(model_registry)
 client = OpenAIClient(api_key="sk-...")
 
 model_id, response, log = router.route_and_call("Write a Python function to parse JSON", client)
@@ -71,7 +71,7 @@ from bandit_gpt import (
     OpenAIClient, AnthropicClient, OllamaClient,
 )
 
-router = BanditRouter.create(model_registry, priors="warmup")
+router = BanditRouter.create(model_registry)
 client = MultiProviderClient({
     "openai":     OpenAIClient(api_key="sk-..."),
     "anthropic":  AnthropicClient(api_key="sk-ant-..."),
@@ -239,15 +239,15 @@ BanditGPT supports three initialization strategies, each with different trade-of
 | `warmup` | Dense covariance with learned feature correlations | 0.85 MB | Production & maximum Day-0 quality |
 
 **Decision guide**:
-- Start with `warmup` for most production deployments — it encodes feature correlations from Day 1 (e.g., "models good at code tend to be good at math").
-- Use `none` only for research baselines or when you want unbiased exploration.
+- The default (`"none"`) starts with standard LinUCB cold-start — typically converges in 20–50 requests.
+- If you have historical reward data, generate custom priors with `generate_warmup_priors()` for faster convergence.
 
 ```python
-# Recommended for production
-router = BanditRouter.create(registry, priors="warmup")
+# Default: cold start (no external data needed)
+router = BanditRouter.create(registry)
 
-# Cold start (research baselines)
-router = BanditRouter.create(registry, priors="none")
+# With custom priors from your own data
+router = BanditRouter.create(registry, priors="path/to/my_priors.joblib")
 ```
 
 #### Tuning Prior Strength
@@ -265,7 +265,7 @@ These let you independently tune "how confident are we in feature correlations?"
 
 ## Custom Encoders
 
-BanditGPT ships with artifacts (PCA projection and warmup priors) trained on the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). If you want to use a different sentence transformer, you must generate matching artifacts first. The library will raise a clear error if you try to use a custom encoder without them.
+BanditGPT uses a PCA projection trained on the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). If you want to use a different sentence transformer, you must generate a matching PCA projection first.
 
 ### Step 1: Train a PCA projection
 

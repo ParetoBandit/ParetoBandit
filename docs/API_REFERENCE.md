@@ -23,7 +23,7 @@ def create(
     cls,
     model_registry: dict[str, Any] | None = None,
     context_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    priors: str = "warmup",
+    priors: str = "none",
     **kwargs,
 ) -> BanditRouter
 ```
@@ -34,17 +34,14 @@ def create(
 |-----------|------|---------|-------------|
 | `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry may include `input_cost_per_m`, `output_cost_per_m`, `time_to_first_token_seconds`, and capability metadata. |
 | `context_model` | `str` | `"sentence-transformers/all-MiniLM-L6-v2"` | SentenceTransformer model for prompt embedding. Custom models require matching PCA and warmup artifacts. |
-| `priors` | `str` | `"warmup"` | Prior initialisation strategy: `"warmup"` (dense covariance from 80k battles), `"none"` (cold start), or a path to a `.joblib` file. |
+| `priors` | `str` | `"none"` | Prior initialisation strategy: `"none"` (cold start, the default) or a path to a `.joblib` file generated via `generate_warmup_priors()`. |
 | `exploration` | `str` | `"safe"` | Named exploration preset: `"static"` (0.0), `"safe"` (0.05), `"balanced"` (0.5), `"aggressive"` (1.0). |
 | `alpha` | `float` | `0.05` | Explicit exploration rate (overrides `exploration`). |
 | `prior_n_effective` | `float` | `10.0` | Controls how quickly online data overrides warm-start priors. Lower = softer priors. |
-| `warmup_path` | `str \| Path \| None` | `None` | Explicit path to warmup priors `.joblib` file. Required when using a custom `context_model` with `priors="warmup"`. |
+| `warmup_path` | `str \| Path \| None` | `None` | *Deprecated.* Pass the path directly via `priors` instead. |
 | `state_path` | `str \| Path \| None` | `None` | Path to load previously saved bandit state. |
 
 **Returns**: Fully initialised `BanditRouter` instance.
-
-**Raises**:
-- `ValueError` — Custom `context_model` with `priors="warmup"` but no `warmup_path`.
 
 **Example**
 
@@ -73,11 +70,11 @@ registry = {
     },
 }
 
-# Create router with warm-start priors (downloads ~80 MB model on first use)
-router = BanditRouter.create(registry, priors="warmup")
+# Create router (cold start — learns from its own routing outcomes)
+router = BanditRouter.create(registry)
 
-# Or start from scratch (no priors, no model download needed)
-router = BanditRouter.create(registry, priors="none")
+# Or load custom priors generated from your own reward data
+router = BanditRouter.create(registry, priors="path/to/my_priors.joblib")
 ```
 
 ---
@@ -177,7 +174,7 @@ def route_and_call(
 ```python
 from bandit_gpt import BanditRouter, OpenRouterClient
 
-router = BanditRouter.create(registry, priors="warmup")
+router = BanditRouter.create(registry)
 client = OpenRouterClient(api_key="sk-or-...")
 
 model_id, response, log = router.route_and_call(
@@ -906,7 +903,7 @@ When all your models are reachable through one provider, pass a single client:
 ```python
 from bandit_gpt import BanditRouter, OpenRouterClient
 
-router = BanditRouter.create(registry, priors="warmup")
+router = BanditRouter.create(registry)
 client = OpenRouterClient(api_key="sk-or-...")
 
 model_id, response, log = router.route_and_call("Solve x^2 = 4", client)

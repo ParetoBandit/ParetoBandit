@@ -686,7 +686,7 @@ class ExperimentBurnIn:
 
     def create_burned_in_router(
         self, 
-        priors: str = "warmup", 
+        priors: str = "none", 
         prior_n_effective: float = 1.0, 
         alpha: float = 0.1
     ) -> Tuple[object, List[str]]:
@@ -694,7 +694,8 @@ class ExperimentBurnIn:
         Full workflow: Load splits, generate curriculum, and create a hot router.
         
         Args:
-            priors: Prior initialization strategy ("none", "warmup").
+            priors: Prior initialization strategy (``"none"`` for cold start,
+                or a path to a ``.joblib`` file with custom priors).
             prior_n_effective: Effective sample size for priors.
             alpha: Exploration parameter for the bandit.
             

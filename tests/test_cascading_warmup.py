@@ -58,13 +58,12 @@ class TestCascadingWarmup:
             "model_b": {"quality_score": 0.5}  # Missing from joblib
         }
         
-        # Create router (priors_warmup.joblib exists according to mock_exists)
+        # Create router with explicit priors file (mock_exists makes it "exist")
         # We inject the mock_fs to avoid real PCA/Encoder initialization
         router = BanditRouter.create(
             model_registry=registry,
-            priors="warmup",
+            priors="mock_priors.joblib",
             prior_n_effective=20.0,
-            warmup_path="mock_priors.joblib",
             feature_service=mock_fs
         )
         
