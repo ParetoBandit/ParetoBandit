@@ -10,11 +10,11 @@ Early cost-aware routing utilized cascading (e.g., FrugalGPT~\cite{chen2023fruga
 To enable online adaptation, concurrent works formulate routing as a bandit problem. PILOT~\cite{panda2025pilot} refines a shared query-LLM embedding space online via contextual bandits and optimizes cumulative cost over a horizon via a knapsack policy. BaRP~\cite{wang2025barp} trains a contextual bandit under partial feedback using policy gradients, matching deployment constraints where only the selected model's reward is observed. LLM Bandit~\cite{li2025llmbandit} formulates model selection as a multi-armed bandit with preference-conditioned routing, enabling users to specify cost-quality trade-offs at inference time. Other approaches leverage combinatorial multi-armed bandits (C2MAB-V~\cite{dai2024c2mab}) or RL-trained orchestrators (xRouter~\cite{zhang2025xrouter}).
 
 \subsection{Positioning banditGPT}
-banditGPT complements concurrent bandit-based routers by introducing three structural advances designed specifically for production reliability:
+Like PILOT, banditGPT initializes contextual bandits from offline preference data to reduce cold-start penalties. Beyond this shared capability, banditGPT introduces three structural advances absent from concurrent bandit routers:
 \begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{Meta-ensemble via Corralling:} Unlike prior systems using a single policy, banditGPT introduces a meta-learning layer (Corralling~\cite{agarwal2017corralling}) over two expert bandits. This provides a regret-hedging safety mechanism against prior misspecification that standard bandits lack.
-    \item \textbf{Offline-to-online prior transfer:} Instead of learning entirely from scratch or pure online feedback, banditGPT converts offline battles into LinUCB sufficient statistics, substantially reducing the cold-start penalty.
-    \item \textbf{Hard constraints via budget filtering:} Rather than scalarizing cost into the reward or optimizing over a horizon, banditGPT strictly enforces per-request hard constraints (cost ceiling, quality floor) by pruning ineligible models before the bandit selects.
+    \item \textbf{Meta-ensemble via Corralling:} Unlike prior systems using a single policy, banditGPT layers a Corralling meta-learner~\cite{agarwal2017corralling} over two expert bandits (one warm-started, one tabula rasa). This provides a regret-hedging safety mechanism against prior misspecification that standard bandits lack, and pairs naturally with offline-to-online transfer by hedging against prior quality.
+    \item \textbf{Hard constraints via budget filtering:} Rather than scalarizing cost into the reward (BaRP) or optimizing over a horizon (PILOT knapsack), banditGPT strictly enforces per-request hard constraints (cost ceiling, latency ceiling, quality floor) by pruning ineligible models before the bandit selects.
+    \item \textbf{Family-level parameter sharing:} For larger portfolios ($K \geq 3$), Hybrid LinUCB pools observations across models within the same provider family, improving sample efficiency when per-model data is scarce. No concurrent bandit router exploits cross-model structure at this level.
 \end{enumerate}
 
 \begin{table}[htbp]
@@ -32,6 +32,7 @@ Online adapt.   & \texttimes & \texttimes & \checkmark & \checkmark & \checkmark
 Cost handling   & Threshold & Edge weights & Knapsack policy & Scalarized reward & Hard constraints \\
 Prior / warmup  & Supervised & Graph inductive & Pref.-informed emb. & Bandit feedback & Offline warmup \\
 Safety / meta   & None & None & None & None & Corralling \\
+Family sharing  & \texttimes & \texttimes & \texttimes & \texttimes & Hybrid LinUCB \\
 \bottomrule
 \end{tabular}%
 }
