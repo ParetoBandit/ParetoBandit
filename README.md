@@ -109,6 +109,51 @@ The 400-prompt crossover means a new deployment can surpass a pre-trained router
 
 ---
 
+## Production Use Cases
+
+BanditGPT is designed for any system that routes heterogeneous prompts across multiple LLMs under cost, latency, or quality constraints. Below are concrete deployment archetypes where the library provides the most value.
+
+### Primary use cases
+
+| Use Case | Why BanditGPT Fits | Key Features Used |
+|----------|-------------------|-------------------|
+| **Customer support platforms** — Route millions of tickets where "reset my password" and "your API returns 500 on nested JSON" require very different models | Traffic mix shifts after product launches and seasonal spikes; hand-written heuristics break. Online learning adapts automatically, and the 65/35 easy-to-hard ratio means >60% of traffic routes to the cheapest model. | `max_cost`, `cost_penalty`, corralling |
+| **LLM API gateways** — Proxy services (LiteLLM, Portkey, Helicone-class) where each customer's traffic is different | One-size-fits-all routing leaves money on the table. Instantiate a router per customer, each learning its own optimal policy. New models are added to the fleet via `register_model()` without per-customer reconfiguration. | `MultiProviderClient`, `register_model()`, per-tenant instances |
+| **Coding assistant backends** — IDE plugins where autocomplete needs <200ms but complex refactoring needs frontier reasoning | The boundary between "easy" and "hard" is fuzzy and prompt-dependent. Hard latency constraints guarantee the SLA; the bandit learns which queries genuinely need a frontier model. New models drop monthly and integrate without re-tuning. | `max_latency`, `register_model()`, corralling |
+| **RAG-based enterprise search** — Internal chatbots where simple factual lookups and complex multi-hop reasoning coexist | Over-routing everything to GPT-4 wastes budget; under-routing complex queries produces hallucinations. The prompt embedding captures complexity, and cost penalty steers simple queries to cheap models. | `cost_penalty`, exploration presets |
+
+### Secondary use cases
+
+| Use Case | Why BanditGPT Fits | Caveat |
+|----------|-------------------|--------|
+| **Content generation platforms** — Short social media copy vs. long-form brand-voice content require different quality tiers | The router learns from editorial feedback what "good enough" means per content type. | Needs sufficient volume (~100+ prompts/day) for fast convergence. |
+| **Multi-tenant AI-as-a-service** — Vertical SaaS wrapping LLMs for SMB customers with diverse traffic patterns | Per-tenant router instances learn independently; fleet-wide model changes propagate via `register_model()`. | Each tenant needs enough traffic for per-tenant learning to converge. |
+| **Agentic workflows** — Different steps in an agent pipeline (planning, code gen, formatting) have wildly different difficulty | Route per-step with the step's prompt as context; the bandit discovers which steps genuinely need a frontier model. | Not yet experimentally validated (flagged as future work in the paper). |
+
+### When BanditGPT is *not* the right tool
+
+| Situation | Better Alternative |
+|-----------|-------------------|
+| Fewer than ~50 prompts/day — insufficient data for online learning | Static rules or RouteLLM's pre-trained classifier |
+| Single model — no routing decision to make | Direct API call |
+| Regulated domain where routing decisions must be fully deterministic and auditable | Rule-based routing with human-defined policies |
+| All prompts are near-identical (e.g., same template, different entity) — no contextual signal | Random load balancing or round-robin |
+
+### Worked examples
+
+Each primary use case has a runnable example with a synthetic oracle, full learning loop, baseline comparisons, and 4-panel visualisation:
+
+| Scenario | Script | Features Demonstrated |
+|----------|--------|----------------------|
+| Cost-constrained SaaS startup | [`examples/scenario_cost_constrained_startup.py`](examples/scenario_cost_constrained_startup.py) | Hard budget ceiling, aggressive cost penalty, per-category cost analysis |
+| Latency-sensitive IDE plugin | [`examples/scenario_latency_sensitive_app.py`](examples/scenario_latency_sensitive_app.py) | TTFT constraint, corralling vs. no corralling under distribution shift |
+| Quality-critical enterprise + model onboarding | [`examples/scenario_quality_critical_enterprise.py`](examples/scenario_quality_critical_enterprise.py) | Quality-first routing, hot `register_model()`, newcomer adoption ramp |
+| General tutorial (5-model portfolio) | [`examples/hands_on_tutorial.py`](examples/hands_on_tutorial.py) | Full walkthrough: exploration, cost penalty, priors, model onboarding |
+
+All examples run locally in under a minute with no API keys.
+
+---
+
 ## How It Works
 
 ### The Intuition
