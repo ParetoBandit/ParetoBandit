@@ -107,14 +107,10 @@ class RegistrationConfig:
     These values shape the initial belief state (theta) for a new model 
     before we have observed any real traffic.
     
-    Scientific Justification (Prior Transfer Analysis):
-    All parameters validated via sensitivity analysis:
-    - n_effective: Robust across [1.0, 20.0] range (Appendix A.3)
-    - Bias terms: Derived from cost asymmetry (30x price differential)
-    
-    Key Finding: Performance driven by semantic neighbor accuracy (θ_neighbor),
-    not hyperparameter fine-tuning. System achieves Zero-Shot Readiness without
-    manual calibration.
+    Scientific Justification:
+    - Bias terms: Derived from cost asymmetry (30x price differential).
+    - Knowledge transfer: Handled by Hybrid LinUCB's family-level β_F
+      sharing (continuous, empirically validated).
     
     NOTE: complexity_weight fields were removed when the feature pipeline was
     simplified to [PCA | bias].  T-shirt sizing now operates exclusively through
@@ -134,17 +130,6 @@ class RegistrationConfig:
     # Fallback Metadata (Pessimistic Defaults for Resilience)
     default_cost_per_1m: float = 10.00  # Assume expensive ($10/1M)
     default_latency_s: float = 2.0      # Assume slow (2s)
-    
-    # Latent Semantic Transfer - Prior Strength Calibration
-    # Validated via prior transfer analysis (Appendix A.3):
-    # - n_effective robust across [1.0, 20.0] range
-    # - Corralling meta-learning adaptively chooses between warmup and tabula rasa experts
-    # - System robustness comes from Corralling's adaptive switching, not n_eff tuning
-    # Default: 5.0 (mid-range value, reasonable when warmup expert is used)
-    n_effective_default: float = 5.0
-    n_effective_high_similarity: float = 5.0  # sim > 0.8 (strong match)
-    n_effective_medium_similarity: float = 5.0  # sim 0.6-0.8 (moderate match)
-    n_effective_low_similarity: float = 5.0  # sim < 0.6 (weak match, Corralling will prefer tabula rasa)
 
 @dataclass
 class RouterConfig:
@@ -156,23 +141,14 @@ class RouterConfig:
     **Scientific Validation (Appendix A):**
     Key hyperparameters validated via prior transfer theory and ablation:
     
-    1. **Latent Semantic Transfer (n_effective)** (Appendix A.3):
-       - Tested range: [1.0, 2.0, 5.0, 10.0, 20.0] on real LMSYS Arena data
-       - Robust across full range; performance driven by neighbor accuracy
-       - Default: 5.0 (mid-range value, effective when warmup expert is used)
-    
-    2. **Market Anchors (cost/latency normalization)**:
+    1. **Market Anchors (cost/latency normalization)**:
        - Derived from empirical market data (2024-2026)
        - Cost: $0.0001-$0.04/1k tokens (portfolio range)
        - Latency: 0.05s-5.0s (instant to timeout threshold)
     
-    3. **Probation Period (500 requests)**:
+    2. **Probation Period (500 requests)**:
        - Derived from convergence analysis (95% confidence interval)
        - Robust across [300, 1000] range (not shown for brevity)
-    
-    **Key Finding:** Performance driven by semantic neighbor accuracy (θ_neighbor),
-    not hyperparameter fine-tuning. System achieves Zero-Shot Readiness without
-    manual calibration.
     
     This dataclass is the single source of truth for the current production router.
     """
@@ -1258,8 +1234,7 @@ Previously sampled from N(θ_hat, A_inv) which implicitly
 #   E[r | x, a] = x^T beta_F(a) + x^T theta_a
 #
 # The shared component is updated with every observation from any family
-# member, providing *continuous* transfer learning rather than the one-shot
-# initialization of admix_theta_from_neighbors().
+# member, providing continuous transfer learning.
 #
 # Cold-start benefit: when GPT-5.2 joins a family where GPT-5.1 already
 # has N observations, GPT-5.2 immediately benefits from the family beta
@@ -2196,116 +2171,33 @@ Previous version referenced non-existent attributes
             else:
                 logger.warning(f"Unknown feature '{feature_name}' in initial_weights. Skipping.")
         
-        # 6. Add to Bandit with Latent Semantic Transfer
-        # Instead of hardcoded heuristics, use semantic similarity to find neighbors
-        # and dynamically adjust prior strength based on confidence in the match
-        if len(self.bandit.models) > 0:
-            # Build semantic DNA and find best neighbor
-            dna_str = self._get_model_dna(model_id, capabilities, speed)
-            neighbor, similarity = self._find_semantic_neighbor(model_id, dna_str)
-            
-            # Dynamic n_effective based on similarity confidence
-            # Validated via prior transfer analysis (Appendix A.3)
-            # Robustness comes from Corralling's adaptive expert selection.
-            # 
-            # Strategy: Use similarity as proxy for θ_neighbor quality, not n_effective tuning
-            reg_config = self.config.registration
-            if similarity > 0.8:
-                n_effective = reg_config.n_effective_high_similarity  # Strong match
-            elif similarity > 0.6:
-                n_effective = reg_config.n_effective_medium_similarity  # Moderate match
-            else:
-                n_effective = reg_config.n_effective_low_similarity  # Weak match
-            
-            logger.info(
-                f"🔍 Latent Semantic Transfer: {model_id} "
-                f"matched to {neighbor} (sim: {similarity:.3f}, n_eff: {n_effective})"
-            )
-            
-            # Use neighbor bootstrapping with dynamic prior strength.
-            # Pass precomputed (neighbor, similarity) to avoid
-            # a redundant O(K) embedding + similarity re-search inside admix.
-            A_init, b_init = self.admix_theta_from_neighbors(
-                model_id=model_id,
-                registry=self.registry,
-                bandit=self.bandit,
-                encoder=None,  # uses self.features internally
-                n_effective=n_effective,
-                precomputed_neighbor=(neighbor, similarity)
-            )
-            
-            # Capture whether bootstrapping actually happened.
-            # If admix_theta_from_neighbors found no suitable neighbor, it returns:
-            #   A = init_lambda * I, b = zeros(dim)
-            # We detect this case to determine if we should apply manual priors.
-            is_bootstrapped = not (np.linalg.norm(b_init) < 1e-12)
-            
-            # Add arm with bootstrapped parameters
-            # Atomic-publication pattern: set state before appending to models list
-            # so concurrent select_arm() never sees an incomplete model entry.
-            A_inv_init = safe_inv(A_init)
-            with self.bandit._lock:
-                # For hybrid policy, register family mapping before adding arm state
-                if isinstance(self.bandit, HybridLinUCBPolicy):
-                    family = self._resolve_family_for_model(model_id)
-                    self.bandit.family_map[model_id] = family
-                    if family not in self.bandit.A0:
-                        self.bandit.A0[family] = np.eye(self.bandit.dim) * self.bandit.init_lambda
-                        self.bandit.b0[family] = np.zeros(self.bandit.dim, dtype=np.float64)
-                        self.bandit.A0_inv[family] = safe_inv(self.bandit.A0[family])
-                    self.bandit.families[family].append(model_id)
-                self.bandit.A[model_id] = A_init
-                self.bandit.b[model_id] = b_init
-                self.bandit.A_inv[model_id] = A_inv_init
-                self.bandit.last_update[model_id] = self.bandit.t
-                self.bandit.regularization_floor[model_id] = self.bandit.init_lambda
-                self.bandit.models.append(model_id)  # LAST: visible only after state is ready
-        else:
-            # First model - use standard initialization, but apply manual prior
-            # atomically under the lock to prevent a concurrent select_arm() from
-            # seeing the model with b=zeros before the prior is applied.
-            new_A = np.eye(self.bandit.dim) * self.bandit.init_lambda
-            new_b = self.bandit.init_lambda * theta_vector  # Apply manual prior immediately
-            new_A_inv = safe_inv(new_A)
-            with self.bandit._lock:
-                if isinstance(self.bandit, HybridLinUCBPolicy):
-                    family = self._resolve_family_for_model(model_id)
-                    self.bandit.family_map[model_id] = family
-                    if family not in self.bandit.A0:
-                        self.bandit.A0[family] = np.eye(self.bandit.dim) * self.bandit.init_lambda
-                        self.bandit.b0[family] = np.zeros(self.bandit.dim, dtype=np.float64)
-                        self.bandit.A0_inv[family] = safe_inv(self.bandit.A0[family])
-                    self.bandit.families[family].append(model_id)
-                self.bandit.A[model_id] = new_A
-                self.bandit.b[model_id] = new_b
-                self.bandit.A_inv[model_id] = new_A_inv
-                self.bandit.last_update[model_id] = self.bandit.t
-                self.bandit.regularization_floor[model_id] = self.bandit.init_lambda
-                self.bandit.models.append(model_id)  # LAST: visible only after state is ready
-            is_bootstrapped = False  # (manual prior applied above, skip step 7)
-        
-        # 7. Apply Manual Prior (T-Shirt Sizing) ONLY if Bootstrapping Failed
+        # 6. Initialize bandit arm with T-shirt prior
         #
-        # CRITICAL: Apply manual prior if and only if no semantic transfer occurred
-        # AND the first-model path above didn't already apply it.
-        #
-        # Scenario 1: Bootstrapping succeeded (found similar neighbor)
-        #   - is_bootstrapped = True
-        #   - b already contains neighbor's preferences scaled by n_effective
-        #   - DO NOT overwrite with manual priors (neighbor knowledge > T-shirt sizing)
-        #
-        # Scenario 2: Bootstrapping failed (no suitable neighbor found, len(models) > 0)
-        #   - is_bootstrapped = False
-        #   - b = zeros(dim) (default/identity initialization)
-        #   - DO apply manual priors to give the model a reasonable starting bias
-        #
-        # Scenario 3: First model (len(models) == 0 before registration)
-        #   - Handled in the else-branch above (atomic initialization with prior)
-        #   - is_bootstrapped = False, but b already set — re-setting is harmless
-        if not is_bootstrapped:
-            # Standard prior encoding: b = A @ theta
-            # With A = lambda*I, we get: b = lambda * theta
-            self.bandit.b[model_id] = self.bandit.init_lambda * theta_vector
+        # All new models start with A = λI (identity-scaled precision) and
+        # b = λ·θ (prior encoding from T-shirt sizing / capabilities).
+        # Family-level β_F sharing in Hybrid LinUCB provides continuous
+        # knowledge transfer from same-family models.
+        new_A = np.eye(self.bandit.dim) * self.bandit.init_lambda
+        new_b = self.bandit.init_lambda * theta_vector
+        new_A_inv = safe_inv(new_A)
+
+        # Atomic-publication pattern: set state before appending to models
+        # list so concurrent select_arm() never sees incomplete state.
+        with self.bandit._lock:
+            if isinstance(self.bandit, HybridLinUCBPolicy):
+                family = self._resolve_family_for_model(model_id)
+                self.bandit.family_map[model_id] = family
+                if family not in self.bandit.A0:
+                    self.bandit.A0[family] = np.eye(self.bandit.dim) * self.bandit.init_lambda
+                    self.bandit.b0[family] = np.zeros(self.bandit.dim, dtype=np.float64)
+                    self.bandit.A0_inv[family] = safe_inv(self.bandit.A0[family])
+                self.bandit.families[family].append(model_id)
+            self.bandit.A[model_id] = new_A
+            self.bandit.b[model_id] = new_b
+            self.bandit.A_inv[model_id] = new_A_inv
+            self.bandit.last_update[model_id] = self.bandit.t
+            self.bandit.regularization_floor[model_id] = self.bandit.init_lambda
+            self.bandit.models.append(model_id)  # LAST: visible only after state is ready
             
         # 8. Prepare registry entry (but don't publish yet)
         # Use defaults from config if not provided
@@ -2336,12 +2228,8 @@ Previous version referenced non-existent attributes
             norm_cost = self._calculate_absolute_penalty(avg_cost_per_1k)
             
             # B. Get the Initial Matrices
-            if is_bootstrapped:
-                prior_A = A_init
-                prior_b = b_init
-            else:
-                prior_A = self.bandit.A[model_id]
-                prior_b = self.bandit.b[model_id]
+            prior_A = self.bandit.A[model_id]
+            prior_b = self.bandit.b[model_id]
             
             # C. Update Experts (before registry publication)
             family = self._resolve_family_for_model(model_id)
@@ -2377,324 +2265,6 @@ Previous version referenced non-existent attributes
     # Tier 1 Safety: Fast Toxicity Heuristic
     # ---------------------------------------------------------------------------
     
-    # ---------------------------------------------------------------------------
-    # Latent Semantic Transfer: Progressive Learning for New Models
-    # ---------------------------------------------------------------------------
-    
-    def _get_model_dna(
-        self, 
-        model_id: str, 
-        capabilities: List[str] = None, 
-        speed: str = None
-    ) -> str:
-        """
-        Creates a semantic string representing the model's 'DNA' for embedding.
-        
-        This combines the model ID, capabilities, and speed profile into a 
-        rich semantic description that can be embedded and compared to find
-        similar models for knowledge transfer.
-        
-        Args:
-            model_id: The model identifier (e.g., "gpt-4-turbo", "claude-3-opus")
-            capabilities: List of model capabilities (e.g., ["coding", "math"])
-            speed: Speed profile ("fast", "balanced", "slow")
-            
-        Returns:
-            A space-separated string combining all semantic information
-            
-        Example:
-            >>> dna = _get_model_dna("deepseek-coder-v2", ["coding"], "slow")
-            >>> dna
-            "deepseek coder v2 coding slow"
-        """
-        # Normalize model ID: replace separators with spaces for better embedding
-        parts = [model_id.replace("-", " ").replace("/", " ").replace("_", " ")]
-        
-        if capabilities:
-            parts.extend(capabilities)
-        if speed:
-            parts.append(speed)
-            
-        return " ".join(parts).lower()
-    
-    def _find_semantic_neighbor(
-        self, 
-        model_id: str, 
-        dna_str: str
-    ) -> Tuple[Optional[str], float]:
-        """
-        Finds the most similar existing model in the registry using embeddings.
-        
-        This is the core of Latent Semantic Transfer: instead of hardcoded rules,
-        we use the semantic similarity between model "DNA" strings to find the
-        best neighbor for knowledge transfer.
-        
-        Args:
-            model_id: The new model to find a neighbor for
-            dna_str: The semantic DNA string of the new model
-            
-        Returns:
-            Tuple of (best_neighbor_id, similarity_score)
-            Returns (None, 0.0) if no suitable neighbor is found
-            
-        Example:
-            >>> neighbor, sim = _find_semantic_neighbor("gpt-4-turbo", "gpt 4 turbo fast")
-            >>> neighbor, sim
-            ("gpt-4", 0.92)
-        """
-        if not self.registry or len(self.bandit.models) < 1:
-            return None, 0.0
-
-        if not self.features.has_encoder:
-            logger.info(
-                "Semantic neighbor search skipped: no encoder available "
-                "(pre-computed vectors mode)."
-            )
-            return None, 0.0
-
-        # 1. Embed the new model's DNA
-        try:
-            new_vec = self.features.encode_prompt(dna_str)
-        except Exception as e:
-            logger.warning(f"Failed to encode DNA for {model_id}: {e}")
-            return None, 0.0
-        
-        # 2. Compare against existing models (with caching)
-        best_neighbor = None
-        best_sim = -1.0
-        
-        for m_id in self.bandit.models:
-            if m_id == model_id:
-                continue
-            
-            m_data = self.registry.get(m_id, {})
-            
-            # Use cached embedding or generate it
-            if "dna_embedding" not in m_data:
-                m_capabilities = m_data.get("capabilities", [])
-                m_speed = m_data.get("speed_profile", "balanced")
-                m_dna = self._get_model_dna(m_id, m_capabilities, m_speed)
-                
-                try:
-                    m_data["dna_embedding"] = self.features.encode_prompt(m_dna)
-                except Exception as e:
-                    logger.debug(f"Failed to encode DNA for {m_id}: {e}")
-                    continue
-            
-            # Compute cosine similarity
-            try:
-                m_vec = m_data["dna_embedding"]
-                sim = np.dot(new_vec, m_vec) / (
-                    np.linalg.norm(new_vec) * np.linalg.norm(m_vec) + 1e-12
-                )
-                
-                if sim > best_sim:
-                    best_sim = sim
-                    best_neighbor = m_id
-            except Exception as e:
-                logger.debug(f"Failed to compute similarity with {m_id}: {e}")
-                continue
-        
-        return best_neighbor, best_sim
-
-    def admix_theta_from_neighbors(
-        self,
-        model_id: str,
-        registry: Dict[str, Dict],
-        bandit: 'DisjointLinUCBPolicy',
-        encoder,  # SentenceTransformer or compatible encoder
-        n_effective: float = 5.0,  # Tunable prior strength (pseudocount of observations)
-        precomputed_neighbor: Tuple[Optional[str], float] | None = None,  # Skip re-search
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Bootstrap a new model's (A, b) from its nearest neighbor in embedding space.
-        
-        **LAYER 2: SEMANTIC TRANSFER (Dynamic Model Admission)**
-        
-        This method implements the second layer of the three-layer warm-start architecture:
-        - Layer 1: Core warmup priors (80k battles) → Already loaded in __init__
-        - Layer 2 (THIS METHOD): Semantic transfer → θ-only transfer for new models
-        - Layer 3: T-shirt sizing injection → Applied in BanditRouter.create()
-        
-        **The "Prior Belief" Reset**
-        
-        Transferring both A and b matrices causes the "Confident Transfer Trap":
-        new models inherit the CONFIDENCE of mature neighbors (e.g., A with 1M
-        samples → tiny confidence intervals → no exploration).
-        
-        **Strategy: Transfer θ (Preferences), Reset A (Confidence)**:
-        1. Find nearest neighbor by embedding similarity
-        2. Extract neighbor's learned preferences: θ_neighbor = A_inv @ b_neighbor  
-        3. Initialize new model with:
-           - A_new = n_effective * init_lambda * I  (Scaled Identity → Controlled Uncertainty)
-           - b_new = n_effective * init_lambda * θ_neighbor  (Scaled Preferences)
-        4. Result: θ_hat = (n*λI)^-1 @ (n*λθ) = θ (mean preserved), Var ~ 1/n (confidence scaled)
-        
-        **Mathematical Justification (Appendix A.3):**
-        - θ encodes "what contexts this model is good for" (direction)
-        - A encodes "how confident we are in θ" (magnitude)
-        - Scaling BOTH A and b by n_effective * init_lambda preserves mean while scaling variance
-        
-        **Hyperparameter Sensitivity (Appendix A.3):**
-        n_effective robust across [1.0, 20.0] range. Guidance:
-        - n_effective = 1.0: Weak prior → More exploration, slower convergence
-        - n_effective = 5.0 (default): Balanced exploration/exploitation
-        - n_effective = 20.0+: Strong prior → Fast exploitation, less exploration
-          → Only use when neighbor similarity is very high (>0.9)
-        
-        **Concrete Example:**
-        - Neighbor "GPT-4" has θ = [+0.8 (complexity), +0.3 (math), ...]
-        - After 1M samples, its A has large eigenvalues → tight confidence
-        - New model "GPT-4-Turbo" bootstraps:
-          - Naïve transfer: Inherits 80% of A → thinks it has 800k samples → fossilized
-          - θ-only transfer: Gets θ as prior, but A = λI → thinks it has 0 samples → explores
-        
-        Args:
-            model_id: The new model to initialize
-            registry: Model registry with display_name metadata
-            bandit: LinUCB policy with existing model parameters
-            encoder: SentenceTransformer for computing similarity
-            n_effective: Tunable prior strength (default: 5.0). Simulates N pseudo-observations
-                worth of confidence in the neighbor's preferences.
-                - 0.1-1.0: Weak prior (use when similarity <0.7 or domain may shift)
-                - 5.0-10.0: Moderate prior (recommended for most cases)
-                - 20.0+: Strong prior (only use when similarity >0.9 and domain is stable)
-                Higher values = faster exploitation but less exploration.
-                Lower values = more exploration but slower convergence.
-        
-        Returns:
-            Tuple of (A_new, b_new) where:
-            - A_new = n_effective * init_lambda * I  (Precision scales with prior strength)
-            - b_new = n_effective * init_lambda * θ_neighbor  (Moment scales proportionally)
-            Result: θ_hat = A^{-1} b = θ_neighbor (mean preserved), Var ∝ 1/n_effective
-            
-        Example:
-            >>> # Adding a new coding model with balanced prior
-            >>> A, b = admix_theta_from_neighbors(
-            ...     "deepseek-coder",
-            ...     registry,
-            ...     bandit,
-            ...     encoder,
-            ...     n_effective=5.0
-            ... )
-            # Result: Inherits preferences from similar model, but with fresh exploration
-        """
-        # Use precomputed neighbor from _find_semantic_neighbor()
-        # when available, eliminating the redundant O(K) embedding+similarity search.
-        # Previously, register_model() called _find_semantic_neighbor() (to set
-        # n_effective) and then admix_theta_from_neighbors() re-ran the same search
-        # internally, wasting compute and risking inconsistent neighbor selection
-        # under concurrent mutation.
-        if precomputed_neighbor is not None:
-            best_neighbor, best_similarity = precomputed_neighbor
-        else:
-            # Fallback: run the full search (backward-compatible for direct callers)
-            model_info = registry.get(model_id, {})
-            capabilities = model_info.get("capabilities", [])
-            speed = model_info.get("speed_profile", "balanced")
-            model_dna = self._get_model_dna(model_id, capabilities, speed)
-            
-            try:
-                if 'dna_embedding' in model_info:
-                    new_embedding = model_info['dna_embedding']
-                elif self.features.has_encoder:
-                    new_embedding = self.features.encode_prompt(model_dna)
-                    if model_id in registry:
-                        registry[model_id]['dna_embedding'] = new_embedding
-                else:
-                    logger.info(f"No encoder available for semantic neighbor search of {model_id}.")
-                    return (
-                        np.eye(bandit.dim) * bandit.init_lambda,
-                        np.zeros(bandit.dim, dtype=np.float64)
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to encode DNA for {model_id}: {e}. Using identity init.")
-                return (
-                    np.eye(bandit.dim) * bandit.init_lambda,
-                    np.zeros(bandit.dim, dtype=np.float64)
-                )
-            
-            best_neighbor = None
-            best_similarity = -1.0
-            
-            for neighbor_id in bandit.models:
-                if neighbor_id == model_id:
-                    continue
-                neighbor_info = registry.get(neighbor_id, {})
-                neighbor_capabilities = neighbor_info.get("capabilities", [])
-                neighbor_speed = neighbor_info.get("speed_profile", "balanced")
-                neighbor_dna = self._get_model_dna(neighbor_id, neighbor_capabilities, neighbor_speed)
-                
-                try:
-                    if 'dna_embedding' in neighbor_info:
-                        neighbor_embedding = neighbor_info['dna_embedding']
-                    else:
-                        neighbor_embedding = self.features.encode_prompt(neighbor_dna)
-                        registry[neighbor_id]['dna_embedding'] = neighbor_embedding
-                    
-                    similarity = np.dot(new_embedding, neighbor_embedding) / (
-                        np.linalg.norm(new_embedding) * np.linalg.norm(neighbor_embedding) + 1e-12
-                    )
-                    
-                    if similarity > best_similarity:
-                        best_similarity = similarity
-                        best_neighbor = neighbor_id
-                except Exception as e:
-                    logger.debug(f"Skipping neighbor {neighbor_id}: {e}")
-                    continue
-        
-        # Bootstrap from neighbor if found
-        if best_neighbor and best_similarity > 0.5:  # Only use if moderately similar
-            # Step 1: Extract neighbor's learned preferences (θ = A_inv @ b)
-            with bandit._lock:  # Thread-safe read
-                A_inv_neighbor = bandit.A_inv[best_neighbor]
-                b_neighbor = bandit.b[best_neighbor]
-            
-            theta_neighbor = A_inv_neighbor @ b_neighbor
-            
-            # Step 2: Initialize new model with scaled precision and moment
-            # Bayesian Ridge Regression with Prior Strength Scaling (Appendix A.3)
-            # 
-            # Formulation (preserves mean, scales confidence):
-            # A_new = n_effective * λ_init * I  (Precision scales with prior strength)
-            # b_new = n_effective * λ_init * θ  (Moment scales proportionally)
-            # Result: θ_hat = A^-1 @ b = (n*λI)^-1 @ (n*λθ) = θ (mean preserved!)
-            #         Var(θ_hat) ∝ 1/n_effective (confidence increases with n)
-            
-            A_new = n_effective * bandit.init_lambda * np.eye(bandit.dim)  # Scale Precision
-            b_new = n_effective * bandit.init_lambda * theta_neighbor  # Scale Moment
-            
-            # Calculate transferred theta norm for verification
-            theta_norm = np.linalg.norm(theta_neighbor)
-            
-            # Warn about potential n_effective misconfiguration
-            if best_similarity < 0.7 and n_effective > 10.0:
-                logger.warning(
-                    f"⚠️ Strong prior (n_effective={n_effective}) with weak similarity "
-                    f"({best_similarity:.3f}) for {model_id}. Consider reducing n_effective "
-                    f"to 1.0-5.0 to allow more exploration."
-                )
-            elif best_similarity > 0.9 and n_effective < 2.0:
-                logger.info(
-                    f"💡 High similarity ({best_similarity:.3f}) detected for {model_id}. "
-                    f"Consider increasing n_effective to 10.0-20.0 for faster convergence."
-                )
-            
-            logger.info(
-                f"✨ Bootstrapping {model_id} from neighbor {best_neighbor} "
-                f"(similarity={best_similarity:.3f}, n_effective={n_effective}). "
-                f"Transferred θ (||θ||={theta_norm:.4f}), reset A (confidence) for exploration."
-            )
-            
-            return A_new, b_new
-        else:
-            # No suitable neighbor, use identity
-            logger.info(f"No suitable neighbor for {model_id} (best_sim={best_similarity:.2f}), using identity init")
-            return (
-                np.eye(bandit.dim) * bandit.init_lambda,
-                np.zeros(bandit.dim, dtype=np.float64)
-            )
-
     # Feature and Context Extraction (Delegated to FeatureService)
     # ---------------------------------------------------------------------------
     
@@ -2935,8 +2505,7 @@ Previous version referenced non-existent attributes
         # =====================================================================
         # Warm-Start Architecture:
         # - Layer 1: User-supplied priors (if provided) → Already loaded above
-        # - Layer 2: Semantic transfer → Handled in register_model()
-        # - Layer 3 (HERE): T-shirt sizing → Business logic on top of data
+        # - Layer 2 (HERE): T-shirt sizing → Business logic on top of data
         #
         # This layer applies human-provided speed profile priors (fast/slow)
         # *on top* of data-driven warmup priors, with proper confidence scaling.
@@ -4752,8 +4321,6 @@ class CostAwareLinUCBRouter:
        Corralling Master has meaningful choices from day one
     2. **Bayesian Grounding**: Starting with 80k RouteLLM battles (A, b matrices)
        provides high-confidence priors instead of empty identity matrices
-    3. **Semantic Transfer**: New models inherit preferences (θ) from similar models
-       while resetting confidence (A) for fresh exploration ("First-Child" Bias)
     
     **Why Warm-Start at Expert Level?**
     - Warmup Expert: Initialized with high-confidence priors (large A values)
@@ -4847,10 +4414,9 @@ class CostAwareLinUCBRouter:
         # =====================================================================
         # LAYER 1: EXPERT PARAMETER WARM-START (Core Architecture)
         # =====================================================================
-        # Three-Layer Warm-Start Architecture:
+        # Two-Layer Warm-Start Architecture:
         # - Layer 1 (HERE): Load 80k battle priors → Data-driven initialization
-        # - Layer 2 (register_model): Semantic transfer → Dynamic model admission
-        # - Layer 3 (BanditRouter.create): T-shirt sizing → Business logic
+        # - Layer 2 (BanditRouter.create): T-shirt sizing → Business logic
         #
         # This layer initializes from warmup priors (80k RouteLLM battles):
         # - A matrices: Confidence/precision (covariance structure, d×d)
@@ -5278,13 +4844,13 @@ class CostAwareLinUCBRouter:
         """
         Dynamically register a new model with specific priors (for Corralling integration).
         
-        This enables dynamic model admission at runtime while maintaining semantic transfer.
-        Called by BanditRouter.register_model() after semantic bootstrapping.
+        Called by BanditRouter.register_model() to propagate a new arm
+        into this expert.
         
         Args:
             model_id: New model identifier
-            A: Initial Precision matrix (d x d) from semantic transfer
-            b: Initial Moment vector (d,) from semantic transfer  
+            A: Initial Precision matrix (d x d)
+            b: Initial Moment vector (d,)
             normalized_cost: Cost penalty in [0, 1]
             family: Family identifier for hybrid sharing (inferred if None)
         """
@@ -5557,59 +5123,6 @@ class CostAwareTabulaRasaRouter:
                 self.families[family].append(model_id)
 
         logger.debug(f"✅ Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")
-    
-    def add_model_with_semantic_transfer(self, new_model_id: str, semantic_neighbor_id: str = None):
-        """
-        Add a new model with Latent Semantic Transfer (First-Child Bias Correction).
-        
-        **The "First-Child" Bias Correction:**
-        When dynamically adding models via register_model(), the warm-start logic
-        triggers a semantic transfer that avoids the "confident transfer trap":
-        
-        1. **Find Semantic Neighbor**: Match new model to existing similar model
-           (e.g., "Flash" → "Haiku") using embedding similarity
-        
-        2. **Transfer Preferences (θ), Reset Confidence (A)**:
-           - Extract neighbor's learned preferences: θ_neighbor = A_inv @ b_neighbor
-           - Initialize new model: A_new = λI (fresh exploration potential)
-           - Transfer preferences: b_new = λ × θ_neighbor (inherit domain knowledge)
-        
-        3. **Why This Works**:
-           - θ encodes "what contexts this model is good for" (direction)
-           - A encodes "how confident we are in θ" (magnitude)
-           - Transfer knowledge (θ) but not sampling history (A)
-           - New model can quickly diverge if it performs differently
-        
-        **Prevents "Confident Transfer Trap":**
-        Without this correction, new models inherit both A and b from neighbors.
-        This causes them to think they have 1M samples of experience (tiny confidence
-        intervals) and never explore, even if they're actually quite different.
-        
-        Args:
-            new_model_id: ID of model to add
-            semantic_neighbor_id: Optional explicit neighbor (auto-detected if None)
-        
-        Example:
-            >>> # Add new model with automatic semantic matching
-            >>> router.add_model_with_semantic_transfer("anthropic/claude-3-haiku-20240307")
-            >>> # Automatically finds "anthropic/claude-3-sonnet" as neighbor
-            
-            >>> # Explicit neighbor specification
-            >>> router.add_model_with_semantic_transfer(
-            ...     "openai/gpt-4-turbo-2024-04-09",
-            ...     semantic_neighbor_id="openai/gpt-4-1106-preview"
-            ... )
-        
-        Note:
-            This method is primarily for documentation. In practice, the BanditRouter
-            class implements this via admix_theta_from_neighbors() during register_model().
-            For CostAwareLinUCBRouter (experimental), use load_priors() instead.
-        """
-        raise NotImplementedError(
-            "Semantic transfer is handled by BanditRouter.register_model(). "
-            "For CostAwareLinUCBRouter, initialize with pre-computed warmup_priors "
-            "or use load_priors() to update existing priors."
-        )
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to handle unpicklable threading.Lock."""

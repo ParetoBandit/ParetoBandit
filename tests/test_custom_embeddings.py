@@ -421,8 +421,7 @@ class TestEdgeCases:
             fs.extract_features(42)  # type: ignore[arg-type]
 
     def test_register_model_without_encoder(self):
-        """register_model should degrade gracefully (identity init) when no
-        SentenceTransformer is available for semantic neighbor search."""
+        """register_model should work when no SentenceTransformer is available."""
         dim = 64
         fs = FeatureService.for_precomputed(dimension=dim + 1)
         registry = _sample_registry(2)

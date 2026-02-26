@@ -7,7 +7,7 @@ This test suite covers:
 3. Cost/latency penalty calculations
 4. Pareto frontier filtering
 5. Exploration-exploitation tradeoffs
-6. Semantic transfer and model admission
+6. Model admission and uniform prior initialization
 7. CorrallingRouter - Expert mixing
 8. Numerical stability and regularization
 """
@@ -402,15 +402,19 @@ class TestCostLatencyPenalties:
 
 
 # =============================================================================
-# Semantic Transfer Tests
+# Model Admission Tests (Uniform Prior Initialization)
 # =============================================================================
 
-class TestSemanticTransfer:
-    """Test semantic transfer for new model admission."""
-    
+class TestModelAdmission:
+    """Test that register_model() initialises new arms with a uniform prior.
+
+    New models start with A = λI and b = λ·θ (T-shirt prior), relying on
+    Hybrid LinUCB's family-level β_F sharing for continuous knowledge transfer.
+    """
+
     @pytest.fixture
-    def transfer_registry(self):
-        """Create registry with semantically similar models."""
+    def admission_registry(self):
+        """Two-model registry for dynamic admission tests."""
         return {
             "gpt-4": {
                 "model_id": "openai/gpt-4",
@@ -431,94 +435,67 @@ class TestSemanticTransfer:
                 "speed_profile": "slow"
             }
         }
-    
-    def test_semantic_neighbor_finding(self, transfer_registry):
-        """Test finding semantic neighbors for new models."""
-        router = BanditRouter.create(model_registry=transfer_registry, priors="none")
-        
-        # Create DNA for a new GPT-4 variant
-        new_model_dna = router._get_model_dna(
+
+    def test_register_model_uses_identity_precision(self, admission_registry):
+        """New model's A matrix should be λI (maximum uncertainty)."""
+        router = BanditRouter.create(model_registry=admission_registry, priors="none")
+
+        router.register_model(
             "gpt-4-turbo",
+            speed="fast",
             capabilities=["reasoning", "coding"],
-            speed="fast"
         )
-        
-        # Find neighbor
-        neighbor, similarity = router._find_semantic_neighbor("gpt-4-turbo", new_model_dna)
-        
-        # Should find gpt-4 as neighbor
-        assert neighbor == "gpt-4"
-        assert similarity > 0.5  # Should be reasonably similar
-    
-    def test_theta_transfer_not_confidence(self, transfer_registry):
-        """Test that semantic transfer copies θ (preferences) but not A (confidence)."""
-        router = BanditRouter.create(model_registry=transfer_registry, priors="none")
-        
-        # Give gpt-4 some experience with varied contexts to learn meaningful preferences
+
+        A_new = router.bandit.A["gpt-4-turbo"]
+        lam = router.bandit.init_lambda
+
+        off_diag = A_new - np.diag(np.diag(A_new))
+        assert np.allclose(off_diag, 0, atol=1e-10), "A should be diagonal"
+        assert np.allclose(np.diag(A_new), lam, rtol=1e-6), \
+            f"Diagonal should equal init_lambda={lam}"
+
+    def test_register_model_applies_tshirt_prior(self, admission_registry):
+        """New model's b vector should encode the T-shirt prior, not zeros."""
+        router = BanditRouter.create(model_registry=admission_registry, priors="none")
+
+        router.register_model(
+            "gpt-4-turbo",
+            speed="slow",
+            capabilities=["reasoning"],
+        )
+
+        b_new = router.bandit.b["gpt-4-turbo"]
+        assert np.linalg.norm(b_new) > 1e-6, \
+            "b should be non-zero (T-shirt prior applied)"
+
+    def test_register_model_no_neighbor_theta_leakage(self, admission_registry):
+        """After training model A, registering model B must NOT inherit A's θ."""
+        router = BanditRouter.create(model_registry=admission_registry, priors="none")
+
         for i in range(100):
-            # Create varied contexts to learn non-trivial preferences
-            context = np.random.randn(router.bandit.dim)
-            context = context / np.linalg.norm(context)  # Normalize
-            # Reward proportional to first few dimensions (create pattern)
-            reward = 0.5 + 0.4 * np.tanh(context[0] + context[1])
-            router.bandit.update("gpt-4", context, reward=reward)
-        
-        # Get gpt-4's learned state
-        A_gpt4 = router.bandit.A["gpt-4"].copy()
-        b_gpt4 = router.bandit.b["gpt-4"].copy()
-        theta_gpt4 = router.bandit.A_inv["gpt-4"] @ b_gpt4
-        
-        # Verify gpt-4 has learned something
-        assert np.linalg.norm(theta_gpt4) > 0.01, "GPT-4 should have learned preferences"
-        
-        # Add metadata to registry for semantic matching
-        router.registry["gpt-4-turbo"] = {
-            "model_id": "openai/gpt-4-turbo",
-            "display_name": "GPT-4 Turbo",
-            "capabilities": ["reasoning", "coding"],  # Same as gpt-4
-            "speed_profile": "fast",  # Different speed
-            "hle": 0.85
-        }
-        
-        # Add new model with semantic transfer
-        A_new, b_new = router.admix_theta_from_neighbors(
-            model_id="gpt-4-turbo",
-            registry=router.registry,
-            bandit=router.bandit,
-            encoder=router.encoder,
-            n_effective=5.0
+            ctx = np.random.randn(router.bandit.dim)
+            ctx = ctx / np.linalg.norm(ctx)
+            router.bandit.update("gpt-4", ctx, reward=0.5 + 0.4 * np.tanh(ctx[0]))
+
+        theta_gpt4 = router.bandit.A_inv["gpt-4"] @ router.bandit.b["gpt-4"]
+        assert np.linalg.norm(theta_gpt4) > 0.01, "Precondition: GPT-4 has learned"
+
+        router.register_model(
+            "gpt-4-turbo",
+            speed="fast",
+            capabilities=["reasoning", "coding"],
         )
-        
-        # A should be fresh (identity-like), NOT copied from gpt-4
-        assert not np.allclose(A_new, A_gpt4), "A should be fresh, not copied"
-        
-        # A should be close to scaled identity (check structure, not exact values)
-        # Check that A is diagonal (off-diagonal elements should be zero)
-        off_diagonal = A_new - np.diag(np.diag(A_new))
-        assert np.allclose(off_diagonal, 0, atol=1e-10), "A should be diagonal (identity-like)"
-        
-        # Check that diagonal elements are uniform (all same value)
-        diagonal_values = np.diag(A_new)
-        assert np.allclose(diagonal_values, diagonal_values[0], rtol=1e-6), \
-            "A diagonal should be uniform (scaled identity)"
-        
-        # But θ should be similar (preferences transferred)
-        A_new_inv = np.linalg.inv(A_new)
-        theta_new = A_new_inv @ b_new
-        
-        # Check that theta_new is non-zero (preferences were transferred)
-        # If similarity was too low (<0.5), transfer might not happen
-        if np.linalg.norm(theta_new) > 0.01:
-            # Transfer succeeded - check direction similarity
-            if np.linalg.norm(theta_gpt4) > 1e-6:
-                cosine_sim = np.dot(theta_gpt4, theta_new) / (
-                    np.linalg.norm(theta_gpt4) * np.linalg.norm(theta_new)
-                )
-                assert cosine_sim > 0.7, f"Preference direction should be similar: {cosine_sim}"
-        else:
-            # Transfer didn't happen (similarity < 0.5 threshold)
-            # This is acceptable behavior - just verify A is still fresh
-            pass
+
+        theta_new = router.bandit.A_inv["gpt-4-turbo"] @ router.bandit.b["gpt-4-turbo"]
+
+        if np.linalg.norm(theta_new) > 1e-6 and np.linalg.norm(theta_gpt4) > 1e-6:
+            cosine = np.dot(theta_gpt4, theta_new) / (
+                np.linalg.norm(theta_gpt4) * np.linalg.norm(theta_new)
+            )
+            assert cosine < 0.95, (
+                f"New model's θ should NOT mirror a trained neighbor's θ "
+                f"(cosine={cosine:.3f})"
+            )
 
 
 # =============================================================================
@@ -1168,73 +1145,8 @@ class TestRobustnessFixes:
         assert decay_entropy >= stationary_entropy, \
             f"Decay entropy ({decay_entropy:.3f}) should be >= stationary ({stationary_entropy:.3f})"
     
-    def test_n_effective_sensitivity_warnings(self, caplog):
-        """Test that admix_theta_from_neighbors warns about n_effective misconfiguration."""
-        import logging
-        caplog.set_level(logging.WARNING)
-        
-        # Create a minimal router
-        registry = {
-            "gpt-4": {
-                "model_id": "openai/gpt-4",
-                "display_name": "GPT-4",
-                "input_cost_per_m": 5.0,
-                "output_cost_per_m": 15.0,
-                "hle": 0.85,
-                "capabilities": ["reasoning", "coding"],
-                "speed_profile": "slow"
-            },
-            "gpt-3.5": {
-                "model_id": "openai/gpt-3.5-turbo",
-                "display_name": "GPT-3.5 Turbo",
-                "input_cost_per_m": 0.5,
-                "output_cost_per_m": 1.5,
-                "hle": 0.65,
-                "capabilities": ["general"],
-                "speed_profile": "fast"
-            }
-        }
-        
-        router = BanditRouter.create(model_registry=registry, priors="none")
-        
-        # Give gpt-4 some data
-        for _ in range(50):
-            context = np.random.randn(router.bandit.dim)
-            router.bandit.update("gpt-4", context, reward=0.8)
-        
-        # Add metadata for new model (low similarity to gpt-4)
-        router.registry["claude-opus"] = {
-            "model_id": "anthropic/claude-opus",
-            "display_name": "Claude Opus",
-            "capabilities": ["creative", "writing"],  # Different from gpt-4
-            "speed_profile": "slow",
-            "hle": 0.88
-        }
-        
-        # Test: High n_effective with low similarity should warn
-        caplog.clear()
-        A_new, b_new = router.admix_theta_from_neighbors(
-            model_id="claude-opus",
-            registry=router.registry,
-            bandit=router.bandit,
-            encoder=router.encoder,
-            n_effective=20.0  # Very high
-        )
-        
-        # Check if warning was logged (only if similarity was actually low)
-        # Note: Similarity might be higher than expected, so we check conditionally
-        warning_messages = [rec.message for rec in caplog.records if rec.levelname == "WARNING"]
-        
-        # If semantic similarity ended up being < 0.7, we should see a warning about n_effective
-        # Otherwise, the test passes (similarity was higher than expected, no warning needed)
-        if any("Strong prior" in msg and "n_effective" in msg for msg in warning_messages):
-            assert True, "Warning correctly raised for high n_effective with low similarity"
-        else:
-            # No warning means similarity was >= 0.7, which is acceptable
-            assert True
-    
-    def test_n_effective_default_value(self):
-        """Test that n_effective has a sensible default value."""
+    def test_register_model_initializes_stable_precision(self):
+        """Dynamically registered models get A = λI (well-conditioned)."""
         registry = {
             "gpt-4": {
                 "model_id": "openai/gpt-4",
@@ -1246,37 +1158,19 @@ class TestRobustnessFixes:
                 "speed_profile": "slow"
             }
         }
-        
+
         router = BanditRouter.create(model_registry=registry, priors="none")
-        
-        # Give gpt-4 some data
-        for _ in range(20):
-            context = np.random.randn(router.bandit.dim)
-            router.bandit.update("gpt-4", context, reward=0.7)
-        
-        router.registry["gpt-4-turbo"] = {
-            "model_id": "openai/gpt-4-turbo",
-            "display_name": "GPT-4 Turbo",
-            "capabilities": ["reasoning"],
-            "speed_profile": "fast",
-            "hle": 0.85
-        }
-        
-        # Call without specifying n_effective (should use default=5.0)
-        A_new, b_new = router.admix_theta_from_neighbors(
-            model_id="gpt-4-turbo",
-            registry=router.registry,
-            bandit=router.bandit,
-            encoder=router.encoder
-            # n_effective not specified -> should use default
-        )
-        
-        # Verify A_new is scaled identity (shape check)
-        assert A_new.shape == (router.bandit.dim, router.bandit.dim)
-        
-        # Check that A is diagonal (identity-like)
-        off_diagonal = A_new - np.diag(np.diag(A_new))
-        assert np.allclose(off_diagonal, 0, atol=1e-10), "A should be diagonal"
+
+        router.register_model("gpt-4-turbo", speed="fast", capabilities=["reasoning"])
+
+        A = router.bandit.A["gpt-4-turbo"]
+        lam = router.bandit.init_lambda
+
+        assert A.shape == (router.bandit.dim, router.bandit.dim)
+        off_diag = A - np.diag(np.diag(A))
+        assert np.allclose(off_diag, 0, atol=1e-10), "A should be diagonal (λI)"
+        assert np.allclose(np.diag(A), lam, rtol=1e-6), \
+            f"Diagonal should equal init_lambda={lam}"
 
 
 if __name__ == "__main__":

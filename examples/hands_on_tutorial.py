@@ -684,19 +684,12 @@ for cat in categories:
 # handles this without retraining: register_model() adds the newcomer
 # to a *running* router and bootstraps it from existing knowledge.
 #
-# Under the hood, two mechanisms accelerate onboarding:
-#
-#   1. Latent Semantic Transfer — The router matches the new model to
-#      its closest existing neighbor (via embedding similarity) and
-#      copies learned preferences (θ) while resetting confidence (A).
-#      This gives the newcomer an informed starting point without
-#      inheriting stale certainty.
-#
-#   2. Hybrid Family Sharing — If the newcomer belongs to the same
-#      model family (e.g. openai/gpt-4o and openai/gpt-4o-mini share
-#      the "openai/gpt" family), it immediately benefits from the
-#      family-level reward model (β_F) learned from all family members.
-#      See Appendix C.9 in the paper for the controlled experiment.
+# Under the hood, Hybrid Family Sharing accelerates onboarding: if the
+# newcomer belongs to the same model family (e.g. openai/gpt-4o and
+# openai/gpt-4o-mini share the "openai/gpt" family), it immediately
+# benefits from the family-level reward model (β_F) learned from all
+# family members.  See Appendix C.9 in the paper for the controlled
+# experiment.
 #
 # We'll simulate this: after the 5-model router has learned for 1000
 # steps, we register "google/gemini-2.0-flash" — a new budget model
@@ -854,8 +847,7 @@ for cat in sorted(PROMPT_POOL.keys()):
 
 print(textwrap.dedent(f"""
   Key takeaway: The router started selecting {NEW_MODEL_DISPLAY}
-  immediately — no retraining needed.  Semantic transfer bootstrapped
-  it from the most similar existing model, and family sharing provides
+  immediately — no retraining needed.  Family-level β_F sharing provides
   continuous knowledge transfer as the newcomer accumulates observations.
 
   In a real deployment, this is a one-liner:

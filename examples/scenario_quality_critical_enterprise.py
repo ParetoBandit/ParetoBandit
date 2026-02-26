@@ -23,9 +23,8 @@ This scenario exercises three mechanisms:
 
     • **Hot model onboarding** (``register_model()``):
       The progressive registration API adds a new model to a running
-      router.  Semantic neighbor transfer bootstraps the newcomer from
-      the most similar existing model, and family sharing provides
-      continuous knowledge transfer as observations accumulate.
+      router.  Family-level β_F sharing provides continuous knowledge
+      transfer as observations accumulate.
 
     • **Warm-start priors** (``priors`` parameter):
       Even with ``priors="none"`` (cold start), the Corralling
@@ -479,9 +478,8 @@ print(textwrap.dedent(f"""
   2. The newcomer ({NEWCOMER_INFO['display_name']}) was onboarded at
      step {ONBOARD_STEP} with a single register_model() call — no
      retraining, no downtime.
-  3. Semantic neighbor transfer bootstrapped the newcomer from the most
-     similar existing model (likely Llama 70B), giving it an informed
-     starting point.
+  3. Family-level sharing gave the newcomer an informed starting point
+     from the accumulated knowledge of its model family.
   4. The newcomer's adoption rate is highest on contract review and
      clause extraction — exactly the categories it was fine-tuned for.
   5. In a regulated domain, the key insight is: quality-first routing
