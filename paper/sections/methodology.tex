@@ -1,8 +1,7 @@
 \section{Methodology}
 \label{sec:methodology}
 
-% TRANSITION from Empirical Motivation
-Guided by the three architectural requirements established in Section~\ref{sec:motivation}, we present the design of banditGPT. To exploit semantic structure without relying on rigid static priors, we reformulate LLM routing as a \emph{Cost-Aware Contextual Bandit} problem initialized from offline data. To ensure safe online learning, we introduce a meta-learning layer that hedges against prior mismatch. Our approach combines two core mechanisms:
+The production challenges identified in Section~\ref{sec:intro}---preference heterogeneity, distribution drift, model non-stationarity, and the absence of hedging in existing bandit routers---motivate a routing architecture that can exploit prompt-level context while adapting safely online. We reformulate LLM routing as a \emph{Cost-Aware Contextual Bandit} problem initialized from offline data, with a meta-learning layer that hedges against prior mismatch. Our approach combines two core mechanisms:
 
 \begin{itemize}[nosep,leftmargin=*]
     \item \textbf{Cost-aware contextual bandits} initialized from offline warmup priors, exploiting semantic structure for continuous online learning.
@@ -11,9 +10,34 @@ Guided by the three architectural requirements established in Section~\ref{sec:m
 
 Several concurrent \emph{LLM routing} systems also adopt a bandit formulation---PILOT~\cite{panda2025pilot} extends LinUCB with a knapsack cost policy, BaRP~\cite{wang2025barp} uses entropy-regularized policy gradients, and LLM Bandit~\cite{li2025llmbandit} employs a standard multi-armed bandit---but all rely on a single policy layer without a meta-learning safety mechanism (Table~\ref{tab:comparison}). banditGPT's distinguishing contribution is a hierarchical architecture that layers a Corralling meta-learner~\cite{agarwal2017corralling} over cost-aware contextual bandits, directly addressing the practical challenges of production routing: maintaining safety against misspecified priors while remaining agile enough to adopt new models.
 
-\subsection{Unified Feature Space}
+\subsection{Unified Feature Space and Empirical Validation}
+\label{sec:motivation}
 
-Building upon the empirical motivation, we embed prompts using Sentence-BERT~\cite{reimers2019sentence} (\path{all-MiniLM-L6-v2}, 384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM~\cite{ong2024routellm}. As demonstrated in Section~\ref{sec:motivation}, these features correlate with held-out model preference ($\rho=-0.370$, $p<0.0001$), confirming they capture routing-relevant signals suitable for online adaptation.
+A contextual bandit is only useful if prompt features carry actionable routing signal. We embed prompts using Sentence-BERT~\cite{reimers2019sentence} (\path{all-MiniLM-L6-v2}, 384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM~\cite{ong2024routellm}.
+
+To validate that these features predict model preference, we evaluate on 750 held-out prompts comparing a frontier model (GPT-4-Turbo) against a cheaper open-weights alternative (Mixtral-8x7B). LLM routing literature often assumes \emph{monotonicity}: that allocating more budget to a frontier model consistently yields equal or higher quality~\cite{ong2024routellm, chen2023frugalgpt}. Our held-out data challenge this assumption: human judges preferred the cheaper model on 14.1\% of prompts, while the frontier model won on only 13.1\%, with 72.8\% ties (Table~\ref{tab:outcome_distribution}).
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Outcome distribution on held-out data ($N=750$).}
+\label{tab:outcome_distribution}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Outcome} & \textbf{Count} & \textbf{Proportion} \\
+\midrule
+Frontier model wins & 98 & 13.1\% \\
+Tie & 546 & 72.8\% \\
+Cheaper model wins & 106 & 14.1\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Crucially, this preference heterogeneity is \emph{predictable} from the embedding. When prompts are projected onto the first principal component (PC1) of our PCA feature space, we observe a significant Spearman correlation with the reward gap ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$ (Figure~\ref{fig:lmsys_holdout_structure}A). This signal exceeds all 100 random orthonormal projections (Figure~\ref{fig:lmsys_holdout_structure}A annotation), and the routing opportunity grows monotonically across PC1 quintiles (Figure~\ref{fig:lmsys_holdout_structure}B), confirming that the PCA axis separates feature regions with distinct model preferences.
+
+\input{../experiments/01_figure/figure_1_caption}
+
+These results confirm that our feature space captures routing-relevant signals suitable for online adaptation: embeddings carry actionable model-preference information that a contextual bandit can exploit to route each prompt to the most appropriate model.
 
 \subsection{Problem Formulation}
 
