@@ -9,6 +9,14 @@ As model portfolios diversify, LLM routing evolves from a fixed static ordering 
     \item \textbf{Family sharing enhances stability:} A data-driven approach to Hybrid LinUCB sharing shrinks confidence intervals by ${\sim}5\times$ at $K{=}5$ ($p{=}0.028$) when per-model data is scarce, though the advantage attenuates at larger portfolios as per-model observations suffice for independent convergence.
 \end{enumerate}
 
+\paragraph{Recommendations for Enterprise Use.}
+Based on the real-world production challenges addressed by our system, we recommend the following deployment strategies for enterprise and SMB LLM users:
+\begin{itemize}[nosep,leftmargin=*]
+    \item \textbf{Hedge Against Drift:} Because frontier LLMs undergo silent API updates~\cite{chen2025silent} and periodic performance variability~\cite{johnson2026periodic}, never rely exclusively on static routing. Maintain a \textit{tabula rasa} fallback (as provided by our Corralling meta-learner) to automatically recover when a previously superior model unexpectedly degrades.
+    \item \textbf{Optimize for Output Tokens:} With enterprise generative AI spend surging to \$37 billion~\cite{menlo2025genai} and premium output tokens often costing \$15/M or more, use a cost-penalized bandit ($\lambda > 0$) to aggressively route easier queries to mid-tier or open-weights models, which can match frontier quality for a large fraction of typical production workloads.
+    \item \textbf{Mitigate Outages via Portfolios:} Do not bottleneck production on a single API. Maintain a portfolio of at least 3--5 models to ensure the router can dynamically redistribute traffic if a primary provider experiences an outage or imposes strict rate limits~\cite{reintech2025ratelimits}.
+\end{itemize}
+
 \paragraph{Deployment applicability.}
 These mechanisms compose to address diverse production requirements.  A cost-constrained SaaS startup can enforce hard per-request budget ceilings via \texttt{max\_cost} while a soft cost penalty $\lambda{=}0.7$ steers remaining traffic to the cheapest successful model (Appendix~\ref{app:scenario_cost}).  A latency-sensitive IDE plugin can filter models by TTFT and rely on Corralling to recover when traffic distributions shift (Appendix~\ref{app:scenario_latency}).  A quality-critical legal-tech deployment can set $\lambda{=}0.0$ for pure quality optimisation and onboard a fine-tuned specialist mid-stream via \texttt{register\_model()} with zero downtime (Appendix~\ref{app:scenario_quality}).  Worked examples with reproducible code are provided in Appendix~\ref{app:deployment_scenarios}.
 
