@@ -4,7 +4,7 @@
 \subsection{Multi-Model Cost--Quality Trade-off (\texorpdfstring{$K{=}5, 10$}{K=5, 10})}
 \label{sec:multimodel}
 
-We construct two multi-provider portfolios ($K{=}5$ and $K{=}10$) spanning six providers (Meta, Mistral, Google, Anthropic, OpenAI, DeepSeek) with a $600\times$ cost spread. Both incorporate Mixtral-8x7B to link to the $K{=}2$ evaluation, and $K{=}10$ exercises Hybrid LinUCB's within-family parameter sharing. Warmup priors are generated using a three-way split from 43-model evaluation data (355 prior training prompts, 533 online learning, 750 holdout).
+We construct two multi-provider portfolios ($K{=}5$ and $K{=}10$) spanning six providers (Meta, Mistral, Google, Anthropic, OpenAI, DeepSeek) with a $520\times$ cost spread. Both incorporate Mixtral-8x7B to link to the $K{=}2$ evaluation, and $K{=}10$ exercises Hybrid LinUCB's within-family parameter sharing. Warmup priors are generated using a three-way split from 43-model evaluation data (355 prior training prompts, 533 online learning, 750 holdout).
 
 \input{../experiments/04_figure/figure_6_caption}
 
