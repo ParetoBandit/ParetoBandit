@@ -1,12 +1,14 @@
 % Shared preamble for banditGPT paper builds.
 % Keep this file free of \begin{document} / \end{document}.
 
-\setcopyright{none}
-\settopmatter{printacmref=true}
+\usepackage[margin=1in]{geometry}
 \pagestyle{plain}
 
-% Packages
-% Note: acmart already loads amsmath, amssymb, amsfonts, graphicx, hyperref, booktabs
+% Packages (previously auto-loaded by acmart)
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{textcomp}
@@ -14,9 +16,14 @@
 \usepackage{multirow}
 \usepackage{enumitem}
 \usepackage{xurl}
+\usepackage{natbib}
 
 % Improve line breaking in narrow columns and long URL/path-like strings.
 \setlength{\emergencystretch}{3em}
+
+% Provide commands used by acmart that are absent in article class.
+\providecommand{\keywords}[1]{\par\smallskip\noindent\textbf{Keywords:} #1}
+\providecommand{\Description}[1]{}
 
 % Custom commands
 \newcommand{\neff}{n_{\text{eff}}}
@@ -29,6 +36,5 @@
 % Title and authors
 \title{banditGPT: Cost-Aware Online Learning for LLM Routing via Expert Corralling}
 
-\author{Annette Taberner-Miller}
-\email{annette.taberner@gmail.com}
+\author{Annette Taberner-Miller \\ \texttt{annette.taberner@gmail.com}}
 
