@@ -1,7 +1,7 @@
 % Section: K-Scaling — Hybrid vs. Disjoint LinUCB
 % Include from the main paper via \input{../experiments/05_figure/section_k_scaling_results}
 
-\subsubsection{Ablation: Sample Efficiency of Family Parameter Sharing}
+\subsubsection{RQ3: Ablation---Sample Efficiency of Family Parameter Sharing}
 \label{sec:k_scaling}
 
 We isolate the contribution of Hybrid LinUCB's family sharing by comparing it against Disjoint LinUCB (independent models) at $K{\in}\{5, 10, 20\}$. Both policies start tabula rasa, training on 888 prompts. We use data-driven family assignments via within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$) to correct for binary reward base-rate attenuation, avoiding naive syntactic groupings (e.g., separating uncorrelated \texttt{gpt-4-turbo} and \texttt{gpt-4.1}).
