@@ -35,6 +35,8 @@ import json
 import gzip
 import joblib
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from sentence_transformers import SentenceTransformer
@@ -318,8 +320,9 @@ def main():
     # ══════════════════════════════════════════════════════════════════════
 
     fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(15, 6.5),
-        gridspec_kw={"width_ratios": [1.4, 1.0], "wspace": 0.35},
+        1, 2, figsize=(13, 5.5),
+        gridspec_kw={"width_ratios": [1.4, 1.0]},
+        constrained_layout=True,
     )
 
     # ── Panel A: Regression lines with CI bands ──────────────────────────
@@ -334,37 +337,48 @@ def main():
             x_grid, pc1_std, alpha_m, gamma_m, sigma_m,
         )
 
+        y_hat_pct = np.clip(y_hat * 100, 0, 100)
+        y_lo_pct = np.clip(y_lo * 100, 0, 100)
+        y_hi_pct = np.clip(y_hi * 100, 0, 100)
+
         ax1.fill_between(
-            x_grid, y_lo * 100, y_hi * 100,
+            x_grid, y_lo_pct, y_hi_pct,
             alpha=0.12, color=m_info["color"], linewidth=0,
         )
         ax1.plot(
-            x_grid, y_hat * 100,
+            x_grid, y_hat_pct,
             color=m_info["color"],
             linewidth=2.0,
             linestyle=m_info["ls"],
             label=m_info["display"],
         )
 
-    lr_text = f"LR test: χ² = {chi2_stat:.1f}, df = {df}, p = {p_val:.1e}"
+    lr_text = (
+        f"LR test: χ² = {chi2_stat:.1f}, df = {df}, p = {p_val:.1e}"
+        f"\nN = {N} prompts, K = {K} models"
+    )
     ax1.text(
-        0.03, 0.97, lr_text,
+        0.03, 0.03, lr_text,
         transform=ax1.transAxes, fontsize=9,
-        verticalalignment="top",
+        verticalalignment="bottom",
         bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                   edgecolor="#cccccc", alpha=0.9),
     )
 
-    ax1.set_xlabel("PC1 (router PCA)", fontsize=12, fontweight="bold")
-    ax1.set_ylabel("Mean reward  (% scale)", fontsize=12, fontweight="bold")
-    ax1.set_title("(A)  Model Reward Shifts with Prompt Features",
-                   fontsize=14, fontweight="bold", pad=8)
+    ax1.set_xlabel("PC1 (router PCA)", fontsize=11)
+    ax1.set_ylabel("Mean reward (%)", fontsize=11)
+    ax1.set_title("(a)  Model Reward Shifts with Prompt Features",
+                   fontsize=13, fontweight="bold", pad=8)
+    ax1.set_ylim(0, 100)
+    ax1.spines["top"].set_visible(False)
+    ax1.spines["right"].set_visible(False)
+    ax1.tick_params(labelsize=9)
     ax1.legend(
         loc="upper center",
         bbox_to_anchor=(0.5, -0.18),
         ncol=5,
         fontsize=8.5,
-        framealpha=0.95,
+        framealpha=0.92,
         edgecolor="#cccccc",
         fancybox=True,
         borderpad=0.4,
@@ -388,12 +402,12 @@ def main():
             xerr=[[g - lo], [hi - g]],
             fmt=m_info["marker"],
             color=m_info["color"],
-            markersize=9,
+            markersize=8,
             markeredgecolor="white",
-            markeredgewidth=0.8,
+            markeredgewidth=0.7,
             capsize=4,
-            capthick=1.5,
-            elinewidth=1.5,
+            capthick=1.3,
+            elinewidth=1.3,
             ecolor=m_info["color"],
             zorder=3,
         )
@@ -401,7 +415,7 @@ def main():
             ax2.annotate(
                 "*",
                 xy=(hi + 0.003, i),
-                fontsize=14, fontweight="bold",
+                fontsize=13, fontweight="bold",
                 color=m_info["color"],
                 va="center",
             )
@@ -414,13 +428,14 @@ def main():
         fontsize=10,
     )
     ax2.set_xlabel(
-        "γ$_m$\n(contextual slope on standardised PC1)",
-        fontsize=11, fontweight="bold",
+        "γ$_m$ (contextual slope on standardised PC1)",
+        fontsize=11,
     )
-    ax2.set_title("(B)  Contextual Sensitivity per Model",
-                   fontsize=14, fontweight="bold", pad=8)
+    ax2.set_title("(b)  Contextual Sensitivity per Model",
+                   fontsize=13, fontweight="bold", pad=8)
     ax2.spines["top"].set_visible(False)
     ax2.spines["right"].set_visible(False)
+    ax2.tick_params(labelsize=9)
     ax2.grid(axis="x", alpha=0.15, linestyle="--", linewidth=0.5)
 
     ax2.text(
@@ -433,7 +448,6 @@ def main():
     )
 
     # ── Save ──────────────────────────────────────────────────────────────
-    fig.subplots_adjust(left=0.06, right=0.97, bottom=0.24, top=0.93)
     out_300 = output_dir / "figure1_k10_contextual.png"
     fig.savefig(out_300, dpi=300, bbox_inches="tight", facecolor="white")
     out_600 = output_dir / "figure1_k10_contextual_hires.png"
