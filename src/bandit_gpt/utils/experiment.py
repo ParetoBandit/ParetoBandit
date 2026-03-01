@@ -9,6 +9,8 @@ from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional
 from collections import Counter
 from sklearn.model_selection import train_test_split
+
+from bandit_gpt.rewards import extract_reward
 # from src.bandit_gpt.router import BanditRouter # Removed to avoid circular import
 
 class ExperimentBurnIn:
@@ -376,7 +378,7 @@ class ExperimentBurnIn:
                     if entry.get("ok"):
                         prompt = entry["prompt"]
                         model_id = entry["model_id"]
-                        reward = entry["raw_score"]
+                        reward = extract_reward(entry)
                         
                         # Filter to registry models
                         if model_id not in registry_models:
@@ -402,7 +404,7 @@ class ExperimentBurnIn:
                     if entry.get("ok"):
                         prompt = entry["prompt"]
                         model_id = entry["model_id"]
-                        reward = entry["raw_score"]
+                        reward = extract_reward(entry)
                         
                         # Filter to registry models
                         if model_id not in registry_models:
@@ -536,7 +538,7 @@ class ExperimentBurnIn:
                     if entry.get("ok"):
                         prompt = entry["prompt"]
                         model_id = entry["model_id"]
-                        reward = entry["raw_score"]
+                        reward = extract_reward(entry)
                         
                         # Filter to registry models
                         if model_id not in registry_models:
@@ -562,7 +564,7 @@ class ExperimentBurnIn:
                     if entry.get("ok"):
                         prompt = entry["prompt"]
                         model_id = entry["model_id"]
-                        reward = entry["raw_score"]
+                        reward = extract_reward(entry)
                         
                         # Filter to registry models
                         if model_id not in registry_models:

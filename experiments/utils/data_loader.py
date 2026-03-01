@@ -16,6 +16,8 @@ from typing import List, Dict, Tuple, Optional
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from utils.rewards import extract_reward  # noqa: E402  (after path setup)
+
 from bandit_gpt.config import (
     PROJECT_ROOT as CONFIG_ROOT,
     BANDIT_DATA_DIR as DATA_DIR,
@@ -128,7 +130,7 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
             if entry.get("ok"):  # Only include successful responses
                 prompt = entry["prompt"]
                 model_id = entry["model_id"]
-                reward = entry["raw_score"]
+                reward = extract_reward(entry)
                 
                 if prompt not in oracle_rewards:
                     oracle_rewards[prompt] = {}

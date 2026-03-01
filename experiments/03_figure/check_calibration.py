@@ -40,6 +40,9 @@ from bandit_gpt.config import (
 )
 from sentence_transformers import SentenceTransformer
 
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.rewards import extract_reward
+
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
@@ -54,7 +57,7 @@ def load_dev_data():
             if entry.get("ok"):
                 prompt = entry["prompt"]
                 model_id = entry["model_id"]
-                score = entry["raw_score"]
+                score = extract_reward(entry)
                 prompt_rewards[prompt][model_id] = score
     
     # Convert to list

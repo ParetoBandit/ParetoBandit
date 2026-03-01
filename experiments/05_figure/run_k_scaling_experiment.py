@@ -67,6 +67,9 @@ from bandit_gpt.config import (
 from sentence_transformers import SentenceTransformer
 import joblib
 
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+from utils.rewards import extract_reward
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
@@ -152,7 +155,7 @@ def load_prompt_data(path, needed_models):
                 continue
             sid = entry.get("sample_id", _prompt_key(entry["prompt"]))
             prompt_rewards[sid]["prompt"] = entry["prompt"]
-            prompt_rewards[sid]["rewards"][mid] = entry["raw_score"]
+            prompt_rewards[sid]["rewards"][mid] = extract_reward(entry)
 
     data = []
     for sid in sorted(prompt_rewards.keys()):

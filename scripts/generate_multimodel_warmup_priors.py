@@ -35,6 +35,7 @@ from typing import Dict, List, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from bandit_gpt.rewards import extract_reward
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
@@ -66,7 +67,7 @@ def load_all_models_rewards(
             prompt = entry["prompt"]
             if prompt not in rewards:
                 rewards[prompt] = {}
-            rewards[prompt][entry["model_id"]] = entry["raw_score"]
+            rewards[prompt][entry["model_id"]] = extract_reward(entry)
 
     full = {p: r for p, r in rewards.items() if len(r) >= min_models}
     logger.info(

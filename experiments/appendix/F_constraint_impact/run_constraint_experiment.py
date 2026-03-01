@@ -54,6 +54,7 @@ from bandit_gpt.config import (
 )
 from bandit_gpt.router import BanditRouter
 from utils.router_factory import create_experiment_router
+from utils.rewards import extract_reward
 from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -191,10 +192,8 @@ CORRALLING_GAMMA = 0.05
 # ============================================================================
 
 def _entry_reward(entry: Dict) -> float:
-    judges = entry.get("judge_details")
-    if judges:
-        return float(np.mean([j["vote"] for j in judges]))
-    return float(entry["raw_score"])
+    """Delegate to canonical reward extraction (``experiments/utils/rewards.py``)."""
+    return extract_reward(entry)
 
 
 def load_rewards(data_path: Path, prompts: List[str], models: List[str]) -> List[Dict]:

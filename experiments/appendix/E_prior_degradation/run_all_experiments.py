@@ -56,6 +56,7 @@ from bandit_gpt.config import (
 
 sys.path.insert(0, str(project_root / "experiments"))
 from utils.router_factory import create_experiment_router
+from utils.rewards import extract_reward
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -220,7 +221,7 @@ def load_holdout_data():
     for entry in entries:
         prompt = entry['prompt']
         model_id = entry['model_id']
-        score = entry.get('raw_score', 0.0)
+        score = extract_reward(entry)
 
         if prompt not in prompt_data:
             prompt_data[prompt] = {'prompt': prompt, 'scores': {}}

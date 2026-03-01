@@ -49,6 +49,7 @@ from bandit_gpt.config import (
     HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 from utils.router_factory import create_experiment_router
+from utils.rewards import extract_reward
 from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -165,17 +166,8 @@ LEARNING_CURVE_CHECKPOINTS = [0, 10, 25, 50, 100, 150, 200, 300, 400, 533]
 # ============================================================================
 
 def _entry_reward(entry: Dict) -> float:
-    """Extract reward from a data entry using mean judge agreement.
-
-    Uses the average of individual judge votes rather than the binarised
-    majority vote (``raw_score``).  This preserves evaluative signal from
-    the multi-judge panel — e.g. a 2-out-of-3 pass (0.667) is
-    distinguished from a unanimous pass (1.0).
-    """
-    judges = entry.get("judge_details")
-    if judges:
-        return float(np.mean([j["vote"] for j in judges]))
-    return float(entry["raw_score"])
+    """Delegate to canonical reward extraction (``experiments/utils/rewards.py``)."""
+    return extract_reward(entry)
 
 
 def load_rewards(data_path: Path, prompts: List[str], models: List[str],

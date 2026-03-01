@@ -43,6 +43,7 @@ import joblib
 
 sys.path.insert(0, str(project_root / "experiments"))
 from utils.router_factory import create_experiment_router
+from utils.rewards import extract_reward
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -127,12 +128,9 @@ def load_dataset_with_split() -> Tuple[List[Dict], List[Dict], Dict[str, int]]:
                         raise ValueError(f"Missing 'prompt' field in {filepath}")
                     if "model_id" not in entry:
                         raise ValueError(f"Missing 'model_id' field in {filepath}")
-                    if "raw_score" not in entry:
-                        raise ValueError(f"Missing 'raw_score' field for prompt in {filepath}")
-                    
                     prompt = entry["prompt"]
                     model_id = entry["model_id"]
-                    score = entry["raw_score"]
+                    score = extract_reward(entry)
                     prompt_rewards[prompt][model_id] = score
                     count += 1
         

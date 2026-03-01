@@ -60,6 +60,7 @@ from bandit_gpt.config import (
     CANONICAL_HOLDOUT_DATA_PATH,
 )
 from utils.router_factory import create_experiment_router
+from utils.rewards import extract_reward
 from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -130,7 +131,7 @@ def load_k2_deployment_data(path: Path) -> List[Dict]:
         for line in f:
             entry = json.loads(line)
             if entry.get("ok"):
-                prompt_rewards[entry["prompt"]][entry["model_id"]] = float(entry["raw_score"])
+                prompt_rewards[entry["prompt"]][entry["model_id"]] = extract_reward(entry)
     return [
         {"prompt": p, "rewards": r}
         for p, r in prompt_rewards.items()

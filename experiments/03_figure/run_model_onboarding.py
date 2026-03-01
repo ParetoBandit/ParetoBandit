@@ -43,6 +43,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from utils.router_factory import create_experiment_router
+from utils.rewards import extract_reward
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
@@ -90,7 +91,7 @@ def load_data():
                     continue
                 sid = entry.get("sample_id", hash(entry["prompt"]))
                 prompt_rewards[sid]["prompt"] = entry["prompt"]
-                prompt_rewards[sid]["rewards"][mid] = entry["raw_score"]
+                prompt_rewards[sid]["rewards"][mid] = extract_reward(entry)
 
         data = []
         for sid in sorted(prompt_rewards.keys()):

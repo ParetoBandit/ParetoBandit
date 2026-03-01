@@ -29,6 +29,7 @@ from bandit_gpt.config import (
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
 )
+from utils.rewards import extract_reward
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +184,7 @@ def load_rewards(data_path: Path, prompts: List[str], models: List[str]) -> List
             p = entry["prompt"]
             m = entry["model_id"]
             if p in prompt_set and m in model_set:
-                rewards[p][m] = entry["raw_score"]
+                rewards[p][m] = extract_reward(entry)
 
     data = []
     for p in prompts:
@@ -201,7 +202,7 @@ def load_holdout_rewards(models: List[str]) -> List[Dict]:
         for line in f:
             entry = json.loads(line)
             if entry.get("ok") and entry["model_id"] in model_set:
-                holdout_rewards[entry["prompt"]][entry["model_id"]] = entry["raw_score"]
+                holdout_rewards[entry["prompt"]][entry["model_id"]] = extract_reward(entry)
     return [
         {"prompt": p, "rewards": r}
         for p, r in holdout_rewards.items()

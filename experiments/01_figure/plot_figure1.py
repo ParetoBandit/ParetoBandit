@@ -45,6 +45,9 @@ from bandit_gpt.config import (
     CANONICAL_HOLDOUT_DATA_PATH,
 )
 
+sys.path.insert(0, str(project_root / "experiments"))
+from utils.rewards import extract_reward
+
 
 # ══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
@@ -59,15 +62,15 @@ def load_holdout_only(holdout_file: Path):
                 entry = json.loads(line)
                 prompt = entry.get('prompt', '').strip()
                 model_id = entry.get('model_id', '')
-                raw_score = entry.get('raw_score', None)
-                if not prompt or raw_score is None:
+                if not prompt or not entry.get('ok'):
                     continue
+                reward = extract_reward(entry)
                 if prompt not in prompt_rewards:
                     prompt_rewards[prompt] = {}
                 if 'mixtral' in model_id.lower():
-                    prompt_rewards[prompt]['mixtral'] = raw_score
+                    prompt_rewards[prompt]['mixtral'] = reward
                 elif 'gpt-4-turbo' in model_id.lower():
-                    prompt_rewards[prompt]['gpt4'] = raw_score
+                    prompt_rewards[prompt]['gpt4'] = reward
             except Exception:
                 continue
 
