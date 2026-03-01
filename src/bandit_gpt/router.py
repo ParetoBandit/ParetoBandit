@@ -1322,6 +1322,12 @@ class HybridLinUCBPolicy:
         self.last_update: Dict[str, int] = {m: 0 for m in self.models}
         self.t: int = 0
 
+        # Per-family Sherman-Morrison update counter; every 1000 family
+        # updates we recompute A0_inv from scratch to flush accumulated
+        # floating-point drift (mirrors the arm-level refresh in
+        # DisjointLinUCBPolicy / CostAwareLinUCBRouter).
+        self._family_sm_count: Dict[str, int] = {F: 0 for F in self.families}
+
         # ----- Regularization floor (arm-specific only) -----
         self.regularization_floor: Dict[str, float] = {
             m: self.init_lambda for m in self.models
@@ -1583,6 +1589,11 @@ class HybridLinUCBPolicy:
                     self.b0[F] = self.b0[F] + weight * reward * x
                     self.A0_inv[F] = safe_inv(self.A0[F])
 
+            self._family_sm_count[F] = self._family_sm_count.get(F, 0) + 1
+            if self._family_sm_count[F] % 1000 == 0:
+                with self._lock:
+                    self.A0_inv[F] = safe_inv(self.A0[F])
+
         # ---- 3. Arm-specific update ----
         with self.model_locks[model]:
             # Apply forgetting factor to arm-specific matrices
@@ -1742,6 +1753,7 @@ class HybridLinUCBPolicy:
         result._lock = threading.Lock()
 
         result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
+        result._family_sm_count = copy.deepcopy(self._family_sm_count, memo)
         return result
 
 
@@ -4582,6 +4594,12 @@ class CostAwareLinUCBRouter:
             self.b0: Dict[str, np.ndarray] = {}
             self.A0_inv: Dict[str, np.ndarray] = {}
 
+            # Per-family Sherman-Morrison counter; recompute A0_inv from
+            # scratch every 1000 family updates to flush float drift.
+            self._family_sm_count: Dict[str, int] = {
+                fam: 0 for fam in self.families
+            }
+
             # Warm-start family matrices from the arm-level warmup priors
             # to avoid prior-residual scale mismatch.
             #
@@ -4950,6 +4968,10 @@ class CostAwareLinUCBRouter:
                         self.A0_inv[F] = safe_inv(self.A0[F])
                     self.A0[F] = self.A0[F] + x_outer
                     self.b0[F] = self.b0[F] + weight * reward * x
+
+                    self._family_sm_count[F] = self._family_sm_count.get(F, 0) + 1
+                    if self._family_sm_count[F] % 1000 == 0:
+                        self.A0_inv[F] = safe_inv(self.A0[F])
         
         with self._lock:
             A_inv_current = self.A_inv[model]
@@ -5118,6 +5140,9 @@ class CostAwareTabulaRasaRouter:
             self.A0: Dict[str, np.ndarray] = {}
             self.b0: Dict[str, np.ndarray] = {}
             self.A0_inv: Dict[str, np.ndarray] = {}
+            self._family_sm_count: Dict[str, int] = {
+                fam: 0 for fam in self.families
+            }
             for fam in self.families:
                 A0 = self.ridge_lambda * np.eye(context_dim)
                 b0 = np.zeros(context_dim)
@@ -5232,6 +5257,10 @@ class CostAwareTabulaRasaRouter:
                         self.A0_inv[F] = safe_inv(self.A0[F])
                     self.A0[F] = self.A0[F] + x_outer
                     self.b0[F] = self.b0[F] + weight * reward * x
+
+                    self._family_sm_count[F] = self._family_sm_count.get(F, 0) + 1
+                    if self._family_sm_count[F] % 1000 == 0:
+                        self.A0_inv[F] = safe_inv(self.A0[F])
         
         with self._lock:
             A_inv_current = self.A_inv[model]
