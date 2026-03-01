@@ -1,0 +1,6 @@
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/figure3_prequential_k2.png}
+    \caption{Train-then-freeze evaluation on held-out LMSYS Chatbot Arena prompts. We compare five routing strategies on a two-model portfolio (\texttt{Mixtral-8x7B} vs.\ \texttt{GPT-4-Turbo}): BanditGPT with warmup priors and Corralling (trained on dev set, frozen for evaluation); BanditGPT tabula rasa (no priors, no Corralling); RouteLLM (MF router, in-distribution, $\tau$ tuned on val split by maximising $r - 0.05 \cdot c$, the same cost--quality objective as BanditGPT); and uniform-random routing. \textbf{(a)} Pareto frontier: holdout reward vs.\ cost per request. BanditGPT is swept over $\lambda$; RouteLLM over $\tau$. Error bars show 95\% $t$-CIs over 5 seeds. \textbf{(b)} Learning curve: holdout reward as a function of online training steps. Rewards are ground-truth multi-judge scores via \texttt{extract\_reward()} (mean of vote $\times$ confidence across the judge panel), not proxy predictions. RouteLLM's MF router was trained on LMSYS data that includes Mixtral and GPT-4-Turbo; this is an in-distribution comparison.}
+    \label{fig:prequential_k2}
+\end{figure}

@@ -1,0 +1,6 @@
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/figure4_pareto_k10.png}
+    \caption{Multi-model cost--quality frontier for a 10-model portfolio. BanditGPT (with Corralling and 43-model warmup priors) is swept over $\lambda \in [0, 5]$; error bars show 95\% CIs over 5 seeds. Baselines: \emph{oracle} (per-prompt $\arg\max_m\, r(m,x)$): the ceiling using ground-truth multi-judge rewards; \emph{tabula rasa} (BanditGPT without priors or Corralling); \emph{$\varepsilon$-greedy} (exploit empirical best model from training set); \emph{random routing}; \emph{best-static} (always route to the single best model). All quality values are ground-truth multi-judge scores via \texttt{extract\_reward()} (mean of vote $\times$ confidence), not proxy predictions. Cost model uses fixed per-request prices (100 input + 400 output tokens) without token-level accounting. Training uses the online-learn pool from the three-way split; evaluation on the canonical holdout set.}
+    \label{fig:pareto_k10}
+\end{figure}

@@ -1,8 +1,8 @@
-# Figure 4: Pareto Frontier & Learning Curve
+# Figure 3 & 4: BanditGPT vs RouteLLM
 
-**Cost–quality trade-off analysis: banditGPT-Hybrid vs. RouteLLM-MF**
+**Cost-quality trade-off analysis with ground-truth multi-judge rewards**
 
-This directory contains the scripts and data for the primary competitive evaluation (Figure 4) of the banditGPT paper.
+This directory contains the primary competitive evaluation for the banditGPT paper: a fair comparison against RouteLLM using canonical dev/holdout datasets.
 
 ---
 
@@ -12,15 +12,22 @@ This directory contains the scripts and data for the primary competitive evaluat
 - **Figure 2:** Architecture diagram
 - **Appendix E:** Validated Corralling prior degradation sweep
 
-**Critical Question:** Figures 1–3 validated our technical approach, but **does this deliver practical value in production?**
+**Critical Question:** Does banditGPT's online adaptive routing deliver practical value compared to RouteLLM's pre-trained static routing?
 
-> **Note:** This directory is named `03_figure/` for ordering, but produces **Figure 4** in the paper.
+> **Note:** This directory is named `03_figure/` for ordering, but produces **Figures 3 and 4** in the paper.
 
-This experiment answers that question via:
-1. **Pareto frontier analysis** — Quantifies cost–quality trade-offs vs. baselines
-2. **Two-regime comparison** — Identifies where pre-training vs. online learning wins
-3. **Learning curve** — Measures how quickly online adaptation surpasses pre-training
-4. **Production readiness** — Real data (N=1,871 total: 1,121 dev + 750 holdout)
+---
+
+## Evaluation Protocol
+
+**Train-then-freeze** with ground-truth rewards:
+
+1. BanditGPT trains on dev set with oracle rewards from `extract_reward()` (mean of vote x confidence across multi-judge panel)
+2. Router is frozen after training
+3. Both BanditGPT and RouteLLM are evaluated on the same holdout set
+4. RouteLLM threshold is tuned on a val subset of dev (85/15 split) using the same cost-penalised objective as BanditGPT
+
+This eliminates the circular BT-proxy evaluation from earlier drafts: rewards are ground-truth multi-judge scores, not proxy predictions.
 
 ---
 
@@ -28,8 +35,9 @@ This experiment answers that question via:
 
 ```
 03_figure/
-├── generate_pareto_frontier.py       # Pareto frontier sweep (sparse λ, 20 trials)
-├── generate_figure4.py               # Dense λ sweep + learning curve (50 trials)
+├── run_prequential.py               # Main experiment: K=2 (vs RouteLLM) + K=10 Pareto
+├── generate_pareto_frontier.py       # Pareto frontier sweep (sparse lambda, 20 trials)
+├── generate_figure4.py               # Dense lambda sweep + learning curve (50 trials)
 ├── run_learning_curves.py            # Learning curve analysis
 ├── run_statistical_tests.py          # Statistical validation
 ├── run_baseline_ablations.py         # Baseline ablation experiments
@@ -49,150 +57,62 @@ This experiment answers that question via:
 ```bash
 cd experiments/03_figure/
 
-# Step 1: Run the Pareto frontier sweep (~2.5 hours)
-python generate_pareto_frontier.py
-
-# Step 2: Generate the two-panel figure (~10 min, requires Step 1 results)
-python generate_figure4.py
+# Run the main experiment (K=2 + K=10)
+python run_prequential.py
 ```
-
----
-
-## Key Findings
-
-### Two Regimes, No Simple Winner
-
-The Pareto frontier reveals two distinct cost regimes with different winners:
-
-| Cost Regime | Approx. Range | Winner | Why |
-|-------------|--------------|--------|-----|
-| **Low budget** | $0.0003–$0.005 | RouteLLM | Pre-trained MF model has fine-grained prompt-level discrimination from 100k pairs; selects the right few prompts for GPT-4 |
-| **High budget** | $0.005+ | banditGPT | Online learning discovers the correct aggregate model ordering; adapts to task-specific preferences that OOD pre-training misses |
-| **Crossover** | ~$0.005/req | — | Below this, pre-trained routing is competitive; above it, adaptive routing dominates |
-
-**Why RouteLLM wins at low budgets:** At tight budgets, both routers mostly use Mixtral and send only a few prompts to GPT-4. RouteLLM's 100k-pair MF model has learned which *specific prompt types* benefit from GPT-4 — this fine-grained discrimination beats banditGPT's coarser 1,121-sample online learner when picking a handful of prompts for the expensive model.
-
-**Why banditGPT wins at high budgets:** As more prompts are routed, *aggregate model calibration* matters more than per-prompt selection. banditGPT discovers that Mixtral > GPT-4 on this distribution overall, while RouteLLM's OOD preferences over-provision GPT-4 — paying 43× more for 1.3% lower quality at maximum cost.
-
-### RouteLLM Non-Monotonicity
-
-A striking finding: RouteLLM's quality **declines** at high cost. Dense threshold coverage (26 points, including 16 in the [0.0, 0.15] range) shows:
-- Threshold 0.00–0.07 (cost $0.011–$0.013): Reward 0.809–0.812, *worse than static Mixtral*
-- Threshold 0.08–0.10: Quality recovers as Mixtral routing increases
-- Threshold 0.12–0.14: Peak quality (0.883) at ~$0.005–0.007
-- Threshold 0.15+: Quality declines as Mixtral usage increases too much
-
-This non-monotonicity is a predictable consequence of model preference heterogeneity: GPT-4 is worse than Mixtral on ~14% of prompts (formatting-heavy, structured tasks). Static routers cannot distinguish these prompts and over-provision the expensive model.
-
-### Online Adaptation Value (Learning Curve)
-
-Panel (b) of Figure 4 shows banditGPT's holdout quality as a function of online learning steps (50 trials):
-
-| Step | Reward (±95% CI) | vs. RouteLLM Peak (0.883) |
-|------|-------------------|---------------------------|
-| 0 | 0.838 ± 0.003 | −4.5% (priors only) |
-| 50 | 0.876 ± 0.008 | −0.7% (approaching) |
-| 200 | 0.880 ± 0.006 | −0.3% (approaching) |
-| 400 | 0.891 ± 0.006 | **+0.8% (surpasses)** |
-| 1,121 | 0.902 ± 0.003 | +1.9% (final) |
-
-**~400 in-distribution prompts surpass 100k OOD pre-trained pairs.**
-
-### What This Means for Practitioners
-
-1. **Don't assume "expensive = better."** On this dataset, GPT-4-Turbo (43× costlier) is *worse* than Mixtral on average. Lowering RouteLLM's threshold to spend more money actually *degrades* quality past the optimal point. This is common whenever a smaller model is fine-tuned or specialized for your domain.
-
-2. **The cost crossover is deployment-specific.** On our data, RouteLLM wins below ~$0.005/request (it selects the right few prompts for GPT-4 from 100k pre-trained pairs), and banditGPT wins above that (it learns the correct overall model ranking). In your deployment: if you already know which model is best, a static router suffices. If you don't — or if the answer might change — banditGPT discovers it within ~400 prompts.
-
-3. **The burn-in cost is bounded.** During the first ~400 prompts, banditGPT routes using warmup priors (quality 0.838 — above static Mixtral, below RouteLLM's peak). At typical production throughput (>100 req/hour), this completes within 4 hours. After the crossover, the quality gain is permanent and self-maintaining — no retraining, no label collection, no manual threshold tuning.
-
-### Quantitative Summary
-
-| Method | Peak Quality (±95% CI) | Cost at Peak | Gap Closure |
-|--------|----------------------|-------------|-------------|
-| **banditGPT-Hybrid** | **0.903 ± 0.004** | $0.0087 | **61.5%** |
-| RouteLLM-MF | 0.883 | $0.0069 | 46.2% |
-| Oracle | 0.953 | $0.0020 | 100% |
-| Static Mixtral | 0.823 | $0.0003 | 0% (baseline) |
-| Static GPT-4 | 0.812 | $0.0130 | −8.5% (regression) |
-
-Gap Closure = (R_router − R_Mixtral) / (R_Oracle − R_Mixtral) × 100%
 
 ---
 
 ## Experiment Details
 
 ### Dataset
-- **Total**: 1,871 prompts (real LMSYS Chatbot Arena traffic)
-- **Development Set**: 1,121 prompts (online learning)
-- **Holdout Set**: 750 prompts (frozen evaluation)
-- **Split**: Chronological (no data leakage)
+- **K=2 Dev**: ~1,121 prompts (Mixtral + GPT-4-Turbo, from `dev_rewards_2models.jsonl.gz`)
+- **K=2 Holdout**: ~750 prompts (same source, `holdout_rewards_2models.jsonl.gz`)
+- **K=10 Train**: online-learn pool from three-way split (`dev_rewards_complete_all_models.jsonl.gz`)
+- **K=10 Holdout**: full holdout (`holdout_rewards_complete_all_models.jsonl.gz`)
+- **Reward signal**: `extract_reward()` = mean(vote x confidence) across multi-judge panel
+- **Split**: Canonical stratified dev/holdout (no temporal leakage)
 
-### Model Pool
-- **Mixtral 8x7B Instruct**: $0.000294/request (cheaper, better on average)
-- **GPT-4-Turbo**: $0.013000/request (expensive, worse on average on this dataset)
-- **Cost Ratio**: 44.2×
+### K=2 Model Pool (BanditGPT vs RouteLLM)
+- **Mixtral 8x7B Instruct**: cheap tier
+- **GPT-4-Turbo**: expensive tier
+- RouteLLM's MF router was trained on data including these models (in-distribution comparison)
 
-### banditGPT Configuration (Production Defaults)
+### K=10 Model Pool (Pareto Frontier)
+- Llama-3.1-8B, Mixtral-8x7B, Gemma-3-27B, Claude-Haiku-4.5, DeepSeek-V3
+- Gemini-2.5-Flash, Llama-4-Maverick, Claude-Sonnet-4, GPT-4-Turbo, GPT-4.1
+
+### banditGPT Configuration
 - **Router**: `BanditRouter.create()` via `create_experiment_router()`
 - **Architecture**: Corralling with 2 experts (Warmup + Tabula Rasa)
-- **Policy**: Hybrid LinUCB (family-based parameter sharing when applicable)
-- **Warmup Expert**: constant α = 2.0 (sustained exploration)
-- **Tabula Rasa Expert**: decaying α = 1.0 → 0.01 (converging exploitation)
-- **Corralling Learning Rate**: η = 0.1 (conservative, production default)
-- **Prior**: 80k RouteLLM battles, trace-normalized
-- **Cost Penalties**: 10 λ values (Pareto sweep), 15 λ values (dense Figure 4 sweep)
-- **Trials**: 50 independent runs per λ (dense sweep); 20 per λ (sparse Pareto sweep)
+- **Policy**: Hybrid LinUCB (family-based parameter sharing)
+- **Warmup Priors**: K=2 from `priors_warmup.joblib`, K=10 from `priors_warmup_43model.joblib`
+- **Alpha**: 2.0 (exploration coefficient)
+- **Corralling**: eta=0.1, gamma=0.05
+- **Prior n_effective**: 10.0
+- **Trials**: 5 seeds per configuration
 - **API**: `router.route()` / `router.process_feedback()`
 
-### RouteLLM Configuration
+### RouteLLM Configuration (K=2 only)
 - **Router**: Matrix Factorization (MF, pre-trained on 100k LMSYS pairs)
 - **Reference**: Ong et al. (2024), RouteLLM: Learning to Route LLMs with Preference Data
-- **Thresholds**: 26 values, with dense coverage in [0.0, 0.15] (high-cost region)
-- **Processing**: Sequential (rate-limit compliant)
+- **Thresholds**: 14 values, tuned on val split using aligned cost-quality objective
+- **In-distribution**: MF model trained on data including Mixtral and GPT-4-Turbo
 
-### Evaluation Protocol
-- Normalization computed from training set only
-- Frozen evaluation on holdout (no updates during evaluation)
-- Identical holdout set for all methods
-- 95% confidence intervals via t₁₉ distribution
-
----
-
-## Scripts Overview
-
-### `generate_pareto_frontier.py`
-Main experiment script — generates complete Pareto frontier with all baselines.
-
-**Outputs:**
-- `results/pareto_results.json` — Complete data (Oracle, static, RouteLLM, banditGPT)
-
-**Runtime:** ~2.5 hours (26 RouteLLM thresholds + 10 banditGPT λ × 20 trials)
-
-### `generate_figure4.py`
-Two-panel figure generation — denser 15-λ sweep + learning curve (50 trials).
-
-**Outputs:**
-- `results/figure4.png` — Two-panel figure (Pareto + Learning Curve)
-- `results/figure4_results.json` — Detailed results with statistics
-
-**Runtime:** ~10 minutes (50 trials × 15 λ values + learning curve)
-
-### `check_calibration.py`
-Development diagnostic — verifies router prediction calibration. Intentionally uses `CostAwareLinUCBRouter` directly (not `BanditRouter`) because it requires access to internal `A`/`b` matrices for diagnostic purposes.
+### Statistical Reporting
+- **Primary**: Across-seeds t-test (df = 4, honest but low power)
+- **Secondary**: Paired bootstrap (over-powered, flagged as exploratory)
+- 95% confidence intervals via t-distribution
 
 ---
 
 ## Reproducing Results
 
 ```bash
-# Full reproduction
-python generate_pareto_frontier.py  # ~2.5 hours
-python generate_figure4.py          # ~10 minutes (after step 1)
-
-# Quick verification (with existing pareto_results.json)
-python generate_figure4.py          # Re-generates figure from cached data
+python run_prequential.py
 ```
+
+Output: `results/prequential_results.json`
 
 ---
 
@@ -200,9 +120,10 @@ python generate_figure4.py          # Re-generates figure from cached data
 
 | Scenario | Experiment |
 |----------|-----------|
+| Multi-model scaling (K=5, K=10) | [04_figure](../04_figure/) |
 | Corralling prior degradation sweep | [Appendix E](../appendix/E_prior_degradation/) |
 | Catastrophic model failure | [Figure 6](../appendix/E_catastrophic_failure_experiment/) |
 
 ---
 
-**Last Updated**: February 2026
+**Last Updated**: March 2026

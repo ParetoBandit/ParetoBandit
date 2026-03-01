@@ -1,0 +1,45 @@
+\subsection{Experimental Protocol}
+
+\paragraph{Ground-truth multi-judge rewards.}
+Rewards are computed via \texttt{extract\_reward()}: mean of (vote $\times$ confidence)
+across the multi-judge panel.  This replaces the circular BT-proxy evaluation from
+earlier drafts.  Under binary \texttt{raw\_score}, 58--66\% of prompts yield identical
+rewards for all $K$ models; under mean(vote $\times$ confidence), this drops to $< 1\%$,
+providing much richer signal for routing evaluation.
+
+\paragraph{Train-then-freeze protocol.}
+BanditGPT trains on the dev set with oracle rewards, then is frozen for holdout
+evaluation.  RouteLLM is static (pre-trained on 100k LMSYS pairs) and evaluated on
+the same holdout.  Both routers are frozen during evaluation, making the comparison
+directly interpretable.
+
+\paragraph{Fair RouteLLM comparison ($K{=}2$).}
+The $K{=}2$ portfolio uses Mixtral-8x7B + GPT-4-Turbo, which are models that
+RouteLLM's MF router was trained on.  This is an \textbf{in-distribution} comparison,
+unlike earlier drafts that used out-of-distribution model pairs.  RouteLLM's
+threshold~$\tau$ is selected on a validation subset of the dev set (85/15 split)
+using the same cost-penalised objective as BanditGPT:
+$\arg\max_\tau \mathbb{E}[r - \lambda_c \cdot c]$.
+
+\paragraph{Statistical reporting.}
+Primary: across-seeds paired $t$-test (df\,$=$\,4).  Secondary: paired bootstrap
+(flagged as over-powered due to sequential state dependence).
+
+\subsection{$K{=}2$: BanditGPT vs RouteLLM (Figure~3)}
+
+Five routing strategies are compared on a two-model portfolio
+(\texttt{Mixtral-8x7B} vs.\ \texttt{GPT-4-Turbo}):
+BanditGPT with warmup priors and Corralling (trained on dev set);
+BanditGPT tabula rasa (cold-start ablation);
+RouteLLM (MF router, in-distribution, $\tau$ from val);
+static routing; and random routing.
+
+The comparison tests whether ${\sim}1{,}121$ online samples with warmup priors
+can match or exceed RouteLLM's 100k pre-trained pairs on in-distribution models.
+
+\subsection{$K{=}10$: Multi-Model Pareto Frontier (Figure~4)}
+
+RouteLLM does not natively support $K > 2$.  The $K{=}10$ evaluation compares
+BanditGPT (Corralling + 43-model warmup priors) against oracle routing,
+tabula rasa (cold-start), $\varepsilon$-greedy, random routing, and best-static
+baselines.  The cost penalty~$\lambda$ is swept over 11 values in $[0, 5]$.
