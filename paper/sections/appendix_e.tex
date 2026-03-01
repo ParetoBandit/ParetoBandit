@@ -89,106 +89,60 @@ The full evaluation script is available at \path{scripts/rejudge_cot.py} in the 
 % E.2: Statistical Validation (from B2)
 % ----------------------------------------------------------------------------
 
-\subsection{Statistical Validation of Semantic Structure}
+\subsection{Statistical Validation of Contextual Heterogeneity}
 \label{app:validation_methodology}
 
-We perform comprehensive validation to ensure our model preference heterogeneity findings (Figure~\ref{fig:lmsys_holdout_structure}) are statistically robust and not artifacts of methodological choices. The primary analysis uses Spearman rank correlation (Section~\ref{sec:motivation}); this appendix provides supplementary clustering-based analyses for additional context. All analyses use the held-out test set exclusively ($N{=}750$).
+We perform comprehensive validation to ensure the contextual heterogeneity findings (Figure~\ref{fig:contextual_heterogeneity}) are statistically robust and not artifacts of methodological choices.
+The primary analysis uses a likelihood-ratio test and per-model bootstrap CIs (Section~\ref{sec:motivation}); this appendix provides supporting analyses.
+All analyses use the held-out test set exclusively ($N{=}750$, $K{=}10$ models).
 
-\subsubsection{Statistical Significance Testing}
+\subsubsection{Primary Statistical Tests}
 
-We validate the cluster distinction using multiple tests robust to distributional assumptions:
+\paragraph{Likelihood-Ratio Test.}
+We compare a shared-slope model $H_0$ (all models respond identically to PCA features) against a per-model-slope alternative $H_1$ using $d{=}6$ PCA components.
+The test has $(K{-}1) \times d = 54$ degrees of freedom.
+Result: $\chi^2 = 771.3$, $p < 10^{-15}$, decisively rejecting the shared-slope null.
 
-\paragraph{Primary Tests.}
+\paragraph{Per-Model Bootstrap CIs.}
+Prompt-level case resampling ($10{,}000$ resamples) yields 95\% CIs on each contextual slope $\gamma_m$.
+All ten CIs exclude zero, confirming that every model's quality varies with prompt features.
+Magnitudes range from $|\gamma| = 0.032$ (GPT-4.1) to $|\gamma| = 0.254$ (GPT-4-Turbo).
+
+\paragraph{Oracle Gain Correlation.}
+Spearman $\rho = {+}0.424$ between PC1 and per-prompt oracle gain (best-model reward minus mean-model reward), with 95\% CI $[0.359, 0.487]$, $p < 10^{-33}$.
+This exceeds all 100 random orthonormal projections ($384 \to 2$, QR-decomposed; null median $|\rho| = 0.126$, max $= 0.346$), yielding a signal-to-null ratio of $3.4\times$.
+
+\subsubsection{Reward Signal Sensitivity}
+
+The continuous reward $\text{mean}(\text{vote} \times \text{confidence})$ is critical for $K{=}10$ distinguishability.
+Under binarised majority vote (\texttt{raw\_score}), the top six models are virtually indistinguishable (mean reward $0.95$--$0.98$), only 1.7\% of prompts show any oracle advantage over the best static model, and the effect size is small (Cohen's $d = 0.13$, requiring $N \geq 446$ for 80\% power).
+Under $\text{mean}(\text{vote} \times \text{confidence})$, the same models separate into distinct tiers ($0.86$--$0.91$), 79.5\% of prompts show oracle advantage, and the effect size rises to $d = 0.46$ (requiring only $N \geq 36$ for 80\% power).
+
+\subsubsection{Multi-Directional Signal}
+
+PC1 is the strongest single-component correlate for the plurality of models, but different PCs predict different models:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Mann-Whitney $U$-test (non-parametric):} $p < 0.0001$
-    \item \textbf{Effect size (Cohen's $d$):} $1.53$ (large effect, $d > 0.8$)
-    \item \textbf{Confidence intervals (95\%):} Low PC1: $[+0.088, +0.153]$, High PC1: $[-0.661, -0.464]$ (non-overlapping)
+    \item \textbf{PC0 (= PC1):} Strongest for GPT-4-Turbo ($\rho = -0.460$), Gemini-2.5-Flash ($-0.387$), DeepSeek-V3 ($-0.366$)
+    \item \textbf{PC3:} Strongest for Claude-Sonnet-4 ($\rho = {+}0.339$), Mixtral-8x7B ($+0.295$)
+    \item \textbf{PC31:} Strongest for Llama-4-Maverick ($\rho = {+}0.299$), Haiku-4.5 ($+0.283$)
 \end{itemize}
+This multi-directional structure justifies the router's use of the full 32-component feature vector and confirms that the PC1-only analysis in Section~\ref{sec:motivation} is a conservative lower bound.
 
-\paragraph{Distribution Diagnostics.}
-Shapiro-Wilk normality tests indicate both distributions are non-normal ($p < 0.001$), justifying the use of non-parametric tests.
+\subsubsection{PCA Provenance}
 
-\subsubsection{Threshold Validation}
-
-The $\text{PC1} = 0.222$ threshold was selected using a purely unsupervised method: silhouette-optimal threshold search, maximizing geometric cluster quality without reference to reward labels (silhouette score $= 0.499$). This avoids the methodological concern of threshold selection bias from reward-based grid search.
-
-\paragraph{Unsupervised Clustering.}
-Independent clustering methods identify consistent structure:
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item Silhouette-optimal threshold: $\text{PC1} = 0.222$ (silhouette $= 0.499$)
-    \item $k$-means clustering ($k=2$): boundary $\approx 0.138$
-    \item Both methods yield $p < 0.0001$ with Cohen's $d > 1.0$
-\end{itemize}
-
-\paragraph{Sensitivity Analysis.}
-The effect is robust across a range of thresholds. Both $k$-means ($\text{PC1} = 0.138$, $d = 1.15$) and silhouette-optimal ($\text{PC1} = 0.222$, $d = 1.53$) thresholds produce highly significant results, demonstrating that the finding is not dependent on a specific threshold choice.
-
-\subsubsection{PCA Provenance Sensitivity}
-
-A critical validation is whether the detected structure depends on PCA training data. We compare two PCA approaches:
-
-\begin{table}[htbp]
-\centering
-\caption{PCA Provenance Comparison on Held-Out Data ($N=750$)}
-\label{tab:pca_comparison}
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
-\toprule
-\textbf{PCA Source} & \textbf{$p$-value} & \textbf{Cohen's $d$} & \textbf{Interpretation} \\
-\midrule
-Domain-adapted (80K routing) & $< 0.0001$ & 1.53 & Large effect \\
-Generic C4 (100K web text) & $< 0.0001$ & 0.33 & Small effect \\
-\bottomrule
-\end{tabular}
-}
-\end{table}
-
-The domain-adapted PCA concentrates routing-relevant variation more efficiently into PC1. The generic PCA shows a numerically positive but smaller effect; however, in the primary correlation-based analysis (Section~\ref{sec:motivation}), we validate signal through comparison with 100 random projections rather than a generic PCA condition. Both PCAs are unsupervised---neither uses reward labels during training.
-
-\subsubsection{High-Dimensional Structure Validation}
-
-To assess whether the bimodal structure exists beyond the 2D projection, we examined cluster quality across multiple dimensionalities:
-
-\begin{table}[htbp]
-\centering
-\caption{Cluster Quality Across Dimensionalities}
-\label{tab:multidim_validation}
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
-\toprule
-\textbf{Space} & \textbf{Dimensions} & \textbf{Silhouette} & \textbf{Separation Ratio} \\
-\midrule
-2D PCA & 2 & 0.499 & --- \\
-32D PCA & 32 & $\sim$0.25 & $> 1.0$ \\
-384D Embeddings & 384 & 0.057 & 0.81 \\
-\bottomrule
-\end{tabular}
-}
-\end{table}
-
-The 384D silhouette score of 0.057 indicates \textbf{weak cluster structure} in the full embedding space---clusters overlap substantially. The separation ratio of 0.81 ($< 1.0$) confirms that within-cluster distances exceed between-cluster distances in high dimensions. This is an important caveat: the structure detected by PC1 represents a task-relevant signal extracted from a noisy high-dimensional space, not a dominant clustering pattern. The PC1 projection isolates this signal (Spearman $\rho = -0.370$, $\rho^2 = 0.137$, explaining ${\sim}14\%$ of reward gap variance---a moderate correlation), but the remaining ${\sim}86\%$ of variance is driven by other factors (topic, length, complexity) orthogonal to model preference.
-
-\subsubsection{Data Quality Analysis}
-
-The held-out dataset ($N=750$) contains zero exact duplicates. Intra-cluster diversity analysis shows:
-\begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item High PC1 diversity score: 0.355 (average pairwise cosine similarity: 0.645)
-    \item Low PC1 diversity score: 0.953 (average pairwise cosine similarity: 0.047)
-\end{itemize}
-
-The High PC1 cluster is relatively homogeneous (diversity $= 0.355$), consistent with a coherent semantic category of strict-format prompts rather than a broad, diverse phenomenon. The Low PC1 cluster is highly diverse, representing the full range of conversational prompt types. This asymmetry should be considered when interpreting the generalizability of the preference inversion finding.
+The domain-adapted PCA (80K RouteLLM battles) concentrates routing-relevant variance more efficiently into its leading components than a generic PCA (100K C4 web text).
+Both PCAs are unsupervised---neither uses reward labels during training.
+The RouteLLM PCA and the holdout evaluation data are entirely independent (different data sources, sampling periods, and prompt populations).
 
 \subsubsection{Summary of Validation}
 
 \begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Primary metric:} Spearman $\rho = -0.370$, $p < 0.0001$ (features predict model preference)
-    \item \textbf{Null baseline:} Router PCA $|\rho|$ exceeds all 100 random projections (2.6$\times$ vs.\ median)
-    \item \textbf{Supplementary clustering:} Threshold-based analyses (silhouette-optimal, $k$-means) confirm directional finding
-    \item \textbf{High-D caveat:} Weak structure in 384D (silhouette $= 0.057$); PC1 isolates a moderate signal ($\rho^2 \approx 0.14$)
-    \item \textbf{Data quality:} Zero duplicates; High PC1 region is a homogeneous cluster (diversity $= 0.355$)
-    \item \textbf{Held-out only:} All analyses on $N=750$ test set; dev set excluded
+    \item \textbf{LR test:} $\chi^2 = 771.3$, $\text{df}{=}54$, $p < 10^{-15}$ (per-model slopes are heterogeneous)
+    \item \textbf{Per-model CIs:} 10/10 bootstrap 95\% CIs exclude zero; magnitudes span ${\sim}8\times$
+    \item \textbf{Null baseline:} Router PCA $|\rho|$ exceeds all 100 random projections ($3.4\times$ median)
+    \item \textbf{Reward signal:} Continuous $\text{mean}(v \times c)$ yields $14\times$ better effect size than binary scores
+    \item \textbf{Multi-directional:} Different PCs predict different models (PC0, PC3, PC31)
+    \item \textbf{Held-out only:} All analyses on $N{=}750$ test set; dev set excluded
 \end{enumerate}
 
 % ----------------------------------------------------------------------------

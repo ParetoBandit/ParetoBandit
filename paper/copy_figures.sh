@@ -10,7 +10,7 @@ DEST="figures"
 # Each line: DEST_NAME SOURCE_PATH
 MAPPING=(
   # Main paper figures (Figures 1-8)
-  "figure1_lmsys_holdout_pca.png      $EXP/01_figure/results/figure1_lmsys_holdout_pca.png"
+  "figure1_k10_contextual.png         $EXP/01_figure/results/figure1_k10_contextual.png"
   "figure2_architecture.png           $EXP/02_figure/results/figure2_architecture.png"
   "figure2_architecture.pdf           $EXP/02_figure/results/figure2_architecture.pdf"
   "figure3_pareto.png                 $EXP/03_figure/results/figure4.png"

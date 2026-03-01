@@ -1,31 +1,18 @@
 \section{Empirical Motivation}
 \label{sec:motivation}
 
-LLM routing literature often assumes \emph{monotonicity}: that allocating more budget to an expensive frontier model consistently yields equal or higher quality~\cite{ong2024routellm, chen2023frugalgpt}. We present an empirical finding challenging this assumption, motivating our bandit-based architecture.
+LLM routing literature often assumes \emph{monotonicity}: that allocating more budget to a frontier model consistently yields equal or higher quality~\cite{ong2024routellm, chen2023frugalgpt}.
+We present an empirical finding challenging this assumption, motivating our bandit-based architecture.
 
-On 14.1\% of 750 held-out prompts, human judges actually preferred a cheaper open-weights model over a frontier model (Table~\ref{tab:outcome_distribution}). Crucially, this preference heterogeneity correlates significantly with the prompt's semantic embedding. When prompts are projected onto the first principal component (PC1) of our unsupervised PCA feature space, we observe a significant Spearman correlation with the reward gap ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$ (Figure~\ref{fig:lmsys_holdout_structure}A). This signal exceeds all 100 random orthonormal projections (Figure~\ref{fig:lmsys_holdout_structure}A annotation), and the routing opportunity grows monotonically across PC1 quintiles (Figure~\ref{fig:lmsys_holdout_structure}B).
-
-\begin{table}[htbp]
-\centering
-\small
-\caption{Outcome Distribution on Held-Out Data ($N=750$)}
-\label{tab:outcome_distribution}
-\begin{tabular}{@{}lrr@{}}
-\toprule
-\textbf{Outcome} & \textbf{Count} & \textbf{Proportion} \\
-\midrule
-Frontier model wins & 98 & 13.1\% \\
-Tie & 546 & 72.8\% \\
-Cheaper model wins & 106 & 14.1\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+We evaluate $K{=}10$ models spanning three cost tiers on $N{=}750$ held-out prompts, with rewards computed as $\text{mean}(\text{vote} \times \text{confidence})$ from a multi-judge panel (\S\ref{app:cot_panel}).
+Per-model OLS regressions on the router's PCA features reveal that context affects models differently: a likelihood-ratio test rejects the shared-slope null ($\chi^2 = 771.3$, $\text{df}{=}54$, $p < 10^{-15}$; Figure~\ref{fig:contextual_heterogeneity}A).
+All ten per-model contextual slopes are significant, but magnitudes span ${\sim}8\times$ (Figure~\ref{fig:contextual_heterogeneity}B), and the regression lines cross---confirming that no single model dominates the full feature space.
 
 \input{../experiments/01_figure/figure_1_caption}
 
 These findings establish three architectural requirements for \textit{banditGPT}:
 \begin{enumerate}[noitemsep,topsep=2pt,leftmargin=*]
-    \item \textbf{Exploit Semantic Structure:} Embeddings carry actionable model-preference signals, allowing a router to discover when expensive models are genuinely needed.
-    \item \textbf{Avoid Static Monotonicity Priors:} A frozen policy assuming monotonicity systematically over-provisions the expensive model where it underperforms (verified in Section~\ref{sec:pareto}).
-    \item \textbf{Safe Online Learning:} Because preference structure shifts with deployment distributions, routers must adapt online while hedging against misleading offline priors (verified in Section~\ref{sec:distribution_shift}).
+    \item \textbf{Exploit Contextual Signal:} Embeddings carry actionable model-preference information whose strength varies across models, enabling a contextual bandit to route each prompt to its best model.
+    \item \textbf{Avoid Static Policies:} No single model dominates: the best model varies with prompt features. A static policy is constrained to the best single model (GPT-4.1, mean reward $0.910$), leaving the 79.5\% of prompts where contextual selection improves unaddressed.
+    \item \textbf{Safe Online Learning:} Because the preference landscape depends on the deployment distribution, routers must adapt online while hedging against misleading offline priors (verified in Section~\ref{sec:distribution_shift}).
 \end{enumerate}

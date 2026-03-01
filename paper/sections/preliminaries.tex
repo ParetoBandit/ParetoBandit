@@ -26,29 +26,26 @@ Corralling~\cite{agarwal2017corralling} is a meta-learning strategy that maintai
 \subsection{Unified Feature Space and Empirical Validation}
 \label{sec:motivation}
 
-A contextual bandit is only useful if prompt features carry actionable routing signal. We embed prompts using Sentence-BERT~\cite{reimers2019sentence} (\path{all-MiniLM-L6-v2}, 384D) and reduce to 32 dimensions using unsupervised PCA trained on 80k routing prompts from RouteLLM~\cite{ong2024routellm}.
+A contextual bandit is only useful if prompt features carry actionable routing signal.
+We embed prompts using Sentence-BERT~\cite{reimers2019sentence} (\path{all-MiniLM-L6-v2}, 384D) and reduce to 32 dimensions using unsupervised PCA trained on 80K routing prompts from RouteLLM~\cite{ong2024routellm}.
 
-To validate that these features predict model preference, we evaluate on 750 held-out prompts comparing a frontier model (GPT-4-Turbo) against a cheaper open-weights alternative (Mixtral-8x7B). LLM routing literature often assumes \emph{monotonicity}: that allocating more budget to a frontier model consistently yields equal or higher quality~\cite{ong2024routellm, chen2023frugalgpt}. Our held-out data challenge this assumption: human judges preferred the cheaper model on 14.1\% of prompts, while the frontier model won on only 13.1\%, with 72.8\% ties (Table~\ref{tab:outcome_distribution}).
+To validate that these features predict model preference, we evaluate on $N{=}750$ held-out prompts scored by all $K{=}10$ models in our portfolio (three cost tiers, four providers).
+Rewards are computed as $\text{mean}(\text{vote} \times \text{confidence})$ across a 3--4 judge panel (\S\ref{app:cot_panel}), yielding a continuous signal in $[0,1]$ that preserves evaluative nuance lost by binarised majority vote.
 
-\begin{table}[htbp]
-\centering
-\small
-\caption{Outcome distribution on held-out data ($N=750$).}
-\label{tab:outcome_distribution}
-\begin{tabular}{@{}lrr@{}}
-\toprule
-\textbf{Outcome} & \textbf{Count} & \textbf{Proportion} \\
-\midrule
-Frontier model wins & 98 & 13.1\% \\
-Tie & 546 & 72.8\% \\
-Cheaper model wins & 106 & 14.1\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+For each model~$m$, we fit $r_{i,m} = \alpha_m + \gamma_m \widetilde{\text{PC1}}_i + \varepsilon_{i,m}$, where $\widetilde{\text{PC1}}$ is the standardised first principal component.
+A likelihood-ratio test comparing per-model slopes against a shared-slope null (6~PCA components, $\text{df}{=}54$) decisively rejects the null: $\chi^2 = 771.3$, $p < 10^{-15}$ (Figure~\ref{fig:contextual_heterogeneity}A).
+Context affects models differently---precisely the condition under which contextual routing outperforms static assignment.
 
-Crucially, this preference heterogeneity is \emph{predictable} from the embedding. When prompts are projected onto the first principal component (PC1) of our PCA feature space, we observe a significant Spearman correlation with the reward gap ($R_{\text{Frontier}} - R_{\text{Cheaper}}$): $\rho = -0.370$, $p < 0.0001$ (Figure~\ref{fig:lmsys_holdout_structure}A). This signal exceeds all 100 random orthonormal projections (Figure~\ref{fig:lmsys_holdout_structure}A annotation), and the routing opportunity grows monotonically across PC1 quintiles (Figure~\ref{fig:lmsys_holdout_structure}B), confirming that the PCA axis separates feature regions with distinct model preferences.
+All ten bootstrap 95\% CIs exclude zero (Figure~\ref{fig:contextual_heterogeneity}B), but magnitudes span nearly an order of magnitude: from $|\gamma| = 0.032$ (GPT-4.1, least context-sensitive) to $|\gamma| = 0.254$ (GPT-4-Turbo, most context-sensitive).
+The regression lines cross, confirming that no single model dominates the full feature space.
+Furthermore, the per-prompt oracle gain (best-model reward minus mean-model reward) correlates with PC1 at Spearman $\rho = {+}0.424$ ($p < 10^{-33}$), exceeding all 100 random orthonormal projections ($3.4\times$ the null median).
 
 \input{../experiments/01_figure/figure_1_caption}
 
-These results confirm that our feature space captures routing-relevant signals suitable for online adaptation: embeddings carry actionable model-preference information that a contextual bandit can exploit to route each prompt to the most appropriate model.
+These results establish three architectural requirements for \textit{banditGPT}:
+\begin{enumerate}[noitemsep,topsep=2pt,leftmargin=*]
+    \item \textbf{Exploit Contextual Signal:} Embeddings carry actionable model-preference information whose strength varies across models, enabling a contextual bandit to route each prompt to its best model.
+    \item \textbf{Avoid Static Policies:} No single model dominates: the best model varies with prompt features. A static policy is constrained to the best single model (GPT-4.1, mean reward $0.910$), leaving the 79.5\% of prompts where contextual selection improves unaddressed.
+    \item \textbf{Safe Online Learning:} Because the preference landscape depends on the deployment distribution, routers must adapt online while hedging against misleading offline priors (verified in Section~\ref{sec:distribution_shift}).
+\end{enumerate}
 
