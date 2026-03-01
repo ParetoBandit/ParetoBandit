@@ -1,86 +1,129 @@
-% Validation Methodology Section
-% Correlation-based design, null baseline, data independence
+% Validation Methodology for Figure 1: Contextual Sensitivity (K=10)
+% Target: KDD 2026
 
 \subsection{Validation Methodology}
 \label{sec:validation_methodology}
 
-We validate the routing signal finding through a direct correlation test with a distribution-free null baseline.
-All analyses use the held-out test set exclusively ($N=750$), with PCA trained on independent data.
+We validate the contextual routing signal through a regression-based
+design with a distribution-free null baseline and a formal
+likelihood-ratio test.  All analyses use the held-out test set
+exclusively ($N{=}750$ prompts, $K{=}10$ models), with PCA trained on
+independent data.
 
 \subsubsection{Experimental Design}
 
 \paragraph{Analysis pipeline matches the router.}
-BanditGPT's \texttt{FeatureService} encodes prompts with a sentence transformer (\texttt{all-MiniLM-L6-v2}), compresses the 384D embeddings to 32 dimensions via PCA, and appends a bias term for a 33-dimensional feature vector.
-LinUCB then regresses these features against per-model rewards to predict which model will perform best.
-Our validation directly tests the input to this regression: we compute the Spearman rank correlation between the PCA's first principal component (PC1) and the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
-This is a lower bound on the full feature vector's predictive power, since the router uses all 32 components.
+banditGPT's \texttt{FeatureService} encodes prompts with a sentence
+transformer (\texttt{all-MiniLM-L6-v2}), compresses the 384D embeddings
+to 32~dimensions via PCA, and appends a bias term for a 33-dimensional
+feature vector.  Hybrid LinUCB then regresses these features against
+per-model rewards to predict which model will perform best.  Our
+validation tests the same relationship: does reward depend on PCA
+features, and does the dependence differ across models?
+
+\paragraph{Reward signal.}
+Each prompt--model pair is scored by a panel of 3--4 GPT-4o judges.
+Each judge emits a binary vote ($v \in \{0,1\}$) and a scalar confidence
+($c \in [0,1]$).  The reward is $\text{mean}(v \times c)$ across judges,
+yielding a continuous signal in $[0,1]$ that preserves evaluative nuance
+lost by the binarised majority vote (see~\S\ref{sec:reward_signal} for
+the full justification).
+
+\paragraph{Regression specification.}
+For each model $m$, we fit a simple OLS regression:
+$r_{i,m} = \alpha_m + \gamma_m \, \widetilde{\text{PC1}}_i + \varepsilon_{i,m}$,
+where $\widetilde{\text{PC1}}$ is the zero-mean, unit-variance first
+principal component.  The slope $\gamma_m$ quantifies model~$m$'s
+\emph{contextual sensitivity}: how much its reward changes per standard
+deviation of PC1.  If all $\gamma_m$ are equal, context does not
+differentiate models and a static policy suffices.
+
+\paragraph{Likelihood-ratio test.}
+To test whether slopes are heterogeneous, we compare a shared-slope null
+$H_0$ against a per-model-slope alternative $H_1$ using $d{=}6$~PCA
+components (Equations~\ref{eq:h0}--\ref{eq:h1}).  The test has
+$(K{-}1) \times d = 54$ degrees of freedom.  Using six components rather
+than just PC1 ensures the test captures multi-directional routing signal
+(e.g., PC3 predicts Mixtral, PC31 predicts Llama-4-Maverick).
 
 \paragraph{Null baseline.}
-To rule out projection artifacts---any 384D-to-2D linear projection may find \emph{some} correlated direction---we compute $|\rho|$ for $N{=}100$ independent random orthonormal projections (QR-decomposed, $384 \to 2$) and compare the Router PCA $|\rho|$ to this null distribution.
-If the Router PCA correlation falls within the random distribution, the signal is artifactual; if it greatly exceeds it, the PCA concentrates genuine task-relevant variance.
+To rule out projection artifacts, we compute $|\rho|$ between oracle gain
+and the first dimension of 100~independent random orthonormal projections
+($384 \to 2$, QR-decomposed).  If the router PCA's $|\rho|$ falls within
+this null distribution, the signal is artifactual; if it exceeds all
+projections, the PCA concentrates genuine task-relevant variance.
 
-\paragraph{Data independence (no contamination).}
-The PCA training data and held-out evaluation data are \emph{entirely independent datasets} with no overlap by construction:
+\paragraph{Data independence.}
+The PCA training data and the holdout evaluation data are entirely
+independent:
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{PCA training data:} 80K prompts from the \texttt{routellm/gpt4\_judge\_battles} HuggingFace dataset~\cite{routellm}, a curated collection of pairwise battles used by RouteLLM.
-    \item \textbf{Held-out evaluation data:} 750 prompts from the LMSYS Chatbot Arena general prompt pool, collected during a different time period with a different sampling procedure.
+    \item \textbf{PCA training:} 80K prompts from
+          \texttt{routellm/gpt4\_judge\_battles}
+          (HuggingFace)~\cite{ong2024routellm}.
+    \item \textbf{Holdout evaluation:} 750 prompts scored by 10~models
+          from the banditGPT evaluation pool, collected independently.
 \end{itemize}
-\noindent These two datasets share the same model pair (Mixtral vs.\ GPT-4-Turbo) but originate from \textbf{different data sources, different sampling periods, and different prompt populations}.
-The PCA has never seen any evaluation prompt because the two collections were produced independently.
-No decontamination or exclusion step is needed---the datasets are disjoint by provenance, not by post-hoc filtering.
+\noindent No decontamination step is needed---the datasets are disjoint
+by provenance.
 
 \subsubsection{Statistical Tests}
 
-\paragraph{Primary metric: Spearman rank correlation.}
-Reward gaps take exactly three values ($\{-1, 0, +1\}$), making the Spearman $\rho$ well suited: it tests monotonic association, makes no distributional assumptions, and handles ties naturally.
-Critically, this metric directly tests the question the bandit needs answered: \emph{do the features predict the direction of model preference?}
+\paragraph{Primary tests.}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Spearman $\rho$} (PC1 vs.\ reward gap): Primary metric with exact $p$-value.
-    \item \textbf{Null distribution of $|\rho|$:} Computed over 100 random projections, providing a distribution-free baseline.
+    \item \textbf{LR test} ($H_0$: shared slopes vs.\ $H_1$: per-model
+          slopes; $d{=}6$ PCs, $\text{df}{=}54$): tests whether context
+          affects models differentially.
+    \item \textbf{Bootstrap CIs on $\gamma_m$} ($10\,000$ prompt-level
+          resamples): quantifies per-model contextual sensitivity with
+          uncertainty.  A slope is declared significant if its 95\% CI
+          excludes zero.
 \end{itemize}
 
-\paragraph{Supplementary tests.}
+\paragraph{Supporting tests.}
 \begin{itemize}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Mann-Whitney $U$-test:} Non-parametric ordinal test on a median split, confirming the Spearman result through a group comparison.
-    \item \textbf{Outcome distribution:} Win/tie/loss proportions documenting preference heterogeneity.
+    \item \textbf{Spearman $\rho$} (PC1 vs.\ oracle gain): tests whether
+          features predict where routing helps most.
+    \item \textbf{Random projection null} ($N{=}100$): provides a
+          distribution-free reference for the Spearman $|\rho|$.
 \end{itemize}
 
 \subsubsection{Design Rationale}
 
-\paragraph{Why Spearman instead of clustering.}
-The bandit performs regression on continuous features, not clustering.
-A clustering-based analysis (threshold $\to$ contingency table $\to$ Cram\'er's $V$) introduces unnecessary researcher degrees of freedom: the threshold criterion, minimum cluster size, and clustering dimensionality.
-Spearman $\rho$ tests the same hypothesis---features predict preference---without any of these choices.
+\paragraph{Why regression, not clustering.}
+The bandit performs regression on continuous features.  A clustering-based
+analysis introduces researcher degrees of freedom (threshold, cluster
+count, distance metric) that are absent from the routing algorithm.
+OLS regression tests the same functional form the bandit uses, making
+the validation directly relevant.
 
-\paragraph{Why PC1 only.}
-The router uses all 32 PCA components, but PC1 captures the most variance by construction.
-Testing PC1 alone provides a \emph{conservative} lower bound on the full feature vector's predictive power.
-If the bandit gains routing value from higher components, that strengthens the case.
+\paragraph{Why PC1 in the visualisation.}
+The LR test uses six PCA components, but Panel~A visualises PC1
+alone for readability.  PC1 captures the most variance by construction
+and yields the strongest single-component correlation for the plurality
+of models.  Higher components contribute additional, complementary signal
+(e.g., PC3, PC31) that strengthens the case for routing but would
+overcomplicate a two-panel figure.
 
 \paragraph{Multiple comparisons.}
-The primary analysis computes a single correlation ($\rho$ for PC1 vs.\ reward gap) and compares it against a single null distribution (100 random projections).
-No multiplicity correction is needed for this one-hypothesis design.
-The supplementary Mann-Whitney test and outcome analysis are confirmatory, not hypothesis-generating.
+The primary test is a single LR test (one $\chi^2$ statistic).
+The ten per-model CIs in Panel~B are descriptive decompositions of the
+omnibus result, not independent hypothesis tests; no multiplicity
+correction is applied.  The Spearman correlation and random projection
+null are confirmatory analyses supporting the LR test, not separate
+hypotheses.
 
-\subsubsection{Stratification and Generalizability}
+\subsubsection{Generalisability}
 
 \paragraph{Holdout construction.}
-The holdout ($N=750$) was created via stratified sampling across category, complexity, and difficulty (Appendix~\ref{app:stratification}).
-The difficulty dimension is derived from oracle reward statistics (mean and variance), which introduces an indirect dependence on the outcome variable into the sampling design.
-This enriches the holdout for prompts with clear model preferences.
+The holdout ($N{=}750$) was created via stratified sampling across
+category, complexity, and difficulty (Appendix~\ref{app:stratification}).
+The difficulty dimension is derived from oracle reward statistics, which
+enriches the sample for prompts with clear model differences.
 
 \paragraph{Stratification sensitivity.}
-The \emph{relative} comparison between Router PCA and random projections is unaffected by stratification: both conditions are evaluated on the identical holdout, so any enrichment affects both equally.
-The \emph{absolute} magnitude of $\rho$ may be inflated relative to an unstratified sample, since enriching for ``Contentious'' prompts increases the proportion with non-zero reward gaps.
-The \emph{existence} of the signal is robust (Router PCA exceeds all 100 random projections); the \emph{magnitude} of $\rho$ in deployment will depend on the user's prompt distribution.
-
-\subsubsection{Summary}
-
-\begin{enumerate}[leftmargin=*,noitemsep,topsep=0pt]
-    \item \textbf{Correlation-based design:} Spearman $\rho$ directly tests whether features predict model preference---matching how the bandit uses features
-    \item \textbf{Null baseline:} 100 random orthonormal projections provide the null distribution of $|\rho|$
-    \item \textbf{Data independence:} PCA trained on RouteLLM battles (separate dataset from holdout); no contamination
-    \item \textbf{Conservative:} PC1 only; the router uses all 32 components, so the full signal is at least as strong
-    \item \textbf{One hypothesis:} No multiplicity correction needed
-    \item \textbf{Generalizability:} Stratified holdout enriches for signal; production magnitude is deployment-dependent
-\end{enumerate}
+The relative comparison between the router PCA and random projections is
+unaffected by stratification: both are evaluated on the same holdout.
+The absolute magnitude of $\gamma_m$ may be inflated relative to an
+unstratified sample.
+The existence of heterogeneous slopes is robust; the exact magnitudes
+in deployment will depend on the user's prompt distribution.

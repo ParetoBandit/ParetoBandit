@@ -1,70 +1,127 @@
-% Results Explanation for Figure 1: Model Preference Heterogeneity
-% For Methodology/Results Section
+% Results and Discussion for Figure 1: Contextual Sensitivity (K=10)
+% Target: KDD 2026
 
 \subsection{Model Preference Heterogeneity}
-\label{sec:semantic_structure}
+\label{sec:contextual_heterogeneity}
 
-Before presenting our routing algorithm, we establish the empirical motivation for contextual routing: model preference varies by prompt, and the router's features predict this variation.
+Before presenting our routing algorithm, we establish the empirical
+motivation for contextual routing: per-model quality is a function of
+prompt context, and the sensitivity to context differs across models.
+Together, these two facts imply that the optimal model varies with the
+prompt---exactly the setting where a contextual bandit improves over a
+static policy.
 
-\paragraph{Why this experiment matters.}
-BanditGPT routes prompts to models using contextual features extracted by \texttt{FeatureService}: sentence embeddings compressed to 32 dimensions via PCA, plus a bias term (33 dimensions total).
-LinUCB then uses these features to predict per-model reward and select the best model for each prompt.
-If the PCA features contain no signal about model preference, the bandit reduces to random assignment---contextual routing would be unnecessary, and a static policy (always pick one model) would suffice.
-This experiment tests whether the features predict model preference on held-out data, and whether this prediction exceeds what a random projection achieves.
+%% ── Experiment ──────────────────────────────────────────────────────────
 
 \paragraph{Setup.}
-We evaluate on a two-model topology (Mixtral-8x7b-instruct vs.\ GPT-4-Turbo) that matches the RouteLLM benchmark~\cite{ong2024routellm}.
-We project $N=750$ held-out prompts through the production PCA (trained on 80K RouteLLM battle prompts---an independent dataset) and compute the Spearman rank correlation between PC1 and the reward gap $(R_{\text{GPT-4-Turbo}} - R_{\text{Mixtral}})$.
+We evaluate a 10-model portfolio spanning three cost tiers (cheap: Llama-3.1-8B,
+Mixtral-8x7B, Gemma-3-27B; mid: Haiku-4.5, DeepSeek-V3, Gemini-2.5-Flash,
+Llama-4-Maverick; expensive: Claude-Sonnet-4, GPT-4-Turbo, GPT-4.1).
+Each of $N{=}750$ held-out prompts is scored by all ten models.
+Rewards are computed as $\text{mean}(\text{vote} \times \text{confidence})$
+over a 3--4 judge panel (GPT-4o), yielding a continuous signal in $[0,1]$
+that preserves evaluative nuance lost by binarised majority vote
+(see~\S\ref{sec:reward_signal}).
 
-\noindent\textbf{Data independence.}
-The PCA training data (RouteLLM battles) and the held-out evaluation data (LMSYS general prompts) originate from \emph{different data sources, different sampling periods, and different prompt populations}.
-The PCA has never seen any evaluation prompt.
+Prompt features are extracted with the same pipeline used by the production
+router: sentence embeddings (\texttt{all-MiniLM-L6-v2}, 384D) projected to
+32~dimensions via PCA.
+The PCA is trained on 80K RouteLLM battle prompts~\cite{ong2024routellm},
+an independent dataset that shares no prompts with the evaluation holdout.
 
-\paragraph{Primary metric.}
-We use Spearman rank correlation ($\rho$) as the primary metric because it directly tests the question the bandit needs answered: do the features predict the direction of model preference?
-This matches how BanditGPT actually works---LinUCB performs regression on features to predict reward---rather than testing an artificial clustering that the router never uses.
+\paragraph{Regression model.}
+For each model $m \in [K]$, we fit
+\[
+    r_{i,m} = \alpha_m + \gamma_m \, \widetilde{\mathrm{PC1}}_i + \varepsilon_{i,m},
+\]
+where $\widetilde{\mathrm{PC1}}$ is the standardised first principal component
+and $\gamma_m$ is the \emph{contextual slope}---the rate at which model~$m$'s
+reward changes per standard deviation of PC1.
+If all $\gamma_m$ are equal, a static policy suffices; if they differ
+significantly, contextual routing can exploit the heterogeneity.
 
-\paragraph{Null baseline.}
-To rule out projection artifacts (any 384D-to-2D projection might find \emph{some} correlated direction), we compute $|\rho|$ for 100 independent random orthonormal projections ($384 \to 2$, QR-decomposed) and compare the Router PCA $|\rho|$ to this null distribution.
+We test this formally via a likelihood-ratio (LR) test that compares the
+per-model-slope specification against a shared-slope null, using
+$d{=}6$~PCA components:
+\begin{align}
+    H_0 &: r_{i,m} = \alpha_m + \textstyle\sum_{j=1}^{d} \beta_j \, \text{PC}_{j,i} + \varepsilon, \label{eq:h0}\\
+    H_1 &: r_{i,m} = \alpha_m + \textstyle\sum_{j=1}^{d} \beta_{m,j} \, \text{PC}_{j,i} + \varepsilon, \label{eq:h1}
+\end{align}
+with $(K{-}1) \times d = 54$ additional parameters under $H_1$.
+
+%% ── Results ─────────────────────────────────────────────────────────────
 
 \paragraph{Results.}
-The router's PC1 shows a significant rank correlation with model preference:
-\begin{itemize}[noitemsep,topsep=2pt]
-    \item \textbf{Spearman $\rho$}: reported in Figure~\ref{fig:lmsys_holdout_structure} ($p < 0.0001$, $N=750$).
-    \item \textbf{Null comparison}: the Router PCA $|\rho|$ exceeds all 100 random projections, with a signal ratio reported in the figure.
-\end{itemize}
+Figure~\ref{fig:contextual_heterogeneity} presents the findings.
 
-\noindent
-The correlation is negative: higher PC1 values correspond to prompts where Mixtral outperforms GPT-4-Turbo.
-This means the PCA's first component separates prompts by model preference direction---exactly the signal a contextual bandit needs to learn routing.
+\begin{enumerate}[leftmargin=*,noitemsep,topsep=2pt]
 
-\paragraph{Model preference is heterogeneous.}
-The reward gap distribution confirms that model preference is not uniform:
-the majority of prompts are ties (neither model is clearly better), while a minority show strong preference for one model.
-If preference were uniform, a static policy would be optimal; the heterogeneity is what makes contextual routing valuable.
+\item \textbf{Slopes are heterogeneous (LR test).}
+The per-model-slope model fits significantly better than the shared-slope
+null: $\chi^2 = 771.3$, $\text{df} = 54$, $p < 10^{-15}$.
+Context affects models differently---precisely the condition under which
+contextual routing outperforms static assignment.
 
-\paragraph{Practical implications.}
-\begin{enumerate}[noitemsep,topsep=2pt]
-    \item \textbf{Contextual routing is justified.} The features predict model preference significantly better than chance. A bandit using these features can learn to route.
+\item \textbf{All ten models are context-sensitive.}
+Bootstrap 95\% CIs ($10\,000$ prompt-level resamples) exclude zero for
+all ten contextual slopes $\gamma_m$
+(Figure~\ref{fig:contextual_heterogeneity}B).
+Magnitudes range from $|\gamma| = 0.032$ (GPT-4.1, least sensitive)
+to $|\gamma| = 0.254$ (GPT-4-Turbo, most sensitive)---a factor of
+${\sim}8\times$.
 
-    \item \textbf{Most prompts are ties.} The majority of prompts show no strong model preference, meaning the cheaper model can serve them with comparable quality. This is the primary source of cost savings.
+\item \textbf{Oracle gain correlates with PC1.}
+The per-prompt oracle gain (best model reward minus mean model reward)
+has Spearman $\rho = {+}0.424$ with PC1 ($p < 10^{-33}$; 95\% CI
+$[0.359, 0.487]$), confirming that the router's features identify
+\emph{where} routing helps most.
 
-    \item \textbf{The signal is a lower bound.} PC1 is one dimension; the router uses all 32 PCA components. The full feature vector likely captures more predictive signal than PC1 alone.
+\item \textbf{Signal exceeds random projections.}
+The router PCA's $|\rho|$ with oracle gain exceeds all 100~independent
+random orthonormal projections ($384 \to 2$, QR-decomposed; null median
+$|\rho| = 0.126$, max $= 0.346$), yielding a signal-to-null ratio of
+$3.4\times$.
 
-    \item \textbf{No contamination.} The PCA was trained on RouteLLM battles, an entirely separate dataset from the held-out evaluation prompts.
-
-    \item \textbf{Effect sizes are holdout-specific.} The holdout was constructed via stratified sampling including a difficulty dimension derived from oracle rewards, which enriches it for prompts with clear model preferences (Appendix~\ref{app:stratification}). The \emph{existence} of the signal is robust; the \emph{magnitude} in deployment will depend on the user's prompt distribution.
 \end{enumerate}
 
-\paragraph{Methodological notes.}
-\begin{itemize}[noitemsep,topsep=2pt]
-    \item \textbf{Data:} Held-out test set only ($N=750$). Dev set excluded.
-    \item \textbf{Rewards:} Discrete pairwise outcomes from LMSYS Chatbot Arena.
-    \item \textbf{Metric:} Spearman $\rho$ (rank correlation), which is appropriate for ordinal/discrete data and makes no distributional assumptions.
-    \item \textbf{Null baseline:} 100 random orthonormal projections (QR-decomposed), providing the null distribution of $|\rho|$ under the hypothesis that the PCA direction is no more informative than chance.
-    \item \textbf{Prompt-type mechanism:} The correlation reflects prompt-type variation that correlates with model preference (e.g., instruction-following templates favor Mixtral). The same PC1 axis may not separate winners identically for a different model pair.
-\end{itemize}
+%% ── Significance ────────────────────────────────────────────────────────
 
-\paragraph{Connection to routing evaluation.}
-This experiment establishes a \emph{necessary condition}: the router's features predict model preference.
-Whether the bandit \emph{exploits} this signal for practical routing gains is tested in the routing evaluation (Table~\ref{tab:results}).
+\paragraph{Why this matters for routing.}
+The regression lines in Figure~\ref{fig:contextual_heterogeneity}A cross:
+at low PC1 values, GPT-4-Turbo and Claude-Sonnet-4 dominate; at high
+PC1 values, GPT-4.1 and DeepSeek-V3 maintain higher reward while the
+others decline.
+No static policy can capture this---a router that ignores context is
+constrained to the best single model (GPT-4.1, mean reward $0.910$),
+leaving the 79.5\% of prompts where contextual selection improves on
+best-static unaddressed.
+The heterogeneous slopes establish a \emph{necessary condition} for
+contextual routing: features predict \emph{which} model excels.
+Whether the bandit \emph{exploits} this signal for practical quality and
+cost gains is demonstrated in the prequential evaluation
+(\S\ref{sec:prequential}).
+
+\paragraph{Reward signal.}
+Continuous reward is critical for $K{=}10$ distinguishability.
+Under binarised majority vote (\texttt{raw\_score}), only 1.7\% of prompts
+show any oracle advantage over the best static model (Cohen's $d = 0.13$).
+Under $\text{mean}(\text{vote} \times \text{confidence})$, 79.5\% of
+prompts show oracle advantage ($d = 0.46$), reducing the minimum sample
+size for 80\% power from 446 to 36~prompts.
+
+\paragraph{Data independence.}
+The PCA training data (80K RouteLLM battle prompts) and the holdout
+evaluation data ($N{=}750$) originate from different data sources,
+different sampling periods, and different prompt populations.
+No decontamination step is needed---the datasets are disjoint by
+provenance.
+
+\paragraph{Conservatism.}
+PC1 is a single dimension; the router uses all 32~PCA components plus
+a bias term (33 features total).
+The full feature vector captures additional predictive signal from
+higher principal components: for example, PC3 is the strongest correlate
+of Mixtral-8x7B reward ($\rho = {+}0.295$) and PC31 is strongest for
+Llama-4-Maverick ($\rho = {+}0.299$).
+The PC1-only analysis is a conservative lower bound on the router's
+total contextual signal.

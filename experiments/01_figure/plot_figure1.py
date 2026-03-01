@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
 """
-Figure 1: Model Preference Heterogeneity
+Figure 1 (contextual): Model Win Probability Shifts with Prompt Features (K=10)
 
-Establishes the empirical motivation for contextual routing:
-  1. Model preference varies by prompt (not all prompts favor the same model)
-  2. The router's PCA features predict this variation
-  3. This prediction exceeds what any random projection achieves
+Demonstrates that per-model reward is a function of prompt context (PC1),
+with heterogeneous slopes across models — the core premise for contextual
+bandit routing.
 
-This directly motivates BanditGPT's design: because features predict reward,
-a contextual bandit can learn to route. If preference were uniform, a static
-policy would be optimal and learned routing would be unnecessary.
+Panel A: Per-model OLS regression of reward on standardised PC1, with 95%
+         confidence bands.  A likelihood-ratio test compares the per-model-
+         slope model against a shared-slope null.
+
+Panel B: Forest plot of per-model contextual slopes (γ_m) with bootstrap
+         95% CIs.  Stars mark models whose CI excludes zero.
 
 Methodology:
-  - Uses the SAME feature pipeline as router.py (FeatureService)
-  - Holdout only (N=750, no dev contamination)
+  - Holdout only (N=750 prompts, no dev contamination)
+  - Reward: mean(vote × confidence) from judge panel
   - PCA trained on independent dataset (80K RouteLLM battles)
-  - Primary metric: Spearman rank correlation (PC1 vs reward gap)
-  - Null baseline: 100 random orthonormal projections (QR-decomposed)
-
-Panel A: PC1 vs Reward Gap — shows features predict model preference
-Panel B: Signal vs Null — Router PCA rho vs 100 random projections
+  - LR test uses 6 PCA components; Panel A visualises PC1 only
+  - Bootstrap CIs: 10 000 case-resamples
 
 Usage:
-    python3 experiments/01_figure/plot_figure1.py
+    python3 experiments/01_figure/plot_figure1_contextual.py
 """
 
 import sys
@@ -37,12 +36,16 @@ import gzip
 import joblib
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from sentence_transformers import SentenceTransformer
-from scipy.stats import spearmanr, mannwhitneyu
+from scipy.stats import chi2
+from collections import defaultdict
+from typing import Dict, List, Tuple
+
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH,
+    HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 
 sys.path.insert(0, str(project_root / "experiments"))
@@ -50,157 +53,202 @@ from utils.rewards import extract_reward
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  K=10 PORTFOLIO
+# ══════════════════════════════════════════════════════════════════════════
+
+PORTFOLIO_K10: List[Dict] = [
+    {"id": "meta-llama/llama-3.1-8b-instruct",              "display": "Llama-3.1-8B",     "color": "#e41a1c", "ls": "--",  "marker": "o"},
+    {"id": "mistralai/mixtral-8x7b-instruct",               "display": "Mixtral-8x7B",     "color": "#ff7f00", "ls": "--",  "marker": "s"},
+    {"id": "google/gemma-3-27b-it",                         "display": "Gemma-3-27B",      "color": "#a65628", "ls": ":",   "marker": "D"},
+    {"id": "anthropic/claude-haiku-4.5",                    "display": "Haiku-4.5",        "color": "#984ea3", "ls": "-",   "marker": "^"},
+    {"id": "deepseek/deepseek-chat-v3-0324",                "display": "DeepSeek-V3",      "color": "#377eb8", "ls": "-",   "marker": "v"},
+    {"id": "google/gemini-2.5-flash-preview-09-2025",       "display": "Gemini-2.5-Flash", "color": "#4daf4a", "ls": "-",   "marker": "p"},
+    {"id": "meta-llama/llama-4-maverick",                   "display": "Llama-4-Maverick", "color": "#f781bf", "ls": "-",   "marker": "h"},
+    {"id": "anthropic/claude-sonnet-4",                     "display": "Claude-Sonnet-4",  "color": "#6a3d9a", "ls": "-",   "marker": "P"},
+    {"id": "openai/gpt-4-turbo",                            "display": "GPT-4-Turbo",      "color": "#b15928", "ls": "--",  "marker": "*"},
+    {"id": "openai/gpt-4.1",                                "display": "GPT-4.1",          "color": "#1f78b4", "ls": "-",   "marker": "X"},
+]
+
+MODEL_IDS = [m["id"] for m in PORTFOLIO_K10]
+_MODEL_MAP = {m["id"]: m for m in PORTFOLIO_K10}
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
 # ══════════════════════════════════════════════════════════════════════════
 
-def load_holdout_only(holdout_file: Path):
-    """Load holdout data ONLY (no dev contamination)."""
-    prompt_rewards = {}
-    with gzip.open(holdout_file, 'rt') as f:
-        for line in f:
-            try:
-                entry = json.loads(line)
-                prompt = entry.get('prompt', '').strip()
-                model_id = entry.get('model_id', '')
-                if not prompt or not entry.get('ok'):
-                    continue
-                reward = extract_reward(entry)
-                if prompt not in prompt_rewards:
-                    prompt_rewards[prompt] = {}
-                if 'mixtral' in model_id.lower():
-                    prompt_rewards[prompt]['mixtral'] = reward
-                elif 'gpt-4-turbo' in model_id.lower():
-                    prompt_rewards[prompt]['gpt4'] = reward
-            except Exception:
-                continue
-
-    prompts, reward_gaps = [], []
-    for prompt, rewards in prompt_rewards.items():
-        if 'mixtral' in rewards and 'gpt4' in rewards:
-            prompts.append(prompt)
-            reward_gaps.append(rewards['gpt4'] - rewards['mixtral'])
-
-    return prompts, np.array(reward_gaps)
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  PRIMARY ANALYSIS: SPEARMAN CORRELATION
-# ══════════════════════════════════════════════════════════════════════════
-
-def compute_spearman(pc1, reward_gaps):
-    """Compute Spearman rank correlation between PC1 and reward gap.
-
-    This is the primary metric: does the router's first principal component
-    predict which model will perform better?
+def load_holdout_k10(
+    holdout_file: Path,
+    model_ids: List[str],
+) -> Tuple[List[str], Dict[str, Dict[str, float]]]:
+    """Load holdout rewards for the K=10 portfolio.
 
     Returns:
-        rho: Spearman rank correlation coefficient
-        p: two-sided p-value
+        prompts: Ordered list of prompt strings (only prompts with all K).
+        rewards: ``{prompt: {model_id: float}}`` for complete prompts.
     """
-    rho, p = spearmanr(pc1, reward_gaps)
-    return rho, p
+    model_set = set(model_ids)
+    K = len(model_ids)
+    prompt_rewards: Dict[str, Dict[str, float]] = defaultdict(dict)
+
+    with gzip.open(holdout_file, "rt") as f:
+        for line in f:
+            entry = json.loads(line)
+            mid = entry.get("model_id", "")
+            if mid not in model_set:
+                continue
+            prompt = entry.get("prompt", "").strip()
+            if not prompt:
+                continue
+            prompt_rewards[prompt][mid] = extract_reward(entry)
+
+    complete = {p: r for p, r in prompt_rewards.items() if len(r) == K}
+    prompts = sorted(complete.keys())
+    return prompts, {p: complete[p] for p in prompts}
 
 
-def bootstrap_spearman_ci(pc1, reward_gaps, n_bootstrap=10000, ci=0.95, seed=42):
-    """Compute bootstrap confidence interval for Spearman rho.
+# ══════════════════════════════════════════════════════════════════════════
+#  REGRESSION HELPERS
+# ══════════════════════════════════════════════════════════════════════════
 
-    Uses case resampling (resample paired observations with replacement)
-    to estimate the sampling distribution of Spearman rho.
-
-    Args:
-        pc1: array of PC1 values
-        reward_gaps: array of reward gaps
-        n_bootstrap: number of bootstrap resamples
-        ci: confidence level (default 0.95 for 95% CI)
-        seed: random seed for reproducibility
+def ols_fit(x: np.ndarray, y: np.ndarray) -> Tuple[float, float, float]:
+    """Simple OLS: y = alpha + gamma * x.
 
     Returns:
-        ci_low: lower bound of CI
-        ci_high: upper bound of CI
-        boot_rhos: array of bootstrap rho estimates
+        alpha: Intercept.
+        gamma: Slope.
+        sigma: Residual standard deviation.
+    """
+    n = len(x)
+    x_bar = x.mean()
+    y_bar = y.mean()
+    ss_xx = np.sum((x - x_bar) ** 2)
+    ss_xy = np.sum((x - x_bar) * (y - y_bar))
+    gamma = ss_xy / ss_xx if ss_xx > 0 else 0.0
+    alpha = y_bar - gamma * x_bar
+    residuals = y - (alpha + gamma * x)
+    sigma = np.sqrt(np.sum(residuals ** 2) / (n - 2)) if n > 2 else 0.0
+    return alpha, gamma, sigma
+
+
+def ols_prediction_band(
+    x_grid: np.ndarray,
+    x_data: np.ndarray,
+    alpha: float,
+    gamma: float,
+    sigma: float,
+    ci: float = 0.95,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Confidence band for the regression line (mean prediction).
+
+    Returns:
+        y_hat: Predicted values on x_grid.
+        y_lo: Lower CI bound.
+        y_hi: Upper CI bound.
+    """
+    from scipy.stats import t as t_dist
+
+    n = len(x_data)
+    x_bar = x_data.mean()
+    ss_xx = np.sum((x_data - x_bar) ** 2)
+    y_hat = alpha + gamma * x_grid
+    t_crit = t_dist.ppf((1 + ci) / 2, df=n - 2)
+    se = sigma * np.sqrt(1.0 / n + (x_grid - x_bar) ** 2 / ss_xx)
+    return y_hat, y_hat - t_crit * se, y_hat + t_crit * se
+
+
+def likelihood_ratio_test(
+    pc_features: np.ndarray,
+    prompts: List[str],
+    rewards: Dict[str, Dict[str, float]],
+    model_ids: List[str],
+    n_pcs: int = 6,
+) -> Tuple[float, int, float]:
+    """LR test: per-model slopes vs shared slopes on n_pcs PCA features.
+
+    H0: reward_{i,m} = α_m + Σ_j β_j · PC_j_i + ε   (shared slopes)
+    H1: reward_{i,m} = α_m + Σ_j β_{m,j} · PC_j_i + ε (per-model slopes)
+
+    Returns:
+        chi2_stat: LR test statistic.
+        df: Degrees of freedom ((K-1) * n_pcs).
+        p_value: P-value from chi-squared distribution.
+    """
+    N = len(prompts)
+    K = len(model_ids)
+    n_obs = N * K
+    d = min(n_pcs, pc_features.shape[1])
+
+    Y = np.empty(n_obs)
+    model_dummies = np.zeros((n_obs, K))
+    pc_shared = np.zeros((n_obs, d))
+    pc_interaction = np.zeros((n_obs, K * d))
+
+    for i, p in enumerate(prompts):
+        for j, mid in enumerate(model_ids):
+            row = i * K + j
+            Y[row] = rewards[p][mid]
+            model_dummies[row, j] = 1.0
+            pc_shared[row, :] = pc_features[i, :d]
+            pc_interaction[row, j * d:(j + 1) * d] = pc_features[i, :d]
+
+    X_h0 = np.hstack([model_dummies, pc_shared])
+    X_h1 = np.hstack([model_dummies, pc_interaction])
+
+    def _rss(X, Y):
+        beta = np.linalg.lstsq(X, Y, rcond=None)[0]
+        return np.sum((Y - X @ beta) ** 2)
+
+    rss_h0 = _rss(X_h0, Y)
+    rss_h1 = _rss(X_h1, Y)
+
+    df = (K - 1) * d
+    lr_stat = n_obs * np.log(rss_h0 / rss_h1) if rss_h1 > 0 else 0.0
+    p_value = 1.0 - chi2.cdf(lr_stat, df)
+    return lr_stat, df, p_value
+
+
+def bootstrap_slopes(
+    pc1_std: np.ndarray,
+    prompts: List[str],
+    rewards: Dict[str, Dict[str, float]],
+    model_ids: List[str],
+    n_bootstrap: int = 10_000,
+    seed: int = 42,
+) -> Dict[str, Tuple[float, float, float]]:
+    """Bootstrap 95% CIs for per-model OLS slopes on standardised PC1.
+
+    Resamples at the *prompt* level (preserves within-prompt correlation).
+
+    Returns:
+        Dict mapping model_id to (gamma_hat, ci_low, ci_high).
     """
     rng = np.random.RandomState(seed)
-    n = len(pc1)
-    boot_rhos = np.empty(n_bootstrap)
-    for i in range(n_bootstrap):
-        idx = rng.randint(0, n, size=n)
-        boot_rhos[i], _ = spearmanr(pc1[idx], reward_gaps[idx])
+    N = len(prompts)
+    K = len(model_ids)
 
-    alpha = 1 - ci
-    ci_low = np.percentile(boot_rhos, 100 * alpha / 2)
-    ci_high = np.percentile(boot_rhos, 100 * (1 - alpha / 2))
-    return ci_low, ci_high, boot_rhos
+    reward_matrix = np.empty((N, K))
+    for i, p in enumerate(prompts):
+        for j, mid in enumerate(model_ids):
+            reward_matrix[i, j] = rewards[p][mid]
 
+    point_gammas = np.empty(K)
+    for j in range(K):
+        _, point_gammas[j], _ = ols_fit(pc1_std, reward_matrix[:, j])
 
-def random_projection_distribution(embeddings, reward_gaps, n_seeds=100):
-    """Compute Spearman rho for N random orthonormal projections.
+    boot_gammas = np.empty((n_bootstrap, K))
+    for b in range(n_bootstrap):
+        idx = rng.randint(0, N, size=N)
+        pc1_b = pc1_std[idx]
+        for j in range(K):
+            _, boot_gammas[b, j], _ = ols_fit(pc1_b, reward_matrix[idx, j])
 
-    Each projection is a QR-decomposed random matrix (384 -> 2).
-    We compute |rho| between the first projected dimension and reward gap.
-
-    Returns:
-        rhos: array of |rho| values for each valid projection
-    """
-    rhos = []
-    for seed in range(n_seeds):
-        rng_i = np.random.RandomState(seed)
-        mat_i, _ = np.linalg.qr(rng_i.randn(embeddings.shape[1], 2))
-        pc1_i = (embeddings @ mat_i)[:, 0]
-        rho_i, _ = spearmanr(pc1_i, reward_gaps)
-        rhos.append(abs(rho_i))
-    return np.array(rhos)
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  SUPPLEMENTARY ANALYSIS: OUTCOME HETEROGENEITY
-# ══════════════════════════════════════════════════════════════════════════
-
-OUTCOME_ORDER = ['GPT-4T wins', 'Tie', 'Mixtral wins']
-
-
-def categorize_gap(g, eps=1e-9):
-    """Map reward gap to discrete outcome."""
-    if g > eps:
-        return 'GPT-4T wins'
-    elif g < -eps:
-        return 'Mixtral wins'
-    else:
-        return 'Tie'
-
-
-def outcome_summary(reward_gaps):
-    """Compute outcome distribution (supplementary)."""
-    pass
-
-
-def supplementary_clustering(pc1, reward_gaps, prompts):
-    """Run threshold-based clustering analysis (supplementary, not primary).
-
-    This provides the contingency table view for readers who want it,
-    but is NOT the basis for any claims in the paper.
-    """
-    pass
-
-
-def _tfidf_summary(prompts_low, prompts_high, top_n=10):
-    """Brief TF-IDF keyword analysis (supplementary)."""
-    pass
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  VISUALIZATION
-# ══════════════════════════════════════════════════════════════════════════
-
-def running_mean(x, y, window=50):
-    """Compute a running mean of y sorted by x."""
-    order = np.argsort(x)
-    x_sorted, y_sorted = x[order], y[order]
-    half_w = window // 2
-    x_out, y_out = [], []
-    for i in range(half_w, len(x_sorted) - half_w):
-        x_out.append(x_sorted[i])
-        y_out.append(np.mean(y_sorted[i - half_w:i + half_w]))
-    return np.array(x_out), np.array(y_out)
+    result = {}
+    for j, mid in enumerate(model_ids):
+        lo = float(np.percentile(boot_gammas[:, j], 2.5))
+        hi = float(np.percentile(boot_gammas[:, j], 97.5))
+        result[mid] = (float(point_gammas[j]), lo, hi)
+    return result
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -211,213 +259,189 @@ def main():
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Load holdout data ─────────────────────────────────────────────────
-    prompts, reward_gaps = load_holdout_only(CANONICAL_HOLDOUT_DATA_PATH)
-    outcome_summary(reward_gaps)
+    K = len(MODEL_IDS)
 
-    # ── Embed prompts ────────────────────────────────────────────────────
+    # ── Load holdout ──────────────────────────────────────────────────────
+    print(f"Loading holdout rewards for K={K} portfolio ...")
+    prompts, rewards = load_holdout_k10(HOLDOUT_DATA_PATH_ALL_MODELS, MODEL_IDS)
+    N = len(prompts)
+    print(f"  {N} prompts with complete K={K} coverage")
+
+    # ── Embed & PCA ───────────────────────────────────────────────────────
+    print("Embedding prompts ...")
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     embeddings = encoder.encode(
         prompts, normalize_embeddings=True, show_progress_bar=True,
-        batch_size=64, convert_to_numpy=True
+        batch_size=64, convert_to_numpy=True,
     )
-
-    # ── Load Router PCA ──────────────────────────────────────────────────
-    if not DEFAULT_PCA_PATH.exists():
-        raise FileNotFoundError(
-            f"Router PCA not found at {DEFAULT_PCA_PATH}. "
-            f"Run: python3 scripts/train_pca_from_routellm.py --n-components 32"
-        )
-
     router_pca = joblib.load(DEFAULT_PCA_PATH)
     X_pca = router_pca.transform(embeddings)
-    pc1 = X_pca[:, 0]
 
-    # ── Primary analysis: Spearman correlation ───────────────────────────
-    rho, p_rho = compute_spearman(pc1, reward_gaps)
-    rho_abs = abs(rho)
+    pc1_raw = X_pca[:, 0]
+    pc1_mean, pc1_std_val = pc1_raw.mean(), pc1_raw.std()
+    pc1_std = (pc1_raw - pc1_mean) / pc1_std_val
 
-    ci_low, ci_high, boot_rhos = bootstrap_spearman_ci(pc1, reward_gaps)
-    ci_str = f"95% CI [{ci_low:.3f}, {ci_high:.3f}]"
-    p_str = f"p < 0.0001" if p_rho < 0.0001 else f"p = {p_rho:.4f}"
-
-    # ── Null baseline: 100 random projections ────────────────────────────
-    N_RANDOM = 100
-    random_rhos = random_projection_distribution(
-        embeddings, reward_gaps, n_seeds=N_RANDOM
+    # ── LR test (6 PCs) ──────────────────────────────────────────────────
+    N_PCS_LR = 6
+    pc_std_all = (X_pca[:, :N_PCS_LR] - X_pca[:, :N_PCS_LR].mean(0)) / X_pca[:, :N_PCS_LR].std(0)
+    chi2_stat, df, p_val = likelihood_ratio_test(
+        pc_std_all, prompts, rewards, MODEL_IDS, n_pcs=N_PCS_LR,
     )
+    print(f"\n  LR test: χ² = {chi2_stat:.1f}, df = {df}, p = {p_val:.2e}")
 
-    rho_median = np.median(random_rhos)
-    rho_p25, rho_p75 = np.percentile(random_rhos, [25, 75])
-    rho_max = np.max(random_rhos)
-    n_exceed = int(np.sum(random_rhos >= rho_abs))
-    signal_ratio = rho_abs / rho_median if rho_median > 0 else float('inf')
+    # ── Per-model OLS on PC1 ─────────────────────────────────────────────
+    print("\n  Per-model OLS (reward ~ PC1_std):")
+    fits = {}
+    for mid in MODEL_IDS:
+        r_vec = np.array([rewards[p][mid] for p in prompts])
+        alpha, gamma, sigma = ols_fit(pc1_std, r_vec)
+        fits[mid] = (alpha, gamma, sigma)
+        print(f"    {_MODEL_MAP[mid]['display']:<22} "
+              f"α={alpha:.4f}  γ={gamma:+.4f}  σ={sigma:.4f}")
 
-    # ── Supplementary: Mann-Whitney U ────────────────────────────────────
-    median_pc1 = np.median(pc1)
-    low_mask = pc1 < median_pc1
-    high_mask = pc1 >= median_pc1
-    mw_stat, mw_p = mannwhitneyu(
-        reward_gaps[low_mask], reward_gaps[high_mask], alternative='two-sided'
-    )
+    # ── Bootstrap slopes ──────────────────────────────────────────────────
+    print("\n  Bootstrap slopes (10 000 resamples) ...")
+    slope_cis = bootstrap_slopes(pc1_std, prompts, rewards, MODEL_IDS)
+    n_sig = 0
+    print("  Per-model γ_m [95% CI]:")
+    for mid in sorted(MODEL_IDS, key=lambda m: abs(slope_cis[m][0]), reverse=True):
+        g, lo, hi = slope_cis[mid]
+        sig = lo > 0 or hi < 0
+        if sig:
+            n_sig += 1
+        star = " *" if sig else ""
+        print(f"    {_MODEL_MAP[mid]['display']:<22} γ={g:+.4f}  [{lo:+.4f}, {hi:+.4f}]{star}")
+    print(f"  {n_sig}/{K} significant (bootstrap 95% CI excl. 0)")
 
-    supplementary_clustering(pc1, reward_gaps, prompts)
-
-    # ── Create figure ────────────────────────────────────────────────────
-
-    blue, red, grey = '#4575b4', '#d73027', '#888888'
+    # ══════════════════════════════════════════════════════════════════════
+    #  FIGURE
+    # ══════════════════════════════════════════════════════════════════════
 
     fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(14, 6),
-        gridspec_kw={'width_ratios': [1.2, 1.3], 'wspace': 0.30}
+        1, 2, figsize=(15, 6.5),
+        gridspec_kw={"width_ratios": [1.4, 1.0], "wspace": 0.35},
     )
 
-    # ── Panel A: PC1 vs Reward Gap ───────────────────────────────────────
-    outcomes = np.array([categorize_gap(g) for g in reward_gaps])
-    for outcome, color, marker_label in [
-        ('Tie', grey, 'Tie'),
-        ('GPT-4T wins', blue, 'GPT-4T wins'),
-        ('Mixtral wins', red, 'Mixtral wins'),
-    ]:
-        mask = outcomes == outcome
-        ax1.scatter(
-            pc1[mask], reward_gaps[mask],
-            c=color, s=16, alpha=0.45, edgecolors='none',
-            rasterized=True, zorder=2,
-            label=f'{marker_label} ({int(mask.sum())})'
+    # ── Panel A: Regression lines with CI bands ──────────────────────────
+    x_grid = np.linspace(pc1_std.min() - 0.1, pc1_std.max() + 0.1, 200)
+
+    for m_info in PORTFOLIO_K10:
+        mid = m_info["id"]
+        alpha_m, gamma_m, sigma_m = fits[mid]
+        r_vec = np.array([rewards[p][mid] for p in prompts])
+
+        y_hat, y_lo, y_hi = ols_prediction_band(
+            x_grid, pc1_std, alpha_m, gamma_m, sigma_m,
         )
 
-    # Running mean trend line
-    rm_x, rm_y = running_mean(pc1, reward_gaps, window=60)
-    ax1.plot(rm_x, rm_y, color='black', linewidth=2.5, zorder=4,
-             label='Running mean (w=60)')
+        ax1.fill_between(
+            x_grid, y_lo * 100, y_hi * 100,
+            alpha=0.12, color=m_info["color"], linewidth=0,
+        )
+        ax1.plot(
+            x_grid, y_hat * 100,
+            color=m_info["color"],
+            linewidth=2.0,
+            linestyle=m_info["ls"],
+            label=m_info["display"],
+        )
 
-    ax1.axhline(y=0, color=grey, linestyle=':', linewidth=1.0,
-                alpha=0.6, zorder=1)
+    lr_text = f"LR test: χ² = {chi2_stat:.1f}, df = {df}, p = {p_val:.1e}"
+    ax1.text(
+        0.03, 0.97, lr_text,
+        transform=ax1.transAxes, fontsize=9,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                  edgecolor="#cccccc", alpha=0.9),
+    )
 
-    ax1.set_xlabel('PC1 (router PCA, trained on RouteLLM battles)',
-                    fontsize=12, fontweight='bold')
-    ax1.set_ylabel('Reward gap  (GPT-4-Turbo \u2212 Mixtral)',
-                    fontsize=12, fontweight='bold')
-    ax1.set_title('(A)  Features Predict Model Preference',
-                   fontsize=14, fontweight='bold', pad=8)
+    ax1.set_xlabel("PC1 (router PCA)", fontsize=12, fontweight="bold")
+    ax1.set_ylabel("Mean reward  (% scale)", fontsize=12, fontweight="bold")
+    ax1.set_title("(A)  Model Reward Shifts with Prompt Features",
+                   fontsize=14, fontweight="bold", pad=8)
     ax1.legend(
-        loc='upper center',
-        bbox_to_anchor=(0.5, -0.26),
-        ncol=4,
-        fontsize=10,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=5,
+        fontsize=8.5,
         framealpha=0.95,
-        edgecolor='#cccccc',
+        edgecolor="#cccccc",
         fancybox=True,
         borderpad=0.4,
         handletextpad=0.5,
         labelspacing=0.3,
-        columnspacing=0.8
+        columnspacing=0.8,
     )
-    ax1.grid(alpha=0.15, linestyle='--', linewidth=0.5)
-    ax1.set_xlim(pc1.min() - 0.03, pc1.max() + 0.03)
-    ax1.set_ylim(-1.35, 1.35)
+    ax1.grid(alpha=0.15, linestyle="--", linewidth=0.5)
 
-    # ── Panel B: Conditional Win Rates by PC1 Quintile ─────────────────
-    n_bins = 5
-    bin_edges = np.percentile(pc1, np.linspace(0, 100, n_bins + 1))
-    bin_edges[0] -= 1e-6
-    bin_edges[-1] += 1e-6
+    # ── Panel B: Forest plot of contextual slopes ────────────────────────
+    sorted_mids = sorted(MODEL_IDS, key=lambda m: slope_cis[m][0])
+    y_positions = np.arange(K)
 
-    gpt4_fracs, tie_fracs, mixtral_fracs, bin_ns = [], [], [], []
+    for i, mid in enumerate(sorted_mids):
+        g, lo, hi = slope_cis[mid]
+        m_info = _MODEL_MAP[mid]
+        sig = lo > 0 or hi < 0
 
-    for i in range(n_bins):
-        mask = (pc1 >= bin_edges[i]) & (pc1 < bin_edges[i + 1])
-        gaps_bin = reward_gaps[mask]
-        n_bin = len(gaps_bin)
-        bin_ns.append(n_bin)
-        cats = [categorize_gap(g) for g in gaps_bin]
-        gpt4_fracs.append(cats.count('GPT-4T wins') / n_bin * 100)
-        tie_fracs.append(cats.count('Tie') / n_bin * 100)
-        mixtral_fracs.append(cats.count('Mixtral wins') / n_bin * 100)
+        ax2.errorbar(
+            g, i,
+            xerr=[[g - lo], [hi - g]],
+            fmt=m_info["marker"],
+            color=m_info["color"],
+            markersize=9,
+            markeredgecolor="white",
+            markeredgewidth=0.8,
+            capsize=4,
+            capthick=1.5,
+            elinewidth=1.5,
+            ecolor=m_info["color"],
+            zorder=3,
+        )
+        if sig:
+            ax2.annotate(
+                "*",
+                xy=(hi + 0.003, i),
+                fontsize=14, fontweight="bold",
+                color=m_info["color"],
+                va="center",
+            )
 
-    gpt4_arr = np.array(gpt4_fracs)
-    tie_arr = np.array(tie_fracs)
-    mixtral_arr = np.array(mixtral_fracs)
+    ax2.axvline(x=0, color="#555555", linestyle=":", linewidth=1.0, zorder=1)
 
-    x_pos = np.arange(n_bins)
-    bar_width = 0.6
-
-    # Stacked bars
-    ax2.bar(x_pos, gpt4_arr, bar_width, color=blue, alpha=0.85,
-            label='GPT-4T wins', edgecolor='white', linewidth=0.5)
-    ax2.bar(x_pos, tie_arr, bar_width, bottom=gpt4_arr,
-            color='#d0d0d0', alpha=0.85,
-            label='Tie', edgecolor='white', linewidth=0.5)
-    ax2.bar(x_pos, mixtral_arr, bar_width,
-            bottom=gpt4_arr + tie_arr, color=red, alpha=0.85,
-            label='Mixtral wins', edgecolor='white', linewidth=0.5)
-
-    # Percentage labels (only if segment is tall enough: >= 8%)
-    for i in range(n_bins):
-        if gpt4_arr[i] >= 8:
-            ax2.text(x_pos[i], gpt4_arr[i] / 2,
-                     f'{gpt4_arr[i]:.0f}%', ha='center', va='center',
-                     fontsize=9, fontweight='bold', color='white')
-        tie_y = gpt4_arr[i] + tie_arr[i] / 2
-        if tie_arr[i] >= 15:
-            ax2.text(x_pos[i], tie_y,
-                     f'{tie_arr[i]:.0f}%', ha='center', va='center',
-                     fontsize=9, fontweight='bold', color='#444444')
-        if mixtral_arr[i] >= 8:
-            mix_y = gpt4_arr[i] + tie_arr[i] + mixtral_arr[i] / 2
-            ax2.text(x_pos[i], mix_y,
-                     f'{mixtral_arr[i]:.0f}%', ha='center', va='center',
-                     fontsize=9, fontweight='bold', color='white')
-
-    # Clean single-line x-tick labels: "Q1 (n=150)"
-    x_labels = [f'Q{i+1} (n={bin_ns[i]})' for i in range(n_bins)]
-    ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(x_labels, fontsize=10.5)
-
-    # Directional annotation below x-axis
-    ax2.annotate(
-        '', xy=(n_bins - 0.7, -8), xytext=(-0.3, -8),
-        arrowprops=dict(arrowstyle='->', color='#555555', lw=1.2),
-        annotation_clip=False
+    ax2.set_yticks(y_positions)
+    ax2.set_yticklabels(
+        [_MODEL_MAP[mid]["display"] for mid in sorted_mids],
+        fontsize=10,
     )
+    ax2.set_xlabel(
+        "γ$_m$\n(contextual slope on standardised PC1)",
+        fontsize=11, fontweight="bold",
+    )
+    ax2.set_title("(B)  Contextual Sensitivity per Model",
+                   fontsize=14, fontweight="bold", pad=8)
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_visible(False)
+    ax2.grid(axis="x", alpha=0.15, linestyle="--", linewidth=0.5)
+
     ax2.text(
-        (n_bins - 1) / 2, -13,
-        'PC1 increasing  \u2192  Mixtral preference grows',
-        ha='center', va='top', fontsize=14, color='#555555',
-        fontstyle='italic', fontweight='bold', clip_on=False
+        0.97, 0.04,
+        f"{n_sig}/{K} significant\n(bootstrap 95% CI excl. 0)",
+        transform=ax2.transAxes,
+        fontsize=9, ha="right", va="bottom",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="#f7f7f7",
+                  edgecolor="#cccccc", alpha=0.9),
     )
-
-    ax2.set_xlabel('')  # Arrow + text serve as x-axis label
-    ax2.set_ylabel('Outcome proportion (%)',
-                    fontsize=12, fontweight='bold')
-    ax2.set_title('(B)  Routing Opportunity by Feature Region',
-                   fontsize=14, fontweight='bold', pad=8)
-    ax2.set_ylim(0, 105)
-    ax2.legend(
-        loc='upper center',
-        bbox_to_anchor=(0.5, -0.26),
-        ncol=3,
-        fontsize=10,
-        framealpha=0.95,
-        edgecolor='#cccccc',
-        fancybox=True,
-        borderpad=0.4,
-        handletextpad=0.5,
-        labelspacing=0.3,
-        columnspacing=0.8
-    )
-    ax2.spines['top'].set_visible(False)
-    ax2.spines['right'].set_visible(False)
-    ax2.grid(axis='y', alpha=0.15, linestyle='--', linewidth=0.5)
 
     # ── Save ──────────────────────────────────────────────────────────────
-    fig.subplots_adjust(left=0.07, right=0.97, bottom=0.30, top=0.93)
-    out_300 = output_dir / "figure1_lmsys_holdout_pca.png"
-    fig.savefig(out_300, dpi=300, bbox_inches='tight', facecolor='white')
-    out_600 = output_dir / "figure1_lmsys_holdout_pca_hires.png"
-    fig.savefig(out_600, dpi=600, bbox_inches='tight', facecolor='white')
+    fig.subplots_adjust(left=0.06, right=0.97, bottom=0.24, top=0.93)
+    out_300 = output_dir / "figure1_k10_contextual.png"
+    fig.savefig(out_300, dpi=300, bbox_inches="tight", facecolor="white")
+    out_600 = output_dir / "figure1_k10_contextual_hires.png"
+    fig.savefig(out_600, dpi=600, bbox_inches="tight", facecolor="white")
     plt.close()
+
+    print(f"\nFigure saved to {out_300}")
+    print("Done.")
 
 
 if __name__ == "__main__":
