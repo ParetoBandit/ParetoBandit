@@ -162,7 +162,7 @@ Both conditions receive identical semantic bootstrapping (\texttt{gpt-4.1} $\to$
 \end{figure*}
 
 \paragraph{Holdout Quality: A Null Result.}
-Both conditions achieve comparable holdout reward: $0.970 \pm 0.002$ (shared) vs.\ $0.971 \pm 0.003$ (isolated). A paired $t$-test confirms no significant difference ($t(19){=}{-}0.87$, $p{=}0.394$). Both substantially exceed the 2-model baseline reported in the main paper (Figure~\ref{fig:pareto}b).
+Both conditions achieve comparable holdout reward: $0.970 \pm 0.002$ (shared) vs.\ $0.971 \pm 0.003$ (isolated). A paired $t$-test confirms no significant difference ($t(19){=}{-}0.87$, $p{=}0.394$). Both substantially exceed the 2-model baseline reported in the main paper (Figure~\ref{fig:prequential_k2}b).
 
 \paragraph{Calibration Speed: An Early Advantage.}
 While final quality is indistinguishable, the shared condition starts with 46\% lower prediction error (MAE: 0.090 vs.\ 0.165 in the first 50 newcomer selections). The inherited family $\betavec$ provides a better initial reward estimate, reducing prediction uncertainty during the critical early routing decisions. Both conditions converge to the same final MAE (${\sim}0.045$), explaining the null result on holdout quality.

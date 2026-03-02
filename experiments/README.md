@@ -10,11 +10,11 @@ This directory contains all experimental code for the banditGPT paper.
 
 | Paper Object | Content | Experiment Folder | Key Output |
 |---|---|---|---|
-| **Figure 1** | Model Preference Heterogeneity (PCA analysis) | [`01_figure/`](01_figure/) | `figure1_lmsys_holdout_pca.png` |
+| **Figure 1** | Contextual Sensitivity across K=10 Models | [`01_figure/`](01_figure/) | `figure1_k10_contextual.png` |
 | **Figure 2** | Router Architecture Diagram | [`02_figure/`](02_figure/) | `figure2_architecture.pdf` |
 | **Table 1** | Dataset Description and Experimental Splits | [`02_table/`](02_table/) | `table1_dataset.tex` |
-| **Figure 4** | Pareto Frontier (banditGPT vs baselines) | [`03_figure/`](03_figure/) | `figure4.png` |
-| **Figure 4** | Multi-Model Pareto Frontier (K=5, K=10) | [`04_figure/`](04_figure/) | `figure6_multimodel_pareto.png` |
+| **Figure 3** | K=2 BanditGPT vs RouteLLM (Pareto + learning curve) | [`03_figure/`](03_figure/) | `figure3_k2.png` |
+| **Figure 4** | K=10 Multi-Model Pareto Frontier | [`04_figure/`](04_figure/) | `figure4_k10.png` |
 | **Figure 5** | K-Scaling: Hybrid vs Disjoint LinUCB | [`05_figure/`](05_figure/) | `k_scaling_figure.png` |
 | **Figure 6** | Distribution Shift Factorial | [`06_distribution_shift/`](06_distribution_shift/) | `figure_distribution_shift.png` |
 | **Figure 7** | banditGPT vs Linear Thompson Sampling | [`07_figure/`](07_figure/) | `figure7_lints_comparison.pdf` |
@@ -40,8 +40,8 @@ experiments/
 ├── 01_figure/                    # Figure 1: Model Preference Heterogeneity
 ├── 02_figure/                    # Figure 2: Router Architecture Diagram
 ├── 02_table/                     # Table 1: Dataset Description
-├── 03_figure/                    # Figure 4: Pareto Frontier
-├── 04_figure/                    # Figure 4: Multi-Model Pareto (K=5, K=10)
+├── 03_figure/                    # Figure 3: K=2 BanditGPT vs RouteLLM
+├── 04_figure/                    # Figure 4: K=10 Multi-Model Pareto Frontier
 ├── 05_figure/                    # Figure 5: K-Scaling (Hybrid vs Disjoint)
 ├── 06_distribution_shift/        # Figure 6: Distribution Shift Factorial
 ├── 07_figure/                    # Figure 7: banditGPT vs LinTS

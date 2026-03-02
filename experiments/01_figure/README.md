@@ -1,63 +1,76 @@
-# Figure 1: Model Preference Heterogeneity
+# Figure 1: Contextual Sensitivity across K=10 Models
 
-This experiment establishes the empirical motivation for contextual routing: **model preference varies by prompt, and the router's features predict this variation.**
+This experiment establishes the empirical motivation for contextual routing: **per-model quality is a function of prompt context, and the sensitivity to context differs across models.**
 
-If model preference were uniform (one model always wins), a static policy would be optimal and learned routing would be unnecessary. This experiment shows that is not the case — the PCA features used by `FeatureService.extract_features()` correlate with model preference, giving the bandit meaningful signal to learn from.
+If all models responded identically to prompt features (shared contextual slope), a static policy would suffice. This experiment shows that slopes are heterogeneous—the optimal model varies with the prompt—giving the bandit meaningful signal to exploit.
 
 ## Core Question
 
-> Do the router's features predict which model will perform better on a given prompt?
+> Does prompt context affect model quality differently across models, and do the router's PCA features capture this heterogeneity?
 
 ## Method
 
-We compute the **Spearman rank correlation** between the router PCA's first principal component (PC1) and the reward gap (GPT-4-Turbo minus Mixtral) on N=750 held-out prompts.
+We evaluate a **K=10 portfolio** spanning three cost tiers on **N=750 held-out prompts**:
 
-This directly tests the question the bandit needs answered — it matches how BanditGPT actually works (LinUCB regresses features against reward), without introducing artificial clustering, thresholds, or contingency tables.
+| Tier | Models |
+|------|--------|
+| **Cheap** | Llama-3.1-8B, Mixtral-8x7B, Gemma-3-27B |
+| **Mid** | Haiku-4.5, DeepSeek-V3, Gemini-2.5-Flash, Llama-4-Maverick |
+| **Expensive** | Claude-Sonnet-4, GPT-4-Turbo, GPT-4.1 |
 
-### Why Spearman?
+### Regression Specification
 
-| Property | Why it matters |
-|----------|---------------|
-| **Rank-based** | Handles discrete outcomes ({-1, 0, +1}) naturally |
-| **No distributional assumptions** | Valid for any monotonic relationship |
-| **Directly interpretable** | ρ measures how well features rank prompts by model preference |
-| **Matches the router** | The bandit does regression on features → this tests the same relationship |
+For each model *m*, we fit OLS:
+
+```
+r_{i,m} = α_m + γ_m · PC1_std_i + ε_{i,m}
+```
+
+where `γ_m` is the **contextual slope**—the rate at which model *m*'s reward changes per standard deviation of PC1. If all `γ_m` are equal, a static policy suffices; if they differ significantly, contextual routing can exploit the heterogeneity.
+
+### Likelihood-Ratio Test
+
+A formal LR test compares shared-slope H0 against per-model-slope H1 using d=6 PCA components, with (K−1) × d = 54 degrees of freedom.
+
+### Bootstrap Confidence Intervals
+
+Per-model slopes are estimated with 10,000 prompt-level bootstrap resamples. A slope is declared significant if its 95% CI excludes zero.
 
 ### Null Baseline
 
-100 independent random orthonormal projections (384 → 2, QR-decomposed). Each projection provides a |ρ| value, forming the null distribution. If the Router PCA |ρ| falls within this distribution, the signal is artifactual.
+100 independent random orthonormal projections (384 → 2, QR-decomposed). If the router PCA's |ρ| falls within this null distribution, the signal is artifactual.
 
 ### Data Independence
 
 | | PCA Training | Holdout Evaluation |
 |---|---|---|
-| **Source** | RouteLLM battles (HuggingFace) | LMSYS Chatbot Arena |
+| **Source** | RouteLLM battles (HuggingFace) | banditGPT evaluation pool |
 | **Size** | 80K prompts | 750 prompts |
 | **Overlap** | None — disjoint by provenance |
 
 ## Key Findings
 
-1. **Features predict preference.** Spearman ρ is significant (p < 0.0001), confirming that PC1 correlates with model preference direction.
+1. **Slopes are heterogeneous (LR test).** The per-model-slope model fits significantly better than the shared-slope null: χ² = 771.3, df = 54, p < 10⁻¹⁵. Context affects models differently.
 
-2. **Signal exceeds all random baselines.** Router PCA |ρ| exceeds all 100 random projections.
+2. **All ten models are context-sensitive.** Bootstrap 95% CIs (10,000 resamples) exclude zero for all ten slopes. Magnitudes range from |γ| = 0.032 (GPT-4.1, least sensitive) to |γ| = 0.254 (GPT-4-Turbo, most sensitive)—a factor of ~8×.
 
-3. **Most prompts are ties.** The majority of prompts show no strong model preference — the cheaper model can serve them with comparable quality. This is the primary source of cost savings.
+3. **Oracle gain correlates with PC1.** Spearman ρ = +0.424 (p < 10⁻³³) between per-prompt oracle gain and PC1, confirming that the router's features identify where routing helps most.
 
-4. **PC1 is a lower bound.** The router uses all 32 PCA components. The full feature vector captures at least as much predictive signal as PC1 alone.
+4. **Signal exceeds random projections.** Router PCA |ρ| exceeds all 100 random projections (null median |ρ| = 0.126, max = 0.346), yielding a signal-to-null ratio of 3.4×.
 
 ## Figure Structure
 
-- **Panel A**: PC1 vs Reward Gap scatter — shows features predict model preference
-- **Panel B**: Outcome proportions by PC1 quintile — Mixtral win rate rises from ~12% (Q1) to ~35% (Q5)
+- **Panel A**: Per-model OLS regression lines of reward (%) vs standardised PC1, with 95% confidence bands. Lines fan and cross, showing no single model dominates the full feature space.
+- **Panel B**: Forest plot of per-model contextual slopes γ_m with bootstrap 95% CIs. All ten CIs exclude zero; stars mark significance.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `plot_figure1.py` | Main analysis and figure generation |
-| `results_explanation.tex` | Paper results section |
+| `results_explanation.tex` | Paper results section (K=10) |
 | `validation_methodology.tex` | Detailed methodology |
-| `figure_1_caption.tex` | Figure caption |
+| `figure_1_caption.tex` | Figure caption (included by paper) |
 
 ## Reproducibility
 
@@ -69,29 +82,31 @@ python3 scripts/train_pca_from_routellm.py --n-components 32
 python3 experiments/01_figure/plot_figure1.py
 ```
 
+Output: `experiments/01_figure/results/figure1_k10_contextual.png`
+
 ## Limitations
 
-1. **Stratified holdout.** The holdout was constructed with a difficulty dimension derived from oracle rewards, enriching for prompts with clear preferences. Signal *existence* is robust; *magnitude* in deployment depends on the prompt distribution.
+1. **Stratified holdout.** The holdout was constructed with a difficulty dimension derived from oracle rewards, enriching for prompts with clear model differences. Signal *existence* is robust; *magnitude* in deployment depends on the prompt distribution.
 
-2. **Two-model topology.** This tests Mixtral vs GPT-4-Turbo specifically. A different model pair may show different signal.
+2. **PC1 is a lower bound.** The router uses all 32 PCA components. Higher components contribute additional signal (e.g., PC3 predicts Mixtral, PC31 predicts Llama-4-Maverick). The PC1-only visualisation is conservative.
 
-3. **Prompt-type mechanism.** The correlation reflects prompt-type variation that correlates with model preference (e.g., instruction-following templates). The PCA captures *prompt type → model preference*, not an abstract routing feature.
+3. **Prompt-type mechanism.** The correlation reflects prompt-type variation that correlates with model preference. The PCA captures *prompt type → model preference*, not an abstract routing feature.
 
-## Connection to BanditGPT
+## Connection to banditGPT
 
 This experiment validates the router's **"eyes"** (PCA features). Subsequent experiments validate the **"brain"** (bandit learning):
 
 | Experiment | What it tests |
 |-----------|---------------|
-| **Figure 1** (this) | Features predict preference → routing is possible |
-| **Figure 3** | Corralling design → safety under distribution shift |
-| **Figure 4** | Pareto frontier → production cost-quality tradeoffs |
-| **Figure 6** | Catastrophic failure detection (appendix) |
+| **Figure 1** (this) | Features predict heterogeneous preference → routing is possible |
+| **Figure 3** | Prequential evaluation → online learning performance |
+| **Figure 4** | Multi-model Pareto frontier → production cost-quality tradeoffs |
 
 ## Dependencies
 
 - `sentence-transformers` — Prompt embeddings
 - `scikit-learn` — PCA
-- `matplotlib` — Visualization
-- `scipy` — Spearman correlation, Mann-Whitney U
+- `matplotlib` — Visualisation
+- `scipy` — Chi-squared distribution, t-distribution
 - `numpy` — Numerical computation
+- `joblib` — PCA model loading
