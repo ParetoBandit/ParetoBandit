@@ -1,6 +1,37 @@
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{figures/figure3_prequential_k2.png}
-    \caption{Train-then-freeze evaluation on held-out LMSYS Chatbot Arena prompts. We compare five routing strategies on a two-model portfolio (\texttt{Mixtral-8x7B} vs.\ \texttt{GPT-4-Turbo}): BanditGPT with warmup priors and Corralling (trained on dev set, frozen for evaluation); BanditGPT tabula rasa (no priors, no Corralling); RouteLLM (MF router, in-distribution, $\tau$ tuned on val split by maximising $r - 0.05 \cdot c$, the same cost--quality objective as BanditGPT); and uniform-random routing. \textbf{(a)} Pareto frontier: holdout reward vs.\ cost per request. BanditGPT is swept over $\lambda$; RouteLLM over $\tau$. Error bars show 95\% $t$-CIs over 5 seeds. \textbf{(b)} Learning curve: holdout reward as a function of online training steps. Rewards are ground-truth multi-judge scores via \texttt{extract\_reward()} (mean of vote $\times$ confidence across the judge panel), not proxy predictions. RouteLLM's MF router was trained on LMSYS data that includes Mixtral and GPT-4-Turbo; this is an in-distribution comparison.}
+    \includegraphics[width=\linewidth]{figures/figure3_k2.png}
+    \caption{Online adaptation vs.\ static pre-training on a two-model portfolio (\texttt{Mixtral-8x7B} vs.\ \texttt{GPT-4-Turbo}).
+    %
+    \textbf{(a)}~Cost--quality Pareto frontier on the holdout set ($n{=}750$).
+    Bold lines show the \emph{dev-selected deployable frontier}: the dev set is
+    split 80/20 into train/val; both methods train/tune on dev-train, and the
+    Pareto hull is built from $(c_{\text{dev-val}}, r_{\text{dev-val}})$ using
+    only held-out val information.  Plotted points are the holdout performance
+    of those dev-optimal hyperparameters.  No holdout or training data enters
+    the hyperparameter selection step.
+    Shaded regions show the oracle upper-bound envelope (holdout-selected; not deployable).
+    BanditGPT (hybrid router: Corralling + family sharing, $\alpha{=}0.5$) is swept over
+    $\lambda \in [0,\,5]$ (24 values); RouteLLM-MF (pre-trained on ${\sim}100$k preference pairs)
+    is swept over $\tau \in [0,\,1]$ (101 thresholds).
+    Both methods are trained/tuned on the same dev-train split (${\sim}80\%$ of
+    $n{=}1{,}121$, symmetric data access); dev-val (${\sim}20\%$) reserved for
+    unbiased Pareto selection.
+    Frozen holdout evaluation with greedy exploitation ($\alpha{=}0$).
+    Error bars show 95\% $t$-CIs across 20 seeds.
+    Primary test: paired bootstrap 95\% CI for dev-selected Pareto AUC difference
+    (1{,}000 holdout resamples; dev indices fixed before bootstrapping).
+    Post-hoc point comparisons at individual budget levels are Holm-Bonferroni corrected.
+    %
+    \textbf{(b)}~Learning curve: holdout reward as a function of online training steps
+    ($\lambda{=}0$, quality-only; uses all $n{=}1{,}121$ dev prompts since no
+    hyperparameter selection is performed).
+    The crossover annotation marks the earliest step from which BanditGPT's lower CI bound
+    \emph{persistently} exceeds RouteLLM's peak ($0.788$) for all subsequent checkpoints.
+    %
+    Rewards are ground-truth multi-judge scores (mean of vote $\times$ confidence
+    via \texttt{extract\_reward}), not proxy predictions.
+    RouteLLM's pre-training data and our evaluation data share the same platform
+    but differ in time period (temporal distribution shift).}
     \label{fig:prequential_k2}
 \end{figure}

@@ -36,7 +36,7 @@ def create_experiment_router(
     feature_dim: int = 33,
     *,
     prior_n_effective: float = 10.0,
-    alpha: float = 2.0,
+    alpha: float = 0.5,
     warmup_path: Optional[str] = None,
     use_corralling: bool = True,
     corralling_learning_rate: float = 0.1,

@@ -1,0 +1,24 @@
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/figure_alpha_ablation.png}
+    \caption{Sensitivity of the learning curve to the exploration coefficient $\alpha$
+    (K=2, $\lambda{=}0$, 20 seeds).
+    %
+    In the hybrid Corralling router, $\alpha$ controls the UCB bonus:
+    the warmup expert uses constant $\alpha$ while the tabula-rasa expert
+    decays from $\alpha/2$ to $0.01$.
+    %
+    Higher $\alpha$ ($\geq 1.0$) produces a characteristic peak-then-dip artifact:
+    strong prior-informed decisions in the first ${\sim}25$ steps
+    followed by degradation as noisy online updates corrupt the prior,
+    amplified by the large exploration bonus.
+    Lower $\alpha$ ($0.5$) avoids this artifact entirely, yielding a smooth
+    monotonic learning curve.
+    %
+    Converged performance (step $1{,}121$) is robust to $\alpha$
+    ($0.811$--$0.816$), and all values surpass RouteLLM's peak ($0.788$,
+    dashed line).
+    $\alpha{=}0.5$ achieves the highest final reward ($0.816 \pm 0.007$)
+    and is adopted as the default.}
+    \label{fig:alpha_ablation}
+\end{figure}

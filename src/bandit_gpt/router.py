@@ -2630,7 +2630,7 @@ Previous version referenced non-existent attributes
             logger.info("🎯 Initializing Corralling Router with Heterogeneous Experts Strategy...")
             
             # Capture the alpha passed to create() to propagate to experts
-            target_alpha = alpha if alpha is not None else 2.0  # Default: moderate exploration
+            target_alpha = alpha if alpha is not None else 0.5  # Default: validated via ablation (Fig. alpha_ablation)
             
             # Prepare model costs and latencies for cost/latency-aware experts
             model_costs = {}

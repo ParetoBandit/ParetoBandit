@@ -1,6 +1,43 @@
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{figures/figure4_pareto_k10.png}
-    \caption{Multi-model cost--quality frontier for a 10-model portfolio. BanditGPT (with Corralling and 43-model warmup priors) is swept over $\lambda \in [0, 5]$; error bars show 95\% CIs over 5 seeds. Baselines: \emph{oracle} (per-prompt $\arg\max_m\, r(m,x)$): the ceiling using ground-truth multi-judge rewards; \emph{tabula rasa} (BanditGPT without priors or Corralling); \emph{$\varepsilon$-greedy} (exploit empirical best model from training set); \emph{random routing}; \emph{best-static} (always route to the single best model). All quality values are ground-truth multi-judge scores via \texttt{extract\_reward()} (mean of vote $\times$ confidence), not proxy predictions. Cost model uses fixed per-request prices (100 input + 400 output tokens) without token-level accounting. Training uses the online-learn pool from the three-way split; evaluation on the canonical holdout set.}
+    \includegraphics[width=\linewidth]{figures/figure4_k10.png}
+    \caption{Cost--quality Pareto frontier for a 10-model portfolio.
+    Bold lines show the \emph{dev-selected deployable frontier}: the dev set is
+    split 80/20 into train/val; both methods train on dev-train, and the Pareto
+    hull is built from $(c_{\text{dev-val}}, r_{\text{dev-val}})$.
+    Plotted points are the holdout performance of those dev-optimal
+    hyperparameters (no holdout or training data leakage in selection).
+    Shaded regions show the oracle upper-bound envelope (holdout-selected;
+    not deployable).
+    BanditGPT (Corralling + 43-model warmup priors, $\alpha{=}0.5$) is swept over
+    $\lambda \in [0,\,1]$ (33 values); error bars show 95\% $t$-CIs across 20 seeds.
+    Frozen evaluation uses greedy exploitation ($\alpha{=}0$).
+    Training uses the dev-train portion of the online-learn pool
+    (${\sim}426$ prompts, 80\% of $n{=}533$) from the three-way split;
+    evaluation on the canonical holdout set ($n{=}750$).
+    Note: the 10-armed contextual bandit adapts from fewer than 43
+    interactions per arm on average.
+    %
+    Baselines:
+    \emph{Oracle}---per-prompt clairvoyant $\arg\max_m r(m,x)$ ($0.968$);
+    \emph{Best static}---always route to GPT-4.1 ($0.910$);
+    \emph{Best-static+noise}---exploit empirical best model from training set
+    with probability $1{-}\varepsilon$ (not an online bandit);
+    \emph{UCB1}---non-contextual online bandit (train-then-freeze);
+    \emph{Random}---uniform model selection;
+    \emph{Tabula rasa}---BanditGPT without priors or Corralling (plain LinUCB,
+    $\alpha\!: 0.25 {\to} 0.01$).
+    %
+    Primary test: paired bootstrap 95\% CI for dev-selected Pareto AUC difference
+    (1{,}000 holdout resamples; dev indices fixed before bootstrapping).
+    BanditGPT dominates at low-to-mid budgets where warmup priors and Corralling
+    enable cost-efficient routing; at the highest budgets ($\lambda{=}0$) the
+    frontiers converge ($0.880$ vs.\ $0.888$).  Bootstrap 95\% CI for the
+    Pareto AUC difference spans zero ($p{=}0.31$), consistent with the high
+    variance of a 426-prompt training set.
+    %
+    All quality values are ground-truth multi-judge scores via \texttt{extract\_reward}
+    (mean of vote $\times$ confidence).
+    Cost model uses fixed per-request prices (100 input + 400 output tokens).}
     \label{fig:pareto_k10}
 \end{figure}
