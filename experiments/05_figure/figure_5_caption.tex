@@ -3,13 +3,13 @@
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.95\textwidth]{figures/figure5_k_scaling.png}
-\caption{\textbf{Family parameter sharing improves routing stability as portfolio size grows.}
-Greedy holdout reward (750 prompts) at 25-step intervals during training on 888 prompts.
-Columns show portfolios of $K \in \{5, 10, 20\}$ models; bands are 95\% CIs ($n{=}20$ seeds).
-Family assignments use within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$).
-At $K{=}5$, Hybrid yields higher holdout quality ($0.966$ vs.\ $0.937$, $p{=}0.008$) with $3.2\times$ narrower CIs.
-At $K{=}20$ (44 obs/model), Hybrid maintains $3.1\times$ tighter CIs ($\pm 0.007$ vs.\ $\pm 0.022$), showing family sharing stabilises learning under data scarcity.
-Neither method reaches the Oracle ($1.000$) within 888 steps, though Hybrid converges more reliably.}
-\Description{Three-panel line plot comparing Hybrid and Disjoint LinUCB holdout reward over training steps at K=5, K=10, and K=20, with 95 percent confidence bands showing Hybrid producing narrower intervals.}
+\caption{\textbf{Family parameter sharing reduces convergence variance in the production router.}
+Greedy holdout reward (750 prompts) at 25-step intervals during training on 533 prompts via the full Corralling router (warmup + tabula rasa experts).
+Columns show portfolios of $K \in \{5, 10\}$ models; bands are 95\% CIs ($n{=}20$ seeds).
+Family assignments use within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$) computed on the training set only.
+Both portfolios include multi-member providers so shared families form at every $K$: 2 shared families at $K{=}5$ (4/5 models) and 3 at $K{=}10$ (6/10 models).
+Hybrid produces consistently narrower CIs---$1.8\times$ at $K{=}5$ ($\pm 0.018$ vs.\ $\pm 0.033$) and $2.1\times$ at $K{=}10$ ($\pm 0.017$ vs.\ $\pm 0.035$)---though mean differences are not significant at the $0.05$ level ($p{=}0.078$ and $p{=}0.160$, respectively).
+Arm-pull allocation is highly non-uniform (e.g.\ median 47, range 0--120 at $K{=}10$), confirming that per-model data scarcity is driven by bandit exploitation, not uniform assignment.}
+\Description{Two-panel line plot comparing Hybrid and Disjoint holdout reward over training steps at K=5 and K=10, with 95 percent confidence bands showing Hybrid producing narrower intervals at both portfolio sizes.}
 \label{fig:k_scaling}
 \end{figure*}

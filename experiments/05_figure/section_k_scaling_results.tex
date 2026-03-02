@@ -4,29 +4,25 @@
 \subsubsection{RQ3: Ablation---Sample Efficiency of Family Parameter Sharing}
 \label{sec:k_scaling}
 
-We isolate the contribution of Hybrid LinUCB's family sharing by comparing it against Disjoint LinUCB (independent models) at $K{\in}\{5, 10, 20\}$. Both policies start tabula rasa, training on 888 prompts. We use data-driven family assignments via within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$) to correct for binary reward base-rate attenuation, avoiding naive syntactic groupings (e.g., separating uncorrelated \texttt{gpt-4-turbo} and \texttt{gpt-4.1}).
+We isolate the contribution of Hybrid LinUCB's family sharing by comparing it against Disjoint LinUCB (independent models) at $K{\in}\{5, 10\}$, using the \textbf{full production router} (Corralling meta-learner with warmup and tabula rasa experts, exercised via \texttt{route()} / \texttt{process\_feedback()}). Both portfolios include multi-member providers so that shared families form at every $K$, controlling family density across the comparison. Family assignments use within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$) computed on the \textbf{training set only}, preventing target leakage from the holdout evaluation.
 
 \begin{table}[htbp]
 \centering
-\caption{K-Scaling: Hybrid vs.\ Disjoint LinUCB. Holdout mean $\pm$ 95\% CI ($n{=}20$).}
+\caption{K-Scaling: Hybrid vs.\ Disjoint LinUCB (production router). Holdout mean $\pm$ 95\% CI ($n{=}20$). Arm-pull distribution shows median (range) observations per model.}
 \label{tab:k_scaling}
 \small
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}llcccr@{}}
+\begin{tabular}{@{}llccccl@{}}
 \toprule
-\textbf{K} & \textbf{Policy} & \textbf{Families} & \textbf{Holdout Reward} & \textbf{$p$-value} & \textbf{CI ratio} \\
+\textbf{K} & \textbf{Policy} & \textbf{Families} & \textbf{Holdout Reward} & \textbf{$p$-value} & \textbf{CI ratio} & \textbf{Obs/model} \\
 \midrule
 \multirow{2}{*}{5}
-& Hybrid  & 4 & 0.963 $\pm$ 0.006 & \multirow{2}{*}{0.028*} & \multirow{2}{*}{4.7$\times$} \\
-& Disjoint & --- & 0.927 $\pm$ 0.028 & & \\
+& Hybrid  & 3 (2 shared) & 0.862 $\pm$ 0.018 & \multirow{2}{*}{0.078} & \multirow{2}{*}{1.8$\times$} & 76 (0--219) \\
+& Disjoint & --- & 0.820 $\pm$ 0.033 & & & 85 (75--187) \\
 \midrule
 \multirow{2}{*}{10}
-& Hybrid  & 6 & 0.964 $\pm$ 0.013 & \multirow{2}{*}{0.166} & \multirow{2}{*}{1.6$\times$} \\
-& Disjoint & --- & 0.945 $\pm$ 0.020 & & \\
-\midrule
-\multirow{2}{*}{20}
-& Hybrid  & 11 & 0.963 $\pm$ 0.009 & \multirow{2}{*}{0.480} & \multirow{2}{*}{1.0$\times$} \\
-& Disjoint & --- & 0.958 $\pm$ 0.008 & & \\
+& Hybrid  & 7 (3 shared) & 0.845 $\pm$ 0.017 & \multirow{2}{*}{0.160} & \multirow{2}{*}{2.1$\times$} & 47 (0--120) \\
+& Disjoint & --- & 0.810 $\pm$ 0.035 & & & 53 (27--80) \\
 \bottomrule
 \end{tabular}%
 }
@@ -35,6 +31,6 @@ We isolate the contribution of Hybrid LinUCB's family sharing by comparing it ag
 \input{../experiments/05_figure/figure_5_caption}
 
 \paragraph{Results \& Implications.}
-Table~\ref{tab:k_scaling} and Figure~\ref{fig:k_scaling} show Hybrid LinUCB produces more stable convergence when per-model data is scarce. At $K{=}5$, Hybrid's 95\% CI is ${\sim}5\times$ narrower with a significant reward advantage ($p{=}0.028$). At larger $K$ the stability gap attenuates ($1.6\times$ at $K{=}10$; comparable at $K{=}20$), as $44$~obs/model suffice for Disjoint LinUCB to converge. 
+Table~\ref{tab:k_scaling} and Figure~\ref{fig:k_scaling} show that Hybrid LinUCB consistently reduces convergence variance across portfolio sizes. At $K{=}5$, two shared families emerge---OpenAI \{GPT-4-Turbo, GPT-4.1\} and Meta-Llama \{8B, Maverick\}---covering 4 of 5 models, and Hybrid produces $1.8\times$ narrower 95\% CIs ($\pm 0.018$ vs.\ $\pm 0.033$) with a marginally significant mean advantage ($0.862$ vs.\ $0.820$, $p{=}0.078$). At $K{=}10$, a third shared family (Google \{Flash, Gemma\}) appears and the CI compression grows to $2.1\times$ ($\pm 0.017$ vs.\ $\pm 0.035$), though the mean difference is not significant ($p{=}0.160$).
 
-Cumulative online reward differences are not significant at any $K$ ($p > 0.05$), confirming that Hybrid's advantage lies in variance reduction rather than mean improvement. For practitioners, this stability gain matters more than the mean gain: compressing the failure tail ensures predictable user experience. Furthermore, data-driven family assignment correctly groups models by empirical reward similarity rather than flawed syntactic naming conventions.
+The arm-pull distribution column confirms that per-model data scarcity is more severe than uniform assignment suggests: at $K{=}10$, median observations per model is 47 but the range spans 0--120 under Hybrid exploitation, with some arms receiving no observations in individual trials. Cumulative online reward differences are not significant at either $K$ ($p > 0.05$), confirming that Hybrid's primary advantage is variance reduction rather than mean improvement. For practitioners, this stability gain matters: compressing the failure tail ensures predictable user experience when deploying the production Corralling router with growing model portfolios.
