@@ -1,8 +1,10 @@
-# Figure 3 & 4: BanditGPT vs RouteLLM
+# Figure 3: BanditGPT vs RouteLLM (K=2)
 
 **Cost-quality trade-off analysis with ground-truth multi-judge rewards**
 
-This directory contains the primary competitive evaluation for the banditGPT paper: a fair comparison against RouteLLM using canonical dev/holdout datasets.
+This directory contains the K=2 competitive evaluation for the banditGPT paper: a fair comparison against RouteLLM using canonical dev/holdout datasets.
+
+> **Note:** The K=10 multi-model Pareto frontier (Figure 4) has been moved to [`04_figure/`](../04_figure/).
 
 ---
 
@@ -39,15 +41,16 @@ This eliminates the circular BT-proxy evaluation from earlier drafts: rewards ar
 03_figure/
 ├── run_prequential.py               # Main experiment: K=2 (vs RouteLLM) + K=10 Pareto
 ├── run_alpha_ablation.py            # Alpha exploration sensitivity ablation
-├── plot_results.py                  # Generate Figures 3, 4 from results JSON
+├── plot_results.py                  # Generate Figure 3 from results JSON
 ├── figure3_caption.tex              # LaTeX caption for Figure 3
-├── figure4_caption.tex              # LaTeX caption for Figure 4
 ├── figure_alpha_ablation_caption.tex # LaTeX caption for alpha ablation
 ├── results_discussion.tex           # LaTeX results discussion
 ├── results_discussion.md            # Markdown results discussion
 ├── README.md                        # This file
 └── results/                         # Output directory
 ```
+
+> Figure 4 (K=10 Pareto frontier) lives in [`04_figure/`](../04_figure/).
 
 ---
 
@@ -130,6 +133,7 @@ Output: `results/prequential_results.json`
 
 | Scenario | Experiment |
 |----------|-----------|
+| K=10 multi-model Pareto frontier | [Figure 4](../04_figure/) |
 | Corralling prior degradation sweep | [Appendix E](../appendix/E_prior_degradation/) |
 | Catastrophic model failure | [Figure 6](../appendix/E_catastrophic_failure_experiment/) |
 
