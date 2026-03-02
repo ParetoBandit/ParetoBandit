@@ -197,12 +197,12 @@ def plot_figure3(res: dict, out: Path) -> None:
 
     if crossover_step is not None:
         ax2.axvline(x=crossover_step, color=ORANGE, ls=":", lw=1.5, alpha=0.6)
-        y_annot = max(rewards) - 0.005
         ax2.annotate(
-            f"Crossover\n@ step {crossover_step}",
+            f"Crossover @ step {crossover_step}",
             xy=(crossover_step, crossover_reward),
-            xytext=(max(crossover_step - 200, 120), y_annot),
-            fontsize=9, color=ORANGE, fontweight="bold", ha="center",
+            xytext=(crossover_step + 80, crossover_reward - 0.015),
+            fontsize=8, color=ORANGE, fontweight="bold",
+            ha="left", va="top",
             arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.5),
             zorder=10,
         )
