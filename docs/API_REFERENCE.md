@@ -22,7 +22,7 @@ Factory method for creating a fully initialised router.
 def create(
     cls,
     model_registry: dict[str, Any] | None = None,
-    context_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    context_model: str = "BAAI/bge-m3",
     priors: str = "none",
     **kwargs,
 ) -> BanditRouter
@@ -33,7 +33,7 @@ def create(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `model_registry` | `dict[str, Any] \| None` | `None` | Model configurations keyed by model ID. Each entry may include `input_cost_per_m`, `output_cost_per_m`, `time_to_first_token_seconds`, and capability metadata. |
-| `context_model` | `str` | `"sentence-transformers/all-MiniLM-L6-v2"` | SentenceTransformer model for prompt embedding. Ignored when `feature_service` is provided. Custom ST models require matching PCA and warmup artifacts. |
+| `context_model` | `str` | `"BAAI/bge-m3"` | SentenceTransformer model for prompt embedding. Ignored when `feature_service` is provided. Custom ST models require matching PCA and warmup artifacts. |
 | `feature_service` | `FeatureService \| None` | `None` | Injected feature service for custom embedding pipelines. When provided, `context_model` is ignored. Use this for custom encoders, pre-computed vectors, or domain-specific PCA. See [`FeatureService`](#featureservice). |
 | `priors` | `str` | `"none"` | Prior initialisation strategy: `"none"` (cold start, the default) or a path to a `.joblib` file generated via `generate_warmup_priors()`. |
 | `exploration` | `str` | `"safe"` | Named exploration preset: `"static"` (0.0), `"safe"` (0.05), `"balanced"` (0.5), `"aggressive"` (1.0). |
@@ -501,7 +501,7 @@ Handles prompt embedding and PCA compression independently from bandit math. Sup
 
 ### Bundled PCA Artifact
 
-A pre-trained PCA artifact (`pca_32.joblib`, 51 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on 80,000 RouteLLM battle prompts (independent of BanditGPT's dev/holdout splits) using the default encoder (`sentence-transformers/all-MiniLM-L6-v2`). The 32 components compress 384-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
+A pre-trained PCA artifact (`pca_32.joblib`, ~133 KB) ships inside the package and is loaded by default when no explicit `pca_path` is provided and no `custom_encoder` is set. It was trained on 80,000 RouteLLM battle prompts (independent of BanditGPT's dev/holdout splits) using the default encoder (`BAAI/bge-m3`). The 32 components compress 1024-dimensional embeddings down to 33-dimensional feature vectors (32 PCA + 1 bias term).
 
 To replace it with a domain-specific PCA, pass `pca_path` to the constructor or use `train_pca()` to generate one from your own prompts (see [Calibration API](#calibration-api)).
 
@@ -509,7 +509,7 @@ To replace it with a domain-specific PCA, pass `pca_path` to the constructor or 
 
 ```python
 FeatureService(
-    encoder_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    encoder_model: str = "BAAI/bge-m3",
     pca_path: Path | str | None = None,
     pca_components: int | None = None,
     target_variance: float = 0.60,
@@ -522,7 +522,7 @@ FeatureService(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `encoder_model` | `str` | Default MiniLM | SentenceTransformer model name. Ignored when `custom_encoder` is provided. Custom ST models require explicit `pca_path`. |
+| `encoder_model` | `str` | Default `BAAI/bge-m3` | SentenceTransformer model name. Ignored when `custom_encoder` is provided. Custom ST models require explicit `pca_path`. |
 | `pca_path` | `Path \| str \| None` | `None` | Path to a PCA artifact (`.joblib`). When `None` and using the default encoder, loads the bundled `pca_32.joblib`. When `None` and `custom_encoder` is set, **no PCA** is applied — raw embeddings are used directly. |
 | `pca_components` | `int \| None` | `None` | Auto-detected from PCA file if not specified. |
 | `target_variance` | `float` | `0.60` | Minimum explained variance threshold for PCA. If JIT-trained PCA falls below this, falls back to raw embeddings. |
@@ -541,7 +541,7 @@ FeatureService(
 ```python
 from bandit_gpt import FeatureService
 
-# Uses default MiniLM encoder and the bundled pca_32.joblib
+# Uses the default encoder and the bundled pca_32.joblib
 # Requires: pip install banditgpt[embeddings]
 fs = FeatureService()
 
@@ -849,7 +849,7 @@ prompts = [
 # 2. Train PCA on your domain (uses the default encoder)
 pca = train_pca(
     prompts,
-    encoder_model="sentence-transformers/all-MiniLM-L6-v2",
+    encoder_model="BAAI/bge-m3",
     n_components=32,
     output_path="my_pca.joblib",
 )
@@ -911,7 +911,7 @@ rewards_data = [
 
 priors = generate_warmup_priors(
     rewards_data,
-    encoder_model="sentence-transformers/all-MiniLM-L6-v2",
+    encoder_model="BAAI/bge-m3",
     pca="my_pca.joblib",
     plasticity=0.1,
     output_path="my_priors.joblib",

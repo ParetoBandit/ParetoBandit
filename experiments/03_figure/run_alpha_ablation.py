@@ -46,6 +46,7 @@ from bandit_gpt.config import (
 )
 from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
+from utils.model_pricing import get_prices_for_models
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -67,21 +68,25 @@ CHECKPOINTS: List[int] = [
     0, 10, 25, 50, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
 ]
 
+DEV_VAL_FRACTION: float = 0.2
+DEV_VAL_SEED: int = 7
+
 K2_MODELS: List[str] = [
     "mistralai/mixtral-8x7b-instruct",
     "openai/gpt-4-turbo",
 ]
 
+_PRICES_K2 = get_prices_for_models(K2_MODELS)
+
 K2_CATALOG: Dict[str, Dict] = {
     "mistralai/mixtral-8x7b-instruct": {
         "display": "Mixtral-8x7B",
-        "input_cost_per_m": 0.54,
-        "output_cost_per_m": 0.60,
+        # Prices are loaded from experiments/config/model_prices.json.
+        **_PRICES_K2["mistralai/mixtral-8x7b-instruct"],
     },
     "openai/gpt-4-turbo": {
         "display": "GPT-4-Turbo",
-        "input_cost_per_m": 10.00,
-        "output_cost_per_m": 30.00,
+        **_PRICES_K2["openai/gpt-4-turbo"],
     },
 }
 
@@ -144,6 +149,33 @@ def embed_dataset(
 ) -> List[np.ndarray]:
     """Embed all prompts, returning aligned feature vectors."""
     return [embed_prompt(p["prompt"], encoder, pca) for p in data]
+
+
+def _split_dev_train_val(
+    data: List[Dict],
+    emb: List[np.ndarray],
+    val_fraction: float = DEV_VAL_FRACTION,
+    seed: int = DEV_VAL_SEED,
+) -> Tuple[List[Dict], List[np.ndarray], List[Dict], List[np.ndarray]]:
+    """Deterministically split (data, emb) into train and val portions.
+
+    Uses the same split seed and fraction as ``run_prequential.py`` so
+    the learning curves trained here are directly comparable to the
+    Pareto sweep in the main experiment.
+
+    Returns:
+        (train_data, train_emb, val_data, val_emb).
+    """
+    n = len(data)
+    rng = np.random.default_rng(seed)
+    indices = rng.permutation(n)
+    n_val = max(1, int(n * val_fraction))
+    val_idx = set(indices[:n_val].tolist())
+    train_d = [data[i] for i in range(n) if i not in val_idx]
+    train_e = [emb[i] for i in range(n) if i not in val_idx]
+    val_d = [data[i] for i in range(n) if i in val_idx]
+    val_e = [emb[i] for i in range(n) if i in val_idx]
+    return train_d, train_e, val_d, val_e
 
 
 # ============================================================================
@@ -463,7 +495,20 @@ def main() -> None:
     dev_emb = embed_dataset(dev_data, encoder, pca)
     holdout_emb = embed_dataset(holdout_data, encoder, pca)
 
-    max_step = len(dev_data)
+    # Split dev into train/val (same split as run_prequential.py) so that
+    # the alpha ablation learning curves are trained on the same dev-train
+    # subset used for the Pareto sweep, ensuring a fair comparison against
+    # the RouteLLM peak reference line.
+    logger.info(
+        f"  Splitting dev into train/val "
+        f"({1 - DEV_VAL_FRACTION:.0%}/{DEV_VAL_FRACTION:.0%}) ..."
+    )
+    dev_train, dev_train_emb, dev_val, dev_val_emb = _split_dev_train_val(
+        dev_data, dev_emb,
+    )
+    logger.info(f"    Dev-train: {len(dev_train)}  Dev-val: {len(dev_val)}")
+
+    max_step = len(dev_train)
     checkpoints = [s for s in CHECKPOINTS if s <= max_step]
     if max_step not in checkpoints:
         checkpoints.append(max_step)
@@ -498,9 +543,9 @@ def main() -> None:
         curve = run_learning_curve(
             models=K2_MODELS,
             catalog=K2_CATALOG,
-            train_data=dev_data,
+            train_data=dev_train,
             eval_data=holdout_data,
-            train_emb=dev_emb,
+            train_emb=dev_train_emb,
             eval_emb=holdout_emb,
             warmup_path=str(DEFAULT_WARMUP_PRIORS_PATH),
             costs=costs,
@@ -524,10 +569,11 @@ def main() -> None:
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "description": (
                 "Alpha (exploration coefficient) sensitivity analysis "
-                "for BanditGPT hybrid router (Corralling + warmup priors). "
+                "for BanditGPT Corralling router with warmup priors. "
                 "Each curve shows holdout quality after N online learning "
-                "steps on the dev set, averaged over N_SEEDS random "
-                "presentation orders."
+                "steps on the dev-train split (80% of dev), averaged "
+                "over N_SEEDS random presentation orders.  The dev-train "
+                "split matches run_prequential.py for symmetric comparison."
             ),
         },
         "config": {
@@ -537,9 +583,12 @@ def main() -> None:
             "corralling_lr": CORRALLING_LR,
             "corralling_gamma": CORRALLING_GAMMA,
             "target_neff": TARGET_NEFF,
+            "dev_val_fraction": DEV_VAL_FRACTION,
+            "dev_val_seed": DEV_VAL_SEED,
         },
         "n_seeds": N_SEEDS,
         "n_dev": len(dev_data),
+        "n_dev_train": len(dev_train),
         "n_holdout": len(holdout_data),
         "routellm_peak": rl_peak,
         "weak_model_reward": weak_r,

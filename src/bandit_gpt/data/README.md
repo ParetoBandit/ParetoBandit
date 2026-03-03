@@ -34,7 +34,7 @@ banditgpt/data/
 │   ├── priors_meta_clusters.npz          # Cluster-based priors
 │   ├── priors_meta_pca.npz               # PCA-based priors (32D)
 │   ├── priors_meta_large.npz             # Full embedding priors
-│   └── pca_32.joblib                     # Fitted PCA model (384→32)
+│   └── pca_32.joblib                     # Fitted PCA model (1024→32; `BAAI/bge-m3` → PCA)
 │
 └── Analysis Results
     ├── optimal_clusters_results.json
@@ -98,7 +98,7 @@ gen.run(
 ## Data Lineage
 
 1. **Source**: LMSYS Chat Arena prompts (~26k unique)
-2. **Clustering**: MiniBatchKMeans (k=100) on MiniLM embeddings
+2. **Clustering**: MiniBatchKMeans (k=100) on SentenceTransformer embeddings (default: `BAAI/bge-m3`)
 3. **Splitting**: Stratified by cluster (1K test, 4K train, rest for priors)
 4. **Evaluation**: 3-4 judge panel (GPT-4o, Claude-3.5-Sonnet, Llama-405b, Gemini-2.5-Pro)
 5. **Scoring**: Vote + Confidence tie-breaker → Binary reward (0/1)

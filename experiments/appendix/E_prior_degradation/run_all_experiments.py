@@ -57,6 +57,7 @@ from bandit_gpt.config import (
 sys.path.insert(0, str(project_root / "experiments"))
 from utils.router_factory import create_experiment_router
 from utils.rewards import extract_reward
+from utils.model_pricing import get_prices_for_models
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -169,8 +170,15 @@ def _make_fig3_router(
     lr = corralling_learning_rate if corralling_learning_rate is not None else LEARNING_RATE
     warmup_path = _save_priors_to_temp(warmup_priors, key=f"fig3_{cache_key}")
     n_stored = max(warmup_priors.get("n_prompts", 1), warmup_priors.get("n", 1), 1)
-    registry = {m: {"model_id": m, "display_name": m.split("/")[-1],
-                     "input_cost_per_m": 1.0, "output_cost_per_m": 3.0} for m in models}
+    prices = get_prices_for_models(models)
+    registry = {
+        m: {
+            "model_id": m,
+            "display_name": m.split("/")[-1],
+            **prices[m],
+        }
+        for m in models
+    }
     router = create_experiment_router(
         model_registry=registry,
         feature_dim=context_dim,

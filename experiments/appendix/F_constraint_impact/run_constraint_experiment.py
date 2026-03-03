@@ -55,6 +55,7 @@ from bandit_gpt.config import (
 from bandit_gpt.router import BanditRouter
 from utils.router_factory import create_experiment_router
 from utils.rewards import extract_reward
+from utils.model_pricing import get_prices_for_models
 from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -68,74 +69,120 @@ def _req_cost(inp, out):
     """Per-request cost at 100 input + 400 output tokens."""
     return (100 * inp + 400 * out) / 1_000_000
 
+
+_PRICES = get_prices_for_models(
+    [
+        "meta-llama/llama-3.1-8b-instruct",
+        "mistralai/mixtral-8x7b-instruct",
+        "google/gemma-3-27b-it",
+        "anthropic/claude-haiku-4.5",
+        "deepseek/deepseek-chat-v3-0324",
+        "google/gemini-2.5-flash-preview-09-2025",
+        "meta-llama/llama-4-maverick",
+        "anthropic/claude-sonnet-4",
+        "openai/gpt-4-turbo",
+        "openai/gpt-4.1",
+    ]
+)
+
 MODEL_CATALOG = {
     "meta-llama/llama-3.1-8b-instruct": {
         "display": "Llama-3.1-8B",
-        "input_cost_per_m": 0.05, "output_cost_per_m": 0.05,
-        "cost": _req_cost(0.05, 0.05),
+        **_PRICES["meta-llama/llama-3.1-8b-instruct"],
+        "cost": _req_cost(
+            _PRICES["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
+            _PRICES["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.35,
         "tier": "cheap", "provider": "meta",
     },
     "mistralai/mixtral-8x7b-instruct": {
         "display": "Mixtral-8x7B",
-        "input_cost_per_m": 0.54, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.54, 0.60),
+        **_PRICES["mistralai/mixtral-8x7b-instruct"],
+        "cost": _req_cost(
+            _PRICES["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
+            _PRICES["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.62,
         "tier": "cheap", "provider": "mistral",
     },
     "google/gemma-3-27b-it": {
         "display": "Gemma-3-27B",
-        "input_cost_per_m": 0.10, "output_cost_per_m": 0.10,
-        "cost": _req_cost(0.10, 0.10),
+        **_PRICES["google/gemma-3-27b-it"],
+        "cost": _req_cost(
+            _PRICES["google/gemma-3-27b-it"]["input_cost_per_m"],
+            _PRICES["google/gemma-3-27b-it"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.45,
         "tier": "cheap", "provider": "google",
     },
     "anthropic/claude-haiku-4.5": {
         "display": "Claude-Haiku-4.5",
-        "input_cost_per_m": 0.80, "output_cost_per_m": 4.00,
-        "cost": _req_cost(0.80, 4.00),
+        **_PRICES["anthropic/claude-haiku-4.5"],
+        "cost": _req_cost(
+            _PRICES["anthropic/claude-haiku-4.5"]["input_cost_per_m"],
+            _PRICES["anthropic/claude-haiku-4.5"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.40,
         "tier": "mid", "provider": "anthropic",
     },
     "deepseek/deepseek-chat-v3-0324": {
         "display": "DeepSeek-V3",
-        "input_cost_per_m": 0.27, "output_cost_per_m": 1.10,
-        "cost": _req_cost(0.27, 1.10),
+        **_PRICES["deepseek/deepseek-chat-v3-0324"],
+        "cost": _req_cost(
+            _PRICES["deepseek/deepseek-chat-v3-0324"]["input_cost_per_m"],
+            _PRICES["deepseek/deepseek-chat-v3-0324"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 1.10,
         "tier": "mid", "provider": "deepseek",
     },
     "google/gemini-2.5-flash-preview-09-2025": {
         "display": "Gemini-2.5-Flash",
-        "input_cost_per_m": 0.15, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.15, 0.60),
+        **_PRICES["google/gemini-2.5-flash-preview-09-2025"],
+        "cost": _req_cost(
+            _PRICES["google/gemini-2.5-flash-preview-09-2025"]["input_cost_per_m"],
+            _PRICES["google/gemini-2.5-flash-preview-09-2025"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.30,
         "tier": "mid", "provider": "google",
     },
     "meta-llama/llama-4-maverick": {
         "display": "Llama-4-Maverick",
-        "input_cost_per_m": 0.20, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.20, 0.60),
+        **_PRICES["meta-llama/llama-4-maverick"],
+        "cost": _req_cost(
+            _PRICES["meta-llama/llama-4-maverick"]["input_cost_per_m"],
+            _PRICES["meta-llama/llama-4-maverick"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.50,
         "tier": "mid", "provider": "meta",
     },
     "anthropic/claude-sonnet-4": {
         "display": "Claude-Sonnet-4",
-        "input_cost_per_m": 3.00, "output_cost_per_m": 15.00,
-        "cost": _req_cost(3.00, 15.00),
+        **_PRICES["anthropic/claude-sonnet-4"],
+        "cost": _req_cost(
+            _PRICES["anthropic/claude-sonnet-4"]["input_cost_per_m"],
+            _PRICES["anthropic/claude-sonnet-4"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.85,
         "tier": "expensive", "provider": "anthropic",
     },
     "openai/gpt-4-turbo": {
         "display": "GPT-4-Turbo",
-        "input_cost_per_m": 10.00, "output_cost_per_m": 30.00,
-        "cost": _req_cost(10.00, 30.00),
+        **_PRICES["openai/gpt-4-turbo"],
+        "cost": _req_cost(
+            _PRICES["openai/gpt-4-turbo"]["input_cost_per_m"],
+            _PRICES["openai/gpt-4-turbo"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.59,
         "tier": "expensive", "provider": "openai",
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
-        "input_cost_per_m": 2.00, "output_cost_per_m": 8.00,
-        "cost": _req_cost(2.00, 8.00),
+        **_PRICES["openai/gpt-4.1"],
+        "cost": _req_cost(
+            _PRICES["openai/gpt-4.1"]["input_cost_per_m"],
+            _PRICES["openai/gpt-4.1"]["output_cost_per_m"],
+        ),
         "time_to_first_token_seconds": 0.65,
         "tier": "expensive", "provider": "openai",
     },

@@ -71,7 +71,8 @@ creative-writing-bench/
 external/
 
 # Evaluation results (large JSONL files)
-results/
+# Ignore only the root-level results/ folder; keep results/ inside experiments/
+/results/
 
 # Paper data (large training datasets)
 paper/data/

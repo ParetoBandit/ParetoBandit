@@ -55,8 +55,9 @@ def test_constraints(sample_registry):
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
     prompt = "Constraint test"
     
-    # Max cost in $/M tokens (blended). Gemma = 0.1, GPT-4o = 10.0
-    model, log = router.route(prompt, max_cost=1.0)
+    # Max cost in $/1k tokens (blended). Gemma = 0.1/M -> 0.0001/1k,
+    # GPT-4o = 10.0/M -> 0.01/1k. A cap of 0.001/1k should filter to Gemma.
+    model, log = router.route(prompt, max_cost=0.001)
     assert model == "google/gemma-3-2b-it"
     
     # Quality floor should favor GPT-4
@@ -68,7 +69,7 @@ def test_no_eligible_models_raises(sample_registry):
     """Impossible constraints should raise NoEligibleModelsError."""
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
     with pytest.raises(NoEligibleModelsError):
-        router.route("test", max_cost=0.001)
+        router.route("test", max_cost=1e-5)
 
 
 def test_missing_cost_raises():
@@ -151,20 +152,25 @@ def _test_no_zombie_models():
 
 def test_missing_cost_data_raises_at_init():
     """
-    Registries with missing or incomplete cost data raise MissingCostError.
+    Registries with incomplete cost data raise MissingCostError.
 
-    Previously the router used pessimistic defaults; we now fail fast so
-    the user can fix the registry before routing starts.
+    When cost fields are entirely absent, the router fills pessimistic defaults
+    (fail-operational) so research/test registries remain usable.
     """
-    # Both input and output costs missing → MissingCostError
-    with pytest.raises(MissingCostError, match="no cost data"):
-        BanditRouter.create(model_registry={
+    # Both input and output costs missing → fill pessimistic defaults
+    router = BanditRouter.create(
+        model_registry={
             "model_a": {
                 "model_id": "provider/model-a",
                 "display_name": "Model A",
                 "hle": 0.50,
             }
-        }, priors="none")
+        },
+        priors="none",
+        use_corralling=False,
+    )
+    assert "blended_cost_per_m" in router.registry["model_a"]
+    assert router.registry["model_a"]["blended_cost_per_m"] > 0.0
 
     # Input present but output missing → MissingCostError
     with pytest.raises(MissingCostError, match="missing.*output_cost_per_m"):

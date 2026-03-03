@@ -42,7 +42,7 @@ def test_router_factory_and_core_methods_with_precomputed_features():
         use_corralling=False,
         exploration="safe",
     )
-    assert pytest.approx(0.05) == router.bandit.alpha
+    assert pytest.approx(0.1) == router.bandit.alpha
 
     context = make_context(seed=7)
     model, log = router.route(

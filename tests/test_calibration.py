@@ -64,7 +64,7 @@ class TestTrainPCA:
         )
 
         assert pca.n_components_ == 16
-        assert pca.n_features_in_ == 384
+        assert pca.n_features_in_ == 1024
         assert float(np.sum(pca.explained_variance_ratio_)) > 0
         assert (tmp_path / "pca_test.joblib").exists()
 

@@ -7,8 +7,9 @@ from bandit_gpt.router import BanditRouter, ExplorationRate
 class TestRouterConfigurationUpdates(unittest.TestCase):
     """
     Unit tests for router configuration:
-    1. Default alpha changed to 0.05 (via exploration="safe")
+    1. Default alpha is 0.1 (optimal K=10 ablation result)
     2. ExplorationRate constants validation
+    3. exploration='safe' maps to ExplorationRate.SAFE (0.1)
     """
 
     def setUp(self):
@@ -31,22 +32,21 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
         }
 
     def test_default_alpha_via_exploration_safe(self):
-        """Test that exploration='safe' maps to alpha=0.05."""
+        """Test that exploration='safe' maps to ExplorationRate.SAFE (0.1)."""
         router = BanditRouter.create(
             model_registry=self.model_registry,
             exploration="safe"
         )
-        
-        self.assertEqual(router.bandit.alpha, 0.05,
-                        "exploration='safe' should result in alpha=0.05")
+
+        self.assertEqual(router.bandit.alpha, ExplorationRate.SAFE,
+                        "exploration='safe' should result in alpha=0.1")
 
     def test_default_alpha_via_create_no_args(self):
-        """Test that BanditRouter.create() defaults to alpha=0.05."""
+        """Test that BanditRouter.create() defaults to alpha=0.1."""
         router = BanditRouter.create(model_registry=self.model_registry)
-        
-        # Default exploration is "safe" which should map to 0.05
-        self.assertEqual(router.bandit.alpha, 0.05,
-                        "BanditRouter.create() should default to alpha=0.05")
+
+        self.assertEqual(router.bandit.alpha, 0.1,
+                        "BanditRouter.create() should default to alpha=0.1")
 
     def test_exploration_rate_safe_constant(self):
         """Test that ExplorationRate.SAFE is 0.1."""

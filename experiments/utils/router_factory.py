@@ -42,6 +42,7 @@ def create_experiment_router(
     corralling_learning_rate: float = 0.1,
     corralling_gamma: float = 0.05,
     cost_penalty: float = 0.3,
+    forgetting_factor: float = 1.0,
 ) -> BanditRouter:
     """Build a production ``BanditRouter`` suitable for offline experiments.
 
@@ -72,6 +73,11 @@ def create_experiment_router(
     cost_penalty:
         Lambda for UCB cost penalty (paper Eq. 4).  Applied at selection
         time in both Corralling experts and the singleton fallback.
+    forgetting_factor:
+        Exponential decay for past observations in DisjointLinUCBPolicy.
+        ``1.0`` = stationary (no decay), ``< 1.0`` = adaptive (discounts
+        stale observations).  Propagated to both the canonical bandit and
+        the tabula-rasa Corralling expert.
 
     Returns
     -------
@@ -92,6 +98,7 @@ def create_experiment_router(
         corralling_learning_rate=corralling_learning_rate,
         corralling_gamma=corralling_gamma,
         cost_penalty=cost_penalty,
+        forgetting_factor=forgetting_factor,
         **({"warmup_path": warmup_path} if warmup_path else {}),
     )
     return router

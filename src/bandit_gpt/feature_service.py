@@ -114,6 +114,7 @@ class FeatureService:
         pca_path: Optional[Path | str] = None,
         pca_components: int | None = None,
         target_variance: float = 0.60,
+        whiten_pca: bool = True,
         allow_jit_training: bool = True,
         calibration_file: Optional[Path | str] = None,
         custom_encoder: Optional[Callable[[str], np.ndarray]] = None,
@@ -144,6 +145,11 @@ class FeatureService:
             pca_components: Number of PCA components (auto-detected from PCA
                 file if ``None``).
             target_variance: Minimum explained variance for PCA (default 0.60).
+            whiten_pca: If ``True`` (default), scale PCA coordinates by
+                ``1/sqrt(explained_variance)`` so each component has roughly
+                unit variance under the PCA training distribution. This makes
+                the downstream LinUCB isotropic prior (A₀=λI) better matched to
+                the feature scale without requiring a new PCA artifact.
             allow_jit_training: Allow JIT PCA training when the PCA artifact
                 is missing (default ``True``).  Set to ``False`` in strict
                 production to crash-fast instead of hanging.
@@ -158,6 +164,8 @@ class FeatureService:
         """
         self._custom_encoder = custom_encoder
         self.encoder_model = encoder_model
+        self.whiten_pca = bool(whiten_pca)
+        self._pca_whitening_scale: np.ndarray | None = None
 
         if custom_encoder is not None:
             if embedding_dim is None:
@@ -222,6 +230,103 @@ class FeatureService:
             self.pca_components = embedding_dim
             self._dimension = embedding_dim + 1  # embeddings + bias
             self._pca = None  # intentionally no PCA
+            self._pca_whitening_scale = None
+
+    def _apply_pca_whitening(self, pca_features: np.ndarray) -> np.ndarray:
+        """Optionally whiten PCA coordinates to unit variance.
+
+        Args:
+            pca_features: 1-D PCA feature vector of shape ``(pca_components,)``.
+
+        Returns:
+            The (possibly) whitened PCA feature vector of the same shape.
+        """
+        if not self.whiten_pca:
+            return pca_features
+        if self._pca_whitening_scale is None:
+            return pca_features
+        if pca_features.shape != self._pca_whitening_scale.shape:
+            raise ValueError(
+                "PCA whitening scale shape mismatch: "
+                f"features={pca_features.shape}, scale={self._pca_whitening_scale.shape}"
+            )
+        return pca_features * self._pca_whitening_scale
+
+    def _apply_pca_whitening_batch(self, pca_features: np.ndarray) -> np.ndarray:
+        """Vectorized whitening for batched PCA features.
+
+        Args:
+            pca_features: 2-D array of shape ``(n, pca_components)``.
+
+        Returns:
+            Whitened array of the same shape when whitening is enabled, else the
+            input array.
+        """
+        if not self.whiten_pca or self._pca_whitening_scale is None:
+            return pca_features
+        if pca_features.ndim != 2:
+            raise ValueError(f"Expected 2-D array, got shape {pca_features.shape}")
+        if pca_features.shape[1] != self._pca_whitening_scale.shape[0]:
+            raise ValueError(
+                "PCA whitening scale shape mismatch: "
+                f"features={pca_features.shape}, scale={self._pca_whitening_scale.shape}"
+            )
+        return pca_features * self._pca_whitening_scale.reshape(1, -1)
+
+    @staticmethod
+    def _compute_whitening_scale_from_pca(pca) -> np.ndarray | None:
+        """Return per-component whitening scales from a fitted sklearn PCA.
+
+        Args:
+            pca: Fitted ``sklearn.decomposition.PCA`` instance.
+
+        Returns:
+            1-D array of ``1/sqrt(explained_variance_)`` or ``None`` if the PCA
+            object lacks ``explained_variance_``.
+        """
+        ev = getattr(pca, "explained_variance_", None)
+        if ev is None:
+            return None
+        ev = np.asarray(ev, dtype=np.float64)
+        return 1.0 / np.sqrt(np.maximum(ev, 1e-12))
+
+    def _pca_has_builtin_whitening(self) -> bool:
+        """Whether the loaded PCA artifact already whitens outputs."""
+        if self._pca is _PCA_NOT_LOADED:
+            _ = self.pca
+        if self._pca is None:
+            return False
+        return bool(getattr(self._pca, "whiten", False))
+
+    def get_pca_whitening_scales(self) -> np.ndarray:
+        """Return per-dimension feature scaling implied by PCA whitening.
+
+        This is useful for transforming warmup priors across feature conventions.
+
+        Returns:
+            1-D array of shape ``(dimension,)``.  The last element (bias term) is
+            always 1.0.  When PCA is active and whitening is enabled, the first
+            ``dimension-1`` elements are ``1/sqrt(explained_variance)``; otherwise
+            they are 1.0.
+        """
+        dim = int(self.dimension)
+        scales = np.ones(dim, dtype=np.float64)
+        if self.using_pca:
+            # Whitening can be applied either:
+            # - internally by the PCA artifact (pca.whiten=True), or
+            # - externally by FeatureService (whiten_pca=True).
+            #
+            # For compatibility transforms (warmup priors), we expose the
+            # effective diagonal scaling from unwhitened PCA coordinates to the
+            # current feature space.
+            wants_whitened_outputs = self.whiten_pca or self._pca_has_builtin_whitening()
+            if wants_whitened_outputs:
+                pca_obj = self.pca
+                if pca_obj is not None:
+                    scale = self._compute_whitening_scale_from_pca(pca_obj)
+                    if scale is not None:
+                        scales[:-1] = scale
+        return scales
     
     @classmethod
     def for_precomputed(cls, dimension: int) -> "FeatureService":
@@ -463,8 +568,9 @@ class FeatureService:
         emb_full = self.encode_prompt(prompt)
         
         # 2. PCA Compression
-        if self.pca:
+        if self.pca is not None:
             emb_reduced = self.pca.transform(emb_full.reshape(1, -1)).flatten()
+            emb_reduced = self._apply_pca_whitening(emb_reduced)
         else:
             # Fallback: use raw embeddings (no PCA)
             emb_reduced = emb_full
@@ -516,6 +622,7 @@ class FeatureService:
         # PCA transform
         if self.pca is not None:
             embeddings = self.pca.transform(embeddings)
+            embeddings = self._apply_pca_whitening_batch(embeddings)
             
             # Validate and handle numerical issues
             if np.any(np.isnan(embeddings)):
@@ -544,6 +651,7 @@ class FeatureService:
         # No PCA path → intentionally skip PCA (custom encoder w/o PCA, etc.)
         if self.pca_path is None:
             self._pca = None
+            self._pca_whitening_scale = None
             return
 
         pca_loaded = False
@@ -569,6 +677,12 @@ class FeatureService:
                     
                     if actual_dim == expected_dim:
                         self._pca = candidate_pca
+                        # Only apply external whitening when the PCA artifact
+                        # does NOT already whiten its transform().
+                        if self.whiten_pca and not bool(getattr(candidate_pca, "whiten", False)):
+                            self._pca_whitening_scale = self._compute_whitening_scale_from_pca(candidate_pca)
+                        else:
+                            self._pca_whitening_scale = None
                         # Auto-detect components from loaded PCA if not specified
                         if self.pca_components is None:
                             self.pca_components = candidate_pca.n_components_
@@ -625,7 +739,7 @@ class FeatureService:
             from sklearn.decomposition import PCA
             # If pca_components not specified, default to 32 for JIT training
             n_components = self.pca_components if self.pca_components is not None else 32
-            new_pca = PCA(n_components=n_components)
+            new_pca = PCA(n_components=n_components, whiten=bool(self.whiten_pca))
             new_pca.fit(embeddings)
             
             # Update pca_components from fitted PCA
@@ -643,8 +757,8 @@ class FeatureService:
                 # CRITICAL: Proceeding with low-variance PCA means >40% of semantic
                 # signal is lost, effectively routing on noise rather than meaning.
                 # 
-                # Better to fallback to raw 384D embeddings:
-                # - Slower: O(384²) updates vs O(24²)  
+                # Better to fallback to raw (uncompressed) embeddings:
+                # - Slower: O(raw_dim²) updates vs O(pca_dim²)
                 # - Correct: Full semantic routing vs noise-based routing
                 # 
                 # This prevents silent performance degradation. Users will see critical
@@ -659,12 +773,17 @@ class FeatureService:
                 )
                 # Disable PCA - use raw embeddings
                 self._pca = None
+                self._pca_whitening_scale = None
                 # Update dimension to raw embedding size + bias term
-                self._dimension = raw_dim + 1  # 384 + 1 = 385
+                self._dimension = raw_dim + 1  # raw embedding dims + bias
                 logger.info(f"   ✅ Using raw {raw_dim}D embeddings (+ 1 bias) = {self._dimension}D features")
                 return  # Skip setting self._pca, will use raw in extract_features()
             
             self._pca = new_pca
+            if self.whiten_pca and not bool(getattr(new_pca, "whiten", False)):
+                self._pca_whitening_scale = self._compute_whitening_scale_from_pca(new_pca)
+            else:
+                self._pca_whitening_scale = None
             logger.info(f"  ✓ JIT PCA ready ({embeddings.shape[1]}→{self.pca_components})")
             
             # Phase 3: Persist for next startup (cache-aside pattern)

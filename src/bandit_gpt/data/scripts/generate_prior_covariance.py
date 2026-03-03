@@ -8,6 +8,7 @@ import json
 import numpy as np
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
+from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER
 
 def main():
     base_dir = Path(__file__).parent
@@ -45,7 +46,7 @@ def main():
     
     # Embed
     print("Embedding prompts...")
-    encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     embeddings = encoder.encode(
         prior_prompts, 
         normalize_embeddings=True, 

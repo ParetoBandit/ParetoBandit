@@ -11,7 +11,7 @@
     of those dev-optimal hyperparameters.  No holdout or training data enters
     the hyperparameter selection step.
     Shaded regions show the oracle upper-bound envelope (holdout-selected; not deployable).
-    BanditGPT (hybrid router: Corralling + family sharing, $\alpha{=}0.5$) is swept over
+    BanditGPT (Corralling router with warmup priors, $\alpha{=}0.25$) is swept over
     $\lambda \in [0,\,5]$ (24 values); RouteLLM-MF (pre-trained on ${\sim}100$k preference pairs)
     is swept over $\tau \in [0,\,1]$ (101 thresholds).
     Both methods are trained/tuned on the same dev-train split (${\sim}80\%$ of

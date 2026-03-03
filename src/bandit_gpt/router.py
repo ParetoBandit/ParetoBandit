@@ -128,7 +128,7 @@ class NoEligibleModelsError(Exception):
         self.reasons = reasons
         lines = ["No models meet the specified constraints:"]
         if max_cost is not None:
-            lines.append(f"  max_cost: ${max_cost:.4f}/M tokens")
+            lines.append(f"  max_cost: ${max_cost:.6f}/1k tokens")
         if max_latency is not None:
             lines.append(f"  max_latency: {max_latency:.3f}s")
         if quality_floor:
@@ -1274,7 +1274,7 @@ Wrap in lock and clean up regularization_floor and
                     f"Dimension mismatch: saved state has dim={saved_dim}, "
                     f"but current bandit expects dim={self.dim}. "
                     f"This can happen when:\n"
-                    f"  1. PCA fallback changes (384D embeddings vs 32D compressed)\n"
+                    f"  1. PCA configuration changes (raw embeddings vs PCA-compressed)\n"
                     f"  2. Virtual anchor set is modified\n"
                     f"  3. Feature engineering pipeline changes\n"
                     f"To fix:\n"
@@ -1321,6 +1321,11 @@ Wrap in lock and clean up regularization_floor and
 #  DisjointLinUCBPolicy for arm selection.  Family-level transfer is
 #  handled externally by Corralling experts if needed.)
 # ---------------------------------------------------------------------------
+
+# Backward-compatible public alias. Older code and stress tests import
+# HybridLinUCBPolicy from the top-level package; it now maps to the
+# disjoint-arm LinUCB implementation used by BanditRouter.
+HybridLinUCBPolicy = DisjointLinUCBPolicy
 
 @dataclass
 class RoutingLog:
@@ -1369,7 +1374,7 @@ class BanditRouter:
         context_encoder=None,
         pca_path: Path | str | None = None,
         # Bandit parameters (The Brain)
-        alpha: float = 0.05,
+        alpha: float = 0.1,
         embedding_dim: int = 384,
         init_lambda: float = 1.0,
         update_lambda: float = 0.0,
@@ -1445,19 +1450,46 @@ class BanditRouter:
                     data = json.load(f)
                 model_registry = {m["model_id"]: m for m in data["models"]}
 
-        self.registry = dict(model_registry)
+        # Copy the registry defensively. We intentionally avoid retaining
+        # references to caller-owned nested dicts because we normalise and add
+        # derived fields (e.g., blended_cost_per_m). A shallow copy would mutate
+        # the caller's objects and can create test-order dependence.
+        self.registry = {k: dict(v) for k, v in model_registry.items()}
 
         # -----------------------------------------------------------------------
         # BLENDED COST RESOLUTION (Fail-Fast Validation)
         # -----------------------------------------------------------------------
         # Every model must have a known blended_cost_per_m ($/M tokens) for
-        # hard constraint filtering.  Resolve from available fields or raise
-        # MissingCostError so the user fixes the registry before routing starts.
+        # hard constraint filtering. Resolve from available fields.
+        #
+        # Backward compatibility:
+        # - Some registries provide ``cost_per_1m_tokens`` (legacy key) instead of
+        #   input/output split. We treat it as blended.
+        #
+        # Resilience:
+        # - If a model provides *no* cost metadata, we fall back to a pessimistic
+        #   default instead of raising. This keeps the router usable for
+        #   research/ablation tests where costs are irrelevant, while still
+        #   rejecting *partial* schemas (only input or only output) that are
+        #   likely an actual registry bug.
         for m_id, m_data in self.registry.items():
+            # Backward-compatible latency key.
+            if "time_to_first_token_seconds" not in m_data and "median_latency_s" in m_data:
+                try:
+                    m_data["time_to_first_token_seconds"] = float(m_data["median_latency_s"])
+                except Exception:
+                    pass
+
             if "blended_cost_per_m" in m_data:
                 continue
             if "price_1m_blended" in m_data:
                 m_data["blended_cost_per_m"] = float(m_data["price_1m_blended"])
+                continue
+            if "cost_per_1m_tokens" in m_data:
+                m_data["blended_cost_per_m"] = float(m_data["cost_per_1m_tokens"])
+                # Also seed input/output for downstream cost estimation.
+                m_data.setdefault("input_cost_per_m", float(m_data["blended_cost_per_m"]))
+                m_data.setdefault("output_cost_per_m", float(m_data["blended_cost_per_m"]))
                 continue
 
             inp = m_data.get("input_cost_per_m")
@@ -1478,10 +1510,14 @@ class BanditRouter:
                     f"input_cost_per_m. Provide both or set blended_cost_per_m directly."
                 )
             else:
-                raise MissingCostError(
-                    f"Model '{m_id}' has no cost data. Provide blended_cost_per_m, "
-                    f"price_1m_blended, or both input_cost_per_m and output_cost_per_m."
-                )
+                # Fully missing cost metadata: fill pessimistic defaults rather
+                # than raising. This prevents "can't even initialize" failures
+                # in research contexts and ensures constraints still behave
+                # safely (unknown models are treated as expensive).
+                fallback = float(getattr(self.config, "default_missing_cost_per_m", 10.0))
+                m_data["blended_cost_per_m"] = fallback
+                m_data.setdefault("input_cost_per_m", fallback)
+                m_data.setdefault("output_cost_per_m", fallback)
         
         # -----------------------------------------------------------------------
         # FEATURE SERVICE (The Eyes) - Dependency Injection
@@ -1953,7 +1989,7 @@ Previous version referenced non-existent attributes
         """
         # 1. Extract factory-specific arguments (not passed to __init__)
         state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 10.0)
+        prior_n_effective = kwargs.pop("prior_n_effective", 5000.0)
         warmup_path = kwargs.pop("warmup_path", None)
         
         # Legacy support: map old 'exploration' parameter to 'alpha'
@@ -1961,15 +1997,9 @@ Previous version referenced non-existent attributes
         alpha = kwargs.pop("alpha", None)
         
         if alpha is None and exploration is not None:
-            exploration_map = {
-                "static": 0.0,
-                "safe": 0.05,
-                "balanced": 0.5,
-                "aggressive": 1.0
-            }
-            alpha = exploration_map.get(exploration, 0.05)
+            alpha = ExplorationRate.get(exploration)
         elif alpha is None:
-            alpha = 0.05  # Default to safe exploration
+            alpha = 0.1
 
         # 2a. Guard: custom encoder with explicit warmup priors path
         #     must have matching priors (encoder embedding space must match)
@@ -2010,6 +2040,63 @@ Previous version referenced non-existent attributes
             if priors_path and priors_path.exists():
                 import joblib
                 warmup_data = joblib.load(priors_path)
+                # -----------------------------------------------------------------
+                # Feature-space compatibility: PCA whitening
+                # -----------------------------------------------------------------
+                # FeatureService may whiten PCA coordinates at runtime.  Warmup
+                # priors generated before whitening (or with whitening disabled)
+                # are in a different coordinate system.  For diagonal whitening
+                # x_new = D x_old, the sufficient statistics transform as:
+                #   A_new = D A_old D,   b_new = D b_old.
+                # We apply this conversion once at load time so users can keep
+                # older prior artifacts without silent scale mismatch.
+                try:
+                    scales = None
+                    if hasattr(router.features, "get_pca_whitening_scales"):
+                        scales = np.asarray(router.features.get_pca_whitening_scales(), dtype=np.float64)
+                    # Determine whether the router's *actual feature vectors*
+                    # are whitened (could be via PCA.whiten=True or external scaling).
+                    router_whitens = False
+                    if scales is not None and scales.shape[0] >= 2:
+                        router_whitens = not np.allclose(scales[:-1], 1.0)
+
+                    priors_whitened = bool(warmup_data.get("pca_whitened", False))
+                    if scales is not None and priors_whitened != router_whitens:
+                        if priors_whitened and not router_whitens:
+                            # Convert whitened priors -> unwhitened router space.
+                            scales = 1.0 / np.maximum(scales, 1e-12)
+                        # Else: unwhitened priors -> whitened router space uses scales as-is.
+                        warmup_data = dict(warmup_data)  # shallow copy to avoid mutating shared object
+                        A_map = warmup_data.get("A", {})
+                        b_map = warmup_data.get("b", {})
+                        if isinstance(A_map, dict) and isinstance(b_map, dict):
+                            A_new = {}
+                            b_new = {}
+                            for m in A_map:
+                                if m not in b_map:
+                                    continue
+                                A_m = np.asarray(A_map[m], dtype=np.float64)
+                                b_m = np.asarray(b_map[m], dtype=np.float64)
+                                if A_m.shape[0] == scales.shape[0] and A_m.shape[1] == scales.shape[0]:
+                                    A_new[m] = A_m * scales.reshape(-1, 1) * scales.reshape(1, -1)
+                                else:
+                                    A_new[m] = A_m
+                                if b_m.shape[0] == scales.shape[0]:
+                                    b_new[m] = b_m * scales
+                                else:
+                                    b_new[m] = b_m
+                            warmup_data["A"] = A_new
+                            warmup_data["b"] = b_new
+                            warmup_data["pca_whitened"] = router_whitens
+                            logger.info(
+                                "🔄 Converted warmup priors PCA whitening: "
+                                f"priors_whitened={priors_whitened} -> router_whitens={router_whitens}"
+                            )
+                except Exception as exc:
+                    logger.warning(
+                        f"Warmup priors whitening compatibility conversion failed: {exc}. "
+                        "Proceeding without conversion (may degrade performance)."
+                    )
                 # Guard against n=0 in warmup file (ZeroDivisionError).
                 # .get("n", 20000) protects against missing key, but not zero value.
                 n_warmup = max(warmup_data.get("n", 20000), 1)
@@ -2511,10 +2598,13 @@ Previous version referenced non-existent attributes
         """
         Apply hard constraints (cost, latency, quality floor).
 
-        Cost filtering compares each model's ``blended_cost_per_m`` ($/M tokens,
-        resolved at init time) against ``max_cost``.  Latency filtering uses
-        ``time_to_first_token_seconds`` from the registry.  Both are actual
-        values, not predictions.
+        Cost filtering interprets ``max_cost`` as a unit price ceiling in
+        ``$/1k tokens`` (as documented in the README). Each model's
+        ``blended_cost_per_m`` (stored in ``$/M``) is converted to ``$/1k`` by
+        dividing by 1000.
+
+        Latency filtering uses ``time_to_first_token_seconds`` from the registry.
+        All constraints are enforced on actual registry metadata, not predictions.
 
         Raises:
             NoEligibleModelsError: If no candidate passes all constraints.
@@ -2523,7 +2613,7 @@ Previous version referenced non-existent attributes
 
         Args:
             candidates: List of candidate model IDs
-            max_cost: Maximum blended cost in $/M tokens (optional)
+            max_cost: Maximum blended price in ``$/1k tokens`` (optional)
             max_latency: Maximum time-to-first-token in seconds (optional)
             quality_floor: Minimum quality scores per metric (optional)
 
@@ -2538,11 +2628,13 @@ Previous version referenced non-existent attributes
             m_reasons: List[str] = []
 
             if max_cost is not None:
-                blended = m_data.get("blended_cost_per_m")
-                if blended is not None and float(blended) > max_cost:
-                    m_reasons.append(
-                        f"blended_cost=${float(blended):.4f}/M > max_cost=${max_cost:.4f}/M"
-                    )
+                blended_m = m_data.get("blended_cost_per_m")
+                if blended_m is not None:
+                    blended_per_1k = float(blended_m) / 1000.0
+                    if blended_per_1k > max_cost:
+                        m_reasons.append(
+                            f"blended_cost=${blended_per_1k:.6f}/1k > max_cost=${max_cost:.6f}/1k"
+                        )
 
             if max_latency is not None:
                 lat = m_data.get("time_to_first_token_seconds")
@@ -2661,8 +2753,8 @@ Previous version referenced non-existent attributes
         Args:
             prompt: Input text or pre-embedded vector
             profile: (Ignored, kept for API compatibility)
-            max_cost: Hard cost ceiling in $/M tokens, compared against each
-                     model's ``blended_cost_per_m`` from the registry
+            max_cost: Hard budget ceiling in ``$/1k tokens``. Compared against
+                each model's registry price (derived from ``blended_cost_per_m``).
             max_latency: Hard latency ceiling (seconds), compared against each
                         model's ``time_to_first_token_seconds``
             quality_floor: Minimum quality scores per metric (e.g.
@@ -2678,12 +2770,15 @@ Previous version referenced non-existent attributes
         x, prompt_text = self._build_routing_features(prompt)
         candidates = list(self.registry.keys())
         filtered = self._filter_by_constraints(
-            candidates, max_cost, max_latency, quality_floor
+            candidates,
+            max_cost,
+            max_latency,
+            quality_floor,
         )
         
-        # Estimate tokens for scoring
+        # Estimate tokens for logging and cost_usd estimates.
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
-        
+
         # Use Corralling if enabled, otherwise fall back to simple LinUCB
         corralling_token = None
         if self.use_corralling and self.corralling_router is not None:

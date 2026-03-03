@@ -310,11 +310,11 @@ These let you independently tune "how confident are we in feature correlations?"
 
 ## PCA Projection
 
-BanditGPT compresses prompt embeddings from 384 dimensions down to 32 via PCA before feeding them to the bandit. A pre-trained PCA artifact ships inside the wheel so the router works immediately after `pip install` — no extra downloads, no JIT retraining on first request.
+BanditGPT compresses prompt embeddings from 1024 dimensions down to 32 via PCA before feeding them to the bandit. A pre-trained PCA artifact ships inside the wheel so the router works immediately after `pip install` — no extra downloads, no JIT retraining on first request.
 
 ### What ships and how it was trained
 
-The bundled `pca_32.joblib` (51 KB) was trained on **80,000 RouteLLM battle prompts** using the default sentence encoder (`sentence-transformers/all-MiniLM-L6-v2`). This dataset is independent of BanditGPT's dev/holdout evaluation splits, so there is no data contamination. The 32 components capture ~35% of the embedding variance, which is sufficient for the routing signal (see the paper's PCA ablation in `experiments/03_figure/run_pca_neff_ablation.py`).
+The bundled `pca_32.joblib` (~133 KB) was trained on **80,000 RouteLLM battle prompts** using the default sentence encoder (`BAAI/bge-m3`). This dataset is independent of BanditGPT's dev/holdout evaluation splits, so there is no data contamination. The 32 components capture **32.7%** of the embedding variance, which is sufficient for the routing signal (see the paper's PCA ablation in `experiments/03_figure/run_pca_neff_ablation.py`).
 
 ### When the default PCA is enough
 
@@ -338,7 +338,7 @@ prompts = [...]
 
 pca = train_pca(
     prompts,
-    encoder_model="sentence-transformers/all-MiniLM-L6-v2",  # or your custom encoder
+    encoder_model="BAAI/bge-m3",  # or your custom encoder
     n_components=32,
     output_path="my_pca.joblib",
 )
@@ -351,7 +351,7 @@ Then pass the custom artifact when creating the router:
 from bandit_gpt import BanditRouter, FeatureService
 
 fs = FeatureService(
-    encoder_model="sentence-transformers/all-MiniLM-L6-v2",
+    encoder_model="BAAI/bge-m3",
     pca_path="my_pca.joblib",
 )
 

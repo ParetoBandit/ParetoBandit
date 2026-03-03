@@ -30,6 +30,12 @@ holdout rewards. The area under each Pareto frontier (Pareto AUC) over
 the shared cost range provides the primary aggregate metric, independent
 of internal normalisation.
 
+**Shared cost table (fairness).** To avoid confounding router quality with
+inconsistent pricing assumptions, we charge both BanditGPT and RouteLLM using
+the same per-model token prices. In the K=2 comparison we adopt RouteLLM's
+published assumptions (Appendix D): Mixtral at $0.24 per 1M tokens with equal
+input/output pricing, and GPT-4-Turbo at $10/$30 per 1M input/output tokens.
+
 ### 4. Symmetric Data Access
 
 Both routers have access to the same dev set. RouteLLM tunes its threshold
@@ -147,8 +153,8 @@ static router?*
 ### Setup
 
 The K=2 portfolio: Mixtral-8x7B (cheap) and GPT-4-Turbo (expensive) — the
-same pair RouteLLM's MF router was pre-trained on. BanditGPT (hybrid router:
-Corralling + family sharing, alpha=0.5) trains on the dev set (n=1,121);
+same pair RouteLLM's MF router was pre-trained on. BanditGPT (Corralling
+router with warmup priors, alpha=0.25) trains on the dev set (n=1,121);
 RouteLLM tunes tau via a 101-point sweep on the same dev set (symmetric data
 access). Both methods are frozen for holdout evaluation (n=750). BanditGPT
 is swept over 24 lambda values; RouteLLM over 101 thresholds.
@@ -162,7 +168,13 @@ upper cost range. Dev-selected Pareto AUC: BanditGPT 0.661 vs RouteLLM
 isocost comparison at the highest matched budget (~$0.008/req):
 Holm-corrected ensemble p = 0.018, reject at alpha = 0.05. At lower budgets
 RouteLLM holds a small advantage that is not significant, consistent with
-RouteLLM's pre-training advantage in the low-cost regime.
+RouteLLM's pre-training advantage in the low-cost regime. An interpolated
+isocost analysis — which reads reward off each method's Pareto hull at
+exact target costs, eliminating sensitivity to sweep density (101 RouteLLM
+thresholds vs 24 BanditGPT lambda values) — confirms the same pattern:
+RouteLLM's low-cost advantage remains non-significant under
+Holm-Bonferroni correction at all tested budget levels including the 10th
+percentile of the shared cost range.
 
 **RouteLLM's quality degradation at high cost.** A notable feature of
 RouteLLM's frontier is its rapid quality degradation beyond the peak at
@@ -260,8 +272,8 @@ routing.
 
 ### Why This Matters
 
-The K=10 results show that BanditGPT's hybrid architecture (Corralling +
-warmup priors + family sharing) achieves a large observed dev-selected
+The K=10 results show that BanditGPT's Corralling architecture (warmup
+priors + online adaptation) achieves a large observed dev-selected
 Pareto AUC advantage over naive online learning under greedy exploitation
 evaluation. The paired bootstrap 95% CI spans zero (p = 0.31), reflecting
 the high variance inherent in jointly resampling costs and rewards over
@@ -297,7 +309,7 @@ ablation answers both questions.
 The K=2 learning curve is repeated at four exploration coefficients:
 alpha in {0.5, 1.0, 2.0, 4.0}. In the Corralling router, the warmup
 expert uses constant alpha (for distribution-shift robustness) while the
-tabula-rasa expert decays from alpha/2 to 0.01 (for convergence). All
+tabula-rasa expert decays from 2*alpha to 0.01 (for convergence). All
 other hyperparameters are held fixed. Each curve is averaged over 20 seeds
 with lambda=0 (quality-only).
 

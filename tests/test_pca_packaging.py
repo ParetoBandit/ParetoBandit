@@ -77,11 +77,11 @@ class TestPCAArtifact:
         )
 
     def test_artifact_input_dimension_matches_default_encoder(self) -> None:
-        """PCA input dim must equal the default SentenceTransformer output dim (384)."""
+        """PCA input dim must equal the default SentenceTransformer output dim."""
         pca = joblib.load(DEFAULT_PCA_PATH)
-        assert pca.n_features_in_ == 384, (
+        assert pca.n_features_in_ == 1024, (
             f"PCA trained on {pca.n_features_in_}D embeddings, "
-            "expected 384 (all-MiniLM-L6-v2)"
+            "expected 1024 (BAAI/bge-m3)"
         )
 
     def test_artifact_explained_variance_is_reasonable(self) -> None:
@@ -93,7 +93,7 @@ class TestPCAArtifact:
         )
 
     def test_artifact_can_transform_random_vector(self) -> None:
-        """Smoke test: transform a random 384-d vector without error."""
+        """Smoke test: transform a random encoder-dim vector without error."""
         pca = joblib.load(DEFAULT_PCA_PATH)
         rng = np.random.default_rng(42)
         x = rng.standard_normal((1, pca.n_features_in_))

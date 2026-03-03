@@ -54,8 +54,9 @@ class TestCascadingWarmup:
         
         # Registry with two models
         registry = {
-            "model_a": {"quality_score": 0.9},
-            "model_b": {"quality_score": 0.5}  # Missing from joblib
+            # get_heuristic_prior expects "initial_quality" (not legacy "quality_score")
+            "model_a": {"initial_quality": 0.9},
+            "model_b": {"initial_quality": 0.5}  # Missing from joblib
         }
         
         # Create router with explicit priors file (mock_exists makes it "exist")
@@ -84,8 +85,12 @@ class TestCascadingWarmup:
         # So model_b A should be 2.0*I
         assert np.allclose(router.bandit.A["model_b"][0, 0], 2.0)
         
-        # b[-1] = quality * prior_n_effective = 0.5 * 20.0 = 10.0
-        assert router.bandit.b["model_b"][-1] == 10.0
+        # b[-1] initially encodes quality * prior_n_effective = 0.5 * 20.0 = 10.0.
+        # However BanditRouter.create() runs calibrate_priors(), which clamps
+        # extreme bias-only predictions to target_max_pred=0.9 via theta
+        # reconstruction. With A = 2I after post-warmup regularization,
+        # clamped theta_bias=0.9 implies b_bias = 2 * 0.9 = 1.8.
+        assert router.bandit.b["model_b"][-1] == pytest.approx(1.8)
         assert np.all(router.bandit.b["model_b"][:-1] == 0)
 
 if __name__ == "__main__":

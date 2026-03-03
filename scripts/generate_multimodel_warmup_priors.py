@@ -12,9 +12,10 @@ The holdout set (750 prompts) is never touched.
 
 Usage:
     python scripts/generate_multimodel_warmup_priors.py \\
-        --pca src/artifacts/pca_32.joblib \\
+        --pca src/bandit_gpt/data/artifacts/pca_32.joblib \\
         --prior-ratio 0.40 \\
-        --plasticity 0.1
+        --plasticity 0.1 \\
+        --device cpu
 
 Output:
     src/artifacts/priors_warmup_43model.joblib   — warmup priors for 43 models
@@ -145,6 +146,9 @@ def build_multimodel_priors(
         A[m] *= plasticity
         b[m] *= plasticity
 
+    pca_whitens = bool(getattr(pca, "whiten", False))
+    ev = getattr(pca, "explained_variance_", None)
+
     state = {
         "A": A,
         "b": b,
@@ -154,6 +158,10 @@ def build_multimodel_priors(
         "plasticity": plasticity,
         "context_dim": context_dim,
         "pca_components": pca.n_components_,
+        "pca_whitened": pca_whitens,
+        "pca_explained_variance": (
+            np.asarray(ev, dtype=np.float64).tolist() if ev is not None else []
+        ),
         "reward_source": "43model_evaluation_data",
     }
     return state
@@ -248,6 +256,12 @@ def main():
         help="Random seed for split and encoder (default: 42)",
     )
     parser.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        help="Torch device for SentenceTransformer inference (default: cpu)",
+    )
+    parser.add_argument(
         "--output-priors", type=str,
         default=str(ARTIFACTS_DIR / "priors_warmup_43model.joblib"),
         help="Output path for warmup priors",
@@ -295,8 +309,8 @@ def main():
     logger.info(f"  PCA: {pca.n_components_} components")
 
     from sentence_transformers import SentenceTransformer
-    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    logger.info(f"  Encoder: {DEFAULT_SENTENCE_TRANSFORMER}")
+    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER, device=args.device)
+    logger.info(f"  Encoder: {DEFAULT_SENTENCE_TRANSFORMER} (device={args.device})")
 
     # ---- Build priors -----------------------------------------------------
     logger.info("\n5. Building warmup priors ...")

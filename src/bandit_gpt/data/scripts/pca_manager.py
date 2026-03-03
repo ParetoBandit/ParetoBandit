@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 from typing import List, Tuple, Optional
 from sentence_transformers import SentenceTransformer
+from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER
 from sklearn.decomposition import PCA
 
 
@@ -91,7 +92,11 @@ class FeatureExtractor:
 class PCAManager:
     """Manages PCA dimensionality reduction for BanditGPT"""
     
-    def __init__(self, n_components: int = 32, encoder_model: str = "sentence-transformers/all-MiniLM-L6-v2"):
+    def __init__(
+        self,
+        n_components: int = 32,
+        encoder_model: str = DEFAULT_SENTENCE_TRANSFORMER,
+    ):
         """
         Args:
             n_components: Target PCA dimensions (default 32)

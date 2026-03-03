@@ -145,8 +145,8 @@ static router?}
 \paragraph{Setup.}
 The $K{=}2$ portfolio comprises \texttt{Mixtral-8x7B} (cheap) and
 \texttt{GPT-4-Turbo} (expensive)---the same pair RouteLLM's MF router
-was pre-trained on.  BanditGPT (hybrid router: Corralling + family
-sharing, $\alpha{=}0.5$) trains on the dev-train split (${\sim}80\%$ of
+was pre-trained on.  BanditGPT (Corralling router with warmup priors,
+$\alpha{=}0.25$) trains on the dev-train split (${\sim}80\%$ of
 $n{=}1{,}121$); RouteLLM tunes its threshold~$\tau$ via a 101-point sweep on the same
 dev set (symmetric data access).  Both methods are frozen for holdout
 evaluation ($n{=}750$).  BanditGPT is swept over 24 $\lambda$ values;
@@ -162,6 +162,12 @@ matched budget (${\sim}\$0.008$/req): Holm-corrected ensemble
 $p{=}0.018$, reject at $\alpha{=}0.05$.  At lower budgets RouteLLM
 holds a small advantage that is not significant, consistent with
 RouteLLM's pre-training advantage in the low-cost regime.
+An interpolated isocost analysis---which reads reward off each method's
+Pareto hull at exact target costs, eliminating sensitivity to sweep
+density (101 RouteLLM thresholds vs.\ 24 BanditGPT $\lambda$
+values)---confirms the same pattern: RouteLLM's low-cost advantage
+remains non-significant under Holm-Bonferroni correction at all tested
+budget levels including the 10th percentile of the shared cost range.
 
 A notable feature of RouteLLM's frontier is its rapid quality degradation
 at high cost.  Beyond the peak at $\tau{=}0.12$ (reward $0.788$,
@@ -240,9 +246,9 @@ $0.910$)---while using $68\!\times$ lower cost.
 At the highest budgets ($\lambda{=}0$) the two frontiers converge:
 BanditGPT $0.880$ vs.\ tabula rasa $0.888$.  This is expected: with a
 large budget and no cost pressure, the optimal policy is pure
-exploitation, and tabula rasa's decaying $\alpha$ ($0.25 \to 0.01$)
+exploitation, and tabula rasa's decaying $\alpha$ ($0.50 \to 0.01$)
 converges to near-greedy selection.  BanditGPT's warmup expert
-maintains constant exploration ($\alpha{=}0.5$) for distribution-shift
+maintains constant exploration ($\alpha{=}0.25$) for distribution-shift
 robustness, which imposes a small quality tax in stationary,
 budget-unconstrained regimes.
 
@@ -259,8 +265,8 @@ are essential for cost-efficient routing: they enable prompt-specific
 model selection that a non-contextual policy cannot achieve.
 
 \paragraph{Why this matters.}
-The $K{=}10$ results show that BanditGPT's hybrid architecture
-(Corralling + warmup priors + family sharing) achieves a large observed
+The $K{=}10$ results show that BanditGPT's Corralling architecture
+(warmup priors + online adaptation) achieves a large observed
 dev-selected Pareto AUC advantage over na\"{i}ve online learning under
 greedy exploitation evaluation.  The paired bootstrap 95\% CI spans
 zero ($p{=}0.31$), reflecting the high variance inherent in jointly
@@ -297,7 +303,7 @@ the exploration schedule?}  This ablation answers both questions.
 The $K{=}2$ learning curve is repeated at four exploration coefficients:
 $\alpha \in \{0.5, 1.0, 2.0, 4.0\}$.  In the Corralling router, the
 warmup expert uses constant $\alpha$ (for distribution-shift robustness)
-while the tabula-rasa expert decays from $\alpha/2$ to $0.01$ (for
+while the tabula-rasa expert decays from $2\alpha$ to $0.01$ (for
 convergence).  All other hyperparameters are held fixed.  Each curve is
 averaged over 20 seeds with $\lambda{=}0$ (quality-only).
 

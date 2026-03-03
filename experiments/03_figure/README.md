@@ -80,6 +80,11 @@ python run_prequential.py
 - **GPT-4-Turbo**: expensive tier
 - RouteLLM's MF router was pre-trained on supervised preference data including these models (same model pair, temporal distribution shift)
 
+### Cost Calibration (for fair router comparison)
+- **External price table is shared across routers**: when comparing routing policies, each underlying model call must be charged the same cost regardless of router (otherwise the comparison is confounded).
+- **Mixtral pricing**: we set Mixtral's input/output prices to **$0.24 / 1M tokens** (same for input and output), matching the assumption used in RouteLLM's cost analysis (Appendix D, *Cost Calculation*).
+- **GPT-4 pricing**: we use **$10 / 1M input** and **$30 / 1M output**, also matching RouteLLM's appendix (for `gpt-4-1106` / GPT-4-Turbo pricing).
+
 ### K=10 Model Pool (Pareto Frontier)
 - Llama-3.1-8B, Mixtral-8x7B, Gemma-3-27B, Claude-Haiku-4.5, DeepSeek-V3
 - Gemini-2.5-Flash, Llama-4-Maverick, Claude-Sonnet-4, GPT-4-Turbo, GPT-4.1
@@ -87,11 +92,11 @@ python run_prequential.py
 ### banditGPT Configuration
 - **Router**: `BanditRouter.create()` via `create_experiment_router()`
 - **Architecture**: Corralling with 2 experts (Warmup + Tabula Rasa)
-- **Policy**: Hybrid LinUCB (family-based parameter sharing)
+- **Policy**: Disjoint LinUCB (independent per-arm ridge regression)
 - **Warmup Priors**: K=2 from `priors_warmup.joblib`, K=10 from `priors_warmup_43model.joblib` (43-model file; only the K=10 models' priors are loaded)
-- **Alpha**: 0.5 (exploration coefficient; validated via ablation, see `run_alpha_ablation.py`)
+- **Alpha**: 0.25 (exploration coefficient; validated via ablation, see `run_alpha_ablation.py`)
 - **Corralling**: eta=0.1, gamma=0.05
-- **Prior n_effective**: 10.0
+- **Prior n_effective**: 1000.0
 - **Trials**: 20 seeds per configuration
 - **Frozen evaluation**: alpha=0 (pure exploitation) during holdout eval
 - **API**: `router.route()` / `router.process_feedback()`
@@ -113,7 +118,8 @@ python run_prequential.py
 
 ### Statistical Reporting
 - **Primary hypothesis test**: Paired bootstrap CI for the dev-selected Pareto AUC difference (1,000 resamples). The Pareto hull is built from (dev_val_cost, dev_val_reward) — no holdout data enters hyperparameter selection. Dev-optimal indices are fixed before bootstrapping; only holdout rewards are resampled (single-level bootstrap, conditioned on dev selection).
-- **Post-hoc point comparisons**: Per-seed paired t-tests (df = n_holdout - 1) at three budget levels, restricted to dev-optimal hyperparameters, with Holm-Bonferroni correction. Median per-seed p-value is descriptive (not a formal rejection threshold); formal rejection uses the Holm-corrected ensemble p-value.
+- **Post-hoc point comparisons**: Per-seed paired t-tests (df = n_holdout - 1) at four budget levels (10th, 25th, 50th, 75th percentile of shared cost range), restricted to dev-optimal hyperparameters, with Holm-Bonferroni correction. Median per-seed p-value is descriptive (not a formal rejection threshold); formal rejection uses the Holm-corrected ensemble p-value.
+- **Interpolated isocost**: Reads reward off each method's Pareto hull at exact target costs via linear interpolation, eliminating sensitivity to sweep density differences (101 RouteLLM thresholds vs 24 BanditGPT lambda values). Per-prompt paired t-tests use the nearest on-hull sweep point.
 - **Stability**: Across-seeds t-test (df = 19); measures algorithmic stability.
 - 95% confidence intervals via t-distribution
 

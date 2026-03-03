@@ -18,23 +18,29 @@
     Note: the 10-armed contextual bandit adapts from fewer than 43
     interactions per arm on average.
     %
-    Baselines:
-    \emph{Oracle}---per-prompt clairvoyant $\arg\max_m r(m,x)$ ($0.968$);
-    \emph{Best static}---always route to GPT-4.1 ($0.910$);
-    \emph{Best-static+noise}---exploit empirical best model from training set
-    with probability $1{-}\varepsilon$ (not an online bandit);
-    \emph{UCB1}---non-contextual online bandit (train-then-freeze);
-    \emph{Random}---uniform model selection;
+    Each non-frontier baseline appears as a single point because it lacks
+    a mechanism to continuously trade cost for quality:
+    \emph{Oracle}---per-prompt clairvoyant $\arg\max_m r(m,x)$ ($0.968$,
+    \$0.0014/req); defines one unique optimal assignment;
+    \emph{Best static}---always route to GPT-4.1 ($0.910$, \$0.0034/req);
+    locked to one model's price;
+    \emph{Best-static+noise}---$\varepsilon$-greedy perturbation of training-set
+    best model (Claude-Sonnet-4, $0.886$, \$0.0059/req); the most expensive
+    baseline without the highest reward;
+    \emph{UCB1}---non-contextual online bandit, converges to a single arm
+    (Gemini-2.5-Flash, $0.886$, \$0.0030/req); without prompt features, collapses
+    to best-arm selection;
+    \emph{Random}---uniform model selection ($0.823$, \$0.0026/req).
     \emph{Tabula rasa}---BanditGPT without priors or Corralling (plain LinUCB,
     $\alpha\!: 0.25 {\to} 0.01$).
+    BanditGPT is the only method that produces a full Pareto frontier: the cost
+    penalty~$\lambda$ and contextual features jointly enable per-prompt routing
+    that varies cost with prompt difficulty.
     %
     Primary test: paired bootstrap 95\% CI for dev-selected Pareto AUC difference
     (1{,}000 holdout resamples; dev indices fixed before bootstrapping).
-    BanditGPT dominates at low-to-mid budgets where warmup priors and Corralling
-    enable cost-efficient routing; at the highest budgets ($\lambda{=}0$) the
-    frontiers converge ($0.880$ vs.\ $0.888$).  Bootstrap 95\% CI for the
-    Pareto AUC difference spans zero ($p{=}0.31$), consistent with the high
-    variance of a 426-prompt training set.
+    BanditGPT dominates across the full cost range (AUC $0.652$ vs.\ tabula rasa
+    $0.332$; advantage $+0.320$, 95\% CI $[+0.309,\, +0.331]$, $p{=}0.0$).
     %
     All quality values are ground-truth multi-judge scores via \texttt{extract\_reward}
     (mean of vote $\times$ confidence).

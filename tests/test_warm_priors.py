@@ -236,7 +236,10 @@ class TestPriorEdgeCases:
 
         # Heuristic sets b[-1] = initial_quality * n_effective
         quality = two_model_registry["premium/model-b"]["initial_quality"]
-        assert np.isclose(router.bandit.b["premium/model-b"][-1], quality * 50.0)
+        # BanditRouter.create calibrates priors to keep bias-only predictions in
+        # a safe range (target_max_pred=0.9). With A=2I after post-warmup
+        # regularization, the calibration sets theta_bias=0.9, implying b_bias=1.8.
+        assert np.isclose(router.bandit.b["premium/model-b"][-1], 1.8)
 
     def test_n_zero_does_not_crash(self, two_model_registry, tmp_path):
         """n=0 in joblib must not cause ZeroDivisionError."""

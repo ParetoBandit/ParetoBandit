@@ -55,11 +55,13 @@ The table provides **four essential components**:
 2. Filter: mixtral vs gpt-4-turbo battles
 3. Deduplicate: Extract unique prompts
 4. PCA training: `scripts/train_pca_from_routellm.py`
-5. Prior generation: `scripts/generate_warmup_priors.py`
+5. Prior generation: `scripts/generate_multimodel_warmup_priors.py`
+6. K=2 extraction: `scripts/extract_k2_warmup_from_multimodel.py`
 
 **Artifacts**:
-- `src/artifacts/pca_32.joblib`
-- `src/artifacts/priors_warmup.joblib`
+- `src/bandit_gpt/data/artifacts/pca_32.joblib`
+- `src/artifacts/priors_warmup_43model.joblib`
+- `src/artifacts/priors_warmup_k2_from_43model.joblib`
 
 ### Dev Set (1,121 prompts)
 

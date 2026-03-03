@@ -902,13 +902,15 @@ class TestRouterIntegration:
         """Test that constraints properly filter candidates."""
         router = BanditRouter.create(model_registry=full_registry, priors="none")
 
-        # max_cost is in $/M tokens (blended).  Blended costs in full_registry:
-        #   gpt-4: 10.0, gpt-3.5: 1.0, claude-opus: 12.0
-        # Setting max_cost=2.0 should keep only gpt-3.5.
+        # max_cost is in $/1k tokens (blended).  Blended costs in full_registry:
+        #   gpt-4: 10.0/M  -> 0.010/1k
+        #   gpt-3.5: 1.0/M -> 0.001/1k
+        #   claude-opus: 12.0/M -> 0.012/1k
+        # Setting max_cost=0.002 keeps only gpt-3.5.
         model, log = router.route(
             "Simple question",
             profile="auto",
-            max_cost=2.0,
+            max_cost=0.002,
         )
 
         assert model == "gpt-3.5", \
@@ -919,7 +921,7 @@ class TestRouterIntegration:
         router = BanditRouter.create(model_registry=full_registry, priors="none")
 
         with pytest.raises(NoEligibleModelsError):
-            router.route("Simple question", profile="auto", max_cost=0.001)
+            router.route("Simple question", profile="auto", max_cost=1e-6)
     
 # =============================================================================
 # Performance and Robustness Tests

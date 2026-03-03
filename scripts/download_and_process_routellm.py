@@ -337,9 +337,8 @@ def download_and_process(args):
     print("\n📋 Next steps:")
     print(f"   1. Verify GPT-4 wins > 50% (sanity check)")
     print(f"   2. Generate warmup priors:")
-    print(f"      python scripts/generate_warmup_priors.py \\")
-    print(f"          --rewards-file {output_file} \\")
-    print(f"          --output src/artifacts/priors_warmup_fixed.joblib")
+    print(f"      python scripts/generate_multimodel_warmup_priors.py")
+    print(f"      python scripts/extract_k2_warmup_from_multimodel.py")
     print(f"   3. Re-run cold-start ablation with fixed priors")
     print("="*80)
 

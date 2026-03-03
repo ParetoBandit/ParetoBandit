@@ -101,6 +101,7 @@ def generate_warmup_priors(
     encoder_model: str,
     pca: Union[PCA, Path, str],
     plasticity: float = 0.1,
+    whiten_pca: bool = True,
     output_path: Path | str | None = None,
     batch_size: int = 64,
 ) -> dict:
@@ -121,6 +122,10 @@ def generate_warmup_priors(
         plasticity: Scaling factor applied to A and b after accumulation.
             Lower values yield softer priors that are faster to override
             with online observations.  Default ``0.1``.
+        whiten_pca: If ``True`` (default), whiten PCA coordinates by scaling
+            each component by ``1/sqrt(explained_variance)``.  This matches the
+            default runtime FeatureService convention and yields an isotropic
+            LinUCB prior (A₀=λI) in approximately unit-variance coordinates.
         output_path: If provided, the priors dict is persisted via ``joblib``.
         batch_size: Batch size for the encoder's ``.encode()`` call.
 
@@ -150,6 +155,15 @@ def generate_warmup_priors(
     all_models_list = sorted(all_models)
 
     context_dim = pca.n_components_ + 1  # PCA features + bias
+    whitening_scale = None
+    pca_has_builtin_whiten = bool(getattr(pca, "whiten", False))
+    priors_are_whitened = bool(whiten_pca or pca_has_builtin_whiten)
+    if whiten_pca and not pca_has_builtin_whiten:
+        ev = getattr(pca, "explained_variance_", None)
+        if ev is not None:
+            whitening_scale = 1.0 / np.sqrt(
+                np.maximum(np.asarray(ev, dtype=np.float64), 1e-12)
+            )
 
     # Initialise LinUCB sufficient statistics ------------------------------
     A: dict[str, np.ndarray] = {m: np.eye(context_dim) for m in all_models_list}
@@ -181,6 +195,8 @@ def generate_warmup_priors(
                 continue
 
             embedding = pca.transform(embedding.reshape(1, -1)).flatten()
+            if whitening_scale is not None:
+                embedding = embedding * whitening_scale
 
             if np.isnan(embedding).any() or np.isinf(embedding).any():
                 skipped += 1
@@ -219,6 +235,10 @@ def generate_warmup_priors(
         "n": processed,
         "context_dim": context_dim,
         "pca_components": pca.n_components_,
+        "pca_whitened": priors_are_whitened,
+        "pca_explained_variance": (
+            np.asarray(getattr(pca, "explained_variance_", np.array([])), dtype=np.float64).tolist()
+        ),
         "plasticity": plasticity,
         "reward_source": "calibration_api",
     }
@@ -232,11 +252,22 @@ def generate_warmup_priors(
     return state
 
 
-def embed_prompt(prompt: str, encoder: 'SentenceTransformer', pca_model) -> np.ndarray:
+def embed_prompt(
+    prompt: str,
+    encoder: 'SentenceTransformer',
+    pca_model,
+    *,
+    whiten_pca: bool = True,
+) -> np.ndarray:
     """Embed prompt with PCA projection (must match warmup pipeline).
 
     Returns context vector: [PCA components, 1 bias term].
     """
     embedding = encoder.encode(prompt, convert_to_numpy=True, show_progress_bar=False)
     embedding = pca_model.transform(embedding.reshape(1, -1)).flatten()
+    if whiten_pca and not bool(getattr(pca_model, "whiten", False)):
+        ev = getattr(pca_model, "explained_variance_", None)
+        if ev is not None:
+            scale = 1.0 / np.sqrt(np.maximum(np.asarray(ev, dtype=np.float64), 1e-12))
+            embedding = embedding * scale
     return np.append(embedding, 1.0)

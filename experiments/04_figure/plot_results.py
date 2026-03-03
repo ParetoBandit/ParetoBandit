@@ -180,7 +180,7 @@ def plot_figure4(res: dict, out: Path) -> None:
     ax.legend(fontsize=8.5, loc="upper right", framealpha=0.92)
     ax.grid(True, alpha=0.15, ls="--")
     ax.set_xlim(left=-0.0003)
-    ax.set_ylim(0.80, None)
+    ax.set_ylim(0.70, None)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:.4f}"))
     ax.tick_params(labelsize=9)
 

@@ -20,10 +20,10 @@ Protocol
    interpretable: both routers are frozen during evaluation.
 
 3. **Symmetric data access.**
-   Both routers have access to the same dev set.  RouteLLM tunes its
-   threshold tau via a dense 101-point sweep on the full dev set.
-   BanditGPT trains its routing policy on the same dev set.  Neither
-   method sees holdout data before evaluation.
+   Both routers have access to the same dev set.  For any selection step
+   (e.g., RouteLLM threshold tau; BanditGPT cost-penalty lambda), we use a
+   dev-train/dev-val split: train/tune on dev-train, select on dev-val.
+   Neither method sees holdout data before evaluation.
 
 4. **Isocost comparison (K=2 only).**
    BanditGPT and RouteLLM use fundamentally different internal cost
@@ -44,6 +44,11 @@ Protocol
    the hyperparameter selection step.  The area under this deployable
    frontier is the primary Pareto AUC metric.  The oracle upper-bound
    envelope (holdout-selected) is retained as a shaded background.
+
+   After selection, we optionally run a second pass that retrains the
+   chosen router(s) on the **full dev set** and re-evaluates on holdout,
+   keeping the dev-val selection fixed. This reduces estimator variance
+   while maintaining a leakage-free selection protocol.
 
 6. **K=10 Pareto frontier.**
    RouteLLM does not natively support K > 2.  The K=10 evaluation uses
@@ -91,6 +96,7 @@ from bandit_gpt.config import (
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
+    K2_WARMUP_FROM_MULTIMODEL_PATH,
     CANONICAL_DEV_DATA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH,
     DEV_DATA_PATH_ALL_MODELS,
@@ -99,6 +105,7 @@ from bandit_gpt.config import (
     THREE_WAY_SPLITS_PATH,
 )
 from utils.rewards import extract_reward
+from utils.model_pricing import get_prices_for_models
 from utils.router_factory import create_experiment_router
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -119,19 +126,25 @@ K2_MODELS: List[str] = [
     "openai/gpt-4-turbo",
 ]
 
+_PRICES_K2 = get_prices_for_models(K2_MODELS)
+
 K2_CATALOG: Dict[str, Dict] = {
     "mistralai/mixtral-8x7b-instruct": {
         "display": "Mixtral-8x7B",
-        "input_cost_per_m": 0.54,
-        "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.54, 0.60),
+        **_PRICES_K2["mistralai/mixtral-8x7b-instruct"],
+        "cost": _req_cost(
+            _PRICES_K2["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
+            _PRICES_K2["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
+        ),
         "tier": "cheap",
     },
     "openai/gpt-4-turbo": {
         "display": "GPT-4-Turbo",
-        "input_cost_per_m": 10.00,
-        "output_cost_per_m": 30.00,
-        "cost": _req_cost(10.00, 30.00),
+        **_PRICES_K2["openai/gpt-4-turbo"],
+        "cost": _req_cost(
+            _PRICES_K2["openai/gpt-4-turbo"]["input_cost_per_m"],
+            _PRICES_K2["openai/gpt-4-turbo"]["output_cost_per_m"],
+        ),
         "tier": "expensive",
     },
 }
@@ -149,56 +162,98 @@ K10_MODELS: List[str] = [
     "openai/gpt-4.1",
 ]
 
+_PRICES_K10 = get_prices_for_models(K10_MODELS)
+
 K10_CATALOG: Dict[str, Dict] = {
     "meta-llama/llama-3.1-8b-instruct": {
         "display": "Llama-3.1-8B",
-        "input_cost_per_m": 0.05, "output_cost_per_m": 0.05,
-        "cost": _req_cost(0.05, 0.05), "tier": "cheap",
+        **_PRICES_K10["meta-llama/llama-3.1-8b-instruct"],
+        "cost": _req_cost(
+            _PRICES_K10["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
+            _PRICES_K10["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
+        ),
+        "tier": "cheap",
     },
     "mistralai/mixtral-8x7b-instruct": {
         "display": "Mixtral-8x7B",
-        "input_cost_per_m": 0.54, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.54, 0.60), "tier": "cheap",
+        **_PRICES_K10["mistralai/mixtral-8x7b-instruct"],
+        "cost": _req_cost(
+            _PRICES_K10["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
+            _PRICES_K10["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
+        ),
+        "tier": "cheap",
     },
     "google/gemma-3-27b-it": {
         "display": "Gemma-3-27B",
-        "input_cost_per_m": 0.10, "output_cost_per_m": 0.10,
-        "cost": _req_cost(0.10, 0.10), "tier": "cheap",
+        **_PRICES_K10["google/gemma-3-27b-it"],
+        "cost": _req_cost(
+            _PRICES_K10["google/gemma-3-27b-it"]["input_cost_per_m"],
+            _PRICES_K10["google/gemma-3-27b-it"]["output_cost_per_m"],
+        ),
+        "tier": "cheap",
     },
     "anthropic/claude-haiku-4.5": {
         "display": "Claude-Haiku-4.5",
-        "input_cost_per_m": 0.80, "output_cost_per_m": 4.00,
-        "cost": _req_cost(0.80, 4.00), "tier": "mid",
+        **_PRICES_K10["anthropic/claude-haiku-4.5"],
+        "cost": _req_cost(
+            _PRICES_K10["anthropic/claude-haiku-4.5"]["input_cost_per_m"],
+            _PRICES_K10["anthropic/claude-haiku-4.5"]["output_cost_per_m"],
+        ),
+        "tier": "mid",
     },
     "deepseek/deepseek-chat-v3-0324": {
         "display": "DeepSeek-V3",
-        "input_cost_per_m": 0.27, "output_cost_per_m": 1.10,
-        "cost": _req_cost(0.27, 1.10), "tier": "mid",
+        **_PRICES_K10["deepseek/deepseek-chat-v3-0324"],
+        "cost": _req_cost(
+            _PRICES_K10["deepseek/deepseek-chat-v3-0324"]["input_cost_per_m"],
+            _PRICES_K10["deepseek/deepseek-chat-v3-0324"]["output_cost_per_m"],
+        ),
+        "tier": "mid",
     },
     "google/gemini-2.5-flash-preview-09-2025": {
         "display": "Gemini-2.5-Flash",
-        "input_cost_per_m": 0.15, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.15, 0.60), "tier": "mid",
+        **_PRICES_K10["google/gemini-2.5-flash-preview-09-2025"],
+        "cost": _req_cost(
+            _PRICES_K10["google/gemini-2.5-flash-preview-09-2025"]["input_cost_per_m"],
+            _PRICES_K10["google/gemini-2.5-flash-preview-09-2025"]["output_cost_per_m"],
+        ),
+        "tier": "mid",
     },
     "meta-llama/llama-4-maverick": {
         "display": "Llama-4-Maverick",
-        "input_cost_per_m": 0.20, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.20, 0.60), "tier": "mid",
+        **_PRICES_K10["meta-llama/llama-4-maverick"],
+        "cost": _req_cost(
+            _PRICES_K10["meta-llama/llama-4-maverick"]["input_cost_per_m"],
+            _PRICES_K10["meta-llama/llama-4-maverick"]["output_cost_per_m"],
+        ),
+        "tier": "mid",
     },
     "anthropic/claude-sonnet-4": {
         "display": "Claude-Sonnet-4",
-        "input_cost_per_m": 3.00, "output_cost_per_m": 15.00,
-        "cost": _req_cost(3.00, 15.00), "tier": "expensive",
+        **_PRICES_K10["anthropic/claude-sonnet-4"],
+        "cost": _req_cost(
+            _PRICES_K10["anthropic/claude-sonnet-4"]["input_cost_per_m"],
+            _PRICES_K10["anthropic/claude-sonnet-4"]["output_cost_per_m"],
+        ),
+        "tier": "expensive",
     },
     "openai/gpt-4-turbo": {
         "display": "GPT-4-Turbo",
-        "input_cost_per_m": 10.00, "output_cost_per_m": 30.00,
-        "cost": _req_cost(10.00, 30.00), "tier": "expensive",
+        **_PRICES_K10["openai/gpt-4-turbo"],
+        "cost": _req_cost(
+            _PRICES_K10["openai/gpt-4-turbo"]["input_cost_per_m"],
+            _PRICES_K10["openai/gpt-4-turbo"]["output_cost_per_m"],
+        ),
+        "tier": "expensive",
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
-        "input_cost_per_m": 2.00, "output_cost_per_m": 8.00,
-        "cost": _req_cost(2.00, 8.00), "tier": "expensive",
+        **_PRICES_K10["openai/gpt-4.1"],
+        "cost": _req_cost(
+            _PRICES_K10["openai/gpt-4.1"]["input_cost_per_m"],
+            _PRICES_K10["openai/gpt-4.1"]["output_cost_per_m"],
+        ),
+        "tier": "expensive",
     },
 }
 
@@ -209,8 +264,8 @@ K10_CATALOG: Dict[str, Dict] = {
 
 N_SEEDS: int = 20
 SEED_OFFSET: int = 42
-TARGET_NEFF: float = 10.0
-ALPHA_START: float = 0.5
+TARGET_NEFF: float = 1000.0
+ALPHA_START: float = 0.25
 CORRALLING_LR: float = 0.1
 CORRALLING_GAMMA: float = 0.05
 
@@ -221,8 +276,12 @@ DEV_VAL_FRACTION: float = 0.2
 DEV_VAL_SEED: int = 7
 
 LAMBDA_VALUES_K2: List[float] = [
-    0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08,
-    0.09, 0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.7, 1.0, 2.0, 5.0,
+    # High-cost plateau (lambda barely affects cost here): 8 representative pts
+    0.0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.45,
+    # Transition zone (cost drops steeply — densify for Pareto resolution)
+    0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95,
+    # Low-cost floor (router converges to cheapest model)
+    1.0, 1.5, 2.0, 3.0, 5.0,
 ]
 LAMBDA_VALUES_K10: List[float] = [
     0.0, 0.01, 0.03, 0.05, 0.07, 0.08, 0.09, 0.095,
@@ -677,7 +736,9 @@ def tune_routellm_threshold(
     """
     train_sweep: Dict[str, Dict] = {}
     val_sweep: Dict[str, Dict] = {}
-    best_tau, best_obj = 0.0, -np.inf
+    best_tau = 0.0
+    best_obj = -np.inf
+    selecting_on_val = val_scores is not None and val_data is not None
 
     for tau in thresholds:
         result = routellm_evaluate(scores, dev_data, costs, models, tau)
@@ -687,21 +748,27 @@ def tune_routellm_threshold(
             "avg_cost": result["avg_cost"],
             "objective": obj,
         }
-        if val_scores is not None and val_data is not None:
+        if selecting_on_val:
             vr = routellm_evaluate(val_scores, val_data, costs, models, tau)
             val_sweep[str(tau)] = {
                 "avg_reward": vr["avg_reward"],
                 "avg_cost": vr["avg_cost"],
             }
-        if obj > best_obj:
-            best_obj = obj
+        sel_obj = (
+            (val_sweep[str(tau)]["avg_reward"] - cost_penalty * val_sweep[str(tau)]["avg_cost"])
+            if selecting_on_val
+            else obj
+        )
+        if sel_obj > best_obj:
+            best_obj = sel_obj
             best_tau = tau
         logger.info(
             f"  tau={tau:.2f}  reward={result['avg_reward']:.4f}  "
             f"cost=${result['avg_cost']:.6f}  obj={obj:.4f}"
         )
 
-    logger.info(f"  -> selected tau={best_tau} (train obj={best_obj:.4f})")
+    source = "val" if selecting_on_val else "train"
+    logger.info(f"  -> selected tau={best_tau} ({source} obj={best_obj:.4f})")
     return best_tau, train_sweep, val_sweep
 
 
@@ -877,6 +944,9 @@ def run_pareto_sweep(
     label: str = "banditGPT",
     dev_val_data: Optional[List[Dict]] = None,
     dev_val_emb: Optional[List[np.ndarray]] = None,
+    alpha: float = ALPHA_START,
+    prior_n_effective: float = TARGET_NEFF,
+    forgetting_factor: float = 1.0,
 ) -> List[Dict]:
     """Sweep cost penalty lambda with N trials per point.
 
@@ -916,13 +986,14 @@ def run_pareto_sweep(
             router = create_experiment_router(
                 model_registry=build_model_registry(models, catalog),
                 feature_dim=dim,
-                prior_n_effective=TARGET_NEFF,
-                alpha=ALPHA_START,
+                prior_n_effective=prior_n_effective,
+                alpha=alpha,
                 warmup_path=warmup_path,
                 use_corralling=use_corralling,
                 corralling_learning_rate=CORRALLING_LR,
                 corralling_gamma=CORRALLING_GAMMA,
                 cost_penalty=lam,
+                forgetting_factor=forgetting_factor,
             )
             train_bandit(router, train_data, train_emb, models, r_min, r_range)
             r, c, _, pp, pp_c = evaluate_frozen(
@@ -960,6 +1031,115 @@ def run_pareto_sweep(
     return results
 
 
+def _recompute_holdout_metrics_with_full_dev_training(
+    *,
+    models: List[str],
+    catalog: Dict[str, Dict],
+    full_dev_data: List[Dict],
+    full_dev_emb: List[np.ndarray],
+    holdout_data: List[Dict],
+    holdout_emb: List[np.ndarray],
+    warmup_path: str | None,
+    costs: Dict[str, float],
+    lambda_values: List[float],
+    n_trials: int,
+    alpha: float,
+    prior_n_effective: float,
+    forgetting_factor: float,
+    use_corralling: bool,
+    label: str,
+) -> Dict[float, Dict[str, Any]]:
+    """Second-pass evaluation: train on full dev, evaluate on holdout.
+
+    This intentionally **does not** compute any dev metrics, because the
+    dev-val split is used for selection and must remain "unseen" by the
+    selection metric. We only update holdout metrics after selection.
+
+    Returns
+    -------
+    dict[float, dict]
+        Mapping lambda -> holdout metrics dict compatible with the keys used
+        in `run_pareto_sweep()` entries (except dev_* keys).
+    """
+    dim = full_dev_emb[0].shape[0]
+    r_min, r_max = _compute_reward_normalization(full_dev_data, models)
+    r_range = r_max - r_min
+    burn_in = len(full_dev_data)
+
+    out: Dict[float, Dict[str, Any]] = {}
+    for lam in lambda_values:
+        trial_r: List[float] = []
+        trial_c: List[float] = []
+        all_per_prompt: List[List[float]] = []
+        all_per_prompt_costs: List[List[float]] = []
+        for trial in range(n_trials):
+            np.random.seed(SEED_OFFSET + trial)
+            router = create_experiment_router(
+                model_registry=build_model_registry(models, catalog),
+                feature_dim=dim,
+                prior_n_effective=prior_n_effective,
+                alpha=alpha,
+                warmup_path=warmup_path,
+                use_corralling=use_corralling,
+                corralling_learning_rate=CORRALLING_LR,
+                corralling_gamma=CORRALLING_GAMMA,
+                cost_penalty=lam,
+                forgetting_factor=forgetting_factor,
+            )
+            train_bandit(router, full_dev_data, full_dev_emb, models, r_min, r_range)
+            r, c, _, pp, pp_c = evaluate_frozen(
+                router, holdout_data, holdout_emb, costs, burn_in, per_prompt=True,
+            )
+            trial_r.append(r)
+            trial_c.append(c)
+            all_per_prompt.append(pp)
+            all_per_prompt_costs.append(pp_c)
+
+        out[lam] = {
+            "lambda": lam,
+            "mean_reward": float(np.mean(trial_r)),
+            "std_reward": float(np.std(trial_r, ddof=1)) if n_trials > 1 else 0.0,
+            "mean_cost": float(np.mean(trial_c)),
+            "std_cost": float(np.std(trial_c, ddof=1)) if n_trials > 1 else 0.0,
+            "per_seed_rewards": [float(x) for x in trial_r],
+            "per_seed_costs": [float(x) for x in trial_c],
+            "per_seed_per_prompt_rewards": all_per_prompt,
+            "per_seed_per_prompt_costs": all_per_prompt_costs,
+            "n_trials": n_trials,
+            "label": label,
+            "trained_on": "full_dev",
+        }
+    return out
+
+
+def _patch_pareto_entries_holdout_metrics_inplace(
+    entries: List[Dict[str, Any]],
+    *,
+    recomputed: Dict[float, Dict[str, Any]],
+) -> None:
+    """In-place update of holdout metrics while preserving dev_* metrics."""
+    for e in entries:
+        lam = float(e["lambda"])
+        if lam not in recomputed:
+            continue
+        new = recomputed[lam]
+        # Preserve dev_mean_* (selection metrics). Replace holdout-related keys.
+        for k in [
+            "mean_reward",
+            "std_reward",
+            "mean_cost",
+            "std_cost",
+            "per_seed_rewards",
+            "per_seed_costs",
+            "per_seed_per_prompt_rewards",
+            "per_seed_per_prompt_costs",
+            "n_trials",
+            "label",
+        ]:
+            e[k] = new[k]
+        e["trained_on"] = new.get("trained_on", "full_dev")
+
+
 def run_coldstart_sweep(
     models: List[str],
     catalog: Dict[str, Dict],
@@ -975,6 +1155,9 @@ def run_coldstart_sweep(
     label: str = "coldstart",
     dev_data: Optional[List[Dict]] = None,
     dev_emb: Optional[List[np.ndarray]] = None,
+    alpha: float = ALPHA_START,
+    prior_n_effective: float = TARGET_NEFF,
+    forgetting_factor: float = 1.0,
 ) -> List[Dict]:
     """Cold-start Pareto sweep: priors only, zero online training steps.
 
@@ -1004,13 +1187,14 @@ def run_coldstart_sweep(
             router = create_experiment_router(
                 model_registry=build_model_registry(models, catalog),
                 feature_dim=feature_dim,
-                prior_n_effective=TARGET_NEFF,
-                alpha=ALPHA_START,
+                prior_n_effective=prior_n_effective,
+                alpha=alpha,
                 warmup_path=warmup_path,
                 use_corralling=use_corralling,
                 corralling_learning_rate=CORRALLING_LR,
                 corralling_gamma=CORRALLING_GAMMA,
                 cost_penalty=lam,
+                forgetting_factor=forgetting_factor,
             )
             r, c, _, _, _ = evaluate_frozen(router, eval_data, eval_emb, costs, burn_in)
             trial_r.append(r)
@@ -1060,6 +1244,8 @@ def run_learning_curve(
     cost_penalty: float = 0.0,
     alpha: float = ALPHA_START,
     label: str = "banditGPT",
+    prior_n_effective: float = TARGET_NEFF,
+    forgetting_factor: float = 1.0,
 ) -> List[Dict]:
     """Learning curve: holdout quality as a function of online training steps.
 
@@ -1100,13 +1286,14 @@ def run_learning_curve(
         router = create_experiment_router(
             model_registry=build_model_registry(models, catalog),
             feature_dim=dim,
-            prior_n_effective=TARGET_NEFF,
+            prior_n_effective=prior_n_effective,
             alpha=alpha,
             warmup_path=warmup_path,
             use_corralling=use_corralling,
             corralling_learning_rate=CORRALLING_LR,
             corralling_gamma=CORRALLING_GAMMA,
             cost_penalty=cost_penalty,
+            forgetting_factor=forgetting_factor,
         )
 
         if 0 in checkpoint_set:
@@ -1574,6 +1761,176 @@ def isocost_comparison(
     return raw_results
 
 
+def _find_closest_hull_point(
+    sweep: List[Dict],
+    hull_costs: List[float],
+    target_cost: float,
+    cost_key: str,
+) -> Optional[Dict]:
+    """Find the sweep point whose cost is closest among hull points only.
+
+    Restricts the search to sweep entries whose cost appears in the
+    Pareto hull, avoiding off-hull points that would produce misleading
+    per-prompt arrays.
+
+    Returns:
+        The closest-on-hull sweep dict, or None if the hull is empty.
+    """
+    if not hull_costs:
+        return None
+    hull_set = set(hull_costs)
+    candidates = [p for p in sweep if p[cost_key] in hull_set]
+    if not candidates:
+        candidates = sweep
+    return min(candidates, key=lambda p: abs(p[cost_key] - target_cost))
+
+
+def isocost_comparison_interpolated(
+    bandit_pareto: List[Dict],
+    routellm_pareto: List[Dict],
+    target_costs: List[float],
+    n_seeds: int,
+) -> List[Dict]:
+    """Interpolated isocost comparison on Pareto hulls.
+
+    Builds the monotone Pareto hull for each method, then interpolates
+    reward at exact target costs.  This eliminates sensitivity to sweep
+    density: a method with 24 operating points and one with 101 are
+    compared on an equal footing.
+
+    For the paired t-test, per-prompt arrays come from the closest
+    *on-hull* sweep point (interpolation gives the reward delta; the
+    nearest hull point provides the statistical test).
+
+    Args:
+        bandit_pareto: Dev-optimal BanditGPT sweep results.
+        routellm_pareto: Dev-optimal RouteLLM sweep results.
+        target_costs: Budget levels to compare at.
+        n_seeds: Number of BanditGPT seeds.
+
+    Returns:
+        List of dicts, one per target cost, with interpolated rewards,
+        reward delta, hull coverage flags, and paired t-test results
+        (Holm-Bonferroni corrected across budget levels).
+    """
+    t_crit_seeds = float(scipy_stats.t.ppf(0.975, df=n_seeds - 1))
+
+    bg_costs = [p["mean_cost"] for p in bandit_pareto]
+    bg_rewards = [p["mean_reward"] for p in bandit_pareto]
+    bg_hull_c, bg_hull_r = _pareto_hull(bg_costs, bg_rewards)
+
+    rl_costs = [p["avg_cost"] for p in routellm_pareto]
+    rl_rewards = [p["avg_reward"] for p in routellm_pareto]
+    rl_hull_c, rl_hull_r = _pareto_hull(rl_costs, rl_rewards)
+
+    raw_results: List[Dict] = []
+    raw_ensemble_pvals: List[float] = []
+
+    for c_target in target_costs:
+        bg_interp = interpolate_pareto_reward(bg_hull_c, bg_hull_r, c_target)
+        rl_interp = interpolate_pareto_reward(rl_hull_c, rl_hull_r, c_target)
+
+        both_covered = bg_interp is not None and rl_interp is not None
+        delta_interp = (
+            (bg_interp - rl_interp) if both_covered else float("nan")
+        )
+
+        # Paired t-test from closest on-hull sweep point
+        bp = _find_closest_hull_point(
+            bandit_pareto, bg_hull_c, c_target, "mean_cost",
+        )
+        rp = _find_closest_hull_point(
+            routellm_pareto, rl_hull_c, c_target, "avg_cost",
+        )
+
+        ensemble_p = float("nan")
+        ensemble_tstat = float("nan")
+        median_seed_p = float("nan")
+        pct_sig = float("nan")
+        seed_pvals: List[float] = []
+        bg_mean = float("nan")
+        bg_std = 0.0
+
+        if bp is not None and rp is not None:
+            rl_per_prompt = np.array(rp["per_prompt_rewards"])
+            bg_per_seed_pp = bp.get("per_seed_per_prompt_rewards")
+            holdout_n = len(rl_per_prompt)
+
+            bg_seeds = np.array(bp["per_seed_rewards"])
+            bg_mean = float(bg_seeds.mean())
+            bg_std = float(bg_seeds.std(ddof=1))
+
+            if bg_per_seed_pp is not None:
+                for seed_rewards in bg_per_seed_pp:
+                    t_res = scipy_stats.ttest_rel(
+                        np.array(seed_rewards), rl_per_prompt,
+                    )
+                    seed_pvals.append(float(t_res.pvalue))
+                median_seed_p = float(np.median(seed_pvals))
+                pct_sig = float(np.mean([p < 0.05 for p in seed_pvals])) * 100
+
+                bg_avg_pp = np.mean(bg_per_seed_pp, axis=0)
+                ens_t = scipy_stats.ttest_rel(bg_avg_pp, rl_per_prompt)
+                ensemble_p = float(ens_t.pvalue)
+                ensemble_tstat = float(ens_t.statistic)
+
+        raw_ensemble_pvals.append(ensemble_p)
+
+        bg_hw = t_crit_seeds * bg_std / np.sqrt(n_seeds) if bg_std > 0 else 0.0
+        raw_results.append({
+            "target_cost": c_target,
+            "interpolated": {
+                "banditgpt_reward": bg_interp,
+                "routellm_reward": rl_interp,
+                "delta_reward": delta_interp,
+                "both_covered": both_covered,
+            },
+            "nearest_hull_point": {
+                "banditgpt": {
+                    "lambda": bp["lambda"] if bp else None,
+                    "mean_reward": bg_mean,
+                    "std_reward": bg_std,
+                    "ci_lower": bg_mean - bg_hw,
+                    "ci_upper": bg_mean + bg_hw,
+                    "mean_cost": bp["mean_cost"] if bp else None,
+                },
+                "routellm": {
+                    "threshold": rp["threshold"] if rp else None,
+                    "reward": rp["avg_reward"] if rp else None,
+                    "cost": rp["avg_cost"] if rp else None,
+                },
+            },
+            "ensemble_test": {
+                "name": "seed_averaged_paired_t (nearest hull point)",
+                "t_stat": ensemble_tstat,
+                "p_value_raw": ensemble_p,
+            },
+            "per_seed_test": {
+                "name": "per_seed_paired_t (nearest hull point)",
+                "n_seeds": n_seeds,
+                "median_p_value": median_seed_p,
+                "pct_seeds_significant": pct_sig,
+            },
+        })
+
+    # Holm-Bonferroni correction
+    valid_pvals = [
+        p if not np.isnan(p) else 1.0 for p in raw_ensemble_pvals
+    ]
+    hb = holm_bonferroni(valid_pvals)
+    n_budgets = len(target_costs)
+    for i, comp in enumerate(raw_results):
+        comp["ensemble_test"]["p_value_adjusted"] = hb[i]["adjusted_p"]
+        comp["ensemble_test"]["reject_holm"] = hb[i]["reject"]
+        comp["post_hoc_note"] = (
+            f"Interpolated isocost (1 of {n_budgets}); "
+            f"Holm-Bonferroni adjusted.  Reward delta from Pareto hull "
+            f"interpolation; t-test from nearest on-hull sweep point."
+        )
+
+    return raw_results
+
+
 # ============================================================================
 # Statistical helpers
 # ============================================================================
@@ -1708,10 +2065,60 @@ def run_experiment() -> None:  # noqa: C901
                 f"({DEV_VAL_FRACTION:.0%} of dev), eliminating train-set "
                 "evaluation asymmetry between online and static methods. "
                 f"Symmetric objective: lambda={ROUTELLM_COST_PENALTY}. "
+                "After selection, we retrain BanditGPT on full dev and "
+                "re-evaluate on holdout (dev-val selection fixed). "
                 "No holdout data enters hyperparameter selection."
+            ),
+            "final_training_pass": (
+                "Two-pass protocol: (1) dev-train/dev-val split for selection "
+                "and dev metrics; (2) retrain on full dev and re-evaluate on "
+                "holdout, while keeping dev-val selection fixed."
             ),
         },
     }
+
+    # ------------------------------------------------------------------
+    # Phase 0 — optional dev-val-selected hyperparameters (Appendix H)
+    # ------------------------------------------------------------------
+    hparams_dir = (
+        Path(__file__).resolve().parent.parent / "appendix"
+        / "H_alpha_neff_ablation" / "results"
+    )
+    hparams_k2_path = hparams_dir / "best_hparams_k2.json"
+    hparams_k10_path = hparams_dir / "best_hparams_k10.json"
+
+    def _load_hparams(path: Path, key: str) -> Optional[Dict[str, float]]:
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text())
+            cfg = data.get(key, {})
+            return {
+                "alpha": float(cfg["alpha"]),
+                "prior_n_effective": float(cfg["n_eff"]),
+                "forgetting_factor": float(cfg["gamma"]),
+            }
+        except Exception as exc:
+            logger.warning(f"Failed to load hparams from {path}: {exc}")
+            return None
+
+    tuned_k2 = _load_hparams(hparams_k2_path, "K2")
+    tuned_k10 = _load_hparams(hparams_k10_path, "K10")
+
+    if tuned_k2 is not None:
+        logger.info(
+            f"Loaded K=2 tuned hparams (dev-val-selected): "
+            f"alpha={tuned_k2['alpha']} n_eff={tuned_k2['prior_n_effective']} "
+            f"forgetting_factor={tuned_k2['forgetting_factor']} "
+            f"from {hparams_k2_path}"
+        )
+    if tuned_k10 is not None:
+        logger.info(
+            f"Loaded K=10 tuned hparams (dev-val-selected): "
+            f"alpha={tuned_k10['alpha']} n_eff={tuned_k10['prior_n_effective']} "
+            f"forgetting_factor={tuned_k10['forgetting_factor']} "
+            f"from {hparams_k10_path}"
+        )
 
     # ==================================================================
     # K=2 — BanditGPT vs RouteLLM (fair symmetric comparison)
@@ -1812,12 +2219,25 @@ def run_experiment() -> None:  # noqa: C901
         f"\n  Phase 3: BanditGPT Pareto sweep "
         f"({len(LAMBDA_VALUES_K2)} lambda x {N_SEEDS} seeds) ..."
     )
+    k2_alpha = tuned_k2["alpha"] if tuned_k2 is not None else ALPHA_START
+    k2_neff = tuned_k2["prior_n_effective"] if tuned_k2 is not None else TARGET_NEFF
+    k2_forgetting = tuned_k2["forgetting_factor"] if tuned_k2 is not None else 1.0
+    # Use K=2 warmup priors filtered from the multi-model artifact when available.
+    k2_warmup_path = (
+        str(K2_WARMUP_FROM_MULTIMODEL_PATH)
+        if K2_WARMUP_FROM_MULTIMODEL_PATH.exists()
+        else str(DEFAULT_WARMUP_PRIORS_PATH)
+    )
+
     bandit_pareto_k2 = run_pareto_sweep(
         K2_MODELS, K2_CATALOG,
         dev_train_k2, holdout_data_k2, dev_train_emb_k2, holdout_emb_k2,
-        str(DEFAULT_WARMUP_PRIORS_PATH), costs_k2, LAMBDA_VALUES_K2,
+        k2_warmup_path, costs_k2, LAMBDA_VALUES_K2,
         N_SEEDS, use_corralling=True, label="banditGPT_warmup",
         dev_val_data=dev_val_k2, dev_val_emb=dev_val_emb_k2,
+        alpha=k2_alpha,
+        prior_n_effective=k2_neff,
+        forgetting_factor=k2_forgetting,
     )
 
     # Tabula rasa ablation (no priors, no Corralling — genuine blank slate)
@@ -1831,7 +2251,57 @@ def run_experiment() -> None:  # noqa: C901
         None, costs_k2, LAMBDA_VALUES_K2,
         N_SEEDS, use_corralling=False, label="tabula_rasa",
         dev_val_data=dev_val_k2, dev_val_emb=dev_val_emb_k2,
+        alpha=k2_alpha,
+        prior_n_effective=k2_neff,
+        forgetting_factor=k2_forgetting,
     )
+
+    # --- Phase 3b: Second pass — retrain on FULL dev (dev-selected points only) ----
+    bg_dev_opt_idx_k2 = _dev_pareto_indices(bandit_pareto_k2)
+    tr_dev_opt_idx_k2 = _dev_pareto_indices(tabula_pareto_k2)
+    bg_dev_opt_lams_k2 = sorted({float(bandit_pareto_k2[i]["lambda"]) for i in bg_dev_opt_idx_k2})
+    tr_dev_opt_lams_k2 = sorted({float(tabula_pareto_k2[i]["lambda"]) for i in tr_dev_opt_idx_k2})
+    logger.info(
+        "\n  Phase 3b: Full-dev retrain pass (holdout metrics only; dev-optimal lambdas) ..."
+        f"\n    BanditGPT: {len(bg_dev_opt_lams_k2)}/{len(LAMBDA_VALUES_K2)} lambdas"
+        f"\n    Tabula:    {len(tr_dev_opt_lams_k2)}/{len(LAMBDA_VALUES_K2)} lambdas"
+    )
+    bandit_full_k2 = _recompute_holdout_metrics_with_full_dev_training(
+        models=K2_MODELS,
+        catalog=K2_CATALOG,
+        full_dev_data=dev_data_k2,
+        full_dev_emb=dev_emb_k2,
+        holdout_data=holdout_data_k2,
+        holdout_emb=holdout_emb_k2,
+        warmup_path=k2_warmup_path,
+        costs=costs_k2,
+        lambda_values=bg_dev_opt_lams_k2,
+        n_trials=N_SEEDS,
+        alpha=k2_alpha,
+        prior_n_effective=k2_neff,
+        forgetting_factor=k2_forgetting,
+        use_corralling=True,
+        label="banditGPT_warmup_full_dev",
+    )
+    tabula_full_k2 = _recompute_holdout_metrics_with_full_dev_training(
+        models=K2_MODELS,
+        catalog=K2_CATALOG,
+        full_dev_data=dev_data_k2,
+        full_dev_emb=dev_emb_k2,
+        holdout_data=holdout_data_k2,
+        holdout_emb=holdout_emb_k2,
+        warmup_path=None,
+        costs=costs_k2,
+        lambda_values=tr_dev_opt_lams_k2,
+        n_trials=N_SEEDS,
+        alpha=k2_alpha,
+        prior_n_effective=k2_neff,
+        forgetting_factor=k2_forgetting,
+        use_corralling=False,
+        label="tabula_rasa_full_dev",
+    )
+    _patch_pareto_entries_holdout_metrics_inplace(bandit_pareto_k2, recomputed=bandit_full_k2)
+    _patch_pareto_entries_holdout_metrics_inplace(tabula_pareto_k2, recomputed=tabula_full_k2)
 
     # Cold-start BanditGPT (priors only, 0 online training steps)
     logger.info(
@@ -1841,14 +2311,19 @@ def run_experiment() -> None:  # noqa: C901
     coldstart_pareto_k2 = run_coldstart_sweep(
         K2_MODELS, K2_CATALOG,
         holdout_data_k2, holdout_emb_k2,
-        str(DEFAULT_WARMUP_PRIORS_PATH), costs_k2, LAMBDA_VALUES_K2,
+        k2_warmup_path, costs_k2, LAMBDA_VALUES_K2,
         N_SEEDS, feature_dim=dim, use_corralling=True, label="coldstart",
         dev_data=dev_val_k2, dev_emb=dev_val_emb_k2,
+        alpha=k2_alpha,
+        prior_n_effective=k2_neff,
+        forgetting_factor=k2_forgetting,
     )
 
     # --- Phase 4: K=2 learning curve -----------------------------------
-    # Cap checkpoints to actual dev set size
-    max_step = len(dev_data_k2)
+    # Train on dev-train (same split as Pareto sweep) so the learning
+    # curve and Pareto frontier use symmetric data, and the crossover
+    # annotation against RouteLLM is a fair comparison.
+    max_step = len(dev_train_k2)
     lc_checkpoints = [s for s in LEARNING_CURVE_CHECKPOINTS_K2 if s <= max_step]
     if max_step not in lc_checkpoints:
         lc_checkpoints.append(max_step)
@@ -1856,9 +2331,11 @@ def run_experiment() -> None:  # noqa: C901
     logger.info(f"\n  Phase 4: Learning curve ({N_SEEDS} seeds) ...")
     learning_curve_k2 = run_learning_curve(
         K2_MODELS, K2_CATALOG,
-        dev_data_k2, holdout_data_k2, dev_emb_k2, holdout_emb_k2,
-        str(DEFAULT_WARMUP_PRIORS_PATH), costs_k2, N_SEEDS,
+        dev_train_k2, holdout_data_k2, dev_train_emb_k2, holdout_emb_k2,
+        k2_warmup_path, costs_k2, N_SEEDS,
         lc_checkpoints, use_corralling=True, cost_penalty=0.0,
+        prior_n_effective=k2_neff,
+        forgetting_factor=k2_forgetting,
     )
 
     # --- Phase 5: K=2 baselines ----------------------------------------
@@ -1999,7 +2476,7 @@ def run_experiment() -> None:  # noqa: C901
 
     isocost_targets_k2 = [
         cost_lo_k2 + (cost_hi_k2 - cost_lo_k2) * frac
-        for frac in [0.25, 0.50, 0.75]
+        for frac in [0.10, 0.25, 0.50, 0.75]
     ]
     isocost_k2 = isocost_comparison(
         bg_dev_optimal_k2, rl_dev_optimal_k2,
@@ -2028,6 +2505,36 @@ def run_experiment() -> None:  # noqa: C901
             f"        Ensemble (Holm-adj): "
             f"p_raw={ens['p_value_raw']:.4g} "
             f"p_adj={ens['p_value_adjusted']:.4g}{holm_str}"
+        )
+
+    # Interpolated isocost (robust to sweep density differences)
+    isocost_interp_k2 = isocost_comparison_interpolated(
+        bg_dev_optimal_k2, rl_dev_optimal_k2,
+        isocost_targets_k2, N_SEEDS,
+    )
+
+    logger.info(
+        "\n    Interpolated isocost comparisons (Holm-Bonferroni corrected):"
+    )
+    for ic in isocost_interp_k2:
+        interp = ic["interpolated"]
+        ens = ic["ensemble_test"]
+        cov = "both covered" if interp["both_covered"] else "PARTIAL COVERAGE"
+        holm_str = "**" if ens.get("reject_holm") else ""
+        bg_r_str = f"{interp['banditgpt_reward']:.4f}" if interp["banditgpt_reward"] is not None else "N/A"
+        rl_r_str = f"{interp['routellm_reward']:.4f}" if interp["routellm_reward"] is not None else "N/A"
+        delta_str = f"{interp['delta_reward']:+.4f}" if interp["both_covered"] else "N/A"
+        logger.info(
+            f"      Budget ~${ic['target_cost']:.5f}: "
+            f"BanditGPT={bg_r_str} vs RouteLLM={rl_r_str} "
+            f"delta={delta_str} ({cov})"
+        )
+        pst = ic["per_seed_test"]
+        logger.info(
+            f"        Ensemble (Holm-adj): "
+            f"p_raw={ens['p_value_raw']:.4g} "
+            f"p_adj={ens['p_value_adjusted']:.4g}{holm_str} "
+            f"| per-seed median p={pst['median_p_value']:.4g}"
         )
 
     # Assemble K=2 summary
@@ -2080,6 +2587,7 @@ def run_experiment() -> None:  # noqa: C901
         "tabula_rasa_pareto": tabula_pareto_k2,
         "learning_curve": learning_curve_k2,
         "isocost_comparison": isocost_k2,
+        "isocost_comparison_interpolated": isocost_interp_k2,
         "pareto_auc_dev_selected": {
             "cost_range": [cost_lo_k2, cost_hi_k2],
             "banditgpt": bg_ds_auc_k2,
@@ -2188,12 +2696,18 @@ def run_experiment() -> None:  # noqa: C901
         f"\n  BanditGPT K=10 Pareto sweep "
         f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
     )
+    k10_alpha = tuned_k10["alpha"] if tuned_k10 is not None else ALPHA_START
+    k10_neff = tuned_k10["prior_n_effective"] if tuned_k10 is not None else TARGET_NEFF
+    k10_forgetting = tuned_k10["forgetting_factor"] if tuned_k10 is not None else 1.0
     bandit_pareto_k10 = run_pareto_sweep(
         K10_MODELS, K10_CATALOG,
         train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
         str(MULTIMODEL_WARMUP_PRIORS_PATH), costs_k10, LAMBDA_VALUES_K10,
         N_SEEDS, use_corralling=True, label="banditGPT",
         dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
     )
 
     # Tabula rasa ablation (no priors, no Corralling)
@@ -2207,7 +2721,57 @@ def run_experiment() -> None:  # noqa: C901
         None, costs_k10, LAMBDA_VALUES_K10,
         N_SEEDS, use_corralling=False, label="tabula_rasa",
         dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
     )
+
+    # --- Second pass — retrain on FULL dev (dev-selected points only), eval on holdout ---
+    bg_dev_opt_idx_k10 = _dev_pareto_indices(bandit_pareto_k10)
+    tr_dev_opt_idx_k10 = _dev_pareto_indices(tabula_pareto_k10)
+    bg_dev_opt_lams_k10 = sorted({float(bandit_pareto_k10[i]["lambda"]) for i in bg_dev_opt_idx_k10})
+    tr_dev_opt_lams_k10 = sorted({float(tabula_pareto_k10[i]["lambda"]) for i in tr_dev_opt_idx_k10})
+    logger.info(
+        "\n  Full-dev retrain pass for K=10 (holdout metrics only; dev-optimal lambdas) ..."
+        f"\n    BanditGPT: {len(bg_dev_opt_lams_k10)}/{len(LAMBDA_VALUES_K10)} lambdas"
+        f"\n    Tabula:    {len(tr_dev_opt_lams_k10)}/{len(LAMBDA_VALUES_K10)} lambdas"
+    )
+    bandit_full_k10 = _recompute_holdout_metrics_with_full_dev_training(
+        models=K10_MODELS,
+        catalog=K10_CATALOG,
+        full_dev_data=train_data_k10,
+        full_dev_emb=train_emb_k10,
+        holdout_data=holdout_data_k10,
+        holdout_emb=holdout_emb_k10,
+        warmup_path=str(MULTIMODEL_WARMUP_PRIORS_PATH),
+        costs=costs_k10,
+        lambda_values=bg_dev_opt_lams_k10,
+        n_trials=N_SEEDS,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
+        use_corralling=True,
+        label="banditGPT_full_dev",
+    )
+    tabula_full_k10 = _recompute_holdout_metrics_with_full_dev_training(
+        models=K10_MODELS,
+        catalog=K10_CATALOG,
+        full_dev_data=train_data_k10,
+        full_dev_emb=train_emb_k10,
+        holdout_data=holdout_data_k10,
+        holdout_emb=holdout_emb_k10,
+        warmup_path=None,
+        costs=costs_k10,
+        lambda_values=tr_dev_opt_lams_k10,
+        n_trials=N_SEEDS,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
+        use_corralling=False,
+        label="tabula_rasa_full_dev",
+    )
+    _patch_pareto_entries_holdout_metrics_inplace(bandit_pareto_k10, recomputed=bandit_full_k10)
+    _patch_pareto_entries_holdout_metrics_inplace(tabula_pareto_k10, recomputed=tabula_full_k10)
 
     # --- K=10 summary: Dev-selected Pareto AUC --------------------------
     best_static_m = max(static_k10, key=lambda m: static_k10[m]["reward"])

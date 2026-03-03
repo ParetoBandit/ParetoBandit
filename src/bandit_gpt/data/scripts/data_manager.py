@@ -15,12 +15,17 @@ from collections import defaultdict, Counter
 from typing import List, Dict, Tuple, Optional
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import MiniBatchKMeans
+from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER
 
 
 class PromptClusterer:
     """Handles clustering of prompts using sentence embeddings"""
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2", n_clusters: int = 100):
+    def __init__(
+        self,
+        model_name: str = DEFAULT_SENTENCE_TRANSFORMER,
+        n_clusters: int = 100,
+    ):
         """
         Args:
             model_name: SentenceTransformer model name

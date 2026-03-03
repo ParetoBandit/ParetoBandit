@@ -30,6 +30,7 @@ from bandit_gpt.config import (
     HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 from utils.rewards import extract_reward
+from utils.model_pricing import get_prices_for_models
 
 logger = logging.getLogger(__name__)
 
@@ -40,104 +41,173 @@ logger = logging.getLogger(__name__)
 def _req_cost(inp, out):
     return (100 * inp + 400 * out) / 1_000_000
 
+_PRICES = get_prices_for_models(
+    [
+        "meta-llama/llama-3.1-8b-instruct",
+        "mistralai/mixtral-8x7b-instruct",
+        "google/gemma-3-12b-it",
+        "google/gemma-3-27b-it",
+        "anthropic/claude-haiku-4.5",
+        "deepseek/deepseek-chat-v3-0324",
+        "google/gemini-2.5-flash-preview-09-2025",
+        "google/gemini-2.5-pro-preview-06-05",
+        "meta-llama/llama-3.1-70b-instruct",
+        "meta-llama/llama-4-maverick",
+        "meta-llama/llama-4-scout",
+        "anthropic/claude-sonnet-4",
+        "anthropic/claude-sonnet-4.5",
+        "openai/gpt-4-turbo",
+        "openai/gpt-4.1",
+        "openai/gpt-5.1",
+    ]
+)
+
 MODEL_CATALOG = {
     # ── Cheap tier ──────────────────────────────────────────────────────
     "meta-llama/llama-3.1-8b-instruct": {
         "display": "Llama-3.1-8B",
-        "input_cost_per_m": 0.05, "output_cost_per_m": 0.05,
-        "cost": _req_cost(0.05, 0.05),
+        **_PRICES["meta-llama/llama-3.1-8b-instruct"],
+        "cost": _req_cost(
+            _PRICES["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
+            _PRICES["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
+        ),
         "tier": "cheap", "provider": "meta",
     },
     "mistralai/mixtral-8x7b-instruct": {
         "display": "Mixtral-8x7B",
-        "input_cost_per_m": 0.54, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.54, 0.60),
+        **_PRICES["mistralai/mixtral-8x7b-instruct"],
+        "cost": _req_cost(
+            _PRICES["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
+            _PRICES["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
+        ),
         "tier": "cheap", "provider": "mistral",
     },
     "google/gemma-3-12b-it": {
         "display": "Gemma-3-12B",
-        "input_cost_per_m": 0.065, "output_cost_per_m": 0.065,
-        "cost": _req_cost(0.065, 0.065),
+        **_PRICES["google/gemma-3-12b-it"],
+        "cost": _req_cost(
+            _PRICES["google/gemma-3-12b-it"]["input_cost_per_m"],
+            _PRICES["google/gemma-3-12b-it"]["output_cost_per_m"],
+        ),
         "tier": "cheap", "provider": "google",
     },
     "google/gemma-3-27b-it": {
         "display": "Gemma-3-27B",
-        "input_cost_per_m": 0.10, "output_cost_per_m": 0.10,
-        "cost": _req_cost(0.10, 0.10),
+        **_PRICES["google/gemma-3-27b-it"],
+        "cost": _req_cost(
+            _PRICES["google/gemma-3-27b-it"]["input_cost_per_m"],
+            _PRICES["google/gemma-3-27b-it"]["output_cost_per_m"],
+        ),
         "tier": "cheap", "provider": "google",
     },
     # ── Mid tier ────────────────────────────────────────────────────────
     "anthropic/claude-haiku-4.5": {
         "display": "Claude-Haiku-4.5",
-        "input_cost_per_m": 0.80, "output_cost_per_m": 4.00,
-        "cost": _req_cost(0.80, 4.00),
+        **_PRICES["anthropic/claude-haiku-4.5"],
+        "cost": _req_cost(
+            _PRICES["anthropic/claude-haiku-4.5"]["input_cost_per_m"],
+            _PRICES["anthropic/claude-haiku-4.5"]["output_cost_per_m"],
+        ),
         "tier": "mid", "provider": "anthropic",
     },
     "deepseek/deepseek-chat-v3-0324": {
         "display": "DeepSeek-V3",
-        "input_cost_per_m": 0.27, "output_cost_per_m": 1.10,
-        "cost": _req_cost(0.27, 1.10),
+        **_PRICES["deepseek/deepseek-chat-v3-0324"],
+        "cost": _req_cost(
+            _PRICES["deepseek/deepseek-chat-v3-0324"]["input_cost_per_m"],
+            _PRICES["deepseek/deepseek-chat-v3-0324"]["output_cost_per_m"],
+        ),
         "tier": "mid", "provider": "deepseek",
     },
     "google/gemini-2.5-flash-preview-09-2025": {
         "display": "Gemini-2.5-Flash",
-        "input_cost_per_m": 0.15, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.15, 0.60),
+        **_PRICES["google/gemini-2.5-flash-preview-09-2025"],
+        "cost": _req_cost(
+            _PRICES["google/gemini-2.5-flash-preview-09-2025"]["input_cost_per_m"],
+            _PRICES["google/gemini-2.5-flash-preview-09-2025"]["output_cost_per_m"],
+        ),
         "tier": "mid", "provider": "google",
     },
     "google/gemini-2.5-pro-preview-06-05": {
         "display": "Gemini-2.5-Pro",
-        "input_cost_per_m": 1.25, "output_cost_per_m": 10.00,
-        "cost": _req_cost(1.25, 10.00),
+        **_PRICES["google/gemini-2.5-pro-preview-06-05"],
+        "cost": _req_cost(
+            _PRICES["google/gemini-2.5-pro-preview-06-05"]["input_cost_per_m"],
+            _PRICES["google/gemini-2.5-pro-preview-06-05"]["output_cost_per_m"],
+        ),
         "tier": "mid", "provider": "google",
     },
     "meta-llama/llama-3.1-70b-instruct": {
         "display": "Llama-3.1-70B",
-        "input_cost_per_m": 0.52, "output_cost_per_m": 0.75,
-        "cost": _req_cost(0.52, 0.75),
+        **_PRICES["meta-llama/llama-3.1-70b-instruct"],
+        "cost": _req_cost(
+            _PRICES["meta-llama/llama-3.1-70b-instruct"]["input_cost_per_m"],
+            _PRICES["meta-llama/llama-3.1-70b-instruct"]["output_cost_per_m"],
+        ),
         "tier": "mid", "provider": "meta",
     },
     "meta-llama/llama-4-maverick": {
         "display": "Llama-4-Maverick",
-        "input_cost_per_m": 0.20, "output_cost_per_m": 0.60,
-        "cost": _req_cost(0.20, 0.60),
+        **_PRICES["meta-llama/llama-4-maverick"],
+        "cost": _req_cost(
+            _PRICES["meta-llama/llama-4-maverick"]["input_cost_per_m"],
+            _PRICES["meta-llama/llama-4-maverick"]["output_cost_per_m"],
+        ),
         "tier": "mid", "provider": "meta",
     },
     "meta-llama/llama-4-scout": {
         "display": "Llama-4-Scout",
-        "input_cost_per_m": 0.15, "output_cost_per_m": 0.40,
-        "cost": _req_cost(0.15, 0.40),
+        **_PRICES["meta-llama/llama-4-scout"],
+        "cost": _req_cost(
+            _PRICES["meta-llama/llama-4-scout"]["input_cost_per_m"],
+            _PRICES["meta-llama/llama-4-scout"]["output_cost_per_m"],
+        ),
         "tier": "mid", "provider": "meta",
     },
     # ── Expensive tier ──────────────────────────────────────────────────
     "anthropic/claude-sonnet-4": {
         "display": "Claude-Sonnet-4",
-        "input_cost_per_m": 3.00, "output_cost_per_m": 15.00,
-        "cost": _req_cost(3.00, 15.00),
+        **_PRICES["anthropic/claude-sonnet-4"],
+        "cost": _req_cost(
+            _PRICES["anthropic/claude-sonnet-4"]["input_cost_per_m"],
+            _PRICES["anthropic/claude-sonnet-4"]["output_cost_per_m"],
+        ),
         "tier": "expensive", "provider": "anthropic",
     },
     "anthropic/claude-sonnet-4.5": {
         "display": "Claude-Sonnet-4.5",
-        "input_cost_per_m": 3.00, "output_cost_per_m": 15.00,
-        "cost": _req_cost(3.00, 15.00),
+        **_PRICES["anthropic/claude-sonnet-4.5"],
+        "cost": _req_cost(
+            _PRICES["anthropic/claude-sonnet-4.5"]["input_cost_per_m"],
+            _PRICES["anthropic/claude-sonnet-4.5"]["output_cost_per_m"],
+        ),
         "tier": "expensive", "provider": "anthropic",
     },
     "openai/gpt-4-turbo": {
         "display": "GPT-4-Turbo",
-        "input_cost_per_m": 10.00, "output_cost_per_m": 30.00,
-        "cost": _req_cost(10.00, 30.00),
+        **_PRICES["openai/gpt-4-turbo"],
+        "cost": _req_cost(
+            _PRICES["openai/gpt-4-turbo"]["input_cost_per_m"],
+            _PRICES["openai/gpt-4-turbo"]["output_cost_per_m"],
+        ),
         "tier": "expensive", "provider": "openai",
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
-        "input_cost_per_m": 2.00, "output_cost_per_m": 8.00,
-        "cost": _req_cost(2.00, 8.00),
+        **_PRICES["openai/gpt-4.1"],
+        "cost": _req_cost(
+            _PRICES["openai/gpt-4.1"]["input_cost_per_m"],
+            _PRICES["openai/gpt-4.1"]["output_cost_per_m"],
+        ),
         "tier": "expensive", "provider": "openai",
     },
     "openai/gpt-5.1": {
         "display": "GPT-5.1",
-        "input_cost_per_m": 2.00, "output_cost_per_m": 8.00,
-        "cost": _req_cost(2.00, 8.00),
+        **_PRICES["openai/gpt-5.1"],
+        "cost": _req_cost(
+            _PRICES["openai/gpt-5.1"]["input_cost_per_m"],
+            _PRICES["openai/gpt-5.1"]["output_cost_per_m"],
+        ),
         "tier": "expensive", "provider": "openai",
     },
 }

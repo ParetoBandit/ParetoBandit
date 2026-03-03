@@ -2,8 +2,11 @@
 """
 Train PCA for BanditRouter dimension reduction.
 
-Fixes rank deficiency by compressing 384-dim embeddings to 32-dim.
-This ensures 100 warmup samples > total feature dims (~40).
+Compresses SentenceTransformer embeddings to 32 dimensions via PCA.
+
+Note:
+- The default encoder is `BAAI/bge-m3` (1024D). The shipped PCA reduces this to
+  32D, and BanditGPT appends a bias term to form 33D context vectors.
 """
 import joblib
 import numpy as np
@@ -13,7 +16,9 @@ from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import PCA
 
 # Configuration
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+from bandit_gpt.config import DEFAULT_SENTENCE_TRANSFORMER, DEFAULT_PCA_PATH
+
+MODEL_NAME = DEFAULT_SENTENCE_TRANSFORMER
 N_COMPONENTS = 32
 N_SAMPLES = 1000  # More samples for robust PCA fitting
 
@@ -72,7 +77,7 @@ def main():
     logger.info("Encoding prompts...")
     embeddings = encoder.encode(prompts, normalize_embeddings=True, show_progress_bar=True)
     
-    logger.info(f"Embedding shape: {embeddings.shape}")  # (1000, 384)
+    logger.info(f"Embedding shape: {embeddings.shape}")
     
     logger.info(f"Fitting PCA to {N_COMPONENTS} components...")
     pca = PCA(n_components=N_COMPONENTS)
@@ -87,16 +92,15 @@ def main():
     else:
         logger.info(f"✓ PCA captures {explained_var:.1%} variance")
     
-    # Save to data directory (accessible to router)
-    output_path = Path(__file__).parent.parent / "pca_32.joblib"
+    # Save to package artifact location (matches FeatureService default)
+    output_path = Path(DEFAULT_PCA_PATH)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     logger.info(f"Saving to {output_path}")
     joblib.dump(pca, output_path)
     
     logger.info("✓ Done!")
-    logger.info(f"\nNew dimensions: 32 (PCA) + 8 (handcrafted) + 1 (hardness) + 1 (bias) = 42")
-    logger.info(f"Warmup samples: 100 > 42 ✓ STABLE")
+    logger.info("Context dimension at runtime: 32 (PCA) + 1 (bias) = 33")
 
 if __name__ == "__main__":
     main()

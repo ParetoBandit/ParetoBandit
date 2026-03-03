@@ -11,6 +11,8 @@
 %   C: Extended Results (catastrophic failure — Fig 6)
 %   D: Implementation Details (reproducibility)
 %   E: Limitations and Future Work
+%   F: Hard Constraint Enforcement
+%   H: Prior Strength and Exploration Ablation (n_eff sweep, alpha x n_eff grid)
 %
 % Consolidation history (see git):
 %   - Former "Appendix C" (Hyperparameter Sensitivity) → A.3
@@ -217,6 +219,21 @@ This appendix validates the hard per-request budget and latency constraint
 mechanism (Layer~1 of the banditGPT architecture).
 
 \input{F_constraint_impact/section_constraint_impact}
+
+% ============================================================================
+% APPENDIX H: PRIOR STRENGTH AND EXPLORATION ABLATION
+% ============================================================================
+
+\section{Prior Strength and Exploration Ablation}
+\label{appendix:alpha_neff_ablation}
+
+This appendix presents a joint ablation of the prior strength ($\neff$)
+and exploration coefficient ($\alpha$) hyperparameters via a
+$5 \times 5$ grid (2,000 trials) that identifies the optimal
+$(\alpha, \neff)$ configuration for the Corralling router with warmup
+priors.
+
+\input{H_alpha_neff_ablation/section_alpha_neff_ablation}
 
 % ============================================================================
 % END OF APPENDIX

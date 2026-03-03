@@ -4,9 +4,9 @@
     \caption{Sensitivity of the learning curve to the exploration coefficient $\alpha$
     (K=2, $\lambda{=}0$, 20 seeds).
     %
-    In the hybrid Corralling router, $\alpha$ controls the UCB bonus:
+    In the Corralling router, $\alpha$ controls the UCB bonus:
     the warmup expert uses constant $\alpha$ while the tabula-rasa expert
-    decays from $\alpha/2$ to $0.01$.
+    decays from $2\alpha$ to $0.01$.
     %
     Higher $\alpha$ ($\geq 1.0$) produces a characteristic peak-then-dip artifact:
     strong prior-informed decisions in the first ${\sim}25$ steps

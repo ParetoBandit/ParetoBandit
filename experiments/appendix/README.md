@@ -1,6 +1,6 @@
 # BanditGPT Paper Appendix
 
-Supplementary material supporting Figures 1, 3, 4, Table 2, and Figure 6.
+Supplementary material supporting Figures 1, 3, 4, 5, Table 2, and Figure 6.
 
 ---
 
@@ -13,6 +13,8 @@ Supplementary material supporting Figures 1, 3, 4, Table 2, and Figure 6.
 | **C** | Extended Results | Fig 6 | Catastrophic failure detection (K=5 portfolio, 20 seeds) |
 | **D** | Implementation Details | All | Configuration parameters, experimental setup |
 | **E** | Limitations & Future Work | All | System constraints, honest limitations, bandit router positioning (PILOT/BaRP taxonomy) |
+| **F** | Hard Constraint Enforcement | Fig 8 | Per-request budget/latency constraint validation |
+| **H** | Prior Strength, Exploration & Forgetting Ablation | Fig 5 | 3D alpha x n_eff x gamma grid, optimal hyperparameters |
 
 **Master File**: `APPENDIX_MASTER.tex`
 
@@ -50,9 +52,21 @@ appendix/
 │   ├── E1_limitations.tex              # Limitations and applicability
 │   └── E2_positioning.tex             # Bandit router taxonomy + differentiators
 │
-└── E_catastrophic_failure_experiment/  # Experiment code for Figure 6
+├── E_catastrophic_failure_experiment/  # Experiment code for Figure 6
+│   ├── README.md
+│   ├── generate_figure9_5model.py
+│   └── results/
+│
+├── F_constraint_impact/               # Hard constraint enforcement
+│   ├── README.md
+│   ├── run_constraint_experiment.py
+│   └── section_constraint_impact.tex
+│
+└── H_alpha_neff_ablation/             # Prior strength, exploration & forgetting ablation
     ├── README.md
-    ├── generate_figure9_5model.py
+    ├── run_3d_grid_ablation.py
+    ├── section_alpha_neff_ablation.tex
+    ├── figure_alpha_neff_caption.tex
     └── results/
 ```
 
