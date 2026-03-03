@@ -3746,23 +3746,22 @@ class CorrallingRouter:
         - Stale feedback (≈ τ):   meta-lr ≈ 50%   → conservative update
         - Very stale (>> τ):      meta-lr → 0      → experts learn, meta stable
 
-        **Level 2 — Base Algorithm Update (All Experts Learn):**
-        ALL experts' internal bandits observe (context, model_played, reward).
-        This is critical for Corralling correctness:
+        **Level 2 — Base Algorithm Update (Importance-Weighted):**
+        Base algorithms observe (context, model_played, reward), but updates
+        are properly corrected for off-policy evaluation.
 
-        Previously only the chosen expert's bandit was updated.
-        This caused a starvation death spiral:
-          1. Warmup expert starts stronger → gets more meta-weight
-          2. More weight → more selections → more updates → learns faster
-          3. Tabula rasa starved of data → can never catch up
-          4. Tabula rasa becomes useless as a safety net against prior mismatch
+        Because the model was chosen by the mixed policy π, not necessarily by
+        a specific expert, feeding uncorrected observations to all experts
+        violates the independence assumptions underlying LinUCB regret analysis
+        (correlated feedback bias).
 
-        In Exp4/Corralling, base algorithms must see all feedback to maintain
-        valid internal policies.  The meta-learner decides which expert to
-        *trust*, but every expert should *learn* from every observation.
+        To maintain valid regret guarantees under Exp4/Corralling theory, we
+        apply Inverse Probability Weighting (IPW). An expert receives the update
+        scaled by 1/π(a) if it endorsed the chosen action, and no update
+        otherwise.
 
-        **Overhead:** K expert updates instead of 1 (K=2 typically → 2× update
-        cost, negligible compared to LLM inference latency).
+        **Overhead:** Up to K expert updates per observation (negligible
+        compared to LLM inference latency).
 
         Args:
             context: Context vector used for selection.
@@ -3811,12 +3810,15 @@ class CorrallingRouter:
                 self.weights /= self.weights.sum()
         
         # ===================================================================
-        # LEVEL 2: Base Algorithm Update (all experts learn)
+        # LEVEL 2: Base Algorithm Update (Importance-Weighted)
         # ===================================================================
-        # Every expert's internal bandit observes (context, model_played, reward).
-        # This prevents starvation and lets the tabula rasa expert build an
-        # informed policy even when it's not the one being selected.
-        # Pass through the weight for importance/difficulty weighting.
+        # To maintain the independence assumptions underlying the LinUCB regret
+        # analysis, we must correct for off-policy evaluation. The model was
+        # chosen by the mixed policy π, not necessarily by expert j.
+        # We apply Inverse Probability Weighting (IPW): p_j_model / π_total_model.
+        # Since our experts are deterministic, p_j_model is 1 if the expert
+        # endorsed the model, and 0 otherwise. Thus, only endorsing experts
+        # receive the update, scaled by 1 / π(a).
         #
         # ---------------------------------------------------------------
         # DESIGN NOTE: Why `weight` is passed to experts but NOT to the
@@ -3847,8 +3849,21 @@ class CorrallingRouter:
         # into the loss with variance control: clip w_t/π(a) to a max bound
         # and normalize weights over a rolling window.
         # ---------------------------------------------------------------
-        for expert in self.experts:
-            expert.update(context, model, reward, weight)
+        if selection_token is not None:
+            # action_prob represents π(a) in the Exp4 estimator.
+            # Bounded below by γ/K, but we add a safety floor for numerical stability.
+            action_prob = max(selection_token["action_prob"], 1e-6)
+            endorsing_experts = selection_token["endorsing_experts"]
+            for j, expert in enumerate(self.experts):
+                if j in endorsing_experts:
+                    # IPW correction: weight * (p_j_model / pi_total_model)
+                    # Here p_j_model = 1.0 since it endorsed the model.
+                    ipw_weight = weight / action_prob
+                    expert.update(context, model, reward, ipw_weight)
+        else:
+            # Fallback for direct updates without a preceding selection
+            for expert in self.experts:
+                expert.update(context, model, reward, weight)
     
     def mark_selected(self, model: str) -> None:
         """Propagate selection timestamp to all experts for staleness tracking."""
