@@ -47,10 +47,11 @@ from bandit_gpt.router import (
     BanditRouter,
     DisjointLinUCBPolicy,
     CorrallingRouter,
-    CostAwareLinUCBRouter,
+    CostAwareLinUCBAdapter,
     CostAwareTabulaRasaRouter,
     PredictionMonitor,
     RouterConfig,
+    calibrate_priors,
 )
 
 
@@ -190,7 +191,7 @@ class MockExpert:
     """
     Expert that respects a `candidates` filter when provided,
     and falls back to self.models otherwise — mirroring the fixed
-    CostAwareLinUCBRouter / CostAwareTabulaRasaRouter API.
+    CostAwareLinUCBAdapter / CostAwareTabulaRasaRouter API.
     """
 
     def __init__(self, models: list, preferred_model: str):
@@ -296,19 +297,19 @@ class TestBug2_ExpertSelectModel:
     def test_cost_aware_linucb_respects_candidates(
         self, models, warmup_priors, model_costs
     ):
-        router = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=warmup_priors,
+        dim = warmup_priors["context_dim"]
+        bandit = DisjointLinUCBPolicy(model_names=models, dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
             model_costs=model_costs,
             alpha_start=0.1,
             alpha_end=0.1,
             cost_penalty=0.0,
         )
         ctx = np.random.randn(8)
-        # Restrict to a subset — the result must be in that subset
-        result = router.select_model(ctx, candidates=["cheap", "mid"])
+        result = adapter.select_model(ctx, candidates=["cheap", "mid"])
         assert result in ["cheap", "mid"], (
-            f"CostAwareLinUCBRouter selected '{result}' which is not in candidates"
+            f"CostAwareLinUCBAdapter selected '{result}' which is not in candidates"
         )
 
     def test_tabula_rasa_respects_candidates(self, models, model_costs):
@@ -574,6 +575,8 @@ class TestBug9_DeepCopy:
         router.features.pca = MagicMock()
         router.encoder = router.features.encoder
         router.pca = router.features.pca
+        router._encoder_resolved = False
+        router._pca_resolved = False
 
         # --- Bandit ---
         router.bandit = DisjointLinUCBPolicy(["m1"], dim=4, alpha=0.1)
@@ -583,8 +586,7 @@ class TestBug9_DeepCopy:
         router.corralling_learning_rate = 0.1
         router.corralling_gamma = 0.05
         router.cost_penalty = 0.3
-        router.policy_type = "disjoint"
-        router._family_map_override = None
+        router.latency_penalty = 0.0
         router.corralling_router = None
         router._log_lock = MagicMock()
 
@@ -623,9 +625,9 @@ class TestBug9_DeepCopy:
         clone = copy.deepcopy(router)
 
         expected_attrs = [
-            "config", "registry", "features", "encoder", "pca",
+            "config", "registry", "features",
             "bandit", "use_corralling", "corralling_learning_rate",
-            "corralling_gamma", "cost_penalty",
+            "corralling_gamma", "cost_penalty", "latency_penalty",
             "corralling_router",
             "logs", "log_index", "_log_lock", "model_priors",
             "verbose_routing",
@@ -650,11 +652,10 @@ class TestBug9_DeepCopy:
         clone_trace = np.trace(clone.bandit.A["m1"])
         assert clone_trace > original_trace + 900, "Clone mutation leaked to original"
 
-    def test_deepcopy_shares_encoder(self):
-        """Encoder should be shared (same object), not copied."""
+    def test_deepcopy_shares_features(self):
+        """FeatureService should be shared (same object), not copied."""
         router = self._make_minimal_router()
         clone = copy.deepcopy(router)
-        assert clone.encoder is router.encoder, "Encoder should be shared, not copied"
         assert clone.features is router.features, "FeatureService should be shared"
 
 
@@ -666,13 +667,17 @@ class TestBug9_DeepCopy:
 class MockCountingExpert:
     """Expert that tracks update calls per model for verification."""
 
-    def __init__(self, models: list, name: str = ""):
+    def __init__(self, models: list, name: str = "",
+                 preferred_model: str | None = None):
         self.models = list(models)
         self.name = name
-        self.update_calls = []  # List of (model, reward) tuples
+        self.preferred_model = preferred_model
+        self.update_calls = []
 
     def select_model(self, context, total_steps=0, candidates=None, **kwargs):
         eligible = candidates if candidates is not None else self.models
+        if self.preferred_model and self.preferred_model in eligible:
+            return self.preferred_model
         return eligible[0]
 
     def update(self, context, model, reward, weight=1.0):
@@ -693,13 +698,13 @@ class TestCorrallingAllExpertsLearn:
     @pytest.fixture
     def two_expert_router(self):
         models = ["m1", "m2"]
-        e1 = MockCountingExpert(models, name="warmup")
-        e2 = MockCountingExpert(models, name="tabula_rasa")
+        e1 = MockCountingExpert(models, name="warmup", preferred_model="m1")
+        e2 = MockCountingExpert(models, name="tabula_rasa", preferred_model="m2")
         return CorrallingRouter(
             experts=[e1, e2],
             models=models,
             learning_rate=0.1,
-            gamma=0.5,  # High gamma so both experts get selected often
+            gamma=0.5,
         )
 
     def test_both_experts_receive_every_update(self, two_expert_router):
@@ -789,15 +794,19 @@ class TestC1_SelectionToken:
         assert isinstance(result, tuple) and len(result) == 2
         model, token = result
         assert isinstance(model, str)
-        assert "expert_idx" in token and "expert_prob" in token
+        assert "action_prob" in token and "endorsing_experts" in token
 
-    def test_token_probability_matches_distribution(self, router):
-        """The token's probability should equal the mixed distribution entry."""
+    def test_token_action_prob_is_marginal(self, router):
+        """The token's action_prob should equal the marginal π(a) over experts."""
         ctx = np.ones(4)
         model, token = router.select_model(ctx)
         probs = router._get_mixed_distribution()
-        expected = probs[token["expert_idx"]]
-        assert abs(token["expert_prob"] - expected) < 1e-10
+        expected = sum(
+            float(probs[j])
+            for j in range(router.n_experts)
+            if router.experts[j].select_model(ctx) == model
+        )
+        assert abs(token["action_prob"] - expected) < 1e-10
 
     def test_update_without_token_skips_meta_weights(self, router):
         """Calling update() without a token should not change meta-weights."""
@@ -824,10 +833,8 @@ class TestC1_SelectionToken:
         ctx = np.ones(4)
         model1, token1 = router.select_model(ctx)
         model2, token2 = router.select_model(ctx)
-        # Even if both happen to select the same expert, the tokens are
-        # independent dicts — modifying one shouldn't affect the other.
-        token1["expert_prob"] = -999.0
-        assert token2["expert_prob"] != -999.0
+        token1["action_prob"] = -999.0
+        assert token2["action_prob"] != -999.0
 
 
 # =============================================================================
@@ -924,28 +931,18 @@ class TestM2_CalibratePriorsBiasOnly:
         """Contextual (non-bias) dimensions of b should remain unchanged."""
         models = ["m1"]
         dim = 8
-        # Create warmup priors with an exploded bias dimension
-        priors = {"context_dim": dim, "A": {}, "b": {}}
         b_original = np.array([0.1, -0.3, 0.5, 0.2, -0.1, 0.4, -0.2, 800.0])
-        priors["A"]["m1"] = np.eye(dim) * 5.0
-        priors["b"]["m1"] = b_original.copy()
 
-        model_costs = {"m1": {"normalized_cost": 0.5}}
+        bandit = DisjointLinUCBPolicy(model_names=models, dim=dim, alpha=0.1, init_lambda=5.0)
+        bandit.b["m1"] = b_original.copy()
+        bandit.refresh_inverse_cache()
+        calibrate_priors(bandit)
 
-        router = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=priors,
-            model_costs=model_costs,
-            cost_penalty=0.1,
-        )
-
-        # After calibration, non-bias dimensions should be unchanged
-        b_after = router.b["m1"]
+        b_after = bandit.b["m1"]
         np.testing.assert_array_almost_equal(
             b_after[:dim-1], b_original[:dim-1],
-            err_msg="Non-bias dimensions were modified by _calibrate_priors()"
+            err_msg="Non-bias dimensions were modified by calibrate_priors()"
         )
-        # Bias dimension should have been rescaled
         assert abs(b_after[-1]) < abs(b_original[-1]), (
             f"Bias dimension should have been rescaled down from {b_original[-1]}"
         )
@@ -1092,7 +1089,7 @@ class TestR3C1_RegisterModelAtomic:
 
 class TestR3C2_SqrtVarianceFloor:
     """
-    Expert routers (CostAwareLinUCBRouter, CostAwareTabulaRasaRouter) must
+    Expert routers (CostAwareLinUCBAdapter, CostAwareTabulaRasaRouter) must
     floor variance at 0 before taking sqrt, to prevent NaN from floating-point
     rounding making x^T A_inv x slightly negative.
     """
@@ -1114,23 +1111,19 @@ class TestR3C2_SqrtVarianceFloor:
             assert isinstance(selected, str)
 
     def test_cost_aware_linucb_no_nan(self):
-        """CostAwareLinUCBRouter select_model should not produce NaN."""
+        """CostAwareLinUCBAdapter select_model should not produce NaN."""
         models = ["m1", "m2"]
         dim = 4
-        warmup = {
-            "A": {m: np.eye(dim) for m in models},
-            "b": {m: np.zeros(dim) for m in models},
-            "context_dim": dim,
-        }
         costs = {m: {"normalized_cost": 0.5} for m in models}
-        router = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup, model_costs=costs,
+        bandit = DisjointLinUCBPolicy(model_names=models, dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
         rng = np.random.RandomState(42)
         for _ in range(20):
             x = rng.randn(dim)
-            selected = router.select_model(x, total_steps=100)
+            selected = adapter.select_model(x, total_steps=100)
             assert selected is not None
 
     def test_empty_candidate_list_no_crash(self):
@@ -1288,12 +1281,15 @@ class TestR3M7_IllConditionedPosterior:
 
 class TestR3M8_ConstraintsFallback:
     """
-    When all candidates are filtered, _filter_by_constraints should fall back
-    to the original candidates, not the entire global registry.
+    When all candidates are filtered by hard constraints,
+    _filter_by_constraints should raise NoEligibleModelsError with
+    per-model reasons.
     """
 
-    def test_fallback_uses_original_candidates(self):
-        """Fallback after over-constrained filter should return original candidates."""
+    def test_impossible_constraints_raise(self):
+        """Over-constrained filter raises NoEligibleModelsError."""
+        from bandit_gpt.router import NoEligibleModelsError
+
         registry = {
             "model_a": {
                 "model_id": "test/model-a",
@@ -1311,11 +1307,8 @@ class TestR3M8_ConstraintsFallback:
             },
         }
         router = BanditRouter.create(model_registry=registry, priors="none")
-        # Route with extremely restrictive cost constraint (should filter all)
-        # The fallback should return candidates, not registry.keys()
-        _, log = router.route("test", max_cost=0.000001)
-        # Model should still be selected from the known set
-        assert log.selected_model in registry
+        with pytest.raises(NoEligibleModelsError):
+            router.route("test", max_cost=0.000001)
 
 
 # =============================================================================
@@ -1595,10 +1588,10 @@ class TestR4C1_RegisterModelOrder:
 
 
 class TestR4M1_StabilityCheckUnderCorralling:
-    """Stability check should not fire every call when corralling is enabled."""
+    """Stability check fires under corralling because bandit is now live."""
 
-    def test_stability_check_skipped_under_corralling(self):
-        """When corralling is active, stability check on base bandit is skipped."""
+    def test_bandit_t_advances_under_corralling(self):
+        """With the adapter, self.bandit is updated under Corralling so t increments."""
         registry = {
             "model_a": {
                 "model_id": "test/model-a",
@@ -1609,12 +1602,10 @@ class TestR4M1_StabilityCheckUnderCorralling:
             }
         }
         router = BanditRouter.create(model_registry=registry, priors="none")
-        # After create, bandit.t should be 0
         assert router.bandit.t == 0
-        # Run update — bandit.t should stay 0 under corralling
         if router.use_corralling:
             router.update("model_a", "test", reward=0.5)
-            assert router.bandit.t == 0, "Base bandit.t should stay 0 under Corralling"
+            assert router.bandit.t == 1, "Adapter delegates to bandit — t should advance"
 
 
 class TestR4M3_TshirtSizingFullColumn:
@@ -1711,20 +1702,16 @@ class TestR4L1_ExpertThreadSafety:
     """Expert routers should have _lock attributes."""
 
     def test_cost_aware_linucb_has_lock(self):
-        """CostAwareLinUCBRouter should have a _lock."""
+        """CostAwareLinUCBAdapter should have a _lock."""
         import threading
         dim = 4
-        warmup = {
-            "A": {"m1": np.eye(dim)},
-            "b": {"m1": np.zeros(dim)},
-            "context_dim": dim,
-        }
-        router = CostAwareLinUCBRouter(
-            models=["m1"], warmup_priors=warmup,
+        bandit = DisjointLinUCBPolicy(model_names=["m1"], dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
             model_costs={"m1": {"normalized_cost": 0.5}}
         )
-        assert hasattr(router, "_lock")
-        assert isinstance(router._lock, type(threading.Lock()))
+        assert hasattr(adapter, "_lock")
+        assert isinstance(adapter._lock, type(threading.Lock()))
 
     def test_tabula_rasa_has_lock(self):
         """CostAwareTabulaRasaRouter should have a _lock."""
@@ -1740,17 +1727,13 @@ class TestR4L1_ExpertThreadSafety:
     def test_expert_deepcopy_works(self):
         """Deep copy of expert routers should work (fresh lock)."""
         dim = 4
-        warmup = {
-            "A": {"m1": np.eye(dim)},
-            "b": {"m1": np.zeros(dim)},
-            "context_dim": dim,
-        }
-        router = CostAwareLinUCBRouter(
-            models=["m1"], warmup_priors=warmup,
+        bandit = DisjointLinUCBPolicy(model_names=["m1"], dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
             model_costs={"m1": {"normalized_cost": 0.5}}
         )
-        clone = copy.deepcopy(router)
-        assert clone._lock is not router._lock
+        clone = copy.deepcopy(adapter)
+        assert clone._lock is not adapter._lock
 
 
 class TestR4L2_MaxLogSizeZero:
@@ -1781,46 +1764,35 @@ class TestR4L3_EmptyRegistryStats:
 
 
 class TestR4L4_MissingWarmupModel:
-    """CostAwareLinUCBRouter should handle models missing from warmup_priors."""
+    """CostAwareLinUCBAdapter should handle models missing from explicit priors."""
 
     def test_missing_model_gets_identity(self):
-        """Models not in warmup_priors should get identity initialization."""
+        """Models not in explicit priors should get identity initialization."""
         dim = 4
-        warmup = {
-            "A": {"m1": 2.0 * np.eye(dim)},
-            "b": {"m1": np.ones(dim)},
-            "context_dim": dim,
-        }
-        # m2 is NOT in warmup_priors
-        router = CostAwareLinUCBRouter(
-            models=["m1", "m2"], warmup_priors=warmup,
-            model_costs={"m1": {"normalized_cost": 0.5}, "m2": {"normalized_cost": 0.3}}
-        )
-        # m1 should have the warmup prior
-        assert np.allclose(router.A["m1"], 2.0 * np.eye(dim))
-        # m2 should have identity (fallback)
-        assert np.allclose(router.A["m2"], np.eye(dim))
-        assert np.allclose(router.b["m2"], np.zeros(dim))
+        bandit = DisjointLinUCBPolicy(model_names=["m1", "m2"], dim=dim, alpha=0.1, init_lambda=1.0)
+        bandit.A["m1"] = 2.0 * np.eye(dim)
+        bandit.b["m1"] = np.ones(dim)
+        bandit.refresh_inverse_cache()
+        costs = {"m1": {"normalized_cost": 0.5}, "m2": {"normalized_cost": 0.3}}
+        adapter = CostAwareLinUCBAdapter(bandit=bandit, model_costs=costs)
+        assert np.allclose(adapter.A["m1"], 2.0 * np.eye(dim))
+        assert np.allclose(adapter.A["m2"], np.eye(dim))
+        assert np.allclose(adapter.b["m2"], np.zeros(dim))
 
 
 class TestR4_ExpertGuardsUnknownModel:
     """Expert update/select should not crash on unknown models."""
 
     def test_cost_aware_linucb_update_unknown_model(self):
-        """CostAwareLinUCBRouter.update should skip unknown models."""
+        """CostAwareLinUCBAdapter.update should skip unknown models."""
         dim = 4
-        warmup = {
-            "A": {"m1": np.eye(dim)},
-            "b": {"m1": np.zeros(dim)},
-            "context_dim": dim,
-        }
-        router = CostAwareLinUCBRouter(
-            models=["m1"], warmup_priors=warmup,
+        bandit = DisjointLinUCBPolicy(model_names=["m1"], dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
             model_costs={"m1": {"normalized_cost": 0.5}}
         )
-        # Should not crash on unknown model
         ctx = np.ones(dim)
-        router.update(ctx, "nonexistent_model", reward=0.5)
+        adapter.update(ctx, "nonexistent_model", reward=0.5)
 
     def test_tabula_rasa_update_unknown_model(self):
         """CostAwareTabulaRasaRouter.update should skip unknown models."""
@@ -1832,20 +1804,15 @@ class TestR4_ExpertGuardsUnknownModel:
         router.update(ctx, "nonexistent_model", reward=0.5)
 
     def test_cost_aware_linucb_select_unknown_candidate(self):
-        """CostAwareLinUCBRouter.select_model should skip unknown candidates."""
+        """CostAwareLinUCBAdapter.select_model should skip unknown candidates."""
         dim = 4
-        warmup = {
-            "A": {"m1": np.eye(dim)},
-            "b": {"m1": np.zeros(dim)},
-            "context_dim": dim,
-        }
-        router = CostAwareLinUCBRouter(
-            models=["m1"], warmup_priors=warmup,
+        bandit = DisjointLinUCBPolicy(model_names=["m1"], dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
             model_costs={"m1": {"normalized_cost": 0.5}}
         )
         ctx = np.ones(dim)
-        # Pass candidates that include unknown models
-        result = router.select_model(ctx, total_steps=100, candidates=["m1", "unknown"])
+        result = adapter.select_model(ctx, total_steps=100, candidates=["m1", "unknown"])
         assert result == "m1"
 
 
@@ -1931,23 +1898,17 @@ class TestR5L1_ExpertNegativeWeight:
     """Expert routers should guard against negative weight."""
 
     def test_linucb_expert_negative_weight(self):
-        """CostAwareLinUCBRouter.update() should silently skip negative weight."""
+        """CostAwareLinUCBAdapter.update() should silently skip negative weight."""
         dim = 4
-        warmup_priors = {
-            'A': {'m1': np.eye(dim)},
-            'b': {'m1': np.zeros(dim)},
-            'context_dim': dim
-        }
-        model_costs = {'m1': {'normalized_cost': 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup_priors,
-            model_costs=model_costs
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
+            model_costs={'m1': {'normalized_cost': 0.5}}
         )
-        A_before = router.A['m1'].copy()
+        A_before = adapter.A['m1'].copy()
         ctx = np.ones(dim)
-        router.update(ctx, 'm1', 0.5, weight=-1.0)
-        # A should be unchanged (update skipped)
-        np.testing.assert_array_equal(router.A['m1'], A_before)
+        adapter.update(ctx, 'm1', 0.5, weight=-1.0)
+        np.testing.assert_array_equal(adapter.A['m1'], A_before)
 
     def test_tabula_rasa_expert_negative_weight(self):
         """CostAwareTabulaRasaRouter.update() should silently skip negative weight."""
@@ -1969,31 +1930,21 @@ class TestR5L5_CalibratePriorsReconstruction:
         """When only the bias is exploded (PCA dims normal), pass 1 corrects bias
         and pass 2 is a no-op, so PCA dimensions are preserved exactly."""
         dim = 4
-        # Diagonal A → theta = A_inv @ b is straightforward, no off-diagonal
-        # coupling, so PCA dims stay small while bias is large.
         A = np.eye(dim) * 2.0
-        b = np.array([0.4, 0.6, 0.8, 800.0])  # bias exploded, PCA dims normal
-        warmup_priors = {
-            'A': {'m1': A.copy()},
-            'b': {'m1': b.copy()},
-            'context_dim': dim
-        }
-        model_costs = {'m1': {'normalized_cost': 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup_priors,
-            model_costs=model_costs
-        )
-        # Original theta = A_inv @ b = [0.2, 0.3, 0.4, 400.0]
+        b = np.array([0.4, 0.6, 0.8, 800.0])
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=2.0)
+        bandit.A['m1'] = A.copy()
+        bandit.b['m1'] = b.copy()
+        bandit.refresh_inverse_cache()
         A_inv = np.linalg.inv(A)
         theta_original = A_inv @ b
-        theta_after = router.A_inv['m1'] @ router.b['m1']
+        calibrate_priors(bandit)
+        theta_after = bandit.A_inv['m1'] @ bandit.b['m1']
 
-        # PCA dimensions (0, 1, 2) should be preserved exactly by pass 1
         for i in range(dim - 1):
             assert abs(theta_after[i] - theta_original[i]) < 1e-10, (
                 f"PCA dim {i} changed: {theta_original[i]:.6f} -> {theta_after[i]:.6f}"
             )
-        # Bias dimension should be recalibrated to ~0.9
         assert abs(theta_after[3]) < 1.5, (
             f"Bias not calibrated: theta[3]={theta_after[3]:.2f}"
         )
@@ -2004,24 +1955,16 @@ class TestR5L5_CalibratePriorsReconstruction:
         rescales theta so that worst-case prediction ≤ target."""
         dim = 4
         A = np.eye(dim) * 2.0
-        # Off-diagonal coupling: an exploded b[3] bleeds into theta[0]
         A[0, 3] = 0.5
         A[3, 0] = 0.5
         b = np.array([1.0, 2.0, 3.0, 800.0])
-        warmup_priors = {
-            'A': {'m1': A.copy()},
-            'b': {'m1': b.copy()},
-            'context_dim': dim
-        }
-        model_costs = {'m1': {'normalized_cost': 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup_priors,
-            model_costs=model_costs
-        )
-        theta_after = router.A_inv['m1'] @ router.b['m1']
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=2.0)
+        bandit.A['m1'] = A.copy()
+        bandit.b['m1'] = b.copy()
+        bandit.refresh_inverse_cache()
+        calibrate_priors(bandit)
+        theta_after = bandit.A_inv['m1'] @ bandit.b['m1']
 
-        # After two-pass calibration, ALL theta predictions should be in bounds
-        # Check every axis probe
         for i in range(dim):
             e_i = np.zeros(dim)
             e_i[i] = 1.0
@@ -2029,7 +1972,6 @@ class TestR5L5_CalibratePriorsReconstruction:
             assert pred < 1.5, (
                 f"Axis {i} prediction {pred:.2f} still exploded after calibration"
             )
-        # Norm of theta should be moderate (not hundreds)
         assert np.linalg.norm(theta_after) < 5.0, (
             f"theta norm {np.linalg.norm(theta_after):.2f} is too large"
         )
@@ -2038,19 +1980,13 @@ class TestR5L5_CalibratePriorsReconstruction:
         """When all predictions are already in range, calibration is a no-op."""
         dim = 4
         A = np.eye(dim) * 2.0
-        b = np.array([0.4, 0.6, 0.8, 1.2])  # All predictions moderate
-        warmup_priors = {
-            'A': {'m1': A.copy()},
-            'b': {'m1': b.copy()},
-            'context_dim': dim
-        }
-        model_costs = {'m1': {'normalized_cost': 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup_priors,
-            model_costs=model_costs
-        )
-        # b should be unchanged (calibration did nothing)
-        np.testing.assert_array_almost_equal(router.b['m1'], b)
+        b = np.array([0.4, 0.6, 0.8, 1.2])
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=2.0)
+        bandit.A['m1'] = A.copy()
+        bandit.b['m1'] = b.copy()
+        bandit.refresh_inverse_cache()
+        calibrate_priors(bandit)
+        np.testing.assert_array_almost_equal(bandit.b['m1'], b)
 
 
 # =============================================================================
@@ -2143,18 +2079,16 @@ class TestPredictionMonitorIntegration:
     """Integration tests: monitors inside CostAware routers."""
 
     def _make_warmup_router(self, dim=4):
-        """Helper: create a CostAwareLinUCBRouter with simple priors."""
+        """Helper: create a CostAwareLinUCBAdapter with simple priors."""
         A = np.eye(dim) * 2.0
         b = np.array([0.2, 0.3, 0.4, 0.5])
-        warmup = {
-            'A': {'m1': A.copy(), 'm2': A.copy()},
-            'b': {'m1': b.copy(), 'm2': b.copy()},
-            'context_dim': dim
-        }
+        bandit = DisjointLinUCBPolicy(model_names=['m1', 'm2'], dim=dim, alpha=0.1, init_lambda=2.0)
+        for m in ['m1', 'm2']:
+            bandit.A[m] = A.copy()
+            bandit.b[m] = b.copy()
+        bandit.refresh_inverse_cache()
         costs = {'m1': {'normalized_cost': 0.3}, 'm2': {'normalized_cost': 0.7}}
-        return CostAwareLinUCBRouter(
-            models=['m1', 'm2'], warmup_priors=warmup, model_costs=costs
-        )
+        return CostAwareLinUCBAdapter(bandit=bandit, model_costs=costs)
 
     def _make_tabula_router(self, dim=4):
         """Helper: create a CostAwareTabulaRasaRouter."""
@@ -2164,7 +2098,7 @@ class TestPredictionMonitorIntegration:
         )
 
     def test_warmup_router_records_predictions(self):
-        """select_model on CostAwareLinUCBRouter should populate the monitor."""
+        """select_model on CostAwareLinUCBAdapter should populate the monitor."""
         router = self._make_warmup_router()
         ctx = np.array([0.1, 0.2, 0.3, 1.0])
         for _ in range(5):
@@ -2230,55 +2164,24 @@ class TestCalibrationUserContexts:
         """A user-supplied context that probes an exploded direction should
         trigger global rescale even when built-in probes don't catch it."""
         dim = 4
-        # Construct theta that is fine on axes but explodes on a specific
-        # off-axis direction that built-in random probes (seeded) might miss.
-        # We do this by setting b so theta has moderate axis values but a
-        # large component in a custom direction.
         A = np.eye(dim) * 2.0
-        # theta = A_inv @ b = b / 2.  Set b so theta = [0.5, 0.5, 0.5, 0.5]
-        # — looks fine on any single axis. Then we manually inflate b
-        # after construction to create an explosion only visible on a
-        # custom direction.
-        b_safe = np.array([1.0, 1.0, 1.0, 1.0])  # theta = [0.5, 0.5, 0.5, 0.5]
-        
-        # Now inflate to make theta = [50, 50, 50, 0.5] — explodes on
-        # the direction [1,1,1,0]/sqrt(3) which gives pred = 50*sqrt(3) ≈ 86.6
         b_exploded = np.array([100.0, 100.0, 100.0, 1.0])
-        
-        # The user knows their traffic has this direction
         user_direction = np.array([1.0, 1.0, 1.0, 0.0]) / np.sqrt(3.0)
-        
-        warmup = {
-            'A': {'m1': A.copy()},
-            'b': {'m1': b_exploded.copy()},
-            'context_dim': dim
-        }
-        costs = {'m1': {'normalized_cost': 0.5}}
-        
-        # Without user contexts — built-in axis probes WILL catch axis_0 = 50
-        router_default = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup, model_costs=costs
-        )
-        theta_default = router_default.A_inv['m1'] @ router_default.b['m1']
-        
-        # With user contexts — should also be safe
-        warmup2 = {
-            'A': {'m1': A.copy()},
-            'b': {'m1': b_exploded.copy()},
-            'context_dim': dim
-        }
-        router_user = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup2, model_costs=costs
-        )
-        # Manually re-calibrate with user context
-        # (Reset b to exploded state to test load_priors path)
-        router_user.load_priors(
-            {'A': {'m1': A.copy()}, 'b': {'m1': b_exploded.copy()}},
-            calibration_contexts=[user_direction]
-        )
-        theta_user = router_user.A_inv['m1'] @ router_user.b['m1']
-        
-        # Both should be calibrated (predictions bounded)
+
+        bandit_default = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=2.0)
+        bandit_default.A['m1'] = A.copy()
+        bandit_default.b['m1'] = b_exploded.copy()
+        bandit_default.refresh_inverse_cache()
+        calibrate_priors(bandit_default)
+        theta_default = bandit_default.A_inv['m1'] @ bandit_default.b['m1']
+
+        bandit_user = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=2.0)
+        bandit_user.A['m1'] = A.copy()
+        bandit_user.b['m1'] = b_exploded.copy()
+        bandit_user.refresh_inverse_cache()
+        calibrate_priors(bandit_user, calibration_contexts=[user_direction])
+        theta_user = bandit_user.A_inv['m1'] @ bandit_user.b['m1']
+
         pred_user = abs(float(theta_user @ user_direction))
         assert pred_user < 1.5, (
             f"User-direction prediction {pred_user:.2f} still exploded"
@@ -2289,23 +2192,16 @@ class TestCalibrationUserContexts:
         dim = 4
         A = np.eye(dim) * 2.0
         b = np.array([0.4, 0.6, 0.8, 1.0])
-        warmup = {
-            'A': {'m1': A.copy()},
-            'b': {'m1': b.copy()},
-            'context_dim': dim
-        }
-        costs = {'m1': {'normalized_cost': 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup, model_costs=costs
-        )
-        # Pass a context with wrong dimension — should not crash
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=2.0)
+        bandit.A['m1'] = A.copy()
+        bandit.b['m1'] = b.copy()
+        bandit.refresh_inverse_cache()
         wrong_dim_ctx = np.ones(dim + 2)
-        router._calibrate_priors(
-            target_max_pred=0.9, calibration_contexts=[wrong_dim_ctx]
-        )
-        # Router should still be functional
+        calibrate_priors(bandit, calibration_contexts=[wrong_dim_ctx])
+        costs = {'m1': {'normalized_cost': 0.5}}
+        adapter = CostAwareLinUCBAdapter(bandit=bandit, model_costs=costs)
         ctx = np.array([0.1, 0.2, 0.3, 1.0])
-        selected = router.select_model(ctx)
+        selected = adapter.select_model(ctx)
         assert selected == 'm1'
 
 
@@ -2319,14 +2215,13 @@ class TestR7_CorrallingRouterLock:
     def _make_corralling(self, dim=4, n_models=2):
         """Helper: build a CorrallingRouter with two experts."""
         models = [f"m{i}" for i in range(n_models)]
-        warmup = {
-            'A': {m: np.eye(dim) for m in models},
-            'b': {m: np.random.randn(dim) * 0.1 for m in models},
-            'context_dim': dim
-        }
         costs = {m: {"normalized_cost": 0.5} for m in models}
-        expert_w = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup, model_costs=costs,
+        bandit = DisjointLinUCBPolicy(model_names=models, dim=dim, alpha=0.1, init_lambda=1.0)
+        for m in models:
+            bandit.b[m] = np.random.randn(dim) * 0.1
+        bandit.refresh_inverse_cache()
+        expert_w = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
         expert_t = CostAwareTabulaRasaRouter(
@@ -2399,37 +2294,28 @@ class TestR7_FallbackRespectsConstraints:
     """Tests for M1: Expert fallback respects candidate constraints."""
 
     def test_warmup_expert_fallback_uses_candidates(self):
-        """CostAwareLinUCBRouter fallback should use candidates, not self.models."""
+        """CostAwareLinUCBAdapter fallback should use candidates, not self.models."""
         dim = 4
         models = ["m1", "m2"]
-        warmup = {
-            'A': {m: np.eye(dim) for m in models},
-            'b': {m: np.zeros(dim) for m in models},
-            'context_dim': dim
-        }
         costs = {m: {"normalized_cost": 0.5} for m in models}
-        router = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup, model_costs=costs,
+        bandit = DisjointLinUCBPolicy(model_names=models, dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
-        # Fallback with specific candidate
-        result = router.select_model(np.ones(dim), candidates=["m2"])
+        result = adapter.select_model(np.ones(dim), candidates=["m2"])
         assert result == "m2"
 
     def test_empty_candidates_returns_none(self):
         """Empty candidates should return None (no constraint-satisfying model)."""
         dim = 4
-        warmup = {
-            'A': {'m1': np.eye(dim)},
-            'b': {'m1': np.zeros(dim)},
-            'context_dim': dim
-        }
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=1.0)
         costs = {'m1': {"normalized_cost": 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup, model_costs=costs,
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
-        result = router.select_model(np.ones(dim), candidates=[])
+        result = adapter.select_model(np.ones(dim), candidates=[])
         assert result is None
 
 
@@ -2437,87 +2323,69 @@ class TestR7_LoadPriorsAndAddModelLocking:
     """Tests for M2: load_priors and add_model acquire locks."""
 
     def test_load_priors_atomic(self):
-        """All models should be updated atomically by load_priors."""
+        """All models should be updated atomically via bandit matrices."""
         dim = 4
         models = ["m1", "m2"]
-        warmup = {
-            'A': {m: np.eye(dim) for m in models},
-            'b': {m: np.zeros(dim) for m in models},
-            'context_dim': dim
-        }
         costs = {m: {"normalized_cost": 0.5} for m in models}
-        router = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup, model_costs=costs,
+        bandit = DisjointLinUCBPolicy(model_names=models, dim=dim, alpha=0.1, init_lambda=1.0)
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
-        # Load new priors
-        new_priors = {
-            'A': {m: 2.0 * np.eye(dim) for m in models},
-            'b': {m: np.ones(dim) * 0.1 for m in models},
-        }
-        router.load_priors(new_priors, scale=1.0)
-        # Both models should have been updated
         for m in models:
-            assert np.allclose(router.A[m], 2.0 * np.eye(dim))
+            bandit.A[m] = 2.0 * np.eye(dim)
+            bandit.b[m] = np.ones(dim) * 0.1
+        bandit.refresh_inverse_cache()
+        for m in models:
+            assert np.allclose(adapter.A[m], 2.0 * np.eye(dim))
 
     def test_add_model_initializes_all_state(self):
-        """add_model must set A, b, A_inv, and costs atomically."""
+        """add_model on the bandit must set A, b, A_inv; adapter tracks costs."""
         dim = 4
-        warmup = {
-            'A': {'m1': np.eye(dim)},
-            'b': {'m1': np.zeros(dim)},
-            'context_dim': dim
-        }
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=1.0)
         costs = {'m1': {"normalized_cost": 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup, model_costs=costs,
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
-        router.add_model("m_new", np.eye(dim) * 3.0, np.ones(dim), 0.7)
-        assert "m_new" in router.models
-        assert "m_new" in router.A
-        assert "m_new" in router.A_inv
-        assert "m_new" in router.b
+        bandit.add_arm("m_new")
+        adapter.add_model("m_new", normalized_cost=0.7)
+        assert "m_new" in adapter.models
+        assert "m_new" in adapter.A
+        assert "m_new" in adapter.A_inv
+        assert "m_new" in adapter.b
 
 
 class TestR7_WeightZeroSkipsUpdate:
     """Tests for L3: weight=0 early return prevents clock inflation."""
 
     def test_weight_zero_does_not_advance_clock(self):
-        """Update with weight=0 should not increment self.t."""
+        """Update with weight=0 should not increment bandit.t."""
         dim = 4
-        warmup = {
-            'A': {'m1': np.eye(dim)},
-            'b': {'m1': np.zeros(dim)},
-            'context_dim': dim
-        }
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=1.0)
         costs = {'m1': {"normalized_cost": 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup, model_costs=costs,
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
-        t_before = router.t
-        router.update(np.ones(dim), 'm1', reward=0.5, weight=0.0)
-        assert router.t == t_before, "weight=0 should not advance clock"
+        t_before = bandit.t
+        adapter.update(np.ones(dim), 'm1', reward=0.5, weight=0.0)
+        assert bandit.t == t_before, "weight=0 should not advance clock"
 
     def test_weight_zero_preserves_state(self):
         """Update with weight=0 should leave A/b unchanged."""
         dim = 4
-        warmup = {
-            'A': {'m1': np.eye(dim)},
-            'b': {'m1': np.zeros(dim)},
-            'context_dim': dim
-        }
+        bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=1.0)
         costs = {'m1': {"normalized_cost": 0.5}}
-        router = CostAwareLinUCBRouter(
-            models=['m1'], warmup_priors=warmup, model_costs=costs,
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
-        A_before = router.A['m1'].copy()
-        b_before = router.b['m1'].copy()
-        router.update(np.ones(dim), 'm1', reward=0.5, weight=0.0)
-        assert np.allclose(router.A['m1'], A_before)
-        assert np.allclose(router.b['m1'], b_before)
+        A_before = adapter.A['m1'].copy()
+        b_before = adapter.b['m1'].copy()
+        adapter.update(np.ones(dim), 'm1', reward=0.5, weight=0.0)
+        assert np.allclose(adapter.A['m1'], A_before)
+        assert np.allclose(adapter.b['m1'], b_before)
 
     def test_disjoint_weight_zero_skips(self):
         """DisjointLinUCBPolicy should also skip on weight=0."""
@@ -2545,41 +2413,25 @@ class TestR7_PerModelShermanMorrisonRefresh:
     """Tests for L5: per-model Sherman-Morrison refresh counter."""
 
     def test_sm_counter_initialized(self):
-        """Both expert types should have _sm_update_count."""
+        """CostAwareTabulaRasaRouter should have _sm_update_count."""
         dim = 4
         models = ["m1", "m2"]
-        warmup = {
-            'A': {m: np.eye(dim) for m in models},
-            'b': {m: np.zeros(dim) for m in models},
-            'context_dim': dim
-        }
         costs = {m: {"normalized_cost": 0.5} for m in models}
-        wr = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup, model_costs=costs,
-            alpha_start=1.0, alpha_end=0.1
-        )
         tr = CostAwareTabulaRasaRouter(
             models=models, context_dim=dim, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1, ridge_lambda=1.0
         )
-        assert hasattr(wr, '_sm_update_count')
         assert hasattr(tr, '_sm_update_count')
-        assert set(wr._sm_update_count.keys()) == set(models)
         assert set(tr._sm_update_count.keys()) == set(models)
 
     def test_sm_counter_increments_per_model(self):
         """Counter should increment only for the updated model."""
         dim = 4
         models = ["m1", "m2"]
-        warmup = {
-            'A': {m: np.eye(dim) for m in models},
-            'b': {m: np.zeros(dim) for m in models},
-            'context_dim': dim
-        }
         costs = {m: {"normalized_cost": 0.5} for m in models}
-        router = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup, model_costs=costs,
-            alpha_start=1.0, alpha_end=0.1
+        router = CostAwareTabulaRasaRouter(
+            models=models, context_dim=dim, model_costs=costs,
+            alpha_start=1.0, alpha_end=0.1, ridge_lambda=1.0
         )
         for _ in range(5):
             router.update(np.random.randn(dim), 'm1', reward=0.5)
@@ -2623,14 +2475,13 @@ class TestR7_ExplainSelectionConsistency:
     def _make_router_with_corralling(self, dim=4):
         """Helper: make a BanditRouter with corralling enabled."""
         models = ["m1", "m2"]
-        warmup = {
-            'A': {m: np.eye(dim) for m in models},
-            'b': {m: np.random.randn(dim) * 0.3 for m in models},
-            'context_dim': dim
-        }
         costs = {m: {"normalized_cost": 0.5} for m in models}
-        expert_w = CostAwareLinUCBRouter(
-            models=models, warmup_priors=warmup, model_costs=costs,
+        bandit = DisjointLinUCBPolicy(model_names=models, dim=dim, alpha=0.1, init_lambda=1.0)
+        for m in models:
+            bandit.b[m] = np.random.randn(dim) * 0.3
+        bandit.refresh_inverse_cache()
+        expert_w = CostAwareLinUCBAdapter(
+            bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
         expert_t = CostAwareTabulaRasaRouter(

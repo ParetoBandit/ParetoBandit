@@ -6,7 +6,8 @@ except PackageNotFoundError:
     __version__ = "0.1.0"
 
 from .router import (
-    BanditRouter, ExplorationRate, RouterConfig, HybridLinUCBPolicy,
+    BanditRouter, ExplorationRate, RouterConfig,
+    MissingCostError, NoEligibleModelsError,
     infer_model_family, tetrachoric_corr, compute_correlation_families,
 )
 from .feature_service import FeatureService
@@ -19,8 +20,10 @@ from .providers import (
 
 __all__ = [
     "__version__",
-    "BanditRouter", "ExplorationRate", "RouterConfig", "FeatureService",
-    "HybridLinUCBPolicy", "infer_model_family",
+    "BanditRouter", "ExplorationRate", "RouterConfig",
+    "MissingCostError", "NoEligibleModelsError",
+    "FeatureService",
+    "infer_model_family",
     "tetrachoric_corr", "compute_correlation_families",
     "train_pca", "generate_warmup_priors",
     "LLMClient", "OpenRouterClient", "OpenAIClient",

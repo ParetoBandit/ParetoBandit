@@ -169,8 +169,8 @@ class TestCorrallingSelection:
             selected, _token = router.select_model(context)
             assert selected in models, f"Selected model {selected} not in {models}"
     
-    def test_expert_sampling_distribution(self):
-        """Test that experts are sampled according to weights."""
+    def test_action_sampling_distribution(self):
+        """Test that actions are sampled according to marginal probabilities."""
         models = ["model_a", "model_b"]
         expert1 = DeterministicExpert("expert1", "model_a")
         expert2 = DeterministicExpert("expert2", "model_b")
@@ -184,20 +184,18 @@ class TestCorrallingSelection:
         
         context = np.random.randn(10)
         n_trials = 1000
-        expert_selections = []
+        action_counts = {"model_a": 0, "model_b": 0}
         
-        # Sample many times
         np.random.seed(42)
         for _ in range(n_trials):
-            _, token = router.select_model(context)
-            expert_selections.append(token["expert_idx"])
+            model, token = router.select_model(context)
+            action_counts[model] += 1
+            assert "action_prob" in token
+            assert "endorsing_experts" in token
         
-        # With uniform weights, should be roughly 50/50
-        count_0 = sum(1 for e in expert_selections if e == 0)
-        ratio = count_0 / n_trials
-        
-        # Allow some variance (binomial distribution)
-        assert 0.4 < ratio < 0.6, f"Expected ~50% expert 0, got {ratio:.2%}"
+        # With uniform weights and disjoint experts, should be roughly 50/50
+        ratio = action_counts["model_a"] / n_trials
+        assert 0.4 < ratio < 0.6, f"Expected ~50% model_a, got {ratio:.2%}"
     
     def test_gamma_prevents_expert_death(self):
         """Test that gamma parameter prevents expert from getting zero probability."""
@@ -469,10 +467,10 @@ class TestCorrallingRealisticScenarios:
         """Test Corralling with warmup expert vs tabula rasa expert."""
         models = ["model_a", "model_b"]
         
-        # Warmup expert: has strong bias toward model_a
+        # Warmup expert: always picks model_a
         warmup = DeterministicExpert("warmup", "model_a")
         
-        # Tabula rasa: starts fresh, can pick either
+        # Tabula rasa: picks model_b (context sum < threshold)
         tabula_rasa = AdaptiveExpert("tabula_rasa", models, threshold=0.5)
         
         router = CorrallingRouter(
@@ -482,8 +480,9 @@ class TestCorrallingRealisticScenarios:
             gamma=0.10
         )
         
-        # Scenario: warmup's bias is wrong, tabula rasa is better
-        context = np.ones(10)  # Context sum > 0.5, so tabula_rasa picks model_a
+        # Context sum = 0.3 < 0.5, so tabula_rasa picks model_b.
+        # Experts disagree → Exp4 can differentiate them.
+        context = np.array([0.03] * 10)
         
         for _ in range(100):
             selected, token = router.select_model(context)
@@ -492,10 +491,6 @@ class TestCorrallingRealisticScenarios:
             reward = 0.3 if selected == "model_a" else 0.9
             router.update(context, selected, reward, selection_token=token)
         
-        # After learning, tabula_rasa should have more weight
-        # (though this depends on sampling randomness and may not always hold)
-        
-        # At minimum, check that learning happened
         assert not np.allclose(router.weights, [0.5, 0.5]), \
             "Weights should have moved from initial uniform distribution"
     
@@ -614,6 +609,116 @@ class TestCorrallingRobustness:
                 assert not np.any(np.isnan(router.weights))
                 assert not np.any(np.isinf(router.weights))
                 assert abs(router.weights.sum() - 1.0) < 1e-6
+
+
+# =============================================================================
+# Exp4 Loss Attribution Tests
+# =============================================================================
+
+class TestExp4LossAttribution:
+    """Test that the Exp4 estimator distributes loss correctly."""
+
+    def test_agreeing_experts_share_loss(self):
+        """When both experts endorse the same action, both accumulate loss."""
+        models = ["model_a", "model_b"]
+        expert1 = DeterministicExpert("e1", "model_a")
+        expert2 = DeterministicExpert("e2", "model_a")  # Same recommendation
+
+        router = CorrallingRouter(
+            experts=[expert1, expert2],
+            models=models,
+            learning_rate=1.0,
+            gamma=0.05
+        )
+
+        context = np.random.randn(10)
+        initial_losses = router.cumulative_losses.copy()
+
+        model, token = router.select_model(context)
+        assert model == "model_a"
+        assert token["action_prob"] == pytest.approx(1.0)
+        assert set(token["endorsing_experts"]) == {0, 1}
+
+        router.update(context, model, reward=0.0, selection_token=token)
+
+        # Both experts should have accumulated loss
+        assert router.cumulative_losses[0] > initial_losses[0]
+        assert router.cumulative_losses[1] > initial_losses[1]
+        # And the same amount (both endorsed the same action)
+        delta = router.cumulative_losses - initial_losses
+        assert abs(delta[0] - delta[1]) < 1e-10
+
+    def test_disagreeing_experts_single_loss(self):
+        """When experts disagree, only the endorsing expert gets loss."""
+        models = ["model_a", "model_b"]
+        expert1 = DeterministicExpert("e1", "model_a")
+        expert2 = DeterministicExpert("e2", "model_b")
+
+        router = CorrallingRouter(
+            experts=[expert1, expert2],
+            models=models,
+            learning_rate=1.0,
+            gamma=0.0,
+            loss_decay=1.0,
+            meta_lr_halflife=float("inf"),
+        )
+
+        initial_losses = router.cumulative_losses.copy()
+        context = np.random.randn(10)
+
+        np.random.seed(1)
+        model, token = router.select_model(context)
+        endorsing = token["endorsing_experts"]
+        non_endorsing = [j for j in range(2) if j not in endorsing]
+
+        router.update(context, model, reward=0.0, selection_token=token)
+
+        for j in endorsing:
+            assert router.cumulative_losses[j] > initial_losses[j]
+        for j in non_endorsing:
+            assert router.cumulative_losses[j] == pytest.approx(
+                initial_losses[j], abs=1e-10
+            )
+
+    def test_consensus_reduces_loss_magnitude(self):
+        """π(a)=1 when experts agree → loss/1.0 < loss/0.5 when they disagree."""
+        models = ["model_a", "model_b"]
+        agree_1 = DeterministicExpert("a1", "model_a")
+        agree_2 = DeterministicExpert("a2", "model_a")
+        disagree_1 = DeterministicExpert("d1", "model_a")
+        disagree_2 = DeterministicExpert("d2", "model_b")
+
+        router_agree = CorrallingRouter(
+            experts=[agree_1, agree_2], models=models,
+            learning_rate=1.0, gamma=0.05,
+            meta_lr_halflife=float("inf"),
+        )
+        router_disagree = CorrallingRouter(
+            experts=[disagree_1, disagree_2], models=models,
+            learning_rate=1.0, gamma=0.05,
+            meta_lr_halflife=float("inf"),
+        )
+
+        initial_agree = router_agree.cumulative_losses.copy()
+        initial_disagree = router_disagree.cumulative_losses.copy()
+
+        context = np.random.randn(10)
+        _, tok_a = router_agree.select_model(context)
+        # Force selection of model_a for the disagreeing router
+        np.random.seed(1)
+        model_d, tok_d = router_disagree.select_model(context)
+        while model_d != "model_a":
+            np.random.seed(np.random.randint(1000))
+            model_d, tok_d = router_disagree.select_model(context)
+
+        router_agree.update(context, "model_a", reward=0.0, selection_token=tok_a)
+        router_disagree.update(context, model_d, reward=0.0, selection_token=tok_d)
+
+        # Agreeing: IW loss = 1.0 / 1.0 = 1.0 to both experts
+        # Disagreeing: IW loss = 1.0 / ~0.525 ≈ 1.9 to the endorsing expert
+        delta_agree = router_agree.cumulative_losses - initial_agree
+        delta_disagree = router_disagree.cumulative_losses - initial_disagree
+        assert max(delta_agree) < max(delta_disagree)
 
 
 if __name__ == "__main__":

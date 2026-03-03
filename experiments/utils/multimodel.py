@@ -41,6 +41,7 @@ def _req_cost(inp, out):
     return (100 * inp + 400 * out) / 1_000_000
 
 MODEL_CATALOG = {
+    # ── Cheap tier ──────────────────────────────────────────────────────
     "meta-llama/llama-3.1-8b-instruct": {
         "display": "Llama-3.1-8B",
         "input_cost_per_m": 0.05, "output_cost_per_m": 0.05,
@@ -53,12 +54,19 @@ MODEL_CATALOG = {
         "cost": _req_cost(0.54, 0.60),
         "tier": "cheap", "provider": "mistral",
     },
+    "google/gemma-3-12b-it": {
+        "display": "Gemma-3-12B",
+        "input_cost_per_m": 0.065, "output_cost_per_m": 0.065,
+        "cost": _req_cost(0.065, 0.065),
+        "tier": "cheap", "provider": "google",
+    },
     "google/gemma-3-27b-it": {
         "display": "Gemma-3-27B",
         "input_cost_per_m": 0.10, "output_cost_per_m": 0.10,
         "cost": _req_cost(0.10, 0.10),
         "tier": "cheap", "provider": "google",
     },
+    # ── Mid tier ────────────────────────────────────────────────────────
     "anthropic/claude-haiku-4.5": {
         "display": "Claude-Haiku-4.5",
         "input_cost_per_m": 0.80, "output_cost_per_m": 4.00,
@@ -77,14 +85,39 @@ MODEL_CATALOG = {
         "cost": _req_cost(0.15, 0.60),
         "tier": "mid", "provider": "google",
     },
+    "google/gemini-2.5-pro-preview-06-05": {
+        "display": "Gemini-2.5-Pro",
+        "input_cost_per_m": 1.25, "output_cost_per_m": 10.00,
+        "cost": _req_cost(1.25, 10.00),
+        "tier": "mid", "provider": "google",
+    },
+    "meta-llama/llama-3.1-70b-instruct": {
+        "display": "Llama-3.1-70B",
+        "input_cost_per_m": 0.52, "output_cost_per_m": 0.75,
+        "cost": _req_cost(0.52, 0.75),
+        "tier": "mid", "provider": "meta",
+    },
     "meta-llama/llama-4-maverick": {
         "display": "Llama-4-Maverick",
         "input_cost_per_m": 0.20, "output_cost_per_m": 0.60,
         "cost": _req_cost(0.20, 0.60),
         "tier": "mid", "provider": "meta",
     },
+    "meta-llama/llama-4-scout": {
+        "display": "Llama-4-Scout",
+        "input_cost_per_m": 0.15, "output_cost_per_m": 0.40,
+        "cost": _req_cost(0.15, 0.40),
+        "tier": "mid", "provider": "meta",
+    },
+    # ── Expensive tier ──────────────────────────────────────────────────
     "anthropic/claude-sonnet-4": {
         "display": "Claude-Sonnet-4",
+        "input_cost_per_m": 3.00, "output_cost_per_m": 15.00,
+        "cost": _req_cost(3.00, 15.00),
+        "tier": "expensive", "provider": "anthropic",
+    },
+    "anthropic/claude-sonnet-4.5": {
+        "display": "Claude-Sonnet-4.5",
         "input_cost_per_m": 3.00, "output_cost_per_m": 15.00,
         "cost": _req_cost(3.00, 15.00),
         "tier": "expensive", "provider": "anthropic",
@@ -97,6 +130,12 @@ MODEL_CATALOG = {
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
+        "input_cost_per_m": 2.00, "output_cost_per_m": 8.00,
+        "cost": _req_cost(2.00, 8.00),
+        "tier": "expensive", "provider": "openai",
+    },
+    "openai/gpt-5.1": {
+        "display": "GPT-5.1",
         "input_cost_per_m": 2.00, "output_cost_per_m": 8.00,
         "cost": _req_cost(2.00, 8.00),
         "tier": "expensive", "provider": "openai",

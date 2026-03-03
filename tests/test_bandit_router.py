@@ -8,6 +8,7 @@ import pytest
 import numpy as np
 import json
 from bandit_gpt import BanditRouter, ExplorationRate, RouterConfig
+from bandit_gpt.router import MissingCostError, NoEligibleModelsError
 
 @pytest.fixture
 def sample_registry():
@@ -54,14 +55,34 @@ def test_constraints(sample_registry):
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
     prompt = "Constraint test"
     
-    # Max cost constraint should favor Gemma
-    model, log = router.route(prompt, max_cost=0.001)
+    # Max cost in $/M tokens (blended). Gemma = 0.1, GPT-4o = 10.0
+    model, log = router.route(prompt, max_cost=1.0)
     assert model == "google/gemma-3-2b-it"
     
-    # Quality floor floor should favor GPT-4
-    # Note: HLE is used as prompt score in this simple logic
+    # Quality floor should favor GPT-4
     model_q, log_q = router.route(prompt, quality_floor={"hle": 0.7})
     assert model_q == "openai/gpt-4o"
+
+
+def test_no_eligible_models_raises(sample_registry):
+    """Impossible constraints should raise NoEligibleModelsError."""
+    router = BanditRouter.create(model_registry=sample_registry, priors="none")
+    with pytest.raises(NoEligibleModelsError):
+        router.route("test", max_cost=0.001)
+
+
+def test_missing_cost_raises():
+    """Registry with incomplete cost data should raise MissingCostError."""
+    bad_registry = {
+        "model_a": {
+            "model_id": "provider/model-a",
+            "display_name": "Model A",
+            "input_cost_per_m": 2.0,
+            # Missing output_cost_per_m — should raise
+        }
+    }
+    with pytest.raises(MissingCostError):
+        BanditRouter.create(model_registry=bad_registry, priors="none")
 
 def test_save_load(sample_registry, tmp_path):
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
@@ -128,57 +149,61 @@ def _test_no_zombie_models():
 # RESILIENCE TESTS: Pessimistic Defaults (Fail-Operational)
 # =============================================================================
 
-def test_estimate_cost_pessimistic_defaults():
+def test_missing_cost_data_raises_at_init():
     """
-    Test that _estimate_cost uses pessimistic defaults when metadata is missing.
-    
-    Critical resilience behavior: Missing cost data should NOT return infinity,
-    which would cause all models to be rejected, leading to service outage.
-    Instead, return expensive-tier pricing to keep service operational.
+    Registries with missing or incomplete cost data raise MissingCostError.
+
+    Previously the router used pessimistic defaults; we now fail fast so
+    the user can fix the registry before routing starts.
     """
-    # Registry with missing cost metadata
-    registry_missing_costs = {
-        "model_a": {
-            "model_id": "provider/model-a",
-            "display_name": "Model A",
-            "hle": 0.50,
-            # Missing: input_cost_per_m, output_cost_per_m
-        },
-        "model_b": {
-            "model_id": "provider/model-b",
-            "display_name": "Model B",
-            "hle": 0.60,
-            "input_cost_per_m": 2.0,
-            # Missing: output_cost_per_m only
-        },
+    # Both input and output costs missing → MissingCostError
+    with pytest.raises(MissingCostError, match="no cost data"):
+        BanditRouter.create(model_registry={
+            "model_a": {
+                "model_id": "provider/model-a",
+                "display_name": "Model A",
+                "hle": 0.50,
+            }
+        }, priors="none")
+
+    # Input present but output missing → MissingCostError
+    with pytest.raises(MissingCostError, match="missing.*output_cost_per_m"):
+        BanditRouter.create(model_registry={
+            "model_b": {
+                "model_id": "provider/model-b",
+                "display_name": "Model B",
+                "hle": 0.60,
+                "input_cost_per_m": 2.0,
+            }
+        }, priors="none")
+
+    # Output present but input missing → MissingCostError
+    with pytest.raises(MissingCostError, match="missing.*input_cost_per_m"):
+        BanditRouter.create(model_registry={
+            "model_c": {
+                "model_id": "provider/model-c",
+                "display_name": "Model C",
+                "hle": 0.60,
+                "output_cost_per_m": 6.0,
+            }
+        }, priors="none")
+
+
+def test_estimate_cost_with_complete_data():
+    """_estimate_cost works correctly when all cost data is present."""
+    registry = {
         "model_c": {
             "model_id": "provider/model-c",
             "display_name": "Model C",
             "hle": 0.70,
             "input_cost_per_m": 5.0,
-            "output_cost_per_m": 15.0  # Complete metadata
+            "output_cost_per_m": 15.0,
         }
     }
-    
-    router = BanditRouter.create(model_registry=registry_missing_costs, priors="none")
-    
-    # Test model_a: Both costs missing
-    cost_a = router._estimate_cost("model_a", in_tok=1000, out_tok=500)
-    assert cost_a != float('inf'), "Missing costs should NOT return infinity"
-    assert cost_a > 0, "Cost should be positive"
-    # Expected: (10.0 * 1000 + 30.0 * 500) / 1e6 = 0.025 (pessimistic tier)
-    assert cost_a == pytest.approx(0.025, rel=0.01), f"Expected pessimistic cost, got {cost_a}"
-    
-    # Test model_b: Output cost missing only
-    cost_b = router._estimate_cost("model_b", in_tok=1000, out_tok=500)
-    assert cost_b != float('inf'), "Missing output cost should NOT return infinity"
-    # Expected: (2.0 * 1000 + 30.0 * 500) / 1e6 = 0.017 (input from registry, output pessimistic)
-    assert cost_b == pytest.approx(0.017, rel=0.01), f"Expected mixed cost, got {cost_b}"
-    
-    # Test model_c: Complete metadata
-    cost_c = router._estimate_cost("model_c", in_tok=1000, out_tok=500)
+    router = BanditRouter.create(model_registry=registry, priors="none")
+    cost = router._estimate_cost("model_c", in_tok=1000, out_tok=500)
     # Expected: (5.0 * 1000 + 15.0 * 500) / 1e6 = 0.0125
-    assert cost_c == pytest.approx(0.0125, rel=0.01), f"Expected accurate cost, got {cost_c}"
+    assert cost == pytest.approx(0.0125, rel=0.01)
 
 
 def test_estimate_latency_pessimistic_defaults():

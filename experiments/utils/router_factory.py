@@ -3,9 +3,9 @@ Experiment Router Factory
 =========================
 
 Creates ``BanditRouter`` instances that exercise the **full production code
-path** (including Corralling, hybrid family sharing, and prior loading) while
-accepting pre-computed embeddings so experiments avoid reloading the ~2 GB
-sentence-transformer on every trial.
+path** (including Corralling and prior loading) while accepting pre-computed
+embeddings so experiments avoid reloading the ~2 GB sentence-transformer on
+every trial.
 
 Usage
 -----
@@ -42,15 +42,13 @@ def create_experiment_router(
     corralling_learning_rate: float = 0.1,
     corralling_gamma: float = 0.05,
     cost_penalty: float = 0.3,
-    policy: str = "hybrid",
-    family_map: Optional[Dict[str, str]] = None,
 ) -> BanditRouter:
     """Build a production ``BanditRouter`` suitable for offline experiments.
 
     The router uses a lightweight :class:`FeatureService` (no model loading)
     and an :class:`EphemeralContextStore` (RAM-only, no SQLite).  All other
-    behaviour—Corralling expert creation, hybrid family sharing, prior
-    loading/scaling—mirrors the production ``BanditRouter.create()`` path.
+    behaviour—Corralling expert creation, prior loading/scaling—mirrors the
+    production ``BanditRouter.create()`` path.
 
     Parameters
     ----------
@@ -74,11 +72,6 @@ def create_experiment_router(
     cost_penalty:
         Lambda for UCB cost penalty (paper Eq. 4).  Applied at selection
         time in both Corralling experts and the singleton fallback.
-    policy:
-        ``"hybrid"`` (default) or ``"disjoint"``.
-    family_map:
-        Explicit model→family mapping.  ``None`` auto-infers via
-        ``infer_model_family()``.
 
     Returns
     -------
@@ -99,8 +92,6 @@ def create_experiment_router(
         corralling_learning_rate=corralling_learning_rate,
         corralling_gamma=corralling_gamma,
         cost_penalty=cost_penalty,
-        policy=policy,
-        family_map=family_map,
         **({"warmup_path": warmup_path} if warmup_path else {}),
     )
     return router

@@ -214,11 +214,12 @@ def test_gamma_zero_causes_expert_death():
     print("✅ Confirmed: gamma>0 prevents Expert Death")
 
 
-def test_importance_weighting_uses_mixed_probability():
+def test_importance_weighting_uses_marginal_probability():
     """
-    Test that the importance-weighted loss estimator uses the mixed probability.
+    Test that the Exp4 loss estimator uses the marginal action probability π(a).
     
-    This ensures the estimator is unbiased.
+    When experts disagree, π(a) equals the single endorsing expert's mixed
+    probability.  When they agree, π(a) = 1.0.
     """
     models = ["model_a", "model_b"]
     gamma = 0.1
@@ -234,32 +235,30 @@ def test_importance_weighting_uses_mixed_probability():
     )
     
     context = np.random.randn(10)
+    mixed_probs = router._get_mixed_distribution()
     
-    # Force selection of Expert 0
     np.random.seed(0)
     model, token = router.select_model(context)
     
-    # Store the probability from the selection token
-    selected_prob = token["expert_prob"]
-    expert_idx = token["expert_idx"]
+    action_prob = token["action_prob"]
+    endorsing = token["endorsing_experts"]
     
-    # Compute what the mixed probability should be
-    mixed_probs = router._get_mixed_distribution()
-    expected_prob = mixed_probs[expert_idx]
+    # Experts disagree (model_a vs model_b), so exactly one endorses
+    expected_prob = sum(float(mixed_probs[j]) for j in endorsing)
     
-    print(f"\nRaw weight: {router.weights[expert_idx]:.4f}")
-    print(f"Token probability: {selected_prob:.4f}")
-    print(f"Expected mixed probability: {expected_prob:.4f}")
+    print(f"\nAction probability from token: {action_prob:.4f}")
+    print(f"Expected marginal π(a): {expected_prob:.4f}")
+    print(f"Endorsing experts: {endorsing}")
     
-    # Verify that the token probability matches the mixed distribution
-    assert abs(selected_prob - expected_prob) < 1e-10, \
-        "Selection token probability doesn't match the mixed distribution!"
+    assert abs(action_prob - expected_prob) < 1e-10, \
+        "Token action_prob doesn't match marginal π(a)!"
     
-    # Verify that mixed probability is higher than raw weight (due to mixing)
-    assert selected_prob >= router.weights[expert_idx] - 1e-10, \
-        "Mixed probability should be >= raw weight"
+    # π(a) must be >= γ/K (bounded by mixing parameter)
+    min_prob = gamma / router.n_experts
+    assert action_prob >= min_prob - 1e-10, \
+        f"Action probability {action_prob} below minimum {min_prob}"
     
-    print("✅ Selection token correctly carries mixed probability")
+    print("✅ Selection token correctly carries marginal action probability")
 
 
 def test_gamma_parameter_bounds():
@@ -304,7 +303,7 @@ if __name__ == "__main__":
     test_gamma_zero_causes_expert_death()
     print()
     
-    test_importance_weighting_uses_mixed_probability()
+    test_importance_weighting_uses_marginal_probability()
     print()
     
     test_gamma_parameter_bounds()

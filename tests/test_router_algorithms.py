@@ -26,10 +26,12 @@ from bandit_gpt.router import (
     BanditRouter,
     RouterConfig,
     CorrallingRouter,
-    CostAwareLinUCBRouter,
+    CostAwareLinUCBAdapter,
     CostAwareTabulaRasaRouter,
+    NoEligibleModelsError,
+    calibrate_priors,
     l2_normalize,
-    estimate_tokens_rough
+    estimate_tokens_rough,
 )
 
 
@@ -547,8 +549,8 @@ class TestCorrallingRouter:
         expected_losses = -np.log(np.array([0.5, 0.5])) / 0.1
         np.testing.assert_array_almost_equal(router.cumulative_losses, expected_losses)
     
-    def test_corralling_expert_selection(self, simple_experts):
-        """Test that Corralling samples experts according to weights."""
+    def test_corralling_action_distribution(self, simple_experts):
+        """Test that action distribution follows marginal π(a) when experts disagree."""
         models = ["model_a", "model_b"]
         router = CorrallingRouter(
             experts=simple_experts,
@@ -557,17 +559,18 @@ class TestCorrallingRouter:
             gamma=0.05
         )
         
-        # Run many selections and count expert usage
-        context = np.array([0.6, 0.4, 0.5])
+        # Context where experts disagree: sum=0.6
+        # optimistic (bias=-0.2): 0.6 > 0.3 → model_a
+        # pessimistic (bias=0.2): 0.6 > 0.7 → model_b
+        context = np.array([0.1, 0.2, 0.3])
         n_trials = 1000
-        expert_counts = [0, 0]
+        action_counts = {"model_a": 0, "model_b": 0}
         
         for _ in range(n_trials):
-            _, token = router.select_model(context)
-            expert_counts[token["expert_idx"]] += 1
+            model, token = router.select_model(context)
+            action_counts[model] += 1
         
-        # With uniform weights, should be roughly 50/50
-        ratio = expert_counts[0] / n_trials
+        ratio = action_counts["model_a"] / n_trials
         assert 0.4 < ratio < 0.6, f"Expected ~50% split, got {ratio:.2%}"
     
     def test_corralling_expert_death_prevention(self, simple_experts):
@@ -582,9 +585,11 @@ class TestCorrallingRouter:
         
         context = np.array([0.6, 0.4, 0.5])
         
-        # Heavily penalize expert 1 using explicit selection tokens
+        # Heavily penalize expert 1 using explicit Exp4 selection tokens.
+        # Simulate scenario where only expert 1 endorsed the action
+        # with marginal probability 0.5.
         for _ in range(100):
-            token = {"expert_idx": 1, "expert_prob": 0.5}
+            token = {"action_prob": 0.5, "endorsing_experts": [1]}
             router.update(context, "model_b", reward=0.0, selection_token=token)
         
         # Even with terrible performance, expert 1 should maintain minimum probability
@@ -680,142 +685,126 @@ class TestNumericalStability:
 
 
 # =============================================================================
-# CostAwareLinUCBRouter Tests
+# CostAwareLinUCBAdapter Tests
 # =============================================================================
 
-class TestCostAwareLinUCBRouter:
-    """Test experimental cost-aware router for Pareto sweeps."""
-    
+class TestCostAwareLinUCBAdapter:
+    """Test cost-aware adapter wrapping a shared DisjointLinUCBPolicy."""
+
     @pytest.fixture
-    def warmup_priors(self):
-        """Create minimal warmup priors for testing."""
+    def warmup_params(self):
+        """Create minimal warmup prior matrices for testing."""
         models = ["model_a", "model_b"]
         dim = 5
-        
-        priors = {
-            "context_dim": dim,
-            "A": {},
-            "b": {}
-        }
-        
-        for model in models:
-            priors["A"][model] = np.eye(dim) * 10.0  # Some confidence
-            priors["b"][model] = np.random.randn(dim) * 2.0  # Some preferences
-        
-        return priors
-    
+
+        np.random.seed(42)
+        A = {m: np.eye(dim) * 10.0 for m in models}
+        b = {m: np.random.randn(dim) * 2.0 for m in models}
+
+        return {"models": models, "dim": dim, "A": A, "b": b}
+
     @pytest.fixture
     def model_costs(self):
         """Create cost metadata."""
         return {
             "model_a": {"normalized_cost": 0.1},
-            "model_b": {"normalized_cost": 0.9}
+            "model_b": {"normalized_cost": 0.9},
         }
-    
-    def test_cost_aware_initialization(self, warmup_priors, model_costs):
-        """Test initialization with warmup priors."""
-        models = ["model_a", "model_b"]
-        
-        router = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=warmup_priors,
+
+    def _make_adapter(self, warmup_params, model_costs, **overrides):
+        """Helper: build a DisjointLinUCBPolicy + CostAwareLinUCBAdapter."""
+        models = warmup_params["models"]
+        dim = warmup_params["dim"]
+
+        bandit = DisjointLinUCBPolicy(
+            models, dim=dim, alpha=0.5, init_lambda=10.0,
+        )
+        for m in models:
+            bandit.b[m] = warmup_params["b"][m].copy()
+        bandit.refresh_inverse_cache()
+
+        kwargs = dict(
+            bandit=bandit,
             model_costs=model_costs,
             alpha_start=2.0,
             alpha_end=0.1,
-            cost_penalty=0.5
+            cost_penalty=0.5,
         )
-        
-        # Should have loaded priors
-        for model in models:
-            assert model in router.A
-            assert model in router.b
-            
-            # Should match warmup priors
+        kwargs.update(overrides)
+        return CostAwareLinUCBAdapter(**kwargs), bandit
+
+    def test_cost_aware_initialization(self, warmup_params, model_costs):
+        """Test initialization with warmup priors loaded into the bandit."""
+        adapter, bandit = self._make_adapter(warmup_params, model_costs)
+
+        for model in warmup_params["models"]:
+            assert model in adapter.A
+            assert model in adapter.b
+
             np.testing.assert_array_almost_equal(
-                router.A[model], 
-                warmup_priors["A"][model]
+                adapter.A[model],
+                np.eye(warmup_params["dim"]) * 10.0,
             )
-    
-    def test_alpha_decay_schedule(self, warmup_priors, model_costs):
+            np.testing.assert_array_almost_equal(
+                adapter.b[model],
+                warmup_params["b"][model],
+            )
+
+    def test_alpha_decay_schedule(self, warmup_params, model_costs):
         """Test linear alpha decay from start to end."""
-        models = ["model_a", "model_b"]
-        
-        router = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=warmup_priors,
-            model_costs=model_costs,
-            alpha_start=2.0,
-            alpha_end=0.1,
-            cost_penalty=0.0
+        adapter, _ = self._make_adapter(
+            warmup_params, model_costs, cost_penalty=0.0,
         )
-        
+
         total_steps = 1000
-        
-        # At t=0, should be alpha_start
-        alpha_0 = router.get_current_alpha(total_steps)
+
+        alpha_0 = adapter.get_current_alpha(total_steps)
         assert alpha_0 == 2.0
-        
-        # At t=500, should be halfway
-        router.t = 500
-        alpha_mid = router.get_current_alpha(total_steps)
+
+        adapter.t = 500
+        alpha_mid = adapter.get_current_alpha(total_steps)
         expected_mid = 2.0 + 0.5 * (0.1 - 2.0)
         assert abs(alpha_mid - expected_mid) < 1e-6
-        
-        # At t=1000, should be alpha_end (with floating point tolerance)
-        router.t = 1000
-        alpha_end = router.get_current_alpha(total_steps)
+
+        adapter.t = 1000
+        alpha_end = adapter.get_current_alpha(total_steps)
         assert abs(alpha_end - 0.1) < 1e-9, f"Expected 0.1, got {alpha_end}"
-    
-    def test_cost_penalty_integration(self, warmup_priors, model_costs):
+
+    def test_cost_penalty_integration(self, warmup_params, model_costs):
         """Test that cost penalty affects selection."""
-        models = ["model_a", "model_b"]
-        
-        # High cost penalty should favor cheap models
-        router_high_penalty = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=warmup_priors,
-            model_costs=model_costs,
+        adapter, _ = self._make_adapter(
+            warmup_params,
+            model_costs,
             alpha_start=0.1,
             alpha_end=0.1,
-            cost_penalty=10.0  # Very high penalty
+            cost_penalty=10.0,
         )
-        
-        context = np.ones(5)
-        
-        # Should select model_a (cheap)
-        selected = router_high_penalty.select_model(context, total_steps=0)
+
+        context = np.ones(warmup_params["dim"])
+
+        selected = adapter.select_model(context, total_steps=0)
         assert selected == "model_a", "High cost penalty should favor cheap model"
-    
+
     def test_prior_calibration(self, model_costs):
-        """Test automatic prior calibration for scale explosion."""
+        """Test standalone calibrate_priors() for scale explosion."""
         models = ["model_a"]
         dim = 5
-        
-        # Create priors that predict massive values
-        priors = {
-            "context_dim": dim,
-            "A": {"model_a": np.eye(dim) * 0.01},  # Very small A
-            "b": {"model_a": np.ones(dim) * 100.0}  # Very large b
-        }
-        
-        router = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=priors,
-            model_costs=model_costs,
-            alpha_start=0.1,
-            alpha_end=0.1,
-            cost_penalty=0.0
+
+        bandit = DisjointLinUCBPolicy(
+            models, dim=dim, alpha=0.5, init_lambda=0.01,
         )
-        
-        # Check prediction after calibration
+        bandit.b["model_a"] = np.ones(dim) * 100.0
+        bandit.refresh_inverse_cache()
+
+        calibrate_priors(bandit)
+
         dummy_context = np.zeros(dim)
-        dummy_context[-1] = 1.0  # Bias term
-        
-        A_inv = np.linalg.inv(router.A["model_a"])
-        theta = A_inv @ router.b["model_a"]
+        dummy_context[-1] = 1.0
+
+        A_inv = np.linalg.inv(bandit.A["model_a"])
+        theta = A_inv @ bandit.b["model_a"]
         pred = theta @ dummy_context
-        
-        # Should be calibrated to reasonable range
+
         assert abs(pred) < 1.5, \
             f"Prior calibration failed: prediction = {pred}"
 
@@ -912,17 +901,25 @@ class TestRouterIntegration:
     def test_constraint_filtering(self, full_registry):
         """Test that constraints properly filter candidates."""
         router = BanditRouter.create(model_registry=full_registry, priors="none")
-        
-        # Very tight cost constraint should force cheap model
+
+        # max_cost is in $/M tokens (blended).  Blended costs in full_registry:
+        #   gpt-4: 10.0, gpt-3.5: 1.0, claude-opus: 12.0
+        # Setting max_cost=2.0 should keep only gpt-3.5.
         model, log = router.route(
             "Simple question",
             profile="auto",
-            max_cost=0.001  # Very low
+            max_cost=2.0,
         )
-        
-        # Should select gpt-3.5 (cheapest)
+
         assert model == "gpt-3.5", \
             f"Expected cheapest model gpt-3.5, got {model}"
+
+    def test_constraint_filtering_no_eligible(self, full_registry):
+        """Test that NoEligibleModelsError is raised when no model passes."""
+        router = BanditRouter.create(model_registry=full_registry, priors="none")
+
+        with pytest.raises(NoEligibleModelsError):
+            router.route("Simple question", profile="auto", max_cost=0.001)
     
 # =============================================================================
 # Performance and Robustness Tests
@@ -932,62 +929,50 @@ class TestPerformanceFixes:
     """Test performance fixes for O(d³) matrix inversion caching."""
     
     def test_cost_aware_linucb_a_inv_caching(self):
-        """Test that CostAwareLinUCBRouter caches A_inv and updates it efficiently."""
+        """Test that CostAwareLinUCBAdapter caches A_inv and updates it efficiently."""
         models = ["model_a", "model_b"]
         dim = 10
-        
-        # Create warmup priors
-        priors = {
-            "context_dim": dim,
-            "A": {},
-            "b": {}
-        }
-        
+
+        np.random.seed(0)
+        bandit = DisjointLinUCBPolicy(
+            models, dim=dim, alpha=0.5, init_lambda=5.0,
+        )
         for model in models:
-            priors["A"][model] = np.eye(dim) * 5.0
-            priors["b"][model] = np.random.randn(dim)
-        
+            bandit.b[model] = np.random.randn(dim)
+        bandit.refresh_inverse_cache()
+
         model_costs = {
             "model_a": {"normalized_cost": 0.2},
-            "model_b": {"normalized_cost": 0.8}
+            "model_b": {"normalized_cost": 0.8},
         }
-        
-        router = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=priors,
+
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
             model_costs=model_costs,
             alpha_start=1.0,
             alpha_end=0.1,
-            cost_penalty=0.5
+            cost_penalty=0.5,
         )
-        
-        # Verify A_inv is initialized
+
         for model in models:
-            assert model in router.A_inv
-            # Verify A_inv is actually the inverse of A
-            identity_check = router.A[model] @ router.A_inv[model]
+            assert model in adapter.A_inv
+            identity_check = adapter.A[model] @ adapter.A_inv[model]
             np.testing.assert_array_almost_equal(identity_check, np.eye(dim), decimal=6)
-        
-        # Test that select_model uses cached A_inv (doesn't recompute)
+
         context = np.ones(dim)
-        A_inv_before = router.A_inv["model_a"].copy()
-        
-        # Select model multiple times (should use cache)
+        A_inv_before = adapter.A_inv["model_a"].copy()
+
         for _ in range(10):
-            selected = router.select_model(context, total_steps=100)
+            selected = adapter.select_model(context, total_steps=100)
             assert selected in models
-        
-        # A_inv should not have changed (no update yet)
-        np.testing.assert_array_almost_equal(router.A_inv["model_a"], A_inv_before)
-        
-        # Test that update maintains A_inv cache using Sherman-Morrison
-        router.update(context, "model_a", reward=0.8)
-        
-        # A_inv should have been updated
-        assert not np.allclose(router.A_inv["model_a"], A_inv_before)
-        
-        # Verify A_inv is still the correct inverse after update
-        identity_check = router.A["model_a"] @ router.A_inv["model_a"]
+
+        np.testing.assert_array_almost_equal(adapter.A_inv["model_a"], A_inv_before)
+
+        adapter.update(context, "model_a", reward=0.8)
+
+        assert not np.allclose(adapter.A_inv["model_a"], A_inv_before)
+
+        identity_check = adapter.A["model_a"] @ adapter.A_inv["model_a"]
         np.testing.assert_array_almost_equal(identity_check, np.eye(dim), decimal=5)
     
     def test_cost_aware_tabula_rasa_a_inv_caching(self):
@@ -1035,36 +1020,29 @@ class TestPerformanceFixes:
         """Test that Sherman-Morrison falls back to full inversion when needed."""
         models = ["model_a"]
         dim = 5
-        
-        priors = {
-            "context_dim": dim,
-            "A": {"model_a": np.eye(dim) * 1.0},
-            "b": {"model_a": np.zeros(dim)}
-        }
-        
-        model_costs = {"model_a": {"normalized_cost": 0.5}}
-        
-        router = CostAwareLinUCBRouter(
-            models=models,
-            warmup_priors=priors,
-            model_costs=model_costs
+
+        bandit = DisjointLinUCBPolicy(
+            models, dim=dim, alpha=0.5, init_lambda=1.0,
         )
-        
-        # Use same context many times to make denominator small
+
+        model_costs = {"model_a": {"normalized_cost": 0.5}}
+
+        adapter = CostAwareLinUCBAdapter(
+            bandit=bandit,
+            model_costs=model_costs,
+        )
+
         context = np.ones(dim)
         context = context / np.linalg.norm(context)
-        
-        # Multiple updates with same context
+
         for i in range(100):
-            router.update(context, "model_a", reward=0.5)
-            
-            # Verify A_inv remains valid (no NaN/Inf)
-            assert not np.any(np.isnan(router.A_inv["model_a"]))
-            assert not np.any(np.isinf(router.A_inv["model_a"]))
-            
-            # Verify inverse is correct
-            if i % 10 == 0:  # Check periodically (not every iteration for speed)
-                identity_check = router.A["model_a"] @ router.A_inv["model_a"]
+            adapter.update(context, "model_a", reward=0.5)
+
+            assert not np.any(np.isnan(adapter.A_inv["model_a"]))
+            assert not np.any(np.isinf(adapter.A_inv["model_a"]))
+
+            if i % 10 == 0:
+                identity_check = adapter.A["model_a"] @ adapter.A_inv["model_a"]
                 identity_error = np.linalg.norm(identity_check - np.eye(dim))
                 assert identity_error < 1e-4, f"Inverse accuracy degraded at iteration {i}"
 
@@ -1074,52 +1052,41 @@ class TestRobustnessFixes:
     
     def test_corralling_loss_decay(self):
         """Test that Corralling applies exponential decay to cumulative losses."""
-        # Create simple mock experts
-        class MockExpert:
-            def __init__(self, name):
-                self.name = name
-            
+        class FixedExpert:
+            def __init__(self, model_id: str):
+                self.model_id = model_id
             def select_model(self, context, total_steps=0, **kwargs):
-                return "model_a" if np.sum(context) > 0.5 else "model_b"
-            
+                return self.model_id
             def update(self, context, model, reward, weight=1.0):
                 pass
         
-        experts = [MockExpert("expert_1"), MockExpert("expert_2")]
+        experts_d = [FixedExpert("model_a"), FixedExpert("model_b")]
+        experts_s = [FixedExpert("model_a"), FixedExpert("model_b")]
         models = ["model_a", "model_b"]
         
-        # Router with decay
         router_with_decay = CorrallingRouter(
-            experts=experts,
-            models=models,
-            learning_rate=0.1,
-            gamma=0.05,
-            loss_decay=0.9  # 10% decay per step
+            experts=experts_d, models=models,
+            learning_rate=0.1, gamma=0.05, loss_decay=0.9,
         )
-        
-        # Router without decay (stationary)
         router_stationary = CorrallingRouter(
-            experts=experts,
-            models=models,
-            learning_rate=0.1,
-            gamma=0.05,
-            loss_decay=1.0  # No decay
+            experts=experts_s, models=models,
+            learning_rate=0.1, gamma=0.05, loss_decay=1.0,
         )
         
         context = np.array([0.6, 0.4, 0.5])
         
-        # Run many updates with consistent bad performance for expert 1
         np.random.seed(42)
         for i in range(100):
-            # With decay
             _, token_d = router_with_decay.select_model(context)
-            reward_d = 0.0 if token_d["expert_idx"] == 0 else 0.8
-            router_with_decay.update(context, "model_a", reward=reward_d, selection_token=token_d)
-            
-            # Without decay
+            reward_d = 0.3 if token_d.get("endorsing_experts") == [0] else 0.8
+            router_with_decay.update(
+                context, "model_a", reward=reward_d, selection_token=token_d,
+            )
             _, token_s = router_stationary.select_model(context)
-            reward_s = 0.0 if token_s["expert_idx"] == 0 else 0.8
-            router_stationary.update(context, "model_a", reward=reward_s, selection_token=token_s)
+            reward_s = 0.3 if token_s.get("endorsing_experts") == [0] else 0.8
+            router_stationary.update(
+                context, "model_a", reward=reward_s, selection_token=token_s,
+            )
         
         # With decay, cumulative losses should be bounded (recent history matters more)
         assert router_with_decay.cumulative_losses.sum() < router_stationary.cumulative_losses.sum(), \
