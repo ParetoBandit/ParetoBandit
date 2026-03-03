@@ -264,8 +264,8 @@ K10_CATALOG: Dict[str, Dict] = {
 
 N_SEEDS: int = 20
 SEED_OFFSET: int = 42
-TARGET_NEFF: float = 1000.0
-ALPHA_START: float = 0.25
+TARGET_NEFF: float = 5000.0
+ALPHA_START: float = 1.0
 CORRALLING_LR: float = 0.1
 CORRALLING_GAMMA: float = 0.05
 
@@ -805,6 +805,7 @@ def train_bandit(
     r_range: float,
     *,
     shuffle: bool = True,
+    rng: Optional[np.random.Generator] = None,
 ) -> int:
     """Train the BanditRouter on the dev set via route() + process_feedback().
 
@@ -817,15 +818,20 @@ def train_bandit(
         models: Candidate model IDs.
         r_min: Minimum raw reward (for normalization).
         r_range: Range of raw rewards (max - min).
-        shuffle: If True, present training data in random order (controlled
-            by the caller's RNG state).  Presentation order affects online
-            learning, so different seeds yield meaningfully different policies.
+        shuffle: If True, present training data in random order.
+            Presentation order affects online learning, so different
+            seeds yield meaningfully different policies.
+        rng: Explicit numpy Generator for the training permutation.
+            If None, falls back to ``np.random.permutation`` (global state).
 
     Returns:
         Number of training steps completed.
     """
     n_steps = len(train_data)
-    order = np.random.permutation(n_steps) if shuffle else np.arange(n_steps)
+    if shuffle:
+        order = rng.permutation(n_steps) if rng is not None else np.random.permutation(n_steps)
+    else:
+        order = np.arange(n_steps)
     for idx in order:
         p, x = train_data[idx], train_embeddings[idx]
         model, log = router.route(x, total_steps=n_steps)
@@ -982,7 +988,9 @@ def run_pareto_sweep(
         all_per_prompt: List[List[float]] = []
         all_per_prompt_costs: List[List[float]] = []
         for trial in range(n_trials):
-            np.random.seed(SEED_OFFSET + trial)
+            seed = SEED_OFFSET + trial
+            np.random.seed(seed)  # router init may consume global RNG
+            trial_rng = np.random.default_rng(seed)
             router = create_experiment_router(
                 model_registry=build_model_registry(models, catalog),
                 feature_dim=dim,
@@ -995,7 +1003,8 @@ def run_pareto_sweep(
                 cost_penalty=lam,
                 forgetting_factor=forgetting_factor,
             )
-            train_bandit(router, train_data, train_emb, models, r_min, r_range)
+            train_bandit(router, train_data, train_emb, models, r_min, r_range,
+                         rng=trial_rng)
             r, c, _, pp, pp_c = evaluate_frozen(
                 router, eval_data, eval_emb, costs, burn_in, per_prompt=True,
             )
@@ -1073,7 +1082,9 @@ def _recompute_holdout_metrics_with_full_dev_training(
         all_per_prompt: List[List[float]] = []
         all_per_prompt_costs: List[List[float]] = []
         for trial in range(n_trials):
-            np.random.seed(SEED_OFFSET + trial)
+            seed = SEED_OFFSET + trial
+            np.random.seed(seed)  # router init may consume global RNG
+            trial_rng = np.random.default_rng(seed)
             router = create_experiment_router(
                 model_registry=build_model_registry(models, catalog),
                 feature_dim=dim,
@@ -1086,7 +1097,8 @@ def _recompute_holdout_metrics_with_full_dev_training(
                 cost_penalty=lam,
                 forgetting_factor=forgetting_factor,
             )
-            train_bandit(router, full_dev_data, full_dev_emb, models, r_min, r_range)
+            train_bandit(router, full_dev_data, full_dev_emb, models, r_min, r_range,
+                         rng=trial_rng)
             r, c, _, pp, pp_c = evaluate_frozen(
                 router, holdout_data, holdout_emb, costs, burn_in, per_prompt=True,
             )
@@ -1183,7 +1195,7 @@ def run_coldstart_sweep(
         trial_dev_c: List[float] = []
         trial_dev_r: List[float] = []
         for trial in range(n_trials):
-            np.random.seed(SEED_OFFSET + trial)
+            np.random.seed(SEED_OFFSET + trial)  # router init reproducibility
             router = create_experiment_router(
                 model_registry=build_model_registry(models, catalog),
                 feature_dim=feature_dim,
@@ -1282,7 +1294,9 @@ def run_learning_curve(
     }
 
     for trial in range(n_trials):
-        np.random.seed(SEED_OFFSET + trial)
+        seed = SEED_OFFSET + trial
+        np.random.seed(seed)  # router init may consume global RNG
+        trial_rng = np.random.default_rng(seed)
         router = create_experiment_router(
             model_registry=build_model_registry(models, catalog),
             feature_dim=dim,
@@ -1301,7 +1315,7 @@ def run_learning_curve(
             by_step[0]["rewards"].append(r)
             by_step[0]["costs"].append(c)
 
-        order = np.random.permutation(len(train_data))
+        order = trial_rng.permutation(len(train_data))
         for step_idx, idx in enumerate(order):
             p, x = train_data[idx], train_emb[idx]
             model, log = router.route(x, total_steps=burn_in)
@@ -2112,12 +2126,28 @@ def run_experiment() -> None:  # noqa: C901
             f"forgetting_factor={tuned_k2['forgetting_factor']} "
             f"from {hparams_k2_path}"
         )
+    else:
+        logger.warning(
+            f"Appendix H results not found at {hparams_k2_path}. "
+            f"Falling back to module-level defaults (alpha={ALPHA_START}, "
+            f"n_eff={TARGET_NEFF}). Run "
+            f"experiments/appendix/H_alpha_neff_ablation/run_3d_grid_ablation.py "
+            f"first for tuned hyperparameters."
+        )
     if tuned_k10 is not None:
         logger.info(
             f"Loaded K=10 tuned hparams (dev-val-selected): "
             f"alpha={tuned_k10['alpha']} n_eff={tuned_k10['prior_n_effective']} "
             f"forgetting_factor={tuned_k10['forgetting_factor']} "
             f"from {hparams_k10_path}"
+        )
+    else:
+        logger.warning(
+            f"Appendix H results not found at {hparams_k10_path}. "
+            f"Falling back to module-level defaults (alpha={ALPHA_START}, "
+            f"n_eff={TARGET_NEFF}). Run "
+            f"experiments/appendix/H_alpha_neff_ablation/run_3d_grid_ablation.py "
+            f"first for tuned hyperparameters."
         )
 
     # ==================================================================
@@ -2373,6 +2403,16 @@ def run_experiment() -> None:  # noqa: C901
     random_k2 = random_route(holdout_data_k2, K2_MODELS, costs_k2, N_SEEDS * 4)
     logger.info(f"    Random: R={random_k2['reward']:.4f}")
 
+    ucb1_k2 = ucb1_online_route(
+        dev_train_k2, holdout_data_k2, K2_MODELS, costs_k2,
+        cost_penalty=0.0, n_trials=N_SEEDS,
+    )
+    logger.info(
+        f"    UCB1 (non-contextual): R={ucb1_k2['reward']:.4f} "
+        f"+/-{ucb1_k2['std_reward']:.4f}  "
+        f"(greedy arm: {K2_CATALOG[ucb1_k2['greedy_arm']]['display']})"
+    )
+
     # --- Phase 6: Dev-selected Pareto AUC & isocost comparison ----------
     # Lambda=X means different things for BanditGPT (normalized costs in
     # [0,1]) vs RouteLLM (raw dollar costs).  An isocost comparison fixes
@@ -2560,6 +2600,7 @@ def run_experiment() -> None:  # noqa: C901
             f"{pst['pct_seeds_significant']:.0f}% sig)"
         )
     logger.info(f"    Random:       {random_k2['reward']:.4f}")
+    logger.info(f"    UCB1 (non-ctx): {ucb1_k2['reward']:.4f}")
 
     results_all["K2"] = {
         "models": K2_MODELS,
@@ -2569,6 +2610,7 @@ def run_experiment() -> None:  # noqa: C901
         "oracle_pure_quality": {"reward": oracle_r_k2_pure, "cost": oracle_c_k2_pure},
         "static": static_k2,
         "random": random_k2,
+        "ucb1": ucb1_k2,
         "routellm": {
             "best_tau": best_tau,
             "dev_train_sweep": dev_train_sweep,

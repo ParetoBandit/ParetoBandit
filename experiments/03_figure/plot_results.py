@@ -107,9 +107,12 @@ def plot_learning_curve(res: dict, out: Path) -> None:
     ax.fill_between(steps, ci_lower, ci_upper, color=BLUE,
                     alpha=0.12, zorder=2)
 
-    rl_peak = max(p["avg_reward"] for p in k2["routellm"]["pareto"])
+    rl_pareto = k2["routellm"]["pareto"]
+    dev_best_idx = max(range(len(rl_pareto)),
+                       key=lambda i: rl_pareto[i]["dev_mean_reward"])
+    rl_peak = rl_pareto[dev_best_idx]["avg_reward"]
     ax.axhline(y=rl_peak, color=RED, ls="--", lw=2, alpha=0.8, zorder=3,
-               label=f"RouteLLM peak ({rl_peak:.3f}, ~100k pre-trained)")
+               label=f"RouteLLM dev-selected ({rl_peak:.3f}, ~100k pre-trained)")
 
     weak_r = min(s["reward"] for s in k2["static"].values())
     ax.axhline(y=weak_r, color=GRAY, ls=":", lw=1.5, alpha=0.6, zorder=3,
@@ -129,9 +132,9 @@ def plot_learning_curve(res: dict, out: Path) -> None:
         ax.annotate(
             f"Crossover @ step {crossover_step}",
             xy=(crossover_step, crossover_reward),
-            xytext=(crossover_step + 80, crossover_reward - 0.015),
+            xytext=(crossover_step + 80, crossover_reward + 0.025),
             fontsize=9, color=ORANGE, fontweight="bold",
-            ha="left", va="top",
+            ha="left", va="bottom",
             arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.5),
             zorder=10,
         )
@@ -229,7 +232,10 @@ def generate_latex_table(res: dict, out: Path) -> None:
     gpt4_r = static["openai/gpt-4-turbo"]["reward"]
     gpt4_c = static["openai/gpt-4-turbo"]["cost"]
     oracle_r = k2["oracle_pure_quality"]["reward"]
-    rl_peak = max(p["avg_reward"] for p in k2["routellm"]["pareto"])
+    rl_pareto = k2["routellm"]["pareto"]
+    dev_best_idx = max(range(len(rl_pareto)),
+                       key=lambda i: rl_pareto[i]["dev_mean_reward"])
+    rl_peak = rl_pareto[dev_best_idx]["avg_reward"]
 
     lines = []
     lines.append(r"\begin{table}[htbp]")
@@ -292,7 +298,7 @@ def generate_latex_table(res: dict, out: Path) -> None:
                  f"{mixtral_r:.3f} & --- & --- & --- \\\\")
     lines.append(f"Static GPT-4-Turbo (\\${gpt4_c:.3f}) & "
                  f"{gpt4_r:.3f} & --- & --- & --- \\\\")
-    lines.append(f"RouteLLM peak & --- & {rl_peak:.3f} & --- & --- \\\\")
+    lines.append(f"RouteLLM dev-selected & --- & {rl_peak:.3f} & --- & --- \\\\")
     lines.append(f"Oracle (per-prompt best) & {oracle_r:.3f} & "
                  f"--- & --- & --- \\\\")
     lines.append(r"\bottomrule")
@@ -321,7 +327,7 @@ def generate_latex_table(res: dict, out: Path) -> None:
         print(f"| ${b:.3f} | {bg} | {rl} | {d} | {w} |")
     print(f"| Static Mixtral | {mixtral_r:.3f} | --- | --- | --- |")
     print(f"| Static GPT-4-Turbo | {gpt4_r:.3f} | --- | --- | --- |")
-    print(f"| RouteLLM peak | --- | {rl_peak:.3f} | --- | --- |")
+    print(f"| RouteLLM dev-selected | --- | {rl_peak:.3f} | --- | --- |")
     print(f"| Oracle | {oracle_r:.3f} | --- | --- | --- |")
 
 
