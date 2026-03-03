@@ -848,6 +848,23 @@ Wrap in lock and clean up regularization_floor and
         Implements paper Eq. 4:
           a_t = argmax (x^T θ_hat + α √(x^T A^{-1} x) - cost_penalty)
         
+        **Commensurability Note:**
+        The UCB term (mean + α·std) is in reward units. When processing feedback,
+        `BanditRouter.process_feedback()` strictly clamps rewards to [0, 1].
+        Furthermore, `calibrate_priors()` guarantees that initialized priors
+        satisfy |x^T θ_hat| ≤ 0.9 on the calibration suite, and the exploration
+        bonus `α·std` is structurally bounded by the feature embedding space
+        (PCA-whitened to unit variance) and the Tikhonov regularization `λ`.
+        
+        Because the quality score is bounded to a known, stable scale (~[0, 1]
+        range), the additive cost penalty `λ_c * norm_cost` (where `norm_cost`
+        is also in [0, 1]) is provably commensurate. The multiplier `λ_c`
+        (e.g., `cost_penalty=0.1`) represents a direct exchange rate:
+        "Sacrifice 10% expected reward to choose the cheapest over the most
+        expensive model." Early in training (tabula rasa), α·std may exceed 1.0,
+        intentionally dominating the penalty to ensure exploration until the
+        variance shrinks.
+        
         Args:
             x: Context vector
             candidates: List of candidate model IDs (None = all models)
