@@ -522,7 +522,7 @@ class TestCorrallingRouter:
                     return "model_a"
                 return "model_b"
             
-            def update(self, context, model, reward, weight=1.0):
+            def update(self, context, model, reward, weight=1.0, advance_time=True):
                 self.updates.append((context, model, reward))
         
         expert1 = MockExpert("optimistic", bias=-0.2)  # Favors model_a
@@ -1059,7 +1059,7 @@ class TestRobustnessFixes:
                 self.model_id = model_id
             def select_model(self, context, total_steps=0, **kwargs):
                 return self.model_id
-            def update(self, context, model, reward, weight=1.0):
+            def update(self, context, model, reward, weight=1.0, advance_time=True):
                 pass
         
         experts_d = [FixedExpert("model_a"), FixedExpert("model_b")]

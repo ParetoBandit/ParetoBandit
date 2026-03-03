@@ -24,7 +24,7 @@ class MockExpert:
         self.selections += 1
         return self.model_id
     
-    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
+    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0, advance_time: bool = True):
         """No-op update for mock."""
         pass
 

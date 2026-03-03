@@ -213,7 +213,7 @@ class MockExpert:
             return self.preferred_model
         return eligible[0]
 
-    def update(self, context, model, reward, weight=1.0):
+    def update(self, context, model, reward, weight=1.0, advance_time=True):
         self.update_count += 1
 
 
@@ -680,19 +680,19 @@ class MockCountingExpert:
             return self.preferred_model
         return eligible[0]
 
-    def update(self, context, model, reward, weight=1.0):
+    def update(self, context, model, reward, weight=1.0, advance_time=True):
         self.update_calls.append((model, reward))
 
 
-class TestCorrallingAllExpertsLearn:
+class TestCorrallingIPWUpdates:
     """
-    In Exp4/Corralling, ALL base algorithms must observe (context, model, reward)
-    so they can maintain valid internal policies.  Previously only the chosen
-    expert was updated, starving the non-selected expert of data.
+    Under Exp4/Corralling with IPW, only the expert(s) that endorsed the
+    selected action receive a base-algorithm update (scaled by 1/π(a)).
+    Non-endorsing experts receive no update for that round.  This
+    maintains valid on-policy training distributions for each expert.
 
-    Every expert's internal bandit is updated on every observation.
-    The meta-weight update (importance-weighted loss) still only penalises
-    the chosen expert — that part is unchanged.
+    The meta-weight update (importance-weighted loss) still attributes
+    loss to all endorsing experts — that part is unchanged.
     """
 
     @pytest.fixture
@@ -707,8 +707,12 @@ class TestCorrallingAllExpertsLearn:
             gamma=0.5,
         )
 
-    def test_both_experts_receive_every_update(self, two_expert_router):
-        """After N updates, BOTH experts should have N update calls."""
+    def test_only_endorsing_experts_updated(self, two_expert_router):
+        """After N rounds, total expert updates should equal N (not 2N).
+
+        When experts disagree (e1→m1, e2→m2), exactly one endorses the
+        selected arm per round.  With IPW, only that endorser is updated.
+        """
         router = two_expert_router
         ctx = np.ones(4)
         n_rounds = 20
@@ -720,33 +724,42 @@ class TestCorrallingAllExpertsLearn:
         e1_updates = len(router.experts[0].update_calls)
         e2_updates = len(router.experts[1].update_calls)
 
-        assert e1_updates == n_rounds, (
-            f"Expert 0 should have {n_rounds} updates, got {e1_updates}"
+        total = e1_updates + e2_updates
+        assert total == n_rounds, (
+            f"Total updates should equal {n_rounds} (one endorser per round), got {total}"
         )
-        assert e2_updates == n_rounds, (
-            f"Expert 1 should have {n_rounds} updates, got {e2_updates}"
-        )
+        assert e1_updates > 0, "Expert 0 should have received at least some updates"
+        assert e2_updates > 0, "Expert 1 should have received at least some updates"
 
-    def test_non_selected_expert_still_learns(self, two_expert_router):
+    def test_non_endorsing_expert_gets_no_update(self):
         """
-        Even if one expert is never selected (extreme weight skew),
-        it should still receive every update.
+        When gamma=0 and weights fully favour expert 0, expert 0 is always
+        selected and always endorses.  Expert 1 never endorses, so under
+        IPW it receives zero updates.
+
+        Uses learning_rate=0 to prevent meta-weight shifts during the loop,
+        keeping expert 0 dominant throughout all 10 rounds.
         """
-        router = two_expert_router
-        # Force expert 0 to be overwhelmingly preferred
-        router.weights = np.array([0.99, 0.01])
-        router.gamma = 0.0  # No mixing — expert 0 always selected
+        models = ["m1", "m2"]
+        e1 = MockCountingExpert(models, name="warmup", preferred_model="m1")
+        e2 = MockCountingExpert(models, name="tabula_rasa", preferred_model="m2")
+        router = CorrallingRouter(
+            experts=[e1, e2],
+            models=models,
+            learning_rate=1e-12,  # Near-zero to freeze meta-weights
+            gamma=0.0,  # No mixing — expert 0 always selected
+            initial_weights=np.array([0.99, 0.01]),
+        )
 
         ctx = np.ones(4)
         for _ in range(10):
             model, token = router.select_model(ctx)
             router.update(ctx, model, reward=0.5, selection_token=token)
 
-        # Expert 1 was never selected, but should still have learned
+        e0_updates = len(router.experts[0].update_calls)
         e1_updates = len(router.experts[1].update_calls)
-        assert e1_updates == 10, (
-            f"Non-selected expert should have 10 updates, got {e1_updates}"
-        )
+        assert e0_updates == 10, f"Expert 0 should have 10 updates, got {e0_updates}"
+        assert e1_updates == 0, f"Non-endorsing expert 1 should have 0 updates, got {e1_updates}"
 
     def test_meta_weights_still_change(self, two_expert_router):
         """
@@ -757,12 +770,10 @@ class TestCorrallingAllExpertsLearn:
         initial_weights = router.weights.copy()
 
         ctx = np.ones(4)
-        # Do several rounds of select + update
         for _ in range(10):
             model, token = router.select_model(ctx)
-            router.update(ctx, model, reward=0.3, selection_token=token)  # Mediocre reward
+            router.update(ctx, model, reward=0.3, selection_token=token)
 
-        # Weights should have shifted from uniform
         assert not np.allclose(router.weights, initial_weights, atol=1e-4), (
             "Meta-weights should change after updates"
         )
@@ -965,7 +976,7 @@ class TestM3_WeightPropagation:
                 self.captured_weights = []
             def select_model(self, context, **kwargs):
                 return "m1"
-            def update(self, context, model, reward, weight=1.0):
+            def update(self, context, model, reward, weight=1.0, advance_time=True):
                 self.captured_weights.append(weight)
 
         e1 = WeightCapturingExpert()
@@ -1436,7 +1447,7 @@ class TestT2_StalenessAwareMetaLR:
                 self.update_calls = []
             def select_model(self, context, **kwargs):
                 return self.preferred_model
-            def update(self, context, model, reward, weight=1.0):
+            def update(self, context, model, reward, weight=1.0, advance_time=True):
                 self.update_calls.append((model, reward, weight))
 
         e1 = SimpleExpert("m1")
@@ -1514,8 +1525,8 @@ class TestT2_StalenessAwareMetaLR:
                 f"delay {[0, 10, 60, 600][i+1]}s → Δ={deltas[i+1]:.6f}"
             )
 
-    def test_experts_always_get_full_update(self):
-        """Expert internal updates should NOT be discounted by staleness."""
+    def test_endorsing_expert_gets_ipw_update(self):
+        """Endorsing expert should receive IPW-scaled weight, not discounted by staleness."""
         router, e1, e2 = self._make_router(halflife=1.0)
         ctx = np.ones(4)
 
@@ -1525,11 +1536,28 @@ class TestT2_StalenessAwareMetaLR:
 
         router.update(ctx, "m1", reward=0.8, selection_token=token, weight=2.5)
 
-        # Both experts should still receive the full update
-        assert len(e1.update_calls) == 1
-        assert len(e2.update_calls) == 1
-        assert e1.update_calls[0] == ("m1", 0.8, 2.5)
-        assert e2.update_calls[0] == ("m1", 0.8, 2.5)
+        # Only the endorsing expert(s) should receive an update.
+        # e1 recommends "m1", e2 recommends "m2".
+        # If "m1" was selected, e1 endorsed it.
+        endorsing = token["endorsing_experts"]
+        experts = [e1, e2]
+        for i in endorsing:
+            assert len(experts[i].update_calls) == 1, (
+                f"Endorsing expert {i} should have exactly 1 update"
+            )
+            call_model, call_reward, call_weight = experts[i].update_calls[0]
+            assert call_model == "m1"
+            assert call_reward == 0.8
+            # Weight should be IPW-scaled: 2.5 / action_prob
+            expected_weight = 2.5 / token["action_prob"]
+            assert abs(call_weight - expected_weight) < 1e-6, (
+                f"Expected IPW weight {expected_weight:.4f}, got {call_weight:.4f}"
+            )
+        for i in range(2):
+            if i not in endorsing:
+                assert len(experts[i].update_calls) == 0, (
+                    f"Non-endorsing expert {i} should have 0 updates"
+                )
 
     def test_infinite_halflife_disables_decay(self):
         """meta_lr_halflife=inf should give staleness_factor=1.0 always."""

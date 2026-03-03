@@ -906,12 +906,17 @@ Wrap in lock and clean up regularization_floor and
         return best_model, float(best_ucb)
     
     def _effective_staleness(self, model: str) -> int:
-        """Rounds since the most recent event (update or selection) for *model*.
+        """Request-count intervals since the most recent event for *model*.
 
-        Under delayed feedback an arm can be selected frequently but appear
-        stale because reward updates arrive late.  Using
-        ``max(last_update, last_played)`` as the reference prevents artificial
-        uncertainty inflation for arms with feedback in flight.
+        ``self.t`` is a *request counter*: it is incremented at route time by
+        ``mark_selected()``, not at feedback time.  This means ``dt`` measures
+        the number of routing requests that have elapsed since the model was
+        last updated or selected — a semantically meaningful staleness measure
+        that is immune to the batch size of delayed feedback arrivals.
+
+        Uses ``max(last_update, last_played)`` as the reference to prevent
+        artificial uncertainty inflation for arms that are being used but whose
+        feedback is still in flight (delayed RLHF scenario).
         """
         most_recent = max(
             self.last_update.get(model, 0),
@@ -925,8 +930,19 @@ Wrap in lock and clean up regularization_floor and
         Called at selection time so that ``_effective_staleness`` can
         distinguish "no update yet because feedback is delayed" from "arm
         genuinely unused."
+
+        **Time Advancement (Request Counter):**
+        This method also increments the global logical clock `self.t` by 1.
+        By advancing time at selection (route time) rather than at feedback
+        time, `self.t` acts as a *request counter* rather than a *feedback counter*.
+        This ensures that when a burst of delayed feedback arrives (e.g., 100
+        RLHF ratings at once), the updates do not artificially inflate the
+        decay factor `gamma ** dt` for each other. Time correctly represents
+        the number of environmental interactions, not the processing speed.
         """
-        self.last_played[model] = self.t
+        with self._lock:
+            self.t += 1
+            self.last_played[model] = self.t
 
     def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000,
                           noise_variance: float = 0.25) -> Dict[str, float]:
@@ -1025,7 +1041,7 @@ Wrap in lock and clean up regularization_floor and
     # Snapshot-swap helper methods removed - replaced with simple per-model locking
     # This eliminates the lost update race condition identified in conference review
     
-    def update(self, model: str, x: np.ndarray, reward: float, weight: float = 1.0) -> None:
+    def update(self, model: str, x: np.ndarray, reward: float, weight: float = 1.0, advance_time: bool = True) -> None:
         """
         Update the model's A and b matrices with new observation.
         
@@ -1043,6 +1059,21 @@ Wrap in lock and clean up regularization_floor and
         Sherman-Morrison update is O(d²) ≈ 0.5ms for d=33, negligible compared
         to network latency. Holding lock during update is acceptable.
         
+        **Time Convention (`advance_time`):**
+        `self.t` is a *request counter*, not a *feedback counter*.  It is
+        advanced at route/selection time by ``mark_selected()``, so that a
+        burst of delayed feedback arriving at once (e.g., a daily RLHF batch)
+        does not artificially inflate ``gamma**dt`` decay for each feedback
+        event processed in the batch.
+
+        When called from ``process_feedback()`` (the standard online path),
+        pass ``advance_time=False`` because time was already advanced by
+        ``mark_selected()`` at route time.
+
+        When called directly for offline/batch replay (i.e., without a
+        preceding ``route()`` call), leave ``advance_time=True`` (the default)
+        so each replayed observation still increments time.
+        
         Args:
             model: Model identifier
             x: Context vector
@@ -1050,6 +1081,9 @@ Wrap in lock and clean up regularization_floor and
             weight: Importance weight for this update (default 1.0).
                     Use weight = (1 - cluster_mu) for difficulty-based weighting.
                     Hard tasks (μ=0.5) get weight=0.5, easy tasks (μ=0.95) get weight=0.05.
+            advance_time: Whether to increment ``self.t``. Defaults to True.
+                    Set to False when time was already advanced at route time via
+                    ``mark_selected()`` to prevent double-counting.
         """
         if model not in self.A:
             return
@@ -1161,7 +1195,8 @@ Wrap in lock and clean up regularization_floor and
                     self.A[model] = new_A
                     self.b[model] = new_b
                     self.A_inv[model] = new_A_inv
-                    self.t += 1
+                    if advance_time:
+                        self.t += 1
             else:
                 # CRITICAL: Denominator too small, fallback to O(d³) with fresh regularization.
                 # Add the observation + fresh lambda*I to A, recompute inverse.
@@ -1183,7 +1218,8 @@ Wrap in lock and clean up regularization_floor and
                     self.A[model] = new_A
                     self.b[model] = new_b
                     self.A_inv[model] = new_A_inv
-                    self.t += 1
+                    if advance_time:
+                        self.t += 1
 
 
     def _check_numerical_stability(self, model: str, config: 'RouterConfig' = None) -> None:
@@ -2960,11 +2996,12 @@ Previous version referenced non-existent attributes
             # meta-weight update uses the correct expert_idx and probability.
             self.corralling_router.update(
                 x, log.selected_model, reward,
-                selection_token=getattr(log, 'corralling_token', None)
+                selection_token=getattr(log, 'corralling_token', None),
+                advance_time=False
             )
         else:
             # Fallback: Update bandit directly
-            self.bandit.update(log.selected_model, x, reward)
+            self.bandit.update(log.selected_model, x, reward, advance_time=False)
         
         # Periodic stability check (cheap O(d) operation).
         # The canonical bandit is always live (under Corralling, the adapter
@@ -3071,7 +3108,7 @@ Previous version referenced non-existent attributes
         
         return self.bandit.get_probabilities(x, models)
 
-    def update(self, model_id: str, context: str | np.ndarray, reward: float, weight: float = 1.0) -> None:
+    def update(self, model_id: str, context: str | np.ndarray, reward: float, weight: float = 1.0, advance_time: bool = True) -> None:
         """
         Perform a direct bandit update (bypass ``process_feedback`` flow).
 
@@ -3088,6 +3125,8 @@ Previous version referenced non-existent attributes
             context: Prompt string or pre-computed feature vector.
             reward: Observed quality signal in [0, 1] (clamped).
             weight: Importance weight for this observation (default 1.0).
+            advance_time: Whether to increment the global time step `t`.
+                Default `True` is correct for offline/batch learning.
 
         Raises:
             ValueError: If *context* is an ``np.ndarray`` with wrong dimension.
@@ -3100,9 +3139,9 @@ Previous version referenced non-existent attributes
         if self.use_corralling and self.corralling_router:
             # Propagate weight so difficulty-based weighting
             # isn't silently dropped under Corralling.
-            self.corralling_router.update(x, model_id, reward, weight=weight)
+            self.corralling_router.update(x, model_id, reward, weight=weight, advance_time=advance_time)
         else:
-            self.bandit.update(model_id, x, reward, weight)
+            self.bandit.update(model_id, x, reward, weight, advance_time=advance_time)
         
         # Periodic stability check — same guard as process_feedback()
         if not (self.use_corralling and self.corralling_router):
@@ -3720,7 +3759,8 @@ class CorrallingRouter:
         return model, selection_token
     
     def update(self, context: np.ndarray, model: str, reward: float,
-               selection_token: Dict | None = None, weight: float = 1.0):
+               selection_token: Dict | None = None, weight: float = 1.0,
+               advance_time: bool = True):
         """
         Two-level update: meta-weights (which expert to trust) + base-level
         (each expert's internal LinUCB learning).
@@ -3876,11 +3916,11 @@ class CorrallingRouter:
                     # IPW correction: weight * (p_j_model / pi_total_model)
                     # Here p_j_model = 1.0 since it endorsed the model.
                     ipw_weight = weight / action_prob
-                    expert.update(context, model, reward, ipw_weight)
+                    expert.update(context, model, reward, ipw_weight, advance_time=advance_time)
         else:
             # Fallback for direct updates without a preceding selection
             for expert in self.experts:
-                expert.update(context, model, reward, weight)
+                expert.update(context, model, reward, weight, advance_time=advance_time)
     
     def mark_selected(self, model: str) -> None:
         """Propagate selection timestamp to all experts for staleness tracking."""
@@ -4381,14 +4421,16 @@ class CostAwareLinUCBAdapter:
         model: str,
         reward: float,
         weight: float = 1.0,
+        advance_time: bool = True,
     ) -> None:
         """Delegate the update to the shared bandit.
 
         The bandit handles forgetting factor decay, Sherman-Morrison, proactive
         regularization, and periodic A_inv refresh internally.
         """
-        self.bandit.update(model, context, reward, weight)
-        self.t += 1
+        self.bandit.update(model, context, reward, weight, advance_time=advance_time)
+        if advance_time:
+            self.t += 1
 
     def add_model(
         self,
@@ -4534,7 +4576,12 @@ class CostAwareTabulaRasaRouter:
         return self.alpha_start + fraction * (self.alpha_end - self.alpha_start)
 
     def _effective_staleness(self, model: str) -> int:
-        """Rounds since the most recent event (update or selection) for *model*."""
+        """Request-count intervals since the most recent event for *model*.
+
+        See :meth:`DisjointLinUCBPolicy._effective_staleness` for the full
+        rationale.  ``self.t`` is a request counter advanced by
+        ``mark_selected()``, not a feedback counter.
+        """
         most_recent = max(
             self.last_update.get(model, 0),
             self.last_played.get(model, 0),
@@ -4542,8 +4589,18 @@ class CostAwareTabulaRasaRouter:
         return self.t - most_recent
 
     def mark_selected(self, model: str) -> None:
-        """Record that *model* was deployed this round."""
-        self.last_played[model] = self.t
+        """Record that *model* was deployed this round.
+
+        Advances the global logical clock `self.t` by 1 so that `t` tracks
+        the number of routing *requests*, not feedback arrivals.  This
+        matches the convention in :class:`DisjointLinUCBPolicy`: staleness
+        (`dt = t - last_played`) measures intervals between request events,
+        making the forgetting factor `gamma**dt` independent of delayed
+        feedback batch sizes.
+        """
+        with self._lock:
+            self.t += 1
+            self.last_played[model] = self.t
 
     def select_model(self, context: np.ndarray, total_steps: int = 0,
                      candidates: List[str] | None = None) -> str:
@@ -4595,7 +4652,8 @@ class CostAwareTabulaRasaRouter:
         
         return _argmax_random_tiebreak(ucb_scores)
     
-    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0):
+    def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0,
+               advance_time: bool = True):
         """
         Update arm-specific matrices via Sherman-Morrison.
 
@@ -4608,6 +4666,9 @@ class CostAwareTabulaRasaRouter:
             model: Model that was selected
             reward: Observed reward (0-1 typically)
             weight: Importance/difficulty weight (default 1.0)
+            advance_time: Whether to increment `self.t`. Set to False when
+                time was already advanced at route time (via `mark_selected`)
+                to prevent double-counting feedback arrivals as requests.
         """
         if model not in self.A:
             return
@@ -4663,7 +4724,8 @@ class CostAwareTabulaRasaRouter:
                 self.A_inv[model] = safe_inv(self.A[model])
                 self.b[model] += weight * reward * x
             
-            self.t += 1
+            if advance_time:
+                self.t += 1
             
             self._sm_update_count[model] = self._sm_update_count.get(model, 0) + 1
             if self._sm_update_count[model] % 1000 == 0:

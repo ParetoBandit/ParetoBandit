@@ -31,7 +31,7 @@ class DeterministicExpert:
     def select_model(self, context: np.ndarray, total_steps: int = 0, **kwargs) -> str:
         return self.favorite_model
     
-    def update(self, context, model, reward, weight=1.0, cost=0.0):
+    def update(self, context, model, reward, weight=1.0, cost=0.0, advance_time=True):
         self.update_count += 1
 
 
@@ -50,7 +50,7 @@ class AdaptiveExpert:
             return self.models[0]
         return self.models[1]
     
-    def update(self, context, model, reward, weight=1.0, cost=0.0):
+    def update(self, context, model, reward, weight=1.0, cost=0.0, advance_time=True):
         self.update_count += 1
 
 
@@ -69,7 +69,7 @@ class SmartExpert:
             return np.random.choice([m for m in self.models if m != self.best_model])
         return self.best_model
     
-    def update(self, context, model, reward, weight=1.0, cost=0.0):
+    def update(self, context, model, reward, weight=1.0, cost=0.0, advance_time=True):
         self.update_count += 1
 
 
@@ -302,32 +302,38 @@ class TestCorrallingUpdate:
             "Cumulative losses should increase"
     
     def test_expert_updates_are_called(self):
-        """Test that underlying experts receive updates."""
+        """Test that endorsing experts receive IPW-corrected updates.
+
+        Under IPW, only the expert(s) that endorsed the selected arm get
+        updated.  With deterministic experts that disagree (expert1 always
+        picks model_a, expert2 always picks model_b), each round exactly
+        one expert is the endorser and receives an update.  Over 20 rounds,
+        the total update count equals 20 (not 40).
+        """
         models = ["model_a", "model_b"]
         expert1 = DeterministicExpert("expert1", "model_a")
         expert2 = DeterministicExpert("expert2", "model_b")
-        
+
         router = CorrallingRouter(
             experts=[expert1, expert2],
             models=models,
             learning_rate=1.0,
             gamma=0.05
         )
-        
+
         context = np.random.randn(10)
-        
-        # Run updates
+
         for _ in range(20):
             selected, token = router.select_model(context)
             router.update(context, selected, reward=0.8, selection_token=token)
-        
-        # All experts observe every update (base algorithms must see all
-        # feedback).  With 2 experts and 20 rounds, each expert
-        # gets 20 updates → 40 total.
+
+        # With IPW, only the endorsing expert gets updated each round.
+        # Since the experts always disagree, exactly one is updated per round.
         total_updates = expert1.update_count + expert2.update_count
-        assert total_updates == 40, f"Expected 40 updates total (2 experts × 20 rounds), got {total_updates}"
-        assert expert1.update_count == 20, f"Expert 1 should have 20 updates, got {expert1.update_count}"
-        assert expert2.update_count == 20, f"Expert 2 should have 20 updates, got {expert2.update_count}"
+        assert total_updates == 20, f"Expected 20 updates total (1 endorser per round × 20 rounds), got {total_updates}"
+        # Each expert gets updates proportional to its selection probability
+        assert expert1.update_count > 0, "Expert 1 should have received at least some updates"
+        assert expert2.update_count > 0, "Expert 2 should have received at least some updates"
 
 
 # =============================================================================
