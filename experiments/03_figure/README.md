@@ -29,7 +29,7 @@ This directory contains the K=2 competitive evaluation for the banditGPT paper: 
 3. Both BanditGPT and RouteLLM are evaluated on the same holdout set
 4. RouteLLM threshold is tuned on full dev set using the same cost-penalised objective as BanditGPT (symmetric data access)
 5. Point comparisons use isocost matching (same deployment budget), not lambda matching (which is invalid across architectures)
-6. **Fairness Design (Zero-Shot vs Adaptation):** RouteLLM's 100k pre-training pairs give it an absolute advantage in zero-shot routing (0.788 vs BanditGPT cold-start 0.745). To isolate algorithmic advantage without confounding data volumes, we explicitly test *adaptation speed*, showing BanditGPT consistently surpasses RouteLLM's peak after observing just ~25 dev prompts.
+6. **Fairness Design (Zero-Shot vs Adaptation):** RouteLLM's 100k pre-training pairs give it an absolute advantage in zero-shot routing (dev-selected holdout quality 0.783 vs BanditGPT cold-start 0.780). To isolate algorithmic advantage without confounding data volumes, we explicitly test *adaptation speed*, showing BanditGPT consistently surpasses RouteLLM's dev-selected quality after observing just ~25 dev prompts.
 
 This eliminates the circular BT-proxy evaluation from earlier drafts: rewards are ground-truth multi-judge scores, not proxy predictions.
 
@@ -94,9 +94,9 @@ python run_prequential.py
 - **Architecture**: Corralling with 2 experts (Warmup + Tabula Rasa)
 - **Policy**: Disjoint LinUCB (independent per-arm ridge regression)
 - **Warmup Priors**: K=2 from `priors_warmup.joblib`, K=10 from `priors_warmup_43model.joblib` (43-model file; only the K=10 models' priors are loaded)
-- **Alpha**: 0.25 (exploration coefficient; validated via ablation, see `run_alpha_ablation.py`)
+- **Alpha**: 1.0 for K=2, 0.1 for K=10 (selected via Appendix H 3D grid ablation; loaded automatically from `best_hparams_k2.json` / `best_hparams_k10.json`)
 - **Corralling**: eta=0.1, gamma=0.05
-- **Prior n_effective**: 1000.0
+- **Prior n_effective**: 5000.0 (selected via Appendix H ablation)
 - **Trials**: 20 seeds per configuration
 - **Frozen evaluation**: alpha=0 (pure exploitation) during holdout eval
 - **API**: `router.route()` / `router.process_feedback()`
@@ -109,6 +109,7 @@ python run_prequential.py
 
 ### Baselines
 - **Best-static + noise**: Routes to the empirical best model (computed from full training set means) with prob 1-epsilon, uniformly random otherwise. This is *not* an online epsilon-greedy bandit.
+- **UCB1 (non-contextual)**: Standard multi-armed bandit (no prompt features). Trains on dev set with online UCB1, then freezes to greedy. Ablates the value of contextual features — if UCB1 matches BanditGPT, prompt embeddings add no value. Included for both K=2 and K=10.
 - **Random**: Uniform random routing across all models.
 - **Oracle**: Per-prompt best model (reward upper bound).
 

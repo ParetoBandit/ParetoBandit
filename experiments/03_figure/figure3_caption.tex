@@ -11,7 +11,8 @@
     of those dev-optimal hyperparameters.  No holdout or training data enters
     the hyperparameter selection step.
     Shaded regions show the oracle upper-bound envelope (holdout-selected; not deployable).
-    BanditGPT (Corralling router with warmup priors, $\alpha{=}0.25$) is swept over
+    BanditGPT (Corralling router with warmup priors, $\alpha{=}1.0$,
+    $n_{\mathrm{eff}}{=}5000$; selected via Appendix~H grid ablation) is swept over
     $\lambda \in [0,\,5]$ (24 values); RouteLLM-MF (pre-trained on ${\sim}100$k preference pairs)
     is swept over $\tau \in [0,\,1]$ (101 thresholds).
     Both methods are trained/tuned on the same dev-train split (${\sim}80\%$ of
@@ -27,7 +28,7 @@
     ($\lambda{=}0$, quality-only; uses all $n{=}1{,}121$ dev prompts since no
     hyperparameter selection is performed).
     The crossover annotation marks the earliest step from which BanditGPT's lower CI bound
-    \emph{persistently} exceeds RouteLLM's peak ($0.788$) for all subsequent checkpoints.
+    \emph{persistently} exceeds RouteLLM's dev-selected quality ($0.783$) for all subsequent checkpoints.
     %
     Rewards are ground-truth multi-judge scores (mean of vote $\times$ confidence
     via \texttt{extract\_reward}), not proxy predictions.

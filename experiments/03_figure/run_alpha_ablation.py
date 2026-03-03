@@ -7,6 +7,11 @@ Runs the K=2 learning curve at multiple exploration coefficients to show:
   - Whether converged (step 1000+) performance is robust to alpha choice
   - The optimal exploration coefficient for this setup
 
+The joint alpha x n_eff x gamma grid ablation in
+``experiments/appendix/H_alpha_neff_ablation/run_3d_grid_ablation.py``
+selects the production hyperparameters used by ``run_prequential.py``.
+This script provides a focused single-axis ablation for the paper figure.
+
 This is a standard ablation for any UCB-based method and addresses a
 common KDD reviewer concern: "Is the result sensitive to the exploration
 parameter?"
@@ -56,11 +61,11 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ============================================================================
 
-ALPHA_VALUES: List[float] = [0.5, 1.0, 2.0, 4.0]
+ALPHA_VALUES: List[float] = [0.25, 0.5, 1.0, 2.0, 4.0]
 
 N_SEEDS: int = 20
 SEED_OFFSET: int = 42
-TARGET_NEFF: float = 10.0
+TARGET_NEFF: float = 5000.0
 CORRALLING_LR: float = 0.1
 CORRALLING_GAMMA: float = 0.05
 
@@ -297,7 +302,9 @@ def run_learning_curve(
     }
 
     for trial in range(n_trials):
-        np.random.seed(SEED_OFFSET + trial)
+        seed = SEED_OFFSET + trial
+        np.random.seed(seed)  # router init may consume global RNG
+        trial_rng = np.random.default_rng(seed)
         router = create_experiment_router(
             model_registry=build_model_registry(models, catalog),
             feature_dim=dim,
@@ -317,7 +324,7 @@ def run_learning_curve(
             by_step[0]["rewards"].append(r)
             by_step[0]["costs"].append(c)
 
-        order = np.random.permutation(len(train_data))
+        order = trial_rng.permutation(len(train_data))
         for step_idx, idx in enumerate(order):
             p, x = train_data[idx], train_emb[idx]
             model, log = router.route(x, total_steps=burn_in)
@@ -375,7 +382,7 @@ def plot_ablation(
     """Generate a single-panel alpha ablation figure.
 
     Shows learning curves for each alpha value with 95% CI bands,
-    plus the RouteLLM peak reference line.
+    plus the RouteLLM dev-selected reference line.
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -390,7 +397,7 @@ def plot_ablation(
     if rl_peak is not None:
         ax.axhline(
             y=rl_peak, color="#D55E00", ls="--", lw=2, alpha=0.8,
-            zorder=3, label=f"RouteLLM peak ({rl_peak:.3f})",
+            zorder=3, label=f"RouteLLM dev-selected ({rl_peak:.3f})",
         )
 
     weak_r = results.get("weak_model_reward")
@@ -498,7 +505,7 @@ def main() -> None:
     # Split dev into train/val (same split as run_prequential.py) so that
     # the alpha ablation learning curves are trained on the same dev-train
     # subset used for the Pareto sweep, ensuring a fair comparison against
-    # the RouteLLM peak reference line.
+    # the RouteLLM dev-selected reference line.
     logger.info(
         f"  Splitting dev into train/val "
         f"({1 - DEV_VAL_FRACTION:.0%}/{DEV_VAL_FRACTION:.0%}) ..."
@@ -513,7 +520,7 @@ def main() -> None:
     if max_step not in checkpoints:
         checkpoints.append(max_step)
 
-    # --- Load RouteLLM peak from main results (if available) ---
+    # --- Load RouteLLM dev-selected reference from main results ---
     main_results_path = output_dir / "prequential_results.json"
     rl_peak = None
     weak_r = None
@@ -523,13 +530,15 @@ def main() -> None:
         k2 = main_res.get("K2", {})
         pareto = k2.get("routellm", {}).get("pareto", [])
         if pareto:
-            rl_peak = max(p["avg_reward"] for p in pareto)
+            dev_best = max(range(len(pareto)),
+                           key=lambda i: pareto[i]["dev_mean_reward"])
+            rl_peak = pareto[dev_best]["avg_reward"]
         static = k2.get("static", {})
         if static:
             weak_r = min(s["reward"] for s in static.values())
         logger.info(
             f"  Loaded baselines from main results: "
-            f"RouteLLM peak={rl_peak}, weak={weak_r}"
+            f"RouteLLM dev-selected={rl_peak}, weak={weak_r}"
         )
 
     # --- Run ablation ---

@@ -111,13 +111,14 @@ fair comparison without requiring new data, we implemented symmetric data access
     purely to tune its threshold $\tau$ (adapting its out-of-distribution
     representation to the target distribution). BanditGPT's ``cold-start'' baseline
     (priors only, zero online steps) uses pre-trained priors from a different model
-    pool. Here, RouteLLM's massive pre-training data advantage allows it to dominate
-    ($0.788$ peak reward vs.\ BanditGPT's $0.745$ cold-start peak). We honestly
-    acknowledge this static pre-training advantage in the zero-shot regime.
+    pool. The two methods are nearly matched in zero-shot quality
+    (RouteLLM dev-selected holdout reward $0.783$ vs.\ BanditGPT cold-start
+    $0.780$), reflecting RouteLLM's massive pre-training data advantage offset
+    by BanditGPT's warmup priors.
     \item \textbf{In-Distribution Adaptation:} When evaluating online adaptation, we
     measure how rapidly BanditGPT can overcome its ${\sim}90\!\times$ data disadvantage.
     As shown in the learning curve (Figure~\ref{fig:prequential_k2}b), BanditGPT's
-    lower confidence bound persistently surpasses RouteLLM's offline-trained peak
+    lower confidence bound persistently surpasses RouteLLM's dev-selected quality
     after observing just ${\sim}25$ in-distribution interactions.
 \end{enumerate}
 To ensure a strictly fair comparison and avoid confounding variables, RouteLLM's
@@ -146,7 +147,8 @@ static router?}
 The $K{=}2$ portfolio comprises \texttt{Mixtral-8x7B} (cheap) and
 \texttt{GPT-4-Turbo} (expensive)---the same pair RouteLLM's MF router
 was pre-trained on.  BanditGPT (Corralling router with warmup priors,
-$\alpha{=}0.25$) trains on the dev-train split (${\sim}80\%$ of
+$\alpha{=}1.0$, $n_{\mathrm{eff}}{=}5000$; selected via Appendix~H grid
+ablation) trains on the dev-train split (${\sim}80\%$ of
 $n{=}1{,}121$); RouteLLM tunes its threshold~$\tau$ via a 101-point sweep on the same
 dev set (symmetric data access).  Both methods are frozen for holdout
 evaluation ($n{=}750$).  BanditGPT is swept over 24 $\lambda$ values;
@@ -188,12 +190,22 @@ in the UCB score, allowing smooth interpolation across the frontier.
 \paragraph{Results --- Learning curve (Figure~\ref{fig:prequential_k2}b).}
 The learning curve ($\lambda{=}0$, quality-only, frozen evaluation with
 $\alpha{=}0$) shows BanditGPT \emph{persistently} surpassing
-RouteLLM's peak reward ($0.788$) after just 25 online training steps,
+RouteLLM's dev-selected quality ($0.783$) after just 25 online training steps,
 despite a ${\sim}90\!\times$ data disadvantage.  Converged performance
-after $1{,}121$ steps reaches $0.816 \pm 0.007$ (20 seeds), a $+2.8$
-percentage-point improvement over RouteLLM's best.  The smooth,
-monotonic learning curve reflects the $\alpha{=}0.5$ exploration schedule
-validated in the ablation study (Figure~\ref{fig:alpha_ablation}).
+after 897 dev-train steps reaches $0.819 \pm 0.004$ (20 seeds), a $+3.1$
+percentage-point improvement over RouteLLM's best.  The exploration
+coefficient $\alpha{=}1.0$ was selected via the Appendix~H grid ablation
+(joint $\alpha \times n_{\mathrm{eff}} \times \gamma$ sweep on dev-val).
+
+\paragraph{UCB1 ablation: value of contextual features ($K{=}2$).}
+A non-contextual UCB1 baseline (standard multi-armed bandit, no prompt
+features) is included for $K{=}2$ to ablate whether semantic embeddings
+add value when the portfolio contains only two models.  After
+train-then-freeze evaluation, UCB1 converges to a single greedy arm,
+achieving performance comparable to the best static model.  BanditGPT's
+Pareto frontier dominates UCB1 across the cost range, confirming that
+contextual features enable prompt-specific routing even in the simplest
+two-model setting.
 
 \paragraph{Why this matters.}
 These results demonstrate that \emph{online adaptation is structurally
@@ -246,9 +258,9 @@ $0.910$)---while using $68\!\times$ lower cost.
 At the highest budgets ($\lambda{=}0$) the two frontiers converge:
 BanditGPT $0.880$ vs.\ tabula rasa $0.888$.  This is expected: with a
 large budget and no cost pressure, the optimal policy is pure
-exploitation, and tabula rasa's decaying $\alpha$ ($0.50 \to 0.01$)
+exploitation, and tabula rasa's decaying $\alpha$ ($0.20 \to 0.01$)
 converges to near-greedy selection.  BanditGPT's warmup expert
-maintains constant exploration ($\alpha{=}0.25$) for distribution-shift
+maintains constant exploration ($\alpha{=}0.10$) for distribution-shift
 robustness, which imposes a small quality tax in stationary,
 budget-unconstrained regimes.
 
@@ -290,46 +302,35 @@ combination required by real-world routing deployments.
 
 % ==================================================================
 
-\subsection{Exploration Sensitivity (Figure~\ref{fig:alpha_ablation})}
+\subsection{Hyperparameter Selection (Appendix~H)}
 
 \paragraph{Motivation.}
-The exploration coefficient $\alpha$ controls the UCB bonus in LinUCB
-and is a critical hyperparameter for any bandit-based method.
-A natural reviewer question is:\ \emph{how sensitive are the results
-to $\alpha$, and is the observed learning curve shape an artefact of
-the exploration schedule?}  This ablation answers both questions.
+The exploration coefficient $\alpha$, prior effective sample size
+$n_{\mathrm{eff}}$, and forgetting factor $\gamma$ are the key
+hyperparameters of the Corralling router.  A natural reviewer question
+is:\ \emph{how sensitive are the results to these choices?}
 
-\paragraph{Setup.}
-The $K{=}2$ learning curve is repeated at four exploration coefficients:
-$\alpha \in \{0.5, 1.0, 2.0, 4.0\}$.  In the Corralling router, the
-warmup expert uses constant $\alpha$ (for distribution-shift robustness)
-while the tabula-rasa expert decays from $2\alpha$ to $0.01$ (for
-convergence).  All other hyperparameters are held fixed.  Each curve is
-averaged over 20 seeds with $\lambda{=}0$ (quality-only).
+\paragraph{Approach.}
+Hyperparameters are selected via a 3D grid ablation (Appendix~H) over
+$\alpha \times n_{\mathrm{eff}} \times \gamma$, trained on dev-train
+and selected on dev-val.  The selected values are automatically loaded
+by \texttt{run\_prequential.py}:
 
-\paragraph{Results.}
-Higher exploration ($\alpha \geq 1.0$) produces a characteristic
-peak-then-dip artefact: the prior-informed warmup expert makes strong
-initial selections (peak at step 10--25), but as noisy online updates
-perturb the prior estimates, the large UCB bonus amplifies the corruption
-(dip at steps 50--200).  Quality recovers as sufficient data accumulates.
+\begin{center}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+Portfolio & $\alpha$ & $n_{\mathrm{eff}}$ & $\gamma$ & Dev-Val & Holdout \\
+\midrule
+$K{=}2$  & 1.0 & 5000 & 1.0 & 0.802 & 0.815 \\
+$K{=}10$ & 0.1 & 5000 & 1.0 & 0.923 & 0.870 \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-Lower exploration ($\alpha{=}0.5$) avoids this artefact entirely,
-producing a smooth, monotonically increasing learning curve.  The
-mechanism is straightforward: a smaller UCB bonus means less
-amplification of early estimation errors.
-
-Converged performance (step $1{,}121$) is robust across all values
-($0.811$--$0.816$), and \emph{all} surpass RouteLLM's peak ($0.788$).
-$\alpha{=}0.5$ achieves the highest final reward
-($0.816 \pm 0.007$) and is adopted as the default for all experiments.
-
-\paragraph{Why this matters.}
-This ablation demonstrates that the peak-then-dip artefact previously
-observed in learning curves is a well-understood consequence of
-over-exploration, not a fundamental instability of the routing algorithm.
-The smooth, monotonic learning curve at $\alpha{=}0.5$ is the
-scientifically accurate representation of BanditGPT's adaptation
-dynamics.  The robustness of converged performance to $\alpha$ confirms
-that the comparison with RouteLLM is not sensitive to this hyperparameter
-choice.
+Both portfolios favour strong priors ($n_{\mathrm{eff}}{=}5000$) and
+stationary learning ($\gamma{=}1.0$).  $K{=}2$ benefits from aggressive
+exploration ($\alpha{=}1.0$), while $K{=}10$ performs best with low
+exploration ($\alpha{=}0.1$), consistent with the larger action space
+requiring more exploitation of prior knowledge.  See Appendix~H for
+the full grid results and sensitivity analysis.
