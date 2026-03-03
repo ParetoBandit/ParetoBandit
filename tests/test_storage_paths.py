@@ -133,7 +133,7 @@ class TestSqliteContextStorePaths(unittest.TestCase):
             self.assertTrue(Path(store.db_path).exists(), "Database should be created after first save")
             
             # Retrieve it
-            retrieved_ctx, retrieved_model = store.get_context("test_request_123")
+            retrieved_ctx, retrieved_model, _ = store.get_context("test_request_123")
             self.assertIsNotNone(retrieved_ctx)
             self.assertEqual(retrieved_model, "test/model")
             np.testing.assert_array_almost_equal(retrieved_ctx, test_context)

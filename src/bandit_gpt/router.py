@@ -714,7 +714,8 @@ class DisjointLinUCBPolicy:
         # Precompute A_inv for hot-path speed
         self.A_inv = {m: safe_inv(self.A[m]) for m in self.models}
         
-        self.last_update = {m: 0 for m in self.models}  # Track last update step
+        self.last_update = {m: 0 for m in self.models}  # Track last reward-update step
+        self.last_played = {m: 0 for m in self.models}  # Track last selection step
         self.t = 0  # Global time step
         
         # Track per-model regularization floor to keep A well-conditioned under
@@ -797,6 +798,7 @@ Prepare all state outside the lock, then publish atomically.
             self.b[model_name] = new_b
             self.A_inv[model_name] = new_A_inv
             self.last_update[model_name] = self.t
+            self.last_played[model_name] = self.t
             self.regularization_floor[model_name] = self.init_lambda
             self.models.append(model_name)  # Last: select_arm sees it only after state is ready
 
@@ -813,6 +815,7 @@ Wrap in lock and clean up regularization_floor and
             if model_name in self.b: del self.b[model_name]
             if model_name in self.A_inv: del self.A_inv[model_name]
             if model_name in self.last_update: del self.last_update[model_name]
+            if model_name in self.last_played: del self.last_played[model_name]
             if model_name in self.regularization_floor: del self.regularization_floor[model_name]
             if model_name in self.model_locks: del self.model_locks[model_name]
 
@@ -867,7 +870,7 @@ Wrap in lock and clean up regularization_floor and
                 theta = self.A_inv[m] @ self.b[m]
                 mean = float(theta.dot(x))
                 
-                dt = self.t - self.last_update[m]
+                dt = self._effective_staleness(m)
                 decay_factor = self.gamma ** dt
                 
                 var = float(x.dot(self.A_inv[m]).dot(x))
@@ -885,29 +888,60 @@ Wrap in lock and clean up regularization_floor and
         
         return best_model, float(best_ucb)
     
+    def _effective_staleness(self, model: str) -> int:
+        """Rounds since the most recent event (update or selection) for *model*.
+
+        Under delayed feedback an arm can be selected frequently but appear
+        stale because reward updates arrive late.  Using
+        ``max(last_update, last_played)`` as the reference prevents artificial
+        uncertainty inflation for arms with feedback in flight.
+        """
+        most_recent = max(
+            self.last_update.get(model, 0),
+            self.last_played.get(model, 0),
+        )
+        return self.t - most_recent
+
+    def mark_selected(self, model: str) -> None:
+        """Record that *model* was deployed this round (for staleness tracking).
+
+        Called at selection time so that ``_effective_staleness`` can
+        distinguish "no update yet because feedback is delayed" from "arm
+        genuinely unused."
+        """
+        self.last_played[model] = self.t
+
     def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000,
                           noise_variance: float = 0.25) -> Dict[str, float]:
         """
-        Calculate the probability of each model being the best via posterior sampling.
-        
-        The Bayesian posterior for ridge regression is:
-            θ | D ~ N(A⁻¹b,  σ² · A⁻¹)
-        
+        Probability each model has the highest *quality* (expected reward).
+
+        Samples from the Bayesian posterior for ridge regression::
+
+            θ | D ~ N(A⁻¹b,  σ² · A⁻¹_eff)
+
+        where ``A⁻¹_eff`` incorporates staleness inflation (see
+        ``_effective_staleness``).  The model whose posterior draw yields
+        the largest ``θᵀx`` wins a sample; probabilities are the empirical
+        win fractions across *n_samples* draws.
+
+        **Important:** These probabilities reflect the *quality-only* reward
+        model.  Cost and latency penalties applied by ``select_arm()`` are
+        **not** incorporated.  Use this for posterior calibration, monitoring,
+        and explainability — not as a substitute for the full utility-based
+        selection rule.
+
         Args:
-            x: Context vector
-            models: List of model IDs to compare
-            n_samples: Number of Monte Carlo samples (default: 1000)
-            noise_variance: σ² for the posterior covariance.  Default 0.25 is the
-                           variance of a Bernoulli(0.5) reward, appropriate for
-                           binary win/loss feedback.  Override for non-binary rewards.
-        
+            x: Context vector.
+            models: List of model IDs to compare.
+            n_samples: Number of Monte Carlo samples (default: 1000).
+            noise_variance: σ² for the posterior covariance.  Default 0.25 is
+                the variance of a Bernoulli(0.5) reward, appropriate for
+                binary win/loss feedback.  Override for non-binary rewards.
+
         Returns:
-            Dictionary mapping model_id -> probability of being the best
-        
-Previously sampled from N(θ_hat, A_inv) which implicitly
-        assumed σ²=1.  With binary rewards, σ²≈0.25, so the old code
-        overestimated posterior variance by ~4×, producing artificially
-        uniform probability estimates.
+            Dictionary mapping model_id to probability of being the
+            highest-quality arm (sums to 1.0).
         """
         model_samples = {}
         valid_models = [m for m in models if m in self.A]
@@ -917,11 +951,7 @@ Previously sampled from N(θ_hat, A_inv) which implicitly
             for m in valid_models:
                 A_inv_m = self.A_inv[m].copy()
                 theta_hat = A_inv_m @ self.b[m]
-                # Capture staleness info so we can inflate the
-                # posterior covariance for models that haven't been updated recently.
-                # Without this, get_probabilities() is artificially tight for stale
-                # models, disagreeing with select_arm() which correctly inflates.
-                dt = self.t - self.last_update.get(m, 0)
+                dt = self._effective_staleness(m)
                 snapshots[m] = (A_inv_m, theta_hat, dt)
         
         # Return uniform distribution instead of all-zeros when no
@@ -1756,6 +1786,7 @@ Previous version referenced non-existent attributes
             self.bandit.b[model_id] = new_b
             self.bandit.A_inv[model_id] = new_A_inv
             self.bandit.last_update[model_id] = self.bandit.t
+            self.bandit.last_played[model_id] = self.bandit.t
             self.bandit.regularization_floor[model_id] = self.bandit.init_lambda
             self.bandit.models.append(model_id)  # LAST: visible only after state is ready
             
@@ -2593,9 +2624,6 @@ Previous version referenced non-existent attributes
             if self.logs.maxlen is None or self.logs.maxlen > 0:
                 self.log_index[log.request_id] = log
         
-        # Save context for delayed feedback (RLHF, human ratings, etc.)
-        self.context_store.save_context(log.request_id, x, model)
-        
         return log
 
     def route(
@@ -2686,16 +2714,29 @@ Previous version referenced non-existent attributes
             )
         
         total_weight = 1.0
+
+        # Record that this arm was selected so staleness inflation
+        # distinguishes "feedback in flight" from "genuinely unused".
+        if self.use_corralling and self.corralling_router is not None:
+            self.corralling_router.mark_selected(best_model)
+        else:
+            self.bandit.mark_selected(best_model)
         
         # Create routing log
         log = self._create_routing_log(
             prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
         )
-        # Store corralling selection token in the log so that
-        # process_feedback() can pass the correct (expert_idx, expert_prob)
-        # back to CorrallingRouter.update().  This ties the importance-weighted
-        # estimator to the exact probability that produced this selection.
         log.corralling_token = corralling_token
+
+        # Persist context + corralling token for delayed feedback (RLHF).
+        # Moved here from _create_routing_log so the corralling_token is
+        # available at save time.  Without persisting the token, delayed
+        # feedback that arrives after in-memory log eviction silently skips
+        # the Exp4 meta-weight update (only base experts learn).
+        self.context_store.save_context(
+            log.request_id, x, best_model,
+            corralling_token=corralling_token,
+        )
         
         return best_model, log
 
@@ -2777,17 +2818,19 @@ Previous version referenced non-existent attributes
         
         # Fallback to context_store for delayed feedback (RLHF)
         if log is None:
-            context, model_id = self.context_store.get_context(request_id)
+            context, model_id, stored_token = self.context_store.get_context(
+                request_id
+            )
             if context is None:
                 logger.warning(f"Context not found for request_id={request_id}")
                 return
-            # Reconstruct log from persistent storage
             log = RoutingLog(
                 request_id=request_id, timestamp_s=time.time(),
                 prompt="[Delayed Feedback]", selected_model=model_id,
                 predicted_utility=0.0, cost_usd=0.0, latency_s=0.0,
-                context_vector=context
+                context_vector=context,
             )
+            log.corralling_token = stored_token
         
         # Clamp reward to [0, 1] at the feedback entry point.
         # The Exp4/Corralling importance-weighted loss estimator ℓ = (1 - r) / p
@@ -2822,12 +2865,20 @@ Previous version referenced non-existent attributes
 
     def get_probabilities(self, context: str | np.ndarray, model_ids: List[str] | None = None) -> Dict[str, float]:
         """
-        Estimate the probability each model is the best choice for *context*.
+        Estimate the probability each model has the highest *quality* for *context*.
 
-        Uses Thompson Sampling (posterior draws) to convert LinUCB point
-        estimates into a probability distribution over models.  When
-        Corralling is enabled, delegates to the warmup expert (expert 0)
-        which receives all online observations.
+        Uses Thompson Sampling (posterior draws from the LinUCB ridge
+        regression posterior) to produce a probability distribution over
+        models.  When Corralling is enabled, delegates to the warmup
+        expert (expert 0) which receives all online observations.
+
+        **Quality-only:** These probabilities reflect the learned reward
+        model and do **not** incorporate cost or latency penalties.  The
+        actual routing decision (``route()``) optimises a composite utility
+        ``UCB - λ_c·cost - λ_ℓ·latency``; this method answers the narrower
+        question "which model is most likely to produce the highest-quality
+        response?" — useful for dashboards, explainability, and posterior
+        calibration.
 
         Args:
             context: Prompt string or pre-computed feature vector.
@@ -2835,9 +2886,9 @@ Previous version referenced non-existent attributes
                 registered models.
 
         Returns:
-            Dictionary mapping model IDs to selection probabilities that
-            sum to 1.0.  A uniform distribution is returned when no valid
-            models remain after filtering.
+            Dictionary mapping model IDs to quality-best probabilities
+            that sum to 1.0.  A uniform distribution is returned when no
+            valid models remain after filtering.
         """
         x = self.features.extract_features(context)
         models = model_ids if model_ids else self.bandit.models
@@ -2850,21 +2901,37 @@ Previous version referenced non-existent attributes
             model_samples = {}
             # Read expert state under its lock to prevent
             # observing a half-updated (A_inv, b) pair from concurrent update().
+            bandit_ref = getattr(expert, 'bandit', expert)
             with expert._lock:
                 valid_models = [m for m in models if m in expert.A_inv]
                 if not valid_models:
                     n = len(models) or 1
                     return {m: 1.0 / n for m in models}
-                # Snapshot the matrices we need (copy under lock, sample outside)
+                gamma = getattr(bandit_ref, 'gamma', 1.0)
+                bandit_t = getattr(bandit_ref, 't', 0)
+                bandit_last_update = getattr(bandit_ref, 'last_update', {})
+                bandit_last_played = getattr(bandit_ref, 'last_played', {})
                 snapshots = {
-                    m: (expert.A_inv[m].copy(), expert.b[m].copy())
+                    m: (
+                        expert.A_inv[m].copy(),
+                        expert.b[m].copy(),
+                        bandit_t - max(
+                            bandit_last_update.get(m, 0),
+                            bandit_last_played.get(m, 0),
+                        ),
+                    )
                     for m in valid_models
                 }
+            noise_variance = 0.25
             for m in valid_models:
-                A_inv_m, b_m = snapshots[m]
+                A_inv_m, b_m, dt = snapshots[m]
                 theta_hat = A_inv_m @ b_m
                 dim = len(theta_hat)
-                cov = 0.25 * A_inv_m
+                if gamma < 1.0 and dt > 0:
+                    decay_factor = gamma ** min(dt, 1000)
+                    cov = noise_variance * A_inv_m / max(decay_factor, 1e-12)
+                else:
+                    cov = noise_variance * A_inv_m
                 try:
                     samples = np.random.multivariate_normal(theta_hat, cov, n_samples)
                 except np.linalg.LinAlgError:
@@ -3688,6 +3755,12 @@ class CorrallingRouter:
         for expert in self.experts:
             expert.update(context, model, reward, weight)
     
+    def mark_selected(self, model: str) -> None:
+        """Propagate selection timestamp to all experts for staleness tracking."""
+        for expert in self.experts:
+            if hasattr(expert, 'mark_selected'):
+                expert.mark_selected(model)
+
     def get_expert_weights(self) -> Dict[str, float]:
         """Get current expert weights for diagnostics."""
         return {
@@ -4065,9 +4138,6 @@ class CostAwareLinUCBAdapter:
         )
 
     # --- Properties delegating to the shared bandit ---
-    # These allow existing code (get_probabilities, explain_decision,
-    # explain_selection) that reads expert.A_inv[m], expert.b[m],
-    # expert._lock, etc. to keep working unchanged.
 
     @property
     def _lock(self) -> threading.Lock:
@@ -4091,8 +4161,16 @@ class CostAwareLinUCBAdapter:
         return self.bandit.A_inv
 
     @property
+    def last_played(self) -> Dict[str, int]:
+        return self.bandit.last_played
+
+    @property
     def context_dim(self) -> int:
         return self.bandit.dim
+
+    def mark_selected(self, model: str) -> None:
+        """Delegate to the shared bandit's selection tracker."""
+        self.bandit.mark_selected(model)
 
     def get_current_alpha(self, total_steps: int) -> float:
         """Linear alpha decay from ``alpha_start`` to ``alpha_end``.
@@ -4140,7 +4218,7 @@ class CostAwareLinUCBAdapter:
                 var = float(context @ A_inv @ context)
 
                 if self.bandit.gamma < 1.0:
-                    dt = self.bandit.t - self.bandit.last_update.get(model, 0)
+                    dt = self.bandit._effective_staleness(model)
                     decay_factor = self.bandit.gamma ** min(dt, 1000)
                     var = var / max(decay_factor, 1e-12)
 
@@ -4293,6 +4371,7 @@ class CostAwareTabulaRasaRouter:
         
         self.gamma = float(forgetting_factor)
         self.last_update: Dict[str, int] = {m: 0 for m in models}
+        self.last_played: Dict[str, int] = {m: 0 for m in models}
         self.regularization_floor: Dict[str, float] = {
             m: self.ridge_lambda for m in models
         }
@@ -4326,7 +4405,19 @@ class CostAwareTabulaRasaRouter:
         
         fraction = min(self.t / total_steps, 1.0)
         return self.alpha_start + fraction * (self.alpha_end - self.alpha_start)
-    
+
+    def _effective_staleness(self, model: str) -> int:
+        """Rounds since the most recent event (update or selection) for *model*."""
+        most_recent = max(
+            self.last_update.get(model, 0),
+            self.last_played.get(model, 0),
+        )
+        return self.t - most_recent
+
+    def mark_selected(self, model: str) -> None:
+        """Record that *model* was deployed this round."""
+        self.last_played[model] = self.t
+
     def select_model(self, context: np.ndarray, total_steps: int = 0,
                      candidates: List[str] | None = None) -> str:
         """
@@ -4349,7 +4440,7 @@ class CostAwareTabulaRasaRouter:
                 var = float(context @ A_inv @ context)
 
                 if self.gamma < 1.0:
-                    dt = self.t - self.last_update.get(model, 0)
+                    dt = self._effective_staleness(model)
                     decay_factor = self.gamma ** min(dt, 1000)
                     var = var / max(decay_factor, 1e-12)
 
@@ -4478,6 +4569,7 @@ class CostAwareTabulaRasaRouter:
                 "normalized_latency": normalized_latency,
             }
             self.last_update[model_id] = self.t
+            self.last_played[model_id] = self.t
             self.regularization_floor[model_id] = self.ridge_lambda
 
         logger.debug(f"✅ Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")

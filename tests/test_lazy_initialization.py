@@ -60,7 +60,7 @@ class TestLazyInitialization(unittest.TestCase):
             self.assertFalse(db_path.exists())
             
             # Try to get a non-existent context
-            context, model = store.get_context("nonexistent_request")
+            context, model, _ = store.get_context("nonexistent_request")
             
             # Should return None, but DB should now exist
             self.assertIsNone(context)

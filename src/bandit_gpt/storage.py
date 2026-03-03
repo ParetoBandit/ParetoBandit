@@ -42,13 +42,24 @@ class ContextStore(ABC):
     """
     
     @abstractmethod
-    def save_context(self, request_id: str, context: np.ndarray, model_id: str) -> None:
-        """Save context vector for later retrieval."""
+    def save_context(
+        self,
+        request_id: str,
+        context: np.ndarray,
+        model_id: str,
+        corralling_token: Dict | None = None,
+    ) -> None:
+        """Save context vector and optional corralling token for later retrieval."""
         pass
     
     @abstractmethod
-    def get_context(self, request_id: str) -> Tuple[np.ndarray | None, str | None]:
-        """Retrieve (context, model_id) for feedback processing. Returns (None, None) if expired/missing."""
+    def get_context(
+        self, request_id: str,
+    ) -> Tuple[np.ndarray | None, str | None, Dict | None]:
+        """Retrieve (context, model_id, corralling_token) for feedback processing.
+
+        Returns ``(None, None, None)`` if the entry has expired or was never stored.
+        """
         pass
     
     @abstractmethod
@@ -73,23 +84,29 @@ class EphemeralContextStore(ContextStore):
     def __init__(self, max_size: int = 10_000):
         self.max_size = max_size
         self._store: deque = deque(maxlen=max_size)
-        self._index: Dict[str, Tuple[np.ndarray, str]] = {}
+        self._index: Dict[str, Tuple[np.ndarray, str, Dict | None]] = {}
     
-    def save_context(self, request_id: str, context: np.ndarray, model_id: str) -> None:
-        # Evict oldest if at capacity
+    def save_context(
+        self,
+        request_id: str,
+        context: np.ndarray,
+        model_id: str,
+        corralling_token: Dict | None = None,
+    ) -> None:
         if len(self._store) >= self.max_size and request_id not in self._index:
             oldest_id = self._store.popleft()
             self._index.pop(oldest_id, None)
         
-        # Store new entry
         if request_id not in self._index:
             self._store.append(request_id)
-        self._index[request_id] = (context, model_id)
+        self._index[request_id] = (context, model_id, corralling_token)
     
-    def get_context(self, request_id: str) -> Tuple[np.ndarray | None, str | None]:
+    def get_context(
+        self, request_id: str,
+    ) -> Tuple[np.ndarray | None, str | None, Dict | None]:
         if request_id in self._index:
             return self._index[request_id]
-        return None, None
+        return None, None, None
     
     def prune(self) -> int:
         """No-op for ephemeral store (automatic eviction via deque)."""
@@ -216,16 +233,40 @@ class SqliteContextStore(ContextStore):
             """)
             # Index for TTL-based pruning
             conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON context_log(created_at)")
+
+            # Migration: add corralling_token column for delayed-feedback
+            # meta-weight updates (persists action_prob, endorsing_experts,
+            # timestamp so Exp4 importance-weighted updates can fire even when
+            # the in-memory RoutingLog has been evicted).
+            try:
+                conn.execute(
+                    "ALTER TABLE context_log ADD COLUMN corralling_token_blob BLOB"
+                )
+            except sqlite3.OperationalError:
+                pass  # column already exists
     
-    def save_context(self, request_id: str, context: np.ndarray, model_id: str) -> None:
+    def save_context(
+        self,
+        request_id: str,
+        context: np.ndarray,
+        model_id: str,
+        corralling_token: Dict | None = None,
+    ) -> None:
         """Save context with robust error handling (never crashes router)."""
         self._ensure_initialized()  # Lazy init: create DB on first save
         try:
             blob = pickle.dumps(context, protocol=pickle.HIGHEST_PROTOCOL)
+            token_blob = (
+                pickle.dumps(corralling_token, protocol=pickle.HIGHEST_PROTOCOL)
+                if corralling_token is not None
+                else None
+            )
             with sqlite3.connect(self.db_path, timeout=self.write_timeout) as conn:
                 conn.execute(
-                    "INSERT OR REPLACE INTO context_log (request_id, context_blob, model_id, created_at) VALUES (?, ?, ?, ?)",
-                    (request_id, blob, model_id, time.time())
+                    "INSERT OR REPLACE INTO context_log "
+                    "(request_id, context_blob, model_id, created_at, corralling_token_blob) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (request_id, blob, model_id, time.time(), token_blob),
                 )
                 conn.commit()
         except sqlite3.OperationalError as e:
@@ -233,26 +274,30 @@ class SqliteContextStore(ContextStore):
         except Exception as e:
             logger.error("Unexpected error persisting context %s: %s", request_id, e)
     
-    def get_context(self, request_id: str) -> Tuple[np.ndarray | None, str | None]:
+    def get_context(
+        self, request_id: str,
+    ) -> Tuple[np.ndarray | None, str | None, Dict | None]:
         """Retrieve context with timeout and error handling."""
         self._ensure_initialized()  # Lazy init: create DB if needed for retrieval
         try:
             with sqlite3.connect(self.db_path, timeout=self.read_timeout) as conn:
                 cursor = conn.execute(
-                    "SELECT context_blob, model_id FROM context_log WHERE request_id = ?",
-                    (request_id,)
+                    "SELECT context_blob, model_id, corralling_token_blob "
+                    "FROM context_log WHERE request_id = ?",
+                    (request_id,),
                 )
                 row = cursor.fetchone()
                 if row:
                     context = pickle.loads(row[0])
-                    return context, row[1]
-            return None, None
+                    token = pickle.loads(row[2]) if row[2] is not None else None
+                    return context, row[1], token
+            return None, None, None
         except sqlite3.OperationalError:
             logger.warning("Database locked when retrieving context %s", request_id)
-            return None, None
+            return None, None, None
         except Exception as e:
             logger.error("Error retrieving context %s: %s", request_id, e)
-            return None, None
+            return None, None, None
     
     def prune(self, force: bool = False) -> int:
         """Remove entries older than TTL. Returns count of deleted rows."""
@@ -384,8 +429,9 @@ class CheckpointManager:
             "A_inv": {k: v for k, v in router_instance.bandit.A_inv.items()},
             "b": {k: v for k, v in router_instance.bandit.b.items()},
             "last_update": {k: v for k, v in router_instance.bandit.last_update.items()},
-            "models": router_instance.bandit.models,  # For drift detection
-            "timestamp": time.time()
+            "last_played": {k: v for k, v in router_instance.bandit.last_played.items()},
+            "models": router_instance.bandit.models,
+            "timestamp": time.time(),
         }
         
         # Atomic write (write temp then rename) to prevent corruption
@@ -428,6 +474,11 @@ class CheckpointManager:
             # Restore core state
             router_instance.bandit.t = state["t"]
             router_instance.bandit.last_update = state["last_update"]
+            # Backward compat: checkpoints saved before last_played was added
+            router_instance.bandit.last_played = state.get(
+                "last_played",
+                {k: v for k, v in state["last_update"].items()},
+            )
             
             # Handle registry drift
             saved_models = set(state["models"])
