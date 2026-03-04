@@ -3078,6 +3078,15 @@ Previous version referenced non-existent attributes
             )
             log.corralling_token = stored_token
         
+        # Reject non-finite rewards (NaN/inf) that would corrupt IPW estimates.
+        if not np.isfinite(reward):
+            logger.warning(
+                "process_feedback: non-finite reward=%s for request_id=%s; "
+                "skipping update.",
+                reward, request_id,
+            )
+            return
+
         # Clamp reward to [0, 1] at the feedback entry point.
         # The Corralling importance-weighted loss estimator ℓ = (1 - r) / p
         # requires bounded rewards for valid regret guarantees (Auer et al., 2002).
@@ -4132,7 +4141,7 @@ class CorrallingRouter:
                         "resetting to uniform."
                     )
                     self.weights = np.ones(self.n_experts) / self.n_experts
-                    self.sum_squared_losses = np.zeros(self.n_experts)
+                    self.sum_squared_losses = np.ones(self.n_experts)
                 else:
                     self.weights = np.maximum(self.weights, 1e-12)
         
