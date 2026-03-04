@@ -94,36 +94,40 @@ def create_figure():
     # ═════════════════════════════════════════════════════════
     #  1. USER PROMPT
     # ═════════════════════════════════════════════════════════
+    feat_w, feat_h = 52, 8
+
     rbox(cx, y_prompt, 30, bh, "User Prompt",
          r"Query $q_t$  +  constraints",
          fc=PAL["sky_fill"], ec=PAL["sky"], tc=PAL["sky"])
 
-    arr(cx, y_prompt - bh/2, cx, y_feat + bh/2, c=PAL["dk"])
+    arr(cx, y_prompt - bh/2, cx, y_feat + feat_h/2, c=PAL["dk"])
 
     # ═════════════════════════════════════════════════════════
     #  2. FEATURE EXTRACTION
     # ═════════════════════════════════════════════════════════
-    rbox(cx, y_feat, pw, bh, "Feature Extraction",
-         r"Sentence-BERT  +  PCA  $\rightarrow\;  x_t \in \mathbb{R}^{33}$",
+    rbox(cx, y_feat, feat_w, feat_h, "Feature Extraction",
+         r"FeatureService:  Sentence-BERT  +  PCA  $\rightarrow\;  x_t \in \mathbb{R}^{33}$",
          fc=PAL["sky_fill"], ec=PAL["sky"], tc=PAL["sky"])
 
-    arr(cx, y_feat - bh/2, cx, y_filter + bh/2, c=PAL["dk"])
+    filt_w, filt_h = 52, 8
+    arr(cx, y_feat - feat_h/2, cx, y_filter + filt_h/2, c=PAL["dk"])
 
     # ═════════════════════════════════════════════════════════
-    #  3. CONSTRAINT & PARETO FILTER
+    #  3. CONSTRAINT FILTER
     # ═════════════════════════════════════════════════════════
-    rbox(cx, y_filter, pw, bh, "Constraint & Pareto Filter",
-         r"Cost, latency, quality  $\rightarrow$  candidate set $\mathcal{A}_t$",
+    rbox(cx, y_filter, filt_w, filt_h, "Constraint Filter",
+         r"Cost / latency / quality-floor  $\rightarrow$  candidate set $\mathcal{A}_t$",
          ec=PAL["dk"], tc=PAL["dk"])
 
-    # Model Registry (small, to the right)
-    mr_x = cx + pw/2 + 12
-    rbox(mr_x, y_filter, 14, 5, "Model\nRegistry",
+    # Model Registry with progressive registration (small, to the right)
+    mr_x = cx + filt_w/2 + 14
+    rbox(mr_x, y_filter, 16, 6, "Model Registry",
+         subtitle="Progressive reg.",
          fc="#e8e8e8", ec=PAL["gray"], tc=PAL["gray"],
-         lw=1.0, fs=9, ls="--")
-    arr(mr_x - 7, y_filter, cx + pw/2, y_filter, c=PAL["gray"], lw=1.0, ls="-.")
+         lw=1.0, fs=9, fs2=8, ls="--")
+    arr(mr_x - 8, y_filter, cx + filt_w/2, y_filter, c=PAL["gray"], lw=1.0, ls="-.")
 
-    arr(cx, y_filter - bh/2, cx, y_coord + bh/2, c=PAL["dk"])
+    arr(cx, y_filter - filt_h/2, cx, y_coord + bh/2, c=PAL["dk"])
 
     # ═════════════════════════════════════════════════════════
     #  4. CORRALLING COORDINATOR
@@ -156,11 +160,12 @@ def create_figure():
     #  5. EXPERTS  (side by side)
     # ═════════════════════════════════════════════════════════
     rbox(e1_x, y_exp, ew, e_h, "Expert 1: Warmup",
-         "Hybrid LinUCB\nwith offline priors",
+         "Disjoint LinUCB\nwith warmup priors",
          fc=PAL["teal_fill"], ec=PAL["teal"], tc=PAL["teal"])
 
     rbox(e2_x, y_exp, ew, e_h, "Expert 2: Tabula Rasa",
-         r"Hybrid LinUCB" + "\n" + r"$A_m\!=\!\lambda I,\; b_m\!=\!0$",
+         r"Disjoint LinUCB (decaying $\alpha$)"
+         + "\n" + r"$A_m\!=\!\lambda I,\; b_m\!=\!0$",
          fc=PAL["orange_fill"], ec=PAL["orange"], tc=PAL["orange"])
 
     ucb_w = 56
@@ -173,20 +178,22 @@ def create_figure():
         c=PAL["orange"], lw=1.5, rad=-0.08)
 
     # ═════════════════════════════════════════════════════════
-    #  6. COST-AWARE HYBRID LinUCB
+    #  6. COST-AWARE DISJOINT LinUCB
     # ═════════════════════════════════════════════════════════
     ax.add_patch(FancyBboxPatch(
         (cx - ucb_w/2, y_ucb - ucb_h/2), ucb_w, ucb_h,
         boxstyle="round,pad=0.4", fc="white", ec=PAL["dk"],
         lw=1.6, zorder=3))
-    ax.text(cx, y_ucb + ucb_h*0.26, "Cost-Aware Hybrid LinUCB",
+    ax.text(cx, y_ucb + ucb_h*0.26, "Cost-Aware Disjoint LinUCB",
             ha="center", va="center", fontsize=13, fontweight="bold",
             color=PAL["dk"], zorder=4)
     ax.text(cx, y_ucb - ucb_h*0.18,
             r"$a_t = \arg\max_{a \in \mathcal{A}_t}"
-            r"\!\left[\, x_t^\top\!(\hat{\beta}_F \!+\! \hat{\theta}_a)"
+            r"\!\left[\, x_t^\top \hat{\theta}_a"
             r" + \alpha\!\sqrt{x_t^\top\! A_a^{-1} x_t}"
-            r" - \lambda c_a \,\right]$",
+            r" - \lambda_c \tilde{c}_a"
+            r" - \lambda_\ell \tilde{\ell}_a"
+            r" \,\right]$",
             ha="center", va="center", fontsize=11,
             color=PAL["md"], fontstyle="italic", zorder=4)
 
@@ -196,11 +203,11 @@ def create_figure():
     #  7. LLM PORTFOLIO  (row of model cards)
     # ═════════════════════════════════════════════════════════
     models = [
-        ("Llama-3",  PAL["teal"],   False),
-        ("Claude-3", PAL["sky"],    False),
-        ("GPT-4o",   PAL["blue"],   True),
-        ("Mixtral",  PAL["orange"], False),
-        ("Gemini-3", PAL["gray"],   False),
+        ("Llama-3.1-8B",       PAL["teal"],   False),
+        ("Gemini-2.5-Flash",   PAL["sky"],    False),
+        ("GPT-4.1",            PAL["blue"],   True),
+        ("DeepSeek-V3",        PAL["orange"], False),
+        ("Claude-Sonnet-4",    PAL["rpur"],   False),
     ]
     card_w, card_h = 14.5, 5.5
     gap = 2.0
@@ -240,7 +247,20 @@ def create_figure():
           "$a_t$", fs=12, c=PAL["blue"], fw="bold", fam="serif")
 
     # ═════════════════════════════════════════════════════════
-    #  8. REWARD
+    #  8. CONTEXT STORE  (delayed RLHF feedback)
+    # ═════════════════════════════════════════════════════════
+    cs_x = cx - pw/2 - 12
+    cs_y = (y_llms + y_reward) / 2
+    rbox(cs_x, cs_y, 16, 6, "Context\nStore",
+         fc="#e8e8e8", ec=PAL["gray"], tc=PAL["gray"],
+         lw=1.0, fs=9, ls="--")
+    label(cs_x, cs_y - 4.5, r"$(x_t, a_t, \tau_t)$",
+          fs=11.5, c=PAL["gray"], fam="serif")
+    # Branch left from the main forward-pass spine (every routed request writes here)
+    arr(cx - 2, cs_y, cs_x + 8, cs_y, c=PAL["gray"], lw=1.0, ls="-.")
+
+    # ═════════════════════════════════════════════════════════
+    #  9. REWARD
     # ═════════════════════════════════════════════════════════
     rbox(cx, y_reward, 30, bh, "Reward Signal",
          r"Quality score $r_t \in [0,1]$",
@@ -262,11 +282,14 @@ def create_figure():
 
     # Label the feedback loop clearly (spaced apart)
     label(fb_x + 1.5, (y_reward + y_coord) / 2 + 6,
-          "Online\nFeedback\n$r_t$", fs=10, c=PAL["rpur"],
+          "Online\nFeedback", fs=11.5, c=PAL["rpur"],
           fw="bold", ha="left")
+    label(fb_x + 1.5, (y_reward + y_coord) / 2 + 2.5,
+          "$r_t$", fs=14, c=PAL["rpur"], fam="serif", ha="left")
     label(fb_x + 1.5, (y_reward + y_coord) / 2 - 6,
-          "Updates coordinator\nweights & expert\nparameters", fs=10.5,
-          c=PAL["rpur"], ha="left", sty="italic")
+          "L1: meta-weight\n     update (Exp4)\n"
+          "L2: IPW base update\n     to experts",
+          fs=11.5, c=PAL["rpur"], ha="left", sty="italic")
 
     # (Context x_t flows through the pipeline implicitly —
     #  no separate side-channel needed.)
@@ -274,17 +297,18 @@ def create_figure():
     # ═════════════════════════════════════════════════════════
     #  LEGEND  (bottom-left)
     # ═════════════════════════════════════════════════════════
-    lx, ly = 3, 3
+    lx, ly = 3, 2
     ax.add_patch(FancyBboxPatch(
-        (lx, ly), 28, 7, boxstyle="round,pad=0.3",
+        (lx, ly), 30, 9, boxstyle="round,pad=0.3",
         fc="white", ec="#ccc", lw=0.8, zorder=3))
-    label(lx + 14, ly + 5.8, "Legend", fs=9.5, fw="bold", c=PAL["dk"])
+    label(lx + 15, ly + 7.8, "Legend", fs=9.5, fw="bold", c=PAL["dk"])
 
     for i, (col, ls_, desc) in enumerate([
         (PAL["dk"],   "-",  "Forward pass"),
         (PAL["rpur"], "--", "Online feedback"),
+        (PAL["gray"], "-.", "Auxiliary / storage"),
     ]):
-        yy = ly + 3.8 - i * 2.0
+        yy = ly + 5.8 - i * 2.0
         ax.plot([lx + 1.5, lx + 5.5], [yy, yy], color=col,
                 lw=1.8, ls=ls_, zorder=5, solid_capstyle="round")
         label(lx + 6.5, yy, desc, fs=9, c=PAL["dk"], ha="left")
