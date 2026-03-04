@@ -66,7 +66,7 @@ HOLDOUT_REWARDS = {
     "meta-llama/llama-4-maverick": 0.929,
     "google/gemma-3-27b-it": 0.951,
     "anthropic/claude-haiku-4.5": 0.951,
-    "openai/gpt-4-turbo": 0.812,
+    "moonshotai/kimi-k2-0905": 0.884,
     "deepseek/deepseek-chat-v3-0324": 0.973,
 }
 

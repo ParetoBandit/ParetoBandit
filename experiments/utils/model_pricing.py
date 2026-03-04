@@ -8,12 +8,11 @@ $/1M tokens). This is brittle: a single typo silently changes cost-quality
 frontiers and can confound comparisons across routing methods.
 
 This module provides a single source of truth by loading prices from the
-project's JSON registries:
-  - ``src/bandit_gpt/config/models.json`` (small/production registry)
-  - ``src/bandit_gpt/config/models_all.json`` (extended registry for experiments)
+project's consolidated model registry at ``src/bandit_gpt/config/models.json``
+(85+ models covering all offline-dataset models and production models).
 
 All experiments should use :func:`build_model_registry_from_json` (or
-:func:`get_prices_for_models`) so that updating a JSON file updates every
+:func:`get_prices_for_models`) so that updating the JSON file updates every
 downstream experiment consistently.
 """
 
@@ -22,21 +21,9 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, MutableMapping, Tuple
+from typing import Any, Dict, Iterable, Tuple
 
 from bandit_gpt.config import DEFAULT_MODEL_REGISTRY_PATH
-
-
-DEFAULT_MODEL_REGISTRY_ALL_PATH: Path = DEFAULT_MODEL_REGISTRY_PATH.with_name(
-    "models_all.json"
-)
-
-# Experiment-level pricing file (single source of truth for all experiment scripts).
-# This is intentionally separate from the package registry so experiments can add
-# models without modifying the pip-installed package data.
-EXPERIMENT_MODEL_PRICING_PATH: Path = (
-    Path(__file__).resolve().parent.parent / "config" / "model_prices.json"
-)
 
 
 def _as_float(x: Any, *, field: str, model_id: str, registry_path: Path) -> float:
@@ -68,13 +55,8 @@ def _load_registry_by_model_id(registry_path_str: str) -> Dict[str, Dict[str, An
     return by_id
 
 
-def _default_registry_search_paths() -> Tuple[Path, Path, Path]:
-    # Prefer the experiment pricing table, then fall back to package registries.
-    return (
-        EXPERIMENT_MODEL_PRICING_PATH,
-        DEFAULT_MODEL_REGISTRY_ALL_PATH,
-        DEFAULT_MODEL_REGISTRY_PATH,
-    )
+def _default_registry_search_paths() -> Tuple[Path]:
+    return (DEFAULT_MODEL_REGISTRY_PATH,)
 
 
 def get_prices_for_models(
@@ -85,10 +67,9 @@ def get_prices_for_models(
     """Return input/output prices for each model from JSON registries.
 
     Args:
-        model_ids: Iterable of model IDs to look up (e.g. ``openai/gpt-4-turbo``).
+        model_ids: Iterable of model IDs to look up (e.g. ``openai/gpt-4.1``).
         registry_paths: Optional ordered list of JSON registry paths to search.
-            If omitted, searches ``experiments/config/model_prices.json`` first,
-            then ``models_all.json`` and ``models.json``.
+            If omitted, searches ``src/bandit_gpt/config/models.json``.
 
     Returns:
         Dict mapping ``model_id`` to a dict with:

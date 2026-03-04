@@ -211,7 +211,7 @@ def main() -> None:
 
     # Load the real model registry shipped with the package
     from bandit_gpt import BanditRouter
-    config_path = Path(__file__).resolve().parent.parent / "src" / "bandit_gpt" / "config" / "models_all.json"
+    config_path = Path(__file__).resolve().parent.parent / "src" / "bandit_gpt" / "config" / "models.json"
     with open(config_path) as f:
         models_data = json.load(f)
     registry = {m["model_id"]: m for m in models_data["models"]}

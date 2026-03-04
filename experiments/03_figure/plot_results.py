@@ -227,10 +227,12 @@ def generate_latex_table(res: dict, out: Path) -> None:
 
     # Static baselines
     static = k2["static"]
-    mixtral_r = static["mistralai/mixtral-8x7b-instruct"]["reward"]
-    mixtral_c = static["mistralai/mixtral-8x7b-instruct"]["cost"]
-    gpt4_r = static["openai/gpt-4-turbo"]["reward"]
-    gpt4_c = static["openai/gpt-4-turbo"]["cost"]
+    weak_model = "meta-llama/llama-3.1-8b-instruct"
+    strong_model = "openai/gpt-4.1"
+    mixtral_r = static[weak_model]["reward"]
+    mixtral_c = static[weak_model]["cost"]
+    gpt4_r = static[strong_model]["reward"]
+    gpt4_c = static[strong_model]["cost"]
     oracle_r = k2["oracle_pure_quality"]["reward"]
     rl_pareto = k2["routellm"]["pareto"]
     dev_best_idx = max(range(len(rl_pareto)),

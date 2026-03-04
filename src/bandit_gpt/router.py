@@ -3714,6 +3714,13 @@ class CorrallingRouter:
         # the initial weights rather than "snapping" to uniform.
         self.cumulative_losses = -np.log(self.weights) / self.learning_rate
         
+        # Exploit mode — when True, select_model picks argmax(weights)
+        # deterministically instead of sampling.  Standard practice for
+        # offline policy evaluation and frozen deployment (Dudik et al., 2014;
+        # Swaminathan & Joachims, 2015).  During online learning this must be
+        # False so that the Exp4 importance-weighted updates remain valid.
+        self.exploit_mode: bool = False
+
         # Diagnostics
         self.expert_selections = [0] * self.n_experts
         self.selections = {m: 0 for m in models}
@@ -3752,6 +3759,7 @@ class CorrallingRouter:
         """
         with self._lock:
             probs = self._get_mixed_distribution()
+            use_exploit = self.exploit_mode
 
         # Query ALL experts for their deterministic recommendations.
         recommendations = [
@@ -3760,9 +3768,16 @@ class CorrallingRouter:
             for expert in self.experts
         ]
 
-        # Sample an expert, play its recommendation.  Mathematically
-        # equivalent to sampling from π(·) when experts are deterministic.
-        expert_idx = np.random.choice(self.n_experts, p=probs)
+        if use_exploit:
+            # Deterministic greedy: pick the highest-weight expert.
+            # Ties broken by lowest index (the warmup expert by convention).
+            expert_idx = int(np.argmax(self.weights))
+        else:
+            # Stochastic Exp4: sample an expert from the mixed distribution.
+            # Mathematically equivalent to sampling from π(·) when experts
+            # are deterministic.
+            expert_idx = np.random.choice(self.n_experts, p=probs)
+
         model = recommendations[expert_idx]
 
         # Marginal action probability: π(model) = Σ_j p_j · I(rec_j == model)

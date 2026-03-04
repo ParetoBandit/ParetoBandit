@@ -71,19 +71,19 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-MODEL_A = "mistralai/mixtral-8x7b-instruct"
-MODEL_B = "openai/gpt-4-turbo"
+MODEL_A = "meta-llama/llama-3.1-8b-instruct"
+MODEL_B = "openai/gpt-4.1"
 
 _PRICES = get_prices_for_models([MODEL_A, MODEL_B])
 
 MODEL_REGISTRY = {
     MODEL_A: {
-        "display_name": "Mixtral-8x7B",
+        "display_name": "Llama-3.1-8B",
         **_PRICES[MODEL_A],
-        "provider": "mistral",
+        "provider": "meta",
     },
     MODEL_B: {
-        "display_name": "GPT-4-Turbo",
+        "display_name": "GPT-4.1",
         **_PRICES[MODEL_B],
         "provider": "openai",
     },

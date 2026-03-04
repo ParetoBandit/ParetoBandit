@@ -80,7 +80,7 @@ _PRICES = get_prices_for_models(
         "google/gemini-2.5-flash-preview-09-2025",
         "meta-llama/llama-4-maverick",
         "anthropic/claude-sonnet-4",
-        "openai/gpt-4-turbo",
+        "moonshotai/kimi-k2-0905",
         "openai/gpt-4.1",
     ]
 )
@@ -166,15 +166,15 @@ MODEL_CATALOG = {
         "time_to_first_token_seconds": 0.85,
         "tier": "expensive", "provider": "anthropic",
     },
-    "openai/gpt-4-turbo": {
-        "display": "GPT-4-Turbo",
-        **_PRICES["openai/gpt-4-turbo"],
+    "moonshotai/kimi-k2-0905": {
+        "display": "Kimi-K2",
+        **_PRICES["moonshotai/kimi-k2-0905"],
         "cost": _req_cost(
-            _PRICES["openai/gpt-4-turbo"]["input_cost_per_m"],
-            _PRICES["openai/gpt-4-turbo"]["output_cost_per_m"],
+            _PRICES["moonshotai/kimi-k2-0905"]["input_cost_per_m"],
+            _PRICES["moonshotai/kimi-k2-0905"]["output_cost_per_m"],
         ),
-        "time_to_first_token_seconds": 0.59,
-        "tier": "expensive", "provider": "openai",
+        "time_to_first_token_seconds": 0.70,
+        "tier": "mid", "provider": "moonshot",
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",

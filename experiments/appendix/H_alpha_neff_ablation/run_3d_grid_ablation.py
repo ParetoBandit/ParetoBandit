@@ -91,20 +91,20 @@ DEV_VAL_SEED: int = 7
 # ── K=2 portfolio ─────────────────────────────────────────────────────
 
 K2_MODELS: List[str] = [
-    "mistralai/mixtral-8x7b-instruct",
-    "openai/gpt-4-turbo",
+    "meta-llama/llama-3.1-8b-instruct",
+    "openai/gpt-4.1",
 ]
 
 _PRICES_K2 = get_prices_for_models(K2_MODELS)
 
 K2_CATALOG: Dict[str, Dict] = {
-    "mistralai/mixtral-8x7b-instruct": {
-        "display": "Mixtral-8x7B",
-        **_PRICES_K2["mistralai/mixtral-8x7b-instruct"],
+    "meta-llama/llama-3.1-8b-instruct": {
+        "display": "Llama-3.1-8B",
+        **_PRICES_K2["meta-llama/llama-3.1-8b-instruct"],
     },
-    "openai/gpt-4-turbo": {
-        "display": "GPT-4-Turbo",
-        **_PRICES_K2["openai/gpt-4-turbo"],
+    "openai/gpt-4.1": {
+        "display": "GPT-4.1",
+        **_PRICES_K2["openai/gpt-4.1"],
     },
 }
 
@@ -119,7 +119,7 @@ K10_MODELS: List[str] = [
     "google/gemini-2.5-flash-preview-09-2025",
     "meta-llama/llama-4-maverick",
     "anthropic/claude-sonnet-4",
-    "openai/gpt-4-turbo",
+    "moonshotai/kimi-k2-0905",
     "openai/gpt-4.1",
 ]
 
@@ -158,9 +158,9 @@ K10_CATALOG: Dict[str, Dict] = {
         "display": "Claude-Sonnet-4",
         **_PRICES_K10["anthropic/claude-sonnet-4"],
     },
-    "openai/gpt-4-turbo": {
-        "display": "GPT-4-Turbo",
-        **_PRICES_K10["openai/gpt-4-turbo"],
+    "moonshotai/kimi-k2-0905": {
+        "display": "Kimi-K2",
+        **_PRICES_K10["moonshotai/kimi-k2-0905"],
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
@@ -245,31 +245,34 @@ def embed_dataset(
 # ============================================================================
 
 
-def _set_exploit_mode(
-    router: Any, *, enable: bool,
-) -> List[Tuple[float, float]]:
-    """Zero-out UCB alpha on all Corralling experts for greedy eval."""
+def _set_exploit_mode(router: Any, *, enable: bool) -> Dict[str, Any]:
+    """Switch to greedy exploitation on a frozen router (expert + meta level)."""
     if not enable:
-        return []
-    saved: List[Tuple[float, float]] = []
+        return {}
+    saved: Dict[str, Any] = {"expert_alphas": [], "meta_exploit": False}
     cr = getattr(router, "corralling_router", None)
     if cr is not None and hasattr(cr, "experts"):
         for expert in cr.experts:
-            saved.append((expert.alpha_start, expert.alpha_end))
+            saved["expert_alphas"].append((expert.alpha_start, expert.alpha_end))
             expert.alpha_start = 0.0
             expert.alpha_end = 0.0
+        saved["meta_exploit"] = cr.exploit_mode
+        cr.exploit_mode = True
     return saved
 
 
 def _restore_exploit_mode(
-    router: Any, saved: List[Tuple[float, float]],
+    router: Any, saved: Dict[str, Any],
 ) -> None:
-    """Restore expert alpha values after greedy evaluation."""
+    """Restore expert alpha values and meta exploit mode after evaluation."""
+    if not saved:
+        return
     cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts") and saved:
-        for expert, (a_s, a_e) in zip(cr.experts, saved):
+    if cr is not None and hasattr(cr, "experts") and saved.get("expert_alphas"):
+        for expert, (a_s, a_e) in zip(cr.experts, saved["expert_alphas"]):
             expert.alpha_start = a_s
             expert.alpha_end = a_e
+        cr.exploit_mode = saved.get("meta_exploit", False)
 
 
 def train_and_evaluate(

@@ -53,8 +53,10 @@ Protocol
 6. **K=10 Pareto frontier.**
    RouteLLM does not natively support K > 2.  The K=10 evaluation uses
    standard baselines: oracle, best-static, random,
-   best-static-plus-noise, and tabula-rasa (cold-start BanditGPT
-   without priors or Corralling).
+   best-static-plus-noise, UCB1 (non-contextual), supervised static
+   routers (KNN, SVM, MLP — trained on the same features and objective
+   as BanditGPT; ref: LLMRouter, UIUC 2025), and tabula-rasa
+   (cold-start BanditGPT without priors or Corralling).
 
 7. **Greedy frozen evaluation.**
    When evaluating a frozen BanditRouter, the UCB exploration bonus is
@@ -93,6 +95,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config import (
+    ARTIFACTS_DIR,
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_WARMUP_PRIORS_PATH,
@@ -107,6 +110,7 @@ from bandit_gpt.config import (
 from utils.rewards import extract_reward
 from utils.model_pricing import get_prices_for_models
 from utils.router_factory import create_experiment_router
+from utils.supervised_baselines import run_supervised_baseline
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -122,28 +126,28 @@ def _req_cost(inp: float, out: float) -> float:
 
 
 K2_MODELS: List[str] = [
-    "mistralai/mixtral-8x7b-instruct",
-    "openai/gpt-4-turbo",
+    "meta-llama/llama-3.1-8b-instruct",
+    "openai/gpt-4.1",
 ]
 
 _PRICES_K2 = get_prices_for_models(K2_MODELS)
 
 K2_CATALOG: Dict[str, Dict] = {
-    "mistralai/mixtral-8x7b-instruct": {
-        "display": "Mixtral-8x7B",
-        **_PRICES_K2["mistralai/mixtral-8x7b-instruct"],
+    "meta-llama/llama-3.1-8b-instruct": {
+        "display": "Llama-3.1-8B",
+        **_PRICES_K2["meta-llama/llama-3.1-8b-instruct"],
         "cost": _req_cost(
-            _PRICES_K2["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
-            _PRICES_K2["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
+            _PRICES_K2["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
+            _PRICES_K2["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
         ),
         "tier": "cheap",
     },
-    "openai/gpt-4-turbo": {
-        "display": "GPT-4-Turbo",
-        **_PRICES_K2["openai/gpt-4-turbo"],
+    "openai/gpt-4.1": {
+        "display": "GPT-4.1",
+        **_PRICES_K2["openai/gpt-4.1"],
         "cost": _req_cost(
-            _PRICES_K2["openai/gpt-4-turbo"]["input_cost_per_m"],
-            _PRICES_K2["openai/gpt-4-turbo"]["output_cost_per_m"],
+            _PRICES_K2["openai/gpt-4.1"]["input_cost_per_m"],
+            _PRICES_K2["openai/gpt-4.1"]["output_cost_per_m"],
         ),
         "tier": "expensive",
     },
@@ -158,7 +162,7 @@ K10_MODELS: List[str] = [
     "google/gemini-2.5-flash-preview-09-2025",
     "meta-llama/llama-4-maverick",
     "anthropic/claude-sonnet-4",
-    "openai/gpt-4-turbo",
+    "moonshotai/kimi-k2-0905",
     "openai/gpt-4.1",
 ]
 
@@ -237,14 +241,14 @@ K10_CATALOG: Dict[str, Dict] = {
         ),
         "tier": "expensive",
     },
-    "openai/gpt-4-turbo": {
-        "display": "GPT-4-Turbo",
-        **_PRICES_K10["openai/gpt-4-turbo"],
+    "moonshotai/kimi-k2-0905": {
+        "display": "Kimi-K2",
+        **_PRICES_K10["moonshotai/kimi-k2-0905"],
         "cost": _req_cost(
-            _PRICES_K10["openai/gpt-4-turbo"]["input_cost_per_m"],
-            _PRICES_K10["openai/gpt-4-turbo"]["output_cost_per_m"],
+            _PRICES_K10["moonshotai/kimi-k2-0905"]["input_cost_per_m"],
+            _PRICES_K10["moonshotai/kimi-k2-0905"]["output_cost_per_m"],
         ),
-        "tier": "expensive",
+        "tier": "mid",
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
@@ -841,43 +845,55 @@ def train_bandit(
     return n_steps
 
 
-def _set_exploit_mode(router, *, enable: bool) -> List[Tuple[float, float]]:
-    """Temporarily zero-out UCB exploration on all Corralling experts.
+def _set_exploit_mode(router, *, enable: bool) -> Dict[str, Any]:
+    """Temporarily switch to greedy exploitation on a frozen router.
 
-    When evaluating a frozen router, standard practice is greedy
-    exploitation (alpha=0) so the holdout score reflects the learned
-    policy, not optimistic UCB bonuses.
+    Two levels of greediness are applied:
+      1. **Expert-level**: alpha=0 on all LinUCB experts so arm selection
+         is pure ``argmax(θ^T x)`` (no UCB bonus).
+      2. **Meta-level**: ``exploit_mode=True`` on the CorrallingRouter so
+         the highest-weight expert is selected deterministically
+         (``argmax(weights)``), not sampled.
+
+    This is standard practice for offline / frozen policy evaluation
+    (Dudik et al., 2014; Swaminathan & Joachims, 2015): the learned
+    policy is executed greedily so that holdout scores reflect the
+    learned routing policy, not residual exploration.
 
     Args:
         router: A BanditRouter instance.
-        enable: If True, set alpha=0 on all experts and return saved
-            state.  If False, this is a no-op (returns empty list).
+        enable: If True, enable exploit mode and return saved state.
+            If False, this is a no-op (returns empty dict).
 
     Returns:
-        List of (alpha_start, alpha_end) tuples that must be passed
-        to ``_restore_exploit_mode`` after evaluation.
+        Saved state dict to pass to ``_restore_exploit_mode``.
     """
     if not enable:
-        return []
-    saved: List[Tuple[float, float]] = []
+        return {}
+    saved: Dict[str, Any] = {"expert_alphas": [], "meta_exploit": False}
     cr = getattr(router, "corralling_router", None)
     if cr is not None and hasattr(cr, "experts"):
         for expert in cr.experts:
-            saved.append((expert.alpha_start, expert.alpha_end))
+            saved["expert_alphas"].append((expert.alpha_start, expert.alpha_end))
             expert.alpha_start = 0.0
             expert.alpha_end = 0.0
+        saved["meta_exploit"] = cr.exploit_mode
+        cr.exploit_mode = True
     return saved
 
 
 def _restore_exploit_mode(
-    router, saved: List[Tuple[float, float]],
+    router, saved: Dict[str, Any],
 ) -> None:
-    """Restore expert alpha values after greedy evaluation."""
+    """Restore expert alpha values and meta exploit mode after evaluation."""
+    if not saved:
+        return
     cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts") and saved:
-        for expert, (a_s, a_e) in zip(cr.experts, saved):
+    if cr is not None and hasattr(cr, "experts") and saved.get("expert_alphas"):
+        for expert, (a_s, a_e) in zip(cr.experts, saved["expert_alphas"]):
             expert.alpha_start = a_s
             expert.alpha_end = a_e
+        cr.exploit_mode = saved.get("meta_exploit", False)
 
 
 def evaluate_frozen(
@@ -2061,7 +2077,7 @@ def run_experiment() -> None:  # noqa: C901
     logger.info("Loading encoder and PCA ...")
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    logger.info(f"  PCA: {pca.n_components_} components")
+    logger.info(f"  PCA: {pca.n_components_} components (unified for K=2 and K=10)")
 
     results_all: Dict[str, Any] = {
         "metadata": {
@@ -2194,8 +2210,8 @@ def run_experiment() -> None:  # noqa: C901
 
     controller = Controller(
         routers=["mf"],
-        strong_model=K2_MODELS[1],  # GPT-4-Turbo
-        weak_model=K2_MODELS[0],    # Mixtral
+        strong_model=K2_MODELS[1],  # GPT-4.1
+        weak_model=K2_MODELS[0],    # Llama-3.1-8B
     )
 
     logger.info("    Scoring dev-train prompts ...")
@@ -2243,6 +2259,24 @@ def run_experiment() -> None:  # noqa: C901
             "per_prompt_rewards": h["per_prompt_rewards"],
             "per_prompt_costs": h["per_prompt_costs"],
         })
+
+    # --- Phase 2b: Supervised static baselines (LLMRouter-style) --------
+    # Same features (bge-m3 PCA), same objective (argmax reward), same data.
+    # Isolates BanditGPT's online adaptation advantage over supervised routing.
+    logger.info("\n  Phase 2b: Supervised static baselines (KNN/SVM/MLP) ...")
+    supervised_k2: Dict[str, Dict] = {}
+    for kind in ("knn", "svm", "mlp"):
+        res = run_supervised_baseline(
+            kind, K2_MODELS, costs_k2,
+            dev_train_k2, dev_train_emb_k2,
+            holdout_data_k2, holdout_emb_k2,
+            n_trials=N_SEEDS, per_prompt=True,
+        )
+        supervised_k2[kind] = res
+        logger.info(
+            f"    {kind.upper():<4}: R={res['reward']:.4f} "
+            f"+/-{res['std_reward']:.4f}  C=${res['cost']:.6f}"
+        )
 
     # --- Phase 3: BanditGPT Pareto sweep (train on dev-train) ----------
     logger.info(
@@ -2611,6 +2645,7 @@ def run_experiment() -> None:  # noqa: C901
         "static": static_k2,
         "random": random_k2,
         "ucb1": ucb1_k2,
+        "supervised": supervised_k2,
         "routellm": {
             "best_tau": best_tau,
             "dev_train_sweep": dev_train_sweep,
@@ -2682,7 +2717,7 @@ def run_experiment() -> None:  # noqa: C901
     logger.info(f"    Holdout: {len(holdout_data_k10)} prompts")
 
     # --- Embeddings ----------------------------------------------------
-    logger.info("  Embedding K=10 prompts ...")
+    logger.info(f"  Embedding K=10 prompts (PCA={pca.n_components_} comp) ...")
     train_emb_k10 = embed_dataset(train_data_k10, encoder, pca)
     holdout_emb_k10 = embed_dataset(holdout_data_k10, encoder, pca)
 
@@ -2733,7 +2768,26 @@ def run_experiment() -> None:  # noqa: C901
         f"+/-{ucb1_k10['std_reward']:.4f}"
     )
 
+    # Supervised static baselines (LLMRouter-style) — same features, same objective
+    logger.info("\n  Supervised static baselines (KNN/SVM/MLP) ...")
+    supervised_k10: Dict[str, Dict] = {}
+    for kind in ("knn", "svm", "mlp"):
+        res = run_supervised_baseline(
+            kind, K10_MODELS, costs_k10,
+            train_train_k10, train_train_emb_k10,
+            holdout_data_k10, holdout_emb_k10,
+            n_trials=N_SEEDS, per_prompt=True,
+        )
+        supervised_k10[kind] = res
+        logger.info(
+            f"    {kind.upper():<4}: R={res['reward']:.4f} "
+            f"+/-{res['std_reward']:.4f}  C=${res['cost']:.6f}"
+        )
+
     # --- BanditGPT Pareto sweep ----------------------------------------
+    k10_warmup_path = str(MULTIMODEL_WARMUP_PRIORS_PATH)
+    logger.info(f"  Using warmup priors: {MULTIMODEL_WARMUP_PRIORS_PATH.name}")
+
     logger.info(
         f"\n  BanditGPT K=10 Pareto sweep "
         f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
@@ -2744,7 +2798,7 @@ def run_experiment() -> None:  # noqa: C901
     bandit_pareto_k10 = run_pareto_sweep(
         K10_MODELS, K10_CATALOG,
         train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
-        str(MULTIMODEL_WARMUP_PRIORS_PATH), costs_k10, LAMBDA_VALUES_K10,
+        k10_warmup_path, costs_k10, LAMBDA_VALUES_K10,
         N_SEEDS, use_corralling=True, label="banditGPT",
         dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
         alpha=k10_alpha,
@@ -2785,7 +2839,7 @@ def run_experiment() -> None:  # noqa: C901
         full_dev_emb=train_emb_k10,
         holdout_data=holdout_data_k10,
         holdout_emb=holdout_emb_k10,
-        warmup_path=str(MULTIMODEL_WARMUP_PRIORS_PATH),
+        warmup_path=k10_warmup_path,
         costs=costs_k10,
         lambda_values=bg_dev_opt_lams_k10,
         n_trials=N_SEEDS,
@@ -2907,6 +2961,12 @@ def run_experiment() -> None:  # noqa: C901
     )
     logger.info(f"    Best-static+noise: {eg_k10['reward']:.4f}")
     logger.info(f"    UCB1 (non-ctx):    {ucb1_k10['reward']:.4f}")
+    for kind in ("knn", "svm", "mlp"):
+        s = supervised_k10[kind]
+        logger.info(
+            f"    {kind.upper():<4} (supervised): {s['reward']:.4f} "
+            f"+/-{s['std_reward']:.4f}"
+        )
     logger.info(f"    Random:            {random_k10['reward']:.4f}")
 
     results_all["K10"] = {
@@ -2923,6 +2983,7 @@ def run_experiment() -> None:  # noqa: C901
         "random": random_k10,
         "best_static_noisy": eg_k10,
         "ucb1": ucb1_k10,
+        "supervised": supervised_k10,
         "banditgpt_pareto": bandit_pareto_k10,
         "tabula_rasa_pareto": tabula_pareto_k10,
         "pareto_auc_dev_selected": {

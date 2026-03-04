@@ -43,12 +43,12 @@ from utils.model_pricing import get_prices_for_models
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger(__name__)
 
-MODEL_A = "mistralai/mixtral-8x7b-instruct"
-MODEL_B = "openai/gpt-4-turbo"
+MODEL_A = "meta-llama/llama-3.1-8b-instruct"
+MODEL_B = "openai/gpt-4.1"
 _PRICES = get_prices_for_models([MODEL_A, MODEL_B])
 MODEL_REGISTRY = {
-    MODEL_A: {"display_name": "Mixtral-8x7B", **_PRICES[MODEL_A], "provider": "mistral"},
-    MODEL_B: {"display_name": "GPT-4-Turbo", **_PRICES[MODEL_B], "provider": "openai"},
+    MODEL_A: {"display_name": "Llama-3.1-8B", **_PRICES[MODEL_A], "provider": "meta"},
+    MODEL_B: {"display_name": "GPT-4.1", **_PRICES[MODEL_B], "provider": "openai"},
 }
 MODELS = [MODEL_A, MODEL_B]
 SEED = 42

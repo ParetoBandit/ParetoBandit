@@ -75,7 +75,7 @@ PORTFOLIO_K10: List[Dict] = [
     {"id": "google/gemini-2.5-flash-preview-09-2025",       "display": "Gemini-2.5-Flash", "color": "#4daf4a", "ls": "-",   "marker": "p"},
     {"id": "meta-llama/llama-4-maverick",                   "display": "Llama-4-Maverick", "color": "#f781bf", "ls": "-",   "marker": "h"},
     {"id": "anthropic/claude-sonnet-4",                     "display": "Claude-Sonnet-4",  "color": "#6a3d9a", "ls": "-",   "marker": "P"},
-    {"id": "openai/gpt-4-turbo",                            "display": "GPT-4-Turbo",      "color": "#b15928", "ls": "--",  "marker": "*"},
+    {"id": "moonshotai/kimi-k2-0905",                         "display": "Kimi-K2",           "color": "#b15928", "ls": "--",  "marker": "*"},
     {"id": "openai/gpt-4.1",                                "display": "GPT-4.1",          "color": "#1f78b4", "ls": "-",   "marker": "X"},
 ]
 

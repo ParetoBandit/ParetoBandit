@@ -40,7 +40,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--models",
         type=str,
-        default="mistralai/mixtral-8x7b-instruct,openai/gpt-4-turbo",
+        default="meta-llama/llama-3.1-8b-instruct,openai/gpt-4.1",
         help="Comma-separated list of exactly two model IDs to extract.",
     )
     return p.parse_args()

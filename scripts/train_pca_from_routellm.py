@@ -154,7 +154,7 @@ def build_overlap_exclusion_set(
     exclude: set[str] = set()
 
     if exclude_k2_dev_holdout:
-        k2_models = ["mistralai/mixtral-8x7b-instruct", "openai/gpt-4-turbo"]
+        k2_models = ["meta-llama/llama-3.1-8b-instruct", "openai/gpt-4.1"]
         exclude |= _load_prompts_with_full_model_coverage(Path(CANONICAL_DEV_DATA_PATH), models=k2_models)
         exclude |= _load_prompts_with_full_model_coverage(Path(CANONICAL_HOLDOUT_DATA_PATH), models=k2_models)
 

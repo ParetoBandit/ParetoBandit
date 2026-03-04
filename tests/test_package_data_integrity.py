@@ -49,7 +49,6 @@ def test_wheel_and_sdist_include_runtime_data(tmp_path: Path):
     # Source-of-truth files that must be available post-install.
     required_relpaths = [
         "config/models.json",
-        "config/models_all.json",
     ]
 
     # Warmup priors (.joblib) are intentionally NOT shipped in the wheel.

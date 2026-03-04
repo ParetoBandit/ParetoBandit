@@ -6,8 +6,7 @@ files (model registries) used across the project. Centralized constant managemen
 for better maintainability.
 
 Data files:
-    models.json       — Production model registry (default 2-model portfolio)
-    models_all.json   — Extended model registry (43+ models for experiments)
+    models.json       — Consolidated model registry (85+ models with pricing)
 """
 
 from pathlib import Path
@@ -32,8 +31,7 @@ DEFAULT_SENTENCE_TRANSFORMER = "BAAI/bge-m3"
 
 # Model tier mapping for capability-equivalent substitutions
 # Used when a model is no longer available but has a capability-tier equivalent
-# e.g., gpt-4-turbo → gpt-4o (both are strong models in the same capability tier)
-STRONG_MODEL_EQUIVALENTS = ["openai/gpt-4-turbo", "openai/gpt-4-turbo"]
+STRONG_MODEL_EQUIVALENTS = ["openai/gpt-4.1", "openai/gpt-4.1"]
 
 # ==============================================================================
 # Artifact Paths
@@ -49,12 +47,16 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 ARTIFACTS_DIR = PROJECT_ROOT / "src" / "artifacts"
 DATA_DIR = PROJECT_ROOT / "data"
 
-# PCA model (32 components) trained on RouteLLM battle data using
-# DEFAULT_SENTENCE_TRANSFORMER.
+# PCA model trained on RouteLLM battle data using DEFAULT_SENTENCE_TRANSFORMER.
 #
 # Trained on 80K RouteLLM battles (independent dataset from dev/holdout — no contamination).
 # Shipped inside the wheel so first-time users skip JIT retraining.
-DEFAULT_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_32.joblib"
+#
+# 6 components capture ~13.8% of variance — sufficient for routing signal
+# while maintaining a healthy samples-per-feature ratio for both K=2 and K=10.
+# The full 32-component artifact is retained for reference / ablations.
+DEFAULT_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_6.joblib"
+FULL_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_32.joblib"
 
 # Generic PCA: trained on C4 web text (no routing connection).
 # Provides unbiased baseline for routing signal analysis.
@@ -65,12 +67,14 @@ GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
 DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
 
 # Path to warmup priors trained on 43-model evaluation data (K>2 experiments)
-MULTIMODEL_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup_43model.joblib"
+# 6-component variants are the default; 32-comp retained for ablation reference.
+MULTIMODEL_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup_43model_6comp.joblib"
+MULTIMODEL_WARMUP_PRIORS_PATH_32 = ARTIFACTS_DIR / "priors_warmup_43model.joblib"
 
-# Optional: K=2 warmup priors extracted from the multi-model artifact.
-# Useful when you want a single warmup source across portfolios or to avoid
-# dependence on external corpora for K=2.
-K2_WARMUP_FROM_MULTIMODEL_PATH = ARTIFACTS_DIR / "priors_warmup_k2_from_43model.joblib"
+# K=2 warmup priors extracted from the multi-model artifact.
+# Single warmup source across portfolios — avoids dependence on external corpora.
+K2_WARMUP_FROM_MULTIMODEL_PATH = ARTIFACTS_DIR / "priors_warmup_k2_from_43model_6comp.joblib"
+K2_WARMUP_FROM_MULTIMODEL_PATH_32 = ARTIFACTS_DIR / "priors_warmup_k2_from_43model.joblib"
 
 # Three-way split definition for K>2 experiments (prior-train / online-learn / holdout)
 THREE_WAY_SPLITS_PATH = ARTIFACTS_DIR / "splits_three_way.json"
@@ -78,7 +82,7 @@ THREE_WAY_SPLITS_PATH = ARTIFACTS_DIR / "splits_three_way.json"
 # Canonical offline dataset paths
 OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset"
 
-# 2-model datasets (Mixtral + GPT-4-Turbo only - the models the router chooses between)
+# 2-model datasets (legacy K=2 pair — Mixtral + GPT-4-Turbo battle data)
 CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_2models.jsonl.gz"
 CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_2models.jsonl.gz"
 

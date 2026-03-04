@@ -56,7 +56,7 @@ _PRICES = get_prices_for_models(
         "meta-llama/llama-4-scout",
         "anthropic/claude-sonnet-4",
         "anthropic/claude-sonnet-4.5",
-        "openai/gpt-4-turbo",
+        "moonshotai/kimi-k2-0905",
         "openai/gpt-4.1",
         "openai/gpt-5.1",
     ]
@@ -183,14 +183,14 @@ MODEL_CATALOG = {
         ),
         "tier": "expensive", "provider": "anthropic",
     },
-    "openai/gpt-4-turbo": {
-        "display": "GPT-4-Turbo",
-        **_PRICES["openai/gpt-4-turbo"],
+    "moonshotai/kimi-k2-0905": {
+        "display": "Kimi-K2",
+        **_PRICES["moonshotai/kimi-k2-0905"],
         "cost": _req_cost(
-            _PRICES["openai/gpt-4-turbo"]["input_cost_per_m"],
-            _PRICES["openai/gpt-4-turbo"]["output_cost_per_m"],
+            _PRICES["moonshotai/kimi-k2-0905"]["input_cost_per_m"],
+            _PRICES["moonshotai/kimi-k2-0905"]["output_cost_per_m"],
         ),
-        "tier": "expensive", "provider": "openai",
+        "tier": "mid", "provider": "moonshot",
     },
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
@@ -224,7 +224,7 @@ PORTFOLIO_K10 = PORTFOLIO_K5 + [
     "meta-llama/llama-4-maverick",
     "google/gemma-3-27b-it",
     "anthropic/claude-haiku-4.5",
-    "openai/gpt-4-turbo",
+    "moonshotai/kimi-k2-0905",
     "deepseek/deepseek-chat-v3-0324",
 ]
 
