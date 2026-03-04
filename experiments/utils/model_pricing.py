@@ -127,3 +127,77 @@ def build_model_registry_from_json(
     prices = get_prices_for_models(model_ids, registry_paths=registry_paths)
     return {m: dict(prices[m]) for m in prices}
 
+
+# ---------------------------------------------------------------------------
+# Portfolio catalog loader
+# ---------------------------------------------------------------------------
+
+_DEFAULT_INPUT_TOKENS: int = 100
+_DEFAULT_OUTPUT_TOKENS: int = 400
+
+
+def _req_cost(
+    input_cost_per_m: float,
+    output_cost_per_m: float,
+    input_tokens: int = _DEFAULT_INPUT_TOKENS,
+    output_tokens: int = _DEFAULT_OUTPUT_TOKENS,
+) -> float:
+    """Per-request cost at assumed token counts."""
+    return (input_tokens * input_cost_per_m + output_tokens * output_cost_per_m) / 1_000_000
+
+
+def load_model_catalog(
+    catalog_path: Path | str,
+    *,
+    tier_thresholds: Tuple[float, float] = (0.001, 0.003),
+    input_tokens: int = _DEFAULT_INPUT_TOKENS,
+    output_tokens: int = _DEFAULT_OUTPUT_TOKENS,
+) -> Tuple[list[str], Dict[str, Dict[str, Any]]]:
+    """Load a model portfolio and build an experiment catalog from a JSON file.
+
+    The JSON file must have a top-level ``"models"`` list where each entry
+    contains at least ``model_id``, ``input_cost_per_m``, and
+    ``output_cost_per_m``.  An optional ``display`` field provides a short
+    human-readable label; if absent, the slug after ``/`` in model_id is used.
+
+    Args:
+        catalog_path: Path to a models JSON file (e.g. ``models_k10.json``).
+        tier_thresholds: ``(cheap_max, mid_max)`` per-request cost boundaries.
+            Models with cost < cheap_max are ``"cheap"``, < mid_max are
+            ``"mid"``, otherwise ``"expensive"``.
+        input_tokens: Assumed input tokens per request for cost calculation.
+        output_tokens: Assumed output tokens per request for cost calculation.
+
+    Returns:
+        ``(model_ids, catalog)`` where *model_ids* preserves the JSON ordering
+        and *catalog* maps each model_id to a dict with keys
+        ``display``, ``input_cost_per_m``, ``output_cost_per_m``, ``cost``,
+        and ``tier``.
+    """
+    catalog_path = Path(catalog_path)
+    with open(catalog_path) as f:
+        entries = json.load(f)["models"]
+
+    cheap_max, mid_max = tier_thresholds
+    model_ids: list[str] = []
+    catalog: Dict[str, Dict[str, Any]] = {}
+
+    for entry in entries:
+        mid = entry["model_id"]
+        inp = _as_float(entry.get("input_cost_per_m"), field="input_cost_per_m",
+                        model_id=mid, registry_path=catalog_path)
+        out = _as_float(entry.get("output_cost_per_m"), field="output_cost_per_m",
+                        model_id=mid, registry_path=catalog_path)
+        cost = _req_cost(inp, out, input_tokens, output_tokens)
+        tier = "cheap" if cost < cheap_max else ("mid" if cost < mid_max else "expensive")
+        model_ids.append(mid)
+        catalog[mid] = {
+            "display": entry.get("display", mid.split("/")[-1]),
+            "input_cost_per_m": inp,
+            "output_cost_per_m": out,
+            "cost": cost,
+            "tier": tier,
+        }
+
+    return model_ids, catalog
+

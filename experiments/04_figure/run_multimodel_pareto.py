@@ -94,8 +94,6 @@ from run_prequential import (
     bootstrap_pareto_auc_difference,
     _extract_dev_optimal_per_prompt,
     _dev_pareto_indices,
-    _recompute_holdout_metrics_with_full_dev_training,
-    _patch_pareto_entries_holdout_metrics_inplace,
     K10_MODELS,
     K10_CATALOG,
     LAMBDA_VALUES_K10,
@@ -307,61 +305,6 @@ def run_k10_experiment() -> None:
         alpha=k10_alpha,
         prior_n_effective=k10_neff,
         forgetting_factor=k10_forgetting,
-    )
-
-    # --- Full-dev retrain pass (dev-optimal lambdas only) ---------------
-    bg_dev_opt_idx_k10 = _dev_pareto_indices(bandit_pareto_k10)
-    tr_dev_opt_idx_k10 = _dev_pareto_indices(tabula_pareto_k10)
-    bg_dev_opt_lams = sorted(
-        {float(bandit_pareto_k10[i]["lambda"]) for i in bg_dev_opt_idx_k10}
-    )
-    tr_dev_opt_lams = sorted(
-        {float(tabula_pareto_k10[i]["lambda"]) for i in tr_dev_opt_idx_k10}
-    )
-    logger.info(
-        "\n  Full-dev retrain pass (holdout metrics only; dev-optimal lambdas) ..."
-        f"\n    BanditGPT: {len(bg_dev_opt_lams)}/{len(LAMBDA_VALUES_K10)} lambdas"
-        f"\n    Tabula:    {len(tr_dev_opt_lams)}/{len(LAMBDA_VALUES_K10)} lambdas"
-    )
-    bandit_full_k10 = _recompute_holdout_metrics_with_full_dev_training(
-        models=K10_MODELS,
-        catalog=K10_CATALOG,
-        full_dev_data=train_data_k10,
-        full_dev_emb=train_emb_k10,
-        holdout_data=holdout_data_k10,
-        holdout_emb=holdout_emb_k10,
-        warmup_path=str(MULTIMODEL_WARMUP_PRIORS_PATH),
-        costs=costs_k10,
-        lambda_values=bg_dev_opt_lams,
-        n_trials=N_SEEDS,
-        alpha=k10_alpha,
-        prior_n_effective=k10_neff,
-        forgetting_factor=k10_forgetting,
-        use_corralling=True,
-        label="banditGPT_full_dev",
-    )
-    tabula_full_k10 = _recompute_holdout_metrics_with_full_dev_training(
-        models=K10_MODELS,
-        catalog=K10_CATALOG,
-        full_dev_data=train_data_k10,
-        full_dev_emb=train_emb_k10,
-        holdout_data=holdout_data_k10,
-        holdout_emb=holdout_emb_k10,
-        warmup_path=None,
-        costs=costs_k10,
-        lambda_values=tr_dev_opt_lams,
-        n_trials=N_SEEDS,
-        alpha=k10_alpha,
-        prior_n_effective=k10_neff,
-        forgetting_factor=k10_forgetting,
-        use_corralling=False,
-        label="tabula_rasa_full_dev",
-    )
-    _patch_pareto_entries_holdout_metrics_inplace(
-        bandit_pareto_k10, recomputed=bandit_full_k10,
-    )
-    _patch_pareto_entries_holdout_metrics_inplace(
-        tabula_pareto_k10, recomputed=tabula_full_k10,
     )
 
     # --- Dev-selected Pareto AUC ----------------------------------------

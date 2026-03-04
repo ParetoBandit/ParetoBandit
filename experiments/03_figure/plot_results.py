@@ -118,7 +118,25 @@ def plot_learning_curve(res: dict, out: Path) -> None:
                     alpha=0.12, zorder=2)
 
     sv_kind, sv_peak = _best_supervised_peak(k2)
-    if sv_peak > 0:
+    sv_lc = k2.get("supervised_learning_curve")
+
+    if sv_lc and sv_lc.get("curve"):
+        sv_curve = sv_lc["curve"]
+        sv_kind_lc = sv_lc["kind"]
+        sv_steps = [d["step"] for d in sv_curve]
+        sv_rewards = [d["mean_reward"] for d in sv_curve]
+        sv_stds = [d["std_reward"] for d in sv_curve]
+        sv_ci_upper = [r + t_crit * s / np.sqrt(n_seeds)
+                       for r, s in zip(sv_rewards, sv_stds)]
+        sv_ci_lower = [r - t_crit * s / np.sqrt(n_seeds)
+                       for r, s in zip(sv_rewards, sv_stds)]
+        ax.plot(sv_steps, sv_rewards, "s--", color=RED, lw=2, ms=3.5,
+                zorder=4, alpha=0.85,
+                label=f"Best supervised ({sv_kind_lc.upper()}, retrained)")
+        ax.fill_between(sv_steps, sv_ci_lower, sv_ci_upper, color=RED,
+                        alpha=0.08, zorder=1)
+        sv_peak = sv_rewards[-1]
+    elif sv_peak > 0:
         ax.axhline(y=sv_peak, color=RED, ls="--", lw=2, alpha=0.8, zorder=3,
                    label=f"Best supervised ({sv_kind.upper()}: {sv_peak:.3f})")
 
@@ -248,8 +266,9 @@ def generate_latex_table(res: dict, out: Path) -> None:
     lines = []
     lines.append(r"\begin{table}[htbp]")
     lines.append(r"\centering")
+    n_holdout = k2.get("n_holdout", "?")
     lines.append(r"\caption{Interpolated isocost comparison: BanditGPT vs "
-                 r"Coldstart on the $K{=}2$ holdout set ($n{=}750$). "
+                 rf"Coldstart on the $K{{=}}2$ holdout set ($n{{=}}{n_holdout}$). "
                  r"Rewards are read off each method's dev-selected Pareto hull "
                  r"at exact target costs via linear interpolation. "
                  r"``---'' indicates the method's dev-selected frontier does not "

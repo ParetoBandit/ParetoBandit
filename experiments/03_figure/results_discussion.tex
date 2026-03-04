@@ -196,6 +196,16 @@ after 897 dev-train steps reaches $0.819 \pm 0.004$ (20 seeds), a $+3.1$
 percentage-point improvement over RouteLLM's best.  The exploration
 coefficient $\alpha{=}1.0$ was selected via the Appendix~H grid ablation
 (joint $\alpha \times n_{\mathrm{eff}} \times \gamma$ sweep on dev-val).
+Note that BanditGPT's step-0 performance reflects its warmup priors
+(transfer learning from a broader 43-model registry), whereas the
+supervised baselines are trained only on the dev-train split.  This is an
+intentional system-level comparison: the warmup priors are an
+architectural component, not an unfair data advantage.  The
+\emph{tabula rasa} ablation (no priors, no Corralling) provides the
+complementary same-data comparison, isolating the value of pure online
+learning under symmetric data access; the \emph{coldstart} ablation
+(priors only, zero online steps) quantifies the priors' standalone
+contribution.
 
 \paragraph{UCB1 ablation: value of contextual features ($K{=}2$).}
 A non-contextual UCB1 baseline (standard multi-armed bandit, no prompt

@@ -330,5 +330,5 @@ Both portfolios favour strong priors (n_eff=5000) and stationary learning
 K=10 performs best with low exploration (alpha=0.1), consistent with the
 larger action space requiring more exploitation of prior knowledge.
 
-A single-axis alpha ablation (`run_alpha_ablation.py`) provides the
-focused sensitivity figure for the paper.
+A comprehensive alpha/n_eff/gamma ablation is in Appendix H
+(`experiments/appendix/H_alpha_neff_ablation/`).

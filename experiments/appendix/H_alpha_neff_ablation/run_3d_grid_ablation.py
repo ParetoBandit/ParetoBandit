@@ -282,13 +282,14 @@ def train_and_evaluate(
     eval_data: List[Dict],
     train_emb: List[np.ndarray],
     eval_emb: List[np.ndarray],
-    warmup_path: str,
+    warmup_path: Optional[str],
     costs: Dict[str, float],
     *,
     alpha: float,
     n_eff: float,
     gamma: float,
     n_seeds: int,
+    use_corralling: bool = True,
 ) -> Dict[str, Any]:
     """Train-then-freeze evaluation for a single hyperparameter configuration.
 
@@ -299,12 +300,13 @@ def train_and_evaluate(
         eval_data: Holdout prompts with rewards.
         train_emb: Pre-computed feature vectors for dev set.
         eval_emb: Pre-computed feature vectors for holdout set.
-        warmup_path: Path to warmup priors file.
+        warmup_path: Path to warmup priors file (None for tabula rasa).
         costs: Per-model cost dict.
         alpha: Exploration coefficient.
         n_eff: Prior effective sample size.
         gamma: Forgetting factor (1.0 = stationary).
         n_seeds: Number of random seeds.
+        use_corralling: Enable Corralling meta-learner (False for tabula rasa).
 
     Returns:
         Dict with mean/std reward across seeds and per-seed values.
@@ -326,7 +328,7 @@ def train_and_evaluate(
             prior_n_effective=n_eff,
             alpha=alpha,
             warmup_path=warmup_path,
-            use_corralling=True,
+            use_corralling=use_corralling,
             corralling_learning_rate=CORRALLING_LR,
             corralling_gamma=CORRALLING_GAMMA,
             cost_penalty=0.0,
@@ -408,13 +410,14 @@ def run_grid(
     eval_data: List[Dict],
     train_emb: List[np.ndarray],
     eval_emb: List[np.ndarray],
-    warmup_path: str,
+    warmup_path: Optional[str],
     costs: Dict[str, float],
     *,
     alpha_values: List[float],
     neff_values: List[float],
     gamma_values: List[float],
     n_seeds: int,
+    use_corralling: bool = True,
 ) -> List[Dict[str, Any]]:
     """Sweep the 3D grid and return results for every configuration."""
     total = len(alpha_values) * len(neff_values) * len(gamma_values)
@@ -431,6 +434,7 @@ def run_grid(
                     warmup_path, costs,
                     alpha=alpha, n_eff=n_eff, gamma=gamma,
                     n_seeds=n_seeds,
+                    use_corralling=use_corralling,
                 )
                 results.append(res)
                 logger.info(
@@ -569,13 +573,15 @@ def run_portfolio_ablation(
     holdout_data: List[Dict],
     encoder: "SentenceTransformer",
     pca: Any,
-    warmup_path: str,
+    warmup_path: Optional[str],
     output_dir: Path,
     *,
     k_label: int,
     json_filename: str,
     figure_filename: str,
     main_results_key: str,
+    use_corralling: bool = True,
+    variant_label: str = "BanditGPT",
 ) -> Dict[str, Any]:
     """Run the full 3D grid ablation for a single portfolio.
 
@@ -586,13 +592,15 @@ def run_portfolio_ablation(
         holdout_data: Holdout prompts with rewards.
         encoder: SentenceTransformer encoder.
         pca: Fitted PCA transform.
-        warmup_path: Path to the warmup priors file.
+        warmup_path: Path to the warmup priors file (None for tabula rasa).
         output_dir: Directory for output artifacts.
         k_label: Portfolio size (2 or 10), used in labels.
         json_filename: Filename for the JSON results.
         figure_filename: Filename for the heatmap figure.
         main_results_key: Top-level key in prequential_results.json
             (e.g. "K2" or "K10").
+        use_corralling: Enable Corralling meta-learner (False for tabula rasa).
+        variant_label: Human-readable label for this variant (for logging).
 
     Returns:
         Dict with best configuration and summary statistics.
@@ -663,13 +671,14 @@ def run_portfolio_ablation(
         neff_values=NEFF_VALUES,
         gamma_values=GAMMA_VALUES,
         n_seeds=N_SEEDS,
+        use_corralling=use_corralling,
     )
 
     ranked = sorted(results, key=lambda r: r["mean_reward"], reverse=True)
     best = ranked[0]
 
     logger.info(f"\n{'=' * 70}")
-    logger.info(f"K={k_label} TOP-10 CONFIGURATIONS (by mean dev-val reward)")
+    logger.info(f"K={k_label} {variant_label} TOP-10 CONFIGURATIONS (by mean dev-val reward)")
     logger.info(f"{'=' * 70}")
     for i, r in enumerate(ranked[:10]):
         logger.info(
@@ -701,6 +710,7 @@ def run_portfolio_ablation(
         n_eff=float(best["n_eff"]),
         gamma=float(best["gamma"]),
         n_seeds=N_SEEDS,
+        use_corralling=use_corralling,
     )
     logger.info(
         f"  Holdout reward for selected config: {best_holdout['mean_reward']:.4f} "
@@ -712,7 +722,8 @@ def run_portfolio_ablation(
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "description": (
                 "3D hyperparameter ablation (alpha x n_eff x forgetting_factor) "
-                "for BanditGPT Corralling router with warmup priors. "
+                f"for {variant_label} "
+                f"({'Corralling + warmup priors' if use_corralling else 'single LinUCB, no priors'}). "
                 f"Train-then-freeze on K={k_label}, lambda=0 (quality-only)."
             ),
         },
@@ -828,14 +839,16 @@ def main() -> None:
     logger.info("K=10 Portfolio Ablation")
     logger.info("=" * 70)
 
-    with open(THREE_WAY_SPLITS_PATH) as f:
-        splits_3way = json.load(f)
-    online_prompts = set(splits_3way["online_learn_pool"])
+    prior_train_prompts: Set[str] = set()
+    if THREE_WAY_SPLITS_PATH.exists():
+        with open(THREE_WAY_SPLITS_PATH) as f:
+            splits_3way = json.load(f)
+        prior_train_prompts = set(splits_3way.get("prior_train_pool", []))
 
-    train_k10 = load_rewards_from_file(
-        DEV_DATA_PATH_ALL_MODELS, K10_MODELS,
-        prompt_filter=online_prompts,
-    )
+    all_dev_k10 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K10_MODELS)
+    train_k10 = [
+        d for d in all_dev_k10 if d["prompt"] not in prior_train_prompts
+    ]
     holdout_k10 = load_rewards_from_file(
         HOLDOUT_DATA_PATH_ALL_MODELS, K10_MODELS,
     )
@@ -851,6 +864,42 @@ def main() -> None:
         main_results_key="K10",
     )
 
+    # ── K=2 Tabula Rasa ─────────────────────────────────────────────
+    logger.info("\n" + "=" * 70)
+    logger.info("K=2 Tabula Rasa Portfolio Ablation")
+    logger.info("=" * 70)
+
+    best_k2_tr = run_portfolio_ablation(
+        K2_MODELS, K2_CATALOG,
+        dev_k2, holdout_k2, encoder, pca,
+        None,
+        output_dir,
+        k_label=2,
+        json_filename="alpha_neff_gamma_grid_tabula_rasa_results.json",
+        figure_filename="alpha_neff_gamma_grid_tabula_rasa_figure.png",
+        main_results_key="K2",
+        use_corralling=False,
+        variant_label="Tabula Rasa",
+    )
+
+    # ── K=10 Tabula Rasa ────────────────────────────────────────────
+    logger.info("\n" + "=" * 70)
+    logger.info("K=10 Tabula Rasa Portfolio Ablation")
+    logger.info("=" * 70)
+
+    best_k10_tr = run_portfolio_ablation(
+        K10_MODELS, K10_CATALOG,
+        train_k10, holdout_k10, encoder, pca,
+        None,
+        output_dir,
+        k_label=10,
+        json_filename="alpha_neff_gamma_grid_tabula_rasa_k10_results.json",
+        figure_filename="alpha_neff_gamma_grid_tabula_rasa_k10_figure.png",
+        main_results_key="K10",
+        use_corralling=False,
+        variant_label="Tabula Rasa",
+    )
+
     # Persist the selected hyperparameters for downstream experiments.
     # These are dev-val-selected (holdout not used for selection).
     (output_dir / "best_hparams_k2.json").write_text(
@@ -859,8 +908,16 @@ def main() -> None:
     (output_dir / "best_hparams_k10.json").write_text(
         json.dumps({"K10": best_k10}, indent=2)
     )
+    (output_dir / "best_hparams_k2_tabula_rasa.json").write_text(
+        json.dumps({"K2": best_k2_tr}, indent=2)
+    )
+    (output_dir / "best_hparams_k10_tabula_rasa.json").write_text(
+        json.dumps({"K10": best_k10_tr}, indent=2)
+    )
     logger.info(f"\nSaved best hyperparams to {output_dir / 'best_hparams_k2.json'}")
     logger.info(f"Saved best hyperparams to {output_dir / 'best_hparams_k10.json'}")
+    logger.info(f"Saved best hyperparams to {output_dir / 'best_hparams_k2_tabula_rasa.json'}")
+    logger.info(f"Saved best hyperparams to {output_dir / 'best_hparams_k10_tabula_rasa.json'}")
 
     # ── Summary ───────────────────────────────────────────────────────
     elapsed = time.time() - t0
@@ -868,18 +925,32 @@ def main() -> None:
     logger.info("SUMMARY")
     logger.info(f"{'=' * 70}")
     logger.info(
-        f"  K=2  best: alpha={best_k2['alpha']}, "
+        f"  K=2  BanditGPT best: alpha={best_k2['alpha']}, "
         f"n_eff={int(best_k2['n_eff'])}, "
         f"gamma={best_k2['gamma']} "
         f"-> R_val={best_k2['dev_val_mean_reward']:.4f} "
         f"(holdout={best_k2['holdout_mean_reward']:.4f})"
     )
     logger.info(
-        f"  K=10 best: alpha={best_k10['alpha']}, "
+        f"  K=2  Tabula Rasa best: alpha={best_k2_tr['alpha']}, "
+        f"n_eff={int(best_k2_tr['n_eff'])}, "
+        f"gamma={best_k2_tr['gamma']} "
+        f"-> R_val={best_k2_tr['dev_val_mean_reward']:.4f} "
+        f"(holdout={best_k2_tr['holdout_mean_reward']:.4f})"
+    )
+    logger.info(
+        f"  K=10 BanditGPT best: alpha={best_k10['alpha']}, "
         f"n_eff={int(best_k10['n_eff'])}, "
         f"gamma={best_k10['gamma']} "
         f"-> R_val={best_k10['dev_val_mean_reward']:.4f} "
         f"(holdout={best_k10['holdout_mean_reward']:.4f})"
+    )
+    logger.info(
+        f"  K=10 Tabula Rasa best: alpha={best_k10_tr['alpha']}, "
+        f"n_eff={int(best_k10_tr['n_eff'])}, "
+        f"gamma={best_k10_tr['gamma']} "
+        f"-> R_val={best_k10_tr['dev_val_mean_reward']:.4f} "
+        f"(holdout={best_k10_tr['holdout_mean_reward']:.4f})"
     )
     logger.info(f"\nElapsed: {elapsed:.0f}s ({elapsed / 60:.1f} min)")
 

@@ -80,10 +80,12 @@ K2_WARMUP_FROM_MULTIMODEL_PATH_32 = ARTIFACTS_DIR / "priors_warmup_k2_from_43mod
 THREE_WAY_SPLITS_PATH = ARTIFACTS_DIR / "splits_three_way.json"
 
 # Canonical data paths — all reward data lives in data_collection/
-OFFLINE_DATASET_DIR = PROJECT_ROOT / "data_collection" / "rewards"
-PROMPTS_DIR = PROJECT_ROOT / "data_collection" / "prompts"
-CACHE_DIR = PROJECT_ROOT / "data_collection" / "cache"
+DATA_COLLECTION_DIR = PROJECT_ROOT / "data_collection"
+OFFLINE_DATASET_DIR = DATA_COLLECTION_DIR / "rewards"
+PROMPTS_DIR = DATA_COLLECTION_DIR / "prompts"
+CACHE_DIR = DATA_COLLECTION_DIR / "cache"
 LMSYS_BATTLES_PATH = PROMPTS_DIR / "lmarena_battles_en.jsonl"
+K10_MODELS_PATH = DATA_COLLECTION_DIR / "config" / "models_k10.json"
 
 # All models datasets (44 models: original 43 + gemini-2.5-flash)
 DEV_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete_all_models.jsonl.gz"

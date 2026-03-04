@@ -27,15 +27,17 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from bandit_gpt.config import (
     OFFLINE_DATASET_DIR,
+    LMSYS_BATTLES_PATH,
+    PROMPTS_DIR,
+    DEV_DATA_PATH_ALL_MODELS,
+    HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-LMSYS_BATTLES_PATH = OFFLINE_DATASET_DIR / "lmarena_battles_en.jsonl"
-
-DEV_ALL_MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete_all_models.jsonl.gz"
-HOLDOUT_ALL_MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete_all_models.jsonl.gz"
+DEV_ALL_MODELS = DEV_DATA_PATH_ALL_MODELS
+HOLDOUT_ALL_MODELS = HOLDOUT_DATA_PATH_ALL_MODELS
 
 MIN_PROMPT_LEN = 20
 MAX_PROMPT_LEN = 5000
@@ -43,7 +45,7 @@ MIN_ASCII_RATIO = 0.5
 
 
 def _load_existing_prompts() -> Set[str]:
-    """Return the set of all prompts that already have rewards."""
+    """Return the set of all prompts that already have rewards or were previously sampled."""
     existing: Set[str] = set()
     for gz_path in [DEV_ALL_MODELS, HOLDOUT_ALL_MODELS]:
         if not gz_path.exists():
@@ -53,6 +55,12 @@ def _load_existing_prompts() -> Set[str]:
             for line in f:
                 entry = json.loads(line)
                 if entry.get("ok"):
+                    existing.add(entry["prompt"])
+    for jsonl_path in PROMPTS_DIR.glob("new_prompts_*.jsonl"):
+        with open(jsonl_path) as f:
+            for line in f:
+                entry = json.loads(line)
+                if "prompt" in entry:
                     existing.add(entry["prompt"])
     return existing
 
