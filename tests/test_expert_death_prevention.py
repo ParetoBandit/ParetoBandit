@@ -143,81 +143,80 @@ def test_recovery_in_nonstationary_environment():
     print("✅ Router successfully adapted to non-stationary environment")
 
 
-def test_gamma_zero_causes_expert_death():
+def test_log_barrier_prevents_expert_death_even_without_gamma():
     """
-    Test that gamma=0 (no mixing) leads to much lower weights than gamma>0.
-    
-    Negative test: without gamma mixing, expert weights collapse.
+    Test that Log-Barrier OMD inherently prevents expert death.
+
+    With true Corralling (Agarwal et al., 2017), the log-barrier regularizer
+    is the *primary* mechanism preventing weights from reaching zero.  Even
+    with gamma=0 (no explicit mixing), the losing expert's weight should
+    remain bounded above zero.
+
+    The gamma parameter provides *additional* safety as an explicit
+    exploration floor.
     """
     models = ["model_a", "model_b"]
-    
-    # Test with gamma=0
+
+    # Test with gamma=0 (rely solely on log-barrier)
     expert_0_no_mix = MockExpert("model_a", models)
     expert_1_no_mix = MockExpert("model_b", models)
-    
+
     router_no_mix = CorrallingRouter(
         experts=[expert_0_no_mix, expert_1_no_mix],
         models=models,
-        learning_rate=0.5,
-        gamma=0.0  # No mixing - pure exponential weighting
+        learning_rate=2.0,
+        gamma=0.0
     )
-    
+
     # Test with gamma=0.05
     expert_0_mix = MockExpert("model_a", models)
     expert_1_mix = MockExpert("model_b", models)
-    
+
     router_mix = CorrallingRouter(
         experts=[expert_0_mix, expert_1_mix],
         models=models,
-        learning_rate=0.5,
-        gamma=0.05  # With mixing
+        learning_rate=2.0,
+        gamma=0.05
     )
-    
+
     context = np.random.randn(10)
-    
-    # Simulate scenario where Expert 0 is consistently better
+
     for i in range(1000):
         np.random.seed(42 + i)
-        
-        # No mixing
+
         model, token = router_no_mix.select_model(context)
         reward = 0.9 if model == "model_a" else 0.1
         router_no_mix.update(context, model, reward, selection_token=token)
-        
-        # With mixing
+
         model, token = router_mix.select_model(context)
         reward = 0.9 if model == "model_a" else 0.1
         router_mix.update(context, model, reward, selection_token=token)
-    
-    # Get final probabilities
-    prob_no_mix = router_no_mix._get_mixed_distribution()[1]
-    prob_mix = router_mix._get_mixed_distribution()[1]
-    
-    print(f"\nExpert 1 weight with gamma=0: {router_no_mix.weights[1]:.2e}")
-    print(f"Expert 1 probability with gamma=0: {prob_no_mix:.2e}")
-    print(f"Expert 1 weight with gamma=0.05: {router_mix.weights[1]:.2e}")
-    print(f"Expert 1 probability with gamma=0.05: {prob_mix:.4f}")
-    
-    # With gamma=0, Expert 1's weight should be much smaller
-    assert router_no_mix.weights[1] < 1e-4, \
-        "Expected very small weight with gamma=0"
-    
-    # With gamma>0, Expert 1 should maintain minimum probability
+
+    # Log-barrier should prevent the losing expert's weight from collapsing
+    # to zero, even with gamma=0.  The weight should be small but strictly
+    # positive (above the 1e-12 numerical floor).
+    assert router_no_mix.weights[1] > 1e-10, \
+        f"Log-barrier should prevent weight collapse; got {router_no_mix.weights[1]:.2e}"
+
+    # The winning expert should be favoured
+    assert router_no_mix.weights[0] > router_no_mix.weights[1], \
+        "Winning expert should have higher weight"
+
+    # With gamma>0, the mixed probability has a guaranteed floor
     min_prob = 0.05 / 2  # gamma / K
+    prob_mix = router_mix._get_mixed_distribution()[1]
     assert prob_mix >= min_prob - 1e-10, \
         f"Expected probability >= {min_prob}, got {prob_mix}"
-    
-    # The mixing parameter should provide significantly higher probability
-    assert prob_mix > prob_no_mix * 10, \
-        "Mixing parameter should provide much higher probability"
-    
-    print("✅ Confirmed: gamma>0 prevents Expert Death")
+
+    print(f"\nExpert 1 weight with gamma=0: {router_no_mix.weights[1]:.4f}")
+    print(f"Expert 1 weight with gamma=0.05: {router_mix.weights[1]:.4f}")
+    print("✅ Log-barrier prevents expert death; gamma provides additional floor")
 
 
 def test_importance_weighting_uses_marginal_probability():
     """
-    Test that the Exp4 loss estimator uses the marginal action probability π(a).
-    
+    Test that the Corralling loss estimator uses the marginal action probability π(a).
+
     When experts disagree, π(a) equals the single endorsing expert's mixed
     probability.  When they agree, π(a) = 1.0.
     """

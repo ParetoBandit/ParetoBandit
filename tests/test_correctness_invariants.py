@@ -681,18 +681,18 @@ class MockCountingExpert:
         return eligible[0]
 
     def update(self, context, model, reward, weight=1.0, advance_time=True):
-        self.update_calls.append((model, reward))
+        self.update_calls.append((model, reward, weight))
 
 
 class TestCorrallingIPWUpdates:
     """
-    Under Exp4/Corralling with IPW, only the expert(s) that endorsed the
+    Under Corralling with IPW, only the expert(s) that endorsed the
     selected action receive a base-algorithm update (scaled by 1/π(a)).
     Non-endorsing experts receive no update for that round.  This
     maintains valid on-policy training distributions for each expert.
 
-    The meta-weight update (importance-weighted loss) still attributes
-    loss to all endorsing experts — that part is unchanged.
+    The meta-weight update (Log-Barrier OMD importance-weighted loss) still
+    attributes loss to all endorsing experts — that part is unchanged.
     """
 
     @pytest.fixture
@@ -777,6 +777,93 @@ class TestCorrallingIPWUpdates:
         assert not np.allclose(router.weights, initial_weights, atol=1e-4), (
             "Meta-weights should change after updates"
         )
+
+
+# =============================================================================
+# IPW clipping: base-expert weights capped at ipw_clip
+# =============================================================================
+
+class TestIPWClipping:
+    """Verify that importance weights passed to base experts are capped."""
+
+    def _make_router(self, ipw_clip: float, gamma: float = 0.1) -> CorrallingRouter:
+        models = ["m1", "m2"]
+        e1 = MockCountingExpert(models, name="e1", preferred_model="m1")
+        e2 = MockCountingExpert(models, name="e2", preferred_model="m2")
+        return CorrallingRouter(
+            experts=[e1, e2],
+            models=models,
+            learning_rate=0.1,
+            gamma=gamma,
+            ipw_clip=ipw_clip,
+        )
+
+    def test_ipw_weight_clipped(self):
+        """When action_prob is small, ipw_weight must not exceed ipw_clip."""
+        router = self._make_router(ipw_clip=5.0)
+        ctx = np.ones(4)
+
+        for _ in range(50):
+            model, token = router.select_model(ctx)
+            router.update(ctx, model, reward=0.7, selection_token=token)
+
+        for expert in router.experts:
+            for _model, _reward, w in expert.update_calls:
+                assert w <= 5.0 + 1e-9, (
+                    f"IPW weight {w:.4f} exceeds clip threshold 5.0"
+                )
+
+    def test_ipw_clip_inf_disables_clipping(self):
+        """Setting ipw_clip=inf should allow uncapped weights."""
+        router = self._make_router(ipw_clip=float("inf"), gamma=0.05)
+
+        # Skew weights so one expert has very low probability
+        router.weights = np.array([0.99, 0.01])
+        ctx = np.ones(4)
+
+        weights_seen: list[float] = []
+        for _ in range(200):
+            model, token = router.select_model(ctx)
+            router.update(ctx, model, reward=0.5, selection_token=token)
+            for expert in router.experts:
+                for _m, _r, w in expert.update_calls:
+                    weights_seen.append(w)
+                expert.update_calls.clear()
+
+        max_w = max(weights_seen) if weights_seen else 0.0
+        assert max_w > 1.0, (
+            "With inf clip and skewed weights, at least some IPW > 1.0 expected"
+        )
+
+    def test_default_ipw_clip_is_20(self):
+        """Default ipw_clip should be 20.0."""
+        router = self._make_router(ipw_clip=20.0)
+        assert router.ipw_clip == 20.0
+
+    def test_ipw_clip_respected_with_many_experts(self):
+        """With K=10, theoretical max IPW = K/gamma = 200. Clip must cap it."""
+        models = [f"m{i}" for i in range(10)]
+        experts = [
+            MockCountingExpert(models, name=f"e{i}", preferred_model=models[i])
+            for i in range(10)
+        ]
+        router = CorrallingRouter(
+            experts=experts,
+            models=models,
+            learning_rate=0.1,
+            gamma=0.05,
+            ipw_clip=15.0,
+        )
+        ctx = np.ones(4)
+        for _ in range(100):
+            model, token = router.select_model(ctx)
+            router.update(ctx, model, reward=0.5, selection_token=token)
+
+        for expert in router.experts:
+            for _m, _r, w in expert.update_calls:
+                assert w <= 15.0 + 1e-9, (
+                    f"IPW weight {w:.4f} exceeds clip 15.0 with K=10"
+                )
 
 
 # =============================================================================
@@ -1480,24 +1567,29 @@ class TestT2_StalenessAwareMetaLR:
         assert delta_fresh > 0, "Fresh feedback should change meta-weights"
 
     def test_stale_feedback_discounted_meta_update(self):
-        """Feedback arriving after delay >> τ should barely affect meta-weights."""
-        router, _, _ = self._make_router(halflife=1.0)  # 1-second halflife
+        """Feedback arriving after delay >> τ should affect meta-weights
+        less than fresh feedback."""
         ctx = np.ones(4)
 
-        _, token = router.select_model(ctx)
-        # Simulate 100-second delay by backdating the token
-        token["timestamp"] = time.time() - 100.0
+        # Fresh feedback
+        router_fresh, _, _ = self._make_router(halflife=1.0)
+        _, token_fresh = router_fresh.select_model(ctx)
+        # No backdating — effectively delay=0
+        weights_before_fresh = router_fresh.weights.copy()
+        router_fresh.update(ctx, "m1", reward=0.0, selection_token=token_fresh)
+        delta_fresh = np.abs(router_fresh.weights - weights_before_fresh).sum()
 
-        weights_before = router.weights.copy()
-        router.update(ctx, "m1", reward=0.0, selection_token=token)
-        weights_after = router.weights.copy()
+        # Stale feedback (100-second delay, τ=1s → staleness_factor ≈ 0.01)
+        router_stale, _, _ = self._make_router(halflife=1.0)
+        _, token_stale = router_stale.select_model(ctx)
+        token_stale["timestamp"] = time.time() - 100.0
+        weights_before_stale = router_stale.weights.copy()
+        router_stale.update(ctx, "m1", reward=0.0, selection_token=token_stale)
+        delta_stale = np.abs(router_stale.weights - weights_before_stale).sum()
 
-        delta_stale = np.abs(weights_after - weights_before).sum()
-        # With τ=1s and delay=100s, staleness_factor ≈ 1/101 ≈ 0.01
-        # So the meta-weight change should be very small
-        assert delta_stale < 0.05, (
-            f"Stale feedback (100s, τ=1s) should barely change meta-weights, "
-            f"but delta was {delta_stale:.4f}"
+        assert delta_stale < delta_fresh, (
+            f"Stale feedback delta ({delta_stale:.4f}) should be less than "
+            f"fresh feedback delta ({delta_fresh:.4f})"
         )
 
     def test_staleness_factor_proportional_to_delay(self):

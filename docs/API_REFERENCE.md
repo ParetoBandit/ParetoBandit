@@ -224,7 +224,7 @@ def process_feedback(self, request_id: str, reward: float) -> None
 
 **Behaviour**:
 - Looks up the stored context vector for the request.
-- Clamps reward to [0, 1] (required by the Exp4 importance-weighted loss estimator).
+- Clamps reward to [0, 1] (required by the importance-weighted loss estimator).
 - Updates the Corralling meta-learner (or direct LinUCB if Corralling is disabled).
 - Supports **delayed feedback**: if the in-memory log has been evicted, falls back to the `SqliteContextStore`. Feedback can arrive hours or days later as long as the context has not expired (default TTL: 7 days).
 - **No-op** if `request_id` is unknown (evicted from both stores). A warning is logged.

@@ -86,7 +86,7 @@ BASE_OUTPUT_DIR = Path(__file__).parent / "results"
 
 def compute_learning_rate(n_experts: int, horizon: int) -> float:
     """
-    Compute theoretically optimal Exp4 learning rate.
+    Compute theoretically optimal Corralling learning rate.
 
     η* = sqrt(ln(K) / T)
 

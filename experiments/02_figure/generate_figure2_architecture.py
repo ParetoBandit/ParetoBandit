@@ -133,7 +133,7 @@ def create_figure():
     #  4. CORRALLING COORDINATOR
     # ═════════════════════════════════════════════════════════
     rbox(cx, y_coord, pw, bh, "Corralling Coordinator",
-         "Exp4 meta-learner over expert portfolio",
+         "Log-Barrier OMD meta-learner over expert portfolio",
          fc="#fde8d0", ec=PAL["vermillion"], tc=PAL["vermillion"], lw=2.2)
 
     # Mixing equation (left side, y-centered with the coordinator box)
@@ -287,7 +287,7 @@ def create_figure():
     label(fb_x + 1.5, (y_reward + y_coord) / 2 + 2.5,
           "$r_t$", fs=14, c=PAL["rpur"], fam="serif", ha="left")
     label(fb_x + 1.5, (y_reward + y_coord) / 2 - 6,
-          "L1: meta-weight\n     update (Exp4)\n"
+          "L1: meta-weight\n     update (OMD)\n"
           "L2: IPW base update\n     to experts",
           fs=11.5, c=PAL["rpur"], ha="left", sty="italic")
 

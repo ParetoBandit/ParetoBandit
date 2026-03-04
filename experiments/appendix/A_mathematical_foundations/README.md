@@ -12,7 +12,7 @@ reference the *actual* algorithm implemented in `src/bandit_gpt/router.py`.
 
 **Content**:
 - Per-expert regret bound for Hybrid LinUCB via combined parameter φ_a = β_F(a) + θ_a (Theorem 1, citing Li et al. 2010; Abbasi-Yadkani et al. 2011)
-- Meta-regret bound for Exp4/Corralling (Theorem 2, citing Agarwal et al. 2017)
+- Meta-regret bound for Corralling / Log-Barrier OMD (Theorem 2, citing Agarwal et al. 2017)
 - Composite decomposition: R_total ≤ O(√(T ln 2)) + min{R_warmup, R_tabula_rasa}
 - Discussion of gap between theoretical O(√T) and empirical O(T^0.669)
 

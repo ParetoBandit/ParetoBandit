@@ -6,7 +6,7 @@
     \caption{%
         \textbf{Architecture: BanditRouter with Corralling Meta-Learner.}
         \texttt{BanditRouter} orchestrates feature extraction, constraint filtering, and model selection, optionally using Hybrid LinUCB for family-based parameter sharing.
-        The Corralling layer manages two experts via Exp4 meta-learning ($\eta{=}\sqrt{\ln K/T}$, $\gamma{=}0.05$): Expert~1 (Warmup) uses semantic priors ($\alpha{=}2.0$); Expert~2 (Tabula Rasa) learns from scratch (decaying $\alpha{=}1.0 \to 0.01$).
+        The Corralling layer manages two experts via Log-Barrier OMD~\cite{agarwal2017corralling} with per-expert adaptive learning rates ($\eta_0{=}0.1$, $\gamma{=}0.05$): Expert~1 (Warmup) uses semantic priors ($\alpha{=}2.0$); Expert~2 (Tabula Rasa) learns from scratch (decaying $\alpha{=}1.0 \to 0.01$).
         \texttt{route()} samples an expert with probability $P_t = (1{-}\gamma)\,w_t + \gamma/K$, and \texttt{process\_feedback()} updates weights via importance-weighted loss $\hat{\ell}_t = (1{-}r_t)/P_t$.
         Corralling outperforms tabula rasa when prior quality is good ($\alpha \leq 0.2$), crossing over at $\alpha \approx 0.3$ (Figure~\ref{fig:prior_degradation}).
     }

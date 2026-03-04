@@ -135,8 +135,8 @@ def run_single_trial(learning_rate: float, seed: int, n_steps: int = 500) -> Dic
         router.update(context, selected_model, reward, selection_token=token)
         
         history["weights"].append(router.weights.copy())
-        history["losses"]["warmup"].append(router.cumulative_losses[0])
-        history["losses"]["tabula"].append(router.cumulative_losses[1])
+        history["losses"]["warmup"].append(router.sum_squared_losses[0])
+        history["losses"]["tabula"].append(router.sum_squared_losses[1])
     
     # Analyze key metrics
     weights = np.array(history["weights"])

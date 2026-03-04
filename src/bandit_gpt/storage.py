@@ -236,8 +236,8 @@ class SqliteContextStore(ContextStore):
 
             # Migration: add corralling_token column for delayed-feedback
             # meta-weight updates (persists action_prob, endorsing_experts,
-            # timestamp so Exp4 importance-weighted updates can fire even when
-            # the in-memory RoutingLog has been evicted).
+            # timestamp so Corralling importance-weighted updates can fire even
+            # when the in-memory RoutingLog has been evicted).
             try:
                 conn.execute(
                     "ALTER TABLE context_log ADD COLUMN corralling_token_blob BLOB"

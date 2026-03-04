@@ -85,7 +85,7 @@ def make_router(model_costs=None):
 class TestIPWRewardPassthrough:
     """CorrallingRouter must apply IPW correction to expert updates.
 
-    Per Exp4 theory (Auer et al., 2002):
+    Per Corralling theory (Agarwal et al., 2017; Auer et al., 2002):
     - Only the expert(s) that endorsed the selected arm receive an update.
     - The update weight is scaled by 1/π(a) to correct for off-policy evaluation.
     - Non-endorsing experts receive NO update for that observation.

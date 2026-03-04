@@ -46,7 +46,7 @@ its cumulative performance.
 
 \subsubsection{Bounded Importance Weights}
 
-The Exp4 meta-weight update uses importance-weighted losses
+The Corralling meta-weight update uses importance-weighted losses
 $\hat{\ell}_i = \ell_i / p_i$ to correct for action-selection bias.  Without a
 probability floor, $p_i \to 0$ causes $\hat{\ell}_i \to \infty$, producing
 catastrophic variance in the weight updates.

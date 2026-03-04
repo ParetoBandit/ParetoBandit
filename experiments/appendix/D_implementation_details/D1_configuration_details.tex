@@ -74,9 +74,9 @@ user-configurable parameter exposed by the five core classes in \texttt{router.p
 \toprule
 \textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
 \midrule
-\texttt{learning\_rate} ($\eta$) & 0.1 & Exp4 meta-learner step size. Higher = faster adaptation, more regret variance. \\
-\texttt{gamma} ($\gamma$) & 0.05 & Exploration floor: every expert retains $\geq \gamma/K$ selection probability, preventing expert death. \\
-\texttt{loss\_decay} & 0.999 & Exponential decay on cumulative losses. Prevents weight collapse under distribution shift by discounting stale history. 1.0 = standard Exp4 (no decay). \\
+\texttt{learning\_rate} ($\eta_0$) & 0.1 & Base learning rate for Log-Barrier OMD. Per-expert effective rates are $\eta_0 / \sqrt{S_i + \epsilon}$. \\
+\texttt{gamma} ($\gamma$) & 0.05 & Exploration floor: every expert retains $\geq \gamma/K$ selection probability, complementing the log-barrier's implicit expert death prevention. \\
+\texttt{loss\_decay} & 0.999 & Decay factor for cumulative squared losses. Prevents stale variance estimates from dominating the adaptive learning rates. 1.0 = standard Corralling (no decay). \\
 \texttt{meta\_lr\_halflife} & 60.0\,s & Staleness half-life for delayed feedback. Meta-learning rate scales as $\eta_{\text{eff}} = \eta / (1 + \text{delay}/\tau)$. \\
 \texttt{initial\_weights} & uniform & Optional prior-trust bias over experts. \\
 \bottomrule
@@ -160,12 +160,14 @@ user-configurable parameter exposed by the five core classes in \texttt{router.p
     controlled entirely through the expert-level $\lambda$.
 
     \item \textbf{Loss Decay (Non-Standard Corralling):} The \texttt{loss\_decay}
-    parameter modifies the standard Exp4 algorithm by exponentially discounting
-    past cumulative losses at the meta level. This prevents weight collapse under
-    distribution shift but means the standard $O(\sqrt{T \ln K})$ regret bound
-    applies only approximately. The theoretical analysis in Appendix~\ref{appendix:mathematical_foundations}
-    assumes standard Exp4 ($\texttt{loss\_decay}=1.0$); the experiments in this paper
-    also use $\texttt{loss\_decay}=1.0$.
+    parameter is a practical extension of the standard Corralling algorithm
+    (Agarwal et al., 2017) that decays the cumulative squared losses used to
+    compute adaptive per-expert learning rates.  This prevents stale variance
+    estimates from dominating under distribution shift but means the standard
+    $O(\sqrt{K T \ln K})$ regret bound applies only approximately. The
+    theoretical analysis in Appendix~\ref{appendix:mathematical_foundations}
+    assumes standard Corralling ($\texttt{loss\_decay}=1.0$); the experiments
+    in this paper also use $\texttt{loss\_decay}=1.0$.
 \end{enumerate}
 
 % ============================================================================

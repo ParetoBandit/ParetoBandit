@@ -1851,11 +1851,13 @@ class BanditRouter:
                 m_data.setdefault("output_cost_per_m", fallback)
 
     def _init_corralling(self, alpha: float) -> None:
-        """Set up the Corralling meta-learner with heterogeneous experts.
+        """Set up the Corralling meta-learner (Log-Barrier OMD) with heterogeneous experts.
 
         Creates two experts — an informed explorer (adapter over the canonical
         bandit with constant alpha) and a tabula-rasa converger (decaying alpha,
-        no priors) — and wires them into a :class:`CorrallingRouter`.
+        no priors) — and wires them into a :class:`CorrallingRouter` that
+        aggregates expert advice via Log-Barrier Online Mirror Descent
+        (Agarwal et al., 2017).
 
         Called once from :meth:`create` after warmup priors and calibration are
         finalised.
@@ -1920,7 +1922,7 @@ class BanditRouter:
         logger.info(f"   📊 Expert 1 (Informed):     Constant Alpha {target_alpha:.2f} (Sustained Discovery)")
         logger.info(f"   🔍 Expert 2 (Uninformed):   Decaying Alpha {target_alpha * 2.0:.2f}→0.01 (Explore-then-Exploit)")
         logger.info(f"   ⏳ Forgetting Factor:        γ={_gamma:.4f} ({'stationary' if _gamma >= 1.0 else 'adaptive'})")
-        logger.info("   🎯 Meta-Learner:            Corralling selects expert based on prompt context")
+        logger.info("   🎯 Meta-Learner:            Corralling (Log-Barrier OMD) selects expert based on prompt context")
 
     def __deepcopy__(self, memo):
         """
@@ -2968,7 +2970,7 @@ Previous version referenced non-existent attributes
         # Moved here from _create_routing_log so the corralling_token is
         # available at save time.  Without persisting the token, delayed
         # feedback that arrives after in-memory log eviction silently skips
-        # the Exp4 meta-weight update (only base experts learn).
+        # the Corralling meta-weight update (only base experts learn).
         self.context_store.save_context(
             log.request_id, x, best_model,
             corralling_token=corralling_token,
@@ -3030,7 +3032,7 @@ Previous version referenced non-existent attributes
         disabled).
 
         **Reward clamping**: Values outside [0, 1] are clipped silently.
-        The Exp4 importance-weighted loss estimator ``ℓ = (1 - r) / p``
+        The importance-weighted loss estimator ``ℓ = (1 - r) / p``
         requires bounded rewards for valid regret guarantees.
 
         **Delayed feedback (RLHF)**: If the in-memory log has been evicted,
@@ -3069,7 +3071,7 @@ Previous version referenced non-existent attributes
             log.corralling_token = stored_token
         
         # Clamp reward to [0, 1] at the feedback entry point.
-        # The Exp4/Corralling importance-weighted loss estimator ℓ = (1 - r) / p
+        # The Corralling importance-weighted loss estimator ℓ = (1 - r) / p
         # requires bounded rewards for valid regret guarantees (Auer et al., 2002).
         # reward > 1 would produce negative loss (artificially boosting an expert);
         # reward < 0 would spike the importance-weighted loss, destabilizing meta-weights.
@@ -3526,84 +3528,95 @@ Previous version referenced non-existent attributes
 
 class CorrallingRouter:
     """
-    Corralling Bandits with Mixing Parameter to prevent 'Expert Death'.
-    
-    Implements Exp4-style updates with explicit exploration floor (gamma).
-    
+    Corralling meta-learner via Log-Barrier Online Mirror Descent (Agarwal et al., 2017).
+
+    Maintains a distribution over K base experts and updates it using Online
+    Mirror Descent (OMD) with a log-barrier regularizer.  Each expert receives
+    a per-expert adaptive learning rate ``eta_i = eta_0 / sqrt(S_i + eps)``
+    where ``S_i`` is the cumulative squared importance-weighted loss for
+    expert *i*.  This adapts automatically: noisy experts with high-variance
+    loss estimates get slower, more conservative learning rates.
+
+    The log-barrier regularizer yields a closed-form weight update:
+        ``w_{t+1,i} = w_{t,i} / (1 + eta_i * loss_hat_i * w_{t,i})``
+    which naturally prevents expert death (weights cannot reach zero through
+    the barrier), complementing the explicit gamma exploration floor.
+
     **High-Level Idea (Non-Technical):**
     Instead of betting everything on warmup priors, we hedge our bets by running
     both "warmup" and "tabula rasa" in parallel. Over time, we give more weight
     to whichever strategy is performing better.
-    
+
     **Why This Matters:**
     If warmup priors are harmful (domain mismatch), the algorithm automatically
     shifts weight to tabula rasa. If warmup priors are helpful, they dominate.
     This provides safety guarantees against negative transfer.
-    
+
     **Expert Death Prevention:**
-    Pure exponential weighting can cause "Expert Death" - once an expert's weight
-    drops to ~10^-16, the router stops listening to it forever, even if the
-    environment changes. The mixing parameter (gamma) ensures every expert
-    maintains a minimum probability (γ/K), allowing recovery.
-    
+    Two complementary mechanisms prevent expert death:
+    1. The log-barrier regularizer makes it mathematically impossible for weights
+       to reach zero through the OMD update alone.
+    2. The mixing parameter (gamma) provides an additional explicit exploration
+       floor, ensuring every expert maintains minimum probability gamma/K.
+
     **Non-Stationarity Scope:**
-    The Corralling meta-learner incorporates loss decay to adapt expert weights
-    under non-stationary conditions (new models, traffic distribution shifts),
-    but each expert bandit is itself trained under a stationary-reward assumption
-    (monotone A accumulation without forgetting).  Thus, our treatment of
-    non-stationarity operates at the meta level only; extending expert-level
-    updates with explicit forgetting or change-point mechanisms is a direction
-    for future work.
-    
+    The meta-learner incorporates loss decay (applied to cumulative squared
+    losses) to adapt expert weights under non-stationary conditions (new models,
+    traffic distribution shifts).  Each expert bandit is itself trained under a
+    stationary-reward assumption (monotone A accumulation without forgetting).
+    Meta-level non-stationarity only; extending expert-level updates with
+    explicit forgetting is a direction for future work.
+
     **Theoretical Guarantee:**
-    - gamma > 0 ensures no expert's probability ever drops to zero.
-    - This allows the meta-learner to recover from poor early expert allocation
-      (e.g., if a previously underperforming expert becomes relevant after a
-      distribution shift, it will still be sampled often enough to detect this).
-    
+    Agarwal et al. (2017) prove that Corralling with Log-Barrier OMD achieves
+    a master regret of O(sqrt(K * T * ln K)), which is near-optimal for
+    combining K bandit experts over T rounds.  The per-expert adaptive
+    learning rates ensure the algorithm scales gracefully as K grows.
+
     **Empirical Validation (gamma=0.05):**
-    - Validated across 4 dimensions using 18,750 trials (5 values × 5 seeds × 750 prompts)
-    - Performance: 43.8 ± 5.4 regret (near-optimal, <1% cost vs. gamma=0.0)
+    - Validated across 4 dimensions using 18,750 trials (5 values x 5 seeds x 750 prompts)
+    - Performance: 43.8 +/- 5.4 regret (near-optimal, <1% cost vs. gamma=0.0)
     - Safety: 80% variance reduction vs. gamma=0.0 (prevents stochastic expert death)
-    - Decisiveness: Achieves lowest minimum weights (~10^-4), indicating strong adaptation
-      (allocates 80-90%+ weight to the higher-reward expert based on empirical performance)
-    - Predictability: 45% lower outcome variance vs. gamma=0.0
-    - See: experiments/appendix/E_prior_degradation/results/gamma_ablation/ for full analysis
-    
+    - See: experiments/appendix/E_prior_degradation/results/gamma_ablation/
+
+    **Practical Extensions Beyond Agarwal et al. (2017):**
+    - ``loss_decay``: Decays cumulative squared losses for non-stationarity.
+    - ``meta_lr_halflife``: Staleness-aware meta-weight updates for delayed feedback.
+    - ``gamma`` floor: Explicit exploration floor complementing the log-barrier.
+
     **Computational Overhead:**
     - Memory: 2x (store two sets of A/b matrices)
-    - Inference: O(Kd) extra (query all K experts; K=2 → ~0.05ms)
+    - Inference: O(Kd) extra (query all K experts; K=2 -> ~0.05ms)
     - Update: 2x (update both strategies, but they're independent)
-    
+
     In practice, the overhead is negligible (~0.1ms) compared to LLM inference (~100ms).
-    
+
     **Implementation Note:**
-    This implements the full Exp4 loss estimator (Auer et al., 2002; Agarwal et al.,
-    2017).  At each round we query ALL K experts, compute the marginal action
-    probability π(a) = Σ_j p_j · I(expert_j chose a), and attribute the
-    importance-weighted loss ℓ_obs / π(a) to every expert that endorsed the
-    played action.  This has dramatically lower variance than the simpler
-    Exp3-over-experts approach (penalising only the sampled expert with
-    ℓ_obs / p_chosen) when experts agree on the same action, which is the
+    At each round we query ALL K experts, compute the marginal action
+    probability pi(a) = sum_j p_j * I(expert_j chose a), and attribute the
+    importance-weighted loss l_obs / pi(a) to every expert that endorsed the
+    played action.  This has dramatically lower variance than penalising only
+    the sampled expert when experts agree on the same action, which is the
     common case.  With K=2 deterministic experts the extra query cost is O(d).
-    
+
     Args:
         experts: List of bandit instances (typically [warmup_router, tabula_rasa_router])
         models: List of model IDs (must match across all experts)
-        learning_rate: How quickly to adapt weights (default: 0.1)
-        gamma: Mixing parameter γ. Minimum prob for any expert is γ/N.
+        learning_rate: Base learning rate eta_0 for Log-Barrier OMD (default: 0.1).
+               Per-expert effective rates are eta_0 / sqrt(S_i + eps).
+        gamma: Mixing parameter gamma. Minimum prob for any expert is gamma/N.
                Prevents 'Expert Death' when the meta-learner's environment
                shifts. (default: 0.05, empirically validated as optimal across
                performance, safety, decisiveness, and predictability)
-        
+
     Example:
         >>> # Create two experts
         >>> warmup = SimpleLinUCBRouter(models, warmup_priors, alpha=1.0)
         >>> tabula_rasa = TabulaRasaRouter(models, context_dim=33, alpha=1.0)
-        >>> 
-        >>> # Wrap them in Corralling
+        >>>
+        >>> # Wrap them in Corralling (Log-Barrier OMD)
         >>> corral = CorrallingRouter(experts=[warmup, tabula_rasa], models=models, gamma=0.05)
-        >>> 
+        >>>
         >>> # Use like any other router
         >>> selected = corral.select_model(context)
         >>> corral.update(context, selected, reward)
@@ -3619,80 +3632,79 @@ class CorrallingRouter:
         meta_lr_halflife: float = 60.0,  # Staleness half-life in seconds for delayed feedback
         initial_weights: Optional[np.ndarray] = None,  # Prior-trust bias
         model_costs: Optional[Dict] = None,  # {model_id: {"normalized_cost": float}}
+        epsilon: float = 1e-8,  # Regularizer for adaptive learning rate denominator
+        ipw_clip: float = 20.0,  # Cap on importance weights fed to base experts
     ):
         """
-        Initialize Corralling with configurable expert weights and exploration floor.
-        
-        The loss_decay parameter prevents weight collapse when the meta-learner's
-        environment shifts.  Without decay, cumulative_losses accumulates
-        indefinitely, causing learned weights to become dominated by early history.
-        
+        Initialize Corralling meta-learner (Log-Barrier OMD, Agarwal et al. 2017).
+
+        Uses Online Mirror Descent with a log-barrier regularizer and per-expert
+        adaptive learning rates.  Each expert's learning rate decays as
+        ``eta_0 / sqrt(sum_squared_losses_i + epsilon)``, so noisy experts
+        are down-weighted automatically.  The log-barrier naturally prevents
+        expert death (weights cannot reach zero), complementing the explicit
+        gamma exploration floor.
+
+        The ``loss_decay`` parameter is a practical extension (not part of
+        the original Corralling theory) that enables meta-level adaptation
+        under non-stationarity by decaying the cumulative squared-loss
+        history that drives the adaptive learning rates.
+
         NOTE: loss_decay operates at the META level only.  Each expert bandit
         is a stationary learner (monotone A accumulation, no forgetting).
-        
-        LEARNING RATE NOTE:
-        In principle, the corralling learning rate admits an optimal schedule
-        η* ∝ √(ln K / T) for a given horizon T (Agarwal et al., 2017), but
-        this implementation uses a fixed η tuned for the typical horizon in
-        our application.  The loss_decay mechanism is intended to handle
-        meta-level adaptation via forgetting of stale feedback; it partially
-        masks horizon mis-specification but is not a substitute for an optimal
-        corralling learning-rate schedule.  Adaptive or horizon-aware η_t
-        schedules are a direction for future work.
-        
+
         Args:
-            learning_rate: eta (η) for exponential weight updates.
-                       Fixed at initialization; in principle η* ∝ √(ln K / T)
-                       for a known horizon T, but we use a constant value
-                       empirically tuned for the target traffic regime.
-            gamma: Mixing parameter γ. Minimum prob for any expert is γ/N.
-                   Prevents 'Expert Death' when meta-environment shifts.
-            loss_decay: Exponential decay factor for cumulative losses (default: 0.999).
-                       Controls how quickly the meta-learner forgets old expert
-                       performance and adapts to new conditions.  This is
-                       conceptually distinct from the learning rate: loss_decay
-                       implements forgetting (meta-level adaptation), while η
-                       controls stability vs. regret for a given horizon.
+            learning_rate: Base learning rate eta_0 for the Log-Barrier OMD.
+                       Per-expert effective rates are
+                       ``eta_0 / sqrt(sum_squared_losses_i + epsilon)``.
+            gamma: Mixing parameter gamma. Minimum prob for any expert is gamma/N.
+                   Provides an explicit exploration floor beyond the log-barrier's
+                   implicit prevention of zero weights.
+            loss_decay: Decay factor applied to cumulative squared losses
+                       (default: 0.999).  Controls how quickly the adaptive
+                       learning rates forget old variance estimates.
                        - 1.0 = stationary (no decay, standard Corralling)
                        - 0.999 = mild adaptation (half-life ~693 steps)
                        - 0.99 = moderate adaptation (half-life ~69 steps)
-                       - 0.95 = aggressive adaptation (half-life ~14 steps)
-            meta_lr_halflife: τ (seconds) for staleness-aware meta-weight learning.
+            meta_lr_halflife: tau (seconds) for staleness-aware meta-weight learning.
                        When delayed feedback arrives, the meta-weight update's
-                       effective learning rate is scaled by 1 / (1 + delay/τ).
-                       - 60.0 = feedback >1 min gets ≤50% meta-lr (default)
-                       - float('inf') = disable staleness decay (trust all tokens)
-                       - 10.0 = aggressive decay for real-time systems
+                       effective learning rate is scaled by 1 / (1 + delay/tau).
                        Expert internal updates are always at full strength.
             initial_weights: Optional array of initial expert weights.
                        Must sum to 1 and have length == len(experts).
                        Default: uniform (1/K each).
-                       Biasing toward the warmup expert (e.g., [0.7, 0.3])
-                       encodes "prior trust" — the belief that priors are
-                       likely correct.  This reduces overhead when priors are
-                       good but increases recovery time when they are bad.
-                       See experiments/appendix/E_prior_degradation for the full trade-off.
-            model_costs: Optional dict mapping model_id to {"normalized_cost": float,
-                       "normalized_latency": float}.
-                       Stored for reference but not used for reward shaping.
-                       Cost/latency-quality trade-offs are handled at selection
-                       time via each expert's ``cost_penalty`` and
-                       ``latency_penalty`` parameters (paper Eq. 4).
+            model_costs: Optional dict mapping model_id to cost metadata.
+                       Stored for reference; cost/latency trade-offs are
+                       handled by each expert's ``cost_penalty`` parameter.
+            epsilon: Small constant added to the squared-loss denominator
+                       for numerical stability (default: 1e-8).
+            ipw_clip: Maximum importance weight ``weight / action_prob``
+                       applied to base-expert updates (default: 20.0).
+                       Pure IPW can produce extreme weights when an action's
+                       marginal probability is small (e.g., with K=10 and
+                       gamma=0.05, max theoretical IPW = K/gamma = 200).
+                       Feeding uncapped weights into LinUCB's precision matrix
+                       (A += w·xxᵀ) lets a single observation dominate A,
+                       causing erratic exploration.  Clipping trades negligible
+                       bias for large variance reduction — standard practice in
+                       production bandit systems (e.g., Vowpal Wabbit's
+                       ``--cb_type ips`` uses capped IPS by default).
+                       Set to ``float('inf')`` to disable clipping.
         """
         self.experts = experts
         self.models = models
-        self.learning_rate = learning_rate
-        self.gamma = gamma  # The "Life Support" parameter
-        self.loss_decay = loss_decay  # Meta-level adaptation decay
-        self.meta_lr_halflife = meta_lr_halflife  # Staleness half-life (τ)
+        self.eta_0 = learning_rate
+        self.gamma = gamma
+        self.loss_decay = loss_decay
+        self.meta_lr_halflife = meta_lr_halflife
         self.model_costs = model_costs or {}
         self.n_experts = len(experts)
+        self.epsilon = epsilon
+        self.ipw_clip = ipw_clip
         # Thread safety — CorrallingRouter mutates shared state
-        # (weights, cumulative_losses) in update() and reads it in select_model().
-        # NumPy releases the GIL during array ops, so concurrent calls can observe
-        # un-normalized weights or double-decay cumulative_losses.
+        # (weights, sum_squared_losses) in update() and reads it in select_model().
         self._lock = threading.Lock()
-        
+
         # Expert weights — uniform by default, or biased via initial_weights
         if initial_weights is not None:
             w = np.array(initial_weights, dtype=np.float64)
@@ -3707,18 +3719,15 @@ class CorrallingRouter:
             self.weights = w.copy()
         else:
             self.weights = np.ones(self.n_experts) / self.n_experts
-        
-        # Set initial cumulative losses consistent with initial weights.
-        # Exp4 update: w_i ∝ exp(-η * L_i), so L_i = -ln(w_i) / η.
-        # This ensures the first update step continues smoothly from
-        # the initial weights rather than "snapping" to uniform.
-        self.cumulative_losses = -np.log(self.weights) / self.learning_rate
-        
+
+        # Per-expert cumulative squared importance-weighted losses.
+        # Drives the adaptive learning rate: eta_i = eta_0 / sqrt(S_i + eps).
+        # Initialized to zero so that early updates use eta_0 directly.
+        self.sum_squared_losses = np.zeros(self.n_experts)
+
         # Exploit mode — when True, select_model picks argmax(weights)
         # deterministically instead of sampling.  Standard practice for
-        # offline policy evaluation and frozen deployment (Dudik et al., 2014;
-        # Swaminathan & Joachims, 2015).  During online learning this must be
-        # False so that the Exp4 importance-weighted updates remain valid.
+        # offline policy evaluation and frozen deployment.
         self.exploit_mode: bool = False
 
         # Diagnostics
@@ -3739,7 +3748,7 @@ class CorrallingRouter:
     def select_model(self, context: np.ndarray, total_steps: int = 0,
                      candidates: List[str] | None = None) -> Tuple[str, Dict]:
         """
-        Select model via Exp4: query ALL experts, sample from the marginal
+        Select model via Corralling: query ALL experts, sample from the marginal
         action distribution π(a) = Σ_j p_j · I(expert_j chose a).
 
         Querying all K experts is O(Kd).  With K=2, this is negligible
@@ -3754,7 +3763,7 @@ class CorrallingRouter:
         Returns:
             Tuple of (selected_model_id, selection_token).
             The selection_token must be passed back to ``update()`` for correct
-            Exp4 importance-weighted meta-weight attribution.  Without it, the
+            importance-weighted meta-weight attribution.  Without it, the
             meta-weight update is skipped (only base experts learn).
         """
         with self._lock:
@@ -3773,7 +3782,7 @@ class CorrallingRouter:
             # Ties broken by lowest index (the warmup expert by convention).
             expert_idx = int(np.argmax(self.weights))
         else:
-            # Stochastic Exp4: sample an expert from the mixed distribution.
+            # Stochastic Corralling: sample an expert from the mixed distribution.
             # Mathematically equivalent to sampling from π(·) when experts
             # are deterministic.
             expert_idx = np.random.choice(self.n_experts, p=probs)
@@ -3811,14 +3820,12 @@ class CorrallingRouter:
         Two-level update: meta-weights (which expert to trust) + base-level
         (each expert's internal LinUCB learning).
 
-        **Level 1 — Meta-Weight Update (Exp4 Importance-Weighted Loss):**
+        **Level 1 — Meta-Weight Update (Log-Barrier OMD, Agarwal et al. 2017):**
         Only performed when a valid ``selection_token`` is provided (returned
         by ``select_model()``).
 
-        Unlike the simpler Exp3-over-experts approach (penalise only the
-        sampled expert), we implement the proper Exp4 estimator.  For the
-        played action *a* with observed loss ℓ, the estimated loss for
-        expert *j* is::
+        For the played action *a* with observed loss ℓ, the estimated loss
+        for expert *j* is::
 
             ℓ̂_j = I(expert_j recommended a) · ℓ / π(a)
 
@@ -3827,9 +3834,10 @@ class CorrallingRouter:
         endorsed the chosen action share the same importance-weighted
         loss; experts that recommended a different action receive zero.
 
-        This has dramatically lower variance than Exp3-over-experts when
-        multiple experts agree (π(a) > p_chosen), and is identical when
-        they disagree.  See Auer et al. (2002), §5; Agarwal et al. (2017).
+        The squared losses feed the per-expert adaptive learning rate
+        ``eta_i = eta_0 / sqrt(S_i + eps)``, and the weights are updated
+        via the Log-Barrier OMD closed form:
+        ``w_{i} <- w_{i} / (1 + eta_i * loss_hat_i * w_{i})``.
 
         When ``selection_token`` is None (e.g. external ``BanditRouter.update()``
         calls without a preceding ``select_model()``), the meta-weight update
@@ -3858,7 +3866,7 @@ class CorrallingRouter:
         violates the independence assumptions underlying LinUCB regret analysis
         (correlated feedback bias).
 
-        To maintain valid regret guarantees under Exp4/Corralling theory, we
+        To maintain valid regret guarantees under Corralling theory, we
         apply Inverse Probability Weighting (IPW). An expert receives the update
         scaled by 1/π(a) if it endorsed the chosen action, and no update
         otherwise.
@@ -3872,7 +3880,7 @@ class CorrallingRouter:
             reward: Observed reward (0-1 typically).
             selection_token: Token returned by ``select_model()`` containing the
                 marginal action probability and endorsing expert list.  Required
-                for correct Exp4 importance-weighted meta-weight attribution.
+                for correct importance-weighted meta-weight attribution.
                 If None, only base experts are updated (no meta-weight change).
             weight: Observation importance weight (passed to expert updates).
         """
@@ -3899,7 +3907,8 @@ class CorrallingRouter:
             observed_loss = 1.0 - reward
             losses = np.zeros(self.n_experts)
 
-            # Exp4 estimator: ℓ̂_j = I(expert_j endorsed a) · ℓ_obs / π(a)
+            # Importance-weighted loss estimator (Agarwal et al., 2017):
+            #   ℓ̂_j = I(expert_j endorsed a) · ℓ_obs / π(a)
             # Since π(a) >= γ/K (bounded by the mixing parameter),
             # the estimator is bounded (max loss <= K/γ).
             iw_loss = observed_loss / action_prob
@@ -3907,12 +3916,20 @@ class CorrallingRouter:
                 losses[j] = iw_loss
 
             with self._lock:
-                self.cumulative_losses *= self.loss_decay
-                self.cumulative_losses += staleness_factor * losses
+                # Adaptive per-expert learning rate (Corralling, Agarwal et al. 2017).
+                # Decay old squared-loss history for non-stationarity, then
+                # accumulate the new squared losses.
+                scaled_losses = staleness_factor * losses
+                self.sum_squared_losses *= self.loss_decay ** 2
+                self.sum_squared_losses += scaled_losses ** 2
+                eta = self.eta_0 / np.sqrt(self.sum_squared_losses + self.epsilon)
 
-                log_weights = -self.learning_rate * self.cumulative_losses
-                log_weights -= log_weights.max()
-                self.weights = np.exp(log_weights)
+                # Log-Barrier OMD closed-form update:
+                #   w_{t+1,i} = w_{t,i} / (1 + η_i · ℓ̂_{t,i} · w_{t,i})
+                # then project back onto the probability simplex.
+                denom = 1.0 + eta * scaled_losses * self.weights
+                self.weights = self.weights / denom
+                self.weights = np.maximum(self.weights, 1e-12)
                 self.weights /= self.weights.sum()
         
         # ===================================================================
@@ -3930,7 +3947,7 @@ class CorrallingRouter:
         # DESIGN NOTE: Why `weight` is passed to experts but NOT to the
         # meta-weight update (Level 1) above.
         # ---------------------------------------------------------------
-        # The Exp4/Corralling master uses importance-weighted loss
+        # The Corralling master uses importance-weighted loss
         #   ℓ_j = (1 - r) / π(a)   for each endorsing expert j
         # to correct for action-selection bias.  The regret guarantees
         # (Agarwal et al., 2017) assume an unweighted loss stream and
@@ -3950,21 +3967,31 @@ class CorrallingRouter:
         #   2. Stratification (separate bandits for VIP vs. normal traffic)
         #   3. Offline resampling in supervised components
         #
-        # If a future use case requires weighted regret at the master level
-        # (e.g., "one VIP failure = 100 normal failures"), propagate w_t
-        # into the loss with variance control: clip w_t/π(a) to a max bound
-        # and normalize weights over a rolling window.
+        # **When this separation is safe:**  With homogeneous expert
+        # architectures (same objective, differing only in initialization
+        # or hyperparameters — e.g., warmup vs. tabula rasa LinUCB), the
+        # expert that handles high-importance traffic well will naturally
+        # produce higher rewards on those prompts, and the unweighted
+        # meta-learner will favour it through the standard loss signal.
+        #
+        # **When weighted meta-regret matters:**  If future expert pools
+        # include heterogeneous architectures (e.g., a cheap heuristic
+        # alongside a neural model), an expert could exploit a shortcut
+        # that performs well on high-volume low-value traffic while
+        # failing on rare high-value prompts.  In that setting, prefer:
+        #   (a) Stratified meta-learners (separate pools per traffic tier)
+        #   (b) Composite rewards (reward = quality × importance)
+        #   (c) Rolling-window-normalised weighted loss (last resort)
+        # over naïve loss clipping, which introduces a hard-to-tune bound.
         # ---------------------------------------------------------------
         if selection_token is not None:
-            # action_prob represents π(a) in the Exp4 estimator.
+            # action_prob represents π(a) in the importance-weighted estimator.
             # Bounded below by γ/K, but we add a safety floor for numerical stability.
             action_prob = max(selection_token["action_prob"], 1e-6)
             endorsing_experts = selection_token["endorsing_experts"]
             for j, expert in enumerate(self.experts):
                 if j in endorsing_experts:
-                    # IPW correction: weight * (p_j_model / pi_total_model)
-                    # Here p_j_model = 1.0 since it endorsed the model.
-                    ipw_weight = weight / action_prob
+                    ipw_weight = min(weight / action_prob, self.ipw_clip)
                     expert.update(context, model, reward, ipw_weight, advance_time=advance_time)
         else:
             # Fallback for direct updates without a preceding selection

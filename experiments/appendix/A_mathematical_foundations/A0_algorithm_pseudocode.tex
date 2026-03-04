@@ -67,19 +67,19 @@ LinUCB.
 % ============================================================================
 
 \begin{algorithm}[h]
-\caption{Corralling Meta-Learner (Exp4-Style)}
+\caption{Corralling Meta-Learner (Log-Barrier OMD, Agarwal et al.\ 2017)}
 \label{alg:corralling}
 \begin{algorithmic}[1]
 
-\REQUIRE $N$ experts $\{E_1, \ldots, E_N\}$, learning rate $\eta$, mixing floor $\gamma$, loss decay $\delta$
+\REQUIRE $N$ experts $\{E_1, \ldots, E_N\}$, base learning rate $\eta_0$, mixing floor $\gamma$, loss decay $\delta$
 
 \medskip
-\STATE \textbf{Initialize:} $L_i \leftarrow 0$ for all $i \in [N]$ \hfill $\triangleright$ Cumulative losses
+\STATE \textbf{Initialize:} $S_i \leftarrow 0$ for all $i \in [N]$ \hfill $\triangleright$ Cumulative squared losses
 \STATE \textbf{Initialize:} $w_i \leftarrow 1/N$ for all $i \in [N]$ \hfill $\triangleright$ Normalized weights
 
 \medskip
 \FUNCTION{CorrallingSelect($\mathcal{C}, x_t, \mathcal{F}_t, t$)}
-    \STATE $p_i^{(t)} \leftarrow (1 - \gamma) \cdot w_i + \gamma / N$ for all $i$ \hfill $\triangleright$ Mix with uniform (Eq.~\ref{eq:exp4_update})
+    \STATE $p_i^{(t)} \leftarrow (1 - \gamma) \cdot w_i + \gamma / N$ for all $i$ \hfill $\triangleright$ Mix with uniform (Eq.~\ref{eq:corralling_update})
     \STATE Sample expert $i_t \sim \text{Categorical}(p_1^{(t)}, \ldots, p_N^{(t)})$
     \STATE $a_t \leftarrow E_{i_t}.\text{SelectArm}(x_t, \mathcal{F}_t, t)$ \hfill $\triangleright$ Ask chosen expert (Alg.~\ref{alg:linucb})
     \RETURN $(a_t, i_t, p_{i_t}^{(t)})$
@@ -87,12 +87,14 @@ LinUCB.
 
 \medskip
 \FUNCTION{CorrallingUpdate($\mathcal{C}, x_t, a_t, r_t, i_t, p_{i_t}$)}
-    \STATE \textbf{// Level 1: Meta-weight update (importance-weighted loss)}
+    \STATE \textbf{// Level 1: Meta-weight update (Log-Barrier OMD)}
     \STATE $\ell_t \leftarrow 1 - r_t$ \hfill $\triangleright$ Convert reward to loss
     \STATE $\hat{\ell}_{i_t} \leftarrow \ell_t / p_{i_t}$ \hfill $\triangleright$ Importance-weighted estimator (bounded by $N/\gamma$)
-    \STATE $L_i \leftarrow \delta \cdot L_i$ for all $i \in [N]$ \hfill $\triangleright$ Decay stale losses ($\delta = 1$ in experiments)
-    \STATE $L_{i_t} \leftarrow L_{i_t} + \hat{\ell}_{i_t}$ \hfill $\triangleright$ Accumulate loss for chosen expert only
-    \STATE $w_i \leftarrow \exp(-\eta \cdot L_i) \,/\, \sum_j \exp(-\eta \cdot L_j)$ for all $i$ \hfill $\triangleright$ Exp4 weight update
+    \STATE $S_i \leftarrow \delta^2 \cdot S_i$ for all $i \in [N]$ \hfill $\triangleright$ Decay squared losses ($\delta = 1$ in experiments)
+    \STATE $S_{i_t} \leftarrow S_{i_t} + \hat{\ell}_{i_t}^2$ \hfill $\triangleright$ Accumulate squared loss for endorsing expert
+    \STATE $\eta_i \leftarrow \eta_0 \,/\, \sqrt{S_i + \epsilon}$ for all $i$ \hfill $\triangleright$ Per-expert adaptive learning rate
+    \STATE $w_i \leftarrow w_i \,/\, (1 + \eta_i \cdot \hat{\ell}_i \cdot w_i)$ for all $i$ \hfill $\triangleright$ Log-Barrier OMD update
+    \STATE $w_i \leftarrow w_i \,/\, \sum_j w_j$ \hfill $\triangleright$ Project onto simplex
     
     \medskip
     \STATE \textbf{// Level 2: All experts learn from observation}

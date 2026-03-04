@@ -6,8 +6,8 @@
 \label{appendix:regret_decomposition}
 
 This subsection establishes the regret guarantee for the banditGPT two-level
-architecture: Hybrid LinUCB experts coordinated by an Exp4-style Corralling
-meta-learner~\cite{agarwal2017corralling}.  Each expert decomposes the reward
+architecture: Hybrid LinUCB experts coordinated by a Corralling
+meta-learner (Log-Barrier OMD)~\cite{agarwal2017corralling}.  Each expert decomposes the reward
 into a family-shared component and an arm-specific residual
 (Algorithm~\ref{alg:linucb}); we state known results from the literature and
 show how they compose to yield the system-level bound that our experiments
@@ -103,23 +103,28 @@ combined parameter $\phi_a^* = \beta_{F(a)}^* + \theta_a^*$.  The warmup
 expert's prior can reduce the effective regret when accurate, but may increase
 it under domain mismatch.
 
-\subsubsection{Level 2: Meta-Regret (Exp4/Corralling)}
+\subsubsection{Level 2: Meta-Regret (Corralling via Log-Barrier OMD)}
 
-The Corralling meta-learner maintains a probability distribution
-$p^{(t)} \in \Delta^N$ over $N$ experts (in our case $N = 2$) and selects
+The Corralling meta-learner~\cite{agarwal2017corralling} maintains a
+probability distribution $p^{(t)} \in \Delta^N$ over $N$ experts and selects
 expert~$i$ with probability $p_i^{(t)}$ at each round.  The implementation
-uses an Exp4-style multiplicative weight update with mixing
-parameter~$\gamma$~\cite{agarwal2017corralling, auer2002nonstochastic}:
+uses Online Mirror Descent (OMD) with a log-barrier regularizer and
+per-expert adaptive learning rates, combined with a mixing
+parameter~$\gamma$ for an explicit exploration floor:
 
 \begin{equation}
 p_i^{(t)} = (1 - \gamma)\,\frac{w_i^{(t)}}{\sum_j w_j^{(t)}} + \frac{\gamma}{N},
 \qquad
-w_i^{(t+1)} = w_i^{(t)} \exp\!\bigl(-\eta\,\hat{\ell}_i^{(t)}\bigr)
-\label{eq:exp4_update}
+w_i^{(t+1)} = \frac{w_i^{(t)}}{1 + \eta_i^{(t)}\,\hat{\ell}_i^{(t)}\,w_i^{(t)}}
+\label{eq:corralling_update}
 \end{equation}
 
-where $\hat{\ell}_i^{(t)} = \ell_i^{(t)} / p_i^{(t)}$ is the importance-weighted loss
-for the chosen expert ($\hat{\ell}_j^{(t)} = 0$ for $j \neq i_t$), and $\ell_i^{(t)} = 1 - r_t$.
+where $\eta_i^{(t)} = \eta_0 / \sqrt{S_i^{(t)} + \epsilon}$ is the adaptive
+learning rate for expert~$i$, $S_i^{(t)} = \sum_{\tau=1}^{t-1}
+(\hat{\ell}_i^{(\tau)})^2$ is the cumulative squared loss,
+$\hat{\ell}_i^{(t)} = \ell_i^{(t)} / p_i^{(t)}$ is the importance-weighted
+loss for endorsing experts ($\hat{\ell}_j^{(t)} = 0$ for non-endorsing $j$),
+and $\ell_i^{(t)} = 1 - r_t$.
 
 \begin{theorem}[Corralling Meta-Regret {\cite[Theorem 1]{agarwal2017corralling}}]
 \label{thm:corralling_regret}

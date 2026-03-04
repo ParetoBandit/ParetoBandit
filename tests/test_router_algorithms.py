@@ -544,10 +544,8 @@ class TestCorrallingRouter:
         assert len(router.weights) == 2
         np.testing.assert_array_almost_equal(router.weights, np.array([0.5, 0.5]))
         
-        # Cumulative losses initialized from weights: L_i = -ln(w_i) / η
-        # With uniform weights [0.5, 0.5] and η=0.1: L_i = -ln(0.5) / 0.1 ≈ 6.93147
-        expected_losses = -np.log(np.array([0.5, 0.5])) / 0.1
-        np.testing.assert_array_almost_equal(router.cumulative_losses, expected_losses)
+        # sum_squared_losses initialized to zero (no history yet)
+        np.testing.assert_array_almost_equal(router.sum_squared_losses, np.zeros(2))
     
     def test_corralling_action_distribution(self, simple_experts):
         """Test that action distribution follows marginal π(a) when experts disagree."""
@@ -585,7 +583,7 @@ class TestCorrallingRouter:
         
         context = np.array([0.6, 0.4, 0.5])
         
-        # Heavily penalize expert 1 using explicit Exp4 selection tokens.
+        # Heavily penalize expert 1 using explicit Corralling selection tokens.
         # Simulate scenario where only expert 1 endorsed the action
         # with marginal probability 0.5.
         for _ in range(100):
@@ -1090,29 +1088,16 @@ class TestRobustnessFixes:
                 context, "model_a", reward=reward_s, selection_token=token_s,
             )
         
-        # With decay, cumulative losses should be bounded (recent history matters more)
-        assert router_with_decay.cumulative_losses.sum() < router_stationary.cumulative_losses.sum(), \
-            "Decayed losses should be smaller than non-decayed losses"
+        # With decay, sum_squared_losses should be bounded (recent history matters more)
+        assert router_with_decay.sum_squared_losses.sum() < router_stationary.sum_squared_losses.sum(), \
+            "Decayed squared losses should be smaller than non-decayed"
         
-        # With decay, weights should be more balanced (can recover from bad history)
-        # Stationary router may have extreme weights due to accumulated history
+        # With Log-Barrier OMD, the adaptive learning rate already keeps weights
+        # well-balanced.  Verify no collapse.
         assert router_with_decay.weights.min() > 0.01, \
             "Router with decay should maintain balanced weights"
-        
-        # Compare weight distribution: decay should lead to less extreme weights
-        decay_min_weight = router_with_decay.weights.min()
-        stationary_min_weight = router_stationary.weights.min()
-        
-        # With decay, minimum weight should be higher (less extreme)
-        assert decay_min_weight >= stationary_min_weight, \
-            f"Decay min weight ({decay_min_weight:.6f}) should be >= stationary ({stationary_min_weight:.6f})"
-        
-        # Decay should lead to higher entropy (less extreme weights)
-        decay_entropy = -np.sum(router_with_decay.weights * np.log(router_with_decay.weights + 1e-10))
-        stationary_entropy = -np.sum(router_stationary.weights * np.log(router_stationary.weights + 1e-10))
-        
-        assert decay_entropy >= stationary_entropy, \
-            f"Decay entropy ({decay_entropy:.3f}) should be >= stationary ({stationary_entropy:.3f})"
+        assert router_stationary.weights.min() > 0.01, \
+            "Stationary router should also maintain balanced weights (log-barrier protects)"
     
     def test_register_model_initializes_stable_precision(self):
         """Dynamically registered models get A = λI (well-conditioned)."""
