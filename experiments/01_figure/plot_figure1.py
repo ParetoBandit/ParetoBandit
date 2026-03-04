@@ -13,15 +13,23 @@ Panel A: Per-model OLS regression of reward on standardised PC1, with 95%
 Panel B: Forest plot of per-model contextual slopes (γ_m) with bootstrap
          95% CIs.  Stars mark models whose CI excludes zero.
 
+Feature pipeline (must match production router):
+  Sentence embedding → PCA (32 components) → whitening → standardisation.
+  Whitening scales each PCA coordinate by 1/√(explained_variance), so
+  components have roughly unit variance under the PCA training distribution.
+  This matches the FeatureService / embed_prompt() pipeline used by all
+  downstream experiments and the production router.
+
 Methodology:
   - Holdout only (N=750 prompts, no dev contamination)
   - Reward: mean(vote × confidence) from judge panel
   - PCA trained on independent dataset (80K RouteLLM battles)
+  - PCA features are whitened to match production router pipeline
   - LR test uses 6 PCA components; Panel A visualises PC1 only
   - Bootstrap CIs: 10 000 case-resamples
 
 Usage:
-    python3 experiments/01_figure/plot_figure1_contextual.py
+    python3 experiments/01_figure/plot_figure1.py
 """
 
 import sys
@@ -269,7 +277,7 @@ def main():
     N = len(prompts)
     print(f"  {N} prompts with complete K={K} coverage")
 
-    # ── Embed & PCA ───────────────────────────────────────────────────────
+    # ── Embed & PCA (whitened) ────────────────────────────────────────────
     print("Embedding prompts ...")
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     embeddings = encoder.encode(
@@ -278,6 +286,27 @@ def main():
     )
     router_pca = joblib.load(DEFAULT_PCA_PATH)
     X_pca = router_pca.transform(embeddings)
+
+    # Whitening: scale by 1/√(explained_variance) per component.
+    # Matches embed_prompt(whiten_pca=True) and FeatureService behaviour.
+    pca_has_builtin_whitening = bool(getattr(router_pca, "whiten", False))
+    if not pca_has_builtin_whitening:
+        ev = getattr(router_pca, "explained_variance_", None)
+        if ev is not None:
+            whitening_scale = 1.0 / np.sqrt(np.maximum(
+                np.asarray(ev, dtype=np.float64), 1e-12,
+            ))
+            X_pca = X_pca * whitening_scale
+            print(f"  Applied external whitening (PCA artifact whiten=False)")
+        else:
+            print("  WARNING: PCA artifact lacks explained_variance_; "
+                  "cannot apply whitening")
+    else:
+        print(f"  PCA artifact has builtin whitening (whiten=True)")
+
+    print(f"  PCA components: {router_pca.n_components_}, "
+          f"explained variance: "
+          f"{np.sum(router_pca.explained_variance_ratio_):.1%}")
 
     pc1_raw = X_pca[:, 0]
     pc1_mean, pc1_std_val = pc1_raw.mean(), pc1_raw.std()
@@ -365,7 +394,7 @@ def main():
                   edgecolor="#cccccc", alpha=0.9),
     )
 
-    ax1.set_xlabel("PC1 (router PCA)", fontsize=11)
+    ax1.set_xlabel("PC1 (router PCA, whitened)", fontsize=11)
     ax1.set_ylabel("Mean reward (%)", fontsize=11)
     ax1.set_title("(a)  Model Reward Shifts with Prompt Features",
                    fontsize=13, fontweight="bold", pad=8)
@@ -428,7 +457,7 @@ def main():
         fontsize=10,
     )
     ax2.set_xlabel(
-        "γ$_m$ (contextual slope on standardised PC1)",
+        "γ$_m$ (contextual slope on standardised whitened PC1)",
         fontsize=11,
     )
     ax2.set_title("(b)  Contextual Sensitivity per Model",

@@ -14,12 +14,17 @@ independent data.
 
 \paragraph{Analysis pipeline matches the router.}
 banditGPT's \texttt{FeatureService} encodes prompts with a sentence
-transformer (\texttt{all-MiniLM-L6-v2}), compresses the 384D embeddings
-to 32~dimensions via PCA, and appends a bias term for a 33-dimensional
-feature vector.  Hybrid LinUCB then regresses these features against
-per-model rewards to predict which model will perform best.  Our
-validation tests the same relationship: does reward depend on PCA
-features, and does the dependence differ across models?
+transformer, compresses the 384D embeddings to 32~dimensions via PCA,
+\emph{whitens} each component by scaling by $1/\sqrt{\text{explained\_variance}_j}$
+so that all components have approximately unit variance under the PCA
+training distribution, and appends a bias term for a 33-dimensional
+feature vector.  Whitening ensures the downstream LinUCB isotropic prior
+($A_0 = \lambda I$) is well-matched to the feature scale without
+requiring per-dimension tuning.  Hybrid LinUCB then regresses these
+whitened features against per-model rewards to predict which model will
+perform best.  Our validation tests the same relationship using the
+identical whitened PCA pipeline: does reward depend on PCA features,
+and does the dependence differ across models?
 
 \paragraph{Reward signal.}
 Each prompt--model pair is scored by a panel of 3--4 GPT-4o judges.
@@ -32,10 +37,11 @@ the full justification).
 \paragraph{Regression specification.}
 For each model $m$, we fit a simple OLS regression:
 $r_{i,m} = \alpha_m + \gamma_m \, \widetilde{\text{PC1}}_i + \varepsilon_{i,m}$,
-where $\widetilde{\text{PC1}}$ is the zero-mean, unit-variance first
-principal component.  The slope $\gamma_m$ quantifies model~$m$'s
-\emph{contextual sensitivity}: how much its reward changes per standard
-deviation of PC1.  If all $\gamma_m$ are equal, context does not
+where $\widetilde{\text{PC1}}$ is the whitened first principal component,
+further standardised to zero mean and unit variance on the holdout.
+The slope $\gamma_m$ quantifies model~$m$'s \emph{contextual
+sensitivity}: how much its reward changes per standard deviation of
+whitened PC1.  If all $\gamma_m$ are equal, context does not
 differentiate models and a static policy suffices.
 
 \paragraph{Likelihood-ratio test.}
@@ -97,12 +103,16 @@ OLS regression tests the same functional form the bandit uses, making
 the validation directly relevant.
 
 \paragraph{Why PC1 in the visualisation.}
-The LR test uses six PCA components, but Panel~A visualises PC1
-alone for readability.  PC1 captures the most variance by construction
-and yields the strongest single-component correlation for the plurality
-of models.  Higher components contribute additional, complementary signal
-(e.g., PC3, PC31) that strengthens the case for routing but would
-overcomplicate a two-panel figure.
+The LR test uses six whitened PCA components, but Panel~A visualises
+whitened PC1 alone for readability.  PC1 captures the most variance by
+construction and yields the strongest single-component correlation for the
+plurality of models.  Whitening rescales each component to unit variance
+under the PCA training distribution; the holdout standardisation that
+follows is a further centering and scaling that ensures interpretable
+regression slopes regardless of the absolute PCA scale.  Higher
+components contribute additional, complementary signal (e.g., PC3, PC31)
+that strengthens the case for routing but would overcomplicate a
+two-panel figure.
 
 \paragraph{Multiple comparisons.}
 The primary test is a single LR test (one $\chi^2$ statistic).

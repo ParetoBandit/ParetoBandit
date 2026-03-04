@@ -24,8 +24,13 @@ that preserves evaluative nuance lost by binarised majority vote
 (see~\S\ref{sec:reward_signal}).
 
 Prompt features are extracted with the same pipeline used by the production
-router: sentence embeddings (\texttt{all-MiniLM-L6-v2}, 384D) projected to
-32~dimensions via PCA.
+router: sentence embeddings (384D) projected to 32~dimensions via PCA
+and \emph{whitened} (each component scaled by $1/\sqrt{\text{explained\_variance}_j}$)
+so that all components have approximately unit variance under the PCA
+training distribution.
+Whitening ensures the analysis operates in the same feature space as
+the router's LinUCB, where the isotropic prior $A_0 = \lambda I$ is
+well-matched to the whitened feature scale.
 The PCA is trained on 80K RouteLLM battle prompts~\cite{ong2024routellm},
 an independent dataset that shares no prompts with the evaluation holdout.
 
@@ -34,9 +39,10 @@ For each model $m \in [K]$, we fit
 \[
     r_{i,m} = \alpha_m + \gamma_m \, \widetilde{\mathrm{PC1}}_i + \varepsilon_{i,m},
 \]
-where $\widetilde{\mathrm{PC1}}$ is the standardised first principal component
+where $\widetilde{\mathrm{PC1}}$ is the whitened first principal component
+(further standardised to zero mean and unit variance on the holdout)
 and $\gamma_m$ is the \emph{contextual slope}---the rate at which model~$m$'s
-reward changes per standard deviation of PC1.
+reward changes per standard deviation of whitened PC1.
 If all $\gamma_m$ are equal, a static policy suffices; if they differ
 significantly, contextual routing can exploit the heterogeneity.
 
@@ -58,7 +64,7 @@ Figure~\ref{fig:contextual_heterogeneity} presents the findings.
 
 \item \textbf{Slopes are heterogeneous (LR test).}
 The per-model-slope model fits significantly better than the shared-slope
-null: $\chi^2 = 771.3$, $\text{df} = 54$, $p < 10^{-15}$.
+null: $\chi^2 = 741.4$, $\text{df} = 54$, $p < 10^{-15}$.
 Context affects models differently---precisely the condition under which
 contextual routing outperforms static assignment.
 
@@ -66,9 +72,9 @@ contextual routing outperforms static assignment.
 Bootstrap 95\% CIs ($10\,000$ prompt-level resamples) exclude zero for
 all ten contextual slopes $\gamma_m$
 (Figure~\ref{fig:contextual_heterogeneity}B).
-Magnitudes range from $|\gamma| = 0.032$ (GPT-4.1, least sensitive)
-to $|\gamma| = 0.254$ (GPT-4-Turbo, most sensitive)---a factor of
-${\sim}8\times$.
+Magnitudes range from $|\gamma| = 0.026$ (GPT-4.1, least sensitive)
+to $|\gamma| = 0.242$ (GPT-4-Turbo, most sensitive)---a factor of
+${\sim}9\times$.
 
 \item \textbf{Oracle gain correlates with PC1.}
 The per-prompt oracle gain (best model reward minus mean model reward)

@@ -4,12 +4,12 @@
 \centering
 \includegraphics[width=0.85\textwidth]{figures/figure1_k10_contextual.png}
 \caption{\textbf{Model quality depends on prompt context, with heterogeneous sensitivity across $K{=}10$ models ($N{=}750$, holdout).}
-\textbf{(A)}~OLS regression of mean reward ($\text{mean}(v \times c)$, from a 3--4 judge panel) on standardised PC1 for each model, with 95\% confidence bands.
-Lines fan and cross: GPT-4-Turbo declines steeply ($\gamma{=}{-}0.254$) while GPT-4.1 is nearly flat ($\gamma{=}{-}0.032$), so no single model dominates the full feature space.
-A likelihood-ratio test rejects the shared-slope null ($\chi^2{=}771.3$, $\text{df}{=}54$, $p < 10^{-15}$; six PCA components).
+\textbf{(A)}~OLS regression of mean reward ($\text{mean}(v \times c)$, from a 3--4 judge panel) on standardised whitened PC1 for each model, with 95\% confidence bands.
+Lines fan and cross, so no single model dominates the full feature space.
+A likelihood-ratio test rejects the shared-slope null ($p < 10^{-15}$; six whitened PCA components, $\text{df}{=}54$).
 \textbf{(B)}~Forest plot of per-model contextual slopes $\gamma_m$ with bootstrap 95\% CIs ($10\,000$ resamples).
 All ten CIs exclude zero, confirming that every model's quality varies with prompt features---but at rates differing by nearly an order of magnitude.
-PCA trained on 80K RouteLLM battle prompts (independent dataset); reward computed as $\text{mean}(\text{vote} \times \text{confidence})$ over the judge panel; PC1 is one of 32 components used by the router.}
-\Description{Two-panel figure. Panel~A shows ten OLS regression lines of reward versus standardised PC1, with shaded 95\% confidence bands; lines separate and cross, indicating different models are optimal in different feature regions. Panel~B is a forest plot of per-model contextual slopes with bootstrap confidence intervals; all ten intervals exclude zero, and magnitudes range from 0.032 to 0.254.}
+PCA trained on 80K RouteLLM battle prompts (independent dataset) with per-component whitening ($1/\sqrt{\text{explained\_variance}_j}$); reward computed as $\text{mean}(\text{vote} \times \text{confidence})$ over the judge panel; PC1 is one of 32 whitened components used by the router.}
+\Description{Two-panel figure. Panel~A shows ten OLS regression lines of reward versus standardised whitened PC1, with shaded 95\% confidence bands; lines separate and cross, indicating different models are optimal in different feature regions. Panel~B is a forest plot of per-model contextual slopes with bootstrap confidence intervals; all ten intervals exclude zero.}
 \label{fig:contextual_heterogeneity}
 \end{figure*}
