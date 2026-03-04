@@ -85,6 +85,40 @@ def test_missing_cost_raises():
     with pytest.raises(MissingCostError):
         BanditRouter.create(model_registry=bad_registry, priors="none")
 
+
+def test_register_model_unknown_kwargs_raise_by_default(sample_registry):
+    """Open-source default: unknown register_model kwargs fail fast."""
+    router = BanditRouter.create(
+        model_registry=sample_registry,
+        priors="none",
+        use_corralling=False,
+    )
+    with pytest.raises(TypeError, match="unknown keyword argument"):
+        router.register_model(
+            "provider/new-model",
+            blended_cost_per_m=1.0,
+            latency_s=0.5,
+            unsupported_field=True,
+        )
+
+
+def test_register_model_unknown_kwargs_allowed_in_compat_mode(sample_registry):
+    """Compatibility mode allows unknown kwargs and logs warning instead."""
+    cfg = RouterConfig(registration_strict_kwargs=False)
+    router = BanditRouter.create(
+        model_registry=sample_registry,
+        priors="none",
+        use_corralling=False,
+        config=cfg,
+    )
+    router.register_model(
+        "provider/new-model",
+        blended_cost_per_m=1.0,
+        latency_s=0.5,
+        unsupported_field=True,
+    )
+    assert "provider/new-model" in router.registry
+
 def test_save_load(sample_registry, tmp_path):
     router = BanditRouter.create(model_registry=sample_registry, priors="none")
     save_path = tmp_path / "bandit_state.npz"

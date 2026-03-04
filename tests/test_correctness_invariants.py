@@ -49,6 +49,7 @@ from bandit_gpt.router import (
     CorrallingRouter,
     CostAwareLinUCBAdapter,
     CostAwareTabulaRasaRouter,
+    NoModelScoredError,
     PredictionMonitor,
     RouterConfig,
     calibrate_priors,
@@ -1136,8 +1137,8 @@ class TestR3C2_SqrtVarianceFloor:
             selected = adapter.select_model(x, total_steps=100)
             assert selected is not None
 
-    def test_empty_candidate_list_no_crash(self):
-        """Expert router should not crash when all candidates are filtered."""
+    def test_empty_candidate_list_raises_explicit_error(self):
+        """Expert router should raise explicit error for empty candidates."""
         models = ["m1", "m2"]
         costs = {m: {"normalized_cost": 0.5} for m in models}
         router = CostAwareTabulaRasaRouter(
@@ -1145,11 +1146,8 @@ class TestR3C2_SqrtVarianceFloor:
             alpha_start=1.0, alpha_end=0.1, ridge_lambda=1.0
         )
         x = np.ones(4)
-        # Pass empty candidate list — no models satisfy constraints
-        result = router.select_model(x, total_steps=100, candidates=[])
-        # When caller passes empty candidates, returning None is correct —
-        # there are no models that satisfy the constraint filter.
-        assert result is None
+        with pytest.raises(NoModelScoredError):
+            router.select_model(x, total_steps=100, candidates=[])
 
 
 # =============================================================================
@@ -2333,8 +2331,8 @@ class TestR7_FallbackRespectsConstraints:
         result = adapter.select_model(np.ones(dim), candidates=["m2"])
         assert result == "m2"
 
-    def test_empty_candidates_returns_none(self):
-        """Empty candidates should return None (no constraint-satisfying model)."""
+    def test_empty_candidates_raise_explicit_error(self):
+        """Empty candidates should raise explicit no-score error."""
         dim = 4
         bandit = DisjointLinUCBPolicy(model_names=['m1'], dim=dim, alpha=0.1, init_lambda=1.0)
         costs = {'m1': {"normalized_cost": 0.5}}
@@ -2342,8 +2340,8 @@ class TestR7_FallbackRespectsConstraints:
             bandit=bandit, model_costs=costs,
             alpha_start=1.0, alpha_end=0.1
         )
-        result = adapter.select_model(np.ones(dim), candidates=[])
-        assert result is None
+        with pytest.raises(NoModelScoredError):
+            adapter.select_model(np.ones(dim), candidates=[])
 
 
 class TestR7_LoadPriorsAndAddModelLocking:

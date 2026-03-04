@@ -382,6 +382,15 @@ class NoEligibleModelsError(Exception):
         super().__init__("\n".join(lines))
 
 
+class NoModelScoredError(ValueError):
+    """Raised when model scoring receives no eligible/scorable candidates.
+
+    This error is used by lower-level selectors (e.g. cost-aware expert
+    adapters) to provide a strict API contract for open-source consumers:
+    selection methods that are typed to return ``str`` never return ``None``.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Router Configuration (Magic Numbers Documented)
 # ---------------------------------------------------------------------------
@@ -558,6 +567,13 @@ class RouterConfig:
     
     # [RESTORED] Registration Priors for Progressive Model Admission
     registration: RegistrationConfig = field(default_factory=RegistrationConfig)
+    registration_strict_kwargs: bool = True
+    """Validate unknown kwargs in ``register_model`` when True.
+
+    Open-source default is strict to fail fast on user typos (e.g. ``latnecy``).
+    Set to ``False`` for backward compatibility in legacy integrations that pass
+    extra keys.
+    """
     
     @property
     def cost_range_log(self) -> float:
@@ -1792,8 +1808,13 @@ class BanditRouter:
             if "time_to_first_token_seconds" not in m_data and "median_latency_s" in m_data:
                 try:
                     m_data["time_to_first_token_seconds"] = float(m_data["median_latency_s"])
-                except Exception:
-                    pass
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "Invalid median_latency_s for model '%s': %r. "
+                        "Leaving time_to_first_token_seconds unset.",
+                        m_id,
+                        m_data.get("median_latency_s"),
+                    )
 
             if "blended_cost_per_m" in m_data:
                 continue
@@ -1995,6 +2016,7 @@ Previous version referenced non-existent attributes
         latency_s: float = None,
         blended_cost_per_m: float = None,
         initial_weights: Optional[Dict[str, float]] = None,
+        strict_kwargs: Optional[bool] = None,
         **kwargs,
     ) -> None:
         """
@@ -2027,8 +2049,10 @@ Previous version referenced non-existent attributes
                               from ``cost_usd`` (treated as input, output
                               estimated as 3x input).
             initial_weights: Explicit feature weight overrides for power users
+            strict_kwargs: Override for unknown-kwarg validation. If ``None``,
+                          uses ``RouterConfig.registration_strict_kwargs``.
             **kwargs: Accepted for backward compatibility (e.g. ``capabilities``).
-                     Unknown keys are silently ignored.
+                     Unknown keys raise ``TypeError`` in strict mode.
 
         Raises:
             MissingCostError: If ``blended_cost_per_m`` is None and ``cost_usd``
@@ -2046,6 +2070,25 @@ Previous version referenced non-existent attributes
             # Mystery model: No information
             router.register_model("model-x", speed="balanced", blended_cost_per_m=5.0)
         """
+        strict_mode = (
+            self.config.registration_strict_kwargs
+            if strict_kwargs is None else strict_kwargs
+        )
+        known_kwargs = {"capabilities"}
+        unknown_kwargs = set(kwargs.keys()) - known_kwargs
+        if unknown_kwargs:
+            unknown_list = ", ".join(sorted(unknown_kwargs))
+            if strict_mode:
+                raise TypeError(
+                    f"register_model() got unknown keyword argument(s): {unknown_list}. "
+                    f"Allowed extra kwargs: {sorted(known_kwargs)}"
+                )
+            logger.warning(
+                "Ignoring unknown register_model kwargs for '%s': %s",
+                model_id,
+                unknown_list,
+            )
+
         capabilities = kwargs.get("capabilities", [])
             
         if model_id in self.bandit.models:
@@ -2370,7 +2413,7 @@ Previous version referenced non-existent attributes
                                 "🔄 Converted warmup priors PCA whitening: "
                                 f"priors_whitened={priors_whitened} -> router_whitens={router_whitens}"
                             )
-                except Exception as exc:
+                except (KeyError, TypeError, ValueError, AttributeError, np.linalg.LinAlgError) as exc:
                     logger.warning(
                         f"Warmup priors whitening compatibility conversion failed: {exc}. "
                         "Proceeding without conversion (may degrade performance)."
@@ -4062,7 +4105,7 @@ def calibrate_priors(
                 )
                 bandit.b[m] = bandit.A[m] @ theta_new
 
-        except Exception as e:
+        except (KeyError, TypeError, ValueError, np.linalg.LinAlgError) as e:
             logger.warning(f"Failed to calibrate prior for {m}: {e}")
             continue
 
@@ -4392,8 +4435,11 @@ class CostAwareLinUCBAdapter:
                 )
 
         if not ucb_scores:
-            fallback = candidates if candidates is not None else self.bandit.models
-            return fallback[0] if fallback else None
+            eligible = candidates if candidates is not None else self.bandit.models
+            raise NoModelScoredError(
+                "CostAwareLinUCBAdapter.select_model() could not score any model. "
+                f"candidates={eligible}"
+            )
 
         return _argmax_random_tiebreak(ucb_scores)
 
@@ -4609,8 +4655,11 @@ class CostAwareTabulaRasaRouter:
                 )
 
         if not ucb_scores:
-            fallback = candidates if candidates is not None else self.models
-            return fallback[0] if fallback else None
+            eligible = candidates if candidates is not None else self.models
+            raise NoModelScoredError(
+                "CostAwareTabulaRasaRouter.select_model() could not score any model. "
+                f"candidates={eligible}"
+            )
 
         return _argmax_random_tiebreak(ucb_scores)
 

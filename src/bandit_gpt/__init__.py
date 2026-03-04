@@ -7,7 +7,7 @@ except PackageNotFoundError:
 
 from .router import (
     BanditRouter, ExplorationRate, RouterConfig,
-    MissingCostError, NoEligibleModelsError,
+    MissingCostError, NoEligibleModelsError, NoModelScoredError,
     HybridLinUCBPolicy,
     infer_model_family, tetrachoric_corr, compute_correlation_families,
 )
@@ -22,7 +22,7 @@ from .providers import (
 __all__ = [
     "__version__",
     "BanditRouter", "ExplorationRate", "RouterConfig",
-    "MissingCostError", "NoEligibleModelsError",
+    "MissingCostError", "NoEligibleModelsError", "NoModelScoredError",
     "FeatureService",
     "HybridLinUCBPolicy",
     "infer_model_family",
