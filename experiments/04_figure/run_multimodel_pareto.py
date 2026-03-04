@@ -27,18 +27,30 @@ Protocol
    built from (dev_val_cost, dev_val_reward); holdout performance
    of dev-optimal hyperparameters is the primary metric.
 
-4. **Baselines.**
+4. **Full-dev retrain pass.**
+   After dev-val selection identifies the Pareto-optimal lambda values,
+   a second training pass retrains the router on the **full** dev set
+   for those lambda values only.  Holdout metrics are updated in place
+   while preserving the dev-val selection (no holdout leakage).  This
+   reduces estimator variance.
+
+5. **Baselines.**
    Oracle, best-static, best-static-plus-noise, UCB1 (non-contextual),
    random, and tabula rasa (BanditGPT without priors or Corralling).
 
-5. **Statistical reporting.**
+6. **Statistical reporting.**
    Paired bootstrap CI for dev-selected Pareto AUC difference
    (1,000 holdout resamples; dev indices fixed before bootstrapping).
+
+7. **Tuned hyperparameters.**
+   If Appendix H ablation results are available, dev-val-selected
+   (alpha, prior_n_effective, forgetting_factor) are loaded and used.
+   Otherwise, module-level defaults from ``run_prequential`` apply.
 
 Outputs (``results/``)
     multimodel_pareto_results.json
 
-This script imports shared evaluation functions from
+This script imports shared evaluation functions and model catalogs from
 ``experiments/03_figure/run_prequential.py`` to avoid code duplication.
 """
 
@@ -47,7 +59,7 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import joblib
@@ -58,7 +70,6 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments" / "03_figure"))
 
-from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config import (
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
@@ -69,9 +80,7 @@ from bandit_gpt.config import (
 )
 
 from run_prequential import (
-    _req_cost,
     load_rewards_from_file,
-    build_model_registry,
     embed_dataset,
     oracle_route,
     static_route,
@@ -80,13 +89,17 @@ from run_prequential import (
     ucb1_online_route,
     run_pareto_sweep,
     _split_dev_train_val,
-    _pareto_hull,
     pareto_auc,
     dev_selected_pareto_auc,
     bootstrap_pareto_auc_difference,
     _extract_dev_optimal_per_prompt,
+    _dev_pareto_indices,
+    _recompute_holdout_metrics_with_full_dev_training,
+    _patch_pareto_entries_holdout_metrics_inplace,
+    K10_MODELS,
+    K10_CATALOG,
+    LAMBDA_VALUES_K10,
     N_SEEDS,
-    SEED_OFFSET,
     TARGET_NEFF,
     ALPHA_START,
     CORRALLING_LR,
@@ -94,135 +107,43 @@ from run_prequential import (
     DEV_VAL_FRACTION,
     DEV_VAL_SEED,
 )
-from utils.model_pricing import get_prices_for_models
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# K=10 Model catalog
-# ============================================================================
-
-K10_MODELS: List[str] = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mixtral-8x7b-instruct",
-    "google/gemma-3-27b-it",
-    "anthropic/claude-haiku-4.5",
-    "deepseek/deepseek-chat-v3-0324",
-    "google/gemini-2.5-flash-preview-09-2025",
-    "meta-llama/llama-4-maverick",
-    "anthropic/claude-sonnet-4",
-    "openai/gpt-4-turbo",
-    "openai/gpt-4.1",
-]
-
-_PRICES_K10 = get_prices_for_models(K10_MODELS)
-
-K10_CATALOG: Dict[str, Dict] = {
-    "meta-llama/llama-3.1-8b-instruct": {
-        "display": "Llama-3.1-8B",
-        **_PRICES_K10["meta-llama/llama-3.1-8b-instruct"],
-        "cost": _req_cost(
-            _PRICES_K10["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
-            _PRICES_K10["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
-        ),
-        "tier": "cheap",
-    },
-    "mistralai/mixtral-8x7b-instruct": {
-        "display": "Mixtral-8x7B",
-        **_PRICES_K10["mistralai/mixtral-8x7b-instruct"],
-        "cost": _req_cost(
-            _PRICES_K10["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
-            _PRICES_K10["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
-        ),
-        "tier": "cheap",
-    },
-    "google/gemma-3-27b-it": {
-        "display": "Gemma-3-27B",
-        **_PRICES_K10["google/gemma-3-27b-it"],
-        "cost": _req_cost(
-            _PRICES_K10["google/gemma-3-27b-it"]["input_cost_per_m"],
-            _PRICES_K10["google/gemma-3-27b-it"]["output_cost_per_m"],
-        ),
-        "tier": "cheap",
-    },
-    "anthropic/claude-haiku-4.5": {
-        "display": "Claude-Haiku-4.5",
-        **_PRICES_K10["anthropic/claude-haiku-4.5"],
-        "cost": _req_cost(
-            _PRICES_K10["anthropic/claude-haiku-4.5"]["input_cost_per_m"],
-            _PRICES_K10["anthropic/claude-haiku-4.5"]["output_cost_per_m"],
-        ),
-        "tier": "mid",
-    },
-    "deepseek/deepseek-chat-v3-0324": {
-        "display": "DeepSeek-V3",
-        **_PRICES_K10["deepseek/deepseek-chat-v3-0324"],
-        "cost": _req_cost(
-            _PRICES_K10["deepseek/deepseek-chat-v3-0324"]["input_cost_per_m"],
-            _PRICES_K10["deepseek/deepseek-chat-v3-0324"]["output_cost_per_m"],
-        ),
-        "tier": "mid",
-    },
-    "google/gemini-2.5-flash-preview-09-2025": {
-        "display": "Gemini-2.5-Flash",
-        **_PRICES_K10["google/gemini-2.5-flash-preview-09-2025"],
-        "cost": _req_cost(
-            _PRICES_K10["google/gemini-2.5-flash-preview-09-2025"]["input_cost_per_m"],
-            _PRICES_K10["google/gemini-2.5-flash-preview-09-2025"]["output_cost_per_m"],
-        ),
-        "tier": "mid",
-    },
-    "meta-llama/llama-4-maverick": {
-        "display": "Llama-4-Maverick",
-        **_PRICES_K10["meta-llama/llama-4-maverick"],
-        "cost": _req_cost(
-            _PRICES_K10["meta-llama/llama-4-maverick"]["input_cost_per_m"],
-            _PRICES_K10["meta-llama/llama-4-maverick"]["output_cost_per_m"],
-        ),
-        "tier": "mid",
-    },
-    "anthropic/claude-sonnet-4": {
-        "display": "Claude-Sonnet-4",
-        **_PRICES_K10["anthropic/claude-sonnet-4"],
-        "cost": _req_cost(
-            _PRICES_K10["anthropic/claude-sonnet-4"]["input_cost_per_m"],
-            _PRICES_K10["anthropic/claude-sonnet-4"]["output_cost_per_m"],
-        ),
-        "tier": "expensive",
-    },
-    "openai/gpt-4-turbo": {
-        "display": "GPT-4-Turbo",
-        **_PRICES_K10["openai/gpt-4-turbo"],
-        "cost": _req_cost(
-            _PRICES_K10["openai/gpt-4-turbo"]["input_cost_per_m"],
-            _PRICES_K10["openai/gpt-4-turbo"]["output_cost_per_m"],
-        ),
-        "tier": "expensive",
-    },
-    "openai/gpt-4.1": {
-        "display": "GPT-4.1",
-        **_PRICES_K10["openai/gpt-4.1"],
-        "cost": _req_cost(
-            _PRICES_K10["openai/gpt-4.1"]["input_cost_per_m"],
-            _PRICES_K10["openai/gpt-4.1"]["output_cost_per_m"],
-        ),
-        "tier": "expensive",
-    },
-}
-
-LAMBDA_VALUES_K10: List[float] = [
-    0.0, 0.01, 0.03, 0.05, 0.07, 0.08, 0.09, 0.095,
-    0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18,
-    0.185, 0.19, 0.192, 0.195, 0.198, 0.2, 0.202, 0.205,
-    0.208, 0.21, 0.215, 0.22, 0.25, 0.3, 0.5, 1.0,
-]
-
-
-# ============================================================================
 # Main K=10 experiment
 # ============================================================================
+
+
+def _load_tuned_hparams(key: str = "K10") -> Optional[Dict[str, float]]:
+    """Load dev-val-selected hyperparameters from Appendix H ablation.
+
+    Args:
+        key: Top-level key in the JSON file (``"K2"`` or ``"K10"``).
+
+    Returns:
+        Dict with ``alpha``, ``prior_n_effective``, ``forgetting_factor``,
+        or ``None`` if the file is missing or malformed.
+    """
+    hparams_path = (
+        Path(__file__).resolve().parent.parent / "appendix"
+        / "H_alpha_neff_ablation" / "results" / "best_hparams_k10.json"
+    )
+    if not hparams_path.exists():
+        return None
+    try:
+        data = json.loads(hparams_path.read_text())
+        cfg = data.get(key, {})
+        return {
+            "alpha": float(cfg["alpha"]),
+            "prior_n_effective": float(cfg["n_eff"]),
+            "forgetting_factor": float(cfg["gamma"]),
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.warning("Failed to load hparams from %s: %s", hparams_path, exc)
+        return None
 
 
 def run_k10_experiment() -> None:
@@ -239,15 +160,44 @@ def run_k10_experiment() -> None:
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     logger.info(f"  PCA: {pca.n_components_} components")
 
+    # ------------------------------------------------------------------
+    # Tuned hyperparameters (Appendix H, dev-val-selected)
+    # ------------------------------------------------------------------
+    tuned = _load_tuned_hparams("K10")
+    if tuned is not None:
+        logger.info(
+            f"Loaded K=10 tuned hparams (dev-val-selected): "
+            f"alpha={tuned['alpha']} n_eff={tuned['prior_n_effective']} "
+            f"forgetting_factor={tuned['forgetting_factor']}"
+        )
+    else:
+        logger.warning(
+            "Appendix H results not found. Falling back to module-level "
+            f"defaults (alpha={ALPHA_START}, n_eff={TARGET_NEFF}). Run "
+            "experiments/appendix/H_alpha_neff_ablation/"
+            "run_3d_grid_ablation.py first for tuned hyperparameters."
+        )
+    k10_alpha = tuned["alpha"] if tuned is not None else ALPHA_START
+    k10_neff = tuned["prior_n_effective"] if tuned is not None else TARGET_NEFF
+    k10_forgetting = tuned["forgetting_factor"] if tuned is not None else 1.0
+
     results_all: Dict[str, Any] = {
         "metadata": {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "n_seeds": N_SEEDS,
             "reward_source": "extract_reward(mean_vote_x_confidence)",
-            "protocol": "train_then_freeze",
+            "protocol": "train_then_freeze_with_full_dev_retrain",
             "split_protocol": "three_way_split",
             "dev_val_fraction": DEV_VAL_FRACTION,
             "dev_val_seed": DEV_VAL_SEED,
+            "hparams": {
+                "alpha": k10_alpha,
+                "prior_n_effective": k10_neff,
+                "forgetting_factor": k10_forgetting,
+                "corralling_lr": CORRALLING_LR,
+                "corralling_gamma": CORRALLING_GAMMA,
+                "source": "appendix_H" if tuned is not None else "module_defaults",
+            },
         },
     }
 
@@ -338,6 +288,9 @@ def run_k10_experiment() -> None:
         str(MULTIMODEL_WARMUP_PRIORS_PATH), costs_k10, LAMBDA_VALUES_K10,
         N_SEEDS, use_corralling=True, label="banditGPT",
         dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
     )
 
     # Tabula rasa ablation (no priors, no Corralling)
@@ -351,6 +304,64 @@ def run_k10_experiment() -> None:
         None, costs_k10, LAMBDA_VALUES_K10,
         N_SEEDS, use_corralling=False, label="tabula_rasa",
         dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
+    )
+
+    # --- Full-dev retrain pass (dev-optimal lambdas only) ---------------
+    bg_dev_opt_idx_k10 = _dev_pareto_indices(bandit_pareto_k10)
+    tr_dev_opt_idx_k10 = _dev_pareto_indices(tabula_pareto_k10)
+    bg_dev_opt_lams = sorted(
+        {float(bandit_pareto_k10[i]["lambda"]) for i in bg_dev_opt_idx_k10}
+    )
+    tr_dev_opt_lams = sorted(
+        {float(tabula_pareto_k10[i]["lambda"]) for i in tr_dev_opt_idx_k10}
+    )
+    logger.info(
+        "\n  Full-dev retrain pass (holdout metrics only; dev-optimal lambdas) ..."
+        f"\n    BanditGPT: {len(bg_dev_opt_lams)}/{len(LAMBDA_VALUES_K10)} lambdas"
+        f"\n    Tabula:    {len(tr_dev_opt_lams)}/{len(LAMBDA_VALUES_K10)} lambdas"
+    )
+    bandit_full_k10 = _recompute_holdout_metrics_with_full_dev_training(
+        models=K10_MODELS,
+        catalog=K10_CATALOG,
+        full_dev_data=train_data_k10,
+        full_dev_emb=train_emb_k10,
+        holdout_data=holdout_data_k10,
+        holdout_emb=holdout_emb_k10,
+        warmup_path=str(MULTIMODEL_WARMUP_PRIORS_PATH),
+        costs=costs_k10,
+        lambda_values=bg_dev_opt_lams,
+        n_trials=N_SEEDS,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
+        use_corralling=True,
+        label="banditGPT_full_dev",
+    )
+    tabula_full_k10 = _recompute_holdout_metrics_with_full_dev_training(
+        models=K10_MODELS,
+        catalog=K10_CATALOG,
+        full_dev_data=train_data_k10,
+        full_dev_emb=train_emb_k10,
+        holdout_data=holdout_data_k10,
+        holdout_emb=holdout_emb_k10,
+        warmup_path=None,
+        costs=costs_k10,
+        lambda_values=tr_dev_opt_lams,
+        n_trials=N_SEEDS,
+        alpha=k10_alpha,
+        prior_n_effective=k10_neff,
+        forgetting_factor=k10_forgetting,
+        use_corralling=False,
+        label="tabula_rasa_full_dev",
+    )
+    _patch_pareto_entries_holdout_metrics_inplace(
+        bandit_pareto_k10, recomputed=bandit_full_k10,
+    )
+    _patch_pareto_entries_holdout_metrics_inplace(
+        tabula_pareto_k10, recomputed=tabula_full_k10,
     )
 
     # --- Dev-selected Pareto AUC ----------------------------------------
