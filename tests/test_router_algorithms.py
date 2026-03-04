@@ -544,8 +544,9 @@ class TestCorrallingRouter:
         assert len(router.weights) == 2
         np.testing.assert_array_almost_equal(router.weights, np.array([0.5, 0.5]))
         
-        # sum_squared_losses initialized to zero (no history yet)
-        np.testing.assert_array_almost_equal(router.sum_squared_losses, np.zeros(2))
+        # sum_squared_losses initialized to 1.0 (AdaGrad warmup, prevents
+        # degenerate initial learning rate eta_0/sqrt(eps) ~ 10^4).
+        np.testing.assert_array_almost_equal(router.sum_squared_losses, np.ones(2))
     
     def test_corralling_action_distribution(self, simple_experts):
         """Test that action distribution follows marginal π(a) when experts disagree."""

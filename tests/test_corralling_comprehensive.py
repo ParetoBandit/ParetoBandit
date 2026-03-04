@@ -101,8 +101,9 @@ class TestCorrallingInitialization:
         # Weights should be uniform
         np.testing.assert_array_almost_equal(router.weights, np.array([0.5, 0.5]))
 
-        # sum_squared_losses initialized to zero (no history yet)
-        np.testing.assert_array_almost_equal(router.sum_squared_losses, np.zeros(2))
+        # sum_squared_losses initialized to 1.0 (AdaGrad warmup, prevents
+        # degenerate initial learning rate eta_0/sqrt(eps) ~ 10^4).
+        np.testing.assert_array_almost_equal(router.sum_squared_losses, np.ones(2))
     
     def test_initialization_with_custom_learning_rate(self):
         """Test initialization with custom learning rate."""

@@ -166,9 +166,12 @@ def _argmax_random_tiebreak(scores: Dict[str, float]) -> str:
     This helper collects all keys sharing the maximum value and returns one
     uniformly at random, eliminating initialization-order bias.
     """
-    max_val = max(scores.values())
-    # Collect all keys that achieve the maximum (within float tolerance)
-    tied = [k for k, v in scores.items() if abs(v - max_val) < 1e-12]
+    finite = {k: v for k, v in scores.items() if np.isfinite(v)}
+    if not finite:
+        keys = list(scores.keys())
+        return keys[np.random.randint(len(keys))]
+    max_val = max(finite.values())
+    tied = [k for k, v in finite.items() if abs(v - max_val) < 1e-12]
     if len(tied) == 1:
         return tied[0]
     return tied[np.random.randint(len(tied))]
@@ -2955,8 +2958,13 @@ Previous version referenced non-existent attributes
 
         # Record that this arm was selected so staleness inflation
         # distinguishes "feedback in flight" from "genuinely unused".
+        # Only endorsing experts advance their clock — non-endorsing experts
+        # did not play this arm and should not have their staleness reset.
         if self.use_corralling and self.corralling_router is not None:
-            self.corralling_router.mark_selected(best_model)
+            self.corralling_router.mark_selected(
+                best_model,
+                endorsing_experts=corralling_token.get("endorsing_experts"),
+            )
         else:
             self.bandit.mark_selected(best_model)
         
@@ -3567,22 +3575,41 @@ class CorrallingRouter:
     Meta-level non-stationarity only; extending expert-level updates with
     explicit forgetting is a direction for future work.
 
-    **Theoretical Guarantee:**
+    **Theoretical Guarantee (vanilla Corralling):**
     Agarwal et al. (2017) prove that Corralling with Log-Barrier OMD achieves
     a master regret of O(sqrt(K * T * ln K)), which is near-optimal for
-    combining K bandit experts over T rounds.  The per-expert adaptive
-    learning rates ensure the algorithm scales gracefully as K grows.
+    combining K bandit experts over T rounds.  This bound holds under the
+    standard assumptions: unbiased IPS loss estimates, deterministic experts,
+    and a monotone (non-decaying) squared-loss accumulator.
+
+    **Practical Extensions (void formal bound — empirically validated):**
+    The following production-motivated extensions break one or more assumptions
+    of the formal bound.  Each is disabled by default or set to a near-neutral
+    value, so the vanilla algorithm is recoverable:
+
+    - ``loss_decay`` (default 0.999): Decays cumulative squared losses for
+      non-stationarity.  Set to 1.0 to recover the monotone accumulator.
+    - ``meta_lr_halflife`` (default 60s): Staleness-aware meta-weight updates
+      for delayed feedback.  Set to ``inf`` to disable.
+    - ``ipw_clip`` (default 20.0): Caps importance weights fed to base experts,
+      introducing bounded bias in exchange for variance reduction.
+      Set to ``inf`` to recover unbiased IPS.
+    - ``gamma`` floor (default 0.05): Explicit exploration floor complementing
+      the log-barrier.  Part of the original algorithm; set to 0.0 for
+      pure log-barrier exploration.
+
+    **Deterministic expert assumption:**
+    The loss estimator attributes loss to every expert that endorsed the played
+    action: ``ℓ̂_j = I(expert_j → a) · ℓ / π(a)``.  This is unbiased when
+    experts are deterministic (LinUCB argmax).  If experts become stochastic
+    (e.g., Thompson Sampling), ``I(expert_j → a)`` must be replaced with
+    ``P(expert_j → a)`` to maintain unbiasedness.
 
     **Empirical Validation (gamma=0.05):**
     - Validated across 4 dimensions using 18,750 trials (5 values x 5 seeds x 750 prompts)
     - Performance: 43.8 +/- 5.4 regret (near-optimal, <1% cost vs. gamma=0.0)
     - Safety: 80% variance reduction vs. gamma=0.0 (prevents stochastic expert death)
     - See: experiments/appendix/E_prior_degradation/results/gamma_ablation/
-
-    **Practical Extensions Beyond Agarwal et al. (2017):**
-    - ``loss_decay``: Decays cumulative squared losses for non-stationarity.
-    - ``meta_lr_halflife``: Staleness-aware meta-weight updates for delayed feedback.
-    - ``gamma`` floor: Explicit exploration floor complementing the log-barrier.
 
     **Computational Overhead:**
     - Memory: 2x (store two sets of A/b matrices)
@@ -3722,8 +3749,12 @@ class CorrallingRouter:
 
         # Per-expert cumulative squared importance-weighted losses.
         # Drives the adaptive learning rate: eta_i = eta_0 / sqrt(S_i + eps).
-        # Initialized to zero so that early updates use eta_0 directly.
-        self.sum_squared_losses = np.zeros(self.n_experts)
+        # Initialized to 1.0 (not 0.0) to avoid degenerate initial learning
+        # rates: with S_i=0, eta = eta_0/sqrt(eps) ≈ eta_0 * 10^4, causing
+        # violent weight oscillations.  Initializing to 1.0 gives
+        # eta ≈ eta_0 on the first step (the intended behavior), matching
+        # standard AdaGrad practice (cf. TensorFlow's initial_accumulator_value).
+        self.sum_squared_losses = np.ones(self.n_experts)
 
         # Exploit mode — when True, select_model picks argmax(weights)
         # deterministically instead of sampling.  Standard practice for
@@ -3768,6 +3799,7 @@ class CorrallingRouter:
         """
         with self._lock:
             probs = self._get_mixed_distribution()
+            weights_snapshot = self.weights.copy()
             use_exploit = self.exploit_mode
 
         # Query ALL experts for their deterministic recommendations.
@@ -3780,7 +3812,7 @@ class CorrallingRouter:
         if use_exploit:
             # Deterministic greedy: pick the highest-weight expert.
             # Ties broken by lowest index (the warmup expert by convention).
-            expert_idx = int(np.argmax(self.weights))
+            expert_idx = int(np.argmax(weights_snapshot))
         else:
             # Stochastic Corralling: sample an expert from the mixed distribution.
             # Mathematically equivalent to sampling from π(·) when experts
@@ -3809,16 +3841,154 @@ class CorrallingRouter:
             "action_prob": float(action_prob),
             "endorsing_experts": endorsing,
             "timestamp": time.time(),
+            "was_exploit": use_exploit,
         }
 
         return model, selection_token
-    
+
+    def _log_barrier_project(
+        self, A: np.ndarray, eta: np.ndarray,
+        tol: float = 1e-12, max_iter: int = 64,
+    ) -> np.ndarray:
+        """Project onto the probability simplex under the log-barrier regularizer.
+
+        After the OMD mirror step, we have unprojected inverse weights
+        ``A_i = 1/w_{t,i} + η_i · ℓ̂_{t,i}``.  The true projection finds
+        the Lagrange multiplier ``μ`` such that::
+
+            Σ_i  1 / (A_i + η_i · μ)  =  1
+
+        and returns ``w_i = 1 / (A_i + η_i · μ)``.
+
+        This is *not* equivalent to L1 normalization (``w̃ / Σ w̃``), which
+        corresponds to the KL/negative-entropy projection.  The log-barrier
+        projection preserves the Itakura-Saito geometry required for the
+        O(√(T ln K)) master regret bound (Agarwal et al., 2017).
+
+        Parameters
+        ----------
+        A : np.ndarray
+            Unprojected inverse weights, shape ``(K,)``.
+        eta : np.ndarray
+            Per-expert adaptive learning rates, shape ``(K,)``.
+        tol : float
+            Convergence tolerance for the bisection root finder.
+        max_iter : int
+            Maximum bisection iterations (64 gives ~1e-19 precision).
+
+        Returns
+        -------
+        np.ndarray
+            Projected weights on the probability simplex, shape ``(K,)``.
+        """
+        K = len(A)
+
+        # Unprojected weights (before projection)
+        w_tilde = 1.0 / np.maximum(A, 1e-30)
+        s = w_tilde.sum()
+
+        # If already on the simplex (within tolerance), no projection needed
+        if abs(s - 1.0) < tol:
+            return w_tilde
+
+        if K == 2:
+            # Exact analytic solution via quadratic formula.
+            # We solve: 1/(A_1 + η_1·μ) + 1/(A_2 + η_2·μ) = 1
+            # Cross-multiply: (A_2 + η_2·μ) + (A_1 + η_1·μ) = (A_1 + η_1·μ)(A_2 + η_2·μ)
+            # Rearranging: η_1·η_2·μ² + [η_1(A_2-1) + η_2(A_1-1)]·μ + (A_1·A_2 - A_1 - A_2) = 0
+            e1, e2 = eta[0], eta[1]
+            a1, a2 = A[0], A[1]
+
+            qa = e1 * e2
+            qb = e1 * (a2 - 1.0) + e2 * (a1 - 1.0)
+            qc = a1 * a2 - a1 - a2
+
+            disc = qb * qb - 4.0 * qa * qc
+            if disc < 0:
+                # Degenerate case — fall back to L1 normalization
+                return w_tilde / s
+
+            sqrt_disc = np.sqrt(disc)
+
+            # Both roots: we need the one that keeps all weights positive.
+            # w_i > 0 requires A_i + η_i·μ > 0  ⟹  μ > -A_i/η_i.
+            # The larger root satisfies this when losses are non-negative.
+            mu = (-qb + sqrt_disc) / (2.0 * qa)
+
+            w = 1.0 / (A + eta * mu)
+
+            # Validate: if numerical noise produces negative weights,
+            # try the smaller root.
+            if np.any(w < 0):
+                mu = (-qb - sqrt_disc) / (2.0 * qa)
+                w = 1.0 / (A + eta * mu)
+
+            if np.any(w < 0):
+                return w_tilde / s
+
+            return w
+
+        # General K > 2: bisection on μ.
+        # f(μ) = Σ 1/(A_i + η_i·μ) is strictly decreasing in μ.
+        # f(0) = Σ 1/A_i = Σ w̃_i.  We need f(μ) = 1.
+        # Lower bound: μ must satisfy A_i + η_i·μ > 0 for all i,
+        #   so μ > -min(A_i/η_i).
+        mu_lo = -np.min(A / np.maximum(eta, 1e-30)) + tol
+        mu_hi = 0.0 if s <= 1.0 else mu_lo
+
+        # Expand upper bound until f(mu_hi) < 1
+        if s > 1.0:
+            mu_hi = 1.0
+            for _ in range(max_iter):
+                f_hi = np.sum(1.0 / (A + eta * mu_hi))
+                if f_hi < 1.0:
+                    break
+                mu_hi *= 2.0
+        else:
+            # s <= 1: μ is negative — expand lower bound
+            mu_lo_candidate = -1.0
+            for _ in range(max_iter):
+                if mu_lo_candidate <= mu_lo:
+                    mu_lo_candidate = mu_lo
+                    break
+                f_lo = np.sum(1.0 / (A + eta * mu_lo_candidate))
+                if f_lo > 1.0:
+                    break
+                mu_lo_candidate *= 2.0
+            mu_lo, mu_hi = mu_lo_candidate, 0.0
+
+        for _ in range(max_iter):
+            mu_mid = 0.5 * (mu_lo + mu_hi)
+            f_mid = np.sum(1.0 / (A + eta * mu_mid))
+            if abs(f_mid - 1.0) < tol:
+                break
+            if f_mid > 1.0:
+                mu_lo = mu_mid
+            else:
+                mu_hi = mu_mid
+
+        mu = 0.5 * (mu_lo + mu_hi)
+        w = 1.0 / (A + eta * mu)
+
+        if np.any(w < 0) or np.any(np.isnan(w)):
+            return w_tilde / s
+
+        return w
+
     def update(self, context: np.ndarray, model: str, reward: float,
                selection_token: Dict | None = None, weight: float = 1.0,
                advance_time: bool = True):
         """
         Two-level update: meta-weights (which expert to trust) + base-level
         (each expert's internal LinUCB learning).
+
+        .. note::
+
+            If the selection token was generated during exploit mode
+            (``was_exploit=True``), the meta-weight update is silently
+            skipped because deterministic selection invalidates the
+            stochastic action probabilities in the token.  Base-expert
+            updates still proceed normally.
 
         **Level 1 — Meta-Weight Update (Log-Barrier OMD, Agarwal et al. 2017):**
         Only performed when a valid ``selection_token`` is provided (returned
@@ -3835,9 +4005,12 @@ class CorrallingRouter:
         loss; experts that recommended a different action receive zero.
 
         The squared losses feed the per-expert adaptive learning rate
-        ``eta_i = eta_0 / sqrt(S_i + eps)``, and the weights are updated
-        via the Log-Barrier OMD closed form:
-        ``w_{i} <- w_{i} / (1 + eta_i * loss_hat_i * w_{i})``.
+        ``eta_i = eta_0 / sqrt(S_i + eps)``.  The mirror step computes
+        unprojected inverse weights ``A_i = 1/w_i + η_i · ℓ̂_i``, then
+        projects onto the simplex via the true log-barrier (Itakura-Saito)
+        projection: find μ s.t. ``Σ 1/(A_i + η_i·μ) = 1`` and set
+        ``w_i = 1/(A_i + η_i·μ)``.  For K=2 this is an exact O(1)
+        quadratic solve; for K>2 a fast bisection is used.
 
         When ``selection_token`` is None (e.g. external ``BanditRouter.update()``
         calls without a preceding ``select_model()``), the meta-weight update
@@ -3883,14 +4056,24 @@ class CorrallingRouter:
                 for correct importance-weighted meta-weight attribution.
                 If None, only base experts are updated (no meta-weight change).
             weight: Observation importance weight (passed to expert updates).
+
         """
+        # Exploit-mode guard: the determinism constraint belongs to the
+        # *action* (token), not the router's current state.  Delayed feedback
+        # from a stochastic selection is valid even if the router has since
+        # switched to exploit mode.
+        was_exploit = (
+            selection_token.get("was_exploit", False) if selection_token else False
+        )
+
         # ===================================================================
         # LEVEL 1: Meta-Weight Update (which expert to trust)
         # ===================================================================
-        if selection_token is not None:
-            # Apply the same numerical floor as Level 2 so that neither meta-weight
-            # nor expert updates can produce extreme loss estimates if the mixing
-            # parameter or expert count is changed in future.
+        # Skip the meta-weight update if the selection was deterministic
+        # (exploit mode).  The stochastic action_prob in the token is invalid
+        # for IPW when selection was deterministic, but base-expert updates
+        # (Level 2) remain valid.
+        if selection_token is not None and not was_exploit:
             action_prob = max(selection_token["action_prob"], 1e-6)
             endorsing_experts = selection_token["endorsing_experts"]
 
@@ -3919,18 +4102,39 @@ class CorrallingRouter:
                 # Adaptive per-expert learning rate (Corralling, Agarwal et al. 2017).
                 # Decay old squared-loss history for non-stationarity, then
                 # accumulate the new squared losses.
+                #
+                # The decay is applied as loss_decay**2 because S_i tracks
+                # *squared* losses: if each raw loss decays by λ (i.e.,
+                # ℓ_old → λ·ℓ_old), the squared term decays by λ²
+                # (ℓ_old² → λ²·ℓ_old²).  Equivalently, this makes the
+                # adaptive learning rate η_i = η_0/√S_i forget old variance
+                # at the same effective rate as the loss decay.
                 scaled_losses = staleness_factor * losses
                 self.sum_squared_losses *= self.loss_decay ** 2
                 self.sum_squared_losses += scaled_losses ** 2
                 eta = self.eta_0 / np.sqrt(self.sum_squared_losses + self.epsilon)
 
-                # Log-Barrier OMD closed-form update:
-                #   w_{t+1,i} = w_{t,i} / (1 + η_i · ℓ̂_{t,i} · w_{t,i})
-                # then project back onto the probability simplex.
-                denom = 1.0 + eta * scaled_losses * self.weights
-                self.weights = self.weights / denom
-                self.weights = np.maximum(self.weights, 1e-12)
-                self.weights /= self.weights.sum()
+                # Log-Barrier OMD mirror step (unprojected):
+                #   A_i = 1/w_{t,i} + η_i · ℓ̂_{t,i}
+                # The projected weight is p_i = 1/(A_i + μ) where μ is the
+                # Lagrange multiplier enforcing Σ p_i = 1.
+                inv_w = 1.0 / np.maximum(self.weights, 1e-30)
+                A = inv_w + eta * scaled_losses
+
+                self.weights = self._log_barrier_project(A, eta)
+
+                # NaN guard: if overflow/underflow corrupts weights, reset
+                # both weights AND sum_squared_losses to prevent cascading
+                # corruption (NaN in S_i → NaN eta → NaN weights forever).
+                if np.any(np.isnan(self.weights)) or np.any(np.isinf(self.weights)):
+                    logger.warning(
+                        "CorrallingRouter: NaN/inf in weights after OMD update; "
+                        "resetting to uniform."
+                    )
+                    self.weights = np.ones(self.n_experts) / self.n_experts
+                    self.sum_squared_losses = np.zeros(self.n_experts)
+                else:
+                    self.weights = np.maximum(self.weights, 1e-12)
         
         # ===================================================================
         # LEVEL 2: Base Algorithm Update (Importance-Weighted)
@@ -3998,9 +4202,27 @@ class CorrallingRouter:
             for expert in self.experts:
                 expert.update(context, model, reward, weight, advance_time=advance_time)
     
-    def mark_selected(self, model: str) -> None:
-        """Propagate selection timestamp to all experts for staleness tracking."""
-        for expert in self.experts:
+    def mark_selected(
+        self,
+        model: str,
+        endorsing_experts: Optional[List[int]] = None,
+    ) -> None:
+        """Advance the staleness clock only for experts that endorsed the action.
+
+        Non-endorsing experts did not play *model* and will not receive an
+        IPW update for it.  Marking them as having played the arm would
+        under-inflate their uncertainty, suppressing exploration of off-policy
+        arms under non-stationary forgetting (gamma < 1).
+
+        Args:
+            model: The model that was selected this round.
+            endorsing_experts: Indices of experts that endorsed *model*.
+                If ``None``, falls back to marking all experts (backward
+                compatibility for callers that lack endorsement info).
+        """
+        for j, expert in enumerate(self.experts):
+            if endorsing_experts is not None and j not in endorsing_experts:
+                continue
             if hasattr(expert, 'mark_selected'):
                 expert.mark_selected(model)
 

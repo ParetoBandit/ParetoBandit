@@ -2632,3 +2632,214 @@ class TestR7_ExplainSelectionConsistency:
         for m in models:
             contributions = theta_cache[m] * x
             assert contributions.shape == (dim,)
+
+
+# =============================================================================
+# Log-Barrier projection: true Itakura-Saito projection vs L1 normalization
+# =============================================================================
+
+
+class TestLogBarrierProjection:
+    """Verify that _log_barrier_project implements the correct Itakura-Saito
+    projection, preserving the log-barrier geometry from Agarwal et al. (2017)
+    rather than the KL/L1-normalization approximation."""
+
+    def _make_router(self, n_experts: int = 2) -> CorrallingRouter:
+        models = [f"m{i}" for i in range(n_experts)]
+        experts = [
+            MockCountingExpert(models, name=f"e{i}", preferred_model=models[i])
+            for i in range(n_experts)
+        ]
+        return CorrallingRouter(
+            experts=experts, models=models,
+            learning_rate=0.1, gamma=0.05,
+        )
+
+    def test_k2_projection_sums_to_one(self):
+        """For K=2, projected weights must sum to 1."""
+        router = self._make_router(2)
+        A = np.array([2.5, 3.0])
+        eta = np.array([0.1, 0.2])
+        w = router._log_barrier_project(A, eta)
+        assert abs(w.sum() - 1.0) < 1e-10
+        assert np.all(w > 0)
+
+    def test_k2_satisfies_kkt(self):
+        """For K=2, the projected weights must satisfy the KKT condition:
+        1/(A_i + η_i·μ) = w_i  for a common μ."""
+        router = self._make_router(2)
+        A = np.array([1.5, 4.0])
+        eta = np.array([0.3, 0.1])
+        w = router._log_barrier_project(A, eta)
+
+        mu_from_0 = (1.0 / w[0] - A[0]) / eta[0]
+        mu_from_1 = (1.0 / w[1] - A[1]) / eta[1]
+        assert abs(mu_from_0 - mu_from_1) < 1e-8, (
+            f"KKT violated: μ differs across experts ({mu_from_0} vs {mu_from_1})"
+        )
+
+    def test_k2_differs_from_l1_normalization(self):
+        """When weights are asymmetric, log-barrier projection should differ
+        from simple L1 normalization (w̃ / Σ w̃)."""
+        router = self._make_router(2)
+        A = np.array([1.1, 20.0])
+        eta = np.array([0.5, 0.5])
+
+        w_tilde = 1.0 / A
+        w_l1 = w_tilde / w_tilde.sum()
+        w_lb = router._log_barrier_project(A, eta)
+
+        assert abs(w_lb.sum() - 1.0) < 1e-10
+        assert not np.allclose(w_l1, w_lb, atol=1e-4), (
+            "Log-barrier projection should differ from L1 norm for skewed weights"
+        )
+
+    def test_k2_projection_preserves_geometry(self):
+        """The log-barrier projection should produce a *different* allocation
+        than L1 normalization for asymmetric weights, reflecting the
+        Itakura-Saito geometry rather than KL geometry."""
+        router = self._make_router(2)
+        A = np.array([1.05, 50.0])
+        eta = np.array([0.3, 0.3])
+
+        w_tilde = 1.0 / A
+        w_l1 = w_tilde / w_tilde.sum()
+        w_lb = router._log_barrier_project(A, eta)
+
+        assert not np.allclose(w_l1, w_lb, atol=1e-5), (
+            "Log-barrier projection should differ from L1 for asymmetric A"
+        )
+        # Verify the result satisfies the correct KKT condition
+        mu_vals = [(1.0 / w_lb[i] - A[i]) / eta[i] for i in range(2)]
+        assert abs(mu_vals[0] - mu_vals[1]) < 1e-8
+
+    def test_general_k_projection_sums_to_one(self):
+        """For K>2, bisection-based projection must sum to 1."""
+        router = self._make_router(5)
+        A = np.array([2.0, 3.0, 4.0, 1.5, 5.0])
+        eta = np.array([0.1, 0.2, 0.15, 0.3, 0.05])
+        w = router._log_barrier_project(A, eta)
+        assert abs(w.sum() - 1.0) < 1e-10
+        assert np.all(w > 0)
+
+    def test_general_k_satisfies_kkt(self):
+        """For K>2, all experts should yield the same μ from the KKT conditions."""
+        router = self._make_router(5)
+        A = np.array([2.0, 3.0, 4.0, 1.5, 5.0])
+        eta = np.array([0.1, 0.2, 0.15, 0.3, 0.05])
+        w = router._log_barrier_project(A, eta)
+
+        mus = [(1.0 / w[i] - A[i]) / eta[i] for i in range(5)]
+        for i in range(1, 5):
+            assert abs(mus[0] - mus[i]) < 1e-6, (
+                f"KKT violated: μ_0={mus[0]:.8f} vs μ_{i}={mus[i]:.8f}"
+            )
+
+    def test_zero_loss_is_identity(self):
+        """When all losses are zero (A_i = 1/w_i), projection should recover
+        the original weights exactly."""
+        router = self._make_router(3)
+        router.weights = np.array([0.5, 0.3, 0.2])
+        A = 1.0 / router.weights
+        eta = np.array([0.1, 0.1, 0.1])
+        w = router._log_barrier_project(A, eta)
+        np.testing.assert_allclose(w, router.weights, atol=1e-10)
+
+    def test_integration_with_update(self):
+        """Full update cycle should produce valid probability vectors under
+        the new projection."""
+        router = self._make_router(2)
+        ctx = np.ones(4)
+        for _ in range(20):
+            model, token = router.select_model(ctx)
+            router.update(ctx, model, reward=np.random.uniform(0, 1),
+                          selection_token=token)
+            assert abs(router.weights.sum() - 1.0) < 1e-8
+            assert np.all(router.weights > 0)
+
+
+# =============================================================================
+# Exploit-mode token guard: delayed feedback must not crash
+# =============================================================================
+
+
+class TestExploitModeTokenGuard:
+    """Verify that the exploit-mode guard is tied to the *token* (was_exploit),
+    not the router's current state.  This prevents RuntimeErrors when delayed
+    feedback arrives after the system switches to exploit mode."""
+
+    def _make_router(self) -> CorrallingRouter:
+        models = ["m1", "m2"]
+        e1 = MockCountingExpert(models, name="e1", preferred_model="m1")
+        e2 = MockCountingExpert(models, name="e2", preferred_model="m2")
+        return CorrallingRouter(
+            experts=[e1, e2], models=models,
+            learning_rate=0.1, gamma=0.05,
+        )
+
+    def test_stochastic_token_accepted_after_exploit_switch(self):
+        """A token generated during stochastic mode should be processable
+        even if the router has since switched to exploit mode."""
+        router = self._make_router()
+        ctx = np.ones(4)
+
+        model, token = router.select_model(ctx)
+        assert token["was_exploit"] is False
+
+        router.exploit_mode = True
+
+        initial_weights = router.weights.copy()
+        router.update(ctx, model, reward=0.5, selection_token=token)
+        assert not np.allclose(router.weights, initial_weights, atol=1e-6), (
+            "Meta-weights should update for stochastic tokens even in exploit mode"
+        )
+
+    def test_exploit_token_skips_meta_update(self):
+        """A token generated during exploit mode should skip the meta-weight
+        update (silently, no exception)."""
+        router = self._make_router()
+        router.exploit_mode = True
+        ctx = np.ones(4)
+
+        model, token = router.select_model(ctx)
+        assert token["was_exploit"] is True
+
+        router.exploit_mode = False
+        initial_weights = router.weights.copy()
+        router.update(ctx, model, reward=0.5, selection_token=token)
+        np.testing.assert_allclose(
+            router.weights, initial_weights,
+            err_msg="Meta-weights should NOT change for exploit-mode tokens",
+        )
+
+    def test_exploit_token_still_updates_base_experts(self):
+        """Even when meta-update is skipped (was_exploit), base experts
+        should still receive the reward signal."""
+        router = self._make_router()
+        router.exploit_mode = True
+        ctx = np.ones(4)
+
+        model, token = router.select_model(ctx)
+
+        router.exploit_mode = False
+        router.update(ctx, model, reward=0.7, selection_token=token)
+
+        total_updates = sum(
+            len(e.update_calls)
+            for e in router.experts
+        )
+        assert total_updates > 0, "Base experts should still be updated"
+
+    def test_was_exploit_recorded_in_token(self):
+        """Selection token should always contain the was_exploit flag."""
+        router = self._make_router()
+        ctx = np.ones(4)
+
+        _, token_stoch = router.select_model(ctx)
+        assert "was_exploit" in token_stoch
+        assert token_stoch["was_exploit"] is False
+
+        router.exploit_mode = True
+        _, token_exploit = router.select_model(ctx)
+        assert "was_exploit" in token_exploit
+        assert token_exploit["was_exploit"] is True
