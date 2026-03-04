@@ -719,7 +719,6 @@ class ExperimentBurnIn:
             context_encoder=self.encoder,
             priors=priors,
             prior_n_effective=prior_n_effective,
-            update_lambda=1.0,  # Strong ongoing regularization for intensive burn-in
             pca_path=pca_path  # Use existing PCA data
         )
         router.bandit.alpha = alpha

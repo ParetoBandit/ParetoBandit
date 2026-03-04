@@ -18,23 +18,33 @@ class TestSnapshotSwapCorrectness:
     """
 
     def test_numerical_stability_check(self):
-        """Verify that the O(d) trace stability check correctly identifies ill-conditioned arms."""
+        """Verify that _check_numerical_stability detects ill-conditioned inverse."""
+        from bandit_gpt.router import RouterConfig
+        dim = 20
         policy = DisjointLinUCBPolicy(
             ["model_a"],
-            dim=20,
+            dim=dim,
             alpha=0.1,
             init_lambda=1.0,
-            update_lambda=0.0
         )
-        
-        # Identity matrix is stable (trace = 20)
-        assert policy.bandit_is_stable("model_a")
-        
-        # Near-singular matrix (one eigenvalue -> 0)
-        # We simulate this by zerioing out part of the diagonal
-        # and checking if trace drops significantly below d * lambda
-        policy.A["model_a"] = np.diag([0.01] * 20)
-        assert not policy.bandit_is_stable("model_a")
+        config = RouterConfig()
+        threshold = 1000 * dim
+
+        # Well-conditioned: trace(A_inv) = 20 << threshold = 20000
+        trace_ok = np.trace(policy.A_inv["model_a"])
+        assert trace_ok < threshold
+
+        # Blow up A_inv past the stability_threshold (default 1e6 in
+        # RouterConfig) to trigger the reset.  _check_numerical_stability
+        # adds init_lambda * I to A, then recomputes A_inv = safe_inv(A).
+        big_scale = config.stability_threshold / dim + 1  # trace > threshold
+        policy.A_inv["model_a"] = np.eye(dim) * big_scale
+        assert np.trace(policy.A_inv["model_a"]) > config.stability_threshold
+        policy._check_numerical_stability("model_a", config)
+        trace_after = np.trace(policy.A_inv["model_a"])
+        assert trace_after < config.stability_threshold, (
+            f"Stability check should have reset A_inv: trace={trace_after:.1f}"
+        )
 
     def test_safe_inv_handles_singular_matrix(self):
         """Test that safe_inv uses pseudoinverse/shrinkage for unstable matrices."""
@@ -62,7 +72,6 @@ class TestSnapshotSwapCorrectness:
             ["model_a", "model_b"],
             dim=10,
             alpha=0.1,
-            update_lambda=0.0,
             forgetting_factor=0.9
         )
         

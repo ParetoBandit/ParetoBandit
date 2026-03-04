@@ -78,7 +78,6 @@ class TestBug1_StaleAinvAfterDecay:
             dim=8,
             alpha=0.1,
             init_lambda=1.0,
-            update_lambda=0.0,
             forgetting_factor=0.95,  # gamma < 1 triggers the decay path
         )
 
@@ -1167,7 +1166,7 @@ class TestR3M3_ShermanMorrisonFallbackReward:
     def test_fallback_incorporates_reward(self):
         """After a forced fallback, b should reflect the current reward."""
         policy = DisjointLinUCBPolicy(
-            model_names=["m1"], dim=4, init_lambda=1.0, update_lambda=0.0
+            model_names=["m1"], dim=4, init_lambda=1.0
         )
         # Record initial theta
         theta_before = policy.A_inv["m1"] @ policy.b["m1"]
@@ -1240,7 +1239,7 @@ class TestR3M6_StabilityRegFloor:
     def test_regularization_floor_updated_after_stability_fix(self):
         """After stability reset, regularization_floor should increase."""
         policy = DisjointLinUCBPolicy(
-            model_names=["m1"], dim=4, init_lambda=1.0, update_lambda=0.0
+            model_names=["m1"], dim=4, init_lambda=1.0
         )
         initial_floor = policy.regularization_floor["m1"]
 

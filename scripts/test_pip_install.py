@@ -322,10 +322,9 @@ def test_config() -> None:
     cfg = RouterConfig()
     status("Default config instantiates", True)
     status("init_lambda default is 1.0", cfg.init_lambda == 1.0)
-    status("update_lambda default is 0.0", cfg.update_lambda == 0.0)
     status("max_log_size default is 10000", cfg.max_log_size == 10_000)
 
-    custom = RouterConfig(init_lambda=2.0, update_lambda=0.01)
+    custom = RouterConfig(init_lambda=2.0)
     status("Custom config accepted", custom.init_lambda == 2.0)
 
 

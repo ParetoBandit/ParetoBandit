@@ -30,23 +30,19 @@ def test_scaled_sherman_morrison():
     dim = 10
     forgetting_factor = 0.95  # Default value
     init_lambda = 1.0  # Initialization regularization
-    update_lambda = 0.0  # No runtime regularization (for O(d²) speed)
-    
+
     bandit = DisjointLinUCBPolicy(
         model_names=models,
         dim=dim,
         alpha=0.1,
         init_lambda=init_lambda,
-        update_lambda=update_lambda
     )
     
     print(f"\nConfiguration:")
     print(f"  Models: {len(models)}")
     print(f"  Dimension: {dim}")
-    print(f"  Dimension: {dim}")
     print(f"  Init Lambda: {init_lambda}")
-    print(f"  Update Lambda: {update_lambda}")
-    print(f"\nNote: With update_lambda=0, we rely on Sherman-Morrison for speed.")
+    print(f"\nNote: Sherman-Morrison O(d²) path used for all updates.")
     
     # Simulate alternating updates (realistic multi-arm scenario)
     print(f"\n{'Step':<6} {'Model':<10} {'dt':<5} {'Staleness':<12} {'Expected':<15}")
@@ -69,7 +65,7 @@ def test_scaled_sherman_morrison():
         # Perform update
         bandit.update(model, x, reward, weight=1.0)
         
-        # With update_lambda=0, we always use O(d²) Scaled Sherman-Morrison
+        # We always use O(d²) Scaled Sherman-Morrison
         # No full inversions should occur
         expected = "O(d²) S-M ✓"
         

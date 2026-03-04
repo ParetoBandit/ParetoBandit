@@ -35,7 +35,6 @@ def test_stability_check_triggers():
         stability_check_interval=50,  # Check every 50 updates
         stability_threshold=1e5,  # Threshold for triggering reset
         init_lambda=1.0,
-        update_lambda=0.0  # No runtime regularization - enables instability
     )
     
     # Create policy with 3 arms
@@ -43,14 +42,12 @@ def test_stability_check_triggers():
         model_names=["healthy_arm", "sparse_arm", "another_healthy"],
         dim=dim,
         init_lambda=config.init_lambda,
-        update_lambda=config.update_lambda,
     )
     
     print(f"\nConfiguration:")
     print(f"  Dimension: {dim}")
     print(f"  Forgetting Factor: 0.85 (aggressive decay)")
     print(f"  init_lambda: {policy.init_lambda}")
-    print(f"  update_lambda: {policy.update_lambda}")
     print(f"  Stability check interval: {config.stability_check_interval}")
     print(f"  Stability threshold: {config.stability_threshold:.2e}")
     print(f"\nScenario: 'sparse_arm' gets 1 update per 100 steps (heavy decay)")
@@ -134,14 +131,12 @@ def test_normal_operation():
         stability_check_interval=50,
         stability_threshold=1e6,
         init_lambda=1.0,
-        update_lambda=0.0
     )
     
     policy = DisjointLinUCBPolicy(
         model_names=["arm_A", "arm_B"],
         dim=dim,
         init_lambda=config.init_lambda,
-        update_lambda=config.update_lambda
     )
     
     x = np.random.randn(dim)

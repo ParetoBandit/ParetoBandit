@@ -17,12 +17,12 @@ from bandit_gpt.router import DisjointLinUCBPolicy
 
 def test_jit_regularization_low_traffic():
     """
-    Simulate low-traffic regime: update_lambda=0 with decay.
-    
-    Without JIT regularization, the matrix A can decay toward singularity,
-    causing trace(A_inv) → ∞ and numerical explosion.
-    
-    With JIT fix, trace(A_inv) should be bounded by regularization injection.
+    Simulate low-traffic regime with forgetting factor and decay.
+
+    Without JIT regularization injection, the matrix A can decay toward
+    singularity, causing trace(A_inv) → ∞ and numerical explosion.
+
+    With the maintenance-mode fix, trace(A_inv) should be bounded.
     """
     print("=" * 70)
     print("JIT REGULARIZATION TEST: Low-Traffic Regime")
@@ -34,13 +34,11 @@ def test_jit_regularization_low_traffic():
         dim=24,
         alpha=0.1,
         init_lambda=1.0,
-        update_lambda=0.0,  # No runtime regularization (fast path)
         forgetting_factor=0.95  # Decay enabled
     )
     
     print(f"\nConfiguration:")
     print(f"  init_lambda: {bandit.init_lambda}")
-    print(f"  update_lambda: {bandit.update_lambda}")
     print(f"  gamma (decay): {bandit.gamma}")
     print(f"  dim: {bandit.dim}")
     print(f"  threshold: {100 * bandit.dim}")
@@ -96,7 +94,6 @@ def test_jit_regularization_mechanism():
         dim=10,
         alpha=0.1,
         init_lambda=1.0,
-        update_lambda=0.0,
         forgetting_factor=0.5  # Aggressive decay
     )
     
