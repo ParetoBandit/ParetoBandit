@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-BanditGPT vs RouteLLM: Train-then-Freeze Evaluation.
+BanditGPT: Train-then-Freeze Evaluation.
 
-Compares the library's BanditRouter against RouteLLM and standard baselines
-using canonical dev/holdout datasets with ground-truth multi-judge rewards.
+Compares BanditRouter against supervised static baselines (KNN, SVM, MLP),
+standard online baselines (UCB1, random, best-static), and ablations
+(coldstart, tabula rasa) using canonical dev/holdout datasets with
+ground-truth multi-judge rewards.
 
 Protocol
 --------
@@ -15,44 +17,32 @@ Protocol
 
 2. **Train-then-freeze evaluation.**
    BanditGPT trains on the dev set with oracle rewards, then is frozen
-   for evaluation on the holdout set.  RouteLLM is static (pre-trained)
-   and evaluated on the same holdout.  This makes the comparison
-   interpretable: both routers are frozen during evaluation.
+   for evaluation on the holdout set.  Supervised baselines are trained
+   on the same dev data and frozen identically.
 
 3. **Symmetric data access.**
-   Both routers have access to the same dev set.  For any selection step
-   (e.g., RouteLLM threshold tau; BanditGPT cost-penalty lambda), we use a
-   dev-train/dev-val split: train/tune on dev-train, select on dev-val.
-   Neither method sees holdout data before evaluation.
+   All methods have access to the same dev set.  For any selection step
+   (e.g., BanditGPT cost-penalty lambda), we use a dev-train/dev-val
+   split: train/tune on dev-train, select on dev-val.  No method sees
+   holdout data before evaluation.
 
-4. **Isocost comparison (K=2 only).**
-   BanditGPT and RouteLLM use fundamentally different internal cost
-   normalisations: BanditGPT uses log-scaled normalised costs in [0,1]
-   while RouteLLM's threshold tuning uses raw dollar costs.  Matching
-   lambda values across architectures is therefore invalid.  Instead,
-   we compare at matched deployment budgets (isocost): for each target
-   cost level, we find the operating point on each method's Pareto
-   frontier that is closest, and compare holdout rewards.
-
-5. **Dev-selected deployable Pareto frontier (primary metric).**
-   The dev set is split into train (80%) and val (20%).  Both BanditGPT
-   and RouteLLM train/tune on dev-train; dev metrics for frontier
-   selection come from dev-val (eliminating train-set evaluation
-   asymmetry).  The Pareto hull is built from (dev_val_cost,
-   dev_val_reward); for those dev-optimal settings, holdout cost and
-   holdout reward are extracted — no holdout or training data enters
-   the hyperparameter selection step.  The area under this deployable
-   frontier is the primary Pareto AUC metric.  The oracle upper-bound
-   envelope (holdout-selected) is retained as a shaded background.
+4. **Dev-selected deployable Pareto frontier (primary metric).**
+   The dev set is split into train (80%) and val (20%).  BanditGPT and
+   ablations train on dev-train; dev metrics for frontier selection come
+   from dev-val (eliminating train-set evaluation asymmetry).  The
+   Pareto hull is built from (dev_val_cost, dev_val_reward); for those
+   dev-optimal settings, holdout cost and holdout reward are
+   extracted — no holdout or training data enters the hyperparameter
+   selection step.  The area under this deployable frontier is the
+   primary Pareto AUC metric.
 
    After selection, we optionally run a second pass that retrains the
    chosen router(s) on the **full dev set** and re-evaluates on holdout,
    keeping the dev-val selection fixed. This reduces estimator variance
    while maintaining a leakage-free selection protocol.
 
-6. **K=10 Pareto frontier.**
-   RouteLLM does not natively support K > 2.  The K=10 evaluation uses
-   standard baselines: oracle, best-static, random,
+5. **K=10 Pareto frontier.**
+   The K=10 evaluation uses baselines: oracle, best-static, random,
    best-static-plus-noise, UCB1 (non-contextual), supervised static
    routers (KNN, SVM, MLP — trained on the same features and objective
    as BanditGPT; ref: LLMRouter, UIUC 2025), and tabula-rasa
@@ -272,9 +262,6 @@ TARGET_NEFF: float = 5000.0
 ALPHA_START: float = 1.0
 CORRALLING_LR: float = 0.1
 CORRALLING_GAMMA: float = 0.05
-
-ROUTELLM_THRESHOLDS: List[float] = np.linspace(0.0, 1.0, 101).tolist()
-ROUTELLM_COST_PENALTY: float = 0.05
 
 DEV_VAL_FRACTION: float = 0.2
 DEV_VAL_SEED: int = 7
@@ -614,166 +601,6 @@ def ucb1_online_route(
         "n_trials": n_trials,
         "greedy_arm": models[greedy_arm],
     }
-
-
-# ============================================================================
-# RouteLLM evaluation (K=2 only)
-# ============================================================================
-
-
-def precompute_mf_scores(
-    controller,
-    data: List[Dict],
-) -> List[float]:
-    """Pre-compute MF router win-rate scores for all prompts.
-
-    Each call to the MF router's ``calculate_strong_win_rate`` triggers an
-    OpenAI embedding API call (``text-embedding-3-small``).  By computing
-    scores once per prompt and caching them, we avoid redundant API calls
-    when sweeping multiple thresholds (14x reduction).
-
-    Args:
-        controller: A ``routellm.controller.Controller`` with an ``"mf"``
-            router loaded.
-        data: List of ``{prompt, rewards}`` dicts.
-
-    Returns:
-        List of MF win-rate scores aligned with *data*, where each score
-        is a float in [0, 1] representing P(strong model wins).
-    """
-    mf_router = controller.routers["mf"]
-    scores: List[float] = []
-    for i, p in enumerate(data):
-        score = mf_router.calculate_strong_win_rate(p["prompt"])
-        scores.append(float(score))
-        if (i + 1) % 100 == 0:
-            logger.info(f"      scored {i + 1}/{len(data)} prompts")
-    logger.info(f"      scored {len(data)}/{len(data)} prompts (done)")
-    return scores
-
-
-def routellm_evaluate(
-    scores: List[float],
-    eval_data: List[Dict],
-    costs: Dict[str, float],
-    models: List[str],
-    threshold: float,
-) -> Dict[str, Any]:
-    """Evaluate RouteLLM on a dataset using pre-computed MF scores.
-
-    Routes each prompt to either the strong or weak model by comparing the
-    cached MF score against *threshold*.  Rewards are looked up from
-    pre-computed oracle rewards (no LLM inference).
-
-    Args:
-        scores: Pre-computed MF win-rate scores (one per prompt, aligned
-            with *eval_data*).
-        eval_data: List of ``{prompt, rewards}`` dicts.
-        costs: Per-model cost dict.
-        models: Ordered list of model IDs (weak first, strong second).
-        threshold: MF router threshold — route to strong if score >= threshold.
-
-    Returns:
-        Dict with ``avg_reward``, ``avg_cost``, ``model_fractions``,
-        and ``per_prompt_rewards`` (for paired holdout tests).
-    """
-    weak, strong = models[0], models[1]
-    rewards_list: List[float] = []
-    costs_list: List[float] = []
-    model_counts: Dict[str, int] = {m: 0 for m in models}
-
-    for score, p in zip(scores, eval_data):
-        m = strong if score >= threshold else weak
-        rewards_list.append(p["rewards"][m])
-        costs_list.append(costs[m])
-        model_counts[m] += 1
-
-    n = len(eval_data)
-    fractions = {m: cnt / n for m, cnt in model_counts.items()}
-
-    return {
-        "avg_reward": float(np.mean(rewards_list)),
-        "avg_cost": float(np.mean(costs_list)),
-        "model_fractions": fractions,
-        "per_prompt_rewards": rewards_list,
-        "per_prompt_costs": costs_list,
-    }
-
-
-def tune_routellm_threshold(
-    scores: List[float],
-    dev_data: List[Dict],
-    costs: Dict[str, float],
-    models: List[str],
-    thresholds: List[float],
-    cost_penalty: float,
-    *,
-    val_scores: Optional[List[float]] = None,
-    val_data: Optional[List[Dict]] = None,
-) -> Tuple[float, Dict[str, Dict], Dict[str, Dict]]:
-    """Select RouteLLM threshold on dev set using aligned cost-quality objective.
-
-    Both RouteLLM and BanditGPT have access to the same dev set for
-    calibration (symmetric data access).  The threshold is selected by
-    maximising ``reward - cost_penalty * cost``, the same objective that
-    BanditGPT's cost penalty lambda controls.
-
-    If *val_scores* and *val_data* are provided, each threshold is also
-    evaluated on the held-out val split to produce unbiased dev metrics
-    for the dev-selected Pareto frontier (symmetric with BanditGPT's
-    train/val split).
-
-    Args:
-        scores: Pre-computed MF win-rate scores for the train split.
-        dev_data: Train split of the dev dataset.
-        costs: Per-model costs.
-        models: Model IDs.
-        thresholds: Candidate thresholds to sweep.
-        cost_penalty: Lambda for the cost-penalised objective.
-        val_scores: MF scores for the val split (optional).
-        val_data: Val split prompts (optional).
-
-    Returns:
-        (best_threshold, train_sweep, val_sweep) where each sweep maps
-        threshold -> {avg_reward, avg_cost, ...}.  *val_sweep* is empty
-        if val data is not provided.
-    """
-    train_sweep: Dict[str, Dict] = {}
-    val_sweep: Dict[str, Dict] = {}
-    best_tau = 0.0
-    best_obj = -np.inf
-    selecting_on_val = val_scores is not None and val_data is not None
-
-    for tau in thresholds:
-        result = routellm_evaluate(scores, dev_data, costs, models, tau)
-        obj = result["avg_reward"] - cost_penalty * result["avg_cost"]
-        train_sweep[str(tau)] = {
-            "avg_reward": result["avg_reward"],
-            "avg_cost": result["avg_cost"],
-            "objective": obj,
-        }
-        if selecting_on_val:
-            vr = routellm_evaluate(val_scores, val_data, costs, models, tau)
-            val_sweep[str(tau)] = {
-                "avg_reward": vr["avg_reward"],
-                "avg_cost": vr["avg_cost"],
-            }
-        sel_obj = (
-            (val_sweep[str(tau)]["avg_reward"] - cost_penalty * val_sweep[str(tau)]["avg_cost"])
-            if selecting_on_val
-            else obj
-        )
-        if sel_obj > best_obj:
-            best_obj = sel_obj
-            best_tau = tau
-        logger.info(
-            f"  tau={tau:.2f}  reward={result['avg_reward']:.4f}  "
-            f"cost=${result['avg_cost']:.6f}  obj={obj:.4f}"
-        )
-
-    source = "val" if selecting_on_val else "train"
-    logger.info(f"  -> selected tau={best_tau} ({source} obj={best_obj:.4f})")
-    return best_tau, train_sweep, val_sweep
 
 
 # ============================================================================
@@ -1191,8 +1018,7 @@ def run_coldstart_sweep(
 
     Creates the router with warmup priors and evaluates immediately on the
     holdout set without any ``train_bandit()`` call.  This isolates the
-    value of offline priors from online adaptation, providing a fair
-    zero-shot vs. zero-shot comparison with RouteLLM.
+    value of offline priors from online adaptation.
 
     If *dev_data* and *dev_emb* are provided, the cold-start router is
     also evaluated on the dev set to produce ``dev_mean_cost`` and
@@ -1485,8 +1311,8 @@ def dev_selected_pareto_auc(
        and compute AUC.
 
     Args:
-        sweep_results: List of dicts from ``run_pareto_sweep`` or
-            RouteLLM sweep, each with dev and holdout metrics.
+        sweep_results: List of dicts from ``run_pareto_sweep``,
+            each with dev and holdout metrics.
         cost_lo: Lower bound of the shared cost range for AUC.
         cost_hi: Upper bound of the shared cost range for AUC.
         dev_cost_key: Dict key for dev-set cost.
@@ -1622,345 +1448,6 @@ def _extract_dev_optimal_per_prompt(
     return pp_r_arrays, pp_c_arrays
 
 
-def holm_bonferroni(
-    p_values: List[float],
-    alpha: float = 0.05,
-) -> List[Dict[str, Any]]:
-    """Holm-Bonferroni step-down correction for multiple comparisons.
-
-    Args:
-        p_values: Raw p-values from multiple tests.
-        alpha: Family-wise error rate.
-
-    Returns:
-        List of dicts with ``raw_p``, ``adjusted_p``, and ``reject``
-        in the original order.
-    """
-    m = len(p_values)
-    indexed = sorted(enumerate(p_values), key=lambda x: x[1])
-    adjusted = [0.0] * m
-    max_adj = 0.0
-    for rank, (orig_idx, raw_p) in enumerate(indexed):
-        adj_p = min(raw_p * (m - rank), 1.0)
-        adj_p = max(adj_p, max_adj)
-        max_adj = adj_p
-        adjusted[orig_idx] = adj_p
-    return [
-        {"raw_p": p_values[i], "adjusted_p": adjusted[i],
-         "reject": adjusted[i] < alpha}
-        for i in range(m)
-    ]
-
-
-def isocost_comparison(
-    bandit_pareto: List[Dict],
-    routellm_pareto: List[Dict],
-    target_costs: List[float],
-    n_seeds: int,
-) -> List[Dict]:
-    """Post-hoc isocost point comparisons at matched cost levels.
-
-    These are **post-hoc descriptive tests** — the dev-selected Pareto
-    AUC is the sole primary hypothesis test (tested via bootstrap CI).
-    Point comparisons at individual budget levels are exploratory and
-    subject to Holm-Bonferroni multiple-testing correction.
-
-    Per-seed paired t-tests (df = n_holdout - 1): each of the N_SEEDS
-    frozen models is independently tested against the baseline.  We
-    report the median p-value across seeds and the fraction achieving
-    significance after Holm-Bonferroni correction.
-
-    Seed-averaged paired t-test (df = n_holdout - 1): tests the
-    N_SEEDS-model ensemble.  Averaging suppresses algorithmic variance.
-
-    Stability test: one-sample t-test across per-seed mean rewards
-    (df = n_seeds - 1), measuring algorithmic stability.
-
-    Args:
-        bandit_pareto: Output of run_pareto_sweep (includes
-            per_seed_per_prompt_rewards).
-        routellm_pareto: RouteLLM holdout sweep results (includes
-            per_prompt_rewards).
-        target_costs: Budget levels to compare at.
-        n_seeds: Number of seeds used.
-
-    Returns:
-        List of dicts, one per target cost.  Ensemble p-values include
-        Holm-Bonferroni adjusted values across the K budget levels.
-    """
-    t_crit_seeds = float(scipy_stats.t.ppf(0.975, df=n_seeds - 1))
-    raw_results: List[Dict] = []
-    raw_ensemble_pvals: List[float] = []
-
-    for c_target in target_costs:
-        bp = find_closest_pareto_point(bandit_pareto, c_target, "mean_cost")
-        rp = find_closest_pareto_point(routellm_pareto, c_target, "avg_cost")
-
-        bg_seeds = np.array(bp["per_seed_rewards"])
-        bg_mean = float(bg_seeds.mean())
-        bg_std = float(bg_seeds.std(ddof=1))
-        bg_hw = t_crit_seeds * bg_std / np.sqrt(n_seeds)
-        rl_reward = rp["avg_reward"]
-
-        rl_per_prompt = np.array(rp["per_prompt_rewards"])
-        bg_per_seed_per_prompt = bp.get("per_seed_per_prompt_rewards")
-
-        holdout_n = len(rl_per_prompt)
-        if bg_per_seed_per_prompt is not None:
-            seed_pvals: List[float] = []
-            seed_tstats: List[float] = []
-            for seed_rewards in bg_per_seed_per_prompt:
-                t_res = scipy_stats.ttest_rel(
-                    np.array(seed_rewards), rl_per_prompt,
-                )
-                seed_pvals.append(float(t_res.pvalue))
-                seed_tstats.append(float(t_res.statistic))
-            median_seed_p = float(np.median(seed_pvals))
-            pct_sig = float(np.mean([p < 0.05 for p in seed_pvals])) * 100
-
-            bg_avg_per_prompt = np.mean(bg_per_seed_per_prompt, axis=0)
-            ensemble_t = scipy_stats.ttest_rel(
-                bg_avg_per_prompt, rl_per_prompt,
-            )
-            ensemble_p = float(ensemble_t.pvalue)
-            ensemble_tstat = float(ensemble_t.statistic)
-        else:
-            seed_pvals = []
-            seed_tstats = []
-            median_seed_p = float("nan")
-            pct_sig = float("nan")
-            ensemble_p = float("nan")
-            ensemble_tstat = float("nan")
-
-        seeds_t = scipy_stats.ttest_1samp(bg_seeds, popmean=rl_reward)
-        raw_ensemble_pvals.append(ensemble_p)
-
-        raw_results.append({
-            "target_cost": c_target,
-            "banditgpt": {
-                "lambda": bp["lambda"],
-                "mean_reward": bg_mean,
-                "std_reward": bg_std,
-                "ci_lower": bg_mean - bg_hw,
-                "ci_upper": bg_mean + bg_hw,
-                "mean_cost": bp["mean_cost"],
-            },
-            "routellm": {
-                "threshold": rp["threshold"],
-                "reward": rl_reward,
-                "cost": rp["avg_cost"],
-            },
-            "delta_reward": bg_mean - rl_reward,
-            "per_seed_test": {
-                "name": "per_seed_paired_t",
-                "holdout_n": holdout_n,
-                "df": holdout_n - 1,
-                "n_seeds": n_seeds,
-                "median_p_value": median_seed_p,
-                "pct_seeds_significant": pct_sig,
-                "per_seed_p_values": seed_pvals,
-                "per_seed_t_stats": seed_tstats,
-            },
-            "ensemble_test": {
-                "name": "seed_averaged_paired_t",
-                "holdout_n": holdout_n,
-                "df": holdout_n - 1,
-                "t_stat": ensemble_tstat,
-                "p_value_raw": ensemble_p,
-            },
-            "stability_test": {
-                "name": "one_sample_t_across_seeds",
-                "df": n_seeds - 1,
-                "t_stat": float(seeds_t.statistic),
-                "p_value": float(seeds_t.pvalue),
-            },
-        })
-
-    # Holm-Bonferroni correction across the K budget-level comparisons
-    hb = holm_bonferroni(raw_ensemble_pvals)
-    n_budgets = len(target_costs)
-    for i, comp in enumerate(raw_results):
-        comp["ensemble_test"]["p_value_adjusted"] = hb[i]["adjusted_p"]
-        comp["ensemble_test"]["reject_holm"] = hb[i]["reject"]
-        comp["post_hoc_note"] = (
-            f"Post-hoc descriptive comparison (1 of {n_budgets}); "
-            f"Holm-Bonferroni adjusted.  The dev-selected Pareto AUC "
-            f"bootstrap CI is the sole primary hypothesis test."
-        )
-
-    return raw_results
-
-
-def _find_closest_hull_point(
-    sweep: List[Dict],
-    hull_costs: List[float],
-    target_cost: float,
-    cost_key: str,
-) -> Optional[Dict]:
-    """Find the sweep point whose cost is closest among hull points only.
-
-    Restricts the search to sweep entries whose cost appears in the
-    Pareto hull, avoiding off-hull points that would produce misleading
-    per-prompt arrays.
-
-    Returns:
-        The closest-on-hull sweep dict, or None if the hull is empty.
-    """
-    if not hull_costs:
-        return None
-    hull_set = set(hull_costs)
-    candidates = [p for p in sweep if p[cost_key] in hull_set]
-    if not candidates:
-        candidates = sweep
-    return min(candidates, key=lambda p: abs(p[cost_key] - target_cost))
-
-
-def isocost_comparison_interpolated(
-    bandit_pareto: List[Dict],
-    routellm_pareto: List[Dict],
-    target_costs: List[float],
-    n_seeds: int,
-) -> List[Dict]:
-    """Interpolated isocost comparison on Pareto hulls.
-
-    Builds the monotone Pareto hull for each method, then interpolates
-    reward at exact target costs.  This eliminates sensitivity to sweep
-    density: a method with 24 operating points and one with 101 are
-    compared on an equal footing.
-
-    For the paired t-test, per-prompt arrays come from the closest
-    *on-hull* sweep point (interpolation gives the reward delta; the
-    nearest hull point provides the statistical test).
-
-    Args:
-        bandit_pareto: Dev-optimal BanditGPT sweep results.
-        routellm_pareto: Dev-optimal RouteLLM sweep results.
-        target_costs: Budget levels to compare at.
-        n_seeds: Number of BanditGPT seeds.
-
-    Returns:
-        List of dicts, one per target cost, with interpolated rewards,
-        reward delta, hull coverage flags, and paired t-test results
-        (Holm-Bonferroni corrected across budget levels).
-    """
-    t_crit_seeds = float(scipy_stats.t.ppf(0.975, df=n_seeds - 1))
-
-    bg_costs = [p["mean_cost"] for p in bandit_pareto]
-    bg_rewards = [p["mean_reward"] for p in bandit_pareto]
-    bg_hull_c, bg_hull_r = _pareto_hull(bg_costs, bg_rewards)
-
-    rl_costs = [p["avg_cost"] for p in routellm_pareto]
-    rl_rewards = [p["avg_reward"] for p in routellm_pareto]
-    rl_hull_c, rl_hull_r = _pareto_hull(rl_costs, rl_rewards)
-
-    raw_results: List[Dict] = []
-    raw_ensemble_pvals: List[float] = []
-
-    for c_target in target_costs:
-        bg_interp = interpolate_pareto_reward(bg_hull_c, bg_hull_r, c_target)
-        rl_interp = interpolate_pareto_reward(rl_hull_c, rl_hull_r, c_target)
-
-        both_covered = bg_interp is not None and rl_interp is not None
-        delta_interp = (
-            (bg_interp - rl_interp) if both_covered else float("nan")
-        )
-
-        # Paired t-test from closest on-hull sweep point
-        bp = _find_closest_hull_point(
-            bandit_pareto, bg_hull_c, c_target, "mean_cost",
-        )
-        rp = _find_closest_hull_point(
-            routellm_pareto, rl_hull_c, c_target, "avg_cost",
-        )
-
-        ensemble_p = float("nan")
-        ensemble_tstat = float("nan")
-        median_seed_p = float("nan")
-        pct_sig = float("nan")
-        seed_pvals: List[float] = []
-        bg_mean = float("nan")
-        bg_std = 0.0
-
-        if bp is not None and rp is not None:
-            rl_per_prompt = np.array(rp["per_prompt_rewards"])
-            bg_per_seed_pp = bp.get("per_seed_per_prompt_rewards")
-            holdout_n = len(rl_per_prompt)
-
-            bg_seeds = np.array(bp["per_seed_rewards"])
-            bg_mean = float(bg_seeds.mean())
-            bg_std = float(bg_seeds.std(ddof=1))
-
-            if bg_per_seed_pp is not None:
-                for seed_rewards in bg_per_seed_pp:
-                    t_res = scipy_stats.ttest_rel(
-                        np.array(seed_rewards), rl_per_prompt,
-                    )
-                    seed_pvals.append(float(t_res.pvalue))
-                median_seed_p = float(np.median(seed_pvals))
-                pct_sig = float(np.mean([p < 0.05 for p in seed_pvals])) * 100
-
-                bg_avg_pp = np.mean(bg_per_seed_pp, axis=0)
-                ens_t = scipy_stats.ttest_rel(bg_avg_pp, rl_per_prompt)
-                ensemble_p = float(ens_t.pvalue)
-                ensemble_tstat = float(ens_t.statistic)
-
-        raw_ensemble_pvals.append(ensemble_p)
-
-        bg_hw = t_crit_seeds * bg_std / np.sqrt(n_seeds) if bg_std > 0 else 0.0
-        raw_results.append({
-            "target_cost": c_target,
-            "interpolated": {
-                "banditgpt_reward": bg_interp,
-                "routellm_reward": rl_interp,
-                "delta_reward": delta_interp,
-                "both_covered": both_covered,
-            },
-            "nearest_hull_point": {
-                "banditgpt": {
-                    "lambda": bp["lambda"] if bp else None,
-                    "mean_reward": bg_mean,
-                    "std_reward": bg_std,
-                    "ci_lower": bg_mean - bg_hw,
-                    "ci_upper": bg_mean + bg_hw,
-                    "mean_cost": bp["mean_cost"] if bp else None,
-                },
-                "routellm": {
-                    "threshold": rp["threshold"] if rp else None,
-                    "reward": rp["avg_reward"] if rp else None,
-                    "cost": rp["avg_cost"] if rp else None,
-                },
-            },
-            "ensemble_test": {
-                "name": "seed_averaged_paired_t (nearest hull point)",
-                "t_stat": ensemble_tstat,
-                "p_value_raw": ensemble_p,
-            },
-            "per_seed_test": {
-                "name": "per_seed_paired_t (nearest hull point)",
-                "n_seeds": n_seeds,
-                "median_p_value": median_seed_p,
-                "pct_seeds_significant": pct_sig,
-            },
-        })
-
-    # Holm-Bonferroni correction
-    valid_pvals = [
-        p if not np.isnan(p) else 1.0 for p in raw_ensemble_pvals
-    ]
-    hb = holm_bonferroni(valid_pvals)
-    n_budgets = len(target_costs)
-    for i, comp in enumerate(raw_results):
-        comp["ensemble_test"]["p_value_adjusted"] = hb[i]["adjusted_p"]
-        comp["ensemble_test"]["reject_holm"] = hb[i]["reject"]
-        comp["post_hoc_note"] = (
-            f"Interpolated isocost (1 of {n_budgets}); "
-            f"Holm-Bonferroni adjusted.  Reward delta from Pareto hull "
-            f"interpolation; t-test from nearest on-hull sweep point."
-        )
-
-    return raw_results
-
-
 # ============================================================================
 # Statistical helpers
 # ============================================================================
@@ -2089,12 +1576,11 @@ def run_experiment() -> None:  # noqa: C901
             "dev_val_fraction": DEV_VAL_FRACTION,
             "dev_val_seed": DEV_VAL_SEED,
             "fairness_design": (
-                "Symmetric data access: both BanditGPT and RouteLLM train/tune "
+                "Symmetric data access: all methods train/tune "
                 "on the same dev-train split.  Dev metrics for Pareto frontier "
                 "selection come from a held-out dev-val split "
                 f"({DEV_VAL_FRACTION:.0%} of dev), eliminating train-set "
                 "evaluation asymmetry between online and static methods. "
-                f"Symmetric objective: lambda={ROUTELLM_COST_PENALTY}. "
                 "After selection, we retrain BanditGPT on full dev and "
                 "re-evaluate on holdout (dev-val selection fixed). "
                 "No holdout data enters hyperparameter selection."
@@ -2167,11 +1653,11 @@ def run_experiment() -> None:  # noqa: C901
         )
 
     # ==================================================================
-    # K=2 — BanditGPT vs RouteLLM (fair symmetric comparison)
+    # K=2 — BanditGPT vs supervised baselines & ablations
     # ==================================================================
     logger.info("\n" + "=" * 70)
-    logger.info("K=2: BanditGPT vs RouteLLM")
-    logger.info("  Mixtral-8x7B  vs  GPT-4-Turbo")
+    logger.info("K=2: BanditGPT vs Supervised Baselines")
+    logger.info(f"  {K2_CATALOG[K2_MODELS[0]]['display']}  vs  {K2_CATALOG[K2_MODELS[1]]['display']}")
     logger.info("=" * 70)
 
     costs_k2 = {m: K2_CATALOG[m]["cost"] for m in K2_MODELS}
@@ -2194,8 +1680,8 @@ def run_experiment() -> None:  # noqa: C901
     dim = dev_emb_k2[0].shape[0]
     logger.info(f"    Feature dim: {dim}")
 
-    # --- Dev train/val split (symmetric for both BanditGPT & RouteLLM) --
-    # BanditGPT trains on dev_train, RouteLLM tunes tau on dev_train.
+    # --- Dev train/val split -----------------------------------------------
+    # BanditGPT and supervised baselines both train on dev_train.
     # Dev metrics for Pareto frontier selection come from dev_val (unseen).
     logger.info("\n  Splitting dev into train/val "
                 f"({1 - DEV_VAL_FRACTION:.0%}/{DEV_VAL_FRACTION:.0%}) ...")
@@ -2204,63 +1690,7 @@ def run_experiment() -> None:  # noqa: C901
     )
     logger.info(f"    Dev-train: {len(dev_train_k2)}  Dev-val: {len(dev_val_k2)}")
 
-    # --- Phase 0b: Pre-compute RouteLLM MF scores ----------------------
-    logger.info("\n  Phase 0b: Pre-computing RouteLLM MF scores ...")
-    from routellm.controller import Controller
-
-    controller = Controller(
-        routers=["mf"],
-        strong_model=K2_MODELS[1],  # GPT-4.1
-        weak_model=K2_MODELS[0],    # Llama-3.1-8B
-    )
-
-    logger.info("    Scoring dev-train prompts ...")
-    dev_train_mf_scores = precompute_mf_scores(controller, dev_train_k2)
-    logger.info("    Scoring dev-val prompts ...")
-    dev_val_mf_scores = precompute_mf_scores(controller, dev_val_k2)
-    logger.info("    Scoring holdout prompts ...")
-    holdout_mf_scores = precompute_mf_scores(controller, holdout_data_k2)
-
-    # --- Phase 1: Tune RouteLLM threshold on dev-train split -----------
-    # Symmetric data access: RouteLLM tunes on dev-train (same split
-    # BanditGPT trains on).  Val metrics from dev-val.
-    logger.info("\n  Phase 1: RouteLLM threshold tuning on dev-train ...")
-    best_tau, dev_train_sweep, dev_val_sweep = tune_routellm_threshold(
-        dev_train_mf_scores, dev_train_k2, costs_k2, K2_MODELS,
-        ROUTELLM_THRESHOLDS, ROUTELLM_COST_PENALTY,
-        val_scores=dev_val_mf_scores, val_data=dev_val_k2,
-    )
-
-    # --- Phase 2: Evaluate RouteLLM on holdout (frozen) ----------------
-    logger.info("\n  Phase 2: RouteLLM holdout evaluation ...")
-    routellm_holdout = routellm_evaluate(
-        holdout_mf_scores, holdout_data_k2, costs_k2, K2_MODELS, best_tau,
-    )
-    logger.info(
-        f"    RouteLLM(tau={best_tau}): reward={routellm_holdout['avg_reward']:.4f}"
-        f"  cost=${routellm_holdout['avg_cost']:.6f}"
-    )
-
-    # Full RouteLLM threshold sweep on holdout (for Pareto frontier).
-    # Dev metrics come from the val split (unseen during tuning).
-    routellm_pareto: List[Dict] = []
-    for tau in ROUTELLM_THRESHOLDS:
-        h = routellm_evaluate(
-            holdout_mf_scores, holdout_data_k2, costs_k2, K2_MODELS, tau,
-        )
-        val_entry = dev_val_sweep.get(str(tau), {})
-        routellm_pareto.append({
-            "threshold": tau,
-            "avg_reward": h["avg_reward"],
-            "avg_cost": h["avg_cost"],
-            "dev_mean_cost": val_entry.get("avg_cost", h["avg_cost"]),
-            "dev_mean_reward": val_entry.get("avg_reward", h["avg_reward"]),
-            "model_fractions": h["model_fractions"],
-            "per_prompt_rewards": h["per_prompt_rewards"],
-            "per_prompt_costs": h["per_prompt_costs"],
-        })
-
-    # --- Phase 2b: Supervised static baselines (LLMRouter-style) --------
+    # --- Supervised static baselines (LLMRouter-style) ------------------
     # Same features (bge-m3 PCA), same objective (argmax reward), same data.
     # Isolates BanditGPT's online adaptation advantage over supervised routing.
     logger.info("\n  Phase 2b: Supervised static baselines (KNN/SVM/MLP) ...")
@@ -2385,8 +1815,7 @@ def run_experiment() -> None:  # noqa: C901
 
     # --- Phase 4: K=2 learning curve -----------------------------------
     # Train on dev-train (same split as Pareto sweep) so the learning
-    # curve and Pareto frontier use symmetric data, and the crossover
-    # annotation against RouteLLM is a fair comparison.
+    # curve and Pareto frontier use symmetric data.
     max_step = len(dev_train_k2)
     lc_checkpoints = [s for s in LEARNING_CURVE_CHECKPOINTS_K2 if s <= max_step]
     if max_step not in lc_checkpoints:
@@ -2405,24 +1834,12 @@ def run_experiment() -> None:  # noqa: C901
     # --- Phase 5: K=2 baselines ----------------------------------------
     logger.info("\n  Phase 5: K=2 baselines ...")
 
-    # Compute oracle under the same cost-penalised objective used by
-    # both RouteLLM and BanditGPT, so gap closure is measured consistently.
     oracle_r_k2, oracle_c_k2 = oracle_route(
-        holdout_data_k2, K2_MODELS, costs_k2,
-        cost_penalty=ROUTELLM_COST_PENALTY,
-    )
-    logger.info(
-        f"    Oracle (lambda={ROUTELLM_COST_PENALTY}): "
-        f"R={oracle_r_k2:.4f}  C=${oracle_c_k2:.6f}"
-    )
-
-    # Pure-quality oracle for reference (no cost penalty)
-    oracle_r_k2_pure, oracle_c_k2_pure = oracle_route(
         holdout_data_k2, K2_MODELS, costs_k2, cost_penalty=0.0,
     )
+    oracle_r_k2_pure, oracle_c_k2_pure = oracle_r_k2, oracle_c_k2
     logger.info(
-        f"    Oracle (pure quality): "
-        f"R={oracle_r_k2_pure:.4f}  C=${oracle_c_k2_pure:.6f}"
+        f"    Oracle (pure quality): R={oracle_r_k2:.4f}  C=${oracle_c_k2:.6f}"
     )
 
     static_k2 = {}
@@ -2447,65 +1864,68 @@ def run_experiment() -> None:  # noqa: C901
         f"(greedy arm: {K2_CATALOG[ucb1_k2['greedy_arm']]['display']})"
     )
 
-    # --- Phase 6: Dev-selected Pareto AUC & isocost comparison ----------
-    # Lambda=X means different things for BanditGPT (normalized costs in
-    # [0,1]) vs RouteLLM (raw dollar costs).  An isocost comparison fixes
-    # the deployment budget and asks: "which router achieves higher quality
-    # at the SAME cost?"  This is the only architecturally fair point test.
-    #
+    # --- Phase 6: Dev-selected Pareto AUC & point comparisons -----------
     # PRIMARY metric: dev-selected Pareto AUC — hull built from
     # (dev_cost, dev_reward), then deployed points evaluated at
     # (holdout_cost, holdout_reward).  No holdout in selection step.
-    # REFERENCE: oracle envelope AUC (holdout-selected, not deployable).
-    logger.info("\n  Phase 6: Dev-selected Pareto AUC & isocost ...")
+    # Mirrors the K=10 structure: BanditGPT vs coldstart/tabula rasa.
+    # Supervised baselines (KNN/SVM/MLP) are single-point references.
+    logger.info("\n  Phase 6: Dev-selected Pareto AUC & point comparisons ...")
 
-    # Overlapping cost range (using dev costs for the deployable frontier)
+    # Overlapping cost range (BanditGPT vs coldstart)
     bg_dev_costs_k2 = [p["dev_mean_cost"] for p in bandit_pareto_k2]
-    rl_dev_costs_k2 = [p["dev_mean_cost"] for p in routellm_pareto]
-    cost_lo_k2 = max(min(bg_dev_costs_k2), min(rl_dev_costs_k2))
-    cost_hi_k2 = min(max(bg_dev_costs_k2), max(rl_dev_costs_k2))
+    cs_dev_costs_k2 = [p["dev_mean_cost"] for p in coldstart_pareto_k2]
+    tr_dev_costs_k2 = [p["dev_mean_cost"] for p in tabula_pareto_k2]
+    cost_lo_k2 = max(min(bg_dev_costs_k2), min(cs_dev_costs_k2), min(tr_dev_costs_k2))
+    cost_hi_k2 = min(max(bg_dev_costs_k2), max(cs_dev_costs_k2), max(tr_dev_costs_k2))
 
     # Dev-selected Pareto AUC (primary)
-    bg_ds_auc_k2, bg_ds_hull_c, bg_ds_hull_r, bg_dev_idx_k2 = (
-        dev_selected_pareto_auc(
-            bandit_pareto_k2, cost_lo_k2, cost_hi_k2,
-        )
+    bg_ds_auc_k2, _, _, bg_dev_idx_k2 = dev_selected_pareto_auc(
+        bandit_pareto_k2, cost_lo_k2, cost_hi_k2,
     )
-    rl_ds_auc_k2, rl_ds_hull_c, rl_ds_hull_r, rl_dev_idx_k2 = (
-        dev_selected_pareto_auc(
-            routellm_pareto, cost_lo_k2, cost_hi_k2,
-            holdout_cost_key="avg_cost", holdout_reward_key="avg_reward",
-        )
+    cs_ds_auc_k2, _, _, cs_dev_idx_k2 = dev_selected_pareto_auc(
+        coldstart_pareto_k2, cost_lo_k2, cost_hi_k2,
+    )
+    tr_ds_auc_k2, _, _, tr_dev_idx_k2 = dev_selected_pareto_auc(
+        tabula_pareto_k2, cost_lo_k2, cost_hi_k2,
     )
 
     # Oracle envelope AUC (reference — holdout-selected hyperparameters)
     bg_costs_k2 = [p["mean_cost"] for p in bandit_pareto_k2]
-    rl_costs_k2 = [p["avg_cost"] for p in routellm_pareto]
-    oracle_cost_lo = max(min(bg_costs_k2), min(rl_costs_k2))
-    oracle_cost_hi = min(max(bg_costs_k2), max(rl_costs_k2))
+    cs_costs_k2 = [p["mean_cost"] for p in coldstart_pareto_k2]
+    tr_costs_k2 = [p["mean_cost"] for p in tabula_pareto_k2]
+    oracle_cost_lo = max(min(bg_costs_k2), min(cs_costs_k2), min(tr_costs_k2))
+    oracle_cost_hi = min(max(bg_costs_k2), max(cs_costs_k2), max(tr_costs_k2))
     bg_oracle_auc_k2 = pareto_auc(
         bg_costs_k2,
         [p["mean_reward"] for p in bandit_pareto_k2],
         oracle_cost_lo, oracle_cost_hi,
     )
-    rl_oracle_auc_k2 = pareto_auc(
-        rl_costs_k2,
-        [p["avg_reward"] for p in routellm_pareto],
+    cs_oracle_auc_k2 = pareto_auc(
+        cs_costs_k2,
+        [p["mean_reward"] for p in coldstart_pareto_k2],
+        oracle_cost_lo, oracle_cost_hi,
+    )
+    tr_oracle_auc_k2 = pareto_auc(
+        tr_costs_k2,
+        [p["mean_reward"] for p in tabula_pareto_k2],
         oracle_cost_lo, oracle_cost_hi,
     )
 
     logger.info(
         f"    Dev-selected Pareto AUC (cost [{cost_lo_k2:.6f}, {cost_hi_k2:.6f}]):"
     )
-    logger.info(f"      BanditGPT: {bg_ds_auc_k2:.4f} ({len(bg_dev_idx_k2)} dev-optimal pts)")
-    logger.info(f"      RouteLLM:  {rl_ds_auc_k2:.4f} ({len(rl_dev_idx_k2)} dev-optimal pts)")
-    logger.info(f"      Advantage: {bg_ds_auc_k2 - rl_ds_auc_k2:+.4f}")
+    logger.info(f"      BanditGPT:  {bg_ds_auc_k2:.4f} ({len(bg_dev_idx_k2)} dev-optimal pts)")
+    logger.info(f"      Coldstart:  {cs_ds_auc_k2:.4f} ({len(cs_dev_idx_k2)} dev-optimal pts)")
+    logger.info(f"      Tabula rasa:{tr_ds_auc_k2:.4f} ({len(tr_dev_idx_k2)} dev-optimal pts)")
+    logger.info(f"      BG vs CS:   {bg_ds_auc_k2 - cs_ds_auc_k2:+.4f}")
+    logger.info(f"      BG vs TR:   {bg_ds_auc_k2 - tr_ds_auc_k2:+.4f}")
     logger.info(
-        f"    Oracle envelope AUC (ref): BanditGPT {bg_oracle_auc_k2:.4f} "
-        f"vs RouteLLM {rl_oracle_auc_k2:.4f}"
+        f"    Oracle envelope AUC (ref): BanditGPT={bg_oracle_auc_k2:.4f} "
+        f"Coldstart={cs_oracle_auc_k2:.4f} Tabula={tr_oracle_auc_k2:.4f}"
     )
 
-    # Paired bootstrap CI for dev-selected AUC difference
+    # Paired bootstrap CI for dev-selected AUC difference (BanditGPT vs coldstart)
     logger.info("    Computing bootstrap CI for Pareto AUC difference ...")
     bg_pp_r_by_lam: Dict[float, np.ndarray] = {}
     bg_pp_c_by_lam: Dict[float, np.ndarray] = {}
@@ -2517,122 +1937,84 @@ def run_experiment() -> None:  # noqa: C901
             bg_pp_c_by_lam[p["lambda"]] = np.array(
                 p["per_seed_per_prompt_costs"],
             )
-    rl_pp_r_by_tau: Dict[float, np.ndarray] = {}
-    rl_pp_c_by_tau: Dict[float, np.ndarray] = {}
-    for p in routellm_pareto:
-        rl_pp_r_by_tau[p["threshold"]] = np.array(p["per_prompt_rewards"])
-        rl_pp_c_by_tau[p["threshold"]] = np.array(p["per_prompt_costs"])
+    cs_pp_r_by_lam: Dict[float, np.ndarray] = {}
+    cs_pp_c_by_lam: Dict[float, np.ndarray] = {}
+    for p in coldstart_pareto_k2:
+        if p.get("per_seed_per_prompt_rewards") is not None:
+            cs_pp_r_by_lam[p["lambda"]] = np.array(
+                p["per_seed_per_prompt_rewards"],
+            )
+            cs_pp_c_by_lam[p["lambda"]] = np.array(
+                p["per_seed_per_prompt_costs"],
+            )
 
     bg_boot_pp_r, bg_boot_pp_c = _extract_dev_optimal_per_prompt(
         bandit_pareto_k2, bg_dev_idx_k2,
         bg_pp_r_by_lam, bg_pp_c_by_lam, "lambda",
     )
-    rl_boot_pp_r, rl_boot_pp_c = _extract_dev_optimal_per_prompt(
-        routellm_pareto, rl_dev_idx_k2,
-        rl_pp_r_by_tau, rl_pp_c_by_tau, "threshold",
+    cs_boot_pp_r, cs_boot_pp_c = _extract_dev_optimal_per_prompt(
+        coldstart_pareto_k2, cs_dev_idx_k2,
+        cs_pp_r_by_lam, cs_pp_c_by_lam, "lambda",
     )
     bootstrap_k2 = bootstrap_pareto_auc_difference(
         bg_boot_pp_r, bg_boot_pp_c,
-        rl_boot_pp_r, rl_boot_pp_c,
+        cs_boot_pp_r, cs_boot_pp_c,
         cost_lo=cost_lo_k2, cost_hi=cost_hi_k2,
         n_holdout=len(holdout_data_k2), n_bootstrap=1_000,
     )
     logger.info(
-        f"    Bootstrap AUC diff: {bootstrap_k2['observed_diff']:+.4f} "
+        f"    Bootstrap AUC diff (BG vs CS): {bootstrap_k2['observed_diff']:+.4f} "
         f"95% CI [{bootstrap_k2['ci_95_lower']:+.4f}, "
         f"{bootstrap_k2['ci_95_upper']:+.4f}] "
         f"p={bootstrap_k2['p_value']:.4g}"
     )
 
-    # Post-hoc isocost comparisons — restricted to dev-optimal points
+    # Point comparisons: BanditGPT dev-selected best vs supervised baselines
     bg_dev_optimal_k2 = [bandit_pareto_k2[i] for i in bg_dev_idx_k2]
-    rl_dev_optimal_k2 = [routellm_pareto[i] for i in rl_dev_idx_k2]
+    bg_best_dev_k2 = max(bg_dev_optimal_k2, key=lambda p: p["dev_mean_reward"])
 
-    isocost_targets_k2 = [
-        cost_lo_k2 + (cost_hi_k2 - cost_lo_k2) * frac
-        for frac in [0.10, 0.25, 0.50, 0.75]
-    ]
-    isocost_k2 = isocost_comparison(
-        bg_dev_optimal_k2, rl_dev_optimal_k2,
-        isocost_targets_k2, N_SEEDS,
-    )
-
-    logger.info("\n    Post-hoc isocost comparisons (Holm-Bonferroni corrected):")
-    for ic in isocost_k2:
-        pst = ic["per_seed_test"]
-        ens = ic["ensemble_test"]
-        sig_str = f"{pst['pct_seeds_significant']:.0f}% seeds sig"
-        holm_str = "**" if ens.get("reject_holm") else ""
+    supervised_point_tests_k2: Dict[str, Dict] = {}
+    logger.info("\n    Supervised baseline point comparisons:")
+    for kind, sv_result in supervised_k2.items():
+        bg_pp = np.array(bg_best_dev_k2["per_seed_per_prompt_rewards"])
+        bg_ensemble_pp = bg_pp.mean(axis=0)
+        sv_pp = np.array(sv_result["per_seed_per_prompt_rewards"])
+        sv_ensemble_pp = sv_pp.mean(axis=0)
+        t_res = scipy_stats.ttest_rel(bg_ensemble_pp, sv_ensemble_pp)
+        supervised_point_tests_k2[kind] = {
+            "banditgpt_reward": float(bg_ensemble_pp.mean()),
+            "supervised_reward": sv_result["reward"],
+            "delta": float(bg_ensemble_pp.mean()) - sv_result["reward"],
+            "t_stat": float(t_res.statistic),
+            "p_value": float(t_res.pvalue),
+            "df": len(bg_ensemble_pp) - 1,
+        }
+        sig = "**" if t_res.pvalue < 0.05 else ""
         logger.info(
-            f"      Budget ~${ic['target_cost']:.5f}: "
-            f"BanditGPT={ic['banditgpt']['mean_reward']:.4f} "
-            f"(lam={ic['banditgpt']['lambda']}, cost=${ic['banditgpt']['mean_cost']:.5f}) "
-            f"vs RouteLLM={ic['routellm']['reward']:.4f} "
-            f"(tau={ic['routellm']['threshold']:.3f}, cost=${ic['routellm']['cost']:.5f}) "
-            f"delta={ic['delta_reward']:+.4f}"
-        )
-        logger.info(
-            f"        Per-seed (df={pst['df']}): "
-            f"median p={pst['median_p_value']:.4g} ({sig_str})"
-        )
-        logger.info(
-            f"        Ensemble (Holm-adj): "
-            f"p_raw={ens['p_value_raw']:.4g} "
-            f"p_adj={ens['p_value_adjusted']:.4g}{holm_str}"
-        )
-
-    # Interpolated isocost (robust to sweep density differences)
-    isocost_interp_k2 = isocost_comparison_interpolated(
-        bg_dev_optimal_k2, rl_dev_optimal_k2,
-        isocost_targets_k2, N_SEEDS,
-    )
-
-    logger.info(
-        "\n    Interpolated isocost comparisons (Holm-Bonferroni corrected):"
-    )
-    for ic in isocost_interp_k2:
-        interp = ic["interpolated"]
-        ens = ic["ensemble_test"]
-        cov = "both covered" if interp["both_covered"] else "PARTIAL COVERAGE"
-        holm_str = "**" if ens.get("reject_holm") else ""
-        bg_r_str = f"{interp['banditgpt_reward']:.4f}" if interp["banditgpt_reward"] is not None else "N/A"
-        rl_r_str = f"{interp['routellm_reward']:.4f}" if interp["routellm_reward"] is not None else "N/A"
-        delta_str = f"{interp['delta_reward']:+.4f}" if interp["both_covered"] else "N/A"
-        logger.info(
-            f"      Budget ~${ic['target_cost']:.5f}: "
-            f"BanditGPT={bg_r_str} vs RouteLLM={rl_r_str} "
-            f"delta={delta_str} ({cov})"
-        )
-        pst = ic["per_seed_test"]
-        logger.info(
-            f"        Ensemble (Holm-adj): "
-            f"p_raw={ens['p_value_raw']:.4g} "
-            f"p_adj={ens['p_value_adjusted']:.4g}{holm_str} "
-            f"| per-seed median p={pst['median_p_value']:.4g}"
+            f"      {kind.upper():<4}: BG={float(bg_ensemble_pp.mean()):.4f} "
+            f"vs {kind.upper()}={sv_result['reward']:.4f} "
+            f"delta={float(bg_ensemble_pp.mean()) - sv_result['reward']:+.4f} "
+            f"p={t_res.pvalue:.4g}{sig}"
         )
 
     # Assemble K=2 summary
-    weak_r = min(static_k2[m]["reward"] for m in K2_MODELS)
+    best_sv_kind = max(supervised_k2, key=lambda k: supervised_k2[k]["reward"])
+    best_sv = supervised_k2[best_sv_kind]
 
     logger.info(f"\n  K=2 SUMMARY (dev-selected Pareto AUC primary):")
     logger.info(f"    Oracle (pure quality): {oracle_r_k2_pure:.4f}")
     logger.info(
-        f"    Dev-selected Pareto AUC: {bg_ds_auc_k2 - rl_ds_auc_k2:+.4f} "
-        f"(BanditGPT {bg_ds_auc_k2:.4f} vs RouteLLM {rl_ds_auc_k2:.4f})"
+        f"    Dev-selected Pareto AUC: BanditGPT={bg_ds_auc_k2:.4f} "
+        f"Coldstart={cs_ds_auc_k2:.4f} Tabula={tr_ds_auc_k2:.4f}"
     )
     logger.info(
-        f"    Bootstrap 95% CI: [{bootstrap_k2['ci_95_lower']:+.4f}, "
-        f"{bootstrap_k2['ci_95_upper']:+.4f}]"
+        f"    Bootstrap 95% CI (BG vs CS): [{bootstrap_k2['ci_95_lower']:+.4f}, "
+        f"{bootstrap_k2['ci_95_upper']:+.4f}] p={bootstrap_k2['p_value']:.4g}"
     )
-    for ic in isocost_k2:
-        pst = ic["per_seed_test"]
-        logger.info(
-            f"    @ ${ic['target_cost']:.5f}: "
-            f"BanditGPT {ic['banditgpt']['mean_reward']:.4f} vs "
-            f"RouteLLM {ic['routellm']['reward']:.4f} "
-            f"(median per-seed p={pst['median_p_value']:.4g}, "
-            f"{pst['pct_seeds_significant']:.0f}% sig)"
-        )
+    logger.info(
+        f"    Best supervised: {best_sv_kind.upper()} "
+        f"R={best_sv['reward']:.4f} +/-{best_sv['std_reward']:.4f}"
+    )
     logger.info(f"    Random:       {random_k2['reward']:.4f}")
     logger.info(f"    UCB1 (non-ctx): {ucb1_k2['reward']:.4f}")
 
@@ -2646,30 +2028,18 @@ def run_experiment() -> None:  # noqa: C901
         "random": random_k2,
         "ucb1": ucb1_k2,
         "supervised": supervised_k2,
-        "routellm": {
-            "best_tau": best_tau,
-            "dev_train_sweep": dev_train_sweep,
-            "dev_val_sweep": dev_val_sweep,
-            "holdout": routellm_holdout,
-            "pareto": routellm_pareto,
-            "note": (
-                "MF router pre-trained on Mixtral + GPT-4-Turbo preference data "
-                "(same model pair, temporal distribution shift). "
-                "Threshold tuned on dev-train split (101-point sweep). "
-                "Dev metrics from held-out dev-val split (symmetric with BanditGPT)."
-            ),
-        },
+        "supervised_point_tests": supervised_point_tests_k2,
         "banditgpt_pareto": bandit_pareto_k2,
         "coldstart_pareto": coldstart_pareto_k2,
         "tabula_rasa_pareto": tabula_pareto_k2,
         "learning_curve": learning_curve_k2,
-        "isocost_comparison": isocost_k2,
-        "isocost_comparison_interpolated": isocost_interp_k2,
         "pareto_auc_dev_selected": {
             "cost_range": [cost_lo_k2, cost_hi_k2],
             "banditgpt": bg_ds_auc_k2,
-            "routellm": rl_ds_auc_k2,
-            "advantage": bg_ds_auc_k2 - rl_ds_auc_k2,
+            "coldstart": cs_ds_auc_k2,
+            "tabula_rasa": tr_ds_auc_k2,
+            "advantage_vs_coldstart": bg_ds_auc_k2 - cs_ds_auc_k2,
+            "advantage_vs_tabula": bg_ds_auc_k2 - tr_ds_auc_k2,
             "bootstrap_ci": bootstrap_k2,
             "note": (
                 "Dev-selected Pareto AUC: hull built from (dev_cost, "
@@ -2682,8 +2052,8 @@ def run_experiment() -> None:  # noqa: C901
         "pareto_auc_oracle_envelope": {
             "cost_range": [oracle_cost_lo, oracle_cost_hi],
             "banditgpt": bg_oracle_auc_k2,
-            "routellm": rl_oracle_auc_k2,
-            "advantage": bg_oracle_auc_k2 - rl_oracle_auc_k2,
+            "coldstart": cs_oracle_auc_k2,
+            "tabula_rasa": tr_oracle_auc_k2,
             "note": (
                 "Oracle envelope AUC: holdout-selected hyperparameters.  "
                 "Upper bound — not deployable.  Retained for reference only."

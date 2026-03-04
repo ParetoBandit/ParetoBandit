@@ -1108,7 +1108,7 @@
       "description": "Premium Value: Near-perfect quality at 1/4 flagship price.",
       "raw_hle": 0.127,
       "empirical_hle": 0.9793,
-      "model_id": "google/gemini-2.5-flash-preview-09-2025"
+      "model_id": "google/gemini-2.5-flash"
     },
     {
       "name": "Qwen3 14B (Reasoning)",

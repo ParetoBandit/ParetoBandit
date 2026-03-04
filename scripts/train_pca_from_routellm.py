@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Train PCA Model from RouteLLM Battle Data
+Train PCA Model from Offline Battle Data
 
 This script:
-1. Loads prompts from the RouteLLM battles dataset (80K prompts)
+1. Loads prompts from the offline battle corpus (80K prompts)
 2. Embeds them using the default SentenceTransformer (see `bandit_gpt.config.DEFAULT_SENTENCE_TRANSFORMER`)
 3. Trains a PCA model to reduce dimensionality (1024 -> 32 components for `BAAI/bge-m3`)
 4. Saves the PCA model for use in routing
@@ -60,7 +60,7 @@ def load_prompts_from_battles(
     exclude_prompts: set[str] | None = None,
 ) -> list:
     """
-    Load unique prompts from RouteLLM battles dataset.
+    Load unique prompts from the offline battles dataset.
 
     Args:
         battles_file: Path to battles JSONL file
@@ -269,7 +269,7 @@ def verify_pca(pca_path: Path, test_prompts: list):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Train PCA model from RouteLLM battle data",
+        description="Train PCA model from offline battle data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -297,7 +297,7 @@ Why PCA?
     parser.add_argument(
         "--input", type=str,
         default=str(ROUTELLM_BATTLES_REWARDS_PATH),
-        help="Input battles JSONL file (default: canonical RouteLLM battles rewards path)"
+        help="Input battles JSONL file (default: canonical battles rewards path)"
     )
     parser.add_argument(
         "--output", type=str,
@@ -340,7 +340,7 @@ Why PCA?
     output_file = Path(args.output)
     
     print("="*80)
-    print("TRAIN PCA MODEL FROM ROUTELLM BATTLES")
+    print("TRAIN PCA MODEL FROM OFFLINE BATTLE DATA")
     print("="*80)
     
     print(f"\n📋 Configuration:")

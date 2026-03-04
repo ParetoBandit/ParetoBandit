@@ -1,0 +1,9 @@
+{
+  "K2": {
+    "alpha": 1.0,
+    "n_eff": 5000.0,
+    "gamma": 1.0,
+    "dev_val_mean_reward": 0.8023502604166669,
+    "holdout_mean_reward": 0.8152191666666653
+  }
+}

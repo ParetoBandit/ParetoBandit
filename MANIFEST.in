@@ -4,7 +4,8 @@ include CHANGELOG.md
 include CONTRIBUTING.md
 
 recursive-include src/bandit_gpt/config *.json
-recursive-include src/bandit_gpt/data *.npz *.npy *.jsonl *.json *.txt *.md *.joblib
+recursive-include src/bandit_gpt/data/artifacts *.joblib *.npz *.npy
+include src/bandit_gpt/data/README.md
 
 include src/bandit_gpt/py.typed
 

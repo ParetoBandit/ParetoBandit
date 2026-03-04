@@ -3,7 +3,7 @@
 Generate Table 1: Dataset Description and Experimental Splits
 
 Creates a LaTeX table documenting:
-- Data sources (LMSYS Arena, RouteLLM)
+- Data sources (LMSYS Arena, offline battle corpus)
 - Split sizes and purposes
 - Why these datasets, how they're used, production impact, data integrity
 """
@@ -54,7 +54,7 @@ def generate_table(warmup_count: int, dev_count: int, holdout_count: int) -> str
 \toprule
 \textbf{Split} & \textbf{Source} & \textbf{Size} & \textbf{Purpose} \\
 \midrule
-Warmup          & RouteLLM Battles & """ + f"{warmup_count:,}" + r""" & PCA training (384$\rightarrow$32) + LinUCB priors ($\mathbf{A}$, $\mathbf{b}$) \\
+Warmup          & Offline Battles & """ + f"{warmup_count:,}" + r""" & PCA training (384$\rightarrow$32) + LinUCB priors ($\mathbf{A}$, $\mathbf{b}$) \\
 Development     & LMSYS Arena      & """ + f"{dev_count:,}" + r""" & Online learning \& calibration \\
 Holdout         & LMSYS Arena      & """ + f"{holdout_count:,}" + r""" & Final bandit evaluation \\
 \midrule
@@ -66,8 +66,8 @@ Holdout         & LMSYS Arena      & """ + f"{holdout_count:,}" + r""" & Final b
 \footnotesize
 
 \textbf{Why these datasets.}
-The warmup split uses RouteLLM's publicly available battle corpus (\texttt{routellm/gpt4\_judge\_battles} on HuggingFace)~\cite{ong2024routellm}, a curated collection of 80K pairwise human preferences between mixtral-8x7b-instruct and gpt-4-turbo.
-We adopt this dataset for two reasons: (1)~it is the same data used by RouteLLM and other open-source routers, so our warmup priors are grounded in an established benchmark and results are directly comparable; and (2)~it provides a large, publicly reproducible source of preference signal for offline prior generation.
+The warmup split uses a publicly available battle corpus (\texttt{routellm/gpt4\_judge\_battles} on HuggingFace)~\cite{ong2024routellm}, a curated collection of 80K pairwise human preferences between mixtral-8x7b-instruct and gpt-4-turbo.
+We adopt this dataset for two reasons: (1)~it is a widely used benchmark in the routing literature, so our warmup priors are grounded in an established dataset and results are directly comparable; and (2)~it provides a large, publicly reproducible source of preference signal for offline prior generation.
 The evaluation splits (dev and holdout) draw from the broader LMSYS Chatbot Arena prompt pool~\cite{zheng2023lmsys}, the most widely-cited platform for LLM evaluation.
 The same model pair is used throughout, so any performance differences across splits are attributable to distributional changes in prompt characteristics---not model capability differences.
 
@@ -83,8 +83,8 @@ The holdout set provides final evaluation under standard bandit protocol~\cite{l
 The PCA model and warmup priors ship with the banditGPT library as compact artifacts ($<$1\,MB combined).
 This mitigates the cold-start problem common to online learning routers: without any prior, a contextual bandit requires hundreds of observations before it can outperform random routing.
 The warmup artifacts provide an informed starting point---no data collection phase, no API calls to external services, and no reliance on proprietary training corpora.
-The degree of benefit depends on how well the RouteLLM battle distribution matches a given deployment setting; when the match is poor, the Corralling meta-learner (Section~\ref{sec:corralling}) adapts by shifting weight toward online-learned policies.
-Cross-domain generalization of the PCA is validated in Figure~\ref{fig:lmsys_holdout_structure} (Spearman $\rho = 0.370$, $p < 0.0001$, 2.6$\times$ vs.\ random projections), confirming that the routing signal learned from RouteLLM battles transfers to unseen prompt populations.
+The degree of benefit depends on how well the offline battle distribution matches a given deployment setting; when the match is poor, the Corralling meta-learner (Section~\ref{sec:corralling}) adapts by shifting weight toward online-learned policies.
+Cross-domain generalization of the PCA is validated in Figure~\ref{fig:lmsys_holdout_structure} (Spearman $\rho = 0.370$, $p < 0.0001$, 2.6$\times$ vs.\ random projections), confirming that the routing signal learned from offline battles transfers to unseen prompt populations.
 As the router observes user-specific traffic, online updates adapt the priors to the deployment distribution at $O(d^2)$ per observation via rank-one Sherman--Morrison updates.
 
 \textbf{Data integrity.}

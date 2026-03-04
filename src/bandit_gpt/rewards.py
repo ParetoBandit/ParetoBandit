@@ -25,7 +25,7 @@ for all K models.  Under ``mean(vote × confidence)``, this drops to
 
 Fallback
 --------
-If ``judge_details`` is absent (e.g. legacy RouteLLM battle data),
+If ``judge_details`` is absent (e.g. legacy battle data),
 the function falls back to ``raw_score``.
 """
 

@@ -1,0 +1,25 @@
+\begin{table}[htbp]
+\centering
+\caption{Interpolated isocost comparison: BanditGPT vs RouteLLM-MF on the $K{=}2$ holdout set ($n{=}750$). Rewards are read off each method's dev-selected Pareto hull at exact target costs via linear interpolation, eliminating sensitivity to sweep density (24 BanditGPT $\lambda$ values vs 101 RouteLLM thresholds). ``---'' indicates the method's dev-selected frontier does not extend to that budget. 95\% CIs from the nearest on-hull BanditGPT sweep point (20 seeds).}
+\label{tab:isocost_k2}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Budget (\$/req) & BanditGPT & RouteLLM-MF & $\Delta$ & Winner \\
+\midrule
+\$0.001 & 0.736$\pm$0.002 & 0.739 & -0.003 & Tie \\
+\$0.002 & 0.748$\pm$0.003 & 0.752 & -0.004 & Tie \\
+\$0.003 & 0.760$\pm$0.004 & 0.762 & -0.002 & Tie \\
+\$0.004 & 0.770$\pm$0.004 & 0.773 & -0.002 & Tie \\
+\$0.005 & 0.780$\pm$0.004 & 0.781 & -0.001 & Tie \\
+\$0.008 & 0.805$\pm$0.004 & --- & --- & BanditGPT only \\
+\$0.011 & --- & --- & --- & --- \\
+\midrule
+\multicolumn{5}{l}{\textit{Reference baselines}} \\
+Static Mixtral (\$0.0001) & 0.723 & --- & --- & --- \\
+Static GPT-4-Turbo (\$0.013) & 0.752 & --- & --- & --- \\
+RouteLLM dev-selected & --- & 0.783 & --- & --- \\
+Oracle (per-prompt best) & 0.857 & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}

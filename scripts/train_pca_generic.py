@@ -3,7 +3,7 @@
 Train PCA Model from Generic Text Data (C4 Dataset)
 
 This script addresses the circularity issue in the original PCA training:
-- OLD: PCA trained on RouteLLM battles (Mixtral vs GPT-4-Turbo comparisons)
+- OLD: PCA trained on offline battles (Mixtral vs GPT-4-Turbo comparisons)
 - NEW: PCA trained on generic text data (C4 dataset - neutral web text)
 
 The issue with the old approach:
@@ -369,7 +369,7 @@ Why Generic PCA?
     print("TRAIN PCA MODEL FROM GENERIC TEXT DATA")
     print("="*80)
     print("\n🎯 Goal: Fix circularity in PCA training")
-    print("   OLD: PCA trained on RouteLLM battles (routing-optimized)")
+    print("   OLD: PCA trained on offline battles (routing-optimized)")
     print("   NEW: PCA trained on C4 corpus (generic text)")
     print("   WHY: Fair discovery - structure emerges from neutral basis")
     

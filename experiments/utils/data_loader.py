@@ -21,6 +21,7 @@ from utils.rewards import extract_reward  # noqa: E402  (after path setup)
 from bandit_gpt.config import (
     PROJECT_ROOT as CONFIG_ROOT,
     BANDIT_DATA_DIR as DATA_DIR,
+    OFFLINE_DATASET_DIR,
     DEV_DATA_PATH_3MODELS as CANONICAL_DEV_REWARDS,
     HOLDOUT_DATA_PATH_3MODELS as CANONICAL_HOLDOUT_REWARDS,
     DEFAULT_MODEL_REGISTRY_PATH
@@ -98,15 +99,15 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
         >>> reward = oracle["What is 2+2?"]["openai/gpt-4.1"]
         0.95
     """
-    # Try offline_dataset subdirectory first (HLE-filtered data)
-    base_filepath = DATA_DIR / "offline_dataset" / filename
-    
+    # Try canonical rewards directory first
+    base_filepath = OFFLINE_DATASET_DIR / filename
+
     # Check for compressed version first (.gz)
     if not base_filepath.exists() and not filename.endswith('.gz'):
-        gz_path = DATA_DIR / "offline_dataset" / f"{filename}.gz"
+        gz_path = OFFLINE_DATASET_DIR / f"{filename}.gz"
         if gz_path.exists():
             base_filepath = gz_path
-    
+
     # Fallback to main data directory
     if not base_filepath.exists():
         base_filepath = DATA_DIR / filename

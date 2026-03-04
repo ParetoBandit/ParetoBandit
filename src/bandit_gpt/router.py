@@ -2461,7 +2461,7 @@ Previous version referenced non-existent attributes
                 #
                 # This is intentional — NOT a bug:
                 #
-                #   1. Safety valve against mismatched priors.  The 80k RouteLLM
+                #   1. Safety valve against mismatched priors.  The 80k offline
                 #      battle priors may come from a different traffic distribution
                 #      than the deployment environment.  Without shrinkage, a strong
                 #      but wrong prior could lock the router into suboptimal
@@ -4565,7 +4565,7 @@ class CostAwareTabulaRasaRouter:
         self.t = 0  # Step counter for linear decay
         
         # Automatic Ridge Lambda Calculation
-        # Based on empirical reward variance from 80k RouteLLM battles
+        # Based on empirical reward variance from 80k offline battles
         # Higher variance → stronger regularization needed
         if ridge_lambda is None:
             if reward_std is not None:

@@ -7,7 +7,7 @@ before routing performance saturates?"
 
 Protocol (train-then-freeze, matching `experiments/03_figure/run_prequential.py`)
 ----------------------------------------------------------------------------
-1) Fit PCA on an *external* prompt corpus (RouteLLM battles) to avoid leakage.
+1) Fit PCA on an *external* prompt corpus (offline battles) to avoid leakage.
 2) For each component count k (for a fixed K-model portfolio):
    - Project prompt embeddings to k dims (+ bias => k+1 context dim).
    - Generate warmup priors for the portfolio models using the fixed
@@ -240,12 +240,12 @@ def _load_three_way_splits(splits_path: Path) -> Tuple[List[str], List[str]]:
     return prior_train, online_learn
 
 
-def _load_routellm_prompts(
+def _load_battle_prompts(
     battles_path: Path,
     *,
     max_prompts: int,
 ) -> List[str]:
-    """Load up to *max_prompts* unique prompts from RouteLLM battles JSONL."""
+    """Load up to *max_prompts* unique prompts from offline battles JSONL."""
     prompts_seen: set[str] = set()
     prompts: List[str] = []
     with open(battles_path, "r", encoding="utf-8") as f:
@@ -582,32 +582,32 @@ def main() -> None:
     eval_data = [{"prompt": p, "rewards": {m: float(holdout_rewards[p][m]) for m in models}} for p in eval_prompts]
 
     # ---------------------------------------------------------------------
-    # 3) Fit PCA on RouteLLM battles prompts (external corpus).
+    # 3) Fit PCA on offline battles prompts (external corpus).
     # ---------------------------------------------------------------------
-    logger.info("\n3) Fitting PCA prefix on RouteLLM battles prompts (no leakage) ...")
+    logger.info("\n3) Fitting PCA prefix on offline battles prompts (no leakage) ...")
     t0 = time.time()
-    routellm_prompts = _load_routellm_prompts(Path(ROUTELLM_BATTLES_REWARDS_PATH), max_prompts=int(args.max_pca_prompts))
-    if len(routellm_prompts) < max_k:
-        raise ValueError(f"Need at least {max_k} RouteLLM prompts, got {len(routellm_prompts)}")
-    logger.info(f"  loaded RouteLLM prompts: {len(routellm_prompts)}")
+    battle_prompts = _load_battle_prompts(Path(ROUTELLM_BATTLES_REWARDS_PATH), max_prompts=int(args.max_pca_prompts))
+    if len(battle_prompts) < max_k:
+        raise ValueError(f"Need at least {max_k} battle prompts, got {len(battle_prompts)}")
+    logger.info(f"  loaded battle prompts: {len(battle_prompts)}")
 
-    # Encode RouteLLM prompts once.
-    emb_cache_path = out_dir / f"routellm_embeddings_{args.encoder_model.replace('/', '_')}_{len(routellm_prompts)}.npy"
+    # Encode battle prompts once.
+    emb_cache_path = out_dir / f"battle_embeddings_{args.encoder_model.replace('/', '_')}_{len(battle_prompts)}.npy"
     if emb_cache_path.exists():
         logger.info(f"  loading cached embeddings: {emb_cache_path.name}")
-        routellm_emb = np.load(emb_cache_path)
+        battle_emb = np.load(emb_cache_path)
     else:
-        logger.info("  encoding RouteLLM prompts (this is the slow step) ...")
-        routellm_emb = _encode_prompts(
+        logger.info("  encoding battle prompts (this is the slow step) ...")
+        battle_emb = _encode_prompts(
             str(args.encoder_model),
-            routellm_prompts,
+            battle_prompts,
             device=str(args.device),
             batch_size=int(args.batch_size),
         )
-        np.save(emb_cache_path, routellm_emb)
+        np.save(emb_cache_path, battle_emb)
         logger.info(f"  cached embeddings to: {emb_cache_path.name}")
 
-    projector = fit_pca_prefix(routellm_emb, max_components=max_k, seed=int(args.seed))
+    projector = fit_pca_prefix(battle_emb, max_components=max_k, seed=int(args.seed))
     logger.info(f"  PCA fit complete in {time.time() - t0:.1f}s (max_k={max_k})")
 
     # ---------------------------------------------------------------------

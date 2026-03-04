@@ -142,7 +142,7 @@ class TestDefaultPCAReproducibility:
         if not DEFAULT_PCA_PATH.exists():
             pytest.skip("Shipped pca_32.joblib not found")
         if not ROUTELLM_BATTLES_REWARDS_PATH.exists():
-            pytest.skip("RouteLLM battles dataset not found")
+            pytest.skip("Battles dataset not found")
 
         shipped_pca = joblib.load(DEFAULT_PCA_PATH)
 

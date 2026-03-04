@@ -30,7 +30,7 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import joblib
 import numpy as np
@@ -386,7 +386,7 @@ def plot_ablation(
     """Generate a single-panel alpha ablation figure.
 
     Shows learning curves for each alpha value with 95% CI bands,
-    plus the RouteLLM dev-selected reference line.
+    plus the best supervised baseline as reference.
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -397,11 +397,12 @@ def plot_ablation(
 
     fig, ax = plt.subplots(figsize=(9, 6.5), constrained_layout=True)
 
-    rl_peak = results.get("routellm_peak")
-    if rl_peak is not None:
+    sv_peak = results.get("supervised_peak")
+    if sv_peak is not None:
+        sv_kind = results.get("supervised_peak_kind", "SV")
         ax.axhline(
-            y=rl_peak, color="#D55E00", ls="--", lw=2, alpha=0.8,
-            zorder=3, label=f"RouteLLM dev-selected ({rl_peak:.3f})",
+            y=sv_peak, color="#D55E00", ls="--", lw=2, alpha=0.8,
+            zorder=3, label=f"Best supervised ({sv_kind}: {sv_peak:.3f})",
         )
 
     weak_r = results.get("weak_model_reward")
@@ -508,8 +509,7 @@ def main() -> None:
 
     # Split dev into train/val (same split as run_prequential.py) so that
     # the alpha ablation learning curves are trained on the same dev-train
-    # subset used for the Pareto sweep, ensuring a fair comparison against
-    # the RouteLLM dev-selected reference line.
+    # subset used for the Pareto sweep.
     logger.info(
         f"  Splitting dev into train/val "
         f"({1 - DEV_VAL_FRACTION:.0%}/{DEV_VAL_FRACTION:.0%}) ..."
@@ -524,25 +524,25 @@ def main() -> None:
     if max_step not in checkpoints:
         checkpoints.append(max_step)
 
-    # --- Load RouteLLM dev-selected reference from main results ---
+    # --- Load supervised baseline reference from main results ---
     main_results_path = output_dir / "prequential_results.json"
-    rl_peak = None
+    sv_peak: Optional[float] = None
+    sv_kind: Optional[str] = None
     weak_r = None
     if main_results_path.exists():
         with open(main_results_path) as f:
             main_res = json.load(f)
         k2 = main_res.get("K2", {})
-        pareto = k2.get("routellm", {}).get("pareto", [])
-        if pareto:
-            dev_best = max(range(len(pareto)),
-                           key=lambda i: pareto[i]["dev_mean_reward"])
-            rl_peak = pareto[dev_best]["avg_reward"]
+        supervised = k2.get("supervised", {})
+        if supervised:
+            sv_kind = max(supervised, key=lambda k: supervised[k]["reward"])
+            sv_peak = supervised[sv_kind]["reward"]
         static = k2.get("static", {})
         if static:
             weak_r = min(s["reward"] for s in static.values())
         logger.info(
             f"  Loaded baselines from main results: "
-            f"RouteLLM dev-selected={rl_peak}, weak={weak_r}"
+            f"best supervised={sv_kind} ({sv_peak}), weak={weak_r}"
         )
 
     # --- Run ablation ---
@@ -603,7 +603,8 @@ def main() -> None:
         "n_dev": len(dev_data),
         "n_dev_train": len(dev_train),
         "n_holdout": len(holdout_data),
-        "routellm_peak": rl_peak,
+        "supervised_peak": sv_peak,
+        "supervised_peak_kind": sv_kind,
         "weak_model_reward": weak_r,
         "curves": curves,
     }

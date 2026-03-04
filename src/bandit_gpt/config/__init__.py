@@ -47,9 +47,9 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 ARTIFACTS_DIR = PROJECT_ROOT / "src" / "artifacts"
 DATA_DIR = PROJECT_ROOT / "data"
 
-# PCA model trained on RouteLLM battle data using DEFAULT_SENTENCE_TRANSFORMER.
+# PCA model trained on offline battle data using DEFAULT_SENTENCE_TRANSFORMER.
 #
-# Trained on 80K RouteLLM battles (independent dataset from dev/holdout — no contamination).
+# Trained on 80K offline battles (independent dataset from dev/holdout — no contamination).
 # Shipped inside the wheel so first-time users skip JIT retraining.
 #
 # 6 components capture ~13.8% of variance — sufficient for routing signal
@@ -63,7 +63,7 @@ FULL_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_32.joblib"
 # Generate with: python3 scripts/train_pca_generic.py --n-components 32
 GENERIC_PCA_PATH = ARTIFACTS_DIR / "pca_32_generic.joblib"
 
-# Path to warmup priors trained on RouteLLM data (K=2: Mixtral + GPT-4-Turbo)
+# Path to warmup priors trained on offline battle data (K=2: Mixtral + GPT-4-Turbo)
 DEFAULT_WARMUP_PRIORS_PATH = ARTIFACTS_DIR / "priors_warmup.joblib"
 
 # Path to warmup priors trained on 43-model evaluation data (K>2 experiments)
@@ -79,22 +79,23 @@ K2_WARMUP_FROM_MULTIMODEL_PATH_32 = ARTIFACTS_DIR / "priors_warmup_k2_from_43mod
 # Three-way split definition for K>2 experiments (prior-train / online-learn / holdout)
 THREE_WAY_SPLITS_PATH = ARTIFACTS_DIR / "splits_three_way.json"
 
-# Canonical offline dataset paths
-OFFLINE_DATASET_DIR = PROJECT_ROOT / "src" / "bandit_gpt" / "data" / "offline_dataset"
+# Canonical data paths — all reward data lives in data_collection/
+OFFLINE_DATASET_DIR = PROJECT_ROOT / "data_collection" / "rewards"
+PROMPTS_DIR = PROJECT_ROOT / "data_collection" / "prompts"
+CACHE_DIR = PROJECT_ROOT / "data_collection" / "cache"
+LMSYS_BATTLES_PATH = PROMPTS_DIR / "lmarena_battles_en.jsonl"
 
-# 2-model datasets (legacy K=2 pair — Mixtral + GPT-4-Turbo battle data)
-CANONICAL_DEV_DATA_PATH = OFFLINE_DATASET_DIR / "dev_rewards_2models.jsonl.gz"
-CANONICAL_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout_rewards_2models.jsonl.gz"
-
-# 3-model datasets (includes GPT-4o for reference/analysis - NOT for routing)
-DEV_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete.jsonl.gz"
-HOLDOUT_DATA_PATH_3MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete.jsonl.gz"
-
-# All models datasets (includes all available models from LMSys Arena)
+# All models datasets (44 models: original 43 + gemini-2.5-flash)
 DEV_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete_all_models.jsonl.gz"
 HOLDOUT_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "holdout_rewards_complete_all_models.jsonl.gz"
 
-# RouteLLM battles rewards dataset (corrected winner labels)
+# Legacy aliases — subset files removed; experiments filter by their own model list
+CANONICAL_DEV_DATA_PATH = DEV_DATA_PATH_ALL_MODELS
+CANONICAL_HOLDOUT_DATA_PATH = HOLDOUT_DATA_PATH_ALL_MODELS
+DEV_DATA_PATH_3MODELS = DEV_DATA_PATH_ALL_MODELS
+HOLDOUT_DATA_PATH_3MODELS = HOLDOUT_DATA_PATH_ALL_MODELS
+
+# Offline battles rewards dataset (corrected winner labels)
 ROUTELLM_BATTLES_REWARDS_PATH = OFFLINE_DATASET_DIR / "routellm_battles_rewards.jsonl"
 
 # Calibrated router path

@@ -4,11 +4,11 @@ Generate Figure 3 (learning curve) and Table 1 (isocost) from
 prequential_results.json.
 
 Figure 3 — standalone learning curve:
-    BanditGPT holdout reward vs online training steps, with RouteLLM
-    peak as reference.
+    BanditGPT holdout reward vs online training steps, with best
+    supervised baseline as reference.
 
 Table 1 — interpolated isocost comparison:
-    BanditGPT vs RouteLLM at matched budgets, using Pareto hull
+    BanditGPT vs supervised baselines at matched budgets, using Pareto hull
     interpolation (sweep-density invariant).
 
 Figure 4 (K=10) lives in ``experiments/04_figure/plot_results.py``.
@@ -31,6 +31,7 @@ RED = "#D55E00"
 GREEN = "#009E73"
 GRAY = "#999999"
 ORANGE = "#E69F00"
+PURPLE = "#CC79A7"
 
 
 def load_results() -> dict:
@@ -79,6 +80,15 @@ def _interpolate(
     return float(np.interp(target, hull_c, hull_r))
 
 
+def _best_supervised_peak(k2: dict) -> Tuple[str, float]:
+    """Return (kind, holdout_reward) for the best supervised baseline."""
+    supervised = k2.get("supervised", {})
+    if not supervised:
+        return ("none", 0.0)
+    best_kind = max(supervised, key=lambda k: supervised[k]["reward"])
+    return best_kind, supervised[best_kind]["reward"]
+
+
 # =========================================================================
 # Figure 3: Standalone Learning Curve
 # =========================================================================
@@ -107,12 +117,10 @@ def plot_learning_curve(res: dict, out: Path) -> None:
     ax.fill_between(steps, ci_lower, ci_upper, color=BLUE,
                     alpha=0.12, zorder=2)
 
-    rl_pareto = k2["routellm"]["pareto"]
-    dev_best_idx = max(range(len(rl_pareto)),
-                       key=lambda i: rl_pareto[i]["dev_mean_reward"])
-    rl_peak = rl_pareto[dev_best_idx]["avg_reward"]
-    ax.axhline(y=rl_peak, color=RED, ls="--", lw=2, alpha=0.8, zorder=3,
-               label=f"RouteLLM dev-selected ({rl_peak:.3f}, ~100k pre-trained)")
+    sv_kind, sv_peak = _best_supervised_peak(k2)
+    if sv_peak > 0:
+        ax.axhline(y=sv_peak, color=RED, ls="--", lw=2, alpha=0.8, zorder=3,
+                   label=f"Best supervised ({sv_kind.upper()}: {sv_peak:.3f})")
 
     weak_r = min(s["reward"] for s in k2["static"].values())
     ax.axhline(y=weak_r, color=GRAY, ls=":", lw=1.5, alpha=0.6, zorder=3,
@@ -121,11 +129,12 @@ def plot_learning_curve(res: dict, out: Path) -> None:
     crossover_step = None
     crossover_reward = None
     n_pts = len(ci_lower)
-    for i in range(n_pts):
-        if all(ci_lower[j] >= rl_peak for j in range(i, n_pts)):
-            crossover_step = steps[i]
-            crossover_reward = rewards[i]
-            break
+    if sv_peak > 0:
+        for i in range(n_pts):
+            if all(ci_lower[j] >= sv_peak for j in range(i, n_pts)):
+                crossover_step = steps[i]
+                crossover_reward = rewards[i]
+                break
 
     if crossover_step is not None:
         ax.axvline(x=crossover_step, color=ORANGE, ls=":", lw=1.5, alpha=0.6)
@@ -142,7 +151,7 @@ def plot_learning_curve(res: dict, out: Path) -> None:
     ax.set_xlabel("Online Learning Steps (dev prompts seen)", fontsize=12,
                   fontweight="bold")
     ax.set_ylabel("Average Reward (Quality)", fontsize=12, fontweight="bold")
-    ax.set_title("Online Adaptation vs Static Pre-Training — K=2",
+    ax.set_title("Online Adaptation vs Supervised Static — K=2",
                  fontsize=13, fontweight="bold")
     ax.legend(fontsize=9, loc="lower right", framealpha=0.92)
     ax.grid(True, alpha=0.15, ls="--")
@@ -157,7 +166,7 @@ def plot_learning_curve(res: dict, out: Path) -> None:
 
 
 # =========================================================================
-# Table: Interpolated Isocost Comparison
+# Table: Supervised Baseline Comparison
 # =========================================================================
 
 ISOCOST_BUDGETS = [0.001, 0.002, 0.003, 0.004, 0.005, 0.008, 0.011]
@@ -170,7 +179,7 @@ def _build_isocost_table_data(
     """Build table rows from the results JSON.
 
     For each target budget, interpolates reward on the dev-selected
-    Pareto hull of both BanditGPT and RouteLLM.  Returns a list of
+    Pareto hull of BanditGPT and coldstart.  Returns a list of
     row dicts suitable for rendering as LaTeX or markdown.
     """
     k2 = res["K2"]
@@ -178,19 +187,18 @@ def _build_isocost_table_data(
     t_crit = sp_stats.t.ppf(0.975, df=n_seeds - 1)
 
     bp = k2["banditgpt_pareto"]
-    rl = k2["routellm"]["pareto"]
+    cs = k2["coldstart_pareto"]
 
     bg_idx = _dev_pareto_indices(bp, "dev_mean_cost", "dev_mean_reward")
     bg_hc_raw = [bp[i]["mean_cost"] for i in bg_idx]
     bg_hr_raw = [bp[i]["mean_reward"] for i in bg_idx]
     bg_hull_c, bg_hull_r = _pareto_hull(bg_hc_raw, bg_hr_raw)
 
-    rl_idx = _dev_pareto_indices(rl, "dev_mean_cost", "dev_mean_reward")
-    rl_hc_raw = [rl[i]["avg_cost"] for i in rl_idx]
-    rl_hr_raw = [rl[i]["avg_reward"] for i in rl_idx]
-    rl_hull_c, rl_hull_r = _pareto_hull(rl_hc_raw, rl_hr_raw)
+    cs_idx = _dev_pareto_indices(cs, "dev_mean_cost", "dev_mean_reward")
+    cs_hc_raw = [cs[i]["mean_cost"] for i in cs_idx]
+    cs_hr_raw = [cs[i]["mean_reward"] for i in cs_idx]
+    cs_hull_c, cs_hull_r = _pareto_hull(cs_hc_raw, cs_hr_raw)
 
-    # Per-seed std for BanditGPT (closest hull point)
     bg_hull_set = set(bg_hull_c)
     bg_hull_points = [bp[i] for i in bg_idx
                       if bp[i]["mean_cost"] in bg_hull_set]
@@ -198,7 +206,7 @@ def _build_isocost_table_data(
     rows: List[Dict] = []
     for budget in budgets:
         bg_r = _interpolate(bg_hull_c, bg_hull_r, budget)
-        rl_r = _interpolate(rl_hull_c, rl_hull_r, budget)
+        cs_r = _interpolate(cs_hull_c, cs_hull_r, budget)
 
         bg_std = None
         if bg_hull_points:
@@ -213,41 +221,37 @@ def _build_isocost_table_data(
             "budget": budget,
             "bg_reward": bg_r,
             "bg_ci_hw": bg_ci_hw,
-            "rl_reward": rl_r,
-            "delta": (bg_r - rl_r) if bg_r is not None and rl_r is not None else None,
+            "cs_reward": cs_r,
+            "delta": (bg_r - cs_r) if bg_r is not None and cs_r is not None else None,
         })
 
     return rows
 
 
 def generate_latex_table(res: dict, out: Path) -> None:
-    """Write an isocost comparison LaTeX table to disk."""
+    """Write a comparison LaTeX table to disk."""
     rows = _build_isocost_table_data(res)
     k2 = res["K2"]
 
-    # Static baselines
     static = k2["static"]
-    weak_model = "meta-llama/llama-3.1-8b-instruct"
-    strong_model = "openai/gpt-4.1"
-    mixtral_r = static[weak_model]["reward"]
-    mixtral_c = static[weak_model]["cost"]
-    gpt4_r = static[strong_model]["reward"]
-    gpt4_c = static[strong_model]["cost"]
+    models = k2["models"]
+    weak_model = models[0]
+    strong_model = models[1]
+    weak_r = static[weak_model]["reward"]
+    weak_c = static[weak_model]["cost"]
+    strong_r = static[strong_model]["reward"]
+    strong_c = static[strong_model]["cost"]
     oracle_r = k2["oracle_pure_quality"]["reward"]
-    rl_pareto = k2["routellm"]["pareto"]
-    dev_best_idx = max(range(len(rl_pareto)),
-                       key=lambda i: rl_pareto[i]["dev_mean_reward"])
-    rl_peak = rl_pareto[dev_best_idx]["avg_reward"]
+
+    sv_kind, sv_peak = _best_supervised_peak(k2)
 
     lines = []
     lines.append(r"\begin{table}[htbp]")
     lines.append(r"\centering")
     lines.append(r"\caption{Interpolated isocost comparison: BanditGPT vs "
-                 r"RouteLLM-MF on the $K{=}2$ holdout set ($n{=}750$). "
+                 r"Coldstart on the $K{=}2$ holdout set ($n{=}750$). "
                  r"Rewards are read off each method's dev-selected Pareto hull "
-                 r"at exact target costs via linear interpolation, "
-                 r"eliminating sensitivity to sweep density "
-                 r"(24 BanditGPT $\lambda$ values vs 101 RouteLLM thresholds). "
+                 r"at exact target costs via linear interpolation. "
                  r"``---'' indicates the method's dev-selected frontier does not "
                  r"extend to that budget. "
                  r"95\% CIs from the nearest on-hull BanditGPT sweep point "
@@ -256,7 +260,7 @@ def generate_latex_table(res: dict, out: Path) -> None:
     lines.append(r"\small")
     lines.append(r"\begin{tabular}{lcccc}")
     lines.append(r"\toprule")
-    lines.append(r"Budget (\$/req) & BanditGPT & RouteLLM-MF & "
+    lines.append(r"Budget (\$/req) & BanditGPT & Coldstart & "
                  r"$\Delta$ & Winner \\")
     lines.append(r"\midrule")
 
@@ -273,7 +277,7 @@ def generate_latex_table(res: dict, out: Path) -> None:
         else:
             bg_str = "---"
 
-        rl_str = f"{row['rl_reward']:.3f}" if row["rl_reward"] is not None else "---"
+        cs_str = f"{row['cs_reward']:.3f}" if row["cs_reward"] is not None else "---"
 
         if row["delta"] is not None:
             d = row["delta"]
@@ -281,26 +285,28 @@ def generate_latex_table(res: dict, out: Path) -> None:
             if d > 0.005:
                 winner = r"\textbf{BanditGPT}"
             elif d < -0.005:
-                winner = r"\textbf{RouteLLM}"
+                winner = r"\textbf{Coldstart}"
             else:
                 winner = "Tie"
-        elif row["bg_reward"] is not None and row["rl_reward"] is None:
+        elif row["bg_reward"] is not None and row["cs_reward"] is None:
             delta_str = "---"
             winner = r"BanditGPT only"
         else:
             delta_str = "---"
             winner = "---"
 
-        lines.append(f"{budget_str} & {bg_str} & {rl_str} & "
+        lines.append(f"{budget_str} & {bg_str} & {cs_str} & "
                      f"{delta_str} & {winner} \\\\")
 
     lines.append(r"\midrule")
     lines.append(r"\multicolumn{5}{l}{\textit{Reference baselines}} \\")
-    lines.append(f"Static Mixtral (\\${mixtral_c:.4f}) & "
-                 f"{mixtral_r:.3f} & --- & --- & --- \\\\")
-    lines.append(f"Static GPT-4-Turbo (\\${gpt4_c:.3f}) & "
-                 f"{gpt4_r:.3f} & --- & --- & --- \\\\")
-    lines.append(f"RouteLLM dev-selected & --- & {rl_peak:.3f} & --- & --- \\\\")
+    lines.append(f"Static weak (\\${weak_c:.4f}) & "
+                 f"{weak_r:.3f} & --- & --- & --- \\\\")
+    lines.append(f"Static strong (\\${strong_c:.3f}) & "
+                 f"{strong_r:.3f} & --- & --- & --- \\\\")
+    if sv_peak > 0:
+        lines.append(f"Best supervised ({sv_kind.upper()}) & "
+                     f"--- & {sv_peak:.3f} & --- & --- \\\\")
     lines.append(f"Oracle (per-prompt best) & {oracle_r:.3f} & "
                  f"--- & --- & --- \\\\")
     lines.append(r"\bottomrule")
@@ -311,25 +317,26 @@ def generate_latex_table(res: dict, out: Path) -> None:
     path.write_text("\n".join(lines) + "\n")
     print(f"Saved {path}")
 
-    # Also print a readable markdown version
+    # Readable markdown version
     print("\n--- Isocost Table (markdown preview) ---")
-    print(f"| Budget ($/req) | BanditGPT | RouteLLM-MF | Delta | Winner |")
+    print(f"| Budget ($/req) | BanditGPT | Coldstart | Delta | Winner |")
     print(f"|---|---|---|---|---|")
     for row in rows:
         b = row["budget"]
         bg = f"{row['bg_reward']:.3f}" if row["bg_reward"] is not None else "---"
-        rl = f"{row['rl_reward']:.3f}" if row["rl_reward"] is not None else "---"
+        cs = f"{row['cs_reward']:.3f}" if row["cs_reward"] is not None else "---"
         d = f"{row['delta']:+.3f}" if row["delta"] is not None else "---"
         if row["delta"] is not None:
-            w = "BanditGPT" if row["delta"] > 0.005 else ("RouteLLM" if row["delta"] < -0.005 else "Tie")
+            w = "BanditGPT" if row["delta"] > 0.005 else ("Coldstart" if row["delta"] < -0.005 else "Tie")
         elif row["bg_reward"] is not None:
             w = "BanditGPT only"
         else:
             w = "---"
-        print(f"| ${b:.3f} | {bg} | {rl} | {d} | {w} |")
-    print(f"| Static Mixtral | {mixtral_r:.3f} | --- | --- | --- |")
-    print(f"| Static GPT-4-Turbo | {gpt4_r:.3f} | --- | --- | --- |")
-    print(f"| RouteLLM dev-selected | --- | {rl_peak:.3f} | --- | --- |")
+        print(f"| ${b:.3f} | {bg} | {cs} | {d} | {w} |")
+    print(f"| Static weak | {weak_r:.3f} | --- | --- | --- |")
+    print(f"| Static strong | {strong_r:.3f} | --- | --- | --- |")
+    if sv_peak > 0:
+        print(f"| Best supervised ({sv_kind.upper()}) | --- | {sv_peak:.3f} | --- | --- |")
     print(f"| Oracle | {oracle_r:.3f} | --- | --- | --- |")
 
 

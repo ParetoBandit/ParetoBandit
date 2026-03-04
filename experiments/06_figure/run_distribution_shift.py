@@ -112,7 +112,7 @@ LEARNING_CURVE_CHECKPOINTS = [50, 100, 200, 400, 766]
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_routellm_prompts(path: Path, max_samples: int) -> List[str]:
+def load_battle_prompts(path: Path, max_samples: int) -> List[str]:
     prompts, seen = [], set()
     with open(path, "r") as f:
         for line in f:
@@ -385,7 +385,7 @@ def plot_results(source_pc1, deploy_pc1, psi, psi_ci, ks_stat, ks_p,
     kde_src = gaussian_kde(source_pc1)
     kde_dep = gaussian_kde(deploy_pc1)
     ax.fill_between(x_grid, kde_src(x_grid), alpha=0.4, color="#4C72B0",
-                    label=f"RouteLLM battles (N={len(source_pc1):,})")
+                    label=f"Offline battles (N={len(source_pc1):,})")
     ax.fill_between(x_grid, kde_dep(x_grid), alpha=0.4, color="#DD8452",
                     label=f"LMSYS Arena (N={len(deploy_pc1):,})")
     ax.set_xlabel("PC1 projection")
@@ -455,9 +455,9 @@ def main():
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
 
-    # 2. Load RouteLLM battle prompts
-    logger.info("\n2. Loading offline RouteLLM battle prompts ...")
-    source_prompts = load_routellm_prompts(ROUTELLM_BATTLES_REWARDS_PATH, MAX_SOURCE_PROMPTS)
+    # 2. Load offline battle prompts
+    logger.info("\n2. Loading offline battle prompts ...")
+    source_prompts = load_battle_prompts(ROUTELLM_BATTLES_REWARDS_PATH, MAX_SOURCE_PROMPTS)
     logger.info(f"   Loaded {len(source_prompts)} offline prompts")
 
     # 3. Load K=2 deployment data

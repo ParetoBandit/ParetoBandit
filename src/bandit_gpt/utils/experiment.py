@@ -312,9 +312,8 @@ class ExperimentBurnIn:
         import pickle
         from pathlib import Path
         
-        # __file__ is in src/bandit_gpt/utils/experiment.py
-        # Go up to src/bandit_gpt, then to data/offline_dataset
-        data_dir = Path(__file__).parent.parent / "data" / "offline_dataset"
+        from bandit_gpt.config import OFFLINE_DATASET_DIR
+        data_dir = OFFLINE_DATASET_DIR
         dev_rewards_path = data_dir / "dev_rewards.jsonl.gz"
         holdout_rewards_path = data_dir / "holdout_rewards.jsonl.gz"
         cache_path = data_dir / "rewards_cache.pkl"
@@ -466,9 +465,8 @@ class ExperimentBurnIn:
         import pickle
         from pathlib import Path
         
-        # __file__ is in src/bandit_gpt/utils/experiment.py
-        # Go up to src/bandit_gpt, then to data/offline_dataset
-        data_dir = Path(__file__).parent.parent / "data" / "offline_dataset"
+        from bandit_gpt.config import OFFLINE_DATASET_DIR
+        data_dir = OFFLINE_DATASET_DIR
         dev_rewards_path = data_dir / "dev_rewards_complete.jsonl.gz"
         holdout_rewards_path = data_dir / "holdout_rewards_complete.jsonl.gz"
         cache_path = data_dir / "rewards_complete_cache.pkl"

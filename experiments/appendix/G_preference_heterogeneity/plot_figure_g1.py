@@ -14,7 +14,7 @@ policy would be optimal and learned routing would be unnecessary.
 Methodology:
   - Uses the SAME feature pipeline as router.py (FeatureService)
   - Holdout only (N=750, no dev contamination)
-  - PCA trained on independent dataset (80K RouteLLM battles)
+  - PCA trained on independent dataset (80K offline battles)
   - Reward signal: mean(vote × confidence) from judge panel
   - Primary metric: Spearman rank correlation (PC1 vs oracle gain)
   - Null baseline: 100 random orthonormal projections (QR-decomposed)

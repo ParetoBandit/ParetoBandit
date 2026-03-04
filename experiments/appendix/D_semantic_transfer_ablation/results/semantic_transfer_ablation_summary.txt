@@ -1,0 +1,31 @@
+Semantic Transfer Ablation: Leave-One-Out (Within-Provider Tetrachoric)
+====================================================================
+Design: Paired, 20 seeds/target, shuffled training order
+Neighbor: Within-provider tetrachoric correlation of binarized rewards
+Stat: Paired t-test (uncorrected + Holm-Bonferroni), Cohen's d
+
+
+K5:
+  Target                    Neighbor               r_tet        Δ   p(raw)  p(Holm)       d  Xfer
+  ------------------------------------------------------------------------------------------
+  Llama-3.1-8B              ---                    -1.000 +0.0000  1.0000   1.0000    +0.000   0/20
+  Mixtral-8x7B              ---                    -1.000 +0.0000  1.0000   1.0000    +0.000   0/20
+  Gemini-2.5-Flash          ---                    -1.000 +0.0000  1.0000   1.0000    +0.000   0/20
+  Claude-Sonnet-4           ---                    -1.000 +0.0000  1.0000   1.0000    +0.000   0/20
+  GPT-4.1                   ---                    -1.000 +0.0000  1.0000   1.0000    +0.000   0/20
+  AGGREGATE                                              +0.0000  1.0000      ---   +0.000   100p
+
+K10:
+  Target                    Neighbor               r_tet        Δ   p(raw)  p(Holm)       d  Xfer
+  ------------------------------------------------------------------------------------------
+  Llama-3.1-8B              Llama-4-Maverick       0.444 +0.0000  1.0000   1.0000    +0.000   0/20
+  Mixtral-8x7B              ---                    -1.000 +0.0000  1.0000   1.0000    +0.000   0/20
+  Gemini-2.5-Flash          Gemma-3-27B            0.338 +0.0000  1.0000   1.0000    +0.000   0/20
+  Claude-Sonnet-4           Claude-Haiku-4.5       0.543 +0.0025  0.7594   1.0000    +0.069  20/20
+  GPT-4.1                   GPT-4-Turbo            0.084 +0.0000  1.0000   1.0000    +0.000   0/20
+  Llama-4-Maverick          Llama-3.1-8B           0.444 +0.0000  1.0000   1.0000    +0.000   0/20
+  Gemma-3-27B               Gemini-2.5-Flash       0.338 +0.0000  1.0000   1.0000    +0.000   0/20
+  Claude-Haiku-4.5          Claude-Sonnet-4        0.543 -0.0103  0.2350   1.0000    -0.274  20/20
+  GPT-4-Turbo               GPT-4.1                0.084 +0.0000  1.0000   1.0000    +0.000   0/20
+  DeepSeek-V3               ---                    -1.000 +0.0000  1.0000   1.0000    +0.000   0/20
+  AGGREGATE                                              -0.0008  0.5054      ---   -0.047   200p

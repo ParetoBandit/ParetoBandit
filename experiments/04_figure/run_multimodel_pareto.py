@@ -4,8 +4,8 @@ K=10 Multi-Model Pareto Frontier Evaluation.
 
 Evaluates BanditGPT's routing performance across a 10-model portfolio
 spanning four cost tiers, comparing against tabula rasa (plain LinUCB)
-and standard baselines.  RouteLLM does not natively support K > 2, so
-this experiment tests whether BanditGPT's architecture (Corralling over
+and standard baselines.  This experiment tests whether BanditGPT's
+architecture (Corralling over
 heterogeneous LinUCB experts with family-based parameter sharing) scales
 to larger portfolios.
 

@@ -460,7 +460,7 @@ def plot_grid(
     oracle_reward: float,
     k_label: int = 2,
     filename: str = "alpha_neff_gamma_grid_figure.png",
-    routellm_peak: Optional[float] = None,
+    supervised_peak: Optional[float] = None,
 ) -> None:
     """Generate a 2x2 heatmap figure (one panel per forgetting factor).
 
@@ -633,19 +633,18 @@ def run_portfolio_ablation(
         Path(__file__).parent.parent.parent
         / "03_figure" / "results" / "prequential_results.json"
     )
-    routellm_peak: Optional[float] = None
+    supervised_peak: Optional[float] = None
     if main_results_path.exists():
         with open(main_results_path) as f:
             main_res = json.load(f)
-        pareto = (
+        supervised = (
             main_res
             .get(main_results_key, {})
-            .get("routellm", {})
-            .get("pareto", [])
+            .get("supervised", {})
         )
-        if pareto:
-            routellm_peak = max(p["avg_reward"] for p in pareto)
-        logger.info(f"    RouteLLM peak ({main_results_key}): {routellm_peak}")
+        if supervised:
+            supervised_peak = max(s["reward"] for s in supervised.values())
+        logger.info(f"    Supervised peak ({main_results_key}): {supervised_peak}")
 
     total_configs = (
         len(ALPHA_VALUES) * len(NEFF_VALUES) * len(GAMMA_VALUES)
@@ -680,8 +679,8 @@ def run_portfolio_ablation(
             f"CI=[{r['ci_lower']:.4f}, {r['ci_upper']:.4f}]"
         )
     logger.info(f"\n  Oracle (per-prompt best): {oracle_reward:.4f}")
-    if routellm_peak is not None:
-        logger.info(f"  RouteLLM peak:           {routellm_peak:.4f}")
+    if supervised_peak is not None:
+        logger.info(f"  Supervised peak:         {supervised_peak:.4f}")
     logger.info(
         f"\n  BEST (dev-val): alpha={best['alpha']}, n_eff={int(best['n_eff'])}, "
         f"gamma={best['gamma']} -> R_val={best['mean_reward']:.4f}"
@@ -733,7 +732,7 @@ def run_portfolio_ablation(
         "n_dev_val": len(dev_val),
         "n_holdout": len(holdout_data),
         "oracle_reward": oracle_reward,
-        "routellm_peak": routellm_peak,
+        "supervised_peak": supervised_peak,
         "best": {
             "alpha": best["alpha"],
             "n_eff": best["n_eff"],
@@ -764,7 +763,7 @@ def run_portfolio_ablation(
         oracle_reward=oracle_reward,
         k_label=k_label,
         filename=figure_filename,
-        routellm_peak=routellm_peak,
+        supervised_peak=supervised_peak,
     )
 
     return {

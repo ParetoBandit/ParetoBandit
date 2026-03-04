@@ -115,24 +115,26 @@ class TestDataLoaderGzip(unittest.TestCase):
         uncompressed_data = [self.test_data[0]]  # Only first entry
         compressed_data = self.test_data  # All entries
         
+        rewards_dir = self.temp_path / "rewards"
+        rewards_dir.mkdir(exist_ok=True)
+
         # Uncompressed
-        test_file_plain = self.temp_path / "offline_dataset" / "test_data.jsonl"
-        test_file_plain.parent.mkdir(exist_ok=True)
+        test_file_plain = rewards_dir / "test_data.jsonl"
         with open(test_file_plain, 'w') as f:
             for entry in uncompressed_data:
                 f.write(json.dumps(entry) + '\n')
-        
+
         # Compressed
-        test_file_gz = self.temp_path / "offline_dataset" / "test_data.jsonl.gz"
+        test_file_gz = rewards_dir / "test_data.jsonl.gz"
         with gzip.open(test_file_gz, 'wt') as f:
             for entry in compressed_data:
                 f.write(json.dumps(entry) + '\n')
-        
+
         # Load - should prefer uncompressed when both exist
         import utils.data_loader as dl
-        original_data_dir = dl.DATA_DIR
+        original_rewards_dir = dl.OFFLINE_DATASET_DIR
         try:
-            dl.DATA_DIR = self.temp_path
+            dl.OFFLINE_DATASET_DIR = rewards_dir
             
             rewards = load_oracle_rewards("test_data.jsonl")
             
@@ -142,7 +144,7 @@ class TestDataLoaderGzip(unittest.TestCase):
             self.assertNotIn("What is Python?", rewards)  # Only in compressed
             
         finally:
-            dl.DATA_DIR = original_data_dir
+            dl.OFFLINE_DATASET_DIR = original_rewards_dir
     
     def test_load_with_gz_extension_explicit(self):
         """Test loading when .gz extension is explicitly provided."""
@@ -198,30 +200,27 @@ class TestDataLoaderGzip(unittest.TestCase):
         finally:
             dl.DATA_DIR = original_data_dir
     
-    def test_offline_dataset_subdirectory(self):
-        """Test that offline_dataset/ subdirectory is checked first."""
-        # Create offline_dataset subdirectory
-        offline_dir = self.temp_path / "offline_dataset"
-        offline_dir.mkdir()
-        
-        # Create file in offline_dataset/
-        test_file = offline_dir / "test_data.jsonl.gz"
+    def test_rewards_directory(self):
+        """Test that OFFLINE_DATASET_DIR (rewards directory) is checked first."""
+        rewards_dir = self.temp_path / "rewards"
+        rewards_dir.mkdir()
+
+        test_file = rewards_dir / "test_data.jsonl.gz"
         with gzip.open(test_file, 'wt') as f:
             for entry in self.test_data:
                 f.write(json.dumps(entry) + '\n')
-        
+
         import utils.data_loader as dl
-        original_data_dir = dl.DATA_DIR
+        original_rewards_dir = dl.OFFLINE_DATASET_DIR
         try:
-            dl.DATA_DIR = self.temp_path
-            
+            dl.OFFLINE_DATASET_DIR = rewards_dir
+
             rewards = load_oracle_rewards("test_data.jsonl")
-            
-            # Should find file in offline_dataset/
+
             self.assertEqual(len(rewards), 2)
-            
+
         finally:
-            dl.DATA_DIR = original_data_dir
+            dl.OFFLINE_DATASET_DIR = original_rewards_dir
     
     def test_large_file_streaming(self):
         """Test that large files decompress efficiently without loading everything into memory."""
