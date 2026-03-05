@@ -341,36 +341,6 @@ def project_embeddings(
 # ============================================================================
 
 
-def _set_exploit_mode(router: Any, *, enable: bool) -> Dict[str, Any]:
-    """Switch to greedy exploitation on a frozen router."""
-    if not enable:
-        return {}
-    saved: Dict[str, Any] = {"expert_alphas": [], "meta_exploit": False}
-    cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts"):
-        for expert in cr.experts:
-            saved["expert_alphas"].append((expert.alpha_start, expert.alpha_end))
-            expert.alpha_start = 0.0
-            expert.alpha_end = 0.0
-        saved["meta_exploit"] = cr.exploit_mode
-        cr.exploit_mode = True
-    return saved
-
-
-def _restore_exploit_mode(
-    router: Any, saved: Dict[str, Any],
-) -> None:
-    """Restore expert alpha values and meta exploit mode."""
-    if not saved:
-        return
-    cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts") and saved.get("expert_alphas"):
-        for expert, (a_s, a_e) in zip(cr.experts, saved["expert_alphas"]):
-            expert.alpha_start = a_s
-            expert.alpha_end = a_e
-        cr.exploit_mode = saved.get("meta_exploit", False)
-
-
 def _train_and_eval_single_lambda(
     models: List[str],
     registry: Dict[str, Dict[str, float]],
@@ -421,15 +391,14 @@ def _train_and_eval_single_lambda(
             )
             router.process_feedback(log.request_id, norm_reward)
 
-        saved = _set_exploit_mode(router, enable=True)
         rng_state = np.random.get_state()
         r_total = c_total = 0.0
-        for p, x in zip(eval_data, eval_emb):
-            model, _log = router.route(x, total_steps=burn_in)
-            r_total += p["rewards"][model]
-            c_total += costs[model]
+        with router.exploit():
+            for p, x in zip(eval_data, eval_emb):
+                model, _log = router.route(x, total_steps=burn_in)
+                r_total += p["rewards"][model]
+                c_total += costs[model]
         np.random.set_state(rng_state)
-        _restore_exploit_mode(router, saved)
 
         n = len(eval_data)
         trial_r.append(r_total / n)

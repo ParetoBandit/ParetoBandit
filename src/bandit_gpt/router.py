@@ -23,10 +23,11 @@ import uuid
 import logging
 import os
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from collections import Counter, deque, defaultdict
-from typing import Any, Dict, List, Tuple, Optional, Literal, TypedDict
+from typing import Any, Dict, Generator, List, Tuple, Optional, Literal, TypedDict
 import re
 import copy
 
@@ -3439,6 +3440,53 @@ Previous version referenced non-existent attributes
         See save_state() for known limitations regarding Corralling persistence.
         """
         self.bandit.load_state(path)
+
+    @contextmanager
+    def exploit(self) -> Generator[None, None, None]:
+        """Context manager for greedy exploitation (frozen policy evaluation).
+
+        Temporarily disables exploration at both the expert and meta-learner
+        levels so that ``route()`` executes the learned policy deterministically:
+
+        - **Expert level**: ``alpha_start`` and ``alpha_end`` are set to 0 on
+          every Corralling expert, making LinUCB select ``argmax(theta^T x)``
+          with no UCB bonus.
+        - **Meta level**: ``CorrallingRouter.exploit_mode`` is set to ``True``
+          so the highest-weight expert is chosen via ``argmax(weights)`` instead
+          of probabilistic sampling.
+
+        State is restored on exit (including after exceptions), analogous to
+        ``torch.no_grad()`` in PyTorch.
+
+        Usage::
+
+            with router.exploit():
+                model, log = router.route(x, total_steps=burn_in)
+        """
+        saved_expert_alphas: List[Tuple[float, float]] = []
+        saved_meta_exploit = False
+        cr = self.corralling_router
+
+        if cr is not None and hasattr(cr, "experts"):
+            for expert in cr.experts:
+                saved_expert_alphas.append(
+                    (expert.alpha_start, expert.alpha_end)
+                )
+                expert.alpha_start = 0.0
+                expert.alpha_end = 0.0
+            saved_meta_exploit = cr.exploit_mode
+            cr.exploit_mode = True
+
+        try:
+            yield
+        finally:
+            if cr is not None and saved_expert_alphas:
+                for expert, (a_s, a_e) in zip(
+                    cr.experts, saved_expert_alphas
+                ):
+                    expert.alpha_start = a_s
+                    expert.alpha_end = a_e
+                cr.exploit_mode = saved_meta_exploit
 
     def _calculate_absolute_penalty(self, cost_per_1k: float) -> float:
         """

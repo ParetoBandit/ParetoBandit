@@ -486,36 +486,6 @@ def train_bandit_with_early_stopping(
     return best_step, eval_history
 
 
-def _set_exploit_mode(router, *, enable: bool) -> Dict[str, Any]:
-    """Temporarily switch to greedy exploitation on a frozen router."""
-    if not enable:
-        return {}
-    saved: Dict[str, Any] = {"expert_alphas": [], "meta_exploit": False}
-    cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts"):
-        for expert in cr.experts:
-            saved["expert_alphas"].append((expert.alpha_start, expert.alpha_end))
-            expert.alpha_start = 0.0
-            expert.alpha_end = 0.0
-        saved["meta_exploit"] = cr.exploit_mode
-        cr.exploit_mode = True
-    return saved
-
-
-def _restore_exploit_mode(
-    router, saved: Dict[str, Any],
-) -> None:
-    """Restore expert alpha values and meta exploit mode after evaluation."""
-    if not saved:
-        return
-    cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts") and saved.get("expert_alphas"):
-        for expert, (a_s, a_e) in zip(cr.experts, saved["expert_alphas"]):
-            expert.alpha_start = a_s
-            expert.alpha_end = a_e
-        cr.exploit_mode = saved.get("meta_exploit", False)
-
-
 def evaluate_frozen(
     router,
     eval_data: List[Dict],
@@ -526,7 +496,6 @@ def evaluate_frozen(
     per_prompt: bool = False,
 ) -> Tuple[float, float, Dict[str, int], Optional[List[float]], Optional[List[float]]]:
     """Evaluate a frozen router on the holdout set (no learning)."""
-    saved = _set_exploit_mode(router, enable=True)
     rng_state = np.random.get_state()
 
     r_total = c_total = 0.0
@@ -534,19 +503,19 @@ def evaluate_frozen(
     prompt_rewards: Optional[List[float]] = [] if per_prompt else None
     prompt_costs: Optional[List[float]] = [] if per_prompt else None
 
-    for p, x in zip(eval_data, eval_embeddings):
-        model, _log = router.route(x, total_steps=total_steps)
-        reward = p["rewards"][model]
-        cost = costs[model]
-        r_total += reward
-        c_total += cost
-        model_counts[model] += 1
-        if prompt_rewards is not None:
-            prompt_rewards.append(reward)
-            prompt_costs.append(cost)
+    with router.exploit():
+        for p, x in zip(eval_data, eval_embeddings):
+            model, _log = router.route(x, total_steps=total_steps)
+            reward = p["rewards"][model]
+            cost = costs[model]
+            r_total += reward
+            c_total += cost
+            model_counts[model] += 1
+            if prompt_rewards is not None:
+                prompt_rewards.append(reward)
+                prompt_costs.append(cost)
 
     np.random.set_state(rng_state)
-    _restore_exploit_mode(router, saved)
 
     n = len(eval_data)
     return r_total / n, c_total / n, dict(model_counts), prompt_rewards, prompt_costs

@@ -107,27 +107,6 @@ def train_router(
     return n_steps
 
 
-def _set_exploit_mode(router: Any) -> List[Tuple[float, float]]:
-    """Temporarily set all Corralling experts to alpha=0 for greedy evaluation."""
-    saved: List[Tuple[float, float]] = []
-    cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts"):
-        for expert in cr.experts:
-            saved.append((expert.alpha_start, expert.alpha_end))
-            expert.alpha_start = 0.0
-            expert.alpha_end = 0.0
-    return saved
-
-
-def _restore_exploit_mode(router: Any, saved: Sequence[Tuple[float, float]]) -> None:
-    """Restore expert alphas after evaluation."""
-    cr = getattr(router, "corralling_router", None)
-    if cr is not None and hasattr(cr, "experts") and saved:
-        for expert, (a_s, a_e) in zip(cr.experts, saved):
-            expert.alpha_start = a_s
-            expert.alpha_end = a_e
-
-
 def evaluate_router_frozen(
     router: Any,
     *,
@@ -137,18 +116,17 @@ def evaluate_router_frozen(
     total_steps: int,
 ) -> Tuple[float, float]:
     """Evaluate a trained router greedily on holdout (no feedback updates)."""
-    saved = _set_exploit_mode(router)
     rng_state = np.random.get_state()
 
     r_total = 0.0
     c_total = 0.0
-    for p, x in zip(eval_data, eval_embeddings):
-        model, _log = router.route(x, total_steps=total_steps)
-        r_total += float(p["rewards"][model])
-        c_total += float(costs.get(model, 0.0))
+    with router.exploit():
+        for p, x in zip(eval_data, eval_embeddings):
+            model, _log = router.route(x, total_steps=total_steps)
+            r_total += float(p["rewards"][model])
+            c_total += float(costs.get(model, 0.0))
 
     np.random.set_state(rng_state)
-    _restore_exploit_mode(router, saved)
 
     n = max(1, len(eval_data))
     return r_total / n, c_total / n
