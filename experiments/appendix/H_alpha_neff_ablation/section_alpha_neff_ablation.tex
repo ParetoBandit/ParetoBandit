@@ -33,21 +33,24 @@ tuned for quality-only has no incentive to learn when a cheaper model
 would suffice, and therefore cannot trace a meaningful cost--quality
 Pareto frontier.
 
-We instead select hyperparameters by \textbf{Pareto AUC} --- the area
-under the cost--reward Pareto frontier, normalised by the cost
-range~\cite{ding2024hybrid}.  For each $(\alpha, \neff, \gamma)$
+We instead select hyperparameters by \textbf{normalized AUCPC} --- the
+area under the cost--reward Pareto frontier after \emph{normalizing both
+axes} to the portfolio endpoints.  For each $(\alpha, \neff, \gamma)$
 configuration, we sweep the cost penalty~$\lambda$ over a representative
 set of values, train a separate router at each~$\lambda$, freeze it, and
 evaluate on the dev-val split.  The resulting (cost, reward) points form
 a Pareto hull; its AUC is the selection metric:
 \[
-    \text{ParetoAUC}
-    = \frac{1}{c_{\max} - c_{\min}}
-      \int_{c_{\min}}^{c_{\max}} R^{*}(c)\,\mathrm{d}c,
+    \text{AUCPC}
+    = \int_{0}^{1} \tilde{R}^{*}(\tilde{c})\,\mathrm{d}\tilde{c},
 \]
-where $R^{*}(c)$ is the Pareto-optimal reward at cost~$c$, and
-$[c_{\min}, c_{\max}]$ spans the cheapest to most expensive model in the
-portfolio.
+where $\tilde{c} = (c - c_{\text{cheap}}) / (c_{\text{frontier}} - c_{\text{cheap}})$
+maps the cheapest model cost to 0 and the frontier model cost to 1, and
+$\tilde{R} = (R - R_{\text{cheap}}) / (R_{\text{frontier}} - R_{\text{cheap}})$
+maps the cheapest and frontier models' \emph{static baseline rewards} on
+the same evaluation split to 0 and 1, respectively.  Under this
+normalization, a diagonal baseline yields $\text{AUCPC}\approx 0.5$,
+while a near-oracle router yields $\text{AUCPC}\approx 1.0$.
 
 This criterion directly rewards hyperparameters that enable diverse,
 intelligent routing across the cost spectrum:

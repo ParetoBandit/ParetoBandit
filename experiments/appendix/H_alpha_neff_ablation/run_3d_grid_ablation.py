@@ -17,13 +17,15 @@ hyperparameters rather than defaults.
 
 Selection criterion
 -------------------
-Configurations are ranked by **Pareto AUC** — the area under the
+Configurations are ranked by **normalized AUCPC** — the area under the
 cost-reward Pareto frontier traced by sweeping the cost penalty
 parameter lambda.  For each (alpha, n_eff, gamma) triple, we train
 separate routers at several lambda values, freeze each, evaluate on
 dev-val, and compute the Pareto hull of the resulting (cost, reward)
-points.  The AUC of that hull, normalised by the cost range, is the
-selection metric.
+points.  The AUCPC integrates the Pareto hull after **normalizing both
+axes** so that the cheap-model baseline is at (0, 0) and the frontier-model
+baseline is at (1, 1).  This makes the scalar directly interpretable
+(random-diagonal \(\approx 0.5\), near-oracle \(\approx 1.0\)).
 
 *Why not mean reward at lambda=0?*  When one model dominates on average
 (e.g. GPT-4.1 in K=2), quality-only tuning converges to a degenerate
@@ -44,9 +46,9 @@ For each (alpha, n_eff, gamma) triple:
    c. Freeze the router (alpha=0 for greedy exploitation).
    d. Evaluate on the dev-val split — record (mean_cost, mean_reward).
 2. Compute the Pareto hull of the (cost, reward) points.
-3. Compute Pareto AUC over [min_model_cost, max_model_cost].
-4. Select the config with the highest Pareto AUC on dev-val.
-5. Report its holdout Pareto AUC (sweep repeated on holdout).
+3. Compute normalized AUCPC over the portfolio endpoints.
+4. Select the config with the highest normalized AUCPC on dev-val.
+5. Report its holdout normalized AUCPC (sweep repeated on holdout).
 
 Grid
 ----
@@ -101,7 +103,7 @@ from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
 from utils.model_pricing import get_prices_for_models
 from utils.embeddings import load_embedding_cache, embed_dataset_cached
-from utils.pareto import pareto_hull, pareto_auc
+from utils.pareto import pareto_aucpc_normalized
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -373,13 +375,19 @@ def train_and_evaluate_pareto(
     lambda_values: List[float],
     cost_lo: float,
     cost_hi: float,
+    cheap_baseline_reward: float,
+    frontier_baseline_reward: float,
     n_seeds: int,
     use_corralling: bool = True,
 ) -> Dict[str, Any]:
     """Evaluate one (alpha, n_eff, gamma) config across multiple lambdas.
 
     Sweeps ``lambda_values`` to trace the Pareto frontier of cost vs.
-    reward, then computes the Pareto AUC over ``[cost_lo, cost_hi]``.
+    reward, then computes the **normalized AUCPC** by first normalizing:
+
+    - cost: ``cost_lo -> 0`` and ``cost_hi -> 1`` (cheapest vs frontier model),
+    - reward: ``cheap_baseline_reward -> 0`` and
+      ``frontier_baseline_reward -> 1`` (static baselines on the eval split).
 
     Args:
         models: Candidate model IDs.
@@ -394,13 +402,18 @@ def train_and_evaluate_pareto(
         n_eff: Prior effective sample size.
         gamma: Forgetting factor (1.0 = stationary).
         lambda_values: Cost penalty values to sweep.
-        cost_lo: Lower bound for Pareto AUC integration.
-        cost_hi: Upper bound for Pareto AUC integration.
+        cost_lo: Cheapest model cost (integration lower bound).
+        cost_hi: Frontier model cost (integration upper bound).
+        cheap_baseline_reward: Mean reward of always using the cheapest model
+            on the evaluation split used for AUC.
+        frontier_baseline_reward: Mean reward of always using the frontier
+            model on the same evaluation split.
         n_seeds: Number of random seeds per lambda.
         use_corralling: Enable Corralling meta-learner.
 
     Returns:
-        Dict with ``pareto_auc``, per-lambda sweep points, lambda=0
+        Dict with ``pareto_auc`` (normalized AUCPC), per-lambda sweep
+        points, lambda=0
         reward, and routing fractions at the median-cost lambda.
     """
     dim = train_emb[0].shape[0]
@@ -431,7 +444,15 @@ def train_and_evaluate_pareto(
 
     sweep_costs = [sp["mean_cost"] for sp in sweep_points]
     sweep_rewards = [sp["mean_reward"] for sp in sweep_points]
-    p_auc = pareto_auc(sweep_costs, sweep_rewards, cost_lo, cost_hi)
+    p_auc = pareto_aucpc_normalized(
+        sweep_costs,
+        sweep_rewards,
+        cheap_cost=cost_lo,
+        frontier_cost=cost_hi,
+        cheap_reward=cheap_baseline_reward,
+        frontier_reward=frontier_baseline_reward,
+        clip_quality_to_unit=True,
+    )
 
     # Routing fractions at the lambda closest to the portfolio median cost.
     median_cost = (cost_lo + cost_hi) / 2
@@ -492,10 +513,12 @@ def run_grid(
     lambda_values: List[float],
     cost_lo: float,
     cost_hi: float,
+    cheap_baseline_reward: float,
+    frontier_baseline_reward: float,
     n_seeds: int,
     use_corralling: bool = True,
 ) -> List[Dict[str, Any]]:
-    """Sweep the 3D grid, evaluating Pareto AUC for every configuration."""
+    """Sweep the 3D grid, evaluating normalized AUCPC for each configuration."""
     total = len(alpha_values) * len(neff_values) * len(gamma_values)
     results: List[Dict[str, Any]] = []
     idx = 0
@@ -511,6 +534,8 @@ def run_grid(
                     alpha=alpha, n_eff=n_eff, gamma=gamma,
                     lambda_values=lambda_values,
                     cost_lo=cost_lo, cost_hi=cost_hi,
+                    cheap_baseline_reward=cheap_baseline_reward,
+                    frontier_baseline_reward=frontier_baseline_reward,
                     n_seeds=n_seeds,
                     use_corralling=use_corralling,
                 )
@@ -518,7 +543,7 @@ def run_grid(
                 logger.info(
                     f"  [{idx:3d}/{total}] "
                     f"alpha={alpha:<5} n_eff={n_eff:<7} gamma={gamma:<7} "
-                    f"| ParetoAUC={res['pareto_auc']:.4f} "
+                    f"| AUCPC={res['pareto_auc']:.4f} "
                     f"R@lam0={res['lam0_reward']:.4f}"
                 )
 
@@ -545,9 +570,9 @@ def plot_grid(
 ) -> None:
     """Generate a two-row heatmap figure (one panel per forgetting factor).
 
-    Row 1: Pareto AUC (selection criterion).
+    Row 1: Normalized AUCPC (selection criterion).
     Row 2: Mean reward at lambda=0 (for reference).
-    The global best cell (by Pareto AUC) is starred in both rows.
+    The global best cell (by AUCPC) is starred in both rows.
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -576,7 +601,7 @@ def plot_grid(
     norm_r = Normalize(vmin=min(all_reward) - 0.002, vmax=max(all_reward) + 0.002)
 
     for row_idx, (lookup, norm, metric_label, fmt) in enumerate([
-        (lookup_auc, norm_a, "Pareto AUC", ".4f"),
+        (lookup_auc, norm_a, "AUCPC (normalized)", ".4f"),
         (lookup_reward, norm_r, r"Reward ($\lambda{=}0$)", ".3f"),
     ]):
         for col_idx, gamma in enumerate(gamma_values):
@@ -638,7 +663,7 @@ def plot_grid(
     fig.suptitle(
         r"3D Ablation: $\alpha \times n_{\mathrm{eff}} \times \gamma$ "
         f"(K={k_label}, {results[0]['n_seeds']} seeds)\n"
-        f"Best (by Pareto AUC): alpha={best_config['alpha']}, "
+        f"Best (by AUCPC): alpha={best_config['alpha']}, "
         f"n_eff={int(best_config['n_eff'])}, "
         f"gamma={best_config['gamma']} "
         f"-> AUC={best_config['pareto_auc']:.4f}, "
@@ -678,11 +703,16 @@ def run_portfolio_ablation(
     """Run the full 3D grid ablation for a single portfolio.
 
     For each (alpha, n_eff, gamma), sweeps lambda to trace the Pareto
-    frontier and selects the config with the highest Pareto AUC.
+    frontier and selects the config with the highest normalized AUCPC.
 
     Returns:
         Dict with best configuration and summary statistics.
     """
+    def _baseline_reward(data: List[Dict], model_id: str) -> float:
+        if not data:
+            return 0.0
+        return float(np.mean([p["rewards"][model_id] for p in data]))
+
     costs = {
         m: _req_cost(
             catalog[m]["input_cost_per_m"],
@@ -692,6 +722,8 @@ def run_portfolio_ablation(
     }
     cost_lo = min(costs.values())
     cost_hi = max(costs.values())
+    cheap_model = min(models, key=lambda m: (costs[m], m))
+    frontier_model = max(models, key=lambda m: (costs[m], m))
 
     logger.info(
         f"  K={k_label}: {len(train_data)} dev (online-learn pool), "
@@ -715,6 +747,18 @@ def run_portfolio_ablation(
         train_data, dev_emb
     )
     logger.info(f"    Dev-train: {len(dev_train)}  Dev-val: {len(dev_val)}")
+
+    dev_val_cheap_r = _baseline_reward(dev_val, cheap_model)
+    dev_val_frontier_r = _baseline_reward(dev_val, frontier_model)
+    holdout_cheap_r = _baseline_reward(holdout_data, cheap_model)
+    holdout_frontier_r = _baseline_reward(holdout_data, frontier_model)
+    logger.info(
+        "  AUC normalization endpoints:\n"
+        f"    cheap:    {catalog.get(cheap_model, {}).get('display', cheap_model.split('/')[-1])} "
+        f"(cost={costs[cheap_model]:.6f}, baseline_R={dev_val_cheap_r:.4f} dev-val)\n"
+        f"    frontier: {catalog.get(frontier_model, {}).get('display', frontier_model.split('/')[-1])} "
+        f"(cost={costs[frontier_model]:.6f}, baseline_R={dev_val_frontier_r:.4f} dev-val)"
+    )
 
     oracle_reward = float(np.mean([
         max(p["rewards"][m] for m in models) for p in holdout_data
@@ -756,6 +800,8 @@ def run_portfolio_ablation(
         lambda_values=lambda_values,
         cost_lo=cost_lo,
         cost_hi=cost_hi,
+        cheap_baseline_reward=dev_val_cheap_r,
+        frontier_baseline_reward=dev_val_frontier_r,
         n_seeds=N_SEEDS,
         use_corralling=use_corralling,
     )
@@ -770,7 +816,7 @@ def run_portfolio_ablation(
     logger.info(f"\n{'=' * 70}")
     logger.info(
         f"K={k_label} {variant_label} TOP-10 CONFIGURATIONS "
-        f"(by Pareto AUC)"
+        f"(by AUCPC)"
     )
     logger.info(f"{'=' * 70}")
     for i, r in enumerate(ranked[:10]):
@@ -791,7 +837,7 @@ def run_portfolio_ablation(
     if supervised_peak is not None:
         logger.info(f"  Supervised peak:         {supervised_peak:.4f}")
     logger.info(
-        f"\n  BEST (by Pareto AUC): alpha={best['alpha']}, "
+        f"\n  BEST (by AUCPC): alpha={best['alpha']}, "
         f"n_eff={int(best['n_eff'])}, gamma={best['gamma']} "
         f"-> AUC={best['pareto_auc']:.4f}, "
         f"R@lam0={best['lam0_reward']:.4f}"
@@ -807,7 +853,7 @@ def run_portfolio_ablation(
             f"R@lam0={best_by_reward['lam0_reward']:.4f})"
         )
 
-    # Holdout Pareto AUC for the selected config.
+    # Holdout normalized AUCPC for the selected config.
     logger.info("\n  Evaluating selected config on holdout ...")
     best_holdout = train_and_evaluate_pareto(
         models=models,
@@ -824,6 +870,8 @@ def run_portfolio_ablation(
         lambda_values=lambda_values,
         cost_lo=cost_lo,
         cost_hi=cost_hi,
+        cheap_baseline_reward=holdout_cheap_r,
+        frontier_baseline_reward=holdout_frontier_r,
         n_seeds=N_SEEDS,
         use_corralling=use_corralling,
     )
@@ -840,7 +888,7 @@ def run_portfolio_ablation(
                 f"for {variant_label} "
                 f"({'Corralling + warmup priors' if use_corralling else 'single LinUCB, no priors'}). "
                 f"Pareto frontier traced over lambda sweep on K={k_label}. "
-                "Selection criterion: Pareto AUC (cost-reward frontier area)."
+                "Selection criterion: normalized AUCPC (area under the normalized cost–quality curve)."
             ),
         },
         "config": {
@@ -850,12 +898,16 @@ def run_portfolio_ablation(
             "lambda_values": lambda_values,
             "cost_lo": cost_lo,
             "cost_hi": cost_hi,
+            "cheap_model": cheap_model,
+            "frontier_model": frontier_model,
+            "dev_val_cheap_baseline_reward": dev_val_cheap_r,
+            "dev_val_frontier_baseline_reward": dev_val_frontier_r,
             "n_seeds": N_SEEDS,
             "corralling_lr": CORRALLING_LR,
             "corralling_gamma": CORRALLING_GAMMA,
             "dev_val_fraction": DEV_VAL_FRACTION,
             "dev_val_seed": DEV_VAL_SEED,
-            "selection_criterion": "pareto_auc",
+            "selection_criterion": "pareto_aucpc_normalized",
         },
         "n_dev": len(train_data),
         "n_dev_train": len(dev_train),
@@ -1061,7 +1113,7 @@ def main() -> None:
     logger.info("SUMMARY — Hyperparameter Sensitivity Analysis")
     logger.info(f"{'=' * 70}")
     logger.info(
-        "  Selection criterion: Pareto AUC (cost-reward frontier area)."
+        "  Selection criterion: normalized AUCPC (area under normalized cost–quality curve)."
     )
     logger.info(
         "  Rewards contextual routing that finds the best quality at"

@@ -89,6 +89,100 @@ def pareto_auc(
     return float(np.trapezoid(cr, cc) / (cost_hi - cost_lo))
 
 
+def pareto_aucpc_normalized(
+    costs: List[float],
+    rewards: List[float],
+    *,
+    cheap_cost: float,
+    frontier_cost: float,
+    cheap_reward: float,
+    frontier_reward: float,
+    clip_quality_to_unit: bool = True,
+) -> float:
+    """Compute a *normalized* AUCPC (Area Under the Cost–Performance Curve).
+
+    This variant is designed for **dataset-comparable** hyperparameter tuning:
+    it normalizes both axes relative to the *portfolio endpoints*:
+
+    - Normalized cost: maps ``cheap_cost -> 0`` and ``frontier_cost -> 1``.
+    - Normalized quality: maps ``cheap_reward -> 0`` and ``frontier_reward -> 1``.
+
+    The Pareto frontier is computed from the provided ``(cost, reward)`` points
+    (e.g., a lambda sweep), then integrated over the full normalized cost range
+    ``[0, 1]`` using trapezoidal integration with boundary interpolation.
+
+    With these normalizations:
+    - A near-perfect router that achieves frontier-level quality across costs
+      has AUCPC close to 1.0.
+    - A diagonal baseline from (0, 0) to (1, 1) has AUCPC of 0.5.
+
+    Args:
+        costs: Mean costs for candidate configurations (need not be sorted).
+        rewards: Mean rewards/qualities corresponding to *costs*.
+        cheap_cost: Cost of the cheapest model in the portfolio.
+        frontier_cost: Cost of the frontier (most expensive) model.
+        cheap_reward: Baseline reward of always using the cheapest model on the
+            evaluation set used to compute this AUC.
+        frontier_reward: Baseline reward of always using the frontier model on
+            the same evaluation set.
+        clip_quality_to_unit: If True, clip normalized quality to [0, 1] for
+            interpretability (prevents AUCPC > 1 when rewards exceed the
+            frontier baseline).
+
+    Returns:
+        Normalized AUCPC in [0, 1] when clipping is enabled; otherwise it may
+        exceed 1.0 if the Pareto hull exceeds the frontier baseline.
+
+    Raises:
+        ValueError: If the cost range is non-positive.
+    """
+    cost_range = float(frontier_cost - cheap_cost)
+    if cost_range <= 0.0:
+        raise ValueError(
+            "Expected frontier_cost > cheap_cost for normalized AUCPC, "
+            f"got cheap_cost={cheap_cost}, frontier_cost={frontier_cost}."
+        )
+
+    hull_c, hull_r = pareto_hull(costs, rewards)
+    if len(hull_c) < 1:
+        return 0.0
+
+    hc = np.array(hull_c, dtype=float)
+    hr = np.array(hull_r, dtype=float)
+
+    # No overlap with the integration range.
+    if hc[-1] < cheap_cost or hc[0] > frontier_cost:
+        return 0.0
+
+    # Interpolate rewards at boundaries of [cheap_cost, frontier_cost].
+    r_lo = float(np.interp(cheap_cost, hc, hr))
+    r_hi = float(np.interp(frontier_cost, hc, hr))
+
+    interior_mask = (hc > cheap_cost) & (hc < frontier_cost)
+    clip_c = [cheap_cost] + hc[interior_mask].tolist() + [frontier_cost]
+    clip_r = [r_lo] + hr[interior_mask].tolist() + [r_hi]
+
+    cc = np.array(clip_c, dtype=float)
+    cr = np.array(clip_r, dtype=float)
+    if len(cc) < 2:
+        # Degenerate hull point: treat as constant quality across the range.
+        cc = np.array([cheap_cost, frontier_cost], dtype=float)
+        cr = np.array([float(cr.mean()), float(cr.mean())], dtype=float)
+
+    quality_range = float(frontier_reward - cheap_reward)
+    if abs(quality_range) <= 1e-12:
+        # If the portfolio endpoints have indistinguishable baseline quality on
+        # this dataset, the metric should be neutral rather than exploding.
+        return 0.5
+
+    x = (cc - cheap_cost) / cost_range
+    y = (cr - cheap_reward) / quality_range
+    if clip_quality_to_unit:
+        y = np.clip(y, 0.0, 1.0)
+
+    return float(np.trapezoid(y, x))
+
+
 def interpolate_pareto_reward(
     hull_c: List[float],
     hull_r: List[float],

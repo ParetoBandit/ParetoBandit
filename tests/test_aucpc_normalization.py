@@ -1,0 +1,108 @@
+"""
+Tests for normalized AUCPC (Appendix H tuning metric).
+
+The key requirement is interpretability under endpoint normalization:
+- cheap baseline maps to (0, 0)
+- frontier baseline maps to (1, 1)
+so the diagonal baseline has area ~0.5 and near-oracle curves approach 1.0.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+
+def _import_pareto_utils():
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root / "experiments"))
+    from utils.pareto import pareto_aucpc_normalized  # type: ignore
+
+    return pareto_aucpc_normalized
+
+
+def test_aucpc_normalized_diagonal_is_half():
+    pareto_aucpc_normalized = _import_pareto_utils()
+
+    cheap_cost, frontier_cost = 1.0, 3.0
+    cheap_reward, frontier_reward = 0.2, 0.8
+
+    # A straight line from (cheap, cheap_reward) to (frontier, frontier_reward)
+    # becomes y=x after normalization, whose area is 0.5.
+    costs = [cheap_cost, frontier_cost]
+    rewards = [cheap_reward, frontier_reward]
+    auc = pareto_aucpc_normalized(
+        costs,
+        rewards,
+        cheap_cost=cheap_cost,
+        frontier_cost=frontier_cost,
+        cheap_reward=cheap_reward,
+        frontier_reward=frontier_reward,
+        clip_quality_to_unit=True,
+    )
+    assert auc == pytest.approx(0.5, abs=1e-9)
+
+
+def test_aucpc_normalized_oracle_like_is_one():
+    pareto_aucpc_normalized = _import_pareto_utils()
+
+    cheap_cost, frontier_cost = 1.0, 3.0
+    cheap_reward, frontier_reward = 0.2, 0.8
+
+    # Frontier-quality everywhere -> normalized quality is 1 across x ∈ [0,1].
+    costs = [cheap_cost, frontier_cost]
+    rewards = [frontier_reward, frontier_reward]
+    auc = pareto_aucpc_normalized(
+        costs,
+        rewards,
+        cheap_cost=cheap_cost,
+        frontier_cost=frontier_cost,
+        cheap_reward=cheap_reward,
+        frontier_reward=frontier_reward,
+        clip_quality_to_unit=True,
+    )
+    assert auc == pytest.approx(1.0, abs=1e-9)
+
+
+def test_aucpc_normalized_cheapest_everywhere_is_zero():
+    pareto_aucpc_normalized = _import_pareto_utils()
+
+    cheap_cost, frontier_cost = 1.0, 3.0
+    cheap_reward, frontier_reward = 0.2, 0.8
+
+    costs = [cheap_cost, frontier_cost]
+    rewards = [cheap_reward, cheap_reward]
+    auc = pareto_aucpc_normalized(
+        costs,
+        rewards,
+        cheap_cost=cheap_cost,
+        frontier_cost=frontier_cost,
+        cheap_reward=cheap_reward,
+        frontier_reward=frontier_reward,
+        clip_quality_to_unit=True,
+    )
+    assert auc == pytest.approx(0.0, abs=1e-9)
+
+
+def test_aucpc_normalized_clips_above_frontier():
+    pareto_aucpc_normalized = _import_pareto_utils()
+
+    cheap_cost, frontier_cost = 1.0, 3.0
+    cheap_reward, frontier_reward = 0.2, 0.8
+
+    # If rewards exceed the frontier baseline, clipping keeps AUCPC <= 1.
+    costs = [cheap_cost, frontier_cost]
+    rewards = [0.95, 0.95]
+    auc = pareto_aucpc_normalized(
+        costs,
+        rewards,
+        cheap_cost=cheap_cost,
+        frontier_cost=frontier_cost,
+        cheap_reward=cheap_reward,
+        frontier_reward=frontier_reward,
+        clip_quality_to_unit=True,
+    )
+    assert auc == pytest.approx(1.0, abs=1e-9)
+
