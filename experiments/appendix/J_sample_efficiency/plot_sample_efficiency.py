@@ -2,7 +2,7 @@
 """
 Plot Appendix J: Sample Efficiency of Warmup Priors.
 
-Two-panel figure (K=2 left, K=10 right) overlaying the BanditGPT
+Two-panel figure (K=2 left, K=3 right) overlaying the BanditGPT
 (warmup) and Tabula Rasa learning curves with 95% CI bands.
 
 Annotations:
@@ -40,7 +40,7 @@ def plot_sample_efficiency(res: Dict[str, Any], out: Path) -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), constrained_layout=True)
 
-    for ax, k_label, k_key in zip(axes, ["K=2", "K=10"], ["K2", "K10"]):
+    for ax, k_label, k_key in zip(axes, ["K=2", "K=3"], ["K2", "K3"]):
         if k_key not in res:
             continue
         k_data = res[k_key]

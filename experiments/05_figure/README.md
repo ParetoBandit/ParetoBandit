@@ -1,30 +1,43 @@
-# Figure 5: K-Scaling — Hybrid vs. Disjoint LinUCB
+# Figure 5: Corralling Enables Recovery from Catastrophic LLM Failure
 
-**Sample efficiency of family parameter sharing across portfolio sizes**
-
-This directory contains the K-scaling experiment comparing Hybrid LinUCB
-(data-driven family assignments via tetrachoric correlation) against
-Disjoint LinUCB (each model independent) at K=5 and K=10.
-
-For the prior strength and exploration coefficient ablation study
-(2D alpha x n_eff grid), see
-[Appendix H](../appendix/H_alpha_neff_ablation/).
+**Demonstrates that the Corralling meta-learner provides automatic failover when a production LLM degrades catastrophically.**
 
 ---
 
-## Connection to Previous Experiments
+## Connection to Previous Figures
 
-- **Figure 3:** Validated Corralling meta-learner and prior degradation robustness
-- **Figure 4:** Established cost–quality trade-off advantage over RouteLLM on 2 models
+- **Figure 3:** BanditGPT vs supervised baselines (stationary environment)
+- **Figure 4:** Value of warmup priors (cold start vs warm start)
+- **Figure 5 (this):** Non-stationary robustness — what happens when a model fails?
 
-**Critical Question:** Figures 3–4 used only 2 models. Does the Hybrid
-architecture provide value as the portfolio grows?
+**Key Question:** Can Corralling automatically detect and recover from catastrophic model failure without manual intervention?
 
-This experiment answers that question via:
-1. **Controlled A/B comparison** — Same prompts, same seeds, only policy differs
-2. **Scaling analysis** — K=5, K=10 models with constant dataset size
-3. **Data-driven families** — Tetrachoric correlation within providers (threshold r_tet >= 0.6)
-4. **Production router** — Full BanditRouter with Corralling (warmup + tabula rasa experts)
+---
+
+## Scenario
+
+Three-phase simulation on the K=10 portfolio (T=750 steps, 20 seeds):
+
+| Phase | Steps | Description |
+|-------|-------|-------------|
+| Healthy | 0–249 | All models at normal quality (base rewards from real holdout) |
+| Failure | 250–499 | GPT-4.1 (best static model) drops to R=0.10 |
+| Recovery | 500–749 | GPT-4.1 returns to normal |
+
+Context-dependent reward bonuses (orthogonal per model) ensure post-failure routing is a genuinely contextual decision.
+
+---
+
+## Methods Compared
+
+| Method | Description |
+|--------|-------------|
+| **BanditGPT** | Corralling + warmup priors (full system) |
+| **Warmup-only** | No Corralling, just warmup expert — shows priors alone can't adapt |
+| **Tabula rasa** | No priors, no Corralling — learns from scratch |
+| **Static** | Always route to GPT-4.1 — catastrophic on failure |
+| **EMA tracker** | ε-greedy with exponential moving averages |
+| **Oracle** | Per-step clairvoyant upper bound |
 
 ---
 
@@ -32,13 +45,14 @@ This experiment answers that question via:
 
 ```
 05_figure/
-├── run_k_scaling_experiment.py        # Main K-scaling experiment
-├── figure_5_caption.tex               # LaTeX figure float with caption
-├── section_k_scaling_results.tex      # LaTeX results & discussion section
-├── README.md                          # This file
+├── run_catastrophic_failure.py    # Main experiment
+├── plot_results.py                # Generate Figure 5 (3-panel)
+├── figure_5_caption.tex           # LaTeX figure caption
+├── section_k_scaling_results.tex  # LaTeX results discussion
+├── README.md                      # This file
 └── results/
-    ├── k_scaling_results.json         # K-scaling numerical results
-    └── k_scaling_figure.png           # 1×2 panel figure (K=5, K=10)
+    ├── catastrophic_failure_results.json
+    └── figure5_catastrophic_failure.png
 ```
 
 ---
@@ -48,46 +62,23 @@ This experiment answers that question via:
 ```bash
 cd experiments/05_figure/
 
-# Main K-scaling experiment (~2 min)
-python run_k_scaling_experiment.py
+# Run the experiment (~30s)
+python run_catastrophic_failure.py
+
+# Generate the figure
+python plot_results.py
 ```
 
 ---
 
 ## Configuration
 
-Both experiments use the **full production `BanditRouter`** via
-`create_experiment_router()`:
-
-- **Router**: `BanditRouter.create()` with Corralling (warmup + tabula rasa experts)
-- **Warmup priors**: `priors_warmup_43model.joblib` (loaded via `warmup_path`)
-- **Alpha**: 0.5 (constant for warmup expert, 0.25→0.01 decaying for tabula rasa)
-- **prior_n_effective**: 10.0 (main experiment), swept in ablation
-- **Corralling**: learning_rate=0.1, gamma=0.05
-- **Features**: 32 PCA dimensions + 1 bias = 33-dimensional context
-- **Cost penalty**: 0.0 (quality-only evaluation)
-- **Seeds**: 20 paired trials (42–61), global RNG seeded per trial
-- **Data**: Three-way split (prior-train / online-learn / holdout) from shared utilities
-- **Family map**: Computed on the **training** set only (no holdout leakage)
-
-### Model Portfolios
-
-Both portfolios include multi-member providers so shared families can form
-at every K, controlling family density across the comparison:
-
-| K  | Models |
-|----|--------|
-| 5  | gpt-4-turbo, gpt-4.1, llama-3.1-8b, llama-4-maverick, claude-sonnet-4 |
-| 10 | K=5 + claude-haiku-4.5, gemma-3-27b, gemini-2.5-flash, mixtral-8x7b, deepseek-chat-v3 |
-
----
-
-## Ablation Studies
-
-The prior strength and exploration coefficient ablation studies have been
-moved to [Appendix H](../appendix/H_alpha_neff_ablation/).  Key finding:
-the global optimum is **(alpha=0.25, n_eff=1000, Disjoint)** at both K=5
-(0.907) and K=10 (0.904), outperforming the default by ~3 pp.
+- **Router**: Production `BanditRouter` via `create_experiment_router()`
+- **Warmup priors**: K=10 portfolio-specific (`priors_warmup_k10_6comp.joblib`)
+- **Hyperparameters**: From Appendix H (dev-val grid search)
+- **Features**: 6 PCA dimensions + 1 bias = 7-dim context
+- **Cost penalty**: 0.0 (quality-only)
+- **Seeds**: 20 (offset 42–61)
 
 ---
 
@@ -95,10 +86,11 @@ the global optimum is **(alpha=0.25, n_eff=1000, Disjoint)** at both K=5
 
 | Scenario | Experiment |
 |----------|-----------|
-| 2-model Pareto frontier | [Figure 3](../03_figure/) |
-| Distribution shift | [Figure 6](../06_figure/) |
+| Stationary evaluation | [Figure 3](../03_figure/) |
+| Value of warmup priors | [Figure 4](../04_figure/) |
 | Prior degradation sweep | [Appendix E](../appendix/E_prior_degradation/) |
-| Hyperparameter sensitivity | [Appendix C](../03_figure/) |
+| Detailed catastrophic failure (old) | [Appendix E](../appendix/E_catastrophic_failure_experiment/) |
+| Hyperparameter tuning | [Appendix H](../appendix/H_alpha_neff_ablation/) |
 
 ---
 

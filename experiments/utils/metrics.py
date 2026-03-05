@@ -2,12 +2,13 @@
 Metrics computation for BanditGPT experiments.
 
 Provides standard metric calculations used across all experiments,
-including regret metrics and router comparison metrics following
-conventions from LLMRouterBench (2026).
+including regret metrics, router comparison metrics following
+conventions from LLMRouterBench (2026), and paired-test statistics
+for ablation comparisons.
 """
 
 import numpy as np
-from typing import List, Union, Tuple
+from typing import List, Sequence, Union, Tuple
 
 
 def calculate_cumulative_regret(
@@ -220,3 +221,51 @@ def gap_at_oracle(
     absolute = oracle_reward - method_reward
     pct = (absolute / oracle_reward * 100.0) if oracle_reward != 0 else 0.0
     return absolute, pct
+
+
+# =========================================================================
+# Paired-test statistics (used by ablation experiments)
+# =========================================================================
+
+
+def holm_bonferroni(p_values: Sequence[float]) -> List[float]:
+    """Holm-Bonferroni step-down correction for multiple comparisons.
+
+    Args:
+        p_values: Uncorrected p-values (one per hypothesis).
+
+    Returns:
+        Adjusted p-values in the same order as the input, each
+        clamped to [0, 1].
+    """
+    n = len(p_values)
+    indexed = sorted(enumerate(p_values), key=lambda x: x[1])
+    adjusted = [0.0] * n
+    running_max = 0.0
+    for rank, (orig_idx, p) in enumerate(indexed):
+        corrected = p * (n - rank)
+        running_max = max(running_max, corrected)
+        adjusted[orig_idx] = min(running_max, 1.0)
+    return adjusted
+
+
+def cohens_d_paired(
+    a: Sequence[float],
+    b: Sequence[float],
+) -> float:
+    """Cohen's d for paired samples.
+
+    Computed as ``mean(a - b) / std(a - b, ddof=1)``.
+
+    Args:
+        a: Observations under condition A.
+        b: Observations under condition B (same length, paired).
+
+    Returns:
+        Effect size (positive when A > B).
+    """
+    diff = np.asarray(a, dtype=float) - np.asarray(b, dtype=float)
+    sd = float(np.std(diff, ddof=1))
+    if sd < 1e-15:
+        return 0.0
+    return float(np.mean(diff) / sd)

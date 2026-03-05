@@ -27,7 +27,7 @@ Corralling~\cite{agarwal2017corralling} is a meta-learning strategy that maintai
 \label{sec:motivation}
 
 A contextual bandit is only useful if prompt features carry actionable routing signal.
-We embed prompts using Sentence-BERT~\cite{reimers2019sentence} (\path{all-MiniLM-L6-v2}, 384D) and reduce to 32 dimensions using unsupervised PCA trained on 80K routing prompts from RouteLLM~\cite{ong2024routellm}.
+We embed prompts using \texttt{BAAI/bge-m3}~\cite{chen2024bge} (1024D) and reduce to 15 dimensions using unsupervised PCA trained on ${\sim}46{,}000$ LMSYS Chatbot Arena prompts disjoint from the evaluation splits.
 
 To validate that these features predict model preference, we evaluate on $N{=}750$ held-out prompts scored by all $K{=}10$ models in our portfolio (three cost tiers, four providers).
 Rewards are computed as $\text{mean}(\text{vote} \times \text{confidence})$ across a 3--4 judge panel (\S\ref{app:cot_panel}), yielding a continuous signal in $[0,1]$ that preserves evaluative nuance lost by binarised majority vote.

@@ -245,7 +245,7 @@ with 50 independent seeds per $\lambda$ value (750 total runs).
 The RouteLLM baseline uses 28 threshold values $\tau \in [0.0, 1.0]$.
 
 \paragraph{Figures~6 and 8 ($K{>}2$).}
-Both sweep 11 cost penalty values over the $K{=}5$ and $K{=}10$ portfolios:
+Both sweep 11 cost penalty values over the $K{=}3$ portfolio:
 \begin{equation*}
 \lambda \in \{0.0,\; 0.005,\; 0.01,\; 0.02,\; 0.05,\; 0.1,\; 0.2,\; 0.5,\; 1.0,\; 2.0,\; 5.0\}
 \end{equation*}
@@ -278,7 +278,7 @@ LinTS tabula rasa) across the same grid, yielding $11 \times 20 \times 2 \times 
 \begin{table}[h]
 \centering
 \caption{Model portfolio across experiments.  Figures~5, 6, 8, and 9 draw from the
-43-model evaluation pool; full portfolios listed for $K{=}5$ and $K{=}10$
+43-model evaluation pool; the $K{=}3$ portfolio is listed below
 (see Section~\ref{sec:multimodel_data}).}
 \label{tab:model_costs}
 \small
@@ -286,16 +286,9 @@ LinTS tabula rasa) across the same grid, yielding $11 \times 20 \times 2 \times 
 \toprule
 \textbf{Model} & \textbf{Cost (/1M)} & \textbf{Fig~3,4} & \textbf{Fig~5,6} & \textbf{Fig~8,9} & \textbf{Prior Source} \\
 \midrule
-Llama-3.1-8B-Instruct & \$0.05 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
-Mixtral-8x7B-Instruct & \$0.57 & \checkmark & $K{\geq}5$ & $K{\geq}5$ & RouteLLM battles \\
-Gemini-2.5-Flash & \$0.15 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
-Claude-Sonnet-4 & \$3.00 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
-GPT-4.1 & \$2.00 & --- & $K{\geq}5$ & $K{\geq}5$ & 43-model priors \\
-Llama-4-Maverick & \$0.20 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
-Gemma-3-27B & \$0.10 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
-Claude-Haiku-4.5 & \$0.80 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
-GPT-4-Turbo & \$10.00 & \checkmark & $K{=}10$ & $K{=}10$ & RouteLLM battles \\
-DeepSeek-V3 & \$0.27 & --- & $K{=}10$ & $K{=}10$ & 43-model priors \\
+Llama-3.1-8B-Instruct & \$0.05 & \checkmark & $K{=}3$ & $K{=}3$ & 43-model priors \\
+Gemini-2.5-Flash & \$0.15 & --- & $K{=}3$ & $K{=}3$ & 43-model priors \\
+GPT-4.1 & \$2.00 & \checkmark & $K{=}3$ & $K{=}3$ & 43-model priors \\
 GPT-4o & \$2.50 & \checkmark & --- & --- & Semantic transfer \\
 \bottomrule
 \end{tabular}

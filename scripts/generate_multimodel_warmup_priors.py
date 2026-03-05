@@ -55,9 +55,23 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def load_all_models_rewards(
-    data_path: Path, min_models: int = 43
+    data_path: Path,
+    min_models: int = 43,
+    required_models: set | None = None,
 ) -> Dict[str, Dict[str, float]]:
-    """Load rewards grouped by prompt, keeping only full-coverage prompts."""
+    """Load rewards grouped by prompt, keeping only full-coverage prompts.
+
+    Args:
+        data_path: Gzipped JSONL file with per-(prompt, model) reward entries.
+        min_models: Minimum number of distinct models per prompt.
+        required_models: If provided, retain only prompts that cover *all*
+            of these model IDs and keep only their reward entries.  The
+            ``min_models`` filter is applied *after* the required-model
+            filter (set it to ``len(required_models)`` for exact match).
+
+    Returns:
+        ``{prompt: {model_id: reward}}`` for qualifying prompts.
+    """
     logger.info(f"  Loading {data_path.name} ...")
     rewards: Dict[str, Dict[str, float]] = {}
     with gzip.open(data_path, "rt") as f:
@@ -65,14 +79,24 @@ def load_all_models_rewards(
             entry = json.loads(line)
             if not entry.get("ok"):
                 continue
+            model_id = entry["model_id"]
+            if required_models is not None and model_id not in required_models:
+                continue
             prompt = entry["prompt"]
             if prompt not in rewards:
                 rewards[prompt] = {}
-            rewards[prompt][entry["model_id"]] = extract_reward(entry)
+            rewards[prompt][model_id] = extract_reward(entry)
 
-    full = {p: r for p, r in rewards.items() if len(r) >= min_models}
+    if required_models is not None:
+        full = {
+            p: r for p, r in rewards.items()
+            if required_models <= set(r.keys())
+        }
+    else:
+        full = {p: r for p, r in rewards.items() if len(r) >= min_models}
+
     logger.info(
-        f"  {len(full)} prompts with >= {min_models} models "
+        f"  {len(full)} prompts with full coverage "
         f"(dropped {len(rewards) - len(full)})"
     )
     return full
@@ -235,9 +259,25 @@ def print_report(state: Dict, prior_train: List[str],
 # Main
 # ---------------------------------------------------------------------------
 
+def _load_model_ids(config_path: str) -> List[str]:
+    """Read model IDs from a JSON config file (``{"models": [...]}``)."""
+    with open(config_path) as f:
+        data = json.load(f)
+    entries = data.get("models", data) if isinstance(data, dict) else data
+    return [
+        e["model_id"] if isinstance(e, dict) else str(e) for e in entries
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate multi-model warmup priors for K>>2 experiments",
+        description="Generate multi-model warmup priors",
+    )
+    parser.add_argument(
+        "--model-config", type=str, default=None,
+        help="Path to a JSON model config (e.g. models_k10.json). "
+             "Only prompts with full coverage for these models are kept. "
+             "If omitted, defaults to min_models=43 (legacy behaviour).",
     )
     parser.add_argument(
         "--pca", type=str, default=str(DEFAULT_PCA_PATH),
@@ -256,14 +296,12 @@ def main():
         help="Random seed for split and encoder (default: 42)",
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        default="cpu",
+        "--device", type=str, default="cpu",
         help="Torch device for SentenceTransformer inference (default: cpu)",
     )
     parser.add_argument(
         "--output-priors", type=str,
-        default=str(ARTIFACTS_DIR / "priors_warmup_43model.joblib"),
+        default=str(ARTIFACTS_DIR / "priors_warmup_k10_15comp.joblib"),
         help="Output path for warmup priors",
     )
     parser.add_argument(
@@ -273,15 +311,33 @@ def main():
     )
     args = parser.parse_args()
 
+    # Determine model filter
+    if args.model_config:
+        model_ids = _load_model_ids(args.model_config)
+        required_models: set | None = set(model_ids)
+        min_models = len(required_models)
+        logger.info(f"Model config: {args.model_config}")
+        logger.info(f"  K={len(model_ids)} models required per prompt")
+    else:
+        required_models = None
+        min_models = 43
+        logger.info("No --model-config supplied; requiring >= 43 models (legacy)")
+
     logger.info("=" * 70)
     logger.info("Multi-Model Warmup Prior Generation")
     logger.info("=" * 70)
 
     # ---- Load data --------------------------------------------------------
-    logger.info("\n1. Loading 43-model evaluation data ...")
-    dev_rewards = load_all_models_rewards(DEV_DATA_PATH_ALL_MODELS, min_models=43)
+    logger.info(f"\n1. Loading evaluation data (min_models={min_models}) ...")
+    dev_rewards = load_all_models_rewards(
+        DEV_DATA_PATH_ALL_MODELS,
+        min_models=min_models,
+        required_models=required_models,
+    )
     holdout_rewards = load_all_models_rewards(
-        HOLDOUT_DATA_PATH_ALL_MODELS, min_models=43
+        HOLDOUT_DATA_PATH_ALL_MODELS,
+        min_models=min_models,
+        required_models=required_models,
     )
 
     # ---- Three-way split --------------------------------------------------
@@ -292,7 +348,7 @@ def main():
         splits_path=splits_path,
         prior_ratio=args.prior_ratio,
         random_state=args.seed,
-        min_models=43,
+        min_models=min_models,
     )
 
     # ---- Leakage check ----------------------------------------------------
@@ -322,6 +378,7 @@ def main():
         encoder=encoder,
         plasticity=args.plasticity,
     )
+    state["reward_source"] = "lmsys_chatbot_arena_prior_train_pool"
 
     # ---- Save -------------------------------------------------------------
     output_path = Path(args.output_priors)

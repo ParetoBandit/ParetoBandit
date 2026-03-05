@@ -1,0 +1,58 @@
+{
+  "models": [
+    {
+      "input_cost_per_m": 0.1,
+      "output_cost_per_m": 0.1,
+      "hle": 0.051,
+      "context_length": 128000,
+      "time_to_first_token_seconds": 0.36,
+      "speed_profile": "fast",
+      "capabilities": [
+        "general",
+        "coding"
+      ],
+      "display": "Llama-3.1-8B",
+      "description": "Llama 3.1 8B: Ultra-cheap, fast inference for budget routing.",
+      "raw_hle": 0.051,
+      "empirical_hle": 0.7373,
+      "model_id": "meta-llama/llama-3.1-8b-instruct"
+    },
+    {
+      "input_cost_per_m": 0.3,
+      "output_cost_per_m": 2.5,
+      "hle": 0.127,
+      "context_length": 1000000,
+      "time_to_first_token_seconds": 0.5,
+      "speed_profile": "balanced",
+      "capabilities": [
+        "reasoning",
+        "context",
+        "coding"
+      ],
+      "display": "Gemini-2.5-Flash",
+      "description": "Premium Value: Near-perfect quality at 1/4 flagship price.",
+      "raw_hle": 0.127,
+      "empirical_hle": 0.9793,
+      "model_id": "google/gemini-2.5-flash"
+    },
+    {
+      "input_cost_per_m": 2.0,
+      "output_cost_per_m": 8.0,
+      "hle": 0.046,
+      "context_length": 128000,
+      "time_to_first_token_seconds": 1.2,
+      "speed_profile": "slow",
+      "capabilities": [
+        "reasoning",
+        "creative",
+        "math",
+        "coding"
+      ],
+      "display": "GPT-4.1",
+      "description": "Global Maximum: The theoretical ceiling.",
+      "raw_hle": 0.046,
+      "empirical_hle": 0.9808,
+      "model_id": "openai/gpt-4.1"
+    }
+  ]
+}

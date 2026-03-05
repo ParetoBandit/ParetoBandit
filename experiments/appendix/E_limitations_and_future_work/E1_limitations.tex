@@ -23,17 +23,16 @@ When one model dominates across nearly all prompts, the contextual improvement
 ceiling---the gap between the per-prompt oracle and the best static
 model---shrinks, and the exploration overhead of contextual methods exceeds
 their routing gains.
-In our $K{=}5$ and $K{=}10$ portfolios, GPT-4.1 achieves 0.983 average
-reward, leaving only a 1.7\% contextual ceiling.
-At $\lambda{=}0$ (quality-only), $\epsilon$-greedy achieves substantially
-lower cumulative regret than banditGPT: 14.5 vs.\ 27.1 ($K{=}5$) and 19.1
-vs.\ 28.9 ($K{=}10$).
+In our $K{=}3$ portfolio, GPT-4.1 achieves high average
+reward, leaving a small contextual ceiling.
+At $\lambda{=}0$ (quality-only), $\epsilon$-greedy may achieve
+lower cumulative regret than banditGPT \textbf{TODO: update with K=3 regret numbers}.
 
 \emph{Implication:}
 banditGPT's advantage is realized when cost matters ($\lambda > 0$), where it
 discovers per-prompt cost savings that non-contextual methods cannot.
-At $\lambda{=}1.0$ ($K{=}10$), banditGPT achieves 89\% cost reduction over
-static GPT-4.1 with only 5.4\% quality loss.
+At $\lambda{=}1.0$ ($K{=}3$), banditGPT achieves substantial cost reduction over
+static GPT-4.1 \textbf{TODO: update with K=3 cost reduction numbers}.
 Practitioners who already know the best model and have no cost constraint
 should prefer static routing or $\epsilon$-greedy over a full contextual
 bandit.
@@ -85,23 +84,15 @@ prior quality is truly unknown.
 The $K$-scaling experiments (Figure~5) reveal that larger portfolios offer
 smoother cost--quality frontiers and provider-diversity resilience, but at the
 cost of slower convergence and reduced gap closure.
-Specifically, gap closure decreases from 81.9\% at $K{=}5$ to 76.5\% at
-$K{=}10$.
-At $K{=}20$ with only 44 observations per model, neither Hybrid nor Disjoint
-LinUCB reaches the oracle within 888 steps.
-
-Hybrid LinUCB with family sharing partially mitigates this: at $K{=}5$ it
-achieves significantly higher holdout quality than Disjoint (0.966 vs.\ 0.937,
-$p{=}0.008$) with 3.2$\times$ narrower confidence intervals.
-At $K{=}20$, Hybrid delivers a +2.8\,pp worst-case floor improvement
-(0.952 vs.\ 0.924).
+Hybrid LinUCB with family sharing partially mitigates convergence challenges at larger $K$
+\textbf{TODO: update portfolio scaling analysis with K=3 results}.
 However, the data-driven family assignment (tetrachoric correlation,
 $r_{\text{tet}} \geq 0.6$) requires all candidate models to have been
 evaluated on a shared prompt set---practical for offline analysis but not for
 runtime family reassignment when new models arrive without overlap data.
 
 \emph{Implication:}
-Practitioners with very large portfolios ($K > 10$) should expect longer
+Practitioners with very large portfolios ($K > 3$) should expect longer
 burn-in periods and should ensure complementary model strengths rather than
 overlapping capabilities, as the latter inflates the action space without
 expanding the contextual ceiling.
@@ -110,8 +101,8 @@ expanding the contextual ceiling.
 % Limitation 5: Exploration Overhead at Quality Ceiling
 % ----------------------------------------------------------------------------
 \paragraph{Exploration Overhead at the Quality Ceiling.}
-banditGPT's peak quality (0.954 at $K{=}5$, 0.940 at $K{=}10$) falls
-below the best static model (GPT-4.1 at 0.983).
+banditGPT's peak quality at $K{=}3$ \textbf{TODO: update with K=3 peak quality} falls
+below the best static model (GPT-4.1).
 The constant exploration coefficient ($\alpha{=}2.0$) in the warmup expert is
 necessary for distribution-shift detection but imposes a quality tax in
 stationary, model-dominant regimes.
@@ -208,15 +199,11 @@ distribution and may differ for other model portfolios or task distributions.
 The catastrophic failure experiment
 (Appendix~\ref{appendix:extended_results}) demonstrates that
 banditGPT provides automatic failover when a model degrades catastrophically.
-However, the formal meta-learner detection rate is low (5\% at both $K{=}5$
-and $K{=}10$); banditGPT's actual response operates primarily through
+The formal meta-learner detection rate is low at $K{=}3$; banditGPT's actual response operates primarily through
 per-arm UCB updates within each expert, which implicitly reduce traffic to
 the failed model.
 This is a secondary safety benefit, not the primary design objective.
-During the failure phase, the EMA tracker achieves higher reward than
-banditGPT at $K{=}5$ (0.859 vs.\ 0.753), but this gap closes at $K{=}10$
-(0.859 vs.\ 0.862), where Corralling's contextual routing compensates for
-its slower meta-level adaptation.
+\textbf{TODO: update catastrophic failure comparison with K=3 results.}
 
 \emph{Implication:}
 For deployments where failure detection latency is critical (e.g., SLA-bound
@@ -295,9 +282,8 @@ $<$100 queries/day), where the burn-in period could span days.
 % ----------------------------------------------------------------------------
 \paragraph{Generalizability.}
 Our evaluation spans a single dataset (LMSYS Arena) but tests portfolio sizes
-from $K{=}2$ (Mixtral-8x7B, GPT-4-Turbo) through $K{=}5$
-(Llama-3.1-8B, Mixtral-8x7B, Gemini-2.5-Flash, Claude-Sonnet-4, GPT-4.1) to
-$K{=}10$ and $K{=}20$ model portfolios, providing substantial breadth across
+from $K{=}2$ (Llama-3.1-8B, GPT-4.1) to $K{=}3$
+(Llama-3.1-8B, Gemini-2.5-Flash, GPT-4.1), providing breadth across
 portfolio configurations.
 Statistical significance is strong: Cohen's $d{=}1.64$ vs.\ RouteLLM-MF
 with bootstrap 95\% CI [0.896, 0.906] entirely excluding the baseline.
@@ -325,8 +311,8 @@ Despite these limitations, our core contributions remain robust:
     7--13\% regret reduction over warmup-only across all corruption levels
     and a formal $O(\sqrt{T})$ regret bound even under severe prior mismatch.
     \item \textbf{Hybrid family sharing enables portfolio scaling:}
-    3.2$\times$ narrower confidence intervals at $K{=}5$ and a
-    +2.8\,pp worst-case floor at $K{=}20$.
+    narrower confidence intervals at $K{=}3$ when per-model data is scarce
+    \textbf{TODO: update with K=3 family sharing results}.
     \item \textbf{Zero-Shot Readiness:}
     Out-of-box deployment with warmup priors (0.839 reward) requires no
     online data and no hyperparameter tuning ($<$0.5\% sensitivity across

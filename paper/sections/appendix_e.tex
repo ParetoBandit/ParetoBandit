@@ -21,13 +21,13 @@ All 1,871 LMSYS evaluation prompts~\cite{zheng2023judging} are judged by GPT-4o 
 The judge receives both model responses in a pairwise comparison using RouteLLM's~\cite{ong2024routellm} MT-Bench-style template, which evaluates helpfulness, relevance, accuracy, depth, creativity, and level of detail.
 Output is \texttt{[[A]]}, \texttt{[[B]]}, or \texttt{[[C]]} (tie), mapped to $r \in \{0, 0.5, 1\}$.
 
-The 80K RouteLLM warmup battles~\cite{ong2024routellm} ship with pre-existing pairwise labels from the \texttt{routellm/gpt4\_judge\_battles} HuggingFace dataset.
-The winner labels in the dataset encode the \emph{losing} model (an inversion noted and corrected in \texttt{scripts/download\_and\_process\_routellm.py}).
+% Legacy note: the RouteLLM battle corpus is no longer used for warmup
+% priors; all priors are now derived from the LMSYS prior-training split.
 
 \subsubsection{$K{>}2$ Rewards (Cross-Provider LLM Panel)}
 \label{app:cot_panel}
 
-The 10 models used in the $K{=}5$ and $K{=}10$ experiments are judged by a panel of LLMs drawn from four providers:
+The models used in the multi-model experiments (drawn from a broader 43-model evaluation) are judged by a panel of LLMs from four providers:
 
 \begin{itemize}[leftmargin=*,noitemsep]
     \item \textbf{GPT-4o} (\texttt{openai/gpt-4o})
@@ -94,7 +94,7 @@ The full evaluation script is available at \path{scripts/rejudge_cot.py} in the 
 
 We perform comprehensive validation to ensure the contextual heterogeneity findings (Figure~\ref{fig:contextual_heterogeneity}) are statistically robust and not artifacts of methodological choices.
 The primary analysis uses a likelihood-ratio test and per-model bootstrap CIs (Section~\ref{sec:motivation}); this appendix provides supporting analyses.
-All analyses use the held-out test set exclusively ($N{=}750$, $K{=}10$ models).
+All analyses use the held-out test set exclusively ($N{=}1{,}483$, $K{=}10$ models).
 
 \subsubsection{Primary Statistical Tests}
 
@@ -130,9 +130,9 @@ This multi-directional structure justifies the router's use of the full 32-compo
 
 \subsubsection{PCA Provenance}
 
-The domain-adapted PCA (80K RouteLLM battles) concentrates routing-relevant variance more efficiently into its leading components than a generic PCA (100K C4 web text).
+The domain-adapted PCA (${\sim}46$K LMSYS arena prompts) concentrates routing-relevant variance more efficiently into its leading components than a generic PCA (100K C4 web text).
 Both PCAs are unsupervised---neither uses reward labels during training.
-The RouteLLM PCA and the holdout evaluation data are entirely independent (different data sources, sampling periods, and prompt populations).
+The LMSYS PCA training set and the holdout evaluation data are entirely disjoint (verified by automated leakage checks at creation time).
 
 \subsubsection{Summary of Validation}
 
@@ -142,7 +142,7 @@ The RouteLLM PCA and the holdout evaluation data are entirely independent (diffe
     \item \textbf{Null baseline:} Router PCA $|\rho|$ exceeds all 100 random projections ($3.4\times$ median)
     \item \textbf{Reward signal:} Continuous $\text{mean}(v \times c)$ yields $14\times$ better effect size than binary scores
     \item \textbf{Multi-directional:} Different PCs predict different models (PC0, PC3, PC31)
-    \item \textbf{Held-out only:} All analyses on $N{=}750$ test set; dev set excluded
+    \item \textbf{Held-out only:} All analyses on $N{=}1{,}483$ test set; dev set excluded
 \end{enumerate}
 
 % ----------------------------------------------------------------------------
@@ -222,7 +222,7 @@ The table below provides a practical decision framework for practitioners select
 \caption{%
     \textbf{Deployment Strategy Selection Guide.}
     Regret at $\alpha{=}0$ (correct priors) and typical ranges across the
-    corruption spectrum from the 750-prompt holdout evaluation
+    corruption spectrum from the     1{,}483-prompt holdout evaluation
     ($N{=}20$ seeds, Corralling with $w_0{=}0.7$, hybrid LinUCB).
     \textbf{Key insight:} the crossover at $\alpha{\approx}0.3$
     determines when Corralling's variance exceeds its benefit
@@ -301,7 +301,7 @@ Our null result on semantic transfer identifies this as an open problem. Future 
     \item \textbf{Expert-Level Non-Stationarity:} Our current experts assume stationary rewards; non-stationarity is handled only at the meta level. Integrating discounted UCB, sliding-window updates, or change-point detection within individual experts would enable adaptation to gradual reward drift without requiring meta-level intervention.
     \item \textbf{Anisotropic Regularization:} The isotropic prior $\Amat_0 = \lambda \mathbf{I}$ in PCA space over-regularizes low-variance components. Variance-matched diagonal priors or full whitening before the bandit layer could improve sample efficiency.
     \item \textbf{Adaptive Corralling Learning Rate:} Replacing the fixed $\eta$ with a horizon-aware schedule ($\eta_t \propto \sqrt{\ln K / t}$) or a doubling-trick variant would restore formal regret guarantees while maintaining practical performance.
-    \item \textbf{Adaptive Exploration Schedules:} Our multi-model evaluation ($K{=}5$--$20$) reveals that the constant exploration coefficient ($\alpha{=}2.0$) imposes a quality tax in stationary regimes where one model dominates (0.954 vs.\ 0.983 best static at $K{=}5$). Adaptive schedules that modulate $\alpha$ based on estimated stationarity---reducing exploration when the reward landscape appears stable, increasing it when drift is detected---could narrow this gap while preserving distribution-shift detection.
+    \item \textbf{Adaptive Exploration Schedules:} Our multi-model evaluation ($K{=}3$) reveals that the constant exploration coefficient ($\alpha{=}2.0$) imposes a quality tax in stationary regimes where one model dominates. Adaptive schedules that modulate $\alpha$ based on estimated stationarity---reducing exploration when the reward landscape appears stable, increasing it when drift is detected---could narrow this gap while preserving distribution-shift detection.
 \end{itemize}
 
 \paragraph{From Routing to Orchestration.}

@@ -23,7 +23,7 @@ Feature pipeline (must match production router):
 Methodology:
   - Holdout only (N=750 prompts, no dev contamination)
   - Reward: mean(vote × confidence) from judge panel
-  - PCA trained on independent dataset (80K offline battles)
+  - PCA trained on independent dataset (~46K LMSYS arena prompts)
   - PCA features are whitened to match production router pipeline
   - LR test uses 6 PCA components; Panel A visualises PC1 only
   - Bootstrap CIs: 10 000 case-resamples

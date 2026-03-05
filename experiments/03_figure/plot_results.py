@@ -97,7 +97,7 @@ def plot_pareto_frontier(
     Args:
         res: Full results dict.
         out: Output directory for the figure PNG.
-        k_label: Which K condition to plot (``"K2"`` or ``"K10"``).
+        k_label: Which K condition to plot (``"K2"`` or ``"K3"``).
     """
     kdata = res[k_label]
     n_seeds = res["metadata"]["n_seeds"]
@@ -186,12 +186,45 @@ def plot_pareto_frontier(
 
     static = kdata.get("static", {})
     if static:
+        s_costs = [static[m]["cost"] for m in static]
+        s_rewards = [static[m]["reward"] for m in static]
+
+        ax.scatter(
+            s_costs, s_rewards,
+            marker="v", c=GRAY, s=50, zorder=7, alpha=0.5,
+        )
         best_m = max(static, key=lambda m: static[m]["reward"])
         ax.scatter(
             static[best_m]["cost"], static[best_m]["reward"],
-            marker="v", c=GRAY, s=70, zorder=8, alpha=0.7,
+            marker="v", c=GRAY, s=80, zorder=8, alpha=0.8,
+            edgecolors="black", linewidths=0.5,
             label=f"Best static ({static[best_m]['reward']:.3f})",
         )
+
+        sh_c, sh_r = pareto_hull(s_costs, s_rewards)
+        if len(sh_c) >= 2:
+            ax.plot(
+                sh_c, sh_r, "--",
+                color=GRAY, lw=1.8, alpha=0.6, zorder=4,
+                label="Random mix (static hull)",
+            )
+
+            # Draw shading everywhere that BanditGPT beats the static hull
+            bg_overlap_c = [c for c in bg_hull_c if sh_c[0] <= c <= sh_c[-1]]
+            if bg_overlap_c:
+                c_lo = max(sh_c[0], bg_hull_c[0])
+                c_hi = min(sh_c[-1], bg_hull_c[-1])
+                fill_c = np.linspace(c_lo, c_hi, 200)
+                fill_bg = np.interp(fill_c, bg_hull_c, bg_hull_r)
+                fill_mix = np.interp(fill_c, sh_c, sh_r)
+                has_gain = bool(np.any(fill_bg > fill_mix))
+                if has_gain:
+                    ax.fill_between(
+                        fill_c, fill_mix, fill_bg,
+                        where=fill_bg > fill_mix,
+                        color=BLUE, alpha=0.08, zorder=3,
+                        label="Contextual routing gain",
+                    )
 
     ax.set_xlabel("Normalized Cost ($/request)", fontsize=12, fontweight="bold")
     ax.set_ylabel("Average Reward (Quality)", fontsize=12, fontweight="bold")
@@ -335,7 +368,7 @@ def generate_summary_table(
     Args:
         res: Full results dict.
         out: Output directory for the table files.
-        k_label: Which K condition (``"K2"`` or ``"K10"``).
+        k_label: Which K condition (``"K2"`` or ``"K3"``).
     """
     kdata = res[k_label]
     oracle = kdata.get("oracle_pure_quality", kdata.get("oracle", {}))
@@ -790,7 +823,7 @@ def generate_isoquality_table(
 if __name__ == "__main__":
     res = load_results()
 
-    for k_label in ("K2", "K10"):
+    for k_label in ("K2", "K3"):
         if k_label in res:
             plot_pareto_frontier(res, RESULTS_DIR, k_label)
             generate_summary_table(res, RESULTS_DIR, k_label)

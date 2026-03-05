@@ -1,0 +1,20 @@
+\begin{table}[htbp]
+\centering
+\caption{BanditGPT vs peer-reviewed baselines ($K{=}2$). PerfGain and CostSave are measured relative to each LLMRouter supervised baseline. Gap@Oracle = oracle reward $-$ method reward. $^\dagger$KNN is deterministic; reported $\pm$0 reflects zero initialization variance, not zero generalization variance.}
+\label{tab:summary_k2}
+\small
+\begin{tabular}{lccrrr}
+\toprule
+Method & Reward & Cost (\$/req) & PerfGain & CostSave (\%) & Gap@Oracle \\
+\midrule
+Oracle & 0.9312 & 0.002030 & --- & --- & 0.0000 \\
+BanditGPT (dev-opt) & 0.9072 & 0.003335 & --- & --- & 0.0241 \\
+BanditGPT ($\lambda{=}0$) & 0.9072$\pm$0.0032 & 0.003335 & --- & --- & 0.0241 \\
+KNN (LLMRouter)$^\dagger$ & 0.8803$\pm$0.0000 & 0.002675 & -0.0057 & -4.0\% & 0.0509 \\
+SVM (LLMRouter) & 0.9094$\pm$0.0000 & 0.003393 & --- & --- & 0.0218 \\
+MLP (LLMRouter) & 0.8802$\pm$0.0118 & 0.002609 & -0.0092 & -6.5\% & 0.0510 \\
+UCB1 & 0.9094 & 0.003400 & --- & --- & 0.0218 \\
+Random & 0.7861 & 0.001728 & --- & --- & 0.1451 \\
+\bottomrule
+\end{tabular}
+\end{table}

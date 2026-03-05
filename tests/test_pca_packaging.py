@@ -198,9 +198,9 @@ class TestBackwardCompatibility:
         assert "src" in str(GENERIC_PCA_PATH) and "artifacts" in str(GENERIC_PCA_PATH)
 
     def test_warmup_priors_path_still_source_tree(self) -> None:
-        from bandit_gpt.config import DEFAULT_WARMUP_PRIORS_PATH
+        from bandit_gpt.config import MULTIMODEL_WARMUP_PRIORS_PATH
 
-        assert "src" in str(DEFAULT_WARMUP_PRIORS_PATH)
+        assert "src" in str(MULTIMODEL_WARMUP_PRIORS_PATH)
 
 
 # ---------------------------------------------------------------------------

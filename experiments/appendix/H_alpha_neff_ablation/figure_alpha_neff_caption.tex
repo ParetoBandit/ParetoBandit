@@ -1,19 +1,20 @@
-% Figure: 2D alpha x n_eff joint ablation heatmap
+% Figure: 3D alpha x n_eff x gamma ablation heatmap
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{H_alpha_neff_ablation/results/alpha_neff_grid_figure.png}
+\includegraphics[width=\textwidth]{H_alpha_neff_ablation/results/alpha_neff_gamma_grid_figure.png}
 \caption{%
-    \textbf{Joint $\alpha \times \neff$ ablation} (2$\times$2 heatmap:
-    rows = $K$, columns = policy).
-    Each cell shows holdout reward (mean $\pm$ 95\% CI, 20 seeds).
-    Starred (*) cells mark the per-panel optimum.
-    The global optimum ($\alpha{=}0.25$, $\neff{=}1{,}000$, Disjoint)
-    achieves $0.907$ at $K{=}5$ and $0.904$ at $K{=}10$, outperforming
-    the default ($\alpha{=}0.5$, $\neff{=}10$) by ${\sim}3$\,pp.
-    At low $\alpha$, the reward landscape is sharply peaked around
-    $\neff{=}1{,}000$; at $\alpha \geq 1.0$, $\neff$ has negligible
-    effect, confirming an $\alpha$--$\neff$ interaction.
+    \textbf{Joint $\alpha \times \neff \times \gamma$ ablation}
+    (top row: Pareto AUC, bottom row: mean reward at $\lambda{=}0$;
+    one column per forgetting factor~$\gamma$).
+    Each cell shows the metric averaged over 20~seeds.
+    Starred (\ding{72}) cells mark the global optimum selected by
+    Pareto AUC --- the area under the cost--reward Pareto frontier
+    traced by sweeping~$\lambda$.
+    The Pareto AUC criterion favours hyperparameters that produce
+    diverse, intelligent routing across the full cost spectrum,
+    rather than a static ``always pick the strongest model'' policy
+    that emerges from quality-only ($\lambda{=}0$) tuning.
 }
 \label{fig:alpha_neff_grid}
 \end{figure}

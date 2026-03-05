@@ -5,19 +5,36 @@ We first describe the shared datasets, evaluation metrics, and implementation de
 
 \subsubsection{Data, Reward Signal, and Feature Pipeline}
 \label{sec:data}
-We draw prompts from LMSYS Chatbot Arena~\cite{zheng2023judging} (1,871 prompts across dev and holdout splits) and the RouteLLM battle corpus~\cite{ong2024routellm} (80,000 pairwise battles). Each prompt is encoded by Sentence-BERT (\texttt{all-MiniLM-L6-v2}~\cite{reimers2019sentence}, 384D) and projected to 32 dimensions via unsupervised PCA trained once on the 80K RouteLLM battles.
+All data is drawn from LMSYS Chatbot Arena~\cite{zheng2023judging}.
+Each prompt is encoded by \texttt{BAAI/bge-m3}~\cite{chen2024bge} (1024D) and projected to 15 dimensions via unsupervised PCA trained on ${\sim}46{,}000$ LMSYS arena prompts disjoint from the evaluation splits.
+This same-distribution pipeline mirrors a production deployment where the practitioner trains the PCA and warmup priors on representative workload prompts before the router goes live.
 
-At routing time, the system observes only the reward of the selected model. For $K{=}2$, 1,871 LMSYS prompts are judged deterministically by GPT-4o, yielding $r \in \{0, 0.5, 1\}$. For $K{>}2$, 10 models are evaluated on LMSYS prompts by a cross-provider panel of 3--4 LLM judges using a structured chain-of-thought protocol, yielding a continuous reward $r \in [0, 1]$.
+At routing time, the system observes only the reward of the selected model.
+Models are evaluated by a cross-provider panel of 3--4 LLM judges using a structured chain-of-thought protocol, yielding a continuous reward $r \in [0, 1]$.
 
 \subsubsection{Evaluation Regimes and Data Splits}
-Our evaluation operates at two portfolio scales requiring different warmup prior sources:
+Our evaluation operates at two portfolio scales with a unified data pipeline:
 \begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{$K{=}2$ (RouteLLM comparison):} We initialize warmup priors for Mixtral-8x7B and GPT-4-Turbo from the 80K RouteLLM battles. This creates a realistic \emph{cross-distribution} setup, matching RouteLLM's training condition against a 750-prompt LMSYS Arena holdout.
-    \item \textbf{$K{=}5$ and $K{=}10$ (Multi-model scaling):} Since RouteLLM data covers only 2 models, we construct \emph{same-distribution} priors from a 355-prompt LMSYS prior training split, evaluating on the shared 750-prompt holdout.
+    \item \textbf{$K{=}2$ (Binary routing):} Llama-3.1-8B (\$0.10/M) and GPT-4.1 (\$5.00/M).
+    \item \textbf{$K{=}3$ (Multi-model routing):} Llama-3.1-8B (\$0.10/M), Gemini-2.5-Flash (\$1.40/M), and GPT-4.1 (\$5.00/M).
 \end{itemize}
+Prompts with full reward coverage for all 10 candidate models ($K{=}10$ superset) are partitioned into a 1{,}028-prompt prior-training split, a 1{,}543-prompt online-learning pool, and a 1{,}483-prompt holdout---all pairwise disjoint.
+Warmup priors are built from the prior-training split; smaller portfolios ($K{=}2$, $K{=}3$) inherit these priors filtered to the relevant model subset.
+This single-source design ensures the same prompt distribution flows through PCA fitting, warmup prior construction, and online evaluation---matching the workflow of a production deployment.
+
+\paragraph{Portfolio justification.}
+The $K{=}3$ portfolio spans budget, mid-tier, and frontier cost tiers with a 50$\times$ cost range, reflecting a realistic practitioner deployment where the router must balance per-request quality against order-of-magnitude cost differences.
+The framework is model-agnostic: specific model identities are representative of tiers at evaluation time and the routing mechanism generalises to any substitute at the same cost tier.
+We measure routing value via \emph{cost-aware headroom}---the per-prompt Lagrangian gap $\max_a [r(a \mid x) - \lambda c(a)] - [r(a^* \mid x) - \lambda c(a^*)]$---which captures the full value proposition of contextual routing: finding the best-quality model at \emph{every} cost level.
+At moderate cost penalties ($\lambda{=}0.5$--$2.0$), cost-aware headroom reaches 8--14\%, substantially exceeding the 5\% quality-only headroom observed at $\lambda{=}0$.
+
+\paragraph{Portfolio scaling.}
+We focus on $K{\in}\{2,3\}$ rather than larger portfolios because empirical analysis of $K{=}2$ through $K{=}10$ subsets reveals diminishing returns beyond $K{\approx}3$--$5$: pairwise reward correlations across contemporary models are high ($\bar{\rho}{>}0.7$), so adding more arms increases data requirements without proportionally increasing the routing signal.
+This reflects data redundancy among correlated arms, not an algorithmic limitation---the router architecture supports arbitrary $K$ without modification.
+We recommend practitioners curate portfolios of 3--5 models with low pairwise reward correlation and wide cost spread for maximum routing benefit.
 
 \subsubsection{Evaluation Metrics \& Implementation Details}
 
-We compare against static single-model baselines, random routing, RouteLLM-MF~\cite{ong2024routellm}, and an oracle upper bound. Performance is evaluated via Average Reward ($\bar{r}$), Normalized Cost ($\bar{c}$), and Gap Closure (\%) (the fraction of the oracle-cheaper performance gap recovered by the router).
+We compare against static single-model baselines, random routing, supervised classifiers from LLMRouter~\cite{ding2024hybrid} (KNN, SVM, MLP), and an oracle upper bound. Performance is evaluated via Average Reward ($\bar{r}$), Normalized Cost ($\bar{c}$), Pareto AUC, PerfGain, CostSave, and Gap@Oracle~\cite{hu2024routerbench}.
 
-Unless noted otherwise, we report mean and 95\% confidence intervals over 20 random seeds for each cost penalty $\lambda$. For family assignment (Section~\ref{sec:methodology}), we use syntactic inference for $K{\leq}3$ and data-driven tetrachoric correlation (threshold $r_{\text{tet}} \geq 0.6$) for $K{\geq}5$.
+Unless noted otherwise, we report mean and 95\% confidence intervals over 20 random seeds for each cost penalty $\lambda$. For family assignment (Section~\ref{sec:methodology}), we use syntactic inference ($K{\leq}3$).

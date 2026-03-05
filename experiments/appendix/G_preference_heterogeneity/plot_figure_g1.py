@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 1: Model Preference Heterogeneity (K=10)
+Figure G1: Model Preference Heterogeneity (K=3)
 
 Establishes the empirical motivation for contextual routing:
   1. Model preference varies by prompt (not all prompts favor the same model)
@@ -14,7 +14,7 @@ policy would be optimal and learned routing would be unnecessary.
 Methodology:
   - Uses the SAME feature pipeline as router.py (FeatureService)
   - Holdout only (N=750, no dev contamination)
-  - PCA trained on independent dataset (80K offline battles)
+  - PCA trained on independent dataset (~46K LMSYS arena prompts)
   - Reward signal: mean(vote × confidence) from judge panel
   - Primary metric: Spearman rank correlation (PC1 vs oracle gain)
   - Null baseline: 100 random orthonormal projections (QR-decomposed)
@@ -23,7 +23,7 @@ Panel A: Per-model reward vs PC1 — running means show preference crossings
 Panel B: Best-model distribution by PC1 quintile — routing opportunity varies
 
 Usage:
-    python3 experiments/01_figure/plot_figure1.py
+    python3 experiments/appendix/G_preference_heterogeneity/plot_figure_g1.py
 """
 
 import sys
@@ -54,36 +54,29 @@ from utils.rewards import extract_reward
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  K=10 PORTFOLIO (mirrors experiments/04_figure)
+#  K=3 PORTFOLIO
 # ══════════════════════════════════════════════════════════════════════════
 
-PORTFOLIO_K10: List[Dict] = [
+PORTFOLIO_K3: List[Dict] = [
     {"id": "meta-llama/llama-3.1-8b-instruct",              "display": "Llama-3.1-8B",     "color": "#e41a1c", "tier": "cheap"},
-    {"id": "mistralai/mixtral-8x7b-instruct",               "display": "Mixtral-8x7B",     "color": "#ff7f00", "tier": "cheap"},
-    {"id": "google/gemma-3-27b-it",                         "display": "Gemma-3-27B",      "color": "#a65628", "tier": "cheap"},
-    {"id": "anthropic/claude-haiku-4.5",                    "display": "Haiku-4.5",        "color": "#984ea3", "tier": "mid"},
-    {"id": "deepseek/deepseek-chat-v3-0324",                "display": "DeepSeek-V3",      "color": "#377eb8", "tier": "mid"},
-    {"id": "google/gemini-2.5-flash-preview-09-2025",       "display": "Gemini-2.5-Flash", "color": "#4daf4a", "tier": "mid"},
-    {"id": "meta-llama/llama-4-maverick",                   "display": "Llama-4-Maverick", "color": "#f781bf", "tier": "mid"},
-    {"id": "anthropic/claude-sonnet-4",                     "display": "Claude-Sonnet-4",  "color": "#6a3d9a", "tier": "expensive"},
-    {"id": "moonshotai/kimi-k2-0905",                         "display": "Kimi-K2",           "color": "#b15928", "tier": "mid"},
+    {"id": "google/gemini-2.5-flash",                        "display": "Gemini-2.5-Flash", "color": "#4daf4a", "tier": "mid"},
     {"id": "openai/gpt-4.1",                                "display": "GPT-4.1",          "color": "#1f78b4", "tier": "expensive"},
 ]
 
-MODEL_IDS = [m["id"] for m in PORTFOLIO_K10]
-MODEL_DISPLAY = {m["id"]: m["display"] for m in PORTFOLIO_K10}
-MODEL_COLORS = {m["id"]: m["color"] for m in PORTFOLIO_K10}
+MODEL_IDS = [m["id"] for m in PORTFOLIO_K3]
+MODEL_DISPLAY = {m["id"]: m["display"] for m in PORTFOLIO_K3}
+MODEL_COLORS = {m["id"]: m["color"] for m in PORTFOLIO_K3}
 
 
 # ══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
 # ══════════════════════════════════════════════════════════════════════════
 
-def load_holdout_k10(
+def load_holdout_k3(
     holdout_file: Path,
     model_ids: List[str],
 ) -> Tuple[List[str], Dict[str, Dict[str, float]]]:
-    """Load holdout rewards for the K=10 portfolio.
+    """Load holdout rewards for the K=3 portfolio.
 
     Reads gzipped JSONL, filters to the target models, and computes
     ``mean(vote × confidence)`` via :func:`extract_reward`.  Only
@@ -252,7 +245,7 @@ def main():
 
     # ── Load holdout data ─────────────────────────────────────────────────
     print(f"Loading holdout rewards for K={K} portfolio ...")
-    prompts, rewards = load_holdout_k10(
+    prompts, rewards = load_holdout_k3(
         HOLDOUT_DATA_PATH_ALL_MODELS, MODEL_IDS,
     )
     N = len(prompts)
@@ -324,7 +317,7 @@ def main():
     tier_styles = {"cheap": "--", "mid": "-", "expensive": "-"}
     tier_widths = {"cheap": 1.8, "mid": 2.2, "expensive": 2.8}
 
-    for m_info in PORTFOLIO_K10:
+    for m_info in PORTFOLIO_K3:
         mid = m_info["id"]
         r_vec = np.array([rewards[p][mid] for p in prompts])
         rm_x, rm_y = running_mean(pc1, r_vec, window=WINDOW)
@@ -379,7 +372,7 @@ def main():
     bar_width = 0.65
     bottom = np.zeros(n_bins)
 
-    for m_info in PORTFOLIO_K10:
+    for m_info in PORTFOLIO_K3:
         mid = m_info["id"]
         vals = np.array(fracs[mid])
         ax2.bar(
@@ -439,9 +432,9 @@ def main():
 
     # ── Save ──────────────────────────────────────────────────────────────
     fig.subplots_adjust(left=0.06, right=0.97, bottom=0.28, top=0.92)
-    out_300 = output_dir / "figure1_k10_heterogeneity.png"
+    out_300 = output_dir / "figure1_k3_heterogeneity.png"
     fig.savefig(out_300, dpi=300, bbox_inches="tight", facecolor="white")
-    out_600 = output_dir / "figure1_k10_heterogeneity_hires.png"
+    out_600 = output_dir / "figure1_k3_heterogeneity_hires.png"
     fig.savefig(out_600, dpi=600, bbox_inches="tight", facecolor="white")
     plt.close()
 

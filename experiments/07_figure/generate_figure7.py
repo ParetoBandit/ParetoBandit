@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Generate Figure 7: LinTS baseline comparison Pareto frontiers for K=5 and K=10.
+Generate Figure 7: LinTS baseline comparison Pareto frontier for K=3.
 
-Two-panel figure (side by side): one panel per portfolio.
-Each panel shows:
+Single-panel figure showing:
   - banditGPT Pareto curve (solid, markers)
   - LinTS (warmup) Pareto curve (dashed)
   - LinTS (no priors) Pareto curve (dotted)
@@ -91,19 +90,15 @@ def main():
     with open(RESULTS_FILE) as f:
         results = json.load(f)
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5))
+    fig, ax = plt.subplots(1, 1, figsize=(7.5, 6.5))
 
-    for ax, (portfolio, title) in zip(axes, [
-        ("K5", "K=5 Portfolio"),
-        ("K10", "K=10 Portfolio"),
-    ]):
-        plot_panel(ax, results[portfolio], title)
+    plot_panel(ax, results["K3"], "K=3 Portfolio")
 
-    handles, labels = axes[0].get_legend_handles_labels()
+    handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=4, fontsize=14,
                bbox_to_anchor=(0.5, -0.08), frameon=True, fancybox=True)
 
-    fig.suptitle("Figure 7: banditGPT vs. Linear Thompson Sampling — Pareto Frontiers",
+    fig.suptitle("Figure 7: banditGPT vs. Linear Thompson Sampling — Pareto Frontier",
                  fontsize=22, fontweight="bold", y=1.02)
 
     plt.tight_layout()

@@ -62,10 +62,10 @@ prediction bias per model.  Operators should extend this to check for
 disparate routing rates across user segments.  The $\gamma$-mixing floor
 in Corralling ensures no model is completely abandoned, but it does not
 guarantee equitable routing rates across user groups --- explicit fairness
-constraints may be needed for high-stakes applications.  The $K{=}10$
+constraints may be needed for high-stakes applications.  The $K{=}3$
 multi-model results (Section~5.2) underscore this concern: at
-$\lambda{=}1$, the router achieves 89\% cost reduction versus
-static GPT-4.1 by routing the vast majority of traffic to cheaper
+$\lambda{=}1$, the router achieves substantial cost reduction versus
+static GPT-4.1 by routing traffic to cheaper
 models, which amplifies the risk that certain user populations are
 systematically served by lower-capability backends.
 
@@ -83,7 +83,7 @@ request.  The \texttt{explain\_decision} API provides this information.
 The catastrophic failure experiments
 (Appendix~\ref{appendix:catastrophic_failure}) demonstrate that Corralling
 can automatically redistribute traffic away from a failing model (95\%
-detection rate at $K{=}5$), which reduces user exposure to harmful
+detection rate at $K{=}3$), which reduces user exposure to harmful
 outputs --- but this re-routing occurs without human intervention,
 compounding the accountability question for operators who must explain
 after the fact why different users received different models.
@@ -155,7 +155,7 @@ All experiments in this paper were conducted using pre-computed LLM
 responses and judge verdicts --- no new LLM inference calls were made
 during the bandit experiments themselves.  The total compute for all
 experiments (1,400+ architectural ablation runs, 360 PCA-vs-$K$ runs,
-catastrophic failure simulations across $K{\in}\{2,3,5,10\}$, model
+catastrophic failure simulations across $K{\in}\{2,3\}$, model
 onboarding trials, hyperparameter sweeps, learning curves, and
 statistical tests --- over 2,000 individual runs in total) was under
 10 minutes on a single Apple M2 laptop.  The embedding computation

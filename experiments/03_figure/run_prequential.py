@@ -12,7 +12,7 @@ Protocol
 1. **Canonical dev/holdout splits.**
    Data comes from pre-computed datasets (``dev_rewards_2models.jsonl.gz``,
    ``holdout_rewards_2models.jsonl.gz`` for K=2; all-models variants for
-   K=10) with rewards derived via :func:`extract_reward` (mean of
+   K=3) with rewards derived via :func:`extract_reward` (mean of
    vote x confidence across multi-judge panel).
 
 2. **Train-then-freeze evaluation.**
@@ -89,13 +89,13 @@ from bandit_gpt.config import (
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     K2_WARMUP_PRIORS_PATH,
-    K10_WARMUP_PRIORS_PATH,
+    K3_WARMUP_PRIORS_PATH,
     CANONICAL_DEV_DATA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
     THREE_WAY_SPLITS_PATH,
-    K10_MODELS_PATH,
+    K3_MODELS_PATH,
 )
 from utils.rewards import extract_reward
 from utils.model_pricing import get_prices_for_models, load_model_catalog
@@ -166,7 +166,7 @@ K2_CATALOG: Dict[str, Dict] = {
     },
 }
 
-K10_MODELS, K10_CATALOG = load_model_catalog(K10_MODELS_PATH)
+K3_MODELS, K3_CATALOG = load_model_catalog(K3_MODELS_PATH)
 
 
 # ============================================================================
@@ -191,11 +191,10 @@ LAMBDA_VALUES_K2: List[float] = [
     # Low-cost floor (router converges to cheapest model)
     1.0, 1.5, 2.0, 3.0, 5.0,
 ]
-LAMBDA_VALUES_K10: List[float] = [
-    0.0, 0.01, 0.03, 0.05, 0.07, 0.08, 0.09, 0.095,
-    0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18,
-    0.185, 0.19, 0.192, 0.195, 0.198, 0.2, 0.202, 0.205,
-    0.208, 0.21, 0.215, 0.22, 0.25, 0.3, 0.5, 1.0,
+LAMBDA_VALUES_K3: List[float] = [
+    0.0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.45,
+    0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95,
+    1.0, 1.5, 2.0, 3.0, 5.0,
 ]
 
 def _make_learning_curve_checkpoints(n_train: int) -> List[int]:
@@ -874,6 +873,7 @@ def run_pareto_sweep(
         trial_best_steps: List[int] = []
         all_per_prompt: List[List[float]] = []
         all_per_prompt_costs: List[List[float]] = []
+        all_model_counts: List[Dict[str, int]] = []
         for trial in range(n_trials):
             seed = SEED_OFFSET + trial
             np.random.seed(seed)  # router init may consume global RNG
@@ -898,11 +898,12 @@ def run_pareto_sweep(
                 r_min, r_range, rng=trial_rng,
             )
             trial_best_steps.append(best_step)
-            r, c, _, pp, pp_c = evaluate_frozen(
+            r, c, mc, pp, pp_c = evaluate_frozen(
                 router, eval_data, eval_emb, costs, burn_in, per_prompt=True,
             )
             trial_r.append(r)
             trial_c.append(c)
+            all_model_counts.append(mc)
             all_per_prompt.append(pp)
             all_per_prompt_costs.append(pp_c)
             dev_r, dev_c, _, _, _ = evaluate_frozen(
@@ -912,6 +913,16 @@ def run_pareto_sweep(
             trial_dev_r.append(dev_r)
 
         mean_best_step = float(np.mean(trial_best_steps))
+
+        agg_counts: Dict[str, float] = {m: 0.0 for m in models}
+        for mc in all_model_counts:
+            for m in models:
+                agg_counts[m] += mc.get(m, 0)
+        total_routed = sum(agg_counts.values()) or 1.0
+        routing_fractions = {
+            m: agg_counts[m] / total_routed for m in models
+        }
+
         results.append({
             "lambda": lam,
             "mean_reward": float(np.mean(trial_r)),
@@ -927,10 +938,15 @@ def run_pareto_sweep(
             "n_trials": n_trials,
             "label": label,
             "mean_best_step": mean_best_step,
+            "model_counts": {m: int(agg_counts[m]) for m in models},
+            "routing_fractions": routing_fractions,
         })
+        most_routed = max(routing_fractions, key=routing_fractions.get)
+        most_routed_short = most_routed.split("/")[-1]
         logger.info(
             f"    lambda={lam:<6} | R={np.mean(trial_r):.4f}+/-{np.std(trial_r):.4f} "
-            f"| C=${np.mean(trial_c):.6f} | stop@{mean_best_step:.0f}"
+            f"| C=${np.mean(trial_c):.6f} | stop@{mean_best_step:.0f} "
+            f"| top={most_routed_short} ({routing_fractions[most_routed]:.0%})"
         )
     return results
 
@@ -1253,7 +1269,7 @@ def across_seeds_ttest(
 
 
 def run_experiment() -> None:  # noqa: C901
-    """Run the full K=2 and K=10 evaluation and serialise results."""
+    """Run the full K=2 and K=3 evaluation and serialise results."""
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -1264,7 +1280,7 @@ def run_experiment() -> None:  # noqa: C901
     logger.info("Loading encoder, PCA, and embedding cache ...")
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    logger.info(f"  PCA: {pca.n_components_} components (unified for K=2 and K=10)")
+    logger.info(f"  PCA: {pca.n_components_} components (unified for K=2 and K=3)")
 
     global _EMBEDDING_CACHE  # noqa: PLW0603
     _EMBEDDING_CACHE = load_embedding_cache(
@@ -1313,9 +1329,9 @@ def run_experiment() -> None:  # noqa: C901
         / "H_alpha_neff_ablation" / "results"
     )
     hparams_k2_path = hparams_dir / "best_hparams_k2.json"
-    hparams_k10_path = hparams_dir / "best_hparams_k10.json"
+    hparams_k3_path = hparams_dir / "best_hparams_k3.json"
     hparams_k2_tr_path = hparams_dir / "best_hparams_k2_tabula_rasa.json"
-    hparams_k10_tr_path = hparams_dir / "best_hparams_k10_tabula_rasa.json"
+    hparams_k3_tr_path = hparams_dir / "best_hparams_k3_tabula_rasa.json"
 
     def _load_hparams(path: Path, key: str) -> Optional[Dict[str, float]]:
         if not path.exists():
@@ -1333,9 +1349,9 @@ def run_experiment() -> None:  # noqa: C901
             return None
 
     tuned_k2 = _load_hparams(hparams_k2_path, "K2")
-    tuned_k10 = _load_hparams(hparams_k10_path, "K10")
+    tuned_k3 = _load_hparams(hparams_k3_path, "K3")
     tuned_k2_tr = _load_hparams(hparams_k2_tr_path, "K2")
-    tuned_k10_tr = _load_hparams(hparams_k10_tr_path, "K10")
+    tuned_k3_tr = _load_hparams(hparams_k3_tr_path, "K3")
 
     _ablation_script = (
         "experiments/appendix/H_alpha_neff_ablation/run_3d_grid_ablation.py"
@@ -1343,9 +1359,9 @@ def run_experiment() -> None:  # noqa: C901
     _missing_hparams: List[str] = []
     for label, tuned, path in [
         ("K=2 BanditGPT", tuned_k2, hparams_k2_path),
-        ("K=10 BanditGPT", tuned_k10, hparams_k10_path),
+        ("K=3 BanditGPT", tuned_k3, hparams_k3_path),
         ("K=2 Tabula Rasa", tuned_k2_tr, hparams_k2_tr_path),
-        ("K=10 Tabula Rasa", tuned_k10_tr, hparams_k10_tr_path),
+        ("K=3 Tabula Rasa", tuned_k3_tr, hparams_k3_tr_path),
     ]:
         if tuned is not None:
             logger.info(
@@ -1372,8 +1388,8 @@ def run_experiment() -> None:  # noqa: C901
         ),
         "K2_warmup": tuned_k2,
         "K2_tabula_rasa": tuned_k2_tr,
-        "K10_warmup": tuned_k10,
-        "K10_tabula_rasa": tuned_k10_tr,
+        "K3_warmup": tuned_k3,
+        "K3_tabula_rasa": tuned_k3_tr,
     }
 
     # ==================================================================
@@ -1456,7 +1472,7 @@ def run_experiment() -> None:  # noqa: C901
         raise FileNotFoundError(
             f"K=2 warmup priors not found: {K2_WARMUP_PRIORS_PATH}\n"
             "Generate with: python scripts/extract_warmup_from_multimodel.py "
-            "--input src/artifacts/priors_warmup_43model_6comp.joblib "
+            "--input src/artifacts/priors_warmup_43model_15comp.joblib "
             f"--output {K2_WARMUP_PRIORS_PATH} "
             "--models meta-llama/llama-3.1-8b-instruct,openai/gpt-4.1"
         )
@@ -1573,7 +1589,7 @@ def run_experiment() -> None:  # noqa: C901
     # Comparison vs supervised baselines (PerfGain / CostSave / Gap@Oracle)
     oracle_reward_k2 = oracle_r_k2_pure
     comparison_vs_supervised_k2: Dict[str, Dict[str, Any]] = {}
-    logger.info("\n    BanditGPT vs LLMRouter supervised baselines:")
+    logger.info("\n    BanditGPT vs LLMRouter supervised baselines (K=2):")
     for kind, sv_result in supervised_k2.items():
         sv_cost = sv_result["cost"]
         sv_reward = sv_result["reward"]
@@ -1602,9 +1618,14 @@ def run_experiment() -> None:  # noqa: C901
         else:
             gap_bg_abs, gap_bg_pct = None, None
 
+        sv_mc = sv_result.get("model_counts", {})
+        sv_total = sum(sv_mc.values()) or 1
+        sv_routing_fractions = {m: sv_mc.get(m, 0) / sv_total for m in K2_MODELS}
+
         comparison_vs_supervised_k2[kind] = {
             "supervised_cost": sv_cost,
             "supervised_reward": sv_reward,
+            "supervised_routing_fractions": sv_routing_fractions,
             "banditgpt_reward_at_sv_cost": bg_reward_at_sv_cost,
             "perfgain": pg,
             "banditgpt_cost_at_sv_reward": bg_cost_at_sv_reward,
@@ -1615,10 +1636,12 @@ def run_experiment() -> None:  # noqa: C901
             "gap_oracle_banditgpt_abs": gap_bg_abs,
             "gap_oracle_banditgpt_pct": gap_bg_pct,
         }
+        strong_frac = sv_routing_fractions.get("openai/gpt-4.1", 0.0)
         logger.info(
             f"      vs {kind.upper()}: PerfGain={_fmt(pg)} "
             f"CostSave={_fmt(cs_pct, '%')} "
-            f"Gap@Oracle(SV)={gap_sv_abs:.4f}({gap_sv_pct:.1f}%)"
+            f"Gap@Oracle(SV)={gap_sv_abs:.4f}({gap_sv_pct:.1f}%) "
+            f"%→GPT-4.1={strong_frac:.1%}"
         )
 
     # Point comparisons: BanditGPT dev-selected best vs supervised baselines
@@ -1760,18 +1783,18 @@ def run_experiment() -> None:  # noqa: C901
         }
 
     # ==================================================================
-    # K=10 — Multi-model Pareto frontier
+    # K=3 — Multi-model Pareto frontier
     # ==================================================================
     logger.info("\n" + "=" * 70)
-    logger.info("K=10: Multi-Model Pareto Frontier")
+    logger.info("K=3: Multi-Model Pareto Frontier")
     logger.info("=" * 70)
 
-    costs_k10 = {m: K10_CATALOG[m]["cost"] for m in K10_MODELS}
+    costs_k3 = {m: K3_CATALOG[m]["cost"] for m in K3_MODELS}
 
-    # --- Load K=10 data ------------------------------------------------
-    # Use all K10-complete dev prompts, excluding those reserved for
+    # --- Load K=3 data ------------------------------------------------
+    # Use all K3-complete dev prompts, excluding those reserved for
     # prior training (to avoid data leakage from warmup priors).
-    logger.info("\n  Loading K=10 data ...")
+    logger.info("\n  Loading K=3 data ...")
     prior_train_prompts: set = set()
     if THREE_WAY_SPLITS_PATH.exists():
         with open(THREE_WAY_SPLITS_PATH) as f:
@@ -1779,89 +1802,87 @@ def run_experiment() -> None:  # noqa: C901
         prior_train_prompts = set(splits_3way.get("prior_train_pool", []))
         logger.info(f"    Excluding {len(prior_train_prompts)} prior-train prompts")
 
-    all_dev_k10 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K10_MODELS)
-    train_data_k10 = [
-        d for d in all_dev_k10 if d["prompt"] not in prior_train_prompts
+    all_dev_k3 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K3_MODELS)
+    train_data_k3 = [
+        d for d in all_dev_k3 if d["prompt"] not in prior_train_prompts
     ]
-    holdout_data_k10 = load_rewards_from_file(
-        HOLDOUT_DATA_PATH_ALL_MODELS, K10_MODELS,
+    holdout_data_k3 = load_rewards_from_file(
+        HOLDOUT_DATA_PATH_ALL_MODELS, K3_MODELS,
     )
-    logger.info(f"    Dev (all K10-complete): {len(all_dev_k10)} prompts")
-    logger.info(f"    Train (excl. prior-train): {len(train_data_k10)} prompts")
-    logger.info(f"    Holdout: {len(holdout_data_k10)} prompts")
+    logger.info(f"    Dev (all K3-complete): {len(all_dev_k3)} prompts")
+    logger.info(f"    Train (excl. prior-train): {len(train_data_k3)} prompts")
+    logger.info(f"    Holdout: {len(holdout_data_k3)} prompts")
 
     # --- Embeddings ----------------------------------------------------
-    logger.info(f"  Embedding K=10 prompts (PCA={pca.n_components_} comp) ...")
-    train_emb_k10 = embed_dataset(train_data_k10, encoder, pca)
-    holdout_emb_k10 = embed_dataset(holdout_data_k10, encoder, pca)
+    logger.info(f"  Embedding K=3 prompts (PCA={pca.n_components_} comp) ...")
+    train_emb_k3 = embed_dataset(train_data_k3, encoder, pca)
+    holdout_emb_k3 = embed_dataset(holdout_data_k3, encoder, pca)
 
-    # --- Dev train/val split (K=10) ------------------------------------
-    logger.info(f"  Splitting K=10 train into train/val "
+    # --- Dev train/val split (K=3) ------------------------------------
+    logger.info(f"  Splitting K=3 train into train/val "
                 f"({1 - DEV_VAL_FRACTION:.0%}/{DEV_VAL_FRACTION:.0%}) ...")
-    train_train_k10, train_train_emb_k10, train_val_k10, train_val_emb_k10 = (
-        _split_dev_train_val(train_data_k10, train_emb_k10)
+    train_train_k3, train_train_emb_k3, train_val_k3, train_val_emb_k3 = (
+        _split_dev_train_val(train_data_k3, train_emb_k3)
     )
     logger.info(
-        f"    Train-train: {len(train_train_k10)}  "
-        f"Train-val: {len(train_val_k10)}"
+        f"    Train-train: {len(train_train_k3)}  "
+        f"Train-val: {len(train_val_k3)}"
     )
 
     # --- Baselines -----------------------------------------------------
-    logger.info("\n  Computing K=10 baselines ...")
-    oracle_r_k10, oracle_c_k10 = oracle_route(
-        holdout_data_k10, K10_MODELS, costs_k10,
+    logger.info("\n  Computing K=3 baselines ...")
+    oracle_r_k3, oracle_c_k3 = oracle_route(
+        holdout_data_k3, K3_MODELS, costs_k3,
     )
-    logger.info(f"    Oracle: R={oracle_r_k10:.4f}  C=${oracle_c_k10:.6f}")
+    logger.info(f"    Oracle: R={oracle_r_k3:.4f}  C=${oracle_c_k3:.6f}")
 
-    static_k10: Dict[str, Dict] = {}
-    for m in K10_MODELS:
-        sr, sc = static_route(holdout_data_k10, m, costs_k10)
-        static_k10[m] = {"reward": sr, "cost": sc}
+    static_k3: Dict[str, Dict] = {}
+    for m in K3_MODELS:
+        sr, sc = static_route(holdout_data_k3, m, costs_k3)
+        static_k3[m] = {"reward": sr, "cost": sc}
         logger.info(
-            f"    Static {K10_CATALOG[m]['display']:<22}: R={sr:.4f}  C=${sc:.6f}"
+            f"    Static {K3_CATALOG[m]['display']:<22}: R={sr:.4f}  C=${sc:.6f}"
         )
 
-    random_k10 = random_route(
-        holdout_data_k10, K10_MODELS, costs_k10, N_SEEDS * 4,
+    random_k3 = random_route(
+        holdout_data_k3, K3_MODELS, costs_k3, N_SEEDS * 4,
     )
-    logger.info(f"    Random: R={random_k10['reward']:.4f}")
+    logger.info(f"    Random: R={random_k3['reward']:.4f}")
 
-    eg_k10 = best_static_noisy_route(
-        train_train_k10, holdout_data_k10, K10_MODELS, costs_k10,
+    eg_k3 = best_static_noisy_route(
+        train_train_k3, holdout_data_k3, K3_MODELS, costs_k3,
         n_trials=N_SEEDS * 4,
     )
-    logger.info(f"    Best-static+noise: R={eg_k10['reward']:.4f}")
+    logger.info(f"    Best-static+noise: R={eg_k3['reward']:.4f}")
 
-    # UCB1 online baseline (non-contextual) — ablates value of features
-    ucb1_k10 = ucb1_online_route(
-        train_train_k10, holdout_data_k10, K10_MODELS, costs_k10,
+    ucb1_k3 = ucb1_online_route(
+        train_train_k3, holdout_data_k3, K3_MODELS, costs_k3,
         cost_penalty=0.0, n_trials=N_SEEDS,
     )
     logger.info(
-        f"    UCB1 (non-contextual): R={ucb1_k10['reward']:.4f} "
-        f"+/-{ucb1_k10['std_reward']:.4f}"
+        f"    UCB1 (non-contextual): R={ucb1_k3['reward']:.4f} "
+        f"+/-{ucb1_k3['std_reward']:.4f}"
     )
 
-    # Supervised static baselines (LLMRouter-style) — same features, same objective
     logger.info("\n  Supervised static baselines (KNN/SVM/MLP) ...")
     logger.info("    Tuning hyperparameters on dev-val ...")
-    supervised_tuning_k10: Dict[str, Dict] = {}
-    supervised_k10: Dict[str, Dict] = {}
+    supervised_tuning_k3: Dict[str, Dict] = {}
+    supervised_k3: Dict[str, Dict] = {}
     for kind in ("knn", "svm", "mlp"):
         tuning = tune_supervised_hparams(
-            kind, train_train_k10, train_train_emb_k10,
-            train_val_k10, train_val_emb_k10,
-            K10_MODELS, costs_k10,
+            kind, train_train_k3, train_train_emb_k3,
+            train_val_k3, train_val_emb_k3,
+            K3_MODELS, costs_k3,
         )
-        supervised_tuning_k10[kind] = tuning
+        supervised_tuning_k3[kind] = tuning
         res = run_supervised_baseline(
-            kind, K10_MODELS, costs_k10,
-            train_train_k10, train_train_emb_k10,
-            holdout_data_k10, holdout_emb_k10,
+            kind, K3_MODELS, costs_k3,
+            train_train_k3, train_train_emb_k3,
+            holdout_data_k3, holdout_emb_k3,
             n_trials=N_SEEDS, per_prompt=True,
             hparams=tuning["best_hparams"],
         )
-        supervised_k10[kind] = res
+        supervised_k3[kind] = res
         logger.info(
             f"    {kind.upper():<4}: R={res['reward']:.4f} "
             f"+/-{res['std_reward']:.4f}  C=${res['cost']:.6f} "
@@ -1869,73 +1890,72 @@ def run_experiment() -> None:  # noqa: C901
         )
 
     # --- BanditGPT Pareto sweep ----------------------------------------
-    if not K10_WARMUP_PRIORS_PATH.exists():
+    if not K3_WARMUP_PRIORS_PATH.exists():
         raise FileNotFoundError(
-            f"K=10 warmup priors not found: {K10_WARMUP_PRIORS_PATH}\n"
+            f"K=3 warmup priors not found: {K3_WARMUP_PRIORS_PATH}\n"
             "Generate with: python scripts/extract_warmup_from_multimodel.py "
-            "--input src/artifacts/priors_warmup_43model_6comp.joblib "
-            f"--output {K10_WARMUP_PRIORS_PATH} "
-            "--model-config data_collection/config/models_k10.json"
+            "--input src/artifacts/priors_warmup_43model_15comp.joblib "
+            f"--output {K3_WARMUP_PRIORS_PATH} "
+            "--model-config data_collection/config/models_k3.json"
         )
-    k10_warmup_path = str(K10_WARMUP_PRIORS_PATH)
-    logger.info(f"  Using warmup priors: {K10_WARMUP_PRIORS_PATH.name}")
+    k3_warmup_path = str(K3_WARMUP_PRIORS_PATH)
+    logger.info(f"  Using warmup priors: {K3_WARMUP_PRIORS_PATH.name}")
 
     logger.info(
-        f"\n  BanditGPT K=10 Pareto sweep "
-        f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
+        f"\n  BanditGPT K=3 Pareto sweep "
+        f"({len(LAMBDA_VALUES_K3)} lambda x {N_SEEDS} seeds) ..."
     )
-    k10_alpha = tuned_k10["alpha"]
-    k10_neff = tuned_k10["prior_n_effective"]
-    k10_forgetting = tuned_k10["forgetting_factor"]
-    k10_tr_alpha_for_corral = tuned_k10_tr["alpha"]
-    k10_tr_ff_for_corral = tuned_k10_tr["forgetting_factor"]
+    k3_alpha = tuned_k3["alpha"]
+    k3_neff = tuned_k3["prior_n_effective"]
+    k3_forgetting = tuned_k3["forgetting_factor"]
+    k3_tr_alpha_for_corral = tuned_k3_tr["alpha"]
+    k3_tr_ff_for_corral = tuned_k3_tr["forgetting_factor"]
     logger.info(
         f"    Corralling per-expert hparams: "
-        f"warmup(alpha={k10_alpha}, gamma={k10_forgetting}) | "
-        f"tabula_rasa(alpha={k10_tr_alpha_for_corral}, gamma={k10_tr_ff_for_corral})"
+        f"warmup(alpha={k3_alpha}, gamma={k3_forgetting}) | "
+        f"tabula_rasa(alpha={k3_tr_alpha_for_corral}, gamma={k3_tr_ff_for_corral})"
     )
-    bandit_pareto_k10 = run_pareto_sweep(
-        K10_MODELS, K10_CATALOG,
-        train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
-        k10_warmup_path, costs_k10, LAMBDA_VALUES_K10,
+    bandit_pareto_k3 = run_pareto_sweep(
+        K3_MODELS, K3_CATALOG,
+        train_train_k3, holdout_data_k3, train_train_emb_k3, holdout_emb_k3,
+        k3_warmup_path, costs_k3, LAMBDA_VALUES_K3,
         N_SEEDS, use_corralling=True, label="banditGPT",
-        dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
-        alpha=k10_alpha,
-        prior_n_effective=k10_neff,
-        forgetting_factor=k10_forgetting,
-        tabula_rasa_alpha=k10_tr_alpha_for_corral,
-        tabula_rasa_forgetting_factor=k10_tr_ff_for_corral,
+        dev_val_data=train_val_k3, dev_val_emb=train_val_emb_k3,
+        alpha=k3_alpha,
+        prior_n_effective=k3_neff,
+        forgetting_factor=k3_forgetting,
+        tabula_rasa_alpha=k3_tr_alpha_for_corral,
+        tabula_rasa_forgetting_factor=k3_tr_ff_for_corral,
     )
 
-    # --- K=10 summary: BanditGPT Pareto AUC & comparison vs supervised --
-    best_static_m = max(static_k10, key=lambda m: static_k10[m]["reward"])
+    # --- K=3 summary: BanditGPT Pareto AUC & comparison vs supervised --
+    best_static_m = max(static_k3, key=lambda m: static_k3[m]["reward"])
 
-    bg_dev_costs_k10 = [p["dev_mean_cost"] for p in bandit_pareto_k10]
-    cost_lo_k10 = min(bg_dev_costs_k10)
-    cost_hi_k10 = max(bg_dev_costs_k10)
+    bg_dev_costs_k3 = [p["dev_mean_cost"] for p in bandit_pareto_k3]
+    cost_lo_k3 = min(bg_dev_costs_k3)
+    cost_hi_k3 = max(bg_dev_costs_k3)
 
-    bg_ds_auc_k10, bg_hull_c_k10, bg_hull_r_k10, bg_dev_idx_k10 = (
-        dev_selected_pareto_auc(bandit_pareto_k10, cost_lo_k10, cost_hi_k10)
+    bg_ds_auc_k3, bg_hull_c_k3, bg_hull_r_k3, bg_dev_idx_k3 = (
+        dev_selected_pareto_auc(bandit_pareto_k3, cost_lo_k3, cost_hi_k3)
     )
 
     logger.info(
-        f"    Dev-selected Pareto AUC (cost [{cost_lo_k10:.6f}, {cost_hi_k10:.6f}]):"
+        f"    Dev-selected Pareto AUC (cost [{cost_lo_k3:.6f}, {cost_hi_k3:.6f}]):"
     )
     logger.info(
-        f"      BanditGPT: {bg_ds_auc_k10:.4f} "
-        f"({len(bg_dev_idx_k10)} dev-optimal pts)"
+        f"      BanditGPT: {bg_ds_auc_k3:.4f} "
+        f"({len(bg_dev_idx_k3)} dev-optimal pts)"
     )
 
-    # Comparison vs supervised baselines (PerfGain / CostSave / Gap@Oracle)
-    oracle_reward_k10 = oracle_r_k10
-    comparison_vs_supervised_k10: Dict[str, Dict[str, Any]] = {}
-    logger.info("\n    BanditGPT vs LLMRouter supervised baselines:")
-    for kind, sv_result in supervised_k10.items():
+    oracle_reward_k3 = oracle_r_k3
+    comparison_vs_supervised_k3: Dict[str, Dict[str, Any]] = {}
+    logger.info("\n    BanditGPT vs supervised multi-class baselines (reference):")
+    for kind, sv_result in supervised_k3.items():
         sv_cost = sv_result["cost"]
         sv_reward = sv_result["reward"]
 
         bg_reward_at_sv_cost = interpolate_pareto_reward(
-            bg_hull_c_k10, bg_hull_r_k10, sv_cost,
+            bg_hull_c_k3, bg_hull_r_k3, sv_cost,
         )
         pg = (
             perfgain(bg_reward_at_sv_cost, sv_reward)
@@ -1943,24 +1963,30 @@ def run_experiment() -> None:  # noqa: C901
         )
 
         bg_cost_at_sv_reward = interpolate_pareto_cost(
-            bg_hull_c_k10, bg_hull_r_k10, sv_reward,
+            bg_hull_c_k3, bg_hull_r_k3, sv_reward,
         )
         if bg_cost_at_sv_reward is not None:
             cs_abs, cs_pct = costsave(bg_cost_at_sv_reward, sv_cost)
         else:
             cs_abs, cs_pct = None, None
 
-        gap_sv_abs, gap_sv_pct = gap_at_oracle(oracle_reward_k10, sv_reward)
+        gap_sv_abs, gap_sv_pct = gap_at_oracle(oracle_reward_k3, sv_reward)
         if bg_reward_at_sv_cost is not None:
             gap_bg_abs, gap_bg_pct = gap_at_oracle(
-                oracle_reward_k10, bg_reward_at_sv_cost,
+                oracle_reward_k3, bg_reward_at_sv_cost,
             )
         else:
             gap_bg_abs, gap_bg_pct = None, None
 
-        comparison_vs_supervised_k10[kind] = {
+        sv_mc = sv_result.get("model_counts", {})
+        sv_total = sum(sv_mc.values()) or 1
+        sv_routing_fractions = {m: sv_mc.get(m, 0) / sv_total for m in K3_MODELS}
+        sv_top_model = max(sv_routing_fractions, key=sv_routing_fractions.get)
+
+        comparison_vs_supervised_k3[kind] = {
             "supervised_cost": sv_cost,
             "supervised_reward": sv_reward,
+            "supervised_routing_fractions": sv_routing_fractions,
             "banditgpt_reward_at_sv_cost": bg_reward_at_sv_cost,
             "perfgain": pg,
             "banditgpt_cost_at_sv_reward": bg_cost_at_sv_reward,
@@ -1971,100 +1997,99 @@ def run_experiment() -> None:  # noqa: C901
             "gap_oracle_banditgpt_abs": gap_bg_abs,
             "gap_oracle_banditgpt_pct": gap_bg_pct,
         }
+        top_short = sv_top_model.split("/")[-1]
         logger.info(
             f"      vs {kind.upper()}: PerfGain={_fmt(pg)} "
             f"CostSave={_fmt(cs_pct, '%')} "
-            f"Gap@Oracle(SV)={gap_sv_abs:.4f}({gap_sv_pct:.1f}%)"
+            f"Gap@Oracle(SV)={gap_sv_abs:.4f}({gap_sv_pct:.1f}%) "
+            f"top={top_short} ({sv_routing_fractions[sv_top_model]:.0%})"
         )
 
-    # BanditGPT dev-optimal Gap@Oracle
-    bg_dev_optimal_k10 = [bandit_pareto_k10[i] for i in bg_dev_idx_k10]
-    bg_best_dev_k10 = max(bg_dev_optimal_k10, key=lambda p: p["dev_mean_reward"])
-    bg_best_dev_reward_k10 = bg_best_dev_k10["mean_reward"]
-    bg_gap_oracle_k10_abs, bg_gap_oracle_k10_pct = gap_at_oracle(
-        oracle_reward_k10, bg_best_dev_reward_k10,
+    bg_dev_optimal_k3 = [bandit_pareto_k3[i] for i in bg_dev_idx_k3]
+    bg_best_dev_k3 = max(bg_dev_optimal_k3, key=lambda p: p["dev_mean_reward"])
+    bg_best_dev_reward_k3 = bg_best_dev_k3["mean_reward"]
+    bg_gap_oracle_k3_abs, bg_gap_oracle_k3_pct = gap_at_oracle(
+        oracle_reward_k3, bg_best_dev_reward_k3,
     )
 
-    logger.info(f"\n  K=10 SUMMARY:")
-    logger.info(f"    Oracle:       {oracle_r_k10:.4f}")
+    logger.info(f"\n  K=3 SUMMARY:")
+    logger.info(f"    Oracle:       {oracle_r_k3:.4f}")
     logger.info(
-        f"    Dev-selected Pareto AUC: BanditGPT={bg_ds_auc_k10:.4f}"
+        f"    Dev-selected Pareto AUC: BanditGPT={bg_ds_auc_k3:.4f}"
     )
     logger.info(
-        f"    BanditGPT dev-best: R={bg_best_dev_reward_k10:.4f} "
-        f"Gap@Oracle={bg_gap_oracle_k10_abs:.4f} ({bg_gap_oracle_k10_pct:.1f}%)"
+        f"    BanditGPT dev-best: R={bg_best_dev_reward_k3:.4f} "
+        f"Gap@Oracle={bg_gap_oracle_k3_abs:.4f} ({bg_gap_oracle_k3_pct:.1f}%)"
     )
     logger.info(
-        f"    Best static:  {static_k10[best_static_m]['reward']:.4f} "
-        f"({K10_CATALOG[best_static_m]['display']})"
+        f"    Best static:  {static_k3[best_static_m]['reward']:.4f} "
+        f"({K3_CATALOG[best_static_m]['display']})"
     )
-    logger.info(f"    Best-static+noise: {eg_k10['reward']:.4f}")
-    logger.info(f"    UCB1 (non-ctx):    {ucb1_k10['reward']:.4f}")
+    logger.info(f"    Best-static+noise: {eg_k3['reward']:.4f}")
+    logger.info(f"    UCB1 (non-ctx):    {ucb1_k3['reward']:.4f}")
     for kind in ("knn", "svm", "mlp"):
-        s = supervised_k10[kind]
+        s = supervised_k3[kind]
         logger.info(
             f"    {kind.upper():<4} (supervised): {s['reward']:.4f} "
             f"+/-{s['std_reward']:.4f}"
         )
-    logger.info(f"    Random:            {random_k10['reward']:.4f}")
+    logger.info(f"    Random:            {random_k3['reward']:.4f}")
 
-    results_all["K10"] = {
-        "models": [{"id": m, **K10_CATALOG[m]} for m in K10_MODELS],
-        "n_train": len(train_data_k10),
-        "n_holdout": len(holdout_data_k10),
-        "oracle": {"reward": oracle_r_k10, "cost": oracle_c_k10},
-        "static": {m: static_k10[m] for m in K10_MODELS},
+    results_all["K3"] = {
+        "models": [{"id": m, **K3_CATALOG[m]} for m in K3_MODELS],
+        "n_train": len(train_data_k3),
+        "n_holdout": len(holdout_data_k3),
+        "oracle": {"reward": oracle_r_k3, "cost": oracle_c_k3},
+        "static": {m: static_k3[m] for m in K3_MODELS},
         "best_static": {
             "model": best_static_m,
-            "reward": static_k10[best_static_m]["reward"],
-            "cost": static_k10[best_static_m]["cost"],
+            "reward": static_k3[best_static_m]["reward"],
+            "cost": static_k3[best_static_m]["cost"],
         },
-        "random": random_k10,
-        "best_static_noisy": eg_k10,
-        "ucb1": ucb1_k10,
-        "supervised": supervised_k10,
+        "random": random_k3,
+        "best_static_noisy": eg_k3,
+        "ucb1": ucb1_k3,
+        "supervised": supervised_k3,
         "supervised_tuning": {
             k: {"best_hparams": v["best_hparams"], "best_val_reward": v["best_val_reward"]}
-            for k, v in supervised_tuning_k10.items()
+            for k, v in supervised_tuning_k3.items()
         },
         "supervised_note": (
-            "Supervised baselines are tuned via grid search on dev-val, "
-            "mirroring BanditGPT's hyperparameter selection protocol. "
-            "KNN is deterministic (std=0 reflects zero initialization "
-            "variance, not zero statistical uncertainty). SVM/MLP use "
-            "multi-seed trials for initialization variance. All three "
-            "mirror the LLMRouter protocol."
+            "K=3 supervised baselines are a multi-class extension of the "
+            "LLMRouter binary classifiers (KNN/SVM/MLP) and are presented "
+            "as reference points, not a direct comparison to the published "
+            "LLMRouter system (which supports K=2 only). Tuned via grid "
+            "search on dev-val, mirroring BanditGPT's hparam protocol."
         ),
-        "banditgpt_pareto": bandit_pareto_k10,
+        "banditgpt_pareto": bandit_pareto_k3,
         "pareto_auc_dev_selected": {
-            "cost_range": [cost_lo_k10, cost_hi_k10],
-            "banditgpt": bg_ds_auc_k10,
-            "banditgpt_hull_costs": bg_hull_c_k10,
-            "banditgpt_hull_rewards": bg_hull_r_k10,
+            "cost_range": [cost_lo_k3, cost_hi_k3],
+            "banditgpt": bg_ds_auc_k3,
+            "banditgpt_hull_costs": bg_hull_c_k3,
+            "banditgpt_hull_rewards": bg_hull_r_k3,
             "note": (
                 "Dev-selected Pareto AUC: hull built from (dev_cost, "
                 "dev_reward).  Deployed = holdout performance of dev-optimal "
                 "hyperparameters."
             ),
         },
-        "comparison_vs_supervised": comparison_vs_supervised_k10,
+        "comparison_vs_supervised": comparison_vs_supervised_k3,
         "gap_at_oracle_banditgpt": {
-            "abs": bg_gap_oracle_k10_abs,
-            "pct": bg_gap_oracle_k10_pct,
-            "banditgpt_dev_best_reward": bg_best_dev_reward_k10,
+            "abs": bg_gap_oracle_k3_abs,
+            "pct": bg_gap_oracle_k3_pct,
+            "banditgpt_dev_best_reward": bg_best_dev_reward_k3,
         },
         "n_trials": N_SEEDS,
     }
 
-    # Lambda=0 entry (quality-maximizing, apples-to-apples with supervised)
-    lam0_entries_k10 = [p for p in bandit_pareto_k10 if p["lambda"] == 0.0]
-    if lam0_entries_k10:
-        lam0_k10 = lam0_entries_k10[0]
-        results_all["K10"]["banditgpt_lambda0"] = {
-            "reward": lam0_k10["mean_reward"],
-            "std_reward": lam0_k10["std_reward"],
-            "cost": lam0_k10["mean_cost"],
-            "std_cost": lam0_k10["std_cost"],
+    lam0_entries_k3 = [p for p in bandit_pareto_k3 if p["lambda"] == 0.0]
+    if lam0_entries_k3:
+        lam0_k3 = lam0_entries_k3[0]
+        results_all["K3"]["banditgpt_lambda0"] = {
+            "reward": lam0_k3["mean_reward"],
+            "std_reward": lam0_k3["std_reward"],
+            "cost": lam0_k3["mean_cost"],
+            "std_cost": lam0_k3["std_cost"],
         }
 
     # ==================================================================

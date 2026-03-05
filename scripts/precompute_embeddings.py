@@ -21,9 +21,9 @@ Usage
 
 Outputs
 -------
-``data_collection/embeddings/embeddings_pca6.npz``
+``data_collection/embeddings/embeddings_pca15.npz``
     Compressed archive mapping ``sha256(prompt) -> context_vector``.
-``data_collection/embeddings/embeddings_pca6_meta.json``
+``data_collection/embeddings/embeddings_pca15.meta.json``
     Provenance: encoder name, PCA path, n_components, n_prompts, timestamp.
 """
 
@@ -50,6 +50,7 @@ from bandit_gpt.config import (
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     DEV_DATA_PATH_ALL_MODELS,
+    EMBEDDINGS_CACHE_PATH,
     HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 
@@ -128,8 +129,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--output",
         type=str,
-        default=str(PROJECT_ROOT / "data_collection" / "embeddings" / "embeddings_pca6.npz"),
-        help="Output .npz path.",
+        default=str(EMBEDDINGS_CACHE_PATH),
+        help="Output .npz path (default: EMBEDDINGS_CACHE_PATH from config).",
     )
     p.add_argument(
         "--batch-size",

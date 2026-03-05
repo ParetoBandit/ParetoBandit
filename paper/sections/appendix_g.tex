@@ -41,12 +41,10 @@ A B2B SaaS company routes customer-support queries through an LLM.  The business
 
 {\small\begin{verbatim}
 router = BanditRouter.create(
-  model_registry={  # K=5
+  model_registry={  # K=3
     "llama-3.1-8b-instruct":  $0.07/M,
-    "mixtral-8x7b-instruct":  $0.24/M,
-    "llama-3.1-70b-instruct": $0.64/M,
-    "openai/gpt-4o":          $6.25/M,
-    "claude-sonnet-4":        $9.00/M,
+    "gemini-2.5-flash":       $0.15/M,
+    "openai/gpt-4.1":         $2.00/M,
   },
   cost_penalty=0.7,  # aggressive
   exploration="balanced",
@@ -101,12 +99,10 @@ A coding-assistant IDE plugin must respond within a 0.6-second TTFT SLA.  The pr
 
 {\small\begin{verbatim}
 router = BanditRouter.create(
-  model_registry={  # K=5, with TTFT
+  model_registry={  # K=3, with TTFT
     "llama-3.1-8b-instruct":  TTFT=0.15s,
-    "gemini-2.0-flash":       TTFT=0.20s,
-    "openai/gpt-4o-mini":     TTFT=0.35s,
-    "openai/gpt-4o":          TTFT=0.50s,
-    "claude-sonnet-4":        TTFT=0.80s,
+    "gemini-2.5-flash":       TTFT=0.20s,
+    "openai/gpt-4.1":         TTFT=0.50s,
   },
   cost_penalty=0.3,
   exploration="aggressive",

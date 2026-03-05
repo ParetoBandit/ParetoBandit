@@ -37,23 +37,23 @@ We evaluate three variants against banditGPT:
 \input{../experiments/07_figure/figure_7_caption}
 
 Figure~\ref{fig:lints_pareto} shows the quality--cost Pareto frontiers.
-banditGPT Pareto-dominates LinTS at both portfolio sizes.
+banditGPT Pareto-dominates LinTS at $K{=}3$. \textbf{TODO: update with K=3 results.}
 
 \begin{table}[htbp]
 \centering
 \small
 \caption{Peak reward comparison: banditGPT vs.\ LinTS.}
 \label{tab:lints_peak}
-\begin{tabular}{lcccc}
+\begin{tabular}{lcc}
 \toprule
-\textbf{Method} & \multicolumn{2}{c}{\textbf{K=5}} & \multicolumn{2}{c}{\textbf{K=10}} \\
-\cmidrule(lr){2-3} \cmidrule(lr){4-5}
- & Reward & $\pm\sigma$ & Reward & $\pm\sigma$ \\
+\textbf{Method} & \multicolumn{2}{c}{\textbf{K=3}} \\
+\cmidrule(lr){2-3}
+ & Reward & $\pm\sigma$ \\
 \midrule
-banditGPT           & \textbf{0.954} & 0.015 & \textbf{0.940} & 0.016 \\
-LinTS (warmup)      & 0.930          & 0.011 & 0.932          & 0.011 \\
-LinTS (no priors)   & 0.941          & 0.010 & 0.937          & 0.010 \\
-Best Static (GPT-4.1) & 0.983       & ---   & 0.983          & ---   \\
+banditGPT           & \textbf{TODO} & --- \\
+LinTS (warmup)      & TODO          & --- \\
+LinTS (no priors)   & TODO          & --- \\
+Best Static (GPT-4.1) & TODO       & ---   \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -69,7 +69,7 @@ The advantage is attributable to two architectural components that LinTS lacks:
         inaccurate for a prompt sub-population, the uninformed expert
         compensates.  LinTS commits to a single set of parameters and can
         be misled by poor priors---note that LinTS \emph{without} priors
-        slightly outperforms LinTS \emph{with} priors at $K{=}10$, suggesting
+        slightly outperforms LinTS \emph{with} priors at $K{=}3$, suggesting
         prior noise.
 
   \item \textbf{Hybrid parameter sharing.}

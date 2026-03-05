@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+\centering
+\caption{Iso-quality comparison: BanditGPT cost at each LLMRouter baseline's reward level ($K{=}2$). Positive CostSave means BanditGPT is cheaper.}
+\label{tab:isoquality_k2}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Baseline & Baseline Cost & BanditGPT Cost & CostSave (\$/req) & CostSave (\%) \\
+\midrule
+KNN & \$0.002675 & \$0.002781 & -0.000106 & -4.0\% \\
+SVM & \$0.003393 & --- & --- & --- \\
+MLP & \$0.002609 & \$0.002779 & -0.000170 & -6.5\% \\
+\bottomrule
+\end{tabular}
+\end{table}

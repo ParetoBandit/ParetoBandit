@@ -1,0 +1,25 @@
+\begin{table}[htbp]
+\centering
+\caption{Isocost comparison: BanditGPT vs LLMRouter supervised baselines ($K{=}10$, $n{=}1483$). BanditGPT rewards interpolated on dev-selected Pareto hull. PG = PerfGain at each budget level.}
+\label{tab:isocost_k10}
+\small
+\begin{tabular}{lccccccc}
+\toprule
+Budget (\$/req) & BanditGPT & KNN & SVM & MLP & PG$_{\mathrm{KNN}}$ & PG$_{\mathrm{SVM}}$ & PG$_{\mathrm{MLP}}$ \\
+\midrule
+\$0.001 & 0.880$\pm$0.006 & 0.857 & 0.894 & 0.851 & +0.023 & -0.014 & +0.028 \\
+\$0.002 & --- & 0.857 & 0.894 & 0.851 & --- & --- & --- \\
+\$0.003 & --- & 0.857 & 0.894 & 0.851 & --- & --- & --- \\
+\$0.004 & --- & 0.857 & 0.894 & 0.851 & --- & --- & --- \\
+\$0.005 & --- & 0.857 & 0.894 & 0.851 & --- & --- & --- \\
+\$0.008 & --- & 0.857 & 0.894 & 0.851 & --- & --- & --- \\
+\$0.011 & --- & 0.857 & 0.894 & 0.851 & --- & --- & --- \\
+\midrule
+\multicolumn{8}{l}{\textit{Reference baselines}} \\
+Oracle & 0.972 & --- & --- & --- & --- & --- & --- \\
+KNN (all data) & --- & 0.857 & --- & --- & --- & --- & --- \\
+SVM (all data) & --- & 0.894 & --- & --- & --- & --- & --- \\
+MLP (all data) & --- & 0.851 & --- & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}

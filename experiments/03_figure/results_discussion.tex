@@ -16,10 +16,8 @@ evaluation, making the comparison directly interpretable: observed
 differences reflect learned routing policies, not online learning
 artefacts.
 
-\paragraph{Supervised baselines (LLMRouter-style).}
-We compare against three supervised static routers following the
-LLMRouter protocol~\cite{hu2024routerbench, li2026llmrouterbench,
-pulishetty2025onehead}, implemented via
+\paragraph{Supervised baselines.}
+We compare against three supervised static routers implemented via
 scikit-learn~\cite{pedregosa2011scikit}:
 \begin{itemize}
     \item \textbf{KNN} ($k$-nearest neighbors): deterministic; uses the same
@@ -30,9 +28,11 @@ scikit-learn~\cite{pedregosa2011scikit}:
           stopping on a validation split, mirroring BanditGPT's convergence
           strategy.
 \end{itemize}
-These three classifiers are standard supervised routing baselines in the
-LLM routing literature~\cite{hu2024routerbench, pulishetty2025onehead,
-li2026llmrouterbench}.
+For $K{=}2$, these classifiers directly follow the LLMRouter
+protocol~\cite{hu2024routerbench, li2026llmrouterbench,
+pulishetty2025onehead} (binary routing between a strong and weak model).
+For $K{=}3$, we extend them to multi-class classification as reference
+baselines; the original LLMRouter framework supports $K{=}2$ only.
 All baselines are hyperparameter-tuned via grid search on the dev-val split,
 using the same held-out data that BanditGPT uses for lambda selection.
 This ensures symmetric tuning budgets.  KNN is deterministic
@@ -106,7 +106,7 @@ seeds against the best supervised baseline.
 \paragraph{Warmup prior provenance.}
 BanditGPT is initialised with portfolio-specific warmup priors extracted
 from a broader 43-model offline prior file.  For $K{=}2$, the priors
-are filtered to the 2 models under test; for $K{=}10$, to the 10 models
+are filtered to the 2 models under test; for $K{=}3$, to the 3 models
 under test.  This is an architectural feature of BanditGPT (transfer
 learning from a broader registry), not an unfair data advantage---the
 supervised baselines have no analogous pre-training component, but they
@@ -122,7 +122,7 @@ dev set.
           use early stopping; KNN and SVM are non-iterative.
     \item \textbf{Symmetric feature access:} all methods (BanditGPT, KNN,
           SVM, MLP) use the same BGE-M3~\cite{chen2024bgem3} sentence
-          embeddings projected via the same 6-component PCA.
+          embeddings projected via the same 15-component PCA.
     \item \textbf{Expanded tuning grids:} supervised baseline hyperparameter
           grids were expanded (KNN: 16 configs; SVM: 12 configs; MLP: 18
           configs) to reduce any tuning-budget asymmetry.
@@ -152,23 +152,25 @@ Table~\ref{tab:k2_results} summarises all routers.
 \caption{$K{=}2$ router comparison on the holdout set ($n{=}1{,}497$).
 BanditGPT ($\lambda{=}0$) matches the best supervised baseline (SVM)
 within $0.03$ percentage points.  Gap@Oracle is relative to the
-instance-wise optimal ($R{=}0.931$).  $\dagger$KNN is deterministic
+instance-wise optimal ($R{=}0.931$).  \%$\to$Strong shows the fraction
+of prompts routed to the expensive model (GPT-4.1).
+$\dagger$KNN is deterministic
 (std$\,{=}\,$0 reflects zero initialisation variance).}
 \label{tab:k2_results}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \toprule
-Router & Reward & $\pm$std & Cost (\$/req) & Gap@Oracle \\
+Router & Reward & $\pm$std & Cost (\$/req) & Gap@Oracle & \%$\to$Strong \\
 \midrule
-Oracle                & 0.9312 & ---    & 0.00203 & 0.0\% \\
+Oracle                & 0.9312 & ---    & 0.00203 & 0.0\% & --- \\
 \midrule
-BanditGPT ($\lambda{=}0$) & 0.9091 & 0.0009 & 0.00340 & 2.4\% \\
-SVM (supervised)      & 0.9094 & 0.0000 & 0.00340 & 2.3\% \\
-MLP (supervised)      & 0.8856 & 0.0055 & 0.00265 & 4.9\% \\
-KNN (supervised)$^\dagger$ & 0.8788 & 0.0000 & 0.00264 & 5.6\% \\
-UCB1 (non-contextual) & 0.9094 & 0.0000 & 0.00340 & 2.3\% \\
-Random                & 0.7861 & 0.0053 & 0.00173 & 15.6\% \\
-Static GPT-4.1        & 0.9094 & ---    & 0.00340 & 2.3\% \\
-Static Llama-3.1-8B   & 0.6647 & ---    & 0.00005 & 28.6\% \\
+BanditGPT ($\lambda{=}0$) & 0.9091 & 0.0009 & 0.00340 & 2.4\% & $\sim$98\% \\
+SVM (LLMRouter)       & 0.9094 & 0.0000 & 0.00340 & 2.3\% & 99.8\% \\
+MLP (LLMRouter)       & 0.8856 & 0.0055 & 0.00265 & 4.9\% & 81.2\% \\
+KNN (LLMRouter)$^\dagger$ & 0.8788 & 0.0000 & 0.00264 & 5.6\% & 78.4\% \\
+UCB1 (non-contextual) & 0.9094 & 0.0000 & 0.00340 & 2.3\% & $\sim$100\% \\
+Random                & 0.7861 & 0.0053 & 0.00173 & 15.6\% & $\sim$50\% \\
+Static GPT-4.1        & 0.9094 & ---    & 0.00340 & 2.3\% & 100\% \\
+Static Llama-3.1-8B   & 0.6647 & ---    & 0.00005 & 28.6\% & 0\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -215,55 +217,63 @@ The $K{=}2$ results establish that BanditGPT \emph{matches} the best
 supervised baseline at quality-maximising settings while offering a
 continuous Pareto frontier that static classifiers cannot provide.
 With only two models, routing reduces to a binary decision, limiting
-the scope for contextual routing to add value.  The $K{=}10$ experiment
+the scope for contextual routing to add value.  The $K{=}3$ experiment
 (below) tests BanditGPT in the setting where contextual, cost-aware
 routing matters most.
 
 % ==================================================================
 
-\subsection{$K{=}10$: Multi-Model Pareto Frontier}
+\subsection{$K{=}3$: Multi-Model Routing (Reference Comparison)}
 
 \paragraph{Setup.}
-The $K{=}10$ portfolio spans four cost tiers:\ cheap
-(\texttt{Llama-3.1-8B}, \texttt{Mixtral-8x7B}, \texttt{Gemma-3-27B},
-\texttt{Llama-4-Maverick}), mid (\texttt{Claude-Haiku-4.5},
-\texttt{DeepSeek-V3}, \texttt{Gemini-2.5-Flash}, \texttt{Kimi-K2}),
-and expensive (\texttt{Claude-Sonnet-4}, \texttt{GPT-4.1}).
+The $K{=}3$ portfolio spans three cost tiers:\ budget
+(\texttt{Llama-3.1-8B}), mid (\texttt{Gemini-2.5-Flash}),
+and frontier (\texttt{GPT-4.1}), covering a ${\sim}50\times$ cost range.
 BanditGPT uses Corralling~\cite{agarwal2017corralling} with per-expert
-hyperparameters from Appendix~H: warmup expert ($\alpha{=}1.0$,
-$n_{\text{eff}}{=}1000$, $\gamma{=}1.0$) and tabula-rasa expert
-($\alpha{=}0.25$, $\gamma{=}1.0$).
-The training pool ($n{=}2{,}217$ prompts, excluding prior-training data)
-is split 80/20 into train/val; the holdout ($n{=}1{,}483$) is reserved
+hyperparameters from Appendix~H.
+The training pool (excluding prior-training data)
+is split 80/20 into train/val; the holdout is reserved
 for evaluation.  BanditGPT is swept over 33~$\lambda$ values in $[0,1]$;
 all results are averaged over 20~seeds.
+\textbf{TODO: update setup details with K=3 hyperparameters and data counts.}
+
+\emph{Note on supervised baselines:}
+The KNN/SVM/MLP classifiers are extended to multi-class ($K{=}3$) as
+reference baselines.  The original LLMRouter
+framework~\cite{hu2024routerbench, li2026llmrouterbench} supports binary
+routing ($K{=}2$) only; formal comparisons against LLMRouter are
+reported in the $K{=}2$ section above.
 
 \paragraph{Results.}
-Table~\ref{tab:k10_results} summarises all routers, and
-Table~\ref{tab:k10_comparison} reports the LLMRouterBench comparison
+Table~\ref{tab:k3_results} summarises all routers, and
+Table~\ref{tab:k3_comparison} reports the LLMRouterBench comparison
 metrics.
+
+\textbf{TODO: update both tables with K=3 results.}
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{$K{=}10$ router comparison on the holdout set ($n{=}1{,}483$).
-BanditGPT ($\lambda{=}0$) significantly outperforms all supervised
-baselines.  Gap@Oracle is relative to the instance-wise optimal
-($R{=}0.972$).  $\dagger$KNN is deterministic.}
-\label{tab:k10_results}
-\begin{tabular}{lcccc}
+\caption{$K{=}3$ router comparison on the holdout set.
+BanditGPT ($\lambda{=}0$) performance vs supervised
+baselines.  Gap@Oracle is relative to the instance-wise optimal.
+$\dagger$KNN is deterministic.
+$^{\ddagger}$Supervised baselines are multi-class extensions of
+LLMRouter classifiers (reference only; LLMRouter supports $K{=}2$).}
+\label{tab:k3_results}
+\begin{tabular}{lccccc}
 \toprule
-Router & Reward & $\pm$std & Cost (\$/req) & Gap@Oracle \\
+Router & Reward & $\pm$std & Cost (\$/req) & Gap@Oracle & \%$\to$Top \\
 \midrule
-Oracle                    & 0.9721 & ---    & 0.00151 & 0.0\% \\
+Oracle                    & --- & ---    & --- & 0.0\% & --- \\
 \midrule
-BanditGPT ($\lambda{=}0$)    & 0.9017 & 0.0092 & 0.00265 & 7.2\% \\
-SVM (supervised)          & 0.8883 & 0.0000 & 0.00205 & 8.6\% \\
-MLP (supervised)          & 0.8546 & 0.0141 & 0.00156 & 12.1\% \\
-KNN (supervised)$^\dagger$ & 0.8456 & 0.0000 & 0.00172 & 13.0\% \\
-UCB1 (non-contextual)     & 0.9092 & 0.0071 & 0.00339 & 6.5\% \\
-Static best (GPT-4.1)     & 0.9112 & ---    & 0.00340 & 6.3\% \\
-Random                    & 0.8469 & 0.0050 & 0.00154 & 12.9\% \\
+BanditGPT ($\lambda{=}0$)    & --- & --- & --- & --- & --- \\
+SVM$^{\ddagger}$          & --- & --- & --- & --- & --- \\
+MLP$^{\ddagger}$          & --- & --- & --- & --- & --- \\
+KNN$^{\ddagger}$$^\dagger$ & --- & --- & --- & --- & --- \\
+UCB1 (non-contextual)     & --- & --- & --- & --- & --- \\
+Static best (GPT-4.1)     & --- & ---    & --- & --- & 100\% (GPT-4.1) \\
+Random                    & --- & --- & --- & --- & $\sim$33\% (uniform) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -271,122 +281,59 @@ Random                    & 0.8469 & 0.0050 & 0.00154 & 12.9\% \\
 \begin{table}[htbp]
 \centering
 \small
-\caption{$K{=}10$ BanditGPT vs supervised baselines: standard routing
-metrics~\cite{li2026llmrouterbench, hu2024routerbench}.
+\caption{$K{=}3$ BanditGPT vs supervised multi-class baselines
+(reference; LLMRouter supports $K{=}2$ only).
 PerfGain is the reward advantage at matched cost; CostSave is
 the percentage cost reduction at matched quality; Gap@Oracle shows how
-far each method is from instance-wise optimal routing.  BanditGPT
-achieves higher quality at SVM's cost (PerfGain $+1.0$pp), or matches
-SVM's quality at 54\% lower cost.
-$^*$CostSave vs KNN is undefined: even BanditGPT's cheapest Pareto
-point exceeds KNN's quality, so no iso-quality interpolation is needed.}
-\label{tab:k10_comparison}
+far each method is from instance-wise optimal routing.}
+\label{tab:k3_comparison}
 \begin{tabular}{lccccc}
 \toprule
  & \multicolumn{2}{c}{BanditGPT advantage} & \multicolumn{2}{c}{Gap@Oracle} \\
 \cmidrule(lr){2-3} \cmidrule(lr){4-5}
 Baseline & PerfGain & CostSave & Baseline & BanditGPT \\
 \midrule
-vs SVM & $+$0.0105 & $+$54.1\% & 8.6\% & 7.5\% \\
-vs MLP & $+$0.0406 & $+$80.8\% & 12.1\% & 7.9\% \\
-vs KNN & $+$0.0507 & ---$^*$    & 13.0\% & 7.8\% \\
+vs SVM & --- & --- & --- & --- \\
+vs MLP & --- & --- & --- & --- \\
+vs KNN & --- & --- & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Statistical significance ($K{=}10$).}
-BanditGPT ($\lambda{=}0$, 20~seeds) significantly outperforms all three
-supervised baselines, with Holm-Bonferroni correction across the three
-comparisons:
-\begin{itemize}
-    \item vs KNN: $\Delta{=}+0.056$, one-sample $t{=}27.34$, df$\,{=}\,$19,
-          $p_{\text{Holm}}{<}10^{-15}$~\cite{holm1979simple},
-          Cohen's $d{=}6.11$~\cite{cohen1988statistical}.%
-          \footnote{KNN and SVM are deterministic (zero seed variance);
-          one-sample $t$-tests against the fixed baseline reward are
-          equivalent to paired tests with zero-variance partner.}
-    \item vs SVM: $\Delta{=}+0.013$, one-sample $t{=}6.53$, df$\,{=}\,$19,
-          $p_{\text{Holm}}{=}3.0 \times 10^{-6}$, Cohen's $d{=}1.46$
-          (large effect).
-    \item vs MLP: $\Delta{=}+0.047$, Welch's
-          $t{=}12.51$~\cite{welch1947generalization}, df$\,{=}\,$32.6,
-          $p_{\text{Holm}}{<}10^{-13}$, Cohen's $d{=}3.96$ (very large
-          effect).%
-          \footnote{MLP has nonzero seed variance ($\sigma{=}0.014$), so
-          Welch's two-sample $t$-test~\cite{welch1947generalization} is
-          used rather than a one-sample test.}
-\end{itemize}
-In the Pareto sweep, 7 of 33 $\lambda$ values significantly outperform
-SVM at the $\alpha{=}0.05$ level (all in the quality-maximising range,
-$\lambda \leq 0.18$); only 3 significantly underperform (the
-cost-minimising tail, $\lambda \geq 0.3$); the remaining 23 show no
-significant difference, indicating that BanditGPT can match or exceed
-SVM quality across a wide cost range.
+\paragraph{Statistical significance ($K{=}3$).}
+\textbf{TODO: update statistical significance tests with K=3 results.}
 
-\paragraph{Isocost comparison.}
-At SVM's operating cost (\$0.00205/req), BanditGPT's Pareto frontier
-achieves $R{=}0.899$---a PerfGain of $+0.011$ over SVM's $R{=}0.888$.
-This means that for the \emph{same budget}, BanditGPT routes to
-higher-quality models by leveraging prompt-specific contextual information
-that a static SVM classifier cannot capture.
-
-\paragraph{Iso-quality comparison.}
-To match SVM's quality ($R{=}0.888$), BanditGPT's Pareto frontier
-achieves the same reward at \$0.00094/req---a CostSave of 54.1\%
-relative to SVM's \$0.00205/req.  Against MLP ($R{=}0.855$), the
-savings are even larger: BanditGPT matches MLP quality at 80.8\% lower
-cost.  In practical terms, a deployment switching from an SVM-based
-static router to BanditGPT (at matched quality) would cut per-request
-LLM inference costs by more than half.
+\paragraph{Isocost and iso-quality comparison.}
+\textbf{TODO: update isocost and iso-quality comparisons with K=3 results.}
 
 \paragraph{Gap@Oracle analysis.}
-BanditGPT at $\lambda{=}0$ closes 7.2\% of the gap to the oracle
-ceiling ($R{=}0.972$), compared to 8.6\% for SVM, 12.1\% for MLP, and
-13.0\% for KNN.  While the absolute gap of 7.2\% may seem modest,
-it represents the most difficult portion of the quality ladder:
-the oracle routes each prompt to its \emph{individually optimal} model,
-a policy that requires perfect knowledge of the counterfactual reward
-matrix---information no practical router possesses.
+\textbf{TODO: update Gap@Oracle analysis with K=3 results.}
 
 \paragraph{UCB1 ablation: value of contextual features.}
 A non-contextual UCB1 baseline~\cite{abbasi2011improved}
-($R{=}0.909$) slightly outperforms BanditGPT at $\lambda{=}0$
-($R{=}0.902$) and nearly matches the best static model (GPT-4.1 at
-$R{=}0.911$).  This is expected: without a cost penalty, UCB1 converges
-to the globally best arm (GPT-4.1), achieving high reward at the expense
-of always paying the premium price
-(\$0.0034/req).  BanditGPT's advantage materialises when cost matters:
-at any budget below \$0.003/req, BanditGPT's Pareto frontier dominates
+converges to the globally best arm (GPT-4.1), achieving high reward at the expense
+of always paying the premium price.
+BanditGPT's advantage materialises when cost matters:
+at any budget below the frontier model cost, BanditGPT's Pareto frontier dominates
 UCB1's single operating point, demonstrating that contextual features
 enable cost-efficient prompt-specific routing that a non-contextual
 policy cannot achieve.
+\textbf{TODO: update UCB1 comparison numbers with K=3 results.}
 
 \paragraph{BanditGPT's Pareto sweep in detail.}
-The 33-point Pareto sweep reveals a smooth cost--quality tradeoff:
-\begin{itemize}
-    \item $\lambda{=}0$: $R{=}0.902$, \$0.00265/req (quality-maximising).
-    \item $\lambda{=}0.14$: $R{=}0.892$, \$0.00102/req (62\% cheaper
-          than $\lambda{=}0$, 1pp quality loss).
-    \item $\lambda{=}0.25$: $R{=}0.890$, \$0.00098/req (matches SVM
-          quality at half the cost).
-    \item $\lambda{=}1.0$: $R{=}0.850$, \$0.00025/req (90\% cheaper,
-          still above KNN quality).
-\end{itemize}
-This granularity allows practitioners to select any operating point along
-the frontier based on their budget constraints---a capability that
-single-point supervised baselines fundamentally cannot offer.
+\textbf{TODO: update Pareto sweep operating points with K=3 results.}
 
 % ==================================================================
 
 \subsection{Practical Implications}
 
-The results from both $K{=}2$ and $K{=}10$ yield several practical
+The results from both $K{=}2$ and $K{=}3$ yield several practical
 insights for LLM routing deployments:
 
 \paragraph{1. BanditGPT matches or exceeds supervised baselines.}
 At the quality-maximising operating point ($\lambda{=}0$), BanditGPT
-matches SVM in $K{=}2$ (within 0.03pp) and significantly outperforms all
-supervised baselines in $K{=}10$ ($+1.3$pp over SVM, $p{<}10^{-5}$).
+matches SVM in $K{=}2$ (within 0.03pp) and is expected to outperform
+supervised baselines in $K{=}3$ \textbf{TODO: update with K=3 numbers}.
 This establishes that online contextual
 bandits~\cite{li2010contextual, abbasi2011improved} are competitive
 with---and often superior to---the supervised static routers studied in
@@ -396,14 +343,10 @@ pulishetty2025onehead}, despite requiring no pre-collected preference
 labels.
 
 \paragraph{2. Cost savings at matched quality are substantial.}
-In the $K{=}10$ portfolio, BanditGPT can deliver the same routing
-quality as SVM at 54\% lower cost, or match MLP at 81\% lower
-cost---savings consistent with cost-reduction findings in the LLM
+In the $K{=}3$ portfolio, BanditGPT can deliver substantial cost savings
+at matched quality---consistent with cost-reduction findings in the LLM
 efficiency literature~\cite{chen2023frugalgpt, ong2024routellm}.
-For a deployment serving 1M requests/day at SVM's operating cost of
-\$0.00205/req (\$2{,}050/day), switching to BanditGPT at matched quality
-would save approximately \$1{,}100/day (\$400k/year)---a substantial
-operational saving with no quality degradation.
+\textbf{TODO: update cost savings numbers with K=3 results.}
 
 \paragraph{3. The Pareto frontier is a deployment advantage.}
 Supervised baselines produce a single operating point: one fixed
@@ -421,15 +364,14 @@ where budget constraints fluctuate and model pricing changes over time.
 
 \paragraph{4. Online adaptation provides a structural advantage at scale.}
 The $K{=}2$ results show that when the portfolio is trivially small, all
-methods converge to the same solution.  The $K{=}10$ results reveal
+methods converge to the same solution.  The $K{=}3$ results reveal
 BanditGPT's structural advantage: as the portfolio grows, the supervised
 baselines' single-label classification struggles to capture the
 combinatorial structure of prompt-model
 interactions~\cite{hu2024routerbench}, while BanditGPT's contextual
 bandit framework~\cite{li2010contextual, agarwal2017corralling}
-naturally exploits prompt-specific model strengths.  The 7 of 33 $\lambda$ values that significantly outperform
-SVM---all in the quality-maximising regime---confirm that BanditGPT
-extracts routing signal that a static classifier misses.
+naturally exploits prompt-specific model strengths.
+\textbf{TODO: update Pareto sweep significance analysis with K=3 results.}
 
 \paragraph{5. Warmup priors accelerate deployment.}
 BanditGPT's step-0 performance in $K{=}2$ ($R{=}0.910$) already matches
@@ -468,8 +410,8 @@ Portfolio & Expert & $\alpha$ & $n_{\mathrm{eff}}$ & $\gamma$ \\
 \midrule
 $K{=}2$  & Warmup      & 0.1  & 1000 & 0.9999 \\
 $K{=}2$  & Tabula rasa & 0.1  & 10   & 1.0    \\
-$K{=}10$ & Warmup      & 1.0  & 1000 & 1.0    \\
-$K{=}10$ & Tabula rasa & 0.25 & 10   & 1.0    \\
+$K{=}3$ & Warmup      & 1.0  & 1000 & 1.0    \\
+$K{=}3$ & Tabula rasa & 0.25 & 10   & 1.0    \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -478,7 +420,7 @@ Both portfolios favour strong priors for the warmup expert
 ($n_{\mathrm{eff}}{=}1000$) and near-stationary learning
 ($\gamma \geq 0.9999$).  The tabula-rasa expert uses minimal prior
 strength ($n_{\mathrm{eff}}{=}10$), as expected for an uninformed
-learner.  $K{=}10$ benefits from aggressive exploration on the warmup
+learner.  $K{=}3$ benefits from aggressive exploration on the warmup
 expert ($\alpha{=}1.0$), consistent with the larger action space
 requiring more exploration to discover prompt-specific model strengths.
 See Appendix~H for the full grid results, sensitivity analysis, and

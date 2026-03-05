@@ -4,9 +4,9 @@
 We evaluate \textit{banditGPT} through the following research questions:
 
 \begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{RQ1}: How does banditGPT's cost--quality trade-off compare to state-of-the-art static routers?
-    \item \textbf{RQ2}: How does banditGPT scale to larger model portfolios ($K{\in}\{5, 10\}$)?
-    \item \textbf{RQ3}: Does family-level parameter sharing improve sample efficiency?
+    \item \textbf{RQ1}: How does banditGPT's cost--quality Pareto frontier compare to supervised routing baselines?
+    \item \textbf{RQ2}: How do warmup priors affect cold-start performance?
+    \item \textbf{RQ3}: Does Corralling provide resilience against catastrophic model failure?
     \item \textbf{RQ4}: How robust is banditGPT to distribution shift and prior mismatch?
     \item \textbf{RQ5}: How does banditGPT compare to alternative bandit baselines, and how quickly does it converge?
 \end{itemize}
@@ -16,38 +16,18 @@ We evaluate \textit{banditGPT} through the following research questions:
 \subsection{RQ1: Cost--Quality Trade-off}
 \label{sec:pareto}
 
-Figure~\ref{fig:prequential_k2} compares the cost-quality trade-off of \textit{banditGPT}'s online learning against RouteLLM's supervised pre-training.
+We compare \textit{banditGPT} against supervised routing baselines from LLMRouter~\cite{ding2024hybrid} (KNN, SVM, MLP) and standard online baselines.
+All routers are trained on the same 533-prompt online-learning split; supervised baselines receive the full per-model reward matrix while \textit{banditGPT} observes only the reward of the model it selects (partial feedback).
+Performance is evaluated on the frozen 750-prompt holdout using Pareto AUC, PerfGain, CostSave, and Gap@Oracle~\cite{hu2024routerbench}.
 
 \input{../experiments/03_figure/figure3_caption}
 
-\subsubsection{Comparison Across Cost Regimes}
-
-Figure~\ref{fig:prequential_k2}a reveals two distinct regimes reflecting the strengths of supervised pre-training versus online adaptation:
-
-\begin{itemize}[nosep,leftmargin=*]
-    \item \textbf{RouteLLM} is pre-trained on ${\sim}$100k out-of-distribution (OOD) supervised preference pairs, providing strong out-of-the-box performance without deployment data.
-    \item \textbf{banditGPT} combines 80k OOD battle priors with ${\sim}897$ label-free online learning steps (dev-train, 80\% of $n{=}1{,}121$), adapting directly from routing outcomes.
-\end{itemize}
-
-At \textbf{low budgets}, RouteLLM's pre-trained classifier is competitive or holds a small advantage that is not significant, consistent with its massive pre-training data advantage in the low-cost regime.
-
-At \textbf{higher budgets} (${\sim}\$0.008$/req), \textit{banditGPT} surpasses RouteLLM.  Dev-selected Pareto AUC: banditGPT $0.661$ vs.\ RouteLLM $0.372$ (advantage $+0.289$; paired bootstrap 95\% CI $[0.254,\, 0.374]$, $p < 0.001$, 1{,}000 holdout resamples with joint cost-reward resampling).  Post-hoc isocost comparison at the highest matched budget: Holm-corrected ensemble $p{=}0.018$, reject at $\alpha{=}0.05$.
-
-\subsubsection{The Value of Online Adaptation}
-
-Figure~\ref{fig:prequential_k2}b demonstrates why online adaptation matters.  The learning curve ($\lambda{=}0$, quality-only, frozen evaluation with $\alpha{=}0$) shows banditGPT \emph{persistently} surpassing RouteLLM's peak reward ($0.788$) after just ${\sim}25$ online training steps, despite a ${\sim}90\!\times$ data disadvantage.  Converged performance after $1{,}121$ steps reaches $0.816 \pm 0.007$ (20 seeds), a $+2.8$ percentage-point improvement over RouteLLM's best.
-
-\subsubsection{Non-Monotonicity of Static Routing}
-\label{sec:nonmonotone}
-
-A notable feature of RouteLLM's frontier is its rapid quality degradation at high cost.  Beyond the peak at $\tau{=}0.12$ (reward $0.788$, cost $\$0.0069$), lowering the threshold routes progressively more prompts to GPT-4-Turbo.  Quality \emph{decreases} because GPT-4-Turbo is not universally superior: static GPT-4-Turbo achieves only $0.752$ reward (below Mixtral's $0.723$ on some prompts).  The result is a non-monotonic cost--quality curve in which spending more yields \emph{lower} quality---a structural limitation of threshold-based routing with a binary classifier.  BanditGPT avoids this failure mode because its cost--quality trade-off is governed by the continuous penalty $\lambda \cdot \text{NormCost}$ in the UCB score, allowing smooth interpolation across the frontier.
-
-\subsubsection{Gap Closure Analysis}
-
-On the frozen holdout ($N{=}750$), \textit{banditGPT} closes \textbf{69.4\%} of the optimality gap to the theoretical oracle ($\frac{0.816 - 0.723}{0.857 - 0.723}$), compared to 48.5\% for RouteLLM at its best threshold ($\frac{0.788 - 0.723}{0.857 - 0.723}$). Crucially, \textit{banditGPT} achieves this while only incurring inference costs for the single model selected per request, avoiding the parallel evaluation required to collect supervised labels.
+%% Detailed quantitative results are reported in the per-experiment
+%% results_discussion.tex included from 03_figure/.
+\input{../experiments/03_figure/results_discussion}
 
 % ============================================================================
-% RQ2: Multi-Model Scaling (K=10)
+% RQ2: Multi-Model Scaling (K=3)
 % ============================================================================
 
 \input{../experiments/04_figure/figure4_caption}

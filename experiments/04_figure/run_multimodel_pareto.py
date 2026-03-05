@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-K=10 Multi-Model Pareto Frontier Evaluation.
+K=3 Multi-Model Pareto Frontier Evaluation.
 
-Evaluates BanditGPT's routing performance across a 10-model portfolio
-spanning four cost tiers, comparing against tabula rasa (plain LinUCB)
-and standard baselines.  This experiment tests whether BanditGPT's
-architecture (Corralling over
+Evaluates BanditGPT's routing performance across a 3-model portfolio
+comparing against tabula rasa (plain LinUCB) and standard baselines.
+This experiment tests whether BanditGPT's architecture (Corralling over
 heterogeneous LinUCB experts with family-based parameter sharing) scales
-to larger portfolios.
+beyond the K=2 setting.
 
 Protocol
 --------
@@ -75,7 +74,7 @@ from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
-    K10_WARMUP_PRIORS_PATH,
+    K3_WARMUP_PRIORS_PATH,
     THREE_WAY_SPLITS_PATH,
 )
 
@@ -97,9 +96,9 @@ from run_prequential import (
     ucb1_online_route,
     run_pareto_sweep,
     _split_dev_train_val,
-    K10_MODELS,
-    K10_CATALOG,
-    LAMBDA_VALUES_K10,
+    K3_MODELS,
+    K3_CATALOG,
+    LAMBDA_VALUES_K3,
     N_SEEDS,
     TARGET_NEFF,
     ALPHA_START,
@@ -114,15 +113,15 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# Main K=10 experiment
+# Main K=3 experiment
 # ============================================================================
 
 
-def _load_tuned_hparams(key: str = "K10") -> Optional[Dict[str, float]]:
+def _load_tuned_hparams(key: str = "K3") -> Optional[Dict[str, float]]:
     """Load dev-val-selected hyperparameters from Appendix H ablation.
 
     Args:
-        key: Top-level key in the JSON file (``"K2"`` or ``"K10"``).
+        key: Top-level key in the JSON file (``"K2"`` or ``"K3"``).
 
     Returns:
         Dict with ``alpha``, ``prior_n_effective``, ``forgetting_factor``,
@@ -130,7 +129,7 @@ def _load_tuned_hparams(key: str = "K10") -> Optional[Dict[str, float]]:
     """
     hparams_path = (
         Path(__file__).resolve().parent.parent / "appendix"
-        / "H_alpha_neff_ablation" / "results" / "best_hparams_k10.json"
+        / "H_alpha_neff_ablation" / "results" / "best_hparams_k3.json"
     )
     if not hparams_path.exists():
         return None
@@ -147,8 +146,8 @@ def _load_tuned_hparams(key: str = "K10") -> Optional[Dict[str, float]]:
         return None
 
 
-def run_k10_experiment() -> None:
-    """Run the K=10 multi-model Pareto frontier evaluation."""
+def run_k3_experiment() -> None:
+    """Run the K=3 multi-model Pareto frontier evaluation."""
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -171,10 +170,10 @@ def run_k10_experiment() -> None:
     # ------------------------------------------------------------------
     # Tuned hyperparameters (Appendix H, dev-val-selected)
     # ------------------------------------------------------------------
-    tuned = _load_tuned_hparams("K10")
+    tuned = _load_tuned_hparams("K3")
     if tuned is not None:
         logger.info(
-            f"Loaded K=10 tuned hparams (dev-val-selected): "
+            f"Loaded K=3 tuned hparams (dev-val-selected): "
             f"alpha={tuned['alpha']} n_eff={tuned['prior_n_effective']} "
             f"forgetting_factor={tuned['forgetting_factor']}"
         )
@@ -185,9 +184,9 @@ def run_k10_experiment() -> None:
             "experiments/appendix/H_alpha_neff_ablation/"
             "run_3d_grid_ablation.py first for tuned hyperparameters."
         )
-    k10_alpha = tuned["alpha"] if tuned is not None else ALPHA_START
-    k10_neff = tuned["prior_n_effective"] if tuned is not None else TARGET_NEFF
-    k10_forgetting = tuned["forgetting_factor"] if tuned is not None else 1.0
+    k3_alpha = tuned["alpha"] if tuned is not None else ALPHA_START
+    k3_neff = tuned["prior_n_effective"] if tuned is not None else TARGET_NEFF
+    k3_forgetting = tuned["forgetting_factor"] if tuned is not None else 1.0
 
     results_all: Dict[str, Any] = {
         "metadata": {
@@ -199,9 +198,9 @@ def run_k10_experiment() -> None:
             "dev_val_fraction": DEV_VAL_FRACTION,
             "dev_val_seed": DEV_VAL_SEED,
             "hparams": {
-                "alpha": k10_alpha,
-                "prior_n_effective": k10_neff,
-                "forgetting_factor": k10_forgetting,
+                "alpha": k3_alpha,
+                "prior_n_effective": k3_neff,
+                "forgetting_factor": k3_forgetting,
                 "corralling_lr": CORRALLING_LR,
                 "corralling_gamma": CORRALLING_GAMMA,
                 "source": "appendix_H" if tuned is not None else "module_defaults",
@@ -210,228 +209,228 @@ def run_k10_experiment() -> None:
     }
 
     # ==================================================================
-    # K=10 — Multi-model Pareto frontier
+    # K=3 — Multi-model Pareto frontier
     # ==================================================================
     logger.info("\n" + "=" * 70)
-    logger.info("K=10: Multi-Model Pareto Frontier")
+    logger.info("K=3: Multi-Model Pareto Frontier")
     logger.info("=" * 70)
 
-    costs_k10 = {m: K10_CATALOG[m]["cost"] for m in K10_MODELS}
+    costs_k3 = {m: K3_CATALOG[m]["cost"] for m in K3_MODELS}
 
-    # --- Load K=10 data ------------------------------------------------
-    logger.info("\n  Loading K=10 data ...")
+    # --- Load K=3 data ------------------------------------------------
+    logger.info("\n  Loading K=3 data ...")
     with open(THREE_WAY_SPLITS_PATH) as f:
         splits_3way = json.load(f)
     online_prompts = set(splits_3way["online_learn_pool"])
 
-    train_data_k10 = load_rewards_from_file(
-        DEV_DATA_PATH_ALL_MODELS, K10_MODELS,
+    train_data_k3 = load_rewards_from_file(
+        DEV_DATA_PATH_ALL_MODELS, K3_MODELS,
         prompt_filter=online_prompts,
     )
-    holdout_data_k10 = load_rewards_from_file(
-        HOLDOUT_DATA_PATH_ALL_MODELS, K10_MODELS,
+    holdout_data_k3 = load_rewards_from_file(
+        HOLDOUT_DATA_PATH_ALL_MODELS, K3_MODELS,
     )
-    logger.info(f"    Train (online-learn): {len(train_data_k10)} prompts")
-    logger.info(f"    Holdout: {len(holdout_data_k10)} prompts")
+    logger.info(f"    Train (online-learn): {len(train_data_k3)} prompts")
+    logger.info(f"    Holdout: {len(holdout_data_k3)} prompts")
 
     # --- Embeddings ----------------------------------------------------
-    logger.info("  Embedding K=10 prompts ...")
-    train_emb_k10 = embed_dataset(train_data_k10, encoder, pca)
-    holdout_emb_k10 = embed_dataset(holdout_data_k10, encoder, pca)
+    logger.info("  Embedding K=3 prompts ...")
+    train_emb_k3 = embed_dataset(train_data_k3, encoder, pca)
+    holdout_emb_k3 = embed_dataset(holdout_data_k3, encoder, pca)
 
     # --- Dev train/val split -------------------------------------------
-    logger.info(f"  Splitting K=10 train into train/val "
+    logger.info(f"  Splitting K=3 train into train/val "
                 f"({1 - DEV_VAL_FRACTION:.0%}/{DEV_VAL_FRACTION:.0%}) ...")
-    train_train_k10, train_train_emb_k10, train_val_k10, train_val_emb_k10 = (
-        _split_dev_train_val(train_data_k10, train_emb_k10)
+    train_train_k3, train_train_emb_k3, train_val_k3, train_val_emb_k3 = (
+        _split_dev_train_val(train_data_k3, train_emb_k3)
     )
     logger.info(
-        f"    Train-train: {len(train_train_k10)}  "
-        f"Train-val: {len(train_val_k10)}"
+        f"    Train-train: {len(train_train_k3)}  "
+        f"Train-val: {len(train_val_k3)}"
     )
 
     # --- Baselines -----------------------------------------------------
-    logger.info("\n  Computing K=10 baselines ...")
-    oracle_r_k10, oracle_c_k10 = oracle_route(
-        holdout_data_k10, K10_MODELS, costs_k10,
+    logger.info("\n  Computing K=3 baselines ...")
+    oracle_r_k3, oracle_c_k3 = oracle_route(
+        holdout_data_k3, K3_MODELS, costs_k3,
     )
-    logger.info(f"    Oracle: R={oracle_r_k10:.4f}  C=${oracle_c_k10:.6f}")
+    logger.info(f"    Oracle: R={oracle_r_k3:.4f}  C=${oracle_c_k3:.6f}")
 
-    static_k10: Dict[str, Dict] = {}
-    for m in K10_MODELS:
-        sr, sc = static_route(holdout_data_k10, m, costs_k10)
-        static_k10[m] = {"reward": sr, "cost": sc}
+    static_k3: Dict[str, Dict] = {}
+    for m in K3_MODELS:
+        sr, sc = static_route(holdout_data_k3, m, costs_k3)
+        static_k3[m] = {"reward": sr, "cost": sc}
         logger.info(
-            f"    Static {K10_CATALOG[m]['display']:<22}: R={sr:.4f}  C=${sc:.6f}"
+            f"    Static {K3_CATALOG[m]['display']:<22}: R={sr:.4f}  C=${sc:.6f}"
         )
 
-    random_k10 = random_route(
-        holdout_data_k10, K10_MODELS, costs_k10, N_SEEDS * 4,
+    random_k3 = random_route(
+        holdout_data_k3, K3_MODELS, costs_k3, N_SEEDS * 4,
     )
-    logger.info(f"    Random: R={random_k10['reward']:.4f}")
+    logger.info(f"    Random: R={random_k3['reward']:.4f}")
 
-    eg_k10 = best_static_noisy_route(
-        train_train_k10, holdout_data_k10, K10_MODELS, costs_k10,
+    eg_k3 = best_static_noisy_route(
+        train_train_k3, holdout_data_k3, K3_MODELS, costs_k3,
         n_trials=N_SEEDS * 4,
     )
-    logger.info(f"    Best-static+noise: R={eg_k10['reward']:.4f}")
+    logger.info(f"    Best-static+noise: R={eg_k3['reward']:.4f}")
 
-    ucb1_k10 = ucb1_online_route(
-        train_train_k10, holdout_data_k10, K10_MODELS, costs_k10,
+    ucb1_k3 = ucb1_online_route(
+        train_train_k3, holdout_data_k3, K3_MODELS, costs_k3,
         cost_penalty=0.0, n_trials=N_SEEDS,
     )
     logger.info(
-        f"    UCB1 (non-contextual): R={ucb1_k10['reward']:.4f} "
-        f"+/-{ucb1_k10['std_reward']:.4f}"
+        f"    UCB1 (non-contextual): R={ucb1_k3['reward']:.4f} "
+        f"+/-{ucb1_k3['std_reward']:.4f}"
     )
 
     # --- BanditGPT Pareto sweep ----------------------------------------
     logger.info(
-        f"\n  BanditGPT K=10 Pareto sweep "
-        f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
+        f"\n  BanditGPT K=3 Pareto sweep "
+        f"({len(LAMBDA_VALUES_K3)} lambda x {N_SEEDS} seeds) ..."
     )
-    bandit_pareto_k10 = run_pareto_sweep(
-        K10_MODELS, K10_CATALOG,
-        train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
-        str(K10_WARMUP_PRIORS_PATH), costs_k10, LAMBDA_VALUES_K10,
+    bandit_pareto_k3 = run_pareto_sweep(
+        K3_MODELS, K3_CATALOG,
+        train_train_k3, holdout_data_k3, train_train_emb_k3, holdout_emb_k3,
+        str(K3_WARMUP_PRIORS_PATH), costs_k3, LAMBDA_VALUES_K3,
         N_SEEDS, use_corralling=True, label="banditGPT",
-        dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
-        alpha=k10_alpha,
-        prior_n_effective=k10_neff,
-        forgetting_factor=k10_forgetting,
+        dev_val_data=train_val_k3, dev_val_emb=train_val_emb_k3,
+        alpha=k3_alpha,
+        prior_n_effective=k3_neff,
+        forgetting_factor=k3_forgetting,
     )
 
     # Tabula rasa ablation (no priors, no Corralling)
     logger.info(
-        f"\n  Tabula rasa K=10 ablation "
-        f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
+        f"\n  Tabula rasa K=3 ablation "
+        f"({len(LAMBDA_VALUES_K3)} lambda x {N_SEEDS} seeds) ..."
     )
-    tabula_pareto_k10 = run_pareto_sweep(
-        K10_MODELS, K10_CATALOG,
-        train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
-        None, costs_k10, LAMBDA_VALUES_K10,
+    tabula_pareto_k3 = run_pareto_sweep(
+        K3_MODELS, K3_CATALOG,
+        train_train_k3, holdout_data_k3, train_train_emb_k3, holdout_emb_k3,
+        None, costs_k3, LAMBDA_VALUES_K3,
         N_SEEDS, use_corralling=False, label="tabula_rasa",
-        dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
-        alpha=k10_alpha,
-        prior_n_effective=k10_neff,
-        forgetting_factor=k10_forgetting,
+        dev_val_data=train_val_k3, dev_val_emb=train_val_emb_k3,
+        alpha=k3_alpha,
+        prior_n_effective=k3_neff,
+        forgetting_factor=k3_forgetting,
     )
 
     # --- Dev-selected Pareto AUC ----------------------------------------
-    best_static_m = max(static_k10, key=lambda m: static_k10[m]["reward"])
+    best_static_m = max(static_k3, key=lambda m: static_k3[m]["reward"])
 
-    bg_dev_costs_k10 = [p["dev_mean_cost"] for p in bandit_pareto_k10]
-    tr_dev_costs_k10 = [p["dev_mean_cost"] for p in tabula_pareto_k10]
-    cost_lo_k10 = max(min(bg_dev_costs_k10), min(tr_dev_costs_k10))
-    cost_hi_k10 = min(max(bg_dev_costs_k10), max(tr_dev_costs_k10))
+    bg_dev_costs_k3 = [p["dev_mean_cost"] for p in bandit_pareto_k3]
+    tr_dev_costs_k3 = [p["dev_mean_cost"] for p in tabula_pareto_k3]
+    cost_lo_k3 = max(min(bg_dev_costs_k3), min(tr_dev_costs_k3))
+    cost_hi_k3 = min(max(bg_dev_costs_k3), max(tr_dev_costs_k3))
 
-    bg_ds_auc_k10, _, _, bg_dev_idx_k10 = dev_selected_pareto_auc(
-        bandit_pareto_k10, cost_lo_k10, cost_hi_k10,
+    bg_ds_auc_k3, _, _, bg_dev_idx_k3 = dev_selected_pareto_auc(
+        bandit_pareto_k3, cost_lo_k3, cost_hi_k3,
     )
-    tr_ds_auc_k10, _, _, tr_dev_idx_k10 = dev_selected_pareto_auc(
-        tabula_pareto_k10, cost_lo_k10, cost_hi_k10,
+    tr_ds_auc_k3, _, _, tr_dev_idx_k3 = dev_selected_pareto_auc(
+        tabula_pareto_k3, cost_lo_k3, cost_hi_k3,
     )
 
     # Oracle envelope AUC (reference)
-    bg_costs_k10 = [p["mean_cost"] for p in bandit_pareto_k10]
-    tr_costs_k10 = [p["mean_cost"] for p in tabula_pareto_k10]
-    oracle_cost_lo_k10 = max(min(bg_costs_k10), min(tr_costs_k10))
-    oracle_cost_hi_k10 = min(max(bg_costs_k10), max(tr_costs_k10))
-    bg_oracle_auc_k10 = pareto_auc(
-        bg_costs_k10,
-        [p["mean_reward"] for p in bandit_pareto_k10],
-        oracle_cost_lo_k10, oracle_cost_hi_k10,
+    bg_costs_k3 = [p["mean_cost"] for p in bandit_pareto_k3]
+    tr_costs_k3 = [p["mean_cost"] for p in tabula_pareto_k3]
+    oracle_cost_lo_k3 = max(min(bg_costs_k3), min(tr_costs_k3))
+    oracle_cost_hi_k3 = min(max(bg_costs_k3), max(tr_costs_k3))
+    bg_oracle_auc_k3 = pareto_auc(
+        bg_costs_k3,
+        [p["mean_reward"] for p in bandit_pareto_k3],
+        oracle_cost_lo_k3, oracle_cost_hi_k3,
     )
-    tr_oracle_auc_k10 = pareto_auc(
-        tr_costs_k10,
-        [p["mean_reward"] for p in tabula_pareto_k10],
-        oracle_cost_lo_k10, oracle_cost_hi_k10,
+    tr_oracle_auc_k3 = pareto_auc(
+        tr_costs_k3,
+        [p["mean_reward"] for p in tabula_pareto_k3],
+        oracle_cost_lo_k3, oracle_cost_hi_k3,
     )
 
-    # Paired bootstrap CI for K=10 AUC difference
-    logger.info("  Computing K=10 bootstrap CI ...")
-    bg_pp_r_k10: Dict[float, np.ndarray] = {}
-    bg_pp_c_k10: Dict[float, np.ndarray] = {}
-    for p in bandit_pareto_k10:
+    # Paired bootstrap CI for K=3 AUC difference
+    logger.info("  Computing K=3 bootstrap CI ...")
+    bg_pp_r_k3: Dict[float, np.ndarray] = {}
+    bg_pp_c_k3: Dict[float, np.ndarray] = {}
+    for p in bandit_pareto_k3:
         if p.get("per_seed_per_prompt_rewards") is not None:
-            bg_pp_r_k10[p["lambda"]] = np.array(
+            bg_pp_r_k3[p["lambda"]] = np.array(
                 p["per_seed_per_prompt_rewards"],
             )
-            bg_pp_c_k10[p["lambda"]] = np.array(
+            bg_pp_c_k3[p["lambda"]] = np.array(
                 p["per_seed_per_prompt_costs"],
             )
-    tr_pp_r_k10: Dict[float, np.ndarray] = {}
-    tr_pp_c_k10: Dict[float, np.ndarray] = {}
-    for p in tabula_pareto_k10:
+    tr_pp_r_k3: Dict[float, np.ndarray] = {}
+    tr_pp_c_k3: Dict[float, np.ndarray] = {}
+    for p in tabula_pareto_k3:
         if p.get("per_seed_per_prompt_rewards") is not None:
-            tr_pp_r_k10[p["lambda"]] = np.array(
+            tr_pp_r_k3[p["lambda"]] = np.array(
                 p["per_seed_per_prompt_rewards"],
             )
-            tr_pp_c_k10[p["lambda"]] = np.array(
+            tr_pp_c_k3[p["lambda"]] = np.array(
                 p["per_seed_per_prompt_costs"],
             )
 
-    bg_boot_pp_r_k10, bg_boot_pp_c_k10 = extract_dev_optimal_per_prompt(
-        bandit_pareto_k10, bg_dev_idx_k10,
-        bg_pp_r_k10, bg_pp_c_k10, "lambda",
+    bg_boot_pp_r_k3, bg_boot_pp_c_k3 = extract_dev_optimal_per_prompt(
+        bandit_pareto_k3, bg_dev_idx_k3,
+        bg_pp_r_k3, bg_pp_c_k3, "lambda",
     )
-    tr_boot_pp_r_k10, tr_boot_pp_c_k10 = extract_dev_optimal_per_prompt(
-        tabula_pareto_k10, tr_dev_idx_k10,
-        tr_pp_r_k10, tr_pp_c_k10, "lambda",
+    tr_boot_pp_r_k3, tr_boot_pp_c_k3 = extract_dev_optimal_per_prompt(
+        tabula_pareto_k3, tr_dev_idx_k3,
+        tr_pp_r_k3, tr_pp_c_k3, "lambda",
     )
-    bootstrap_k10 = bootstrap_pareto_auc_difference(
-        bg_boot_pp_r_k10, bg_boot_pp_c_k10,
-        tr_boot_pp_r_k10, tr_boot_pp_c_k10,
-        cost_lo=cost_lo_k10, cost_hi=cost_hi_k10,
-        n_holdout=len(holdout_data_k10), n_bootstrap=1_000,
+    bootstrap_k3 = bootstrap_pareto_auc_difference(
+        bg_boot_pp_r_k3, bg_boot_pp_c_k3,
+        tr_boot_pp_r_k3, tr_boot_pp_c_k3,
+        cost_lo=cost_lo_k3, cost_hi=cost_hi_k3,
+        n_holdout=len(holdout_data_k3), n_bootstrap=1_000,
     )
 
-    logger.info(f"\n  K=10 SUMMARY (dev-selected Pareto AUC primary):")
-    logger.info(f"    Oracle:       {oracle_r_k10:.4f}")
+    logger.info(f"\n  K=3 SUMMARY (dev-selected Pareto AUC primary):")
+    logger.info(f"    Oracle:       {oracle_r_k3:.4f}")
     logger.info(
-        f"    Dev-selected AUC: BanditGPT={bg_ds_auc_k10:.4f} vs "
-        f"Tabula rasa={tr_ds_auc_k10:.4f} "
-        f"(adv: {bg_ds_auc_k10 - tr_ds_auc_k10:+.4f})"
+        f"    Dev-selected AUC: BanditGPT={bg_ds_auc_k3:.4f} vs "
+        f"Tabula rasa={tr_ds_auc_k3:.4f} "
+        f"(adv: {bg_ds_auc_k3 - tr_ds_auc_k3:+.4f})"
     )
     logger.info(
-        f"    Bootstrap 95% CI: [{bootstrap_k10['ci_95_lower']:+.4f}, "
-        f"{bootstrap_k10['ci_95_upper']:+.4f}] "
-        f"p={bootstrap_k10['p_value']:.4g}"
+        f"    Bootstrap 95% CI: [{bootstrap_k3['ci_95_lower']:+.4f}, "
+        f"{bootstrap_k3['ci_95_upper']:+.4f}] "
+        f"p={bootstrap_k3['p_value']:.4g}"
     )
     logger.info(
-        f"    Oracle envelope (ref): BanditGPT={bg_oracle_auc_k10:.4f} vs "
-        f"Tabula rasa={tr_oracle_auc_k10:.4f}"
+        f"    Oracle envelope (ref): BanditGPT={bg_oracle_auc_k3:.4f} vs "
+        f"Tabula rasa={tr_oracle_auc_k3:.4f}"
     )
     logger.info(
-        f"    Best static:  {static_k10[best_static_m]['reward']:.4f} "
-        f"({K10_CATALOG[best_static_m]['display']})"
+        f"    Best static:  {static_k3[best_static_m]['reward']:.4f} "
+        f"({K3_CATALOG[best_static_m]['display']})"
     )
-    logger.info(f"    Best-static+noise: {eg_k10['reward']:.4f}")
-    logger.info(f"    UCB1 (non-ctx):    {ucb1_k10['reward']:.4f}")
-    logger.info(f"    Random:            {random_k10['reward']:.4f}")
+    logger.info(f"    Best-static+noise: {eg_k3['reward']:.4f}")
+    logger.info(f"    UCB1 (non-ctx):    {ucb1_k3['reward']:.4f}")
+    logger.info(f"    Random:            {random_k3['reward']:.4f}")
 
-    results_all["K10"] = {
-        "models": [{"id": m, **K10_CATALOG[m]} for m in K10_MODELS],
-        "n_train": len(train_data_k10),
-        "n_holdout": len(holdout_data_k10),
-        "oracle": {"reward": oracle_r_k10, "cost": oracle_c_k10},
-        "static": {m: static_k10[m] for m in K10_MODELS},
+    results_all["K3"] = {
+        "models": [{"id": m, **K3_CATALOG[m]} for m in K3_MODELS],
+        "n_train": len(train_data_k3),
+        "n_holdout": len(holdout_data_k3),
+        "oracle": {"reward": oracle_r_k3, "cost": oracle_c_k3},
+        "static": {m: static_k3[m] for m in K3_MODELS},
         "best_static": {
             "model": best_static_m,
-            "reward": static_k10[best_static_m]["reward"],
-            "cost": static_k10[best_static_m]["cost"],
+            "reward": static_k3[best_static_m]["reward"],
+            "cost": static_k3[best_static_m]["cost"],
         },
-        "random": random_k10,
-        "best_static_noisy": eg_k10,
-        "ucb1": ucb1_k10,
-        "banditgpt_pareto": bandit_pareto_k10,
-        "tabula_rasa_pareto": tabula_pareto_k10,
+        "random": random_k3,
+        "best_static_noisy": eg_k3,
+        "ucb1": ucb1_k3,
+        "banditgpt_pareto": bandit_pareto_k3,
+        "tabula_rasa_pareto": tabula_pareto_k3,
         "pareto_auc_dev_selected": {
-            "cost_range": [cost_lo_k10, cost_hi_k10],
-            "banditgpt": bg_ds_auc_k10,
-            "tabula_rasa": tr_ds_auc_k10,
-            "advantage": bg_ds_auc_k10 - tr_ds_auc_k10,
-            "bootstrap_ci": bootstrap_k10,
+            "cost_range": [cost_lo_k3, cost_hi_k3],
+            "banditgpt": bg_ds_auc_k3,
+            "tabula_rasa": tr_ds_auc_k3,
+            "advantage": bg_ds_auc_k3 - tr_ds_auc_k3,
+            "bootstrap_ci": bootstrap_k3,
             "note": (
                 "Dev-selected Pareto AUC: hull built from (dev_cost, "
                 "dev_reward).  Deployed = holdout performance of dev-optimal "
@@ -439,10 +438,10 @@ def run_k10_experiment() -> None:
             ),
         },
         "pareto_auc_oracle_envelope": {
-            "cost_range": [oracle_cost_lo_k10, oracle_cost_hi_k10],
-            "banditgpt": bg_oracle_auc_k10,
-            "tabula_rasa": tr_oracle_auc_k10,
-            "advantage": bg_oracle_auc_k10 - tr_oracle_auc_k10,
+            "cost_range": [oracle_cost_lo_k3, oracle_cost_hi_k3],
+            "banditgpt": bg_oracle_auc_k3,
+            "tabula_rasa": tr_oracle_auc_k3,
+            "advantage": bg_oracle_auc_k3 - tr_oracle_auc_k3,
             "note": "Oracle envelope — holdout-selected hyperparameters (reference only).",
         },
         "n_trials": N_SEEDS,
@@ -475,4 +474,4 @@ def run_k10_experiment() -> None:
 
 
 if __name__ == "__main__":
-    run_k10_experiment()
+    run_k3_experiment()

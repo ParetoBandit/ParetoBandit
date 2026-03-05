@@ -1,19 +1,23 @@
-# Figure 4: K=10 Multi-Model Pareto Frontier
+# Figure 4: The Value of Warmup Priors
 
-**BanditGPT routing across a 10-model portfolio with four cost tiers**
+**Ablation showing that warmup priors are a key architectural ingredient of BanditGPT**
 
-This directory contains the K=10 multi-model evaluation, separated from the K=2 BanditGPT vs RouteLLM comparison (see [`03_figure/`](../03_figure/)).
+This experiment isolates the contribution of warmup priors by comparing:
+- **BanditGPT** (Corralling + warmup priors): the full system
+- **Tabula Rasa** (single LinUCB, no priors, no Corralling): ablation
+
+Both are evaluated on the K=10 portfolio under identical conditions (same data, splits, seeds). Supervised baselines (KNN, SVM, MLP) provide reference anchors.
 
 ---
 
-## Connection to Previous Experiments
+## Connection to Other Figures
 
 - **Figure 1:** Established semantic structure and model preference heterogeneity
 - **Figure 2:** Architecture diagram
-- **Figure 3:** K=2 BanditGPT vs RouteLLM (see [`03_figure/`](../03_figure/))
-- **Appendix E:** Validated Corralling prior degradation sweep
+- **Figure 3:** BanditGPT vs LLMRouter supervised baselines (K=2 and K=10)
+- **Appendix H:** Per-expert hyperparameter tuning (consumed here)
 
-**Critical Question:** Does BanditGPT's architecture (Corralling + warmup priors + family sharing) scale to larger model portfolios where RouteLLM cannot operate?
+**Key Question:** How much do warmup priors contribute to BanditGPT's sample efficiency and Pareto frontier quality?
 
 ---
 
@@ -21,11 +25,13 @@ This directory contains the K=10 multi-model evaluation, separated from the K=2 
 
 **Train-then-freeze** with ground-truth rewards:
 
-1. BanditGPT trains on the dev-train split (80% of the online-learn pool, ~426 prompts)
-2. Router is frozen after training (greedy exploitation, alpha=0)
-3. Dev-val (20%, ~107 prompts) is used exclusively for hyperparameter selection
-4. Holdout set (n=750) is reserved for final evaluation
+1. BanditGPT trains on the dev-train split (80% of the online-learn pool)
+2. Router is frozen after training (greedy exploitation)
+3. Dev-val (20%) used for early stopping and Pareto-frontier model selection
+4. Holdout set reserved for final evaluation
 5. Lambda swept over 33 values; all results averaged over 20 seeds
+
+Hyperparameters loaded from Appendix H (per-expert dev-val tuning).
 
 ---
 
@@ -33,15 +39,14 @@ This directory contains the K=10 multi-model evaluation, separated from the K=2 
 
 ```
 04_figure/
-├── run_multimodel_pareto.py     # K=10 experiment (imports shared utils from 03_figure)
-├── plot_results.py              # Generate Figure 4 from results JSON
-├── figure4_caption.tex          # LaTeX caption for Figure 4
-├── results_discussion.tex       # LaTeX results discussion (K=10 section)
-├── results_discussion.md        # Markdown results discussion (K=10 section)
-├── README.md                    # This file
-└── results/                     # Output directory
-    ├── multimodel_pareto_results.json  # Produced by run_multimodel_pareto.py
-    └── figure4_k10.png                 # Produced by plot_results.py
+├── run_warmup_ablation.py      # Main experiment (imports shared utils from 03_figure)
+├── plot_results.py             # Generate Figure 4 (two-panel: Pareto + learning curve)
+├── figure4_caption.tex         # LaTeX caption
+├── results_discussion.tex      # LaTeX results discussion
+├── README.md                   # This file
+└── results/
+    ├── warmup_ablation_results.json   # Produced by run_warmup_ablation.py
+    └── figure4_warmup_ablation.png    # Produced by plot_results.py
 ```
 
 ---
@@ -51,10 +56,10 @@ This directory contains the K=10 multi-model evaluation, separated from the K=2 
 ```bash
 cd experiments/04_figure/
 
-# Run the K=10 experiment
-python run_multimodel_pareto.py
+# Run the warmup ablation experiment
+python run_warmup_ablation.py
 
-# Generate the figure (can also use legacy results from 03_figure)
+# Generate the two-panel figure
 python plot_results.py
 ```
 
@@ -62,49 +67,30 @@ python plot_results.py
 
 ## Experiment Details
 
-### Dataset
-- **K=10 Train**: online-learn pool from three-way split (`dev_rewards_complete_all_models.jsonl.gz`)
-- **K=10 Holdout**: full holdout (`holdout_rewards_complete_all_models.jsonl.gz`)
-- **Reward signal**: `extract_reward()` = mean(vote x confidence) across multi-judge panel
-- **Dev train/val split**: 80/20 deterministic split (seed=7)
+### Outputs
 
-### K=10 Model Pool
-| Tier | Models |
-|------|--------|
-| Cheap | Llama-3.1-8B, Mixtral-8x7B, Gemma-3-27B |
-| Mid | Claude-Haiku-4.5, DeepSeek-V3, Gemini-2.5-Flash, Llama-4-Maverick |
-| Expensive | Claude-Sonnet-4, GPT-4-Turbo, GPT-4.1 |
+**(a) Pareto Frontier** — BanditGPT (warmup) vs Tabula Rasa cost--quality frontiers, with supervised baselines as reference points and bootstrap CI for Pareto AUC difference.
 
-### BanditGPT Configuration
-- **Architecture**: Corralling with 2 experts (Warmup + Tabula Rasa)
-- **Policy**: Hybrid LinUCB (family-based parameter sharing)
-- **Warmup Priors**: `priors_warmup_43model.joblib` (43-model file; only K=10 models loaded)
-- **Alpha**: 0.5 (exploration coefficient)
-- **Corralling**: eta=0.1, gamma=0.05
-- **Prior n_effective**: 10.0
-- **Trials**: 20 seeds per configuration
+**(b) Learning Curve** — Holdout reward vs online training steps, demonstrating:
+- Warmup priors deliver supervised-baseline-quality routing from step 0
+- Tabula rasa starts from scratch and needs many interactions to converge
+- The "step-0 advantage" quantifies the value of offline-to-online transfer
 
-### Baselines
-- **Oracle**: Per-prompt best model (reward upper bound)
-- **Best static**: Always route to empirically best single model (GPT-4.1)
-- **Best-static + noise**: Best model with prob 1-epsilon, random otherwise
-- **UCB1**: Non-contextual online bandit (train-then-freeze)
-- **Random**: Uniform random routing
-- **Tabula rasa**: BanditGPT without priors or Corralling (plain LinUCB)
+### Sample Efficiency Metrics
 
-### Statistical Reporting
-- **Primary test**: Paired bootstrap CI for dev-selected Pareto AUC difference (1,000 resamples)
-- 95% confidence intervals via t-distribution across 20 seeds
+- **Steps-to-match**: number of online steps to reach each supervised baseline's quality
+- **Speedup**: ratio of tabula rasa steps to warmup steps for matching a threshold
+- **AUC advantage**: area under the learning curve difference
 
----
+### Shared Code
 
-## Shared Code
+Imports shared evaluation functions from [`03_figure/run_prequential.py`](../03_figure/run_prequential.py):
+- Data loading, embedding, and splitting
+- Baseline evaluation (oracle, static, random, UCB1)
+- Bandit training/evaluation (Pareto sweep, learning curve)
+- Pareto analysis (bootstrap CI, AUC)
 
-This experiment imports shared evaluation functions from [`03_figure/run_prequential.py`](../03_figure/run_prequential.py):
-- Data loading (`load_rewards_from_file`, `build_model_registry`, `embed_dataset`)
-- Baseline evaluation (`oracle_route`, `static_route`, `random_route`, `best_static_noisy_route`, `ucb1_online_route`)
-- Bandit training/evaluation (`run_pareto_sweep`, `evaluate_frozen`, `train_bandit`)
-- Pareto analysis (`pareto_auc`, `dev_selected_pareto_auc`, `bootstrap_pareto_auc_difference`)
+Supervised baselines from [`utils/supervised_baselines.py`](../utils/supervised_baselines.py).
 
 ---
 
@@ -112,8 +98,8 @@ This experiment imports shared evaluation functions from [`03_figure/run_prequen
 
 | Scenario | Experiment |
 |----------|-----------|
-| K=2 BanditGPT vs RouteLLM | [Figure 3](../03_figure/) |
-| Corralling prior degradation sweep | [Appendix E](../appendix/E_prior_degradation/) |
+| BanditGPT vs supervised baselines | [Figure 3](../03_figure/) |
+| Hyperparameter tuning (consumed here) | [Appendix H](../appendix/H_alpha_neff_ablation/) |
 
 ---
 

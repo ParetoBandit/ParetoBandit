@@ -1,9 +1,0 @@
-{
-  "K10": {
-    "alpha": 1.0,
-    "n_eff": 1000.0,
-    "gamma": 1.0,
-    "dev_val_mean_reward": 0.9099414973664379,
-    "holdout_mean_reward": 0.9092578388401995
-  }
-}

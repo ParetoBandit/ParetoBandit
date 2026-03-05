@@ -1,22 +1,21 @@
 """
-Catastrophic Failure Detection — K=5 and K=10 Portfolios
-=========================================================
+Catastrophic Failure Detection — K=3 Portfolio
+================================================
 
 Evaluates Corralling's automatic failover under catastrophic model failure
 using the **production hybrid router** (BanditRouter with Corralling,
-Hybrid LinUCB family sharing, and 43-model warmup priors).
+Hybrid LinUCB family sharing, and warmup priors).
 
 Setup:
   - GPT-4.1 (the best model) catastrophically fails in Phase 2
   - After failure, K-1 remaining models have context-dependent strengths
-  - EMA tracks K averages and explores ε/K per model
+  - EMA tracks K averages and explores epsilon/K per model
   - banditGPT uses the full production routing stack
 
-Portfolios (matching Section 5.2):
-  K=5:  Llama-3.1-8B, Mixtral-8x7B, Gemini-2.5-Flash, Claude-Sonnet-4, GPT-4.1
-  K=10: K5 + Llama-4-Maverick, Gemma-3-27B, Claude-Haiku-4.5, GPT-4-Turbo, DeepSeek-V3
+Portfolio:
+  K=3: Llama-3.1-8B, Gemini-2.5-Flash, GPT-4.1
 
-Base rewards derived from holdout evaluation (Section 5.2, Table 3).
+Base rewards derived from holdout evaluation.
 """
 
 import sys
@@ -36,11 +35,37 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from utils.router_factory import create_experiment_router
-from utils.multimodel import (
-    MODEL_CATALOG, PORTFOLIO_K5, PORTFOLIO_K10,
-    TARGET_NEFF, ALPHA_START, CORRALLING_LR, CORRALLING_GAMMA,
-    build_model_registry, load_warmup_priors, MULTIMODEL_WARMUP_PRIORS_PATH,
-)
+from utils.model_pricing import load_model_catalog
+from bandit_gpt.config import K3_MODELS_PATH, K3_WARMUP_PRIORS_PATH
+
+K3_MODELS, MODEL_CATALOG = load_model_catalog(K3_MODELS_PATH)
+
+TARGET_NEFF = 10.0
+ALPHA_START = 0.5
+CORRALLING_LR = 0.1
+CORRALLING_GAMMA = 0.05
+
+
+def build_model_registry(models: List[str]) -> Dict:
+    """Build model registry from MODEL_CATALOG for BanditRouter."""
+    return {
+        m: {
+            "input_cost_per_m": MODEL_CATALOG[m]["input_cost_per_m"],
+            "output_cost_per_m": MODEL_CATALOG[m]["output_cost_per_m"],
+        }
+        for m in models
+    }
+
+
+def load_warmup_priors(models: List[str]) -> Dict:
+    """Load warmup priors from K3 priors file, subsetting to given models."""
+    import joblib
+    raw = joblib.load(K3_WARMUP_PRIORS_PATH)
+    return {
+        "A": {m: raw["A"][m].copy() for m in models if m in raw["A"]},
+        "b": {m: raw["b"][m].copy() for m in models if m in raw["b"]},
+        "context_dim": raw["context_dim"],
+    }
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -59,15 +84,8 @@ FAILURE_REWARD = 0.15
 
 HOLDOUT_REWARDS = {
     "meta-llama/llama-3.1-8b-instruct": 0.745,
-    "mistralai/mixtral-8x7b-instruct": 0.823,
-    "google/gemini-2.5-flash-preview-09-2025": 0.953,
-    "anthropic/claude-sonnet-4": 0.975,
+    "google/gemini-2.5-flash": 0.953,
     "openai/gpt-4.1": 0.983,
-    "meta-llama/llama-4-maverick": 0.929,
-    "google/gemma-3-27b-it": 0.951,
-    "anthropic/claude-haiku-4.5": 0.951,
-    "moonshotai/kimi-k2-0905": 0.884,
-    "deepseek/deepseek-chat-v3-0324": 0.973,
 }
 
 
@@ -238,7 +256,7 @@ def run_single_trial(seed: int, models: List[str]) -> TrialResult:
         feature_dim=CONTEXT_DIM,
         prior_n_effective=TARGET_NEFF,
         alpha=ALPHA_START,
-        warmup_path=str(MULTIMODEL_WARMUP_PRIORS_PATH),
+        warmup_path=str(K3_WARMUP_PRIORS_PATH),
         use_corralling=True,
         corralling_learning_rate=CORRALLING_LR,
         corralling_gamma=CORRALLING_GAMMA,
@@ -583,53 +601,40 @@ def print_report(stats: Dict, models: List[str]):
 
 def main():
     logger.info("\n" + "=" * 70)
-    logger.info("CATASTROPHIC FAILURE DETECTION — K=5 and K=10")
-    logger.info("  Production hybrid router • 43-model warmup priors")
+    logger.info("CATASTROPHIC FAILURE DETECTION — K=3")
+    logger.info("  Production hybrid router • K=3 warmup priors")
     logger.info("  Failing model: " + short_name(FAILING_MODEL))
     logger.info("=" * 70)
 
     output_dir = Path(__file__).parent / "results"
     all_stats = {}
 
-    for portfolio_label, models in [("K5", PORTFOLIO_K5), ("K10", PORTFOLIO_K10)]:
-        K = len(models)
-        logger.info(f"\n{'='*70}")
-        logger.info(f"PORTFOLIO: {portfolio_label} ({K} models)")
-        logger.info(f"  Models: {', '.join(short_name(m) for m in models)}")
-        logger.info("=" * 70)
+    models = K3_MODELS
+    K = len(models)
+    portfolio_label = "K3"
 
-        logger.info(f"\n  Validating K={K} warmup priors ...")
-        validate_warmup_priors(models)
-
-        t0 = time.time()
-        logger.info(f"\n  Running {N_SEEDS}-seed experiment ({N_STEPS} steps each)...")
-        results = run_all_seeds(models)
-        elapsed = time.time() - t0
-        logger.info(f"  Completed in {elapsed:.1f}s")
-
-        logger.info("\n  Computing statistics...")
-        stats = compute_statistics(results, models)
-        all_stats[portfolio_label] = stats
-
-        print_report(stats, models)
-
-        logger.info("\n  Generating figure...")
-        plot_figure(results, stats, models, portfolio_label, output_dir)
-
-    # Summary comparison table
-    logger.info("\n" + "=" * 70)
-    logger.info("PORTFOLIO SIZE SCALING — SUMMARY")
+    logger.info(f"\n{'='*70}")
+    logger.info(f"PORTFOLIO: {portfolio_label} ({K} models)")
+    logger.info(f"  Models: {', '.join(short_name(m) for m in models)}")
     logger.info("=" * 70)
-    logger.info(f"\n  {'K':>4} {'banditGPT':>12} {'EMA':>12} {'Δ':>10} {'Detection':>12}")
-    logger.info("  " + "-" * 52)
-    for label in ["K5", "K10"]:
-        s = all_stats[label]
-        fc = s["corralling_failure_mean"]
-        fe = s["ema_failure_mean"]
-        delta = fc - fe
-        det = s["detection_rate"]
-        logger.info(f"  {s['K']:>4} {fc:>12.3f} {fe:>12.3f} {delta:>+10.3f} {det:>11.0%}")
-    logger.info("=" * 70)
+
+    logger.info(f"\n  Validating K={K} warmup priors ...")
+    validate_warmup_priors(models)
+
+    t0 = time.time()
+    logger.info(f"\n  Running {N_SEEDS}-seed experiment ({N_STEPS} steps each)...")
+    results = run_all_seeds(models)
+    elapsed = time.time() - t0
+    logger.info(f"  Completed in {elapsed:.1f}s")
+
+    logger.info("\n  Computing statistics...")
+    stats = compute_statistics(results, models)
+    all_stats[portfolio_label] = stats
+
+    print_report(stats, models)
+
+    logger.info("\n  Generating figure...")
+    plot_figure(results, stats, models, portfolio_label, output_dir)
 
     # Save JSON results
     json_path = output_dir / "catastrophic_failure_results.json"

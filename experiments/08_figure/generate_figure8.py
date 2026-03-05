@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Generate Figure 8: Cumulative Regret Curves for K=5 and K=10.
+Generate Figure 8: Cumulative Regret Curve for K=3.
 
-Two-panel figure (side by side): one panel per portfolio.
-Each panel plots cumulative regret over online learning steps for:
+Single-panel figure plotting cumulative regret over online learning steps for:
   banditGPT, LinTS (warmup), LinTS (no priors), ε-greedy, Random.
 """
 
@@ -57,15 +56,11 @@ def main():
     with open(RESULTS_FILE) as f:
         results = json.load(f)
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5))
+    fig, ax = plt.subplots(1, 1, figsize=(7.5, 6.5))
 
-    for ax, (portfolio, title) in zip(axes, [
-        ("K5", "K=5 Portfolio"),
-        ("K10", "K=10 Portfolio"),
-    ]):
-        plot_panel(ax, results[portfolio], title)
+    plot_panel(ax, results["K3"], "K=3 Portfolio")
 
-    handles, labels = axes[0].get_legend_handles_labels()
+    handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=14,
                bbox_to_anchor=(0.5, -0.10), frameon=True, fancybox=True)
 

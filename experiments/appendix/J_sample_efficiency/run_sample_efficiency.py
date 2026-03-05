@@ -21,7 +21,7 @@ samples.  This experiment quantifies that advantage.
 Protocol
 --------
 1. Data: Same canonical dev/holdout splits as Figure 3.
-2. For both K=2 and K=10 portfolios:
+2. For both K=2 and K=3 portfolios:
    a. BanditGPT: Corralling + warmup priors (Appendix H-tuned hparams).
    b. Tabula Rasa: Single LinUCB, no priors (Appendix H-tuned hparams).
 3. At each checkpoint (0, 10, 25, 50, ..., N), freeze the router and
@@ -58,9 +58,9 @@ from bandit_gpt.config import (
     CANONICAL_HOLDOUT_DATA_PATH,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
+    K3_WARMUP_PRIORS_PATH,
     THREE_WAY_SPLITS_PATH,
-    K10_MODELS_PATH,
+    K3_MODELS_PATH,
 )
 from utils.rewards import extract_reward
 from utils.model_pricing import get_prices_for_models, load_model_catalog
@@ -110,7 +110,7 @@ K2_CATALOG: Dict[str, Dict] = {
     for m in K2_MODELS
 }
 
-K10_MODELS, K10_CATALOG = load_model_catalog(K10_MODELS_PATH)
+K3_MODELS, K3_CATALOG = load_model_catalog(K3_MODELS_PATH)
 
 
 def _make_learning_curve_checkpoints(n_train: int) -> List[int]:
@@ -486,7 +486,7 @@ def _load_tuned_hparams(
 
 
 def main() -> None:
-    """Run the sample-efficiency experiment for K=2 and K=10."""
+    """Run the sample-efficiency experiment for K=2 and K=3."""
     output_dir = Path(__file__).parent / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -514,9 +514,9 @@ def main() -> None:
     tuned_k2_tr = _load_tuned_hparams(
         hparams_dir / "best_hparams_k2_tabula_rasa.json", "K2",
     )
-    tuned_k10_bg = _load_tuned_hparams(hparams_dir / "best_hparams_k10.json", "K10")
-    tuned_k10_tr = _load_tuned_hparams(
-        hparams_dir / "best_hparams_k10_tabula_rasa.json", "K10",
+    tuned_k3_bg = _load_tuned_hparams(hparams_dir / "best_hparams_k3.json", "K3")
+    tuned_k3_tr = _load_tuned_hparams(
+        hparams_dir / "best_hparams_k3_tabula_rasa.json", "K3",
     )
 
     _ablation_script = (
@@ -528,8 +528,8 @@ def main() -> None:
     for label, tuned, path_name in [
         ("K=2 BanditGPT", tuned_k2_bg, "best_hparams_k2.json"),
         ("K=2 Tabula Rasa", tuned_k2_tr, "best_hparams_k2_tabula_rasa.json"),
-        ("K=10 BanditGPT", tuned_k10_bg, "best_hparams_k10.json"),
-        ("K=10 Tabula Rasa", tuned_k10_tr, "best_hparams_k10_tabula_rasa.json"),
+        ("K=3 BanditGPT", tuned_k3_bg, "best_hparams_k3.json"),
+        ("K=3 Tabula Rasa", tuned_k3_tr, "best_hparams_k3_tabula_rasa.json"),
     ]:
         if tuned is not None:
             logger.info(
@@ -667,15 +667,15 @@ def main() -> None:
     }
 
     # ==================================================================
-    # K=10
+    # K=3
     # ==================================================================
     logger.info("\n" + "=" * 70)
-    logger.info("K=10: Sample Efficiency Comparison")
+    logger.info("K=3: Sample Efficiency Comparison")
     logger.info("=" * 70)
 
-    costs_k10 = {m: K10_CATALOG[m]["cost"] for m in K10_MODELS}
+    costs_k3 = {m: K3_CATALOG[m]["cost"] for m in K3_MODELS}
 
-    logger.info("  Loading K=10 data ...")
+    logger.info("  Loading K=3 data ...")
     prior_train_prompts: set = set()
     if THREE_WAY_SPLITS_PATH.exists():
         with open(THREE_WAY_SPLITS_PATH) as f:
@@ -685,109 +685,109 @@ def main() -> None:
             f"    Excluding {len(prior_train_prompts)} prior-train prompts"
         )
 
-    all_dev_k10 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K10_MODELS)
-    train_k10 = [
-        d for d in all_dev_k10 if d["prompt"] not in prior_train_prompts
+    all_dev_k3 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K3_MODELS)
+    train_k3 = [
+        d for d in all_dev_k3 if d["prompt"] not in prior_train_prompts
     ]
-    holdout_k10 = load_rewards_from_file(
-        HOLDOUT_DATA_PATH_ALL_MODELS, K10_MODELS,
+    holdout_k3 = load_rewards_from_file(
+        HOLDOUT_DATA_PATH_ALL_MODELS, K3_MODELS,
     )
-    logger.info(f"    Train (excl. prior-train): {len(train_k10)}")
-    logger.info(f"    Holdout: {len(holdout_k10)}")
+    logger.info(f"    Train (excl. prior-train): {len(train_k3)}")
+    logger.info(f"    Holdout: {len(holdout_k3)}")
 
-    logger.info("  Embedding K=10 prompts ...")
-    train_emb_k10 = embed_dataset(train_k10, encoder, pca)
-    holdout_emb_k10 = embed_dataset(holdout_k10, encoder, pca)
+    logger.info("  Embedding K=3 prompts ...")
+    train_emb_k3 = embed_dataset(train_k3, encoder, pca)
+    holdout_emb_k3 = embed_dataset(holdout_k3, encoder, pca)
 
-    train_train_k10, train_train_emb_k10, _, _ = _split_dev_train_val(
-        train_k10, train_emb_k10,
+    train_train_k3, train_train_emb_k3, _, _ = _split_dev_train_val(
+        train_k3, train_emb_k3,
     )
-    logger.info(f"    Train-train: {len(train_train_k10)}")
+    logger.info(f"    Train-train: {len(train_train_k3)}")
 
-    checkpoints_k10 = _make_learning_curve_checkpoints(len(train_train_k10))
-    logger.info(f"    Checkpoints: {checkpoints_k10}")
+    checkpoints_k3 = _make_learning_curve_checkpoints(len(train_train_k3))
+    logger.info(f"    Checkpoints: {checkpoints_k3}")
 
-    k10_warmup_path = str(MULTIMODEL_WARMUP_PRIORS_PATH)
+    k3_warmup_path = str(K3_WARMUP_PRIORS_PATH)
 
-    hp_bg_k10 = tuned_k10_bg or defaults_bg
+    hp_bg_k3 = tuned_k3_bg or defaults_bg
     logger.info(
-        f"\n  Running BanditGPT learning curve (K=10, {N_SEEDS} seeds) ..."
+        f"\n  Running BanditGPT learning curve (K=3, {N_SEEDS} seeds) ..."
     )
-    lc_k10_bg = run_learning_curve(
-        K10_MODELS, K10_CATALOG,
-        train_train_k10, holdout_k10, train_train_emb_k10, holdout_emb_k10,
-        k10_warmup_path, costs_k10, N_SEEDS, checkpoints_k10,
+    lc_k3_bg = run_learning_curve(
+        K3_MODELS, K3_CATALOG,
+        train_train_k3, holdout_k3, train_train_emb_k3, holdout_emb_k3,
+        k3_warmup_path, costs_k3, N_SEEDS, checkpoints_k3,
         use_corralling=True, label="BanditGPT",
-        alpha=hp_bg_k10["alpha"],
-        prior_n_effective=hp_bg_k10["prior_n_effective"],
-        forgetting_factor=hp_bg_k10["forgetting_factor"],
+        alpha=hp_bg_k3["alpha"],
+        prior_n_effective=hp_bg_k3["prior_n_effective"],
+        forgetting_factor=hp_bg_k3["forgetting_factor"],
     )
 
-    hp_tr_k10 = tuned_k10_tr or defaults_tr
+    hp_tr_k3 = tuned_k3_tr or defaults_tr
     logger.info(
-        f"\n  Running Tabula Rasa learning curve (K=10, {N_SEEDS} seeds) ..."
+        f"\n  Running Tabula Rasa learning curve (K=3, {N_SEEDS} seeds) ..."
     )
-    lc_k10_tr = run_learning_curve(
-        K10_MODELS, K10_CATALOG,
-        train_train_k10, holdout_k10, train_train_emb_k10, holdout_emb_k10,
-        None, costs_k10, N_SEEDS, checkpoints_k10,
+    lc_k3_tr = run_learning_curve(
+        K3_MODELS, K3_CATALOG,
+        train_train_k3, holdout_k3, train_train_emb_k3, holdout_emb_k3,
+        None, costs_k3, N_SEEDS, checkpoints_k3,
         use_corralling=False, label="Tabula Rasa",
-        alpha=hp_tr_k10["alpha"],
-        prior_n_effective=hp_tr_k10["prior_n_effective"],
-        forgetting_factor=hp_tr_k10["forgetting_factor"],
+        alpha=hp_tr_k3["alpha"],
+        prior_n_effective=hp_tr_k3["prior_n_effective"],
+        forgetting_factor=hp_tr_k3["forgetting_factor"],
     )
 
-    oracle_perprompt_k10 = float(np.mean([
-        max(p["rewards"][m] for m in K10_MODELS) for p in holdout_k10
+    oracle_perprompt_k3 = float(np.mean([
+        max(p["rewards"][m] for m in K3_MODELS) for p in holdout_k3
     ]))
-    best_static_k10 = max(
-        float(np.mean([p["rewards"][m] for p in holdout_k10]))
-        for m in K10_MODELS
+    best_static_k3 = max(
+        float(np.mean([p["rewards"][m] for p in holdout_k3]))
+        for m in K3_MODELS
     )
-    weak_static_k10 = min(
-        float(np.mean([p["rewards"][m] for p in holdout_k10]))
-        for m in K10_MODELS
-    )
-
-    metrics_k10 = compute_sample_efficiency_metrics(
-        lc_k10_bg, lc_k10_tr, oracle_perprompt_k10,
+    weak_static_k3 = min(
+        float(np.mean([p["rewards"][m] for p in holdout_k3]))
+        for m in K3_MODELS
     )
 
-    logger.info(f"\n  K=10 Results:")
-    logger.info(f"    Oracle (per-prompt):     {oracle_perprompt_k10:.4f}")
-    logger.info(f"    Target (90% oracle):     {metrics_k10['target_reward']:.4f}")
-    logger.info(
-        f"    BanditGPT final:         {metrics_k10['warmup']['final_reward']:.4f}"
-        f" +/- {metrics_k10['warmup']['final_std']:.4f}"
-    )
-    logger.info(
-        f"    Tabula Rasa final:       {metrics_k10['tabula_rasa']['final_reward']:.4f}"
-        f" +/- {metrics_k10['tabula_rasa']['final_std']:.4f}"
-    )
-    logger.info(
-        f"    BanditGPT steps to 90%:  {metrics_k10['warmup']['steps_to_threshold']}"
-    )
-    logger.info(
-        f"    Tabula Rasa steps to 90%:{metrics_k10['tabula_rasa']['steps_to_threshold']}"
-    )
-    logger.info(f"    Speedup:                 {metrics_k10['speedup']}")
-    logger.info(
-        f"    AUC advantage:           {metrics_k10['auc_advantage']:.1f}"
+    metrics_k3 = compute_sample_efficiency_metrics(
+        lc_k3_bg, lc_k3_tr, oracle_perprompt_k3,
     )
 
-    results["K10"] = {
-        "models": K10_MODELS,
-        "n_train": len(train_train_k10),
-        "n_holdout": len(holdout_k10),
-        "oracle_per_prompt": oracle_perprompt_k10,
-        "best_static": best_static_k10,
-        "weak_static": weak_static_k10,
-        "checkpoints": checkpoints_k10,
-        "warmup_hparams": hp_bg_k10,
-        "tabula_rasa_hparams": hp_tr_k10,
-        "warmup_curve": lc_k10_bg,
-        "tabula_rasa_curve": lc_k10_tr,
-        "metrics": metrics_k10,
+    logger.info(f"\n  K=3 Results:")
+    logger.info(f"    Oracle (per-prompt):     {oracle_perprompt_k3:.4f}")
+    logger.info(f"    Target (90% oracle):     {metrics_k3['target_reward']:.4f}")
+    logger.info(
+        f"    BanditGPT final:         {metrics_k3['warmup']['final_reward']:.4f}"
+        f" +/- {metrics_k3['warmup']['final_std']:.4f}"
+    )
+    logger.info(
+        f"    Tabula Rasa final:       {metrics_k3['tabula_rasa']['final_reward']:.4f}"
+        f" +/- {metrics_k3['tabula_rasa']['final_std']:.4f}"
+    )
+    logger.info(
+        f"    BanditGPT steps to 90%:  {metrics_k3['warmup']['steps_to_threshold']}"
+    )
+    logger.info(
+        f"    Tabula Rasa steps to 90%:{metrics_k3['tabula_rasa']['steps_to_threshold']}"
+    )
+    logger.info(f"    Speedup:                 {metrics_k3['speedup']}")
+    logger.info(
+        f"    AUC advantage:           {metrics_k3['auc_advantage']:.1f}"
+    )
+
+    results["K3"] = {
+        "models": K3_MODELS,
+        "n_train": len(train_train_k3),
+        "n_holdout": len(holdout_k3),
+        "oracle_per_prompt": oracle_perprompt_k3,
+        "best_static": best_static_k3,
+        "weak_static": weak_static_k3,
+        "checkpoints": checkpoints_k3,
+        "warmup_hparams": hp_bg_k3,
+        "tabula_rasa_hparams": hp_tr_k3,
+        "warmup_curve": lc_k3_bg,
+        "tabula_rasa_curve": lc_k3_tr,
+        "metrics": metrics_k3,
     }
 
     # ==================================================================

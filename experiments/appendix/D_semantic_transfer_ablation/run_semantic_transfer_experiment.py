@@ -7,9 +7,9 @@ Quantifies the value of per-model semantic transfer when bootstrapping a
 "new" model from its nearest neighbor in the bandit router.
 
 Design:
-  - Leave-one-out: For each model in the portfolio, treat it as the target
-    (simulated newcomer). The other K-1 models receive warmup priors from
-    the canonical K=5 / K=10 prior files.
+  - Leave-one-out: For each model in the K=3 portfolio, treat it as the
+    target (simulated newcomer). The other K-1 models receive warmup priors
+    from the canonical K=3 prior file.
   - Condition A (semantic transfer): Add target via register_model(), with
     neighbor selected by **within-provider tetrachoric correlation** of
     reward vectors (reward-aware matching, same-provider only — matching
@@ -22,7 +22,7 @@ Design:
 Neighbor selection:
   - Previous version used model DNA embedding cosine similarity, which is a
     name-based proxy.  Cross-provider sim was often < 0.5, causing 0/20
-    transfers in K5.
+    transfers in small portfolios.
   - This version computes **within-provider tetrachoric correlation** from
     binarized reward vectors (the same metric and scope used for data-driven
     family assignment in compute_correlation_families).  Only same-provider
@@ -41,7 +41,7 @@ Statistical rigor:
 Data:
   - Real LMSYS Arena prompts and judge-scored rewards from the 43-model
     evaluation dataset.
-  - Warmup priors: MULTIMODEL_WARMUP_PRIORS_PATH (K=5 and K=10 portfolios).
+  - Warmup priors: K3_WARMUP_PRIORS_PATH (K=3 portfolio).
   - Splits: THREE_WAY_SPLITS_PATH (online-learn pool + holdout).
 
 Output:
@@ -67,25 +67,28 @@ for p in [str(PROJECT_ROOT), str(PROJECT_ROOT / "src"), str(PROJECT_ROOT / "expe
     if p not in sys.path:
         sys.path.insert(0, p)
 
+from bandit_gpt.config import (
+    DEFAULT_SENTENCE_TRANSFORMER,
+    K3_MODELS_PATH,
+    K3_WARMUP_PRIORS_PATH,
+)
 from experiments.utils.multimodel import (
-    PORTFOLIO_K5,
-    PORTFOLIO_K10,
-    MODEL_CATALOG,
     N_TRIALS,
     SEED_OFFSET,
     TARGET_NEFF,
     ALPHA_START,
     CORRALLING_LR,
     CORRALLING_GAMMA,
-    build_model_registry,
     load_multimodel_data,
 )
-from bandit_gpt.config import (
-    DEFAULT_SENTENCE_TRANSFORMER,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
-)
-from bandit_gpt.router import tetrachoric_corr
+from experiments.utils.model_pricing import load_model_catalog
 from experiments.utils.router_factory import create_experiment_router
+from experiments.utils.transfer import (
+    build_reward_vectors,
+    find_tetrachoric_neighbor,
+    build_filtered_warmup,
+)
+from experiments.utils.metrics import holm_bonferroni, cohens_d_paired
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -95,95 +98,24 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 LAMBDA = 0.0  # Quality-focused (no cost penalty)
-PORTFOLIOS = {"K5": PORTFOLIO_K5, "K10": PORTFOLIO_K10}
+
+K3_MODELS, K3_CATALOG = load_model_catalog(K3_MODELS_PATH)
+PORTFOLIOS = {"K3": K3_MODELS}
 
 
-# =============================================================================
-# TETRACHORIC NEIGHBOR SELECTION
-# =============================================================================
-
-def build_reward_vectors(data: list, models: list[str]) -> dict[str, np.ndarray]:
-    """Convert per-prompt rewards to binarized per-model vectors for tetrachoric correlation.
-
-    For each prompt, a model gets 1 if its reward >= the prompt's median
-    reward across all portfolio models, 0 otherwise.
-    """
-    vectors = {m: [] for m in models}
-    for item in data:
-        rewards = [item["rewards"][m] for m in models]
-        median_r = float(np.median(rewards))
-        for m in models:
-            vectors[m].append(1 if item["rewards"][m] >= median_r else 0)
-    return {m: np.array(v, dtype=float) for m, v in vectors.items()}
+def build_model_registry(models: list[str]) -> dict[str, dict]:
+    """Build model registry from K3_CATALOG for BanditRouter."""
+    return {
+        m: {
+            "input_cost_per_m": K3_CATALOG[m]["input_cost_per_m"],
+            "output_cost_per_m": K3_CATALOG[m]["output_cost_per_m"],
+        }
+        for m in models
+    }
 
 
-def _get_provider(model_id: str) -> str:
-    """Extract provider prefix (e.g. 'openai' from 'openai/gpt-4.1')."""
-    return model_id.split("/")[0] if "/" in model_id else model_id
-
-
-def find_tetrachoric_neighbor(
-    target: str,
-    candidates: list[str],
-    reward_vectors: dict[str, np.ndarray],
-    within_provider_only: bool = True,
-) -> tuple[str | None, float]:
-    """Find the best neighbor for *target* among *candidates* by tetrachoric correlation.
-
-    When *within_provider_only* is True (default), only candidates from the
-    same provider are considered — matching the library's
-    ``compute_correlation_families()`` design.
-
-    Returns (best_neighbor, tetrachoric_sim) or (None, -1.0).
-    """
-    target_prov = _get_provider(target)
-    best_neighbor = None
-    best_corr = -1.0
-    for cand in candidates:
-        if cand == target:
-            continue
-        if within_provider_only and _get_provider(cand) != target_prov:
-            continue
-        r_tet = tetrachoric_corr(reward_vectors[target], reward_vectors[cand])
-        if not np.isnan(r_tet) and r_tet > best_corr:
-            best_corr = r_tet
-            best_neighbor = cand
-    return (best_neighbor, float(best_corr))
-
-
-# =============================================================================
-# HELPERS
-# =============================================================================
-
-def build_filtered_warmup(base_models: list[str], warmup_path: Path) -> dict:
-    """Load warmup priors and subset to base_models."""
-    raw = joblib.load(warmup_path)
-    n = raw.get("n", raw.get("n_prompts", 20000))
-    A = {m: raw["A"][m].copy() for m in base_models if m in raw.get("A", {})}
-    b = {m: raw["b"][m].copy() for m in base_models if m in raw.get("b", {})}
-    return {"A": A, "b": b, "n": max(n, 1)}
-
-
-def holm_bonferroni(p_values: list[float]) -> list[float]:
-    """Return Holm-Bonferroni adjusted p-values (preserves input order)."""
-    n = len(p_values)
-    indexed = sorted(enumerate(p_values), key=lambda x: x[1])
-    adjusted = [0.0] * n
-    running_max = 0.0
-    for rank, (orig_idx, p) in enumerate(indexed):
-        corrected = p * (n - rank)
-        running_max = max(running_max, corrected)
-        adjusted[orig_idx] = min(running_max, 1.0)
-    return adjusted
-
-
-def cohens_d_paired(a: list[float], b: list[float]) -> float:
-    """Cohen's d for paired samples: mean(diff) / std(diff)."""
-    diff = np.array(a) - np.array(b)
-    sd = np.std(diff, ddof=1)
-    if sd < 1e-15:
-        return 0.0
-    return float(np.mean(diff) / sd)
+# Re-export MODEL_CATALOG for display name lookups throughout the script
+MODEL_CATALOG = K3_CATALOG
 
 
 # =============================================================================
@@ -294,9 +226,9 @@ def main():
     logger.info("SEMANTIC TRANSFER ABLATION (Tetrachoric Neighbors)")
     logger.info("=" * 70)
 
-    if not MULTIMODEL_WARMUP_PRIORS_PATH.exists():
+    if not K3_WARMUP_PRIORS_PATH.exists():
         logger.error(
-            f"Warmup priors not found at {MULTIMODEL_WARMUP_PRIORS_PATH}. "
+            f"Warmup priors not found at {K3_WARMUP_PRIORS_PATH}. "
             "Run: python scripts/generate_multimodel_warmup_priors.py"
         )
         return 1
@@ -346,7 +278,7 @@ def main():
                 disp_nb = "(no same-provider peer)"
             logger.info(f"\n  Target: {display}  ->  neighbor: {disp_nb} (r_tet={best_sim:.3f})")
 
-            warmup_filtered = build_filtered_warmup(base, MULTIMODEL_WARMUP_PRIORS_PATH)
+            warmup_filtered = build_filtered_warmup(base, K3_WARMUP_PRIORS_PATH)
             with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as f:
                 temp_path = Path(f.name)
             try:

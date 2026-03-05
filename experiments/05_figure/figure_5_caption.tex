@@ -1,15 +1,35 @@
-% Figure 5: K-Scaling Experiment — Hybrid vs. Disjoint LinUCB
-
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/figure5_k_scaling.png}
-\caption{\textbf{Family parameter sharing reduces convergence variance in the production router.}
-Greedy holdout reward (750 prompts) at 25-step intervals during training on 533 prompts via the full Corralling router (warmup + tabula rasa experts).
-Columns show portfolios of $K \in \{5, 10\}$ models; bands are 95\% CIs ($n{=}20$ seeds).
-Family assignments use within-provider tetrachoric correlation ($r_{\text{tet}} \geq 0.6$) computed on the training set only.
-Both portfolios include multi-member providers so shared families form at every $K$: 2 shared families at $K{=}5$ (4/5 models) and 3 at $K{=}10$ (6/10 models).
-Hybrid produces consistently narrower CIs---$1.8\times$ at $K{=}5$ ($\pm 0.018$ vs.\ $\pm 0.033$) and $2.1\times$ at $K{=}10$ ($\pm 0.017$ vs.\ $\pm 0.035$)---though mean differences are not significant at the $0.05$ level ($p{=}0.078$ and $p{=}0.160$, respectively).
-Arm-pull allocation is highly non-uniform (e.g.\ median 47, range 0--120 at $K{=}10$), confirming that per-model data scarcity is driven by bandit exploitation, not uniform assignment.}
-\Description{Two-panel line plot comparing Hybrid and Disjoint holdout reward over training steps at K=5 and K=10, with 95 percent confidence bands showing Hybrid producing narrower intervals at both portfolio sizes.}
-\label{fig:k_scaling}
+\includegraphics[width=0.95\textwidth]{figures/figure5_catastrophic_failure.png}
+\caption{\textbf{Corralling enables automatic recovery from catastrophic LLM failure.}
+%
+Three-phase scenario on the $K{=}3$ portfolio using \textbf{real prompts,
+embeddings, and rewards} (20 seeds).  The online routing stream uses
+dev-train prompts ($80\%$ of the online-learn pool, excluding the
+prior-train set); the holdout set is reserved for periodic frozen
+evaluation.  Each phase cycles through the full dev-train set:
+all models healthy, GPT-4.1 (best static model) catastrophically fails
+to near-zero quality, then recovers.  All rewards except the failing
+model's during Phase~2 are real ground-truth evaluations.
+%
+\textbf{(a)}~Running-average reward ($w{=}20$) with $\pm 1\sigma$ bands.
+BanditGPT (Corralling + warmup priors) maintains high quality during the
+failure phase by redistributing traffic, while the static baseline collapses.
+The warmup-only ablation (no Corralling) cannot adapt because it trusts the
+now-stale priors.
+%
+\textbf{(b)}~Corralling expert weights.  When GPT-4.1 fails, the meta-learner
+shifts probability mass from the warmup expert (whose priors still favour
+GPT-4.1) to the tabula rasa expert (which learns the new reward landscape
+from scratch).  Upon recovery, the warmup expert's weight is restored.
+%
+\textbf{(c)}~BanditGPT model selection fractions.  During the failure phase,
+traffic is automatically redirected away from GPT-4.1 toward the remaining
+models, with context-dependent routing across the $K{-}1$ healthy alternatives.
+%
+Per-expert hyperparameters from
+Appendix~\ref{sec:alpha_neff_ablation}; 3-model portfolio-specific
+warmup priors.  Cost penalty $\lambda{=}0$ (quality-only).}
+\Description{Three-panel figure: (a) reward time series with phase shading showing BanditGPT maintains quality during failure, (b) Corralling expert weights shifting during failure and recovering, (c) model selection fractions showing traffic redistribution away from the failed model.}
+\label{fig:catastrophic_failure}
 \end{figure*}

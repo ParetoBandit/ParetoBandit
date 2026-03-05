@@ -319,6 +319,7 @@ def run_supervised_baseline(
     costs_per_trial: List[float] = []
     all_pp_rewards: Optional[List[List[float]]] = [] if per_prompt else None
     all_pp_costs: Optional[List[List[float]]] = [] if per_prompt else None
+    agg_model_counts: Dict[str, int] = {m: 0 for m in models}
 
     for trial in range(effective_trials):
         seed = seed_start + trial
@@ -332,9 +333,14 @@ def run_supervised_baseline(
         )
         rewards_per_trial.append(res["avg_reward"])
         costs_per_trial.append(res["avg_cost"])
+        for m in models:
+            agg_model_counts[m] += res["model_counts"].get(m, 0)
         if all_pp_rewards is not None:
             all_pp_rewards.append(res["per_prompt_rewards"])
             all_pp_costs.append(res["per_prompt_costs"])
+
+    total_routed = sum(agg_model_counts.values()) or 1
+    routing_fractions = {m: agg_model_counts[m] / total_routed for m in models}
 
     out: Dict[str, Any] = {
         "kind": kind,
@@ -343,7 +349,8 @@ def run_supervised_baseline(
         "std_reward": float(np.std(rewards_per_trial, ddof=1)) if effective_trials > 1 else 0.0,
         "std_cost": float(np.std(costs_per_trial, ddof=1)) if effective_trials > 1 else 0.0,
         "n_trials": effective_trials,
-        "model_counts": res["model_counts"],
+        "model_counts": agg_model_counts,
+        "routing_fractions": routing_fractions,
     }
     if all_pp_rewards is not None:
         out["per_seed_per_prompt_rewards"] = [

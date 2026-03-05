@@ -51,8 +51,12 @@ def pareto_auc(
     """Area under the Pareto frontier (trapezoidal) over ``[cost_lo, cost_hi]``.
 
     Normalised by the cost range so the result is in reward units.
-    Points outside the range are clipped.  Returns 0 if the frontier
-    has no points inside the range.
+    The hull is linearly interpolated at both boundaries so the
+    integral always covers the full ``[cost_lo, cost_hi]`` span,
+    regardless of whether the hull extends past, falls short, or
+    exactly matches the boundaries.
+
+    Returns 0 if the hull has no overlap with the range.
 
     Args:
         costs: Per-configuration mean costs (need not be sorted).
@@ -66,11 +70,23 @@ def pareto_auc(
     hull_c, hull_r = pareto_hull(costs, rewards)
     if len(hull_c) < 1:
         return 0.0
-    hc, hr = np.array(hull_c), np.array(hull_r)
-    mask = (hc >= cost_lo) & (hc <= cost_hi)
-    if mask.sum() < 2:
-        return float(hr[mask].mean()) if mask.sum() == 1 else 0.0
-    return float(np.trapz(hr[mask], hc[mask]) / (cost_hi - cost_lo))
+    hc = np.array(hull_c, dtype=float)
+    hr = np.array(hull_r, dtype=float)
+    if hc[-1] < cost_lo or hc[0] > cost_hi:
+        return 0.0
+
+    r_lo = float(np.interp(cost_lo, hc, hr))
+    r_hi = float(np.interp(cost_hi, hc, hr))
+
+    interior_mask = (hc > cost_lo) & (hc < cost_hi)
+    clip_c = [cost_lo] + hc[interior_mask].tolist() + [cost_hi]
+    clip_r = [r_lo] + hr[interior_mask].tolist() + [r_hi]
+
+    cc = np.array(clip_c)
+    cr = np.array(clip_r)
+    if len(cc) < 2:
+        return float(cr.mean())
+    return float(np.trapezoid(cr, cc) / (cost_hi - cost_lo))
 
 
 def interpolate_pareto_reward(

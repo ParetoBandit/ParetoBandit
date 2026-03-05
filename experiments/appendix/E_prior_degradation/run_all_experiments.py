@@ -49,7 +49,7 @@ import joblib
 import tempfile
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
-    DEFAULT_WARMUP_PRIORS_PATH,
+    K2_WARMUP_PRIORS_PATH,
     DEFAULT_PCA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH
 )
@@ -202,7 +202,7 @@ def load_resources():
     logger.info("📦 Loading shared resources...")
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     pca = joblib.load(DEFAULT_PCA_PATH)
-    warmup_priors = joblib.load(DEFAULT_WARMUP_PRIORS_PATH)
+    warmup_priors = joblib.load(K2_WARMUP_PRIORS_PATH)
     warmup_priors_scaled = apply_gamma_scaling(warmup_priors, gamma=PRIOR_SCALING)
 
     models = warmup_priors['models']

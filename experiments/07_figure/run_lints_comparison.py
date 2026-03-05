@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Figure 7: LinTS Baseline Comparison at K=5 and K=10
-====================================================
+Figure 7: LinTS Baseline Comparison at K=3
+============================================
 
 Compares banditGPT (LinUCB + Corralling) against Linear Thompson Sampling
 (LinTS), the primary alternative contextual bandit algorithm.
 
 Both methods use:
-  - Identical warmup priors (43-model, 355 prompts)
+  - Portfolio-specific warmup priors (K=3: Llama-3.1-8B, Gemini-2.5-Flash, GPT-4.1)
   - Same online learning set (533 prompts)
   - Same holdout evaluation (750 prompts)
   - Same cost penalty sweep (λ = 0..5)
@@ -22,6 +22,7 @@ import sys
 import json
 import time
 import logging
+import joblib
 import numpy as np
 from pathlib import Path
 
@@ -29,22 +30,97 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
+from bandit_gpt.config import (
+    K3_WARMUP_PRIORS_PATH,
+    K3_MODELS_PATH,
+    DEFAULT_PCA_PATH,
+    DEFAULT_SENTENCE_TRANSFORMER,
+    THREE_WAY_SPLITS_PATH,
+    DEV_DATA_PATH_ALL_MODELS,
+)
 from bandit_gpt.baselines import CostAwareLinTSRouter
 from utils.router_factory import create_experiment_router
+from utils.model_pricing import load_model_catalog
 from utils.multimodel import (
-    MODEL_CATALOG, PORTFOLIO_K5, PORTFOLIO_K10,
     N_TRIALS, SEED_OFFSET, TARGET_NEFF, ALPHA_START,
     CORRALLING_LR, CORRALLING_GAMMA,
-    build_model_registry, build_lints_costs, load_warmup_priors,
-    load_multimodel_data, oracle_route, static_route,
-    random_route, epsilon_greedy_route,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
+    compute_normalized_cost,
+    load_rewards, load_holdout_rewards, load_warmup_priors,
+    oracle_route, static_route, random_route, epsilon_greedy_route,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+# K=3 portfolio (Llama-3.1-8B, Gemini-2.5-Flash, GPT-4.1)
+K3_MODELS, K3_CATALOG = load_model_catalog(K3_MODELS_PATH)
+
 LAMBDA_VALUES = [0.0, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0]
+
+
+# ============================================================================
+# K3-CATALOG-AWARE HELPERS
+# ============================================================================
+
+def _build_model_registry(models: list[str]) -> dict[str, dict]:
+    """Build model registry from K3_CATALOG for ``create_experiment_router``."""
+    return {
+        m: {
+            "input_cost_per_m": K3_CATALOG[m]["input_cost_per_m"],
+            "output_cost_per_m": K3_CATALOG[m]["output_cost_per_m"],
+        }
+        for m in models
+    }
+
+
+def _build_lints_costs(models: list[str]) -> dict[str, dict]:
+    """Build normalized cost dict from K3_CATALOG for ``CostAwareLinTSRouter``."""
+    return {
+        m: {"normalized_cost": compute_normalized_cost(
+            K3_CATALOG[m]["input_cost_per_m"],
+            K3_CATALOG[m]["output_cost_per_m"],
+        )}
+        for m in models
+    }
+
+
+def _load_data(models: list[str]):
+    """Load train/eval data and embeddings for the K=3 portfolio.
+
+    Returns:
+        (train_data, eval_data, train_emb, eval_emb, costs, r_min, r_max)
+    """
+    from sentence_transformers import SentenceTransformer
+    from utils.embeddings import load_embedding_cache, embed_dataset_cached
+
+    with open(THREE_WAY_SPLITS_PATH) as f:
+        splits = json.load(f)
+    online_prompts = splits["online_learn_pool"]
+
+    pca = joblib.load(DEFAULT_PCA_PATH)
+    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
+
+    _cache = load_embedding_cache(
+        expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
+        expected_pca_components=pca.n_components_,
+    )
+
+    train_data = load_rewards(DEV_DATA_PATH_ALL_MODELS, online_prompts, models)
+    eval_data = load_holdout_rewards(models)
+
+    logger.info(
+        f"  Train: {len(train_data)} | Eval: {len(eval_data)} "
+        f"| dim: {pca.n_components_}+1"
+    )
+
+    train_emb = embed_dataset_cached(train_data, _cache, encoder, pca)
+    eval_emb = embed_dataset_cached(eval_data, _cache, encoder, pca)
+
+    costs = {m: K3_CATALOG[m]["cost"] for m in models}
+    all_raw = [p["rewards"][m] for p in train_data for m in models]
+    r_min, r_max = min(all_raw), max(all_raw)
+
+    return train_data, eval_data, train_emb, eval_emb, costs, r_min, r_max
 
 
 # ============================================================================
@@ -74,10 +150,10 @@ def run_banditgpt_sweep(models, train_data, eval_data, train_emb, eval_emb,
         for trial in range(n_trials):
             np.random.seed(SEED_OFFSET + trial)
             router = create_experiment_router(
-                model_registry=build_model_registry(models),
+                model_registry=_build_model_registry(models),
                 feature_dim=dim,
                 prior_n_effective=TARGET_NEFF, alpha=ALPHA_START,
-                warmup_path=str(MULTIMODEL_WARMUP_PRIORS_PATH),
+                warmup_path=str(K3_WARMUP_PRIORS_PATH),
                 use_corralling=True,
                 corralling_learning_rate=CORRALLING_LR,
                 corralling_gamma=CORRALLING_GAMMA,
@@ -108,8 +184,8 @@ def run_lints_sweep(models, train_data, eval_data, train_emb, eval_emb,
     dim = train_emb[0].shape[0]
     burn_in = len(train_data)
     r_range = r_max - r_min if (r_max - r_min) > 1e-6 else 1.0
-    lints_costs = build_lints_costs(models)
-    priors = load_warmup_priors(models) if use_priors else None
+    lints_costs = _build_lints_costs(models)
+    priors = load_warmup_priors(models, warmup_path=K3_WARMUP_PRIORS_PATH) if use_priors else None
 
     results = []
     for lam in lambda_values:
@@ -153,67 +229,65 @@ def run_lints_sweep(models, train_data, eval_data, train_emb, eval_emb,
 
 def main():
     logger.info("=" * 70)
-    logger.info("Figure 7: LinTS Baseline Comparison (K=5, K=10)")
+    logger.info("Figure 7: LinTS Baseline Comparison (K=3)")
     logger.info("=" * 70)
 
-    results_all = {}
+    models = K3_MODELS
+    K = len(models)
+    logger.info(f"\nPORTFOLIO: K3 ({K} models)")
+    logger.info("=" * 70)
 
-    for portfolio_name, models in [("K5", PORTFOLIO_K5), ("K10", PORTFOLIO_K10)]:
-        K = len(models)
-        logger.info(f"\n{'='*70}")
-        logger.info(f"PORTFOLIO: {portfolio_name} ({K} models)")
-        logger.info("=" * 70)
+    train_data, eval_data, train_emb, eval_emb, costs, r_min, r_max = \
+        _load_data(models)
 
-        train_data, eval_data, train_emb, eval_emb, costs, r_min, r_max = \
-            load_multimodel_data(models)
+    # Baselines
+    oracle_r, oracle_c = oracle_route(eval_data, models, costs)
+    static_results = {m: dict(zip(("reward", "cost"), static_route(eval_data, m, costs)))
+                      for m in models}
+    rand_r, rand_c = random_route(eval_data, models, costs)
+    eg_r, eg_c = epsilon_greedy_route(train_data, eval_data, models, costs)
 
-        # Baselines
-        oracle_r, oracle_c = oracle_route(eval_data, models, costs)
-        static_results = {m: dict(zip(("reward", "cost"), static_route(eval_data, m, costs)))
-                          for m in models}
-        rand_r, rand_c = random_route(eval_data, models, costs)
-        eg_r, eg_c = epsilon_greedy_route(train_data, eval_data, models, costs)
+    logger.info(f"  Oracle: {oracle_r:.4f} | Best static: "
+                 f"{max(static_results.values(), key=lambda x: x['reward'])['reward']:.4f} | "
+                 f"Random: {rand_r:.4f}")
 
-        logger.info(f"  Oracle: {oracle_r:.4f} | Best static: "
-                     f"{max(static_results.values(), key=lambda x: x['reward'])['reward']:.4f} | "
-                     f"Random: {rand_r:.4f}")
+    # banditGPT Pareto sweep
+    t0 = time.time()
+    logger.info(f"\n  banditGPT sweep ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
+    pareto_bandit = run_banditgpt_sweep(
+        models, train_data, eval_data, train_emb, eval_emb,
+        costs, r_min, r_max, LAMBDA_VALUES, N_TRIALS,
+    )
+    logger.info(f"  Done in {time.time()-t0:.0f}s")
 
-        # banditGPT Pareto sweep
-        t0 = time.time()
-        logger.info(f"\n  banditGPT sweep ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
-        pareto_bandit = run_banditgpt_sweep(
-            models, train_data, eval_data, train_emb, eval_emb,
-            costs, r_min, r_max, LAMBDA_VALUES, N_TRIALS,
-        )
-        logger.info(f"  Done in {time.time()-t0:.0f}s")
+    # LinTS (warmup priors) Pareto sweep
+    t0 = time.time()
+    logger.info(f"\n  LinTS (warmup) sweep ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
+    pareto_lints = run_lints_sweep(
+        models, train_data, eval_data, train_emb, eval_emb,
+        costs, r_min, r_max, LAMBDA_VALUES, N_TRIALS,
+        use_priors=True, label="LinTS",
+    )
+    logger.info(f"  Done in {time.time()-t0:.0f}s")
 
-        # LinTS (warmup priors) Pareto sweep
-        t0 = time.time()
-        logger.info(f"\n  LinTS (warmup) sweep ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
-        pareto_lints = run_lints_sweep(
-            models, train_data, eval_data, train_emb, eval_emb,
-            costs, r_min, r_max, LAMBDA_VALUES, N_TRIALS,
-            use_priors=True, label="LinTS",
-        )
-        logger.info(f"  Done in {time.time()-t0:.0f}s")
+    # LinTS (tabula rasa) Pareto sweep
+    t0 = time.time()
+    logger.info(f"\n  LinTS (no priors) sweep ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
+    pareto_lints_tr = run_lints_sweep(
+        models, train_data, eval_data, train_emb, eval_emb,
+        costs, r_min, r_max, LAMBDA_VALUES, N_TRIALS,
+        use_priors=False, label="LinTS (no priors)",
+    )
+    logger.info(f"  Done in {time.time()-t0:.0f}s")
 
-        # LinTS (tabula rasa) Pareto sweep
-        t0 = time.time()
-        logger.info(f"\n  LinTS (no priors) sweep ({len(LAMBDA_VALUES)} λ × {N_TRIALS} trials) ...")
-        pareto_lints_tr = run_lints_sweep(
-            models, train_data, eval_data, train_emb, eval_emb,
-            costs, r_min, r_max, LAMBDA_VALUES, N_TRIALS,
-            use_priors=False, label="LinTS (no priors)",
-        )
-        logger.info(f"  Done in {time.time()-t0:.0f}s")
+    best_static_m = max(static_results, key=lambda m: static_results[m]["reward"])
+    peak_bandit = max(pareto_bandit, key=lambda x: x["mean_reward"])
+    peak_lints = max(pareto_lints, key=lambda x: x["mean_reward"])
 
-        best_static_m = max(static_results, key=lambda m: static_results[m]["reward"])
-        peak_bandit = max(pareto_bandit, key=lambda x: x["mean_reward"])
-        peak_lints = max(pareto_lints, key=lambda x: x["mean_reward"])
-
-        results_all[portfolio_name] = {
+    results_all = {
+        "K3": {
             "K": K,
-            "models": [{"id": m, **MODEL_CATALOG[m]} for m in models],
+            "models": [{"id": m, **K3_CATALOG[m]} for m in models],
             "oracle": {"reward": oracle_r, "cost": oracle_c},
             "random": {"reward": rand_r, "cost": rand_c},
             "epsilon_greedy": {"reward": eg_r, "cost": eg_c},
@@ -230,12 +304,13 @@ def main():
             "n_eval": len(eval_data),
             "n_trials": N_TRIALS,
         }
+    }
 
-        logger.info(f"\n  SUMMARY ({portfolio_name}):")
-        logger.info(f"    Oracle:         {oracle_r:.4f}")
-        logger.info(f"    banditGPT peak: {peak_bandit['mean_reward']:.4f} ± {peak_bandit['std_reward']:.4f}")
-        logger.info(f"    LinTS peak:     {peak_lints['mean_reward']:.4f} ± {peak_lints['std_reward']:.4f}")
-        logger.info(f"    Best static:    {static_results[best_static_m]['reward']:.4f}")
+    logger.info(f"\n  SUMMARY (K3):")
+    logger.info(f"    Oracle:         {oracle_r:.4f}")
+    logger.info(f"    banditGPT peak: {peak_bandit['mean_reward']:.4f} ± {peak_bandit['std_reward']:.4f}")
+    logger.info(f"    LinTS peak:     {peak_lints['mean_reward']:.4f} ± {peak_lints['std_reward']:.4f}")
+    logger.info(f"    Best static:    {static_results[best_static_m]['reward']:.4f}")
 
     out_path = Path(__file__).parent / "results" / "lints_comparison_results.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)

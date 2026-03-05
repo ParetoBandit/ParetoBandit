@@ -1,0 +1,24 @@
+% ============================================================================
+% Figure 6: Semantic Transfer Evaluation (K=3)
+% ============================================================================
+
+\subsection{RQ4: Does Semantic Transfer Improve Cold-Start Routing?}
+\label{sec:semantic_transfer}
+
+We evaluate whether the updated encoder (BAAI/bge-m3) and 15-component PCA representation enable meaningful model-to-model transfer when a new model joins the portfolio. Using a leave-one-out design over the $K{=}3$ portfolio (Llama-3.1-8B / Gemini-2.5-Flash / GPT-4.1), each model is treated in turn as a simulated newcomer. The remaining $K{-}1$ models receive canonical warmup priors; the newcomer is initialised either by \emph{semantic transfer} from its nearest within-provider neighbor (Condition~A) or from a tabula rasa identity prior (Condition~B). Neighbor selection uses within-provider tetrachoric correlation of binarised reward vectors, matching the library's \texttt{compute\_correlation\_families()} design.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{figures/figure6_semantic_transfer.png}
+\caption{\textbf{Semantic transfer evaluation.} \textbf{(a)}~Forest plot of per-target $\Delta$ (transfer $-$ tabula rasa) with Holm-corrected 95\% CI. Models without a same-provider peer receive no transfer (gray). \textbf{(b)}~Learning curves for targets that received transfer, comparing transfer initialisation (solid) vs.\ tabula rasa (dashed).}
+\Description{Two-panel figure: (a) forest plot of per-target effect sizes for semantic transfer vs tabula rasa initialisation across K=3 models; (b) learning curves showing holdout reward over online training steps for models that received transfer.}
+\label{fig:semantic_transfer}
+\end{figure}
+
+\subsubsection{Interpretation}
+
+\paragraph{Transfer effect.}
+[Results to be filled after running the experiment.]
+
+\paragraph{Practical implications.}
+The updated encoder and PCA representation [provide / do not yet provide] sufficient embedding structure for one-shot $\theta$-transfer to meaningfully accelerate cold-start routing. [Interpretation depends on results.]

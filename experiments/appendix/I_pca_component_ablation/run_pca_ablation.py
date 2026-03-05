@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-PCA Component-Count Ablation for K=10
+PCA Component-Count Ablation for K=3
 
-Sweeps the number of PCA components used for contextual features in the K=10
+Sweeps the number of PCA components used for contextual features in the K=3
 multi-model routing setting.  For each component count, we:
 
   1. Truncate the production 32-component PCA to the target dimensionality.
-  2. Re-embed the K=10 online-learn and holdout data through the truncated PCA.
+  2. Re-embed the K=3 online-learn and holdout data through the truncated PCA.
   3. Generate warmup priors at that dimensionality (from cached 43-model priors
      or by re-accumulating sufficient statistics from the prior-train pool).
   4. Run the BanditGPT Pareto sweep (lambda x seeds) with the reduced features.
@@ -46,7 +46,7 @@ from bandit_gpt.config import (
     DEV_DATA_PATH_ALL_MODELS,
     FULL_PCA_PATH,
     HOLDOUT_DATA_PATH_ALL_MODELS,
-    K10_MODELS_PATH,
+    K3_MODELS_PATH,
     MULTIMODEL_WARMUP_PRIORS_PATH_32,
     THREE_WAY_SPLITS_PATH,
     ARTIFACTS_DIR,
@@ -81,14 +81,14 @@ def _req_cost(inp: float, out: float) -> float:
     return (100 * inp + 400 * out) / 1_000_000
 
 
-def _load_k10_portfolio() -> Tuple[List[str], Dict[str, Dict]]:
-    """Load K=10 model list and catalog from ``models_k10.json``."""
-    with open(K10_MODELS_PATH) as f:
-        k10_cfg = json.load(f)
-    models = [m["model_id"] for m in k10_cfg["models"]]
+def _load_k3_portfolio() -> Tuple[List[str], Dict[str, Dict]]:
+    """Load K=3 model list and catalog from ``models_k3.json``."""
+    with open(K3_MODELS_PATH) as f:
+        k3_cfg = json.load(f)
+    models = [m["model_id"] for m in k3_cfg["models"]]
     prices = get_prices_for_models(models)
     catalog: Dict[str, Dict] = {}
-    for m_entry in k10_cfg["models"]:
+    for m_entry in k3_cfg["models"]:
         mid = m_entry["model_id"]
         catalog[mid] = {
             "display": m_entry.get("display", mid.split("/")[-1]),
@@ -98,7 +98,7 @@ def _load_k10_portfolio() -> Tuple[List[str], Dict[str, Dict]]:
         }
     return models, catalog
 
-K10_MODELS, K10_CATALOG = _load_k10_portfolio()
+K3_MODELS, K3_CATALOG = _load_k3_portfolio()
 
 
 # ============================================================================
@@ -392,7 +392,7 @@ def run_ablation_for_n_components(
     )
     logger.info(f"    Train-train: {len(train_train)}, Train-val: {len(train_val)}")
 
-    r_min, r_max = _compute_reward_normalization(train_data, K10_MODELS)
+    r_min, r_max = _compute_reward_normalization(train_data, K3_MODELS)
     r_range = r_max - r_min
 
     # Save truncated priors to a temp file for create_experiment_router
@@ -408,7 +408,7 @@ def run_ablation_for_n_components(
             np.random.seed(seed)
             trial_rng = np.random.default_rng(seed)
             router = create_experiment_router(
-                model_registry=build_model_registry(K10_MODELS, K10_CATALOG),
+                model_registry=build_model_registry(K3_MODELS, K3_CATALOG),
                 feature_dim=feat_dim,
                 prior_n_effective=n_eff,
                 alpha=alpha,
@@ -420,7 +420,7 @@ def run_ablation_for_n_components(
                 forgetting_factor=forgetting_factor,
             )
             train_bandit(
-                router, train_train, train_train_emb, K10_MODELS,
+                router, train_train, train_train_emb, K3_MODELS,
                 r_min, r_range, rng=trial_rng,
             )
             r, c = evaluate_frozen(
@@ -459,8 +459,8 @@ def run_ablation_for_n_components(
         "n_components": n_comp,
         "feature_dim": feat_dim,
         "variance_explained": float(np.sum(pca_truncated.explained_variance_ratio_)),
-        "samples_per_arm": len(train_train) / len(K10_MODELS),
-        "samples_per_feature_ratio": len(train_train) / (len(K10_MODELS) * feat_dim),
+        "samples_per_arm": len(train_train) / len(K3_MODELS),
+        "samples_per_feature_ratio": len(train_train) / (len(K3_MODELS) * feat_dim),
         "best_holdout_reward": best["holdout_reward_mean"],
         "best_holdout_reward_std": best["holdout_reward_std"],
         "best_holdout_cost": best["holdout_cost_mean"],
@@ -484,35 +484,35 @@ def main() -> None:
     # Load tuned hyperparameters
     hparams_path = (
         PROJECT_ROOT / "experiments" / "appendix"
-        / "H_alpha_neff_ablation" / "results" / "best_hparams_k10.json"
+        / "H_alpha_neff_ablation" / "results" / "best_hparams_k3.json"
     )
     alpha = 0.1
     n_eff = 5000.0
     forgetting_factor = 1.0
     if hparams_path.exists():
         hp = json.loads(hparams_path.read_text())
-        cfg = hp.get("K10", {})
+        cfg = hp.get("K3", {})
         alpha = float(cfg.get("alpha", alpha))
         n_eff = float(cfg.get("n_eff", n_eff))
         forgetting_factor = float(cfg.get("gamma", forgetting_factor))
         logger.info(f"  Loaded hparams: alpha={alpha}, n_eff={n_eff}, gamma={forgetting_factor}")
 
-    # Load K=10 data
-    logger.info("\nLoading K=10 data ...")
+    # Load K=3 data
+    logger.info("\nLoading K=3 data ...")
     with open(THREE_WAY_SPLITS_PATH) as f:
         splits_3way = json.load(f)
     online_prompts = set(splits_3way["online_learn_pool"])
 
     train_data = load_rewards_from_file(
-        DEV_DATA_PATH_ALL_MODELS, K10_MODELS, prompt_filter=online_prompts,
+        DEV_DATA_PATH_ALL_MODELS, K3_MODELS, prompt_filter=online_prompts,
     )
     holdout_data = load_rewards_from_file(
-        HOLDOUT_DATA_PATH_ALL_MODELS, K10_MODELS,
+        HOLDOUT_DATA_PATH_ALL_MODELS, K3_MODELS,
     )
     logger.info(f"  Train (online-learn): {len(train_data)} prompts")
     logger.info(f"  Holdout: {len(holdout_data)} prompts")
 
-    costs = {m: K10_CATALOG[m]["cost"] for m in K10_MODELS}
+    costs = {m: K3_CATALOG[m]["cost"] for m in K3_MODELS}
 
     # UCB1 baseline (computed once — independent of feature dim)
     logger.info("\nComputing UCB1 baseline ...")
@@ -520,7 +520,7 @@ def main() -> None:
         train_data, [np.zeros(1)] * len(train_data),
     )
     ucb1 = ucb1_online_route(
-        train_train_data, holdout_data, K10_MODELS, costs, n_trials=N_SEEDS,
+        train_train_data, holdout_data, K3_MODELS, costs, n_trials=N_SEEDS,
     )
     logger.info(
         f"  UCB1: reward={ucb1['reward']:.4f} +/-{ucb1['std_reward']:.4f} "
@@ -529,7 +529,7 @@ def main() -> None:
 
     # Main ablation loop
     logger.info(f"\n{'='*70}")
-    logger.info(f"PCA Component-Count Ablation (K=10)")
+    logger.info(f"PCA Component-Count Ablation (K=3)")
     logger.info(f"  Components: {COMPONENT_COUNTS}")
     logger.info(f"  Lambda values: {len(LAMBDA_VALUES)}")
     logger.info(f"  Seeds: {N_SEEDS}")
@@ -577,7 +577,7 @@ def main() -> None:
             "n_lambda": len(LAMBDA_VALUES),
             "n_train": len(train_data),
             "n_holdout": len(holdout_data),
-            "models": K10_MODELS,
+            "models": K3_MODELS,
             "alpha": alpha,
             "n_eff": n_eff,
             "forgetting_factor": forgetting_factor,

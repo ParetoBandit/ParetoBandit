@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """
-Generate Figure 4 (K=10 Multi-Model Pareto Frontier) from results JSON.
+Generate Figure 4: The Value of Warmup Priors.
 
-Single-panel figure showing the dev-selected deployable Pareto frontier
-for BanditGPT vs tabula rasa, with oracle, best-static, best-static+noise,
-UCB1, and random baselines.
-
-Can load results from either:
-  - ``results/multimodel_pareto_results.json`` (produced by this folder's
-    ``run_multimodel_pareto.py``)
-  - ``../03_figure/results/prequential_results.json`` (legacy combined results)
+Two-panel figure:
+  (a) Pareto frontier — BanditGPT (warmup) vs Tabula Rasa, with
+      supervised baselines as reference points.
+  (b) Learning curve — holdout reward vs online training steps,
+      showing that warmup priors provide immediate quality.
 """
 
 import json
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import matplotlib
@@ -35,139 +33,227 @@ GREEN = "#009E73"
 GRAY = "#999999"
 ORANGE = "#E69F00"
 PURPLE = "#CC79A7"
+TEAL = "#56B4E9"
+
+SV_MARKERS: Dict[str, Tuple[str, str, str]] = {
+    "knn": ("^", RED, "KNN"),
+    "svm": ("s", GREEN, "SVM"),
+    "mlp": ("P", PURPLE, "MLP"),
+}
 
 
 def load_results() -> dict:
-    """Load K=10 results from local or legacy path."""
-    local_path = RESULTS_DIR / "multimodel_pareto_results.json"
-    if local_path.exists():
-        with open(local_path) as f:
-            return json.load(f)
-    legacy_path = Path(__file__).parent.parent / "03_figure" / "results" / "prequential_results.json"
-    if legacy_path.exists():
-        with open(legacy_path) as f:
-            return json.load(f)
-    raise FileNotFoundError(
-        f"No results file found at {local_path} or {legacy_path}. "
-        "Run run_multimodel_pareto.py first."
-    )
+    """Load warmup ablation results."""
+    path = RESULTS_DIR / "warmup_ablation_results.json"
+    with open(path) as f:
+        return json.load(f)
 
 
-def _dev_selected_deployed_hull(sweep, dev_cost_key, dev_reward_key,
-                                holdout_cost_key, holdout_reward_key):
-    """Dev-selected deployable frontier.
+def _ci95(mean: float, std: float, n: int) -> float:
+    """95% t-CI half-width."""
+    if n < 2 or std == 0:
+        return 0.0
+    return sp_stats.t.ppf(0.975, n - 1) * std / np.sqrt(n)
 
-    Identifies Pareto-optimal points using dev metrics, then returns
-    the holdout performance of those points (with a Pareto hull over
-    the holdout values since dev-optimal points may not be monotone).
-    """
-    idx = dev_pareto_indices(sweep, dev_cost_key, dev_reward_key)
-    hc = [sweep[i][holdout_cost_key] for i in idx]
-    hr = [sweep[i][holdout_reward_key] for i in idx]
+
+def _get_hull(pareto_data: list) -> Tuple[List[float], List[float]]:
+    """Build dev-selected deployed Pareto hull."""
+    idx = dev_pareto_indices(pareto_data, "dev_mean_cost", "dev_mean_reward")
+    hc = [pareto_data[i]["mean_cost"] for i in idx]
+    hr = [pareto_data[i]["mean_reward"] for i in idx]
     return pareto_hull(hc, hr)
 
 
-def plot_figure4(res: dict, out: Path) -> None:
-    """Generate the K=10 Pareto frontier figure.
+def plot_figure4(results: dict, output_dir: Path) -> None:
+    """Generate two-panel Figure 4."""
+    k3 = results["K3"]
 
-    Args:
-        res: Results dict containing ``K10`` and ``metadata`` keys.
-        out: Directory to write the output PNG.
-    """
-    k10 = res["K10"]
-    n_seeds = res["metadata"]["n_seeds"]
-    t_crit = sp_stats.t.ppf(0.975, df=n_seeds - 1)
+    fig, (ax_pareto, ax_lc) = plt.subplots(
+        1, 2, figsize=(14, 5.5), gridspec_kw={"wspace": 0.30},
+    )
 
-    fig, ax = plt.subplots(figsize=(10, 7), constrained_layout=True)
+    # ================================================================
+    # Panel (a): Pareto frontiers
+    # ================================================================
+    warmup_pareto = k3["warmup_pareto"]
+    tr_pareto = k3["tabula_rasa_pareto"]
 
-    bp = k10["banditgpt_pareto"]
-    bg_c = [p["mean_cost"] for p in bp]
-    bg_r = [p["mean_reward"] for p in bp]
-    bg_std = {(p["mean_cost"], p["mean_reward"]): p["std_reward"] for p in bp}
-    tr = k10["tabula_rasa_pareto"]
-    tr_c = [p["mean_cost"] for p in tr]
-    tr_r = [p["mean_reward"] for p in tr]
+    # BanditGPT (warmup) — bold line
+    wh_c, wh_r = _get_hull(warmup_pareto)
+    ax_pareto.plot(
+        wh_c, wh_r, "-o", color=BLUE, linewidth=2.5, markersize=4,
+        label="BanditGPT (warmup priors)", zorder=5,
+    )
+    for pt in warmup_pareto:
+        ci = _ci95(pt["mean_reward"], pt["std_reward"], pt["n_trials"])
+        ax_pareto.errorbar(
+            pt["mean_cost"], pt["mean_reward"], yerr=ci,
+            fmt="none", color=BLUE, alpha=0.3, capsize=2,
+        )
 
-    oracle_hull_c, oracle_hull_r = pareto_hull(bg_c, bg_r)
-    ax.fill_between(oracle_hull_c, 0, oracle_hull_r, color=BLUE,
-                    alpha=0.06, zorder=1)
-    tr_oracle_c, tr_oracle_r = pareto_hull(tr_c, tr_r)
-    ax.fill_between(tr_oracle_c, 0, tr_oracle_r, color=GRAY,
-                    alpha=0.06, zorder=1)
+    # Tabula rasa — dashed
+    th_c, th_r = _get_hull(tr_pareto)
+    ax_pareto.plot(
+        th_c, th_r, "--s", color=ORANGE, linewidth=2, markersize=4,
+        label="Tabula rasa (no priors)", zorder=4,
+    )
+    for pt in tr_pareto:
+        ci = _ci95(pt["mean_reward"], pt["std_reward"], pt["n_trials"])
+        ax_pareto.errorbar(
+            pt["mean_cost"], pt["mean_reward"], yerr=ci,
+            fmt="none", color=ORANGE, alpha=0.3, capsize=2,
+        )
 
-    has_dev = "dev_mean_cost" in bp[0] and "dev_mean_reward" in bp[0]
-    if has_dev:
-        ds_bg_c, ds_bg_r = _dev_selected_deployed_hull(
-            bp, "dev_mean_cost", "dev_mean_reward",
-            "mean_cost", "mean_reward")
-        bg_std_by_holdout = {
-            (p["mean_cost"], p["mean_reward"]): p["std_reward"] for p in bp
-        }
-        hull_err = [
-            t_crit * bg_std_by_holdout.get((c, r), 0.0) / np.sqrt(n_seeds)
-            for c, r in zip(ds_bg_c, ds_bg_r)
-        ]
-        ax.errorbar(ds_bg_c, ds_bg_r, yerr=hull_err, fmt="D-", color=BLUE,
-                    lw=2.5, ms=5, capsize=3, zorder=5,
-                    label="BanditGPT (dev-selected)")
-        ds_tr_c, ds_tr_r = _dev_selected_deployed_hull(
-            tr, "dev_mean_cost", "dev_mean_reward",
-            "mean_cost", "mean_reward")
-        ax.plot(ds_tr_c, ds_tr_r, "s:", color=GRAY, lw=1.5, ms=4, zorder=3,
-                label="Tabula rasa (dev-selected)")
-    else:
-        hull_err = [
-            t_crit * bg_std.get((c, r), 0.0) / np.sqrt(n_seeds)
-            for c, r in zip(oracle_hull_c, oracle_hull_r)
-        ]
-        ax.errorbar(oracle_hull_c, oracle_hull_r, yerr=hull_err, fmt="D-",
-                    color=BLUE, lw=2.5, ms=5, capsize=3, zorder=5,
-                    label="BanditGPT (Corralling + warmup)")
-        ax.plot(tr_oracle_c, tr_oracle_r, "s:", color=GRAY, lw=1.5, ms=4,
-                zorder=3, label="Tabula rasa (no priors, no Corralling)")
+    # Supervised baselines
+    for kind, (marker, color, label) in SV_MARKERS.items():
+        sv = k3["supervised"].get(kind)
+        if sv:
+            ax_pareto.scatter(
+                sv["cost"], sv["reward"], marker=marker, color=color,
+                s=100, zorder=6, edgecolors="k", linewidths=0.5,
+                label=f"{label} (supervised)",
+            )
 
-    ax.fill_between([], [], [], color=GRAY, alpha=0.1,
-                    label="Oracle envelope (upper bound)")
+    # Oracle
+    oracle = k3["oracle"]
+    ax_pareto.scatter(
+        oracle["cost"], oracle["reward"], marker="*", color="gold",
+        s=200, zorder=7, edgecolors="k", linewidths=0.5, label="Oracle",
+    )
 
-    ax.scatter(k10["oracle"]["cost"], k10["oracle"]["reward"],
-               marker="*", s=200, color=GREEN, zorder=6,
-               label=f"Oracle ({k10['oracle']['reward']:.3f})")
+    # UCB1
+    ucb1 = k3["ucb1"]
+    ax_pareto.scatter(
+        ucb1.get("cost", ucb1.get("mean_cost", 0.0034)),
+        ucb1["reward"],
+        marker="D", color=GRAY, s=80, zorder=6,
+        edgecolors="k", linewidths=0.5, label="UCB1",
+    )
 
-    bs = k10["best_static"]
-    ax.scatter(bs["cost"], bs["reward"], marker="P", s=100, color=ORANGE,
-               zorder=6, label=f"Best static ({bs['model'].split('/')[-1]})")
+    # Pareto AUC annotation
+    auc_info = k3["pareto_auc"]
+    bootstrap = auc_info["bootstrap_ci"]
+    ax_pareto.text(
+        0.03, 0.03,
+        (
+            f"Pareto AUC: {auc_info['warmup']:.3f} vs "
+            f"{auc_info['tabula_rasa']:.3f}\n"
+            f"Advantage: {auc_info['advantage']:+.3f} "
+            f"(95% CI [{bootstrap['ci_95_lower']:+.3f}, "
+            f"{bootstrap['ci_95_upper']:+.3f}])"
+        ),
+        transform=ax_pareto.transAxes,
+        fontsize=8, verticalalignment="bottom",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8),
+    )
 
-    eg = k10.get("best_static_noisy", k10.get("epsilon_greedy", {}))
-    ax.scatter(eg["cost"], eg["reward"], marker="X", s=100, color=PURPLE,
-               zorder=6, label=f"Best-static+noise ({eg['best_model'].split('/')[-1]})")
+    ax_pareto.set_xlabel("Normalized cost ($/request)", fontsize=11)
+    ax_pareto.set_ylabel("Holdout reward", fontsize=11)
+    ax_pareto.set_title("(a) Pareto Frontier: Warmup vs Tabula Rasa", fontsize=12)
+    ax_pareto.legend(fontsize=8, loc="lower right")
+    ax_pareto.grid(True, alpha=0.3)
 
-    ucb1 = k10.get("ucb1")
-    if ucb1 is not None:
-        ax.scatter(ucb1["cost"], ucb1["reward"], marker="d", s=80,
-                   color="#E91E63", zorder=6,
-                   label=f"UCB1 non-contextual ({ucb1['greedy_arm'].split('/')[-1]})")
+    # ================================================================
+    # Panel (b): Learning curves
+    # ================================================================
+    lc_warmup = k3["warmup_learning_curve"]
+    lc_tr = k3["tabula_rasa_learning_curve"]
 
-    rnd = k10["random"]
-    ax.scatter(rnd["cost"], rnd["reward"], marker="o", s=80, color=GRAY,
-               zorder=6, alpha=0.7, label="Random")
+    w_steps = [d["step"] for d in lc_warmup]
+    w_means = [d["mean_reward"] for d in lc_warmup]
+    w_cis = [
+        _ci95(d["mean_reward"], d["std_reward"], d["n_trials"])
+        for d in lc_warmup
+    ]
 
-    ax.set_xlabel("Average Cost per Request ($)", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Average Reward (Quality)", fontsize=12, fontweight="bold")
-    ax.set_title("K=10 Cost\u2013Quality Pareto Frontier", fontsize=14,
-                 fontweight="bold")
-    ax.legend(fontsize=8.5, loc="upper right", framealpha=0.92)
-    ax.grid(True, alpha=0.15, ls="--")
-    ax.set_xlim(left=-0.0003)
-    ax.set_ylim(0.70, None)
-    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:.4f}"))
-    ax.tick_params(labelsize=9)
+    t_steps = [d["step"] for d in lc_tr]
+    t_means = [d["mean_reward"] for d in lc_tr]
+    t_cis = [
+        _ci95(d["mean_reward"], d["std_reward"], d["n_trials"])
+        for d in lc_tr
+    ]
 
-    path = out / "figure4_k10.png"
-    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
+    ax_lc.plot(w_steps, w_means, "-o", color=BLUE, linewidth=2, markersize=4,
+               label="BanditGPT (warmup priors)")
+    ax_lc.fill_between(
+        w_steps,
+        [m - c for m, c in zip(w_means, w_cis)],
+        [m + c for m, c in zip(w_means, w_cis)],
+        color=BLUE, alpha=0.15,
+    )
+
+    ax_lc.plot(t_steps, t_means, "--s", color=ORANGE, linewidth=2, markersize=4,
+               label="Tabula rasa (no priors)")
+    ax_lc.fill_between(
+        t_steps,
+        [m - c for m, c in zip(t_means, t_cis)],
+        [m + c for m, c in zip(t_means, t_cis)],
+        color=ORANGE, alpha=0.15,
+    )
+
+    # Supervised learning curve
+    sv_lc_info = k3.get("supervised_learning_curve", {})
+    sv_lc_data = sv_lc_info.get("curve", [])
+    if sv_lc_data:
+        sv_steps = [d["step"] for d in sv_lc_data]
+        sv_means = [d["mean_reward"] for d in sv_lc_data]
+        ax_lc.plot(
+            sv_steps, sv_means, ":", color=GREEN, linewidth=1.5,
+            label=f"{sv_lc_info.get('kind', 'SVM').upper()} (supervised)",
+        )
+
+    # Reference lines for supervised baselines
+    x_max = max(w_steps[-1], t_steps[-1])
+    for kind, (_, color, label) in SV_MARKERS.items():
+        sv = k3["supervised"].get(kind)
+        if sv:
+            ax_lc.axhline(
+                sv["reward"], color=color, linestyle=":", alpha=0.6,
+                linewidth=1,
+            )
+            ax_lc.text(
+                x_max * 1.01, sv["reward"], f"{label}",
+                fontsize=7, color=color, va="center",
+            )
+
+    # Oracle reference
+    ax_lc.axhline(
+        oracle["reward"], color="gold", linestyle="--", alpha=0.5,
+        linewidth=1,
+    )
+    ax_lc.text(
+        x_max * 1.01, oracle["reward"], "Oracle",
+        fontsize=7, color="goldenrod", va="center",
+    )
+
+    # Sample efficiency annotation
+    se = k3.get("sample_efficiency", {})
+    step0_adv = (
+        (se.get("warmup_step0", 0) or 0) - (se.get("tabula_rasa_step0", 0) or 0)
+    )
+    if step0_adv > 0:
+        ax_lc.annotate(
+            f"Step-0 advantage:\n+{step0_adv:.3f}",
+            xy=(0, se.get("warmup_step0", 0)),
+            xytext=(x_max * 0.15, se.get("warmup_step0", 0) - 0.02),
+            fontsize=8,
+            arrowprops=dict(arrowstyle="->", color=BLUE, lw=1.5),
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8),
+        )
+
+    ax_lc.set_xlabel("Online training steps", fontsize=11)
+    ax_lc.set_ylabel("Holdout reward", fontsize=11)
+    ax_lc.set_title("(b) Learning Curve: Sample Efficiency", fontsize=12)
+    ax_lc.legend(fontsize=8, loc="lower right")
+    ax_lc.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    out_path = output_dir / "figure4_warmup_ablation.png"
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved {path}")
+    print(f"Saved -> {out_path}")
 
 
 if __name__ == "__main__":
-    res = load_results()
-    plot_figure4(res, RESULTS_DIR)
+    data = load_results()
+    plot_figure4(data, RESULTS_DIR)

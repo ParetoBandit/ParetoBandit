@@ -1,8 +1,8 @@
-% E1: Catastrophic Failure Detection (K=5 Portfolio)
+% E1: Catastrophic Failure Detection (K=3 Portfolio)
 % Production router with semantic transfer
 % Section heading provided by APPENDIX_MASTER.tex
 
-\subsection{Catastrophic Failure Detection: 5-Model Portfolio}
+\subsection{Catastrophic Failure Detection: 3-Model Portfolio}
 \label{appendix:catastrophic_failure}
 
 \subsubsection{Motivation: Automatic Failover as a Secondary Benefit}
@@ -13,23 +13,23 @@ Production LLM systems face a critical challenge: \textbf{models can catastrophi
 
 \subsubsection{Experimental Setup}
 
-\paragraph{Why $K=5$?}
-With $K=2$ models, catastrophic failure detection is a trivial binary tracking problem: a simple EMA tracker just needs to learn ``model A bad, model B good'' from per-model averages. With $K=5$, post-failure routing becomes \emph{contextual}: the optimal policy must redistribute traffic across 4 remaining models based on prompt features. Each non-failing model excels in a different region of context space, so per-model averages cannot distinguish which alternative is best for a given prompt.
+\paragraph{Why $K=3$?}
+With $K=2$ models, catastrophic failure detection is a trivial binary tracking problem: a simple EMA tracker just needs to learn ``model A bad, model B good'' from per-model averages. With $K=3$, post-failure routing becomes \emph{contextual}: the optimal policy must redistribute traffic across 2 remaining models based on prompt features. Each non-failing model excels in a different region of context space, so per-model averages cannot distinguish which alternative is best for a given prompt.
 
 \paragraph{Production Router Components.}
 \begin{itemize}
-    \item \textbf{CostAwareLinUCBRouter} (warmup expert): Initialized with 43-model evaluation priors for all five portfolio models (Llama-3.1-8B, Mixtral-8x7B, Gemini-2.5-Flash, Claude-Sonnet-4, GPT-4.1)
-    \item \textbf{CostAwareTabulaRasaRouter} (tabula rasa expert): Cold-start LinUCB with ridge regularization for all 5 models
+    \item \textbf{CostAwareLinUCBRouter} (warmup expert): Initialized with 43-model evaluation priors for all three portfolio models (Llama-3.1-8B, Gemini-2.5-Flash, GPT-4.1)
+    \item \textbf{CostAwareTabulaRasaRouter} (tabula rasa expert): Cold-start LinUCB with ridge regularization for all 3 models
     \item \textbf{CorrallingRouter}: Coordinates experts with importance-weighted meta-learning via selection tokens
 \end{itemize}
 
-All 5 models have informed warmup priors. Both experts explore freely across all models.
+All 3 models have informed warmup priors. Both experts explore freely across all models.
 
 \paragraph{Three-Phase Scenario.}
 Context-dependent reward environment (orthogonal context directions per model, noise $\sigma=0.08$):
 
 \begin{itemize}
-    \item \textbf{Phase 1 ($t=0$--$100$):} All 5 models healthy
+    \item \textbf{Phase 1 ($t=0$--$100$):} All 3 models healthy
     \item \textbf{Phase 2 ($t=100$--$300$):} GPT-4.1 catastrophically fails ($\mu=0.15$, Cohen's $d\approx 5.0$)
     \item \textbf{Phase 3 ($t=300$--$500$):} GPT-4.1 recovers
 \end{itemize}
@@ -44,16 +44,16 @@ Corralling settings: $\eta=0.3$, $\gamma=0.05$. Baselines: Oracle, Static GPT-4.
 % \begin{figure}[t]
 % \centering
 % \includegraphics[width=0.95\linewidth]{E_catastrophic_failure_experiment/results/figure9_5model.pdf}
-% \caption{\textbf{Catastrophic Failure Detection: 5-Model Portfolio} ($K=5$, $N=20$ seeds).
-% \textbf{(Top)} Running-average reward. EMA achieves higher failure-phase reward ($0.859$) than banditGPT ($0.753$) but concentrates traffic on fewer fallback models, missing context-dependent alternatives.
-% \textbf{(Middle)} Expert weight evolution: 5\% formal detection rate (warmup weight $<0.15$), though banditGPT implicitly avoids the failed model via per-arm UCB updates.
-% \textbf{(Bottom)} Model selection fractions reveal EMA's $\epsilon/K = 2\%$ per-model exploration limit at $K=5$.}
+% \caption{\textbf{Catastrophic Failure Detection: 3-Model Portfolio} ($K=3$, $N=20$ seeds).
+% \textbf{(Top)} Running-average reward. TODO: update with K=3 results.
+% \textbf{(Middle)} Expert weight evolution. TODO: update with K=3 results.
+% \textbf{(Bottom)} Model selection fractions. TODO: update with K=3 results.}
 % \label{fig:catastrophic_failure}
 % \end{figure}
 
 \begin{table}[h]
 \centering
-\caption{Mean reward by phase ($K=5$, $N=20$ seeds)}
+\caption{Mean reward by phase ($K=3$, $N=20$ seeds). \textbf{TODO: update with K=3 results.}}
 \label{tab:catastrophic_failure_phases}
 \begin{tabular}{lccc}
 \toprule
@@ -69,25 +69,11 @@ Static GPT-4.1 & 0.950 & 0.154 & 0.958 \\
 
 \subsubsection{Portfolio Size Scaling}
 
-\begin{table}[h]
-\centering
-\caption{banditGPT failure-phase reward versus EMA by portfolio size ($N=20$ seeds)}
-\label{tab:portfolio_scaling}
-\begin{tabular}{lcccc}
-\toprule
-$K$ & banditGPT & EMA & $\Delta$ & Detection \\
-\midrule
-\textbf{5} & \textbf{0.753} & \textbf{0.859} & $\mathbf{-0.106}$ & \textbf{5\%} \\
-10 & 0.862 & 0.859 & $+0.003$ & 5\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-At $K{=}5$, EMA outperforms banditGPT during failure ($\Delta{=}{-}0.106$), but at $K{=}10$ the gap closes entirely ($\Delta{=}{+}0.003$). EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) thins across more models, while Corralling's contextual experts become more valuable as the post-failure routing decision becomes higher-dimensional.
+\textbf{TODO: update portfolio size scaling analysis with K=3 results.}
 
 \subsubsection{Interpretation}
 
-Catastrophic failure detection is a \textbf{secondary safety benefit} of the Corralling mechanism, not its primary design objective. The formal detection rate (5\%, based on meta-learner weight shift) understates banditGPT's actual response: the per-arm UCB updates within each expert implicitly reduce traffic to the failed model, achieving 0.753 failure-phase reward despite the meta-learner not formally ``detecting'' the failure. For pure model-level failure detection, dedicated monitoring (e.g., EMA tracking, CUSUM) should complement Corralling. The gap closure from $K{=}5$ ($\Delta{=}{-}0.106$) to $K{=}10$ ($\Delta{=}{+}0.003$) confirms that at larger portfolios, Corralling's contextual routing fully compensates for its slower meta-level adaptation.
+Catastrophic failure detection is a \textbf{secondary safety benefit} of the Corralling mechanism, not its primary design objective. The per-arm UCB updates within each expert implicitly reduce traffic to the failed model. For pure model-level failure detection, dedicated monitoring (e.g., EMA tracking, CUSUM) should complement Corralling. \textbf{TODO: update interpretation with K=3 results.}
 
 \subsubsection{Reproducibility}
 

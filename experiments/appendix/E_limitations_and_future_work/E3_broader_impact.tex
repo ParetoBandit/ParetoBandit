@@ -7,10 +7,9 @@
 \paragraph{Cost reduction and accessibility.}
 Adaptive routing reduces the average cost of LLM inference by directing
 easy prompts to cheaper models.  Our multi-model experiments quantify this
-potential: at $\lambda{=}1.0$ with a $K{=}10$ portfolio, banditGPT achieves
-89\% cost reduction over static frontier-model routing with only 5.4\%
-quality loss---corresponding to approximately \$110k annual savings at
-100k requests/day.  If widely deployed, this could lower the cost barrier
+potential: at $\lambda{=}1.0$ with a $K{=}3$ portfolio, banditGPT achieves
+substantial cost reduction over static frontier-model routing
+\textbf{TODO: update with K=3 cost reduction numbers}.  If widely deployed, this could lower the cost barrier
 for organizations and individuals who currently cannot afford frontier
 models for all queries, thereby broadening access to high-quality AI
 assistance.
@@ -34,8 +33,8 @@ shows the router's predictions are well-calibrated (bias $< 0.05$),
 reducing systematic misrouting risk.
 
 Multi-provider portfolios provide an additional resilience benefit: at
-$K{=}10$, no single model exceeds 16\% of traffic, so a single-provider
-outage affects at most 16\% of requests---a property absent from static
+$K{=}3$, multi-provider routing distributes traffic across providers, so a single-provider
+outage affects only a fraction of requests---a property absent from static
 single-model deployments.
 Practitioners should nonetheless audit routing patterns for demographic
 fairness before production deployment.

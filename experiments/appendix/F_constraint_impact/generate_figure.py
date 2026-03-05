@@ -155,7 +155,7 @@ def main():
     axes[0].set_ylabel("Reward")
 
     fig.suptitle(
-        "Impact of Hard Per-Request Constraints on Routing Quality (K=10)",
+        "Impact of Hard Per-Request Constraints on Routing Quality (K=3)",
         fontsize=22, fontweight="bold", y=0.97,
     )
 

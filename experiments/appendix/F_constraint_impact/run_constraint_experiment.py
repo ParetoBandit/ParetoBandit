@@ -10,7 +10,7 @@ Validates banditGPT's Layer 1 hard per-request constraint filtering—the
 mechanism claimed as contribution (3) in the abstract.
 
 Protocol:
-  1. Load the K=10 portfolio (same models as 04_figure) with cost + latency metadata
+  1. Load the K=3 portfolio with cost + latency metadata
   2. For each constraint regime × N_TRIALS seeds:
        a. Instantiate router with warmup priors
        b. Train on online-learn set (533 prompts) WITH constraints active
@@ -47,7 +47,8 @@ from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
+    K3_WARMUP_PRIORS_PATH,
+    K3_MODELS_PATH,
     THREE_WAY_SPLITS_PATH,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
@@ -55,140 +56,32 @@ from bandit_gpt.config import (
 from bandit_gpt.router import BanditRouter
 from utils.router_factory import create_experiment_router
 from utils.rewards import extract_reward
-from utils.model_pricing import get_prices_for_models
 from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# MODEL PORTFOLIO (K=10) — extended with latency metadata
+# MODEL PORTFOLIO (K=3) — extended with latency metadata
 # ============================================================================
 
-def _req_cost(inp, out):
-    """Per-request cost at 100 input + 400 output tokens."""
-    return (100 * inp + 400 * out) / 1_000_000
+from utils.model_pricing import load_model_catalog as _load_catalog
 
+K3_MODELS, _K3_CAT_BASE = _load_catalog(K3_MODELS_PATH)
 
-_PRICES = get_prices_for_models(
-    [
-        "meta-llama/llama-3.1-8b-instruct",
-        "mistralai/mixtral-8x7b-instruct",
-        "google/gemma-3-27b-it",
-        "anthropic/claude-haiku-4.5",
-        "deepseek/deepseek-chat-v3-0324",
-        "google/gemini-2.5-flash-preview-09-2025",
-        "meta-llama/llama-4-maverick",
-        "anthropic/claude-sonnet-4",
-        "moonshotai/kimi-k2-0905",
-        "openai/gpt-4.1",
-    ]
-)
-
-MODEL_CATALOG = {
-    "meta-llama/llama-3.1-8b-instruct": {
-        "display": "Llama-3.1-8B",
-        **_PRICES["meta-llama/llama-3.1-8b-instruct"],
-        "cost": _req_cost(
-            _PRICES["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
-            _PRICES["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.35,
-        "tier": "cheap", "provider": "meta",
-    },
-    "mistralai/mixtral-8x7b-instruct": {
-        "display": "Mixtral-8x7B",
-        **_PRICES["mistralai/mixtral-8x7b-instruct"],
-        "cost": _req_cost(
-            _PRICES["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
-            _PRICES["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.62,
-        "tier": "cheap", "provider": "mistral",
-    },
-    "google/gemma-3-27b-it": {
-        "display": "Gemma-3-27B",
-        **_PRICES["google/gemma-3-27b-it"],
-        "cost": _req_cost(
-            _PRICES["google/gemma-3-27b-it"]["input_cost_per_m"],
-            _PRICES["google/gemma-3-27b-it"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.45,
-        "tier": "cheap", "provider": "google",
-    },
-    "anthropic/claude-haiku-4.5": {
-        "display": "Claude-Haiku-4.5",
-        **_PRICES["anthropic/claude-haiku-4.5"],
-        "cost": _req_cost(
-            _PRICES["anthropic/claude-haiku-4.5"]["input_cost_per_m"],
-            _PRICES["anthropic/claude-haiku-4.5"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.40,
-        "tier": "mid", "provider": "anthropic",
-    },
-    "deepseek/deepseek-chat-v3-0324": {
-        "display": "DeepSeek-V3",
-        **_PRICES["deepseek/deepseek-chat-v3-0324"],
-        "cost": _req_cost(
-            _PRICES["deepseek/deepseek-chat-v3-0324"]["input_cost_per_m"],
-            _PRICES["deepseek/deepseek-chat-v3-0324"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 1.10,
-        "tier": "mid", "provider": "deepseek",
-    },
-    "google/gemini-2.5-flash-preview-09-2025": {
-        "display": "Gemini-2.5-Flash",
-        **_PRICES["google/gemini-2.5-flash-preview-09-2025"],
-        "cost": _req_cost(
-            _PRICES["google/gemini-2.5-flash-preview-09-2025"]["input_cost_per_m"],
-            _PRICES["google/gemini-2.5-flash-preview-09-2025"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.30,
-        "tier": "mid", "provider": "google",
-    },
-    "meta-llama/llama-4-maverick": {
-        "display": "Llama-4-Maverick",
-        **_PRICES["meta-llama/llama-4-maverick"],
-        "cost": _req_cost(
-            _PRICES["meta-llama/llama-4-maverick"]["input_cost_per_m"],
-            _PRICES["meta-llama/llama-4-maverick"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.50,
-        "tier": "mid", "provider": "meta",
-    },
-    "anthropic/claude-sonnet-4": {
-        "display": "Claude-Sonnet-4",
-        **_PRICES["anthropic/claude-sonnet-4"],
-        "cost": _req_cost(
-            _PRICES["anthropic/claude-sonnet-4"]["input_cost_per_m"],
-            _PRICES["anthropic/claude-sonnet-4"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.85,
-        "tier": "expensive", "provider": "anthropic",
-    },
-    "moonshotai/kimi-k2-0905": {
-        "display": "Kimi-K2",
-        **_PRICES["moonshotai/kimi-k2-0905"],
-        "cost": _req_cost(
-            _PRICES["moonshotai/kimi-k2-0905"]["input_cost_per_m"],
-            _PRICES["moonshotai/kimi-k2-0905"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.70,
-        "tier": "mid", "provider": "moonshot",
-    },
-    "openai/gpt-4.1": {
-        "display": "GPT-4.1",
-        **_PRICES["openai/gpt-4.1"],
-        "cost": _req_cost(
-            _PRICES["openai/gpt-4.1"]["input_cost_per_m"],
-            _PRICES["openai/gpt-4.1"]["output_cost_per_m"],
-        ),
-        "time_to_first_token_seconds": 0.65,
-        "tier": "expensive", "provider": "openai",
-    },
+_LATENCY_LOOKUP = {
+    "meta-llama/llama-3.1-8b-instruct": 0.35,
+    "google/gemini-2.5-flash": 0.30,
+    "openai/gpt-4.1": 0.65,
 }
 
-PORTFOLIO_K10 = list(MODEL_CATALOG.keys())
+MODEL_CATALOG: Dict[str, Dict] = {}
+for _mid in K3_MODELS:
+    _base = _K3_CAT_BASE[_mid]
+    MODEL_CATALOG[_mid] = {
+        **_base,
+        "time_to_first_token_seconds": _LATENCY_LOOKUP.get(_mid, 0.50),
+    }
 
 # Standard request size for cost estimation (matches 04_figure convention)
 INPUT_TOKENS = 100
@@ -553,7 +446,7 @@ def paired_wilcoxon(rewards_a, rewards_b):
 def main():
     t_start = time.time()
     logger.info("=" * 70)
-    logger.info("Hard Constraint Impact Experiment (K=10)")
+    logger.info("Hard Constraint Impact Experiment (K=3)")
     logger.info("=" * 70)
 
     # --- Load data ----------------------------------------------------------
@@ -571,7 +464,7 @@ def main():
         expected_pca_components=pca.n_components_,
     )
 
-    models = PORTFOLIO_K10
+    models = K3_MODELS
     costs = {m: MODEL_CATALOG[m]["cost"] for m in models}
 
     logger.info(f"\n  Portfolio ({len(models)} models):")
@@ -589,7 +482,7 @@ def main():
     eval_emb = embed_dataset_cached(eval_data, _emb_cache, encoder, pca)
     logger.info(f"  Dimension: {train_emb[0].shape[0]}")
 
-    warmup_path = str(MULTIMODEL_WARMUP_PRIORS_PATH)
+    warmup_path = str(K3_WARMUP_PRIORS_PATH)
     results = {}
 
     # --- A: Cost ceiling sweep ---------------------------------------------

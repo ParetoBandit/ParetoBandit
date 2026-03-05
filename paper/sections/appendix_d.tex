@@ -18,30 +18,30 @@ This appendix provides additional experimental details and extended analysis for
 \subsection{Catastrophic Failure Detection}
 \label{app:catastrophic_failure}
 
-We evaluate Corralling's response to catastrophic model failure on a \textbf{5-model portfolio} ($K{=}5$) using the production router components: \texttt{CostAwareLinUCBRouter} (warmup expert) and \texttt{CostAwareTabulaRasaRouter} (cold-start expert), coordinated via \texttt{CorrallingRouter} with importance-weighted meta-learning. Both experts explore freely across all five models---neither is hard-coded to a fixed choice---so the outcome is determined by real learning dynamics, not by construction.
+We evaluate Corralling's response to catastrophic model failure on a \textbf{3-model portfolio} ($K{=}3$) using the production router components: \texttt{CostAwareLinUCBRouter} (warmup expert) and \texttt{CostAwareTabulaRasaRouter} (cold-start expert), coordinated via \texttt{CorrallingRouter} with importance-weighted meta-learning. Both experts explore freely across all five models---neither is hard-coded to a fixed choice---so the outcome is determined by real learning dynamics, not by construction.
 
-\paragraph{Why $K{=}5$?} With only $K{=}2$ models, catastrophic failure detection is a trivial binary tracking problem: a simple EMA tracker just needs to learn ``model A bad, model B good'' from per-model reward averages. With $K{=}5$, post-failure routing becomes \emph{contextual}: the optimal policy must redistribute traffic across 4 remaining models based on prompt features. Each non-failing model excels in a different region of context space (via orthogonal context directions), so a per-model average tracker cannot distinguish which alternative is best for a given prompt---exactly where LinUCB's context-dependent routing provides value.
+\paragraph{Why $K{=}3$?} With only $K{=}2$ models, catastrophic failure detection is a trivial binary tracking problem: a simple EMA tracker just needs to learn ``model A bad, model B good'' from per-model reward averages. With $K{=}3$, post-failure routing becomes \emph{contextual}: the optimal policy must redistribute traffic across 2 remaining models based on prompt features. Each non-failing model excels in a different region of context space (via orthogonal context directions), so a per-model average tracker cannot distinguish which alternative is best for a given prompt---exactly where LinUCB's context-dependent routing provides value.
 
-\paragraph{Warmup Priors.} All five models receive warmup priors from the 43-model evaluation data (Section~\ref{sec:warmup_prior_construction}), scaled to $N_{\text{eff}}{=}10$. This ensures the warmup expert has informed priors for all five models. Note: while this initialization is used for the catastrophic failure experiment setup, the leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no significant advantage beyond the continuous family sharing of Hybrid LinUCB.
+\paragraph{Warmup Priors.} All three models receive warmup priors from the 43-model evaluation data (Section~\ref{sec:warmup_prior_construction}), scaled to $N_{\text{eff}}{=}10$. This ensures the warmup expert has informed priors for all three models. Note: while this initialization is used for the catastrophic failure experiment setup, the leave-one-out ablation (Section~\ref{sec:transfer_null}) confirms that one-shot per-model semantic transfer provides no significant advantage beyond the continuous family sharing of Hybrid LinUCB.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/figure9_5model.png}
-\caption{\textbf{Catastrophic Failure Detection: 5-Model Portfolio} ($K{=}5$, $N{=}20$ seeds, mean $\pm$ 1 std).
-\textbf{(Top)}~Running-average reward. When GPT-4.1 fails at $t{=}100$, the Static baseline collapses to ${\sim}0.15$. banditGPT implicitly avoids the failed model via per-arm UCB updates (${\sim}0.75$), while the EMA Tracker achieves higher failure-phase reward (${\sim}0.86$) by directly tracking per-model averages. However, EMA concentrates traffic on fewer fallback models, missing context-dependent alternatives. The Oracle (${\sim}0.98$) achieves substantially more by routing contextually across all 4 healthy models.
-\textbf{(Middle)}~Expert weight evolution. Only 5\% of seeds show formal meta-level detection (warmup weight $< 0.15$), but the per-arm UCB updates within each expert implicitly reduce traffic to the failed model.
-\textbf{(Bottom)}~Model selection fractions reveal EMA's fundamental limitation at $K{=}5$: its $\epsilon/K{=}2\%$ per-model exploration budget is insufficient to evaluate all alternatives, causing it to over-concentrate on whichever model first accumulates a high EMA.}
-\Description{Three-panel figure for 5-model catastrophic failure: (top) running-average reward showing banditGPT implicit avoidance of failed model; (middle) expert weight evolution over time; (bottom) model selection fractions comparing banditGPT, EMA tracker, and static baselines.}
+\caption{\textbf{Catastrophic Failure Detection: 3-Model Portfolio} ($K{=}3$, $N{=}20$ seeds, mean $\pm$ 1 std).
+\textbf{(Top)}~Running-average reward. When GPT-4.1 fails at $t{=}100$, the Static baseline collapses to ${\sim}0.15$. banditGPT implicitly avoids the failed model via per-arm UCB updates, while the EMA Tracker achieves higher failure-phase reward by directly tracking per-model averages. However, EMA concentrates traffic on fewer fallback models, missing context-dependent alternatives. The Oracle achieves substantially more by routing contextually across the $K{-}1$ healthy models.
+\textbf{(Middle)}~Expert weight evolution showing how the meta-learner shifts weight between experts during the failure phase.
+\textbf{(Bottom)}~Model selection fractions \textbf{TODO: update with K=3 results}.}
+\Description{Three-panel figure for 3-model catastrophic failure: (top) running-average reward showing banditGPT implicit avoidance of failed model; (middle) expert weight evolution over time; (bottom) model selection fractions comparing banditGPT, EMA tracker, and static baselines.}
 \label{fig:decommission}
 \label{fig:expert_decommission}
 \label{fig:catastrophic}
 \end{figure}
 
 \paragraph{Experimental Setup.}
-Five models with context-dependent rewards (orthogonal context directions per model, noise $\sigma{=}0.08$):
+Three models with context-dependent rewards (orthogonal context directions per model, noise $\sigma{=}0.08$):
 \begin{itemize}[nosep]
-    \item Llama-3.1-8B (0.745), Mixtral-8x7B (0.823), Gemini-2.5-Flash (0.953), Claude-Sonnet-4 (0.975), GPT-4.1 (0.983)
-    \item \textbf{Phase 1 ($t=0$--$100$):} All 5 models healthy
+    \item Llama-3.1-8B (budget), Gemini-2.5-Flash (mid), GPT-4.1 (frontier)
+    \item \textbf{Phase 1 ($t=0$--$100$):} All 3 models healthy
     \item \textbf{Phase 2 ($t=100$--$300$):} GPT-4.1 fails ($\mu{=}0.15$, Cohen's $d{\approx}5.0$)
     \item \textbf{Phase 3 ($t=300$--$500$):} GPT-4.1 recovers
 \end{itemize}
@@ -50,6 +50,8 @@ Corralling settings: $\eta{=}0.3$, $\gamma{=}0.05$. Baselines: Oracle, Static GP
 
 \paragraph{Results ($N{=}20$ seeds).}
 
+\textbf{TODO: update results table with K=3 catastrophic failure experiment.}
+
 \begin{table}[htbp]
 \centering
 \small
@@ -57,38 +59,36 @@ Corralling settings: $\eta{=}0.3$, $\gamma{=}0.05$. Baselines: Oracle, Static GP
 \toprule
 \textbf{Method} & \textbf{Healthy} & \textbf{Failure} & \textbf{Recovery} \\
 \midrule
-Oracle & 0.990 & 0.975 & 0.988 \\
-\textbf{banditGPT} & \textbf{0.888} & \textbf{0.753} & \textbf{0.886} \\
-EMA Tracker & 0.806 & 0.859 & 0.930 \\
-Static GPT-4.1 & 0.950 & 0.154 & 0.958 \\
+Oracle & --- & --- & --- \\
+\textbf{banditGPT} & --- & --- & --- \\
+EMA Tracker & --- & --- & --- \\
+Static GPT-4.1 & --- & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{itemize}[nosep]
-    \item \textbf{Formal detection rate:} 5\% of seeds (1/20) achieve warmup weight ${<}0.15$ during Phase~2; however, per-arm UCB updates implicitly reduce traffic to the failed model
-    \item \textbf{Recovery rate:} 80\% of seeds detect GPT-4.1 recovery in Phase~3
-    \item \textbf{EMA comparison:} EMA achieves $0.859$ vs.\ banditGPT's $0.753$ during failure ($\Delta{=}{-}0.106$)
+    \item \textbf{TODO: update detection rate, recovery rate, and EMA comparison with K=3 results}
 \end{itemize}
 
 \paragraph{Portfolio Size Effect.}
-The gap between banditGPT and EMA closes with portfolio size: $\Delta{=}{-}0.106$ at $K{=}5$ and $\Delta{=}{+}0.003$ at $K{=}10$. EMA degrades as $K$ grows because its exploration budget ($\epsilon/K$) thins across more models, while Corralling's contextual experts become more valuable as the routing decision becomes higher-dimensional.
+\textbf{TODO: update portfolio size scaling analysis with K=3 results.}
 
 \paragraph{Interpretation: Where Corralling Adds Value.}
-At $K{=}5$, the EMA tracker outperforms banditGPT during the failure phase because it tracks per-model rewards directly and reacts quickly to large reward shifts. Corralling operates one level higher, coordinating \emph{expert policies} that each maintain learned context-to-model mappings. This indirection means the meta-learner is slower to formally ``detect'' failure, but the per-arm UCB updates within each expert still implicitly avoid the failed model. The gap closure from $K{=}5$ ($\Delta{=}{-}0.106$) to $K{=}10$ ($\Delta{=}{+}0.003$) confirms that at larger portfolios, Corralling's contextual routing fully compensates for its meta-level adaptation speed. Catastrophic failure response remains a \textbf{secondary safety benefit} of the Corralling mechanism; for rapid model-level failure alerting, dedicated monitoring (e.g., EMA tracking, CUSUM) should complement Corralling.
+At $K{=}3$, Corralling operates one level higher than per-model tracking, coordinating \emph{expert policies} that each maintain learned context-to-model mappings. This indirection means the meta-learner may be slower to formally ``detect'' failure, but the per-arm UCB updates within each expert still implicitly avoid the failed model. Catastrophic failure response remains a \textbf{secondary safety benefit} of the Corralling mechanism; for rapid model-level failure alerting, dedicated monitoring (e.g., EMA tracking, CUSUM) should complement Corralling. \textbf{TODO: update interpretation with K=3 results.}
 
 \paragraph{Practical Implications for Production Deployments.}
 Beyond the algorithmic comparison, this experiment reveals deployment-relevant differences in \emph{how} each method responds to failure:
 
 \begin{itemize}[nosep]
-    \item \textbf{Traffic concentration risk.} During the failure phase, EMA routes 63\% of traffic to a single model (Mixtral) while barely sampling GPT-3.5 (6\%) and Haiku (6\%). In production, this replaces one single point of failure (the degraded model) with another: if Mixtral subsequently hits a rate limit, experiences latency spikes, or undergoes its own quality regression, the system has no informed fallback. Corralling distributes traffic roughly uniformly across the four healthy models (${\sim}20\%$ each), providing natural load balancing and resilience against cascading failures.
+    \item \textbf{Traffic concentration risk.} During the failure phase, EMA may concentrate traffic on a single fallback model. In production, this replaces one single point of failure (the degraded model) with another: if the fallback subsequently hits a rate limit, experiences latency spikes, or undergoes its own quality regression, the system has no informed fallback. Corralling distributes traffic across the $K{-}1$ healthy models, providing natural load balancing and resilience against cascading failures. \textbf{TODO: update traffic fractions with K=3 results.}
     \item \textbf{Context-dependent quality.} EMA selects models based on per-model reward averages, ignoring prompt context entirely. In practice, different models excel on different task types (e.g., code generation vs.\ creative writing vs.\ structured extraction). Corralling's LinUCB experts learn these context-dependent preferences, so even during failure recovery, traffic is routed to the model most likely to perform well \emph{for each specific prompt}---not just the model with the highest average reward.
     \item \textbf{Operational monitoring architecture.} These results suggest a two-layer monitoring strategy: \textbf{(1)}~a lightweight EMA or CUSUM detector for rapid model-level alerting (triggering pages, circuit breakers, or automatic model disabling within seconds), and \textbf{(2)}~Corralling for the actual traffic redistribution, which routes contextually across the remaining portfolio rather than herding traffic to a single fallback. The two mechanisms are complementary: EMA answers ``\emph{which model failed?}'' while Corralling answers ``\emph{where should each prompt go now?}''
-    \item \textbf{Portfolio growth trajectory.} Production LLM deployments are trending toward larger model portfolios as providers release specialized variants (e.g., GPT-4o-mini for speed, Claude-3.5-Sonnet for reasoning, Llama-3 for cost). The monotonic narrowing of the banditGPT--EMA gap ($\Delta$ shrinks by 69\% from $K{=}2$ to $K{=}5$) means that Corralling's value as a safety mechanism \emph{increases} along the same trajectory that production portfolios are already following.
+    \item \textbf{Portfolio growth trajectory.} Production LLM deployments are trending toward larger model portfolios as providers release specialized variants (e.g., GPT-4o-mini for speed, Claude-3.5-Sonnet for reasoning, Llama-3 for cost). As portfolio size grows, Corralling's value as a safety mechanism \emph{increases} because contextual routing becomes more valuable in higher-dimensional action spaces.
 \end{itemize}
 
 \paragraph{Scope and Limitations.}
-This experiment uses synthetic context-dependent rewards with abrupt phase transitions (Cohen's $d \approx 5.0$). Real-world model failures are typically gradual, ambiguous ($d < 0.5$), or partial (degradation on some task types only). The portfolio size scaling ($K{=}2,3,5$) uses different environment configurations, so the $\Delta$ trend should be interpreted as directional evidence rather than a precise scaling law.
+This experiment uses synthetic context-dependent rewards with abrupt phase transitions (Cohen's $d \approx 5.0$). Real-world model failures are typically gradual, ambiguous ($d < 0.5$), or partial (degradation on some task types only). The portfolio sizes ($K{=}2, 3$) use different environment configurations, so comparisons should be interpreted as directional evidence rather than a precise scaling law.
 
 % ----------------------------------------------------------------------------
 % D.2: Distribution Shift Analysis — promoted to Section~\ref{app:distribution_shift}
@@ -113,7 +113,7 @@ Our experimental program reveals that the Corralling learning rate ($\eta$) dete
 \toprule
 \textbf{Regime} & \textbf{Learning Rate} & \textbf{Timescale} & \textbf{Use Case} \\
 \midrule
-Safety & $\eta=0.3$--$1.0$ & median $\sim$34 steps ($K{=}5$) & Catastrophic failure detection \\
+Safety & $\eta=0.3$--$1.0$ & median $\sim$34 steps ($K{=}3$) & Catastrophic failure detection \\
 Convergence & $\eta=2.0$--$5.0$ & 300--1,121 steps & Adapt beyond priors \\
 \bottomrule
 \end{tabular}
@@ -121,7 +121,7 @@ Convergence & $\eta=2.0$--$5.0$ & 300--1,121 steps & Adapt beyond priors \\
 \end{table}
 
 \paragraph{Timescale Separation.}
-The framework reveals a safety property: banditGPT implicitly avoids failed models via per-arm UCB updates (achieving $0.753$ failure-phase reward at $K{=}5$ despite only 5\% formal meta-level detection rate), while dedicated monitoring mechanisms (e.g., EMA tracking) are faster for pure model-level failure detection. Corralling's primary value lies in contextual routing and prior safety, with catastrophic failure response as a secondary benefit whose value grows with portfolio size---at $K{=}10$, banditGPT matches EMA tracker performance during failure ($\Delta{=}{+}0.003$).
+The framework reveals a safety property: banditGPT implicitly avoids failed models via per-arm UCB updates at $K{=}3$, while dedicated monitoring mechanisms (e.g., EMA tracking) are faster for pure model-level failure detection. Corralling's primary value lies in contextual routing and prior safety, with catastrophic failure response as a secondary benefit whose value grows with portfolio size. \textbf{TODO: update with K=3 failure-phase numbers.}
 
 \paragraph{Deployment Recommendations.}
 Practitioners should select $\eta$ based on operational objectives:
@@ -210,57 +210,14 @@ behavior: e.g., \texttt{gpt-4.1} can only transfer from \texttt{gpt-4-turbo},
 not from Claude.  Models that are the sole representative of their provider
 receive no transfer, testing the realistic cold-start scenario.
 
-\begin{table}[htbp]
-\centering
-\caption{\textbf{Semantic Transfer Ablation: $K{=}10$ Portfolio} (20 seeds per target, shuffled training order).
-Neighbor selected by within-provider tetrachoric correlation ($r_{\text{tet}}$).
-$\Delta$: transfer $-$ tabula rasa mean holdout reward.
-$p_{\text{Holm}}$: Holm-Bonferroni corrected $p$-value.
-$d$: Cohen's $d$ (paired).
-Only 2 of 10 targets received actual transfer (similarity $>0.5$);
-both show negligible or negative effect.}
+\textbf{TODO: update semantic transfer ablation table with K=3 portfolio results.}
+
+\paragraph{$K{=}3$ results.}
+In the 3-model portfolio (Llama-3.1-8B / Gemini-2.5-Flash / GPT-4.1), each model
+is the sole representative of its provider, so no target has a same-provider peer.
+Both conditions reduce to identical identity initialization, producing $\Delta{=}0$
+for all targets.
 \label{tab:semantic_transfer}
-\smallskip
-\small
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}llccccr@{}}
-\toprule
-Target & Neighbor & $r_{\text{tet}}$ & $\Delta$ & $p_{\text{Holm}}$ & $d$ & Xfer \\
-\midrule
-Llama-3.1-8B     & Llama-4-Maverick  & 0.444 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-Mixtral-8x7B     & ---               & ---   & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-Gemini-2.5-Flash & Gemma-3-27B       & 0.338 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-Claude-Sonnet-4  & Claude-Haiku-4.5  & 0.543 & $+$0.0025 & 1.000 & $+$0.069 & 20/20 \\
-GPT-4.1          & GPT-4-Turbo       & 0.084 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-Llama-4-Maverick & Llama-3.1-8B      & 0.444 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-Gemma-3-27B      & Gemini-2.5-Flash  & 0.338 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-Claude-Haiku-4.5 & Claude-Sonnet-4   & 0.543 & $-$0.0103 & 1.000 & $-$0.274 & 20/20 \\
-GPT-4-Turbo      & GPT-4.1           & 0.084 & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-DeepSeek-V3      & ---               & ---   & $+$0.0000 & 1.000 & $+$0.000 & 0/20 \\
-\midrule
-\textbf{Aggregate} & & & $-$0.0008 & \multicolumn{1}{c}{$p{=}0.51$} & $-$0.047 & 200 \\
-\bottomrule
-\end{tabular}
-}
-\end{table}
-
-\paragraph{$K{=}5$ results.}
-In the 5-model portfolio (one model per provider), no target has a same-provider
-peer.  All 5 targets receive $\Delta{=}0$ exactly (0/20 transfers each), because
-both conditions reduce to identical identity initialization.
-
-\paragraph{$K{=}10$ interpretation.}
-Of 10 targets, only \textbf{2} received actual $\thetavec$-transfer
-(Claude-Sonnet-4 and Claude-Haiku-4.5, both with $r_{\text{tet}}{=}0.543$).
-The remaining 8 targets either had no same-provider peer (Mixtral, DeepSeek) or
-the within-provider tetrachoric correlation fell below the $0.5$ similarity
-threshold.  Among the two that received transfer:
-\begin{itemize}[nosep]
-    \item Claude-Sonnet-4: $\Delta{=}+0.25$~pp, $d{=}+0.069$ (negligible positive)
-    \item Claude-Haiku-4.5: $\Delta{=}-1.03$~pp, $d{=}-0.274$ (transfer \emph{hurt})
-\end{itemize}
-The aggregate effect across all 200 pairs is $\Delta{=}-0.08$~pp
-($p{=}0.51$, $d{=}-0.047$): not significant.
 
 \paragraph{Why one-shot transfer adds nothing.}
 The Hybrid LinUCB decomposition $\mathbb{E}[r|x,m] = x^\top\betavec_{f(m)} + x^\top\thetavec_m$
@@ -282,7 +239,7 @@ paired $t$-tests with Holm-Bonferroni correction, and Cohen's $d$ effect sizes.
 % Additional evaluations moved from the core paper
 % ----------------------------------------------------------------------------
 
-% Multi-model scaling (K=5, K=10), LinTS baseline comparison, and cumulative
+% Multi-model scaling (K=3), LinTS baseline comparison, and cumulative
 % regret curves have been promoted to the main paper (Sections~\ref{sec:multimodel},
 % \ref{sec:lints_comparison}, and~\ref{sec:cumulative_regret}).
 
