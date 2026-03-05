@@ -1,0 +1,10 @@
+{
+  "encoder": "BAAI/bge-m3",
+  "vector_dim": 1024,
+  "n_prompts": 4354,
+  "timestamp": "2026-03-05 11:28:23",
+  "data_sources": [
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/dev_rewards_complete_all_models.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/holdout_rewards_complete_all_models.jsonl.gz"
+  ]
+}

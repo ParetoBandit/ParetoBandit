@@ -38,18 +38,17 @@ import gzip
 import joblib
 import numpy as np
 import matplotlib.pyplot as plt
-from sentence_transformers import SentenceTransformer
 from scipy.stats import spearmanr
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
 from bandit_gpt.config import (
-    DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
     HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 
 sys.path.insert(0, str(project_root / "experiments"))
+from utils.embeddings import load_raw_embedding_cache, get_raw_embeddings_for_prompts
 from utils.rewards import extract_reward
 
 
@@ -251,13 +250,10 @@ def main():
     N = len(prompts)
     print(f"  {N} prompts with complete K={K} coverage")
 
-    # ── Embed prompts ────────────────────────────────────────────────────
-    print("Embedding prompts ...")
-    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    embeddings = encoder.encode(
-        prompts, normalize_embeddings=True, show_progress_bar=True,
-        batch_size=64, convert_to_numpy=True,
-    )
+    # ── Load embeddings from cache ───────────────────────────────────────
+    print("Loading embeddings from cache ...")
+    raw_cache = load_raw_embedding_cache()
+    embeddings = get_raw_embeddings_for_prompts(prompts, raw_cache)
 
     # ── Load Router PCA ──────────────────────────────────────────────────
     if not DEFAULT_PCA_PATH.exists():

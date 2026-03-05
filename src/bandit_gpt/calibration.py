@@ -104,6 +104,7 @@ def generate_warmup_priors(
     whiten_pca: bool = True,
     output_path: Path | str | None = None,
     batch_size: int = 64,
+    precomputed_raw_embeddings: dict[str, np.ndarray] | None = None,
 ) -> dict:
     """Generate warmup priors (A, b matrices) for LinUCB.
 
@@ -117,6 +118,8 @@ def generate_warmup_priors(
                 {"prompt": str, "rewards": {"model_id": float, ...}}
 
         encoder_model: HuggingFace SentenceTransformer model name or path.
+            Only loaded if *precomputed_raw_embeddings* is ``None`` or has
+            cache misses.
         pca: A fitted PCA object **or** a path to a joblib-serialised one.
             Must have been trained with the same *encoder_model*.
         plasticity: Scaling factor applied to A and b after accumulation.
@@ -128,6 +131,10 @@ def generate_warmup_priors(
             LinUCB prior (A₀=λI) in approximately unit-variance coordinates.
         output_path: If provided, the priors dict is persisted via ``joblib``.
         batch_size: Batch size for the encoder's ``.encode()`` call.
+        precomputed_raw_embeddings: Optional dict mapping ``sha256(prompt)``
+            to raw SentenceTransformer vectors (pre-PCA).  When provided,
+            the encoder is only loaded as a fallback for cache misses.
+            Generate with ``scripts/precompute_embeddings.py``.
 
     Returns:
         A dict with keys ``A``, ``b``, ``models``, ``n_prompts``,
@@ -137,6 +144,8 @@ def generate_warmup_priors(
     Raises:
         ValueError: If *rewards_data* is empty or malformed.
     """
+    import hashlib
+
     if not rewards_data:
         raise ValueError("rewards_data must be a non-empty list")
 
@@ -144,9 +153,31 @@ def generate_warmup_priors(
     if isinstance(pca, (str, Path)):
         pca = joblib.load(Path(pca))
 
-    from sentence_transformers import SentenceTransformer
+    encoder = None  # lazy-loaded on first cache miss
 
-    encoder = SentenceTransformer(encoder_model)
+    def _get_raw_embedding(prompt: str) -> np.ndarray:
+        """Look up raw embedding from cache, falling back to live encoding."""
+        nonlocal encoder
+        if precomputed_raw_embeddings is not None:
+            key = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            cached = precomputed_raw_embeddings.get(key)
+            if cached is not None:
+                return cached
+
+        if encoder is None:
+            from sentence_transformers import SentenceTransformer
+            encoder = SentenceTransformer(encoder_model)
+            if precomputed_raw_embeddings is not None:
+                logger.warning(
+                    "Cache miss in precomputed_raw_embeddings — "
+                    "falling back to live SentenceTransformer encoding."
+                )
+        return encoder.encode(
+            prompt,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
 
     # Discover model set ---------------------------------------------------
     all_models: set[str] = set()
@@ -183,18 +214,13 @@ def generate_warmup_priors(
         rewards = entry["rewards"]
 
         try:
-            embedding = encoder.encode(
-                prompt,
-                convert_to_numpy=True,
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
+            raw_emb = _get_raw_embedding(prompt)
 
-            if np.isnan(embedding).any() or np.isinf(embedding).any():
+            if np.isnan(raw_emb).any() or np.isinf(raw_emb).any():
                 skipped += 1
                 continue
 
-            embedding = pca.transform(embedding.reshape(1, -1)).flatten()
+            embedding = pca.transform(raw_emb.reshape(1, -1)).flatten()
             if whitening_scale is not None:
                 embedding = embedding * whitening_scale
 

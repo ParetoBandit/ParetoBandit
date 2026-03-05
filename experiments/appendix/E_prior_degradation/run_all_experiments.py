@@ -43,18 +43,17 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "src"))
 
 from bandit_gpt.router import CostAwareLinUCBRouter, CostAwareTabulaRasaRouter, infer_model_family
-from bandit_gpt.calibration import embed_prompt, apply_gamma_scaling
-from sentence_transformers import SentenceTransformer
+from bandit_gpt.calibration import apply_gamma_scaling
 import joblib
 import tempfile
 from bandit_gpt.config import (
-    DEFAULT_SENTENCE_TRANSFORMER,
     K2_WARMUP_PRIORS_PATH,
     DEFAULT_PCA_PATH,
-    HOLDOUT_DATA_PATH_ALL_MODELS
+    HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 
 sys.path.insert(0, str(project_root / "experiments"))
+from utils.embeddings import load_embedding_cache
 from utils.router_factory import create_experiment_router
 from utils.rewards import extract_reward
 from utils.model_pricing import get_prices_for_models
@@ -198,10 +197,12 @@ def _make_fig3_router(
 
 
 def load_resources():
-    """Load shared resources once."""
+    """Load shared resources once.
+
+    Returns:
+        Tuple of (warmup_priors_scaled, warmup_priors_unscaled, models, context_dim).
+    """
     logger.info("📦 Loading shared resources...")
-    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
-    pca = joblib.load(DEFAULT_PCA_PATH)
     warmup_priors = joblib.load(K2_WARMUP_PRIORS_PATH)
     warmup_priors_scaled = apply_gamma_scaling(warmup_priors, gamma=PRIOR_SCALING)
 
@@ -211,7 +212,7 @@ def load_resources():
     logger.info(f"   ✅ Models: {len(models)}")
     logger.info(f"   ✅ Context Dim: {context_dim}")
 
-    return encoder, pca, warmup_priors_scaled, warmup_priors, models, context_dim
+    return warmup_priors_scaled, warmup_priors, models, context_dim
 
 
 def load_holdout_data():
@@ -258,21 +259,41 @@ def load_holdout_data():
     return data_list
 
 
-def precompute_embeddings(data, encoder, pca):
-    """
-    Pre-compute embeddings for all prompts.
+def precompute_embeddings(
+    data: List[Dict],
+    pca_cache: Dict[str, np.ndarray],
+) -> Dict[str, np.ndarray]:
+    """Build a ``{prompt_string: context_vector}`` lookup from the PCA cache.
 
     Each prompt only needs to be embedded once, regardless of how many
-    seeds/strategies/experiments use it.  This is ~100x faster than
-    re-embedding inside every trial loop.
+    seeds/strategies/experiments use it.  Uses the pre-computed PCA-projected
+    cache instead of re-running the SentenceTransformer encoder.
+
+    Args:
+        data: List of dicts, each with a ``"prompt"`` key.
+        pca_cache: Pre-loaded cache from ``load_embedding_cache()``, mapping
+            ``sha256(prompt) -> context_vector``.
+
+    Returns:
+        Dict mapping ``prompt_string -> context_vector``.
     """
-    logger.info("📐 Pre-computing embeddings for all prompts...")
-    embeddings = {}
-    for sample in tqdm(data, desc="Embedding", leave=False):
+    import hashlib
+
+    logger.info("📐 Loading pre-computed embeddings from cache...")
+    embeddings: Dict[str, np.ndarray] = {}
+    n_miss = 0
+    for sample in data:
         prompt = sample['prompt']
         if prompt not in embeddings:
-            embeddings[prompt] = embed_prompt(prompt, encoder, pca)
-    logger.info(f"   ✅ {len(embeddings)} unique embeddings cached")
+            key = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            vec = pca_cache.get(key)
+            if vec is not None:
+                embeddings[prompt] = vec
+            else:
+                n_miss += 1
+    if n_miss > 0:
+        logger.warning(f"   ⚠️  {n_miss} prompts missing from embedding cache")
+    logger.info(f"   ✅ {len(embeddings)} unique embeddings loaded")
     return embeddings
 
 
@@ -1225,7 +1246,7 @@ def main():
 
     # Load shared resources once
     start_time = time.time()
-    encoder, pca, warmup_priors_scaled, warmup_priors_unscaled, models, context_dim = load_resources()
+    warmup_priors_scaled, warmup_priors_unscaled, models, context_dim = load_resources()
     data = load_holdout_data()
 
     # Compute theoretically optimal learning rate: η* = sqrt(ln(K)/T)
@@ -1233,8 +1254,9 @@ def main():
     LEARNING_RATE = compute_learning_rate(N_EXPERTS, len(data))
     logger.info(f"📐 Learning rate: η* = sqrt(ln({N_EXPERTS})/{len(data)}) = {LEARNING_RATE:.4f}")
 
-    # Pre-compute all embeddings (massive speedup: 750 embeds instead of 100k+)
-    emb = precompute_embeddings(data, encoder, pca)
+    # Load pre-computed PCA-projected embeddings from cache
+    pca_cache = load_embedding_cache()
+    emb = precompute_embeddings(data, pca_cache)
 
     # Run experiments
     all_stats = {}

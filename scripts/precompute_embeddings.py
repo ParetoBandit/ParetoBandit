@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
 """
-Pre-compute and cache PCA-projected embeddings for all experiment prompts.
+Pre-compute and cache embeddings for all experiment prompts.
+
+Produces two cache layers in a single encoder pass:
+
+1. **Raw embeddings** — the full-dimensional SentenceTransformer output
+   (e.g. 1024-dim for ``BAAI/bge-m3``).  These are PCA-agnostic and can
+   be projected through any PCA truncation downstream.
+
+2. **PCA-projected embeddings** — whitened, bias-appended context vectors
+   ready for LinUCB (e.g. 16-dim for PCA-15).
 
 Loads every unique prompt from the dev and holdout reward files, encodes
-them with the default SentenceTransformer + PCA pipeline, and writes the
-results to a NumPy ``.npz`` archive keyed by SHA-256 hash of the prompt
-text.  A sidecar JSON stores provenance metadata so downstream consumers
-can verify the cache matches their encoder/PCA.
+them with the default SentenceTransformer, and writes both ``.npz``
+archives keyed by SHA-256 hash of the prompt text.  Sidecar ``.meta.json``
+files store provenance metadata so downstream consumers can verify the
+cache matches their encoder/PCA.
 
-The cache is prompt-centric and model-agnostic — a single file covers
+The caches are prompt-centric and model-agnostic — a single file covers
 K=2, K=10, and any other portfolio that draws from the same prompt pool.
 
 Usage
@@ -21,6 +30,10 @@ Usage
 
 Outputs
 -------
+``data_collection/embeddings/raw_embeddings.npz``
+    Compressed archive mapping ``sha256(prompt) -> raw_embedding``.
+``data_collection/embeddings/raw_embeddings.meta.json``
+    Provenance: encoder name, raw embedding dim, n_prompts, timestamp.
 ``data_collection/embeddings/embeddings_pca15.npz``
     Compressed archive mapping ``sha256(prompt) -> context_vector``.
 ``data_collection/embeddings/embeddings_pca15.meta.json``
@@ -35,7 +48,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import joblib
 import numpy as np
@@ -52,6 +65,7 @@ from bandit_gpt.config import (
     DEV_DATA_PATH_ALL_MODELS,
     EMBEDDINGS_CACHE_PATH,
     HOLDOUT_DATA_PATH_ALL_MODELS,
+    RAW_EMBEDDINGS_CACHE_PATH,
 )
 
 
@@ -83,17 +97,23 @@ def _embed_batch(
     pca_model,
     *,
     batch_size: int = 256,
-) -> Dict[str, np.ndarray]:
-    """Encode prompts in batches and apply PCA + whitening + bias.
+) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    """Encode prompts in batches, returning both raw and PCA-projected caches.
 
-    Returns a dict mapping ``sha256(prompt) -> context_vector``.
+    Returns:
+        A ``(raw_cache, pca_cache)`` tuple where each dict maps
+        ``sha256(prompt)`` to the corresponding embedding vector.
+        ``raw_cache`` contains the full-dimensional SentenceTransformer
+        output; ``pca_cache`` contains whitened PCA projections with an
+        appended bias term.
     """
     ev = getattr(pca_model, "explained_variance_", None)
     do_whiten = not bool(getattr(pca_model, "whiten", False)) and ev is not None
     if do_whiten:
         scale = 1.0 / np.sqrt(np.maximum(np.asarray(ev, dtype=np.float64), 1e-12))
 
-    cache: Dict[str, np.ndarray] = {}
+    raw_cache: Dict[str, np.ndarray] = {}
+    pca_cache: Dict[str, np.ndarray] = {}
     n = len(prompts)
     for start in range(0, n, batch_size):
         end = min(start + batch_size, n)
@@ -103,11 +123,12 @@ def _embed_batch(
         if do_whiten:
             projected = projected * scale
         for i, prompt in enumerate(batch):
-            vec = np.append(projected[i], 1.0)
-            cache[_hash_prompt(prompt)] = vec
+            key = _hash_prompt(prompt)
+            raw_cache[key] = raw[i]
+            pca_cache[key] = np.append(projected[i], 1.0)
         print(f"  Embedded {end}/{n} prompts", end="\r", flush=True)
     print(flush=True)
-    return cache
+    return raw_cache, pca_cache
 
 
 def _parse_args() -> argparse.Namespace:
@@ -130,7 +151,13 @@ def _parse_args() -> argparse.Namespace:
         "--output",
         type=str,
         default=str(EMBEDDINGS_CACHE_PATH),
-        help="Output .npz path (default: EMBEDDINGS_CACHE_PATH from config).",
+        help="Output .npz path for PCA-projected cache (default: EMBEDDINGS_CACHE_PATH).",
+    )
+    p.add_argument(
+        "--raw-output",
+        type=str,
+        default=str(RAW_EMBEDDINGS_CACHE_PATH),
+        help="Output .npz path for raw embedding cache (default: RAW_EMBEDDINGS_CACHE_PATH).",
     )
     p.add_argument(
         "--batch-size",
@@ -141,14 +168,30 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _write_cache(
+    cache: Dict[str, np.ndarray],
+    out_path: Path,
+    meta: dict,
+) -> None:
+    """Write an ``.npz`` cache and its sidecar ``.meta.json``."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(out_path, **cache)
+    print(f"  Wrote: {out_path} ({out_path.stat().st_size / 1024:.0f} KB)")
+    meta_path = out_path.with_suffix("").with_suffix(".meta.json")
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"  Wrote: {meta_path}")
+
+
 def main() -> None:
     args = _parse_args()
     pca_path = Path(args.pca)
-    out_path = Path(args.output)
+    pca_out_path = Path(args.output)
+    raw_out_path = Path(args.raw_output)
 
-    print(f"Encoder:  {args.encoder}")
-    print(f"PCA:      {pca_path}")
-    print(f"Output:   {out_path}")
+    print(f"Encoder:     {args.encoder}")
+    print(f"PCA:         {pca_path}")
+    print(f"PCA output:  {pca_out_path}")
+    print(f"Raw output:  {raw_out_path}")
 
     data_paths = [DEV_DATA_PATH_ALL_MODELS, HOLDOUT_DATA_PATH_ALL_MODELS]
     print(f"\nCollecting unique prompts from {len(data_paths)} files ...")
@@ -165,29 +208,38 @@ def main() -> None:
 
     print(f"\nEmbedding {len(prompts)} prompts (batch_size={args.batch_size}) ...")
     t0 = time.perf_counter()
-    cache = _embed_batch(prompts, encoder, pca, batch_size=args.batch_size)
+    raw_cache, pca_cache = _embed_batch(
+        prompts, encoder, pca, batch_size=args.batch_size,
+    )
     elapsed = time.perf_counter() - t0
     print(f"  Done in {elapsed:.1f}s ({len(prompts) / elapsed:.0f} prompts/sec)")
 
-    sample_vec = next(iter(cache.values()))
-    print(f"  Vector dim: {sample_vec.shape[0]}")
+    sample_raw = next(iter(raw_cache.values()))
+    sample_pca = next(iter(pca_cache.values()))
+    print(f"  Raw dim: {sample_raw.shape[0]}, PCA dim: {sample_pca.shape[0]}")
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out_path, **cache)
-    print(f"\nWrote: {out_path} ({out_path.stat().st_size / 1024:.0f} KB)")
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    source_strs = [str(p) for p in data_paths]
 
-    meta = {
+    print("\nWriting raw embedding cache ...")
+    _write_cache(raw_cache, raw_out_path, {
+        "encoder": args.encoder,
+        "vector_dim": int(sample_raw.shape[0]),
+        "n_prompts": len(raw_cache),
+        "timestamp": ts,
+        "data_sources": source_strs,
+    })
+
+    print("Writing PCA-projected embedding cache ...")
+    _write_cache(pca_cache, pca_out_path, {
         "encoder": args.encoder,
         "pca_path": str(pca_path),
         "n_components": int(n_comp) if isinstance(n_comp, (int, np.integer)) else str(n_comp),
-        "vector_dim": int(sample_vec.shape[0]),
-        "n_prompts": len(cache),
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "data_sources": [str(p) for p in data_paths],
-    }
-    meta_path = out_path.with_suffix("").with_suffix(".meta.json")
-    meta_path.write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"Wrote: {meta_path}")
+        "vector_dim": int(sample_pca.shape[0]),
+        "n_prompts": len(pca_cache),
+        "timestamp": ts,
+        "data_sources": source_strs,
+    })
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ Output:
 """
 
 import sys
+import hashlib
 import json
 import gzip
 import argparse
@@ -31,10 +32,11 @@ import numpy as np
 import joblib
 from pathlib import Path
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.rewards import extract_reward
 from bandit_gpt.config import (
@@ -43,8 +45,10 @@ from bandit_gpt.config import (
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
     ARTIFACTS_DIR,
+    RAW_EMBEDDINGS_CACHE_PATH,
 )
 from bandit_gpt.utils.experiment import ExperimentBurnIn
+from utils.embeddings import load_raw_embedding_cache
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -110,18 +114,29 @@ def build_multimodel_priors(
     prior_prompts: List[str],
     rewards: Dict[str, Dict[str, float]],
     pca,
-    encoder,
+    encoder_model: str,
     plasticity: float = 0.1,
+    raw_cache: Optional[Dict[str, np.ndarray]] = None,
 ) -> Dict:
-    """
-    Build LinUCB warmup priors for every model observed in the prior-training set.
+    """Build LinUCB warmup priors for every model observed in the prior-training set.
 
     For each (prompt, model) pair in the prior-training data, we:
-      1. Encode the prompt (SentenceTransformer -> PCA -> bias append)
-      2. Perform a rank-1 LinUCB update: A[m] += x x^T, b[m] += r * x
+      1. Look up the raw embedding from *raw_cache* (or encode live on miss)
+      2. Project through PCA and append a bias term
+      3. Perform a rank-1 LinUCB update: A[m] += x x^T, b[m] += r * x
 
-    A plasticity factor scales the final matrices so that online observations
-    can overwrite the prior within a practical number of steps.
+    Args:
+        prior_prompts: Prompts in the prior-training split.
+        rewards: ``{prompt: {model_id: reward}}`` lookup.
+        pca: Fitted PCA model.
+        encoder_model: SentenceTransformer model name (lazy-loaded on
+            cache miss only).
+        plasticity: Scaling factor for the accumulated matrices.
+        raw_cache: Optional dict mapping ``sha256(prompt) -> raw_embedding``.
+            When provided, avoids loading the SentenceTransformer encoder.
+
+    Returns:
+        Dict with keys ``A``, ``b``, ``models``, etc.
     """
     context_dim = pca.n_components_ + 1  # PCA dims + bias
 
@@ -137,11 +152,24 @@ def build_multimodel_priors(
 
     skipped = 0
     processed = 0
+    encoder = None  # lazy-loaded on first cache miss
 
     for i, prompt in enumerate(prior_prompts):
         try:
-            emb = encoder.encode(prompt, convert_to_numpy=True,
-                                 show_progress_bar=False)
+            # Look up raw embedding from cache, fall back to live encoding
+            emb = None
+            if raw_cache is not None:
+                key = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+                emb = raw_cache.get(key)
+            if emb is None:
+                if encoder is None:
+                    from sentence_transformers import SentenceTransformer
+                    encoder = SentenceTransformer(encoder_model)
+                    if raw_cache is not None:
+                        logger.warning("Cache miss — falling back to live encoding.")
+                emb = encoder.encode(prompt, convert_to_numpy=True,
+                                     show_progress_bar=False)
+
             if np.isnan(emb).any() or np.isinf(emb).any():
                 skipped += 1
                 continue
@@ -355,8 +383,8 @@ def main():
     logger.info("\n3. Verifying data integrity ...")
     verify_no_leakage(prior_train, online_learn, holdout_rewards)
 
-    # ---- Load encoder & PCA -----------------------------------------------
-    logger.info("\n4. Loading encoder and PCA ...")
+    # ---- Load PCA & raw embedding cache ------------------------------------
+    logger.info("\n4. Loading PCA and raw embedding cache ...")
     pca_path = Path(args.pca)
     if not pca_path.exists():
         logger.error(f"PCA model not found: {pca_path}")
@@ -364,9 +392,8 @@ def main():
     pca = joblib.load(pca_path)
     logger.info(f"  PCA: {pca.n_components_} components")
 
-    from sentence_transformers import SentenceTransformer
-    encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER, device=args.device)
-    logger.info(f"  Encoder: {DEFAULT_SENTENCE_TRANSFORMER} (device={args.device})")
+    raw_cache = load_raw_embedding_cache()
+    logger.info(f"  Raw cache: {len(raw_cache)} prompts")
 
     # ---- Build priors -----------------------------------------------------
     logger.info("\n5. Building warmup priors ...")
@@ -375,8 +402,9 @@ def main():
         prior_prompts=prior_train,
         rewards=dev_rewards,
         pca=pca,
-        encoder=encoder,
+        encoder_model=DEFAULT_SENTENCE_TRANSFORMER,
         plasticity=args.plasticity,
+        raw_cache=raw_cache,
     )
     state["reward_source"] = "lmsys_chatbot_arena_prior_train_pool"
 
