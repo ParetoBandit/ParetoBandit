@@ -88,7 +88,6 @@ from utils.pareto import (
 
 from run_prequential import (
     load_rewards_from_file,
-    embed_dataset,
     oracle_route,
     static_route,
     random_route,
@@ -160,9 +159,8 @@ def run_k3_experiment() -> None:
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     logger.info(f"  PCA: {pca.n_components_} components")
 
-    import run_prequential as _rp
-    from utils.embeddings import load_embedding_cache
-    _rp._EMBEDDING_CACHE = load_embedding_cache(
+    from utils.embeddings import load_embedding_cache, embed_dataset_cached
+    embedding_cache = load_embedding_cache(
         expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
         expected_pca_components=pca.n_components_,
     )
@@ -235,8 +233,8 @@ def run_k3_experiment() -> None:
 
     # --- Embeddings ----------------------------------------------------
     logger.info("  Embedding K=3 prompts ...")
-    train_emb_k3 = embed_dataset(train_data_k3, encoder, pca)
-    holdout_emb_k3 = embed_dataset(holdout_data_k3, encoder, pca)
+    train_emb_k3 = embed_dataset_cached(train_data_k3, embedding_cache, encoder, pca)
+    holdout_emb_k3 = embed_dataset_cached(holdout_data_k3, embedding_cache, encoder, pca)
 
     # --- Dev train/val split -------------------------------------------
     logger.info(f"  Splitting K=3 train into train/val "

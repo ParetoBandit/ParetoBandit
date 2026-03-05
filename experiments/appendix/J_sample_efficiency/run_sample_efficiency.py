@@ -176,18 +176,6 @@ def build_model_registry(
     }
 
 
-_EMBEDDING_CACHE: Dict[str, np.ndarray] = {}
-
-
-def embed_dataset(
-    data: List[Dict],
-    encoder: "SentenceTransformer",
-    pca: Any,
-) -> List[np.ndarray]:
-    """Embed all prompts, using the pre-computed cache when available."""
-    return embed_dataset_cached(data, _EMBEDDING_CACHE, encoder, pca)
-
-
 def _split_dev_train_val(
     data: List[Dict],
     emb: List[np.ndarray],
@@ -465,8 +453,7 @@ def main() -> None:
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     logger.info(f"  PCA: {pca.n_components_} components")
 
-    global _EMBEDDING_CACHE  # noqa: PLW0603
-    _EMBEDDING_CACHE = load_embedding_cache(
+    embedding_cache = load_embedding_cache(
         expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
         expected_pca_components=pca.n_components_,
     )
@@ -540,8 +527,8 @@ def main() -> None:
     logger.info(f"    Dev: {len(dev_k2)}  Holdout: {len(holdout_k2)}")
 
     logger.info("  Embedding K=2 prompts ...")
-    dev_emb_k2 = embed_dataset(dev_k2, encoder, pca)
-    holdout_emb_k2 = embed_dataset(holdout_k2, encoder, pca)
+    dev_emb_k2 = embed_dataset_cached(dev_k2, embedding_cache, encoder, pca)
+    holdout_emb_k2 = embed_dataset_cached(holdout_k2, embedding_cache, encoder, pca)
 
     dev_train_k2, dev_train_emb_k2, _, _ = _split_dev_train_val(dev_k2, dev_emb_k2)
     logger.info(f"    Dev-train: {len(dev_train_k2)}")
@@ -662,8 +649,8 @@ def main() -> None:
     logger.info(f"    Holdout: {len(holdout_k3)}")
 
     logger.info("  Embedding K=3 prompts ...")
-    train_emb_k3 = embed_dataset(train_k3, encoder, pca)
-    holdout_emb_k3 = embed_dataset(holdout_k3, encoder, pca)
+    train_emb_k3 = embed_dataset_cached(train_k3, embedding_cache, encoder, pca)
+    holdout_emb_k3 = embed_dataset_cached(holdout_k3, embedding_cache, encoder, pca)
 
     train_train_k3, train_train_emb_k3, _, _ = _split_dev_train_val(
         train_k3, train_emb_k3,

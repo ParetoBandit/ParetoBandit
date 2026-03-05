@@ -65,7 +65,7 @@ from bandit_gpt.config import (
 )
 from utils.router_factory import create_experiment_router
 from utils.model_pricing import load_model_catalog
-from utils.embeddings import load_embedding_cache
+from utils.embeddings import load_embedding_cache, embed_dataset_cached
 from utils.transfer import (
     build_reward_vectors,
     find_tetrachoric_neighbor,
@@ -75,7 +75,6 @@ from utils.metrics import holm_bonferroni, cohens_d_paired
 
 from run_prequential import (
     load_rewards_from_file,
-    embed_dataset,
     build_model_registry,
     _split_dev_train_val,
     _make_learning_curve_checkpoints,
@@ -386,8 +385,7 @@ def run_experiment() -> None:
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     feature_dim = pca.n_components_ + 1
 
-    import run_prequential as _rp
-    _rp._EMBEDDING_CACHE = load_embedding_cache(
+    embedding_cache = load_embedding_cache(
         expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
         expected_pca_components=pca.n_components_,
     )
@@ -445,8 +443,8 @@ def run_experiment() -> None:
     # Embeddings
     # ------------------------------------------------------------------
     logger.info("  Embedding prompts ...")
-    dev_emb = embed_dataset(dev_data, encoder, pca)
-    holdout_emb = embed_dataset(holdout_data, encoder, pca)
+    dev_emb = embed_dataset_cached(dev_data, embedding_cache, encoder, pca)
+    holdout_emb = embed_dataset_cached(holdout_data, embedding_cache, encoder, pca)
 
     # ------------------------------------------------------------------
     # Dev train/val split

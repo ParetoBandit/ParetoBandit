@@ -310,19 +310,6 @@ def build_model_registry(
 # Embedding helpers
 # ============================================================================
 
-# Module-level embedding cache, populated once in run_experiment().
-_EMBEDDING_CACHE: Dict[str, np.ndarray] = {}
-
-
-def embed_dataset(
-    data: List[Dict],
-    encoder: "SentenceTransformer",
-    pca: Any,
-) -> List[np.ndarray]:
-    """Embed all prompts, using the pre-computed cache when available."""
-    return embed_dataset_cached(data, _EMBEDDING_CACHE, encoder, pca)
-
-
 # ============================================================================
 # Baseline evaluation functions
 # ============================================================================
@@ -1227,8 +1214,7 @@ def run_experiment() -> None:  # noqa: C901
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     logger.info(f"  PCA: {pca.n_components_} components (unified for K=2 and K=3)")
 
-    global _EMBEDDING_CACHE  # noqa: PLW0603
-    _EMBEDDING_CACHE = load_embedding_cache(
+    embedding_cache = load_embedding_cache(
         expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
         expected_pca_components=pca.n_components_,
     )
@@ -1360,8 +1346,8 @@ def run_experiment() -> None:  # noqa: C901
 
     # --- Embeddings ----------------------------------------------------
     logger.info("  Embedding K=2 prompts ...")
-    dev_emb_k2 = embed_dataset(dev_data_k2, encoder, pca)
-    holdout_emb_k2 = embed_dataset(holdout_data_k2, encoder, pca)
+    dev_emb_k2 = embed_dataset_cached(dev_data_k2, embedding_cache, encoder, pca)
+    holdout_emb_k2 = embed_dataset_cached(holdout_data_k2, embedding_cache, encoder, pca)
     dim = dev_emb_k2[0].shape[0]
     logger.info(f"    Feature dim: {dim}")
 
@@ -1760,8 +1746,8 @@ def run_experiment() -> None:  # noqa: C901
 
     # --- Embeddings ----------------------------------------------------
     logger.info(f"  Embedding K=3 prompts (PCA={pca.n_components_} comp) ...")
-    train_emb_k3 = embed_dataset(train_data_k3, encoder, pca)
-    holdout_emb_k3 = embed_dataset(holdout_data_k3, encoder, pca)
+    train_emb_k3 = embed_dataset_cached(train_data_k3, embedding_cache, encoder, pca)
+    holdout_emb_k3 = embed_dataset_cached(holdout_data_k3, embedding_cache, encoder, pca)
 
     # --- Dev train/val split (K=3) ------------------------------------
     logger.info(f"  Splitting K=3 train into train/val "

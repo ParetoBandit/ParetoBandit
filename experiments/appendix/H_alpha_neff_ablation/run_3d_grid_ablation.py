@@ -229,18 +229,6 @@ def build_model_registry(
     }
 
 
-_EMBEDDING_CACHE: Dict[str, np.ndarray] = {}
-
-
-def embed_dataset(
-    data: List[Dict],
-    encoder: "SentenceTransformer",
-    pca: Any,
-) -> List[np.ndarray]:
-    """Embed all prompts, using the pre-computed cache when available."""
-    return embed_dataset_cached(data, _EMBEDDING_CACHE, encoder, pca)
-
-
 # ============================================================================
 # Core evaluation
 # ============================================================================
@@ -760,6 +748,7 @@ def run_portfolio_ablation(
     warmup_path: Optional[str],
     output_dir: Path,
     *,
+    embedding_cache: Dict[str, np.ndarray],
     k_label: int,
     lambda_values: List[float],
     json_filename: str,
@@ -802,8 +791,8 @@ def run_portfolio_ablation(
     )
 
     logger.info(f"  Embedding K={k_label} prompts ...")
-    dev_emb = embed_dataset(train_data, encoder, pca)
-    holdout_emb = embed_dataset(holdout_data, encoder, pca)
+    dev_emb = embed_dataset_cached(train_data, embedding_cache, encoder, pca)
+    holdout_emb = embed_dataset_cached(holdout_data, embedding_cache, encoder, pca)
     dim = dev_emb[0].shape[0]
     logger.info(f"    Feature dim: {dim}")
 
@@ -1072,8 +1061,7 @@ def main() -> None:
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
 
-    global _EMBEDDING_CACHE  # noqa: PLW0603
-    _EMBEDDING_CACHE = load_embedding_cache(
+    embedding_cache = load_embedding_cache(
         expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
         expected_pca_components=pca.n_components_,
     )
@@ -1107,6 +1095,7 @@ def main() -> None:
         dev_k2, holdout_k2, encoder, pca,
         str(K2_WARMUP_PRIORS_PATH),
         output_dir,
+        embedding_cache=embedding_cache,
         k_label=2,
         lambda_values=LAMBDA_SWEEP_K2,
         json_filename="alpha_neff_gamma_grid_results.json",
@@ -1138,6 +1127,7 @@ def main() -> None:
         train_k3, holdout_k3, encoder, pca,
         str(K3_WARMUP_PRIORS_PATH),
         output_dir,
+        embedding_cache=embedding_cache,
         k_label=3,
         lambda_values=LAMBDA_SWEEP_K3,
         json_filename="alpha_neff_gamma_grid_k3_results.json",
@@ -1155,6 +1145,7 @@ def main() -> None:
         dev_k2, holdout_k2, encoder, pca,
         None,
         output_dir,
+        embedding_cache=embedding_cache,
         k_label=2,
         lambda_values=LAMBDA_SWEEP_K2,
         json_filename="alpha_neff_gamma_grid_tabula_rasa_results.json",
@@ -1174,6 +1165,7 @@ def main() -> None:
         train_k3, holdout_k3, encoder, pca,
         None,
         output_dir,
+        embedding_cache=embedding_cache,
         k_label=3,
         lambda_values=LAMBDA_SWEEP_K3,
         json_filename="alpha_neff_gamma_grid_tabula_rasa_k3_results.json",
