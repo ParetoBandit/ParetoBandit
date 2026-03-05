@@ -132,17 +132,36 @@ def build_model_registry_from_json(
 # Portfolio catalog loader
 # ---------------------------------------------------------------------------
 
-_DEFAULT_INPUT_TOKENS: int = 100
-_DEFAULT_OUTPUT_TOKENS: int = 400
+# Assumed token counts per request for cost normalization across experiments.
+# Derived from the median input/output token counts in the RouteLLM offline
+# dataset (train split).  All experiment scripts must use these shared
+# constants so that per-model cost comparisons are consistent.
+DEFAULT_INPUT_TOKENS: int = 100
+DEFAULT_OUTPUT_TOKENS: int = 400
 
 
-def _req_cost(
+def req_cost(
     input_cost_per_m: float,
     output_cost_per_m: float,
-    input_tokens: int = _DEFAULT_INPUT_TOKENS,
-    output_tokens: int = _DEFAULT_OUTPUT_TOKENS,
+    input_tokens: int = DEFAULT_INPUT_TOKENS,
+    output_tokens: int = DEFAULT_OUTPUT_TOKENS,
 ) -> float:
-    """Per-request cost at assumed token counts."""
+    """Compute the expected dollar cost of a single API request.
+
+    Converts per-million-token pricing rates to a per-request cost using
+    assumed token counts.  The defaults reflect the median prompt and
+    completion lengths in the RouteLLM offline dataset and are shared
+    across all experiment scripts to ensure consistent cost comparisons.
+
+    Args:
+        input_cost_per_m: Input token price in USD per 1M tokens.
+        output_cost_per_m: Output token price in USD per 1M tokens.
+        input_tokens: Assumed input tokens per request.
+        output_tokens: Assumed output tokens per request.
+
+    Returns:
+        Expected cost per request in USD.
+    """
     return (input_tokens * input_cost_per_m + output_tokens * output_cost_per_m) / 1_000_000
 
 
@@ -150,8 +169,8 @@ def load_model_catalog(
     catalog_path: Path | str,
     *,
     tier_thresholds: Tuple[float, float] = (0.001, 0.003),
-    input_tokens: int = _DEFAULT_INPUT_TOKENS,
-    output_tokens: int = _DEFAULT_OUTPUT_TOKENS,
+    input_tokens: int = DEFAULT_INPUT_TOKENS,
+    output_tokens: int = DEFAULT_OUTPUT_TOKENS,
 ) -> Tuple[list[str], Dict[str, Dict[str, Any]]]:
     """Load a model portfolio and build an experiment catalog from a JSON file.
 
@@ -188,7 +207,7 @@ def load_model_catalog(
                         model_id=mid, registry_path=catalog_path)
         out = _as_float(entry.get("output_cost_per_m"), field="output_cost_per_m",
                         model_id=mid, registry_path=catalog_path)
-        cost = _req_cost(inp, out, input_tokens, output_tokens)
+        cost = req_cost(inp, out, input_tokens, output_tokens)
         tier = "cheap" if cost < cheap_max else ("mid" if cost < mid_max else "expensive")
         model_ids.append(mid)
         catalog[mid] = {

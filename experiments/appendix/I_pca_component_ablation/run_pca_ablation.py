@@ -73,7 +73,7 @@ from bandit_gpt.config import (
 from utils.embeddings import load_raw_embedding_cache, get_raw_embeddings_for_prompts
 from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
-from utils.model_pricing import get_prices_for_models
+from utils.model_pricing import get_prices_for_models, req_cost
 from utils.pareto import pareto_auc
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
@@ -147,10 +147,6 @@ def _load_k3_portfolio() -> Tuple[List[str], Dict[str, Dict]]:
 
 K3_MODELS, K3_CATALOG = _load_k3_portfolio()
 
-
-def _req_cost(inp: float, out: float) -> float:
-    """Per-request cost assuming 100 input + 400 output tokens."""
-    return (100 * inp + 400 * out) / 1_000_000
 
 
 def build_model_registry(
@@ -841,8 +837,8 @@ def main() -> None:
     logger.info(f"  Dev: {len(dev_k2)}  Holdout: {len(holdout_k2)}")
 
     costs_k2 = {
-        m: _req_cost(K2_CATALOG[m]["input_cost_per_m"],
-                     K2_CATALOG[m]["output_cost_per_m"])
+        m: req_cost(K2_CATALOG[m]["input_cost_per_m"],
+                    K2_CATALOG[m]["output_cost_per_m"])
         for m in K2_MODELS
     }
     cost_lo_k2, cost_hi_k2 = min(costs_k2.values()), max(costs_k2.values())
@@ -866,8 +862,8 @@ def main() -> None:
     logger.info(f"  Dev (excl. prior-train): {len(dev_k3)}  Holdout: {len(holdout_k3)}")
 
     costs_k3 = {
-        m: _req_cost(K3_CATALOG[m]["input_cost_per_m"],
-                     K3_CATALOG[m]["output_cost_per_m"])
+        m: req_cost(K3_CATALOG[m]["input_cost_per_m"],
+                    K3_CATALOG[m]["output_cost_per_m"])
         for m in K3_MODELS
     }
     cost_lo_k3, cost_hi_k3 = min(costs_k3.values()), max(costs_k3.values())

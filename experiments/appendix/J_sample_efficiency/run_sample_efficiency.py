@@ -63,7 +63,7 @@ from bandit_gpt.config import (
     K3_MODELS_PATH,
 )
 from utils.rewards import extract_reward
-from utils.model_pricing import get_prices_for_models, load_model_catalog
+from utils.model_pricing import get_prices_for_models, load_model_catalog, req_cost
 from utils.router_factory import create_experiment_router
 from utils.embeddings import load_embedding_cache, embed_dataset_cached
 
@@ -93,16 +93,11 @@ K2_MODELS: List[str] = [
 _PRICES_K2 = get_prices_for_models(K2_MODELS)
 
 
-def _req_cost(inp: float, out: float) -> float:
-    """Per-request cost assuming 100 input + 400 output tokens."""
-    return (100 * inp + 400 * out) / 1_000_000
-
-
 K2_CATALOG: Dict[str, Dict] = {
     m: {
         "display": m.split("/")[-1],
         **_PRICES_K2[m],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES_K2[m]["input_cost_per_m"],
             _PRICES_K2[m]["output_cost_per_m"],
         ),

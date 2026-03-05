@@ -100,7 +100,7 @@ from bandit_gpt.config import (
     K3_MODELS_PATH,
 )
 from utils.rewards import extract_reward
-from utils.model_pricing import get_prices_for_models, load_model_catalog
+from utils.model_pricing import get_prices_for_models, load_model_catalog, req_cost
 from utils.router_factory import create_experiment_router
 from utils.supervised_baselines import (
     run_supervised_baseline,
@@ -135,11 +135,6 @@ def _fmt(val: Optional[float], suffix: str = "") -> str:
 # Model catalogs
 # ============================================================================
 
-def _req_cost(inp: float, out: float) -> float:
-    """Per-request cost assuming 100 input + 400 output tokens."""
-    return (100 * inp + 400 * out) / 1_000_000
-
-
 K2_MODELS: List[str] = [
     "meta-llama/llama-3.1-8b-instruct",
     "openai/gpt-4.1",
@@ -151,7 +146,7 @@ K2_CATALOG: Dict[str, Dict] = {
     "meta-llama/llama-3.1-8b-instruct": {
         "display": "Llama-3.1-8B",
         **_PRICES_K2["meta-llama/llama-3.1-8b-instruct"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES_K2["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
             _PRICES_K2["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
         ),
@@ -160,7 +155,7 @@ K2_CATALOG: Dict[str, Dict] = {
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
         **_PRICES_K2["openai/gpt-4.1"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES_K2["openai/gpt-4.1"]["input_cost_per_m"],
             _PRICES_K2["openai/gpt-4.1"]["output_cost_per_m"],
         ),

@@ -30,16 +30,13 @@ from bandit_gpt.config import (
     HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 from utils.rewards import extract_reward
-from utils.model_pricing import get_prices_for_models
+from utils.model_pricing import get_prices_for_models, req_cost
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
 # MODEL CATALOG & PORTFOLIOS
 # ============================================================================
-
-def _req_cost(inp, out):
-    return (100 * inp + 400 * out) / 1_000_000
 
 _PRICES = get_prices_for_models(
     [
@@ -67,7 +64,7 @@ MODEL_CATALOG = {
     "meta-llama/llama-3.1-8b-instruct": {
         "display": "Llama-3.1-8B",
         **_PRICES["meta-llama/llama-3.1-8b-instruct"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["meta-llama/llama-3.1-8b-instruct"]["input_cost_per_m"],
             _PRICES["meta-llama/llama-3.1-8b-instruct"]["output_cost_per_m"],
         ),
@@ -76,7 +73,7 @@ MODEL_CATALOG = {
     "mistralai/mixtral-8x7b-instruct": {
         "display": "Mixtral-8x7B",
         **_PRICES["mistralai/mixtral-8x7b-instruct"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["mistralai/mixtral-8x7b-instruct"]["input_cost_per_m"],
             _PRICES["mistralai/mixtral-8x7b-instruct"]["output_cost_per_m"],
         ),
@@ -85,7 +82,7 @@ MODEL_CATALOG = {
     "google/gemma-3-12b-it": {
         "display": "Gemma-3-12B",
         **_PRICES["google/gemma-3-12b-it"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["google/gemma-3-12b-it"]["input_cost_per_m"],
             _PRICES["google/gemma-3-12b-it"]["output_cost_per_m"],
         ),
@@ -94,7 +91,7 @@ MODEL_CATALOG = {
     "google/gemma-3-27b-it": {
         "display": "Gemma-3-27B",
         **_PRICES["google/gemma-3-27b-it"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["google/gemma-3-27b-it"]["input_cost_per_m"],
             _PRICES["google/gemma-3-27b-it"]["output_cost_per_m"],
         ),
@@ -104,7 +101,7 @@ MODEL_CATALOG = {
     "anthropic/claude-haiku-4.5": {
         "display": "Claude-Haiku-4.5",
         **_PRICES["anthropic/claude-haiku-4.5"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["anthropic/claude-haiku-4.5"]["input_cost_per_m"],
             _PRICES["anthropic/claude-haiku-4.5"]["output_cost_per_m"],
         ),
@@ -113,7 +110,7 @@ MODEL_CATALOG = {
     "deepseek/deepseek-chat-v3-0324": {
         "display": "DeepSeek-V3",
         **_PRICES["deepseek/deepseek-chat-v3-0324"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["deepseek/deepseek-chat-v3-0324"]["input_cost_per_m"],
             _PRICES["deepseek/deepseek-chat-v3-0324"]["output_cost_per_m"],
         ),
@@ -122,7 +119,7 @@ MODEL_CATALOG = {
     "google/gemini-2.5-flash-preview-09-2025": {
         "display": "Gemini-2.5-Flash",
         **_PRICES["google/gemini-2.5-flash-preview-09-2025"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["google/gemini-2.5-flash-preview-09-2025"]["input_cost_per_m"],
             _PRICES["google/gemini-2.5-flash-preview-09-2025"]["output_cost_per_m"],
         ),
@@ -131,7 +128,7 @@ MODEL_CATALOG = {
     "google/gemini-2.5-pro-preview-06-05": {
         "display": "Gemini-2.5-Pro",
         **_PRICES["google/gemini-2.5-pro-preview-06-05"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["google/gemini-2.5-pro-preview-06-05"]["input_cost_per_m"],
             _PRICES["google/gemini-2.5-pro-preview-06-05"]["output_cost_per_m"],
         ),
@@ -140,7 +137,7 @@ MODEL_CATALOG = {
     "meta-llama/llama-3.1-70b-instruct": {
         "display": "Llama-3.1-70B",
         **_PRICES["meta-llama/llama-3.1-70b-instruct"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["meta-llama/llama-3.1-70b-instruct"]["input_cost_per_m"],
             _PRICES["meta-llama/llama-3.1-70b-instruct"]["output_cost_per_m"],
         ),
@@ -149,7 +146,7 @@ MODEL_CATALOG = {
     "meta-llama/llama-4-maverick": {
         "display": "Llama-4-Maverick",
         **_PRICES["meta-llama/llama-4-maverick"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["meta-llama/llama-4-maverick"]["input_cost_per_m"],
             _PRICES["meta-llama/llama-4-maverick"]["output_cost_per_m"],
         ),
@@ -158,7 +155,7 @@ MODEL_CATALOG = {
     "meta-llama/llama-4-scout": {
         "display": "Llama-4-Scout",
         **_PRICES["meta-llama/llama-4-scout"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["meta-llama/llama-4-scout"]["input_cost_per_m"],
             _PRICES["meta-llama/llama-4-scout"]["output_cost_per_m"],
         ),
@@ -168,7 +165,7 @@ MODEL_CATALOG = {
     "anthropic/claude-sonnet-4": {
         "display": "Claude-Sonnet-4",
         **_PRICES["anthropic/claude-sonnet-4"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["anthropic/claude-sonnet-4"]["input_cost_per_m"],
             _PRICES["anthropic/claude-sonnet-4"]["output_cost_per_m"],
         ),
@@ -177,7 +174,7 @@ MODEL_CATALOG = {
     "anthropic/claude-sonnet-4.5": {
         "display": "Claude-Sonnet-4.5",
         **_PRICES["anthropic/claude-sonnet-4.5"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["anthropic/claude-sonnet-4.5"]["input_cost_per_m"],
             _PRICES["anthropic/claude-sonnet-4.5"]["output_cost_per_m"],
         ),
@@ -186,7 +183,7 @@ MODEL_CATALOG = {
     "moonshotai/kimi-k2-0905": {
         "display": "Kimi-K2",
         **_PRICES["moonshotai/kimi-k2-0905"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["moonshotai/kimi-k2-0905"]["input_cost_per_m"],
             _PRICES["moonshotai/kimi-k2-0905"]["output_cost_per_m"],
         ),
@@ -195,7 +192,7 @@ MODEL_CATALOG = {
     "openai/gpt-4.1": {
         "display": "GPT-4.1",
         **_PRICES["openai/gpt-4.1"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["openai/gpt-4.1"]["input_cost_per_m"],
             _PRICES["openai/gpt-4.1"]["output_cost_per_m"],
         ),
@@ -204,7 +201,7 @@ MODEL_CATALOG = {
     "openai/gpt-5.1": {
         "display": "GPT-5.1",
         **_PRICES["openai/gpt-5.1"],
-        "cost": _req_cost(
+        "cost": req_cost(
             _PRICES["openai/gpt-5.1"]["input_cost_per_m"],
             _PRICES["openai/gpt-5.1"]["output_cost_per_m"],
         ),

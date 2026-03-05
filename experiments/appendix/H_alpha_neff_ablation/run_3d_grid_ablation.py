@@ -101,7 +101,7 @@ from bandit_gpt.config import (
 )
 from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
-from utils.model_pricing import get_prices_for_models
+from utils.model_pricing import get_prices_for_models, req_cost
 from utils.embeddings import load_embedding_cache, embed_dataset_cached
 from utils.pareto import pareto_aucpc_normalized, pareto_frontier_nondominated
 
@@ -178,10 +178,6 @@ REWARD_THEORETICAL_MAX: float = 1.0
 # Data loading (mirrors run_prequential.py)
 # ============================================================================
 
-
-def _req_cost(inp: float, out: float) -> float:
-    """Per-request cost assuming 100 input + 400 output tokens."""
-    return (100 * inp + 400 * out) / 1_000_000
 
 
 def load_rewards_from_file(
@@ -817,7 +813,7 @@ def run_portfolio_ablation(
         return float(np.mean([p["rewards"][model_id] for p in data]))
 
     costs = {
-        m: _req_cost(
+        m: req_cost(
             catalog[m]["input_cost_per_m"],
             catalog[m]["output_cost_per_m"],
         )
