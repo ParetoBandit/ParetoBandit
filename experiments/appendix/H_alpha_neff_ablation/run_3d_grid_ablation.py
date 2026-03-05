@@ -68,6 +68,8 @@ Outputs (``results/``)
     best_hparams_{k2,k3}[_tabula_rasa].json  (selected configs)
 """
 
+from __future__ import annotations
+
 import gzip
 import json
 import logging
@@ -75,12 +77,15 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 import joblib
 import numpy as np
 from scipy import stats as sp_stats
 from sentence_transformers import SentenceTransformer
+
+if TYPE_CHECKING:
+    from sklearn.decomposition import PCA
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -516,16 +521,27 @@ def plot_grid(
     out: Path,
     *,
     best_config: Dict[str, Any],
-    oracle_reward: float,
     k_label: int = 2,
     filename: str = "alpha_neff_gamma_grid_figure.png",
-    supervised_peak: Optional[float] = None,
 ) -> None:
     """Generate a two-row heatmap figure (one panel per forgetting factor).
 
     Row 1: Normalized AUCPC (selection criterion).
     Row 2: Mean reward at lambda=0 (for reference).
     The global best cell (by AUCPC) is starred in both rows.
+
+    Args:
+        results: Full grid output from :func:`run_grid`.  Each entry
+            must have ``alpha``, ``n_eff``, ``gamma``, ``pareto_auc``,
+            ``lam0_reward``, and ``n_seeds`` keys.
+        alpha_values: Exploration coefficients (x-axis tick values).
+        neff_values: Prior effective sample sizes (y-axis tick values).
+        gamma_values: Forgetting factors — one heatmap panel per value.
+        out: Output directory for the saved figure.
+        best_config: The globally selected configuration dict (same
+            schema as *results* entries); its cell is starred.
+        k_label: Portfolio size (2 or 3) shown in the title.
+        filename: Output PNG filename.
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -743,8 +759,8 @@ def run_portfolio_ablation(
     catalog: Dict[str, Dict],
     train_data: List[Dict],
     holdout_data: List[Dict],
-    encoder: "SentenceTransformer",
-    pca: Any,
+    encoder: SentenceTransformer,
+    pca: PCA,
     warmup_path: Optional[str],
     output_dir: Path,
     *,
@@ -759,11 +775,52 @@ def run_portfolio_ablation(
 ) -> Dict[str, Any]:
     """Run the full 3D grid ablation for a single portfolio.
 
-    For each (alpha, n_eff, gamma), sweeps lambda to trace the Pareto
-    frontier and selects the config with the highest normalized AUCPC.
+    For each (alpha, n_eff, gamma) triple, sweeps ``lambda_values`` to
+    trace the Pareto frontier of cost vs. quality, then selects the
+    configuration with the highest normalized AUCPC on the dev-val split.
+    The selected configuration is re-evaluated on holdout.
+
+    Args:
+        models: Ordered list of candidate model IDs in the portfolio.
+        catalog: Per-model metadata keyed by model ID.  Each entry must
+            contain ``"input_cost_per_m"`` and ``"output_cost_per_m"``.
+        train_data: Dev-split prompts (used for online learning).  Each
+            dict has ``"prompt"`` and ``"rewards"`` keys.
+        holdout_data: Holdout prompts for final evaluation (same schema).
+        encoder: SentenceTransformer used for live embedding fallback
+            on cache misses.
+        pca: Fitted PCA model for dimensionality reduction.
+        warmup_path: Path to the ``.joblib`` warmup priors file, or
+            ``None`` for tabula-rasa (no priors).
+        output_dir: Directory for JSON results, heatmap figures, and
+            lambda-sweep curve plots.
+        embedding_cache: Pre-computed ``{sha256(prompt) -> vector}``
+            cache loaded from disk.  Passed to
+            :func:`embed_dataset_cached` to avoid live encoding.
+        k_label: Portfolio size label (2 or 3) used in logging, plot
+            titles, and the JSON output filename.
+        lambda_values: Cost-penalty values to sweep when tracing the
+            Pareto frontier (e.g. ``[0.0, 0.1, 0.3, 0.5, 1.0, 2.0, 5.0]``).
+        json_filename: Filename for the JSON results file written to
+            *output_dir*.
+        figure_filename: Filename for the heatmap PNG written to
+            *output_dir*.
+        main_results_key: Key into the main ``prequential_results.json``
+            (e.g. ``"K2"`` or ``"K3"``) used to look up the supervised
+            peak baseline for annotation.
+        use_corralling: If ``True``, use the Corralling meta-learner
+            with two experts.  If ``False``, use a single LinUCB
+            (tabula rasa).
+        variant_label: Human-readable label for this variant (e.g.
+            ``"BanditGPT"`` or ``"Tabula Rasa"``), used in log messages,
+            plot titles, and output metadata.
 
     Returns:
-        Dict with best configuration and summary statistics.
+        Dict with the selected hyperparameters and their dev-val /
+        holdout normalized AUCPC and mean reward at lambda=0.  Keys:
+        ``alpha``, ``n_eff``, ``gamma``, ``dev_val_pareto_auc``,
+        ``dev_val_mean_reward``, ``holdout_pareto_auc``,
+        ``holdout_mean_reward``.
     """
     def _baseline_reward(data: List[Dict], model_id: str) -> float:
         if not data:
@@ -1004,10 +1061,8 @@ def run_portfolio_ablation(
         results, ALPHA_VALUES, NEFF_VALUES, GAMMA_VALUES,
         output_dir,
         best_config=best,
-        oracle_reward=oracle_reward,
         k_label=k_label,
         filename=figure_filename,
-        supervised_peak=supervised_peak,
     )
 
     variant_slug = (
