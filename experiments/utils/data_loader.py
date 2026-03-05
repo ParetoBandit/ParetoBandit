@@ -22,6 +22,8 @@ from bandit_gpt.config import (
     PROJECT_ROOT as CONFIG_ROOT,
     BANDIT_DATA_DIR as DATA_DIR,
     OFFLINE_DATASET_DIR,
+    TRAIN_DATA_PATH_ALL_MODELS as CANONICAL_TRAIN_REWARDS,
+    VAL_DATA_PATH_ALL_MODELS as CANONICAL_VAL_REWARDS,
     DEV_DATA_PATH_ALL_MODELS as CANONICAL_DEV_REWARDS,
     HOLDOUT_DATA_PATH_ALL_MODELS as CANONICAL_HOLDOUT_REWARDS,
     DEFAULT_MODEL_REGISTRY_PATH
@@ -79,23 +81,30 @@ def load_train_prompts(filename: str = "train_prompts.jsonl") -> List[Dict]:
     return prompts
 
 
-def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict[str, Dict[str, float]]:
+def load_oracle_rewards(filename: str) -> Dict[str, Dict[str, float]]:
     """
-    Load oracle rewards from JSONL file for offline replay evaluation.
-    
-    Returns nested dict: prompt_text → model_id → reward
-    This enables O(1) lookup: oracle_rewards[prompt][model_id]
-    
-    Automatically detects and decompresses .gz files.
-    
+    Load oracle rewards from a JSONL rewards file for offline replay evaluation.
+
+    Searches ``OFFLINE_DATASET_DIR`` first, then ``DATA_DIR``.  Automatically
+    detects and decompresses ``.gz`` files.
+
+    Use the convenience wrappers :func:`load_dev_rewards` and
+    :func:`load_holdout_rewards` for the canonical splits:
+
+    - **dev** (train + val, 2,854 prompts):
+      ``dev_rewards_complete_all_models.jsonl.gz``
+    - **holdout** (test, 1,500 prompts):
+      ``holdout_rewards_complete_all_models.jsonl.gz``
+
     Args:
-        filename: JSONL file with model responses and rewards
-    
+        filename: Basename of the JSONL (or ``.jsonl.gz``) rewards file.
+
     Returns:
-        Dict mapping prompt → {model_id → raw_score}
-    
+        Dict mapping prompt text → {model_id → raw_score}.  Only rows
+        where ``entry["ok"] is True`` are included.
+
     Example:
-        >>> oracle = load_oracle_rewards()
+        >>> oracle = load_dev_rewards()
         >>> reward = oracle["What is 2+2?"]["openai/gpt-4.1"]
         0.95
     """
@@ -140,8 +149,30 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
     return oracle_rewards
 
 
+def load_train_rewards() -> Dict[str, Dict[str, float]]:
+    """Load prior-train set rewards (1,028 prompts) from the canonical split.
+
+    Returns:
+        Dict mapping prompt -> {model_id -> raw_score}
+    """
+    return load_oracle_rewards(Path(CANONICAL_TRAIN_REWARDS).name)
+
+
+def load_val_rewards() -> Dict[str, Dict[str, float]]:
+    """Load online-learn / validation set rewards (1,543 prompts) from the canonical split.
+
+    Returns:
+        Dict mapping prompt -> {model_id -> raw_score}
+    """
+    return load_oracle_rewards(Path(CANONICAL_VAL_REWARDS).name)
+
+
 def load_dev_rewards() -> Dict[str, Dict[str, float]]:
-    """Load development set rewards from the canonical all-models split.
+    """Load combined dev rewards (train + val, 2,854 prompts).
+
+    Use this when split membership is irrelevant (e.g. embedding
+    pre-computation).  Prefer :func:`load_train_rewards` or
+    :func:`load_val_rewards` when the split matters.
 
     Returns:
         Dict mapping prompt -> {model_id -> raw_score}
@@ -150,7 +181,7 @@ def load_dev_rewards() -> Dict[str, Dict[str, float]]:
 
 
 def load_holdout_rewards() -> Dict[str, Dict[str, float]]:
-    """Load holdout (test) set rewards from the canonical all-models split.
+    """Load holdout (test) set rewards (1,500 prompts) from the canonical split.
 
     Returns:
         Dict mapping prompt -> {model_id -> raw_score}

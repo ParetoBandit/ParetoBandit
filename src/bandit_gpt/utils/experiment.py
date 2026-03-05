@@ -1,7 +1,4 @@
-import re
 import json
-import gzip
-import pickle
 import random
 import numpy as np
 from pathlib import Path
@@ -83,79 +80,6 @@ class ExperimentBurnIn:
                 signal = "Easy"
                 
         return f"{category}_{complexity}_{signal}"
-
-    @staticmethod
-    def create_canonical_splits(
-        oracle_rewards: Dict[str, Dict[str, float]],
-        splits_path: Path,
-        test_ratio: float = 0.4,
-        random_state: int = 42
-    ) -> Tuple[List[str], List[str]]:
-        """
-        Generate and save stratified canonical train/test splits.
-        
-        This ensures both pools have similar complexity and category distributions.
-        """
-        all_prompts = list(oracle_rewards.keys())
-        
-        # Calculate stratification keys
-        print(f"🧬 Calculating stratification keys for {len(all_prompts)} prompts...")
-        strata = []
-        for p in all_prompts:
-            key = ExperimentBurnIn._get_stratification_key(p, oracle_rewards[p])
-            strata.append(key)
-            
-        # Handle sparse strata (train_test_split requires >= 2 members per stratum)
-        counts = Counter(strata)
-        final_strata = []
-        for s in strata:
-            if counts[s] < 2:
-                # Merge into a fallback stratum
-                parts = s.split("_")
-                fallback = f"{parts[0]}_Mixed_Mixed"
-                final_strata.append(fallback)
-            else:
-                final_strata.append(s)
-                
-        # Re-check sparse strata after merging
-        final_counts = Counter(final_strata)
-        for i, s in enumerate(final_strata):
-            if final_counts[s] < 2:
-                final_strata[i] = "GENERAL_Mixed_Mixed"
-
-        # Generate strict stratified split
-        dev_pool, holdout_pool = train_test_split(
-            all_prompts, 
-            test_size=test_ratio, 
-            random_state=random_state,
-            stratify=final_strata
-        )
-        
-        # Verify disjointness
-        dev_set = set(dev_pool)
-        holdout_set = set(holdout_pool)
-        overlap = dev_set.intersection(holdout_set)
-        if overlap:
-            raise ValueError(
-                f"❌ CRITICAL: Data leakage detected! "
-                f"Found {len(overlap)} overlapping prompts between dev and holdout."
-            )
-        
-        # Save splits
-        splits_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(splits_path, "w") as f:
-            json.dump({
-                "dev_pool": dev_pool,
-                "holdout_pool": holdout_pool
-            }, f, indent=2)
-        
-        print(f"✓ Created stratified canonical splits:")
-        print(f"  - Dev: {len(dev_pool)} prompts")
-        print(f"  - Holdout: {len(holdout_pool)} prompts")
-        print(f"  - Strata count: {len(set(final_strata))}")
-        print(f"  - Saved to: {splits_path}")
-        
-        return dev_pool, holdout_pool
 
     @staticmethod
     def create_three_way_splits(
@@ -256,359 +180,6 @@ class ExperimentBurnIn:
 
         return prior_train, online_learn
 
-    def get_splits(
-        self, 
-        load_rewards: bool = False,
-        use_cache: bool = True
-    ) -> Tuple[List[str], List[str]] | Tuple[Tuple[List[str], Dict], Tuple[List[str], Dict]]:
-        """
-        Loads pre-configured splits from 'splits.json'.
-        
-        Args:
-            load_rewards: If True, also load split-specific rewards and return them
-                         joined with the prompts. This uses dev_rewards.jsonl.gz and
-                         holdout_rewards.jsonl.gz for automatic joining.
-            use_cache: If True, use pickle cache to avoid slow gzip decompression.
-                      Cache is invalidated if source files are modified.
-        
-        Returns:
-            If load_rewards=False (default):
-                Tuple[List[str], List[str]]: (dev_prompts, holdout_prompts)
-            
-            If load_rewards=True:
-                Tuple[
-                    Tuple[List[str], Dict[str, Dict[str, float]]],  # (dev_prompts, dev_rewards)
-                    Tuple[List[str], Dict[str, Dict[str, float]]]   # (holdout_prompts, holdout_rewards)
-                ]
-        
-        Example:
-            >>> # Without rewards (backward compatible)
-            >>> dev_prompts, holdout_prompts = burner.get_splits()
-            
-            >>> # With rewards automatically joined
-            >>> (dev_prompts, dev_rewards), (holdout_prompts, holdout_rewards) = burner.get_splits(load_rewards=True)
-        """
-        if not self.splits_path.exists():
-            raise FileNotFoundError(
-                f"❌ Critical Error: {self.splits_path} not found. "
-                "Ensure canonical conference dev/test splits are generated."
-            )
-            
-        with open(self.splits_path) as f:
-            splits_data = json.load(f)
-            
-        dev = splits_data["dev_pool"]
-        test = splits_data["holdout_pool"]
-        
-        # Verify Disjointness
-        overlap = set(dev).intersection(set(test))
-        if overlap:
-            raise ValueError(f"❌ DATA LEAKAGE DETECTED! Found {len(overlap)} overlapping prompts.")
-        
-        if not load_rewards:
-            return dev, test
-        
-        # Load split-specific rewards with caching
-        import pickle
-        from pathlib import Path
-        
-        from bandit_gpt.config import OFFLINE_DATASET_DIR
-        data_dir = OFFLINE_DATASET_DIR
-        dev_rewards_path = data_dir / "dev_rewards.jsonl.gz"
-        holdout_rewards_path = data_dir / "holdout_rewards.jsonl.gz"
-        cache_path = data_dir / "rewards_cache.pkl"
-        
-        registry_models = set(self.registry.keys())
-        
-        # Check if cache is valid
-        cache_valid = False
-        if use_cache and cache_path.exists():
-            try:
-                cache_mtime = cache_path.stat().st_mtime
-                dev_mtime = dev_rewards_path.stat().st_mtime
-                holdout_mtime = holdout_rewards_path.stat().st_mtime
-                
-                # Cache is valid if it's newer than both source files
-                if cache_mtime > dev_mtime and cache_mtime > holdout_mtime:
-                    cache_valid = True
-            except Exception:
-                cache_valid = False
-        
-        # Load from cache if valid
-        if cache_valid:
-            print("   📦 Loading rewards from cache (fast path)...")
-            try:
-                with open(cache_path, 'rb') as f:
-                    cached_data = pickle.load(f)
-                    dev_rewards = cached_data['dev_rewards']
-                    holdout_rewards = cached_data['holdout_rewards']
-                    
-                # Filter to current registry (in case registry changed)
-                dev_rewards = {
-                    p: {m: r for m, r in rewards.items() if m in registry_models}
-                    for p, rewards in dev_rewards.items()
-                }
-                holdout_rewards = {
-                    p: {m: r for m, r in rewards.items() if m in registry_models}
-                    for p, rewards in holdout_rewards.items()
-                }
-                
-                print(f"   ✓ Loaded {len(dev_rewards)} dev + {len(holdout_rewards)} holdout prompts from cache")
-                
-                self.oracle_rewards.update(dev_rewards)
-                self.oracle_rewards.update(holdout_rewards)
-                
-                return (dev, dev_rewards), (test, holdout_rewards)
-            except Exception as e:
-                print(f"   ⚠️  Cache load failed ({e}), falling back to gzip...")
-                cache_valid = False
-        
-        # Load from gzip (slow path)
-        print("   📊 Loading rewards from gzipped files (this may take 10-15 minutes)...")
-        
-        # Load dev rewards
-        dev_rewards: Dict[str, Dict[str, float]] = {}
-        if dev_rewards_path.exists():
-            print(f"      Decompressing dev_rewards.jsonl.gz...")
-            with gzip.open(dev_rewards_path, 'rt') as f:
-                lines = f.readlines()
-                for line in tqdm(lines, desc="      Processing dev rewards", leave=False):
-                    entry = json.loads(line)
-                    if entry.get("ok"):
-                        prompt = entry["prompt"]
-                        model_id = entry["model_id"]
-                        reward = extract_reward(entry)
-                        
-                        # Filter to registry models
-                        if model_id not in registry_models:
-                            continue
-                            
-                        if prompt not in dev_rewards:
-                            dev_rewards[prompt] = {}
-                        dev_rewards[prompt][model_id] = reward
-        else:
-            raise FileNotFoundError(
-                f"❌ dev_rewards.jsonl.gz not found at {dev_rewards_path}\n"
-                f"   Run: python3 scripts/create_split_rewards.py"
-            )
-        
-        # Load holdout rewards
-        holdout_rewards: Dict[str, Dict[str, float]] = {}
-        if holdout_rewards_path.exists():
-            print(f"      Decompressing holdout_rewards.jsonl.gz...")
-            with gzip.open(holdout_rewards_path, 'rt') as f:
-                lines = f.readlines()
-                for line in tqdm(lines, desc="      Processing holdout rewards", leave=False):
-                    entry = json.loads(line)
-                    if entry.get("ok"):
-                        prompt = entry["prompt"]
-                        model_id = entry["model_id"]
-                        reward = extract_reward(entry)
-                        
-                        # Filter to registry models
-                        if model_id not in registry_models:
-                            continue
-                            
-                        if prompt not in holdout_rewards:
-                            holdout_rewards[prompt] = {}
-                        holdout_rewards[prompt][model_id] = reward
-        else:
-            raise FileNotFoundError(
-                f"❌ holdout_rewards.jsonl.gz not found at {holdout_rewards_path}\n"
-                f"   Run: python3 scripts/create_split_rewards.py"
-            )
-        
-        # Save to cache for next time
-        if use_cache:
-            print(f"   💾 Saving rewards cache for future runs...")
-            try:
-                with open(cache_path, 'wb') as f:
-                    pickle.dump({
-                        'dev_rewards': dev_rewards,
-                        'holdout_rewards': holdout_rewards
-                    }, f)
-                print(f"   ✓ Cache saved to {cache_path}")
-            except Exception as e:
-                print(f"   ⚠️  Could not save cache: {e}")
-        
-        self.oracle_rewards.update(dev_rewards)
-        self.oracle_rewards.update(holdout_rewards)
-        
-        return (dev, dev_rewards), (test, holdout_rewards)
-
-    def load_complete_datasets(
-        self,
-        use_cache: bool = True
-    ) -> Tuple[Tuple[List[str], Dict[str, Dict[str, float]]], Tuple[List[str], Dict[str, Dict[str, float]]]]:
-        """
-        Directly loads the complete dev and holdout datasets (100% model coverage).
-        
-        This method bypasses splits.json and loads dev_rewards_complete.jsonl.gz and
-        holdout_rewards_complete.jsonl.gz directly. These files contain only prompts
-        with 100% model coverage across all models in the dataset.
-        
-        Args:
-            use_cache: If True, use pickle cache to avoid slow gzip decompression.
-                      Cache is invalidated if source files are modified.
-        
-        Returns:
-            Tuple[
-                Tuple[List[str], Dict[str, Dict[str, float]]],  # (dev_prompts, dev_rewards)
-                Tuple[List[str], Dict[str, Dict[str, float]]]   # (holdout_prompts, holdout_rewards)
-            ]
-        
-        Example:
-            >>> burner = ExperimentBurnIn(registry=registry, encoder=encoder)
-            >>> (dev_prompts, dev_rewards), (holdout_prompts, holdout_rewards) = burner.load_complete_datasets()
-            >>> print(f"Loaded {len(dev_prompts)} dev prompts with 100% coverage")
-        """
-        import pickle
-        from pathlib import Path
-        
-        from bandit_gpt.config import OFFLINE_DATASET_DIR
-        data_dir = OFFLINE_DATASET_DIR
-        dev_rewards_path = data_dir / "dev_rewards_complete.jsonl.gz"
-        holdout_rewards_path = data_dir / "holdout_rewards_complete.jsonl.gz"
-        cache_path = data_dir / "rewards_complete_cache.pkl"
-        
-        registry_models = set(self.registry.keys())
-        
-        # Check if cache is valid
-        cache_valid = False
-        if use_cache and cache_path.exists():
-            try:
-                cache_mtime = cache_path.stat().st_mtime
-                dev_mtime = dev_rewards_path.stat().st_mtime
-                holdout_mtime = holdout_rewards_path.stat().st_mtime
-                
-                # Cache is valid if it's newer than both source files
-                if cache_mtime > dev_mtime and cache_mtime > holdout_mtime:
-                    cache_valid = True
-            except Exception:
-                cache_valid = False
-        
-        # Load from cache if valid
-        if cache_valid:
-            print("   📦 Loading complete datasets from cache (fast path)...")
-            try:
-                with open(cache_path, 'rb') as f:
-                    cached_data = pickle.load(f)
-                    dev_prompts = cached_data['dev_prompts']
-                    dev_rewards = cached_data['dev_rewards']
-                    holdout_prompts = cached_data['holdout_prompts']
-                    holdout_rewards = cached_data['holdout_rewards']
-                    
-                # Filter to current registry (in case registry changed)
-                dev_rewards = {
-                    p: {m: r for m, r in rewards.items() if m in registry_models}
-                    for p, rewards in dev_rewards.items()
-                }
-                holdout_rewards = {
-                    p: {m: r for m, r in rewards.items() if m in registry_models}
-                    for p, rewards in holdout_rewards.items()
-                }
-                
-                # Update prompt lists to match filtered rewards
-                dev_prompts = list(dev_rewards.keys())
-                holdout_prompts = list(holdout_rewards.keys())
-                
-                print(f"   ✓ Loaded {len(dev_prompts)} dev + {len(holdout_prompts)} holdout prompts from cache")
-                
-                self.oracle_rewards.update(dev_rewards)
-                self.oracle_rewards.update(holdout_rewards)
-                
-                return (dev_prompts, dev_rewards), (holdout_prompts, holdout_rewards)
-            except Exception as e:
-                print(f"   ⚠️  Cache load failed ({e}), falling back to gzip...")
-                cache_valid = False
-        
-        # Load from gzip (slow path)
-        print("   📊 Loading complete datasets from gzipped files...")
-        
-        # Load dev rewards
-        dev_rewards: Dict[str, Dict[str, float]] = {}
-        if dev_rewards_path.exists():
-            print(f"      Decompressing dev_rewards_complete.jsonl.gz...")
-            with gzip.open(dev_rewards_path, 'rt') as f:
-                lines = f.readlines()
-                for line in tqdm(lines, desc="      Processing dev rewards", leave=False):
-                    entry = json.loads(line)
-                    if entry.get("ok"):
-                        prompt = entry["prompt"]
-                        model_id = entry["model_id"]
-                        reward = extract_reward(entry)
-                        
-                        # Filter to registry models
-                        if model_id not in registry_models:
-                            continue
-                            
-                        if prompt not in dev_rewards:
-                            dev_rewards[prompt] = {}
-                        dev_rewards[prompt][model_id] = reward
-        else:
-            raise FileNotFoundError(
-                f"❌ dev_rewards_complete.jsonl.gz not found at {dev_rewards_path}\n"
-                f"   This file should contain prompts with 100% model coverage."
-            )
-        
-        # Load holdout rewards
-        holdout_rewards: Dict[str, Dict[str, float]] = {}
-        if holdout_rewards_path.exists():
-            print(f"      Decompressing holdout_rewards_complete.jsonl.gz...")
-            with gzip.open(holdout_rewards_path, 'rt') as f:
-                lines = f.readlines()
-                for line in tqdm(lines, desc="      Processing holdout rewards", leave=False):
-                    entry = json.loads(line)
-                    if entry.get("ok"):
-                        prompt = entry["prompt"]
-                        model_id = entry["model_id"]
-                        reward = extract_reward(entry)
-                        
-                        # Filter to registry models
-                        if model_id not in registry_models:
-                            continue
-                            
-                        if prompt not in holdout_rewards:
-                            holdout_rewards[prompt] = {}
-                        holdout_rewards[prompt][model_id] = reward
-        else:
-            raise FileNotFoundError(
-                f"❌ holdout_rewards_complete.jsonl.gz not found at {holdout_rewards_path}\n"
-                f"   This file should contain prompts with 100% model coverage."
-            )
-        
-        dev_prompts = list(dev_rewards.keys())
-        holdout_prompts = list(holdout_rewards.keys())
-        
-        # Verify disjointness
-        overlap = set(dev_prompts).intersection(set(holdout_prompts))
-        if overlap:
-            raise ValueError(f"❌ DATA LEAKAGE DETECTED! Found {len(overlap)} overlapping prompts.")
-        
-        print(f"   ✓ Loaded {len(dev_prompts)} dev prompts")
-        print(f"   ✓ Loaded {len(holdout_prompts)} holdout prompts")
-        print(f"   ✓ All prompts have 100% model coverage")
-        
-        # Save cache for future use
-        if use_cache:
-            try:
-                with open(cache_path, 'wb') as f:
-                    pickle.dump({
-                        'dev_prompts': dev_prompts,
-                        'dev_rewards': dev_rewards,
-                        'holdout_prompts': holdout_prompts,
-                        'holdout_rewards': holdout_rewards
-                    }, f, protocol=pickle.HIGHEST_PROTOCOL)
-                print(f"   ✓ Cache saved to {cache_path}")
-            except Exception as e:
-                print(f"   ⚠️  Could not save cache: {e}")
-        
-        self.oracle_rewards.update(dev_rewards)
-        self.oracle_rewards.update(holdout_rewards)
-        
-        return (dev_prompts, dev_rewards), (holdout_prompts, holdout_rewards)
-
-
     def generate_curriculum(self, dev_prompts: List[str]) -> List[str]:
         """
         Generates a signal-aware curriculum by oversampling contentious prompts.
@@ -685,42 +256,62 @@ class ExperimentBurnIn:
         return router
 
     def create_burned_in_router(
-        self, 
-        priors: str = "none", 
-        prior_n_effective: float = 1.0, 
-        alpha: float = 0.1
-    ) -> Tuple[object, List[str]]:
+        self,
+        priors: str = "none",
+        prior_n_effective: float = 1.0,
+        alpha: float = 0.1,
+    ) -> object:
         """
-        Full workflow: Load splits, generate curriculum, and create a hot router.
-        
+        Full workflow: load the val split, generate curriculum, and return a
+        burned-in BanditRouter.
+
+        Uses ``VAL_DATA_PATH_ALL_MODELS`` (1,543 prompts) for the online-learn
+        curriculum and ``DEFAULT_PCA_PATH`` for the feature encoder.  Holdout
+        evaluation should be performed separately using
+        ``HOLDOUT_DATA_PATH_ALL_MODELS``.
+
         Args:
-            priors: Prior initialization strategy (``"none"`` for cold start,
-                or a path to a ``.joblib`` file with custom priors).
-            prior_n_effective: Effective sample size for priors.
-            alpha: Exploration parameter for the bandit.
-            
+            priors: Prior initialization strategy — ``"none"`` for a cold
+                start, or a path to a ``.joblib`` file with pre-computed
+                warmup priors.
+            prior_n_effective: Effective sample size for the priors.
+            alpha: LinUCB exploration parameter.
+
         Returns:
-            Tuple[BanditRouter, List[str]]: (burned_in_router, test_prompts)
+            BanditRouter: The burned-in router, ready for holdout evaluation.
+
+        Raises:
+            FileNotFoundError: If ``VAL_DATA_PATH_ALL_MODELS`` does not exist.
         """
-        from src.bandit_gpt.router import BanditRouter
-        
-        dev_prompts, test_prompts = self.get_splits()
-        curriculum = self.generate_curriculum(dev_prompts)
-        
-        # Use existing PCA artifact (don't recreate)
-        from pathlib import Path as P
-        from bandit_gpt.config import DEFAULT_PCA_PATH
-        pca_path = DEFAULT_PCA_PATH
-        
+        import gzip as _gzip
+        from bandit_gpt.router import BanditRouter
+        from bandit_gpt.config import VAL_DATA_PATH_ALL_MODELS, DEFAULT_PCA_PATH
+        from bandit_gpt.rewards import extract_reward
+
+        if not VAL_DATA_PATH_ALL_MODELS.exists():
+            raise FileNotFoundError(
+                f"Val rewards not found at {VAL_DATA_PATH_ALL_MODELS}."
+            )
+
+        val_prompts: List[str] = []
+        seen: set = set()
+        with _gzip.open(VAL_DATA_PATH_ALL_MODELS, "rt") as f:
+            for line in f:
+                p = json.loads(line)["prompt"]
+                if p not in seen:
+                    seen.add(p)
+                    val_prompts.append(p)
+
+        curriculum = self.generate_curriculum(val_prompts)
+
         router = BanditRouter.create(
             self.registry,
             context_encoder=self.encoder,
             priors=priors,
             prior_n_effective=prior_n_effective,
-            pca_path=pca_path  # Use existing PCA data
+            pca_path=DEFAULT_PCA_PATH,
         )
         router.bandit.alpha = alpha
-        
+
         self.perform_burn_in(router, curriculum)
-        
-        return router, test_prompts
+        return router

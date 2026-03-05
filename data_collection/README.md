@@ -6,9 +6,11 @@ All reward data, source prompts, and the scripts that produced them.
 
 ```
 data_collection/
-├── rewards/                          # Canonical reward datasets
-│   ├── dev_rewards_complete_all_models.jsonl.gz   # Dev set (44 models, 2,854 prompts)
-│   └── holdout_rewards_complete_all_models.jsonl.gz  # Holdout set (44 models, 1,500 prompts)
+├── rewards/                          # Canonical reward datasets (44 models, one row per model×prompt)
+│   ├── train_rewards_complete_all_models.jsonl.gz    # Train set   (1,028 prompts)
+│   ├── val_rewards_complete_all_models.jsonl.gz      # Val set     (1,543 prompts)
+│   ├── holdout_rewards_complete_all_models.jsonl.gz  # Holdout set (1,500 prompts)
+│   └── dev_rewards_complete_all_models.jsonl.gz      # Train + val combined (2,854 prompts)
 ├── prompts/                          # Source prompts
 │   └── lmarena_battles_en.jsonl      # LMSYS Chat Arena battles (~48K unique prompts)
 ├── scripts/                          # Data-generating scripts

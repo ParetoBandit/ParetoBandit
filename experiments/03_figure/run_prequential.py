@@ -9,11 +9,13 @@ PerfGain, CostSave, Gap@Oracle, and learning curves.
 
 Protocol
 --------
-1. **Canonical dev/holdout splits.**
-   Data comes from pre-computed datasets (``dev_rewards_2models.jsonl.gz``,
-   ``holdout_rewards_2models.jsonl.gz`` for K=2; all-models variants for
-   K=3) with rewards derived via :func:`extract_reward` (mean of
-   vote x confidence across multi-judge panel).
+1. **Canonical train/val/holdout splits.**
+   Data comes from ``dev_rewards_complete_all_models.jsonl.gz`` (2,854
+   prompts; split into prior-train and online-learn via
+   ``splits_three_way.json``) and
+   ``holdout_rewards_complete_all_models.jsonl.gz`` (1,500 prompts).
+   Rewards are derived via :func:`extract_reward` (mean of
+   vote × confidence across multi-judge panel).
 
 2. **Train-then-freeze evaluation.**
    BanditGPT trains on the dev set with oracle rewards, then is frozen
@@ -1472,7 +1474,7 @@ def run_experiment() -> None:  # noqa: C901
         raise FileNotFoundError(
             f"K=2 warmup priors not found: {K2_WARMUP_PRIORS_PATH}\n"
             "Generate with: python scripts/extract_warmup_from_multimodel.py "
-            "--input src/artifacts/priors_warmup_43model_15comp.joblib "
+            "--input data_collection/warmup_priors/priors_warmup_k10_15comp.joblib "
             f"--output {K2_WARMUP_PRIORS_PATH} "
             "--models meta-llama/llama-3.1-8b-instruct,openai/gpt-4.1"
         )
@@ -1894,7 +1896,7 @@ def run_experiment() -> None:  # noqa: C901
         raise FileNotFoundError(
             f"K=3 warmup priors not found: {K3_WARMUP_PRIORS_PATH}\n"
             "Generate with: python scripts/extract_warmup_from_multimodel.py "
-            "--input src/artifacts/priors_warmup_43model_15comp.joblib "
+            "--input data_collection/warmup_priors/priors_warmup_k10_15comp.joblib "
             f"--output {K3_WARMUP_PRIORS_PATH} "
             "--model-config data_collection/config/models_k3.json"
         )
