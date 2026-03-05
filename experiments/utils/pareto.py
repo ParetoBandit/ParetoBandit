@@ -10,6 +10,7 @@ scripts (03_figure, 04_figure, appendix experiments).
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from scipy.integrate import trapezoid
 
 
 def pareto_hull(
@@ -40,6 +41,28 @@ def pareto_hull(
             hull_r.append(r)
             best_r = r
     return hull_c, hull_r
+
+
+def pareto_frontier_nondominated(
+    costs: List[float],
+    rewards: List[float],
+) -> Tuple[List[float], List[float]]:
+    """Return the empirical Pareto frontier (non-dominated points).
+
+    This is an explicit alias for :func:`pareto_hull`, added for clarity in
+    AUCPC-based hyperparameter tuning writeups. Points are considered
+    non-dominated if no other point has both (lower or equal cost) and
+    (higher or equal reward), with at least one strict inequality.
+
+    Args:
+        costs: Mean costs (need not be sorted).
+        rewards: Mean rewards/qualities corresponding to *costs*.
+
+    Returns:
+        ``(frontier_costs, frontier_rewards)`` sorted by ascending cost with
+        strictly increasing reward.
+    """
+    return pareto_hull(costs, rewards)
 
 
 def pareto_auc(
@@ -86,7 +109,7 @@ def pareto_auc(
     cr = np.array(clip_r)
     if len(cc) < 2:
         return float(cr.mean())
-    return float(np.trapezoid(cr, cc) / (cost_hi - cost_lo))
+    return float(trapezoid(cr, cc) / (cost_hi - cost_lo))
 
 
 def pareto_aucpc_normalized(
@@ -143,7 +166,8 @@ def pareto_aucpc_normalized(
             f"got cheap_cost={cheap_cost}, frontier_cost={frontier_cost}."
         )
 
-    hull_c, hull_r = pareto_hull(costs, rewards)
+    # Empirical Pareto frontier under noise: keep only non-dominated points.
+    hull_c, hull_r = pareto_frontier_nondominated(costs, rewards)
     if len(hull_c) < 1:
         return 0.0
 
@@ -180,7 +204,7 @@ def pareto_aucpc_normalized(
     if clip_quality_to_unit:
         y = np.clip(y, 0.0, 1.0)
 
-    return float(np.trapezoid(y, x))
+    return float(trapezoid(y, x))
 
 
 def interpolate_pareto_reward(

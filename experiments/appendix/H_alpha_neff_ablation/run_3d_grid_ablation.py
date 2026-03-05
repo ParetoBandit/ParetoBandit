@@ -103,7 +103,7 @@ from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
 from utils.model_pricing import get_prices_for_models
 from utils.embeddings import load_embedding_cache, embed_dataset_cached
-from utils.pareto import pareto_aucpc_normalized, pareto_hull
+from utils.pareto import pareto_aucpc_normalized, pareto_frontier_nondominated
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -741,7 +741,7 @@ def plot_lambda_sweep_curve(
         y = (np.array(rewards, dtype=float) - cheap_baseline_reward) / qual_range
         y = np.clip(y, 0.0, 1.0)
 
-    hull_c, hull_r = pareto_hull(costs, rewards)
+    hull_c, hull_r = pareto_frontier_nondominated(costs, rewards)
     hull_x = (np.array(hull_c, dtype=float) - cheap_cost) / cost_range
     if abs(qual_range) <= 1e-12:
         hull_y = np.full_like(hull_x, 0.5, dtype=float)

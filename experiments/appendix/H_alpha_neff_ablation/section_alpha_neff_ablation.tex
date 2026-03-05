@@ -39,7 +39,9 @@ axes} to the portfolio endpoints.  For each $(\alpha, \neff, \gamma)$
 configuration, we sweep the cost penalty~$\lambda$ over a representative
 set of values, train a separate router at each~$\lambda$, freeze it, and
 evaluate on the dev-val split.  The resulting (cost, reward) points form
-a Pareto hull; its AUC is the selection metric:
+an empirical cloud; we filter it to the \emph{non-dominated} Pareto
+frontier (removing any configuration that costs more while yielding worse
+quality than another).  The AUCPC of this frontier is the selection metric:
 \[
     \text{AUCPC}
     = \int_{0}^{1} \tilde{R}^{*}(\tilde{c})\,\mathrm{d}\tilde{c},
@@ -144,5 +146,5 @@ selection criterion.  Key hypotheses:
 \begin{itemize}[noitemsep]
     \item Script: \texttt{experiments/appendix/H\_alpha\_neff\_ablation/run\_3d\_grid\_ablation.py}
     \item Results: \texttt{results/alpha\_neff\_gamma\_grid\_results.json}
-    \item Selection criterion: \texttt{pareto\_auc} (see script docstring for rationale)
+    \item Selection criterion: \texttt{pareto\_aucpc\_normalized} (see script docstring for rationale)
 \end{itemize}
