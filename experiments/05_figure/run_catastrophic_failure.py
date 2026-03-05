@@ -63,8 +63,8 @@ from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     K3_WARMUP_PRIORS_PATH,
     K3_MODELS_PATH,
-    CANONICAL_DEV_DATA_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH,
+    DEV_DATA_PATH_ALL_MODELS,
+    HOLDOUT_DATA_PATH_ALL_MODELS,
 )
 from utils.router_factory import create_experiment_router
 from utils.model_pricing import load_model_catalog
@@ -662,9 +662,9 @@ def run_experiment() -> None:
         expected_pca_components=pca.n_components_,
     )
 
-    dev_data = load_rewards_from_file(CANONICAL_DEV_DATA_PATH, K3_MODELS)
+    dev_data = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K3_MODELS)
     holdout_data = load_rewards_from_file(
-        CANONICAL_HOLDOUT_DATA_PATH, K3_MODELS,
+        HOLDOUT_DATA_PATH_ALL_MODELS, K3_MODELS,
     )
 
     logger.info(f"    Dev: {len(dev_data)} prompts")

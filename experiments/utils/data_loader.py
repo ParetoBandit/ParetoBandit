@@ -22,8 +22,8 @@ from bandit_gpt.config import (
     PROJECT_ROOT as CONFIG_ROOT,
     BANDIT_DATA_DIR as DATA_DIR,
     OFFLINE_DATASET_DIR,
-    DEV_DATA_PATH_3MODELS as CANONICAL_DEV_REWARDS,
-    HOLDOUT_DATA_PATH_3MODELS as CANONICAL_HOLDOUT_REWARDS,
+    DEV_DATA_PATH_ALL_MODELS as CANONICAL_DEV_REWARDS,
+    HOLDOUT_DATA_PATH_ALL_MODELS as CANONICAL_HOLDOUT_REWARDS,
     DEFAULT_MODEL_REGISTRY_PATH
 )
 
@@ -141,41 +141,21 @@ def load_oracle_rewards(filename: str = "test_rewards_hle_models.jsonl") -> Dict
 
 
 def load_dev_rewards() -> Dict[str, Dict[str, float]]:
-    """
-    Load development set rewards from canonical split.
-    
-    This is a convenience function that loads dev_rewards_complete.jsonl.gz,
-    which contains rewards for all models on development prompts.
-    
-    Canonical location: src/bandit_gpt/data/offline_dataset/dev_rewards_complete.jsonl.gz
-    
+    """Load development set rewards from the canonical all-models split.
+
     Returns:
-        Dict mapping prompt → {model_id → raw_score}
-    
-    Example:
-        >>> dev_rewards = load_dev_rewards()
-        >>> # Contains 1,121 prompts × 42 models
+        Dict mapping prompt -> {model_id -> raw_score}
     """
-    return load_oracle_rewards("offline_dataset/dev_rewards_complete.jsonl.gz")
+    return load_oracle_rewards(Path(CANONICAL_DEV_REWARDS).name)
 
 
 def load_holdout_rewards() -> Dict[str, Dict[str, float]]:
-    """
-    Load holdout (test) set rewards from canonical split.
-    
-    This is a convenience function that loads holdout_rewards_complete.jsonl.gz,
-    which contains rewards for all models on holdout prompts.
-    
-    Canonical location: src/bandit_gpt/data/offline_dataset/holdout_rewards_complete.jsonl.gz
-    
+    """Load holdout (test) set rewards from the canonical all-models split.
+
     Returns:
-        Dict mapping prompt → {model_id → raw_score}
-    
-    Example:
-        >>> holdout_rewards = load_holdout_rewards()
-        >>> # Contains 750 prompts × 42 models
+        Dict mapping prompt -> {model_id -> raw_score}
     """
-    return load_oracle_rewards("offline_dataset/holdout_rewards_complete.jsonl.gz")
+    return load_oracle_rewards(Path(CANONICAL_HOLDOUT_REWARDS).name)
 
 
 def load_model_registry(path: Optional[str | Path] = None) -> Dict[str, Dict]:

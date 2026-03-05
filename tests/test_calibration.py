@@ -23,7 +23,7 @@ from bandit_gpt.feature_service import FeatureService, DEFAULT_CONTEXT_MODEL
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
-    ROUTELLM_BATTLES_REWARDS_PATH,
+    LMSYS_BATTLES_PATH,
 )
 
 
@@ -141,15 +141,15 @@ class TestDefaultPCAReproducibility:
 
         if not DEFAULT_PCA_PATH.exists():
             pytest.skip("Shipped pca_32.joblib not found")
-        if not ROUTELLM_BATTLES_REWARDS_PATH.exists():
-            pytest.skip("Battles dataset not found")
+        if not LMSYS_BATTLES_PATH.exists():
+            pytest.skip("LMSYS battles dataset not found")
 
         shipped_pca = joblib.load(DEFAULT_PCA_PATH)
 
         # Load first 1000 prompts from battles for speed
         import json
         prompts = []
-        with open(ROUTELLM_BATTLES_REWARDS_PATH) as f:
+        with open(LMSYS_BATTLES_PATH) as f:
             for line in f:
                 if len(prompts) >= 1000:
                     break

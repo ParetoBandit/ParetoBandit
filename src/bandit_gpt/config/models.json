@@ -1111,6 +1111,14 @@
       "model_id": "google/gemini-2.5-flash"
     },
     {
+      "input_cost_per_m": 0.3,
+      "output_cost_per_m": 2.5,
+      "hle": 0.127,
+      "context_length": 1000000,
+      "description": "Preview snapshot of Gemini 2.5 Flash (Sept 2025).",
+      "model_id": "google/gemini-2.5-flash-preview-09-2025"
+    },
+    {
       "name": "Qwen3 14B (Reasoning)",
       "price_1m_input": 0.35,
       "price_1m_output": 4.2,

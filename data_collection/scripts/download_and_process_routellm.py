@@ -45,7 +45,7 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.config import ROUTELLM_BATTLES_REWARDS_PATH
+from bandit_gpt.config import OFFLINE_DATASET_DIR
 
 # Load HuggingFace token
 load_dotenv()
@@ -369,8 +369,8 @@ Examples:
     
     parser.add_argument(
         "--output", type=str,
-        default=str(ROUTELLM_BATTLES_REWARDS_PATH),
-        help="Output JSONL file path (default: canonical battles rewards path)"
+        default=str(OFFLINE_DATASET_DIR / "routellm_battles_rewards.jsonl"),
+        help="Output JSONL file path"
     )
     parser.add_argument(
         "--max-battles", type=int, default=80000,

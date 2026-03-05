@@ -51,7 +51,7 @@ from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     K2_WARMUP_PRIORS_PATH,
     DEFAULT_PCA_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH
+    HOLDOUT_DATA_PATH_ALL_MODELS
 )
 
 sys.path.insert(0, str(project_root / "experiments"))
@@ -221,7 +221,7 @@ def load_holdout_data():
     logger.info("📊 Loading holdout data...")
 
     entries = []
-    with gzip.open(CANONICAL_HOLDOUT_DATA_PATH, 'rt') as f:
+    with gzip.open(HOLDOUT_DATA_PATH_ALL_MODELS, 'rt') as f:
         for line in f:
             entries.append(json.loads(line))
 

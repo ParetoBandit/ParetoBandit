@@ -91,8 +91,8 @@ from bandit_gpt.config import (
     K2_WARMUP_PRIORS_PATH,
     K3_WARMUP_PRIORS_PATH,
     K3_MODELS_PATH,
-    CANONICAL_DEV_DATA_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH,
+    DEV_DATA_PATH_ALL_MODELS,
+    HOLDOUT_DATA_PATH_ALL_MODELS,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
     THREE_WAY_SPLITS_PATH,
@@ -951,9 +951,9 @@ def main() -> None:
     logger.info("K=2 Portfolio Ablation")
     logger.info("=" * 70)
 
-    dev_k2 = load_rewards_from_file(CANONICAL_DEV_DATA_PATH, K2_MODELS)
+    dev_k2 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K2_MODELS)
     holdout_k2 = load_rewards_from_file(
-        CANONICAL_HOLDOUT_DATA_PATH, K2_MODELS,
+        HOLDOUT_DATA_PATH_ALL_MODELS, K2_MODELS,
     )
 
     best_k2 = run_portfolio_ablation(

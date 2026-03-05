@@ -90,8 +90,8 @@ from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     K2_WARMUP_PRIORS_PATH,
     K3_WARMUP_PRIORS_PATH,
-    CANONICAL_DEV_DATA_PATH,
-    CANONICAL_HOLDOUT_DATA_PATH,
+    DEV_DATA_PATH_ALL_MODELS,
+    HOLDOUT_DATA_PATH_ALL_MODELS,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
     THREE_WAY_SPLITS_PATH,
@@ -1405,10 +1405,10 @@ def run_experiment() -> None:  # noqa: C901
     # --- Load K=2 data -------------------------------------------------
     logger.info("\n  Loading K=2 dev and holdout data ...")
     dev_data_k2 = load_rewards_from_file(
-        CANONICAL_DEV_DATA_PATH, K2_MODELS,
+        DEV_DATA_PATH_ALL_MODELS, K2_MODELS,
     )
     holdout_data_k2 = load_rewards_from_file(
-        CANONICAL_HOLDOUT_DATA_PATH, K2_MODELS,
+        HOLDOUT_DATA_PATH_ALL_MODELS, K2_MODELS,
     )
     logger.info(f"    Dev: {len(dev_data_k2)} prompts")
     logger.info(f"    Holdout: {len(holdout_data_k2)} prompts")

@@ -58,7 +58,7 @@ from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
-    ROUTELLM_BATTLES_REWARDS_PATH,
+    LMSYS_BATTLES_PATH,
 )
 from bandit_gpt.rewards import extract_reward
 
@@ -475,7 +475,7 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated list of PCA component counts to evaluate.",
     )
     p.add_argument("--max-components", type=int, default=256, help="Max PCA components to fit once.")
-    p.add_argument("--max-pca-prompts", type=int, default=80000)
+    p.add_argument("--max-pca-prompts", type=int, default=50000)
     p.add_argument("--prior-plasticity", type=float, default=0.1)
     p.add_argument("--prior-n-effective", type=float, default=10.0)
     p.add_argument("--alpha", type=float, default=0.5)
@@ -586,7 +586,7 @@ def main() -> None:
     # ---------------------------------------------------------------------
     logger.info("\n3) Fitting PCA prefix on offline battles prompts (no leakage) ...")
     t0 = time.time()
-    battle_prompts = _load_battle_prompts(Path(ROUTELLM_BATTLES_REWARDS_PATH), max_prompts=int(args.max_pca_prompts))
+    battle_prompts = _load_battle_prompts(Path(LMSYS_BATTLES_PATH), max_prompts=int(args.max_pca_prompts))
     if len(battle_prompts) < max_k:
         raise ValueError(f"Need at least {max_k} battle prompts, got {len(battle_prompts)}")
     logger.info(f"  loaded battle prompts: {len(battle_prompts)}")
@@ -731,7 +731,7 @@ def main() -> None:
             "splits_path": str(splits_path),
             "dev_data_path": str(DEV_DATA_PATH_ALL_MODELS),
             "holdout_data_path": str(HOLDOUT_DATA_PATH_ALL_MODELS),
-            "routellm_battles_path": str(ROUTELLM_BATTLES_REWARDS_PATH),
+            "lmsys_battles_path": str(LMSYS_BATTLES_PATH),
             "seed": int(args.seed),
             "n_trials": int(args.n_trials),
             "prior_n_effective": float(args.prior_n_effective),

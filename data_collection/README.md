@@ -7,13 +7,10 @@ All reward data, source prompts, and the scripts that produced them.
 ```
 data_collection/
 ├── rewards/                          # Canonical reward datasets
-│   ├── dev_rewards_complete_all_models.jsonl.gz   # Dev set (44 models, ~2,350 prompts)
-│   ├── holdout_rewards_complete_all_models.jsonl.gz  # Holdout set (44 models, 1,500 prompts)
-│   ├── routellm_battles_rewards.jsonl  # RouteLLM battle rewards (PCA training corpus)
-│   └── new_rewards_k10_1750.jsonl      # K=10 raw collection (before merge into dev/holdout)
-├── prompts/                          # Source and sampled prompts
-│   ├── lmarena_battles_en.jsonl      # LMSYS Chat Arena battles (~48K unique prompts)
-│   └── new_prompts_1750.jsonl        # 1,750 prompts sampled for K=10 collection
+│   ├── dev_rewards_complete_all_models.jsonl.gz   # Dev set (44 models, 2,854 prompts)
+│   └── holdout_rewards_complete_all_models.jsonl.gz  # Holdout set (44 models, 1,500 prompts)
+├── prompts/                          # Source prompts
+│   └── lmarena_battles_en.jsonl      # LMSYS Chat Arena battles (~48K unique prompts)
 ├── scripts/                          # Data-generating scripts
 │   ├── rejudge_cot.py                # Multi-judge CoT reward generator (OpenRouter API)
 │   ├── download_and_process_routellm.py  # Downloads RouteLLM battles from HuggingFace
@@ -36,7 +33,7 @@ the extraction logic.
 ```bash
 python data_collection/scripts/rejudge_cot.py \
   --mode custom \
-  --prompts-file data_collection/prompts/new_prompts_1750.jsonl \
+  --prompts-file data_collection/prompts/my_prompts.jsonl \
   --models-file data_collection/config/models_k10.json \
   --output-file data_collection/rewards/new_rewards.jsonl \
   --workers 32
