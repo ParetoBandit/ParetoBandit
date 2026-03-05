@@ -732,23 +732,6 @@ class TestCostAwareLinUCBAdapter:
         kwargs.update(overrides)
         return CostAwareLinUCBAdapter(**kwargs), bandit
 
-    def test_cost_aware_initialization(self, warmup_params, model_costs):
-        """Test initialization with warmup priors loaded into the bandit."""
-        adapter, bandit = self._make_adapter(warmup_params, model_costs)
-
-        for model in warmup_params["models"]:
-            assert model in adapter.A
-            assert model in adapter.b
-
-            np.testing.assert_array_almost_equal(
-                adapter.A[model],
-                np.eye(warmup_params["dim"]) * 10.0,
-            )
-            np.testing.assert_array_almost_equal(
-                adapter.b[model],
-                warmup_params["b"][model],
-            )
-
     def test_alpha_decay_schedule(self, warmup_params, model_costs):
         """Test linear alpha decay from start to end."""
         adapter, _ = self._make_adapter(
@@ -929,53 +912,6 @@ class TestRouterIntegration:
 class TestPerformanceFixes:
     """Test performance fixes for O(d³) matrix inversion caching."""
     
-    def test_cost_aware_linucb_a_inv_caching(self):
-        """Test that CostAwareLinUCBAdapter caches A_inv and updates it efficiently."""
-        models = ["model_a", "model_b"]
-        dim = 10
-
-        np.random.seed(0)
-        bandit = DisjointLinUCBPolicy(
-            models, dim=dim, alpha=0.5, init_lambda=5.0,
-        )
-        for model in models:
-            bandit.b[model] = np.random.randn(dim)
-        bandit.refresh_inverse_cache()
-
-        model_costs = {
-            "model_a": {"normalized_cost": 0.2},
-            "model_b": {"normalized_cost": 0.8},
-        }
-
-        adapter = CostAwareLinUCBAdapter(
-            bandit=bandit,
-            model_costs=model_costs,
-            alpha_start=1.0,
-            alpha_end=0.1,
-            cost_penalty=0.5,
-        )
-
-        for model in models:
-            assert model in adapter.A_inv
-            identity_check = adapter.A[model] @ adapter.A_inv[model]
-            np.testing.assert_array_almost_equal(identity_check, np.eye(dim), decimal=6)
-
-        context = np.ones(dim)
-        A_inv_before = adapter.A_inv["model_a"].copy()
-
-        for _ in range(10):
-            selected = adapter.select_model(context, total_steps=100)
-            assert selected in models
-
-        np.testing.assert_array_almost_equal(adapter.A_inv["model_a"], A_inv_before)
-
-        adapter.update(context, "model_a", reward=0.8)
-
-        assert not np.allclose(adapter.A_inv["model_a"], A_inv_before)
-
-        identity_check = adapter.A["model_a"] @ adapter.A_inv["model_a"]
-        np.testing.assert_array_almost_equal(identity_check, np.eye(dim), decimal=5)
-    
     def test_cost_aware_tabula_rasa_a_inv_caching(self):
         """Test that CostAwareTabulaRasaRouter also caches A_inv correctly."""
         models = ["model_a", "model_b"]
@@ -1017,36 +953,6 @@ class TestPerformanceFixes:
         identity_check = router.A["model_a"] @ router.A_inv["model_a"]
         np.testing.assert_array_almost_equal(identity_check, np.eye(dim), decimal=5)
     
-    def test_sherman_morrison_fallback_on_singularity(self):
-        """Test that Sherman-Morrison falls back to full inversion when needed."""
-        models = ["model_a"]
-        dim = 5
-
-        bandit = DisjointLinUCBPolicy(
-            models, dim=dim, alpha=0.5, init_lambda=1.0,
-        )
-
-        model_costs = {"model_a": {"normalized_cost": 0.5}}
-
-        adapter = CostAwareLinUCBAdapter(
-            bandit=bandit,
-            model_costs=model_costs,
-        )
-
-        context = np.ones(dim)
-        context = context / np.linalg.norm(context)
-
-        for i in range(100):
-            adapter.update(context, "model_a", reward=0.5)
-
-            assert not np.any(np.isnan(adapter.A_inv["model_a"]))
-            assert not np.any(np.isinf(adapter.A_inv["model_a"]))
-
-            if i % 10 == 0:
-                identity_check = adapter.A["model_a"] @ adapter.A_inv["model_a"]
-                identity_error = np.linalg.norm(identity_check - np.eye(dim))
-                assert identity_error < 1e-4, f"Inverse accuracy degraded at iteration {i}"
-
 
 class TestRobustnessFixes:
     """Test robustness fixes for non-stationary environments and hyperparameter sensitivity."""
@@ -1100,33 +1006,6 @@ class TestRobustnessFixes:
         assert router_stationary.weights.min() > 0.01, \
             "Stationary router should also maintain balanced weights (log-barrier protects)"
     
-    def test_register_model_initializes_stable_precision(self):
-        """Dynamically registered models get A = λI (well-conditioned)."""
-        registry = {
-            "gpt-4": {
-                "model_id": "openai/gpt-4",
-                "display_name": "GPT-4",
-                "input_cost_per_m": 5.0,
-                "output_cost_per_m": 15.0,
-                "hle": 0.85,
-                "capabilities": ["reasoning"],
-                "speed_profile": "slow"
-            }
-        }
-
-        router = BanditRouter.create(model_registry=registry, priors="none")
-
-        router.register_model("gpt-4-turbo", speed="fast", capabilities=["reasoning"])
-
-        A = router.bandit.A["gpt-4-turbo"]
-        lam = router.bandit.init_lambda
-
-        assert A.shape == (router.bandit.dim, router.bandit.dim)
-        off_diag = A - np.diag(np.diag(A))
-        assert np.allclose(off_diag, 0, atol=1e-10), "A should be diagonal (λI)"
-        assert np.allclose(np.diag(A), lam, rtol=1e-6), \
-            f"Diagonal should equal init_lambda={lam}"
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

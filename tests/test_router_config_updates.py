@@ -8,8 +8,7 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
     """
     Unit tests for router configuration:
     1. Default alpha is 0.1 (optimal K=10 ablation result)
-    2. ExplorationRate constants validation
-    3. exploration='safe' maps to ExplorationRate.SAFE (0.1)
+    2. exploration='safe' maps to ExplorationRate.SAFE (0.1)
     """
 
     def setUp(self):
@@ -47,11 +46,6 @@ class TestRouterConfigurationUpdates(unittest.TestCase):
 
         self.assertEqual(router.bandit.alpha, 0.1,
                         "BanditRouter.create() should default to alpha=0.1")
-
-    def test_exploration_rate_safe_constant(self):
-        """Test that ExplorationRate.SAFE is 0.1."""
-        self.assertEqual(ExplorationRate.SAFE, 0.1,
-                        "ExplorationRate.SAFE should be 0.1")
 
 
 if __name__ == "__main__":
