@@ -1,5 +1,5 @@
 % H: Hyperparameter Sensitivity Analysis
-% 3D alpha x n_eff x gamma grid with Pareto AUC selection.
+% 3D alpha x n_eff x gamma grid with (p)AUCPC selection.
 % Cross-references: C5 (hyperparameter sensitivity), C8 (PCA/neff calibration),
 %                   Figure 3 (main comparison), Figure 5 (catastrophic failure)
 
@@ -16,7 +16,7 @@ and~\ref{appendix:pca_neff}) varied each parameter in isolation,
 potentially missing interactions.  This appendix performs a full 3D grid
 search over $(\alpha, \neff, \gamma)$.
 
-\paragraph{Why Pareto AUC, not single-point reward.}
+\paragraph{Why (p)AUCPC / hypervolume, not single-point reward.}
 \label{appendix:alpha_neff_objective}
 A na\"ive selection criterion is to maximise mean reward at
 $\lambda{=}0$ (quality-only, no cost penalty).  However, when one model
@@ -33,15 +33,17 @@ tuned for quality-only has no incentive to learn when a cheaper model
 would suffice, and therefore cannot trace a meaningful cost--quality
 Pareto frontier.
 
-We instead select hyperparameters by \textbf{normalized AUCPC} --- the
+We instead select hyperparameters by \textbf{normalized (p)AUCPC} --- the
 area under the cost--reward Pareto frontier after \emph{normalizing both
-axes} to the portfolio endpoints.  For each $(\alpha, \neff, \gamma)$
-configuration, we sweep the cost penalty~$\lambda$ over a representative
-set of values, train a separate router at each~$\lambda$, freeze it, and
-evaluate on the dev-val split.  The resulting (cost, reward) points form
-an empirical cloud; we filter it to the \emph{non-dominated} Pareto
-frontier (removing any configuration that costs more while yielding worse
-quality than another).  The AUCPC of this frontier is the selection metric:
+axes} to the portfolio endpoints.  This is the 2D instantiation of the
+\emph{hypervolume indicator} commonly used in multi-objective
+optimization.  For each $(\alpha, \neff, \gamma)$ configuration, we sweep
+the cost penalty~$\lambda$ over a representative set of values, train a
+separate router at each~$\lambda$, freeze it, and evaluate on the dev-val
+split.  The resulting (cost, reward) points form an empirical cloud; we
+filter it to the \emph{non-dominated} Pareto frontier (removing any
+configuration that costs more while yielding worse quality than another).
+The AUCPC of this frontier is the selection metric:
 \[
     \text{AUCPC}
     = \int_{0}^{1} \tilde{R}^{*}(\tilde{c})\,\mathrm{d}\tilde{c},
@@ -54,6 +56,14 @@ the same evaluation split to 0 and 1, respectively.  Under this
 normalization, a diagonal baseline yields $\text{AUCPC}\approx 0.5$,
 while a near-oracle router yields $\text{AUCPC}\approx 1.0$.
 
+\paragraph{Partial AUCPC (practical routing region).}
+For practical relevance, we compute a \emph{partial} AUCPC by explicitly
+bounding the integral to the deployable cost region
+$c \in [c_{\text{cheap}}, c_{\text{frontier}}]$.  This excludes
+pathological solutions that are strictly worse than always routing to
+the cheapest model (below-baseline quality) and mirrors pAUC reporting in
+medical diagnostics.
+
 This criterion directly rewards hyperparameters that enable diverse,
 intelligent routing across the cost spectrum:
 \begin{itemize}[leftmargin=*,noitemsep]
@@ -65,7 +75,7 @@ intelligent routing across the cost spectrum:
           model while maintaining reasonable quality.
 \end{itemize}
 Hyperparameters that produce a degenerate static policy --- regardless
-of~$\lambda$ --- will have a lower Pareto AUC than those that adapt
+of~$\lambda$ --- will have a lower (p)AUCPC than those that adapt
 routing to the cost signal.
 
 \subsection{Design}
@@ -84,7 +94,7 @@ At each grid point, we sweep $\lambda$ over 7~values:
 \end{itemize}
 yielding $80 \times 7 = 560$~configurations per variant, each evaluated
 with 20~seeds using a train-then-freeze protocol.  The best
-configuration is selected by dev-val Pareto AUC, then its full
+configuration is selected by dev-val (p)AUCPC, then its full
 $\lambda$~sweep is repeated on a held-out test set.
 
 Both BanditGPT (Corralling + warmup priors) and Tabula Rasa (single
@@ -97,11 +107,11 @@ experiments.
 \subsection{Findings}
 \label{appendix:alpha_neff_findings}
 
-Results will be populated after running the grid with the Pareto AUC
+Results will be populated after running the grid with the (p)AUCPC
 selection criterion.  Key hypotheses:
 
 \begin{enumerate}[leftmargin=*,noitemsep]
-    \item Pareto AUC selection should favour higher $\alpha$
+    \item (p)AUCPC selection should favour higher $\alpha$
           (0.5--2.0) than quality-only selection ($\alpha{=}0.1$),
           because exploring cheaper models pays off across the
           $\lambda$~sweep.
@@ -112,7 +122,7 @@ selection criterion.  Key hypotheses:
           meaningful diversity (e.g.\ 60--75\% to the strong model for
           $K{=}2$) rather than the degenerate 96\% observed under
           quality-only tuning.
-    \item The Pareto-AUC-selected hyperparameters should yield stronger
+    \item The (p)AUCPC-selected hyperparameters should yield stronger
           cost--quality frontiers in downstream experiments (Figure~3)
           than the old quality-only hyperparameters.
 \end{enumerate}
@@ -121,13 +131,13 @@ selection criterion.  Key hypotheses:
 \label{appendix:alpha_neff_recommendations}
 
 \begin{itemize}[leftmargin=*,noitemsep]
-    \item \textbf{Selection criterion:} Use Pareto AUC rather than
+    \item \textbf{Selection criterion:} Use (p)AUCPC rather than
           single-point reward for hyperparameter selection.  This
           produces routers that are simultaneously quality-competitive
           and cost-aware.
     \item \textbf{With warmup priors:} Start with moderate exploration
           ($\alpha \in [0.5, 1.0]$) and let the prior guide early
-          routing; the Pareto criterion ensures sufficient exploration
+          routing; the (p)AUCPC criterion ensures sufficient exploration
           of cost-effective alternatives.
     \item \textbf{Without priors (tabula rasa):} Higher exploration
           ($\alpha \geq 1.0$) compensates for the lack of prior

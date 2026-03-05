@@ -122,7 +122,7 @@ def pareto_aucpc_normalized(
     frontier_reward: float,
     clip_quality_to_unit: bool = True,
 ) -> float:
-    """Compute a *normalized* AUCPC (Area Under the Cost–Performance Curve).
+    """Compute a *normalized* AUCPC / pAUCPC (Area Under the Cost–Performance Curve).
 
     This variant is designed for **dataset-comparable** hyperparameter tuning:
     it normalizes both axes relative to the *portfolio endpoints*:
@@ -133,6 +133,10 @@ def pareto_aucpc_normalized(
     The Pareto frontier is computed from the provided ``(cost, reward)`` points
     (e.g., a lambda sweep), then integrated over the full normalized cost range
     ``[0, 1]`` using trapezoidal integration with boundary interpolation.
+
+    Practically, this is a **partial AUCPC (pAUCPC)**: the integral is explicitly
+    bounded to the deployable cost region ``cost ∈ [cheap_cost, frontier_cost]``.
+    Any points outside this region are ignored before frontier construction.
 
     With these normalizations:
     - A near-perfect router that achieves frontier-level quality across costs
@@ -166,8 +170,19 @@ def pareto_aucpc_normalized(
             f"got cheap_cost={cheap_cost}, frontier_cost={frontier_cost}."
         )
 
+    # Partial AUCPC (pAUCPC): restrict to the practical routing region.
+    filtered_pairs = [
+        (float(c), float(r))
+        for c, r in zip(costs, rewards)
+        if cheap_cost <= float(c) <= frontier_cost
+    ]
+    if not filtered_pairs:
+        return 0.0
+    f_costs = [p[0] for p in filtered_pairs]
+    f_rewards = [p[1] for p in filtered_pairs]
+
     # Empirical Pareto frontier under noise: keep only non-dominated points.
-    hull_c, hull_r = pareto_frontier_nondominated(costs, rewards)
+    hull_c, hull_r = pareto_frontier_nondominated(f_costs, f_rewards)
     if len(hull_c) < 1:
         return 0.0
 

@@ -106,3 +106,39 @@ def test_aucpc_normalized_clips_above_frontier():
     )
     assert auc == pytest.approx(1.0, abs=1e-9)
 
+
+def test_aucpc_is_partial_over_practical_cost_region():
+    pareto_aucpc_normalized = _import_pareto_utils()
+
+    cheap_cost, frontier_cost = 1.0, 3.0
+    cheap_reward, frontier_reward = 0.2, 0.8
+
+    # Inside-range points define the diagonal -> AUC = 0.5.
+    costs_in = [cheap_cost, frontier_cost]
+    rewards_in = [cheap_reward, frontier_reward]
+    auc_in = pareto_aucpc_normalized(
+        costs_in,
+        rewards_in,
+        cheap_cost=cheap_cost,
+        frontier_cost=frontier_cost,
+        cheap_reward=cheap_reward,
+        frontier_reward=frontier_reward,
+        clip_quality_to_unit=True,
+    )
+    assert auc_in == pytest.approx(0.5, abs=1e-9)
+
+    # Add an out-of-range point that would otherwise dominate and inflate the
+    # frontier if not excluded by the pAUCPC cost bound.
+    costs = [cheap_cost - 0.25, cheap_cost, frontier_cost]
+    rewards = [0.99, cheap_reward, frontier_reward]
+    auc = pareto_aucpc_normalized(
+        costs,
+        rewards,
+        cheap_cost=cheap_cost,
+        frontier_cost=frontier_cost,
+        cheap_reward=cheap_reward,
+        frontier_reward=frontier_reward,
+        clip_quality_to_unit=True,
+    )
+    assert auc == pytest.approx(0.5, abs=1e-9)
+
