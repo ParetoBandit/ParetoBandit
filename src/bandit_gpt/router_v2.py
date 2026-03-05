@@ -1935,13 +1935,36 @@ class BanditRouter:
             tr_alpha_start = target_alpha * 2.0
             tr_alpha_end = 0.01
 
-        expert_tabula_rasa = CostAwareTabulaRasaRouter(
+        norm_costs = [
+            meta.get("normalized_cost", 1.0) for meta in model_costs.values()
+        ]
+        median_cost = float(np.median(norm_costs)) if norm_costs else 0.5
+        min_cost = float(min(norm_costs)) if norm_costs else 0.0
+
+        # Lambda-dependent budget target: interpolate from the portfolio
+        # median (lambda=0, quality-focused) toward the cheapest model
+        # (high lambda, cost-focused).  self.cost_penalty is the lambda
+        # value from the sweep; clamping keeps the target in [min, median].
+        lam_frac = min(self.cost_penalty, 1.0)
+        effective_target = max(
+            min_cost,
+            median_cost - lam_frac * (median_cost - min_cost),
+        )
+
+        budget_tracker = NonStationaryBudgetTracker(
+            target_cost_per_query=effective_target,
+            eta=0.05,
+            window_size=100,
+        )
+
+        expert_tabula_rasa = ChebyshevCostAwareRouter(
             models=self.bandit.models,
             context_dim=self.bandit.dim,
             model_costs=model_costs,
+            budget_tracker=budget_tracker,
+            budget_lambda_frac=lam_frac,
             alpha_start=tr_alpha_start,
             alpha_end=tr_alpha_end,
-            cost_penalty=self.cost_penalty,
             latency_penalty=self.latency_penalty,
             ridge_lambda=1.0,
             forgetting_factor=tr_gamma,
@@ -1957,7 +1980,11 @@ class BanditRouter:
 
         logger.info("✅ Heterogeneous Experts Strategy Initialized:")
         logger.info(f"   📊 Expert 1 (Informed):     Constant Alpha {target_alpha:.2f} (Sustained Discovery)")
-        logger.info(f"   🔍 Expert 2 (Uninformed):   Decaying Alpha {tr_alpha_start:.2f}→{tr_alpha_end} (Explore-then-Exploit)")
+        logger.info(
+            f"   🔍 Expert 2 (Chebyshev):    Decaying Alpha {tr_alpha_start:.2f}→{tr_alpha_end} "
+            f"+ NS-BwK (target_cost={effective_target:.4f}, median={median_cost:.4f}, "
+            f"min={min_cost:.4f}, λ_frac={lam_frac:.2f})"
+        )
         logger.info(f"   ⏳ Forgetting (warmup):      γ={self.bandit.gamma:.4f} ({'stationary' if self.bandit.gamma >= 1.0 else 'adaptive'})")
         logger.info(f"   ⏳ Forgetting (tabula rasa): γ={tr_gamma:.4f} ({'stationary' if tr_gamma >= 1.0 else 'adaptive'})")
         logger.info("   🎯 Meta-Learner:            Corralling (Log-Barrier OMD) selects expert based on prompt context")
@@ -5167,6 +5194,18 @@ class NonStationaryBudgetTracker:
         """Return the current dynamically-tuned cost penalty weight."""
         return self.dual_weight
 
+    def update_target(self, new_target: float) -> None:
+        """Adjust the budget target without resetting the dual variable.
+
+        Useful when the model portfolio changes (e.g. a cheaper model is
+        added) and the cost distribution that informed the original target
+        is no longer representative.
+
+        Args:
+            new_target: New target average normalised cost per query.
+        """
+        self.target_cost_per_query = new_target
+
 
 class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
     """
@@ -5183,6 +5222,7 @@ class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
                  ideal_quality: float = 1.0,
                  quality_weight: float = 1.0,
                  rho: float = 0.05,
+                 budget_lambda_frac: float = 0.0,
                  **kwargs):
         """
         Args:
@@ -5196,6 +5236,10 @@ class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
                 exploration bonus is never suppressed by clamping.
             quality_weight: w_q scaling factor for the quality distance (default 1.0)
             rho: Augmentation factor to prevent weakly Pareto optimal solutions (default 0.05)
+            budget_lambda_frac: Clamped cost_penalty used to derive the budget
+                target.  Stored so that :meth:`add_model` can recompute the
+                target from the updated portfolio without reverse-engineering
+                the original initialization parameters.
         """
         # We don't use static cost_penalty from kwargs
         if 'cost_penalty' in kwargs:
@@ -5206,6 +5250,7 @@ class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
         self.ideal_quality = ideal_quality
         self.quality_weight = quality_weight
         self.rho = rho
+        self._budget_lambda_frac = budget_lambda_frac
 
         # Compute the ideal (utopia) cost which is the cheapest market floor among candidates
         costs = [meta.get("normalized_cost", 1.0) for meta in model_costs.values()]
@@ -5275,12 +5320,21 @@ class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
             max(ucb for _, ucb, _ in arm_stats.values()),
         )
 
+        # Per-round nadir normalization: map both quality and cost
+        # distances to [0, 1] so the Chebyshev max treats both axes
+        # symmetrically regardless of their absolute scales.
+        _EPS_RANGE = 1e-8
+        q_nadir = min(ucb for _, ucb, _ in arm_stats.values())
+        q_range = max(round_ideal_q - q_nadir, _EPS_RANGE)
+        c_max = max(c for _, _, c in arm_stats.values())
+        c_range = max(c_max - self.ideal_cost, _EPS_RANGE)
+
         # --- Pass 2: Chebyshev scalarization (lock-free) ---
         chebyshev_scores: Dict[str, float] = {}
         expected_rewards: Dict[str, float] = {}
         for model, (exp_r, ucb_q, norm_cost) in arm_stats.items():
-            dist_q = round_ideal_q - ucb_q
-            dist_c = max(0.0, norm_cost - self.ideal_cost)
+            dist_q = (round_ideal_q - ucb_q) / q_range
+            dist_c = max(0.0, norm_cost - self.ideal_cost) / c_range
             weighted_dist_q = w_q * dist_q
             weighted_dist_c = w_c * dist_c
             cheby_max = max(weighted_dist_q, weighted_dist_c)
@@ -5296,6 +5350,52 @@ class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
             )
 
         return _argmax_random_tiebreak(chebyshev_scores)
+
+    def add_model(
+        self,
+        model_id: str,
+        normalized_cost: float,
+        normalized_latency: float = 1.0,
+    ) -> None:
+        """Register a new model and update the Chebyshev utopia/budget state.
+
+        Extends the parent ``CostAwareTabulaRasaRouter.add_model`` to keep
+        ``ideal_cost`` and the NS-BwK budget target consistent with the
+        new portfolio composition.  Without this, a dynamically added model
+        that is cheaper than the original portfolio minimum would leave the
+        cost utopia stale, causing the Chebyshev scalarization to
+        underweight the new model's cost advantage.
+
+        Args:
+            model_id: New model identifier.
+            normalized_cost: Cost penalty in [0, 1].
+            normalized_latency: Latency penalty in [0, 1] (default 1.0).
+        """
+        super().add_model(model_id, normalized_cost, normalized_latency)
+
+        if normalized_cost < self.ideal_cost:
+            old_ideal = self.ideal_cost
+            self.ideal_cost = normalized_cost
+            logger.info(
+                f"📉 Chebyshev ideal_cost updated: {old_ideal:.4f} → "
+                f"{self.ideal_cost:.4f} (new model {model_id})"
+            )
+
+        all_costs = [
+            meta.get("normalized_cost", 1.0)
+            for meta in self.model_costs.values()
+        ]
+        new_median = float(np.median(all_costs))
+        new_min = min(all_costs)
+        lam = self._budget_lambda_frac
+        old_target = self.budget_tracker.target_cost_per_query
+        new_target = max(new_min, new_median - lam * (new_median - new_min))
+        if abs(new_target - old_target) > 1e-6:
+            self.budget_tracker.update_target(new_target)
+            logger.info(
+                f"🎯 NS-BwK target updated: {old_target:.4f} → "
+                f"{new_target:.4f} (portfolio changed)"
+            )
 
     def update(self, context: np.ndarray, model: str, reward: float, weight: float = 1.0,
                advance_time: bool = True):
