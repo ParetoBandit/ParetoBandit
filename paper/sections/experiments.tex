@@ -10,7 +10,7 @@ Each prompt is encoded by \texttt{BAAI/bge-m3}~\cite{chen2024bge} (1024D) and pr
 This same-distribution pipeline mirrors a production deployment where the practitioner trains the PCA and warmup priors on representative workload prompts before the router goes live.
 
 At routing time, the system observes only the reward of the selected model.
-Models are evaluated by a cross-provider panel of 3--4 LLM judges using a structured chain-of-thought protocol, yielding a continuous reward $r \in [0, 1]$.
+Models are evaluated by a cross-provider panel of 3--4 LLM judges using a structured chain-of-thought protocol. Each judge emits a binary vote weighted by an explicit confidence score, yielding a continuous composite reward $r \in [0, 1]$ for the bandit to optimize. This ensemble-confidence approach mitigates single-judge bias and provides a richer, uncertainty-aware reward signal, aligning with recent routing literature (Section~\ref{sec:positioning}).
 
 \subsubsection{Evaluation Regimes and Data Splits}
 Our evaluation operates at two portfolio scales with a unified data pipeline:
