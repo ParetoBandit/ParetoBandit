@@ -3,6 +3,9 @@
 
 A core architectural feature of banditGPT is its modular warmup prior pipeline: the system accepts \emph{any} collection of (prompt, model, reward) triples as input and produces LinUCB prior matrices ($\Amat, \bvec$) for each model in the portfolio.
 Because warmup priors are inherently model-specific---they encode per-model reward surfaces over the prompt embedding space---the prior source must cover the models in the target portfolio.
+This offline-to-online transfer strategy shares the same Bayesian motivation as PILOT's preference-prior informed initialization~\cite{panda2025pilot}, which injects LLM embeddings learned from pairwise comparisons into LinUCB via $b_a{=}\lambda_a\theta_a^{\mathrm{pref}}$.
+The key distinction is the signal type: banditGPT builds priors from absolute reward observations via rank-1 updates, encoding reward magnitudes directly, whereas PILOT derives priors from relative preference comparisons.
+A detailed comparison appears in Section~\ref{sec:positioning} and Appendix~\ref{appendix:positioning}.
 
 \subsubsection{Same-Distribution Priors from LMSYS Arena}
 
