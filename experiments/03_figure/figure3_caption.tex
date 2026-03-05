@@ -1,41 +1,36 @@
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/figure3_k2.png}
-    \caption{Online adaptation vs.\ static pre-training on a two-model portfolio (\texttt{Mixtral-8x7B} vs.\ \texttt{GPT-4-Turbo}).
+    \caption{BanditGPT vs.\ supervised baselines
+    (LLMRouter-style~\cite{hu2024routerbench, li2026llmrouterbench}) on a
+    two-model portfolio (\texttt{Llama-3.1-8B} vs.\ \texttt{GPT-4.1}).
     %
-    \textbf{(a)}~Cost--quality Pareto frontier on the holdout set ($n{=}750$).
-    Bold lines show the \emph{dev-selected deployable frontier}: the dev set is
-    split 80/20 into train/val; both methods train/tune on dev-train, and the
-    Pareto hull is built from $(c_{\text{dev-val}}, r_{\text{dev-val}})$ using
-    only held-out val information.  Plotted points are the holdout performance
-    of those dev-optimal hyperparameters.  No holdout or training data enters
-    the hyperparameter selection step.
-    Shaded regions show the oracle upper-bound envelope (holdout-selected; not deployable).
-    BanditGPT (Corralling router with warmup priors, $\alpha{=}1.0$,
-    $n_{\mathrm{eff}}{=}5000$; selected via Appendix~H grid ablation) is swept over
-    $\lambda \in [0,\,5]$ (24 values); RouteLLM-MF (pre-trained on ${\sim}100$k preference pairs)
-    is swept over $\tau \in [0,\,1]$ (101 thresholds).
-    Both methods are trained/tuned on the same dev-train split (${\sim}80\%$ of
-    $n{=}1{,}121$, symmetric data access); dev-val (${\sim}20\%$) reserved for
-    unbiased Pareto selection.
+    \textbf{(a)}~Cost--quality Pareto frontier on the holdout set
+    ($n{=}1{,}497$).  The bold line shows BanditGPT's \emph{dev-selected
+    deployable frontier}: the dev set ($n{=}2{,}612$) is split 80/20 into
+    train/val; BanditGPT trains on dev-train, and the Pareto hull is built
+    from $(c_{\text{dev-val}}, r_{\text{dev-val}})$.  Plotted points are
+    the holdout performance of those dev-optimal hyperparameters.
+    Supervised baselines (KNN, SVM, MLP;
+    scikit-learn~\cite{pedregosa2011scikit}) are trained on the same
+    dev-train split with hyperparameters tuned on the same dev-val split
+    (symmetric data access).  BanditGPT
+    (Corralling~\cite{agarwal2017corralling} with per-expert
+    hyperparameters from Appendix~H) is swept over $\lambda \in [0,\,5]$
+    (23 values).
     Frozen holdout evaluation with greedy exploitation ($\alpha{=}0$).
     Error bars show 95\% $t$-CIs across 20 seeds.
-    Primary test: paired bootstrap 95\% CI for dev-selected Pareto AUC difference
-    (1{,}000 holdout resamples; dev indices fixed before bootstrapping).
-    Post-hoc point comparisons at individual budget levels are Holm-Bonferroni corrected.
+    In this two-model setting, all quality-maximising strategies
+    converge to the best single model (GPT-4.1); BanditGPT's advantage
+    is the continuous cost--quality tradeoff via~$\lambda$.
     %
-    \textbf{(b)}~Learning curve: holdout reward as a function of online training steps
-    ($\lambda{=}0$, quality-only; uses all $n{=}1{,}121$ dev prompts since no
-    hyperparameter selection is performed).
-    BanditGPT's step-0 performance reflects warmup priors (transfer learning
-    from a 43-model registry); the tabula rasa ablation provides the
-    symmetric-data comparison.
-    The crossover annotation marks the earliest step from which BanditGPT's lower CI bound
-    \emph{persistently} exceeds RouteLLM's dev-selected quality ($0.783$) for all subsequent checkpoints.
+    \textbf{(b)}~Learning curve: holdout reward as a function of online
+    training steps ($\lambda{=}0$, quality-only).  BanditGPT's step-0
+    performance reflects warmup priors (transfer learning from a broader
+    model registry); supervised baselines are trained on the full dev-train
+    split and shown as horizontal reference lines.
     %
-    Rewards are ground-truth multi-judge scores (mean of vote $\times$ confidence
-    via \texttt{extract\_reward}), not proxy predictions.
-    RouteLLM's pre-training data and our evaluation data share the same platform
-    but differ in time period (temporal distribution shift).}
+    Rewards are ground-truth multi-judge scores (mean of vote $\times$
+    confidence via \texttt{extract\_reward}), not proxy predictions.}
     \label{fig:prequential_k2}
 \end{figure}

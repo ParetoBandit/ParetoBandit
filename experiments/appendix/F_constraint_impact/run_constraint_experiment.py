@@ -565,6 +565,12 @@ def main():
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
 
+    from utils.embeddings import load_embedding_cache, embed_dataset_cached
+    _emb_cache = load_embedding_cache(
+        expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
+        expected_pca_components=pca.n_components_,
+    )
+
     models = PORTFOLIO_K10
     costs = {m: MODEL_CATALOG[m]["cost"] for m in models}
 
@@ -579,8 +585,8 @@ def main():
     logger.info(f"  Train: {len(train_data)} | Eval: {len(eval_data)}")
 
     logger.info("\n3. Embedding prompts ...")
-    train_emb = [embed_prompt(p["prompt"], encoder, pca) for p in train_data]
-    eval_emb = [embed_prompt(p["prompt"], encoder, pca) for p in eval_data]
+    train_emb = embed_dataset_cached(train_data, _emb_cache, encoder, pca)
+    eval_emb = embed_dataset_cached(eval_data, _emb_cache, encoder, pca)
     logger.info(f"  Dimension: {train_emb[0].shape[0]}")
 
     warmup_path = str(MULTIMODEL_WARMUP_PRIORS_PATH)

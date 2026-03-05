@@ -13,6 +13,12 @@ All baselines follow the same pattern:
   3. Freeze: no online adaptation.
   4. Evaluate on holdout: predict best model for each prompt, look up reward.
 
+Convergence strategy symmetry: MLP uses ``early_stopping=True`` with a 20%
+internal validation split and patience of 10 epochs, mirroring BanditGPT's
+dev-val-based early stopping with best-checkpoint restoration.  KNN is
+non-parametric (no iterative training) and SVM trains to convergence
+deterministically, so early stopping is not applicable to either.
+
 This isolates the exact claim BanditGPT makes: online adaptation > supervised
 static routing, holding features, objective, and data constant.
 
@@ -35,9 +41,21 @@ from sklearn.neural_network import MLPClassifier
 logger = logging.getLogger(__name__)
 
 HPARAM_GRIDS: Dict[str, Dict[str, List[Any]]] = {
-    "knn": {"n_neighbors": [3, 5, 11, 21]},
-    "svm": {"C": [0.1, 1.0, 10.0], "kernel": ["rbf", "linear"]},
-    "mlp": {"hidden_layer_sizes": [(64,), (128, 64), (256, 128)]},
+    "knn": {
+        "n_neighbors": [3, 5, 11, 21],
+        "weights": ["uniform", "distance"],
+        "metric": ["cosine", "euclidean"],
+    },
+    "svm": {
+        "C": [0.1, 1.0, 10.0],
+        "kernel": ["rbf", "linear"],
+        "gamma": ["scale", "auto"],
+    },
+    "mlp": {
+        "hidden_layer_sizes": [(64,), (128, 64), (256, 128)],
+        "alpha": [1e-4, 1e-3, 1e-2],
+        "learning_rate_init": [1e-3, 1e-2],
+    },
 }
 
 
@@ -116,6 +134,9 @@ def train_supervised_router(
             "hidden_layer_sizes": (128, 64),
             "activation": "relu",
             "max_iter": 500,
+            "early_stopping": True,
+            "validation_fraction": 0.2,
+            "n_iter_no_change": 10,
             "random_state": seed,
         }
         defaults.update(hp)

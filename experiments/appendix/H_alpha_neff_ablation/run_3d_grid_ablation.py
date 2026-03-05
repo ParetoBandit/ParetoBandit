@@ -1,18 +1,31 @@
 #!/usr/bin/env python3
 """
-3D Hyperparameter Ablation: alpha x n_eff x forgetting_factor
-=============================================================
+Appendix H: Hyperparameter Sensitivity Analysis
+================================================
 
-Sweeps three key hyperparameters on a 4x4x4 grid to identify the
-combination that maximises frozen dev-val reward on both the K=2 and
-K=10 portfolios.
+Sweeps three key hyperparameters (alpha, n_eff, forgetting_factor)
+on a 4x4x4 grid to identify the best configuration for both BanditGPT
+(Corralling + warmup priors) and Tabula Rasa (single LinUCB, no priors)
+on the K=2 and K=10 portfolios.
+
+Purpose
+-------
+This is a **hyperparameter tuning** experiment, not a warmup-vs-tabula-rasa
+significance test.  Each variant is tuned independently so that downstream
+experiments (Figure 3, Figure 4, Appendix J) use dev-val-selected
+hyperparameters rather than defaults.
+
+The final train-then-freeze reward is expected to be **similar** across
+BanditGPT and Tabula Rasa given sufficient data — the advantage of warmup
+priors is in **sample efficiency** (faster learning), not asymptotic
+performance.  See Appendix J for the learning-curve comparison.
 
 Protocol
 --------
 Train-then-freeze with lambda=0 (quality-only, no cost penalty).
 For each (alpha, n_eff, gamma) triple:
 
-1. Instantiate BanditRouter with Corralling + warmup priors.
+1. Instantiate BanditRouter (Corralling + warmup, or single cold LinUCB).
 2. Train on the dev-train split (N seeds, shuffled order).
 3. Freeze the router (alpha=0 for greedy exploitation).
 4. Evaluate on the dev-val split (selection metric).
@@ -27,10 +40,12 @@ Grid
 - Total: 64 configurations x 20 seeds = 1,280 trials per portfolio
 
 Outputs (``results/``)
-    alpha_neff_gamma_grid_results.json      (K=2)
-    alpha_neff_gamma_grid_figure.png        (K=2)
-    alpha_neff_gamma_grid_k10_results.json  (K=10)
-    alpha_neff_gamma_grid_k10_figure.png    (K=10)
+    alpha_neff_gamma_grid_results.json      (K=2 BanditGPT)
+    alpha_neff_gamma_grid_figure.png        (K=2 BanditGPT)
+    alpha_neff_gamma_grid_k10_results.json  (K=10 BanditGPT)
+    alpha_neff_gamma_grid_k10_figure.png    (K=10 BanditGPT)
+    alpha_neff_gamma_grid_tabula_rasa_*.json/png  (Tabula Rasa variants)
+    best_hparams_{k2,k10}[_tabula_rasa].json  (selected configs)
 """
 
 import gzip
@@ -56,6 +71,7 @@ from bandit_gpt.config import (
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     K2_WARMUP_FROM_MULTIMODEL_PATH,
+    K10_MODELS_PATH,
     CANONICAL_DEV_DATA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH,
     DEV_DATA_PATH_ALL_MODELS,
@@ -66,6 +82,7 @@ from bandit_gpt.config import (
 from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
 from utils.model_pricing import get_prices_for_models
+from utils.embeddings import load_embedding_cache, embed_dataset_cached
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -108,65 +125,24 @@ K2_CATALOG: Dict[str, Dict] = {
     },
 }
 
-# ── K=10 portfolio ────────────────────────────────────────────────────
+# ── K=10 portfolio (loaded from canonical config) ────────────────────
 
-K10_MODELS: List[str] = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mixtral-8x7b-instruct",
-    "google/gemma-3-27b-it",
-    "anthropic/claude-haiku-4.5",
-    "deepseek/deepseek-chat-v3-0324",
-    "google/gemini-2.5-flash-preview-09-2025",
-    "meta-llama/llama-4-maverick",
-    "anthropic/claude-sonnet-4",
-    "moonshotai/kimi-k2-0905",
-    "openai/gpt-4.1",
-]
+def _load_k10_portfolio() -> Tuple[List[str], Dict[str, Dict]]:
+    """Load K=10 model list and catalog from ``models_k10.json``."""
+    with open(K10_MODELS_PATH) as f:
+        k10_cfg = json.load(f)
+    models = [m["model_id"] for m in k10_cfg["models"]]
+    prices = get_prices_for_models(models)
+    catalog: Dict[str, Dict] = {}
+    for m_entry in k10_cfg["models"]:
+        mid = m_entry["model_id"]
+        catalog[mid] = {
+            "display": m_entry.get("display", mid.split("/")[-1]),
+            **prices[mid],
+        }
+    return models, catalog
 
-_PRICES_K10 = get_prices_for_models(K10_MODELS)
-
-K10_CATALOG: Dict[str, Dict] = {
-    "meta-llama/llama-3.1-8b-instruct": {
-        "display": "Llama-3.1-8B",
-        **_PRICES_K10["meta-llama/llama-3.1-8b-instruct"],
-    },
-    "mistralai/mixtral-8x7b-instruct": {
-        "display": "Mixtral-8x7B",
-        **_PRICES_K10["mistralai/mixtral-8x7b-instruct"],
-    },
-    "google/gemma-3-27b-it": {
-        "display": "Gemma-3-27B",
-        **_PRICES_K10["google/gemma-3-27b-it"],
-    },
-    "anthropic/claude-haiku-4.5": {
-        "display": "Claude-Haiku-4.5",
-        **_PRICES_K10["anthropic/claude-haiku-4.5"],
-    },
-    "deepseek/deepseek-chat-v3-0324": {
-        "display": "DeepSeek-V3",
-        **_PRICES_K10["deepseek/deepseek-chat-v3-0324"],
-    },
-    "google/gemini-2.5-flash-preview-09-2025": {
-        "display": "Gemini-2.5-Flash",
-        **_PRICES_K10["google/gemini-2.5-flash-preview-09-2025"],
-    },
-    "meta-llama/llama-4-maverick": {
-        "display": "Llama-4-Maverick",
-        **_PRICES_K10["meta-llama/llama-4-maverick"],
-    },
-    "anthropic/claude-sonnet-4": {
-        "display": "Claude-Sonnet-4",
-        **_PRICES_K10["anthropic/claude-sonnet-4"],
-    },
-    "moonshotai/kimi-k2-0905": {
-        "display": "Kimi-K2",
-        **_PRICES_K10["moonshotai/kimi-k2-0905"],
-    },
-    "openai/gpt-4.1": {
-        "display": "GPT-4.1",
-        **_PRICES_K10["openai/gpt-4.1"],
-    },
-}
+K10_MODELS, K10_CATALOG = _load_k10_portfolio()
 
 REWARD_THEORETICAL_MIN: float = 0.0
 REWARD_THEORETICAL_MAX: float = 1.0
@@ -231,13 +207,16 @@ def build_model_registry(
     }
 
 
+_EMBEDDING_CACHE: Dict[str, np.ndarray] = {}
+
+
 def embed_dataset(
     data: List[Dict],
     encoder: "SentenceTransformer",
     pca: Any,
 ) -> List[np.ndarray]:
-    """Embed all prompts, returning aligned feature vectors."""
-    return [embed_prompt(p["prompt"], encoder, pca) for p in data]
+    """Embed all prompts, using the pre-computed cache when available."""
+    return embed_dataset_cached(data, _EMBEDDING_CACHE, encoder, pca)
 
 
 # ============================================================================
@@ -796,9 +775,15 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
 
-    logger.info("Loading encoder and PCA ...")
+    logger.info("Loading encoder, PCA, and embedding cache ...")
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
+
+    global _EMBEDDING_CACHE  # noqa: PLW0603
+    _EMBEDDING_CACHE = load_embedding_cache(
+        expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
+        expected_pca_components=pca.n_components_,
+    )
 
     total_configs = (
         len(ALPHA_VALUES) * len(NEFF_VALUES) * len(GAMMA_VALUES)
@@ -922,8 +907,18 @@ def main() -> None:
     # ── Summary ───────────────────────────────────────────────────────
     elapsed = time.time() - t0
     logger.info(f"\n{'=' * 70}")
-    logger.info("SUMMARY")
+    logger.info("SUMMARY — Hyperparameter Sensitivity Analysis")
     logger.info(f"{'=' * 70}")
+    logger.info(
+        "  Each variant is tuned independently.  Final reward similarity"
+    )
+    logger.info(
+        "  is expected — the warmup advantage is in sample efficiency,"
+    )
+    logger.info(
+        "  not asymptotic performance.  See Appendix J for learning curves."
+    )
+    logger.info("")
     logger.info(
         f"  K=2  BanditGPT best: alpha={best_k2['alpha']}, "
         f"n_eff={int(best_k2['n_eff'])}, "

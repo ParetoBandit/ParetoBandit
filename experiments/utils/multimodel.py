@@ -20,7 +20,7 @@ from collections import defaultdict
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from bandit_gpt.calibration import embed_prompt
+from bandit_gpt.calibration import embed_prompt  # noqa: F401 — used as fallback
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
@@ -346,13 +346,19 @@ def load_multimodel_data(models: List[str]):
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
 
+    from utils.embeddings import load_embedding_cache, embed_dataset_cached
+    _cache = load_embedding_cache(
+        expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
+        expected_pca_components=pca.n_components_,
+    )
+
     train_data = load_rewards(DEV_DATA_PATH_ALL_MODELS, online_prompts, models)
     eval_data = load_holdout_rewards(models)
 
     logger.info(f"  Train: {len(train_data)} | Eval: {len(eval_data)} | dim: {pca.n_components_}+1")
 
-    train_emb = [embed_prompt(p["prompt"], encoder, pca) for p in train_data]
-    eval_emb = [embed_prompt(p["prompt"], encoder, pca) for p in eval_data]
+    train_emb = embed_dataset_cached(train_data, _cache, encoder, pca)
+    eval_emb = embed_dataset_cached(eval_data, _cache, encoder, pca)
 
     costs = {m: MODEL_CATALOG[m]["cost"] for m in models}
 

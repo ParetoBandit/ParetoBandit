@@ -75,8 +75,16 @@ from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
+    K10_WARMUP_PRIORS_PATH,
     THREE_WAY_SPLITS_PATH,
+)
+
+from utils.pareto import (
+    pareto_auc,
+    dev_pareto_indices,
+    dev_selected_pareto_auc,
+    bootstrap_pareto_auc_difference,
+    extract_dev_optimal_per_prompt,
 )
 
 from run_prequential import (
@@ -89,11 +97,6 @@ from run_prequential import (
     ucb1_online_route,
     run_pareto_sweep,
     _split_dev_train_val,
-    pareto_auc,
-    dev_selected_pareto_auc,
-    bootstrap_pareto_auc_difference,
-    _extract_dev_optimal_per_prompt,
-    _dev_pareto_indices,
     K10_MODELS,
     K10_CATALOG,
     LAMBDA_VALUES_K10,
@@ -153,10 +156,17 @@ def run_k10_experiment() -> None:
     # ------------------------------------------------------------------
     # Shared resources
     # ------------------------------------------------------------------
-    logger.info("Loading encoder and PCA ...")
+    logger.info("Loading encoder, PCA, and embedding cache ...")
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     logger.info(f"  PCA: {pca.n_components_} components")
+
+    import run_prequential as _rp
+    from utils.embeddings import load_embedding_cache
+    _rp._EMBEDDING_CACHE = load_embedding_cache(
+        expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
+        expected_pca_components=pca.n_components_,
+    )
 
     # ------------------------------------------------------------------
     # Tuned hyperparameters (Appendix H, dev-val-selected)
@@ -283,7 +293,7 @@ def run_k10_experiment() -> None:
     bandit_pareto_k10 = run_pareto_sweep(
         K10_MODELS, K10_CATALOG,
         train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
-        str(MULTIMODEL_WARMUP_PRIORS_PATH), costs_k10, LAMBDA_VALUES_K10,
+        str(K10_WARMUP_PRIORS_PATH), costs_k10, LAMBDA_VALUES_K10,
         N_SEEDS, use_corralling=True, label="banditGPT",
         dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
         alpha=k10_alpha,
@@ -361,11 +371,11 @@ def run_k10_experiment() -> None:
                 p["per_seed_per_prompt_costs"],
             )
 
-    bg_boot_pp_r_k10, bg_boot_pp_c_k10 = _extract_dev_optimal_per_prompt(
+    bg_boot_pp_r_k10, bg_boot_pp_c_k10 = extract_dev_optimal_per_prompt(
         bandit_pareto_k10, bg_dev_idx_k10,
         bg_pp_r_k10, bg_pp_c_k10, "lambda",
     )
-    tr_boot_pp_r_k10, tr_boot_pp_c_k10 = _extract_dev_optimal_per_prompt(
+    tr_boot_pp_r_k10, tr_boot_pp_c_k10 = extract_dev_optimal_per_prompt(
         tabula_pareto_k10, tr_dev_idx_k10,
         tr_pp_r_k10, tr_pp_c_k10, "lambda",
     )

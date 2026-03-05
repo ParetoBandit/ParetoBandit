@@ -29,6 +29,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.storage import EphemeralContextStore
 from bandit_gpt.router import BanditRouter
+from bandit_gpt.router_v2 import BanditRouter as BanditRouterV2
 
 
 def create_experiment_router(
@@ -43,6 +44,8 @@ def create_experiment_router(
     corralling_gamma: float = 0.05,
     cost_penalty: float = 0.3,
     forgetting_factor: float = 1.0,
+    tabula_rasa_alpha: Optional[float] = None,
+    tabula_rasa_forgetting_factor: Optional[float] = None,
 ) -> BanditRouter:
     """Build a production ``BanditRouter`` suitable for offline experiments.
 
@@ -59,8 +62,9 @@ def create_experiment_router(
         Total feature-vector length (PCA components + 1 bias).
     prior_n_effective:
         Effective sample size for prior scaling (passed to ``create()``).
+        Only affects the warmup expert's priors.
     alpha:
-        Exploration coefficient; controls expert alpha schedule in Corralling.
+        Exploration coefficient for the warmup expert inside Corralling.
     warmup_path:
         Path to the ``.joblib`` warmup priors file.  ``None`` uses the
         library default.
@@ -74,10 +78,15 @@ def create_experiment_router(
         Lambda for UCB cost penalty (paper Eq. 4).  Applied at selection
         time in both Corralling experts and the singleton fallback.
     forgetting_factor:
-        Exponential decay for past observations in DisjointLinUCBPolicy.
-        ``1.0`` = stationary (no decay), ``< 1.0`` = adaptive (discounts
-        stale observations).  Propagated to both the canonical bandit and
-        the tabula-rasa Corralling expert.
+        Exponential decay for past observations in the canonical bandit
+        (warmup expert).  ``1.0`` = stationary (no decay).
+    tabula_rasa_alpha:
+        Per-expert exploration coefficient for the tabula-rasa expert
+        inside Corralling.  When ``None``, the legacy schedule
+        (``2 * alpha`` decaying to 0.01) is used.
+    tabula_rasa_forgetting_factor:
+        Per-expert forgetting factor for the tabula-rasa expert inside
+        Corralling.  When ``None``, inherits ``forgetting_factor``.
 
     Returns
     -------
@@ -99,6 +108,84 @@ def create_experiment_router(
         corralling_gamma=corralling_gamma,
         cost_penalty=cost_penalty,
         forgetting_factor=forgetting_factor,
+        tabula_rasa_alpha=tabula_rasa_alpha,
+        tabula_rasa_forgetting_factor=tabula_rasa_forgetting_factor,
+        **({"warmup_path": warmup_path} if warmup_path else {}),
+    )
+    return router
+
+
+def create_experiment_router_v2(
+    model_registry: Dict[str, Any],
+    feature_dim: int = 33,
+    *,
+    prior_n_effective: float = 10.0,
+    alpha: float = 0.5,
+    warmup_path: Optional[str] = None,
+    use_corralling: bool = True,
+    corralling_learning_rate: float = 0.1,
+    corralling_gamma: float = 0.05,
+    cost_penalty: float = 0.3,
+    forgetting_factor: float = 1.0,
+    tabula_rasa_alpha: Optional[float] = None,
+    tabula_rasa_forgetting_factor: Optional[float] = None,
+) -> BanditRouterV2:
+    """Build a ``BanditRouterV2`` (from ``router_v2.py``) for experiments.
+
+    Identical interface and semantics to :func:`create_experiment_router`
+    but instantiates the v2 router implementation.  This allows head-to-head
+    comparison between the v1 and v2 routing algorithms under the same
+    experimental protocol.
+
+    Parameters
+    ----------
+    model_registry:
+        ``{model_id: config_dict}`` in the same format as ``models.json``.
+    feature_dim:
+        Total feature-vector length (PCA components + 1 bias).
+    prior_n_effective:
+        Effective sample size for prior scaling.
+    alpha:
+        Exploration coefficient for the warmup expert.
+    warmup_path:
+        Path to the ``.joblib`` warmup priors file.
+    use_corralling:
+        Whether to enable the Corralling meta-learner.
+    corralling_learning_rate:
+        Meta-learning rate for expert weight updates.
+    corralling_gamma:
+        Mixing parameter for Corralling safety.
+    cost_penalty:
+        Lambda for UCB cost penalty.
+    forgetting_factor:
+        Exponential decay for past observations.
+    tabula_rasa_alpha:
+        Per-expert exploration coefficient for the tabula-rasa expert.
+    tabula_rasa_forgetting_factor:
+        Per-expert forgetting factor for the tabula-rasa expert.
+
+    Returns
+    -------
+    BanditRouterV2
+        Fully initialised v2 router ready for ``route()`` / ``process_feedback()``.
+    """
+    fs = FeatureService.for_precomputed(feature_dim)
+    store = EphemeralContextStore()
+
+    router = BanditRouterV2.create(
+        model_registry=model_registry,
+        feature_service=fs,
+        context_store=store,
+        priors="warmup",
+        prior_n_effective=prior_n_effective,
+        alpha=alpha,
+        use_corralling=use_corralling,
+        corralling_learning_rate=corralling_learning_rate,
+        corralling_gamma=corralling_gamma,
+        cost_penalty=cost_penalty,
+        forgetting_factor=forgetting_factor,
+        tabula_rasa_alpha=tabula_rasa_alpha,
+        tabula_rasa_forgetting_factor=tabula_rasa_forgetting_factor,
         **({"warmup_path": warmup_path} if warmup_path else {}),
     )
     return router

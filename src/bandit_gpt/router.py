@@ -1636,6 +1636,8 @@ class BanditRouter:
         corralling_gamma: float = 0.05,
         cost_penalty: float = 0.3,  # λ_c for UCB cost penalty (paper Eq. 4)
         latency_penalty: float = 0.0,  # λ_l for UCB latency penalty
+        tabula_rasa_alpha: float | None = None,
+        tabula_rasa_forgetting_factor: float | None = None,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -1677,6 +1679,14 @@ class BanditRouter:
                        - 0.0 = no latency preference (default, backward-compatible)
                        - 0.1 = mild preference for faster models
                        - 0.3 = moderate latency awareness
+            tabula_rasa_alpha: Per-expert exploration coefficient for the
+                       tabula-rasa expert inside Corralling.  When ``None``
+                       (default), the tabula-rasa expert uses ``2 * alpha``
+                       (legacy behaviour).
+            tabula_rasa_forgetting_factor: Per-expert forgetting factor for
+                       the tabula-rasa expert inside Corralling.  When ``None``
+                       (default), inherits the canonical bandit's
+                       ``forgetting_factor`` (legacy behaviour).
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
@@ -1685,6 +1695,8 @@ class BanditRouter:
         self.corralling_gamma = corralling_gamma
         self.cost_penalty = cost_penalty
         self.latency_penalty = latency_penalty
+        self.tabula_rasa_alpha = tabula_rasa_alpha
+        self.tabula_rasa_forgetting_factor = tabula_rasa_forgetting_factor
         if model_registry is None:
             # Load default models.json from config/
             base_dir = Path(__file__).parent
@@ -1862,11 +1874,17 @@ class BanditRouter:
         aggregates expert advice via Log-Barrier Online Mirror Descent
         (Agarwal et al., 2017).
 
+        Per-expert hyperparameters (``tabula_rasa_alpha``,
+        ``tabula_rasa_forgetting_factor``) are read from the instance
+        attributes set at construction time.  When these are ``None`` the
+        legacy schedule is used (tabula-rasa alpha = 2× warmup alpha,
+        forgetting factor inherited from the canonical bandit).
+
         Called once from :meth:`create` after warmup priors and calibration are
         finalised.
 
         Args:
-            alpha: Base exploration coefficient from which expert alphas are derived.
+            alpha: Base exploration coefficient for the warmup expert.
         """
         logger.info("🎯 Initializing Corralling Router with Heterogeneous Experts Strategy...")
 
@@ -1898,18 +1916,32 @@ class BanditRouter:
             latency_penalty=self.latency_penalty,
         )
 
-        # Expert 2: Learning Converger — 2x alpha decaying to 0.01
-        # High initial alpha compensates for the absence of priors (A ≈ λI).
+        # Expert 2: Learning Converger
+        # Per-expert parameters from Appendix H ablation when available;
+        # otherwise fall back to the legacy 2× alpha → 0.01 decay schedule.
+        tr_alpha = self.tabula_rasa_alpha
+        tr_gamma = (
+            self.tabula_rasa_forgetting_factor
+            if self.tabula_rasa_forgetting_factor is not None
+            else self.bandit.gamma
+        )
+        if tr_alpha is not None:
+            tr_alpha_start = tr_alpha
+            tr_alpha_end = 0.01
+        else:
+            tr_alpha_start = target_alpha * 2.0
+            tr_alpha_end = 0.01
+
         expert_tabula_rasa = CostAwareTabulaRasaRouter(
             models=self.bandit.models,
             context_dim=self.bandit.dim,
             model_costs=model_costs,
-            alpha_start=target_alpha * 2.0,
-            alpha_end=0.01,
+            alpha_start=tr_alpha_start,
+            alpha_end=tr_alpha_end,
             cost_penalty=self.cost_penalty,
             latency_penalty=self.latency_penalty,
             ridge_lambda=1.0,
-            forgetting_factor=self.bandit.gamma,
+            forgetting_factor=tr_gamma,
         )
 
         self.corralling_router = CorrallingRouter(
@@ -1920,11 +1952,11 @@ class BanditRouter:
             model_costs=model_costs,
         )
 
-        _gamma = self.bandit.gamma
         logger.info("✅ Heterogeneous Experts Strategy Initialized:")
         logger.info(f"   📊 Expert 1 (Informed):     Constant Alpha {target_alpha:.2f} (Sustained Discovery)")
-        logger.info(f"   🔍 Expert 2 (Uninformed):   Decaying Alpha {target_alpha * 2.0:.2f}→0.01 (Explore-then-Exploit)")
-        logger.info(f"   ⏳ Forgetting Factor:        γ={_gamma:.4f} ({'stationary' if _gamma >= 1.0 else 'adaptive'})")
+        logger.info(f"   🔍 Expert 2 (Uninformed):   Decaying Alpha {tr_alpha_start:.2f}→{tr_alpha_end} (Explore-then-Exploit)")
+        logger.info(f"   ⏳ Forgetting (warmup):      γ={self.bandit.gamma:.4f} ({'stationary' if self.bandit.gamma >= 1.0 else 'adaptive'})")
+        logger.info(f"   ⏳ Forgetting (tabula rasa): γ={tr_gamma:.4f} ({'stationary' if tr_gamma >= 1.0 else 'adaptive'})")
         logger.info("   🎯 Meta-Learner:            Corralling (Log-Barrier OMD) selects expert based on prompt context")
 
     def __deepcopy__(self, memo):
@@ -1962,6 +1994,8 @@ Previous version referenced non-existent attributes
         result.corralling_gamma = self.corralling_gamma
         result.cost_penalty = self.cost_penalty
         result.latency_penalty = self.latency_penalty
+        result.tabula_rasa_alpha = self.tabula_rasa_alpha
+        result.tabula_rasa_forgetting_factor = self.tabula_rasa_forgetting_factor
         result.corralling_router = copy.deepcopy(self.corralling_router, memo) if self.corralling_router else None
         
         # --- Logs and Counters (deepcopy: mutable collections) ---

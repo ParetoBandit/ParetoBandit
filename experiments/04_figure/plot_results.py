@@ -13,6 +13,7 @@ Can load results from either:
 """
 
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +21,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy import stats as sp_stats
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+
+from utils.pareto import pareto_hull, dev_pareto_indices
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
@@ -47,34 +53,6 @@ def load_results() -> dict:
     )
 
 
-def _pareto_hull(costs, rewards):
-    """Monotone upper envelope sorted by ascending cost."""
-    pairs = sorted(zip(costs, rewards), key=lambda x: (x[0], -x[1]))
-    hull_c, hull_r = [], []
-    best_r = -np.inf
-    for c, r in pairs:
-        if r > best_r:
-            hull_c.append(c)
-            hull_r.append(r)
-            best_r = r
-    return hull_c, hull_r
-
-
-def _dev_pareto_indices(sweep, dev_cost_key, dev_reward_key):
-    """Identify indices on the dev-set Pareto hull (no holdout leakage)."""
-    n = len(sweep)
-    pairs = [(sweep[i][dev_cost_key], sweep[i][dev_reward_key], i)
-             for i in range(n)]
-    pairs.sort(key=lambda x: (x[0], -x[1]))
-    idx = []
-    best_r = -np.inf
-    for _, r, i in pairs:
-        if r > best_r:
-            idx.append(i)
-            best_r = r
-    return idx
-
-
 def _dev_selected_deployed_hull(sweep, dev_cost_key, dev_reward_key,
                                 holdout_cost_key, holdout_reward_key):
     """Dev-selected deployable frontier.
@@ -83,10 +61,10 @@ def _dev_selected_deployed_hull(sweep, dev_cost_key, dev_reward_key,
     the holdout performance of those points (with a Pareto hull over
     the holdout values since dev-optimal points may not be monotone).
     """
-    idx = _dev_pareto_indices(sweep, dev_cost_key, dev_reward_key)
+    idx = dev_pareto_indices(sweep, dev_cost_key, dev_reward_key)
     hc = [sweep[i][holdout_cost_key] for i in idx]
     hr = [sweep[i][holdout_reward_key] for i in idx]
-    return _pareto_hull(hc, hr)
+    return pareto_hull(hc, hr)
 
 
 def plot_figure4(res: dict, out: Path) -> None:
@@ -110,10 +88,10 @@ def plot_figure4(res: dict, out: Path) -> None:
     tr_c = [p["mean_cost"] for p in tr]
     tr_r = [p["mean_reward"] for p in tr]
 
-    oracle_hull_c, oracle_hull_r = _pareto_hull(bg_c, bg_r)
+    oracle_hull_c, oracle_hull_r = pareto_hull(bg_c, bg_r)
     ax.fill_between(oracle_hull_c, 0, oracle_hull_r, color=BLUE,
                     alpha=0.06, zorder=1)
-    tr_oracle_c, tr_oracle_r = _pareto_hull(tr_c, tr_r)
+    tr_oracle_c, tr_oracle_r = pareto_hull(tr_c, tr_r)
     ax.fill_between(tr_oracle_c, 0, tr_oracle_r, color=GRAY,
                     alpha=0.06, zorder=1)
 

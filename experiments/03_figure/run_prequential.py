@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-BanditGPT: Train-then-Freeze Evaluation.
+BanditGPT: Train-then-Freeze Evaluation vs Peer-Reviewed Baselines.
 
-Compares BanditRouter against supervised static baselines (KNN, SVM, MLP),
-standard online baselines (UCB1, random, best-static), and ablations
-(coldstart, tabula rasa) using canonical dev/holdout datasets with
-ground-truth multi-judge rewards.
+Compares BanditGPT against LLMRouter supervised static baselines
+(KNN, SVM, MLP; ref: UIUC 2025) and standard online baselines (UCB1,
+random, best-static) using literature-standard metrics: Pareto frontier,
+PerfGain, CostSave, Gap@Oracle, and learning curves.
 
 Protocol
 --------
@@ -26,44 +26,34 @@ Protocol
    split: train/tune on dev-train, select on dev-val.  No method sees
    holdout data before evaluation.
 
-   **Note on warmup priors:** BanditGPT (full system) is initialised with
-   warmup priors derived from a separate prior-training pool (43-model
-   offline data), giving it a head start at step 0 of the learning curve.
-   Supervised baselines (KNN, SVM, MLP) are trained only on the dev-train
-   split.  This is an intentional system-level comparison: the warmup
-   priors are an architectural feature of BanditGPT (transfer learning
-   from a broader model registry), not an unfair data advantage.  The
-   **tabula rasa ablation** (no priors, no Corralling) provides the
-   complementary same-data comparison, isolating the value of pure online
-   learning under symmetric data access.  The **coldstart ablation**
-   (priors only, zero online steps) quantifies the priors' standalone
-   contribution.
+   **Note on warmup priors:** BanditGPT is initialised with warmup
+   priors derived from a separate prior-training pool (43-model offline
+   data).  The warmup priors are an architectural feature of BanditGPT
+   (transfer learning from a broader model registry), not an unfair
+   data advantage.
 
 4. **Dev-selected deployable Pareto frontier (primary metric).**
-   The dev set is split into train (80%) and val (20%).  BanditGPT and
-   ablations train on dev-train; dev metrics for frontier selection come
-   from dev-val (eliminating train-set evaluation asymmetry).  The
-   Pareto hull is built from (dev_val_cost, dev_val_reward); for those
+   The dev set is split into train (80%) and val (20%).  BanditGPT
+   trains on dev-train; dev metrics for frontier selection come from
+   dev-val (eliminating train-set evaluation asymmetry).  The Pareto
+   hull is built from (dev_val_cost, dev_val_reward); for those
    dev-optimal settings, holdout cost and holdout reward are
-   extracted — no holdout or training data enters the hyperparameter
-   selection step.  The area under this deployable frontier is the
-   primary Pareto AUC metric.
+   extracted.  No holdout or training data enters the selection step.
 
-5. **K=10 Pareto frontier.**
-   The K=10 evaluation uses baselines: oracle, best-static, random,
-   best-static-plus-noise, UCB1 (non-contextual), supervised static
-   routers (KNN, SVM, MLP — trained on the same features and objective
-   as BanditGPT; ref: LLMRouter, UIUC 2025), and tabula-rasa
-   (cold-start BanditGPT without priors or Corralling).
+5. **Comparison metrics (LLMRouterBench conventions).**
+   For each LLMRouter supervised baseline, we compute:
+   - **PerfGain**: BanditGPT interpolated reward minus baseline reward
+     at the baseline's cost (isocost comparison).
+   - **CostSave**: baseline cost minus BanditGPT interpolated cost at
+     the baseline's reward (iso-quality comparison).
+   - **Gap@Oracle**: remaining reward gap to instance-wise optimal.
 
-7. **Greedy frozen evaluation.**
+6. **Greedy frozen evaluation.**
    When evaluating a frozen BanditRouter, the UCB exploration bonus is
    set to zero (alpha=0) so that holdout scores reflect the learned
    policy under pure exploitation.
 
-8. **Statistical reporting.**
-   - *Primary hypothesis test*: paired bootstrap CI for the dev-selected
-     Pareto AUC difference (1,000 resamples; dev indices fixed).
+7. **Statistical reporting.**
    - *Post-hoc point comparisons*: paired t-tests of dev-selected
      BanditGPT vs each supervised baseline (KNN, SVM, MLP), with
      Holm-Bonferroni correction across the baselines.
@@ -98,13 +88,12 @@ from bandit_gpt.config import (
     ARTIFACTS_DIR,
     DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
-    DEFAULT_WARMUP_PRIORS_PATH,
-    K2_WARMUP_FROM_MULTIMODEL_PATH,
+    K2_WARMUP_PRIORS_PATH,
+    K10_WARMUP_PRIORS_PATH,
     CANONICAL_DEV_DATA_PATH,
     CANONICAL_HOLDOUT_DATA_PATH,
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
     THREE_WAY_SPLITS_PATH,
     K10_MODELS_PATH,
 )
@@ -116,9 +105,28 @@ from utils.supervised_baselines import (
     run_supervised_learning_curve,
     tune_supervised_hparams,
 )
+from utils.pareto import (
+    interpolate_pareto_reward,
+    interpolate_pareto_cost,
+    dev_selected_pareto_auc,
+)
+from utils.metrics import perfgain, costsave, gap_at_oracle
+from utils.embeddings import load_embedding_cache, embed_dataset_cached
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Formatting helpers
+# ============================================================================
+
+
+def _fmt(val: Optional[float], suffix: str = "") -> str:
+    """Format an optional float for log messages."""
+    if val is None:
+        return "N/A"
+    return f"{val:+.4f}{suffix}"
 
 
 # ============================================================================
@@ -306,14 +314,17 @@ def build_model_registry(
 # Embedding helpers
 # ============================================================================
 
+# Module-level embedding cache, populated once in run_experiment().
+_EMBEDDING_CACHE: Dict[str, np.ndarray] = {}
+
 
 def embed_dataset(
     data: List[Dict],
     encoder: "SentenceTransformer",
     pca: Any,
 ) -> List[np.ndarray]:
-    """Embed all prompts in a dataset, returning aligned feature vectors."""
-    return [embed_prompt(p["prompt"], encoder, pca) for p in data]
+    """Embed all prompts, using the pre-computed cache when available."""
+    return embed_dataset_cached(data, _EMBEDDING_CACHE, encoder, pca)
 
 
 # ============================================================================
@@ -821,6 +832,8 @@ def run_pareto_sweep(
     alpha: float = ALPHA_START,
     prior_n_effective: float = TARGET_NEFF,
     forgetting_factor: float = 1.0,
+    tabula_rasa_alpha: Optional[float] = None,
+    tabula_rasa_forgetting_factor: Optional[float] = None,
 ) -> List[Dict]:
     """Sweep cost penalty lambda with N trials per point.
 
@@ -833,6 +846,12 @@ def run_pareto_sweep(
     (``dev_mean_cost``, ``dev_mean_reward``) are computed on the same
     dev-val split, eliminating the train-set evaluation asymmetry
     between online and static methods.
+
+    Args:
+        tabula_rasa_alpha: Per-expert alpha for the tabula-rasa expert
+            inside Corralling.  ``None`` uses the legacy schedule.
+        tabula_rasa_forgetting_factor: Per-expert forgetting factor for
+            the tabula-rasa expert.  ``None`` inherits ``forgetting_factor``.
 
     Returns:
         List of dicts, one per lambda, with mean/std holdout reward
@@ -870,6 +889,8 @@ def run_pareto_sweep(
                 corralling_gamma=CORRALLING_GAMMA,
                 cost_penalty=lam,
                 forgetting_factor=forgetting_factor,
+                tabula_rasa_alpha=tabula_rasa_alpha,
+                tabula_rasa_forgetting_factor=tabula_rasa_forgetting_factor,
             )
             best_step, _hist = train_bandit_with_early_stopping(
                 router, train_data, train_emb,
@@ -932,6 +953,8 @@ def run_coldstart_sweep(
     alpha: float = ALPHA_START,
     prior_n_effective: float = TARGET_NEFF,
     forgetting_factor: float = 1.0,
+    tabula_rasa_alpha: Optional[float] = None,
+    tabula_rasa_forgetting_factor: Optional[float] = None,
 ) -> List[Dict]:
     """Cold-start Pareto sweep: priors only, zero online training steps.
 
@@ -955,6 +978,8 @@ def run_coldstart_sweep(
         trial_r, trial_c = [], []
         trial_dev_c: List[float] = []
         trial_dev_r: List[float] = []
+        all_per_prompt: List[List[float]] = []
+        all_per_prompt_costs: List[List[float]] = []
         for trial in range(n_trials):
             np.random.seed(SEED_OFFSET + trial)  # router init reproducibility
             router = create_experiment_router(
@@ -968,10 +993,16 @@ def run_coldstart_sweep(
                 corralling_gamma=CORRALLING_GAMMA,
                 cost_penalty=lam,
                 forgetting_factor=forgetting_factor,
+                tabula_rasa_alpha=tabula_rasa_alpha,
+                tabula_rasa_forgetting_factor=tabula_rasa_forgetting_factor,
             )
-            r, c, _, _, _ = evaluate_frozen(router, eval_data, eval_emb, costs, burn_in)
+            r, c, _, pp, pp_c = evaluate_frozen(
+                router, eval_data, eval_emb, costs, burn_in, per_prompt=True,
+            )
             trial_r.append(r)
             trial_c.append(c)
+            all_per_prompt.append(pp)
+            all_per_prompt_costs.append(pp_c)
             if dev_data is not None and dev_emb is not None:
                 dr, dc, _, _, _ = evaluate_frozen(
                     router, dev_data, dev_emb, costs, burn_in,
@@ -987,6 +1018,8 @@ def run_coldstart_sweep(
             "std_cost": float(np.std(trial_c, ddof=1)) if n_trials > 1 else 0.0,
             "per_seed_rewards": [float(x) for x in trial_r],
             "per_seed_costs": [float(x) for x in trial_c],
+            "per_seed_per_prompt_rewards": all_per_prompt,
+            "per_seed_per_prompt_costs": all_per_prompt_costs,
             "n_trials": n_trials,
             "label": label,
         }
@@ -1019,6 +1052,8 @@ def run_learning_curve(
     label: str = "banditGPT",
     prior_n_effective: float = TARGET_NEFF,
     forgetting_factor: float = 1.0,
+    tabula_rasa_alpha: Optional[float] = None,
+    tabula_rasa_forgetting_factor: Optional[float] = None,
 ) -> List[Dict]:
     """Learning curve: holdout quality as a function of online training steps.
 
@@ -1040,6 +1075,9 @@ def run_learning_curve(
         cost_penalty: Lambda for cost-quality trade-off.
         alpha: Exploration coefficient for LinUCB experts.
         label: Label for the curve in output data.
+        tabula_rasa_alpha: Per-expert alpha for the tabula-rasa expert.
+        tabula_rasa_forgetting_factor: Per-expert forgetting factor for
+            the tabula-rasa expert.
 
     Returns:
         List of dicts, one per checkpoint, with mean/std reward.
@@ -1069,6 +1107,8 @@ def run_learning_curve(
             corralling_gamma=CORRALLING_GAMMA,
             cost_penalty=cost_penalty,
             forgetting_factor=forgetting_factor,
+            tabula_rasa_alpha=tabula_rasa_alpha,
+            tabula_rasa_forgetting_factor=tabula_rasa_forgetting_factor,
         )
 
         if 0 in checkpoint_set:
@@ -1106,265 +1146,6 @@ def run_learning_curve(
                 "label": label,
             })
     return curve
-
-
-# ============================================================================
-# Isocost comparison & Pareto AUC
-# ============================================================================
-
-
-def _pareto_hull(
-    costs: List[float], rewards: List[float],
-) -> Tuple[List[float], List[float]]:
-    """Monotone upper envelope sorted by ascending cost."""
-    pairs = sorted(zip(costs, rewards), key=lambda x: (x[0], -x[1]))
-    hull_c, hull_r = [], []
-    best_r = -np.inf
-    for c, r in pairs:
-        if r > best_r:
-            hull_c.append(c)
-            hull_r.append(r)
-            best_r = r
-    return hull_c, hull_r
-
-
-def pareto_auc(
-    costs: List[float],
-    rewards: List[float],
-    cost_lo: float,
-    cost_hi: float,
-) -> float:
-    """Area under the Pareto frontier (trapezoidal) over [cost_lo, cost_hi].
-
-    Normalised by the cost range so the result is in reward units.
-    Points outside the range are clipped.  Returns 0 if the frontier
-    has no points inside the range.
-    """
-    hull_c, hull_r = _pareto_hull(costs, rewards)
-    if len(hull_c) < 1:
-        return 0.0
-    hc, hr = np.array(hull_c), np.array(hull_r)
-    mask = (hc >= cost_lo) & (hc <= cost_hi)
-    if mask.sum() < 2:
-        return float(hr[mask].mean()) if mask.sum() == 1 else 0.0
-    return float(np.trapz(hr[mask], hc[mask]) / (cost_hi - cost_lo))
-
-
-def interpolate_pareto_reward(
-    hull_c: List[float],
-    hull_r: List[float],
-    target_cost: float,
-) -> Optional[float]:
-    """Linearly interpolate quality on the Pareto hull at a target cost.
-
-    Returns None if the target cost is outside the hull's cost range.
-    """
-    if not hull_c or target_cost < hull_c[0] or target_cost > hull_c[-1]:
-        return None
-    return float(np.interp(target_cost, hull_c, hull_r))
-
-
-def find_closest_pareto_point(
-    pareto: List[Dict[str, Any]],
-    target_cost: float,
-    cost_key: str = "mean_cost",
-) -> Dict[str, Any]:
-    """Find the Pareto sweep point whose cost is closest to *target_cost*."""
-    return min(pareto, key=lambda p: abs(p[cost_key] - target_cost))
-
-
-def _dev_pareto_indices(
-    sweep_results: List[Dict],
-    dev_cost_key: str = "dev_mean_cost",
-    dev_reward_key: str = "dev_mean_reward",
-) -> List[int]:
-    """Identify sweep indices that lie on the dev-set Pareto frontier.
-
-    The hull is built strictly from dev-set metrics (dev_cost,
-    dev_reward) — no holdout information is used.  This selects the
-    hyperparameters a practitioner would consider optimal based
-    solely on historical (dev) data.
-
-    Returns:
-        Sorted list of indices into *sweep_results* that form the
-        dev-optimal Pareto frontier.
-    """
-    n = len(sweep_results)
-    pairs = [
-        (sweep_results[i][dev_cost_key], sweep_results[i][dev_reward_key], i)
-        for i in range(n)
-    ]
-    pairs.sort(key=lambda x: (x[0], -x[1]))
-    hull_idx: List[int] = []
-    best_r = -np.inf
-    for _, r, idx in pairs:
-        if r > best_r:
-            hull_idx.append(idx)
-            best_r = r
-    return hull_idx
-
-
-def dev_selected_pareto_auc(
-    sweep_results: List[Dict],
-    cost_lo: float,
-    cost_hi: float,
-    *,
-    dev_cost_key: str = "dev_mean_cost",
-    dev_reward_key: str = "dev_mean_reward",
-    holdout_cost_key: str = "mean_cost",
-    holdout_reward_key: str = "mean_reward",
-) -> Tuple[float, List[float], List[float], List[int]]:
-    """Pareto AUC of the dev-selected deployable frontier.
-
-    **Hyperparameter selection is strictly partitioned from holdout
-    evaluation.** The procedure:
-
-    1. Build the Pareto hull from ``(dev_cost, dev_reward)`` to
-       identify which hyperparameter settings a practitioner would
-       consider optimal using *only* dev-set information.
-    2. For those dev-optimal settings, extract the corresponding
-       ``(holdout_cost, holdout_reward)`` — the performance the
-       practitioner would actually observe after deployment.
-    3. Take the Pareto hull of the resulting holdout points (since
-       dev-optimal points may not be monotone on the holdout set)
-       and compute AUC.
-
-    Args:
-        sweep_results: List of dicts from ``run_pareto_sweep``,
-            each with dev and holdout metrics.
-        cost_lo: Lower bound of the shared cost range for AUC.
-        cost_hi: Upper bound of the shared cost range for AUC.
-        dev_cost_key: Dict key for dev-set cost.
-        dev_reward_key: Dict key for dev-set reward.
-        holdout_cost_key: Dict key for holdout cost.
-        holdout_reward_key: Dict key for holdout reward.
-
-    Returns:
-        (auc, hull_holdout_costs, hull_holdout_rewards, dev_hull_indices).
-    """
-    dev_idx = _dev_pareto_indices(
-        sweep_results, dev_cost_key, dev_reward_key,
-    )
-    holdout_costs = [sweep_results[i][holdout_cost_key] for i in dev_idx]
-    holdout_rewards = [sweep_results[i][holdout_reward_key] for i in dev_idx]
-    hull_c, hull_r = _pareto_hull(holdout_costs, holdout_rewards)
-    auc = pareto_auc(hull_c, hull_r, cost_lo, cost_hi)
-    return auc, hull_c, hull_r, dev_idx
-
-
-def bootstrap_pareto_auc_difference(
-    bg_pp_rewards: List[np.ndarray],
-    bg_pp_costs: List[np.ndarray],
-    bl_pp_rewards: List[np.ndarray],
-    bl_pp_costs: List[np.ndarray],
-    cost_lo: float,
-    cost_hi: float,
-    n_holdout: int,
-    *,
-    n_bootstrap: int = 1_000,
-    seed: int = 42,
-) -> Dict[str, Any]:
-    """Paired bootstrap CI for the difference in dev-selected Pareto AUC.
-
-    **Caller must pre-filter to dev-Pareto-optimal points.** This
-    function receives per-prompt reward *and cost* arrays for the
-    hyperparameters identified as optimal on the dev set.  Both axes
-    of the Pareto frontier are resampled jointly, correctly capturing
-    variance in both reward and cost.
-
-    Args:
-        bg_pp_rewards: Per-prompt holdout rewards for each dev-optimal
-            BanditGPT setting (list of 1-D arrays, length n_holdout).
-        bg_pp_costs: Per-prompt holdout costs (same structure).
-        bl_pp_rewards: Per-prompt holdout rewards for each dev-optimal
-            baseline setting.
-        bl_pp_costs: Per-prompt holdout costs (same structure).
-        cost_lo: Lower bound of shared cost range.
-        cost_hi: Upper bound of shared cost range.
-        n_holdout: Number of holdout prompts.
-        n_bootstrap: Number of bootstrap resamples.
-        seed: RNG seed for reproducibility.
-
-    Returns:
-        Dict with observed AUC difference, 95% CI, and bootstrap p-value.
-    """
-    rng = np.random.default_rng(seed)
-
-    def _auc_for_resample(
-        idx: np.ndarray,
-        pp_cost_arrays: List[np.ndarray],
-        pp_reward_arrays: List[np.ndarray],
-    ) -> float:
-        costs = [float(np.mean(c[idx])) for c in pp_cost_arrays]
-        rewards = [float(np.mean(r[idx])) for r in pp_reward_arrays]
-        hull_c, hull_r = _pareto_hull(costs, rewards)
-        return pareto_auc(hull_c, hull_r, cost_lo, cost_hi)
-
-    all_idx = np.arange(n_holdout)
-    obs_bg = _auc_for_resample(all_idx, bg_pp_costs, bg_pp_rewards)
-    obs_bl = _auc_for_resample(all_idx, bl_pp_costs, bl_pp_rewards)
-    obs_diff = obs_bg - obs_bl
-
-    boot_diffs: List[float] = []
-    for _ in range(n_bootstrap):
-        idx = rng.choice(n_holdout, size=n_holdout, replace=True)
-        bg_auc = _auc_for_resample(idx, bg_pp_costs, bg_pp_rewards)
-        bl_auc = _auc_for_resample(idx, bl_pp_costs, bl_pp_rewards)
-        boot_diffs.append(bg_auc - bl_auc)
-
-    boot_arr = np.array(boot_diffs)
-    centred = boot_arr - obs_diff
-    p_value = float(np.mean(np.abs(centred) >= np.abs(obs_diff)))
-
-    return {
-        "observed_diff": obs_diff,
-        "bg_auc": obs_bg,
-        "baseline_auc": obs_bl,
-        "ci_95_lower": float(np.percentile(boot_arr, 2.5)),
-        "ci_95_upper": float(np.percentile(boot_arr, 97.5)),
-        "p_value": p_value,
-        "n_bootstrap": n_bootstrap,
-        "n_bg_dev_optimal": len(bg_pp_rewards),
-        "n_bl_dev_optimal": len(bl_pp_rewards),
-        "note": (
-            "Paired bootstrap over holdout prompts.  Dev-Pareto-optimal "
-            "indices fixed before bootstrapping.  Both costs and rewards "
-            "are resampled jointly."
-        ),
-    }
-
-
-def _extract_dev_optimal_per_prompt(
-    sweep: List[Dict],
-    dev_idx: List[int],
-    per_prompt_reward_map: Dict,
-    per_prompt_cost_map: Dict,
-    hparam_key: str = "lambda",
-) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """Extract seed-averaged per-prompt reward and cost arrays for dev-optimal points.
-
-    Args:
-        sweep: Full sweep results.
-        dev_idx: Indices of dev-Pareto-optimal points.
-        per_prompt_reward_map: Maps hyperparameter value -> per-prompt
-            reward array (shape (n_seeds, n_holdout) or (n_holdout,)).
-        per_prompt_cost_map: Maps hyperparameter value -> per-prompt
-            cost array (same shapes as reward map).
-        hparam_key: Key to extract the hyperparameter value from sweep.
-
-    Returns:
-        (per_prompt_reward_arrays, per_prompt_cost_arrays) for the
-        dev-optimal subset, each seed-averaged to shape (n_holdout,).
-    """
-    pp_r_arrays: List[np.ndarray] = []
-    pp_c_arrays: List[np.ndarray] = []
-    for i in dev_idx:
-        hval = sweep[i][hparam_key]
-        r_arr = per_prompt_reward_map[hval]
-        c_arr = per_prompt_cost_map[hval]
-        pp_r_arrays.append(np.mean(r_arr, axis=0) if r_arr.ndim == 2 else r_arr)
-        pp_c_arrays.append(np.mean(c_arr, axis=0) if c_arr.ndim == 2 else c_arr)
-    return pp_r_arrays, pp_c_arrays
 
 
 # ============================================================================
@@ -1480,10 +1261,16 @@ def run_experiment() -> None:  # noqa: C901
     # ------------------------------------------------------------------
     # Phase 0 — shared resources
     # ------------------------------------------------------------------
-    logger.info("Loading encoder and PCA ...")
+    logger.info("Loading encoder, PCA, and embedding cache ...")
     pca = joblib.load(DEFAULT_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     logger.info(f"  PCA: {pca.n_components_} components (unified for K=2 and K=10)")
+
+    global _EMBEDDING_CACHE  # noqa: PLW0603
+    _EMBEDDING_CACHE = load_embedding_cache(
+        expected_encoder=DEFAULT_SENTENCE_TRANSFORMER,
+        expected_pca_components=pca.n_components_,
+    )
 
     results_all: Dict[str, Any] = {
         "metadata": {
@@ -1519,7 +1306,7 @@ def run_experiment() -> None:  # noqa: C901
     }
 
     # ------------------------------------------------------------------
-    # Phase 0 — optional dev-val-selected hyperparameters (Appendix H)
+    # Phase 0 — dev-val-selected hyperparameters from Appendix H (required)
     # ------------------------------------------------------------------
     hparams_dir = (
         Path(__file__).resolve().parent.parent / "appendix"
@@ -1553,6 +1340,7 @@ def run_experiment() -> None:  # noqa: C901
     _ablation_script = (
         "experiments/appendix/H_alpha_neff_ablation/run_3d_grid_ablation.py"
     )
+    _missing_hparams: List[str] = []
     for label, tuned, path in [
         ("K=2 BanditGPT", tuned_k2, hparams_k2_path),
         ("K=10 BanditGPT", tuned_k10, hparams_k10_path),
@@ -1566,11 +1354,27 @@ def run_experiment() -> None:  # noqa: C901
                 f"gamma={tuned['forgetting_factor']} from {path.name}"
             )
         else:
-            logger.warning(
-                f"{label} hparams not found at {path}. "
-                f"Falling back to defaults (alpha={ALPHA_START}, "
-                f"n_eff={TARGET_NEFF}). Run {_ablation_script} first."
-            )
+            _missing_hparams.append(f"  {label}: {path}")
+    if _missing_hparams:
+        raise FileNotFoundError(
+            "Appendix H hyperparameter files are required but missing:\n"
+            + "\n".join(_missing_hparams)
+            + f"\nRun `python {_ablation_script}` first to generate all 4 files."
+        )
+
+    results_all["metadata"]["per_expert_hparams"] = {
+        "note": (
+            "Corralling uses per-expert hyperparameters from Appendix H: "
+            "warmup expert uses the BanditGPT-tuned (alpha, n_eff, gamma) "
+            "and the tabula-rasa expert uses the independently-tuned "
+            "(alpha, gamma).  This avoids giving both experts the same "
+            "hyperparameters when their optimal settings differ."
+        ),
+        "K2_warmup": tuned_k2,
+        "K2_tabula_rasa": tuned_k2_tr,
+        "K10_warmup": tuned_k10,
+        "K10_tabula_rasa": tuned_k10_tr,
+    }
 
     # ==================================================================
     # K=2 — BanditGPT vs supervised baselines & ablations
@@ -1643,16 +1447,27 @@ def run_experiment() -> None:  # noqa: C901
         f"\n  Phase 3: BanditGPT Pareto sweep "
         f"({len(LAMBDA_VALUES_K2)} lambda x {N_SEEDS} seeds) ..."
     )
-    k2_alpha = tuned_k2["alpha"] if tuned_k2 is not None else ALPHA_START
-    k2_neff = tuned_k2["prior_n_effective"] if tuned_k2 is not None else TARGET_NEFF
-    k2_forgetting = tuned_k2["forgetting_factor"] if tuned_k2 is not None else 1.0
-    # Use K=2 warmup priors filtered from the multi-model artifact when available.
-    k2_warmup_path = (
-        str(K2_WARMUP_FROM_MULTIMODEL_PATH)
-        if K2_WARMUP_FROM_MULTIMODEL_PATH.exists()
-        else str(DEFAULT_WARMUP_PRIORS_PATH)
-    )
+    k2_alpha = tuned_k2["alpha"]
+    k2_neff = tuned_k2["prior_n_effective"]
+    k2_forgetting = tuned_k2["forgetting_factor"]
+    k2_tr_alpha_for_corral = tuned_k2_tr["alpha"]
+    k2_tr_ff_for_corral = tuned_k2_tr["forgetting_factor"]
+    if not K2_WARMUP_PRIORS_PATH.exists():
+        raise FileNotFoundError(
+            f"K=2 warmup priors not found: {K2_WARMUP_PRIORS_PATH}\n"
+            "Generate with: python scripts/extract_warmup_from_multimodel.py "
+            "--input src/artifacts/priors_warmup_43model_6comp.joblib "
+            f"--output {K2_WARMUP_PRIORS_PATH} "
+            "--models meta-llama/llama-3.1-8b-instruct,openai/gpt-4.1"
+        )
+    k2_warmup_path = str(K2_WARMUP_PRIORS_PATH)
+    logger.info(f"  Using warmup priors: {K2_WARMUP_PRIORS_PATH.name}")
 
+    logger.info(
+        f"    Corralling per-expert hparams: "
+        f"warmup(alpha={k2_alpha}, gamma={k2_forgetting}) | "
+        f"tabula_rasa(alpha={k2_tr_alpha_for_corral}, gamma={k2_tr_ff_for_corral})"
+    )
     bandit_pareto_k2 = run_pareto_sweep(
         K2_MODELS, K2_CATALOG,
         dev_train_k2, holdout_data_k2, dev_train_emb_k2, holdout_emb_k2,
@@ -1662,43 +1477,8 @@ def run_experiment() -> None:  # noqa: C901
         alpha=k2_alpha,
         prior_n_effective=k2_neff,
         forgetting_factor=k2_forgetting,
-    )
-
-    # Tabula rasa ablation (no priors, no Corralling — genuine blank slate)
-    # Uses independently tuned hyperparameters from Appendix H.
-    k2_tr_alpha = tuned_k2_tr["alpha"] if tuned_k2_tr is not None else ALPHA_START
-    k2_tr_neff = tuned_k2_tr["prior_n_effective"] if tuned_k2_tr is not None else TARGET_NEFF
-    k2_tr_forgetting = tuned_k2_tr["forgetting_factor"] if tuned_k2_tr is not None else 1.0
-    logger.info(
-        f"\n  Tabula rasa ablation "
-        f"({len(LAMBDA_VALUES_K2)} lambda x {N_SEEDS} seeds) ..."
-        f"\n    hparams: alpha={k2_tr_alpha} n_eff={k2_tr_neff} gamma={k2_tr_forgetting}"
-    )
-    tabula_pareto_k2 = run_pareto_sweep(
-        K2_MODELS, K2_CATALOG,
-        dev_train_k2, holdout_data_k2, dev_train_emb_k2, holdout_emb_k2,
-        None, costs_k2, LAMBDA_VALUES_K2,
-        N_SEEDS, use_corralling=False, label="tabula_rasa",
-        dev_val_data=dev_val_k2, dev_val_emb=dev_val_emb_k2,
-        alpha=k2_tr_alpha,
-        prior_n_effective=k2_tr_neff,
-        forgetting_factor=k2_tr_forgetting,
-    )
-
-    # Cold-start BanditGPT (priors only, 0 online training steps)
-    logger.info(
-        f"\n  Cold-start sweep (priors only, 0 training steps) "
-        f"({len(LAMBDA_VALUES_K2)} lambda x {N_SEEDS} seeds) ..."
-    )
-    coldstart_pareto_k2 = run_coldstart_sweep(
-        K2_MODELS, K2_CATALOG,
-        holdout_data_k2, holdout_emb_k2,
-        k2_warmup_path, costs_k2, LAMBDA_VALUES_K2,
-        N_SEEDS, feature_dim=dim, use_corralling=True, label="coldstart",
-        dev_data=dev_val_k2, dev_emb=dev_val_emb_k2,
-        alpha=k2_alpha,
-        prior_n_effective=k2_neff,
-        forgetting_factor=k2_forgetting,
+        tabula_rasa_alpha=k2_tr_alpha_for_corral,
+        tabula_rasa_forgetting_factor=k2_tr_ff_for_corral,
     )
 
     # --- Phase 4: K=2 learning curve -----------------------------------
@@ -1712,8 +1492,11 @@ def run_experiment() -> None:  # noqa: C901
         dev_train_k2, holdout_data_k2, dev_train_emb_k2, holdout_emb_k2,
         k2_warmup_path, costs_k2, N_SEEDS,
         lc_checkpoints, use_corralling=True, cost_penalty=0.0,
+        alpha=k2_alpha,
         prior_n_effective=k2_neff,
         forgetting_factor=k2_forgetting,
+        tabula_rasa_alpha=k2_tr_alpha_for_corral,
+        tabula_rasa_forgetting_factor=k2_tr_ff_for_corral,
     )
 
     # --- Phase 4b: Supervised learning curve ----------------------------
@@ -1764,117 +1547,86 @@ def run_experiment() -> None:  # noqa: C901
         f"(greedy arm: {K2_CATALOG[ucb1_k2['greedy_arm']]['display']})"
     )
 
-    # --- Phase 6: Dev-selected Pareto AUC & point comparisons -----------
-    # PRIMARY metric: dev-selected Pareto AUC — hull built from
-    # (dev_cost, dev_reward), then deployed points evaluated at
-    # (holdout_cost, holdout_reward).  No holdout in selection step.
-    # Mirrors the K=10 structure: BanditGPT vs coldstart/tabula rasa.
-    # Supervised baselines (KNN/SVM/MLP) are single-point references.
-    logger.info("\n  Phase 6: Dev-selected Pareto AUC & point comparisons ...")
+    # --- Phase 6: BanditGPT vs LLMRouter supervised baselines -----------
+    # Dev-selected Pareto AUC for BanditGPT, plus literature-standard
+    # metrics (PerfGain, CostSave, Gap@Oracle) against each supervised
+    # baseline.  No coldstart / tabula rasa comparisons.
+    logger.info("\n  Phase 6: BanditGPT Pareto AUC & comparison vs supervised baselines ...")
 
-    # Overlapping cost range (BanditGPT vs coldstart)
+    # BanditGPT dev-selected Pareto AUC
     bg_dev_costs_k2 = [p["dev_mean_cost"] for p in bandit_pareto_k2]
-    cs_dev_costs_k2 = [p["dev_mean_cost"] for p in coldstart_pareto_k2]
-    tr_dev_costs_k2 = [p["dev_mean_cost"] for p in tabula_pareto_k2]
-    cost_lo_k2 = max(min(bg_dev_costs_k2), min(cs_dev_costs_k2), min(tr_dev_costs_k2))
-    cost_hi_k2 = min(max(bg_dev_costs_k2), max(cs_dev_costs_k2), max(tr_dev_costs_k2))
+    cost_lo_k2 = min(bg_dev_costs_k2)
+    cost_hi_k2 = max(bg_dev_costs_k2)
 
-    # Dev-selected Pareto AUC (primary)
-    bg_ds_auc_k2, _, _, bg_dev_idx_k2 = dev_selected_pareto_auc(
-        bandit_pareto_k2, cost_lo_k2, cost_hi_k2,
-    )
-    cs_ds_auc_k2, _, _, cs_dev_idx_k2 = dev_selected_pareto_auc(
-        coldstart_pareto_k2, cost_lo_k2, cost_hi_k2,
-    )
-    tr_ds_auc_k2, _, _, tr_dev_idx_k2 = dev_selected_pareto_auc(
-        tabula_pareto_k2, cost_lo_k2, cost_hi_k2,
-    )
-
-    # Oracle envelope AUC (reference — holdout-selected hyperparameters)
-    bg_costs_k2 = [p["mean_cost"] for p in bandit_pareto_k2]
-    cs_costs_k2 = [p["mean_cost"] for p in coldstart_pareto_k2]
-    tr_costs_k2 = [p["mean_cost"] for p in tabula_pareto_k2]
-    oracle_cost_lo = max(min(bg_costs_k2), min(cs_costs_k2), min(tr_costs_k2))
-    oracle_cost_hi = min(max(bg_costs_k2), max(cs_costs_k2), max(tr_costs_k2))
-    bg_oracle_auc_k2 = pareto_auc(
-        bg_costs_k2,
-        [p["mean_reward"] for p in bandit_pareto_k2],
-        oracle_cost_lo, oracle_cost_hi,
-    )
-    cs_oracle_auc_k2 = pareto_auc(
-        cs_costs_k2,
-        [p["mean_reward"] for p in coldstart_pareto_k2],
-        oracle_cost_lo, oracle_cost_hi,
-    )
-    tr_oracle_auc_k2 = pareto_auc(
-        tr_costs_k2,
-        [p["mean_reward"] for p in tabula_pareto_k2],
-        oracle_cost_lo, oracle_cost_hi,
+    bg_ds_auc_k2, bg_hull_c_k2, bg_hull_r_k2, bg_dev_idx_k2 = (
+        dev_selected_pareto_auc(bandit_pareto_k2, cost_lo_k2, cost_hi_k2)
     )
 
     logger.info(
         f"    Dev-selected Pareto AUC (cost [{cost_lo_k2:.6f}, {cost_hi_k2:.6f}]):"
     )
-    logger.info(f"      BanditGPT:  {bg_ds_auc_k2:.4f} ({len(bg_dev_idx_k2)} dev-optimal pts)")
-    logger.info(f"      Coldstart:  {cs_ds_auc_k2:.4f} ({len(cs_dev_idx_k2)} dev-optimal pts)")
-    logger.info(f"      Tabula rasa:{tr_ds_auc_k2:.4f} ({len(tr_dev_idx_k2)} dev-optimal pts)")
-    logger.info(f"      BG vs CS:   {bg_ds_auc_k2 - cs_ds_auc_k2:+.4f}")
-    logger.info(f"      BG vs TR:   {bg_ds_auc_k2 - tr_ds_auc_k2:+.4f}")
     logger.info(
-        f"    Oracle envelope AUC (ref): BanditGPT={bg_oracle_auc_k2:.4f} "
-        f"Coldstart={cs_oracle_auc_k2:.4f} Tabula={tr_oracle_auc_k2:.4f}"
+        f"      BanditGPT: {bg_ds_auc_k2:.4f} "
+        f"({len(bg_dev_idx_k2)} dev-optimal pts)"
     )
 
-    # Paired bootstrap CI for dev-selected AUC difference (BanditGPT vs coldstart)
-    logger.info("    Computing bootstrap CI for Pareto AUC difference ...")
-    bg_pp_r_by_lam: Dict[float, np.ndarray] = {}
-    bg_pp_c_by_lam: Dict[float, np.ndarray] = {}
-    for p in bandit_pareto_k2:
-        if p.get("per_seed_per_prompt_rewards") is not None:
-            bg_pp_r_by_lam[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_rewards"],
-            )
-            bg_pp_c_by_lam[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_costs"],
-            )
-    cs_pp_r_by_lam: Dict[float, np.ndarray] = {}
-    cs_pp_c_by_lam: Dict[float, np.ndarray] = {}
-    for p in coldstart_pareto_k2:
-        if p.get("per_seed_per_prompt_rewards") is not None:
-            cs_pp_r_by_lam[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_rewards"],
-            )
-            cs_pp_c_by_lam[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_costs"],
-            )
+    # Comparison vs supervised baselines (PerfGain / CostSave / Gap@Oracle)
+    oracle_reward_k2 = oracle_r_k2_pure
+    comparison_vs_supervised_k2: Dict[str, Dict[str, Any]] = {}
+    logger.info("\n    BanditGPT vs LLMRouter supervised baselines:")
+    for kind, sv_result in supervised_k2.items():
+        sv_cost = sv_result["cost"]
+        sv_reward = sv_result["reward"]
 
-    bg_boot_pp_r, bg_boot_pp_c = _extract_dev_optimal_per_prompt(
-        bandit_pareto_k2, bg_dev_idx_k2,
-        bg_pp_r_by_lam, bg_pp_c_by_lam, "lambda",
-    )
-    cs_boot_pp_r, cs_boot_pp_c = _extract_dev_optimal_per_prompt(
-        coldstart_pareto_k2, cs_dev_idx_k2,
-        cs_pp_r_by_lam, cs_pp_c_by_lam, "lambda",
-    )
-    bootstrap_k2 = bootstrap_pareto_auc_difference(
-        bg_boot_pp_r, bg_boot_pp_c,
-        cs_boot_pp_r, cs_boot_pp_c,
-        cost_lo=cost_lo_k2, cost_hi=cost_hi_k2,
-        n_holdout=len(holdout_data_k2), n_bootstrap=1_000,
-    )
-    logger.info(
-        f"    Bootstrap AUC diff (BG vs CS): {bootstrap_k2['observed_diff']:+.4f} "
-        f"95% CI [{bootstrap_k2['ci_95_lower']:+.4f}, "
-        f"{bootstrap_k2['ci_95_upper']:+.4f}] "
-        f"p={bootstrap_k2['p_value']:.4g}"
-    )
+        bg_reward_at_sv_cost = interpolate_pareto_reward(
+            bg_hull_c_k2, bg_hull_r_k2, sv_cost,
+        )
+        pg = (
+            perfgain(bg_reward_at_sv_cost, sv_reward)
+            if bg_reward_at_sv_cost is not None else None
+        )
+
+        bg_cost_at_sv_reward = interpolate_pareto_cost(
+            bg_hull_c_k2, bg_hull_r_k2, sv_reward,
+        )
+        if bg_cost_at_sv_reward is not None:
+            cs_abs, cs_pct = costsave(bg_cost_at_sv_reward, sv_cost)
+        else:
+            cs_abs, cs_pct = None, None
+
+        gap_sv_abs, gap_sv_pct = gap_at_oracle(oracle_reward_k2, sv_reward)
+        if bg_reward_at_sv_cost is not None:
+            gap_bg_abs, gap_bg_pct = gap_at_oracle(
+                oracle_reward_k2, bg_reward_at_sv_cost,
+            )
+        else:
+            gap_bg_abs, gap_bg_pct = None, None
+
+        comparison_vs_supervised_k2[kind] = {
+            "supervised_cost": sv_cost,
+            "supervised_reward": sv_reward,
+            "banditgpt_reward_at_sv_cost": bg_reward_at_sv_cost,
+            "perfgain": pg,
+            "banditgpt_cost_at_sv_reward": bg_cost_at_sv_reward,
+            "costsave_abs": cs_abs,
+            "costsave_pct": cs_pct,
+            "gap_oracle_supervised_abs": gap_sv_abs,
+            "gap_oracle_supervised_pct": gap_sv_pct,
+            "gap_oracle_banditgpt_abs": gap_bg_abs,
+            "gap_oracle_banditgpt_pct": gap_bg_pct,
+        }
+        logger.info(
+            f"      vs {kind.upper()}: PerfGain={_fmt(pg)} "
+            f"CostSave={_fmt(cs_pct, '%')} "
+            f"Gap@Oracle(SV)={gap_sv_abs:.4f}({gap_sv_pct:.1f}%)"
+        )
 
     # Point comparisons: BanditGPT dev-selected best vs supervised baselines
     bg_dev_optimal_k2 = [bandit_pareto_k2[i] for i in bg_dev_idx_k2]
     bg_best_dev_k2 = max(bg_dev_optimal_k2, key=lambda p: p["dev_mean_reward"])
 
     supervised_point_tests_k2: Dict[str, Dict] = {}
-    logger.info("\n    Supervised baseline point comparisons:")
+    logger.info("\n    Paired t-tests (BanditGPT dev-best vs supervised):")
     for kind, sv_result in supervised_k2.items():
         bg_pp = np.array(bg_best_dev_k2["per_seed_per_prompt_rewards"])
         bg_ensemble_pp = bg_pp.mean(axis=0)
@@ -1900,8 +1652,12 @@ def run_experiment() -> None:  # noqa: C901
             supervised_point_tests_k2[k]["reject_holm_05"] = bool(rej)
     else:
         for k in test_kinds:
-            supervised_point_tests_k2[k]["p_value_holm"] = supervised_point_tests_k2[k]["p_value_raw"]
-            supervised_point_tests_k2[k]["reject_holm_05"] = supervised_point_tests_k2[k]["p_value_raw"] < 0.05
+            supervised_point_tests_k2[k]["p_value_holm"] = (
+                supervised_point_tests_k2[k]["p_value_raw"]
+            )
+            supervised_point_tests_k2[k]["reject_holm_05"] = (
+                supervised_point_tests_k2[k]["p_value_raw"] < 0.05
+            )
 
     for kind in test_kinds:
         d = supervised_point_tests_k2[kind]
@@ -1913,19 +1669,24 @@ def run_experiment() -> None:  # noqa: C901
             f"p_raw={d['p_value_raw']:.4g} p_holm={d['p_value_holm']:.4g}{sig}"
         )
 
+    # BanditGPT dev-optimal Gap@Oracle
+    bg_best_dev_reward_k2 = bg_best_dev_k2["mean_reward"]
+    bg_gap_oracle_k2_abs, bg_gap_oracle_k2_pct = gap_at_oracle(
+        oracle_reward_k2, bg_best_dev_reward_k2,
+    )
+
     # Assemble K=2 summary
     best_sv_kind = max(supervised_k2, key=lambda k: supervised_k2[k]["reward"])
     best_sv = supervised_k2[best_sv_kind]
 
-    logger.info(f"\n  K=2 SUMMARY (dev-selected Pareto AUC primary):")
+    logger.info(f"\n  K=2 SUMMARY:")
     logger.info(f"    Oracle (pure quality): {oracle_r_k2_pure:.4f}")
     logger.info(
-        f"    Dev-selected Pareto AUC: BanditGPT={bg_ds_auc_k2:.4f} "
-        f"Coldstart={cs_ds_auc_k2:.4f} Tabula={tr_ds_auc_k2:.4f}"
+        f"    Dev-selected Pareto AUC: BanditGPT={bg_ds_auc_k2:.4f}"
     )
     logger.info(
-        f"    Bootstrap 95% CI (BG vs CS): [{bootstrap_k2['ci_95_lower']:+.4f}, "
-        f"{bootstrap_k2['ci_95_upper']:+.4f}] p={bootstrap_k2['p_value']:.4g}"
+        f"    BanditGPT dev-best: R={bg_best_dev_reward_k2:.4f} "
+        f"Gap@Oracle={bg_gap_oracle_k2_abs:.4f} ({bg_gap_oracle_k2_pct:.1f}%)"
     )
     logger.info(
         f"    Best supervised: {best_sv_kind.upper()} "
@@ -1958,8 +1719,6 @@ def run_experiment() -> None:  # noqa: C901
         ),
         "supervised_point_tests": supervised_point_tests_k2,
         "banditgpt_pareto": bandit_pareto_k2,
-        "coldstart_pareto": coldstart_pareto_k2,
-        "tabula_rasa_pareto": tabula_pareto_k2,
         "learning_curve": learning_curve_k2,
         "supervised_learning_curve": {
             "kind": best_sv_kind_k2,
@@ -1967,37 +1726,38 @@ def run_experiment() -> None:  # noqa: C901
         },
         "learning_curve_note": (
             "BanditGPT starts with warmup priors (step 0 reflects prior "
-            "quality, not zero knowledge).  The tabula rasa ablation "
-            "provides the symmetric-data comparison; the coldstart ablation "
-            "isolates the priors' standalone contribution."
+            "quality, not zero knowledge)."
         ),
         "pareto_auc_dev_selected": {
             "cost_range": [cost_lo_k2, cost_hi_k2],
             "banditgpt": bg_ds_auc_k2,
-            "coldstart": cs_ds_auc_k2,
-            "tabula_rasa": tr_ds_auc_k2,
-            "advantage_vs_coldstart": bg_ds_auc_k2 - cs_ds_auc_k2,
-            "advantage_vs_tabula": bg_ds_auc_k2 - tr_ds_auc_k2,
-            "bootstrap_ci": bootstrap_k2,
+            "banditgpt_hull_costs": bg_hull_c_k2,
+            "banditgpt_hull_rewards": bg_hull_r_k2,
             "note": (
                 "Dev-selected Pareto AUC: hull built from (dev_cost, "
                 "dev_reward) — no holdout data in selection.  Deployed "
                 "points are (holdout_cost, holdout_reward) of dev-optimal "
-                "hyperparameters.  Bootstrap CI over 1,000 holdout resamples "
-                "with fixed dev indices."
+                "hyperparameters."
             ),
         },
-        "pareto_auc_oracle_envelope": {
-            "cost_range": [oracle_cost_lo, oracle_cost_hi],
-            "banditgpt": bg_oracle_auc_k2,
-            "coldstart": cs_oracle_auc_k2,
-            "tabula_rasa": tr_oracle_auc_k2,
-            "note": (
-                "Oracle envelope AUC: holdout-selected hyperparameters.  "
-                "Upper bound — not deployable.  Retained for reference only."
-            ),
+        "comparison_vs_supervised": comparison_vs_supervised_k2,
+        "gap_at_oracle_banditgpt": {
+            "abs": bg_gap_oracle_k2_abs,
+            "pct": bg_gap_oracle_k2_pct,
+            "banditgpt_dev_best_reward": bg_best_dev_reward_k2,
         },
     }
+
+    # Lambda=0 entry (quality-maximizing, apples-to-apples with supervised)
+    lam0_entries = [p for p in bandit_pareto_k2 if p["lambda"] == 0.0]
+    if lam0_entries:
+        lam0 = lam0_entries[0]
+        results_all["K2"]["banditgpt_lambda0"] = {
+            "reward": lam0["mean_reward"],
+            "std_reward": lam0["std_reward"],
+            "cost": lam0["mean_cost"],
+            "std_cost": lam0["std_cost"],
+        }
 
     # ==================================================================
     # K=10 — Multi-model Pareto frontier
@@ -2109,16 +1869,31 @@ def run_experiment() -> None:  # noqa: C901
         )
 
     # --- BanditGPT Pareto sweep ----------------------------------------
-    k10_warmup_path = str(MULTIMODEL_WARMUP_PRIORS_PATH)
-    logger.info(f"  Using warmup priors: {MULTIMODEL_WARMUP_PRIORS_PATH.name}")
+    if not K10_WARMUP_PRIORS_PATH.exists():
+        raise FileNotFoundError(
+            f"K=10 warmup priors not found: {K10_WARMUP_PRIORS_PATH}\n"
+            "Generate with: python scripts/extract_warmup_from_multimodel.py "
+            "--input src/artifacts/priors_warmup_43model_6comp.joblib "
+            f"--output {K10_WARMUP_PRIORS_PATH} "
+            "--model-config data_collection/config/models_k10.json"
+        )
+    k10_warmup_path = str(K10_WARMUP_PRIORS_PATH)
+    logger.info(f"  Using warmup priors: {K10_WARMUP_PRIORS_PATH.name}")
 
     logger.info(
         f"\n  BanditGPT K=10 Pareto sweep "
         f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
     )
-    k10_alpha = tuned_k10["alpha"] if tuned_k10 is not None else ALPHA_START
-    k10_neff = tuned_k10["prior_n_effective"] if tuned_k10 is not None else TARGET_NEFF
-    k10_forgetting = tuned_k10["forgetting_factor"] if tuned_k10 is not None else 1.0
+    k10_alpha = tuned_k10["alpha"]
+    k10_neff = tuned_k10["prior_n_effective"]
+    k10_forgetting = tuned_k10["forgetting_factor"]
+    k10_tr_alpha_for_corral = tuned_k10_tr["alpha"]
+    k10_tr_ff_for_corral = tuned_k10_tr["forgetting_factor"]
+    logger.info(
+        f"    Corralling per-expert hparams: "
+        f"warmup(alpha={k10_alpha}, gamma={k10_forgetting}) | "
+        f"tabula_rasa(alpha={k10_tr_alpha_for_corral}, gamma={k10_tr_ff_for_corral})"
+    )
     bandit_pareto_k10 = run_pareto_sweep(
         K10_MODELS, K10_CATALOG,
         train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
@@ -2128,149 +1903,96 @@ def run_experiment() -> None:  # noqa: C901
         alpha=k10_alpha,
         prior_n_effective=k10_neff,
         forgetting_factor=k10_forgetting,
+        tabula_rasa_alpha=k10_tr_alpha_for_corral,
+        tabula_rasa_forgetting_factor=k10_tr_ff_for_corral,
     )
 
-    # Tabula rasa ablation (no priors, no Corralling)
-    # Uses independently tuned hyperparameters from Appendix H.
-    k10_tr_alpha = tuned_k10_tr["alpha"] if tuned_k10_tr is not None else ALPHA_START
-    k10_tr_neff = tuned_k10_tr["prior_n_effective"] if tuned_k10_tr is not None else TARGET_NEFF
-    k10_tr_forgetting = tuned_k10_tr["forgetting_factor"] if tuned_k10_tr is not None else 1.0
-    logger.info(
-        f"\n  Tabula rasa K=10 ablation "
-        f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
-        f"\n    hparams: alpha={k10_tr_alpha} n_eff={k10_tr_neff} gamma={k10_tr_forgetting}"
-    )
-    tabula_pareto_k10 = run_pareto_sweep(
-        K10_MODELS, K10_CATALOG,
-        train_train_k10, holdout_data_k10, train_train_emb_k10, holdout_emb_k10,
-        None, costs_k10, LAMBDA_VALUES_K10,
-        N_SEEDS, use_corralling=False, label="tabula_rasa",
-        dev_val_data=train_val_k10, dev_val_emb=train_val_emb_k10,
-        alpha=k10_tr_alpha,
-        prior_n_effective=k10_tr_neff,
-        forgetting_factor=k10_tr_forgetting,
-    )
-
-    # Cold-start K=10 (priors only, 0 online training steps)
-    logger.info(
-        f"\n  Cold-start K=10 sweep (priors only, 0 training steps) "
-        f"({len(LAMBDA_VALUES_K10)} lambda x {N_SEEDS} seeds) ..."
-    )
-    coldstart_pareto_k10 = run_coldstart_sweep(
-        K10_MODELS, K10_CATALOG,
-        holdout_data_k10, holdout_emb_k10,
-        k10_warmup_path, costs_k10, LAMBDA_VALUES_K10,
-        N_SEEDS, feature_dim=dim, use_corralling=True, label="coldstart",
-        dev_data=train_val_k10, dev_emb=train_val_emb_k10,
-        alpha=k10_alpha,
-        prior_n_effective=k10_neff,
-        forgetting_factor=k10_forgetting,
-    )
-
-    # --- K=10 summary: Dev-selected Pareto AUC --------------------------
+    # --- K=10 summary: BanditGPT Pareto AUC & comparison vs supervised --
     best_static_m = max(static_k10, key=lambda m: static_k10[m]["reward"])
 
-    # Dev-selected Pareto AUC (primary)
     bg_dev_costs_k10 = [p["dev_mean_cost"] for p in bandit_pareto_k10]
-    cs_dev_costs_k10 = [p["dev_mean_cost"] for p in coldstart_pareto_k10]
-    tr_dev_costs_k10 = [p["dev_mean_cost"] for p in tabula_pareto_k10]
-    cost_lo_k10 = max(
-        min(bg_dev_costs_k10), min(cs_dev_costs_k10), min(tr_dev_costs_k10),
-    )
-    cost_hi_k10 = min(
-        max(bg_dev_costs_k10), max(cs_dev_costs_k10), max(tr_dev_costs_k10),
+    cost_lo_k10 = min(bg_dev_costs_k10)
+    cost_hi_k10 = max(bg_dev_costs_k10)
+
+    bg_ds_auc_k10, bg_hull_c_k10, bg_hull_r_k10, bg_dev_idx_k10 = (
+        dev_selected_pareto_auc(bandit_pareto_k10, cost_lo_k10, cost_hi_k10)
     )
 
-    bg_ds_auc_k10, _, _, bg_dev_idx_k10 = dev_selected_pareto_auc(
-        bandit_pareto_k10, cost_lo_k10, cost_hi_k10,
+    logger.info(
+        f"    Dev-selected Pareto AUC (cost [{cost_lo_k10:.6f}, {cost_hi_k10:.6f}]):"
     )
-    cs_ds_auc_k10, _, _, cs_dev_idx_k10 = dev_selected_pareto_auc(
-        coldstart_pareto_k10, cost_lo_k10, cost_hi_k10,
-    )
-    tr_ds_auc_k10, _, _, tr_dev_idx_k10 = dev_selected_pareto_auc(
-        tabula_pareto_k10, cost_lo_k10, cost_hi_k10,
+    logger.info(
+        f"      BanditGPT: {bg_ds_auc_k10:.4f} "
+        f"({len(bg_dev_idx_k10)} dev-optimal pts)"
     )
 
-    # Oracle envelope AUC (reference)
-    bg_costs_k10 = [p["mean_cost"] for p in bandit_pareto_k10]
-    cs_costs_k10 = [p["mean_cost"] for p in coldstart_pareto_k10]
-    tr_costs_k10 = [p["mean_cost"] for p in tabula_pareto_k10]
-    oracle_cost_lo_k10 = max(
-        min(bg_costs_k10), min(cs_costs_k10), min(tr_costs_k10),
-    )
-    oracle_cost_hi_k10 = min(
-        max(bg_costs_k10), max(cs_costs_k10), max(tr_costs_k10),
-    )
-    bg_oracle_auc_k10 = pareto_auc(
-        bg_costs_k10,
-        [p["mean_reward"] for p in bandit_pareto_k10],
-        oracle_cost_lo_k10, oracle_cost_hi_k10,
-    )
-    cs_oracle_auc_k10 = pareto_auc(
-        cs_costs_k10,
-        [p["mean_reward"] for p in coldstart_pareto_k10],
-        oracle_cost_lo_k10, oracle_cost_hi_k10,
-    )
-    tr_oracle_auc_k10 = pareto_auc(
-        tr_costs_k10,
-        [p["mean_reward"] for p in tabula_pareto_k10],
-        oracle_cost_lo_k10, oracle_cost_hi_k10,
-    )
+    # Comparison vs supervised baselines (PerfGain / CostSave / Gap@Oracle)
+    oracle_reward_k10 = oracle_r_k10
+    comparison_vs_supervised_k10: Dict[str, Dict[str, Any]] = {}
+    logger.info("\n    BanditGPT vs LLMRouter supervised baselines:")
+    for kind, sv_result in supervised_k10.items():
+        sv_cost = sv_result["cost"]
+        sv_reward = sv_result["reward"]
 
-    # Paired bootstrap CI for K=10 AUC difference
-    logger.info("  Computing K=10 bootstrap CI ...")
-    bg_pp_r_k10: Dict[float, np.ndarray] = {}
-    bg_pp_c_k10: Dict[float, np.ndarray] = {}
-    for p in bandit_pareto_k10:
-        if p.get("per_seed_per_prompt_rewards") is not None:
-            bg_pp_r_k10[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_rewards"],
+        bg_reward_at_sv_cost = interpolate_pareto_reward(
+            bg_hull_c_k10, bg_hull_r_k10, sv_cost,
+        )
+        pg = (
+            perfgain(bg_reward_at_sv_cost, sv_reward)
+            if bg_reward_at_sv_cost is not None else None
+        )
+
+        bg_cost_at_sv_reward = interpolate_pareto_cost(
+            bg_hull_c_k10, bg_hull_r_k10, sv_reward,
+        )
+        if bg_cost_at_sv_reward is not None:
+            cs_abs, cs_pct = costsave(bg_cost_at_sv_reward, sv_cost)
+        else:
+            cs_abs, cs_pct = None, None
+
+        gap_sv_abs, gap_sv_pct = gap_at_oracle(oracle_reward_k10, sv_reward)
+        if bg_reward_at_sv_cost is not None:
+            gap_bg_abs, gap_bg_pct = gap_at_oracle(
+                oracle_reward_k10, bg_reward_at_sv_cost,
             )
-            bg_pp_c_k10[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_costs"],
-            )
-    tr_pp_r_k10: Dict[float, np.ndarray] = {}
-    tr_pp_c_k10: Dict[float, np.ndarray] = {}
-    for p in tabula_pareto_k10:
-        if p.get("per_seed_per_prompt_rewards") is not None:
-            tr_pp_r_k10[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_rewards"],
-            )
-            tr_pp_c_k10[p["lambda"]] = np.array(
-                p["per_seed_per_prompt_costs"],
-            )
+        else:
+            gap_bg_abs, gap_bg_pct = None, None
 
-    bg_boot_pp_r_k10, bg_boot_pp_c_k10 = _extract_dev_optimal_per_prompt(
-        bandit_pareto_k10, bg_dev_idx_k10,
-        bg_pp_r_k10, bg_pp_c_k10, "lambda",
-    )
-    tr_boot_pp_r_k10, tr_boot_pp_c_k10 = _extract_dev_optimal_per_prompt(
-        tabula_pareto_k10, tr_dev_idx_k10,
-        tr_pp_r_k10, tr_pp_c_k10, "lambda",
-    )
-    bootstrap_k10 = bootstrap_pareto_auc_difference(
-        bg_boot_pp_r_k10, bg_boot_pp_c_k10,
-        tr_boot_pp_r_k10, tr_boot_pp_c_k10,
-        cost_lo=cost_lo_k10, cost_hi=cost_hi_k10,
-        n_holdout=len(holdout_data_k10), n_bootstrap=1_000,
+        comparison_vs_supervised_k10[kind] = {
+            "supervised_cost": sv_cost,
+            "supervised_reward": sv_reward,
+            "banditgpt_reward_at_sv_cost": bg_reward_at_sv_cost,
+            "perfgain": pg,
+            "banditgpt_cost_at_sv_reward": bg_cost_at_sv_reward,
+            "costsave_abs": cs_abs,
+            "costsave_pct": cs_pct,
+            "gap_oracle_supervised_abs": gap_sv_abs,
+            "gap_oracle_supervised_pct": gap_sv_pct,
+            "gap_oracle_banditgpt_abs": gap_bg_abs,
+            "gap_oracle_banditgpt_pct": gap_bg_pct,
+        }
+        logger.info(
+            f"      vs {kind.upper()}: PerfGain={_fmt(pg)} "
+            f"CostSave={_fmt(cs_pct, '%')} "
+            f"Gap@Oracle(SV)={gap_sv_abs:.4f}({gap_sv_pct:.1f}%)"
+        )
+
+    # BanditGPT dev-optimal Gap@Oracle
+    bg_dev_optimal_k10 = [bandit_pareto_k10[i] for i in bg_dev_idx_k10]
+    bg_best_dev_k10 = max(bg_dev_optimal_k10, key=lambda p: p["dev_mean_reward"])
+    bg_best_dev_reward_k10 = bg_best_dev_k10["mean_reward"]
+    bg_gap_oracle_k10_abs, bg_gap_oracle_k10_pct = gap_at_oracle(
+        oracle_reward_k10, bg_best_dev_reward_k10,
     )
 
-    logger.info(f"\n  K=10 SUMMARY (dev-selected Pareto AUC primary):")
+    logger.info(f"\n  K=10 SUMMARY:")
     logger.info(f"    Oracle:       {oracle_r_k10:.4f}")
     logger.info(
-        f"    Dev-selected AUC: BanditGPT={bg_ds_auc_k10:.4f} vs "
-        f"Coldstart={cs_ds_auc_k10:.4f} vs "
-        f"Tabula rasa={tr_ds_auc_k10:.4f} "
-        f"(adv vs tabula: {bg_ds_auc_k10 - tr_ds_auc_k10:+.4f})"
+        f"    Dev-selected Pareto AUC: BanditGPT={bg_ds_auc_k10:.4f}"
     )
     logger.info(
-        f"    Bootstrap 95% CI: [{bootstrap_k10['ci_95_lower']:+.4f}, "
-        f"{bootstrap_k10['ci_95_upper']:+.4f}] "
-        f"p={bootstrap_k10['p_value']:.4g}"
-    )
-    logger.info(
-        f"    Oracle envelope (ref): BanditGPT={bg_oracle_auc_k10:.4f} vs "
-        f"Tabula rasa={tr_oracle_auc_k10:.4f}"
+        f"    BanditGPT dev-best: R={bg_best_dev_reward_k10:.4f} "
+        f"Gap@Oracle={bg_gap_oracle_k10_abs:.4f} ({bg_gap_oracle_k10_pct:.1f}%)"
     )
     logger.info(
         f"    Best static:  {static_k10[best_static_m]['reward']:.4f} "
@@ -2314,31 +2036,36 @@ def run_experiment() -> None:  # noqa: C901
             "mirror the LLMRouter protocol."
         ),
         "banditgpt_pareto": bandit_pareto_k10,
-        "coldstart_pareto": coldstart_pareto_k10,
-        "tabula_rasa_pareto": tabula_pareto_k10,
         "pareto_auc_dev_selected": {
             "cost_range": [cost_lo_k10, cost_hi_k10],
             "banditgpt": bg_ds_auc_k10,
-            "coldstart": cs_ds_auc_k10,
-            "tabula_rasa": tr_ds_auc_k10,
-            "advantage": bg_ds_auc_k10 - tr_ds_auc_k10,
-            "bootstrap_ci": bootstrap_k10,
+            "banditgpt_hull_costs": bg_hull_c_k10,
+            "banditgpt_hull_rewards": bg_hull_r_k10,
             "note": (
                 "Dev-selected Pareto AUC: hull built from (dev_cost, "
                 "dev_reward).  Deployed = holdout performance of dev-optimal "
-                "hyperparameters.  Bootstrap CI with fixed dev indices."
+                "hyperparameters."
             ),
         },
-        "pareto_auc_oracle_envelope": {
-            "cost_range": [oracle_cost_lo_k10, oracle_cost_hi_k10],
-            "banditgpt": bg_oracle_auc_k10,
-            "coldstart": cs_oracle_auc_k10,
-            "tabula_rasa": tr_oracle_auc_k10,
-            "advantage": bg_oracle_auc_k10 - tr_oracle_auc_k10,
-            "note": "Oracle envelope — holdout-selected hyperparameters (reference only).",
+        "comparison_vs_supervised": comparison_vs_supervised_k10,
+        "gap_at_oracle_banditgpt": {
+            "abs": bg_gap_oracle_k10_abs,
+            "pct": bg_gap_oracle_k10_pct,
+            "banditgpt_dev_best_reward": bg_best_dev_reward_k10,
         },
         "n_trials": N_SEEDS,
     }
+
+    # Lambda=0 entry (quality-maximizing, apples-to-apples with supervised)
+    lam0_entries_k10 = [p for p in bandit_pareto_k10 if p["lambda"] == 0.0]
+    if lam0_entries_k10:
+        lam0_k10 = lam0_entries_k10[0]
+        results_all["K10"]["banditgpt_lambda0"] = {
+            "reward": lam0_k10["mean_reward"],
+            "std_reward": lam0_k10["std_reward"],
+            "cost": lam0_k10["mean_cost"],
+            "std_cost": lam0_k10["std_cost"],
+        }
 
     # ==================================================================
     # Serialise (strip bulky per-prompt arrays to keep JSON manageable)

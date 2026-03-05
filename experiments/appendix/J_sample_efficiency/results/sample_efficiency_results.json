@@ -1,0 +1,664 @@
+{
+  "metadata": {
+    "timestamp": "2026-03-04 14:03:16",
+    "experiment": "Appendix J: Sample Efficiency of Warmup Priors",
+    "n_seeds": 20,
+    "protocol": "learning_curve_train_then_freeze",
+    "description": "Compares learning curves (holdout reward vs online steps) for BanditGPT (Corralling + warmup) and Tabula Rasa (single LinUCB, no priors).  The warmup advantage is primarily in sample efficiency (learning speed), not asymptotic performance."
+  },
+  "K2": {
+    "models": [
+      "meta-llama/llama-3.1-8b-instruct",
+      "openai/gpt-4.1"
+    ],
+    "n_dev_train": 2090,
+    "n_holdout": 1497,
+    "oracle_per_prompt": 0.9312402582943665,
+    "best_static": 0.9094021376085505,
+    "weak_static": 0.6647238922289023,
+    "checkpoints": [
+      0,
+      10,
+      25,
+      50,
+      100,
+      150,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900,
+      1000,
+      1200,
+      1500,
+      2000,
+      2090
+    ],
+    "warmup_hparams": {
+      "alpha": 0.1,
+      "prior_n_effective": 1000.0,
+      "forgetting_factor": 0.9999
+    },
+    "tabula_rasa_hparams": {
+      "alpha": 0.1,
+      "prior_n_effective": 10.0,
+      "forgetting_factor": 1.0
+    },
+    "warmup_curve": [
+      {
+        "step": 0,
+        "mean_reward": 0.9096693386773683,
+        "std_reward": 1.1390647892519134e-16,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 10,
+        "mean_reward": 0.8940469828546111,
+        "std_reward": 0.024695219277170104,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 25,
+        "mean_reward": 0.9045866733467068,
+        "std_reward": 0.011120302016065845,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 50,
+        "mean_reward": 0.9069077042974975,
+        "std_reward": 0.009524627779084908,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 100,
+        "mean_reward": 0.9083119015809533,
+        "std_reward": 0.0037035945170090403,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 150,
+        "mean_reward": 0.9089041972834695,
+        "std_reward": 0.0019503336312509342,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 200,
+        "mean_reward": 0.9089776775773906,
+        "std_reward": 0.0015222242687648164,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 300,
+        "mean_reward": 0.9089846359385574,
+        "std_reward": 0.0012617467759183064,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 400,
+        "mean_reward": 0.9091418949009265,
+        "std_reward": 0.0011679590590572251,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 500,
+        "mean_reward": 0.9091040414161793,
+        "std_reward": 0.0009510244076879256,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 600,
+        "mean_reward": 0.9091800267201204,
+        "std_reward": 0.0006784173794345666,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 700,
+        "mean_reward": 0.9091307615230597,
+        "std_reward": 0.0006739236931882209,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 800,
+        "mean_reward": 0.9091480182587534,
+        "std_reward": 0.0007311320850022945,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 900,
+        "mean_reward": 0.9093990759296506,
+        "std_reward": 0.00011095922827973343,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 1000,
+        "mean_reward": 0.909396292585184,
+        "std_reward": 0.00010791905884802839,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 1200,
+        "mean_reward": 0.9094296927187845,
+        "std_reward": 8.965971611504965e-05,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 1500,
+        "mean_reward": 0.9094177243375775,
+        "std_reward": 0.00020689266625040245,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 2000,
+        "mean_reward": 0.9089735025606906,
+        "std_reward": 0.0018742724418503844,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 2090,
+        "mean_reward": 0.9093807058561703,
+        "std_reward": 9.43363834294461e-05,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      }
+    ],
+    "tabula_rasa_curve": [
+      {
+        "step": 0,
+        "mean_reward": 0.7860849476731321,
+        "std_reward": 0.005143535944640938,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 10,
+        "mean_reward": 0.8385092407036405,
+        "std_reward": 0.0591471820895558,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 25,
+        "mean_reward": 0.8736439545758307,
+        "std_reward": 0.03330580971141426,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 50,
+        "mean_reward": 0.8958358383433664,
+        "std_reward": 0.01521449827846496,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 100,
+        "mean_reward": 0.9039545758183166,
+        "std_reward": 0.007335934618183393,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 150,
+        "mean_reward": 0.9052171008684169,
+        "std_reward": 0.007230944899586095,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 200,
+        "mean_reward": 0.9056810843910178,
+        "std_reward": 0.005870186588388959,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 300,
+        "mean_reward": 0.9074741148964731,
+        "std_reward": 0.002711548242166602,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 400,
+        "mean_reward": 0.908412101981755,
+        "std_reward": 0.0009158270085578909,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 500,
+        "mean_reward": 0.9086773547094327,
+        "std_reward": 0.0008584708681634454,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 600,
+        "mean_reward": 0.9087616900467739,
+        "std_reward": 0.0005999490681156079,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 700,
+        "mean_reward": 0.9087636383879005,
+        "std_reward": 0.000630782510807062,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 800,
+        "mean_reward": 0.9088001002004145,
+        "std_reward": 0.0007840960326643304,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 900,
+        "mean_reward": 0.9089342574037099,
+        "std_reward": 0.0005902112865134846,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 1000,
+        "mean_reward": 0.9090071810287377,
+        "std_reward": 0.00041543384679455385,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 1200,
+        "mean_reward": 0.909076486305959,
+        "std_reward": 0.00046276529870974457,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 1500,
+        "mean_reward": 0.9088774771765891,
+        "std_reward": 0.0009428993035603323,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 2000,
+        "mean_reward": 0.9090227677577513,
+        "std_reward": 0.0007924589439794792,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 2090,
+        "mean_reward": 0.9090642395903054,
+        "std_reward": 0.0008837861606307909,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      }
+    ],
+    "metrics": {
+      "threshold_fraction": 0.9,
+      "target_reward": 0.8381162324649298,
+      "oracle_reward": 0.9312402582943665,
+      "warmup": {
+        "auc": 1899.870954408846,
+        "steps_to_threshold": 0,
+        "final_reward": 0.9093807058561703,
+        "final_std": 9.43363834294461e-05
+      },
+      "tabula_rasa": {
+        "auc": 1896.0863010743992,
+        "steps_to_threshold": 10,
+        "final_reward": 0.9090642395903054,
+        "final_std": 0.0008837861606307909
+      },
+      "auc_advantage": 3.78465333444683,
+      "speedup": "N/A"
+    }
+  },
+  "K10": {
+    "models": [
+      "meta-llama/llama-3.1-8b-instruct",
+      "mistralai/mixtral-8x7b-instruct",
+      "google/gemma-3-27b-it",
+      "anthropic/claude-haiku-4.5",
+      "deepseek/deepseek-chat-v3-0324",
+      "google/gemini-2.5-flash",
+      "meta-llama/llama-4-maverick",
+      "anthropic/claude-sonnet-4",
+      "moonshotai/kimi-k2-0905",
+      "openai/gpt-4.1"
+    ],
+    "n_train": 1774,
+    "n_holdout": 1483,
+    "oracle_per_prompt": 0.9720948527759048,
+    "best_static": 0.911154191953248,
+    "weak_static": 0.6642897280287706,
+    "checkpoints": [
+      0,
+      10,
+      25,
+      50,
+      100,
+      150,
+      200,
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900,
+      1000,
+      1200,
+      1500,
+      1774
+    ],
+    "warmup_hparams": {
+      "alpha": 1.0,
+      "prior_n_effective": 1000.0,
+      "forgetting_factor": 1.0
+    },
+    "tabula_rasa_hparams": {
+      "alpha": 0.25,
+      "prior_n_effective": 10.0,
+      "forgetting_factor": 1.0
+    },
+    "warmup_curve": [
+      {
+        "step": 0,
+        "mean_reward": 0.8971763317599558,
+        "std_reward": 1.1390647892519134e-16,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 10,
+        "mean_reward": 0.8818692402787229,
+        "std_reward": 0.03089054673206849,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 25,
+        "mean_reward": 0.8862283659249351,
+        "std_reward": 0.023947507024000576,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 50,
+        "mean_reward": 0.8889823555855338,
+        "std_reward": 0.007848626430450971,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 100,
+        "mean_reward": 0.8872648347943439,
+        "std_reward": 0.011663778235298843,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 150,
+        "mean_reward": 0.8878475500112464,
+        "std_reward": 0.012621114320208534,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 200,
+        "mean_reward": 0.8859031523938039,
+        "std_reward": 0.014953575086638799,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 300,
+        "mean_reward": 0.8909302652281488,
+        "std_reward": 0.011161218740534605,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 400,
+        "mean_reward": 0.8931051921780245,
+        "std_reward": 0.008431574074298096,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 500,
+        "mean_reward": 0.8939798269274067,
+        "std_reward": 0.009143774191071203,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 600,
+        "mean_reward": 0.8947374409979844,
+        "std_reward": 0.009499688087813646,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 700,
+        "mean_reward": 0.896964205439432,
+        "std_reward": 0.008883925137293141,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 800,
+        "mean_reward": 0.8970175882220797,
+        "std_reward": 0.010026981171622155,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 900,
+        "mean_reward": 0.8973329680827227,
+        "std_reward": 0.009529981442197698,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 1000,
+        "mean_reward": 0.8968868004045925,
+        "std_reward": 0.009640367535900848,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 1200,
+        "mean_reward": 0.8983251854349368,
+        "std_reward": 0.011193708986583872,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 1500,
+        "mean_reward": 0.9013208024275194,
+        "std_reward": 0.010734489141518928,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      },
+      {
+        "step": 1774,
+        "mean_reward": 0.903405962013944,
+        "std_reward": 0.00991992223334408,
+        "n_trials": 20,
+        "label": "BanditGPT"
+      }
+    ],
+    "tabula_rasa_curve": [
+      {
+        "step": 0,
+        "mean_reward": 0.8466037311755524,
+        "std_reward": 0.005310590510581587,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 10,
+        "mean_reward": 0.8574887615194511,
+        "std_reward": 0.05594751758925317,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 25,
+        "mean_reward": 0.8749987356709461,
+        "std_reward": 0.03535007843071942,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 50,
+        "mean_reward": 0.8802605922679346,
+        "std_reward": 0.029390529914711524,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 100,
+        "mean_reward": 0.8859629973027741,
+        "std_reward": 0.013141938138162735,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 150,
+        "mean_reward": 0.8868750000000098,
+        "std_reward": 0.013767201890859072,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 200,
+        "mean_reward": 0.8892409811193621,
+        "std_reward": 0.015511136696079703,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 300,
+        "mean_reward": 0.8928490953023248,
+        "std_reward": 0.014190306002241873,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 400,
+        "mean_reward": 0.8942995616992677,
+        "std_reward": 0.012628100710702759,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 500,
+        "mean_reward": 0.8964107102719805,
+        "std_reward": 0.011851811450876305,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 600,
+        "mean_reward": 0.899334120026982,
+        "std_reward": 0.007818397596111496,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 700,
+        "mean_reward": 0.9011836929647206,
+        "std_reward": 0.00617409232545631,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 800,
+        "mean_reward": 0.9014324848280607,
+        "std_reward": 0.0058885441090705485,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 900,
+        "mean_reward": 0.9019434142504028,
+        "std_reward": 0.0063048026898946345,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 1000,
+        "mean_reward": 0.9037766913913334,
+        "std_reward": 0.005539559515223807,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 1200,
+        "mean_reward": 0.9046490784446043,
+        "std_reward": 0.005689915378601737,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 1500,
+        "mean_reward": 0.9059944650483356,
+        "std_reward": 0.005888056914151234,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      },
+      {
+        "step": 1774,
+        "mean_reward": 0.9076579006518422,
+        "std_reward": 0.005009277096538859,
+        "n_trials": 20,
+        "label": "Tabula Rasa"
+      }
+    ],
+    "metrics": {
+      "threshold_fraction": 0.9,
+      "target_reward": 0.8748853674983144,
+      "oracle_reward": 0.9720948527759048,
+      "warmup": {
+        "auc": 1589.735760704666,
+        "steps_to_threshold": 0,
+        "final_reward": 0.903405962013944,
+        "final_std": 0.00991992223334408
+      },
+      "tabula_rasa": {
+        "auc": 1595.6399736598282,
+        "steps_to_threshold": 25,
+        "final_reward": 0.9076579006518422,
+        "final_std": 0.005009277096538859
+      },
+      "auc_advantage": -5.904212955162166,
+      "speedup": "N/A"
+    }
+  }
+}

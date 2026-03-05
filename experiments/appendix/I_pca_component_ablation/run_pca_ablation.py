@@ -42,11 +42,12 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.calibration import embed_prompt
 from bandit_gpt.config import (
-    DEFAULT_PCA_PATH,
     DEFAULT_SENTENCE_TRANSFORMER,
     DEV_DATA_PATH_ALL_MODELS,
+    FULL_PCA_PATH,
     HOLDOUT_DATA_PATH_ALL_MODELS,
-    MULTIMODEL_WARMUP_PRIORS_PATH,
+    K10_MODELS_PATH,
+    MULTIMODEL_WARMUP_PRIORS_PATH_32,
     THREE_WAY_SPLITS_PATH,
     ARTIFACTS_DIR,
 )
@@ -80,29 +81,24 @@ def _req_cost(inp: float, out: float) -> float:
     return (100 * inp + 400 * out) / 1_000_000
 
 
-K10_MODELS: List[str] = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mixtral-8x7b-instruct",
-    "google/gemma-3-27b-it",
-    "anthropic/claude-haiku-4.5",
-    "deepseek/deepseek-chat-v3-0324",
-    "google/gemini-2.5-flash-preview-09-2025",
-    "meta-llama/llama-4-maverick",
-    "anthropic/claude-sonnet-4",
-    "moonshotai/kimi-k2-0905",
-    "openai/gpt-4.1",
-]
+def _load_k10_portfolio() -> Tuple[List[str], Dict[str, Dict]]:
+    """Load K=10 model list and catalog from ``models_k10.json``."""
+    with open(K10_MODELS_PATH) as f:
+        k10_cfg = json.load(f)
+    models = [m["model_id"] for m in k10_cfg["models"]]
+    prices = get_prices_for_models(models)
+    catalog: Dict[str, Dict] = {}
+    for m_entry in k10_cfg["models"]:
+        mid = m_entry["model_id"]
+        catalog[mid] = {
+            "display": m_entry.get("display", mid.split("/")[-1]),
+            **prices[mid],
+            "cost": _req_cost(prices[mid]["input_cost_per_m"],
+                              prices[mid]["output_cost_per_m"]),
+        }
+    return models, catalog
 
-_PRICES = get_prices_for_models(K10_MODELS)
-K10_CATALOG: Dict[str, Dict] = {
-    m: {
-        "display": m.split("/")[-1],
-        **_PRICES[m],
-        "cost": _req_cost(_PRICES[m]["input_cost_per_m"],
-                          _PRICES[m]["output_cost_per_m"]),
-    }
-    for m in K10_MODELS
-}
+K10_MODELS, K10_CATALOG = _load_k10_portfolio()
 
 
 # ============================================================================
@@ -480,8 +476,8 @@ def main() -> None:
     t0 = time.time()
 
     # Load shared resources
-    logger.info("Loading encoder and PCA ...")
-    pca32 = joblib.load(DEFAULT_PCA_PATH)
+    logger.info("Loading encoder and full 32-component PCA ...")
+    pca32 = joblib.load(FULL_PCA_PATH)
     encoder = SentenceTransformer(DEFAULT_SENTENCE_TRANSFORMER)
     logger.info(f"  PCA: {pca32.n_components_} components (whiten={pca32.whiten})")
 
@@ -495,7 +491,7 @@ def main() -> None:
     forgetting_factor = 1.0
     if hparams_path.exists():
         hp = json.loads(hparams_path.read_text())
-        cfg = hp.get("best_config", {})
+        cfg = hp.get("K10", {})
         alpha = float(cfg.get("alpha", alpha))
         n_eff = float(cfg.get("n_eff", n_eff))
         forgetting_factor = float(cfg.get("gamma", forgetting_factor))
@@ -548,7 +544,7 @@ def main() -> None:
         logger.info(f"{'='*50}")
 
         pca_trunc = truncate_pca(pca32, n_comp)
-        priors_trunc = truncate_warmup_priors(MULTIMODEL_WARMUP_PRIORS_PATH, n_comp)
+        priors_trunc = truncate_warmup_priors(MULTIMODEL_WARMUP_PRIORS_PATH_32, n_comp)
 
         result = run_ablation_for_n_components(
             n_comp,

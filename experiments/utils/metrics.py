@@ -1,7 +1,9 @@
 """
 Metrics computation for BanditGPT experiments.
 
-Provides standard metric calculations used across all experiments.
+Provides standard metric calculations used across all experiments,
+including regret metrics and router comparison metrics following
+conventions from LLMRouterBench (2026).
 """
 
 import numpy as np
@@ -142,51 +144,79 @@ def calculate_normalized_regret(
     return policy_cumulative / random_cumulative
 
 
-# Placeholder for future implementations
-def calculate_feature_lift(baseline_regret, ablated_regret):
-    """
-    [PLACEHOLDER] Calculate performance lift from adding a feature.
-    
+# =========================================================================
+# Router comparison metrics (LLMRouterBench conventions)
+# =========================================================================
+
+
+def perfgain(
+    router_reward: float,
+    baseline_reward: float,
+) -> float:
+    """Performance gain of a router over a baseline at matched cost.
+
+    Positive means the router achieves higher reward than the baseline
+    at the same cost level (isocost comparison).
+
+    Ref: LLMRouterBench (2026), "PerfGain" metric.
+
     Args:
-        baseline_regret: regret with feature
-        ablated_regret: regret without feature
-    
+        router_reward: Router's interpolated reward at the baseline's
+            operating cost.
+        baseline_reward: Baseline's reward at its operating cost.
+
     Returns:
-        lift percentage
+        Absolute reward difference (router - baseline).
     """
-    # TODO: Implement
-    pass
+    return router_reward - baseline_reward
 
 
-def calculate_pruning_false_positive_rate(pruned_models, true_dominated):
-    """
-    [PLACEHOLDER] Calculate false positive rate in pruning.
-    
+def costsave(
+    router_cost: float,
+    baseline_cost: float,
+) -> Tuple[float, float]:
+    """Cost savings of a router over a baseline at matched quality.
+
+    Positive values mean the router achieves the same quality at
+    lower cost (iso-quality comparison).
+
+    Ref: LLMRouterBench (2026), "CostSave" metric.
+
     Args:
-        pruned_models: models that were pruned
-        true_dominated: models that are truly dominated
-    
+        router_cost: Router's interpolated cost at the baseline's
+            reward level.
+        baseline_cost: Baseline's cost at its operating point.
+
     Returns:
-        FPR (false positives / total negatives)
+        ``(absolute_saving, percentage_saving)`` where percentage is
+        relative to the baseline cost.  Both are positive when the
+        router is cheaper.
     """
-    # TODO: Implement
-    pass
+    absolute = baseline_cost - router_cost
+    pct = (absolute / baseline_cost * 100.0) if baseline_cost != 0 else 0.0
+    return absolute, pct
 
 
-if __name__ == "__main__":
-    # Test metrics
-    selected = np.array([0.5, 0.7, 0.6, 0.8])
-    oracle = np.array([0.9, 0.9, 0.9, 0.9])
-    random_baseline = np.array([0.4, 0.5, 0.4, 0.5])
-    
-    cum_regret = calculate_cumulative_regret(selected, oracle)
-    print(f"Cumulative regret: {cum_regret}")
-    print(f"Simple regret: {calculate_simple_regret(selected, oracle):.3f}")
-    print(f"Normalized regret: {calculate_normalized_regret(selected, oracle, random_baseline):.3f}")
-    
-    # Test CI
-    data = np.random.randn(100)
-    lower, upper = bootstrap_ci(data)
-    print(f"95% CI: [{lower:.3f}, {upper:.3f}]")
-    
-    print("✓ Metrics working correctly!")
+def gap_at_oracle(
+    oracle_reward: float,
+    method_reward: float,
+) -> Tuple[float, float]:
+    """Remaining reward gap between a method and the oracle.
+
+    Measures how much headroom remains between the method's
+    performance and instance-wise optimal routing.
+
+    Ref: LLMRouterBench (2026), "Gap@Oracle" metric.
+
+    Args:
+        oracle_reward: Per-instance optimal (oracle) mean reward.
+        method_reward: Method's mean reward.
+
+    Returns:
+        ``(absolute_gap, relative_gap_pct)`` where relative gap is
+        ``(oracle - method) / oracle * 100``.  Both are non-negative
+        when the method under-performs the oracle.
+    """
+    absolute = oracle_reward - method_reward
+    pct = (absolute / oracle_reward * 100.0) if oracle_reward != 0 else 0.0
+    return absolute, pct
