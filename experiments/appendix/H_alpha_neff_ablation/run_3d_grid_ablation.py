@@ -25,7 +25,7 @@ dev-val, and compute the Pareto hull of the resulting (cost, reward)
 points.  The AUCPC integrates the Pareto hull after **normalizing both
 axes** so that the cheap-model baseline is at (0, 0) and the frontier-model
 baseline is at (1, 1).  This makes the scalar directly interpretable
-(random-diagonal \(\approx 0.5\), near-oracle \(\approx 1.0\)).
+(random-diagonal ≈ 0.5, near-oracle ≈ 1.0).
 
 *Why not mean reward at lambda=0?*  When one model dominates on average
 (e.g. GPT-4.1 in K=2), quality-only tuning converges to a degenerate
@@ -103,7 +103,7 @@ from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
 from utils.model_pricing import get_prices_for_models
 from utils.embeddings import load_embedding_cache, embed_dataset_cached
-from utils.pareto import pareto_aucpc_normalized
+from utils.pareto import pareto_aucpc_normalized, pareto_hull
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -677,6 +677,109 @@ def plot_grid(
     logger.info(f"Saved {path}")
 
 
+def plot_lambda_sweep_curve(
+    sweep_points: List[Dict[str, Any]],
+    *,
+    cheap_cost: float,
+    frontier_cost: float,
+    cheap_baseline_reward: float,
+    frontier_baseline_reward: float,
+    out: Path,
+    filename: str,
+    title: str,
+) -> None:
+    """Plot the empirical (cost, quality) pairs induced by a λ sweep.
+
+    The points in *sweep_points* are produced by training (or selecting) a router
+    under different values of the cost-penalty preference λ. We plot them in the
+    **normalized** cost–quality space used for AUCPC:
+
+    - x: normalized cost (cheap → 0, frontier → 1)
+    - y: normalized quality (cheap baseline → 0, frontier baseline → 1)
+
+    Args:
+        sweep_points: List of dicts with keys ``lambda``, ``mean_cost``,
+            ``mean_reward``.
+        cheap_cost: Cheapest model cost in the portfolio.
+        frontier_cost: Frontier model cost in the portfolio.
+        cheap_baseline_reward: Mean reward of always choosing the cheapest model
+            on the same split as *sweep_points*.
+        frontier_baseline_reward: Mean reward of always choosing the frontier
+            model on the same split.
+        out: Output directory.
+        filename: Filename for the saved figure.
+        title: Figure title.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    costs = [float(sp["mean_cost"]) for sp in sweep_points]
+    rewards = [float(sp["mean_reward"]) for sp in sweep_points]
+    lambdas = [float(sp["lambda"]) for sp in sweep_points]
+
+    aucpc = pareto_aucpc_normalized(
+        costs,
+        rewards,
+        cheap_cost=cheap_cost,
+        frontier_cost=frontier_cost,
+        cheap_reward=cheap_baseline_reward,
+        frontier_reward=frontier_baseline_reward,
+        clip_quality_to_unit=True,
+    )
+
+    cost_range = float(frontier_cost - cheap_cost)
+    qual_range = float(frontier_baseline_reward - cheap_baseline_reward)
+    if cost_range <= 0:
+        raise ValueError("Expected frontier_cost > cheap_cost for plotting.")
+
+    x = (np.array(costs, dtype=float) - cheap_cost) / cost_range
+    if abs(qual_range) <= 1e-12:
+        y = np.full_like(x, 0.5, dtype=float)
+    else:
+        y = (np.array(rewards, dtype=float) - cheap_baseline_reward) / qual_range
+        y = np.clip(y, 0.0, 1.0)
+
+    hull_c, hull_r = pareto_hull(costs, rewards)
+    hull_x = (np.array(hull_c, dtype=float) - cheap_cost) / cost_range
+    if abs(qual_range) <= 1e-12:
+        hull_y = np.full_like(hull_x, 0.5, dtype=float)
+    else:
+        hull_y = (np.array(hull_r, dtype=float) - cheap_baseline_reward) / qual_range
+        hull_y = np.clip(hull_y, 0.0, 1.0)
+
+    fig, ax = plt.subplots(figsize=(6.0, 5.0), constrained_layout=True)
+    sc = ax.scatter(
+        x,
+        y,
+        c=np.array(lambdas, dtype=float),
+        cmap="viridis",
+        s=60,
+        edgecolor="white",
+        linewidth=0.6,
+        zorder=3,
+    )
+    ax.plot(hull_x, hull_y, color="black", linewidth=2.0, zorder=4, label="Pareto hull")
+    ax.plot([0, 1], [0, 1], color="gray", linestyle="--", linewidth=1.2, zorder=1, label="Diagonal (AUC=0.5)")
+
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.02, 1.02)
+    ax.set_xlabel("Normalized cost (cheap → 0, frontier → 1)")
+    ax.set_ylabel("Normalized quality (cheap baseline → 0, frontier baseline → 1)")
+    ax.set_title(f"{title}\nAUCPC={aucpc:.3f}", fontsize=11)
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="lower right", frameon=True)
+
+    cbar = fig.colorbar(sc, ax=ax, fraction=0.06, pad=0.03)
+    cbar.set_label("Cost penalty λ", rotation=90)
+
+    path = out / filename
+    fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    logger.info(f"Saved {path}")
+
+
 # ============================================================================
 # Single-portfolio ablation runner
 # ============================================================================
@@ -951,6 +1054,32 @@ def run_portfolio_ablation(
         k_label=k_label,
         filename=figure_filename,
         supervised_peak=supervised_peak,
+    )
+
+    variant_slug = (
+        variant_label.lower()
+        .replace(" ", "_")
+        .replace("+", "plus")
+    )
+    plot_lambda_sweep_curve(
+        best["sweep_points"],
+        cheap_cost=cost_lo,
+        frontier_cost=cost_hi,
+        cheap_baseline_reward=dev_val_cheap_r,
+        frontier_baseline_reward=dev_val_frontier_r,
+        out=output_dir,
+        filename=f"aucpc_curve_k{k_label}_{variant_slug}_dev_val.png",
+        title=f"K={k_label} {variant_label} (dev-val λ sweep)",
+    )
+    plot_lambda_sweep_curve(
+        best_holdout["sweep_points"],
+        cheap_cost=cost_lo,
+        frontier_cost=cost_hi,
+        cheap_baseline_reward=holdout_cheap_r,
+        frontier_baseline_reward=holdout_frontier_r,
+        out=output_dir,
+        filename=f"aucpc_curve_k{k_label}_{variant_slug}_holdout.png",
+        title=f"K={k_label} {variant_label} (holdout λ sweep)",
     )
 
     return {
