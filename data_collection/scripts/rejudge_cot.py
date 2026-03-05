@@ -3,10 +3,12 @@ import os
 import time
 import threading
 from pathlib import Path
-from typing import List, Dict, Tuple, Any
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
 import requests
-from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 # Reuse the class structure but modify for CoT / Re-judging
 class CoTRewardGenerator:
@@ -31,9 +33,9 @@ class CoTRewardGenerator:
         # Judge Pool
         self.judge_pool = {
             "openai": "openai/gpt-4o",
-            "anthropic": "anthropic/claude-3.5-sonnet",
-            "meta": "meta-llama/llama-3.1-405b-instruct",
-            "google": "google/gemini-2.5-pro-preview-06-05"
+            "anthropic": "anthropic/claude-3.5-haiku",
+            "meta": "meta-llama/llama-3.3-70b-instruct",
+            "google": "google/gemini-2.5-flash",
         }
         self.family_map = {
             "gpt": "openai", "o1": "openai", "o3": "openai",
@@ -111,124 +113,167 @@ class CoTRewardGenerator:
         except Exception as e:
             return None
 
-    def judge_single_cot(self, judge_model: str, system_prompt: str, user_content: str) -> Tuple[int, float, str]:
-        """Query a single judge for Vote, Confidence, and Reasoning."""
+    def judge_single_cot(
+        self, judge_model: str, system_prompt: str, user_content: str,
+    ) -> Dict[str, Any] | None:
+        """Query a single judge and parse the three-factor rubric response.
+
+        Returns
+        -------
+        dict | None
+            Keys: ``logic`` (0 or 1), ``constraint`` (0 or 1),
+            ``utility`` (float 0-1), ``reward`` (composite float),
+            ``reasoning`` (str).  ``None`` on API failure.
+        """
+        import re
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
         }
-        
+
         payload = {
             "model": judge_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": user_content},
             ],
             "temperature": 0.0,
             "max_tokens": self.judge_max_tokens,
         }
-        
+
         try:
-            resp = requests.post(f"{self.base_url}/chat/completions", headers=headers, json=payload, timeout=40)
+            resp = requests.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers, json=payload, timeout=60,
+            )
             resp.raise_for_status()
             data = resp.json()
             content = data["choices"][0]["message"]["content"].strip()
-            
-            # Robust Parsing
-            import re
-            
-            # Extract Vote (0 or 1)
-            vote = 0
-            vote_match = re.search(r"## Vote\s*(\d)", content, re.IGNORECASE)
-            if vote_match:
-                vote = int(vote_match.group(1))
-                if vote != 1: vote = 0 # Enforce binary
-            
-            # Extract Confidence (0-100 or 0.0-1.0)
-            confidence = 0.5
-            conf_match = re.search(r"## Confidence\s*(\d+(\.\d+)?)", content, re.IGNORECASE)
-            if conf_match:
-                val = float(conf_match.group(1))
-                if val > 1.0: val = val / 100.0 # Normalize 90 -> 0.9
-                confidence = max(0.0, min(1.0, val))
 
-            # Extract Reasoning
+            # --- Parse Logical Integrity (binary: 0 or 1) ---
+            logic = 0
+            m = re.search(
+                r"##\s*Logical Integrity\s*[:\-]?\s*(\d)", content, re.IGNORECASE,
+            )
+            if m:
+                logic = 1 if int(m.group(1)) == 1 else 0
+
+            # --- Parse Constraint Adherence (binary: 0 or 1) ---
+            constraint = 0
+            m = re.search(
+                r"##\s*Constraint Adherence\s*[:\-]?\s*(\d)", content, re.IGNORECASE,
+            )
+            if m:
+                constraint = 1 if int(m.group(1)) == 1 else 0
+
+            # --- Parse Utility & Tone (continuous 0.0–1.0) ---
+            utility = 0.5
+            m = re.search(
+                r"##\s*Utility\s*(?:&|and)?\s*Tone\s*[:\-]?\s*(\d+\.?\d*)",
+                content, re.IGNORECASE,
+            )
+            if m:
+                val = float(m.group(1))
+                if val > 1.0:
+                    val = val / 100.0
+                utility = max(0.0, min(1.0, val))
+
+            # --- Composite reward ---
+            reward = logic * 0.5 + constraint * 0.3 + utility * 0.2
+
+            # --- Extract Reasoning block ---
             reasoning = content
-            reason_match = re.search(r"## Reasoning\s*(.*?)(\n## Vote|$)", content, re.DOTALL | re.IGNORECASE)
-            if reason_match:
-                reasoning = reason_match.group(1).strip()
-            
-            return vote, confidence, reasoning
-                
+            rm = re.search(
+                r"##\s*Reasoning\s*(.*?)(\n##|$)",
+                content, re.DOTALL | re.IGNORECASE,
+            )
+            if rm:
+                reasoning = rm.group(1).strip()
+
+            return {
+                "logic": logic,
+                "constraint": constraint,
+                "utility": round(utility, 4),
+                "reward": round(reward, 4),
+                "reasoning": reasoning,
+            }
+
         except Exception as e:
-            return None, None, f"Error: {str(e)}"
+            return None
 
     def judge_with_panel_cot(self, prompt: str, response: str, model_id: str) -> Tuple[float, List[Dict]]:
+        """Run the multi-judge panel and aggregate rubric scores.
+
+        Each judge independently scores three factors (Logical Integrity,
+        Constraint Adherence, Utility & Tone).  The final reward is the
+        mean of per-judge composite scores.
+        """
         judges = self.get_judges_for_model(model_id)
-        
+
         system_prompt = (
-            "You are an impartial judge evaluating the quality of an LLM response.\n"
-            "Please follow this Chain-of-Thought process:\n"
-            "1. Provide a concise reasoning explanation.\n"
-            "2. Cast a VOTE: 1 (Pass/Good) or 0 (Fail/Bad).\n"
-            "3. Assign a CONFIDENCE score (0-100%) reflecting your certainty.\n\n"
-            "Format your response exactly as follows:\n\n"
+            "You are a Discriminative Router Judge. Your goal is to find the "
+            "failure points in LLM responses.\n\n"
+            "Score the response on three factors:\n\n"
+            "1. **Logical Integrity (50 %)** — Does the model show its work? "
+            "If there is a single calculation or logical-step error, this "
+            "factor is 0. No partial credit.\n"
+            "2. **Constraint Adherence (30 %)** — Did the model follow ALL "
+            "formatting and negative constraints (e.g. \"Do not use the word "
+            "'AI'\")? If one constraint is missed, this factor is 0.\n"
+            "3. **Utility & Tone (20 %)** — Is the answer helpful and "
+            "professional? Score continuously from 0.0 (useless / rude) to "
+            "1.0 (maximally helpful and professional).\n\n"
+            "Format your response EXACTLY as follows:\n\n"
             "## Reasoning\n"
-            "<reasoning text>\n\n"
-            "## Vote\n"
+            "<Concise chain-of-thought analysis identifying any errors or "
+            "constraint violations>\n\n"
+            "## Logical Integrity\n"
             "<0 or 1>\n\n"
-            "## Confidence\n"
-            "<0-100>"
+            "## Constraint Adherence\n"
+            "<0 or 1>\n\n"
+            "## Utility & Tone\n"
+            "<0.0 to 1.0>"
         )
         user_content = f"PROMPT: {prompt}\n\nRESPONSE: {response}"
-        
-    
-        results = []
-        score_1_sum = 0.0
-        score_0_sum = 0.0
-        
-        # Parallel judge calls for speedup
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        
+
+        results: List[Dict] = []
+
         with ThreadPoolExecutor(max_workers=len(judges)) as executor:
-            futures = {executor.submit(self.judge_single_cot, judge, system_prompt, user_content): judge 
-                       for judge in judges}
-            
+            futures = {
+                executor.submit(
+                    self.judge_single_cot, judge, system_prompt, user_content,
+                ): judge
+                for judge in judges
+            }
+
             for future in as_completed(futures):
-                result = future.result()
-                if result[0] is None: continue  # Skip failed judges
-                vote, confidence, reasoning = result
+                parsed = future.result()
+                if parsed is None:
+                    continue
                 judge = futures[future]
-                
-                if vote == 1:
-                    score_1_sum += confidence
-                else:
-                    score_0_sum += confidence
-                    
                 results.append({
                     "judge": judge,
-                    "vote": vote,
-                    "confidence": confidence,
-                    "reasoning": reasoning
+                    "logic": parsed["logic"],
+                    "constraint": parsed["constraint"],
+                    "utility": parsed["utility"],
+                    "reward": parsed["reward"],
+                    "reasoning": parsed["reasoning"],
                 })
-            
-        # Tie-Breaker Logic
-        if score_1_sum >= score_0_sum:
-            final_reward = 1.0
+
+        if results:
+            final_reward = float(np.mean([r["reward"] for r in results]))
         else:
-            final_reward = 0.0
-            
-        if not results: final_reward = float('nan')
+            final_reward = float("nan")
 
         return final_reward, results
 
     def logit_transform(self, score: float) -> float:
-        import numpy as np
-        import math
-        if math.isnan(score): return float('nan')
+        if np.isnan(score):
+            return float("nan")
         score = np.clip(score, 0.01, 0.99)
-        return np.log(score / (1 - score))
+        return float(np.log(score / (1 - score)))
 
     def process_task(self, task):
         prompt_text, model_id = task
