@@ -1085,28 +1085,31 @@ Wrap in lock and clean up regularization_floor and
         Returns:
             Tuple of (best_model_id, best_score)
         """
-        ucb_scores: Dict[str, float] = {}
-
+        # Snapshot references under lock (O(1) dict lookups).  Because update()
+        # assigns new NumPy arrays (pointer swaps) rather than mutating in place,
+        # we can safely compute O(d²) matrix math lock-free using the snapshots.
         with self._lock:
             candidates = candidates or self.models
-            candidates = [m for m in candidates if m in self.A]
+            candidates = [m for m in candidates if m in self.A_inv]
             if not candidates:
                 raise ValueError("No candidates available")
-            for m in candidates:
-                theta = self.A_inv[m] @ self.b[m]
-                mean = float(theta.dot(x))
+            snapshots = {
+                m: (self.A_inv[m], self.b[m], self._effective_staleness(m))
+                for m in candidates
+            }
 
-                dt = self._effective_staleness(m)
-                var = float(x.dot(self.A_inv[m]).dot(x))
-                var_inflated = _inflate_variance(var, self.gamma, dt)
-
-                std = float(np.sqrt(max(var_inflated, 1e-12)))
-                ucb = mean + self.alpha * std
-
-                if cost_penalties and m in cost_penalties:
-                    ucb -= cost_penalties[m]
-
-                ucb_scores[m] = ucb
+        # Execute O(d²) matrix math entirely lock-free.
+        ucb_scores: Dict[str, float] = {}
+        for m, (A_inv, b, dt) in snapshots.items():
+            theta = A_inv @ b
+            mean = float(theta.dot(x))
+            var = float(x.dot(A_inv).dot(x))
+            var_inflated = _inflate_variance(var, self.gamma, dt)
+            std = float(np.sqrt(max(var_inflated, 1e-12)))
+            ucb = mean + self.alpha * std
+            if cost_penalties and m in cost_penalties:
+                ucb -= cost_penalties[m]
+            ucb_scores[m] = ucb
 
         best_model = _argmax_random_tiebreak(ucb_scores)
         return best_model, float(ucb_scores[best_model])
@@ -4692,9 +4695,8 @@ class CostAwareLinUCBAdapter:
     ) -> str:
         """Select the best model using cost-and-latency-aware LinUCB.
 
-        Reads A_inv and b from the **shared** bandit under its global read lock,
-        applies this adapter's alpha schedule and cost/latency penalties, and
-        returns the arm with the highest penalised UCB score.
+        Snapshots bandit state under lock, then computes O(d²) matrix math
+        lock-free to avoid read-path contention under concurrent inference.
 
         Args:
             context: Context feature vector.
@@ -4705,41 +4707,44 @@ class CostAwareLinUCBAdapter:
             Selected model identifier.
         """
         alpha = self.get_current_alpha(total_steps)
-        ucb_scores: Dict[str, float] = {}
-        expected_rewards: Dict[str, float] = {}
 
         with self.bandit._lock:
             eligible = candidates if candidates is not None else self.bandit.models
+            snapshots = {}
             for model in eligible:
                 if model not in self.bandit.A_inv:
                     continue
-
-                A_inv = self.bandit.A_inv[model]
-                theta = A_inv @ self.bandit.b[model]
-                expected_reward = float(theta @ context)
-                var = float(context @ A_inv @ context)
-
-                dt = self.bandit._effective_staleness(model)
-                var = _inflate_variance(var, self.bandit.gamma, dt)
-                uncertainty = np.sqrt(max(var, 1e-12))
-
-                model_meta = self.model_costs.get(model, {})
-                normalized_cost = model_meta.get("normalized_cost", 1.0)
-                normalized_latency = model_meta.get("normalized_latency", 1.0)
-                score = (
-                    (expected_reward + alpha * uncertainty)
-                    - (self.cost_penalty * normalized_cost)
-                    - (self.latency_penalty * normalized_latency)
+                meta = self.model_costs.get(model, {})
+                snapshots[model] = (
+                    self.bandit.A_inv[model],
+                    self.bandit.b[model],
+                    self.bandit._effective_staleness(model),
+                    meta.get("normalized_cost", 1.0),
+                    meta.get("normalized_latency", 1.0),
                 )
-                ucb_scores[model] = score
-                expected_rewards[model] = float(expected_reward)
 
-            for model, score in ucb_scores.items():
-                self.prediction_monitor.record(
-                    model,
-                    expected_reward=expected_rewards[model],
-                    ucb_score=float(score),
-                )
+        ucb_scores: Dict[str, float] = {}
+        expected_rewards: Dict[str, float] = {}
+        for model, (A_inv, b, dt, norm_cost, norm_latency) in snapshots.items():
+            theta = A_inv @ b
+            expected_reward = float(theta @ context)
+            var = float(context @ A_inv @ context)
+            var = _inflate_variance(var, self.bandit.gamma, dt)
+            uncertainty = np.sqrt(max(var, 1e-12))
+            score = (
+                (expected_reward + alpha * uncertainty)
+                - (self.cost_penalty * norm_cost)
+                - (self.latency_penalty * norm_latency)
+            )
+            ucb_scores[model] = score
+            expected_rewards[model] = expected_reward
+
+        for model, score in ucb_scores.items():
+            self.prediction_monitor.record(
+                model,
+                expected_reward=expected_rewards[model],
+                ucb_score=float(score),
+            )
 
         if not ucb_scores:
             eligible = candidates if candidates is not None else self.bandit.models
@@ -4924,42 +4929,47 @@ class CostAwareTabulaRasaRouter:
                      candidates: List[str] | None = None) -> str:
         """
         Select model using cost-and-latency-aware UCB with dynamic α (tabula rasa, no priors).
-        
+
         Score = (Predicted Reward + α_t × Uncertainty) - λ_c × NormCost - λ_l × NormLatency
         """
         alpha = self.get_current_alpha(total_steps)
-        ucb_scores = {}
-        expected_rewards = {}
-        
+
+        # Snapshot references under lock; compute O(d²) math lock-free.
         with self._lock:
             eligible = candidates if candidates is not None else self.models
+            snapshots = {}
             for model in eligible:
                 if model not in self.A_inv:
                     continue
-                A_inv = self.A_inv[model]
-                theta = A_inv @ self.b[model]
-                expected_reward = float(theta @ context)
-                var = float(context @ A_inv @ context)
-
-                dt = self._effective_staleness(model)
-                var = _inflate_variance(var, self.gamma, dt)
-                uncertainty = np.sqrt(max(var, 1e-12))
-
-                model_meta = self.model_costs.get(model, {})
-                normalized_cost = model_meta.get("normalized_cost", 1.0)
-                normalized_latency = model_meta.get("normalized_latency", 1.0)
-                score = (
-                    (expected_reward + alpha * uncertainty)
-                    - (self.cost_penalty * normalized_cost)
-                    - (self.latency_penalty * normalized_latency)
+                meta = self.model_costs.get(model, {})
+                snapshots[model] = (
+                    self.A_inv[model],
+                    self.b[model],
+                    self._effective_staleness(model),
+                    meta.get("normalized_cost", 1.0),
+                    meta.get("normalized_latency", 1.0),
                 )
-                ucb_scores[model] = score
-                expected_rewards[model] = float(expected_reward)
 
-            for model, score in ucb_scores.items():
-                self.prediction_monitor.record(
-                    model, expected_reward=expected_rewards[model], ucb_score=float(score)
-                )
+        ucb_scores: Dict[str, float] = {}
+        expected_rewards: Dict[str, float] = {}
+        for model, (A_inv, b, dt, norm_cost, norm_latency) in snapshots.items():
+            theta = A_inv @ b
+            expected_reward = float(theta @ context)
+            var = float(context @ A_inv @ context)
+            var = _inflate_variance(var, self.gamma, dt)
+            uncertainty = np.sqrt(max(var, 1e-12))
+            score = (
+                (expected_reward + alpha * uncertainty)
+                - (self.cost_penalty * norm_cost)
+                - (self.latency_penalty * norm_latency)
+            )
+            ucb_scores[model] = score
+            expected_rewards[model] = expected_reward
+
+        for model, score in ucb_scores.items():
+            self.prediction_monitor.record(
+                model, expected_reward=expected_rewards[model], ucb_score=float(score)
+            )
 
         if not ucb_scores:
             eligible = candidates if candidates is not None else self.models
@@ -5100,43 +5110,61 @@ class CostAwareTabulaRasaRouter:
 
 
 class NonStationaryBudgetTracker:
+    """Primal-dual budget controller with exponential moving average smoothing.
+
+    Adjusts the cost penalty (dual variable) via projected stochastic gradient
+    ascent on the Lagrangian relaxation of the per-query budget constraint.
+
+    An **exponential moving average** (EMA) of observed costs replaces the
+    previous uniform sliding window.  EMA provides equivalent variance
+    reduction without the hard lag cliff that a finite window introduces: old
+    observations decay exponentially (half-life ≈ ``window_size * ln2 / 2``)
+    rather than vanishing abruptly after ``window_size`` steps.  This makes
+    the dual variable more responsive to distribution shifts while retaining
+    smoothness against bursty cost outliers.
+
+    The smoothing factor is derived from ``window_size`` via the standard
+    correspondence ``beta = 2 / (window_size + 1)``, so existing
+    ``window_size`` tuning carries over with minimal re-calibration.
     """
-    Tracks budget constraints and dynamically adjusts the cost penalty (dual variable) 
-    using a sliding window. This addresses non-stationary/bursty query difficulty,
-    forming the NS-BwK component of our hybrid router.
-    """
-    def __init__(self, target_cost_per_query: float, eta: float = 0.05, window_size: int = 100):
+
+    def __init__(
+        self,
+        target_cost_per_query: float,
+        eta: float = 0.05,
+        window_size: int = 100,
+    ):
         """
         Args:
-            target_cost_per_query: The target average normalized cost we want to maintain.
+            target_cost_per_query: Target average normalized cost per query.
             eta: Learning rate for the dual variable update.
-            window_size: Number of recent queries to consider for computing average cost.
+            window_size: Controls the EMA smoothing span.  Equivalent to the
+                number of observations in a simple moving average with the
+                same centre-of-mass lag (``beta = 2 / (window_size + 1)``).
         """
         self.target_cost_per_query = target_cost_per_query
         self.eta = eta
         self.window_size = window_size
-        self.cost_history: List[float] = []
-        # dual_weight corresponds to w_c in Chebyshev (or lambda in linear scalarization)
-        # Start with a moderate prior, it will adjust online.
-        self.dual_weight = 0.5 
+        self.beta: float = 2.0 / (window_size + 1)
 
-    def update(self, actual_cost: float):
-        """Update the tracker with the actual cost incurred by the routed model."""
-        self.cost_history.append(actual_cost)
-        if len(self.cost_history) > self.window_size:
-            self.cost_history.pop(0)
+        # Initialise EMA to the target so the dual starts neutral.
+        self._ema_cost: float = target_cost_per_query
 
-        # Compute average cost over the recent sliding window
-        avg_cost = sum(self.cost_history) / len(self.cost_history)
+        self.dual_weight: float = 0.5
 
-        # Primal-dual stochastic gradient ascent update:
-        # If we are exceeding the target budget, increase the cost penalty.
-        # If we are under budget, decrease the cost penalty.
-        gradient = avg_cost - self.target_cost_per_query
+    def update(self, actual_cost: float) -> None:
+        """Incorporate a new cost observation and adjust the dual variable.
+
+        Args:
+            actual_cost: Normalised cost of the model selected this round.
+        """
+        self._ema_cost += self.beta * (actual_cost - self._ema_cost)
+
+        gradient = self._ema_cost - self.target_cost_per_query
         self.dual_weight = max(0.0, self.dual_weight + self.eta * gradient)
 
     def get_cost_weight(self) -> float:
-        """Returns the current dynamically tuned cost penalty weight."""
+        """Return the current dynamically-tuned cost penalty weight."""
         return self.dual_weight
 
 
@@ -5162,7 +5190,10 @@ class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
             context_dim: Dimension of context vectors
             model_costs: Dict mapping model_id -> normalized costs
             budget_tracker: NS-BwK tracker that provides the dynamic w_c penalty
-            ideal_quality: The utopia point for quality (default 1.0 for normalized rewards)
+            ideal_quality: Floor for the quality utopia point (default 1.0 for
+                normalized rewards).  At each round the effective utopia is
+                ``max(ideal_quality, max_ucb_across_arms)`` so that the UCB
+                exploration bonus is never suppressed by clamping.
             quality_weight: w_q scaling factor for the quality distance (default 1.0)
             rho: Augmentation factor to prevent weakly Pareto optimal solutions (default 0.05)
         """
@@ -5182,70 +5213,86 @@ class ChebyshevCostAwareRouter(CostAwareTabulaRasaRouter):
 
     def select_model(self, context: np.ndarray, total_steps: int = 0,
                      candidates: List[str] | None = None) -> str:
-        """
-        Select model using Chebyshev Minimax distance combined with dynamic NS-BwK weights.
+        """Select model using Chebyshev Minimax distance with dynamic NS-BwK weights.
+
+        Uses a **per-round adaptive utopia point** for quality: the ideal
+        quality each round is ``max(ucb_quality)`` across eligible arms rather
+        than the static ``self.ideal_quality``.  This prevents the UCB
+        exploration bonus from being suppressed when optimistic bounds exceed
+        the static utopia (which collapses quality distances to zero and
+        degenerates selection into a pure cost-minimiser).
+
+        Args:
+            context: Context feature vector.
+            total_steps: Total training horizon (for alpha decay).
+            candidates: Optional constraint-filtered candidate list.
+
+        Returns:
+            Selected model identifier.
+
+        Raises:
+            NoModelScoredError: If no eligible model could be scored.
         """
         alpha = self.get_current_alpha(total_steps)
-        chebyshev_scores = {}
-        expected_rewards = {}
-
-        # Get the dynamic cost penalty weight from the NS-BwK tracker
         w_c = self.budget_tracker.get_cost_weight()
         w_q = self.quality_weight
 
+        # Snapshot references under lock; compute O(d²) math lock-free.
         with self._lock:
             eligible = candidates if candidates is not None else self.models
+            snapshots = {}
             for model in eligible:
                 if model not in self.A_inv:
                     continue
-                A_inv = self.A_inv[model]
-                theta = A_inv @ self.b[model]
-                expected_reward = float(theta @ context)
-                var = float(context @ A_inv @ context)
-
-                dt = self._effective_staleness(model)
-                var = _inflate_variance(var, self.gamma, dt)
-                uncertainty = np.sqrt(max(var, 1e-12))
-
-                # Estimated Quality (UCB)
-                ucb_quality = expected_reward + alpha * uncertainty
-
-                model_meta = self.model_costs.get(model, {})
-                normalized_cost = model_meta.get("normalized_cost", 1.0)
-                # Note: Currently ignoring latency penalty for the Chebyshev formulation,
-                # but it could be added as a third dimension to the minimax operation.
-
-                # Chebyshev Scalarization Distances
-                # How far are we from the utopia (Ideal) point?
-                dist_q = max(0.0, self.ideal_quality - ucb_quality)
-                dist_c = max(0.0, normalized_cost - self.ideal_cost)
-
-                weighted_dist_q = w_q * dist_q
-                weighted_dist_c = w_c * dist_c
-
-                # Standard Chebyshev distance: max(w_q*d_q, w_c*d_c)
-                cheby_max = max(weighted_dist_q, weighted_dist_c)
-                
-                # Augmented Chebyshev distance (adds a small sum of weighted distances)
-                # to strictly guarantee Pareto optimality and avoid flat weak-Pareto regions.
-                cheby_augmented = cheby_max + self.rho * (weighted_dist_q + weighted_dist_c)
-
-                # We want to MINIMIZE the distance to the ideal point, so we MAXIMIZE the negative distance
-                score = -cheby_augmented
-
-                chebyshev_scores[model] = score
-                expected_rewards[model] = float(expected_reward)
-
-            for model, score in chebyshev_scores.items():
-                self.prediction_monitor.record(
-                    model, expected_reward=expected_rewards[model], ucb_score=float(score)
+                meta = self.model_costs.get(model, {})
+                snapshots[model] = (
+                    self.A_inv[model],
+                    self.b[model],
+                    self._effective_staleness(model),
+                    meta.get("normalized_cost", 1.0),
                 )
 
-        if not chebyshev_scores:
+        if not snapshots:
             eligible = candidates if candidates is not None else self.models
             raise NoModelScoredError(
-                "ChebyshevCostAwareRouter.select_model() could not score any model. "
-                f"candidates={eligible}"
+                "ChebyshevCostAwareRouter.select_model() could not score "
+                f"any model. candidates={eligible}"
+            )
+
+        # --- Pass 1: UCB quality and cost (lock-free) ---
+        arm_stats: Dict[str, Tuple[float, float, float]] = {}
+        for model, (A_inv, b, dt, norm_cost) in snapshots.items():
+            theta = A_inv @ b
+            expected_reward = float(theta @ context)
+            var = float(context @ A_inv @ context)
+            var = _inflate_variance(var, self.gamma, dt)
+            uncertainty = np.sqrt(max(var, 1e-12))
+            ucb_quality = expected_reward + alpha * uncertainty
+            arm_stats[model] = (expected_reward, ucb_quality, norm_cost)
+
+        round_ideal_q = max(
+            self.ideal_quality,
+            max(ucb for _, ucb, _ in arm_stats.values()),
+        )
+
+        # --- Pass 2: Chebyshev scalarization (lock-free) ---
+        chebyshev_scores: Dict[str, float] = {}
+        expected_rewards: Dict[str, float] = {}
+        for model, (exp_r, ucb_q, norm_cost) in arm_stats.items():
+            dist_q = round_ideal_q - ucb_q
+            dist_c = max(0.0, norm_cost - self.ideal_cost)
+            weighted_dist_q = w_q * dist_q
+            weighted_dist_c = w_c * dist_c
+            cheby_max = max(weighted_dist_q, weighted_dist_c)
+            cheby_augmented = cheby_max + self.rho * (weighted_dist_q + weighted_dist_c)
+            chebyshev_scores[model] = -cheby_augmented
+            expected_rewards[model] = exp_r
+
+        for model, score in chebyshev_scores.items():
+            self.prediction_monitor.record(
+                model,
+                expected_reward=expected_rewards[model],
+                ucb_score=float(score),
             )
 
         return _argmax_random_tiebreak(chebyshev_scores)
