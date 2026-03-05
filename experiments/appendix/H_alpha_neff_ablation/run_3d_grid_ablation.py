@@ -131,6 +131,13 @@ SEED_OFFSET: int = 42
 CORRALLING_LR: float = 0.1
 CORRALLING_GAMMA: float = 0.05
 
+# Optional cross-experiment reference: supervised-baseline results from
+# Figure 3 used solely for log annotations (not for any computed metric).
+PREQUENTIAL_RESULTS_PATH: Path = (
+    Path(__file__).resolve().parent.parent.parent
+    / "03_figure" / "results" / "prequential_results.json"
+)
+
 DEV_VAL_FRACTION: float = 0.2
 DEV_VAL_SEED: int = 7
 
@@ -878,13 +885,9 @@ def run_portfolio_ablation(
         max(p["rewards"][m] for m in models) for p in holdout_data
     ]))
 
-    main_results_path = (
-        Path(__file__).parent.parent.parent
-        / "03_figure" / "results" / "prequential_results.json"
-    )
     supervised_peak: Optional[float] = None
-    if main_results_path.exists():
-        with open(main_results_path) as f:
+    if PREQUENTIAL_RESULTS_PATH.exists():
+        with open(PREQUENTIAL_RESULTS_PATH) as f:
             main_res = json.load(f)
         supervised = (
             main_res
