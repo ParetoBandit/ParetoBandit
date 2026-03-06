@@ -1697,18 +1697,25 @@ class HybridLinUCBPolicy:
     The UCB variance inflates only the arm-dependent terms of the
     Schur-complement quadratic form (terms 3 and 4).  The shared variance
     (term 1) and the negative cross-term (term 2) are left stationary
-    because they depend on ``A0`` which is never decayed.  This is a
-    heuristic extension — canonical Hybrid LinUCB assumes stationarity —
-    and should be validated empirically when ``forgetting_factor < 1``.
+    because they depend on ``A0`` which is never decayed.
 
-    **Complexity:** Arm-specific updates are O(d^2) via Sherman-Morrison.
-    The shared ``A0_inv`` is recomputed via full O(d^3) inversion rather
-    than the O(d^2) block-inversion in Li et al.  This is a deliberate
-    stability-over-speed tradeoff: sequential rank-1 updates to the shared
-    Schur complement accumulate floating-point drift across long
-    deployments, whereas a full ``safe_inv`` acts as an exact numerical
-    reset.  Reward processing is asynchronous, so the O(d^3) cost does
-    not affect inference latency.
+    **Complexity:** The entire update (arm + shared) runs in O(d^2).  The
+    arm update uses Sherman-Morrison on ``A_inv_a``.  The shared update
+    uses an algebraic rank-1 reduction: the net change from a single
+    observation simplifies to ``ΔA0 = c · y y^T`` where
+    ``y = x − B^T A^{−1} x`` and ``c = w / (1 + w x^T A^{−1} x)``,
+    which is applied to ``A0_inv`` via a second Sherman-Morrison step.
+
+    This replaces the canonical two-phase (Phase 1 / Phase 2) update
+    from Li et al. (2010), which is correct only in the stationary case.
+    With forgetting factor ``γ < 1``, the two-phase approach injects
+    phantom precision ``(1−γ) B^T A^{−1} B`` into ``A0`` at every step
+    (because Phase 1 adds back pre-decay cross-terms while Phase 2
+    subtracts post-decay cross-terms).  The rank-1 formulation avoids
+    this by computing the observation's contribution relative to the
+    current (post-decay) arm state, injecting only real observational
+    precision.  ``A0`` is always ``λI`` plus a sum of PSD rank-1 terms,
+    so it is unconditionally positive definite.
     """
 
     def __init__(
@@ -1865,7 +1872,13 @@ class HybridLinUCBPolicy:
     # ------------------------------------------------------------------
 
     def refresh_inverse_cache(self) -> None:
-        """Recompute cached inverses for shared and all arm matrices."""
+        """Recompute cached inverses from scratch (O(d^3) numerical reset).
+
+        The online O(d^2) Sherman-Morrison updates to ``A0_inv`` and
+        ``A_inv`` accumulate float64 rounding error.  Calling this
+        periodically recomputes all inverses via ``safe_inv``, acting as
+        a drift reset.  Symmetrization is applied defensively.
+        """
         with self._lock:
             self.A0 = (self.A0 + self.A0.T) / 2.0
             self.A0_inv = safe_inv(self.A0)
@@ -2133,45 +2146,47 @@ class HybridLinUCBPolicy:
         weight: float = 1.0,
         advance_time: bool = True,
     ) -> None:
-        """Update shared and arm-specific matrices (Algorithm 2, Li et al. 2010).
+        """Update shared and arm-specific matrices.
 
         Uses ``z = x`` (no arm-level features).
 
-        **Phase 1** — Add back old cross-terms to shared precision::
+        **O(d^2) rank-1 shared update** — replaces the canonical two-phase
+        (Phase 1 / Phase 2) update from Li et al. (2010) Algorithm 2.
+        The net change to ``A0`` from a single observation is exactly::
 
-            A0 += B_a^T A_inv_a B_a
-            b0 += B_a^T A_inv_a b_a
+            ΔA0 = c · y y^T       (rank-1, PSD)
+            Δb0 = c · (r - r̂) · y
 
-        **Arm decay** — Apply forgetting factor to ``A_a``, ``B_a``, ``b_a``
-        (arm-specific only, shared state is stationary).
+        where:
 
-        **Arm rank-1 update**::
+        - ``u = A_inv_a @ x``
+        - ``v = B_a^T @ u``
+        - ``α = x^T u``
+        - ``c = w / (1 + w α)``
+        - ``y = x - v``  (innovation after removing cross-term projection)
+        - ``r̂ = u^T b_a``  (arm's pre-update prediction)
 
-            A_a += w x x^T;   B_a += w x z^T;   b_a += w r x
-            Recompute A_inv_a via Sherman-Morrison.
+        This algebraic reduction (derived by substituting the arm rank-1
+        updates ``A += w xx^T``, ``B += w xx^T`` into the Schur-complement
+        difference) yields a strictly O(d^2) update for *both* arm and
+        shared state via Sherman-Morrison, matching Disjoint LinUCB speed.
 
-        **Phase 2** — Subtract new cross-terms, add observation::
+        **Why this replaces Phase 1 / Phase 2:**  The two-phase framework
+        ``A0 += B_old^T A_old^{-1} B_old`` (Phase 1) then
+        ``A0 -= B_new^T A_new^{-1} B_new`` (Phase 2) is correct only
+        in the stationary case (``gamma = 1``).  When ``gamma < 1``, the
+        arm decay between phases creates a mismatch: Phase 1 adds
+        ``B^T A^{-1} B`` at full strength, but Phase 2 subtracts the
+        decayed version ``≈ γ · B^T A^{-1} B``.  The residual
+        ``(1−γ) B^T A^{-1} B`` is phantom precision injected into ``A0``
+        every step — eventually forcing ``A0 → ∞``, ``A0^{-1} → 0``,
+        and the Schur-complement variance ``s < 0``.
 
-            A0 += w z z^T  -  B_a^T A_inv_a B_a
-            b0 += w r z    -  B_a^T A_inv_a b_a
-            Recompute A0_inv via safe_inv.
-
-        This two-phase sequence maintains the Schur-complement structure
-        of the joint precision so that ``theta_hat_a`` and the UCB variance
-        remain correctly calibrated at every time step.
-
-        **Complexity note (O(d^3) shared inversion):**
-        The canonical Algorithm 2 allows an O(d^2) update of ``A0_inv``
-        by decomposing the Phase 2 change into rank-1 Sherman-Morrison
-        steps.  We deliberately use an O(d^3) ``safe_inv`` instead.
-        Sequential rank-1 updates to the shared Schur complement
-        accumulate catastrophic floating-point drift in long-running
-        deployments; the full inversion acts as a numerical reset that
-        keeps ``A0_inv`` faithful to ``A0`` at every step.  Because
-        reward feedback is processed asynchronously (off the
-        latency-critical routing path), the O(d^3) cost does not affect
-        inference latency.  For the PCA-compressed context dimension
-        used in practice (d=15), the cost is ~3 400 flops — negligible.
+        The rank-1 reduction sidesteps this entirely: it computes the
+        observation's contribution to ``A0`` relative to the *current*
+        (post-decay) arm state, injecting only real observational
+        precision.  ``A0`` is always a sum of ``λI`` plus PSD rank-1
+        terms, so it is trivially positive definite.
 
         Args:
             model: Model identifier.
@@ -2196,16 +2211,6 @@ class HybridLinUCBPolicy:
         with self.model_locks[model]:
             with self._lock:
                 current_t = self.t
-                A_inv_a = self.A_inv[model]
-                B_a = self.B[model]
-                b_a = self.b[model]
-
-            # ---- Phase 1: add back OLD cross-terms to shared state ----
-            BtAinv = B_a.T @ A_inv_a
-            with self._shared_lock:
-                with self._lock:
-                    self.A0 = self.A0 + BtAinv @ B_a
-                    self.b0 = self.b0 + BtAinv @ b_a
 
             # ---- Forgetting factor decay (arm-specific: A, B, b) ----
             decay_factor = 1.0
@@ -2247,6 +2252,35 @@ class HybridLinUCBPolicy:
                     self.A_inv[model] = new_A_inv
                     self.last_update[model] = current_t
 
+            # ---- O(d^2) rank-1 shared state update ----
+            # Compute reduction variables from post-decay, pre-arm-update
+            # state.  All O(d^2) or O(d) operations.
+            with self._lock:
+                A_inv_m = self.A_inv[model]
+                B_m = self.B[model]
+                b_m = self.b[model]
+
+            u = A_inv_m @ x                      # O(d^2)
+            v = B_m.T @ u                         # O(d^2)
+            alpha = float(x.dot(u))               # O(d)
+            c = weight / (1.0 + weight * alpha)   # O(1)
+            r_hat = float(u.dot(b_m))             # O(d)
+            y = x - v                             # O(d)
+
+            # Sherman-Morrison update of A0_inv: O(d^2)
+            with self._shared_lock:
+                with self._lock:
+                    A0_inv_y = self.A0_inv @ y
+                    denom = 1.0 + c * float(y.dot(A0_inv_y))
+                    self.A0 = self.A0 + c * np.outer(y, y)
+                    self.b0 = self.b0 + c * (reward - r_hat) * y
+                    self.A0_inv = (
+                        self.A0_inv
+                        - (c / denom) * np.outer(A0_inv_y, A0_inv_y)
+                    )
+                    if advance_time:
+                        self.t += 1
+
             # ---- Arm rank-1 update: A_a, B_a, b_a ----
             arm_result = _sherman_morrison_update(
                 A=self.A[model],
@@ -2269,30 +2303,6 @@ class HybridLinUCBPolicy:
                 self.A_inv[model] = arm_result.A_inv
                 self.B[model] = new_B
 
-            # ---- Phase 2: subtract NEW cross-terms, add observation ----
-            with self._lock:
-                A_inv_a_new = self.A_inv[model]
-                B_a_new = self.B[model]
-                b_a_new = self.b[model]
-            BtAinv_new = B_a_new.T @ A_inv_a_new
-
-            with self._shared_lock:
-                with self._lock:
-                    self.A0 = (
-                        self.A0
-                        + weight * np.outer(z, z)
-                        - BtAinv_new @ B_a_new
-                    )
-                    self.A0 = (self.A0 + self.A0.T) / 2.0
-                    self.b0 = (
-                        self.b0
-                        + weight * reward * z
-                        - BtAinv_new @ b_a_new
-                    )
-                    self.A0_inv = safe_inv(self.A0)
-                    if advance_time:
-                        self.t += 1
-
     # ------------------------------------------------------------------
     # Numerical stability
     # ------------------------------------------------------------------
@@ -2302,14 +2312,10 @@ class HybridLinUCBPolicy:
     ) -> None:
         """Safety check: inject regularization if A_inv trace explodes.
 
-        Because modifying ``A_a`` changes ``A_a^{-1}``, the shared
-        Schur-complement invariant
-        ``A0 = λI + Σ zz^T - Σ_a B_a^T A_a^{-1} B_a``
-        must be maintained via the same Phase 1 / Phase 2 cross-term
-        adjustment used in :meth:`update`.  Mutating ``A_a`` outside this
-        two-phase framework would cause ``A0`` to permanently underestimate
-        the shared precision, inflating the shared variance term and
-        producing over-exploration.
+        With the O(d^2) rank-1 shared update, ``A0`` is maintained as a
+        running sum of PSD rank-1 observation contributions and is
+        independent of the current arm state.  Regularizing ``A_a`` does
+        not require touching ``A0``.
         """
         if config is None or model not in self.A_inv:
             return
@@ -2321,25 +2327,11 @@ class HybridLinUCBPolicy:
         logger.warning(
             f"Numerical instability for {model}: "
             f"trace(A_inv)={trace:.2e} > {threshold:.2e}. "
-            "Injecting regularization with two-phase A0 adjustment."
+            "Injecting regularization into arm precision."
         )
         reg_lambda = self.init_lambda
 
         with self.model_locks[model]:
-            # Snapshot current arm state under lock.
-            with self._lock:
-                A_inv_old = self.A_inv[model].copy()
-                B_a = self.B[model]
-                b_a = self.b[model]
-
-            # Phase 1: add back OLD cross-terms to shared precision.
-            BtAinv_old = B_a.T @ A_inv_old
-            with self._shared_lock:
-                with self._lock:
-                    self.A0 = self.A0 + BtAinv_old @ B_a
-                    self.b0 = self.b0 + BtAinv_old @ b_a
-
-            # Apply regularization to arm precision.
             new_A = self.A[model] + reg_lambda * np.eye(self.dim)
             new_A_inv = safe_inv(new_A)
             with self._lock:
@@ -2349,20 +2341,6 @@ class HybridLinUCBPolicy:
                     self.regularization_floor.get(model, self.init_lambda)
                     + reg_lambda
                 )
-
-            # Phase 2: subtract NEW cross-terms from shared precision.
-            # B_a and b_a are unchanged; only A_inv_a changed.
-            with self._lock:
-                B_a_cur = self.B[model]
-                b_a_cur = self.b[model]
-                A_inv_new = self.A_inv[model]
-            BtAinv_new = B_a_cur.T @ A_inv_new
-            with self._shared_lock:
-                with self._lock:
-                    self.A0 = self.A0 - BtAinv_new @ B_a_cur
-                    self.A0 = (self.A0 + self.A0.T) / 2.0
-                    self.b0 = self.b0 - BtAinv_new @ b_a_cur
-                    self.A0_inv = safe_inv(self.A0)
 
     # ------------------------------------------------------------------
     # Persistence
