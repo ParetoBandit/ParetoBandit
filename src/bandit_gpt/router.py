@@ -2263,26 +2263,68 @@ class HybridLinUCBPolicy:
     def _check_numerical_stability(
         self, model: str, config: "RouterConfig" = None
     ) -> None:
-        """Safety check: resets regularization if A_inv trace explodes."""
+        """Safety check: inject regularization if A_inv trace explodes.
+
+        Because modifying ``A_a`` changes ``A_a^{-1}``, the shared
+        Schur-complement invariant
+        ``A0 = λI + Σ zz^T - Σ_a B_a^T A_a^{-1} B_a``
+        must be maintained via the same Phase 1 / Phase 2 cross-term
+        adjustment used in :meth:`update`.  Mutating ``A_a`` outside this
+        two-phase framework would cause ``A0`` to permanently underestimate
+        the shared precision, inflating the shared variance term and
+        producing over-exploration.
+        """
         if config is None or model not in self.A_inv:
             return
         trace = np.trace(self.A_inv[model])
         threshold = getattr(config, "stability_threshold", 1000 * self.dim)
-        if trace > threshold:
-            logger.warning(
-                f"Numerical instability for {model}: "
-                f"trace(A_inv)={trace:.2e} > {threshold:.2e}. Resetting."
-            )
-            reg_lambda = self.init_lambda
-            with self.model_locks[model]:
-                self.A[model] += reg_lambda * np.eye(self.dim)
-                new_A_inv = safe_inv(self.A[model])
+        if trace <= threshold:
+            return
+
+        logger.warning(
+            f"Numerical instability for {model}: "
+            f"trace(A_inv)={trace:.2e} > {threshold:.2e}. "
+            "Injecting regularization with two-phase A0 adjustment."
+        )
+        reg_lambda = self.init_lambda
+
+        with self.model_locks[model]:
+            # Snapshot current arm state under lock.
+            with self._lock:
+                A_inv_old = self.A_inv[model].copy()
+                B_a = self.B[model]
+                b_a = self.b[model]
+
+            # Phase 1: add back OLD cross-terms to shared precision.
+            BtAinv_old = B_a.T @ A_inv_old
+            with self._shared_lock:
                 with self._lock:
-                    self.A_inv[model] = new_A_inv
-                    self.regularization_floor[model] = (
-                        self.regularization_floor.get(model, self.init_lambda)
-                        + reg_lambda
-                    )
+                    self.A0 = self.A0 + BtAinv_old @ B_a
+                    self.b0 = self.b0 + BtAinv_old @ b_a
+
+            # Apply regularization to arm precision.
+            new_A = self.A[model] + reg_lambda * np.eye(self.dim)
+            new_A_inv = safe_inv(new_A)
+            with self._lock:
+                self.A[model] = new_A
+                self.A_inv[model] = new_A_inv
+                self.regularization_floor[model] = (
+                    self.regularization_floor.get(model, self.init_lambda)
+                    + reg_lambda
+                )
+
+            # Phase 2: subtract NEW cross-terms from shared precision.
+            # B_a and b_a are unchanged; only A_inv_a changed.
+            with self._lock:
+                B_a_cur = self.B[model]
+                b_a_cur = self.b[model]
+                A_inv_new = self.A_inv[model]
+            BtAinv_new = B_a_cur.T @ A_inv_new
+            with self._shared_lock:
+                with self._lock:
+                    self.A0 = self.A0 - BtAinv_new @ B_a_cur
+                    self.b0 = self.b0 - BtAinv_new @ b_a_cur
+                    self.A0_inv = safe_inv(self.A0)
 
     # ------------------------------------------------------------------
     # Persistence
