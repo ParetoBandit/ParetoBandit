@@ -182,11 +182,13 @@ def _inflate_variance(
     var: float,
     gamma: float,
     dt: int,
+    max_staleness_dt: int = _MAX_STALENESS_DT,
+    max_var_inflation: float = _MAX_VAR_INFLATION_FACTOR,
 ) -> float:
     """Apply staleness-based variance inflation with a bounded cap.
 
     When ``gamma < 1.0``, divides ``var`` by ``gamma^dt`` to widen the
-    confidence interval for stale arms, capped at ``_MAX_VAR_INFLATION_FACTOR``
+    confidence interval for stale arms, capped at *max_var_inflation*
     to prevent the exploration bonus from overwhelming additive cost penalties.
 
     For stationary settings (``gamma == 1.0``) or ``dt == 0``, returns ``var``
@@ -196,14 +198,17 @@ def _inflate_variance(
         var: Base variance (x^T A^{-1} x).
         gamma: Forgetting factor in (0, 1].
         dt: Steps since last update or selection (non-negative).
+        max_staleness_dt: Cap on ``dt`` to avoid float64 underflow in
+            ``gamma^dt``.
+        max_var_inflation: Maximum multiplicative factor for the variance.
 
     Returns:
         Inflated (or unchanged) variance.
     """
     if gamma >= 1.0 or dt <= 0:
         return var
-    decay_factor = gamma ** min(dt, _MAX_STALENESS_DT)
-    inflation_floor = 1.0 / _MAX_VAR_INFLATION_FACTOR
+    decay_factor = gamma ** min(dt, max_staleness_dt)
+    inflation_floor = 1.0 / max_var_inflation
     return var / max(decay_factor, inflation_floor, 1e-12)
 
 
@@ -282,6 +287,7 @@ def _sherman_morrison_update(
     init_lambda: float,
     regularization_floor: float,
     model_name: str,
+    reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
 ) -> _SMUpdateResult:
     """Perform a rank-1 Sherman-Morrison update on (A, A_inv, b).
 
@@ -299,6 +305,8 @@ def _sherman_morrison_update(
         init_lambda: Baseline regularization strength (lambda_0).
         regularization_floor: Current tracked floor for this arm.
         model_name: For logging only.
+        reg_floor_fraction: Minimum fraction of *init_lambda* used as
+            the fallback regularization injection floor.
 
     Returns:
         :class:`_SMUpdateResult` containing updated matrices and floor.
@@ -330,7 +338,7 @@ def _sherman_morrison_update(
         f"A_inv has numerically drifted; rebuilding with gap-based "
         f"regularisation injection."
     )
-    needed = max(init_lambda - regularization_floor, init_lambda * _REGULARIZATION_FLOOR_FRACTION)
+    needed = max(init_lambda - regularization_floor, init_lambda * reg_floor_fraction)
     dim = A.shape[0]
     new_A = A + x_outer + needed * np.eye(dim)
     new_A_inv = safe_inv(new_A)
@@ -936,13 +944,20 @@ class BanditState(TypedDict):
 
 class DisjointLinUCBPolicy:
     """Disjoint LinUCB: one ridge regression per arm."""
-    def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1,
-                 init_lambda: float = 1.0,
-                 forgetting_factor: float = 1.0,
-                 seed: int | None = None):
-        """
-        Initialize Disjoint LinUCB policy.
-        
+    def __init__(
+        self,
+        model_names: List[str],
+        dim: int = 384,
+        alpha: float = 0.1,
+        init_lambda: float = 1.0,
+        forgetting_factor: float = 1.0,
+        seed: int | None = None,
+        max_staleness_dt: int = _MAX_STALENESS_DT,
+        reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
+        max_var_inflation: float = _MAX_VAR_INFLATION_FACTOR,
+    ):
+        """Initialize Disjoint LinUCB policy.
+
         REGULARIZATION NOTE (isotropic prior after PCA):
         We initialize A₀ = λI, an isotropic regularizer in the PCA-transformed
         feature space.  After PCA, principal components have decreasing empirical
@@ -953,19 +968,24 @@ class DisjointLinUCBPolicy:
         or variance-matched regularization (e.g., diagonal A₀ scaled by component
         variance, or full whitening before the bandit) is a natural extension left
         for future work.
-        
+
         Args:
-            model_names: List of model identifiers (arms)
-            dim: Context vector dimension
-            alpha: Exploration coefficient (UCB bonus multiplier)
+            model_names: List of model identifiers (arms).
+            dim: Context vector dimension.
+            alpha: Exploration coefficient (UCB bonus multiplier).
             init_lambda: Initialization regularization (A₀ = λI). Default 1.0 for
-                       cold-start stability.  This is a isotropic prior that
-                       regularizes all principal directions equally; it does not
-                       distinguish between high- and low-variance PCA components.
-            forgetting_factor: Exponential decay factor (1.0 = stationary, <1.0 = adaptive). Default 1.0.
+                cold-start stability.
+            forgetting_factor: Exponential decay factor (1.0 = stationary,
+                <1.0 = adaptive).
             seed: Seed for the internal ``np.random.Generator`` used by
                 Thompson Sampling (``get_probabilities``).  *None* creates
                 an unseeded generator.
+            max_staleness_dt: Cap on ``dt`` in ``gamma^dt`` to prevent float64
+                underflow.  Default 1000.
+            reg_floor_fraction: Fraction of *init_lambda* below which proactive
+                regularization injects a top-up into A.  Default 0.1.
+            max_var_inflation: Maximum multiplicative factor for staleness-based
+                variance inflation.  Default 200.0.
         """
         self.models = list(model_names)
         self.dim = int(dim)
@@ -973,13 +993,13 @@ class DisjointLinUCBPolicy:
         self.gamma = float(forgetting_factor)
         self.init_lambda = float(init_lambda)
         self._rng = np.random.default_rng(seed)
+        self.max_staleness_dt = int(max_staleness_dt)
+        self.reg_floor_fraction = float(reg_floor_fraction)
+        self.max_var_inflation = float(max_var_inflation)
 
-        # Thread safety: Per-model locks to eliminate lost-update race conditions.
-        # Updates to Model A don't block updates to Model B.
-        from collections import defaultdict
-        self.model_locks = defaultdict(threading.Lock)
-        
-        # Global lock for read operations (select_arm, refresh_inverse_cache)
+        self.model_locks: Dict[str, threading.Lock] = {
+            m: threading.Lock() for m in self.models
+        }
         self._lock = threading.Lock()
         
         # Initialize A=I*init_lambda, b=0
@@ -1004,7 +1024,6 @@ class DisjointLinUCBPolicy:
         Locks cannot be pickled or deepcopied directly. We create new locks
         for the clone while deepcopying all numerical state (A, b, A_inv, etc.).
         """
-        from collections import defaultdict
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
@@ -1015,86 +1034,86 @@ class DisjointLinUCBPolicy:
         result.alpha = self.alpha
         result.gamma = self.gamma
         result.init_lambda = self.init_lambda
+        result.max_staleness_dt = self.max_staleness_dt
+        result.reg_floor_fraction = self.reg_floor_fraction
+        result.max_var_inflation = self.max_var_inflation
         result.t = self.t
         result.last_update = copy.deepcopy(self.last_update, memo)
         result.last_played = copy.deepcopy(self.last_played, memo)
-        
-        # Copy major state (numpy arrays copy well)
+
         result.A = copy.deepcopy(self.A, memo)
         result.b = copy.deepcopy(self.b, memo)
         result.A_inv = copy.deepcopy(self.A_inv, memo)
-        
-        # Create FRESH locks for the clone (per-model locks)
-        result.model_locks = defaultdict(threading.Lock)
-        
-        # Create fresh global lock for the clone
-        result._lock = threading.Lock()
-        
-        # Copy regularization_floor so the clone's decay path
-        # (which accesses self.regularization_floor[model]) doesn't crash
-        # with AttributeError on the first update when gamma < 1.0.
-        result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
 
+        result.model_locks = {m: threading.Lock() for m in result.models}
+        result._lock = threading.Lock()
+
+        result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
         result._rng = copy.deepcopy(self._rng, memo)
 
         return result
 
     def add_arm(self, model_name: str) -> None:
         """Add a new arm (model) to the bandit dynamically.
-        
-Prepare all state outside the lock, then publish atomically.
-        Previously, a concurrent select_arm() could see the model in self.A
-        before self.A_inv was assigned, causing a KeyError.
+
+        Prepares all state outside the lock, then publishes atomically.
+        Uses double-checked locking: the outer ``if`` is a fast-path
+        optimization; the inner re-check under ``self._lock`` prevents
+        duplicate registration when two threads call ``add_arm`` for the
+        same model concurrently.
         """
-        if model_name in self.models: return
-        
-        # Prepare outside lock
+        if model_name in self.models:
+            return
+
         new_A = np.eye(self.dim) * self.init_lambda
         new_b = np.zeros(self.dim, dtype=np.float64)
         new_A_inv = safe_inv(new_A)
-        
-        # Publish atomically under global lock
+
         with self._lock:
+            if model_name in self.models:
+                return
             self.A[model_name] = new_A
             self.b[model_name] = new_b
             self.A_inv[model_name] = new_A_inv
             self.last_update[model_name] = self.t
             self.last_played[model_name] = self.t
             self.regularization_floor[model_name] = self.init_lambda
-            self.models.append(model_name)  # Last: select_arm sees it only after state is ready
+            self.model_locks[model_name] = threading.Lock()
+            self.models.append(model_name)
 
     def delete_arm(self, model_name: str) -> None:
         """Remove an arm from the bandit.
-        
-Wrap in lock and clean up regularization_floor and
-        model_locks to prevent unbounded memory growth under model churn.
+
+        Acquires the model's per-arm lock before ``self._lock`` to
+        prevent a race with a concurrent ``update()`` that has already
+        acquired ``model_locks[model_name]`` and is reading arm state.
         """
-        with self._lock:
-            if model_name in self.models:
-                self.models.remove(model_name)
-            if model_name in self.A: del self.A[model_name]
-            if model_name in self.b: del self.b[model_name]
-            if model_name in self.A_inv: del self.A_inv[model_name]
-            if model_name in self.last_update: del self.last_update[model_name]
-            if model_name in self.last_played: del self.last_played[model_name]
-            if model_name in self.regularization_floor: del self.regularization_floor[model_name]
-            if model_name in self.model_locks: del self.model_locks[model_name]
+        model_lock = self.model_locks.get(model_name)
+        if model_lock is None:
+            with self._lock:
+                self.models = [m for m in self.models if m != model_name]
+            return
+        with model_lock:
+            with self._lock:
+                self.models = [m for m in self.models if m != model_name]
+                for attr in (self.A, self.b, self.A_inv, self.last_update,
+                             self.last_played, self.regularization_floor):
+                    attr.pop(model_name, None)
+                self.model_locks.pop(model_name, None)
 
     def refresh_inverse_cache(self) -> None:
-        """
-        Recomputes A_inv for all models after a bulk load.
-        
-        This is needed when loading pre-trained warmup state, where A matrices
-        are updated directly but the inverse cache becomes stale.
-        
-        Thread-safe: Uses lock to prevent concurrent reads during refresh.
+        """Recompute ``A_inv`` for all models after a bulk load.
+
+        Builds the new inverse dict outside the lock, then atomically
+        swaps the reference so that concurrent ``update()`` calls (which
+        read ``self.A_inv[model]`` under ``model_locks`` only) never see
+        a partially populated dictionary.
         """
         with self._lock:
-            self.A_inv = {}
-            for m in self.models:
-                if m in self.A:
-                    # Recompute inverse using safe_inv (handles near-singular matrices)
-                    self.A_inv[m] = safe_inv(self.A[m])
+            snapshot = {m: self.A[m] for m in self.models if m in self.A}
+        new_A_inv = {m: safe_inv(A_m) for m, A_m in snapshot.items()}
+        with self._lock:
+            self.A_inv = new_A_inv
 
 
     def select_arm(
@@ -1148,7 +1167,11 @@ Wrap in lock and clean up regularization_floor and
 
                 dt = self._effective_staleness(m)
                 var = float(x.dot(self.A_inv[m]).dot(x))
-                var_inflated = _inflate_variance(var, self.gamma, dt)
+                var_inflated = _inflate_variance(
+                    var, self.gamma, dt,
+                    max_staleness_dt=self.max_staleness_dt,
+                    max_var_inflation=self.max_var_inflation,
+                )
 
                 std = float(np.sqrt(max(var_inflated, 1e-12)))
                 ucb = mean + self.alpha * std
@@ -1215,7 +1238,11 @@ Wrap in lock and clean up regularization_floor and
         """
         var = float(x.dot(self.A_inv[model]).dot(x))
         dt = self._effective_staleness(model)
-        return _inflate_variance(var, self.gamma, dt)
+        return _inflate_variance(
+            var, self.gamma, dt,
+            max_staleness_dt=self.max_staleness_dt,
+            max_var_inflation=self.max_var_inflation,
+        )
 
     def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000,
                           noise_variance: float = 0.25) -> Dict[str, float]:
@@ -1269,7 +1296,11 @@ Wrap in lock and clean up regularization_floor and
         
         for m, (A_inv_m, theta_hat, dt) in snapshots.items():
             scalar_var = float(np.trace(A_inv_m))
-            inflated = _inflate_variance(scalar_var, self.gamma, dt)
+            inflated = _inflate_variance(
+                scalar_var, self.gamma, dt,
+                max_staleness_dt=self.max_staleness_dt,
+                max_var_inflation=self.max_var_inflation,
+            )
             if scalar_var > 0 and inflated != scalar_var:
                 cov = noise_variance * A_inv_m * (inflated / scalar_var)
             else:
@@ -1358,14 +1389,9 @@ Wrap in lock and clean up regularization_floor and
         # self._lock is acquired in short nested sections below for self.t reads
         # and matrix pointer swaps.
         with self.model_locks[model]:
-            # Snapshot the logical clock atomically before any computation.
-            # mark_selected() increments self.t under self._lock; reading self.t
-            # here outside that lock and again later (for last_update assignment)
-            # would create a formal race where dt is computed against one value of
-            # self.t but last_update is written with a different, later value.
-            # Snapping current_t once under self._lock ensures both uses are
-            # consistent, whether or not mark_selected() fires between them.
             with self._lock:
+                if model not in self.A:
+                    return
                 current_t = self.t
 
             # 1. Calculate Time Decay
@@ -1374,15 +1400,11 @@ Wrap in lock and clean up regularization_floor and
             if self.gamma < 1.0:
                 dt = current_t - self.last_update[model]
                 # Clamp dt to prevent numerical underflow when gamma is small
-                decay_factor = self.gamma ** min(dt, _MAX_STALENESS_DT)
+                decay_factor = self.gamma ** min(dt, self.max_staleness_dt)
 
-            # 2. Proactive regularization maintenance
-            # Ensure A remains well-conditioned under decay (A >= lambda_min I).
             current_lambda = self.regularization_floor.get(model, self.init_lambda)
             new_lambda = current_lambda * decay_factor
-            
-            # Threshold: Reinject if prior strength drops below _REGULARIZATION_FLOOR_FRACTION of init
-            lambda_threshold = self.init_lambda * _REGULARIZATION_FLOOR_FRACTION
+            lambda_threshold = self.init_lambda * self.reg_floor_fraction
 
             if new_lambda < lambda_threshold:
                 # MAINTENANCE MODE: Inject fresh regularization (Rare O(d³))
@@ -1467,6 +1489,7 @@ Wrap in lock and clean up regularization_floor and
                 init_lambda=self.init_lambda,
                 regularization_floor=self.regularization_floor.get(model, self.init_lambda),
                 model_name=model,
+                reg_floor_fraction=self.reg_floor_fraction,
             )
             self.regularization_floor[model] = result.regularization_floor
 
@@ -1743,6 +1766,19 @@ class HybridLinUCBPolicy:
     current (post-decay) arm state, injecting only real observational
     precision.  ``A0`` is always ``λI`` plus a sum of PSD rank-1 terms,
     so it is unconditionally positive definite.
+
+    **Concurrency / lock contention:**  ``select_arm`` holds the global
+    ``_lock`` for the entire ``O(M · d^2)`` scoring loop.  At d=384 and
+    M=3 this is < 1 ms under optimized BLAS, so contention is negligible
+    at moderate traffic (< 1 000 RPS).  For high-throughput deployments
+    (> 10 000 RPS), a read-copy-update (RCU) pattern — where ``update``
+    builds an immutable state snapshot and atomically swaps a reference —
+    would allow ``select_arm`` to run lock-free.  This is not implemented
+    because (a) the embedding model (``SentenceTransformer``) dominates
+    latency, not bandit scoring, (b) snapshot copies of ``O(M · d^2)``
+    matrices add GC pressure, and (c) concurrent multi-arm updates
+    require CAS-style retry loops to avoid lost writes when two updates
+    race to swap the same snapshot.
     """
 
     def __init__(
@@ -1753,9 +1789,11 @@ class HybridLinUCBPolicy:
         init_lambda: float = 1.0,
         forgetting_factor: float = 1.0,
         seed: int | None = None,
+        max_staleness_dt: int = _MAX_STALENESS_DT,
+        reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
+        max_var_inflation: float = _MAX_VAR_INFLATION_FACTOR,
     ):
-        """
-        Initialize Hybrid LinUCB policy.
+        """Initialize Hybrid LinUCB policy.
 
         Args:
             model_names: List of model identifiers (arms).
@@ -1768,17 +1806,26 @@ class HybridLinUCBPolicy:
             seed: Seed for the internal ``np.random.Generator`` used by
                 Thompson Sampling (``get_probabilities``).  *None* creates
                 an unseeded generator.
+            max_staleness_dt: Cap on ``dt`` in ``gamma^dt`` to prevent float64
+                underflow.  Default 1000.
+            reg_floor_fraction: Fraction of *init_lambda* below which proactive
+                regularization injects a top-up into A.  Default 0.1.
+            max_var_inflation: Maximum multiplicative factor for staleness-based
+                variance inflation.  Default 200.0.
         """
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
         self.gamma = float(forgetting_factor)
         self.init_lambda = float(init_lambda)
+        self.max_staleness_dt = int(max_staleness_dt)
+        self.reg_floor_fraction = float(reg_floor_fraction)
+        self.max_var_inflation = float(max_var_inflation)
         self._rng = np.random.default_rng(seed)
 
-        # --- Thread safety ---
-        from collections import defaultdict as _dd
-        self.model_locks: Dict[str, threading.Lock] = _dd(threading.Lock)
+        self.model_locks: Dict[str, threading.Lock] = {
+            m: threading.Lock() for m in self.models
+        }
         self._shared_lock = threading.Lock()
         self._lock = threading.Lock()
 
@@ -1814,8 +1861,6 @@ class HybridLinUCBPolicy:
     # ------------------------------------------------------------------
 
     def __deepcopy__(self, memo):
-        from collections import defaultdict as _dd
-
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
@@ -1825,6 +1870,9 @@ class HybridLinUCBPolicy:
         result.alpha = self.alpha
         result.gamma = self.gamma
         result.init_lambda = self.init_lambda
+        result.max_staleness_dt = self.max_staleness_dt
+        result.reg_floor_fraction = self.reg_floor_fraction
+        result.max_var_inflation = self.max_var_inflation
         result.t = self.t
 
         result.A0 = self.A0.copy()
@@ -1843,7 +1891,7 @@ class HybridLinUCBPolicy:
         )
 
         result._rng = copy.deepcopy(self._rng, memo)
-        result.model_locks = _dd(threading.Lock)
+        result.model_locks = {m: threading.Lock() for m in result.models}
         result._shared_lock = threading.Lock()
         result._lock = threading.Lock()
 
@@ -1873,6 +1921,8 @@ class HybridLinUCBPolicy:
         new_A_inv = safe_inv(new_A)
 
         with self._lock:
+            if model_name in self.models:
+                return
             self.A[model_name] = new_A
             self.B[model_name] = new_B
             self.b[model_name] = new_b
@@ -1880,19 +1930,29 @@ class HybridLinUCBPolicy:
             self.last_update[model_name] = self.t
             self.last_played[model_name] = self.t
             self.regularization_floor[model_name] = self.init_lambda
+            self.model_locks[model_name] = threading.Lock()
             self.models.append(model_name)
 
     def delete_arm(self, model_name: str) -> None:
-        """Remove an arm.  Shared state is unaffected."""
-        with self._lock:
-            if model_name not in self.models:
-                return
-            self.models.remove(model_name)
+        """Remove an arm.  Shared state is unaffected.
 
-            for attr in (self.A, self.B, self.b, self.A_inv, self.last_update,
-                         self.last_played, self.regularization_floor):
-                attr.pop(model_name, None)
-            self.model_locks.pop(model_name, None)
+        Acquires the model's per-arm lock before ``self._lock`` to
+        prevent a race with a concurrent ``update()`` that has already
+        acquired ``model_locks[model_name]`` and is reading arm state.
+        """
+        model_lock = self.model_locks.get(model_name)
+        if model_lock is None:
+            with self._lock:
+                self.models = [m for m in self.models if m != model_name]
+            return
+        with model_lock:
+            with self._lock:
+                self.models = [m for m in self.models if m != model_name]
+                for attr in (self.A, self.B, self.b, self.A_inv,
+                             self.last_update, self.last_played,
+                             self.regularization_floor):
+                    attr.pop(model_name, None)
+                self.model_locks.pop(model_name, None)
 
     # ------------------------------------------------------------------
     # Inverse cache
@@ -1905,15 +1965,29 @@ class HybridLinUCBPolicy:
         ``A_inv`` accumulate float64 rounding error.  Calling this
         periodically recomputes all inverses via ``safe_inv``, acting as
         a drift reset.  Symmetrization is applied defensively.
+
+        Builds new inverse dicts outside the critical section, then swaps
+        references atomically so that concurrent readers never observe a
+        partially populated ``A_inv``.
         """
         with self._lock:
-            self.A0 = (self.A0 + self.A0.T) / 2.0
-            self.A0_inv = safe_inv(self.A0)
-            self.A_inv = {}
+            A0_sym = (self.A0 + self.A0.T) / 2.0
+            arm_snapshot = {}
             for m in self.models:
                 if m in self.A:
-                    self.A[m] = (self.A[m] + self.A[m].T) / 2.0
-                    self.A_inv[m] = safe_inv(self.A[m])
+                    A_sym = (self.A[m] + self.A[m].T) / 2.0
+                    arm_snapshot[m] = A_sym
+
+        new_A0_inv = safe_inv(A0_sym)
+        new_A_inv = {m: safe_inv(A_m) for m, A_m in arm_snapshot.items()}
+
+        with self._shared_lock:
+            with self._lock:
+                self.A0 = A0_sym
+                self.A0_inv = new_A0_inv
+                for m, A_m in arm_snapshot.items():
+                    self.A[m] = A_m
+                self.A_inv = new_A_inv
 
     # ------------------------------------------------------------------
     # Selection
@@ -1974,7 +2048,9 @@ class HybridLinUCBPolicy:
 
                 dt = self._effective_staleness(m)
                 arm_portion = _inflate_variance(
-                    arm_var + cross_quad, self.gamma, dt
+                    arm_var + cross_quad, self.gamma, dt,
+                    max_staleness_dt=self.max_staleness_dt,
+                    max_var_inflation=self.max_var_inflation,
                 )
                 s = shared_var - 2.0 * cross_term + arm_portion
 
@@ -2045,7 +2121,11 @@ class HybridLinUCBPolicy:
         cross_quad = float(BtAinvx.dot(self.A0_inv @ BtAinvx))
 
         dt = self._effective_staleness(model)
-        arm_portion = _inflate_variance(arm_var + cross_quad, self.gamma, dt)
+        arm_portion = _inflate_variance(
+            arm_var + cross_quad, self.gamma, dt,
+            max_staleness_dt=self.max_staleness_dt,
+            max_var_inflation=self.max_var_inflation,
+        )
         return shared_var - 2.0 * cross_term + arm_portion
 
     # ------------------------------------------------------------------
@@ -2130,7 +2210,11 @@ class HybridLinUCBPolicy:
             shared_cov = noise_variance * self.A0_inv
             for m in valid_models:
                 dt = self._effective_staleness(m)
-                inflation = _inflate_variance(1.0, self.gamma, dt)
+                inflation = _inflate_variance(
+                    1.0, self.gamma, dt,
+                    max_staleness_dt=self.max_staleness_dt,
+                    max_var_inflation=self.max_var_inflation,
+                )
                 arm_cov = noise_variance * inflation * self.A_inv[m]
                 arm_snapshots[m] = (
                     self.A_inv[m].copy(),
@@ -2249,19 +2333,21 @@ class HybridLinUCBPolicy:
 
         with self.model_locks[model]:
             with self._lock:
+                if model not in self.A:
+                    return
                 current_t = self.t
 
             # ---- Forgetting factor decay (arm-specific: A, B, b) ----
             decay_factor = 1.0
             if self.gamma < 1.0:
                 dt = current_t - self.last_update[model]
-                decay_factor = self.gamma ** min(dt, _MAX_STALENESS_DT)
+                decay_factor = self.gamma ** min(dt, self.max_staleness_dt)
 
             current_lambda = self.regularization_floor.get(
                 model, self.init_lambda
             )
             new_lambda = current_lambda * decay_factor
-            lambda_threshold = self.init_lambda * _REGULARIZATION_FLOOR_FRACTION
+            lambda_threshold = self.init_lambda * self.reg_floor_fraction
 
             if new_lambda < lambda_threshold:
                 missing_lambda = self.init_lambda - new_lambda
@@ -2333,6 +2419,7 @@ class HybridLinUCBPolicy:
                     model, self.init_lambda
                 ),
                 model_name=model,
+                reg_floor_fraction=self.reg_floor_fraction,
             )
             self.regularization_floor[model] = arm_result.regularization_floor
             new_B = self.B[model] + weight * np.outer(x, z)
@@ -5910,23 +5997,31 @@ class CostAwareTabulaRasaRouter:
                  alpha_start: float = 1.0, alpha_end: float = 0.1, cost_penalty: float = 0.0,
                  latency_penalty: float = 0.0,
                  ridge_lambda: Optional[float] = None, reward_std: Optional[float] = None,
-                 forgetting_factor: float = 1.0):
-        """
-        Initialize tabula rasa router with automatic or manual ridge regularization.
-        
+                 forgetting_factor: float = 1.0,
+                 max_staleness_dt: int = _MAX_STALENESS_DT,
+                 reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
+                 max_var_inflation: float = _MAX_VAR_INFLATION_FACTOR):
+        """Initialize tabula rasa router with automatic or manual ridge regularization.
+
         Args:
-            models: List of model identifiers
-            context_dim: Dimension of context vectors
+            models: List of model identifiers.
+            context_dim: Dimension of context vectors.
             model_costs: Dict mapping model_id -> {"normalized_cost": float,
-                       "normalized_latency": float}
-            alpha_start: Initial exploration coefficient (default: 1.0)
-            alpha_end: Final exploration coefficient (default: 0.1)
-            cost_penalty: Weight for cost penalty (default: 0.0)
-            latency_penalty: Weight for latency penalty (default: 0.0)
-            ridge_lambda: Ridge regularization parameter (default: None, auto-calculated)
-            reward_std: Standard deviation of rewards for auto-calculation (optional)
+                       "normalized_latency": float}.
+            alpha_start: Initial exploration coefficient (default: 1.0).
+            alpha_end: Final exploration coefficient (default: 0.1).
+            cost_penalty: Weight for cost penalty (default: 0.0).
+            latency_penalty: Weight for latency penalty (default: 0.0).
+            ridge_lambda: Ridge regularization parameter (default: None, auto-calculated).
+            reward_std: Standard deviation of rewards for auto-calculation (optional).
             forgetting_factor: Exponential decay for past observations
-                             (1.0 = stationary, <1.0 = adaptive). Default 1.0.
+                (1.0 = stationary, <1.0 = adaptive).
+            max_staleness_dt: Cap on ``dt`` in ``gamma^dt`` to prevent
+                float64 underflow.
+            reg_floor_fraction: Fraction of *ridge_lambda* below which
+                proactive regularization injects a top-up into A.
+            max_var_inflation: Maximum multiplicative factor for
+                staleness-based variance inflation.
         """
         self.models = models
         self.alpha_start = alpha_start  # Initial exploration (e.g., 1.0)
@@ -5954,6 +6049,9 @@ class CostAwareTabulaRasaRouter:
         self._lock = threading.Lock()
         
         self.gamma = float(forgetting_factor)
+        self.max_staleness_dt = int(max_staleness_dt)
+        self.reg_floor_fraction = float(reg_floor_fraction)
+        self.max_var_inflation = float(max_var_inflation)
         self.last_update: Dict[str, int] = {m: 0 for m in models}
         self.last_played: Dict[str, int] = {m: 0 for m in models}
         self.regularization_floor: Dict[str, float] = {
@@ -6022,7 +6120,11 @@ class CostAwareTabulaRasaRouter:
                 var = float(context @ A_inv @ context)
 
                 dt = self._effective_staleness(model)
-                var = _inflate_variance(var, self.gamma, dt)
+                var = _inflate_variance(
+                    var, self.gamma, dt,
+                    max_staleness_dt=self.max_staleness_dt,
+                    max_var_inflation=self.max_var_inflation,
+                )
                 uncertainty = np.sqrt(max(var, 1e-12))
 
                 model_meta = self.model_costs.get(model, {})
@@ -6088,12 +6190,12 @@ class CostAwareTabulaRasaRouter:
             # DisjointLinUCBPolicy which has per-model + global locks).
             if self.gamma < 1.0:
                 dt = self.t - self.last_update.get(model, 0)
-                decay_factor = self.gamma ** min(dt, _MAX_STALENESS_DT)
+                decay_factor = self.gamma ** min(dt, self.max_staleness_dt)
 
                 current_floor = self.regularization_floor.get(model, self.ridge_lambda)
                 new_floor = current_floor * decay_factor
 
-                if new_floor < self.ridge_lambda * _REGULARIZATION_FLOOR_FRACTION:
+                if new_floor < self.ridge_lambda * self.reg_floor_fraction:
                     self.A[model] = (
                         self.A[model] * decay_factor
                         + self.ridge_lambda * np.eye(self.context_dim)
@@ -6120,6 +6222,7 @@ class CostAwareTabulaRasaRouter:
                 init_lambda=self.ridge_lambda,
                 regularization_floor=self.regularization_floor.get(model, self.ridge_lambda),
                 model_name=model,
+                reg_floor_fraction=self.reg_floor_fraction,
             )
             self.A[model] = result.A
             self.b[model] = result.b
