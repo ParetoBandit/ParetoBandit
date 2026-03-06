@@ -1663,6 +1663,20 @@ class HybridLinUCBPolicy:
     our setting ``z_{t,a} = x_t`` for all arms (no arm-level features),
     so ``k = d``.
 
+    **Identifiability (z = x):**  Because the prediction is
+    ``x^T (beta + theta_a)``, the model is overparameterized: any shift
+    ``beta + v``, ``theta_a − v`` leaves predictions unchanged.  The
+    L2 ridge penalty (``init_lambda``) is the sole mechanism that
+    breaks this symmetry, shrinking both toward zero so that ``beta``
+    captures the shared mean and ``theta_a`` the per-arm residual.
+    If ``init_lambda`` is too low relative to the feature scale, the
+    joint precision becomes ill-conditioned and float64 drift
+    accelerates.  Three safeguards prevent collapse in practice:
+    (1) ``init_lambda`` defaults to 1.0, (2) the regularization floor
+    prevents decay below ``init_lambda * 0.01``, and (3)
+    ``_check_numerical_stability`` monitors ``trace(A_inv)`` and
+    injects additional regularization when it explodes.
+
     Each arm maintains a **cross-term matrix** ``B_a`` (d x d) that
     captures the covariance between arm-specific features ``x`` and shared
     features ``z``.  These cross-terms appear in three places:
