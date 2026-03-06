@@ -1858,10 +1858,12 @@ class HybridLinUCBPolicy:
     def refresh_inverse_cache(self) -> None:
         """Recompute cached inverses for shared and all arm matrices."""
         with self._lock:
+            self.A0 = (self.A0 + self.A0.T) / 2.0
             self.A0_inv = safe_inv(self.A0)
             self.A_inv = {}
             for m in self.models:
                 if m in self.A:
+                    self.A[m] = (self.A[m] + self.A[m].T) / 2.0
                     self.A_inv[m] = safe_inv(self.A[m])
 
     # ------------------------------------------------------------------
@@ -2259,6 +2261,7 @@ class HybridLinUCBPolicy:
                         + weight * np.outer(z, z)
                         - BtAinv_new @ B_a_new
                     )
+                    self.A0 = (self.A0 + self.A0.T) / 2.0
                     self.b0 = (
                         self.b0
                         + weight * reward * z
@@ -2335,6 +2338,7 @@ class HybridLinUCBPolicy:
             with self._shared_lock:
                 with self._lock:
                     self.A0 = self.A0 - BtAinv_new @ B_a_cur
+                    self.A0 = (self.A0 + self.A0.T) / 2.0
                     self.b0 = self.b0 - BtAinv_new @ b_a_cur
                     self.A0_inv = safe_inv(self.A0)
 
@@ -2440,6 +2444,7 @@ class HybridLinUCBPolicy:
         shared_staged: Tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
         if "__shared__A0" in data and "__shared__b0" in data:
             A0_new = data["__shared__A0"]
+            A0_new = (A0_new + A0_new.T) / 2.0
             b0_new = data["__shared__b0"]
             shared_staged = (A0_new, b0_new, safe_inv(A0_new))
 
