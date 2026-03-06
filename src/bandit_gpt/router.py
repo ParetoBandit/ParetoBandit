@@ -347,10 +347,11 @@ def _safe_multivariate_normal(
     cov: np.ndarray,
     n_samples: int,
     dim: int,
+    rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Draw from a multivariate normal with numerical safety fallbacks.
 
-    Attempts ``np.random.multivariate_normal`` first, then adds jitter,
+    Attempts ``rng.multivariate_normal`` first, then adds jitter,
     then falls back to diagonal sampling if the covariance is too
     ill-conditioned.
 
@@ -359,22 +360,26 @@ def _safe_multivariate_normal(
         cov: Covariance matrix of shape ``(dim, dim)``.
         n_samples: Number of draws.
         dim: Dimensionality (used for diagonal fallback).
+        rng: Explicit NumPy random generator for reproducibility.
+            Falls back to ``np.random.default_rng()`` if *None*.
 
     Returns:
         Array of shape ``(n_samples, dim)``.
     """
+    if rng is None:
+        rng = np.random.default_rng()
     try:
-        return np.random.multivariate_normal(mean, cov, n_samples)
+        return rng.multivariate_normal(mean, cov, n_samples)
     except np.linalg.LinAlgError:
         pass
 
     jitter = max(np.trace(cov) / dim, 1e-12) * 1e-6
     cov_safe = cov + jitter * np.eye(dim)
     try:
-        return np.random.multivariate_normal(mean, cov_safe, n_samples)
+        return rng.multivariate_normal(mean, cov_safe, n_samples)
     except np.linalg.LinAlgError:
         avg_var = max(np.trace(cov) / dim, 1e-12)
-        return np.random.normal(
+        return rng.normal(
             loc=mean, scale=np.sqrt(avg_var), size=(n_samples, dim)
         )
 
@@ -933,7 +938,8 @@ class DisjointLinUCBPolicy:
     """Disjoint LinUCB: one ridge regression per arm."""
     def __init__(self, model_names: List[str], dim: int = 384, alpha: float = 0.1,
                  init_lambda: float = 1.0,
-                 forgetting_factor: float = 1.0):
+                 forgetting_factor: float = 1.0,
+                 seed: int | None = None):
         """
         Initialize Disjoint LinUCB policy.
         
@@ -953,16 +959,20 @@ class DisjointLinUCBPolicy:
             dim: Context vector dimension
             alpha: Exploration coefficient (UCB bonus multiplier)
             init_lambda: Initialization regularization (A₀ = λI). Default 1.0 for
-                       cold-start stability.  This is an isotropic prior that
+                       cold-start stability.  This is a isotropic prior that
                        regularizes all principal directions equally; it does not
                        distinguish between high- and low-variance PCA components.
             forgetting_factor: Exponential decay factor (1.0 = stationary, <1.0 = adaptive). Default 1.0.
+            seed: Seed for the internal ``np.random.Generator`` used by
+                Thompson Sampling (``get_probabilities``).  *None* creates
+                an unseeded generator.
         """
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
         self.gamma = float(forgetting_factor)
         self.init_lambda = float(init_lambda)
+        self._rng = np.random.default_rng(seed)
 
         # Thread safety: Per-model locks to eliminate lost-update race conditions.
         # Updates to Model A don't block updates to Model B.
@@ -1024,7 +1034,9 @@ class DisjointLinUCBPolicy:
         # (which accesses self.regularization_floor[model]) doesn't crash
         # with AttributeError on the first update when gamma < 1.0.
         result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
-        
+
+        result._rng = copy.deepcopy(self._rng, memo)
+
         return result
 
     def add_arm(self, model_name: str) -> None:
@@ -1256,35 +1268,15 @@ Wrap in lock and clean up regularization_floor and
             return {m: 1.0 / n for m in models}
         
         for m, (A_inv_m, theta_hat, dt) in snapshots.items():
-            # Inflate the posterior covariance for staleness, matching
-            # the scalar inflation applied in select_arm() for consistency.
             scalar_var = float(np.trace(A_inv_m))
             inflated = _inflate_variance(scalar_var, self.gamma, dt)
             if scalar_var > 0 and inflated != scalar_var:
                 cov = noise_variance * A_inv_m * (inflated / scalar_var)
             else:
                 cov = noise_variance * A_inv_m
-            try:
-                samples = np.random.multivariate_normal(theta_hat, cov, n_samples)
-            except np.linalg.LinAlgError:
-                # Jitter the diagonal to restore positive-definiteness while
-                # preserving the off-diagonal covariance structure (confidence
-                # ellipsoid geometry).  The jitter magnitude is proportional to
-                # the average variance so it doesn't dominate a well-conditioned
-                # matrix or vanish on a poorly-scaled one.
-                jitter = max(np.trace(cov) / self.dim, 1e-12) * 1e-6
-                cov_safe = cov + jitter * np.eye(self.dim)
-                try:
-                    samples = np.random.multivariate_normal(
-                        theta_hat, cov_safe, n_samples,
-                    )
-                except np.linalg.LinAlgError:
-                    # Truly degenerate — fall back to isotropic sampling
-                    avg_var = max(np.trace(cov) / self.dim, 1e-12)
-                    samples = np.random.normal(
-                        loc=theta_hat, scale=np.sqrt(avg_var),
-                        size=(n_samples, self.dim),
-                    )
+            samples = _safe_multivariate_normal(
+                theta_hat, cov, n_samples, self.dim, rng=self._rng,
+            )
             model_samples[m] = samples @ x
             
         # Determine how many times each model was the winner across samples
@@ -1576,17 +1568,19 @@ Wrap in lock and clean up regularization_floor and
     def load_state(self, path: Path | str) -> None:
         """
         Load A and b matrices from a compressed NPZ file with dimension validation.
-        
-        Validates that saved dimension matches current bandit dimension to prevent
-        silent matrix misalignment crashes. Raises clear error if dimensions don't match.
-        
+
+        All file I/O, validation, and ``safe_inv`` computation happen
+        outside any lock.  State references are then swapped atomically
+        under ``self._lock`` so that concurrent readers (``select_arm``,
+        ``get_probabilities``) never observe torn state (e.g. a new ``A``
+        paired with an old ``A_inv``).
+
         Raises:
             ValueError: If saved dimension doesn't match current bandit dimension.
                        Suggests clearing state or updating feature configuration.
         """
         data = np.load(path)
-        
-        # Validate dimension compatibility
+
         if '_metadata_dim' in data:
             saved_dim = int(data['_metadata_dim'])
             if saved_dim != self.dim:
@@ -1602,22 +1596,21 @@ Wrap in lock and clean up regularization_floor and
                     f"  - Ensure PCA and feature config match the saved state"
                 )
         else:
-            # Legacy state file without metadata - warn but proceed
             logger.warning(
                 f"Loading state from {path} without dimension metadata. "
                 f"This may cause issues if dimensions have changed. "
                 f"Current dim={self.dim}"
             )
-        
-        # Load matrices with dimension validation
+
+        # Stage 1: load, validate, and compute inverses outside any lock.
+        staged: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
         for m in self.models:
             a_key = f"{m}_A"
             b_key = f"{m}_b"
             if a_key in data and b_key in data:
                 A_loaded = data[a_key]
                 b_loaded = data[b_key]
-                
-                # Validate shapes
+
                 if A_loaded.shape != (self.dim, self.dim):
                     raise ValueError(
                         f"Matrix A for model '{m}' has wrong shape: "
@@ -1628,10 +1621,14 @@ Wrap in lock and clean up regularization_floor and
                         f"Vector b for model '{m}' has wrong shape: "
                         f"expected ({self.dim},), got {b_loaded.shape}"
                     )
-                
-                self.A[m] = A_loaded
-                self.b[m] = b_loaded
-                self.A_inv[m] = safe_inv(self.A[m])
+                staged[m] = (A_loaded, b_loaded, safe_inv(A_loaded))
+
+        # Stage 2: swap all references atomically under the global lock.
+        with self._lock:
+            for m, (A_new, b_new, A_inv_new) in staged.items():
+                self.A[m] = A_new
+                self.b[m] = b_new
+                self.A_inv[m] = A_inv_new
 
 
 # ---------------------------------------------------------------------------
@@ -1712,6 +1709,7 @@ class HybridLinUCBPolicy:
         alpha: float = 0.1,
         init_lambda: float = 1.0,
         forgetting_factor: float = 1.0,
+        seed: int | None = None,
     ):
         """
         Initialize Hybrid LinUCB policy.
@@ -1724,12 +1722,16 @@ class HybridLinUCBPolicy:
             forgetting_factor: Exponential decay for arm-specific state only.
                 Shared state accumulates stationarily since it receives
                 updates from all arms and is therefore never stale.
+            seed: Seed for the internal ``np.random.Generator`` used by
+                Thompson Sampling (``get_probabilities``).  *None* creates
+                an unseeded generator.
         """
         self.models = list(model_names)
         self.dim = int(dim)
         self.alpha = float(alpha)
         self.gamma = float(forgetting_factor)
         self.init_lambda = float(init_lambda)
+        self._rng = np.random.default_rng(seed)
 
         # --- Thread safety ---
         from collections import defaultdict as _dd
@@ -1797,6 +1799,7 @@ class HybridLinUCBPolicy:
             self.regularization_floor, memo
         )
 
+        result._rng = copy.deepcopy(self._rng, memo)
         result.model_locks = _dd(threading.Lock)
         result._shared_lock = threading.Lock()
         result._lock = threading.Lock()
@@ -2075,7 +2078,7 @@ class HybridLinUCBPolicy:
                 )
 
         beta_samples = _safe_multivariate_normal(
-            beta_hat, shared_cov, n_samples, self.dim
+            beta_hat, shared_cov, n_samples, self.dim, rng=self._rng
         )
         shared_scores = beta_samples @ x
 
@@ -2085,7 +2088,8 @@ class HybridLinUCBPolicy:
             theta_means = A_inv_m @ residuals
 
             theta_perturbations = _safe_multivariate_normal(
-                np.zeros(self.dim), arm_cov_m, n_samples, self.dim
+                np.zeros(self.dim), arm_cov_m, n_samples, self.dim,
+                rng=self._rng,
             )
             theta_samples = theta_means.T + theta_perturbations
             model_scores[m] = shared_scores + theta_samples @ x
@@ -2369,6 +2373,12 @@ class HybridLinUCBPolicy:
     def load_state(self, path: Path | str) -> None:
         """Load shared and per-arm matrices from a compressed NPZ file.
 
+        All file I/O, validation, and ``safe_inv`` computation happen
+        outside any lock.  State references are then swapped atomically
+        under ``self._shared_lock`` + ``self._lock`` so that concurrent
+        readers (``select_arm``, ``get_probabilities``) and writers
+        (``update``) never observe torn state.
+
         Restores temporal metadata when present so that forgetting-factor
         and staleness logic resume from the saved clock position.
 
@@ -2389,6 +2399,8 @@ class HybridLinUCBPolicy:
             else self.models
         )
 
+        # --- Stage 1: load, validate, compute inverses (no locks) ---
+        arm_staged: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
         for m in self.models:
             a_key, B_key, b_key = f"{m}_A", f"{m}_B", f"{m}_b"
             if a_key in data and b_key in data:
@@ -2404,9 +2416,6 @@ class HybridLinUCBPolicy:
                         f"b[{m}] shape mismatch: expected "
                         f"({self.dim},), got {b_loaded.shape}"
                     )
-                self.A[m] = A_loaded
-                self.b[m] = b_loaded
-                self.A_inv[m] = safe_inv(self.A[m])
                 if B_key in data:
                     B_loaded = data[B_key]
                     if B_loaded.shape != (self.dim, self.dim):
@@ -2414,35 +2423,60 @@ class HybridLinUCBPolicy:
                             f"B[{m}] shape mismatch: expected "
                             f"{(self.dim, self.dim)}, got {B_loaded.shape}"
                         )
-                    self.B[m] = B_loaded
                 else:
-                    self.B[m] = np.zeros(
+                    B_loaded = np.zeros(
                         (self.dim, self.dim), dtype=np.float64
                     )
+                arm_staged[m] = (A_loaded, b_loaded, safe_inv(A_loaded), B_loaded)
 
+        shared_staged: Tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
         if "__shared__A0" in data and "__shared__b0" in data:
-            self.A0 = data["__shared__A0"]
-            self.b0 = data["__shared__b0"]
-            self.A0_inv = safe_inv(self.A0)
+            A0_new = data["__shared__A0"]
+            b0_new = data["__shared__b0"]
+            shared_staged = (A0_new, b0_new, safe_inv(A0_new))
 
-        # Restore temporal metadata (backward-compatible: missing = cold start)
-        if "__temporal__t" in data:
-            self.t = int(data["__temporal__t"])
+        temporal_t: int | None = (
+            int(data["__temporal__t"]) if "__temporal__t" in data else None
+        )
+        temporal_lu: Dict[str, int] = {}
         if "__temporal__last_update" in data:
             lu_arr = data["__temporal__last_update"]
             for i, m in enumerate(saved_models):
                 if m in self.last_update and i < len(lu_arr):
-                    self.last_update[m] = int(lu_arr[i])
+                    temporal_lu[m] = int(lu_arr[i])
+        temporal_lp: Dict[str, int] = {}
         if "__temporal__last_played" in data:
             lp_arr = data["__temporal__last_played"]
             for i, m in enumerate(saved_models):
                 if m in self.last_played and i < len(lp_arr):
-                    self.last_played[m] = int(lp_arr[i])
+                    temporal_lp[m] = int(lp_arr[i])
+        temporal_rf: Dict[str, float] = {}
         if "__temporal__reg_floor" in data:
             rf_arr = data["__temporal__reg_floor"]
             for i, m in enumerate(saved_models):
                 if m in self.regularization_floor and i < len(rf_arr):
-                    self.regularization_floor[m] = float(rf_arr[i])
+                    temporal_rf[m] = float(rf_arr[i])
+
+        # --- Stage 2: swap all references atomically under locks ---
+        with self._shared_lock:
+            with self._lock:
+                for m, (A_new, b_new, A_inv_new, B_new) in arm_staged.items():
+                    self.A[m] = A_new
+                    self.b[m] = b_new
+                    self.A_inv[m] = A_inv_new
+                    self.B[m] = B_new
+
+                if shared_staged is not None:
+                    self.A0, self.b0, self.A0_inv = shared_staged
+
+                if temporal_t is not None:
+                    self.t = temporal_t
+                for m, v in temporal_lu.items():
+                    self.last_update[m] = v
+                for m, v in temporal_lp.items():
+                    self.last_played[m] = v
+                for m, v in temporal_rf.items():
+                    self.regularization_floor[m] = v
 
 
 # ---------------------------------------------------------------------------
