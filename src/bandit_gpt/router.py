@@ -4134,6 +4134,10 @@ Previous version referenced non-existent attributes
         For :class:`DisjointLinUCBPolicy` (or adapters wrapping one), the
         coefficient vector is simply ``A_inv @ b``.
 
+        **Thread safety:** This method does NOT acquire any locks.  The
+        caller must hold ``bandit._lock`` (or ensure no concurrent
+        mutations) before calling.
+
         Returns:
             1-D coefficient array of shape ``(dim,)``.
 
@@ -4141,18 +4145,17 @@ Previous version referenced non-existent attributes
             ValueError: If *model_id* is not in the policy.
         """
         bandit = getattr(policy, "bandit", policy)
-        with bandit._lock:
-            if model_id not in bandit.A_inv:
-                raise ValueError(
-                    f"Model {model_id} not found in bandit registry"
-                )
-            if isinstance(bandit, HybridLinUCBPolicy):
-                beta_hat = bandit.A0_inv @ bandit.b0
-                theta_hat = bandit.A_inv[model_id] @ (
-                    bandit.b[model_id] - bandit.B[model_id] @ beta_hat
-                )
-                return beta_hat + theta_hat
-            return bandit.A_inv[model_id] @ bandit.b[model_id]
+        if model_id not in bandit.A_inv:
+            raise ValueError(
+                f"Model {model_id} not found in bandit registry"
+            )
+        if isinstance(bandit, HybridLinUCBPolicy):
+            beta_hat = bandit.A0_inv @ bandit.b0
+            theta_hat = bandit.A_inv[model_id] @ (
+                bandit.b[model_id] - bandit.B[model_id] @ beta_hat
+            )
+            return beta_hat + theta_hat
+        return bandit.A_inv[model_id] @ bandit.b[model_id]
 
     def explain_decision(
         self, 
@@ -4201,10 +4204,13 @@ Previous version referenced non-existent attributes
         # Under Corralling, delegate to the warmup expert (adapter).
         # The adapter's A_inv/b delegate to the canonical bandit.
         if self.use_corralling and self.corralling_router:
-            expert = self.corralling_router.experts[0]
-            combined = self._explain_coefficients(expert, model_id)
+            policy = self.corralling_router.experts[0]
         else:
-            combined = self._explain_coefficients(self.bandit, model_id)
+            policy = self.bandit
+
+        bandit = getattr(policy, "bandit", policy)
+        with bandit._lock:
+            combined = self._explain_coefficients(policy, model_id)
 
         contributions = combined * context_vector
         
