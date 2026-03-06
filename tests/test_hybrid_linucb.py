@@ -1,16 +1,21 @@
 """
-Tests for HybridLinUCBPolicy and model family inference.
+Tests for HybridLinUCBPolicy (canonical Algorithm 2, Li et al. 2010) and
+infer_model_family utility.
 
 Covers:
   1. infer_model_family: suffix stripping, version handling, edge cases
-  2. HybridLinUCBPolicy construction: family mapping, state initialization
-  3. Arm selection: UCB with shared + arm-specific components
-  4. Update mechanics: shared update propagates to family, residual learning
-  5. Cold-start transfer: new arm in existing family gets meaningful prediction
-  6. Singleton degeneracy: single-member families approximate disjoint behaviour
-  7. Dynamic arm management: add_arm / delete_arm with family bookkeeping
-  8. Deep copy: independent clone with separate state
+  2. HybridLinUCBPolicy construction: shared + arm-specific + B_a state init
+  3. Arm selection: canonical UCB with cross-term corrected theta and
+     4-term Schur-complement variance
+  4. Update mechanics: two-phase cross-term update propagates correctly
+  5. Cold-start transfer: new arm immediately benefits from global beta
+  6. Singleton degeneracy: single-arm hybrid approximates disjoint behaviour
+  7. Dynamic arm management: add_arm / delete_arm (with B_a)
+  8. Deep copy: independent clone with separate state (including B_a)
   9. BanditRouter integration: policy="hybrid" end-to-end
+  10. Persistence: save/load round-trip (including B_a)
+  11. Calibration: no over-prediction, convergence, hybrid > disjoint cold-start
+  12. Thompson sampling: beta sampled once per draw, correlated across arms
 """
 
 import sys
@@ -23,23 +28,14 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
-import pytest
-
-pytestmark = pytest.mark.skip(
-    reason="HybridLinUCBPolicy was removed; tests retained for reference only."
-)
-
 from bandit_gpt.router import (
     BanditRouter,
     RouterConfig,
     DisjointLinUCBPolicy,
+    HybridLinUCBPolicy,
     CostAwareLinUCBAdapter,
-    CostAwareTabulaRasaRouter,
     infer_model_family,
 )
-
-HybridLinUCBPolicy = None  # Removed; stub to avoid NameError in skipped tests
-CostAwareLinUCBRouter = None
 
 
 # ---------------------------------------------------------------------------
@@ -77,14 +73,13 @@ def _mock_feature_service(dim: int = DIM) -> MagicMock:
     return fs
 
 
-def _make_hybrid_router(registry: dict, family_map=None, **kwargs) -> BanditRouter:
+def _make_hybrid_router(registry: dict, **kwargs) -> BanditRouter:
     defaults = dict(
         model_registry=registry,
         priors="none",
         feature_service=_mock_feature_service(),
         use_corralling=False,
         policy="hybrid",
-        family_map=family_map,
     )
     defaults.update(kwargs)
     return BanditRouter.create(**defaults)
@@ -101,7 +96,7 @@ WELL_FORMED = {
 
 
 # ===========================================================================
-# 1. infer_model_family
+# 1. infer_model_family (standalone utility — still useful for other analyses)
 # ===========================================================================
 
 class TestInferModelFamily:
@@ -145,32 +140,30 @@ class TestInferModelFamily:
 
 class TestHybridConstruction:
 
-    def test_explicit_family_map(self):
-        fmap = {"a": "fam1", "b": "fam1", "c": "fam2"}
-        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
-        assert pol.family_map == fmap
-        assert set(pol.families["fam1"]) == {"a", "b"}
-        assert pol.families["fam2"] == ["c"]
+    def test_shared_state_is_single_matrix(self):
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        assert isinstance(pol.A0, np.ndarray)
+        assert pol.A0.shape == (DIM, DIM)
+        assert isinstance(pol.b0, np.ndarray)
+        assert pol.b0.shape == (DIM,)
 
-    def test_auto_family_inference(self):
-        models = ["openai/gpt-5.1", "openai/gpt-5.2", "anthropic/claude-3-haiku"]
-        pol = HybridLinUCBPolicy(models, dim=DIM, alpha=0.1, init_lambda=1.0)
-        assert pol.family_map["openai/gpt-5.1"] == "openai/gpt-5"
-        assert pol.family_map["openai/gpt-5.2"] == "openai/gpt-5"
-        assert "openai/gpt-5" in pol.families
-        assert len(pol.families["openai/gpt-5"]) == 2
-
-    def test_shared_state_initialized_per_family(self):
-        fmap = {"a": "f1", "b": "f1", "c": "f2"}
-        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=2.0, family_map=fmap)
-        assert set(pol.A0.keys()) == {"f1", "f2"}
-        np.testing.assert_allclose(pol.A0["f1"], 2.0 * np.eye(DIM))
+    def test_shared_state_initialized_correctly(self):
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=2.0)
+        np.testing.assert_allclose(pol.A0, 2.0 * np.eye(DIM))
+        np.testing.assert_allclose(pol.b0, np.zeros(DIM))
 
     def test_arm_specific_state_initialized(self):
-        pol = HybridLinUCBPolicy(["x", "y"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map={"x": "f", "y": "f"})
+        pol = HybridLinUCBPolicy(["x", "y"], dim=DIM, alpha=0.1, init_lambda=1.0)
         for m in ["x", "y"]:
             np.testing.assert_allclose(pol.A[m], np.eye(DIM))
             np.testing.assert_allclose(pol.b[m], np.zeros(DIM))
+            np.testing.assert_allclose(pol.B[m], np.zeros((DIM, DIM)))
+
+    def test_no_family_map_attribute(self):
+        """Global-beta policy should not have family_map/families attributes."""
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        assert not hasattr(pol, "family_map")
+        assert not hasattr(pol, "families")
 
 
 # ===========================================================================
@@ -180,32 +173,29 @@ class TestHybridConstruction:
 class TestHybridSelection:
 
     def test_select_arm_returns_valid_model(self):
-        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map={"a": "f", "b": "f"})
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0)
         model, ucb = pol.select_arm(_ctx())
         assert model in ["a", "b"]
         assert isinstance(ucb, float)
 
     def test_candidate_filtering(self):
-        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=1.0,
-                                  family_map={"a": "f1", "b": "f1", "c": "f2"})
+        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=1.0)
         model, _ = pol.select_arm(_ctx(), candidates=["c"])
         assert model == "c"
 
-    def test_shared_knowledge_influences_selection(self):
+    def test_shared_knowledge_transfers_to_untrained_arm(self):
         """After training arm 'a' with high reward, the shared beta should
-        make arm 'b' (same family, untrained) have a higher UCB than arm 'c'
-        (different family, untrained)."""
-        fmap = {"a": "fam_ab", "b": "fam_ab", "c": "fam_c"}
-        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.01, init_lambda=1.0, family_map=fmap)
+        make arm 'b' (untrained) have a non-zero expected reward."""
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.01, init_lambda=1.0)
 
         x = _ctx(42)
         for _ in range(50):
             pol.update("a", x, reward=0.95)
 
-        # b should benefit from family shared knowledge
-        _, ucb_b = pol.select_arm(x, candidates=["b"])
-        _, ucb_c = pol.select_arm(x, candidates=["c"])
-        assert ucb_b > ucb_c, "Family member b should have higher UCB than unrelated c"
+        expected_b = pol.get_expected_reward("b", x)
+        assert expected_b > 0.1, (
+            f"Untrained arm should benefit from shared beta, got {expected_b:.4f}"
+        )
 
 
 # ===========================================================================
@@ -215,45 +205,47 @@ class TestHybridSelection:
 class TestHybridUpdate:
 
     def test_shared_state_updated_on_observation(self):
-        fmap = {"a": "f", "b": "f"}
-        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
-        b0_before = pol.b0["f"].copy()
-
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        b0_before = pol.b0.copy()
         pol.update("a", _ctx(), reward=0.9)
+        assert not np.allclose(pol.b0, b0_before), "Shared b0 should change after update"
 
-        assert not np.allclose(pol.b0["f"], b0_before), "Family b0 should change after update"
-
-    def test_arm_specific_learns_residual_for_singleton(self):
-        """Singleton family: arm-specific b should accumulate residuals (non-zero initially)."""
-        pol = HybridLinUCBPolicy(["solo"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map={"solo": "lone_fam"})
-        pol.update("solo", _ctx(), reward=0.8)
-        assert np.linalg.norm(pol.b["solo"]) > 0, "Singleton should learn residual (nonzero when beta_hat starts at 0)"
-
-    def test_residual_learning_for_multi_member(self):
-        """Multi-member family: arm-specific should learn residuals (smaller magnitude)."""
-        fmap = {"a": "f", "b": "f"}
-        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
-
+    def test_observation_on_one_arm_updates_shared_state_for_all(self):
+        """Updating arm 'a' should change the global beta, which affects
+        predictions for arm 'b'."""
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.01, init_lambda=1.0)
         x = _ctx(7)
+
+        # Before any update, both arms predict ~0
+        before_b = pol.get_expected_reward("b", x)
+
         for _ in range(20):
             pol.update("a", x, reward=0.8)
 
-        # Now b's arm-specific should be smaller than shared
-        beta_norm = np.linalg.norm(pol.A0_inv["f"] @ pol.b0["f"])
-        theta_b_norm = np.linalg.norm(pol.A_inv["b"] @ pol.b["b"])
-        assert theta_b_norm < beta_norm, "Untrained arm-specific should be smaller than shared"
+        after_b = pol.get_expected_reward("b", x)
+        assert after_b > before_b, (
+            f"Training arm 'a' should improve prediction for 'b' via shared beta. "
+            f"Before: {before_b:.4f}, After: {after_b:.4f}"
+        )
+
+    def test_arm_specific_learns_residual(self):
+        """Arm-specific b should accumulate residuals (non-zero when
+        beta_hat starts at 0)."""
+        pol = HybridLinUCBPolicy(["solo"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        pol.update("solo", _ctx(), reward=0.8)
+        assert np.linalg.norm(pol.b["solo"]) > 0
 
     def test_weight_zero_skipped(self):
-        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map={"a": "f"})
-        b0_before = pol.b0["f"].copy()
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        b0_before = pol.b0.copy()
         pol.update("a", _ctx(), reward=0.9, weight=0.0)
-        np.testing.assert_array_equal(pol.b0["f"], b0_before)
+        np.testing.assert_array_equal(pol.b0, b0_before)
 
     def test_negative_weight_skipped(self):
-        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map={"a": "f"})
-        b0_before = pol.b0["f"].copy()
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        b0_before = pol.b0.copy()
         pol.update("a", _ctx(), reward=0.9, weight=-1.0)
-        np.testing.assert_array_equal(pol.b0["f"], b0_before)
+        np.testing.assert_array_equal(pol.b0, b0_before)
 
 
 # ===========================================================================
@@ -262,30 +254,22 @@ class TestHybridUpdate:
 
 class TestColdStartTransfer:
 
-    def test_new_arm_benefits_from_family(self):
-        """A newly added arm in a trained family should immediately get a
-        higher mean prediction than a cold-start arm in a new family."""
-        fmap = {"a": "trained_fam"}
-        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.01, init_lambda=1.0, family_map=fmap)
+    def test_new_arm_benefits_from_shared_beta(self):
+        """A newly added arm should immediately get a non-trivial expected
+        reward from the global shared beta trained by other arms."""
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.01, init_lambda=1.0)
 
         x = _ctx(99)
         for _ in range(100):
             pol.update("a", x, reward=0.9)
 
-        pol.add_arm("b", family="trained_fam")
-        pol.add_arm("c", family="cold_fam")
+        pol.add_arm("b")
 
-        # b should have higher mean than c because it shares family with a
-        _, ucb_b = pol.select_arm(x, candidates=["b"])
-        _, ucb_c = pol.select_arm(x, candidates=["c"])
-        assert ucb_b > ucb_c
-
-    def test_add_arm_creates_family_state(self):
-        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map={"a": "f1"})
-        pol.add_arm("b", family="f2")
-        assert "f2" in pol.A0
-        assert "f2" in pol.b0
-        assert "f2" in pol.A0_inv
+        expected_b = pol.get_expected_reward("b", x)
+        assert expected_b > 0.2, (
+            f"New arm should have meaningful prediction from shared beta, "
+            f"got {expected_b:.4f}"
+        )
 
 
 # ===========================================================================
@@ -294,29 +278,26 @@ class TestColdStartTransfer:
 
 class TestSingletonDegeneracy:
 
-    def test_singleton_prediction_matches_disjoint(self):
-        """With singleton families, the shared component alone should produce
-        predictions similar to a standard disjoint LinUCB."""
-        models = ["m1", "m2"]
-        fmap = {"m1": "fam_m1", "m2": "fam_m2"}
-        hybrid = HybridLinUCBPolicy(models, dim=DIM, alpha=1.0, init_lambda=1.0, family_map=fmap)
+    def test_single_arm_prediction_reasonable(self):
+        """With a single arm, hybrid should produce reasonable predictions
+        similar in magnitude to disjoint."""
+        models = ["m1"]
+        hybrid = HybridLinUCBPolicy(models, dim=DIM, alpha=1.0, init_lambda=1.0)
         disjoint = DisjointLinUCBPolicy(models, dim=DIM, alpha=1.0, init_lambda=1.0)
 
         rng = np.random.default_rng(42)
         for _ in range(30):
             x = _ctx(rng.integers(0, 1000))
             r = rng.uniform(0.3, 0.9)
-            chosen = rng.choice(models)
-            hybrid.update(chosen, x, r)
-            disjoint.update(chosen, x, r)
+            hybrid.update("m1", x, r)
+            disjoint.update("m1", x, r)
 
-        # Check predictions are within reasonable range
         x_test = _ctx(777)
         _, h_ucb = hybrid.select_arm(x_test)
         _, d_ucb = disjoint.select_arm(x_test)
-        # Not expecting exact match due to different variance terms, but
-        # the selected models and UCBs should be in the same ballpark
-        assert abs(h_ucb - d_ucb) < 2.0, f"Singleton hybrid UCB={h_ucb:.3f} vs disjoint UCB={d_ucb:.3f}"
+        assert abs(h_ucb - d_ucb) < 2.0, (
+            f"Single-arm hybrid UCB={h_ucb:.3f} vs disjoint UCB={d_ucb:.3f}"
+        )
 
 
 # ===========================================================================
@@ -325,33 +306,49 @@ class TestSingletonDegeneracy:
 
 class TestArmManagement:
 
-    def test_add_arm_to_existing_family(self):
-        fmap = {"a": "f1"}
-        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
-        pol.add_arm("b", family="f1")
+    def test_add_arm(self):
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        pol.add_arm("b")
         assert "b" in pol.models
-        assert "b" in pol.family_map
-        assert "b" in pol.families["f1"]
+        assert "b" in pol.A
+        assert "b" in pol.B
+        assert "b" in pol.b
+        assert "b" in pol.A_inv
+        np.testing.assert_allclose(pol.B["b"], np.zeros((DIM, DIM)))
 
     def test_add_duplicate_arm_is_noop(self):
-        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map={"a": "f"})
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0)
         pol.add_arm("a")
         assert pol.models.count("a") == 1
 
+    def test_add_arm_accepts_family_kwarg_silently(self):
+        """API compatibility: family kwarg is accepted but ignored."""
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        pol.add_arm("b", family="ignored")
+        assert "b" in pol.models
+
     def test_delete_arm_cleans_up(self):
-        fmap = {"a": "f1", "b": "f1"}
-        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0)
         pol.delete_arm("b")
         assert "b" not in pol.models
         assert "b" not in pol.A
-        assert "f1" in pol.A0, "Family should survive when members remain"
+        assert "b" not in pol.B
 
-    def test_delete_last_member_removes_family(self):
-        fmap = {"a": "f1"}
-        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
-        pol.delete_arm("a")
-        assert "f1" not in pol.A0
-        assert "f1" not in pol.families
+    def test_delete_arm_preserves_shared_state(self):
+        """Deleting an arm should not affect the global shared matrices."""
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0)
+
+        x = _ctx(0)
+        pol.update("a", x, reward=0.9)
+        pol.update("b", x, reward=0.7)
+
+        A0_before = pol.A0.copy()
+        b0_before = pol.b0.copy()
+
+        pol.delete_arm("b")
+
+        np.testing.assert_array_equal(pol.A0, A0_before)
+        np.testing.assert_array_equal(pol.b0, b0_before)
 
 
 # ===========================================================================
@@ -361,25 +358,25 @@ class TestArmManagement:
 class TestDeepCopy:
 
     def test_deepcopy_independent(self):
-        fmap = {"a": "f", "b": "f"}
-        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0)
         pol.update("a", _ctx(), reward=0.9)
 
         clone = copy.deepcopy(pol)
 
-        # Mutate original
         pol.update("a", _ctx(1), reward=0.1)
 
-        # Clone should not be affected
-        assert not np.allclose(pol.b0["f"], clone.b0["f"])
+        assert not np.allclose(pol.b0, clone.b0)
         assert not np.allclose(pol.b["a"], clone.b["a"])
+        assert not np.allclose(pol.B["a"], clone.B["a"])
 
-    def test_deepcopy_family_structure(self):
-        fmap = {"a": "f1", "b": "f2"}
-        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
+    def test_deepcopy_shared_state_independent(self):
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=0.1, init_lambda=1.0)
+        pol.update("a", _ctx(), reward=0.9)
+
         clone = copy.deepcopy(pol)
-        assert clone.family_map == pol.family_map
-        assert set(clone.families.keys()) == set(pol.families.keys())
+        clone.update("a", _ctx(1), reward=0.1)
+
+        assert not np.allclose(pol.A0, clone.A0)
 
 
 # ===========================================================================
@@ -407,35 +404,8 @@ class TestRouterIntegration:
         model_id, log = router.route(_ctx())
         assert model_id in reg
 
-    def test_family_inferred_from_registry(self):
-        reg = {
-            "openai/gpt-5.1": {**WELL_FORMED, "model_id": "openai/gpt-5.1"},
-            "openai/gpt-5.2": {**WELL_FORMED, "model_id": "openai/gpt-5.2"},
-        }
-        router = _make_hybrid_router(reg)
-        assert router.bandit.family_map["openai/gpt-5.1"] == "openai/gpt-5"
-        assert router.bandit.family_map["openai/gpt-5.2"] == "openai/gpt-5"
-        assert len(router.bandit.families) == 1
-
-    def test_explicit_family_field_in_registry(self):
-        reg = {
-            "model-a": {**WELL_FORMED, "model_id": "model-a", "family": "custom-fam"},
-            "model-b": {**WELL_FORMED, "model_id": "model-b", "family": "custom-fam"},
-        }
-        router = _make_hybrid_router(reg)
-        assert router.bandit.family_map["model-a"] == "custom-fam"
-        assert router.bandit.family_map["model-b"] == "custom-fam"
-
-    def test_explicit_family_map_overrides_registry(self):
-        reg = {
-            "model-a": {**WELL_FORMED, "model_id": "model-a", "family": "reg-fam"},
-        }
-        router = _make_hybrid_router(reg, family_map={"model-a": "override-fam"})
-        assert router.bandit.family_map["model-a"] == "override-fam"
-
-    def test_hybrid_is_default_policy(self):
-        """Default policy is 'hybrid', so even without specifying policy=
-        the bandit should be HybridLinUCBPolicy."""
+    def test_default_policy_is_disjoint(self):
+        """Default policy is 'disjoint' for backward compatibility."""
         reg = {"m": {**WELL_FORMED, "model_id": "m"}}
         router = BanditRouter.create(
             model_registry=reg,
@@ -443,8 +413,8 @@ class TestRouterIntegration:
             feature_service=_mock_feature_service(),
             use_corralling=False,
         )
-        assert isinstance(router.bandit, HybridLinUCBPolicy)
-        assert router.policy_type == "hybrid"
+        assert isinstance(router.bandit, DisjointLinUCBPolicy)
+        assert router.policy_type == "disjoint"
 
     def test_disjoint_when_explicitly_requested(self):
         """policy='disjoint' should still produce DisjointLinUCBPolicy."""
@@ -464,8 +434,20 @@ class TestRouterIntegration:
 
         router.register_model("openai/gpt-5.2", speed="balanced", cost_usd=2.0, latency_s=0.5)
         assert "openai/gpt-5.2" in router.bandit.models
-        assert router.bandit.family_map["openai/gpt-5.2"] == "openai/gpt-5"
-        assert "openai/gpt-5.2" in router.bandit.families["openai/gpt-5"]
+
+    def test_ucb_accessor_methods(self):
+        """get_expected_reward and get_ucb_variance should be consistent with
+        select_arm scores."""
+        pol = HybridLinUCBPolicy(["a", "b"], dim=DIM, alpha=0.5, init_lambda=1.0)
+        x = _ctx(42)
+        pol.update("a", x, reward=0.8)
+
+        for m in ["a", "b"]:
+            mean = pol.get_expected_reward(m, x)
+            var = pol.get_ucb_variance(m, x)
+            assert isinstance(mean, float)
+            assert isinstance(var, float)
+            assert var >= 0.0
 
 
 # ===========================================================================
@@ -475,8 +457,7 @@ class TestRouterIntegration:
 class TestPersistence:
 
     def test_save_load_roundtrip(self, tmp_path):
-        fmap = {"a": "f1", "b": "f1", "c": "f2"}
-        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
+        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=1.0)
         pol.update("a", _ctx(0), reward=0.9)
         pol.update("b", _ctx(1), reward=0.7)
         pol.update("c", _ctx(2), reward=0.5)
@@ -484,164 +465,202 @@ class TestPersistence:
         path = tmp_path / "state.npz"
         pol.save_state(path)
 
-        pol2 = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=1.0, family_map=fmap)
+        pol2 = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=0.1, init_lambda=1.0)
         pol2.load_state(path)
 
         for m in ["a", "b", "c"]:
             np.testing.assert_allclose(pol.A[m], pol2.A[m], atol=1e-10)
+            np.testing.assert_allclose(pol.B[m], pol2.B[m], atol=1e-10)
             np.testing.assert_allclose(pol.b[m], pol2.b[m], atol=1e-10)
 
-        for f in ["f1", "f2"]:
-            np.testing.assert_allclose(pol.A0[f], pol2.A0[f], atol=1e-10)
-            np.testing.assert_allclose(pol.b0[f], pol2.b0[f], atol=1e-10)
+        np.testing.assert_allclose(pol.A0, pol2.A0, atol=1e-10)
+        np.testing.assert_allclose(pol.b0, pol2.b0, atol=1e-10)
 
-
-# ===========================================================================
-# 11. Family-based hybrid activation in Corralling experts
-# ===========================================================================
-
-def _make_corralling_router(registry: dict, **kwargs) -> BanditRouter:
-    """Create a BanditRouter with Corralling enabled and hybrid policy."""
-    defaults = dict(
-        model_registry=registry,
-        priors="none",
-        feature_service=_mock_feature_service(),
-        use_corralling=True,
-        policy="hybrid",
-    )
-    defaults.update(kwargs)
-    return BanditRouter.create(**defaults)
-
-
-class TestCorrallingFamilyActivation:
-    """Verify that Corralling experts always receive family_map when using
-    hybrid policy, regardless of whether families are currently shared or
-    singleton.  This ensures register_model() can activate sharing later."""
-
-    def _expert_family_maps(self, router: BanditRouter):
-        """Return (warmup_family_map, tabula_rasa_family_map) from Corralling experts."""
-        assert router.corralling_router is not None
-        warmup = router.corralling_router.experts[0]
-        tabula = router.corralling_router.experts[1]
-        assert isinstance(warmup, CostAwareLinUCBRouter)
-        assert isinstance(tabula, CostAwareTabulaRasaRouter)
-        return warmup.family_map, tabula.family_map
-
-    def test_k2_same_family_enables_hybrid(self):
-        """Two models in the same family (e.g. gpt-4o, gpt-4o-mini) should
-        activate family sharing in Corralling experts."""
-        reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
-        }
-        router = _make_corralling_router(reg)
-        wu_map, tr_map = self._expert_family_maps(router)
-
-        assert wu_map is not None, "K=2 same family should enable hybrid in warmup expert"
-        assert tr_map is not None, "K=2 same family should enable hybrid in tabula rasa"
-        assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
-
-    def test_k2_different_families_still_gets_family_map(self):
-        """Two models in unrelated families should still receive family_map
-        so that hybrid sharing activates immediately when a same-family
-        model is later added via register_model()."""
-        reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
-        }
-        router = _make_corralling_router(reg)
-        wu_map, tr_map = self._expert_family_maps(router)
-
-        assert wu_map is not None, "Hybrid policy should always pass family_map to experts"
-        assert tr_map is not None
-        assert wu_map["openai/gpt-4o"] != wu_map["anthropic/claude-3-haiku"]
-
-    def test_k3_with_shared_family_enables_hybrid(self):
-        """Three models where two share a family should activate sharing."""
-        reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
-        }
-        router = _make_corralling_router(reg)
-        wu_map, tr_map = self._expert_family_maps(router)
-
-        assert wu_map is not None, "K=3 with shared family should enable hybrid"
-        assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
-        assert wu_map["anthropic/claude-3-haiku"] != wu_map["openai/gpt-4o"]
-
-    def test_k5_all_different_families_still_gets_family_map(self):
-        """Five models from five unrelated families should still receive
-        family_map so that register_model() can activate sharing later."""
-        reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
-            "google/gemini-2": {**WELL_FORMED, "model_id": "google/gemini-2"},
-            "mistralai/mistral-large": {**WELL_FORMED, "model_id": "mistralai/mistral-large"},
-            "meta-llama/llama-3": {**WELL_FORMED, "model_id": "meta-llama/llama-3"},
-        }
-        router = _make_corralling_router(reg)
-        wu_map, tr_map = self._expert_family_maps(router)
-
-        assert wu_map is not None, "Hybrid policy should always pass family_map to experts"
-        assert tr_map is not None
-        families = set(wu_map.values())
-        assert len(families) == 5, "All families should be singletons"
-
-    def test_k5_with_mixed_families_enables_hybrid(self):
-        """Five models with some families shared should activate sharing."""
-        reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
-            "anthropic/claude-3-haiku": {**WELL_FORMED, "model_id": "anthropic/claude-3-haiku"},
-            "anthropic/claude-3.5-sonnet": {**WELL_FORMED, "model_id": "anthropic/claude-3.5-sonnet"},
-            "google/gemini-2": {**WELL_FORMED, "model_id": "google/gemini-2"},
-        }
-        router = _make_corralling_router(reg)
-        wu_map, tr_map = self._expert_family_maps(router)
-
-        assert wu_map is not None, "Mixed families should enable hybrid"
-        assert wu_map["openai/gpt-4o"] == wu_map["openai/gpt-4o-mini"]
-        assert wu_map["anthropic/claude-3-haiku"] == wu_map["anthropic/claude-3.5-sonnet"]
-
-    def test_explicit_family_map_overrides_inference(self):
-        """An explicit family_map should be respected in Corralling experts."""
-        reg = {
-            "model-a": {**WELL_FORMED, "model_id": "vendor/model-a"},
-            "model-b": {**WELL_FORMED, "model_id": "vendor/model-b"},
-        }
-        router = _make_corralling_router(
-            reg, family_map={"model-a": "shared", "model-b": "shared"}
+    def test_temporal_metadata_roundtrip(self, tmp_path):
+        """Verify t, last_update, last_played, regularization_floor persist."""
+        pol = HybridLinUCBPolicy(
+            ["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, forgetting_factor=0.99
         )
-        wu_map, tr_map = self._expert_family_maps(router)
+        for _ in range(10):
+            pol.update("a", _ctx(0), reward=0.9)
 
-        assert wu_map is not None
-        assert wu_map["model-a"] == "shared"
-        assert wu_map["model-b"] == "shared"
+        assert pol.t > 0
+        saved_t = pol.t
+        saved_lu = dict(pol.last_update)
+        saved_rf = dict(pol.regularization_floor)
 
-    def test_cost_penalty_flows_to_experts(self):
-        """BanditRouter.cost_penalty should propagate to both Corralling experts."""
-        reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
-        }
-        router = _make_corralling_router(reg, cost_penalty=0.42)
+        path = tmp_path / "state_temporal.npz"
+        pol.save_state(path)
 
-        warmup = router.corralling_router.experts[0]
-        tabula = router.corralling_router.experts[1]
-        assert warmup.cost_penalty == 0.42
-        assert tabula.cost_penalty == 0.42
+        pol2 = HybridLinUCBPolicy(
+            ["a", "b"], dim=DIM, alpha=0.1, init_lambda=1.0, forgetting_factor=0.99
+        )
+        pol2.load_state(path)
 
-    def test_disjoint_policy_skips_family_sharing(self):
-        """When policy='disjoint', Corralling experts should never get family_map
-        even if models share families."""
-        reg = {
-            "openai/gpt-4o": {**WELL_FORMED, "model_id": "openai/gpt-4o"},
-            "openai/gpt-4o-mini": {**WELL_FORMED, "model_id": "openai/gpt-4o-mini"},
-        }
-        router = _make_corralling_router(reg, policy="disjoint")
-        wu_map = router.corralling_router.experts[0].family_map
-        tr_map = router.corralling_router.experts[1].family_map
+        assert pol2.t == saved_t
+        for m in ["a", "b"]:
+            assert pol2.last_update[m] == saved_lu[m]
+            np.testing.assert_allclose(
+                pol2.regularization_floor[m], saved_rf[m], atol=1e-12
+            )
 
-        assert wu_map is None, "Disjoint policy should never activate family sharing"
-        assert tr_map is None
+
+# ===========================================================================
+# 11. Calibration (Algorithm 2 correctness)
+# ===========================================================================
+
+class TestCalibration:
+    """Verify the canonical cross-term formulation produces calibrated
+    predictions — no over-prediction, correct convergence, and faster
+    cold-start learning than disjoint."""
+
+    def test_no_overshoot_after_single_update(self):
+        """After one update with r=0.8 on a unit vector, the hybrid
+        prediction must be strictly less than the reward."""
+        dim = 4
+        pol = HybridLinUCBPolicy(["a"], dim=dim, alpha=1.0, init_lambda=1.0)
+        x = np.zeros(dim)
+        x[0] = 1.0
+        pol.update("a", x, reward=0.8)
+
+        pred = pol.get_expected_reward("a", x)
+        assert pred < 0.8, (
+            f"Over-prediction after 1 update: {pred:.6f} >= 0.8"
+        )
+        assert pred > 0.0, f"Prediction should be positive, got {pred:.6f}"
+
+    def test_canonical_cold_start_value(self):
+        """Mathematical verification: after one update on e_1 with r=0.8
+        and init_lambda=1.0, the canonical prediction is 8/15 ~ 0.5333."""
+        dim = 4
+        pol = HybridLinUCBPolicy(["a"], dim=dim, alpha=1.0, init_lambda=1.0)
+        x = np.zeros(dim)
+        x[0] = 1.0
+        pol.update("a", x, reward=0.8)
+
+        pred = pol.get_expected_reward("a", x)
+        np.testing.assert_allclose(pred, 8.0 / 15.0, atol=1e-10)
+
+    def test_hybrid_predicts_higher_than_disjoint_cold_start(self):
+        """After one update, hybrid should predict more than disjoint
+        (faster learning via shared beta) but less than the reward."""
+        dim = 4
+        models = ["a"]
+        hybrid = HybridLinUCBPolicy(models, dim=dim, alpha=1.0, init_lambda=1.0)
+        disjoint = DisjointLinUCBPolicy(models, dim=dim, alpha=1.0, init_lambda=1.0)
+
+        x = np.zeros(dim)
+        x[0] = 1.0
+        r = 0.8
+        hybrid.update("a", x, r)
+        disjoint.update("a", x, r)
+
+        h_pred = hybrid.get_expected_reward("a", x)
+        d_pred = disjoint.get_expected_reward("a", x)
+
+        assert h_pred > d_pred, (
+            f"Hybrid ({h_pred:.4f}) should predict higher than disjoint "
+            f"({d_pred:.4f}) at cold start"
+        )
+        assert h_pred < r, (
+            f"Hybrid ({h_pred:.4f}) should not overshoot reward ({r})"
+        )
+
+    def test_prediction_converges_to_reward(self):
+        """After many updates on the same (x, r), prediction should
+        converge to the true reward."""
+        dim = 4
+        pol = HybridLinUCBPolicy(["a"], dim=dim, alpha=1.0, init_lambda=1.0)
+        x = np.zeros(dim)
+        x[0] = 1.0
+        r = 0.75
+
+        for _ in range(500):
+            pol.update("a", x, r)
+
+        pred = pol.get_expected_reward("a", x)
+        np.testing.assert_allclose(pred, r, atol=0.02)
+
+    def test_cross_terms_accumulate(self):
+        """After an update, B_a should be non-zero (cross-term matrix
+        accumulates x z^T contributions)."""
+        pol = HybridLinUCBPolicy(["a"], dim=DIM, alpha=1.0, init_lambda=1.0)
+        np.testing.assert_allclose(pol.B["a"], np.zeros((DIM, DIM)))
+
+        x = _ctx(42)
+        pol.update("a", x, reward=0.8)
+        assert np.linalg.norm(pol.B["a"]) > 0, "B_a should be non-zero after update"
+
+    def test_variance_is_positive(self):
+        """The 4-term Schur-complement variance should remain positive
+        even after many updates."""
+        dim = 8
+        pol = HybridLinUCBPolicy(["a", "b"], dim=dim, alpha=1.0, init_lambda=1.0)
+        rng = np.random.default_rng(42)
+
+        for _ in range(100):
+            x = _ctx(rng.integers(0, 10000))
+            pol.update("a", x, reward=rng.uniform(0.3, 0.9))
+            pol.update("b", x, reward=rng.uniform(0.2, 0.8))
+
+        for m in ["a", "b"]:
+            var = pol.get_ucb_variance(m, _ctx(999))
+            assert var > 0, f"Variance for {m} should be positive, got {var}"
+
+
+# ===========================================================================
+# 12. Thompson sampling (beta correlation)
+# ===========================================================================
+
+class TestThompsonSampling:
+
+    def test_beta_sampled_once_per_draw(self):
+        """Verify that get_probabilities produces correlated shared
+        draws across arms, not independent ones.
+
+        Strategy: train two arms to have identical arm-specific state.
+        With a shared beta sampled once per draw, the two arms should
+        produce highly correlated scores. If beta were sampled
+        independently per arm (the old bug), correlation would be lower.
+        """
+        np.random.seed(42)
+        dim = 4
+        pol = HybridLinUCBPolicy(["a", "b"], dim=dim, alpha=1.0, init_lambda=1.0)
+
+        x = np.zeros(dim)
+        x[0] = 1.0
+        for _ in range(10):
+            pol.update("a", x, reward=0.8)
+            pol.update("b", x, reward=0.8)
+
+        probs = pol.get_probabilities(x, ["a", "b"], n_samples=5000)
+        assert abs(probs["a"] - probs["b"]) < 0.1, (
+            f"Identical arms should have near-equal win rates: {probs}"
+        )
+
+    def test_probabilities_sum_to_one(self):
+        pol = HybridLinUCBPolicy(["a", "b", "c"], dim=DIM, alpha=1.0, init_lambda=1.0)
+        x = _ctx(42)
+        for m in ["a", "b", "c"]:
+            pol.update(m, x, reward=np.random.uniform(0.3, 0.9))
+
+        probs = pol.get_probabilities(x, ["a", "b", "c"], n_samples=2000)
+        np.testing.assert_allclose(sum(probs.values()), 1.0, atol=1e-10)
+
+    def test_strong_arm_wins_majority(self):
+        """An arm trained with consistently high rewards should win the
+        majority of Thompson samples."""
+        np.random.seed(0)
+        pol = HybridLinUCBPolicy(["strong", "weak"], dim=DIM, alpha=1.0, init_lambda=1.0)
+
+        rng = np.random.default_rng(99)
+        for _ in range(100):
+            x = _ctx(rng.integers(0, 10000))
+            pol.update("strong", x, reward=0.95)
+            pol.update("weak", x, reward=0.3)
+
+        x_test = _ctx(42)
+        probs = pol.get_probabilities(x_test, ["strong", "weak"], n_samples=5000)
+        assert probs["strong"] > probs["weak"], (
+            f"Strong arm should win more often: {probs}"
+        )

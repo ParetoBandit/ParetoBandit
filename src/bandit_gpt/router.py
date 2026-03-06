@@ -342,6 +342,43 @@ def _sherman_morrison_update(
     )
 
 
+def _safe_multivariate_normal(
+    mean: np.ndarray,
+    cov: np.ndarray,
+    n_samples: int,
+    dim: int,
+) -> np.ndarray:
+    """Draw from a multivariate normal with numerical safety fallbacks.
+
+    Attempts ``np.random.multivariate_normal`` first, then adds jitter,
+    then falls back to diagonal sampling if the covariance is too
+    ill-conditioned.
+
+    Args:
+        mean: Mean vector of shape ``(dim,)``.
+        cov: Covariance matrix of shape ``(dim, dim)``.
+        n_samples: Number of draws.
+        dim: Dimensionality (used for diagonal fallback).
+
+    Returns:
+        Array of shape ``(n_samples, dim)``.
+    """
+    try:
+        return np.random.multivariate_normal(mean, cov, n_samples)
+    except np.linalg.LinAlgError:
+        pass
+
+    jitter = max(np.trace(cov) / dim, 1e-12) * 1e-6
+    cov_safe = cov + jitter * np.eye(dim)
+    try:
+        return np.random.multivariate_normal(mean, cov_safe, n_samples)
+    except np.linalg.LinAlgError:
+        avg_var = max(np.trace(cov) / dim, 1e-12)
+        return np.random.normal(
+            loc=mean, scale=np.sqrt(avg_var), size=(n_samples, dim)
+        )
+
+
 # ---------------------------------------------------------------------------
 # Exception Classes
 # ---------------------------------------------------------------------------
@@ -1136,6 +1173,38 @@ Wrap in lock and clean up regularization_floor and
             self.t += 1
             self.last_played[model] = self.t
 
+    def get_expected_reward(self, model: str, x: np.ndarray) -> float:
+        """Expected reward for *model* given context *x*.
+
+        Computes ``x^T theta_hat`` where ``theta_hat = A_inv @ b``.
+
+        Args:
+            model: Model identifier.
+            x: Context feature vector.
+
+        Returns:
+            Scalar expected reward (may exceed [0, 1] before clamping).
+        """
+        theta = self.A_inv[model] @ self.b[model]
+        return float(theta.dot(x))
+
+    def get_ucb_variance(self, model: str, x: np.ndarray) -> float:
+        """UCB variance term for *model* given context *x*.
+
+        Computes ``x^T A_inv x`` with staleness-based inflation when the
+        forgetting factor is active (gamma < 1).
+
+        Args:
+            model: Model identifier.
+            x: Context feature vector.
+
+        Returns:
+            Variance term (non-negative).  Take ``sqrt`` for the UCB bonus.
+        """
+        var = float(x.dot(self.A_inv[model]).dot(x))
+        dt = self._effective_staleness(model)
+        return _inflate_variance(var, self.gamma, dt)
+
     def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000,
                           noise_variance: float = 0.25) -> Dict[str, float]:
         """
@@ -1566,17 +1635,777 @@ Wrap in lock and clean up regularization_floor and
 
 
 # ---------------------------------------------------------------------------
-# Main Router Class
+# Hybrid LinUCB Policy (family-shared + arm-specific ridge regression)
 # ---------------------------------------------------------------------------
-# (HybridLinUCBPolicy was removed — the router exclusively uses
-#  DisjointLinUCBPolicy for arm selection.  Family-level transfer is
-#  handled externally by Corralling experts if needed.)
+# Implements Algorithm 3 from Appendix A (Li et al., 2010, Section 4).
+#
+#   E[r | x, a] = x^T beta_g + x^T theta_a
+#
+# beta_g is a family-shared parameter vector updated by ALL observations
+# from family g (capturing shared task structure, e.g. "reasoning is hard").
+# theta_a is an arm-specific residual updated only by arm a's observations
+# (capturing model-specific deviations, e.g. "GPT-4.1 handles hard tasks").
+#
+# The UCB variance is additive (upper bound on true joint variance):
+#   sigma^2 = x^T A0_inv_g x + x^T A_inv_a x
 # ---------------------------------------------------------------------------
 
-# Backward-compatible public alias. Older code and stress tests import
-# HybridLinUCBPolicy from the top-level package; it now maps to the
-# disjoint-arm LinUCB implementation used by BanditRouter.
-HybridLinUCBPolicy = DisjointLinUCBPolicy
+
+_UNIVERSAL_FAMILY = "__universal__"
+
+
+class HybridLinUCBPolicy:
+    """Canonical Hybrid LinUCB (Algorithm 2, Li et al. 2010).
+
+    Decomposes the expected reward for arm *a* as::
+
+        E[r | x] = z^T beta  +  x^T theta_a
+
+    where ``beta`` is a **global** coefficient vector updated by every arm's
+    observation and ``theta_a`` is an arm-specific coefficient vector.  In
+    our setting ``z_{t,a} = x_t`` for all arms (no arm-level features),
+    so ``k = d``.
+
+    Each arm maintains a **cross-term matrix** ``B_a`` (d x d) that
+    captures the covariance between arm-specific features ``x`` and shared
+    features ``z``.  These cross-terms appear in three places:
+
+    1. ``theta_hat_a = A_a^{-1} (b_a - B_a @ beta_hat)`` — the arm
+       estimate is corrected so it does not double-count the shared signal.
+    2. The UCB variance uses a 4-term quadratic form (the Schur complement
+       of the joint precision), not the naive sum of shared + arm variances.
+    3. The ``A0`` / ``b0`` update adds back old cross-terms before the arm
+       update and subtracts new cross-terms after, maintaining the correct
+       Schur-complement structure.
+
+    Without these cross-terms the algorithm degenerates to an approximate
+    "residual bandit" that double-counts at cold start (2x over-prediction
+    after one update).  The canonical formulation keeps predictions
+    calibrated at all horizons.
+
+    **Non-stationarity extension** (not part of the original Li et al. 2010):
+
+    Shared state (``A0``, ``b0``) accumulates stationarily; arm-specific
+    state (``A``, ``B``, ``b``) follows the same forgetting-factor logic as
+    :class:`DisjointLinUCBPolicy`.
+
+    *Design rationale:* The shared ``beta`` captures task structure (prompt
+    difficulty) that is expected to be stable across time — a prompt's
+    inherent difficulty does not change when a model is updated.  Individual
+    model capabilities, however, may shift (e.g., provider-side weight
+    changes), motivating per-arm decay.  The shared state also receives
+    updates from *all* arms every round and is therefore never stale in the
+    staleness-inflation sense.
+
+    The UCB variance inflates only the arm-dependent terms of the
+    Schur-complement quadratic form (terms 3 and 4).  The shared variance
+    (term 1) and the negative cross-term (term 2) are left stationary
+    because they depend on ``A0`` which is never decayed.  This is a
+    heuristic extension — canonical Hybrid LinUCB assumes stationarity —
+    and should be validated empirically when ``forgetting_factor < 1``.
+    """
+
+    def __init__(
+        self,
+        model_names: List[str],
+        dim: int = 384,
+        alpha: float = 0.1,
+        init_lambda: float = 1.0,
+        forgetting_factor: float = 1.0,
+    ):
+        """
+        Initialize Hybrid LinUCB policy.
+
+        Args:
+            model_names: List of model identifiers (arms).
+            dim: Context vector dimension (= k, since z = x).
+            alpha: Exploration coefficient (UCB bonus multiplier).
+            init_lambda: Regularization strength (A0 = lambda I, A_a = lambda I).
+            forgetting_factor: Exponential decay for arm-specific state only.
+                Shared state accumulates stationarily since it receives
+                updates from all arms and is therefore never stale.
+        """
+        self.models = list(model_names)
+        self.dim = int(dim)
+        self.alpha = float(alpha)
+        self.gamma = float(forgetting_factor)
+        self.init_lambda = float(init_lambda)
+
+        # --- Thread safety ---
+        from collections import defaultdict as _dd
+        self.model_locks: Dict[str, threading.Lock] = _dd(threading.Lock)
+        self._shared_lock = threading.Lock()
+        self._lock = threading.Lock()
+
+        # --- Global shared state (A0, b0) ---
+        self.A0: np.ndarray = np.eye(self.dim) * self.init_lambda
+        self.b0: np.ndarray = np.zeros(self.dim, dtype=np.float64)
+        self.A0_inv: np.ndarray = safe_inv(self.A0)
+
+        # --- Per-arm state (A, B, b) ---
+        self.A: Dict[str, np.ndarray] = {
+            m: np.eye(self.dim) * self.init_lambda for m in self.models
+        }
+        self.B: Dict[str, np.ndarray] = {
+            m: np.zeros((self.dim, self.dim), dtype=np.float64)
+            for m in self.models
+        }
+        self.b: Dict[str, np.ndarray] = {
+            m: np.zeros(self.dim, dtype=np.float64) for m in self.models
+        }
+        self.A_inv: Dict[str, np.ndarray] = {
+            m: safe_inv(self.A[m]) for m in self.models
+        }
+
+        self.last_update: Dict[str, int] = {m: 0 for m in self.models}
+        self.last_played: Dict[str, int] = {m: 0 for m in self.models}
+        self.t: int = 0
+        self.regularization_floor: Dict[str, float] = {
+            m: self.init_lambda for m in self.models
+        }
+
+    # ------------------------------------------------------------------
+    # Deep copy
+    # ------------------------------------------------------------------
+
+    def __deepcopy__(self, memo):
+        from collections import defaultdict as _dd
+
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+
+        result.models = copy.deepcopy(self.models, memo)
+        result.dim = self.dim
+        result.alpha = self.alpha
+        result.gamma = self.gamma
+        result.init_lambda = self.init_lambda
+        result.t = self.t
+
+        result.A0 = self.A0.copy()
+        result.b0 = self.b0.copy()
+        result.A0_inv = self.A0_inv.copy()
+
+        result.A = copy.deepcopy(self.A, memo)
+        result.B = copy.deepcopy(self.B, memo)
+        result.b = copy.deepcopy(self.b, memo)
+        result.A_inv = copy.deepcopy(self.A_inv, memo)
+
+        result.last_update = copy.deepcopy(self.last_update, memo)
+        result.last_played = copy.deepcopy(self.last_played, memo)
+        result.regularization_floor = copy.deepcopy(
+            self.regularization_floor, memo
+        )
+
+        result.model_locks = _dd(threading.Lock)
+        result._shared_lock = threading.Lock()
+        result._lock = threading.Lock()
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Dynamic arm management
+    # ------------------------------------------------------------------
+
+    def add_arm(self, model_name: str, **kwargs) -> None:
+        """Add a new arm to the policy.
+
+        The new arm immediately benefits from the existing global ``beta``
+        estimate via the shared ``A0`` / ``b0`` state.
+
+        Args:
+            model_name: Model identifier.
+            **kwargs: Accepted for API compatibility (e.g. ``family``);
+                ignored since this policy uses a single global beta.
+        """
+        if model_name in self.models:
+            return
+
+        new_A = np.eye(self.dim) * self.init_lambda
+        new_B = np.zeros((self.dim, self.dim), dtype=np.float64)
+        new_b = np.zeros(self.dim, dtype=np.float64)
+        new_A_inv = safe_inv(new_A)
+
+        with self._lock:
+            self.A[model_name] = new_A
+            self.B[model_name] = new_B
+            self.b[model_name] = new_b
+            self.A_inv[model_name] = new_A_inv
+            self.last_update[model_name] = self.t
+            self.last_played[model_name] = self.t
+            self.regularization_floor[model_name] = self.init_lambda
+            self.models.append(model_name)
+
+    def delete_arm(self, model_name: str) -> None:
+        """Remove an arm.  Shared state is unaffected."""
+        with self._lock:
+            if model_name not in self.models:
+                return
+            self.models.remove(model_name)
+
+            for attr in (self.A, self.B, self.b, self.A_inv, self.last_update,
+                         self.last_played, self.regularization_floor):
+                attr.pop(model_name, None)
+            self.model_locks.pop(model_name, None)
+
+    # ------------------------------------------------------------------
+    # Inverse cache
+    # ------------------------------------------------------------------
+
+    def refresh_inverse_cache(self) -> None:
+        """Recompute cached inverses for shared and all arm matrices."""
+        with self._lock:
+            self.A0_inv = safe_inv(self.A0)
+            self.A_inv = {}
+            for m in self.models:
+                if m in self.A:
+                    self.A_inv[m] = safe_inv(self.A[m])
+
+    # ------------------------------------------------------------------
+    # Selection
+    # ------------------------------------------------------------------
+
+    def select_arm(
+        self,
+        x: np.ndarray,
+        candidates: List[str | None] = None,
+        cost_penalties: Dict[str, float] | None = None,
+    ) -> Tuple[str, float]:
+        """Select arm using canonical Hybrid LinUCB (Algorithm 2, Li et al. 2010).
+
+        Per-arm score::
+
+            beta_hat   = A0_inv @ b0
+            theta_hat  = A_inv_a @ (b_a - B_a @ beta_hat)
+            s_a        = z^T A0_inv z
+                       - 2 z^T A0_inv B_a^T A_inv_a x
+                       + x^T A_inv_a x
+                       + x^T A_inv_a B_a A0_inv B_a^T A_inv_a x
+            UCB_a      = z^T beta_hat + x^T theta_hat + alpha * sqrt(s_a)
+
+        Since ``z = x`` in our setting, ``z`` and ``x`` are the same vector.
+
+        Args:
+            x: Context feature vector (used as both z and x).
+            candidates: Subset of arms to consider (``None`` = all).
+            cost_penalties: Per-model additive cost penalties.
+
+        Returns:
+            ``(best_model_id, best_score)``
+        """
+        ucb_scores: Dict[str, float] = {}
+
+        with self._lock:
+            candidates = candidates or self.models
+            candidates = [m for m in candidates if m in self.A]
+            if not candidates:
+                raise ValueError("No candidates available")
+
+            beta_hat = self.A0_inv @ self.b0
+            A0_inv_z = self.A0_inv @ x
+            shared_var = float(x.dot(A0_inv_z))
+
+            for m in candidates:
+                A_inv_m = self.A_inv[m]
+                B_m = self.B[m]
+
+                theta_hat = A_inv_m @ (self.b[m] - B_m @ beta_hat)
+                mean = float(x.dot(beta_hat) + x.dot(theta_hat))
+
+                A_inv_x = A_inv_m @ x
+                BtAinvx = B_m.T @ A_inv_x
+                cross_term = float(A0_inv_z.dot(BtAinvx))
+                arm_var = float(x.dot(A_inv_x))
+                cross_quad = float(BtAinvx.dot(self.A0_inv @ BtAinvx))
+
+                dt = self._effective_staleness(m)
+                arm_portion = _inflate_variance(
+                    arm_var + cross_quad, self.gamma, dt
+                )
+                s = shared_var - 2.0 * cross_term + arm_portion
+
+                std = float(np.sqrt(max(s, 1e-12)))
+                ucb = mean + self.alpha * std
+
+                if cost_penalties and m in cost_penalties:
+                    ucb -= cost_penalties[m]
+
+                ucb_scores[m] = ucb
+
+        best_model = _argmax_random_tiebreak(ucb_scores)
+        return best_model, float(ucb_scores[best_model])
+
+    # ------------------------------------------------------------------
+    # UCB accessor methods (policy-transparent adapter pattern)
+    # ------------------------------------------------------------------
+
+    def get_expected_reward(self, model: str, x: np.ndarray) -> float:
+        """Expected reward with cross-term correction.
+
+        ``z^T beta_hat + x^T A_inv_a (b_a - B_a @ beta_hat)``
+
+        Args:
+            model: Model identifier.
+            x: Context feature vector (used as both z and x).
+
+        Returns:
+            Scalar expected reward.
+        """
+        beta_hat = self.A0_inv @ self.b0
+        theta_hat = self.A_inv[model] @ (
+            self.b[model] - self.B[model] @ beta_hat
+        )
+        return float(x.dot(beta_hat) + x.dot(theta_hat))
+
+    def get_ucb_variance(self, model: str, x: np.ndarray) -> float:
+        """Full 4-term Schur-complement variance (Algorithm 2, Li et al. 2010).
+
+        ``s = z^T A0_inv z - 2 z^T A0_inv B_a^T A_inv_a x
+              + x^T A_inv_a x + x^T A_inv_a B_a A0_inv B_a^T A_inv_a x``
+
+        Staleness inflation is applied only to the arm-dependent terms
+        (terms 3 and 4).
+
+        Args:
+            model: Model identifier.
+            x: Context feature vector (used as both z and x).
+
+        Returns:
+            Non-negative variance.  Take ``sqrt`` for the UCB bonus.
+        """
+        A0_inv_z = self.A0_inv @ x
+        shared_var = float(x.dot(A0_inv_z))
+
+        A_inv_x = self.A_inv[model] @ x
+        BtAinvx = self.B[model].T @ A_inv_x
+        cross_term = float(A0_inv_z.dot(BtAinvx))
+        arm_var = float(x.dot(A_inv_x))
+        cross_quad = float(BtAinvx.dot(self.A0_inv @ BtAinvx))
+
+        dt = self._effective_staleness(model)
+        arm_portion = _inflate_variance(arm_var + cross_quad, self.gamma, dt)
+        return shared_var - 2.0 * cross_term + arm_portion
+
+    # ------------------------------------------------------------------
+    # Staleness & time
+    # ------------------------------------------------------------------
+
+    def _effective_staleness(self, model: str) -> int:
+        return _effective_staleness(
+            self.t, self.last_update, self.last_played, model
+        )
+
+    def mark_selected(self, model: str) -> None:
+        """Record selection and advance the global clock (request counter)."""
+        with self._lock:
+            self.t += 1
+            self.last_played[model] = self.t
+
+    # ------------------------------------------------------------------
+    # Posterior sampling
+    # ------------------------------------------------------------------
+
+    def get_probabilities(
+        self,
+        x: np.ndarray,
+        models: List[str],
+        n_samples: int = 1000,
+        noise_variance: float = 0.25,
+    ) -> Dict[str, float]:
+        """Probability each model has the highest quality (Thompson Sampling).
+
+        Samples the shared ``beta`` **once per Monte Carlo draw** and uses
+        each draw to compute the **conditional** arm mean, then samples
+        ``theta_a`` per arm.
+
+        **Why this factorization is exact for the hybrid posterior:**
+
+        In Algorithm 2 (Li et al. 2010), ``A0`` is maintained as the
+        **Schur complement** of the joint precision matrix with respect
+        to ``beta``.  The two-phase update (add back old ``B^T A^{-1} B``,
+        subtract new) ensures that at every time step::
+
+            A0 = lambda I + sum_t z_t z_t^T - sum_a B_a^T A_a^{-1} B_a
+
+        This means ``sigma^2 A0^{-1}`` is the **exact marginal** posterior
+        covariance of ``beta`` (integrating out all ``theta_a``).  The
+        conditional ``theta_a | beta`` has covariance ``sigma^2 A_a^{-1}``
+        and mean ``A_a^{-1}(b_a - B_a beta)``.  So the sampling
+        factorization ``p(beta) * prod_a p(theta_a | beta)`` IS the
+        correct joint posterior — not an approximation.
+
+        When ``forgetting_factor < 1``, staleness inflation is applied to
+        the arm-specific covariance to match the exploration bonus used by
+        ``select_arm()`` and ``get_ucb_variance()``.
+
+        For each draw *s*:
+            1. Sample ``beta_s ~ N(beta_hat, sigma^2 A0_inv)``
+            2. For each arm *a*, compute conditional mean
+               ``mu_s_a = A_inv_a (b_a - B_a beta_s)``
+               then sample ``theta_s_a ~ N(mu_s_a, inflated_arm_cov)``
+            3. Score_a = x^T beta_s + x^T theta_s_a
+
+        Args:
+            x: Context vector (used as both z and x).
+            models: Models to compare.
+            n_samples: Monte Carlo draws.
+            noise_variance: sigma^2 for posterior covariance scaling.
+
+        Returns:
+            Dict mapping model_id -> win probability (sums to 1).
+        """
+        valid_models = [m for m in models if m in self.A]
+        if not valid_models:
+            n = len(models) or 1
+            return {m: 1.0 / n for m in models}
+
+        arm_snapshots: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
+        with self._lock:
+            beta_hat = self.A0_inv @ self.b0
+            shared_cov = noise_variance * self.A0_inv
+            for m in valid_models:
+                dt = self._effective_staleness(m)
+                inflation = _inflate_variance(1.0, self.gamma, dt)
+                arm_cov = noise_variance * inflation * self.A_inv[m]
+                arm_snapshots[m] = (
+                    self.A_inv[m].copy(),
+                    self.B[m].copy(),
+                    self.b[m].copy(),
+                    arm_cov,
+                )
+
+        beta_samples = _safe_multivariate_normal(
+            beta_hat, shared_cov, n_samples, self.dim
+        )
+        shared_scores = beta_samples @ x
+
+        model_scores: Dict[str, np.ndarray] = {}
+        for m, (A_inv_m, B_m, b_m, arm_cov_m) in arm_snapshots.items():
+            residuals = b_m[:, np.newaxis] - B_m @ beta_samples.T
+            theta_means = A_inv_m @ residuals
+
+            theta_perturbations = _safe_multivariate_normal(
+                np.zeros(self.dim), arm_cov_m, n_samples, self.dim
+            )
+            theta_samples = theta_means.T + theta_perturbations
+            model_scores[m] = shared_scores + theta_samples @ x
+
+        stacked = np.stack([model_scores[m] for m in valid_models])
+        winners = np.argmax(stacked, axis=0)
+        counts = Counter(winners)
+        probs: Dict[str, float] = {m: 0.0 for m in models}
+        for i, m in enumerate(valid_models):
+            probs[m] = counts[i] / n_samples
+        return probs
+
+    # ------------------------------------------------------------------
+    # Update (Algorithm 2, Li et al. 2010)
+    # ------------------------------------------------------------------
+
+    def update(
+        self,
+        model: str,
+        x: np.ndarray,
+        reward: float,
+        weight: float = 1.0,
+        advance_time: bool = True,
+    ) -> None:
+        """Update shared and arm-specific matrices (Algorithm 2, Li et al. 2010).
+
+        Uses ``z = x`` (no arm-level features).
+
+        **Phase 1** — Add back old cross-terms to shared precision::
+
+            A0 += B_a^T A_inv_a B_a
+            b0 += B_a^T A_inv_a b_a
+
+        **Arm decay** — Apply forgetting factor to ``A_a``, ``B_a``, ``b_a``
+        (arm-specific only, shared state is stationary).
+
+        **Arm rank-1 update**::
+
+            A_a += w x x^T;   B_a += w x z^T;   b_a += w r x
+            Recompute A_inv_a via Sherman-Morrison.
+
+        **Phase 2** — Subtract new cross-terms, add observation::
+
+            A0 += w z z^T  -  B_a^T A_inv_a B_a
+            b0 += w r z    -  B_a^T A_inv_a b_a
+            Recompute A0_inv via safe_inv.
+
+        This two-phase sequence maintains the Schur-complement structure
+        of the joint precision so that ``theta_hat_a`` and the UCB variance
+        remain correctly calibrated at every time step.
+
+        Args:
+            model: Model identifier.
+            x: Context feature vector (used as both z and x).
+            reward: Observed reward.
+            weight: Importance weight (must be > 0).
+            advance_time: Increment global clock ``self.t``.
+        """
+        if model not in self.A:
+            return
+        if weight < 0:
+            logger.warning(
+                f"Negative weight={weight:.4f} for {model}; "
+                "skipping update (negative weight would corrupt A_inv)"
+            )
+            return
+        if weight == 0:
+            return
+
+        z = x
+
+        with self.model_locks[model]:
+            with self._lock:
+                current_t = self.t
+                A_inv_a = self.A_inv[model]
+                B_a = self.B[model]
+                b_a = self.b[model]
+
+            # ---- Phase 1: add back OLD cross-terms to shared state ----
+            BtAinv = B_a.T @ A_inv_a
+            with self._shared_lock:
+                with self._lock:
+                    self.A0 = self.A0 + BtAinv @ B_a
+                    self.b0 = self.b0 + BtAinv @ b_a
+
+            # ---- Forgetting factor decay (arm-specific: A, B, b) ----
+            decay_factor = 1.0
+            if self.gamma < 1.0:
+                dt = current_t - self.last_update[model]
+                decay_factor = self.gamma ** min(dt, _MAX_STALENESS_DT)
+
+            current_lambda = self.regularization_floor.get(
+                model, self.init_lambda
+            )
+            new_lambda = current_lambda * decay_factor
+            lambda_threshold = self.init_lambda * _REGULARIZATION_FLOOR_FRACTION
+
+            if new_lambda < lambda_threshold:
+                missing_lambda = self.init_lambda - new_lambda
+                new_A = (self.A[model] * decay_factor) + (
+                    missing_lambda * np.eye(self.dim)
+                )
+                new_B = self.B[model] * decay_factor
+                new_b = self.b[model] * decay_factor
+                new_A_inv = safe_inv(new_A)
+                self.regularization_floor[model] = self.init_lambda
+                with self._lock:
+                    self.A[model] = new_A
+                    self.B[model] = new_B
+                    self.b[model] = new_b
+                    self.A_inv[model] = new_A_inv
+                    self.last_update[model] = current_t
+            elif self.gamma < 1.0:
+                self.regularization_floor[model] = new_lambda
+                new_A = self.A[model] * decay_factor
+                new_B = self.B[model] * decay_factor
+                new_b = self.b[model] * decay_factor
+                new_A_inv = self.A_inv[model] / decay_factor
+                with self._lock:
+                    self.A[model] = new_A
+                    self.B[model] = new_B
+                    self.b[model] = new_b
+                    self.A_inv[model] = new_A_inv
+                    self.last_update[model] = current_t
+
+            # ---- Arm rank-1 update: A_a, B_a, b_a ----
+            arm_result = _sherman_morrison_update(
+                A=self.A[model],
+                A_inv=self.A_inv[model],
+                b=self.b[model],
+                x=x,
+                reward=reward,
+                weight=weight,
+                init_lambda=self.init_lambda,
+                regularization_floor=self.regularization_floor.get(
+                    model, self.init_lambda
+                ),
+                model_name=model,
+            )
+            self.regularization_floor[model] = arm_result.regularization_floor
+            new_B = self.B[model] + weight * np.outer(x, z)
+            with self._lock:
+                self.A[model] = arm_result.A
+                self.b[model] = arm_result.b
+                self.A_inv[model] = arm_result.A_inv
+                self.B[model] = new_B
+
+            # ---- Phase 2: subtract NEW cross-terms, add observation ----
+            with self._lock:
+                A_inv_a_new = self.A_inv[model]
+                B_a_new = self.B[model]
+                b_a_new = self.b[model]
+            BtAinv_new = B_a_new.T @ A_inv_a_new
+
+            with self._shared_lock:
+                with self._lock:
+                    self.A0 = (
+                        self.A0
+                        + weight * np.outer(z, z)
+                        - BtAinv_new @ B_a_new
+                    )
+                    self.b0 = (
+                        self.b0
+                        + weight * reward * z
+                        - BtAinv_new @ b_a_new
+                    )
+                    self.A0_inv = safe_inv(self.A0)
+                    if advance_time:
+                        self.t += 1
+
+    # ------------------------------------------------------------------
+    # Numerical stability
+    # ------------------------------------------------------------------
+
+    def _check_numerical_stability(
+        self, model: str, config: "RouterConfig" = None
+    ) -> None:
+        """Safety check: resets regularization if A_inv trace explodes."""
+        if config is None or model not in self.A_inv:
+            return
+        trace = np.trace(self.A_inv[model])
+        threshold = getattr(config, "stability_threshold", 1000 * self.dim)
+        if trace > threshold:
+            logger.warning(
+                f"Numerical instability for {model}: "
+                f"trace(A_inv)={trace:.2e} > {threshold:.2e}. Resetting."
+            )
+            reg_lambda = self.init_lambda
+            with self.model_locks[model]:
+                self.A[model] += reg_lambda * np.eye(self.dim)
+                new_A_inv = safe_inv(self.A[model])
+                with self._lock:
+                    self.A_inv[model] = new_A_inv
+                    self.regularization_floor[model] = (
+                        self.regularization_floor.get(model, self.init_lambda)
+                        + reg_lambda
+                    )
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def save_state(self, path: Path | str) -> None:
+        """Save shared and per-arm matrices to a compressed NPZ file.
+
+        Persists sufficient statistics (A, B, b, A0, b0) and temporal
+        metadata (t, last_update, last_played, regularization_floor) so
+        that forgetting-factor and staleness logic resume correctly.
+        """
+        data: Dict[str, Any] = {
+            "_metadata_dim": self.dim,
+            "_metadata_models": list(self.models),
+            "_metadata_policy": "hybrid",
+            "__shared__A0": self.A0,
+            "__shared__b0": self.b0,
+            "__temporal__t": self.t,
+        }
+        last_update_arr = np.array(
+            [self.last_update.get(m, 0) for m in self.models], dtype=np.int64
+        )
+        last_played_arr = np.array(
+            [self.last_played.get(m, 0) for m in self.models], dtype=np.int64
+        )
+        reg_floor_arr = np.array(
+            [self.regularization_floor.get(m, self.init_lambda)
+             for m in self.models],
+            dtype=np.float64,
+        )
+        data["__temporal__last_update"] = last_update_arr
+        data["__temporal__last_played"] = last_played_arr
+        data["__temporal__reg_floor"] = reg_floor_arr
+
+        for m in self.models:
+            data[f"{m}_A"] = self.A[m]
+            data[f"{m}_B"] = self.B[m]
+            data[f"{m}_b"] = self.b[m]
+        np.savez_compressed(path, **data)
+
+    def load_state(self, path: Path | str) -> None:
+        """Load shared and per-arm matrices from a compressed NPZ file.
+
+        Restores temporal metadata when present so that forgetting-factor
+        and staleness logic resume from the saved clock position.
+
+        Raises:
+            ValueError: If saved dimension does not match current policy.
+        """
+        data = np.load(path, allow_pickle=True)
+        if "_metadata_dim" in data:
+            saved_dim = int(data["_metadata_dim"])
+            if saved_dim != self.dim:
+                raise ValueError(
+                    f"Dimension mismatch: saved={saved_dim}, "
+                    f"current={self.dim}."
+                )
+
+        saved_models = (
+            list(data["_metadata_models"]) if "_metadata_models" in data
+            else self.models
+        )
+
+        for m in self.models:
+            a_key, B_key, b_key = f"{m}_A", f"{m}_B", f"{m}_b"
+            if a_key in data and b_key in data:
+                A_loaded = data[a_key]
+                b_loaded = data[b_key]
+                if A_loaded.shape != (self.dim, self.dim):
+                    raise ValueError(
+                        f"A[{m}] shape mismatch: expected "
+                        f"{(self.dim, self.dim)}, got {A_loaded.shape}"
+                    )
+                if b_loaded.shape != (self.dim,):
+                    raise ValueError(
+                        f"b[{m}] shape mismatch: expected "
+                        f"({self.dim},), got {b_loaded.shape}"
+                    )
+                self.A[m] = A_loaded
+                self.b[m] = b_loaded
+                self.A_inv[m] = safe_inv(self.A[m])
+                if B_key in data:
+                    B_loaded = data[B_key]
+                    if B_loaded.shape != (self.dim, self.dim):
+                        raise ValueError(
+                            f"B[{m}] shape mismatch: expected "
+                            f"{(self.dim, self.dim)}, got {B_loaded.shape}"
+                        )
+                    self.B[m] = B_loaded
+                else:
+                    self.B[m] = np.zeros(
+                        (self.dim, self.dim), dtype=np.float64
+                    )
+
+        if "__shared__A0" in data and "__shared__b0" in data:
+            self.A0 = data["__shared__A0"]
+            self.b0 = data["__shared__b0"]
+            self.A0_inv = safe_inv(self.A0)
+
+        # Restore temporal metadata (backward-compatible: missing = cold start)
+        if "__temporal__t" in data:
+            self.t = int(data["__temporal__t"])
+        if "__temporal__last_update" in data:
+            lu_arr = data["__temporal__last_update"]
+            for i, m in enumerate(saved_models):
+                if m in self.last_update and i < len(lu_arr):
+                    self.last_update[m] = int(lu_arr[i])
+        if "__temporal__last_played" in data:
+            lp_arr = data["__temporal__last_played"]
+            for i, m in enumerate(saved_models):
+                if m in self.last_played and i < len(lp_arr):
+                    self.last_played[m] = int(lp_arr[i])
+        if "__temporal__reg_floor" in data:
+            rf_arr = data["__temporal__reg_floor"]
+            for i, m in enumerate(saved_models):
+                if m in self.regularization_floor and i < len(rf_arr):
+                    self.regularization_floor[m] = float(rf_arr[i])
+
+
+# ---------------------------------------------------------------------------
+# Main Router Class
+# ---------------------------------------------------------------------------
 
 @dataclass
 class RoutingLog:
@@ -1639,6 +2468,7 @@ class BanditRouter:
         latency_penalty: float = 0.0,  # λ_l for UCB latency penalty
         tabula_rasa_alpha: float | None = None,
         tabula_rasa_forgetting_factor: float | None = None,
+        policy: str = "disjoint",
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -1665,6 +2495,9 @@ class BanditRouter:
             use_corralling: Enable Corralling meta-learner (default: True)
             corralling_learning_rate: Meta-learning rate for expert weight updates (default: 0.1)
             corralling_gamma: Mixing parameter (default: 0.05, empirically validated optimal)
+            policy: Bandit policy type.  ``"disjoint"`` (default) uses per-arm
+                ridge regression.  ``"hybrid"`` adds a global shared beta
+                parameter (Li et al. 2010 §4).
             cost_penalty: λ_c for UCB cost penalty (paper Eq. 4). At selection
                        time, each arm's score includes -λ_c·normalized_cost(model).
                        Applied consistently in both Corralling experts and the
@@ -1698,6 +2531,7 @@ class BanditRouter:
         self.latency_penalty = latency_penalty
         self.tabula_rasa_alpha = tabula_rasa_alpha
         self.tabula_rasa_forgetting_factor = tabula_rasa_forgetting_factor
+        self.policy_type = policy
         if model_registry is None:
             # Load default models.json from config/
             base_dir = Path(__file__).parent
@@ -1759,13 +2593,22 @@ class BanditRouter:
         # components and may over-regularize the latter.  See the
         # DisjointLinUCBPolicy docstring for further discussion.
         model_ids = list(self.registry.keys())
-        self.bandit = DisjointLinUCBPolicy(
-            model_ids,
-            dim=embedding_dim,
-            alpha=alpha,
-            init_lambda=init_lambda,
-            forgetting_factor=forgetting_factor,
-        )
+        if self.policy_type == "hybrid":
+            self.bandit = HybridLinUCBPolicy(
+                model_ids,
+                dim=embedding_dim,
+                alpha=alpha,
+                init_lambda=init_lambda,
+                forgetting_factor=forgetting_factor,
+            )
+        else:
+            self.bandit = DisjointLinUCBPolicy(
+                model_ids,
+                dim=embedding_dim,
+                alpha=alpha,
+                init_lambda=init_lambda,
+                forgetting_factor=forgetting_factor,
+            )
         
         # Initialize Security Scanner (Lazy)
         self._toxicity_scanner = None
@@ -2178,18 +3021,12 @@ Previous version referenced non-existent attributes
         #
         # All new models start with A = λI (identity-scaled precision) and
         # b = λ·θ (prior encoding from T-shirt sizing / capabilities).
-        new_A = np.eye(self.bandit.dim) * self.bandit.init_lambda
-        new_b = self.bandit.init_lambda * theta_vector
-        new_A_inv = safe_inv(new_A)
+        self.bandit.add_arm(model_id)
 
+        # Inject T-shirt prior into arm-specific b vector
+        new_b = self.bandit.init_lambda * theta_vector
         with self.bandit._lock:
-            self.bandit.A[model_id] = new_A
             self.bandit.b[model_id] = new_b
-            self.bandit.A_inv[model_id] = new_A_inv
-            self.bandit.last_update[model_id] = self.bandit.t
-            self.bandit.last_played[model_id] = self.bandit.t
-            self.bandit.regularization_floor[model_id] = self.bandit.init_lambda
-            self.bandit.models.append(model_id)  # LAST: visible only after state is ready
             
         # 8. Prepare registry entry (but don't publish yet)
         # Use defaults from config if not provided
@@ -2523,6 +3360,52 @@ Previous version referenced non-existent attributes
                 for model_id in router.bandit.models:
                     router.bandit.A[model_id] += np.eye(router.bandit.dim) * router.bandit.init_lambda
                 
+                # ---- Hybrid-aware warm-prior synthesis ----
+                # Warm priors are per-arm (A, b) from Disjoint training.
+                # The Disjoint sufficient statistics do NOT include the
+                # cross-term matrices B_a needed for a fully consistent
+                # hybrid joint state.  We apply a best-effort heuristic:
+                #
+                #   A0 = mean(A_a)   — shared precision from arm average
+                #   b0 = mean(b_a)   — shared moment from arm average
+                #   B_a = 0          — no cross-term data available
+                #
+                # With B_a = 0, the hybrid policy starts in a state where
+                # theta_hat_a = A_inv_a @ b_a (no cross-term correction)
+                # and the shared beta = A0_inv @ b0 is the average of the
+                # per-arm estimates.  This is NOT equivalent to having
+                # trained hybrid from scratch on the same data.
+                #
+                # Implications:
+                #   - Cold-start over-prediction is bounded because B_a = 0
+                #     means the cross-term correction is zero (no double-
+                #     counting), but the mean is still additively split.
+                #   - The first few online updates will build B_a and
+                #     re-establish the correct Schur-complement structure.
+                #   - Predictions during this transition may not match what
+                #     a fully hybrid-trained model would produce.
+                #
+                # This is a known limitation: fully correct hybrid warm
+                # priors require offline training with the hybrid update
+                # rule to accumulate B_a.
+                if isinstance(router.bandit, HybridLinUCBPolicy):
+                    K = len(router.bandit.models)
+                    if K > 0:
+                        A_sum = sum(
+                            router.bandit.A[m] for m in router.bandit.models
+                        )
+                        b_sum = sum(
+                            router.bandit.b[m] for m in router.bandit.models
+                        )
+                        router.bandit.A0 = A_sum / K
+                        router.bandit.b0 = b_sum / K
+                        logger.warning(
+                            f"⚠️ Hybrid warm-prior synthesis: A0/b0 initialized "
+                            f"from average of {K} arm priors. B_a=0 (cross-terms "
+                            f"unavailable from Disjoint priors). Predictions may "
+                            f"be approximate until online updates build B_a."
+                        )
+
                 # Single refresh_inverse_cache() after all A matrices are
                 # finalized.  Previously there were two calls — one before and one
                 # after the regularization loop — wasting O(K·d³) at startup.
@@ -3236,7 +4119,41 @@ Previous version referenced non-existent attributes
     # -------------------------------------------------------------------------
     # Observability: Feature Contribution Analysis
     # -------------------------------------------------------------------------
-    
+
+    @staticmethod
+    def _explain_coefficients(
+        policy: "DisjointLinUCBPolicy | HybridLinUCBPolicy | CostAwareLinUCBAdapter",
+        model_id: str,
+    ) -> np.ndarray:
+        """Return the combined coefficient vector for interpretability.
+
+        For :class:`HybridLinUCBPolicy`, this includes the cross-term
+        corrected ``theta_hat`` plus the shared ``beta_hat`` so that the
+        explanation captures the full score decomposition.
+
+        For :class:`DisjointLinUCBPolicy` (or adapters wrapping one), the
+        coefficient vector is simply ``A_inv @ b``.
+
+        Returns:
+            1-D coefficient array of shape ``(dim,)``.
+
+        Raises:
+            ValueError: If *model_id* is not in the policy.
+        """
+        bandit = getattr(policy, "bandit", policy)
+        with bandit._lock:
+            if model_id not in bandit.A_inv:
+                raise ValueError(
+                    f"Model {model_id} not found in bandit registry"
+                )
+            if isinstance(bandit, HybridLinUCBPolicy):
+                beta_hat = bandit.A0_inv @ bandit.b0
+                theta_hat = bandit.A_inv[model_id] @ (
+                    bandit.b[model_id] - bandit.B[model_id] @ beta_hat
+                )
+                return beta_hat + theta_hat
+            return bandit.A_inv[model_id] @ bandit.b[model_id]
+
     def explain_decision(
         self, 
         model_id: str, 
@@ -3285,18 +4202,11 @@ Previous version referenced non-existent attributes
         # The adapter's A_inv/b delegate to the canonical bandit.
         if self.use_corralling and self.corralling_router:
             expert = self.corralling_router.experts[0]
-            with expert._lock:
-                if model_id not in expert.A_inv:
-                    raise ValueError(f"Model {model_id} not found in active expert")
-                theta = expert.A_inv[model_id] @ expert.b[model_id]
+            combined = self._explain_coefficients(expert, model_id)
         else:
-            with self.bandit._lock:
-                if model_id not in self.bandit.A_inv:
-                    raise ValueError(f"Model {model_id} not found in bandit registry")
-                theta = self.bandit.A_inv[model_id] @ self.bandit.b[model_id]
-        
-        # 2. Element-wise multiplication shows contribution of each feature
-        contributions = theta * context_vector
+            combined = self._explain_coefficients(self.bandit, model_id)
+
+        contributions = combined * context_vector
         
         # 3. Map back to feature names
         explanation = {}
@@ -3364,45 +4274,35 @@ Previous version referenced non-existent attributes
         
         # Under Corralling, use the warmup expert's current state
         # (mirrors get_probabilities() and explain_decision() delegation).
-        # Snapshot state under lock to prevent reading mid-update.
         if self.use_corralling and self.corralling_router:
-            expert = self.corralling_router.experts[0]
-            source_lock = expert._lock
-            source_A_inv = expert.A_inv
-            source_b = expert.b
-            source_models = self.bandit.models
+            policy = self.corralling_router.experts[0]
         else:
-            source_lock = self.bandit._lock
-            source_A_inv = self.bandit.A_inv
-            source_b = self.bandit.b
-            source_models = self.bandit.models
-        
-        # Snapshot ALL theta vectors under a single lock acquisition
+            policy = self.bandit
+
+        # Snapshot ALL coefficient vectors under a single lock acquisition
         # so scoring and explanations are from the same consistent state.
-        # Previously used separate lock acquisitions for scoring vs. explanation,
-        # creating a TOCTOU gap where a concurrent update could cause the
-        # per-model explanations to disagree with the top-k ranking.
+        source = getattr(policy, "bandit", policy)
         model_scores = []
-        theta_cache = {}  # {model_id: theta} for explanation reuse
-        with source_lock:
-            for model_id in source_models:
-                if model_id not in source_A_inv:
+        coeff_cache: Dict[str, np.ndarray] = {}
+        with source._lock:
+            for model_id in source.models:
+                if model_id not in source.A_inv:
                     continue
-                theta = source_A_inv[model_id] @ source_b[model_id]
-                theta_cache[model_id] = theta
-                score = float(np.dot(theta, x))
+                coeffs = self._explain_coefficients(policy, model_id)
+                coeff_cache[model_id] = coeffs
+                score = float(np.dot(coeffs, x))
                 model_scores.append((model_id, score))
         
         # Sort by score (highest first) and take top-k
         model_scores.sort(key=lambda x: x[1], reverse=True)
         top_models = [m[0] for m in model_scores[:top_k]]
         
-        # Generate explanations for top-k models using cached theta
+        # Generate explanations for top-k models using cached coefficients
         # (no second lock acquisition needed — uses the same snapshot)
         pca_dims = len(x) - 1  # All except last dimension (bias)
         explanations = {}
         for model_id in top_models:
-            contributions = theta_cache[model_id] * x
+            contributions = coeff_cache[model_id] * x
             explanation = {}
             for idx in range(pca_dims):
                 score = float(contributions[idx])
@@ -4631,13 +5531,16 @@ class PredictionMonitor:
 # ---------------------------------------------------------------------------
 
 class CostAwareLinUCBAdapter:
-    """Thin adapter wrapping a shared :class:`DisjointLinUCBPolicy` for use as
-    Expert 1 in :class:`CorrallingRouter`.
+    """Thin adapter wrapping a shared bandit policy for use as Expert 1
+    in :class:`CorrallingRouter`.
+
+    Works with both :class:`DisjointLinUCBPolicy` and
+    :class:`HybridLinUCBPolicy` via the policy-transparent accessor
+    methods ``get_expected_reward`` and ``get_ucb_variance``.
 
     Unlike the previous ``CostAwareLinUCBRouter`` which maintained a **copy** of
     the bandit's A/b matrices, this adapter holds a **shared reference** to the
-    canonical ``DisjointLinUCBPolicy``.  All matrix state (A, b, A_inv, forgetting
-    factor, regularization, Sherman-Morrison counters) lives in the bandit; the
+    canonical bandit policy.  All matrix state lives in the bandit; the
     adapter adds only:
 
     - Alpha scheduling (constant or decaying exploration coefficient)
@@ -4664,7 +5567,7 @@ class CostAwareLinUCBAdapter:
 
     def __init__(
         self,
-        bandit: 'DisjointLinUCBPolicy',
+        bandit: 'DisjointLinUCBPolicy | HybridLinUCBPolicy',
         model_costs: Dict[str, Dict[str, float]],
         alpha_start: float = 1.0,
         alpha_end: float = 0.1,
@@ -4673,7 +5576,7 @@ class CostAwareLinUCBAdapter:
     ):
         """
         Args:
-            bandit: Shared DisjointLinUCBPolicy instance (NOT copied).
+            bandit: Shared bandit policy instance (NOT copied).
             model_costs: Per-model cost metadata, each entry mapping
                         ``model_id -> {"normalized_cost": float,
                         "normalized_latency": float}``.
@@ -4738,11 +5641,11 @@ class CostAwareLinUCBAdapter:
         total_steps: int = 0,
         candidates: List[str] | None = None,
     ) -> str:
-        """Select the best model using cost-and-latency-aware LinUCB.
+        """Select the best model using cost-and-latency-aware UCB.
 
-        Reads A_inv and b from the **shared** bandit under its global read lock,
-        applies this adapter's alpha schedule and cost/latency penalties, and
-        returns the arm with the highest penalised UCB score.
+        Uses the bandit's ``get_expected_reward`` and ``get_ucb_variance``
+        accessor methods so that this adapter works transparently with both
+        :class:`DisjointLinUCBPolicy` and :class:`HybridLinUCBPolicy`.
 
         Args:
             context: Context feature vector.
@@ -4762,13 +5665,8 @@ class CostAwareLinUCBAdapter:
                 if model not in self.bandit.A_inv:
                     continue
 
-                A_inv = self.bandit.A_inv[model]
-                theta = A_inv @ self.bandit.b[model]
-                expected_reward = float(theta @ context)
-                var = float(context @ A_inv @ context)
-
-                dt = self.bandit._effective_staleness(model)
-                var = _inflate_variance(var, self.bandit.gamma, dt)
+                expected_reward = self.bandit.get_expected_reward(model, context)
+                var = self.bandit.get_ucb_variance(model, context)
                 uncertainty = np.sqrt(max(var, 1e-12))
 
                 model_meta = self.model_costs.get(model, {})

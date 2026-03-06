@@ -642,11 +642,11 @@ class TestRegistryDeepCopy:
 # ===================================================================
 
 
-class TestHybridLinUCBAlias:
+class TestHybridLinUCBPolicy:
 
-    def test_alias_resolves_to_disjoint(self) -> None:
-        assert HybridLinUCBPolicy is DisjointLinUCBPolicy
+    def test_is_distinct_class(self) -> None:
+        assert HybridLinUCBPolicy is not DisjointLinUCBPolicy
 
     def test_importable_from_top_level(self) -> None:
         from bandit_gpt import HybridLinUCBPolicy as H
-        assert H is DisjointLinUCBPolicy
+        assert H is HybridLinUCBPolicy

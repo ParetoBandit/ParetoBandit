@@ -9,11 +9,12 @@ This subsection provides pseudocode for the banditGPT routing system.
 Algorithm~\ref{alg:routing} describes the top-level routing and feedback loop.
 Algorithm~\ref{alg:corralling} details the Corralling meta-learner that
 coordinates multiple expert strategies.
-Algorithm~\ref{alg:linucb} specifies the Hybrid LinUCB expert used by both
-the warmup and tabula rasa strategies.  Each expert decomposes the reward into
-a family-shared component $\beta_F$ and an arm-specific residual $\theta_a$;
-when every family is a singleton, the algorithm reduces to standard Disjoint
-LinUCB.
+Algorithm~\ref{alg:linucb} specifies the canonical Hybrid LinUCB expert
+(Algorithm~2, Li et al.\ 2010) used by both the warmup and tabula rasa
+strategies.  Each expert decomposes the reward into a global shared component
+$\beta$ and an arm-specific residual $\theta_a$, connected by cross-term
+matrices $B_a$ that maintain the Schur-complement structure of the joint
+precision.
 
 % ============================================================================
 % ALGORITHM 1: Top-level routing loop
@@ -107,21 +108,21 @@ LinUCB.
 \end{algorithm}
 
 % ============================================================================
-% ALGORITHM 3: Hybrid LinUCB expert (family-shared + arm-specific)
+% ALGORITHM 3: Canonical Hybrid LinUCB expert (Algorithm 2, Li et al. 2010)
 % ============================================================================
 
 \begin{algorithm}[h]
-\caption{Cost-Aware Hybrid LinUCB Expert}
+\caption{Cost-Aware Hybrid LinUCB Expert (Algorithm 2, Li et al.\ 2010)}
 \label{alg:linucb}
 \begin{algorithmic}[1]
 
-\REQUIRE Arms (models) $\mathcal{M}$, family mapping $F: \mathcal{M} \to \mathcal{G}$, dimension $d$, \\
+\REQUIRE Arms (models) $\mathcal{M}$, dimension $d$, \\
 \hspace{2.5em} exploration coefficient schedule $\alpha_t$, cost penalty $\lambda_c$, regularization $\lambda$, \\
 \hspace{2.5em} optional warmup priors $\{(\theta_a^{(0)},\, n_{\text{eff},a})\}_{a \in \mathcal{M}}$
 
 \medskip
-\STATE \textbf{Initialize} family-shared state for each family $g \in \mathcal{G}$:
-\STATE $A_g^{(0)} \leftarrow \lambda \cdot I_d$;\quad $b_g^{(0)} \leftarrow \mathbf{0}$;\quad $(A_g^{(0)})^{-1} \leftarrow (\lambda \cdot I_d)^{-1}$
+\STATE \textbf{Initialize} global shared state:
+\STATE $A_0 \leftarrow \lambda \cdot I_d$;\quad $b_0 \leftarrow \mathbf{0}$;\quad $A_0^{-1} \leftarrow (\lambda \cdot I_d)^{-1}$
 
 \medskip
 \STATE \textbf{Initialize} arm-specific state for each arm $a \in \mathcal{M}$:
@@ -130,62 +131,67 @@ LinUCB.
 \ELSE
     \STATE $A_a \leftarrow \lambda \cdot I_d$;\quad $b_a \leftarrow \mathbf{0}$ \hfill $\triangleright$ Tabula rasa
 \ENDIF
-\STATE $A_a^{-1} \leftarrow A_a^{-1}$ \hfill $\triangleright$ Cache inverse for $O(d^2)$ updates
+\STATE $B_a \leftarrow \mathbf{0}_{d \times d}$ \hfill $\triangleright$ Cross-term matrix (Li et al.\ 2010, Eq.~7)
+\STATE $A_a^{-1} \leftarrow A_a^{-1}$ \hfill $\triangleright$ Cache inverse for $O(d^2)$ arm updates
 
 \medskip
 \FUNCTION{SelectArm($x_t, \mathcal{F}_t, t$)}
     \STATE $\alpha \leftarrow \alpha_{\text{start}} + (\alpha_{\text{end}} - \alpha_{\text{start}}) \cdot t / T$ \hfill $\triangleright$ Linear decay schedule
+    \STATE $\hat{\beta} \leftarrow A_0^{-1} b_0$ \hfill $\triangleright$ Global shared estimate (computed once)
+    \STATE $z_t \leftarrow x_t$ \hfill $\triangleright$ Shared features = arm features in our setting
     \FOR{each $a \in \mathcal{F}_t$}
-        \STATE $g \leftarrow F(a)$ \hfill $\triangleright$ Look up family for arm $a$
-        \STATE $\hat{\beta}_g \leftarrow (A_g^{(0)})^{-1} b_g^{(0)}$ \hfill $\triangleright$ Family-shared estimate
-        \STATE $\hat{\theta}_a \leftarrow A_a^{-1} b_a$ \hfill $\triangleright$ Arm-specific residual estimate
-        \STATE $\hat{r}_a \leftarrow x_t^\top \hat{\beta}_g + x_t^\top \hat{\theta}_a$ \hfill $\triangleright$ Hybrid predicted reward
-        \STATE $\sigma_a^2 \leftarrow \underbrace{x_t^\top (A_g^{(0)})^{-1} x_t}_{\text{shared variance}} + \underbrace{x_t^\top A_a^{-1} x_t}_{\text{arm variance}}$ \hfill $\triangleright$ Combined uncertainty
-        \STATE $\text{UCB}_a \leftarrow \hat{r}_a + \alpha \cdot \sqrt{\sigma_a^2} - \lambda_c \cdot \tilde{c}_a$ \hfill $\triangleright$ Cost-penalized UCB score
+        \STATE $\hat{\theta}_a \leftarrow A_a^{-1} (b_a - B_a \hat{\beta})$ \hfill $\triangleright$ Cross-term corrected arm estimate
+        \STATE $\hat{r}_a \leftarrow z_t^\top \hat{\beta} + x_t^\top \hat{\theta}_a$ \hfill $\triangleright$ Hybrid predicted reward
+        \STATE $s_a \leftarrow z_t^\top A_0^{-1} z_t
+                \;-\; 2\, z_t^\top A_0^{-1} B_a^\top A_a^{-1} x_t
+                \;+\; x_t^\top A_a^{-1} x_t
+                \;+\; x_t^\top A_a^{-1} B_a\, A_0^{-1} B_a^\top A_a^{-1} x_t$
+        \hfill $\triangleright$ Schur-complement variance (4-term quadratic form)
+        \STATE $\text{UCB}_a \leftarrow \hat{r}_a + \alpha \cdot \sqrt{s_a} - \lambda_c \cdot \tilde{c}_a$ \hfill $\triangleright$ Cost-penalized UCB score
     \ENDFOR
     \RETURN $\arg\max_{a \in \mathcal{F}_t} \text{UCB}_a$ \hfill $\triangleright$ Random tie-breaking
 \ENDFUNCTION
 
 \medskip
 \FUNCTION{Update($x_t, a_t, r_t$)}
-    \STATE $g \leftarrow F(a_t)$ \hfill $\triangleright$ Family of chosen arm
-    \STATE \textbf{// Step 1: Compute residual from current shared estimate}
-    \STATE $\hat{\beta}_g \leftarrow (A_g^{(0)})^{-1} b_g^{(0)}$
-    \STATE $\tilde{r}_t \leftarrow r_t - x_t^\top \hat{\beta}_g$ \hfill $\triangleright$ Residual reward
+    \STATE $z_t \leftarrow x_t$ \hfill $\triangleright$ Shared features = arm features
+    \medskip
+    \STATE \textbf{// Phase 1: Add back OLD cross-terms to shared precision}
+    \STATE $A_0 \leftarrow A_0 + B_{a_t}^\top A_{a_t}^{-1} B_{a_t}$
+    \STATE $b_0 \leftarrow b_0 + B_{a_t}^\top A_{a_t}^{-1} b_{a_t}$
     
     \medskip
-    \STATE \textbf{// Step 2: Update family-shared matrices (full reward)}
-    \STATE $v_g \leftarrow (A_g^{(0)})^{-1} x_t$
-    \STATE $(A_g^{(0)})^{-1} \leftarrow (A_g^{(0)})^{-1} - \frac{v_g \, v_g^\top}{1 + x_t^\top v_g}$ \hfill $\triangleright$ Sherman--Morrison
-    \STATE $A_g^{(0)} \leftarrow A_g^{(0)} + x_t \, x_t^\top$
-    \STATE $b_g^{(0)} \leftarrow b_g^{(0)} + r_t \cdot x_t$
+    \STATE \textbf{// Arm rank-1 update}
+    \STATE $A_{a_t} \leftarrow A_{a_t} + x_t\, x_t^\top$ \hfill $\triangleright$ Update via Sherman--Morrison for $A_{a_t}^{-1}$
+    \STATE $B_{a_t} \leftarrow B_{a_t} + x_t\, z_t^\top$
+    \STATE $b_{a_t} \leftarrow b_{a_t} + r_t \cdot x_t$
     
     \medskip
-    \STATE \textbf{// Step 3: Update arm-specific matrices (residual reward)}
-    \STATE $v_a \leftarrow A_{a_t}^{-1} x_t$
-    \STATE $A_{a_t}^{-1} \leftarrow A_{a_t}^{-1} - \frac{v_a \, v_a^\top}{1 + x_t^\top v_a}$ \hfill $\triangleright$ Sherman--Morrison
-    \STATE $A_{a_t} \leftarrow A_{a_t} + x_t \, x_t^\top$
-    \STATE $b_{a_t} \leftarrow b_{a_t} + \tilde{r}_t \cdot x_t$ \hfill $\triangleright$ Learn residual, not raw reward
+    \STATE \textbf{// Phase 2: Subtract NEW cross-terms, add observation to shared state}
+    \STATE $A_0 \leftarrow A_0 + z_t\, z_t^\top - B_{a_t}^\top A_{a_t}^{-1} B_{a_t}$
+    \STATE $b_0 \leftarrow b_0 + r_t \cdot z_t - B_{a_t}^\top A_{a_t}^{-1} b_{a_t}$
+    \STATE $A_0^{-1} \leftarrow \text{inv}(A_0)$ \hfill $\triangleright$ Recompute (Schur complement changed)
 \ENDFUNCTION
 
 \end{algorithmic}
 \end{algorithm}
 
 \paragraph{Notation summary.}
-$x_t \in \mathbb{R}^{33}$ is the PCA-compressed context vector (32 components + bias);
+$x_t \in \mathbb{R}^{d}$ is the PCA-compressed context vector (with appended bias term);
+$z_t = x_t$ since we have no arm-level features;
 $a_t \in \mathcal{M}$ is the selected model;
 $r_t \in [0, 1]$ is the observed reward;
 $i_t \in [N]$ is the expert chosen by the meta-learner;
 $p_{i_t}$ is the probability with which expert $i_t$ was selected;
 $\hat{\ell}$ denotes the importance-weighted loss estimator;
 $\tilde{c}_a$ is the normalized cost for model $a$;
-$F: \mathcal{M} \to \mathcal{G}$ maps each arm to its family (inferred from model
-provider, e.g., GPT-4-Turbo and GPT-4o share family ``openai/gpt-4'');
-$\hat{\beta}_g$ is the family-shared reward parameter for family $g$;
-$\hat{\theta}_a$ is the arm-specific residual parameter;
-$A_g^{(0)}, b_g^{(0)}$ are the family-shared precision matrix and moment vector;
-$\tilde{r}_t = r_t - x_t^\top \hat{\beta}_g$ is the residual reward used for
-arm-specific updates.
+$\hat{\beta}$ is the global shared reward parameter;
+$\hat{\theta}_a = A_a^{-1}(b_a - B_a \hat{\beta})$ is the cross-term corrected
+arm-specific parameter;
+$B_a \in \mathbb{R}^{d \times d}$ is the cross-term matrix capturing the covariance
+between arm-specific features $x$ and shared features $z$;
+$A_0, b_0$ are the global shared precision matrix and moment vector;
+$s_a$ is the Schur-complement variance (Li et al.\ 2010, Algorithm~2).
 
 \paragraph{Key design decisions.}
 \begin{enumerate}[leftmargin=*,noitemsep]
@@ -208,13 +214,16 @@ arm-specific updates.
     bounding $\hat{\ell}_{i_t} \leq N/\gamma$
     (Corollary~\ref{cor:bounded_iw}).
     
-    \item \textbf{Hybrid family decomposition}
+    \item \textbf{Canonical cross-term decomposition}
     (Algorithm~\ref{alg:linucb}): The reward model
-    $\mathbb{E}[r \mid x, a] = x^\top \beta_{F(a)} + x^\top \theta_a$
-    separates a family-shared component $\beta_g$ (updated from \emph{all}
-    observations within the family) from an arm-specific residual $\theta_a$.
-    When a new model joins an existing family, the shared $\beta_g$ is
-    already trained, providing immediate transfer.  For singleton families
-    the residual converges to near-zero and the policy degenerates gracefully
-    to family-only (effectively Disjoint) behaviour.
+    $\mathbb{E}[r \mid x, a] = z^\top \beta + x^\top \theta_a$
+    uses a single global shared coefficient $\beta$ (updated via every arm's
+    observation) and per-arm residuals $\theta_a$.  The cross-term matrices
+    $B_a$ maintain the Schur-complement structure of the joint precision
+    matrix, preventing double-counting at cold start and ensuring calibrated
+    UCB variance at every horizon.  When a new arm is added, it immediately
+    benefits from the existing shared $\beta$ estimate, providing instant
+    transfer without any training data for the new arm.  The two-phase update
+    (add back old cross-terms $\to$ arm update $\to$ subtract new cross-terms)
+    follows Algorithm~2 of Li et al.\ (2010) exactly.
 \end{enumerate}
