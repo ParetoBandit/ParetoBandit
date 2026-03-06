@@ -1100,7 +1100,7 @@ Wrap in lock and clean up regularization_floor and
     def select_arm(
         self, 
         x: np.ndarray, 
-        candidates: List[str | None] = None,
+        candidates: List[str] | None = None,
         cost_penalties: Dict[str, float] | None = None,
     ) -> Tuple[str, float]:
         """
@@ -1138,7 +1138,7 @@ Wrap in lock and clean up regularization_floor and
         ucb_scores: Dict[str, float] = {}
 
         with self._lock:
-            candidates = candidates or self.models
+            candidates = self.models if candidates is None else candidates
             candidates = [m for m in candidates if m in self.A]
             if not candidates:
                 raise ValueError("No candidates available")
@@ -1871,7 +1871,7 @@ class HybridLinUCBPolicy:
     def select_arm(
         self,
         x: np.ndarray,
-        candidates: List[str | None] = None,
+        candidates: List[str] | None = None,
         cost_penalties: Dict[str, float] | None = None,
     ) -> Tuple[str, float]:
         """Select arm using canonical Hybrid LinUCB (Algorithm 2, Li et al. 2010).
@@ -1899,7 +1899,7 @@ class HybridLinUCBPolicy:
         ucb_scores: Dict[str, float] = {}
 
         with self._lock:
-            candidates = candidates or self.models
+            candidates = self.models if candidates is None else candidates
             candidates = [m for m in candidates if m in self.A]
             if not candidates:
                 raise ValueError("No candidates available")
@@ -1927,6 +1927,14 @@ class HybridLinUCBPolicy:
                 )
                 s = shared_var - 2.0 * cross_term + arm_portion
 
+                if s < 0:
+                    logger.warning(
+                        "Negative Schur-complement variance s=%.4e for "
+                        "arm %s (shared=%.4e, cross=%.4e, arm=%.4e). "
+                        "Clamping to 1e-12; this may indicate a broken "
+                        "A0 invariant.",
+                        s, m, shared_var, cross_term, arm_portion,
+                    )
                 std = float(np.sqrt(max(s, 1e-12)))
                 ucb = mean + self.alpha * std
 
