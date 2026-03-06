@@ -1700,6 +1700,15 @@ class HybridLinUCBPolicy:
     because they depend on ``A0`` which is never decayed.  This is a
     heuristic extension — canonical Hybrid LinUCB assumes stationarity —
     and should be validated empirically when ``forgetting_factor < 1``.
+
+    **Complexity:** Arm-specific updates are O(d^2) via Sherman-Morrison.
+    The shared ``A0_inv`` is recomputed via full O(d^3) inversion rather
+    than the O(d^2) block-inversion in Li et al.  This is a deliberate
+    stability-over-speed tradeoff: sequential rank-1 updates to the shared
+    Schur complement accumulate floating-point drift across long
+    deployments, whereas a full ``safe_inv`` acts as an exact numerical
+    reset.  Reward processing is asynchronous, so the O(d^3) cost does
+    not affect inference latency.
     """
 
     def __init__(
@@ -2150,6 +2159,19 @@ class HybridLinUCBPolicy:
         This two-phase sequence maintains the Schur-complement structure
         of the joint precision so that ``theta_hat_a`` and the UCB variance
         remain correctly calibrated at every time step.
+
+        **Complexity note (O(d^3) shared inversion):**
+        The canonical Algorithm 2 allows an O(d^2) update of ``A0_inv``
+        by decomposing the Phase 2 change into rank-1 Sherman-Morrison
+        steps.  We deliberately use an O(d^3) ``safe_inv`` instead.
+        Sequential rank-1 updates to the shared Schur complement
+        accumulate catastrophic floating-point drift in long-running
+        deployments; the full inversion acts as a numerical reset that
+        keeps ``A0_inv`` faithful to ``A0`` at every step.  Because
+        reward feedback is processed asynchronously (off the
+        latency-critical routing path), the O(d^3) cost does not affect
+        inference latency.  For the PCA-compressed context dimension
+        used in practice (d=15), the cost is ~3 400 flops — negligible.
 
         Args:
             model: Model identifier.
