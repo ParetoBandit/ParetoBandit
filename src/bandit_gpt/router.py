@@ -2055,23 +2055,26 @@ class HybridLinUCBPolicy:
 
         **Why this factorization is exact for the hybrid posterior:**
 
-        In Algorithm 2 (Li et al. 2010), ``A0`` is maintained as the
-        **Schur complement** of the joint precision matrix with respect
-        to ``beta``.  The two-phase update (add back old ``B^T A^{-1} B``,
-        subtract new) ensures that at every time step::
-
-            A0 = lambda I + sum_t z_t z_t^T - sum_a B_a^T A_a^{-1} B_a
-
-        This means ``sigma^2 A0^{-1}`` is the **exact marginal** posterior
-        covariance of ``beta`` (integrating out all ``theta_a``).  The
-        conditional ``theta_a | beta`` has covariance ``sigma^2 A_a^{-1}``
-        and mean ``A_a^{-1}(b_a - B_a beta)``.  So the sampling
-        factorization ``p(beta) * prod_a p(theta_a | beta)`` IS the
-        correct joint posterior — not an approximation.
+        ``A0`` accumulates the marginal precision of ``beta`` via rank-1
+        observation contributions (see :meth:`update`).
+        ``sigma^2 A0^{-1}`` is the **exact marginal** posterior covariance
+        of ``beta`` (integrating out all ``theta_a``).  The conditional
+        ``theta_a | beta`` has covariance ``sigma^2 A_a^{-1}`` and mean
+        ``A_a^{-1}(b_a - B_a beta)``.  So the sampling factorization
+        ``p(beta) * prod_a p(theta_a | beta)`` IS the correct joint
+        posterior — not an approximation.
 
         When ``forgetting_factor < 1``, staleness inflation is applied to
         the arm-specific covariance to match the exploration bonus used by
         ``select_arm()`` and ``get_ucb_variance()``.
+
+        **Computational cost:**  Each call performs a Cholesky decomposition
+        for the shared posterior O(d^3) and M per-arm matrix multiplications
+        ``B_m @ beta_samples.T`` of shape (d, d) × (d, S).  At d=15 and
+        S=1000 this is negligible; at d=384 with M=10 arms the cost is
+        significant.  This method is intended for monitoring and
+        explainability, not the latency-critical routing path (which uses
+        deterministic UCB via ``select_arm``).
 
         For each draw *s*:
             1. Sample ``beta_s ~ N(beta_hat, sigma^2 A0_inv)``
@@ -2187,6 +2190,15 @@ class HybridLinUCBPolicy:
         (post-decay) arm state, injecting only real observational
         precision.  ``A0`` is always a sum of ``λI`` plus PSD rank-1
         terms, so it is trivially positive definite.
+
+        **Scalability note:**  The shared update inside ``_shared_lock``
+        is O(d^2) (matrix-vector product + outer product), so lock hold
+        time is sub-millisecond even at d=384.  The only remaining
+        O(d^3) operations are in :meth:`refresh_inverse_cache` (periodic
+        drift reset, called externally) and :meth:`_check_numerical_stability`
+        (rare, triggered by trace explosion).  Neither is on the normal
+        update path.  For high-throughput deployments (>10K RPS feedback),
+        ``refresh_inverse_cache`` can be moved to a background thread.
 
         Args:
             model: Model identifier.
