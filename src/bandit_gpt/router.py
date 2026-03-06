@@ -2160,7 +2160,7 @@ class HybridLinUCBPolicy:
         each draw to compute the **conditional** arm mean, then samples
         ``theta_a`` per arm.
 
-        **Why this factorization is exact for the hybrid posterior:**
+        **Factored sampling and its approximation:**
 
         ``A0`` accumulates the marginal precision of ``beta`` via rank-1
         observation contributions (see :meth:`update`).
@@ -2169,11 +2169,18 @@ class HybridLinUCBPolicy:
         ``theta_a | beta`` has covariance ``sigma^2 A_a^{-1}`` and mean
         ``A_a^{-1}(b_a - B_a beta)``.  So the sampling factorization
         ``p(beta) * prod_a p(theta_a | beta)`` IS the correct joint
-        posterior — not an approximation.
+        posterior — not an approximation — when ``gamma == 1.0``.
 
         When ``forgetting_factor < 1``, staleness inflation is applied to
         the arm-specific covariance to match the exploration bonus used by
-        ``select_arm()`` and ``get_ucb_variance()``.
+        ``select_arm()`` and ``get_ucb_variance()``.  This is a heuristic:
+        the inflated covariance no longer equals the conditional ``sigma^2
+        A_a^{-1}``, so the draws are an approximation to the non-stationary
+        posterior.  The shared covariance ``A0^{-1}`` is not inflated
+        because ``A0`` is never decayed (see class docstring).  This
+        asymmetry is consistent with the UCB scoring path but means the
+        Thompson Sampling probabilities are only approximate when
+        ``gamma < 1``.
 
         **Computational cost:**  Each call performs a Cholesky decomposition
         for the shared posterior O(d^3) and M per-arm matrix multiplications
@@ -3383,18 +3390,26 @@ Previous version referenced non-existent attributes
         model_registry: Dict[str, Any] | None = None,
         context_model: str = DEFAULT_CONTEXT_MODEL,
         priors: str = "none",
+        prior_n_effective: float = 5000.0,
         **kwargs
     ) -> "BanditRouter":
-        """
-        Factory method to create a fully initialized router.
-        
+        """Factory method to create a fully initialized router.
+
         Args:
-            model_registry: Dictionary of model configurations
-            context_model: Model to use for embedding generation
+            model_registry: Dictionary of model configurations.
+            context_model: Model to use for embedding generation.
             priors: Prior initialization strategy. ``"none"`` (default) starts
                 with standard LinUCB cold-start (identity covariance + quality-based
                 bias).  Pass a path to a ``.joblib`` file to load custom priors
                 generated via :func:`generate_warmup_priors`.
+            prior_n_effective: Effective sample count attributed to loaded
+                priors.  Controls how strongly the offline priors are trusted:
+                ``scale = prior_n_effective / n_warmup`` where ``n_warmup`` is
+                the number of samples the priors were trained on.  Default
+                5000.0 with 80k warmup data gives scale = 6.25%, meaning the
+                priors contribute as if they were 5000 real observations.
+                Higher values trust priors more (slower adaptation); lower
+                values trust them less (faster override by online evidence).
             **kwargs: Additional arguments passed to __init__ or prior loading
         
         Returns:
@@ -3402,7 +3417,6 @@ Previous version referenced non-existent attributes
         """
         # 1. Extract factory-specific arguments (not passed to __init__)
         state_path = kwargs.pop("state_path", None)
-        prior_n_effective = kwargs.pop("prior_n_effective", 5000.0)
         warmup_path = kwargs.pop("warmup_path", None)
         
         # Legacy support: map old 'exploration' parameter to 'alpha'
@@ -3614,11 +3628,20 @@ Previous version referenced non-existent attributes
                         )
                         router.bandit.A0 = A_sum / K
                         router.bandit.b0 = b_sum / K
+                        # With B_a = 0, the hybrid prediction is:
+                        #   x^T beta_hat + x^T theta_hat_a
+                        #   = x^T (A0_inv @ b0) + x^T (A_inv_a @ b_a)
+                        # Because A0/b0 = mean(A_a/b_a), the shared term
+                        # roughly equals the per-arm term, producing
+                        # ~2x the disjoint prediction at cold start.
+                        # This transient overshoot decays as B_a
+                        # accumulates via online updates and the shared
+                        # component absorbs cross-arm structure.
                         logger.warning(
-                            f"⚠️ Hybrid warm-prior synthesis: A0/b0 initialized "
+                            f"Hybrid warm-prior synthesis: A0/b0 initialized "
                             f"from average of {K} arm priors. B_a=0 (cross-terms "
-                            f"unavailable from Disjoint priors). Predictions may "
-                            f"be approximate until online updates build B_a."
+                            f"unavailable from Disjoint priors). Cold-start "
+                            f"predictions will be ~2x disjoint until B_a builds."
                         )
 
                 # Single refresh_inverse_cache() after all A matrices are
@@ -3801,20 +3824,18 @@ Previous version referenced non-existent attributes
         }
         
         prompts = []
-        random.seed(42)  # Deterministic for reproducibility
-        
-        # Generate n prompts by sampling templates and filling placeholders
+        rng = random.Random(42)
+
         archetype_keys = list(templates.keys())
         for _ in range(n):
-            archetype = random.choice(archetype_keys)
-            template = random.choice(templates[archetype])
-            
-            # Fill placeholders
+            archetype = rng.choice(archetype_keys)
+            template = rng.choice(templates[archetype])
+
             prompt = template
             for placeholder, values in fill_values.items():
                 if f"{{{placeholder}}}" in prompt:
-                    prompt = prompt.replace(f"{{{placeholder}}}", random.choice(values))
-            
+                    prompt = prompt.replace(f"{{{placeholder}}}", rng.choice(values))
+
             prompts.append(prompt)
         
         return prompts
@@ -4040,7 +4061,19 @@ Previous version referenced non-existent attributes
                           ``{"hle": 0.7}``)
             input_tokens: Input token count (auto-estimated if None)
             output_tokens: Expected output tokens (default 600)
-            total_steps: Total training steps for alpha decay (default 1 for production use)
+            total_steps: Training horizon for the tabula-rasa expert's linear
+                alpha decay schedule (``alpha_start`` → ``alpha_end`` over
+                ``total_steps`` requests).  Default ``1`` collapses the
+                schedule to ``alpha_end`` immediately, which is the
+                intended production behaviour: the warmup expert already
+                has informative priors, and UCB variance provides
+                structural exploration even at a fixed ``alpha_end``.
+                For offline replay or burn-in experiments, pass the
+                total number of expected requests (e.g.
+                ``total_steps=10_000``) so the tabula-rasa expert
+                linearly decays its exploration bonus.  **This parameter
+                has no effect on the primary warmup policy's fixed
+                ``alpha``.**
         
         Returns:
             Tuple of (selected_model_id, routing_log)
@@ -4061,9 +4094,9 @@ Previous version referenced non-existent attributes
         # Use Corralling if enabled, otherwise fall back to simple LinUCB
         corralling_token = None
         if self.use_corralling and self.corralling_router is not None:
-            # Pass total_steps to enable proper alpha decay in experts
-            # For experiments: Pass actual timestep for decay schedule
-            # For production: Default total_steps=1 uses alpha_end (stable exploitation)
+            # total_steps controls the tabula-rasa expert's alpha decay only.
+            # Default 1 → alpha_end immediately (production: stable UCB).
+            # For burn-in experiments, pass the total request count.
             # Pass filtered candidates so cost/latency/quality constraints
             # are enforced.  Previously, corralling selected from ALL models,
             # silently ignoring max_cost, max_latency, and quality_floor.
@@ -5321,6 +5354,15 @@ class CorrallingRouter:
                 # (ℓ_old² → λ²·ℓ_old²).  Equivalently, this makes the
                 # adaptive learning rate η_i = η_0/√S_i forget old variance
                 # at the same effective rate as the loss decay.
+                #
+                # NOTE: This is a non-standard extension of the canonical
+                # AdaGrad / Corralling rate.  With decay, S_i can decrease
+                # over time, allowing η_i to increase again after a quiet
+                # period — unlike standard AdaGrad where S_i is monotone.
+                # This is intentional (enables re-exploration when expert
+                # performance shifts) but can produce transient oscillations
+                # in expert weights.  An ablation over loss_decay values is
+                # recommended for new domains.
                 scaled_losses = staleness_factor * losses
                 self.sum_squared_losses *= self.loss_decay ** 2
                 self.sum_squared_losses += scaled_losses ** 2
@@ -5502,6 +5544,15 @@ def calibrate_priors(
     *calibration_contexts*, those are appended to the suite.  If any prediction
     exceeds 1.5, theta is globally rescaled so the worst-case prediction equals
     *target_max_pred*.
+
+    .. warning::
+
+        **Not thread-safe.**  This function writes ``bandit.b[m]`` without
+        acquiring any lock.  It must be called during single-threaded
+        initialization (e.g., inside ``BanditRouter.create()``) *before*
+        the router is exposed to concurrent ``route()`` / ``update()``
+        traffic.  Calling it on a live router will race with readers and
+        writers.
 
     Args:
         bandit: A ``DisjointLinUCBPolicy`` whose A/b matrices will be modified
