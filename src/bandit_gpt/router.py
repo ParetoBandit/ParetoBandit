@@ -1708,6 +1708,19 @@ class HybridLinUCBPolicy:
     updates from *all* arms every round and is therefore never stale in the
     staleness-inflation sense.
 
+    *Known limitation:* Because ``beta`` is a joint estimate updated by
+    all arms, ecosystem-wide shifts (e.g., a new prompt distribution or
+    broad provider degradation) will be partially absorbed by the
+    stationary ``beta``, anchoring it to stale shared signal.  A slow
+    decay on ``A0`` / ``b0`` would address this but introduces two
+    complications: (1) decaying ``A0`` also decays the ``λI``
+    regularization, requiring a shared regularization floor and an
+    additional hyperparameter, and (2) with ``z = x``, simultaneously
+    decaying both ``beta`` and ``theta_a`` in an overparameterized model
+    risks the shared estimate collapsing while arm estimates absorb
+    everything.  Adding shared decay is a natural extension but should
+    be validated empirically before adoption.
+
     The UCB variance inflates only the arm-dependent terms of the
     Schur-complement quadratic form (terms 3 and 4).  The shared variance
     (term 1) and the negative cross-term (term 2) are left stationary
