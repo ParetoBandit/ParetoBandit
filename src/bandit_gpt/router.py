@@ -27,7 +27,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from collections import Counter, deque, defaultdict
-from typing import Any, Dict, Generator, List, Tuple, Optional, Literal, TypedDict
+from typing import Any, Dict, Generator, List, Tuple, Optional, Literal, TypedDict, Union
 import re
 import copy
 
@@ -333,7 +333,7 @@ def _sherman_morrison_update(
     # regularization injection.  See DisjointLinUCBPolicy.update() docstring
     # for the full mathematical rationale.
     logger.warning(
-        f"⚠️ Sherman-Morrison near-singularity for {model_name}: "
+        f"[WARN] Sherman-Morrison near-singularity for {model_name}: "
         f"|denominator|={abs(denominator):.2e} < {_SM_DENOMINATOR_THRESHOLD}. "
         f"A_inv has numerically drifted; rebuilding with gap-based "
         f"regularisation injection."
@@ -486,7 +486,7 @@ class RouterConfig:
     """
     Centralized configuration for BanditRouter.
     
-    ✅ **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
+    **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
     
     **Scientific Validation (Appendix A):**
     Key hyperparameters validated via prior transfer theory and ablation:
@@ -684,7 +684,21 @@ def l2_normalize(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     return x / n if n > eps else x
 
 def estimate_tokens_rough(text: str) -> int:
-    if not text: return 0
+    """Estimate token count from whitespace word count (word_count * 1.3).
+
+    This is a coarse heuristic used only for cost logging, **not** for
+    billing or hard budget enforcement.  Typical error bounds:
+
+    - Natural-language prose: ~5-15% overestimate vs. GPT tokenizers.
+    - Code / punctuation-heavy text: 30-50% underestimate (subword
+      tokenizers split identifiers and operators into multiple tokens).
+    - Non-Latin scripts: highly variable; CJK text has far more tokens
+      per whitespace word.
+
+    For accurate token counts, use the model's actual tokenizer.
+    """
+    if not text:
+        return 0
     return int(max(0, round(len(str(text).split()) * 1.3)))
 
 # ---------------------------------------------------------------------------
@@ -1439,7 +1453,7 @@ class DisjointLinUCBPolicy:
                 # mode fires only after extreme staleness, keeping the fast
                 # O(d²) path dominant during normal operation.
                 logger.info(
-                    f"🔧 Maintenance: Restoring regularization floor for {model} "
+                    f"[FIX] Maintenance: Restoring regularization floor for {model} "
                     f"(λ_eff={new_lambda:.2e} < {lambda_threshold:.2e})"
                 )
                 
@@ -1531,7 +1545,7 @@ class DisjointLinUCBPolicy:
         
         if trace > threshold:
             logger.warning(
-                f"🛡️ Numerical instability detected for {model}: "
+                f"[GUARD] Numerical instability detected for {model}: "
                 f"trace(A_inv)={trace:.2e} > {threshold:.2e}. "
                 f"Triggering regularization reset."
             )
@@ -1565,24 +1579,41 @@ class DisjointLinUCBPolicy:
                     new_trace = np.trace(new_A_inv)
 
             logger.info(
-                f"✅ Regularization reset complete for {model}. "
+                f"[OK] Regularization reset complete for {model}. "
                 f"New trace(A_inv)={new_trace:.2f}"
             )
 
 
 
     def save_state(self, path: Path | str) -> None:
+        """Save A, b, and temporal metadata to a compressed NPZ file.
+
+        Persists sufficient statistics (A, b) and temporal metadata
+        (t, last_update, last_played, regularization_floor) so that
+        forgetting-factor and staleness logic resume correctly after
+        a checkpoint restore.
         """
-        Save A and b matrices to a compressed NPZ file with metadata.
-        
-        Stores dimension metadata to enable validation on load, preventing
-        crashes from dimension mismatches due to PCA fallback or feature changes.
-        """
-        data = {}
-        # Save metadata for validation
-        data['_metadata_dim'] = self.dim
-        data['_metadata_models'] = list(self.models)
-        
+        data: Dict[str, Any] = {
+            "_metadata_dim": self.dim,
+            "_metadata_models": list(self.models),
+            "_metadata_policy": "disjoint",
+            "__temporal__t": self.t,
+        }
+        last_update_arr = np.array(
+            [self.last_update.get(m, 0) for m in self.models], dtype=np.int64
+        )
+        last_played_arr = np.array(
+            [self.last_played.get(m, 0) for m in self.models], dtype=np.int64
+        )
+        reg_floor_arr = np.array(
+            [self.regularization_floor.get(m, self.init_lambda)
+             for m in self.models],
+            dtype=np.float64,
+        )
+        data["__temporal__last_update"] = last_update_arr
+        data["__temporal__last_played"] = last_played_arr
+        data["__temporal__reg_floor"] = reg_floor_arr
+
         for m in self.models:
             data[f"{m}_A"] = self.A[m]
             data[f"{m}_b"] = self.b[m]
@@ -1646,12 +1677,56 @@ class DisjointLinUCBPolicy:
                     )
                 staged[m] = (A_loaded, b_loaded, safe_inv(A_loaded))
 
+        # Restore temporal metadata (outside lock).
+        saved_t: int | None = None
+        saved_last_update: Dict[str, int] = {}
+        saved_last_played: Dict[str, int] = {}
+        saved_reg_floor: Dict[str, float] = {}
+        if "__temporal__t" in data:
+            saved_t = int(data["__temporal__t"])
+        if "__temporal__last_update" in data:
+            arr = data["__temporal__last_update"]
+            models_list = (
+                list(data["_metadata_models"])
+                if "_metadata_models" in data else list(self.models)
+            )
+            for i, m in enumerate(models_list):
+                if i < len(arr):
+                    saved_last_update[m] = int(arr[i])
+        if "__temporal__last_played" in data:
+            arr = data["__temporal__last_played"]
+            models_list = (
+                list(data["_metadata_models"])
+                if "_metadata_models" in data else list(self.models)
+            )
+            for i, m in enumerate(models_list):
+                if i < len(arr):
+                    saved_last_played[m] = int(arr[i])
+        if "__temporal__reg_floor" in data:
+            arr = data["__temporal__reg_floor"]
+            models_list = (
+                list(data["_metadata_models"])
+                if "_metadata_models" in data else list(self.models)
+            )
+            for i, m in enumerate(models_list):
+                if i < len(arr):
+                    saved_reg_floor[m] = float(arr[i])
+
         # Stage 2: swap all references atomically under the global lock.
         with self._lock:
             for m, (A_new, b_new, A_inv_new) in staged.items():
                 self.A[m] = A_new
                 self.b[m] = b_new
                 self.A_inv[m] = A_inv_new
+            if saved_t is not None:
+                self.t = saved_t
+            for m in self.models:
+                if m in saved_last_update:
+                    self.last_update[m] = saved_last_update[m]
+                if m in saved_last_played:
+                    self.last_played[m] = saved_last_played[m]
+                if m in saved_reg_floor:
+                    self.regularization_floor[m] = saved_reg_floor[m]
 
 
 # ---------------------------------------------------------------------------
@@ -2952,7 +3027,7 @@ class BanditRouter:
         Args:
             alpha: Base exploration coefficient for the warmup expert.
         """
-        logger.info("🎯 Initializing Corralling Router with Heterogeneous Experts Strategy...")
+        logger.info("[TARGET] Initializing Corralling Router with Heterogeneous Experts Strategy...")
 
         target_alpha = alpha if alpha is not None else 0.5
 
@@ -3018,21 +3093,16 @@ class BanditRouter:
             model_costs=model_costs,
         )
 
-        logger.info("✅ Heterogeneous Experts Strategy Initialized:")
-        logger.info(f"   📊 Expert 1 (Informed):     Constant Alpha {target_alpha:.2f} (Sustained Discovery)")
-        logger.info(f"   🔍 Expert 2 (Uninformed):   Decaying Alpha {tr_alpha_start:.2f}→{tr_alpha_end} (Explore-then-Exploit)")
-        logger.info(f"   ⏳ Forgetting (warmup):      γ={self.bandit.gamma:.4f} ({'stationary' if self.bandit.gamma >= 1.0 else 'adaptive'})")
-        logger.info(f"   ⏳ Forgetting (tabula rasa): γ={tr_gamma:.4f} ({'stationary' if tr_gamma >= 1.0 else 'adaptive'})")
-        logger.info("   🎯 Meta-Learner:            Corralling (Log-Barrier OMD) selects expert based on prompt context")
+        logger.info("[OK] Heterogeneous Experts Strategy Initialized:")
+        logger.info(f"   [DATA] Expert 1 (Informed):     Constant Alpha {target_alpha:.2f} (Sustained Discovery)")
+        logger.info(f"   [SEARCH] Expert 2 (Uninformed):   Decaying Alpha {tr_alpha_start:.2f}→{tr_alpha_end} (Explore-then-Exploit)")
+        logger.info(f"   [TIME] Forgetting (warmup):      γ={self.bandit.gamma:.4f} ({'stationary' if self.bandit.gamma >= 1.0 else 'adaptive'})")
+        logger.info(f"   [TIME] Forgetting (tabula rasa): γ={tr_gamma:.4f} ({'stationary' if tr_gamma >= 1.0 else 'adaptive'})")
+        logger.info("   [TARGET] Meta-Learner:            Corralling (Log-Barrier OMD) selects expert based on prompt context")
 
     def __deepcopy__(self, memo):
-        """
-        Custom deepcopy for BanditRouter to handle unpicklable components.
-        
-Previous version referenced non-existent attributes
-        (anchor_vectors, complexity_vector, cluster_detector) and omitted
-        many attributes that exist in __init__, producing a broken clone.
-        
+        """Custom deepcopy for BanditRouter to handle unpicklable components.
+
         Strategy:
         1. SHARE stateless / lock-containing objects (encoder, features, context_store)
         2. DEEPCOPY all mutable state (bandit, corralling, logs, counters, config)
@@ -3197,7 +3267,7 @@ Previous version referenced non-existent attributes
         capabilities = kwargs.get("capabilities", [])
             
         if model_id in self.bandit.models:
-            logger.warning(f"⚠️ Model {model_id} already registered. Skipping.")
+            logger.warning(f"[WARN] Model {model_id} already registered. Skipping.")
             return
         
         # 1. Initialize zero state (the canvas)
@@ -3301,7 +3371,7 @@ Previous version referenced non-existent attributes
                     normalized_latency=norm_latency,
                 )
                 
-            logger.info(f"✅ {model_id} added to Corralling system")
+            logger.info(f"[OK] {model_id} added to Corralling system")
         
         # 10. Publish to registry LAST — model is now fully initialized everywhere
         self.registry[model_id] = registry_entry
@@ -3311,7 +3381,7 @@ Previous version referenced non-existent attributes
             boost_summary += "..."
         
         logger.info(
-            f"✅ Registered {model_id} | "
+            f"[OK] Registered {model_id} | "
             f"Bias: {bias:.1f} | "
             f"Boosts: {boost_summary} | "
             f"Cost: ${cost_usd:.2f}/1M | "
@@ -3551,11 +3621,11 @@ Previous version referenced non-existent attributes
                 
                 if missing_models:
                     logger.warning(
-                        f"⚠️ Warmup Partial Miss: {len(missing_models)} models not in joblib. "
+                        f"[WARN] Warmup Partial Miss: {len(missing_models)} models not in joblib. "
                         f"Applied heuristic initialization for: {missing_models}"
                     )
                 else:
-                    logger.info("✅ Warmup Complete: All models initialized from offline priors.")
+                    logger.info("[OK] Warmup Complete: All models initialized from offline priors.")
                 
                 # =====================================================================
                 # POST-WARMUP REGULARIZATION: Bayesian Shrinkage Toward Zero
@@ -3648,9 +3718,9 @@ Previous version referenced non-existent attributes
                 # finalized.  Previously there were two calls — one before and one
                 # after the regularization loop — wasting O(K·d³) at startup.
                 router.bandit.refresh_inverse_cache()
-                logger.info(f"✅ Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
+                logger.info(f"[OK] Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
             else:
-                logger.warning(f"⚠️ Priors file not found at {priors_path}. Using cold start.")
+                logger.warning(f"[WARN] Priors file not found at {priors_path}. Using cold start.")
         
         # =====================================================================
         # LAYER 3: T-SHIRT SIZING INJECTION (Business Logic)
@@ -4872,7 +4942,9 @@ class CorrallingRouter:
     common case.  With K=2 deterministic experts the extra query cost is O(d).
 
     Args:
-        experts: List of bandit instances (typically [warmup_router, tabula_rasa_router])
+        experts: Bandit expert instances (typically [warmup_adapter, tabula_rasa_router]).
+            Each expert must implement ``select_model()``, ``update()``, and
+            ``mark_selected()``.
         models: List of model IDs (must match across all experts)
         learning_rate: Base learning rate eta_0 for Log-Barrier OMD (default: 0.1).
                Per-expert effective rates are eta_0 / sqrt(S_i + eps).
@@ -4896,7 +4968,7 @@ class CorrallingRouter:
     
     def __init__(
         self,
-        experts: List,
+        experts: List[Union["CostAwareLinUCBAdapter", "CostAwareTabulaRasaRouter"]],
         models: List[str],
         learning_rate: float = 0.1,
         gamma: float = 0.05,  # [VALIDATED] Empirically optimal (see experiments/appendix/E_prior_degradation/results/gamma_ablation/)
@@ -5504,7 +5576,7 @@ class CorrallingRouter:
                 self.models.append(model_id)
                 # Initialize selection counter for new model
                 self.selections[model_id] = 0
-        logger.debug(f"✅ Added {model_id} to Corralling model list")
+        logger.debug(f"[OK] Added {model_id} to Corralling model list")
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to handle unpicklable threading.Lock."""
@@ -5579,9 +5651,9 @@ def calibrate_priors(
         e_i[i] = 1.0
         probes.append((f"axis_{i}", e_i))
 
-    rng = np.random.RandomState(42)
+    rng = np.random.default_rng(42)
     for k in range(4):
-        v = rng.randn(d)
+        v = rng.standard_normal(d)
         v /= (np.linalg.norm(v) + 1e-12)
         probes.append((f"random_{k}", v))
 
@@ -5608,7 +5680,7 @@ def calibrate_priors(
                 theta_new = theta.copy()
                 theta_new[-1] = target_max_pred * (1.0 if bias_pred > 0 else -1.0)
                 logger.warning(
-                    f"🔧 Calibration pass 1 ({m}): bias prediction "
+                    f"[FIX] Calibration pass 1 ({m}): bias prediction "
                     f"{bias_pred:.2f} -> {theta_new[-1]:.2f} (theta-reconstruction)"
                 )
                 bandit.b[m] = bandit.A[m] @ theta_new
@@ -5626,7 +5698,7 @@ def calibrate_priors(
                 scale = target_max_pred / max_abs_pred
                 theta_new = theta * scale
                 logger.warning(
-                    f"🔧 Calibration pass 2 ({m}): worst-case prediction "
+                    f"[FIX] Calibration pass 2 ({m}): worst-case prediction "
                     f"{max_abs_pred:.2f} on probe '{worst_probe}' "
                     f"-> global theta scale {scale:.4f}"
                 )
@@ -5694,7 +5766,8 @@ class PredictionMonitor:
         if model_id not in self._stats:
             self._stats[model_id] = {
                 "expected_reward": {"min": float("inf"), "max": float("-inf"),
-                                    "sum": 0.0, "sum_sq": 0.0, "count": 0},
+                                    "sum": 0.0, "sum_sq": 0.0, "count": 0,
+                                    "violations": 0},
                 "ucb_score": {"min": float("inf"), "max": float("-inf"),
                               "sum": 0.0, "sum_sq": 0.0, "count": 0},
             }
@@ -5729,12 +5802,13 @@ class PredictionMonitor:
         # always fires, and cooldown prevents repeated alerts for the SAME drift.
         # _alert_counter tracks observations-since-last-alert (not total violations).
         if abs(expected_reward) > self.alert_threshold:
+            self._stats[model_id]["expected_reward"]["violations"] += 1
             if self._alert_counter[model_id] >= self.alert_cooldown:
                 count = self._stats[model_id]["expected_reward"]["count"]
                 logger.warning(
-                    f"⚠️ PredictionMonitor: {model_id} expected_reward="
+                    f"[WARN] PredictionMonitor: {model_id} expected_reward="
                     f"{expected_reward:.4f} exceeds threshold "
-                    f"±{self.alert_threshold} (observation #{count})"
+                    f"+-{self.alert_threshold} (observation #{count})"
                 )
                 self._alert_counter[model_id] = 0
             else:
@@ -5775,10 +5849,8 @@ class PredictionMonitor:
                     "std": variance ** 0.5,
                     "count": n,
                 }
-                # Count alerts: how many times max exceeded threshold
                 if metric_name == "expected_reward":
-                    if abs(s["max"]) > self.alert_threshold or abs(s["min"]) > self.alert_threshold:
-                        alert_count += 1
+                    alert_count += s.get("violations", 0)
             model_report["alerts"] = alert_count
             report[model_id] = model_report
         return report
@@ -6003,7 +6075,7 @@ class CostAwareLinUCBAdapter:
             "normalized_latency": normalized_latency,
         }
         logger.debug(
-            f"✅ Added {model_id} to LinUCB Adapter "
+            f"[OK] Added {model_id} to LinUCB Adapter "
             f"(cost={normalized_cost:.2f}, latency={normalized_latency:.2f})"
         )
 
@@ -6318,7 +6390,7 @@ class CostAwareTabulaRasaRouter:
             self.last_played[model_id] = self.t
             self.regularization_floor[model_id] = self.ridge_lambda
 
-        logger.debug(f"✅ Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")
+        logger.debug(f"[OK] Added {model_id} to Tabula Rasa Expert with cold start (ridge_λ={self.ridge_lambda:.2f})")
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to handle unpicklable threading.Lock."""
