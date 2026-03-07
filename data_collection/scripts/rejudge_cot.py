@@ -234,12 +234,13 @@ class CoTRewardGenerator:
         
         self.base_url = "https://openrouter.ai/api/v1"
         
-        # Fixed 3-judge panel — intentionally disjoint from every k4 model
-        # family (Meta, Google, OpenAI) to eliminate panel-composition bias.
+        # Fixed 3-judge panel — intentionally disjoint from every K=5
+        # candidate family (Meta, Google, OpenAI, Mistral) to eliminate
+        # panel-composition bias.
         self.judge_panel: List[str] = [
-            "mistralai/mistral-large",
             "deepseek/deepseek-r1",
             "qwen/qwen-2.5-72b-instruct",
+            "z-ai/glm-5",
         ]
 
         self.judge_max_tokens: int = 4000
@@ -344,10 +345,21 @@ class CoTRewardGenerator:
             return max(0.0, min(1.0, val))
         return default
 
+    _MAX_RETRIES: int = 3
+    _RETRY_BACKOFF_BASE: float = 2.0
+
+    _TIMEOUT_DEFAULT: float = 90.0
+    _TIMEOUT_OVERRIDE: Dict[str, float] = {
+        "deepseek/deepseek-r1": 180.0,
+    }
+
     def judge_single_cot(
         self, judge_model: str, system_prompt: str, user_content: str,
     ) -> Dict[str, Any] | None:
         """Query a single judge and parse the three-factor rubric response.
+
+        Retries up to ``_MAX_RETRIES`` times with exponential backoff on
+        transient failures (timeouts, 429/5xx).
 
         Returns
         -------
@@ -372,6 +384,7 @@ class CoTRewardGenerator:
         max_tok = self._judge_max_tokens_override.get(
             judge_model, self.judge_max_tokens,
         )
+        timeout = self._TIMEOUT_OVERRIDE.get(judge_model, self._TIMEOUT_DEFAULT)
 
         effective_prompt = system_prompt
         if "deepseek" in judge_model.lower():
@@ -391,54 +404,89 @@ class CoTRewardGenerator:
             "max_tokens": max_tok,
         }
 
-        try:
-            resp = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers, json=payload, timeout=60,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"].strip()
+        last_exc: Exception | None = None
+        for attempt in range(1, self._MAX_RETRIES + 1):
+            try:
+                resp = requests.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers, json=payload, timeout=timeout,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                raw_content = data["choices"][0]["message"]["content"]
+                if raw_content is None:
+                    raise ValueError("API returned null content")
+                content = raw_content.strip()
 
-            reasoning_quality = self._parse_continuous_score(
-                content, r"Reasoning\s+Quality",
-            )
-            instruction_following = self._parse_continuous_score(
-                content, r"Instruction\s+Following",
-            )
-            communication_quality = self._parse_continuous_score(
-                content, r"Communication\s+Quality",
-            )
+                reasoning_quality = self._parse_continuous_score(
+                    content, r"Reasoning\s+Quality",
+                )
+                instruction_following = self._parse_continuous_score(
+                    content, r"Instruction\s+Following",
+                )
+                communication_quality = self._parse_continuous_score(
+                    content, r"Communication\s+Quality",
+                )
 
-            reward = (
-                reasoning_quality * self._W_REASONING
-                + instruction_following * self._W_INSTRUCTION
-                + communication_quality * self._W_COMMUNICATION
+                reward = (
+                    reasoning_quality * self._W_REASONING
+                    + instruction_following * self._W_INSTRUCTION
+                    + communication_quality * self._W_COMMUNICATION
+                )
+
+                # --- Extract Reasoning block ---
+                reasoning = content
+                rm = re.search(
+                    r"##\s*Reasoning\s*(.*?)(\n##|$)",
+                    content, re.DOTALL | re.IGNORECASE,
+                )
+                if rm:
+                    reasoning = rm.group(1).strip()
+
+                return {
+                    "reasoning_quality": round(reasoning_quality, 4),
+                    "instruction_following": round(instruction_following, 4),
+                    "communication_quality": round(communication_quality, 4),
+                    "reward": round(reward, 4),
+                    "reasoning": reasoning,
+                    # Legacy keys for backward-compatible downstream code.
+                    "logic": round(reasoning_quality, 4),
+                    "constraint": round(instruction_following, 4),
+                    "utility": round(communication_quality, 4),
+                }
+
+            except (
+                requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError,
+                ValueError,
+                KeyError,
+                IndexError,
+            ) as e:
+                last_exc = e
+            except requests.exceptions.HTTPError as e:
+                last_exc = e
+                status = e.response.status_code if e.response is not None else 0
+                if status in (429, 502, 503, 504):
+                    pass  # retryable
+                else:
+                    logger.warning("Judge %s non-retryable HTTP %d", judge_model, status)
+                    return None
+            except Exception as e:
+                logger.warning("Judge %s unexpected error: %s", judge_model, e)
+                return None
+
+            backoff = self._RETRY_BACKOFF_BASE ** attempt
+            logger.debug(
+                "Judge %s attempt %d/%d failed (%s), retrying in %.1fs",
+                judge_model, attempt, self._MAX_RETRIES, last_exc, backoff,
             )
+            time.sleep(backoff)
 
-            # --- Extract Reasoning block ---
-            reasoning = content
-            rm = re.search(
-                r"##\s*Reasoning\s*(.*?)(\n##|$)",
-                content, re.DOTALL | re.IGNORECASE,
-            )
-            if rm:
-                reasoning = rm.group(1).strip()
-
-            return {
-                "reasoning_quality": round(reasoning_quality, 4),
-                "instruction_following": round(instruction_following, 4),
-                "communication_quality": round(communication_quality, 4),
-                "reward": round(reward, 4),
-                "reasoning": reasoning,
-                # Legacy keys for backward-compatible downstream code.
-                "logic": round(reasoning_quality, 4),
-                "constraint": round(instruction_following, 4),
-                "utility": round(communication_quality, 4),
-            }
-
-        except Exception as e:
-            return None
+        logger.warning(
+            "Judge %s failed after %d attempts: %s",
+            judge_model, self._MAX_RETRIES, last_exc,
+        )
+        return None
 
     def judge_with_panel_cot(self, prompt: str, response: str, model_id: str) -> Tuple[float, List[Dict]]:
         """Run the multi-judge panel and aggregate rubric scores.
@@ -639,20 +687,47 @@ class CoTRewardGenerator:
             f"(skipped {skipped_bad} bad records)"
         )
 
-        # 2. Resume support — skip already-completed pairs.
+        # 2. Resume support — skip fully-completed pairs, re-process partial ones.
+        n_expected_judges = len(self.judge_panel)
         completed: set = set()
+        partial_keys: set = set()
         if output_file.exists():
             with open(output_file) as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
-                        completed.add(
-                            (entry.get("prompt", ""), entry.get("model_id", ""))
-                        )
+                        key = (entry.get("prompt", ""), entry.get("model_id", ""))
+                        n_judges = len(entry.get("judge_details", []))
+                        if n_judges >= n_expected_judges:
+                            completed.add(key)
+                        else:
+                            partial_keys.add(key)
                     except json.JSONDecodeError:
                         continue
             if completed:
-                print(f"Resuming: {len(completed)} already completed, skipping.")
+                print(f"Resuming: {len(completed)} fully completed, skipping.")
+            if partial_keys:
+                print(
+                    f"  {len(partial_keys)} partial records (<{n_expected_judges} judges) "
+                    f"will be re-processed."
+                )
+
+            # Remove partial records from the output file so they can be
+            # cleanly re-written after re-judging.
+            if partial_keys:
+                kept_lines: list[str] = []
+                with open(output_file) as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line)
+                            key = (entry.get("prompt", ""), entry.get("model_id", ""))
+                            if key not in partial_keys:
+                                kept_lines.append(line)
+                        except json.JSONDecodeError:
+                            kept_lines.append(line)
+                with open(output_file, "w") as f:
+                    f.writelines(kept_lines)
+                print(f"  Removed {len(partial_keys)} partial records from output for re-judging.")
 
         remaining = [t for t in tasks if (t[0], t[2]) not in completed]
         print(f"Tasks to run: {len(remaining)} (skipped {len(tasks) - len(remaining)})")
@@ -827,8 +902,8 @@ if __name__ == "__main__":
             "--mode rejudge."
         ),
     )
-    parser.add_argument("--workers", type=int, default=64,
-                        help="Max parallel workers (default: 64)")
+    parser.add_argument("--workers", type=int, default=10,
+                        help="Max parallel workers (default: 10)")
     parser.add_argument(
         "--judge-weighting", type=str, default="equal",
         choices=["equal", "inverse_variance", "inverse_bias"],
