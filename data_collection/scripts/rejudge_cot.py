@@ -1,14 +1,218 @@
 import json
+import logging
 import os
 import time
 import threading
+from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# PoLL-style judge-panel diagnostics
+# ---------------------------------------------------------------------------
+
+class JudgePanelDiagnostics:
+    """Online tracker for per-judge bias and variance.
+
+    Accumulates per-(judge, candidate_model) reward statistics so that
+    systematic over-/under-scoring can be detected and optionally
+    compensated for via inverse-variance or bias-corrected weighting.
+
+    Reference: Verga et al., "Replacing Judges with Juries: Evaluating
+    LLM Generations with a Panel of Diverse Models" (2024).
+    """
+
+    def __init__(self) -> None:
+        # {judge_id: {model_id: [composite_reward, ...]}}
+        self._scores: Dict[str, Dict[str, List[float]]] = defaultdict(
+            lambda: defaultdict(list),
+        )
+
+    # -- recording ----------------------------------------------------------
+
+    def record(
+        self,
+        judge_id: str,
+        candidate_model: str,
+        reward: float,
+    ) -> None:
+        """Record a single judge score for a candidate model."""
+        if np.isfinite(reward):
+            self._scores[judge_id][candidate_model].append(reward)
+
+    def record_panel(
+        self,
+        judge_details: List[Dict[str, Any]],
+        candidate_model: str,
+    ) -> None:
+        """Convenience: record every judge from a panel result list."""
+        for jd in judge_details:
+            judge_id = jd.get("judge", "unknown")
+            reward = jd.get("reward", float("nan"))
+            self.record(judge_id, candidate_model, reward)
+
+    # -- analysis -----------------------------------------------------------
+
+    def per_judge_summary(self) -> Dict[str, Dict[str, Any]]:
+        """Return per-judge aggregate stats.
+
+        Returns
+        -------
+        dict
+            ``{judge_id: {model_id: {n, mean, std}, ..., "_overall": {n, mean, std}}}``
+        """
+        summary: Dict[str, Dict[str, Any]] = {}
+        for judge, models in self._scores.items():
+            all_scores: List[float] = []
+            per_model: Dict[str, Any] = {}
+            for model, scores in models.items():
+                arr = np.array(scores)
+                per_model[model] = {
+                    "n": len(arr),
+                    "mean": float(arr.mean()),
+                    "std": float(arr.std()),
+                }
+                all_scores.extend(scores)
+            arr_all = np.array(all_scores)
+            per_model["_overall"] = {
+                "n": len(arr_all),
+                "mean": float(arr_all.mean()),
+                "std": float(arr_all.std()),
+            }
+            summary[judge] = per_model
+        return summary
+
+    def bias_matrix(self) -> Dict[str, Dict[str, float]]:
+        """Compute per-(judge, model) bias relative to the panel mean.
+
+        ``bias[j][m] = mean_j(m) - panel_mean(m)``
+
+        A large positive value means judge *j* is systematically more
+        lenient toward model *m* than the panel average.
+        """
+        # Panel mean per model (across all judges).
+        model_panel_mean: Dict[str, float] = defaultdict(float)
+        model_panel_n: Dict[str, int] = defaultdict(int)
+        for _judge, models in self._scores.items():
+            for model, scores in models.items():
+                model_panel_mean[model] += sum(scores)
+                model_panel_n[model] += len(scores)
+        for m in model_panel_mean:
+            model_panel_mean[m] /= max(model_panel_n[m], 1)
+
+        bias: Dict[str, Dict[str, float]] = {}
+        for judge, models in self._scores.items():
+            bias[judge] = {}
+            for model, scores in models.items():
+                judge_mean = float(np.mean(scores))
+                bias[judge][model] = round(judge_mean - model_panel_mean[model], 4)
+        return bias
+
+    def compute_weights(
+        self,
+        method: str = "equal",
+    ) -> Dict[str, float]:
+        """Compute per-judge ensemble weights.
+
+        Parameters
+        ----------
+        method
+            ``"equal"`` — uniform 1/J weights (default).
+            ``"inverse_variance"`` — weight inversely proportional to
+            each judge's overall score variance (down-weights noisy
+            judges).
+            ``"inverse_bias"`` — weight inversely proportional to the
+            judge's maximum absolute per-model bias (down-weights
+            judges that systematically favor/penalize specific models).
+        """
+        judges = list(self._scores.keys())
+        n_judges = len(judges)
+        if n_judges == 0:
+            return {}
+
+        if method == "equal":
+            w = 1.0 / n_judges
+            return {j: w for j in judges}
+
+        if method == "inverse_variance":
+            variances: Dict[str, float] = {}
+            for j in judges:
+                all_s = []
+                for scores in self._scores[j].values():
+                    all_s.extend(scores)
+                variances[j] = float(np.var(all_s)) if all_s else 1.0
+            inv = {j: 1.0 / max(v, 1e-8) for j, v in variances.items()}
+            total = sum(inv.values())
+            return {j: inv[j] / total for j in judges}
+
+        if method == "inverse_bias":
+            bias = self.bias_matrix()
+            max_abs_bias: Dict[str, float] = {}
+            for j in judges:
+                abs_biases = [abs(b) for b in bias.get(j, {}).values()]
+                max_abs_bias[j] = max(abs_biases) if abs_biases else 0.0
+            inv = {j: 1.0 / max(b, 1e-8) for j, b in max_abs_bias.items()}
+            total = sum(inv.values())
+            return {j: inv[j] / total for j in judges}
+
+        raise ValueError(f"Unknown weighting method: {method!r}")
+
+    def log_report(self, min_samples: int = 50) -> None:
+        """Log a human-readable diagnostics report.
+
+        Only emits output once every judge × model cell has at least
+        *min_samples* observations to avoid noisy early reports.
+        """
+        ready = all(
+            len(scores) >= min_samples
+            for models in self._scores.values()
+            for scores in models.values()
+        )
+        if not ready:
+            return
+
+        summary = self.per_judge_summary()
+        bias = self.bias_matrix()
+        weights_iv = self.compute_weights("inverse_variance")
+        weights_ib = self.compute_weights("inverse_bias")
+
+        lines = ["", "=== Judge Panel Diagnostics ==="]
+        for judge in sorted(summary):
+            overall = summary[judge]["_overall"]
+            lines.append(
+                f"  {judge:<45} "
+                f"N={overall['n']:>5}  "
+                f"mean={overall['mean']:.3f}  "
+                f"std={overall['std']:.3f}  "
+                f"w_iv={weights_iv.get(judge, 0):.3f}  "
+                f"w_ib={weights_ib.get(judge, 0):.3f}"
+            )
+            for model in sorted(summary[judge]):
+                if model == "_overall":
+                    continue
+                ms = summary[judge][model]
+                b = bias.get(judge, {}).get(model, 0.0)
+                flag = " ⚠" if abs(b) > 0.05 else ""
+                lines.append(
+                    f"    → {model:<40} "
+                    f"mean={ms['mean']:.3f}  "
+                    f"bias={b:+.3f}{flag}"
+                )
+        lines.append("")
+        logger.info("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
+# Main generator
+# ---------------------------------------------------------------------------
 
 # Reuse the class structure but modify for CoT / Re-judging
 class CoTRewardGenerator:
@@ -30,25 +234,35 @@ class CoTRewardGenerator:
         
         self.base_url = "https://openrouter.ai/api/v1"
         
-        # Judge Pool
-        self.judge_pool = {
-            "openai": "openai/gpt-4o",
-            "anthropic": "anthropic/claude-3.5-haiku",
-            "meta": "meta-llama/llama-3.3-70b-instruct",
-            "google": "google/gemini-2.5-flash",
+        # Fixed 3-judge panel — intentionally disjoint from every k4 model
+        # family (Meta, Google, OpenAI) to eliminate panel-composition bias.
+        self.judge_panel: List[str] = [
+            "mistralai/mistral-large-latest",
+            "deepseek/deepseek-r1",
+            "qwen/qwen-2.5-72b-instruct",
+        ]
+
+        self.judge_max_tokens: int = 4000
+        # DeepSeek-R1 produces verbose chain-of-thought; cap its output to
+        # keep costs and latency under control.
+        self._judge_max_tokens_override: Dict[str, int] = {
+            "deepseek/deepseek-r1": 2048,
         }
-        self.family_map = {
-            "gpt": "openai", "o1": "openai", "o3": "openai",
-            "claude": "anthropic", "llama": "meta",
-            "gemini": "google", "gemma": "google"
-        }
-        
-        self.judge_max_tokens = 4000  # Increased for CoT reasoning
+
         self.max_workers = max_workers
         self.lock = threading.Lock()
-        
+
         # Cache for existing responses: (model_id, prompt) -> response_text
         self.response_cache = {}
+
+        # PoLL-style per-judge diagnostics (accumulated across the run).
+        self.diagnostics = JudgePanelDiagnostics()
+
+        # Aggregation strategy: "equal", "inverse_variance", or
+        # "inverse_bias".  Early in a run (few samples) the weights
+        # degenerate to equal; they become meaningful once every
+        # (judge, model) cell has enough observations.
+        self.judge_weighting: str = "equal"
 
     def load_cache(self, cache_file: Path):
         """Load existing responses from a previous run."""
@@ -70,23 +284,13 @@ class CoTRewardGenerator:
         print(f"Loaded {count} cached responses.")
 
     def get_judges_for_model(self, model_id: str) -> List[str]:
-        family = None
-        lower_id = model_id.lower()
-        for key, val in self.family_map.items():
-            if key in lower_id:
-                family = val
-                break
-        if not family:
-            if "openai/" in lower_id: family = "openai"
-            elif "anthropic/" in lower_id: family = "anthropic"
-            elif "google/" in lower_id: family = "google"
-            elif "meta-llama/" in lower_id: family = "meta"
-        
-        selected = []
-        for org, judge_id in self.judge_pool.items():
-            if family == org: continue
-            selected.append(judge_id)
-        return selected
+        """Return the fixed judge panel.
+
+        The panel is intentionally the same for every model so that
+        reward comparisons across models are never confounded by
+        judge-composition differences.
+        """
+        return list(self.judge_panel)
 
     def get_model_response(self, model_id: str, prompt: str) -> str:
         # Check cache first
@@ -113,6 +317,33 @@ class CoTRewardGenerator:
         except Exception as e:
             return None
 
+    # Rubric v3 weights — all-continuous dimensions.  Must stay in sync
+    # with ``_W_REASONING``, ``_W_INSTRUCTION``, ``_W_COMMUNICATION`` in
+    # ``src/bandit_gpt/rewards.py``.
+    _W_REASONING: float = 0.40
+    _W_INSTRUCTION: float = 0.30
+    _W_COMMUNICATION: float = 0.30
+
+    def _parse_continuous_score(
+        self, content: str, heading: str, *, default: float = 0.5,
+    ) -> float:
+        """Extract a continuous 0.0–1.0 score from a markdown heading.
+
+        Handles common formatting variants: ``## Heading: 0.8``,
+        ``## Heading\n0.8``, and percentage-style ``80`` (mapped to 0.8).
+        """
+        import re
+        pattern = (
+            r"##\s*" + heading + r"\s*[:\-]?\s*(\d+\.?\d*)"
+        )
+        m = re.search(pattern, content, re.IGNORECASE)
+        if m:
+            val = float(m.group(1))
+            if val > 1.0:
+                val = val / 100.0
+            return max(0.0, min(1.0, val))
+        return default
+
     def judge_single_cot(
         self, judge_model: str, system_prompt: str, user_content: str,
     ) -> Dict[str, Any] | None:
@@ -121,9 +352,14 @@ class CoTRewardGenerator:
         Returns
         -------
         dict | None
-            Keys: ``logic`` (0 or 1), ``constraint`` (0 or 1),
-            ``utility`` (float 0-1), ``reward`` (composite float),
-            ``reasoning`` (str).  ``None`` on API failure.
+            Keys: ``reasoning_quality`` (float 0-1),
+            ``instruction_following`` (float 0-1),
+            ``communication_quality`` (float 0-1), ``reward`` (composite
+            float), ``reasoning`` (str).  ``None`` on API failure.
+
+            For backward compatibility the dict also contains the legacy
+            keys ``logic``, ``constraint``, ``utility`` mapped from the
+            new dimensions.
         """
         import re
 
@@ -133,14 +369,26 @@ class CoTRewardGenerator:
             "HTTP-Referer": "https://github.com/banditgpt/llm-jury",
         }
 
+        max_tok = self._judge_max_tokens_override.get(
+            judge_model, self.judge_max_tokens,
+        )
+
+        effective_prompt = system_prompt
+        if "deepseek" in judge_model.lower():
+            effective_prompt += (
+                "\n\nIMPORTANT: Keep the ## Reasoning section to 3–5 "
+                "sentences. Be direct — identify errors or confirm "
+                "correctness, then move to scoring."
+            )
+
         payload = {
             "model": judge_model,
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": effective_prompt},
                 {"role": "user", "content": user_content},
             ],
             "temperature": 0.0,
-            "max_tokens": self.judge_max_tokens,
+            "max_tokens": max_tok,
         }
 
         try:
@@ -152,36 +400,21 @@ class CoTRewardGenerator:
             data = resp.json()
             content = data["choices"][0]["message"]["content"].strip()
 
-            # --- Parse Logical Integrity (binary: 0 or 1) ---
-            logic = 0
-            m = re.search(
-                r"##\s*Logical Integrity\s*[:\-]?\s*(\d)", content, re.IGNORECASE,
+            reasoning_quality = self._parse_continuous_score(
+                content, r"Reasoning\s+Quality",
             )
-            if m:
-                logic = 1 if int(m.group(1)) == 1 else 0
-
-            # --- Parse Constraint Adherence (binary: 0 or 1) ---
-            constraint = 0
-            m = re.search(
-                r"##\s*Constraint Adherence\s*[:\-]?\s*(\d)", content, re.IGNORECASE,
+            instruction_following = self._parse_continuous_score(
+                content, r"Instruction\s+Following",
             )
-            if m:
-                constraint = 1 if int(m.group(1)) == 1 else 0
-
-            # --- Parse Utility & Tone (continuous 0.0–1.0) ---
-            utility = 0.5
-            m = re.search(
-                r"##\s*Utility\s*(?:&|and)?\s*Tone\s*[:\-]?\s*(\d+\.?\d*)",
-                content, re.IGNORECASE,
+            communication_quality = self._parse_continuous_score(
+                content, r"Communication\s+Quality",
             )
-            if m:
-                val = float(m.group(1))
-                if val > 1.0:
-                    val = val / 100.0
-                utility = max(0.0, min(1.0, val))
 
-            # --- Composite reward ---
-            reward = logic * 0.5 + constraint * 0.3 + utility * 0.2
+            reward = (
+                reasoning_quality * self._W_REASONING
+                + instruction_following * self._W_INSTRUCTION
+                + communication_quality * self._W_COMMUNICATION
+            )
 
             # --- Extract Reasoning block ---
             reasoning = content
@@ -193,11 +426,15 @@ class CoTRewardGenerator:
                 reasoning = rm.group(1).strip()
 
             return {
-                "logic": logic,
-                "constraint": constraint,
-                "utility": round(utility, 4),
+                "reasoning_quality": round(reasoning_quality, 4),
+                "instruction_following": round(instruction_following, 4),
+                "communication_quality": round(communication_quality, 4),
                 "reward": round(reward, 4),
                 "reasoning": reasoning,
+                # Legacy keys for backward-compatible downstream code.
+                "logic": round(reasoning_quality, 4),
+                "constraint": round(instruction_following, 4),
+                "utility": round(communication_quality, 4),
             }
 
         except Exception as e:
@@ -206,34 +443,53 @@ class CoTRewardGenerator:
     def judge_with_panel_cot(self, prompt: str, response: str, model_id: str) -> Tuple[float, List[Dict]]:
         """Run the multi-judge panel and aggregate rubric scores.
 
-        Each judge independently scores three factors (Logical Integrity,
-        Constraint Adherence, Utility & Tone).  The final reward is the
-        mean of per-judge composite scores.
+        Each judge independently scores three continuous factors (Reasoning
+        Quality, Instruction Following, Communication Quality).  The final
+        reward is the mean of per-judge composite scores.
         """
         judges = self.get_judges_for_model(model_id)
 
         system_prompt = (
-            "You are a Discriminative Router Judge. Your goal is to find the "
-            "failure points in LLM responses.\n\n"
-            "Score the response on three factors:\n\n"
-            "1. **Logical Integrity (50 %)** — Does the model show its work? "
-            "If there is a single calculation or logical-step error, this "
-            "factor is 0. No partial credit.\n"
-            "2. **Constraint Adherence (30 %)** — Did the model follow ALL "
-            "formatting and negative constraints (e.g. \"Do not use the word "
-            "'AI'\")? If one constraint is missed, this factor is 0.\n"
-            "3. **Utility & Tone (20 %)** — Is the answer helpful and "
-            "professional? Score continuously from 0.0 (useless / rude) to "
-            "1.0 (maximally helpful and professional).\n\n"
+            "You are a Discriminative Router Judge. Your goal is to evaluate "
+            "how well an LLM response addresses the given prompt.\n\n"
+            "Score on three continuous dimensions (0.0–1.0). Use the FULL "
+            "range; do NOT default to 0 or 1.\n\n"
+            "1. **Reasoning Quality (40 %)** — How sound is the reasoning?\n"
+            "   0.9–1.0 Flawless; every step correct and clearly justified.\n"
+            "   0.7–0.8 Sound overall; minor inefficiency or a trivial error "
+            "that does not change the conclusion.\n"
+            "   0.5–0.6 Partially correct; approach is reasonable but "
+            "important steps are wrong or missing.\n"
+            "   0.3–0.4 Weak; only fragments of correct logic.\n"
+            "   0.0–0.2 No coherent reasoning, or completely wrong approach.\n"
+            "   If the prompt needs no multi-step reasoning, score factual "
+            "accuracy and depth of explanation.\n\n"
+            "2. **Instruction Following (30 %)** — Were all explicit and "
+            "implicit constraints satisfied?\n"
+            "   0.9–1.0 Every constraint followed precisely.\n"
+            "   0.7–0.8 All major constraints met; one minor instruction "
+            "partially missed.\n"
+            "   0.5–0.6 Some important instructions missed or only partially "
+            "addressed.\n"
+            "   0.3–0.4 Multiple instructions ignored or misinterpreted.\n"
+            "   0.0–0.2 Response largely ignores the prompt's requirements.\n\n"
+            "3. **Communication Quality (30 %)** — How clear, well-structured, "
+            "and useful is the response?\n"
+            "   0.9–1.0 Exceptionally clear, well-organized, appropriate "
+            "detail.\n"
+            "   0.7–0.8 Clear and competent; minor improvements possible.\n"
+            "   0.5–0.6 Adequate but noticeably unclear, verbose, or poorly "
+            "organized.\n"
+            "   0.3–0.4 Hard to follow; significant clarity issues.\n"
+            "   0.0–0.2 Unintelligible, unhelpful, or inappropriate tone.\n\n"
             "Format your response EXACTLY as follows:\n\n"
             "## Reasoning\n"
-            "<Concise chain-of-thought analysis identifying any errors or "
-            "constraint violations>\n\n"
-            "## Logical Integrity\n"
-            "<0 or 1>\n\n"
-            "## Constraint Adherence\n"
-            "<0 or 1>\n\n"
-            "## Utility & Tone\n"
+            "<Concise chain-of-thought analysis>\n\n"
+            "## Reasoning Quality\n"
+            "<0.0 to 1.0>\n\n"
+            "## Instruction Following\n"
+            "<0.0 to 1.0>\n\n"
+            "## Communication Quality\n"
             "<0.0 to 1.0>"
         )
         user_content = f"PROMPT: {prompt}\n\nRESPONSE: {response}"
@@ -255,19 +511,33 @@ class CoTRewardGenerator:
                 judge = futures[future]
                 results.append({
                     "judge": judge,
+                    "reasoning_quality": parsed["reasoning_quality"],
+                    "instruction_following": parsed["instruction_following"],
+                    "communication_quality": parsed["communication_quality"],
+                    "reward": parsed["reward"],
+                    "reasoning": parsed["reasoning"],
+                    # Legacy keys for backward-compatible extract_reward().
                     "logic": parsed["logic"],
                     "constraint": parsed["constraint"],
                     "utility": parsed["utility"],
-                    "reward": parsed["reward"],
-                    "reasoning": parsed["reasoning"],
                 })
 
-        if results:
-            final_reward = float(np.mean([r["reward"] for r in results]))
-        else:
-            final_reward = float("nan")
+        if not results:
+            return float("nan"), results
 
-        return final_reward, results
+        self.diagnostics.record_panel(results, model_id)
+
+        weights = self.diagnostics.compute_weights(self.judge_weighting)
+        weighted_sum = 0.0
+        weight_total = 0.0
+        for r in results:
+            j = r["judge"]
+            w = weights.get(j, 1.0 / max(len(results), 1))
+            weighted_sum += w * r["reward"]
+            weight_total += w
+        final_reward = weighted_sum / weight_total if weight_total > 0 else float("nan")
+
+        return float(final_reward), results
 
     def logit_transform(self, score: float) -> float:
         if np.isnan(score):
@@ -360,6 +630,9 @@ class CoTRewardGenerator:
 
         # 6. Run Parallel — flush each result to disk immediately
         print(f"Saving to {output_file} (append + flush per entry)")
+        completed_count = 0
+        diag_interval = max(100, len(remaining) // 10)
+
         with open(output_file, 'a') as outfile:
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 futures = {executor.submit(self.process_task, t): t for t in remaining}
@@ -370,7 +643,30 @@ class CoTRewardGenerator:
                         with self.lock:
                             outfile.write(json.dumps(res) + "\n")
                             outfile.flush()
+                            completed_count += 1
                         pbar.update(1)
+
+                        if completed_count % diag_interval == 0:
+                            self.diagnostics.log_report(min_samples=30)
+
+        # Final diagnostics report.
+        print("\n" + "=" * 60)
+        print("FINAL JUDGE PANEL DIAGNOSTICS")
+        print("=" * 60)
+        self.diagnostics.log_report(min_samples=1)
+
+        # Write diagnostics to a sidecar file for later analysis.
+        diag_path = output_file.with_suffix(".judge_diagnostics.json")
+        diag_payload = {
+            "summary": self.diagnostics.per_judge_summary(),
+            "bias_matrix": self.diagnostics.bias_matrix(),
+            "weights_equal": self.diagnostics.compute_weights("equal"),
+            "weights_inverse_variance": self.diagnostics.compute_weights("inverse_variance"),
+            "weights_inverse_bias": self.diagnostics.compute_weights("inverse_bias"),
+        }
+        with open(diag_path, "w") as df:
+            json.dump(diag_payload, df, indent=2)
+        print(f"Diagnostics written to {diag_path}")
 
 if __name__ == "__main__":
     import argparse
@@ -392,10 +688,23 @@ if __name__ == "__main__":
                         help="Path to response cache JSONL (optional)")
     parser.add_argument("--workers", type=int, default=64,
                         help="Max parallel workers (default: 64)")
+    parser.add_argument(
+        "--judge-weighting", type=str, default="equal",
+        choices=["equal", "inverse_variance", "inverse_bias"],
+        help=(
+            "Panel aggregation strategy.  'equal' (default) uses uniform "
+            "weights.  'inverse_variance' down-weights noisy judges.  "
+            "'inverse_bias' down-weights judges that systematically "
+            "favor/penalize specific candidate models."
+        ),
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     root = Path(__file__).parent.parent.parent
     gen = CoTRewardGenerator(max_workers=args.workers)
+    gen.judge_weighting = args.judge_weighting
 
     models_file = Path(args.models_file) if args.models_file else root / "src/bandit_gpt/config/models.json"
 
