@@ -4,8 +4,7 @@ Appendix I: PCA Component-Count Ablation
 =========================================
 
 Sweeps the number of PCA components used for contextual features in
-the K=2 and K=3 routing settings.  For each component count **and**
-each portfolio, this script runs the same hyperparameter grid as
+the K=3 routing setting.  For each component count, this script runs the same hyperparameter grid as
 Appendix H (alpha x n_eff x gamma, each with a lambda sweep) to
 ensure every dimensionality gets its own optimal hyperparameters.
 
@@ -15,6 +14,13 @@ feature dimensionality — optimal exploration (alpha) and prior strength
 
 Protocol
 --------
+The canonical validation split (K4_CAL) is sub-split into two disjoint
+halves — **val_tune** (hyperparameter selection) and **val_report**
+(unbiased metric for the ablation curve).  This avoids the maximization
+bias that arises when the grid-search winner is selected on and reported
+from the same data.  The holdout set is never touched — it is reserved
+for final paper claims.
+
 For each component count k in {4, 6, 8, 10, 12, 15, 20, 24, 32}:
 
   1. Truncate the production 32-component PCA to k dimensions.
@@ -22,19 +28,21 @@ For each component count k in {4, 6, 8, 10, 12, 15, 20, 24, 32}:
      (keep first k PCA dims + bias row/col of A and b).
   3. Encode all prompts once (raw sentence embeddings), then project
      through the truncated PCA + whitening + bias.
-  4. Sweep (alpha x n_eff x gamma) with a lambda sweep at each,
-     selecting the configuration with the highest Pareto AUC on dev-val.
-  5. Evaluate the selected config on holdout (Pareto AUC + lambda=0 reward).
-  6. Record the dev-holdout gap, samples-per-feature ratio, and
-     explained variance for each component count.
+  4. Train on the canonical train split; sweep (alpha x n_eff x gamma)
+     with a lambda sweep at each, selecting the configuration with
+     the highest Pareto AUC on **val_tune**.
+  5. Re-evaluate only the selected configuration on **val_report** to
+     obtain the plotted ablation metric.
+  6. Record samples-per-feature ratio and explained variance for each
+     component count.
 
 Selection criterion: **Pareto AUC** (area under the cost-reward frontier),
 matching the Appendix H grid ablation.
 
-Portfolios: K=2 and K=3 (no K=10).
+Portfolio: K=3 (using K=4 canonical data splits).
 
 Outputs (``results/``)
-    pca_component_ablation.json   — full results for K=2 and K=3
+    pca_component_ablation.json   — full results for K=3
     pca_component_ablation.png    — summary plot
 
 Usage::
@@ -63,12 +71,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
-    ARTIFACTS_DIR,
     FULL_PCA_PATH,
-    DEV_DATA_PATH_ALL_MODELS,
-    HOLDOUT_DATA_PATH_ALL_MODELS,
     K3_MODELS_PATH,
-    THREE_WAY_SPLITS_PATH,
+    K3_WARMUP_PRIORS_32_PATH,
+    K4_TRAIN_DATA_PATH,
+    K4_CAL_DATA_PATH,
 )
 from utils.embeddings import load_raw_embedding_cache, get_raw_embeddings_for_prompts
 from utils.rewards import extract_reward
@@ -97,37 +104,17 @@ SEED_OFFSET: int = 42
 CORRALLING_LR: float = 0.1
 CORRALLING_GAMMA: float = 0.05
 
-DEV_VAL_FRACTION: float = 0.2
-DEV_VAL_SEED: int = 7
-
 REWARD_THEORETICAL_MIN: float = 0.0
 REWARD_THEORETICAL_MAX: float = 1.0
 
-MULTIMODEL_PRIORS_32_PATH = ARTIFACTS_DIR / "priors_warmup_43model.joblib"
+VAL_REPORT_FRACTION: float = 0.5
+VAL_SPLIT_SEED: int = 2026
+
 
 
 # ============================================================================
 # Portfolios
 # ============================================================================
-
-K2_MODELS: List[str] = [
-    "meta-llama/llama-3.1-8b-instruct",
-    "openai/gpt-4.1",
-]
-
-_PRICES_K2 = get_prices_for_models(K2_MODELS)
-
-K2_CATALOG: Dict[str, Dict] = {
-    "meta-llama/llama-3.1-8b-instruct": {
-        "display": "Llama-3.1-8B",
-        **_PRICES_K2["meta-llama/llama-3.1-8b-instruct"],
-    },
-    "openai/gpt-4.1": {
-        "display": "GPT-4.1",
-        **_PRICES_K2["openai/gpt-4.1"],
-    },
-}
-
 
 def _load_k3_portfolio() -> Tuple[List[str], Dict[str, Dict]]:
     """Load K=3 model list and catalog from ``models_k3.json``."""
@@ -221,32 +208,6 @@ def truncate_pca(pca_full: PCA, n_components: int) -> PCA:
     pca.n_samples_ = pca_full.n_samples_
     pca.noise_variance_ = pca_full.noise_variance_
     return pca
-
-
-def extract_portfolio_priors(
-    priors_full: Dict[str, Any],
-    target_models: List[str],
-) -> Dict[str, Any]:
-    """Filter multi-model priors to a portfolio subset.
-
-    Args:
-        priors_full: Full 43-model priors dict with A, b, models, etc.
-        target_models: Model IDs to retain.
-
-    Returns:
-        New priors dict with only the target models.
-    """
-    missing = [m for m in target_models if m not in priors_full["models"]]
-    if missing:
-        raise ValueError(
-            f"Models not found in priors: {missing}. "
-            f"Available: {priors_full['models'][:5]}..."
-        )
-    filtered = dict(priors_full)
-    filtered["A"] = {m: priors_full["A"][m] for m in target_models}
-    filtered["b"] = {m: priors_full["b"][m] for m in target_models}
-    filtered["models"] = list(target_models)
-    return filtered
 
 
 def truncate_warmup_priors(
@@ -358,7 +319,12 @@ def _train_and_eval_single_lambda(
     cost_penalty: float,
     n_seeds: int,
 ) -> Dict[str, float]:
-    """Train-then-freeze for one (alpha, n_eff, gamma, lambda) point."""
+    """Train-then-freeze for one (alpha, n_eff, gamma, lambda) point.
+
+    Returns:
+        Dict with ``mean_reward``, ``mean_cost``, and per-seed arrays
+        ``seed_rewards`` and ``seed_costs`` (each length *n_seeds*).
+    """
     r_min = REWARD_THEORETICAL_MIN
     r_range = REWARD_THEORETICAL_MAX - REWARD_THEORETICAL_MIN
     burn_in = len(train_data)
@@ -407,6 +373,8 @@ def _train_and_eval_single_lambda(
     return {
         "mean_reward": float(np.mean(trial_r)),
         "mean_cost": float(np.mean(trial_c)),
+        "seed_rewards": trial_r,
+        "seed_costs": trial_c,
     }
 
 
@@ -431,12 +399,15 @@ def train_and_evaluate_pareto(
     """Evaluate one (alpha, n_eff, gamma) across multiple lambdas.
 
     Sweeps ``lambda_values`` to trace the Pareto frontier, then
-    computes Pareto AUC over ``[cost_lo, cost_hi]``.
+    computes Pareto AUC over ``[cost_lo, cost_hi]``.  Also computes
+    per-seed Pareto AUC to enable confidence intervals.
     """
     dim = train_emb[0].shape[0]
     registry = build_model_registry(models, catalog)
 
     sweep_points: List[Dict[str, Any]] = []
+    seed_sweep_rewards: List[List[float]] = []
+    seed_sweep_costs: List[List[float]] = []
     lam0_reward: float = 0.0
 
     for lam in lambda_values:
@@ -452,6 +423,8 @@ def train_and_evaluate_pareto(
             "mean_reward": pt["mean_reward"],
             "mean_cost": pt["mean_cost"],
         })
+        seed_sweep_rewards.append(pt["seed_rewards"])
+        seed_sweep_costs.append(pt["seed_costs"])
         if lam == 0.0:
             lam0_reward = pt["mean_reward"]
 
@@ -459,11 +432,24 @@ def train_and_evaluate_pareto(
     sweep_rewards = [sp["mean_reward"] for sp in sweep_points]
     p_auc = pareto_auc(sweep_costs, sweep_rewards, cost_lo, cost_hi)
 
+    n_lam = len(lambda_values)
+    seed_pareto_aucs: List[float] = []
+    for s in range(n_seeds):
+        s_costs = [seed_sweep_costs[l][s] for l in range(n_lam)]
+        s_rewards = [seed_sweep_rewards[l][s] for l in range(n_lam)]
+        seed_pareto_aucs.append(
+            pareto_auc(s_costs, s_rewards, cost_lo, cost_hi)
+        )
+
+    auc_arr = np.asarray(seed_pareto_aucs)
+
     return {
         "alpha": alpha,
         "n_eff": n_eff,
         "gamma": gamma,
         "pareto_auc": p_auc,
+        "pareto_auc_se": float(np.std(auc_arr, ddof=1) / np.sqrt(n_seeds)),
+        "pareto_auc_seeds": seed_pareto_aucs,
         "lam0_reward": lam0_reward,
         "sweep_points": sweep_points,
         "n_seeds": n_seeds,
@@ -471,82 +457,90 @@ def train_and_evaluate_pareto(
 
 
 # ============================================================================
-# Dev train/val split
+# Best single model baseline (non-contextual)
 # ============================================================================
 
 
-def _split_dev_train_val(
-    data: List[Dict],
-    emb: List[np.ndarray],
-    *,
-    val_fraction: float = DEV_VAL_FRACTION,
-    seed: int = DEV_VAL_SEED,
-) -> Tuple[List[Dict], List[np.ndarray], List[Dict], List[np.ndarray]]:
-    """Deterministically split (data, emb) into train and val portions."""
-    n = len(data)
-    rng = np.random.default_rng(seed)
-    indices = rng.permutation(n)
-    n_val = max(1, int(n * val_fraction))
-    val_idx = set(indices[:n_val].tolist())
-    train_d = [data[i] for i in range(n) if i not in val_idx]
-    train_e = [emb[i] for i in range(n) if i not in val_idx]
-    val_d = [data[i] for i in range(n) if i in val_idx]
-    val_e = [emb[i] for i in range(n) if i in val_idx]
-    return train_d, train_e, val_d, val_e
-
-
-# ============================================================================
-# UCB1 baseline (non-contextual)
-# ============================================================================
-
-
-def ucb1_online_route(
+def best_single_model(
     train_data: List[Dict],
-    holdout_data: List[Dict],
+    eval_data: List[Dict],
     models: List[str],
     costs: Dict[str, float],
-    *,
-    n_trials: int,
 ) -> Dict[str, Any]:
-    """Non-contextual UCB1 baseline (independent of feature dimension)."""
-    from collections import Counter
+    """Best single model baseline via uniform empirical mean (non-contextual).
 
-    all_rewards: List[float] = []
-    all_costs: List[float] = []
-    greedy_arms: List[str] = []
+    Computes the mean reward for each arm uniformly over *train_data*,
+    selects the argmax, and evaluates that fixed arm on *eval_data*.
+    Deterministic — no seed dependence or exploration noise.
 
-    for trial in range(n_trials):
-        rng = np.random.default_rng(SEED_OFFSET + trial)
-        counts = {m: 0 for m in models}
-        sums = {m: 0.0 for m in models}
-        order = rng.permutation(len(train_data))
+    Args:
+        train_data: Training prompts, each with ``rewards[model]``.
+        eval_data: Evaluation prompts (typically val split), each with
+            ``rewards[model]``.
+        models: Portfolio model IDs.
+        costs: Per-model representative cost.
 
-        for idx in order:
-            total = sum(counts.values())
-            if total < len(models):
-                arm = models[total]
-            else:
-                ucb = {
-                    m: (sums[m] / counts[m])
-                    + np.sqrt(2 * np.log(total) / counts[m])
-                    for m in models
-                }
-                arm = max(ucb, key=lambda m: ucb[m])  # type: ignore[arg-type]
-            r = train_data[idx]["rewards"][arm]
-            counts[arm] += 1
-            sums[arm] += r
-
-        greedy = max(models, key=lambda m: sums[m] / max(counts[m], 1))
-        greedy_arms.append(greedy)
-        all_rewards.append(float(np.mean([d["rewards"][greedy] for d in holdout_data])))
-        all_costs.append(costs.get(greedy, 0.0))
-
-    return {
-        "reward": float(np.mean(all_rewards)),
-        "std_reward": float(np.std(all_rewards, ddof=1)) if n_trials > 1 else 0.0,
-        "cost": float(np.mean(all_costs)),
-        "greedy_arm": Counter(greedy_arms).most_common(1)[0][0],
+    Returns:
+        Dict with ``reward``, ``cost``, ``greedy_arm``, and
+        ``train_means`` (per-arm empirical means on train set).
+    """
+    train_means: Dict[str, float] = {
+        m: float(np.mean([d["rewards"][m] for d in train_data]))
+        for m in models
     }
+    best_arm: str = max(train_means, key=train_means.get)  # type: ignore[arg-type]
+    eval_reward = float(
+        np.mean([d["rewards"][best_arm] for d in eval_data])
+    )
+    return {
+        "reward": eval_reward,
+        "cost": costs.get(best_arm, 0.0),
+        "greedy_arm": best_arm,
+        "train_means": train_means,
+    }
+
+
+# ============================================================================
+# Validation sub-split (tune / report)
+# ============================================================================
+
+
+def _split_val_tune_report(
+    data: List[Dict],
+    raw_emb: np.ndarray,
+    *,
+    report_fraction: float = VAL_REPORT_FRACTION,
+    seed: int = VAL_SPLIT_SEED,
+) -> Tuple[List[Dict], np.ndarray, List[Dict], np.ndarray]:
+    """Split validation data into *tune* and *report* halves.
+
+    Hyperparameters are selected on *tune*; the plotted ablation metric
+    is evaluated on *report*.  This eliminates the maximization bias
+    that arises from selecting and reporting on the same split.
+
+    Args:
+        data: Full validation prompts (each with ``"prompt"`` and
+            ``"rewards"`` keys).
+        raw_emb: Raw sentence embeddings, shape ``(len(data), raw_dim)``.
+        report_fraction: Fraction reserved for unbiased reporting.
+        seed: Random seed for reproducible splitting.
+
+    Returns:
+        ``(tune_data, tune_emb, report_data, report_emb)``
+    """
+    rng = np.random.RandomState(seed)
+    n = len(data)
+    n_report = int(n * report_fraction)
+    perm = rng.permutation(n)
+    report_idx = perm[:n_report]
+    tune_idx = perm[n_report:]
+
+    tune_data = [data[i] for i in tune_idx]
+    report_data = [data[i] for i in report_idx]
+    tune_emb = raw_emb[tune_idx]
+    report_emb = raw_emb[report_idx]
+
+    return tune_data, tune_emb, report_data, report_emb
 
 
 # ============================================================================
@@ -562,9 +556,11 @@ def run_ablation_for_n_components(
     models: List[str],
     catalog: Dict[str, Dict],
     train_data: List[Dict],
-    holdout_data: List[Dict],
+    val_tune_data: List[Dict],
+    val_report_data: List[Dict],
     raw_train_emb: np.ndarray,
-    raw_holdout_emb: np.ndarray,
+    raw_val_tune_emb: np.ndarray,
+    raw_val_report_emb: np.ndarray,
     costs: Dict[str, float],
     cost_lo: float,
     cost_hi: float,
@@ -572,46 +568,53 @@ def run_ablation_for_n_components(
 ) -> Dict[str, Any]:
     """Run the full hparam grid for one component count.
 
+    Trains the bandit on the canonical train split.  The hyperparameter
+    grid is evaluated on **val_tune**; the selected configuration is
+    then re-evaluated on **val_report** to produce an unbiased metric
+    free of maximization bias.  The holdout set is never touched.
+
     Args:
         n_comp: Number of PCA components.
-        pca_truncated: PCA model truncated to n_comp.
-        priors_truncated: Warmup priors truncated to n_comp dims.
+        pca_truncated: PCA model truncated to *n_comp*.
+        priors_truncated: Warmup priors truncated to *n_comp* dims.
         models: Portfolio model IDs.
         catalog: Model metadata catalog.
-        train_data: Dev prompts with rewards.
-        holdout_data: Holdout prompts with rewards.
+        train_data: Canonical train-split prompts with rewards.
+        val_tune_data: Validation sub-split for hyperparameter selection.
+        val_report_data: Validation sub-split for unbiased reporting.
         raw_train_emb: Raw sentence embeddings for train set.
-        raw_holdout_emb: Raw sentence embeddings for holdout set.
+        raw_val_tune_emb: Raw sentence embeddings for val_tune set.
+        raw_val_report_emb: Raw sentence embeddings for val_report set.
         costs: Per-model cost dict.
         cost_lo: Min cost for Pareto AUC.
         cost_hi: Max cost for Pareto AUC.
         output_dir: Directory for temp prior files.
 
     Returns:
-        Dict with best config, Pareto AUC, variance explained, etc.
+        Dict with best config, Pareto AUC on both val_tune and
+        val_report, variance explained, etc.
     """
     feat_dim = n_comp + 1
     var_explained = float(np.sum(pca_truncated.explained_variance_ratio_))
 
     train_emb = project_embeddings(raw_train_emb, pca_truncated)
-    holdout_emb = project_embeddings(raw_holdout_emb, pca_truncated)
+    tune_emb = project_embeddings(raw_val_tune_emb, pca_truncated)
+    report_emb = project_embeddings(raw_val_report_emb, pca_truncated)
 
-    dev_train, dev_train_emb, dev_val, dev_val_emb = _split_dev_train_val(
-        train_data, train_emb,
-    )
-
-    samples_per_arm = len(dev_train) / len(models)
-    samples_per_feature = len(dev_train) / (len(models) * feat_dim)
+    samples_per_arm = len(train_data) / len(models)
+    samples_per_feature = len(train_data) / (len(models) * feat_dim)
 
     logger.info(
         f"    feat_dim={feat_dim}  var={var_explained:.1%}  "
         f"s/arm={samples_per_arm:.0f}  s/feat={samples_per_feature:.1f}  "
-        f"train={len(dev_train)}  val={len(dev_val)}"
+        f"train={len(train_data)}  "
+        f"val_tune={len(val_tune_data)}  val_report={len(val_report_data)}"
     )
 
     tmp_priors = output_dir / f"_tmp_priors_{n_comp}comp.joblib"
     joblib.dump(priors_truncated, tmp_priors)
 
+    # ── Grid sweep on val_tune ────────────────────────────────────────
     total = len(ALPHA_VALUES) * len(NEFF_VALUES) * len(GAMMA_VALUES)
     results: List[Dict[str, Any]] = []
     idx = 0
@@ -622,7 +625,7 @@ def run_ablation_for_n_components(
                 idx += 1
                 res = train_and_evaluate_pareto(
                     models, catalog,
-                    dev_train, dev_val, dev_train_emb, dev_val_emb,
+                    train_data, val_tune_data, train_emb, tune_emb,
                     str(tmp_priors), costs,
                     alpha=alpha, n_eff=n_eff, gamma=gamma,
                     lambda_values=LAMBDA_SWEEP,
@@ -638,36 +641,36 @@ def run_ablation_for_n_components(
                         f"R@0={res['lam0_reward']:.4f}"
                     )
 
-    tmp_priors.unlink(missing_ok=True)
-
     ranked = sorted(results, key=lambda r: r["pareto_auc"], reverse=True)
-    best = ranked[0]
+    best_tune = ranked[0]
 
     logger.info(
-        f"    BEST: a={best['alpha']} neff={int(best['n_eff'])} "
-        f"g={best['gamma']} -> AUC={best['pareto_auc']:.4f} "
-        f"R@0={best['lam0_reward']:.4f}"
+        f"    BEST (tune): a={best_tune['alpha']} "
+        f"neff={int(best_tune['n_eff'])} g={best_tune['gamma']} "
+        f"-> AUC={best_tune['pareto_auc']:.4f} "
+        f"R@0={best_tune['lam0_reward']:.4f}"
     )
 
-    # Evaluate selected config on holdout.
-    holdout_res = train_and_evaluate_pareto(
+    # ── Re-evaluate selected config on val_report ─────────────────────
+    logger.info("    Re-evaluating selected config on val_report ...")
+    best_report = train_and_evaluate_pareto(
         models, catalog,
-        dev_train, holdout_data, dev_train_emb, holdout_emb,
-        str(joblib.dump(priors_truncated,
-                        output_dir / f"_tmp_priors_{n_comp}comp_hld.joblib")[0]),
-        costs,
-        alpha=float(best["alpha"]),
-        n_eff=float(best["n_eff"]),
-        gamma=float(best["gamma"]),
+        train_data, val_report_data, train_emb, report_emb,
+        str(tmp_priors), costs,
+        alpha=best_tune["alpha"],
+        n_eff=best_tune["n_eff"],
+        gamma=best_tune["gamma"],
         lambda_values=LAMBDA_SWEEP,
         cost_lo=cost_lo, cost_hi=cost_hi,
         n_seeds=N_SEEDS,
     )
-    (output_dir / f"_tmp_priors_{n_comp}comp_hld.joblib").unlink(missing_ok=True)
+
+    tmp_priors.unlink(missing_ok=True)
 
     logger.info(
-        f"    Holdout: AUC={holdout_res['pareto_auc']:.4f} "
-        f"R@0={holdout_res['lam0_reward']:.4f}"
+        f"    REPORT: AUC={best_report['pareto_auc']:.4f} "
+        f"± {best_report['pareto_auc_se']:.4f} (SE)  "
+        f"R@0={best_report['lam0_reward']:.4f}"
     )
 
     return {
@@ -676,16 +679,16 @@ def run_ablation_for_n_components(
         "variance_explained": var_explained,
         "samples_per_arm": samples_per_arm,
         "samples_per_feature_ratio": samples_per_feature,
-        "best_alpha": best["alpha"],
-        "best_n_eff": best["n_eff"],
-        "best_gamma": best["gamma"],
-        "dev_val_pareto_auc": best["pareto_auc"],
-        "dev_val_lam0_reward": best["lam0_reward"],
-        "holdout_pareto_auc": holdout_res["pareto_auc"],
-        "holdout_lam0_reward": holdout_res["lam0_reward"],
-        "dev_holdout_auc_gap": best["pareto_auc"] - holdout_res["pareto_auc"],
-        "dev_holdout_r0_gap": best["lam0_reward"] - holdout_res["lam0_reward"],
-        "top5": [
+        "best_alpha": best_tune["alpha"],
+        "best_n_eff": best_tune["n_eff"],
+        "best_gamma": best_tune["gamma"],
+        "tune_pareto_auc": best_tune["pareto_auc"],
+        "tune_lam0_reward": best_tune["lam0_reward"],
+        "report_pareto_auc": best_report["pareto_auc"],
+        "report_pareto_auc_se": best_report["pareto_auc_se"],
+        "report_pareto_auc_seeds": best_report["pareto_auc_seeds"],
+        "report_lam0_reward": best_report["lam0_reward"],
+        "top5_tune": [
             {
                 "alpha": r["alpha"],
                 "n_eff": r["n_eff"],
@@ -704,59 +707,70 @@ def run_ablation_for_n_components(
 
 
 def plot_ablation(
-    k2_results: List[Dict],
     k3_results: List[Dict],
-    ucb1_k2: Dict,
-    ucb1_k3: Dict,
+    bsm_k3: Dict,
     out_path: Path,
 ) -> None:
-    """Generate a summary plot of Pareto AUC vs component count."""
+    """Generate a summary plot of Pareto AUC vs component count.
+
+    The primary curve uses the **val_report** metric (unbiased); the
+    val_tune metric is shown as a faded reference to make the
+    maximization gap visible.
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(8, 5.5), constrained_layout=True)
 
-    for ax, results, ucb1, k_label in [
-        (axes[0], k2_results, ucb1_k2, "K=2"),
-        (axes[1], k3_results, ucb1_k3, "K=3"),
-    ]:
-        comps = [r["n_components"] for r in results]
-        dev_auc = [r["dev_val_pareto_auc"] for r in results]
-        hld_auc = [r["holdout_pareto_auc"] for r in results]
+    comps = [r["n_components"] for r in k3_results]
+    report_auc = [r["report_pareto_auc"] for r in k3_results]
+    report_se = [r["report_pareto_auc_se"] for r in k3_results]
+    tune_auc = [r["tune_pareto_auc"] for r in k3_results]
 
-        ax.plot(comps, dev_auc, "o-", color="C0", label="Dev-val Pareto AUC")
-        ax.plot(comps, hld_auc, "s--", color="C1", label="Holdout Pareto AUC")
-        ax.axhline(
-            ucb1["reward"], ls=":", color="gray", alpha=0.7,
-            label=f"UCB1 baseline ({ucb1['reward']:.4f})",
-        )
-        ax.axvline(15, ls="--", color="C3", alpha=0.5, label="d=15 (production)")
+    report_lo = [a - 1.96 * s for a, s in zip(report_auc, report_se)]
+    report_hi = [a + 1.96 * s for a, s in zip(report_auc, report_se)]
 
-        ax2 = ax.twinx()
-        var_exp = [r["variance_explained"] for r in results]
-        ax2.fill_between(
-            comps, 0, [v * 100 for v in var_exp],
-            alpha=0.08, color="green",
-        )
-        ax2.plot(
-            comps, [v * 100 for v in var_exp],
-            "^-", color="green", alpha=0.4, markersize=4,
-            label="Variance explained (%)",
-        )
-        ax2.set_ylabel("Variance explained (%)", fontsize=10, color="green")
-        ax2.set_ylim(0, 40)
+    ax.fill_between(comps, report_lo, report_hi, alpha=0.15, color="C0")
+    ax.plot(
+        comps, report_auc, "o-", color="C0",
+        label="Val-report Pareto AUC ± 95% CI",
+    )
+    ax.plot(
+        comps, tune_auc, "s--", color="C0", alpha=0.3, markersize=4,
+        label="Val-tune Pareto AUC (selection)",
+    )
+    ax.axhline(
+        bsm_k3["reward"], ls=":", color="gray", alpha=0.7,
+        label=f"Best single model ({bsm_k3['reward']:.4f})",
+    )
+    ax.axvline(15, ls="--", color="C3", alpha=0.5, label="d=15 (production)")
 
-        ax.set_xlabel("PCA components", fontsize=11)
-        ax.set_ylabel("Pareto AUC (reward units)", fontsize=11)
-        ax.set_title(f"{k_label} Portfolio", fontsize=12, fontweight="bold")
-        ax.set_xticks(comps)
-        ax.legend(loc="lower right", fontsize=8)
-        ax2.legend(loc="upper left", fontsize=8)
+    ax2 = ax.twinx()
+    var_exp = [r["variance_explained"] for r in k3_results]
+    ax2.fill_between(
+        comps, 0, [v * 100 for v in var_exp],
+        alpha=0.08, color="green",
+    )
+    ax2.plot(
+        comps, [v * 100 for v in var_exp],
+        "^-", color="green", alpha=0.4, markersize=4,
+        label="Variance explained (%)",
+    )
+    ax2.set_ylabel("Variance explained (%)", fontsize=10, color="green")
+    ax2.set_ylim(0, 40)
+
+    ax.set_xlabel("PCA components", fontsize=11)
+    ax.set_ylabel("Pareto AUC (reward units)", fontsize=11)
+    ax.set_title("K=3 Portfolio", fontsize=12, fontweight="bold")
+    ax.set_xticks(comps)
+    ax.legend(loc="lower right", fontsize=8)
+    ax2.legend(loc="upper left", fontsize=8)
 
     fig.suptitle(
         "PCA Component-Count Ablation\n"
-        "Each point uses its own optimal (alpha, n_eff, gamma) from a full grid sweep",
+        "Each point uses its own optimal (alpha, n_eff, gamma);\n"
+        "selected on val-tune, evaluated on val-report",
         fontsize=12, fontweight="bold",
     )
     fig.savefig(out_path, dpi=300, bbox_inches="tight", facecolor="white")
@@ -783,52 +797,20 @@ def main() -> None:
         f"(whiten={pca32.whiten})"
     )
 
-    # ── Extract 32-comp portfolio priors ──────────────────────────────
-    logger.info("Loading 43-model 32-component warmup priors ...")
-    priors_43 = joblib.load(MULTIMODEL_PRIORS_32_PATH)
+    # ── Load K=3 warmup priors (32 components) ──────────────────────
+    logger.info("Loading K=3 32-component warmup priors ...")
+    k3_priors_32 = joblib.load(K3_WARMUP_PRIORS_32_PATH)
     logger.info(
-        f"  Source: {MULTIMODEL_PRIORS_32_PATH.name} "
-        f"({len(priors_43['models'])} models, "
-        f"context_dim={priors_43['context_dim']})"
+        f"  Source: {K3_WARMUP_PRIORS_32_PATH.name} "
+        f"({len(k3_priors_32['models'])} models, "
+        f"context_dim={k3_priors_32['context_dim']})"
     )
 
-    k2_priors_32 = extract_portfolio_priors(priors_43, K2_MODELS)
-    k3_priors_32 = extract_portfolio_priors(priors_43, K3_MODELS)
-    logger.info(
-        f"  Extracted K=2 priors ({len(k2_priors_32['models'])} models) "
-        f"and K=3 priors ({len(k3_priors_32['models'])} models)"
-    )
-
-    # ── K=2 data ──────────────────────────────────────────────────────
-    logger.info("\nLoading K=2 data ...")
-    dev_k2 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K2_MODELS)
-    holdout_k2 = load_rewards_from_file(HOLDOUT_DATA_PATH_ALL_MODELS, K2_MODELS)
-    logger.info(f"  Dev: {len(dev_k2)}  Holdout: {len(holdout_k2)}")
-
-    costs_k2 = {
-        m: req_cost(K2_CATALOG[m]["input_cost_per_m"],
-                    K2_CATALOG[m]["output_cost_per_m"])
-        for m in K2_MODELS
-    }
-    cost_lo_k2, cost_hi_k2 = min(costs_k2.values()), max(costs_k2.values())
-
-    # ── K=3 data ──────────────────────────────────────────────────────
-    logger.info("\nLoading K=3 data ...")
-    prior_train_prompts: Set[str] = set()
-    if THREE_WAY_SPLITS_PATH.exists():
-        with open(THREE_WAY_SPLITS_PATH) as f:
-            splits_3way = json.load(f)
-        prior_train_prompts = set(splits_3way.get("prior_train_pool", []))
-        logger.info(
-            f"  Excluding {len(prior_train_prompts)} prior-train prompts"
-        )
-
-    all_dev_k3 = load_rewards_from_file(DEV_DATA_PATH_ALL_MODELS, K3_MODELS)
-    dev_k3 = [d for d in all_dev_k3 if d["prompt"] not in prior_train_prompts]
-    holdout_k3 = load_rewards_from_file(
-        HOLDOUT_DATA_PATH_ALL_MODELS, K3_MODELS,
-    )
-    logger.info(f"  Dev (excl. prior-train): {len(dev_k3)}  Holdout: {len(holdout_k3)}")
+    # ── K=3 data (from K=4 canonical splits) ─────────────────────────
+    logger.info("\nLoading K=3 data (K=4 canonical train/cal splits) ...")
+    train_k3 = load_rewards_from_file(K4_TRAIN_DATA_PATH, K3_MODELS)
+    val_k3 = load_rewards_from_file(K4_CAL_DATA_PATH, K3_MODELS)
+    logger.info(f"  Train: {len(train_k3)}  Val (full): {len(val_k3)}")
 
     costs_k3 = {
         m: req_cost(K3_CATALOG[m]["input_cost_per_m"],
@@ -839,38 +821,33 @@ def main() -> None:
 
     # ── Look up raw embeddings from cache ────────────────────────────
     logger.info("\nLoading raw embeddings from cache ...")
-    raw_dev_k2 = get_raw_embeddings(dev_k2, raw_cache)
-    raw_holdout_k2 = get_raw_embeddings(holdout_k2, raw_cache)
-    raw_dev_k3 = get_raw_embeddings(dev_k3, raw_cache)
-    raw_holdout_k3 = get_raw_embeddings(holdout_k3, raw_cache)
+    raw_train_k3 = get_raw_embeddings(train_k3, raw_cache)
+    raw_val_k3 = get_raw_embeddings(val_k3, raw_cache)
     logger.info(
-        f"  Raw embedding dim: {raw_dev_k2.shape[1]}"
+        f"  Raw embedding dim: {raw_train_k3.shape[1]}"
     )
 
-    # ── UCB1 baselines ────────────────────────────────────────────────
-    logger.info("\nComputing UCB1 baselines ...")
-    dev_train_k2_data, _, _, _ = _split_dev_train_val(
-        dev_k2, [np.zeros(1)] * len(dev_k2),
+    # ── Split val into tune (hparam selection) / report (unbiased) ───
+    logger.info(
+        f"\nSplitting val into tune/report "
+        f"({1 - VAL_REPORT_FRACTION:.0%}/{VAL_REPORT_FRACTION:.0%}, "
+        f"seed={VAL_SPLIT_SEED}) ..."
     )
-    ucb1_k2 = ucb1_online_route(
-        dev_train_k2_data, holdout_k2, K2_MODELS, costs_k2,
-        n_trials=N_SEEDS,
+    val_tune_k3, raw_val_tune_k3, val_report_k3, raw_val_report_k3 = (
+        _split_val_tune_report(val_k3, raw_val_k3)
     )
     logger.info(
-        f"  UCB1 K=2: R={ucb1_k2['reward']:.4f} "
-        f"(greedy: {ucb1_k2['greedy_arm']})"
+        f"  Val-tune: {len(val_tune_k3)}  Val-report: {len(val_report_k3)}"
     )
 
-    dev_train_k3_data, _, _, _ = _split_dev_train_val(
-        dev_k3, [np.zeros(1)] * len(dev_k3),
-    )
-    ucb1_k3 = ucb1_online_route(
-        dev_train_k3_data, holdout_k3, K3_MODELS, costs_k3,
-        n_trials=N_SEEDS,
+    # ── Best single model baseline (evaluated on val_report) ──────────
+    logger.info("\nComputing best-single-model baseline (on val_report) ...")
+    bsm_k3 = best_single_model(
+        train_k3, val_report_k3, K3_MODELS, costs_k3,
     )
     logger.info(
-        f"  UCB1 K=3: R={ucb1_k3['reward']:.4f} "
-        f"(greedy: {ucb1_k3['greedy_arm']})"
+        f"  Best single model: R={bsm_k3['reward']:.4f} "
+        f"(arm: {bsm_k3['greedy_arm']})"
     )
 
     # ── Grid info ─────────────────────────────────────────────────────
@@ -884,46 +861,22 @@ def main() -> None:
         f"x {N_SEEDS} seeds"
     )
     logger.info(
-        f"  Per component count per portfolio: "
+        f"  Per component count: "
         f"{n_hparam * n_lam * N_SEEDS:,} trials"
     )
     logger.info(
-        f"  Total: {len(COMPONENT_COUNTS) * 2 * n_hparam * n_lam * N_SEEDS:,} "
+        f"  Total: {len(COMPONENT_COUNTS) * n_hparam * n_lam * N_SEEDS:,} "
         f"trials"
     )
     logger.info(f"{'='*70}")
 
     # ── Sweep component counts ────────────────────────────────────────
-    k2_results: List[Dict] = []
     k3_results: List[Dict] = []
 
     for n_comp in COMPONENT_COUNTS:
         pca_trunc = truncate_pca(pca32, n_comp)
-        k2_priors_trunc = truncate_warmup_priors(k2_priors_32, n_comp)
         k3_priors_trunc = truncate_warmup_priors(k3_priors_32, n_comp)
 
-        # ── K=2 ──
-        logger.info(f"\n{'='*60}")
-        logger.info(f"  K=2, n_components={n_comp}")
-        logger.info(f"{'='*60}")
-        res_k2 = run_ablation_for_n_components(
-            n_comp,
-            pca_truncated=pca_trunc,
-            priors_truncated=k2_priors_trunc,
-            models=K2_MODELS,
-            catalog=K2_CATALOG,
-            train_data=dev_k2,
-            holdout_data=holdout_k2,
-            raw_train_emb=raw_dev_k2,
-            raw_holdout_emb=raw_holdout_k2,
-            costs=costs_k2,
-            cost_lo=cost_lo_k2,
-            cost_hi=cost_hi_k2,
-            output_dir=output_dir,
-        )
-        k2_results.append(res_k2)
-
-        # ── K=3 ──
         logger.info(f"\n{'='*60}")
         logger.info(f"  K=3, n_components={n_comp}")
         logger.info(f"{'='*60}")
@@ -933,10 +886,12 @@ def main() -> None:
             priors_truncated=k3_priors_trunc,
             models=K3_MODELS,
             catalog=K3_CATALOG,
-            train_data=dev_k3,
-            holdout_data=holdout_k3,
-            raw_train_emb=raw_dev_k3,
-            raw_holdout_emb=raw_holdout_k3,
+            train_data=train_k3,
+            val_tune_data=val_tune_k3,
+            val_report_data=val_report_k3,
+            raw_train_emb=raw_train_k3,
+            raw_val_tune_emb=raw_val_tune_k3,
+            raw_val_report_emb=raw_val_report_k3,
             costs=costs_k3,
             cost_lo=cost_lo_k3,
             cost_hi=cost_hi_k3,
@@ -951,8 +906,11 @@ def main() -> None:
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "description": (
                 "PCA component-count ablation with per-component "
-                "hyperparameter re-tuning.  Selection criterion: "
-                "Pareto AUC.  Portfolios: K=2 and K=3."
+                "hyperparameter re-tuning.  K=3 portfolio on K=4 "
+                "canonical train split; cal split sub-divided into "
+                "val_tune (hparam selection) and val_report (unbiased "
+                "metric).  Holdout never touched.  "
+                "Selection criterion: Pareto AUC."
             ),
             "component_counts": COMPONENT_COUNTS,
             "alpha_values": ALPHA_VALUES,
@@ -962,22 +920,18 @@ def main() -> None:
             "n_seeds": N_SEEDS,
             "n_hparam_configs": n_hparam,
             "selection_criterion": "pareto_auc",
+            "val_report_fraction": VAL_REPORT_FRACTION,
+            "val_split_seed": VAL_SPLIT_SEED,
             "elapsed_seconds": elapsed,
-        },
-        "K2": {
-            "models": K2_MODELS,
-            "n_dev": len(dev_k2),
-            "n_holdout": len(holdout_k2),
-            "cost_range": [cost_lo_k2, cost_hi_k2],
-            "ucb1_baseline": ucb1_k2,
-            "ablation_results": k2_results,
         },
         "K3": {
             "models": K3_MODELS,
-            "n_dev": len(dev_k3),
-            "n_holdout": len(holdout_k3),
+            "n_train": len(train_k3),
+            "n_val_total": len(val_k3),
+            "n_val_tune": len(val_tune_k3),
+            "n_val_report": len(val_report_k3),
             "cost_range": [cost_lo_k3, cost_hi_k3],
-            "ucb1_baseline": ucb1_k3,
+            "best_single_model_baseline": bsm_k3,
             "ablation_results": k3_results,
         },
     }
@@ -989,41 +943,35 @@ def main() -> None:
 
     # ── Plot ──────────────────────────────────────────────────────────
     plot_ablation(
-        k2_results, k3_results, ucb1_k2, ucb1_k3,
+        k3_results, bsm_k3,
         output_dir / "pca_component_ablation.png",
     )
 
     # ── Summary table ─────────────────────────────────────────────────
-    logger.info(f"\n{'='*90}")
-    logger.info("SUMMARY")
-    logger.info(f"{'='*90}")
-
-    for k_label, results, ucb1 in [
-        ("K=2", k2_results, ucb1_k2),
-        ("K=3", k3_results, ucb1_k3),
-    ]:
-        logger.info(f"\n  {k_label}:")
+    logger.info(f"\n{'='*105}")
+    logger.info("SUMMARY  (K=3)")
+    logger.info(f"{'='*105}")
+    logger.info(
+        f"  {'Comp':>5s}  {'Dim':>4s}  {'Var%':>6s}  "
+        f"{'s/feat':>6s}  {'AUC_tune':>8s}  {'AUC_rpt':>8s}  "
+        f"{'±SE':>6s}  {'R@0_rpt':>8s}  "
+        f"{'best_a':>6s}  {'best_n':>6s}  {'best_g':>7s}"
+    )
+    logger.info("  " + "-" * 95)
+    for r in k3_results:
         logger.info(
-            f"  {'Comp':>5s}  {'Dim':>4s}  {'Var%':>6s}  "
-            f"{'s/feat':>6s}  {'AUC_val':>8s}  {'AUC_hld':>8s}  "
-            f"{'R@0_hld':>8s}  {'Gap':>7s}  "
-            f"{'best_a':>6s}  {'best_n':>6s}  {'best_g':>7s}"
+            f"  {r['n_components']:5d}  {r['feature_dim']:4d}  "
+            f"{r['variance_explained']:5.1%}  "
+            f"{r['samples_per_feature_ratio']:6.1f}  "
+            f"{r['tune_pareto_auc']:8.4f}  "
+            f"{r['report_pareto_auc']:8.4f}  "
+            f"{r['report_pareto_auc_se']:6.4f}  "
+            f"{r['report_lam0_reward']:8.4f}  "
+            f"{r['best_alpha']:6.2f}  "
+            f"{int(r['best_n_eff']):6d}  "
+            f"{r['best_gamma']:7.4f}"
         )
-        logger.info("  " + "-" * 88)
-        for r in results:
-            logger.info(
-                f"  {r['n_components']:5d}  {r['feature_dim']:4d}  "
-                f"{r['variance_explained']:5.1%}  "
-                f"{r['samples_per_feature_ratio']:6.1f}  "
-                f"{r['dev_val_pareto_auc']:8.4f}  "
-                f"{r['holdout_pareto_auc']:8.4f}  "
-                f"{r['holdout_lam0_reward']:8.4f}  "
-                f"{r['dev_holdout_auc_gap']:+7.4f}  "
-                f"{r['best_alpha']:6.2f}  "
-                f"{int(r['best_n_eff']):6d}  "
-                f"{r['best_gamma']:7.4f}"
-            )
-        logger.info(f"  UCB1 baseline: {ucb1['reward']:.4f}")
+    logger.info(f"  Best single model (val_report): {bsm_k3['reward']:.4f}")
 
     logger.info(f"\nElapsed: {elapsed:.0f}s ({elapsed / 60:.1f} min)")
 
