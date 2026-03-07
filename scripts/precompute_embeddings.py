@@ -66,7 +66,7 @@ from bandit_gpt.config import (
     EMBEDDINGS_CACHE_PATH,
     HOLDOUT_DATA_PATH_ALL_MODELS,
     K4_TRAIN_DATA_PATH,
-    K4_CAL_DATA_PATH,
+    K4_VAL_DATA_PATH,
     K4_HOLDOUT_DATA_PATH,
     RAW_EMBEDDINGS_CACHE_PATH,
 )
@@ -200,7 +200,7 @@ def main() -> None:
         DEV_DATA_PATH_ALL_MODELS,
         HOLDOUT_DATA_PATH_ALL_MODELS,
         K4_TRAIN_DATA_PATH,
-        K4_CAL_DATA_PATH,
+        K4_VAL_DATA_PATH,
         K4_HOLDOUT_DATA_PATH,
     ]
     print(f"\nCollecting unique prompts from {len(data_paths)} files ...")

@@ -30,7 +30,7 @@ For each variant and component count k ∈ {4, 6, 8, 10, 12, 15, 20, 24, 32}:
 
 Protocol
 --------
-The canonical validation split (K4_CAL) is sub-split into two disjoint
+The canonical validation split (K4_VAL) is sub-split into two disjoint
 halves — **val_tune** (hyperparameter selection) and **val_report**
 (unbiased metric for the ablation curve).  This eliminates the
 maximization bias that arises when the grid-search winner is selected
@@ -75,7 +75,7 @@ from bandit_gpt.config import (
     K3_MODELS_PATH,
     K3_WARMUP_PRIORS_32_PATH,
     K4_TRAIN_DATA_PATH,
-    K4_CAL_DATA_PATH,
+    K4_VAL_DATA_PATH,
 )
 from utils.embeddings import (
     get_raw_embeddings_for_data,
@@ -1156,7 +1156,7 @@ def main() -> None:
     # ── Load K=3 data ─────────────────────────────────────────────────
     logger.info("\nLoading K=3 data (K=4 canonical train/cal splits) ...")
     train_k3 = load_rewards_from_file(K4_TRAIN_DATA_PATH, K3_MODELS)
-    val_k3 = load_rewards_from_file(K4_CAL_DATA_PATH, K3_MODELS)
+    val_k3 = load_rewards_from_file(K4_VAL_DATA_PATH, K3_MODELS)
     logger.info(f"  K=3 Train: {len(train_k3)}  Val: {len(val_k3)}")
 
     costs_k3 = {
@@ -1169,7 +1169,7 @@ def main() -> None:
     # ── Load K=2 data ─────────────────────────────────────────────────
     logger.info("Loading K=2 data (K=4 canonical train/cal splits) ...")
     train_k2 = load_rewards_from_file(K4_TRAIN_DATA_PATH, K2_MODELS)
-    val_k2 = load_rewards_from_file(K4_CAL_DATA_PATH, K2_MODELS)
+    val_k2 = load_rewards_from_file(K4_VAL_DATA_PATH, K2_MODELS)
     logger.info(f"  K=2 Train: {len(train_k2)}  Val: {len(val_k2)}")
 
     costs_k2 = {

@@ -109,21 +109,24 @@ DEV_DATA_PATH_ALL_MODELS = OFFLINE_DATASET_DIR / "dev_rewards_complete_all_model
 #                    GPT-4.1, GPT-4.1-Mini)
 # ==============================================================================
 #
-# CoT-rubric judged rewards (v2) with same-provider judge exclusion.
+# v3 continuous-rubric rewards judged by a fixed unbiased panel
+# (Mistral-Large, DeepSeek-R1, Qwen-2.5-72B).
 # Perfectly balanced: every prompt has exactly 4 model records.
 #
-#   CONSTANT                   PROMPTS   FILE
+#   CONSTANT                   RECORDS   FILE
 #   ────────────────────────   ───────   ──────────────────────────────
+#   K4_REWARDS_PATH            16,532    k4_rewards_v3.jsonl
 #   K4_TRAIN_DATA_PATH         1,033     k4_train_rewards.jsonl.gz
-#   K4_CAL_DATA_PATH           1,549     k4_cal_rewards.jsonl.gz
+#   K4_VAL_DATA_PATH           1,549     k4_val_rewards.jsonl.gz
 #   K4_HOLDOUT_DATA_PATH       1,551     k4_holdout_rewards.jsonl.gz
 #   ────────────────────────   ───────
-#   TOTAL                      4,133
+#   TOTAL (unique prompts)     4,133
 #
 # Split seed: np.random.RandomState(42), ratio 25/37.5/37.5.
 
+K4_REWARDS_PATH      = OFFLINE_DATASET_DIR / "k4_rewards_v3.jsonl"
 K4_TRAIN_DATA_PATH   = OFFLINE_DATASET_DIR / "k4_train_rewards.jsonl.gz"
-K4_CAL_DATA_PATH     = OFFLINE_DATASET_DIR / "k4_cal_rewards.jsonl.gz"
+K4_VAL_DATA_PATH     = OFFLINE_DATASET_DIR / "k4_val_rewards.jsonl.gz"
 K4_HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "k4_holdout_rewards.jsonl.gz"
 K4_DEV_DATA_PATH     = OFFLINE_DATASET_DIR / "k4_dev_rewards.jsonl.gz"
 

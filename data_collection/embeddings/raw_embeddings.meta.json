@@ -7,7 +7,7 @@
     "/Users/annette/repostitories/banditGPT/data_collection/rewards/dev_rewards_complete_all_models.jsonl.gz",
     "/Users/annette/repostitories/banditGPT/data_collection/rewards/holdout_rewards_complete_all_models.jsonl.gz",
     "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_train_rewards.jsonl.gz",
-    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_cal_rewards.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_val_rewards.jsonl.gz",
     "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_holdout_rewards.jsonl.gz"
   ]
 }

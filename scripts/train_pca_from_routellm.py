@@ -41,7 +41,7 @@ from bandit_gpt.config import (
     DEFAULT_PCA_PATH,
     LMSYS_BATTLES_PATH,
     K4_TRAIN_DATA_PATH,
-    K4_CAL_DATA_PATH,
+    K4_VAL_DATA_PATH,
     K4_HOLDOUT_DATA_PATH,
 )
 
@@ -131,7 +131,7 @@ def build_experimental_exclusion_set() -> set[str]:
     PCA fitting data is then strictly disjoint from all evaluation data.
     """
     exclude: set[str] = set()
-    for path in (K4_TRAIN_DATA_PATH, K4_CAL_DATA_PATH, K4_HOLDOUT_DATA_PATH):
+    for path in (K4_TRAIN_DATA_PATH, K4_VAL_DATA_PATH, K4_HOLDOUT_DATA_PATH):
         p = Path(path)
         if p.exists():
             exclude |= _load_all_prompts_from_rewards(p)
