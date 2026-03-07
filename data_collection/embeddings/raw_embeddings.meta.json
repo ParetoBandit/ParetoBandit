@@ -1,10 +1,13 @@
 {
   "encoder": "BAAI/bge-m3",
   "vector_dim": 1024,
-  "n_prompts": 4354,
-  "timestamp": "2026-03-05 11:28:23",
+  "n_prompts": 8487,
+  "timestamp": "2026-03-06 20:14:12",
   "data_sources": [
     "/Users/annette/repostitories/banditGPT/data_collection/rewards/dev_rewards_complete_all_models.jsonl.gz",
-    "/Users/annette/repostitories/banditGPT/data_collection/rewards/holdout_rewards_complete_all_models.jsonl.gz"
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/holdout_rewards_complete_all_models.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_train_rewards.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_cal_rewards.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_holdout_rewards.jsonl.gz"
   ]
 }

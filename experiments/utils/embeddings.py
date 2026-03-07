@@ -228,6 +228,27 @@ def load_raw_embedding_cache(
     return {k: data[k] for k in data.files}
 
 
+def get_raw_embeddings_for_data(
+    data: List[Dict[str, Any]],
+    cache: Dict[str, np.ndarray],
+) -> np.ndarray:
+    """Look up raw sentence embeddings for a list of data dicts.
+
+    Thin convenience wrapper around :func:`get_raw_embeddings_for_prompts`
+    that extracts the ``"prompt"`` key from each dict.
+
+    Args:
+        data: List of dicts, each with a ``"prompt"`` key.
+        cache: Pre-loaded raw cache from :func:`load_raw_embedding_cache`.
+
+    Returns:
+        ``np.ndarray`` of shape ``(len(data), embedding_dim)``.
+    """
+    return get_raw_embeddings_for_prompts(
+        [d["prompt"] for d in data], cache,
+    )
+
+
 def get_raw_embeddings_for_prompts(
     prompts: List[str],
     cache: Dict[str, np.ndarray],
@@ -266,3 +287,43 @@ def get_raw_embeddings_for_prompts(
         )
 
     return np.vstack(rows)
+
+
+def project_embeddings(
+    raw_emb: np.ndarray,
+    pca: Any,
+) -> List[np.ndarray]:
+    """Project raw embeddings through PCA + whitening + bias (batch).
+
+    Canonical batch version of ``bandit_gpt.calibration.embed_prompt``.
+    All experiment scripts should use this single implementation to
+    guarantee coordinate-system consistency with warmup priors.
+
+    The whitening step divides each PCA component by
+    ``sqrt(explained_variance)`` when ``pca.whiten`` is ``False``,
+    producing approximately unit-variance features.  This matches the
+    production ``FeatureService`` convention.
+
+    Args:
+        raw_emb: ``(n_prompts, raw_dim)`` array of SentenceTransformer
+            output vectors.
+        pca: Fitted (possibly truncated) ``sklearn.decomposition.PCA``
+            model.
+
+    Returns:
+        List of ``(pca.n_components_ + 1,)`` context vectors (PCA
+        components followed by a ``1.0`` bias term).
+    """
+    projected = pca.transform(raw_emb)
+
+    if not bool(getattr(pca, "whiten", False)):
+        ev = getattr(pca, "explained_variance_", None)
+        if ev is not None:
+            scale = 1.0 / np.sqrt(
+                np.maximum(np.asarray(ev, dtype=np.float64), 1e-12)
+            )
+            projected = projected * scale
+
+    bias = np.ones((projected.shape[0], 1))
+    with_bias = np.hstack([projected, bias])
+    return [with_bias[i] for i in range(with_bias.shape[0])]
