@@ -237,7 +237,7 @@ class CoTRewardGenerator:
         # Fixed 3-judge panel — intentionally disjoint from every k4 model
         # family (Meta, Google, OpenAI) to eliminate panel-composition bias.
         self.judge_panel: List[str] = [
-            "mistralai/mistral-large-latest",
+            "mistralai/mistral-large",
             "deepseek/deepseek-r1",
             "qwen/qwen-2.5-72b-instruct",
         ]
