@@ -572,6 +572,139 @@ class CoTRewardGenerator:
             "ts": time.time()
         }
 
+    def _process_rejudge_task(
+        self, task: Tuple[str, str, str],
+    ) -> Dict[str, Any]:
+        """Re-judge a single (prompt, response, model_id) triple.
+
+        Skips the response-generation step entirely — the response is
+        taken verbatim from the source file.
+        """
+        prompt_text, response, model_id = task
+
+        final_score, judge_details = self.judge_with_panel_cot(
+            prompt_text, response, model_id,
+        )
+        reward_logit = self.logit_transform(final_score)
+
+        return {
+            "model_id": model_id,
+            "prompt": prompt_text,
+            "response": response,
+            "ok": True,
+            "teacher_used": False,
+            "judge_details": judge_details,
+            "reward_logit": reward_logit,
+            "raw_score": final_score,
+            "ts": time.time(),
+        }
+
+    def rejudge_from_file(
+        self,
+        source_file: Path,
+        output_file: Path,
+        *,
+        limit: Optional[int] = None,
+    ) -> None:
+        """Re-judge existing (prompt, response) pairs with the current panel.
+
+        Reads *source_file* (JSONL with ``prompt``, ``response``,
+        ``model_id`` fields), passes each response through the new judge
+        panel, and writes fresh reward records to *output_file*.
+
+        Supports resume: already-completed (prompt, model_id) pairs in
+        *output_file* are skipped.
+
+        Args:
+            source_file: Path to the existing rewards JSONL.
+            output_file: Destination for re-judged records.
+            limit: If set, only process the first *limit* source records.
+        """
+        # 1. Load source records.
+        tasks: List[Tuple[str, str, str]] = []
+        skipped_bad = 0
+        with open(source_file) as f:
+            for line in f:
+                rec = json.loads(line)
+                if not rec.get("ok") or not rec.get("response"):
+                    skipped_bad += 1
+                    continue
+                tasks.append((rec["prompt"], rec["response"], rec["model_id"]))
+
+        if limit is not None:
+            tasks = tasks[:limit]
+
+        print(
+            f"Loaded {len(tasks)} valid records from {source_file} "
+            f"(skipped {skipped_bad} bad records)"
+        )
+
+        # 2. Resume support — skip already-completed pairs.
+        completed: set = set()
+        if output_file.exists():
+            with open(output_file) as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line)
+                        completed.add(
+                            (entry.get("prompt", ""), entry.get("model_id", ""))
+                        )
+                    except json.JSONDecodeError:
+                        continue
+            if completed:
+                print(f"Resuming: {len(completed)} already completed, skipping.")
+
+        remaining = [t for t in tasks if (t[0], t[2]) not in completed]
+        print(f"Tasks to run: {len(remaining)} (skipped {len(tasks) - len(remaining)})")
+
+        if not remaining:
+            print("Nothing to do.")
+            return
+
+        # 3. Run parallel re-judging.
+        completed_count = 0
+        diag_interval = max(100, len(remaining) // 10)
+
+        with open(output_file, "a") as outfile:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {
+                    executor.submit(self._process_rejudge_task, t): t
+                    for t in remaining
+                }
+                with tqdm(total=len(remaining), desc="Re-judging") as pbar:
+                    for fut in as_completed(futures):
+                        res = fut.result()
+                        with self.lock:
+                            outfile.write(json.dumps(res) + "\n")
+                            outfile.flush()
+                            completed_count += 1
+                        pbar.update(1)
+
+                        if completed_count % diag_interval == 0:
+                            self.diagnostics.log_report(min_samples=30)
+
+        # 4. Final diagnostics.
+        print("\n" + "=" * 60)
+        print("FINAL JUDGE PANEL DIAGNOSTICS")
+        print("=" * 60)
+        self.diagnostics.log_report(min_samples=1)
+
+        diag_path = output_file.with_suffix(".judge_diagnostics.json")
+        diag_payload = {
+            "summary": self.diagnostics.per_judge_summary(),
+            "bias_matrix": self.diagnostics.bias_matrix(),
+            "weights_equal": self.diagnostics.compute_weights("equal"),
+            "weights_inverse_variance": self.diagnostics.compute_weights(
+                "inverse_variance",
+            ),
+            "weights_inverse_bias": self.diagnostics.compute_weights(
+                "inverse_bias",
+            ),
+        }
+        with open(diag_path, "w") as df:
+            json.dump(diag_payload, df, indent=2)
+        print(f"Diagnostics written to {diag_path}")
+
     def run(self, prompts_file, models_file, output_file, cache_file, is_lmsys=False, limit=None):
         # 1. Load Cache
         self.load_cache(cache_file)
@@ -674,8 +807,8 @@ if __name__ == "__main__":
         description="Generate multi-judge CoT rewards for (prompt, model) pairs.",
     )
     parser.add_argument("--mode", type=str, default="pareto",
-                        choices=["pareto", "distribution", "custom"],
-                        help="Preset mode or 'custom' for explicit paths")
+                        choices=["pareto", "distribution", "custom", "rejudge"],
+                        help="Preset mode or 'rejudge' to re-judge existing data")
     parser.add_argument("--limit", type=int, default=None,
                         help="Limit number of prompts to process")
     parser.add_argument("--prompts-file", type=str, default=None,
@@ -683,9 +816,17 @@ if __name__ == "__main__":
     parser.add_argument("--models-file", type=str, default=None,
                         help="Path to models JSON (default: models.json)")
     parser.add_argument("--output-file", type=str, default=None,
-                        help="Path to output JSONL (required for --mode custom)")
+                        help="Path to output JSONL (required for --mode custom/rejudge)")
     parser.add_argument("--cache-file", type=str, default=None,
                         help="Path to response cache JSONL (optional)")
+    parser.add_argument(
+        "--rejudge-from", type=str, default=None,
+        help=(
+            "Path to an existing rewards JSONL whose (prompt, response) "
+            "pairs will be re-judged with the current panel.  Use with "
+            "--mode rejudge."
+        ),
+    )
     parser.add_argument("--workers", type=int, default=64,
                         help="Max parallel workers (default: 64)")
     parser.add_argument(
@@ -708,7 +849,20 @@ if __name__ == "__main__":
 
     models_file = Path(args.models_file) if args.models_file else root / "src/bandit_gpt/config/models.json"
 
-    if args.mode == "custom":
+    if args.mode == "rejudge":
+        if not args.rejudge_from:
+            parser.error("--mode rejudge requires --rejudge-from <source.jsonl>")
+        source = Path(args.rejudge_from)
+        output = (
+            Path(args.output_file)
+            if args.output_file
+            else source.with_name(source.stem + "_v3.jsonl")
+        )
+        print(f"Re-judging from {source} → {output}")
+        print(f"Judge panel: {gen.judge_panel}")
+        print(f"Judge weighting: {gen.judge_weighting}")
+        gen.rejudge_from_file(source, output, limit=args.limit)
+    elif args.mode == "custom":
         if not args.prompts_file or not args.output_file:
             parser.error("--mode custom requires --prompts-file and --output-file")
         gen.run(
