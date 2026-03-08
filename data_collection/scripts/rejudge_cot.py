@@ -240,7 +240,7 @@ class CoTRewardGenerator:
         self.judge_panel: List[str] = [
             "deepseek/deepseek-r1",
             "qwen/qwen-2.5-72b-instruct",
-            "z-ai/glm-5",
+            "anthropic/claude-3.5-haiku",
         ]
 
         self.judge_max_tokens: int = 4000

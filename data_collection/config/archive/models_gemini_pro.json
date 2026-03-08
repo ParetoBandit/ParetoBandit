@@ -1,0 +1,14 @@
+{
+  "models": [
+    {
+      "model_id": "google/gemini-2.5-pro",
+      "display": "Gemini-2.5-Pro",
+      "description": "Premium tier: Google flagship reasoning model.",
+      "input_cost_per_m": 1.25,
+      "output_cost_per_m": 10.0,
+      "context_length": 1048576,
+      "speed_profile": "slow",
+      "capabilities": ["reasoning", "coding", "math", "context"]
+    }
+  ]
+}
