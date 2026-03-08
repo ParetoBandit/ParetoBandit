@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Figure 1 (contextual): Model Win Probability Shifts with Prompt Features (K=10)
+Figure 1 (contextual): Model Win Probability Shifts with Prompt Features
 
 Demonstrates that per-model reward is a function of prompt context (PC1),
 with heterogeneous slopes across models — the core premise for contextual
@@ -14,18 +14,18 @@ Panel B: Forest plot of per-model contextual slopes (γ_m) with bootstrap
          95% CIs.  Stars mark models whose CI excludes zero.
 
 Feature pipeline (must match production router):
-  Sentence embedding → PCA (32 components) → whitening → standardisation.
+  Sentence embedding → PCA → whitening → standardisation.
   Whitening scales each PCA coordinate by 1/√(explained_variance), so
   components have roughly unit variance under the PCA training distribution.
   This matches the FeatureService / embed_prompt() pipeline used by all
   downstream experiments and the production router.
 
 Methodology:
-  - Holdout only (N=750 prompts, no dev contamination)
-  - Reward: mean(vote × confidence) from judge panel
+  - Holdout only (no dev contamination)
+  - Reward: weighted rubric composite from judge panel
   - PCA trained on independent dataset (~46K LMSYS arena prompts)
   - PCA features are whitened to match production router pipeline
-  - LR test uses 6 PCA components; Panel A visualises PC1 only
+  - LR test uses min(6, n_components) PCA components; Panel A visualises PC1
   - Bootstrap CIs: 10 000 case-resamples
 
 Usage:
@@ -46,14 +46,14 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 from scipy.stats import chi2
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
 from bandit_gpt.config import (
     DEFAULT_PCA_PATH,
-    HOLDOUT_DATA_PATH_ALL_MODELS,
+    K4_HOLDOUT_DATA_PATH,
+    K3_MODELS_PATH,
 )
 
 sys.path.insert(0, str(project_root / "experiments"))
@@ -64,35 +64,64 @@ from utils.rewards import extract_reward
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  K=10 PORTFOLIO
+#  PORTFOLIO (loaded from canonical config)
 # ══════════════════════════════════════════════════════════════════════════
 
-PORTFOLIO_K10: List[Dict] = [
-    {"id": "meta-llama/llama-3.1-8b-instruct",              "display": "Llama-3.1-8B",     "color": "#e41a1c", "ls": "--",  "marker": "o"},
-    {"id": "mistralai/mixtral-8x7b-instruct",               "display": "Mixtral-8x7B",     "color": "#ff7f00", "ls": "--",  "marker": "s"},
-    {"id": "google/gemma-3-27b-it",                         "display": "Gemma-3-27B",      "color": "#a65628", "ls": ":",   "marker": "D"},
-    {"id": "anthropic/claude-haiku-4.5",                    "display": "Haiku-4.5",        "color": "#984ea3", "ls": "-",   "marker": "^"},
-    {"id": "deepseek/deepseek-chat-v3-0324",                "display": "DeepSeek-V3",      "color": "#377eb8", "ls": "-",   "marker": "v"},
-    {"id": "google/gemini-2.5-flash-preview-09-2025",       "display": "Gemini-2.5-Flash", "color": "#4daf4a", "ls": "-",   "marker": "p"},
-    {"id": "meta-llama/llama-4-maverick",                   "display": "Llama-4-Maverick", "color": "#f781bf", "ls": "-",   "marker": "h"},
-    {"id": "anthropic/claude-sonnet-4",                     "display": "Claude-Sonnet-4",  "color": "#6a3d9a", "ls": "-",   "marker": "P"},
-    {"id": "moonshotai/kimi-k2-0905",                         "display": "Kimi-K2",           "color": "#b15928", "ls": "--",  "marker": "*"},
-    {"id": "openai/gpt-4.1",                                "display": "GPT-4.1",          "color": "#1f78b4", "ls": "-",   "marker": "X"},
-]
+# Visual properties cycled across models in portfolio order.
+_COLORS = ["#e41a1c", "#4daf4a", "#1f78b4", "#984ea3", "#ff7f00",
+           "#a65628", "#f781bf", "#377eb8", "#6a3d9a", "#b15928"]
+_LINESTYLES = ["--", "-", "-", ":", "-", "--", "-", "-", "--", ":"]
+_MARKERS = ["o", "p", "X", "^", "s", "D", "v", "h", "P", "*"]
 
-MODEL_IDS = [m["id"] for m in PORTFOLIO_K10]
-_MODEL_MAP = {m["id"]: m for m in PORTFOLIO_K10}
+
+def _load_portfolio(models_path: Path) -> List[Dict]:
+    """Load model portfolio from a canonical JSON config file.
+
+    Each entry gets visual metadata (color, linestyle, marker) assigned
+    by position so the figure remains deterministic.
+
+    Args:
+        models_path: Path to a JSON file with a top-level ``"models"``
+            list, each entry having at least ``"model_id"`` and
+            ``"display"`` keys.
+
+    Returns:
+        List of dicts with keys ``id``, ``display``, ``color``, ``ls``,
+        ``marker``.
+    """
+    with open(models_path) as f:
+        raw = json.load(f)["models"]
+    portfolio: List[Dict] = []
+    for i, m in enumerate(raw):
+        portfolio.append({
+            "id": m["model_id"],
+            "display": m["display"],
+            "color": _COLORS[i % len(_COLORS)],
+            "ls": _LINESTYLES[i % len(_LINESTYLES)],
+            "marker": _MARKERS[i % len(_MARKERS)],
+        })
+    return portfolio
+
+
+PORTFOLIO: List[Dict] = _load_portfolio(K3_MODELS_PATH)
+MODEL_IDS: List[str] = [m["id"] for m in PORTFOLIO]
+_MODEL_MAP: Dict[str, Dict] = {m["id"]: m for m in PORTFOLIO}
 
 
 # ══════════════════════════════════════════════════════════════════════════
 #  DATA LOADING
 # ══════════════════════════════════════════════════════════════════════════
 
-def load_holdout_k10(
+def load_holdout_rewards(
     holdout_file: Path,
     model_ids: List[str],
 ) -> Tuple[List[str], Dict[str, Dict[str, float]]]:
-    """Load holdout rewards for the K=10 portfolio.
+    """Load holdout rewards for the target portfolio.
+
+    Args:
+        holdout_file: Path to a gzipped JSONL reward file.
+        model_ids: Model IDs to include; only prompts with coverage
+            across all ``len(model_ids)`` models are retained.
 
     Returns:
         prompts: Ordered list of prompt strings (only prompts with all K).
@@ -274,7 +303,7 @@ def main():
 
     # ── Load holdout ──────────────────────────────────────────────────────
     print(f"Loading holdout rewards for K={K} portfolio ...")
-    prompts, rewards = load_holdout_k10(HOLDOUT_DATA_PATH_ALL_MODELS, MODEL_IDS)
+    prompts, rewards = load_holdout_rewards(K4_HOLDOUT_DATA_PATH, MODEL_IDS)
     N = len(prompts)
     print(f"  {N} prompts with complete K={K} coverage")
 
@@ -355,7 +384,7 @@ def main():
     # ── Panel A: Regression lines with CI bands ──────────────────────────
     x_grid = np.linspace(pc1_std.min() - 0.1, pc1_std.max() + 0.1, 200)
 
-    for m_info in PORTFOLIO_K10:
+    for m_info in PORTFOLIO:
         mid = m_info["id"]
         alpha_m, gamma_m, sigma_m = fits[mid]
         r_vec = np.array([rewards[p][mid] for p in prompts])
@@ -402,16 +431,16 @@ def main():
     ax1.tick_params(labelsize=9)
     ax1.legend(
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.18),
-        ncol=5,
-        fontsize=8.5,
+        bbox_to_anchor=(0.5, -0.14),
+        ncol=K,
+        fontsize=9,
         framealpha=0.92,
         edgecolor="#cccccc",
         fancybox=True,
         borderpad=0.4,
         handletextpad=0.5,
         labelspacing=0.3,
-        columnspacing=0.8,
+        columnspacing=1.0,
     )
     ax1.grid(alpha=0.15, linestyle="--", linewidth=0.5)
 
@@ -475,9 +504,9 @@ def main():
     )
 
     # ── Save ──────────────────────────────────────────────────────────────
-    out_300 = output_dir / "figure1_k10_contextual.png"
+    out_300 = output_dir / "figure1_k3_contextual.png"
     fig.savefig(out_300, dpi=300, bbox_inches="tight", facecolor="white")
-    out_600 = output_dir / "figure1_k10_contextual_hires.png"
+    out_600 = output_dir / "figure1_k3_contextual_hires.png"
     fig.savefig(out_600, dpi=600, bbox_inches="tight", facecolor="white")
     plt.close()
 
