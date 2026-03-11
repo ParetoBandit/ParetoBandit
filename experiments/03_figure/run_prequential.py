@@ -1362,7 +1362,7 @@ def run_experiment() -> None:  # noqa: C901
     logger.info(f"    Dev-train: {len(dev_train_k2)}  Dev-val: {len(dev_val_k2)}")
 
     # --- Supervised static baselines (LLMRouter-style) ------------------
-    # Same features (bge-m3 PCA), same objective (argmax reward), same data.
+    # Same features (MiniLM PCA), same objective (argmax reward), same data.
     # Isolates BanditGPT's online adaptation advantage over supervised routing.
     logger.info("\n  Phase 2b: Supervised static baselines (KNN/SVM/MLP) ...")
     logger.info("    Tuning hyperparameters on dev-val ...")

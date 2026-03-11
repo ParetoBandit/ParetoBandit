@@ -5,7 +5,7 @@ Pre-compute and cache embeddings for all experiment prompts.
 Produces two cache layers in a single encoder pass:
 
 1. **Raw embeddings** — the full-dimensional SentenceTransformer output
-   (e.g. 1024-dim for ``BAAI/bge-m3``).  These are PCA-agnostic and can
+   (e.g. 384-dim for ``all-MiniLM-L6-v2``).  These are PCA-agnostic and can
    be projected through any PCA truncation downstream.
 
 2. **PCA-projected embeddings** — whitened, bias-appended context vectors

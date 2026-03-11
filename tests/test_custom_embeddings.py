@@ -134,7 +134,7 @@ class TestFeatureServiceCustomEncoder:
 class TestFeatureServicePrecomputed:
 
     def test_passthrough(self):
-        dim = 33
+        dim = 16
         fs = FeatureService.for_precomputed(dimension=dim)
         vec = np.random.randn(dim)
         vec[-1] = 1.0
@@ -142,7 +142,7 @@ class TestFeatureServicePrecomputed:
         np.testing.assert_array_equal(out, vec)
 
     def test_dimension_mismatch_raises(self):
-        fs = FeatureService.for_precomputed(dimension=33)
+        fs = FeatureService.for_precomputed(dimension=16)
         with pytest.raises(ValueError, match="dimension"):
             fs.extract_features(np.zeros(50))
 
@@ -340,7 +340,7 @@ class TestRouterPrecomputed:
     """Routing with FeatureService.for_precomputed — no encoder, no PCA."""
 
     def test_route_with_precomputed(self):
-        dim = 33
+        dim = 16
         fs = FeatureService.for_precomputed(dimension=dim)
         registry = _sample_registry(2)
         router = BanditRouter.create(
@@ -353,7 +353,7 @@ class TestRouterPrecomputed:
         assert model in registry
 
     def test_feedback_with_precomputed(self):
-        dim = 33
+        dim = 16
         fs = FeatureService.for_precomputed(dimension=dim)
         registry = _sample_registry(2)
         router = BanditRouter.create(

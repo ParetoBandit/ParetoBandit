@@ -7,7 +7,7 @@ import numpy as np
 from bandit_gpt import FeatureService
 
 
-DEFAULT_DIMENSION = 33  # 32 PCA dimensions + bias
+DEFAULT_DIMENSION = 16  # 15 PCA dimensions + bias
 
 
 @dataclass(frozen=True)

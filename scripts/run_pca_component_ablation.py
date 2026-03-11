@@ -25,7 +25,7 @@ Outputs
 Notes
 -----
 - Uses the current default SentenceTransformer from `bandit_gpt.config`
-  (default: `BAAI/bge-m3`) unless overridden.
+  (default: `all-MiniLM-L6-v2`) unless overridden.
 - Runs on CPU by default for reproducibility and to avoid device-dependent
   numerical differences.
 """

@@ -1,13 +1,13 @@
 {
-  "encoder": "BAAI/bge-m3",
-  "vector_dim": 1024,
-  "n_prompts": 8487,
-  "timestamp": "2026-03-06 20:14:12",
+  "encoder": "all-MiniLM-L6-v2",
+  "vector_dim": 384,
+  "n_prompts": 8363,
+  "timestamp": "2026-03-10 18:49:13",
   "data_sources": [
-    "/Users/annette/repostitories/banditGPT/data_collection/rewards/dev_rewards_complete_all_models.jsonl.gz",
-    "/Users/annette/repostitories/banditGPT/data_collection/rewards/holdout_rewards_complete_all_models.jsonl.gz",
-    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_train_rewards.jsonl.gz",
-    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_val_rewards.jsonl.gz",
-    "/Users/annette/repostitories/banditGPT/data_collection/rewards/k4_holdout_rewards.jsonl.gz"
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/archive/legacy_k10/dev_rewards_complete_all_models.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/archive/legacy_k10/holdout_rewards_complete_all_models.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/train.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/val.jsonl.gz",
+    "/Users/annette/repostitories/banditGPT/data_collection/rewards/holdout.jsonl.gz"
   ]
 }

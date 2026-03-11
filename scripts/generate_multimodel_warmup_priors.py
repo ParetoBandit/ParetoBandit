@@ -56,7 +56,7 @@ from bandit_gpt.config import (
     DEV_DATA_PATH_ALL_MODELS,
     HOLDOUT_DATA_PATH_ALL_MODELS,
     K4_TRAIN_DATA_PATH,
-    K3_WARMUP_PRIORS_32_PATH,
+    WARMUP_PRIORS_PATH,
     ARTIFACTS_DIR,
 )
 from utils.embeddings import load_raw_embedding_cache
@@ -74,6 +74,7 @@ def load_rewards_as_dataset(
     data_path: Path,
     min_models: int = 43,
     required_models: Optional[Set[str]] = None,
+    judge_id: Optional[str] = None,
 ) -> List[Dict]:
     """Load rewards from gzipped JSONL, returning the format expected by
     ``calibration.generate_warmup_priors``.
@@ -83,6 +84,8 @@ def load_rewards_as_dataset(
         min_models: Minimum number of distinct models per prompt.
         required_models: If provided, retain only prompts that cover *all*
             of these model IDs and keep only their reward entries.
+        judge_id: When set, extract reward from this single judge
+            rather than the full panel mean.
 
     Returns:
         List of ``{"prompt": str, "rewards": {model_id: float}}`` dicts.
@@ -100,7 +103,7 @@ def load_rewards_as_dataset(
             prompt = entry["prompt"]
             if prompt not in rewards:
                 rewards[prompt] = {}
-            rewards[prompt][model_id] = extract_reward(entry)
+            rewards[prompt][model_id] = extract_reward(entry, judge_id=judge_id)
 
     if required_models is not None:
         full = {
@@ -239,7 +242,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-priors", type=str,
-        default=str(K3_WARMUP_PRIORS_32_PATH),
+        default=str(WARMUP_PRIORS_PATH),
         help="Output path for warmup priors",
     )
     parser.add_argument(
@@ -247,6 +250,11 @@ def main() -> None:
         default=str(ARTIFACTS_DIR / "splits_three_way.json"),
         help="Output path for three-way split definition "
              "(ignored when --no-split is set)",
+    )
+    parser.add_argument(
+        "--judge", type=str, default=None,
+        help="Extract reward from a single judge (e.g. 'deepseek/deepseek-r1') "
+             "instead of the full panel mean.  Default: None (ensemble).",
     )
     args = parser.parse_args()
 
@@ -269,6 +277,7 @@ def main() -> None:
     logger.info(f"  Mode: {'canonical split (--no-split)' if args.no_split else 'three-way split'}")
     if data_path:
         logger.info(f"  Data: {data_path}")
+    logger.info(f"  Judge: {args.judge or 'ensemble (all judges)'}")
     logger.info("=" * 70)
 
     # ── Load raw embedding cache (shared by both modes) ────────────────
@@ -284,6 +293,7 @@ def main() -> None:
             source_path,
             min_models=min_models,
             required_models=required_models,
+            judge_id=args.judge,
         )
         logger.info(f"  Using all {len(rewards_data)} prompts for prior training")
 
@@ -325,11 +335,13 @@ def main() -> None:
             source_path,
             min_models=min_models,
             required_models=required_models,
+            judge_id=args.judge,
         )
         holdout_data = load_rewards_as_dataset(
             HOLDOUT_DATA_PATH_ALL_MODELS,
             min_models=min_models,
             required_models=required_models,
+            judge_id=args.judge,
         )
 
         # ExperimentBurnIn expects {prompt: {model: reward}} format

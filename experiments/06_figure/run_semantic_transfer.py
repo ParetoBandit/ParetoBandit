@@ -3,7 +3,7 @@
 Figure 6: Semantic Transfer Evaluation (K=3).
 
 Re-evaluates model-to-model theta-transfer after improvements to the
-router, PCA components (15-comp), and encoder (BAAI/bge-m3).
+router, PCA components (15-comp), and encoder (all-MiniLM-L6-v2).
 
 Design (Leave-One-Out)
 ----------------------

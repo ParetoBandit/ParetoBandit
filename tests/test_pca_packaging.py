@@ -48,7 +48,7 @@ class TestPCAPathResolution:
         assert DEFAULT_PCA_PATH.parent == _PACKAGE_ARTIFACTS_DIR
 
     def test_default_pca_path_filename(self) -> None:
-        assert DEFAULT_PCA_PATH.name == "pca_32.joblib"
+        assert DEFAULT_PCA_PATH.name == "pca_15.joblib"
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ class TestPCAPathResolution:
 
 
 class TestPCAArtifact:
-    """Verify the shipped pca_32.joblib is a valid sklearn PCA."""
+    """Verify the shipped pca_15.joblib is a valid sklearn PCA."""
 
     def test_artifact_exists(self) -> None:
         assert DEFAULT_PCA_PATH.exists(), (
@@ -70,18 +70,18 @@ class TestPCAArtifact:
         assert hasattr(pca, "transform"), "Loaded object is not a fitted PCA"
         assert hasattr(pca, "n_components_"), "PCA has no n_components_ attribute"
 
-    def test_artifact_has_32_components(self) -> None:
+    def test_artifact_has_15_components(self) -> None:
         pca = joblib.load(DEFAULT_PCA_PATH)
-        assert pca.n_components_ == 32, (
-            f"Expected 32 PCA components, got {pca.n_components_}"
+        assert pca.n_components_ == 15, (
+            f"Expected 15 PCA components, got {pca.n_components_}"
         )
 
     def test_artifact_input_dimension_matches_default_encoder(self) -> None:
         """PCA input dim must equal the default SentenceTransformer output dim."""
         pca = joblib.load(DEFAULT_PCA_PATH)
-        assert pca.n_features_in_ == 1024, (
+        assert pca.n_features_in_ == 384, (
             f"PCA trained on {pca.n_features_in_}D embeddings, "
-            "expected 1024 (BAAI/bge-m3)"
+            "expected 384 (all-MiniLM-L6-v2)"
         )
 
     def test_artifact_explained_variance_is_reasonable(self) -> None:
@@ -98,7 +98,7 @@ class TestPCAArtifact:
         rng = np.random.default_rng(42)
         x = rng.standard_normal((1, pca.n_features_in_))
         out = pca.transform(x)
-        assert out.shape == (1, 32)
+        assert out.shape == (1, pca.n_components_)
         assert np.all(np.isfinite(out))
 
 
@@ -114,10 +114,9 @@ class TestFeatureServiceLoadsShippedPCA:
         from bandit_gpt.feature_service import FeatureService
 
         fs = FeatureService()
-        # Trigger lazy loading
         pca = fs.pca
         assert pca is not None, "FeatureService.pca is None — JIT fallback fired"
-        assert pca.n_components_ == 32
+        assert pca.n_components_ == 15
 
     def test_no_jit_warning_when_shipped_pca_exists(self, caplog: pytest.LogCaptureFixture) -> None:
         """Loading the shipped artifact should not emit a JIT CRITICAL log."""
@@ -136,14 +135,14 @@ class TestFeatureServiceLoadsShippedPCA:
         from bandit_gpt.feature_service import FeatureService
 
         fs = FeatureService()
-        assert fs.dimension == 33, f"Expected 33 (32 PCA + 1 bias), got {fs.dimension}"
+        assert fs.dimension == 16, f"Expected 16 (15 PCA + 1 bias), got {fs.dimension}"
 
     def test_extract_features_shape(self) -> None:
         from bandit_gpt.feature_service import FeatureService
 
         fs = FeatureService()
         vec = fs.extract_features("Explain quantum entanglement in simple terms")
-        assert vec.shape == (33,), f"Expected (33,), got {vec.shape}"
+        assert vec.shape == (16,), f"Expected (16,), got {vec.shape}"
         assert vec[-1] == 1.0, "Last element should be bias term = 1.0"
         assert np.all(np.isfinite(vec))
 
@@ -198,9 +197,9 @@ class TestBackwardCompatibility:
         assert "src" in str(GENERIC_PCA_PATH) and "artifacts" in str(GENERIC_PCA_PATH)
 
     def test_warmup_priors_path_still_source_tree(self) -> None:
-        from bandit_gpt.config import MULTIMODEL_WARMUP_PRIORS_PATH
+        from bandit_gpt.config import WARMUP_PRIORS_PATH
 
-        assert "src" in str(MULTIMODEL_WARMUP_PRIORS_PATH)
+        assert WARMUP_PRIORS_PATH.exists(), f"Warmup priors missing: {WARMUP_PRIORS_PATH}"
 
 
 # ---------------------------------------------------------------------------

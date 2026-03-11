@@ -64,7 +64,7 @@ class TestTrainPCA:
         )
 
         assert pca.n_components_ == 16
-        assert pca.n_features_in_ == 1024
+        assert pca.n_features_in_ == 384
         assert float(np.sum(pca.explained_variance_ratio_)) > 0
         assert (tmp_path / "pca_test.joblib").exists()
 
@@ -224,7 +224,7 @@ class TestRouterCreateGuard:
         guard still requires pca_path, so we inject a precomputed service."""
         from bandit_gpt.router import BanditRouter
 
-        fs = FeatureService.for_precomputed(dimension=33)
+        fs = FeatureService.for_precomputed(dimension=16)
         router = BanditRouter.create(
             context_model="sentence-transformers/all-mpnet-base-v2",
             priors="none",

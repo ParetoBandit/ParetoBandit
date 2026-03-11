@@ -18,7 +18,7 @@ K=4 full portfolio   : K=3 + Gemini-2.5-Flash (positive-transfer candidate).
 Judges
 ~~~~~~
 All rewards scored by a fixed unbiased PoLL panel:
-    DeepSeek-R1, Qwen-2.5-72B-Instruct, Claude-3.5-Haiku.
+    DeepSeek-R1, GPT-4.1-mini, Claude-3.5-Haiku.
 Continuous v3 rubric (logic × constraint × utility).
 """
 
@@ -30,7 +30,7 @@ from pathlib import Path
 
 # IMPORTANT: The shipped PCA artifact is trained for this encoder.
 # Changing it requires regenerating PCA and warmup priors.
-DEFAULT_SENTENCE_TRANSFORMER = "BAAI/bge-m3"
+DEFAULT_SENTENCE_TRANSFORMER = "all-MiniLM-L6-v2"
 
 STRONG_MODEL_EQUIVALENTS = ["openai/gpt-4.1", "openai/gpt-4.1"]
 
@@ -73,7 +73,7 @@ LMSYS_BATTLES_PATH = PROMPTS_DIR / "lmarena_battles_en.jsonl"
 #
 # K=4 portfolio: Llama-3.1-8B, Mistral-Large-2512, Gemini-2.5-Flash,
 #                Gemini-2.5-Pro.
-# Every record judged by the canonical PoLL panel (R1 + Qwen-72B + Haiku).
+# Every record judged by the canonical PoLL panel (R1 + GPT-4.1-mini + Haiku).
 # Perfectly balanced: every prompt has exactly 4 model records.
 #
 #   CONSTANT              PROMPTS   RECORDS   FILE
@@ -99,7 +99,7 @@ HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "holdout.jsonl.gz"
 #
 # Built from the canonical train split (1,002 prompts) using
 # ``scripts/generate_multimodel_warmup_priors.py --no-split``.
-# Plasticity = 0.1, PCA-whitened, BAAI/bge-m3 encoder.
+# Plasticity = 0.1, PCA-whitened, all-MiniLM-L6-v2 encoder.
 
 WARMUP_PRIORS_DIR = DATA_COLLECTION_DIR / "warmup_priors"
 WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k3.joblib"

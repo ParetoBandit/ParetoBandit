@@ -11,8 +11,8 @@ Pipeline
 2. Excludes any prompts that appear in the experimental dev or holdout
    reward files to keep the PCA fitting data strictly independent of
    all evaluation data.
-3. Embeds prompts using ``DEFAULT_SENTENCE_TRANSFORMER`` (``BAAI/bge-m3``).
-4. Fits a PCA model (1024 -> N components) and saves the artifact.
+3. Embeds prompts using ``DEFAULT_SENTENCE_TRANSFORMER`` (``all-MiniLM-L6-v2``).
+4. Fits a PCA model (384 -> N components) and saves the artifact.
 
 Usage
 -----
