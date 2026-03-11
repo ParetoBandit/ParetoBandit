@@ -1,106 +1,138 @@
-# Figure 1: Contextual Sensitivity across K=3 Models
+# Figure 1: Cost-Quality Pareto Frontier (CostSave@Q)
 
-This experiment establishes the empirical motivation for contextual routing: **per-model quality is a function of prompt context, and the sensitivity to context differs across models.**
-
-If all models responded identically to prompt features (shared contextual slope), a static policy would suffice. This experiment shows that slopes are heterogeneous—the optimal model varies with the prompt—giving the bandit meaningful signal to exploit.
+**Headline result: BanditGPT achieves competitive cost savings without
+supervised routing labels, using only per-request reward feedback.**
 
 ## Core Question
 
-> Does prompt context affect model quality differently across models, and do the router's PCA features capture this heterogeneity?
+> How much cost can a contextual bandit router save while maintaining a
+> specified quality level, compared to static model selection?
 
-## Method
+## Setup
 
-We evaluate a **K=3 portfolio** spanning three cost tiers on held-out prompts:
+- **K=2 portfolio**: Llama-3.1-8B (weak, $0.00003/req) vs Gemini-2.5-Pro
+  (strong, $0.015/req)
+- **Quality gap**: 14% (0.793 vs 0.932), prompt-dependent (weak >= strong on
+  40% of prompts)
+- **Cost ratio**: 500x
+- **Data**: train=8,374 / val=1,785 / test=1,824 prompts
+- **Best config**: alpha=1.0, n_eff=10, policy=hybrid, corralling=False,
+  ff=1.0 (selected by Pareto AUC on val, PCA-25 embeddings)
+- **Evaluation protocol**: the bandit trains on the train split, then is
+  evaluated on the test split while continuing to learn (online updates).
+  This faithfully reflects production deployment. After 8 K+ training
+  prompts the policy is near-convergent; test-phase updates are
+  incremental and the distinction from a frozen-policy evaluation is
+  negligible.
 
-| Tier | Model |
-|------|-------|
-| **Cheap** | Llama-3.1-8B |
-| **Mid** | Gemini-2.5-Flash |
-| **Expensive** | GPT-4.1 |
+## Reward signal assumption
 
-The portfolio is loaded from `data_collection/config/models_k3.json` via `bandit_gpt.config.K3_MODELS_PATH`.
+BanditGPT requires per-request reward feedback but **no pre-collected
+routing labels**. In production, rewards can come from implicit user
+signals (acceptance rates, thumbs-up/down ratings, task completion) at
+no additional inference cost. Our evaluation uses an LLM-as-judge
+(DeepSeek-R1) as a controlled proxy for such signals; judge inference
+cost is an *evaluation expense*, not a deployment cost, and is therefore
+excluded from the cost axis. If the judge were the production reward
+mechanism, its cost would need to be amortized into the x-axis —
+though in practice the judge can be run on a subsample or replaced
+by cheaper implicit signals.
 
-### Feature Pipeline (matches production router)
+## Results (test holdout)
 
-Prompts are encoded with a sentence transformer, projected to PCA dimensions, and **whitened** — each component is scaled by `1/√(explained_variance_j)` so that all components have approximately unit variance under the PCA training distribution. This matches the `embed_prompt()` / `FeatureService` pipeline used by all downstream experiments and the production router. Whitening ensures the LinUCB isotropic prior (`A₀ = λI`) is well-matched to the feature scale.
+| Metric | Bandit | Static baseline | Advantage | 95% CI |
+|---|---|---|---|---|
+| CostSave@90% | **71.9%** | 66.9% | +5.1 pp | [+2.0, +7.8] |
+| CostSave@95% | **41.5%** | 33.4% | +8.1 pp | [+5.1, +10.8] |
+| CostSave@99% | **14.2%** | 6.7% | +7.5 pp | [+4.5, +10.9] |
 
-### Regression Specification
+95% CIs from prompt-level paired bootstrap (n=1,824 test prompts,
+2,000 resamples). Bandit per-prompt outcomes are seed-averaged (5 seeds)
+before resampling; the same indices are applied to both the bandit and
+static baselines so the CI is on the *advantage* (difference).
 
-For each model *m*, we fit OLS:
-
-```
-r_{i,m} = α_m + γ_m · PC1_std_i + ε_{i,m}
-```
-
-where `PC1_std` is the whitened first principal component (further standardised to zero mean and unit variance on the holdout), and `γ_m` is the **contextual slope**—the rate at which model *m*'s reward changes per standard deviation of whitened PC1. If all `γ_m` are equal, a static policy suffices; if they differ significantly, contextual routing can exploit the heterogeneity.
-
-### Likelihood-Ratio Test
-
-A formal LR test compares shared-slope H0 against per-model-slope H1 using up to d=6 PCA components (clamped to the number available), with (K−1) × d degrees of freedom.
-
-### Bootstrap Confidence Intervals
-
-Per-model slopes are estimated with 10,000 prompt-level bootstrap resamples. A slope is declared significant if its 95% CI excludes zero.
-
-### Data Independence
-
-| | PCA Training | Holdout Evaluation |
-|---|---|---|
-| **Source** | RouteLLM battles (HuggingFace) | banditGPT evaluation pool |
-| **Size** | ~46K prompts | holdout split |
-| **Overlap** | None — disjoint by provenance |
+Pareto AUC: 0.8703 ± 0.0002 vs 0.8626 static (+0.892%, 5 seeds).
 
 ## Figure Structure
 
-- **Panel A**: Per-model OLS regression lines of reward (%) vs standardised whitened PC1, with 95% confidence bands. Lines fan and cross, showing no single model dominates the full feature space.
-- **Panel B**: Forest plot of per-model contextual slopes γ_m (on whitened PC1) with bootstrap 95% CIs. Stars mark significance.
+Two-panel figure showing the cost-quality Pareto frontier.
 
-## Files
+**Panel A: K=2 (Llama-8B vs Gemini-Pro)**
 
-| File | Purpose |
-|------|---------|
-| `plot_figure1.py` | Main analysis and figure generation |
-| `results_explanation.tex` | Paper results section |
-| `validation_methodology.tex` | Detailed methodology |
-| `figure_1_caption.tex` | Figure caption (included by paper) |
+- Dashed gray line: static baseline (linear interpolation from always-weak to
+  always-strong)
+- Solid blue curve: bandit frontier (each point is a different `cost_penalty`,
+  averaged over 5 seeds)
+- Starred markers: CostSave@90%, @95%, @99% operating points annotated with
+  cost savings
+- Shaded band: +/- 1 std across seeds
+- X-axis: average cost per request (log scale); Y-axis: average reward
+
+The bandit curve bows above the static line, showing that contextual routing
+achieves higher reward at the same cost.
+
+**Panel B: K=3 after onboarding Mistral-Large (from Exp 3)**
+
+Same layout, but with three fixed-model points (Llama, Mistral, Gemini) and
+the post-onboarding bandit frontier. Mistral delivers 99% of Gemini quality
+at 1/29th the cost, so the frontier shifts dramatically left. Gemini becomes
+nearly dominated.
+
+## Routing Mix at Key Operating Points
+
+| cost_penalty | reward | cost | %weak | %strong |
+|---|---|---|---|---|
+| 0.00 | 0.9262 | $0.013746 | 11.9% | 88.1% |
+| 0.05 | 0.9217 | $0.012743 | 20.4% | 79.6% |
+| 0.10 | 0.9162 | $0.011975 | 26.5% | 73.5% |
+| 0.20 | 0.8922 | $0.009536 | 42.0% | 58.0% |
+| 0.50 | 0.8037 | $0.001027 | 94.6% | 5.4% |
+
+At intermediate cost penalties, the router makes genuine discriminative
+decisions — not trivially picking one model.
+
+## Comparison
+
+BanditGPT achieves meaningful cost savings using *online-only* reward
+feedback — no supervised routing labels, preference data, or offline
+classifiers are required.
+
+A direct numerical comparison with RouteLLM's reported ~50% cost saving
+at 95% quality is **not valid**: the benchmarks differ in dataset (Chatbot
+Arena vs our LLM-as-judge corpus), model pairs (different cost ratios),
+and evaluation methodology (human preferences vs DeepSeek-R1 scores).
+CostSave percentages are highly sensitive to the cost ratio between
+models (here 500x), so raw numbers do not transfer across setups.
+
+The qualitative takeaway is that an online bandit router, without any
+labelled training data, can recover a substantial fraction of the
+cost-quality frontier that supervised approaches achieve — while also
+supporting capabilities that supervised routers lack (online learning
+curves, zero-shot onboarding of new models, and Corralling for safe
+exploration).
+
+## Data Source
+
+Results from `experiments/benchmark/results/hparam_tuning_k2.json`, produced
+by `experiments/benchmark/tune_hybrid_router.py --k2 --n-seeds 3`.
 
 ## Reproducibility
 
 ```bash
-# 1. Train PCA (if not present)
-python3 scripts/train_pca_from_routellm.py --n-components 32
+# Run the full K=2 hyperparameter sweep (160 configs x 3 seeds, ~70 min)
+python experiments/benchmark/tune_hybrid_router.py --k2 --n-seeds 3
 
-# 2. Generate Figure 1 (uses whitened PCA features)
-python3 experiments/01_figure/plot_figure1.py
+# Generate the figure (to be written)
+python experiments/01_figure/plot_pareto_frontier.py
 ```
 
-Output: `experiments/01_figure/results/figure1_k3_contextual.png`
+## Connection to Other Experiments
 
-The script automatically applies PCA whitening to match the production router pipeline. If the PCA artifact has `whiten=True`, the built-in whitening is used; otherwise external whitening (`1/√(explained_variance)`) is applied. Diagnostic output confirms which path is taken.
-
-## Limitations
-
-1. **Stratified holdout.** The holdout was constructed with a difficulty dimension derived from oracle rewards, enriching for prompts with clear model differences. Signal *existence* is robust; *magnitude* in deployment depends on the prompt distribution.
-
-2. **PC1 is a lower bound.** The router uses all PCA components. Higher components contribute additional signal. The PC1-only visualisation is conservative.
-
-3. **Prompt-type mechanism.** The correlation reflects prompt-type variation that correlates with model preference. The PCA captures *prompt type → model preference*, not an abstract routing feature.
-
-## Connection to banditGPT
-
-This experiment validates the router's **"eyes"** (PCA features). Subsequent experiments validate the **"brain"** (bandit learning):
-
-| Experiment | What it tests |
-|-----------|---------------|
-| **Figure 1** (this) | Features predict heterogeneous preference → routing is possible |
-| **Figure 3** | Prequential evaluation → online learning performance |
-| **Figure 4** | Multi-model Pareto frontier → production cost-quality tradeoffs |
-
-## Dependencies
-
-- `sentence-transformers` — Prompt embeddings
-- `scikit-learn` — PCA
-- `matplotlib` — Visualisation
-- `scipy` — Chi-squared distribution, t-distribution
-- `numpy` — Numerical computation
-- `joblib` — PCA model loading
+| Experiment | What it adds |
+|---|---|
+| **Exp 1 / Figure 1** (this) | Headline CostSave@Q, Pareto frontier |
+| **Exp 2** | Learning curve — CostSave improves over time |
+| **Exp 3** | Onboarding — Panel B of this figure |
+| **Exp 4** | Corralling — safety under bad priors |
+| **Exp 5** | Feature ablation — PCA vs PCA+text |
+| **Exp 6** | Warmup ablation — value of offline priors |

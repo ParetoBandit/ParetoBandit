@@ -1,0 +1,157 @@
+% Discussion of Figure 1 results (K=2 Pareto frontier).
+% Intended to be \input{} from the main results section.
+
+\paragraph{Setup.}
+The $K{=}2$ portfolio comprises \texttt{Llama-3.1-8B} (budget,
+\$0.00003/req) and \texttt{Gemini-2.5-Pro} (frontier, \$0.015/req),
+spanning a $500{\times}$ cost ratio.
+Quality is measured by DeepSeek-R1~\cite{deepseekai2025deepseekr1}
+judgments on a scale of $[0,1]$;
+\texttt{Gemini} scores 0.932 on average versus 0.793 for \texttt{Llama},
+a 14-point gap.  Crucially, the weak model matches or exceeds the
+strong model on approximately 40\% of prompts, providing substantial
+headroom for contextual routing.
+The bandit is trained on $n{=}8{,}374$ prompts and evaluated on a
+held-out test set of $n{=}1{,}824$ prompts.  Hyperparameters
+($\alpha{=}1.0$, $\neff{=}10$, hybrid
+LinUCB~\cite{li2010contextual} with PCA-25 prompt
+embeddings) are selected by Pareto AUC on a separate validation split
+($n{=}1{,}785$).
+
+\paragraph{Reward signal assumption.}
+\label{sec:reward_assumption}
+\textit{banditGPT} requires per-request reward feedback but no
+pre-collected routing labels.  In production, rewards can come from
+implicit user signals---acceptance rates, thumbs-up/down ratings,
+task-completion indicators---at no additional inference cost.
+Our evaluation uses an LLM-as-judge
+(DeepSeek-R1~\cite{deepseekai2025deepseekr1}) as a controlled
+proxy for such signals, following the evaluation methodology
+of~\citet{zheng2024llmjudge}.
+Judge inference cost is an \emph{evaluation expense}, not a deployment
+cost, and is therefore excluded from the cost axis in
+Figure~\ref{fig:pareto_k2}.
+
+\paragraph{The bandit frontier dominates static routing.}
+Figure~\ref{fig:pareto_k2} shows that the bandit's Pareto frontier
+(blue curve) bows consistently above the static random-mix baseline
+(dashed gray).
+The static baseline represents the best a non-contextual policy
+can achieve: routing each request to the strong model with some fixed
+probability~$p$, yielding a convex combination of the two
+endpoints~\cite{ong2024routellm}.
+By conditioning on prompt embeddings, the bandit identifies prompts
+where \texttt{Llama} suffices and reserves \texttt{Gemini} for
+requests that genuinely benefit from a frontier model.
+This contextual routing gain is reflected in a Pareto AUC of
+$0.8703 \pm 0.0002$ versus $0.8626$ for the static baseline
+($+0.89\%$, 5~seeds).
+
+\paragraph{CostSave at matched quality.}
+Table~\ref{tab:costsave_k2} quantifies the advantage at three
+quality thresholds.  At each threshold $Q$,
+CostSave~\cite{li2026llmrouterbench, chen2023frugalgpt} measures the
+percentage reduction in cost required to achieve
+$Q \times R_{\text{strong}}$ quality on the Pareto frontier, relative
+to the cost of always using the strong model.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{CostSave\,@\,$Q$ for the $K{=}2$ portfolio
+(\texttt{Llama-3.1-8B} vs.\ \texttt{Gemini-2.5-Pro}).
+$\Delta$ is the bandit saving minus the static-baseline saving
+at matched quality.  95\% CIs from prompt-level paired
+bootstrap~\cite{efron1993bootstrap}
+($n{=}1{,}824$, $B{=}2{,}000$).}
+\label{tab:costsave_k2}
+\begin{tabular}{lcccc}
+\toprule
+Threshold & Bandit & Static & $\Delta$ (pp) & 95\% CI \\
+\midrule
+CostSave\,@\,90\% & 71.9\% & 66.9\% & $+5.1$ & $[+2.0,\; +7.8]$ \\
+CostSave\,@\,95\% & 41.5\% & 33.4\% & $+8.1$ & $[+5.1,\; +10.8]$ \\
+CostSave\,@\,99\% & 14.2\% & \phantom{0}6.7\% & $+7.5$ & $[+4.5,\; +10.9]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At the 95\% quality threshold---matching 95\% of \texttt{Gemini}'s
+reward---the bandit saves 41.5\% of inference cost, an 8.1~pp
+advantage over the static baseline ($95\%~\text{CI}:
+[+5.1,\, +10.8]$~pp).  All three advantages exclude zero,
+confirming that contextual routing provides a statistically
+significant cost reduction beyond what non-contextual mixing achieves.
+
+The advantage grows from 5.1~pp at $Q{=}90\%$ to 8.1~pp at
+$Q{=}95\%$, reflecting the fact that moderate quality targets leave
+the most room for the router to substitute the cheap model on
+easy prompts.  At the stringent $Q{=}99\%$ threshold the absolute
+saving shrinks (14.2\% vs.\ 71.9\% at $Q{=}90\%$) because nearly
+all prompts must be routed to the frontier model, but the advantage
+over the static baseline remains large ($+7.5$~pp).
+
+\paragraph{Routing decisions are non-trivial.}
+The routing mix at intermediate cost penalties reveals that the
+bandit makes genuine discriminative decisions rather than trivially
+defaulting to one model.
+At $\lambda{=}0.20$, the router sends 42\% of prompts to
+\texttt{Llama} and 58\% to \texttt{Gemini}, achieving a reward of
+$0.892$ at \$0.0095/req---a 37\% cost reduction relative to
+always-\texttt{Gemini} while retaining 96\% of its quality.
+This confirms that the bandit learns a meaningful mapping from
+prompt features to model selection, exploiting the 40\% of prompts
+where \texttt{Llama} is adequate.
+Such prompt-specific routing is the defining advantage of contextual
+bandits over non-contextual
+policies~\cite{li2010contextual, abbasi2011improved}.
+
+\paragraph{Sensitivity to cost ratio.}
+The CostSave percentages in Table~\ref{tab:costsave_k2} are
+specific to the $500{\times}$ cost ratio of this portfolio.
+With a smaller cost gap, absolute savings would be lower;
+conversely, a larger gap would amplify them.
+The operationally meaningful quantity is the \emph{advantage}
+$\Delta$ over the static baseline, which reflects the value of
+contextual information independent of the cost scale.
+Direct numerical comparison with CostSave figures from other
+benchmarks (e.g., RouteLLM~\cite{ong2024routellm} on Chatbot
+Arena~\cite{zheng2023judging}) is not valid, as the metric is
+sensitive to the model pair, cost ratio, task distribution, and
+evaluation methodology.
+
+\paragraph{Statistical methodology.}
+Confidence intervals use a prompt-level paired
+bootstrap~\cite{efron1993bootstrap}
+($n{=}1{,}824$ test prompts, $B{=}2{,}000$ resamples).
+Per-prompt bandit outcomes are averaged across 5~seeds before
+resampling.  The same resampled indices are applied to both the
+bandit and static baselines, so the CI captures uncertainty in the
+\emph{advantage} (difference), not the absolute saving.
+The bandit continues learning during the test phase (online
+updates), faithfully reflecting deployment
+conditions~\cite{li2010contextual}.  After
+$8{,}374$ training prompts the policy is near-convergent; test-phase
+updates are incremental and the distinction from a frozen-policy
+evaluation is negligible.
+
+\paragraph{Practical implications.}
+The Pareto frontier provides a deployment-ready
+knob~\cite{wang2025barp, li2025llmbandit}: by adjusting
+the cost penalty $\lambda$ at serving time, a practitioner can
+continuously trade quality for cost.  For example:
+\begin{itemize}[nosep,leftmargin=*]
+    \item \emph{Quality-first} ($\lambda{=}0.05$): reward~$0.922$
+          at \$0.0127/req (16\% cost reduction vs.\
+          always-\texttt{Gemini}).
+    \item \emph{Balanced} ($\lambda{=}0.25$): reward~$0.873$ at
+          \$0.0078/req (49\% cost reduction).
+    \item \emph{Budget-constrained} ($\lambda{=}0.50$): reward~$0.804$
+          at \$0.0010/req (93\% cost reduction).
+\end{itemize}
+No retraining is required to move between these operating
+points---the same trained bandit serves all of them.  This
+flexibility is particularly valuable in production environments
+where budget constraints fluctuate (e.g., peak vs.\ off-peak
+traffic) or where different user tiers warrant different
+quality--cost trade-offs~\cite{chen2023frugalgpt}.

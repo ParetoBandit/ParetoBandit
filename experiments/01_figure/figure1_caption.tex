@@ -1,0 +1,50 @@
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{../experiments/01_figure/results/figure1_pareto_k2.pdf}
+    \caption{Cost--quality Pareto frontier for \textit{banditGPT}
+    on a two-model portfolio (\texttt{Llama-3.1-8B} at
+    \$0.00003/req vs.\ \texttt{Gemini-2.5-Pro} at \$0.015/req;
+    $500{\times}$ cost ratio).
+    %
+    \textbf{Solid blue curve:}\ bandit frontier traced by sweeping
+    the cost penalty $\lambda$ over 22 values in $[0,\,10]$, averaged
+    over 5~independent seeds (different train/test shuffle orders).
+    The shaded band shows $\pm 1$~SE across seeds.
+    Each $\lambda$ produces a different cost--quality operating
+    point~\cite{chen2023frugalgpt, li2026llmrouterbench};
+    the bandit continues learning during the test phase, faithfully
+    reflecting online deployment~\cite{li2010contextual}.
+    %
+    \textbf{Dashed gray line:}\ static random-mix baseline---the
+    convex combination of the two fixed-model endpoints, corresponding
+    to routing each request to \texttt{Llama} with probability~$p$
+    and \texttt{Gemini} with probability~$1{-}p$ \emph{without}
+    conditioning on the prompt.  This is the best a non-contextual
+    policy can achieve.
+    %
+    \textbf{Star markers:}\ CostSave\,@\,$Q$ operating points at
+    quality thresholds $Q \in \{90\%,\, 95\%,\, 99\%\}$.
+    CostSave~\cite{li2026llmrouterbench, chen2023frugalgpt} is
+    the percentage reduction in cost the bandit frontier achieves
+    relative to the frontier-model cost at matched quality
+    ($Q \times R_{\text{strong}}$).  The advantage $\Delta$ (in
+    percentage points) is the bandit saving minus the static-baseline
+    saving at the same quality level.  95\% confidence intervals are
+    from a prompt-level paired
+    bootstrap~\cite{efron1993bootstrap}
+    ($n{=}1{,}824$ test prompts,
+    $B{=}2{,}000$ resamples); the same resampled indices are applied to
+    both the bandit and static baselines so the CI is on the
+    \emph{advantage}, not the absolute saving.
+    %
+    Setup: train $n{=}8{,}374$, test $n{=}1{,}824$ prompts scored by
+    DeepSeek-R1~\cite{deepseekai2025deepseekr1}
+    (LLM-as-judge~\cite{zheng2024llmjudge} proxy for implicit
+    user feedback;
+    see Section~\ref{sec:reward_assumption}).
+    Hyperparameters ($\alpha{=}1.0$, $\neff{=}10$, hybrid
+    LinUCB~\cite{li2010contextual})
+    selected on a held-out validation split.
+    }
+    \label{fig:pareto_k2}
+\end{figure}
