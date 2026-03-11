@@ -8,6 +8,7 @@
     "forgetting_factor": 1.0
   },
   "n_seeds": 5,
+  "oracle_reward": 0.946282,
   "pareto_auc": {
     "bandit_mean": 0.870304,
     "bandit_std": 0.000169,
@@ -48,6 +49,118 @@
       "advantage_pp": 7.55,
       "ci_95_lower_pp": 4.48,
       "ci_95_upper_pp": 10.88
+    }
+  ],
+  "gap_at_oracle": [
+    {
+      "cost_penalty": 0.0,
+      "router_reward": 0.926249,
+      "gap_pct": 13.07
+    },
+    {
+      "cost_penalty": 0.01,
+      "router_reward": 0.926051,
+      "gap_pct": 13.2
+    },
+    {
+      "cost_penalty": 0.02,
+      "router_reward": 0.924903,
+      "gap_pct": 13.95
+    },
+    {
+      "cost_penalty": 0.05,
+      "router_reward": 0.92168,
+      "gap_pct": 16.06
+    },
+    {
+      "cost_penalty": 0.1,
+      "router_reward": 0.916191,
+      "gap_pct": 19.64
+    },
+    {
+      "cost_penalty": 0.15,
+      "router_reward": 0.906361,
+      "gap_pct": 26.05
+    },
+    {
+      "cost_penalty": 0.2,
+      "router_reward": 0.892197,
+      "gap_pct": 35.29
+    },
+    {
+      "cost_penalty": 0.22,
+      "router_reward": 0.883524,
+      "gap_pct": 40.96
+    },
+    {
+      "cost_penalty": 0.25,
+      "router_reward": 0.873229,
+      "gap_pct": 47.67
+    },
+    {
+      "cost_penalty": 0.28,
+      "router_reward": 0.860084,
+      "gap_pct": 56.25
+    },
+    {
+      "cost_penalty": 0.3,
+      "router_reward": 0.852921,
+      "gap_pct": 60.93
+    },
+    {
+      "cost_penalty": 0.35,
+      "router_reward": 0.835899,
+      "gap_pct": 72.03
+    },
+    {
+      "cost_penalty": 0.4,
+      "router_reward": 0.819192,
+      "gap_pct": 82.94
+    },
+    {
+      "cost_penalty": 0.45,
+      "router_reward": 0.808337,
+      "gap_pct": 90.02
+    },
+    {
+      "cost_penalty": 0.5,
+      "router_reward": 0.803701,
+      "gap_pct": 93.05
+    },
+    {
+      "cost_penalty": 0.6,
+      "router_reward": 0.79747,
+      "gap_pct": 97.11
+    },
+    {
+      "cost_penalty": 0.7,
+      "router_reward": 0.795918,
+      "gap_pct": 98.13
+    },
+    {
+      "cost_penalty": 0.8,
+      "router_reward": 0.794427,
+      "gap_pct": 99.1
+    },
+    {
+      "cost_penalty": 1.0,
+      "router_reward": 0.793611,
+      "gap_pct": 99.63
+    },
+    {
+      "cost_penalty": 2.0,
+      "router_reward": 0.793186,
+      "gap_pct": 99.91
+    },
+    {
+      "cost_penalty": 5.0,
+      "router_reward": 0.793046,
+      "gap_pct": 100.0
+    },
+    {
+      "cost_penalty": 10.0,
+      "router_reward": 0.793046,
+      "gap_pct": 100.0
     }
   ],
   "sweep_points": [
@@ -314,5 +427,5 @@
     "meta-llama/llama-3.1-8b-instruct",
     "google/gemini-2.5-pro"
   ],
-  "elapsed_s": 90.5
+  "elapsed_s": 87.5
 }

@@ -319,6 +319,7 @@ class FrontierResult:
     static_auc: float
     hparams: Dict[str, Any]
     n_seeds: int
+    oracle_reward: float
 
     per_prompt_bandit_rewards: Optional[Dict[float, np.ndarray]] = None
     """``{cost_penalty: (n_prompts,)}`` seed-averaged rewards, original order."""
@@ -375,6 +376,11 @@ def run_frontier_sweep(
     fixed_rewards = [float(test.rewards[a].mean()) for a in ARM_ORDER]
     cost_lo = min(fixed_costs)
     cost_hi = max(fixed_costs)
+
+    oracle_per_prompt = np.maximum.reduce(
+        [test.rewards[a] for a in ARM_ORDER]
+    )
+    oracle_reward = float(oracle_per_prompt.mean())
 
     baselines = {}
     for arm_id in ARM_ORDER:
@@ -480,6 +486,7 @@ def run_frontier_sweep(
         static_auc=static_auc,
         hparams=hparams,
         n_seeds=n_seeds,
+        oracle_reward=oracle_reward,
         per_prompt_bandit_rewards=pp_bandit_rewards,
         per_prompt_bandit_costs=pp_bandit_costs,
         baseline_per_prompt_rewards={a: test.rewards[a] for a in ARM_ORDER},
@@ -689,6 +696,62 @@ def compute_costsave_with_bootstrap(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Gap@Oracle
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class GapAtOracleResult:
+    """Gap between a router's quality and the per-instance oracle.
+
+    Gap@Oracle := (R_oracle - R_router) / (R_oracle - R_weak) × 100,
+    yielding a normalised percentage in [0, 100] where 0 = oracle-optimal
+    and 100 = always-weak.  This metric is comparable across datasets
+    because it is anchored to the portfolio's ceiling and floor.
+    """
+
+    cost_penalty: float
+    router_reward: float
+    oracle_reward: float
+    weak_reward: float
+    gap_pct: float
+
+
+def compute_gap_at_oracle(
+    frontier: FrontierResult,
+) -> List[GapAtOracleResult]:
+    """Compute normalised Gap@Oracle for every sweep operating point.
+
+    Args:
+        frontier: Results from ``run_frontier_sweep``.
+
+    Returns:
+        One ``GapAtOracleResult`` per sweep point, sorted by ascending
+        cost penalty.
+    """
+    oracle_r = frontier.oracle_reward
+    weak_r = min(
+        frontier.baselines[ARM_LABELS[a]]["mean_reward"] for a in ARM_ORDER
+    )
+    quality_range = oracle_r - weak_r
+
+    results: List[GapAtOracleResult] = []
+    for sp in frontier.sweep_points:
+        gap_pct = (
+            (oracle_r - sp.mean_reward) / quality_range * 100
+            if quality_range > 0 else 0.0
+        )
+        results.append(GapAtOracleResult(
+            cost_penalty=sp.cost_penalty,
+            router_reward=sp.mean_reward,
+            oracle_reward=oracle_r,
+            weak_reward=weak_r,
+            gap_pct=round(gap_pct, 2),
+        ))
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Plotting
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -720,6 +783,7 @@ def plot_pareto_panel_a(
     frontier: FrontierResult,
     costsave_results: List[CostSaveResult],
     out_dir: Path,
+    gap_results: Optional[List[GapAtOracleResult]] = None,
 ) -> Path:
     """Generate the K=2 Pareto frontier figure (Panel A).
 
@@ -896,14 +960,43 @@ def plot_pareto_panel_a(
             zorder=9,
         )
 
+    # ── Oracle reference line ─────────────────────────────────────────
+    oracle_r = frontier.oracle_reward
+    ax.axhline(
+        oracle_r, color=CB_RED, lw=1.0, ls=":", alpha=0.5, zorder=2,
+    )
+    ax.annotate(
+        f"Oracle ({oracle_r:.3f})",
+        xy=(strong_c * 0.40, oracle_r),
+        xytext=(0, 6), textcoords="offset points",
+        fontsize=7, color=CB_RED, fontstyle="italic", alpha=0.7,
+    )
+
+    # ── Gap@Oracle annotation at λ=0 ──────────────────────────────────
+    if gap_results:
+        gap_at_zero = next(
+            (g for g in gap_results if g.cost_penalty == 0.0), None,
+        )
+        if gap_at_zero is not None:
+            gap_text = (
+                f"Gap@Oracle (λ=0): {gap_at_zero.gap_pct:.1f}%"
+            )
+        else:
+            gap_text = ""
+    else:
+        gap_text = ""
+
     # ── Pareto AUC annotation (small, non-prominent) ──────────────────
     auc_text = (
         f"Pareto AUC: {frontier.pareto_auc_mean:.4f} "
         f"(static: {frontier.static_auc:.4f}, "
         f"Δ={((frontier.pareto_auc_mean - frontier.static_auc) / frontier.static_auc * 100):+.2f}%)"
     )
+    combined_text = auc_text
+    if gap_text:
+        combined_text = f"{auc_text}    |    {gap_text}"
     ax.text(
-        0.02, 0.02, auc_text,
+        0.02, 0.02, combined_text,
         transform=ax.transAxes, fontsize=6.5, color="#666666",
         verticalalignment="bottom",
     )
@@ -945,6 +1038,7 @@ def export_results(
     costsave_results: List[CostSaveResult],
     elapsed_s: float,
     out_dir: Path,
+    gap_results: Optional[List[GapAtOracleResult]] = None,
 ) -> Path:
     """Write machine-readable results for downstream consumption.
 
@@ -953,6 +1047,7 @@ def export_results(
         costsave_results: CostSave metrics with CIs.
         elapsed_s: Total wall-clock time in seconds.
         out_dir: Output directory.
+        gap_results: Gap@Oracle metrics per sweep point.
 
     Returns:
         Path to the saved JSON file.
@@ -961,6 +1056,7 @@ def export_results(
         "experiment": "Figure 1 — Cost-Quality Pareto Frontier (K=2)",
         "hparams": frontier.hparams,
         "n_seeds": frontier.n_seeds,
+        "oracle_reward": round(frontier.oracle_reward, 6),
         "pareto_auc": {
             "bandit_mean": round(frontier.pareto_auc_mean, 6),
             "bandit_std": round(frontier.pareto_auc_std, 6),
@@ -982,6 +1078,14 @@ def export_results(
                 "ci_95_upper_pp": cs.ci_upper,
             }
             for cs in costsave_results
+        ],
+        "gap_at_oracle": [
+            {
+                "cost_penalty": g.cost_penalty,
+                "router_reward": round(g.router_reward, 6),
+                "gap_pct": g.gap_pct,
+            }
+            for g in (gap_results or [])
         ],
         "sweep_points": [
             {
@@ -1018,6 +1122,7 @@ def export_results(
 def print_summary(
     frontier: FrontierResult,
     costsave_results: List[CostSaveResult],
+    gap_results: Optional[List[GapAtOracleResult]] = None,
 ) -> None:
     """Print a concise, reviewer-friendly summary to stdout."""
     print("\n" + "=" * 72)
@@ -1034,12 +1139,21 @@ def print_summary(
         label = ARM_LABELS[arm_id]
         b = frontier.baselines[label]
         print(f"{label:<20s}  {b['mean_reward']:8.4f}  ${b['mean_cost']:11.8f}")
+    print(f"{'Oracle (per-prompt)':<20s}  {frontier.oracle_reward:8.4f}")
 
     print(f"\nPareto AUC")
     print(f"  Bandit:  {frontier.pareto_auc_mean:.6f} ± {frontier.pareto_auc_std:.6f}")
     print(f"  Static:  {frontier.static_auc:.6f}")
     delta = (frontier.pareto_auc_mean - frontier.static_auc) / frontier.static_auc * 100
     print(f"  Delta:   {delta:+.3f}%")
+
+    if gap_results:
+        print(f"\nGap@Oracle (normalised: 0% = oracle, 100% = always-weak)")
+        print(f"  {'λ':<6s}  {'Reward':>8s}  {'Gap':>8s}")
+        print("  " + "-" * 26)
+        for g in gap_results:
+            if g.cost_penalty in (0.0, 0.05, 0.1, 0.2, 0.5):
+                print(f"  {g.cost_penalty:<6.2f}  {g.router_reward:8.4f}  {g.gap_pct:7.1f}%")
 
     n_prompts_str = ""
     if frontier.per_prompt_bandit_rewards is not None:
@@ -1141,16 +1255,25 @@ def main() -> None:
         bootstrap_seed=42,
     )
 
+    # ── Gap@Oracle ────────────────────────────────────────────────────
+    logger.info("\nComputing Gap@Oracle ...")
+    gap_results = compute_gap_at_oracle(frontier)
+
     # ── Generate outputs ──────────────────────────────────────────────
     elapsed = time.time() - t0
 
-    fig_path = plot_pareto_panel_a(frontier, costsave_results, RESULTS_DIR)
+    fig_path = plot_pareto_panel_a(
+        frontier, costsave_results, RESULTS_DIR, gap_results=gap_results,
+    )
     logger.info("Figure saved to %s", fig_path)
 
-    json_path = export_results(frontier, costsave_results, elapsed, RESULTS_DIR)
+    json_path = export_results(
+        frontier, costsave_results, elapsed, RESULTS_DIR,
+        gap_results=gap_results,
+    )
     logger.info("Data saved to %s", json_path)
 
-    print_summary(frontier, costsave_results)
+    print_summary(frontier, costsave_results, gap_results=gap_results)
 
     logger.info("\nTotal wall time: %.1f s", elapsed)
 

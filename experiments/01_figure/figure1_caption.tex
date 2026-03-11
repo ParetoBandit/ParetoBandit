@@ -37,6 +37,12 @@
     both the bandit and static baselines so the CI is on the
     \emph{advantage}, not the absolute saving.
     %
+    \textbf{Dotted red line:}\ per-instance oracle reward ($0.946$),
+    i.e.\ the mean quality when the best model is chosen for every
+    prompt.  At $\lambda{=}0$ the bandit reaches $R{=}0.926$,
+    corresponding to a normalised Gap@Oracle of $13.1\%$
+    (see Section~\ref{sec:gap_oracle}).
+    %
     Setup: train $n{=}8{,}374$, test $n{=}1{,}824$ prompts scored by
     DeepSeek-R1~\cite{deepseekai2025deepseekr1}
     (LLM-as-judge~\cite{zheng2024llmjudge} proxy for implicit

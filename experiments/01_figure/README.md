@@ -53,6 +53,22 @@ static baselines so the CI is on the *advantage* (difference).
 
 Pareto AUC: 0.8703 ± 0.0002 vs 0.8626 static (+0.892%, 5 seeds).
 
+### Gap@Oracle
+
+Oracle reward (per-prompt best model): **0.9463**.  Gap@Oracle measures
+how much of the weak→oracle quality range the router fails to capture
+(0% = oracle, 100% = always-weak):
+
+| λ | Reward | Gap@Oracle |
+|---|---|---|
+| 0.00 | 0.9262 | 13.1% |
+| 0.05 | 0.9217 | 16.1% |
+| 0.20 | 0.8922 | 35.3% |
+| 0.50 | 0.8037 | 93.0% |
+
+At the best-quality operating point (λ=0), the bandit closes 87% of the
+gap between the weak model and the per-instance oracle.
+
 ## Figure Structure
 
 Two-panel figure showing the cost-quality Pareto frontier.
@@ -103,6 +119,11 @@ Arena vs our LLM-as-judge corpus), model pairs (different cost ratios),
 and evaluation methodology (human preferences vs DeepSeek-R1 scores).
 CostSave percentages are highly sensitive to the cost ratio between
 models (here 500x), so raw numbers do not transfer across setups.
+
+Like BARP (Wang et al., 2025), BanditGPT operates under bandit feedback
+and produces a continuous cost-quality frontier.  Direct numerical
+comparison requires a shared benchmark; we leave RouterBench evaluation
+to future work.
 
 The qualitative takeaway is that an online bandit router, without any
 labelled training data, can recover a substantial fraction of the

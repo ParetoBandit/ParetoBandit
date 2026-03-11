@@ -91,6 +91,24 @@ saving shrinks (14.2\% vs.\ 71.9\% at $Q{=}90\%$) because nearly
 all prompts must be routed to the frontier model, but the advantage
 over the static baseline remains large ($+7.5$~pp).
 
+\paragraph{Gap to oracle.}
+\label{sec:gap_oracle}
+The per-instance oracle---which always selects the higher-reward model
+for each prompt---achieves an average reward of $0.946$.
+We define the normalised Gap@Oracle as
+$(R_{\text{oracle}} - R_{\text{router}}) /
+ (R_{\text{oracle}} - R_{\text{weak}}) \times 100$,
+where $0\%$ equals the oracle and $100\%$ equals always routing to the
+weak model.
+At the highest-quality operating point ($\lambda{=}0$), the bandit
+reaches $R{=}0.926$ and a Gap@Oracle of \textbf{13.1\%}, closing
+87\% of the weak-to-oracle quality range.
+At moderate cost savings ($\lambda{=}0.20$), the gap widens to 35.3\%,
+reflecting the deliberate trade-off of quality for cost.
+Gap@Oracle is anchored to the portfolio's ceiling and floor rather than
+to the cost ratio, making it more comparable across benchmarks than
+CostSave alone.
+
 \paragraph{Routing decisions are non-trivial.}
 The routing mix at intermediate cost penalties reveals that the
 bandit makes genuine discriminative decisions rather than trivially
@@ -106,7 +124,7 @@ Such prompt-specific routing is the defining advantage of contextual
 bandits over non-contextual
 policies~\cite{li2010contextual, abbasi2011improved}.
 
-\paragraph{Sensitivity to cost ratio.}
+\paragraph{Sensitivity to cost ratio and cross-benchmark comparison.}
 The CostSave percentages in Table~\ref{tab:costsave_k2} are
 specific to the $500{\times}$ cost ratio of this portfolio.
 With a smaller cost gap, absolute savings would be lower;
@@ -114,11 +132,18 @@ conversely, a larger gap would amplify them.
 The operationally meaningful quantity is the \emph{advantage}
 $\Delta$ over the static baseline, which reflects the value of
 contextual information independent of the cost scale.
+Gap@Oracle (Section~\ref{sec:gap_oracle}) provides a complementary,
+cost-ratio-invariant quality metric anchored to the per-instance
+oracle ceiling.
 Direct numerical comparison with CostSave figures from other
 benchmarks (e.g., RouteLLM~\cite{ong2024routellm} on Chatbot
 Arena~\cite{zheng2023judging}) is not valid, as the metric is
 sensitive to the model pair, cost ratio, task distribution, and
 evaluation methodology.
+Like BARP~\cite{wang2025barp}, \textit{banditGPT} operates under
+bandit feedback and produces a continuous cost--quality frontier.
+Direct numerical comparison requires a shared benchmark; we leave
+RouterBench~\cite{li2026llmrouterbench} evaluation to future work.
 
 \paragraph{Statistical methodology.}
 Confidence intervals use a prompt-level paired
