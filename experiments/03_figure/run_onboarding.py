@@ -15,13 +15,18 @@ Protocol
 3. **Phase 3 (K=3 evaluation):** Evaluate on the test split (1,824 prompts),
    recording per-prompt arm choices, rewards, and costs at checkpoints.
 
+No artificial exploration boost is applied.  Hybrid LinUCB's shared beta
+gives the newcomer a meaningful initial quality estimate (the mean of the
+incumbents' calibrated theta_a), enabling zero-shot discovery at the
+production exploration rate (α=0.05).
+
 Two conditions are compared (all else equal — same K=2 warmup priors for
 Llama/Gemini, same Corralling, same alpha/n_eff):
 - **Hybrid LinUCB:** shared beta from K=2 transfers to the newcomer,
   giving it meaningful quality predictions from the first request.
 - **Disjoint LinUCB:** independent per-arm parameters; the newcomer's
   arm-specific A/b start from scratch with no cross-arm knowledge.
-  Isolates the value of the shared beta for model onboarding.
+  Falls into a cold-start trap — never discovered at production alpha.
 
 Outputs
 -------
@@ -44,10 +49,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import sys
 import time
-import types
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -116,23 +119,6 @@ LATE_STAGE_N = 500
 EARLY_STAGE_N = 500
 CONVERGENCE_TOLERANCE = 0.05
 GEMINI_DISPLACEMENT_THRESHOLD = 0.10
-
-ONBOARDING_HALFLIFE = 100
-"""Exploration half-life (prompts) for the post-onboarding alpha schedule.
-
-Tied to ``WINDOW_SIZE``: alpha halves each time we accumulate one full
-routing-mix window of observations about the newcomer.  Horizon-free —
-no knowledge of the evaluation length is required.
-"""
-
-ONBOARDING_ALPHA_MULT = 10.0
-"""Default multiplier: ``α_onboard = ONBOARDING_ALPHA_MULT × α_steady``.
-
-With ``α_steady = 0.05`` the result is ``α_onboard = 0.50``.  This is the
-minimum exploration coefficient needed for the new arm's UCB score
-(``α / √λ ≈ 0.50`` with ``λ = 1``) to compete with established arms
-whose predicted rewards are typically in [0.5, 0.9].
-"""
 
 # Model colors for routing-mix plots
 ARM_COLORS = {
@@ -214,98 +200,12 @@ def _create_router(
         warmup_path=warmup_path,
         prior_n_effective=hparams["prior_n_effective"],
         alpha=hparams["alpha"],
-        use_corralling=False,
+        use_corralling=True,
         cost_penalty=cost_penalty,
         forgetting_factor=hparams["forgetting_factor"],
         policy=policy,
     )
     return router
-
-
-def _make_exp_decay_alpha(
-    alpha_start: float,
-    alpha_end: float,
-    half_life: int,
-) -> float:
-    """Compute the per-step decay rate for exponential alpha schedule.
-
-    Returns γ such that ``α_t = max(α_end, α_start · γ^t)``.
-
-    The schedule is *horizon-free* — it depends only on the half-life
-    (a structural property of the routing-mix window), not on the
-    length of the evaluation sequence.
-
-    Args:
-        alpha_start: Initial exploration coefficient after onboarding.
-        alpha_end: Steady-state floor.
-        half_life: Steps for alpha to halve.
-
-    Returns:
-        Per-step decay rate γ.
-    """
-    return math.pow(0.5, 1.0 / half_life)
-
-
-def _boost_exploration_for_onboarding(
-    router: BanditRouter,
-    onboarding_alpha: float,
-    half_life: int = ONBOARDING_HALFLIFE,
-) -> None:
-    """Apply horizon-free exponential alpha decay after ``register_model``.
-
-    When a new arm is onboarded into a mature router, the existing arms
-    have high-confidence theta estimates while the newcomer starts near
-    zero.  With the original (low) alpha the UCB exploration bonus is too
-    small to overcome the incumbents' advantage — the new arm is never
-    tried (cold-start trap).
-
-    This function patches each Corralling expert's ``get_current_alpha``
-    to use exponential decay::
-
-        α_t = max(α_end, onboarding_alpha · γ^t)
-
-    where ``γ = 0.5^(1/half_life)``.  The schedule is **horizon-free**:
-    it requires no knowledge of how many evaluation prompts remain,
-    avoiding the data-leakage pitfall of tying the decay to the test-set
-    size.  The ``total_steps`` argument passed through ``route()`` is
-    ignored by the patched method.
-
-    Args:
-        router: Router whose corralling experts will be modified in place.
-        onboarding_alpha: Starting exploration coefficient after onboarding.
-        half_life: Steps for alpha to halve (default: ``ONBOARDING_HALFLIFE``).
-    """
-    cr = router.corralling_router
-
-    def _make_alpha_fn(
-        a0: float, floor: float, g: float,
-    ):
-        """Build a closure with captured values (avoids loop-variable trap)."""
-        def _exp_alpha(self: Any, total_steps: int = 0) -> float:
-            return max(floor, a0 * (g ** self.t))
-        return _exp_alpha
-
-    if cr is not None:
-        for expert in cr.experts:
-            steady_state = expert.alpha_end
-            gamma = _make_exp_decay_alpha(
-                onboarding_alpha, steady_state, half_life,
-            )
-            expert.get_current_alpha = types.MethodType(
-                _make_alpha_fn(onboarding_alpha, steady_state, gamma),
-                expert,
-            )
-            expert.t = 0
-            logger.info(
-                "  Expert %s: α₀=%.2f, α_end=%.2f, half-life=%d (γ=%.4f)",
-                type(expert).__name__, onboarding_alpha, steady_state,
-                half_life, gamma,
-            )
-    else:
-        logger.info(
-            "  No corralling — using bandit's native α=%.3f (no boost)",
-            router.bandit.alpha,
-        )
 
 
 def simulate_onboarding(
@@ -318,11 +218,15 @@ def simulate_onboarding(
     warmup_path: str,
     cost_penalty: float,
     seed: int,
-    onboarding_alpha: float = 1.0,
     policy_override: Optional[str] = None,
     condition_name: str = "hybrid",
 ) -> OnboardingResult:
     """Run the full K=2 pre-train → onboard → K=3 evaluation pipeline.
+
+    No artificial exploration boost is applied after onboarding.
+    Hybrid LinUCB's shared beta provides a meaningful initial quality
+    estimate for the newcomer, enabling discovery at the production
+    exploration rate (α=0.05).
 
     Args:
         train_k2: Training split (K=2 arms).
@@ -333,10 +237,6 @@ def simulate_onboarding(
         warmup_path: Path to K=2 warmup priors.
         cost_penalty: Cost penalty weight λ.
         seed: Random seed for shuffle order.
-        onboarding_alpha: Temporary exploration coefficient after the new
-            arm is registered.  Both Corralling experts' alpha schedules
-            are patched to exponential decay (half-life = ONBOARDING_HALFLIFE)
-            from this value to their steady-state floor.  Horizon-free.
         policy_override: Override policy (e.g. "disjoint" for control).
         condition_name: Label for this condition.
 
@@ -397,39 +297,6 @@ def simulate_onboarding(
     )
 
     n_test = test_k3.n
-    _boost_exploration_for_onboarding(router, onboarding_alpha)
-
-    # ── Diagnostic: UCB decomposition right after onboarding ──────────
-    if seed == (1000 if condition_name != "hybrid" else 1000):
-        _x0 = test_k3.embeddings[0]
-        x_feat = router._get_context_vector(_x0)
-        alpha_now = router.bandit.alpha
-        cp_diag: Dict[str, float] = {}
-        if router.cost_penalty > 0:
-            for _m in K3_ARM_ORDER:
-                cp_diag[_m] = router.cost_penalty * router._get_normalized_cost(_m)
-        logger.info(
-            "\n  [DIAG] %s | α=%.3f | policy=%s",
-            condition_name, alpha_now, type(router.bandit).__name__,
-        )
-        logger.info("  %-20s %8s %8s %8s %8s %8s", "arm", "E[r]", "var", "bonus", "cost_p", "UCB")
-        for arm in K3_ARM_ORDER:
-            er = router.bandit.get_expected_reward(arm, x_feat)
-            var = router.bandit.get_ucb_variance(arm, x_feat)
-            bonus = alpha_now * np.sqrt(max(var, 0.0))
-            cp_val = cp_diag.get(arm, 0.0)
-            ucb = er + bonus - cp_val
-            logger.info(
-                "  %-20s %8.4f %8.4f %8.4f %8.4f %8.4f",
-                arm, er, var, bonus, cp_val, ucb,
-            )
-        b_vec = router.bandit.b.get(MISTRAL_ID, None)
-        if b_vec is not None:
-            logger.info("  b[Mistral] norm=%.4f, max=%.4f", np.linalg.norm(b_vec), np.max(np.abs(b_vec)))
-        if hasattr(router.bandit, "A0"):
-            beta_hat = router.bandit.A0_inv @ router.bandit.b0
-            logger.info("  beta_hat norm=%.4f, mean prediction x@β=%.4f", np.linalg.norm(beta_hat), float(x_feat @ beta_hat))
-    # ──────────────────────────────────────────────────────────────────
 
     # Phase 3: K=3 evaluation on test split (online / interleaved)
     arm_to_idx = {arm: i for i, arm in enumerate(K3_ARM_ORDER)}
@@ -966,7 +833,6 @@ def export_results(
     strong_reward: float,
     strong_cost: float,
     cost_penalty: float,
-    onboarding_alpha: float,
     elapsed_s: float,
     out_dir: Path,
 ) -> Path:
@@ -979,7 +845,6 @@ def export_results(
         strong_reward: Mean reward of the strong model (Gemini).
         strong_cost: Mean cost of the strong model (Gemini).
         cost_penalty: Cost penalty λ used for this run.
-        onboarding_alpha: Exploration coefficient used after onboarding.
         elapsed_s: Wall-clock time.
         out_dir: Output directory.
 
@@ -1024,12 +889,8 @@ def export_results(
         "experiment": "model_onboarding_k2_to_k3",
         "hparams": BEST_K2_CORRALLING_HPARAMS,
         "cost_penalty": cost_penalty,
-        "onboarding_alpha": onboarding_alpha,
-        "onboarding_alpha_derivation": (
-            f"{ONBOARDING_ALPHA_MULT}x α_steady"
-        ),
-        "onboarding_halflife": ONBOARDING_HALFLIFE,
-        "onboarding_decay": "exponential (horizon-free)",
+        "exploration_boost": "none (shared β handles cold-start)",
+        "gamma_ramp_steps": 500,
         "newcomer": MISTRAL_ID,
         "strong_model_reward": strong_reward,
         "strong_model_cost": strong_cost,
@@ -1175,18 +1036,6 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--onboarding-alpha-mult", type=float,
-        default=ONBOARDING_ALPHA_MULT,
-        help=(
-            "Multiplier for deriving the onboarding exploration coefficient "
-            "from the val-tuned steady-state alpha: "
-            "α_onboard = mult × α_steady.  Default %(default)s "
-            "(α_onboard = 0.50 when α_steady = 0.05).  Derived from the "
-            "cold-start UCB bound: α/√λ must exceed typical reward levels "
-            "for the new arm to be competitive."
-        ),
-    )
-    parser.add_argument(
         "--fast", action="store_true",
         help="Quick run with 2 seeds for debugging",
     )
@@ -1196,7 +1045,6 @@ def main() -> None:
     cost_penalty = args.cost_penalty
     warmup_path = str(K2_WARMUP_PRIORS_PATH)
     hparams = dict(BEST_K2_CORRALLING_HPARAMS)
-    onboarding_alpha = args.onboarding_alpha_mult * hparams["alpha"]
 
     t0 = time.time()
 
@@ -1216,9 +1064,8 @@ def main() -> None:
     registry_k2 = build_model_registry(K2_ARM_ORDER)
     logger.info("  K=2 registry: %s", list(registry_k2.keys()))
     logger.info(
-        "  Onboarding alpha: %.2f (%.0f× α_steady=%.2f, half-life=%d)",
-        onboarding_alpha, args.onboarding_alpha_mult,
-        hparams["alpha"], ONBOARDING_HALFLIFE,
+        "  α=%.2f (no boost — shared β handles onboarding)",
+        hparams["alpha"],
     )
 
     strong_model = "google/gemini-2.5-pro"
@@ -1246,7 +1093,6 @@ def main() -> None:
                 warmup_path=warmup_path,
                 cost_penalty=cost_penalty,
                 seed=seed,
-                onboarding_alpha=onboarding_alpha,
                 policy_override=policy_override,
                 condition_name=cond_name,
             )
@@ -1290,7 +1136,7 @@ def main() -> None:
     )
     json_path = export_results(
         aggregated, all_results, onboarding_metrics,
-        strong_reward, strong_cost, cost_penalty, onboarding_alpha,
+        strong_reward, strong_cost, cost_penalty,
         elapsed, RESULTS_DIR,
     )
     print_summary(

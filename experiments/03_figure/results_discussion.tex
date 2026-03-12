@@ -7,82 +7,109 @@ adding Mistral-Large-2512 to a pre-trained $K{=}2$ portfolio
 (Llama-3.1-8B + Gemini-2.5-Pro).
 Mistral is an ideal onboarding candidate: it achieves 99\% of
 Gemini's reward ($0.923$ vs.\ $0.932$) at $1/29$th the cost
-(\$0.00052/req vs.\ \$0.015/req).
-Crucially, it comes from a different provider family (Mistral AI),
-so any knowledge transfer must work across provider boundaries.
+(\$0.00052/req vs.\ \$0.015/req), and it comes from a different
+provider family (Mistral AI), so any knowledge transfer must work
+across provider boundaries.
 
 The router is first trained on the canonical training split
-($n{=}8{,}374$) with $K{=}2$ arms using the best corralling
-configuration ($\alpha{=}0.05$, $\neff{=}50$, Hybrid LinUCB with
-Corralling).
-After training, Mistral is added via \texttt{register\_model()},
+($n{=}8{,}374$) with $K{=}2$ arms using the best
+configuration ($\alpha{=}0.05$, $\neff{=}50$, Hybrid LinUCB).
+After training, Mistral is registered via
+\texttt{register\_model(``mistral-large-2512'', speed=``balanced'')},
 and the router processes the test split ($n{=}1{,}824$) with all
 three arms.  We compare two conditions:
 \begin{enumerate}[nosep]
-    \item \textbf{Hybrid LinUCB}: the global shared $\beta$ learned
-          during $K{=}2$ training transfers to the newcomer, giving it
-          meaningful quality predictions from the first request.
+    \item \textbf{Hybrid LinUCB}: the shared $\beta$ learned during
+          $K{=}2$ training transfers to the newcomer.
+          Our staged warm-prior decomposition
+          (\S\ref{sec:warm_priors}) sets
+          $\hat{\beta} = \frac{1}{K}\sum_a A_a^{-1}b_a$ after
+          calibration, so a new arm inherits the mean quality profile
+          of the incumbents as its zero-shot prediction
+          ($\hat{r} \approx 0.76$).
     \item \textbf{Disjoint LinUCB} (ablation): independent per-arm
-          parameters; the newcomer's arm-specific $A_a, b_a$ start from
-          scratch.  Both conditions share identical $K{=}2$ warmup
-          priors for the original arms and identical Corralling
-          configuration---only the cross-arm parameter sharing differs.
+          parameters; the newcomer's $A_a, b_a$ start from
+          the T-shirt--size identity prior ($\hat{r} = 0$).
+          Both conditions share identical $K{=}2$ warmup priors for
+          the original arms---only the shared $\beta$ differs.
 \end{enumerate}
-\noindent All hyperparameters ($\alpha{=}0.05$, $\neff{=}50$, $\lambda{=}0.20$)
-were val-tuned for the Hybrid policy and kept fixed across conditions,
-matching the production scenario where operators call
-\texttt{register\_model()} without re-tuning.
+\noindent All hyperparameters ($\alpha{=}0.05$, $\neff{=}50$,
+$\lambda{=}0.20$) were val-tuned for the Hybrid policy and kept
+fixed across conditions, matching the production scenario where
+operators call \texttt{register\_model()} without re-tuning.
+No artificial exploration boost is applied; the
+experiment tests whether the shared $\beta$ alone is sufficient for
+zero-shot onboarding at the production exploration rate.
+The Corralling meta-learner uses an adaptive $\gamma$ schedule:
+upon \texttt{register\_model()}, $\gamma$ drops from its
+steady-state value (0.05) to~0 and ramps linearly back over 500
+update steps.  This suppresses the uninformed tabula rasa expert
+during the critical discovery window, giving the warm-started
+expert full control when it matters most, then gradually restoring
+the safety net as the newcomer's statistics stabilize.
+Results are averaged over 20 seeds.
 
-\paragraph{Same destination, different speed.}
-Figure~\ref{fig:onboarding_k3} (right panel) overlays Mistral's
-windowed routing share for both conditions.
-Both policies converge to the same steady-state routing mix---the
-late-stage CostSave@95\% (computed on the last 500 prompts) is
-statistically indistinguishable between conditions.
-This confirms that the shared $\beta$ provides a
-\emph{convergence speed} advantage, not a fundamental performance
-difference: Hybrid LinUCB reaches steady state in approximately
-$N_H$ prompts compared to $N_D$ for Disjoint (convergence defined
-as windowed share within $\pm 5$pp of its final value).
-
-\paragraph{Hybrid LinUCB enables rapid newcomer adoption.}
-The left panel shows the windowed routing share under Hybrid LinUCB.
-Mistral's traffic share rises within the first
-${\approx}100$ prompts and stabilises at a dominant share.
-Gemini's traffic share collapses correspondingly---the router
+\paragraph{Hybrid LinUCB enables zero-shot onboarding.}
+The top-left panel of Figure~\ref{fig:onboarding_k3} shows the
+routing mix under Hybrid LinUCB.
+Because the newcomer inherits $\hat{\beta}$, its UCB score is
+competitive from the very first prompt.
+Mistral's cumulative routing share reaches $52.0\%$ by the end of
+the test horizon, while Gemini collapses to $17.2\%$---the router
 autonomously discovers that Gemini is rarely worth $29{\times}$ more
 than Mistral.
-The shared $\beta$ encodes prompt-level structure (e.g., ``hard
-prompts need a strong model'') that transfers immediately to the
-newcomer.
+The full-sequence CostSave@95\% is $79.0 \pm 2.1\%$ and the
+late-stage CostSave@95\% (last 500 prompts) reaches $83.9 \pm 2.0\%$
+as the routing mix converges.
 
-\paragraph{Disjoint LinUCB converges more slowly.}
-Without the shared $\beta$ (centre panel), the newcomer must learn
-its quality profile entirely from scratch.  Mistral's share rises
-more gradually, and Gemini retains a larger share for longer as the
-router explores.  The convergence lag translates to a measurable
-transition overhead: Disjoint pays higher average cost during the
-first 500 prompts than Hybrid.
+\paragraph{Disjoint LinUCB falls into a cold-start trap.}
+Without the shared $\beta$ (top-right panel), the newcomer starts
+with $\hat{r} = 0$.
+At $\alpha{=}0.05$, the UCB exploration bonus
+($\alpha\sqrt{x^\top A_a^{-1} x}$) is far too small to
+overcome the incumbents' learned advantage, so Mistral is never
+selected---its routing share remains at exactly $0\%$ for the
+entire $1{,}824$-prompt test horizon across all 20 seeds.
+This is not a convergence-speed issue; Disjoint LinUCB
+\emph{cannot} discover Mistral without either a higher $\alpha$
+(which degrades steady-state efficiency for the incumbents) or a
+dedicated exploration protocol.
+Its CostSave@95\% is only $36.3 \pm 0.7\%$, limited to savings
+from routing easy prompts to Llama.
 
 \paragraph{Autonomous redundancy detection.}
-The most striking finding is the near-complete displacement of
-Gemini traffic: its windowed share drops below 10\% within the
-first few hundred prompts under both conditions.
-This validates a powerful production narrative:
-\emph{``We started with a cheap model and an expensive frontier model.
-We discovered a mid-tier model that delivers near-frontier quality at
-a fraction of the cost.  The router incorporated it without
-retraining and autonomously learned to stop using the expensive
-model.''}
-No human intervention or retraining was needed---the
-\texttt{register\_model()} API and the bandit's online learning
-handle the transition end-to-end.
+Under Hybrid LinUCB, the router not only adopts the newcomer
+but autonomously identifies that Gemini-2.5-Pro has become
+redundant.
+Gemini's windowed routing share drops below $10\%$ within
+approximately 735 prompts (displacement point: $735 \pm 173$).
+This validates a practical production narrative:
+\emph{``We added a mid-tier model via a one-line API call.
+The router incorporated it without retraining and autonomously
+stopped using the expensive frontier model.''}
 
-\paragraph{Corralling stabilises the transition.}
-We use the corralling configuration ($\alpha{=}0.05$, Corralling
-enabled) rather than the non-corralling best config ($\alpha{=}1.0$)
-because adding a model mid-stream is precisely the scenario where
-the meta-learner's hedging between the warm-started expert and the
-tabula-rasa expert provides stability.  The tabula-rasa expert can
-independently learn the newcomer's quality without being biased by
-the warm-started expert's $K{=}2$ priors.
+\paragraph{Cumulative reward comparison.}
+The bottom panel overlays the cumulative average reward for both
+conditions.
+Hybrid's reward rises after the onboarding point as Mistral
+substitutes for costly Gemini selections while maintaining
+comparable quality.
+Disjoint's reward remains flat, unable to benefit from the new
+arm it never selects.
+During the $K{=}2$ pre-training phase, Disjoint shows a
+marginally higher cumulative reward (${\sim}0.01$)---a consequence
+of Hybrid's overparameterisation when $z = x$, where the shared
+and arm-specific components compete for the same signal.
+This small ``cost of transfer readiness'' is dwarfed by Hybrid's
+post-onboarding gains: cumulative regret is $112.8 \pm 2.2$
+for Hybrid vs.\ $132.3 \pm 2.4$ for Disjoint, and the transition
+overhead (excess cost in the first 500 prompts) is $+139\%$ for
+Disjoint relative to Hybrid.
+
+\paragraph{The shared $\beta$ is the key mechanism.}
+This experiment isolates parameter sharing as the sole
+differentiator: both conditions use identical priors, costs,
+exploration rates, and data streams.
+The result demonstrates that the shared $\beta$ in Hybrid LinUCB
+is not merely a speed advantage---it is \emph{necessary} for
+practical cold-start onboarding at production exploration rates.

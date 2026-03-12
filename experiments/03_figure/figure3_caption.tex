@@ -2,32 +2,36 @@
     \centering
     \includegraphics[width=\linewidth]{../experiments/03_figure/results/figure3_onboarding.pdf}
     \caption{Model onboarding: adding Mistral-Large-2512 to a $K{=}2$
-    portfolio (Llama-3.1-8B + Gemini-2.5-Pro).
-    All panels show windowed routing share (last 100 prompts).
+    portfolio (Llama-3.1-8B + Gemini-2.5-Pro) via a single
+    \texttt{register\_model()} call.
     %
-    \textbf{Left (Hybrid LinUCB):}\ the shared $\beta$ from $K{=}2$
-    training transfers to the newcomer.  Mistral's share rises rapidly
-    and Gemini's collapses as the router discovers that Mistral delivers
-    ${\sim}99\%$ of Gemini's quality at $1/29$th the cost.
+    \textbf{Top left (Hybrid LinUCB):}\ the shared $\hat{\beta}$
+    from $K{=}2$ training transfers to the newcomer, giving it
+    an initial quality prediction of $\hat{r} \approx 0.76$.
+    Mistral reaches $52\%$ cumulative routing share and Gemini
+    collapses to $17\%$ (CostSave@95\% $= 79\%$).
     %
-    \textbf{Centre (Disjoint LinUCB, ablation):}\ without cross-arm
-    parameter sharing, the newcomer must learn its quality profile from
-    scratch, resulting in slower adoption.
+    \textbf{Top right (Disjoint LinUCB, ablation):}\ without the
+    shared $\hat{\beta}$, Mistral starts with $\hat{r} = 0$ and the
+    UCB exploration bonus at $\alpha{=}0.05$ cannot overcome the
+    incumbents' advantage---routing share remains at exactly $0\%$
+    across all seeds (cold-start trap; CostSave@95\% $= 36\%$).
     %
-    \textbf{Right (overlay):}\ Mistral's windowed share for both
-    conditions on the same axes.  Dotted lines and markers indicate
-    the convergence point (share within $\pm 5$pp of final value).
-    Both policies converge to the same steady-state routing mix,
-    confirming that the shared $\beta$ is a \emph{speed} advantage,
-    not a fundamental one.
+    \textbf{Bottom (reward overlay):}\ cumulative average reward
+    for both conditions.
+    Hybrid's reward rises after onboarding; Disjoint stays flat.
     %
-    Both conditions share identical $K{=}2$ warmup priors and
-    Corralling configuration; only the shared $\beta$ differs.
-    Setup: $\lambda{=}0.20$ (median from the K{=}2 Pareto sweep),
-    $n{=}8{,}374$ training prompts (K=2), $n{=}1{,}824$ test prompts
-    (K=3), averaged over 3~seeds.
-    Hyperparameters ($\alpha{=}0.05$, $\neff{=}50$, Corralling)
-    from val-tuned corralling config.
+    Both conditions share identical $K{=}2$ warmup priors for the
+    original arms; only the shared $\hat{\beta}$ differs.
+    No artificial exploration boost is applied.
+    The Corralling meta-learner uses an adaptive $\gamma$ schedule:
+    $\gamma$ drops to~0 upon \texttt{register\_model()} and ramps
+    linearly back to~0.05 over 500~steps, giving the warm-started
+    expert full control during the critical discovery window.
+    Setup: $n{=}8{,}374$ training prompts ($K{=}2$),
+    $n{=}1{,}824$ test prompts ($K{=}3$),
+    $\alpha{=}0.05$, $\neff{=}50$, averaged over 20~seeds
+    with SE bands.
     }
     \label{fig:onboarding_k3}
 \end{figure}

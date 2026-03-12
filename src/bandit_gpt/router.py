@@ -2766,6 +2766,7 @@ class BanditRouter:
         tabula_rasa_alpha: float | None = None,
         tabula_rasa_forgetting_factor: float | None = None,
         policy: str = "disjoint",
+        gamma_ramp_steps: int = 500,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -2818,12 +2819,18 @@ class BanditRouter:
                        the tabula-rasa expert inside Corralling.  When ``None``
                        (default), inherits the canonical bandit's
                        ``forgetting_factor`` (legacy behaviour).
+            gamma_ramp_steps: Number of update steps for the onboarding gamma
+                       ramp inside ``CorrallingRouter``.  After ``register_model()``,
+                       the Corralling exploration floor drops to 0 and linearly
+                       ramps back to ``corralling_gamma`` over this many steps
+                       (default: 500).
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
         self.use_corralling = use_corralling
         self.corralling_learning_rate = corralling_learning_rate
         self.corralling_gamma = corralling_gamma
+        self.gamma_ramp_steps = gamma_ramp_steps
         self.cost_penalty = cost_penalty
         self.latency_penalty = latency_penalty
         self.tabula_rasa_alpha = tabula_rasa_alpha
@@ -3091,6 +3098,7 @@ class BanditRouter:
             learning_rate=self.corralling_learning_rate,
             gamma=self.corralling_gamma,
             model_costs=model_costs,
+            gamma_ramp_steps=self.gamma_ramp_steps,
         )
 
         logger.info("[OK] Heterogeneous Experts Strategy Initialized:")
@@ -3128,6 +3136,7 @@ class BanditRouter:
         result.use_corralling = self.use_corralling
         result.corralling_learning_rate = self.corralling_learning_rate
         result.corralling_gamma = self.corralling_gamma
+        result.gamma_ramp_steps = self.gamma_ramp_steps
         result.cost_penalty = self.cost_penalty
         result.latency_penalty = self.latency_penalty
         result.tabula_rasa_alpha = self.tabula_rasa_alpha
@@ -5026,6 +5035,8 @@ class CorrallingRouter:
         model_costs: Optional[Dict] = None,  # {model_id: {"normalized_cost": float}}
         epsilon: float = 1e-8,  # Regularizer for adaptive learning rate denominator
         ipw_clip: float = 20.0,  # Cap on importance weights fed to base experts
+        gamma_floor: float = 0.0,  # Gamma during onboarding (warm expert gets full control)
+        gamma_ramp_steps: int = 500,  # Steps to ramp gamma back to steady-state after onboarding
     ):
         """
         Initialize Corralling meta-learner (Log-Barrier OMD, Agarwal et al. 2017).
@@ -5045,13 +5056,28 @@ class CorrallingRouter:
         NOTE: loss_decay operates at the META level only.  Each expert bandit
         is a stationary learner (monotone A accumulation, no forgetting).
 
+        **Adaptive Gamma for Model Onboarding:**
+        When a new model is onboarded via ``add_model()``, the warm-started
+        expert (Hybrid LinUCB) is the only one with cross-arm knowledge about
+        the newcomer.  A fixed gamma would force traffic to the uninformed
+        tabula rasa expert, diluting discovery.  To solve this, gamma drops
+        to ``gamma_floor`` upon onboarding and ramps linearly back to the
+        target over ``gamma_ramp_steps`` prompts::
+
+            gamma(t) = min(gamma_target, gamma_floor
+                          + (gamma_target - gamma_floor) * t_since_onboard
+                          / gamma_ramp_steps)
+
+        When no onboarding has occurred, gamma is constant at ``gamma_target``.
+
         Args:
             learning_rate: Base learning rate eta_0 for the Log-Barrier OMD.
                        Per-expert effective rates are
                        ``eta_0 / sqrt(sum_squared_losses_i + epsilon)``.
-            gamma: Mixing parameter gamma. Minimum prob for any expert is gamma/N.
-                   Provides an explicit exploration floor beyond the log-barrier's
-                   implicit prevention of zero weights.
+            gamma: Steady-state mixing parameter (target). Minimum prob for
+                   any expert is gamma/N.  Provides an explicit exploration
+                   floor beyond the log-barrier's implicit prevention of zero
+                   weights.
             loss_decay: Decay factor applied to cumulative squared losses
                        (default: 0.999).  Controls how quickly the adaptive
                        learning rates forget old variance estimates.
@@ -5082,17 +5108,32 @@ class CorrallingRouter:
                        production bandit systems (e.g., Vowpal Wabbit's
                        ``--cb_type ips`` uses capped IPS by default).
                        Set to ``float('inf')`` to disable clipping.
+            gamma_floor: Minimum gamma immediately after onboarding (default
+                       0.0).  Setting to 0 gives the warm-started expert full
+                       control during the critical discovery window.
+            gamma_ramp_steps: Number of update steps to linearly ramp gamma
+                       from ``gamma_floor`` back to ``gamma`` after an
+                       ``add_model()`` call (default: 500).
         """
         self.experts = experts
         self.models = models
         self.eta_0 = learning_rate
-        self.gamma = gamma
+        self.gamma_target = gamma
+        self.gamma_floor = gamma_floor
+        self.gamma_ramp_steps = max(gamma_ramp_steps, 1)
         self.loss_decay = loss_decay
         self.meta_lr_halflife = meta_lr_halflife
         self.model_costs = model_costs or {}
         self.n_experts = len(experts)
         self.epsilon = epsilon
         self.ipw_clip = ipw_clip
+
+        # Onboarding ramp state.  ``_onboard_step`` records the value of
+        # ``_total_steps`` at the most recent ``add_model()`` call.  While
+        # ``None``, gamma is constant at ``gamma_target``.
+        self._onboard_step: Optional[int] = None
+        self._total_steps: int = 0
+
         # Thread safety — CorrallingRouter mutates shared state
         # (weights, sum_squared_losses) in update() and reads it in select_model().
         self._lock = threading.Lock()
@@ -5130,16 +5171,37 @@ class CorrallingRouter:
         self.expert_selections = [0] * self.n_experts
         self.selections = {m: 0 for m in models}
     
+    def _effective_gamma(self) -> float:
+        """Compute the current gamma, accounting for the onboarding ramp.
+
+        Returns ``gamma_target`` when no onboarding is active.  During the
+        ramp window after an ``add_model()`` call, returns a value linearly
+        interpolated between ``gamma_floor`` and ``gamma_target``.
+
+        Returns:
+            Current effective gamma in ``[gamma_floor, gamma_target]``.
+        """
+        if self._onboard_step is None:
+            return self.gamma_target
+        elapsed = self._total_steps - self._onboard_step
+        if elapsed >= self.gamma_ramp_steps:
+            return self.gamma_target
+        progress = elapsed / self.gamma_ramp_steps
+        return self.gamma_floor + (self.gamma_target - self.gamma_floor) * progress
+
     def _get_mixed_distribution(self) -> np.ndarray:
         """
-        Compute P_t = (1-γ) * w_t + γ/K
-        This mixes the learned policy (w_t) with uniform exploration (1/K).
-        
+        Compute P_t = (1-γ_eff) * w_t + γ_eff/K
+
+        Uses ``_effective_gamma()`` so the mixing adapts during onboarding:
+        gamma starts at ``gamma_floor`` and ramps to ``gamma_target``.
+
         Returns:
             Mixed probability distribution over experts
         """
+        gamma = self._effective_gamma()
         uniform_dist = np.ones(self.n_experts) / self.n_experts
-        return (1 - self.gamma) * self.weights + self.gamma * uniform_dist
+        return (1 - gamma) * self.weights + gamma * uniform_dist
     
     def select_model(self, context: np.ndarray, total_steps: int = 0,
                      candidates: List[str] | None = None) -> Tuple[str, Dict]:
@@ -5207,6 +5269,7 @@ class CorrallingRouter:
             "endorsing_experts": endorsing,
             "timestamp": time.time(),
             "was_exploit": use_exploit,
+            "effective_gamma": float(self._effective_gamma()),
         }
 
         return model, selection_token
@@ -5575,6 +5638,8 @@ class CorrallingRouter:
             # Fallback for direct updates without a preceding selection
             for expert in self.experts:
                 expert.update(context, model, reward, weight, advance_time=advance_time)
+
+        self._total_steps += 1
     
     def mark_selected(
         self,
@@ -5608,23 +5673,29 @@ class CorrallingRouter:
         }
     
     def add_model(self, model_id: str) -> None:
-        """
-        Add model to the internal list (for dynamic model registration).
-        
-        Note: Experts must be updated separately via their own add_model() methods.
-        This only updates the Corralling manager's model list and selection counters.
-        
+        """Add model to the internal list and trigger the gamma ramp.
+
+        Experts must be updated separately via their own ``add_model()``
+        methods.  This only updates the Corralling manager's model list,
+        selection counters, and the onboarding gamma schedule.
+
+        The gamma ramp suppresses the exploration floor immediately after
+        onboarding (giving the warm-started expert full control) and
+        linearly restores it over ``gamma_ramp_steps`` update calls.
+
         Args:
-            model_id: New model identifier
+            model_id: New model identifier.
         """
-        # Lock the check-then-append to prevent TOCTOU race where
-        # concurrent calls both see the model as absent and double-append.
         with self._lock:
             if model_id not in self.models:
                 self.models.append(model_id)
-                # Initialize selection counter for new model
                 self.selections[model_id] = 0
-        logger.debug(f"[OK] Added {model_id} to Corralling model list")
+            self._onboard_step = self._total_steps
+        logger.info(
+            "Onboarding %s at step %d — gamma ramp: %.3f → %.3f over %d steps",
+            model_id, self._total_steps, self.gamma_floor,
+            self.gamma_target, self.gamma_ramp_steps,
+        )
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to handle unpicklable threading.Lock."""
