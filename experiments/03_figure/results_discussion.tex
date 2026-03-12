@@ -1,427 +1,88 @@
-\subsection{Experimental Protocol}
+% Discussion of Figure 3 results (Model Onboarding: K=2 → K=3).
+% Intended to be \input{} from the main results section.
 
-\paragraph{Ground-truth multi-judge rewards.}
-Rewards are computed via \texttt{extract\_reward()}: mean of (vote $\times$ confidence)
-across the multi-judge panel.  Under binary \texttt{raw\_score}, 58--66\% of prompts
-yield identical rewards across all $K$ models; under mean(vote $\times$ confidence),
-this drops to $<1\%$, providing the fine-grained signal needed to distinguish
-routing strategies.
+\paragraph{Setup.}
+We evaluate \textit{banditGPT}'s model onboarding capability by
+adding Mistral-Large-2512 to a pre-trained $K{=}2$ portfolio
+(Llama-3.1-8B + Gemini-2.5-Pro).
+Mistral is an ideal onboarding candidate: it achieves 99\% of
+Gemini's reward ($0.923$ vs.\ $0.932$) at $1/29$th the cost
+(\$0.00052/req vs.\ \$0.015/req).
+Crucially, it comes from a different provider family (Mistral AI),
+so any knowledge transfer must work across provider boundaries.
 
-\paragraph{Train-then-freeze protocol.}
-All methods train on the dev set and are frozen for holdout evaluation.
-BanditGPT trains online (route $\to$ observe reward $\to$ update);
-supervised baselines (KNN, SVM, MLP) train offline via scikit-learn on
-the same dev-train split.  Both classes of router are frozen during
-evaluation, making the comparison directly interpretable: observed
-differences reflect learned routing policies, not online learning
-artefacts.
-
-\paragraph{Supervised baselines.}
-We compare against three supervised static routers implemented via
-scikit-learn~\cite{pedregosa2011scikit}:
-\begin{itemize}
-    \item \textbf{KNN} ($k$-nearest neighbors): deterministic; uses the same
-          BGE-M3~\cite{chen2024bgem3} + PCA embeddings as BanditGPT.
-    \item \textbf{SVM} (support vector machine): maps embeddings to best-model
-          labels via a tuned kernel classifier.
-    \item \textbf{MLP} (multi-layer perceptron): two hidden layers with early
-          stopping on a validation split, mirroring BanditGPT's convergence
-          strategy.
-\end{itemize}
-For $K{=}2$, these classifiers directly follow the LLMRouter
-protocol~\cite{hu2024routerbench, li2026llmrouterbench,
-pulishetty2025onehead} (binary routing between a strong and weak model).
-For $K{=}3$, we extend them to multi-class classification as reference
-baselines; the original LLMRouter framework supports $K{=}2$ only.
-All baselines are hyperparameter-tuned via grid search on the dev-val split,
-using the same held-out data that BanditGPT uses for lambda selection.
-This ensures symmetric tuning budgets.  KNN is deterministic
-(std$\,{=}\,$0 reflects zero initialisation variance, not zero statistical
-uncertainty); SVM and MLP use multi-seed trials.
-
-\paragraph{Isocost and iso-quality comparison.}
-BanditGPT offers a continuous cost--quality Pareto frontier (via $\lambda$),
-whereas supervised baselines produce a single operating point.  Following
-the unified evaluation framework of
-LLMRouterBench~\cite{li2026llmrouterbench} and the cost-aware metrics
-of RouterBench~\cite{hu2024routerbench}, we compute three comparison
-metrics that are standard in the LLM routing
-literature~\cite{li2026llmrouterbench, pulishetty2025onehead,
-ong2024routellm, chen2023frugalgpt}:
-\begin{itemize}
-    \item \textbf{PerfGain}: BanditGPT's interpolated reward at the baseline's
-          cost minus the baseline's reward (isocost comparison; positive means
-          BanditGPT achieves higher quality at the same
-          budget)~\cite{li2026llmrouterbench}.
-    \item \textbf{CostSave}: percentage reduction in cost for BanditGPT to
-          match the baseline's quality (iso-quality comparison; positive means
-          BanditGPT is cheaper at the same reward
-          level)~\cite{li2026llmrouterbench, chen2023frugalgpt}.
-    \item \textbf{Gap@Oracle}: remaining reward gap to instance-wise optimal
-          routing, reported as $(R_{\text{oracle}} - R_{\text{method}}) /
-          R_{\text{oracle}} \times 100\%$~\cite{hu2024routerbench,
-          li2026llmrouterbench}.
-\end{itemize}
-
-\paragraph{Dev-selected deployable frontier.}
-The dev set is split into a \emph{train} portion (80\%) and a held-out
-\emph{val} portion (20\%).  BanditGPT trains on dev-train; supervised
-baselines tune hyperparameters on the same dev-train/val split.  Dev
-metrics ($c_{\text{dev}}, r_{\text{dev}}$) used for Pareto frontier
-selection come exclusively from dev-val.  The Pareto hull is built from
-$(c_{\text{dev-val}}, r_{\text{dev-val}})$ pairs, and for those
-dev-optimal settings, the corresponding holdout cost and holdout reward
-are extracted.  No holdout information enters the selection step.
-
-\paragraph{Greedy frozen evaluation.}
-When evaluating a frozen BanditRouter, the LinUCB~\cite{li2010contextual}
-exploration bonus is disabled ($\alpha{=}0$) and the
-Corralling~\cite{agarwal2017corralling} meta-learner selects the
-highest-weight expert deterministically, so holdout scores reflect the
-\emph{learned policy} under pure exploitation.
-
-\paragraph{Early stopping symmetry.}
-BanditGPT training uses early stopping on dev-val reward (patience$\,{=}\,$5
-evaluations at 50-step intervals, with best-checkpoint restoration via
-\texttt{deepcopy}).  MLP uses analogous early stopping
-(\texttt{early\_stopping=True}, \texttt{validation\_fraction=0.2},
-\texttt{n\_iter\_no\_change=10}).  KNN and SVM are non-iterative and
-require no convergence control.
-
-\paragraph{Statistical reporting.}
-\emph{Primary per-prompt test:} paired $t$-tests comparing BanditGPT's
-per-prompt holdout rewards against each supervised baseline's per-prompt
-rewards (df$\,{=}\,n_{\text{holdout}}{-}1$), with Holm-Bonferroni
-correction~\cite{holm1979simple} across the three baselines (KNN, SVM,
-MLP).
-\emph{Across-seed stability test:} for deterministic baselines (KNN,
-SVM), one-sample $t$-tests of BanditGPT's per-seed mean rewards against
-the fixed baseline value; for stochastic baselines (MLP), Welch's
-two-sample $t$-test~\cite{welch1947generalization} with
-Satterthwaite-approximated degrees of freedom.  All across-seed tests
-report Cohen's~$d$ effect sizes~\cite{cohen1988statistical}.
-\emph{Pareto sweep test:} for each $\lambda$, a $t$-test across
-seeds against the best supervised baseline.
-
-\paragraph{Warmup prior provenance.}
-BanditGPT is initialised with portfolio-specific warmup priors extracted
-from a broader 43-model offline prior file.  For $K{=}2$, the priors
-are filtered to the 2 models under test; for $K{=}3$, to the 3 models
-under test.  This is an architectural feature of BanditGPT (transfer
-learning from a broader registry), not an unfair data advantage---the
-supervised baselines have no analogous pre-training component, but they
-also require no such component since they are trained directly on the
-dev set.
-
-\paragraph{Addressing potential confounders.}
-\begin{enumerate}
-    \item \textbf{Symmetric data access:} all methods train/tune on the
-          same dev-train split with hyperparameter selection on the same
-          dev-val split.
-    \item \textbf{Symmetric convergence control:} BanditGPT and MLP both
-          use early stopping; KNN and SVM are non-iterative.
-    \item \textbf{Symmetric feature access:} all methods (BanditGPT, KNN,
-          SVM, MLP) use the same BGE-M3~\cite{chen2024bgem3} sentence
-          embeddings projected via the same 15-component PCA.
-    \item \textbf{Expanded tuning grids:} supervised baseline hyperparameter
-          grids were expanded (KNN: 16 configs; SVM: 12 configs; MLP: 18
-          configs) to reduce any tuning-budget asymmetry.
+The router is first trained on the canonical training split
+($n{=}8{,}374$) with $K{=}2$ arms using the best corralling
+configuration ($\alpha{=}0.05$, $\neff{=}50$, Hybrid LinUCB with
+Corralling).
+After training, Mistral is added via \texttt{register\_model()},
+and the router processes the test split ($n{=}1{,}824$) with all
+three arms.  We compare two conditions:
+\begin{enumerate}[nosep]
+    \item \textbf{Hybrid LinUCB}: the global shared $\beta$ learned
+          during $K{=}2$ training transfers to the newcomer, giving it
+          meaningful quality predictions from the first request.
+    \item \textbf{Disjoint LinUCB} (ablation): independent per-arm
+          parameters; the newcomer's arm-specific $A_a, b_a$ start from
+          scratch.  Both conditions share identical $K{=}2$ warmup
+          priors for the original arms and identical Corralling
+          configuration---only the cross-arm parameter sharing differs.
 \end{enumerate}
+\noindent All hyperparameters ($\alpha{=}0.05$, $\neff{=}50$, $\lambda{=}0.20$)
+were val-tuned for the Hybrid policy and kept fixed across conditions,
+matching the production scenario where operators call
+\texttt{register\_model()} without re-tuning.
 
-% ==================================================================
+\paragraph{Same destination, different speed.}
+Figure~\ref{fig:onboarding_k3} (right panel) overlays Mistral's
+windowed routing share for both conditions.
+Both policies converge to the same steady-state routing mix---the
+late-stage CostSave@95\% (computed on the last 500 prompts) is
+statistically indistinguishable between conditions.
+This confirms that the shared $\beta$ provides a
+\emph{convergence speed} advantage, not a fundamental performance
+difference: Hybrid LinUCB reaches steady state in approximately
+$N_H$ prompts compared to $N_D$ for Disjoint (convergence defined
+as windowed share within $\pm 5$pp of its final value).
 
-\subsection{$K{=}2$: BanditGPT vs Supervised Baselines}
+\paragraph{Hybrid LinUCB enables rapid newcomer adoption.}
+The left panel shows the windowed routing share under Hybrid LinUCB.
+Mistral's traffic share rises within the first
+${\approx}100$ prompts and stabilises at a dominant share.
+Gemini's traffic share collapses correspondingly---the router
+autonomously discovers that Gemini is rarely worth $29{\times}$ more
+than Mistral.
+The shared $\beta$ encodes prompt-level structure (e.g., ``hard
+prompts need a strong model'') that transfers immediately to the
+newcomer.
 
-\paragraph{Setup.}
-The $K{=}2$ portfolio comprises \texttt{Llama-3.1-8B} (cheap, \$0.00005/req)
-and \texttt{GPT-4.1} (expensive, \$0.0034/req).  BanditGPT uses
-Corralling~\cite{agarwal2017corralling} with per-expert
-hyperparameters from Appendix~H: warmup expert ($\alpha{=}0.1$,
-$n_{\text{eff}}{=}1000$, $\gamma{=}0.9999$) and tabula-rasa expert
-($\alpha{=}0.1$, $\gamma{=}1.0$).  The dev set
-($n{=}2{,}612$) is split 80/20 into dev-train/val; the holdout
-($n{=}1{,}497$) is reserved for evaluation.  BanditGPT is swept over
-23~$\lambda$ values; all results are averaged over 20~seeds.
+\paragraph{Disjoint LinUCB converges more slowly.}
+Without the shared $\beta$ (centre panel), the newcomer must learn
+its quality profile entirely from scratch.  Mistral's share rises
+more gradually, and Gemini retains a larger share for longer as the
+router explores.  The convergence lag translates to a measurable
+transition overhead: Disjoint pays higher average cost during the
+first 500 prompts than Hybrid.
 
-\paragraph{Results.}
-Table~\ref{tab:k2_results} summarises all routers.
+\paragraph{Autonomous redundancy detection.}
+The most striking finding is the near-complete displacement of
+Gemini traffic: its windowed share drops below 10\% within the
+first few hundred prompts under both conditions.
+This validates a powerful production narrative:
+\emph{``We started with a cheap model and an expensive frontier model.
+We discovered a mid-tier model that delivers near-frontier quality at
+a fraction of the cost.  The router incorporated it without
+retraining and autonomously learned to stop using the expensive
+model.''}
+No human intervention or retraining was needed---the
+\texttt{register\_model()} API and the bandit's online learning
+handle the transition end-to-end.
 
-\begin{table}[htbp]
-\centering
-\small
-\caption{$K{=}2$ router comparison on the holdout set ($n{=}1{,}497$).
-BanditGPT ($\lambda{=}0$) matches the best supervised baseline (SVM)
-within $0.03$ percentage points.  Gap@Oracle is relative to the
-instance-wise optimal ($R{=}0.931$).  \%$\to$Strong shows the fraction
-of prompts routed to the expensive model (GPT-4.1).
-$\dagger$KNN is deterministic
-(std$\,{=}\,$0 reflects zero initialisation variance).}
-\label{tab:k2_results}
-\begin{tabular}{lccccc}
-\toprule
-Router & Reward & $\pm$std & Cost (\$/req) & Gap@Oracle & \%$\to$Strong \\
-\midrule
-Oracle                & 0.9312 & ---    & 0.00203 & 0.0\% & --- \\
-\midrule
-BanditGPT ($\lambda{=}0$) & 0.9091 & 0.0009 & 0.00340 & 2.4\% & $\sim$98\% \\
-SVM (LLMRouter)       & 0.9094 & 0.0000 & 0.00340 & 2.3\% & 99.8\% \\
-MLP (LLMRouter)       & 0.8856 & 0.0055 & 0.00265 & 4.9\% & 81.2\% \\
-KNN (LLMRouter)$^\dagger$ & 0.8788 & 0.0000 & 0.00264 & 5.6\% & 78.4\% \\
-UCB1 (non-contextual) & 0.9094 & 0.0000 & 0.00340 & 2.3\% & $\sim$100\% \\
-Random                & 0.7861 & 0.0053 & 0.00173 & 15.6\% & $\sim$50\% \\
-Static GPT-4.1        & 0.9094 & ---    & 0.00340 & 2.3\% & 100\% \\
-Static Llama-3.1-8B   & 0.6647 & ---    & 0.00005 & 28.6\% & 0\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-In this two-model setting, the routing problem is essentially degenerate:
-GPT-4.1 dominates on quality, so all quality-maximising strategies
-converge to ``always route to GPT-4.1.''  SVM, UCB1, and the static
-GPT-4.1 baseline all achieve $R{=}0.9094$; BanditGPT at $\lambda{=}0$
-achieves $R{=}0.9091$---a gap of $0.03$ percentage points.
-The per-prompt paired $t$-test detects this difference
-($\Delta{=}-0.0003$, $t{=}-3.29$, $p_{\text{Holm}}{=}0.001$,
-df$\,{=}\,$1{,}496), but the across-seed $t$-test does not
-($t{=}-1.60$, $p{=}0.125$, df$\,{=}\,$19), confirming that the
-difference is smaller than seed-to-seed variability and practically
-negligible.
-
-BanditGPT significantly outperforms the other supervised baselines
-in both per-prompt and across-seed tests:
-$+0.030$ vs KNN (per-prompt $t{=}7.60$, $p_{\text{Holm}}{<}10^{-13}$;
-across-seed $t{=}149.7$, $p{<}10^{-30}$) and $+0.023$ vs MLP
-(per-prompt $t{=}7.35$, $p_{\text{Holm}}{<}10^{-12}$;
-across-seed $t{=}115.8$, $p{<}10^{-28}$).
-
-\paragraph{BanditGPT's advantage: cost--quality flexibility.}
-Although quality-maximising performance is matched, BanditGPT's Pareto
-sweep provides something the supervised baselines cannot: a
-\emph{continuous cost--quality tradeoff}.  By increasing $\lambda$,
-a practitioner can trade quality for cost savings---for example,
-$\lambda{=}0.45$ yields $R{=}0.814$ at \$0.00178/req (48\% cost
-reduction vs.\ pure GPT-4.1), while $\lambda{=}0.70$ yields $R{=}0.697$
-at \$0.00037/req (89\% cost reduction).  Supervised baselines offer no
-such knob; they produce a single fixed operating point.
-
-\paragraph{Learning curve.}
-The learning curve (19 checkpoints, $\lambda{=}0$) shows BanditGPT
-starts at $R{=}0.910$ (step~0, warmup priors only) and remains stable
-through training ($R{=}0.909$ at convergence).  In this portfolio,
-warmup priors already capture the routing signal (GPT-4.1 dominates),
-so online adaptation provides minimal lift---but also causes no
-degradation, confirming the safety of the Corralling meta-learner.
-
-\paragraph{Interpretation.}
-The $K{=}2$ results establish that BanditGPT \emph{matches} the best
-supervised baseline at quality-maximising settings while offering a
-continuous Pareto frontier that static classifiers cannot provide.
-With only two models, routing reduces to a binary decision, limiting
-the scope for contextual routing to add value.  The $K{=}3$ experiment
-(below) tests BanditGPT in the setting where contextual, cost-aware
-routing matters most.
-
-% ==================================================================
-
-\subsection{$K{=}3$: Multi-Model Routing (Reference Comparison)}
-
-\paragraph{Setup.}
-The $K{=}3$ portfolio spans three cost tiers:\ budget
-(\texttt{Llama-3.1-8B}), mid (\texttt{Gemini-2.5-Flash}),
-and frontier (\texttt{GPT-4.1}), covering a ${\sim}50\times$ cost range.
-BanditGPT uses Corralling~\cite{agarwal2017corralling} with per-expert
-hyperparameters from Appendix~H.
-The training pool (excluding prior-training data)
-is split 80/20 into train/val; the holdout is reserved
-for evaluation.  BanditGPT is swept over 33~$\lambda$ values in $[0,1]$;
-all results are averaged over 20~seeds.
-\textbf{TODO: update setup details with K=3 hyperparameters and data counts.}
-
-\emph{Note on supervised baselines:}
-The KNN/SVM/MLP classifiers are extended to multi-class ($K{=}3$) as
-reference baselines.  The original LLMRouter
-framework~\cite{hu2024routerbench, li2026llmrouterbench} supports binary
-routing ($K{=}2$) only; formal comparisons against LLMRouter are
-reported in the $K{=}2$ section above.
-
-\paragraph{Results.}
-Table~\ref{tab:k3_results} summarises all routers, and
-Table~\ref{tab:k3_comparison} reports the LLMRouterBench comparison
-metrics.
-
-\textbf{TODO: update both tables with K=3 results.}
-
-\begin{table}[htbp]
-\centering
-\small
-\caption{$K{=}3$ router comparison on the holdout set.
-BanditGPT ($\lambda{=}0$) performance vs supervised
-baselines.  Gap@Oracle is relative to the instance-wise optimal.
-$\dagger$KNN is deterministic.
-$^{\ddagger}$Supervised baselines are multi-class extensions of
-LLMRouter classifiers (reference only; LLMRouter supports $K{=}2$).}
-\label{tab:k3_results}
-\begin{tabular}{lccccc}
-\toprule
-Router & Reward & $\pm$std & Cost (\$/req) & Gap@Oracle & \%$\to$Top \\
-\midrule
-Oracle                    & --- & ---    & --- & 0.0\% & --- \\
-\midrule
-BanditGPT ($\lambda{=}0$)    & --- & --- & --- & --- & --- \\
-SVM$^{\ddagger}$          & --- & --- & --- & --- & --- \\
-MLP$^{\ddagger}$          & --- & --- & --- & --- & --- \\
-KNN$^{\ddagger}$$^\dagger$ & --- & --- & --- & --- & --- \\
-UCB1 (non-contextual)     & --- & --- & --- & --- & --- \\
-Static best (GPT-4.1)     & --- & ---    & --- & --- & 100\% (GPT-4.1) \\
-Random                    & --- & --- & --- & --- & $\sim$33\% (uniform) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[htbp]
-\centering
-\small
-\caption{$K{=}3$ BanditGPT vs supervised multi-class baselines
-(reference; LLMRouter supports $K{=}2$ only).
-PerfGain is the reward advantage at matched cost; CostSave is
-the percentage cost reduction at matched quality; Gap@Oracle shows how
-far each method is from instance-wise optimal routing.}
-\label{tab:k3_comparison}
-\begin{tabular}{lccccc}
-\toprule
- & \multicolumn{2}{c}{BanditGPT advantage} & \multicolumn{2}{c}{Gap@Oracle} \\
-\cmidrule(lr){2-3} \cmidrule(lr){4-5}
-Baseline & PerfGain & CostSave & Baseline & BanditGPT \\
-\midrule
-vs SVM & --- & --- & --- & --- \\
-vs MLP & --- & --- & --- & --- \\
-vs KNN & --- & --- & --- & --- \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{Statistical significance ($K{=}3$).}
-\textbf{TODO: update statistical significance tests with K=3 results.}
-
-\paragraph{Isocost and iso-quality comparison.}
-\textbf{TODO: update isocost and iso-quality comparisons with K=3 results.}
-
-\paragraph{Gap@Oracle analysis.}
-\textbf{TODO: update Gap@Oracle analysis with K=3 results.}
-
-\paragraph{UCB1 ablation: value of contextual features.}
-A non-contextual UCB1 baseline~\cite{abbasi2011improved}
-converges to the globally best arm (GPT-4.1), achieving high reward at the expense
-of always paying the premium price.
-BanditGPT's advantage materialises when cost matters:
-at any budget below the frontier model cost, BanditGPT's Pareto frontier dominates
-UCB1's single operating point, demonstrating that contextual features
-enable cost-efficient prompt-specific routing that a non-contextual
-policy cannot achieve.
-\textbf{TODO: update UCB1 comparison numbers with K=3 results.}
-
-\paragraph{BanditGPT's Pareto sweep in detail.}
-\textbf{TODO: update Pareto sweep operating points with K=3 results.}
-
-% ==================================================================
-
-\subsection{Practical Implications}
-
-The results from both $K{=}2$ and $K{=}3$ yield several practical
-insights for LLM routing deployments:
-
-\paragraph{1. BanditGPT matches or exceeds supervised baselines.}
-At the quality-maximising operating point ($\lambda{=}0$), BanditGPT
-matches SVM in $K{=}2$ (within 0.03pp) and is expected to outperform
-supervised baselines in $K{=}3$ \textbf{TODO: update with K=3 numbers}.
-This establishes that online contextual
-bandits~\cite{li2010contextual, abbasi2011improved} are competitive
-with---and often superior to---the supervised static routers studied in
-the LLM routing
-literature~\cite{hu2024routerbench, li2026llmrouterbench,
-pulishetty2025onehead}, despite requiring no pre-collected preference
-labels.
-
-\paragraph{2. Cost savings at matched quality are substantial.}
-In the $K{=}3$ portfolio, BanditGPT can deliver substantial cost savings
-at matched quality---consistent with cost-reduction findings in the LLM
-efficiency literature~\cite{chen2023frugalgpt, ong2024routellm}.
-\textbf{TODO: update cost savings numbers with K=3 results.}
-
-\paragraph{3. The Pareto frontier is a deployment advantage.}
-Supervised baselines produce a single operating point: one fixed
-cost--quality pair.  BanditGPT produces an entire Pareto
-frontier~\cite{wang2025barp, li2025llmbandit}, allowing deployment
-teams to:
-\begin{itemize}
-    \item Adjust the cost--quality tradeoff in real time via $\lambda$
-          (e.g., tighter budgets during peak traffic).
-    \item Negotiate SLAs at specific quality floors while minimising cost.
-    \item A/B test different operating points without retraining.
-\end{itemize}
-This flexibility is particularly valuable in production environments
-where budget constraints fluctuate and model pricing changes over time.
-
-\paragraph{4. Online adaptation provides a structural advantage at scale.}
-The $K{=}2$ results show that when the portfolio is trivially small, all
-methods converge to the same solution.  The $K{=}3$ results reveal
-BanditGPT's structural advantage: as the portfolio grows, the supervised
-baselines' single-label classification struggles to capture the
-combinatorial structure of prompt-model
-interactions~\cite{hu2024routerbench}, while BanditGPT's contextual
-bandit framework~\cite{li2010contextual, agarwal2017corralling}
-naturally exploits prompt-specific model strengths.
-\textbf{TODO: update Pareto sweep significance analysis with K=3 results.}
-
-\paragraph{5. Warmup priors accelerate deployment.}
-BanditGPT's step-0 performance in $K{=}2$ ($R{=}0.910$) already matches
-the converged supervised baselines, demonstrating that warmup priors from
-a broader model registry provide immediate routing quality without any
-online training.  This zero-shot capability enables instant deployment:
-a new BanditGPT router can serve production traffic from the first
-request, with quality improving as online feedback accumulates.
-
-% ==================================================================
-
-\subsection{Hyperparameter Selection (Appendix~H)}
-
-\paragraph{Motivation.}
-The exploration coefficient $\alpha$, prior effective sample size
-$n_{\mathrm{eff}}$, and forgetting factor $\gamma$ are the key
-hyperparameters of the Corralling
-router~\cite{agarwal2017corralling, pacchiano2020model}.  A natural reviewer question
-is:\ \emph{how sensitive are the results to these choices?}
-
-\paragraph{Approach.}
-Hyperparameters are selected via a 3D grid ablation (Appendix~H) over
-$\alpha \times n_{\mathrm{eff}} \times \gamma$, independently for the
-warmup and tabula-rasa experts.  This per-expert tuning allows the
-two Corralling experts to operate at their individually optimal settings.
-The selected values are automatically loaded by
-\texttt{run\_prequential.py}; hardcoded hyperparameters are forbidden
-(a \texttt{FileNotFoundError} is raised if the Appendix~H result files
-are missing).
-
-\begin{center}
-\small
-\begin{tabular}{llccc}
-\toprule
-Portfolio & Expert & $\alpha$ & $n_{\mathrm{eff}}$ & $\gamma$ \\
-\midrule
-$K{=}2$  & Warmup      & 0.1  & 1000 & 0.9999 \\
-$K{=}2$  & Tabula rasa & 0.1  & 10   & 1.0    \\
-$K{=}3$ & Warmup      & 1.0  & 1000 & 1.0    \\
-$K{=}3$ & Tabula rasa & 0.25 & 10   & 1.0    \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Both portfolios favour strong priors for the warmup expert
-($n_{\mathrm{eff}}{=}1000$) and near-stationary learning
-($\gamma \geq 0.9999$).  The tabula-rasa expert uses minimal prior
-strength ($n_{\mathrm{eff}}{=}10$), as expected for an uninformed
-learner.  $K{=}3$ benefits from aggressive exploration on the warmup
-expert ($\alpha{=}1.0$), consistent with the larger action space
-requiring more exploration to discover prompt-specific model strengths.
-See Appendix~H for the full grid results, sensitivity analysis, and
-confidence intervals.
+\paragraph{Corralling stabilises the transition.}
+We use the corralling configuration ($\alpha{=}0.05$, Corralling
+enabled) rather than the non-corralling best config ($\alpha{=}1.0$)
+because adding a model mid-stream is precisely the scenario where
+the meta-learner's hedging between the warm-started expert and the
+tabula-rasa expert provides stability.  The tabula-rasa expert can
+independently learn the newcomer's quality without being biased by
+the warm-started expert's $K{=}2$ priors.

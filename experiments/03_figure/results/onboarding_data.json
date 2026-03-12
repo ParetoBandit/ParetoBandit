@@ -1,0 +1,1230 @@
+{
+  "experiment": "model_onboarding_k2_to_k3",
+  "hparams": {
+    "alpha": 0.05,
+    "prior_n_effective": 50.0,
+    "policy": "hybrid",
+    "use_corralling": true,
+    "forgetting_factor": 1.0
+  },
+  "cost_penalty": 0.2,
+  "onboarding_alpha": 0.5,
+  "onboarding_alpha_derivation": "10.0x \u03b1_steady",
+  "onboarding_halflife": 100,
+  "onboarding_decay": "exponential (horizon-free)",
+  "newcomer": "mistralai/mistral-large-2512",
+  "strong_model_reward": 0.9321792763157896,
+  "strong_model_cost": 0.015149179002192984,
+  "costsave_95_overall": {
+    "Hybrid LinUCB": {
+      "costsave_95_mean": 87.20160364199575,
+      "costsave_95_se": 5.74103526866984,
+      "n_seeds": 2
+    },
+    "Disjoint LinUCB": {
+      "costsave_95_mean": 28.473114197517184,
+      "costsave_95_se": 2.3262234569374427,
+      "n_seeds": 2
+    }
+  },
+  "onboarding_metrics": {
+    "Hybrid LinUCB": {
+      "cumulative_regret": {
+        "mean": 86.9635,
+        "se": 0.5125000000000028,
+        "n": 2
+      },
+      "full_costsave_95": {
+        "mean": 87.20160364199575,
+        "se": 5.74103526866984,
+        "n": 2
+      },
+      "convergence_speed": {
+        "mean": 1775.0,
+        "se": 25.0,
+        "n": 2
+      },
+      "gemini_displacement": {
+        "mean": 125.0,
+        "se": 75.0,
+        "n": 2
+      },
+      "late_costsave_95": {
+        "mean": 87.43769084961957,
+        "se": 6.299161821652908,
+        "n": 2
+      },
+      "early_cost": {
+        "mean": 0.0021072762,
+        "se": 0.0007967378,
+        "n": 2
+      }
+    },
+    "Disjoint LinUCB": {
+      "cumulative_regret": {
+        "mean": 107.1625,
+        "se": 6.04249999999999,
+        "n": 2
+      },
+      "full_costsave_95": {
+        "mean": 28.473114197517184,
+        "se": 2.3262234569374427,
+        "n": 2
+      },
+      "convergence_speed": {
+        "mean": 50.0,
+        "se": 0.0,
+        "n": 2
+      },
+      "gemini_displacement": {
+        "mean": null,
+        "se": null,
+        "n": 0
+      },
+      "late_costsave_95": {
+        "mean": 24.800067724126322,
+        "se": 2.4074958118007803,
+        "n": 2
+      },
+      "early_cost": {
+        "mean": 0.01044932905,
+        "se": 0.00018495994999999897,
+        "n": 2
+      }
+    }
+  },
+  "transition_overhead_pct": 395.8689824333422,
+  "final_routing_mix": {
+    "Hybrid LinUCB": {
+      "meta-llama/llama-3.1-8b-instruct": 0.19270833333333334,
+      "mistralai/mistral-large-2512": 0.7099780701754386,
+      "google/gemini-2.5-pro": 0.09731359649122807
+    },
+    "Disjoint LinUCB": {
+      "meta-llama/llama-3.1-8b-instruct": 0.334703947368421,
+      "mistralai/mistral-large-2512": 0.0,
+      "google/gemini-2.5-pro": 0.665296052631579
+    }
+  },
+  "window_size": 100,
+  "late_stage_n": 500,
+  "early_stage_n": 500,
+  "convergence_tolerance": 0.05,
+  "checkpoints": {
+    "Hybrid LinUCB": [
+      {
+        "n_seen": 50,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15,
+          "mistralai/mistral-large-2512": 0.76,
+          "google/gemini-2.5-pro": 0.09
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15,
+          "mistralai/mistral-large-2512": 0.76,
+          "google/gemini-2.5-pro": 0.09
+        },
+        "mean_reward": 0.9264000000000001,
+        "mean_cost": 0.001781993
+      },
+      {
+        "n_seen": 100,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15,
+          "mistralai/mistral-large-2512": 0.7350000000000001,
+          "google/gemini-2.5-pro": 0.11499999999999999
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15,
+          "mistralai/mistral-large-2512": 0.7350000000000001,
+          "google/gemini-2.5-pro": 0.11499999999999999
+        },
+        "mean_reward": 0.927475,
+        "mean_cost": 0.0019610972499999996
+      },
+      {
+        "n_seen": 150,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.16333333333333333,
+          "mistralai/mistral-large-2512": 0.7166666666666667,
+          "google/gemini-2.5-pro": 0.12
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.17,
+          "mistralai/mistral-large-2512": 0.6950000000000001,
+          "google/gemini-2.5-pro": 0.135
+        },
+        "mean_reward": 0.9236066666666669,
+        "mean_cost": 0.0021864575
+      },
+      {
+        "n_seen": 200,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.155,
+          "mistralai/mistral-large-2512": 0.735,
+          "google/gemini-2.5-pro": 0.11
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.16,
+          "mistralai/mistral-large-2512": 0.735,
+          "google/gemini-2.5-pro": 0.10500000000000001
+        },
+        "mean_reward": 0.9183600000000005,
+        "mean_cost": 0.0019486047499999999
+      },
+      {
+        "n_seen": 250,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15200000000000002,
+          "mistralai/mistral-large-2512": 0.734,
+          "google/gemini-2.5-pro": 0.114
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.135,
+          "mistralai/mistral-large-2512": 0.76,
+          "google/gemini-2.5-pro": 0.105
+        },
+        "mean_reward": 0.9196380000000008,
+        "mean_cost": 0.0021313360999999998
+      },
+      {
+        "n_seen": 300,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.16999999999999998,
+          "mistralai/mistral-large-2512": 0.7233333333333334,
+          "google/gemini-2.5-pro": 0.10666666666666667
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.2,
+          "mistralai/mistral-large-2512": 0.7,
+          "google/gemini-2.5-pro": 0.1
+        },
+        "mean_reward": 0.9166066666666677,
+        "mean_cost": 0.002056675000000001
+      },
+      {
+        "n_seen": 350,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.16999999999999998,
+          "mistralai/mistral-large-2512": 0.7242857142857143,
+          "google/gemini-2.5-pro": 0.1057142857142857
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.215,
+          "mistralai/mistral-large-2512": 0.7,
+          "google/gemini-2.5-pro": 0.08499999999999999
+        },
+        "mean_reward": 0.9179771428571437,
+        "mean_cost": 0.002030981071428572
+      },
+      {
+        "n_seen": 400,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.16875,
+          "mistralai/mistral-large-2512": 0.72375,
+          "google/gemini-2.5-pro": 0.10750000000000001
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.165,
+          "mistralai/mistral-large-2512": 0.7250000000000001,
+          "google/gemini-2.5-pro": 0.11000000000000001
+        },
+        "mean_reward": 0.9162112500000007,
+        "mean_cost": 0.0020735051875000006
+      },
+      {
+        "n_seen": 450,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.1711111111111111,
+          "mistralai/mistral-large-2512": 0.7222222222222222,
+          "google/gemini-2.5-pro": 0.10666666666666667
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.175,
+          "mistralai/mistral-large-2512": 0.7150000000000001,
+          "google/gemini-2.5-pro": 0.11
+        },
+        "mean_reward": 0.9150100000000007,
+        "mean_cost": 0.0020370307222222226
+      },
+      {
+        "n_seen": 500,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.173,
+          "mistralai/mistral-large-2512": 0.7130000000000001,
+          "google/gemini-2.5-pro": 0.11399999999999999
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19,
+          "mistralai/mistral-large-2512": 0.6699999999999999,
+          "google/gemini-2.5-pro": 0.14
+        },
+        "mean_reward": 0.9172040000000006,
+        "mean_cost": 0.0021072761999999996
+      },
+      {
+        "n_seen": 550,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.17636363636363636,
+          "mistralai/mistral-large-2512": 0.7109090909090909,
+          "google/gemini-2.5-pro": 0.11272727272727273
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.2,
+          "mistralai/mistral-large-2512": 0.6599999999999999,
+          "google/gemini-2.5-pro": 0.14
+        },
+        "mean_reward": 0.9171081818181821,
+        "mean_cost": 0.002084860727272727
+      },
+      {
+        "n_seen": 600,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18083333333333335,
+          "mistralai/mistral-large-2512": 0.7008333333333333,
+          "google/gemini-2.5-pro": 0.11833333333333333
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.22,
+          "mistralai/mistral-large-2512": 0.6399999999999999,
+          "google/gemini-2.5-pro": 0.14
+        },
+        "mean_reward": 0.9172833333333335,
+        "mean_cost": 0.002170997375
+      },
+      {
+        "n_seen": 650,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18384615384615383,
+          "mistralai/mistral-large-2512": 0.7,
+          "google/gemini-2.5-pro": 0.11615384615384615
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.22499999999999998,
+          "mistralai/mistral-large-2512": 0.6399999999999999,
+          "google/gemini-2.5-pro": 0.135
+        },
+        "mean_reward": 0.9182000000000002,
+        "mean_cost": 0.002142191653846154
+      },
+      {
+        "n_seen": 700,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18642857142857142,
+          "mistralai/mistral-large-2512": 0.6985714285714286,
+          "google/gemini-2.5-pro": 0.11499999999999999
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.22,
+          "mistralai/mistral-large-2512": 0.685,
+          "google/gemini-2.5-pro": 0.095
+        },
+        "mean_reward": 0.9187785714285717,
+        "mean_cost": 0.0021126566071428573
+      },
+      {
+        "n_seen": 750,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18666666666666665,
+          "mistralai/mistral-large-2512": 0.6986666666666667,
+          "google/gemini-2.5-pro": 0.11466666666666667
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.20500000000000002,
+          "mistralai/mistral-large-2512": 0.69,
+          "google/gemini-2.5-pro": 0.10500000000000001
+        },
+        "mean_reward": 0.91862,
+        "mean_cost": 0.002120967033333333
+      },
+      {
+        "n_seen": 800,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.186875,
+          "mistralai/mistral-large-2512": 0.700625,
+          "google/gemini-2.5-pro": 0.11249999999999999
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19,
+          "mistralai/mistral-large-2512": 0.7150000000000001,
+          "google/gemini-2.5-pro": 0.095
+        },
+        "mean_reward": 0.917096875,
+        "mean_cost": 0.0021258769374999983
+      },
+      {
+        "n_seen": 850,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.1823529411764706,
+          "mistralai/mistral-large-2512": 0.7082352941176471,
+          "google/gemini-2.5-pro": 0.10941176470588235
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15,
+          "mistralai/mistral-large-2512": 0.78,
+          "google/gemini-2.5-pro": 0.07
+        },
+        "mean_reward": 0.9172117647058824,
+        "mean_cost": 0.002073616911764705
+      },
+      {
+        "n_seen": 900,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18388888888888888,
+          "mistralai/mistral-large-2512": 0.7061111111111111,
+          "google/gemini-2.5-pro": 0.11
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.16,
+          "mistralai/mistral-large-2512": 0.75,
+          "google/gemini-2.5-pro": 0.09000000000000001
+        },
+        "mean_reward": 0.9169083333333332,
+        "mean_cost": 0.002086963305555554
+      },
+      {
+        "n_seen": 950,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18105263157894735,
+          "mistralai/mistral-large-2512": 0.7068421052631579,
+          "google/gemini-2.5-pro": 0.11210526315789474
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.17,
+          "mistralai/mistral-large-2512": 0.6950000000000001,
+          "google/gemini-2.5-pro": 0.135
+        },
+        "mean_reward": 0.9173652631578944,
+        "mean_cost": 0.0020967683421052622
+      },
+      {
+        "n_seen": 1000,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.181,
+          "mistralai/mistral-large-2512": 0.7085,
+          "google/gemini-2.5-pro": 0.1105
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15500000000000003,
+          "mistralai/mistral-large-2512": 0.73,
+          "google/gemini-2.5-pro": 0.115
+        },
+        "mean_reward": 0.9165744999999994,
+        "mean_cost": 0.0020839854249999987
+      },
+      {
+        "n_seen": 1050,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18285714285714286,
+          "mistralai/mistral-large-2512": 0.709047619047619,
+          "google/gemini-2.5-pro": 0.10809523809523809
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.2,
+          "mistralai/mistral-large-2512": 0.73,
+          "google/gemini-2.5-pro": 0.06999999999999999
+        },
+        "mean_reward": 0.9157042857142854,
+        "mean_cost": 0.002053384666666665
+      },
+      {
+        "n_seen": 1100,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18272727272727274,
+          "mistralai/mistral-large-2512": 0.7113636363636364,
+          "google/gemini-2.5-pro": 0.1059090909090909
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.2,
+          "mistralai/mistral-large-2512": 0.74,
+          "google/gemini-2.5-pro": 0.06
+        },
+        "mean_reward": 0.9158427272727268,
+        "mean_cost": 0.0020258760909090904
+      },
+      {
+        "n_seen": 1150,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18,
+          "mistralai/mistral-large-2512": 0.7156521739130435,
+          "google/gemini-2.5-pro": 0.10434782608695652
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15000000000000002,
+          "mistralai/mistral-large-2512": 0.7849999999999999,
+          "google/gemini-2.5-pro": 0.065
+        },
+        "mean_reward": 0.9155504347826087,
+        "mean_cost": 0.002016879391304347
+      },
+      {
+        "n_seen": 1200,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18,
+          "mistralai/mistral-large-2512": 0.7158333333333333,
+          "google/gemini-2.5-pro": 0.10416666666666667
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.15000000000000002,
+          "mistralai/mistral-large-2512": 0.7649999999999999,
+          "google/gemini-2.5-pro": 0.08499999999999999
+        },
+        "mean_reward": 0.9158337500000004,
+        "mean_cost": 0.0020093096249999996
+      },
+      {
+        "n_seen": 1250,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.1812,
+          "mistralai/mistral-large-2512": 0.716,
+          "google/gemini-2.5-pro": 0.1028
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.195,
+          "mistralai/mistral-large-2512": 0.72,
+          "google/gemini-2.5-pro": 0.085
+        },
+        "mean_reward": 0.9159924000000013,
+        "mean_cost": 0.001979932799999999
+      },
+      {
+        "n_seen": 1300,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18307692307692308,
+          "mistralai/mistral-large-2512": 0.7138461538461538,
+          "google/gemini-2.5-pro": 0.10307692307692307
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.22000000000000003,
+          "mistralai/mistral-large-2512": 0.69,
+          "google/gemini-2.5-pro": 0.09000000000000001
+        },
+        "mean_reward": 0.9156426923076937,
+        "mean_cost": 0.0019769539230769222
+      },
+      {
+        "n_seen": 1350,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18666666666666668,
+          "mistralai/mistral-large-2512": 0.7118518518518518,
+          "google/gemini-2.5-pro": 0.10148148148148148
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.255,
+          "mistralai/mistral-large-2512": 0.66,
+          "google/gemini-2.5-pro": 0.08499999999999999
+        },
+        "mean_reward": 0.915770740740742,
+        "mean_cost": 0.0019375281851851849
+      },
+      {
+        "n_seen": 1400,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18857142857142856,
+          "mistralai/mistral-large-2512": 0.7121428571428572,
+          "google/gemini-2.5-pro": 0.09928571428571428
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.26,
+          "mistralai/mistral-large-2512": 0.69,
+          "google/gemini-2.5-pro": 0.05
+        },
+        "mean_reward": 0.9164485714285733,
+        "mean_cost": 0.0019107656785714282
+      },
+      {
+        "n_seen": 1450,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.1906896551724138,
+          "mistralai/mistral-large-2512": 0.7106896551724138,
+          "google/gemini-2.5-pro": 0.09862068965517241
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.245,
+          "mistralai/mistral-large-2512": 0.6950000000000001,
+          "google/gemini-2.5-pro": 0.060000000000000005
+        },
+        "mean_reward": 0.916133103448278,
+        "mean_cost": 0.001903670948275862
+      },
+      {
+        "n_seen": 1500,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.192,
+          "mistralai/mistral-large-2512": 0.71,
+          "google/gemini-2.5-pro": 0.098
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.24,
+          "mistralai/mistral-large-2512": 0.6799999999999999,
+          "google/gemini-2.5-pro": 0.08
+        },
+        "mean_reward": 0.9156986666666687,
+        "mean_cost": 0.0018920391500000006
+      },
+      {
+        "n_seen": 1550,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.1935483870967742,
+          "mistralai/mistral-large-2512": 0.7093548387096774,
+          "google/gemini-2.5-pro": 0.0970967741935484
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.235,
+          "mistralai/mistral-large-2512": 0.69,
+          "google/gemini-2.5-pro": 0.075
+        },
+        "mean_reward": 0.9155148387096796,
+        "mean_cost": 0.0018846538387096781
+      },
+      {
+        "n_seen": 1600,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19343749999999998,
+          "mistralai/mistral-large-2512": 0.7096875,
+          "google/gemini-2.5-pro": 0.096875
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.215,
+          "mistralai/mistral-large-2512": 0.7050000000000001,
+          "google/gemini-2.5-pro": 0.08
+        },
+        "mean_reward": 0.9156534375000024,
+        "mean_cost": 0.0018788665781250009
+      },
+      {
+        "n_seen": 1650,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19303030303030302,
+          "mistralai/mistral-large-2512": 0.7081818181818181,
+          "google/gemini-2.5-pro": 0.09878787878787879
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.185,
+          "mistralai/mistral-large-2512": 0.69,
+          "google/gemini-2.5-pro": 0.125
+        },
+        "mean_reward": 0.9155912121212145,
+        "mean_cost": 0.0019070565303030312
+      },
+      {
+        "n_seen": 1700,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19176470588235295,
+          "mistralai/mistral-large-2512": 0.7097058823529412,
+          "google/gemini-2.5-pro": 0.09852941176470588
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.165,
+          "mistralai/mistral-large-2512": 0.71,
+          "google/gemini-2.5-pro": 0.125
+        },
+        "mean_reward": 0.9151944117647083,
+        "mean_cost": 0.0019362011470588237
+      },
+      {
+        "n_seen": 1750,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19228571428571428,
+          "mistralai/mistral-large-2512": 0.7091428571428571,
+          "google/gemini-2.5-pro": 0.09857142857142857
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.18,
+          "mistralai/mistral-large-2512": 0.7250000000000001,
+          "google/gemini-2.5-pro": 0.095
+        },
+        "mean_reward": 0.9157902857142886,
+        "mean_cost": 0.0019461970999999996
+      },
+      {
+        "n_seen": 1800,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19333333333333336,
+          "mistralai/mistral-large-2512": 0.7083333333333334,
+          "google/gemini-2.5-pro": 0.09833333333333333
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.22,
+          "mistralai/mistral-large-2512": 0.685,
+          "google/gemini-2.5-pro": 0.095
+        },
+        "mean_reward": 0.9156252777777807,
+        "mean_cost": 0.001949522027777777
+      },
+      {
+        "n_seen": 1824,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.19270833333333334,
+          "mistralai/mistral-large-2512": 0.7099780701754386,
+          "google/gemini-2.5-pro": 0.09731359649122807
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.2,
+          "mistralai/mistral-large-2512": 0.725,
+          "google/gemini-2.5-pro": 0.075
+        },
+        "mean_reward": 0.9156581688596521,
+        "mean_cost": 0.0019388519736842102
+      }
+    ],
+    "Disjoint LinUCB": [
+      {
+        "n_seen": 50,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.37,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.63
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.37,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.63
+        },
+        "mean_reward": 0.91815,
+        "mean_cost": 0.009558701999999999
+      },
+      {
+        "n_seen": 100,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.38,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.62
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.38,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.62
+        },
+        "mean_reward": 0.8978750000000004,
+        "mean_cost": 0.0096888485
+      },
+      {
+        "n_seen": 150,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.38,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.62
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.385,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.615
+        },
+        "mean_reward": 0.8998000000000004,
+        "mean_cost": 0.01019514466666667
+      },
+      {
+        "n_seen": 200,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.36750000000000005,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6325000000000001
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.355,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.645
+        },
+        "mean_reward": 0.8965375000000007,
+        "mean_cost": 0.010491897875000001
+      },
+      {
+        "n_seen": 250,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.364,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.636
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.33999999999999997,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6599999999999999
+        },
+        "mean_reward": 0.8948200000000008,
+        "mean_cost": 0.010443738900000003
+      },
+      {
+        "n_seen": 300,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3716666666666667,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6283333333333334
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.38,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.62
+        },
+        "mean_reward": 0.8979666666666675,
+        "mean_cost": 0.010426544416666671
+      },
+      {
+        "n_seen": 350,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.36,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.64
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.35,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6499999999999999
+        },
+        "mean_reward": 0.901171428571429,
+        "mean_cost": 0.010522867785714287
+      },
+      {
+        "n_seen": 400,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.35750000000000004,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6425000000000001
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.315,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.685
+        },
+        "mean_reward": 0.9033937500000004,
+        "mean_cost": 0.010487106062500003
+      },
+      {
+        "n_seen": 450,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.35111111111111115,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6488888888888888
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.32,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6799999999999999
+        },
+        "mean_reward": 0.9044155555555559,
+        "mean_cost": 0.01054671422222222
+      },
+      {
+        "n_seen": 500,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.351,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.649
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.325,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.675
+        },
+        "mean_reward": 0.9047190000000004,
+        "mean_cost": 0.010449329049999997
+      },
+      {
+        "n_seen": 550,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.35545454545454547,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6445454545454545
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.375,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.625
+        },
+        "mean_reward": 0.9045990909090913,
+        "mean_cost": 0.010318374863636355
+      },
+      {
+        "n_seen": 600,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3566666666666667,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6433333333333333
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.385,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.615
+        },
+        "mean_reward": 0.9045075,
+        "mean_cost": 0.010276470749999992
+      },
+      {
+        "n_seen": 650,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.35923076923076924,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6407692307692308
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.38,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.62
+        },
+        "mean_reward": 0.9040107692307692,
+        "mean_cost": 0.010441149884615376
+      },
+      {
+        "n_seen": 700,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3592857142857143,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6407142857142858
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.375,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.625
+        },
+        "mean_reward": 0.9041849999999998,
+        "mean_cost": 0.01038591407142856
+      },
+      {
+        "n_seen": 750,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3626666666666667,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6373333333333333
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.385,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.615
+        },
+        "mean_reward": 0.9036559999999996,
+        "mean_cost": 0.010268709099999988
+      },
+      {
+        "n_seen": 800,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.36,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.64
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.365,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.635
+        },
+        "mean_reward": 0.9027962499999994,
+        "mean_cost": 0.01038652699999999
+      },
+      {
+        "n_seen": 850,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3552941176470588,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6447058823529412
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.7
+        },
+        "mean_reward": 0.9032199999999991,
+        "mean_cost": 0.010430436058823515
+      },
+      {
+        "n_seen": 900,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3555555555555555,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6444444444444444
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.32,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6799999999999999
+        },
+        "mean_reward": 0.9039072222222209,
+        "mean_cost": 0.010427869277777767
+      },
+      {
+        "n_seen": 950,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.35,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6499999999999999
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.30500000000000005,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6950000000000001
+        },
+        "mean_reward": 0.9043521052631565,
+        "mean_cost": 0.010463911894736833
+      },
+      {
+        "n_seen": 1000,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.351,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.649
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.31,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.69
+        },
+        "mean_reward": 0.9023144999999984,
+        "mean_cost": 0.010441787699999993
+      },
+      {
+        "n_seen": 1050,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3519047619047619,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6480952380952381
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.37,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.63
+        },
+        "mean_reward": 0.9024614285714267,
+        "mean_cost": 0.010463187333333332
+      },
+      {
+        "n_seen": 1100,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3477272727272728,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6522727272727273
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.315,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.685
+        },
+        "mean_reward": 0.9027927272727254,
+        "mean_cost": 0.01056748190909091
+      },
+      {
+        "n_seen": 1150,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3465217391304348,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6534782608695653
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.29000000000000004,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.71
+        },
+        "mean_reward": 0.9025039130434767,
+        "mean_cost": 0.010650854195652176
+      },
+      {
+        "n_seen": 1200,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3454166666666667,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6545833333333333
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.32,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6799999999999999
+        },
+        "mean_reward": 0.902305833333332,
+        "mean_cost": 0.010653022520833335
+      },
+      {
+        "n_seen": 1250,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3452,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6548
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.32999999999999996,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6699999999999999
+        },
+        "mean_reward": 0.9023791999999995,
+        "mean_cost": 0.0106177431
+      },
+      {
+        "n_seen": 1300,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3453846153846154,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6546153846153846
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.345,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.655
+        },
+        "mean_reward": 0.9027511538461539,
+        "mean_cost": 0.010598406884615382
+      },
+      {
+        "n_seen": 1350,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3440740740740741,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6559259259259259
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.32999999999999996,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6699999999999999
+        },
+        "mean_reward": 0.9033214814814821,
+        "mean_cost": 0.010645721185185184
+      },
+      {
+        "n_seen": 1400,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.34285714285714286,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6571428571428571
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.31,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.69
+        },
+        "mean_reward": 0.9038371428571439,
+        "mean_cost": 0.010709609607142855
+      },
+      {
+        "n_seen": 1450,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.34241379310344827,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6575862068965517
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.32,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6799999999999999
+        },
+        "mean_reward": 0.9036686206896563,
+        "mean_cost": 0.010663593327586204
+      },
+      {
+        "n_seen": 1500,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.34299999999999997,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.657
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.345,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.655
+        },
+        "mean_reward": 0.9033130000000014,
+        "mean_cost": 0.01062903725
+      },
+      {
+        "n_seen": 1550,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.34161290322580645,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6583870967741936
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.32999999999999996,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6699999999999999
+        },
+        "mean_reward": 0.9032738709677437,
+        "mean_cost": 0.0106745910483871
+      },
+      {
+        "n_seen": 1600,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.34062499999999996,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.659375
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.305,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6950000000000001
+        },
+        "mean_reward": 0.9036340625000023,
+        "mean_cost": 0.010657677703125009
+      },
+      {
+        "n_seen": 1650,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.33818181818181814,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6618181818181819
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.28500000000000003,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.715
+        },
+        "mean_reward": 0.9040663636363663,
+        "mean_cost": 0.01069178130303031
+      },
+      {
+        "n_seen": 1700,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.33705882352941174,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6629411764705883
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.28,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.72
+        },
+        "mean_reward": 0.9043450000000028,
+        "mean_cost": 0.010729166926470596
+      },
+      {
+        "n_seen": 1750,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.33714285714285713,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6628571428571428
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.31999999999999995,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6799999999999999
+        },
+        "mean_reward": 0.9041922857142888,
+        "mean_cost": 0.010805285485714296
+      },
+      {
+        "n_seen": 1800,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.33694444444444444,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.6630555555555555
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.335,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.665
+        },
+        "mean_reward": 0.9042161111111147,
+        "mean_cost": 0.010824371194444455
+      },
+      {
+        "n_seen": 1824,
+        "routing_mix_cumulative": {
+          "meta-llama/llama-3.1-8b-instruct": 0.334703947368421,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.665296052631579
+        },
+        "routing_mix_windowed": {
+          "meta-llama/llama-3.1-8b-instruct": 0.3,
+          "mistralai/mistral-large-2512": 0.0,
+          "google/gemini-2.5-pro": 0.7
+        },
+        "mean_reward": 0.904584155701758,
+        "mean_cost": 0.010835735964912295
+      }
+    ]
+  },
+  "wall_time_s": 19.8
+}

@@ -3333,8 +3333,11 @@ class BanditRouter:
             output_est = cost_usd * _OUTPUT_COST_MULTIPLIER
             blended_cost_per_m = (cost_usd + output_est) / 2.0
         
+        output_est = cost_usd * _OUTPUT_COST_MULTIPLIER
         registry_entry = {
             "cost_per_1m_tokens": cost_usd,
+            "input_cost_per_m": cost_usd,
+            "output_cost_per_m": output_est,
             "blended_cost_per_m": float(blended_cost_per_m),
             "time_to_first_token_seconds": latency_s,
             "median_latency_s": latency_s,
@@ -3690,39 +3693,22 @@ class BanditRouter:
                 if isinstance(router.bandit, HybridLinUCBPolicy):
                     K = len(router.bandit.models)
                     if K > 0:
-                        # Hybrid warm-prior synthesis from disjoint priors.
-                        #
-                        # Disjoint priors provide (A_a, b_a) per arm but
-                        # no cross-term B_a.  With B_a = 0, the hybrid
-                        # prediction is:
-                        #   E[r|x] = x^T (A0_inv @ b0) + x^T (A_inv_a @ b_a)
-                        #
-                        # The arm-specific priors already encode the full
-                        # reward signal.  If we set b0 = mean(b_a), the
-                        # shared term would roughly duplicate the arm
-                        # prediction, causing ~2x over-prediction.
-                        #
-                        # Correct synthesis:
-                        #   A0 = mean(A_a) — preserves the precision scale
-                        #     so shared variance x^T A0_inv x stays bounded
-                        #     and exploration bonus is not inflated.
-                        #   b0 = 0 — no shared prediction yet.  With
-                        #     beta_hat = A0_inv @ 0 = 0, the prediction
-                        #     reduces to x^T (A_inv_a @ b_a) = disjoint.
-                        #
-                        # As online data arrives, b0 accumulates naturally
-                        # via b0 += c * (r - r_hat) * y, contributing
-                        # shared signal only when arm-specific predictions
-                        # are inaccurate.
+                        # Stage 1: Set A0 = mean(A_a), b0 = 0 so that
+                        # calibrate_priors() operates on standard arm
+                        # thetas.  The full shared-beta decomposition is
+                        # applied in stage 2 (after calibration) to ensure
+                        # b0 encodes calibrated, in-range predictions.
                         A_sum = sum(
                             router.bandit.A[m] for m in router.bandit.models
                         )
                         router.bandit.A0 = A_sum / K
-                        router.bandit.b0 = np.zeros(router.bandit.dim, dtype=np.float64)
+                        router.bandit.b0 = np.zeros(
+                            router.bandit.dim, dtype=np.float64,
+                        )
                         logger.info(
-                            f"Hybrid warm-prior synthesis: A0=mean(A_a) from "
-                            f"{K} arms, b0=0 (predictions match disjoint at "
-                            f"cold start; shared signal builds online)."
+                            "Hybrid warm-prior stage 1: A0=mean(A_a) from "
+                            "%d arms, b0=0 (deferred to post-calibration).",
+                            K,
                         )
 
                 # Single refresh_inverse_cache() after all A matrices are
@@ -3795,7 +3781,54 @@ class BanditRouter:
         # 6b. Calibrate priors on the canonical bandit state (catches scale
         #     explosion from warmup or T-shirt sizing before the adapter sees it).
         calibrate_priors(router.bandit, target_max_pred=0.9)
-        
+
+        # 6c. Hybrid warm-prior stage 2: decompose calibrated arm thetas
+        # into shared mean (beta) + arm-specific residuals.
+        #
+        # Must run AFTER calibrate_priors() so beta_init encodes
+        # calibrated, in-range predictions.  A0 was already set to
+        # mean(A_a) in stage 1; we now compute b0 and adjust arm b
+        # vectors.
+        #
+        # Derivation (B_a = 0 throughout):
+        #   theta_a = A_inv_a @ b_a      (calibrated disjoint estimate)
+        #   beta_init = mean(theta_a)     (shared component)
+        #
+        # We set:
+        #   b0 = A0 @ beta_init
+        #   b_a_new = b_a - A_a @ beta_init
+        #
+        # Verification (existing arms unchanged):
+        #   beta_hat = A0_inv @ b0 = beta_init
+        #   theta_hat_a = A_inv_a @ b_a_new
+        #               = theta_a - beta_init
+        #   E[r] = x^T beta_init + x^T (theta_a - beta_init)
+        #        = x^T theta_a                  (unchanged)
+        #
+        # New arm benefit:
+        #   E[r|new] = x^T beta_init ≈ average model quality
+        if isinstance(router.bandit, HybridLinUCBPolicy):
+            models = router.bandit.models
+            K = len(models)
+            if K > 0:
+                theta_sum = np.zeros(router.bandit.dim, dtype=np.float64)
+                for m in models:
+                    theta_sum += router.bandit.A_inv[m] @ router.bandit.b[m]
+                beta_init = theta_sum / K
+
+                router.bandit.b0 = router.bandit.A0 @ beta_init
+                for m in models:
+                    router.bandit.b[m] = (
+                        router.bandit.b[m] - router.bandit.A[m] @ beta_init
+                    )
+                router.bandit.refresh_inverse_cache()
+                logger.info(
+                    "Hybrid warm-prior stage 2 (post-calibration): "
+                    "b0=A0@mean(theta_a), beta_init norm=%.4f. "
+                    "New arms inherit shared signal.",
+                    float(np.linalg.norm(beta_init)),
+                )
+
         # 7. Initialize Corralling Router (if enabled)
         if router.use_corralling:
             router._init_corralling(alpha)

@@ -1,36 +1,33 @@
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{figures/figure3_k2.png}
-    \caption{BanditGPT vs.\ supervised baselines
-    (LLMRouter-style~\cite{hu2024routerbench, li2026llmrouterbench}) on a
-    two-model portfolio (\texttt{Llama-3.1-8B} vs.\ \texttt{GPT-4.1}).
+    \includegraphics[width=\linewidth]{../experiments/03_figure/results/figure3_onboarding.pdf}
+    \caption{Model onboarding: adding Mistral-Large-2512 to a $K{=}2$
+    portfolio (Llama-3.1-8B + Gemini-2.5-Pro).
+    All panels show windowed routing share (last 100 prompts).
     %
-    \textbf{(a)}~Cost--quality Pareto frontier on the holdout set
-    ($n{=}1{,}497$).  The bold line shows BanditGPT's \emph{dev-selected
-    deployable frontier}: the dev set ($n{=}2{,}612$) is split 80/20 into
-    train/val; BanditGPT trains on dev-train, and the Pareto hull is built
-    from $(c_{\text{dev-val}}, r_{\text{dev-val}})$.  Plotted points are
-    the holdout performance of those dev-optimal hyperparameters.
-    Supervised baselines (KNN, SVM, MLP;
-    scikit-learn~\cite{pedregosa2011scikit}) are trained on the same
-    dev-train split with hyperparameters tuned on the same dev-val split
-    (symmetric data access).  BanditGPT
-    (Corralling~\cite{agarwal2017corralling} with per-expert
-    hyperparameters from Appendix~H) is swept over $\lambda \in [0,\,5]$
-    (23 values).
-    Frozen holdout evaluation with greedy exploitation ($\alpha{=}0$).
-    Error bars show 95\% $t$-CIs across 20 seeds.
-    In this two-model setting, all quality-maximising strategies
-    converge to the best single model (GPT-4.1); BanditGPT's advantage
-    is the continuous cost--quality tradeoff via~$\lambda$.
+    \textbf{Left (Hybrid LinUCB):}\ the shared $\beta$ from $K{=}2$
+    training transfers to the newcomer.  Mistral's share rises rapidly
+    and Gemini's collapses as the router discovers that Mistral delivers
+    ${\sim}99\%$ of Gemini's quality at $1/29$th the cost.
     %
-    \textbf{(b)}~Learning curve: holdout reward as a function of online
-    training steps ($\lambda{=}0$, quality-only).  BanditGPT's step-0
-    performance reflects warmup priors (transfer learning from a broader
-    model registry); supervised baselines are trained on the full dev-train
-    split and shown as horizontal reference lines.
+    \textbf{Centre (Disjoint LinUCB, ablation):}\ without cross-arm
+    parameter sharing, the newcomer must learn its quality profile from
+    scratch, resulting in slower adoption.
     %
-    Rewards are ground-truth multi-judge scores (mean of vote $\times$
-    confidence via \texttt{extract\_reward}), not proxy predictions.}
-    \label{fig:prequential_k2}
+    \textbf{Right (overlay):}\ Mistral's windowed share for both
+    conditions on the same axes.  Dotted lines and markers indicate
+    the convergence point (share within $\pm 5$pp of final value).
+    Both policies converge to the same steady-state routing mix,
+    confirming that the shared $\beta$ is a \emph{speed} advantage,
+    not a fundamental one.
+    %
+    Both conditions share identical $K{=}2$ warmup priors and
+    Corralling configuration; only the shared $\beta$ differs.
+    Setup: $\lambda{=}0.20$ (median from the K{=}2 Pareto sweep),
+    $n{=}8{,}374$ training prompts (K=2), $n{=}1{,}824$ test prompts
+    (K=3), averaged over 3~seeds.
+    Hyperparameters ($\alpha{=}0.05$, $\neff{=}50$, Corralling)
+    from val-tuned corralling config.
+    }
+    \label{fig:onboarding_k3}
 \end{figure}
