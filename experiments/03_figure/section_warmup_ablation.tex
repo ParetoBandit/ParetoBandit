@@ -1,0 +1,210 @@
+% Section: Warmup Prior Ablation Results (K=2)
+% Include from paper/sections/results.tex
+
+\subsection{The Value of Warmup Priors ($K{=}2$)}
+\label{sec:warmup_ablation_k2}
+
+\paragraph{Motivation.}
+The Pareto frontier in Figure~\ref{fig:pareto_k2} shows that all
+contextual methods achieve comparable AUC for $K{=}2$.  This section
+asks a sharper question: when the router operates at a \emph{fixed}
+cost penalty, do warmup priors reduce cumulative regret---the canonical
+measure of online learning efficiency?  We compare two conditions:
+
+\begin{itemize}[leftmargin=*,noitemsep]
+  \item \textbf{BanditGPT (warm priors):}  Disjoint LinUCB initialised
+        with offline priors from the training split
+        (ridge-regression sufficient statistics, $n_{\mathrm{eff}}$
+        controlling prior strength).
+  \item \textbf{Tabula Rasa (no priors):}  The same Disjoint LinUCB
+        architecture but starting from scratch
+        ($A = \lambda I$, $b = \mathbf{0}$).
+\end{itemize}
+
+\noindent
+Both conditions use independently tuned hyperparameters
+($\alpha$, $n_{\mathrm{eff}}$) selected on the validation split at each
+$\lambda_c$ to maximise mean reward, following the operating-point
+tuning methodology of PILOT~\cite{panda2025pilot}.  This ensures a
+fair comparison: Tabula Rasa receives its own best exploration rate,
+not the rate tuned for warm priors.
+
+\paragraph{Protocol.}
+The router trains online on $n{=}8{,}374$ prompts (train split, partial
+feedback), then continues learning on the held-out test split
+($n{=}1{,}824$).  All metrics are computed on the test split.
+The validation split ($n{=}1{,}785$) is used exclusively for
+hyperparameter selection and is not evaluated.
+Results are averaged over 20 independent seeds with matched shuffle
+order between conditions.
+
+\paragraph{Regret reduction across cost penalties.}
+Table~\ref{tab:regret_reduction} reports cumulative test-set regret
+for both conditions across six cost penalties.
+Crucially, the test split is reached \emph{after} both conditions have
+processed $n{=}8{,}374$ online training prompts.  Tabula Rasa is
+therefore no longer ``cold'' at evaluation time; it has had ample
+opportunity to learn from online feedback.  The comparison measures
+whether offline-informed initialisation provides a
+\textbf{lasting parameter-quality advantage} that extensive online
+learning alone does not fully recover---a stronger claim than
+transient cold-start acceleration.
+
+Three regimes emerge:
+
+\begin{enumerate}[leftmargin=*,noitemsep]
+  \item \textbf{Moderate cost sensitivity
+        ($\lambda_c \in [0.05,\, 0.20]$):}
+        Warmup priors consistently reduce regret by 9--20\%
+        \emph{even after 8{,}374 online steps}.
+        The prior encodes quality signals from the offline evaluation,
+        and the resulting parameter estimates remain superior in
+        regions of the context space that receive sparse online
+        observations---the ``long tail'' of prompt types where
+        partial feedback alone is insufficient to fully calibrate
+        arm estimates.
+        At $\lambda_c{=}0.15$, where the quality--cost trade-off
+        is most active, the reduction is \textbf{20.0\%}
+        ($49.3 \pm 2.0$ vs.\ $61.6 \pm 0.9$).
+  \item \textbf{High cost sensitivity ($\lambda_c \geq 0.30$):}
+        Both conditions converge to high exploration ($\alpha{=}2.0$)
+        and near-identical regret.  When cost dominates the UCB score,
+        the router routes almost exclusively to the cheap model
+        regardless of context, and quality priors offer no guidance.
+  \item \textbf{Variance reduction.}
+        Beyond mean regret, warmup priors stabilise learning across
+        seeds.  At $\lambda_c{=}0.10$, Tabula Rasa exhibits an order
+        of magnitude higher seed-level variance
+        (SE $16.6$ vs.\ $1.0$), indicating that some uninformed
+        seeds fall into suboptimal exploration trajectories that
+        priors prevent.
+\end{enumerate}
+
+\noindent
+This pattern mirrors the $K{=}3$ ablation
+(Appendix~\ref{appendix:cold_start}), where the warm-start advantage
+similarly concentrates in the quality-sensitive regime and vanishes
+as $\lambda$ pushes routing toward the cheapest model.
+
+\paragraph{Learning dynamics (Figure~\ref{fig:warmup_ablation_k2}).}
+Both panels show exclusively \textbf{held-out test data}
+($n{=}1{,}824$) to avoid conflating the warm-start benefit with the
+data overlap between priors and training (priors are built offline
+from the same train split that both conditions process online).
+
+Panel~(a) shows the cumulative regret accrued during the test phase.
+The gap between conditions is present from the first test prompts
+and widens monotonically, reflecting better-calibrated arm
+estimates that warm priors carry through from the training phase.
+Since Tabula Rasa has already processed $8{,}374$ online training
+prompts at this point, the persistent gap demonstrates that
+offline priors encode information that online partial feedback
+alone does not fully recover.
+Panel~(b) shows the windowed average reward on the test split.
+BanditGPT maintains a ${\sim}1$~pp advantage throughout,
+consistent with the regret gap in panel~(a).
+
+\paragraph{Relationship to prior work.}
+The warm-start bandit literature provides theoretical support for
+these findings.  \citet{kveton2023warmstart} prove that Linear
+Thompson Sampling with warm-start priors achieves tighter regret
+bounds than cold-start under standard assumptions, and demonstrate
+empirical gains on recommendation and database tuning tasks.
+\citet{pan2024cbli} show that even approximate priors (generated by
+an LLM rather than from offline data) reduce online regret
+in contextual bandits.
+In the LLM routing setting specifically, PILOT~\cite{panda2025pilot}
+uses offline human preference data to initialise a shared embedding
+space before online learning.  Their ablation (Table~6) shows that
+combining the preference prior with 10\% online data approaches
+the performance of fully trained PILOT\@.
+Our results complement these findings: we provide the first systematic
+characterisation of how warm-start regret reduction varies with the
+cost operating point, showing that priors are most valuable when the
+routing decision involves a genuine quality--cost trade-off rather
+than a cost-dominated one.
+
+Direct numerical comparison of absolute regret values across papers
+is not meaningful, as cumulative regret depends on the model panel,
+reward definition, prompt distribution, and horizon
+length~\cite{lattimore2020bandit}.
+The operationally meaningful comparison is the \emph{relative}
+reduction, and the 9--20\% range we observe at moderate cost
+penalties at moderate $\lambda_c$ is consistent with the
+warm-start literature.
+
+\paragraph{Information budget and fairness.}
+The warmup priors are constructed from \emph{full-information}
+rewards---observing all arms' quality on every training prompt---whereas
+Tabula Rasa learns only from partial (bandit) feedback during the
+online phase.  BanditGPT therefore has a strictly larger information
+budget.  We note three points in defence of this comparison:
+
+\begin{enumerate}[leftmargin=*,noitemsep]
+  \item \textbf{Standard evaluation assumption.}
+        The same full-information data is available to all supervised
+        baselines in Figure~\ref{fig:pareto_k2} (logistic regression,
+        KNN, SVM, MLP) and is the standard evaluation setting in
+        LLM routing benchmarks~\cite{ong2024routellm, panda2025pilot}.
+        The warmup priors use this data no differently than a
+        supervised classifier would.
+  \item \textbf{Realistic production analogue.}
+        In deployment, the full-information phase corresponds to an
+        initial A/B testing or uniform exploration period where all
+        candidate models are served on a traffic sample and their
+        rewards observed.  This is standard practice before engaging
+        a contextual bandit~\cite{kveton2023warmstart} and
+        constitutes a bounded, one-time data-collection cost.
+  \item \textbf{The regret reduction reflects both prior quality
+        and the warm-start mechanism.}
+        The 9--20\% reduction at moderate $\lambda_c$ is not purely
+        an information advantage: it also reflects the mechanism of
+        compressing full-information data into LinUCB sufficient
+        statistics that initialise online learning in the right
+        region of parameter space.  A na\"ive full-information
+        classifier (e.g., logistic regression in
+        Figure~\ref{fig:pareto_k2}) cannot continue improving from
+        bandit feedback after deployment; the warm-started bandit can.
+\end{enumerate}
+
+\noindent
+Constructing warmup priors from partial-feedback production logs---via
+inverse propensity scoring~\cite{dudik2014doubly} or offline policy
+evaluation---is an important extension for settings where a full A/B
+test is infeasible.  We leave this to future work.
+
+\paragraph{Fixed exploration rate.}
+Both conditions use a single exploration rate~$\alpha$ throughout
+training, following the standard LinUCB
+formulation~\cite{li2010contextual, panda2025pilot}.
+The tuning procedure naturally selects higher~$\alpha$ for Tabula Rasa
+than for warmup (e.g., $0.30$ vs.\ $0.01$ at $\lambda_c{=}0.15$),
+reflecting the uninformed condition's greater exploration need.
+Nevertheless, an $\alpha$-decay schedule---high exploration early,
+low exploitation late---could disproportionately benefit Tabula Rasa,
+whose uncertainty is highest in its first few hundred interactions.
+We note that the constraint is symmetric (neither condition receives
+decay) and that the test-set regret is measured after
+$n{=}8{,}374$ training steps, well past the phase where scheduling
+would have the largest effect.
+Exploring $\alpha$-decay or Bayesian exploration schedules for
+cold-start bandits is a natural extension.
+
+\paragraph{Practical implications.}
+The table provides actionable deployment guidance:
+\begin{itemize}[leftmargin=*,noitemsep]
+  \item When operating at moderate cost sensitivity
+        ($\lambda_c \leq 0.20$), investing in offline prior
+        construction yields measurable regret reduction and
+        lower seed-level variance.
+  \item When cost budgets are severely constrained
+        ($\lambda_c \geq 0.30$), the router's decisions are
+        dominated by cost and warmup priors offer diminishing
+        returns.  In this regime, a simpler tabula rasa deployment
+        suffices.
+  \item The operating-point-specific tuning of $\alpha$
+        (Table~\ref{tab:regret_reduction}) is critical:
+        hyperparameters tuned for Pareto AUC can be suboptimal
+        at a fixed $\lambda_c$, echoing the tuning recommendations
+        of PILOT~\cite{panda2025pilot}.
+\end{itemize}

@@ -1,37 +1,40 @@
+% Figure 3 caption: Warmup Prior Ablation (K=2)
+% Include from paper/sections/results.tex
+
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{../experiments/03_figure/results/figure3_onboarding.pdf}
-    \caption{Model onboarding: adding Mistral-Large-2512 to a $K{=}2$
-    portfolio (Llama-3.1-8B + Gemini-2.5-Pro) via a single
-    \texttt{register\_model()} call.
+    \includegraphics[width=\linewidth]{../experiments/03_figure/results/figure3_warmup_ablation.pdf}
+    \caption{Warmup prior ablation for the $K{=}2$ portfolio
+    (\texttt{Llama-3.1-8B} vs.\ \texttt{Gemini-2.5-Pro}) at
+    cost penalty $\lambda_c{=}0.15$, averaged over 20~seeds
+    ($\pm 1$~SE shaded).
+    \textbf{Both panels show exclusively held-out test data}
+    ($n{=}1{,}824$); the test split was not used for prior
+    construction or hyperparameter selection.
     %
-    \textbf{Top left (Hybrid LinUCB):}\ the shared $\hat{\beta}$
-    from $K{=}2$ training transfers to the newcomer, giving it
-    an initial quality prediction of $\hat{r} \approx 0.76$.
-    Mistral reaches $52\%$ cumulative routing share and Gemini
-    collapses to $17\%$ (CostSave@95\% $= 79\%$).
+    \textbf{(a)}~Cumulative regret
+    $\sum_{t=1}^{T}[\max_a \mu_a(x_t) - \mu_{a_t}(x_t)]$
+    on the test split.
+    BanditGPT (warm priors, solid blue) accumulates
+    $49.3 \pm 2.0$ regret versus
+    $61.6 \pm 0.9$ for Tabula Rasa (no priors, dashed gray),
+    a \textbf{20.0\% reduction}.
+    The gap opens within the first few hundred test prompts
+    and widens monotonically.
     %
-    \textbf{Top right (Disjoint LinUCB, ablation):}\ without the
-    shared $\hat{\beta}$, Mistral starts with $\hat{r} = 0$ and the
-    UCB exploration bonus at $\alpha{=}0.05$ cannot overcome the
-    incumbents' advantage---routing share remains at exactly $0\%$
-    across all seeds (cold-start trap; CostSave@95\% $= 36\%$).
+    \textbf{(b)}~Windowed average reward (window${=}200$)
+    on the test split.
+    Warm priors yield ${\sim}1$~pp higher reward throughout
+    the evaluation phase, reflecting better-calibrated arm
+    estimates carried over from the training phase.
     %
-    \textbf{Bottom (reward overlay):}\ cumulative average reward
-    for both conditions.
-    Hybrid's reward rises after onboarding; Disjoint stays flat.
-    %
-    Both conditions share identical $K{=}2$ warmup priors for the
-    original arms; only the shared $\hat{\beta}$ differs.
-    No artificial exploration boost is applied.
-    The Corralling meta-learner uses an adaptive $\gamma$ schedule:
-    $\gamma$ drops to~0 upon \texttt{register\_model()} and ramps
-    linearly back to~0.05 over 500~steps, giving the warm-started
-    expert full control during the critical discovery window.
-    Setup: $n{=}8{,}374$ training prompts ($K{=}2$),
-    $n{=}1{,}824$ test prompts ($K{=}3$),
-    $\alpha{=}0.05$, $\neff{=}50$, averaged over 20~seeds
-    with SE bands.
-    }
-    \label{fig:onboarding_k3}
+    Both conditions train on the same train split
+    ($n{=}8{,}374$, online partial feedback) before evaluation.
+    Warmup priors are built offline from full-information
+    rewards on the train split---the same data available to
+    supervised baselines (Figure~\ref{fig:pareto_k2}).
+    Hyperparameters are independently tuned per condition on
+    the validation split at $\lambda_c{=}0.15$
+    (Table~\ref{tab:regret_reduction}).}
+    \label{fig:warmup_ablation_k2}
 \end{figure}
