@@ -9,9 +9,24 @@ optimization across all four routing variants:
   * **K=3 BanditGPT** — full portfolio with corralling + warmup priors
   * **K=3 Tabula Rasa** — full portfolio, no priors, no corralling
   * **K=2 BanditGPT** — cheapest + most expensive model, corralling +
-    warmup priors
+    warmup priors (derived from K=3)
   * **K=2 Tabula Rasa** — cheapest + most expensive, no priors, no
     corralling
+
+BanditGPT bundles warmup priors *and* the Corralling meta-learner.
+The marginal contribution of each component is disentangled in the
+Architectural Ablation (Appendix C2, ``C2_architectural_ablation.tex``),
+which evaluates a 7-method progressive factorial including LinUCB with
+and without priors.  Key finding: after full burn-in, priors contribute
+zero delta; Corralling's value appears at moderate-to-high λ.
+
+Note on forgetting factor (γ < 1) in offline single-pass training:
+in the train-then-freeze protocol each sample is seen once in random
+order, so there is no genuine non-stationarity.  When the grid search
+selects γ < 1, it is acting as implicit regularization (reducing
+effective sample size ≈ 1 / (1 − γ)) rather than adapting to temporal
+drift.  The sweep is retained because it is a valid regularisation
+knob, but results should be interpreted accordingly.
 
 For each variant and component count k ∈ {4, 6, 8, 10, 12, 15, 20, 24, 32}:
 
@@ -30,12 +45,12 @@ For each variant and component count k ∈ {4, 6, 8, 10, 12, 15, 20, 24, 32}:
 
 Protocol
 --------
-The canonical validation split (K4_VAL) is sub-split into two disjoint
-halves — **val_tune** (hyperparameter selection) and **val_report**
-(unbiased metric for the ablation curve).  This eliminates the
-maximization bias that arises when the grid-search winner is selected
-on and reported from the same data.  The holdout set is never touched —
-it is reserved for final paper claims.
+The canonical validation split is sub-split into two disjoint halves —
+**val_tune** (hyperparameter selection) and **val_report** (unbiased
+metric for the ablation curve).  This eliminates the maximization bias
+that arises when the grid-search winner is selected on and reported
+from the same data.  The holdout set is never touched — it is reserved
+for final paper claims.
 
 Outputs (``results/``)
     pca_component_ablation.json         — full results for all variants
@@ -70,12 +85,10 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
     FULL_PCA_PATH,
-    K2_MODELS_PATH,
-    K2_WARMUP_PRIORS_32_PATH,
     K3_MODELS_PATH,
-    K3_WARMUP_PRIORS_32_PATH,
-    K4_TRAIN_DATA_PATH,
-    K4_VAL_DATA_PATH,
+    TRAIN_DATA_PATH,
+    VAL_DATA_PATH,
+    WARMUP_PRIORS_PATH,
 )
 from utils.embeddings import (
     get_raw_embeddings_for_data,
@@ -84,7 +97,7 @@ from utils.embeddings import (
 )
 from utils.rewards import extract_reward
 from utils.router_factory import create_experiment_router
-from utils.model_pricing import get_prices_for_models, req_cost
+from utils.model_pricing import load_model_catalog, req_cost
 from utils.pareto import pareto_auc
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
@@ -111,34 +124,78 @@ CORRALLING_GAMMA: float = 0.05
 REWARD_THEORETICAL_MIN: float = 0.0
 REWARD_THEORETICAL_MAX: float = 1.0
 
+PRIMARY_JUDGE: str = "deepseek/deepseek-r1"
+
 VAL_REPORT_FRACTION: float = 0.5
 VAL_SPLIT_SEED: int = 2026
 
 
 
 # ============================================================================
-# Portfolios
+# Portfolio
 # ============================================================================
 
-def _load_portfolio(config_path: Path) -> Tuple[List[str], Dict[str, Dict]]:
-    """Load model list and catalog from a JSON model config."""
-    with open(config_path) as f:
-        cfg = json.load(f)
-    models = [m["model_id"] for m in cfg["models"]]
-    prices = get_prices_for_models(models)
-    catalog: Dict[str, Dict] = {}
-    for m_entry in cfg["models"]:
-        mid = m_entry["model_id"]
-        catalog[mid] = {
-            "display": m_entry.get("display", mid.split("/")[-1]),
-            **prices[mid],
-        }
-    return models, catalog
+K3_MODELS, K3_CATALOG = load_model_catalog(K3_MODELS_PATH)
 
 
-K3_MODELS, K3_CATALOG = _load_portfolio(K3_MODELS_PATH)
-K2_MODELS, K2_CATALOG = _load_portfolio(K2_MODELS_PATH)
+def _derive_k2_portfolio(
+    models: List[str],
+    catalog: Dict[str, Dict],
+) -> Tuple[List[str], Dict[str, Dict]]:
+    """Derive K=2 portfolio (cheapest + most expensive) from K=3.
 
+    Selects the two extreme-cost models from the K=3 portfolio,
+    preserving their catalog metadata.  Cost is computed via
+    ``req_cost`` (representative per-request cost).
+    """
+    model_costs = {
+        m: req_cost(catalog[m]["input_cost_per_m"],
+                    catalog[m]["output_cost_per_m"])
+        for m in models
+    }
+    cheapest = min(model_costs, key=model_costs.get)  # type: ignore[arg-type]
+    priciest = max(model_costs, key=model_costs.get)  # type: ignore[arg-type]
+    k2_models = [cheapest, priciest]
+    k2_catalog = {m: catalog[m] for m in k2_models}
+    return k2_models, k2_catalog
+
+
+K2_MODELS, K2_CATALOG = _derive_k2_portfolio(K3_MODELS, K3_CATALOG)
+
+
+def _subset_warmup_priors(
+    priors: Dict[str, Any],
+    model_subset: List[str],
+) -> Dict[str, Any]:
+    """Subset warmup priors to a smaller set of models.
+
+    Keeps the same context dimensionality and PCA metadata; only
+    filters the per-model sufficient statistics (A and b matrices)
+    to the requested subset.
+
+    Args:
+        priors: Full K=3 warmup priors dict with ``"A"``, ``"b"``,
+            ``"models"`` keys.
+        model_subset: Model IDs to retain (must be a subset of
+            ``priors["models"]``).
+
+    Returns:
+        New priors dict with only *model_subset* entries.
+
+    Raises:
+        KeyError: If any model in *model_subset* is missing from priors.
+    """
+    missing = set(model_subset) - set(priors["models"])
+    if missing:
+        raise KeyError(
+            f"Models not found in warmup priors: {missing}. "
+            f"Available: {priors['models']}"
+        )
+    subset = dict(priors)
+    subset["models"] = list(model_subset)
+    subset["A"] = {m: priors["A"][m] for m in model_subset}
+    subset["b"] = {m: priors["b"][m] for m in model_subset}
+    return subset
 
 
 def build_model_registry(
@@ -165,10 +222,19 @@ def load_rewards_from_file(
     models: List[str],
     *,
     prompt_filter: Optional[Set[str]] = None,
+    judge_id: Optional[str] = PRIMARY_JUDGE,
 ) -> List[Dict]:
     """Load rewards for specific models from gzipped JSONL.
 
     Only prompts with rewards for *all* requested models are included.
+
+    Args:
+        data_path: Gzipped JSONL reward file.
+        models: Model IDs to load.
+        prompt_filter: If provided, only include these prompts.
+        judge_id: When set, extract reward from this single judge
+            rather than the full panel mean.  Defaults to
+            :data:`PRIMARY_JUDGE`.
     """
     model_set = set(models)
     rewards: Dict[str, Dict[str, float]] = defaultdict(dict)
@@ -184,7 +250,7 @@ def load_rewards_from_file(
             model_id = entry["model_id"]
             if model_id not in model_set:
                 continue
-            rewards[prompt][model_id] = extract_reward(entry)
+            rewards[prompt][model_id] = extract_reward(entry, judge_id=judge_id)
 
     return [
         {"prompt": p, "rewards": rmap}
@@ -215,43 +281,60 @@ def truncate_pca(pca_full: PCA, n_components: int) -> PCA:
     return pca
 
 
-def truncate_warmup_priors(
+def resize_warmup_priors(
     priors: Dict[str, Any],
     n_components: int,
 ) -> Dict[str, Any]:
-    """Truncate sufficient statistics to fewer PCA components.
+    """Resize sufficient statistics to match the target PCA dimension.
 
     The priors contain A (d x d) and b (d,) per model where
-    d = pca_components + 1 (bias).  Truncating keeps the first
-    n_components PCA dimensions and the last (bias) row/col.
+    d = pca_components + 1 (bias).
+
+    When ``n_components`` is smaller than the priors' dimension, the
+    matrices are truncated (keeping the first *n_components* PCA dims
+    plus the bias row/col).  When larger, the matrices are padded:
+    extra PCA dimensions get identity rows/cols in A (uninformed prior)
+    and zeros in b, preserving the learned structure for the original
+    dimensions.
     """
+    old_pca = priors["context_dim"] - 1
+    if n_components == old_pca:
+        return priors
+
     old_dim = priors["context_dim"]
     new_dim = n_components + 1
 
-    if new_dim >= old_dim:
-        return priors
+    new_A: Dict[str, np.ndarray] = {}
+    new_b: Dict[str, np.ndarray] = {}
 
-    keep_idx = list(range(n_components)) + [old_dim - 1]
+    if n_components < old_pca:
+        keep_idx = list(range(n_components)) + [old_dim - 1]
+        for m in priors["models"]:
+            A_full = priors["A"][m]
+            b_full = priors["b"][m]
+            new_A[m] = A_full[np.ix_(keep_idx, keep_idx)]
+            new_b[m] = b_full[keep_idx]
+    else:
+        for m in priors["models"]:
+            A_old = priors["A"][m]
+            b_old = priors["b"][m]
+            A_new = np.eye(new_dim, dtype=np.float64)
+            b_new = np.zeros(new_dim, dtype=np.float64)
+            A_new[:old_pca, :old_pca] = A_old[:old_pca, :old_pca]
+            b_new[:old_pca] = b_old[:old_pca]
+            A_new[-1, :old_pca] = A_old[-1, :old_pca]
+            A_new[:old_pca, -1] = A_old[:old_pca, -1]
+            A_new[-1, -1] = A_old[-1, -1]
+            b_new[-1] = b_old[-1]
+            new_A[m] = A_new
+            new_b[m] = b_new
 
-    new_A = {}
-    new_b = {}
-    for m in priors["models"]:
-        A_full = priors["A"][m]
-        b_full = priors["b"][m]
-        new_A[m] = A_full[np.ix_(keep_idx, keep_idx)]
-        new_b[m] = b_full[keep_idx]
-
-    truncated = dict(priors)
-    truncated["A"] = new_A
-    truncated["b"] = new_b
-    truncated["context_dim"] = new_dim
-    truncated["pca_components"] = n_components
-    return truncated
-
-
-# get_raw_embeddings_for_data and project_embeddings are imported from
-# utils.embeddings — single canonical implementation shared across all
-# experiment scripts.
+    resized = dict(priors)
+    resized["A"] = new_A
+    resized["b"] = new_b
+    resized["context_dim"] = new_dim
+    resized["pca_components"] = n_components
+    return resized
 
 
 # ============================================================================
@@ -276,12 +359,21 @@ def _train_and_eval_single_lambda(
     cost_penalty: float,
     n_seeds: int,
     use_corralling: bool = True,
+    return_per_prompt: bool = False,
 ) -> Dict[str, Any]:
     """Train-then-freeze for one (alpha, n_eff, gamma, lambda) point.
+
+    Args:
+        return_per_prompt: When ``True``, also return per-seed,
+            per-prompt rewards and costs as 2-D arrays
+            (shape ``[n_seeds, n_eval]``).  Used for eval-data
+            bootstrap CIs.
 
     Returns:
         Dict with ``mean_reward``, ``mean_cost``, and per-seed arrays
         ``seed_rewards`` and ``seed_costs`` (each length *n_seeds*).
+        When *return_per_prompt* is ``True``, also includes
+        ``prompt_rewards`` and ``prompt_costs`` arrays.
     """
     r_min = REWARD_THEORETICAL_MIN
     r_range = REWARD_THEORETICAL_MAX - REWARD_THEORETICAL_MIN
@@ -289,8 +381,15 @@ def _train_and_eval_single_lambda(
 
     trial_r: List[float] = []
     trial_c: List[float] = []
+    prompt_rewards: List[List[float]] = [] if return_per_prompt else None  # type: ignore[assignment]
+    prompt_costs: List[List[float]] = [] if return_per_prompt else None  # type: ignore[assignment]
 
     for trial in range(n_seeds):
+        # Global seed is intentional: BanditRouter internals (tiebreaking,
+        # corralling weight sampling) draw from the global numpy RNG, so
+        # a local RandomState would only control the permutation while
+        # leaving router behaviour non-deterministic.  Re-seeding at the
+        # top of every trial ensures full reproducibility.
         np.random.seed(SEED_OFFSET + trial)
         router = create_experiment_router(
             model_registry=registry,
@@ -315,24 +414,93 @@ def _train_and_eval_single_lambda(
             )
             router.process_feedback(log.request_id, norm_reward)
 
-        rng_state = np.random.get_state()
         r_total = c_total = 0.0
+        seed_pr: List[float] = []
+        seed_pc: List[float] = []
         with router.exploit():
             for p, x in zip(eval_data, eval_emb):
                 model, _log = router.route(x, total_steps=burn_in)
-                r_total += p["rewards"][model]
-                c_total += costs[model]
-        np.random.set_state(rng_state)
+                r = p["rewards"][model]
+                c = costs[model]
+                r_total += r
+                c_total += c
+                if return_per_prompt:
+                    seed_pr.append(r)
+                    seed_pc.append(c)
 
         n = len(eval_data)
         trial_r.append(r_total / n)
         trial_c.append(c_total / n)
+        if return_per_prompt:
+            prompt_rewards.append(seed_pr)
+            prompt_costs.append(seed_pc)
 
-    return {
+    result: Dict[str, Any] = {
         "mean_reward": float(np.mean(trial_r)),
         "mean_cost": float(np.mean(trial_c)),
         "seed_rewards": trial_r,
         "seed_costs": trial_c,
+    }
+    if return_per_prompt:
+        result["prompt_rewards"] = np.asarray(prompt_rewards)
+        result["prompt_costs"] = np.asarray(prompt_costs)
+    return result
+
+
+N_BOOTSTRAP: int = 1000
+BOOTSTRAP_SEED: int = 9999
+
+
+def _bootstrap_pareto_auc(
+    prompt_rewards_by_lam: List[np.ndarray],
+    prompt_costs_by_lam: List[np.ndarray],
+    cost_lo: float,
+    cost_hi: float,
+    n_boot: int = N_BOOTSTRAP,
+    seed: int = BOOTSTRAP_SEED,
+) -> Dict[str, float]:
+    """Compute bootstrap CI for Pareto AUC over eval-data resamples.
+
+    For each bootstrap iteration, resample eval-prompt indices with
+    replacement and recompute the seed-averaged Pareto AUC.  This
+    captures **data-sampling uncertainty** (sensitivity to which prompts
+    appear in the eval set) as opposed to the per-seed SE which captures
+    training stochasticity only.
+
+    Args:
+        prompt_rewards_by_lam: List (one per lambda) of arrays with
+            shape ``[n_seeds, n_eval]``.
+        prompt_costs_by_lam: Same layout for costs.
+        cost_lo: Min cost for Pareto AUC integration.
+        cost_hi: Max cost for Pareto AUC integration.
+        n_boot: Number of bootstrap resamples.
+        seed: RNG seed for reproducibility.
+
+    Returns:
+        Dict with ``boot_mean``, ``boot_se``, ``boot_ci_lo``,
+        ``boot_ci_hi`` (95% percentile interval).
+    """
+    rng = np.random.RandomState(seed)
+    n_eval = prompt_rewards_by_lam[0].shape[1]
+    n_lam = len(prompt_rewards_by_lam)
+
+    boot_aucs: List[float] = []
+    for _ in range(n_boot):
+        idx = rng.choice(n_eval, size=n_eval, replace=True)
+        # Seed-averaged (cost, reward) for each lambda on this bootstrap sample
+        lam_costs: List[float] = []
+        lam_rewards: List[float] = []
+        for l in range(n_lam):
+            lam_rewards.append(float(prompt_rewards_by_lam[l][:, idx].mean()))
+            lam_costs.append(float(prompt_costs_by_lam[l][:, idx].mean()))
+        boot_aucs.append(pareto_auc(lam_costs, lam_rewards, cost_lo, cost_hi))
+
+    arr = np.asarray(boot_aucs)
+    return {
+        "boot_mean": float(arr.mean()),
+        "boot_se": float(arr.std(ddof=1)),
+        "boot_ci_lo": float(np.percentile(arr, 2.5)),
+        "boot_ci_hi": float(np.percentile(arr, 97.5)),
     }
 
 
@@ -354,12 +522,16 @@ def train_and_evaluate_pareto(
     cost_hi: float,
     n_seeds: int,
     use_corralling: bool = True,
+    bootstrap: bool = False,
 ) -> Dict[str, Any]:
     """Evaluate one (alpha, n_eff, gamma) across multiple lambdas.
 
     Sweeps ``lambda_values`` to trace the Pareto frontier, then
     computes Pareto AUC over ``[cost_lo, cost_hi]``.  Also computes
     per-seed Pareto AUC to enable confidence intervals.
+
+    When *bootstrap* is ``True``, additionally computes a bootstrap CI
+    over eval-data resamples (captures data-sampling uncertainty).
     """
     dim = train_emb[0].shape[0]
     registry = build_model_registry(models, catalog)
@@ -367,6 +539,8 @@ def train_and_evaluate_pareto(
     sweep_points: List[Dict[str, Any]] = []
     seed_sweep_rewards: List[List[float]] = []
     seed_sweep_costs: List[List[float]] = []
+    prompt_rewards_by_lam: List[np.ndarray] = []
+    prompt_costs_by_lam: List[np.ndarray] = []
     lam0_reward: float = 0.0
 
     for lam in lambda_values:
@@ -377,6 +551,7 @@ def train_and_evaluate_pareto(
             alpha=alpha, n_eff=n_eff, gamma=gamma,
             cost_penalty=lam, n_seeds=n_seeds,
             use_corralling=use_corralling,
+            return_per_prompt=bootstrap,
         )
         sweep_points.append({
             "lambda": lam,
@@ -385,6 +560,9 @@ def train_and_evaluate_pareto(
         })
         seed_sweep_rewards.append(pt["seed_rewards"])
         seed_sweep_costs.append(pt["seed_costs"])
+        if bootstrap:
+            prompt_rewards_by_lam.append(pt["prompt_rewards"])
+            prompt_costs_by_lam.append(pt["prompt_costs"])
         if lam == 0.0:
             lam0_reward = pt["mean_reward"]
 
@@ -403,7 +581,7 @@ def train_and_evaluate_pareto(
 
     auc_arr = np.asarray(seed_pareto_aucs)
 
-    return {
+    result: Dict[str, Any] = {
         "alpha": alpha,
         "n_eff": n_eff,
         "gamma": gamma,
@@ -414,6 +592,14 @@ def train_and_evaluate_pareto(
         "sweep_points": sweep_points,
         "n_seeds": n_seeds,
     }
+
+    if bootstrap and prompt_rewards_by_lam:
+        result["bootstrap"] = _bootstrap_pareto_auc(
+            prompt_rewards_by_lam, prompt_costs_by_lam,
+            cost_lo, cost_hi,
+        )
+
+    return result
 
 
 # ============================================================================
@@ -477,6 +663,14 @@ def portfolio_pareto_auc(
     This is the correct Pareto AUC reference for the bandit: the bandit
     must exceed this frontier to demonstrate that contextual routing
     adds value beyond simply picking a model at each cost level.
+
+    **Conservative comparison:** per-model means are computed on
+    *eval_data* (oracle access to the true eval-set rewards).  The
+    bandit, trained on *train_data*, must beat this oracle frontier.
+    Reported deltas therefore **underestimate** the practical routing
+    gain a deployed bandit would achieve relative to a static policy
+    whose quality estimates come from a separate (potentially noisier)
+    data source.
 
     Args:
         eval_data: Evaluation prompts with per-model rewards.
@@ -587,6 +781,15 @@ def run_ablation_for_n_components(
     then re-evaluated on **val_report** to produce an unbiased metric
     free of maximization bias.  The holdout set is never touched.
 
+    **Selection noise:** With 80 grid configurations and a halved val
+    set (~350 prompts), the top configs may be within noise of each
+    other.  The tune/report split ensures the *reported* metric is
+    unbiased regardless of selection noise.  The ``top5_tune`` field
+    in the output records the five best configs so downstream analysis
+    can assess how tightly clustered they are.  If adjacent component
+    counts produce overlapping bootstrap CIs, the system is robust to
+    PCA dimension choice in that range.
+
     Args:
         n_comp: Number of PCA components.
         pca_truncated: PCA model truncated to *n_comp*.
@@ -675,7 +878,7 @@ def run_ablation_for_n_components(
     )
 
     # ── Re-evaluate selected config on val_report ─────────────────────
-    logger.info("    Re-evaluating selected config on val_report ...")
+    logger.info("    Re-evaluating selected config on val_report (+ bootstrap) ...")
     best_report = train_and_evaluate_pareto(
         models, catalog,
         train_data, val_report_data, train_emb, report_emb,
@@ -687,18 +890,25 @@ def run_ablation_for_n_components(
         cost_lo=cost_lo, cost_hi=cost_hi,
         n_seeds=N_SEEDS,
         use_corralling=use_corralling,
+        bootstrap=True,
     )
 
     if warmup_path is not None:
         Path(warmup_path).unlink(missing_ok=True)
 
+    boot = best_report.get("bootstrap", {})
+    boot_ci_str = (
+        f"  boot 95% CI=[{boot['boot_ci_lo']:.4f}, {boot['boot_ci_hi']:.4f}]"
+        if boot else ""
+    )
     logger.info(
         f"    REPORT: AUC={best_report['pareto_auc']:.4f} "
-        f"± {best_report['pareto_auc_se']:.4f} (SE)  "
+        f"± {best_report['pareto_auc_se']:.4f} (seed SE)"
+        f"{boot_ci_str}  "
         f"R@0={best_report['lam0_reward']:.4f}"
     )
 
-    return {
+    out: Dict[str, Any] = {
         "n_components": n_comp,
         "feature_dim": feat_dim,
         "variance_explained": var_explained,
@@ -727,6 +937,9 @@ def run_ablation_for_n_components(
         "variant_label": variant_label,
         "use_corralling": use_corralling,
     }
+    if "bootstrap" in best_report:
+        out["report_bootstrap"] = best_report["bootstrap"]
+    return out
 
 
 # ============================================================================
@@ -782,8 +995,6 @@ def plot_ablation(
 
     fig, ax = plt.subplots(figsize=(10, 6), constrained_layout=True)
 
-    baselines_drawn: set = set()
-
     for vkey, results in all_results.items():
         style = VARIANT_STYLES.get(vkey, {"color": "gray", "marker": ".", "ls": "-"})
         label = VARIANT_DISPLAY.get(vkey, vkey)
@@ -793,14 +1004,24 @@ def plot_ablation(
         delta_tune = [r["delta_tune"] for r in results]
         report_se = [r["report_pareto_auc_se"] for r in results]
 
+        # Bootstrap CI over eval data (wider band, captures data-sampling uncertainty)
+        has_boot = all("report_bootstrap" in r for r in results)
+        if has_boot:
+            ppa_report_auc = ppa[vkey]["report"]["pareto_auc"] if vkey in ppa else 0.0
+            boot_lo = [r["report_bootstrap"]["boot_ci_lo"] - ppa_report_auc for r in results]
+            boot_hi = [r["report_bootstrap"]["boot_ci_hi"] - ppa_report_auc for r in results]
+            ax.fill_between(comps, boot_lo, boot_hi, alpha=0.06, color=style["color"])
+
+        # Seed-level CI (narrower band, captures training stochasticity)
         lo = [d - 1.96 * s for d, s in zip(delta_report, report_se)]
         hi = [d + 1.96 * s for d, s in zip(delta_report, report_se)]
+        ax.fill_between(comps, lo, hi, alpha=0.12, color=style["color"])
 
-        ax.fill_between(comps, lo, hi, alpha=0.10, color=style["color"])
+        ci_label = "seed ± boot 95% CI" if has_boot else "seed 95% CI"
         ax.plot(
             comps, delta_report,
             marker=style["marker"], ls=style["ls"], color=style["color"],
-            label=f"{label} (report ± 95% CI)",
+            label=f"{label} (report, {ci_label})",
         )
         ax.plot(
             comps, delta_tune,
@@ -809,23 +1030,18 @@ def plot_ablation(
         )
 
         k_prefix = vkey.split("_")[0]
-        if k_prefix not in baselines_drawn:
-            baselines_drawn.add(k_prefix)
-            if vkey in bsm and vkey in ppa:
-                bsm_delta = bsm[vkey]["reward"] - ppa[vkey]["report"]["pareto_auc"]
-                ax.axhline(
-                    bsm_delta, ls=":", color=style["color"],
-                    alpha=0.4, lw=1.0,
-                    label=f"{k_prefix.upper()} best-single-model delta",
-                )
+        if vkey in bsm and vkey in ppa:
+            bsm_delta = bsm[vkey]["reward"] - ppa[vkey]["report"]["pareto_auc"]
+            ax.axhline(
+                bsm_delta, ls=":", color=style["color"],
+                alpha=0.4, lw=1.0,
+                label=f"{k_prefix.upper()} best-single-model delta",
+            )
 
     ax.axhline(0, ls="-", color="black", alpha=0.3, lw=0.8)
     ax.axvline(15, ls="--", color="C3", alpha=0.5, label="d=15 (production)")
 
-    ref_key = next(
-        (k for k in ["k3_banditgpt", "k2_banditgpt"] if k in all_results),
-        None,
-    )
+    ref_key = "k3_banditgpt" if "k3_banditgpt" in all_results else None
     if ref_key:
         ax2 = ax.twinx()
         ref_results = all_results[ref_key]
@@ -997,8 +1213,14 @@ def plot_heatmap(
 
 
 def _find_best_d_star(results: List[Dict]) -> Dict:
-    """Return the result dict at the d* maximizing report_pareto_auc."""
-    return max(results, key=lambda r: r["report_pareto_auc"])
+    """Return the result dict at the d* maximizing tune_pareto_auc.
+
+    The PCA component count is a hyperparameter, so it must be selected
+    on the tuning split to avoid maximization bias on the report split.
+    The report-split metrics for the selected d* are used only for
+    unbiased evaluation.
+    """
+    return max(results, key=lambda r: r["tune_pareto_auc"])
 
 
 def _save_best_hparams(
@@ -1095,7 +1317,7 @@ def _run_variant(
         pca_trunc = truncate_pca(pca32, n_comp)
         priors_trunc: Optional[Dict[str, Any]] = None
         if warmup_priors_32 is not None:
-            priors_trunc = truncate_warmup_priors(warmup_priors_32, n_comp)
+            priors_trunc = resize_warmup_priors(warmup_priors_32, n_comp)
 
         logger.info(f"\n{'='*60}")
         logger.info(f"  {label}, n_components={n_comp}")
@@ -1139,24 +1361,32 @@ def main() -> None:
         f"(whiten={pca32.whiten})"
     )
 
-    # ── Load warmup priors (32 components) ────────────────────────────
-    logger.info("Loading 32-component warmup priors ...")
-    k3_priors_32 = joblib.load(K3_WARMUP_PRIORS_32_PATH)
-    assert k3_priors_32.get("pca_whitened", False), (
+    # ── Load warmup priors (canonical K=3, 32 components) ─────────────
+    logger.info("Loading canonical K=3 warmup priors ...")
+    k3_priors = joblib.load(WARMUP_PRIORS_PATH)
+    assert k3_priors.get("pca_whitened", False), (
         "Priors must be in whitened PCA space to match project_embeddings(). "
         "Regenerate with: python scripts/generate_multimodel_warmup_priors.py"
     )
     logger.info(
-        f"  Source: {K3_WARMUP_PRIORS_32_PATH.name} "
-        f"({len(k3_priors_32['models'])} models, "
-        f"context_dim={k3_priors_32['context_dim']}, "
-        f"pca_whitened={k3_priors_32.get('pca_whitened')})"
+        f"  Source: {WARMUP_PRIORS_PATH.name} "
+        f"({len(k3_priors['models'])} models, "
+        f"context_dim={k3_priors['context_dim']}, "
+        f"pca_whitened={k3_priors.get('pca_whitened')})"
     )
 
-    # ── Load K=3 data ─────────────────────────────────────────────────
-    logger.info("\nLoading K=3 data (K=4 canonical train/cal splits) ...")
-    train_k3 = load_rewards_from_file(K4_TRAIN_DATA_PATH, K3_MODELS)
-    val_k3 = load_rewards_from_file(K4_VAL_DATA_PATH, K3_MODELS)
+    # ── Derive K=2 warmup priors from K=3 ───────────────────────────
+    logger.info("Deriving K=2 warmup priors (cheapest + most expensive) ...")
+    k2_priors = _subset_warmup_priors(k3_priors, K2_MODELS)
+    logger.info(
+        f"  K=2 models: {K2_MODELS} "
+        f"(subset of {len(k3_priors['models'])} K=3 models)"
+    )
+
+    # ── Load K=3 data from canonical splits ───────────────────────────
+    logger.info("\nLoading K=3 data (canonical train/val splits) ...")
+    train_k3 = load_rewards_from_file(TRAIN_DATA_PATH, K3_MODELS)
+    val_k3 = load_rewards_from_file(VAL_DATA_PATH, K3_MODELS)
     logger.info(f"  K=3 Train: {len(train_k3)}  Val: {len(val_k3)}")
 
     costs_k3 = {
@@ -1166,10 +1396,10 @@ def main() -> None:
     }
     cost_lo_k3, cost_hi_k3 = min(costs_k3.values()), max(costs_k3.values())
 
-    # ── Load K=2 data ─────────────────────────────────────────────────
-    logger.info("Loading K=2 data (K=4 canonical train/cal splits) ...")
-    train_k2 = load_rewards_from_file(K4_TRAIN_DATA_PATH, K2_MODELS)
-    val_k2 = load_rewards_from_file(K4_VAL_DATA_PATH, K2_MODELS)
+    # ── Load K=2 data (same canonical splits, filtered to 2 models) ──
+    logger.info("Loading K=2 data (canonical train/val splits) ...")
+    train_k2 = load_rewards_from_file(TRAIN_DATA_PATH, K2_MODELS)
+    val_k2 = load_rewards_from_file(VAL_DATA_PATH, K2_MODELS)
     logger.info(f"  K=2 Train: {len(train_k2)}  Val: {len(val_k2)}")
 
     costs_k2 = {
@@ -1198,7 +1428,7 @@ def main() -> None:
     logger.info(f"  K=3 tune={len(vt_k3)} report={len(vr_k3)}")
     logger.info(f"  K=2 tune={len(vt_k2)} report={len(vr_k2)}")
 
-    # ── Best single model baselines ──────────────────────────────────
+    # ── Best single model baselines ───────────────────────────────────
     logger.info("\nComputing best-single-model baselines (on val_report) ...")
     bsm_k3 = best_single_model(train_k3, vr_k3, K3_MODELS, costs_k3)
     bsm_k2 = best_single_model(train_k2, vr_k2, K2_MODELS, costs_k2)
@@ -1237,7 +1467,7 @@ def main() -> None:
     )
     logger.info(f"\n{'='*70}")
     logger.info("Joint PCA-Dimension × Hyperparameter Ablation")
-    logger.info(f"  Variants:   4 (K=3/K=2 × BanditGPT/Tabula Rasa)")
+    logger.info(f"  Variants:   {n_variants} (K=3/K=2 × BanditGPT/Tabula Rasa)")
     logger.info(f"  Components: {COMPONENT_COUNTS}")
     logger.info(f"  Grid:       {n_hparam} hparam × {n_lam} λ × {N_SEEDS} seeds")
     logger.info(f"  Total:      {total_trials:,} trials")
@@ -1247,7 +1477,7 @@ def main() -> None:
     variant_configs = {
         "k3_banditgpt": dict(
             models=K3_MODELS, catalog=K3_CATALOG,
-            warmup_priors_32=k3_priors_32, use_corralling=True,
+            warmup_priors_32=k3_priors, use_corralling=True,
             train_data=train_k3, val_tune_data=vt_k3, val_report_data=vr_k3,
             raw_train_emb=raw_train_k3, raw_val_tune_emb=rvt_k3,
             raw_val_report_emb=rvr_k3,
@@ -1263,7 +1493,7 @@ def main() -> None:
         ),
         "k2_banditgpt": dict(
             models=K2_MODELS, catalog=K2_CATALOG,
-            warmup_priors_32=k3_priors_32, use_corralling=True,
+            warmup_priors_32=k2_priors, use_corralling=True,
             train_data=train_k2, val_tune_data=vt_k2, val_report_data=vr_k2,
             raw_train_emb=raw_train_k2, raw_val_tune_emb=rvt_k2,
             raw_val_report_emb=rvr_k2,
@@ -1312,8 +1542,6 @@ def main() -> None:
     # ── Save full results JSON ────────────────────────────────────────
     elapsed = time.time() - t0
 
-    # Strip grid_results from JSON output (too large for the summary);
-    # they are only needed transiently for heatmaps.
     def _strip_grid(results: List[Dict]) -> List[Dict]:
         return [{k: v for k, v in r.items() if k != "grid_results"}
                 for r in results]
@@ -1323,8 +1551,9 @@ def main() -> None:
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "description": (
                 "Joint PCA dimension × hyperparameter ablation.  "
-                "4 variants (K=3/K=2 × BanditGPT/Tabula Rasa) on K=4 "
-                "canonical splits.  Cal split sub-divided into val_tune "
+                "4 variants (K=3/K=2 × BanditGPT/Tabula Rasa) on "
+                "canonical splits.  K=2 derived from K=3 (cheapest + "
+                "most expensive).  Val split sub-divided into val_tune "
                 "(hparam selection) and val_report (unbiased metric).  "
                 "Holdout never touched.  Selection criterion: Pareto AUC."
             ),
@@ -1386,8 +1615,10 @@ def main() -> None:
         ppa_report_auc = ppa_all[vkey]["report"]["pareto_auc"]
         logger.info(
             f"  {label}: d*={dstar['n_components']} "
-            f"(AUC={dstar['report_pareto_auc']:.4f}, "
-            f"Δ={dstar['delta_report']:+.4f})"
+            f"(tune AUC={dstar['tune_pareto_auc']:.4f}, "
+            f"Δ_tune={dstar['delta_tune']:+.4f} | "
+            f"report AUC={dstar['report_pareto_auc']:.4f}, "
+            f"Δ_report={dstar['delta_report']:+.4f})"
         )
 
         if "grid_results" in dstar and dstar["grid_results"]:

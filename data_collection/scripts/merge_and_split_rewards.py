@@ -49,7 +49,7 @@ HOLDOUT_FRAC = 0.375
 
 CANONICAL_JUDGES: Set[str] = {
     "deepseek/deepseek-r1",
-    "qwen/qwen-2.5-72b-instruct",
+    "openai/gpt-4.1-mini",
     "anthropic/claude-3.5-haiku",
 }
 

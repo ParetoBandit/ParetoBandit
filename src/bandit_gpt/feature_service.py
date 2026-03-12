@@ -18,11 +18,19 @@ Three embedding paths are supported (in order of priority):
 3. **SentenceTransformer encoder** (default) — ``FeatureService()``
    Requires the ``sentence-transformers`` package
    (``pip install banditgpt[embeddings]``).
+
+**Optional text features** — ``FeatureService(use_text_features=True)``
+appends three z-score normalized, regex-based features (logical operator
+count, constraint keyword count, average word length) between the
+embedding/PCA components and the bias term.  These complement the
+semantic PCA dimensions with structural signals that are empirically
+predictive of model-arm reward gaps (see ``experiments/eda_pareto_features.py``).
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Callable, Optional, List, Union
@@ -43,6 +51,82 @@ _PCA_NOT_LOADED = object()
 
 # Maximum prompt length to prevent OOM on very long inputs
 MAX_PROMPT_LENGTH = 50000  # ~12k tokens
+
+
+# ---------------------------------------------------------------------------
+# Text feature extraction (lightweight regex-based features)
+# ---------------------------------------------------------------------------
+
+_LOGICAL_OPS_RE = re.compile(
+    r"\b(if|then|and|or|not|but|unless|given that|only if|"
+    r"provided that|neither|nor|therefore|hence|however|"
+    r"although|whereas|assuming|suppose)\b",
+    re.IGNORECASE,
+)
+
+_CONSTRAINT_RE = re.compile(
+    r"\b(must|ensure|exactly|at least|at most|no more than|strictly|"
+    r"required|do not|don't|never|always|make sure|constraint|"
+    r"limit|restrict)\b",
+    re.IGNORECASE,
+)
+
+TEXT_FEATURE_NAMES: List[str] = ["n_logical_ops", "n_constraints", "avg_word_len"]
+N_TEXT_FEATURES: int = len(TEXT_FEATURE_NAMES)
+
+# Z-score normalization constants derived from the pareto dataset
+# (N=11,983 prompts across 13 public benchmarks).  These produce
+# features with approximately zero mean and unit variance, matching
+# the whitened PCA feature scale (~0.76 std per component).
+_TEXT_FEATURE_MEANS = np.array([1.8188, 0.0562, 4.7897], dtype=np.float64)
+_TEXT_FEATURE_STDS = np.array([2.2717, 0.2932, 0.6948], dtype=np.float64)
+
+# Clipping bound for z-scored text features.  Prevents extreme
+# outliers (e.g. a prompt with 20 logical operators) from producing
+# values >10 that would destabilize LinUCB's matrix inverse.
+_TEXT_FEATURE_CLIP = 3.0
+
+
+def extract_text_features(prompt: str) -> np.ndarray:
+    """Extract lightweight text-derived features from a prompt.
+
+    Returns a 1-D array of shape ``(N_TEXT_FEATURES,)`` with values
+    z-score normalized and clipped to ``[-3, 3]`` for compatibility
+    with the whitened PCA features used by LinUCB.
+
+    Features
+    --------
+    0. ``n_logical_ops``  — count of logical connectives (if, then, and, or,
+       not, but, unless, ...), z-scored.
+    1. ``n_constraints``  — count of constraint/instruction keywords (must,
+       ensure, exactly, at least, ...), z-scored.
+    2. ``avg_word_len``   — mean word length in characters, z-scored.
+
+    Args:
+        prompt: Raw prompt string.
+
+    Returns:
+        1-D ``np.ndarray`` of shape ``(3,)``.
+    """
+    n_logical = len(_LOGICAL_OPS_RE.findall(prompt))
+    n_constraints = len(_CONSTRAINT_RE.findall(prompt))
+    words = prompt.split()
+    avg_wl = float(np.mean([len(w) for w in words])) if words else 0.0
+    raw = np.array([n_logical, n_constraints, avg_wl], dtype=np.float64)
+    z = (raw - _TEXT_FEATURE_MEANS) / _TEXT_FEATURE_STDS
+    return np.clip(z, -_TEXT_FEATURE_CLIP, _TEXT_FEATURE_CLIP)
+
+
+def extract_text_features_batch(prompts: List[str]) -> np.ndarray:
+    """Vectorized text feature extraction for a list of prompts.
+
+    Args:
+        prompts: List of raw prompt strings.
+
+    Returns:
+        2-D ``np.ndarray`` of shape ``(len(prompts), N_TEXT_FEATURES)``.
+    """
+    return np.vstack([extract_text_features(p) for p in prompts])
 
 
 def l2_normalize(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
@@ -119,6 +203,7 @@ class FeatureService:
         calibration_file: Optional[Path | str] = None,
         custom_encoder: Optional[Callable[[str], np.ndarray]] = None,
         embedding_dim: int | None = None,
+        use_text_features: bool = False,
     ):
         """
         Initialize FeatureService with sentence encoder and optional PCA.
@@ -161,11 +246,19 @@ class FeatureService:
             embedding_dim: Dimensionality of vectors produced by
                 *custom_encoder*.  **Required** when *custom_encoder* is
                 provided; ignored otherwise.
+            use_text_features: If ``True``, append three lightweight
+                regex-based text features (logical operator count, constraint
+                keyword count, average word length) between the PCA
+                components and the bias term.  Increases the feature vector
+                by 3 dimensions.  Requires string prompts — incompatible
+                with ``FeatureService.for_precomputed()``.  Default ``False``
+                for backward compatibility.
         """
         self._custom_encoder = custom_encoder
         self.encoder_model = encoder_model
         self.whiten_pca = bool(whiten_pca)
         self._pca_whitening_scale: np.ndarray | None = None
+        self.use_text_features = bool(use_text_features)
 
         if custom_encoder is not None:
             if embedding_dim is None:
@@ -228,7 +321,8 @@ class FeatureService:
                     "omit pca_components to use raw embeddings."
                 )
             self.pca_components = embedding_dim
-            self._dimension = embedding_dim + 1  # embeddings + bias
+            n_text = N_TEXT_FEATURES if self.use_text_features else 0
+            self._dimension = embedding_dim + n_text + 1  # embeddings [+ text] + bias
             self._pca = None  # intentionally no PCA
             self._pca_whitening_scale = None
 
@@ -304,28 +398,22 @@ class FeatureService:
         This is useful for transforming warmup priors across feature conventions.
 
         Returns:
-            1-D array of shape ``(dimension,)``.  The last element (bias term) is
-            always 1.0.  When PCA is active and whitening is enabled, the first
-            ``dimension-1`` elements are ``1/sqrt(explained_variance)``; otherwise
-            they are 1.0.
+            1-D array of shape ``(dimension,)``.  The last element (bias term)
+            is always 1.0.  Text feature slots (when enabled) are also 1.0
+            since they are already z-score normalized.  When PCA is active and
+            whitening is enabled, the PCA slots are ``1/sqrt(explained_variance)``.
         """
         dim = int(self.dimension)
         scales = np.ones(dim, dtype=np.float64)
         if self.using_pca:
-            # Whitening can be applied either:
-            # - internally by the PCA artifact (pca.whiten=True), or
-            # - externally by FeatureService (whiten_pca=True).
-            #
-            # For compatibility transforms (warmup priors), we expose the
-            # effective diagonal scaling from unwhitened PCA coordinates to the
-            # current feature space.
             wants_whitened_outputs = self.whiten_pca or self._pca_has_builtin_whitening()
             if wants_whitened_outputs:
                 pca_obj = self.pca
                 if pca_obj is not None:
                     scale = self._compute_whitening_scale_from_pca(pca_obj)
                     if scale is not None:
-                        scales[:-1] = scale
+                        n_pca = len(scale)
+                        scales[:n_pca] = scale
         return scales
     
     @classmethod
@@ -336,6 +424,8 @@ class FeatureService:
         resulting instance only validates vector dimension when
         ``extract_features`` receives an ``np.ndarray``.  Passing a
         string prompt will raise because there is no encoder.
+
+        Text features are disabled (requires string prompts).
 
         Args:
             dimension: Total feature-vector length (PCA components + bias).
@@ -352,6 +442,9 @@ class FeatureService:
         instance.target_variance = 0.0
         instance.allow_jit_training = False
         instance.calibration_file = None
+        instance.use_text_features = False
+        instance.whiten_pca = False
+        instance._pca_whitening_scale = None
         return instance
 
     @property
@@ -457,10 +550,11 @@ class FeatureService:
 
     @property
     def dimension(self) -> int:
-        """Total feature dimension (PCA + bias)."""
+        """Total feature dimension (PCA [+ text features] + bias)."""
         if self.pca_components is None:
             _ = self.pca  # trigger lazy load which sets pca_components
-        return self.pca_components + 1
+        n_text = N_TEXT_FEATURES if self.use_text_features else 0
+        return self.pca_components + n_text + 1
     
     @property
     def bias_index(self) -> int:
@@ -479,10 +573,11 @@ class FeatureService:
         Get feature vector dimensionality.
         
         Returns:
-            Dimension of output vectors (pca_components + 1 bias term)
+            Dimension of output vectors (pca_components [+ text features] + bias)
         """
         if self._dimension is None:
-            self._dimension = self.pca_components + 1  # PCA + bias
+            n_text = N_TEXT_FEATURES if self.use_text_features else 0
+            self._dimension = self.pca_components + n_text + 1
         return self._dimension
     
     def get_feature_names(self) -> List[str]:
@@ -500,13 +595,19 @@ class FeatureService:
             >>> names[-1]
             'bias'
         """
-        dim = self.dimension
+        n_text = N_TEXT_FEATURES if self.use_text_features else 0
+        n_emb = self.pca_components if self.pca_components is not None else (self.dimension - n_text - 1)
+
         # Check if using raw embeddings (fallback mode)
-        if self._pca is None and self._dimension and self._dimension > self.pca_components + 1:
-            # Raw embedding mode
-            names = [f"emb_{i}" for i in range(dim - 1)]
+        is_raw = self._pca is None and self._dimension and self._dimension > n_emb + n_text + 1
+        if is_raw:
+            names = [f"emb_{i}" for i in range(n_emb)]
         else:
-            names = [f"PCA_{i}" for i in range(dim - 1)]
+            names = [f"PCA_{i}" for i in range(n_emb)]
+
+        if self.use_text_features:
+            names.extend(TEXT_FEATURE_NAMES)
+
         names.append("bias")
         return names
     
@@ -575,10 +676,15 @@ class FeatureService:
             # Fallback: use raw embeddings (no PCA)
             emb_reduced = emb_full
         
-        # 3. Append bias term
+        # 3. Optionally append text features
+        if self.use_text_features:
+            text_feats = extract_text_features(prompt)
+            emb_reduced = np.concatenate([emb_reduced, text_feats])
+
+        # 4. Append bias term
         result = np.append(emb_reduced, 1.0)
         
-        # 4. Validate output
+        # 5. Validate output
         result = validate_feature_vector(result, context=f"prompt: '{prompt[:50]}...'")
         
         return result
@@ -633,6 +739,11 @@ class FeatureService:
                 logger.warning(f"PCA transform produced Inf values. Clipping to ±1e6.")
                 embeddings = np.clip(embeddings, -1e6, 1e6)
         
+        # Optionally append text features
+        if self.use_text_features:
+            text_feats = extract_text_features_batch(valid_prompts)
+            embeddings = np.hstack([embeddings, text_feats])
+
         # Append bias column
         bias_column = np.ones((len(embeddings), 1))
         result = np.hstack([embeddings, bias_column])
@@ -774,9 +885,9 @@ class FeatureService:
                 # Disable PCA - use raw embeddings
                 self._pca = None
                 self._pca_whitening_scale = None
-                # Update dimension to raw embedding size + bias term
-                self._dimension = raw_dim + 1  # raw embedding dims + bias
-                logger.info(f"   ✅ Using raw {raw_dim}D embeddings (+ 1 bias) = {self._dimension}D features")
+                n_text = N_TEXT_FEATURES if self.use_text_features else 0
+                self._dimension = raw_dim + n_text + 1
+                logger.info(f"   ✅ Using raw {raw_dim}D embeddings (+ {n_text} text + 1 bias) = {self._dimension}D features")
                 return  # Skip setting self._pca, will use raw in extract_features()
             
             self._pca = new_pca

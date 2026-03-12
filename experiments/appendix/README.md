@@ -15,6 +15,7 @@ Supplementary material supporting Figures 1, 3, 4, 5, Table 2, and Figure 6.
 | **E** | Limitations & Future Work | All | System constraints, honest limitations, bandit router positioning (PILOT/BaRP taxonomy) |
 | **F** | Hard Constraint Enforcement | Fig 8 | Per-request budget/latency constraint validation |
 | **H** | Prior Strength, Exploration & Forgetting Ablation | Fig 5 | 3D alpha x n_eff x gamma grid, optimal hyperparameters |
+| **K** | Reward Signal Robustness | Table 1 | 3-judge validation (R1 vs GPT-4.1-mini, Claude-3.7-Sonnet), inter-judge correlation, discriminative signal |
 
 **Master File**: `APPENDIX_MASTER.tex`
 
@@ -62,11 +63,17 @@ appendix/
 │   ├── run_constraint_experiment.py
 │   └── section_constraint_impact.tex
 │
-└── H_alpha_neff_ablation/             # Prior strength, exploration & forgetting ablation
+├── H_alpha_neff_ablation/             # Prior strength, exploration & forgetting ablation
+│   ├── README.md
+│   ├── run_3d_grid_ablation.py
+│   ├── section_alpha_neff_ablation.tex
+│   ├── figure_alpha_neff_caption.tex
+│   └── results/
+│
+└── K_judge_robustness/                # Reward signal robustness (3-judge validation)
     ├── README.md
-    ├── run_3d_grid_ablation.py
-    ├── section_alpha_neff_ablation.tex
-    ├── figure_alpha_neff_caption.tex
+    ├── plot_judge_robustness.py
+    ├── section_judge_robustness.tex
     └── results/
 ```
 

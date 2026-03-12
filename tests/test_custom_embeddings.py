@@ -450,3 +450,136 @@ class TestEdgeCases:
                 embedding_dim=64,
                 pca_components=16,
             )
+
+
+# ===========================================================================
+# Text features (use_text_features=True)
+# ===========================================================================
+
+
+class TestTextFeatures:
+    """Verify the optional regex-based text features."""
+
+    def test_module_level_extract(self):
+        from bandit_gpt.feature_service import extract_text_features, N_TEXT_FEATURES
+
+        vec = extract_text_features("If you must solve this, then ensure the answer is exact.")
+        assert vec.shape == (N_TEXT_FEATURES,)
+        assert np.all(np.abs(vec) <= 3.0), "Clipping must bound values to [-3, 3]"
+
+    def test_z_score_centering(self):
+        """A 'typical' prompt should produce z-scores near zero."""
+        from bandit_gpt.feature_service import extract_text_features
+
+        vec = extract_text_features("What is the capital of France?")
+        assert np.all(np.abs(vec) < 2.5), "Typical prompt should not have extreme z-scores"
+
+    def test_default_off_backward_compat(self):
+        dim = 32
+        fs = FeatureService(
+            custom_encoder=_make_deterministic_encoder(dim), embedding_dim=dim
+        )
+        assert fs.use_text_features is False
+        assert fs.dimension == dim + 1
+        vec = fs.extract_features("Hello world")
+        assert vec.shape == (dim + 1,)
+
+    def test_text_features_increase_dimension(self):
+        from bandit_gpt.feature_service import N_TEXT_FEATURES
+
+        dim = 32
+        fs = FeatureService(
+            custom_encoder=_make_deterministic_encoder(dim),
+            embedding_dim=dim,
+            use_text_features=True,
+        )
+        expected = dim + N_TEXT_FEATURES + 1
+        assert fs.dimension == expected
+        vec = fs.extract_features("Hello world")
+        assert vec.shape == (expected,)
+        assert vec[-1] == pytest.approx(1.0), "Bias must be last"
+
+    def test_pca_portion_unchanged(self):
+        """PCA embedding portion must be identical with or without text features."""
+        dim = 32
+        enc = _make_deterministic_encoder(dim)
+        fs_off = FeatureService(custom_encoder=enc, embedding_dim=dim)
+        fs_on = FeatureService(custom_encoder=enc, embedding_dim=dim, use_text_features=True)
+
+        prompt = "Explain the theory of relativity."
+        v_off = fs_off.extract_features(prompt)
+        v_on = fs_on.extract_features(prompt)
+
+        np.testing.assert_allclose(v_off[:dim], v_on[:dim], atol=1e-12)
+
+    def test_feature_names_include_text(self):
+        from bandit_gpt.feature_service import TEXT_FEATURE_NAMES, N_TEXT_FEATURES
+
+        dim = 16
+        fs = FeatureService(
+            custom_encoder=_make_deterministic_encoder(dim),
+            embedding_dim=dim,
+            use_text_features=True,
+        )
+        names = fs.get_feature_names()
+        assert len(names) == dim + N_TEXT_FEATURES + 1
+        assert names[-1] == "bias"
+        assert names[dim:dim + N_TEXT_FEATURES] == TEXT_FEATURE_NAMES
+
+    def test_batch_matches_single(self):
+        from bandit_gpt.feature_service import N_TEXT_FEATURES
+
+        dim = 16
+        enc = _make_deterministic_encoder(dim)
+        fs = FeatureService(custom_encoder=enc, embedding_dim=dim, use_text_features=True)
+
+        prompts = ["Alpha", "If beta then gamma", "Must ensure delta"]
+        batch = fs.extract_features_batch(prompts)
+        assert batch.shape == (3, dim + N_TEXT_FEATURES + 1)
+
+        for i, p in enumerate(prompts):
+            single = fs.extract_features(p)
+            np.testing.assert_allclose(batch[i], single, atol=1e-12)
+
+    def test_precomputed_disables_text_features(self):
+        fs = FeatureService.for_precomputed(dimension=16)
+        assert fs.use_text_features is False
+        assert fs.dimension == 16
+
+    def test_whitening_scales_shape(self):
+        from bandit_gpt.feature_service import N_TEXT_FEATURES
+
+        dim = 32
+        fs = FeatureService(
+            custom_encoder=_make_deterministic_encoder(dim),
+            embedding_dim=dim,
+            use_text_features=True,
+        )
+        scales = fs.get_pca_whitening_scales()
+        assert scales.shape == (dim + N_TEXT_FEATURES + 1,)
+        assert scales[-1] == 1.0  # bias
+        for i in range(N_TEXT_FEATURES):
+            assert scales[dim + i] == 1.0  # text features already normalized
+
+    def test_router_integration(self):
+        """Full BanditRouter loop with text features enabled."""
+        dim = 32
+        fs = FeatureService(
+            custom_encoder=_make_deterministic_encoder(dim),
+            embedding_dim=dim,
+            use_text_features=True,
+        )
+        registry = _sample_registry(3)
+        router = BanditRouter.create(
+            model_registry=registry, feature_service=fs, priors="none"
+        )
+
+        for i in range(20):
+            model, log = router.route(f"Test prompt number {i} with if-then logic")
+            router.process_feedback(log.request_id, reward=np.random.uniform())
+
+        for mid in registry:
+            A = router.bandit.A[mid]
+            expected_dim = dim + 3 + 1
+            assert A.shape == (expected_dim, expected_dim)
+            assert not np.any(np.isnan(A))

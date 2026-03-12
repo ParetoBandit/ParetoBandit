@@ -3690,28 +3690,39 @@ class BanditRouter:
                 if isinstance(router.bandit, HybridLinUCBPolicy):
                     K = len(router.bandit.models)
                     if K > 0:
+                        # Hybrid warm-prior synthesis from disjoint priors.
+                        #
+                        # Disjoint priors provide (A_a, b_a) per arm but
+                        # no cross-term B_a.  With B_a = 0, the hybrid
+                        # prediction is:
+                        #   E[r|x] = x^T (A0_inv @ b0) + x^T (A_inv_a @ b_a)
+                        #
+                        # The arm-specific priors already encode the full
+                        # reward signal.  If we set b0 = mean(b_a), the
+                        # shared term would roughly duplicate the arm
+                        # prediction, causing ~2x over-prediction.
+                        #
+                        # Correct synthesis:
+                        #   A0 = mean(A_a) — preserves the precision scale
+                        #     so shared variance x^T A0_inv x stays bounded
+                        #     and exploration bonus is not inflated.
+                        #   b0 = 0 — no shared prediction yet.  With
+                        #     beta_hat = A0_inv @ 0 = 0, the prediction
+                        #     reduces to x^T (A_inv_a @ b_a) = disjoint.
+                        #
+                        # As online data arrives, b0 accumulates naturally
+                        # via b0 += c * (r - r_hat) * y, contributing
+                        # shared signal only when arm-specific predictions
+                        # are inaccurate.
                         A_sum = sum(
                             router.bandit.A[m] for m in router.bandit.models
                         )
-                        b_sum = sum(
-                            router.bandit.b[m] for m in router.bandit.models
-                        )
                         router.bandit.A0 = A_sum / K
-                        router.bandit.b0 = b_sum / K
-                        # With B_a = 0, the hybrid prediction is:
-                        #   x^T beta_hat + x^T theta_hat_a
-                        #   = x^T (A0_inv @ b0) + x^T (A_inv_a @ b_a)
-                        # Because A0/b0 = mean(A_a/b_a), the shared term
-                        # roughly equals the per-arm term, producing
-                        # ~2x the disjoint prediction at cold start.
-                        # This transient overshoot decays as B_a
-                        # accumulates via online updates and the shared
-                        # component absorbs cross-arm structure.
-                        logger.warning(
-                            f"Hybrid warm-prior synthesis: A0/b0 initialized "
-                            f"from average of {K} arm priors. B_a=0 (cross-terms "
-                            f"unavailable from Disjoint priors). Cold-start "
-                            f"predictions will be ~2x disjoint until B_a builds."
+                        router.bandit.b0 = np.zeros(router.bandit.dim, dtype=np.float64)
+                        logger.info(
+                            f"Hybrid warm-prior synthesis: A0=mean(A_a) from "
+                            f"{K} arms, b0=0 (predictions match disjoint at "
+                            f"cold start; shared signal builds online)."
                         )
 
                 # Single refresh_inverse_cache() after all A matrices are
@@ -4669,8 +4680,10 @@ class BanditRouter:
     def exploit(self) -> Generator[None, None, None]:
         """Context manager for greedy exploitation (frozen policy evaluation).
 
-        Temporarily disables exploration at both the expert and meta-learner
-        levels so that ``route()`` executes the learned policy deterministically:
+        Temporarily disables exploration so that ``route()`` executes the
+        learned policy deterministically:
+
+        **With Corralling** (``use_corralling=True``):
 
         - **Expert level**: ``alpha_start`` and ``alpha_end`` are set to 0 on
           every Corralling expert, making LinUCB select ``argmax(theta^T x)``
@@ -4678,6 +4691,11 @@ class BanditRouter:
         - **Meta level**: ``CorrallingRouter.exploit_mode`` is set to ``True``
           so the highest-weight expert is chosen via ``argmax(weights)`` instead
           of probabilistic sampling.
+
+        **Without Corralling** (``use_corralling=False``):
+
+        - The base bandit's ``alpha`` is set to 0, suppressing the UCB
+          exploration bonus in ``select_arm()``.
 
         State is restored on exit (including after exceptions), analogous to
         ``torch.no_grad()`` in PyTorch.
@@ -4689,6 +4707,7 @@ class BanditRouter:
         """
         saved_expert_alphas: List[Tuple[float, float]] = []
         saved_meta_exploit = False
+        saved_base_alpha: float | None = None
         cr = self.corralling_router
 
         if cr is not None and hasattr(cr, "experts"):
@@ -4700,6 +4719,9 @@ class BanditRouter:
                 expert.alpha_end = 0.0
             saved_meta_exploit = cr.exploit_mode
             cr.exploit_mode = True
+        else:
+            saved_base_alpha = self.bandit.alpha
+            self.bandit.alpha = 0.0
 
         try:
             yield
@@ -4711,36 +4733,29 @@ class BanditRouter:
                     expert.alpha_start = a_s
                     expert.alpha_end = a_e
                 cr.exploit_mode = saved_meta_exploit
+            elif saved_base_alpha is not None:
+                self.bandit.alpha = saved_base_alpha
 
     def _calculate_absolute_penalty(self, cost_per_1k: float) -> float:
-        """
-        Calculate stable 0.0-1.0 cost penalty based on Fixed Market Anchors.
-        
-        Uses Logarithmic Market Width to ensure penalties are absolute, 
-        not relative to currently loaded models.
-        
-        Market Anchors (Mathematically Derived):
-        - Floor: $0.0005/1k (DeepSeek V3, Flash, Haiku tier) → ln(0.0005) ≈ -7.60
-        - Ceiling: $10.00/1k (Future o1-high/Opus tiers) → ln(10.00) ≈ +2.30
-        - Range: 2.30 - (-7.60) = 9.90 → Use 10.0 for clean scaling
-        
+        """Stable 0.0-1.0 cost penalty via logarithmic market anchors.
+
+        Delegates to :func:`bandit_gpt.costs.log_normalize_cost` — the
+        canonical implementation shared with offline evaluation baselines.
+        Anchors are read from ``self.config`` (single source of truth).
+
         Args:
-            cost_per_1k: Cost in dollars per 1000 tokens
-            
+            cost_per_1k: Cost in dollars per 1000 tokens.
+
         Returns:
-            Penalty in range [0.0, 1.0]
-            - 0.0 = At or below market floor
-            - 1.0 = At or above market ceiling
+            Penalty in [0.0, 1.0].
         """
-        # Use precomputed market anchors for performance
-        safe_cost = max(cost_per_1k, self._market_cost_floor)
-        log_cost = math.log(safe_cost)
-        
-        # Normalize: (Current - Floor) / Range
-        penalty = (log_cost - self._market_cost_floor_log) / self._market_cost_range
-        
-        # Clip to [0, 1]
-        return max(0.0, min(1.0, penalty))
+        from bandit_gpt.costs import log_normalize_cost
+
+        return log_normalize_cost(
+            cost_per_1k,
+            floor=self.config.market_cost_floor,
+            ceiling=self.config.market_cost_ceiling,
+        )
 
     def _get_normalized_cost(self, model_id: str) -> float:
         """Compute normalized [0, 1] cost for a model from registry metadata."""

@@ -46,6 +46,7 @@ def create_experiment_router(
     forgetting_factor: float = 1.0,
     tabula_rasa_alpha: Optional[float] = None,
     tabula_rasa_forgetting_factor: Optional[float] = None,
+    policy: str = "disjoint",
 ) -> BanditRouter:
     """Build a production ``BanditRouter`` suitable for offline experiments.
 
@@ -87,6 +88,11 @@ def create_experiment_router(
     tabula_rasa_forgetting_factor:
         Per-expert forgetting factor for the tabula-rasa expert inside
         Corralling.  When ``None``, inherits ``forgetting_factor``.
+    policy:
+        Bandit policy type.  ``"disjoint"`` (default) uses independent
+        per-arm ridge regression.  ``"hybrid"`` adds a global shared
+        beta parameter (Li et al. 2010 Algorithm 2) that captures
+        cross-arm signal and improves sample efficiency.
 
     Returns
     -------
@@ -110,6 +116,7 @@ def create_experiment_router(
         forgetting_factor=forgetting_factor,
         tabula_rasa_alpha=tabula_rasa_alpha,
         tabula_rasa_forgetting_factor=tabula_rasa_forgetting_factor,
+        policy=policy,
         **({"warmup_path": warmup_path} if warmup_path else {}),
     )
     return router

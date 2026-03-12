@@ -239,7 +239,7 @@ class CoTRewardGenerator:
         # panel-composition bias.
         self.judge_panel: List[str] = [
             "deepseek/deepseek-r1",
-            "qwen/qwen-2.5-72b-instruct",
+            "openai/gpt-4.1-mini",
             "anthropic/claude-3.5-haiku",
         ]
 

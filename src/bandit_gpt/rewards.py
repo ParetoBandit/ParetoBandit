@@ -35,7 +35,7 @@ If no usable field is present, returns ``NaN``.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -100,7 +100,10 @@ def _extract_legacy_reward(judge: Dict[str, Any]) -> float | None:
     return None
 
 
-def extract_reward(entry: Dict[str, Any]) -> float:
+def extract_reward(
+    entry: Dict[str, Any],
+    judge_id: Optional[str] = None,
+) -> float:
     """Derive a continuous reward from a single data-file entry.
 
     Parameters
@@ -123,13 +126,21 @@ def extract_reward(entry: Dict[str, Any]) -> float:
 
         Falls back to ``raw_score`` when ``judge_details`` is absent.
 
+    judge_id : str, optional
+        When provided, only the judge entry whose ``"judge"`` field
+        matches *judge_id* is used.  When ``None`` (default), all
+        judges are averaged (original PoLL behaviour).
+
     Returns
     -------
     float
-        Reward in [0, 1].  ``NaN`` when no usable field is present.
+        Reward in [0, 1].  ``NaN`` when no usable field is present
+        (or the requested *judge_id* is not found in this record).
     """
     judges: List[Dict] | None = entry.get("judge_details")
     if judges:
+        if judge_id is not None:
+            judges = [j for j in judges if j.get("judge") == judge_id]
         rewards: list[float] = []
         for j in judges:
             r = _extract_v3_reward(j)
@@ -143,7 +154,7 @@ def extract_reward(entry: Dict[str, Any]) -> float:
             return float(np.mean(rewards))
 
     raw = entry.get("raw_score")
-    if raw is not None:
+    if raw is not None and judge_id is None:
         return float(raw)
 
     return float("nan")

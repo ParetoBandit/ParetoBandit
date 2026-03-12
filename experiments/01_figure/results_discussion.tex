@@ -17,6 +17,9 @@ held-out test set of $n{=}1{,}824$ prompts.  Hyperparameters
 LinUCB~\cite{li2010contextual} with PCA-25 prompt
 embeddings) are selected by Pareto AUC on a separate validation split
 ($n{=}1{,}785$).
+All baseline hyperparameters are tuned on the same validation split
+using the same criterion (Pareto AUC), ensuring a fair comparison
+(Table~\ref{tab:tuned_hparams_k2}).
 
 \paragraph{Reward signal assumption.}
 \label{sec:reward_assumption}
@@ -32,20 +35,50 @@ Judge inference cost is an \emph{evaluation expense}, not a deployment
 cost, and is therefore excluded from the cost axis in
 Figure~\ref{fig:pareto_k2}.
 
-\paragraph{The bandit frontier dominates static routing.}
-Figure~\ref{fig:pareto_k2} shows that the bandit's Pareto frontier
-(blue curve) bows consistently above the static random-mix baseline
-(dashed gray).
-The static baseline represents the best a non-contextual policy
-can achieve: routing each request to the strong model with some fixed
-probability~$p$, yielding a convex combination of the two
-endpoints~\cite{ong2024routellm}.
-By conditioning on prompt embeddings, the bandit identifies prompts
-where \texttt{Llama} suffices and reserves \texttt{Gemini} for
-requests that genuinely benefit from a frontier model.
-This contextual routing gain is reflected in a Pareto AUC of
-$0.8703 \pm 0.0002$ versus $0.8626$ for the static baseline
-($+0.89\%$, 5~seeds).
+\paragraph{Online bandits match supervised routing with weaker supervision.}
+Figure~\ref{fig:pareto_k2} reveals a central finding:
+\textit{banditGPT} achieves a Pareto AUC of
+$0.870 \pm 0.001$ (5~seeds), matching the supervised logistic
+regression baseline ($0.869$) despite receiving \emph{strictly less
+information}.
+The supervised router trains on full reward labels for \emph{all}
+models on every prompt---the ``full information'' setting analogous
+to RouteLLM~\cite{ong2024routellm} and RouterDC\@.
+In contrast, the bandit observes only the reward for the model it
+selected (partial, bandit feedback).
+That the bandit closes this information gap demonstrates that
+contextual exploration efficiently recovers the routing signal
+that supervised methods extract from exhaustive labels.
+
+\paragraph{Contextual features are necessary: context-free UCB collapses
+to static mixing.}
+Context-free UCB1 (Pareto AUC $0.862$) is statistically
+indistinguishable from the static random-mix baseline ($0.863$).
+This is expected: without prompt features, UCB1 converges to
+a single global reward estimate per model.  Its selection rule
+then reduces to a deterministic threshold on $\lambda$, producing
+either ``always \texttt{Gemini}'' or ``always \texttt{Llama}''
+with no intermediate operating points---identical to a biased
+coin flip.
+The ${\approx}0.8\%$ AUC gap between contextual methods ($0.870$)
+and context-free UCB ($0.862$) confirms that prompt-level
+features carry meaningful routing signal: certain prompts genuinely
+require the frontier model while others are equally well-served by
+the budget model.
+
+\paragraph{Bandit algorithm choice is secondary for $K{=}2$.}
+Among contextual methods---\textit{banditGPT} (LinUCB with warmup),
+tabula rasa LinUCB, Linear Thompson Sampling, and
+$\varepsilon$-greedy---Pareto AUC spans only $0.870$--$0.871$
+($<0.15\%$ relative range).
+This is not surprising: a two-arm portfolio presents a binary
+routing decision that any reasonable contextual learner can master
+given $n{=}8{,}374$ training examples.
+The value of warmup priors, hybrid parameter sharing, and the
+Corralling meta-learner---the architectural contributions of
+\textit{banditGPT}---emerges in harder settings: $K{=}3$ with model
+onboarding (Section~\ref{sec:onboarding}), limited training data,
+and prior mismatch scenarios.
 
 \paragraph{CostSave at matched quality.}
 Table~\ref{tab:costsave_k2} quantifies the advantage at three

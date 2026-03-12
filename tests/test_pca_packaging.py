@@ -48,7 +48,7 @@ class TestPCAPathResolution:
         assert DEFAULT_PCA_PATH.parent == _PACKAGE_ARTIFACTS_DIR
 
     def test_default_pca_path_filename(self) -> None:
-        assert DEFAULT_PCA_PATH.name == "pca_15.joblib"
+        assert DEFAULT_PCA_PATH.name == "pca_25.joblib"
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ class TestPCAPathResolution:
 
 
 class TestPCAArtifact:
-    """Verify the shipped pca_15.joblib is a valid sklearn PCA."""
+    """Verify the shipped pca_25.joblib is a valid sklearn PCA."""
 
     def test_artifact_exists(self) -> None:
         assert DEFAULT_PCA_PATH.exists(), (
@@ -70,10 +70,10 @@ class TestPCAArtifact:
         assert hasattr(pca, "transform"), "Loaded object is not a fitted PCA"
         assert hasattr(pca, "n_components_"), "PCA has no n_components_ attribute"
 
-    def test_artifact_has_15_components(self) -> None:
+    def test_artifact_has_25_components(self) -> None:
         pca = joblib.load(DEFAULT_PCA_PATH)
-        assert pca.n_components_ == 15, (
-            f"Expected 15 PCA components, got {pca.n_components_}"
+        assert pca.n_components_ == 25, (
+            f"Expected 25 PCA components, got {pca.n_components_}"
         )
 
     def test_artifact_input_dimension_matches_default_encoder(self) -> None:
@@ -87,7 +87,7 @@ class TestPCAArtifact:
     def test_artifact_explained_variance_is_reasonable(self) -> None:
         pca = joblib.load(DEFAULT_PCA_PATH)
         explained = float(np.sum(pca.explained_variance_ratio_))
-        assert explained > 0.20, (
+        assert explained > 0.28, (
             f"Shipped PCA captures only {explained:.1%} variance — "
             "artifact may be corrupted"
         )
@@ -116,7 +116,7 @@ class TestFeatureServiceLoadsShippedPCA:
         fs = FeatureService()
         pca = fs.pca
         assert pca is not None, "FeatureService.pca is None — JIT fallback fired"
-        assert pca.n_components_ == 15
+        assert pca.n_components_ == 25
 
     def test_no_jit_warning_when_shipped_pca_exists(self, caplog: pytest.LogCaptureFixture) -> None:
         """Loading the shipped artifact should not emit a JIT CRITICAL log."""
@@ -135,14 +135,14 @@ class TestFeatureServiceLoadsShippedPCA:
         from bandit_gpt.feature_service import FeatureService
 
         fs = FeatureService()
-        assert fs.dimension == 16, f"Expected 16 (15 PCA + 1 bias), got {fs.dimension}"
+        assert fs.dimension == 26, f"Expected 26 (25 PCA + 1 bias), got {fs.dimension}"
 
     def test_extract_features_shape(self) -> None:
         from bandit_gpt.feature_service import FeatureService
 
         fs = FeatureService()
         vec = fs.extract_features("Explain quantum entanglement in simple terms")
-        assert vec.shape == (16,), f"Expected (16,), got {vec.shape}"
+        assert vec.shape == (26,), f"Expected (26,), got {vec.shape}"
         assert vec[-1] == 1.0, "Last element should be bias term = 1.0"
         assert np.all(np.isfinite(vec))
 

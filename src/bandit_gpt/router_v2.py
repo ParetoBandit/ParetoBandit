@@ -3519,34 +3519,24 @@ Previous version referenced non-existent attributes
                 cr.exploit_mode = saved_meta_exploit
 
     def _calculate_absolute_penalty(self, cost_per_1k: float) -> float:
-        """
-        Calculate stable 0.0-1.0 cost penalty based on Fixed Market Anchors.
-        
-        Uses Logarithmic Market Width to ensure penalties are absolute, 
-        not relative to currently loaded models.
-        
-        Market Anchors (Mathematically Derived):
-        - Floor: $0.0005/1k (DeepSeek V3, Flash, Haiku tier) → ln(0.0005) ≈ -7.60
-        - Ceiling: $10.00/1k (Future o1-high/Opus tiers) → ln(10.00) ≈ +2.30
-        - Range: 2.30 - (-7.60) = 9.90 → Use 10.0 for clean scaling
-        
+        """Stable 0.0-1.0 cost penalty via logarithmic market anchors.
+
+        Delegates to :func:`bandit_gpt.costs.log_normalize_cost` — the
+        canonical implementation shared with offline evaluation baselines.
+
         Args:
-            cost_per_1k: Cost in dollars per 1000 tokens
-            
+            cost_per_1k: Cost in dollars per 1000 tokens.
+
         Returns:
-            Penalty in range [0.0, 1.0]
-            - 0.0 = At or below market floor
-            - 1.0 = At or above market ceiling
+            Penalty in [0.0, 1.0].
         """
-        # Use precomputed market anchors for performance
-        safe_cost = max(cost_per_1k, self._market_cost_floor)
-        log_cost = math.log(safe_cost)
-        
-        # Normalize: (Current - Floor) / Range
-        penalty = (log_cost - self._market_cost_floor_log) / self._market_cost_range
-        
-        # Clip to [0, 1]
-        return max(0.0, min(1.0, penalty))
+        from bandit_gpt.costs import log_normalize_cost
+
+        return log_normalize_cost(
+            cost_per_1k,
+            floor=self.config.market_cost_floor,
+            ceiling=self.config.market_cost_ceiling,
+        )
 
     def _get_normalized_cost(self, model_id: str) -> float:
         """Compute normalized [0, 1] cost for a model from registry metadata."""
