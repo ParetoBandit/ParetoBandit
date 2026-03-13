@@ -13,10 +13,12 @@ strong model on approximately 40\% of prompts, providing substantial
 headroom for contextual routing.
 The bandit is trained on $n{=}8{,}374$ prompts and evaluated on a
 held-out test set of $n{=}1{,}824$ prompts.  Hyperparameters
-($\alpha{=}1.0$, $\neff{=}10$, hybrid
+($\alpha{=}0.5$, $n_{\mathrm{eff}}{=}5{,}000$, Disjoint
 LinUCB~\cite{li2010contextual} with PCA-25 prompt
-embeddings) are selected by Pareto AUC on a separate validation split
-($n{=}1{,}785$).
+embeddings, no Corralling) are selected by Pareto AUC on a separate
+validation split ($n{=}1{,}785$).
+These are the same production hyperparameters used in Figures~\ref{fig:warmup_ablation_k2}
+and~\ref{fig:adaptive_drift}.
 All baseline hyperparameters are tuned on the same validation split
 using the same criterion (Pareto AUC), ensuring a fair comparison
 (Table~\ref{tab:tuned_hparams_k2}).
@@ -38,7 +40,7 @@ Figure~\ref{fig:pareto_k2}.
 \paragraph{Online bandits match supervised routing with weaker supervision.}
 Figure~\ref{fig:pareto_k2} reveals a central finding:
 \textit{banditGPT} achieves a Pareto AUC of
-$0.870 \pm 0.001$ (5~seeds), matching the supervised logistic
+$0.871 \pm 0.000$ (5~seeds), matching the supervised logistic
 regression baseline ($0.869$) despite receiving \emph{strictly less
 information}.
 The supervised router trains on full reward labels for \emph{all}
@@ -60,7 +62,7 @@ then reduces to a deterministic threshold on $\lambda$, producing
 either ``always \texttt{Gemini}'' or ``always \texttt{Llama}''
 with no intermediate operating points---identical to a biased
 coin flip.
-The ${\approx}0.8\%$ AUC gap between contextual methods ($0.870$)
+The ${\approx}1\%$ AUC gap between contextual methods ($0.871$)
 and context-free UCB ($0.862$) confirms that prompt-level
 features carry meaningful routing signal: certain prompts genuinely
 require the frontier model while others are equally well-served by
@@ -74,11 +76,13 @@ $\varepsilon$-greedy---Pareto AUC spans only $0.870$--$0.871$
 This is not surprising: a two-arm portfolio presents a binary
 routing decision that any reasonable contextual learner can master
 given $n{=}8{,}374$ training examples.
-The value of warmup priors, hybrid parameter sharing, and the
-Corralling meta-learner---the architectural contributions of
-\textit{banditGPT}---emerges in harder settings: $K{=}3$ with model
-onboarding (Section~\ref{sec:onboarding}), limited training data,
-and prior mismatch scenarios.
+The value of warmup priors---the key architectural contribution of
+\textit{banditGPT}---emerges not in steady-state Pareto AUC but in
+the \emph{cold-start regime} (Section~\ref{sec:warmup_ablation_k2}):
+priors eliminate the ${\sim}500$-prompt exploration cost that an
+uninformed bandit must endure at deployment, reducing early regret
+by 61\%.  Their role as a deployment safety mechanism also motivates
+the drift-reset design in Section~\ref{sec:adaptive_drift}.
 
 \paragraph{CostSave at matched quality.}
 Table~\ref{tab:costsave_k2} quantifies the advantage at three
@@ -102,27 +106,31 @@ bootstrap~\cite{efron1993bootstrap}
 \toprule
 Threshold & Bandit & Static & $\Delta$ (pp) & 95\% CI \\
 \midrule
-CostSave\,@\,90\% & 71.9\% & 66.9\% & $+5.1$ & $[+2.0,\; +7.8]$ \\
-CostSave\,@\,95\% & 41.5\% & 33.4\% & $+8.1$ & $[+5.1,\; +10.8]$ \\
-CostSave\,@\,99\% & 14.2\% & \phantom{0}6.7\% & $+7.5$ & $[+4.5,\; +10.9]$ \\
+CostSave\,@\,90\% & 72.0\% & 66.9\% & $+5.1$ & $[+2.3,\; +7.7]$ \\
+CostSave\,@\,95\% & 40.9\% & 33.4\% & $+7.5$ & $[+4.8,\; +10.2]$ \\
+CostSave\,@\,99\% & 15.9\% & \phantom{0}6.7\% & $+9.2$ & $[+5.5,\; +11.8]$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 At the 95\% quality threshold---matching 95\% of \texttt{Gemini}'s
-reward---the bandit saves 41.5\% of inference cost, an 8.1~pp
+reward---the bandit saves 40.9\% of inference cost, a 7.5~pp
 advantage over the static baseline ($95\%~\text{CI}:
-[+5.1,\, +10.8]$~pp).  All three advantages exclude zero,
+[+4.8,\, +10.2]$~pp).  All three advantages exclude zero,
 confirming that contextual routing provides a statistically
 significant cost reduction beyond what non-contextual mixing achieves.
 
-The advantage grows from 5.1~pp at $Q{=}90\%$ to 8.1~pp at
-$Q{=}95\%$, reflecting the fact that moderate quality targets leave
-the most room for the router to substitute the cheap model on
-easy prompts.  At the stringent $Q{=}99\%$ threshold the absolute
-saving shrinks (14.2\% vs.\ 71.9\% at $Q{=}90\%$) because nearly
+The advantage grows from 5.1~pp at $Q{=}90\%$ to 9.2~pp at
+$Q{=}99\%$, reflecting the fact that contextual routing is most
+valuable at stringent quality targets where the router must
+judiciously select the cheap model only on prompts where it
+is adequate.
+At the relaxed $Q{=}90\%$ threshold the absolute saving is largest
+(72.0\%) but the static baseline also benefits (66.9\%),
+narrowing the contextual advantage.
+At $Q{=}99\%$ the absolute saving shrinks (15.9\%) because nearly
 all prompts must be routed to the frontier model, but the advantage
-over the static baseline remains large ($+7.5$~pp).
+over the static baseline is largest ($+9.2$~pp).
 
 \paragraph{Gap to oracle.}
 \label{sec:gap_oracle}
@@ -134,9 +142,9 @@ $(R_{\text{oracle}} - R_{\text{router}}) /
 where $0\%$ equals the oracle and $100\%$ equals always routing to the
 weak model.
 At the highest-quality operating point ($\lambda{=}0$), the bandit
-reaches $R{=}0.926$ and a Gap@Oracle of \textbf{13.1\%}, closing
-87\% of the weak-to-oracle quality range.
-At moderate cost savings ($\lambda{=}0.20$), the gap widens to 35.3\%,
+reaches $R{=}0.929$ and a Gap@Oracle of \textbf{11.0\%}, closing
+89\% of the weak-to-oracle quality range.
+At moderate cost savings ($\lambda{=}0.20$), the gap widens to 34.6\%,
 reflecting the deliberate trade-off of quality for cost.
 Gap@Oracle is anchored to the portfolio's ceiling and floor rather than
 to the cost ratio, making it more comparable across benchmarks than
@@ -146,9 +154,9 @@ CostSave alone.
 The routing mix at intermediate cost penalties reveals that the
 bandit makes genuine discriminative decisions rather than trivially
 defaulting to one model.
-At $\lambda{=}0.20$, the router sends 42\% of prompts to
-\texttt{Llama} and 58\% to \texttt{Gemini}, achieving a reward of
-$0.892$ at \$0.0095/req---a 37\% cost reduction relative to
+At $\lambda{=}0.20$, the router sends 41\% of prompts to
+\texttt{Llama} and 59\% to \texttt{Gemini}, achieving a reward of
+$0.893$ at \$0.0096/req---a 36\% cost reduction relative to
 always-\texttt{Gemini} while retaining 96\% of its quality.
 This confirms that the bandit learns a meaningful mapping from
 prompt features to model selection, exploiting the 40\% of prompts
@@ -199,13 +207,13 @@ knob~\cite{wang2025barp, li2025llmbandit}: by adjusting
 the cost penalty $\lambda$ at serving time, a practitioner can
 continuously trade quality for cost.  For example:
 \begin{itemize}[nosep,leftmargin=*]
-    \item \emph{Quality-first} ($\lambda{=}0.05$): reward~$0.922$
-          at \$0.0127/req (16\% cost reduction vs.\
+    \item \emph{Quality-first} ($\lambda{=}0.05$): reward~$0.924$
+          at \$0.0131/req (14\% cost reduction vs.\
           always-\texttt{Gemini}).
-    \item \emph{Balanced} ($\lambda{=}0.25$): reward~$0.873$ at
-          \$0.0078/req (49\% cost reduction).
-    \item \emph{Budget-constrained} ($\lambda{=}0.50$): reward~$0.804$
-          at \$0.0010/req (93\% cost reduction).
+    \item \emph{Balanced} ($\lambda{=}0.25$): reward~$0.870$ at
+          \$0.0075/req (51\% cost reduction).
+    \item \emph{Budget-constrained} ($\lambda{=}0.50$): reward~$0.798$
+          at \$0.0004/req (97\% cost reduction).
 \end{itemize}
 No retraining is required to move between these operating
 points---the same trained bandit serves all of them.  This

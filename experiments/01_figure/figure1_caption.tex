@@ -15,7 +15,7 @@
     (val-tuned $C{=}0.1$), trained with \emph{full reward labels} for
     all models on every prompt---strictly more information than any
     bandit.  Despite this advantage, \textit{banditGPT}
-    matches its frontier (AUC $0.870$ vs.\ $0.869$).
+    matches its frontier (AUC $0.871$ vs.\ $0.869$).
     %
     \textbf{Other bandit variants} ($\varepsilon$-greedy, LinTS,
     tabula~rasa LinUCB; all val-tuned) cluster within
@@ -32,10 +32,12 @@
     $Q \in \{90\%,\, 95\%,\, 99\%\}$
     (Table~\ref{tab:costsave_k2}).
     At the 95\% quality threshold the bandit saves
-    41.5\% of cost vs.\ 33.4\% for static mixing
-    ($\Delta{=}+8.1$~pp, $95\%$~CI: $[+5.1,\;+10.8]$).
+    40.9\% of cost vs.\ 33.4\% for static mixing
+    ($\Delta{=}+7.5$~pp, $95\%$~CI: $[+4.8,\;+10.2]$).
     %
-    Setup: train $n{=}8{,}374$, val $n{=}1{,}785$, test
+    Setup: Disjoint LinUCB ($\alpha{=}0.5$,
+    $n_{\mathrm{eff}}{=}5{,}000$, no Corralling);
+    train $n{=}8{,}374$, val $n{=}1{,}785$, test
     $n{=}1{,}824$ prompts;
     rewards from DeepSeek-R1~\cite{deepseekai2025deepseekr1}
     (see Section~\ref{sec:reward_assumption}).
