@@ -2766,6 +2766,8 @@ class RoutingLog:
     expected_reward: float = 0.0             # θᵀx at route time (for drift detection residuals)
     total_priority_weight: float = 1.0       # Sum of w_q, w_c, w_l for normalization
     corralling_token: Dict | None = None     # Selection token for Corralling meta-weight attribution
+    pacer_lambda_t: float | None = None      # BudgetPacer dual variable at route time
+    pacer_cost_ema: float | None = None      # BudgetPacer cost EMA at route time
 
 class BanditRouter:
     """
@@ -2822,6 +2824,7 @@ class BanditRouter:
         drift_burn_in_steps: int = 50,
         drift_ema_alpha: float = 0.05,
         drift_confirmation_window: int = 20,
+        budget_pacer: "BudgetPacer | None" = None,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -2901,6 +2904,12 @@ class BanditRouter:
                        (default: 0.05, half-life ≈ 14 observations).
             drift_confirmation_window: Consecutive above-threshold steps
                        required before drift is confirmed (default: 20).
+            budget_pacer: Optional :class:`BudgetPacer` instance for online
+                       budget pacing (Primal-Dual CBwK).  When provided,
+                       injects adaptive cost constraints (hard ceiling
+                       and/or soft penalty) into each routing decision and
+                       updates pacing state in ``process_feedback()``.
+                       ``None`` (default) disables pacing entirely.
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
@@ -2920,6 +2929,7 @@ class BanditRouter:
         self.drift_confirmation_window = drift_confirmation_window
         self._drift_adapted = False
         self.drift_detector = None  # Activated by create() only when priors are loaded
+        self.budget_pacer = budget_pacer
 
         if model_registry is None:
             # Load default models.json from config/
@@ -4348,28 +4358,69 @@ class BanditRouter:
                     self.drift_threshold,
                 )
 
+        # Budget pacing: compute effective cost ceiling and soft penalties.
+        effective_max_cost = max_cost
+        extra_cost_penalties: Dict[str, float] | None = None
+        _pacer_ceiling_relaxed = False
+
+        if self.budget_pacer is not None and self.budget_pacer.uses_hard:
+            max_model_cost_per_1k = max(
+                float(self.registry[m].get("blended_cost_per_m", 0)) / 1000.0
+                for m in self.registry
+            )
+            ceiling = self.budget_pacer.get_cost_ceiling_per_1k(
+                max_model_cost_per_1k
+            )
+            if ceiling is not None:
+                effective_max_cost = (
+                    min(effective_max_cost, ceiling)
+                    if effective_max_cost is not None
+                    else ceiling
+                )
+
         candidates = list(self.registry.keys())
-        filtered = self._filter_by_constraints(
-            candidates,
-            max_cost,
-            max_latency,
-            quality_floor,
-        )
-        
+        try:
+            filtered = self._filter_by_constraints(
+                candidates,
+                effective_max_cost,
+                max_latency,
+                quality_floor,
+            )
+        except NoEligibleModelsError:
+            if effective_max_cost is not max_cost:
+                _pacer_ceiling_relaxed = True
+                logger.warning(
+                    "[PACER] Hard ceiling $%.6f/1k excluded all models; "
+                    "relaxing to user max_cost=%s.",
+                    effective_max_cost,
+                    max_cost,
+                )
+                filtered = self._filter_by_constraints(
+                    candidates,
+                    max_cost,
+                    max_latency,
+                    quality_floor,
+                )
+            else:
+                raise
+
         # Estimate tokens for logging and cost_usd estimates.
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
+
+        if self.budget_pacer is not None and self.budget_pacer.uses_soft:
+            model_costs = {
+                m: self._get_normalized_cost(m) for m in filtered
+            }
+            extra_cost_penalties = self.budget_pacer.get_extra_cost_penalties(
+                model_costs
+            )
 
         # Use Corralling if enabled, otherwise fall back to simple LinUCB
         corralling_token = None
         if self.use_corralling and self.corralling_router is not None:
-            # total_steps controls the tabula-rasa expert's alpha decay only.
-            # Default 1 → alpha_end immediately (production: stable UCB).
-            # For burn-in experiments, pass the total request count.
-            # Pass filtered candidates so cost/latency/quality constraints
-            # are enforced.  Previously, corralling selected from ALL models,
-            # silently ignoring max_cost, max_latency, and quality_floor.
             best_model, corralling_token = self.corralling_router.select_model(
-                x, total_steps=total_steps, candidates=filtered
+                x, total_steps=total_steps, candidates=filtered,
+                extra_cost_penalties=extra_cost_penalties,
             )
             best_utility = 0.0  # Placeholder, corralling doesn't expose utility
         else:
@@ -4384,6 +4435,10 @@ class BanditRouter:
                     if self.latency_penalty > 0:
                         p += self.latency_penalty * self._get_normalized_latency(m)
                     cp[m] = p
+            if extra_cost_penalties is not None:
+                cp = cp or {}
+                for m, pen in extra_cost_penalties.items():
+                    cp[m] = cp.get(m, 0.0) + pen
             best_model, best_utility = self.bandit.select_arm(
                 x, candidates=filtered, cost_penalties=cp
             )
@@ -4407,6 +4462,9 @@ class BanditRouter:
             prompt_text, best_model, best_utility, x, in_tok, output_tokens, total_weight
         )
         log.corralling_token = corralling_token
+        if self.budget_pacer is not None:
+            log.pacer_lambda_t = self.budget_pacer.lambda_t
+            log.pacer_cost_ema = self.budget_pacer.cost_ema
 
         # Persist context + corralling token for delayed feedback (RLHF).
         # Moved here from _create_routing_log so the corralling_token is
@@ -4544,6 +4602,9 @@ class BanditRouter:
             # Fallback: Update bandit directly
             self.bandit.update(log.selected_model, x, reward, advance_time=False)
         
+        if self.budget_pacer is not None:
+            self.budget_pacer.observe(log.cost_usd)
+
         # Periodic stability check (cheap O(d) operation).
         # The canonical bandit is always live (under Corralling, the adapter
         # delegates update() to self.bandit, so self.bandit.t is incremented).
@@ -5395,7 +5456,9 @@ class CorrallingRouter:
         return (1 - gamma) * self.weights + gamma * uniform_dist
     
     def select_model(self, context: np.ndarray, total_steps: int = 0,
-                     candidates: List[str] | None = None) -> Tuple[str, Dict]:
+                     candidates: List[str] | None = None,
+                     extra_cost_penalties: Dict[str, float] | None = None,
+                     ) -> Tuple[str, Dict]:
         """
         Select model via Corralling: query ALL experts, sample from the marginal
         action distribution π(a) = Σ_j p_j · I(expert_j chose a).
@@ -5408,6 +5471,10 @@ class CorrallingRouter:
             total_steps: Total training steps (passed to experts for alpha decay).
             candidates: Optional list of eligible model IDs after constraint
                        filtering.  If provided, experts only score these models.
+            extra_cost_penalties: Optional per-model additive cost penalties
+                       from the BudgetPacer (soft mode).  Passed through to
+                       each expert's ``select_model()`` and subtracted from
+                       UCB scores.  ``None`` = no extra penalty.
 
         Returns:
             Tuple of (selected_model_id, selection_token).
@@ -5423,7 +5490,8 @@ class CorrallingRouter:
         # Query ALL experts for their deterministic recommendations.
         recommendations = [
             expert.select_model(context, total_steps=total_steps,
-                                candidates=candidates)
+                                candidates=candidates,
+                                extra_cost_penalties=extra_cost_penalties)
             for expert in self.experts
         ]
 
@@ -6309,6 +6377,7 @@ class CostAwareLinUCBAdapter:
         context: np.ndarray,
         total_steps: int = 0,
         candidates: List[str] | None = None,
+        extra_cost_penalties: Dict[str, float] | None = None,
     ) -> str:
         """Select the best model using cost-and-latency-aware UCB.
 
@@ -6320,6 +6389,10 @@ class CostAwareLinUCBAdapter:
             context: Context feature vector.
             total_steps: Total training steps (for alpha decay schedule).
             candidates: Optional constraint-filtered candidate list.
+            extra_cost_penalties: Optional per-model additive penalties
+                from the BudgetPacer.  Subtracted from the UCB score
+                on top of the static ``cost_penalty``.  ``None`` = no
+                extra penalty (backward-compatible default).
 
         Returns:
             Selected model identifier.
@@ -6341,10 +6414,12 @@ class CostAwareLinUCBAdapter:
                 model_meta = self.model_costs.get(model, {})
                 normalized_cost = model_meta.get("normalized_cost", 1.0)
                 normalized_latency = model_meta.get("normalized_latency", 1.0)
+                extra = extra_cost_penalties.get(model, 0.0) if extra_cost_penalties else 0.0
                 score = (
                     (expected_reward + alpha * uncertainty)
                     - (self.cost_penalty * normalized_cost)
                     - (self.latency_penalty * normalized_latency)
+                    - extra
                 )
                 ucb_scores[model] = score
                 expected_rewards[model] = float(expected_reward)
@@ -6547,11 +6622,20 @@ class CostAwareTabulaRasaRouter:
             self.last_played[model] = self.t
 
     def select_model(self, context: np.ndarray, total_steps: int = 0,
-                     candidates: List[str] | None = None) -> str:
+                     candidates: List[str] | None = None,
+                     extra_cost_penalties: Dict[str, float] | None = None,
+                     ) -> str:
         """
         Select model using cost-and-latency-aware UCB with dynamic α (tabula rasa, no priors).
         
-        Score = (Predicted Reward + α_t × Uncertainty) - λ_c × NormCost - λ_l × NormLatency
+        Score = (Predicted Reward + α_t × Uncertainty) - λ_c × NormCost - λ_l × NormLatency - extra
+
+        Args:
+            context: Context feature vector.
+            total_steps: Total training steps (for alpha decay schedule).
+            candidates: Optional constraint-filtered candidate list.
+            extra_cost_penalties: Optional per-model additive penalties from
+                the BudgetPacer.  ``None`` = no extra penalty.
         """
         alpha = self.get_current_alpha(total_steps)
         ucb_scores = {}
@@ -6578,10 +6662,12 @@ class CostAwareTabulaRasaRouter:
                 model_meta = self.model_costs.get(model, {})
                 normalized_cost = model_meta.get("normalized_cost", 1.0)
                 normalized_latency = model_meta.get("normalized_latency", 1.0)
+                extra = extra_cost_penalties.get(model, 0.0) if extra_cost_penalties else 0.0
                 score = (
                     (expected_reward + alpha * uncertainty)
                     - (self.cost_penalty * normalized_cost)
                     - (self.latency_penalty * normalized_latency)
+                    - extra
                 )
                 ucb_scores[model] = score
                 expected_rewards[model] = float(expected_reward)

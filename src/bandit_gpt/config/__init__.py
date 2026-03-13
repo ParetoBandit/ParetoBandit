@@ -113,6 +113,7 @@ HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "test.jsonl"
 WARMUP_PRIORS_DIR = DATA_COLLECTION_DIR / "warmup_priors"
 K2_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k2_25comp.joblib"
 K2_WARMUP_PRIORS_TEXTFEAT_PATH = WARMUP_PRIORS_DIR / "priors_k2_textfeat.joblib"
+K3_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp.joblib"
 
 # ==============================================================================
 # Pre-computed Embeddings

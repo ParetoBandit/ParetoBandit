@@ -1,0 +1,46 @@
+\begin{figure*}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{../experiments_v2/01_stationary_budget_pacing/results/pareto_frontier.pdf}
+    \caption{Budget-constrained routing under stationary conditions
+    ($K{=}3$: \texttt{Llama-3.1-8B}, \texttt{Mistral-Large-2512},
+    \texttt{Gemini-2.5-Pro}; 5~seeds, $\pm$1\,SE error bars).
+    %
+    The \textbf{BudgetPacer} (blue, solid) implements a primal-dual
+    Contextual Bandit with Knapsacks (CBwK) that accepts a
+    dollar-denominated budget target $B$ and adaptively tunes a
+    Lagrange multiplier $\lambda_t$ via projected gradient ascent:
+    $\lambda_{t+1} = \min\bigl(\bar\lambda,\;
+    \max(0,\;\lambda_t + \eta\,(c_t / B - 1))\bigr)$,
+    where $c_t$ is the realized cost, $\eta{=}0.05$ is the step size,
+    and $\bar\lambda{=}5$ caps the multiplier.
+    $\lambda_t$ simultaneously tightens a hard cost ceiling
+    (filtering out models whose unit price exceeds
+    $p_{\max}/(1 + \kappa\lambda_t)$)
+    and injects a soft per-model penalty
+    $\lambda_t \cdot \tilde{c}_m$ into the LinUCB score,
+    where $\tilde{c}_m \in [0,1]$ is the log-normalized cost.
+    %
+    The \textbf{static cost penalty} baseline (gray, dashed) applies a
+    fixed dimensionless weight $\lambda_s \in \{0, 0.05, \ldots, 1.0\}$
+    to the same normalized cost; each point on the curve requires an
+    offline sweep to identify the $\lambda_s$ that achieves a given
+    dollar spend.
+    %
+    Marker fill indicates budget compliance for pacer points:
+    \textcolor[HTML]{009E73}{\textbf{green}} = on-target
+    ($0.95$--$1.05\times$),
+    \textcolor[HTML]{E69F00}{\textbf{orange}} = under-target
+    ($< 0.95\times$).
+    %
+    The pacer achieves near-perfect budget compliance
+    (utilization $0.96$--$1.03\times$) for the four tightest targets
+    while matching or exceeding the static baseline's reward at
+    comparable cost.
+    At the two loosest targets the pacer under-spends because the
+    unconstrained router's natural mean cost
+    (\$0.0082/req) is below the target---the dual variable correctly
+    decays to $\lambda_t \approx 0$ and the router operates
+    unconstrained.
+    }
+    \label{fig:pareto_budget}
+\end{figure*}

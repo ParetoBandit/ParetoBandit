@@ -1,0 +1,108 @@
+\begin{table}[htbp]
+\centering
+\caption{Budget compliance diagnostics for the BudgetPacer (adaptive mode)
+  and the static cost-penalty baseline ($K{=}3$, 5~seeds).
+  %
+  \emph{Utilisation} = mean realised cost / target $B$;
+  values near $1.0\times$ indicate the pacer is hitting the target.
+  $\lambda_{q50}$: median dual variable over the test phase;
+  $\lambda_{\mathrm{final}}$: value at the last test step.
+  %
+  The static baseline has no target; its cost is determined implicitly
+  by the penalty weight $\lambda_s$.
+  %
+  \textbf{Key finding:}  For achievable targets
+  ($B \leq \$0.0019$/req), utilisation is $0.96$--$1.03\times$.
+  At loose targets the router under-spends because the dual variable
+  decays to zero---the pacer constrains from above but never inflates
+  cost.
+}
+\label{tab:budget_compliance}
+\small
+\begin{tabular}{@{}llrrrcrrr@{}}
+\toprule
+\textbf{Method}
+  & \textbf{Setting}
+  & \textbf{Reward}
+  & \textbf{Cost (\$/req)}
+  & \textbf{Regret}
+  & \textbf{Util.}
+  & \textbf{$\lambda_{q50}$}
+  & \textbf{$\lambda_{\mathrm{f}}$}
+  \\
+\midrule
+\multicolumn{8}{@{}l}{\textit{Static cost penalty (no budget target)}} \\[2pt]
+Static & $\lambda_s{=}0.00$ & $0.928$ & $0.00818$ & $65.3$
+  & ---
+  & ---
+  & ---
+  \\
+Static & $\lambda_s{=}0.05$ & $0.926$ & $0.00649$ & $68.4$
+  & ---
+  & ---
+  & ---
+  \\
+Static & $\lambda_s{=}0.10$ & $0.922$ & $0.00522$ & $76.3$
+  & ---
+  & ---
+  & ---
+  \\
+Static & $\lambda_s{=}0.20$ & $0.910$ & $0.00326$ & $97.4$
+  & ---
+  & ---
+  & ---
+  \\
+Static & $\lambda_s{=}0.30$ & $0.896$ & $0.00203$ & $123.4$
+  & ---
+  & ---
+  & ---
+  \\
+Static & $\lambda_s{=}0.50$ & $0.848$ & $0.00084$ & $209.6$
+  & ---
+  & ---
+  & ---
+  \\
+Static & $\lambda_s{=}1.00$ & $0.797$ & $0.00012$ & $304.1$
+  & ---
+  & ---
+  & ---
+  \\[4pt]
+\multicolumn{8}{@{}l}{\textit{BudgetPacer (adaptive, $\eta{=}0.05$, $\bar\lambda{=}5$)}} \\[2pt]
+Pacer & $B{=}\$2.9{\times}10^{-5}$ & $0.793$ & $0.00003$ & $310.2$
+  & $1.03\times$
+  & $4.31$
+  & $4.55$
+  \\
+Pacer & $B{=}\$8.2{\times}10^{-5}$ & $\mathbf{0.810}$ & $0.00008$ & $279.7$
+  & $\mathbf{1.00\times}$
+  & $0.81$
+  & $0.78$
+  \\
+Pacer & $B{=}\$2.3{\times}10^{-4}$ & $\mathbf{0.859}$ & $0.00023$ & $190.5$
+  & $\mathbf{1.00\times}$
+  & $0.39$
+  & $0.47$
+  \\
+Pacer & $B{=}\$6.6{\times}10^{-4}$ & $0.863$ & $0.00067$ & $182.7$
+  & $\mathbf{1.01\times}$
+  & $0.31$
+  & $0.52$
+  \\
+Pacer & $B{=}\$1.9{\times}10^{-3}$ & $0.889$ & $0.00179$ & $135.9$
+  & $0.96\times$
+  & $0.16$
+  & $0.20$
+  \\
+Pacer & $B{=}\$5.3{\times}10^{-3}$ & $0.914$ & $0.00454$ & $89.8$
+  & $0.86\times$
+  & $0.03$
+  & $0.09$
+  \\
+Pacer & $B{=}\$1.5{\times}10^{-2}$ & $0.925$ & $0.00757$ & $70.6$
+  & $0.51\times$
+  & $0.00$
+  & $0.01$
+  \\
+\bottomrule
+\end{tabular}
+\end{table}

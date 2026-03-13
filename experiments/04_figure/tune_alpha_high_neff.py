@@ -60,7 +60,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 for _noisy in (
     "bandit_gpt.router",
-    "bandit_gpt.router_v2",
     "bandit_gpt.feature_service",
 ):
     logging.getLogger(_noisy).setLevel(logging.WARNING)

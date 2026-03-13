@@ -39,7 +39,7 @@ from utils.simulation import SplitData, build_model_registry, load_split
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.router_v2", "bandit_gpt.feature_service"):
+for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 ARM_ORDER = K2_ARM_ORDER

@@ -205,6 +205,7 @@ class MockExpert:
         context: np.ndarray,
         total_steps: int = 0,
         candidates=None,
+        extra_cost_penalties=None,
     ) -> str:
         self.last_candidates = candidates
         eligible = candidates if candidates is not None else self.models
