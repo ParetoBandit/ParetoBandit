@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""
-Generate Figure 4: The Value of Warmup Priors.
+"""Generate Figure 4: Adaptive Drift Detection Under Distribution Shift.
 
-Two-panel figure:
-  (a) Pareto frontier — BanditGPT (warmup) vs Tabula Rasa, with
-      supervised baselines as reference points.
-  (b) Learning curve — holdout reward vs online training steps,
-      showing that warmup priors provide immediate quality.
+Three-panel figure showing how the router detects prior miscalibration
+and self-adapts (K=2, Llama-3.1-8B vs Gemini-2.5-Pro) under a controlled
+synthetic shift (2.0σ embedding perturbation + reward boost):
+
+  (a) Cumulative cost-adjusted regret for all 4 conditions.
+  (b) Drift detection signal — EMA chi-squared score, baseline, and
+      trigger threshold over training steps (adaptive condition only).
+  (c) Llama routing fraction over time, showing when each condition
+      discovers the newly-competitive cheap arm.
+
+Usage::
+
+    python experiments/04_figure/plot_results.py
 """
+from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import numpy as np
 import matplotlib
@@ -20,240 +27,280 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy import stats as sp_stats
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
-
-from utils.pareto import pareto_hull, dev_pareto_indices
-
 RESULTS_DIR = Path(__file__).parent / "results"
 
+# ============================================================================
+# Colorblind-safe palette (Wong, Nature Methods 2011)
+# ============================================================================
+ORANGE = "#E69F00"
 BLUE = "#0072B2"
-RED = "#D55E00"
 GREEN = "#009E73"
 GRAY = "#999999"
-ORANGE = "#E69F00"
-PURPLE = "#CC79A7"
-TEAL = "#56B4E9"
+RED = "#D55E00"
 
-SV_MARKERS: Dict[str, Tuple[str, str, str]] = {
-    "knn": ("^", RED, "KNN"),
-    "svm": ("s", GREEN, "SVM"),
-    "mlp": ("P", PURPLE, "MLP"),
+CONDITION_STYLE: Dict[str, Dict[str, Any]] = {
+    "Warmup-only": {
+        "color": ORANGE, "linestyle": "--", "linewidth": 2.0, "zorder": 2,
+    },
+    "Oracle ff=0.999": {
+        "color": BLUE, "linestyle": "-", "linewidth": 2.0, "zorder": 3,
+    },
+    "Adaptive (Reset)": {
+        "color": GREEN, "linestyle": "-", "linewidth": 2.5, "zorder": 4,
+    },
+    "Tabula Rasa": {
+        "color": GRAY, "linestyle": ":", "linewidth": 1.5, "zorder": 1,
+    },
 }
 
 
-def load_results() -> dict:
-    """Load warmup ablation results."""
-    path = RESULTS_DIR / "warmup_ablation_results.json"
-    with open(path) as f:
-        return json.load(f)
-
-
-def _ci95(mean: float, std: float, n: int) -> float:
+def _ci95(std: float, n: int) -> float:
     """95% t-CI half-width."""
     if n < 2 or std == 0:
         return 0.0
     return sp_stats.t.ppf(0.975, n - 1) * std / np.sqrt(n)
 
 
-def _get_hull(pareto_data: list) -> Tuple[List[float], List[float]]:
-    """Build dev-selected deployed Pareto hull."""
-    idx = dev_pareto_indices(pareto_data, "dev_mean_cost", "dev_mean_reward")
-    hc = [pareto_data[i]["mean_cost"] for i in idx]
-    hr = [pareto_data[i]["mean_reward"] for i in idx]
-    return pareto_hull(hc, hr)
+def _get_style(label: str) -> Dict[str, Any]:
+    """Look up condition style, fallback to gray."""
+    return CONDITION_STYLE.get(
+        label, {"color": GRAY, "linestyle": "-", "linewidth": 1.5, "zorder": 1},
+    )
 
 
-def plot_figure4(results: dict, output_dir: Path) -> None:
-    """Generate two-panel Figure 4."""
-    k3 = results["K3"]
+def plot_figure4(results: Dict[str, Any], output_dir: Path) -> None:
+    """Generate three-panel Figure 4."""
+    meta = results["metadata"]
+    cross = results["cross_dist"]
+    conditions = cross["conditions"]
+    headline_lam = meta["headline_lambda"]
+    oracle_llama_frac = meta.get("oracle_llama_frac", 0)
+    phase1_n = cross.get("phase1_n", meta.get("phase1_n_pareto", 0))
+    shift_mag = meta.get("shift_magnitude", 0)
+    drift_threshold_sigma = meta.get("drift_threshold", 2.0)
 
-    fig, (ax_pareto, ax_lc) = plt.subplots(
-        1, 2, figsize=(14, 5.5), gridspec_kw={"wspace": 0.30},
+    fig, (ax_regret, ax_drift, ax_arms) = plt.subplots(
+        1, 3, figsize=(17, 5), gridspec_kw={"wspace": 0.32},
     )
 
     # ================================================================
-    # Panel (a): Pareto frontiers
+    # Panel (a): Cumulative regret curves
     # ================================================================
-    warmup_pareto = k3["warmup_pareto"]
-    tr_pareto = k3["tabula_rasa_pareto"]
+    for label, lc in conditions.items():
+        if not lc:
+            continue
+        style = _get_style(label)
+        steps = [d["step"] for d in lc]
+        regrets = [d["mean_cumulative_regret"] for d in lc]
+        cis = [_ci95(d["std_cumulative_regret"], d["n_seeds"]) for d in lc]
 
-    # BanditGPT (warmup) — bold line
-    wh_c, wh_r = _get_hull(warmup_pareto)
-    ax_pareto.plot(
-        wh_c, wh_r, "-o", color=BLUE, linewidth=2.5, markersize=4,
-        label="BanditGPT (warmup priors)", zorder=5,
-    )
-    for pt in warmup_pareto:
-        ci = _ci95(pt["mean_reward"], pt["std_reward"], pt["n_trials"])
-        ax_pareto.errorbar(
-            pt["mean_cost"], pt["mean_reward"], yerr=ci,
-            fmt="none", color=BLUE, alpha=0.3, capsize=2,
+        ax_regret.plot(
+            steps, regrets, style["linestyle"],
+            color=style["color"], linewidth=style["linewidth"],
+            label=label, zorder=style["zorder"],
+        )
+        ax_regret.fill_between(
+            steps,
+            [r - c for r, c in zip(regrets, cis)],
+            [r + c for r, c in zip(regrets, cis)],
+            color=style["color"], alpha=0.10, zorder=style["zorder"] - 0.5,
         )
 
-    # Tabula rasa — dashed
-    th_c, th_r = _get_hull(tr_pareto)
-    ax_pareto.plot(
-        th_c, th_r, "--s", color=ORANGE, linewidth=2, markersize=4,
-        label="Tabula rasa (no priors)", zorder=4,
-    )
-    for pt in tr_pareto:
-        ci = _ci95(pt["mean_reward"], pt["std_reward"], pt["n_trials"])
-        ax_pareto.errorbar(
-            pt["mean_cost"], pt["mean_reward"], yerr=ci,
-            fmt="none", color=ORANGE, alpha=0.3, capsize=2,
-        )
-
-    # Supervised baselines
-    for kind, (marker, color, label) in SV_MARKERS.items():
-        sv = k3["supervised"].get(kind)
-        if sv:
-            ax_pareto.scatter(
-                sv["cost"], sv["reward"], marker=marker, color=color,
-                s=100, zorder=6, edgecolors="k", linewidths=0.5,
-                label=f"{label} (supervised)",
+    # Regret savings annotation
+    wo_lc = conditions.get("Warmup-only", [])
+    adaptive_lc = conditions.get("Adaptive (Reset)", [])
+    if wo_lc and adaptive_lc:
+        wo_final = wo_lc[-1]["mean_cumulative_regret"]
+        ad_final = adaptive_lc[-1]["mean_cumulative_regret"]
+        if wo_final > 0 and ad_final < wo_final:
+            delta = wo_final - ad_final
+            pct = delta / wo_final * 100
+            final_step = wo_lc[-1]["step"]
+            mid_y = (wo_final + ad_final) / 2
+            arrow_x = final_step * 0.97
+            label_x = final_step * 0.75
+            ax_regret.annotate(
+                "",
+                xy=(arrow_x, ad_final),
+                xytext=(arrow_x, wo_final),
+                arrowprops=dict(arrowstyle="<->", color="black", lw=1.5),
+            )
+            label_bbox = dict(
+                boxstyle="round,pad=0.3", facecolor="lightyellow",
+                alpha=0.9, edgecolor="gray",
+            )
+            ax_regret.annotate(
+                f"−{delta:.0f}\n({pct:.0f}%)",
+                xy=(arrow_x, mid_y),
+                xytext=(label_x, mid_y),
+                fontsize=8, fontweight="bold", ha="center", va="center",
+                bbox=label_bbox,
+                arrowprops=dict(
+                    arrowstyle="-", color="gray", lw=1.0,
+                    connectionstyle="arc3,rad=0",
+                ),
             )
 
-    # Oracle
-    oracle = k3["oracle"]
-    ax_pareto.scatter(
-        oracle["cost"], oracle["reward"], marker="*", color="gold",
-        s=200, zorder=7, edgecolors="k", linewidths=0.5, label="Oracle",
-    )
-
-    # UCB1
-    ucb1 = k3["ucb1"]
-    ax_pareto.scatter(
-        ucb1.get("cost", ucb1.get("mean_cost", 0.0034)),
-        ucb1["reward"],
-        marker="D", color=GRAY, s=80, zorder=6,
-        edgecolors="k", linewidths=0.5, label="UCB1",
-    )
-
-    # Pareto AUC annotation
-    auc_info = k3["pareto_auc"]
-    bootstrap = auc_info["bootstrap_ci"]
-    ax_pareto.text(
-        0.03, 0.03,
-        (
-            f"Pareto AUC: {auc_info['warmup']:.3f} vs "
-            f"{auc_info['tabula_rasa']:.3f}\n"
-            f"Advantage: {auc_info['advantage']:+.3f} "
-            f"(95% CI [{bootstrap['ci_95_lower']:+.3f}, "
-            f"{bootstrap['ci_95_upper']:+.3f}])"
-        ),
-        transform=ax_pareto.transAxes,
-        fontsize=8, verticalalignment="bottom",
-        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8),
-    )
-
-    ax_pareto.set_xlabel("Normalized cost ($/request)", fontsize=11)
-    ax_pareto.set_ylabel("Holdout reward", fontsize=11)
-    ax_pareto.set_title("(a) Pareto Frontier: Warmup vs Tabula Rasa", fontsize=12)
-    ax_pareto.legend(fontsize=8, loc="lower right")
-    ax_pareto.grid(True, alpha=0.3)
-
-    # ================================================================
-    # Panel (b): Learning curves
-    # ================================================================
-    lc_warmup = k3["warmup_learning_curve"]
-    lc_tr = k3["tabula_rasa_learning_curve"]
-
-    w_steps = [d["step"] for d in lc_warmup]
-    w_means = [d["mean_reward"] for d in lc_warmup]
-    w_cis = [
-        _ci95(d["mean_reward"], d["std_reward"], d["n_trials"])
-        for d in lc_warmup
-    ]
-
-    t_steps = [d["step"] for d in lc_tr]
-    t_means = [d["mean_reward"] for d in lc_tr]
-    t_cis = [
-        _ci95(d["mean_reward"], d["std_reward"], d["n_trials"])
-        for d in lc_tr
-    ]
-
-    ax_lc.plot(w_steps, w_means, "-o", color=BLUE, linewidth=2, markersize=4,
-               label="BanditGPT (warmup priors)")
-    ax_lc.fill_between(
-        w_steps,
-        [m - c for m, c in zip(w_means, w_cis)],
-        [m + c for m, c in zip(w_means, w_cis)],
-        color=BLUE, alpha=0.15,
-    )
-
-    ax_lc.plot(t_steps, t_means, "--s", color=ORANGE, linewidth=2, markersize=4,
-               label="Tabula rasa (no priors)")
-    ax_lc.fill_between(
-        t_steps,
-        [m - c for m, c in zip(t_means, t_cis)],
-        [m + c for m, c in zip(t_means, t_cis)],
-        color=ORANGE, alpha=0.15,
-    )
-
-    # Supervised learning curve
-    sv_lc_info = k3.get("supervised_learning_curve", {})
-    sv_lc_data = sv_lc_info.get("curve", [])
-    if sv_lc_data:
-        sv_steps = [d["step"] for d in sv_lc_data]
-        sv_means = [d["mean_reward"] for d in sv_lc_data]
-        ax_lc.plot(
-            sv_steps, sv_means, ":", color=GREEN, linewidth=1.5,
-            label=f"{sv_lc_info.get('kind', 'SVM').upper()} (supervised)",
+    if phase1_n > 0:
+        ax_regret.axvline(
+            phase1_n, color="black", linestyle=":", alpha=0.4, linewidth=1.0,
+        )
+        ylo, yhi = ax_regret.get_ylim()
+        ax_regret.text(
+            phase1_n + 20, ylo + (yhi - ylo) * 0.02,
+            "← in-dist | shifted →",
+            fontsize=7, alpha=0.5, va="bottom",
         )
 
-    # Reference lines for supervised baselines
-    x_max = max(w_steps[-1], t_steps[-1])
-    for kind, (_, color, label) in SV_MARKERS.items():
-        sv = k3["supervised"].get(kind)
-        if sv:
-            ax_lc.axhline(
-                sv["reward"], color=color, linestyle=":", alpha=0.6,
-                linewidth=1,
-            )
-            ax_lc.text(
-                x_max * 1.01, sv["reward"], f"{label}",
-                fontsize=7, color=color, va="center",
-            )
+    ax_regret.set_xlabel("Online step", fontsize=11)
+    ax_regret.set_ylabel("Cumulative cost-adjusted regret", fontsize=11)
+    ax_regret.set_title(
+        f"(a) Regret (λ={headline_lam}, {shift_mag:.0f}σ shift)",
+        fontsize=12, fontweight="bold",
+    )
+    ax_regret.legend(fontsize=8, loc="upper left")
+    ax_regret.grid(True, alpha=0.3)
 
-    # Oracle reference
-    ax_lc.axhline(
-        oracle["reward"], color="gold", linestyle="--", alpha=0.5,
-        linewidth=1,
-    )
-    ax_lc.text(
-        x_max * 1.01, oracle["reward"], "Oracle",
-        fontsize=7, color="goldenrod", va="center",
-    )
+    # ================================================================
+    # Panel (b): Drift detection signal (chi-squared)
+    # ================================================================
+    adaptive_key = "Adaptive (Reset)"
+    adaptive_lc = conditions.get(adaptive_key, [])
 
-    # Sample efficiency annotation
-    se = k3.get("sample_efficiency", {})
-    step0_adv = (
-        (se.get("warmup_step0", 0) or 0) - (se.get("tabula_rasa_step0", 0) or 0)
-    )
-    if step0_adv > 0:
-        ax_lc.annotate(
-            f"Step-0 advantage:\n+{step0_adv:.3f}",
-            xy=(0, se.get("warmup_step0", 0)),
-            xytext=(x_max * 0.15, se.get("warmup_step0", 0) - 0.02),
-            fontsize=8,
-            arrowprops=dict(arrowstyle="->", color=BLUE, lw=1.5),
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8),
+    drift_steps: List[int] = []
+    ema_chi2_vals: List[float] = []
+    baseline_vals: List[float] = []
+    baseline_std_vals: List[float] = []
+    n_resets_vals: List[float] = []
+
+    for d in adaptive_lc:
+        ds = d.get("drift_state")
+        if ds is None:
+            continue
+        drift_steps.append(d["step"])
+        ema_chi2_vals.append(ds.get("mean_ema_chi2", 0))
+        baseline_vals.append(ds.get("mean_baseline", 0))
+        baseline_std_vals.append(ds.get("mean_baseline_std", 0))
+        n_resets_vals.append(d.get("mean_n_resets", 0))
+
+    if drift_steps:
+        ax_drift.plot(
+            drift_steps, ema_chi2_vals, "-", color=GREEN, linewidth=2.0,
+            label="EMA χ²", zorder=3,
+        )
+        ax_drift.plot(
+            drift_steps, baseline_vals, "--", color=GRAY, linewidth=1.5,
+            label="Baseline", zorder=2,
         )
 
-    ax_lc.set_xlabel("Online training steps", fontsize=11)
-    ax_lc.set_ylabel("Holdout reward", fontsize=11)
-    ax_lc.set_title("(b) Learning Curve: Sample Efficiency", fontsize=12)
-    ax_lc.legend(fontsize=8, loc="lower right")
-    ax_lc.grid(True, alpha=0.3)
+        # Threshold line = baseline + drift_threshold_sigma * baseline_std
+        threshold_line = []
+        for b, bs in zip(baseline_vals, baseline_std_vals):
+            if b > 0 and bs > 0:
+                threshold_line.append(b + drift_threshold_sigma * bs)
+            else:
+                threshold_line.append(np.nan)
+        ax_drift.plot(
+            drift_steps, threshold_line, ":", color=RED,
+            linewidth=1.5, label=f"Threshold ({drift_threshold_sigma:.0f}σ)",
+            zorder=2,
+        )
 
+        # Mark reset point(s)
+        reset_step = None
+        for i in range(1, len(n_resets_vals)):
+            if n_resets_vals[i] > n_resets_vals[i - 1]:
+                reset_step = drift_steps[i]
+                break
+        if reset_step is not None:
+            ax_drift.axvline(
+                reset_step, color=GREEN, linestyle="-.", alpha=0.6,
+                linewidth=1.5,
+            )
+            yhi = ax_drift.get_ylim()[1]
+            ax_drift.text(
+                reset_step + 80, yhi * 0.98,
+                f"Reset\n(step {reset_step})",
+                fontsize=7, color=GREEN, fontweight="bold", va="top",
+            )
+
+    if phase1_n > 0:
+        ax_drift.axvline(
+            phase1_n, color="black", linestyle=":", alpha=0.4, linewidth=1.0,
+        )
+
+    ax_drift.set_xlabel("Online step", fontsize=11)
+    ax_drift.set_ylabel("Chi-squared score", fontsize=11)
+    ax_drift.set_title(
+        "(b) Covariate Shift Detector",
+        fontsize=12, fontweight="bold",
+    )
+    ax_drift.legend(fontsize=8, loc="lower right")
+    ax_drift.grid(True, alpha=0.3)
+
+    # ================================================================
+    # Panel (c): Llama routing fraction over time
+    # ================================================================
+    for label, lc in conditions.items():
+        if not lc:
+            continue
+        style = _get_style(label)
+        steps = [d["step"] for d in lc]
+        llama_fracs = [d["arm_fractions"].get("Llama-8B", 0) for d in lc]
+        llama_stds = [
+            d.get("arm_fractions_std", {}).get("Llama-8B", 0) for d in lc
+        ]
+        cis = [_ci95(s, d["n_seeds"]) for s, d in zip(llama_stds, lc)]
+
+        ax_arms.plot(
+            steps, llama_fracs, style["linestyle"],
+            color=style["color"], linewidth=style["linewidth"],
+            label=label, zorder=style["zorder"],
+        )
+        if any(c > 0 for c in cis):
+            ax_arms.fill_between(
+                steps,
+                [f - c for f, c in zip(llama_fracs, cis)],
+                [f + c for f, c in zip(llama_fracs, cis)],
+                color=style["color"], alpha=0.10,
+                zorder=style["zorder"] - 0.5,
+            )
+
+    if oracle_llama_frac > 0:
+        ax_arms.axhline(
+            oracle_llama_frac, color=RED, linestyle="-.",
+            linewidth=1.5, alpha=0.7,
+            label=f"Cost-adj. optimum ({oracle_llama_frac:.0%})",
+        )
+
+    if phase1_n > 0:
+        ax_arms.axvline(
+            phase1_n, color="black", linestyle=":", alpha=0.4, linewidth=1.0,
+        )
+
+    ax_arms.set_xlabel("Online step", fontsize=11)
+    ax_arms.set_ylabel("Llama-8B routing fraction", fontsize=11)
+    ax_arms.set_title(
+        "(c) Cheap-Arm Discovery",
+        fontsize=12, fontweight="bold",
+    )
+    ax_arms.legend(fontsize=8, loc="lower right")
+    ax_arms.grid(True, alpha=0.3)
+    ax_arms.set_ylim(0, 1.0)
+
+    # ================================================================
+    # Save
+    # ================================================================
     plt.tight_layout()
-    out_path = output_dir / "figure4_warmup_ablation.png"
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    for ext in ("png", "pdf"):
+        out_path = output_dir / f"figure4_adaptive_drift.{ext}"
+        fig.savefig(out_path, dpi=300, bbox_inches="tight")
+        print(f"Saved → {out_path}")
     plt.close(fig)
-    print(f"Saved -> {out_path}")
 
 
 if __name__ == "__main__":
-    data = load_results()
+    path = RESULTS_DIR / "distribution_shift_results.json"
+    with open(path) as f:
+        data = json.load(f)
     plot_figure4(data, RESULTS_DIR)

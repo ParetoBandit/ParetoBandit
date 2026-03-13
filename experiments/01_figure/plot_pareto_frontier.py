@@ -7,7 +7,7 @@ each router's Pareto frontier.  This is the headline comparison for RQ1.
 
 Baselines
 ---------
-1. **BanditGPT** (our system): Hybrid LinUCB with warmup priors + cost penalty.
+1. **BanditGPT** (our system): Disjoint LinUCB with warmup priors + cost penalty.
 2. **Supervised (LogReg)**: Logistic regression trained on full reward labels
    for ALL models — the "full information" ceiling.  Represents the supervised
    routing paradigm (RouteLLM, RouterDC).  Sweeps classification threshold.
@@ -118,128 +118,44 @@ ARM_LABELS = {
     "google/gemini-2.5-pro": "Gemini-2.5-Pro",
 }
 COST_PENALTY_SWEEP = [
-    0.0, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2,
+    0.0, 0.005, 0.01, 0.02, 0.03, 0.05, 0.07,
+    0.1, 0.12, 0.15, 0.17, 0.2,
     0.22, 0.25, 0.28,
     0.3, 0.35, 0.4, 0.45,
-    0.5, 0.6, 0.7, 0.8,
-    1.0, 2.0, 5.0, 10.0,
+    0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8,
+    0.9, 1.0, 1.5, 2.0, 3.0, 5.0, 7.0, 10.0,
 ]
 COSTSAVE_THRESHOLDS = [0.90, 0.95, 0.99]
 
-CB_BLUE = "#0072B2"
-CB_ORANGE = "#E69F00"
-CB_GRAY = "#999999"
-CB_RED = "#D55E00"
-CB_GREEN = "#009E73"
-CB_PURPLE = "#CC79A7"
-CB_TEAL = "#56B4E9"
-CB_YELLOW = "#F0E442"
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Data Loading
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-@dataclass
-class SplitData:
-    """Pre-processed split with embeddings ready for bandit simulation."""
-
-    prompts: List[str]
-    rewards: Dict[str, np.ndarray]
-    costs: Dict[str, np.ndarray]
-    embeddings: np.ndarray
-
-    @property
-    def n(self) -> int:
-        return len(self.prompts)
+from utils.simulation import (
+    SplitData,
+    load_split as _load_split,
+    build_model_registry as _build_model_registry,
+    compute_normalized_costs as _compute_normalized_costs,
+    CB_BLUE,
+    CB_ORANGE,
+    CB_GRAY,
+    CB_RED,
+    CB_GREEN,
+    CB_PURPLE,
+    CB_TEAL,
+    CB_YELLOW,
+)
 
 
 def load_split(path: Path, fs: FeatureService) -> SplitData:
-    """Load a JSONL split and encode prompts into feature vectors.
-
-    Args:
-        path: Path to a JSONL file where each line contains ``prompt``
-            and ``arms`` with per-model ``reward`` and ``cost``.
-        fs: Feature service for encoding prompts.
-
-    Returns:
-        Fully loaded and embedded split data.
-    """
-    prompts: List[str] = []
-    per_arm_rewards: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
-    per_arm_costs: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
-
-    with open(path) as f:
-        for line in f:
-            r = json.loads(line)
-            prompts.append(r["prompt"])
-            for arm_id in ARM_ORDER:
-                info = r["arms"][arm_id]
-                per_arm_rewards[arm_id].append(info["reward"])
-                per_arm_costs[arm_id].append(info["cost"])
-
-    rewards = {a: np.array(v) for a, v in per_arm_rewards.items()}
-    costs = {a: np.array(v) for a, v in per_arm_costs.items()}
-
-    logger.info("  Encoding %d prompts from %s ...", len(prompts), path.name)
-    embeddings = fs.extract_features_batch(prompts)
-
-    return SplitData(
-        prompts=prompts, rewards=rewards, costs=costs, embeddings=embeddings,
-    )
+    """Load a JSONL split for the K=2 arm set."""
+    return _load_split(path, fs, ARM_ORDER)
 
 
 def build_model_registry() -> Dict[str, Any]:
     """Build model registry filtered to the K=2 arm set."""
-    config_path = PROJECT_ROOT / "data_collection" / "config" / "models_k3.json"
-    with open(config_path) as f:
-        data = json.load(f)
-    registry: Dict[str, Any] = {}
-    for m in data["models"]:
-        if m["model_id"] in ARM_ORDER:
-            registry[m["model_id"]] = {
-                "model_id": m["model_id"],
-                "display_name": m.get("display", m["model_id"]),
-                "input_cost_per_m": m["input_cost_per_m"],
-                "output_cost_per_m": m["output_cost_per_m"],
-            }
-    return registry
+    return _build_model_registry(ARM_ORDER)
 
 
 def compute_normalized_costs(registry: Dict[str, Any]) -> Dict[str, float]:
-    """Compute per-model normalized costs from registry pricing.
-
-    Uses :func:`bandit_gpt.costs.log_normalize_cost` — the same canonical
-    normalization as ``BanditRouter._get_normalized_cost`` — so that a
-    given ``cost_penalty`` value has identical semantics across all methods.
-
-    Market anchors and the ``(input + output) / 2 / 1000`` blending formula
-    are read from ``RouterConfig`` (single source of truth).
-
-    Args:
-        registry: Model registry with ``input_cost_per_m`` and
-            ``output_cost_per_m`` entries ($/1M tokens).
-
-    Returns:
-        ``{model_id: normalized_cost}`` in [0, 1].
-    """
-    from bandit_gpt.costs import log_normalize_cost
-    from bandit_gpt.router import RouterConfig
-
-    cfg = RouterConfig()
-    norm: Dict[str, float] = {}
-    for arm in ARM_ORDER:
-        meta = registry[arm]
-        input_cost = meta["input_cost_per_m"]
-        output_cost = meta["output_cost_per_m"]
-        avg_cost_per_1k = ((input_cost + output_cost) / 2.0) / 1000.0
-        norm[arm] = log_normalize_cost(
-            avg_cost_per_1k,
-            floor=cfg.market_cost_floor,
-            ceiling=cfg.market_cost_ceiling,
-        )
-    return norm
+    """Compute per-model normalized costs for the K=2 arm set."""
+    return _compute_normalized_costs(registry, ARM_ORDER)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -315,6 +231,8 @@ def simulate_bandit(
         cost_penalty=cost_penalty,
         forgetting_factor=hparams["forgetting_factor"],
         policy="disjoint" if is_tabula_rasa else hparams["policy"],
+        corralling_learning_rate=hparams.get("corralling_learning_rate", 0.1),
+        corralling_gamma=hparams.get("corralling_gamma", 0.05),
     )
 
     arm_to_idx = {arm: i for i, arm in enumerate(ARM_ORDER)}
@@ -564,7 +482,7 @@ def tune_baseline_hparams(
     The value maximising val AUC is selected.
 
     This mirrors the tuning protocol used for BanditGPT (which was tuned
-    via ``tune_hybrid_router.py`` on the same val split).
+    via ``tune_hybrid_router.py`` on the same val split, now Disjoint).
 
     Args:
         train: Training data (online learning phase).
@@ -2026,7 +1944,11 @@ def main() -> None:
     )
     n_bootstrap = 200 if args.fast else args.n_bootstrap
 
-    hparams = dict(BEST_K2_HPARAMS)
+    hparams = {
+        **BEST_K2_HPARAMS,
+        "alpha": 0.5,
+        "prior_n_effective": 5000.0,
+    }
     warmup_path = str(K2_WARMUP_PRIORS_PATH)
 
     # ── Load data ─────────────────────────────────────────────────────

@@ -138,42 +138,46 @@ Practitioners should select $\eta$ based on operational objectives:
 % D.4: Dynamic Model Onboarding
 % ----------------------------------------------------------------------------
 
-\subsection{Dynamic Model Onboarding: Controlled Family Sharing}
+\subsection{Dynamic Model Onboarding}
 \label{app:model_onboarding_figure}
 
-The leave-one-out ablation (Section~\ref{sec:transfer_null}, Table~\ref{tab:semantic_transfer}) confirms that one-shot per-model $\thetavec$-transfer adds no significant benefit beyond continuous family $\betavec_F$ sharing. Here we evaluate whether that family-level $\betavec$ provides additional value during dynamic model onboarding via \texttt{register\_model()}.
+We demonstrate \textit{banditGPT}'s ability to incorporate a new model
+into an existing portfolio at runtime, without retraining or collecting
+additional labels.
 
-\paragraph{Controlled Design.}
-To isolate the family sharing effect, we use the \textbf{same newcomer model} (\texttt{openai/gpt-4.1}) in both conditions, varying \emph{only} the family assignment:
-\begin{itemize}[nosep]
-    \item \textbf{Shared family:} \texttt{gpt-4.1} auto-joins the \texttt{openai/gpt-4} family, sharing $\betavec$ with \texttt{gpt-4-turbo}.
-    \item \textbf{Isolated family:} \texttt{gpt-4.1} is forced into a singleton family via override---no family sharing.
-\end{itemize}
-Both conditions receive identical semantic bootstrapping (\texttt{gpt-4.1} $\to$ \texttt{gpt-4-turbo}, similarity $0.849$, $N_{\text{eff}}{=}5$), same seeds, same data, and same embeddings. A 2-model base fleet runs for 500~steps before introduction; routing continues through step~1,121. Holdout: $N{=}750$, 20~seeds, 95\% CIs ($t_{19}$).
+\paragraph{Setup.}
+A Disjoint LinUCB router with warmup priors is pre-trained on the
+canonical training split ($n{=}8{,}374$) with $K{=}2$ arms
+(Llama-3.1-8B + Gemini-2.5-Pro).
+After pre-training, Mistral-Large-2512 is added via a single
+\texttt{register\_model()} call, and the router processes the test split
+($n{=}1{,}824$) with all three arms.
+Mistral is an ideal onboarding candidate: it achieves 99\% of Gemini's
+reward ($0.923$ vs.\ $0.932$) at $1/29$th the cost
+(\$0.00052/req vs.\ \$0.015/req).
+Configuration: $\alpha{=}1.0$, $\neff{=}50$, no Corralling,
+$\lambda{=}0.20$, averaged over 20~seeds.
 
-\begin{figure*}[htbp]
-\centering
-\includegraphics[width=0.75\textwidth]{figures/model_onboarding.png}
-\caption{\textbf{Dynamic Model Onboarding: Shared vs.\ Isolated Family (Same Model).}
-\textbf{(a)}~Reward trajectory (50-step moving average). Both conditions are identical pre-introduction and converge to the same post-introduction quality. Oracle and always-newcomer baselines shown for reference.
-\textbf{(b)}~Prediction error (MAE) for prompts routed to the newcomer. The shared condition starts at substantially lower error (0.09 vs.\ 0.17) thanks to the inherited $\betavec$, but both converge to the same final MAE (${\sim}0.045$). The isolated condition explores the newcomer slightly more aggressively (higher UCB bonus from singleton family uncertainty), but this does not translate into a quality difference.}
-\Description{Two-panel figure: (a) reward trajectory showing shared and isolated family conditions converging to identical post-onboarding quality; (b) prediction error for newcomer prompts showing the shared condition starts with lower error but both converge.}
-\label{fig:model_onboarding}
-\end{figure*}
+\input{../experiments/03_figure/figure3_caption}
 
-\paragraph{Holdout Quality: A Null Result.}
-Both conditions achieve comparable holdout reward: $0.970 \pm 0.002$ (shared) vs.\ $0.971 \pm 0.003$ (isolated). A paired $t$-test confirms no significant difference ($t(19){=}{-}0.87$, $p{=}0.394$). Both substantially exceed the 2-model baseline reported in the main paper (Figure~\ref{fig:prequential_k2}b).
-
-\paragraph{Calibration Speed: An Early Advantage.}
-While final quality is indistinguishable, the shared condition starts with 46\% lower prediction error (MAE: 0.090 vs.\ 0.165 in the first 50 newcomer selections). The inherited family $\betavec$ provides a better initial reward estimate, reducing prediction uncertainty during the critical early routing decisions. Both conditions converge to the same final MAE (${\sim}0.045$), explaining the null result on holdout quality.
-
-\paragraph{Interpretation: Semantic Bootstrapping Dominates.}
-The null result does not mean family sharing is useless---it means that \emph{semantic bootstrapping already provides sufficient signal} in this setting. The \texttt{register\_model()} API transfers the neighbor's learned $\thetavec$ with confidence reset ($\Amat{=}\mathbf{I}$), giving the newcomer an informed starting point while preserving exploration. The additional family $\betavec$ accelerates early calibration but does not improve the converged policy.
+\paragraph{UCB exploration discovers the newcomer.}
+Because Mistral starts with identity-scaled precision ($A_a{=}\lambda I$),
+its UCB exploration bonus is large relative to the well-calibrated
+incumbents.
+The router begins routing to Mistral immediately and its windowed share
+rises rapidly.  Gemini's share collapses as the router discovers that
+Mistral provides comparable quality at a fraction of the cost.
 
 \paragraph{Practical guidance.}
-For practitioners, the operational message is simple: \textbf{calling \texttt{register\_model()} is sufficient for effective model onboarding.}  The API automatically discovers the nearest semantic neighbor, bootstraps the newcomer's reward estimates, and resets confidence to ensure exploration---no manual family configuration required.  Adding a third model to a 2-model fleet improved holdout quality from $0.903$ to $0.970$ (+6.7~pp), and this improvement was identical regardless of whether family sharing was active.  The newcomer reaches full calibration within ${\sim}600$ routing decisions; at typical production throughput ($>$100~req/hr), this completes within a few hours.
-
-Family sharing provides faster early calibration (46\% lower initial prediction error for the first ${\sim}50$ decisions) and becomes more relevant when: (a)~no strong semantic neighbor exists, (b)~the family has extensive routing history, or (c)~the portfolio is large enough that per-model learning is slow. For the common case of onboarding a new variant from a known provider (e.g., a new GPT-4 release), semantic bootstrapping alone handles the transition seamlessly. Numerical details are in Appendix~\ref{app:model_onboarding_figure}.
+For practitioners, the key message is that \textbf{calling
+\texttt{register\_model()} is sufficient for effective model onboarding.}
+LinUCB's uncertainty-driven exploration naturally discovers a newcomer's
+quality profile without any dedicated exploration protocol or alpha boost.
+The newcomer's routing share stabilises within several hundred prompts;
+at typical production throughput ($>$100~req/hr), this completes within
+a few hours.
+Unlike supervised routers (RouteLLM, RouterDC), no new labelled data or
+retraining is required.
 
 % ----------------------------------------------------------------------------
 % D.5: Semantic Transfer Ablation (Leave-One-Out)

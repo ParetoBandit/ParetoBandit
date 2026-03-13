@@ -75,7 +75,7 @@ Three regimes emerge:
         Beyond mean regret, warmup priors stabilise learning across
         seeds.  At $\lambda_c{=}0.10$, Tabula Rasa exhibits an order
         of magnitude higher seed-level variance
-        (SE $16.6$ vs.\ $1.0$), indicating that some uninformed
+        (SE $16.6$ vs.\ $0.9$), indicating that some uninformed
         seeds fall into suboptimal exploration trajectories that
         priors prevent.
 \end{enumerate}
@@ -129,9 +129,8 @@ is not meaningful, as cumulative regret depends on the model panel,
 reward definition, prompt distribution, and horizon
 length~\cite{lattimore2020bandit}.
 The operationally meaningful comparison is the \emph{relative}
-reduction, and the 9--20\% range we observe at moderate cost
-penalties at moderate $\lambda_c$ is consistent with the
-warm-start literature.
+reduction, and the 9--20\% range we observe at moderate
+$\lambda_c$ is consistent with the warm-start literature.
 
 \paragraph{Information budget and fairness.}
 The warmup priors are constructed from \emph{full-information}

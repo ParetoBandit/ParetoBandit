@@ -5,10 +5,9 @@ We evaluate \textit{banditGPT} through the following research questions:
 
 \begin{itemize}[nosep,leftmargin=*]
     \item \textbf{RQ1}: How does banditGPT's cost--quality Pareto frontier compare to supervised routing baselines?
-    \item \textbf{RQ2}: How do warmup priors affect cold-start performance?
-    \item \textbf{RQ3}: Does Corralling provide resilience against catastrophic model failure?
-    \item \textbf{RQ4}: How robust is banditGPT to distribution shift and prior mismatch?
-    \item \textbf{RQ5}: How does banditGPT compare to alternative bandit baselines, and how quickly does it converge?
+    \item \textbf{RQ2}: Does Corralling provide resilience against catastrophic model failure?
+    \item \textbf{RQ3}: How robust is banditGPT to distribution shift and prior mismatch?
+    \item \textbf{RQ4}: How does banditGPT compare to alternative bandit baselines, and how quickly does it converge?
 \end{itemize}
 
 \input{sections/experiments}
@@ -20,14 +19,8 @@ We compare \textit{banditGPT} against supervised routing baselines from LLMRoute
 All routers are trained on the same 533-prompt online-learning split; supervised baselines receive the full per-model reward matrix while \textit{banditGPT} observes only the reward of the model it selects (partial feedback).
 Performance is evaluated on the frozen 750-prompt holdout using Pareto AUC, PerfGain, CostSave, and Gap@Oracle~\cite{hu2024routerbench}.
 
-\input{../experiments/03_figure/figure3_caption}
-
-%% Detailed quantitative results are reported in the per-experiment
-%% results_discussion.tex included from 03_figure/.
-\input{../experiments/03_figure/results_discussion}
-
 % ============================================================================
-% RQ2: Multi-Model Scaling (K=3)
+% RQ2: Corralling / Catastrophic Failure
 % ============================================================================
 
 \input{../experiments/04_figure/figure4_caption}
@@ -35,22 +28,22 @@ Performance is evaluated on the frozen 750-prompt holdout using Pareto AUC, Perf
 \input{../experiments/04_figure/results_discussion}
 
 % ============================================================================
-% RQ3: Family Parameter Sharing / K-Scaling
+% RQ2 continued: Family Parameter Sharing / K-Scaling
 % ============================================================================
 \input{../experiments/05_figure/section_k_scaling_results}
 
 % ============================================================================
-% RQ4: Distribution Shift Factorial
+% RQ3: Distribution Shift Factorial
 % ============================================================================
 \input{../experiments/06_distribution_shift/section_distribution_shift}
 
 % ============================================================================
-% RQ5: Baseline Comparison and Convergence
+% RQ4: Baseline Comparison and Convergence
 % ============================================================================
 \input{../experiments/07_figure/section_lints_comparison}
 
 % ============================================================================
-% RQ5 continued: Cumulative Regret + Epsilon-Greedy Analysis
+% RQ4 continued: Cumulative Regret + Epsilon-Greedy Analysis
 % ============================================================================
 \input{../experiments/08_figure/section_cumulative_regret}
 
@@ -60,7 +53,7 @@ Performance is evaluated on the frozen 750-prompt holdout using Pareto AUC, Perf
 \label{sec:transfer_null}
 \label{sec:limitations}
 
-Additional analyses in the supplementary material include robustness under prior mismatch, synthetic catastrophic-failure stress tests, dynamic model onboarding, and a leave-one-out semantic transfer ablation which confirms that one-shot parameter bootstrapping provides no significant benefit beyond the continuous family sharing of Hybrid LinUCB ($p{>}0.5$).
+Additional analyses in the supplementary material include robustness under prior mismatch, synthetic catastrophic-failure stress tests, and a dynamic model onboarding demonstration (Appendix~\ref{app:model_onboarding_figure}) showing that \texttt{register\_model()} seamlessly incorporates a new model into the portfolio via UCB exploration.
 
 \paragraph{Limitations.}
 Different portfolios and traffic will shift quantitative crossover points. While our distribution shift analysis (Section~\ref{sec:distribution_shift}) shows adaptation renders prior source statistically irrelevant, magnitudes will vary with distributional mismatch. Our current treatment of non-stationarity relies on meta-level mixing rather than explicit forgetting within experts.

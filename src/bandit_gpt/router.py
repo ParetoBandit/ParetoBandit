@@ -1031,6 +1031,26 @@ class DisjointLinUCBPolicy:
         # forgetting/decay in low-traffic regimes.
         self.regularization_floor = {m: self.init_lambda for m in self.models}
 
+    def reset_to_tabula_rasa(self) -> None:
+        """Reset all learned state to cold-start initialization.
+
+        Discards A, b, and A_inv matrices for every arm, restoring them
+        to ``A = init_lambda * I``, ``b = 0``.  Time counters are zeroed
+        so the policy re-explores as if no observations had been seen.
+
+        Thread-safe: acquires all per-model locks and the global lock.
+        """
+        with self._lock:
+            for m in self.models:
+                with self.model_locks[m]:
+                    self.A[m] = np.eye(self.dim) * self.init_lambda
+                    self.b[m] = np.zeros(self.dim, dtype=np.float64)
+                    self.A_inv[m] = safe_inv(self.A[m])
+                    self.last_update[m] = 0
+                    self.last_played[m] = 0
+                    self.regularization_floor[m] = self.init_lambda
+            self.t = 0
+
     def __deepcopy__(self, memo):
         """
         Custom deepcopy to handle thread locks.
@@ -1931,6 +1951,35 @@ class HybridLinUCBPolicy:
             m: self.init_lambda for m in self.models
         }
 
+    def reset_to_tabula_rasa(self) -> None:
+        """Reset all learned state (shared + per-arm) to cold-start.
+
+        Discards A0/b0 (shared), and per-arm A/B/b matrices, restoring
+        them to ``init_lambda * I`` / zero.  Time counters are zeroed
+        so the policy re-explores as if no observations had been seen.
+
+        Thread-safe: acquires the shared lock, all per-model locks,
+        and the global lock.
+        """
+        with self._lock:
+            with self._shared_lock:
+                self.A0 = np.eye(self.dim) * self.init_lambda
+                self.b0 = np.zeros(self.dim, dtype=np.float64)
+                self.A0_inv = safe_inv(self.A0)
+
+            for m in self.models:
+                with self.model_locks[m]:
+                    self.A[m] = np.eye(self.dim) * self.init_lambda
+                    self.B[m] = np.zeros(
+                        (self.dim, self.dim), dtype=np.float64,
+                    )
+                    self.b[m] = np.zeros(self.dim, dtype=np.float64)
+                    self.A_inv[m] = safe_inv(self.A[m])
+                    self.last_update[m] = 0
+                    self.last_played[m] = 0
+                    self.regularization_floor[m] = self.init_lambda
+            self.t = 0
+
     # ------------------------------------------------------------------
     # Deep copy
     # ------------------------------------------------------------------
@@ -2714,6 +2763,7 @@ class RoutingLog:
     cost_usd: float
     latency_s: float
     context_vector: np.ndarray | None = None # Cached embedding for updates
+    expected_reward: float = 0.0             # θᵀx at route time (for drift detection residuals)
     total_priority_weight: float = 1.0       # Sum of w_q, w_c, w_l for normalization
     corralling_token: Dict | None = None     # Selection token for Corralling meta-weight attribution
 
@@ -2767,6 +2817,11 @@ class BanditRouter:
         tabula_rasa_forgetting_factor: float | None = None,
         policy: str = "disjoint",
         gamma_ramp_steps: int = 500,
+        drift_threshold: float = 0.0,
+        adapted_forgetting_factor: float = 0.999,
+        drift_burn_in_steps: int = 50,
+        drift_ema_alpha: float = 0.05,
+        drift_confirmation_window: int = 20,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -2824,6 +2879,28 @@ class BanditRouter:
                        the Corralling exploration floor drops to 0 and linearly
                        ramps back to ``corralling_gamma`` over this many steps
                        (default: 500).
+            drift_threshold: Sigma-based threshold for automatic covariate
+                       shift detection on prompt embeddings.  When the EMA
+                       of chi-squared z-scores on context vectors exceeds
+                       the burn-in baseline by ``threshold * baseline_std``
+                       for a sustained confirmation window, the router
+                       performs a **tabula rasa reset**: all bandit matrices
+                       (A, b) are cleared to cold-start values and the
+                       drift detector re-enters burn-in on the new traffic.
+                       This detect → reset → re-learn cycle repeats if a
+                       subsequent shift is detected.
+                       - 0 = disabled (default, backward-compatible)
+                       - 1.5 = sensitive (FPR ~3%)
+                       - 2.0 = conservative (FPR ~1%)
+            adapted_forgetting_factor: Deprecated — retained for backward
+                       compatibility.  Adaptation now resets to tabula rasa
+                       instead of lowering the forgetting factor.
+            drift_burn_in_steps: Observations used to establish the embedding
+                       distribution baseline (default: 50).
+            drift_ema_alpha: Smoothing factor for the drift detector's EMA
+                       (default: 0.05, half-life ≈ 14 observations).
+            drift_confirmation_window: Consecutive above-threshold steps
+                       required before drift is confirmed (default: 20).
         """
         self.config = config or RouterConfig()
         self.verbose_routing = verbose_routing
@@ -2836,6 +2913,14 @@ class BanditRouter:
         self.tabula_rasa_alpha = tabula_rasa_alpha
         self.tabula_rasa_forgetting_factor = tabula_rasa_forgetting_factor
         self.policy_type = policy
+        self.drift_threshold = drift_threshold
+        self.adapted_forgetting_factor = adapted_forgetting_factor
+        self.drift_burn_in_steps = drift_burn_in_steps
+        self.drift_ema_alpha = drift_ema_alpha
+        self.drift_confirmation_window = drift_confirmation_window
+        self._drift_adapted = False
+        self.drift_detector = None  # Activated by create() only when priors are loaded
+
         if model_registry is None:
             # Load default models.json from config/
             base_dir = Path(__file__).parent
@@ -3092,13 +3177,22 @@ class BanditRouter:
             forgetting_factor=tr_gamma,
         )
 
+        n_experts = 2
+        gamma = self.corralling_gamma
+        prior_trust_weights = np.array(
+            [1.0 - gamma, gamma], dtype=np.float64,
+        )
+
         self.corralling_router = CorrallingRouter(
             experts=[expert_warmup, expert_tabula_rasa],
             models=self.bandit.models,
             learning_rate=self.corralling_learning_rate,
             gamma=self.corralling_gamma,
             model_costs=model_costs,
+            cost_penalty=self.cost_penalty,
+            latency_penalty=self.latency_penalty,
             gamma_ramp_steps=self.gamma_ramp_steps,
+            initial_weights=prior_trust_weights,
         )
 
         logger.info("[OK] Heterogeneous Experts Strategy Initialized:")
@@ -3106,7 +3200,7 @@ class BanditRouter:
         logger.info(f"   [SEARCH] Expert 2 (Uninformed):   Decaying Alpha {tr_alpha_start:.2f}→{tr_alpha_end} (Explore-then-Exploit)")
         logger.info(f"   [TIME] Forgetting (warmup):      γ={self.bandit.gamma:.4f} ({'stationary' if self.bandit.gamma >= 1.0 else 'adaptive'})")
         logger.info(f"   [TIME] Forgetting (tabula rasa): γ={tr_gamma:.4f} ({'stationary' if tr_gamma >= 1.0 else 'adaptive'})")
-        logger.info("   [TARGET] Meta-Learner:            Corralling (Log-Barrier OMD) selects expert based on prompt context")
+        logger.info(f"   [TARGET] Meta-Learner:            Corralling (Log-Barrier OMD), prior-trust init [{prior_trust_weights[0]:.3f}, {prior_trust_weights[1]:.3f}]")
 
     def __deepcopy__(self, memo):
         """Custom deepcopy for BanditRouter to handle unpicklable components.
@@ -3725,9 +3819,39 @@ class BanditRouter:
                 # after the regularization loop — wasting O(K·d³) at startup.
                 router.bandit.refresh_inverse_cache()
                 logger.info(f"[OK] Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
+
+                # Activate embedding-based covariate drift detection now
+                # that priors are loaded.  The detector monitors the prompt
+                # embedding distribution to catch distribution shift —
+                # meaningful only with priors (no point detecting shift
+                # when learning from scratch).
+                if router.drift_threshold > 0:
+                    from bandit_gpt.drift import DriftDetector
+                    router.drift_detector = DriftDetector(
+                        threshold=router.drift_threshold,
+                        burn_in_steps=router.drift_burn_in_steps,
+                        ema_alpha=router.drift_ema_alpha,
+                        confirmation_window=router.drift_confirmation_window,
+                    )
+                    logger.info(
+                        "[OK] Embedding drift detection enabled "
+                        "(threshold=%.1fσ, burn_in=%d, ema_alpha=%.3f, "
+                        "confirm=%d).",
+                        router.drift_threshold,
+                        router.drift_burn_in_steps,
+                        router.drift_ema_alpha,
+                        router.drift_confirmation_window,
+                    )
             else:
                 logger.warning(f"[WARN] Priors file not found at {priors_path}. Using cold start.")
         
+        if router.drift_detector is None and router.drift_threshold > 0:
+            logger.info(
+                "Drift detection requires warmup priors; skipping "
+                "(drift_threshold=%.1fσ has no effect without priors).",
+                router.drift_threshold,
+            )
+
         # =====================================================================
         # LAYER 3: T-SHIRT SIZING INJECTION (Business Logic)
         # =====================================================================
@@ -4203,6 +4327,27 @@ class BanditRouter:
         """
         # Build features and apply constraints
         x, prompt_text = self._build_routing_features(prompt)
+
+        # Covariate drift detection: feed the context vector BEFORE arm
+        # selection so the router adapts proactively (no reward needed).
+        if self.drift_detector is not None:
+            self.drift_detector.update(x)
+            if self.drift_detector.is_drifting:
+                self._n_resets = getattr(self, "_n_resets", 0) + 1
+                pre_reset_score = self.drift_detector.drift_score
+                self.bandit.reset_to_tabula_rasa()
+                self.drift_detector.reset()
+                self._drift_adapted = True
+                logger.info(
+                    "[DRIFT] Covariate shift detected — resetting to "
+                    "tabula rasa (reset #%d, drift_score=%.4f, "
+                    "threshold=%.1fσ). Bandit matrices cleared; "
+                    "drift detector re-entering burn-in.",
+                    self._n_resets,
+                    pre_reset_score,
+                    self.drift_threshold,
+                )
+
         candidates = list(self.registry.keys())
         filtered = self._filter_by_constraints(
             candidates,
@@ -4382,7 +4527,7 @@ class BanditRouter:
         # reward > 1 would produce negative loss (artificially boosting an expert);
         # reward < 0 would spike the importance-weighted loss, destabilizing meta-weights.
         reward = float(np.clip(reward, 0.0, 1.0))
-        
+
         # Use cached context vector to avoid re-encoding
         x = log.context_vector if log.context_vector is not None else self._get_context_vector(log.prompt)
         
@@ -4932,6 +5077,22 @@ class CorrallingRouter:
     shifts weight to tabula rasa. If warmup priors are helpful, they dominate.
     This provides safety guarantees against negative transfer.
 
+    **Cost-Adjusted Meta-Loss:**
+    The meta-learner evaluates experts on the same cost-quality objective
+    they optimize at selection time.  Each base expert picks the arm that
+    maximizes ``E[reward] + alpha * uncertainty - lambda_c * cost``, so
+    the meta-learner's loss function includes the same cost (and latency)
+    penalties::
+
+        loss(a) = (1 - reward + lambda_c * cost(a) + lambda_l * latency(a))
+                  / (1 + lambda_c + lambda_l)
+
+    Because cost and latency are properties of the **action** (which model
+    was played), not of the expert, the IPW estimator remains unbiased and
+    the O(sqrt(K T ln K)) regret bound holds — now measured against the
+    cost-adjusted best expert.  When both penalties are 0 (default), this
+    reduces to the standard quality-only loss ``1 - reward``.
+
     **Expert Death Prevention:**
     Two complementary mechanisms prevent expert death:
     1. The log-barrier regularizer makes it mathematically impossible for weights
@@ -5033,6 +5194,8 @@ class CorrallingRouter:
         meta_lr_halflife: float = 60.0,  # Staleness half-life in seconds for delayed feedback
         initial_weights: Optional[np.ndarray] = None,  # Prior-trust bias
         model_costs: Optional[Dict] = None,  # {model_id: {"normalized_cost": float}}
+        cost_penalty: float = 0.0,  # Meta-level cost penalty (aligns with base experts)
+        latency_penalty: float = 0.0,  # Meta-level latency penalty (aligns with base experts)
         epsilon: float = 1e-8,  # Regularizer for adaptive learning rate denominator
         ipw_clip: float = 20.0,  # Cap on importance weights fed to base experts
         gamma_floor: float = 0.0,  # Gamma during onboarding (warm expert gets full control)
@@ -5047,6 +5210,21 @@ class CorrallingRouter:
         are down-weighted automatically.  The log-barrier naturally prevents
         expert death (weights cannot reach zero), complementing the explicit
         gamma exploration floor.
+
+        **Cost-Adjusted Meta-Loss:**
+        The meta-learner evaluates experts on the same cost-quality objective
+        they optimize at selection time::
+
+            loss = (1 - reward + lambda_c * norm_cost + lambda_l * norm_latency)
+                   / (1 + lambda_c + lambda_l)
+
+        When ``cost_penalty`` and ``latency_penalty`` are both 0 (default),
+        this reduces to the standard quality-only loss ``1 - reward``.
+        The normalization by ``(1 + lambda_c + lambda_l)`` keeps loss in
+        [0, 1], preserving the bounded-loss assumption required by the
+        Corralling regret analysis.  Because cost and latency are properties
+        of the **action** (model chosen), not of the expert, the IPW
+        estimator ``loss / pi(a)`` remains unbiased.
 
         The ``loss_decay`` parameter is a practical extension (not part of
         the original Corralling theory) that enables meta-level adaptation
@@ -5091,9 +5269,19 @@ class CorrallingRouter:
             initial_weights: Optional array of initial expert weights.
                        Must sum to 1 and have length == len(experts).
                        Default: uniform (1/K each).
-            model_costs: Optional dict mapping model_id to cost metadata.
-                       Stored for reference; cost/latency trade-offs are
-                       handled by each expert's ``cost_penalty`` parameter.
+            model_costs: Optional dict mapping model_id to cost metadata,
+                       each entry ``model_id -> {"normalized_cost": float,
+                       "normalized_latency": float}``.  Used by the
+                       cost-adjusted meta-loss to penalize expensive routing
+                       decisions at the expert-selection level.
+            cost_penalty: Cost penalty lambda_c for the meta-learner's loss
+                       function (default: 0.0).  Should match the
+                       ``cost_penalty`` used by the base experts so the
+                       meta-learner evaluates experts on the same objective
+                       they optimize.  When 0, the meta-loss is quality-only.
+            latency_penalty: Latency penalty lambda_l for the meta-learner's
+                       loss function (default: 0.0).  Analogous to
+                       ``cost_penalty`` for latency-aware routing.
             epsilon: Small constant added to the squared-loss denominator
                        for numerical stability (default: 1e-8).
             ipw_clip: Maximum importance weight ``weight / action_prob``
@@ -5124,6 +5312,9 @@ class CorrallingRouter:
         self.loss_decay = loss_decay
         self.meta_lr_halflife = meta_lr_halflife
         self.model_costs = model_costs or {}
+        self.cost_penalty = cost_penalty
+        self.latency_penalty = latency_penalty
+        self._loss_normalizer = 1.0 + cost_penalty + latency_penalty
         self.n_experts = len(experts)
         self.epsilon = epsilon
         self.ipw_clip = ipw_clip
@@ -5422,10 +5613,16 @@ class CorrallingRouter:
         Only performed when a valid ``selection_token`` is provided (returned
         by ``select_model()``).
 
-        For the played action *a* with observed loss ℓ, the estimated loss
-        for expert *j* is::
+        The observed loss incorporates cost and latency penalties to align
+        the meta-learner's objective with the base experts' selection
+        criterion::
 
-            ℓ̂_j = I(expert_j recommended a) · ℓ / π(a)
+            ℓ_obs = (1 - r + λ_c · cost(a) + λ_l · latency(a))
+                    / (1 + λ_c + λ_l)
+
+        For the played action *a*, the estimated loss for expert *j* is::
+
+            ℓ̂_j = I(expert_j recommended a) · ℓ_obs / π(a)
 
         where π(a) = Σ_j p_j · I(expert_j chose a) is the marginal
         probability of *a* under the mixed policy.  All experts that
@@ -5515,7 +5712,16 @@ class CorrallingRouter:
             else:
                 staleness_factor = 1.0
 
-            observed_loss = 1.0 - reward
+            model_meta = self.model_costs.get(model, {})
+            norm_cost = model_meta.get("normalized_cost", 0.0)
+            norm_latency = model_meta.get("normalized_latency", 0.0)
+            cost_adjustment = (
+                self.cost_penalty * norm_cost
+                + self.latency_penalty * norm_latency
+            )
+            observed_loss = (
+                (1.0 - reward + cost_adjustment) / self._loss_normalizer
+            )
             losses = np.zeros(self.n_experts)
 
             # Importance-weighted loss estimator (Agarwal et al., 2017):

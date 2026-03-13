@@ -108,7 +108,7 @@ HOLDOUT_DATA_PATH = OFFLINE_DATASET_DIR / "test.jsonl"
 # ``scripts/generate_multimodel_warmup_priors.py``.
 # PCA-25 embeddings (28.5% variance), all-MiniLM-L6-v2 encoder.
 # Upgraded from PCA-20 after full hparam sweep confirmed d=25 maximises
-# test Pareto AUC (+0.841%) with hybrid policy.
+# test Pareto AUC (+0.841%) with disjoint policy.
 
 WARMUP_PRIORS_DIR = DATA_COLLECTION_DIR / "warmup_priors"
 K2_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k2_25comp.joblib"
@@ -133,44 +133,52 @@ CANONICAL_CALIBRATED_ROUTER_PATH = (
 DEFAULT_MODEL_REGISTRY_PATH = Path(__file__).parent / "models.json"
 
 # ==============================================================================
-# Best K=2 Hyperparameters (from benchmark sweep on val, 160 configs x 3 seeds)
+# Best K=2 Hyperparameters (from benchmark sweep on val, 170 configs x 3 seeds)
 # ==============================================================================
 #
 # Selected by Pareto AUC on val.  Test seeds independent (offset 1000+).
-# See experiments/benchmark/results/hparam_tuning_k2.json for full sweep.
+# Source of truth: experiments/benchmark/results/hparam_tuning_k2_pca25.json
+# Re-tuned 2026-03-11 after Hybrid warm-prior decomposition fix (3556345).
 
 BEST_K2_HPARAMS: Dict[str, Any] = {
     "alpha": 1.00,
-    "prior_n_effective": 10.0,
-    "policy": "hybrid",
+    "prior_n_effective": 50.0,
+    "policy": "disjoint",
     "use_corralling": False,
     "forgetting_factor": 1.0,
 }
-"""Best hybrid K=2 config (PCA-25, ``corralling=False``).
+"""Best K=2 config overall (PCA-25, ``corralling=False``).
 
-Val AUC = 0.8686 (+0.818%), Test AUC = 0.8699 (+0.841%).
-CostSave@95% = 40.7%, CostSave@99% = 14.3% on test.
-Used for Exp 1 (headline CostSave), Exp 2 (learning curve), Exp 5 (features).
+Val AUC = 0.8688 (+0.844%), Test AUC = 0.8699 (+0.841%).
+CostSave@95% = 40.7%, CostSave@99% = 15.3% on test.
+Disjoint beats Hybrid by +0.000224 AUC with lower variance (±0.000354
+vs ±0.000870) and 2x faster per-cycle latency.
+Used for Exp 1 (headline Pareto), Exp 3 (onboarding), Exp 8 (regret).
 """
 
 BEST_K2_CORRALLING_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.05,
+    "alpha": 1.00,
     "prior_n_effective": 50.0,
-    "policy": "hybrid",
+    "policy": "disjoint",
     "use_corralling": True,
     "forgetting_factor": 1.0,
+    "corralling_learning_rate": 0.05,
+    "corralling_gamma": 0.01,
 }
-"""Best K=2 config with ``corralling=True`` (PCA-only).
+"""Best K=2 config with ``corralling=True`` (PCA-25, Disjoint, cost-adjusted meta-loss).
 
-Val AUC = 0.8665 (+0.580%).
-Used for Exp 3 (onboarding), Exp 4 (Corralling ablation), Exp 6 (warmup).
-Corralling pays a small overhead under good priors but provides safety
-against prior misspecification (see Exp 4).
+Val AUC = 0.8687 (+0.839%), Test AUC = 0.8698 ± 0.0004 (+0.836%).
+CostSave@90% = 70.7%, CostSave@95% = 40.9%, CostSave@99% = 14.9% on test.
+Base expert params (alpha=1.0, n_eff=50) fixed to the proven BEST_K2_HPARAMS
+values to ensure a smooth, cliff-free Pareto frontier.  Only the meta-learner
+parameters (LR, gamma) were tuned.  Prior-trust initialization gives the
+warmup expert (1-gamma) initial weight so the tabula rasa expert must earn
+influence through observed performance.
+From hparam_tuning_k2_corralling_meta.json.
 """
 
-# Placeholder — to be filled after tabula_rasa sweep completes.
 BEST_K2_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.30,
+    "alpha": 0.50,
     "prior_n_effective": 1.0,
     "policy": "tabula_rasa",
     "use_corralling": False,
@@ -178,11 +186,9 @@ BEST_K2_TABULA_RASA_HPARAMS: Dict[str, Any] = {
 }
 """Best K=2 config for pure tabula rasa (``priors='none'``).
 
-Val AUC = 0.8614 (from hparam_tuning_k2.json).
-Notably uses alpha=0.3 — lower than the warmup config's alpha=1.0,
-because without priors the reward estimates are noisier and a smaller
-exploration bonus avoids over-exploration early on.
-Used as a baseline in Exp 6 (warmup ablation) to show the value of priors.
+Val AUC = 0.8684 (+0.802%), from hparam_tuning_k2_pca25.json.
+Used as a baseline in Exp 4 (distribution shift) and Exp 6 (warmup
+ablation) to show the value of priors.
 """
 
 # ==============================================================================
