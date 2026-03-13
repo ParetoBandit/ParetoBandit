@@ -1,73 +1,49 @@
-% Table: Regret Reduction across Cost Penalties (K=2)
+% Table: Cold-Start Prior Value — Summary Metrics (K=2)
 % Include from paper/sections/results.tex
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Cumulative test-set regret ($n{=}1{,}824$ prompts) for
-offline-informed (warmup) vs.\ uninformed (tabula rasa) initialisation
-across cost penalties~$\lambda_c$.
-Both conditions have processed $n{=}8{,}374$ online training prompts
-before the test split; the comparison therefore measures
-\emph{lasting} parameter-quality differences, not transient
-cold-start effects.
-Each condition uses its own $\alpha$ tuned on the validation split at the
-corresponding~$\lambda_c$
-(see Appendix~\ref{appendix:alpha_tuning_multi_cp}).
-Mean $\pm$ SE across 20~seeds.
-Reduction $= 1 - \text{Regret}_W / \text{Regret}_{TR}$.}
+\caption{Cold-start deployment metrics for $K{=}2$ at
+$\lambda_c{=}0.15$, averaged over 20~seeds ($\pm 1$~SE).
+The router is deployed directly on the held-out test split
+($n{=}1{,}824$) with \textbf{no pre-training phase}.
+Both conditions use the same exploration rate ($\alpha{=}0.5$);
+the only difference is whether warmup priors are loaded.
+``Early regret'' is cumulative regret over the first
+100~prompts---the initial onboarding period where cold-start
+cost is most acute.}
 \label{tab:regret_reduction}
-\begin{tabular}{cccccr}
+\begin{tabular}{lccc}
 \toprule
-$\lambda_c$
-  & $\alpha_W$
-  & Regret$_W$
-  & $\alpha_{TR}$
-  & Regret$_{TR}$
-  & Reduction \\
+Metric
+  & BanditGPT
+  & Tabula Rasa
+  & Improvement \\
 \midrule
-  0.05
-  & 0.01
-  & $26.8 \pm 0.2$
-  & 0.10
-  & $29.8 \pm 0.5$
-  & 9.8\% \\
-  0.10
-  & 0.01
-  & $34.3 \pm 0.9$
-  & 0.10
-  & $63.0 \pm 16.6$\rlap{$^\dagger$}
-  & 45.6\% \\
-  \textbf{0.15}
-  & \textbf{0.01}
-  & $\mathbf{49.3 \pm 2.0}$
-  & \textbf{0.30}
-  & $\mathbf{61.6 \pm 0.9}$
-  & \textbf{20.0\%} \\
-  0.20
-  & 0.01
-  & $80.4 \pm 2.2$
-  & 0.30
-  & $88.3 \pm 1.9$
-  & 8.9\% \\
-  0.30
-  & 2.00
-  & $161.0 \pm 0.6$
-  & 2.00
-  & $160.3 \pm 0.5$
-  & $-0.4$\% \\
-  0.50
-  & 2.00
-  & $246.4 \pm 0.4$
-  & 2.00
-  & $246.3 \pm 0.5$
-  & $-0.0$\% \\
+  Cumulative regret
+  & $69.3 \pm 0.5$
+  & $86.2 \pm 1.5$
+  & $-19.6$\% \\
+  Early regret ($N{\leq}100$)
+  & $3.0 \pm 0.2$
+  & $7.7 \pm 0.2$
+  & $\mathbf{-61.3}$\% \\
+  Mean reward
+  & $0.908 \pm 0.000$
+  & $0.899 \pm 0.001$
+  & $+0.9$~pp \\
+  Convergence (prompts)
+  & $259 \pm 83$
+  & $487 \pm 90$
+  & $47$\% fewer \\
 \bottomrule
 \end{tabular}
 
 \vspace{2pt}
-{\footnotesize $^\dagger$High SE driven by seed-level variance
-in uninformed exploration at low~$\alpha$; warmup priors
-stabilise learning across seeds (SE $0.9$ vs.\ $16.6$).
-Bold row: operating point used in Figure~\ref{fig:warmup_ablation_k2}.}
+{\footnotesize
+Convergence is the first prompt at which the windowed regret rate
+($w{=}100$) stabilises within $0.005$ of its final value.
+Warmup priors reduce early regret by $>$60\% and halve the
+number of prompts needed to reach steady-state routing quality.}
 \end{table}

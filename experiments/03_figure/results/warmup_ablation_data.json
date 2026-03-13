@@ -1,10 +1,11 @@
 {
-  "experiment": "warmup_ablation_learning_curves",
+  "experiment": "cold_start_prior_value",
+  "protocol": "cold_start_no_pretraining",
   "conditions": {
     "BanditGPT": {
       "hparams": {
-        "alpha": 0.01,
-        "prior_n_effective": 10.0,
+        "alpha": 0.5,
+        "prior_n_effective": 5000.0,
         "policy": "disjoint",
         "use_corralling": false,
         "forgetting_factor": 1.0
@@ -13,7 +14,7 @@
     },
     "Tabula Rasa": {
       "hparams": {
-        "alpha": 0.3,
+        "alpha": 0.5,
         "prior_n_effective": 1.0,
         "policy": "tabula_rasa",
         "use_corralling": false,
@@ -28,2966 +29,880 @@
   "metrics": {
     "BanditGPT": {
       "test_reward": {
-        "mean": 0.9192426535087719,
-        "se": 0.0011017180430438712,
+        "mean": 0.9082621436403511,
+        "se": 0.00027674882604221423,
         "n": 20
       },
       "cumulative_regret": {
-        "mean": 49.32040000000001,
-        "se": 2.0095337105120206,
+        "mean": 69.34885,
+        "se": 0.5047898587009929,
         "n": 20
       },
       "costsave_95": {
-        "mean": 17.671029394162105,
-        "se": 1.4958550890114937,
+        "mean": 26.651848036174595,
+        "se": 0.20086991881225744,
         "n": 20
       },
       "convergence_prompt": {
-        "mean": 1557.5,
-        "se": 186.17602734480812,
+        "mean": 259.35,
+        "se": 83.42078735637716,
+        "n": 20
+      },
+      "early_regret_100": {
+        "mean": 2.96365,
+        "se": 0.15424775482457126,
         "n": 20
       }
     },
     "Tabula Rasa": {
       "test_reward": {
-        "mean": 0.9124943804824561,
-        "se": 0.0004676279628713928,
+        "mean": 0.8990087171052632,
+        "se": 0.0008059209936456124,
         "n": 20
       },
       "cumulative_regret": {
-        "mean": 61.62924999999999,
-        "se": 0.8529534042774093,
+        "mean": 86.2271,
+        "se": 1.469999892409592,
         "n": 20
       },
       "costsave_95": {
-        "mean": 23.824483026581134,
-        "se": 0.37728342599160153,
+        "mean": 29.505044006332867,
+        "se": 0.6977210987522952,
         "n": 20
       },
       "convergence_prompt": {
-        "mean": 1932.5,
-        "se": 191.02476417029231,
+        "mean": 486.75,
+        "se": 89.47372078172626,
+        "n": 20
+      },
+      "early_regret_100": {
+        "mean": 7.664199999999999,
+        "se": 0.22827076028260826,
         "n": 20
       }
     }
   },
   "costsave_checkpoints": {
     "BanditGPT": {
+      "50": {
+        "mean": 23.59954501471614,
+        "se": 2.435041722285465,
+        "n": 19
+      },
       "100": {
-        "mean": 21.286133240132564,
-        "se": 2.282937326927875,
+        "mean": 21.504916218373175,
+        "se": 1.6924560600348713,
         "n": 20
       },
       "250": {
-        "mean": 17.446208549059932,
-        "se": 1.6834520216221944,
+        "mean": 22.012028055845562,
+        "se": 1.0266838772581366,
         "n": 20
       },
       "500": {
-        "mean": 17.163730237899934,
-        "se": 1.4414340092215991,
+        "mean": 24.43851113421428,
+        "se": 0.5381921517774313,
         "n": 20
       },
       "1000": {
-        "mean": 17.331264184764812,
-        "se": 1.4122568058761245,
+        "mean": 25.937664966030013,
+        "se": 0.4141905972615861,
         "n": 20
       },
       "1824": {
-        "mean": 17.671029394162105,
-        "se": 1.4958550890114937,
+        "mean": 26.651848036174595,
+        "se": 0.20086991881225744,
         "n": 20
       }
     },
     "Tabula Rasa": {
+      "50": {
+        "mean": 54.9274947572303,
+        "se": 2.700578691035183,
+        "n": 2
+      },
       "100": {
-        "mean": 27.26707517678035,
-        "se": 1.4225797704892074,
-        "n": 20
+        "mean": 55.4973276173972,
+        "se": 0.0,
+        "n": 1
       },
       "250": {
-        "mean": 23.670219367491136,
-        "se": 0.8382637929964872,
-        "n": 20
+        "mean": 34.811768356751,
+        "se": 2.6312231173867384,
+        "n": 2
       },
       "500": {
-        "mean": 23.411390819790142,
-        "se": 0.7016482784363012,
-        "n": 20
+        "mean": 33.346806240314145,
+        "se": 1.1483119984304524,
+        "n": 6
       },
       "1000": {
-        "mean": 23.726147794363463,
-        "se": 0.5294217596471086,
-        "n": 20
+        "mean": 31.81786515255822,
+        "se": 0.9358666068433534,
+        "n": 18
       },
       "1824": {
-        "mean": 23.824483026581134,
-        "se": 0.37728342599160153,
+        "mean": 29.505044006332867,
+        "se": 0.6977210987522952,
         "n": 20
       }
     }
   },
-  "checkpoints": {
-    "BanditGPT": [
-      {
-        "n_seen": 50,
-        "phase": "train",
-        "cum_reward_mean": 0.8819739999999999,
-        "win_reward_mean": 0.8819739999999999,
-        "cum_cost_mean": 0.007816412750000001
-      },
-      {
-        "n_seen": 100,
-        "phase": "train",
-        "cum_reward_mean": 0.880602,
-        "win_reward_mean": 0.8806019999999999,
-        "cum_cost_mean": 0.008427701775000001
-      },
-      {
-        "n_seen": 150,
-        "phase": "train",
-        "cum_reward_mean": 0.883641666666667,
-        "win_reward_mean": 0.8836416666666667,
-        "cum_cost_mean": 0.008842706200000001
-      },
-      {
-        "n_seen": 200,
-        "phase": "train",
-        "cum_reward_mean": 0.8886832500000006,
-        "win_reward_mean": 0.8886832499999999,
-        "cum_cost_mean": 0.009344878237499998
-      },
-      {
-        "n_seen": 250,
-        "phase": "train",
-        "cum_reward_mean": 0.8921772000000008,
-        "win_reward_mean": 0.894728,
-        "cum_cost_mean": 0.00975901495
-      },
-      {
-        "n_seen": 300,
-        "phase": "train",
-        "cum_reward_mean": 0.8954193333333341,
-        "win_reward_mean": 0.9028280000000001,
-        "cum_cost_mean": 0.010117487908333334
-      },
-      {
-        "n_seen": 350,
-        "phase": "train",
-        "cum_reward_mean": 0.897327571428572,
-        "win_reward_mean": 0.907592,
-        "cum_cost_mean": 0.010290368664285714
-      },
-      {
-        "n_seen": 400,
-        "phase": "train",
-        "cum_reward_mean": 0.9012033750000006,
-        "win_reward_mean": 0.9137235,
-        "cum_cost_mean": 0.010532505756250001
-      },
-      {
-        "n_seen": 450,
-        "phase": "train",
-        "cum_reward_mean": 0.9035256666666672,
-        "win_reward_mean": 0.91771125,
-        "cum_cost_mean": 0.010689124427777778
-      },
-      {
-        "n_seen": 500,
-        "phase": "train",
-        "cum_reward_mean": 0.9050235000000006,
-        "win_reward_mean": 0.9194297500000002,
-        "cum_cost_mean": 0.010819067540000001
-      },
-      {
-        "n_seen": 550,
-        "phase": "train",
-        "cum_reward_mean": 0.9065720909090915,
-        "win_reward_mean": 0.9227500000000001,
-        "cum_cost_mean": 0.010978666322727272
-      },
-      {
-        "n_seen": 600,
-        "phase": "train",
-        "cum_reward_mean": 0.9077875833333335,
-        "win_reward_mean": 0.920956,
-        "cum_cost_mean": 0.011076547208333336
-      },
-      {
-        "n_seen": 650,
-        "phase": "train",
-        "cum_reward_mean": 0.9090043076923078,
-        "win_reward_mean": 0.9213312499999999,
-        "cum_cost_mean": 0.01115386622692308
-      },
-      {
-        "n_seen": 700,
-        "phase": "train",
-        "cum_reward_mean": 0.9095914999999997,
-        "win_reward_mean": 0.9210115,
-        "cum_cost_mean": 0.011225076685714288
-      },
-      {
-        "n_seen": 750,
-        "phase": "train",
-        "cum_reward_mean": 0.9103993333333331,
-        "win_reward_mean": 0.92092425,
-        "cum_cost_mean": 0.011330415846666669
-      },
-      {
-        "n_seen": 800,
-        "phase": "train",
-        "cum_reward_mean": 0.9107424374999994,
-        "win_reward_mean": 0.9196069999999997,
-        "cum_cost_mean": 0.011365351006250001
-      },
-      {
-        "n_seen": 850,
-        "phase": "train",
-        "cum_reward_mean": 0.9110920588235288,
-        "win_reward_mean": 0.9178772499999999,
-        "cum_cost_mean": 0.011430098320588238
-      },
-      {
-        "n_seen": 900,
-        "phase": "train",
-        "cum_reward_mean": 0.9119222777777771,
-        "win_reward_mean": 0.9200800000000001,
-        "cum_cost_mean": 0.011515578608333335
-      },
-      {
-        "n_seen": 950,
-        "phase": "train",
-        "cum_reward_mean": 0.912708157894736,
-        "win_reward_mean": 0.9213662499999999,
-        "cum_cost_mean": 0.011558686750000002
-      },
-      {
-        "n_seen": 1000,
-        "phase": "train",
-        "cum_reward_mean": 0.9132441999999988,
-        "win_reward_mean": 0.9232512500000001,
-        "cum_cost_mean": 0.011593488437500004
-      },
-      {
-        "n_seen": 1050,
-        "phase": "train",
-        "cum_reward_mean": 0.9139296666666656,
-        "win_reward_mean": 0.9259894999999998,
-        "cum_cost_mean": 0.011632001021428574
-      },
-      {
-        "n_seen": 1100,
-        "phase": "train",
-        "cum_reward_mean": 0.914789227272726,
-        "win_reward_mean": 0.9276905,
-        "cum_cost_mean": 0.01167672287727273
-      },
-      {
-        "n_seen": 1150,
-        "phase": "train",
-        "cum_reward_mean": 0.9150920869565207,
-        "win_reward_mean": 0.92641575,
-        "cum_cost_mean": 0.011699491045652178
-      },
-      {
-        "n_seen": 1200,
-        "phase": "train",
-        "cum_reward_mean": 0.9154074166666664,
-        "win_reward_mean": 0.9262234999999999,
-        "cum_cost_mean": 0.011757757033333333
-      },
-      {
-        "n_seen": 1250,
-        "phase": "train",
-        "cum_reward_mean": 0.9155192680000003,
-        "win_reward_mean": 0.9238646750000001,
-        "cum_cost_mean": 0.011804390658000003
-      },
-      {
-        "n_seen": 1300,
-        "phase": "train",
-        "cum_reward_mean": 0.9158731423076928,
-        "win_reward_mean": 0.9218346749999998,
-        "cum_cost_mean": 0.01185189784038462
-      },
-      {
-        "n_seen": 1350,
-        "phase": "train",
-        "cum_reward_mean": 0.9160501000000011,
-        "win_reward_mean": 0.921558675,
-        "cum_cost_mean": 0.011885740731481485
-      },
-      {
-        "n_seen": 1400,
-        "phase": "train",
-        "cum_reward_mean": 0.9161751571428585,
-        "win_reward_mean": 0.9207816000000001,
-        "cum_cost_mean": 0.011920343323214285
-      },
-      {
-        "n_seen": 1450,
-        "phase": "train",
-        "cum_reward_mean": 0.916400313793105,
-        "win_reward_mean": 0.92190685,
-        "cum_cost_mean": 0.011953095
-      },
-      {
-        "n_seen": 1500,
-        "phase": "train",
-        "cum_reward_mean": 0.9165114033333355,
-        "win_reward_mean": 0.9206601000000001,
-        "cum_cost_mean": 0.011929122326666668
-      },
-      {
-        "n_seen": 1550,
-        "phase": "train",
-        "cum_reward_mean": 0.9167894225806474,
-        "win_reward_mean": 0.9217798499999998,
-        "cum_cost_mean": 0.011945080875806452
-      },
-      {
-        "n_seen": 1600,
-        "phase": "train",
-        "cum_reward_mean": 0.9168995656250025,
-        "win_reward_mean": 0.9219704250000001,
-        "cum_cost_mean": 0.011964748464062498
-      },
-      {
-        "n_seen": 1650,
-        "phase": "train",
-        "cum_reward_mean": 0.9170223363636394,
-        "win_reward_mean": 0.921532,
-        "cum_cost_mean": 0.011986463427272723
-      },
-      {
-        "n_seen": 1700,
-        "phase": "train",
-        "cum_reward_mean": 0.917138561764709,
-        "win_reward_mean": 0.9218422500000001,
-        "cum_cost_mean": 0.012008178441176468
-      },
-      {
-        "n_seen": 1750,
-        "phase": "train",
-        "cum_reward_mean": 0.9172617457142891,
-        "win_reward_mean": 0.92092225,
-        "cum_cost_mean": 0.012024368341428568
-      },
-      {
-        "n_seen": 1800,
-        "phase": "train",
-        "cum_reward_mean": 0.917350697222226,
-        "win_reward_mean": 0.92095975,
-        "cum_cost_mean": 0.012044962561111105
-      },
-      {
-        "n_seen": 1850,
-        "phase": "train",
-        "cum_reward_mean": 0.9175745432432469,
-        "win_reward_mean": 0.92213025,
-        "cum_cost_mean": 0.012061691428378372
-      },
-      {
-        "n_seen": 1900,
-        "phase": "train",
-        "cum_reward_mean": 0.917748047368425,
-        "win_reward_mean": 0.922928675,
-        "cum_cost_mean": 0.012072772481578942
-      },
-      {
-        "n_seen": 1950,
-        "phase": "train",
-        "cum_reward_mean": 0.9178719179487219,
-        "win_reward_mean": 0.923210925,
-        "cum_cost_mean": 0.012082739578205121
-      },
-      {
-        "n_seen": 2000,
-        "phase": "train",
-        "cum_reward_mean": 0.9180209700000042,
-        "win_reward_mean": 0.9240534249999998,
-        "cum_cost_mean": 0.012083996267499992
-      },
-      {
-        "n_seen": 2050,
-        "phase": "train",
-        "cum_reward_mean": 0.9181781414634189,
-        "win_reward_mean": 0.923761425,
-        "cum_cost_mean": 0.012101960396341458
-      },
-      {
-        "n_seen": 2100,
-        "phase": "train",
-        "cum_reward_mean": 0.9184371619047665,
-        "win_reward_mean": 0.9249837500000002,
-        "cum_cost_mean": 0.01211783456666666
-      },
-      {
-        "n_seen": 2150,
-        "phase": "train",
-        "cum_reward_mean": 0.918610251162795,
-        "win_reward_mean": 0.9258089999999999,
-        "cum_cost_mean": 0.01212362897674418
-      },
-      {
-        "n_seen": 2200,
-        "phase": "train",
-        "cum_reward_mean": 0.9187037681818231,
-        "win_reward_mean": 0.92553175,
-        "cum_cost_mean": 0.012124412044318172
-      },
-      {
-        "n_seen": 2250,
-        "phase": "train",
-        "cum_reward_mean": 0.9188105733333378,
-        "win_reward_mean": 0.9252929999999999,
-        "cum_cost_mean": 0.012128613227777769
-      },
-      {
-        "n_seen": 2300,
-        "phase": "train",
-        "cum_reward_mean": 0.9189284739130473,
-        "win_reward_mean": 0.92408725,
-        "cum_cost_mean": 0.012132163549999991
-      },
-      {
-        "n_seen": 2350,
-        "phase": "train",
-        "cum_reward_mean": 0.9191030170212798,
-        "win_reward_mean": 0.92440025,
-        "cum_cost_mean": 0.012153041088297864
-      },
-      {
-        "n_seen": 2400,
-        "phase": "train",
-        "cum_reward_mean": 0.9192324333333358,
-        "win_reward_mean": 0.9250477500000001,
-        "cum_cost_mean": 0.01215789478749999
-      },
-      {
-        "n_seen": 2450,
-        "phase": "train",
-        "cum_reward_mean": 0.9194196081632674,
-        "win_reward_mean": 0.9262712500000001,
-        "cum_cost_mean": 0.012164837974489789
-      },
-      {
-        "n_seen": 2500,
-        "phase": "train",
-        "cum_reward_mean": 0.9194643500000017,
-        "win_reward_mean": 0.9256269250000001,
-        "cum_cost_mean": 0.012159572581999992
-      },
-      {
-        "n_seen": 2550,
-        "phase": "train",
-        "cum_reward_mean": 0.9195983235294127,
-        "win_reward_mean": 0.9254181749999999,
-        "cum_cost_mean": 0.012163970728431363
-      },
-      {
-        "n_seen": 2600,
-        "phase": "train",
-        "cum_reward_mean": 0.919720759615385,
-        "win_reward_mean": 0.925580675,
-        "cum_cost_mean": 0.012164296431730762
-      },
-      {
-        "n_seen": 2650,
-        "phase": "train",
-        "cum_reward_mean": 0.9197694811320757,
-        "win_reward_mean": 0.924055425,
-        "cum_cost_mean": 0.012177285533962256
-      },
-      {
-        "n_seen": 2700,
-        "phase": "train",
-        "cum_reward_mean": 0.9199186203703702,
-        "win_reward_mean": 0.9255970000000001,
-        "cum_cost_mean": 0.012188497147222215
-      },
-      {
-        "n_seen": 2750,
-        "phase": "train",
-        "cum_reward_mean": 0.9199673727272719,
-        "win_reward_mean": 0.92467275,
-        "cum_cost_mean": 0.012187961625454538
-      },
-      {
-        "n_seen": 2800,
-        "phase": "train",
-        "cum_reward_mean": 0.9201745624999988,
-        "win_reward_mean": 0.9260740000000001,
-        "cum_cost_mean": 0.012203051596428562
-      },
-      {
-        "n_seen": 2850,
-        "phase": "train",
-        "cum_reward_mean": 0.9202974473684197,
-        "win_reward_mean": 0.9272929999999999,
-        "cum_cost_mean": 0.012212142232456133
-      },
-      {
-        "n_seen": 2900,
-        "phase": "train",
-        "cum_reward_mean": 0.9203500086206876,
-        "win_reward_mean": 0.92617375,
-        "cum_cost_mean": 0.012217030840517232
-      },
-      {
-        "n_seen": 2950,
-        "phase": "train",
-        "cum_reward_mean": 0.9203787661016927,
-        "win_reward_mean": 0.9260354249999999,
-        "cum_cost_mean": 0.012214449041525417
-      },
-      {
-        "n_seen": 3000,
-        "phase": "train",
-        "cum_reward_mean": 0.920476031666664,
-        "win_reward_mean": 0.9246966000000001,
-        "cum_cost_mean": 0.01222411368666666
-      },
-      {
-        "n_seen": 3050,
-        "phase": "train",
-        "cum_reward_mean": 0.9205308016393413,
-        "win_reward_mean": 0.9238561000000001,
-        "cum_cost_mean": 0.012222610018852453
-      },
-      {
-        "n_seen": 3100,
-        "phase": "train",
-        "cum_reward_mean": 0.9205944016129001,
-        "win_reward_mean": 0.9241381000000001,
-        "cum_cost_mean": 0.012226220057258059
-      },
-      {
-        "n_seen": 3150,
-        "phase": "train",
-        "cum_reward_mean": 0.920728236507933,
-        "win_reward_mean": 0.925882925,
-        "cum_cost_mean": 0.012230793300793645
-      },
-      {
-        "n_seen": 3200,
-        "phase": "train",
-        "cum_reward_mean": 0.9208429828124963,
-        "win_reward_mean": 0.9263472500000003,
-        "cum_cost_mean": 0.012225206374218743
-      },
-      {
-        "n_seen": 3250,
-        "phase": "train",
-        "cum_reward_mean": 0.9208843015384574,
-        "win_reward_mean": 0.926275175,
-        "cum_cost_mean": 0.012226597621538455
-      },
-      {
-        "n_seen": 3300,
-        "phase": "train",
-        "cum_reward_mean": 0.9208710848484805,
-        "win_reward_mean": 0.9251596750000001,
-        "cum_cost_mean": 0.012233883436363632
-      },
-      {
-        "n_seen": 3350,
-        "phase": "train",
-        "cum_reward_mean": 0.9209028149253685,
-        "win_reward_mean": 0.9236524249999999,
-        "cum_cost_mean": 0.012240919807462685
-      },
-      {
-        "n_seen": 3400,
-        "phase": "train",
-        "cum_reward_mean": 0.9209794647058771,
-        "win_reward_mean": 0.923163175,
-        "cum_cost_mean": 0.012248692096323524
-      },
-      {
-        "n_seen": 3450,
-        "phase": "train",
-        "cum_reward_mean": 0.9210019028985453,
-        "win_reward_mean": 0.9229129250000001,
-        "cum_cost_mean": 0.012250432497101445
-      },
-      {
-        "n_seen": 3500,
-        "phase": "train",
-        "cum_reward_mean": 0.9210776185714227,
-        "win_reward_mean": 0.924485425,
-        "cum_cost_mean": 0.012255962011428567
-      },
-      {
-        "n_seen": 3550,
-        "phase": "train",
-        "cum_reward_mean": 0.9210743985915435,
-        "win_reward_mean": 0.9239484250000001,
-        "cum_cost_mean": 0.012256252059859151
-      },
-      {
-        "n_seen": 3600,
-        "phase": "train",
-        "cum_reward_mean": 0.9211928097222162,
-        "win_reward_mean": 0.9248196749999998,
-        "cum_cost_mean": 0.012260354334722218
-      },
-      {
-        "n_seen": 3650,
-        "phase": "train",
-        "cum_reward_mean": 0.9212174835616376,
-        "win_reward_mean": 0.9249362500000002,
-        "cum_cost_mean": 0.01226469590684931
-      },
-      {
-        "n_seen": 3700,
-        "phase": "train",
-        "cum_reward_mean": 0.9213275040540474,
-        "win_reward_mean": 0.9257004999999999,
-        "cum_cost_mean": 0.012270817227027022
-      },
-      {
-        "n_seen": 3750,
-        "phase": "train",
-        "cum_reward_mean": 0.921327403999993,
-        "win_reward_mean": 0.9258182499999998,
-        "cum_cost_mean": 0.012279130285999994
-      },
-      {
-        "n_seen": 3800,
-        "phase": "train",
-        "cum_reward_mean": 0.9213579605263087,
-        "win_reward_mean": 0.924330675,
-        "cum_cost_mean": 0.012278912571052623
-      },
-      {
-        "n_seen": 3850,
-        "phase": "train",
-        "cum_reward_mean": 0.9212904285714213,
-        "win_reward_mean": 0.9226216749999999,
-        "cum_cost_mean": 0.012286865098701293
-      },
-      {
-        "n_seen": 3900,
-        "phase": "train",
-        "cum_reward_mean": 0.9214186666666592,
-        "win_reward_mean": 0.9231051749999999,
-        "cum_cost_mean": 0.012295460335256404
-      },
-      {
-        "n_seen": 3950,
-        "phase": "train",
-        "cum_reward_mean": 0.9214066962025239,
-        "win_reward_mean": 0.9228934249999998,
-        "cum_cost_mean": 0.012299018567721514
-      },
-      {
-        "n_seen": 4000,
-        "phase": "train",
-        "cum_reward_mean": 0.9214698587499921,
-        "win_reward_mean": 0.9235959249999999,
-        "cum_cost_mean": 0.012303709036249996
-      },
-      {
-        "n_seen": 4050,
-        "phase": "train",
-        "cum_reward_mean": 0.9215073543209795,
-        "win_reward_mean": 0.925683175,
-        "cum_cost_mean": 0.012306487843827152
-      },
-      {
-        "n_seen": 4100,
-        "phase": "train",
-        "cum_reward_mean": 0.9215742036585282,
-        "win_reward_mean": 0.9246071749999999,
-        "cum_cost_mean": 0.012303317937804871
-      },
-      {
-        "n_seen": 4150,
-        "phase": "train",
-        "cum_reward_mean": 0.9215800807228829,
-        "win_reward_mean": 0.9250044249999998,
-        "cum_cost_mean": 0.012310103027710836
-      },
-      {
-        "n_seen": 4200,
-        "phase": "train",
-        "cum_reward_mean": 0.9216086476190389,
-        "win_reward_mean": 0.9243844250000001,
-        "cum_cost_mean": 0.012306545167857137
-      },
-      {
-        "n_seen": 4250,
-        "phase": "train",
-        "cum_reward_mean": 0.9216036164705793,
-        "win_reward_mean": 0.9235529250000001,
-        "cum_cost_mean": 0.012312138687058816
-      },
-      {
-        "n_seen": 4300,
-        "phase": "train",
-        "cum_reward_mean": 0.9216728767441769,
-        "win_reward_mean": 0.9236956749999999,
-        "cum_cost_mean": 0.012312092367441855
-      },
-      {
-        "n_seen": 4350,
-        "phase": "train",
-        "cum_reward_mean": 0.9215891655172321,
-        "win_reward_mean": 0.9217776750000001,
-        "cum_cost_mean": 0.012313948759770108
-      },
-      {
-        "n_seen": 4400,
-        "phase": "train",
-        "cum_reward_mean": 0.9216501295454451,
-        "win_reward_mean": 0.92252125,
-        "cum_cost_mean": 0.012316737230681812
-      },
-      {
-        "n_seen": 4450,
-        "phase": "train",
-        "cum_reward_mean": 0.9217380382022377,
-        "win_reward_mean": 0.9245945000000001,
-        "cum_cost_mean": 0.012323512624719096
-      },
-      {
-        "n_seen": 4500,
-        "phase": "train",
-        "cum_reward_mean": 0.9217723822222131,
-        "win_reward_mean": 0.92391175,
-        "cum_cost_mean": 0.012331696693888883
-      },
-      {
-        "n_seen": 4550,
-        "phase": "train",
-        "cum_reward_mean": 0.9217877296703213,
-        "win_reward_mean": 0.9261065,
-        "cum_cost_mean": 0.01233366662692307
-      },
-      {
-        "n_seen": 4600,
-        "phase": "train",
-        "cum_reward_mean": 0.9218489934782529,
-        "win_reward_mean": 0.926224,
-        "cum_cost_mean": 0.012335167678804342
-      },
-      {
-        "n_seen": 4650,
-        "phase": "train",
-        "cum_reward_mean": 0.9218097860214979,
-        "win_reward_mean": 0.9234061749999999,
-        "cum_cost_mean": 0.012336197008064511
-      },
-      {
-        "n_seen": 4700,
-        "phase": "train",
-        "cum_reward_mean": 0.9218587638297802,
-        "win_reward_mean": 0.9238023499999999,
-        "cum_cost_mean": 0.012339339806382972
-      },
-      {
-        "n_seen": 4750,
-        "phase": "train",
-        "cum_reward_mean": 0.9219079978947302,
-        "win_reward_mean": 0.9246441000000001,
-        "cum_cost_mean": 0.01234271699263157
-      },
-      {
-        "n_seen": 4800,
-        "phase": "train",
-        "cum_reward_mean": 0.9218999874999938,
-        "win_reward_mean": 0.92307285,
-        "cum_cost_mean": 0.012344692964583324
-      },
-      {
-        "n_seen": 4850,
-        "phase": "train",
-        "cum_reward_mean": 0.9220043587628808,
-        "win_reward_mean": 0.9265281749999998,
-        "cum_cost_mean": 0.012353049925257722
-      },
-      {
-        "n_seen": 4900,
-        "phase": "train",
-        "cum_reward_mean": 0.922020457142852,
-        "win_reward_mean": 0.9258202500000001,
-        "cum_cost_mean": 0.01234958499489795
-      },
-      {
-        "n_seen": 4950,
-        "phase": "train",
-        "cum_reward_mean": 0.9220405232323184,
-        "win_reward_mean": 0.925188,
-        "cum_cost_mean": 0.012351082945454537
-      },
-      {
-        "n_seen": 5000,
-        "phase": "train",
-        "cum_reward_mean": 0.9220853079999953,
-        "win_reward_mean": 0.9265329999999998,
-        "cum_cost_mean": 0.012350565065499992
-      },
-      {
-        "n_seen": 5050,
-        "phase": "train",
-        "cum_reward_mean": 0.9221862059405901,
-        "win_reward_mean": 0.9265960000000002,
-        "cum_cost_mean": 0.012348129942574249
-      },
-      {
-        "n_seen": 5100,
-        "phase": "train",
-        "cum_reward_mean": 0.9221535441176437,
-        "win_reward_mean": 0.925414175,
-        "cum_cost_mean": 0.012347767318627443
-      },
-      {
-        "n_seen": 5150,
-        "phase": "train",
-        "cum_reward_mean": 0.9220949174757254,
-        "win_reward_mean": 0.9234411750000001,
-        "cum_cost_mean": 0.012353931386893195
-      },
-      {
-        "n_seen": 5200,
-        "phase": "train",
-        "cum_reward_mean": 0.9221345019230742,
-        "win_reward_mean": 0.9233643500000002,
-        "cum_cost_mean": 0.012353067597596147
-      },
-      {
-        "n_seen": 5250,
-        "phase": "train",
-        "cum_reward_mean": 0.922173916190474,
-        "win_reward_mean": 0.9218635999999998,
-        "cum_cost_mean": 0.012349767472380941
-      },
-      {
-        "n_seen": 5300,
-        "phase": "train",
-        "cum_reward_mean": 0.9222031716981114,
-        "win_reward_mean": 0.923468675,
-        "cum_cost_mean": 0.01234987574339622
-      },
-      {
-        "n_seen": 5350,
-        "phase": "train",
-        "cum_reward_mean": 0.9222602448598117,
-        "win_reward_mean": 0.9265174249999999,
-        "cum_cost_mean": 0.012353296609813078
-      },
-      {
-        "n_seen": 5400,
-        "phase": "train",
-        "cum_reward_mean": 0.9222581499999988,
-        "win_reward_mean": 0.9254729999999999,
-        "cum_cost_mean": 0.012353252568981479
-      },
-      {
-        "n_seen": 5450,
-        "phase": "train",
-        "cum_reward_mean": 0.9222976532110083,
-        "win_reward_mean": 0.9255457500000002,
-        "cum_cost_mean": 0.012351767861009172
-      },
-      {
-        "n_seen": 5500,
-        "phase": "train",
-        "cum_reward_mean": 0.9222799018181813,
-        "win_reward_mean": 0.9243132500000002,
-        "cum_cost_mean": 0.012350802904090907
-      },
-      {
-        "n_seen": 5550,
-        "phase": "train",
-        "cum_reward_mean": 0.9222671819819819,
-        "win_reward_mean": 0.9224527499999999,
-        "cum_cost_mean": 0.012351340672972971
-      },
-      {
-        "n_seen": 5600,
-        "phase": "train",
-        "cum_reward_mean": 0.922310591071429,
-        "win_reward_mean": 0.9237265000000001,
-        "cum_cost_mean": 0.012351595648214283
-      },
-      {
-        "n_seen": 5650,
-        "phase": "train",
-        "cum_reward_mean": 0.9223084884955759,
-        "win_reward_mean": 0.9226037500000001,
-        "cum_cost_mean": 0.012351344248230086
-      },
-      {
-        "n_seen": 5700,
-        "phase": "train",
-        "cum_reward_mean": 0.9223235105263166,
-        "win_reward_mean": 0.9235227500000001,
-        "cum_cost_mean": 0.012348641185087718
-      },
-      {
-        "n_seen": 5750,
-        "phase": "train",
-        "cum_reward_mean": 0.922338703478262,
-        "win_reward_mean": 0.9243234250000001,
-        "cum_cost_mean": 0.012345764759130438
-      },
-      {
-        "n_seen": 5800,
-        "phase": "train",
-        "cum_reward_mean": 0.9223854732758635,
-        "win_reward_mean": 0.924482175,
-        "cum_cost_mean": 0.012345543285344826
-      },
-      {
-        "n_seen": 5850,
-        "phase": "train",
-        "cum_reward_mean": 0.9224110846153865,
-        "win_reward_mean": 0.9253094249999998,
-        "cum_cost_mean": 0.01234561096794872
-      },
-      {
-        "n_seen": 5900,
-        "phase": "train",
-        "cum_reward_mean": 0.9223971093220358,
-        "win_reward_mean": 0.9244946750000003,
-        "cum_cost_mean": 0.012343009594067799
-      },
-      {
-        "n_seen": 5950,
-        "phase": "train",
-        "cum_reward_mean": 0.9223720747899181,
-        "win_reward_mean": 0.9233315,
-        "cum_cost_mean": 0.012345101060084036
-      },
-      {
-        "n_seen": 6000,
-        "phase": "train",
-        "cum_reward_mean": 0.9223860991666692,
-        "win_reward_mean": 0.9224042499999999,
-        "cum_cost_mean": 0.012343342550416667
-      },
-      {
-        "n_seen": 6050,
-        "phase": "train",
-        "cum_reward_mean": 0.9224038173553748,
-        "win_reward_mean": 0.9221912499999998,
-        "cum_cost_mean": 0.012345571033884298
-      },
-      {
-        "n_seen": 6100,
-        "phase": "train",
-        "cum_reward_mean": 0.922467597540987,
-        "win_reward_mean": 0.9245469999999999,
-        "cum_cost_mean": 0.01234164263360656
-      },
-      {
-        "n_seen": 6150,
-        "phase": "train",
-        "cum_reward_mean": 0.9224847634146378,
-        "win_reward_mean": 0.9258372500000001,
-        "cum_cost_mean": 0.012343509024796749
-      },
-      {
-        "n_seen": 6200,
-        "phase": "train",
-        "cum_reward_mean": 0.9224837895161331,
-        "win_reward_mean": 0.9254145000000001,
-        "cum_cost_mean": 0.01234165483951613
-      },
-      {
-        "n_seen": 6250,
-        "phase": "train",
-        "cum_reward_mean": 0.922519871200004,
-        "win_reward_mean": 0.9260305000000001,
-        "cum_cost_mean": 0.012344768792000003
-      },
-      {
-        "n_seen": 6300,
-        "phase": "train",
-        "cum_reward_mean": 0.9225499515873059,
-        "win_reward_mean": 0.9250617499999999,
-        "cum_cost_mean": 0.012342741051190476
-      },
-      {
-        "n_seen": 6350,
-        "phase": "train",
-        "cum_reward_mean": 0.9225745425196898,
-        "win_reward_mean": 0.92533525,
-        "cum_cost_mean": 0.012338251892125986
-      },
-      {
-        "n_seen": 6400,
-        "phase": "train",
-        "cum_reward_mean": 0.9225861140625049,
-        "win_reward_mean": 0.925758175,
-        "cum_cost_mean": 0.012337477850000002
-      },
-      {
-        "n_seen": 6450,
-        "phase": "train",
-        "cum_reward_mean": 0.9226092992248116,
-        "win_reward_mean": 0.925403925,
-        "cum_cost_mean": 0.012336361651937987
-      },
-      {
-        "n_seen": 6500,
-        "phase": "train",
-        "cum_reward_mean": 0.9226965661538516,
-        "win_reward_mean": 0.9273149249999999,
-        "cum_cost_mean": 0.012332952705769232
-      },
-      {
-        "n_seen": 6550,
-        "phase": "train",
-        "cum_reward_mean": 0.9226607908397003,
-        "win_reward_mean": 0.9253991749999999,
-        "cum_cost_mean": 0.012332539658396953
-      },
-      {
-        "n_seen": 6600,
-        "phase": "train",
-        "cum_reward_mean": 0.9226918075757636,
-        "win_reward_mean": 0.9260740000000001,
-        "cum_cost_mean": 0.012337272882954551
-      },
-      {
-        "n_seen": 6650,
-        "phase": "train",
-        "cum_reward_mean": 0.9227350646616606,
-        "win_reward_mean": 0.9267909999999999,
-        "cum_cost_mean": 0.012339415015413541
-      },
-      {
-        "n_seen": 6700,
-        "phase": "train",
-        "cum_reward_mean": 0.9227638679104544,
-        "win_reward_mean": 0.9249511750000001,
-        "cum_cost_mean": 0.012338681488805979
-      },
-      {
-        "n_seen": 6750,
-        "phase": "train",
-        "cum_reward_mean": 0.922769387407414,
-        "win_reward_mean": 0.9263259249999999,
-        "cum_cost_mean": 0.012337190255925935
-      },
-      {
-        "n_seen": 6800,
-        "phase": "train",
-        "cum_reward_mean": 0.922761950735301,
-        "win_reward_mean": 0.925076675,
-        "cum_cost_mean": 0.012339171326102951
-      },
-      {
-        "n_seen": 6850,
-        "phase": "train",
-        "cum_reward_mean": 0.9227871481751896,
-        "win_reward_mean": 0.9245189249999999,
-        "cum_cost_mean": 0.012336641741970814
-      },
-      {
-        "n_seen": 6900,
-        "phase": "train",
-        "cum_reward_mean": 0.9227713137681232,
-        "win_reward_mean": 0.9230207500000001,
-        "cum_cost_mean": 0.01233593790688407
-      },
-      {
-        "n_seen": 6950,
-        "phase": "train",
-        "cum_reward_mean": 0.9227739517985688,
-        "win_reward_mean": 0.922928,
-        "cum_cost_mean": 0.01233278030503598
-      },
-      {
-        "n_seen": 7000,
-        "phase": "train",
-        "cum_reward_mean": 0.9227690950000078,
-        "win_reward_mean": 0.9230119999999999,
-        "cum_cost_mean": 0.012330881401071438
-      },
-      {
-        "n_seen": 7050,
-        "phase": "train",
-        "cum_reward_mean": 0.9227646546099371,
-        "win_reward_mean": 0.92199425,
-        "cum_cost_mean": 0.012329905148226959
-      },
-      {
-        "n_seen": 7100,
-        "phase": "train",
-        "cum_reward_mean": 0.9227922908450786,
-        "win_reward_mean": 0.9235159999999999,
-        "cum_cost_mean": 0.012329162119014095
-      },
-      {
-        "n_seen": 7150,
-        "phase": "train",
-        "cum_reward_mean": 0.9228085685314769,
-        "win_reward_mean": 0.9240115,
-        "cum_cost_mean": 0.012327727587062947
-      },
-      {
-        "n_seen": 7200,
-        "phase": "train",
-        "cum_reward_mean": 0.9228585506944528,
-        "win_reward_mean": 0.9259895,
-        "cum_cost_mean": 0.012323615044444455
-      },
-      {
-        "n_seen": 7250,
-        "phase": "train",
-        "cum_reward_mean": 0.9228538848275948,
-        "win_reward_mean": 0.92599925,
-        "cum_cost_mean": 0.012323729068965528
-      },
-      {
-        "n_seen": 7300,
-        "phase": "train",
-        "cum_reward_mean": 0.9228575842465844,
-        "win_reward_mean": 0.9251755000000002,
-        "cum_cost_mean": 0.012324442196575353
-      },
-      {
-        "n_seen": 7350,
-        "phase": "train",
-        "cum_reward_mean": 0.9228786074830022,
-        "win_reward_mean": 0.9253824999999999,
-        "cum_cost_mean": 0.012323698120408174
-      },
-      {
-        "n_seen": 7400,
-        "phase": "train",
-        "cum_reward_mean": 0.9229240898648742,
-        "win_reward_mean": 0.9252834999999999,
-        "cum_cost_mean": 0.012324698393918929
-      },
-      {
-        "n_seen": 7450,
-        "phase": "train",
-        "cum_reward_mean": 0.9229381026845733,
-        "win_reward_mean": 0.925991,
-        "cum_cost_mean": 0.01232601127181209
-      },
-      {
-        "n_seen": 7500,
-        "phase": "train",
-        "cum_reward_mean": 0.9229408286666765,
-        "win_reward_mean": 0.9259792499999999,
-        "cum_cost_mean": 0.012325973674333341
-      },
-      {
-        "n_seen": 7550,
-        "phase": "train",
-        "cum_reward_mean": 0.922957743708619,
-        "win_reward_mean": 0.9258659999999999,
-        "cum_cost_mean": 0.012328491484105966
-      },
-      {
-        "n_seen": 7600,
-        "phase": "train",
-        "cum_reward_mean": 0.9229462717105363,
-        "win_reward_mean": 0.923767,
-        "cum_cost_mean": 0.012327080175000006
-      },
-      {
-        "n_seen": 7650,
-        "phase": "train",
-        "cum_reward_mean": 0.9228968189542585,
-        "win_reward_mean": 0.921359,
-        "cum_cost_mean": 0.012325983271241838
-      },
-      {
-        "n_seen": 7700,
-        "phase": "train",
-        "cum_reward_mean": 0.9228919110389715,
-        "win_reward_mean": 0.9210575000000001,
-        "cum_cost_mean": 0.01232578863798702
-      },
-      {
-        "n_seen": 7750,
-        "phase": "train",
-        "cum_reward_mean": 0.9229153954838815,
-        "win_reward_mean": 0.9213167500000002,
-        "cum_cost_mean": 0.01232371672580646
-      },
-      {
-        "n_seen": 7800,
-        "phase": "train",
-        "cum_reward_mean": 0.9228534250000106,
-        "win_reward_mean": 0.9193252500000002,
-        "cum_cost_mean": 0.012322423878846163
-      },
-      {
-        "n_seen": 7850,
-        "phase": "train",
-        "cum_reward_mean": 0.9228719318471447,
-        "win_reward_mean": 0.9219200000000001,
-        "cum_cost_mean": 0.012319526350955423
-      },
-      {
-        "n_seen": 7900,
-        "phase": "train",
-        "cum_reward_mean": 0.9228714069620363,
-        "win_reward_mean": 0.922082,
-        "cum_cost_mean": 0.012319967107594944
-      },
-      {
-        "n_seen": 7950,
-        "phase": "train",
-        "cum_reward_mean": 0.9229033918239103,
-        "win_reward_mean": 0.9224382500000001,
-        "cum_cost_mean": 0.01231789480628932
-      },
-      {
-        "n_seen": 8000,
-        "phase": "train",
-        "cum_reward_mean": 0.9229169956250114,
-        "win_reward_mean": 0.92539625,
-        "cum_cost_mean": 0.012319301336875012
-      },
-      {
-        "n_seen": 8050,
-        "phase": "train",
-        "cum_reward_mean": 0.9229198031056018,
-        "win_reward_mean": 0.9247987500000001,
-        "cum_cost_mean": 0.012318921381987587
-      },
-      {
-        "n_seen": 8100,
-        "phase": "train",
-        "cum_reward_mean": 0.9228904771605055,
-        "win_reward_mean": 0.9236437500000001,
-        "cum_cost_mean": 0.012322009236728406
-      },
-      {
-        "n_seen": 8150,
-        "phase": "train",
-        "cum_reward_mean": 0.9228922840490915,
-        "win_reward_mean": 0.92245075,
-        "cum_cost_mean": 0.012319408523926392
-      },
-      {
-        "n_seen": 8200,
-        "phase": "train",
-        "cum_reward_mean": 0.9229198920731827,
-        "win_reward_mean": 0.92303575,
-        "cum_cost_mean": 0.01231742170182928
-      },
-      {
-        "n_seen": 8250,
-        "phase": "train",
-        "cum_reward_mean": 0.9229400321212244,
-        "win_reward_mean": 0.92375425,
-        "cum_cost_mean": 0.012314506201212133
-      },
-      {
-        "n_seen": 8300,
-        "phase": "train",
-        "cum_reward_mean": 0.9229147849397712,
-        "win_reward_mean": 0.9238992500000001,
-        "cum_cost_mean": 0.012315371018373506
-      },
-      {
-        "n_seen": 8350,
-        "phase": "train",
-        "cum_reward_mean": 0.9229555149700722,
-        "win_reward_mean": 0.9255321750000001,
-        "cum_cost_mean": 0.012314045754790432
-      },
-      {
-        "n_seen": 8400,
-        "phase": "test",
-        "cum_reward_mean": 0.9229725357142982,
-        "win_reward_mean": 0.925130925,
-        "cum_cost_mean": 0.012310034261309537
-      },
-      {
-        "n_seen": 8450,
-        "phase": "test",
-        "cum_reward_mean": 0.9229814437869951,
-        "win_reward_mean": 0.924689675,
-        "cum_cost_mean": 0.012308141422189363
-      },
-      {
-        "n_seen": 8500,
-        "phase": "test",
-        "cum_reward_mean": 0.9229370352941304,
-        "win_reward_mean": 0.9238604249999998,
-        "cum_cost_mean": 0.012310203292941187
-      },
-      {
-        "n_seen": 8550,
-        "phase": "test",
-        "cum_reward_mean": 0.9229470818713581,
-        "win_reward_mean": 0.9225949999999999,
-        "cum_cost_mean": 0.012315425319590656
-      },
-      {
-        "n_seen": 8600,
-        "phase": "test",
-        "cum_reward_mean": 0.9229476569767575,
-        "win_reward_mean": 0.9219027499999999,
-        "cum_cost_mean": 0.012318287793313964
-      },
-      {
-        "n_seen": 8650,
-        "phase": "test",
-        "cum_reward_mean": 0.9229234971098401,
-        "win_reward_mean": 0.9204752499999997,
-        "cum_cost_mean": 0.012318269079190761
-      },
-      {
-        "n_seen": 8700,
-        "phase": "test",
-        "cum_reward_mean": 0.9228809597701284,
-        "win_reward_mean": 0.92049775,
-        "cum_cost_mean": 0.012321022402586217
-      },
-      {
-        "n_seen": 8750,
-        "phase": "test",
-        "cum_reward_mean": 0.9228748742857281,
-        "win_reward_mean": 0.9197879999999999,
-        "cum_cost_mean": 0.012323302378285722
-      },
-      {
-        "n_seen": 8800,
-        "phase": "test",
-        "cum_reward_mean": 0.9228886193181957,
-        "win_reward_mean": 0.9203499999999998,
-        "cum_cost_mean": 0.012325502236079554
-      },
-      {
-        "n_seen": 8850,
-        "phase": "test",
-        "cum_reward_mean": 0.9228535084745901,
-        "win_reward_mean": 0.9198265000000001,
-        "cum_cost_mean": 0.012327097061864417
-      },
-      {
-        "n_seen": 8900,
-        "phase": "test",
-        "cum_reward_mean": 0.9228443932584408,
-        "win_reward_mean": 0.9212537500000002,
-        "cum_cost_mean": 0.012325690291011245
-      },
-      {
-        "n_seen": 8950,
-        "phase": "test",
-        "cum_reward_mean": 0.9228141229050415,
-        "win_reward_mean": 0.92015625,
-        "cum_cost_mean": 0.012325880882402242
-      },
-      {
-        "n_seen": 9000,
-        "phase": "test",
-        "cum_reward_mean": 0.9227936500000136,
-        "win_reward_mean": 0.9186150000000002,
-        "cum_cost_mean": 0.012327408501944451
-      },
-      {
-        "n_seen": 9050,
-        "phase": "test",
-        "cum_reward_mean": 0.9227368784530517,
-        "win_reward_mean": 0.9175760000000001,
-        "cum_cost_mean": 0.012328655606077352
-      },
-      {
-        "n_seen": 9100,
-        "phase": "test",
-        "cum_reward_mean": 0.922707934065947,
-        "win_reward_mean": 0.9166354999999999,
-        "cum_cost_mean": 0.012331078414285717
-      },
-      {
-        "n_seen": 9150,
-        "phase": "test",
-        "cum_reward_mean": 0.9226727540983735,
-        "win_reward_mean": 0.9163465000000001,
-        "cum_cost_mean": 0.012330216410928966
-      },
-      {
-        "n_seen": 9200,
-        "phase": "test",
-        "cum_reward_mean": 0.922647478260882,
-        "win_reward_mean": 0.9160697499999999,
-        "cum_cost_mean": 0.012332159638043483
-      },
-      {
-        "n_seen": 9250,
-        "phase": "test",
-        "cum_reward_mean": 0.9226411351351471,
-        "win_reward_mean": 0.9183087499999999,
-        "cum_cost_mean": 0.012332969037567571
-      },
-      {
-        "n_seen": 9300,
-        "phase": "test",
-        "cum_reward_mean": 0.9226709139785063,
-        "win_reward_mean": 0.9209865,
-        "cum_cost_mean": 0.012331952325806455
-      },
-      {
-        "n_seen": 9350,
-        "phase": "test",
-        "cum_reward_mean": 0.9226411604278191,
-        "win_reward_mean": 0.9211957500000001,
-        "cum_cost_mean": 0.012334663356417114
-      },
-      {
-        "n_seen": 9400,
-        "phase": "test",
-        "cum_reward_mean": 0.922606361702139,
-        "win_reward_mean": 0.9207149999999998,
-        "cum_cost_mean": 0.012336504060904259
-      },
-      {
-        "n_seen": 9450,
-        "phase": "test",
-        "cum_reward_mean": 0.9225931269841379,
-        "win_reward_mean": 0.92037275,
-        "cum_cost_mean": 0.012337010056613756
-      },
-      {
-        "n_seen": 9500,
-        "phase": "test",
-        "cum_reward_mean": 0.9225538736842214,
-        "win_reward_mean": 0.9171115000000001,
-        "cum_cost_mean": 0.012338839670526318
-      },
-      {
-        "n_seen": 9550,
-        "phase": "test",
-        "cum_reward_mean": 0.9225332722513194,
-        "win_reward_mean": 0.9174895000000001,
-        "cum_cost_mean": 0.012339968012827229
-      },
-      {
-        "n_seen": 9600,
-        "phase": "test",
-        "cum_reward_mean": 0.9225230937500101,
-        "win_reward_mean": 0.9186095,
-        "cum_cost_mean": 0.012337145858333332
-      },
-      {
-        "n_seen": 9650,
-        "phase": "test",
-        "cum_reward_mean": 0.9224910000000097,
-        "win_reward_mean": 0.9176655,
-        "cum_cost_mean": 0.012336780752331604
-      },
-      {
-        "n_seen": 9700,
-        "phase": "test",
-        "cum_reward_mean": 0.9224282680412464,
-        "win_reward_mean": 0.9164620000000001,
-        "cum_cost_mean": 0.012339302723711337
-      },
-      {
-        "n_seen": 9750,
-        "phase": "test",
-        "cum_reward_mean": 0.9223986358974454,
-        "win_reward_mean": 0.91596975,
-        "cum_cost_mean": 0.012340359366153845
-      },
-      {
-        "n_seen": 9800,
-        "phase": "test",
-        "cum_reward_mean": 0.9223998673469479,
-        "win_reward_mean": 0.9164850000000001,
-        "cum_cost_mean": 0.012338914189030607
-      },
-      {
-        "n_seen": 9850,
-        "phase": "test",
-        "cum_reward_mean": 0.9223793096446791,
-        "win_reward_mean": 0.9169902499999999,
-        "cum_cost_mean": 0.012338722117766493
-      },
-      {
-        "n_seen": 9900,
-        "phase": "test",
-        "cum_reward_mean": 0.9223532272727362,
-        "win_reward_mean": 0.91871375,
-        "cum_cost_mean": 0.012337322662626257
-      },
-      {
-        "n_seen": 9950,
-        "phase": "test",
-        "cum_reward_mean": 0.9223187889447321,
-        "win_reward_mean": 0.9184262500000001,
-        "cum_cost_mean": 0.012336282999999993
-      },
-      {
-        "n_seen": 10000,
-        "phase": "test",
-        "cum_reward_mean": 0.9222905200000084,
-        "win_reward_mean": 0.9169325,
-        "cum_cost_mean": 0.012338001099499996
-      },
-      {
-        "n_seen": 10050,
-        "phase": "test",
-        "cum_reward_mean": 0.9222834776119482,
-        "win_reward_mean": 0.91756375,
-        "cum_cost_mean": 0.012338419694527356
-      },
-      {
-        "n_seen": 10100,
-        "phase": "test",
-        "cum_reward_mean": 0.9222885841584235,
-        "win_reward_mean": 0.91908875,
-        "cum_cost_mean": 0.012340727189108903
-      },
-      {
-        "n_seen": 10150,
-        "phase": "test",
-        "cum_reward_mean": 0.9222939852216822,
-        "win_reward_mean": 0.9210600000000001,
-        "cum_cost_mean": 0.012342445406403932
-      },
-      {
-        "n_seen": 10198,
-        "phase": "test",
-        "cum_reward_mean": 0.9222898264365634,
-        "win_reward_mean": 0.9221072500000002,
-        "cum_cost_mean": 0.012340928487938801
-      }
-    ],
-    "Tabula Rasa": [
-      {
-        "n_seen": 50,
-        "phase": "train",
-        "cum_reward_mean": 0.872269,
-        "win_reward_mean": 0.872269,
-        "cum_cost_mean": 0.0072229368
-      },
-      {
-        "n_seen": 100,
-        "phase": "train",
-        "cum_reward_mean": 0.875294,
-        "win_reward_mean": 0.875294,
-        "cum_cost_mean": 0.007959614875
-      },
-      {
-        "n_seen": 150,
-        "phase": "train",
-        "cum_reward_mean": 0.877419666666667,
-        "win_reward_mean": 0.8774196666666667,
-        "cum_cost_mean": 0.008422984016666666
-      },
-      {
-        "n_seen": 200,
-        "phase": "train",
-        "cum_reward_mean": 0.8817792500000003,
-        "win_reward_mean": 0.8817792499999999,
-        "cum_cost_mean": 0.008752588287499998
-      },
-      {
-        "n_seen": 250,
-        "phase": "train",
-        "cum_reward_mean": 0.8849138000000007,
-        "win_reward_mean": 0.888075,
-        "cum_cost_mean": 0.009045646219999998
-      },
-      {
-        "n_seen": 300,
-        "phase": "train",
-        "cum_reward_mean": 0.8878140000000008,
-        "win_reward_mean": 0.894074,
-        "cum_cost_mean": 0.009350598058333331
-      },
-      {
-        "n_seen": 350,
-        "phase": "train",
-        "cum_reward_mean": 0.8892787142857148,
-        "win_reward_mean": 0.8981730000000001,
-        "cum_cost_mean": 0.00949623847142857
-      },
-      {
-        "n_seen": 400,
-        "phase": "train",
-        "cum_reward_mean": 0.8921568750000006,
-        "win_reward_mean": 0.9025345,
-        "cum_cost_mean": 0.00964753035625
-      },
-      {
-        "n_seen": 450,
-        "phase": "train",
-        "cum_reward_mean": 0.8944865555555561,
-        "win_reward_mean": 0.9064525,
-        "cum_cost_mean": 0.009731177944444445
-      },
-      {
-        "n_seen": 500,
-        "phase": "train",
-        "cum_reward_mean": 0.8954062000000006,
-        "win_reward_mean": 0.9067945,
-        "cum_cost_mean": 0.009799364044999998
-      },
-      {
-        "n_seen": 550,
-        "phase": "train",
-        "cum_reward_mean": 0.8967968181818188,
-        "win_reward_mean": 0.9099534999999997,
-        "cum_cost_mean": 0.009959383677272726
-      },
-      {
-        "n_seen": 600,
-        "phase": "train",
-        "cum_reward_mean": 0.8978673333333337,
-        "win_reward_mean": 0.90928825,
-        "cum_cost_mean": 0.010015210220833333
-      },
-      {
-        "n_seen": 650,
-        "phase": "train",
-        "cum_reward_mean": 0.8989926153846156,
-        "win_reward_mean": 0.9091312500000003,
-        "cum_cost_mean": 0.010078621815384613
-      },
-      {
-        "n_seen": 700,
-        "phase": "train",
-        "cum_reward_mean": 0.8994149285714285,
-        "win_reward_mean": 0.9094367499999999,
-        "cum_cost_mean": 0.010121152053571428
-      },
-      {
-        "n_seen": 750,
-        "phase": "train",
-        "cum_reward_mean": 0.8997682666666664,
-        "win_reward_mean": 0.9079397500000003,
-        "cum_cost_mean": 0.010207117346666668
-      },
-      {
-        "n_seen": 800,
-        "phase": "train",
-        "cum_reward_mean": 0.9003926874999996,
-        "win_reward_mean": 0.90796875,
-        "cum_cost_mean": 0.010234448975000001
-      },
-      {
-        "n_seen": 850,
-        "phase": "train",
-        "cum_reward_mean": 0.9007881764705875,
-        "win_reward_mean": 0.90662375,
-        "cum_cost_mean": 0.01030821534117647
-      },
-      {
-        "n_seen": 900,
-        "phase": "train",
-        "cum_reward_mean": 0.9015466666666659,
-        "win_reward_mean": 0.90900775,
-        "cum_cost_mean": 0.01036605083055556
-      },
-      {
-        "n_seen": 950,
-        "phase": "train",
-        "cum_reward_mean": 0.9022178421052625,
-        "win_reward_mean": 0.9114037500000001,
-        "cum_cost_mean": 0.010373816468421055
-      },
-      {
-        "n_seen": 1000,
-        "phase": "train",
-        "cum_reward_mean": 0.9025841499999991,
-        "win_reward_mean": 0.91135,
-        "cum_cost_mean": 0.010400439442500003
-      },
-      {
-        "n_seen": 1050,
-        "phase": "train",
-        "cum_reward_mean": 0.9032299047619038,
-        "win_reward_mean": 0.9136072499999998,
-        "cum_cost_mean": 0.010419070502380955
-      },
-      {
-        "n_seen": 1100,
-        "phase": "train",
-        "cum_reward_mean": 0.9042571818181806,
-        "win_reward_mean": 0.9164544999999998,
-        "cum_cost_mean": 0.010471427945454548
-      },
-      {
-        "n_seen": 1150,
-        "phase": "train",
-        "cum_reward_mean": 0.9046001304347817,
-        "win_reward_mean": 0.9159159999999998,
-        "cum_cost_mean": 0.0104934909826087
-      },
-      {
-        "n_seen": 1200,
-        "phase": "train",
-        "cum_reward_mean": 0.9050934166666662,
-        "win_reward_mean": 0.91763975,
-        "cum_cost_mean": 0.010531969350000003
-      },
-      {
-        "n_seen": 1250,
-        "phase": "train",
-        "cum_reward_mean": 0.9052784280000001,
-        "win_reward_mean": 0.9160331750000001,
-        "cum_cost_mean": 0.010560862596000004
-      },
-      {
-        "n_seen": 1300,
-        "phase": "train",
-        "cum_reward_mean": 0.9057019500000004,
-        "win_reward_mean": 0.913648175,
-        "cum_cost_mean": 0.010598292107692314
-      },
-      {
-        "n_seen": 1350,
-        "phase": "train",
-        "cum_reward_mean": 0.9061191370370378,
-        "win_reward_mean": 0.9148534249999999,
-        "cum_cost_mean": 0.010637248581481486
-      },
-      {
-        "n_seen": 1400,
-        "phase": "train",
-        "cum_reward_mean": 0.9063399428571441,
-        "win_reward_mean": 0.9138191000000001,
-        "cum_cost_mean": 0.010668191087500004
-      },
-      {
-        "n_seen": 1450,
-        "phase": "train",
-        "cum_reward_mean": 0.9064632103448291,
-        "win_reward_mean": 0.9138681,
-        "cum_cost_mean": 0.010687590324137937
-      },
-      {
-        "n_seen": 1500,
-        "phase": "train",
-        "cum_reward_mean": 0.9065759033333352,
-        "win_reward_mean": 0.9122566000000001,
-        "cum_cost_mean": 0.010670426635000004
-      },
-      {
-        "n_seen": 1550,
-        "phase": "train",
-        "cum_reward_mean": 0.9069305516129054,
-        "win_reward_mean": 0.9124075999999999,
-        "cum_cost_mean": 0.0106887039967742
-      },
-      {
-        "n_seen": 1600,
-        "phase": "train",
-        "cum_reward_mean": 0.9070784718750025,
-        "win_reward_mean": 0.912248175,
-        "cum_cost_mean": 0.010705198140625006
-      },
-      {
-        "n_seen": 1650,
-        "phase": "train",
-        "cum_reward_mean": 0.90732542727273,
-        "win_reward_mean": 0.9135764999999999,
-        "cum_cost_mean": 0.0107275991439394
-      },
-      {
-        "n_seen": 1700,
-        "phase": "train",
-        "cum_reward_mean": 0.9074056794117679,
-        "win_reward_mean": 0.9136289999999997,
-        "cum_cost_mean": 0.010743310801470594
-      },
-      {
-        "n_seen": 1750,
-        "phase": "train",
-        "cum_reward_mean": 0.907696802857146,
-        "win_reward_mean": 0.9136352500000001,
-        "cum_cost_mean": 0.010762675330000004
-      },
-      {
-        "n_seen": 1800,
-        "phase": "train",
-        "cum_reward_mean": 0.9077815861111146,
-        "win_reward_mean": 0.9134065,
-        "cum_cost_mean": 0.010777090944444446
-      },
-      {
-        "n_seen": 1850,
-        "phase": "train",
-        "cum_reward_mean": 0.9079561108108145,
-        "win_reward_mean": 0.91315925,
-        "cum_cost_mean": 0.010800223755405406
-      },
-      {
-        "n_seen": 1900,
-        "phase": "train",
-        "cum_reward_mean": 0.9081649684210564,
-        "win_reward_mean": 0.9146189250000001,
-        "cum_cost_mean": 0.010813644676315792
-      },
-      {
-        "n_seen": 1950,
-        "phase": "train",
-        "cum_reward_mean": 0.9082925076923116,
-        "win_reward_mean": 0.9135049250000001,
-        "cum_cost_mean": 0.010830015471794872
-      },
-      {
-        "n_seen": 2000,
-        "phase": "train",
-        "cum_reward_mean": 0.9083893200000042,
-        "win_reward_mean": 0.9138589250000001,
-        "cum_cost_mean": 0.010828218509999998
-      },
-      {
-        "n_seen": 2050,
-        "phase": "train",
-        "cum_reward_mean": 0.9084745804878089,
-        "win_reward_mean": 0.9132704250000001,
-        "cum_cost_mean": 0.010835914204878047
-      },
-      {
-        "n_seen": 2100,
-        "phase": "train",
-        "cum_reward_mean": 0.9087432095238137,
-        "win_reward_mean": 0.9142365,
-        "cum_cost_mean": 0.010856800358333335
-      },
-      {
-        "n_seen": 2150,
-        "phase": "train",
-        "cum_reward_mean": 0.9089929023255857,
-        "win_reward_mean": 0.9158217499999999,
-        "cum_cost_mean": 0.010865209116279067
-      },
-      {
-        "n_seen": 2200,
-        "phase": "train",
-        "cum_reward_mean": 0.9091985181818225,
-        "win_reward_mean": 0.9172905,
-        "cum_cost_mean": 0.010867888445454544
-      },
-      {
-        "n_seen": 2250,
-        "phase": "train",
-        "cum_reward_mean": 0.9093382177777827,
-        "win_reward_mean": 0.9181904999999999,
-        "cum_cost_mean": 0.010873570882222216
-      },
-      {
-        "n_seen": 2300,
-        "phase": "train",
-        "cum_reward_mean": 0.9094564956521779,
-        "win_reward_mean": 0.9169459999999999,
-        "cum_cost_mean": 0.010875780820652173
-      },
-      {
-        "n_seen": 2350,
-        "phase": "train",
-        "cum_reward_mean": 0.9096264000000035,
-        "win_reward_mean": 0.9164365,
-        "cum_cost_mean": 0.010886928858510638
-      },
-      {
-        "n_seen": 2400,
-        "phase": "train",
-        "cum_reward_mean": 0.9098717875000031,
-        "win_reward_mean": 0.91727775,
-        "cum_cost_mean": 0.010894900794791664
-      },
-      {
-        "n_seen": 2450,
-        "phase": "train",
-        "cum_reward_mean": 0.9100558122449005,
-        "win_reward_mean": 0.9181287500000002,
-        "cum_cost_mean": 0.010895822522448976
-      },
-      {
-        "n_seen": 2500,
-        "phase": "train",
-        "cum_reward_mean": 0.910085130000002,
-        "win_reward_mean": 0.917314425,
-        "cum_cost_mean": 0.010892114851999998
-      },
-      {
-        "n_seen": 2550,
-        "phase": "train",
-        "cum_reward_mean": 0.9102145980392171,
-        "win_reward_mean": 0.9171259250000002,
-        "cum_cost_mean": 0.01089295842941176
-      },
-      {
-        "n_seen": 2600,
-        "phase": "train",
-        "cum_reward_mean": 0.9103591250000012,
-        "win_reward_mean": 0.9162071749999999,
-        "cum_cost_mean": 0.010889019972115383
-      },
-      {
-        "n_seen": 2650,
-        "phase": "train",
-        "cum_reward_mean": 0.9103894811320761,
-        "win_reward_mean": 0.9144769250000001,
-        "cum_cost_mean": 0.01089856004433962
-      },
-      {
-        "n_seen": 2700,
-        "phase": "train",
-        "cum_reward_mean": 0.9105452870370371,
-        "win_reward_mean": 0.9162972500000001,
-        "cum_cost_mean": 0.010911295414814814
-      },
-      {
-        "n_seen": 2750,
-        "phase": "train",
-        "cum_reward_mean": 0.9106655545454544,
-        "win_reward_mean": 0.91641525,
-        "cum_cost_mean": 0.01091360860181818
-      },
-      {
-        "n_seen": 2800,
-        "phase": "train",
-        "cum_reward_mean": 0.9108586696428566,
-        "win_reward_mean": 0.9173527499999998,
-        "cum_cost_mean": 0.010925460284821427
-      },
-      {
-        "n_seen": 2850,
-        "phase": "train",
-        "cum_reward_mean": 0.9109660438596482,
-        "win_reward_mean": 0.9186055,
-        "cum_cost_mean": 0.010927719905263155
-      },
-      {
-        "n_seen": 2900,
-        "phase": "train",
-        "cum_reward_mean": 0.9109577672413778,
-        "win_reward_mean": 0.9165262500000001,
-        "cum_cost_mean": 0.010928041359482756
-      },
-      {
-        "n_seen": 2950,
-        "phase": "train",
-        "cum_reward_mean": 0.9109580033898286,
-        "win_reward_mean": 0.914979175,
-        "cum_cost_mean": 0.0109246920279661
-      },
-      {
-        "n_seen": 3000,
-        "phase": "train",
-        "cum_reward_mean": 0.9110708649999977,
-        "win_reward_mean": 0.9140416000000002,
-        "cum_cost_mean": 0.0109383903475
-      },
-      {
-        "n_seen": 3050,
-        "phase": "train",
-        "cum_reward_mean": 0.9111194901639319,
-        "win_reward_mean": 0.9133060999999998,
-        "cum_cost_mean": 0.010932082846721312
-      },
-      {
-        "n_seen": 3100,
-        "phase": "train",
-        "cum_reward_mean": 0.9111508532258036,
-        "win_reward_mean": 0.9139506000000001,
-        "cum_cost_mean": 0.010932062983064516
-      },
-      {
-        "n_seen": 3150,
-        "phase": "train",
-        "cum_reward_mean": 0.9112341888888859,
-        "win_reward_mean": 0.9153079250000001,
-        "cum_cost_mean": 0.010926125365873016
-      },
-      {
-        "n_seen": 3200,
-        "phase": "train",
-        "cum_reward_mean": 0.9113715765624966,
-        "win_reward_mean": 0.9158822499999999,
-        "cum_cost_mean": 0.01092040110390625
-      },
-      {
-        "n_seen": 3250,
-        "phase": "train",
-        "cum_reward_mean": 0.9114179169230733,
-        "win_reward_mean": 0.9159689249999999,
-        "cum_cost_mean": 0.010924798342307696
-      },
-      {
-        "n_seen": 3300,
-        "phase": "train",
-        "cum_reward_mean": 0.9113940393939355,
-        "win_reward_mean": 0.915163425,
-        "cum_cost_mean": 0.010930772735606064
-      },
-      {
-        "n_seen": 3350,
-        "phase": "train",
-        "cum_reward_mean": 0.9114345313432795,
-        "win_reward_mean": 0.9145899249999999,
-        "cum_cost_mean": 0.010938581702238808
-      },
-      {
-        "n_seen": 3400,
-        "phase": "train",
-        "cum_reward_mean": 0.911495126470584,
-        "win_reward_mean": 0.913471925,
-        "cum_cost_mean": 0.010942251969852945
-      },
-      {
-        "n_seen": 3450,
-        "phase": "train",
-        "cum_reward_mean": 0.911550671014488,
-        "win_reward_mean": 0.9137079250000001,
-        "cum_cost_mean": 0.010944423618840585
-      },
-      {
-        "n_seen": 3500,
-        "phase": "train",
-        "cum_reward_mean": 0.9115918328571379,
-        "win_reward_mean": 0.914855425,
-        "cum_cost_mean": 0.010944238020000004
-      },
-      {
-        "n_seen": 3550,
-        "phase": "train",
-        "cum_reward_mean": 0.9115342577464738,
-        "win_reward_mean": 0.913204675,
-        "cum_cost_mean": 0.01094263108169014
-      },
-      {
-        "n_seen": 3600,
-        "phase": "train",
-        "cum_reward_mean": 0.9116817680555502,
-        "win_reward_mean": 0.9148546750000002,
-        "cum_cost_mean": 0.010945887775000001
-      },
-      {
-        "n_seen": 3650,
-        "phase": "train",
-        "cum_reward_mean": 0.9117095383561586,
-        "win_reward_mean": 0.9144500000000001,
-        "cum_cost_mean": 0.010948013110958905
-      },
-      {
-        "n_seen": 3700,
-        "phase": "train",
-        "cum_reward_mean": 0.9118200716216158,
-        "win_reward_mean": 0.9158142499999998,
-        "cum_cost_mean": 0.010952136443243247
-      },
-      {
-        "n_seen": 3750,
-        "phase": "train",
-        "cum_reward_mean": 0.9118092706666607,
-        "win_reward_mean": 0.9166907500000001,
-        "cum_cost_mean": 0.010959843650000004
-      },
-      {
-        "n_seen": 3800,
-        "phase": "train",
-        "cum_reward_mean": 0.9118874342105201,
-        "win_reward_mean": 0.915589425,
-        "cum_cost_mean": 0.010960314059868425
-      },
-      {
-        "n_seen": 3850,
-        "phase": "train",
-        "cum_reward_mean": 0.911816402597396,
-        "win_reward_mean": 0.913766675,
-        "cum_cost_mean": 0.01096718619805195
-      },
-      {
-        "n_seen": 3900,
-        "phase": "train",
-        "cum_reward_mean": 0.911953089743583,
-        "win_reward_mean": 0.9144139249999998,
-        "cum_cost_mean": 0.010970546282051286
-      },
-      {
-        "n_seen": 3950,
-        "phase": "train",
-        "cum_reward_mean": 0.9119694810126513,
-        "win_reward_mean": 0.914973425,
-        "cum_cost_mean": 0.01097195924936709
-      },
-      {
-        "n_seen": 4000,
-        "phase": "train",
-        "cum_reward_mean": 0.9120387337499928,
-        "win_reward_mean": 0.914913425,
-        "cum_cost_mean": 0.010977535475625001
-      },
-      {
-        "n_seen": 4050,
-        "phase": "train",
-        "cum_reward_mean": 0.9120713666666592,
-        "win_reward_mean": 0.9169794249999998,
-        "cum_cost_mean": 0.010982313229629632
-      },
-      {
-        "n_seen": 4100,
-        "phase": "train",
-        "cum_reward_mean": 0.9121899963414559,
-        "win_reward_mean": 0.916809675,
-        "cum_cost_mean": 0.010981513446341466
-      },
-      {
-        "n_seen": 4150,
-        "phase": "train",
-        "cum_reward_mean": 0.9122155626505947,
-        "win_reward_mean": 0.9170756749999999,
-        "cum_cost_mean": 0.010985577713253012
-      },
-      {
-        "n_seen": 4200,
-        "phase": "train",
-        "cum_reward_mean": 0.912271504761897,
-        "win_reward_mean": 0.9169269250000001,
-        "cum_cost_mean": 0.010981265693452381
-      },
-      {
-        "n_seen": 4250,
-        "phase": "train",
-        "cum_reward_mean": 0.9122515576470507,
-        "win_reward_mean": 0.9159004249999999,
-        "cum_cost_mean": 0.010985206090588237
-      },
-      {
-        "n_seen": 4300,
-        "phase": "train",
-        "cum_reward_mean": 0.9123552023255732,
-        "win_reward_mean": 0.9157419250000001,
-        "cum_cost_mean": 0.01098764708255814
-      },
-      {
-        "n_seen": 4350,
-        "phase": "train",
-        "cum_reward_mean": 0.9122801999999917,
-        "win_reward_mean": 0.913621425,
-        "cum_cost_mean": 0.010987249564942531
-      },
-      {
-        "n_seen": 4400,
-        "phase": "train",
-        "cum_reward_mean": 0.9123720613636277,
-        "win_reward_mean": 0.9144837499999999,
-        "cum_cost_mean": 0.010991433738636366
-      },
-      {
-        "n_seen": 4450,
-        "phase": "train",
-        "cum_reward_mean": 0.9124334876404406,
-        "win_reward_mean": 0.9162995,
-        "cum_cost_mean": 0.01099913011573034
-      },
-      {
-        "n_seen": 4500,
-        "phase": "train",
-        "cum_reward_mean": 0.9124843266666579,
-        "win_reward_mean": 0.9152605000000001,
-        "cum_cost_mean": 0.011006876190000002
-      },
-      {
-        "n_seen": 4550,
-        "phase": "train",
-        "cum_reward_mean": 0.9125034439560359,
-        "win_reward_mean": 0.9173589999999999,
-        "cum_cost_mean": 0.011007786626373629
-      },
-      {
-        "n_seen": 4600,
-        "phase": "train",
-        "cum_reward_mean": 0.912553939130427,
-        "win_reward_mean": 0.91655525,
-        "cum_cost_mean": 0.011007193014130435
-      },
-      {
-        "n_seen": 4650,
-        "phase": "train",
-        "cum_reward_mean": 0.9125088182795625,
-        "win_reward_mean": 0.914184925,
-        "cum_cost_mean": 0.011007676081182794
-      },
-      {
-        "n_seen": 4700,
-        "phase": "train",
-        "cum_reward_mean": 0.9125599872340355,
-        "win_reward_mean": 0.9142623499999999,
-        "cum_cost_mean": 0.01101255182180851
-      },
-      {
-        "n_seen": 4750,
-        "phase": "train",
-        "cum_reward_mean": 0.9126177347368356,
-        "win_reward_mean": 0.9152178500000001,
-        "cum_cost_mean": 0.011018206837894737
-      },
-      {
-        "n_seen": 4800,
-        "phase": "train",
-        "cum_reward_mean": 0.9126471229166608,
-        "win_reward_mean": 0.91479035,
-        "cum_cost_mean": 0.0110213234859375
-      },
-      {
-        "n_seen": 4850,
-        "phase": "train",
-        "cum_reward_mean": 0.9127522453608192,
-        "win_reward_mean": 0.918411925,
-        "cum_cost_mean": 0.011028743668041236
-      },
-      {
-        "n_seen": 4900,
-        "phase": "train",
-        "cum_reward_mean": 0.9127965897959134,
-        "win_reward_mean": 0.9183567499999998,
-        "cum_cost_mean": 0.011028176137244895
-      },
-      {
-        "n_seen": 4950,
-        "phase": "train",
-        "cum_reward_mean": 0.912828058585854,
-        "win_reward_mean": 0.9178232500000002,
-        "cum_cost_mean": 0.011029478209090907
-      },
-      {
-        "n_seen": 5000,
-        "phase": "train",
-        "cum_reward_mean": 0.9128648679999957,
-        "win_reward_mean": 0.91809075,
-        "cum_cost_mean": 0.011029501655999998
-      },
-      {
-        "n_seen": 5050,
-        "phase": "train",
-        "cum_reward_mean": 0.9129524039603922,
-        "win_reward_mean": 0.9178062499999999,
-        "cum_cost_mean": 0.01102842994554455
-      },
-      {
-        "n_seen": 5100,
-        "phase": "train",
-        "cum_reward_mean": 0.9129181127450947,
-        "win_reward_mean": 0.9158954250000001,
-        "cum_cost_mean": 0.01102912421323529
-      },
-      {
-        "n_seen": 5150,
-        "phase": "train",
-        "cum_reward_mean": 0.9128904611650457,
-        "win_reward_mean": 0.9144349249999999,
-        "cum_cost_mean": 0.011036861525728154
-      },
-      {
-        "n_seen": 5200,
-        "phase": "train",
-        "cum_reward_mean": 0.9129610788461513,
-        "win_reward_mean": 0.91536635,
-        "cum_cost_mean": 0.011035713343749996
-      },
-      {
-        "n_seen": 5250,
-        "phase": "train",
-        "cum_reward_mean": 0.9130121923809501,
-        "win_reward_mean": 0.9145218500000001,
-        "cum_cost_mean": 0.01103457008238095
-      },
-      {
-        "n_seen": 5300,
-        "phase": "train",
-        "cum_reward_mean": 0.9130202377358472,
-        "win_reward_mean": 0.9156244250000002,
-        "cum_cost_mean": 0.01103349266179245
-      },
-      {
-        "n_seen": 5350,
-        "phase": "train",
-        "cum_reward_mean": 0.9131097682242976,
-        "win_reward_mean": 0.918756925,
-        "cum_cost_mean": 0.01103733393084112
-      },
-      {
-        "n_seen": 5400,
-        "phase": "train",
-        "cum_reward_mean": 0.9131245759259248,
-        "win_reward_mean": 0.9173754999999998,
-        "cum_cost_mean": 0.011039201046296293
-      },
-      {
-        "n_seen": 5450,
-        "phase": "train",
-        "cum_reward_mean": 0.913154203669724,
-        "win_reward_mean": 0.916882,
-        "cum_cost_mean": 0.011034058748623852
-      },
-      {
-        "n_seen": 5500,
-        "phase": "train",
-        "cum_reward_mean": 0.9131715745454544,
-        "win_reward_mean": 0.9171819999999998,
-        "cum_cost_mean": 0.011033404679545455
-      },
-      {
-        "n_seen": 5550,
-        "phase": "train",
-        "cum_reward_mean": 0.9131807765765764,
-        "win_reward_mean": 0.9150802499999999,
-        "cum_cost_mean": 0.01103542788063063
-      },
-      {
-        "n_seen": 5600,
-        "phase": "train",
-        "cum_reward_mean": 0.9132306267857146,
-        "win_reward_mean": 0.916094,
-        "cum_cost_mean": 0.011036939288839281
-      },
-      {
-        "n_seen": 5650,
-        "phase": "train",
-        "cum_reward_mean": 0.9132167982300892,
-        "win_reward_mean": 0.9149225000000001,
-        "cum_cost_mean": 0.011037653932300884
-      },
-      {
-        "n_seen": 5700,
-        "phase": "train",
-        "cum_reward_mean": 0.9132233263157904,
-        "win_reward_mean": 0.9146464999999999,
-        "cum_cost_mean": 0.011035343140350876
-      },
-      {
-        "n_seen": 5750,
-        "phase": "train",
-        "cum_reward_mean": 0.9132446947826101,
-        "win_reward_mean": 0.9150184250000001,
-        "cum_cost_mean": 0.011033723342173911
-      },
-      {
-        "n_seen": 5800,
-        "phase": "train",
-        "cum_reward_mean": 0.9133149043103463,
-        "win_reward_mean": 0.915674675,
-        "cum_cost_mean": 0.011033771487931034
-      },
-      {
-        "n_seen": 5850,
-        "phase": "train",
-        "cum_reward_mean": 0.9133477427350443,
-        "win_reward_mean": 0.9170469250000002,
-        "cum_cost_mean": 0.011033912796581198
-      },
-      {
-        "n_seen": 5900,
-        "phase": "train",
-        "cum_reward_mean": 0.9133490923728834,
-        "win_reward_mean": 0.9169334250000001,
-        "cum_cost_mean": 0.011031227186864409
-      },
-      {
-        "n_seen": 5950,
-        "phase": "train",
-        "cum_reward_mean": 0.9133153016806744,
-        "win_reward_mean": 0.9153452499999999,
-        "cum_cost_mean": 0.011032462161764707
-      },
-      {
-        "n_seen": 6000,
-        "phase": "train",
-        "cum_reward_mean": 0.9133347575000025,
-        "win_reward_mean": 0.9139104999999998,
-        "cum_cost_mean": 0.011031994954583336
-      },
-      {
-        "n_seen": 6050,
-        "phase": "train",
-        "cum_reward_mean": 0.9133461231404987,
-        "win_reward_mean": 0.91329875,
-        "cum_cost_mean": 0.011036247533057854
-      },
-      {
-        "n_seen": 6100,
-        "phase": "train",
-        "cum_reward_mean": 0.9134626713114787,
-        "win_reward_mean": 0.9168132499999999,
-        "cum_cost_mean": 0.011036388707377052
-      },
-      {
-        "n_seen": 6150,
-        "phase": "train",
-        "cum_reward_mean": 0.9134995520325238,
-        "win_reward_mean": 0.9189810000000002,
-        "cum_cost_mean": 0.01103846813373984
-      },
-      {
-        "n_seen": 6200,
-        "phase": "train",
-        "cum_reward_mean": 0.9135004830645199,
-        "win_reward_mean": 0.91847225,
-        "cum_cost_mean": 0.011037724003629037
-      },
-      {
-        "n_seen": 6250,
-        "phase": "train",
-        "cum_reward_mean": 0.9135298712000042,
-        "win_reward_mean": 0.91908825,
-        "cum_cost_mean": 0.011042226544400003
-      },
-      {
-        "n_seen": 6300,
-        "phase": "train",
-        "cum_reward_mean": 0.9135510626984171,
-        "win_reward_mean": 0.916247,
-        "cum_cost_mean": 0.011041266238888892
-      },
-      {
-        "n_seen": 6350,
-        "phase": "train",
-        "cum_reward_mean": 0.9136116685039417,
-        "win_reward_mean": 0.91705925,
-        "cum_cost_mean": 0.011038724009448823
-      },
-      {
-        "n_seen": 6400,
-        "phase": "train",
-        "cum_reward_mean": 0.913633262500005,
-        "win_reward_mean": 0.917749425,
-        "cum_cost_mean": 0.01104129798632813
-      },
-      {
-        "n_seen": 6450,
-        "phase": "train",
-        "cum_reward_mean": 0.9136828651162844,
-        "win_reward_mean": 0.918463925,
-        "cum_cost_mean": 0.011040796530620161
-      },
-      {
-        "n_seen": 6500,
-        "phase": "train",
-        "cum_reward_mean": 0.9137777584615439,
-        "win_reward_mean": 0.9209186750000002,
-        "cum_cost_mean": 0.01104008109538462
-      },
-      {
-        "n_seen": 6550,
-        "phase": "train",
-        "cum_reward_mean": 0.9137681190839754,
-        "win_reward_mean": 0.918735425,
-        "cum_cost_mean": 0.011042150526717563
-      },
-      {
-        "n_seen": 6600,
-        "phase": "train",
-        "cum_reward_mean": 0.9138097242424301,
-        "win_reward_mean": 0.9194565000000001,
-        "cum_cost_mean": 0.011047042933712128
-      },
-      {
-        "n_seen": 6650,
-        "phase": "train",
-        "cum_reward_mean": 0.9138707413533897,
-        "win_reward_mean": 0.9199297500000002,
-        "cum_cost_mean": 0.011051338727819559
-      },
-      {
-        "n_seen": 6700,
-        "phase": "train",
-        "cum_reward_mean": 0.9139123007462752,
-        "win_reward_mean": 0.9182849249999998,
-        "cum_cost_mean": 0.011052424030970159
-      },
-      {
-        "n_seen": 6750,
-        "phase": "train",
-        "cum_reward_mean": 0.9139286466666734,
-        "win_reward_mean": 0.9191859250000001,
-        "cum_cost_mean": 0.01105370820148149
-      },
-      {
-        "n_seen": 6800,
-        "phase": "train",
-        "cum_reward_mean": 0.9139133110294185,
-        "win_reward_mean": 0.9173316749999998,
-        "cum_cost_mean": 0.0110558717889706
-      },
-      {
-        "n_seen": 6850,
-        "phase": "train",
-        "cum_reward_mean": 0.9139741919708101,
-        "win_reward_mean": 0.9174139250000002,
-        "cum_cost_mean": 0.011054459175912417
-      },
-      {
-        "n_seen": 6900,
-        "phase": "train",
-        "cum_reward_mean": 0.9139716398550796,
-        "win_reward_mean": 0.9159595000000001,
-        "cum_cost_mean": 0.011056148785507256
-      },
-      {
-        "n_seen": 6950,
-        "phase": "train",
-        "cum_reward_mean": 0.9139684482014463,
-        "win_reward_mean": 0.9153117500000001,
-        "cum_cost_mean": 0.011054910129496411
-      },
-      {
-        "n_seen": 7000,
-        "phase": "train",
-        "cum_reward_mean": 0.9139638807142931,
-        "win_reward_mean": 0.9156832500000001,
-        "cum_cost_mean": 0.011054434738928582
-      },
-      {
-        "n_seen": 7050,
-        "phase": "train",
-        "cum_reward_mean": 0.9139782007092275,
-        "win_reward_mean": 0.9141154999999997,
-        "cum_cost_mean": 0.011056306763120579
-      },
-      {
-        "n_seen": 7100,
-        "phase": "train",
-        "cum_reward_mean": 0.9140244387324022,
-        "win_reward_mean": 0.9158460000000002,
-        "cum_cost_mean": 0.011059016364788742
-      },
-      {
-        "n_seen": 7150,
-        "phase": "train",
-        "cum_reward_mean": 0.9140408762237844,
-        "win_reward_mean": 0.9165577500000002,
-        "cum_cost_mean": 0.011058080418881129
-      },
-      {
-        "n_seen": 7200,
-        "phase": "train",
-        "cum_reward_mean": 0.9141305993055637,
-        "win_reward_mean": 0.91996575,
-        "cum_cost_mean": 0.01105699632673612
-      },
-      {
-        "n_seen": 7250,
-        "phase": "train",
-        "cum_reward_mean": 0.9141716779310428,
-        "win_reward_mean": 0.92099175,
-        "cum_cost_mean": 0.01106048357724139
-      },
-      {
-        "n_seen": 7300,
-        "phase": "train",
-        "cum_reward_mean": 0.9141786458904196,
-        "win_reward_mean": 0.919653,
-        "cum_cost_mean": 0.011062562128082203
-      },
-      {
-        "n_seen": 7350,
-        "phase": "train",
-        "cum_reward_mean": 0.9142012605442267,
-        "win_reward_mean": 0.9199350000000001,
-        "cum_cost_mean": 0.011064251758503413
-      },
-      {
-        "n_seen": 7400,
-        "phase": "train",
-        "cum_reward_mean": 0.9142808804054143,
-        "win_reward_mean": 0.919691,
-        "cum_cost_mean": 0.011065727768243253
-      },
-      {
-        "n_seen": 7450,
-        "phase": "train",
-        "cum_reward_mean": 0.9143204852349088,
-        "win_reward_mean": 0.91971475,
-        "cum_cost_mean": 0.011069081855704708
-      },
-      {
-        "n_seen": 7500,
-        "phase": "train",
-        "cum_reward_mean": 0.9143282620000093,
-        "win_reward_mean": 0.9197892499999998,
-        "cum_cost_mean": 0.011070533980333341
-      },
-      {
-        "n_seen": 7550,
-        "phase": "train",
-        "cum_reward_mean": 0.9143584390728574,
-        "win_reward_mean": 0.9201347500000001,
-        "cum_cost_mean": 0.011075448741721863
-      },
-      {
-        "n_seen": 7600,
-        "phase": "train",
-        "cum_reward_mean": 0.9143408440789571,
-        "win_reward_mean": 0.9165594999999997,
-        "cum_cost_mean": 0.011075402541776327
-      },
-      {
-        "n_seen": 7650,
-        "phase": "train",
-        "cum_reward_mean": 0.9142867209150426,
-        "win_reward_mean": 0.9130290000000001,
-        "cum_cost_mean": 0.011074461898039225
-      },
-      {
-        "n_seen": 7700,
-        "phase": "train",
-        "cum_reward_mean": 0.9142898980519579,
-        "win_reward_mean": 0.9128512500000001,
-        "cum_cost_mean": 0.011076651893506505
-      },
-      {
-        "n_seen": 7750,
-        "phase": "train",
-        "cum_reward_mean": 0.9143348470967844,
-        "win_reward_mean": 0.9134442500000001,
-        "cum_cost_mean": 0.011077310309032268
-      },
-      {
-        "n_seen": 7800,
-        "phase": "train",
-        "cum_reward_mean": 0.9142884891025742,
-        "win_reward_mean": 0.912299,
-        "cum_cost_mean": 0.011077839919551294
-      },
-      {
-        "n_seen": 7850,
-        "phase": "train",
-        "cum_reward_mean": 0.914323173885361,
-        "win_reward_mean": 0.9157174999999999,
-        "cum_cost_mean": 0.011076306648726126
-      },
-      {
-        "n_seen": 7900,
-        "phase": "train",
-        "cum_reward_mean": 0.9143373879746942,
-        "win_reward_mean": 0.91616575,
-        "cum_cost_mean": 0.011076413981645581
-      },
-      {
-        "n_seen": 7950,
-        "phase": "train",
-        "cum_reward_mean": 0.9143602786163632,
-        "win_reward_mean": 0.9153457499999998,
-        "cum_cost_mean": 0.011074233390251584
-      },
-      {
-        "n_seen": 8000,
-        "phase": "train",
-        "cum_reward_mean": 0.914356745625011,
-        "win_reward_mean": 0.9170187499999999,
-        "cum_cost_mean": 0.011075691205000016
-      },
-      {
-        "n_seen": 8050,
-        "phase": "train",
-        "cum_reward_mean": 0.9143916043478372,
-        "win_reward_mean": 0.9170774999999999,
-        "cum_cost_mean": 0.011077478790062125
-      },
-      {
-        "n_seen": 8100,
-        "phase": "train",
-        "cum_reward_mean": 0.9143695820987767,
-        "win_reward_mean": 0.91564125,
-        "cum_cost_mean": 0.01108183664012347
-      },
-      {
-        "n_seen": 8150,
-        "phase": "train",
-        "cum_reward_mean": 0.914397897546024,
-        "win_reward_mean": 0.9158932500000001,
-        "cum_cost_mean": 0.011081730663496946
-      },
-      {
-        "n_seen": 8200,
-        "phase": "train",
-        "cum_reward_mean": 0.914418215243914,
-        "win_reward_mean": 0.916877,
-        "cum_cost_mean": 0.011080052745731721
-      },
-      {
-        "n_seen": 8250,
-        "phase": "train",
-        "cum_reward_mean": 0.9144369715151633,
-        "win_reward_mean": 0.916263,
-        "cum_cost_mean": 0.011079236766969711
-      },
-      {
-        "n_seen": 8300,
-        "phase": "train",
-        "cum_reward_mean": 0.9144333391566384,
-        "win_reward_mean": 0.9170155,
-        "cum_cost_mean": 0.011082409843373508
-      },
-      {
-        "n_seen": 8350,
-        "phase": "train",
-        "cum_reward_mean": 0.9144823113772576,
-        "win_reward_mean": 0.9179221749999998,
-        "cum_cost_mean": 0.011082746913173668
-      },
-      {
-        "n_seen": 8400,
-        "phase": "test",
-        "cum_reward_mean": 0.9145064345238219,
-        "win_reward_mean": 0.9181234250000001,
-        "cum_cost_mean": 0.011080646677380969
-      },
-      {
-        "n_seen": 8450,
-        "phase": "test",
-        "cum_reward_mean": 0.9145296982248645,
-        "win_reward_mean": 0.918354675,
-        "cum_cost_mean": 0.01108048656656806
-      },
-      {
-        "n_seen": 8500,
-        "phase": "test",
-        "cum_reward_mean": 0.914502829411777,
-        "win_reward_mean": 0.917386675,
-        "cum_cost_mean": 0.011086390554705896
-      },
-      {
-        "n_seen": 8550,
-        "phase": "test",
-        "cum_reward_mean": 0.9144956783625858,
-        "win_reward_mean": 0.9150537499999999,
-        "cum_cost_mean": 0.011092145662865508
-      },
-      {
-        "n_seen": 8600,
-        "phase": "test",
-        "cum_reward_mean": 0.9144860232558267,
-        "win_reward_mean": 0.9136287500000002,
-        "cum_cost_mean": 0.011095859646802337
-      },
-      {
-        "n_seen": 8650,
-        "phase": "test",
-        "cum_reward_mean": 0.9144549075144637,
-        "win_reward_mean": 0.911295,
-        "cum_cost_mean": 0.011096963647976892
-      },
-      {
-        "n_seen": 8700,
-        "phase": "test",
-        "cum_reward_mean": 0.914417735632197,
-        "win_reward_mean": 0.9108012499999999,
-        "cum_cost_mean": 0.011101832160632192
-      },
-      {
-        "n_seen": 8750,
-        "phase": "test",
-        "cum_reward_mean": 0.9144383828571561,
-        "win_reward_mean": 0.9119889999999998,
-        "cum_cost_mean": 0.011105992736571438
-      },
-      {
-        "n_seen": 8800,
-        "phase": "test",
-        "cum_reward_mean": 0.9144636931818317,
-        "win_reward_mean": 0.9135035,
-        "cum_cost_mean": 0.0111089914002841
-      },
-      {
-        "n_seen": 8850,
-        "phase": "test",
-        "cum_reward_mean": 0.9144222259887138,
-        "win_reward_mean": 0.9130087499999998,
-        "cum_cost_mean": 0.011112320075988709
-      },
-      {
-        "n_seen": 8900,
-        "phase": "test",
-        "cum_reward_mean": 0.9144289606741708,
-        "win_reward_mean": 0.91491725,
-        "cum_cost_mean": 0.011111731230056187
-      },
-      {
-        "n_seen": 8950,
-        "phase": "test",
-        "cum_reward_mean": 0.9144072402234773,
-        "win_reward_mean": 0.9130447500000001,
-        "cum_cost_mean": 0.011113371144972075
-      },
-      {
-        "n_seen": 9000,
-        "phase": "test",
-        "cum_reward_mean": 0.9143963611111244,
-        "win_reward_mean": 0.9114337499999999,
-        "cum_cost_mean": 0.011117602641944451
-      },
-      {
-        "n_seen": 9050,
-        "phase": "test",
-        "cum_reward_mean": 0.9143232486187978,
-        "win_reward_mean": 0.9099435000000001,
-        "cum_cost_mean": 0.011118858595303873
-      },
-      {
-        "n_seen": 9100,
-        "phase": "test",
-        "cum_reward_mean": 0.9143078956044087,
-        "win_reward_mean": 0.9089205000000001,
-        "cum_cost_mean": 0.011123252655769234
-      },
-      {
-        "n_seen": 9150,
-        "phase": "test",
-        "cum_reward_mean": 0.9142937267759692,
-        "win_reward_mean": 0.9092139999999999,
-        "cum_cost_mean": 0.011122567463661205
-      },
-      {
-        "n_seen": 9200,
-        "phase": "test",
-        "cum_reward_mean": 0.9142595271739257,
-        "win_reward_mean": 0.9081019999999999,
-        "cum_cost_mean": 0.011124859490217395
-      },
-      {
-        "n_seen": 9250,
-        "phase": "test",
-        "cum_reward_mean": 0.9142699027027149,
-        "win_reward_mean": 0.911856,
-        "cum_cost_mean": 0.011127139856486489
-      },
-      {
-        "n_seen": 9300,
-        "phase": "test",
-        "cum_reward_mean": 0.9143122956989366,
-        "win_reward_mean": 0.9145125000000001,
-        "cum_cost_mean": 0.011127540199731185
-      },
-      {
-        "n_seen": 9350,
-        "phase": "test",
-        "cum_reward_mean": 0.9142906096256803,
-        "win_reward_mean": 0.914148,
-        "cum_cost_mean": 0.011131903291711234
-      },
-      {
-        "n_seen": 9400,
-        "phase": "test",
-        "cum_reward_mean": 0.9142781276595858,
-        "win_reward_mean": 0.9151337500000001,
-        "cum_cost_mean": 0.011135851128191493
-      },
-      {
-        "n_seen": 9450,
-        "phase": "test",
-        "cum_reward_mean": 0.9142799629629741,
-        "win_reward_mean": 0.91474525,
-        "cum_cost_mean": 0.011138414263492064
-      },
-      {
-        "n_seen": 9500,
-        "phase": "test",
-        "cum_reward_mean": 0.9142531210526424,
-        "win_reward_mean": 0.9115014999999997,
-        "cum_cost_mean": 0.011141471538157895
-      },
-      {
-        "n_seen": 9550,
-        "phase": "test",
-        "cum_reward_mean": 0.914251921465979,
-        "win_reward_mean": 0.9124432500000002,
-        "cum_cost_mean": 0.011144677212041884
-      },
-      {
-        "n_seen": 9600,
-        "phase": "test",
-        "cum_reward_mean": 0.9142259947916769,
-        "win_reward_mean": 0.91177575,
-        "cum_cost_mean": 0.011142231270572917
-      },
-      {
-        "n_seen": 9650,
-        "phase": "test",
-        "cum_reward_mean": 0.9142162176165904,
-        "win_reward_mean": 0.9112042499999999,
-        "cum_cost_mean": 0.011143771322020723
-      },
-      {
-        "n_seen": 9700,
-        "phase": "test",
-        "cum_reward_mean": 0.9141727886598037,
-        "win_reward_mean": 0.9103570000000001,
-        "cum_cost_mean": 0.011148510593814429
-      },
-      {
-        "n_seen": 9750,
-        "phase": "test",
-        "cum_reward_mean": 0.9141527743589839,
-        "win_reward_mean": 0.9094184999999999,
-        "cum_cost_mean": 0.011150610162820507
-      },
-      {
-        "n_seen": 9800,
-        "phase": "test",
-        "cum_reward_mean": 0.9141724795918462,
-        "win_reward_mean": 0.9116037499999999,
-        "cum_cost_mean": 0.011150333713265298
-      },
-      {
-        "n_seen": 9850,
-        "phase": "test",
-        "cum_reward_mean": 0.9141500050761515,
-        "win_reward_mean": 0.9109552500000001,
-        "cum_cost_mean": 0.011151339234010144
-      },
-      {
-        "n_seen": 9900,
-        "phase": "test",
-        "cum_reward_mean": 0.9141404595959687,
-        "win_reward_mean": 0.9125725000000002,
-        "cum_cost_mean": 0.011152012217171707
-      },
-      {
-        "n_seen": 9950,
-        "phase": "test",
-        "cum_reward_mean": 0.9141199547738779,
-        "win_reward_mean": 0.91252,
-        "cum_cost_mean": 0.011152338003768834
-      },
-      {
-        "n_seen": 10000,
-        "phase": "test",
-        "cum_reward_mean": 0.9141007300000086,
-        "win_reward_mean": 0.9105849999999999,
-        "cum_cost_mean": 0.01115504169574999
-      },
-      {
-        "n_seen": 10050,
-        "phase": "test",
-        "cum_reward_mean": 0.9141014975124457,
-        "win_reward_mean": 0.9117125000000001,
-        "cum_cost_mean": 0.011156666372636806
-      },
-      {
-        "n_seen": 10100,
-        "phase": "test",
-        "cum_reward_mean": 0.9141082029703048,
-        "win_reward_mean": 0.9125114999999999,
-        "cum_cost_mean": 0.011161359490841573
-      },
-      {
-        "n_seen": 10150,
-        "phase": "test",
-        "cum_reward_mean": 0.9141323004926184,
-        "win_reward_mean": 0.9147465,
-        "cum_cost_mean": 0.01116455920197043
-      },
-      {
-        "n_seen": 10198,
-        "phase": "test",
-        "cum_reward_mean": 0.9141303736026748,
-        "win_reward_mean": 0.9155462499999999,
-        "cum_cost_mean": 0.011164171913365353
-      }
-    ]
+  "curves": {
+    "BanditGPT": {
+      "xs": [
+        25,
+        50,
+        75,
+        100,
+        125,
+        150,
+        175,
+        200,
+        225,
+        250,
+        275,
+        300,
+        325,
+        350,
+        375,
+        400,
+        425,
+        450,
+        475,
+        500,
+        525,
+        550,
+        575,
+        600,
+        625,
+        650,
+        675,
+        700,
+        725,
+        750,
+        775,
+        800,
+        825,
+        850,
+        875,
+        900,
+        925,
+        950,
+        975,
+        1000,
+        1025,
+        1050,
+        1075,
+        1100,
+        1125,
+        1150,
+        1175,
+        1200,
+        1225,
+        1250,
+        1275,
+        1300,
+        1325,
+        1350,
+        1375,
+        1400,
+        1425,
+        1450,
+        1475,
+        1500,
+        1525,
+        1550,
+        1575,
+        1600,
+        1625,
+        1650,
+        1675,
+        1700,
+        1725,
+        1750,
+        1775,
+        1800,
+        1824
+      ],
+      "cum_regret_mean": [
+        0.6881999999999999,
+        1.4991499999999998,
+        2.1339,
+        2.9636499999999995,
+        3.5659,
+        4.475350000000001,
+        5.251100000000001,
+        6.081550000000002,
+        6.940049999999999,
+        7.871549999999999,
+        8.917300000000001,
+        9.91155,
+        10.801300000000003,
+        11.691050000000002,
+        12.473800000000002,
+        13.6548,
+        14.617049999999997,
+        15.746250000000003,
+        16.763,
+        17.765500000000003,
+        18.594,
+        19.578700000000005,
+        20.648700000000005,
+        21.557700000000008,
+        22.618700000000008,
+        23.676700000000004,
+        24.986200000000007,
+        25.872200000000003,
+        26.81000000000001,
+        27.93875000000001,
+        29.01550000000001,
+        29.93925000000001,
+        31.20175000000001,
+        32.05920000000002,
+        33.04495000000002,
+        33.879700000000014,
+        34.875250000000015,
+        35.754750000000016,
+        36.80625000000001,
+        37.68825000000002,
+        38.71275000000002,
+        39.805000000000014,
+        40.87095000000002,
+        41.757950000000015,
+        42.755200000000016,
+        43.81520000000002,
+        44.940700000000014,
+        45.79390000000003,
+        46.67665000000001,
+        47.698900000000016,
+        48.52315000000003,
+        49.49440000000003,
+        50.62315000000003,
+        51.524400000000014,
+        52.397400000000026,
+        53.303900000000034,
+        54.147150000000025,
+        55.16485000000002,
+        55.98235000000004,
+        56.74610000000003,
+        57.73160000000003,
+        58.70835000000003,
+        59.76085000000002,
+        60.66560000000002,
+        61.74235000000003,
+        62.37610000000003,
+        63.349850000000025,
+        64.44810000000004,
+        65.29285000000002,
+        66.30660000000002,
+        67.25385000000003,
+        68.22285000000002,
+        69.34885000000003
+      ],
+      "cum_regret_se": [
+        0.1216970051095407,
+        0.13238761420441428,
+        0.16556281841677276,
+        0.15424775482457123,
+        0.16805995014311187,
+        0.1982762596267615,
+        0.20336047719311265,
+        0.22367487536248015,
+        0.21919175064913263,
+        0.2447412218198943,
+        0.28462731033664646,
+        0.2819921655779969,
+        0.28802750325546855,
+        0.3371074596358041,
+        0.34675452108766625,
+        0.3838277889613354,
+        0.3197986412120173,
+        0.37220008678836064,
+        0.41805395018245933,
+        0.37419367698390754,
+        0.3773416363540021,
+        0.38784948314900136,
+        0.37779545496137684,
+        0.39635817201909174,
+        0.41729582527204084,
+        0.38490088334531,
+        0.36420353332197447,
+        0.3485118860768484,
+        0.32597176177344617,
+        0.3891621829074139,
+        0.3999531847604169,
+        0.3919776368151094,
+        0.42448485110282697,
+        0.4280678414014596,
+        0.4364251818377409,
+        0.4328379124118547,
+        0.45549987506497724,
+        0.4366702108299983,
+        0.39916495650294725,
+        0.4124019556528744,
+        0.42641344450884106,
+        0.45223112977419155,
+        0.397937580896142,
+        0.40504712185257147,
+        0.3966815081994217,
+        0.4049820112964079,
+        0.4623411084105709,
+        0.465881523791752,
+        0.4680072270865718,
+        0.4523807368275423,
+        0.47021035760044194,
+        0.5082846353435385,
+        0.5222964890749292,
+        0.5355467516080108,
+        0.542192563384515,
+        0.5309610596287667,
+        0.5629760968796926,
+        0.5386456225669385,
+        0.5080337756850825,
+        0.5101620532010533,
+        0.5084903735568636,
+        0.5150184885541786,
+        0.528373563399986,
+        0.5304873846409145,
+        0.5719655642698483,
+        0.5141110411492623,
+        0.5133426078422823,
+        0.4721123968539237,
+        0.47066271460681,
+        0.5099765082308859,
+        0.49897783557462294,
+        0.5047658877612138,
+        0.5047898587009916
+      ],
+      "win_reward_mean": [
+        0.914112,
+        0.9144920000000001,
+        0.9180413333333334,
+        0.9167315000000003,
+        0.9187635000000001,
+        0.9159585,
+        0.9137679999999999,
+        0.9143560000000001,
+        0.9110999999999999,
+        0.9128514999999998,
+        0.9106439999999999,
+        0.909173,
+        0.9101994999999998,
+        0.911105,
+        0.9142850000000001,
+        0.909465,
+        0.9089389999999999,
+        0.9060670000000002,
+        0.9026225,
+        0.9074125000000001,
+        0.9093105000000001,
+        0.9090550000000002,
+        0.909207,
+        0.9090170000000002,
+        0.9044370000000003,
+        0.905467,
+        0.9023074999999998,
+        0.9034650000000001,
+        0.9061195000000002,
+        0.905087,
+        0.9062390000000002,
+        0.905629,
+        0.9022885000000003,
+        0.905138,
+        0.9069560000000001,
+        0.9080535,
+        0.911435,
+        0.9109905000000001,
+        0.9115,
+        0.9100730000000002,
+        0.9093294999999999,
+        0.906417,
+        0.9055375,
+        0.9045065000000001,
+        0.9043840000000001,
+        0.906464,
+        0.9058465000000002,
+        0.9060799999999999,
+        0.9075884999999999,
+        0.9050810000000004,
+        0.908095,
+        0.9097795,
+        0.9063394999999999,
+        0.9085010000000002,
+        0.9079645000000003,
+        0.9071769999999999,
+        0.909334,
+        0.9097569999999999,
+        0.910552,
+        0.9092420000000001,
+        0.9082049999999999,
+        0.9084154999999999,
+        0.9056559999999999,
+        0.906531,
+        0.9077500000000001,
+        0.91096,
+        0.9123714999999999,
+        0.9104740000000001,
+        0.910262,
+        0.9055234999999998,
+        0.9052810000000001,
+        0.9064290000000002,
+        0.9013860000000001
+      ],
+      "win_reward_se": [
+        0.004915500381446429,
+        0.004082484898608739,
+        0.0028801015089323498,
+        0.0021177996618884187,
+        0.0021947893167082863,
+        0.0024937798698910323,
+        0.002698151667540698,
+        0.002908658345083002,
+        0.0023205276169553798,
+        0.002533241035657064,
+        0.0027312792838367498,
+        0.003139516732841134,
+        0.00300678543814696,
+        0.003104130821646327,
+        0.0025286332380619224,
+        0.0027880136770033767,
+        0.00251350655669054,
+        0.002875518726659312,
+        0.002800124327596904,
+        0.0029013270897261766,
+        0.00367603365162708,
+        0.0039206486104107485,
+        0.0035717615512443333,
+        0.003376478943016169,
+        0.0028313197685141383,
+        0.002506659981560693,
+        0.0022569836502217716,
+        0.0031871975398294287,
+        0.0028731138870387177,
+        0.0030285351765811574,
+        0.0031505241752678792,
+        0.0029185867975335023,
+        0.0024852845092876636,
+        0.0026994509773187823,
+        0.003332653076201578,
+        0.0032285804502419006,
+        0.003578834233892964,
+        0.0029807488881505133,
+        0.0036103138805080987,
+        0.003496888925587252,
+        0.0029046242147560764,
+        0.0028517746183182573,
+        0.003048700575223554,
+        0.00268145524855441,
+        0.0025639777279597557,
+        0.0035788929043843527,
+        0.003426429956966861,
+        0.0027341703254225103,
+        0.0023493672468403717,
+        0.002180741653175533,
+        0.003198072157771894,
+        0.003858615409907928,
+        0.004064973973827473,
+        0.0033498758735841247,
+        0.002859255099441846,
+        0.0025745537272966025,
+        0.002151138058649047,
+        0.002775746755853563,
+        0.0029297434412553754,
+        0.002827635017019291,
+        0.0031624885687332404,
+        0.0035782322506335,
+        0.0036229518642298154,
+        0.003724940472855339,
+        0.0032927081319341473,
+        0.0033674753154254926,
+        0.0028590840707618656,
+        0.0023713851603962134,
+        0.002755219314988232,
+        0.0028212331453685885,
+        0.002881092619859782,
+        0.002799830718567036,
+        0.0030456963943104676
+      ]
+    },
+    "Tabula Rasa": {
+      "xs": [
+        25,
+        50,
+        75,
+        100,
+        125,
+        150,
+        175,
+        200,
+        225,
+        250,
+        275,
+        300,
+        325,
+        350,
+        375,
+        400,
+        425,
+        450,
+        475,
+        500,
+        525,
+        550,
+        575,
+        600,
+        625,
+        650,
+        675,
+        700,
+        725,
+        750,
+        775,
+        800,
+        825,
+        850,
+        875,
+        900,
+        925,
+        950,
+        975,
+        1000,
+        1025,
+        1050,
+        1075,
+        1100,
+        1125,
+        1150,
+        1175,
+        1200,
+        1225,
+        1250,
+        1275,
+        1300,
+        1325,
+        1350,
+        1375,
+        1400,
+        1425,
+        1450,
+        1475,
+        1500,
+        1525,
+        1550,
+        1575,
+        1600,
+        1625,
+        1650,
+        1675,
+        1700,
+        1725,
+        1750,
+        1775,
+        1800,
+        1824
+      ],
+      "cum_regret_mean": [
+        2.3089999999999997,
+        4.2142,
+        5.8882,
+        7.664199999999999,
+        9.218200000000001,
+        10.89065,
+        12.5224,
+        13.998899999999997,
+        15.621849999999995,
+        17.089799999999993,
+        18.6305,
+        20.280499999999996,
+        21.545800000000007,
+        22.658800000000006,
+        23.937050000000006,
+        25.329800000000006,
+        26.69525000000001,
+        27.98320000000001,
+        29.432200000000005,
+        30.84820000000001,
+        31.88990000000002,
+        33.09710000000001,
+        34.21285000000001,
+        35.434300000000015,
+        36.92905000000001,
+        38.17080000000002,
+        39.54275000000003,
+        40.71200000000001,
+        41.877250000000025,
+        42.96970000000003,
+        44.02395000000002,
+        45.10345000000002,
+        46.50670000000003,
+        47.496650000000024,
+        48.61840000000002,
+        49.531400000000026,
+        50.59945000000003,
+        51.57290000000002,
+        52.62390000000003,
+        53.45740000000003,
+        54.52765000000003,
+        55.58690000000003,
+        56.49265000000004,
+        57.41040000000004,
+        58.475650000000044,
+        59.59890000000003,
+        60.82240000000004,
+        61.85990000000004,
+        62.93490000000004,
+        64.00890000000004,
+        64.84585000000004,
+        65.92660000000004,
+        67.11190000000003,
+        68.07455000000002,
+        68.98930000000004,
+        69.90005000000004,
+        70.81030000000001,
+        71.89650000000003,
+        72.95700000000002,
+        73.81375000000001,
+        74.62725000000003,
+        75.50100000000002,
+        76.56725000000003,
+        77.43625,
+        78.52250000000001,
+        79.26200000000001,
+        80.27624999999999,
+        81.41400000000003,
+        82.23675,
+        83.15345,
+        84.0287,
+        85.0462,
+        86.2271
+      ],
+      "cum_regret_se": [
+        0.16208137981955398,
+        0.1664006990116897,
+        0.1920749661761755,
+        0.22827076028260826,
+        0.2572037549860952,
+        0.2656650074515093,
+        0.19190573892299037,
+        0.20883166098936945,
+        0.2540538098306611,
+        0.2959255205017145,
+        0.4073952529243111,
+        0.38619683759505524,
+        0.3870102582619748,
+        0.37369830640575147,
+        0.3970801687250796,
+        0.4198309471805609,
+        0.4638064244295308,
+        0.488024123648779,
+        0.5471223407881226,
+        0.559901324013062,
+        0.5551392850352733,
+        0.5469281868572398,
+        0.5631825882989978,
+        0.6067318279541895,
+        0.6263426230485746,
+        0.5978028217432656,
+        0.6185181011477096,
+        0.6402179933017877,
+        0.6731079794310003,
+        0.6911675175877561,
+        0.7216414748955843,
+        0.6913097655708943,
+        0.7784456310663682,
+        0.8313810554385432,
+        0.8373863517548303,
+        0.8849378729308458,
+        0.8804960727220469,
+        0.913595551134435,
+        0.9240453107482285,
+        0.9540356646759516,
+        1.0140636964188872,
+        1.0273472505233543,
+        1.023209101115341,
+        0.9892885811744246,
+        0.9569123599396472,
+        0.9871543096459798,
+        1.0333551750945738,
+        1.0238194919541541,
+        1.0597854596692269,
+        1.1132167233552923,
+        1.0994297810922846,
+        1.1422781585843902,
+        1.1698394511978747,
+        1.1500887093359808,
+        1.2368509187703884,
+        1.2617746263747551,
+        1.276850805487344,
+        1.247900726694318,
+        1.2968164967780855,
+        1.319682481498364,
+        1.2821806812388419,
+        1.3039030174623278,
+        1.3438788359290015,
+        1.3485748849784838,
+        1.3643785022377077,
+        1.363248133570775,
+        1.3939509012628708,
+        1.3881108991795428,
+        1.4102967527868155,
+        1.4258194642398618,
+        1.4298868322905411,
+        1.457736438527387,
+        1.4699998924095856
+      ],
+      "win_reward_mean": [
+        0.84928,
+        0.860191,
+        0.8679840000000001,
+        0.869726,
+        0.8784485,
+        0.878956,
+        0.8785980000000002,
+        0.8821879999999999,
+        0.8808050000000002,
+        0.8848220000000001,
+        0.8862249999999999,
+        0.884657,
+        0.8895724999999999,
+        0.8936099999999998,
+        0.8967844999999999,
+        0.8964045,
+        0.8956019999999999,
+        0.8933750000000001,
+        0.890563,
+        0.8933354999999998,
+        0.8971335,
+        0.8962405,
+        0.9002575,
+        0.9010780000000003,
+        0.8942924999999999,
+        0.8957100000000002,
+        0.8923835,
+        0.8938329999999999,
+        0.8985504999999998,
+        0.8997185,
+        0.9017200000000001,
+        0.9023850000000001,
+        0.8999115000000002,
+        0.901073,
+        0.9013060000000002,
+        0.9031784999999999,
+        0.9072425000000001,
+        0.9071835,
+        0.9090579999999999,
+        0.9088985,
+        0.9084225000000004,
+        0.9067794999999998,
+        0.9074969999999999,
+        0.9056735,
+        0.9053285000000001,
+        0.9064460000000001,
+        0.9032465000000002,
+        0.9019444999999999,
+        0.9022105,
+        0.899818,
+        0.903685,
+        0.9061174999999999,
+        0.9040345000000001,
+        0.9060995000000001,
+        0.9052724999999999,
+        0.9055375,
+        0.9075900000000001,
+        0.9079419999999999,
+        0.9067245000000002,
+        0.9045270000000001,
+        0.9058800000000001,
+        0.9078054999999999,
+        0.9073385,
+        0.9095010000000002,
+        0.9089050000000002,
+        0.9100275,
+        0.9111715,
+        0.9085215,
+        0.9086245,
+        0.9059140000000001,
+        0.9067964999999999,
+        0.9078545000000002,
+        0.9021825
+      ],
+      "win_reward_se": [
+        0.007843136322187767,
+        0.004298607724417411,
+        0.003370617254801053,
+        0.003139857053400586,
+        0.0025768119097871766,
+        0.003616096863513997,
+        0.002859948343295003,
+        0.003792351277311513,
+        0.004336141475406088,
+        0.004140561848475713,
+        0.003938796870806327,
+        0.0037514024815990333,
+        0.003310879424834048,
+        0.00255317975123281,
+        0.002177521100870625,
+        0.0028441073407643154,
+        0.003068971934841064,
+        0.00317249814400012,
+        0.0036318164296874037,
+        0.003826068166985664,
+        0.004219170302260113,
+        0.003897793334898469,
+        0.0031335487596249965,
+        0.003230207798432266,
+        0.0027607071819982765,
+        0.0031046324470988497,
+        0.0034896838399246974,
+        0.004268889298413024,
+        0.003665149345345196,
+        0.003697703859011337,
+        0.0028025216089124123,
+        0.0026071661869385646,
+        0.002694319196793605,
+        0.003473617415227023,
+        0.003918844512836593,
+        0.004678933767149128,
+        0.003992560046346719,
+        0.0032738213045629947,
+        0.003745810825020668,
+        0.003751902273654343,
+        0.0038906567484437034,
+        0.0032925002078088178,
+        0.002986337142104985,
+        0.0027552663712091053,
+        0.0026557762543478495,
+        0.0028642338371166884,
+        0.002810184698462655,
+        0.002230991457083366,
+        0.0027270559096231493,
+        0.0032662295661737228,
+        0.002584417220268641,
+        0.0032204419339587538,
+        0.003101060215559567,
+        0.002706967177974564,
+        0.002441112976859013,
+        0.00284686317448003,
+        0.0030171758318003304,
+        0.0038279544214412436,
+        0.0035472362462686453,
+        0.003279274719234502,
+        0.0029060338318021932,
+        0.002872354936559709,
+        0.003185737151330658,
+        0.003443821003661946,
+        0.00337130370690784,
+        0.0030777967918797482,
+        0.0029926187506667356,
+        0.00252996747170685,
+        0.002336125951340448,
+        0.0028984291026619654,
+        0.0030352113665235315,
+        0.003079250718412211,
+        0.0031802772864046058
+      ]
+    }
   },
-  "wall_time_s": 34.8
+  "wall_time_s": 8.9
 }

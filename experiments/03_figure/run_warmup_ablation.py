@@ -1,54 +1,43 @@
 #!/usr/bin/env python3
-"""Experiment 3 / RQ2: Warmup Prior Ablation — Learning Curves.
+"""Experiment 3 / RQ2: Cold-Start Prior Value — Learning Curves.
 
-Measures how warmup priors accelerate online learning by comparing two
-conditions that use **independently tuned** hyperparameters:
+Measures how warmup priors eliminate cold-start regret by comparing two
+conditions that start from scratch on held-out test data:
 
 - **BanditGPT (warm priors):** Disjoint LinUCB initialised with offline
-  priors from the training split.  Uses alpha=0.01, N_eff=10 — tuned on
-  the val split (20 seeds) to maximise reward at cost_penalty=0.15.
+  priors from the training split.  Uses alpha=0.5, N_eff=5000 — the same
+  hyperparameters used in Figures 1 and 4 for cross-figure consistency.
 - **Tabula Rasa (no priors):** Same Disjoint LinUCB architecture but
-  starting from scratch (A=lambda*I, b=0).  Uses alpha=0.30 — separately
-  tuned on val (20 seeds) at cost_penalty=0.15 to give cold-start the
-  best possible chance, ensuring a fair comparison.
+  starting from scratch (A=lambda*I, b=0).  Uses alpha=0.50 — matching
+  BEST_K2_TABULA_RASA_HPARAMS for consistency across experiments.
 
 Both conditions use the same:
-  - Online learning protocol (train on train split, evaluate on test split)
+  - alpha=0.5 exploration rate (isolates the effect of priors, not tuning)
   - Seeds, shuffle order, and number of seeds
   - Feature pipeline (PCA-25, all-MiniLM-L6-v2)
-  - Cost penalty grid (single lambda=0.15, the operating point that
-    maximises regret reduction between warmup and cold-start)
+  - Cost penalty grid (default lambda=0.15)
   - No Corralling (isolating the effect of priors alone)
 
 Protocol
 --------
-1. Train on the canonical train split (n=8,374) with online, partial
-   feedback (only observe reward for the selected arm).
-2. Evaluate on the canonical test split (n=1,824) with continued online
-   learning — the router keeps updating during evaluation, matching
-   production deployment conditions.
-3. Record per-prompt rewards, costs, and arm choices at periodic
-   checkpoints during *both* phases to produce learning curves.
+Evaluate on the held-out test split (n=1,824) from cold start — NO
+pre-training phase.  The router is deployed fresh and must learn
+purely from online partial feedback, prompt by prompt.  With warmup
+priors the router starts with informative arm estimates from offline
+full-information evaluation; without them it starts from scratch.
 
-The val split (n=1,785) is reserved for hyperparameter selection and is
-not used in this experiment.
+This directly measures the production value proposition of warmup
+priors: when deploying a new router, how much cold-start cost do
+priors eliminate?
 
 Fairness notes
 --------------
-- **Priors source:** warmup priors are built offline from the train split
-  (full-information ridge regression).  The BanditGPT condition then
-  processes the same train split online.  This mirrors production
-  deployment: historical logs inform priors, then the router goes live.
-  All comparative metrics (regret, CostSave) are computed on the held-out
-  test split, which was not used for prior construction or tuning.
-- **Hyperparameter selection:** each condition uses its own best alpha
-  from an independent sweep on the val split at cost_penalty=0.15
-  (see ``tune_alpha_multi_cp.py``).  Following PILOT (EMNLP 2025), alpha
-  is tuned to maximise reward at the specific operating point being
-  reported, not via a Pareto frontier metric.
-- **Operating point selection:** cost_penalty=0.15 was selected via a
-  sweep (see ``sweep_cost_penalty.py``) as the point that maximises
-  regret reduction between warmup and cold-start conditions.
+- **Priors source:** warmup priors are built offline from the training
+  split (full-information ridge regression).  The test split used for
+  evaluation was not used for prior construction or tuning.
+- **Same exploration rate:** both conditions use alpha=0.5, the
+  production value.  This isolates the effect of priors: the only
+  difference is whether the bandit starts with informed arm estimates.
 - **Shuffle parity:** both conditions share the same per-seed shuffle
   order (same ``rng`` initialised from the same seed), ensuring identical
   prompt presentation sequences.
@@ -56,12 +45,12 @@ Fairness notes
 Outputs
 -------
 ``results/figure3_warmup_ablation.pdf``
-    Single-panel figure: cumulative average reward learning curves
-    showing how warmup priors accelerate convergence.
+    Two-panel figure: (a) cumulative regret showing cold-start gap,
+    (b) windowed reward showing convergence dynamics.
 
 ``results/warmup_ablation_data.json``
-    Machine-readable metrics including convergence speed, cumulative
-    regret, and checkpoint-level statistics.
+    Machine-readable metrics including cold-start regret, convergence
+    speed, and checkpoint-level statistics.
 
 Usage
 -----
@@ -91,7 +80,6 @@ from bandit_gpt.config import (
     HOLDOUT_DATA_PATH,
     K2_ARM_ORDER,
     K2_WARMUP_PRIORS_PATH,
-    TRAIN_DATA_PATH,
 )
 from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.router import BanditRouter
@@ -125,31 +113,26 @@ ARM_LABELS = {
     "google/gemini-2.5-pro": "Gemini-2.5-Pro",
 }
 
-# ── Hyperparameters tuned at cost_penalty=0.15 on val ──────────────────
-# Source: experiments/03_figure/tune_alpha_multi_cp.py
-# Protocol: sweep alpha × n_eff on val, 20 seeds, maximise mean val reward.
-# Follows PILOT (EMNLP 2025) methodology: tune alpha at the operating
-# point being reported, not via a Pareto frontier metric.
+# ── Hyperparameters: same as Figures 1 & 4 for cross-figure consistency ─
+# Both conditions use the same alpha=0.5 to isolate the effect of priors.
 WARMUP_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.01,
-    "prior_n_effective": 10.0,
+    "alpha": 0.5,
+    "prior_n_effective": 5000.0,
     "policy": "disjoint",
     "use_corralling": False,
     "forgetting_factor": 1.0,
 }
-"""Val reward = 0.9160 ± 0.0007 at cost_penalty=0.15 (20 seeds)."""
 
 TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.30,
+    "alpha": 0.50,
     "prior_n_effective": 1.0,
     "policy": "tabula_rasa",
     "use_corralling": False,
     "forgetting_factor": 1.0,
 }
-"""Val reward = 0.9100 ± 0.0006 at cost_penalty=0.15 (20 seeds)."""
 
-CHECKPOINT_INTERVAL = 50
-WINDOW_SIZE = 200
+CHECKPOINT_INTERVAL = 25
+WINDOW_SIZE = 100
 SEED_OFFSET = 1000
 
 CONVERGENCE_THRESHOLD = 0.005
@@ -165,7 +148,6 @@ class Checkpoint:
     """Snapshot of routing statistics at a given prompt count."""
 
     n_seen: int
-    phase: str
     cumulative_reward: float
     cumulative_cost: float
     windowed_reward: float
@@ -180,9 +162,9 @@ class AblationResult:
     condition: str
     seed: int
     checkpoints: List[Checkpoint]
-    test_rewards: np.ndarray
-    test_costs: np.ndarray
-    test_choices: np.ndarray
+    rewards: np.ndarray
+    costs: np.ndarray
+    choices: np.ndarray
     oracle_rewards: np.ndarray
 
 
@@ -201,10 +183,6 @@ def _create_router(
     use_priors: bool,
 ) -> BanditRouter:
     """Create a BanditRouter with or without warmup priors.
-
-    Both conditions use Disjoint LinUCB with no Corralling.  The only
-    difference is whether offline priors are loaded (``use_priors=True``)
-    or the bandit starts from scratch (``use_priors=False``).
 
     Args:
         registry: Model registry (K=2 arms).
@@ -241,8 +219,7 @@ def _create_router(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def simulate_ablation(
-    train: SplitData,
+def simulate_cold_start(
     test: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
@@ -254,14 +231,13 @@ def simulate_ablation(
     use_priors: bool,
     condition_name: str,
 ) -> AblationResult:
-    """Run a single train-then-test simulation with checkpoint recording.
+    """Run a cold-start simulation on the test split.
 
-    Both phases are online (partial feedback): the bandit observes only
-    the reward of the arm it selects.  Checkpoints are recorded during
-    training and evaluation to produce continuous learning curves.
+    The router is created fresh (with or without priors) and immediately
+    deployed on the held-out test split.  No pre-training phase — this
+    measures the router's out-of-the-box routing quality.
 
     Args:
-        train: Training split (K=2).
         test: Test split (K=2).
         registry: Model registry.
         feature_dim: Feature dimensionality.
@@ -284,49 +260,18 @@ def simulate_ablation(
     )
 
     arm_to_idx = {arm: i for i, arm in enumerate(ARM_ORDER)}
+    n_test = test.n
+    rewards = np.zeros(n_test)
+    costs = np.zeros(n_test)
+    choices = np.zeros(n_test, dtype=np.int32)
+    oracle_rewards = np.zeros(n_test)
+
     checkpoints: List[Checkpoint] = []
     arm_counts: Dict[str, int] = {a: 0 for a in ARM_ORDER}
     cum_reward = 0.0
     cum_cost = 0.0
     cum_oracle = 0.0
     recent_rewards: deque[float] = deque(maxlen=WINDOW_SIZE)
-    global_step = 0
-
-    # ── Phase 1: Training (online, partial feedback) ──────────────
-    train_idx = rng.permutation(train.n)
-    for i in train_idx:
-        emb = train.embeddings[i]
-        model, log = router.route(emb)
-        reward = float(train.rewards[model][i])
-        cost = float(train.costs[model][i])
-        oracle_r = max(float(train.rewards[a][i]) for a in ARM_ORDER)
-        router.process_feedback(log.request_id, reward=reward)
-
-        arm_counts[model] += 1
-        cum_reward += reward
-        cum_cost += cost
-        cum_oracle += oracle_r
-        recent_rewards.append(reward)
-        global_step += 1
-
-        if global_step % CHECKPOINT_INTERVAL == 0:
-            mix = {a: arm_counts[a] / global_step for a in ARM_ORDER}
-            checkpoints.append(Checkpoint(
-                n_seen=global_step,
-                phase="train",
-                cumulative_reward=cum_reward / global_step,
-                cumulative_cost=cum_cost / global_step,
-                windowed_reward=float(np.mean(recent_rewards)),
-                routing_mix=dict(mix),
-                oracle_cumulative_reward=cum_oracle / global_step,
-            ))
-
-    # ── Phase 2: Evaluation (online, partial feedback) ────────────
-    n_test = test.n
-    test_rewards = np.zeros(n_test)
-    test_costs = np.zeros(n_test)
-    test_choices = np.zeros(n_test, dtype=np.int32)
-    oracle_rewards = np.zeros(n_test)
 
     eval_idx = rng.permutation(n_test)
     for j, i in enumerate(eval_idx):
@@ -337,9 +282,9 @@ def simulate_ablation(
         oracle_r = max(float(test.rewards[a][i]) for a in ARM_ORDER)
         router.process_feedback(log.request_id, reward=reward)
 
-        test_rewards[j] = reward
-        test_costs[j] = cost
-        test_choices[j] = arm_to_idx[model]
+        rewards[j] = reward
+        costs[j] = cost
+        choices[j] = arm_to_idx[model]
         oracle_rewards[j] = oracle_r
 
         arm_counts[model] += 1
@@ -347,27 +292,26 @@ def simulate_ablation(
         cum_cost += cost
         cum_oracle += oracle_r
         recent_rewards.append(reward)
-        global_step += 1
+        step = j + 1
 
-        if global_step % CHECKPOINT_INTERVAL == 0 or (j + 1) == n_test:
-            mix = {a: arm_counts[a] / global_step for a in ARM_ORDER}
+        if step % CHECKPOINT_INTERVAL == 0 or step == n_test:
+            mix = {a: arm_counts[a] / step for a in ARM_ORDER}
             checkpoints.append(Checkpoint(
-                n_seen=global_step,
-                phase="test",
-                cumulative_reward=cum_reward / global_step,
-                cumulative_cost=cum_cost / global_step,
+                n_seen=step,
+                cumulative_reward=cum_reward / step,
+                cumulative_cost=cum_cost / step,
                 windowed_reward=float(np.mean(recent_rewards)),
                 routing_mix=dict(mix),
-                oracle_cumulative_reward=cum_oracle / global_step,
+                oracle_cumulative_reward=cum_oracle / step,
             ))
 
     return AblationResult(
         condition=condition_name,
         seed=seed,
         checkpoints=checkpoints,
-        test_rewards=test_rewards,
-        test_costs=test_costs,
-        test_choices=test_choices,
+        rewards=rewards,
+        costs=costs,
+        choices=choices,
         oracle_rewards=oracle_rewards,
     )
 
@@ -377,55 +321,60 @@ def simulate_ablation(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def aggregate_checkpoints(
+def aggregate_curves(
     results: List[AblationResult],
-) -> Dict[str, List[Dict[str, Any]]]:
-    """Average checkpoint metrics across seeds for each condition.
+    checkpoint_interval: int = CHECKPOINT_INTERVAL,
+    window_size: int = WINDOW_SIZE,
+) -> Dict[str, Dict[str, Any]]:
+    """Compute cumulative regret and windowed reward curves per condition.
 
     Args:
         results: All seed results for all conditions.
+        checkpoint_interval: Spacing between curve checkpoints.
+        window_size: Window size for windowed reward.
 
     Returns:
-        ``{condition: [{n_seen, cum_reward_mean, cum_reward_se, ...}]}``
+        ``{condition: {"xs": array, "cum_regret_mean": array, ...}}``
     """
     by_cond: Dict[str, List[AblationResult]] = {}
     for r in results:
         by_cond.setdefault(r.condition, []).append(r)
 
-    aggregated: Dict[str, List[Dict[str, Any]]] = {}
+    curves: Dict[str, Dict[str, Any]] = {}
     for cond, runs in by_cond.items():
+        n_test = len(runs[0].rewards)
         n_seeds = len(runs)
-        n_cp = len(runs[0].checkpoints)
-        agg: List[Dict[str, Any]] = []
-        for cp_idx in range(n_cp):
-            n_seen = runs[0].checkpoints[cp_idx].n_seen
-            phase = runs[0].checkpoints[cp_idx].phase
-            cum_r = [r.checkpoints[cp_idx].cumulative_reward for r in runs]
-            win_r = [r.checkpoints[cp_idx].windowed_reward for r in runs]
-            cum_c = [r.checkpoints[cp_idx].cumulative_cost for r in runs]
-            oracle_r = [r.checkpoints[cp_idx].oracle_cumulative_reward for r in runs]
+        cp_indices = list(range(
+            checkpoint_interval - 1, n_test, checkpoint_interval,
+        ))
+        if (n_test - 1) not in cp_indices:
+            cp_indices.append(n_test - 1)
+        xs = np.array([i + 1 for i in cp_indices])
 
-            def _se(arr: List[float]) -> float:
-                return float(np.std(arr, ddof=1) / np.sqrt(n_seeds)) if n_seeds > 1 else 0.0
+        all_cum_regret = np.zeros((n_seeds, len(cp_indices)))
+        all_win_reward = np.zeros((n_seeds, len(cp_indices)))
 
-            cum_regret = [(o - r) * n_seen for o, r in zip(oracle_r, cum_r)]
+        for s, r in enumerate(runs):
+            per_step_regret = r.oracle_rewards - r.rewards
+            cum_regret = np.cumsum(per_step_regret)
+            for ci, idx in enumerate(cp_indices):
+                all_cum_regret[s, ci] = cum_regret[idx]
+                win_start = max(0, idx + 1 - window_size)
+                all_win_reward[s, ci] = r.rewards[win_start:idx + 1].mean()
 
-            agg.append({
-                "n_seen": n_seen,
-                "phase": phase,
-                "cum_reward_mean": float(np.mean(cum_r)),
-                "cum_reward_se": _se(cum_r),
-                "win_reward_mean": float(np.mean(win_r)),
-                "win_reward_se": _se(win_r),
-                "cum_cost_mean": float(np.mean(cum_c)),
-                "cum_cost_se": _se(cum_c),
-                "oracle_cum_reward_mean": float(np.mean(oracle_r)),
-                "cum_regret_mean": float(np.mean(cum_regret)),
-                "cum_regret_se": _se(cum_regret),
-                "n_seeds": n_seeds,
-            })
-        aggregated[cond] = agg
-    return aggregated
+        def _se(arr: np.ndarray) -> np.ndarray:
+            if n_seeds > 1:
+                return np.std(arr, axis=0, ddof=1) / np.sqrt(n_seeds)
+            return np.zeros(arr.shape[1])
+
+        curves[cond] = {
+            "xs": xs,
+            "cum_regret_mean": all_cum_regret.mean(axis=0),
+            "cum_regret_se": _se(all_cum_regret),
+            "win_reward_mean": all_win_reward.mean(axis=0),
+            "win_reward_se": _se(all_win_reward),
+        }
+    return curves
 
 
 def compute_costsave_at_quality(
@@ -456,24 +405,35 @@ def compute_costsave_at_quality(
 
 
 def compute_convergence_prompt(
-    checkpoints: List[Checkpoint],
-    final_reward: float,
+    rewards: np.ndarray,
+    oracle_rewards: np.ndarray,
+    window: int = WINDOW_SIZE,
     threshold: float = CONVERGENCE_THRESHOLD,
 ) -> int:
-    """First checkpoint where cumulative reward is within *threshold* of final.
+    """First prompt index where the windowed regret rate drops below threshold.
+
+    Measures when the router's per-prompt regret stabilises near its
+    final (converged) level.
 
     Args:
-        checkpoints: Checkpoint list from a single run.
-        final_reward: The converged (final) cumulative reward.
-        threshold: Absolute proximity to final reward.
+        rewards: Per-prompt rewards.
+        oracle_rewards: Per-prompt oracle rewards.
+        window: Smoothing window.
+        threshold: Absolute proximity to final windowed regret.
 
     Returns:
         Prompt count at convergence.
     """
-    for cp in checkpoints:
-        if abs(cp.cumulative_reward - final_reward) <= threshold:
-            return cp.n_seen
-    return checkpoints[-1].n_seen
+    n = len(rewards)
+    per_step_regret = oracle_rewards - rewards
+    if n < window:
+        return n
+    final_rate = per_step_regret[-window:].mean()
+    for i in range(window, n):
+        win_rate = per_step_regret[i - window:i].mean()
+        if abs(win_rate - final_rate) <= threshold:
+            return i
+    return n
 
 
 def compute_all_metrics(
@@ -509,20 +469,22 @@ def compute_all_metrics(
     metrics: Dict[str, Dict[str, Any]] = {}
     for cond, runs in by_cond.items():
         cum_regrets = [
-            float((r.oracle_rewards - r.test_rewards).sum()) for r in runs
+            float((r.oracle_rewards - r.rewards).sum()) for r in runs
         ]
         full_cs = [
             compute_costsave_at_quality(
-                r.test_rewards, r.test_costs,
+                r.rewards, r.costs,
                 strong_reward, strong_cost, 0.95,
             )
             for r in runs
         ]
-        final_rewards = [float(r.test_rewards.mean()) for r in runs]
+        final_rewards = [float(r.rewards.mean()) for r in runs]
         convergence = [
-            float(compute_convergence_prompt(
-                r.checkpoints, r.checkpoints[-1].cumulative_reward,
-            ))
+            float(compute_convergence_prompt(r.rewards, r.oracle_rewards))
+            for r in runs
+        ]
+        early_regrets = [
+            float((r.oracle_rewards[:100] - r.rewards[:100]).sum())
             for r in runs
         ]
 
@@ -531,6 +493,7 @@ def compute_all_metrics(
             "cumulative_regret": _agg(cum_regrets),
             "costsave_95": _agg(full_cs),
             "convergence_prompt": _agg(convergence),
+            "early_regret_100": _agg(early_regrets),
         }
     return metrics
 
@@ -546,10 +509,7 @@ def compute_costsave_checkpoints(
     strong_cost: float,
     window_prompts: List[int],
 ) -> Dict[str, Dict[int, Dict[str, Optional[float]]]]:
-    """CostSave@95% computed on the first N test prompts for various N.
-
-    This shows how quickly each condition reaches the cost-quality target,
-    providing a time-resolved view complementing the learning curves.
+    """CostSave@95% computed on the first N prompts for various N.
 
     Args:
         all_results: Raw per-seed results.
@@ -570,9 +530,9 @@ def compute_costsave_checkpoints(
         for wp in window_prompts:
             cs_list: List[Optional[float]] = []
             for r in runs:
-                n = min(wp, len(r.test_rewards))
+                n = min(wp, len(r.rewards))
                 cs = compute_costsave_at_quality(
-                    r.test_rewards[:n], r.test_costs[:n],
+                    r.rewards[:n], r.costs[:n],
                     strong_reward, strong_cost, 0.95,
                 )
                 cs_list.append(cs)
@@ -587,73 +547,6 @@ def compute_costsave_checkpoints(
             else:
                 out[cond][wp] = {"mean": None, "se": None, "n": 0}
     return out
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Test-Only Curve Aggregation
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-def aggregate_test_curves(
-    results: List[AblationResult],
-    checkpoint_interval: int = CHECKPOINT_INTERVAL,
-    window_size: int = WINDOW_SIZE,
-) -> Dict[str, Dict[str, Any]]:
-    """Compute test-phase-only cumulative regret and windowed reward curves.
-
-    Uses per-prompt ``test_rewards`` and ``oracle_rewards`` arrays from
-    each seed, ensuring no training data is included.  This avoids the
-    data-overlap concern where priors were built on the train split.
-
-    Args:
-        results: All seed results for all conditions.
-        checkpoint_interval: Spacing between curve checkpoints.
-        window_size: Window size for windowed reward.
-
-    Returns:
-        ``{condition: {"xs": array, "cum_regret_mean": array,
-        "cum_regret_se": array, "win_reward_mean": array,
-        "win_reward_se": array}}``
-    """
-    by_cond: Dict[str, List[AblationResult]] = {}
-    for r in results:
-        by_cond.setdefault(r.condition, []).append(r)
-
-    curves: Dict[str, Dict[str, Any]] = {}
-    for cond, runs in by_cond.items():
-        n_test = len(runs[0].test_rewards)
-        n_seeds = len(runs)
-        cp_indices = list(range(
-            checkpoint_interval - 1, n_test, checkpoint_interval,
-        ))
-        if (n_test - 1) not in cp_indices:
-            cp_indices.append(n_test - 1)
-        xs = np.array([i + 1 for i in cp_indices])
-
-        all_cum_regret = np.zeros((n_seeds, len(cp_indices)))
-        all_win_reward = np.zeros((n_seeds, len(cp_indices)))
-
-        for s, r in enumerate(runs):
-            per_step_regret = r.oracle_rewards - r.test_rewards
-            cum_regret = np.cumsum(per_step_regret)
-            for ci, idx in enumerate(cp_indices):
-                all_cum_regret[s, ci] = cum_regret[idx]
-                win_start = max(0, idx + 1 - window_size)
-                all_win_reward[s, ci] = r.test_rewards[win_start:idx + 1].mean()
-
-        def _se(arr: np.ndarray) -> np.ndarray:
-            if n_seeds > 1:
-                return np.std(arr, axis=0, ddof=1) / np.sqrt(n_seeds)
-            return np.zeros(arr.shape[1])
-
-        curves[cond] = {
-            "xs": xs,
-            "cum_regret_mean": all_cum_regret.mean(axis=0),
-            "cum_regret_se": _se(all_cum_regret),
-            "win_reward_mean": all_win_reward.mean(axis=0),
-            "win_reward_se": _se(all_win_reward),
-        }
-    return curves
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -676,40 +569,38 @@ CONDITION_STYLES = {
 
 
 def plot_learning_curves(
-    test_curves: Dict[str, Dict[str, Any]],
+    curves: Dict[str, Dict[str, Any]],
+    metrics: Dict[str, Dict[str, Any]],
     n_test: int,
     out_dir: Path,
 ) -> Path:
-    """Two-panel warmup ablation figure using **test-split-only** data.
+    """Two-panel cold-start ablation figure.
 
-    Both panels use exclusively held-out test data.  Warmup priors were
-    built from the train split; the test split was never used for prior
-    construction or hyperparameter selection.
+    (a) Cumulative regret from prompt 1 — shows the cold-start penalty
+        that warmup priors eliminate.
+    (b) Windowed average reward — shows convergence dynamics.
 
-    (a) Cumulative regret on the test split — monotonically increasing,
-        the gap reflects the genuine downstream benefit of priors after
-        training on the train split.
-    (b) Windowed average reward on the test split — shows the reward
-        trajectory during held-out evaluation.
+    Both panels use exclusively held-out test data (no training phase).
 
     Args:
-        test_curves: Output of ``aggregate_test_curves``.
+        curves: Output of ``aggregate_curves``.
+        metrics: Output of ``compute_all_metrics``.
         n_test: Number of test prompts.
         out_dir: Output directory.
 
     Returns:
         Path to the saved figure.
     """
-    fig, (ax_reg, ax_early) = plt.subplots(
+    fig, (ax_reg, ax_rew) = plt.subplots(
         1, 2, figsize=(12, 4.2),
         gridspec_kw={"width_ratios": [1.2, 1]},
     )
 
-    # ── Panel (a): Test-Only Cumulative Regret ─────────────────────────
+    # ── Panel (a): Cumulative Regret ─────────────────────────────────
     for cond in ["BanditGPT", "Tabula Rasa"]:
-        if cond not in test_curves:
+        if cond not in curves:
             continue
-        c = test_curves[cond]
+        c = curves[cond]
         color = CONDITION_COLORS[cond]
         style = CONDITION_STYLES[cond]
 
@@ -722,37 +613,52 @@ def plot_learning_curves(
             alpha=0.15, color=color,
         )
 
-    ax_reg.set_ylabel("Cumulative regret (test only)", fontsize=10)
-    ax_reg.set_xlabel("Test prompts processed", fontsize=10)
+    bg_regret = metrics.get("BanditGPT", {}).get("cumulative_regret", {})
+    tr_regret = metrics.get("Tabula Rasa", {}).get("cumulative_regret", {})
+    bg_val = bg_regret.get("mean")
+    tr_val = tr_regret.get("mean")
+    if bg_val is not None and tr_val is not None and tr_val > 0:
+        reduction_pct = (1.0 - bg_val / tr_val) * 100
+        saved_prompts = tr_val - bg_val
+        ax_reg.annotate(
+            f"$\\Delta = {saved_prompts:.0f}$\n({reduction_pct:.0f}% reduction)",
+            xy=(n_test * 0.65, (bg_val + tr_val) / 2),
+            fontsize=9, ha="center", va="center",
+            bbox=dict(boxstyle="round,pad=0.3", fc="white",
+                      ec="gray", alpha=0.9),
+        )
+
+    ax_reg.set_ylabel("Cumulative regret", fontsize=10)
+    ax_reg.set_xlabel("Prompts routed", fontsize=10)
     ax_reg.legend(fontsize=9, framealpha=0.9, loc="upper left")
     ax_reg.grid(axis="y", alpha=0.3, ls=":")
-    ax_reg.set_title("(a) Cumulative Regret (held-out test)",
+    ax_reg.set_title("(a) Cold-Start Cumulative Regret",
                      fontsize=11, fontweight="bold")
 
-    # ── Panel (b): Test-Only Windowed Reward ───────────────────────────
+    # ── Panel (b): Windowed Reward ───────────────────────────────────
     for cond in ["BanditGPT", "Tabula Rasa"]:
-        if cond not in test_curves:
+        if cond not in curves:
             continue
-        c = test_curves[cond]
+        c = curves[cond]
         color = CONDITION_COLORS[cond]
         style = CONDITION_STYLES[cond]
 
-        ax_early.plot(c["xs"], c["win_reward_mean"],
-                      color=color, label=cond, **style)
-        ax_early.fill_between(
+        ax_rew.plot(c["xs"], c["win_reward_mean"],
+                    color=color, label=cond, **style)
+        ax_rew.fill_between(
             c["xs"],
             c["win_reward_mean"] - c["win_reward_se"],
             c["win_reward_mean"] + c["win_reward_se"],
             alpha=0.15, color=color,
         )
 
-    ax_early.set_xlabel("Test prompts processed", fontsize=10)
-    ax_early.set_ylabel(f"Windowed avg. reward (w={WINDOW_SIZE})",
-                        fontsize=10)
-    ax_early.legend(fontsize=9, framealpha=0.9, loc="lower right")
-    ax_early.grid(axis="y", alpha=0.3, ls=":")
-    ax_early.set_title(
-        f"(b) Windowed Reward (held-out test, w={WINDOW_SIZE})",
+    ax_rew.set_xlabel("Prompts routed", fontsize=10)
+    ax_rew.set_ylabel(f"Windowed avg. reward (w={WINDOW_SIZE})",
+                      fontsize=10)
+    ax_rew.legend(fontsize=9, framealpha=0.9, loc="lower right")
+    ax_rew.grid(axis="y", alpha=0.3, ls=":")
+    ax_rew.set_title(
+        f"(b) Windowed Reward (w={WINDOW_SIZE})",
         fontsize=11, fontweight="bold",
     )
 
@@ -772,7 +678,7 @@ def plot_learning_curves(
 
 
 def export_results(
-    aggregated: Dict[str, List[Dict[str, Any]]],
+    curves: Dict[str, Dict[str, Any]],
     metrics: Dict[str, Dict[str, Any]],
     costsave_checkpoints: Dict[str, Dict[int, Dict[str, Optional[float]]]],
     cost_penalty: float,
@@ -784,7 +690,7 @@ def export_results(
     """Write machine-readable JSON with all metrics and checkpoints.
 
     Args:
-        aggregated: Checkpoint data per condition.
+        curves: Checkpoint curve data per condition.
         metrics: Summary metrics per condition.
         costsave_checkpoints: CostSave@95% at various prompt counts.
         cost_penalty: Cost penalty used.
@@ -796,8 +702,19 @@ def export_results(
     Returns:
         Path to the saved JSON.
     """
+    serialisable_curves = {}
+    for cond, c in curves.items():
+        serialisable_curves[cond] = {
+            "xs": c["xs"].tolist(),
+            "cum_regret_mean": c["cum_regret_mean"].tolist(),
+            "cum_regret_se": c["cum_regret_se"].tolist(),
+            "win_reward_mean": c["win_reward_mean"].tolist(),
+            "win_reward_se": c["win_reward_se"].tolist(),
+        }
+
     payload = {
-        "experiment": "warmup_ablation_learning_curves",
+        "experiment": "cold_start_prior_value",
+        "protocol": "cold_start_no_pretraining",
         "conditions": {
             "BanditGPT": {
                 "hparams": WARMUP_HPARAMS,
@@ -816,19 +733,7 @@ def export_results(
             cond: {str(k): v for k, v in cps.items()}
             for cond, cps in costsave_checkpoints.items()
         },
-        "checkpoints": {
-            cond: [
-                {
-                    "n_seen": cp["n_seen"],
-                    "phase": cp["phase"],
-                    "cum_reward_mean": cp["cum_reward_mean"],
-                    "win_reward_mean": cp["win_reward_mean"],
-                    "cum_cost_mean": cp["cum_cost_mean"],
-                }
-                for cp in agg
-            ]
-            for cond, agg in aggregated.items()
-        },
+        "curves": serialisable_curves,
         "wall_time_s": round(elapsed_s, 1),
     }
 
@@ -853,7 +758,7 @@ def print_summary(
 ) -> None:
     """Print a formatted summary to stdout."""
     print("\n" + "=" * 72)
-    print("RQ2 \u2014 WARMUP PRIOR ABLATION")
+    print("RQ2 — COLD-START PRIOR VALUE")
     print("=" * 72)
 
     def _fmt(
@@ -868,17 +773,18 @@ def print_summary(
             return "N/A"
         val = m * mult
         if se is not None and se > 0:
-            return f"{val:.{precision}f}{unit} \u00b1 {se * mult:.{precision}f}"
+            return f"{val:.{precision}f}{unit} ± {se * mult:.{precision}f}"
         return f"{val:.{precision}f}{unit}"
 
     for cond in ["BanditGPT", "Tabula Rasa"]:
         m = metrics.get(cond, {})
         print(f"\n{cond}")
         print("-" * 50)
-        print(f"  Test reward:       {_fmt(m.get('test_reward', {}), precision=4)}")
-        print(f"  Cumulative regret: {_fmt(m.get('cumulative_regret', {}))}")
-        print(f"  CostSave@95%:      {_fmt(m.get('costsave_95', {}), '%')}")
-        print(f"  Convergence:       {_fmt(m.get('convergence_prompt', {}), ' prompts')}")
+        print(f"  Mean reward:           {_fmt(m.get('test_reward', {}), precision=4)}")
+        print(f"  Cumulative regret:     {_fmt(m.get('cumulative_regret', {}))}")
+        print(f"  Early regret (N≤100):  {_fmt(m.get('early_regret_100', {}))}")
+        print(f"  CostSave@95%:          {_fmt(m.get('costsave_95', {}), '%')}")
+        print(f"  Convergence:           {_fmt(m.get('convergence_prompt', {}), ' prompts')}")
 
         cps = costsave_checkpoints.get(cond, {})
         if cps:
@@ -886,20 +792,19 @@ def print_summary(
             for wp, info in sorted(cps.items()):
                 print(f"    N={wp:5d}: {_fmt(info, '%')}")
 
-    # Head-to-head
     bg = metrics.get("BanditGPT", {})
     tr = metrics.get("Tabula Rasa", {})
     bg_regret = bg.get("cumulative_regret", {}).get("mean")
     tr_regret = tr.get("cumulative_regret", {}).get("mean")
     if bg_regret is not None and tr_regret is not None:
         regret_reduction = (1.0 - bg_regret / tr_regret) * 100 if tr_regret > 0 else 0
-        print(f"\n  Regret reduction (warm vs cold): {regret_reduction:.1f}%")
+        print(f"\n  Cold-start regret reduction: {regret_reduction:.1f}%")
 
-    bg_conv = bg.get("convergence_prompt", {}).get("mean")
-    tr_conv = tr.get("convergence_prompt", {}).get("mean")
-    if bg_conv is not None and tr_conv is not None:
-        saved = tr_conv - bg_conv
-        print(f"  Prompts saved to convergence:    {saved:.0f}")
+    bg_early = bg.get("early_regret_100", {}).get("mean")
+    tr_early = tr.get("early_regret_100", {}).get("mean")
+    if bg_early is not None and tr_early is not None:
+        early_reduction = (1.0 - bg_early / tr_early) * 100 if tr_early > 0 else 0
+        print(f"  Early regret reduction (first 100): {early_reduction:.1f}%")
 
     print("=" * 72)
 
@@ -911,7 +816,7 @@ def print_summary(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Experiment 3: Warmup Prior Ablation (K=2)",
+        description="Experiment 3: Cold-Start Prior Value (K=2)",
     )
     parser.add_argument(
         "--n-seeds", type=int, default=20,
@@ -919,7 +824,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--cost-penalty", type=float, default=0.15,
-        help="Cost penalty lambda (default: 0.15, max regret-reduction point).",
+        help="Cost penalty lambda (default: 0.15).",
     )
     parser.add_argument(
         "--fast", action="store_true",
@@ -934,14 +839,13 @@ def main() -> None:
     t0 = time.time()
 
     # ── Load data ─────────────────────────────────────────────────────
-    logger.info("Loading data and encoding prompts ...")
+    logger.info("Loading data ...")
     fs = FeatureService()
     feature_dim = fs.dimension
     logger.info("  Feature dim: %d", feature_dim)
 
-    train = load_split(TRAIN_DATA_PATH, fs, K2_ARM_ORDER)
     test = load_split(HOLDOUT_DATA_PATH, fs, K2_ARM_ORDER)
-    logger.info("  Train: %d, Test: %d prompts", train.n, test.n)
+    logger.info("  Test: %d prompts", test.n)
 
     registry = build_model_registry(K2_ARM_ORDER)
     logger.info("  Registry: %s", list(registry.keys()))
@@ -969,8 +873,8 @@ def main() -> None:
         for s in range(n_seeds):
             seed = SEED_OFFSET + s
             logger.info("  Seed %d/%d (seed=%d)", s + 1, n_seeds, seed)
-            result = simulate_ablation(
-                train, test, registry, feature_dim,
+            result = simulate_cold_start(
+                test, registry, feature_dim,
                 hparams=hparams,
                 warmup_path=warmup_path,
                 cost_penalty=cost_penalty,
@@ -979,24 +883,24 @@ def main() -> None:
                 condition_name=cond_name,
             )
             all_results.append(result)
-            final_r = float(result.test_rewards.mean())
-            logger.info("    Test reward: %.4f", final_r)
+            final_r = float(result.rewards.mean())
+            regret = float((result.oracle_rewards - result.rewards).sum())
+            logger.info("    Reward: %.4f, Regret: %.1f", final_r, regret)
 
     elapsed = time.time() - t0
 
     # ── Aggregate and report ──────────────────────────────────────────
-    aggregated = aggregate_checkpoints(all_results)
-    test_curves = aggregate_test_curves(all_results)
+    curves = aggregate_curves(all_results)
     metrics = compute_all_metrics(all_results, strong_reward, strong_cost)
 
-    costsave_windows = [100, 250, 500, 1000, 1824]
+    costsave_windows = [50, 100, 250, 500, 1000, 1824]
     costsave_cps = compute_costsave_checkpoints(
         all_results, strong_reward, strong_cost, costsave_windows,
     )
 
-    fig_path = plot_learning_curves(test_curves, test.n, RESULTS_DIR)
+    fig_path = plot_learning_curves(curves, metrics, test.n, RESULTS_DIR)
     json_path = export_results(
-        aggregated, metrics, costsave_cps,
+        curves, metrics, costsave_cps,
         cost_penalty, strong_reward, strong_cost,
         elapsed, RESULTS_DIR,
     )

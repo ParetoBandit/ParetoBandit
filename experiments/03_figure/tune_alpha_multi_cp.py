@@ -44,7 +44,7 @@ for _noisy in ("bandit_gpt.router", "bandit_gpt.router_v2", "bandit_gpt.feature_
 
 ARM_ORDER = K2_ARM_ORDER
 ALPHA_GRID = [0.01, 0.05, 0.1, 0.3, 0.5, 1.0, 2.0]
-N_EFF_GRID_WARMUP = [10.0, 50.0, 200.0]
+N_EFF_GRID_WARMUP = [5000.0]
 COST_PENALTIES = [0.05, 0.10, 0.15, 0.20, 0.30, 0.50]
 N_SEEDS = 20
 SEED_OFFSET = 500
@@ -176,7 +176,7 @@ def main() -> None:
     print(f"\n  Wall time: {elapsed:.1f}s")
     print("=" * 80)
 
-    out_path = Path(__file__).parent / "results" / "alpha_tuning_multi_cp.json"
+    out_path = Path(__file__).parent / "results" / "alpha_tuning_multi_cp_neff5000.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump({
