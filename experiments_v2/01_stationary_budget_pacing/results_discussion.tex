@@ -104,10 +104,11 @@ Two conditions are compared:
 Both methods trace a quality--cost Pareto curve on the test set.
 At the budget-constrained end (cost $< \$0.001$/req), the pacer
 achieves higher reward at lower cost:
-at comparable spend (\$0.00008 vs.\ \$0.00029), the pacer
-reaches mean reward $0.811 \pm 0.0005$ vs.\ $0.802 \pm 0.0003$
-for the best static point ($\lambda_s{=}1.0$), a $+0.9$
-percentage point improvement.
+at the tightest pacer target (\$0.00008/req), the pacer
+reaches mean reward $0.811 \pm 0.0005$, while the nearest static
+point ($\lambda_s{=}1.0$ at \$0.00029/req---$3.6\times$ higher
+spend) achieves only $0.802 \pm 0.0003$: a $+0.9$\,pp quality
+advantage at less than a third of the cost.
 At moderate budgets (\$0.0007/req), the pacer achieves
 $0.880 \pm 0.0014$ reward vs.\ the nearest static point
 ($\lambda_s{=}0.5$: $0.861 \pm 0.0008$ at \$0.0014).
