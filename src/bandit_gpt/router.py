@@ -969,6 +969,11 @@ class DisjointLinUCBPolicy:
         max_staleness_dt: int = _MAX_STALENESS_DT,
         reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
         max_var_inflation: float = _MAX_VAR_INFLATION_FACTOR,
+        adaptive_gamma: bool = False,
+        aw_alpha_short: float = 0.1,
+        aw_alpha_long: float = 0.01,
+        aw_burn_in_steps: int = 50,
+        aw_noise_margin_k: float = 2.0,
     ):
         """Initialize Disjoint LinUCB policy.
 
@@ -990,7 +995,8 @@ class DisjointLinUCBPolicy:
             init_lambda: Initialization regularization (A₀ = λI). Default 1.0 for
                 cold-start stability.
             forgetting_factor: Exponential decay factor (1.0 = stationary,
-                <1.0 = adaptive).
+                <1.0 = adaptive).  When ``adaptive_gamma=True``, this is
+                ignored; gamma is managed by the adaptive-window mechanism.
             seed: Seed for the internal ``np.random.Generator`` used by
                 Thompson Sampling (``get_probabilities``).  *None* creates
                 an unseeded generator.
@@ -1000,6 +1006,30 @@ class DisjointLinUCBPolicy:
                 regularization injects a top-up into A.  Default 0.1.
             max_var_inflation: Maximum multiplicative factor for staleness-based
                 variance inflation.  Default 200.0.
+            adaptive_gamma: Enable ADWIN-style adaptive forgetting driven by
+                per-arm prediction residual shift estimation.  Two exponential
+                moving averages (short and long horizon) track each arm's
+                residual magnitude ``|r_t - x_t^T theta_hat|``.  When the
+                short-horizon EMA exceeds the long-horizon EMA, the difference
+                is interpreted as a reward-distribution shift and gamma is
+                decreased proportionally::
+
+                    shift_k = max(0, mu_short[k] - mu_long[k])
+                    gamma_t = max(0.999, 1.0 - max_k(shift_k) / delta)
+
+                where delta is self-calibrated from burn-in residual statistics.
+                This provides continuous, per-arm shift-aware adaptation with
+                no user-tunable parameters beyond ``adaptive_gamma=True``.
+            aw_alpha_short: EMA decay for the short-horizon (fast) residual
+                tracker.  Default 0.1 (~10-step effective window).
+            aw_alpha_long: EMA decay for the long-horizon (slow) residual
+                tracker.  Default 0.01 (~100-step effective window).
+            aw_burn_in_steps: Number of initial observations used to estimate
+                the residual scale (delta) and initialise the per-arm EMAs.
+                During burn-in, gamma remains at 1.0.
+            aw_noise_margin_k: Multiplier for the dead-zone noise margin.
+                The margin is ``k * std(EMA_short - EMA_long)`` under
+                stationarity.  Default 2.0 filters ~97.7% of noise.
         """
         self.models = list(model_names)
         self.dim = int(dim)
@@ -1010,6 +1040,22 @@ class DisjointLinUCBPolicy:
         self.max_staleness_dt = int(max_staleness_dt)
         self.reg_floor_fraction = float(reg_floor_fraction)
         self.max_var_inflation = float(max_var_inflation)
+
+        # Adaptive-window gamma state (per-arm dual-EMA shift estimator)
+        self.adaptive_gamma_enabled = bool(adaptive_gamma)
+        self.aw_alpha_short = float(aw_alpha_short)
+        self.aw_alpha_long = float(aw_alpha_long)
+        self.aw_burn_in_steps = int(aw_burn_in_steps)
+        self.aw_noise_margin_k = float(aw_noise_margin_k)
+        self._aw_burn_in_residuals: List[float] = []
+        self._aw_burned_in: bool = False
+        self._aw_delta: float = 1.0
+        self._aw_noise_margin: float = 0.0
+        self._aw_mu_short: Dict[str, float] = {}
+        self._aw_mu_long: Dict[str, float] = {}
+
+        if adaptive_gamma:
+            self.gamma = 1.0
 
         self.model_locks: Dict[str, threading.Lock] = {
             m: threading.Lock() for m in self.models
@@ -1084,6 +1130,19 @@ class DisjointLinUCBPolicy:
 
         result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
         result._rng = copy.deepcopy(self._rng, memo)
+
+        # Adaptive-window gamma state
+        result.adaptive_gamma_enabled = self.adaptive_gamma_enabled
+        result.aw_alpha_short = self.aw_alpha_short
+        result.aw_alpha_long = self.aw_alpha_long
+        result.aw_burn_in_steps = self.aw_burn_in_steps
+        result.aw_noise_margin_k = self.aw_noise_margin_k
+        result._aw_burn_in_residuals = list(self._aw_burn_in_residuals)
+        result._aw_burned_in = self._aw_burned_in
+        result._aw_delta = self._aw_delta
+        result._aw_noise_margin = self._aw_noise_margin
+        result._aw_mu_short = dict(self._aw_mu_short)
+        result._aw_mu_long = dict(self._aw_mu_long)
 
         return result
 
@@ -1428,6 +1487,13 @@ class DisjointLinUCBPolicy:
                     return
                 current_t = self.t
 
+            # 0. Adaptive Gamma: per-arm dual-EMA shift estimator
+            if self.adaptive_gamma_enabled:
+                theta_hat = self.A_inv[model] @ self.b[model]
+                predicted = float(theta_hat.dot(x))
+                residual = abs(reward - predicted)
+                self._aw_step(model, residual)
+
             # 1. Calculate Time Decay
             dt = 0
             decay_factor = 1.0
@@ -1534,6 +1600,91 @@ class DisjointLinUCBPolicy:
                 if advance_time:
                     self.t += 1
 
+
+    # ------------------------------------------------------------------
+    # Adaptive-window gamma internals
+    # ------------------------------------------------------------------
+
+    def _aw_step(self, arm: str, residual: float) -> None:
+        """Update the adaptive-window forgetting factor from one residual.
+
+        This implements a per-arm dual-EMA shift estimator inspired by
+        ADWIN-style adaptive windowing (Cavenaghi et al., 2021).
+
+        **Burn-in phase** (first ``aw_burn_in_steps`` observations across
+        all arms): residuals are collected to calibrate the scale parameter
+        *delta* (population std of burn-in residuals) and initialise the
+        per-arm EMAs to the burn-in mean.  During burn-in, gamma stays at
+        its current value (1.0 under ``adaptive_gamma=True``).
+
+        **Active phase**: for the observed arm *k*:
+
+        .. math::
+
+            \\mu_{\\text{short}}[k] \\mathrel{+}= \\alpha_s \\cdot (e_t - \\mu_{\\text{short}}[k])
+
+            \\mu_{\\text{long}}[k]  \\mathrel{+}= \\alpha_l \\cdot (e_t - \\mu_{\\text{long}}[k])
+
+            \\text{shift}_k = \\max(0,\\; \\mu_{\\text{short}}[k] - \\mu_{\\text{long}}[k] - m)
+
+            \\gamma_t = \\max\\!\\bigl(0.999,\\; 1 - \\max_k \\text{shift}_k \\;/\\; \\delta\\bigr)
+
+        where *m* is a self-calibrated noise margin (dead zone) equal to
+        2× the theoretical standard deviation of the EMA difference under
+        stationarity.  This prevents gamma from oscillating in stable
+        regimes while preserving sensitivity to real shifts.
+
+        When rewards are stationary, shifts stay inside the dead zone and
+        gamma remains exactly 1.0.  A reward shift elevates the
+        short-horizon EMA beyond the margin, driving gamma toward 0.999
+        continuously and proportionally.  Recovery is organic: once
+        predictions adapt, the residual drops and gamma returns to 1.0.
+
+        Args:
+            arm: Identifier of the arm that was just updated.
+            residual: Absolute prediction residual ``|r_t - x_t^T theta_hat|``.
+        """
+        _GAMMA_FLOOR = 0.999
+
+        if not self._aw_burned_in:
+            self._aw_burn_in_residuals.append(residual)
+            if len(self._aw_burn_in_residuals) >= self.aw_burn_in_steps:
+                arr = self._aw_burn_in_residuals
+                n = len(arr)
+                mean_r = sum(arr) / n
+                var_r = sum((r - mean_r) ** 2 for r in arr) / n
+                self._aw_delta = max(var_r ** 0.5, 1e-8)
+
+                # Dead-zone margin: under stationarity the std of
+                # (mu_short - mu_long) is delta * sqrt(α_s/(2-α_s) + α_l/(2-α_l)).
+                # Default k=2.0 (2σ) filters ~97.7% of noise-induced fluctuations,
+                # preventing gamma from oscillating in stable regimes.
+                ema_diff_std = self._aw_delta * (
+                    self.aw_alpha_short / (2.0 - self.aw_alpha_short)
+                    + self.aw_alpha_long / (2.0 - self.aw_alpha_long)
+                ) ** 0.5
+                self._aw_noise_margin = self.aw_noise_margin_k * ema_diff_std
+
+                for m in self.models:
+                    self._aw_mu_short[m] = mean_r
+                    self._aw_mu_long[m] = mean_r
+                self._aw_burned_in = True
+                self._aw_burn_in_residuals = []
+            return
+
+        self._aw_mu_short[arm] += self.aw_alpha_short * (
+            residual - self._aw_mu_short[arm]
+        )
+        self._aw_mu_long[arm] += self.aw_alpha_long * (
+            residual - self._aw_mu_long[arm]
+        )
+
+        max_shift = max(
+            max(0.0, self._aw_mu_short[m] - self._aw_mu_long[m]
+                - self._aw_noise_margin)
+            for m in self.models
+        )
+        self.gamma = max(_GAMMA_FLOOR, 1.0 - max_shift / self._aw_delta)
 
     def _check_numerical_stability(self, model: str, config: 'RouterConfig' = None) -> None:
         """
@@ -2820,11 +2971,17 @@ class BanditRouter:
         policy: str = "disjoint",
         gamma_ramp_steps: int = 500,
         drift_threshold: float = 0.0,
+        drift_method: str = "centroid",
         adapted_forgetting_factor: float = 0.999,
         drift_burn_in_steps: int = 50,
         drift_ema_alpha: float = 0.05,
         drift_confirmation_window: int = 20,
         budget_pacer: "BudgetPacer | None" = None,
+        adaptive_gamma: bool = False,
+        aw_alpha_short: float = 0.1,
+        aw_alpha_long: float = 0.01,
+        aw_burn_in_steps: int = 50,
+        aw_noise_margin_k: float = 2.0,
     ):
         """
         Initialize BanditRouter with separated feature extraction.
@@ -2883,9 +3040,9 @@ class BanditRouter:
                        ramps back to ``corralling_gamma`` over this many steps
                        (default: 500).
             drift_threshold: Sigma-based threshold for automatic covariate
-                       shift detection on prompt embeddings.  When the EMA
-                       of chi-squared z-scores on context vectors exceeds
-                       the burn-in baseline by ``threshold * baseline_std``
+                       shift detection on prompt embeddings.  When the
+                       drift score exceeds
+                       ``baseline + threshold * baseline_std``
                        for a sustained confirmation window, the router
                        performs a **tabula rasa reset**: all bandit matrices
                        (A, b) are cleared to cold-start values and the
@@ -2893,8 +3050,13 @@ class BanditRouter:
                        This detect → reset → re-learn cycle repeats if a
                        subsequent shift is detected.
                        - 0 = disabled (default, backward-compatible)
-                       - 1.5 = sensitive (FPR ~3%)
-                       - 2.0 = conservative (FPR ~1%)
+                       - 1.5 = sensitive
+                       - 2.0 = conservative
+            drift_method: Detection algorithm.  ``"centroid"`` (default) uses
+                       running-centroid cosine distance — sensitive to
+                       topic/domain rotations in embedding space.
+                       ``"chi2"`` uses the legacy diagonal chi-squared test
+                       on per-component z-scores.
             adapted_forgetting_factor: Deprecated — retained for backward
                        compatibility.  Adaptation now resets to tabula rasa
                        instead of lowering the forgetting factor.
@@ -2923,6 +3085,7 @@ class BanditRouter:
         self.tabula_rasa_forgetting_factor = tabula_rasa_forgetting_factor
         self.policy_type = policy
         self.drift_threshold = drift_threshold
+        self.drift_method = drift_method
         self.adapted_forgetting_factor = adapted_forgetting_factor
         self.drift_burn_in_steps = drift_burn_in_steps
         self.drift_ema_alpha = drift_ema_alpha
@@ -2930,6 +3093,11 @@ class BanditRouter:
         self._drift_adapted = False
         self.drift_detector = None  # Activated by create() only when priors are loaded
         self.budget_pacer = budget_pacer
+        self.adaptive_gamma = adaptive_gamma
+        self.aw_alpha_short = aw_alpha_short
+        self.aw_alpha_long = aw_alpha_long
+        self.aw_burn_in_steps = aw_burn_in_steps
+        self.aw_noise_margin_k = aw_noise_margin_k
 
         if model_registry is None:
             # Load default models.json from config/
@@ -3007,6 +3175,11 @@ class BanditRouter:
                 alpha=alpha,
                 init_lambda=init_lambda,
                 forgetting_factor=forgetting_factor,
+                adaptive_gamma=self.adaptive_gamma,
+                aw_alpha_short=self.aw_alpha_short,
+                aw_alpha_long=self.aw_alpha_long,
+                aw_burn_in_steps=self.aw_burn_in_steps,
+                aw_noise_margin_k=self.aw_noise_margin_k,
             )
         
         # Initialize Security Scanner (Lazy)
@@ -3836,17 +4009,22 @@ class BanditRouter:
                 # meaningful only with priors (no point detecting shift
                 # when learning from scratch).
                 if router.drift_threshold > 0:
-                    from bandit_gpt.drift import DriftDetector
-                    router.drift_detector = DriftDetector(
+                    from bandit_gpt.drift import CentroidDriftDetector, DriftDetector
+                    detector_kwargs = dict(
                         threshold=router.drift_threshold,
                         burn_in_steps=router.drift_burn_in_steps,
                         ema_alpha=router.drift_ema_alpha,
                         confirmation_window=router.drift_confirmation_window,
                     )
+                    if router.drift_method == "centroid":
+                        router.drift_detector = CentroidDriftDetector(**detector_kwargs)
+                    else:
+                        router.drift_detector = DriftDetector(**detector_kwargs)
                     logger.info(
                         "[OK] Embedding drift detection enabled "
-                        "(threshold=%.1fσ, burn_in=%d, ema_alpha=%.3f, "
-                        "confirm=%d).",
+                        "(method=%s, threshold=%.1fσ, burn_in=%d, "
+                        "ema_alpha=%.3f, confirm=%d).",
+                        router.drift_method,
                         router.drift_threshold,
                         router.drift_burn_in_steps,
                         router.drift_ema_alpha,
