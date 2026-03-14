@@ -114,6 +114,9 @@ WARMUP_PRIORS_DIR = DATA_COLLECTION_DIR / "warmup_priors"
 K2_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k2_25comp.joblib"
 K2_WARMUP_PRIORS_TEXTFEAT_PATH = WARMUP_PRIORS_DIR / "priors_k2_textfeat.joblib"
 K3_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp.joblib"
+K3_WARMUP_PRIORS_NONGSM8K_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp_nongsm8k.joblib"
+K3_WARMUP_PRIORS_NONHELLASWAG_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp_nonhellaswag.joblib"
+K3_WARMUP_PRIORS_GSM8KONLY_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp_gsm8konly.joblib"
 
 # ==============================================================================
 # Pre-computed Embeddings
@@ -190,6 +193,49 @@ BEST_K2_TABULA_RASA_HPARAMS: Dict[str, Any] = {
 Val AUC = 0.8684 (+0.802%), from hparam_tuning_k2_pca25.json.
 Used as a baseline in Exp 4 (distribution shift) and Exp 6 (warmup
 ablation) to show the value of priors.
+"""
+
+# ==============================================================================
+# Best K=3 Hyperparameters (from appendix alpha x PCA sweep, 70 configs x 10 seeds)
+# ==============================================================================
+#
+# Selected by Pareto AUC on holdout with a global cost range.
+# Source of truth: experiments_v2/appendix/hparam_sweep/results/best_hparams.json
+# PCA truncated from pca_32.joblib (all-MiniLM-L6-v2, 46696 LMSYS prompts).
+# Note: main experiments (01-03) used PCA-25 / n_eff=5000 / alpha=1.0 (set
+# before this sweep).  The sweep confirms d=10 is optimal but the difference
+# vs d=25 is <0.06% AUC, so existing results remain valid.
+
+BEST_K3_HPARAMS: Dict[str, Any] = {
+    "alpha": 0.10,
+    "pca_components": 10,
+    "prior_n_effective": 5000.0,
+    "policy": "disjoint",
+    "use_corralling": False,
+    "forgetting_factor": 1.0,
+}
+"""Best K=3 BanditGPT config (warmup priors, disjoint LinUCB).
+
+Holdout Pareto AUC = 0.9266.  Top-5 plateau spans alpha in [0.10, 0.25]
+and PCA in [6, 15] with <0.15% AUC variation, indicating robustness.
+Low alpha suffices because n_eff=5000 warmup priors encode strong
+initial beliefs; minimal exploration is needed.
+"""
+
+BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
+    "alpha": 0.25,
+    "pca_components": 6,
+    "prior_n_effective": 1.0,
+    "policy": "disjoint",
+    "use_corralling": False,
+    "forgetting_factor": 1.0,
+}
+"""Best K=3 Tabula Rasa config (cold start, no priors).
+
+Holdout Pareto AUC = 0.9246.  Requires 2.5x more exploration
+(alpha=0.25 vs 0.10) to compensate for lack of warmup priors.
+Lower PCA (d=6) preferred to avoid curse of dimensionality
+without priors to regularize the feature space.
 """
 
 # ==============================================================================

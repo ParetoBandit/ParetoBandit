@@ -1,0 +1,12 @@
+{
+  "banditgpt": {
+    "alpha": 0.1,
+    "pca_dim": 10,
+    "pareto_auc": 0.926641
+  },
+  "tabula_rasa": {
+    "alpha": 0.25,
+    "pca_dim": 6,
+    "pareto_auc": 0.924594
+  }
+}
