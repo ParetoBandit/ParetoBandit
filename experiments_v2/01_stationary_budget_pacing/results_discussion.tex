@@ -89,6 +89,17 @@ test split ($n{=}1{,}824$) across 20~seeds.
 Warmup priors are trained on a disjoint training split
 ($n_{\text{eff}}{=}50$, $\alpha{=}1.0$, disjoint LinUCB,
 forgetting factor $\gamma{=}1.0$).
+We use continuous composite rewards (a weighted average of three
+sub-scores across the judge panel) rather than binary pass/fail
+signals because $K{>}2$ routing requires inter-model discrimination
+that binary feedback cannot provide: at a natural threshold
+($\tau{=}0.85$), the two stronger models tie on 85.8\% of prompts
+under binary, collapsing the 3-arm problem to~2.
+This is consistent with production $K{>}2$ routers, which
+universally rely on continuous quality
+prediction~\cite{wang2025mixllm,bhatti2026proteus}, while
+binary feedback is restricted to $K{=}2$ triage
+systems~\cite{ong2024routellm,wang2025barp}.
 Two conditions are compared:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Static cost penalty:}
