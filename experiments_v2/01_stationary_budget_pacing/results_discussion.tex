@@ -24,7 +24,7 @@ At each step $t$ the router selects model $a_t$ by maximising a
 budget-augmented utility:
 \begin{equation}
     a_t = \arg\max_{a \in \mathcal{A}_t} \Bigl[
-        \underbrace{\hat\theta_a^\top x_t + \alpha \sqrt{x_t^\top A_a^{-1} x_t}}_{\text{LinUCB score}}
+        \underbrace{\hat\theta_a^\top x_t + \alpha \sqrt{x_t^\top A_a^{-1} x_t}}_{\text{LinUCB score~\cite{li2010contextual}}}
         \;-\; \underbrace{\lambda_s \,\tilde{c}_a}_{\text{static penalty}}
         \;-\; \underbrace{\lambda_t \,\tilde{c}_a}_{\text{dual penalty}}
     \Bigr]
@@ -35,15 +35,28 @@ surviving a hard cost ceiling
 $p_a \leq p_{\max}/(1 + \kappa\lambda_t)$,
 $\tilde{c}_a \in [0,1]$ is the log-normalized unit cost,
 and $\lambda_t$ is a Lagrange multiplier updated after observing the
-realised cost $c_t$:
-\begin{equation}
-    \lambda_{t+1} = \min\!\Bigl(\bar\lambda,\;
-    \max\bigl(0,\;\lambda_t + \eta\,(c_t / B - 1)\bigr)\Bigr)
+realised cost $c_t$.
+
+The dual update uses an \emph{EMA-smoothed} cost signal rather than
+the raw per-request cost:
+\begin{align}
+    \bar{c}_t &= (1 - \alpha_{\mathrm{ema}})\,\bar{c}_{t-1}
+                 + \alpha_{\mathrm{ema}}\,c_t
+    \label{eq:cost_ema} \\
+    \lambda_{t+1} &= \min\!\Bigl(\bar\lambda,\;
+    \max\bigl(0,\;\lambda_t + \eta\,(\bar{c}_t / B - 1)\bigr)\Bigr)
     \label{eq:dual_update}
-\end{equation}
+\end{align}
 with budget target $B$ (the user's desired average cost per request),
+EMA smoothing factor $\alpha_{\mathrm{ema}}{=}0.05$,
 step size $\eta{=}0.05$, and cap $\bar\lambda{=}5$.
-The normalisation $c_t / B$ makes $\eta$ portfolio-independent:
+Using $\bar{c}_t$ instead of $c_t$ is critical when model costs span
+orders of magnitude: a single Gemini request at \$0.015 would
+otherwise spike $c_t/B$ by up to $500\times$ the target, producing
+sawtooth oscillations in $\lambda_t$ that never converge.
+The EMA smooths this variance, producing a stable gradient signal
+whose magnitude reflects the \emph{average} cost regime.
+The normalisation $\bar{c}_t / B$ makes $\eta$ portfolio-independent:
 the same step size produces equivalent $\lambda_t$ trajectories regardless
 of whether the cheapest model costs \$0.00003 or \$0.03.
 
@@ -69,11 +82,13 @@ minimizes quality loss within the budget envelope.
 \paragraph{Setup.}
 We evaluate on the $K{=}3$ portfolio
 (Llama-3.1-8B / Mistral-Large-2512 / Gemini-2.5-Pro)
-under stationary conditions
-(train: $n{=}8{,}374$; test: $n{=}1{,}824$; 32~NLP benchmarks;
-5~seeds; forgetting factor $\text{ff}{=}1.0$).
-The router is warm-started with offline priors
-($n_{\text{eff}}{=}50$, $\alpha{=}1.0$, disjoint LinUCB).
+under stationary conditions.
+The router learns online on the validation split
+($n{=}1{,}785$; 32~NLP benchmarks) and is evaluated on a held-out
+test split ($n{=}1{,}824$) across 20~seeds.
+Warmup priors are trained on a disjoint training split
+($n_{\text{eff}}{=}50$, $\alpha{=}1.0$, disjoint LinUCB,
+forgetting factor $\gamma{=}1.0$).
 Two conditions are compared:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Static cost penalty:}
@@ -81,41 +96,45 @@ Two conditions are compared:
     no pacer.  Each value produces one (cost, reward) point.
   \item \textbf{BudgetPacer (adaptive):}
     Seven log-spaced targets from the cheapest model's empirical mean
-    cost (\$0.000029/req) to the most expensive (\$0.0149/req),
-    $\eta{=}0.05$, $\bar\lambda{=}5$.
+    cost (\$0.000029/req) to the most expensive (\$0.0150/req),
+    $\eta{=}0.05$, $\alpha_{\mathrm{ema}}{=}0.05$, $\bar\lambda{=}5$.
 \end{enumerate}
 
 \paragraph{Pareto frontier (Figure~\ref{fig:pareto_budget}).}
 Both methods trace a quality--cost Pareto curve on the test set.
 At the budget-constrained end (cost $< \$0.001$/req), the pacer
 achieves higher reward at lower cost:
-at comparable spend (\$0.00008 vs.\ \$0.00012), the pacer
-reaches mean reward $0.810$ vs.\ $0.797$ for the best static point
-($\lambda_s{=}1.0$), a $+1.3$ percentage point improvement.
-At moderate budgets (\$0.0007/req), the pacer achieves $0.863$ reward
-at 20\% lower cost than the nearest static point
-($\lambda_s{=}0.5$: $0.848$ at \$0.0008).
+at comparable spend (\$0.00008 vs.\ \$0.00029), the pacer
+reaches mean reward $0.811 \pm 0.0005$ vs.\ $0.802 \pm 0.0003$
+for the best static point ($\lambda_s{=}1.0$), a $+0.9$
+percentage point improvement.
+At moderate budgets (\$0.0007/req), the pacer achieves
+$0.880 \pm 0.0014$ reward vs.\ the nearest static point
+($\lambda_s{=}0.5$: $0.861 \pm 0.0008$ at \$0.0014).
+The pacer dominates primarily because its adaptive $\lambda_t$
+creates an implicit \emph{spend-when-valuable, save-when-cheap} policy:
+when easy prompts allow cheap routing, $\lambda_t$ decreases,
+freeing budget for harder prompts where expensive models provide
+greater quality uplift.
+The static penalty applies the same cost tax uniformly, forgoing
+this temporal budget allocation.
 
 At the unconstrained end (cost $> \$0.005$), the static baseline
-matches or slightly exceeds the pacer:
-$\lambda_s{=}0$ achieves the quality ceiling ($0.928$) because it
+matches the pacer:
+$\lambda_s{=}0$ achieves the quality ceiling ($0.923$) because it
 imposes zero cost constraint.
-The pacer at its loosest target ($B{=}\$0.015$) reaches $0.925$
-at \$0.0076---$0.3$ points below the ceiling---because transient
-$\lambda_t > 0$ episodes during the test phase create a small drag.
-This convergence is expected: the pacer's value proposition is
-\emph{budget compliance}, not Pareto dominance at every point.
-When the budget is slack, the dual variable decays to zero and the
+The pacer at its loosest target ($B{=}\$0.015$) reaches $0.923$
+at \$0.0082---the dual variable correctly decays to zero and the
 pacer gracefully becomes a no-op.
 
 \paragraph{Budget compliance (Table~\ref{tab:budget_compliance}).}
 The pacer's primary claim is that it \emph{hits the target}.
-For the four tightest targets, budget utilisation ranges from
-$0.96\times$ to $1.03\times$---effectively perfect compliance.
-The two loosest targets ($B{=}\$0.005$ and $B{=}\$0.015$) show
-under-utilisation ($0.86\times$ and $0.51\times$) because the
+For the six tightest targets, budget utilisation ranges from
+$0.98\times$ to $1.07\times$---effectively perfect compliance.
+The loosest target ($B{=}\$0.015$) shows
+under-utilisation ($0.54\times$) because the
 unconstrained router's natural spend (\$0.0082/req) is already below
-these targets; the dual variable correctly decays to
+this target; the dual variable correctly decays to
 $\lambda_t \approx 0$ rather than artificially inflating cost.
 This asymmetry is by design: the pacer constrains spend
 \emph{from above} but never forces the router to spend more than its
@@ -127,31 +146,69 @@ At a tight target ($B{=}\$2.9{\times}10^{-5}$), $\lambda_t$
 saturates near the cap ($\bar\lambda{=}5$) within the first 100
 test steps and remains stable, producing a near-Llama-only policy.
 At the moderate target ($B{=}\$6.6{\times}10^{-4}$), $\lambda_t$
-oscillates around $0.3$--$0.5$: each Gemini selection causes a cost
-spike that drives $\lambda_t$ up, which suppresses future Gemini
-selections, allowing $\lambda_t$ to relax.
-This oscillation is the hallmark of a primal-dual controller in
-steady state: the system orbits the constraint boundary rather than
-converging to a fixed point.
-The median $\lambda_t$ (quartile $q_{50}{=}0.31$) is stable across
-the trajectory, confirming convergence.
+oscillates in a bounded band, actively steering a
+Llama/Mistral/Gemini mix.  The oscillations reflect the
+EMA-smoothed cost responding to stochastic model selections:
+expensive requests raise $\bar{c}_t$ above target, driving
+$\lambda_t$ up, which suppresses costly selections, allowing
+$\bar{c}_t$ to relax.  The bounded oscillation is characteristic
+of a primal-dual controller in steady state orbiting the constraint
+boundary.
+At the loose-binding target ($B{=}\$0.0053$), $\lambda_t$
+applies light pressure and the router achieves
+$0.98\times$ utilisation with negligible quality loss.
 
 \paragraph{Model-mix dynamics (Figure~\ref{fig:model_mix_budget}).}
 The stacked bar chart reveals a qualitative difference between the
 two methods.
 The static penalty produces a smooth, monotonic transition from
-Gemini-dominant (51\% at $\lambda_s{=}0$) to Llama-dominant
-(98\% at $\lambda_s{=}1.0$), with Mistral serving as an intermediate
-buffer.
+Gemini-dominant to Llama-dominant, with Mistral serving as an
+intermediate buffer.
 The pacer produces a \emph{sharper} and more principled transition:
-at tight budgets the hard ceiling eliminates Gemini entirely (0\%
-for $B \leq \$2.3{\times}10^{-4}$), and the soft penalty discovers a
-Llama/Mistral blend (51\%/46\% at $B{=}\$6.6{\times}10^{-4}$) that
-is unreachable by any single $\lambda_s$ value.
-This blend exploits Mistral's favourable cost--quality ratio on prompts
-where it matches Gemini's quality at $29\times$ lower cost---a
+at tight budgets the hard ceiling eliminates Gemini entirely
+(for $B \leq \$2.3{\times}10^{-4}$), and the soft penalty discovers
+model blends that are unreachable by any single $\lambda_s$ value.
+This exploits Mistral's favourable cost--quality ratio on prompts
+where it matches Gemini's quality at lower cost---a
 routing decision that the static penalty's uniform cost weighting
 cannot express.
+
+\paragraph{Comparison with PILOT's knapsack policy.}
+PILOT~\cite{panda2025pilot} enforces budget constraints via the
+ZCL online multi-choice knapsack algorithm~\cite{zhou2008budget,
+chakrabarty2008knapsack}, which maintains a budget utilisation ratio
+$z_t \in [0,1]$ and filters eligible LLMs through a threshold
+function $\psi(z_t)$ that tightens as spend accumulates.
+The formulation requires three inputs absent from the BudgetPacer:
+(i)~a known query horizon $Q$,
+(ii)~upper and lower bounds on the reward-to-cost ratio across all
+LLMs, and
+(iii)~a bin size hyperparameter $S$ that partitions the horizon into
+$\lceil Q/S \rceil$ sub-budgets with spillover.
+In exchange, ZCL provides a competitive-ratio guarantee
+(Theorem~5.1 of Zhou et al.~\cite{zhou2008budget}), bounding the
+online policy's total value relative to an offline optimum.
+
+The BudgetPacer takes a fundamentally different approach:
+it requires only a per-request dollar target $B$, has no horizon
+assumption (streaming-compatible), and adapts continuously via
+the target-normalised dual update
+(Eq.~\ref{eq:dual_update}).
+The normalisation by $B$ makes the step size $\eta$
+portfolio-independent---the same $\eta$ produces equivalent
+$\lambda_t$ dynamics whether the cheapest model costs
+\$0.00003 or \$0.03---whereas the ZCL threshold function must
+be re-parameterised when the reward-to-cost bounds change.
+
+The two approaches address complementary deployment regimes:
+PILOT's knapsack is suited to finite-batch scenarios where the
+total number of queries and the budget are known in advance
+(e.g., offline evaluation campaigns), while the BudgetPacer
+targets open-ended production streams where neither the horizon
+nor the prompt distribution is known \emph{a priori}.
+Since PILOT has not released code, a direct empirical comparison
+on our data is not feasible; however, the algorithmic distinction
+is structural and holds independent of any particular dataset.
 
 \paragraph{Production implications.}
 \begin{enumerate}[leftmargin=*,noitemsep]
@@ -179,22 +236,17 @@ cannot express.
 
   \item \textbf{Cost at scale.}
     Consider a deployment routing 100{,}000 requests/day.
-    Moving from the unconstrained policy (\$0.0082/req, quality~0.928)
+    Moving from the unconstrained policy (\$0.0082/req, quality~0.923)
     to the pacer at $B{=}\$0.0019$/req saves
-    $(\$0.0082 - \$0.0018) \times 100{,}000 = \$640$/day
-    (\textbf{\$233{,}600/year})
-    while maintaining quality~0.889---a 4.2\% quality reduction for a
-    78\% cost reduction.
-    The static baseline's nearest operating point
-    ($\lambda_s{=}0.3$: \$0.0020/req, quality~0.896) delivers
-    marginally higher quality but at 12\% higher cost (\$0.0020 vs.\
-    \$0.0018), and offers no contractual guarantee that spend will
-    remain at that level if the prompt distribution shifts.
+    $(\$0.0082 - \$0.0019) \times 100{,}000 = \$630$/day
+    (\textbf{\$230{,}000/year})
+    while maintaining quality~$0.905 \pm 0.0009$---a 1.9\% quality
+    reduction for a 77\% cost reduction.
 
   \item \textbf{Budget compliance as an SLA.}
-    The $0.96$--$1.03\times$ utilisation range at tight targets
+    The $0.98$--$1.07\times$ utilisation range at binding targets
     means the pacer can underpin a cost SLA:
-    ``average spend will not exceed $1.05 \times B$ over any
+    ``average spend will not exceed $1.10 \times B$ over any
     rolling 1{,}000-request window.''
     The static penalty offers no such guarantee---its realised cost
     depends on the prompt distribution and can drift arbitrarily

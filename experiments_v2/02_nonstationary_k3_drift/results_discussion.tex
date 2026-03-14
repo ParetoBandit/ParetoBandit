@@ -1,0 +1,387 @@
+% Section: Non-stationary Adaptation via Forgetting Factor
+% Include from paper/sections/results.tex
+
+\subsection{Non-stationary Adaptation (Figures~\ref{fig:cumulative_regret}--\ref{fig:gamma_trajectory})}
+\label{sec:nonstationarity}
+
+\paragraph{Motivation.}
+LLM providers routinely update their models: OpenAI's GPT-4 has
+received multiple mid-cycle quality changes, Anthropic's Claude
+models are refreshed quarterly, and open-weight models on inference
+APIs (e.g., Together, Fireworks) may be swapped to newer
+checkpoints without notice.
+Equally common, providers restructure pricing---Google's Gemini
+models have seen multiple price reductions since launch, and
+competition drives aggressive pricing for open-weight inference.
+When a model's quality or cost changes, a router trained on
+historical data inherits a \emph{stale policy}: it continues
+routing to a model whose quality has degraded or whose cost
+advantage has disappeared.
+We ask: \emph{can BanditGPT adapt to non-stationary environments
+automatically, without manual re-calibration?}
+
+\paragraph{Algorithm.}
+BanditGPT addresses non-stationarity through a \emph{forgetting
+factor} $\gamma \in (0, 1]$ applied to the disjoint
+LinUCB~\cite{li2010contextual} sufficient statistics.
+At each step $t$, before incorporating the new observation
+$(x_t, a_t, r_t)$, the design matrix and reward accumulator for
+each arm $a$ are discounted:
+\begin{align}
+    A_a &\leftarrow \gamma \, A_a + x_t x_t^\top
+    \label{eq:forget_A} \\
+    b_a &\leftarrow \gamma \, b_a + r_t \, x_t
+    \label{eq:forget_b}
+\end{align}
+This exponential weighting, originally proposed for
+switching bandits by Garivier and
+Moulines~\cite{garivier2011switching}, gives observations an
+effective half-life of $\ln 2 / (1 - \gamma)$ steps.
+With $\gamma{=}0.999$, the effective memory window is
+$\sim\!1{,}000$ steps: recent evidence dominates while historical
+observations---including warmup priors---are geometrically
+discounted.
+During stable periods ($\gamma$ close to 1), the
+forgetting overhead is minimal: the router retains nearly all
+its learned policy.  The parameter $\gamma$ thus controls a
+bias--variance tradeoff between \emph{stability} (trusting
+historical evidence) and \emph{plasticity} (responding to new
+evidence).
+
+We evaluate this mechanism under two complementary forms of
+non-stationarity that capture the dominant failure modes in
+production LLM routing.
+
+% =====================================================================
+% EXPERIMENT 02a: REWARD SHIFT
+% =====================================================================
+
+\subsubsection{Experiment 02a: Model Quality Shift}
+\label{sec:reward_shift}
+
+\paragraph{Setup.}
+We construct a controlled model quality shift using the $K{=}3$
+portfolio on real benchmark data.
+The router learns online on the validation split
+($n{=}1{,}785$; 32~NLP benchmarks) and priors are trained on a
+disjoint training split ($n_{\mathrm{eff}}{=}5{,}000$).
+The 1{,}785-step trajectory has two phases:
+
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Phase~1} (steps 1--893): Normal reward landscape.
+    Warmup priors are well-calibrated.
+    Mistral-Large is utility-best
+    (mean utility $0.840 = 0.917 - 0.20 \times 0.384$).
+
+  \item \textbf{Phase~2} (steps 894--1{,}785): \textbf{Reward swap}.
+    Llama-8B and Mistral-Large exchange their per-prompt reward
+    and cost columns, simulating simultaneous API quality changes.
+    Post-swap, Llama-8B is utility-best
+    ($0.922 = 0.922 - 0$) while Mistral-Large drops to worst
+    ($0.727 = 0.804 - 0.077$).  Gemini-Pro is unchanged (anchor).
+\end{itemize}
+
+\noindent
+Five conditions are compared across 40~seeds:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{BanditGPT (adaptive~$\gamma$):}
+    Warmup priors with residual-based adaptive forgetting
+    (Section~\ref{sec:adaptive_gamma}).
+  \item \textbf{BanditGPT ($\gamma{=}0.999$):}
+    Warmup priors with fixed forgetting (effective memory
+    ${\sim}1{,}000$ steps).
+  \item \textbf{No~forgetting ($\gamma{=}1.0$):}
+    Warmup priors, no forgetting.
+  \item \textbf{Fast~forgetting ($\gamma{=}0.995$):}
+    Warmup priors, aggressive forgetting (effective memory
+    ${\sim}200$ steps).
+  \item \textbf{Tabula~Rasa:}
+    No priors, no forgetting.
+\end{enumerate}
+
+\paragraph{Results (Figure~\ref{fig:cumulative_regret}).}
+BanditGPT (adaptive~$\gamma$) achieves the lowest cumulative
+regret ($134.4$), matching fixed $\gamma{=}0.999$ ($134.4$)
+and outperforming all ablations:
+No~forgetting ($152.7$, ${+}13.6\%$),
+Tabula~Rasa ($155.7$, ${+}15.8\%$),
+and Fast~forgetting ($159.9$, ${+}19.0\%$).
+
+The regret decomposes cleanly by phase:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Condition & Phase~1 & Phase~2 & Total \\
+\midrule
+\textbf{BanditGPT (adaptive $\gamma$)} & 61.7 & 72.7 & \textbf{134.4} \\
+BanditGPT ($\gamma{=}0.999$) & 61.9 & 72.6 & 134.4 \\
+No forgetting ($\gamma{=}1.0$) & 59.1 & 93.6 & 152.7 \\
+Fast forgetting ($\gamma{=}0.995$) & 72.2 & 87.6 & 159.9 \\
+Tabula Rasa & 76.8 & 79.0 & 155.7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+BanditGPT wins because it \emph{combines} two advantages that
+no ablation achieves simultaneously:
+(i)~warmup priors reduce Phase~1 regret by 20\% vs.\ Tabula~Rasa
+($61.7$ vs.\ $76.8$), and
+(ii)~the forgetting factor reduces Phase~2 regret by 22\%
+vs.\ No~forgetting ($72.7$ vs.\ $93.6$).
+Removing either component sacrifices one benefit without
+recovering the other.
+
+\paragraph{Forgetting rate sensitivity.}
+Fast~forgetting ($\gamma{=}0.995$) has a ${\sim}200$-step
+effective memory, which provides rapid adaptation but permanently
+limits the effective sample size.
+This manifests as elevated exploration: at step~1{,}785,
+Fast~forgetting allocates only 45\% to Llama (vs.\ 69\% for
+BanditGPT) because the UCB exploration bonus remains large when
+$A_a$ has few effective observations.
+A moderate forgetting rate ($\gamma{=}0.999$) strikes the right
+balance: it forgets stale evidence over ${\sim}1{,}000$ steps
+while retaining enough effective observations for confident
+exploitation.
+
+% =====================================================================
+% EXPERIMENT 02b: COST SHIFT
+% =====================================================================
+
+\subsubsection{Experiment 02b: Pricing Restructure}
+\label{sec:cost_shift}
+
+\paragraph{Setup.}
+We simulate the most common non-stationarity in production LLM
+routing: a provider pricing change.  The same $K{=}3$ portfolio,
+data, and warmup priors are used.
+
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Phase~1} (steps 1--893): Normal pricing.
+    Gemini-Pro is the most expensive model (normalized cost
+    $\tilde{c}=0.67$); Mistral-Large is utility-best ($0.840$).
+    Gemini is rarely selected due to the cost penalty.
+
+  \item \textbf{Phase~2} (steps 894--1{,}785): \textbf{Gemini price drop}.
+    Gemini's pricing is reduced from \$1.25/\$10.0 to
+    \$0.10/\$0.10 per million tokens (input/output), matching
+    Llama-level pricing.  The router's model registry is updated
+    at the boundary; the next \texttt{route()} call immediately
+    computes the new normalized cost ($\tilde{c} \approx 0.0$).
+    Post-drop, Gemini is utility-best
+    ($0.942 = 0.933 - 0.20 \times 0.0$).
+\end{itemize}
+
+\noindent
+Critically, \emph{rewards do not change}---only costs do.
+The reward estimates $\hat\theta_a$ learned in Phase~1 remain
+valid in Phase~2.
+
+\paragraph{Results (Figure~\ref{fig:cost_shift_regret}).}
+The ranking \emph{partially reverses} compared to the reward shift:
+
+\begin{center}
+\begin{tabular}{lrrl}
+\toprule
+Condition & Regret & Gemini \% & \\
+\midrule
+No forgetting ($\gamma{=}1.0$) & \textbf{73.7} & 95\% & \\
+\textbf{BanditGPT (adaptive $\gamma$)} & 84.5 & 69\% & ${+}15\%$ \\
+BanditGPT ($\gamma{=}0.999$) & 95.6 & 59\% & ${+}30\%$ \\
+Tabula Rasa & 106.1 & 73\% & ${+}44\%$ \\
+Fast forgetting ($\gamma{=}0.995$) & 138.3 & 41\% & ${+}88\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+No~forgetting wins because the cost change is an
+\emph{externally observable signal}: the registry update
+shifts Gemini's UCB score by
+$\lambda_s \times 0.67 = +0.134$ immediately, without requiring
+any update to $\hat\theta$.
+The accurate Phase~1 reward estimates, combined with Gemini's
+natural UCB exploration bonus from under-exploration (high
+$x^\top A_{\mathrm{Gemini}}^{-1} x$), drive rapid convergence
+to the new optimum.
+
+Fixed forgetting ($\gamma{=}0.999$) is actively harmful: it decays the
+\emph{still-valid} $\hat\theta$ estimates, increasing posterior
+variance for all arms and inducing unnecessary exploration.
+BanditGPT ($\gamma{=}0.999$) reaches only 59\% Gemini at
+step~1{,}785 vs.\ 95\% for No~forgetting.
+
+Crucially, adaptive~$\gamma$ \emph{partially mitigates} this:
+by detecting that prediction residuals have not increased
+(Figure~\ref{fig:gamma_trajectory}), the adaptive mechanism
+largely suppresses forgetting, reaching 69\% Gemini and saving
+11.1 regret points vs.\ fixed $\gamma{=}0.999$
+($p < 10^{-12}$, paired $t$-test).
+
+% =====================================================================
+% STATISTICAL SIGNIFICANCE
+% =====================================================================
+
+\subsubsection{Statistical Significance}
+\label{sec:nonstat_significance}
+
+All conditions share the same prompt stream within each seed
+(randomised identically), making paired comparisons appropriate.
+We report two-sided paired $t$-tests (39~d.f.) on terminal
+cumulative regret, with Holm--Bonferroni
+correction~\cite{holm1979simple} for multiple comparisons.
+
+\begin{center}
+\small
+\begin{tabular}{@{}llrcl@{}}
+\toprule
+\textbf{Experiment} & \textbf{Comparison} & \textbf{$\Delta$} & \textbf{95\% CI} & \textbf{$p$} \\
+\midrule
+\multicolumn{5}{@{}l}{\textit{Reward shift}} \\[2pt]
+& Adaptive vs.\ No forget & $-18.3$ & $[-20.7, -15.9]$ & $< 10^{-17}$ \\
+& Adaptive vs.\ Fixed 0.999 & $+0.0$ & $[-2.3, +2.4]$ & $0.98$ \\
+& Adaptive vs.\ Fast 0.995 & $-25.5$ & $[-28.0, -23.0]$ & $< 10^{-22}$ \\
+& Adaptive vs.\ Tab.\ Rasa & $-21.3$ & $[-24.7, -18.0]$ & $< 10^{-15}$ \\
+& No forget vs.\ Fast 0.995 & $-7.2$ & $[-8.7, -5.7]$ & $< 10^{-11}$ \\
+& No forget vs.\ Tab.\ Rasa & $-3.1$ & $[-6.2, +0.1]$ & $0.054$ \\[4pt]
+\multicolumn{5}{@{}l}{\textit{Cost shift}} \\[2pt]
+& Adaptive vs.\ No forget & $+10.8$ & $[+8.9, +12.7]$ & $< 10^{-13}$ \\
+& Adaptive vs.\ Fixed 0.999 & $-11.1$ & $[-13.2, -9.0]$ & $< 10^{-12}$ \\
+& Adaptive vs.\ Fast 0.995 & $-53.8$ & $[-56.3, -51.2]$ & $< 10^{-34}$ \\
+& Adaptive vs.\ Tab.\ Rasa & $-21.6$ & $[-23.8, -19.3]$ & $< 10^{-21}$ \\
+& No forget vs.\ Fixed 0.999 & $-21.9$ & $[-22.6, -21.2]$ & $< 10^{-40}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+The adaptive mechanism's key property is visible in the sign of
+$\Delta$: it matches fixed $\gamma{=}0.999$ under reward shift
+($\Delta{=}0.0$, $p{=}0.98$) but \emph{significantly outperforms}
+it under cost shift ($\Delta{=}{-}11.1$, $p < 10^{-12}$).
+This confirms that the residual-based detector correctly
+discriminates between shift types.
+
+% =====================================================================
+% ADAPTIVE GAMMA
+% =====================================================================
+
+\subsubsection{Adaptive Forgetting Factor}
+\label{sec:adaptive_gamma}
+
+\paragraph{Mechanism.}
+The experiments above reveal a fundamental tension: fixed
+$\gamma{=}0.999$ is optimal for reward shifts but harmful for cost
+shifts, while $\gamma{=}1.0$ is optimal for cost shifts but
+cannot adapt to reward shifts.
+To resolve this, BanditGPT implements an \emph{adaptive forgetting
+factor} $\gamma_t$ that adjusts automatically based on the
+router's own prediction accuracy, inspired by ADWIN-style adaptive
+windowing~\cite{bifet2007adwin} and dual-EMA change
+detection~\cite{cavenaghi2021nonstationary}.
+
+At each step $t$, after observing reward $r_t$ for arm $a_t$, the
+mechanism computes the absolute prediction residual
+$e_t = |r_t - \hat\theta_{a_t}^\top x_t|$
+and updates two exponential moving averages per arm:
+\begin{align}
+    \mu_{\text{short}}[a] &\mathrel{+}= \alpha_s \cdot (e_t - \mu_{\text{short}}[a])
+    \label{eq:ema_short} \\
+    \mu_{\text{long}}[a]  &\mathrel{+}= \alpha_l \cdot (e_t - \mu_{\text{long}}[a])
+    \label{eq:ema_long}
+\end{align}
+with $\alpha_s{=}0.3$ (fast, ${\sim}3$-step half-life) and
+$\alpha_l{=}0.05$ (slow, ${\sim}14$-step half-life).
+The per-arm shift estimate is:
+\begin{equation}
+    s_k = \max\!\bigl(0,\;
+    \mu_{\text{short}}[k] - \mu_{\text{long}}[k] - m\bigr)
+    \label{eq:shift_estimate}
+\end{equation}
+where $m$ is a self-calibrated noise margin (dead zone) equal to
+$2\times$ the theoretical standard deviation of the EMA difference
+under stationarity.  This margin prevents $\gamma$ from
+oscillating in stable regimes while preserving sensitivity to
+real shifts.
+
+The forgetting factor is set as:
+\begin{equation}
+    \gamma_t = \max\!\Bigl(0.999,\;
+    1 - \frac{\max_k s_k}{\delta}\Bigr)
+    \label{eq:adaptive_gamma}
+\end{equation}
+where $\delta$ is the population standard deviation of prediction
+residuals during the burn-in phase.
+
+\paragraph{Behaviour (Figure~\ref{fig:gamma_trajectory}).}
+Under reward shift, $\gamma_t$ drops sharply from $1.0$ toward
+$0.999$ near the phase boundary (step~${\sim}950$) as prediction
+residuals spike for the arms whose reward distributions have
+changed.  Once predictions adapt, residuals return to baseline
+and $\gamma_t$ recovers toward $1.0$---a
+\emph{self-correcting} response.
+Under cost shift, $\gamma_t$ remains near $1.0$ throughout the
+experiment because reward predictions remain accurate (only costs
+changed); the mechanism correctly avoids triggering unnecessary
+forgetting.
+
+This asymmetric response is the fundamental advantage over
+fixed schedules: the same mechanism provides $\gamma{=}0.999$-level
+adaptation when needed and $\gamma{=}1.0$-level stability when
+forgetting would be harmful, without any manual tuning or external
+change-detection signal.
+
+% =====================================================================
+% SYNTHESIS
+% =====================================================================
+
+\subsubsection{Synthesis: The Nature of Non-Stationarity Matters}
+\label{sec:nonstat_synthesis}
+
+\paragraph{Key finding.}
+Experiments 02a and 02b reveal a fundamental tension that the
+adaptive mechanism resolves:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Change type & Fixed $\gamma{=}0.999$ & Adaptive $\gamma$ & Mechanism \\
+\midrule
+Reward shift & \cmark~best & \cmark~matches & Detects residual spike \\
+Cost shift & \xmark~harmful & $\sim$~partial & Suppresses forgetting \\
+\emph{Both (ideal)} & \xmark~compromise & \cmark & Adapts per shift type \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+The adaptive mechanism does not achieve the theoretical optimum
+under cost shift (No~forgetting remains 13\% better) because
+transient residual fluctuations during arm-switching cause
+brief $\gamma$ dips even when the reward model is valid.
+This is a known limitation of residual-based
+detectors~\cite{cheung2022nonstationary}: they conflate
+arm-switching induced variance with genuine distribution shift.
+Nevertheless, the 11.1-point improvement over fixed $\gamma{=}0.999$
+($p < 10^{-12}$) demonstrates meaningful discrimination between
+shift types.
+
+\paragraph{Implication for production.}
+In production deployments, both types of change occur
+unpredictably---model updates affect reward quality while
+pricing changes affect cost.  The adaptive forgetting factor
+provides a robust default that:
+\begin{itemize}[nosep,leftmargin=*]
+  \item matches hand-tuned $\gamma{=}0.999$ when reward shifts
+    occur (0\% regret overhead, $p{=}0.98$);
+  \item significantly reduces forgetting damage when only costs
+    change ($-11.6\%$ regret vs.\ fixed $\gamma{=}0.999$,
+    $p < 10^{-12}$);
+  \item requires no manual threshold tuning---the noise margin
+    and scale parameter are calibrated from the burn-in phase.
+\end{itemize}
+The BudgetPacer (Section~\ref{sec:budget_pacing}) operates
+orthogonally on the dual variable $\lambda_t$, composing
+naturally with the adaptive forgetting factor.

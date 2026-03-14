@@ -1,0 +1,46 @@
+\begin{figure*}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{../experiments_v2/02_nonstationary_k3_drift/results/cost_shift_cumulative_regret.pdf}
+    \caption{Cumulative cost-adjusted regret under Gemini price drop
+    ($K{=}3$; 40~seeds, $\pm$1\,SE shading).
+    %
+    At step~893, Gemini's pricing drops from \$1.25/\$10.0 to
+    \$0.10/\$0.10 per million tokens (input/output), reducing its
+    normalized cost from $0.67$ to ${\approx}0.0$.  Post-drop,
+    Gemini becomes utility-best
+    ($0.942 = 0.933 - 0.20 \times 0.0$ vs.\ Mistral's $0.845$).
+    %
+    Unlike the reward swap (Figure~\ref{fig:cumulative_regret}),
+    \textbf{No~forgetting} ($\gamma{=}1.0$) achieves the
+    \emph{lowest} regret ($73.7$).
+    \textbf{BanditGPT (adaptive~$\gamma$)} ranks second ($84.5$,
+    $\Delta{=}{+}10.8$ vs.\ No~forgetting,
+    95\%\,CI $[{+}8.9, {+}12.7]$, $p < 10^{-13}$),
+    but \emph{significantly} outperforms fixed
+    $\gamma{=}0.999$ ($95.6$, $\Delta{=}{-}11.1$,
+    95\%\,CI $[-13.2, -9.0]$, $p < 10^{-12}$),
+    Tabula~Rasa ($106.1$), and Fast~forgetting ($138.3$).
+    %
+    The reason No~forgetting wins: the cost change is an
+    \emph{external signal} that the router observes immediately
+    via the updated registry---no reward model adaptation is needed.
+    The well-calibrated $\hat\theta$ estimates from Phase~1 remain
+    valid (rewards did not change), and Gemini's UCB score jumps by
+    $\lambda_s \times 0.67 = 0.134$ from the cost reduction alone.
+    %
+    The adaptive mechanism correctly identifies that prediction
+    residuals have \emph{not} increased (the reward model is still
+    accurate) and largely suppresses forgetting
+    (Figure~\ref{fig:gamma_trajectory}), recovering 11.1 regret
+    points vs.\ fixed $\gamma{=}0.999$ which blindly discounts
+    still-valid $\hat\theta$ estimates.
+    %
+    \emph{Taken together with the reward swap experiment, these
+    results demonstrate that adaptive forgetting correctly
+    discriminates between shift types: it triggers when reward
+    predictions deteriorate and stays quiescent when they remain
+    valid---the key property motivating a residual-based detector
+    over a fixed schedule.}
+    }
+    \label{fig:cost_shift_regret}
+\end{figure*}

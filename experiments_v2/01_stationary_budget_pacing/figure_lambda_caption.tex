@@ -2,34 +2,42 @@
     \centering
     \includegraphics[width=\linewidth]{../experiments_v2/01_stationary_budget_pacing/results/lambda_convergence.pdf}
     \caption{Dual-variable trajectory $\lambda_t$ over the 1{,}824-step
-    test phase (seed~0) at three representative budget targets.
+    test phase (seed~0) at three representative budget targets, all
+    with binding constraints (utilisation $\geq 0.98\times$).
     %
     \textbf{Top} (tight, $B{=}\$2.9{\times}10^{-5}$/req):
     $\lambda_t$ saturates near the cap $\bar\lambda{=}5$, forcing
-    near-exclusive Llama routing (99.9\%).  The hard ceiling filters
+    near-exclusive Llama routing.  The hard ceiling filters
     Mistral and Gemini outright; the soft penalty is redundant.
-    Budget utilisation: $1.03\times$.
+    Budget utilisation: $1.07\times$; $\lambda_{\mathrm{final}}{=}4.89$.
     %
     \textbf{Middle} (moderate, $B{=}\$6.6{\times}10^{-4}$/req):
-    $\lambda_t$ oscillates around $0.3$--$0.5$, actively balancing a
-    Llama/Mistral mix (51\%/46\%).  Spikes correspond to occasional
-    Gemini selections ($2.6\%$) whose high cost drives a transient
-    overspend; the dual variable corrects within ${\sim}20$ steps.
-    Budget utilisation: $1.01\times$.
+    $\lambda_t$ oscillates in a bounded band ($q_{25}{=}0.09$,
+    $q_{50}{=}0.20$, $q_{75}{=}0.39$), actively steering a
+    Llama/Mistral/Gemini mix.  The oscillations reflect the
+    EMA-smoothed cost responding to stochastic model selections:
+    expensive requests raise $\bar{c}_t$ above target, driving
+    $\lambda_t$ up, which suppresses costly selections, allowing
+    $\bar{c}_t$ to relax.  The bounded amplitude confirms the
+    primal-dual controller is orbiting the constraint boundary
+    in steady state.
+    Budget utilisation: $1.00\times$; $\lambda_{\mathrm{final}}{=}0.19$.
     %
-    \textbf{Bottom} (loose, $B{=}\$0.015$/req):
-    The target exceeds the unconstrained router's natural spend;
-    $\lambda_t$ hovers near zero, exerting negligible influence.
-    The selection mix (9\% Llama, 44\% Mistral, 47\% Gemini) matches
-    the quality-optimal unconstrained policy.
-    Budget utilisation: $0.51\times$ (the router cannot be \emph{forced}
-    to spend more).
+    \textbf{Bottom} (loose-binding, $B{=}\$0.0053$/req):
+    $\lambda_t$ applies light pressure ($q_{50}{=}0.002$),
+    with occasional small adjustments when the cost EMA
+    drifts above target.  The gentle touch preserves nearly
+    unconstrained quality ($0.916$) while enforcing $0.98\times$
+    utilisation.
     %
     The 50-step moving average (solid line) shows the smoothed trend;
-    the dotted horizontal line marks $\lambda_{\text{final}}$.
-    Across all targets, $\lambda_t$ stabilises within the first
-    ${\sim}300$ test steps, demonstrating rapid convergence of the
-    primal-dual scheme.
+    the dotted horizontal line marks $\lambda_{\mathrm{final}}$.
+    Using the EMA-smoothed cost $\bar{c}_t$ (rather than the raw
+    per-request cost $c_t$) in the dual update eliminates the
+    high-variance sawtooth oscillations that would otherwise arise
+    from model costs spanning $500\times$.
+    %
+    (20~seeds; trajectory shown for seed~0.)
     }
     \label{fig:lambda_convergence}
 \end{figure}

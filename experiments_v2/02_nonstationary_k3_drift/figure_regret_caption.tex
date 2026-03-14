@@ -1,0 +1,43 @@
+\begin{figure*}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{../experiments_v2/02_nonstationary_k3_drift/results/reward_shift_cumulative_regret.pdf}
+    \caption{Cumulative cost-adjusted regret under model quality shift
+    ($K{=}3$; 40~seeds, $\pm$1\,SE shading).
+    %
+    Regret is defined as the per-step gap between the oracle
+    policy (which selects the utility-maximising arm
+    $a^* = \arg\max_a [r_a - \lambda_s \tilde{c}_a]$ at each step)
+    and the router's choice, accumulated over the full 1{,}785-step
+    trajectory.
+    %
+    \textbf{BanditGPT (adaptive~$\gamma$)} achieves the lowest
+    terminal regret ($134.4$), matching fixed $\gamma{=}0.999$
+    ($134.4$; paired $\Delta{=}0.0$,
+    95\%\,CI $[-2.3, +2.4]$, $p{=}0.98$, n.s.)
+    and significantly outperforming
+    \textbf{No~forgetting} ($152.7$, $\Delta{=}{-}18.3$,
+    95\%\,CI $[-20.7, -15.9]$, $p < 10^{-17}$),
+    \textbf{Tabula~Rasa} ($155.7$, $\Delta{=}{-}21.3$,
+    95\%\,CI $[-24.7, -18.0]$, $p < 10^{-15}$),
+    and \textbf{Fast~forgetting} ($159.9$, $\Delta{=}{-}25.5$,
+    95\%\,CI $[-28.0, -23.0]$, $p < 10^{-22}$).
+    All $p$-values from two-sided paired $t$-tests (same prompt
+    stream across seeds).
+    %
+    The adaptive mechanism correctly detects the reward shift
+    (via elevated prediction residuals) and triggers forgetting,
+    producing behaviour indistinguishable from the hand-tuned
+    $\gamma{=}0.999$ baseline.
+    The regret decomposes by phase: in Phase~1, warmup priors
+    provide a head start ($61.7$ vs.\ $76.8$ for Tabula~Rasa,
+    $\Delta{=}{-}20\%$); in Phase~2, forgetting enables faster
+    adaptation ($72.7$ vs.\ $93.6$ for No~forgetting,
+    $\Delta{=}{-}22\%$).
+    %
+    The divergence between BanditGPT and No~forgetting becomes
+    visible immediately after the swap boundary (step~893),
+    confirming that forgetting concentrates its benefit in the
+    transition window where stale priors are actively harmful.
+    }
+    \label{fig:cumulative_regret}
+\end{figure*}

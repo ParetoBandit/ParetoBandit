@@ -4,12 +4,12 @@
     \caption{Model selection fractions under the static cost penalty
     (left of dashed divider) and the BudgetPacer (right).
     The top axis shows the realised mean cost per request for each
-    condition.
+    condition.  (20~seeds, averaged.)
     %
     \textbf{Static baseline:}  Increasing $\lambda_s$ from $0$ to $1$
-    smoothly shifts the mix from Gemini-dominant (51\% at $\lambda_s{=}0$)
-    to Llama-dominant (98\% at $\lambda_s{=}1.0$), with Mistral peaking
-    at intermediate values (${\sim}54\%$ at $\lambda_s{=}0.3$).
+    smoothly shifts the mix from Gemini-dominant to
+    Llama-dominant, with Mistral peaking
+    at intermediate values.
     The transition is gradual because the static penalty is a fixed bias
     in the UCB score; the router must balance this bias against
     contextual reward predictions on every request.
@@ -20,9 +20,9 @@
     entirely and the soft penalty further suppresses Mistral,
     producing a Llama-heavy mix.  At the moderate target
     ($B{=}\$6.6{\times}10^{-4}$) the pacer discovers a
-    Llama/Mistral blend (51\%/46\%) that is not reachable by any single
-    static $\lambda_s$ value: the nearest static point ($\lambda_s{=}0.5$,
-    64\%/33\%) overweights Llama at the expense of quality.
+    Llama/Mistral blend that is not reachable by any single
+    static $\lambda_s$ value: the nearest static point
+    overweights Llama at the expense of quality.
     At loose targets ($B \geq \$0.005$) the pacer converges to the
     unconstrained mix.
     %
