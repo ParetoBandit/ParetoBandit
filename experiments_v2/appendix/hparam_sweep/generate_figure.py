@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate side-by-side heatmaps of Pareto AUC for BanditGPT vs Tabula Rasa.
+"""Generate alpha-sweep figure comparing BanditGPT vs Tabula Rasa.
 
 Reads ``results/hparam_sweep_results.json`` and produces:
-  - ``results/hparam_sweep_heatmap.{pdf,png}``
+  - ``results/hparam_sweep_alpha.{pdf,png}``
 
 Usage::
 
@@ -22,29 +22,13 @@ import numpy as np
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
-VARIANT_LABELS: Dict[str, str] = {
-    "banditgpt": "BanditGPT (warmup priors)",
-    "tabula_rasa": "Tabula Rasa (cold start)",
+CB_BLUE = "#0072B2"
+CB_ORANGE = "#E69F00"
+
+VARIANT_STYLE: Dict[str, Dict] = {
+    "banditgpt": {"color": CB_BLUE, "label": "BanditGPT (warmup)"},
+    "tabula_rasa": {"color": CB_ORANGE, "label": "Tabula Rasa (cold start)"},
 }
-
-
-def _build_heatmap(
-    results: List[Dict],
-    variant: str,
-    alpha_values: List[float],
-    pca_components: List[int],
-) -> np.ndarray:
-    """Build a 2-D (n_alpha, n_pca) heatmap for one variant."""
-    n_alpha = len(alpha_values)
-    n_pca = len(pca_components)
-    heatmap = np.full((n_alpha, n_pca), np.nan)
-    for entry in results:
-        if entry["variant"] != variant:
-            continue
-        ai = alpha_values.index(entry["alpha"])
-        pi = pca_components.index(entry["pca_dim"])
-        heatmap[ai, pi] = entry["pareto_auc"]
-    return heatmap
 
 
 def main() -> None:
@@ -52,96 +36,81 @@ def main() -> None:
         data = json.load(f)
 
     alpha_values: List[float] = data["grid"]["alpha_values"]
-    pca_components: List[int] = data["grid"]["pca_components"]
     variants: List[str] = data["grid"]["variants"]
     best_per_variant = data["best_per_variant"]
 
-    all_aucs = [e["pareto_auc"] for e in data["results"]]
-    vmin = min(all_aucs) - 0.002
-    vmax = max(all_aucs) + 0.002
+    auc_by_variant: Dict[str, List[float]] = {v: [] for v in variants}
+    for alpha in alpha_values:
+        for variant in variants:
+            entry = next(
+                r for r in data["results"]
+                if r["variant"] == variant and r["alpha"] == alpha
+            )
+            auc_by_variant[variant].append(entry["pareto_auc"])
 
-    n_alpha = len(alpha_values)
-    n_pca = len(pca_components)
+    x = np.arange(len(alpha_values))
+    width = 0.35
 
-    fig, axes = plt.subplots(1, 2, figsize=(14.5, 4.5), sharey=True)
+    fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    for ax_idx, variant in enumerate(variants):
-        ax = axes[ax_idx]
-        heatmap = _build_heatmap(
-            data["results"], variant, alpha_values, pca_components,
+    for i, variant in enumerate(variants):
+        style = VARIANT_STYLE[variant]
+        offset = (i - 0.5) * width
+        bars = ax.bar(
+            x + offset,
+            auc_by_variant[variant],
+            width,
+            label=style["label"],
+            color=style["color"],
+            edgecolor="white",
+            linewidth=0.5,
         )
 
-        im = ax.imshow(
-            heatmap,
-            aspect="auto",
-            cmap="YlOrRd_r",
-            origin="lower",
-            vmin=vmin,
-            vmax=vmax,
-        )
+        best_alpha = best_per_variant[variant]["alpha"]
+        best_idx = alpha_values.index(best_alpha)
+        bars[best_idx].set_edgecolor("black")
+        bars[best_idx].set_linewidth(2.0)
 
-        ax.set_xticks(range(n_pca))
-        ax.set_xticklabels([str(d) for d in pca_components])
-        ax.set_xlabel("PCA Components", fontsize=11)
-
-        if ax_idx == 0:
-            ax.set_yticks(range(n_alpha))
-            ax.set_yticklabels([f"{a:.2f}" for a in alpha_values])
-            ax.set_ylabel(r"$\alpha$ (exploration)", fontsize=11)
-
-        ax.set_title(VARIANT_LABELS[variant], fontsize=12)
-
-        mid = (vmin + vmax) / 2
-        for ai in range(n_alpha):
-            for pi in range(n_pca):
-                val = heatmap[ai, pi]
-                if np.isnan(val):
-                    continue
-                text_color = "white" if val < mid else "black"
-                ax.text(
-                    pi, ai, f"{val:.4f}",
-                    ha="center", va="center",
-                    fontsize=7, color=text_color, fontweight="bold",
-                )
-
-        best = best_per_variant[variant]
-        best_ai = alpha_values.index(best["alpha"])
-        best_pi = pca_components.index(best["pca_dim"])
-        ax.add_patch(plt.Rectangle(
-            (best_pi - 0.5, best_ai - 0.5), 1, 1,
-            fill=False, edgecolor="blue", linewidth=2.5,
-        ))
-
-        x_off = min(best_pi + 2.5, n_pca - 1)
-        y_off = min(best_ai + 1.5, n_alpha - 0.5)
-        ax.annotate(
-            f"Best: α={best['alpha']}, d={best['pca_dim']}",
-            xy=(best_pi, best_ai),
-            xytext=(x_off, y_off),
-            fontsize=8,
-            fontweight="bold",
-            color="blue",
-            arrowprops=dict(arrowstyle="->", color="blue", lw=1.5),
-        )
-
-    fig.subplots_adjust(right=0.88, wspace=0.08)
-    cbar_ax = fig.add_axes([0.90, 0.12, 0.02, 0.76])
-    cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label("Pareto AUC", fontsize=10)
-
-    fig.suptitle(
-        r"Alpha × PCA Sweep — Pareto AUC (K=3, $\gamma$=1.0)",
-        fontsize=13, y=0.98,
+    ax.set_xlabel(r"$\alpha$ (exploration parameter)", fontsize=11)
+    ax.set_ylabel("Pareto AUC (holdout)", fontsize=11)
+    ax.set_title(
+        r"Alpha Sweep — K=3, PCA-25, $\gamma$=1.0",
+        fontsize=12,
     )
 
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{a}" for a in alpha_values])
+
+    all_aucs = [a for v in variants for a in auc_by_variant[v]]
+    y_lo = min(all_aucs) - 0.005
+    y_hi = max(all_aucs) + 0.005
+    ax.set_ylim(y_lo, y_hi)
+
+    for i, variant in enumerate(variants):
+        offset = (i - 0.5) * width
+        for j, auc in enumerate(auc_by_variant[variant]):
+            ax.text(
+                x[j] + offset,
+                auc + 0.0005,
+                f"{auc:.4f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                rotation=45,
+            )
+
+    ax.legend(loc="lower left", fontsize=10, framealpha=0.9)
+    ax.grid(axis="y", alpha=0.3, linestyle="--")
+
+    fig.tight_layout()
     for ext in ("pdf", "png"):
         fig.savefig(
-            RESULTS_DIR / f"hparam_sweep_heatmap.{ext}",
+            RESULTS_DIR / f"hparam_sweep_alpha.{ext}",
             dpi=200,
             bbox_inches="tight",
         )
     plt.close(fig)
-    print(f"Saved hparam_sweep_heatmap.pdf/.png to {RESULTS_DIR}")
+    print(f"Saved hparam_sweep_alpha.pdf/.png to {RESULTS_DIR}")
 
 
 if __name__ == "__main__":
