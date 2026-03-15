@@ -138,9 +138,17 @@ for both variants (effective memory ${\sim}200$ steps),
 trading ${<}0.3\%$ budget-paced AUC ($0.931 \to 0.929$ and
 $0.929 \to 0.929$) for substantially lower Phase-2 regret
 ($48.4$ and $49.0$).
-On the held-out test split, the selected configurations achieve
-Pareto AUC of $0.925$ for both BanditGPT and Tabula Rasa,
-confirming that the val-selected hyperparameters generalise.
+On the held-out test split the selected configurations achieve
+Pareto AUC of $\hpBanditGPTTestAUC$ (BanditGPT) and
+$\hpTabulaTestAUC$ (Tabula Rasa) versus $\hpFixedTestAUC$ for the
+fixed-model envelope---deltas of $\hpBanditGPTTestDelta\%$ and
+$\hpTabulaTestDelta\%$, both within one standard deviation of
+seed variance ($\pm\hpBanditGPTTestStd$ and
+$\pm\hpTabulaTestStd$).
+The val-selected hyperparameters thus transfer to test without
+statistically significant degradation, consistent with the
+$\epsilon$-constraint design which permits up to $0.25\%$ AUC
+sacrifice in exchange for adaptation capability.
 
 Two additional patterns merit attention:
 

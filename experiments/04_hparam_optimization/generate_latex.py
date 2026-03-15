@@ -75,7 +75,18 @@ def build_command_set(
         cs.num("BanditGPTRegret", bg_best["val_phase2_regret"], digits=1)
     bg_test = test_per.get("banditgpt", {})
     if bg_test:
-        cs.num("BanditGPTTestAUC", bg_test["test_pareto_auc"], digits=3)
+        cs.num("BanditGPTTestAUC", bg_test["test_pareto_auc"], digits=4)
+        cs.num("BanditGPTTestStd", bg_test["test_pareto_auc_std"], digits=4)
+        cs.num("BanditGPTTestDelta", bg_test["test_delta_pct"], digits=2)
+
+    tr_test = test_per.get("tabula_rasa", {})
+    if tr_test:
+        cs.num("TabulaTestAUC", tr_test["test_pareto_auc"], digits=4)
+        cs.num("TabulaTestStd", tr_test["test_pareto_auc_std"], digits=4)
+        cs.num("TabulaTestDelta", tr_test["test_delta_pct"], digits=2)
+
+    if bg_test:
+        cs.num("FixedTestAUC", bg_test["test_fixed_auc"], digits=4)
 
     # -------------------------------------------------------------------------
     # BanditGPT AUC-only config
