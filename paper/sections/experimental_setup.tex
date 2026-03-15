@@ -1,24 +1,56 @@
 \section{Experimental Setup}
 \label{sec:setup}
 
-We evaluate BanditGPT on a canonical portfolio of three LLMs, spanning a large cost differential, and using realistic prompt data to simulate both stationary and non-stationary production environments.
+We evaluate BanditGPT on a canonical portfolio of three LLMs, spanning a large cost differential, and using realistic prompt data to simulate both stationary and non-stationary production environments.  Table~\ref{tab:dataset} summarises the data splits and model portfolio.
 
 \subsection{Datasets and Ground Truth}
 
-We use a dataset of 1,785 prompts sampled from the LMSYS Chatbot Arena~\cite{zheng2023judging}. This dataset reflects real-world, open-ended user interactions spanning diverse domains, including coding, reasoning, and conversational tasks. 
+We collect 11,983 prompts from the LMSYS Chatbot Arena~\cite{zheng2023judging}, reflecting real-world, open-ended user interactions spanning coding, reasoning, and conversational tasks.  Each prompt is routed to all three models in the portfolio and evaluated by an automated LLM-as-a-judge.
 
-To ensure robust and reproducible evaluation, we employ an automated LLM-as-a-judge paradigm using DeepSeek-R1~\cite{deepseekai2025deepseekr1} as the evaluator.  Each response is scored on three continuous dimensions---\emph{Reasoning Quality} (40\%), \emph{Instruction Following} (30\%), and \emph{Communication Quality} (30\%)---yielding a composite scalar reward $r_t \in [0, 1]$.  This continuous rubric provides the granular quality distinctions necessary for multi-arm routing; binary win/loss outcomes collapse into ties on a large fraction of prompts and are insufficient for $K > 2$ portfolios.
+\paragraph{Quality evaluation.}
+We employ DeepSeek-R1~\cite{deepseekai2025deepseekr1} as the evaluator.  Each response is scored on three continuous dimensions---\emph{Reasoning Quality} (40\%), \emph{Instruction Following} (30\%), and \emph{Communication Quality} (30\%)---yielding a composite scalar reward $r_t \in [0, 1]$.  This continuous rubric provides the granular quality distinctions necessary for multi-arm routing; binary win/loss outcomes collapse into ties on a large fraction of prompts and are insufficient for $K > 2$ portfolios.
 
 For online learning, the bandit's convergence rate scales directly with the reward gap between the optimal and suboptimal arms~\cite{lattimore2020bandit}; we therefore select the judge that maximises routing margins.  DeepSeek-R1 produces the largest inter-model gaps and the highest fraction of actionable prompts among the judges we evaluated, while its oracle routing decisions capture $\geq 97\%$ of two independent supplementary judges' oracle reward (Appendix~\ref{sec:judge_robustness}).  Recent multi-judge aggregation methods~\cite{verga2024poll,zhao2025care} target confounder-induced bias rather than the signal compression inherent in averaging judges with different scale ranges; applied to our panel, averaging reduces routing margins by ${\sim}30\%$ (Appendix, Figure~\ref{fig:panel_signal}), making the single maximally discriminative judge the principled choice for bandit learning.
 
-The 1,785 prompts are split into three sets:
-1. \textbf{Warmup Set ($n=1,028$)}: Used offline to train the `Warmup Priors` that initialize the bandit's sufficient statistics ($A_a, b_a$), addressing the cold-start problem.
-2. \textbf{Validation Set ($n=1,785$)}: Used for online learning and hyperparameter tuning in stationary conditions.
-3. \textbf{Test Sets ($n \approx 1,800$)}: Constructed to simulate specific non-stationary scenarios (e.g., reward drift and cost drift), evaluated across multiple random seeds.
+\paragraph{Data splits.}
+The 11,983 prompts are partitioned into three disjoint sets via stratified sampling (by oracle difficulty, seed$=$42, 70/15/15 ratio).  No prompt appears in more than one split:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Train} ($n{=}8{,}374$): Used \emph{offline} to build warmup priors that initialise the bandit's sufficient statistics ($A_a, b_a$), addressing the cold-start problem.  Never seen during online evaluation.
+  \item \textbf{Val} ($n{=}1{,}785$): Used for online learning and hyperparameter selection (Section~\ref{sec:exp4_hparam_sweep}) under stationary conditions.
+  \item \textbf{Test} ($n{=}1{,}824$): Held-out evaluation split.  Non-stationary scenarios (reward drift, cost drift) are constructed by manipulating reward or cost columns at a mid-trajectory phase boundary.  All reported results use this split, averaged over multiple random seeds.
+\end{enumerate}
+
+\begin{table}[t]
+\centering
+\caption{Dataset splits and model portfolio ($K{=}3$).  All prompts are sourced from LMSYS Chatbot Arena and judged by DeepSeek-R1.  The $500\times$ cost differential between the cheapest and most expensive model stresses the router's quality--cost tradeoff.}
+\label{tab:dataset}
+\small
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Split} & $\boldsymbol{n}$ & \textbf{Role} \\
+\midrule
+Train & 8,374 & Warmup priors (offline) \\
+Val   & 1,785 & Online learning, hparam tuning \\
+Test  & 1,824 & Held-out evaluation \\
+\midrule
+\textbf{Total} & \textbf{11,983} & \\
+\bottomrule
+\end{tabular}
+\hfill
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Model} & \textbf{Tier} & \textbf{Cost (\$/req)} \\
+\midrule
+Llama-3.1-8B    & Budget   & \$0.00003 \\
+Mistral-Large   & Mid-tier & \$0.003 \\
+Gemini-2.5-Pro  & Frontier & \$0.015 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Environment Construction}
 
-Our portfolio ($K=3$) spans three distinct cost tiers: Llama-3.1-8B (Budget, \$0.00003/req), Mistral-Large-2512 (Mid-tier, \$0.003/req), and Gemini-2.5-Pro (Frontier, \$0.015/req). This $500\times$ price differential stresses the router's ability to balance quality and cost efficiently.
+The $K{=}3$ portfolio spans three distinct cost tiers (Table~\ref{tab:dataset}, right).  The $500\times$ price differential between Llama-3.1-8B and Gemini-2.5-Pro stresses the router's ability to balance quality and cost efficiently.
 
 We construct two distinct non-stationary test environments to evaluate the router's robustness:
 1. \textbf{Reward Drift (Model Quality Shift)}: Simulates a silent API update where model quality changes mid-deployment. The test trajectory ($n=1,785$) is split into two phases. Phase 1 (steps 1--893) uses normal rewards where Mistral-Large is the utility-optimal model. In Phase 2 (steps 894--1,785), Llama-8B and Mistral-Large exchange their reward distributions, simulating a scenario where Mistral degrades to the worst option while Llama becomes the best. Gemini-Pro serves as an unchanged anchor.
@@ -29,7 +61,7 @@ We construct two distinct non-stationary test environments to evaluate the route
 We compare BanditGPT against two standard baselines representing different levels of routing sophistication:
 1. \textbf{Fixed Policy (Offline):} The router is initialized with warmup priors but performs zero online learning ($\gamma=1.0$, updates disabled). A static, offline-tuned cost penalty $\lambda_s$ is applied. This represents the industry standard of deploying a frozen classifier trained on offline data.
 2. \textbf{Naive Bandit ($\gamma=1.0$):} A standard LinUCB algorithm initialized with warmup priors. It learns online but retains infinite memory (no forgetting). A static cost penalty $\lambda_s$ is applied. This represents a straightforward application of online learning without adaptation for non-stationarity or budget pacing.
-3. \textbf{BanditGPT ($\gamma=0.997$):} Our proposed system, initialized with warmup priors, utilizing geometric forgetting, and governed by the Primal-Dual `BudgetPacer` targeting a specific dollar budget.
+3. \textbf{BanditGPT ($\gamma=0.995$):} Our proposed system, initialized with warmup priors, utilizing geometric forgetting, and governed by the Primal-Dual `BudgetPacer` targeting a specific dollar budget.
 
 All three conditions use the same exploration rate ($\alpha=0.1$) and prior strength ($n_{eff}=10$).
 
