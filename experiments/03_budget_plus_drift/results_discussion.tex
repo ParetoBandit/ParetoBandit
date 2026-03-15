@@ -182,21 +182,21 @@ so their Phase~1 costs match by construction.
 Three failure modes emerge:
 
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy under-spends} ($0.12$--$0.49\times$).
+  \item \textbf{Fixed Policy under-spends} ($0.24$--$0.45\times$).
     The static cost penalty, tuned to produce similar Phase~1 spend
     for the pacer conditions, is too aggressive for a frozen policy
     that cannot refine its reward estimates.
-    At tight budget, it routes 100\% to Llama-8B---the cheapest arm
+    At tight budget, it routes ${\sim}94\%$ to Llama-8B---the cheapest arm
     but also the lowest-quality---wasting the entire quality headroom
     that the budget allows.
 
   \item \textbf{Naive Bandit is inconsistent across budgets.}
     After pre-training on the validation split, the Naive Bandit
-    happens to land near target at tight ($0.92\times$) and moderate
-    ($1.05\times$) budgets---but this is coincidental, not controlled.
+    happens to land near target at moderate ($0.96\times$)
+    budget---but this is coincidental, not controlled.
     At loose budget, the same static penalty ($\lambda_s{=}0.10$)
     cannot contain the shift toward expensive arms: the Naive Bandit
-    spends \$5.2e-3/req ($2.78\times$ target).
+    spends \$5.4e-3/req ($2.88\times$ target).
     The static penalty provides no feedback mechanism to correct this;
     a different penalty per budget tier would require the very
     closed-loop calibration that the BudgetPacer provides automatically.
@@ -211,7 +211,7 @@ Three failure modes emerge:
 
 \noindent
 \textbf{BanditGPT is the only condition that reliably hits the
-budget target} ($0.97$--$1.00\times$).  The BudgetPacer's
+budget target} ($0.98$--$1.00\times$).  The BudgetPacer's
 primal-dual mechanism adjusts $\lambda_t$ continuously based on
 observed costs, providing a closed-loop budget controller that
 static penalties cannot replicate.
@@ -243,8 +243,8 @@ and the three budget regimes produce qualitatively distinct Phase~2
 trajectories that follow directly from the relationship between
 post-drop costs and the budget target.
 At \textbf{moderate} budget, $\lambda_t$ averages
-$0.35$ during Phase~1 then drops sharply
-to ${\sim}0.01$ within Phase~2:
+$0.31$ during Phase~1 then drops sharply
+to ${\sim}0.02$ within Phase~2:
 the post-drop portfolio cost (\$3.4e-4/req) is roughly half the
 target (\$6.6e-4), so the cost EMA falls well below target and the
 dual update drives $\lambda_t$ to zero---the budget constraint
@@ -252,8 +252,8 @@ becomes slack and the router reverts to quality-only optimization.
 At \textbf{loose} budget, the same mechanism acts even faster:
 post-drop costs are only $0.19\times$ the target, and
 $\lambda_t$ drops from $0.09$ to near-zero almost immediately.
-At \textbf{tight} budget, $\lambda_t$ \emph{rises} from $0.46$
-in Phase~1 to $0.82$ in Phase~2.
+At \textbf{tight} budget, $\lambda_t$ \emph{rises} from $0.47$
+in Phase~1 to $0.95$ in Phase~2.
 This is the correct Lagrangian response: the post-drop cost floor
 (\$2.38e-4/req) slightly exceeds the tight target (\$2.34e-4),
 so the constraint remains binding and the dual variable continues
@@ -269,7 +269,7 @@ the cost regime.
 All three budget regimes show substantial Gemini adoption in Phase~2,
 but through different mechanisms.
 At \textbf{tight} budget, Gemini selection surges from $<1\%$ to
-${\sim}84\%$---the highest of any constrained condition.
+${\sim}86\%$---the highest of any constrained condition.
 This is driven by the elevated $\lambda_t$: after the price drop,
 Gemini becomes the cheapest model in the portfolio, and the pacer's
 soft penalty (proportional to $\lambda_t \times$ normalized cost)
@@ -278,10 +278,10 @@ affecting Gemini.
 The budget constraint thus \emph{concentrates} traffic on the arm
 that is simultaneously the cheapest and the highest-quality.
 At \textbf{moderate} budget, Gemini selection rises from
-${\sim}2\%$ to ${\sim}49\%$, approaching the unconstrained
-baseline (${\sim}75\%$ Gemini in Phase~2).
+${\sim}2\%$ to ${\sim}50\%$, approaching the unconstrained
+baseline (${\sim}59\%$ Gemini in Phase~2).
 At \textbf{loose} budget, Gemini selection grows from ${\sim}10\%$
-to ${\sim}47\%$, also converging toward the unconstrained level.
+to ${\sim}49\%$, also converging toward the unconstrained level.
 The moderate and loose conditions show less Gemini adoption than
 the tight condition because their $\lambda_t$ drops to near-zero,
 removing cost pressure entirely; the router then quality-optimizes
@@ -300,7 +300,7 @@ Tight    & \$2.34e-4 & \$2.34e-4 & \$2.38e-4 & \$2.36e-4 & $1.01\times$ \\
 Moderate & \$6.62e-4 & \$6.58e-4 & \$3.40e-4 & \$4.99e-4 & $0.75\times$ \\
 Loose    & \$1.87e-3 & \$1.83e-3 & \$3.49e-4 & \$1.09e-3 & $0.58\times$ \\
 \midrule
-Unconstr.\ & ---     & \$1.19e-2 & \$3.14e-4 & \$6.11e-3 & --- \\
+Unconstr.\ & ---     & \$1.00e-2 & \$3.16e-4 & \$5.18e-3 & --- \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -311,8 +311,8 @@ budget levels.  After the price drop, moderate and loose costs
 decline well below target (the pacer constrains from above, never
 inflates), while tight costs remain within 2\% of target---the
 only condition where the constraint is still binding post-drop.
-The unconstrained baseline spends ${\sim}6$--$51\times$ more than
-pacer targets in Phase~1 (\$1.19e-2/req), confirming that the pacer
+The unconstrained baseline spends ${\sim}5$--$43\times$ more than
+pacer targets in Phase~1 (\$1.00e-2/req), confirming that the pacer
 provides genuine cost control.
 
 \paragraph{Reward lift after price drop.}
@@ -327,9 +327,9 @@ comparison; each budget level serves as its own control).
 \toprule
 \textbf{Budget} & \textbf{P1 Rwd} & \textbf{P2 Rwd} & $\boldsymbol{\Delta}$ & \textbf{95\% CI} \\
 \midrule
-Tight    & 0.852 & 0.917 & $+0.065$ & $[0.064,\; 0.067]$ \\
-Moderate & 0.877 & 0.921 & $+0.044$ & $[0.041,\; 0.048]$ \\
-Loose    & 0.904 & 0.921 & $+0.017$ & $[0.015,\; 0.018]$ \\
+Tight    & 0.852 & 0.919 & $+0.067$ & $[0.065,\; 0.069]$ \\
+Moderate & 0.880 & 0.921 & $+0.041$ & $[0.039,\; 0.044]$ \\
+Loose    & 0.904 & 0.921 & $+0.017$ & $[0.015,\; 0.019]$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -338,10 +338,10 @@ Loose    & 0.904 & 0.921 & $+0.017$ & $[0.015,\; 0.018]$ \\
 All budget levels show highly significant reward improvement
 ($p < 10^{-9}$ for all; one-sample $t$-test on per-seed deltas,
 49~d.f.).  The \textbf{tight} target exhibits the largest lift
-($\Delta{=}+0.065$), reflecting the dramatic shift from a
-Llama/Mistral mix to $84\%$ Gemini routing once the price drop
+($\Delta{=}+0.067$), reflecting the dramatic shift from a
+Llama/Mistral mix to $86\%$ Gemini routing once the price drop
 makes Gemini the cheapest arm in the portfolio.
-The moderate lift ($\Delta{=}+0.044$) is similar in magnitude;
+The moderate lift ($\Delta{=}+0.041$) is similar in magnitude;
 the loose lift ($\Delta{=}+0.017$) is smaller because the router
 was already partially selecting Gemini in Phase~1.
 
@@ -350,9 +350,9 @@ The tight target produces the most striking adaptation pattern.
 Unlike moderate and loose budgets where $\lambda_t$ decays to zero,
 the tight constraint remains \emph{binding} in Phase~2: post-drop
 costs (\$2.38e-4/req) slightly exceed the target (\$2.34e-4),
-so $\lambda_t$ continues to rise (from $0.46$ to $0.82$).
+so $\lambda_t$ continues to rise (from $0.47$ to $0.95$).
 Paradoxically, this elevated $\lambda_t$ produces the
-\emph{highest} Gemini adoption ($84\%$) of any constrained
+\emph{highest} Gemini adoption ($86\%$) of any constrained
 condition.
 The mechanism is simple: the soft penalty
 $\lambda_t \times \tilde{c}_m$ is proportional to each arm's
@@ -445,7 +445,7 @@ recalibration---cannot substitute for principled budget pacing}:
     precise budget compliance ($0.98$--$1.02\times$ target across
     both phases) while automatically exploiting the Gemini price
     drop to improve quality
-    ($\Delta_\mathrm{reward}{=}+0.017$ to $+0.065$).
+    ($\Delta_\mathrm{reward}{=}+0.017$ to $+0.067$).
   \item The three budget regimes demonstrate qualitatively distinct
     \textbf{dual-variable dynamics} that follow from the Lagrangian
     structure: when post-drop costs fall below target (moderate,
