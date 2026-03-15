@@ -17,7 +17,7 @@ experiments/
 │   └── results/
 ├── 03_budget_plus_drift/              # Interaction: budget pacing under model drift
 │   └── results/
-└── 04_sensitivity_sweep/              # Budget target x drift magnitude heatmap
+└── 04_hparam_optimization/            # Epsilon-constraint hyperparameter selection
     └── results/
 ```
 
@@ -28,7 +28,7 @@ experiments/
 | 01 | Stationary Budget Pacing | Does BudgetPacer Pareto-dominate a static cost-penalty sweep? | Pareto frontier + lambda convergence |
 | 02 | Non-stationary K=3 Drift | Does BanditGPT adapt to model quality shifts better than fixed or naive online routing? | 3-condition cumulative regret |
 | 03 | Budget + Drift Interaction | Does the BudgetPacer maintain budget compliance under cost drift where static penalties fail? | 3-condition regret per budget + adaptation dynamics |
-| 04 | Sensitivity Sweep | How robust is the system across budget targets and drift magnitudes? | Heatmap (budget x drift) |
+| 04 | Hparam Optimization | How should alpha, n_eff, and gamma be jointly selected? | Epsilon-constraint selection (budget-paced AUC + Phase-2 regret) |
 
 ### Main-text baselines (Experiments 02 and 03)
 

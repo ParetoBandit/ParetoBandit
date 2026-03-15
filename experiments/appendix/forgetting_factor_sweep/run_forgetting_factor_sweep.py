@@ -8,7 +8,7 @@ default and reveal the regret-vs-γ curve shape.
 The main text tests only three values {0.995, 0.999, 1.0}. This
 appendix sweeps {0.99, 0.995, 0.997, 0.999, 0.9995, 1.0} plus the
 adaptive-γ condition as a reference, showing that moderate forgetting
-(γ ≈ 0.999) sits at the bottom of a shallow U-shaped regret curve.
+(γ ≈ 0.995) sits at the bottom of a shallow U-shaped regret curve.
 
 Protocol
 --------
@@ -17,7 +17,9 @@ Same two-phase reward-swap setup as Experiment 02a:
   - Phase 2 (892 steps): Llama ↔ Mistral column swap
   - 20 seeds, K=3 portfolio, warmup priors
 
-All hyperparameters (alpha, n_eff, cost_penalty) match Experiment 02.
+Alpha and prior_n_effective are taken from ``BEST_K3_HPARAMS``
+(Experiment 04 epsilon-constraint selection) to ensure consistency
+with the main paper's hyperparameter choices.
 
 Usage::
 
@@ -40,6 +42,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
+    BEST_K3_HPARAMS,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
@@ -81,8 +84,8 @@ SWAP_ARMS: Tuple[str, str] = (
 PHASE1_N: int = 893
 PHASE2_N: int = 892
 COST_PENALTY: float = 0.20
-PRIOR_N_EFFECTIVE: float = 50.0
-ALPHA_WARMUP: float = 0.25
+PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
+ALPHA_WARMUP: float = BEST_K3_HPARAMS["alpha"]
 ALPHA_TABULA_RASA: float = 0.01
 
 N_SEEDS: int = 20

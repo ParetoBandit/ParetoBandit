@@ -1,4 +1,8 @@
 % Appendix: Forgetting Factor Ablation (complements main-text Experiments 02--03)
+%
+% TODO: Table values below were produced with alpha=0.25, n_eff=50.
+% Re-run forgetting_factor_sweep (now uses BEST_K3_HPARAMS: alpha=0.1,
+% n_eff=10) and regenerate this table + discussion text.
 
 \subsection{Forgetting Factor Ablation}
 \label{app:forgetting_ablation}
@@ -20,8 +24,9 @@ Experiment~02 (K=3, warmup priors, 20~seeds).
 \centering
 \small
 \caption{Forgetting factor sensitivity under reward shift
-($K{=}3$, warmup priors, 20 seeds).  ``TR'' denotes Tabula
-Rasa (no priors, $\alpha{=}0.01$).}
+($K{=}3$, warmup priors, $\alpha{=}0.1$, $n_\mathrm{eff}{=}10$,
+20 seeds).  ``TR'' denotes Tabula Rasa (no priors,
+$\alpha{=}0.01$).}
 \label{tab:gamma_ablation}
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule

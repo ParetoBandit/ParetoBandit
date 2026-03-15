@@ -13,6 +13,9 @@ K=3 portfolio) and evaluate the adaptive-gamma condition under different
 parameter configurations.  All other hyperparameters (alpha, n_eff,
 cost_penalty, etc.) are fixed at their Experiment 02 values.
 
+All other hyperparameters (alpha, n_eff, cost_penalty) are taken from
+``BEST_K3_HPARAMS`` (Experiment 04 epsilon-constraint selection).
+
 Three one-at-a-time sweeps, each holding the others at their defaults:
 
 1. **EMA grid** — alpha_s x alpha_l (4x4 = 16 configs)
@@ -44,7 +47,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
-    HOLDOUT_DATA_PATH,
+    BEST_K3_HPARAMS,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
@@ -86,8 +89,8 @@ SWAP_ARMS: Tuple[str, str] = (
 PHASE1_N: int = 893
 PHASE2_N: int = 892
 COST_PENALTY: float = 0.20
-PRIOR_N_EFFECTIVE: float = 50.0
-ALPHA: float = 0.5
+PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
+ALPHA: float = BEST_K3_HPARAMS["alpha"]
 
 N_SEEDS: int = 20
 SEED_OFFSET: int = 8000

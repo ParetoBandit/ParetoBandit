@@ -35,12 +35,9 @@ Conditions (per budget target)
 
 Hyperparameter note
 -------------------
-  ``alpha=0.1`` and ``prior_n_effective=10.0`` are simulation-tuned
-  values, consistent with Experiments 02-03.  The production-tuned
-  values (alpha=0.01, n_eff=5000 from the hparam sweep appendix) are
-  designed for long-horizon deployment; in a 1.8K-prompt simulation,
-  the weaker priors allow the bandit to adapt within the available
-  time horizon.
+  ``alpha``, ``prior_n_effective``, and ``forgetting_factor`` are taken
+  from ``BEST_K3_HPARAMS`` (Experiment 04 epsilon-constraint selection),
+  ensuring consistency with the main paper's hyperparameter choices.
 
 Output: ``results/model_onboarding_results.json``
 
@@ -69,6 +66,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import (
+    BEST_K3_HPARAMS,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
     K4_MODELS_PATH,
@@ -115,10 +113,9 @@ RESULTS_DIR = Path(__file__).parent / "results"
 CHECKPOINT_INTERVAL: int = 25
 WINDOW_SIZE: int = 100
 
-# Simulation-tuned hparams (see docstring for rationale).
-PRIOR_N_EFFECTIVE: float = 10.0
-ALPHA: float = 0.1
-FORGETTING_FACTOR: float = 0.997
+PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
+ALPHA: float = BEST_K3_HPARAMS["alpha"]
+FORGETTING_FACTOR: float = BEST_K3_HPARAMS["forgetting_factor"]
 
 PACER_LR: float = 0.05
 PACER_LAMBDA_MAX: float = 5.0

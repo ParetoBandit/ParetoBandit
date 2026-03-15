@@ -8,7 +8,8 @@ mean ± std; this appendix provides quartile bands and representative
 individual seed traces to demonstrate cross-seed consistency.
 
 Only the adaptive-gamma condition is evaluated (the figure's focus).
-All other hyperparameters match Experiment 02a/02b exactly.
+All other hyperparameters (alpha, n_eff) are taken from
+``BEST_K3_HPARAMS`` (Experiment 04 epsilon-constraint selection).
 
 Protocol
 --------
@@ -39,6 +40,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
+    BEST_K3_HPARAMS,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
@@ -84,8 +86,8 @@ GEMINI_NEW_OUTPUT_COST: float = 0.10
 PHASE1_N: int = 893
 PHASE2_N: int = 892
 COST_PENALTY: float = 0.20
-PRIOR_N_EFFECTIVE: float = 50.0
-ALPHA: float = 0.5
+PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
+ALPHA: float = BEST_K3_HPARAMS["alpha"]
 CHECKPOINT_INTERVAL: int = 25
 
 N_SEEDS: int = 40
