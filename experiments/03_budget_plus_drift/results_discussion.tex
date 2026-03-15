@@ -106,17 +106,19 @@ routing sophistication, each using warmup priors:
 \end{enumerate}
 
 \noindent
-An \textbf{unconstrained BanditGPT} baseline (same algorithm,
+An \textbf{unconstrained BanditGPT} baseline (same $\gamma{=}0.995$,
 same priors, no budget pacer, $\lambda_s{=}0$) is included in
-every panel of Figure~\ref{fig:exp03_adaptation}.  This baseline
-answers two questions that budget-constrained results alone cannot:
-(i)~\emph{how much quality does the budget cost us?}---the gap
-between a constrained curve and the unconstrained curve quantifies
-the price of budget compliance; and
+every panel of Figure~\ref{fig:exp03_adaptation}.
+Because it shares the forgetting factor with BanditGPT, any gap
+between a constrained curve and this baseline is attributable solely
+to budget enforcement---not to differences in the learning dynamics.
+This clean ablation answers two questions:
+(i)~\emph{how much quality does the pacer itself cost?}---the gap
+quantifies the price of budget compliance in isolation; and
 (ii)~\emph{does the pacer converge toward unconstrained behavior
 after the price drop?}---when Gemini becomes nearly free, a
 well-adapted pacer should approach the unconstrained routing mix,
-and the unconstrained trace provides the reference to verify this.
+and this trace provides the reference to verify convergence.
 
 \paragraph{Fixed Policy cost awareness.}
 The ``Fixed Policy'' freezes the \emph{reward model} (no online
@@ -287,6 +289,36 @@ the tight condition because their $\lambda_t$ drops to near-zero,
 removing cost pressure entirely; the router then quality-optimizes
 with a mixed Gemini/Mistral policy since both are competitive on
 quality for different prompt types.
+
+\paragraph{Quality cost decomposition.}
+The unconstrained baseline shares BanditGPT's $\gamma{=}0.995$ but
+removes the budget pacer, isolating the pacer's quality impact.
+In Phase~2, the unconstrained baseline achieves reward $0.922$,
+while BanditGPT at moderate and loose budgets reaches $0.921$---a
+gap of only $0.1$--$0.2\%$.
+The pacer thus imposes \emph{negligible quality cost} when the
+constraint is slack; at tight budget the cost is still only
+${\sim}0.3\%$ ($0.919$ vs.\ $0.922$), attributable to the binding
+$\lambda_t$ that diverts a small amount of traffic from the
+quality-optimal mix to enforce the budget.
+%
+By contrast, the $\gamma{=}1.0$ baselines (Naive Bandit,
+Recalibrated) reach Phase~2 rewards of $0.932$--$0.933$, roughly
+$1\%$ higher than BanditGPT, because infinite memory converges more
+tightly to the greedy optimum over the ${\sim}900$-step evaluation
+window.
+This ${\sim}1\%$ gap is the cost of non-stationarity robustness:
+Experiment~2 (Section~\ref{sec:exp2_reward_shift}) demonstrated that
+$\gamma{=}1.0$ fails to adapt under reward drift---precisely the
+failure mode that production routers must avoid.
+The $\epsilon$-constraint procedure
+(Section~\ref{sec:hparam_sweep}) selected $\gamma{=}0.995$ because
+it trades a marginal stationary-quality loss for substantially
+faster adaptation, and the present experiment validates that
+tradeoff end-to-end: BanditGPT's Phase~2 reward lift
+($\Delta{=}+0.017$ to $+0.067$) confirms that the forgetting
+factor enables the router to capitalise on the new cost landscape
+rather than remaining anchored to stale Phase~1 statistics.
 
 \paragraph{Budget compliance (Figure~\ref{fig:exp03_adaptation}c).}
 

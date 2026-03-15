@@ -147,6 +147,13 @@ At the tight target, the opposite occurs: post-drop costs (\$2.39e-4/req) slight
 Paradoxically, this elevated dual variable produces the \emph{highest} Gemini adoption ($86\%$) of any constrained condition, because the soft penalty $\lambda_t \times \tilde{c}_m$ penalizes the now-expensive Mistral ($\tilde{c}{=}0.38$) far more than the now-cheap Gemini ($\tilde{c}{\approx}0$).
 All three regimes show highly significant reward lifts ($\Delta{=}+0.017$ to $+0.067$; $p < 10^{-9}$), with the tight budget exhibiting the largest gain precisely because its binding constraint concentrates traffic on the cost-efficient frontier.
 
+\paragraph{Quality cost of the pacer.}
+An unconstrained BanditGPT baseline (same $\gamma{=}0.995$, no pacer) isolates the pacer's quality impact.
+In Phase~2, the unconstrained baseline reaches reward $0.922$; BanditGPT at moderate/loose budgets reaches $0.921$---a gap of ${\leq}0.2\%$.
+The pacer itself is nearly free in quality terms.
+The $\gamma{=}1.0$ baselines achieve ${\sim}1\%$ higher reward ($0.932$--$0.933$) because infinite memory converges more tightly to the greedy optimum, but Section~\ref{sec:exp2_reward_shift} showed this same infinite memory fails catastrophically under reward drift.
+The ${\sim}1\%$ quality difference is the cost of non-stationarity robustness---validated here by the reward lifts that the forgetting factor enables.
+
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/adaptation_dynamics.pdf}
