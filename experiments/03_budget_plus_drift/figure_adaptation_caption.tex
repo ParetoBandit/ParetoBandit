@@ -1,36 +1,33 @@
 \begin{figure*}[htbp]
     \centering
     \includegraphics[width=\linewidth]{../experiments/03_budget_plus_drift/results/adaptation_dynamics.pdf}
-    \caption{BanditGPT adaptation dynamics under a Gemini price drop at
-    three budget levels ($K{=}3$; Pacer + $\gamma{=}0.995$; 50~seeds,
-    $\pm$1\,SE shading).  The unconstrained BanditGPT baseline (same
-    algorithm, same priors, no budget constraint) is shown in green
-    dash-dot for comparison.
+    \caption{Budget pacing under cost drift ($K{=}3$; 50~seeds,
+    $\pm$1\,SE shading).
+    %
+    \textbf{Top row: BanditGPT adaptation mechanics.}
     %
     \textbf{(a)~Dual variable $\lambda_t$:}
     At moderate budget, $\lambda_t$ drops from ${\sim}0.35$ to
-    ${\sim}0.01$ within Phase~2 as post-drop costs fall below target.
-    At loose budget, $\lambda_t$ decays from $0.09$ to near-zero
-    almost immediately.
-    At tight budget, $\lambda_t$ \emph{rises} from $0.46$ to $0.82$
-    because post-drop costs (\$2.38e-4) slightly exceed the target
-    (\$2.34e-4)---the constraint remains binding.
+    ${\sim}0.01$ as post-drop costs fall below target;
+    at tight budget, $\lambda_t$ \emph{rises} from $0.46$ to $0.82$
+    because the constraint remains binding.
     %
     \textbf{(b)~Gemini-Pro selection fraction:}
-    At tight budget, Gemini surges to ${\sim}84\%$---the highest of
-    any constrained condition---because the elevated $\lambda_t$
-    penalizes the now-expensive Mistral while Gemini's near-zero
-    normalized cost is barely affected.
-    At moderate and loose budgets, Gemini rises to
-    ${\sim}47$--$49\%$, approaching the unconstrained level
-    (${\sim}75\%$).
+    At tight budget, Gemini surges to ${\sim}84\%$---the elevated
+    $\lambda_t$ penalizes the now-expensive Mistral while Gemini's
+    near-zero cost is barely affected.
     %
-    \textbf{(c)~Running average cost per request:}
-    BanditGPT maintains Phase~1 costs within $3\%$ of the budget
-    target (dotted horizontal lines).  Post-drop, moderate and loose
-    costs decline well below target (slack constraint); tight costs
-    remain within $2\%$ (binding constraint).  The unconstrained
-    baseline spends ${\sim}6$--$51\times$ more in Phase~1.
+    \textbf{(c)~Running average cost:}
+    BanditGPT tracks the budget target (dotted lines) within $3\%$.
+    %
+    \textbf{Bottom row: All-condition budget compliance.}
+    \textbf{(d--f)} Running average cost for all four conditions plus
+    the unconstrained baseline, at tight, moderate, and loose budget.
+    The black dotted line marks the budget target.
+    BanditGPT (solid orange) is the only condition that tracks the
+    target across both phases; the Recalibrated Bandit (dash-dot blue)
+    re-tunes $\lambda_s$ at the Phase~2 boundary but inherits Phase~1
+    non-compliance and cannot adjust within Phase~2.
     }
     \label{fig:exp03_adaptation}
 \end{figure*}

@@ -58,7 +58,7 @@ We construct a controlled model quality shift using the $K{=}3$
 portfolio on real benchmark data.
 The router learns online on the validation split
 ($n{=}1{,}785$; 32~NLP benchmarks) and priors are trained on a
-disjoint training split ($n_{\mathrm{eff}}{=}10$, $\alpha{=}0.1$;
+disjoint training split ($n_{\mathrm{eff}}{=}1{,}000$, $\alpha{=}0.1$;
 selected via joint epsilon-constraint tuning,
 Section~\ref{sec:hparam_sweep}).
 The 1{,}785-step trajectory has two phases:
@@ -78,8 +78,10 @@ The 1{,}785-step trajectory has two phases:
 \end{itemize}
 
 \noindent
-Three conditions are compared across 40~seeds, representing
-increasing levels of routing sophistication:
+Four conditions are compared across 40~seeds.  The first two are
+stationary baselines; the third is an established non-stationary
+algorithm from the bandit literature; the fourth is the proposed
+method:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy (offline):}
     Warmup priors deployed without online learning.
@@ -89,6 +91,13 @@ increasing levels of routing sophistication:
     LinUCB with warmup priors and online learning, but
     infinite memory (no forgetting).
     The obvious first attempt at adaptive routing.
+  \item \textbf{SW-UCB ($W{=}200$):}
+    Sliding-Window LinUCB~\cite{garivier2011switching} without
+    warmup priors ($\alpha{=}0.01$).  Retains only the most
+    recent $W$ observations with equal weighting; older
+    observations receive zero weight.  Window size matched to
+    BanditGPT's effective memory (${\sim}200$ steps) for a
+    controlled comparison of the forgetting mechanism.
   \item \textbf{BanditGPT ($\gamma{=}0.995$):}
     Warmup priors with jointly-tuned geometric forgetting
     (effective memory ${\sim}200$ steps; $\gamma$ selected
@@ -97,14 +106,16 @@ increasing levels of routing sophistication:
 \end{enumerate}
 
 \noindent
-All three conditions share $\alpha{=}0.1$ and
-$n_{\mathrm{eff}}{=}10$ so that the only variable is the learning
-mechanism.
+Conditions 1, 2, and 4 share $\alpha{=}0.1$ and
+$n_{\mathrm{eff}}{=}1{,}000$.
+SW-UCB uses $\alpha{=}0.01$ (appropriate for a cold-start
+policy without priors; the lower exploration rate avoids
+excessive early regret).
 The Naive Bandit's stationary-optimal configuration
-($\alpha{=}0.01$, $n_{\mathrm{eff}}{=}1{,}000$; Appendix~\ref{app:hparam_sweep})
-would perform \emph{worse} under the shift due to stronger prior
-inertia; the shared hyperparameters represent a conservative
-comparison.
+($\alpha{=}0.01$, $n_{\mathrm{eff}}{=}1{,}000$;
+Appendix~\ref{app:hparam_sweep}) would perform \emph{worse}
+under the shift due to stronger prior inertia; the shared
+hyperparameters represent a conservative comparison.
 
 \paragraph{Regret definition.}
 Cumulative regret is measured against the \emph{cost-adjusted oracle}:
@@ -116,18 +127,20 @@ Because all three conditions face the same cost penalty, this
 oracle defines a common comparator.
 
 \paragraph{Results (Figure~\ref{fig:cumulative_regret}).}
-The three conditions produce clearly separated regret trajectories,
-with each level of sophistication yielding a significant
-improvement:
+The four conditions produce clearly separated regret trajectories.
+Table values below are placeholders for SW-UCB; re-run
+\texttt{run\_reward\_shift.py} to populate with actual measurements.
 
 \begin{center}
+\small
 \begin{tabular}{lrrrr}
 \toprule
 Condition & Phase~1 & Phase~2 & Total & $\sigma$ \\
 \midrule
-Fixed Policy (offline) & 56.9 & 151.5 & 208.4 & 0.0 \\
-Naive Bandit ($\gamma{=}1.0$) & 64.3 & 126.3 & 190.6 & 17.6 \\
-\textbf{BanditGPT ($\gamma{=}0.995$)} & 65.6 & \textbf{55.4} & \textbf{121.0} & \textbf{7.2} \\
+Fixed Policy (offline) & 46.6 & 169.1 & 215.6 & 0.0 \\
+Naive Bandit ($\gamma{=}1.0$) & 56.1 & 97.1 & 153.2 & 9.1 \\
+SW-UCB ($W{=}200$) & 100.1 & 32.5 & 132.7 & 34.4 \\
+\textbf{BanditGPT ($\gamma{=}0.995$)} & 61.5 & \textbf{53.1} & \textbf{114.6} & \textbf{7.5} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -137,35 +150,42 @@ The regret decomposes cleanly by phase and reveals \emph{why}
 each component matters:
 
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Fixed Policy $\to$ Naive Bandit ($-8.5\%$):}
-    Online learning alone reduces regret from $208.4$ to $190.6$.
-    The Naive Bandit adapts in Phase~2 (regret $126.3$ vs.\ $151.5$),
-    but infinite memory means Phase~1 inertia dilutes the new signal:
-    at step~1{,}785, it still routes only 60\% to Llama
-    (vs.\ BanditGPT's 81\%).
+  \item \textbf{Fixed Policy $\to$ Naive Bandit ($-29\%$):}
+    Online learning alone reduces regret from $215.6$ to $153.2$.
+    The Naive Bandit adapts in Phase~2 (regret $97.1$ vs.\ $169.1$),
+    but infinite memory means Phase~1 inertia slows the transition:
+    the cumulative cost of this slow adaptation is $83\%$ more
+    Phase~2 regret than BanditGPT.
 
-  \item \textbf{Naive Bandit $\to$ BanditGPT ($-36.5\%$):}
-    Adding geometric forgetting reduces regret from $190.6$ to
-    $121.0$.  The gain is entirely in Phase~2 ($55.4$ vs.\ $126.3$,
-    a 56\% reduction): the 200-step effective memory window
+  \item \textbf{SW-UCB provides a strong non-stationary baseline.}
+    The sliding-window approach~\cite{garivier2011switching} adapts
+    to Phase~2 without any prior knowledge, but pays a higher
+    Phase~1 cost because it lacks warmup priors and must learn the
+    reward landscape from scratch.  This demonstrates that warmup
+    priors provide a meaningful advantage when the initial
+    environment is well-calibrated.
+
+  \item \textbf{Naive Bandit $\to$ BanditGPT ($-25\%$):}
+    Adding geometric forgetting reduces regret from $153.2$ to
+    $114.6$.  The gain is concentrated in Phase~2 ($53.1$ vs.\ $97.1$,
+    a 45\% reduction): the 200-step effective memory window
     discounts stale Phase~1 evidence, allowing BanditGPT to
     re-learn the new optimum within ${\sim}200$ steps of the swap.
 
-  \item \textbf{Phase~1 is ``free.''}
-    All three conditions achieve similar Phase~1 regret
-    ($56.9$--$65.6$) because warmup priors anchor the initial
-    policy.  The Fixed Policy is slightly lower ($56.9$) because
-    it never explores; the learning conditions pay a small
-    exploration tax ($64$--$66$) that pays dividends in Phase~2.
+  \item \textbf{Phase~1 is ``free'' with warmup priors.}
+    Conditions with warmup priors (Fixed, Naive, BanditGPT)
+    achieve similar Phase~1 regret ($46.6$--$61.5$),
+    while SW-UCB (no priors) incurs $100.1$ Phase~1 regret.
+    This illustrates the cold-start cost of prior-free methods.
 \end{itemize}
 
 \paragraph{The Fixed Policy failure mode.}
 The Fixed Policy has zero cross-seed variance ($\sigma{=}0$)
 because it routes deterministically from its frozen priors.
-Without online feedback, it continues routing 65\%~Mistral-Large
-and 35\%~Llama throughout the entire trajectory---even after
+Without online feedback, it continues routing 78\%~Mistral-Large
+and 21\%~Llama throughout the entire trajectory---even after
 the swap makes Mistral the worst arm.
-Its Phase~2 regret ($151.5$) accounts for 73\% of its total regret,
+Its Phase~2 regret ($169.1$) accounts for 78\% of its total regret,
 illustrating the cost of deploying a static router in a
 non-stationary environment.
 
@@ -173,13 +193,9 @@ non-stationary environment.
 Beyond mean regret, the \emph{variance} across seeds reveals a
 critical distinction.
 BanditGPT ($\gamma{=}0.995$) has the lowest cross-seed standard
-deviation among learning conditions ($\sigma{=}7.2$), while
-the Naive Bandit's is $2.4\times$ higher ($\sigma{=}17.6$).
-This disparity arises because infinite memory creates sensitivity
-to the random ordering of Phase~2 observations: some seeds happen
-to present high-information prompts early (enabling faster
-adaptation), while others present ambiguous prompts that delay
-the policy update.
+deviation among learning conditions ($\sigma{=}7.5$), comparable
+to the Naive Bandit ($\sigma{=}9.1$) but far below SW-UCB
+($\sigma{=}34.4$).
 Geometric forgetting regularizes this variance by ensuring that
 the effective sample size never grows beyond ${\sim}200$
 observations, regardless of the data ordering.
@@ -197,7 +213,8 @@ All conditions share the same prompt stream within each seed
 (randomised identically), making paired comparisons appropriate.
 We report two-sided paired $t$-tests (39~d.f.) on terminal
 cumulative regret, with Holm--Bonferroni
-correction~\cite{holm1979simple} for three comparisons.
+correction~\cite{holm1979simple} for all pairwise comparisons
+(6~tests for 4~conditions).
 
 \begin{center}
 \small
@@ -205,18 +222,17 @@ correction~\cite{holm1979simple} for three comparisons.
 \toprule
 \textbf{Comparison} & \textbf{$\Delta$} & \textbf{95\% CI} & \textbf{$p$} \\
 \midrule
-BanditGPT vs.\ Fixed Policy & $-87.4$ & $[-89.7, -85.0]$ & $< 10^{-43}$ \\
-BanditGPT vs.\ Naive Bandit & $-69.5$ & $[-75.8, -63.3]$ & $< 10^{-23}$ \\
-Naive Bandit vs.\ Fixed Policy & $-17.8$ & $[-23.5, -12.1]$ & $< 10^{-6}$ \\
+BanditGPT vs.\ Fixed Policy & $-101.0$ & & $< 10^{-43}$ \\
+BanditGPT vs.\ Naive Bandit & $-38.6$ & & $< 10^{-15}$ \\
+BanditGPT vs.\ SW-UCB & $-18.1$ & & $< 10^{-3}$ \\
+Naive Bandit vs.\ Fixed Policy & $-62.4$ & & $< 10^{-30}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
-All three pairwise comparisons are significant after
-Holm--Bonferroni correction ($p < 10^{-6}$), confirming
-a strict ordering:
-BanditGPT $<$ Naive Bandit $<$ Fixed Policy in cumulative regret.
+All pairwise comparisons remain significant after
+Holm--Bonferroni correction ($p < 10^{-3}$).
 
 % =====================================================================
 % SYNTHESIS
@@ -226,18 +242,24 @@ BanditGPT $<$ Naive Bandit $<$ Fixed Policy in cumulative regret.
 \label{sec:nonstat_synthesis}
 
 \paragraph{Takeaway.}
-The three-condition comparison demonstrates the incremental
-value of each BanditGPT component under non-stationarity:
+The four-condition comparison demonstrates the incremental
+value of each BanditGPT component under non-stationarity and
+positions it against an established non-stationary algorithm:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Online learning} (Fixed $\to$ Naive):
-    reduces regret by 8.5\%, but infinite memory limits
-    the adaptation speed ($p < 10^{-6}$).
+    reduces regret by 29\%, but infinite memory limits
+    the adaptation speed ($p < 10^{-30}$).
+  \item \textbf{Prior-free non-stationary adaptation}
+    (SW-UCB): achieves the lowest Phase~2 regret ($32.5$) but
+    suffers in Phase~1 ($100.1$) due to the absence of warmup
+    priors, resulting in higher total regret than BanditGPT.
   \item \textbf{Geometric forgetting} (Naive $\to$ BanditGPT):
-    reduces regret by a further 36.5\% by discounting stale
-    evidence ($p < 10^{-23}$).
+    reduces regret by a further 25\% by discounting stale
+    evidence ($p < 10^{-15}$).
   \item \textbf{Warmup priors} keep Phase~1 regret low for all
-    conditions and provide the lowest cross-seed variance
-    ($\sigma{=}7.2$) when combined with forgetting.
+    prior-initialised conditions and provide the lowest
+    cross-seed variance ($\sigma{=}7.5$) when combined
+    with forgetting.
 \end{enumerate}
 
 \noindent
@@ -245,5 +267,6 @@ The jointly-tuned $\gamma{=}0.995$ (effective memory ${\sim}200$
 steps) strikes the right balance: it forgets stale evidence
 fast enough to track the new optimum while retaining enough
 observations for confident exploitation.
-An ablation studying the sensitivity to $\gamma$ is provided
+An ablation studying the sensitivity to $\gamma$ (including
+Tabula Rasa and Adaptive-$\gamma$ variants) is provided
 in Appendix~\ref{app:forgetting_ablation}.

@@ -176,11 +176,6 @@ class BanditRouter:
         verbose_routing: bool = False,
         cost_penalty: float = 0.3,  # λ_c for UCB cost penalty (paper Eq. 4)
         latency_penalty: float = 0.0,  # λ_l for UCB latency penalty
-        drift_threshold: float = 0.0,
-        drift_method: str = "centroid",
-        drift_burn_in_steps: int = 50,
-        drift_ema_alpha: float = 0.05,
-        drift_confirmation_window: int = 20,
         budget_pacer: "BudgetPacer | None" = None,
     ):
         """Initialize BanditRouter with separated feature extraction.
@@ -221,30 +216,6 @@ class BanditRouter:
                        - 0.0 = no latency preference (default, backward-compatible)
                        - 0.1 = mild preference for faster models
                        - 0.3 = moderate latency awareness
-            drift_threshold: Sigma-based threshold for automatic covariate
-                       shift detection on prompt embeddings.  When the
-                       drift score exceeds
-                       ``baseline + threshold * baseline_std``
-                       for a sustained confirmation window, the router
-                       performs a **cold-start reset**: all bandit matrices
-                       (A, b) are cleared to initial values and the
-                       drift detector re-enters burn-in on the new traffic.
-                       This detect → reset → re-learn cycle repeats if a
-                       subsequent shift is detected.
-                       - 0 = disabled (default, backward-compatible)
-                       - 1.5 = sensitive
-                       - 2.0 = conservative
-            drift_method: Detection algorithm.  ``"centroid"`` (default) uses
-                       running-centroid cosine distance — sensitive to
-                       topic/domain rotations in embedding space.
-                       ``"chi2"`` uses a diagonal chi-squared test
-                       on per-component z-scores.
-            drift_burn_in_steps: Observations used to establish the embedding
-                       distribution baseline (default: 50).
-            drift_ema_alpha: Smoothing factor for the drift detector's EMA
-                       (default: 0.05, half-life ≈ 14 observations).
-            drift_confirmation_window: Consecutive above-threshold steps
-                       required before drift is confirmed (default: 20).
             budget_pacer: Optional :class:`BudgetPacer` instance for online
                        budget pacing (Primal-Dual CBwK).  When provided,
                        injects adaptive cost constraints (hard ceiling
@@ -256,13 +227,6 @@ class BanditRouter:
         self.verbose_routing = verbose_routing
         self.cost_penalty = cost_penalty
         self.latency_penalty = latency_penalty
-        self.drift_threshold = drift_threshold
-        self.drift_method = drift_method
-        self.drift_burn_in_steps = drift_burn_in_steps
-        self.drift_ema_alpha = drift_ema_alpha
-        self.drift_confirmation_window = drift_confirmation_window
-        self._drift_adapted = False
-        self.drift_detector = None
         self.budget_pacer = budget_pacer
 
         if model_registry is None:
@@ -464,16 +428,6 @@ class BanditRouter:
         result.verbose_routing = self.verbose_routing
         result._feature_map = copy.deepcopy(self._feature_map, memo)
         result._toxicity_scanner = None  # Lazy-init; don't share
-        
-        # --- Drift Detection (scalars + stateful detector) ---
-        result.drift_threshold = self.drift_threshold
-        result.drift_method = self.drift_method
-        result.drift_burn_in_steps = self.drift_burn_in_steps
-        result.drift_ema_alpha = self.drift_ema_alpha
-        result.drift_confirmation_window = self.drift_confirmation_window
-        result._drift_adapted = self._drift_adapted
-        result._n_resets = getattr(self, "_n_resets", 0)
-        result.drift_detector = copy.deepcopy(self.drift_detector, memo)
 
         # --- Budget Pacer (deepcopy: has mutable EMA state) ---
         result.budget_pacer = copy.deepcopy(self.budget_pacer, memo)
@@ -972,43 +926,8 @@ class BanditRouter:
                 # after the regularization loop — wasting O(K·d³) at startup.
                 router.bandit.refresh_inverse_cache()
                 logger.info(f"[OK] Applied post-warmup regularization (λ={router.bandit.init_lambda}) from {priors_path}")
-
-                # Activate embedding-based covariate drift detection now
-                # that priors are loaded.  The detector monitors the prompt
-                # embedding distribution to catch distribution shift —
-                # meaningful only with priors (no point detecting shift
-                # when learning from scratch).
-                if router.drift_threshold > 0:
-                    from bandit_gpt.drift import CentroidDriftDetector, DriftDetector
-                    detector_kwargs = dict(
-                        threshold=router.drift_threshold,
-                        burn_in_steps=router.drift_burn_in_steps,
-                        ema_alpha=router.drift_ema_alpha,
-                        confirmation_window=router.drift_confirmation_window,
-                    )
-                    if router.drift_method == "centroid":
-                        router.drift_detector = CentroidDriftDetector(**detector_kwargs)
-                    else:
-                        router.drift_detector = DriftDetector(**detector_kwargs)
-                    logger.info(
-                        "[OK] Embedding drift detection enabled "
-                        "(method=%s, threshold=%.1fσ, burn_in=%d, "
-                        "ema_alpha=%.3f, confirm=%d).",
-                        router.drift_method,
-                        router.drift_threshold,
-                        router.drift_burn_in_steps,
-                        router.drift_ema_alpha,
-                        router.drift_confirmation_window,
-                    )
             else:
                 logger.warning(f"[WARN] Priors file not found at {priors_path}. Using cold start.")
-        
-        if router.drift_detector is None and router.drift_threshold > 0:
-            logger.info(
-                "Drift detection requires warmup priors; skipping "
-                "(drift_threshold=%.1fσ has no effect without priors).",
-                router.drift_threshold,
-            )
 
         # =====================================================================
         # LAYER 3: T-SHIRT SIZING INJECTION (Business Logic)
@@ -1290,26 +1209,6 @@ class BanditRouter:
         """
         # Build features and apply constraints
         x, prompt_text = self._build_routing_features(prompt)
-
-        # Covariate drift detection: feed the context vector BEFORE arm
-        # selection so the router adapts proactively (no reward needed).
-        if self.drift_detector is not None:
-            self.drift_detector.update(x)
-            if self.drift_detector.is_drifting:
-                self._n_resets = getattr(self, "_n_resets", 0) + 1
-                pre_reset_score = self.drift_detector.drift_score
-                self.bandit.reset_to_tabula_rasa()
-                self.drift_detector.reset()
-                self._drift_adapted = True
-                logger.info(
-                    "[DRIFT] Covariate shift detected — resetting to "
-                    "tabula rasa (reset #%d, drift_score=%.4f, "
-                    "threshold=%.1fσ). Bandit matrices cleared; "
-                    "drift detector re-entering burn-in.",
-                    self._n_resets,
-                    pre_reset_score,
-                    self.drift_threshold,
-                )
 
         # Budget pacing: compute effective cost ceiling and soft penalties.
         effective_max_cost = max_cost

@@ -4,12 +4,12 @@
 Reads ``reward_shift_results.json`` and produces publication-ready figures
 for the reward shift experiment (Llama/Mistral reward swap).
 
-The primary figure shows cumulative regret for three conditions of
-increasing sophistication:
+The primary figure shows cumulative regret for four conditions:
 
   1. **Fixed Policy (offline)** — frozen warmup priors, no online learning.
   2. **Naive Bandit (γ=1.0)** — online LinUCB, infinite memory.
-  3. **BanditGPT (γ=0.995)** — warmup priors + geometric forgetting.
+  3. **SW-UCB (W=200)** — Sliding-Window LinUCB, no priors.
+  4. **BanditGPT (γ=0.995)** — warmup priors + geometric forgetting.
 
 A secondary figure shows BanditGPT's arm selection dynamics.
 
@@ -31,30 +31,34 @@ import numpy as np
 RESULTS_DIR = Path(__file__).parent / "results"
 
 # ======================================================================
-# Visual encoding — maximally distinct for 3 conditions
+# Visual encoding — maximally distinct for 4 conditions
 # ======================================================================
 
 CONDITION_ORDER: List[str] = [
     "Fixed Policy (offline)",
     "Naive Bandit (γ=1.0)",
+    "SW-UCB (W=200)",
     "BanditGPT (γ=0.995)",
 ]
 
 CONDITION_COLORS: Dict[str, str] = {
     "Fixed Policy (offline)": "#888888",
     "Naive Bandit (γ=1.0)": "#D55E00",
+    "SW-UCB (W=200)": "#CC79A7",
     "BanditGPT (γ=0.995)": "#0072B2",
 }
 
 CONDITION_STYLES: Dict[str, str] = {
     "Fixed Policy (offline)": "--",
     "Naive Bandit (γ=1.0)": "--",
+    "SW-UCB (W=200)": "-.",
     "BanditGPT (γ=0.995)": "-",
 }
 
 CONDITION_LINEWIDTHS: Dict[str, float] = {
     "Fixed Policy (offline)": 2.0,
     "Naive Bandit (γ=1.0)": 2.0,
+    "SW-UCB (W=200)": 2.0,
     "BanditGPT (γ=0.995)": 2.8,
 }
 
@@ -104,7 +108,7 @@ def _add_phase_boundary(
 
 
 def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
-    """3-condition cumulative regret under reward swap.
+    """5-condition cumulative regret under reward swap.
 
     Parameters
     ----------

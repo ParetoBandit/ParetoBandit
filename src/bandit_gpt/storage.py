@@ -370,7 +370,7 @@ class CheckpointManager:
     
     **What Gets Saved**:
     - Learned state: A_inv, b, theta, last_update, t
-    - Model registry snapshot (for drift detection)
+    - Model registry snapshot
     - Timestamp (for age tracking)
     
     **What Does NOT Get Saved**:

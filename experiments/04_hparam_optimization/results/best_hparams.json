@@ -4,11 +4,11 @@
   "best_per_variant_val": {
     "banditgpt": {
       "alpha": 0.1,
-      "n_eff": 10.0,
+      "n_eff": 1000.0,
       "gamma": 0.995,
       "pca_dim": 25,
-      "val_pareto_auc": 0.926653,
-      "val_phase2_regret": 69.63,
+      "val_pareto_auc": 0.928863,
+      "val_phase2_regret": 48.41,
       "selection_method": "epsilon_constraint",
       "epsilon": 0.05
     },
@@ -17,8 +17,8 @@
       "n_eff": 1.0,
       "gamma": 0.995,
       "pca_dim": 25,
-      "val_pareto_auc": 0.92674,
-      "val_phase2_regret": 70.29,
+      "val_pareto_auc": 0.928764,
+      "val_phase2_regret": 48.96,
       "selection_method": "epsilon_constraint",
       "epsilon": 0.05
     }
@@ -28,74 +28,74 @@
       "alpha": 0.01,
       "n_eff": 1000.0,
       "gamma": 1.0,
-      "val_pareto_auc": 0.928937
+      "val_pareto_auc": 0.931063
     },
     "tabula_rasa": {
-      "alpha": 0.1,
+      "alpha": 0.5,
       "n_eff": 1.0,
-      "gamma": 1.0,
-      "val_pareto_auc": 0.927899
+      "gamma": 0.999,
+      "val_pareto_auc": 0.929059
     }
   },
   "test_per_variant": {
     "banditgpt": {
       "alpha": 0.1,
-      "n_eff": 10.0,
+      "n_eff": 1000.0,
       "gamma": 0.995,
       "selection_method": "epsilon_constraint",
-      "test_pareto_auc": 0.92472,
-      "test_pareto_auc_std": 0.001143,
+      "test_pareto_auc": 0.924784,
+      "test_pareto_auc_std": 0.001098,
       "test_fixed_auc": 0.925461,
-      "test_delta_pct": -0.08,
+      "test_delta_pct": -0.073,
       "test_sweep": [
         {
           "budget_target": 2.8892249820874132e-05,
-          "mean_reward": 0.793358,
-          "mean_cost": 3e-05,
-          "std_reward": 0.000195,
-          "std_cost": 1e-06
+          "mean_reward": 0.793068,
+          "mean_cost": 2.9e-05,
+          "std_reward": 6.7e-05,
+          "std_cost": 0.0
         },
         {
           "budget_target": 8.185098277237932e-05,
-          "mean_reward": 0.811621,
-          "mean_cost": 8.3e-05,
-          "std_reward": 0.002014,
-          "std_cost": 3e-06
+          "mean_reward": 0.812782,
+          "mean_cost": 8.2e-05,
+          "std_reward": 0.001541,
+          "std_cost": 1e-06
         },
         {
           "budget_target": 0.0002318816783857378,
-          "mean_reward": 0.854168,
+          "mean_reward": 0.855835,
           "mean_cost": 0.000232,
-          "std_reward": 0.003461,
-          "std_cost": 2e-06
+          "std_reward": 0.003584,
+          "std_cost": 1e-06
         },
         {
           "budget_target": 0.0006569146875183418,
-          "mean_reward": 0.879476,
-          "mean_cost": 0.000654,
-          "std_reward": 0.006043,
-          "std_cost": 6e-06
+          "mean_reward": 0.880806,
+          "mean_cost": 0.000653,
+          "std_reward": 0.003471,
+          "std_cost": 1e-05
         },
         {
           "budget_target": 0.0018610220077821527,
-          "mean_reward": 0.907923,
-          "mean_cost": 0.001809,
-          "std_reward": 0.006197,
-          "std_cost": 7e-06
+          "mean_reward": 0.90881,
+          "mean_cost": 0.001821,
+          "std_reward": 0.002302,
+          "std_cost": 6e-06
         },
         {
           "budget_target": 0.005272226332057477,
-          "mean_reward": 0.917462,
-          "mean_cost": 0.004809,
-          "std_reward": 0.001673,
-          "std_cost": 9.7e-05
+          "mean_reward": 0.917226,
+          "mean_cost": 0.004849,
+          "std_reward": 0.001987,
+          "std_cost": 7.1e-05
         },
         {
           "budget_target": 0.014936078337711966,
-          "mean_reward": 0.922684,
-          "mean_cost": 0.00905,
-          "std_reward": 0.001521,
-          "std_cost": 0.000751
+          "mean_reward": 0.922675,
+          "mean_cost": 0.009174,
+          "std_reward": 0.001948,
+          "std_cost": 0.00071
         }
       ]
     },
@@ -104,59 +104,59 @@
       "n_eff": 1.0,
       "gamma": 0.995,
       "selection_method": "epsilon_constraint",
-      "test_pareto_auc": 0.924585,
-      "test_pareto_auc_std": 0.00111,
+      "test_pareto_auc": 0.924578,
+      "test_pareto_auc_std": 0.000989,
       "test_fixed_auc": 0.925461,
       "test_delta_pct": -0.095,
       "test_sweep": [
         {
           "budget_target": 2.8892249820874132e-05,
-          "mean_reward": 0.793358,
+          "mean_reward": 0.793243,
           "mean_cost": 3e-05,
-          "std_reward": 0.000195,
+          "std_reward": 0.000105,
           "std_cost": 1e-06
         },
         {
           "budget_target": 8.185098277237932e-05,
-          "mean_reward": 0.810877,
-          "mean_cost": 8.3e-05,
-          "std_reward": 0.002461,
-          "std_cost": 2e-06
+          "mean_reward": 0.811391,
+          "mean_cost": 8.2e-05,
+          "std_reward": 0.001702,
+          "std_cost": 0.0
         },
         {
           "budget_target": 0.0002318816783857378,
-          "mean_reward": 0.855405,
-          "mean_cost": 0.000232,
-          "std_reward": 0.003458,
-          "std_cost": 1e-06
+          "mean_reward": 0.853794,
+          "mean_cost": 0.00023,
+          "std_reward": 0.002963,
+          "std_cost": 4e-06
         },
         {
           "budget_target": 0.0006569146875183418,
-          "mean_reward": 0.87968,
-          "mean_cost": 0.000652,
-          "std_reward": 0.005401,
-          "std_cost": 6e-06
+          "mean_reward": 0.883704,
+          "mean_cost": 0.000656,
+          "std_reward": 0.007368,
+          "std_cost": 5e-06
         },
         {
           "budget_target": 0.0018610220077821527,
-          "mean_reward": 0.906382,
-          "mean_cost": 0.001815,
-          "std_reward": 0.003174,
+          "mean_reward": 0.907138,
+          "mean_cost": 0.001816,
+          "std_reward": 0.002916,
           "std_cost": 9e-06
         },
         {
           "budget_target": 0.005272226332057477,
-          "mean_reward": 0.917404,
-          "mean_cost": 0.004767,
-          "std_reward": 0.001063,
-          "std_cost": 0.000186
+          "mean_reward": 0.916972,
+          "mean_cost": 0.004818,
+          "std_reward": 0.00249,
+          "std_cost": 0.000137
         },
         {
           "budget_target": 0.014936078337711966,
-          "mean_reward": 0.923281,
-          "mean_cost": 0.008828,
-          "std_reward": 0.000867,
-          "std_cost": 0.001013
+          "mean_reward": 0.923998,
+          "mean_cost": 0.009042,
+          "std_reward": 0.001352,
+          "std_cost": 0.00065
         }
       ]
     }

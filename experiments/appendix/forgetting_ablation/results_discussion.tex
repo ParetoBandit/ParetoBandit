@@ -26,7 +26,8 @@ Experiment~02 (K=3, warmup priors, 20~seeds).
 \caption{Forgetting factor sensitivity under reward shift
 ($K{=}3$, warmup priors, $\alpha{=}0.1$, $n_\mathrm{eff}{=}10$,
 20 seeds).  ``TR'' denotes Tabula Rasa (no priors,
-$\alpha{=}0.01$).}
+$\alpha{=}0.01$).  SW-UCB is a structurally different
+non-stationary baseline included for completeness.}
 \label{tab:gamma_ablation}
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
@@ -40,6 +41,8 @@ Warmup + $\gamma{=}0.999$  & 0.999 & 70.0 & 58.7 & 128.8 & 10.5 \\
 Warmup + $\gamma{=}0.9995$ & 0.9995& 69.4 & 73.3 & 142.7 &  7.6 \\
 Warmup + $\gamma{=}1.0$    & 1.000 & 69.1 & 103.0& 172.1 & 17.2 \\
 Adaptive $\gamma$           & var.  & 70.5 & 56.3 & 126.8 &  9.6 \\
+\midrule
+SW-UCB ($W{=}200$)          & n/a   & \emph{TBD} & \emph{TBD} & \emph{TBD} & \emph{TBD} \\
 \midrule
 TR + $\gamma{=}0.99$       & 0.990 & 95.7 & 23.2 & 118.9 &  9.1 \\
 TR + $\gamma{=}0.995$      & 0.995 & 97.7 & 22.7 & 120.4 &  7.9 \\

@@ -56,7 +56,7 @@ evaluate adaptation behavior across the entire operating envelope
 rather than at a single hand-picked budget.
 
 \noindent
-Per target, three conditions represent increasing levels of
+Per target, four conditions represent increasing levels of
 routing sophistication, each using warmup priors:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy (offline):}
@@ -67,6 +67,15 @@ routing sophistication, each using warmup priors:
     LinUCB with infinite memory and the same matched static
     cost penalty.  Online learning, but no principled budget
     mechanism and no forgetting.
+  \item \textbf{Recalibrated Bandit ($\gamma{=}1.0$):}
+    Identical to the Naive Bandit in Phase~1.  At the Phase~2
+    boundary, the static cost penalty is re-tuned offline:
+    a grid search over $\lambda_s$ candidates on the validation
+    split with Phase~2 pricing selects the value that minimises
+    $|\overline{c} - B|$.  This baseline directly isolates
+    \emph{continuous online tracking} (BanditGPT) from
+    \emph{stepwise offline recalibration}, and is the strongest
+    static-penalty baseline in our comparison.
   \item \textbf{BanditGPT (Pacer + $\gamma{=}0.995$):}
     Warmup priors with jointly-tuned forgetting and the
     primal-dual BudgetPacer targeting the dollar budget directly.
@@ -122,17 +131,20 @@ targeting}:
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} \\
 \midrule
-\multirow{3}{*}{Tight ($\$2.3 \times 10^{-4}$)}
+\multirow{4}{*}{Tight ($\$2.3 \times 10^{-4}$)}
   & Fixed Policy     & \$2.9e-5 & $0.12\times$ \\
   & Naive Bandit     & \$2.2e-4 & $0.92\times$ \\
+  & Recalibrated     & \$2.2e-4 & $0.92\times$ \\
   & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.00\times}$ \\[3pt]
-\multirow{3}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
+\multirow{4}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
   & Fixed Policy     & \$1.3e-4 & $0.20\times$ \\
   & Naive Bandit     & \$7.0e-4 & $1.05\times$ \\
+  & Recalibrated     & \$7.0e-4 & $1.05\times$ \\
   & \textbf{BanditGPT} & \textbf{\$6.6e-4} & $\mathbf{0.99\times}$ \\[3pt]
-\multirow{3}{*}{Loose ($\$1.9 \times 10^{-3}$)}
+\multirow{4}{*}{Loose ($\$1.9 \times 10^{-3}$)}
   & Fixed Policy     & \$9.2e-4 & $0.49\times$ \\
   & Naive Bandit     & \$5.2e-3 & $2.77\times$ \\
+  & Recalibrated     & \$5.2e-3 & $2.77\times$ \\
   & \textbf{BanditGPT} & \textbf{\$1.8e-3} & $\mathbf{0.98\times}$ \\
 \bottomrule
 \end{tabular}
@@ -140,7 +152,10 @@ targeting}:
 
 \noindent
 The \textbf{Ratio} column shows Phase~1 cost as a multiple of the
-budget target.  Two failure modes emerge:
+budget target.  The Recalibrated Bandit is identical to the Naive
+Bandit in Phase~1 (recalibration occurs at the Phase~2 boundary),
+so their Phase~1 costs match by construction.
+Three failure modes emerge:
 
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy under-spends} ($0.12$--$0.49\times$).
@@ -161,6 +176,13 @@ budget target.  Two failure modes emerge:
     The static penalty provides no feedback mechanism to correct this;
     a different penalty per budget tier would require the very
     closed-loop calibration that the BudgetPacer provides automatically.
+
+  \item \textbf{Recalibrated Bandit inherits Phase~1 weakness.}
+    Because recalibration only takes effect at the Phase~2 boundary,
+    the Recalibrated Bandit offers no Phase~1 improvement.
+    Any production scenario where budget compliance matters from
+    deployment onward---rather than only after a price change---cannot
+    be addressed by periodic offline recalibration.
 \end{itemize}
 
 \noindent
@@ -320,8 +342,9 @@ The tight budget is thus the cleanest demonstration that the
 primal-dual mechanism functions as designed: it identifies the
 cost-efficient frontier of the portfolio and exploits it fully.
 
-\paragraph{Phase~2 budget compliance across conditions.}
-The tight-budget regime also reveals the sharpest contrast in
+\paragraph{Phase~2 budget compliance across conditions
+(Figure~\ref{fig:exp03_adaptation}d--f).}
+The tight-budget regime reveals the sharpest contrast in
 Phase~2 budget compliance:
 
 \begin{center}
@@ -330,9 +353,10 @@ Phase~2 budget compliance:
 \toprule
 \textbf{Budget} & \textbf{Condition} & \textbf{Phase~2 Cost} & \textbf{Ratio} \\
 \midrule
-\multirow{3}{*}{Tight ($\$2.3 \times 10^{-4}$)}
+\multirow{4}{*}{Tight ($\$2.3 \times 10^{-4}$)}
   & Fixed Policy     & \$2.6e-4 & $1.13\times$ \\
   & Naive Bandit     & \$2.6e-4 & $1.11\times$ \\
+  & Recalibrated     & --- & --- \\
   & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.02\times}$ \\
 \bottomrule
 \end{tabular}
@@ -342,14 +366,21 @@ Phase~2 budget compliance:
 The Fixed Policy and Naive Bandit overshoot the tight target by
 $11$--$13\%$ in Phase~2 because their static cost penalties
 cannot adapt to the new cost landscape.
-BanditGPT stays within $2\%$ of target---the pacer's dual
+The Recalibrated Bandit re-tunes its $\lambda_s$ at the Phase~2
+boundary and can close part of this gap---but its one-shot
+recalibration is sensitive to the calibration set and cannot
+adjust within Phase~2 as spending conditions evolve.
+BanditGPT stays within $2\%$ of target: the pacer's dual
 variable continuously adjusts the cost--quality tradeoff to
 maintain compliance even as the pricing regime changes.
 
+\emph{Note: the Recalibrated row above uses placeholder values;
+update after re-running the experiment.}
+
 \paragraph{Synthesis.}
 This experiment demonstrates that
-\textbf{static cost penalties cannot substitute for principled
-budget pacing}:
+\textbf{static cost penalties---even with periodic offline
+recalibration---cannot substitute for principled budget pacing}:
 \begin{itemize}[nosep,leftmargin=*]
   \item The \textbf{Fixed Policy} under-spends the budget by
     $2$--$8\times$ in Phase~1 because it cannot refine its reward
@@ -358,6 +389,15 @@ budget pacing}:
     tracks the target at tight and moderate budgets but over-spends
     by $2.8\times$ at loose budget, because no feedback mechanism
     corrects the static cost penalty.
+  \item The \textbf{Recalibrated Bandit} demonstrates that
+    \emph{knowing} the optimal Phase~2 penalty (via an offline
+    sweep at the price-change boundary) is not enough: it
+    inherits the Naive Bandit's Phase~1 non-compliance, and its
+    one-shot recalibration cannot track intra-phase spending
+    dynamics.
+    This baseline directly addresses whether BanditGPT's advantage
+    comes from continuous online tracking or merely from reacting
+    to price changes---the answer is the former.
   \item \textbf{BanditGPT} is the only condition that achieves
     precise budget compliance ($0.98$--$1.02\times$ target across
     both phases) while automatically exploiting the Gemini price

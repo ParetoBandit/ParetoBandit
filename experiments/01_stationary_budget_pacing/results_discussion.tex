@@ -87,7 +87,7 @@ The router learns online on the validation split
 ($n{=}1{,}785$; 32~NLP benchmarks) and is evaluated on a held-out
 test split ($n{=}1{,}824$) across 20~seeds.
 Warmup priors are trained on a disjoint training split
-($n_{\text{eff}}{=}10$, $\alpha{=}0.1$, disjoint LinUCB,
+($n_{\mathrm{eff}}{=}1{,}000$, $\alpha{=}0.1$, disjoint LinUCB,
 $\gamma{=}0.995$; selected via joint epsilon-constraint tuning,
 Section~\ref{sec:hparam_sweep}).
 We use continuous composite rewards (a weighted average of three

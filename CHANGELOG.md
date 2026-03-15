@@ -21,6 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Feature contribution analysis**: `explain_decision()` for mathematical transparency
 - **Optimization profiles**: `auto` and `custom` with configurable quality/cost/latency weights
 - **Hard constraint filtering**: `max_cost`, `max_latency`, `quality_floor` enforcement
-- **CheckpointManager**: Atomic-write state persistence with registry drift detection
+- **CheckpointManager**: Atomic-write state persistence with registry change detection
 - **135+ tests** covering router workflow, feedback loops, concurrency, and numerical stability
 - **Paper reproduction**: Full experiment suite mapping 1:1 to paper figures and tables

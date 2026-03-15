@@ -104,31 +104,34 @@ WARMUP_PRIORS_DIR = DATA_COLLECTION_DIR / "warmup_priors"
 K3_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp.joblib"
 
 # ==============================================================================
-# Best K=3 Hyperparameters (from appendix alpha sweep, 3-split protocol)
+# Best K=3 Hyperparameters (Exp 04 epsilon-constraint, 3-split disjoint)
 # ==============================================================================
 #
-# Protocol: train on train.jsonl → select on val.jsonl → report on test.jsonl.
-# Per-seed Pareto AUC (10 seeds) with fixed-model endpoints and cost range
-# anchored to arm cost extremes.  Avoids phantom-frontier artifacts.
-# Source of truth: experiments/appendix/hparam_sweep/results/best_hparams.json
+# Protocol: priors from train.jsonl (offline only) → val.jsonl split into
+# disjoint burn-in (first 1/3) + eval (remaining 2/3) for selection →
+# report on test.jsonl (burn-in on full val, eval on test).
+# Per-seed budget-paced Pareto AUC (10 seeds) with fixed-model endpoints
+# and cost range anchored to arm cost extremes.
+# Source of truth: experiments/04_hparam_optimization/results/best_hparams.json
 # PCA fixed at d=25 (~28.5% cumulative variance) to retain a broad semantic
 # representation.  A PCA ablation (Appendix I) confirms the Pareto AUC surface
 # is flat across d in [6, 25], validating this design choice.
 
 BEST_K3_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.1,
+    "alpha": 0.10,
     "pca_components": 25,
-    "prior_n_effective": 10.0,
+    "prior_n_effective": 1000.0,
     "forgetting_factor": 0.995,
 }
 """Best K=3 BanditGPT config (warmup priors, PCA-25, disjoint LinUCB).
 
-Selected via epsilon-constraint (best AUC within 5% of lowest Phase 2 regret).
-Val Pareto AUC = 0.9267, test Pareto AUC = 0.9247.
+Selected via epsilon-constraint (best budget-paced AUC within 5%, then
+lowest Phase 2 regret).  Val BP AUC = 0.9289, test BP AUC = 0.9248.
 Geometric forgetting (gamma=0.995, effective memory ~200 steps) is jointly
-optimal with moderate exploration (alpha=0.1) and weak priors (n_eff=10).
-This configuration balances stationary quality with non-stationary
-adaptability; see Experiments 02-04 for the empirical justification.
+optimal with moderate exploration (alpha=0.10) and meaningful priors
+(n_eff=1000).  This configuration balances stationary quality with
+non-stationary adaptability; see Experiments 02-04 for the empirical
+justification.
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
@@ -139,8 +142,8 @@ BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
-Selected via epsilon-constraint (best AUC within 5% of lowest Phase 2 regret).
-Val Pareto AUC = 0.9267, test Pareto AUC = 0.9246.
+Selected via epsilon-constraint (best budget-paced AUC within 5%, then
+lowest Phase 2 regret).  Val BP AUC = 0.9288, test BP AUC = 0.9246.
 Geometric forgetting (gamma=0.995, effective memory ~200 steps) matches the
 BanditGPT selection; moderate exploration (alpha=0.10) provides sufficient
 re-exploration budget after distribution shifts.

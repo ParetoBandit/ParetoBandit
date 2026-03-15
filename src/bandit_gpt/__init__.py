@@ -5,7 +5,7 @@ try:
 except PackageNotFoundError:
     __version__ = "0.1.0"
 
-from .policy import DisjointLinUCBPolicy, calibrate_priors
+from .policy import DisjointLinUCBPolicy, SlidingWindowLinUCBPolicy, calibrate_priors
 from .types import RouterConfig, ExplorationRate, RegistrationConfig, RoutingLog
 from .router import BanditRouter
 from .exceptions import MissingCostError, NoEligibleModelsError, NoModelScoredError
@@ -23,7 +23,7 @@ __all__ = [
     "__version__",
     "BanditRouter", "ExplorationRate", "RouterConfig",
     "RegistrationConfig", "RoutingLog",
-    "DisjointLinUCBPolicy", "calibrate_priors",
+    "DisjointLinUCBPolicy", "SlidingWindowLinUCBPolicy", "calibrate_priors",
     "MissingCostError", "NoEligibleModelsError", "NoModelScoredError",
     "FeatureService",
     "SqliteContextStore", "EphemeralContextStore",
