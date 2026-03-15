@@ -18,7 +18,7 @@ The $K{=}3$ portfolio follows a \emph{train-then-evaluate} pipeline
 The router first online-learns on the validation split
 ($n{=}1{,}785$) under normal pricing without recording evaluation
 metrics; priors are trained on the disjoint training split
-($n_{\mathrm{eff}}{=}10$, $\alpha{=}0.1$;
+($n_{\mathrm{eff}}{=}\bdNeff$, $\alpha{=}0.1$;
 Section~\ref{sec:hparam_sweep}).
 Evaluation uses the held-out test split ($n{=}1{,}824$),
 partitioned into two phases:
@@ -156,20 +156,20 @@ targeting}:
 \textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} \\
 \midrule
 \multirow{4}{*}{Tight ($\$2.3 \times 10^{-4}$)}
-  & Fixed Policy     & \$2.9e-5 & $0.12\times$ \\
-  & Naive Bandit     & \$2.2e-4 & $0.92\times$ \\
-  & Recalibrated     & \$2.2e-4 & $0.92\times$ \\
-  & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.00\times}$ \\[3pt]
+  & Fixed Policy     & \bdFixedTightPhaseOneCost & $\bdFixedTightPhaseOneRatio$ \\
+  & Naive Bandit     & \bdNaiveTightPhaseOneCost & $\bdNaiveTightPhaseOneRatio$ \\
+  & Recalibrated     & \bdRecalTightPhaseOneCost & $\bdRecalTightPhaseOneRatio$ \\
+  & \textbf{BanditGPT} & \textbf{\bdBanditGPTTightPhaseOneCost} & $\mathbf{\bdBanditGPTTightPhaseOneRatio}$ \\[3pt]
 \multirow{4}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
-  & Fixed Policy     & \$1.3e-4 & $0.20\times$ \\
-  & Naive Bandit     & \$7.0e-4 & $1.05\times$ \\
-  & Recalibrated     & \$7.0e-4 & $1.05\times$ \\
-  & \textbf{BanditGPT} & \textbf{\$6.6e-4} & $\mathbf{0.99\times}$ \\[3pt]
+  & Fixed Policy     & \bdFixedModPhaseOneCost & $\bdFixedModPhaseOneRatio$ \\
+  & Naive Bandit     & \bdNaiveModPhaseOneCost & $\bdNaiveModPhaseOneRatio$ \\
+  & Recalibrated     & \bdRecalModPhaseOneCost & $\bdRecalModPhaseOneRatio$ \\
+  & \textbf{BanditGPT} & \textbf{\bdBanditGPTModPhaseOneCost} & $\mathbf{\bdBanditGPTModPhaseOneRatio}$ \\[3pt]
 \multirow{4}{*}{Loose ($\$1.9 \times 10^{-3}$)}
-  & Fixed Policy     & \$9.2e-4 & $0.49\times$ \\
-  & Naive Bandit     & \$5.2e-3 & $2.77\times$ \\
-  & Recalibrated     & \$5.2e-3 & $2.77\times$ \\
-  & \textbf{BanditGPT} & \textbf{\$1.8e-3} & $\mathbf{0.98\times}$ \\
+  & Fixed Policy     & \bdFixedLoosePhaseOneCost & $\bdFixedLoosePhaseOneRatio$ \\
+  & Naive Bandit     & \bdNaiveLoosePhaseOneCost & $\bdNaiveLoosePhaseOneRatio$ \\
+  & Recalibrated     & \bdRecalLoosePhaseOneCost & $\bdRecalLoosePhaseOneRatio$ \\
+  & \textbf{BanditGPT} & \textbf{\bdBanditGPTLoosePhaseOneCost} & $\mathbf{\bdBanditGPTLoosePhaseOneRatio}$ \\
 \bottomrule
 \end{tabular}
 \end{center}

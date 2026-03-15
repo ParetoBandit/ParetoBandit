@@ -501,6 +501,32 @@
         "label": "Fixed Policy (offline)"
       },
       {
+        "step": 893,
+        "phase": "normal",
+        "phase_boundary": 893,
+        "mean_reward": 0.8068240131578946,
+        "std_reward": 0.0,
+        "se_reward": 0.0,
+        "mean_cost": 0.0006035363760964912,
+        "std_cost": 0.0,
+        "mean_cumulative_regret": 48.82573337515684,
+        "std_cumulative_regret": 1.92306524165877e-14,
+        "mean_forgetting_factor": 1.0,
+        "std_forgetting_factor": 0.0,
+        "arm_fractions": {
+          "Llama-8B": 0.21326754385964913,
+          "Mistral-Large": 0.7752192982456141,
+          "Gemini-Pro": 0.011513157894736841
+        },
+        "arm_fractions_std": {
+          "Llama-8B": 0.0,
+          "Mistral-Large": 0.0,
+          "Gemini-Pro": 0.0
+        },
+        "n_seeds": 40,
+        "label": "Fixed Policy (offline)"
+      },
+      {
         "step": 900,
         "phase": "swapped",
         "phase_boundary": 893,
@@ -1502,6 +1528,32 @@
           "Llama-8B": 0.01908491333295391,
           "Mistral-Large": 0.043942142473340474,
           "Gemini-Pro": 0.044728409346694205
+        },
+        "n_seeds": 40,
+        "label": "Naive Bandit (\u03b3=1.0)"
+      },
+      {
+        "step": 893,
+        "phase": "normal",
+        "phase_boundary": 893,
+        "mean_reward": 0.8387629111842105,
+        "std_reward": 0.008133233874837288,
+        "se_reward": 0.001285977189366133,
+        "mean_cost": 0.0026720543044133774,
+        "std_cost": 0.0005829005096308364,
+        "mean_cumulative_regret": 58.721166338167414,
+        "std_cumulative_regret": 2.143026878113903,
+        "mean_forgetting_factor": 1.0,
+        "std_forgetting_factor": 0.0,
+        "arm_fractions": {
+          "Llama-8B": 0.2536595394736842,
+          "Mistral-Large": 0.5910910087719299,
+          "Gemini-Pro": 0.15524945175438598
+        },
+        "arm_fractions_std": {
+          "Llama-8B": 0.017993562832531534,
+          "Mistral-Large": 0.044869063816437516,
+          "Gemini-Pro": 0.04297610740334853
         },
         "n_seeds": 40,
         "label": "Naive Bandit (\u03b3=1.0)"
@@ -2513,6 +2565,32 @@
         "label": "SW-UCB (W=200)"
       },
       {
+        "step": 893,
+        "phase": "normal",
+        "phase_boundary": 893,
+        "mean_reward": 0.906067228618421,
+        "std_reward": 0.042118055640443366,
+        "se_reward": 0.006659449322075143,
+        "mean_cost": 9.091153919956142e-05,
+        "std_cost": 0.00015676520891055767,
+        "mean_cumulative_regret": 104.90847244887323,
+        "std_cumulative_regret": 16.7502285497982,
+        "mean_forgetting_factor": 1.0,
+        "std_forgetting_factor": 0.0,
+        "arm_fractions": {
+          "Llama-8B": 0.8712445175438596,
+          "Mistral-Large": 0.12875548245614035,
+          "Gemini-Pro": 0.0
+        },
+        "arm_fractions_std": {
+          "Llama-8B": 0.31884026174462016,
+          "Mistral-Large": 0.3188402617446202,
+          "Gemini-Pro": 0.0
+        },
+        "n_seeds": 40,
+        "label": "SW-UCB (W=200)"
+      },
+      {
         "step": 900,
         "phase": "swapped",
         "phase_boundary": 893,
@@ -3514,6 +3592,32 @@
           "Llama-8B": 0.04014919224725945,
           "Mistral-Large": 0.07219199773693372,
           "Gemini-Pro": 0.06214091961943595
+        },
+        "n_seeds": 40,
+        "label": "BanditGPT (\u03b3=0.995)"
+      },
+      {
+        "step": 893,
+        "phase": "normal",
+        "phase_boundary": 893,
+        "mean_reward": 0.8514006030701754,
+        "std_reward": 0.012850975027905272,
+        "se_reward": 0.002031917562106328,
+        "mean_cost": 0.0040749988521107455,
+        "std_cost": 0.0008249542278674917,
+        "mean_cumulative_regret": 64.55355083890586,
+        "std_cumulative_regret": 2.7264736170361474,
+        "mean_forgetting_factor": 0.9949999999999999,
+        "std_forgetting_factor": 1.1102230246251565e-16,
+        "arm_fractions": {
+          "Llama-8B": 0.23116776315789472,
+          "Mistral-Large": 0.5252878289473684,
+          "Gemini-Pro": 0.2435444078947368
+        },
+        "arm_fractions_std": {
+          "Llama-8B": 0.04588189390844003,
+          "Mistral-Large": 0.0835745717883101,
+          "Gemini-Pro": 0.05988193582747609
         },
         "n_seeds": 40,
         "label": "BanditGPT (\u03b3=0.995)"

@@ -40,7 +40,7 @@ GAMMA_LABELS: Dict[float, str] = {
     1.0:   r"$\gamma=1.0$ (no forgetting)",
 }
 
-EPSILON = 0.05
+EPSILON = 0.0025
 
 
 def _load_data() -> Dict[str, Any]:
@@ -104,7 +104,7 @@ def main() -> None:
         ax.axvline(threshold, color="#66BB6A", ls="--", lw=0.9, alpha=0.8)
         ax.text(
             threshold - 0.0003, max(all_regs) + 0.3,
-            r"$\epsilon$-feasible" "\n" r"($\geq$95% best AUC)",
+            r"$\epsilon$-feasible" "\n" r"($\geq$99.75% best AUC)",
             fontsize=7.5, color="#388E3C", ha="right", va="top",
         )
 

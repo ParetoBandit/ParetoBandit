@@ -38,7 +38,11 @@ def main() -> None:
     alpha_values: List[float] = data["grid"]["alpha_values"]
     variants: List[str] = data["grid"]["variants"]
     best_per_variant = data["best_per_variant"]
-    val_results = data["val_results_full"]
+    val_results = data["val_budget_paced_full"]
+
+    # Filter to gamma=1.0 and best n_eff per variant (matching title)
+    BEST_NEFF: Dict[str, float] = {"banditgpt": 1000.0, "tabula_rasa": 1.0}
+    PLOT_GAMMA = 1.0
 
     auc_by_variant: Dict[str, List[float]] = {v: [] for v in variants}
     std_by_variant: Dict[str, List[float]] = {v: [] for v in variants}
@@ -46,7 +50,10 @@ def main() -> None:
         for variant in variants:
             entry = next(
                 r for r in val_results
-                if r["variant"] == variant and r["alpha"] == alpha
+                if r["variant"] == variant
+                and r["alpha"] == alpha
+                and r["gamma"] == PLOT_GAMMA
+                and r["n_eff"] == BEST_NEFF[variant]
             )
             auc_by_variant[variant].append(entry["val_pareto_auc"])
             std_by_variant[variant].append(entry["val_pareto_auc_std"])
@@ -80,7 +87,8 @@ def main() -> None:
     ax.set_xlabel(r"$\alpha$ (exploration parameter)", fontsize=11)
     ax.set_ylabel("Val Pareto AUC (per-seed, 10 seeds)", fontsize=11)
     ax.set_title(
-        r"Alpha Sweep — K=3, PCA-25, $\gamma$=1.0, train$\to$val protocol",
+        rf"Alpha Sweep — K=3, PCA-25, $\gamma$={PLOT_GAMMA}, "
+        r"$n_{\mathrm{eff}}$=1000/1 (warmup/cold), train$\to$val protocol",
         fontsize=12,
     )
 

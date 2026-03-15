@@ -370,6 +370,7 @@ def _run_learning_curve(
     checkpoints = sorted(set(
         [0]
         + list(range(CHECKPOINT_INTERVAL, n_train, CHECKPOINT_INTERVAL))
+        + [n_p1]  # exact phase boundary for precise phase-split regret
         + [n_train]
     ))
 

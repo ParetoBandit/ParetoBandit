@@ -56,7 +56,7 @@ the **same** fixed gamma (no adaptive mechanism):
    Lower = better adaptation.
 
 Selection uses the **epsilon-constraint method**: among all configs
-whose budget-paced AUC is within epsilon (5%) of the best, select
+whose budget-paced AUC is within epsilon (0.25%) of the best, select
 the one with lowest Phase-2 regret.  This gives budget-pacing
 priority while allowing the secondary objective to break ties.
 
@@ -119,7 +119,7 @@ N_EFF_VALUES: List[float] = [1.0, 10.0, 50.0, 200.0, 1000.0, 5000.0]
 BUDGET_TARGET_COUNT: int = 7
 PACER_LR: float = DEFAULT_PACER_LR
 PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX
-EPSILON: float = 0.05
+EPSILON: float = 0.0025
 VARIANTS: List[str] = ["banditgpt", "tabula_rasa"]
 
 PCA_DIM: int = 25

@@ -180,7 +180,7 @@ BEST_K3_HPARAMS: Dict[str, Any] = {
 }
 """Best K=3 BanditGPT config (warmup priors, PCA-25, disjoint LinUCB).
 
-Selected via epsilon-constraint (best budget-paced AUC within 5%, then
+Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
 lowest Phase 2 regret).  Val BP AUC = 0.9289, test BP AUC = 0.9248.
 Geometric forgetting (gamma=0.995, effective memory ~200 steps) is jointly
 optimal with moderate exploration (alpha=0.10) and meaningful priors
@@ -197,7 +197,7 @@ BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
-Selected via epsilon-constraint (best budget-paced AUC within 5%, then
+Selected via epsilon-constraint (best budget-paced AUC within 0.25%, then
 lowest Phase 2 regret).  Val BP AUC = 0.9288, test BP AUC = 0.9246.
 Geometric forgetting (gamma=0.995, effective memory ~200 steps) matches the
 BanditGPT selection; moderate exploration (alpha=0.10) provides sufficient

@@ -68,7 +68,7 @@ Appendix~\ref{app:hparam_sweep_details}):
 
   \item \textbf{Constraint}:
     Retain only configurations whose budget-paced AUC is within
-    $\epsilon{=}5\%$ of the grid maximum, forming a \emph{feasible set}
+    $\epsilon{=}0.25\%$ of the grid maximum, forming a \emph{feasible set}
     that protects stationary routing quality.
 
   \item \textbf{Secondary objective} (adaptability):
@@ -100,7 +100,7 @@ for both BanditGPT (warmup priors) and Tabula Rasa (cold start).
   and $\gamma{=}0.999$ for Tabula Rasa---both near-stationary
   configurations that maximise stationary AUC but degrade
   adaptation under reward shift.
-  The $\epsilon$-constraint method ($\epsilon{=}5\%$) trades
+  The $\epsilon$-constraint method ($\epsilon{=}0.25\%$) trades
   ${<}0.3\%$ AUC for lower Phase-2 regret by selecting
   $\gamma{=}0.995$ for both variants.
   Metrics: budget-paced Pareto AUC (val, 10~seeds) and Phase-2

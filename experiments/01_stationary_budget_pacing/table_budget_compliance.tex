@@ -13,7 +13,7 @@
   by the penalty weight $\lambda_s$.
   %
   \textbf{Key finding:}  For all binding targets
-  ($B \leq \$0.0019$/req), utilisation is $0.97$--$1.02\times$.
+  ($B \leq \bpBindingThresholdCost$/req), utilisation is \bpUtilBindingLow--\bpUtilBindingHigh.
   At the loosest target the router under-spends because the dual variable
   decays to zero---the pacer constrains from above but never inflates
   cost.
@@ -33,74 +33,74 @@
   \\
 \midrule
 \multicolumn{8}{@{}l}{\textit{Static cost penalty (no budget target)}} \\[2pt]
-Static & $\lambda_s{=}0.00$ & $0.922 \pm .0004$ & $0.00968$ & $75.7$
+Static & $\lambda_s{=}0.00$ & $0.921 \pm 0.0004$ & $\$0.00942$ & $76.5$
   & ---
   & ---
   & ---
-  \\
-Static & $\lambda_s{=}0.05$ & $0.919 \pm .0005$ & $0.00785$ & $80.3$
+    \\
+Static & $\lambda_s{=}0.05$ & $0.920 \pm 0.0004$ & $\$0.00738$ & $78.6$
   & ---
   & ---
   & ---
-  \\
-Static & $\lambda_s{=}0.10$ & $0.918 \pm .0005$ & $0.00559$ & $83.3$
+    \\
+Static & $\lambda_s{=}0.10$ & $0.917 \pm 0.0006$ & $\$0.00545$ & $85.3$
   & ---
   & ---
   & ---
-  \\
-Static & $\lambda_s{=}0.20$ & $0.908 \pm .0005$ & $0.00276$ & $101.2$
+    \\
+Static & $\lambda_s{=}0.20$ & $0.909 \pm 0.0005$ & $\$0.00277$ & $99.1$
   & ---
   & ---
   & ---
-  \\
-Static & $\lambda_s{=}0.30$ & $0.898 \pm .0006$ & $0.00189$ & $119.1$
+    \\
+Static & $\lambda_s{=}0.30$ & $0.897 \pm 0.0006$ & $\$0.00177$ & $120.3$
   & ---
   & ---
   & ---
-  \\
-Static & $\lambda_s{=}0.50$ & $0.846 \pm .0012$ & $0.00106$ & $214.1$
+    \\
+Static & $\lambda_s{=}0.50$ & $0.849 \pm 0.001$ & $\$0.00106$ & $208.5$
   & ---
   & ---
   & ---
-  \\
-Static & $\lambda_s{=}1.00$ & $0.804 \pm .0003$ & $0.00038$ & $290.3$
+    \\
+Static & $\lambda_s{=}1.00$ & $0.804 \pm 0.0003$ & $\$0.000369$ & $290.6$
   & ---
   & ---
   & ---
-  \\[4pt]
+    \\[4pt]
 \multicolumn{8}{@{}l}{\textit{BudgetPacer (adaptive, $\eta{=}0.05$, $\alpha_{\mathrm{ema}}{=}0.05$, $\bar\lambda{=}5$)}} \\[2pt]
-Pacer & $B{=}\$2.9{\times}10^{-5}$ & $0.793 \pm .0000$ & $0.00003$ & $310.0$
-  & $1.02\times$
-  & $4.53$
-  & $4.27$
+Pacer & $B{=}\$2.9{\times}10^{-5}$ & $0.793 \pm 0.00004$ & $\$0.0000297$ & $310.2$
+  & $\mathbf{1.02\times}$
+  & $4.19$
+  & $4.18$
   \\
-Pacer & $B{=}\$8.3{\times}10^{-5}$ & $\mathbf{0.813} \pm .0006$ & $0.00008$ & $274.9$
+Pacer & $B{=}\$8.3{\times}10^{-5}$ & $0.813 \pm 0.0004$ & $\$0.0000827$ & $274.8$
   & $\mathbf{1.00\times}$
-  & $0.74$
-  & $0.81$
+  & $0.73$
+  & $0.76$
   \\
-Pacer & $B{=}\$2.3{\times}10^{-4}$ & $\mathbf{0.856} \pm .0007$ & $0.00023$ & $196.1$
+Pacer & $B{=}\$2.3{\times}10^{-4}$ & $0.855 \pm 0.0006$ & $\$0.000234$ & $197.2$
   & $\mathbf{1.00\times}$
   & $0.43$
-  & $0.47$
+  & $0.43$
   \\
-Pacer & $B{=}\$6.6{\times}10^{-4}$ & $0.883 \pm .0015$ & $0.00066$ & $146.0$
-  & $\mathbf{1.00\times}$
+Pacer & $B{=}\$6.6{\times}10^{-4}$ & $0.884 \pm 0.001$ & $\$0.000658$ & $144.9$
+  & $\mathbf{0.99\times}$
   & $0.19$
-  & $0.37$
+  & $0.20$
   \\
-Pacer & $B{=}\$1.9{\times}10^{-3}$ & $0.908 \pm .0007$ & $0.00182$ & $100.4$
+Pacer & $B{=}\$1.9{\times}10^{-3}$ & $0.908 \pm 0.0009$ & $\$0.00182$ & $100.7$
   & $\mathbf{0.97\times}$
   & $0.03$
-  & $0.08$
+  & $0.06$
   \\
-Pacer & $B{=}\$5.3{\times}10^{-3}$ & $0.917 \pm .0005$ & $0.00486$ & $85.0$
-  & $0.92\times$
+Pacer & $B{=}\$5.3{\times}10^{-3}$ & $0.917 \pm 0.0005$ & $\$0.00481$ & $84.4$
+  & $0.91\times$
   & $0.00$
-  & $0.02$
+  & $0.01$
   \\
-Pacer & $B{=}\$1.5{\times}10^{-2}$ & $0.922 \pm .0004$ & $0.00943$ & $75.5$
-  & $0.63\times$
+Pacer & $B{=}\$1.5{\times}10^{-2}$ & $0.922 \pm 0.0004$ & $\$0.00955$ & $75.5$
+  & $0.64\times$
   & $0.00$
   & $0.00$
   \\

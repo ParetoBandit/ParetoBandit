@@ -13,17 +13,17 @@ We evaluate BanditGPT across four escalating experiments, moving from stationary
 \multicolumn{5}{@{}l}{\textit{(a) Cumulative regret under reward drift (Experiment~2)}} \\[2pt]
 \textbf{Method} & \textbf{Phase~1} & \textbf{Phase~2} & \textbf{Total} & $\boldsymbol{\sigma}$ \\
 \midrule
-Fixed Policy (offline)                 & 46.6  & 169.1          & 215.6          & 0.0 \\
-Naive Bandit ($\gamma{=}1.0$)          & 56.1  &  97.1          & 153.2          & 9.1 \\
-SW-UCB ($W{=}200$)                     & 100.1 &  32.5          & 132.7          & 34.4 \\
-\textbf{BanditGPT} ($\gamma{=}0.995$) & 61.5  & \textbf{53.1}  & \textbf{114.6} & \textbf{7.5} \\
+Fixed Policy (offline)                 & \rsFixedPhaseOne  & \rsFixedPhaseTwo          & \rsFixedTotal          & \rsFixedStd \\
+Naive Bandit ($\gamma{=}1.0$)          & \rsNaivePhaseOne  & \rsNaivePhaseTwo          & \rsNaiveTotal          & \rsNaiveStd \\
+SW-UCB ($W{=}200$)                     & \rsSWUCBPhaseOne  & \rsSWUCBPhaseTwo          & \rsSWUCBTotal          & \rsSWUCBStd \\
+\textbf{BanditGPT} ($\gamma{=}0.995$) & \rsBanditGPTPhaseOne  & \textbf{\rsBanditGPTPhaseTwo}  & \textbf{\rsBanditGPTTotal} & \textbf{\rsBanditGPTStd} \\
 \midrule
 \multicolumn{5}{@{}l}{\textit{(b) Phase~1 budget utilisation under cost drift (Experiment~3)}} \\[2pt]
 \textbf{Budget Target} & \textbf{Fixed} & \textbf{Naive} & \textbf{BanditGPT} & \\
 \midrule
-Tight\enspace($\$2.3{\times}10^{-4}$)    & $0.24\times$ & $0.69\times$ & $\mathbf{1.00\times}$ & \\
-Moderate ($\$6.6{\times}10^{-4}$)         & $0.45\times$ & $0.96\times$ & $\mathbf{1.00\times}$ & \\
-Loose\enspace($\$1.9{\times}10^{-3}$)    & $2.62\times$ & $2.88\times$ & $\mathbf{0.97\times}$ & \\
+Tight\enspace($\$2.3{\times}10^{-4}$)    & $\bdFixedTightPhaseOneRatio$ & $\bdNaiveTightPhaseOneRatio$ & $\mathbf{\bdBanditGPTTightPhaseOneRatio}$ & \\
+Moderate ($\$6.6{\times}10^{-4}$)         & $\bdFixedModPhaseOneRatio$ & $\bdNaiveModPhaseOneRatio$ & $\mathbf{\bdBanditGPTModPhaseOneRatio}$ & \\
+Loose\enspace($\$1.9{\times}10^{-3}$)    & $\bdFixedLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseOneRatio$ & $\mathbf{\bdBanditGPTLoosePhaseOneRatio}$ & \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -81,30 +81,30 @@ trajectories across 40~seeds
 (Table~\ref{tab:main_results}a; Figure~\ref{fig:cumulative_regret}):
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy (Offline):} Because it cannot learn,
-    it continues routing 78\% to Mistral-Large even after the shift
-    makes it the worst arm.  It accumulates $169.1$ Phase~2 regret,
+    it continues routing \rsFixedMistralPct\% to Mistral-Large even after the shift
+    makes it the worst arm.  It accumulates $\rsFixedPhaseTwo$ Phase~2 regret,
     illustrating the cost of deploying a frozen router.
   \item \textbf{Naive Bandit ($\gamma{=}1.0$):} Online learning
-    reduces total regret by 29\% ($153.2$ vs.\ $215.6$), but
+    reduces total regret by \rsReductionFixedNaive\% ($\rsNaiveTotal$ vs.\ $\rsFixedTotal$), but
     infinite memory means Phase~1 inertia dilutes the new signal:
-    Phase~2 regret is $97.1$---$83\%$ more than BanditGPT.
+    Phase~2 regret is $\rsNaivePhaseTwo$---\rsNaivePhaseTwoExcess\% more than BanditGPT.
     Every existing bandit-based LLM router operates at this level.
   \item \textbf{SW-UCB ($W{=}200$):} Achieves the \emph{lowest
-    Phase~2 regret} ($32.5$), demonstrating fast post-shift
+    Phase~2 regret} ($\rsSWUCBPhaseTwo$), demonstrating fast post-shift
     adaptation.  However, without warmup priors it starts from a
     blank slate ($A{=}\lambda I$, $b{=}0$): during the first
     ${\sim}200$ steps the UCB exploration bonus dominates, routing
-    traffic near-uniformly and accumulating $100.1$ Phase~1
-    regret---$2.1\times$ higher than prior-initialised conditions.
-    Its cross-seed variance ($\sigma{=}34.4$) is $4.6\times$
+    traffic near-uniformly and accumulating $\rsSWUCBPhaseOne$ Phase~1
+    regret---\rsSWUCBPhaseOneFactor$\times$ higher than prior-initialised conditions.
+    Its cross-seed variance ($\sigma{=}\rsSWUCBStd$) is \rsSWUCBVarFactor$\times$
     BanditGPT's, making individual deployments unpredictable.
   \item \textbf{BanditGPT ($\gamma{=}0.995$):} Geometric forgetting
-    reduces Phase~2 regret by 45\% vs.\ the Naive Bandit
-    ($53.1$ vs.\ $97.1$).  The ${\sim}200$-step effective memory
+    reduces Phase~2 regret by \rsBanditGPTPhaseTwoReduction\% vs.\ the Naive Bandit
+    ($\rsBanditGPTPhaseTwo$ vs.\ $\rsNaivePhaseTwo$).  The ${\sim}200$-step effective memory
     window discounts stale Phase~1 evidence, allowing BanditGPT to
     re-learn the new optimum within ${\sim}200$ steps of the swap.
-    Total regret ($114.6$) is the lowest of any condition, and
-    cross-seed variance ($\sigma{=}7.5$) is the lowest among all
+    Total regret ($\rsBanditGPTTotal$) is the lowest of any condition, and
+    cross-seed variance ($\sigma{=}\rsBanditGPTStd$) is the lowest among all
     learning methods.
 \end{itemize}
 
@@ -117,8 +117,8 @@ trajectories across 40~seeds
 
 \paragraph{Deployment reliability.}
 Beyond mean regret, variance reveals a critical distinction.
-BanditGPT's $\sigma{=}7.5$ is comparable to the Naive Bandit
-($9.1$) but $4.6\times$ lower than SW-UCB ($34.4$).
+BanditGPT's $\sigma{=}\rsBanditGPTStd$ is comparable to the Naive Bandit
+($\rsNaiveStd$) but \rsSWUCBVarFactor$\times$ lower than SW-UCB ($\rsSWUCBStd$).
 SW-UCB's high variance stems from its cold start: which arms happen
 to be sampled in the first ${\sim}200$ steps varies widely across
 seeds, producing high-regret outliers.
@@ -134,10 +134,10 @@ means every deployment adapts reliably.
 We now introduce the most complex and realistic scenario: a mid-stream price drop (Cost Drift) while operating under strict budget constraints. In Phase 2, Gemini-Pro's price drops to nearly zero. We evaluate three budget regimes: Tight (\$0.00023/req), Moderate (\$0.00066/req), and Loose (\$0.0019/req).
 
 \paragraph{Budget compliance is the key differentiator.}
-The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) is wildly inconsistent: it under-spends at tight and moderate budgets ($0.24\times$ and $0.45\times$) but massively over-spends at the loose budget ($2.62\times$). A single static penalty cannot simultaneously satisfy different budget regimes. The Naive Bandit is similarly erratic: it under-spends at tight budgets ($0.69\times$) but over-spends by $2.88\times$ at the loose budget because the static penalty cannot adjust to the actual cost landscape.
+The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) is wildly inconsistent: it under-spends at tight and moderate budgets ($\bdFixedTightPhaseOneRatio$ and $\bdFixedModPhaseOneRatio$) but massively over-spends at the loose budget ($\bdFixedLoosePhaseOneRatio$). A single static penalty cannot simultaneously satisfy different budget regimes. The Naive Bandit is similarly erratic: it under-spends at tight budgets ($\bdNaiveTightPhaseOneRatio$) but over-spends by $\bdNaiveLoosePhaseOneRatio$ at the loose budget because the static penalty cannot adjust to the actual cost landscape.
 To isolate the value of \emph{continuous} online tracking from merely reacting to a price change, we add a \textbf{Recalibrated Bandit}: identical to the Naive Bandit in Phase~1, but at the Phase~2 boundary its static penalty is re-tuned offline via a grid search on the validation split with Phase~2 pricing. This is the strongest static-penalty baseline, granting oracle knowledge of the change point and an offline calibration pass. Even so, the Recalibrated Bandit inherits Phase~1 non-compliance and cannot adjust within Phase~2 as spending conditions evolve (Table~\ref{tab:budget_compliance}).
 
-BanditGPT is the only system that reliably hits the budget in Phase~1 ($0.97\times$ to $1.00\times$ across all three targets; Table~\ref{tab:main_results}b). The BudgetPacer's primal-dual mechanism adjusts $\lambda_t$ continuously based on observed costs, providing closed-loop control that no static penalty---even with periodic recalibration---can replicate.
+BanditGPT is the only system that reliably hits the budget in Phase~1 ($\bdBanditGPTLoosePhaseOneUtil$ to $\bdBanditGPTTightPhaseOneUtil$ across all three targets; Table~\ref{tab:main_results}b). The BudgetPacer's primal-dual mechanism adjusts $\lambda_t$ continuously based on observed costs, providing closed-loop control that no static penalty---even with periodic recalibration---can replicate.
 
 \paragraph{Exploiting the price drop.}
 When Gemini becomes nearly free in Phase~2, the BudgetPacer automatically detects the cost reduction via its EMA signal.
@@ -186,18 +186,18 @@ Phase~2.}
 \textbf{Budget} & \textbf{Condition}
   & \textbf{Phase~1} & \textbf{Phase~2} \\
 \midrule
-Tight        & Fixed Policy        & $0.24\times$ & $1.13\times$ \\
-             & Naive Bandit        & $0.69\times$ & $1.13\times$ \\
-             & Recalibrated        & $0.69\times$ & $1.13\times$ \\
-             & \textbf{BanditGPT}  & $\mathbf{1.00\times}$ & $\mathbf{1.02\times}$ \\[3pt]
-Moderate     & Fixed Policy        & $0.45\times$ & $0.40\times^{\dagger}$ \\
-             & Naive Bandit        & $\mathbf{0.96\times}$ & $0.40\times^{\dagger}$ \\
-             & Recalibrated        & $\mathbf{0.96\times}$ & $0.45\times^{\dagger}$ \\
-             & \textbf{BanditGPT}  & $\mathbf{1.00\times}$ & $0.51\times^{\dagger}$ \\[3pt]
-Loose        & Fixed Policy        & $2.62\times$ & $0.14\times^{\dagger}$ \\
-             & Naive Bandit        & $2.88\times$ & $0.14\times^{\dagger}$ \\
-             & Recalibrated        & $2.88\times$ & $0.18\times^{\dagger}$ \\
-             & \textbf{BanditGPT}  & $\mathbf{0.98\times}$ & $0.18\times^{\dagger}$ \\
+Tight        & Fixed Policy        & $\bdFixedTightPhaseOneRatio$ & $\bdFixedTightPhaseTwoRatio$ \\
+             & Naive Bandit        & $\bdNaiveTightPhaseOneRatio$ & $\bdNaiveTightPhaseTwoRatio$ \\
+             & Recalibrated        & $\bdRecalTightPhaseOneRatio$ & $\bdRecalTightPhaseTwoRatio$ \\
+             & \textbf{BanditGPT}  & $\mathbf{\bdBanditGPTTightPhaseOneRatio}$ & $\mathbf{\bdBanditGPTTightPhaseTwoRatio}$ \\[3pt]
+Moderate     & Fixed Policy        & $\bdFixedModPhaseOneRatio$ & $\bdFixedModPhaseTwoRatio^{\dagger}$ \\
+             & Naive Bandit        & $\mathbf{\bdNaiveModPhaseOneRatio}$ & $\bdNaiveModPhaseTwoRatio^{\dagger}$ \\
+             & Recalibrated        & $\mathbf{\bdRecalModPhaseOneRatio}$ & $\bdRecalModPhaseTwoRatio^{\dagger}$ \\
+             & \textbf{BanditGPT}  & $\mathbf{\bdBanditGPTModPhaseOneRatio}$ & $\bdBanditGPTModPhaseTwoRatio^{\dagger}$ \\[3pt]
+Loose        & Fixed Policy        & $\bdFixedLoosePhaseOneRatio$ & $\bdFixedLoosePhaseTwoRatio^{\dagger}$ \\
+             & Naive Bandit        & $\bdNaiveLoosePhaseOneRatio$ & $\bdNaiveLoosePhaseTwoRatio^{\dagger}$ \\
+             & Recalibrated        & $\bdRecalLoosePhaseOneRatio$ & $\bdRecalLoosePhaseTwoRatio^{\dagger}$ \\
+             & \textbf{BanditGPT}  & $\mathbf{\bdBanditGPTLoosePhaseOneRatio}$ & $\bdBanditGPTLoosePhaseTwoRatio^{\dagger}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -217,21 +217,21 @@ BanditGPT stays within $2\%$ of target, demonstrating that the primal-dual mecha
 Selecting hyperparameters ($\alpha$, $n_\mathit{eff}$, $\gamma$) for a non-stationary router poses a fundamental tension: standard cross-validation maximises stationary quality and selects near-stationary $\gamma$ values ($\gamma{=}1.0$ for BanditGPT, $0.999$ for Tabula Rasa), yet Section~\ref{sec:exp2_reward_shift} showed that infinite or near-infinite memory fails to adapt under distribution drift.  We resolve this with the \textbf{epsilon-constraint method}, a principled bi-objective selection procedure.
 
 \paragraph{Two objectives.}
-Each configuration in the grid ($6 \times 6 \times 4$ values of $\alpha$, $n_\mathit{eff}$, $\gamma$) is scored on two metrics using the validation split:
+Each configuration in the grid ($\hpGridAlpha \times \hpGridNeff \times \hpGridGamma$ values of $\alpha$, $n_\mathit{eff}$, $\gamma$) is scored on two metrics using the validation split:
 \begin{enumerate}[nosep,leftmargin=*]
   \item \emph{Budget-paced Pareto AUC} (primary): the area under the quality--cost Pareto frontier when sweeping budget targets with the BudgetPacer active. Higher is better.
   \item \emph{Phase-2 cumulative regret} (secondary): a two-phase simulation where, at the midpoint, two arms swap their reward \emph{and} cost distributions. Only post-swap regret is recorded, averaged over all $\binom{K}{2}$ swap pairs and 10 seeds. Lower is better.
 \end{enumerate}
 
 \paragraph{Selection rule.}
-Among all configurations whose budget-paced AUC is within $\epsilon{=}5\%$ of the best, we select the one with the lowest Phase-2 regret.  This gives budget-pacing explicit priority---no configuration is chosen that materially degrades stationary routing---while using adaptation speed as the tiebreaker within the near-optimal band.
+Among all configurations whose budget-paced AUC is within $\epsilon{=}0.25\%$ of the best, we select the one with the lowest Phase-2 regret.  This gives budget-pacing explicit priority---no configuration is chosen that materially degrades stationary routing---while using adaptation speed as the tiebreaker within the near-optimal band.  The tolerance is calibrated to the observed AUC variation: the entire 144-configuration BanditGPT grid spans only $0.39\%$ in budget-paced AUC, so $\epsilon{=}0.25\%$ covers roughly two-thirds of that range---tight enough to exclude materially worse configurations (32\% of the grid), yet permissive enough to admit a diverse set of $(\alpha, \gamma)$ combinations for the secondary objective to discriminate.
 
 \paragraph{Result.}
-Figure~\ref{fig:epsilon_tradeoff} visualises the tradeoff.  Configurations with $\gamma{=}1.0$ (blue) achieve the highest AUC but the worst post-swap regret: they cannot shed stale evidence.  Lower $\gamma$ values shift points downward (better adaptation) at only marginal AUC cost---all 144 BanditGPT configurations fall within the $\epsilon$-feasible band, confirming that stationary routing quality is robust across the grid.  Because the entire grid is feasible, Phase-2 regret becomes the effective tiebreaker.  The method selects $\gamma{=}0.995$ (star) with $\alpha{=}0.10$, achieving Phase-2 regret of $48.4$ while sacrificing only $0.24\%$ of stationary AUC ($0.931 \to 0.929$).  The AUC-only winner ($\gamma{=}1.0$, red~\textbf{X}) selects $\alpha{=}0.01$ with minimal exploration---exactly the configuration that fails under drift.  This ${\sim}200$-step effective memory window is long enough for stable exploitation, short enough to track realistic cost and quality shifts.
+Figure~\ref{fig:epsilon_tradeoff} visualises the tradeoff.  Configurations with $\gamma{=}1.0$ (blue) achieve the highest AUC but the worst post-swap regret: they cannot shed stale evidence.  Lower $\gamma$ values shift points downward (better adaptation) at marginal AUC cost.  The $\epsilon$-feasible band retains 98 of 144 BanditGPT configurations (68\%), excluding primarily those with aggressive forgetting or very high exploration that trade too much stationary quality.  Within this feasible set, Phase-2 regret breaks ties.  The method selects $\gamma{=}\hpBanditGPTGamma$ (star) with $\alpha{=}\hpBanditGPTAlpha$, achieving Phase-2 regret of $\hpBanditGPTRegret$ while sacrificing only $\hpAUCSacrifice\%$ of stationary AUC ($\hpAUCOnlyAUC \to \hpBanditGPTAUC$).  The AUC-only winner ($\gamma{=}\hpAUCOnlyGamma$, red~\textbf{X}) selects $\alpha{=}\hpAUCOnlyAlpha$ with minimal exploration---exactly the configuration that fails under drift.  This ${\sim}200$-step effective memory window is long enough for stable exploitation, short enough to track realistic cost and quality shifts.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\columnwidth]{figures/epsilon_tradeoff.pdf}
-\caption{Efficiency--adaptability tradeoff for BanditGPT ($K{=}3$, PCA-25).  Each point is one ($\alpha$, $n_\mathit{eff}$, $\gamma$) configuration; colour encodes $\gamma$.  The green band marks the $\epsilon$-feasible region ($\geq$95\% of best AUC).  The black star is the $\epsilon$-constraint winner; the red \textbf{X} is the AUC-only winner ($\gamma{=}1.0$), which suffers the highest Phase-2 regret.}
+\caption{Efficiency--adaptability tradeoff for BanditGPT ($K{=}3$, PCA-25).  Each point is one ($\alpha$, $n_\mathit{eff}$, $\gamma$) configuration; colour encodes $\gamma$.  The green band marks the $\epsilon$-feasible region ($\geq$99.75\% of best AUC); 98 of 144 configurations pass.  The black star is the $\epsilon$-constraint winner; the red \textbf{X} is the AUC-only winner ($\gamma{=}1.0$), which suffers the highest Phase-2 regret.}
 \label{fig:epsilon_tradeoff}
 \end{figure}
