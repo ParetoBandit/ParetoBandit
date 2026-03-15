@@ -104,37 +104,23 @@ def _write_priors(path: Path, A: dict, b: dict, n: int, **extra) -> None:
 
 class TestShippedPCAArtifactWhitening:
 
-    def test_shipped_pca_has_whiten_true(self) -> None:
+    def test_shipped_pca_has_whiten_false(self) -> None:
+        """Shipped PCA artifact has whiten=False; FeatureService applies
+        whitening externally via _pca_whitening_scale."""
         pca = joblib.load(DEFAULT_PCA_PATH)
-        assert getattr(pca, "whiten", False) is True, (
-            "Shipped pca_32.joblib must have whiten=True after the whitening migration"
+        assert getattr(pca, "whiten", True) is False, (
+            "Shipped pca_25.joblib should have whiten=False — "
+            "FeatureService handles whitening externally"
         )
 
-    def test_shipped_pca_whitening_changes_transform_output(self) -> None:
-        """With whiten=True, transform() should differ from an unwhitened
-        transform, confirming the whitening step is active."""
-        import copy
-
-        pca = joblib.load(DEFAULT_PCA_PATH)
-        rng = np.random.default_rng(42)
-        X = rng.standard_normal((10, pca.n_features_in_))
-
-        Z_whitened = pca.transform(X)
-
-        pca_raw = copy.deepcopy(pca)
-        pca_raw.whiten = False
-        Z_raw = pca_raw.transform(X)
-
-        assert not np.allclose(Z_whitened, Z_raw), (
-            "Whitened and unwhitened transforms should produce different outputs"
-        )
-        # Whitening scales by 1/sqrt(explained_variance_); verify the ratio
-        # between whitened and raw outputs matches that scaling factor.
-        ev = pca.explained_variance_
-        expected_scale = 1.0 / np.sqrt(ev)
-        actual_ratio = Z_whitened / (Z_raw + 1e-30)
-        assert np.allclose(actual_ratio, expected_scale.reshape(1, -1), rtol=1e-6), (
-            "Whitened/raw ratio should equal 1/sqrt(explained_variance_)"
+    def test_feature_service_applies_external_whitening(self) -> None:
+        """FeatureService should detect whiten=False on the shipped artifact
+        and compute external whitening scales."""
+        fs = FeatureService(whiten_pca=True)
+        _ = fs.pca
+        assert fs._pca_whitening_scale is not None, (
+            "FeatureService should set external whitening scales for "
+            "the shipped PCA (whiten=False)"
         )
 
 

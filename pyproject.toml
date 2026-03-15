@@ -39,6 +39,7 @@ dependencies = [
     "pandas>=2.0.0",
     "joblib>=1.3.0",
     "scikit-learn>=1.3.0",
+    "tqdm>=4.60.0",
 ]
 
 [project.optional-dependencies]
@@ -118,12 +119,17 @@ packages = ["src/bandit_gpt"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -W ignore::UserWarning:multiprocessing.resource_tracker"
+filterwarnings = [
+    "ignore:resource_tracker:UserWarning",
+    "ignore::UserWarning:multiprocessing.resource_tracker",
+]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "stress: marks stress and soak-style validation tests",
     "performance: marks performance benchmark and regression tests",
     "live: marks tests that make real API calls (require API keys in .env)",
+    "experiment: marks experiment regression tests (run via pytest experiments_v2/tests/)",
 ]
 
 # --- Code Quality ---

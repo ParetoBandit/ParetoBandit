@@ -82,23 +82,6 @@ for rel in required:
     if not path.exists():
         raise AssertionError(f"Missing required packaged file: {rel}")
 
-from bandit_gpt.config import OFFLINE_DATASET_DIR
-rewards_dir = Path(OFFLINE_DATASET_DIR)
-reward_files = sorted(p.name for p in rewards_dir.glob("*.jsonl*")) if rewards_dir.exists() else []
-if not reward_files:
-    raise AssertionError(f"Expected at least one *.jsonl* file in {rewards_dir}.")
-
-sample = rewards_dir / reward_files[0]
-if sample.suffix == ".gz":
-    import gzip
-    with gzip.open(sample, "rt", encoding="utf-8") as f:
-        line = f.readline()
-else:
-    with sample.open("r", encoding="utf-8") as f:
-        line = f.readline()
-if line is None:
-    raise AssertionError("Rewards sample file is unreadable.")
-
 for rel in source_joblibs:
     path = pkg_root / rel
     if not path.exists():

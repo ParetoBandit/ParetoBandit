@@ -97,7 +97,10 @@ def test_create_three_way_splits_reproducible(mock_rewards, tmp_path):
 def test_create_three_way_splits_min_models_filter(tmp_path):
     """Prompts with fewer models than min_models are excluded from the split."""
     oracle_rewards = {
-        "full":    {"m1": 0.8, "m2": 0.6},
+        "full_a":  {"m1": 0.8, "m2": 0.6},
+        "full_b":  {"m1": 0.7, "m2": 0.9},
+        "full_c":  {"m1": 0.5, "m2": 0.4},
+        "full_d":  {"m1": 0.6, "m2": 0.8},
         "partial": {"m1": 0.5},
     }
     splits_path = tmp_path / "splits.json"
@@ -112,7 +115,7 @@ def test_create_three_way_splits_min_models_filter(tmp_path):
 
     all_split = set(prior_train) | set(online_learn)
     assert "partial" not in all_split
-    assert "full" in all_split
+    assert all(p in all_split for p in ["full_a", "full_b", "full_c", "full_d"])
 
 
 def test_create_three_way_splits_data_leakage_detection(tmp_path):

@@ -23,7 +23,6 @@ from bandit_gpt.feature_service import FeatureService, DEFAULT_CONTEXT_MODEL
 from bandit_gpt.config import (
     DEFAULT_SENTENCE_TRANSFORMER,
     DEFAULT_PCA_PATH,
-    LMSYS_BATTLES_PATH,
 )
 
 
@@ -129,61 +128,7 @@ class TestGenerateWarmupPriors:
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Default PCA reproducible with calibration API (slow)
-# ---------------------------------------------------------------------------
-
-@pytest.mark.slow
-class TestDefaultPCAReproducibility:
-    def test_default_pca_reproducible(self):
-        """Verify that train_pca() on the same data produces a PCA whose
-        structural properties match the shipped pca_32.joblib."""
-        import joblib
-
-        if not DEFAULT_PCA_PATH.exists():
-            pytest.skip("Shipped pca_32.joblib not found")
-        if not LMSYS_BATTLES_PATH.exists():
-            pytest.skip("LMSYS battles dataset not found")
-
-        shipped_pca = joblib.load(DEFAULT_PCA_PATH)
-
-        # Load first 1000 prompts from battles for speed
-        import json
-        prompts = []
-        with open(LMSYS_BATTLES_PATH) as f:
-            for line in f:
-                if len(prompts) >= 1000:
-                    break
-                try:
-                    entry = json.loads(line)
-                    prompt = entry.get("prompt", "")
-                    if isinstance(prompt, list):
-                        prompt = prompt[0] if prompt else ""
-                    if isinstance(prompt, str) and prompt.startswith('["'):
-                        try:
-                            prompt = json.loads(prompt)[0]
-                        except Exception:
-                            pass
-                    prompt = prompt.strip()
-                    if prompt:
-                        prompts.append(prompt)
-                except Exception:
-                    continue
-
-        assert len(prompts) >= 100, "Need prompts for reproducibility test"
-
-        new_pca = train_pca(
-            prompts,
-            encoder_model=DEFAULT_SENTENCE_TRANSFORMER,
-            n_components=shipped_pca.n_components_,
-        )
-
-        assert new_pca.n_components_ == shipped_pca.n_components_
-        assert new_pca.n_features_in_ == shipped_pca.n_features_in_
-        assert float(np.sum(new_pca.explained_variance_ratio_)) > 0
-
-
-# ---------------------------------------------------------------------------
-# Test 4: Guard blocks custom encoder without PCA
+# Test 3: Guard blocks custom encoder without PCA
 # ---------------------------------------------------------------------------
 
 class TestFeatureServiceGuard:

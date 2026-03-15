@@ -1,156 +1,120 @@
 """
-Unit tests for Self-Healing PCA implementation.
+Unit tests for self-healing PCA via FeatureService.
 
-Tests that the router can:
-1. Auto-train PCA when artifact is missing
-2. Detect and handle dimension mismatches
+PCA lifecycle is owned by FeatureService (not BanditRouter).  These tests
+validate that the FeatureService can:
+1. Auto-train PCA when the artifact is missing (JIT path)
+2. Load an existing valid PCA artifact
 3. Validate variance capture
-4. Load existing valid PCA artifacts
+4. Create a BanditRouter with a JIT-trained PCA
+5. Persist JIT-trained PCA for subsequent startups
 """
-import pytest
-import tempfile
-import shutil
-from pathlib import Path
-import numpy as np
-import sys
 
-# Add src to path
+import sys
+import tempfile
+from pathlib import Path
+
+import numpy as np
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.router import BanditRouter
 
 
 class TestSelfHealingPCA:
-    """Test self-healing PCA functionality."""
-    
-    def test_missing_pca_auto_trains(self):
-        """Verify router auto-trains PCA when artifact is missing."""
-        # Use non-existent path
-        fake_path = "/tmp/nonexistent_pca_test.joblib"
-        
-        router = BanditRouter(
-            model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-            pca_path=fake_path,
-        )
-        
-        # Should have auto-trained PCA
-        assert router.pca is not None, "PCA should be auto-trained when missing"
-        assert router.pca.n_components == 32, "PCA should have 32 components"
-        
-        # Should have explained variance
-        explained_var = np.sum(router.pca.explained_variance_ratio_)
-        assert explained_var > 0.5, f"PCA should capture >50% variance, got {explained_var:.1%}"
-    
-    def test_valid_pca_loads_successfully(self):
-        """Verify router loads existing valid PCA."""
-        # Create temporary valid PCA
+    """Test self-healing PCA functionality via FeatureService."""
+
+    def test_missing_pca_auto_trains(self) -> None:
+        """FeatureService auto-trains PCA when the artifact path doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_path = Path(tmpdir) / "nonexistent_pca.joblib"
+            fs = FeatureService(pca_path=missing_path, allow_jit_training=True)
+
+            pca = fs.pca
+            assert pca is not None, "PCA should be auto-trained when missing"
+            assert pca.n_components_ == 32, "JIT PCA defaults to 32 components"
+
+            explained_var = float(np.sum(pca.explained_variance_ratio_))
+            assert explained_var > 0.5, (
+                f"PCA should capture >50% variance, got {explained_var:.1%}"
+            )
+
+    def test_valid_pca_loads_successfully(self) -> None:
+        """FeatureService loads a previously-saved PCA from disk."""
         with tempfile.TemporaryDirectory() as tmpdir:
             pca_path = Path(tmpdir) / "test_pca.joblib"
-            
-            # Create a router that will generate PCA
-            router1 = BanditRouter(
-                model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path,
+
+            fs1 = FeatureService(pca_path=pca_path, allow_jit_training=True)
+            _ = fs1.pca
+            assert pca_path.exists(), "JIT PCA should be persisted"
+
+            fs2 = FeatureService(pca_path=pca_path, allow_jit_training=False)
+            pca2 = fs2.pca
+            assert pca2 is not None, "PCA should load from disk"
+            assert pca2.n_components_ == 32
+
+    def test_pca_variance_validation(self) -> None:
+        """JIT-trained PCA captures reasonable variance."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fs = FeatureService(
+                pca_path=Path(tmpdir) / "pca.joblib",
+                allow_jit_training=True,
             )
-            
-            # PCA should be saved
-            assert pca_path.exists(), "PCA should be persisted"
-            
-            # Create new router - should load saved PCA
-            router2 = BanditRouter(
-                model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path,
-            )
-            
-            assert router2.pca is not None, "PCA should load from disk"
-            assert router2.pca.n_components == 32, "PCA should have 32 components"
-    
-    def test_synthetic_data_generation(self):
-        """Test synthetic prompt generation for PCA training."""
-        router = BanditRouter(
-            model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-        )
-        
-        # Generate synthetic prompts
-        prompts = router._generate_synthetic_data(n=100)
-        
-        assert len(prompts) == 100, "Should generate requested number of prompts"
-        assert all(isinstance(p, str) for p in prompts), "All prompts should be strings"
-        assert all(len(p) > 10 for p in prompts), "Prompts should be non-trivial"
-        
-        # Check diversity (no exact duplicates in small sample)
-        unique_prompts = set(prompts[:50])
-        assert len(unique_prompts) > 40, "Prompts should be diverse"
-    
-    def test_pca_variance_validation(self):
-        """Test that PCA variance is checked and logged."""
-        router = BanditRouter(
-            model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-        )
-        
-        if router.pca is not None:
-            explained_var = np.sum(router.pca.explained_variance_ratio_)
-            # Should capture reasonable variance
+            pca = fs.pca
+            assert pca is not None
+            explained_var = float(np.sum(pca.explained_variance_ratio_))
             assert explained_var > 0.3, f"PCA variance too low: {explained_var:.1%}"
-    
-    def test_no_pca_path_works(self):
-        """Test router works when no PCA path is provided."""
-        router = BanditRouter(
-            model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-            pca_path=None,
-        )
-        
-        # Should work fine without PCA (full dimensionality)
-        assert router.encoder is not None
-        
-    def test_jit_pca_persistence(self):
-        """Test that JIT-trained PCA is persisted for next startup."""
+
+    def test_default_feature_service_works(self) -> None:
+        """Default FeatureService (shipped PCA) initializes without error."""
+        fs = FeatureService()
+        assert fs.dimension > 0
+        vec = fs.extract_features("What is machine learning?")
+        assert np.all(np.isfinite(vec))
+
+    def test_jit_pca_persistence(self) -> None:
+        """JIT-trained PCA is persisted and reloaded identically."""
         with tempfile.TemporaryDirectory() as tmpdir:
             pca_path = Path(tmpdir) / "jit_pca.joblib"
-            
-            # First initialization - will JIT train
-            router1 = BanditRouter(
-                model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path,
-            )
-            
-            # Should have persisted
+
+            fs1 = FeatureService(pca_path=pca_path, allow_jit_training=True)
+            var1 = float(np.sum(fs1.pca.explained_variance_ratio_))
+
             assert pca_path.exists(), "JIT PCA should be saved"
-            
-            # Get variance of first PCA
-            var1 = np.sum(router1.pca.explained_variance_ratio_)
-            
-            # Second initialization - should load from disk
-            router2 = BanditRouter(
-                model_registry={"test/model": {"model_id": "test/model", "hle": 0.5}},
-                pca_path=pca_path,
-            )
-            
-            # Should have same variance (loaded same PCA)
-            var2 = np.sum(router2.pca.explained_variance_ratio_)
+
+            fs2 = FeatureService(pca_path=pca_path, allow_jit_training=False)
+            var2 = float(np.sum(fs2.pca.explained_variance_ratio_))
+
             assert abs(var1 - var2) < 0.01, "Loaded PCA should match saved PCA"
 
 
 class TestPCAIntegration:
-    """Test PCA integration with full router workflow."""
-    
-    def test_routing_works_with_jit_pca(self):
-        """Verify routing works correctly with JIT-trained PCA."""
-        router = BanditRouter(
-            model_registry={
-                "test/model1": {"model_id": "test/model1", "hle": 0.8},
-                "test/model2": {"model_id": "test/model2", "hle": 0.6}
+    """Test PCA integration with BanditRouter routing workflow."""
+
+    def test_routing_with_default_pca(self) -> None:
+        """BanditRouter routes correctly with the shipped default PCA."""
+        registry = {
+            "test/model1": {
+                "model_id": "test/model1",
+                "input_cost_per_m": 1.0,
+                "output_cost_per_m": 2.0,
+                "initial_quality": 0.8,
             },
-            pca_path="/tmp/test_routing_pca.joblib",
+            "test/model2": {
+                "model_id": "test/model2",
+                "input_cost_per_m": 0.5,
+                "output_cost_per_m": 1.0,
+                "initial_quality": 0.6,
+            },
+        }
+        router = BanditRouter.create(
+            model_registry=registry,
+            priors="none",
         )
-        
-        # Should be able to route
+
         selected, log = router.route("Write a Python function to sort a list")
-        
-        assert selected in ["test/model1", "test/model2"]
+        assert selected in registry
         assert log.context_vector is not None
         assert len(log.context_vector) > 0
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

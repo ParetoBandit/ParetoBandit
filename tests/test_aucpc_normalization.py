@@ -17,7 +17,7 @@ import pytest
 
 def _import_pareto_utils():
     project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root / "experiments"))
+    sys.path.insert(0, str(project_root / "experiments_v2"))
     from utils.pareto import pareto_aucpc_normalized  # type: ignore
 
     return pareto_aucpc_normalized

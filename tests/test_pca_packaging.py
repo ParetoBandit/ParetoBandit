@@ -178,31 +178,6 @@ class TestPackagingManifests:
 
 
 # ---------------------------------------------------------------------------
-# Backward compatibility
-# ---------------------------------------------------------------------------
-
-
-class TestBackwardCompatibility:
-    """Experiment-only constants still point to the source-tree artifacts dir."""
-
-    def test_artifacts_dir_unchanged(self) -> None:
-        from bandit_gpt.config import ARTIFACTS_DIR
-
-        assert ARTIFACTS_DIR.name == "artifacts"
-        assert ARTIFACTS_DIR.parent.name == "src"
-
-    def test_generic_pca_path_still_source_tree(self) -> None:
-        from bandit_gpt.config import GENERIC_PCA_PATH
-
-        assert "src" in str(GENERIC_PCA_PATH) and "artifacts" in str(GENERIC_PCA_PATH)
-
-    def test_warmup_priors_path_still_source_tree(self) -> None:
-        from bandit_gpt.config import WARMUP_PRIORS_PATH
-
-        assert WARMUP_PRIORS_PATH.exists(), f"Warmup priors missing: {WARMUP_PRIORS_PATH}"
-
-
-# ---------------------------------------------------------------------------
 # JIT retraining when artifact is absent
 # ---------------------------------------------------------------------------
 

@@ -1,259 +1,202 @@
-#!/usr/bin/env python3
 """
-Unit tests for data_loader gzip decompression functionality.
+Tests for JSONL data loading and gzip decompression.
 
-Tests ensure consistent loading of both compressed (.gz) and uncompressed (.jsonl) files.
+Validates that the canonical per-prompt reward format can be loaded from
+both plain ``.jsonl`` and compressed ``.jsonl.gz`` files, and that the
+shipped train/val/test splits conform to the expected schema.
 """
 
 import gzip
 import json
+import shutil
 import tempfile
-import unittest
 from pathlib import Path
-import sys
+from typing import Any, Dict, List
 
-# Add experiments to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "experiments"))
+import pytest
 
-from utils.data_loader import load_oracle_rewards
+from bandit_gpt.config import (
+    K3_ARM_ORDER,
+    TRAIN_DATA_PATH,
+    VAL_DATA_PATH,
+    HOLDOUT_DATA_PATH,
+)
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-class TestDataLoaderGzip(unittest.TestCase):
-    """Test gzip decompression in data_loader."""
-    
-    def setUp(self):
-        """Create temporary test data."""
-        self.temp_dir = tempfile.mkdtemp()
-        self.temp_path = Path(self.temp_dir)
-        
-        # Sample test data (minimal valid entries)
-        self.test_data = [
-            {
-                "model_id": "test/model-a",
-                "prompt": "What is 2+2?",
-                "response": "4",
-                "ok": True,
-                "raw_score": 0.95
-            },
-            {
-                "model_id": "test/model-b",
-                "prompt": "What is 2+2?",
-                "response": "Four",
-                "ok": True,
-                "raw_score": 0.85
-            },
-            {
-                "model_id": "test/model-a",
-                "prompt": "What is Python?",
-                "response": "A programming language",
-                "ok": True,
-                "raw_score": 0.90
-            }
-        ]
-    
-    def tearDown(self):
-        """Clean up temporary files."""
-        import shutil
-        shutil.rmtree(self.temp_dir)
-    
-    def test_load_uncompressed_jsonl(self):
-        """Test loading from standard uncompressed .jsonl file."""
-        # Create uncompressed file
-        test_file = self.temp_path / "test_data.jsonl"
-        with open(test_file, 'w') as f:
-            for entry in self.test_data:
-                f.write(json.dumps(entry) + '\n')
-        
-        # Load using data_loader (with mocked DATA_DIR)
-        import utils.data_loader as dl
-        original_data_dir = dl.DATA_DIR
-        try:
-            # Mock DATA_DIR to point to temp directory
-            dl.DATA_DIR = self.temp_path
-            
-            rewards = load_oracle_rewards("test_data.jsonl")
-            
-            # Validate structure
-            self.assertEqual(len(rewards), 2)  # 2 unique prompts
-            self.assertIn("What is 2+2?", rewards)
-            self.assertIn("What is Python?", rewards)
-            
-            # Validate rewards
-            self.assertAlmostEqual(rewards["What is 2+2?"]["test/model-a"], 0.95)
-            self.assertAlmostEqual(rewards["What is 2+2?"]["test/model-b"], 0.85)
-            self.assertAlmostEqual(rewards["What is Python?"]["test/model-a"], 0.90)
-            
-        finally:
-            dl.DATA_DIR = original_data_dir
-    
-    def test_load_compressed_gzip(self):
-        """Test loading from compressed .jsonl.gz file."""
-        # Create compressed file
-        test_file = self.temp_path / "test_data.jsonl.gz"
-        with gzip.open(test_file, 'wt') as f:
-            for entry in self.test_data:
-                f.write(json.dumps(entry) + '\n')
-        
-        # Load using data_loader
-        import utils.data_loader as dl
-        original_data_dir = dl.DATA_DIR
-        try:
-            dl.DATA_DIR = self.temp_path
-            
-            rewards = load_oracle_rewards("test_data.jsonl")  # Note: no .gz extension
-            
-            # Should auto-detect and load .gz version
-            self.assertEqual(len(rewards), 2)
-            self.assertAlmostEqual(rewards["What is 2+2?"]["test/model-a"], 0.95)
-            
-        finally:
-            dl.DATA_DIR = original_data_dir
-    
-    def test_prefer_uncompressed_when_both_exist(self):
-        """Test that uncompressed file is loaded when both .jsonl and .jsonl.gz exist."""
-        # Create both versions with DIFFERENT data to verify which is loaded
-        uncompressed_data = [self.test_data[0]]  # Only first entry
-        compressed_data = self.test_data  # All entries
-        
-        rewards_dir = self.temp_path / "rewards"
-        rewards_dir.mkdir(exist_ok=True)
-
-        # Uncompressed
-        test_file_plain = rewards_dir / "test_data.jsonl"
-        with open(test_file_plain, 'w') as f:
-            for entry in uncompressed_data:
-                f.write(json.dumps(entry) + '\n')
-
-        # Compressed
-        test_file_gz = rewards_dir / "test_data.jsonl.gz"
-        with gzip.open(test_file_gz, 'wt') as f:
-            for entry in compressed_data:
-                f.write(json.dumps(entry) + '\n')
-
-        # Load - should prefer uncompressed when both exist
-        import utils.data_loader as dl
-        original_rewards_dir = dl.OFFLINE_DATASET_DIR
-        try:
-            dl.OFFLINE_DATASET_DIR = rewards_dir
-            
-            rewards = load_oracle_rewards("test_data.jsonl")
-            
-            # Should have loaded uncompressed version (1 entry → 1 prompt)
-            self.assertEqual(len(rewards), 1)
-            self.assertIn("What is 2+2?", rewards)
-            self.assertNotIn("What is Python?", rewards)  # Only in compressed
-            
-        finally:
-            dl.OFFLINE_DATASET_DIR = original_rewards_dir
-    
-    def test_load_with_gz_extension_explicit(self):
-        """Test loading when .gz extension is explicitly provided."""
-        # Create compressed file
-        test_file = self.temp_path / "test_data.jsonl.gz"
-        with gzip.open(test_file, 'wt') as f:
-            for entry in self.test_data:
-                f.write(json.dumps(entry) + '\n')
-        
-        import utils.data_loader as dl
-        original_data_dir = dl.DATA_DIR
-        try:
-            dl.DATA_DIR = self.temp_path
-            
-            # Explicitly pass .gz extension
-            rewards = load_oracle_rewards("test_data.jsonl.gz")
-            
-            self.assertEqual(len(rewards), 2)
-            self.assertAlmostEqual(rewards["What is 2+2?"]["test/model-a"], 0.95)
-            
-        finally:
-            dl.DATA_DIR = original_data_dir
-    
-    def test_filter_failed_responses(self):
-        """Test that entries with ok=False are filtered out."""
-        test_data_with_failures = self.test_data + [
-            {
-                "model_id": "test/model-c",
-                "prompt": "What is 2+2?",
-                "response": "Error",
-                "ok": False,  # Should be filtered
-                "raw_score": 0.0
-            }
-        ]
-        
-        # Create compressed file
-        test_file = self.temp_path / "test_data.jsonl.gz"
-        with gzip.open(test_file, 'wt') as f:
-            for entry in test_data_with_failures:
-                f.write(json.dumps(entry) + '\n')
-        
-        import utils.data_loader as dl
-        original_data_dir = dl.DATA_DIR
-        try:
-            dl.DATA_DIR = self.temp_path
-            
-            rewards = load_oracle_rewards("test_data.jsonl")
-            
-            # Should only have 2 models for "What is 2+2?" (not 3)
-            self.assertEqual(len(rewards["What is 2+2?"]), 2)
-            self.assertNotIn("test/model-c", rewards["What is 2+2?"])
-            
-        finally:
-            dl.DATA_DIR = original_data_dir
-    
-    def test_rewards_directory(self):
-        """Test that OFFLINE_DATASET_DIR (rewards directory) is checked first."""
-        rewards_dir = self.temp_path / "rewards"
-        rewards_dir.mkdir()
-
-        test_file = rewards_dir / "test_data.jsonl.gz"
-        with gzip.open(test_file, 'wt') as f:
-            for entry in self.test_data:
-                f.write(json.dumps(entry) + '\n')
-
-        import utils.data_loader as dl
-        original_rewards_dir = dl.OFFLINE_DATASET_DIR
-        try:
-            dl.OFFLINE_DATASET_DIR = rewards_dir
-
-            rewards = load_oracle_rewards("test_data.jsonl")
-
-            self.assertEqual(len(rewards), 2)
-
-        finally:
-            dl.OFFLINE_DATASET_DIR = original_rewards_dir
-    
-    def test_large_file_streaming(self):
-        """Test that large files decompress efficiently without loading everything into memory."""
-        # Create a moderately large compressed file (1000 entries)
-        large_data = []
-        for i in range(1000):
-            large_data.append({
-                "model_id": f"test/model-{i % 10}",
-                "prompt": f"Test prompt {i}",
-                "response": f"Response {i}",
-                "ok": True,
-                "raw_score": 0.5 + (i % 10) * 0.05
-            })
-        
-        test_file = self.temp_path / "large_data.jsonl.gz"
-        with gzip.open(test_file, 'wt') as f:
-            for entry in large_data:
-                f.write(json.dumps(entry) + '\n')
-        
-        import utils.data_loader as dl
-        original_data_dir = dl.DATA_DIR
-        try:
-            dl.DATA_DIR = self.temp_path
-            
-            # Should load without memory issues
-            rewards = load_oracle_rewards("large_data.jsonl")
-            
-            # Validate count (1000 unique prompts)
-            self.assertEqual(len(rewards), 1000)
-            
-        finally:
-            dl.DATA_DIR = original_data_dir
+REQUIRED_RECORD_KEYS = {"prompt", "arms"}
+REQUIRED_ARM_KEYS = {"reward", "cost"}
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _load_jsonl(path: Path) -> List[Dict[str, Any]]:
+    """Load a JSONL file, auto-detecting gzip by extension."""
+    open_fn = gzip.open if path.suffix == ".gz" else open
+    mode = "rt" if path.suffix == ".gz" else "r"
+    records: List[Dict[str, Any]] = []
+    with open_fn(path, mode) as f:
+        for line in f:
+            records.append(json.loads(line))
+    return records
+
+
+def _make_sample_records(n: int = 5) -> List[Dict[str, Any]]:
+    """Return *n* synthetic records in the canonical per-prompt format."""
+    arms = {
+        "model-a": {"reward": 0.9, "cost": 1e-5, "near_best": True},
+        "model-b": {"reward": 0.7, "cost": 5e-4, "near_best": False},
+    }
+    return [
+        {
+            "prompt": f"Synthetic prompt {i}",
+            "difficulty": "easy",
+            "best_arm": "model-a",
+            "best_reward": 0.9,
+            "worst_reward": 0.7,
+            "reward_spread": 0.2,
+            "arms": arms,
+            "source": "test",
+        }
+        for i in range(n)
+    ]
+
+
+def _write_jsonl(records: List[Dict[str, Any]], path: Path) -> None:
+    """Write records as newline-delimited JSON."""
+    with open(path, "w") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+
+
+def _write_jsonl_gz(records: List[Dict[str, Any]], path: Path) -> None:
+    """Write records as gzip-compressed newline-delimited JSON."""
+    with gzip.open(path, "wt") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Gzip round-trip tests (self-contained, no real data needed)
+# ---------------------------------------------------------------------------
+
+
+class TestGzipRoundTrip:
+    """Verify plain and gzip JSONL produce identical records."""
+
+    @pytest.fixture(autouse=True)
+    def _tmpdir(self, tmp_path: Path) -> None:
+        self.tmp = tmp_path
+
+    def test_plain_jsonl_loads_correctly(self) -> None:
+        records = _make_sample_records(10)
+        path = self.tmp / "data.jsonl"
+        _write_jsonl(records, path)
+
+        loaded = _load_jsonl(path)
+        assert len(loaded) == 10
+        assert loaded[0]["prompt"] == "Synthetic prompt 0"
+        assert loaded[0]["arms"]["model-a"]["reward"] == pytest.approx(0.9)
+
+    def test_gzip_jsonl_loads_correctly(self) -> None:
+        records = _make_sample_records(10)
+        path = self.tmp / "data.jsonl.gz"
+        _write_jsonl_gz(records, path)
+
+        loaded = _load_jsonl(path)
+        assert len(loaded) == 10
+        assert loaded[0]["arms"]["model-b"]["cost"] == pytest.approx(5e-4)
+
+    def test_plain_and_gzip_are_identical(self) -> None:
+        records = _make_sample_records(25)
+        plain_path = self.tmp / "data.jsonl"
+        gz_path = self.tmp / "data.jsonl.gz"
+        _write_jsonl(records, plain_path)
+        _write_jsonl_gz(records, gz_path)
+
+        assert _load_jsonl(plain_path) == _load_jsonl(gz_path)
+
+    def test_large_file_streaming(self) -> None:
+        records = _make_sample_records(5_000)
+        path = self.tmp / "large.jsonl.gz"
+        _write_jsonl_gz(records, path)
+
+        loaded = _load_jsonl(path)
+        assert len(loaded) == 5_000
+
+
+# ---------------------------------------------------------------------------
+# Schema validation on shipped canonical splits
+# ---------------------------------------------------------------------------
+
+
+def _validate_record_schema(record: Dict[str, Any]) -> None:
+    """Assert a single record conforms to the canonical per-prompt schema."""
+    missing = REQUIRED_RECORD_KEYS - record.keys()
+    assert not missing, f"Missing top-level keys: {missing}"
+
+    assert isinstance(record["prompt"], str) and record["prompt"].strip()
+    assert isinstance(record["arms"], dict) and len(record["arms"]) > 0
+
+    for arm_id, arm_info in record["arms"].items():
+        arm_missing = REQUIRED_ARM_KEYS - arm_info.keys()
+        assert not arm_missing, f"Arm {arm_id!r} missing keys: {arm_missing}"
+        assert isinstance(arm_info["reward"], (int, float))
+        assert isinstance(arm_info["cost"], (int, float))
+        assert 0.0 <= arm_info["reward"] <= 1.0, (
+            f"reward out of [0,1]: {arm_info['reward']}"
+        )
+        assert arm_info["cost"] >= 0.0
+
+
+@pytest.mark.skipif(
+    not TRAIN_DATA_PATH.exists(), reason="Canonical train.jsonl not found"
+)
+class TestCanonicalSplits:
+    """Validate schema and basic integrity of the shipped K=3 splits."""
+
+    SPLITS = {
+        "train": (TRAIN_DATA_PATH, 8_374),
+        "val": (VAL_DATA_PATH, 1_785),
+        "test": (HOLDOUT_DATA_PATH, 1_824),
+    }
+
+    @pytest.mark.parametrize("split_name", ["train", "val", "test"])
+    def test_split_row_count(self, split_name: str) -> None:
+        path, expected_count = self.SPLITS[split_name]
+        records = _load_jsonl(path)
+        assert len(records) == expected_count, (
+            f"{split_name}: expected {expected_count} rows, got {len(records)}"
+        )
+
+    @pytest.mark.parametrize("split_name", ["train", "val", "test"])
+    def test_split_schema(self, split_name: str) -> None:
+        path, _ = self.SPLITS[split_name]
+        records = _load_jsonl(path)
+        for i, r in enumerate(records):
+            _validate_record_schema(r)
+
+    @pytest.mark.parametrize("split_name", ["train", "val", "test"])
+    def test_split_contains_k3_arms(self, split_name: str) -> None:
+        path, _ = self.SPLITS[split_name]
+        records = _load_jsonl(path)
+        for r in records[:50]:
+            for arm_id in K3_ARM_ORDER:
+                assert arm_id in r["arms"], (
+                    f"Missing arm {arm_id!r} in record: {r['prompt'][:60]}"
+                )
+
+    def test_no_prompt_overlap_across_splits(self) -> None:
+        prompts_by_split = {}
+        for split_name, (path, _) in self.SPLITS.items():
+            records = _load_jsonl(path)
+            prompts_by_split[split_name] = {r["prompt"] for r in records}
+
+        for a in self.SPLITS:
+            for b in self.SPLITS:
+                if a >= b:
+                    continue
+                overlap = prompts_by_split[a] & prompts_by_split[b]
+                assert not overlap, (
+                    f"{a}/{b} share {len(overlap)} prompts"
+                )
