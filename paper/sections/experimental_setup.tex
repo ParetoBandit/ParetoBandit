@@ -17,7 +17,7 @@ The 11,983 prompts are partitioned into three disjoint sets via stratified sampl
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Train} ($n{=}8{,}374$): Used \emph{offline} to build warmup priors that initialise the bandit's sufficient statistics ($A_a, b_a$), addressing the cold-start problem.  Never seen during online evaluation.
   \item \textbf{Val} ($n{=}1{,}785$): Used for online learning and hyperparameter selection (Section~\ref{sec:exp4_hparam_sweep}) under stationary conditions.
-  \item \textbf{Test} ($n{=}1{,}824$): Held-out evaluation split.  Non-stationary scenarios (reward drift, cost drift) are constructed by manipulating reward or cost columns at a mid-trajectory phase boundary.  All reported results use this split, averaged over multiple random seeds.
+  \item \textbf{Test} ($n{=}1{,}824$): Evaluation split, held out from both warmup-prior fitting and hyperparameter selection.  The bandit policy continues to receive feedback and adapt during the test trajectory, consistent with the standard cumulative-regret protocol for online learning~\cite{lattimore2020bandit}; ``held-out'' refers to data isolation, not policy freezing.  Non-stationary scenarios (reward drift, cost drift) are constructed by manipulating reward or cost columns at a mid-trajectory phase boundary.  All reported results use this split, averaged over multiple random seeds.
 \end{enumerate}
 
 \begin{table}[t]
@@ -31,7 +31,7 @@ The 11,983 prompts are partitioned into three disjoint sets via stratified sampl
 \midrule
 Train & 8,374 & Warmup priors (offline) \\
 Val   & 1,785 & Online learning, hparam tuning \\
-Test  & 1,824 & Held-out evaluation \\
+Test  & 1,824 & Online evaluation (held-out data) \\
 \midrule
 \textbf{Total} & \textbf{11,983} & \\
 \bottomrule
