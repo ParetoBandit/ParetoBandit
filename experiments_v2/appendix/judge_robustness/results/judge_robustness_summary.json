@@ -1,0 +1,155 @@
+{
+  "correlations": {
+    "openai/gpt-4.1-mini": {
+      "n": 6000,
+      "pearson": 0.6913,
+      "pearson_p": 0.0,
+      "spearman": 0.6577,
+      "spearman_p": 0.0,
+      "r1_mean": 0.8857,
+      "supp_mean": 0.9245,
+      "bias": 0.0387,
+      "per_model": {
+        "google/gemini-2.5-pro": {
+          "pearson": 0.316,
+          "spearman": 0.4881,
+          "n": 2000,
+          "r1_mean": 0.9353,
+          "supp_mean": 0.9636,
+          "bias": 0.0283
+        },
+        "meta-llama/llama-3.1-8b-instruct": {
+          "pearson": 0.7512,
+          "spearman": 0.7671,
+          "n": 2000,
+          "r1_mean": 0.7985,
+          "supp_mean": 0.8574,
+          "bias": 0.0589
+        },
+        "mistralai/mistral-large-2512": {
+          "pearson": 0.4329,
+          "spearman": 0.5895,
+          "n": 2000,
+          "r1_mean": 0.9233,
+          "supp_mean": 0.9524,
+          "bias": 0.029
+        }
+      }
+    },
+    "anthropic/claude-3.7-sonnet": {
+      "n": 6000,
+      "pearson": 0.7223,
+      "pearson_p": 0.0,
+      "spearman": 0.6329,
+      "spearman_p": 0.0,
+      "r1_mean": 0.8857,
+      "supp_mean": 0.8737,
+      "bias": -0.0121,
+      "per_model": {
+        "google/gemini-2.5-pro": {
+          "pearson": 0.3565,
+          "spearman": 0.436,
+          "n": 2000,
+          "r1_mean": 0.9353,
+          "supp_mean": 0.9277,
+          "bias": -0.0077
+        },
+        "meta-llama/llama-3.1-8b-instruct": {
+          "pearson": 0.7849,
+          "spearman": 0.7799,
+          "n": 2000,
+          "r1_mean": 0.7985,
+          "supp_mean": 0.7788,
+          "bias": -0.0197
+        },
+        "mistralai/mistral-large-2512": {
+          "pearson": 0.5108,
+          "spearman": 0.5312,
+          "n": 2000,
+          "r1_mean": 0.9233,
+          "supp_mean": 0.9146,
+          "bias": -0.0087
+        }
+      }
+    }
+  },
+  "routing_agreement": {
+    "openai/gpt-4.1-mini": {
+      "n_prompts": 2000,
+      "best_model_agreement": 0.6035,
+      "worst_model_agreement": 0.574,
+      "pairwise_sign_agreement": 0.8783,
+      "n_pairwise_comparisons": 6000,
+      "r1_mean_gap": 0.192,
+      "supp_mean_gap": 0.1398,
+      "gap_ratio": 1.3735
+    },
+    "anthropic/claude-3.7-sonnet": {
+      "n_prompts": 2000,
+      "best_model_agreement": 0.5795,
+      "worst_model_agreement": 0.5625,
+      "pairwise_sign_agreement": 0.9028,
+      "n_pairwise_comparisons": 6000,
+      "r1_mean_gap": 0.192,
+      "supp_mean_gap": 0.1857,
+      "gap_ratio": 1.034
+    }
+  },
+  "panel_comparison": {
+    "n_common_pairs": 6000,
+    "n_prompts": 2000,
+    "pearson_r1_vs_panel": 0.9063,
+    "r1_mean": 0.8857,
+    "panel_mean": 0.8946,
+    "mean_diff": 0.0089,
+    "best_model_agreement": 0.7725,
+    "pairwise_sign_agreement": 0.947
+  },
+  "n_subset_prompts": 2000,
+  "agreement_metrics": {
+    "anthropic/claude-3.7-sonnet": {
+      "n": 6000,
+      "pearson_r": 0.722261,
+      "pearson_p": 0.0,
+      "spearman_rho": 0.632938,
+      "spearman_p": 0.0,
+      "kendall_tau_b": 0.528247,
+      "kendall_p": 0.0,
+      "lins_ccc": 0.718,
+      "mean_bias": -0.012053,
+      "mad": 0.075304,
+      "bland_altman_mean": -0.012053,
+      "bland_altman_lower": -0.261585,
+      "bland_altman_upper": 0.237478
+    },
+    "openai/gpt-4.1-mini": {
+      "n": 6000,
+      "pearson_r": 0.691283,
+      "pearson_p": 0.0,
+      "spearman_rho": 0.657712,
+      "spearman_p": 0.0,
+      "kendall_tau_b": 0.547371,
+      "kendall_p": 0.0,
+      "lins_ccc": 0.649489,
+      "mean_bias": 0.038722,
+      "mad": 0.07358,
+      "bland_altman_mean": 0.038722,
+      "bland_altman_lower": -0.194059,
+      "bland_altman_upper": 0.271503
+    }
+  },
+  "gap_statistics": {
+    "deepseek-r1": {
+      "mean_gap": 0.192,
+      "median_gap": 0.11
+    },
+    "GPT-4.1-mini": {
+      "mean_gap": 0.1398,
+      "median_gap": 0.055
+    },
+    "Claude-3.7-Sonnet": {
+      "mean_gap": 0.1857,
+      "median_gap": 0.035
+    }
+  }
+}

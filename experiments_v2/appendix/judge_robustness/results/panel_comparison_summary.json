@@ -1,0 +1,12 @@
+{
+  "r1_mean_gap": 0.192,
+  "panel_mean_gap": 0.1591,
+  "gap_compression_pct": 17.1,
+  "r1_mean_margin": 0.0485,
+  "panel_mean_margin": 0.0338,
+  "margin_compression_pct": 30.2,
+  "frac_compressed": 63.4,
+  "r1_panel_best_model_agreement": 68.7,
+  "r1_snr": 0.617,
+  "panel_snr": 0.586
+}
