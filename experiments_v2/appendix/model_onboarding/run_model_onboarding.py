@@ -65,7 +65,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments_v2"))
 
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import (
@@ -364,7 +364,7 @@ def _run_trial(
 
     train_order = rng.permutation(train_k3.n)
     for step_idx, i in enumerate(train_order):
-        model, log = router.route(train_k3.embeddings[i], total_steps=train_k3.n)
+        model, log = router.route(train_k3.embeddings[i])
         reward = float(train_k3.rewards[model][i])
         cost = float(train_k3.costs[model][i])
         oracle = max(float(train_k3.rewards[a][i]) for a in K3_ARMS)
@@ -430,9 +430,7 @@ def _run_trial(
         if strategy == STRATEGY_FIXED_UNIFORM:
             model = rng.choice(K4_ARMS)
         else:
-            model, log = router.route(
-                eval_k4.embeddings[i], total_steps=eval_k4.n,
-            )
+            model, log = router.route(eval_k4.embeddings[i])
             log.cost_usd = float(eval_k4.costs[model][i])
             router.process_feedback(log.request_id, reward=float(eval_k4.rewards[model][i]))
 

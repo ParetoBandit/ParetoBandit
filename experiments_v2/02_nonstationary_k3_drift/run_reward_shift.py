@@ -58,7 +58,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments_v2"))
 
 from bandit_gpt.config import (
     BEST_K3_HPARAMS,

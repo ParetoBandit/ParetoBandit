@@ -37,7 +37,7 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
+sys.path.insert(0, str(PROJECT_ROOT / "experiments_v2"))
 
 from bandit_gpt.config import (
     K3_ARM_ORDER,
@@ -77,7 +77,8 @@ PHASE1_N: int = 893
 PHASE2_N: int = 892
 COST_PENALTY: float = 0.20
 PRIOR_N_EFFECTIVE: float = 50.0
-ALPHA: float = 0.5
+ALPHA_WARMUP: float = 0.25
+ALPHA_TABULA_RASA: float = 0.01
 
 N_SEEDS: int = 20
 SEED_OFFSET: int = 9000
@@ -94,6 +95,8 @@ CONDITIONS: List[Dict[str, Any]] = [
         "label": f"γ={g}",
         "forgetting_factor": g,
         "adaptive_gamma": False,
+        "warmup": True,
+        "alpha": ALPHA_WARMUP,
     }
     for g in GAMMA_VALUES
 ] + [
@@ -101,7 +104,18 @@ CONDITIONS: List[Dict[str, Any]] = [
         "label": "Adaptive γ",
         "forgetting_factor": 1.0,
         "adaptive_gamma": True,
+        "warmup": True,
+        "alpha": ALPHA_WARMUP,
     },
+] + [
+    {
+        "label": f"TR γ={g}",
+        "forgetting_factor": g,
+        "adaptive_gamma": False,
+        "warmup": False,
+        "alpha": ALPHA_TABULA_RASA,
+    }
+    for g in GAMMA_VALUES
 ]
 
 
@@ -173,8 +187,10 @@ def _create_router(
     *,
     forgetting_factor: float = 1.0,
     adaptive_gamma: bool = False,
+    warmup: bool = True,
+    alpha: float = 0.25,
 ) -> BanditRouter:
-    """Build a K=3 router with warmup priors.
+    """Build a K=3 router with optional warmup priors.
 
     Parameters
     ----------
@@ -186,6 +202,10 @@ def _create_router(
         Fixed forgetting factor (ignored when adaptive_gamma=True).
     adaptive_gamma : bool
         Enable the dual-EMA adaptive forgetting mechanism.
+    warmup : bool
+        Whether to load warmup priors (False = Tabula Rasa).
+    alpha : float
+        LinUCB exploration coefficient.
 
     Returns
     -------
@@ -197,10 +217,10 @@ def _create_router(
         model_registry=registry,
         feature_service=fs,
         context_store=store,
-        priors="warmup",
-        warmup_path=str(K3_WARMUP_PRIORS_PATH),
+        priors="warmup" if warmup else "none",
+        warmup_path=str(K3_WARMUP_PRIORS_PATH) if warmup else None,
         prior_n_effective=PRIOR_N_EFFECTIVE,
-        alpha=ALPHA,
+        alpha=alpha,
         use_corralling=False,
         cost_penalty=COST_PENALTY,
         forgetting_factor=forgetting_factor,
@@ -260,6 +280,8 @@ def _evaluate_condition(
             feature_dim,
             forgetting_factor=condition["forgetting_factor"],
             adaptive_gamma=condition.get("adaptive_gamma", False),
+            warmup=condition.get("warmup", True),
+            alpha=condition.get("alpha", ALPHA_WARMUP),
         )
 
         p1_order = rng.permutation(n_p1)
@@ -402,7 +424,8 @@ def main() -> None:
         "phase1_n": PHASE1_N,
         "phase2_n": PHASE2_N,
         "cost_penalty": COST_PENALTY,
-        "alpha": ALPHA,
+        "alpha_warmup": ALPHA_WARMUP,
+        "alpha_tabula_rasa": ALPHA_TABULA_RASA,
         "prior_n_effective": PRIOR_N_EFFECTIVE,
         "gamma_values": GAMMA_VALUES,
         "results": results,
