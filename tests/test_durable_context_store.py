@@ -36,7 +36,7 @@ class TestSqliteContextStore:
             store.save_context(request_id, context, model_id)
             
             # Retrieve
-            retrieved_context, retrieved_model, _ = store.get_context(request_id)
+            retrieved_context, retrieved_model = store.get_context(request_id)
             
             assert retrieved_model == model_id
             assert np.allclose(retrieved_context, context)
@@ -59,7 +59,7 @@ class TestSqliteContextStore:
             
             # Second "process" - retrieve context
             store2 = SqliteContextStore(db_path=db_path)
-            retrieved_context, retrieved_model, _ = store2.get_context(request_id)
+            retrieved_context, retrieved_model = store2.get_context(request_id)
             
             assert retrieved_model == model_id
             assert np.allclose(retrieved_context, context)
@@ -81,7 +81,7 @@ class TestSqliteContextStore:
             # For testing, we verify the record exists before pruning
             
             # Should still be retrievable
-            retrieved_context, retrieved_model, _ = store.get_context(request_id)
+            retrieved_context, retrieved_model = store.get_context(request_id)
             assert retrieved_context is not None
             assert np.allclose(retrieved_context, context)
     
@@ -106,7 +106,7 @@ class TestSqliteContextStore:
             assert deleted >= 1, "Should have pruned at least one record"
             
             # Should no longer be retrievable
-            retrieved_context, retrieved_model, _ = store.get_context(request_id)
+            retrieved_context, retrieved_model = store.get_context(request_id)
             assert retrieved_context is None
             assert retrieved_model is None
     
@@ -126,7 +126,7 @@ class TestSqliteContextStore:
             
             # All should be gone
             for i in range(5):
-                context, model, _ = store.get_context(f"request-{i}")
+                context, model = store.get_context(f"request-{i}")
                 assert context is None
     
     def test_stats_method(self):
@@ -155,7 +155,7 @@ class TestSqliteContextStore:
             store = SqliteContextStore(db_path=db_path)
             
             # Try to get non-existent context
-            context, model, _ = store.get_context("missing-request-id")
+            context, model = store.get_context("missing-request-id")
             
             assert context is None
             assert model is None
@@ -187,7 +187,7 @@ class TestEphemeralContextStore:
         context = np.random.rand(384)
         store.save_context(request_id, context, "gpt-4")
         
-        retrieved_context, retrieved_model, _ = store.get_context(request_id)
+        retrieved_context, retrieved_model = store.get_context(request_id)
         assert retrieved_model == "gpt-4"
         assert np.allclose(retrieved_context, context)
     
@@ -198,7 +198,7 @@ class TestEphemeralContextStore:
         
         # "Restart" by creating new instance
         store2 = EphemeralContextStore()
-        context, model, _ = store2.get_context("test")
+        context, model = store2.get_context("test")
         
         # Should not be found (no persistence)
         assert context is None
@@ -214,7 +214,7 @@ class TestEphemeralContextStore:
             store.save_context(f"request-{i}", np.random.rand(384), "gpt-4")
         
         # Oldest should be evicted
-        context, model, _ = store.get_context("request-0")
+        context, model = store.get_context("request-0")
         assert context is None  # Evicted
 
 
@@ -246,7 +246,7 @@ class TestFeedbackHorizonFallacy:
             store2 = SqliteContextStore(db_path=db_path)
             
             # Retrieve context for feedback processing
-            retrieved_context, retrieved_model, _ = store2.get_context(request_id)
+            retrieved_context, retrieved_model = store2.get_context(request_id)
             
             # Should successfully retrieve even after restart
             assert retrieved_model == selected_model

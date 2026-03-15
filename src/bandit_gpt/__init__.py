@@ -11,6 +11,7 @@ from .router import BanditRouter
 from .exceptions import MissingCostError, NoEligibleModelsError, NoModelScoredError
 from .family import infer_model_family, tetrachoric_corr, compute_correlation_families
 from .feature_service import FeatureService
+from .storage import SqliteContextStore, EphemeralContextStore
 from .calibration import train_pca, generate_warmup_priors
 from .providers import (
     LLMClient, OpenRouterClient, OpenAIClient,
@@ -25,6 +26,7 @@ __all__ = [
     "DisjointLinUCBPolicy", "calibrate_priors",
     "MissingCostError", "NoEligibleModelsError", "NoModelScoredError",
     "FeatureService",
+    "SqliteContextStore", "EphemeralContextStore",
     "infer_model_family",
     "tetrachoric_corr", "compute_correlation_families",
     "train_pca", "generate_warmup_priors",

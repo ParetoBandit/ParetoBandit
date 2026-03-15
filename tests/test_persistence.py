@@ -47,7 +47,7 @@ def test_sqlite_write_read():
         print(f"✓ Wrote context for request_id='{request_id}'")
         
         # Read back
-        retrieved_context, retrieved_model, _ = store.get_context(request_id)
+        retrieved_context, retrieved_model = store.get_context(request_id)
         
         # Verify
         assert retrieved_context is not None, "Context should not be None"
@@ -87,7 +87,7 @@ def test_sqlite_overwrite():
         store.save_context(request_id, context2, "model_b")
         
         # Verify only the latest exists
-        retrieved_context, retrieved_model, _ = store.get_context(request_id)
+        retrieved_context, retrieved_model = store.get_context(request_id)
         
         assert retrieved_model == "model_b", "Should have latest model"
         assert np.allclose(retrieved_context, context2), "Should have latest context"
@@ -119,7 +119,7 @@ def test_sqlite_ttl_pruning():
         print(f"✓ Saved context with TTL=1s")
         
         # Verify it exists immediately
-        retrieved, _, _ = store.get_context(request_id)
+        retrieved, _ = store.get_context(request_id)
         assert retrieved is not None, "Context should exist immediately"
         print(f"✓ Context exists immediately after save")
         
@@ -132,7 +132,7 @@ def test_sqlite_ttl_pruning():
         print(f"✓ Pruned {pruned_count} expired entries")
         
         # Verify it's gone
-        retrieved_after_prune, _, _ = store.get_context(request_id)
+        retrieved_after_prune, _ = store.get_context(request_id)
         assert retrieved_after_prune is None, "Context should be None after prune"
         print(f"✓ Context successfully removed after TTL expiration")
         print("\n✅ PASS: SQLite TTL Pruning")
@@ -159,7 +159,7 @@ def test_ephemeral_store():
     
     # Verify all 3 exist
     for i in range(3):
-        retrieved, model, _ = store.get_context(f"request_{i}")
+        retrieved, model = store.get_context(f"request_{i}")
         assert retrieved is not None, f"Context {i} should exist"
     
     print(f"✓ All 3 contexts retrievable")
@@ -168,11 +168,11 @@ def test_ephemeral_store():
     store.save_context("request_3", np.array([3.0] * 5), "model_3")
     
     # Verify request_0 is gone (FIFO eviction)
-    evicted, _, _ = store.get_context("request_0")
+    evicted, _ = store.get_context("request_0")
     assert evicted is None, "Oldest context should be evicted"
     
     # Verify request_3 exists
-    newest, _, _ = store.get_context("request_3")
+    newest, _ = store.get_context("request_3")
     assert newest is not None, "Newest context should exist"
     
     print(f"✓ FIFO eviction works correctly")
@@ -192,7 +192,7 @@ def test_missing_context():
         store = SqliteContextStore(db_path=db_path)
         
         # Request non-existent context
-        retrieved, model, _ = store.get_context("does_not_exist")
+        retrieved, model = store.get_context("does_not_exist")
         
         assert retrieved is None, "Should return None for missing context"
         assert model is None, "Should return None for missing model"

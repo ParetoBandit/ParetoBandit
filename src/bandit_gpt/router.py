@@ -201,7 +201,10 @@ class BanditRouter:
             embedding_dim: Dimension override (auto-detected if feature_service provided)
             init_lambda: Initialization regularization (A₀ = λI)
             forgetting_factor: Temporal decay (1.0 = stationary)
-            context_store: Persistent storage for delayed feedback
+            context_store: Storage backend for context vectors. Defaults to
+                EphemeralContextStore (RAM-only, no disk). Pass
+                SqliteContextStore() for persistence across restarts
+                (required for delayed feedback / RLHF workflows).
             config: Router configuration object
             verbose_routing: Enable detailed breakdown logs for each routing decision
             cost_penalty: λ_c for UCB cost penalty (paper Eq. 4). At selection
@@ -334,11 +337,11 @@ class BanditRouter:
 
 
         # ---------------------------------------------------------------------------
-        # Tiered Context Storage
+        # Context Storage (opt-in persistence)
         # ---------------------------------------------------------------------------
-        # Default: SqliteContextStore (production, zero dependencies, 7-day TTL)
-        # Alternative: EphemeralContextStore (testing, RAM-only, 100s horizon)
-        self.context_store = context_store or SqliteContextStore()
+        # Default: EphemeralContextStore (RAM-only, no disk I/O)
+        # For delayed feedback / RLHF: pass SqliteContextStore() explicitly
+        self.context_store = context_store or EphemeralContextStore()
         logger.info(f"Context store: {type(self.context_store).__name__}")
 
         # ---------------------------------------------------------------------------
@@ -1466,9 +1469,9 @@ class BanditRouter:
         **Reward clamping**: Values outside [0, 1] are clipped silently.
 
         **Delayed feedback (RLHF)**: If the in-memory log has been evicted,
-        the method falls back to the ``SqliteContextStore``.  Feedback can
-        arrive hours or days after routing as long as the context has not
-        expired (default TTL: 7 days).
+        the method falls back to the configured ``context_store``.  To support
+        feedback arriving hours or days after routing, pass a
+        ``SqliteContextStore`` when constructing the router.
 
         Args:
             request_id: The ``RoutingLog.request_id`` returned by ``route()``.
@@ -1486,9 +1489,7 @@ class BanditRouter:
         
         # Fallback to context_store for delayed feedback (RLHF)
         if log is None:
-            context, model_id, _stored_token = self.context_store.get_context(
-                request_id
-            )
+            context, model_id = self.context_store.get_context(request_id)
             if context is None:
                 logger.warning(f"Context not found for request_id={request_id}")
                 return
