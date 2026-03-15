@@ -15,640 +15,85 @@ New Model Registration:
 
 from __future__ import annotations
 
-import json
-import math
-import time
-import uuid
+import copy
 import logging
+import math
 import os
 import threading
+import time
+import uuid
+from collections import deque
 from contextlib import contextmanager
-from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from collections import Counter, deque, defaultdict
-from typing import Any, Dict, Generator, List, Tuple, Optional, Literal, TypedDict, Union
-import re
-import copy
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import numpy as np
 
 # Prevent tokenizers parallelism hangs (common with SentenceTransformers).
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-# SentenceTransformer is optional; only needed when the default embedding
-# pipeline is used (i.e. no custom_encoder or pre-computed vectors).
 try:
     from sentence_transformers import SentenceTransformer
 except ImportError:
     SentenceTransformer = None  # type: ignore[misc,assignment]
-
 
 try:
     from bandit_gpt.cluster_detector import ClusterDetector
 except ImportError:
     ClusterDetector = None  # Optional feature
 
-
 try:
     import joblib
 except ImportError:
     joblib = None
 
+# ---------------------------------------------------------------------------
+# Canonical modules — re-exported here for backward compatibility so that
+# ``from bandit_gpt.router import X`` continues to work for all consumers.
+# ---------------------------------------------------------------------------
+from bandit_gpt.policy import (  # noqa: F401 — re-exported
+    DisjointLinUCBPolicy,
+    BanditState,
+    calibrate_priors,
+    _SMUpdateResult,
+    _argmax_random_tiebreak,
+    _inflate_variance,
+    _effective_staleness,
+    _sherman_morrison_update,
+    _safe_multivariate_normal,
+    _MAX_VAR_INFLATION_FACTOR,
+    _MAX_STALENESS_DT,
+    _REGULARIZATION_FLOOR_FRACTION,
+    _SM_DENOMINATOR_THRESHOLD,
+    _OUTPUT_COST_MULTIPLIER,
+)
+from bandit_gpt.types import (  # noqa: F401 — re-exported
+    RouterConfig,
+    RegistrationConfig,
+    ExplorationRate,
+    RoutingLog,
+    Capability,
+    SpeedProfile,
+)
 
-
-# ---------------------------------------------------------------------------
-# Progressive Registration API: Type Definitions
-# ---------------------------------------------------------------------------
-Capability = Literal["coding", "math", "creative", "reasoning", "general"]
-SpeedProfile = Literal["fast", "balanced", "slow"]
-
-# ---------------------------------------------------------------------------
-# Imports: Storage, Features, Utils
-# ---------------------------------------------------------------------------
-try:
-    from bandit_gpt.storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from bandit_gpt.utils import sigmoid, procedural_warmup, safe_inv, get_heuristic_prior
-except ImportError:
-    # Fallback for direct file import (not installed as package)
-    from .storage import ContextStore, EphemeralContextStore, SqliteContextStore
-    from .utils import sigmoid, procedural_warmup, safe_inv, get_heuristic_prior
+from bandit_gpt.storage import ContextStore, EphemeralContextStore, SqliteContextStore
+from bandit_gpt.utils import sigmoid, safe_inv, get_heuristic_prior
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Staleness Variance Inflation Cap
+# Exception Classes (canonical definitions in bandit_gpt.exceptions)
 # ---------------------------------------------------------------------------
-# When forgetting_factor (gamma) < 1.0 the UCB variance for an arm that has
-# not been selected recently is inflated by dividing the base variance by
-# gamma^dt.  This implements "optimism in the face of uncertainty" for stale
-# arms: an arm the router has avoided for a long time is treated as more
-# uncertain, encouraging re-exploration.
-#
-# Without a floor on gamma^dt the inflation is unbounded as dt → ∞.  Because
-# cost penalties are additive constants, a sufficiently large dt would cause
-# the exploration bonus (alpha * sqrt(var / gamma^dt)) to dominate any finite
-# cost_penalty, guaranteeing selection of stale arms regardless of cost.
-#
-# This constant caps the variance multiplier at _MAX_VAR_INFLATION_FACTOR,
-# i.e., the effective floor on gamma^dt is 1 / _MAX_VAR_INFLATION_FACTOR.
-# At maximum inflation the exploration bonus grows by at most
-# sqrt(200) ≈ 14× relative to the uninflated baseline — strong enough to
-# force re-exploration but bounded enough to preserve the cost signal.
-#
-# **This path is only active when forgetting_factor < 1.0 (non-default).**
-# The default configuration is stationary (forgetting_factor = 1.0) and
-# never applies variance inflation; the cost penalty remains fully effective
-# at all times in the default deployment.
-#
-# If stricter cost control is required alongside non-stationary forgetting,
-# reduce alpha or increase cost_penalty rather than relaxing this cap.
-_MAX_VAR_INFLATION_FACTOR: float = 200.0
-"""Maximum factor by which staleness may inflate the UCB variance term.
-
-Applies only when forgetting_factor < 1.0.  Adjust downward to tighten cost
-enforcement in non-stationary deployments, or upward for more aggressive
-staleness-driven exploration.  The default (200) keeps the worst-case
-exploration bonus within ~14× of the steady-state value.
-"""
-
-# ---------------------------------------------------------------------------
-# Numerical Stability Constants
-# ---------------------------------------------------------------------------
-
-_MAX_STALENESS_DT: int = 1000
-"""Maximum dt (time steps since last update) used in gamma^dt decay calculations.
-
-Caps the exponent so that gamma^dt does not underflow to exactly 0.0 for any
-gamma in (0, 1).  At dt=1000 and gamma=0.99, gamma^dt ≈ 4.3e-5, which is
-comfortably above float64 underflow.  Arms unseen for longer than this are
-treated identically to arms unseen for exactly _MAX_STALENESS_DT steps.
-"""
-
-_REGULARIZATION_FLOOR_FRACTION: float = 0.1
-"""Fraction of init_lambda used as the proactive-regularization trigger threshold.
-
-During each update, if effective regularization (estimated from the diagonal
-of A) has decayed to below init_lambda * _REGULARIZATION_FLOOR_FRACTION,
-a top-up injection is triggered before the rank-1 Sherman-Morrison update.
-This prevents the covariance matrix from approaching singularity in
-high-traffic, non-stationary settings before the SM denominator check fires.
-"""
-
-_SM_DENOMINATOR_THRESHOLD: float = 1e-6
-"""Minimum absolute denominator for the Sherman-Morrison rank-1 update.
-
-The SM denominator is 1 + weight * x^T A^{-1} x.  For any positive-definite
-A (guaranteed by initialisation and rank-1 PD updates) this quantity is
-always >= 1.  Falling below this threshold therefore signals floating-point
-corruption of the cached A_inv matrix rather than a legitimate near-zero
-value, and triggers a full O(d^3) recomputation from scratch.
-"""
-
-_OUTPUT_COST_MULTIPLIER: float = 3.0
-"""Heuristic ratio of output-token cost to input-token cost used to derive
-blended_cost_per_m when only cost_usd (input-token price) is provided.
-
-Typical LLM pricing charges 3–5× more for output than input tokens.  The
-default of 3.0 is conservative; increase for providers with higher output
-premiums.  The blended cost is (input_cost + output_cost) / 2.
-"""
-
-
-def _argmax_random_tiebreak(scores: Dict[str, float]) -> str:
-    """
-    Return the key with the maximum value, breaking ties uniformly at random.
-
-    Standard ``max(scores, key=scores.get)`` is deterministic when values are
-    tied (returns the first key in insertion order).  For bandit algorithms this
-    introduces a silent bias: e.g. a freshly-initialized policy always picks the
-    first model in the list before any learning has occurred.
-
-    This helper collects all keys sharing the maximum value and returns one
-    uniformly at random, eliminating initialization-order bias.
-    """
-    finite = {k: v for k, v in scores.items() if np.isfinite(v)}
-    if not finite:
-        keys = list(scores.keys())
-        return keys[np.random.randint(len(keys))]
-    max_val = max(finite.values())
-    tied = [k for k, v in finite.items() if abs(v - max_val) < 1e-12]
-    if len(tied) == 1:
-        return tied[0]
-    return tied[np.random.randint(len(tied))]
-
-
-def _inflate_variance(
-    var: float,
-    gamma: float,
-    dt: int,
-    max_staleness_dt: int = _MAX_STALENESS_DT,
-    max_var_inflation: float = _MAX_VAR_INFLATION_FACTOR,
-) -> float:
-    """Apply staleness-based variance inflation with a bounded cap.
-
-    When ``gamma < 1.0``, divides ``var`` by ``gamma^dt`` to widen the
-    confidence interval for stale arms, capped at *max_var_inflation*
-    to prevent the exploration bonus from overwhelming additive cost penalties.
-
-    For stationary settings (``gamma == 1.0``) or ``dt == 0``, returns ``var``
-    unchanged.
-
-    Args:
-        var: Base variance (x^T A^{-1} x).
-        gamma: Forgetting factor in (0, 1].
-        dt: Steps since last update or selection (non-negative).
-        max_staleness_dt: Cap on ``dt`` to avoid float64 underflow in
-            ``gamma^dt``.
-        max_var_inflation: Maximum multiplicative factor for the variance.
-
-    Returns:
-        Inflated (or unchanged) variance.
-    """
-    if gamma >= 1.0 or dt <= 0:
-        return var
-    decay_factor = gamma ** min(dt, max_staleness_dt)
-    inflation_floor = 1.0 / max_var_inflation
-    return var / max(decay_factor, inflation_floor, 1e-12)
-
-
-
-def _effective_staleness(
-    t: int,
-    last_update: Dict[str, int],
-    last_played: Dict[str, int],
-    model: str,
-) -> int:
-    """Request-count intervals since the most recent event for *model*.
-
-    ``t`` is a *request counter*: it is incremented at route time by
-    ``mark_selected()``, not at feedback time.  Uses
-    ``max(last_update, last_played)`` as the reference to prevent
-    artificial uncertainty inflation for arms whose feedback is
-    still in flight (delayed RLHF scenario).
-
-    Args:
-        t: Global logical clock (request counter).
-        last_update: Per-model timestamp of last update.
-        last_played: Per-model timestamp of last selection.
-        model: Model identifier.
-
-    Returns:
-        Non-negative staleness in request-count units.
-    """
-    most_recent = max(
-        last_update.get(model, 0),
-        last_played.get(model, 0),
-    )
-    return t - most_recent
-
-
-@dataclass
-class _SMUpdateResult:
-    """Return value of :func:`_sherman_morrison_update`."""
-    A: np.ndarray
-    A_inv: np.ndarray
-    b: np.ndarray
-    regularization_floor: float
-    used_fallback: bool
-
-
-def _sherman_morrison_update(
-    A: np.ndarray,
-    A_inv: np.ndarray,
-    b: np.ndarray,
-    x: np.ndarray,
-    reward: float,
-    weight: float,
-    init_lambda: float,
-    regularization_floor: float,
-    model_name: str,
-    reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
-) -> _SMUpdateResult:
-    """Perform a rank-1 Sherman-Morrison update on (A, A_inv, b).
-
-    Encapsulates the O(d^2) rank-1 update and the O(d^3) near-singularity
-    fallback with gap-based regularization injection.  Callers handle locking
-    and time advancement; this function is pure linear algebra.
-
-    Args:
-        A: Current precision matrix (d x d).
-        A_inv: Cached inverse of A (d x d).
-        b: Target vector (d,).
-        x: Context vector (d,).
-        reward: Observed reward for this observation.
-        weight: Importance weight (must be > 0).
-        init_lambda: Baseline regularization strength (lambda_0).
-        regularization_floor: Current tracked floor for this arm.
-        model_name: For logging only.
-        reg_floor_fraction: Minimum fraction of *init_lambda* used as
-            the fallback regularization injection floor.
-
-    Returns:
-        :class:`_SMUpdateResult` containing updated matrices and floor.
-    """
-    x_outer = weight * np.outer(x, x)
-    reward_x = weight * reward * x
-
-    u = x * np.sqrt(weight)
-    A_inv_u = A_inv @ u
-    v_A_inv = u @ A_inv
-    denominator = 1.0 + (u @ A_inv_u)
-
-    if abs(denominator) > _SM_DENOMINATOR_THRESHOLD:
-        new_A_inv = A_inv - np.outer(A_inv_u, v_A_inv) / denominator
-        new_A = A + x_outer
-        new_b = b + reward_x
-        return _SMUpdateResult(
-            A=new_A, A_inv=new_A_inv, b=new_b,
-            regularization_floor=regularization_floor,
-            used_fallback=False,
-        )
-
-    # Fallback: A_inv has drifted — rebuild from scratch with gap-based
-    # regularization injection.  See DisjointLinUCBPolicy.update() docstring
-    # for the full mathematical rationale.
-    logger.warning(
-        f"[WARN] Sherman-Morrison near-singularity for {model_name}: "
-        f"|denominator|={abs(denominator):.2e} < {_SM_DENOMINATOR_THRESHOLD}. "
-        f"A_inv has numerically drifted; rebuilding with gap-based "
-        f"regularisation injection."
-    )
-    needed = max(init_lambda - regularization_floor, init_lambda * reg_floor_fraction)
-    dim = A.shape[0]
-    new_A = A + x_outer + needed * np.eye(dim)
-    new_A_inv = safe_inv(new_A)
-    new_b = b + reward_x
-    return _SMUpdateResult(
-        A=new_A, A_inv=new_A_inv, b=new_b,
-        regularization_floor=regularization_floor + needed,
-        used_fallback=True,
-    )
-
-
-def _safe_multivariate_normal(
-    mean: np.ndarray,
-    cov: np.ndarray,
-    n_samples: int,
-    dim: int,
-    rng: np.random.Generator | None = None,
-) -> np.ndarray:
-    """Draw from a multivariate normal with numerical safety fallbacks.
-
-    Attempts ``rng.multivariate_normal`` first, then adds jitter,
-    then falls back to diagonal sampling if the covariance is too
-    ill-conditioned.
-
-    Args:
-        mean: Mean vector of shape ``(dim,)``.
-        cov: Covariance matrix of shape ``(dim, dim)``.
-        n_samples: Number of draws.
-        dim: Dimensionality (used for diagonal fallback).
-        rng: Explicit NumPy random generator for reproducibility.
-            Falls back to ``np.random.default_rng()`` if *None*.
-
-    Returns:
-        Array of shape ``(n_samples, dim)``.
-    """
-    if rng is None:
-        rng = np.random.default_rng()
-    try:
-        return rng.multivariate_normal(mean, cov, n_samples)
-    except np.linalg.LinAlgError:
-        pass
-
-    jitter = max(np.trace(cov) / dim, 1e-12) * 1e-6
-    cov_safe = cov + jitter * np.eye(dim)
-    try:
-        return rng.multivariate_normal(mean, cov_safe, n_samples)
-    except np.linalg.LinAlgError:
-        avg_var = max(np.trace(cov) / dim, 1e-12)
-        return rng.normal(
-            loc=mean, scale=np.sqrt(avg_var), size=(n_samples, dim)
-        )
-
-
-# ---------------------------------------------------------------------------
-# Exception Classes
-# ---------------------------------------------------------------------------
-
-class MissingCostError(ValueError):
-    """Raised when a model has no blended cost and it cannot be derived.
-
-    The router requires every registered model to have a known
-    ``blended_cost_per_m`` ($/M tokens).  This can be provided directly,
-    via ``price_1m_blended``, or derived from both ``input_cost_per_m``
-    and ``output_cost_per_m``.  If none of these are available (or only
-    one of input/output is present), this error is raised at init time
-    so the user can fix the registry entry.
-    """
-
-
-class NoEligibleModelsError(Exception):
-    """Raised when no models pass the hard cost/latency/quality constraints.
-
-    Attributes:
-        reasons: Mapping of model_id -> list of human-readable exclusion strings.
-    """
-
-    def __init__(
-        self,
-        reasons: Dict[str, List[str]],
-        max_cost: float | None = None,
-        max_latency: float | None = None,
-        quality_floor: Dict[str, float | None] | None = None,
-    ):
-        self.reasons = reasons
-        lines = ["No models meet the specified constraints:"]
-        if max_cost is not None:
-            lines.append(f"  max_cost: ${max_cost:.6f}/1k tokens")
-        if max_latency is not None:
-            lines.append(f"  max_latency: {max_latency:.3f}s")
-        if quality_floor:
-            lines.append(f"  quality_floor: {quality_floor}")
-        lines.append("")
-        for model, model_reasons in reasons.items():
-            lines.append(f"  {model}: {', '.join(model_reasons)}")
-        super().__init__("\n".join(lines))
-
-
-class NoModelScoredError(ValueError):
-    """Raised when model scoring receives no eligible/scorable candidates.
-
-    This error is used by lower-level selectors (e.g. cost-aware expert
-    adapters) to provide a strict API contract for open-source consumers:
-    selection methods that are typed to return ``str`` never return ``None``.
-    """
-
-
-# ---------------------------------------------------------------------------
-# Router Configuration (Magic Numbers Documented)
-# ---------------------------------------------------------------------------
-
-@dataclass
-class RegistrationConfig:
-    """
-    Bayesian priors for new model admission.
-    
-    These values shape the initial belief state (theta) for a new model 
-    before we have observed any real traffic.
-    
-    Scientific Justification:
-    - Bias terms: Derived from cost asymmetry (30x price differential).
-    - Knowledge transfer: Handled by warmup priors
-      (continuous, empirically validated).
-    
-    NOTE: complexity_weight fields were removed when the feature pipeline was
-    simplified to [PCA | bias].  T-shirt sizing now operates exclusively through
-    the bias dimension.  If per-task complexity weighting is reintroduced, add a
-    dedicated feature dimension and map it in _build_feature_map().
-    """
-    # Fast Profile (e.g., Haiku, Flash) -> No bias adjustment (neutral)
-    fast_bias: float = 0.0
-    
-    # Slow Profile (e.g., Opus, GPT-4) -> Bias TOWARDS usage (believe expensive = high quality)
-    # Positive bias encodes belief that expensive models have latent quality
-    slow_bias: float = 0.05
-    
-    # Balanced Profile (e.g., GPT-3.5, Sonnet) -> Neutral priors
-    balanced_bias: float = 0.0
-    
-    # Fallback Metadata (Pessimistic Defaults for Resilience)
-    default_cost_per_1m: float = 10.00  # Assume expensive ($10/1M)
-    default_latency_s: float = 2.0      # Assume slow (2s)
-
-@dataclass
-class RouterConfig:
-    """
-    Centralized configuration for BanditRouter.
-    
-    **CANONICAL CONFIG**: This is the production-grade configuration for BanditRouter.
-    
-    **Scientific Validation (Appendix A):**
-    Key hyperparameters validated via prior transfer theory and ablation:
-    
-    1. **Market Anchors (cost/latency normalization)**:
-       - Derived from empirical market data (2024-2026)
-       - Cost: $0.0001-$0.04/1k tokens (portfolio range)
-       - Latency: 0.05s-5.0s (instant to timeout threshold)
-    
-    2. **Probation Period (500 requests)**:
-       - Derived from convergence analysis (95% confidence interval)
-       - Robust across [300, 1000] range (not shown for brevity)
-    
-    This dataclass is the single source of truth for the current production router.
-    """
-    
-    # ---------------------------------------------------------------------------
-    # Production Stability: Memory Management
-    # ---------------------------------------------------------------------------
-    # Prevent OOM from unbounded log growth.
-    # At 100 QPS with 33-dim context vectors (~300 bytes/log), 10k logs ≈ 3MB.
-    # Adjust based on deployment memory constraints and feedback latency.
-    max_log_size: int = 10_000         # Ring buffer size for RoutingLog entries
-    
-    # ---------------------------------------------------------------------------
-    # Procedural Warmup: Covariance Shaping
-    # ---------------------------------------------------------------------------
-    # Number of synthetic samples for procedural warmup to shape covariance matrix.
-    # Mathematical requirement: Need at least d samples to span the space.
-    # Recommendation: 2d for robust covariance estimation.
-    # 
-    # With 5 archetypes, samples_per_archetype = procedural_warmup_samples // 5
-    # Default 100 → 20 samples per archetype → sufficient to shape 33D covariance
-    procedural_warmup_samples: int = 100  # Warmup samples (~3*d for d=33)
-    
-    # ---------------------------------------------------------------------------
-    # LinUCB Regularization
-    # ---------------------------------------------------------------------------
-    # Sherman-Morrison only handles rank-1 updates (O(d²)).
-    # A diagonal injection (+λI) is full-rank and forces O(d³) inversion.
-    # init_lambda is applied once at initialization (A₀ = λI) to ensure
-    # cold-start stability. Data terms (xx^T) keep A well-conditioned at
-    # runtime. Performance: 2,710 updates/sec @ d=384 (O(d²) path).
-    init_lambda: float = 1.0
-    """Initialization regularization for cold-start stability (A₀ = λI)."""
-
-    # ---------------------------------------------------------------------------
-    # Numerical Stability: Safety Net for Low-Traffic Arms
-    # ---------------------------------------------------------------------------
-    # With initialization-only regularization, matrices can decay toward
-    # singularity if an arm receives zero traffic for extended periods.
-    # This safety check triggers a regularization reset when numerical
-    # instability is detected.
-    #
-    # **Cost**: O(d) trace computation every N updates (cheap)
-    # **Benefit**: Prevents singular matrices in edge cases
-    # **Frequency**: Default every 1000 updates ≈ once per 10 seconds @ 100 QPS
-    stability_check_interval: int = 1000
-    """Check for numerical instability every N global updates."""
-    
-    stability_threshold: float = 1e6
-    """
-    Maximum trace(A_inv) before triggering regularization reset.
-    
-    trace(A_inv) grows as A decays toward singularity. For reference:
-    - Healthy matrix: trace(A_inv) ≈ d (dimension)
-    - Decaying matrix: trace(A_inv) >> d
-    - Near-singular: trace(A_inv) > 1e6
-    
-    If exceeded, triggers O(d³) reset, but this is rare (e.g., once per day).
-    """
-    
-    # Cost Normalization Anchors (Logarithmic Market Width)
-    # Tightened to actual portfolio range ($0.0001-$0.0375/1k) for better
-    # penalty differentiation (1.39x improvement over a wider default range).
-    market_cost_floor: float = 0.0001  # $/1k tokens (captures cheapest model)
-    market_cost_ceiling: float = 0.04  # $/1k tokens (slightly above most expensive)
-    
-    # Latency Normalization Anchors
-    # Floor: 50ms (instant/cached responses)
-    # Ceiling: 5.0s (reasonable timeout threshold)
-    market_latency_floor: float = 0.05  # seconds
-    market_latency_ceiling: float = 5.0  # seconds
-    
-    # ---------------------------------------------------------------------------
-    # RESILIENCE DEFAULTS: Pessimistic Fallbacks (Fail-Operational Design)
-    # ---------------------------------------------------------------------------
-    # Used when registry metadata is missing or malformed.
-    # 
-    # **Philosophy: "Pessimistic" vs "Fail-Secure" vs "Optimistic"**
-    # - Fail-Secure (float('inf')): Model is banned → All models missing data = OUTAGE
-    # - Optimistic ($0.00): Router floods unknown models → Potential budget blowout
-    # - Pessimistic (expensive/slow): Model treated as luxury → Service UP, conservative
-    # 
-    # By assuming unknown models are expensive (Opus tier) and slow, we:
-    # 1. Keep traffic flowing during metadata corruption/config failures
-    # 2. Prevent budget blowouts (unknown models only picked if strictly necessary)
-    # 3. Quality becomes the primary differentiator among "expensive" models
-    # ---------------------------------------------------------------------------
-    
-    default_missing_cost_per_m: float = 10.00
-    """
-    Pessimistic cost fallback when input_cost_per_m/output_cost_per_m is missing.
-    
-    Set to $10/1M tokens (Opus/o1-high tier) to treat unknown models as expensive.
-    This prevents them from winning cost-sensitive races while keeping them eligible.
-    """
-    
-    default_missing_latency: float = 2.0
-    """
-    Pessimistic latency fallback when time_to_first_token_seconds is missing.
-    
-    Set to 2.0 seconds (slow but usable) to prevent unknown models from winning
-    low-latency races unfairly while remaining eligible for selection.
-    """
-    
-    # ---------------------------------------------------------------------------
-    # Progressive Registration API: Empirical Priors (Bayesian Initialization)
-    # ---------------------------------------------------------------------------
-    # These values encode domain knowledge from LLM ecosystem cost/performance analysis.
-    # They initialize the bandit with reasonable defaults to accelerate convergence.
-    # All parameters are tunable via RouterConfig for custom deployments.
-    # 
-    # Scientific Justification:
-    #   - Speed-based biases reflect cost asymmetry (30x difference between tiers)
-    #   - Complexity weights encode known conditional failure probabilities
-    #   - Anchor boosts quantify task-specific performance differentials
-    # 
-    # Optimization: Run tune_registration_priors.py on your data to find optimal values.
-    # ---------------------------------------------------------------------------
-    
-    
-    # [RESTORED] Registration Priors for Progressive Model Admission
-    registration: RegistrationConfig = field(default_factory=RegistrationConfig)
-    registration_strict_kwargs: bool = True
-    """Validate unknown kwargs in ``register_model`` when True.
-
-    Open-source default is strict to fail fast on user typos (e.g. ``latnecy``).
-    Set to ``False`` for backward compatibility in legacy integrations that pass
-    extra keys.
-    """
-    
-    @property
-    def cost_range_log(self) -> float:
-        """Logarithmic range for cost normalization."""
-        return np.log(self.market_cost_ceiling) - np.log(self.market_cost_floor)
-    
-    @property
-    def latency_range_log(self) -> float:
-        """Logarithmic range for latency normalization."""
-        return np.log(self.market_latency_ceiling) - np.log(self.market_latency_floor)
+from bandit_gpt.exceptions import (  # noqa: F401 — re-exported for backward compat
+    MissingCostError,
+    NoEligibleModelsError,
+    NoModelScoredError,
+)
 
 
 from .config import DEFAULT_SENTENCE_TRANSFORMER
 
 DEFAULT_CONTEXT_MODEL = DEFAULT_SENTENCE_TRANSFORMER
-
-# ---------------------------------------------------------------------------
-# Exploration Rates
-# ---------------------------------------------------------------------------
-class ExplorationRate:
-    """Named presets for exploration (Alpha)."""
-    STATIC = 0.0       # Pure exploitation
-    SAFE = 0.1         # Optimal with sigmoid priors (see parameter search)
-    BALANCED = 1.0     # Legacy setting for cold-start scenarios
-    AGGRESSIVE = 2.0   # High exploration
-
-    _RATES = {
-        "static": STATIC, "safe": SAFE, "balanced": BALANCED, "aggressive": AGGRESSIVE
-    }
-    
-    DEFAULT = SAFE  # Optimal: α=0.1 with sigmoid-transformed priors
-
-    @classmethod
-    def get(cls, name: Any) -> float:
-        if isinstance(name, (int, float)):
-            return float(name)
-        
-        try:
-            key = str(name).lower()
-            val = cls._RATES.get(key)
-            if val is not None: 
-                logger.debug(f"ExplorationRate.get('{name}') -> {val}")
-                return val
-            return float(name)
-        except (ValueError, AttributeError):
-            raise ValueError(f"Unknown exploration '{name}'")
 
 # ---------------------------------------------------------------------------
 # Helper Functions
@@ -677,1071 +122,19 @@ def estimate_tokens_rough(text: str) -> int:
     return int(max(0, round(len(str(text).split()) * 1.3)))
 
 # ---------------------------------------------------------------------------
-# Model Family Inference (for analytics and correlation-based grouping)
+# Model Family Inference (canonical definitions in bandit_gpt.family)
 # ---------------------------------------------------------------------------
+from bandit_gpt.family import (  # noqa: F401 — re-exported for backward compat
+    infer_model_family,
+    tetrachoric_corr,
+    compute_correlation_families,
+)
 
-def infer_model_family(model_id: str) -> str:
-    """
-    Infer model family from a model_id by stripping variant suffixes.
-
-    Models within the same family are expected to have similar reward
-    functions.  Used by ``compute_correlation_families`` and family-aware
-    analytics.
-
-    Strips size qualifiers (-mini, -large), instruction tuning (-instruct),
-    quality tiers (-turbo, -pro), date stamps (-2024-04-09), parameter
-    counts (-70b), and trailing minor versions (.1, .2).
-
-    Override the inference by setting an explicit ``family`` field in the
-    model registry entry.
-
-    Examples:
-        "openai/gpt-4-turbo"                -> "openai/gpt-4"
-        "openai/gpt-4o-mini"                -> "openai/gpt-4o"
-        "openai/gpt-5.1"                    -> "openai/gpt-5"
-        "openai/o1-mini"                    -> "openai/o1"
-        "anthropic/claude-3.5-sonnet"       -> "anthropic/claude-3"
-        "anthropic/claude-3-haiku"          -> "anthropic/claude-3"
-        "mistralai/mixtral-8x7b-instruct"   -> "mistralai/mixtral-8x7b"
-        "meta-llama/llama-3.1-70b-instruct" -> "meta-llama/llama-3"
-        "google/gemini-2.0-flash"           -> "google/gemini-2"
-    """
-    if "/" not in model_id:
-        return model_id
-
-    provider, model = model_id.split("/", 1)
-
-    _SUFFIXES = (
-        "-turbo", "-mini", "-small", "-medium", "-large", "-xl", "-xxl",
-        "-instruct", "-chat", "-preview", "-latest", "-pro", "-flash",
-        "-lite", "-haiku", "-sonnet", "-opus", "-nano", "-micro",
-        "-thinking", "-online", "-free", "-nightly", "-exp",
-    )
-
-    # Iteratively strip date stamps, parameter counts, and known suffixes
-    # until no further changes occur.  Interleaving is necessary because a
-    # date stamp or param count may be followed by a suffix (or vice-versa).
-    changed = True
-    while changed:
-        changed = False
-
-        # Date stamps: -2024-04-09, -20240409
-        stripped = re.sub(r"-\d{4}-?\d{2}-?\d{2}$", "", model)
-        if stripped != model:
-            model = stripped
-            changed = True
-
-        # Known qualifiers
-        for suffix in _SUFFIXES:
-            if model.endswith(suffix):
-                model = model[: -len(suffix)]
-                changed = True
-
-        # Simple parameter counts: -8b, -70b, -405b.  The regex does NOT
-        # match mixture-of-experts specs like -8x7b because the 'x'
-        # character breaks the \d+ run before '-'.
-        stripped = re.sub(r"-\d+b$", "", model)
-        if stripped != model:
-            model = stripped
-            changed = True
-
-    # Strip trailing minor version: gpt-5.1 -> gpt-5, claude-3.5 -> claude-3
-    model = re.sub(r"(\d+)\.\d+$", r"\1", model)
-
-    return f"{provider}/{model}"
-
-
-# ---------------------------------------------------------------------------
-# Tetrachoric Correlation & Data-Driven Family Assignment
-# ---------------------------------------------------------------------------
-# For binary (0/1) rewards, Pearson r equals the phi coefficient, which has a
-# ceiling effect: when base rates are extreme or differ between two models,
-# phi_max << 1 even for perfectly correlated failure patterns.  The
-# tetrachoric correlation estimates the latent continuous correlation
-# underlying the binary observations, correcting for this attenuation.
-#
-# Reference: Drasgow, F. (1986). "Polychoric and polyserial correlations."
-# ---------------------------------------------------------------------------
-
-def tetrachoric_corr(x: np.ndarray, y: np.ndarray) -> float:
-    """Tetrachoric correlation for two binary (0/1) vectors.
-
-    Solves for the bivariate normal correlation *r* such that
-    P(Z₁ > c₁, Z₂ > c₂ ; r) equals the observed joint success rate,
-    where c₁, c₂ are the normal thresholds implied by each variable's
-    marginal success rate.
-
-    Applies Yates' continuity correction (+0.5 to each cell) when any
-    cell of the 2×2 table is zero, preventing degenerate solutions.
-
-    Returns NaN if the solver fails to converge (e.g. all-same vectors).
-    """
-    from scipy.stats import norm, multivariate_normal as mvn_dist
-    from scipy.optimize import brentq
-
-    x = np.asarray(x, dtype=float)
-    y = np.asarray(y, dtype=float)
-    n = float(len(x))
-
-    n11 = float(np.sum((x == 1) & (y == 1)))
-    n10 = float(np.sum((x == 1) & (y == 0)))
-    n01 = float(np.sum((x == 0) & (y == 1)))
-    n00 = float(np.sum((x == 0) & (y == 0)))
-
-    if n00 == 0 or n11 == 0 or n10 == 0 or n01 == 0:
-        n11 += 0.5; n10 += 0.5; n01 += 0.5; n00 += 0.5
-        n += 2.0
-
-    p1 = (n11 + n10) / n
-    p2 = (n11 + n01) / n
-    p_obs = n11 / n
-
-    if p1 <= 0 or p1 >= 1 or p2 <= 0 or p2 >= 1:
-        return np.nan
-
-    c1 = norm.ppf(1.0 - p1)
-    c2 = norm.ppf(1.0 - p2)
-
-    def _objective(r: float) -> float:
-        r = np.clip(r, -0.999, 0.999)
-        dist = mvn_dist(mean=[0, 0], cov=[[1, r], [r, 1]])
-        return dist.cdf([-c1, -c2]) - p_obs
-
-    try:
-        return float(brentq(_objective, -0.999, 0.999, xtol=1e-8))
-    except ValueError:
-        return np.nan
-
-
-def compute_correlation_families(
-    reward_vectors: dict[str, np.ndarray],
-    threshold: float = 0.6,
-    method: str = "tetrachoric",
-) -> dict[str, str]:
-    """Build a family map from within-provider reward correlations.
-
-    Parameters
-    ----------
-    reward_vectors : dict[str, np.ndarray]
-        Mapping from model ID (e.g. ``"openai/gpt-5"``) to a reward vector
-        of shape ``(n_prompts,)``.  All vectors must have the same length
-        and be aligned to the same prompt ordering.  For ``method="tetrachoric"``
-        the vectors are treated as binary; for ``method="pearson"`` they are
-        used as continuous values.
-    threshold : float
-        Minimum correlation for two models to be placed in the same family.
-        Typical defaults: 0.6 for tetrachoric, 0.3 for Pearson.
-    method : str
-        Correlation measure: ``"tetrachoric"`` (default) computes the
-        tetrachoric correlation on binarised rewards; ``"pearson"`` computes
-        Pearson correlation on continuous rewards.
-
-    Returns
-    -------
-    family_map : dict[str, str]
-        Mapping from model ID to family label.  Models within the same
-        provider whose pairwise correlation meets the threshold are grouped
-        via connected-components clustering.  Cross-provider grouping is
-        intentionally excluded.
-
-    Raises
-    ------
-    ValueError
-        If *method* is not one of ``"tetrachoric"`` or ``"pearson"``.
-
-    Notes
-    -----
-    Falls back to :func:`infer_model_family` for providers with only one
-    model in *reward_vectors*, preserving the syntactic heuristic as a
-    default for models without reward history.
-    """
-    if method not in ("tetrachoric", "pearson"):
-        raise ValueError(f"Unknown method {method!r}; expected 'tetrachoric' or 'pearson'")
-
-    from itertools import combinations
-
-    providers: dict[str, list[str]] = defaultdict(list)
-    for m in sorted(reward_vectors):
-        prov = m.split("/")[0] if "/" in m else "__none__"
-        providers[prov].append(m)
-
-    # Union-Find for connected-components clustering
-    parent: dict[str, str] = {m: m for m in reward_vectors}
-
-    def _find(a: str) -> str:
-        while parent[a] != a:
-            parent[a] = parent[parent[a]]
-            a = parent[a]
-        return a
-
-    def _union(a: str, b: str) -> None:
-        ra, rb = _find(a), _find(b)
-        if ra != rb:
-            parent[rb] = ra
-
-    for prov, models in providers.items():
-        if len(models) < 2:
-            continue
-        for m1, m2 in combinations(models, 2):
-            if method == "tetrachoric":
-                corr = tetrachoric_corr(reward_vectors[m1], reward_vectors[m2])
-            else:
-                corr = float(np.corrcoef(reward_vectors[m1], reward_vectors[m2])[0, 1])
-            if not np.isnan(corr) and corr >= threshold:
-                _union(m1, m2)
-
-    # Build family labels from connected components
-    family_map: dict[str, str] = {}
-    for m in sorted(reward_vectors):
-        root = _find(m)
-        family_map[m] = root
-
-    return family_map
-
-
-# ---------------------------------------------------------------------------
-# Core Bandit Policy (Disjoint LinUCB)
-# ---------------------------------------------------------------------------
-# **COMPLEXITY ANALYSIS**
-#
-# update() complexity depends on forgetting_factor (gamma):
-#
-# Non-stationary (gamma < 1.0) → O(d²) per update
-#   - Exponential decay: A *= gamma^dt, b *= gamma^dt (scalar multiply)
-#   - A_inv updated via scalar division: A_inv /= gamma^dt
-#   - Sherman-Morrison rank-1 correction for new observation
-#   - Rare O(d³) maintenance cycle when regularization floor drops below
-#     10% of init_lambda (prevents singularity under prolonged silence)
-#   - Performance: ~2,710 updates/sec @ d=384
-#
-# Stationary (gamma = 1.0, default) → O(d²) always
-#   - No decay; standard Sherman-Morrison for each observation
-#   - Performance: ~3,051 updates/sec @ d=384
-#
-# Empirical validation: See benchmarks/diagnose_performance.py
-# ---------------------------------------------------------------------------
-
-# Type definition for bandit state snapshot
-class BanditState(TypedDict):
-    """Snapshot of bandit state during update operations."""
-    A: np.ndarray
-    b: np.ndarray
-    A_inv: np.ndarray
-    timestamp: int
-    needs_full_inversion: bool
-
-
-class DisjointLinUCBPolicy:
-    """Disjoint LinUCB: one ridge regression per arm."""
-    def __init__(
-        self,
-        model_names: List[str],
-        dim: int = 384,
-        alpha: float = 0.1,
-        init_lambda: float = 1.0,
-        forgetting_factor: float = 1.0,
-        seed: int | None = None,
-        max_staleness_dt: int = _MAX_STALENESS_DT,
-        reg_floor_fraction: float = _REGULARIZATION_FLOOR_FRACTION,
-        max_var_inflation: float = _MAX_VAR_INFLATION_FACTOR,
-    ):
-        """Initialize Disjoint LinUCB policy.
-
-        REGULARIZATION NOTE (isotropic prior after PCA):
-        We initialize A₀ = λI, an isotropic regularizer in the PCA-transformed
-        feature space.  After PCA, principal components have decreasing empirical
-        variance, so equal regularization across all directions does not match
-        the per-component scale—effectively over-shrinking low-variance components
-        relative to their scale.  This is a deliberate simplicity choice: isotropic
-        ridge in a PCA basis is a standard, stable baseline.  Designing anisotropic
-        or variance-matched regularization (e.g., diagonal A₀ scaled by component
-        variance, or full whitening before the bandit) is a natural extension left
-        for future work.
-
-        Args:
-            model_names: List of model identifiers (arms).
-            dim: Context vector dimension.
-            alpha: Exploration coefficient (UCB bonus multiplier).
-            init_lambda: Initialization regularization (A₀ = λI). Default 1.0 for
-                cold-start stability.
-            forgetting_factor: Exponential decay factor (1.0 = stationary,
-                <1.0 = adaptive).
-            seed: Seed for the internal ``np.random.Generator`` used by
-                Thompson Sampling (``get_probabilities``).  *None* creates
-                an unseeded generator.
-            max_staleness_dt: Cap on ``dt`` in ``gamma^dt`` to prevent float64
-                underflow.  Default 1000.
-            reg_floor_fraction: Fraction of *init_lambda* below which proactive
-                regularization injects a top-up into A.  Default 0.1.
-            max_var_inflation: Maximum multiplicative factor for staleness-based
-                variance inflation.  Default 200.0.
-        """
-        self.models = list(model_names)
-        self.dim = int(dim)
-        self.alpha = float(alpha)
-        self.gamma = float(forgetting_factor)
-        self.init_lambda = float(init_lambda)
-        self._rng = np.random.default_rng(seed)
-        self.max_staleness_dt = int(max_staleness_dt)
-        self.reg_floor_fraction = float(reg_floor_fraction)
-        self.max_var_inflation = float(max_var_inflation)
-
-        self.model_locks: Dict[str, threading.Lock] = {
-            m: threading.Lock() for m in self.models
-        }
-        self._lock = threading.Lock()
-        
-        # Initialize A=I*init_lambda, b=0
-        self.A = {m: np.eye(self.dim) * self.init_lambda for m in self.models}
-        self.b = {m: np.zeros(self.dim, dtype=np.float64) for m in self.models}
-        
-        # Precompute A_inv for hot-path speed
-        self.A_inv = {m: safe_inv(self.A[m]) for m in self.models}
-        
-        self.last_update = {m: 0 for m in self.models}  # Track last reward-update step
-        self.last_played = {m: 0 for m in self.models}  # Track last selection step
-        self.t = 0  # Global time step
-        
-        # Track per-model regularization floor to keep A well-conditioned under
-        # forgetting/decay in low-traffic regimes.
-        self.regularization_floor = {m: self.init_lambda for m in self.models}
-
-    def reset_to_tabula_rasa(self) -> None:
-        """Reset all learned state to cold-start initialization.
-
-        Discards A, b, and A_inv matrices for every arm, restoring them
-        to ``A = init_lambda * I``, ``b = 0``.  Time counters are zeroed
-        so the policy re-explores as if no observations had been seen.
-
-        Thread-safe: acquires all per-model locks and the global lock.
-        """
-        with self._lock:
-            for m in self.models:
-                with self.model_locks[m]:
-                    self.A[m] = np.eye(self.dim) * self.init_lambda
-                    self.b[m] = np.zeros(self.dim, dtype=np.float64)
-                    self.A_inv[m] = safe_inv(self.A[m])
-                    self.last_update[m] = 0
-                    self.last_played[m] = 0
-                    self.regularization_floor[m] = self.init_lambda
-            self.t = 0
-
-    def __deepcopy__(self, memo):
-        """
-        Custom deepcopy to handle thread locks.
-        
-        Locks cannot be pickled or deepcopied directly. We create new locks
-        for the clone while deepcopying all numerical state (A, b, A_inv, etc.).
-        """
-        cls = self.__class__
-        result = cls.__new__(cls)
-        memo[id(self)] = result
-        
-        # Copy basic attributes
-        result.models = copy.deepcopy(self.models, memo)
-        result.dim = self.dim
-        result.alpha = self.alpha
-        result.gamma = self.gamma
-        result.init_lambda = self.init_lambda
-        result.max_staleness_dt = self.max_staleness_dt
-        result.reg_floor_fraction = self.reg_floor_fraction
-        result.max_var_inflation = self.max_var_inflation
-        result.t = self.t
-        result.last_update = copy.deepcopy(self.last_update, memo)
-        result.last_played = copy.deepcopy(self.last_played, memo)
-
-        result.A = copy.deepcopy(self.A, memo)
-        result.b = copy.deepcopy(self.b, memo)
-        result.A_inv = copy.deepcopy(self.A_inv, memo)
-
-        result.model_locks = {m: threading.Lock() for m in result.models}
-        result._lock = threading.Lock()
-
-        result.regularization_floor = copy.deepcopy(self.regularization_floor, memo)
-        result._rng = copy.deepcopy(self._rng, memo)
-
-        return result
-
-    def add_arm(self, model_name: str) -> None:
-        """Add a new arm (model) to the bandit dynamically.
-
-        Prepares all state outside the lock, then publishes atomically.
-        Uses double-checked locking: the outer ``if`` is a fast-path
-        optimization; the inner re-check under ``self._lock`` prevents
-        duplicate registration when two threads call ``add_arm`` for the
-        same model concurrently.
-        """
-        if model_name in self.models:
-            return
-
-        new_A = np.eye(self.dim) * self.init_lambda
-        new_b = np.zeros(self.dim, dtype=np.float64)
-        new_A_inv = safe_inv(new_A)
-
-        with self._lock:
-            if model_name in self.models:
-                return
-            self.A[model_name] = new_A
-            self.b[model_name] = new_b
-            self.A_inv[model_name] = new_A_inv
-            self.last_update[model_name] = self.t
-            self.last_played[model_name] = self.t
-            self.regularization_floor[model_name] = self.init_lambda
-            self.model_locks[model_name] = threading.Lock()
-            self.models.append(model_name)
-
-    def delete_arm(self, model_name: str) -> None:
-        """Remove an arm from the bandit.
-
-        Acquires the model's per-arm lock before ``self._lock`` to
-        prevent a race with a concurrent ``update()`` that has already
-        acquired ``model_locks[model_name]`` and is reading arm state.
-        """
-        model_lock = self.model_locks.get(model_name)
-        if model_lock is None:
-            with self._lock:
-                self.models = [m for m in self.models if m != model_name]
-            return
-        with model_lock:
-            with self._lock:
-                self.models = [m for m in self.models if m != model_name]
-                for attr in (self.A, self.b, self.A_inv, self.last_update,
-                             self.last_played, self.regularization_floor):
-                    attr.pop(model_name, None)
-                self.model_locks.pop(model_name, None)
-
-    def refresh_inverse_cache(self) -> None:
-        """Recompute ``A_inv`` for all models after a bulk load.
-
-        Builds the new inverse dict outside the lock, then atomically
-        swaps the reference so that concurrent ``update()`` calls (which
-        read ``self.A_inv[model]`` under ``model_locks`` only) never see
-        a partially populated dictionary.
-        """
-        with self._lock:
-            snapshot = {m: self.A[m] for m in self.models if m in self.A}
-        new_A_inv = {m: safe_inv(A_m) for m, A_m in snapshot.items()}
-        with self._lock:
-            self.A_inv = new_A_inv
-
-
-    def select_arm(
-        self, 
-        x: np.ndarray, 
-        candidates: List[str] | None = None,
-        cost_penalties: Dict[str, float] | None = None,
-    ) -> Tuple[str, float]:
-        """
-        Select the best arm (model) using Upper Confidence Bound (UCB).
-        
-        Implements paper Eq. 4:
-          a_t = argmax (x^T θ_hat + α √(x^T A^{-1} x) - cost_penalty)
-        
-        **Commensurability Note:**
-        The UCB term (mean + α·std) is in reward units. When processing feedback,
-        `BanditRouter.process_feedback()` strictly clamps rewards to [0, 1].
-        Furthermore, `calibrate_priors()` guarantees that initialized priors
-        satisfy |x^T θ_hat| ≤ 0.9 on the calibration suite, and the exploration
-        bonus `α·std` is structurally bounded by the feature embedding space
-        (PCA-whitened to unit variance) and the Tikhonov regularization `λ`.
-        
-        Because the quality score is bounded to a known, stable scale (~[0, 1]
-        range), the additive cost penalty `λ_c * norm_cost` (where `norm_cost`
-        is also in [0, 1]) is provably commensurate. The multiplier `λ_c`
-        (e.g., `cost_penalty=0.1`) represents a direct exchange rate:
-        "Sacrifice 10% expected reward to choose the cheapest over the most
-        expensive model." Early in training (cold start), α·std may exceed 1.0,
-        intentionally dominating the penalty to ensure exploration until the
-        variance shrinks.
-        
-        Args:
-            x: Context vector
-            candidates: List of candidate model IDs (None = all models)
-            cost_penalties: Optional per-model cost penalty {model_id: λ * norm_cost}.
-                          Subtracted from UCB score at selection time.
-            
-        Returns:
-            Tuple of (best_model_id, best_score)
-        """
-        ucb_scores: Dict[str, float] = {}
-
-        with self._lock:
-            candidates = self.models if candidates is None else candidates
-            candidates = [m for m in candidates if m in self.A]
-            if not candidates:
-                raise ValueError("No candidates available")
-            for m in candidates:
-                theta = self.A_inv[m] @ self.b[m]
-                mean = float(theta.dot(x))
-
-                dt = self._effective_staleness(m)
-                var = float(x.dot(self.A_inv[m]).dot(x))
-                var_inflated = _inflate_variance(
-                    var, self.gamma, dt,
-                    max_staleness_dt=self.max_staleness_dt,
-                    max_var_inflation=self.max_var_inflation,
-                )
-
-                std = float(np.sqrt(max(var_inflated, 1e-12)))
-                ucb = mean + self.alpha * std
-
-                if cost_penalties and m in cost_penalties:
-                    ucb -= cost_penalties[m]
-
-                ucb_scores[m] = ucb
-
-        best_model = _argmax_random_tiebreak(ucb_scores)
-        return best_model, float(ucb_scores[best_model])
-
-    def _effective_staleness(self, model: str) -> int:
-        """Delegate to module-level :func:`_effective_staleness`."""
-        return _effective_staleness(self.t, self.last_update, self.last_played, model)
-
-    def mark_selected(self, model: str) -> None:
-        """Record that *model* was deployed this round (for staleness tracking).
-
-        Called at selection time so that ``_effective_staleness`` can
-        distinguish "no update yet because feedback is delayed" from "arm
-        genuinely unused."
-
-        **Time Advancement (Request Counter):**
-        This method also increments the global logical clock `self.t` by 1.
-        By advancing time at selection (route time) rather than at feedback
-        time, `self.t` acts as a *request counter* rather than a *feedback counter*.
-        This ensures that when a burst of delayed feedback arrives (e.g., 100
-        RLHF ratings at once), the updates do not artificially inflate the
-        decay factor `gamma ** dt` for each other. Time correctly represents
-        the number of environmental interactions, not the processing speed.
-        """
-        with self._lock:
-            self.t += 1
-            self.last_played[model] = self.t
-
-    def get_expected_reward(self, model: str, x: np.ndarray) -> float:
-        """Expected reward for *model* given context *x*.
-
-        Computes ``x^T theta_hat`` where ``theta_hat = A_inv @ b``.
-
-        Args:
-            model: Model identifier.
-            x: Context feature vector.
-
-        Returns:
-            Scalar expected reward (may exceed [0, 1] before clamping).
-        """
-        theta = self.A_inv[model] @ self.b[model]
-        return float(theta.dot(x))
-
-    def get_ucb_variance(self, model: str, x: np.ndarray) -> float:
-        """UCB variance term for *model* given context *x*.
-
-        Computes ``x^T A_inv x`` with staleness-based inflation when the
-        forgetting factor is active (gamma < 1).
-
-        Args:
-            model: Model identifier.
-            x: Context feature vector.
-
-        Returns:
-            Variance term (non-negative).  Take ``sqrt`` for the UCB bonus.
-        """
-        var = float(x.dot(self.A_inv[model]).dot(x))
-        dt = self._effective_staleness(model)
-        return _inflate_variance(
-            var, self.gamma, dt,
-            max_staleness_dt=self.max_staleness_dt,
-            max_var_inflation=self.max_var_inflation,
-        )
-
-    def get_probabilities(self, x: np.ndarray, models: List[str], n_samples: int = 1000,
-                          noise_variance: float = 0.25) -> Dict[str, float]:
-        """
-        Probability each model has the highest *quality* (expected reward).
-
-        Samples from the Bayesian posterior for ridge regression::
-
-            θ | D ~ N(A⁻¹b,  σ² · A⁻¹_eff)
-
-        where ``A⁻¹_eff`` incorporates staleness inflation (see
-        ``_effective_staleness``).  The model whose posterior draw yields
-        the largest ``θᵀx`` wins a sample; probabilities are the empirical
-        win fractions across *n_samples* draws.
-
-        **Important:** These probabilities reflect the *quality-only* reward
-        model.  Cost and latency penalties applied by ``select_arm()`` are
-        **not** incorporated.  Use this for posterior calibration, monitoring,
-        and explainability — not as a substitute for the full utility-based
-        selection rule.
-
-        Args:
-            x: Context vector.
-            models: List of model IDs to compare.
-            n_samples: Number of Monte Carlo samples (default: 1000).
-            noise_variance: σ² for the posterior covariance.  Default 0.25 is
-                the variance of a Bernoulli(0.5) reward, appropriate for
-                binary win/loss feedback.  Override for non-binary rewards.
-
-        Returns:
-            Dictionary mapping model_id to probability of being the
-            highest-quality arm (sums to 1.0).
-        """
-        model_samples = {}
-        valid_models = [m for m in models if m in self.A]
-        
-        snapshots = {}
-        with self._lock:
-            for m in valid_models:
-                A_inv_m = self.A_inv[m].copy()
-                theta_hat = A_inv_m @ self.b[m]
-                dt = self._effective_staleness(m)
-                snapshots[m] = (A_inv_m, theta_hat, dt)
-        
-        # Return uniform distribution instead of all-zeros when no
-        # models have initialized state.  All-zeros violates the probability
-        # contract (sum should be 1.0) and can cause division-by-zero in callers.
-        if not snapshots:
-            n = len(models) or 1
-            return {m: 1.0 / n for m in models}
-        
-        for m, (A_inv_m, theta_hat, dt) in snapshots.items():
-            scalar_var = float(np.trace(A_inv_m))
-            inflated = _inflate_variance(
-                scalar_var, self.gamma, dt,
-                max_staleness_dt=self.max_staleness_dt,
-                max_var_inflation=self.max_var_inflation,
-            )
-            if scalar_var > 0 and inflated != scalar_var:
-                cov = noise_variance * A_inv_m * (inflated / scalar_var)
-            else:
-                cov = noise_variance * A_inv_m
-            samples = _safe_multivariate_normal(
-                theta_hat, cov, n_samples, self.dim, rng=self._rng,
-            )
-            model_samples[m] = samples @ x
-            
-        # Determine how many times each model was the winner across samples
-        stacked_samples = np.stack([model_samples[m] for m in valid_models])
-        winners = np.argmax(stacked_samples, axis=0)
-        
-        counts = Counter(winners)
-        probs = {m: 0.0 for m in models}
-        for i, m in enumerate(valid_models):
-            probs[m] = counts[i] / n_samples
-        return probs
-
-    
-    # Snapshot-swap helper methods removed - replaced with simple per-model locking
-    # This eliminates the lost update race condition identified in conference review
-    
-    def update(self, model: str, x: np.ndarray, reward: float, weight: float = 1.0, advance_time: bool = True) -> None:
-        """
-        Update the model's A and b matrices with new observation.
-        
-        **Per-Model Locking**
-        Replaced snapshot-swap pattern with fine-grained locking to eliminate
-        lost update race condition. Each model has its own lock, so updates to
-        Model A don't block updates to Model B.
-        
-        **Proactive Regularization Floor**
-        Tracks effective lambda decay and proactively maintains eigenvalue floor.
-        Prevents singularity in low-traffic regimes with forgetting factor < 1.0.
-        Amortized O(d²) with rare O(d³) maintenance cycles.
-        
-        **Performance:**
-        Sherman-Morrison update is O(d²) ≈ 0.5ms for d=33, negligible compared
-        to network latency. Holding lock during update is acceptable.
-        
-        **Time Convention (`advance_time`):**
-        `self.t` is a *request counter*, not a *feedback counter*.  It is
-        advanced at route/selection time by ``mark_selected()``, so that a
-        burst of delayed feedback arriving at once (e.g., a daily RLHF batch)
-        does not artificially inflate ``gamma**dt`` decay for each feedback
-        event processed in the batch.
-
-        When called from ``process_feedback()`` (the standard online path),
-        pass ``advance_time=False`` because time was already advanced by
-        ``mark_selected()`` at route time.
-
-        When called directly for offline/batch replay (i.e., without a
-        preceding ``route()`` call), leave ``advance_time=True`` (the default)
-        so each replayed observation still increments time.
-        
-        Args:
-            model: Model identifier
-            x: Context vector
-            reward: Observed reward
-            weight: Importance weight for this update (default 1.0).
-                    Use weight = (1 - cluster_mu) for difficulty-based weighting.
-                    Hard tasks (μ=0.5) get weight=0.5, easy tasks (μ=0.95) get weight=0.05.
-            advance_time: Whether to increment ``self.t``. Defaults to True.
-                    Set to False when time was already advanced at route time via
-                    ``mark_selected()`` to prevent double-counting.
-        """
-        if model not in self.A:
-            return
-        
-        # Guard against negative weight, which would produce NaN
-        # via np.sqrt(negative) in the Sherman-Morrison u = x * sqrt(w) path,
-        # permanently corrupting the model's A_inv with NaN values.
-        if weight < 0:
-            logger.warning(f"Negative weight={weight:.4f} for {model}; skipping update (negative weight would corrupt A_inv via sqrt(w))")
-            return
-        
-        # weight=0 contributes zero information (x_outer=0, reward_x=0)
-        # but advancing self.t inflates dt for ALL other models' staleness
-        # computations, artificially increasing their exploration bonuses.
-        if weight == 0:
-            return
-        
-        # Hold model-specific lock for entire update (eliminates lost-update race).
-        # Per-model locks allow concurrent updates to different arms; the global
-        # self._lock is acquired in short nested sections below for self.t reads
-        # and matrix pointer swaps.
-        with self.model_locks[model]:
-            with self._lock:
-                if model not in self.A:
-                    return
-                current_t = self.t
-
-            # 1. Calculate Time Decay
-            dt = 0
-            decay_factor = 1.0
-            if self.gamma < 1.0:
-                dt = current_t - self.last_update[model]
-                # Clamp dt to prevent numerical underflow when gamma is small
-                decay_factor = self.gamma ** min(dt, self.max_staleness_dt)
-
-            current_lambda = self.regularization_floor.get(model, self.init_lambda)
-            new_lambda = current_lambda * decay_factor
-            lambda_threshold = self.init_lambda * self.reg_floor_fraction
-
-            if new_lambda < lambda_threshold:
-                # MAINTENANCE MODE: Inject fresh regularization (Rare O(d³))
-                #
-                # WHEN this triggers:
-                #   Only when gamma < 1.0 AND the arm has gone so long without
-                #   an update that gamma^dt < 0.1 — i.e., >90% of the original
-                #   prior has been forgotten.  For gamma=0.99 this requires
-                #   dt > 230 steps; for gamma=0.95 it requires dt > 44 steps.
-                #   In any normally-trafficked deployment this is a rare edge
-                #   case.  With the default gamma=1.0 this branch is never
-                #   reached.
-                #
-                # WHAT it does:
-                #   Decays A and b equally, then reinjects missing_lambda * I
-                #   into A only.  Because theta_hat = A^{-1} b, adding lambda*I
-                #   to A while leaving b unchanged shrinks theta_hat toward zero
-                #   — the standard Tikhonov/ridge shrinkage effect at rate
-                #   O(lambda / (lambda + n_eff)).
-                #
-                # WHY this shrinkage is intentional and safe:
-                #   1. Well-observed arms: data eigenvalues in A dominate lambda
-                #      (n_eff >> 1), so |Δtheta| ≈ lambda/n_eff is negligible.
-                #   2. Lightly-observed arms: after >90% forgetting the old data
-                #      is nearly irrelevant; regressing to the zero-mean prior
-                #      is the statistically correct posterior.
-                #   3. After a maintenance reset the arm's UCB exploration bonus
-                #      increases (lower data mass → higher A_inv → higher UCB),
-                #      driving immediate re-exploration that rebuilds theta_hat.
-                #
-                # The 10% threshold is deliberately conservative: maintenance
-                # mode fires only after extreme staleness, keeping the fast
-                # O(d²) path dominant during normal operation.
-                logger.info(
-                    f"[FIX] Maintenance: Restoring regularization floor for {model} "
-                    f"(λ_eff={new_lambda:.2e} < {lambda_threshold:.2e})"
-                )
-                
-                missing_lambda = self.init_lambda - new_lambda
-                
-                new_A = (self.A[model] * decay_factor) + (missing_lambda * np.eye(self.dim))
-                new_b = self.b[model] * decay_factor
-                new_A_inv = safe_inv(new_A)
-                
-                self.regularization_floor[model] = self.init_lambda
-                
-                with self._lock:
-                    self.A[model] = new_A
-                    self.b[model] = new_b
-                    self.A_inv[model] = new_A_inv
-                    self.last_update[model] = current_t  # use snapped clock
-                
-            else:
-                # STANDARD MODE: Fast Decay (Common O(d²))
-                if self.gamma < 1.0:
-                    self.regularization_floor[model] = new_lambda  # Update tracker
-                    new_A = self.A[model] * decay_factor
-                    new_b = self.b[model] * decay_factor
-                    # Update A_inv to match decayed A.
-                    # Since A_new = A_old * gamma^dt, the correct inverse is:
-                    #   A_inv_new = A_inv_old / gamma^dt
-                    # Without this, Sherman-Morrison below applies its rank-1
-                    # correction to a stale pre-decay inverse, causing the cached
-                    # A_inv to drift arbitrarily far from the true inv(A) over
-                    # successive updates.  O(d²) scalar division — no perf hit.
-                    new_A_inv = self.A_inv[model] / decay_factor
-
-                    with self._lock:
-                        self.A[model] = new_A
-                        self.b[model] = new_b
-                        self.A_inv[model] = new_A_inv
-                        self.last_update[model] = current_t  # use snapped clock
-            
-            # 3. Rank-1 Sherman-Morrison Update (Data Integration)
-            result = _sherman_morrison_update(
-                A=self.A[model],
-                A_inv=self.A_inv[model],
-                b=self.b[model],
-                x=x,
-                reward=reward,
-                weight=weight,
-                init_lambda=self.init_lambda,
-                regularization_floor=self.regularization_floor.get(model, self.init_lambda),
-                model_name=model,
-                reg_floor_fraction=self.reg_floor_fraction,
-            )
-            self.regularization_floor[model] = result.regularization_floor
-
-            with self._lock:
-                self.A[model] = result.A
-                self.b[model] = result.b
-                self.A_inv[model] = result.A_inv
-                if advance_time:
-                    self.t += 1
-
-
-    def _check_numerical_stability(self, model: str, config: 'RouterConfig' = None) -> None:
-        """
-        Safety check for numerical stability using trace of inverse.
-        
-        Eigenvalue decomposition is O(d³) ≈ 20ms, causing
-        1-second P99 latency spikes with 50 models. Use trace instead.
-        
-        **Mathematical Insight**: If A decays toward singularity (λ → 0),
-        then A^{-1} eigenvalues → ∞, so trace(A^{-1}) → ∞.
-        
-        **Cost**: O(d) - just summing diagonal elements
-        **Trigger**: Only when trace(A_inv) > threshold (rare)
-        **Frequency**: Every N updates (e.g., 1000)
-        
-        Args:
-            model: Model identifier to check
-            config: RouterConfig with stability thresholds (optional)
-        """
-        if config is None or model not in self.A_inv:
-            return
-        
-        # O(d) operation: compute trace(A_inv)
-        trace = np.trace(self.A_inv[model])
-        
-        # Check if inverse is exploding (matrix approaching singularity)
-        # Default threshold: 1000 * d (well-conditioned trace ≈ d)
-        threshold = getattr(config, 'stability_threshold', 1000 * self.dim)
-        
-        if trace > threshold:
-            logger.warning(
-                f"[GUARD] Numerical instability detected for {model}: "
-                f"trace(A_inv)={trace:.2e} > {threshold:.2e}. "
-                f"Triggering regularization reset."
-            )
-            
-            # Acquire per-model lock, then global lock, before
-            # mutating A and A_inv.  Without locking, a concurrent select_arm()
-            # could read A_inv between the += and the safe_inv(), observing an
-            # inconsistent (A, A_inv) pair.  NumPy releases the GIL during
-            # matrix operations, making this a real race even in CPython.
-            # Use self.init_lambda (the bandit's own regularization
-            # parameter) instead of config.init_lambda.  config may carry a different
-            # value (e.g., from a stale or mis-matched RouterConfig), while
-            # self.init_lambda is the authoritative regularization strength that was
-            # used to initialize this bandit's A matrices.
-            reg_lambda = self.init_lambda
-            with self.model_locks[model]:
-                self.A[model] += reg_lambda * np.eye(self.dim)
-                new_A_inv = safe_inv(self.A[model])
-                with self._lock:
-                    self.A_inv[model] = new_A_inv
-                    # Update regularization_floor tracker to reflect the
-                    # injected regularization.  Without this, the forgetting-factor
-                    # code under-estimates how much lambda has been added.
-                    self.regularization_floor[model] = self.regularization_floor.get(
-                        model, self.init_lambda
-                    ) + reg_lambda
-                    # Snapshot the trace while still holding the global lock so
-                    # the sanity-check log reflects the value we just wrote, not
-                    # a potentially stale read that a concurrent update could have
-                    # modified between here and the next line.
-                    new_trace = np.trace(new_A_inv)
-
-            logger.info(
-                f"[OK] Regularization reset complete for {model}. "
-                f"New trace(A_inv)={new_trace:.2f}"
-            )
-
-
-
-    def save_state(self, path: Path | str) -> None:
-        """Save A, b, and temporal metadata to a compressed NPZ file.
-
-        Persists sufficient statistics (A, b) and temporal metadata
-        (t, last_update, last_played, regularization_floor) so that
-        forgetting-factor and staleness logic resume correctly after
-        a checkpoint restore.
-        """
-        data: Dict[str, Any] = {
-            "_metadata_dim": self.dim,
-            "_metadata_models": list(self.models),
-            "_metadata_policy": "disjoint",
-            "__temporal__t": self.t,
-        }
-        last_update_arr = np.array(
-            [self.last_update.get(m, 0) for m in self.models], dtype=np.int64
-        )
-        last_played_arr = np.array(
-            [self.last_played.get(m, 0) for m in self.models], dtype=np.int64
-        )
-        reg_floor_arr = np.array(
-            [self.regularization_floor.get(m, self.init_lambda)
-             for m in self.models],
-            dtype=np.float64,
-        )
-        data["__temporal__last_update"] = last_update_arr
-        data["__temporal__last_played"] = last_played_arr
-        data["__temporal__reg_floor"] = reg_floor_arr
-
-        for m in self.models:
-            data[f"{m}_A"] = self.A[m]
-            data[f"{m}_b"] = self.b[m]
-        np.savez_compressed(path, **data)
-
-    def load_state(self, path: Path | str) -> None:
-        """
-        Load A and b matrices from a compressed NPZ file with dimension validation.
-
-        All file I/O, validation, and ``safe_inv`` computation happen
-        outside any lock.  State references are then swapped atomically
-        under ``self._lock`` so that concurrent readers (``select_arm``,
-        ``get_probabilities``) never observe torn state (e.g. a new ``A``
-        paired with an old ``A_inv``).
-
-        Raises:
-            ValueError: If saved dimension doesn't match current bandit dimension.
-                       Suggests clearing state or updating feature configuration.
-        """
-        data = np.load(path)
-
-        if '_metadata_dim' in data:
-            saved_dim = int(data['_metadata_dim'])
-            if saved_dim != self.dim:
-                raise ValueError(
-                    f"Dimension mismatch: saved state has dim={saved_dim}, "
-                    f"but current bandit expects dim={self.dim}. "
-                    f"This can happen when:\n"
-                    f"  1. PCA configuration changes (raw embeddings vs PCA-compressed)\n"
-                    f"  2. Virtual anchor set is modified\n"
-                    f"  3. Feature engineering pipeline changes\n"
-                    f"To fix:\n"
-                    f"  - Delete the saved state file to start fresh, OR\n"
-                    f"  - Ensure PCA and feature config match the saved state"
-                )
-        else:
-            logger.warning(
-                f"Loading state from {path} without dimension metadata. "
-                f"This may cause issues if dimensions have changed. "
-                f"Current dim={self.dim}"
-            )
-
-        # Stage 1: load, validate, and compute inverses outside any lock.
-        staged: Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
-        for m in self.models:
-            a_key = f"{m}_A"
-            b_key = f"{m}_b"
-            if a_key in data and b_key in data:
-                A_loaded = data[a_key]
-                b_loaded = data[b_key]
-
-                if A_loaded.shape != (self.dim, self.dim):
-                    raise ValueError(
-                        f"Matrix A for model '{m}' has wrong shape: "
-                        f"expected ({self.dim}, {self.dim}), got {A_loaded.shape}"
-                    )
-                if b_loaded.shape != (self.dim,):
-                    raise ValueError(
-                        f"Vector b for model '{m}' has wrong shape: "
-                        f"expected ({self.dim},), got {b_loaded.shape}"
-                    )
-                staged[m] = (A_loaded, b_loaded, safe_inv(A_loaded))
-
-        # Restore temporal metadata (outside lock).
-        saved_t: int | None = None
-        saved_last_update: Dict[str, int] = {}
-        saved_last_played: Dict[str, int] = {}
-        saved_reg_floor: Dict[str, float] = {}
-        if "__temporal__t" in data:
-            saved_t = int(data["__temporal__t"])
-        if "__temporal__last_update" in data:
-            arr = data["__temporal__last_update"]
-            models_list = (
-                list(data["_metadata_models"])
-                if "_metadata_models" in data else list(self.models)
-            )
-            for i, m in enumerate(models_list):
-                if i < len(arr):
-                    saved_last_update[m] = int(arr[i])
-        if "__temporal__last_played" in data:
-            arr = data["__temporal__last_played"]
-            models_list = (
-                list(data["_metadata_models"])
-                if "_metadata_models" in data else list(self.models)
-            )
-            for i, m in enumerate(models_list):
-                if i < len(arr):
-                    saved_last_played[m] = int(arr[i])
-        if "__temporal__reg_floor" in data:
-            arr = data["__temporal__reg_floor"]
-            models_list = (
-                list(data["_metadata_models"])
-                if "_metadata_models" in data else list(self.models)
-            )
-            for i, m in enumerate(models_list):
-                if i < len(arr):
-                    saved_reg_floor[m] = float(arr[i])
-
-        # Stage 2: swap all references atomically under the global lock.
-        with self._lock:
-            for m, (A_new, b_new, A_inv_new) in staged.items():
-                self.A[m] = A_new
-                self.b[m] = b_new
-                self.A_inv[m] = A_inv_new
-            if saved_t is not None:
-                self.t = saved_t
-            for m in self.models:
-                if m in saved_last_update:
-                    self.last_update[m] = saved_last_update[m]
-                if m in saved_last_played:
-                    self.last_played[m] = saved_last_played[m]
-                if m in saved_reg_floor:
-                    self.regularization_floor[m] = saved_reg_floor[m]
 
 
 # ---------------------------------------------------------------------------
 # Main Router Class
 # ---------------------------------------------------------------------------
-
-@dataclass
-class RoutingLog:
-    request_id: str
-    timestamp_s: float
-    prompt: str
-    selected_model: str
-    predicted_utility: float
-    cost_usd: float
-    latency_s: float
-    context_vector: np.ndarray | None = None # Cached embedding for updates
-    expected_reward: float = 0.0             # θᵀx at route time (for drift detection residuals)
-    total_priority_weight: float = 1.0       # Sum of w_q, w_c, w_l for normalization
-    pacer_lambda_t: float | None = None      # BudgetPacer dual variable at route time
-    pacer_cost_ema: float | None = None      # BudgetPacer cost EMA at route time
 
 class BanditRouter:
     """
@@ -1770,11 +163,8 @@ class BanditRouter:
         self,
         model_registry: Dict[str, Dict[str, Any]],
         *,
-        # Feature extraction (The Eyes) - now injectable
         feature_service: 'FeatureService | None' = None,
-        # Legacy params for backward compatibility
         context_model: str = DEFAULT_CONTEXT_MODEL,
-        context_encoder=None,
         pca_path: Path | str | None = None,
         # Bandit parameters (The Brain)
         alpha: float = 0.1,
@@ -1793,21 +183,20 @@ class BanditRouter:
         drift_confirmation_window: int = 20,
         budget_pacer: "BudgetPacer | None" = None,
     ):
-        """
-        Initialize BanditRouter with separated feature extraction.
-        
+        """Initialize BanditRouter with separated feature extraction.
+
         **Architectural Separation (Eyes, Brain, Memory):**
-        - FeatureService (The Eyes): Feature extraction (or legacy fallback)
+        - FeatureService (The Eyes): Feature extraction
         - RouterCore (The Brain): LinUCB selection
         - FeedbackLoop (The Memory): Matrix updates
-        
+
         Args:
-            model_registry: Dictionary of model configurations
-            feature_service: Optional FeatureService instance for custom feature extraction.
-                           If None, falls back to legacy default service using context_model/pca_path.
-            context_model: Encoder model name (used if feature_service=None)
-            context_encoder: Pre-initialized encoder (legacy, overrides context_model)
-            pca_path: Path to PCA model (used if feature_service=None)
+            model_registry: Dictionary of model configurations.
+            feature_service: Optional FeatureService instance for custom feature
+                extraction.  If *None*, a default service is created from
+                *context_model* and *pca_path*.
+            context_model: Encoder model name (used if feature_service=None).
+            pca_path: Path to PCA model (used if feature_service=None).
             alpha: Exploration coefficient for UCB
             embedding_dim: Dimension override (auto-detected if feature_service provided)
             init_lambda: Initialization regularization (A₀ = λI)
@@ -1845,7 +234,7 @@ class BanditRouter:
             drift_method: Detection algorithm.  ``"centroid"`` (default) uses
                        running-centroid cosine distance — sensitive to
                        topic/domain rotations in embedding space.
-                       ``"chi2"`` uses the legacy diagonal chi-squared test
+                       ``"chi2"`` uses a diagonal chi-squared test
                        on per-component z-scores.
             drift_burn_in_steps: Observations used to establish the embedding
                        distribution baseline (default: 50).
@@ -1902,8 +291,7 @@ class BanditRouter:
             self.features = feature_service
             logger.info("Using injected FeatureService")
         else:
-            # Create default service from legacy parameters
-            # Feature extraction is delegated to FeatureService
+            # Create default service from context_model / pca_path
             # Dimension is auto-detected from PCA file (PCA components + 1 bias)
             from .feature_service import FeatureService as FS
             self.features = FS(
@@ -1984,8 +372,8 @@ class BanditRouter:
     def _resolve_registry_costs(self) -> None:
         """Ensure every model in ``self.registry`` has a ``blended_cost_per_m``.
 
-        Resolves from available fields (legacy keys, input/output split, or
-        pessimistic defaults).  Raises :class:`MissingCostError` for partial
+        Resolves from available fields (alternate key names, input/output split,
+        or pessimistic defaults).  Raises :class:`MissingCostError` for partial
         schemas (only input or only output) that are likely registry bugs.
 
         Mutates ``self.registry`` in place.
@@ -2074,6 +462,19 @@ class BanditRouter:
         result._feature_map = copy.deepcopy(self._feature_map, memo)
         result._toxicity_scanner = None  # Lazy-init; don't share
         
+        # --- Drift Detection (scalars + stateful detector) ---
+        result.drift_threshold = self.drift_threshold
+        result.drift_method = self.drift_method
+        result.drift_burn_in_steps = self.drift_burn_in_steps
+        result.drift_ema_alpha = self.drift_ema_alpha
+        result.drift_confirmation_window = self.drift_confirmation_window
+        result._drift_adapted = self._drift_adapted
+        result._n_resets = getattr(self, "_n_resets", 0)
+        result.drift_detector = copy.deepcopy(self.drift_detector, memo)
+
+        # --- Budget Pacer (deepcopy: has mutable EMA state) ---
+        result.budget_pacer = copy.deepcopy(self.budget_pacer, memo)
+
         # --- Precomputed Market Anchors (scalars) ---
         result._market_cost_floor = self._market_cost_floor
         result._market_cost_floor_log = self._market_cost_floor_log
@@ -2395,15 +796,7 @@ class BanditRouter:
         # 1. Extract factory-specific arguments (not passed to __init__)
         state_path = kwargs.pop("state_path", None)
         warmup_path = kwargs.pop("warmup_path", None)
-        
-        # Legacy support: map old 'exploration' parameter to 'alpha'
-        exploration = kwargs.pop("exploration", None)
-        alpha = kwargs.pop("alpha", None)
-        
-        if alpha is None and exploration is not None:
-            alpha = ExplorationRate.get(exploration)
-        elif alpha is None:
-            alpha = 0.1
+        alpha = kwargs.pop("alpha", 0.1)
 
         # 2a. Guard: custom encoder with explicit warmup priors path
         #     must have matching priors (encoder embedding space must match)
@@ -2692,127 +1085,14 @@ class BanditRouter:
     # ---------------------------------------------------------------------------
     
     def _generate_synthetic_data(self, n: int = 1000) -> List[str]:
+        """Generate synthetic prompts for PCA calibration.
+
+        Delegates to :func:`bandit_gpt.utils.synthetic.generate_synthetic_prompts`.
         """
-        Generate synthetic prompts for PCA calibration.
-        
-        Uses the same archetypes as procedural warmup to ensure consistency
-        between PCA manifold and warmup covariance structure.
-        
-        Args:
-            n: Number of synthetic prompts to generate (default: 1000)
-               For robust PCA, need ~10x the target dimensionality (32 dims → ~320 samples)
-               
-        Returns:
-            List of synthetic prompt strings
-        """
-        import random
-        
-        # Template patterns matching procedural warmup archetypes
-        templates = {
-            "math": [
-                "Solve the integral of {expr} with respect to {var}",
-                "Prove that {theorem} using mathematical induction",
-                "Find the derivative of {function} and explain each step",
-                "Calculate the eigenvalues of the matrix {matrix}",
-                "Determine if the series {series} converges or diverges"
-            ],
-            "coding": [
-                "Write a Python function to {task} using {library}",
-                "Implement {algorithm} in {language} with time complexity analysis",
-                "Debug this {language} code that {problem}",
-                "Create a {language} class for {task} with unit tests",
-                "Optimize this {algorithm} implementation for {constraint}"
-            ],
-            "reasoning": [
-                "Analyze the logical structure of {argument} and identify fallacies",
-                "Develop a step-by-step solution for {problem}",
-                "Compare and contrast {concept_a} with {concept_b}",
-                "Explain the causal relationship between {cause} and {effect}",
-                "Evaluate the validity of {claim} given {evidence}"
-            ],
-            "creative": [
-                "Write a {genre} story about {topic} in {style}",
-                "Compose a poem about {subject} using {form}",
-                "Create a dialogue between {character_a} and {character_b} about {topic}",
-                "Describe {scene} from the perspective of {viewpoint}",
-                "Develop a plot outline for a {genre} involving {element}"
-            ],
-            "chat": [
-                "What is {simple_concept} and why is it important?",
-                "Can you explain {topic} in simple terms?",
-                "Tell me about {subject}",
-                "Why does {phenomenon} happen?",
-                "What's the difference between {concept_a} and {concept_b}?"
-            ]
-        }
-        
-        # Fill placeholders with variations
-        fill_values = {
-            "expr": ["x^2 + 3x + 2", "sin(x)cos(x)", "e^(2x)", "ln(x^2)"],
-            "var": ["x", "y", "t", "theta"],
-            "theorem": ["Fermat's Last Theorem", "the Pythagorean identity", "Euler's formula"],
-            "function": ["f(x) = x^3 + 2x", "g(x) = sqrt(x+1)", "h(x) = e^x / x"],
-            "matrix": ["[[1,2],[3,4]]", "a 3x3 identity matrix", "[[2,-1],[4,3]]"],
-            "series": ["sum(1/n^2)", "sum((-1)^n/n)", "sum(1/n!)"],
-            "task": ["parse JSON", "sort a list", "find duplicates", "merge dictionaries"],
-            "library": ["pandas", "numpy", "requests", "pathlib"],
-            "algorithm": ["binary search", "quicksort", "dijkstra's", "BFS"],
-            "language": ["Python", "JavaScript", "Java", "C++"],
-            "problem": ["throws TypeError", "has memory leak", "returns wrong output"],
-            "constraint": ["memory", "speed", "readability"],
-            "argument": ["this logical claim", "the premise that AI is conscious"],
-            "concept_a": ["AI", "machine learning", "neural networks"],
-            "concept_b": ["automation", "deep learning", "decision trees"],
-            "cause": ["climate change", "urbanization", "technology adoption"],
-            "effect": ["sea level rise", "habitat loss", "social transformation"],
-            "claim": ["this hypothesis", "the assertion", "the theory"],
-            "evidence": ["the data", "experimental results", "historical records"],
-            "genre": ["science fiction", "mystery", "romance", "thriller"],
-            "topic": ["time travel", "AI", "space exploration", "ancient civilizations"],
-            "style": ["Hemingway's style", "a humorous tone", "dark and moody"],
-            "subject": ["autumn", "technology", "love", "nature"],
-            "form": ["haiku", "sonnet", "free verse"],
-            "character_a": ["a scientist", "an AI", "a detective"],
-            "character_b": ["a philosopher", "a child", "a criminal"],
-            "scene": ["a futuristic city", "a quiet forest", "a busy marketplace"],
-            "viewpoint": ["a bird", "an alien observer", "a time traveler"],
-            "element": ["time loops", "parallel universes", "mind reading"],
-            "simple_concept": ["photosynthesis", "gravity", "democracy"],
-            "phenomenon": ["rain", "lightning", "the aurora borealis"]
-        }
-        
-        prompts = []
-        rng = random.Random(42)
+        from bandit_gpt.utils.synthetic import generate_synthetic_prompts
 
-        archetype_keys = list(templates.keys())
-        for _ in range(n):
-            archetype = rng.choice(archetype_keys)
-            template = rng.choice(templates[archetype])
-
-            prompt = template
-            for placeholder, values in fill_values.items():
-                if f"{{{placeholder}}}" in prompt:
-                    prompt = prompt.replace(f"{{{placeholder}}}", rng.choice(values))
-
-            prompts.append(prompt)
-        
-        return prompts
+        return generate_synthetic_prompts(n)
     
-
-    def _procedural_warmup(self, n_samples: int = 50):
-
-        """
-        Shape the covariance matrix A using synthetic archetypal prompts.
-        
-        Delegates to utils.procedural_warmup for actual warmup logic.
-        See utils/warmup.py for full implementation details.
-        
-        Args:
-            n_samples: Number of synthetic samples (default: 50)
-        """
-        procedural_warmup(self, n_samples=n_samples)
-
-
 
     # prune_arms removed - trusting UCB confidence bounds to naturally downweight bad models
     # Bad models get minimal traffic (~0.001%) without explicit pruning
@@ -2980,35 +1260,30 @@ class BanditRouter:
         self,
         prompt: str | np.ndarray,
         *,
-        profile: str | Dict[str, float] = "auto",  # Deprecated, ignored
         max_cost: float | None = None,
         max_latency: float | None = None,
         quality_floor: Dict[str, float | None] = None,
         input_tokens: int | None = None,
         output_tokens: int = 600,
-        total_steps: int = 1,  # Deprecated, ignored
     ) -> Tuple[str, RoutingLog]:
-        """
-        Route a prompt to the best model using LinUCB with cost/latency penalties.
-        
+        """Route a prompt to the best model using LinUCB with cost/latency penalties.
+
         Raises:
             NoEligibleModelsError: If no models pass the hard constraints.
-        
+
         Args:
-            prompt: Input text or pre-embedded vector
+            prompt: Input text or pre-embedded vector.
             max_cost: Hard budget ceiling in ``$/1k tokens``. Compared against
                 each model's registry price (derived from ``blended_cost_per_m``).
             max_latency: Hard latency ceiling (seconds), compared against each
-                        model's ``time_to_first_token_seconds``
+                model's ``time_to_first_token_seconds``.
             quality_floor: Minimum quality scores per metric (e.g.
-                          ``{"hle": 0.7}``)
-            input_tokens: Input token count (auto-estimated if None)
-            output_tokens: Expected output tokens (default 600)
-            total_steps: Deprecated, ignored. Retained for backward
-                compatibility.
-        
+                ``{"hle": 0.7}``).
+            input_tokens: Input token count (auto-estimated if None).
+            output_tokens: Expected output tokens (default 600).
+
         Returns:
-            Tuple of (selected_model_id, routing_log)
+            Tuple of (selected_model_id, routing_log).
         """
         # Build features and apply constraints
         x, prompt_text = self._build_routing_features(prompt)
@@ -3082,12 +1357,24 @@ class BanditRouter:
         # Estimate tokens for logging and cost_usd estimates.
         in_tok = input_tokens or estimate_tokens_rough(prompt_text)
 
+        # Pre-compute normalized cost/latency once per candidate to avoid
+        # redundant registry lookups + log() calls across pacer and penalty paths.
+        need_cost = self.cost_penalty > 0 or (
+            self.budget_pacer is not None and self.budget_pacer.uses_soft
+        )
+        need_latency = self.latency_penalty > 0
+        norm_costs = (
+            {m: self._get_normalized_cost(m) for m in filtered}
+            if need_cost else {}
+        )
+        norm_latencies = (
+            {m: self._get_normalized_latency(m) for m in filtered}
+            if need_latency else {}
+        )
+
         if self.budget_pacer is not None and self.budget_pacer.uses_soft:
-            model_costs = {
-                m: self._get_normalized_cost(m) for m in filtered
-            }
             extra_cost_penalties = self.budget_pacer.get_extra_cost_penalties(
-                model_costs
+                norm_costs
             )
 
         # LinUCB selection with optional cost+latency penalty (paper Eq. 4)
@@ -3097,9 +1384,9 @@ class BanditRouter:
             for m in filtered:
                 p = 0.0
                 if self.cost_penalty > 0:
-                    p += self.cost_penalty * self._get_normalized_cost(m)
+                    p += self.cost_penalty * norm_costs[m]
                 if self.latency_penalty > 0:
-                    p += self.latency_penalty * self._get_normalized_latency(m)
+                    p += self.latency_penalty * norm_latencies[m]
                 cp[m] = p
         if extra_cost_penalties is not None:
             cp = cp or {}
@@ -3328,11 +1615,11 @@ class BanditRouter:
         Raises:
             ValueError: If *model_id* is not in the policy.
         """
-        if model_id not in policy.A_inv:
+        if model_id not in policy.theta:
             raise ValueError(
                 f"Model {model_id} not found in bandit registry"
             )
-        return policy.A_inv[model_id] @ policy.b[model_id]
+        return policy.theta[model_id]
 
     def explain_decision(
         self, 
@@ -3637,124 +1924,4 @@ class BanditRouter:
             return self.config.default_missing_latency
             
         return float(val)
-
-
-
-# ---------------------------------------------------------------------------
-# Standalone prior calibration (operates on a DisjointLinUCBPolicy)
-# ---------------------------------------------------------------------------
-
-
-def calibrate_priors(
-    bandit: 'DisjointLinUCBPolicy',
-    target_max_pred: float = 0.9,
-    calibration_contexts: List[np.ndarray] | None = None,
-) -> None:
-    """Auto-calibrate loaded priors on *bandit* so predictions stay in a safe range.
-
-    Two-pass calibration:
-
-    **Pass 1 — Bias probe** (fast, catches the most common failure):
-    Probes each model with ``[0,...,0,1]`` (bias-only context).  If the bias
-    prediction exceeds 1.5, the bias component of theta is clamped via
-    theta-reconstruction (``b = A @ theta_new``).
-
-    **Pass 2 — Suite probe** (comprehensive, catches PCA-dimension explosions):
-    Probes each model with a built-in suite of basis-independent feature
-    vectors (axis-aligned, random unit-norm, uniform).  If the caller supplies
-    *calibration_contexts*, those are appended to the suite.  If any prediction
-    exceeds 1.5, theta is globally rescaled so the worst-case prediction equals
-    *target_max_pred*.
-
-    .. warning::
-
-        **Not thread-safe.**  This function writes ``bandit.b[m]`` without
-        acquiring any lock.  It must be called during single-threaded
-        initialization (e.g., inside ``BanditRouter.create()``) *before*
-        the router is exposed to concurrent ``route()`` / ``update()``
-        traffic.  Calling it on a live router will race with readers and
-        writers.
-
-    Args:
-        bandit: A ``DisjointLinUCBPolicy`` whose A/b matrices will be modified
-                in place.
-        target_max_pred: Target maximum absolute prediction over the probe suite
-                       (default: 0.9).
-        calibration_contexts: Optional list of domain-specific context vectors
-                       (numpy arrays of shape ``(dim,)``) appended to the
-                       built-in geometry probes.
-    """
-    d = bandit.dim
-    probes: List[tuple] = []
-
-    bias_probe = np.zeros(d)
-    bias_probe[-1] = 1.0
-    probes.append(("bias", bias_probe))
-
-    pca_dims = list(range(d - 1))
-    if len(pca_dims) > 8:
-        step = max(1, len(pca_dims) // 8)
-        pca_dims = pca_dims[::step][:8]
-    for i in pca_dims:
-        e_i = np.zeros(d)
-        e_i[i] = 1.0
-        probes.append((f"axis_{i}", e_i))
-
-    rng = np.random.default_rng(42)
-    for k in range(4):
-        v = rng.standard_normal(d)
-        v /= (np.linalg.norm(v) + 1e-12)
-        probes.append((f"random_{k}", v))
-
-    uniform = np.ones(d) / np.sqrt(d)
-    probes.append(("uniform", uniform))
-
-    if calibration_contexts is not None:
-        for i, ctx in enumerate(calibration_contexts):
-            ctx = np.asarray(ctx, dtype=float).flatten()
-            if ctx.shape[0] != d:
-                logger.warning(
-                    f"Skipping calibration_context[{i}]: shape {ctx.shape} "
-                    f"!= dim {d}"
-                )
-                continue
-            probes.append((f"user_{i}", ctx))
-
-    for m in bandit.models:
-        try:
-            theta = bandit.A_inv[m] @ bandit.b[m]
-
-            bias_pred = float(theta @ bias_probe)
-            if abs(bias_pred) > 1.5:
-                theta_new = theta.copy()
-                theta_new[-1] = target_max_pred * (1.0 if bias_pred > 0 else -1.0)
-                logger.warning(
-                    f"[FIX] Calibration pass 1 ({m}): bias prediction "
-                    f"{bias_pred:.2f} -> {theta_new[-1]:.2f} (theta-reconstruction)"
-                )
-                bandit.b[m] = bandit.A[m] @ theta_new
-                theta = bandit.A_inv[m] @ bandit.b[m]
-
-            max_abs_pred = 0.0
-            worst_probe = "none"
-            for name, x in probes:
-                pred = abs(float(theta @ x))
-                if pred > max_abs_pred:
-                    max_abs_pred = pred
-                    worst_probe = name
-
-            if max_abs_pred > 1.5:
-                scale = target_max_pred / max_abs_pred
-                theta_new = theta * scale
-                logger.warning(
-                    f"[FIX] Calibration pass 2 ({m}): worst-case prediction "
-                    f"{max_abs_pred:.2f} on probe '{worst_probe}' "
-                    f"-> global theta scale {scale:.4f}"
-                )
-                bandit.b[m] = bandit.A[m] @ theta_new
-
-        except (KeyError, TypeError, ValueError, np.linalg.LinAlgError) as e:
-            logger.warning(f"Failed to calibrate prior for {m}: {e}")
-            continue
-
 

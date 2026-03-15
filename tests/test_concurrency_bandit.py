@@ -36,7 +36,7 @@ def test_concurrent_updates_and_reads():
             try:
                 # select_model calls route() which calls bandit.select_arm()
                 # we call route directly to ensure we are hitting the read path
-                model, log = router.route(prompt="test prompt", profile="auto")
+                model, log = router.route(prompt="test prompt")
                 # Check for validity
                 assert isinstance(model, str)
                 assert not np.isnan(log.predicted_utility)

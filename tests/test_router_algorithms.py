@@ -628,7 +628,7 @@ class TestRouterIntegration:
         
         # Route a prompt
         prompt = "Explain quantum computing"
-        model, log = router.route(prompt, profile="auto")
+        model, log = router.route(prompt)
         
         # Verify routing log
         assert model in full_registry.keys()
@@ -661,7 +661,7 @@ class TestRouterIntegration:
         assert "gemini-pro" in router.bandit.models
         
         # Should be routable
-        model, log = router.route("Solve this equation", profile="auto")
+        model, log = router.route("Solve this equation")
         # Model might or might not be selected, but should not crash
         assert model in router.registry.keys()
     
@@ -676,7 +676,6 @@ class TestRouterIntegration:
         # Setting max_cost=0.002 keeps only gpt-3.5.
         model, log = router.route(
             "Simple question",
-            profile="auto",
             max_cost=0.002,
         )
 
@@ -688,6 +687,6 @@ class TestRouterIntegration:
         router = BanditRouter.create(model_registry=full_registry, priors="none")
 
         with pytest.raises(NoEligibleModelsError):
-            router.route("Simple question", profile="auto", max_cost=1e-6)
+            router.route("Simple question", max_cost=1e-6)
     
 

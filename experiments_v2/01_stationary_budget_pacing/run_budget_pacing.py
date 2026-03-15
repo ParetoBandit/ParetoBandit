@@ -201,9 +201,7 @@ def _run_trial(
     # --- Train phase (online learning, no metrics) ---
     train_order = rng.permutation(train.n)
     for i in train_order:
-        model, log = router.route(
-            train.embeddings[i], total_steps=train.n,
-        )
+        model, log = router.route(train.embeddings[i])
         reward = float(train.rewards[model][i])
         log.cost_usd = float(train.costs[model][i])
         router.process_feedback(log.request_id, reward=reward)
@@ -214,9 +212,7 @@ def _run_trial(
     model_counts: Dict[str, int] = {m: 0 for m in ARM_ORDER}
 
     for i in test_order:
-        model, log = router.route(
-            test.embeddings[i], total_steps=test.n,
-        )
+        model, log = router.route(test.embeddings[i])
         reward = float(test.rewards[model][i])
         cost = float(test.costs[model][i])
         oracle_reward = max(float(test.rewards[a][i]) for a in ARM_ORDER)

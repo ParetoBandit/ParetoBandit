@@ -83,7 +83,7 @@ def test_feedback_loop_thread_contention_does_not_corrupt_state():
         try:
             for step in range(150):
                 context = make_context(seed=worker_id * 10_000 + step)
-                model, log = router.route(context, profile="auto")
+                model, log = router.route(context)
                 reward = 0.9 if step % 4 else 0.2
                 router.process_feedback(log.request_id, reward)
                 # Also exercise direct update path.

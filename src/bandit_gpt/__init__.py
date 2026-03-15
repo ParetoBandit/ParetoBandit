@@ -5,12 +5,11 @@ try:
 except PackageNotFoundError:
     __version__ = "0.1.0"
 
-from .router import (
-    BanditRouter, ExplorationRate, RouterConfig,
-    MissingCostError, NoEligibleModelsError, NoModelScoredError,
-    DisjointLinUCBPolicy,
-    infer_model_family, tetrachoric_corr, compute_correlation_families,
-)
+from .policy import DisjointLinUCBPolicy, calibrate_priors
+from .types import RouterConfig, ExplorationRate, RegistrationConfig, RoutingLog
+from .router import BanditRouter
+from .exceptions import MissingCostError, NoEligibleModelsError, NoModelScoredError
+from .family import infer_model_family, tetrachoric_corr, compute_correlation_families
 from .feature_service import FeatureService
 from .calibration import train_pca, generate_warmup_priors
 from .providers import (
@@ -22,9 +21,10 @@ from .providers import (
 __all__ = [
     "__version__",
     "BanditRouter", "ExplorationRate", "RouterConfig",
+    "RegistrationConfig", "RoutingLog",
+    "DisjointLinUCBPolicy", "calibrate_priors",
     "MissingCostError", "NoEligibleModelsError", "NoModelScoredError",
     "FeatureService",
-    "DisjointLinUCBPolicy",
     "infer_model_family",
     "tetrachoric_corr", "compute_correlation_families",
     "train_pca", "generate_warmup_priors",

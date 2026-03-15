@@ -45,13 +45,11 @@ def test_router_factory_and_core_methods_with_precomputed_features():
     context = make_context(seed=7)
     model, log = router.route(
         context,
-        profile="auto",
         max_cost=0.01,
         max_latency=0.6,
         quality_floor={"hle": 0.4},
         input_tokens=256,
         output_tokens=128,
-        total_steps=10,
     )
     assert model in router.registry
     assert log.selected_model == model

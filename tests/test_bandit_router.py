@@ -47,7 +47,7 @@ def test_routing_decisions(sample_registry):
     assert log.selected_model == model
     
     # Test with profile (use auto as default intelligent routing)
-    model_cs, log_cs = router.route(prompt, profile="auto")
+    model_cs, log_cs = router.route(prompt)
     # Note: Model selection depends on router's UCB scores and may vary
     assert model_cs in ["openai/gpt-4o", "google/gemma-3-2b-it"]
 
@@ -161,9 +161,8 @@ def _test_no_zombie_models():
     router.config.pruning_min_samples = 30
     
     N = 500
-    custom_profile = {"w_q": 1.0, "w_c": 0.02, "w_l": 0.0}
     for i in range(N):
-        model, log = router.route(f"Test prompt {i}", profile=custom_profile)
+        model, log = router.route(f"Test prompt {i}")
         quality = 0.10 + (int(model.replace("model", "")) * 0.075)
         reward = min(1.0, quality + np.random.normal(0, 0.1))
         router.process_feedback(log.request_id, reward=max(0, reward))
