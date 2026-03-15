@@ -111,7 +111,7 @@ def test_exp01_single_seed_regression(
     actual: Dict[str, Any] = {
         "mean_reward": trial.mean_reward,
         "mean_cost": trial.mean_cost,
-        "cumulative_regret": trial.cumulative_regret,
+        "cumulative_quality_gap": trial.cumulative_quality_gap,
         "model_fractions": trial.model_fractions,
     }
 

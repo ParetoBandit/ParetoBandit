@@ -85,7 +85,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service"):
+for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================

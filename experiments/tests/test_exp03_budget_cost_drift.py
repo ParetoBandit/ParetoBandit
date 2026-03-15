@@ -178,7 +178,7 @@ def test_exp03_single_seed_regression(
     p2_metrics = seed_result.phase_metrics(2)
 
     actual: Dict[str, Any] = {
-        "total_regret": seed_result.total_regret(),
+        "total_quality_gap": seed_result.total_quality_gap(),
         "p1_mean_reward": p1_metrics["mean_reward"],
         "p1_mean_cost": p1_metrics["mean_cost"],
         "p2_mean_reward": p2_metrics["mean_reward"],

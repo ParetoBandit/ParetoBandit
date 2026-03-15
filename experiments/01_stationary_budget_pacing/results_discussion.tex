@@ -153,24 +153,6 @@ This asymmetry is by design: the pacer constrains spend
 \emph{from above} but never forces the router to spend more than its
 quality-optimal policy would.
 
-\paragraph{Lambda dynamics (Figure~\ref{fig:lambda_convergence}).}
-The dual-variable trajectory reveals the feedback loop.
-At a tight target ($B{=}\$2.9{\times}10^{-5}$), $\lambda_t$
-saturates near the cap ($\bar\lambda{=}5$) within the first 100
-test steps and remains stable, producing a near-Llama-only policy.
-At the moderate target ($B{=}\$6.6{\times}10^{-4}$), $\lambda_t$
-oscillates in a bounded band, actively steering a
-Llama/Mistral/Gemini mix.  The oscillations reflect the
-EMA-smoothed cost responding to stochastic model selections:
-expensive requests raise $\bar{c}_t$ above target, driving
-$\lambda_t$ up, which suppresses costly selections, allowing
-$\bar{c}_t$ to relax.  The bounded oscillation is characteristic
-of a primal-dual controller in steady state orbiting the constraint
-boundary.
-At the loose-binding target ($B{=}\$0.0053$), $\lambda_t$
-applies light pressure and the router achieves
-$0.98\times$ utilisation with negligible quality loss.
-
 \paragraph{Model-mix dynamics (Figure~\ref{fig:model_mix_budget}).}
 The stacked bar chart reveals a qualitative difference between the
 two methods.

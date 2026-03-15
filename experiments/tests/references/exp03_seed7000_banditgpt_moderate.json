@@ -1,5 +1,5 @@
 {
-  "total_regret": 102.415,
+  "total_quality_gap": 102.415,
   "p1_mean_reward": 0.8872295632698769,
   "p1_mean_cost": 0.0006639573348264277,
   "p2_mean_reward": 0.9251367713004484,

@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 """Generate figures for Experiment 01: Stationary Budget Pacing.
 
-Reads ``results/budget_pacing_results.json`` and produces three
+Reads ``results/budget_pacing_results.json`` and produces two
 publication-ready figures:
 
 1. **Pareto frontier** (``pareto_frontier.{pdf,png}``):
    Quality (mean reward) vs. cost, comparing the BudgetPacer adaptive
    curve against the static ``cost_penalty`` baseline.
 
-2. **Lambda convergence** (``lambda_convergence.{pdf,png}``):
-   Dual-variable trajectory over the test phase for representative
-   budget targets, showing stabilisation.
-
-3. **Model-mix dynamics** (``model_mix.{pdf,png}``):
+2. **Model-mix dynamics** (``model_mix.{pdf,png}``):
    Grouped bar chart of model selection fractions as a function of
    budget target / cost-penalty setting.
 
@@ -223,78 +219,7 @@ def plot_pareto(data: Dict[str, Any]) -> plt.Figure:
 
 
 # ======================================================================
-# Figure 2: Lambda Convergence
-# ======================================================================
-
-
-def plot_lambda_convergence(data: Dict[str, Any]) -> plt.Figure:
-    """Dual-variable (lambda_t) trajectory over the test phase."""
-    results = data["results"]
-    pacer_rows = [r for r in results if r["method"] == "pacer" and "per_step_seed0" in r]
-
-    # Pick three *binding* budget targets (tight / moderate / loose-but-binding).
-    # Skip the loosest target if its utilization is far from 1.0 (non-binding).
-    binding = [
-        r for r in pacer_rows
-        if r.get("budget_utilization", 0) >= 0.90
-    ]
-    if len(binding) >= 3:
-        indices = [0, len(binding) // 2, -1]
-        selected = [binding[i] for i in indices]
-    else:
-        indices = [0, len(pacer_rows) // 2, min(len(pacer_rows) - 1, -2)]
-        selected = [pacer_rows[i] for i in indices]
-
-    colors = [CB_RED, CB_ORANGE, CB_GREEN]
-
-    fig, axes = plt.subplots(len(selected), 1, figsize=(9, 3.2 * len(selected)),
-                             sharex=True)
-    if len(selected) == 1:
-        axes = [axes]
-
-    for ax, row, color in zip(axes, selected, colors):
-        steps = row["per_step_seed0"]
-        lambdas = [s["lambda_t"] for s in steps]
-        target = row["target_spend"]
-        actual_cost = row["mean_cost"]
-        util = row.get("budget_utilization", actual_cost / target if target > 0 else 0)
-
-        window = 50
-        if len(lambdas) >= window:
-            smoothed = np.convolve(lambdas, np.ones(window) / window, mode="valid")
-            x_smooth = np.arange(window - 1, len(lambdas))
-        else:
-            smoothed = lambdas
-            x_smooth = np.arange(len(lambdas))
-
-        ax.plot(x_smooth, smoothed, color=color, linewidth=2.0, zorder=3)
-        ax.fill_between(x_smooth, smoothed, alpha=0.12, color=color, zorder=2)
-
-        final_lam = lambdas[-1] if lambdas else 0
-        ax.axhline(final_lam, color=color, linestyle=":", linewidth=1.0, alpha=0.5)
-
-        t_str = f"${target:.4f}" if target >= 0.001 else f"${target:.1e}"
-        ax.set_ylabel("λ(t)", fontsize=12)
-        ax.set_title(
-            f"Target = {t_str}/req  │  Actual = ${actual_cost:.5f}  │  "
-            f"Util = {util:.2f}×  │  λ_final = {final_lam:.3f}",
-            fontsize=10, loc="left", pad=6,
-        )
-        ax.grid(True, alpha=0.2, linewidth=0.5)
-        ax.tick_params(labelsize=10)
-
-    axes[-1].set_xlabel("Test Step", fontsize=12)
-
-    fig.suptitle(
-        "Lambda Convergence — BudgetPacer Dual Variable (Seed 0)",
-        fontsize=14, fontweight="bold", y=1.01,
-    )
-    fig.tight_layout()
-    return fig
-
-
-# ======================================================================
-# Figure 3: Model-Mix Dynamics
+# Figure 2: Model-Mix Dynamics
 # ======================================================================
 
 
@@ -379,7 +304,6 @@ def main() -> None:
 
     figures = {
         "pareto_frontier": plot_pareto(data),
-        "lambda_convergence": plot_lambda_convergence(data),
         "model_mix": plot_model_mix(data),
     }
 

@@ -3,7 +3,7 @@
 
 Reads ``results/budget_cost_drift_results.json`` and produces two figures:
 
-**Primary** — ``cumulative_regret.pdf/.png``:
+**Primary** — ``cumulative_quality_gap.pdf/.png``:
   1x3 panel (one column per budget level) comparing three conditions:
     - Fixed Policy (offline): gray dashed
     - Naive Bandit (γ=1.0): orange dashed
@@ -129,12 +129,12 @@ def _add_phase_boundary(
 
 
 # ======================================================================
-# Primary figure: Cumulative Regret per Budget Level (1x3)
+# Primary figure: Cumulative Quality Gap per Budget Level (1x3)
 # ======================================================================
 
 
-def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
-    """1x3 cumulative regret panel: one column per budget level.
+def plot_cumulative_quality_gap(data: Dict[str, Any]) -> plt.Figure:
+    """1x3 cumulative quality gap panel: one column per budget level.
 
     Parameters
     ----------
@@ -161,10 +161,10 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
 
             curve = conditions[cond_key]["curves"]
             steps = [c["step"] for c in curve]
-            regrets = [c["mean_cumulative_regret"] for c in curve]
+            quality_gaps = [c["mean_cumulative_quality_gap"] for c in curve]
             n_seeds = curve[0]["n_seeds"]
-            se_regrets = [
-                c["std_cumulative_regret"] / np.sqrt(n_seeds)
+            se_quality_gaps = [
+                c["std_cumulative_quality_gap"] / np.sqrt(n_seeds)
                 for c in curve
             ]
 
@@ -173,20 +173,20 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
             lw = CONDITION_LINEWIDTHS[prefix]
 
             ax.plot(
-                steps, regrets,
+                steps, quality_gaps,
                 color=color, linestyle=ls, linewidth=lw,
                 label=CONDITION_LABELS[prefix], zorder=4,
             )
             ax.fill_between(
                 steps,
-                [r - s for r, s in zip(regrets, se_regrets)],
-                [r + s for r, s in zip(regrets, se_regrets)],
+                [r - s for r, s in zip(quality_gaps, se_quality_gaps)],
+                [r + s for r, s in zip(quality_gaps, se_quality_gaps)],
                 alpha=0.12, color=color, zorder=2,
             )
 
             ax.annotate(
-                f"{regrets[-1]:.0f}",
-                xy=(steps[-1], regrets[-1]),
+                f"{quality_gaps[-1]:.0f}",
+                xy=(steps[-1], quality_gaps[-1]),
                 xytext=(6, 0), textcoords="offset points",
                 fontsize=8, color=color, va="center", fontweight="bold",
             )
@@ -202,11 +202,11 @@ def plot_cumulative_regret(data: Dict[str, Any]) -> plt.Figure:
         _add_phase_boundary(ax, phase_boundary, label=(ax_idx == 0))
 
         if ax_idx == 0:
-            ax.set_ylabel("Cumulative Regret", fontsize=11)
+            ax.set_ylabel("Cumulative Quality Gap", fontsize=11)
             ax.legend(fontsize=8.5, loc="upper left", framealpha=0.9)
 
     fig.suptitle(
-        r"Cumulative Regret Under Cost Drift ($K{=}3$, 20 seeds, $\pm$1 SE)",
+        r"Cumulative Quality Gap Under Cost Drift ($K{=}3$, 20 seeds, $\pm$1 SE)",
         fontsize=13, fontweight="bold", y=1.01,
     )
     fig.tight_layout()
@@ -398,6 +398,15 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
 def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = _load_results()
+
+    qgap_fig = plot_cumulative_quality_gap(data)
+    for fmt in ("pdf", "png"):
+        qgap_fig.savefig(
+            RESULTS_DIR / f"cumulative_quality_gap.{fmt}",
+            bbox_inches="tight", dpi=300,
+        )
+    plt.close(qgap_fig)
+    print("Saved cumulative_quality_gap.{pdf,png}")
 
     dynamics_fig = plot_adaptation_dynamics(data)
     for fmt in ("pdf", "png"):

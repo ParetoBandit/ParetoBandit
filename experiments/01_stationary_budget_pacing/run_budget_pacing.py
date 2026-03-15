@@ -69,7 +69,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service"):
+for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================
@@ -101,7 +101,7 @@ class StepRecord:
     model: str
     reward: float
     cost: float
-    oracle_reward: float
+    unconstrained_oracle: float
     lambda_t: float
 
 
@@ -113,7 +113,7 @@ class TrialResult:
     seed: int
     mean_reward: float
     mean_cost: float
-    cumulative_regret: float
+    cumulative_quality_gap: float
     model_fractions: Dict[str, float]
     trailing_100_cost: float
     final_lambda: float
@@ -215,7 +215,7 @@ def _run_trial(
         model, log = router.route(test.embeddings[i])
         reward = float(test.rewards[model][i])
         cost = float(test.costs[model][i])
-        oracle_reward = max(float(test.rewards[a][i]) for a in ARM_ORDER)
+        unconstrained_oracle = max(float(test.rewards[a][i]) for a in ARM_ORDER)
 
         log.cost_usd = cost
         router.process_feedback(log.request_id, reward=reward)
@@ -223,13 +223,13 @@ def _run_trial(
         lam = budget_pacer.lambda_t if budget_pacer is not None else 0.0
         steps.append(StepRecord(
             model=model, reward=reward, cost=cost,
-            oracle_reward=oracle_reward, lambda_t=lam,
+            unconstrained_oracle=unconstrained_oracle, lambda_t=lam,
         ))
         model_counts[model] += 1
 
     rewards = np.array([s.reward for s in steps])
     costs = np.array([s.cost for s in steps])
-    oracles = np.array([s.oracle_reward for s in steps])
+    oracles = np.array([s.unconstrained_oracle for s in steps])
     lambdas = np.array([s.lambda_t for s in steps])
 
     trailing_100_cost = float(np.mean(costs[-100:])) if len(costs) >= 100 else float(np.mean(costs))
@@ -252,7 +252,8 @@ def _run_trial(
         per_step_records = [
             {
                 "model": s.model, "reward": s.reward, "cost": s.cost,
-                "oracle_reward": s.oracle_reward, "lambda_t": s.lambda_t,
+                "unconstrained_oracle": s.unconstrained_oracle,
+                "lambda_t": s.lambda_t,
             }
             for s in steps
         ]
@@ -262,7 +263,7 @@ def _run_trial(
         seed=seed,
         mean_reward=float(np.mean(rewards)),
         mean_cost=float(np.mean(costs)),
-        cumulative_regret=float(np.sum(oracles - rewards)),
+        cumulative_quality_gap=float(np.sum(oracles - rewards)),
         model_fractions=model_fractions,
         trailing_100_cost=trailing_100_cost,
         final_lambda=steps[-1].lambda_t if steps else 0.0,
@@ -349,7 +350,7 @@ def main() -> None:
 
         mean_reward = float(np.mean([t.mean_reward for t in seed_trials]))
         mean_cost = float(np.mean([t.mean_cost for t in seed_trials]))
-        mean_regret = float(np.mean([t.cumulative_regret for t in seed_trials]))
+        mean_quality_gap = float(np.mean([t.cumulative_quality_gap for t in seed_trials]))
         se_reward = float(np.std([t.mean_reward for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
         se_cost = float(np.std([t.mean_cost for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
 
@@ -365,13 +366,13 @@ def main() -> None:
             "se_reward": se_reward,
             "mean_cost": mean_cost,
             "se_cost": se_cost,
-            "mean_regret": mean_regret,
+            "mean_quality_gap": mean_quality_gap,
             "model_fractions": avg_fracs,
         }
         all_results.append(row)
         logger.info(
-            "  cp=%.2f  reward=%.4f±%.4f  cost=$%.6f±$%.6f  regret=%.1f",
-            cp, mean_reward, se_reward, mean_cost, se_cost, mean_regret,
+            "  cp=%.2f  reward=%.4f±%.4f  cost=$%.6f±$%.6f  qgap=%.1f",
+            cp, mean_reward, se_reward, mean_cost, se_cost, mean_quality_gap,
         )
 
     # ------------------------------------------------------------------
@@ -403,7 +404,7 @@ def main() -> None:
 
         mean_reward = float(np.mean([t.mean_reward for t in seed_trials]))
         mean_cost = float(np.mean([t.mean_cost for t in seed_trials]))
-        mean_regret = float(np.mean([t.cumulative_regret for t in seed_trials]))
+        mean_quality_gap = float(np.mean([t.cumulative_quality_gap for t in seed_trials]))
         se_reward = float(np.std([t.mean_reward for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
         se_cost = float(np.std([t.mean_cost for t in seed_trials], ddof=1) / np.sqrt(N_SEEDS))
         mean_util = float(np.mean([t.budget_utilization for t in seed_trials]))
@@ -426,7 +427,7 @@ def main() -> None:
             "se_reward": se_reward,
             "mean_cost": mean_cost,
             "se_cost": se_cost,
-            "mean_regret": mean_regret,
+            "mean_quality_gap": mean_quality_gap,
             "model_fractions": avg_fracs,
             "final_lambda": float(np.mean([t.final_lambda for t in seed_trials])),
             "trailing_100_cost": float(np.mean([t.trailing_100_cost for t in seed_trials])),
@@ -440,9 +441,9 @@ def main() -> None:
         all_results.append(row)
         logger.info(
             "  target=$%.6f  reward=%.4f±%.4f  cost=$%.6f±$%.6f  "
-            "regret=%.1f  λ_final=%.3f  util=%.2fx  trail100=$%.6f",
+            "qgap=%.1f  λ_final=%.3f  util=%.2fx  trail100=$%.6f",
             target, mean_reward, se_reward, mean_cost, se_cost,
-            mean_regret,
+            mean_quality_gap,
             row["final_lambda"],
             mean_util,
             row["trailing_100_cost"],
@@ -483,7 +484,7 @@ def main() -> None:
     print("=" * hdr_w)
     print(
         f"  {'Method':<12s} {'Config':>16s}  {'Reward':>10s}  "
-        f"{'Cost':>12s}  {'Regret':>10s}  {'Util':>7s}  {'λ_final':>8s}"
+        f"{'Cost':>12s}  {'QGap':>10s}  {'Util':>7s}  {'λ_final':>8s}"
     )
     print(
         f"  {'-'*12}  {'-'*16}  {'-'*10}  "
@@ -501,7 +502,7 @@ def main() -> None:
             lam_str = f"{r['final_lambda']:.4f}"
         print(
             f"  {r['method']:<12s} {cfg:>16s}  {r['mean_reward']:10.4f}  "
-            f"${r['mean_cost']:11.6f}  {r['mean_regret']:10.1f}  "
+            f"${r['mean_cost']:11.6f}  {r['mean_quality_gap']:10.1f}  "
             f"{util_str:>7s}  {lam_str:>8s}"
         )
     print("=" * hdr_w)

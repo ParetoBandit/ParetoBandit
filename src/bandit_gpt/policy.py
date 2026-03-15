@@ -884,9 +884,10 @@ class DisjointLinUCBPolicy:
                 # Only when gamma < 1.0 AND the arm has gone so long without
                 # an update that gamma^dt < 0.1 — i.e., >90% of the original
                 # prior has been forgotten.
-                logger.info(
-                    f"[FIX] Maintenance: Restoring regularization floor for {model} "
-                    f"(lambda_eff={new_lambda:.2e} < {lambda_threshold:.2e})"
+                logger.debug(
+                    "Restoring regularization floor for %s "
+                    "(lambda_eff=%.2e < %.2e)",
+                    model, new_lambda, lambda_threshold,
                 )
 
                 missing_lambda = self.init_lambda - new_lambda

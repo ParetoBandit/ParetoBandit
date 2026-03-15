@@ -80,7 +80,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service"):
+for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.policy"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 # ======================================================================
@@ -137,7 +137,7 @@ class StepRecord:
     model: str
     reward: float
     cost: float
-    oracle_utility: float
+    unconstrained_oracle_utility: float
     chosen_utility: float
     lambda_t: float
     cost_ema: float
@@ -163,7 +163,7 @@ class SeedResult:
             return {}
         rewards = [s.reward for s in phase_steps]
         costs = [s.cost for s in phase_steps]
-        regrets = [s.oracle_utility - s.chosen_utility for s in phase_steps]
+        quality_gaps = [s.unconstrained_oracle_utility - s.chosen_utility for s in phase_steps]
         arm_counts: Dict[str, int] = {a: 0 for a in ARM_ORDER}
         for s in phase_steps:
             arm_counts[s.model] += 1
@@ -171,15 +171,15 @@ class SeedResult:
         return {
             "mean_reward": float(np.mean(rewards)),
             "mean_cost": float(np.mean(costs)),
-            "cumulative_regret": float(np.sum(regrets)),
+            "cumulative_quality_gap": float(np.sum(quality_gaps)),
             "arm_fractions": {a: cnt / n for a, cnt in arm_counts.items()},
             "mean_lambda": float(np.mean([s.lambda_t for s in phase_steps])),
             "mean_cost_ema": float(np.mean([s.cost_ema for s in phase_steps])),
             "n_steps": n,
         }
 
-    def total_regret(self) -> float:
-        return sum(s.oracle_utility - s.chosen_utility for s in self.steps)
+    def total_quality_gap(self) -> float:
+        return sum(s.unconstrained_oracle_utility - s.chosen_utility for s in self.steps)
 
 
 # ======================================================================
@@ -325,7 +325,7 @@ def _run_two_phase_trial(
     feature_dim : int
         Context vector dimensionality.
     normalized_costs_p1, normalized_costs_p2 : dict
-        Per-model normalized costs for oracle regret computation.
+        Per-model normalized costs for oracle quality-gap computation.
     cost_penalty : float
         Static cost penalty weight (0.0 for pacer conditions).
     warmup : bool
@@ -403,7 +403,7 @@ def _run_two_phase_trial(
         if online_learn:
             router.process_feedback(log.request_id, reward=reward)
 
-        oracle_utility = max(float(all_rewards[a][t]) for a in ARM_ORDER)
+        unconstrained_oracle_utility = max(float(all_rewards[a][t]) for a in ARM_ORDER)
         chosen_utility = reward
 
         lam = budget_pacer.lambda_t if budget_pacer is not None else 0.0
@@ -416,7 +416,7 @@ def _run_two_phase_trial(
             model=model,
             reward=reward,
             cost=cost,
-            oracle_utility=oracle_utility,
+            unconstrained_oracle_utility=unconstrained_oracle_utility,
             chosen_utility=chosen_utility,
             lambda_t=lam,
             cost_ema=ema,
@@ -505,7 +505,7 @@ def _aggregate_seeds(
     -------
     dict
         Aggregated metrics including checkpoint curves, phase summaries,
-        and per-seed regrets for statistical tests.
+        and per-seed quality gaps for statistical tests.
     """
     n_seeds = len(seed_results)
     n_total = seed_results[0].n
@@ -518,7 +518,7 @@ def _aggregate_seeds(
 
     curves: List[Dict[str, Any]] = []
     for cp_step in checkpoints:
-        lambdas, cost_emas, cum_regrets, gammas = [], [], [], []
+        lambdas, cost_emas, cum_quality_gaps, gammas = [], [], [], []
         arm_frac_lists: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
         rewards_agg, costs_agg = [], []
 
@@ -526,8 +526,8 @@ def _aggregate_seeds(
 
         for sr in seed_results:
             steps_so_far = sr.steps[:cp_step]
-            regret = sum(s.oracle_utility - s.chosen_utility for s in steps_so_far)
-            cum_regrets.append(regret)
+            qgap = sum(s.unconstrained_oracle_utility - s.chosen_utility for s in steps_so_far)
+            cum_quality_gaps.append(qgap)
             last = steps_so_far[-1]
             lambdas.append(last.lambda_t)
             cost_emas.append(last.cost_ema)
@@ -557,9 +557,9 @@ def _aggregate_seeds(
             "step": cp_step,
             "phase": "normal" if cp_step <= n_p1 else "price-drop",
             "phase_boundary": n_p1,
-            "mean_cumulative_regret": float(np.mean(cum_regrets)),
-            "std_cumulative_regret": float(np.std(cum_regrets)),
-            "se_cumulative_regret": float(np.std(cum_regrets) / np.sqrt(n_seeds)),
+            "mean_cumulative_quality_gap": float(np.mean(cum_quality_gaps)),
+            "std_cumulative_quality_gap": float(np.std(cum_quality_gaps)),
+            "se_cumulative_quality_gap": float(np.std(cum_quality_gaps) / np.sqrt(n_seeds)),
             "mean_lambda": float(np.mean(lambdas)),
             "std_lambda": float(np.std(lambdas)),
             "mean_cost_ema": float(np.mean(cost_emas)),
@@ -575,7 +575,7 @@ def _aggregate_seeds(
 
     phase1_metrics = [sr.phase_metrics(1) for sr in seed_results]
     phase2_metrics = [sr.phase_metrics(2) for sr in seed_results]
-    per_seed_regret = [sr.total_regret() for sr in seed_results]
+    per_seed_quality_gap = [sr.total_quality_gap() for sr in seed_results]
 
     return {
         "label": seed_results[0].condition,
@@ -583,7 +583,7 @@ def _aggregate_seeds(
         "phase1_summary": {
             "mean_reward": float(np.mean([m["mean_reward"] for m in phase1_metrics])),
             "mean_cost": float(np.mean([m["mean_cost"] for m in phase1_metrics])),
-            "mean_regret": float(np.mean([m["cumulative_regret"] for m in phase1_metrics])),
+            "mean_quality_gap": float(np.mean([m["cumulative_quality_gap"] for m in phase1_metrics])),
             "mean_lambda": float(np.mean([m["mean_lambda"] for m in phase1_metrics])),
             "arm_fractions": {
                 ARM_SHORT[a]: float(np.mean([m["arm_fractions"][a] for m in phase1_metrics]))
@@ -593,19 +593,19 @@ def _aggregate_seeds(
         "phase2_summary": {
             "mean_reward": float(np.mean([m["mean_reward"] for m in phase2_metrics])),
             "mean_cost": float(np.mean([m["mean_cost"] for m in phase2_metrics])),
-            "mean_regret": float(np.mean([m["cumulative_regret"] for m in phase2_metrics])),
+            "mean_quality_gap": float(np.mean([m["cumulative_quality_gap"] for m in phase2_metrics])),
             "mean_lambda": float(np.mean([m["mean_lambda"] for m in phase2_metrics])),
             "arm_fractions": {
                 ARM_SHORT[a]: float(np.mean([m["arm_fractions"][a] for m in phase2_metrics]))
                 for a in ARM_ORDER
             },
         },
-        "total_regret": {
-            "mean": float(np.mean(per_seed_regret)),
-            "std": float(np.std(per_seed_regret)),
-            "se": float(np.std(per_seed_regret) / np.sqrt(n_seeds)),
+        "total_quality_gap": {
+            "mean": float(np.mean(per_seed_quality_gap)),
+            "std": float(np.std(per_seed_quality_gap)),
+            "se": float(np.std(per_seed_quality_gap) / np.sqrt(n_seeds)),
         },
-        "per_seed_regret": per_seed_regret,
+        "per_seed_quality_gap": per_seed_quality_gap,
         "per_seed_phase1_reward": [m["mean_reward"] for m in phase1_metrics],
         "per_seed_phase2_reward": [m["mean_reward"] for m in phase2_metrics],
         "per_seed_phase1_cost": [m["mean_cost"] for m in phase1_metrics],
@@ -723,10 +723,10 @@ def main() -> None:
             all_condition_results[label] = agg
 
             logger.info(
-                "  Total regret: %.1f ± %.1f (SE %.1f)",
-                agg["total_regret"]["mean"],
-                agg["total_regret"]["std"],
-                agg["total_regret"]["se"],
+                "  Total quality gap: %.1f ± %.1f (SE %.1f)",
+                agg["total_quality_gap"]["mean"],
+                agg["total_quality_gap"]["std"],
+                agg["total_quality_gap"]["se"],
             )
             logger.info(
                 "  Phase 1: reward=%.4f  cost=$%.6f  λ=%.3f  arm=%s",
@@ -767,9 +767,9 @@ def main() -> None:
     unconstrained_agg = _aggregate_seeds(unconstrained_seeds, PHASE1_N)
     all_condition_results["Unconstrained"] = unconstrained_agg
     logger.info(
-        "  Total regret: %.1f ± %.1f",
-        unconstrained_agg["total_regret"]["mean"],
-        unconstrained_agg["total_regret"]["std"],
+        "  Total quality gap: %.1f ± %.1f",
+        unconstrained_agg["total_quality_gap"]["mean"],
+        unconstrained_agg["total_quality_gap"]["std"],
     )
 
     # ------------------------------------------------------------------
@@ -817,7 +817,7 @@ def main() -> None:
     logger.info("=" * 100)
     logger.info(
         "  %-35s  %8s  %8s  %8s  %8s  %8s",
-        "Condition", "P1 Rwd", "P2 Rwd", "P1 λ", "P2 λ", "Regret",
+        "Condition", "P1 Rwd", "P2 Rwd", "P1 λ", "P2 λ", "QGap",
     )
     logger.info("  " + "-" * 90)
     for label, agg in all_condition_results.items():
@@ -828,7 +828,7 @@ def main() -> None:
             label,
             p1["mean_reward"], p2["mean_reward"],
             p1["mean_lambda"], p2["mean_lambda"],
-            agg["total_regret"]["mean"],
+            agg["total_quality_gap"]["mean"],
         )
     logger.info("=" * 100)
     logger.info("Wall time: %.1fs", time.time() - t0)
