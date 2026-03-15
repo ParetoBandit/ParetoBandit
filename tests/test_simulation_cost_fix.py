@@ -74,7 +74,6 @@ def _make_router(registry, budget_pacer=None):
         model_registry=registry,
         priors="none",
         cost_penalty=0.0,
-        use_corralling=False,
         budget_pacer=budget_pacer,
     )
 
@@ -120,10 +119,11 @@ class TestCostOverrideMechanism:
             f"from injected cost={injected_cost}"
         )
 
-        expected_lambda = max(0.0, 0.1 * (injected_cost / target - 1.0))
+        # Dual update now uses the EMA (not raw cost).
+        expected_lambda = max(0.0, 0.1 * (expected_ema / target - 1.0))
         assert abs(pacer.lambda_t - expected_lambda) < 1e-10, (
             f"lambda_t={pacer.lambda_t} doesn't match expected={expected_lambda} "
-            f"from normalized dual update with cost={injected_cost}, target={target}"
+            f"from EMA-smoothed dual update with ema={expected_ema}, target={target}"
         )
 
     def test_override_does_not_use_heuristic_estimate(self, three_model_registry):

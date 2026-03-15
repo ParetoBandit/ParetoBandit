@@ -43,7 +43,6 @@ def test_late_model_receives_manual_priors():
         model_registry=registry,
         alpha=0.1,
         init_lambda=1.0,
-        use_corralling=True  # Enable corralling for safety guarantees
     )
     
     # Get initial state for first model

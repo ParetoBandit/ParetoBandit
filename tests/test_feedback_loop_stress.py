@@ -24,7 +24,6 @@ def test_feedback_loop_handles_delayed_and_out_of_order_updates():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
         config=RouterConfig(max_log_size=32),
         context_store=EphemeralContextStore(max_size=5000),
     )
@@ -74,7 +73,6 @@ def test_feedback_loop_thread_contention_does_not_corrupt_state():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
         context_store=EphemeralContextStore(max_size=10000),
     )
     errors: list[Exception] = []

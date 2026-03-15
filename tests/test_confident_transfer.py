@@ -29,7 +29,6 @@ def test_new_model_gets_fresh_precision():
         model_registry=registry,
         alpha=0.1,
         init_lambda=1.0,
-        use_corralling=True
     )
 
     model_id = "gpt-4-base"

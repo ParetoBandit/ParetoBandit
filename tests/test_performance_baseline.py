@@ -29,7 +29,6 @@ def test_route_update_latency_budget():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
     )
 
     rounds = int(os.getenv("BANDITGPT_PERF_ROUNDS", "4000"))

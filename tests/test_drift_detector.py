@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import numpy as np
 import pytest
 
-from bandit_gpt.drift import DriftDetector
+from bandit_gpt.drift import CentroidDriftDetector, DriftDetector
 
 
 # ======================================================================
@@ -487,38 +487,6 @@ class TestPolicyReset:
             assert policy.last_played[m] == 0
         assert policy.t == 0
 
-    def test_hybrid_reset(self):
-        from bandit_gpt.router import HybridLinUCBPolicy
-
-        models = ["arm_a", "arm_b"]
-        dim = 8
-        policy = HybridLinUCBPolicy(
-            model_names=models, dim=dim, alpha=0.5, init_lambda=1.5,
-        )
-
-        rng = np.random.default_rng(7)
-        for _ in range(20):
-            x = rng.standard_normal(dim)
-            policy.select_arm(x, candidates=models)
-            chosen = rng.choice(models)
-            policy.update(chosen, x, reward=rng.uniform(0, 1))
-
-        assert not np.allclose(
-            policy.A0, np.eye(dim) * 1.5
-        ), "A0 should have learned state"
-
-        policy.reset_to_tabula_rasa()
-
-        np.testing.assert_array_equal(policy.A0, np.eye(dim) * 1.5)
-        np.testing.assert_array_equal(policy.b0, np.zeros(dim))
-        for m in models:
-            np.testing.assert_array_equal(policy.A[m], np.eye(dim) * 1.5)
-            np.testing.assert_array_equal(
-                policy.B[m], np.zeros((dim, dim)),
-            )
-            np.testing.assert_array_equal(policy.b[m], np.zeros(dim))
-            assert policy.last_update[m] == 0
-        assert policy.t == 0
 
 
 # ======================================================================
@@ -568,7 +536,7 @@ class TestRouterTabulaRasaReset:
             model_registry=two_arm_registry,
             priors="none",
             alpha=0.5,
-            use_corralling=False,
+            
             cost_penalty=0.0,
             drift_threshold=0.0,
         )
@@ -672,7 +640,7 @@ class TestRouterTabulaRasaReset:
             model_registry=two_arm_registry,
             priors="none",
             alpha=0.5,
-            use_corralling=False,
+            
             drift_threshold=0.0,
         )
 
@@ -697,7 +665,7 @@ class TestRouterTabulaRasaReset:
             model_registry=two_arm_registry,
             priors="none",
             alpha=0.5,
-            use_corralling=False,
+            
             drift_threshold=2.0,
         )
 
@@ -775,9 +743,10 @@ class TestEndToEndWithSyntheticPriors:
             priors=str(priors_path),
             prior_n_effective=1000.0,
             alpha=0.5,
-            use_corralling=False,
+            
             cost_penalty=0.0,
             drift_threshold=drift_threshold,
+            drift_method="chi2",
             drift_burn_in_steps=50,
             drift_ema_alpha=0.1,
             drift_confirmation_window=10,
@@ -1101,3 +1070,230 @@ class TestProdGradualDrift:
         assert trigger_step < 400, (
             f"Should detect before drift reaches max, got step {trigger_step}"
         )
+
+
+# ======================================================================
+# CentroidDriftDetector — Unit Tests
+# ======================================================================
+#
+# The centroid detector tracks the running-centroid cosine distance and
+# is designed for topic/domain rotation shifts typical in LLM routing.
+
+
+def _unit_sphere_vectors(
+    n: int,
+    dim: int = 50,
+    *,
+    direction: np.ndarray | None = None,
+    spread: float = 0.3,
+    seed: int = 0,
+) -> list[np.ndarray]:
+    """Generate L2-normalized vectors clustered around *direction*.
+
+    When ``direction`` is None, a random reference direction is used.
+    ``spread`` controls the angular dispersion: 0.0 = all identical,
+    1.0 = large cone around the direction.
+    """
+    rng = np.random.default_rng(seed)
+    if direction is None:
+        direction = rng.standard_normal(dim)
+    direction = direction / np.linalg.norm(direction)
+    vecs = []
+    for _ in range(n):
+        noise = rng.standard_normal(dim) * spread
+        v = direction + noise
+        v /= np.linalg.norm(v)
+        vecs.append(v)
+    return vecs
+
+
+class TestCentroidStableTraffic:
+    """CentroidDriftDetector must stay silent on stationary traffic."""
+
+    def test_no_trigger_on_stationary(self):
+        det = CentroidDriftDetector(
+            threshold=2.0, burn_in_steps=50, ema_alpha=0.05,
+            confirmation_window=20,
+        )
+        vecs = _unit_sphere_vectors(800, seed=1)
+        flags = [det.update(v) for v in vecs]
+
+        assert det.is_burned_in
+        assert not any(flags), (
+            "Stationary unit-sphere traffic must never trigger. "
+            f"score={det.ema_chi2:.6f}, baseline={det.baseline:.6f}"
+        )
+
+    def test_no_trigger_on_high_variance_stationary(self):
+        """Wide angular spread but stable direction should not trigger."""
+        det = CentroidDriftDetector(
+            threshold=2.0, burn_in_steps=50, ema_alpha=0.05,
+            confirmation_window=20,
+        )
+        vecs = _unit_sphere_vectors(800, spread=0.8, seed=2)
+        flags = [det.update(v) for v in vecs]
+
+        assert det.is_burned_in
+        assert not any(flags), (
+            "High-variance but stationary traffic must not trigger"
+        )
+
+
+class TestCentroidTopicShift:
+    """CentroidDriftDetector must fire on centroid rotations."""
+
+    def test_detects_orthogonal_shift(self):
+        """Shift to a nearly orthogonal direction (cos_sim ~ 0)."""
+        dim = 50
+        rng = np.random.default_rng(10)
+        dir1 = rng.standard_normal(dim)
+        dir1 /= np.linalg.norm(dir1)
+
+        dir2 = rng.standard_normal(dim)
+        dir2 -= dir2.dot(dir1) * dir1
+        dir2 /= np.linalg.norm(dir2)
+
+        det = CentroidDriftDetector(
+            threshold=2.0, burn_in_steps=50, ema_alpha=0.05,
+            confirmation_window=20,
+        )
+        phase1 = _unit_sphere_vectors(300, dim=dim, direction=dir1, seed=11)
+        phase2 = _unit_sphere_vectors(300, dim=dim, direction=dir2, seed=12)
+
+        flags1 = [det.update(v) for v in phase1]
+        assert not any(flags1), "Phase 1 must be stable"
+
+        flags2 = [det.update(v) for v in phase2]
+        assert any(flags2), (
+            "Orthogonal centroid shift must trigger. "
+            f"score={det.ema_chi2:.6f}, baseline={det.baseline:.6f}"
+        )
+        trigger_idx = next(i for i, f in enumerate(flags2) if f)
+        assert trigger_idx < 100, (
+            f"Should detect quickly, got step {trigger_idx}"
+        )
+
+    def test_detects_moderate_rotation(self):
+        """30-degree rotation (cos_sim ~ 0.87) should still trigger."""
+        dim = 50
+        rng = np.random.default_rng(20)
+        dir1 = np.zeros(dim)
+        dir1[0] = 1.0
+
+        angle_rad = np.pi / 6  # 30 degrees
+        dir2 = np.zeros(dim)
+        dir2[0] = np.cos(angle_rad)
+        dir2[1] = np.sin(angle_rad)
+
+        det = CentroidDriftDetector(
+            threshold=2.0, burn_in_steps=50, ema_alpha=0.05,
+            confirmation_window=20,
+        )
+        phase1 = _unit_sphere_vectors(300, dim=dim, direction=dir1, spread=0.2, seed=21)
+        phase2 = _unit_sphere_vectors(400, dim=dim, direction=dir2, spread=0.2, seed=22)
+
+        flags1 = [det.update(v) for v in phase1]
+        assert not any(flags1)
+
+        flags2 = [det.update(v) for v in phase2]
+        assert any(flags2), (
+            "30-degree centroid rotation should trigger. "
+            f"score={det.ema_chi2:.6f}, baseline={det.baseline:.6f}"
+        )
+
+    def test_no_trigger_on_tiny_rotation(self):
+        """2-degree rotation (cos_sim ~ 0.9994) should NOT trigger."""
+        dim = 50
+        dir1 = np.zeros(dim)
+        dir1[0] = 1.0
+
+        angle_rad = np.pi / 90  # 2 degrees
+        dir2 = np.zeros(dim)
+        dir2[0] = np.cos(angle_rad)
+        dir2[1] = np.sin(angle_rad)
+
+        det = CentroidDriftDetector(
+            threshold=2.0, burn_in_steps=50, ema_alpha=0.05,
+            confirmation_window=20,
+        )
+        phase1 = _unit_sphere_vectors(300, dim=dim, direction=dir1, spread=0.3, seed=31)
+        phase2 = _unit_sphere_vectors(500, dim=dim, direction=dir2, spread=0.3, seed=32)
+
+        [det.update(v) for v in phase1]
+        flags2 = [det.update(v) for v in phase2]
+        assert not any(flags2), (
+            "Tiny 2-degree rotation must not trigger (within noise). "
+            f"score={det.ema_chi2:.6f}, baseline={det.baseline:.6f}"
+        )
+
+
+class TestCentroidReset:
+    """Verify reset clears state and allows re-detection."""
+
+    def test_reset_clears_state(self):
+        det = CentroidDriftDetector(
+            threshold=2.0, burn_in_steps=50, ema_alpha=0.05,
+            confirmation_window=20,
+        )
+        vecs = _unit_sphere_vectors(100, seed=40)
+        [det.update(v) for v in vecs]
+        assert det.is_burned_in
+
+        det.reset()
+
+        assert not det.is_burned_in
+        assert det.total_steps == 0
+        assert det.baseline == 0.0
+        assert det.consecutive_above == 0
+        assert not det.is_drifting
+
+    def test_redetects_after_reset(self):
+        """After reset + re-burn-in, a second shift should trigger again."""
+        dim = 50
+        rng = np.random.default_rng(50)
+        dir1 = rng.standard_normal(dim)
+        dir1 /= np.linalg.norm(dir1)
+        dir2 = rng.standard_normal(dim)
+        dir2 -= dir2.dot(dir1) * dir1
+        dir2 /= np.linalg.norm(dir2)
+        dir3 = rng.standard_normal(dim)
+        dir3 -= dir3.dot(dir1) * dir1
+        dir3 -= dir3.dot(dir2) * dir2
+        dir3 /= np.linalg.norm(dir3)
+
+        det = CentroidDriftDetector(
+            threshold=2.0, burn_in_steps=50, ema_alpha=0.05,
+            confirmation_window=20,
+        )
+
+        phase1 = _unit_sphere_vectors(200, dim=dim, direction=dir1, seed=51)
+        phase2 = _unit_sphere_vectors(200, dim=dim, direction=dir2, seed=52)
+        [det.update(v) for v in phase1]
+        flags_shift1 = [det.update(v) for v in phase2]
+        assert any(flags_shift1), "First shift must trigger"
+
+        det.reset()
+
+        phase3_burnin = _unit_sphere_vectors(200, dim=dim, direction=dir2, seed=53)
+        phase3_shift = _unit_sphere_vectors(200, dim=dim, direction=dir3, seed=54)
+        [det.update(v) for v in phase3_burnin]
+        flags_shift2 = [det.update(v) for v in phase3_shift]
+        assert any(flags_shift2), "Second shift after reset must also trigger"
+
+
+class TestCentroidGetState:
+    """Verify get_state returns complete diagnostic info."""
+
+    def test_state_keys(self):
+        det = CentroidDriftDetector(threshold=2.0, burn_in_steps=10)
+        vecs = _unit_sphere_vectors(20, seed=60)
+        [det.update(v) for v in vecs]
+
+        state = det.get_state()
+        expected_keys = {
+            "total_steps", "burned_in", "baseline", "baseline_std",
+            "ema_chi2", "drift_score", "drift_ratio", "is_drifting",
+            "consecutive_above", "confirmed", "threshold",
+            "burn_in_steps", "ema_alpha", "confirmation_window",
+        }
+        assert set(state.keys()) == expected_keys

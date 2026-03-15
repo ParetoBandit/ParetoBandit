@@ -116,8 +116,6 @@ BEST_K3_HPARAMS: Dict[str, Any] = {
     "alpha": 0.01,
     "pca_components": 25,
     "prior_n_effective": 5000.0,
-    "policy": "disjoint",
-    "use_corralling": False,
     "forgetting_factor": 1.0,
 }
 """Best K=3 BanditGPT config (warmup priors, PCA-25, disjoint LinUCB).
@@ -132,8 +130,6 @@ BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
     "alpha": 0.25,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "policy": "disjoint",
-    "use_corralling": False,
     "forgetting_factor": 1.0,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).

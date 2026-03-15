@@ -1,52 +1,50 @@
 #!/usr/bin/env python3
-"""Experiment 02: Non-stationary K=3 Adaptation via Reward Swap.
+"""Experiment 02b: Non-stationary K=3 Adaptation via Cost Shift.
 
-Demonstrates that BanditGPT's combination of warmup priors and
-geometric forgetting enables automatic adaptation when a model's
-quality changes — a common production event as LLM providers iterate
-on their APIs.
+Demonstrates that BanditGPT adapts when a model's pricing changes ---
+the most common non-stationarity in production LLM routing.
 
 Experimental setup
 ------------------
 The router is deployed on a two-phase data stream constructed from
 real benchmark data:
 
-  **Phase 1** (steps 1--893): Normal reward landscape.  The warmup
-  priors (trained on the full K=3 training set) are well-calibrated.
-  Mistral-Large and Gemini-Pro dominate; Llama-8B is weakest but
-  cheapest.
+  **Phase 1** (steps 1--1000): Normal pricing.  Gemini-Pro is the
+  most expensive model (normalized cost 0.67); Mistral-Large is
+  utility-best under the cost penalty.  Gemini is rarely selected
+  because the cost penalty outweighs its quality advantage.
 
-  **Phase 2** (steps 894--1785): **Reward swap** — Llama-8B and
-  Mistral-Large exchange their per-prompt reward and cost columns,
-  simulating simultaneous API changes: Llama receives a major quality
-  upgrade while Mistral regresses.  After the swap, Llama-8B
-  (previously worst) becomes both cheapest *and* highest-quality,
-  while Mistral-Large (previously utility-best) drops to worst.
+  **Phase 2** (steps 1001--2000): **Gemini price drop** --- Gemini's
+  pricing is reduced to Llama-level ($0.10/M tokens input+output).
+  The router's model registry is updated at the boundary, so
+  ``route()`` immediately computes the new normalized cost (~0.0).
+  Post-drop, Gemini is both highest-quality *and* cheapest by
+  cost-adjusted utility (0.933 vs Mistral's 0.840).
 
-  Gemini-Pro is unchanged (anchor), preserving a realistic three-way
-  competition.
+  The adaptation challenge: despite the immediate pricing signal,
+  the bandit's theta estimates carry Phase-1 inertia.  Gemini was
+  under-explored (rarely selected when expensive), so theta_gemini
+  has high variance.  Mistral was heavily exploited, so
+  theta_mistral is overly confident.  The forgetting factor decays
+  this confidence, enabling faster convergence to Gemini.
 
-Three conditions are compared at a fixed cost penalty (λ=0.2),
-representing increasing levels of routing sophistication:
+Four conditions are compared at a fixed cost penalty (lambda=0.2):
 
-  - **Fixed Policy (offline)**: Warmup priors deployed frozen — the
-    industry standard pattern of training offline and deploying without
-    online adaptation.  Under drift it is helpless.
-  - **Naive Bandit (γ=1.0)**: LinUCB with infinite memory and warmup
-    priors.  The obvious first attempt at online routing — adapts, but
-    Phase 1 inertia dilutes Phase 2 signal.
-  - **BanditGPT (γ=0.997)**: Warmup priors with jointly-tuned
-    geometric forgetting.  Effective memory ~333 steps.
+  - **BanditGPT** (gamma=0.999): Warmup priors + forgetting.
+  - **No forgetting** (gamma=1.0): Warmup, no adaptation.
+  - **Fast forgetting** (gamma=0.995): Warmup, aggressive decay.
+  - **Tabula Rasa**: No priors, learns from scratch.
 
 Outputs (``results/``)
-    reward_shift_results.json
+    cost_shift_results.json
 
 Usage:
-    python -m experiments_v2.02_nonstationary_k3_drift.run_reward_shift
+    python -m experiments_v2.02_nonstationary_k3_drift.run_cost_shift
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import sys
@@ -90,13 +88,12 @@ ARM_SHORT: Dict[str, str] = {
     "google/gemini-2.5-pro": "Gemini-Pro",
 }
 
-SWAP_ARMS = (
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-large-2512",
-)
+GEMINI_ID: str = "google/gemini-2.5-pro"
+GEMINI_NEW_INPUT_COST: float = 0.10
+GEMINI_NEW_OUTPUT_COST: float = 0.10
 
 N_SEEDS: int = 40
-SEED_OFFSET: int = 4000
+SEED_OFFSET: int = 5000
 RESULTS_DIR = Path(__file__).parent / "results"
 
 PHASE1_N: int = 893
@@ -106,28 +103,32 @@ CHECKPOINT_INTERVAL: int = 50
 
 PRIOR_N_EFFECTIVE: float = 10.0
 ALPHA_WARMUP: float = 0.1
+ALPHA_TABULA_RASA: float = 0.01
 
 CONDITIONS: List[Dict[str, Any]] = [
-    {
-        "label": "Fixed Policy (offline)",
-        "warmup": True,
-        "forgetting_factor": 1.0,
-        "alpha": ALPHA_WARMUP,
-        "online_learn": False,
-    },
-    {
-        "label": "Naive Bandit (γ=1.0)",
-        "warmup": True,
-        "forgetting_factor": 1.0,
-        "alpha": ALPHA_WARMUP,
-        "online_learn": True,
-    },
     {
         "label": "BanditGPT (γ=0.997)",
         "warmup": True,
         "forgetting_factor": 0.997,
         "alpha": ALPHA_WARMUP,
-        "online_learn": True,
+    },
+    {
+        "label": "No forgetting (γ=1.0)",
+        "warmup": True,
+        "forgetting_factor": 1.0,
+        "alpha": ALPHA_WARMUP,
+    },
+    {
+        "label": "Fast forgetting (γ=0.995)",
+        "warmup": True,
+        "forgetting_factor": 0.995,
+        "alpha": ALPHA_WARMUP,
+    },
+    {
+        "label": "Tabula Rasa",
+        "warmup": False,
+        "forgetting_factor": 0.999,
+        "alpha": ALPHA_TABULA_RASA,
     },
 ]
 
@@ -181,35 +182,76 @@ def _load_all(
     )
 
 
-def _apply_reward_swap(
+def _apply_gemini_cost_reduction(
     split: SplitData,
-    arm_a: str,
-    arm_b: str,
+    gemini_id: str,
+    old_input: float,
+    old_output: float,
+    new_input: float,
+    new_output: float,
 ) -> SplitData:
-    """Return a new ``SplitData`` with rewards and costs swapped between two arms.
+    """Return a new ``SplitData`` with Gemini's costs scaled to new pricing.
+
+    The per-prompt costs are scaled by the ratio of new to old average
+    cost-per-million-tokens, preserving the per-prompt cost variance.
 
     Parameters
     ----------
     split : SplitData
         Original data.
-    arm_a, arm_b : str
-        The two arm IDs whose reward/cost columns are exchanged.
+    gemini_id : str
+        Model ID for Gemini.
+    old_input, old_output : float
+        Original pricing ($/M tokens).
+    new_input, new_output : float
+        New pricing ($/M tokens).
 
     Returns
     -------
     SplitData
-        New object with swapped arrays (shallow copy of non-swapped fields).
+        New object with scaled Gemini costs.
     """
-    new_rewards = dict(split.rewards)
+    old_avg = (old_input + old_output) / 2.0
+    new_avg = (new_input + new_output) / 2.0
+    scale = new_avg / old_avg
+
     new_costs = dict(split.costs)
-    new_rewards[arm_a], new_rewards[arm_b] = split.rewards[arm_b].copy(), split.rewards[arm_a].copy()
-    new_costs[arm_a], new_costs[arm_b] = split.costs[arm_b].copy(), split.costs[arm_a].copy()
+    new_costs[gemini_id] = split.costs[gemini_id] * scale
+
     return SplitData(
         prompts=split.prompts,
-        rewards=new_rewards,
+        rewards=split.rewards,
         costs=new_costs,
         embeddings=split.embeddings,
     )
+
+
+def _build_phase2_registry(
+    registry: Dict[str, Any],
+    gemini_id: str,
+    new_input: float,
+    new_output: float,
+) -> Dict[str, Any]:
+    """Return a deep copy of the registry with Gemini's pricing updated.
+
+    Parameters
+    ----------
+    registry : dict
+        Original model registry.
+    gemini_id : str
+        Model ID for Gemini.
+    new_input, new_output : float
+        New pricing ($/M tokens).
+
+    Returns
+    -------
+    dict
+        New registry with updated Gemini pricing.
+    """
+    new_reg = copy.deepcopy(registry)
+    new_reg[gemini_id]["input_cost_per_m"] = new_input
+    new_reg[gemini_id]["output_cost_per_m"] = new_output
+    return new_reg
 
 
 # ======================================================================
@@ -270,7 +312,7 @@ def _frozen_holdout_eval(
 ) -> Dict[str, Any]:
     """Evaluate the router's current policy on holdout data.
 
-    Uses ``bandit.select_arm()`` directly — a pure read of the
+    Uses ``bandit.select_arm()`` directly --- a pure read of the
     A_inv/b matrices with no state mutation.
 
     Parameters
@@ -278,7 +320,7 @@ def _frozen_holdout_eval(
     router : BanditRouter
         Router with current learned policy.
     holdout : SplitData
-        Held-out evaluation data (Phase 2 reward landscape).
+        Held-out evaluation data.
     arm_order : list[str]
         Model identifiers.
     normalized_costs : dict[str, float]
@@ -326,14 +368,16 @@ def _run_learning_curve(
     phase2_holdout: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
-    normalized_costs: Dict[str, float],
+    normalized_costs_p1: Dict[str, float],
+    normalized_costs_p2: Dict[str, float],
 ) -> List[Dict[str, Any]]:
     """Run a two-phase learning curve with periodic holdout evaluation.
 
-    Phase 1 streams normal-reward prompts; Phase 2 streams reward-swapped
-    prompts.  Within each phase, prompts are shuffled per seed.  Frozen
-    holdout evaluation (on Phase 2 holdout with swapped rewards) is
-    performed at every checkpoint.
+    Phase 1 streams prompts at original pricing; Phase 2 streams
+    prompts at reduced Gemini pricing.  At the phase boundary, the
+    router's registry is updated to reflect the new Gemini pricing.
+    Frozen holdout evaluation uses Phase 2 normalized costs throughout
+    (measuring policy quality under post-price-drop conditions).
 
     Parameters
     ----------
@@ -341,17 +385,19 @@ def _run_learning_curve(
         Condition definition with ``label``, ``warmup``,
         ``forgetting_factor``.
     phase1 : SplitData
-        In-distribution prompts (normal rewards).
+        Prompts with original costs.
     phase2_online : SplitData
-        Reward-swapped prompts for online learning.
+        Prompts with reduced Gemini costs for online learning.
     phase2_holdout : SplitData
-        Reward-swapped prompts for frozen evaluation.
+        Prompts with reduced Gemini costs for frozen evaluation.
     registry : dict
-        Model registry.
+        Model registry (original pricing).
     feature_dim : int
         Context dimensionality.
-    normalized_costs : dict[str, float]
-        Per-model normalized costs.
+    normalized_costs_p1 : dict[str, float]
+        Per-model normalized costs under original pricing.
+    normalized_costs_p2 : dict[str, float]
+        Per-model normalized costs under reduced Gemini pricing.
 
     Returns
     -------
@@ -369,7 +415,6 @@ def _run_learning_curve(
         + [n_train]
     ))
 
-    online_learn = condition.get("online_learn", True)
     per_seed_curves: List[Dict[int, Dict[str, Any]]] = []
 
     for s in range(N_SEEDS):
@@ -407,11 +452,12 @@ def _run_learning_curve(
         curve: Dict[int, Dict[str, Any]] = {}
         checkpoint_set = set(checkpoints)
         cumulative_regret: float = 0.0
+        registry_updated = False
 
         def _eval() -> Dict[str, Any]:
             snapshot = _frozen_holdout_eval(
                 router, phase2_holdout, ARM_ORDER,
-                normalized_costs, COST_PENALTY,
+                normalized_costs_p2, COST_PENALTY,
             )
             snapshot["cumulative_regret"] = cumulative_regret
             snapshot["forgetting_factor"] = router.bandit.gamma
@@ -421,20 +467,27 @@ def _run_learning_curve(
             curve[0] = _eval()
 
         for t in range(n_train):
+            if t == n_p1 and not registry_updated:
+                router.registry[GEMINI_ID]["input_cost_per_m"] = GEMINI_NEW_INPUT_COST
+                router.registry[GEMINI_ID]["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
+                registry_updated = True
+
+            # Select normalized costs for regret based on current phase
+            nc = normalized_costs_p1 if t < n_p1 else normalized_costs_p2
+
             emb = all_emb[t]
             model, log = router.route(emb)
             reward = float(all_rewards[model][t])
             cost = float(all_costs[model][t])
 
             log.cost_usd = cost
-            if online_learn:
-                router.process_feedback(log.request_id, reward=reward)
+            router.process_feedback(log.request_id, reward=reward)
 
             oracle_utility = max(
-                float(all_rewards[a][t]) - COST_PENALTY * normalized_costs[a]
+                float(all_rewards[a][t]) - COST_PENALTY * nc[a]
                 for a in ARM_ORDER
             )
-            chosen_utility = reward - COST_PENALTY * normalized_costs[model]
+            chosen_utility = reward - COST_PENALTY * nc[model]
             cumulative_regret += oracle_utility - chosen_utility
 
             step = t + 1
@@ -467,7 +520,7 @@ def _run_learning_curve(
 
         entry: Dict[str, Any] = {
             "step": step,
-            "phase": "normal" if step <= n_p1 else "swapped",
+            "phase": "normal" if step <= n_p1 else "price-drop",
             "phase_boundary": n_p1,
             "mean_reward": float(np.mean(rewards_agg)),
             "std_reward": float(np.std(rewards_agg)),
@@ -534,44 +587,65 @@ def main() -> None:
         embeddings=train_all.embeddings[p2_indices],
     )
 
-    phase2_online = _apply_reward_swap(phase2_raw, *SWAP_ARMS)
-    phase2_holdout = _apply_reward_swap(test_all, *SWAP_ARMS)
-
-    logger.info(
-        "  Phase 1: %d prompts (normal rewards)",
-        phase1.n,
-    )
-    logger.info(
-        "  Phase 2 online: %d prompts (Llama <-> Mistral swapped)",
-        phase2_online.n,
-    )
-    logger.info(
-        "  Phase 2 holdout: %d prompts (swapped)",
-        phase2_holdout.n,
-    )
-
-    # ---- Compute normalized costs ----
+    # ---- Compute original pricing info for cost scaling ----
     registry = build_model_registry(ARM_ORDER)
-    normalized_costs = compute_normalized_costs(registry, ARM_ORDER)
-    logger.info("  Normalized costs: %s", {
-        ARM_SHORT[a]: f"{v:.4f}" for a, v in normalized_costs.items()
+    gemini_meta = registry[GEMINI_ID]
+    old_input = gemini_meta["input_cost_per_m"]
+    old_output = gemini_meta["output_cost_per_m"]
+
+    phase2_online = _apply_gemini_cost_reduction(
+        phase2_raw, GEMINI_ID,
+        old_input, old_output,
+        GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
+    )
+    phase2_holdout = _apply_gemini_cost_reduction(
+        test_all, GEMINI_ID,
+        old_input, old_output,
+        GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
+    )
+
+    logger.info(
+        "  Phase 1: %d prompts (normal pricing)", phase1.n,
+    )
+    logger.info(
+        "  Phase 2 online: %d prompts (Gemini price drop)", phase2_online.n,
+    )
+    logger.info(
+        "  Phase 2 holdout: %d prompts (Gemini price drop)", phase2_holdout.n,
+    )
+
+    # ---- Compute normalized costs for both phases ----
+    normalized_costs_p1 = compute_normalized_costs(registry, ARM_ORDER)
+    registry_p2 = _build_phase2_registry(
+        registry, GEMINI_ID,
+        GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
+    )
+    normalized_costs_p2 = compute_normalized_costs(registry_p2, ARM_ORDER)
+
+    logger.info("  Phase 1 normalized costs: %s", {
+        ARM_SHORT[a]: f"{v:.4f}" for a, v in normalized_costs_p1.items()
+    })
+    logger.info("  Phase 2 normalized costs: %s", {
+        ARM_SHORT[a]: f"{v:.4f}" for a, v in normalized_costs_p2.items()
     })
 
-    # ---- Summarize reward landscape shift ----
-    for label, split in [
-        ("Phase 1 (normal)", phase1),
-        ("Phase 2 (swapped)", phase2_online),
+    # ---- Summarize utility landscape shift ----
+    for label, split, nc in [
+        ("Phase 1 (normal pricing)", phase1, normalized_costs_p1),
+        ("Phase 2 (Gemini price drop)", phase2_online, normalized_costs_p2),
     ]:
-        best_arm_counts: Dict[str, int] = {a: 0 for a in ARM_ORDER}
         mean_rewards: Dict[str, float] = {}
+        mean_utilities: Dict[str, float] = {}
         for a in ARM_ORDER:
             mean_rewards[a] = float(np.mean(split.rewards[a]))
-        for i in range(split.n):
-            best = max(ARM_ORDER, key=lambda a: split.rewards[a][i])
-            best_arm_counts[best] += 1
-        logger.info("  %s best-arm: %s  means: %s", label,
-            {ARM_SHORT[a]: f"{c / split.n:.0%}" for a, c in best_arm_counts.items()},
+            mean_utilities[a] = mean_rewards[a] - COST_PENALTY * nc[a]
+        utility_best = max(ARM_ORDER, key=lambda a: mean_utilities[a])
+        logger.info(
+            "  %s  rewards: %s  utilities: %s  best: %s",
+            label,
             {ARM_SHORT[a]: f"{v:.3f}" for a, v in mean_rewards.items()},
+            {ARM_SHORT[a]: f"{v:.3f}" for a, v in mean_utilities.items()},
+            ARM_SHORT[utility_best],
         )
 
     # ---- Run conditions ----
@@ -582,7 +656,8 @@ def main() -> None:
         logger.info("\n=== %s ===", label)
         curve = _run_learning_curve(
             cond, phase1, phase2_online, phase2_holdout,
-            registry, feature_dim, normalized_costs,
+            registry, feature_dim,
+            normalized_costs_p1, normalized_costs_p2,
         )
         all_results[label] = curve
 
@@ -597,10 +672,12 @@ def main() -> None:
 
     # ---- Save results ----
     output: Dict[str, Any] = {
-        "experiment": "02_reward_shift",
+        "experiment": "02b_cost_shift",
         "arm_order": ARM_ORDER,
         "arm_short": ARM_SHORT,
-        "swap_arms": list(SWAP_ARMS),
+        "cost_shift_model": GEMINI_ID,
+        "gemini_new_input_cost": GEMINI_NEW_INPUT_COST,
+        "gemini_new_output_cost": GEMINI_NEW_OUTPUT_COST,
         "n_seeds": N_SEEDS,
         "seed_offset": SEED_OFFSET,
         "phase1_n": phase1.n,
@@ -609,21 +686,25 @@ def main() -> None:
         "cost_penalty": COST_PENALTY,
         "prior_n_effective": PRIOR_N_EFFECTIVE,
         "alpha_warmup": ALPHA_WARMUP,
+        "alpha_tabula_rasa": ALPHA_TABULA_RASA,
         "checkpoint_interval": CHECKPOINT_INTERVAL,
-        "normalized_costs": {
-            ARM_SHORT[a]: v for a, v in normalized_costs.items()
+        "normalized_costs_p1": {
+            ARM_SHORT[a]: v for a, v in normalized_costs_p1.items()
+        },
+        "normalized_costs_p2": {
+            ARM_SHORT[a]: v for a, v in normalized_costs_p2.items()
         },
         "conditions": all_results,
     }
 
-    out_path = RESULTS_DIR / "reward_shift_results.json"
+    out_path = RESULTS_DIR / "cost_shift_results.json"
     with open(out_path, "w") as f:
         json.dump(output, f, indent=2, default=str)
     logger.info("\nSaved results to %s", out_path)
 
     # ---- Summary table ----
     logger.info("\n" + "=" * 80)
-    logger.info("REWARD SHIFT — Final Checkpoint Summary")
+    logger.info("COST SHIFT — Final Checkpoint Summary")
     logger.info("=" * 80)
     logger.info(
         "  %-22s  %8s  %10s  %8s  %s",

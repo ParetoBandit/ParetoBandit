@@ -274,7 +274,6 @@ class TestRouterHighDimensionalNoPCA:
             model_registry=registry,
             feature_service=high_dim_fs,
             priors="none",
-            use_corralling=False,
         )
         model, log = router.route("Matrix update check")
         b_before = router.bandit.b[model].copy()
@@ -358,7 +357,6 @@ class TestRouterPrecomputed:
         registry = _sample_registry(2)
         router = BanditRouter.create(
             model_registry=registry, feature_service=fs, priors="none",
-            use_corralling=False,
         )
 
         vec = np.random.randn(dim)
@@ -580,6 +578,7 @@ class TestTextFeatures:
 
         for mid in registry:
             A = router.bandit.A[mid]
-            expected_dim = dim + 3 + 1
+            from bandit_gpt.feature_service import N_TEXT_FEATURES
+            expected_dim = dim + N_TEXT_FEATURES + 1
             assert A.shape == (expected_dim, expected_dim)
             assert not np.any(np.isnan(A))

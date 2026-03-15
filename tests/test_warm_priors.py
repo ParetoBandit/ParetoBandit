@@ -79,7 +79,6 @@ def _create_router(registry, priors_path, n_effective=100.0, **kwargs):
         priors=str(priors_path),
         prior_n_effective=n_effective,
         feature_service=_mock_feature_service(),
-        use_corralling=False,
         **kwargs,
     )
 
@@ -198,7 +197,6 @@ class TestPriorInfluence:
             model_registry=two_model_registry,
             priors="none",
             feature_service=_mock_feature_service(),
-            use_corralling=False,
         )
 
         for mid in two_model_registry:
@@ -275,7 +273,6 @@ class TestPriorEdgeCases:
             model_registry=two_model_registry,
             priors="/nonexistent/priors.joblib",
             feature_service=_mock_feature_service(),
-            use_corralling=False,
         )
 
         init_lambda = router.bandit.init_lambda

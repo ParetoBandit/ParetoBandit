@@ -16,7 +16,6 @@ Validates:
 12. Backward-compatible registry keys (cost_per_1m_tokens, median_latency_s).
 13. Pessimistic cost defaults for fully-missing cost data.
 14. Registry deep copy prevents caller mutation.
-15. HybridLinUCBPolicy backward-compatible alias.
 """
 
 import sys
@@ -36,7 +35,6 @@ from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.router import (
     BanditRouter,
     DisjointLinUCBPolicy,
-    HybridLinUCBPolicy,
     MissingCostError,
     NoEligibleModelsError,
 )
@@ -329,7 +327,7 @@ class TestWarmupPriorsWhiteningConversion:
             priors=str(tmp_path / "p.joblib"),
             prior_n_effective=1000.0,
             feature_service=fs,
-            use_corralling=False,
+            
         )
 
         m0 = list(registry.keys())[0]
@@ -360,7 +358,7 @@ class TestWarmupPriorsWhiteningConversion:
                 priors=str(tmp_path / "p.joblib"),
                 prior_n_effective=1000.0,
                 feature_service=fs,
-                use_corralling=False,
+                
             )
 
         conversion_msgs = [r for r in caplog.records if "Converted warmup priors" in r.message]
@@ -391,7 +389,7 @@ class TestWarmupPriorsWhiteningConversion:
             priors=str(tmp_path / "p.joblib"),
             prior_n_effective=1000.0,
             feature_service=fs,
-            use_corralling=False,
+            
         )
 
         m0 = list(registry.keys())[0]
@@ -519,7 +517,7 @@ class TestCostFilteringSematics:
                                    scales=np.ones(DIM))
         router = BanditRouter.create(
             model_registry=registry, priors="none",
-            feature_service=fs, use_corralling=False,
+            feature_service=fs,
         )
         x = np.zeros(DIM); x[-1] = 1.0
         model, _ = router.route(x, max_cost=0.002)
@@ -531,7 +529,7 @@ class TestCostFilteringSematics:
                                    scales=np.ones(DIM))
         router = BanditRouter.create(
             model_registry=registry, priors="none",
-            feature_service=fs, use_corralling=False,
+            feature_service=fs,
         )
         x = np.zeros(DIM); x[-1] = 1.0
         with pytest.raises(NoEligibleModelsError):
@@ -557,7 +555,7 @@ class TestBackwardCompatRegistryKeys:
                                    scales=np.ones(DIM))
         router = BanditRouter.create(
             model_registry=registry, priors="none",
-            feature_service=fs, use_corralling=False,
+            feature_service=fs,
         )
         assert router.registry["legacy-model"]["blended_cost_per_m"] == 5.0
 
@@ -575,7 +573,7 @@ class TestBackwardCompatRegistryKeys:
                                    scales=np.ones(DIM))
         router = BanditRouter.create(
             model_registry=registry, priors="none",
-            feature_service=fs, use_corralling=False,
+            feature_service=fs,
         )
         assert router.registry["legacy-model"]["time_to_first_token_seconds"] == 0.75
 
@@ -594,7 +592,7 @@ class TestPessimisticCostDefaults:
                                    scales=np.ones(DIM))
         router = BanditRouter.create(
             model_registry=registry, priors="none",
-            feature_service=fs, use_corralling=False,
+            feature_service=fs,
         )
         m = router.registry["no-cost"]
         assert "blended_cost_per_m" in m
@@ -630,23 +628,10 @@ class TestRegistryDeepCopy:
                                    scales=np.ones(DIM))
         _ = BanditRouter.create(
             model_registry=caller_reg, priors="none",
-            feature_service=fs, use_corralling=False,
+            feature_service=fs,
         )
         assert "blended_cost_per_m" not in inner, (
             "Router init should not add blended_cost_per_m to the caller's dict"
         )
 
 
-# ===================================================================
-# 15. HybridLinUCBPolicy backward-compatible alias
-# ===================================================================
-
-
-class TestHybridLinUCBPolicy:
-
-    def test_is_distinct_class(self) -> None:
-        assert HybridLinUCBPolicy is not DisjointLinUCBPolicy
-
-    def test_importable_from_top_level(self) -> None:
-        from bandit_gpt import HybridLinUCBPolicy as H
-        assert H is HybridLinUCBPolicy

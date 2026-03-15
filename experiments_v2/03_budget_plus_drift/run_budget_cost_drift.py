@@ -264,7 +264,6 @@ def _create_router(
     *,
     warmup: bool = True,
     forgetting_factor: float = 1.0,
-    adaptive_gamma: bool = False,
     cost_penalty: float = 0.0,
     budget_pacer: Optional[BudgetPacer] = None,
 ) -> BanditRouter:
@@ -279,12 +278,9 @@ def _create_router(
         warmup_path=str(K3_WARMUP_PRIORS_PATH) if warmup else None,
         prior_n_effective=PRIOR_N_EFFECTIVE,
         alpha=ALPHA,
-        use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=forgetting_factor,
         drift_threshold=0.0,
-        policy="disjoint",
-        adaptive_gamma=adaptive_gamma,
         budget_pacer=budget_pacer,
     )
 
@@ -306,7 +302,6 @@ def _run_two_phase_trial(
     cost_penalty: float,
     warmup: bool = True,
     forgetting_factor: float = 1.0,
-    adaptive_gamma: bool = False,
     online_learn: bool = True,
     budget_pacer: Optional[BudgetPacer] = None,
     seed: int,
@@ -336,8 +331,6 @@ def _run_two_phase_trial(
         Whether to load warmup priors.
     forgetting_factor : float
         Fixed forgetting factor.
-    adaptive_gamma : bool
-        Enable per-arm adaptive forgetting.
     online_learn : bool
         If False, the policy is frozen at deployment — ``process_feedback``
         is never called.
@@ -361,7 +354,6 @@ def _run_two_phase_trial(
         feature_dim,
         warmup=warmup,
         forgetting_factor=forgetting_factor,
-        adaptive_gamma=adaptive_gamma,
         cost_penalty=cost_penalty,
         budget_pacer=budget_pacer,
     )
@@ -469,7 +461,6 @@ def _build_conditions(
             "cost_penalty": matched_cp,
             "warmup": True,
             "forgetting_factor": 1.0,
-            "adaptive_gamma": False,
             "online_learn": False,
         },
         {
@@ -478,7 +469,6 @@ def _build_conditions(
             "cost_penalty": matched_cp,
             "warmup": True,
             "forgetting_factor": 1.0,
-            "adaptive_gamma": False,
             "online_learn": True,
         },
         {
@@ -487,7 +477,6 @@ def _build_conditions(
             "cost_penalty": 0.0,
             "warmup": True,
             "forgetting_factor": 0.997,
-            "adaptive_gamma": False,
             "online_learn": True,
         },
     ]
@@ -723,7 +712,6 @@ def main() -> None:
                     cost_penalty=cond["cost_penalty"],
                     warmup=cond["warmup"],
                     forgetting_factor=cond["forgetting_factor"],
-                    adaptive_gamma=cond["adaptive_gamma"],
                     online_learn=cond.get("online_learn", True),
                     budget_pacer=pacer,
                     seed=seed,
@@ -770,7 +758,6 @@ def main() -> None:
             cost_penalty=0.0,
             warmup=True,
             forgetting_factor=1.0,
-            adaptive_gamma=False,
             budget_pacer=None,
             seed=seed,
         )

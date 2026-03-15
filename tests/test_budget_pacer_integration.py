@@ -55,14 +55,12 @@ def _make_router(
     registry,
     budget_pacer=None,
     cost_penalty: float = 0.0,
-    use_corralling: bool = False,
 ):
     """Build a minimal BanditRouter for testing."""
     return BanditRouter.create(
         model_registry=registry,
         priors="none",
         cost_penalty=cost_penalty,
-        use_corralling=use_corralling,
         budget_pacer=budget_pacer,
     )
 
@@ -286,10 +284,10 @@ class TestAdaptiveMode:
 # ======================================================================
 
 
-class TestCorrallingPassthrough:
-    """extra_cost_penalties should flow through the corralling path."""
+class TestBudgetPacerPassthrough:
+    """extra_cost_penalties should flow through the routing path."""
 
-    def test_corralling_with_pacer(self, two_model_registry):
+    def test_routing_with_pacer(self, two_model_registry):
         pacer = BudgetPacer(
             target_avg_spend_usd=0.01,
             mode=PacingMode.SOFT,
@@ -297,10 +295,9 @@ class TestCorrallingPassthrough:
         router = _make_router(
             two_model_registry,
             budget_pacer=pacer,
-            use_corralling=True,
         )
 
-        model, log = router.route("Corralling test")
+        model, log = router.route("Budget pacer test")
         assert model in two_model_registry
         router.process_feedback(log.request_id, 0.9)
         assert pacer.n_observations == 1

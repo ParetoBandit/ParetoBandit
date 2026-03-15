@@ -61,7 +61,6 @@ def _make_router(registry: dict, **kwargs) -> BanditRouter:
         model_registry=registry,
         priors="none",
         feature_service=_mock_feature_service(),
-        use_corralling=False,
     )
     defaults.update(kwargs)
     return BanditRouter.create(**defaults)

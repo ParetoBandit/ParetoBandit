@@ -10,9 +10,9 @@ cost_penalty sweep on the K=3 portfolio under stationary conditions.
   offline dataset (the same costs used for Pareto metrics), not the router's
   heuristic token-count estimate.  This mirrors production, where the billing
   system provides exact costs.
-- *Forgetting factor*:  ``ff = 1.0`` (no forgetting) — appropriate because
-  this experiment evaluates stationary reward distributions.  Non-stationary
-  conditions are addressed in Experiment 02.
+- *Forgetting factor*:  ``ff = 0.997`` — selected jointly with alpha and
+  n_eff via the epsilon-constraint hyperparameter sweep.  Mild forgetting
+  is applied consistently across all experiments for a fair comparison.
 - *Knob asymmetry*:  The static baseline sweeps a dimensionless
   ``cost_penalty`` weight, while the pacer sweeps a dollar-denominated
   ``target_avg_spend_usd``.  The Pareto frontier (mean_reward vs. mean_cost)
@@ -56,7 +56,7 @@ from bandit_gpt.config import (
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
-    TRAIN_DATA_PATH,
+    VAL_DATA_PATH,
 )
 from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.router import BanditRouter
@@ -76,15 +76,14 @@ for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service"):
 # ======================================================================
 
 ARM_ORDER: List[str] = K3_ARM_ORDER
-N_SEEDS = 5
+N_SEEDS = 20
 SEED_OFFSET = 3000
 RESULTS_DIR = Path(__file__).parent / "results"
 
 WARMUP_HPARAMS: Dict[str, Any] = {
-    "alpha": 1.0,
-    "prior_n_effective": 50.0,
-    "forgetting_factor": 1.0,
-    "policy": "disjoint",
+    "alpha": 0.1,
+    "prior_n_effective": 10.0,
+    "forgetting_factor": 0.997,
 }
 
 STATIC_COST_PENALTIES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0]
@@ -149,10 +148,8 @@ def _create_router(
         warmup_path=str(K3_WARMUP_PRIORS_PATH),
         prior_n_effective=WARMUP_HPARAMS["prior_n_effective"],
         alpha=WARMUP_HPARAMS["alpha"],
-        use_corralling=False,
         cost_penalty=cost_penalty,
         forgetting_factor=WARMUP_HPARAMS["forgetting_factor"],
-        policy=WARMUP_HPARAMS["policy"],
         budget_pacer=budget_pacer,
     )
 
@@ -321,10 +318,12 @@ def main() -> None:
     logger.info("Loading K=3 data ...")
     fs = FeatureService()
     feature_dim = fs.dimension
-    train = load_split(TRAIN_DATA_PATH, fs, ARM_ORDER)
+    # Online learning uses val (unseen by warmup priors, which were
+    # trained on train.jsonl).  Evaluation uses the held-out test split.
+    train = load_split(VAL_DATA_PATH, fs, ARM_ORDER)
     test = load_split(HOLDOUT_DATA_PATH, fs, ARM_ORDER)
     registry = build_model_registry(ARM_ORDER)
-    logger.info("  Train=%d  Test=%d  dim=%d", train.n, test.n, feature_dim)
+    logger.info("  Online=%d  Test=%d  dim=%d", train.n, test.n, feature_dim)
     logger.info("  Models: %s", ARM_ORDER)
 
     logger.info("  Empirical mean cost/req:")

@@ -91,7 +91,6 @@ def test_register_model_unknown_kwargs_raise_by_default(sample_registry):
     router = BanditRouter.create(
         model_registry=sample_registry,
         priors="none",
-        use_corralling=False,
     )
     with pytest.raises(TypeError, match="unknown keyword argument"):
         router.register_model(
@@ -108,7 +107,6 @@ def test_register_model_unknown_kwargs_allowed_in_compat_mode(sample_registry):
     router = BanditRouter.create(
         model_registry=sample_registry,
         priors="none",
-        use_corralling=False,
         config=cfg,
     )
     router.register_model(
@@ -201,7 +199,6 @@ def test_missing_cost_data_raises_at_init():
             }
         },
         priors="none",
-        use_corralling=False,
     )
     assert "blended_cost_per_m" in router.registry["model_a"]
     assert router.registry["model_a"]["blended_cost_per_m"] > 0.0

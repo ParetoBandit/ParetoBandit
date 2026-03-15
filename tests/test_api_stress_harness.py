@@ -23,7 +23,6 @@ def test_public_exports_resolve_and_are_callable():
         "ExplorationRate",
         "RouterConfig",
         "FeatureService",
-        "HybridLinUCBPolicy",
         "infer_model_family",
         "tetrachoric_corr",
         "compute_correlation_families",
@@ -39,7 +38,6 @@ def test_router_factory_and_core_methods_with_precomputed_features():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
         exploration="safe",
     )
     assert pytest.approx(0.1) == router.bandit.alpha
@@ -74,7 +72,6 @@ def test_user_adjusted_constraints_are_applied_consistently():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
     )
     context = make_context(seed=11)
 

@@ -44,7 +44,6 @@ def test_route_raises_value_error_when_constraints_eliminate_all_candidates():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
     )
     with pytest.raises(ValueError, match="No candidates available"):
         router.bandit.select_arm(make_context(seed=9), candidates=["missing/model"])
@@ -56,7 +55,6 @@ def test_explain_decision_unknown_model_raises_value_error():
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
     )
     with pytest.raises(ValueError, match="not found"):
         router.explain_decision("missing/model", make_context(seed=2))
@@ -68,7 +66,6 @@ def test_load_state_dimension_mismatch_raises_value_error(tmp_path):
         model_registry=synthetic_registry(),
         feature_service=precomputed_feature_service(DEFAULT_DIMENSION),
         priors="none",
-        use_corralling=False,
     )
     bad_state = tmp_path / "state_bad_dim.npz"
     np.savez_compressed(bad_state, _metadata_dim=999)
