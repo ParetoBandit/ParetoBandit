@@ -47,7 +47,6 @@ Usage:
 
 from __future__ import annotations
 
-import copy
 import json
 import logging
 import sys
@@ -73,7 +72,7 @@ from bandit_gpt.config import (
 from bandit_gpt.feature_service import FeatureService
 from bandit_gpt.router import BanditRouter
 from bandit_gpt.storage import EphemeralContextStore
-from utils.simulation import SplitData, build_model_registry, compute_normalized_costs
+from utils.simulation import SplitData, build_model_registry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -137,8 +136,6 @@ class StepRecord:
     model: str
     reward: float
     cost: float
-    unconstrained_oracle_utility: float
-    chosen_utility: float
     lambda_t: float
     cost_ema: float
     gamma: float
@@ -163,7 +160,6 @@ class SeedResult:
             return {}
         rewards = [s.reward for s in phase_steps]
         costs = [s.cost for s in phase_steps]
-        quality_gaps = [s.unconstrained_oracle_utility - s.chosen_utility for s in phase_steps]
         arm_counts: Dict[str, int] = {a: 0 for a in ARM_ORDER}
         for s in phase_steps:
             arm_counts[s.model] += 1
@@ -171,15 +167,11 @@ class SeedResult:
         return {
             "mean_reward": float(np.mean(rewards)),
             "mean_cost": float(np.mean(costs)),
-            "cumulative_quality_gap": float(np.sum(quality_gaps)),
             "arm_fractions": {a: cnt / n for a, cnt in arm_counts.items()},
             "mean_lambda": float(np.mean([s.lambda_t for s in phase_steps])),
             "mean_cost_ema": float(np.mean([s.cost_ema for s in phase_steps])),
             "n_steps": n,
         }
-
-    def total_quality_gap(self) -> float:
-        return sum(s.unconstrained_oracle_utility - s.chosen_utility for s in self.steps)
 
 
 # ======================================================================
@@ -241,19 +233,6 @@ def _apply_gemini_cost_reduction(
     )
 
 
-def _build_phase2_registry(
-    registry: Dict[str, Any],
-    gemini_id: str,
-    new_input: float,
-    new_output: float,
-) -> Dict[str, Any]:
-    """Return a deep copy of the registry with Gemini's pricing updated."""
-    new_reg = copy.deepcopy(registry)
-    new_reg[gemini_id]["input_cost_per_m"] = new_input
-    new_reg[gemini_id]["output_cost_per_m"] = new_output
-    return new_reg
-
-
 # ======================================================================
 # Router Factory
 # ======================================================================
@@ -298,8 +277,6 @@ def _run_two_phase_trial(
     phase2: SplitData,
     registry: Dict[str, Any],
     feature_dim: int,
-    normalized_costs_p1: Dict[str, float],
-    normalized_costs_p2: Dict[str, float],
     cost_penalty: float,
     warmup: bool = True,
     forgetting_factor: float = 1.0,
@@ -324,8 +301,6 @@ def _run_two_phase_trial(
         Original model registry (Phase 1 pricing).
     feature_dim : int
         Context vector dimensionality.
-    normalized_costs_p1, normalized_costs_p2 : dict
-        Per-model normalized costs for oracle quality-gap computation.
     cost_penalty : float
         Static cost penalty weight (0.0 for pacer conditions).
     warmup : bool
@@ -391,7 +366,6 @@ def _run_two_phase_trial(
             router.registry[GEMINI_ID]["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
             registry_updated = True
 
-        nc = normalized_costs_p1 if t < n_p1 else normalized_costs_p2
         phase = 1 if t < n_p1 else 2
 
         emb = all_emb[t]
@@ -403,9 +377,6 @@ def _run_two_phase_trial(
         if online_learn:
             router.process_feedback(log.request_id, reward=reward)
 
-        unconstrained_oracle_utility = max(float(all_rewards[a][t]) for a in ARM_ORDER)
-        chosen_utility = reward
-
         lam = budget_pacer.lambda_t if budget_pacer is not None else 0.0
         ema = budget_pacer.cost_ema if budget_pacer is not None else 0.0
         gamma = router.bandit.gamma
@@ -416,8 +387,6 @@ def _run_two_phase_trial(
             model=model,
             reward=reward,
             cost=cost,
-            unconstrained_oracle_utility=unconstrained_oracle_utility,
-            chosen_utility=chosen_utility,
             lambda_t=lam,
             cost_ema=ema,
             gamma=gamma,
@@ -504,8 +473,7 @@ def _aggregate_seeds(
     Returns
     -------
     dict
-        Aggregated metrics including checkpoint curves, phase summaries,
-        and per-seed quality gaps for statistical tests.
+        Aggregated metrics including checkpoint curves and phase summaries.
     """
     n_seeds = len(seed_results)
     n_total = seed_results[0].n
@@ -518,7 +486,7 @@ def _aggregate_seeds(
 
     curves: List[Dict[str, Any]] = []
     for cp_step in checkpoints:
-        lambdas, cost_emas, cum_quality_gaps, gammas = [], [], [], []
+        lambdas, cost_emas, gammas = [], [], []
         arm_frac_lists: Dict[str, List[float]] = {a: [] for a in ARM_ORDER}
         rewards_agg, costs_agg = [], []
 
@@ -526,8 +494,6 @@ def _aggregate_seeds(
 
         for sr in seed_results:
             steps_so_far = sr.steps[:cp_step]
-            qgap = sum(s.unconstrained_oracle_utility - s.chosen_utility for s in steps_so_far)
-            cum_quality_gaps.append(qgap)
             last = steps_so_far[-1]
             lambdas.append(last.lambda_t)
             cost_emas.append(last.cost_ema)
@@ -557,9 +523,6 @@ def _aggregate_seeds(
             "step": cp_step,
             "phase": "normal" if cp_step <= n_p1 else "price-drop",
             "phase_boundary": n_p1,
-            "mean_cumulative_quality_gap": float(np.mean(cum_quality_gaps)),
-            "std_cumulative_quality_gap": float(np.std(cum_quality_gaps)),
-            "se_cumulative_quality_gap": float(np.std(cum_quality_gaps) / np.sqrt(n_seeds)),
             "mean_lambda": float(np.mean(lambdas)),
             "std_lambda": float(np.std(lambdas)),
             "mean_cost_ema": float(np.mean(cost_emas)),
@@ -575,7 +538,6 @@ def _aggregate_seeds(
 
     phase1_metrics = [sr.phase_metrics(1) for sr in seed_results]
     phase2_metrics = [sr.phase_metrics(2) for sr in seed_results]
-    per_seed_quality_gap = [sr.total_quality_gap() for sr in seed_results]
 
     return {
         "label": seed_results[0].condition,
@@ -583,7 +545,6 @@ def _aggregate_seeds(
         "phase1_summary": {
             "mean_reward": float(np.mean([m["mean_reward"] for m in phase1_metrics])),
             "mean_cost": float(np.mean([m["mean_cost"] for m in phase1_metrics])),
-            "mean_quality_gap": float(np.mean([m["cumulative_quality_gap"] for m in phase1_metrics])),
             "mean_lambda": float(np.mean([m["mean_lambda"] for m in phase1_metrics])),
             "arm_fractions": {
                 ARM_SHORT[a]: float(np.mean([m["arm_fractions"][a] for m in phase1_metrics]))
@@ -593,19 +554,12 @@ def _aggregate_seeds(
         "phase2_summary": {
             "mean_reward": float(np.mean([m["mean_reward"] for m in phase2_metrics])),
             "mean_cost": float(np.mean([m["mean_cost"] for m in phase2_metrics])),
-            "mean_quality_gap": float(np.mean([m["cumulative_quality_gap"] for m in phase2_metrics])),
             "mean_lambda": float(np.mean([m["mean_lambda"] for m in phase2_metrics])),
             "arm_fractions": {
                 ARM_SHORT[a]: float(np.mean([m["arm_fractions"][a] for m in phase2_metrics]))
                 for a in ARM_ORDER
             },
         },
-        "total_quality_gap": {
-            "mean": float(np.mean(per_seed_quality_gap)),
-            "std": float(np.std(per_seed_quality_gap)),
-            "se": float(np.std(per_seed_quality_gap) / np.sqrt(n_seeds)),
-        },
-        "per_seed_quality_gap": per_seed_quality_gap,
         "per_seed_phase1_reward": [m["mean_reward"] for m in phase1_metrics],
         "per_seed_phase2_reward": [m["mean_reward"] for m in phase2_metrics],
         "per_seed_phase1_cost": [m["mean_cost"] for m in phase1_metrics],
@@ -662,20 +616,6 @@ def main() -> None:
         GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
     )
 
-    normalized_costs_p1 = compute_normalized_costs(registry, ARM_ORDER)
-    registry_p2 = _build_phase2_registry(
-        registry, GEMINI_ID,
-        GEMINI_NEW_INPUT_COST, GEMINI_NEW_OUTPUT_COST,
-    )
-    normalized_costs_p2 = compute_normalized_costs(registry_p2, ARM_ORDER)
-
-    logger.info("  Phase 1 norm costs: %s", {
-        ARM_SHORT[a]: f"{v:.4f}" for a, v in normalized_costs_p1.items()
-    })
-    logger.info("  Phase 2 norm costs: %s", {
-        ARM_SHORT[a]: f"{v:.4f}" for a, v in normalized_costs_p2.items()
-    })
-
     # ------------------------------------------------------------------
     # Run all conditions
     # ------------------------------------------------------------------
@@ -708,8 +648,6 @@ def main() -> None:
                     phase2=phase2,
                     registry=registry,
                     feature_dim=feature_dim,
-                    normalized_costs_p1=normalized_costs_p1,
-                    normalized_costs_p2=normalized_costs_p2,
                     cost_penalty=cond["cost_penalty"],
                     warmup=cond["warmup"],
                     forgetting_factor=cond["forgetting_factor"],
@@ -722,12 +660,6 @@ def main() -> None:
             agg = _aggregate_seeds(seed_results, PHASE1_N)
             all_condition_results[label] = agg
 
-            logger.info(
-                "  Total quality gap: %.1f ± %.1f (SE %.1f)",
-                agg["total_quality_gap"]["mean"],
-                agg["total_quality_gap"]["std"],
-                agg["total_quality_gap"]["se"],
-            )
             logger.info(
                 "  Phase 1: reward=%.4f  cost=$%.6f  λ=%.3f  arm=%s",
                 agg["phase1_summary"]["mean_reward"],
@@ -754,8 +686,6 @@ def main() -> None:
             phase2=phase2,
             registry=registry,
             feature_dim=feature_dim,
-            normalized_costs_p1=normalized_costs_p1,
-            normalized_costs_p2=normalized_costs_p2,
             cost_penalty=0.0,
             warmup=True,
             forgetting_factor=1.0,
@@ -766,11 +696,6 @@ def main() -> None:
 
     unconstrained_agg = _aggregate_seeds(unconstrained_seeds, PHASE1_N)
     all_condition_results["Unconstrained"] = unconstrained_agg
-    logger.info(
-        "  Total quality gap: %.1f ± %.1f",
-        unconstrained_agg["total_quality_gap"]["mean"],
-        unconstrained_agg["total_quality_gap"]["std"],
-    )
 
     # ------------------------------------------------------------------
     # Save
@@ -795,12 +720,6 @@ def main() -> None:
         "prior_n_effective": PRIOR_N_EFFECTIVE,
         "alpha": ALPHA,
         "checkpoint_interval": CHECKPOINT_INTERVAL,
-        "normalized_costs_p1": {
-            ARM_SHORT[a]: v for a, v in normalized_costs_p1.items()
-        },
-        "normalized_costs_p2": {
-            ARM_SHORT[a]: v for a, v in normalized_costs_p2.items()
-        },
         "conditions": all_condition_results,
     }
 
@@ -816,19 +735,18 @@ def main() -> None:
     logger.info("EXPERIMENT 03: BUDGET + COST DRIFT — Summary")
     logger.info("=" * 100)
     logger.info(
-        "  %-35s  %8s  %8s  %8s  %8s  %8s",
-        "Condition", "P1 Rwd", "P2 Rwd", "P1 λ", "P2 λ", "QGap",
+        "  %-35s  %8s  %8s  %8s  %8s",
+        "Condition", "P1 Rwd", "P2 Rwd", "P1 λ", "P2 λ",
     )
-    logger.info("  " + "-" * 90)
+    logger.info("  " + "-" * 80)
     for label, agg in all_condition_results.items():
         p1 = agg["phase1_summary"]
         p2 = agg["phase2_summary"]
         logger.info(
-            "  %-35s  %8.4f  %8.4f  %8.3f  %8.3f  %8.1f",
+            "  %-35s  %8.4f  %8.4f  %8.3f  %8.3f",
             label,
             p1["mean_reward"], p2["mean_reward"],
             p1["mean_lambda"], p2["mean_lambda"],
-            agg["total_quality_gap"]["mean"],
         )
     logger.info("=" * 100)
     logger.info("Wall time: %.1fs", time.time() - t0)

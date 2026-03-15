@@ -22,7 +22,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import BEST_K3_HPARAMS, K3_ARM_ORDER
-from utils.simulation import SplitData, build_model_registry, compute_normalized_costs
+from utils.simulation import SplitData, build_model_registry
 
 from helpers import assert_metrics_match, load_reference, save_reference
 
@@ -141,13 +141,6 @@ def test_exp03_single_seed_regression(
         mod.GEMINI_NEW_INPUT_COST, mod.GEMINI_NEW_OUTPUT_COST,
     )
 
-    normalized_costs_p1 = compute_normalized_costs(model_registry, arm_order)
-    registry_p2 = mod._build_phase2_registry(
-        model_registry, gemini_id,
-        mod.GEMINI_NEW_INPUT_COST, mod.GEMINI_NEW_OUTPUT_COST,
-    )
-    normalized_costs_p2 = compute_normalized_costs(registry_p2, arm_order)
-
     # BanditGPT (moderate) condition.
     budget_target = mod.BUDGET_TARGETS[1]  # moderate
     pacer = BudgetPacer(
@@ -164,8 +157,6 @@ def test_exp03_single_seed_regression(
         phase2=phase2,
         registry=copy.deepcopy(model_registry),
         feature_dim=feature_dim,
-        normalized_costs_p1=normalized_costs_p1,
-        normalized_costs_p2=normalized_costs_p2,
         cost_penalty=0.0,
         warmup=True,
         forgetting_factor=BEST_K3_HPARAMS["forgetting_factor"],
@@ -178,7 +169,6 @@ def test_exp03_single_seed_regression(
     p2_metrics = seed_result.phase_metrics(2)
 
     actual: Dict[str, Any] = {
-        "total_quality_gap": seed_result.total_quality_gap(),
         "p1_mean_reward": p1_metrics["mean_reward"],
         "p1_mean_cost": p1_metrics["mean_cost"],
         "p2_mean_reward": p2_metrics["mean_reward"],

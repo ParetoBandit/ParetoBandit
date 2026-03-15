@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
 """Generate figures for Experiment 03: Budget Pacing Under Cost Drift.
 
-Reads ``results/budget_cost_drift_results.json`` and produces two figures:
+Reads ``results/budget_cost_drift_results.json`` and produces:
 
-**Primary** — ``cumulative_quality_gap.pdf/.png``:
-  1x3 panel (one column per budget level) comparing three conditions:
-    - Fixed Policy (offline): gray dashed
-    - Naive Bandit (γ=1.0): orange dashed
-    - BanditGPT (Pacer + γ=0.997): bold blue solid
-
-**Secondary** — ``adaptation_dynamics.pdf/.png``:
+``adaptation_dynamics.pdf/.png``:
   1x3 panel showing BanditGPT-only adaptation mechanics:
     (a) dual variable λ_t,  (b) Gemini-Pro selection fraction,
     (c) running average cost per request, each at three budget levels.
@@ -22,7 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import matplotlib
 matplotlib.use("Agg")
@@ -35,36 +29,6 @@ RESULTS_FILE = "budget_cost_drift_results.json"
 # ======================================================================
 # Visual encoding
 # ======================================================================
-
-CONDITION_PREFIXES: List[str] = [
-    "Fixed Policy",
-    "Naive Bandit",
-    "BanditGPT",
-]
-
-CONDITION_COLORS: Dict[str, str] = {
-    "Fixed Policy": "#888888",
-    "Naive Bandit": "#D55E00",
-    "BanditGPT": "#0072B2",
-}
-
-CONDITION_STYLES: Dict[str, str] = {
-    "Fixed Policy": "--",
-    "Naive Bandit": "--",
-    "BanditGPT": "-",
-}
-
-CONDITION_LINEWIDTHS: Dict[str, float] = {
-    "Fixed Policy": 2.0,
-    "Naive Bandit": 2.0,
-    "BanditGPT": 2.8,
-}
-
-CONDITION_LABELS: Dict[str, str] = {
-    "Fixed Policy": "Fixed Policy (offline)",
-    "Naive Bandit": r"Naive Bandit ($\gamma{=}1.0$)",
-    "BanditGPT": r"BanditGPT (Pacer + $\gamma{=}0.997$)",
-}
 
 BUDGET_COLORS: Dict[str, str] = {
     "tight": "#D55E00",
@@ -129,92 +93,7 @@ def _add_phase_boundary(
 
 
 # ======================================================================
-# Primary figure: Cumulative Quality Gap per Budget Level (1x3)
-# ======================================================================
-
-
-def plot_cumulative_quality_gap(data: Dict[str, Any]) -> plt.Figure:
-    """1x3 cumulative quality gap panel: one column per budget level.
-
-    Parameters
-    ----------
-    data : dict
-        Parsed results JSON.
-
-    Returns
-    -------
-    plt.Figure
-    """
-    budget_labels = data["budget_labels"]
-    conditions = data["conditions"]
-    phase_boundary = data["phase1_n"]
-
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5), sharey=True)
-
-    for ax_idx, blabel in enumerate(budget_labels):
-        ax = axes[ax_idx]
-
-        for prefix in CONDITION_PREFIXES:
-            cond_key = _find_condition_key(conditions, prefix, blabel)
-            if cond_key is None:
-                continue
-
-            curve = conditions[cond_key]["curves"]
-            steps = [c["step"] for c in curve]
-            quality_gaps = [c["mean_cumulative_quality_gap"] for c in curve]
-            n_seeds = curve[0]["n_seeds"]
-            se_quality_gaps = [
-                c["std_cumulative_quality_gap"] / np.sqrt(n_seeds)
-                for c in curve
-            ]
-
-            color = CONDITION_COLORS[prefix]
-            ls = CONDITION_STYLES[prefix]
-            lw = CONDITION_LINEWIDTHS[prefix]
-
-            ax.plot(
-                steps, quality_gaps,
-                color=color, linestyle=ls, linewidth=lw,
-                label=CONDITION_LABELS[prefix], zorder=4,
-            )
-            ax.fill_between(
-                steps,
-                [r - s for r, s in zip(quality_gaps, se_quality_gaps)],
-                [r + s for r, s in zip(quality_gaps, se_quality_gaps)],
-                alpha=0.12, color=color, zorder=2,
-            )
-
-            ax.annotate(
-                f"{quality_gaps[-1]:.0f}",
-                xy=(steps[-1], quality_gaps[-1]),
-                xytext=(6, 0), textcoords="offset points",
-                fontsize=8, color=color, va="center", fontweight="bold",
-            )
-
-        ax.set_title(
-            BUDGET_PANEL_TITLES[blabel],
-            fontsize=11, fontweight="bold", pad=8,
-        )
-        ax.set_xlabel("Step", fontsize=10)
-        ax.grid(True, alpha=0.2, linewidth=0.5)
-        ax.tick_params(labelsize=9)
-
-        _add_phase_boundary(ax, phase_boundary, label=(ax_idx == 0))
-
-        if ax_idx == 0:
-            ax.set_ylabel("Cumulative Quality Gap", fontsize=11)
-            ax.legend(fontsize=8.5, loc="upper left", framealpha=0.9)
-
-    fig.suptitle(
-        r"Cumulative Quality Gap Under Cost Drift ($K{=}3$, 20 seeds, $\pm$1 SE)",
-        fontsize=13, fontweight="bold", y=1.01,
-    )
-    fig.tight_layout()
-    return fig
-
-
-# ======================================================================
-# Secondary figure: BanditGPT Adaptation Dynamics (1x3, as before)
+# Adaptation Dynamics (1x3)
 # ======================================================================
 
 
@@ -398,15 +277,6 @@ def plot_adaptation_dynamics(data: Dict[str, Any]) -> plt.Figure:
 def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = _load_results()
-
-    qgap_fig = plot_cumulative_quality_gap(data)
-    for fmt in ("pdf", "png"):
-        qgap_fig.savefig(
-            RESULTS_DIR / f"cumulative_quality_gap.{fmt}",
-            bbox_inches="tight", dpi=300,
-        )
-    plt.close(qgap_fig)
-    print("Saved cumulative_quality_gap.{pdf,png}")
 
     dynamics_fig = plot_adaptation_dynamics(data)
     for fmt in ("pdf", "png"):

@@ -54,18 +54,6 @@ An \textbf{unconstrained BanditGPT} baseline (same algorithm,
 same priors, no budget pacer, $\lambda_s{=}0$) serves as
 quality ceiling.
 
-\paragraph{Quality-gap definition.}
-Because conditions use different cost-control mechanisms (static
-penalty vs.\ primal-dual pacer), no single cost-adjusted oracle
-applies to all.  We therefore report the \emph{cumulative quality gap}:
-$G_T = \sum_{t=1}^T [\max_a r_{a,t} - r_{a_t,t}]$,
-the gap between the unconstrained best arm by reward and the chosen arm.
-This metric does \emph{not} penalize cost; cost compliance
-is reported separately in the budget-compliance table below.
-Note that this is not ``regret'' in the CBwK sense (which would
-require a budget-feasible oracle); it measures the raw quality
-sacrifice relative to an unconstrained baseline.
-
 \paragraph{Fixed Policy cost awareness.}
 The ``Fixed Policy'' freezes the \emph{reward model} (no online
 learning) but retains live cost awareness: the router recomputes
@@ -94,27 +82,27 @@ the BudgetPacer provides automatically.
 % =====================================================================
 
 \paragraph{Budget compliance is the key differentiator.}
-The defining advantage of the BudgetPacer is not a lower quality gap
-(which ignores cost) but \emph{precise budget targeting}:
+The defining advantage of the BudgetPacer is \emph{precise budget
+targeting}:
 
 \begin{center}
 \small
-\begin{tabular}{@{}llrrr@{}}
+\begin{tabular}{@{}llrr@{}}
 \toprule
-\textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} & \textbf{QGap} \\
+\textbf{Budget} & \textbf{Condition} & \textbf{Phase~1 Cost} & \textbf{Ratio} \\
 \midrule
 \multirow{3}{*}{Tight ($\$2.3 \times 10^{-4}$)}
-  & Fixed Policy     & \$2.9e-5 & $0.13\times$ & 190.5 \\
-  & Naive Bandit     & \$9.4e-4 & $4.02\times$ & 131.9 \\
-  & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.01\times}$ & 188.4 \\[3pt]
+  & Fixed Policy     & \$2.9e-5 & $0.13\times$ \\
+  & Naive Bandit     & \$9.4e-4 & $4.02\times$ \\
+  & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.01\times}$ \\[3pt]
 \multirow{3}{*}{Moderate ($\$6.6 \times 10^{-4}$)}
-  & Fixed Policy     & \$1.3e-4 & $0.19\times$ & 143.5 \\
-  & Naive Bandit     & \$2.1e-3 & $3.22\times$ & 92.5 \\
-  & \textbf{BanditGPT} & \textbf{\$6.6e-4} & $\mathbf{1.00\times}$ & 109.8 \\[3pt]
+  & Fixed Policy     & \$1.3e-4 & $0.19\times$ \\
+  & Naive Bandit     & \$2.1e-3 & $3.22\times$ \\
+  & \textbf{BanditGPT} & \textbf{\$6.6e-4} & $\mathbf{1.00\times}$ \\[3pt]
 \multirow{3}{*}{Loose ($\$1.9 \times 10^{-3}$)}
-  & Fixed Policy     & \$9.1e-4 & $0.49\times$ & 69.4 \\
-  & Naive Bandit     & \$5.4e-3 & $2.91\times$ & 73.6 \\
-  & \textbf{BanditGPT} & \textbf{\$1.8e-3} & $\mathbf{0.98\times}$ & 91.1 \\
+  & Fixed Policy     & \$9.1e-4 & $0.49\times$ \\
+  & Naive Bandit     & \$5.4e-3 & $2.91\times$ \\
+  & \textbf{BanditGPT} & \textbf{\$1.8e-3} & $\mathbf{0.98\times}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -147,16 +135,6 @@ budget target} ($0.98$--$1.01\times$).  The BudgetPacer's
 primal-dual mechanism adjusts $\lambda_t$ continuously based on
 observed costs, providing a closed-loop budget controller that
 static penalties cannot replicate.
-
-\paragraph{Why the quality gap alone is misleading.}
-The Naive Bandit achieves the lowest quality gap at moderate budget
-($92.5$ vs.\ BanditGPT's $109.8$) precisely \emph{because} it
-ignores the budget: it routes freely to expensive, high-quality
-arms.  This is not a routing advantage---it is a budget violation.
-BanditGPT's higher quality gap reflects a deliberate quality sacrifice
-to maintain budget compliance.  The correct comparison is:
-at what quality level does each condition operate \emph{within}
-the budget?
 
 % =====================================================================
 % ADAPTATION DYNAMICS
