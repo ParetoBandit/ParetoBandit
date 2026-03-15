@@ -68,8 +68,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
     BEST_K3_HPARAMS,
+    DEFAULT_NONSTAT_COST_PENALTY,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
+    K3_ARM_SHORT,
+    K3_DEFAULT_SWAP_ARMS,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
@@ -97,16 +100,9 @@ for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.po
 # ======================================================================
 
 ARM_ORDER: List[str] = K3_ARM_ORDER
-ARM_SHORT: Dict[str, str] = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
+ARM_SHORT: Dict[str, str] = K3_ARM_SHORT
 
-SWAP_ARMS = (
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-large-2512",
-)
+SWAP_ARMS = K3_DEFAULT_SWAP_ARMS
 
 N_SEEDS: int = 40
 SEED_OFFSET: int = 4000
@@ -114,7 +110,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 
 PHASE1_N: int = 893
 PHASE2_N: int = 892
-COST_PENALTY: float = 0.20
+COST_PENALTY: float = DEFAULT_NONSTAT_COST_PENALTY
 CHECKPOINT_INTERVAL: int = 50
 
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]

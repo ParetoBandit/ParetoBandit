@@ -41,7 +41,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
     BEST_K3_HPARAMS,
+    DEFAULT_NONSTAT_COST_PENALTY,
+    GEMINI_COST_DROP,
     K3_ARM_ORDER,
+    K3_ARM_SHORT,
+    K3_DEFAULT_SWAP_ARMS,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
@@ -68,24 +72,17 @@ for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.po
 # ======================================================================
 
 ARM_ORDER: List[str] = K3_ARM_ORDER
-ARM_SHORT: Dict[str, str] = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
+ARM_SHORT: Dict[str, str] = K3_ARM_SHORT
 
-SWAP_ARMS: Tuple[str, str] = (
-    "meta-llama/llama-3.1-8b-instruct",
-    "mistralai/mistral-large-2512",
-)
+SWAP_ARMS: Tuple[str, str] = K3_DEFAULT_SWAP_ARMS
 
-GEMINI_ID: str = "google/gemini-2.5-pro"
-GEMINI_NEW_INPUT_COST: float = 0.10
-GEMINI_NEW_OUTPUT_COST: float = 0.10
+GEMINI_ID: str = GEMINI_COST_DROP["model_id"]
+GEMINI_NEW_INPUT_COST: float = GEMINI_COST_DROP["new_input_cost_per_m"]
+GEMINI_NEW_OUTPUT_COST: float = GEMINI_COST_DROP["new_output_cost_per_m"]
 
 PHASE1_N: int = 893
 PHASE2_N: int = 892
-COST_PENALTY: float = 0.20
+COST_PENALTY: float = DEFAULT_NONSTAT_COST_PENALTY
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA: float = BEST_K3_HPARAMS["alpha"]
 CHECKPOINT_INTERVAL: int = 25
@@ -128,20 +125,27 @@ def _load_all(
     )
 
 
-def _apply_gemini_cost_reduction(split: SplitData) -> SplitData:
+def _apply_gemini_cost_reduction(
+    split: SplitData,
+    registry: Dict[str, Any],
+) -> SplitData:
     """Scale Gemini costs to reflect the price drop.
 
     Parameters
     ----------
     split : SplitData
         Data with original Gemini pricing.
+    registry : dict
+        Model registry containing original Gemini pricing
+        (``input_cost_per_m``, ``output_cost_per_m``).
 
     Returns
     -------
     SplitData
         New split with scaled Gemini costs.
     """
-    old_avg = (1.25 + 10.0) / 2.0
+    gemini_meta = registry[GEMINI_ID]
+    old_avg = (gemini_meta["input_cost_per_m"] + gemini_meta["output_cost_per_m"]) / 2.0
     new_avg = (GEMINI_NEW_INPUT_COST + GEMINI_NEW_OUTPUT_COST) / 2.0
     scale = new_avg / old_avg
 
@@ -338,7 +342,7 @@ def main() -> None:
 
     # ---- Cost shift ----
     logger.info("\n=== Cost Shift ===")
-    phase2_cost_drop = _apply_gemini_cost_reduction(phase2_raw)
+    phase2_cost_drop = _apply_gemini_cost_reduction(phase2_raw, registry)
     cost_shift_data = _record_gamma_trajectories(
         phase1, phase2_cost_drop, registry, feature_dim, normalized_costs,
         apply_registry_update=True,

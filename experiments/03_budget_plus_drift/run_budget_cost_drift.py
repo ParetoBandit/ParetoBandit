@@ -79,8 +79,15 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import (
     BEST_K3_HPARAMS,
+    DEFAULT_PACER_EMA_ALPHA,
+    DEFAULT_PACER_LAMBDA_MAX,
+    DEFAULT_PACER_LR,
+    GEMINI_COST_DROP,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
+    K3_ARM_SHORT,
+    K3_BUDGET_LABELS,
+    K3_BUDGET_TARGETS,
     K3_WARMUP_PRIORS_PATH,
     VAL_DATA_PATH,
 )
@@ -102,15 +109,11 @@ for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.po
 # ======================================================================
 
 ARM_ORDER: List[str] = K3_ARM_ORDER
-ARM_SHORT: Dict[str, str] = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
+ARM_SHORT: Dict[str, str] = K3_ARM_SHORT
 
-GEMINI_ID: str = "google/gemini-2.5-pro"
-GEMINI_NEW_INPUT_COST: float = 0.10
-GEMINI_NEW_OUTPUT_COST: float = 0.10
+GEMINI_ID: str = GEMINI_COST_DROP["model_id"]
+GEMINI_NEW_INPUT_COST: float = GEMINI_COST_DROP["new_input_cost_per_m"]
+GEMINI_NEW_OUTPUT_COST: float = GEMINI_COST_DROP["new_output_cost_per_m"]
 
 N_SEEDS: int = 50
 SEED_OFFSET: int = 7000
@@ -123,12 +126,12 @@ CHECKPOINT_INTERVAL: int = 25
 PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA: float = BEST_K3_HPARAMS["alpha"]
 
-PACER_LR: float = 0.05
-PACER_LAMBDA_MAX: float = 5.0
-PACER_EMA_ALPHA: float = 0.05
+PACER_LR: float = DEFAULT_PACER_LR
+PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX
+PACER_EMA_ALPHA: float = DEFAULT_PACER_EMA_ALPHA
 
-BUDGET_TARGETS: List[float] = [2.34e-4, 6.62e-4, 1.87e-3]
-BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
+BUDGET_TARGETS: List[float] = K3_BUDGET_TARGETS
+BUDGET_LABELS: List[str] = K3_BUDGET_LABELS
 
 MATCHED_STATIC_CPS: Dict[str, float] = {
     "tight": 0.50,

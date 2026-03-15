@@ -54,6 +54,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import (
     BEST_K3_HPARAMS,
+    DEFAULT_PACER_LAMBDA_MAX,
+    DEFAULT_PACER_LR,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
@@ -85,8 +87,8 @@ WARMUP_HPARAMS: Dict[str, Any] = BEST_K3_HPARAMS
 
 STATIC_COST_PENALTIES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0]
 
-PACER_LR = 0.05
-PACER_LAMBDA_MAX = 5.0
+PACER_LR = DEFAULT_PACER_LR
+PACER_LAMBDA_MAX = DEFAULT_PACER_LAMBDA_MAX
 
 
 # ======================================================================

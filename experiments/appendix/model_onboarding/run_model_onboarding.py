@@ -67,7 +67,13 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import (
     BEST_K3_HPARAMS,
+    DEFAULT_PACER_EMA_ALPHA,
+    DEFAULT_PACER_LAMBDA_MAX,
+    DEFAULT_PACER_LR,
     K3_ARM_ORDER,
+    K3_ARM_SHORT,
+    K3_BUDGET_LABELS,
+    K3_BUDGET_TARGETS,
     K3_WARMUP_PRIORS_PATH,
     K4_MODELS_PATH,
     OFFLINE_DATASET_DIR,
@@ -99,12 +105,7 @@ K4_ARMS: List[str] = [
 ]
 FLASH_ID = "google/gemini-2.5-flash"
 
-ARM_SHORT: Dict[str, str] = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-flash": "Flash",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
+ARM_SHORT: Dict[str, str] = {**K3_ARM_SHORT, FLASH_ID: "Flash"}
 
 N_SEEDS: int = 20
 SEED_OFFSET: int = 9000
@@ -117,12 +118,12 @@ PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
 ALPHA: float = BEST_K3_HPARAMS["alpha"]
 FORGETTING_FACTOR: float = BEST_K3_HPARAMS["forgetting_factor"]
 
-PACER_LR: float = 0.05
-PACER_LAMBDA_MAX: float = 5.0
-PACER_EMA_ALPHA: float = 0.05
+PACER_LR: float = DEFAULT_PACER_LR
+PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX
+PACER_EMA_ALPHA: float = DEFAULT_PACER_EMA_ALPHA
 
-BUDGET_TARGETS: List[float] = [2.34e-4, 6.62e-4, 1.87e-3]
-BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
+BUDGET_TARGETS: List[float] = K3_BUDGET_TARGETS
+BUDGET_LABELS: List[str] = K3_BUDGET_LABELS
 
 FLASH_INPUT_COST_PER_M: float = 0.3
 FLASH_OUTPUT_COST_PER_M: float = 2.5

@@ -84,11 +84,16 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
+    DEFAULT_NONSTAT_COST_PENALTY,
+    DEFAULT_PACER_LAMBDA_MAX,
+    DEFAULT_PACER_LR,
+    HOLDOUT_DATA_PATH,
+    K3_ALL_SWAP_PAIRS,
     K3_ARM_ORDER,
+    K3_ARM_SHORT,
     K3_WARMUP_PRIORS_PATH,
     TRAIN_DATA_PATH,
     VAL_DATA_PATH,
-    HOLDOUT_DATA_PATH,
 )
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.router import BanditRouter
@@ -112,8 +117,8 @@ for _noisy in ("bandit_gpt.router", "bandit_gpt.feature_service", "bandit_gpt.po
 ALPHA_VALUES: List[float] = [0.01, 0.05, 0.1, 0.25, 0.5, 1.0]
 N_EFF_VALUES: List[float] = [1.0, 10.0, 50.0, 200.0, 1000.0, 5000.0]
 BUDGET_TARGET_COUNT: int = 7
-PACER_LR: float = 0.05
-PACER_LAMBDA_MAX: float = 5.0
+PACER_LR: float = DEFAULT_PACER_LR
+PACER_LAMBDA_MAX: float = DEFAULT_PACER_LAMBDA_MAX
 EPSILON: float = 0.05
 VARIANTS: List[str] = ["banditgpt", "tabula_rasa"]
 
@@ -124,19 +129,11 @@ SEED_OFFSET_VAL: int = 0
 SEED_OFFSET_TEST: int = 1000
 
 ARM_ORDER: List[str] = K3_ARM_ORDER
-ARM_SHORT: Dict[str, str] = {
-    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
-    "mistralai/mistral-large-2512": "Mistral-Large",
-    "google/gemini-2.5-pro": "Gemini-Pro",
-}
+ARM_SHORT: Dict[str, str] = K3_ARM_SHORT
 RESULTS_DIR = Path(__file__).parent / "results"
 
-NONSTAT_COST_PENALTY: float = 0.2
-NONSTAT_SWAP_PAIRS: List[Tuple[str, str]] = [
-    ("meta-llama/llama-3.1-8b-instruct", "mistralai/mistral-large-2512"),
-    ("meta-llama/llama-3.1-8b-instruct", "google/gemini-2.5-pro"),
-    ("mistralai/mistral-large-2512", "google/gemini-2.5-pro"),
-]
+NONSTAT_COST_PENALTY: float = DEFAULT_NONSTAT_COST_PENALTY
+NONSTAT_SWAP_PAIRS: List[Tuple[str, str]] = K3_ALL_SWAP_PAIRS
 
 
 # ======================================================================

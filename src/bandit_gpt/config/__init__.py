@@ -23,8 +23,9 @@ GPT-4.1-mini and Claude-3.7-Sonnet on a 2,000-prompt subset
 (see Appendix: Judge Robustness).
 """
 
+from itertools import combinations
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 # ==============================================================================
 # Model Configuration
@@ -32,11 +33,26 @@ from typing import Any, Dict
 
 DEFAULT_SENTENCE_TRANSFORMER = "all-MiniLM-L6-v2"
 
-K3_ARM_ORDER = [
+K3_ARM_ORDER: List[str] = [
     "meta-llama/llama-3.1-8b-instruct",
     "mistralai/mistral-large-2512",
     "google/gemini-2.5-pro",
 ]
+
+K3_ARM_SHORT: Dict[str, str] = {
+    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
+    "mistralai/mistral-large-2512": "Mistral-Large",
+    "google/gemini-2.5-pro": "Gemini-Pro",
+}
+
+K3_DEFAULT_SWAP_ARMS: Tuple[str, str] = (
+    "meta-llama/llama-3.1-8b-instruct",
+    "mistralai/mistral-large-2512",
+)
+"""Default Llama <-> Mistral reward swap for non-stationary experiments."""
+
+K3_ALL_SWAP_PAIRS: List[Tuple[str, str]] = list(combinations(K3_ARM_ORDER, 2))
+"""All C(K,2)=3 pairwise reward/cost swap pairs for the K=3 portfolio."""
 
 # ==============================================================================
 # Artifact Paths
@@ -50,6 +66,10 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 DEFAULT_PCA_PATH = _PACKAGE_ARTIFACTS_DIR / "pca_25.joblib"
 DEFAULT_WARMUP_PRIORS_PATH = _PACKAGE_ARTIFACTS_DIR / "priors_k3_25comp.joblib"
 DEFAULT_MODEL_REGISTRY_PATH = Path(__file__).parent / "models.json"
+
+K3_MODELS_CONFIG_PATH = (
+    PROJECT_ROOT / "data_collection" / "config" / "models_k3.json"
+)
 
 # ==============================================================================
 # Canonical Data Paths
@@ -102,6 +122,41 @@ PARETO_REWARDS_PATH = (
 
 WARMUP_PRIORS_DIR = DATA_COLLECTION_DIR / "warmup_priors"
 K3_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp.joblib"
+
+# ==============================================================================
+# Budget Pacer Defaults
+# ==============================================================================
+
+DEFAULT_PACER_LR: float = 0.05
+DEFAULT_PACER_LAMBDA_MAX: float = 5.0
+DEFAULT_PACER_EMA_ALPHA: float = 0.05
+
+# ==============================================================================
+# Non-stationary Experiment Defaults
+# ==============================================================================
+
+DEFAULT_NONSTAT_COST_PENALTY: float = 0.20
+"""Cost penalty weight used across all non-stationary experiments (02, 03,
+appendix forgetting sweep, appendix gamma trajectory, appendix adaptive gamma).
+"""
+
+# ==============================================================================
+# Gemini Cost-Drop Scenario (Experiment 03 / Appendix gamma trajectories)
+# ==============================================================================
+
+GEMINI_COST_DROP = {
+    "model_id": "google/gemini-2.5-pro",
+    "new_input_cost_per_m": 0.10,
+    "new_output_cost_per_m": 0.10,
+}
+"""Simulated Gemini-Pro price drop used in cost-drift experiments."""
+
+# ==============================================================================
+# K=3 Budget Targets (Experiment 03 / Appendix model onboarding)
+# ==============================================================================
+
+K3_BUDGET_TARGETS: List[float] = [2.34e-4, 6.62e-4, 1.87e-3]
+K3_BUDGET_LABELS: List[str] = ["tight", "moderate", "loose"]
 
 # ==============================================================================
 # Best K=3 Hyperparameters (Exp 04 epsilon-constraint, 3-split disjoint)

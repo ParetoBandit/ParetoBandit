@@ -16,9 +16,9 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from bandit_gpt.config import K3_MODELS_CONFIG_PATH
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Colorblind-safe palette (Wong, Nature Methods 2011)
@@ -161,7 +161,7 @@ def build_model_registry(
         ``display_name``, ``input_cost_per_m``, ``output_cost_per_m``.
     """
     if config_path is None:
-        config_path = PROJECT_ROOT / "data_collection" / "config" / "models_k3.json"
+        config_path = K3_MODELS_CONFIG_PATH
     with open(config_path) as f:
         data = json.load(f)
     arm_set = set(arm_order)
