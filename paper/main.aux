@@ -48,47 +48,41 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1}System Architecture Overview}{3}{subsection.4.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Primal-Dual Budget Pacing}{3}{subsection.4.2}\protected@file@percent }
 \newlabel{sec:budget_pacing}{{4.2}{3}{Primal-Dual Budget Pacing}{subsection.4.2}{}}
-\newlabel{eq:budget_ucb}{{3}{3}{Primal-Dual Budget Pacing}{equation.3}{}}
-\citation{garivier2011switching}
-\citation{zheng2023judging}
-\@writefile{toc}{\contentsline {paragraph}{Dual-Variable Dynamics and EMA Smoothing.}{4}{section*.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces BanditGPT System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt  {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother.}}{4}{figure.caption.5}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:architecture}{{1}{4}{BanditGPT System Architecture. The system cleanly separates synchronous inference (blue) from asynchronous feedback (orange, color-blind friendly). During inference, the \texttt {BudgetPacer} dynamically applies a dual cost penalty ($\lambda _t$) to the LinUCB scores to enforce the budget constraint $B$. As feedback arrives asynchronously, the reward $r_t$ updates the router's statistics via geometric forgetting ($\gamma $), while the exact cost $c_t$ updates the pacer's dual variable ($\lambda _{t+1}$) via an EMA smoother}{figure.caption.5}{}}
+\newlabel{eq:budget_ucb}{{3}{4}{Primal-Dual Budget Pacing}{equation.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Dual-Variable Dynamics and EMA Smoothing.}{4}{section*.6}\protected@file@percent }
 \newlabel{eq:cost_ema}{{4}{4}{Dual-Variable Dynamics and EMA Smoothing}{equation.4}{}}
 \newlabel{eq:dual_update}{{5}{4}{Dual-Variable Dynamics and EMA Smoothing}{equation.5}{}}
-\@writefile{toc}{\contentsline {paragraph}{Two-Layer Enforcement (Adaptive Mode).}{4}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Two-Layer Enforcement (Adaptive Mode).}{4}{section*.7}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Non-Stationary Adaptation via Geometric Forgetting}{4}{subsection.4.3}\protected@file@percent }
 \newlabel{sec:forgetting}{{4.3}{4}{Non-Stationary Adaptation via Geometric Forgetting}{subsection.4.3}{}}
-\newlabel{eq:forget_A}{{6}{4}{Non-Stationary Adaptation via Geometric Forgetting}{equation.6}{}}
-\newlabel{eq:forget_b}{{7}{4}{Non-Stationary Adaptation via Geometric Forgetting}{equation.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{4}{section.5}\protected@file@percent }
-\newlabel{sec:setup}{{5}{4}{Experimental Setup}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Datasets and Ground Truth}{4}{subsection.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Environment Construction}{4}{subsection.5.2}\protected@file@percent }
+\citation{garivier2011switching}
+\citation{zheng2023judging}
+\newlabel{eq:forget_A}{{6}{5}{Non-Stationary Adaptation via Geometric Forgetting}{equation.6}{}}
+\newlabel{eq:forget_b}{{7}{5}{Non-Stationary Adaptation via Geometric Forgetting}{equation.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experimental Setup}{5}{section.5}\protected@file@percent }
+\newlabel{sec:setup}{{5}{5}{Experimental Setup}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Datasets and Ground Truth}{5}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Environment Construction}{5}{subsection.5.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Baselines}{5}{subsection.5.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Metrics}{5}{subsection.5.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {6}Results}{5}{section.6}\protected@file@percent }
 \newlabel{sec:results}{{6}{5}{Results}{section.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Stationary Budget Pacing}{5}{subsection.6.1}\protected@file@percent }
 \newlabel{sec:exp1_budget_pacing}{{6.1}{5}{Stationary Budget Pacing}{subsection.6.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{Pareto frontier.}{5}{section*.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{5}{section*.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Adapting to Model Quality Shifts}{5}{subsection.6.2}\protected@file@percent }
-\newlabel{sec:exp2_reward_shift}{{6.2}{5}{Adapting to Model Quality Shifts}{subsection.6.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Pareto frontier.}{6}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance.}{6}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Adapting to Model Quality Shifts}{6}{subsection.6.2}\protected@file@percent }
+\newlabel{sec:exp2_reward_shift}{{6.2}{6}{Adapting to Model Quality Shifts}{subsection.6.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Budget Pacing under Cost Drift}{6}{subsection.6.3}\protected@file@percent }
 \newlabel{sec:exp3_cost_drift}{{6.3}{6}{Budget Pacing under Cost Drift}{subsection.6.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{6}{section*.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{6}{section*.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploration starvation.}{6}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Budget compliance is the key differentiator.}{6}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploiting the price drop.}{6}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploration starvation.}{6}{section*.12}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Hyperparameter Optimization for Non-Stationarity}{6}{subsection.6.4}\protected@file@percent }
 \newlabel{sec:exp4_hparam_sweep}{{6.4}{6}{Hyperparameter Optimization for Non-Stationarity}{subsection.6.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{6}{section.7}\protected@file@percent }
-\newlabel{sec:discussion}{{7}{6}{Discussion and Production Implications}{section.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{6}{subsection.7.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{6}{section*.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{6}{section*.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Cost Savings at Scale.}{6}{section*.14}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{6}{subsection.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Exploration Starvation.}{6}{section*.15}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback (RLHF).}{6}{section*.16}\protected@file@percent }
 \bibstyle{ACM-Reference-Format}
 \bibdata{references}
 \bibcite{agrawal2014bandits}{{1}{2014}{{Agrawal and Devanur}}{{}}}
@@ -105,6 +99,18 @@
 \bibcite{panda2025pilot}{{12}{2025}{{Panda et~al\mbox  {.}}}{{}}}
 \bibcite{qian2025xrouter}{{13}{2025}{{Qian et~al\mbox  {.}}}{{}}}
 \bibcite{thompson2026timeline}{{14}{2026}{{Thompson}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion and Production Implications}{7}{section.7}\protected@file@percent }
+\newlabel{sec:discussion}{{7}{7}{Discussion and Production Implications}{section.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Practical Impact}{7}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Interpretable Interface and SLA Compliance.}{7}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Eliminating Offline Recalibration.}{7}{section*.14}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Cost Savings at Scale.}{7}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Limitations and Deployment Considerations}{7}{subsection.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Exploration Starvation.}{7}{section*.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Delayed Feedback (RLHF).}{7}{section*.17}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{7}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{7}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{References}{7}{section*.20}\protected@file@percent }
 \bibcite{wang2025barp}{{15}{2025}{{Wang et~al\mbox  {.}}}{{}}}
 \bibcite{zheng2023judging}{{16}{2023}{{Zheng et~al\mbox  {.}}}{{}}}
 \newlabel{tocindent-1}{0pt}
@@ -114,8 +120,5 @@
 \newlabel{tocindent3}{0pt}
 \newlabel{tocindent4}{0pt}
 \newlabel{tocindent5}{0pt}
-\@writefile{toc}{\contentsline {paragraph}{Embedding Generation Costs.}{7}{section*.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{7}{section.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{References}{7}{section*.19}\protected@file@percent }
-\newlabel{TotPages}{{7}{7}{}{page.7}{}}
-\gdef \@abspage@last{7}
+\newlabel{TotPages}{{8}{8}{}{page.8}{}}
+\gdef \@abspage@last{8}

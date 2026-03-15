@@ -5,9 +5,11 @@ We present the architecture of BanditGPT, an open-source contextual bandit routi
 
 \subsection{System Architecture Overview}
 
-BanditGPT operates as an asynchronous, closed-loop routing system. At inference time (step $t$), a user query $x_t$ is processed by a lightweight feature extractor (e.g., a SentenceTransformer embedding model), which passes the query vector to the \texttt{BanditRouter}. The router maintains a set of sufficient statistics for each model $a \in \mathcal{A}$, initialized via \emph{offline-to-online warmup priors} to mitigate the cold-start problem. The router computes a score for each model, incorporating uncertainty (LinUCB) and subtracting a dynamic cost penalty provided by the \texttt{BudgetPacer}. The router then selects the model $a_t$ with the highest score, returning its response to the user.
+BanditGPT operates as an asynchronous, closed-loop routing system (Figure~\ref{fig:architecture}). At inference time (step $t$), a user query $x_t$ is processed by a lightweight feature extractor (e.g., a SentenceTransformer embedding model), which passes the query vector to the \texttt{BanditRouter}. The router maintains a set of sufficient statistics for each model $a \in \mathcal{A}$, initialized via \emph{offline-to-online warmup priors} to mitigate the cold-start problem. The router computes a score for each model, incorporating uncertainty (LinUCB) and subtracting a dynamic cost penalty provided by the \texttt{BudgetPacer}. The router then selects the model $a_t$ with the highest score, returning its response to the user.
 
 After the query completes and is evaluated (either synchronously by an automated judge, or asynchronously via delayed user feedback), the reward $r_t$ and exact cost $c_t$ are fed back into the system. The \texttt{BanditRouter} updates its reward estimates (incorporating geometric forgetting), while the \texttt{BudgetPacer} updates its internal dual variable $\lambda_t$, adjusting the cost penalties for future requests to steer the system back toward the target budget $B$.
+
+\input{figures/architecture.tex}
 
 \subsection{Primal-Dual Budget Pacing}
 \label{sec:budget_pacing}
