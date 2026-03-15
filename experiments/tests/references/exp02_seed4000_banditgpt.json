@@ -1,0 +1,12 @@
+{
+  "cumulative_regret": 114.69517669311425,
+  "mean_online_reward": 0.9017837535014007,
+  "mean_online_cost": 0.0020827952661064426,
+  "holdout_reward": 0.909077850877193,
+  "holdout_cost": 0.0007650656524122809,
+  "model_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.5126050420168067,
+    "mistralai/mistral-large-2512": 0.3708683473389356,
+    "google/gemini-2.5-pro": 0.1165266106442577
+  }
+}

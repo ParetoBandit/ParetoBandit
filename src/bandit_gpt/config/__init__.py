@@ -107,7 +107,7 @@ K3_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp.joblib"
 # Protocol: train on train.jsonl → select on val.jsonl → report on test.jsonl.
 # Per-seed Pareto AUC (10 seeds) with fixed-model endpoints and cost range
 # anchored to arm cost extremes.  Avoids phantom-frontier artifacts.
-# Source of truth: experiments_v2/appendix/hparam_sweep/results/best_hparams.json
+# Source of truth: experiments/appendix/hparam_sweep/results/best_hparams.json
 # PCA fixed at d=25 (~28.5% cumulative variance) to retain a broad semantic
 # representation.  A PCA ablation (Appendix I) confirms the Pareto AUC surface
 # is flat across d in [6, 25], validating this design choice.

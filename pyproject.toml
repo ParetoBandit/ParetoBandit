@@ -129,7 +129,7 @@ markers = [
     "stress: marks stress and soak-style validation tests",
     "performance: marks performance benchmark and regression tests",
     "live: marks tests that make real API calls (require API keys in .env)",
-    "experiment: marks experiment regression tests (run via pytest experiments_v2/tests/)",
+    "experiment: marks experiment regression tests (run via pytest experiments/tests/)",
 ]
 
 # --- Code Quality ---

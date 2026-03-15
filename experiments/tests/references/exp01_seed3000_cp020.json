@@ -1,0 +1,10 @@
+{
+  "mean_reward": 0.910999451754386,
+  "mean_cost": 0.0018968929824561402,
+  "cumulative_regret": 95.46100000000001,
+  "model_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.15899122807017543,
+    "mistralai/mistral-large-2512": 0.7450657894736842,
+    "google/gemini-2.5-pro": 0.09594298245614036
+  }
+}

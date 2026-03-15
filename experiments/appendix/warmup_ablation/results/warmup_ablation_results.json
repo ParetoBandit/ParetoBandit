@@ -1,0 +1,3429 @@
+{
+  "experiment": "appendix_warmup_ablation",
+  "n_seeds": 20,
+  "n_prompts": 1785,
+  "arms": [
+    "meta-llama/llama-3.1-8b-instruct",
+    "mistralai/mistral-large-2512",
+    "google/gemini-2.5-pro"
+  ],
+  "arm_short": {
+    "meta-llama/llama-3.1-8b-instruct": "Llama-8B",
+    "mistralai/mistral-large-2512": "Mistral-Large",
+    "google/gemini-2.5-pro": "Gemini-Pro"
+  },
+  "early_step": 200,
+  "hparams": {
+    "alpha": 1.0,
+    "prior_n_effective": 5000.0,
+    "forgetting_factor": 1.0,
+    "policy": "disjoint"
+  },
+  "conditions": {
+    "BanditGPT (warmup)": {
+      "label": "BanditGPT (warmup)",
+      "curves": [
+        {
+          "step": 1,
+          "mean_cumulative_regret": 0.011500000000000005,
+          "std_cumulative_regret": 0.029711109033491164,
+          "se_cumulative_regret": 0.0066436059485794315,
+          "mean_oracle_agreement": 0.8,
+          "se_oracle_agreement": 0.08944271909999159,
+          "arm_fractions": {
+            "Llama-8B": 0.0,
+            "Mistral-Large": 0.35,
+            "Gemini-Pro": 0.65
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 25,
+          "mean_cumulative_regret": 0.6438499999999998,
+          "std_cumulative_regret": 0.27657734451686383,
+          "se_cumulative_regret": 0.06184457433760862,
+          "mean_oracle_agreement": 0.6700000000000002,
+          "se_oracle_agreement": 0.016462077633154326,
+          "arm_fractions": {
+            "Llama-8B": 0.0,
+            "Mistral-Large": 0.26400000000000007,
+            "Gemini-Pro": 0.736
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 50,
+          "mean_cumulative_regret": 1.2346,
+          "std_cumulative_regret": 0.40332671619916266,
+          "se_cumulative_regret": 0.09018659545630933,
+          "mean_oracle_agreement": 0.6729999999999999,
+          "se_oracle_agreement": 0.013059479315807348,
+          "arm_fractions": {
+            "Llama-8B": 0.0,
+            "Mistral-Large": 0.284,
+            "Gemini-Pro": 0.716
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 75,
+          "mean_cumulative_regret": 1.90115,
+          "std_cumulative_regret": 0.6499910210918302,
+          "se_cumulative_regret": 0.14534241079258317,
+          "mean_oracle_agreement": 0.675,
+          "se_oracle_agreement": 0.013332291625973382,
+          "arm_fractions": {
+            "Llama-8B": 0.0,
+            "Mistral-Large": 0.31799999999999995,
+            "Gemini-Pro": 0.682
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 100,
+          "mean_cumulative_regret": 2.6763999999999997,
+          "std_cumulative_regret": 0.719223497947613,
+          "se_cumulative_regret": 0.1608232632426043,
+          "mean_oracle_agreement": 0.6809999999999999,
+          "se_oracle_agreement": 0.014385756844879591,
+          "arm_fractions": {
+            "Llama-8B": 0.001,
+            "Mistral-Large": 0.328,
+            "Gemini-Pro": 0.671
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 125,
+          "mean_cumulative_regret": 3.3771500000000003,
+          "std_cumulative_regret": 0.6888004264661861,
+          "se_cumulative_regret": 0.15402045765092373,
+          "mean_oracle_agreement": 0.6929999999999998,
+          "se_oracle_agreement": 0.013287211897158858,
+          "arm_fractions": {
+            "Llama-8B": 0.002,
+            "Mistral-Large": 0.343,
+            "Gemini-Pro": 0.655
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 150,
+          "mean_cumulative_regret": 4.079249999999999,
+          "std_cumulative_regret": 0.8129128412689763,
+          "se_cumulative_regret": 0.18177283728599275,
+          "mean_oracle_agreement": 0.7,
+          "se_oracle_agreement": 0.013711309200802086,
+          "arm_fractions": {
+            "Llama-8B": 0.002,
+            "Mistral-Large": 0.37,
+            "Gemini-Pro": 0.628
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 175,
+          "mean_cumulative_regret": 4.803049999999999,
+          "std_cumulative_regret": 0.9481272844402273,
+          "se_cumulative_regret": 0.21200770593306267,
+          "mean_oracle_agreement": 0.688,
+          "se_oracle_agreement": 0.015962455951387934,
+          "arm_fractions": {
+            "Llama-8B": 0.005,
+            "Mistral-Large": 0.372,
+            "Gemini-Pro": 0.623
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 200,
+          "mean_cumulative_regret": 5.563750000000001,
+          "std_cumulative_regret": 0.9826989811229073,
+          "se_cumulative_regret": 0.21973817232106033,
+          "mean_oracle_agreement": 0.677,
+          "se_oracle_agreement": 0.014510341140028379,
+          "arm_fractions": {
+            "Llama-8B": 0.005,
+            "Mistral-Large": 0.38100000000000006,
+            "Gemini-Pro": 0.6140000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 225,
+          "mean_cumulative_regret": 6.331999999999999,
+          "std_cumulative_regret": 1.0332582445836087,
+          "se_cumulative_regret": 0.23104356732010528,
+          "mean_oracle_agreement": 0.679,
+          "se_oracle_agreement": 0.016641814804882304,
+          "arm_fractions": {
+            "Llama-8B": 0.004,
+            "Mistral-Large": 0.417,
+            "Gemini-Pro": 0.579
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 250,
+          "mean_cumulative_regret": 7.1015,
+          "std_cumulative_regret": 1.0516671764393903,
+          "se_cumulative_regret": 0.2351599296223742,
+          "mean_oracle_agreement": 0.6689999999999999,
+          "se_oracle_agreement": 0.012920913280414816,
+          "arm_fractions": {
+            "Llama-8B": 0.008,
+            "Mistral-Large": 0.43500000000000005,
+            "Gemini-Pro": 0.557
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 275,
+          "mean_cumulative_regret": 7.92075,
+          "std_cumulative_regret": 1.0799302234403851,
+          "se_cumulative_regret": 0.2414797390569238,
+          "mean_oracle_agreement": 0.646,
+          "se_oracle_agreement": 0.013572030061858836,
+          "arm_fractions": {
+            "Llama-8B": 0.01,
+            "Mistral-Large": 0.4130000000000001,
+            "Gemini-Pro": 0.5770000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 300,
+          "mean_cumulative_regret": 8.592950000000002,
+          "std_cumulative_regret": 1.0738167662594955,
+          "se_cumulative_regret": 0.24011272847352344,
+          "mean_oracle_agreement": 0.639,
+          "se_oracle_agreement": 0.013226866597951307,
+          "arm_fractions": {
+            "Llama-8B": 0.011,
+            "Mistral-Large": 0.43899999999999995,
+            "Gemini-Pro": 0.55
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 325,
+          "mean_cumulative_regret": 9.417950000000001,
+          "std_cumulative_regret": 0.9957481847836835,
+          "se_cumulative_regret": 0.2226560629648338,
+          "mean_oracle_agreement": 0.652,
+          "se_oracle_agreement": 0.015773395322504283,
+          "arm_fractions": {
+            "Llama-8B": 0.011,
+            "Mistral-Large": 0.45500000000000007,
+            "Gemini-Pro": 0.534
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 350,
+          "mean_cumulative_regret": 10.148749999999998,
+          "std_cumulative_regret": 1.042764301028761,
+          "se_cumulative_regret": 0.23316918616103635,
+          "mean_oracle_agreement": 0.6580000000000001,
+          "se_oracle_agreement": 0.016786899654194637,
+          "arm_fractions": {
+            "Llama-8B": 0.011,
+            "Mistral-Large": 0.4450000000000001,
+            "Gemini-Pro": 0.544
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 375,
+          "mean_cumulative_regret": 11.04325,
+          "std_cumulative_regret": 1.2243185400458496,
+          "se_cumulative_regret": 0.2737659481655818,
+          "mean_oracle_agreement": 0.655,
+          "se_oracle_agreement": 0.014274102423620193,
+          "arm_fractions": {
+            "Llama-8B": 0.01,
+            "Mistral-Large": 0.45099999999999996,
+            "Gemini-Pro": 0.539
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 400,
+          "mean_cumulative_regret": 11.788549999999997,
+          "std_cumulative_regret": 1.2807603786423127,
+          "se_cumulative_regret": 0.2863867269532581,
+          "mean_oracle_agreement": 0.661,
+          "se_oracle_agreement": 0.011530394615970437,
+          "arm_fractions": {
+            "Llama-8B": 0.013000000000000001,
+            "Mistral-Large": 0.42000000000000004,
+            "Gemini-Pro": 0.567
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 425,
+          "mean_cumulative_regret": 12.52685,
+          "std_cumulative_regret": 1.4099383771995142,
+          "se_cumulative_regret": 0.3152718055503853,
+          "mean_oracle_agreement": 0.6709999999999999,
+          "se_oracle_agreement": 0.016761563172926326,
+          "arm_fractions": {
+            "Llama-8B": 0.020999999999999998,
+            "Mistral-Large": 0.41400000000000003,
+            "Gemini-Pro": 0.5650000000000002
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 450,
+          "mean_cumulative_regret": 13.1536,
+          "std_cumulative_regret": 1.465295001015154,
+          "se_cumulative_regret": 0.3276499229360508,
+          "mean_oracle_agreement": 0.692,
+          "se_oracle_agreement": 0.01645600194457937,
+          "arm_fractions": {
+            "Llama-8B": 0.016,
+            "Mistral-Large": 0.43900000000000006,
+            "Gemini-Pro": 0.5450000000000002
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 475,
+          "mean_cumulative_regret": 13.860249999999999,
+          "std_cumulative_regret": 1.4928319689435914,
+          "se_cumulative_regret": 0.33380737615427253,
+          "mean_oracle_agreement": 0.6970000000000001,
+          "se_oracle_agreement": 0.012591663909110663,
+          "arm_fractions": {
+            "Llama-8B": 0.014000000000000002,
+            "Mistral-Large": 0.45099999999999996,
+            "Gemini-Pro": 0.5349999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 500,
+          "mean_cumulative_regret": 14.689999999999998,
+          "std_cumulative_regret": 1.4387335055527137,
+          "se_cumulative_regret": 0.3217105919922439,
+          "mean_oracle_agreement": 0.652,
+          "se_oracle_agreement": 0.01734358671094304,
+          "arm_fractions": {
+            "Llama-8B": 0.029000000000000005,
+            "Mistral-Large": 0.44800000000000006,
+            "Gemini-Pro": 0.5229999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 525,
+          "mean_cumulative_regret": 15.4439,
+          "std_cumulative_regret": 1.494083461524155,
+          "se_cumulative_regret": 0.3340872184026202,
+          "mean_oracle_agreement": 0.64,
+          "se_oracle_agreement": 0.016970562748477136,
+          "arm_fractions": {
+            "Llama-8B": 0.03500000000000001,
+            "Mistral-Large": 0.442,
+            "Gemini-Pro": 0.523
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 550,
+          "mean_cumulative_regret": 16.313900000000004,
+          "std_cumulative_regret": 1.613344473446387,
+          "se_cumulative_regret": 0.36075479137497257,
+          "mean_oracle_agreement": 0.6689999999999999,
+          "se_oracle_agreement": 0.012367295581492342,
+          "arm_fractions": {
+            "Llama-8B": 0.030000000000000006,
+            "Mistral-Large": 0.42400000000000004,
+            "Gemini-Pro": 0.546
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 575,
+          "mean_cumulative_regret": 17.14615,
+          "std_cumulative_regret": 1.7305519430228031,
+          "se_cumulative_regret": 0.386963178319333,
+          "mean_oracle_agreement": 0.665,
+          "se_oracle_agreement": 0.013105342422081154,
+          "arm_fractions": {
+            "Llama-8B": 0.030000000000000006,
+            "Mistral-Large": 0.4130000000000001,
+            "Gemini-Pro": 0.557
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 600,
+          "mean_cumulative_regret": 17.942400000000003,
+          "std_cumulative_regret": 1.810697777101413,
+          "se_cumulative_regret": 0.40488433163065213,
+          "mean_oracle_agreement": 0.6689999999999999,
+          "se_oracle_agreement": 0.011530394615970432,
+          "arm_fractions": {
+            "Llama-8B": 0.03200000000000001,
+            "Mistral-Large": 0.43899999999999995,
+            "Gemini-Pro": 0.529
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 625,
+          "mean_cumulative_regret": 18.710900000000002,
+          "std_cumulative_regret": 1.6722640012868781,
+          "se_cumulative_regret": 0.3739295983203255,
+          "mean_oracle_agreement": 0.6759999999999999,
+          "se_oracle_agreement": 0.014184498581197712,
+          "arm_fractions": {
+            "Llama-8B": 0.028000000000000004,
+            "Mistral-Large": 0.44799999999999995,
+            "Gemini-Pro": 0.5239999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 650,
+          "mean_cumulative_regret": 19.5204,
+          "std_cumulative_regret": 1.757489556156736,
+          "se_cumulative_regret": 0.39298661173123955,
+          "mean_oracle_agreement": 0.644,
+          "se_oracle_agreement": 0.01453272169966796,
+          "arm_fractions": {
+            "Llama-8B": 0.026000000000000002,
+            "Mistral-Large": 0.45599999999999996,
+            "Gemini-Pro": 0.518
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 675,
+          "mean_cumulative_regret": 20.340650000000004,
+          "std_cumulative_regret": 1.7621130858999943,
+          "se_cumulative_regret": 0.3940204644114313,
+          "mean_oracle_agreement": 0.639,
+          "se_oracle_agreement": 0.015197039185315012,
+          "arm_fractions": {
+            "Llama-8B": 0.028000000000000004,
+            "Mistral-Large": 0.457,
+            "Gemini-Pro": 0.5149999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 700,
+          "mean_cumulative_regret": 21.0159,
+          "std_cumulative_regret": 1.8330343395583184,
+          "se_cumulative_regret": 0.40987893883438314,
+          "mean_oracle_agreement": 0.663,
+          "se_oracle_agreement": 0.01416156770982648,
+          "arm_fractions": {
+            "Llama-8B": 0.03200000000000001,
+            "Mistral-Large": 0.42000000000000004,
+            "Gemini-Pro": 0.548
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 725,
+          "mean_cumulative_regret": 21.839499999999994,
+          "std_cumulative_regret": 1.7599700423586762,
+          "se_cumulative_regret": 0.3935412653077184,
+          "mean_oracle_agreement": 0.669,
+          "se_oracle_agreement": 0.013672966027896064,
+          "arm_fractions": {
+            "Llama-8B": 0.03300000000000001,
+            "Mistral-Large": 0.396,
+            "Gemini-Pro": 0.5710000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 750,
+          "mean_cumulative_regret": 22.63845,
+          "std_cumulative_regret": 1.765367793832209,
+          "se_cumulative_regret": 0.3947482392297653,
+          "mean_oracle_agreement": 0.6540000000000001,
+          "se_oracle_agreement": 0.015943650773897425,
+          "arm_fractions": {
+            "Llama-8B": 0.03600000000000001,
+            "Mistral-Large": 0.404,
+            "Gemini-Pro": 0.56
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 775,
+          "mean_cumulative_regret": 23.39675,
+          "std_cumulative_regret": 1.7488214853151827,
+          "se_cumulative_regret": 0.39104837216768984,
+          "mean_oracle_agreement": 0.6450000000000001,
+          "se_oracle_agreement": 0.011989578808281798,
+          "arm_fractions": {
+            "Llama-8B": 0.045000000000000005,
+            "Mistral-Large": 0.41800000000000004,
+            "Gemini-Pro": 0.537
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 800,
+          "mean_cumulative_regret": 24.15125,
+          "std_cumulative_regret": 1.7658375031412152,
+          "se_cumulative_regret": 0.39485326942422555,
+          "mean_oracle_agreement": 0.6719999999999999,
+          "se_oracle_agreement": 0.013145341380123984,
+          "arm_fractions": {
+            "Llama-8B": 0.049,
+            "Mistral-Large": 0.42300000000000004,
+            "Gemini-Pro": 0.5280000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 825,
+          "mean_cumulative_regret": 25.109,
+          "std_cumulative_regret": 1.7326944046772936,
+          "se_cumulative_regret": 0.3874422473091958,
+          "mean_oracle_agreement": 0.6659999999999999,
+          "se_oracle_agreement": 0.018116291011131387,
+          "arm_fractions": {
+            "Llama-8B": 0.041999999999999996,
+            "Mistral-Large": 0.43800000000000006,
+            "Gemini-Pro": 0.52
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 850,
+          "mean_cumulative_regret": 25.964999999999996,
+          "std_cumulative_regret": 1.8639087424013017,
+          "se_cumulative_regret": 0.4167826651865455,
+          "mean_oracle_agreement": 0.655,
+          "se_oracle_agreement": 0.016240381768911714,
+          "arm_fractions": {
+            "Llama-8B": 0.03200000000000001,
+            "Mistral-Large": 0.44699999999999995,
+            "Gemini-Pro": 0.521
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 875,
+          "mean_cumulative_regret": 26.910000000000004,
+          "std_cumulative_regret": 1.8452518256324806,
+          "se_cumulative_regret": 0.41261085177198153,
+          "mean_oracle_agreement": 0.6459999999999999,
+          "se_oracle_agreement": 0.015172343260024139,
+          "arm_fractions": {
+            "Llama-8B": 0.041,
+            "Mistral-Large": 0.425,
+            "Gemini-Pro": 0.534
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 900,
+          "mean_cumulative_regret": 27.772699999999997,
+          "std_cumulative_regret": 1.908784746900499,
+          "se_cumulative_regret": 0.42681724484842465,
+          "mean_oracle_agreement": 0.6239999999999999,
+          "se_oracle_agreement": 0.014872793954062566,
+          "arm_fractions": {
+            "Llama-8B": 0.052000000000000005,
+            "Mistral-Large": 0.418,
+            "Gemini-Pro": 0.53
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 925,
+          "mean_cumulative_regret": 28.599700000000002,
+          "std_cumulative_regret": 1.9961194628578725,
+          "se_cumulative_regret": 0.44634588101605693,
+          "mean_oracle_agreement": 0.658,
+          "se_oracle_agreement": 0.013107249902248756,
+          "arm_fractions": {
+            "Llama-8B": 0.049,
+            "Mistral-Large": 0.417,
+            "Gemini-Pro": 0.5340000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 950,
+          "mean_cumulative_regret": 29.450499999999995,
+          "std_cumulative_regret": 2.100481956599485,
+          "se_cumulative_regret": 0.46968204404682107,
+          "mean_oracle_agreement": 0.6789999999999998,
+          "se_oracle_agreement": 0.013745908482162976,
+          "arm_fractions": {
+            "Llama-8B": 0.044,
+            "Mistral-Large": 0.40700000000000003,
+            "Gemini-Pro": 0.549
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 975,
+          "mean_cumulative_regret": 30.361999999999995,
+          "std_cumulative_regret": 2.1473207026431806,
+          "se_cumulative_regret": 0.4801555060602764,
+          "mean_oracle_agreement": 0.6559999999999999,
+          "se_oracle_agreement": 0.012132600710482482,
+          "arm_fractions": {
+            "Llama-8B": 0.039,
+            "Mistral-Large": 0.40700000000000003,
+            "Gemini-Pro": 0.5539999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1000,
+          "mean_cumulative_regret": 31.082149999999995,
+          "std_cumulative_regret": 2.1369571421766977,
+          "se_cumulative_regret": 0.4778381434910779,
+          "mean_oracle_agreement": 0.644,
+          "se_oracle_agreement": 0.01700588133558505,
+          "arm_fractions": {
+            "Llama-8B": 0.044000000000000004,
+            "Mistral-Large": 0.41100000000000003,
+            "Gemini-Pro": 0.545
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1025,
+          "mean_cumulative_regret": 31.947699999999998,
+          "std_cumulative_regret": 2.0270670215856215,
+          "se_cumulative_regret": 0.4532659655213483,
+          "mean_oracle_agreement": 0.658,
+          "se_oracle_agreement": 0.01611831256676703,
+          "arm_fractions": {
+            "Llama-8B": 0.04900000000000001,
+            "Mistral-Large": 0.41100000000000003,
+            "Gemini-Pro": 0.54
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1050,
+          "mean_cumulative_regret": 32.6643,
+          "std_cumulative_regret": 1.9750854184059996,
+          "se_cumulative_regret": 0.44164252569244294,
+          "mean_oracle_agreement": 0.6689999999999999,
+          "se_oracle_agreement": 0.013962449641807128,
+          "arm_fractions": {
+            "Llama-8B": 0.044000000000000004,
+            "Mistral-Large": 0.40800000000000003,
+            "Gemini-Pro": 0.548
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1075,
+          "mean_cumulative_regret": 33.5897,
+          "std_cumulative_regret": 2.0381422447905844,
+          "se_cumulative_regret": 0.4557424607165763,
+          "mean_oracle_agreement": 0.6439999999999999,
+          "se_oracle_agreement": 0.01293058390019569,
+          "arm_fractions": {
+            "Llama-8B": 0.043,
+            "Mistral-Large": 0.42399999999999993,
+            "Gemini-Pro": 0.533
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1100,
+          "mean_cumulative_regret": 34.48055,
+          "std_cumulative_regret": 1.970913226780926,
+          "se_cumulative_regret": 0.4407095952835609,
+          "mean_oracle_agreement": 0.643,
+          "se_oracle_agreement": 0.016264993083306246,
+          "arm_fractions": {
+            "Llama-8B": 0.053000000000000005,
+            "Mistral-Large": 0.41600000000000004,
+            "Gemini-Pro": 0.531
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1125,
+          "mean_cumulative_regret": 35.28505,
+          "std_cumulative_regret": 1.801364273960156,
+          "se_cumulative_regret": 0.40279729688144633,
+          "mean_oracle_agreement": 0.664,
+          "se_oracle_agreement": 0.0168285471743701,
+          "arm_fractions": {
+            "Llama-8B": 0.056000000000000015,
+            "Mistral-Large": 0.404,
+            "Gemini-Pro": 0.5399999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1150,
+          "mean_cumulative_regret": 36.102,
+          "std_cumulative_regret": 1.9202936233815913,
+          "se_cumulative_regret": 0.42939070786406175,
+          "mean_oracle_agreement": 0.661,
+          "se_oracle_agreement": 0.016581616326522573,
+          "arm_fractions": {
+            "Llama-8B": 0.05,
+            "Mistral-Large": 0.4080000000000001,
+            "Gemini-Pro": 0.542
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1175,
+          "mean_cumulative_regret": 36.94029999999999,
+          "std_cumulative_regret": 2.001746439986843,
+          "se_cumulative_regret": 0.4476041113528784,
+          "mean_oracle_agreement": 0.6659999999999999,
+          "se_oracle_agreement": 0.01319848476151713,
+          "arm_fractions": {
+            "Llama-8B": 0.059,
+            "Mistral-Large": 0.413,
+            "Gemini-Pro": 0.5279999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1200,
+          "mean_cumulative_regret": 37.99505,
+          "std_cumulative_regret": 2.150321870674249,
+          "se_cumulative_regret": 0.48082658763321323,
+          "mean_oracle_agreement": 0.643,
+          "se_oracle_agreement": 0.0129054252157765,
+          "arm_fractions": {
+            "Llama-8B": 0.05900000000000001,
+            "Mistral-Large": 0.4130000000000001,
+            "Gemini-Pro": 0.5279999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1225,
+          "mean_cumulative_regret": 38.81269999999999,
+          "std_cumulative_regret": 2.226933925827167,
+          "se_cumulative_regret": 0.497957563955002,
+          "mean_oracle_agreement": 0.655,
+          "se_oracle_agreement": 0.01391941090707505,
+          "arm_fractions": {
+            "Llama-8B": 0.05900000000000001,
+            "Mistral-Large": 0.39,
+            "Gemini-Pro": 0.5509999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1250,
+          "mean_cumulative_regret": 39.8377,
+          "std_cumulative_regret": 2.089820138193715,
+          "se_cumulative_regret": 0.46729798897491515,
+          "mean_oracle_agreement": 0.6580000000000001,
+          "se_oracle_agreement": 0.02009477544039744,
+          "arm_fractions": {
+            "Llama-8B": 0.06700000000000002,
+            "Mistral-Large": 0.3910000000000001,
+            "Gemini-Pro": 0.542
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1275,
+          "mean_cumulative_regret": 40.60635,
+          "std_cumulative_regret": 2.194184456124872,
+          "se_cumulative_regret": 0.49063455990686183,
+          "mean_oracle_agreement": 0.625,
+          "se_oracle_agreement": 0.01678541033159452,
+          "arm_fractions": {
+            "Llama-8B": 0.06700000000000002,
+            "Mistral-Large": 0.382,
+            "Gemini-Pro": 0.5509999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1300,
+          "mean_cumulative_regret": 41.21205,
+          "std_cumulative_regret": 2.139146663391736,
+          "se_cumulative_regret": 0.47832773531857825,
+          "mean_oracle_agreement": 0.6699999999999999,
+          "se_oracle_agreement": 0.013228756555322952,
+          "arm_fractions": {
+            "Llama-8B": 0.06800000000000002,
+            "Mistral-Large": 0.379,
+            "Gemini-Pro": 0.5530000000000002
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1325,
+          "mean_cumulative_regret": 42.09125,
+          "std_cumulative_regret": 2.0463116301042716,
+          "se_cumulative_regret": 0.4575691908061556,
+          "mean_oracle_agreement": 0.674,
+          "se_oracle_agreement": 0.012891857895586655,
+          "arm_fractions": {
+            "Llama-8B": 0.06300000000000001,
+            "Mistral-Large": 0.392,
+            "Gemini-Pro": 0.5449999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1350,
+          "mean_cumulative_regret": 42.87495,
+          "std_cumulative_regret": 2.137891612664216,
+          "se_cumulative_regret": 0.47804709744438373,
+          "mean_oracle_agreement": 0.646,
+          "se_oracle_agreement": 0.011670475568716124,
+          "arm_fractions": {
+            "Llama-8B": 0.054000000000000006,
+            "Mistral-Large": 0.40099999999999997,
+            "Gemini-Pro": 0.5449999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1375,
+          "mean_cumulative_regret": 43.898199999999996,
+          "std_cumulative_regret": 2.1878681541628597,
+          "se_cumulative_regret": 0.4892221918515144,
+          "mean_oracle_agreement": 0.639,
+          "se_oracle_agreement": 0.01292091328041482,
+          "arm_fractions": {
+            "Llama-8B": 0.05500000000000001,
+            "Mistral-Large": 0.41400000000000003,
+            "Gemini-Pro": 0.531
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1400,
+          "mean_cumulative_regret": 44.773649999999996,
+          "std_cumulative_regret": 2.1695687192389177,
+          "se_cumulative_regret": 0.48513031380753757,
+          "mean_oracle_agreement": 0.63,
+          "se_oracle_agreement": 0.01479864858694874,
+          "arm_fractions": {
+            "Llama-8B": 0.075,
+            "Mistral-Large": 0.402,
+            "Gemini-Pro": 0.5229999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1425,
+          "mean_cumulative_regret": 45.7994,
+          "std_cumulative_regret": 2.0878841299267554,
+          "se_cumulative_regret": 0.4668650843659228,
+          "mean_oracle_agreement": 0.6330000000000001,
+          "se_oracle_agreement": 0.0128277043932264,
+          "arm_fractions": {
+            "Llama-8B": 0.077,
+            "Mistral-Large": 0.4010000000000001,
+            "Gemini-Pro": 0.5219999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1450,
+          "mean_cumulative_regret": 46.57245,
+          "std_cumulative_regret": 2.018762479218395,
+          "se_cumulative_regret": 0.4514090133958337,
+          "mean_oracle_agreement": 0.648,
+          "se_oracle_agreement": 0.012915107432770351,
+          "arm_fractions": {
+            "Llama-8B": 0.06400000000000002,
+            "Mistral-Large": 0.417,
+            "Gemini-Pro": 0.5189999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1475,
+          "mean_cumulative_regret": 47.46225,
+          "std_cumulative_regret": 2.1624817889406605,
+          "se_cumulative_regret": 0.48354562801766693,
+          "mean_oracle_agreement": 0.657,
+          "se_oracle_agreement": 0.016749626861515453,
+          "arm_fractions": {
+            "Llama-8B": 0.06900000000000002,
+            "Mistral-Large": 0.41400000000000003,
+            "Gemini-Pro": 0.517
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1500,
+          "mean_cumulative_regret": 48.40925,
+          "std_cumulative_regret": 2.183939785685494,
+          "se_cumulative_regret": 0.48834378195590866,
+          "mean_oracle_agreement": 0.6439999999999999,
+          "se_oracle_agreement": 0.015006665185843253,
+          "arm_fractions": {
+            "Llama-8B": 0.06600000000000002,
+            "Mistral-Large": 0.42700000000000005,
+            "Gemini-Pro": 0.507
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1525,
+          "mean_cumulative_regret": 49.2388,
+          "std_cumulative_regret": 2.114213603210423,
+          "se_cumulative_regret": 0.4727525335733273,
+          "mean_oracle_agreement": 0.653,
+          "se_oracle_agreement": 0.012670832648251654,
+          "arm_fractions": {
+            "Llama-8B": 0.05800000000000001,
+            "Mistral-Large": 0.41800000000000004,
+            "Gemini-Pro": 0.524
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1550,
+          "mean_cumulative_regret": 50.09394999999999,
+          "std_cumulative_regret": 2.094608495041496,
+          "se_cumulative_regret": 0.4683686981161316,
+          "mean_oracle_agreement": 0.655,
+          "se_oracle_agreement": 0.013555441711725959,
+          "arm_fractions": {
+            "Llama-8B": 0.06100000000000001,
+            "Mistral-Large": 0.396,
+            "Gemini-Pro": 0.5429999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1575,
+          "mean_cumulative_regret": 50.9041,
+          "std_cumulative_regret": 2.0417465048335455,
+          "se_cumulative_regret": 0.456548397763041,
+          "mean_oracle_agreement": 0.639,
+          "se_oracle_agreement": 0.011702563821658908,
+          "arm_fractions": {
+            "Llama-8B": 0.07700000000000003,
+            "Mistral-Large": 0.38900000000000007,
+            "Gemini-Pro": 0.534
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1600,
+          "mean_cumulative_regret": 51.736799999999995,
+          "std_cumulative_regret": 2.007884274553691,
+          "se_cumulative_regret": 0.4489765728854904,
+          "mean_oracle_agreement": 0.6449999999999999,
+          "se_oracle_agreement": 0.012479983974348683,
+          "arm_fractions": {
+            "Llama-8B": 0.08399999999999999,
+            "Mistral-Large": 0.377,
+            "Gemini-Pro": 0.539
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1625,
+          "mean_cumulative_regret": 52.69154999999999,
+          "std_cumulative_regret": 2.0628460552111014,
+          "se_cumulative_regret": 0.4612664006569307,
+          "mean_oracle_agreement": 0.642,
+          "se_oracle_agreement": 0.0159937487788198,
+          "arm_fractions": {
+            "Llama-8B": 0.07300000000000002,
+            "Mistral-Large": 0.41100000000000003,
+            "Gemini-Pro": 0.5159999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1650,
+          "mean_cumulative_regret": 53.4832,
+          "std_cumulative_regret": 2.113613365779087,
+          "se_cumulative_regret": 0.4726183164034166,
+          "mean_oracle_agreement": 0.6489999999999999,
+          "se_oracle_agreement": 0.015064859773658698,
+          "arm_fractions": {
+            "Llama-8B": 0.07300000000000002,
+            "Mistral-Large": 0.43200000000000005,
+            "Gemini-Pro": 0.49499999999999994
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1675,
+          "mean_cumulative_regret": 54.281949999999995,
+          "std_cumulative_regret": 2.3347478766453564,
+          "se_cumulative_regret": 0.522065496250231,
+          "mean_oracle_agreement": 0.663,
+          "se_oracle_agreement": 0.01328721189715886,
+          "arm_fractions": {
+            "Llama-8B": 0.079,
+            "Mistral-Large": 0.422,
+            "Gemini-Pro": 0.499
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1700,
+          "mean_cumulative_regret": 55.10545,
+          "std_cumulative_regret": 2.269024183983062,
+          "se_cumulative_regret": 0.5073692317977117,
+          "mean_oracle_agreement": 0.6519999999999999,
+          "se_oracle_agreement": 0.011523888232710349,
+          "arm_fractions": {
+            "Llama-8B": 0.07000000000000002,
+            "Mistral-Large": 0.4040000000000001,
+            "Gemini-Pro": 0.5259999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1725,
+          "mean_cumulative_regret": 56.122,
+          "std_cumulative_regret": 2.092413654132471,
+          "se_cumulative_regret": 0.46787791676889384,
+          "mean_oracle_agreement": 0.6280000000000001,
+          "se_oracle_agreement": 0.013520355024924454,
+          "arm_fractions": {
+            "Llama-8B": 0.06300000000000001,
+            "Mistral-Large": 0.37899999999999995,
+            "Gemini-Pro": 0.558
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1750,
+          "mean_cumulative_regret": 56.937799999999996,
+          "std_cumulative_regret": 1.8738966246834439,
+          "se_cumulative_regret": 0.41901602355995904,
+          "mean_oracle_agreement": 0.6249999999999999,
+          "se_oracle_agreement": 0.01708069085253872,
+          "arm_fractions": {
+            "Llama-8B": 0.06700000000000002,
+            "Mistral-Large": 0.38400000000000006,
+            "Gemini-Pro": 0.549
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1775,
+          "mean_cumulative_regret": 57.67024999999999,
+          "std_cumulative_regret": 1.9265248473611758,
+          "se_cumulative_regret": 0.4307840519041995,
+          "mean_oracle_agreement": 0.6479999999999999,
+          "se_oracle_agreement": 0.01846076921474292,
+          "arm_fractions": {
+            "Llama-8B": 0.06700000000000002,
+            "Mistral-Large": 0.402,
+            "Gemini-Pro": 0.531
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1785,
+          "mean_cumulative_regret": 57.99974999999999,
+          "std_cumulative_regret": 1.95780731623416,
+          "se_cumulative_regret": 0.43777902459460094,
+          "mean_oracle_agreement": 0.6619999999999999,
+          "se_oracle_agreement": 0.01574166446091391,
+          "arm_fractions": {
+            "Llama-8B": 0.07800000000000003,
+            "Mistral-Large": 0.382,
+            "Gemini-Pro": 0.54
+          },
+          "n_seeds": 20
+        }
+      ],
+      "total_regret": {
+        "mean": 57.99974999999999,
+        "std": 1.95780731623416,
+        "se": 0.43777902459460094
+      },
+      "mean_reward": {
+        "mean": 0.9310550420168067,
+        "std": 0.0010968108214197071,
+        "se": 0.00024525435551518476
+      },
+      "oracle_agreement": {
+        "mean": 0.6619999999999999,
+        "std": 0.07039886362719217,
+        "se": 0.01574166446091391
+      },
+      "regret_at_200": {
+        "mean": 5.563750000000001,
+        "std": 0.9826989811229073,
+        "se": 0.21973817232106033
+      },
+      "per_seed_regret": [
+        61.96,
+        60.351,
+        58.91,
+        56.684999999999995,
+        59.293,
+        56.674,
+        57.175,
+        59.483,
+        55.193999999999996,
+        57.634,
+        57.794,
+        61.431,
+        57.808,
+        56.498,
+        59.815,
+        56.608999999999995,
+        53.684999999999995,
+        57.403,
+        57.495,
+        58.098
+      ],
+      "per_seed_reward": [
+        0.9288364145658263,
+        0.9297378151260505,
+        0.9305450980392158,
+        0.9317915966386555,
+        0.9303305322128851,
+        0.9317977591036415,
+        0.9315170868347339,
+        0.9302240896358543,
+        0.9326268907563026,
+        0.9312599439775909,
+        0.9311703081232494,
+        0.9291327731092437,
+        0.9311624649859944,
+        0.9318963585434173,
+        0.9300380952380952,
+        0.9318341736694679,
+        0.9334722689075631,
+        0.9313893557422969,
+        0.9313378151260505,
+        0.931
+      ],
+      "per_seed_oracle_agreement": [
+        0.66,
+        0.58,
+        0.46,
+        0.66,
+        0.62,
+        0.7,
+        0.58,
+        0.68,
+        0.72,
+        0.8,
+        0.62,
+        0.66,
+        0.74,
+        0.72,
+        0.68,
+        0.64,
+        0.72,
+        0.68,
+        0.62,
+        0.7
+      ],
+      "per_seed_regret_at_200": [
+        6.87,
+        6.196,
+        7.34,
+        6.984999999999999,
+        5.211999999999999,
+        5.904999999999999,
+        4.805,
+        5.42,
+        4.199999999999999,
+        3.836,
+        4.275,
+        6.236000000000001,
+        5.91,
+        4.125,
+        4.85,
+        6.609999999999999,
+        5.31,
+        5.614999999999999,
+        5.414999999999999,
+        6.16
+      ]
+    },
+    "Tabula Rasa": {
+      "label": "Tabula Rasa",
+      "curves": [
+        {
+          "step": 1,
+          "mean_cumulative_regret": 0.093,
+          "std_cumulative_regret": 0.1856367420528598,
+          "se_cumulative_regret": 0.04150963743517883,
+          "mean_oracle_agreement": 0.65,
+          "se_oracle_agreement": 0.1066536450385077,
+          "arm_fractions": {
+            "Llama-8B": 0.4,
+            "Mistral-Large": 0.4,
+            "Gemini-Pro": 0.2
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 25,
+          "mean_cumulative_regret": 1.89805,
+          "std_cumulative_regret": 0.6381851200866406,
+          "se_cumulative_regret": 0.14270253107425948,
+          "mean_oracle_agreement": 0.5599999999999999,
+          "se_oracle_agreement": 0.01897366596101028,
+          "arm_fractions": {
+            "Llama-8B": 0.31600000000000006,
+            "Mistral-Large": 0.342,
+            "Gemini-Pro": 0.342
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 50,
+          "mean_cumulative_regret": 4.044549999999999,
+          "std_cumulative_regret": 1.0008757902457226,
+          "se_cumulative_regret": 0.22380263040232565,
+          "mean_oracle_agreement": 0.5369999999999999,
+          "se_oracle_agreement": 0.015574016822900891,
+          "arm_fractions": {
+            "Llama-8B": 0.32,
+            "Mistral-Large": 0.33399999999999996,
+            "Gemini-Pro": 0.346
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 75,
+          "mean_cumulative_regret": 6.0638,
+          "std_cumulative_regret": 1.233152610182535,
+          "se_cumulative_regret": 0.27574130629994476,
+          "mean_oracle_agreement": 0.5189999999999999,
+          "se_oracle_agreement": 0.015778149447891535,
+          "arm_fractions": {
+            "Llama-8B": 0.323,
+            "Mistral-Large": 0.328,
+            "Gemini-Pro": 0.349
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 100,
+          "mean_cumulative_regret": 7.682350000000001,
+          "std_cumulative_regret": 1.4317500925440863,
+          "se_cumulative_regret": 0.32014905337201915,
+          "mean_oracle_agreement": 0.5410000000000001,
+          "se_oracle_agreement": 0.011443338673656388,
+          "arm_fractions": {
+            "Llama-8B": 0.28400000000000003,
+            "Mistral-Large": 0.36200000000000004,
+            "Gemini-Pro": 0.35400000000000004
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 125,
+          "mean_cumulative_regret": 9.466149999999999,
+          "std_cumulative_regret": 1.486818861697685,
+          "se_cumulative_regret": 0.3324628044984882,
+          "mean_oracle_agreement": 0.55,
+          "se_oracle_agreement": 0.016763054614240207,
+          "arm_fractions": {
+            "Llama-8B": 0.261,
+            "Mistral-Large": 0.381,
+            "Gemini-Pro": 0.358
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 150,
+          "mean_cumulative_regret": 10.930349999999999,
+          "std_cumulative_regret": 1.4359272361439488,
+          "se_cumulative_regret": 0.32108309107612626,
+          "mean_oracle_agreement": 0.5740000000000001,
+          "se_oracle_agreement": 0.013498148021117562,
+          "arm_fractions": {
+            "Llama-8B": 0.24899999999999997,
+            "Mistral-Large": 0.366,
+            "Gemini-Pro": 0.3850000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 175,
+          "mean_cumulative_regret": 12.525400000000001,
+          "std_cumulative_regret": 1.6457173329584882,
+          "se_cumulative_regret": 0.36799358282448347,
+          "mean_oracle_agreement": 0.596,
+          "se_oracle_agreement": 0.012457929201917945,
+          "arm_fractions": {
+            "Llama-8B": 0.233,
+            "Mistral-Large": 0.34800000000000003,
+            "Gemini-Pro": 0.41900000000000004
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 200,
+          "mean_cumulative_regret": 14.141549999999999,
+          "std_cumulative_regret": 1.7814310392209962,
+          "se_cumulative_regret": 0.3983400900926241,
+          "mean_oracle_agreement": 0.5980000000000001,
+          "se_oracle_agreement": 0.013483323032546535,
+          "arm_fractions": {
+            "Llama-8B": 0.22600000000000003,
+            "Mistral-Large": 0.36899999999999994,
+            "Gemini-Pro": 0.4050000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 225,
+          "mean_cumulative_regret": 15.733350000000002,
+          "std_cumulative_regret": 1.7577721773597395,
+          "se_cumulative_regret": 0.3930498077534194,
+          "mean_oracle_agreement": 0.593,
+          "se_oracle_agreement": 0.014647525388269517,
+          "arm_fractions": {
+            "Llama-8B": 0.20700000000000002,
+            "Mistral-Large": 0.42200000000000004,
+            "Gemini-Pro": 0.371
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 250,
+          "mean_cumulative_regret": 17.24715,
+          "std_cumulative_regret": 1.638727563538247,
+          "se_cumulative_regret": 0.36643062286741257,
+          "mean_oracle_agreement": 0.5760000000000002,
+          "se_oracle_agreement": 0.01473770674155243,
+          "arm_fractions": {
+            "Llama-8B": 0.20500000000000002,
+            "Mistral-Large": 0.406,
+            "Gemini-Pro": 0.389
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 275,
+          "mean_cumulative_regret": 18.741900000000005,
+          "std_cumulative_regret": 1.6155029526435412,
+          "se_cumulative_regret": 0.3612374419962581,
+          "mean_oracle_agreement": 0.583,
+          "se_oracle_agreement": 0.019863282709562384,
+          "arm_fractions": {
+            "Llama-8B": 0.21000000000000002,
+            "Mistral-Large": 0.364,
+            "Gemini-Pro": 0.426
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 300,
+          "mean_cumulative_regret": 20.1803,
+          "std_cumulative_regret": 1.5745906801451606,
+          "se_cumulative_regret": 0.3520891797542207,
+          "mean_oracle_agreement": 0.584,
+          "se_oracle_agreement": 0.015974980438172685,
+          "arm_fractions": {
+            "Llama-8B": 0.213,
+            "Mistral-Large": 0.369,
+            "Gemini-Pro": 0.41800000000000004
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 325,
+          "mean_cumulative_regret": 21.78105,
+          "std_cumulative_regret": 1.7264350690078096,
+          "se_cumulative_regret": 0.3860426173041003,
+          "mean_oracle_agreement": 0.577,
+          "se_oracle_agreement": 0.015509674400192932,
+          "arm_fractions": {
+            "Llama-8B": 0.21300000000000002,
+            "Mistral-Large": 0.37800000000000006,
+            "Gemini-Pro": 0.409
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 350,
+          "mean_cumulative_regret": 23.010399999999997,
+          "std_cumulative_regret": 1.822259789382403,
+          "se_cumulative_regret": 0.40746967617235025,
+          "mean_oracle_agreement": 0.5940000000000001,
+          "se_oracle_agreement": 0.014771594362153327,
+          "arm_fractions": {
+            "Llama-8B": 0.20000000000000004,
+            "Mistral-Large": 0.37500000000000006,
+            "Gemini-Pro": 0.425
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 375,
+          "mean_cumulative_regret": 24.40245,
+          "std_cumulative_regret": 1.9396114424028332,
+          "se_cumulative_regret": 0.4337103035149153,
+          "mean_oracle_agreement": 0.6049999999999999,
+          "se_oracle_agreement": 0.011905880899790656,
+          "arm_fractions": {
+            "Llama-8B": 0.18700000000000003,
+            "Mistral-Large": 0.374,
+            "Gemini-Pro": 0.43900000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 400,
+          "mean_cumulative_regret": 25.865750000000002,
+          "std_cumulative_regret": 1.9933763286193602,
+          "se_cumulative_regret": 0.4457324975531849,
+          "mean_oracle_agreement": 0.6009999999999999,
+          "se_oracle_agreement": 0.011355615351005864,
+          "arm_fractions": {
+            "Llama-8B": 0.18700000000000006,
+            "Mistral-Large": 0.379,
+            "Gemini-Pro": 0.434
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 425,
+          "mean_cumulative_regret": 27.231249999999996,
+          "std_cumulative_regret": 2.126276249103112,
+          "se_cumulative_regret": 0.4754498231937835,
+          "mean_oracle_agreement": 0.598,
+          "se_oracle_agreement": 0.013630847369110988,
+          "arm_fractions": {
+            "Llama-8B": 0.181,
+            "Mistral-Large": 0.402,
+            "Gemini-Pro": 0.417
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 450,
+          "mean_cumulative_regret": 28.70695,
+          "std_cumulative_regret": 2.05992153916114,
+          "se_cumulative_regret": 0.4606124589880304,
+          "mean_oracle_agreement": 0.599,
+          "se_oracle_agreement": 0.01072147377928986,
+          "arm_fractions": {
+            "Llama-8B": 0.185,
+            "Mistral-Large": 0.4160000000000001,
+            "Gemini-Pro": 0.399
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 475,
+          "mean_cumulative_regret": 29.830350000000003,
+          "std_cumulative_regret": 2.1807466445004557,
+          "se_cumulative_regret": 0.4876297738807587,
+          "mean_oracle_agreement": 0.6289999999999999,
+          "se_oracle_agreement": 0.009947361459201129,
+          "arm_fractions": {
+            "Llama-8B": 0.17600000000000002,
+            "Mistral-Large": 0.394,
+            "Gemini-Pro": 0.43
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 500,
+          "mean_cumulative_regret": 31.367849999999997,
+          "std_cumulative_regret": 2.5148457064997047,
+          "se_cumulative_regret": 0.5623365952656825,
+          "mean_oracle_agreement": 0.6169999999999999,
+          "se_oracle_agreement": 0.012670832648251652,
+          "arm_fractions": {
+            "Llama-8B": 0.17700000000000002,
+            "Mistral-Large": 0.37800000000000006,
+            "Gemini-Pro": 0.445
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 525,
+          "mean_cumulative_regret": 32.694500000000005,
+          "std_cumulative_regret": 2.536840032402516,
+          "se_cumulative_regret": 0.5672546760494794,
+          "mean_oracle_agreement": 0.6060000000000001,
+          "se_oracle_agreement": 0.017268468374467955,
+          "arm_fractions": {
+            "Llama-8B": 0.163,
+            "Mistral-Large": 0.38700000000000007,
+            "Gemini-Pro": 0.45
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 550,
+          "mean_cumulative_regret": 34.17525,
+          "std_cumulative_regret": 2.3492285515675144,
+          "se_cumulative_regret": 0.5253034735988332,
+          "mean_oracle_agreement": 0.62,
+          "se_oracle_agreement": 0.015620499351813302,
+          "arm_fractions": {
+            "Llama-8B": 0.15200000000000005,
+            "Mistral-Large": 0.397,
+            "Gemini-Pro": 0.45099999999999996
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 575,
+          "mean_cumulative_regret": 35.31075,
+          "std_cumulative_regret": 2.2180205786917306,
+          "se_cumulative_regret": 0.4959644789448131,
+          "mean_oracle_agreement": 0.619,
+          "se_oracle_agreement": 0.015131093813733358,
+          "arm_fractions": {
+            "Llama-8B": 0.15800000000000003,
+            "Mistral-Large": 0.38000000000000006,
+            "Gemini-Pro": 0.462
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 600,
+          "mean_cumulative_regret": 36.7429,
+          "std_cumulative_regret": 2.2996539065694215,
+          "se_cumulative_regret": 0.5142182459812177,
+          "mean_oracle_agreement": 0.606,
+          "se_oracle_agreement": 0.013198484761517134,
+          "arm_fractions": {
+            "Llama-8B": 0.16000000000000003,
+            "Mistral-Large": 0.356,
+            "Gemini-Pro": 0.4839999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 625,
+          "mean_cumulative_regret": 37.945899999999995,
+          "std_cumulative_regret": 2.417476409398859,
+          "se_cumulative_regret": 0.540564158541796,
+          "mean_oracle_agreement": 0.6,
+          "se_oracle_agreement": 0.015620499351813305,
+          "arm_fractions": {
+            "Llama-8B": 0.15600000000000003,
+            "Mistral-Large": 0.38099999999999995,
+            "Gemini-Pro": 0.4630000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 650,
+          "mean_cumulative_regret": 39.12989999999999,
+          "std_cumulative_regret": 2.3481718399640172,
+          "se_cumulative_regret": 0.52506718570103,
+          "mean_oracle_agreement": 0.615,
+          "se_oracle_agreement": 0.013332291625973382,
+          "arm_fractions": {
+            "Llama-8B": 0.14800000000000002,
+            "Mistral-Large": 0.41000000000000003,
+            "Gemini-Pro": 0.442
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 675,
+          "mean_cumulative_regret": 40.527800000000006,
+          "std_cumulative_regret": 2.354241143128715,
+          "se_cumulative_regret": 0.5264243231462619,
+          "mean_oracle_agreement": 0.601,
+          "se_oracle_agreement": 0.019208071220192826,
+          "arm_fractions": {
+            "Llama-8B": 0.15800000000000003,
+            "Mistral-Large": 0.385,
+            "Gemini-Pro": 0.457
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 700,
+          "mean_cumulative_regret": 41.74535,
+          "std_cumulative_regret": 2.4191500423702537,
+          "se_cumulative_regret": 0.5409383942511383,
+          "mean_oracle_agreement": 0.5970000000000001,
+          "se_oracle_agreement": 0.016689817254841345,
+          "arm_fractions": {
+            "Llama-8B": 0.14500000000000002,
+            "Mistral-Large": 0.386,
+            "Gemini-Pro": 0.46900000000000003
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 725,
+          "mean_cumulative_regret": 42.9174,
+          "std_cumulative_regret": 2.6511278241533356,
+          "se_cumulative_regret": 0.5928102031847967,
+          "mean_oracle_agreement": 0.613,
+          "se_oracle_agreement": 0.01328721189715886,
+          "arm_fractions": {
+            "Llama-8B": 0.13600000000000004,
+            "Mistral-Large": 0.41000000000000003,
+            "Gemini-Pro": 0.45400000000000007
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 750,
+          "mean_cumulative_regret": 44.1261,
+          "std_cumulative_regret": 2.639747164029161,
+          "se_cumulative_regret": 0.5902654102181492,
+          "mean_oracle_agreement": 0.6039999999999999,
+          "se_oracle_agreement": 0.014601369798755185,
+          "arm_fractions": {
+            "Llama-8B": 0.13200000000000003,
+            "Mistral-Large": 0.406,
+            "Gemini-Pro": 0.462
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 775,
+          "mean_cumulative_regret": 45.21885000000001,
+          "std_cumulative_regret": 2.556576739998234,
+          "se_cumulative_regret": 0.5716679380330857,
+          "mean_oracle_agreement": 0.5930000000000001,
+          "se_oracle_agreement": 0.012749509794497979,
+          "arm_fractions": {
+            "Llama-8B": 0.13400000000000004,
+            "Mistral-Large": 0.406,
+            "Gemini-Pro": 0.45999999999999996
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 800,
+          "mean_cumulative_regret": 46.36535,
+          "std_cumulative_regret": 2.6565142249760303,
+          "se_cumulative_regret": 0.5940146390241573,
+          "mean_oracle_agreement": 0.613,
+          "se_oracle_agreement": 0.013436889521016387,
+          "arm_fractions": {
+            "Llama-8B": 0.15000000000000002,
+            "Mistral-Large": 0.41000000000000003,
+            "Gemini-Pro": 0.44000000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 825,
+          "mean_cumulative_regret": 47.6238,
+          "std_cumulative_regret": 2.5486462995088197,
+          "se_cumulative_regret": 0.569894637630501,
+          "mean_oracle_agreement": 0.611,
+          "se_oracle_agreement": 0.010437911668528334,
+          "arm_fractions": {
+            "Llama-8B": 0.15300000000000002,
+            "Mistral-Large": 0.40800000000000003,
+            "Gemini-Pro": 0.43900000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 850,
+          "mean_cumulative_regret": 48.7817,
+          "std_cumulative_regret": 2.7437067828031485,
+          "se_cumulative_regret": 0.6135114876675091,
+          "mean_oracle_agreement": 0.601,
+          "se_oracle_agreement": 0.014998333240730452,
+          "arm_fractions": {
+            "Llama-8B": 0.136,
+            "Mistral-Large": 0.39499999999999996,
+            "Gemini-Pro": 0.469
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 875,
+          "mean_cumulative_regret": 49.987199999999994,
+          "std_cumulative_regret": 2.9412508325540694,
+          "se_cumulative_regret": 0.657683680046875,
+          "mean_oracle_agreement": 0.6140000000000001,
+          "se_oracle_agreement": 0.013791301606447448,
+          "arm_fractions": {
+            "Llama-8B": 0.13600000000000004,
+            "Mistral-Large": 0.379,
+            "Gemini-Pro": 0.48500000000000004
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 900,
+          "mean_cumulative_regret": 51.1721,
+          "std_cumulative_regret": 3.0164549872325295,
+          "se_cumulative_regret": 0.6744998402520196,
+          "mean_oracle_agreement": 0.6159999999999999,
+          "se_oracle_agreement": 0.017064583206161235,
+          "arm_fractions": {
+            "Llama-8B": 0.14300000000000002,
+            "Mistral-Large": 0.388,
+            "Gemini-Pro": 0.46900000000000014
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 925,
+          "mean_cumulative_regret": 52.4726,
+          "std_cumulative_regret": 2.9261444496128353,
+          "se_cumulative_regret": 0.6543057901318008,
+          "mean_oracle_agreement": 0.611,
+          "se_oracle_agreement": 0.014385756844879591,
+          "arm_fractions": {
+            "Llama-8B": 0.14300000000000004,
+            "Mistral-Large": 0.396,
+            "Gemini-Pro": 0.461
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 950,
+          "mean_cumulative_regret": 53.53315,
+          "std_cumulative_regret": 2.9920482495274037,
+          "se_cumulative_regret": 0.6690423277902527,
+          "mean_oracle_agreement": 0.6159999999999999,
+          "se_oracle_agreement": 0.012132600710482477,
+          "arm_fractions": {
+            "Llama-8B": 0.13600000000000004,
+            "Mistral-Large": 0.392,
+            "Gemini-Pro": 0.4720000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 975,
+          "mean_cumulative_regret": 54.6414,
+          "std_cumulative_regret": 2.918813190322396,
+          "se_cumulative_regret": 0.6526664707183909,
+          "mean_oracle_agreement": 0.624,
+          "se_oracle_agreement": 0.0156588633048507,
+          "arm_fractions": {
+            "Llama-8B": 0.13000000000000003,
+            "Mistral-Large": 0.385,
+            "Gemini-Pro": 0.48500000000000015
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1000,
+          "mean_cumulative_regret": 55.738800000000005,
+          "std_cumulative_regret": 2.8152688077695176,
+          "se_cumulative_regret": 0.629513242910743,
+          "mean_oracle_agreement": 0.615,
+          "se_oracle_agreement": 0.017993054215446582,
+          "arm_fractions": {
+            "Llama-8B": 0.13600000000000004,
+            "Mistral-Large": 0.371,
+            "Gemini-Pro": 0.49300000000000005
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1025,
+          "mean_cumulative_regret": 56.97855,
+          "std_cumulative_regret": 2.8092694864501686,
+          "se_cumulative_regret": 0.6281717538818501,
+          "mean_oracle_agreement": 0.6070000000000001,
+          "se_oracle_agreement": 0.01773555750462894,
+          "arm_fractions": {
+            "Llama-8B": 0.14000000000000004,
+            "Mistral-Large": 0.36700000000000005,
+            "Gemini-Pro": 0.493
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1050,
+          "mean_cumulative_regret": 58.122899999999994,
+          "std_cumulative_regret": 2.803769746252356,
+          "se_cumulative_regret": 0.6269419745877604,
+          "mean_oracle_agreement": 0.6170000000000001,
+          "se_oracle_agreement": 0.013876238683447326,
+          "arm_fractions": {
+            "Llama-8B": 0.13200000000000003,
+            "Mistral-Large": 0.38,
+            "Gemini-Pro": 0.488
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1075,
+          "mean_cumulative_regret": 59.406850000000006,
+          "std_cumulative_regret": 2.818461180768683,
+          "se_cumulative_regret": 0.6302270792143098,
+          "mean_oracle_agreement": 0.607,
+          "se_oracle_agreement": 0.0153801820535389,
+          "arm_fractions": {
+            "Llama-8B": 0.12800000000000003,
+            "Mistral-Large": 0.406,
+            "Gemini-Pro": 0.466
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1100,
+          "mean_cumulative_regret": 60.4732,
+          "std_cumulative_regret": 2.8390420144830544,
+          "se_cumulative_regret": 0.6348290935362052,
+          "mean_oracle_agreement": 0.62,
+          "se_oracle_agreement": 0.014282856857085698,
+          "arm_fractions": {
+            "Llama-8B": 0.12600000000000003,
+            "Mistral-Large": 0.406,
+            "Gemini-Pro": 0.4680000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1125,
+          "mean_cumulative_regret": 61.609449999999995,
+          "std_cumulative_regret": 2.831072543666094,
+          "se_cumulative_regret": 0.6330470656870628,
+          "mean_oracle_agreement": 0.6239999999999999,
+          "se_oracle_agreement": 0.013311649033834987,
+          "arm_fractions": {
+            "Llama-8B": 0.13000000000000003,
+            "Mistral-Large": 0.388,
+            "Gemini-Pro": 0.48199999999999993
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1150,
+          "mean_cumulative_regret": 62.7562,
+          "std_cumulative_regret": 2.926655507571741,
+          "se_cumulative_regret": 0.6544200661654562,
+          "mean_oracle_agreement": 0.61,
+          "se_oracle_agreement": 0.013076696830622021,
+          "arm_fractions": {
+            "Llama-8B": 0.12800000000000003,
+            "Mistral-Large": 0.38400000000000006,
+            "Gemini-Pro": 0.488
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1175,
+          "mean_cumulative_regret": 63.81985000000001,
+          "std_cumulative_regret": 2.7507549013861623,
+          "se_cumulative_regret": 0.6150874948940189,
+          "mean_oracle_agreement": 0.6239999999999999,
+          "se_oracle_agreement": 0.01411382301150188,
+          "arm_fractions": {
+            "Llama-8B": 0.12200000000000003,
+            "Mistral-Large": 0.39,
+            "Gemini-Pro": 0.488
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1200,
+          "mean_cumulative_regret": 65.16560000000001,
+          "std_cumulative_regret": 2.9069164831484238,
+          "se_cumulative_regret": 0.6500062861234497,
+          "mean_oracle_agreement": 0.6209999999999999,
+          "se_oracle_agreement": 0.012122293512368031,
+          "arm_fractions": {
+            "Llama-8B": 0.12600000000000003,
+            "Mistral-Large": 0.395,
+            "Gemini-Pro": 0.4790000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1225,
+          "mean_cumulative_regret": 66.2978,
+          "std_cumulative_regret": 2.818349598612636,
+          "se_cumulative_regret": 0.63020212868571,
+          "mean_oracle_agreement": 0.624,
+          "se_oracle_agreement": 0.012617448236470003,
+          "arm_fractions": {
+            "Llama-8B": 0.12000000000000002,
+            "Mistral-Large": 0.4130000000000001,
+            "Gemini-Pro": 0.4669999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1250,
+          "mean_cumulative_regret": 67.65800000000002,
+          "std_cumulative_regret": 2.616527507976936,
+          "se_cumulative_regret": 0.5850733372834552,
+          "mean_oracle_agreement": 0.6279999999999999,
+          "se_oracle_agreement": 0.018676188047886,
+          "arm_fractions": {
+            "Llama-8B": 0.12300000000000003,
+            "Mistral-Large": 0.41100000000000003,
+            "Gemini-Pro": 0.466
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1275,
+          "mean_cumulative_regret": 68.60535,
+          "std_cumulative_regret": 2.632441799451604,
+          "se_cumulative_regret": 0.5886318810385655,
+          "mean_oracle_agreement": 0.618,
+          "se_oracle_agreement": 0.014135062787267694,
+          "arm_fractions": {
+            "Llama-8B": 0.12300000000000003,
+            "Mistral-Large": 0.386,
+            "Gemini-Pro": 0.4910000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1300,
+          "mean_cumulative_regret": 69.63905000000001,
+          "std_cumulative_regret": 2.4962596514585584,
+          "se_cumulative_regret": 0.5581806270151268,
+          "mean_oracle_agreement": 0.6309999999999999,
+          "se_oracle_agreement": 0.01195616995529923,
+          "arm_fractions": {
+            "Llama-8B": 0.11800000000000002,
+            "Mistral-Large": 0.388,
+            "Gemini-Pro": 0.49400000000000005
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1325,
+          "mean_cumulative_regret": 70.8104,
+          "std_cumulative_regret": 2.435412149924526,
+          "se_cumulative_regret": 0.5445747120460149,
+          "mean_oracle_agreement": 0.622,
+          "se_oracle_agreement": 0.013630847369110988,
+          "arm_fractions": {
+            "Llama-8B": 0.10300000000000002,
+            "Mistral-Large": 0.4109999999999999,
+            "Gemini-Pro": 0.48600000000000004
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1350,
+          "mean_cumulative_regret": 71.92715000000001,
+          "std_cumulative_regret": 2.631799598658683,
+          "se_cumulative_regret": 0.588488280575748,
+          "mean_oracle_agreement": 0.603,
+          "se_oracle_agreement": 0.013135828866120327,
+          "arm_fractions": {
+            "Llama-8B": 0.1,
+            "Mistral-Large": 0.43100000000000005,
+            "Gemini-Pro": 0.46900000000000003
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1375,
+          "mean_cumulative_regret": 72.90544999999999,
+          "std_cumulative_regret": 2.6932210543325255,
+          "se_cumulative_regret": 0.6022225355921181,
+          "mean_oracle_agreement": 0.6260000000000001,
+          "se_oracle_agreement": 0.014359665734271117,
+          "arm_fractions": {
+            "Llama-8B": 0.10500000000000002,
+            "Mistral-Large": 0.42699999999999994,
+            "Gemini-Pro": 0.4680000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1400,
+          "mean_cumulative_regret": 74.0227,
+          "std_cumulative_regret": 2.490950884702467,
+          "se_cumulative_regret": 0.5569935506807957,
+          "mean_oracle_agreement": 0.6299999999999999,
+          "se_oracle_agreement": 0.014106735979665885,
+          "arm_fractions": {
+            "Llama-8B": 0.09900000000000002,
+            "Mistral-Large": 0.426,
+            "Gemini-Pro": 0.475
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1425,
+          "mean_cumulative_regret": 75.2682,
+          "std_cumulative_regret": 2.440413358429262,
+          "se_cumulative_regret": 0.545693016264639,
+          "mean_oracle_agreement": 0.627,
+          "se_oracle_agreement": 0.0139481181526398,
+          "arm_fractions": {
+            "Llama-8B": 0.10500000000000001,
+            "Mistral-Large": 0.41200000000000003,
+            "Gemini-Pro": 0.4830000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1450,
+          "mean_cumulative_regret": 76.13575,
+          "std_cumulative_regret": 2.5428340070677047,
+          "se_cumulative_regret": 0.5685949695301568,
+          "mean_oracle_agreement": 0.655,
+          "se_oracle_agreement": 0.01370218960604472,
+          "arm_fractions": {
+            "Llama-8B": 0.10100000000000002,
+            "Mistral-Large": 0.395,
+            "Gemini-Pro": 0.504
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1475,
+          "mean_cumulative_regret": 77.19575,
+          "std_cumulative_regret": 2.5507088794098007,
+          "se_cumulative_regret": 0.5703558445172627,
+          "mean_oracle_agreement": 0.649,
+          "se_oracle_agreement": 0.014796959147068023,
+          "arm_fractions": {
+            "Llama-8B": 0.09900000000000002,
+            "Mistral-Large": 0.41600000000000004,
+            "Gemini-Pro": 0.485
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1500,
+          "mean_cumulative_regret": 78.20975000000001,
+          "std_cumulative_regret": 2.4903586664374266,
+          "se_cumulative_regret": 0.556861126650981,
+          "mean_oracle_agreement": 0.634,
+          "se_oracle_agreement": 0.01209131920015347,
+          "arm_fractions": {
+            "Llama-8B": 0.10600000000000001,
+            "Mistral-Large": 0.422,
+            "Gemini-Pro": 0.472
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1525,
+          "mean_cumulative_regret": 79.39200000000001,
+          "std_cumulative_regret": 2.217200103734438,
+          "se_cumulative_regret": 0.49578101516697887,
+          "mean_oracle_agreement": 0.642,
+          "se_oracle_agreement": 0.012320714265009152,
+          "arm_fractions": {
+            "Llama-8B": 0.09100000000000001,
+            "Mistral-Large": 0.40700000000000003,
+            "Gemini-Pro": 0.502
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1550,
+          "mean_cumulative_regret": 80.4984,
+          "std_cumulative_regret": 2.2130207952027927,
+          "se_cumulative_regret": 0.4948464933694085,
+          "mean_oracle_agreement": 0.632,
+          "se_oracle_agreement": 0.014724129855444766,
+          "arm_fractions": {
+            "Llama-8B": 0.10500000000000002,
+            "Mistral-Large": 0.41000000000000003,
+            "Gemini-Pro": 0.485
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1575,
+          "mean_cumulative_regret": 81.46054999999998,
+          "std_cumulative_regret": 2.2135896746009642,
+          "se_cumulative_regret": 0.49497369866993957,
+          "mean_oracle_agreement": 0.6339999999999999,
+          "se_oracle_agreement": 0.01371860051171401,
+          "arm_fractions": {
+            "Llama-8B": 0.12600000000000006,
+            "Mistral-Large": 0.386,
+            "Gemini-Pro": 0.488
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1600,
+          "mean_cumulative_regret": 82.56095000000002,
+          "std_cumulative_regret": 2.3799959133368267,
+          "se_cumulative_regret": 0.5321832648392842,
+          "mean_oracle_agreement": 0.626,
+          "se_oracle_agreement": 0.011924764148611072,
+          "arm_fractions": {
+            "Llama-8B": 0.11400000000000002,
+            "Mistral-Large": 0.379,
+            "Gemini-Pro": 0.507
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1625,
+          "mean_cumulative_regret": 83.5657,
+          "std_cumulative_regret": 2.3750533067701864,
+          "se_cumulative_regret": 0.5310780644123798,
+          "mean_oracle_agreement": 0.6170000000000001,
+          "se_oracle_agreement": 0.019093192504136127,
+          "arm_fractions": {
+            "Llama-8B": 0.09900000000000002,
+            "Mistral-Large": 0.4,
+            "Gemini-Pro": 0.5010000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1650,
+          "mean_cumulative_regret": 84.6011,
+          "std_cumulative_regret": 2.507293459090898,
+          "se_cumulative_regret": 0.5606478614067836,
+          "mean_oracle_agreement": 0.6359999999999999,
+          "se_oracle_agreement": 0.016037456157383563,
+          "arm_fractions": {
+            "Llama-8B": 0.089,
+            "Mistral-Large": 0.397,
+            "Gemini-Pro": 0.514
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1675,
+          "mean_cumulative_regret": 85.4481,
+          "std_cumulative_regret": 2.4838984661213512,
+          "se_cumulative_regret": 0.5554165819454799,
+          "mean_oracle_agreement": 0.663,
+          "se_oracle_agreement": 0.014783436677579405,
+          "arm_fractions": {
+            "Llama-8B": 0.09600000000000002,
+            "Mistral-Large": 0.399,
+            "Gemini-Pro": 0.505
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1700,
+          "mean_cumulative_regret": 86.42864999999998,
+          "std_cumulative_regret": 2.4595246954442245,
+          "se_cumulative_regret": 0.5499664411352753,
+          "mean_oracle_agreement": 0.6499999999999999,
+          "se_oracle_agreement": 0.010999999999999998,
+          "arm_fractions": {
+            "Llama-8B": 0.10100000000000002,
+            "Mistral-Large": 0.409,
+            "Gemini-Pro": 0.49000000000000005
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1725,
+          "mean_cumulative_regret": 87.84645000000002,
+          "std_cumulative_regret": 2.549830925277205,
+          "se_cumulative_regret": 0.5701595280051017,
+          "mean_oracle_agreement": 0.6010000000000002,
+          "se_oracle_agreement": 0.013672966027896066,
+          "arm_fractions": {
+            "Llama-8B": 0.11500000000000002,
+            "Mistral-Large": 0.3950000000000001,
+            "Gemini-Pro": 0.49000000000000005
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1750,
+          "mean_cumulative_regret": 88.75150000000001,
+          "std_cumulative_regret": 2.575736409262407,
+          "se_cumulative_regret": 0.5759521703231961,
+          "mean_oracle_agreement": 0.6140000000000001,
+          "se_oracle_agreement": 0.017268468374467955,
+          "arm_fractions": {
+            "Llama-8B": 0.11300000000000002,
+            "Mistral-Large": 0.37100000000000005,
+            "Gemini-Pro": 0.516
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1775,
+          "mean_cumulative_regret": 89.72705,
+          "std_cumulative_regret": 2.627933227367089,
+          "se_cumulative_regret": 0.5876237336723221,
+          "mean_oracle_agreement": 0.6370000000000001,
+          "se_oracle_agreement": 0.017336377937735438,
+          "arm_fractions": {
+            "Llama-8B": 0.099,
+            "Mistral-Large": 0.391,
+            "Gemini-Pro": 0.5099999999999999
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1785,
+          "mean_cumulative_regret": 90.09129999999999,
+          "std_cumulative_regret": 2.602493383276892,
+          "se_cumulative_regret": 0.5819352116000545,
+          "mean_oracle_agreement": 0.644,
+          "se_oracle_agreement": 0.014669696656713797,
+          "arm_fractions": {
+            "Llama-8B": 0.11100000000000002,
+            "Mistral-Large": 0.394,
+            "Gemini-Pro": 0.495
+          },
+          "n_seeds": 20
+        }
+      ],
+      "total_regret": {
+        "mean": 90.09129999999999,
+        "std": 2.602493383276892,
+        "se": 0.5819352116000545
+      },
+      "mean_reward": {
+        "mean": 0.9130765826330534,
+        "std": 0.001457979486429626,
+        "se": 0.00032601412414568756
+      },
+      "oracle_agreement": {
+        "mean": 0.644,
+        "std": 0.0656048778674269,
+        "se": 0.014669696656713797
+      },
+      "regret_at_200": {
+        "mean": 14.141549999999999,
+        "std": 1.7814310392209962,
+        "se": 0.3983400900926241
+      },
+      "per_seed_regret": [
+        90.794,
+        85.493,
+        86.542,
+        88.557,
+        89.725,
+        92.068,
+        94.439,
+        87.643,
+        87.582,
+        90.126,
+        90.979,
+        89.97,
+        97.099,
+        90.329,
+        88.306,
+        92.45400000000001,
+        91.242,
+        88.37,
+        89.503,
+        90.605
+      ],
+      "per_seed_reward": [
+        0.9126829131652661,
+        0.9156526610644258,
+        0.9150649859943978,
+        0.9139361344537815,
+        0.9132817927170869,
+        0.91196918767507,
+        0.9106408963585434,
+        0.9144481792717086,
+        0.9144823529411764,
+        0.9130571428571428,
+        0.9125792717086836,
+        0.9131445378151261,
+        0.909150700280112,
+        0.9129434173669468,
+        0.9140767507002802,
+        0.9117529411764707,
+        0.9124319327731094,
+        0.9140408963585434,
+        0.9134061624649858,
+        0.9127887955182072
+      ],
+      "per_seed_oracle_agreement": [
+        0.64,
+        0.64,
+        0.66,
+        0.64,
+        0.54,
+        0.64,
+        0.5,
+        0.74,
+        0.76,
+        0.74,
+        0.64,
+        0.6,
+        0.68,
+        0.72,
+        0.66,
+        0.64,
+        0.68,
+        0.62,
+        0.56,
+        0.58
+      ],
+      "per_seed_regret_at_200": [
+        13.64,
+        15.205,
+        15.495,
+        14.270999999999999,
+        14.028,
+        16.639,
+        14.54,
+        10.935,
+        10.33,
+        13.625,
+        14.591,
+        16.01,
+        15.045,
+        11.985,
+        14.709999999999999,
+        15.795,
+        15.526,
+        11.66,
+        12.360000000000001,
+        16.441
+      ]
+    },
+    "Random": {
+      "label": "Random",
+      "curves": [
+        {
+          "step": 1,
+          "mean_cumulative_regret": 0.10500000000000001,
+          "std_cumulative_regret": 0.182414363469547,
+          "se_cumulative_regret": 0.04078909167902615,
+          "mean_oracle_agreement": 0.5,
+          "se_oracle_agreement": 0.11180339887498948,
+          "arm_fractions": {
+            "Llama-8B": 0.3,
+            "Mistral-Large": 0.45,
+            "Gemini-Pro": 0.25
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 25,
+          "mean_cumulative_regret": 2.0815,
+          "std_cumulative_regret": 0.8186896542646671,
+          "se_cumulative_regret": 0.1830645719411596,
+          "mean_oracle_agreement": 0.534,
+          "se_oracle_agreement": 0.019447364860052375,
+          "arm_fractions": {
+            "Llama-8B": 0.30200000000000005,
+            "Mistral-Large": 0.37600000000000006,
+            "Gemini-Pro": 0.322
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 50,
+          "mean_cumulative_regret": 4.222999999999999,
+          "std_cumulative_regret": 1.2626672166489474,
+          "se_cumulative_regret": 0.28234097293875005,
+          "mean_oracle_agreement": 0.539,
+          "se_oracle_agreement": 0.01664181480488231,
+          "arm_fractions": {
+            "Llama-8B": 0.33899999999999997,
+            "Mistral-Large": 0.343,
+            "Gemini-Pro": 0.31799999999999995
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 75,
+          "mean_cumulative_regret": 6.14975,
+          "std_cumulative_regret": 1.4355847893802716,
+          "se_cumulative_regret": 0.3210065176519005,
+          "mean_oracle_agreement": 0.539,
+          "se_oracle_agreement": 0.015522564221158821,
+          "arm_fractions": {
+            "Llama-8B": 0.353,
+            "Mistral-Large": 0.31500000000000006,
+            "Gemini-Pro": 0.332
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 100,
+          "mean_cumulative_regret": 8.087099999999998,
+          "std_cumulative_regret": 1.6255178221108495,
+          "se_cumulative_regret": 0.363476834887727,
+          "mean_oracle_agreement": 0.545,
+          "se_oracle_agreement": 0.014203872711341789,
+          "arm_fractions": {
+            "Llama-8B": 0.327,
+            "Mistral-Large": 0.32999999999999996,
+            "Gemini-Pro": 0.343
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 125,
+          "mean_cumulative_regret": 10.087399999999999,
+          "std_cumulative_regret": 1.5382430367142899,
+          "se_cumulative_regret": 0.3439615996008857,
+          "mean_oracle_agreement": 0.5450000000000002,
+          "se_oracle_agreement": 0.012399596767637244,
+          "arm_fractions": {
+            "Llama-8B": 0.341,
+            "Mistral-Large": 0.34400000000000003,
+            "Gemini-Pro": 0.31500000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 150,
+          "mean_cumulative_regret": 12.30165,
+          "std_cumulative_regret": 1.6737840743357548,
+          "se_cumulative_regret": 0.37426949698713086,
+          "mean_oracle_agreement": 0.5239999999999999,
+          "se_oracle_agreement": 0.01375499909123952,
+          "arm_fractions": {
+            "Llama-8B": 0.34600000000000003,
+            "Mistral-Large": 0.358,
+            "Gemini-Pro": 0.296
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 175,
+          "mean_cumulative_regret": 14.269450000000003,
+          "std_cumulative_regret": 1.7318759619268347,
+          "se_cumulative_regret": 0.387259237946624,
+          "mean_oracle_agreement": 0.514,
+          "se_oracle_agreement": 0.015943650773897425,
+          "arm_fractions": {
+            "Llama-8B": 0.329,
+            "Mistral-Large": 0.34800000000000003,
+            "Gemini-Pro": 0.323
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 200,
+          "mean_cumulative_regret": 16.3014,
+          "std_cumulative_regret": 1.7933780248458493,
+          "se_cumulative_regret": 0.40101151729096257,
+          "mean_oracle_agreement": 0.539,
+          "se_oracle_agreement": 0.014661173213627894,
+          "arm_fractions": {
+            "Llama-8B": 0.323,
+            "Mistral-Large": 0.321,
+            "Gemini-Pro": 0.356
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 225,
+          "mean_cumulative_regret": 18.345949999999995,
+          "std_cumulative_regret": 1.7148849371021953,
+          "se_cumulative_regret": 0.383459929295096,
+          "mean_oracle_agreement": 0.548,
+          "se_oracle_agreement": 0.015582040944625963,
+          "arm_fractions": {
+            "Llama-8B": 0.319,
+            "Mistral-Large": 0.32300000000000006,
+            "Gemini-Pro": 0.35800000000000004
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 250,
+          "mean_cumulative_regret": 20.41375,
+          "std_cumulative_regret": 1.8229562494750113,
+          "se_cumulative_regret": 0.40762540938341907,
+          "mean_oracle_agreement": 0.519,
+          "se_oracle_agreement": 0.013599632347971761,
+          "arm_fractions": {
+            "Llama-8B": 0.314,
+            "Mistral-Large": 0.3430000000000001,
+            "Gemini-Pro": 0.343
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 275,
+          "mean_cumulative_regret": 22.719250000000002,
+          "std_cumulative_regret": 2.095452215513396,
+          "se_cumulative_regret": 0.4685573597490492,
+          "mean_oracle_agreement": 0.505,
+          "se_oracle_agreement": 0.015929532322073992,
+          "arm_fractions": {
+            "Llama-8B": 0.34600000000000003,
+            "Mistral-Large": 0.32399999999999995,
+            "Gemini-Pro": 0.33
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 300,
+          "mean_cumulative_regret": 24.381099999999996,
+          "std_cumulative_regret": 2.3616638181587146,
+          "se_cumulative_regret": 0.5280840837404588,
+          "mean_oracle_agreement": 0.51,
+          "se_oracle_agreement": 0.016401219466856725,
+          "arm_fractions": {
+            "Llama-8B": 0.3350000000000001,
+            "Mistral-Large": 0.33,
+            "Gemini-Pro": 0.335
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 325,
+          "mean_cumulative_regret": 26.485750000000003,
+          "std_cumulative_regret": 2.1684893560956207,
+          "se_cumulative_regret": 0.48488896087145555,
+          "mean_oracle_agreement": 0.5229999999999999,
+          "se_oracle_agreement": 0.017336377937735434,
+          "arm_fractions": {
+            "Llama-8B": 0.2990000000000001,
+            "Mistral-Large": 0.37300000000000005,
+            "Gemini-Pro": 0.328
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 350,
+          "mean_cumulative_regret": 28.759900000000005,
+          "std_cumulative_regret": 2.160906774944259,
+          "se_cumulative_regret": 0.48319344418152027,
+          "mean_oracle_agreement": 0.5319999999999999,
+          "se_oracle_agreement": 0.01417039166713468,
+          "arm_fractions": {
+            "Llama-8B": 0.33,
+            "Mistral-Large": 0.354,
+            "Gemini-Pro": 0.31599999999999995
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 375,
+          "mean_cumulative_regret": 30.7514,
+          "std_cumulative_regret": 1.9238160359036416,
+          "se_cumulative_regret": 0.4301783432484718,
+          "mean_oracle_agreement": 0.539,
+          "se_oracle_agreement": 0.015197039185315012,
+          "arm_fractions": {
+            "Llama-8B": 0.34199999999999997,
+            "Mistral-Large": 0.335,
+            "Gemini-Pro": 0.323
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 400,
+          "mean_cumulative_regret": 32.998000000000005,
+          "std_cumulative_regret": 2.0299780786993735,
+          "se_cumulative_regret": 0.4539168976806217,
+          "mean_oracle_agreement": 0.523,
+          "se_oracle_agreement": 0.015445063936416707,
+          "arm_fractions": {
+            "Llama-8B": 0.33100000000000007,
+            "Mistral-Large": 0.331,
+            "Gemini-Pro": 0.33799999999999997
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 425,
+          "mean_cumulative_regret": 35.168049999999994,
+          "std_cumulative_regret": 2.148003665616053,
+          "se_cumulative_regret": 0.4803082212236222,
+          "mean_oracle_agreement": 0.5050000000000001,
+          "se_oracle_agreement": 0.01642406770565684,
+          "arm_fractions": {
+            "Llama-8B": 0.364,
+            "Mistral-Large": 0.317,
+            "Gemini-Pro": 0.319
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 450,
+          "mean_cumulative_regret": 37.15805000000001,
+          "std_cumulative_regret": 2.374979841493397,
+          "se_cumulative_regret": 0.5310616370770911,
+          "mean_oracle_agreement": 0.5370000000000001,
+          "se_oracle_agreement": 0.018829498134575975,
+          "arm_fractions": {
+            "Llama-8B": 0.383,
+            "Mistral-Large": 0.313,
+            "Gemini-Pro": 0.304
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 475,
+          "mean_cumulative_regret": 39.01604999999999,
+          "std_cumulative_regret": 2.419249046191813,
+          "se_cumulative_regret": 0.5409605321786422,
+          "mean_oracle_agreement": 0.5690000000000001,
+          "se_oracle_agreement": 0.013599632347971763,
+          "arm_fractions": {
+            "Llama-8B": 0.351,
+            "Mistral-Large": 0.32900000000000007,
+            "Gemini-Pro": 0.32
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 500,
+          "mean_cumulative_regret": 40.94180000000001,
+          "std_cumulative_regret": 2.5337469407973647,
+          "se_cumulative_regret": 0.5665630397405043,
+          "mean_oracle_agreement": 0.5589999999999999,
+          "se_oracle_agreement": 0.018572829617481555,
+          "arm_fractions": {
+            "Llama-8B": 0.31999999999999995,
+            "Mistral-Large": 0.35700000000000004,
+            "Gemini-Pro": 0.32300000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 525,
+          "mean_cumulative_regret": 43.17495,
+          "std_cumulative_regret": 2.7523193578325897,
+          "se_cumulative_regret": 0.6154373179902238,
+          "mean_oracle_agreement": 0.516,
+          "se_oracle_agreement": 0.01453272169966796,
+          "arm_fractions": {
+            "Llama-8B": 0.33,
+            "Mistral-Large": 0.33599999999999997,
+            "Gemini-Pro": 0.334
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 550,
+          "mean_cumulative_regret": 45.31244999999999,
+          "std_cumulative_regret": 2.5358484472657272,
+          "se_cumulative_regret": 0.5670329508723456,
+          "mean_oracle_agreement": 0.5080000000000001,
+          "se_oracle_agreement": 0.016876018487783185,
+          "arm_fractions": {
+            "Llama-8B": 0.339,
+            "Mistral-Large": 0.32599999999999996,
+            "Gemini-Pro": 0.335
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 575,
+          "mean_cumulative_regret": 47.21475,
+          "std_cumulative_regret": 2.7773186867012574,
+          "se_cumulative_regret": 0.6210273378644452,
+          "mean_oracle_agreement": 0.538,
+          "se_oracle_agreement": 0.012641202474448386,
+          "arm_fractions": {
+            "Llama-8B": 0.322,
+            "Mistral-Large": 0.33899999999999997,
+            "Gemini-Pro": 0.339
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 600,
+          "mean_cumulative_regret": 49.1289,
+          "std_cumulative_regret": 2.769696678338623,
+          "se_cumulative_regret": 0.6193230049820531,
+          "mean_oracle_agreement": 0.534,
+          "se_oracle_agreement": 0.016619265928433782,
+          "arm_fractions": {
+            "Llama-8B": 0.323,
+            "Mistral-Large": 0.33599999999999997,
+            "Gemini-Pro": 0.3410000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 625,
+          "mean_cumulative_regret": 51.4224,
+          "std_cumulative_regret": 2.968271911398954,
+          "se_cumulative_regret": 0.6637257769591294,
+          "mean_oracle_agreement": 0.523,
+          "se_oracle_agreement": 0.015574016822900891,
+          "arm_fractions": {
+            "Llama-8B": 0.33999999999999997,
+            "Mistral-Large": 0.33999999999999997,
+            "Gemini-Pro": 0.32000000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 650,
+          "mean_cumulative_regret": 53.53915000000001,
+          "std_cumulative_regret": 2.7066044091259447,
+          "se_cumulative_regret": 0.6052151447006264,
+          "mean_oracle_agreement": 0.5229999999999999,
+          "se_oracle_agreement": 0.011599568957508723,
+          "arm_fractions": {
+            "Llama-8B": 0.3510000000000001,
+            "Mistral-Large": 0.32500000000000007,
+            "Gemini-Pro": 0.324
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 675,
+          "mean_cumulative_regret": 55.70495,
+          "std_cumulative_regret": 2.698632755211423,
+          "se_cumulative_regret": 0.6034326286960292,
+          "mean_oracle_agreement": 0.524,
+          "se_oracle_agreement": 0.013084341787036904,
+          "arm_fractions": {
+            "Llama-8B": 0.34299999999999997,
+            "Mistral-Large": 0.322,
+            "Gemini-Pro": 0.3350000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 700,
+          "mean_cumulative_regret": 57.73485000000001,
+          "std_cumulative_regret": 2.876594154116983,
+          "se_cumulative_regret": 0.6432260072284081,
+          "mean_oracle_agreement": 0.5210000000000001,
+          "se_oracle_agreement": 0.012122293512368027,
+          "arm_fractions": {
+            "Llama-8B": 0.327,
+            "Mistral-Large": 0.34500000000000003,
+            "Gemini-Pro": 0.328
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 725,
+          "mean_cumulative_regret": 60.07845,
+          "std_cumulative_regret": 2.9863389706294226,
+          "se_cumulative_regret": 0.6677656942184137,
+          "mean_oracle_agreement": 0.512,
+          "se_oracle_agreement": 0.013520355024924454,
+          "arm_fractions": {
+            "Llama-8B": 0.31500000000000006,
+            "Mistral-Large": 0.35000000000000003,
+            "Gemini-Pro": 0.335
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 750,
+          "mean_cumulative_regret": 62.193650000000005,
+          "std_cumulative_regret": 3.2995445030337134,
+          "se_cumulative_regret": 0.7378005803569144,
+          "mean_oracle_agreement": 0.5010000000000001,
+          "se_oracle_agreement": 0.011443338673656392,
+          "arm_fractions": {
+            "Llama-8B": 0.33399999999999996,
+            "Mistral-Large": 0.352,
+            "Gemini-Pro": 0.314
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 775,
+          "mean_cumulative_regret": 64.1756,
+          "std_cumulative_regret": 3.512803088702811,
+          "se_cumulative_regret": 0.7854866497910709,
+          "mean_oracle_agreement": 0.5200000000000001,
+          "se_oracle_agreement": 0.017549928774784243,
+          "arm_fractions": {
+            "Llama-8B": 0.351,
+            "Mistral-Large": 0.341,
+            "Gemini-Pro": 0.308
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 800,
+          "mean_cumulative_regret": 66.23925,
+          "std_cumulative_regret": 3.4768128634569915,
+          "se_cumulative_regret": 0.7774389907735527,
+          "mean_oracle_agreement": 0.5509999999999999,
+          "se_oracle_agreement": 0.014864386970204993,
+          "arm_fractions": {
+            "Llama-8B": 0.328,
+            "Mistral-Large": 0.31500000000000006,
+            "Gemini-Pro": 0.357
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 825,
+          "mean_cumulative_regret": 68.43844999999999,
+          "std_cumulative_regret": 3.309658901986729,
+          "se_cumulative_regret": 0.740062228717964,
+          "mean_oracle_agreement": 0.533,
+          "se_oracle_agreement": 0.021738215198125164,
+          "arm_fractions": {
+            "Llama-8B": 0.318,
+            "Mistral-Large": 0.32699999999999996,
+            "Gemini-Pro": 0.3550000000000001
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 850,
+          "mean_cumulative_regret": 70.22385,
+          "std_cumulative_regret": 3.4371513826859577,
+          "se_cumulative_regret": 0.7685704140643195,
+          "mean_oracle_agreement": 0.5450000000000002,
+          "se_oracle_agreement": 0.01907223112276065,
+          "arm_fractions": {
+            "Llama-8B": 0.329,
+            "Mistral-Large": 0.34500000000000003,
+            "Gemini-Pro": 0.326
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 875,
+          "mean_cumulative_regret": 72.60034999999999,
+          "std_cumulative_regret": 3.5438540217537167,
+          "se_cumulative_regret": 0.7924298494977329,
+          "mean_oracle_agreement": 0.539,
+          "se_oracle_agreement": 0.016338604591580028,
+          "arm_fractions": {
+            "Llama-8B": 0.3410000000000001,
+            "Mistral-Large": 0.325,
+            "Gemini-Pro": 0.33399999999999996
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 900,
+          "mean_cumulative_regret": 74.55210000000001,
+          "std_cumulative_regret": 3.2729567351249855,
+          "se_cumulative_regret": 0.7318553747155241,
+          "mean_oracle_agreement": 0.5199999999999999,
+          "se_oracle_agreement": 0.012806248474865698,
+          "arm_fractions": {
+            "Llama-8B": 0.32400000000000007,
+            "Mistral-Large": 0.332,
+            "Gemini-Pro": 0.34400000000000003
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 925,
+          "mean_cumulative_regret": 76.75235,
+          "std_cumulative_regret": 3.3332948305692955,
+          "se_cumulative_regret": 0.7453473830201588,
+          "mean_oracle_agreement": 0.546,
+          "se_oracle_agreement": 0.012577758146824098,
+          "arm_fractions": {
+            "Llama-8B": 0.31,
+            "Mistral-Large": 0.35900000000000004,
+            "Gemini-Pro": 0.33100000000000007
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 950,
+          "mean_cumulative_regret": 78.76915,
+          "std_cumulative_regret": 3.3255250002819103,
+          "se_cumulative_regret": 0.7436099961505358,
+          "mean_oracle_agreement": 0.547,
+          "se_oracle_agreement": 0.015638094513079268,
+          "arm_fractions": {
+            "Llama-8B": 0.30900000000000005,
+            "Mistral-Large": 0.34400000000000003,
+            "Gemini-Pro": 0.34700000000000003
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 975,
+          "mean_cumulative_regret": 80.59714999999998,
+          "std_cumulative_regret": 3.13811521896504,
+          "se_cumulative_regret": 0.7017038950832466,
+          "mean_oracle_agreement": 0.5519999999999999,
+          "se_oracle_agreement": 0.01835211159512714,
+          "arm_fractions": {
+            "Llama-8B": 0.30199999999999994,
+            "Mistral-Large": 0.342,
+            "Gemini-Pro": 0.35600000000000004
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1000,
+          "mean_cumulative_regret": 82.38255000000001,
+          "std_cumulative_regret": 3.165396933640394,
+          "se_cumulative_regret": 0.7078042719389311,
+          "mean_oracle_agreement": 0.5469999999999999,
+          "se_oracle_agreement": 0.014019629096377691,
+          "arm_fractions": {
+            "Llama-8B": 0.32200000000000006,
+            "Mistral-Large": 0.35000000000000003,
+            "Gemini-Pro": 0.32799999999999996
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1025,
+          "mean_cumulative_regret": 84.65830000000001,
+          "std_cumulative_regret": 3.0343632132623806,
+          "se_cumulative_regret": 0.6785042413279374,
+          "mean_oracle_agreement": 0.532,
+          "se_oracle_agreement": 0.017910890541790486,
+          "arm_fractions": {
+            "Llama-8B": 0.348,
+            "Mistral-Large": 0.329,
+            "Gemini-Pro": 0.32300000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1050,
+          "mean_cumulative_regret": 86.54095000000001,
+          "std_cumulative_regret": 3.1358866923886146,
+          "se_cumulative_regret": 0.7012055813917915,
+          "mean_oracle_agreement": 0.5229999999999999,
+          "se_oracle_agreement": 0.014302097748232597,
+          "arm_fractions": {
+            "Llama-8B": 0.375,
+            "Mistral-Large": 0.297,
+            "Gemini-Pro": 0.328
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1075,
+          "mean_cumulative_regret": 88.69445,
+          "std_cumulative_regret": 3.1917073875122073,
+          "se_cumulative_regret": 0.7136874682765558,
+          "mean_oracle_agreement": 0.5069999999999999,
+          "se_oracle_agreement": 0.018290708023474652,
+          "arm_fractions": {
+            "Llama-8B": 0.362,
+            "Mistral-Large": 0.31800000000000006,
+            "Gemini-Pro": 0.31999999999999995
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1100,
+          "mean_cumulative_regret": 90.62015,
+          "std_cumulative_regret": 3.131985732327016,
+          "se_cumulative_regret": 0.7003333002042669,
+          "mean_oracle_agreement": 0.527,
+          "se_oracle_agreement": 0.018935416552059266,
+          "arm_fractions": {
+            "Llama-8B": 0.324,
+            "Mistral-Large": 0.35,
+            "Gemini-Pro": 0.326
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1125,
+          "mean_cumulative_regret": 92.4306,
+          "std_cumulative_regret": 3.2995824341876947,
+          "se_cumulative_regret": 0.7378090620207911,
+          "mean_oracle_agreement": 0.56,
+          "se_oracle_agreement": 0.014071247279470286,
+          "arm_fractions": {
+            "Llama-8B": 0.32,
+            "Mistral-Large": 0.34199999999999997,
+            "Gemini-Pro": 0.33799999999999997
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1150,
+          "mean_cumulative_regret": 94.50305,
+          "std_cumulative_regret": 2.9699046192596823,
+          "se_cumulative_regret": 0.6640908615355281,
+          "mean_oracle_agreement": 0.562,
+          "se_oracle_agreement": 0.01502664300500947,
+          "arm_fractions": {
+            "Llama-8B": 0.341,
+            "Mistral-Large": 0.32399999999999995,
+            "Gemini-Pro": 0.33499999999999996
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1175,
+          "mean_cumulative_regret": 96.2901,
+          "std_cumulative_regret": 2.8636173260406137,
+          "se_cumulative_regret": 0.640324300257299,
+          "mean_oracle_agreement": 0.545,
+          "se_oracle_agreement": 0.016178689687363433,
+          "arm_fractions": {
+            "Llama-8B": 0.3610000000000001,
+            "Mistral-Large": 0.308,
+            "Gemini-Pro": 0.331
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1200,
+          "mean_cumulative_regret": 98.40890000000002,
+          "std_cumulative_regret": 2.6397089593362373,
+          "se_cumulative_regret": 0.5902568673891054,
+          "mean_oracle_agreement": 0.521,
+          "se_oracle_agreement": 0.01780308961950144,
+          "arm_fractions": {
+            "Llama-8B": 0.332,
+            "Mistral-Large": 0.323,
+            "Gemini-Pro": 0.345
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1225,
+          "mean_cumulative_regret": 100.32114999999999,
+          "std_cumulative_regret": 2.632154369998081,
+          "se_cumulative_regret": 0.5885676098588841,
+          "mean_oracle_agreement": 0.541,
+          "se_oracle_agreement": 0.017746830702973417,
+          "arm_fractions": {
+            "Llama-8B": 0.32900000000000007,
+            "Mistral-Large": 0.335,
+            "Gemini-Pro": 0.336
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1250,
+          "mean_cumulative_regret": 102.42744999999998,
+          "std_cumulative_regret": 2.5297742087980897,
+          "se_cumulative_regret": 0.5656747098598275,
+          "mean_oracle_agreement": 0.5599999999999998,
+          "se_oracle_agreement": 0.015362291495737215,
+          "arm_fractions": {
+            "Llama-8B": 0.347,
+            "Mistral-Large": 0.35,
+            "Gemini-Pro": 0.30300000000000005
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1275,
+          "mean_cumulative_regret": 104.32745,
+          "std_cumulative_regret": 2.804807916328673,
+          "se_cumulative_regret": 0.6271741164740455,
+          "mean_oracle_agreement": 0.536,
+          "se_oracle_agreement": 0.016649324310613927,
+          "arm_fractions": {
+            "Llama-8B": 0.33,
+            "Mistral-Large": 0.36700000000000005,
+            "Gemini-Pro": 0.30300000000000005
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1300,
+          "mean_cumulative_regret": 106.18890000000002,
+          "std_cumulative_regret": 2.3690952471354962,
+          "se_cumulative_regret": 0.5297458017766633,
+          "mean_oracle_agreement": 0.548,
+          "se_oracle_agreement": 0.01417039166713468,
+          "arm_fractions": {
+            "Llama-8B": 0.32400000000000007,
+            "Mistral-Large": 0.348,
+            "Gemini-Pro": 0.32799999999999996
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1325,
+          "mean_cumulative_regret": 108.4153,
+          "std_cumulative_regret": 2.547200308181513,
+          "se_cumulative_regret": 0.5695713041402276,
+          "mean_oracle_agreement": 0.54,
+          "se_oracle_agreement": 0.01183215956619923,
+          "arm_fractions": {
+            "Llama-8B": 0.332,
+            "Mistral-Large": 0.328,
+            "Gemini-Pro": 0.33999999999999997
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1350,
+          "mean_cumulative_regret": 110.57005000000001,
+          "std_cumulative_regret": 2.57200070907844,
+          "se_cumulative_regret": 0.5751168423677052,
+          "mean_oracle_agreement": 0.5169999999999999,
+          "se_oracle_agreement": 0.011070230349906904,
+          "arm_fractions": {
+            "Llama-8B": 0.371,
+            "Mistral-Large": 0.316,
+            "Gemini-Pro": 0.313
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1375,
+          "mean_cumulative_regret": 112.74974999999999,
+          "std_cumulative_regret": 2.6296726008193483,
+          "se_cumulative_regret": 0.5880126694000731,
+          "mean_oracle_agreement": 0.5369999999999999,
+          "se_oracle_agreement": 0.012105783741666622,
+          "arm_fractions": {
+            "Llama-8B": 0.37300000000000005,
+            "Mistral-Large": 0.316,
+            "Gemini-Pro": 0.31100000000000005
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1400,
+          "mean_cumulative_regret": 115.04249999999999,
+          "std_cumulative_regret": 2.6033938522628497,
+          "se_cumulative_regret": 0.5821365625864776,
+          "mean_oracle_agreement": 0.5290000000000001,
+          "se_oracle_agreement": 0.012447891387700973,
+          "arm_fractions": {
+            "Llama-8B": 0.354,
+            "Mistral-Large": 0.328,
+            "Gemini-Pro": 0.318
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1425,
+          "mean_cumulative_regret": 117.0832,
+          "std_cumulative_regret": 2.7753480790704432,
+          "se_cumulative_regret": 0.6205866966024972,
+          "mean_oracle_agreement": 0.5109999999999999,
+          "se_oracle_agreement": 0.018081758764014078,
+          "arm_fractions": {
+            "Llama-8B": 0.34400000000000003,
+            "Mistral-Large": 0.333,
+            "Gemini-Pro": 0.32300000000000006
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1450,
+          "mean_cumulative_regret": 119.20375000000001,
+          "std_cumulative_regret": 3.0285277260576624,
+          "se_cumulative_regret": 0.6771993867207794,
+          "mean_oracle_agreement": 0.507,
+          "se_oracle_agreement": 0.018125948251057105,
+          "arm_fractions": {
+            "Llama-8B": 0.34600000000000003,
+            "Mistral-Large": 0.326,
+            "Gemini-Pro": 0.328
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1475,
+          "mean_cumulative_regret": 121.10079999999998,
+          "std_cumulative_regret": 3.242672795704184,
+          "se_cumulative_regret": 0.7250836799983843,
+          "mean_oracle_agreement": 0.53,
+          "se_oracle_agreement": 0.012449899597988732,
+          "arm_fractions": {
+            "Llama-8B": 0.322,
+            "Mistral-Large": 0.32600000000000007,
+            "Gemini-Pro": 0.352
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1500,
+          "mean_cumulative_regret": 123.20580000000002,
+          "std_cumulative_regret": 3.569080464209234,
+          "se_cumulative_regret": 0.7980706535138352,
+          "mean_oracle_agreement": 0.5469999999999999,
+          "se_oracle_agreement": 0.01692778780585343,
+          "arm_fractions": {
+            "Llama-8B": 0.31999999999999995,
+            "Mistral-Large": 0.32,
+            "Gemini-Pro": 0.36
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1525,
+          "mean_cumulative_regret": 125.38485,
+          "std_cumulative_regret": 3.653408809249248,
+          "se_cumulative_regret": 0.816927044707788,
+          "mean_oracle_agreement": 0.5409999999999999,
+          "se_oracle_agreement": 0.015586853434866191,
+          "arm_fractions": {
+            "Llama-8B": 0.336,
+            "Mistral-Large": 0.32799999999999996,
+            "Gemini-Pro": 0.33599999999999997
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1550,
+          "mean_cumulative_regret": 127.35,
+          "std_cumulative_regret": 3.7836620752916073,
+          "se_cumulative_regret": 0.8460525604239961,
+          "mean_oracle_agreement": 0.542,
+          "se_oracle_agreement": 0.01399285531976944,
+          "arm_fractions": {
+            "Llama-8B": 0.326,
+            "Mistral-Large": 0.34800000000000003,
+            "Gemini-Pro": 0.326
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1575,
+          "mean_cumulative_regret": 129.23255,
+          "std_cumulative_regret": 3.7146955390045093,
+          "se_cumulative_regret": 0.8306311740929304,
+          "mean_oracle_agreement": 0.5440000000000002,
+          "se_oracle_agreement": 0.01300769003320728,
+          "arm_fractions": {
+            "Llama-8B": 0.3180000000000001,
+            "Mistral-Large": 0.369,
+            "Gemini-Pro": 0.31299999999999994
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1600,
+          "mean_cumulative_regret": 131.11505,
+          "std_cumulative_regret": 4.075893122678759,
+          "se_cumulative_regret": 0.9113974091333595,
+          "mean_oracle_agreement": 0.549,
+          "se_oracle_agreement": 0.012447891387700971,
+          "arm_fractions": {
+            "Llama-8B": 0.31400000000000006,
+            "Mistral-Large": 0.375,
+            "Gemini-Pro": 0.311
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1625,
+          "mean_cumulative_regret": 133.13330000000002,
+          "std_cumulative_regret": 4.324484490664755,
+          "se_cumulative_regret": 0.9669841288769947,
+          "mean_oracle_agreement": 0.5380000000000001,
+          "se_oracle_agreement": 0.018649396773086253,
+          "arm_fractions": {
+            "Llama-8B": 0.333,
+            "Mistral-Large": 0.3350000000000001,
+            "Gemini-Pro": 0.33199999999999996
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1650,
+          "mean_cumulative_regret": 135.08065000000002,
+          "std_cumulative_regret": 4.687024026767944,
+          "se_cumulative_regret": 1.0480504336027916,
+          "mean_oracle_agreement": 0.528,
+          "se_oracle_agreement": 0.019869574731231666,
+          "arm_fractions": {
+            "Llama-8B": 0.325,
+            "Mistral-Large": 0.32700000000000007,
+            "Gemini-Pro": 0.34800000000000003
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1675,
+          "mean_cumulative_regret": 136.93975000000003,
+          "std_cumulative_regret": 4.802952226235446,
+          "se_cumulative_regret": 1.0739727670546406,
+          "mean_oracle_agreement": 0.534,
+          "se_oracle_agreement": 0.02379495744900587,
+          "arm_fractions": {
+            "Llama-8B": 0.31100000000000005,
+            "Mistral-Large": 0.32299999999999995,
+            "Gemini-Pro": 0.366
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1700,
+          "mean_cumulative_regret": 138.65585000000002,
+          "std_cumulative_regret": 4.885147380325391,
+          "se_cumulative_regret": 1.092352162251259,
+          "mean_oracle_agreement": 0.5450000000000002,
+          "se_oracle_agreement": 0.012318684994754917,
+          "arm_fractions": {
+            "Llama-8B": 0.305,
+            "Mistral-Large": 0.33499999999999996,
+            "Gemini-Pro": 0.36
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1725,
+          "mean_cumulative_regret": 140.63365,
+          "std_cumulative_regret": 4.978332273713757,
+          "se_cumulative_regret": 1.113188937860505,
+          "mean_oracle_agreement": 0.551,
+          "se_oracle_agreement": 0.013377219442021573,
+          "arm_fractions": {
+            "Llama-8B": 0.313,
+            "Mistral-Large": 0.34600000000000003,
+            "Gemini-Pro": 0.34099999999999997
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1750,
+          "mean_cumulative_regret": 142.5167,
+          "std_cumulative_regret": 5.188486408385395,
+          "se_cumulative_regret": 1.1601808309483477,
+          "mean_oracle_agreement": 0.5459999999999999,
+          "se_oracle_agreement": 0.01556277610196844,
+          "arm_fractions": {
+            "Llama-8B": 0.33,
+            "Mistral-Large": 0.326,
+            "Gemini-Pro": 0.34400000000000003
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1775,
+          "mean_cumulative_regret": 144.52745,
+          "std_cumulative_regret": 5.2705355845018245,
+          "se_cumulative_regret": 1.1785275844777665,
+          "mean_oracle_agreement": 0.526,
+          "se_oracle_agreement": 0.01497330958739583,
+          "arm_fractions": {
+            "Llama-8B": 0.333,
+            "Mistral-Large": 0.31700000000000006,
+            "Gemini-Pro": 0.35
+          },
+          "n_seeds": 20
+        },
+        {
+          "step": 1785,
+          "mean_cumulative_regret": 145.28394999999998,
+          "std_cumulative_regret": 5.472900167872607,
+          "se_cumulative_regret": 1.2237776809433158,
+          "mean_oracle_agreement": 0.5280000000000001,
+          "se_oracle_agreement": 0.012361229712289954,
+          "arm_fractions": {
+            "Llama-8B": 0.326,
+            "Mistral-Large": 0.32999999999999996,
+            "Gemini-Pro": 0.34400000000000003
+          },
+          "n_seeds": 20
+        }
+      ],
+      "total_regret": {
+        "mean": 145.28394999999998,
+        "std": 5.472900167872607,
+        "se": 1.2237776809433158
+      },
+      "mean_reward": {
+        "mean": 0.8821563305322128,
+        "std": 0.003066050514214347,
+        "se": 0.0006855897372231465
+      },
+      "oracle_agreement": {
+        "mean": 0.5280000000000001,
+        "std": 0.055281099844341014,
+        "se": 0.012361229712289954
+      },
+      "regret_at_200": {
+        "mean": 16.3014,
+        "std": 1.7933780248458493,
+        "se": 0.40101151729096257
+      },
+      "per_seed_regret": [
+        150.761,
+        150.749,
+        151.739,
+        149.485,
+        151.911,
+        146.726,
+        151.829,
+        148.732,
+        137.55700000000002,
+        138.75900000000001,
+        146.693,
+        144.239,
+        142.613,
+        141.982,
+        137.734,
+        148.157,
+        141.2,
+        132.218,
+        145.575,
+        147.02
+      ],
+      "per_seed_reward": [
+        0.8790879551820728,
+        0.8790946778711486,
+        0.8785400560224089,
+        0.8798028011204481,
+        0.8784436974789915,
+        0.8813484593837534,
+        0.8784896358543418,
+        0.880224649859944,
+        0.8864851540616248,
+        0.8858117647058823,
+        0.8813669467787114,
+        0.8827417366946778,
+        0.8836526610644257,
+        0.884006162464986,
+        0.8863859943977591,
+        0.8805467787114845,
+        0.8844442577030812,
+        0.8894761904761904,
+        0.8819932773109244,
+        0.8811837535014005
+      ],
+      "per_seed_oracle_agreement": [
+        0.56,
+        0.5,
+        0.46,
+        0.54,
+        0.58,
+        0.46,
+        0.42,
+        0.54,
+        0.52,
+        0.56,
+        0.5,
+        0.52,
+        0.6,
+        0.52,
+        0.52,
+        0.6,
+        0.5,
+        0.66,
+        0.54,
+        0.46
+      ],
+      "per_seed_regret_at_200": [
+        13.246,
+        16.335,
+        15.235,
+        18.53,
+        19.604,
+        18.609,
+        15.575,
+        14.03,
+        15.78,
+        14.935,
+        13.621,
+        17.3,
+        17.375,
+        15.81,
+        15.23,
+        18.665,
+        18.535999999999998,
+        14.465,
+        16.6,
+        16.547
+      ]
+    }
+  }
+}

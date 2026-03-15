@@ -1,0 +1,18 @@
+{
+  "total_regret": 102.415,
+  "p1_mean_reward": 0.8872295632698769,
+  "p1_mean_cost": 0.0006639573348264277,
+  "p2_mean_reward": 0.9251367713004484,
+  "p2_mean_cost": 0.0003610153712007972,
+  "p2_mean_lambda": 0.0035216005527808074,
+  "p1_arm_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.29003359462486,
+    "mistralai/mistral-large-2512": 0.6864501679731243,
+    "google/gemini-2.5-pro": 0.023516237402015677
+  },
+  "p2_arm_fractions": {
+    "meta-llama/llama-3.1-8b-instruct": 0.04820627802690583,
+    "mistralai/mistral-large-2512": 0.47197309417040356,
+    "google/gemini-2.5-pro": 0.4798206278026906
+  }
+}

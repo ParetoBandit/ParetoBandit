@@ -1,0 +1,35 @@
+% Appendix: Cold-Start vs Warmup Prior Regret
+
+\subsection{Cold-Start vs Warmup Priors (Figure~\ref{fig:warmup_ablation})}
+\label{sec:warmup_ablation}
+
+We isolate the contribution of warmup priors by comparing
+BanditGPT with offline priors against a tabula-rasa cold start
+(identity covariance, zero bias) using identical hyperparameters
+($\alpha{=}1.0$, $n_{\text{eff}}{=}5{,}000$, disjoint LinUCB,
+$\gamma{=}1.0$) on the $K{=}3$ stationary portfolio.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Condition} & \textbf{Regret} ($\pm$1\,SE) & \textbf{Regret@200} ($\pm$1\,SE) & \textbf{Mean Rwd} & \textbf{Oracle Agr.} \\
+\midrule
+BanditGPT (warmup) & $\mathbf{58.0 \pm 0.4}$ & $\mathbf{5.6 \pm 0.2}$ & $\mathbf{0.931}$ & $\mathbf{0.662}$ \\
+Tabula Rasa        & $90.1 \pm 0.6$           & $14.1 \pm 0.4$          & $0.913$           & $0.644$           \\
+Random             & $145.3 \pm 1.2$          & $16.3 \pm 0.4$          & $0.882$           & $0.528$           \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+Warmup priors reduce total regret by 36\% ($\Delta{=}-32.1$,
+paired $t$-test $p < 10^{-18}$) and early regret (step~200) by
+61\%.  The advantage is concentrated in the first ${\sim}400$
+steps (Figure~\ref{fig:warmup_ablation}), where the warmup router
+begins with informed arm-quality estimates and avoids the
+exploratory phase that the cold-start router must perform.
+Beyond step~${\sim}800$, the cold-start router has accumulated
+enough observations to converge, but the regret gap established
+early persists through the full horizon.
+Twenty seeds; $\pm$1\,SE shading; val split ($n{=}1{,}785$).
