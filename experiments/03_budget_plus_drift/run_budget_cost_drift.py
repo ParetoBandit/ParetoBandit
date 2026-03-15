@@ -700,6 +700,10 @@ def _aggregate_seeds(
             ARM_SHORT[a]: float(np.std(arm_frac_lists[a]))
             for a in ARM_ORDER
         }
+        per_seed_arm_fracs = {
+            ARM_SHORT[a]: [float(f) for f in arm_frac_lists[a]]
+            for a in ARM_ORDER
+        }
 
         curves.append({
             "step": cp_step,
@@ -707,14 +711,17 @@ def _aggregate_seeds(
             "phase_boundary": n_p1,
             "mean_lambda": float(np.mean(lambdas)),
             "std_lambda": float(np.std(lambdas)),
+            "per_seed_lambda": [float(l) for l in lambdas],
             "mean_cost_ema": float(np.mean(cost_emas)),
             "std_cost_ema": float(np.std(cost_emas)),
             "mean_gamma": float(np.mean(gammas)),
             "std_gamma": float(np.std(gammas)),
             "mean_avg_cost": float(np.mean(avg_costs)),
             "std_avg_cost": float(np.std(avg_costs)),
+            "per_seed_avg_cost": [float(c) for c in avg_costs],
             "arm_fractions": arm_fracs,
             "arm_fractions_std": arm_fracs_std,
+            "per_seed_arm_fractions": per_seed_arm_fracs,
             "n_seeds": n_seeds,
         })
 
@@ -903,7 +910,7 @@ def main() -> None:
             feature_dim=feature_dim,
             cost_penalty=0.0,
             warmup=True,
-            forgetting_factor=1.0,
+            forgetting_factor=BEST_K3_HPARAMS["forgetting_factor"],
             budget_pacer=None,
             seed=seed,
         )
