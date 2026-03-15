@@ -64,6 +64,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import (
+    BEST_K3_HPARAMS,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
@@ -105,8 +106,8 @@ PHASE1_N: int = 893
 PHASE2_N: int = 892
 CHECKPOINT_INTERVAL: int = 25
 
-PRIOR_N_EFFECTIVE: float = 10.0
-ALPHA: float = 0.1
+PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
+ALPHA: float = BEST_K3_HPARAMS["alpha"]
 
 PACER_LR: float = 0.05
 PACER_LAMBDA_MAX: float = 5.0
@@ -476,7 +477,7 @@ def _build_conditions(
             "budget_target": budget_target,
             "cost_penalty": 0.0,
             "warmup": True,
-            "forgetting_factor": 0.997,
+            "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
             "online_learn": True,
         },
     ]

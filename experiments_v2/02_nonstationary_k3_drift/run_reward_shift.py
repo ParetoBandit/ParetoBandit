@@ -61,6 +61,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.config import (
+    BEST_K3_HPARAMS,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
@@ -104,8 +105,8 @@ PHASE2_N: int = 892
 COST_PENALTY: float = 0.20
 CHECKPOINT_INTERVAL: int = 50
 
-PRIOR_N_EFFECTIVE: float = 10.0
-ALPHA_WARMUP: float = 0.1
+PRIOR_N_EFFECTIVE: float = BEST_K3_HPARAMS["prior_n_effective"]
+ALPHA_WARMUP: float = BEST_K3_HPARAMS["alpha"]
 
 CONDITIONS: List[Dict[str, Any]] = [
     {
@@ -125,7 +126,7 @@ CONDITIONS: List[Dict[str, Any]] = [
     {
         "label": "BanditGPT (γ=0.997)",
         "warmup": True,
-        "forgetting_factor": 0.997,
+        "forgetting_factor": BEST_K3_HPARAMS["forgetting_factor"],
         "alpha": ALPHA_WARMUP,
         "online_learn": True,
     },

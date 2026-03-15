@@ -53,6 +53,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "experiments"))
 
 from bandit_gpt.budget_pacer import BudgetPacer, PacingMode
 from bandit_gpt.config import (
+    BEST_K3_HPARAMS,
     HOLDOUT_DATA_PATH,
     K3_ARM_ORDER,
     K3_WARMUP_PRIORS_PATH,
@@ -80,11 +81,7 @@ N_SEEDS = 20
 SEED_OFFSET = 3000
 RESULTS_DIR = Path(__file__).parent / "results"
 
-WARMUP_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.1,
-    "prior_n_effective": 10.0,
-    "forgetting_factor": 0.997,
-}
+WARMUP_HPARAMS: Dict[str, Any] = BEST_K3_HPARAMS
 
 STATIC_COST_PENALTIES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50, 1.0]
 

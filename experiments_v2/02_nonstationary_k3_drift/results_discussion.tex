@@ -96,6 +96,16 @@ increasing levels of routing sophistication:
     epsilon-constraint).
 \end{enumerate}
 
+\noindent
+All three conditions share $\alpha{=}0.1$ and
+$n_{\mathrm{eff}}{=}10$ so that the only variable is the learning
+mechanism.
+The Naive Bandit's stationary-optimal configuration
+($\alpha{=}0.01$, $n_{\mathrm{eff}}{=}1{,}000$; Appendix~\ref{app:hparam_sweep})
+would perform \emph{worse} under the shift due to stronger prior
+inertia; the shared hyperparameters represent a conservative
+comparison.
+
 \paragraph{Regret definition.}
 Cumulative regret is measured against the \emph{cost-adjusted oracle}:
 at each step $t$, the oracle selects

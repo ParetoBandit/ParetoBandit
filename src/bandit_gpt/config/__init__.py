@@ -113,29 +113,32 @@ K3_WARMUP_PRIORS_PATH = WARMUP_PRIORS_DIR / "priors_k3_25comp.joblib"
 # is flat across d in [6, 25], validating this design choice.
 
 BEST_K3_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.01,
+    "alpha": 0.1,
     "pca_components": 25,
-    "prior_n_effective": 5000.0,
-    "forgetting_factor": 1.0,
+    "prior_n_effective": 10.0,
+    "forgetting_factor": 0.997,
 }
 """Best K=3 BanditGPT config (warmup priors, PCA-25, disjoint LinUCB).
 
-Val Pareto AUC = 0.9295, test Pareto AUC = 0.9289 (Δ=+0.37% vs fixed).
-Monotonically decreasing in alpha: strong warmup priors (n_eff=5000) encode
-reliable initial beliefs, so near-zero exploration suffices.  The top three
-alphas (0.01, 0.05, 0.10) are within 0.07% AUC, indicating robustness.
+Selected via epsilon-constraint (best AUC within 5% of lowest Phase 2 regret).
+Val Pareto AUC = 0.9258, test Pareto AUC = 0.9244.
+Mild forgetting (gamma=0.997, effective memory ~333 steps) is jointly optimal
+with moderate exploration (alpha=0.1) and weak priors (n_eff=10).  This
+configuration balances stationary quality with non-stationary adaptability;
+see Experiments 02-03 for the empirical justification.
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {
-    "alpha": 0.25,
+    "alpha": 0.01,
     "pca_components": 25,
     "prior_n_effective": 1.0,
-    "forgetting_factor": 1.0,
+    "forgetting_factor": 0.999,
 }
 """Best K=3 Tabula Rasa config (cold start, PCA-25, no priors).
 
-Val Pareto AUC = 0.9277, test Pareto AUC = 0.9268 (Δ=+0.14% vs fixed).
-Requires 25x more exploration (alpha=0.25 vs 0.01) than BanditGPT to
-compensate for lack of warmup priors.  After the train-phase (8K prompts),
-moderate exploration outperforms both conservative and aggressive strategies.
+Selected via epsilon-constraint (best AUC within 5% of lowest Phase 2 regret).
+Val Pareto AUC = 0.9273, test Pareto AUC = 0.9261.
+Without warmup priors the bandit must learn from scratch; near-zero exploration
+(alpha=0.01) and very mild forgetting (gamma=0.999) work best, allowing the
+accumulating posterior to stabilise quickly.
 """
