@@ -105,6 +105,7 @@ def generate_warmup_priors(
     output_path: Path | str | None = None,
     batch_size: int = 64,
     precomputed_raw_embeddings: dict[str, np.ndarray] | None = None,
+    use_text_features: bool = False,
 ) -> dict:
     """Generate warmup priors (A, b matrices) for LinUCB.
 
@@ -135,6 +136,10 @@ def generate_warmup_priors(
             to raw SentenceTransformer vectors (pre-PCA).  When provided,
             the encoder is only loaded as a fallback for cache misses.
             Generate with ``scripts/precompute_embeddings.py``.
+        use_text_features: If ``True``, append text features (n_logical_ops,
+            n_constraints, avg_word_len, instruction_x_vague_density) between
+            PCA and bias.  Produces priors compatible with
+            ``FeatureService(use_text_features=True)``.
 
     Returns:
         A dict with keys ``A``, ``b``, ``models``, ``n_prompts``,
@@ -185,7 +190,11 @@ def generate_warmup_priors(
         all_models.update(entry["rewards"].keys())
     all_models_list = sorted(all_models)
 
-    context_dim = pca.n_components_ + 1  # PCA features + bias
+    n_text = 0
+    if use_text_features:
+        from .feature_service import N_TEXT_FEATURES
+        n_text = N_TEXT_FEATURES
+    context_dim = pca.n_components_ + n_text + 1  # PCA + [text] + bias
     whitening_scale = None
     pca_has_builtin_whiten = bool(getattr(pca, "whiten", False))
     priors_are_whitened = bool(whiten_pca or pca_has_builtin_whiten)
@@ -228,7 +237,12 @@ def generate_warmup_priors(
                 skipped += 1
                 continue
 
-            context = np.append(embedding, 1.0)  # bias term
+            if use_text_features:
+                from .feature_service import extract_text_features
+                text_feats = extract_text_features(prompt)
+                context = np.concatenate([embedding, text_feats, np.array([1.0])])
+            else:
+                context = np.append(embedding, 1.0)  # bias term
             x_col = context.reshape(-1, 1)
 
             for model_id, reward in rewards.items():

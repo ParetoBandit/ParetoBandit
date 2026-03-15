@@ -278,7 +278,10 @@ class TestHardCeiling:
         )
         pacer.observe(cost)
 
-        expected_lambda = 0.1 * (cost / target - 1.0)  # 0.1 * 4.0 = 0.4
+        # Dual update uses the EMA (not raw cost).
+        # After 1 observation: ema = (1-0.05)*target + 0.05*cost
+        expected_ema = (1 - 0.05) * target + 0.05 * cost
+        expected_lambda = 0.1 * (expected_ema / target - 1.0)
         expected_ceiling = max_cost_1k / (1.0 + 2.0 * expected_lambda)
         actual_ceiling = pacer.get_cost_ceiling_per_1k(max_cost_1k)
 

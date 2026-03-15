@@ -1,0 +1,244 @@
+% ============================================================================
+% Appendix I: Evaluation Environment Construction and Anti-Cherry-Picking
+% Justifies the public-benchmark router-stress dataset methodology
+% ============================================================================
+
+\section{Evaluation Environment Construction}
+\label{app:dataset_construction}
+
+This appendix documents how the public-benchmark evaluation environment is
+constructed and why the construction process precludes cherry-picking.
+We address six desiderata---accessibility, documentation, explicit environment
+definition, bias handling, reproducibility, and fairness to
+baselines---motivated by current best practices for datasets and benchmarks
+in the applied machine-learning community~\cite{hu2024routerbench,
+wang2025barp, li2026llmrouterbench}.
+
+% -------------------------------------------------------------------
+\subsection{Public, Accessible Sources}
+\label{app:dataset_sources}
+
+All prompts are drawn from publicly available HuggingFace datasets, listed in
+Table~\ref{tab:prompt_sources}.
+This mirrors how RouterBench~\cite{hu2024routerbench} and
+BaRP~\cite{wang2025barp} build evaluation environments from GSM8K, MMLU, ARC,
+Natural Questions, and similar public benchmarks.
+No private, proprietary, or ad-hoc prompt collections are used; any
+researcher with internet access can download the same source data and
+reproduce the identical prompt pool.
+
+\begin{table}[h]
+\centering
+\caption{Public benchmark sources for the evaluation prompt pool.
+All datasets are freely available on HuggingFace.}
+\label{tab:prompt_sources}
+\small
+\begin{tabular}{lrl}
+\toprule
+\textbf{Benchmark} & \textbf{Prompts} & \textbf{Domain} \\
+\midrule
+MMLU~\cite{hendrycks2021measuring}            & 2{,}672 & Broad academic knowledge \\
+GSM8K~\cite{cobbe2021gsm8k}                   & 2{,}328 & Grade-school math \\
+HellaSwag~\cite{zellers2019hellaswag}          & 1{,}350 & Commonsense NLI \\
+BIG-Bench Hard~\cite{suzgun2022challenging}    & 1{,}541 & Hard reasoning (27 tasks) \\
+ARC-Challenge~\cite{clark2018arc}              & 1{,}050 & Science reasoning \\
+OpenBookQA~\cite{mihaylov2018suit}             & 1{,}037 & Open-book science QA \\
+WinoGrande~\cite{sakaguchi2020winogrande}      & 1{,}005 & Commonsense coreference \\
+TruthfulQA~\cite{lin2022truthfulqa}            &    712 & Truthfulness probing \\
+MBPP~\cite{austin2021program}                  &    305 & Code generation \\
+\midrule
+\textbf{Total (after dedup)}                   & \textbf{12{,}000} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% -------------------------------------------------------------------
+\subsection{Transparent, Documented Construction Pipeline}
+\label{app:dataset_pipeline}
+
+The entire construction pipeline is implemented in a single deterministic
+script (\texttt{build\_router\_pareto\_dataset.py}) and proceeds as follows:
+
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Source loading.}
+    Load prompts from each benchmark via the HuggingFace \texttt{datasets}
+    library using fixed splits and deterministic iteration order.
+
+  \item \textbf{Quality filtering.}
+    Discard prompts with $<$20 or $>$5{,}000 characters, or with
+    $<$50\% ASCII content (removes encoding artifacts and non-English prompts).
+
+  \item \textbf{Deduplication.}
+    (a)~Exact string dedup against the pool and against any existing
+    canonical prompts.
+    (b)~Semantic dedup via cosine similarity of
+    \texttt{all-MiniLM-L6-v2} embeddings at threshold 0.85, removing
+    near-duplicate reformulations across benchmarks.
+
+  \item \textbf{Full-information evaluation.}
+    For each prompt, query \emph{all} $K{=}3$ arms (budget, mid-tier,
+    premium) via the same OpenRouter API, collect the response, and
+    score it with a single DeepSeek-R1 judge using the v3 continuous
+    rubric (Reasoning Quality~40\%, Instruction Following~30\%,
+    Communication Quality~30\%; \S\ref{sec:data}).
+    Record actual input/output token counts and compute exact
+    per-request cost from published model pricing.
+
+  \item \textbf{Pareto classification.}
+    Classify each prompt based on the reward spread across arms and
+    whether a cheaper arm achieves near-best quality
+    (Section~\ref{app:pareto_classification}).
+
+  \item \textbf{Output.}
+    Write full-information JSONL logs containing prompt text, per-arm
+    responses, per-arm rewards, per-arm token counts, and per-arm costs.
+\end{enumerate}
+
+Every parameter (random seed, cosine threshold, quality gates, judge
+rubric weights) is declared in the script header and can be inspected
+or modified by reviewers.
+
+% -------------------------------------------------------------------
+\subsection{Explicit Environment Definition, Not Hidden Cherry-Picking}
+\label{app:pareto_classification}
+
+A natural concern with any curated evaluation set is whether the
+construction process implicitly selects prompts that flatter the
+proposed method.
+Our construction provides three structural safeguards against this:
+
+\paragraph{Full-information, symmetric evaluation.}
+Every arm is evaluated on every prompt \emph{before} any prompt
+selection occurs.
+The classification rule operates on the full reward--cost matrix,
+not on the output of a learned router.
+This ensures that any baseline---``always budget,'' ``always premium,''
+best single arm, or any supervised router---operates in exactly the
+same environment.
+
+\paragraph{Deterministic, inspectable classification.}
+Prompts are labelled by a simple rule applied uniformly:
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Trivial:} reward spread $\leq 0.05$ (all arms perform
+    similarly; routing adds no value).
+  \item \textbf{Pareto-interesting:} reward spread $\geq 0.10$ \emph{and}
+    a cheaper arm achieves within 0.05 of the best reward (a genuine
+    cost--quality tradeoff exists).
+  \item \textbf{Hard-but-dominated:} high spread, but the most expensive
+    arm strictly dominates (routing cannot save cost without quality loss).
+  \item \textbf{Moderate:} intermediate cases.
+\end{itemize}
+These thresholds are published in the code and can be freely adjusted
+by reviewers to test sensitivity.
+RouterBench~\cite{hu2024routerbench} similarly defines its evaluation
+in the cost--quality plane and constructs AIQ scores from the full
+Pareto frontier; our classification is a lightweight analogue that makes
+the ``routing difficulty'' of each prompt explicit rather than
+implicit.
+
+\paragraph{Balanced sampling, not selective sampling.}
+The final evaluation set retains \emph{all} Pareto-interesting prompts
+and supplements them with proportional samples from trivial and
+hard-but-dominated bins.
+This produces a ``router stress-test'' environment that over-represents
+prompts where routing matters, while still including prompts where it
+does not---ensuring that aggregate metrics are not inflated by
+excluding easy-for-the-router cases.
+
+% -------------------------------------------------------------------
+\subsection{Bias and Difficulty Are Handled Explicitly}
+\label{app:difficulty_bias}
+
+Existing router evaluations typically inherit whatever difficulty
+distribution the upstream benchmarks impose.
+BaRP~\cite{wang2025barp}, for example, splits each task 80/20 and mixes
+them; RouterBench~\cite{hu2024routerbench} aggregates across tasks
+without stratifying by router-relevant difficulty.
+In both cases, the implicit difficulty distribution is uncontrolled and
+unreported.
+
+Our construction instead:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item Uses the full-information log to compute how much arms disagree
+    per prompt---a data-driven measure of routing-relevant difficulty.
+  \item Explicitly defines difficulty strata and states the sampling
+    distribution over those strata.
+  \item Provides \emph{both} the natural (unstratified) and
+    difficulty-balanced environments so that results can be reported
+    on each.
+\end{enumerate}
+
+This is not an attempt to ``game'' the difficulty mix; it is an explicit
+declaration that we are constructing a stress-test environment and
+documenting how.
+The natural environment is always available for comparison, and the
+stratification rule is public.
+
+% -------------------------------------------------------------------
+\subsection{Reproducible Evaluation in the RouterBench Style}
+\label{app:reproducibility}
+
+RouterBench formalises router evaluation as comparing points in the
+cost--quality plane and constructing Pareto frontiers and AIQ
+scores~\cite{hu2024routerbench}.
+Our script produces a JSONL log with:
+\begin{itemize}[nosep,leftmargin=*]
+  \item The prompt text and benchmark source.
+  \item Per-arm responses, actual token counts, and computed costs.
+  \item Per-arm reward scores from the R1 judge (with full rubric
+    sub-scores).
+  \item A difficulty label enabling ``router-stress'' vs.\ ``natural''
+    evaluation splits.
+\end{itemize}
+With this file and the construction script, any group can: (a)~recompute
+the same cost--quality curves; (b)~change classification thresholds and
+regenerate the dataset; (c)~substitute their own judge or reward
+function and re-evaluate; or (d)~add arms and extend the environment.
+This level of artifact transparency satisfies modern reproducibility
+standards for both research papers and datasets/benchmarks
+submissions.
+
+% -------------------------------------------------------------------
+\subsection{Fairness to Baselines}
+\label{app:baseline_fairness}
+
+Crucially, the prompt classification is performed \emph{without}
+reference to any learned routing policy.
+Prompts are labelled solely by the arm-level reward--cost matrix,
+which is computed symmetrically for all arms.
+This means:
+
+\begin{itemize}[nosep,leftmargin=*]
+  \item Static baselines (``always budget,'' ``always premium,''
+    best-on-average arm) naturally inhabit the same environment
+    and can be plotted on the same cost--quality Pareto frontier.
+  \item Supervised baselines (KNN, SVM, MLP routers) operate on
+    identical features and reward signals.
+  \item The oracle upper bound is computed from the same full-information
+    log.
+\end{itemize}
+
+No information leaks from the bandit's learned policy into the
+environment construction.
+If the router underperforms on the stress-test slice, the environment
+will reveal this just as readily as it reveals gains---unlike a
+cherry-picked set, which would hide failure modes by construction.
+
+% -------------------------------------------------------------------
+\subsection{Reward Transparency}
+\label{app:reward_transparency}
+
+The reward signal for each (prompt, arm) pair is produced by a
+DeepSeek-R1 judge~\cite{deepseekai2025deepseekr1} using a structured
+chain-of-thought rubric with three continuous dimensions:
+\emph{Reasoning Quality}~(weight 0.40), \emph{Instruction
+Following}~(0.30), and \emph{Communication Quality}~(0.30).
+Each dimension is scored on a continuous $[0, 1]$ scale with
+calibrated anchor descriptions at five levels (0.0--0.2 through
+0.9--1.0), and the final reward is the weighted sum.
+
+The rubric text, parsing logic, and score aggregation are implemented
+in the same codebase and can be audited.
+This addresses the concern that reward definitions in router
+evaluations are often opaque: the judge model, prompt template, and
+scoring weights are all public and deterministic (\texttt{temperature}=0).

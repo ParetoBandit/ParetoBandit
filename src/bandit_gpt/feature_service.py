@@ -71,15 +71,33 @@ _CONSTRAINT_RE = re.compile(
     re.IGNORECASE,
 )
 
-TEXT_FEATURE_NAMES: List[str] = ["n_logical_ops", "n_constraints", "avg_word_len"]
+# Vague/subjective adjectives that signal ambiguity (prompts that are both
+# complex and ambiguous may benefit from stronger models).
+_VAGUE_ADJ_RE = re.compile(
+    r"\b(various|several|many|some|certain|numerous|few|appropriate|"
+    r"relevant|suitable|reasonable|significant|substantial|different|"
+    r"similar|general|specific|typical|average|normal|possible|likely|"
+    r"good|bad|nice|proper|adequate|effective|efficient|clear|simple|"
+    r"complex|basic|advanced|best|worst|better|worse)\b",
+    re.IGNORECASE,
+)
+
+TEXT_FEATURE_NAMES: List[str] = [
+    "n_logical_ops",
+    "n_constraints",
+    "avg_word_len",
+    "instruction_x_vague_density",
+]
 N_TEXT_FEATURES: int = len(TEXT_FEATURE_NAMES)
 
 # Z-score normalization constants derived from the pareto dataset
 # (N=11,983 prompts across 13 public benchmarks).  These produce
 # features with approximately zero mean and unit variance, matching
 # the whitened PCA feature scale (~0.76 std per component).
-_TEXT_FEATURE_MEANS = np.array([1.8188, 0.0562, 4.7897], dtype=np.float64)
-_TEXT_FEATURE_STDS = np.array([2.2717, 0.2932, 0.6948], dtype=np.float64)
+# The 4th feature (instruction_x_vague_density) uses a conservative
+# mean/std since the interaction term is sparse; tune with calibration.
+_TEXT_FEATURE_MEANS = np.array([1.8188, 0.0562, 4.7897, 0.02], dtype=np.float64)
+_TEXT_FEATURE_STDS = np.array([2.2717, 0.2932, 0.6948, 0.08], dtype=np.float64)
 
 # Clipping bound for z-scored text features.  Prevents extreme
 # outliers (e.g. a prompt with 20 logical operators) from producing
@@ -101,18 +119,26 @@ def extract_text_features(prompt: str) -> np.ndarray:
     1. ``n_constraints``  — count of constraint/instruction keywords (must,
        ensure, exactly, at least, ...), z-scored.
     2. ``avg_word_len``   — mean word length in characters, z-scored.
+    3. ``instruction_x_vague_density`` — Instruction_Count * Vague_Adjective
+       Density. Identifies prompts that are both complex and ambiguous.
 
     Args:
         prompt: Raw prompt string.
 
     Returns:
-        1-D ``np.ndarray`` of shape ``(3,)``.
+        1-D ``np.ndarray`` of shape ``(4,)``.
     """
     n_logical = len(_LOGICAL_OPS_RE.findall(prompt))
     n_constraints = len(_CONSTRAINT_RE.findall(prompt))
     words = prompt.split()
+    n_words = max(len(words), 1)
     avg_wl = float(np.mean([len(w) for w in words])) if words else 0.0
-    raw = np.array([n_logical, n_constraints, avg_wl], dtype=np.float64)
+    n_vague = len(_VAGUE_ADJ_RE.findall(prompt))
+    vague_density = n_vague / n_words
+    instruction_x_vague = float(n_constraints) * vague_density
+    raw = np.array(
+        [n_logical, n_constraints, avg_wl, instruction_x_vague], dtype=np.float64
+    )
     z = (raw - _TEXT_FEATURE_MEANS) / _TEXT_FEATURE_STDS
     return np.clip(z, -_TEXT_FEATURE_CLIP, _TEXT_FEATURE_CLIP)
 

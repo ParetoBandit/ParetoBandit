@@ -3,12 +3,23 @@ Pytest configuration and shared fixtures.
 """
 
 import sys
+import warnings
+
 import pytest
 from pathlib import Path
 
 # Add src to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
+
+# Suppress benign multiprocessing resource_tracker warning emitted when
+# SentenceTransformer/PyTorch workers exit without explicit cleanup.
+warnings.filterwarnings(
+    "ignore",
+    message="resource_tracker: There appear to be .* leaked semaphore",
+    category=UserWarning,
+    module="multiprocessing.resource_tracker",
+)
 
 
 def pytest_configure(config):

@@ -24,12 +24,26 @@ differ in enforcement:
 Dual-variable dynamics
 ----------------------
 After each request, the pacer observes the actual cost and performs
-a projected gradient ascent step on the Lagrange multiplier using a
-**target-normalized** cost::
+two updates:
 
-    c_norm = actual_cost / target    # 1.0 at budget, >1 overspend
-    lambda_t = min(lambda_max,
-                   max(0, lambda_t + lr * (c_norm - 1.0)))
+1. **EMA update** (smoothing)::
+
+       cost_ema = (1 - alpha) * cost_ema + alpha * actual_cost
+
+2. **Dual update** using the **smoothed EMA**, not the raw per-request
+   cost::
+
+       c_norm = cost_ema / target    # 1.0 at budget, >1 overspend
+       lambda_t = min(lambda_max,
+                      max(0, lambda_t + lr * (c_norm - 1.0)))
+
+Using the EMA rather than the raw cost is critical when model costs
+span orders of magnitude (e.g., $0.00003 for Llama vs. $0.015 for
+Gemini).  A single expensive request would otherwise spike lambda by
+``lr * (c_t / target - 1)``, which can exceed 1.0, causing sawtooth
+oscillations that never converge.  The EMA smooths this variance,
+producing a stable gradient signal whose magnitude reflects the
+*average* cost regime.
 
 Normalizing by target makes ``lr`` portfolio-independent: the same
 ``lr`` value works regardless of whether the budget is $0.001/req or
@@ -37,15 +51,10 @@ $10/req.  ``lambda_max`` prevents the dual variable from growing
 unboundedly, which in HARD mode would shrink the ceiling to zero
 and exclude all models.
 
-The EMA of realized cost is tracked for diagnostic purposes::
-
-    cost_ema = (1 - alpha) * cost_ema + alpha * actual_cost
-
 Design choices
 --------------
 - ``cost_ema`` warm-starts at ``target`` (not 0) to avoid cold-start
-  overshoot.  It is diagnostic-only and does not drive any routing
-  decision.
+  overshoot.
 - ``lambda_t`` starts at 0 (no penalty initially; ramps only if
   overspending).
 - Thread-safe via a dedicated lock.
@@ -82,7 +91,7 @@ class BudgetPacer:
         works regardless of absolute cost scale.  ``0.05`` means
         "each request at 2x budget increases lambda by 0.05."
     ema_alpha : float
-        Smoothing factor for the cost EMA (diagnostic only).
+        Smoothing factor for the cost EMA that drives the dual update.
         Must be in (0, 1].  ``0.05`` has a half-life of ~14 observations.
     hard_ceiling_multiplier : float
         Controls how aggressively the hard ceiling tightens as the
@@ -101,7 +110,7 @@ class BudgetPacer:
         Dimensionless (operates on target-normalized costs).
     cost_ema : float
         Exponential moving average of observed per-request costs (USD).
-        Diagnostic only -- not used in any routing decision.
+        Drives the dual-variable update as a smoothed gradient signal.
     n_observations : int
         Total number of cost observations processed.
 
@@ -244,18 +253,21 @@ class BudgetPacer:
 
         Performs two updates atomically:
 
-        1. **EMA update** (diagnostic): tracks the smoothed average cost
-           in raw USD.
-        2. **Dual update**: projected gradient ascent on the Lagrange
-           multiplier using **target-normalized** cost::
+        1. **EMA update**: smooths the per-request cost into a running
+           average::
 
-               c_norm = actual_cost / target
+               cost_ema = (1 - alpha) * cost_ema + alpha * actual_cost
+
+        2. **Dual update**: projected gradient ascent on the Lagrange
+           multiplier using the **smoothed EMA** (not the raw cost)::
+
+               c_norm = cost_ema / target
                lambda_t = min(lambda_max,
                               max(0, lambda_t + lr * (c_norm - 1)))
 
-           Normalizing by target makes ``lr`` portfolio-independent.
-           The ``lambda_max`` cap prevents unbounded growth that would
-           cause the hard ceiling to exclude all models.
+           Using the EMA eliminates high-variance spikes from single
+           expensive requests, producing stable lambda convergence even
+           when model costs span 500x.
 
         Parameters
         ----------
@@ -270,7 +282,7 @@ class BudgetPacer:
                 + self.ema_alpha * actual_cost_usd
             )
 
-            c_normalized = actual_cost_usd / self.target_avg_spend_usd
+            c_normalized = self.cost_ema / self.target_avg_spend_usd
             self.lambda_t = min(
                 self.lambda_max,
                 max(0.0, self.lambda_t + self.lr * (c_normalized - 1.0)),

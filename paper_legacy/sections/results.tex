@@ -57,4 +57,5 @@ Additional analyses in the supplementary material include robustness under prior
 
 \paragraph{Limitations.}
 Different portfolios and traffic will shift quantitative crossover points. While our distribution shift analysis (Section~\ref{sec:distribution_shift}) shows adaptation renders prior source statistically irrelevant, magnitudes will vary with distributional mismatch. Our current treatment of non-stationarity relies on meta-level mixing rather than explicit forgetting within experts.
+The covariate shift detector is proactive but not omniscient: it is blind to reward-only shifts (e.g., silent model quality degradation) and to embedding changes orthogonal to the retained PCA subspace.  The sensitivity characterisation (Section~\ref{sec:drift_calibration}) shows Reset is most valuable for moderate shifts ($1.5$--$3\sigma$); at extreme magnitudes the online signal overwhelms stale priors without intervention.  A production deployment would complement the covariate detector with a slower reward-drift monitor.
 
