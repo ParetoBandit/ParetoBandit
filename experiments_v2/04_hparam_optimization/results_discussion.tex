@@ -55,15 +55,14 @@ recovery.
 We resolve this tension via an
 $\epsilon$-constraint method~\cite{haimes1971bicriterion} that
 treats hyperparameter selection as a bi-objective optimisation
-problem over the grid
-$\alpha \in \{0.01, 0.05, 0.1, 0.25, 0.5, 1.0\}$,
-$\neff \in \{1, 10, 50, 200, 1000, 5000\}$,
-$\gamma \in \{0.995, 0.997, 0.999, 1.0\}$:
+problem over a grid of $(\alpha, \neff, \gamma)$ candidates
+(the full grid specification appears in
+Appendix~\ref{app:hparam_sweep_details}):
 %
 \begin{enumerate}[nosep,leftmargin=*]
   \item \textbf{Primary objective} (efficiency):
     Maximise budget-paced Pareto AUC on the validation split, computed
-    by sweeping seven log-spaced budget targets with the BudgetPacer
+    by sweeping log-spaced budget targets with the BudgetPacer
     active, building per-seed Pareto frontiers (with fixed-model
     endpoints), and averaging AUC across 10~seeds.
 
@@ -174,6 +173,11 @@ Three additional patterns merit attention:
     tuning literature~\cite{kang2024cdt}, which observes that the
     optimal $\alpha$ is non-stationary itself.
 \end{enumerate}
+%
+\noindent
+Per-seed variance breakdowns, the full grid-search heatmaps, and
+exhaustive per-configuration logs are reported in
+Appendix~\ref{app:hparam_sweep_details}.
 
 \paragraph{Novelty and significance.}
 This $\epsilon$-constraint protocol is, to our knowledge, the first
