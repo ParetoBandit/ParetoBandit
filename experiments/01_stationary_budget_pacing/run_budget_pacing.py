@@ -187,7 +187,6 @@ def _run_trial(
         TrialResult with aggregate and compliance metrics.
     """
     rng = np.random.default_rng(seed)
-    np.random.seed(seed)
 
     if budget_pacer is not None:
         budget_pacer.reset()

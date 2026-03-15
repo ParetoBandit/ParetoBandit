@@ -126,7 +126,10 @@ premiums.  The blended cost is (input_cost + output_cost) / 2.
 # Helper Functions
 # ---------------------------------------------------------------------------
 
-def _argmax_random_tiebreak(scores: Dict[str, float]) -> str:
+def _argmax_random_tiebreak(
+    scores: Dict[str, float],
+    rng: np.random.Generator | None = None,
+) -> str:
     """Return the key with the maximum value, breaking ties uniformly at random.
 
     Standard ``max(scores, key=scores.get)`` is deterministic when values are
@@ -136,16 +139,23 @@ def _argmax_random_tiebreak(scores: Dict[str, float]) -> str:
 
     This helper collects all keys sharing the maximum value and returns one
     uniformly at random, eliminating initialization-order bias.
+
+    Args:
+        scores: Mapping of candidate names to their scores.
+        rng: Explicit NumPy generator for reproducibility.  Falls back to
+            the global ``np.random`` state if *None* (legacy callers).
     """
     finite = {k: v for k, v in scores.items() if np.isfinite(v)}
     if not finite:
         keys = list(scores.keys())
-        return keys[np.random.randint(len(keys))]
+        idx = rng.integers(len(keys)) if rng is not None else np.random.randint(len(keys))
+        return keys[idx]
     max_val = max(finite.values())
     tied = [k for k, v in finite.items() if abs(v - max_val) < 1e-12]
     if len(tied) == 1:
         return tied[0]
-    return tied[np.random.randint(len(tied))]
+    idx = rng.integers(len(tied)) if rng is not None else np.random.randint(len(tied))
+    return tied[idx]
 
 
 def _inflate_variance(
@@ -649,7 +659,7 @@ class DisjointLinUCBPolicy:
 
             ucb_scores[m] = ucb
 
-        best_model = _argmax_random_tiebreak(ucb_scores)
+        best_model = _argmax_random_tiebreak(ucb_scores, rng=self._rng)
         return best_model, float(ucb_scores[best_model])
 
     def _effective_staleness(self, model: str) -> int:
@@ -1293,7 +1303,7 @@ class SlidingWindowLinUCBPolicy:
                 ucb -= cost_penalties[m]
             ucb_scores[m] = ucb
 
-        best_model = _argmax_random_tiebreak(ucb_scores)
+        best_model = _argmax_random_tiebreak(ucb_scores, rng=self._rng)
         return best_model, float(ucb_scores[best_model])
 
     def mark_selected(self, model: str) -> None:

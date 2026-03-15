@@ -343,7 +343,6 @@ def _run_trial(
         metrics.
     """
     rng = np.random.default_rng(seed)
-    np.random.seed(seed)
 
     pacer = _make_pacer(budget_target)
 
