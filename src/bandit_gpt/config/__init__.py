@@ -16,9 +16,11 @@ K=3 portfolio: Llama-3.1-8B (budget) + Mistral-Large-2512 (mid) +
 
 Judges
 ~~~~~~
-All rewards scored by a fixed unbiased PoLL panel:
-    DeepSeek-R1, GPT-4.1-mini, Claude-3.5-Haiku.
-Continuous v3 rubric (logic x constraint x utility).
+All experiment rewards scored by DeepSeek-R1 (sole evaluator).
+Continuous v3 rubric: Reasoning Quality 40%, Instruction Following 30%,
+Communication Quality 30%.  Cross-judge robustness validated with
+GPT-4.1-mini and Claude-3.7-Sonnet on a 2,000-prompt subset
+(see Appendix: Judge Robustness).
 """
 
 from pathlib import Path
@@ -65,8 +67,9 @@ K4_MODELS_PATH = DATA_COLLECTION_DIR / "config" / "models_k4.json"
 #
 # K=3 portfolio: Llama-3.1-8B, Mistral-Large-2512, Gemini-2.5-Pro.
 # Each row is a single prompt with per-arm rewards and costs for all 3 models.
-# Every record judged by the canonical PoLL panel (R1 + GPT-4.1-mini + Haiku).
-# Continuous v3 rubric (logic x constraint x utility).
+# Every record judged by DeepSeek-R1 (sole evaluator).
+# Continuous v3 rubric: Reasoning Quality 40%, Instruction Following 30%,
+# Communication Quality 30%.
 #
 #   CONSTANT              PROMPTS   FILE
 #   ──────────────────    ───────   ──────────────────────
@@ -116,16 +119,16 @@ BEST_K3_HPARAMS: Dict[str, Any] = {
     "alpha": 0.1,
     "pca_components": 25,
     "prior_n_effective": 10.0,
-    "forgetting_factor": 0.997,
+    "forgetting_factor": 0.995,
 }
 """Best K=3 BanditGPT config (warmup priors, PCA-25, disjoint LinUCB).
 
 Selected via epsilon-constraint (best AUC within 5% of lowest Phase 2 regret).
-Val Pareto AUC = 0.9258, test Pareto AUC = 0.9244.
-Mild forgetting (gamma=0.997, effective memory ~333 steps) is jointly optimal
-with moderate exploration (alpha=0.1) and weak priors (n_eff=10).  This
-configuration balances stationary quality with non-stationary adaptability;
-see Experiments 02-03 for the empirical justification.
+Val Pareto AUC = 0.9267, test Pareto AUC = 0.9247.
+Geometric forgetting (gamma=0.995, effective memory ~200 steps) is jointly
+optimal with moderate exploration (alpha=0.1) and weak priors (n_eff=10).
+This configuration balances stationary quality with non-stationary
+adaptability; see Experiments 02-04 for the empirical justification.
 """
 
 BEST_K3_TABULA_RASA_HPARAMS: Dict[str, Any] = {

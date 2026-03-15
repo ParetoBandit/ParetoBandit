@@ -172,6 +172,19 @@ direction is worse (95.8--95.9\%), confirming that R1's per-prompt
 decisions are not merely sharper but are also more aligned with the
 consensus than either alternative judge's decisions.
 
+\paragraph{Why not a more sophisticated aggregation?}
+Recent multi-judge aggregation methods---PoLL~\cite{verga2024poll}
+(diverse-panel averaging) and CARE~\cite{zhao2025care}
+(confounder-aware tensor decomposition)---target biases from shared
+confounders such as verbosity or style.  In our setting the three judges
+already use an identical rubric and come from independent providers,
+so confounder-induced correlation is minimal; the residual disagreement
+is genuine and irreducible.  We additionally evaluated z-score
+calibration~\cite{hedges1985statistical} (location-scale standardisation
+before averaging), which recovered fewer than 3 percentage points of the
+30\% margin compression, confirming that the signal loss is caused by
+inter-judge disagreement, not scale mismatch.
+
 \paragraph{Transparency.}
 Because R1 sees the largest oracle lift from contextual routing (0.031
 per step vs.\ 0.016--0.020 for the supplementary judges), our main-paper
