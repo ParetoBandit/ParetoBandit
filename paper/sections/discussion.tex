@@ -18,8 +18,11 @@ Consider a deployment routing 100,000 requests per day. Moving from an unconstra
 
 \subsection{Limitations and Deployment Considerations}
 
-\paragraph{Exploration Starvation.}
-As demonstrated in Section~\ref{sec:results}, highly restrictive budgets completely suppress exploration of expensive models. If a frontier model is never selected due to the hard cost ceiling, the router's reward estimate relies entirely on offline warmup priors. Consequently, if the model's price suddenly drops, the router may suffer an ``exploration starvation'' deficit, failing to adopt the newly-affordable model because its LinUCB exploration bonus is too small to overcome the lack of online data. Future work could investigate targeted exploration strategies (e.g., $\epsilon$-greedy budget allocation) that occasionally force the evaluation of expensive arms to maintain calibrated quality estimates.
+\paragraph{Warm-Start Dependence at Tight Budgets.}
+At tight budgets, the router selects expensive arms rarely during Phase~1 ($<1\%$ Gemini at $B{=}\$2.3{\times}10^{-4}$), so the bandit's quality estimate for those arms relies almost entirely on the warmup prior rather than online observations.
+In our experiments this is not limiting---the warm prior is sufficiently accurate and the primal-dual mechanism rapidly redirects traffic once the price drops (Section~\ref{sec:results})---but the dependence on prior quality is stronger than at moderate or loose budgets.
+If the warmup prior were poorly calibrated for a newly added model (e.g., no historical data), a tight budget could delay adoption even after a price drop.
+Future work could investigate targeted exploration strategies (e.g., small $\epsilon$-greedy budget reserves) that periodically evaluate under-explored arms to maintain calibrated quality estimates independent of the prior.
 
 \paragraph{Delayed Feedback (RLHF).}
 BanditGPT assumes immediate feedback (i.e., the reward $r_t$ is observed immediately after routing $x_t$). In production, feedback such as user thumbs-up/down or delayed human-in-the-loop annotations may arrive hours or days later. The system architecture must decouple the routing decision from the LinUCB update, maintaining a persistent log of context vectors that can be asynchronously updated when feedback arrives. The open-source release includes a \texttt{SqliteContextStore} to facilitate this delayed RLHF workflow.

@@ -9,23 +9,28 @@
     %
     \textbf{(a)~Dual variable $\lambda_t$:}
     At moderate budget, $\lambda_t$ drops from ${\sim}0.35$ to
-    ${\sim}0.01$ within Phase~2 of the price drop
-    (step~912).  At loose budget, $\lambda_t$ was already near zero.
-    At tight budget, $\lambda_t$ averages $0.45$ in Phase~1 and
-    remains elevated at $0.43$ due to EMA momentum.
+    ${\sim}0.01$ within Phase~2 as post-drop costs fall below target.
+    At loose budget, $\lambda_t$ decays from $0.09$ to near-zero
+    almost immediately.
+    At tight budget, $\lambda_t$ \emph{rises} from $0.46$ to $0.82$
+    because post-drop costs (\$2.38e-4) slightly exceed the target
+    (\$2.34e-4)---the constraint remains binding.
     %
     \textbf{(b)~Gemini-Pro selection fraction:}
-    At moderate and loose budgets, Gemini selection surges from
-    $2$--$10\%$ to ${\sim}45$--$47\%$ after the price drop, approaching the
-    unconstrained level (${\sim}75\%$).  At tight budget, Gemini
-    remains near $0\%$ due to exploration starvation
-    (Section~\ref{sec:budget_drift}).
+    At tight budget, Gemini surges to ${\sim}84\%$---the highest of
+    any constrained condition---because the elevated $\lambda_t$
+    penalizes the now-expensive Mistral while Gemini's near-zero
+    normalized cost is barely affected.
+    At moderate and loose budgets, Gemini rises to
+    ${\sim}47$--$49\%$, approaching the unconstrained level
+    (${\sim}75\%$).
     %
     \textbf{(c)~Running average cost per request:}
     BanditGPT maintains Phase~1 costs within $3\%$ of the budget
-    target (dotted horizontal lines).  Post-drop, costs decline below
-    target.  The unconstrained baseline spends
-    ${\sim}6$--$51\times$ more.
+    target (dotted horizontal lines).  Post-drop, moderate and loose
+    costs decline well below target (slack constraint); tight costs
+    remain within $2\%$ (binding constraint).  The unconstrained
+    baseline spends ${\sim}6$--$51\times$ more in Phase~1.
     }
     \label{fig:exp03_adaptation}
 \end{figure*}

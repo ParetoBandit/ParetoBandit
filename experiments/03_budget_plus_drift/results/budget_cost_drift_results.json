@@ -4954,23 +4954,23 @@
           "step": 925,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.454899026252574,
-          "std_lambda": 0.621476746156791,
-          "mean_cost_ema": 0.00023004786135092653,
-          "std_cost_ema": 6.368388308196237e-05,
+          "mean_lambda": 0.3671503342817805,
+          "std_lambda": 0.6454799434751871,
+          "mean_cost_ema": 0.00017620521711141522,
+          "std_cost_ema": 4.680381507312846e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023406302594594592,
-          "std_avg_cost": 3.1149645107211287e-06,
+          "mean_avg_cost": 0.00023248214114114115,
+          "std_avg_cost": 3.431765825148845e-06,
           "arm_fractions": {
-            "Llama-8B": 0.6148000000000001,
-            "Mistral-Large": 0.38520000000000004,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.6184,
+            "Mistral-Large": 0.26839999999999997,
+            "Gemini-Pro": 0.11319999999999998
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13634133635842066,
-            "Mistral-Large": 0.13634133635842066,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.14793728400913678,
+            "Mistral-Large": 0.11960535105086227,
+            "Gemini-Pro": 0.06842338781440159
           },
           "n_seeds": 50
         },
@@ -4978,23 +4978,23 @@
           "step": 950,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.509541415867432,
-          "std_lambda": 0.5074206590446773,
-          "mean_cost_ema": 0.00023570005169842436,
-          "std_cost_ema": 6.061391502170558e-05,
+          "mean_lambda": 0.2007574846085779,
+          "std_lambda": 0.5622357764834437,
+          "mean_cost_ema": 0.0002098763091188657,
+          "std_cost_ema": 4.7890981777615515e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023444359684210526,
-          "std_avg_cost": 2.5701391334038206e-06,
+          "mean_avg_cost": 0.00023215168549707603,
+          "std_avg_cost": 2.5647752534742985e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5436,
-            "Mistral-Large": 0.45640000000000003,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.4444000000000001,
+            "Mistral-Large": 0.16560000000000002,
+            "Gemini-Pro": 0.39000000000000007
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12571014278887763,
-            "Mistral-Large": 0.12571014278887763,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.14362673845771196,
+            "Mistral-Large": 0.09042477536604666,
+            "Gemini-Pro": 0.1642071862008481
           },
           "n_seeds": 50
         },
@@ -5002,23 +5002,23 @@
           "step": 975,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.47378117008003867,
-          "std_lambda": 0.37125063782804785,
-          "mean_cost_ema": 0.00022851941750289787,
-          "std_cost_ema": 7.56127626134444e-05,
+          "mean_lambda": 0.15688072362409003,
+          "std_lambda": 0.42393623876432945,
+          "mean_cost_ema": 0.00023181196692015357,
+          "std_cost_ema": 4.569045995376315e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023412064307692308,
-          "std_avg_cost": 2.0579926783042063e-06,
+          "mean_avg_cost": 0.00023224276911680913,
+          "std_avg_cost": 2.013638550556486e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5552,
-            "Mistral-Large": 0.4448,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.3104,
+            "Mistral-Large": 0.12919999999999998,
+            "Gemini-Pro": 0.5604
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13215506044037814,
-            "Mistral-Large": 0.13215506044037814,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.13189329020082863,
+            "Mistral-Large": 0.10401615259179701,
+            "Gemini-Pro": 0.17533921409656197
           },
           "n_seeds": 50
         },
@@ -5026,23 +5026,23 @@
           "step": 1000,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4615762774008864,
-          "std_lambda": 0.26458252328288084,
-          "mean_cost_ema": 0.0002353457805417625,
-          "std_cost_ema": 6.597428123493676e-05,
+          "mean_lambda": 0.14312270370298583,
+          "std_lambda": 0.35599178838188944,
+          "mean_cost_ema": 0.00022427599475277474,
+          "std_cost_ema": 3.0153440025156903e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023419020899999996,
-          "std_avg_cost": 1.9731639673045425e-06,
+          "mean_avg_cost": 0.0002319956285555555,
+          "std_avg_cost": 1.9838473047139993e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5844,
-            "Mistral-Large": 0.4156,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.27759999999999996,
+            "Mistral-Large": 0.124,
+            "Gemini-Pro": 0.5984000000000002
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11512011118827153,
-            "Mistral-Large": 0.11512011118827155,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.09811340377338869,
+            "Mistral-Large": 0.09633275663033837,
+            "Gemini-Pro": 0.14559340644411065
           },
           "n_seeds": 50
         },
@@ -5050,23 +5050,23 @@
           "step": 1025,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.44696722375428927,
-          "std_lambda": 0.20922024394840624,
-          "mean_cost_ema": 0.00022460530442683076,
-          "std_cost_ema": 6.896088939493643e-05,
+          "mean_lambda": 0.14479736980677935,
+          "std_lambda": 0.3212903345526444,
+          "mean_cost_ema": 0.00022833864643268984,
+          "std_cost_ema": 2.4643685871762635e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002339013143631436,
-          "std_avg_cost": 2.148689447902135e-06,
+          "mean_avg_cost": 0.00023200656747967478,
+          "std_avg_cost": 1.8746902250109894e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5832,
-            "Mistral-Large": 0.4159999999999999,
-            "Gemini-Pro": 0.0008
+            "Llama-8B": 0.22640000000000005,
+            "Mistral-Large": 0.11800000000000001,
+            "Gemini-Pro": 0.6556000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13123170348661942,
-            "Mistral-Large": 0.13059862173851605,
-            "Gemini-Pro": 0.005600000000000001
+            "Llama-8B": 0.0900168873045497,
+            "Mistral-Large": 0.094,
+            "Gemini-Pro": 0.14752843793655515
           },
           "n_seeds": 50
         },
@@ -5074,23 +5074,23 @@
           "step": 1050,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4185495968371588,
-          "std_lambda": 0.21204366884155437,
-          "mean_cost_ema": 0.0002254422337693179,
-          "std_cost_ema": 7.291459584324412e-05,
+          "mean_lambda": 0.1804605705863518,
+          "std_lambda": 0.3115731191946466,
+          "mean_cost_ema": 0.00023518130258708928,
+          "std_cost_ema": 2.7287057628820022e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023378524603174603,
-          "std_avg_cost": 2.184790082705896e-06,
+          "mean_avg_cost": 0.0002322948329100529,
+          "std_avg_cost": 1.997169193852887e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5752,
-            "Mistral-Large": 0.4224,
-            "Gemini-Pro": 0.0024
+            "Llama-8B": 0.17880000000000001,
+            "Mistral-Large": 0.0972,
+            "Gemini-Pro": 0.7239999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.15092037635786626,
-            "Mistral-Large": 0.14711301777884916,
-            "Gemini-Pro": 0.0168
+            "Llama-8B": 0.09536540253152608,
+            "Mistral-Large": 0.09732502247623681,
+            "Gemini-Pro": 0.16183942659315126
           },
           "n_seeds": 50
         },
@@ -5098,23 +5098,23 @@
           "step": 1075,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.42756715875861284,
-          "std_lambda": 0.22850064275828966,
-          "mean_cost_ema": 0.00023733720348603608,
-          "std_cost_ema": 6.623922150433931e-05,
+          "mean_lambda": 0.20051338262339402,
+          "std_lambda": 0.32900459087706485,
+          "mean_cost_ema": 0.0002422175346830164,
+          "std_cost_ema": 3.1980998728703934e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002340291511111111,
-          "std_avg_cost": 1.967163634562475e-06,
+          "mean_avg_cost": 0.0002325096898191214,
+          "std_avg_cost": 1.9985618127786484e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5576000000000001,
-            "Mistral-Large": 0.44040000000000007,
-            "Gemini-Pro": 0.002
+            "Llama-8B": 0.15399999999999997,
+            "Mistral-Large": 0.058800000000000005,
+            "Gemini-Pro": 0.7872
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13580220911310684,
-            "Mistral-Large": 0.1323927490461619,
-            "Gemini-Pro": 0.011489125293076056
+            "Llama-8B": 0.09509994742374993,
+            "Mistral-Large": 0.081722457133887,
+            "Gemini-Pro": 0.14922519894441422
           },
           "n_seeds": 50
         },
@@ -5122,23 +5122,23 @@
           "step": 1100,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4288942972510496,
-          "std_lambda": 0.1812232376696742,
-          "mean_cost_ema": 0.0002312495302769458,
-          "std_cost_ema": 6.490235159068992e-05,
+          "mean_lambda": 0.2597415742299847,
+          "std_lambda": 0.34779056225278016,
+          "mean_cost_ema": 0.0002485662554090655,
+          "std_cost_ema": 2.387537454631372e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023392800858585856,
-          "std_avg_cost": 1.74184357264403e-06,
+          "mean_avg_cost": 0.00023288425646464646,
+          "std_avg_cost": 1.932758473979401e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5603999999999999,
-            "Mistral-Large": 0.4388000000000001,
-            "Gemini-Pro": 0.0008
+            "Llama-8B": 0.1288,
+            "Mistral-Large": 0.037200000000000004,
+            "Gemini-Pro": 0.8340000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12049829874317729,
-            "Mistral-Large": 0.11962675286072093,
-            "Gemini-Pro": 0.003919183588453085
+            "Llama-8B": 0.08448999940821399,
+            "Mistral-Large": 0.06158051639926382,
+            "Gemini-Pro": 0.1308587024236447
           },
           "n_seeds": 50
         },
@@ -5146,23 +5146,23 @@
           "step": 1125,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.38014538998139025,
-          "std_lambda": 0.17671362899082654,
-          "mean_cost_ema": 0.00023488326112020908,
-          "std_cost_ema": 7.210684997194984e-05,
+          "mean_lambda": 0.32081551527680086,
+          "std_lambda": 0.362853488786475,
+          "mean_cost_ema": 0.00024638135903593087,
+          "std_cost_ema": 2.8720214797318352e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023378818261728394,
-          "std_avg_cost": 1.7265222430265399e-06,
+          "mean_avg_cost": 0.0002331091544691358,
+          "std_avg_cost": 2.1083145322772436e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5591999999999999,
-            "Mistral-Large": 0.4404,
-            "Gemini-Pro": 0.0004
+            "Llama-8B": 0.11,
+            "Mistral-Large": 0.0316,
+            "Gemini-Pro": 0.8583999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12026371023712847,
-            "Mistral-Large": 0.12003266222158035,
-            "Gemini-Pro": 0.0028000000000000004
+            "Llama-8B": 0.0832586331859946,
+            "Mistral-Large": 0.055438614701307246,
+            "Gemini-Pro": 0.12603745475056213
           },
           "n_seeds": 50
         },
@@ -5170,23 +5170,23 @@
           "step": 1150,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4587203426268364,
-          "std_lambda": 0.18417872504588975,
-          "mean_cost_ema": 0.00024047661446900025,
-          "std_cost_ema": 6.25484227886152e-05,
+          "mean_lambda": 0.3943616980449467,
+          "std_lambda": 0.39332520439121377,
+          "mean_cost_ema": 0.00024588382983901707,
+          "std_cost_ema": 2.7070594611702646e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002341854501449275,
-          "std_avg_cost": 1.5659704013127945e-06,
+          "mean_avg_cost": 0.00023341343913043478,
+          "std_avg_cost": 2.296770230333173e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5404,
-            "Mistral-Large": 0.458,
-            "Gemini-Pro": 0.0016
+            "Llama-8B": 0.1048,
+            "Mistral-Large": 0.023600000000000003,
+            "Gemini-Pro": 0.8715999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11713172072500258,
-            "Mistral-Large": 0.11539497389401326,
-            "Gemini-Pro": 0.008799999999999999
+            "Llama-8B": 0.07424930976110149,
+            "Mistral-Large": 0.05955703149083238,
+            "Gemini-Pro": 0.11593722439320339
           },
           "n_seeds": 50
         },
@@ -5194,23 +5194,23 @@
           "step": 1175,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4416995203183823,
-          "std_lambda": 0.16406086082426,
-          "mean_cost_ema": 0.00023373488160782392,
-          "std_cost_ema": 5.390866203764346e-05,
+          "mean_lambda": 0.4620966043631092,
+          "std_lambda": 0.4069330471058545,
+          "mean_cost_ema": 0.00024644609918738654,
+          "std_cost_ema": 2.0999799373842615e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023400151007092198,
-          "std_avg_cost": 1.5445145066754189e-06,
+          "mean_avg_cost": 0.00023369748151300234,
+          "std_avg_cost": 2.256311417280821e-06,
           "arm_fractions": {
-            "Llama-8B": 0.554,
-            "Mistral-Large": 0.444,
-            "Gemini-Pro": 0.002
+            "Llama-8B": 0.0928,
+            "Mistral-Large": 0.0172,
+            "Gemini-Pro": 0.89
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13049137902558927,
-            "Mistral-Large": 0.12768711759609894,
-            "Gemini-Pro": 0.00916515138991168
+            "Llama-8B": 0.06496275856211772,
+            "Mistral-Large": 0.05246103315795449,
+            "Gemini-Pro": 0.10463269087622665
           },
           "n_seeds": 50
         },
@@ -5218,23 +5218,23 @@
           "step": 1200,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.41227999896494794,
-          "std_lambda": 0.18794887037725114,
-          "mean_cost_ema": 0.00022479526031342985,
-          "std_cost_ema": 4.874804090046125e-05,
+          "mean_lambda": 0.5125458190031499,
+          "std_lambda": 0.41958200457719375,
+          "mean_cost_ema": 0.0002468833786866355,
+          "std_cost_ema": 2.3631203864408747e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002337443780555555,
-          "std_avg_cost": 1.5578489487725957e-06,
+          "mean_avg_cost": 0.00023389726768518516,
+          "std_avg_cost": 2.2472543443649302e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5648000000000001,
-            "Mistral-Large": 0.43439999999999995,
-            "Gemini-Pro": 0.0008
+            "Llama-8B": 0.0928,
+            "Mistral-Large": 0.0168,
+            "Gemini-Pro": 0.8904
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11038550629498421,
-            "Mistral-Large": 0.11027529188354025,
-            "Gemini-Pro": 0.003919183588453085
+            "Llama-8B": 0.060234209549059406,
+            "Mistral-Large": 0.04805996254680189,
+            "Gemini-Pro": 0.09601999791710059
           },
           "n_seeds": 50
         },
@@ -5242,23 +5242,23 @@
           "step": 1225,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.401810006801032,
-          "std_lambda": 0.20159075998186773,
-          "mean_cost_ema": 0.00023343307383626638,
-          "std_cost_ema": 5.252461125499731e-05,
+          "mean_lambda": 0.5813460278228192,
+          "std_lambda": 0.40584435724589374,
+          "mean_cost_ema": 0.0002458678080265503,
+          "std_cost_ema": 2.3678244651166987e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023384051401360544,
-          "std_avg_cost": 1.434121352980227e-06,
+          "mean_avg_cost": 0.00023414409333333334,
+          "std_avg_cost": 2.0154061582629037e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5512,
-            "Mistral-Large": 0.44839999999999997,
-            "Gemini-Pro": 0.0004
+            "Llama-8B": 0.092,
+            "Mistral-Large": 0.0116,
+            "Gemini-Pro": 0.8964
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13764650376961995,
-            "Mistral-Large": 0.13700160583000479,
-            "Gemini-Pro": 0.0028
+            "Llama-8B": 0.04578209256903839,
+            "Mistral-Large": 0.035573023486906476,
+            "Gemini-Pro": 0.06421090250105506
           },
           "n_seeds": 50
         },
@@ -5266,23 +5266,23 @@
           "step": 1250,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4365338877021354,
-          "std_lambda": 0.17526421005217818,
-          "mean_cost_ema": 0.0002382683494879943,
-          "std_cost_ema": 7.064781669876252e-05,
+          "mean_lambda": 0.6480798983716538,
+          "std_lambda": 0.40151675713110363,
+          "mean_cost_ema": 0.00024134108207542662,
+          "std_cost_ema": 2.9222810715256415e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023404720613333333,
-          "std_avg_cost": 1.5901676958352988e-06,
+          "mean_avg_cost": 0.0002343218278222222,
+          "std_avg_cost": 2.0095397799646333e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5504,
-            "Mistral-Large": 0.4496,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.09999999999999998,
+            "Mistral-Large": 0.0044,
+            "Gemini-Pro": 0.8956000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12453047819710643,
-            "Mistral-Large": 0.12453047819710643,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.05138093031466052,
+            "Mistral-Large": 0.016144348856488452,
+            "Gemini-Pro": 0.053109697796165256
           },
           "n_seeds": 50
         },
@@ -5290,23 +5290,23 @@
           "step": 1275,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.44538439955644654,
-          "std_lambda": 0.1941717478389524,
-          "mean_cost_ema": 0.00023650074972598477,
-          "std_cost_ema": 5.313947570502458e-05,
+          "mean_lambda": 0.7064586089582027,
+          "std_lambda": 0.4100139853057991,
+          "mean_cost_ema": 0.00025187692217261675,
+          "std_cost_ema": 2.7291133013925483e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023405242640522878,
-          "std_avg_cost": 1.2182908813029685e-06,
+          "mean_avg_cost": 0.00023468647642701525,
+          "std_avg_cost": 2.0199308560646126e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5584,
-            "Mistral-Large": 0.44160000000000005,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.1004,
+            "Mistral-Large": 0.0012,
+            "Gemini-Pro": 0.8984000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.10776567171414095,
-            "Mistral-Large": 0.10776567171414095,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.04824769424542482,
+            "Mistral-Large": 0.006209669878504008,
+            "Gemini-Pro": 0.048305693246241684
           },
           "n_seeds": 50
         },
@@ -5314,23 +5314,23 @@
           "step": 1300,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.44776007138872176,
-          "std_lambda": 0.15483431992650848,
-          "mean_cost_ema": 0.0002488180052957189,
-          "std_cost_ema": 6.743550438342995e-05,
+          "mean_lambda": 0.7937778092081795,
+          "std_lambda": 0.43600361250540126,
+          "mean_cost_ema": 0.0002512062513274174,
+          "std_cost_ema": 2.944049659586369e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023423999205128207,
-          "std_avg_cost": 1.4622699226243725e-06,
+          "mean_avg_cost": 0.00023497782196581197,
+          "std_avg_cost": 2.0328027872473547e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5656000000000001,
-            "Mistral-Large": 0.43439999999999995,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.0908,
+            "Mistral-Large": 0.0008,
+            "Gemini-Pro": 0.9084
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13314893916212778,
-            "Mistral-Large": 0.13314893916212775,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.04967252761839285,
+            "Mistral-Large": 0.003919183588453085,
+            "Gemini-Pro": 0.04932990979111962
           },
           "n_seeds": 50
         },
@@ -5338,23 +5338,23 @@
           "step": 1325,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.446573154056175,
-          "std_lambda": 0.15886259844182063,
-          "mean_cost_ema": 0.00022916078282815642,
-          "std_cost_ema": 7.846823537508626e-05,
+          "mean_lambda": 0.8719527048161911,
+          "std_lambda": 0.47959820332260505,
+          "mean_cost_ema": 0.00024545224780104613,
+          "std_cost_ema": 2.312102664260478e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002339493944654088,
-          "std_avg_cost": 1.6211479331932888e-06,
+          "mean_avg_cost": 0.00023515298188679244,
+          "std_avg_cost": 2.099614851181567e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5731999999999999,
-            "Mistral-Large": 0.42680000000000007,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.09480000000000001,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.9052000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.1053459064226038,
-            "Mistral-Large": 0.10534590642260383,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.051506892742622316,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.051506892742622316
           },
           "n_seeds": 50
         },
@@ -5362,23 +5362,23 @@
           "step": 1350,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.43683545309017646,
-          "std_lambda": 0.21223225147829738,
-          "mean_cost_ema": 0.00024281133232925475,
-          "std_cost_ema": 5.7960605980128985e-05,
+          "mean_lambda": 0.899231442853756,
+          "std_lambda": 0.5200036502963431,
+          "mean_cost_ema": 0.00023472531695759326,
+          "std_cost_ema": 2.5648373565372926e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023410869308641976,
-          "std_avg_cost": 1.0904241956230444e-06,
+          "mean_avg_cost": 0.00023507496205761315,
+          "std_avg_cost": 2.213470939619668e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5588,
-            "Mistral-Large": 0.44120000000000004,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.1044,
+            "Mistral-Large": 0.0004,
+            "Gemini-Pro": 0.8952
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11145653861483407,
-            "Mistral-Large": 0.11145653861483407,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.05219808425603376,
+            "Mistral-Large": 0.0028000000000000004,
+            "Gemini-Pro": 0.05193226357477594
           },
           "n_seeds": 50
         },
@@ -5386,23 +5386,23 @@
           "step": 1375,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.46923212697874,
-          "std_lambda": 0.18147377492980257,
-          "mean_cost_ema": 0.00022830499370828195,
-          "std_cost_ema": 6.89284797185042e-05,
+          "mean_lambda": 0.9508526023555222,
+          "std_lambda": 0.5480103284277003,
+          "mean_cost_ema": 0.0002446252384720878,
+          "std_cost_ema": 2.8309666811867505e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023401653212121211,
-          "std_avg_cost": 1.705624290881913e-06,
+          "mean_avg_cost": 0.00023536694084848485,
+          "std_avg_cost": 2.2109770732679833e-06,
           "arm_fractions": {
-            "Llama-8B": 0.56,
-            "Mistral-Large": 0.44,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.1116,
+            "Mistral-Large": 0.002,
+            "Gemini-Pro": 0.8864
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13248396129343354,
-            "Mistral-Large": 0.13248396129343354,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.04614585571857997,
+            "Mistral-Large": 0.011489125293076056,
+            "Gemini-Pro": 0.04856994955731373
           },
           "n_seeds": 50
         },
@@ -5410,23 +5410,23 @@
           "step": 1400,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4644920333019278,
-          "std_lambda": 0.17301240536471807,
-          "mean_cost_ema": 0.00022024002730867544,
-          "std_cost_ema": 5.512011920026756e-05,
+          "mean_lambda": 1.0039792366716889,
+          "std_lambda": 0.5738024667251554,
+          "mean_cost_ema": 0.00023940397626508777,
+          "std_cost_ema": 2.7072777396811764e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023389093833333331,
-          "std_avg_cost": 1.3111058594763527e-06,
+          "mean_avg_cost": 0.00023544926595238096,
+          "std_avg_cost": 2.175473146186646e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5684,
-            "Mistral-Large": 0.4316,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.1204,
+            "Mistral-Large": 0.0016,
+            "Gemini-Pro": 0.878
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.0944110163063612,
-            "Mistral-Large": 0.0944110163063612,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.055062146707152634,
+            "Mistral-Large": 0.011200000000000002,
+            "Gemini-Pro": 0.05560575509783137
           },
           "n_seeds": 50
         },
@@ -5434,23 +5434,23 @@
           "step": 1425,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.41014017009633763,
-          "std_lambda": 0.1811982329289777,
-          "mean_cost_ema": 0.000252361055479562,
-          "std_cost_ema": 8.286506601407874e-05,
+          "mean_lambda": 1.024976211690932,
+          "std_lambda": 0.5866237954676884,
+          "mean_cost_ema": 0.0002366336804299383,
+          "std_cost_ema": 3.166961259637905e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000234142060116959,
-          "std_avg_cost": 1.5331768166788827e-06,
+          "mean_avg_cost": 0.0002354558614424951,
+          "std_avg_cost": 2.1437797669154027e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5519999999999999,
-            "Mistral-Large": 0.44800000000000006,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.13440000000000002,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8656000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.1122140811128443,
-            "Mistral-Large": 0.11221408111284431,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.06548770877042501,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.065487708770425
           },
           "n_seeds": 50
         },
@@ -5458,23 +5458,23 @@
           "step": 1450,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4756018420262148,
-          "std_lambda": 0.21315603309469783,
-          "mean_cost_ema": 0.00024050665583960442,
-          "std_cost_ema": 6.186961984563131e-05,
+          "mean_lambda": 1.0145325536768903,
+          "std_lambda": 0.6115689142310696,
+          "mean_cost_ema": 0.00023063820832059504,
+          "std_cost_ema": 1.8762222681077436e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002341949449042145,
-          "std_avg_cost": 1.2615784593533318e-06,
+          "mean_avg_cost": 0.00023531493678160916,
+          "std_avg_cost": 2.104294728781634e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5448,
-            "Mistral-Large": 0.4544,
-            "Gemini-Pro": 0.0008
+            "Llama-8B": 0.1336,
+            "Mistral-Large": 0.0024,
+            "Gemini-Pro": 0.8640000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11990396156924925,
-            "Mistral-Large": 0.11839189161424865,
-            "Gemini-Pro": 0.005600000000000001
+            "Llama-8B": 0.057888168048401745,
+            "Mistral-Large": 0.011757550765359255,
+            "Gemini-Pro": 0.062096698785040094
           },
           "n_seeds": 50
         },
@@ -5482,23 +5482,23 @@
           "step": 1475,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.43827008571829396,
-          "std_lambda": 0.19217179453814326,
-          "mean_cost_ema": 0.00022204092801189856,
-          "std_cost_ema": 6.272914136248014e-05,
+          "mean_lambda": 1.0454818339061214,
+          "std_lambda": 0.6035820824518218,
+          "mean_cost_ema": 0.00024217493307102762,
+          "std_cost_ema": 2.888361604022825e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023382632866290017,
-          "std_avg_cost": 1.295201748126681e-06,
+          "mean_avg_cost": 0.0002355368915254237,
+          "std_avg_cost": 2.0953334257682137e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5756,
-            "Mistral-Large": 0.4224000000000001,
-            "Gemini-Pro": 0.002
+            "Llama-8B": 0.12319999999999999,
+            "Mistral-Large": 0.0052,
+            "Gemini-Pro": 0.8715999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.14671278062936438,
-            "Mistral-Large": 0.1431441231766083,
-            "Gemini-Pro": 0.01
+            "Llama-8B": 0.0504951482817904,
+            "Mistral-Large": 0.022202702538204673,
+            "Gemini-Pro": 0.059341722253402784
           },
           "n_seeds": 50
         },
@@ -5506,23 +5506,23 @@
           "step": 1500,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.39003019001573447,
-          "std_lambda": 0.1619552359253825,
-          "mean_cost_ema": 0.00023692647696138625,
-          "std_cost_ema": 6.194376906668963e-05,
+          "mean_lambda": 1.0696094291628717,
+          "std_lambda": 0.5770247700257642,
+          "mean_cost_ema": 0.0002446965335843939,
+          "std_cost_ema": 3.4266571710910974e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023386137577777782,
-          "std_avg_cost": 1.1697698968894266e-06,
+          "mean_avg_cost": 0.00023561849503703702,
+          "std_avg_cost": 1.8839821684043725e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5651999999999999,
-            "Mistral-Large": 0.4320000000000001,
-            "Gemini-Pro": 0.0027999999999999995
+            "Llama-8B": 0.1168,
+            "Mistral-Large": 0.0028000000000000004,
+            "Gemini-Pro": 0.8804
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12190553719991558,
-            "Mistral-Large": 0.11986659251017356,
-            "Gemini-Pro": 0.012006664815842906
+            "Llama-8B": 0.05001759690348988,
+            "Mistral-Large": 0.011320777358467924,
+            "Gemini-Pro": 0.05192147917769678
           },
           "n_seeds": 50
         },
@@ -5530,23 +5530,23 @@
           "step": 1525,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.41580404953061617,
-          "std_lambda": 0.16456365850562643,
-          "mean_cost_ema": 0.00023514807969017215,
-          "std_cost_ema": 5.243565385780294e-05,
+          "mean_lambda": 1.110717540939878,
+          "std_lambda": 0.5623990761499215,
+          "mean_cost_ema": 0.00023983786466639617,
+          "std_cost_ema": 2.301184362603338e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002339187777777778,
-          "std_avg_cost": 1.253596847268355e-06,
+          "mean_avg_cost": 0.00023565701340619305,
+          "std_avg_cost": 1.9620923941200876e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5192,
-            "Mistral-Large": 0.47839999999999994,
-            "Gemini-Pro": 0.0024000000000000002
+            "Llama-8B": 0.10959999999999999,
+            "Mistral-Large": 0.002,
+            "Gemini-Pro": 0.8884000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.10946853429182285,
-            "Mistral-Large": 0.10391073091841863,
-            "Gemini-Pro": 0.014221111067704946
+            "Llama-8B": 0.05172852211304708,
+            "Mistral-Large": 0.014,
+            "Gemini-Pro": 0.052473231270810834
           },
           "n_seeds": 50
         },
@@ -5554,23 +5554,23 @@
           "step": 1550,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.40621823238344384,
-          "std_lambda": 0.18085874926052867,
-          "mean_cost_ema": 0.0002297074810852452,
-          "std_cost_ema": 4.913180498536145e-05,
+          "mean_lambda": 1.1391372847341452,
+          "std_lambda": 0.5725259314835142,
+          "mean_cost_ema": 0.00024037024122420555,
+          "std_cost_ema": 2.4128837154147833e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023382308709677418,
-          "std_avg_cost": 1.1342298683626315e-06,
+          "mean_avg_cost": 0.0002357226225806452,
+          "std_avg_cost": 1.946829337997687e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5392,
-            "Mistral-Large": 0.45959999999999995,
-            "Gemini-Pro": 0.0012
+            "Llama-8B": 0.11199999999999999,
+            "Mistral-Large": 0.002,
+            "Gemini-Pro": 0.8860000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12066217302866711,
-            "Mistral-Large": 0.11909592772215177,
-            "Gemini-Pro": 0.006209669878504008
+            "Llama-8B": 0.045607017003965515,
+            "Mistral-Large": 0.014,
+            "Gemini-Pro": 0.048041648597857256
           },
           "n_seeds": 50
         },
@@ -5578,23 +5578,23 @@
           "step": 1575,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.3815146049609928,
-          "std_lambda": 0.17753835289644404,
-          "mean_cost_ema": 0.00022805562602332493,
-          "std_cost_ema": 6.587883557653237e-05,
+          "mean_lambda": 1.1697429468564944,
+          "std_lambda": 0.592373912152186,
+          "mean_cost_ema": 0.0002408809869049459,
+          "std_cost_ema": 3.225233061992512e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023373081206349205,
-          "std_avg_cost": 1.2261089845674572e-06,
+          "mean_avg_cost": 0.00023579238328042324,
+          "std_avg_cost": 2.0471200188087664e-06,
           "arm_fractions": {
-            "Llama-8B": 0.552,
-            "Mistral-Large": 0.4468,
-            "Gemini-Pro": 0.0012
+            "Llama-8B": 0.12320000000000002,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8768
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11503043075638723,
-            "Mistral-Large": 0.11444544551881478,
-            "Gemini-Pro": 0.006209669878504008
+            "Llama-8B": 0.05159224747963593,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.05159224747963592
           },
           "n_seeds": 50
         },
@@ -5602,23 +5602,23 @@
           "step": 1600,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.40606862380301784,
-          "std_lambda": 0.19077575194031976,
-          "mean_cost_ema": 0.0002413058744234758,
-          "std_cost_ema": 6.713229260459402e-05,
+          "mean_lambda": 1.2019452614861987,
+          "std_lambda": 0.6289514052167822,
+          "mean_cost_ema": 0.00023864360975755887,
+          "std_cost_ema": 2.5452834130330253e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023395745062500004,
-          "std_avg_cost": 1.2588697073686154e-06,
+          "mean_avg_cost": 0.00023583200020833338,
+          "std_avg_cost": 2.0289985994887063e-06,
           "arm_fractions": {
-            "Llama-8B": 0.53,
-            "Mistral-Large": 0.46759999999999996,
-            "Gemini-Pro": 0.0024
+            "Llama-8B": 0.12639999999999998,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8736000000000002
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11343720729989787,
-            "Mistral-Large": 0.10997381506522359,
-            "Gemini-Pro": 0.011757550765359254
+            "Llama-8B": 0.055200000000000006,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.0552
           },
           "n_seeds": 50
         },
@@ -5626,23 +5626,23 @@
           "step": 1625,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4497158759543342,
-          "std_lambda": 0.1825823880371763,
-          "mean_cost_ema": 0.00023107939336725658,
-          "std_cost_ema": 6.108693481093349e-05,
+          "mean_lambda": 1.2341874574047587,
+          "std_lambda": 0.6438823750480134,
+          "mean_cost_ema": 0.00024285276009621505,
+          "std_cost_ema": 2.877724644514026e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023396423815384617,
-          "std_avg_cost": 1.1432181429500108e-06,
+          "mean_avg_cost": 0.00023594588779487176,
+          "std_avg_cost": 2.0383943746129672e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5364,
-            "Mistral-Large": 0.46199999999999997,
-            "Gemini-Pro": 0.0016
+            "Llama-8B": 0.1304,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8696
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12965739469848991,
-            "Mistral-Large": 0.12720062892926276,
-            "Gemini-Pro": 0.008799999999999999
+            "Llama-8B": 0.05936194066908527,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.059361940669085275
           },
           "n_seeds": 50
         },
@@ -5650,23 +5650,23 @@
           "step": 1650,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.40883794538442186,
-          "std_lambda": 0.1561482126858523,
-          "mean_cost_ema": 0.00021335318356685573,
-          "std_cost_ema": 5.1883092520504426e-05,
+          "mean_lambda": 1.2824859415423588,
+          "std_lambda": 0.6330202197737926,
+          "mean_cost_ema": 0.00024406778844781877,
+          "std_cost_ema": 2.6422285758810656e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023364450188552189,
-          "std_avg_cost": 1.1421699769955367e-06,
+          "mean_avg_cost": 0.0002360673879461279,
+          "std_avg_cost": 1.9979800616984517e-06,
           "arm_fractions": {
-            "Llama-8B": 0.57,
-            "Mistral-Large": 0.4296,
-            "Gemini-Pro": 0.0004
+            "Llama-8B": 0.128,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.872
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12001666550941997,
-            "Mistral-Large": 0.11954848388833711,
-            "Gemini-Pro": 0.0028000000000000004
+            "Llama-8B": 0.051845925587262885,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.05184592558726288
           },
           "n_seeds": 50
         },
@@ -5674,23 +5674,23 @@
           "step": 1675,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.3866402531814681,
-          "std_lambda": 0.16554275800029503,
-          "mean_cost_ema": 0.00024495673290570087,
-          "std_cost_ema": 6.25555552339129e-05,
+          "mean_lambda": 1.3200199836350799,
+          "std_lambda": 0.6265716396940589,
+          "mean_cost_ema": 0.00023645625714404403,
+          "std_cost_ema": 2.5412106082416485e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023394367515754564,
-          "std_avg_cost": 1.1049587611759425e-06,
+          "mean_avg_cost": 0.00023605506288557215,
+          "std_avg_cost": 1.944019206374009e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5448,
-            "Mistral-Large": 0.45399999999999996,
-            "Gemini-Pro": 0.0012
+            "Llama-8B": 0.11560000000000001,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8844
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.10943929824336412,
-            "Mistral-Large": 0.1086830253535482,
-            "Gemini-Pro": 0.004749736834815166
+            "Llama-8B": 0.04548230425121401,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.045482304251214016
           },
           "n_seeds": 50
         },
@@ -5698,23 +5698,23 @@
           "step": 1700,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4434997750015742,
-          "std_lambda": 0.17004019747918497,
-          "mean_cost_ema": 0.00022774838753106396,
-          "std_cost_ema": 6.0359122203682506e-05,
+          "mean_lambda": 1.3377333572244257,
+          "std_lambda": 0.659285062302746,
+          "mean_cost_ema": 0.0002407667875792295,
+          "std_cost_ema": 2.6108684413159913e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023390870581699349,
-          "std_avg_cost": 1.0404390146768711e-06,
+          "mean_avg_cost": 0.00023612178176470587,
+          "std_avg_cost": 2.0526053532945158e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5264,
-            "Mistral-Large": 0.47279999999999994,
-            "Gemini-Pro": 0.0008
+            "Llama-8B": 0.11159999999999998,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8884000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.1145732953178881,
-            "Mistral-Large": 0.11389539060032236,
-            "Gemini-Pro": 0.003919183588453085
+            "Llama-8B": 0.045270741102835944,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.04527074110283596
           },
           "n_seeds": 50
         },
@@ -5722,23 +5722,23 @@
           "step": 1725,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4280335780173449,
-          "std_lambda": 0.18416987059403903,
-          "mean_cost_ema": 0.00023612806131454754,
-          "std_cost_ema": 5.104107870872358e-05,
+          "mean_lambda": 1.3628114420561424,
+          "std_lambda": 0.662506691155991,
+          "mean_cost_ema": 0.00024373685229787316,
+          "std_cost_ema": 3.14978496273687e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023396036631239935,
-          "std_avg_cost": 9.359390732886729e-07,
+          "mean_avg_cost": 0.0002361917829951691,
+          "std_avg_cost": 1.9273053349271083e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5388000000000001,
-            "Mistral-Large": 0.4612,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.1216,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8784000000000002
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.11733098482498133,
-            "Mistral-Large": 0.11733098482498133,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.051975378786498515,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.051975378786498515
           },
           "n_seeds": 50
         },
@@ -5746,23 +5746,23 @@
           "step": 1750,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4475372611004073,
-          "std_lambda": 0.19459480925682215,
-          "mean_cost_ema": 0.00023018568042882455,
-          "std_cost_ema": 5.151703061735442e-05,
+          "mean_lambda": 1.409232920072033,
+          "std_lambda": 0.6426303188908261,
+          "mean_cost_ema": 0.0002399115619234325,
+          "std_cost_ema": 2.4728685643885984e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023394857365079363,
-          "std_avg_cost": 1.0508576048352172e-06,
+          "mean_avg_cost": 0.00023624308438095242,
+          "std_avg_cost": 1.788878035868219e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5436,
-            "Mistral-Large": 0.45640000000000003,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.12999999999999998,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.87
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.1355102948118703,
-            "Mistral-Large": 0.1355102948118703,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.051107729356722545,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.05110772935672256
           },
           "n_seeds": 50
         },
@@ -5770,23 +5770,23 @@
           "step": 1775,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.45266708122328453,
-          "std_lambda": 0.20825825028389322,
-          "mean_cost_ema": 0.00023998086157750505,
-          "std_cost_ema": 6.616988875501558e-05,
+          "mean_lambda": 1.4254010218230757,
+          "std_lambda": 0.6250773302341676,
+          "mean_cost_ema": 0.0002384512084394912,
+          "std_cost_ema": 2.8212834831841454e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023406767317683878,
-          "std_avg_cost": 1.1893293329381429e-06,
+          "mean_avg_cost": 0.00023623848882629107,
+          "std_avg_cost": 1.8270786165528478e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5584,
-            "Mistral-Large": 0.44160000000000005,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.13,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8700000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12641772027686624,
-            "Mistral-Large": 0.12641772027686624,
-            "Gemini-Pro": 0.0
+            "Llama-8B": 0.04983974317750845,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.04983974317750845
           },
           "n_seeds": 50
         },
@@ -5794,23 +5794,23 @@
           "step": 1800,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.42754975090707587,
-          "std_lambda": 0.17716975470642363,
-          "mean_cost_ema": 0.0002239006389820225,
-          "std_cost_ema": 5.505163573601998e-05,
+          "mean_lambda": 1.432554152004678,
+          "std_lambda": 0.6312228140625149,
+          "mean_cost_ema": 0.00023310398128598733,
+          "std_cost_ema": 2.0224159004282107e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0002338309959876543,
-          "std_avg_cost": 8.34319458203887e-07,
+          "mean_avg_cost": 0.00023616955388888888,
+          "std_avg_cost": 1.7663074361650791e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5644,
-            "Mistral-Large": 0.4352,
-            "Gemini-Pro": 0.0004
+            "Llama-8B": 0.12639999999999998,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8736000000000002
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12446943399887378,
-            "Mistral-Large": 0.12403612377045649,
-            "Gemini-Pro": 0.0028000000000000004
+            "Llama-8B": 0.044261043819593775,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.04426104381959378
           },
           "n_seeds": 50
         },
@@ -5818,23 +5818,23 @@
           "step": 1824,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.4188543543412432,
-          "std_lambda": 0.15811403235653868,
-          "mean_cost_ema": 0.00024736750508350103,
-          "std_cost_ema": 6.690295921461558e-05,
+          "mean_lambda": 1.4321656362066484,
+          "std_lambda": 0.6270426517059023,
+          "mean_cost_ema": 0.00023542371394922115,
+          "std_cost_ema": 2.5919592825041925e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.00023405535568957116,
-          "std_avg_cost": 1.1553195256151828e-06,
+          "mean_avg_cost": 0.00023616417415935672,
+          "std_avg_cost": 1.7228085696268017e-06,
           "arm_fractions": {
-            "Llama-8B": 0.5488000000000001,
-            "Mistral-Large": 0.4508,
-            "Gemini-Pro": 0.0004
+            "Llama-8B": 0.1316,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.8683999999999998
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.13541993944763084,
-            "Mistral-Large": 0.13524555445559014,
-            "Gemini-Pro": 0.0028000000000000004
+            "Llama-8B": 0.04884096641140509,
+            "Mistral-Large": 0.0,
+            "Gemini-Pro": 0.0488409664114051
           },
           "n_seeds": 50
         }
@@ -5850,13 +5850,13 @@
         }
       },
       "phase2_summary": {
-        "mean_reward": 0.8609624122807017,
-        "mean_cost": 0.00023419575852826508,
-        "mean_lambda": 0.4340038536740256,
+        "mean_reward": 0.9170044078947367,
+        "mean_cost": 0.00023841339546783625,
+        "mean_lambda": 0.8243893178320006,
         "arm_fractions": {
-          "Llama-8B": 0.5540350877192983,
-          "Mistral-Large": 0.44517543859649117,
-          "Gemini-Pro": 0.0007894736842105263
+          "Llama-8B": 0.1399780701754386,
+          "Mistral-Large": 0.020833333333333336,
+          "Gemini-Pro": 0.8391885964912279
         }
       },
       "per_seed_phase1_reward": [
@@ -5912,56 +5912,56 @@
         0.8524243421052632
       ],
       "per_seed_phase2_reward": [
-        0.8592214912280702,
-        0.8606853070175438,
-        0.8561019736842104,
-        0.862390350877193,
-        0.8557532894736842,
-        0.8601973684210527,
-        0.8564035087719298,
-        0.8626206140350877,
-        0.8665975877192982,
-        0.8665844298245614,
-        0.8604769736842104,
-        0.8631030701754385,
-        0.8505043859649123,
-        0.861405701754386,
-        0.8652631578947368,
-        0.8599945175438597,
-        0.8644298245614035,
-        0.8618421052631579,
-        0.8625438596491228,
-        0.8548486842105263,
-        0.8647149122807017,
-        0.8561184210526316,
-        0.8606195175438597,
-        0.8641557017543858,
-        0.8645175438596492,
-        0.8566282894736842,
-        0.8625021929824562,
-        0.860608552631579,
-        0.8589638157894737,
-        0.8607730263157894,
-        0.8575877192982455,
-        0.8563837719298245,
-        0.864265350877193,
-        0.8562390350877193,
-        0.8636348684210526,
-        0.8619923245614034,
-        0.8606546052631578,
-        0.8647532894736841,
-        0.8624177631578948,
-        0.8672094298245614,
-        0.8588377192982456,
-        0.8571984649122807,
-        0.8624747807017544,
-        0.8616063596491228,
-        0.8587554824561404,
-        0.8642708333333332,
-        0.8592127192982456,
-        0.8689879385964913,
-        0.8606600877192981,
-        0.8604078947368421
+        0.9166074561403509,
+        0.9210592105263159,
+        0.9186480263157893,
+        0.9106929824561404,
+        0.922686403508772,
+        0.9098519736842107,
+        0.9107905701754386,
+        0.9185515350877194,
+        0.9196885964912281,
+        0.9166458333333334,
+        0.9209769736842106,
+        0.9189100877192983,
+        0.9160646929824562,
+        0.9189978070175439,
+        0.9185098684210525,
+        0.919611842105263,
+        0.9150109649122807,
+        0.9129506578947368,
+        0.9081425438596491,
+        0.9201370614035088,
+        0.9166228070175437,
+        0.9179353070175438,
+        0.9167061403508773,
+        0.9179002192982456,
+        0.9206151315789474,
+        0.9172532894736843,
+        0.9183234649122808,
+        0.9188717105263158,
+        0.9140581140350879,
+        0.9212401315789475,
+        0.9161853070175439,
+        0.9100986842105263,
+        0.9188223684210527,
+        0.9175328947368421,
+        0.9208552631578947,
+        0.9181546052631578,
+        0.9207916666666666,
+        0.9224078947368421,
+        0.9177850877192982,
+        0.9170296052631578,
+        0.9117785087719298,
+        0.9211513157894736,
+        0.915998903508772,
+        0.9214035087719299,
+        0.9110526315789474,
+        0.9123980263157895,
+        0.9153969298245613,
+        0.9152642543859649,
+        0.9169144736842105,
+        0.9151370614035088
       ],
       "per_seed_phase1_cost": [
         0.00022978432017543856,
@@ -6016,56 +6016,56 @@
         0.000235171600877193
       ],
       "per_seed_phase2_cost": [
-        0.00023558037280701753,
-        0.00023587394005847954,
-        0.00023457313596491228,
-        0.00023411381578947372,
-        0.00023184374999999998,
-        0.00023485690789473685,
-        0.00021188735380116958,
-        0.00023407725389863548,
-        0.00023443596491228068,
-        0.00024211140350877193,
-        0.00023957883771929823,
-        0.00023460372807017544,
-        0.00023507730263157893,
-        0.00024044846491228072,
-        0.00023682397660818716,
-        0.00022890110867446396,
-        0.00023500372807017542,
-        0.0002352199561403509,
-        0.00023318103070175437,
-        0.0002355651315789474,
-        0.00023510727339181287,
-        0.00023196008771929824,
-        0.00023545109649122806,
-        0.0002307329800194932,
-        0.0002352245614035088,
-        0.0002342486842105263,
-        0.00023690208333333333,
-        0.00023800098684210525,
-        0.00023294533382066276,
-        0.00023343760964912282,
-        0.00023411656920077975,
-        0.0002364968201754386,
-        0.0002376497807017544,
-        0.00023479188596491228,
-        0.00023508863304093567,
-        0.00023443717105263158,
-        0.00023323124999999998,
-        0.0002341494030214425,
-        0.00023426041666666666,
-        0.00023307280701754388,
-        0.00023430756578947368,
-        0.00023402576754385964,
-        0.0002358815789473684,
-        0.00023422754629629625,
-        0.00023209331140350878,
-        0.00023239667397660817,
-        0.00023264818469785576,
-        0.0002350171052631579,
-        0.00023141513157894734,
-        0.00023271246345029237
+        0.00024091507066276803,
+        0.00023606435185185185,
+        0.00023388217592592593,
+        0.00023676347465886942,
+        0.00023614931773879142,
+        0.00024348886452241718,
+        0.00022501991959064324,
+        0.00024373622076023392,
+        0.00023785914961013647,
+        0.0002438505238791423,
+        0.0002495966374269006,
+        0.00024076091617933725,
+        0.00023738051900584796,
+        0.0002376704556530214,
+        0.00023963869395711502,
+        0.00023439896442495128,
+        0.00023875808966861598,
+        0.00024131559454191034,
+        0.00023393634259259258,
+        0.00024187847222222224,
+        0.00023684939083820663,
+        0.00024026513157894734,
+        0.0002369888036062378,
+        0.0002401547392787524,
+        0.0002397966739766082,
+        0.00023730298489278755,
+        0.0002429527412280702,
+        0.0002394536184210526,
+        0.00023398050682261207,
+        0.00023843451510721246,
+        0.00023687844785575047,
+        0.0002335159356725146,
+        0.00023879702729044837,
+        0.00024192374512670565,
+        0.00023841792153996103,
+        0.0002428862207602339,
+        0.0002409105628654971,
+        0.0002374161671539961,
+        0.00024122643762183236,
+        0.00023071139132553606,
+        0.0002348447124756335,
+        0.00024120833333333335,
+        0.00023367774122807017,
+        0.0002406055433723197,
+        0.00023923267543859647,
+        0.00023693887670565302,
+        0.00023586890838206626,
+        0.00024223538011695905,
+        0.00023713071393762186,
+        0.00023700017056530213
       ]
     },
     "Fixed Policy (moderate)": {
@@ -10981,23 +10981,23 @@
           "step": 925,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.19045948035050297,
-          "std_lambda": 0.26353115603489247,
-          "mean_cost_ema": 0.0004986575073860726,
-          "std_cost_ema": 0.00019024288435665393,
+          "mean_lambda": 0.18080484044601292,
+          "std_lambda": 0.2847742135781875,
+          "mean_cost_ema": 0.00046939301282588057,
+          "std_cost_ema": 0.00019206621010864702,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000653714640960961,
-          "std_avg_cost": 1.1440701232061457e-05,
+          "mean_avg_cost": 0.000652812798078078,
+          "std_avg_cost": 1.2095461964090618e-05,
           "arm_fractions": {
-            "Llama-8B": 0.35159999999999997,
-            "Mistral-Large": 0.5936,
-            "Gemini-Pro": 0.0548
+            "Llama-8B": 0.28400000000000003,
+            "Mistral-Large": 0.4628,
+            "Gemini-Pro": 0.2532
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.23068905479020888,
-            "Mistral-Large": 0.21968850675444995,
-            "Gemini-Pro": 0.06594664510041431
+            "Llama-8B": 0.18748866632412745,
+            "Mistral-Large": 0.18115231160545536,
+            "Gemini-Pro": 0.025802325476592232
           },
           "n_seeds": 50
         },
@@ -11005,23 +11005,23 @@
           "step": 950,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.05603804979248042,
-          "std_lambda": 0.1982576583350216,
-          "mean_cost_ema": 0.0003754747817600574,
-          "std_cost_ema": 9.187874242597007e-05,
+          "mean_lambda": 0.069064539521206,
+          "std_lambda": 0.2591594782754541,
+          "mean_cost_ema": 0.0003495397460748548,
+          "std_cost_ema": 6.040339423247409e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0006452861188304095,
-          "std_avg_cost": 1.0668705186470323e-05,
+          "mean_avg_cost": 0.0006435773628070175,
+          "std_avg_cost": 1.1442511934944545e-05,
           "arm_fractions": {
-            "Llama-8B": 0.23559999999999998,
-            "Mistral-Large": 0.4892,
-            "Gemini-Pro": 0.27519999999999994
+            "Llama-8B": 0.1116,
+            "Mistral-Large": 0.2512,
+            "Gemini-Pro": 0.6372
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.21174664105954552,
-            "Mistral-Large": 0.18457345421267923,
-            "Gemini-Pro": 0.19047561523722664
+            "Llama-8B": 0.07441397718170961,
+            "Mistral-Large": 0.09750158973062951,
+            "Gemini-Pro": 0.06951373964907943
           },
           "n_seeds": 50
         },
@@ -11029,23 +11029,23 @@
           "step": 975,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.0076278395331509504,
-          "std_lambda": 0.05033022165256595,
-          "mean_cost_ema": 0.000359566645650044,
-          "std_cost_ema": 7.45121359149423e-05,
+          "mean_lambda": 0.027557696205155257,
+          "std_lambda": 0.1457911450852672,
+          "mean_cost_ema": 0.0003395183274520479,
+          "std_cost_ema": 6.869998465492009e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0006377827003988604,
-          "std_avg_cost": 1.0369843411611747e-05,
+          "mean_avg_cost": 0.0006356299806267807,
+          "std_avg_cost": 1.0660626438706543e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1092,
-            "Mistral-Large": 0.3500000000000001,
-            "Gemini-Pro": 0.5408
+            "Llama-8B": 0.0452,
+            "Mistral-Large": 0.2348,
+            "Gemini-Pro": 0.72
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.17650880997842572,
-            "Mistral-Large": 0.1558589105569521,
-            "Gemini-Pro": 0.20337000762157628
+            "Llama-8B": 0.030148963497938035,
+            "Mistral-Large": 0.12058590299035787,
+            "Gemini-Pro": 0.11135528725660045
           },
           "n_seeds": 50
         },
@@ -11053,23 +11053,23 @@
           "step": 1000,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.0,
-          "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034257946684512937,
-          "std_cost_ema": 6.391872350785384e-05,
+          "mean_lambda": 0.005476920132499425,
+          "std_lambda": 0.03833844092749597,
+          "mean_cost_ema": 0.0003332011015583457,
+          "std_cost_ema": 6.369661733433989e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000630224206888889,
-          "std_avg_cost": 1.0351768256269753e-05,
+          "mean_avg_cost": 0.0006280689653333334,
+          "std_avg_cost": 1.0619709707670895e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0512,
-            "Mistral-Large": 0.3236,
-            "Gemini-Pro": 0.6252
+            "Llama-8B": 0.0476,
+            "Mistral-Large": 0.3208,
+            "Gemini-Pro": 0.6315999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.08363348611650717,
-            "Mistral-Large": 0.12410898436454953,
-            "Gemini-Pro": 0.1352218917187598
+            "Llama-8B": 0.03728592227637664,
+            "Mistral-Large": 0.13988337999919792,
+            "Gemini-Pro": 0.13523845606927049
           },
           "n_seeds": 50
         },
@@ -11079,21 +11079,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034715977091258565,
-          "std_cost_ema": 7.43537147429309e-05,
+          "mean_cost_ema": 0.0003224346956598806,
+          "std_cost_ema": 5.585775837580296e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0006233375685636857,
-          "std_avg_cost": 1.0132875536726485e-05,
+          "mean_avg_cost": 0.0006204821142547426,
+          "std_avg_cost": 1.0384878824016644e-05,
           "arm_fractions": {
-            "Llama-8B": 0.04280000000000001,
-            "Mistral-Large": 0.3488,
-            "Gemini-Pro": 0.6084
+            "Llama-8B": 0.04800000000000001,
+            "Mistral-Large": 0.35840000000000005,
+            "Gemini-Pro": 0.5935999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.030727186659373813,
-            "Mistral-Large": 0.11265238568268317,
-            "Gemini-Pro": 0.11356689658522856
+            "Llama-8B": 0.034176014981270125,
+            "Mistral-Large": 0.1266074247427851,
+            "Gemini-Pro": 0.12594856092865847
           },
           "n_seeds": 50
         },
@@ -11103,21 +11103,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003486362158055714,
-          "std_cost_ema": 6.893278607732503e-05,
+          "mean_cost_ema": 0.0003373083930097675,
+          "std_cost_ema": 5.8278500316780315e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0006167875674074073,
-          "std_avg_cost": 1.040575193271962e-05,
+          "mean_avg_cost": 0.0006138822677248677,
+          "std_avg_cost": 1.030212540298305e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0492,
-            "Mistral-Large": 0.3772,
-            "Gemini-Pro": 0.5736000000000001
+            "Llama-8B": 0.047599999999999996,
+            "Mistral-Large": 0.37640000000000007,
+            "Gemini-Pro": 0.5760000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.03103804117530615,
-            "Mistral-Large": 0.11041811445591707,
-            "Gemini-Pro": 0.10691604182722066
+            "Llama-8B": 0.03222173179703412,
+            "Mistral-Large": 0.11346823344002498,
+            "Gemini-Pro": 0.10755463727799001
           },
           "n_seeds": 50
         },
@@ -11127,21 +11127,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003522335424285012,
-          "std_cost_ema": 6.104837980852169e-05,
+          "mean_cost_ema": 0.0003388668875305758,
+          "std_cost_ema": 5.240517723396373e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000610680597622739,
-          "std_avg_cost": 1.0468280238416115e-05,
+          "mean_avg_cost": 0.0006074839617571058,
+          "std_avg_cost": 1.0252718328834201e-05,
           "arm_fractions": {
-            "Llama-8B": 0.054000000000000006,
-            "Mistral-Large": 0.41359999999999997,
-            "Gemini-Pro": 0.5324
+            "Llama-8B": 0.055200000000000006,
+            "Mistral-Large": 0.4016,
+            "Gemini-Pro": 0.5432
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.030265491900843114,
-            "Mistral-Large": 0.11073861115256955,
-            "Gemini-Pro": 0.11177763640371001
+            "Llama-8B": 0.037215050718761626,
+            "Mistral-Large": 0.10945976429720648,
+            "Gemini-Pro": 0.11008069767220774
           },
           "n_seeds": 50
         },
@@ -11151,21 +11151,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003579319828216479,
-          "std_cost_ema": 5.566129937499666e-05,
+          "mean_cost_ema": 0.00034766516749799815,
+          "std_cost_ema": 4.069055082094632e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000604971475959596,
-          "std_avg_cost": 1.0449920430810951e-05,
+          "mean_avg_cost": 0.0006016080604040405,
+          "std_avg_cost": 1.025068079529516e-05,
           "arm_fractions": {
-            "Llama-8B": 0.05160000000000001,
-            "Mistral-Large": 0.45439999999999997,
-            "Gemini-Pro": 0.494
+            "Llama-8B": 0.05400000000000001,
+            "Mistral-Large": 0.4416,
+            "Gemini-Pro": 0.5044
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.034661794529423896,
-            "Mistral-Large": 0.1268725344588024,
-            "Gemini-Pro": 0.1284523257866513
+            "Llama-8B": 0.02835489375751565,
+            "Mistral-Large": 0.1080622043084445,
+            "Gemini-Pro": 0.10286223796904286
           },
           "n_seeds": 50
         },
@@ -11175,21 +11175,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00037102931207064503,
-          "std_cost_ema": 7.48418307860607e-05,
+          "mean_cost_ema": 0.000355693547275941,
+          "std_cost_ema": 6.489853274131138e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005999389001481482,
-          "std_avg_cost": 1.078587695467303e-05,
+          "mean_avg_cost": 0.0005962443518024691,
+          "std_avg_cost": 1.0547943780320324e-05,
           "arm_fractions": {
-            "Llama-8B": 0.056400000000000006,
-            "Mistral-Large": 0.4744,
-            "Gemini-Pro": 0.4692
+            "Llama-8B": 0.0556,
+            "Mistral-Large": 0.45919999999999994,
+            "Gemini-Pro": 0.48519999999999996
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04053442980973089,
-            "Mistral-Large": 0.11859443494532111,
-            "Gemini-Pro": 0.12232481350895245
+            "Llama-8B": 0.03182200496511809,
+            "Mistral-Large": 0.11376888854163954,
+            "Gemini-Pro": 0.10754050399733116
           },
           "n_seeds": 50
         },
@@ -11199,21 +11199,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00036773333994212195,
-          "std_cost_ema": 6.588570877407456e-05,
+          "mean_cost_ema": 0.00035219364149217963,
+          "std_cost_ema": 5.660823261907065e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000594849332173913,
-          "std_avg_cost": 1.0887987677420538e-05,
+          "mean_avg_cost": 0.0005909218297584542,
+          "std_avg_cost": 1.0453586975196458e-05,
           "arm_fractions": {
-            "Llama-8B": 0.06280000000000001,
-            "Mistral-Large": 0.4924000000000001,
-            "Gemini-Pro": 0.4447999999999999
+            "Llama-8B": 0.06480000000000001,
+            "Mistral-Large": 0.47159999999999996,
+            "Gemini-Pro": 0.4636
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04308317537043898,
-            "Mistral-Large": 0.11790776055883684,
-            "Gemini-Pro": 0.12129699089425097
+            "Llama-8B": 0.04011184363750936,
+            "Mistral-Large": 0.11157705857388427,
+            "Gemini-Pro": 0.11090103696539541
           },
           "n_seeds": 50
         },
@@ -11223,21 +11223,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00037284930823156307,
-          "std_cost_ema": 6.713580470953936e-05,
+          "mean_cost_ema": 0.0003686420637358877,
+          "std_cost_ema": 6.583158483779183e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005902475268085107,
-          "std_avg_cost": 1.1023660697722038e-05,
+          "mean_avg_cost": 0.0005863394120094562,
+          "std_avg_cost": 1.0610952698798477e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0684,
-            "Mistral-Large": 0.5039999999999999,
-            "Gemini-Pro": 0.42760000000000004
+            "Llama-8B": 0.0756,
+            "Mistral-Large": 0.4864,
+            "Gemini-Pro": 0.43799999999999994
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04614585571857997,
-            "Mistral-Large": 0.10755463727799001,
-            "Gemini-Pro": 0.11770403561475706
+            "Llama-8B": 0.043135136489873306,
+            "Mistral-Large": 0.10751297596104388,
+            "Gemini-Pro": 0.11329607230614837
           },
           "n_seeds": 50
         },
@@ -11247,21 +11247,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003673180808369566,
-          "std_cost_ema": 4.912776264621931e-05,
+          "mean_cost_ema": 0.0003572063283259453,
+          "std_cost_ema": 5.261482889249207e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005857028825925926,
-          "std_avg_cost": 1.1013106857025867e-05,
+          "mean_avg_cost": 0.0005815415774074073,
+          "std_avg_cost": 1.0434081328260274e-05,
           "arm_fractions": {
-            "Llama-8B": 0.07160000000000001,
-            "Mistral-Large": 0.5064,
-            "Gemini-Pro": 0.42199999999999993
+            "Llama-8B": 0.0812,
+            "Mistral-Large": 0.5075999999999999,
+            "Gemini-Pro": 0.41119999999999995
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05839041017153416,
-            "Mistral-Large": 0.09595332198522363,
-            "Gemini-Pro": 0.11435033887138245
+            "Llama-8B": 0.0553404011550332,
+            "Mistral-Large": 0.10452865635795765,
+            "Gemini-Pro": 0.11566572526033804
           },
           "n_seeds": 50
         },
@@ -11271,21 +11271,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00036119225388252246,
-          "std_cost_ema": 6.313492793904529e-05,
+          "mean_cost_ema": 0.00036070058635184066,
+          "std_cost_ema": 6.359176505506992e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005810881206349206,
-          "std_avg_cost": 1.1513726006796527e-05,
+          "mean_avg_cost": 0.0005770907303401361,
+          "std_avg_cost": 1.08341781014194e-05,
           "arm_fractions": {
-            "Llama-8B": 0.07680000000000001,
-            "Mistral-Large": 0.48719999999999997,
-            "Gemini-Pro": 0.43599999999999994
+            "Llama-8B": 0.08040000000000001,
+            "Mistral-Large": 0.4931999999999999,
+            "Gemini-Pro": 0.42639999999999995
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05619394985227502,
-            "Mistral-Large": 0.11480487794514656,
-            "Gemini-Pro": 0.12630122723077555
+            "Llama-8B": 0.05003838526571376,
+            "Mistral-Large": 0.09819246406929606,
+            "Gemini-Pro": 0.10533299578004986
           },
           "n_seeds": 50
         },
@@ -11295,21 +11295,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003690338594604225,
-          "std_cost_ema": 7.071918241362512e-05,
+          "mean_cost_ema": 0.0003563743490624331,
+          "std_cost_ema": 6.811430061614346e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005769275664,
-          "std_avg_cost": 1.1657188424643529e-05,
+          "mean_avg_cost": 0.0005726390711111111,
+          "std_avg_cost": 1.067072467821568e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0852,
-            "Mistral-Large": 0.4872000000000001,
-            "Gemini-Pro": 0.4276
+            "Llama-8B": 0.0904,
+            "Mistral-Large": 0.45840000000000003,
+            "Gemini-Pro": 0.4512
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05103880876352817,
-            "Mistral-Large": 0.10243124523308304,
-            "Gemini-Pro": 0.10559469683653626
+            "Llama-8B": 0.04967735902803208,
+            "Mistral-Large": 0.11241636891485154,
+            "Gemini-Pro": 0.10726863474473794
           },
           "n_seeds": 50
         },
@@ -11319,21 +11319,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003677056269656291,
-          "std_cost_ema": 6.040984595915058e-05,
+          "mean_cost_ema": 0.0003607499162910629,
+          "std_cost_ema": 6.498350400940071e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005728096130718954,
-          "std_avg_cost": 1.1895586848666073e-05,
+          "mean_avg_cost": 0.0005685326692810457,
+          "std_avg_cost": 1.0586046819866303e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09360000000000002,
-            "Mistral-Large": 0.48840000000000006,
-            "Gemini-Pro": 0.418
+            "Llama-8B": 0.10119999999999997,
+            "Mistral-Large": 0.4548,
+            "Gemini-Pro": 0.444
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.047906575749055574,
-            "Mistral-Large": 0.11993931799039045,
-            "Gemini-Pro": 0.12028299963003916
+            "Llama-8B": 0.047566374677917175,
+            "Mistral-Large": 0.11803795999592674,
+            "Gemini-Pro": 0.12019983361053377
           },
           "n_seeds": 50
         },
@@ -11343,21 +11343,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003776444358089033,
-          "std_cost_ema": 7.673760384224035e-05,
+          "mean_cost_ema": 0.00036539771150382233,
+          "std_cost_ema": 7.081465246095175e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000568963308034188,
-          "std_avg_cost": 1.1920905768844054e-05,
+          "mean_avg_cost": 0.000564466897948718,
+          "std_avg_cost": 1.0672642863427099e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0984,
-            "Mistral-Large": 0.48119999999999996,
-            "Gemini-Pro": 0.42040000000000005
+            "Llama-8B": 0.1076,
+            "Mistral-Large": 0.46599999999999997,
+            "Gemini-Pro": 0.4264
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05583403979652557,
-            "Mistral-Large": 0.10862117657252658,
-            "Gemini-Pro": 0.12049829874317729
+            "Llama-8B": 0.04994236678412428,
+            "Mistral-Large": 0.1004987562112089,
+            "Gemini-Pro": 0.10449421036593368
           },
           "n_seeds": 50
         },
@@ -11367,21 +11367,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003632835214864147,
-          "std_cost_ema": 6.297743609258272e-05,
+          "mean_cost_ema": 0.00035854468999379303,
+          "std_cost_ema": 6.21206733413752e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005648757449056603,
-          "std_avg_cost": 1.1806110329425556e-05,
+          "mean_avg_cost": 0.0005604927020545073,
+          "std_avg_cost": 1.0626567986902609e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09639999999999999,
-            "Mistral-Large": 0.4832,
-            "Gemini-Pro": 0.4204
+            "Llama-8B": 0.1072,
+            "Mistral-Large": 0.47119999999999995,
+            "Gemini-Pro": 0.4216
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.049427118062861,
-            "Mistral-Large": 0.10263410739125664,
-            "Gemini-Pro": 0.102566271259123
+            "Llama-8B": 0.05272722257050906,
+            "Mistral-Large": 0.096760322446755,
+            "Gemini-Pro": 0.0906721566965295
           },
           "n_seeds": 50
         },
@@ -11391,21 +11391,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034512105585063194,
-          "std_cost_ema": 6.405087808095206e-05,
+          "mean_cost_ema": 0.00033957315864867007,
+          "std_cost_ema": 4.975182368716039e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005605424274897118,
-          "std_avg_cost": 1.1613627729614024e-05,
+          "mean_avg_cost": 0.0005561573591769547,
+          "std_avg_cost": 1.046883424509952e-05,
           "arm_fractions": {
-            "Llama-8B": 0.11,
-            "Mistral-Large": 0.4720000000000001,
-            "Gemini-Pro": 0.41800000000000004
+            "Llama-8B": 0.11319999999999998,
+            "Mistral-Large": 0.45199999999999996,
+            "Gemini-Pro": 0.4348
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.0483735464897913,
-            "Mistral-Large": 0.10552724766618336,
-            "Gemini-Pro": 0.09602083107326244
+            "Llama-8B": 0.05565752419933894,
+            "Mistral-Large": 0.09448809448814173,
+            "Gemini-Pro": 0.09942313614043766
           },
           "n_seeds": 50
         },
@@ -11415,21 +11415,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00036567137598352397,
-          "std_cost_ema": 7.426209577103528e-05,
+          "mean_cost_ema": 0.00035093097552361474,
+          "std_cost_ema": 5.676574127219702e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005570115246868687,
-          "std_avg_cost": 1.1332539442343734e-05,
+          "mean_avg_cost": 0.0005524403650909091,
+          "std_avg_cost": 1.0085170361825783e-05,
           "arm_fractions": {
-            "Llama-8B": 0.11520000000000001,
-            "Mistral-Large": 0.47600000000000003,
-            "Gemini-Pro": 0.40880000000000005
+            "Llama-8B": 0.11479999999999999,
+            "Mistral-Large": 0.44160000000000005,
+            "Gemini-Pro": 0.4436
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.049728864857344166,
-            "Mistral-Large": 0.0965815717411971,
-            "Gemini-Pro": 0.08710086107496297
+            "Llama-8B": 0.04879508171937004,
+            "Mistral-Large": 0.09845526903116968,
+            "Gemini-Pro": 0.10172040110027093
           },
           "n_seeds": 50
         },
@@ -11439,21 +11439,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00035255478927761867,
-          "std_cost_ema": 7.580664270286314e-05,
+          "mean_cost_ema": 0.00034150612619419956,
+          "std_cost_ema": 5.555838144984142e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.000553313483968254,
-          "std_avg_cost": 1.133425824682558e-05,
+          "mean_avg_cost": 0.0005486693077777778,
+          "std_avg_cost": 1.0170778884599391e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10640000000000001,
-            "Mistral-Large": 0.46879999999999994,
-            "Gemini-Pro": 0.42480000000000007
+            "Llama-8B": 0.10959999999999999,
+            "Mistral-Large": 0.44120000000000004,
+            "Gemini-Pro": 0.44919999999999993
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04603303161861057,
-            "Mistral-Large": 0.10080952335965089,
-            "Gemini-Pro": 0.09587992490610325
+            "Llama-8B": 0.04651709363234122,
+            "Mistral-Large": 0.09595082073645854,
+            "Gemini-Pro": 0.08810993133580347
           },
           "n_seeds": 50
         },
@@ -11461,23 +11461,23 @@
           "step": 1425,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.0,
-          "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003420883806227458,
-          "std_cost_ema": 7.036783580481328e-05,
+          "mean_lambda": 0.00012615842883193195,
+          "std_lambda": 0.0008831090018235236,
+          "mean_cost_ema": 0.00034902385781385083,
+          "std_cost_ema": 8.377562144348644e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005495108372709552,
-          "std_avg_cost": 1.0920636375796618e-05,
+          "mean_avg_cost": 0.0005451181699805068,
+          "std_avg_cost": 1.040221171118204e-05,
           "arm_fractions": {
-            "Llama-8B": 0.11679999999999997,
-            "Mistral-Large": 0.4336,
-            "Gemini-Pro": 0.4496
+            "Llama-8B": 0.11320000000000001,
+            "Mistral-Large": 0.42839999999999995,
+            "Gemini-Pro": 0.4584
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04921138079753503,
-            "Mistral-Large": 0.10091104994003382,
-            "Gemini-Pro": 0.10121185701290139
+            "Llama-8B": 0.04908930637114361,
+            "Mistral-Large": 0.09558995763154203,
+            "Gemini-Pro": 0.09590328461528311
           },
           "n_seeds": 50
         },
@@ -11487,21 +11487,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003356992472968223,
-          "std_cost_ema": 5.244611184313039e-05,
+          "mean_cost_ema": 0.0003248825645919643,
+          "std_cost_ema": 4.8003343615698735e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005457923932567049,
-          "std_avg_cost": 1.1003683399980499e-05,
+          "mean_avg_cost": 0.0005411496806130269,
+          "std_avg_cost": 1.0429022015951905e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1252,
-            "Mistral-Large": 0.42839999999999995,
-            "Gemini-Pro": 0.4464
+            "Llama-8B": 0.1168,
+            "Mistral-Large": 0.4288,
+            "Gemini-Pro": 0.45439999999999997
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05318796856432853,
-            "Mistral-Large": 0.10088329891513265,
-            "Gemini-Pro": 0.09979498985420059
+            "Llama-8B": 0.051436951698171224,
+            "Mistral-Large": 0.09043539130229934,
+            "Gemini-Pro": 0.09732748840897928
           },
           "n_seeds": 50
         },
@@ -11511,21 +11511,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003307757832439801,
-          "std_cost_ema": 5.069565638685232e-05,
+          "mean_cost_ema": 0.00033310140658799074,
+          "std_cost_ema": 4.522002030277054e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005421212156685499,
-          "std_avg_cost": 1.115085891152496e-05,
+          "mean_avg_cost": 0.000537653231638418,
+          "std_avg_cost": 1.0418633915652888e-05,
           "arm_fractions": {
-            "Llama-8B": 0.122,
-            "Mistral-Large": 0.42519999999999997,
-            "Gemini-Pro": 0.4527999999999999
+            "Llama-8B": 0.114,
+            "Mistral-Large": 0.4224,
+            "Gemini-Pro": 0.4636
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.044045431091090485,
-            "Mistral-Large": 0.07629521610166655,
-            "Gemini-Pro": 0.08897280483383672
+            "Llama-8B": 0.04983974317750845,
+            "Mistral-Large": 0.08281449148548822,
+            "Gemini-Pro": 0.09326864424875062
           },
           "n_seeds": 50
         },
@@ -11535,21 +11535,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00032148414836979917,
-          "std_cost_ema": 5.203967285943554e-05,
+          "mean_cost_ema": 0.0003264331351783908,
+          "std_cost_ema": 5.1586904389030486e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005383207823703704,
-          "std_avg_cost": 1.117050398294457e-05,
+          "mean_avg_cost": 0.0005340620260740741,
+          "std_avg_cost": 1.0385390512918802e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10719999999999998,
-            "Mistral-Large": 0.4016,
-            "Gemini-Pro": 0.4912
+            "Llama-8B": 0.09759999999999999,
+            "Mistral-Large": 0.4064,
+            "Gemini-Pro": 0.496
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05071646675390548,
-            "Mistral-Large": 0.08624059368997875,
-            "Gemini-Pro": 0.08801454425264042
+            "Llama-8B": 0.04893097178679369,
+            "Mistral-Large": 0.09777034315169401,
+            "Gemini-Pro": 0.10376897416858277
           },
           "n_seeds": 50
         },
@@ -11559,21 +11559,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00032919475037383945,
-          "std_cost_ema": 5.436125226909671e-05,
+          "mean_cost_ema": 0.0003254660360382001,
+          "std_cost_ema": 4.92533161601621e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005349304595992715,
-          "std_avg_cost": 1.110837789150263e-05,
+          "mean_avg_cost": 0.0005306125333333333,
+          "std_avg_cost": 1.038876662504851e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09759999999999999,
-            "Mistral-Large": 0.4,
-            "Gemini-Pro": 0.5024
+            "Llama-8B": 0.0892,
+            "Mistral-Large": 0.39159999999999995,
+            "Gemini-Pro": 0.5192
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.0520983684965278,
-            "Mistral-Large": 0.10453707476297584,
-            "Gemini-Pro": 0.1041260774253981
+            "Llama-8B": 0.03582401429209184,
+            "Mistral-Large": 0.1007245749556681,
+            "Gemini-Pro": 0.0944847077573932
           },
           "n_seeds": 50
         },
@@ -11583,21 +11583,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003386510014588306,
-          "std_cost_ema": 4.690444610402024e-05,
+          "mean_cost_ema": 0.00033311033848382643,
+          "std_cost_ema": 5.1470140040770775e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005317512017204301,
-          "std_avg_cost": 1.0674116369952833e-05,
+          "mean_avg_cost": 0.0005273539460931901,
+          "std_avg_cost": 1.031197886941783e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10200000000000001,
-            "Mistral-Large": 0.39880000000000004,
-            "Gemini-Pro": 0.49920000000000003
+            "Llama-8B": 0.0992,
+            "Mistral-Large": 0.38919999999999993,
+            "Gemini-Pro": 0.5115999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.046000000000000006,
-            "Mistral-Large": 0.08849045146229055,
-            "Gemini-Pro": 0.1006347852385049
+            "Llama-8B": 0.03856630653822064,
+            "Mistral-Large": 0.08581002272462115,
+            "Gemini-Pro": 0.09313130515567793
           },
           "n_seeds": 50
         },
@@ -11607,21 +11607,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00033535653923463365,
-          "std_cost_ema": 5.507250125207876e-05,
+          "mean_cost_ema": 0.0003312725367110511,
+          "std_cost_ema": 4.7620260025716075e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005285259630335097,
-          "std_avg_cost": 1.0391651740455936e-05,
+          "mean_avg_cost": 0.0005241816560141093,
+          "std_avg_cost": 1.0124676888882219e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09639999999999999,
-            "Mistral-Large": 0.3988000000000001,
-            "Gemini-Pro": 0.5047999999999999
+            "Llama-8B": 0.10559999999999999,
+            "Mistral-Large": 0.3968,
+            "Gemini-Pro": 0.49760000000000004
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04283736686585673,
-            "Mistral-Large": 0.10011273645246144,
-            "Gemini-Pro": 0.11430205597450992
+            "Llama-8B": 0.04157691667259611,
+            "Mistral-Large": 0.09652854500094778,
+            "Gemini-Pro": 0.09892542645851975
           },
           "n_seeds": 50
         },
@@ -11631,21 +11631,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003396609016443739,
-          "std_cost_ema": 5.358779272501942e-05,
+          "mean_cost_ema": 0.0003335737343983972,
+          "std_cost_ema": 4.918345153541684e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005256424901388889,
-          "std_avg_cost": 1.0582901993753654e-05,
+          "mean_avg_cost": 0.0005212594338888888,
+          "std_avg_cost": 9.892431869470042e-06,
           "arm_fractions": {
-            "Llama-8B": 0.09759999999999999,
-            "Mistral-Large": 0.4292,
-            "Gemini-Pro": 0.4732
+            "Llama-8B": 0.1012,
+            "Mistral-Large": 0.4176,
+            "Gemini-Pro": 0.48120000000000007
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05148048173822774,
-            "Mistral-Large": 0.11490587452345505,
-            "Gemini-Pro": 0.12090392880299632
+            "Llama-8B": 0.04823442753884408,
+            "Mistral-Large": 0.09546852884589768,
+            "Gemini-Pro": 0.09028045192620604
           },
           "n_seeds": 50
         },
@@ -11655,21 +11655,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003435966804619163,
-          "std_cost_ema": 5.2730303432493777e-05,
+          "mean_cost_ema": 0.0003469103188204411,
+          "std_cost_ema": 4.90002131857648e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005228725440000001,
-          "std_avg_cost": 1.072367922380859e-05,
+          "mean_avg_cost": 0.0005186221911794872,
+          "std_avg_cost": 1.0026740730807406e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1,
-            "Mistral-Large": 0.43440000000000006,
-            "Gemini-Pro": 0.46559999999999996
+            "Llama-8B": 0.1012,
+            "Mistral-Large": 0.43119999999999997,
+            "Gemini-Pro": 0.46759999999999996
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04915282290977803,
-            "Mistral-Large": 0.12387348384541383,
-            "Gemini-Pro": 0.1208
+            "Llama-8B": 0.05519565200267137,
+            "Mistral-Large": 0.10726863474473793,
+            "Gemini-Pro": 0.10173612927569045
           },
           "n_seeds": 50
         },
@@ -11679,21 +11679,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00033350999930277877,
-          "std_cost_ema": 4.799613694123773e-05,
+          "mean_cost_ema": 0.0003352966392957012,
+          "std_cost_ema": 5.074736506536401e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005200207924579124,
-          "std_avg_cost": 1.0622654994348513e-05,
+          "mean_avg_cost": 0.000515913012929293,
+          "std_avg_cost": 1.0038936736479455e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1008,
-            "Mistral-Large": 0.418,
-            "Gemini-Pro": 0.48120000000000007
+            "Llama-8B": 0.106,
+            "Mistral-Large": 0.43160000000000004,
+            "Gemini-Pro": 0.46240000000000003
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05585123096226259,
-            "Mistral-Large": 0.10705138952858106,
-            "Gemini-Pro": 0.11088083693767828
+            "Llama-8B": 0.044045431091090485,
+            "Mistral-Large": 0.10454396204468241,
+            "Gemini-Pro": 0.10512012176553069
           },
           "n_seeds": 50
         },
@@ -11703,21 +11703,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00032844622237042403,
-          "std_cost_ema": 4.6566657148191814e-05,
+          "mean_cost_ema": 0.00033167010521360535,
+          "std_cost_ema": 4.936193449940418e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005172001427529023,
-          "std_avg_cost": 1.0429784936927315e-05,
+          "mean_avg_cost": 0.000513123712902156,
+          "std_avg_cost": 1.010107031169885e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1048,
-            "Mistral-Large": 0.4244,
-            "Gemini-Pro": 0.47080000000000005
+            "Llama-8B": 0.10680000000000002,
+            "Mistral-Large": 0.4264,
+            "Gemini-Pro": 0.46680000000000005
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05389768084064471,
-            "Mistral-Large": 0.10176757833416299,
-            "Gemini-Pro": 0.10719776117065134
+            "Llama-8B": 0.04091161204352623,
+            "Mistral-Large": 0.09899010051515253,
+            "Gemini-Pro": 0.09688013212212294
           },
           "n_seeds": 50
         },
@@ -11727,21 +11727,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003352327100363951,
-          "std_cost_ema": 6.437047348601887e-05,
+          "mean_cost_ema": 0.000338703674216483,
+          "std_cost_ema": 6.893239616969225e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005145421839215687,
-          "std_avg_cost": 1.0612416038108142e-05,
+          "mean_avg_cost": 0.0005105582695424836,
+          "std_avg_cost": 1.030141226118971e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1044,
-            "Mistral-Large": 0.4296,
-            "Gemini-Pro": 0.466
+            "Llama-8B": 0.10959999999999999,
+            "Mistral-Large": 0.41519999999999996,
+            "Gemini-Pro": 0.4752
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05064227483042206,
-            "Mistral-Large": 0.10270267766713778,
-            "Gemini-Pro": 0.10121264743103996
+            "Llama-8B": 0.04886552977304145,
+            "Mistral-Large": 0.10004478996929325,
+            "Gemini-Pro": 0.09537798488120831
           },
           "n_seeds": 50
         },
@@ -11751,21 +11751,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034162804154906005,
-          "std_cost_ema": 6.095496497645569e-05,
+          "mean_cost_ema": 0.0003434156244390721,
+          "std_cost_ema": 5.9938062989006705e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005120166831561997,
-          "std_avg_cost": 1.0783974379368553e-05,
+          "mean_avg_cost": 0.0005081217378421901,
+          "std_avg_cost": 1.0398224600078097e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10719999999999999,
-            "Mistral-Large": 0.43199999999999994,
-            "Gemini-Pro": 0.4608
+            "Llama-8B": 0.10760000000000002,
+            "Mistral-Large": 0.4156000000000001,
+            "Gemini-Pro": 0.4768
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05055848098983987,
-            "Mistral-Large": 0.09830564581955606,
-            "Gemini-Pro": 0.09919354817728822
+            "Llama-8B": 0.055120232220120406,
+            "Mistral-Large": 0.09767619976227576,
+            "Gemini-Pro": 0.09375371992619813
           },
           "n_seeds": 50
         },
@@ -11775,21 +11775,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034329778629373797,
-          "std_cost_ema": 5.502922868118517e-05,
+          "mean_cost_ema": 0.0003580588292491189,
+          "std_cost_ema": 5.2924338753832484e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005096687264761904,
-          "std_avg_cost": 1.0705668307643067e-05,
+          "mean_avg_cost": 0.0005060491871746031,
+          "std_avg_cost": 1.0188970844652017e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1096,
-            "Mistral-Large": 0.42839999999999995,
-            "Gemini-Pro": 0.462
+            "Llama-8B": 0.09480000000000001,
+            "Mistral-Large": 0.4288,
+            "Gemini-Pro": 0.4764
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05126246189952255,
-            "Mistral-Large": 0.10338974804108965,
-            "Gemini-Pro": 0.1109414259868693
+            "Llama-8B": 0.044866022778935956,
+            "Mistral-Large": 0.09043539130229934,
+            "Gemini-Pro": 0.085947891189953
           },
           "n_seeds": 50
         },
@@ -11799,21 +11799,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003366498087873349,
-          "std_cost_ema": 5.628386243161988e-05,
+          "mean_cost_ema": 0.00033618698621705337,
+          "std_cost_ema": 5.1293781306618264e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005071790953364632,
-          "std_avg_cost": 1.0601049587902512e-05,
+          "mean_avg_cost": 0.0005035642402503913,
+          "std_avg_cost": 9.953943235553482e-06,
           "arm_fractions": {
-            "Llama-8B": 0.11760000000000001,
-            "Mistral-Large": 0.4192,
-            "Gemini-Pro": 0.46319999999999995
+            "Llama-8B": 0.10399999999999998,
+            "Mistral-Large": 0.4236,
+            "Gemini-Pro": 0.47240000000000004
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.049256877692358855,
-            "Mistral-Large": 0.09173527129735869,
-            "Gemini-Pro": 0.09536120804603934
+            "Llama-8B": 0.04019950248448357,
+            "Mistral-Large": 0.1017990176769894,
+            "Gemini-Pro": 0.0947324653959771
           },
           "n_seeds": 50
         },
@@ -11823,21 +11823,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00033046355815070504,
-          "std_cost_ema": 4.362138091857508e-05,
+          "mean_cost_ema": 0.0003304580375440551,
+          "std_cost_ema": 4.97575332326407e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005046899804938272,
-          "std_avg_cost": 1.044840267290392e-05,
+          "mean_avg_cost": 0.0005011600649382717,
+          "std_avg_cost": 9.994840768790073e-06,
           "arm_fractions": {
-            "Llama-8B": 0.11600000000000002,
-            "Mistral-Large": 0.4236,
-            "Gemini-Pro": 0.4603999999999999
+            "Llama-8B": 0.10999999999999999,
+            "Mistral-Large": 0.41840000000000005,
+            "Gemini-Pro": 0.4716
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.041569219381653054,
-            "Mistral-Large": 0.10436014564957258,
-            "Gemini-Pro": 0.10434481299997618
+            "Llama-8B": 0.053851648071345036,
+            "Mistral-Large": 0.10975171980429282,
+            "Gemini-Pro": 0.10681498022281331
           },
           "n_seeds": 50
         },
@@ -11847,21 +11847,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00033634786393877325,
-          "std_cost_ema": 4.5779996097412e-05,
+          "mean_cost_ema": 0.0003394946188584533,
+          "std_cost_ema": 5.491366198803768e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0005024767006578947,
-          "std_avg_cost": 1.0362893687775198e-05,
+          "mean_avg_cost": 0.0004990138294346979,
+          "std_avg_cost": 9.835531318111129e-06,
           "arm_fractions": {
-            "Llama-8B": 0.102,
-            "Mistral-Large": 0.4464,
-            "Gemini-Pro": 0.45159999999999995
+            "Llama-8B": 0.1012,
+            "Mistral-Large": 0.45080000000000003,
+            "Gemini-Pro": 0.44800000000000006
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04617358552246078,
-            "Mistral-Large": 0.08675851543220413,
-            "Gemini-Pro": 0.09617400896292096
+            "Llama-8B": 0.045327254494398846,
+            "Mistral-Large": 0.09872871922596789,
+            "Gemini-Pro": 0.09691233151668574
           },
           "n_seeds": 50
         }
@@ -11877,13 +11877,13 @@
         }
       },
       "phase2_summary": {
-        "mean_reward": 0.9196143201754385,
-        "mean_cost": 0.0003465735,
-        "mean_lambda": 0.0069532938610267795,
+        "mean_reward": 0.9213212719298245,
+        "mean_cost": 0.0003396477575536062,
+        "mean_lambda": 0.007839872587407152,
         "arm_fractions": {
-          "Llama-8B": 0.09635964912280702,
-          "Mistral-Large": 0.43708333333333343,
-          "Gemini-Pro": 0.4665570175438596
+          "Llama-8B": 0.08980263157894736,
+          "Mistral-Large": 0.41605263157894734,
+          "Gemini-Pro": 0.49414473684210525
         }
       },
       "per_seed_phase1_reward": [
@@ -11939,56 +11939,56 @@
         0.8882456140350876
       ],
       "per_seed_phase2_reward": [
-        0.9160416666666668,
+        0.9190197368421053,
         0.921453947368421,
-        0.9159254385964912,
-        0.9073815789473684,
-        0.919220394736842,
-        0.9247489035087719,
-        0.918438596491228,
-        0.9196228070175437,
-        0.9215866228070175,
-        0.9263771929824561,
-        0.9227313596491228,
-        0.918921052631579,
-        0.9192467105263158,
-        0.9204824561403508,
-        0.9173048245614036,
-        0.9195416666666666,
-        0.9163717105263158,
-        0.9223925438596491,
-        0.9217006578947369,
+        0.9229561403508773,
+        0.9158530701754386,
+        0.921406798245614,
+        0.9224451754385965,
+        0.9218322368421051,
+        0.9200712719298246,
+        0.9247214912280701,
+        0.9234769736842106,
+        0.9254013157894737,
+        0.9239978070175437,
+        0.9226513157894737,
+        0.9296063596491227,
+        0.9243541666666666,
+        0.919156798245614,
+        0.9142434210526316,
+        0.9233059210526317,
+        0.9191458333333333,
         0.919546052631579,
-        0.9218541666666666,
-        0.9152434210526316,
-        0.9158015350877193,
-        0.9220942982456141,
-        0.9173048245614036,
-        0.9218048245614036,
-        0.9230986842105263,
-        0.9199013157894738,
-        0.9210416666666666,
-        0.9161052631578948,
-        0.9174122807017544,
-        0.9161677631578948,
-        0.9203958333333334,
-        0.9226403508771931,
-        0.9250855263157894,
-        0.9168333333333334,
-        0.9220361842105262,
-        0.9187236842105263,
-        0.9195953947368422,
-        0.9175625000000001,
-        0.9195197368421052,
-        0.9240603070175438,
-        0.9226557017543859,
+        0.917769736842105,
+        0.9217839912280702,
+        0.9189495614035088,
+        0.9260482456140351,
+        0.9254967105263158,
+        0.9175559210526315,
+        0.9248695175438596,
+        0.9211513157894737,
+        0.9193640350877194,
+        0.9198212719298245,
+        0.9174155701754386,
+        0.9244396929824561,
+        0.9205537280701754,
+        0.9211600877192982,
+        0.9246085526315789,
+        0.9192083333333333,
+        0.9244594298245614,
+        0.9150668859649123,
+        0.9218486842105263,
+        0.9193541666666667,
+        0.9234660087719299,
+        0.924094298245614,
+        0.9188114035087718,
         0.920642543859649,
-        0.9197675438596491,
-        0.9187236842105263,
-        0.917594298245614,
-        0.917875,
-        0.9228826754385965,
-        0.9172554824561404
+        0.9189934210526315,
+        0.9217938596491227,
+        0.9230328947368421,
+        0.9168168859649124,
+        0.9221425438596491,
+        0.9206984649122807
       ],
       "per_seed_phase1_cost": [
         0.0006651044956140352,
@@ -12043,56 +12043,56 @@
         0.0006652628289473684
       ],
       "per_seed_phase2_cost": [
-        0.000349881980994152,
+        0.00033432350146198834,
         0.0003297732456140351,
-        0.00031923913255360625,
-        0.00032579762426900586,
-        0.000341714059454191,
-        0.00035815143762183235,
-        0.0003569860501949318,
-        0.00035052166179337234,
-        0.00033816140350877193,
-        0.00034517029727095514,
-        0.0003034141934697856,
-        0.0003572927875243664,
-        0.0003563731725146199,
-        0.0003181533016569201,
-        0.00033686643518518515,
-        0.00032140135233918124,
-        0.0003541343201754386,
-        0.00034796962719298245,
-        0.00034746338937621834,
+        0.0003210708089668616,
+        0.00033985907651072123,
+        0.0003406735501949318,
+        0.00030711335282651076,
+        0.00035354601608187134,
+        0.00033959043615984405,
+        0.0003250433723196881,
+        0.0003361944566276803,
+        0.0003282620735867446,
+        0.0003227352095516569,
+        0.0003427143518518518,
+        0.00032053902290448343,
+        0.0003140390960038987,
+        0.00033161401072124755,
+        0.0003391608065302144,
+        0.0003071039961013645,
+        0.0003609564083820663,
         0.0003705012792397661,
-        0.00033882471978557505,
-        0.00036741974902534117,
-        0.00034346959064327485,
-        0.00033066440058479536,
-        0.000371675548245614,
-        0.00031994490740740736,
-        0.00038507361111111114,
-        0.0003710860867446394,
-        0.0003824850999025341,
-        0.0003493700779727096,
-        0.0003556211257309941,
-        0.00034918261452241713,
-        0.00037199586988304094,
-        0.00036493551413255363,
-        0.0003469031067251462,
-        0.0003335583455165692,
-        0.0003755508771929824,
-        0.0003581677875243665,
-        0.00037685163255360627,
-        0.00032984339668615985,
-        0.0003305924829434697,
-        0.0003269868055555556,
-        0.00030461151315789464,
+        0.00033994088693957116,
+        0.000351932443957115,
+        0.0003436412402534114,
+        0.0003236695175438596,
+        0.00033910102339181286,
+        0.000363180884502924,
+        0.00031718650097465885,
+        0.0003743202607212476,
+        0.00038881558235867445,
+        0.0003469100999025341,
+        0.0003706463084795322,
+        0.00031788628167641323,
+        0.0003407539839181287,
+        0.00036006818957115013,
+        0.000350224537037037,
+        0.0003425379020467836,
+        0.00032963313840155944,
+        0.00033217701023391817,
+        0.00034823657407407406,
+        0.0003307513645224172,
+        0.00032304817251461993,
+        0.00033026461988304093,
+        0.0003511091252436647,
         0.00034111112329434696,
-        0.00033795075536062377,
-        0.00035576117202729043,
-        0.00033941542397660814,
-        0.0003588846247563353,
-        0.0003139711744639376,
-        0.00036779911062378176
+        0.0003522395589668616,
+        0.00035761955409356725,
+        0.0003571707602339181,
+        0.00034128284600389865,
+        0.0003295662524366472,
+        0.00032254806286549707
       ]
     },
     "Fixed Policy (loose)": {
@@ -17008,23 +17008,23 @@
           "step": 925,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.0666995020977322,
-          "std_lambda": 0.19288456171842872,
-          "mean_cost_ema": 0.001160380044262801,
-          "std_cost_ema": 0.00035833340821972686,
+          "mean_lambda": 0.06515959314558223,
+          "std_lambda": 0.19345197598111494,
+          "mean_cost_ema": 0.0011272564670692096,
+          "std_cost_ema": 0.0003395867921716866,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.001805702158918919,
-          "std_avg_cost": 2.409668882966994e-05,
+          "mean_avg_cost": 0.001804727018018018,
+          "std_avg_cost": 2.4115912285394436e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1648,
-            "Mistral-Large": 0.6859999999999999,
-            "Gemini-Pro": 0.1492
+            "Llama-8B": 0.14120000000000002,
+            "Mistral-Large": 0.5916,
+            "Gemini-Pro": 0.26720000000000005
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.12809746289446955,
-            "Mistral-Large": 0.11511733144926528,
-            "Gemini-Pro": 0.0647715987142513
+            "Llama-8B": 0.09636679926198649,
+            "Mistral-Large": 0.10822864685470293,
+            "Gemini-Pro": 0.05996799146211252
           },
           "n_seeds": 50
         },
@@ -17032,23 +17032,23 @@
           "step": 950,
           "phase": "price-drop",
           "phase_boundary": 912,
-          "mean_lambda": 0.021797450758222866,
-          "std_lambda": 0.1085759304708415,
-          "mean_cost_ema": 0.0005736676899449678,
-          "std_cost_ema": 0.00010296793865255964,
+          "mean_lambda": 0.024036115189599885,
+          "std_lambda": 0.11967223528007165,
+          "mean_cost_ema": 0.000558007123923917,
+          "std_cost_ema": 9.777060624461708e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0017674693636257307,
-          "std_avg_cost": 2.2923984129653316e-05,
+          "mean_avg_cost": 0.0017661727299415203,
+          "std_avg_cost": 2.3083983121017828e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1216,
-            "Mistral-Large": 0.5032,
-            "Gemini-Pro": 0.37520000000000003
+            "Llama-8B": 0.08,
+            "Mistral-Large": 0.3688,
+            "Gemini-Pro": 0.5512
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.1372786946324884,
-            "Mistral-Large": 0.10743258351170747,
-            "Gemini-Pro": 0.12728299179387637
+            "Llama-8B": 0.054405882034941774,
+            "Mistral-Large": 0.12825973647251893,
+            "Gemini-Pro": 0.12067543246245276
           },
           "n_seeds": 50
         },
@@ -17058,21 +17058,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00040754443499474387,
-          "std_cost_ema": 6.0979685468959026e-05,
+          "mean_cost_ema": 0.00040014326303023935,
+          "std_cost_ema": 5.6897993229880246e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0017309628561823361,
-          "std_avg_cost": 2.2026375520624594e-05,
+          "mean_avg_cost": 0.001729580787578348,
+          "std_avg_cost": 2.1834710983345614e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09159999999999999,
-            "Mistral-Large": 0.35839999999999994,
-            "Gemini-Pro": 0.55
+            "Llama-8B": 0.06720000000000001,
+            "Mistral-Large": 0.314,
+            "Gemini-Pro": 0.6187999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.10198745020834671,
-            "Mistral-Large": 0.10559090869956561,
-            "Gemini-Pro": 0.1470374102057024
+            "Llama-8B": 0.038731898998112656,
+            "Mistral-Large": 0.13788400922514546,
+            "Gemini-Pro": 0.13899122274445966
           },
           "n_seeds": 50
         },
@@ -17082,21 +17082,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034809062381368214,
-          "std_cost_ema": 5.574056107653379e-05,
+          "mean_cost_ema": 0.0003474930860594134,
+          "std_cost_ema": 5.3121221213725996e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0016958484558888887,
-          "std_avg_cost": 2.1571582216124322e-05,
+          "mean_avg_cost": 0.0016945256223333332,
+          "std_avg_cost": 2.1568271507835282e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0908,
-            "Mistral-Large": 0.3511999999999999,
-            "Gemini-Pro": 0.5579999999999999
+            "Llama-8B": 0.08319999999999998,
+            "Mistral-Large": 0.348,
+            "Gemini-Pro": 0.5688
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04999359959034757,
-            "Mistral-Large": 0.11758639377070801,
-            "Gemini-Pro": 0.12317467272130257
+            "Llama-8B": 0.04007193531637822,
+            "Mistral-Large": 0.12868566353716332,
+            "Gemini-Pro": 0.13303593499502306
           },
           "n_seeds": 50
         },
@@ -17106,21 +17106,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034160707657904005,
-          "std_cost_ema": 7.035315571946938e-05,
+          "mean_cost_ema": 0.0003431687638759926,
+          "std_cost_ema": 6.936561655351045e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0016627741271544715,
-          "std_avg_cost": 2.0989193495166943e-05,
+          "mean_avg_cost": 0.0016615184753387535,
+          "std_avg_cost": 2.0837721366391782e-05,
           "arm_fractions": {
             "Llama-8B": 0.07880000000000001,
-            "Mistral-Large": 0.37760000000000005,
-            "Gemini-Pro": 0.5436000000000001
+            "Mistral-Large": 0.38280000000000003,
+            "Gemini-Pro": 0.5384
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.03782274448000832,
-            "Mistral-Large": 0.12583417659761595,
-            "Gemini-Pro": 0.12647149876553215
+            "Llama-8B": 0.04164804917400094,
+            "Mistral-Large": 0.11993398184001064,
+            "Gemini-Pro": 0.12476153253306886
           },
           "n_seeds": 50
         },
@@ -17130,21 +17130,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00035937126035582597,
-          "std_cost_ema": 8.225767291850653e-05,
+          "mean_cost_ema": 0.00035949149485589105,
+          "std_cost_ema": 8.074035441094204e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0016318456267724868,
-          "std_avg_cost": 2.0647812094180325e-05,
+          "mean_avg_cost": 0.0016306300075132273,
+          "std_avg_cost": 2.0263246813199634e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0664,
+            "Llama-8B": 0.0648,
             "Mistral-Large": 0.4276,
-            "Gemini-Pro": 0.5059999999999999
+            "Gemini-Pro": 0.5075999999999999
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.03542654372077524,
-            "Mistral-Large": 0.12654738243045568,
-            "Gemini-Pro": 0.12323960402403118
+            "Llama-8B": 0.036564463622484604,
+            "Mistral-Large": 0.12508493114680122,
+            "Gemini-Pro": 0.12379919224292217
           },
           "n_seeds": 50
         },
@@ -17154,21 +17154,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003853213137298736,
-          "std_cost_ema": 7.097119660936255e-05,
+          "mean_cost_ema": 0.0003729617525619954,
+          "std_cost_ema": 7.223641075645715e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0016030318345219635,
-          "std_avg_cost": 2.0067471867362752e-05,
+          "mean_avg_cost": 0.001601471438656331,
+          "std_avg_cost": 1.9693169658623558e-05,
           "arm_fractions": {
-            "Llama-8B": 0.07320000000000002,
-            "Mistral-Large": 0.48120000000000007,
-            "Gemini-Pro": 0.44559999999999994
+            "Llama-8B": 0.066,
+            "Mistral-Large": 0.4704,
+            "Gemini-Pro": 0.46360000000000007
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.03722579750656794,
-            "Mistral-Large": 0.11540606569847185,
-            "Gemini-Pro": 0.12296601156417165
+            "Llama-8B": 0.03492849839314596,
+            "Mistral-Large": 0.12745132404176898,
+            "Gemini-Pro": 0.12697653326500927
           },
           "n_seeds": 50
         },
@@ -17178,21 +17178,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003780153179271833,
-          "std_cost_ema": 6.096108774730971e-05,
+          "mean_cost_ema": 0.00037529295909897716,
+          "std_cost_ema": 6.163204339328161e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0015750695813131312,
-          "std_avg_cost": 1.972274547998058e-05,
+          "mean_avg_cost": 0.0015735469857575755,
+          "std_avg_cost": 1.9377515340304702e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0824,
-            "Mistral-Large": 0.5176,
-            "Gemini-Pro": 0.3999999999999999
+            "Llama-8B": 0.08040000000000001,
+            "Mistral-Large": 0.49559999999999993,
+            "Gemini-Pro": 0.424
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04338478996146,
-            "Mistral-Large": 0.09671732006212744,
-            "Gemini-Pro": 0.09558242516278817
+            "Llama-8B": 0.04498710926476606,
+            "Mistral-Large": 0.10270657233108307,
+            "Gemini-Pro": 0.10438390680559911
           },
           "n_seeds": 50
         },
@@ -17202,21 +17202,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00038454952271112724,
-          "std_cost_ema": 7.664670723661032e-05,
+          "mean_cost_ema": 0.00037754071696146046,
+          "std_cost_ema": 7.37970851875892e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0015487282207407407,
-          "std_avg_cost": 1.867137349817455e-05,
+          "mean_avg_cost": 0.0015470002318024691,
+          "std_avg_cost": 1.8357539882726192e-05,
           "arm_fractions": {
-            "Llama-8B": 0.07880000000000001,
-            "Mistral-Large": 0.5304,
-            "Gemini-Pro": 0.39080000000000004
+            "Llama-8B": 0.08199999999999999,
+            "Mistral-Large": 0.5044000000000001,
+            "Gemini-Pro": 0.41359999999999997
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04164804917400094,
-            "Mistral-Large": 0.09391400321570793,
-            "Gemini-Pro": 0.08955087939266705
+            "Llama-8B": 0.04651881339845203,
+            "Mistral-Large": 0.1001830324955279,
+            "Gemini-Pro": 0.09636928971409928
           },
           "n_seeds": 50
         },
@@ -17226,21 +17226,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00037449919484015744,
-          "std_cost_ema": 7.280070949630114e-05,
+          "mean_cost_ema": 0.00036771991501255967,
+          "std_cost_ema": 6.126605305329564e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0015232026031884059,
-          "std_avg_cost": 1.8588383280477942e-05,
+          "mean_avg_cost": 0.0015213238657971015,
+          "std_avg_cost": 1.7923233992690568e-05,
           "arm_fractions": {
-            "Llama-8B": 0.08360000000000001,
-            "Mistral-Large": 0.5412,
-            "Gemini-Pro": 0.37520000000000003
+            "Llama-8B": 0.0828,
+            "Mistral-Large": 0.5172,
+            "Gemini-Pro": 0.4000000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04744512619858862,
-            "Mistral-Large": 0.09603416058882382,
-            "Gemini-Pro": 0.09554559121173514
+            "Llama-8B": 0.049961585243064495,
+            "Mistral-Large": 0.10047964968091799,
+            "Gemini-Pro": 0.09448809448814173
           },
           "n_seeds": 50
         },
@@ -17250,21 +17250,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003678898595333505,
-          "std_cost_ema": 5.601529649224315e-05,
+          "mean_cost_ema": 0.00035789032436879986,
+          "std_cost_ema": 5.533989502668399e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0014985650869976358,
-          "std_avg_cost": 1.8193013697223352e-05,
+          "mean_avg_cost": 0.0014965698128605199,
+          "std_avg_cost": 1.745319475867695e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0944,
-            "Mistral-Large": 0.5244000000000001,
-            "Gemini-Pro": 0.3812
+            "Llama-8B": 0.0904,
+            "Mistral-Large": 0.496,
+            "Gemini-Pro": 0.41359999999999997
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04176888794306116,
-            "Mistral-Large": 0.10058150923504777,
-            "Gemini-Pro": 0.10817837122086837
+            "Llama-8B": 0.0408391968579207,
+            "Mistral-Large": 0.08926365441768559,
+            "Gemini-Pro": 0.09768848448000408
           },
           "n_seeds": 50
         },
@@ -17274,21 +17274,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003692483193307443,
-          "std_cost_ema": 6.206006545215751e-05,
+          "mean_cost_ema": 0.00036275780476225804,
+          "std_cost_ema": 5.755997480978986e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0014750983578703705,
-          "std_avg_cost": 1.7893323038450596e-05,
+          "mean_avg_cost": 0.0014729979067592595,
+          "std_avg_cost": 1.7149444213353938e-05,
           "arm_fractions": {
-            "Llama-8B": 0.08959999999999999,
-            "Mistral-Large": 0.5304000000000001,
-            "Gemini-Pro": 0.38000000000000006
+            "Llama-8B": 0.08439999999999999,
+            "Mistral-Large": 0.504,
+            "Gemini-Pro": 0.4116
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04837189266505912,
-            "Mistral-Large": 0.11094070488328438,
-            "Gemini-Pro": 0.11966620241321273
+            "Llama-8B": 0.04368798461819909,
+            "Mistral-Large": 0.10330537256115967,
+            "Gemini-Pro": 0.10867124734721692
           },
           "n_seeds": 50
         },
@@ -17298,21 +17298,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00036467022295559164,
-          "std_cost_ema": 6.35359731210029e-05,
+          "mean_cost_ema": 0.00035691997605488153,
+          "std_cost_ema": 6.315372731599921e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0014524182888888887,
-          "std_avg_cost": 1.7564771768784917e-05,
+          "mean_avg_cost": 0.001450313479274376,
+          "std_avg_cost": 1.6919065623207818e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0908,
-            "Mistral-Large": 0.524,
-            "Gemini-Pro": 0.38520000000000004
+            "Llama-8B": 0.08359999999999998,
+            "Mistral-Large": 0.5056,
+            "Gemini-Pro": 0.41080000000000005
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04599304295216832,
-            "Mistral-Large": 0.10725670142233538,
-            "Gemini-Pro": 0.11776654873095331
+            "Llama-8B": 0.03767014733180639,
+            "Mistral-Large": 0.10711041032504731,
+            "Gemini-Pro": 0.11364576542924949
           },
           "n_seeds": 50
         },
@@ -17322,21 +17322,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00036801407414458745,
-          "std_cost_ema": 7.267715230184371e-05,
+          "mean_cost_ema": 0.00035358396746637424,
+          "std_cost_ema": 6.214945473874376e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0014308314429333333,
-          "std_avg_cost": 1.756921640224588e-05,
+          "mean_avg_cost": 0.0014284278886222224,
+          "std_avg_cost": 1.6690146330954076e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10799999999999998,
-            "Mistral-Large": 0.4852,
-            "Gemini-Pro": 0.40680000000000005
+            "Llama-8B": 0.09759999999999999,
+            "Mistral-Large": 0.4576,
+            "Gemini-Pro": 0.44480000000000003
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04525483399593904,
-            "Mistral-Large": 0.09910075680841192,
-            "Gemini-Pro": 0.10811919348570818
+            "Llama-8B": 0.051324847783505406,
+            "Mistral-Large": 0.10797333004033914,
+            "Gemini-Pro": 0.11665744725477238
           },
           "n_seeds": 50
         },
@@ -17346,21 +17346,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003778202559344975,
-          "std_cost_ema": 6.18240384012094e-05,
+          "mean_cost_ema": 0.0003670539666541566,
+          "std_cost_ema": 5.49451992967272e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0014102735558169934,
-          "std_avg_cost": 1.75621343694622e-05,
+          "mean_avg_cost": 0.0014077082280610023,
+          "std_avg_cost": 1.672548236900758e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10640000000000001,
-            "Mistral-Large": 0.4924,
-            "Gemini-Pro": 0.4012
+            "Llama-8B": 0.106,
+            "Mistral-Large": 0.4584,
+            "Gemini-Pro": 0.43559999999999993
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05313228773542506,
-            "Mistral-Large": 0.10813990937669589,
-            "Gemini-Pro": 0.10271591892204442
+            "Llama-8B": 0.05589275444992848,
+            "Mistral-Large": 0.11055062188879808,
+            "Gemini-Pro": 0.11827358115826206
           },
           "n_seeds": 50
         },
@@ -17370,21 +17370,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003772104495256836,
-          "std_cost_ema": 8.216331919119868e-05,
+          "mean_cost_ema": 0.0003627488038892843,
+          "std_cost_ema": 5.903004544218267e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0013902348847008546,
-          "std_avg_cost": 1.773682051353065e-05,
+          "mean_avg_cost": 0.001387482127264957,
+          "std_avg_cost": 1.6449977398825074e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10239999999999999,
-            "Mistral-Large": 0.48999999999999994,
-            "Gemini-Pro": 0.40759999999999996
+            "Llama-8B": 0.10200000000000001,
+            "Mistral-Large": 0.46399999999999997,
+            "Gemini-Pro": 0.434
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05405774690088369,
-            "Mistral-Large": 0.12701181047445942,
-            "Gemini-Pro": 0.1070992063462657
+            "Llama-8B": 0.0523450093132096,
+            "Mistral-Large": 0.11027239001672177,
+            "Gemini-Pro": 0.11663618649458665
           },
           "n_seeds": 50
         },
@@ -17394,21 +17394,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00035845465754424786,
-          "std_cost_ema": 6.472500466159922e-05,
+          "mean_cost_ema": 0.0003485269116085266,
+          "std_cost_ema": 6.024647513939017e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0013705269324109013,
-          "std_avg_cost": 1.7378245447076026e-05,
+          "mean_avg_cost": 0.0013677551187421383,
+          "std_avg_cost": 1.581944422536209e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10719999999999999,
-            "Mistral-Large": 0.47200000000000003,
-            "Gemini-Pro": 0.4207999999999999
+            "Llama-8B": 0.10640000000000001,
+            "Mistral-Large": 0.4456,
+            "Gemini-Pro": 0.44800000000000006
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.057237749781066695,
-            "Mistral-Large": 0.11852425912023243,
-            "Gemini-Pro": 0.10361158236413534
+            "Llama-8B": 0.04954836021504647,
+            "Mistral-Large": 0.10866756645844242,
+            "Gemini-Pro": 0.10740577265678042
           },
           "n_seeds": 50
         },
@@ -17418,21 +17418,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003469175021091003,
-          "std_cost_ema": 5.821242494789562e-05,
+          "mean_cost_ema": 0.00034062155302392086,
+          "std_cost_ema": 5.4695387749547806e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0013513735355555555,
-          "std_avg_cost": 1.710897990324203e-05,
+          "mean_avg_cost": 0.0013486577966255145,
+          "std_avg_cost": 1.5573108709662672e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10559999999999999,
-            "Mistral-Large": 0.4664000000000001,
-            "Gemini-Pro": 0.42800000000000005
+            "Llama-8B": 0.11120000000000001,
+            "Mistral-Large": 0.44559999999999994,
+            "Gemini-Pro": 0.4432
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.057276871422939996,
-            "Mistral-Large": 0.12402838384821435,
-            "Gemini-Pro": 0.10725670142233537
+            "Llama-8B": 0.05324058602231947,
+            "Mistral-Large": 0.10315347788610911,
+            "Gemini-Pro": 0.0976819328228102
           },
           "n_seeds": 50
         },
@@ -17442,21 +17442,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00035746290063599033,
-          "std_cost_ema": 7.077326777384614e-05,
+          "mean_cost_ema": 0.0003578745145497112,
+          "std_cost_ema": 7.911718577724727e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0013332892125252527,
-          "std_avg_cost": 1.6845107663392862e-05,
+          "mean_avg_cost": 0.0013306768934949495,
+          "std_avg_cost": 1.54700997526581e-05,
           "arm_fractions": {
-            "Llama-8B": 0.11279999999999997,
-            "Mistral-Large": 0.45640000000000003,
-            "Gemini-Pro": 0.43080000000000007
+            "Llama-8B": 0.10559999999999999,
+            "Mistral-Large": 0.4464,
+            "Gemini-Pro": 0.44800000000000006
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04521238768302334,
-            "Mistral-Large": 0.11884039717200545,
-            "Gemini-Pro": 0.10622316131616494
+            "Llama-8B": 0.04883277587850193,
+            "Mistral-Large": 0.10646614485365759,
+            "Gemini-Pro": 0.09789790600416333
           },
           "n_seeds": 50
         },
@@ -17466,21 +17466,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003464249177711823,
-          "std_cost_ema": 5.49195213724264e-05,
+          "mean_cost_ema": 0.0003423981589718359,
+          "std_cost_ema": 5.082633390741423e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.001315611484047619,
-          "std_avg_cost": 1.64754425281831e-05,
+          "mean_avg_cost": 0.001312932929920635,
+          "std_avg_cost": 1.52519997697882e-05,
           "arm_fractions": {
-            "Llama-8B": 0.11599999999999999,
-            "Mistral-Large": 0.4508,
-            "Gemini-Pro": 0.4332000000000001
+            "Llama-8B": 0.11240000000000001,
+            "Mistral-Large": 0.42599999999999993,
+            "Gemini-Pro": 0.4616
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05106858133921482,
-            "Mistral-Large": 0.11752174266917591,
-            "Gemini-Pro": 0.1067040767731018
+            "Llama-8B": 0.05151931676565598,
+            "Mistral-Large": 0.1200833044182246,
+            "Gemini-Pro": 0.10739385457278271
           },
           "n_seeds": 50
         },
@@ -17490,21 +17490,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034881948549088946,
-          "std_cost_ema": 6.388792000197817e-05,
+          "mean_cost_ema": 0.0003443414783200243,
+          "std_cost_ema": 7.457909765472493e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0012986719846393763,
-          "std_avg_cost": 1.620220108283388e-05,
+          "mean_avg_cost": 0.001295966126237817,
+          "std_avg_cost": 1.5146953329854122e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1168,
-            "Mistral-Large": 0.4544,
-            "Gemini-Pro": 0.42879999999999996
+            "Llama-8B": 0.1252,
+            "Mistral-Large": 0.4132,
+            "Gemini-Pro": 0.46159999999999995
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.06136578851444834,
-            "Mistral-Large": 0.10537855569327186,
-            "Gemini-Pro": 0.10454931850566984
+            "Llama-8B": 0.062329447294196344,
+            "Mistral-Large": 0.12778794935360688,
+            "Gemini-Pro": 0.1080622043084445
           },
           "n_seeds": 50
         },
@@ -17514,21 +17514,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003338874280789355,
-          "std_cost_ema": 6.296258099205904e-05,
+          "mean_cost_ema": 0.0003309392491859155,
+          "std_cost_ema": 5.68996304375976e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0012819124374712644,
-          "std_avg_cost": 1.595265252681907e-05,
+          "mean_avg_cost": 0.0012792182357854406,
+          "std_avg_cost": 1.5130597921102305e-05,
           "arm_fractions": {
-            "Llama-8B": 0.1192,
-            "Mistral-Large": 0.456,
-            "Gemini-Pro": 0.4247999999999999
+            "Llama-8B": 0.1152,
+            "Mistral-Large": 0.43800000000000006,
+            "Gemini-Pro": 0.4468
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.05905387370867385,
-            "Mistral-Large": 0.1088852607105296,
-            "Gemini-Pro": 0.10303863353131193
+            "Llama-8B": 0.05492686046006998,
+            "Mistral-Large": 0.11994998957899078,
+            "Gemini-Pro": 0.1103166351916156
           },
           "n_seeds": 50
         },
@@ -17538,21 +17538,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00032782902293395613,
-          "std_cost_ema": 5.251020709944649e-05,
+          "mean_cost_ema": 0.00033118218223510934,
+          "std_cost_ema": 5.785371408441939e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0012657419340866291,
-          "std_avg_cost": 1.5767707466890633e-05,
+          "mean_avg_cost": 0.0012631930019585689,
+          "std_avg_cost": 1.4974133002611675e-05,
           "arm_fractions": {
-            "Llama-8B": 0.12119999999999999,
-            "Mistral-Large": 0.442,
-            "Gemini-Pro": 0.4368
+            "Llama-8B": 0.10679999999999999,
+            "Mistral-Large": 0.4348,
+            "Gemini-Pro": 0.45840000000000003
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.049865418879219296,
-            "Mistral-Large": 0.08856635930193811,
-            "Gemini-Pro": 0.08210822126924928
+            "Llama-8B": 0.043929033679333304,
+            "Mistral-Large": 0.11155698095592224,
+            "Gemini-Pro": 0.10791403986507038
           },
           "n_seeds": 50
         },
@@ -17562,21 +17562,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00033110937677597674,
-          "std_cost_ema": 5.499438373300679e-05,
+          "mean_cost_ema": 0.00033769111730791077,
+          "std_cost_ema": 5.849669209961696e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0012500885658518518,
-          "std_avg_cost": 1.555064757961855e-05,
+          "mean_avg_cost": 0.001247687726296296,
+          "std_avg_cost": 1.5110333035875437e-05,
           "arm_fractions": {
-            "Llama-8B": 0.10439999999999999,
-            "Mistral-Large": 0.43640000000000007,
-            "Gemini-Pro": 0.4592
+            "Llama-8B": 0.09919999999999998,
+            "Mistral-Large": 0.42040000000000005,
+            "Gemini-Pro": 0.4804
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.041238816665855,
-            "Mistral-Large": 0.10458986566584738,
-            "Gemini-Pro": 0.09666105730851489
+            "Llama-8B": 0.04930882273995192,
+            "Mistral-Large": 0.11189209087330525,
+            "Gemini-Pro": 0.10318837143787084
           },
           "n_seeds": 50
         },
@@ -17586,21 +17586,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003486743766688449,
-          "std_cost_ema": 5.335771034491978e-05,
+          "mean_cost_ema": 0.0003356705820918749,
+          "std_cost_ema": 5.8280215810464786e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0012354309591985427,
-          "std_avg_cost": 1.553141485229278e-05,
+          "mean_avg_cost": 0.0012327290989435336,
+          "std_avg_cost": 1.5031177477227512e-05,
           "arm_fractions": {
             "Llama-8B": 0.0816,
-            "Mistral-Large": 0.4468,
-            "Gemini-Pro": 0.47159999999999996
+            "Mistral-Large": 0.4296,
+            "Gemini-Pro": 0.4888
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.044871371719616505,
-            "Mistral-Large": 0.11576597082044447,
-            "Gemini-Pro": 0.10576124053735377
+            "Llama-8B": 0.05682816203256973,
+            "Mistral-Large": 0.12048169985520622,
+            "Gemini-Pro": 0.11350136563055091
           },
           "n_seeds": 50
         },
@@ -17610,21 +17610,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003594579447495398,
-          "std_cost_ema": 5.1948882305723245e-05,
+          "mean_cost_ema": 0.00035373099987198226,
+          "std_cost_ema": 5.8110906497185954e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0012213024393548386,
-          "std_avg_cost": 1.5318876436852863e-05,
+          "mean_avg_cost": 0.0012186450690322582,
+          "std_avg_cost": 1.4834022196827224e-05,
           "arm_fractions": {
-            "Llama-8B": 0.08,
-            "Mistral-Large": 0.456,
-            "Gemini-Pro": 0.46399999999999997
+            "Llama-8B": 0.084,
+            "Mistral-Large": 0.44040000000000007,
+            "Gemini-Pro": 0.47559999999999997
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.035099857549568486,
-            "Mistral-Large": 0.11475190630224841,
-            "Gemini-Pro": 0.11063453348751465
+            "Llama-8B": 0.04507771067833858,
+            "Mistral-Large": 0.12390254234679772,
+            "Gemini-Pro": 0.11372176572670688
           },
           "n_seeds": 50
         },
@@ -17634,21 +17634,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034237094653522703,
-          "std_cost_ema": 5.793101360934241e-05,
+          "mean_cost_ema": 0.0003489071340172658,
+          "std_cost_ema": 5.379428623134447e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0012072231758024693,
-          "std_avg_cost": 1.5192505299255232e-05,
+          "mean_avg_cost": 0.001204714523527337,
+          "std_avg_cost": 1.4742199143369632e-05,
           "arm_fractions": {
-            "Llama-8B": 0.08560000000000001,
-            "Mistral-Large": 0.4584,
-            "Gemini-Pro": 0.456
+            "Llama-8B": 0.0852,
+            "Mistral-Large": 0.452,
+            "Gemini-Pro": 0.4628
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04561403292847498,
-            "Mistral-Large": 0.10702074565242012,
-            "Gemini-Pro": 0.10598113039593415
+            "Llama-8B": 0.03996198193283211,
+            "Mistral-Large": 0.12521980673998823,
+            "Gemini-Pro": 0.13059923430097128
           },
           "n_seeds": 50
         },
@@ -17658,21 +17658,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003397146982529605,
-          "std_cost_ema": 5.430266647779358e-05,
+          "mean_cost_ema": 0.00034224814768789194,
+          "std_cost_ema": 5.37752059057205e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.001193682428125,
-          "std_avg_cost": 1.4886020119482856e-05,
+          "mean_avg_cost": 0.0011912283510416668,
+          "std_avg_cost": 1.4639429453296838e-05,
           "arm_fractions": {
-            "Llama-8B": 0.08520000000000001,
-            "Mistral-Large": 0.46319999999999995,
-            "Gemini-Pro": 0.45160000000000006
+            "Llama-8B": 0.0836,
+            "Mistral-Large": 0.4527999999999999,
+            "Gemini-Pro": 0.46360000000000007
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04304602188356086,
-            "Mistral-Large": 0.10705960956401811,
-            "Gemini-Pro": 0.10323487782721495
+            "Llama-8B": 0.049102342102999526,
+            "Mistral-Large": 0.11632781266747862,
+            "Gemini-Pro": 0.12910089077926615
           },
           "n_seeds": 50
         },
@@ -17682,21 +17682,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.000358929415667026,
-          "std_cost_ema": 5.114374723875841e-05,
+          "mean_cost_ema": 0.00035695771266538854,
+          "std_cost_ema": 6.2392369762237e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0011809841167179486,
-          "std_avg_cost": 1.4422094759343254e-05,
+          "mean_avg_cost": 0.0011784776066324789,
+          "std_avg_cost": 1.4404952343879228e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0772,
-            "Mistral-Large": 0.4684,
-            "Gemini-Pro": 0.45439999999999997
+            "Llama-8B": 0.08559999999999998,
+            "Mistral-Large": 0.45039999999999997,
+            "Gemini-Pro": 0.46399999999999997
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04271018613867189,
-            "Mistral-Large": 0.10408381238213751,
-            "Gemini-Pro": 0.10954743264905846
+            "Llama-8B": 0.04561403292847498,
+            "Mistral-Large": 0.11441957874419921,
+            "Gemini-Pro": 0.12106196760337246
           },
           "n_seeds": 50
         },
@@ -17706,21 +17706,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003464329919199772,
-          "std_cost_ema": 4.362568290119538e-05,
+          "mean_cost_ema": 0.0003526420294724192,
+          "std_cost_ema": 5.841680847295756e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0011683037918518518,
-          "std_avg_cost": 1.434560106086158e-05,
+          "mean_avg_cost": 0.0011660025136026935,
+          "std_avg_cost": 1.439388161665822e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0776,
-            "Mistral-Large": 0.4604,
-            "Gemini-Pro": 0.462
+            "Llama-8B": 0.0828,
+            "Mistral-Large": 0.4524,
+            "Gemini-Pro": 0.46480000000000005
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.0380820167533181,
-            "Mistral-Large": 0.10510870563373902,
-            "Gemini-Pro": 0.10890362712049587
+            "Llama-8B": 0.038368737273983884,
+            "Mistral-Large": 0.10975536433359419,
+            "Gemini-Pro": 0.11768160433984574
           },
           "n_seeds": 50
         },
@@ -17730,21 +17730,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034839544366516964,
-          "std_cost_ema": 6.333833972739191e-05,
+          "mean_cost_ema": 0.00034894047851509674,
+          "std_cost_ema": 6.652047783872732e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0011561058737645106,
-          "std_avg_cost": 1.434321304536482e-05,
+          "mean_avg_cost": 0.001153761840066335,
+          "std_avg_cost": 1.4568990578242725e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0836,
-            "Mistral-Large": 0.4536,
-            "Gemini-Pro": 0.4628
+            "Llama-8B": 0.088,
+            "Mistral-Large": 0.4388,
+            "Gemini-Pro": 0.47320000000000007
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.03871743793176403,
-            "Mistral-Large": 0.10758735985235442,
-            "Gemini-Pro": 0.10079761901949867
+            "Llama-8B": 0.044721359549995794,
+            "Mistral-Large": 0.11351898519630979,
+            "Gemini-Pro": 0.12037341899273278
           },
           "n_seeds": 50
         },
@@ -17754,21 +17754,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003550898691655158,
-          "std_cost_ema": 6.393300621063192e-05,
+          "mean_cost_ema": 0.0003547905560778683,
+          "std_cost_ema": 6.376475698076401e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0011443125122222223,
-          "std_avg_cost": 1.4250871644362722e-05,
+          "mean_avg_cost": 0.0011419549922222223,
+          "std_avg_cost": 1.4462856637956028e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0852,
-            "Mistral-Large": 0.43999999999999995,
-            "Gemini-Pro": 0.47480000000000006
+            "Llama-8B": 0.09040000000000001,
+            "Mistral-Large": 0.41800000000000004,
+            "Gemini-Pro": 0.4916000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.039761287705505716,
-            "Mistral-Large": 0.1099090533122727,
-            "Gemini-Pro": 0.11220053475808393
+            "Llama-8B": 0.04064283454681772,
+            "Mistral-Large": 0.10779610382569493,
+            "Gemini-Pro": 0.11328477391070699
           },
           "n_seeds": 50
         },
@@ -17778,21 +17778,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003462822432492791,
-          "std_cost_ema": 4.965054963553507e-05,
+          "mean_cost_ema": 0.0003479930081974416,
+          "std_cost_ema": 5.7075161791549035e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0011326127779066023,
-          "std_avg_cost": 1.4228841575140096e-05,
+          "mean_avg_cost": 0.0011303873858293076,
+          "std_avg_cost": 1.465341212698469e-05,
           "arm_fractions": {
-            "Llama-8B": 0.08839999999999998,
-            "Mistral-Large": 0.4252,
-            "Gemini-Pro": 0.48640000000000005
+            "Llama-8B": 0.08879999999999999,
+            "Mistral-Large": 0.4224,
+            "Gemini-Pro": 0.48879999999999996
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.04614585571857997,
-            "Mistral-Large": 0.10820794795207975,
-            "Gemini-Pro": 0.115269423525929
+            "Llama-8B": 0.04217297712991105,
+            "Mistral-Large": 0.11024626977816529,
+            "Gemini-Pro": 0.11364224566594941
           },
           "n_seeds": 50
         },
@@ -17802,21 +17802,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034466680122628533,
-          "std_cost_ema": 5.553155605926375e-05,
+          "mean_cost_ema": 0.00034246872789357795,
+          "std_cost_ema": 4.723058609967811e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0011213668657142858,
-          "std_avg_cost": 1.4107929601953974e-05,
+          "mean_avg_cost": 0.0011191417294603176,
+          "std_avg_cost": 1.4520211374960148e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09639999999999999,
-            "Mistral-Large": 0.4296,
-            "Gemini-Pro": 0.47400000000000003
+            "Llama-8B": 0.0944,
+            "Mistral-Large": 0.43320000000000003,
+            "Gemini-Pro": 0.4724000000000001
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.040731314734488995,
-            "Mistral-Large": 0.08793088194712936,
-            "Gemini-Pro": 0.09228217596047461
+            "Llama-8B": 0.04060344812943846,
+            "Mistral-Large": 0.10534590642260383,
+            "Gemini-Pro": 0.1124910663119521
           },
           "n_seeds": 50
         },
@@ -17826,21 +17826,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034638441106829424,
-          "std_cost_ema": 5.790219752378194e-05,
+          "mean_cost_ema": 0.00034795261202492814,
+          "std_cost_ema": 5.487101267480488e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.001110441986917058,
-          "std_avg_cost": 1.4287963630673348e-05,
+          "mean_avg_cost": 0.0011082585191236306,
+          "std_avg_cost": 1.4733069822008561e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09639999999999999,
-            "Mistral-Large": 0.4264,
-            "Gemini-Pro": 0.4771999999999999
+            "Llama-8B": 0.0944,
+            "Mistral-Large": 0.4404,
+            "Gemini-Pro": 0.46520000000000006
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.0418931975385026,
-            "Mistral-Large": 0.0900168873045497,
-            "Gemini-Pro": 0.09591746452028431
+            "Llama-8B": 0.036886854026875214,
+            "Mistral-Large": 0.11499495641114005,
+            "Gemini-Pro": 0.11198642774908037
           },
           "n_seeds": 50
         },
@@ -17850,21 +17850,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.0003467310340168262,
-          "std_cost_ema": 5.2903574324556905e-05,
+          "mean_cost_ema": 0.00035090812496602704,
+          "std_cost_ema": 5.892370644852917e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0010998028080864198,
-          "std_avg_cost": 1.4185868077997931e-05,
+          "mean_avg_cost": 0.00109770267191358,
+          "std_avg_cost": 1.4816129666123577e-05,
           "arm_fractions": {
-            "Llama-8B": 0.0888,
-            "Mistral-Large": 0.4352000000000001,
-            "Gemini-Pro": 0.4760000000000001
+            "Llama-8B": 0.08679999999999997,
+            "Mistral-Large": 0.44800000000000006,
+            "Gemini-Pro": 0.46520000000000006
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.039831645710414726,
-            "Mistral-Large": 0.10877940981638022,
-            "Gemini-Pro": 0.11620671237067161
+            "Llama-8B": 0.04225825363168715,
+            "Mistral-Large": 0.12604761005270987,
+            "Gemini-Pro": 0.12177421730399256
           },
           "n_seeds": 50
         },
@@ -17874,21 +17874,21 @@
           "phase_boundary": 912,
           "mean_lambda": 0.0,
           "std_lambda": 0.0,
-          "mean_cost_ema": 0.00034004381240898275,
-          "std_cost_ema": 4.9189009513403635e-05,
+          "mean_cost_ema": 0.0003378610390013271,
+          "std_cost_ema": 5.068195936022979e-05,
           "mean_gamma": 0.9949999999999999,
           "std_gamma": 1.1102230246251565e-16,
-          "mean_avg_cost": 0.0010897038748172517,
-          "std_avg_cost": 1.401336632734628e-05,
+          "mean_avg_cost": 0.00108758874872076,
+          "std_avg_cost": 1.4702129757489298e-05,
           "arm_fractions": {
-            "Llama-8B": 0.09600000000000002,
-            "Mistral-Large": 0.45360000000000006,
-            "Gemini-Pro": 0.45039999999999997
+            "Llama-8B": 0.08959999999999999,
+            "Mistral-Large": 0.4496,
+            "Gemini-Pro": 0.4608
           },
           "arm_fractions_std": {
-            "Llama-8B": 0.03836665218650176,
-            "Mistral-Large": 0.11267226810533282,
-            "Gemini-Pro": 0.1128708997040424
+            "Llama-8B": 0.0408391968579207,
+            "Mistral-Large": 0.12153945861324214,
+            "Gemini-Pro": 0.11341675361250647
           },
           "n_seeds": 50
         }
@@ -17904,13 +17904,13 @@
         }
       },
       "phase2_summary": {
-        "mean_reward": 0.9200269736842105,
-        "mean_cost": 0.00035328379678362565,
-        "mean_lambda": 0.002401829949192035,
+        "mean_reward": 0.9208756140350878,
+        "mean_cost": 0.0003490535445906433,
+        "mean_lambda": 0.0024316346494529517,
         "arm_fractions": {
-          "Llama-8B": 0.09442982456140352,
-          "Mistral-Large": 0.4592543859649123,
-          "Gemini-Pro": 0.4463157894736842
+          "Llama-8B": 0.09048245614035087,
+          "Mistral-Large": 0.4381140350877194,
+          "Gemini-Pro": 0.47140350877192977
         }
       },
       "per_seed_phase1_reward": [
@@ -17966,56 +17966,56 @@
         0.9087741228070174
       ],
       "per_seed_phase2_reward": [
-        0.9172708333333333,
-        0.9238508771929825,
-        0.9199506578947367,
-        0.925265350877193,
+        0.9198256578947368,
+        0.9253651315789474,
+        0.9203848684210526,
+        0.9223881578947369,
         0.9207171052631579,
-        0.9175,
-        0.922391447368421,
+        0.9201502192982455,
+        0.9251381578947369,
         0.922141447368421,
-        0.9259265350877193,
-        0.9192785087719297,
+        0.922873903508772,
+        0.917047149122807,
         0.920030701754386,
-        0.9217850877192982,
+        0.922686403508772,
         0.9230679824561403,
-        0.9163486842105264,
-        0.9230559210526316,
-        0.9172094298245614,
+        0.9186951754385965,
+        0.9227368421052632,
+        0.9180877192982456,
         0.9195230263157895,
-        0.9225296052631579,
-        0.9175701754385964,
-        0.9158081140350877,
+        0.9247543859649122,
+        0.9184572368421053,
+        0.9176885964912281,
         0.9175997807017544,
-        0.9191151315789474,
-        0.9147598684210526,
-        0.9180427631578947,
-        0.9204627192982456,
-        0.9197664473684211,
-        0.9206326754385965,
+        0.9209353070175439,
+        0.9180592105263158,
+        0.9163870614035088,
+        0.9242741228070175,
+        0.918467105263158,
+        0.9201929824561403,
         0.9184561403508773,
         0.9170723684210528,
         0.918782894736842,
-        0.9266611842105263,
-        0.9182412280701755,
-        0.9205942982456141,
-        0.9204747807017544,
-        0.9193936403508772,
-        0.9208519736842106,
+        0.9221831140350877,
+        0.9216063596491229,
+        0.9232478070175438,
+        0.9172785087719298,
+        0.9238662280701755,
+        0.9200416666666666,
         0.9212401315789475,
-        0.921030701754386,
+        0.9237445175438596,
         0.9202105263157895,
-        0.9177861842105263,
-        0.9196469298245615,
-        0.9271359649122807,
-        0.9189451754385964,
-        0.9144309210526316,
-        0.9218432017543859,
-        0.9213486842105263,
-        0.916390350877193,
-        0.9225120614035088,
-        0.9201392543859648,
-        0.9165592105263158
+        0.9217072368421052,
+        0.9223552631578948,
+        0.9230625,
+        0.919486842105263,
+        0.9234320175438597,
+        0.9201787280701754,
+        0.9231907894736843,
+        0.9216798245614035,
+        0.9200625,
+        0.9188048245614036,
+        0.9244144736842106
       ],
       "per_seed_phase1_cost": [
         0.001864671217105263,
@@ -18070,56 +18070,56 @@
         0.0018940016995614034
       ],
       "per_seed_phase2_cost": [
-        0.0003381704434697856,
-        0.00033570638401559457,
-        0.00031613812134502923,
-        0.0003285194688109162,
+        0.00031017487816764134,
+        0.00031173400341130605,
+        0.00033948352826510724,
+        0.0003345601851851852,
         0.0003739630604288499,
-        0.00032094507797270956,
-        0.0003626854044834308,
+        0.0003346267422027291,
+        0.00035634346978557504,
         0.0003515421539961014,
-        0.00034631759259259263,
-        0.0003660551535087719,
+        0.0003457937743664717,
+        0.0003455033260233918,
         0.0003683401193957115,
-        0.0003878810063352827,
+        0.0003335411915204678,
         0.00034635237573099414,
-        0.00035697314814814817,
-        0.0003464844054580897,
-        0.0003246173854775828,
+        0.000321510843079922,
+        0.0003166658138401559,
+        0.0003010243786549708,
         0.0003530425682261208,
-        0.00035280688352826514,
-        0.0003262177753411306,
-        0.0003567743664717349,
+        0.0003292125243664717,
+        0.0003576983552631579,
+        0.0003568053484405458,
         0.00033237362329434703,
-        0.00036869184941520466,
-        0.00037211647173489277,
-        0.0003669631335282651,
-        0.00037514100877192986,
-        0.00035538312621832363,
-        0.00033077145467836255,
+        0.00034902870370370374,
+        0.0003691475877192982,
+        0.00040761993177387915,
+        0.00033820170565302147,
+        0.0004027183601364522,
+        0.0003608465155945419,
         0.0003810052753411306,
         0.0003850740131578947,
         0.00037864032651072126,
-        0.00033355566520467837,
-        0.0003759119030214425,
-        0.00036671496101364526,
-        0.00038050164473684214,
-        0.00035098362573099417,
-        0.00036687704678362574,
+        0.00033594114278752435,
+        0.00032962175925925924,
+        0.00035881393762183237,
+        0.0003431570053606238,
+        0.00034439879385964907,
+        0.00036277570662768033,
         0.0003336439449317739,
-        0.00035219890350877194,
+        0.0003433727095516569,
         0.0004003026315789473,
-        0.0003690456384015594,
-        0.0003404859161793372,
-        0.00034405692007797277,
-        0.0003719359649122807,
-        0.00034012836257309945,
-        0.00033152386695906434,
-        0.00034844516325536063,
-        0.0003298360380116959,
-        0.0003304066642300195,
-        0.0003633050925925925,
-        0.0003286367080896686
+        0.0003268559941520468,
+        0.00033423174951267056,
+        0.00035778073830409357,
+        0.0003805692860623782,
+        0.0003351031676413256,
+        0.00034823307748538013,
+        0.0003658452119883041,
+        0.0003525240375243665,
+        0.0003284287889863548,
+        0.000348220955165692,
+        0.00033028190789473685
       ]
     },
     "Unconstrained": {

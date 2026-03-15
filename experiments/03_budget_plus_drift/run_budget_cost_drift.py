@@ -387,8 +387,11 @@ def _run_two_phase_trial(
 
     for t in range(n_p1 + n_p2):
         if t == n_p1 and not registry_updated:
-            router.registry[GEMINI_ID]["input_cost_per_m"] = GEMINI_NEW_INPUT_COST
-            router.registry[GEMINI_ID]["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
+            gemini_reg = router.registry[GEMINI_ID]
+            gemini_reg["input_cost_per_m"] = GEMINI_NEW_INPUT_COST
+            gemini_reg["output_cost_per_m"] = GEMINI_NEW_OUTPUT_COST
+            gemini_reg.pop("blended_cost_per_m", None)
+            router._resolve_registry_costs()
             registry_updated = True
 
         phase = 1 if t < n_p1 else 2

@@ -84,17 +84,30 @@ The Fixed Policy (using an offline-tuned static penalty $\lambda_s$) massively u
 BanditGPT is the only system that reliably hits the budget in Phase 1 ($0.97\times$ to $1.00\times$ across all three targets; Table~\ref{tab:main_results}b). The BudgetPacer's primal-dual mechanism adjusts $\lambda_t$ continuously based on observed costs, providing closed-loop control that static penalties cannot replicate.
 
 \paragraph{Exploiting the price drop.}
-When Gemini becomes nearly free in Phase 2, the BudgetPacer automatically detects the cost reduction via its EMA signal. At the Moderate target, $\lambda_t$ drops sharply, and the pacer increases Gemini selection from ${\sim}2\%$ to ${\sim}47\%$, approaching the unconstrained baseline (see Figure~\ref{fig:adaptation_dynamics}). This dynamic reallocation produces a highly significant $+0.043$ reward lift ($p < 10^{-9}$) in Phase 2. The static baselines, blind to the shifting optimal trade-off, fail to fully exploit this opportunity.
+When Gemini becomes nearly free in Phase~2, the BudgetPacer automatically detects the cost reduction via its EMA signal.
+The three budget regimes produce qualitatively distinct---but equally principled---dual-variable responses (Figure~\ref{fig:adaptation_dynamics}).
+At moderate and loose targets, post-drop costs fall well below the budget ($0.51\times$ and $0.19\times$ respectively), so $\lambda_t$ decays to near-zero: the constraint becomes slack and the router reverts to quality-only optimization, increasing Gemini selection to ${\sim}47$--$49\%$.
+At the tight target, the opposite occurs: post-drop costs (\$2.38e-4/req) slightly exceed the budget (\$2.34e-4), so $\lambda_t$ \emph{rises} from $0.46$ to $0.82$.
+Paradoxically, this elevated dual variable produces the \emph{highest} Gemini adoption ($84\%$) of any constrained condition, because the soft penalty $\lambda_t \times \tilde{c}_m$ penalizes the now-expensive Mistral ($\tilde{c}{=}0.49$) far more than the now-cheap Gemini ($\tilde{c}{\approx}0$).
+All three regimes show highly significant reward lifts ($\Delta{=}+0.017$ to $+0.065$; $p < 10^{-9}$), with the tight budget exhibiting the largest gain precisely because its binding constraint concentrates traffic on the cost-efficient frontier.
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/adaptation_dynamics.pdf}
-\caption{Adaptation Dynamics under Cost Drift. At $t=1000$, Gemini-2.5-Pro becomes significantly cheaper. BanditGPT detects the cost drop, lowers the dual penalty, and dynamically reroutes traffic to the higher-quality model while perfectly pacing the remaining budget.}
+\caption{Adaptation dynamics under cost drift (50~seeds, $\pm$1\,SE shading).
+At step~912, Gemini-2.5-Pro's price drops to near-zero.
+At moderate/loose budgets, $\lambda_t$ decays to zero (slack constraint) and Gemini rises to ${\sim}47$--$49\%$.
+At the tight budget, $\lambda_t$ \emph{rises} (binding constraint) and Gemini surges to $84\%$---the pacer concentrates traffic on the cheapest high-quality arm while maintaining $1.02\times$ budget compliance.}
 \label{fig:adaptation_dynamics}
 \end{figure*}
 
-\paragraph{Exploration starvation.}
-A critical limitation emerges at the Tight target ($B=\$0.00023$/req). Even after the price drop makes Gemini affordable, BanditGPT's Gemini selection remains near 0\%. This occurs because the budget was so restrictive in Phase 1 that the router \emph{never} explored Gemini. Consequently, the bandit's reward estimate for Gemini is essentially just the uninformed warmup prior. Without online data to build a confident, calibrated estimate, the LinUCB exploration bonus remains too small to pull Gemini above the well-explored Llama and Mistral arms. This ``exploration starvation'' deficit persists even after the cost barrier is removed.
+\paragraph{Tight budgets: binding constraints as a feature.}
+A particularly instructive result emerges at the tight target ($B{=}\$0.00023$/req).
+Rather than being a limitation, the tight budget produces the \emph{strongest} adaptation:
+BanditGPT achieves $84\%$ Gemini selection in Phase~2 (vs.\ $47$--$49\%$ for moderate/loose) and the largest reward lift ($\Delta{=}+0.065$).
+This occurs because the dual variable $\lambda_t$ rises to $0.82$ when costs slightly exceed the tight target, creating a large soft-penalty gap between the now-cheap Gemini and the now-expensive Mistral.
+Meanwhile, the Fixed Policy and Naive Bandit---using static cost penalties---overshoot the tight budget by $11$--$13\%$ in Phase~2 because their open-loop penalties cannot adapt to the new cost landscape.
+BanditGPT stays within $2\%$ of target, demonstrating that the primal-dual mechanism provides precise closed-loop budget control under non-stationary pricing.
 
 \subsection{Hyperparameter Selection via Epsilon-Constraint}
 \label{sec:exp4_hparam_sweep}
