@@ -26,9 +26,20 @@ experiments_v2/
 | # | Title | Key Question | Primary Figure |
 |---|-------|-------------|----------------|
 | 01 | Stationary Budget Pacing | Does BudgetPacer Pareto-dominate a static cost-penalty sweep? | Pareto frontier + lambda convergence |
-| 02 | Non-stationary K=3 Drift | Can the drift detector + reset recover quality after a K=3 model shift? | Regret curves + drift signal |
-| 03 | Budget + Drift Interaction | Does the pacer maintain budget compliance when the drift handler resets the bandit? | Convergence under regime change |
+| 02 | Non-stationary K=3 Drift | Does BanditGPT adapt to model quality shifts better than fixed or naive online routing? | 3-condition cumulative regret |
+| 03 | Budget + Drift Interaction | Does the BudgetPacer maintain budget compliance under cost drift where static penalties fail? | 3-condition regret per budget + adaptation dynamics |
 | 04 | Sensitivity Sweep | How robust is the system across budget targets and drift magnitudes? | Heatmap (budget x drift) |
+
+### Main-text baselines (Experiments 02 and 03)
+
+Three conditions of increasing sophistication are compared:
+
+1. **Fixed Policy (offline)** — Warmup priors deployed frozen. No online learning.
+2. **Naive Bandit (γ=1.0)** — LinUCB with infinite memory and warmup priors.
+3. **BanditGPT (γ=0.997)** — Warmup priors + geometric forgetting + BudgetPacer (Exp 03 only).
+
+Full ablation details (Fast forgetting, Tabula Rasa, pacer variants) are in
+`appendix/forgetting_ablation/` and `appendix/forgetting_factor_sweep/`.
 
 ## Dependencies
 
