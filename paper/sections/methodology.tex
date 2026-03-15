@@ -1,0 +1,65 @@
+\section{Methodology: The BanditGPT System}
+\label{sec:methodology}
+
+We present the architecture of BanditGPT, an open-source contextual bandit routing framework. This section details the end-to-end routing pipeline, our Primal-Dual budget pacing mechanism, and the geometric forgetting approach for non-stationary environments.
+
+\subsection{System Architecture Overview}
+
+BanditGPT operates as an asynchronous, closed-loop routing system. At inference time (step $t$), a user query $x_t$ is processed by a lightweight feature extractor (e.g., a SentenceTransformer embedding model), which passes the query vector to the \texttt{BanditRouter}. The router maintains a set of sufficient statistics for each model $a \in \mathcal{A}$, initialized via \emph{offline-to-online warmup priors} to mitigate the cold-start problem. The router computes a score for each model, incorporating uncertainty (LinUCB) and subtracting a dynamic cost penalty provided by the \texttt{BudgetPacer}. The router then selects the model $a_t$ with the highest score, returning its response to the user.
+
+After the query completes and is evaluated (either synchronously by an automated judge, or asynchronously via delayed user feedback), the reward $r_t$ and exact cost $c_t$ are fed back into the system. The \texttt{BanditRouter} updates its reward estimates (incorporating geometric forgetting), while the \texttt{BudgetPacer} updates its internal dual variable $\lambda_t$, adjusting the cost penalties for future requests to steer the system back toward the target budget $B$.
+
+\subsection{Primal-Dual Budget Pacing}
+\label{sec:budget_pacing}
+
+To enforce strict, dynamically adjusting budget constraints without manual offline tuning of a static penalty weight $\lambda_s$, BanditGPT implements a Primal-Dual Contextual Bandit with Knapsacks (CBwK) formulation~\cite{agrawal2014bandits} via the \texttt{BudgetPacer}.
+
+At each step $t$, the router selects model $a_t$ by maximizing a budget-augmented utility function:
+\begin{equation}
+    a_t = \arg\max_{a \in \mathcal{A}_t} \Bigl[
+        \underbrace{\hat\theta_a^\top x_t + \alpha \sqrt{x_t^\top A_a^{-1} x_t}}_{\text{LinUCB score~\cite{li2010contextual}}}
+        \;-\; \underbrace{\lambda_s \,\tilde{c}_a}_{\text{static penalty}}
+        \;-\; \underbrace{\lambda_t \,\tilde{c}_a}_{\text{dual penalty}}
+    \Bigr]
+    \label{eq:budget_ucb}
+\end{equation}
+where $\mathcal{A}_t \subseteq \mathcal{A}$ is the set of models surviving a hard cost ceiling (detailed below), $\tilde{c}_a \in [0,1]$ is the log-normalized unit cost, and $\lambda_t$ is a Lagrange multiplier updated after observing the realized cost $c_t$. 
+
+\paragraph{Dual-Variable Dynamics and EMA Smoothing.}
+The core innovation of the \texttt{BudgetPacer} is how it tracks and updates the dual variable $\lambda_t$ in response to the extreme variance in LLM pricing. Rather than updating $\lambda_t$ directly from the raw per-request cost $c_t$, the pacer computes an \emph{EMA-smoothed} cost signal:
+\begin{align}
+    \bar{c}_t &= (1 - \alpha_{\mathrm{ema}})\,\bar{c}_{t-1}
+                 + \alpha_{\mathrm{ema}}\,c_t
+    \label{eq:cost_ema} \\
+    \lambda_{t+1} &= \min\!\Bigl(\bar\lambda,\;
+    \max\bigl(0,\;\lambda_t + \eta\,(\bar{c}_t / B - 1)\bigr)\Bigr)
+    \label{eq:dual_update}
+\end{align}
+where $B$ is the user's desired average cost per request, $\alpha_{\mathrm{ema}}=0.05$ is the smoothing factor, $\eta=0.05$ is the step size, and $\bar\lambda=5$ is a capacity cap.
+
+Using the EMA $\bar{c}_t$ is critical. If a single $\$0.015$ Gemini request were routed, the raw ratio $c_t/B$ could spike to $500\times$ the target $B$ (e.g., if $B=\$0.00003$). This would produce massive, sawtooth oscillations in $\lambda_t$ that never converge, rendering the penalty useless. The EMA smooths this variance, generating a stable gradient signal whose magnitude reflects the \emph{average} cost regime over recent history. 
+
+Furthermore, normalizing the gradient by $B$ (i.e., $\bar{c}_t / B$) makes the step size $\eta$ portfolio-independent. The same $\eta$ produces equivalent $\lambda_t$ trajectories whether the cheapest model costs \$0.00003 or \$0.03, eliminating the need to retune hyperparameters when the pricing scale changes.
+
+\paragraph{Two-Layer Enforcement (Adaptive Mode).}
+The \texttt{BudgetPacer} combines two enforcement mechanisms simultaneously:
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Hard ceiling (Safety Net):} When $\lambda_t > 0$, the candidate set $\mathcal{A}_t$ actively excludes models whose blended unit price exceeds the dynamic ceiling. This acts as a circuit breaker, preventing catastrophic overspend on any single request when the budget is severely constrained.
+  \item \textbf{Soft penalty (Optimizer):} The dual penalty $\lambda_t\tilde{c}_a$ biases the UCB score toward cheaper models proportionally to their cost. This allows fine-grained, context-dependent routing within the surviving candidate set, minimizing quality loss within the hard budget envelope.
+\end{itemize}
+
+\subsection{Non-Stationary Adaptation via Geometric Forgetting}
+\label{sec:forgetting}
+
+LLM routing in production is non-stationary: providers silently update models, creating reward drift. A naive LinUCB algorithm ($\gamma=1.0$) accumulates infinite memory, severely slowing adaptation to a shifting reward landscape because it must overcome thousands of historical observations. Conversely, entirely discarding history discards the valuable prior knowledge required for stable, informed routing.
+
+BanditGPT addresses non-stationarity through a \emph{forgetting factor} $\gamma \in (0, 1]$ applied directly to the disjoint LinUCB sufficient statistics. At each step $t$, before incorporating the new observation $(x_t, a_t, r_t)$, the design matrix and reward accumulator for the chosen arm $a_t$ are exponentially discounted:
+\begin{align}
+    A_{a_t} &\leftarrow \gamma \, A_{a_t} + x_t x_t^\top
+    \label{eq:forget_A} \\
+    b_{a_t} &\leftarrow \gamma \, b_{a_t} + r_t \, x_t
+    \label{eq:forget_b}
+\end{align}
+This exponential weighting~\cite{garivier2011switching} gives observations an effective half-life of $\ln 2 / (1 - \gamma)$ steps. We empirically find that $\gamma=0.997$ strikes an optimal balance, creating an effective memory window of approximately $333$ steps. Recent evidence dominates, allowing the router to adapt to shifts rapidly, while historical observations (including the critical offline warmup priors) are geometrically discounted but not erased entirely. 
+
+The parameter $\gamma$ thus controls a bias--variance tradeoff between \emph{stability} (trusting historical evidence to maintain high baseline quality) and \emph{plasticity} (responding quickly to new evidence when models degrade).

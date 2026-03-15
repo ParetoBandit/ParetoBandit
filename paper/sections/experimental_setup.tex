@@ -1,0 +1,39 @@
+\section{Experimental Setup}
+\label{sec:setup}
+
+We evaluate BanditGPT on a canonical portfolio of three LLMs, spanning a large cost differential, and using realistic prompt data to simulate both stationary and non-stationary production environments.
+
+\subsection{Datasets and Ground Truth}
+
+We use a dataset of 1,785 prompts sampled from the LMSYS Chatbot Arena~\cite{zheng2023judging}. This dataset reflects real-world, open-ended user interactions spanning diverse domains, including coding, reasoning, and conversational tasks. 
+
+To ensure robust and reproducible evaluation, we employ an automated LLM-as-a-judge paradigm. However, relying on a single judge for $K>2$ routing is problematic: binary win/loss outcomes often collapse into a tie between the top two models for a large percentage of prompts, reducing the problem to a binary choice. To address this, we use a \emph{continuous multi-judge ensemble} that outputs a scalar quality score $r_t \in [0, 1]$ for each prompt-model pair. This continuous score is a weighted average of three sub-scores (e.g., helpfulness, accuracy, and tone) evaluated across a panel of independent judges, providing the granular quality distinctions necessary for multi-arm routing.
+
+The 1,785 prompts are split into three sets:
+1. \textbf{Warmup Set ($n=1,028$)}: Used offline to train the `Warmup Priors` that initialize the bandit's sufficient statistics ($A_a, b_a$), addressing the cold-start problem.
+2. \textbf{Validation Set ($n=1,785$)}: Used for online learning and hyperparameter tuning in stationary conditions.
+3. \textbf{Test Sets ($n \approx 1,800$)}: Constructed to simulate specific non-stationary scenarios (e.g., reward drift and cost drift), evaluated across multiple random seeds.
+
+\subsection{Environment Construction}
+
+Our portfolio ($K=3$) spans three distinct cost tiers: Llama-3.1-8B (Budget, \$0.00003/req), Mistral-Large-2512 (Mid-tier, \$0.003/req), and Gemini-2.5-Pro (Frontier, \$0.015/req). This $500\times$ price differential stresses the router's ability to balance quality and cost efficiently.
+
+We construct two distinct non-stationary test environments to evaluate the router's robustness:
+1. \textbf{Reward Drift (Model Quality Shift)}: Simulates a silent API update where model quality changes mid-deployment. The test trajectory ($n=1,785$) is split into two phases. Phase 1 (steps 1--893) uses normal rewards where Mistral-Large is the utility-optimal model. In Phase 2 (steps 894--1,785), Llama-8B and Mistral-Large exchange their reward distributions, simulating a scenario where Mistral degrades to the worst option while Llama becomes the best. Gemini-Pro serves as an unchanged anchor.
+2. \textbf{Cost Drift (Price Drop)}: Simulates an API price cut. The test trajectory ($n=1,824$) is similarly split. Phase 1 (steps 1--912) uses normal pricing. In Phase 2 (steps 913--1,824), Gemini-2.5-Pro's price drops to \$0.0001 per request, drastically altering the optimal cost-quality trade-off.
+
+\subsection{Baselines}
+
+We compare BanditGPT against two standard baselines representing different levels of routing sophistication:
+1. \textbf{Fixed Policy (Offline):} The router is initialized with warmup priors but performs zero online learning ($\gamma=1.0$, updates disabled). A static, offline-tuned cost penalty $\lambda_s$ is applied. This represents the industry standard of deploying a frozen classifier trained on offline data.
+2. \textbf{Naive Bandit ($\gamma=1.0$):} A standard LinUCB algorithm initialized with warmup priors. It learns online but retains infinite memory (no forgetting). A static cost penalty $\lambda_s$ is applied. This represents a straightforward application of online learning without adaptation for non-stationarity or budget pacing.
+3. \textbf{BanditGPT ($\gamma=0.997$):} Our proposed system, initialized with warmup priors, utilizing geometric forgetting, and governed by the Primal-Dual `BudgetPacer` targeting a specific dollar budget.
+
+All three conditions use the same exploration rate ($\alpha=0.1$) and prior strength ($n_{eff}=10$).
+
+\subsection{Metrics}
+
+We evaluate the systems using three primary metrics:
+1. \textbf{Cumulative Regret:} Measured against a cost-adjusted oracle that selects the model maximizing $r_{a,t} - \lambda_s \tilde{c}_a$ at each step $t$ (where $\lambda_s$ is a shared static penalty). Lower regret indicates better routing decisions relative to the optimal choice.
+2. \textbf{Budget Compliance:} The ratio of actual realized cost to the target budget $B$. A perfect pacer achieves a ratio $\leq 1.0\times$, maximizing quality without overspending. Ratios $>1.0\times$ indicate budget violations.
+3. \textbf{Pareto AUC:} The area under the quality-cost Pareto frontier, measuring the router's efficiency across all possible cost trade-offs. Higher AUC indicates better quality at lower costs.

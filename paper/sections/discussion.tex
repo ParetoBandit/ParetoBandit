@@ -1,0 +1,32 @@
+\section{Discussion and Production Implications}
+\label{sec:discussion}
+
+BanditGPT bridges the gap between theoretical contextual bandit algorithms and the practical realities of deploying multi-LLM routers in production environments. We highlight several key implications for engineering teams and address current limitations.
+
+\subsection{Practical Impact}
+
+\paragraph{Interpretable Interface and SLA Compliance.} 
+The standard approach to cost-aware routing uses a static penalty $\lambda$, which requires translating a dimensionless weight into a dollar outcome via offline simulation. This mapping breaks whenever the portfolio changes. BanditGPT's Primal-Dual \texttt{BudgetPacer} accepts a dollar-denominated target (e.g., $B = \$0.002$/request) directly. This target is portable across portfolios because the normalized dual update ($\bar{c}_t / B$) adapts the penalty $\lambda_t$ to the realized cost scale automatically. 
+
+Furthermore, the pacer's precise budget utilization ($0.98\times$ to $1.07\times$) allows it to underpin strict Service Level Agreements (SLAs) for cost (e.g., ``average spend will not exceed $1.10 \times B$ over any rolling window''). Static penalties offer no such guarantee, as realized costs fluctuate arbitrarily if prompt distributions drift.
+
+\paragraph{Eliminating Offline Recalibration.}
+In a deployment where model pricing changes frequently (as is common with frontier APIs), a static penalty becomes stale, requiring costly offline retraining to discover the new optimal $\lambda$. The \texttt{BudgetPacer} automatically detects price drops via its online cost EMA and dynamically reallocates freed budget to higher-quality models. This autonomous optimization eliminates the need for manual intervention, maximizing application quality while strictly obeying financial constraints.
+
+\paragraph{Cost Savings at Scale.}
+Consider a deployment routing 100,000 requests per day. Moving from an unconstrained policy (\$0.0082/req, quality 0.923) to the pacer at $B = \$0.0019$/req saves \$630/day (over \$230,000/year) while maintaining a quality of $0.905 \pm 0.0009$---a mere 1.9\% quality reduction for a 77\% cost reduction.
+
+\subsection{Limitations and Deployment Considerations}
+
+\paragraph{Exploration Starvation.}
+As demonstrated in Section~\ref{sec:results}, highly restrictive budgets completely suppress exploration of expensive models. If a frontier model is never selected due to the hard cost ceiling, the router's reward estimate relies entirely on offline warmup priors. Consequently, if the model's price suddenly drops, the router may suffer an ``exploration starvation'' deficit, failing to adopt the newly-affordable model because its LinUCB exploration bonus is too small to overcome the lack of online data. Future work could investigate targeted exploration strategies (e.g., $\epsilon$-greedy budget allocation) that occasionally force the evaluation of expensive arms to maintain calibrated quality estimates.
+
+\paragraph{Delayed Feedback (RLHF).}
+BanditGPT assumes immediate feedback (i.e., the reward $r_t$ is observed immediately after routing $x_t$). In production, feedback such as user thumbs-up/down or delayed human-in-the-loop annotations may arrive hours or days later. The system architecture must decouple the routing decision from the LinUCB update, maintaining a persistent log of context vectors that can be asynchronously updated when feedback arrives. The open-source release includes a \texttt{SqliteContextStore} to facilitate this delayed RLHF workflow.
+
+\paragraph{Embedding Generation Costs.}
+Contextual bandits require a feature vector $x_t$ for every prompt. Generating this vector using a dense embedding model (e.g., SentenceTransformers) incurs a small latency and compute cost. While negligible compared to the inference cost of frontier LLMs, this overhead must be factored into the overall budget $B$ for ultra-low-cost, high-throughput deployments. Utilizing smaller, faster embedding models or distilling features directly from the prompt text are practical mitigations.
+
+\section{Conclusion}
+
+We introduced BanditGPT, an open-source framework for budget-constrained, non-stationary LLM routing. By framing the problem as a Primal-Dual Contextual Bandit with Knapsacks and integrating geometric forgetting, we provide a robust solution to the dynamic challenges of production deployments. Our system demonstrates perfect budget compliance, eliminates the need for manual hyperparameter tuning of static cost penalties, and autonomously adapts to silent model updates and mid-cycle price drops. We release the codebase to accelerate both applied research and enterprise adoption of adaptive LLM routing.

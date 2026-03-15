@@ -1,0 +1,93 @@
+This is BibTeX, Version 0.99d (TeX Live 2025)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+The style file: ACM-Reference-Format.bst
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+Database file #1: references.bib
+Warning--I didn't find a database entry for "bae2026learning"
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
+Reallocated global_strs (elt_size=200001) to 20 items from 10.
+Reallocated glb_str_end (elt_size=4) to 20 items from 10.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 9000 items from 6000.
+Warning--empty publisher in agrawal2014bandits
+Warning--empty address in agrawal2014bandits
+Warning--no number and no volume in ailem2024benchmarkrobustness
+Warning--page numbers missing in both pages and numpages fields in ailem2024benchmarkrobustness
+Warning--empty publisher in chen2023frugalgpt
+Warning--empty address in chen2023frugalgpt
+Warning--page numbers missing in both pages and numpages fields in chen2023frugalgpt
+Warning--no number and no volume in chen2023chatgptdrift
+Warning--page numbers missing in both pages and numpages fields in chen2023chatgptdrift
+Warning--empty publisher in chen2024routerdc
+Warning--empty address in chen2024routerdc
+Warning--page numbers missing in both pages and numpages fields in chen2024routerdc
+Warning--empty publisher in feng2025graphrouter
+Warning--empty address in feng2025graphrouter
+Warning--page numbers missing in both pages and numpages fields in feng2025graphrouter
+Warning--empty publisher in garivier2011switching
+Warning--empty address in garivier2011switching
+Warning--empty publisher in li2010contextual
+Warning--empty address in li2010contextual
+Warning--no number and no volume in li2025llmbandit
+Warning--page numbers missing in both pages and numpages fields in li2025llmbandit
+Warning--empty publisher in ma2024prompt
+Warning--empty address in ma2024prompt
+Warning--page numbers missing in both pages and numpages fields in ma2024prompt
+Warning--empty publisher in ong2024routellm
+Warning--empty address in ong2024routellm
+Warning--page numbers missing in both pages and numpages fields in ong2024routellm
+Warning--empty publisher in panda2025pilot
+Warning--empty address in panda2025pilot
+Warning--page numbers missing in both pages and numpages fields in panda2025pilot
+Warning--no number and no volume in qian2025xrouter
+Warning--page numbers missing in both pages and numpages fields in qian2025xrouter
+Warning--no number and no volume in wang2025barp
+Warning--page numbers missing in both pages and numpages fields in wang2025barp
+Warning--no number and no volume in zheng2023judging
+Warning--page numbers missing in both pages and numpages fields in zheng2023judging
+You've used 16 entries,
+            6056 wiz_defined-function locations,
+            1559 strings with 21467 characters,
+and the built_in function-call counts, 17906 in all, are:
+= -- 2088
+> -- 731
+< -- 0
++ -- 252
+- -- 249
+* -- 1341
+:= -- 1788
+add.period$ -- 76
+call.type$ -- 16
+change.case$ -- 138
+chr.to.int$ -- 15
+cite$ -- 52
+duplicate$ -- 1566
+empty$ -- 1114
+format.name$ -- 304
+if$ -- 4333
+int.to.chr$ -- 3
+int.to.str$ -- 1
+missing$ -- 69
+newline$ -- 162
+num.names$ -- 111
+pop$ -- 781
+preamble$ -- 1
+purify$ -- 264
+quote$ -- 0
+skip$ -- 529
+stack$ -- 0
+substring$ -- 997
+swap$ -- 97
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 393
+warning$ -- 36
+while$ -- 73
+width$ -- 0
+write$ -- 326
+(There were 37 warnings)

@@ -1,0 +1,36 @@
+\documentclass[sigconf]{acmart}
+
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{enumitem}
+
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    \normalfont B\kern-0.5em{\scshape i\kern-0.25em b}\kern-0.8em\TeX}}}
+
+\setcopyright{acmcopyright}
+\copyrightyear{2026}
+\acmYear{2026}
+\acmDOI{10.1145/1122445.1122456}
+
+\begin{document}
+
+\title{Budget-Constrained Non-Stationary LLM Routing via Primal-Dual Contextual Bandits}
+
+\input{sections/abstract.tex}
+
+\maketitle
+
+\input{sections/introduction.tex}
+\input{sections/related_work.tex}
+\input{sections/problem_formulation.tex}
+\input{sections/methodology.tex}
+\input{sections/experimental_setup.tex}
+\input{sections/results.tex}
+\input{sections/discussion.tex}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}

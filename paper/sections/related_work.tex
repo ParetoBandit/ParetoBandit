@@ -1,0 +1,29 @@
+\section{Related Work}
+\label{sec:related}
+
+LLM routing has evolved rapidly from cascading heuristics to supervised classifiers, and more recently, to adaptive routing systems. In this section, we situate BanditGPT within the landscape of these approaches, highlighting the gaps in addressing production non-stationarity and dynamic budget constraints.
+
+\subsection{Static and Supervised Routers}
+
+Early approaches to cost-aware LLM routing relied on static rules or cascading heuristics (e.g., FrugalGPT~\cite{chen2023frugalgpt}), where a system queries models sequentially from cheapest to most expensive, stopping when a predicted quality threshold is met. While simple to implement, cascades introduce highly variable latency, as complex queries must await sequential failures before reaching a capable model. 
+
+More recent systems formulate routing as a supervised classification task trained offline on preference or evaluation data. RouteLLM~\cite{ong2024routellm} uses matrix factorization on pairwise preference data to map queries to models via a cost threshold. GraphRouter~\cite{feng2025graphrouter} constructs a heterogeneous graph over tasks, queries, and LLMs, using edge prediction to estimate per-model quality and cost, allowing it to generalize to newly added LLMs without full retraining. RouterDC~\cite{chen2024routerdc} learns joint embeddings of queries and LLMs via dual contrastive losses, routing to the model with the highest similarity score.
+
+While supervised routers achieve strong performance when deployed on stationary distributions that match their training data, they exhibit two critical flaws in production environments. First, they deploy \emph{frozen policies} that cannot adapt to non-stationarity (e.g., silent model updates or shifting user prompts). Second, they enforce budget constraints via fixed, offline-tuned thresholds or cost penalties. If a model provider unexpectedly drops prices, these static systems fail to dynamically exploit the new cost-quality trade-off, either under-spending their budget or requiring a manual, offline retraining and recalibration cycle.
+
+\subsection{Adaptive and Bandit-Based Routers}
+
+To enable online adaptation, a recent wave of research has formulated LLM routing as a contextual bandit or reinforcement learning (RL) problem, allowing systems to learn continuously from deployment feedback. 
+
+PILOT~\cite{panda2025pilot} extends LinUCB~\cite{li2010contextual} with \emph{preference-prior informed} initialization, injecting LLM embeddings learned offline from human preference data to mitigate the cold-start problem. To manage costs, PILOT employs an online multi-choice knapsack algorithm to optimize cumulative cost over a known, finite horizon. While theoretically grounded, the knapsack approach requires knowing the total number of queries in advance, making it difficult to apply to open-ended, continuous production streams where request volume fluctuates. 
+
+BaRP~\cite{wang2025barp} trains a contextual bandit using entropy-regularized policy gradients, conditioning routing on a user preference vector to allow inference-time adjustments to the cost-quality trade-off. LLM Bandit~\cite{li2025llmbandit} utilizes a multi-armed bandit with preference-conditioned routing, incorporating model identity vectors to generalize to unseen models. Similarly, xRouter~\cite{qian2025xrouter} takes an RL approach, fine-tuning a small language model to act as both a router and a responder, trained end-to-end with a cost-aware reward signal. Finally, recent work on contextual queueing bandits (e.g., ACQB~\cite{bae2026learning}) leverages implicit feedback from user retrials to jointly optimize routing and scheduling in conversational services.
+
+\subsection{Positioning BanditGPT}
+
+BanditGPT builds upon the foundation of contextual bandits but introduces critical structural advances designed specifically for the realities of open-ended, budget-constrained production environments:
+
+\begin{enumerate}[leftmargin=*,nosep]
+    \item \textbf{Continuous Budget Pacing:} Unlike PILOT's finite-horizon knapsack or the static scalarized cost penalties used in RouteLLM and BaRP, BanditGPT utilizes a Primal-Dual Contextual Bandit with Knapsacks (CBwK) framework. This \emph{BudgetPacer} strictly enforces a per-request average cost target (e.g., ``\$0.005 per request'') over an infinite horizon, automatically adjusting to price drops or traffic shifts without offline recalibration.
+    \item \textbf{Explicit Handling of Non-Stationarity:} While existing bandit routers continuously learn, they often employ infinite memory (e.g., standard LinUCB). When model quality degrades (reward drift), infinite memory causes catastrophic inertia, as the router slowly unlearns thousands of stale historical observations. BanditGPT introduces a principled geometric forgetting mechanism that dynamically discounts stale evidence, enabling rapid adaptation to quality shifts while preserving enough historical context to avoid volatile, uninformed routing.
+\end{enumerate}
