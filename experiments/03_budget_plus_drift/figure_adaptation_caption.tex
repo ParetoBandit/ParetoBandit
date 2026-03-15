@@ -1,33 +1,24 @@
 \begin{figure*}[htbp]
     \centering
     \includegraphics[width=\linewidth]{../experiments/03_budget_plus_drift/results/adaptation_dynamics.pdf}
-    \caption{Budget pacing under cost drift ($K{=}3$; 50~seeds,
-    $\pm$1\,SE shading).
+    \caption{BanditGPT dual-variable dynamics under a mid-stream
+    Gemini price drop (step~912; $K{=}3$, 50~seeds, $\pm$1\,SE).
     %
-    \textbf{Top row: BanditGPT adaptation mechanics.}
+    \textbf{(a)}~The dual variable $\lambda_t$ reveals qualitatively
+    distinct responses: at tight budget, $\lambda_t$ \emph{rises}
+    (binding constraint); at moderate/loose budgets, $\lambda_t$
+    decays to zero (slack constraint).
     %
-    \textbf{(a)~Dual variable $\lambda_t$:}
-    At moderate budget, $\lambda_t$ drops from ${\sim}0.35$ to
-    ${\sim}0.01$ as post-drop costs fall below target;
-    at tight budget, $\lambda_t$ \emph{rises} from $0.46$ to $0.82$
-    because the constraint remains binding.
+    \textbf{(b)}~Gemini selection fraction mirrors the dual
+    signal---tight budget drives $87\%$ Gemini adoption;
+    moderate/loose converge toward the unconstrained baseline
+    (dash-dot).
     %
-    \textbf{(b)~Gemini-Pro selection fraction:}
-    At tight budget, Gemini surges to ${\sim}84\%$---the elevated
-    $\lambda_t$ penalizes the now-expensive Mistral while Gemini's
-    near-zero cost is barely affected.
-    %
-    \textbf{(c)~Running average cost:}
-    BanditGPT tracks the budget target (dotted lines) within $3\%$.
-    %
-    \textbf{Bottom row: All-condition budget compliance.}
-    \textbf{(d--f)} Running average cost for all four conditions plus
-    the unconstrained baseline, at tight, moderate, and loose budget.
-    The black dotted line marks the budget target.
-    BanditGPT (solid orange) is the only condition that tracks the
-    target across both phases; the Recalibrated Bandit (dash-dot blue)
-    re-tunes $\lambda_s$ at the Phase~2 boundary but inherits Phase~1
-    non-compliance and cannot adjust within Phase~2.
+    \textbf{(c)}~Running average cost per request; dotted lines
+    mark budget targets.
+    All three regimes exhibit the correct Lagrangian response.
+    See Table~\ref{tab:budget_compliance} for quantitative
+    compliance comparisons with baselines.
     }
     \label{fig:exp03_adaptation}
 \end{figure*}

@@ -64,12 +64,39 @@ We construct two distinct non-stationary test environments to evaluate the route
 
 \subsection{Baselines}
 
-We compare BanditGPT against two standard baselines representing different levels of routing sophistication:
-1. \textbf{Fixed Policy (Offline):} The router is initialized with warmup priors but performs zero online learning ($\gamma=1.0$, updates disabled). A static, offline-tuned cost penalty $\lambda_s$ is applied. This represents the industry standard of deploying a frozen classifier trained on offline data.
-2. \textbf{Naive Bandit ($\gamma=1.0$):} A standard LinUCB algorithm initialized with warmup priors. It learns online but retains infinite memory (no forgetting). A static cost penalty $\lambda_s$ is applied. This represents a straightforward application of online learning without adaptation for non-stationarity or budget pacing.
-3. \textbf{BanditGPT ($\gamma=0.995$):} Our proposed system, initialized with warmup priors, utilizing geometric forgetting, and governed by the Primal-Dual `BudgetPacer` targeting a specific dollar budget.
+We compare BanditGPT against three baselines representing increasing levels of routing sophistication:
+\begin{enumerate}[nosep,leftmargin=*]
+  \item \textbf{Fixed Policy (Offline):} Warmup priors deployed
+    without online learning ($\gamma{=}1.0$, updates disabled)
+    and a static cost penalty $\lambda_s$.  The industry standard:
+    deploy an offline-trained router with a hand-tuned cost weight.
+  \item \textbf{Naive Bandit ($\gamma{=}1.0$):} LinUCB with warmup
+    priors and online learning, but infinite memory (no forgetting)
+    and a static cost penalty.  The approach taken by existing
+    bandit-based LLM
+    routers~\cite{panda2025pilot,wang2025barp,li2025llmbandit}.
+  \item \textbf{SW-UCB ($W{=}200$):} Sliding-Window
+    LinUCB~\cite{garivier2011switching} without warmup priors
+    ($\alpha{=}0.01$).  Retains only the last $W$ observations
+    with equal weighting.  Window size is matched to BanditGPT's
+    effective memory (${\sim}200$ steps) for a controlled
+    comparison of the forgetting mechanism against an established
+    non-stationary bandit algorithm.  Used in the reward-drift
+    experiment (Section~\ref{sec:exp2_reward_shift}).
+  \item \textbf{BanditGPT ($\gamma{=}0.995$):} Our proposed system,
+    initialized with warmup priors, utilizing geometric forgetting,
+    and governed by the Primal-Dual \texttt{BudgetPacer} targeting
+    a specific dollar budget.
+\end{enumerate}
 
-All three conditions use the same exploration rate ($\alpha=0.1$) and prior strength ($n_\mathit{eff}=1000$).
+\noindent
+All prior-initialised conditions (Fixed, Naive, BanditGPT) share
+$\alpha{=}0.1$ and $n_\mathit{eff}{=}1{,}000$.
+SW-UCB uses $\alpha{=}0.01$ (appropriate for cold-start without
+priors).
+Experiment~3 additionally includes a \textbf{Recalibrated Bandit}
+that re-tunes its static penalty at the Phase~2 boundary, serving
+as the strongest static-penalty baseline for cost-drift evaluation.
 
 \subsection{Metrics}
 

@@ -8,9 +8,9 @@
 \label{app:forgetting_ablation}
 
 The main-text experiments (Sections~\ref{sec:reward_shift}
-and~\ref{sec:budget_drift}) compare three routing strategies of
-increasing sophistication: Fixed Policy, Naive Bandit, and
-BanditGPT.
+and~\ref{sec:budget_drift}) compare four routing strategies of
+increasing sophistication: Fixed Policy, Naive Bandit, SW-UCB,
+and BanditGPT.
 Here we report the full $\gamma$ sensitivity analysis that informed
 the choice of $\gamma{=}0.995$ and justify removing the
 intermediate ablation conditions from the main figures.
@@ -73,21 +73,21 @@ This is the key tradeoff motivating the warmup + forgetting
 combination presented in the main text.
 
 \paragraph{Relationship to main-text conditions.}
-The three main-text conditions map to rows in this table:
+Three of the four main-text conditions map to rows in this table:
 \begin{itemize}[nosep,leftmargin=*]
   \item \textbf{Fixed Policy (offline)} $\approx$ Warmup +
-    $\gamma{=}1.0$ without online learning (regret $208.4$
+    $\gamma{=}1.0$ without online learning (regret $215.6$
     in the main text, higher than the Warmup $\gamma{=}1.0$ row
     because the Fixed Policy never calls \texttt{process\_feedback}).
   \item \textbf{Naive Bandit ($\gamma{=}1.0$)} $=$ Warmup +
-    $\gamma{=}1.0$ row ($172.1$ in this table; $190.6$ in the
+    $\gamma{=}1.0$ row ($172.1$ in this table; $153.2$ in the
     main text with 40~seeds).
   \item \textbf{BanditGPT ($\gamma{=}0.995$)} $=$ Warmup +
-    $\gamma{=}0.995$ row ($135.5$ here; $121.0$ with 40~seeds).
+    $\gamma{=}0.995$ row ($135.5$ here; $114.6$ with 40~seeds).
 \end{itemize}
 
 \noindent
 The full sensitivity analysis confirms that the
 $\gamma{=}0.995$--$0.997$ range is optimal and that the
-3-baseline comparison in the main text captures the essential
+4-condition comparison in the main text captures the essential
 performance ordering.

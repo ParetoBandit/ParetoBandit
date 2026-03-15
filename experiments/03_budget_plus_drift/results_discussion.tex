@@ -55,6 +55,22 @@ budget-dominated to quality-dominated routing, allowing us to
 evaluate adaptation behavior across the entire operating envelope
 rather than at a single hand-picked budget.
 
+\paragraph{Why this matters.}
+The scenario above is not hypothetical: Gemini's pricing dropped
+$12\times$ between 2024 and 2025, and similar price adjustments
+occur quarterly across major providers.
+A router that cannot exploit a mid-stream price drop
+leaves money on the table---or, worse, continues routing to
+expensive models while a cheaper, equally capable alternative
+exists.
+The question is whether the router's cost-control mechanism can
+adapt \emph{automatically}, without operator intervention, and
+whether it does so while maintaining budget compliance.
+
+\paragraph{Why these baselines.}
+We select four conditions that isolate the contribution of each
+cost-control mechanism.  Each adds exactly one capability:
+
 \noindent
 Per target, four conditions represent increasing levels of
 routing sophistication, each using warmup priors:
@@ -63,10 +79,14 @@ routing sophistication, each using warmup priors:
     Frozen warmup priors with a matched static cost penalty;
     no online learning.  The industry standard: deploy an
     offline-trained router with a hand-tuned cost weight.
+    This establishes the \emph{cost of not adapting} under
+    pricing changes.
   \item \textbf{Naive Bandit ($\gamma{=}1.0$):}
     LinUCB with infinite memory and the same matched static
     cost penalty.  Online learning, but no principled budget
     mechanism and no forgetting.
+    This isolates the value of \emph{online quality learning}
+    when cost control remains open-loop.
   \item \textbf{Recalibrated Bandit ($\gamma{=}1.0$):}
     Identical to the Naive Bandit in Phase~1.  At the Phase~2
     boundary, the static cost penalty is re-tuned offline:
@@ -76,9 +96,13 @@ routing sophistication, each using warmup priors:
     \emph{continuous online tracking} (BanditGPT) from
     \emph{stepwise offline recalibration}, and is the strongest
     static-penalty baseline in our comparison.
+    It answers the question: ``if we re-tuned the cost weight
+    whenever prices change, would that be enough?''
   \item \textbf{BanditGPT (Pacer + $\gamma{=}0.995$):}
     Warmup priors with jointly-tuned forgetting and the
     primal-dual BudgetPacer targeting the dollar budget directly.
+    This is the only condition with \emph{closed-loop} cost
+    control that continuously adapts to realized spend.
 \end{enumerate}
 
 \noindent
@@ -342,40 +366,59 @@ The tight budget is thus the cleanest demonstration that the
 primal-dual mechanism functions as designed: it identifies the
 cost-efficient frontier of the portfolio and exploits it fully.
 
-\paragraph{Phase~2 budget compliance across conditions
-(Figure~\ref{fig:exp03_adaptation}d--f).}
-The tight-budget regime reveals the sharpest contrast in
-Phase~2 budget compliance:
+\paragraph{Budget compliance across conditions
+(Table~\ref{tab:budget_compliance}).}
+Table~\ref{tab:budget_compliance} summarises cost/target ratios
+for all conditions across both phases.
+BanditGPT is the only condition that reliably tracks the budget
+target in Phase~1 ($0.98$--$1.00\times$).
 
-\begin{center}
+After the Phase~2 price drop, the tight constraint remains
+\emph{binding}: all baselines overshoot by $11$--$13\%$, while
+BanditGPT stays within $2\%$ of target.
+At moderate and loose budgets the price drop makes the constraint
+\emph{non-binding}---post-drop costs fall well below the target
+for \emph{every} condition, confirming that the underspend is a
+property of the new cost landscape, not an algorithmic failure.
+The pacer correctly identifies the slack constraint and relaxes
+$\lambda_t$ to zero, reverting to quality-only optimisation.
+
+\begin{table}[t]
+\centering
+\caption{Budget compliance under cost drift (Experiment~3,
+50~seeds).  Each cell shows realised average cost as a multiple
+of the budget target ($1.00\times$ = perfect).
+\textbf{Bold} marks values within $5\%$ of $1.00\times$.
+$\dagger$~Phase~2 constraint non-binding: the price drop reduces
+all methods' costs below target, regardless of algorithm.
+BanditGPT is the only condition that reliably meets the target in
+Phase~1 and, where the constraint remains binding (tight), in
+Phase~2.}
+\label{tab:budget_compliance}
 \small
-\begin{tabular}{@{}llrr@{}}
+\begin{tabular}{@{}llcc@{}}
 \toprule
-\textbf{Budget} & \textbf{Condition} & \textbf{Phase~2 Cost} & \textbf{Ratio} \\
+\textbf{Budget} & \textbf{Condition}
+  & \textbf{Phase~1} & \textbf{Phase~2} \\
 \midrule
-\multirow{4}{*}{Tight ($\$2.3 \times 10^{-4}$)}
-  & Fixed Policy     & \$2.6e-4 & $1.13\times$ \\
-  & Naive Bandit     & \$2.6e-4 & $1.11\times$ \\
-  & Recalibrated     & --- & --- \\
-  & \textbf{BanditGPT} & \textbf{\$2.4e-4} & $\mathbf{1.02\times}$ \\
+\multirow{4}{*}{Tight ($\$2.3{\times}10^{-4}$)}
+  & Fixed Policy        & $0.24\times$ & $1.13\times$ \\
+  & Naive Bandit        & $0.69\times$ & $1.13\times$ \\
+  & Recalibrated        & $0.69\times$ & $1.13\times$ \\
+  & \textbf{BanditGPT}  & $\mathbf{1.00\times}$ & $\mathbf{1.02\times}$ \\[3pt]
+\multirow{4}{*}{Moderate ($\$6.6{\times}10^{-4}$)}
+  & Fixed Policy        & $0.45\times$ & $0.40\times^{\dagger}$ \\
+  & Naive Bandit        & $\mathbf{0.96\times}$ & $0.40\times^{\dagger}$ \\
+  & Recalibrated        & $\mathbf{0.96\times}$ & $0.45\times^{\dagger}$ \\
+  & \textbf{BanditGPT}  & $\mathbf{1.00\times}$ & $0.51\times^{\dagger}$ \\[3pt]
+\multirow{4}{*}{Loose ($\$1.9{\times}10^{-3}$)}
+  & Fixed Policy        & $2.62\times$ & $0.14\times^{\dagger}$ \\
+  & Naive Bandit        & $2.88\times$ & $0.14\times^{\dagger}$ \\
+  & Recalibrated        & $2.88\times$ & $0.18\times^{\dagger}$ \\
+  & \textbf{BanditGPT}  & $\mathbf{0.98\times}$ & $0.18\times^{\dagger}$ \\
 \bottomrule
 \end{tabular}
-\end{center}
-
-\noindent
-The Fixed Policy and Naive Bandit overshoot the tight target by
-$11$--$13\%$ in Phase~2 because their static cost penalties
-cannot adapt to the new cost landscape.
-The Recalibrated Bandit re-tunes its $\lambda_s$ at the Phase~2
-boundary and can close part of this gap---but its one-shot
-recalibration is sensitive to the calibration set and cannot
-adjust within Phase~2 as spending conditions evolve.
-BanditGPT stays within $2\%$ of target: the pacer's dual
-variable continuously adjusts the cost--quality tradeoff to
-maintain compliance even as the pricing regime changes.
-
-\emph{Note: the Recalibrated row above uses placeholder values;
-update after re-running the experiment.}
+\end{table}
 
 \paragraph{Synthesis.}
 This experiment demonstrates that
